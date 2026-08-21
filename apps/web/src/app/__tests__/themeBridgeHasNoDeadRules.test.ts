@@ -37,6 +37,38 @@ const WEB_ROOT = process.cwd();
 const GLOBALS = path.join(WEB_ROOT, "src/app/globals.css");
 const SOURCE_ROOT = path.join(WEB_ROOT, "src");
 
+/**
+ * 브리지가 실제로 적용되는 곳 — 테마 클래스가 붙는 두 레이아웃 아래.
+ *
+ * 처음에는 저장소 전체에서 클래스를 셌는데, 그러면 **영원히 "살아 있다"고 말한다.**
+ * 예를 들어 `border-rose-500`은 브리지 안에서 0회지만 랜딩·정책 화면에서 35회 쓰인다.
+ * 그 화면들은 테마 밖이라 브리지 규칙이 걸리지 않으므로, 규칙은 이미 죽어 있는데
+ * 저장소 전체 카운트는 그 사실을 가려버린다.
+ */
+const BRIDGED_ROUTE_DIRS = ["app/(app)/", "app/(community)/"];
+
+/**
+ * 브리지 라우트가 실제로 import 하는 컴포넌트 디렉터리. **하드코딩하지 않고 읽어낸다** —
+ * 새 디렉터리를 쓰기 시작했는데 목록이 낡으면 살아 있는 규칙을 죽었다고 오판한다.
+ */
+function bridgeReachableComponentDirs(files: string[]): Set<string> {
+  const dirs = new Set<string>();
+  for (const file of files) {
+    const rel = toPosix(path.relative(WEB_ROOT, file));
+    if (!BRIDGED_ROUTE_DIRS.some((d) => rel.startsWith(`src/${d}`))
+      && !rel.startsWith("src/components/app/")
+      && !rel.startsWith("src/components/community/")) continue;
+    for (const m of readFileSync(file, "utf8").matchAll(/from "@\/components\/([a-zA-Z-]+)\//g)) {
+      dirs.add(m[1]);
+    }
+  }
+  return dirs;
+}
+
+function toPosix(p: string): string {
+  return p.split(path.sep).join("/");
+}
+
 function collectSourceFiles(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
     if (name === "node_modules") continue;
@@ -47,7 +79,26 @@ function collectSourceFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const sources = collectSourceFiles(SOURCE_ROOT).map((file) => readFileSync(file, "utf8"));
+const sourceFiles = collectSourceFiles(SOURCE_ROOT);
+
+/**
+ * `components/community/StartHereClient.tsx`는 브리지 범위 안에 있지만 `/start-here`
+ * (테마 밖)에서도 렌더된다. 여기 쓰인 클래스는 브리지가 안 걸린 채로도 보이므로
+ * "브리지 안에서 쓰인다"고 셀 수 없다.
+ */
+const RENDERED_OUTSIDE_TOO = ["src/components/community/StartHereClient.tsx"];
+
+const reachableDirs = bridgeReachableComponentDirs(sourceFiles);
+
+function isBridged(file: string): boolean {
+  const rel = toPosix(path.relative(WEB_ROOT, file));
+  if (RENDERED_OUTSIDE_TOO.includes(rel)) return false;
+  if (BRIDGED_ROUTE_DIRS.some((d) => rel.startsWith(`src/${d}`))) return true;
+  const m = rel.match(/^src\/components\/([a-zA-Z-]+)\//);
+  return Boolean(m && reachableDirs.has(m[1]));
+}
+
+const sources = sourceFiles.filter(isBridged).map((file) => readFileSync(file, "utf8"));
 
 /** 고정 문자열 등장 횟수. 클래스 문자열에 정규식 메타문자(`[`, `(`, `.`)가 잔뜩 들어 있어
  *  정규식으로 세면 조용히 0이 나온다 — 실제로 한 번 그렇게 틀렸다. */
@@ -78,7 +129,10 @@ describe("테마 브리지", () => {
     // 이 테스트의 실패 모드는 "브리지가 깨끗하다"가 아니라 **아무것도 못 세는 것**이다.
     // 스캔이 비면 모든 대상이 0곳으로 보이고, 그래도 아래 단언은... 오히려 다 실패한다.
     // 반대로 대상 추출이 비면 아래 단언이 **전부 통과**한다. 그쪽을 여기서 막는다.
-    expect(sources.length).toBeGreaterThan(500);
+    // 브리지 범위 안 파일만 센다. 범위 판정이 망가져 0개가 되면 모든 대상이
+    // "죽었다"로 보여 규칙을 통째로 지우게 된다 — 그쪽을 먼저 막는다.
+    expect(sources.length).toBeGreaterThan(80);
+    expect(reachableDirs.size).toBeGreaterThan(2);
     expect(bridgeTargets.length).toBeGreaterThan(50);
     // 브리지가 겨냥하는 클래스 중 확실히 쓰이는 것 하나로 카운터 자체를 검증한다.
     expect(countFixed("text-[#1A1A1F]")).toBeGreaterThan(200);

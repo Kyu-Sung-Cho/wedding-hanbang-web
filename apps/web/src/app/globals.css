@@ -649,8 +649,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 .hanbang-service-theme [class~="text-[#1b1c1c]"],
 .hanbang-service-theme [class~="text-[#1A1A1F]"],
-.hanbang-service-theme [class~="text-noir-800"],
-.hanbang-service-theme [class~="text-charcoal"] {
+.hanbang-service-theme [class~="text-noir-800"] {
   color: var(--hb-text) !important;
 }
 
@@ -676,15 +675,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   background-color: var(--hb-navy) !important;
 }
 
-.hanbang-service-theme [class~="hover:bg-[#946a6a]"]:hover,
-.hanbang-service-theme [class~="hover:bg-rose-600"]:hover {
+.hanbang-service-theme [class~="hover:bg-[#946a6a]"]:hover {
   background-color: var(--hb-navy-soft) !important;
 }
 
 .hanbang-service-theme [class~="bg-[#795252]/5"],
 .hanbang-service-theme [class~="bg-[#795252]/10"],
-.hanbang-service-theme [class~="bg-[#795252]/15"],
-.hanbang-service-theme [class~="bg-rose-500/10"] {
+.hanbang-service-theme [class~="bg-[#795252]/15"] {
   background-color: rgba(54, 83, 78, 0.10) !important;
 }
 
@@ -714,10 +711,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 .hanbang-service-theme [class~="border-[#795252]"],
 .hanbang-service-theme [class~="border-[#795252]/20"],
-.hanbang-service-theme [class~="border-[#795252]/40"],
-.hanbang-service-theme [class~="border-rose-500"],
-.hanbang-service-theme [class~="border-rose-500/30"],
-.hanbang-service-theme [class~="border-platinum"] {
+.hanbang-service-theme [class~="border-[#795252]/40"] {
   border-color: var(--hb-line) !important;
 }
 
@@ -736,8 +730,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --tw-ring-color: rgba(54, 83, 78, 0.30) !important;
 }
 
-.hanbang-service-theme [class~="focus:border-[#795252]"]:focus,
-.hanbang-service-theme [class~="focus:border-rose-500"]:focus {
+.hanbang-service-theme [class~="focus:border-[#795252]"]:focus {
   border-color: var(--hb-gold) !important;
 }
 
