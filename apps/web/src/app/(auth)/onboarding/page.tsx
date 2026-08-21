@@ -157,7 +157,9 @@ export default function OnboardingPage() {
         // onboarding_step=1에 멈춰 있었고 완주 사례가 사실상 없었다).
         //
         // 이 값의 소비처를 전수로 보면 라운지 첫 도착 카드와 아모라 첫인사 둘뿐이고,
-        // 둘 다 null일 때 폴백이 있다(`loungeFirstRun.ts`, `amoraFirstHello.ts:121`).
+        // 둘 다 null일 때 폴백이 있다 — `packages/shared/src/contracts/`의
+        // `loungeFirstRun.ts`(`FALLBACK_NEXT_STEP`)와 `amoraFirstHello.ts`("지금 어디까지
+        // 오셨는지는 편하실 때 알려주세요"). 줄 번호는 적지 않는다 — 썩는다.
         // 즉 없어도 아무것도 죽지 않는다. 반대로 필수로 두면 온보딩에 관문이 하나 더
         // 생기는데, 그게 #138이 없애려던 바로 그것이다.
         return true;
@@ -169,6 +171,20 @@ export default function OnboardingPage() {
   const stageOption = findPreparationStageOption(store.preparationStage);
   const hasStageSuggestion =
     stageOption !== null && Object.keys(stageOption.suggested).length > 0;
+
+  /**
+   * 19항목 위에 붙는 안내문. **세 갈래다** — 두 갈래로 두면 거짓말이 된다.
+   *
+   * 단계를 선택으로 바꾼 순간(`canProceed` case 5) 아무것도 안 고르고 이 화면에
+   * 도착하는 길이 열렸다. 그런데 안내문은 "고른 단계에는 미리 채울 항목이 없어서"
+   * 한 갈래뿐이라, 고른 적 없는 선택을 고쳤다고 말하게 된다. 사용자는 자기가
+   * 뭘 골랐는지 되짚어보게 되고, 그건 이 화면이 만들 필요가 없는 혼란이다.
+   */
+  const stageNotice = hasStageSuggestion
+    ? "보통 이 단계면 이 정도예요. 다르면 바꿔주세요. 여기서 확인한 내용만 저장돼요."
+    : store.preparationStage === null
+      ? "단계는 아직 안 고르셨어요. 이미 시작한 게 있으면 여기서 알려주세요."
+      : "고른 단계에는 미리 채울 항목이 없어서 비워뒀어요. 이미 시작한 게 있으면 알려주세요.";
 
   const getCompletionRedirectSearch = () => {
     const requestedPath = getAuthRedirectPath(
@@ -507,11 +523,7 @@ export default function OnboardingPage() {
                   items={store.progressChecklist}
                   onStatusChange={store.setChecklistItemStatus}
                   onCostChange={store.setChecklistItemCost}
-                  stageNotice={
-                    hasStageSuggestion
-                      ? "보통 이 단계면 이 정도예요. 다르면 바꿔주세요. 여기서 확인한 내용만 저장돼요."
-                      : "고른 단계에는 미리 채울 항목이 없어서 비워뒀어요. 이미 시작한 게 있으면 알려주세요."
-                  }
+                  stageNotice={stageNotice}
                 />
               )}
             </motion.div>

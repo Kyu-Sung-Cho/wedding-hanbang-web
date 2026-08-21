@@ -499,8 +499,14 @@ export default function OnboardingScreen() {
       case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
       case 3: return budgetEvaluation.status !== "invalid" && !weddingDateBlocked;
       case 4: return true; // 선호도는 선택사항
-      // 단계 한 줄은 필수다. 19항목은 그다음 화면이고 건너뛸 수 있다.
-      case 5: return stagePhase === "detail" || preparationStage !== null;
+      // 단계 한 줄도 선택이다 — **웹과 같은 규칙이다.**
+      //
+      // 원래 여기만 필수였다. 그런데 같은 질문을 웹은 선택으로, 앱은 필수로 물으면
+      // 한 커플이 두 화면에서 서로 다른 관문을 만난다. 웹 쪽 판단 근거는
+      // `apps/web/src/app/(auth)/onboarding/page.tsx`의 `canProceed` case 5에 적어 뒀다
+      // (요지: 이 값의 소비처 둘 다 null 폴백이 있어 없어도 아무것도 안 죽는다).
+      // 한쪽만 바꿀 이유가 없어서 같이 연다.
+      case 5: return true;
       default: return false;
     }
   }
@@ -537,23 +543,6 @@ export default function OnboardingScreen() {
         },
         categoryStatuses: saveCategories ? categoryStatuses : null,
       });
-
-      const body = neutralEnabled
-        ? buildNeutralPreparationSpaceSubmission({
-            coupleAction,
-            partnerInviteCode: inviteCode,
-            weddingDate: weddingDateUndecided ? null : weddingDate || null,
-            focusPriority: neutralFocus,
-          })
-        : {
-            role,
-            coupleAction,
-            partnerInviteCode: coupleAction === "join" ? inviteCode : undefined,
-            weddingDate: weddingDateUndecided ? null : weddingDate || null,
-            venue: venue || null,
-            totalBudget: budgetEvaluation.requestBudget,
-            progress,
-          };
 
       const res = await apiFetch("/api/onboarding", {
         method: "POST",
@@ -1289,7 +1278,16 @@ export default function OnboardingScreen() {
             disabled={submitting}
             accessibilityRole="button"
             accessibilityLabel="항목별 현황 건너뛰고 시작하기"
-            accessibilityHint="고른 단계만 저장하고 항목별 상태는 저장하지 않아요."
+            // 단계를 안 골랐으면 "고른 단계만 저장한다"고 말하면 안 된다 — 고른 적이
+            // 없다. 화면을 읽어주는 사람에게 특히 그렇다.
+            //
+            // "아무것도 저장 안 해요"라고도 하지 않는다. 이 버튼은 `handleSubmit(false)`라
+            // 앞 화면에서 받은 예식일·예산은 그대로 저장된다. 범위를 이 화면으로 좁혀 말한다.
+            accessibilityHint={
+              preparationStage === null
+                ? "이 화면에서는 아무것도 저장하지 않아요."
+                : "고른 단계만 저장하고 항목별 상태는 저장하지 않아요."
+            }
             accessibilityState={{ disabled: submitting, busy: submitting }}
           >
             <Text style={styles.skipText}>건너뛰고 시작하기</Text>

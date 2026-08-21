@@ -125,10 +125,19 @@ test("mobile onboarding runs six steps and asks for the preparation stage before
   // 걷지 않으므로 스텝 수도 다르다(onboardingFlow.test.mjs 참고).
   assert.deepEqual(getOnboardingSteps("create"), [1, 2, 3, 4, 5, 6]);
   assert.match(onboardingSource, /const DONE_STEP = ONBOARDING_DONE_STEP;/);
-  assert.match(
-    onboardingSource,
-    /case 5: return stagePhase === "detail" \|\| preparationStage !== null;/,
-  );
+  // 단계는 **묻되 강제하지 않는다.**
+  //
+  // 이 줄은 원래 `case 5: return stagePhase === "detail" || preparationStage !== null;`
+  // 이었다. 그런데 웹은 같은 질문을 `return true`로 물어서(감사 기록:
+  // "1,2단계만 필수, 3·4·5는 전부 return true"), 한 커플이 두 화면에서 서로 다른
+  // 관문을 만나고 있었다. 이 테스트를 만든 커밋의 제목이 "웹·앱 같은 모양으로
+  // 받는다"였으니, 어긋난 쪽은 앱이다.
+  //
+  // 이 테스트의 이름이 지키려는 것은 "묻는다"이지 "강제한다"가 아니다. 묻는 화면이
+  // 살아 있는지는 바로 아래 `PREPARATION_STAGE_OPTIONS.map`이 지킨다. 웹과 다시
+  // 어긋나면 `apps/web/src/app/(auth)/onboarding/__tests__/onboardingGateParity.test.ts`가
+  // 잡는다 — 한쪽만 고치는 것이 이 버그의 원인이었으므로 그쪽에 가드를 뒀다.
+  assert.match(onboardingSource, /case 5: return true;/);
   assert.match(onboardingSource, /PREPARATION_STAGE_OPTIONS\.map/);
 });
 

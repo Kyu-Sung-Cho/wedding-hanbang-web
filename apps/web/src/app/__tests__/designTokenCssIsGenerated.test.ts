@@ -97,9 +97,20 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
     }
     expect(managed.length, "생성 구간 표시를 못 찾았습니다").toBeGreaterThan(3);
 
+    // 아래에서 `--hb-*`를 **하나도 못 찾으면** stray가 빈 배열이 되어 이 테스트가
+    // 조용히 통과한다. 접두사를 바꾸거나 정규식이 상하면 그 순간 가드가 꺼지는데,
+    // 실패 메시지는 없다. 이 세션에 같은 모양의 함정을 실제로 한 번 당했다 —
+    // 온보딩 6스텝 워크 테스트가 스텝 본문을 통째로 지워도 초록이었다.
+    // 그래서 "세는 대상이 실재하는가"를 먼저 못 박는다. 실측 34개(2026-08-21).
+    const definitions = [...current.matchAll(/--hb-[a-z0-9-]+:\s*[^;]+;/g)];
+    expect(
+      definitions.length,
+      "`--hb-*` 정의를 거의 못 찾았습니다 — 접두사나 정규식이 바뀌었는지 보세요. 그대로 두면 이 가드는 꺼진 채 초록입니다.",
+    ).toBeGreaterThan(20);
+
     const inManaged = (at: number) => managed.some(([s, e]) => at >= s && at <= e);
     const stray: string[] = [];
-    for (const match of current.matchAll(/--hb-[a-z0-9-]+:\s*[^;]+;/g)) {
+    for (const match of definitions) {
       if (!inManaged(match.index ?? 0)) stray.push(match[0].trim());
     }
 
