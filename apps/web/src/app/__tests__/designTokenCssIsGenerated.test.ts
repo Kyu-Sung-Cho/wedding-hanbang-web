@@ -75,5 +75,38 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
     expect(current).toContain(`--hb-primary-hover: ${colors.noir.pressed};`);
     expect(current).toContain(`--hb-hairline: ${colors.border};`);
     expect(current).toContain(`--hb-text-muted: ${colors.textTertiary};`);
+
+    // 브리지 규칙이 참조하는 테마 블록 값도 같은 토큰에서 나와야 한다.
+    expect(current).toContain(`--hb-navy: ${colors.noir[800]};`);
+    expect(current).toContain(`--hb-line: ${colors.border};`);
+  });
+
+  it("`--hb-*`가 관리 구간 밖에서 손으로 정의되지 않는다", () => {
+    // 2026-08-21에 실제로 당한 것: `:root`의 역할 변수만 생성되고, 브리지가 참조하는
+    // 테마 블록의 `--hb-navy` 등 12개는 손으로 박혀 있었다. `colors.ts`를 빨강으로
+    // 바꾸고 sync를 돌리면 **Button만 빨개지고 제품 표면 전부는 초록으로 남는다.**
+    // 그때 가드 3개가 전부 초록이었다 — 아무도 색이 갈린 것을 몰랐다.
+    //
+    // 이 테스트는 그 구멍을 막는다. `--hb-*`를 새로 만들면 생성 구간 안에 넣어야 한다.
+    const current = readFileSync(GLOBALS, "utf8");
+    const managed: Array<[number, number]> = [];
+    for (const match of current.matchAll(/@generated:design-tokens (\S+) start/g)) {
+      const endMarker = `@generated:design-tokens ${match[1]} end`;
+      const endAt = current.indexOf(endMarker, match.index ?? 0);
+      if (endAt !== -1) managed.push([match.index ?? 0, endAt]);
+    }
+    expect(managed.length, "생성 구간 표시를 못 찾았습니다").toBeGreaterThan(3);
+
+    const inManaged = (at: number) => managed.some(([s, e]) => at >= s && at <= e);
+    const stray: string[] = [];
+    for (const match of current.matchAll(/--hb-[a-z0-9-]+:\s*[^;]+;/g)) {
+      if (!inManaged(match.index ?? 0)) stray.push(match[0].trim());
+    }
+
+    expect(
+      stray,
+      `관리 구간 밖에서 정의된 \`--hb-*\` ${stray.length}개입니다. `
+        + `여기에 두면 colors.ts를 바꿔도 따라오지 않아 색이 둘로 갈립니다.`,
+    ).toEqual([]);
   });
 });

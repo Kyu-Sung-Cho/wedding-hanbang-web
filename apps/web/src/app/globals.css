@@ -622,18 +622,20 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
  * ========================================================================= */
 .hanbang-service-theme {
   color: #263832;
-  --hb-navy: #36534e;
-  --hb-navy-soft: #2b423e;
-  --hb-gold: #36534e;
-  --hb-gold-deep: #36534e;
+  /* @generated:design-tokens service-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  --hb-navy: #36534E;
+  --hb-navy-soft: #2B423E;
+  --hb-gold: #36534E;
+  --hb-gold-deep: #36534E;
   --hb-gold-light: rgba(54, 83, 78, 0.22);
-  --hb-ivory: #fbf8f2;
-  --hb-ivory-warm: #f6efe5;
-  --hb-line: #e5d8ca;
-  --hb-muted: #7d7166;
+  --hb-ivory: #FBF8F2;
+  --hb-ivory-warm: #F6EFE5;
+  --hb-line: #E5D8CA;
+  --hb-muted: #7D7166;
   --hb-text: #263832;
-  --hb-body: #5f5b52;
-  --hb-success: #36534e;
+  --hb-body: #5F5B52;
+  --hb-success: #36534E;
+  /* @generated:design-tokens service-theme end */
 }
 
 .hanbang-service-theme [class~="text-[#795252]"],
@@ -781,18 +783,20 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
 .hanbang-community-theme {
   color: #263832;
-  --hb-navy: #36534e;
-  --hb-navy-soft: #2b423e;
-  --hb-gold: #36534e;
-  --hb-gold-deep: #36534e;
+  /* @generated:design-tokens community-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  --hb-navy: #36534E;
+  --hb-navy-soft: #2B423E;
+  --hb-gold: #36534E;
+  --hb-gold-deep: #36534E;
   --hb-gold-light: rgba(54, 83, 78, 0.22);
-  --hb-ivory: #fbf8f2;
-  --hb-ivory-warm: #f6efe5;
-  --hb-line: #e5d8ca;
-  --hb-muted: #7d7166;
+  --hb-ivory: #FBF8F2;
+  --hb-ivory-warm: #F6EFE5;
+  --hb-line: #E5D8CA;
+  --hb-muted: #7D7166;
   --hb-text: #263832;
-  --hb-body: #5f5b52;
-  --hb-success: #36534e;
+  --hb-body: #5F5B52;
+  --hb-success: #36534E;
+  /* @generated:design-tokens community-theme end */
 }
 
 /* App/community typography bridge. Keep navigation and small controls free to size

@@ -41,8 +41,12 @@ function read(relativePath: string): string {
 describe("루트는 앱의 문이다", () => {
   it("엣지가 루트를 가로채지 않는다", () => {
     const config = read("next.config.ts");
-    // `source: "/"`로 시작하는 리다이렉트가 있으면 page.tsx는 절대 돌지 않는다.
-    expect(config).not.toMatch(/source:\s*"\/"\s*,/u);
+    // `source: "/"`인 리다이렉트가 있으면 page.tsx는 절대 돌지 않는다.
+    //
+    // 처음에는 뒤에 쉼표가 오는 형태만 봤다. 그래서 `source`를 객체의 **마지막 키**로
+    // 쉼표 없이 쓰면 8/8 통과하면서 엣지 리다이렉트가 되살아났다(2026-08-21 변이로 확인).
+    // 쉼표·닫는 중괄호·줄바꿈 어느 것이 뒤에 와도 잡는다.
+    expect(config).not.toMatch(/source:\s*"\/"\s*(?=[,}\r\n])/u);
   });
 
   it("세션이 있으면 앱으로, 없으면 로그인으로 보낸다", () => {

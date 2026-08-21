@@ -125,6 +125,45 @@ describe("Button 계약", () => {
     });
     expect(onClick).toHaveBeenCalledOnce();
   });
+  it("호출자가 type=\"submit\"을 주면 그대로 제출 버튼이 된다", async () => {
+    // 기본값이 `"button"`인 것과 **호출자를 덮어쓰는 것**은 다르다. `type="button"`을
+    // 스프레드 뒤로 옮기면 폼 제출 버튼이 조용히 아무것도 안 하는 버튼이 된다 —
+    // 이 프리미티브가 막겠다고 선언한 결함(type 미표기 188개)의 정반대 방향 사고다.
+    await render(<Button type="submit">보내기</Button>);
+    expect(container.querySelector("button")?.getAttribute("type")).toBe("submit");
+  });
+
+  it("호출자가 준 disabled를 무시하지 않는다", async () => {
+    // `disabled={loading}`으로 줄여 쓰면 비활성이어야 할 버튼이 눌린다.
+    const onClick = vi.fn();
+    await render(
+      <Button disabled onClick={onClick}>
+        확인
+      </Button>,
+    );
+    const button = container.querySelector("button");
+    expect(button?.disabled).toBe(true);
+    await act(async () => {
+      button?.click();
+    });
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("링크 변형에도 스타일이 붙는다", async () => {
+    // 지금 이 프리미티브의 유일한 실제 도입처가 링크 변형이다. 링크 분기에서
+    // className을 빠뜨리면 버튼처럼 생기지 않은 링크가 남는다.
+    for (const href of ["/wedding/onboarding", "hanbang://invite#WH-DEMO24"]) {
+      await render(
+        <Button variant="primary" href={href}>
+          계속
+        </Button>,
+      );
+      const cls = container.querySelector("a")?.className ?? "";
+      expect(cls, `${href}에 스타일이 없습니다`).toContain("inline-flex");
+      expect(cls).toContain("focus-visible:ring-2");
+    }
+  });
+
   it("링크에 넘긴 부가 속성이 사라지지 않는다", async () => {
     // /invite의 "웹에서 계속하기"는 onClick으로 코드를 보관하고 data-testid로 테스트된다.
     const onClick = vi.fn();

@@ -160,13 +160,59 @@ export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "text-muted", value: colors.textTertiary },
 ];
 
+/** `#RRGGBB`를 `rgba(r, g, b, a)`로. 알파가 붙은 브리지 값을 토큰에서 만들기 위한 것. */
+function hexToRgba(hex: string, alpha: number): string {
+  const value = hex.replace("#", "");
+  const r = Number.parseInt(value.slice(0, 2), 16);
+  const g = Number.parseInt(value.slice(2, 4), 16);
+  const b = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+/**
+ * **테마 블록의 역할 변수.** `.hanbang-service-theme` / `.hanbang-community-theme` 안에서
+ * 브리지 규칙들이 실제로 참조하는 값들이다(`color: var(--hb-gold-deep) !important` 등).
+ *
+ * ## 왜 이것도 생성해야 하는가 — 이게 없으면 토큰이 거짓말을 한다
+ *
+ * 2026-08-21 실측: `colors.noir[800]`을 빨강으로 바꾸고 `tokens:sync`를 돌리면
+ * `:root`의 `--hb-primary`는 빨강이 되는데 이 블록의 `--hb-navy`는 `#36534e` 그대로였다.
+ * 즉 **Button만 빨개지고 브리지가 덮는 제품 표면 전부는 초록으로 남는다.** 색이 둘로
+ * 갈리는데 가드 3개가 전부 초록이었다.
+ *
+ * "디자인을 확정하면 토큰 값만 바꾸면 된다"가 참이 되려면 브리지가 참조하는 이 값들도
+ * 같은 토큰에서 나와야 한다. 이름(`--hb-navy`, `--hb-gold`)은 이미 거짓이지만
+ * (둘 다 유칼립투스다) 브리지 규칙 65개가 그 이름을 참조하므로 지금 바꾸지 않는다 —
+ * 브리지를 걷어낼 때 함께 사라질 이름이다.
+ */
+export const WEB_THEME_ROLE_VARS: readonly WebCssColorVar[] = [
+  { name: "navy", value: colors.noir[800] },
+  { name: "navy-soft", value: colors.noir.pressed },
+  { name: "gold", value: colors.noir[800] },
+  { name: "gold-deep", value: colors.noir[800] },
+  { name: "gold-light", value: hexToRgba(colors.noir[800], 0.22) },
+  { name: "ivory", value: colors.ivory[50] },
+  { name: "ivory-warm", value: colors.ivory.warm },
+  { name: "line", value: colors.border },
+  { name: "muted", value: colors.textTertiary },
+  { name: "text", value: colors.textPrimary },
+  { name: "body", value: colors.textSecondary },
+  { name: "success", value: colors.noir[800] },
+];
+
 /**
  * 관리 구간의 표시. 스크립트와 테스트가 같은 문자열을 본다.
  *
  * `root`/`theme`은 `:root`와 `@theme inline`의 브랜드 색이고(키 집합이 다르다, 위 참고),
- * `roles`는 `:root`의 역할 변수다.
+ * `roles`는 `:root`의 역할 변수, `service-theme`/`community-theme`은 두 테마 블록 안의
+ * 역할 변수다.
  */
-export type WebCssRegion = "root" | "theme" | "roles";
+export type WebCssRegion =
+  | "root"
+  | "theme"
+  | "roles"
+  | "service-theme"
+  | "community-theme";
 
 export function webCssManagedStart(region: WebCssRegion): string {
   return "/* @generated:design-tokens " + region

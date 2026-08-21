@@ -35,9 +35,16 @@ const COLUMNS_NOT_IN_PRODUCTION_YET = [
   "first_run_tutorial_version",
 ];
 
+/**
+ * `.select(...)`의 인자를 뽑는다. **따옴표 세 종류를 모두 받는다** — 처음에는 큰따옴표만
+ * 봤는데, 같은 컬럼을 백틱으로 쓰면 가드가 침묵했다(2026-08-21 변이로 확인:
+ * 큰따옴표는 1 failed, 백틱은 3 passed). Supabase select를 백틱으로 쓰는 건 흔한 습관이라
+ * 문법 하나 바꾸는 것만으로 이 가드를 지나칠 수 있으면 안 된다.
+ */
 function profileSelectArguments(): string[] {
   const selects: string[] = [];
-  const pattern = /\.from\("profiles"\)\s*\.select\(\s*("(?:[^"\\]|\\.)*")/gu;
+  const pattern =
+    /\.from\("profiles"\)\s*\.select\(\s*("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)/gu;
   for (const match of ROUTE_SOURCE.matchAll(pattern)) {
     selects.push(match[1]);
   }

@@ -17,6 +17,7 @@ import {
   WEB_ROOT_COLOR_VARS,
   WEB_SEMANTIC_ROLE_VARS,
   WEB_THEME_COLOR_VARS,
+  WEB_THEME_ROLE_VARS,
   renderWebCssColorVars,
   webCssManagedEnd,
   webCssManagedStart,
@@ -31,6 +32,10 @@ const REGIONS = [
   // 브랜드 색은 "무슨 색인가", 역할 변수는 "무슨 일을 하는가"다.
   { region: "roles", vars: WEB_SEMANTIC_ROLE_VARS, prefix: "hb-" },
   { region: "theme", vars: WEB_THEME_COLOR_VARS, prefix: "color-" },
+  // 브리지 규칙이 참조하는 값들. 이게 빠져 있으면 토큰을 바꿔도 제품 표면이 안 따라와
+  // 색이 둘로 갈린다(2026-08-21 실측).
+  { region: "service-theme", vars: WEB_THEME_ROLE_VARS, prefix: "hb-" },
+  { region: "community-theme", vars: WEB_THEME_ROLE_VARS, prefix: "hb-" },
 ];
 
 /**
