@@ -152,4 +152,26 @@ describe("검색 예시어가 실제로 결과를 낸다", () => {
       expect(haystack.includes(term), `검색 예시 "${term}"가 0건을 낸다`).toBe(true);
     }
   });
+
+  /**
+   * 별칭 표는 분야마다 한 줄씩 손으로 적는다. 2026-08-21에 분야를 둘 늘렸을 때 이 표가
+   * 따라오지 않아, 새 분야는 **검색으로 찾을 수 없는데 화면에는 보이는** 상태가 됐다.
+   * 라벨이 쉬운 말이라 "혼인신고"·"첫인사" 같은 익숙한 말로는 아무것도 안 걸린다.
+   */
+  it("별칭 표가 모든 분야를 담는다", async () => {
+    const { CATEGORY_CHECKLISTS } = await import("@hanbang/shared/constants");
+    const source = readFileSync(
+      resolve(process.cwd(), "src/components/app/checklist/ChecklistContent.tsx"),
+      "utf8",
+    );
+    const aliasStart = source.indexOf("CATEGORY_SEARCH_ALIASES");
+    const aliasBlock = source.slice(aliasStart, source.indexOf("};", aliasStart));
+    const covered = new Set(
+      Array.from(aliasBlock.matchAll(/^\s{2}([a-z][a-z0-9_]*):/gm), (m) => m[1]),
+    );
+    const missing = CATEGORY_CHECKLISTS
+      .map((category) => category.key)
+      .filter((key) => !covered.has(key));
+    expect(missing, `검색 별칭이 없는 분야: ${missing.join(", ")}`).toEqual([]);
+  });
 });

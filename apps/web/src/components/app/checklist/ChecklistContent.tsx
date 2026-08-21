@@ -41,6 +41,7 @@ const STATUS_LABEL: Record<ProgressItem["status"], string> = {
 // 화면에서는 처음 준비하는 사람도 이해할 수 있는 말을 먼저 쓰되, 검색에서는
 // 업체·가족과 실제로 주고받는 익숙한 용어도 놓치지 않는다.
 const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
+  greeting: ["첫인사", "인사드리기", "부모님 인사"],
   meeting: ["상견례", "양가 부모님 만남"],
   venue: ["웨딩홀", "예식장"],
   studio: ["스튜디오", "웨딩촬영", "스드메"],
@@ -60,6 +61,7 @@ const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
   mc: ["사회자", "주례", "축가"],
   ham: ["함"],
   pyebaek: ["폐백"],
+  registration: ["혼인신고", "전입신고", "확정일자", "등록기준지"],
 };
 
 function matchesFilter(status: ProgressItem["status"], filter: Filter) {

@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildAmoraLifecyclePlan } from "../lifecycle";
+
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+
+import { buildAmoraLifecyclePlan, LIFECYCLE_PHASE_KEYS } from "../lifecycle";
 
 describe("아모라 lifecycle 근거 경계", () => {
   it("legacy cost만으로 실제 지출과 예산 초과를 단정하지 않는다", () => {
@@ -93,5 +96,31 @@ describe("아모라 lifecycle 근거 경계", () => {
       expect(overdue.length).toBeGreaterThan(0);
       expect(plan.guardrails.some((g) => g.id === "progress_unknown")).toBe(false);
     });
+  });
+});
+
+describe("아모라 lifecycle 단계 커버리지", () => {
+  /**
+   * 어느 단계에도 안 들어간 분야는 진행 계산에서 **통째로 사라지는데 화면에는 아무 표시도
+   * 안 난다.** 2026-08-21에 분야를 둘 늘렸을 때 실제로 그렇게 됐다.
+   *
+   * 어느 분야가 어느 시기에 드는지는 사람이 정하는 것이라 유도할 수 없다. 대신
+   * **빠짐없음만** 여기서 강제한다.
+   */
+  it("어느 단계에도 안 들어간 분야가 없다", () => {
+    const missing = CATEGORY_CHECKLISTS
+      .map((category) => category.key)
+      .filter((key) => !LIFECYCLE_PHASE_KEYS.includes(key));
+    expect(missing, `단계에 안 들어간 분야: ${missing.join(", ")}`).toEqual([]);
+  });
+
+  it("한 분야가 두 단계에 겹쳐 들어가지 않는다", () => {
+    const seen = new Set<string>();
+    const duplicated = LIFECYCLE_PHASE_KEYS.filter((key) => {
+      if (seen.has(key)) return true;
+      seen.add(key);
+      return false;
+    });
+    expect(duplicated, `두 단계에 겹친 분야: ${duplicated.join(", ")}`).toEqual([]);
   });
 });
