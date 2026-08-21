@@ -152,7 +152,8 @@ export default function PrivacyPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (정보주체의 권리)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
-              <li>이용 내역 확인 및 탈퇴는 설정 페이지에서 직접 처리할 수 있습니다.</li>
+              <li>이용 내역 확인 및 탈퇴는 설정 페이지에서 직접 처리할 수 있습니다. 탈퇴는 되돌릴 수 없으며, 신청 화면에서 삭제 범위를 먼저 확인할 수 있습니다.</li>
+              <li>연결된 파트너와 함께 만든 준비 기록과 대화는 두 사람의 정보가 섞여 있어 남은 파트너의 화면에 유지되고, 탈퇴한 회원의 식별 정보만 제거됩니다. 등록한 업체가 있으면 해당 업체를 먼저 정리해야 탈퇴가 완료됩니다.</li>
               <li>그 밖의 요청은 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>
           </section>
