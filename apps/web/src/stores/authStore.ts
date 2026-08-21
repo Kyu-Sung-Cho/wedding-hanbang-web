@@ -45,6 +45,14 @@ const DEMO_JOURNEY: WeddingJourney = {
   venue: null,
   total_budget: 25000000,
   progress: {
+    greeting: {
+      category: "greeting", status: "completed", spent: 0,
+      checklist: buildDemoChecklist("greeting", Number.POSITIVE_INFINITY),
+    },
+    registration: {
+      category: "registration", status: "not_started", spent: 0,
+      checklist: buildDemoChecklist("registration", 0),
+    },
     meeting: {
       category: "meeting", status: "completed", spent: 420000,
       checklist: buildDemoChecklist("meeting", Number.POSITIVE_INFINITY),

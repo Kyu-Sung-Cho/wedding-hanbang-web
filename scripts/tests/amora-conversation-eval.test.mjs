@@ -200,13 +200,14 @@ test("product spec labels offline PASS as non-model and non-human evidence", () 
   assert.match(productSpec, /ai_interactions_log`에 가짜 호출 행을 만들지 않는다/);
 });
 
-test("offline fixture gate covers 19 wedding domains, W1-W5, and every adversarial boundary", () => {
+test("offline fixture gate covers every wedding domain, W1-W5, and every adversarial boundary", () => {
   const report = runOfflineContractEvaluation();
   assert.equal(report.passed, true, report.failures.join("\n"));
   assert.equal(report.evaluationKind, "offline_fixture_contract");
   assert.equal(report.externalAiCalls, 0);
   assert.equal(report.humanReviews, 0);
-  assert.equal(report.coreDomainCount, 19);
+  // 분야는 늘어난다. 숫자를 여기 박으면 분야를 늘릴 때마다 이 검사가 거짓으로 빨개진다.
+  assert.equal(report.coreDomainCount, OFFLINE_EVAL_SUITE.coreDomains.length);
   assert.deepEqual(report.scopeCoverage, ["W0", "W1", "W2", "W3", "W4", "W5"]);
   assert.deepEqual(report.notVerified, [
     "runtime question routing or tool execution",
@@ -267,15 +268,19 @@ test("offline fixture gate fails closed when a core domain or safety boundary is
   );
 });
 
-test("offline fixture schema locks 19 unique domains, exact object keys, and unique boundary ids", () => {
-  assert.equal(OFFLINE_EVAL_SUITE.coreDomains.length, 19);
-  assert.equal(new Set(OFFLINE_EVAL_SUITE.coreDomains).size, 19);
+test("offline fixture schema locks unique domains, exact object keys, and unique boundary ids", () => {
+  // 몇 개인지가 아니라 **겹치지 않는지**가 이 검사의 뜻이다.
+  assert.equal(
+    new Set(OFFLINE_EVAL_SUITE.coreDomains).size,
+    OFFLINE_EVAL_SUITE.coreDomains.length,
+  );
 
   const duplicateDomain = structuredClone(OFFLINE_EVAL_SUITE);
-  duplicateDomain.coreDomains[18] = duplicateDomain.coreDomains[0];
+  duplicateDomain.coreDomains[duplicateDomain.coreDomains.length - 1] =
+    duplicateDomain.coreDomains[0];
   assert.ok(
     validateOfflineEvalSuite(duplicateDomain).some((failure) =>
-      failure.includes("exactly 19 unique wedding core domains")
+      failure.includes("unique wedding core domains")
     ),
   );
 

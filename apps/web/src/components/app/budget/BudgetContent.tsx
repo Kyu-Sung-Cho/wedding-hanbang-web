@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import type {
   ProgressItem,
   PayerType,
@@ -52,26 +53,13 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 // 금액은 사용자가 입력하거나 계약·예약 결과로 확인된 값만 사용한다.
+//
+// 목록은 템플릿에서 뽑는다. 2026-08-21까지는 스무 줄을 손으로 적어 두었는데, 분야가
+// 스물하나로 늘었을 때 모바일 예산 화면만 따라오고 이 화면은 그대로여서 웹에서만 새
+// 분야가 사라졌다. 아이콘까지 템플릿과 한 글자도 다르지 않은 사본이었다.
 const BUDGET_CATEGORIES: { key: string; label: string; icon: string }[] = [
-  { key: "meeting", label: PLANNING_CATEGORY_LABELS.meeting, icon: "Users" },
-  { key: "venue", label: PLANNING_CATEGORY_LABELS.venue, icon: "Building2" },
-  { key: "studio", label: PLANNING_CATEGORY_LABELS.studio, icon: "Camera" },
-  { key: "dress", label: PLANNING_CATEGORY_LABELS.dress, icon: "Shirt" },
-  { key: "makeup", label: PLANNING_CATEGORY_LABELS.makeup, icon: "Palette" },
-  { key: "snap", label: PLANNING_CATEGORY_LABELS.snap, icon: "Video" },
-  { key: "ring", label: PLANNING_CATEGORY_LABELS.ring, icon: "Gem" },
-  { key: "yedan", label: PLANNING_CATEGORY_LABELS.yedan, icon: "Package" },
-  { key: "hanbok", label: PLANNING_CATEGORY_LABELS.hanbok, icon: "Flower2" },
-  { key: "shoes", label: PLANNING_CATEGORY_LABELS.shoes, icon: "Sparkles" },
-  { key: "bouquet", label: PLANNING_CATEGORY_LABELS.bouquet, icon: "Flower" },
-  { key: "honeymoon", label: PLANNING_CATEGORY_LABELS.honeymoon, icon: "Plane" },
-  { key: "houseware", label: PLANNING_CATEGORY_LABELS.houseware, icon: "Home" },
-  { key: "housing", label: PLANNING_CATEGORY_LABELS.housing, icon: "Key" },
-  { key: "invitation", label: PLANNING_CATEGORY_LABELS.invitation, icon: "Mail" },
-  { key: "gift", label: PLANNING_CATEGORY_LABELS.gift, icon: "Gift" },
-  { key: "mc", label: PLANNING_CATEGORY_LABELS.mc, icon: "Mic" },
-  { key: "ham", label: PLANNING_CATEGORY_LABELS.ham, icon: "Box" },
-  { key: "pyebaek", label: PLANNING_CATEGORY_LABELS.pyebaek, icon: "Heart" },
+  ...CATEGORY_CHECKLISTS.map(({ key, label, icon }) => ({ key, label, icon })),
+  // 예비비는 체크리스트에 없는 예산 전용 칸이다.
   { key: "reserve", label: PLANNING_CATEGORY_LABELS.reserve, icon: "Wallet" },
 ];
 
