@@ -15,33 +15,17 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
  * 그래서 정본에서 뽑는다. 분야가 늘면 아모라도 같이 안다.
  */
 /**
- * **DB가 아직 받지 못하는 분야는 모델에게 주지 않는다.**
+ * 도구가 여는 분야는 정본 그대로다.
  *
- * 쓰기 도구는 `apply_amora_atomic_tool_execution`을 지나는데, 그 본체(지금은
- * `..._pre_shared_revision`으로 이름만 바뀐 `20260716112000` 마이그레이션)가 분야 키
- * 화이트리스트를 여섯 군데 하드코딩해 두었고 거기에 열아홉 개뿐이다.
- *
- * 그래서 여기서 정본 그대로를 열어 주면 오히려 나빠진다. 지금은 모델이 새 분야를
- * 지목하지 못해 조용히 넘어가는데, 열어 주면 모델이 지목하고 DB가 거절해서 **스트리밍
- * 되던 답이 지워지고 "다시 이어갈 수 없어요"가 뜬다.** 같은 말을 다시 해도 같은 자리에서
- * 죽는다.
- *
- * DB 쪽을 고치려면 마이그레이션을 새로 추가해야 하고, 그러면 릴리스 매니페스트와
- * Vercel 소유자 서명까지 함께 가야 한다(안 그러면 프로덕션 빌드가 통째로 죽는다).
- * 그건 파운더가 여는 문이라 여기서 하지 않는다.
- *
- * `toolSchemaMatchesDatabase.test.ts`가 이 목록을 마이그레이션 원문에서 뽑은 것과
- * 대조한다. DB가 새 분야를 받게 되는 순간 그 검사가 실패하고, 그때 이 제약을 지우면 된다.
+ * 2026-08-21 한때 여기서 `greeting`·`registration`을 빼 두었다. DB 원자 실행기의 분야
+ * 화이트리스트가 열아홉 개라, 다 열면 모델이 지목하고 DB가 거절해서 답이 지워지고
+ * 재시도까지 막혔기 때문이다. `20260821120000` 마이그레이션이 그 화이트리스트를 넓혀
+ * 그 제약을 걷었다. `toolSchemaMatchesDatabase.test.ts`가 두 쪽이 어긋나면 실패한다.
  */
-const CATEGORIES_THE_DATABASE_CANNOT_ACCEPT = new Set(["greeting", "registration"]);
-
-export const CHECKLIST_CATEGORY_KEYS = CATEGORY_CHECKLISTS
-  .map(({ key }) => key)
-  .filter((key) => !CATEGORIES_THE_DATABASE_CANNOT_ACCEPT.has(key));
+export const CHECKLIST_CATEGORY_KEYS = CATEGORY_CHECKLISTS.map(({ key }) => key);
 
 /** 예산에는 체크리스트에 없는 예비비 칸이 하나 더 있다. */
-export const BUDGET_CATEGORY_KEYS = Object.keys(PLANNING_CATEGORY_LABELS)
-  .filter((key) => !CATEGORIES_THE_DATABASE_CANNOT_ACCEPT.has(key));
+export const BUDGET_CATEGORY_KEYS = Object.keys(PLANNING_CATEGORY_LABELS);
 
 /** 일정은 어느 분야에도 안 걸리는 일정을 위해 `general`을 함께 받는다. */
 export const SCHEDULE_CATEGORY_KEYS = ["general", ...CHECKLIST_CATEGORY_KEYS];
@@ -60,7 +44,6 @@ const CATEGORY_GLOSS: Record<string, string> = {
 };
 
 const PLANNING_CATEGORY_DESCRIPTION = CATEGORY_CHECKLISTS
-  .filter(({ key }) => !CATEGORIES_THE_DATABASE_CANNOT_ACCEPT.has(key))
   .map(({ key, label }) => `${key}=${CATEGORY_GLOSS[key] ?? label}`)
   .join(", ");
 

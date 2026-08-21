@@ -17,13 +17,13 @@ import { CHECKLIST_CATEGORY_KEYS } from "@/lib/ai/tools";
  * - **도구가 더 넓으면**: 모델이 그 분야를 지목하고 DB가 거절한다. 스트리밍되던 답이
  *   지워지고 "다시 이어갈 수 없어요"가 뜬다. 같은 말을 다시 해도 같은 자리에서 죽는다.
  * - **도구가 더 좁으면**: 모델이 그 분야를 아예 못 고른다. 조용히 넘어가거나 엉뚱한
- *   분야를 고른다. 지금 `greeting`·`registration`이 이 상태다 — 분야는 늘렸는데
- *   마이그레이션은 못 늘렸다(릴리스 매니페스트와 소유자 서명이 걸려 파운더가 여는 문이다).
+ *   분야를 고른다. 2026-08-21 한때 `greeting`·`registration`이 이 상태였다 — 분야는
+ *   늘렸는데 마이그레이션이 따라오지 못했다.
  *
- * **이 검사의 목적은 지금의 어긋남을 눈에 보이게 붙잡아 두는 것이다.** DB가 새 분야를
- * 받게 되는 순간 이 검사가 실패한다. 그때 `tools.ts`의
- * `CATEGORIES_THE_DATABASE_CANNOT_ACCEPT`를 지우면 된다. 그 제약이 DB 수정 뒤에도
- * 조용히 남아 아모라만 못 쓰는 상태가 되는 것을 막는다.
+ * **두 쪽이 어긋나는 순간 이 검사가 실패한다.** 어느 쪽으로 어긋나든 마찬가지다.
+ * 마이그레이션이 분야를 넓혔는데 도구가 안 따라오면 "도구만 막고 있다"고 말하고,
+ * 반대면 "DB가 못 받는 분야를 열었다"고 말한다. 한쪽만 고치고 넘어갈 수 없게 하는 것이
+ * 이 파일의 목적이다.
  */
 describe("아모라 도구 목록과 DB 화이트리스트", () => {
   const repoRoot = resolve(process.cwd(), "..", "..");
@@ -36,31 +36,41 @@ describe("아모라 도구 목록과 DB 화이트리스트", () => {
    * (`20260730102000`이 `..._pre_shared_revision`으로 rename), 앞으로도 새 마이그레이션이
    * 본문을 교체할 수 있다. 어느 파일에 있든 **가장 나중 것**이 살아 있는 정의다.
    */
-  function categoriesTheDatabaseAccepts(): string[] {
+  function categoriesTheDatabaseAccepts(): { accepted: string[]; listCount: number } {
     const files = readdirSync(migrationDir)
       .filter((name) => /^\d{14}_.+\.sql$/.test(name))
       .sort();
 
     let latest: string[] | null = null;
+    let listCount = 0;
     for (const name of files) {
       const sql = readFileSync(join(migrationDir, name), "utf8");
-      // `v_key NOT IN ( 'meeting', 'venue', ... )` 꼴을 찾는다.
+      // 한 파일 안에 목록이 **여럿** 있다(도구마다 하나씩). 마지막 것만 보면 하나만
+      // 넓힌 마이그레이션도 통과한다 — 처음 이 함수는 그렇게 덮어쓰고 있었다.
+      // 그래서 모아서 **교집합**을 쓴다. 한 자리라도 안 넓히면 곧바로 좁아진다.
+      const lists: string[][] = [];
       for (const match of sql.matchAll(/NOT IN \(\s*((?:'[a-z_]+',?\s*)+)\)/g)) {
         const keys = Array.from(match[1].matchAll(/'([a-z_]+)'/g), (m) => m[1]);
         // 분야 목록으로 보이는 것만 — 상태값 목록('completed' 등)과 가른다.
         if (keys.includes("meeting") && keys.includes("pyebaek")) {
-          latest = keys.filter((key) => key !== "reserve");
+          lists.push(keys.filter((key) => key !== "reserve"));
         }
       }
+      if (lists.length > 0) {
+        latest = lists.reduce((acc, list) => acc.filter((key) => list.includes(key)));
+        listCount = lists.length;
+      }
     }
-    return latest ?? [];
+    return { accepted: latest ?? [], listCount };
   }
 
-  const accepted = categoriesTheDatabaseAccepts();
+  const { accepted, listCount } = categoriesTheDatabaseAccepts();
 
   it("마이그레이션에서 화이트리스트를 실제로 찾아낸다", () => {
     // 못 찾으면 아래 검사가 빈 배열끼리 비교해 늘 통과한다. 먼저 찾았는지 본다.
     expect(accepted.length).toBeGreaterThan(15);
+    // 그리고 **여러 자리**를 봤는지 본다. 한 자리만 보면 나머지가 안 넓어져도 통과한다.
+    expect(listCount).toBeGreaterThan(1);
   });
 
   it("도구가 DB보다 넓지 않다 — 넓으면 대화가 그 자리에서 죽는다", () => {

@@ -368,6 +368,10 @@
     {
       "file": "20260820150000_invite_expiry_is_not_a_typo.sql",
       "sha256": "e803d23f36a2d0918ed30fc8f75b6f1e54873291000f66ac9731cca190eaa4b5"
+    },
+    {
+      "file": "20260821120000_amora_atomic_accepts_greeting_and_registration.sql",
+      "sha256": "89142899cb3cf02388531b4b39e34702c2dc1f757119086d8200b9d3b256f086"
     }
   ],
   "deploymentEvidence": {
