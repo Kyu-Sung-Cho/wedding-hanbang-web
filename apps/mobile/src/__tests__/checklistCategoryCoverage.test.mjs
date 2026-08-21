@@ -61,17 +61,58 @@ test("체크리스트·일정 화면이 분야 목록을 손으로 다시 적지
   );
 });
 
-test("대시보드가 분야를 정본에서 가져온다", () => {
-  const dashboard = source("app/(tabs)/dashboard.tsx");
-  assert.match(
-    dashboard,
-    /CATEGORY_CHECKLISTS/,
-    "대시보드가 정본 템플릿을 안 쓴다",
+/**
+ * 첫 화면 파일. 예전에는 `dashboard.tsx` 였는데 2026-08-19 파운더 결정으로
+ * **웨딩 라운지**가 되면서 파일도 `lounge.tsx` 로 바뀌었다(#147).
+ *
+ * 이름을 여기 한 곳에만 적고, 아래에서 **파일이 실제로 있는지 먼저 단언한다.**
+ * 그냥 읽으면 이름이 또 바뀌었을 때 ENOENT 로 죽는데, 그건 "정본을 안 쓴다"는
+ * 이 검사의 실패 메시지와 아무 상관이 없어서 다음 사람이 헤맨다.
+ */
+const FIRST_SCREEN = "app/(tabs)/lounge.tsx";
+
+/**
+ * 화면이 정본 템플릿(`CATEGORY_CHECKLISTS`)을 **그 이름 그대로** 쓰는가.
+ *
+ * 정규식을 안 쓴다. 처음에는 `/\bCATEGORY_CHECKLISTS\b/` 로 쓰려 했는데, 스크립트로
+ * 파일을 쓰면서 `\b` 가 **실제 백스페이스 문자(0x08)로 박혔다** — 파일에는
+ * `/^HCATEGORY_CHECKLISTS^H/` 가 들어갔고, 그러면 영원히 매칭 실패한다.
+ * 이 저장소에서 전에도 같은 사고가 있었다.
+ *
+ * 낱말 경계가 필요한 이유는 따로 있다: 그냥 부분 문자열로 찾으면
+ * `CATEGORY_CHECKLISTS_X` 같은 **다른 이름**도 통과한다(뮤테이션으로 확인했다).
+ * 그래서 앞뒤 글자가 식별자 문자가 아닌지를 손으로 본다.
+ */
+function firstScreenUsesTemplate(source) {
+  const name = "CATEGORY_CHECKLISTS";
+  const isIdentifierChar = (ch) => ch !== undefined && /[A-Za-z0-9_$]/u.test(ch);
+
+  for (let at = source.indexOf(name); at !== -1; at = source.indexOf(name, at + 1)) {
+    const before = source[at - 1];
+    const after = source[at + name.length];
+    if (!isIdentifierChar(before) && !isIdentifierChar(after)) return true;
+  }
+  return false;
+}
+
+test("첫 화면이 분야를 정본에서 가져온다", () => {
+  let firstScreen = "";
+  assert.doesNotThrow(
+    () => { firstScreen = source(FIRST_SCREEN); },
+    `첫 화면 파일이 없습니다: ${FIRST_SCREEN}. 화면 이름이 또 바뀌었다면 `
+      + "이 파일의 FIRST_SCREEN 을 옮기세요 — 검사를 지우지는 마세요.",
   );
-  const quoted = CATEGORY_KEYS.filter((key) => dashboard.includes(`"${key}"`));
+
+  // 낱말 경계를 건다. `/CATEGORY_CHECKLISTS/` 만 쓰면 `CATEGORY_CHECKLISTS_X` 같은
+  // **다른 이름**도 통과한다 — 뮤테이션으로 실제로 확인했다(이름을 바꿔도 초록이었다).
+  assert.ok(
+    firstScreenUsesTemplate(firstScreen),
+    "첫 화면이 정본 템플릿을 안 쓴다",
+  );
+  const quoted = CATEGORY_KEYS.filter((key) => firstScreen.includes(`"${key}"`));
   assert.ok(
     quoted.length < 5,
-    `대시보드가 분야 키를 ${quoted.length}개 문자열로 담고 있다: ${quoted.join(", ")}`,
+    `첫 화면이 분야 키를 ${quoted.length}개 문자열로 담고 있다: ${quoted.join(", ")}`,
   );
 });
 
