@@ -120,8 +120,18 @@ export default function OnboardingPage() {
       case 4:
         return true; // 스타일 선호도는 선택사항 (스킵 가능)
       case 5:
-        // 단계 한 줄은 필수다. 19항목은 이 다음 화면이고 건너뛸 수 있다.
-        return store.preparationStage !== null;
+        // 단계 한 줄도 **선택이다.**
+        //
+        // 처음에는 필수로 뒀는데, main의 #138이 온보딩 질문을 고른 기준이 명시적이다 —
+        // "이 값이 없으면 무엇이 죽는가 × 나중에 받아낼 경로가 살아 있는가". 그 기준으로
+        // 장소·예산·체크리스트·스타일을 온보딩에서 뺐다(파운더 계정이 7개월간
+        // onboarding_step=1에 멈춰 있었고 완주 사례가 사실상 없었다).
+        //
+        // 이 값의 소비처를 전수로 보면 라운지 첫 도착 카드와 아모라 첫인사 둘뿐이고,
+        // 둘 다 null일 때 폴백이 있다(`loungeFirstRun.ts`, `amoraFirstHello.ts:121`).
+        // 즉 없어도 아무것도 죽지 않는다. 반대로 필수로 두면 온보딩에 관문이 하나 더
+        // 생기는데, 그게 #138이 없애려던 바로 그것이다.
+        return true;
       default:
         return false;
     }

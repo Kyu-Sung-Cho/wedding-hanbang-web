@@ -338,13 +338,8 @@ async function loadPartnerActivity({
 interface FirstRunProfileContext {
   userId: string;
   coupleId: string | null;
-  role: "bride" | "groom" | null;
   weddingDate: string | null;
   preparationStage: PreparationStageValue | null;
-}
-
-function readRole(value: unknown): "bride" | "groom" | null {
-  return value === "bride" || value === "groom" ? value : null;
 }
 
 /** 온보딩에서 고른 한 줄 단계. 모르는 값이면 null — 없는 것을 지어내지 않는다. */
@@ -495,7 +490,7 @@ export default function DashboardScreen() {
 
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("name, couple_id, role, onboarding_completed")
+        .select("name, couple_id, onboarding_completed")
         .eq("id", user.id)
         .single();
       if (profileError) throw profileError;
@@ -507,7 +502,6 @@ export default function DashboardScreen() {
         firstRunProfileRef.current = {
           userId: user.id,
           coupleId: null,
-          role: readRole(profile.role),
           weddingDate: null,
           preparationStage: null,
         };
@@ -579,7 +573,6 @@ export default function DashboardScreen() {
       firstRunProfileRef.current = {
         userId: user.id,
         coupleId: profile.couple_id,
-        role: readRole(profile.role),
         weddingDate,
         preparationStage: readPreparationStage(progress),
       };
@@ -721,7 +714,6 @@ export default function DashboardScreen() {
         ? await loadPartnerLinked(context.coupleId, context.userId)
         : false;
       const hello = buildAmoraFirstHello({
-        role: context.role,
         weddingDate: context.weddingDate,
         preparationStage: context.preparationStage,
         partnerLinked,

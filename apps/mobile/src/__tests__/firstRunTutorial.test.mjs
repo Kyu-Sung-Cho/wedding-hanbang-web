@@ -112,7 +112,11 @@ test("the first-run tutorial never opens before onboarding is finished", () => {
   );
 
   // 라운지가 프로필의 onboarding_completed를 실제로 읽고, 미완료면 프로필 조회조차 하지 않는다.
-  assert.match(loungeSource, /select\("name, couple_id, role, onboarding_completed"\)/);
+  assert.match(loungeSource, /select\("name, couple_id, onboarding_completed"\)/);
+  // 성별(role)은 가져오지 않는다. 첫 실행 안내도 아모라 첫마디도 그 값을 읽지 않는데,
+  // 안 쓰는 성별을 계속 실어 나르면 언젠가 누군가 그것을 화면에 쓴다. main의 #138이
+  // 같은 이유로 채팅 말풍선에서 성별 명사를 걷어냈다("고르지도 않은 성별로 부르지 않기").
+  assert.doesNotMatch(loungeSource, /\brole\b/);
   assert.match(loungeSource, /const onboardingCompleted = profile\.onboarding_completed === true/);
   assert.match(loungeSource, /if \(!onboardingCompleted\) return;/);
 });

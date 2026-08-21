@@ -78,15 +78,11 @@ function GlobalChatAssistant() {
 
   useEffect(() => {
     helloInputRef.current = {
-      role:
-        profile?.role === "bride" || profile?.role === "groom"
-          ? profile.role
-          : null,
       weddingDate: journey?.wedding_date ?? null,
       preparationStage: readPreparationStage(journey?.progress),
       partnerLinked: Boolean(partner),
     };
-  }, [journey?.progress, journey?.wedding_date, partner, profile?.role]);
+  }, [journey?.progress, journey?.wedding_date, partner]);
 
   useEffect(() => {
     const handleTutorialCompleted = () => {

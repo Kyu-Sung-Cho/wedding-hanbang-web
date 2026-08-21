@@ -206,7 +206,6 @@ describe("아모라 첫마디", () => {
 
   it("사용자가 적은 것만 되읽는다", () => {
     const hello = buildAmoraFirstHello({
-      role: "bride",
       weddingDate: "2026-10-17",
       preparationStage: "venue_booked",
       partnerLinked: true,

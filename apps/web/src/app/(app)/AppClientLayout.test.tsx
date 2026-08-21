@@ -227,7 +227,6 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector('[data-testid="amora-first-hello-dot"]')).not.toBeNull();
     // 문구는 모델이 아니라 온보딩 입력만으로 만들어진다.
     const expected = buildAmoraFirstHello({
-      role: "bride",
       weddingDate: "2026-10-17",
       preparationStage: "venue_booked",
       partnerLinked: false,
