@@ -136,7 +136,7 @@ export default function ChecklistContent() {
               웨딩 체크리스트
             </h1>
             <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[#5d6879] sm:text-[15px]">
-              상견례부터 신혼집까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
+              첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
           <div className="min-w-[240px] rounded-[18px] border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">

@@ -40,6 +40,7 @@ import {
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
 import {
+  describeCoupleInviteWindow,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
   HANBANG_EXPECTED_ACTOR_USER_ID_HEADER,
@@ -75,6 +76,8 @@ type CoupleCodeResponse = {
   inviteCode?: unknown;
   isFullyLinked?: unknown;
   isMembershipSealed?: unknown;
+  inviteCodeExpiresAt?: unknown;
+  inviteCodeReissued?: unknown;
 };
 
 function mutationActorHeaders(expectedActorUserId: string) {
@@ -825,6 +828,7 @@ export default function SettingsScreen() {
     ? coupleConnection
     : resolveCoupleConnectionState(null);
   const phase = visibleCoupleConnection.phase;
+  const inviteWindowNotice = describeCoupleInviteWindow(visibleCoupleConnection);
   if (loading) {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
@@ -1107,7 +1111,9 @@ export default function SettingsScreen() {
                       )}
                     </Pressable>
                   </View>
-                  <Text style={styles.fieldHint}>이 코드를 파트너에게 공유해 주세요</Text>
+                  <Text style={styles.fieldHint}>
+                    {inviteWindowNotice?.message ?? "이 코드를 파트너에게 공유해 주세요"}
+                  </Text>
                 </View>
               ) : phase === "linked" ? (
                 <View style={styles.connectionNotice}>

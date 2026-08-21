@@ -523,6 +523,33 @@ describe("ChatContent composer draft lanes", () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  // 온보딩 직후 진입은 authStore 가 마운트 뒤에 하이드레이션된다.
+  // 그 순간 composerIdentity 가 바뀌면서 모든 초안을 비우는데,
+  // 방금 넘겨받은 초안까지 지워졌다 — 실제로 운영에서 당했다.
+  it("신원이 늦게 확정돼도 온보딩 초안은 살아있다", async () => {
+    mocks.queryPrefill = "신혼집부터 먼저 정리하고 싶어요.";
+    mocks.profileId = "anonymous";
+    mocks.coupleId = "no-couple";
+
+    await act(async () => {
+      root.render(<ChatContent />);
+      await Promise.resolve();
+    });
+
+    const composer = () => container.querySelector<HTMLTextAreaElement>("textarea");
+    expect(composer()?.value).toBe("신혼집부터 먼저 정리하고 싶어요.");
+
+    // authStore 가 늦게 하이드레이션된 상황
+    mocks.profileId = "user-1";
+    mocks.coupleId = "couple-1";
+    await act(async () => {
+      root.render(<ChatContent />);
+      await Promise.resolve();
+    });
+
+    expect(composer()?.value).toBe("신혼집부터 먼저 정리하고 싶어요.");
+  });
+
   it("places an incoming prefill only in the shared Amora lane", async () => {
     mocks.queryPrefill = "이어 온 아모라 질문";
     await act(async () => {

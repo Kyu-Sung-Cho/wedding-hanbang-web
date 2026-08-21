@@ -10,6 +10,7 @@ import {
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 
 const TOPIC_KEYS = [
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -29,6 +30,7 @@ const TOPIC_KEYS = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ] as const;
 
 function currentCoverage() {
@@ -43,9 +45,9 @@ describe("Amora full-journey truth audit", () => {
     expect(result?.version).toBe(1);
     expect(result?.scope).toBe("full_wedding_journey_truth");
     expect(result?.topicPolicies.map((policy) => policy.topicKey)).toEqual(TOPIC_KEYS);
-    expect(result?.topicPolicies).toHaveLength(19);
+    expect(result?.topicPolicies).toHaveLength(21);
     expect(result?.topicPolicies[0]).toEqual({
-      topicKey: "meeting",
+      topicKey: "greeting",
       truthOwners: {
         problem: "canonical_checklist",
         applicability: "saved_checklist",

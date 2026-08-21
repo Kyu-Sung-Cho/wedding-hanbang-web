@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useId, useRef } from "react";
 import {
+  FileText,
   X,
   Check,
   Circle,
@@ -40,6 +41,7 @@ import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  FileText,
   Building2,
   Camera,
   Shirt,

@@ -56,16 +56,21 @@ export interface NeutralPreparationSpaceSubmissionInput {
   coupleAction: "create" | "join";
   inviteCode: string;
   preparationCatchUp?: AmoraPreparationCatchUpDraftSubmission;
+  /** 공유 구현이 만든 본문. 날짜 검증과 관심사 매핑은 shared 한 곳에만 둔다. */
+  base?: {
+    weddingDate: string | null;
+    progress: Record<string, unknown>;
+  };
 }
 
 export type NeutralPreparationSpaceSubmissionPayload = Readonly<{
   membershipMode: "neutral_preparation_space";
   coupleAction: NeutralPreparationSpaceSubmissionInput["coupleAction"];
   partnerInviteCode?: string;
-  weddingDate: null;
+  weddingDate: string | null;
   venue: null;
   totalBudget: null;
-  progress: Readonly<Record<string, never>>;
+  progress: Readonly<Record<string, unknown>>;
   preparationCatchUp?: AmoraPreparationCatchUpDraftSubmission;
 }>;
 

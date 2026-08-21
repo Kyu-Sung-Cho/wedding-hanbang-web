@@ -472,6 +472,7 @@ step 10 is a human step and the release is not complete without it.
 | `20260820120000_neutral_join_reports_legacy_space.sql` | `8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80` | `AMR-F10` | `active_dependency` | `AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED=false` | `hosted:first-value` |
 | `20260820130000_legacy_join_blocks_neutral_space.sql` | `6e0668148b9773f27b00b30b59b36d221ed876056b23f636bb9608ab8db6e3c0` | `AMR-F10` | `integrity_hardening` | `always_on` | `hosted:first-value` |
 | `20260820140000_neutral_schedule_assignee_label.sql` | `457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23` | `AMR-D14` | `integrity_hardening` | `always_on` | `hosted:mutation-replay` |
+| `20260820150000_invite_expiry_is_not_a_typo.sql` | `e803d23f36a2d0918ed30fc8f75b6f1e54873291000f66ac9731cca190eaa4b5` | `AMR-F15` | `integrity_hardening` | `always_on` | `hosted:first-value` |
 
 <!-- AMORA:PENDING-SCOPE-CLASSIFICATION:END -->
 

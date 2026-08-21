@@ -16,7 +16,10 @@ describe("guideLinkForCategory", () => {
   it("covers every checklist category", () => {
     const uncovered = categoryKeys.filter((key) => guideLinkForCategory(key) === null);
     expect(uncovered, `안내가 없는 카테고리: ${uncovered.join(", ")}`).toEqual([]);
-    expect(categoryKeys).toHaveLength(19);
+    // 2026-08-21에 21개가 됐다. 예절 편은 있는데 실행 쪽에 대응물이 없던 두 편을 채웠다 —
+    // 「첫인사 예절」과 「혼인신고와 법적 절차」다. 숫자를 박아 두는 이유는 분야가 늘 때
+    // 이 검사를 반드시 지나가게 해서, 편을 안 이은 채로 분야만 생기는 일을 막기 위해서다.
+    expect(categoryKeys).toHaveLength(21);
   });
 
   it("fills the nine categories that used to have no guide", () => {

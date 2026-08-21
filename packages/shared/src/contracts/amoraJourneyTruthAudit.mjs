@@ -22,6 +22,7 @@ const AXIS_KEYS = Object.freeze([
   "post_wedding",
 ]);
 const TOPIC_KEYS = Object.freeze([
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -41,6 +42,7 @@ const TOPIC_KEYS = Object.freeze([
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ]);
 const GAP_POLICIES = Object.freeze({
   planning_foundation: Object.freeze({

@@ -27,7 +27,7 @@ const JOURNEY_CHAPTER_DEFINITIONS = Object.freeze([
     key: "agreements",
     title: "먼저 맞출 것",
     description: "두 사람과 가족이 큰 방향을 맞추는 준비예요.",
-    topicKeys: Object.freeze(["meeting", "venue"]),
+    topicKeys: Object.freeze(["greeting", "meeting", "venue"]),
   }),
   Object.freeze({
     key: "vendors",
@@ -39,7 +39,9 @@ const JOURNEY_CHAPTER_DEFINITIONS = Object.freeze([
     key: "life_and_family",
     title: "생활과 가족 준비",
     description: "신혼생활과 가족 사이에서 맞출 준비예요.",
-    topicKeys: Object.freeze(["hanbok", "yedan", "honeymoon", "houseware", "housing"]),
+    topicKeys: Object.freeze([
+      "hanbok", "yedan", "honeymoon", "houseware", "housing", "registration",
+    ]),
   }),
   Object.freeze({
     key: "ceremony_details",

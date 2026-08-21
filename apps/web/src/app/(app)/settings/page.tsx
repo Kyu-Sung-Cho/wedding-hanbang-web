@@ -40,6 +40,7 @@ import {
 } from "@/lib/couples/settingsInviteActorFence";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import {
+  describeCoupleInviteWindow,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
   WEDDING_BUDGET_TENDENCY_OPTIONS,
@@ -230,6 +231,8 @@ export default function SettingsPage() {
         inviteCode: couple.invite_code ?? "WH-DEMO01",
         isFullyLinked: Boolean(couple.bride_id && couple.groom_id),
         isMembershipSealed: Boolean(couple.membership_sealed_at),
+        inviteCodeExpiresAt: null,
+        inviteCodeReissued: false,
       }, context));
       setCoupleConnectionOwnerId("demo");
       return;
@@ -289,6 +292,7 @@ export default function SettingsPage() {
   );
   const phase = visibleCoupleConnection.phase;
   const coupleCode = visibleCoupleConnection.inviteCode;
+  const inviteWindowNotice = describeCoupleInviteWindow(visibleCoupleConnection);
   const hasLegacyCareConsent =
     profile?.care_notifications_enabled === true &&
     typeof profile.care_notifications_consented_at === "string" &&
@@ -371,14 +375,7 @@ export default function SettingsPage() {
           setCoupleConnectionOwnerId(null);
           return;
         }
-        const inviteCode = typeof payload === "object" && payload !== null
-          ? (payload as { inviteCode?: unknown }).inviteCode
-          : null;
-        setCoupleConnection(resolveCoupleConnectionState({
-          inviteCode,
-          isFullyLinked: false,
-          isMembershipSealed: false,
-        }));
+        setCoupleConnection(resolveCoupleConnectionState(payload));
         setCoupleConnectionOwnerId(expectedActorUserId);
       } else {
         // A join can win the race after this screen loaded. Remove the old
@@ -1156,6 +1153,17 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
+              {inviteWindowNotice && (
+                <p
+                  className={
+                    inviteWindowNotice.tone === "active"
+                      ? "mt-2 text-sm text-[#928980]"
+                      : "mt-2 text-sm font-medium text-[#795252]"
+                  }
+                >
+                  {inviteWindowNotice.message}
+                </p>
+              )}
               <button
                 onClick={handleRegenerateCode}
                 disabled={regenerating || !visibleCoupleConnection.canInvite}

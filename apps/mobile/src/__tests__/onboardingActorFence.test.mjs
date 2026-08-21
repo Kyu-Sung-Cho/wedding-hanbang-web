@@ -38,6 +38,19 @@ test("mobile onboarding sends the rollout-safe actor headers without changing it
   );
 });
 
+test("초대 기한 조회가 늦게 와도 이전 계정 화면에 찍히지 않는다", () => {
+  // 이 조회는 await 하지 않는 fire-and-forget 이라 응답이 계정 전환 뒤에 올 수 있다.
+  // 쓰기 직전에 소유자를 한 번 더 보지 않으면 이전 커플의 기한이 새 계정 화면에 남는다.
+  const start = source.indexOf("/api/couple/code");
+  assert.ok(start > 0, "초대 기한 조회를 찾지 못했다");
+  const write = source.indexOf("setResultDeadline(describeInviteDeadline", start);
+  assert.ok(write > start, "기한 쓰기를 찾지 못했다");
+  assert.match(
+    source.slice(start, write),
+    /if \(!submissionOwnerStillCurrent\(\)\) return;/u,
+  );
+});
+
 test("mobile onboarding fences a late response after account switching", () => {
   const responseFence = source.indexOf("const { data: { user: responseOwner } }");
   const responseRead = source.indexOf("const data = await res.json()", responseFence);

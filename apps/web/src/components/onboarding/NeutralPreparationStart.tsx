@@ -3,7 +3,9 @@
 import {
   COUPLE_INVITE_CODE_MAX_LENGTH,
   COUPLE_INVITE_CODE_PLACEHOLDER,
+  WEDDING_PRIORITY_OPTIONS,
   normalizeCoupleInviteCode,
+  type WeddingPriorityValue,
 } from "@hanbang/shared";
 
 type NeutralPreparationStartProps = Readonly<{
@@ -16,7 +18,20 @@ type NeutralPreparationStartProps = Readonly<{
   onJoin: () => void;
   /** 실패 문구. 없으면 사용자는 버튼이 원상복귀하는 것만 보고 이유를 모른다. */
   error?: string;
+  /** 예식일. 비워 두고 시작해도 되고, 나중에 설정에서 넣을 수 있다. */
+  weddingDate: string;
+  onWeddingDateChange: (value: string) => void;
+  /** 지금 신경 쓰이는 것 하나. 첫 대화 초안을 만드는 데만 쓴다. */
+  focusPriority: WeddingPriorityValue | null;
+  onFocusPriorityChange: (value: WeddingPriorityValue | null) => void;
 }>;
+
+/** 오늘 이전 날짜를 고르지 못하게 한다. 지난 날짜는 예식일이 아니다. */
+function todayIsoDate(): string {
+  const now = new Date();
+  const offsetMs = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - offsetMs).toISOString().slice(0, 10);
+}
 
 export default function NeutralPreparationStart({
   coupleAction,
@@ -27,6 +42,10 @@ export default function NeutralPreparationStart({
   onPartnerCodeChange,
   onJoin,
   error = "",
+  weddingDate,
+  onWeddingDateChange,
+  focusPriority,
+  onFocusPriorityChange,
 }: NeutralPreparationStartProps) {
   return (
     <section aria-labelledby="neutral-preparation-title" className="space-y-6">
@@ -43,9 +62,63 @@ export default function NeutralPreparationStart({
           역할을 정하지 않아도 시작할 수 있어요
         </h1>
         <p className="mt-2 text-[14px] leading-relaxed text-taupe-500">
-          예식일·장소·예산은 나중에 채우고, 지금 상황에 맞는 한 가지부터
-          아모라와 정리해요.
+          지금 아는 것만 알려주세요. 장소·예산은 나중에 채워도 돼요.
         </p>
+      </div>
+
+      {/* 예식일 — 아모라가 대신 받아낼 수 없는 유일한 값이라 여기서 묻는다.
+          비워 두고 시작해도 막지 않는다. */}
+      <div className="space-y-2">
+        <label
+          htmlFor="neutral-wedding-date"
+          className="block text-[14px] font-medium text-noir-800"
+        >
+          결혼식 날짜, 정하셨어요?
+        </label>
+        <input
+          id="neutral-wedding-date"
+          type="date"
+          value={weddingDate}
+          disabled={loading}
+          min={todayIsoDate()}
+          onChange={(event) => onWeddingDateChange(event.target.value)}
+          className="w-full rounded-2xl border border-black/[0.06] bg-white px-5 py-3.5 text-[16px] text-noir-800 outline-none transition-colors focus:border-rose-500 disabled:opacity-50"
+        />
+        <p className="text-[12px] text-taupe-400">
+          아직이면 비워 두세요. 나중에 언제든 바꿀 수 있어요.
+        </p>
+      </div>
+
+      {/* 지금 신경 쓰이는 것 — 저장은 곁가지이고, 첫 대화를 여는 게 목적이다.
+          첫 인사는 저장된 정보를 먼저 꺼내지 못하므로 초안으로 넘긴다. */}
+      <div className="space-y-2">
+        <p className="text-[14px] font-medium text-noir-800">
+          지금 제일 신경 쓰이는 건 뭐예요?{" "}
+          <span className="font-normal text-taupe-400">(선택)</span>
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {WEDDING_PRIORITY_OPTIONS.map((option) => {
+            const selected = focusPriority === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                disabled={loading}
+                aria-pressed={selected}
+                onClick={() =>
+                  onFocusPriorityChange(selected ? null : option.value)
+                }
+                className={`min-h-11 rounded-2xl border px-3 py-2.5 text-[13px] leading-snug transition-colors disabled:opacity-50 ${
+                  selected
+                    ? "border-[#795252] bg-[#795252]/[0.08] font-medium text-[#795252]"
+                    : "border-black/[0.08] bg-white text-taupe-500 hover:bg-black/[0.02]"
+                }`}
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <div className="space-y-3">

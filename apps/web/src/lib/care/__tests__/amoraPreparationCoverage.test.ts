@@ -6,6 +6,7 @@ import {
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 
 const CURRENT_CHECKLIST_TOPIC_KEYS = [
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -25,6 +26,7 @@ const CURRENT_CHECKLIST_TOPIC_KEYS = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ] as const;
 
 const FULL_JOURNEY_AXIS_KEYS = [
@@ -51,7 +53,7 @@ describe("Amora preparation coverage audit", () => {
     expect(result.connectedChecklistTopics.map((topic) => topic.topicKey)).toEqual(
       CURRENT_CHECKLIST_TOPIC_KEYS,
     );
-    expect(result.connectedChecklistTopics).toHaveLength(19);
+    expect(result.connectedChecklistTopics).toHaveLength(21);
     expect(
       result.connectedChecklistTopics.every(
         (topic) => topic.applicability === "explicit_not_applicable_supported",
@@ -117,7 +119,7 @@ describe("Amora preparation coverage audit", () => {
     );
     expect(result.issues).toContainEqual({
       code: "duplicate_checklist_topic",
-      topicKey: "meeting",
+      topicKey: "greeting",
       inputIndex: CATEGORY_CHECKLISTS.length,
     });
   });

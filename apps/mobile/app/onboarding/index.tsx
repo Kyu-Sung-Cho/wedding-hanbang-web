@@ -51,6 +51,8 @@ import {
   describeCoupleInviteCodeProblem,
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
+  buildNeutralPreparationSpaceSubmission,
+  describeInviteDeadline,
   parseNeutralPreparationSpaceCapability,
 } from "@hanbang/shared";
 import { PrimaryButton } from "@/components/ui/AppUI";
@@ -153,6 +155,10 @@ function NeutralPlanningFoundation({
   catchUpReceipt,
   onSelectStage,
   onResetStage,
+  weddingDate,
+  neutralFocus,
+  onChangeWeddingDate,
+  onChangeNeutralFocus,
   onChangeCoupleAction,
   onChangeInviteCode,
   onSubmit,
@@ -176,6 +182,10 @@ function NeutralPlanningFoundation({
   catchUpReceipt: AmoraPreparationCatchUpReceipt | null;
   onSelectStage: (stage: PlanningFoundationSelfReportedStage) => void;
   onResetStage: () => void;
+  weddingDate: string;
+  neutralFocus: WeddingPriorityValue | null;
+  onChangeWeddingDate: (value: string) => void;
+  onChangeNeutralFocus: (value: WeddingPriorityValue | null) => void;
   onChangeCoupleAction: (action: CoupleAction) => void;
   onChangeInviteCode: (code: string) => void;
   onSubmit: () => void;
@@ -254,7 +264,7 @@ function NeutralPlanningFoundation({
           다 입력하지 않아도,{"\n"}지금 할 한 가지부터
         </Text>
         <Text style={styles.foundationDescription}>
-          역할·예식일·예산은 나중에 정해도 괜찮아요. 지금 상황에 가까운 답 하나로 시작할게요.
+          역할·예산은 나중에 정해도 괜찮아요. 지금 상황에 가까운 답 하나로 시작할게요.
         </Text>
 
         {firstValue.kind === "question" ? (
@@ -329,6 +339,52 @@ function NeutralPlanningFoundation({
             >
               <Text style={styles.foundationResetText}>답 다시 고르기</Text>
             </Pressable>
+
+            {/* 예식일 — 아모라가 대신 받아낼 수 없는 유일한 값이라 여기서 묻는다.
+                비워 두고 시작해도 막지 않는다. */}
+            <Text style={styles.fieldLabel}>결혼식 날짜, 정하셨어요?</Text>
+            <TextInput
+              style={styles.input}
+              value={weddingDate}
+              onChangeText={onChangeWeddingDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.taupe[400]}
+              keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+              maxLength={10}
+              accessibilityLabel="결혼식 날짜"
+            />
+            <Text style={styles.fieldHint}>
+              아직이면 비워 두세요. 나중에 언제든 바꿀 수 있어요.
+            </Text>
+
+            {/* 지금 신경 쓰이는 것 — 첫 대화를 여는 게 목적이다. */}
+            <Text style={styles.fieldLabel}>
+              지금 제일 신경 쓰이는 건 뭐예요? (선택)
+            </Text>
+            <View style={styles.neutralFocusRow}>
+              {WEDDING_PRIORITY_OPTIONS.map((option) => {
+                const selected = neutralFocus === option.value;
+                return (
+                  <Pressable
+                    key={option.value}
+                    style={[styles.neutralFocusChip, selected && styles.neutralFocusChipActive]}
+                    accessibilityRole="button"
+                    accessibilityLabel={option.label}
+                    accessibilityState={{ selected }}
+                    onPress={() => onChangeNeutralFocus(selected ? null : option.value)}
+                  >
+                    <Text
+                      style={[
+                        styles.neutralFocusChipText,
+                        selected && styles.neutralFocusChipTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
             <View style={styles.foundationMembershipCard}>
               <Text style={styles.foundationMembershipTitle}>준비 공간</Text>
@@ -541,6 +597,10 @@ export default function OnboardingScreen() {
   const submissionGenerationRef = useRef(0);
   const catchUpDraftWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const catchUpDraftActionRef = useRef(false);
+  // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
+  const [resultDeadline, setResultDeadline] = useState<string | null>(null);
+  const [neutralFocus, setNeutralFocus] = useState<WeddingPriorityValue | null>(null);
+
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
   // 아직 다 치지 않은 상태를 틀렸다고 하지 않는다 — 타이핑 중에 빨간 글씨가 뜨면
   // 사람은 자기가 잘못한 줄 안다. 파트너 코드는 붙여넣는 경우가 많아 길이가 한 번에 찬다.
@@ -602,6 +662,8 @@ export default function OnboardingScreen() {
     setRole(null);
     setCoupleAction("create");
     setFoundationStage(null);
+    setResultDeadline(null);
+    setNeutralFocus(null);
     resetCatchUpState();
     setInviteCode("");
     setWeddingDate("");
@@ -937,6 +999,12 @@ export default function OnboardingScreen() {
             coupleAction,
             inviteCode,
             preparationCatchUp: catchUpSubmission,
+            base: buildNeutralPreparationSpaceSubmission({
+              coupleAction,
+              partnerInviteCode: inviteCode,
+              weddingDate: weddingDateUndecided ? null : weddingDate || null,
+              focusPriority: neutralFocus,
+            }),
           })
         : buildOnboardingSubmissionPayload({
             role,
@@ -1045,6 +1113,23 @@ export default function OnboardingScreen() {
 
       if (completion.kind === "invite_code") {
         setResultCode(completion.inviteCode);
+        void (async () => {
+          // 기한은 /api/couple/code 에서 읽는다 — 온보딩 라우트는 couples 를
+          // 직접 만지지 않는 경계를 지킨다. 못 읽으면 아무 말도 하지 않는다.
+          try {
+            const codeRes = await apiFetch("/api/couple/code");
+            if (!codeRes.ok) return;
+            const codePayload = (await codeRes.json().catch(() => null)) as
+              | { inviteCodeExpiresAt?: unknown }
+              | null;
+            // 늦게 도착하면 이미 다른 계정일 수 있다. 그 화면에 이전 커플의
+            // 기한을 찍지 않는다.
+            if (!submissionOwnerStillCurrent()) return;
+            setResultDeadline(describeInviteDeadline(codePayload?.inviteCodeExpiresAt));
+          } catch {
+            // 조용히 넘어간다.
+          }
+        })();
         animateStepTransition(5);
       } else if (completion.pathname === "/(tabs)/chat") {
         router.replace({
@@ -1160,6 +1245,10 @@ export default function OnboardingScreen() {
           setFoundationStage(null);
           resetCatchUpState();
         }}
+        weddingDate={weddingDate}
+        neutralFocus={neutralFocus}
+        onChangeWeddingDate={setWeddingDate}
+        onChangeNeutralFocus={setNeutralFocus}
         onChangeCoupleAction={(action) => {
           setCoupleAction(action);
           if (action === "join") {
@@ -1504,6 +1593,9 @@ export default function OnboardingScreen() {
                   <Text style={styles.codeLabel}>파트너 초대코드</Text>
                   <Text style={styles.codeValue}>{resultCode}</Text>
                   <Text style={styles.codeHint}>이 코드를 파트너에게 보내주세요</Text>
+                  {resultDeadline ? (
+                    <Text style={styles.codeHint}>{resultDeadline}</Text>
+                  ) : null}
                 </View>
               ) : null}
             </View>
@@ -1885,6 +1977,22 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  neutralFocusRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 4 },
+  neutralFocusChip: {
+    minHeight: 44,
+    justifyContent: "center",
+    flexBasis: "48%",
+    flexGrow: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: "#FFF",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  neutralFocusChipActive: { borderColor: colors.rose[500], backgroundColor: colors.ivory.warm },
+  neutralFocusChipText: { fontSize: 13, lineHeight: 18, color: colors.taupe[400] },
+  neutralFocusChipTextActive: { color: colors.noir[800], fontWeight: "600" },
   roleSupportText: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",

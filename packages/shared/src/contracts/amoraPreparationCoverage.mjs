@@ -14,6 +14,7 @@ const JOURNEY_AXES = Object.freeze([
 ]);
 
 const CHECKLIST_TOPIC_AXES = Object.freeze({
+  greeting: ["couple_and_family"],
   meeting: ["couple_and_family"],
   venue: ["venue_and_guests", "vendors_and_money", "final_operations"],
   studio: ["photo_and_style", "vendors_and_money"],
@@ -33,6 +34,7 @@ const CHECKLIST_TOPIC_AXES = Object.freeze({
   mc: ["ceremony_program", "final_operations"],
   ham: ["couple_and_family"],
   pyebaek: ["couple_and_family", "ceremony_program"],
+  registration: ["travel_and_admin", "post_wedding"],
 });
 
 const COVERAGE_GAPS = Object.freeze([

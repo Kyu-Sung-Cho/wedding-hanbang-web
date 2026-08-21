@@ -66,6 +66,9 @@ export function buildNeutralPreparationSpaceSubmissionPayload({
   coupleAction,
   inviteCode,
   preparationCatchUp,
+  // 공유 구현이 만든 본문. 날짜 검증과 관심사 매핑은 shared 한 곳에만 둔다.
+  // 넘기지 않으면 반환값은 예전과 한 글자도 다르지 않다.
+  base = null,
 }) {
   if (coupleAction !== "create" && coupleAction !== "join") {
     throw new Error("Unsupported neutral preparation space action");
@@ -92,10 +95,10 @@ export function buildNeutralPreparationSpaceSubmissionPayload({
     ...(coupleAction === "join"
       ? { partnerInviteCode: normalizedInviteCode }
       : {}),
-    weddingDate: null,
+    weddingDate: base ? base.weddingDate ?? null : null,
     venue: null,
     totalBudget: null,
-    progress: {},
+    progress: base ? base.progress ?? {} : {},
     ...(parsedCatchUp === null ? {} : { preparationCatchUp: parsedCatchUp }),
   };
 }

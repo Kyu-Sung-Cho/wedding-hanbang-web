@@ -155,6 +155,25 @@ function getCategoryCompletion(progress: Record<string, ProgressItem | unknown>,
   return { status, done: counts.done, total: counts.total };
 }
 
+/**
+ * 이 커플이 준비 상황을 한 번이라도 기록했는가.
+ *
+ * 기록이 하나도 없으면 모든 카테고리가 not_started 로 읽히는데, 그건
+ * "안 했다"가 아니라 "모른다"다. 그 상태에서 마감 지연 경고를 띄우면
+ * 방금 가입한 사람에게 사실이 아닌 말을 하게 된다 — 예식이 10개월 안이면
+ * 상견례·예식장이 즉시 지연으로 잡힌다.
+ */
+function hasAnyRecordedProgress(
+  progress: Record<string, ProgressItem | unknown>,
+): boolean {
+  return CATEGORY_CHECKLISTS.some((cat) => {
+    const item = getProgressItem(progress, cat.key);
+    if (!item) return false;
+    if (item.status && item.status !== "not_started") return true;
+    return Array.isArray(item.checklist) && item.checklist.length > 0;
+  });
+}
+
 function getOverallCounts(progress: Record<string, ProgressItem | unknown>) {
   const summary = summarizePlanningChecklist(
     CATEGORY_CHECKLISTS,
@@ -305,8 +324,26 @@ export function buildAmoraLifecyclePlan(input: BuildAmoraLifecyclePlanInput): Am
       .filter((item) => item.status !== "completed" && item.status !== "not_applicable")
       .sort((a, b) => a.daysUntilDeadline - b.daysUntilDeadline);
 
-    for (const item of deadlineItems.filter((entry) => entry.daysUntilDeadline < 0).slice(0, 2)) {
-      pushUnique(guardrails, makeCategoryGuardrail(item.key, item.label, item.daysUntilDeadline, "critical"));
+    // 지연을 말하려면 먼저 무엇을 했는지 알아야 한다. 기록이 없으면
+    // 지연이 아니라 미상이므로, 단정하는 대신 상황을 물어본다.
+    const recordedProgress = hasAnyRecordedProgress(progress);
+
+    if (recordedProgress) {
+      for (const item of deadlineItems.filter((entry) => entry.daysUntilDeadline < 0).slice(0, 2)) {
+        pushUnique(guardrails, makeCategoryGuardrail(item.key, item.label, item.daysUntilDeadline, "critical"));
+      }
+    } else if (deadlineItems.some((entry) => entry.daysUntilDeadline < 0)) {
+      // pushUnique 는 카테고리 가드레일 전용이다 — categoryKey 가 없는 항목끼리는
+      // undefined === undefined 로 서로를 중복 취급해 삼킨다.
+      guardrails.push({
+        id: "progress_unknown",
+        severity: "warning",
+        title: "지금 어디까지 하셨는지 알려주시겠어요?",
+        body: "예식일 기준으로는 챙길 시점이 지난 항목이 있어요. 다만 아직 기록이 없어서 정말 남은 일인지는 알 수 없어요.",
+        href: "/wedding/chat",
+        cta: "아모라와 정리하기",
+        iconKey: "chat",
+      });
     }
 
     for (const item of deadlineItems.filter((entry) => entry.daysUntilDeadline >= 0 && entry.daysUntilDeadline <= 21).slice(0, 2)) {

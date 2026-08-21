@@ -54,6 +54,7 @@ export const ONBOARDING_STEPS = [
 ] as const;
 
 const PROGRESS_CATEGORY_KEYS = [
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -73,6 +74,7 @@ const PROGRESS_CATEGORY_KEYS = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ] as const;
 
 export const PROGRESS_CHECKLIST_ITEMS: ProgressChecklistItem[] =

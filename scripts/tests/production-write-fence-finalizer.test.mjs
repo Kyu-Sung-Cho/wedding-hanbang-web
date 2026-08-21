@@ -1986,7 +1986,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 116-migration successor keeps finalization blocked through the neutral schedule assignee-label tail", async () => {
+test("the current 117-migration successor keeps finalization blocked through the invite-expiry message tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1994,14 +1994,10 @@ test("the current 116-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 116);
+  assert.equal(manifest.expandMigrations.length, 117);
   assert.deepEqual(
     manifest.expandMigrations.slice(-15),
     [
-      {
-        file: "20260816180000_amora_neutral_preparation_space.sql",
-        sha256: "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867",
-      },
       {
         file: "20260816190000_amora_preparation_catch_up.sql",
         sha256: "637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce",
@@ -2057,6 +2053,10 @@ test("the current 116-migration successor keeps finalization blocked through the
       {
         file: "20260820140000_neutral_schedule_assignee_label.sql",
         sha256: "457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23",
+      },
+      {
+        file: "20260820150000_invite_expiry_is_not_a_typo.sql",
+        sha256: "e803d23f36a2d0918ed30fc8f75b6f1e54873291000f66ac9731cca190eaa4b5",
       },
     ],
   );

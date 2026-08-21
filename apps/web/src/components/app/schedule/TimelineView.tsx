@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import {
+  FileText,
   Check,
   ChevronDown,
   ChevronUp,
@@ -34,6 +35,7 @@ import {
 import type { ChecklistItem, ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  FileText,
   Building2,
   Camera,
   Shirt,

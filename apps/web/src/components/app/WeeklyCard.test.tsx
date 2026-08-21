@@ -42,9 +42,13 @@ describe("WeeklyCard 신뢰 문구", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-06-15T03:00:00Z"));
 
+    // 이 검사는 **임박 목록이 비는 자리**를 봐야 하므로 결혼식이 모든 분야의 창 밖에
+    // 있어야 한다. 임박 판정은 `분야 마감일까지 60일 이내`이고 마감일은
+    // `결혼일 - ddayDeadline`이라, 가장 이른 마감(첫인사 330)보다 390일 넘게 남은 날짜를
+    // 골라야 한다. 2026-08-21에 첫인사가 생기면서 D-365로는 그 조건이 깨졌다.
     const html = renderToStaticMarkup(
       <WeeklyCard
-        weddingDate="2027-06-15"
+        weddingDate="2027-08-15"
         totalBudget={50_000_000}
         progress={{}}
       />,

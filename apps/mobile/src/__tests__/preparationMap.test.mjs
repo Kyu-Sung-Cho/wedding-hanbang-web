@@ -24,6 +24,7 @@ const topics = [
 ];
 
 const currentChecklistTopics = [
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -43,6 +44,7 @@ const currentChecklistTopics = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ].map((key) => ({ key, label: key, items: [] }));
 
 test("an empty journey stays unknown instead of inventing preparation progress", () => {
@@ -267,12 +269,12 @@ test("the customer map carries full-journey coverage without inventing gap topic
   assert.deepEqual(overview.coverage, {
     version: 1,
     stage: "partial",
-    connectedTopicCount: 19,
+    connectedTopicCount: 21,
     journeyAxisCount: 10,
     gapCount: 7,
     issueCount: 0,
   });
-  assert.equal(overview.topics.length, 19);
+  assert.equal(overview.topics.length, 21);
   assert.equal(
     overview.topics.some((topic) => topic.topicKey === "planning_foundation"),
     false,

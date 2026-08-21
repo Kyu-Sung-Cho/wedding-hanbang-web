@@ -61,3 +61,33 @@ test("기존 5단계 경로는 그대로 남아 있다", () => {
   assert.match(onboarding, /step === 1 && !neutralEnabled/u);
   assert.match(onboarding, /현재 베타 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요/u);
 });
+
+test("중립 화면이 예식일과 관심사를 받는다", () => {
+  // 웹만 고치면 또 갈라진다. 예식일을 여기서 묻는 이유는 응답률(87%)이 아니라
+  // 아모라가 대신 받아낼 수 없다는 것이다 — 첫 인사는 저장 정보를 못 꺼내고,
+  // 도구 게이트는 자족 확정문만 통과시킨다.
+  // 중립 화면은 NeutralPlanningFoundation 이다 — 플래그가 켜지면 그리로 조기 반환한다.
+  const start = onboarding.indexOf("function NeutralPlanningFoundation(");
+  assert.ok(start > 0, "중립 화면 컴포넌트를 찾지 못했다");
+  const end = start + 10 + onboarding.slice(start + 10).search(/^function /mu);
+  assert.ok(end > start, "중립 화면의 끝을 찾지 못했다");
+  const neutralBlock = onboarding.slice(start, end);
+
+  assert.ok(neutralBlock.includes("결혼식 날짜, 정하셨어요?"), "예식일을 묻지 않는다");
+  assert.ok(neutralBlock.includes("지금 제일 신경 쓰이는 건 뭐예요"), "관심사를 묻지 않는다");
+  assert.ok(neutralBlock.includes("WEDDING_PRIORITY_OPTIONS.map"), "칩이 공유 상수를 쓰지 않는다");
+
+  // 안 묻기로 한 것이 슬그머니 돌아오지 않았는지
+  assert.ok(!neutralBlock.includes("총 예산"), "중립 화면에서 예산을 묻고 있다");
+  assert.ok(!neutralBlock.includes("예식 장소"), "중립 화면에서 장소를 묻고 있다");
+});
+
+test("중립 제출이 공유 구현에 날짜와 관심사를 넘긴다", () => {
+  assert.ok(
+    onboarding.includes("focusPriority: neutralFocus,"),
+    "관심사가 제출 본문에 실리지 않는다",
+  );
+  const submitStart = onboarding.indexOf("buildNeutralPreparationSpaceSubmission({");
+  const submitBlock = onboarding.slice(submitStart, submitStart + 300);
+  assert.ok(submitBlock.includes("weddingDate:"), "예식일이 제출 본문에 실리지 않는다");
+});

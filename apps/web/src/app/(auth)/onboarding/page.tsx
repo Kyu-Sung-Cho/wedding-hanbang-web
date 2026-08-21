@@ -13,7 +13,9 @@ import WeddingStylePreferences from "@/components/onboarding/WeddingStylePrefere
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
+import { describeInviteDeadline } from "@hanbang/shared";
 import {
+  buildNeutralPreparationPrefill,
   buildNeutralPreparationSpaceSubmission,
   parseNeutralPreparationSpaceCapability,
   resolveNeutralPreparationSpaceRedirect,
@@ -60,6 +62,7 @@ async function writeClipboardTextWithFallback(
     textArea.remove();
   }
 }
+import type { WeddingPriorityValue } from "@hanbang/shared";
 
 export default function OnboardingPage() {
   const store = useOnboardingStore();
@@ -67,6 +70,8 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const [inviteCodeResult, setInviteCodeResult] =
     useState<OwnerBoundInviteCode | null>(null);
+  // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
+  const [inviteDeadline, setInviteDeadline] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
@@ -158,6 +163,9 @@ export default function OnboardingPage() {
       setError("계정을 안전하게 확인하지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.");
     }
   }, [clearAccountOwnedOnboardingState]);
+  // 중립 경로 전용 입력. 예식일은 스토어의 weddingDate 를 그대로 재사용하고,
+  // 관심사는 저장이 아니라 첫 대화 초안을 만드는 데 쓴다.
+  const [neutralFocus, setNeutralFocus] = useState<WeddingPriorityValue | null>(null);
 
   // 이미 온보딩 완료한 유저인지 확인
   useEffect(() => {
@@ -285,8 +293,9 @@ export default function OnboardingPage() {
     })}`;
   };
 
-  // neutralCoupleAction이 있으면 중립 준비 공간 경로다 — 역할·예식일·예산·스타일을
-  // 묻지 않고 바로 시작한다. 나머지는 각자 필요한 화면에서 채운다.
+  // neutralCoupleAction이 있으면 중립 준비 공간 경로다 — 역할·장소·예산·스타일은
+  // 묻지 않는다. 예식일만 받는데, 아모라가 대신 받아낼 수 없는 유일한 값이기
+  // 때문이다(첫 인사는 저장 정보를 못 꺼내고, 도구 게이트가 자족 확정문만 통과).
   const handleSubmit = async (
     neutralCoupleAction?: "create" | "join",
   ) => {
@@ -313,6 +322,8 @@ export default function OnboardingPage() {
         requestBody = buildNeutralPreparationSpaceSubmission({
           coupleAction: neutralCoupleAction,
           partnerInviteCode: store.partnerInviteCode,
+          weddingDate: store.weddingDate,
+          focusPriority: neutralFocus,
         });
       } else {
         const progress: Record<string, unknown> = {};
@@ -394,12 +405,19 @@ export default function OnboardingPage() {
           } satisfies OwnerBoundInviteCode;
           inviteCodeResultRef.current = ownerBoundInviteCode;
           setInviteCodeResult(ownerBoundInviteCode);
+          void loadInviteDeadline();
           setShowInviteModal(true);
           return;
         }
         window.location.href = resolveNeutralPreparationSpaceRedirect({
           search: window.location.search,
           origin: window.location.origin,
+          prefill: buildNeutralPreparationPrefill({
+            weddingDate: typeof data.journey?.wedding_date === "string"
+              ? data.journey.wedding_date
+              : null,
+            focusPriority: neutralFocus,
+          }),
         });
         return;
       }
@@ -411,6 +429,7 @@ export default function OnboardingPage() {
         } satisfies OwnerBoundInviteCode;
         inviteCodeResultRef.current = ownerBoundInviteCode;
         setInviteCodeResult(ownerBoundInviteCode);
+        void loadInviteDeadline();
       }
 
       const isPendingPartner =
@@ -457,6 +476,26 @@ export default function OnboardingPage() {
   const handleSkipChecklist = async () => {
     // 체크리스트를 모두 not_started로 유지한 채 제출
     await handleSubmit();
+  };
+
+  /**
+   * 기한은 /api/couple/code 에서 읽는다. 온보딩 라우트는 couples 를 직접 만지지
+   * 않는 경계를 지켜야 해서(그 경계는 테스트로 고정돼 있다) 여기서 따로 묻는다.
+   * 못 읽으면 아무 말도 하지 않는다 — 없는 기한을 지어내지 않고, 코드 표시를
+   * 막지도 않는다.
+   */
+  const loadInviteDeadline = async () => {
+    try {
+      const res = await fetch("/api/couple/code");
+      if (!res.ok) return;
+      const payload: unknown = await res.json().catch(() => null);
+      const expiresAt = typeof payload === "object" && payload !== null
+        ? (payload as { inviteCodeExpiresAt?: unknown }).inviteCodeExpiresAt
+        : null;
+      setInviteDeadline(describeInviteDeadline(expiresAt));
+    } catch {
+      // 조용히 넘어간다.
+    }
   };
 
   const verifyCanonicalOnboardingOwner = async (expectedOwnerUserId: string) => {
@@ -583,6 +622,10 @@ export default function OnboardingPage() {
       ? resolveNeutralPreparationSpaceRedirect({
           search: window.location.search,
           origin: window.location.origin,
+          prefill: buildNeutralPreparationPrefill({
+            weddingDate: store.weddingDate || null,
+            focusPriority: neutralFocus,
+          }),
         })
       : getAuthRedirectPath(
           window.location.search,
@@ -621,6 +664,10 @@ export default function OnboardingPage() {
               }}
               onPartnerCodeChange={store.setPartnerInviteCode}
               onJoin={() => void handleSubmit("join")}
+              weddingDate={store.weddingDate ?? ""}
+              onWeddingDateChange={store.setWeddingDate}
+              focusPriority={neutralFocus}
+              onFocusPriorityChange={setNeutralFocus}
             />
           ) : (
           <>
@@ -846,6 +893,11 @@ export default function OnboardingPage() {
                 <p className="text-[28px] font-mono font-bold text-noir-800 tracking-[0.15em]">
                   {inviteCodeForCurrentOwner}
                 </p>
+                {inviteDeadline && (
+                  <p className="mt-3 text-[13px] font-medium text-[#795252]">
+                    {inviteDeadline}
+                  </p>
+                )}
               </div>
 
               <button

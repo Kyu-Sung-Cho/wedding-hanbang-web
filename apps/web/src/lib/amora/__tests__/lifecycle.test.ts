@@ -51,4 +51,47 @@ describe("아모라 lifecycle 근거 경계", () => {
     expect(plan.dday).toBe(0);
     expect(plan.stage).toBe("wedding_day");
   });
+
+  describe("기록이 없는 커플에게 지연을 단정하지 않는다", () => {
+    // 온보딩에서 예식일을 받기로 하면서 생긴 새 비용이다. 예식이 10개월 안이면
+    // 상견례(D-300)·예식장(D-270) 마감이 이미 지난 것으로 계산되는데, 방금
+    // 가입한 커플에게 그건 "안 했다"가 아니라 "모른다"다.
+    const soonWedding = {
+      weddingDate: "2027-01-15",
+      totalBudget: 0,
+      now: new Date("2026-08-21T03:00:00Z"),
+    };
+
+    it("아무것도 기록하지 않았으면 마감 지연 경고를 만들지 않는다", () => {
+      const plan = buildAmoraLifecyclePlan({ ...soonWedding, progress: {} });
+
+      const overdue = plan.guardrails.filter(
+        (guardrail) => guardrail.severity === "critical" && guardrail.categoryKey,
+      );
+      expect(overdue).toHaveLength(0);
+    });
+
+    it("대신 상황을 물어보는 안내 하나를 준다", () => {
+      const plan = buildAmoraLifecyclePlan({ ...soonWedding, progress: {} });
+
+      const asked = plan.guardrails.find((guardrail) => guardrail.id === "progress_unknown");
+      expect(asked).toBeDefined();
+      expect(asked?.severity).toBe("warning");
+      // 지연을 사실로 말하지 않는다
+      expect(asked?.body).toContain("알 수 없");
+    });
+
+    it("한 번이라도 기록했으면 지연을 정상적으로 알린다", () => {
+      const plan = buildAmoraLifecyclePlan({
+        ...soonWedding,
+        progress: { venue: { status: "completed" } },
+      });
+
+      const overdue = plan.guardrails.filter(
+        (guardrail) => guardrail.severity === "critical" && guardrail.categoryKey,
+      );
+      expect(overdue.length).toBeGreaterThan(0);
+      expect(plan.guardrails.some((g) => g.id === "progress_unknown")).toBe(false);
+    });
+  });
 });

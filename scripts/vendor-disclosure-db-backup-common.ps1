@@ -5,13 +5,13 @@ $ErrorActionPreference = 'Stop'
 
 $script:VDPostExpandProjectRef = 'slrtobkksjmxgzatjyqb'
 $script:VDPostExpandBaselineMigrationHead = '20260727090000'
-$script:VDPostExpandMigrationHead = '20260820140000'
-$script:VDPostExpandMigrationCount = 231
-$script:VDPostExpandMigrationVersionsSha256 = '611f9ead63e878a220d5de8b1a7210a03797080539d21d23ebd2e4786893d993'
-$script:VDPostExpandReleaseMigrationCount = 116
-$script:VDPostExpandReleaseMigrationVersionsSha256 = '1c24fc4f606781a8320089695054d49b3ded7bb306a260d909e7ac5e2fe2351d'
-$script:VDPostExpandAppliedSuffixCount = 84
-$script:VDPostExpandAppliedSuffixVersionsSha256 = '84e91d98540f481c5c5294f063f7e26421b5de9838557a5d44cdc46a3fea35bd'
+$script:VDPostExpandMigrationHead = '20260820150000'
+$script:VDPostExpandMigrationCount = 232
+$script:VDPostExpandMigrationVersionsSha256 = 'd9d4961b96a03053eb77c393db89267893b58e189ea25f73ae2c292508cc6b5d'
+$script:VDPostExpandReleaseMigrationCount = 117
+$script:VDPostExpandReleaseMigrationVersionsSha256 = 'fde764ba6ac9575abb78d4fd432ceb175704d24670e7a90740ffa71e566cace9'
+$script:VDPostExpandAppliedSuffixCount = 85
+$script:VDPostExpandAppliedSuffixVersionsSha256 = '4375c7302b88953beefb1b4e46f4a7f27e82354f1ad363c2d190751c54ce1fc7'
 $script:VDPostExpandTableContractSha256 = 'ddf672a17f28e99fd20646a3376cee696430b8b599e10979f6d2c7fd23e5482f'
 $script:VDPostExpandExpectedTables = @(
   'account_deletion_jobs',

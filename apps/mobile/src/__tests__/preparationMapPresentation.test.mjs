@@ -22,10 +22,11 @@ const topics = [
 ];
 
 const journeyTopics = [
-  "meeting", "venue",
+  "greeting", "meeting", "venue",
   "studio", "dress", "makeup", "ring",
   "hanbok", "yedan", "honeymoon", "houseware", "housing",
   "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
+  "registration",
 ].map((key) => ({
   key,
   label: `주제 ${key}`,
@@ -76,9 +77,12 @@ test("the journey map groups every saved topic once and pins only canonical atte
       topicKeys: chapter.nodes.map((node) => node.topicKey),
     })),
     [
-      { key: "agreements", topicKeys: ["meeting", "venue"] },
+      { key: "agreements", topicKeys: ["greeting", "meeting", "venue"] },
       { key: "vendors", topicKeys: ["studio", "dress", "makeup", "ring"] },
-      { key: "life_and_family", topicKeys: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
+      {
+        key: "life_and_family",
+        topicKeys: ["hanbok", "yedan", "honeymoon", "houseware", "housing", "registration"],
+      },
       { key: "ceremony_details", topicKeys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek"] },
     ],
   );
@@ -109,7 +113,8 @@ test("the journey map groups every saved topic once and pins only canonical atte
       .map((node) => node.topicKey),
     ["meeting", "venue", "invitation"],
   );
-  assert.equal(model.chapters[0].nodes[0].stateLabel, "준비 중");
+  // greeting 이 앞에 붙어 meeting 은 두 번째 노드다.
+  assert.equal(model.chapters[0].nodes[1].stateLabel, "준비 중");
   assert.equal(model.chapters[1].nodes[0].stateLabel, "완료");
   assert.equal(model.chapters[2].nodes[2].stateLabel, "해당 없음");
   assert.equal(model.chapters[3].nodes[0].stateLabel, "확인 필요");

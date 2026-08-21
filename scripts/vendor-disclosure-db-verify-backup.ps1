@@ -206,11 +206,11 @@ if ([string]$manifest.status -ne 'complete' -or [string]$manifest.format -ne $sc
     [string]$manifest.backup_contract_id -ne $BackupContractId -or [int]$manifest.backup_contract_version -ne 2 -or
     [string]$manifest.source_project_ref -ne $ExpectedProjectRef -or
     [string]$manifest.source_migration_head -ne $script:VDPostExpandMigrationHead -or
-    [int]$manifest.source_migration_count -ne 231 -or
+    [int]$manifest.source_migration_count -ne 232 -or
     [string]$manifest.source_migration_versions_sha256 -ne $script:VDPostExpandMigrationVersionsSha256 -or
-    [int]$manifest.release_migration_count -ne 116 -or
+    [int]$manifest.release_migration_count -ne 117 -or
     [string]$manifest.release_migration_versions_sha256 -ne $script:VDPostExpandReleaseMigrationVersionsSha256 -or
-    [int]$manifest.applied_suffix_count -ne 84 -or
+    [int]$manifest.applied_suffix_count -ne 85 -or
     [string]$manifest.applied_suffix_versions_sha256 -ne $script:VDPostExpandAppliedSuffixVersionsSha256 -or
     [int]$manifest.table_count -ne 139 -or [string]$manifest.table_contract_sha256 -ne $script:VDPostExpandTableContractSha256 -or
     [string]$manifest.git_commit -ne $ExpectedCommit -or [string]$manifest.git_origin -ne $ExpectedGitOrigin -or
@@ -276,8 +276,8 @@ try {
     'columns', 'constraints', 'schema_contract', 'auth_schema_contract', 'storage_schema_contract')) {
     if (-not $inventory.PSObject.Properties[$field]) { throw "Authenticated inventory is missing $field." }
   }
-  if (@($inventory.migration_versions).Count -ne 231 -or @($inventory.release_migration_versions).Count -ne 116 -or
-      @($inventory.applied_suffix_versions).Count -ne 84) { throw 'Authenticated migration arrays are not exact.' }
+  if (@($inventory.migration_versions).Count -ne 232 -or @($inventory.release_migration_versions).Count -ne 117 -or
+      @($inventory.applied_suffix_versions).Count -ne 85) { throw 'Authenticated migration arrays are not exact.' }
 
   $identitySha = Get-VDPostExpandCanonicalJsonSha256 -Value $inventory.source_database_identity
   $inventoryRelationSha = (Get-HBAM2RelationContractSha256 -Relations $inventory.relations `
