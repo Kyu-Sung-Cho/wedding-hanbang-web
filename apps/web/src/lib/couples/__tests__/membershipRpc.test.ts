@@ -222,6 +222,66 @@ describe("parseMembershipRpcResponse", () => {
     });
   });
 
+  // 만료를 "코드가 올바르지 않습니다"로 옮기면, 사람은 자기 오타를 의심하며 같은
+  // 코드를 다시 친다. 두 경로 모두 만료를 만료라고 말해야 한다.
+  it("만료된 초대 코드를 오타와 다른 말로 옮긴다", () => {
+    const result = parseMembershipRpcResponse(
+      {
+        success: false,
+        joined: false,
+        idempotent: false,
+        error_code: "INVITE_CODE_EXPIRED",
+        error: "Invite code expired.",
+      },
+      "groom",
+      "join",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 410,
+      message: "이 초대 코드는 만료됐어요. 파트너에게 새 코드를 받아 다시 입력해 주세요.",
+      errorCode: "INVITE_CODE_EXPIRED",
+    });
+    expect((result as { message: string }).message).not.toContain("올바르지 않");
+  });
+
+  it("중립 경로도 만료를 만료라고 말한다", () => {
+    const result = parseNeutralMembershipRpcResponse(
+      {
+        success: false,
+        joined: false,
+        idempotent: false,
+        error_code: "INVITE_CODE_EXPIRED",
+        error: "Invite code expired.",
+      },
+      "join",
+    );
+
+    expect(result).toEqual({
+      ok: false,
+      status: 410,
+      message: "이 초대 코드는 만료됐어요. 코드를 만든 분에게 새 코드를 요청해 주세요.",
+      errorCode: "INVITE_CODE_EXPIRED",
+    });
+  });
+
+  it("error_code 없이 레거시 문자열만 와도 만료로 읽는다", () => {
+    expect(parseMembershipRpcResponse(
+      { success: false, error: "Invite code expired." },
+      "groom",
+      "join",
+    )).toMatchObject({ ok: false, status: 410, errorCode: "INVITE_CODE_EXPIRED" });
+  });
+
+  it("존재하지 않는 코드는 여전히 404 INVALID_INVITE_CODE 다", () => {
+    expect(parseMembershipRpcResponse(
+      { success: false, error_code: "INVALID_INVITE_CODE" },
+      "groom",
+      "join",
+    )).toMatchObject({ ok: false, status: 404, errorCode: "INVALID_INVITE_CODE" });
+  });
+
   it("maps invite-code exhaustion to a retryable service failure", () => {
     const result = parseMembershipRpcResponse(
       {

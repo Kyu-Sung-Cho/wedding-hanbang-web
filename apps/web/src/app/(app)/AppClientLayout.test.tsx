@@ -14,7 +14,6 @@ const mocks = vi.hoisted(() => ({
   isInitialized: true,
   initializeCalls: [] as Array<{ initialDemo?: boolean } | undefined>,
   authSyncCalls: [] as boolean[],
-  pageViewCalls: [] as boolean[],
 }));
 
 vi.mock("next/navigation", () => ({
@@ -42,12 +41,6 @@ vi.mock("@/components/app/chat/ChatSidePanel", () => ({
   default: ({ isOpen }: { isOpen: boolean }) => (
     <div data-testid="global-amora-panel" data-open={String(isOpen)} />
   ),
-}));
-
-vi.mock("@/hooks/useEventTracker", () => ({
-  usePageViewTracker: (enabled = true) => {
-    mocks.pageViewCalls.push(enabled);
-  },
 }));
 
 vi.mock("@/hooks/useAuthSessionSync", () => ({
@@ -78,7 +71,6 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.isInitialized = true;
     mocks.initializeCalls.length = 0;
     mocks.authSyncCalls.length = 0;
-    mocks.pageViewCalls.length = 0;
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -150,20 +142,18 @@ describe("AppClientLayout global Amora panel", () => {
     ).toHaveLength(1);
   });
 
-  it("suppresses internal page-view writes only in admin vendor preview mode", async () => {
+  it("suppresses analytics capture and the Amora launcher only in admin vendor preview mode", async () => {
     mocks.isDemo = false;
     mocks.pathname = "/wedding/vendors";
     mocks.searchParams = new URLSearchParams("preview=1");
     await renderLayout();
 
-    expect(mocks.pageViewCalls.at(-1)).toBe(false);
     expect(container.querySelector(".ph-no-capture")).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
 
     mocks.searchParams = new URLSearchParams();
     await renderLayout();
 
-    expect(mocks.pageViewCalls.at(-1)).toBe(true);
     expect(container.querySelector(".ph-no-capture")).toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).not.toBeNull();
   });

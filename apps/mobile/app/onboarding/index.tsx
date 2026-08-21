@@ -31,6 +31,7 @@ import {
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
   buildNeutralPreparationSpaceSubmission,
+  describeInviteDeadline,
   parseNeutralPreparationSpaceCapability,
 } from "@hanbang/shared";
 
@@ -174,6 +175,8 @@ export default function OnboardingScreen() {
   const [budget, setBudget] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resultCode, setResultCode] = useState("");
+  // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
+  const [resultDeadline, setResultDeadline] = useState<string | null>(null);
   // 서버가 판정한다 — 앱이 자기 환경변수로 정하지 않는다.
   const [neutralEnabled, setNeutralEnabled] = useState(false);
   // 판정 전에는 어느 쪽도 그리지 않는다. 기본값으로 그리면 첫 프레임에 역할
@@ -322,6 +325,20 @@ export default function OnboardingScreen() {
 
       if (data.inviteCode && coupleAction === "create") {
         setResultCode(data.inviteCode);
+        void (async () => {
+          // 기한은 /api/couple/code 에서 읽는다 — 온보딩 라우트는 couples 를
+          // 직접 만지지 않는 경계를 지킨다. 못 읽으면 아무 말도 하지 않는다.
+          try {
+            const codeRes = await apiFetch("/api/couple/code");
+            if (!codeRes.ok) return;
+            const codePayload = (await codeRes.json().catch(() => null)) as
+              | { inviteCodeExpiresAt?: unknown }
+              | null;
+            setResultDeadline(describeInviteDeadline(codePayload?.inviteCodeExpiresAt));
+          } catch {
+            // 조용히 넘어간다.
+          }
+        })();
         animateStepTransition(5);
       } else {
         router.replace("/(tabs)/dashboard");
@@ -796,6 +813,9 @@ export default function OnboardingScreen() {
                   <Text style={styles.codeLabel}>파트너 초대코드</Text>
                   <Text style={styles.codeValue}>{resultCode}</Text>
                   <Text style={styles.codeHint}>이 코드를 파트너에게 보내주세요</Text>
+                  {resultDeadline ? (
+                    <Text style={styles.codeHint}>{resultDeadline}</Text>
+                  ) : null}
                 </View>
               ) : null}
             </View>

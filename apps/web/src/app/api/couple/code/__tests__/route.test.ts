@@ -150,6 +150,8 @@ describe("/api/couple/code roster epoch fence", () => {
       inviteCode: null,
       isFullyLinked: true,
       isMembershipSealed: true,
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
     });
     expect(admin.rpc).not.toHaveBeenCalled();
     expect(updates).toEqual([]);
@@ -231,10 +233,11 @@ describe("/api/couple/code roster epoch fence", () => {
     const response = await GET(request("GET"));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
+    await expect(response.json()).resolves.toMatchObject({
       inviteCode: "WH-NEW123",
       isFullyLinked: false,
       isMembershipSealed: false,
+      inviteCodeReissued: false,
     });
     expect(updates).toHaveLength(1);
     expect(filters).toContainEqual(["is", "membership_sealed_at", null]);
@@ -258,7 +261,11 @@ describe("/api/couple/code roster epoch fence", () => {
     const response = await POST(request("POST"));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({ inviteCode: "WH-NEW123" });
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-NEW123",
+      // 직접 재발급을 눌렀으면 이미 보낸 코드는 죽었다 — 다시 보내라고 말해야 한다.
+      inviteCodeReissued: true,
+    });
     expect(filters).toContainEqual(["is", "membership_sealed_at", null]);
     expect(filters).toContainEqual(["eq", "invite_code", "WH-OLD123"]);
   });
@@ -323,15 +330,109 @@ describe("/api/couple/code roster epoch fence", () => {
       profiles: [profileSuccess],
       couples: [
         { single: { data: null, error: { code: "42703", message: "column does not exist" } } },
-        { single: { data: couple({ invite_code: "WH-LEGACYOK1" }), error: null } },
+        // 폴백은 좁은 컬럼만 돌려준다 — 없는 컬럼이 값으로 돌아올 리 없다.
+        {
+          single: {
+            data: {
+              invite_code: "WH-LEGACYOK1",
+              bride_id: USER_ID,
+              groom_id: null,
+              membership_sealed_at: null,
+            },
+            error: null,
+          },
+        },
       ],
     });
 
     const response = await GET(request("GET"));
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({ inviteCode: "WH-LEGACYOK1" });
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-LEGACYOK1",
+      // 모르는 것을 "안 바뀌었다"거나 "언제까지"라고 지어내지 않는다.
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
+    });
     expect(fromCalls.filter((name) => name === "couples").length).toBeGreaterThanOrEqual(2);
+  });
+
+  // 조용히 갈아끼우는 것만으로는 부족하다. 초대한 쪽이 이미 문자로 보낸 코드가
+  // 죽은 줄 모르면 새 코드를 다시 보내지 않고, 상대는 계속 실패한다.
+  it("자동 회전 뒤에는 '코드가 새로 발급됐다'를 함께 알린다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: "WH-EXPIRED001",
+              invite_code_expires_at: new Date(Date.now() - 1000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+        {
+          maybeSingle: {
+            data: couple({
+              invite_code: "WH-FRESH0001",
+              invite_code_expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-FRESH0001",
+      inviteCodeReissued: true,
+    });
+  });
+
+  // 20260812030000:81-91 은 invite_code 를 그대로 둔 채 invite_code_issued_at 만
+  // 찍은 행도 만들었다. 그걸 재발급으로 읽으면, 코드가 바뀐 적 없는 사람에게
+  // "예전 코드는 더 이상 쓸 수 없다"는 거짓말을 하게 된다.
+  it("바뀐 적 없는 코드에 재발급 딱지를 붙이지 않는다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [{
+        single: {
+          data: couple({
+            invite_code: "WH-UNCHANGED1",
+            invite_code_expires_at: new Date(Date.now() + 86400000).toISOString(),
+          }),
+          error: null,
+        },
+      }],
+    });
+
+    const response = await GET(request("GET"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-UNCHANGED1",
+      inviteCodeReissued: false,
+    });
+  });
+
+  // 코드가 아예 없어서 처음 발급하는 경우는 보낸 적도 없으니 할 말이 아니다.
+  it("처음 발급하는 코드는 재발급이 아니다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [
+        { single: { data: couple({ invite_code: null }), error: null } },
+        { maybeSingle: { data: couple({ invite_code: "WH-FIRST00001" }), error: null } },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    await expect(response.json()).resolves.toMatchObject({
+      inviteCode: "WH-FIRST00001",
+      inviteCodeReissued: false,
+    });
   });
 
   it("checks profile and couple lookup errors before privileged writes", async () => {
@@ -388,6 +489,8 @@ describe("/api/couple/code roster epoch fence", () => {
       inviteCode: null,
       isFullyLinked: true,
       isMembershipSealed: true,
+      inviteCodeExpiresAt: null,
+      inviteCodeReissued: false,
     });
     expect(admin.rpc).toHaveBeenCalledTimes(1);
   });

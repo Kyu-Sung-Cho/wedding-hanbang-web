@@ -13,6 +13,7 @@ import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
+import { describeInviteDeadline } from "@hanbang/shared";
 import {
   buildNeutralPreparationPrefill,
   buildNeutralPreparationSpaceSubmission,
@@ -26,6 +27,8 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [inviteCodeResult, setInviteCodeResult] = useState("");
+  // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
+  const [inviteDeadline, setInviteDeadline] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
@@ -188,6 +191,7 @@ export default function OnboardingPage() {
         // 설정 화면을 뒤져야 한다 — 함께 준비하는 게 이 제품의 요지인데.
         if (neutralCoupleAction === "create" && typeof data.inviteCode === "string") {
           setInviteCodeResult(data.inviteCode);
+          void loadInviteDeadline();
           setShowInviteModal(true);
           return;
         }
@@ -206,6 +210,7 @@ export default function OnboardingPage() {
 
       if (typeof data.inviteCode === "string") {
         setInviteCodeResult(data.inviteCode);
+        void loadInviteDeadline();
       }
 
       const isPendingPartner =
@@ -249,6 +254,26 @@ export default function OnboardingPage() {
   const handleSkipChecklist = async () => {
     // 체크리스트를 모두 not_started로 유지한 채 제출
     await handleSubmit();
+  };
+
+  /**
+   * 기한은 /api/couple/code 에서 읽는다. 온보딩 라우트는 couples 를 직접 만지지
+   * 않는 경계를 지켜야 해서(그 경계는 테스트로 고정돼 있다) 여기서 따로 묻는다.
+   * 못 읽으면 아무 말도 하지 않는다 — 없는 기한을 지어내지 않고, 코드 표시를
+   * 막지도 않는다.
+   */
+  const loadInviteDeadline = async () => {
+    try {
+      const res = await fetch("/api/couple/code");
+      if (!res.ok) return;
+      const payload: unknown = await res.json().catch(() => null);
+      const expiresAt = typeof payload === "object" && payload !== null
+        ? (payload as { inviteCodeExpiresAt?: unknown }).inviteCodeExpiresAt
+        : null;
+      setInviteDeadline(describeInviteDeadline(expiresAt));
+    } catch {
+      // 조용히 넘어간다.
+    }
   };
 
   const handleCopyCode = async () => {
@@ -562,6 +587,11 @@ export default function OnboardingPage() {
                 <p className="text-[28px] font-mono font-bold text-noir-800 tracking-[0.15em]">
                   {inviteCodeResult}
                 </p>
+                {inviteDeadline && (
+                  <p className="mt-3 text-[13px] font-medium text-[#795252]">
+                    {inviteDeadline}
+                  </p>
+                )}
               </div>
 
               <button

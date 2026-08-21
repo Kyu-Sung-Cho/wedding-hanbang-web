@@ -45,6 +45,11 @@ import {
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
 import { weddingPath } from "@/lib/weddingPaths";
+import {
+  describeCoupleInviteWindow,
+  resolveCoupleConnectionState,
+  type CoupleInviteWindowNotice,
+} from "@hanbang/shared";
 import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
@@ -199,6 +204,9 @@ export default function DashboardPage() {
   const { partner, journey, couple, updateJourney, isDemo } = useAuthStore();
   const [inviteCode, setInviteCode] = useState("");
   const [inviteCodeError, setInviteCodeError] = useState(false);
+  // 코드가 방금 갈아끼워졌으면 "다시 보내라"를 여기서도 말해야 한다 — 라운지가
+  // 코드를 복사하는 화면이기도 하다.
+  const [inviteNotice, setInviteNotice] = useState<CoupleInviteWindowNotice | null>(null);
   const [copied, setCopied] = useState(false);
   const joinedHandoffVisible = useSyncExternalStore(
     subscribeJoinedDashboardMarker,
@@ -258,8 +266,10 @@ export default function DashboardPage() {
     if (!couple || partner || inviteCode || isDemo) return;
     fetch("/api/couple/code")
       .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then((data: { inviteCode?: string }) => {
-        if (data.inviteCode) setInviteCode(data.inviteCode);
+      .then((data: unknown) => {
+        const connection = resolveCoupleConnectionState(data);
+        if (connection.inviteCode) setInviteCode(connection.inviteCode);
+        setInviteNotice(describeCoupleInviteWindow(connection));
         setInviteCodeError(false);
       })
       .catch(() => {
@@ -451,6 +461,17 @@ export default function DashboardPage() {
               <p className="mt-1 text-[13px] font-medium text-[#5d6879]">
                 함께 보고 싶을 때 이 코드를 공유하면 같은 예산과 일정, 할 일을 볼 수 있어요.
               </p>
+              {inviteNotice && (
+                <p
+                  className={
+                    inviteNotice.tone === "active"
+                      ? "mt-1 text-[13px] font-medium text-[#5d6879]"
+                      : "mt-1 text-[13px] font-semibold text-[#9d6f36]"
+                  }
+                >
+                  {inviteNotice.message}
+                </p>
+              )}
             </div>
             {inviteCode ? (
               <button
