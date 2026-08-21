@@ -14,7 +14,7 @@ export default function AIPolicyPage() {
         {/* 상단 */}
         <div className="mb-10">
           <Link
-            href="/"
+            href="/landing"
             className="inline-block text-xs text-[#795252] hover:underline mb-6"
           >
             ← 홈으로

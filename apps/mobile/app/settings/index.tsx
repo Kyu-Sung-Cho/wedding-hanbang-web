@@ -33,8 +33,8 @@ import {
   Eye,
   EyeOff,
   Users,
-  Copy,
   BrainCircuit,
+  BookOpen,
 } from "lucide-react-native";
 import * as Clipboard from "expo-clipboard";
 import { colors } from "@hanbang/design-tokens";
@@ -57,6 +57,8 @@ import { clearCommunityCaches } from "@/lib/communityPostCache";
 import { purgeCommunityDecisionPendingForOwnerWithRetry } from "@/lib/communityDecisionPending";
 import { hasActiveCareConsent } from "@/lib/careSettings";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
+import AppGuide from "@/components/AppGuide";
+import InviteCodeCard from "@/components/invite/InviteCodeCard";
 import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceControl";
 import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
 
@@ -90,6 +92,7 @@ export default function SettingsScreen() {
 
   // 비밀번호 변경 모달
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
+  const [guideVisible, setGuideVisible] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -820,28 +823,21 @@ export default function SettingsScreen() {
 
               {phase === "awaiting_partner" ? (
                 <View style={styles.field}>
-                  <Text style={styles.label}>커플 초대 코드</Text>
-                  <View style={styles.codeRow}>
-                      <View style={styles.codeBox}>
-                        <Text style={styles.codeText}>{coupleConnection.inviteCode}</Text>
-                      </View>
-                      <Pressable
-                        style={({ pressed }) => [
-                          styles.copyBtn,
-                          pressed && { opacity: 0.6 },
-                        ]}
-                        onPress={copyInviteCode}
-                        disabled={!coupleConnection.canInvite}
-                        accessibilityRole="button"
-                        accessibilityLabel="커플 초대 코드 복사"
-                      >
-                        {codeCopied ? (
-                          <Check size={16} color={colors.rose[500]} />
-                        ) : (
-                          <Copy size={16} color={colors.rose[500]} />
-                      )}
-                    </Pressable>
-                  </View>
+                  {/* 코드가 `awaiting_partner`일 때만 이 자리에 온다. 카드 자체도
+                      코드 형식을 다시 확인해서, 연결이 끝나 inviteCode가 null이 된
+                      뒤에는 빈 QR이나 "null" 글자가 그려질 수 없다. 복사는 카드가
+                      직접 하지 않고 아래 콜백을 부른다 — 소유자 확인을 거치는
+                      경로가 이 화면에만 있어야 한다. */}
+                  <InviteCodeCard
+                    code={coupleConnection.inviteCode}
+                    label="커플 초대 코드"
+                    copied={codeCopied}
+                    copyDisabled={!coupleConnection.canInvite}
+                    onCopy={copyInviteCode}
+                  />
+                  {/* 기한은 코드를 보내는 이 자리에서 말해야 한다. main의 #136이
+                      넣은 안내를 카드로 바꾸면서 지우면, 실사용 코드가 경고 없이
+                      죽는다. 서버가 기한을 모르면 원래 안내 문구로 돌아간다. */}
                   <Text style={styles.fieldHint}>
                     {inviteWindowNotice?.message ?? "이 코드를 파트너에게 공유해 주세요"}
                   </Text>
@@ -944,6 +940,17 @@ export default function SettingsScreen() {
 
           <View style={styles.divider} />
 
+          {/* 6슬라이드 서비스 안내는 만들어져 있었는데 여는 곳이 없었다. 첫 실행에는
+              라운지 코치마크가 뜨므로, 이 안내는 보고 싶을 때 직접 여는 자리에 둔다. */}
+          <ActionRow
+            icon={<BookOpen size={18} color={colors.rose[500]} />}
+            title="서비스 안내 다시 보기"
+            description="웨딩한방을 어떻게 쓰는지 처음부터 볼 수 있어요"
+            onPress={() => setGuideVisible(true)}
+          />
+
+          <View style={styles.divider} />
+
           <ActionRow
             title="이용약관"
             onPress={() => Linking.openURL("https://hanbang.ai/terms")}
@@ -977,6 +984,15 @@ export default function SettingsScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
       </DismissKeyboard>
+
+      {/* 서비스 안내 (사용자가 직접 열었을 때만 뜬다) */}
+      <Modal
+        visible={guideVisible}
+        animationType="slide"
+        onRequestClose={() => setGuideVisible(false)}
+      >
+        <AppGuide onClose={() => setGuideVisible(false)} />
+      </Modal>
 
       {/* 비밀번호 변경 모달 */}
       <Modal
@@ -1181,33 +1197,6 @@ const styles = StyleSheet.create({
   },
 
   // 커플 코드
-  codeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  codeBox: {
-    flex: 1,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: colors.ivory[200],
-    borderRadius: 14,
-  },
-  codeText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.noir[800],
-    fontFamily: "CormorantGaramond_400Regular",
-    letterSpacing: 0,
-  },
-  copyBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: colors.rose.glow,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   connectionNotice: {
     gap: 8,
     padding: 14,

@@ -243,7 +243,9 @@ describe("코드를 나눠주는 화면이 기한을 말한다", () => {
     expect(web).toContain("setInviteDeadline(describeInviteDeadline(expiresAt))");
     // 정의만 있고 부르지 않으면 화면엔 아무것도 안 뜬다 — 호출부까지 못박는다.
     expect(web).toContain("void loadInviteDeadline();");
-    expect(web).toContain("{inviteDeadline}");
+    // 예전에는 화면이 기한을 직접 그렸다. 지금은 InviteCodePanel 에 넘겨서 코드 바로
+    // 아래에 그린다 — 검사하는 것은 여전히 "그 값이 화면까지 실제로 간다"이다.
+    expect(web).toContain("message: inviteDeadline");
 
     const mobile = readFileSync(
       resolve(process.cwd(), "../../apps/mobile/app/onboarding/index.tsx"),

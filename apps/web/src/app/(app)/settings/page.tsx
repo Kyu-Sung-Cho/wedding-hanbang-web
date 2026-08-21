@@ -12,7 +12,6 @@ import {
   Bell,
   LogOut,
   ChevronRight,
-  Copy,
   Check,
   Pencil,
   Save,
@@ -37,6 +36,7 @@ import type {
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
+import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,
@@ -89,7 +89,6 @@ export default function SettingsPage() {
     updateProfile,
   } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
-  const [copied, setCopied] = useState(false);
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
@@ -127,8 +126,6 @@ export default function SettingsPage() {
       partnerPresent: Boolean(partner),
       membershipSealedAt: couple?.membership_sealed_at,
     };
-
-    setCopied(false);
 
     if (!couple) {
       setCoupleConnection(resolveCoupleConnectionState(null, context));
@@ -189,13 +186,6 @@ export default function SettingsPage() {
     } finally {
       setRevokingLegacyCareConsent(false);
     }
-  };
-
-  const handleCopy = () => {
-    if (!coupleCode) return;
-    navigator.clipboard.writeText(coupleCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleRegenerateCode = async () => {
@@ -835,43 +825,19 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-[#F6F3F2] rounded-xl p-5">
+          {/* 코드가 보이는 유일한 조건은 `awaiting_partner`다. 연결이 끝나면
+              /api/couple/code가 inviteCode: null을 주고 패널도 함께 사라진다 —
+              패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
           {phase === "awaiting_partner" && coupleCode && (
             <div className="mb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-[#B5ADA3] mb-1">나의 커플 코드</p>
-                  <p className="text-xl font-display font-medium text-[#1A1A1F] tracking-wider">{coupleCode}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleCopy}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-white text-sm text-[#504444] shadow-sm hover:text-[#795252] transition-colors"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 text-[#2E7D5A]" />
-                        <span className="text-[#2E7D5A]">복사됨</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        복사
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              {inviteWindowNotice && (
-                <p
-                  className={
-                    inviteWindowNotice.tone === "active"
-                      ? "mt-2 text-sm text-[#928980]"
-                      : "mt-2 text-sm font-medium text-[#795252]"
-                  }
-                >
-                  {inviteWindowNotice.message}
-                </p>
-              )}
+              {/* 코드를 보내는 그 화면이 기한을 말해야 한다. main의 #136이 넣은
+                  만료 안내를 패널 안으로 옮겨 붙인다 — 패널로 바꾸면서 그 문구를
+                  통째로 지우면 실사용 코드가 경고 없이 죽는다. */}
+              <InviteCodePanel
+                code={coupleCode}
+                variant="settings"
+                notice={inviteWindowNotice}
+              />
               <button
                 onClick={handleRegenerateCode}
                 disabled={regenerating || !coupleConnection.canInvite}
@@ -921,7 +887,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex-1">
                 <p className="text-base text-[#504444] font-medium">파트너 초대 대기</p>
-                <p className="text-sm text-[#928980]">위 코드를 파트너에게 공유해 주세요</p>
+                <p className="text-sm text-[#928980]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
               </div>
               <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
             </div>

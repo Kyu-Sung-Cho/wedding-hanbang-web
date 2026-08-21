@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildFirstHelloContextTurn } from "@/lib/ai/firstHelloContext";
 import { normalizePreparationStatus } from "@hanbang/shared";
 import {
   PARTNER_TARGET_SUFFIX,
@@ -388,6 +389,38 @@ interface ChatActorProfile {
  * 스키마에서도 돌아야 하고, 그래야 마이그레이션과 배포의 순서에 여유가 생긴다.
  * 컬럼이 생기면 아무것도 안 해도 값이 실려 온다.
  */
+/**
+ * 첫 실행 안내를 끝낸 시각. **프로필 select와 절대 합치지 않는다.**
+ *
+ * 처음에는 `readChatActorProfile`의 select에 이 컬럼을 얹었다. 그게 사고였다 —
+ * 컬럼이 아직 없는 배포에서 select 전체가 42703으로 실패하고, 폴백이
+ * `preparation_status: null`을 하드코딩한다. null은 `normalizePreparationStatus`에서
+ * `"preparing"`이 되므로, **예식을 연기하거나 이어가지 않기로 한 사람에게 카운트다운과
+ * 재촉이 통째로 되살아난다.** 그 컬럼의 계약 파일이 첫 문단에서 "어떤 버그보다 아프다"고
+ * 적어둔 바로 그 상황을, 안내 플래그 하나 때문에 만들 뻔했다.
+ *
+ * 그래서 따로 읽고, 실패하면 조용히 null이다. 최악이 "첫마디 맥락이 빠진다"이고
+ * 그건 아무도 다치지 않는다. 이 조회는 아모라가 아직 한 마디도 하지 않은 대화에서만
+ * 일어나므로 평소 턴에는 비용이 없다.
+ */
+async function readFirstRunTutorialCompletedAt(
+  actorId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await getServiceClient()
+      .from("profiles")
+      .select("first_run_tutorial_completed_at")
+      .eq("id", actorId)
+      .single();
+    if (error || !data) return null;
+    const value = (data as { first_run_tutorial_completed_at?: unknown })
+      .first_run_tutorial_completed_at;
+    return typeof value === "string" && value.length > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 async function readChatActorProfile(actorId: string): Promise<ChatActorProfile | null> {
   const client = getServiceClient();
   const withStatus = await client
@@ -2345,6 +2378,32 @@ export async function POST(request: Request) {
       );
     }
     lastUserText = latestUserRow.content;
+  }
+
+  // 아모라가 화면에서 건넨 첫마디를 이 턴의 맥락 맨 앞에 놓는다.
+  //
+  // 그 인사는 모델이 쓰지 않고 온보딩 입력만으로 만들어져 화면에만 존재한다. 그대로
+  // 두면 사람이 인사를 읽고 "그래"라고만 답했을 때 모델은 인사를 본 적 없이 "그래"만
+  // 받는다 — 첫 번째 턴부터 어긋난다.
+  //
+  // 클라이언트가 보낸 assistant 이력은 신뢰하지 않는 것이 이 라우트의 원칙이므로
+  // (위 canonical 규칙), 받지 않고 커플 자신의 여정 데이터에서 서버가 다시 만든다.
+  // 저장하지 않으므로 기록은 그대로다.
+  if (
+    requestKind === "chat"
+    && !isDemo
+    // 아모라가 이미 말한 적 있으면 조회조차 하지 않는다 — 평소 턴에 비용을 더하지 않는다.
+    && !typedMessages.some((message) => message.role === "assistant")
+  ) {
+    const firstHelloTurn = buildFirstHelloContextTurn({
+      canonicalMessages: typedMessages,
+      tutorialCompletedAt: await readFirstRunTutorialCompletedAt(actorId),
+      weddingDate:
+        typeof journey?.wedding_date === "string" ? journey.wedding_date : null,
+      progress: journey?.progress,
+      now: Date.now(),
+    });
+    if (firstHelloTurn) typedMessages = [firstHelloTurn, ...typedMessages];
   }
 
   const previousCanonicalRow = canonicalRows.length >= 2

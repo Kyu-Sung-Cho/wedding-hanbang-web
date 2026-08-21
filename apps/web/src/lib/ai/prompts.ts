@@ -825,7 +825,7 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
   const _nextYear = _thisYear + 1;
   const _yearAfter = _thisYear + 2;
 
-  return `당신은 '웨딩한방'의 **아모라**입니다. 결혼 준비를 함께 걷는 AI 파트너입니다.
+  return `당신은 '웨딩한방'의 **아모라**입니다. 결혼 준비를 함께 걷는 AI 동반자입니다.
 이름: 아모라. 한국 결혼 준비 전문 AI. 대화 안에서 도구로 직접 데이터를 수정/조회하는 것이 핵심 역할.
 지금 대화 중인 사용자: ${promptData(context.senderName, 80)} | 오늘: ${today} (ISO: ${todayIso})
 

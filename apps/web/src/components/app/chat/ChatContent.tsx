@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, type SetStateAction } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink, User } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
@@ -56,6 +56,8 @@ import {
   useChatComposerAutoResize,
 } from "./useChatComposerAutoResize";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import type { AmoraFirstHello } from "@hanbang/shared";
+import { consumePendingAmoraFirstHello } from "@/lib/amora/pendingFirstHello";
 import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
 
 type CommunityDraftPrivacyMode = "shared" | "redacted_private";
@@ -604,6 +606,31 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const sendInFlightRef = useRef<number | null>(null);
   const composerEpochRef = useRef(0);
   const greetingRequested = useRef(false);
+  /**
+   * 아모라가 먼저 건넨 첫마디.
+   *
+   * 라운지에서 안내를 마친 사람은 사이드바의 "아모라"로 이 화면에 들어올 수 있다.
+   * 그 길에는 라운지의 말풍선이 없어서, 여기서 보관을 가져오지 않으면 "먼저 말을 거는
+   * 아모라"를 아예 만나지 못한다. 서버에 저장된 메시지가 아니라 이 화면 위에만 있는
+   * 말이라, 함께 대화(shared) 탭의 맨 위에 한 번 놓고 답장은 평소 경로로 간다.
+   */
+  const [firstHello, setFirstHello] = useState<AmoraFirstHello | null>(null);
+  // 보관을 확인하기 전에는 "인사가 없다"고 단정하지 않는다. 확인 전에 첫 인사를
+  // 요청하면 아모라가 같은 자리에서 두 번 인사한다.
+  const [firstHelloChecked, setFirstHelloChecked] = useState(false);
+  const firstHelloMessage = useMemo<ChatMessage | null>(() => {
+    if (!firstHello || !coupleId || isDemo) return null;
+    return {
+      id: "amora-first-hello",
+      couple_id: coupleId,
+      sender_id: null,
+      sender_role: "ai",
+      visibility: "shared",
+      content: firstHello.body,
+      metadata: {},
+      created_at: new Date().toISOString(),
+    };
+  }, [coupleId, firstHello, isDemo]);
   const composerIdentity = `${profile?.id ?? "anonymous"}:${coupleId ?? "no-couple"}:${senderRole ?? "no-role"}`;
   const composerIdentityRef = useRef(composerIdentity);
   const hasLinkedPartnerRef = useRef(hasLinkedPartner);
@@ -934,12 +961,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }
   }, [messages.length, showNewChatBanner]);
 
+  // 라운지에서 만들어 둔 첫마디를 가져온다. 가져오면 보관에서는 지워진다 —
+  // 인사는 한 번만 건넨다.
+  useEffect(() => {
+    const ownerId = profile?.id;
+    if (!ownerId || isDemo) {
+      setFirstHelloChecked(true);
+      return;
+    }
+    const delivered = consumePendingAmoraFirstHello({ ownerId });
+    if (delivered) setFirstHello(delivered);
+    setFirstHelloChecked(true);
+  }, [isDemo, profile?.id]);
+
   // 메시지 0개 + 로딩 완료 시 AI 첫 인사
   useEffect(() => {
     if (
       !coupleId ||
       !profile ||
       isDemo ||
+      // 아모라가 첫 실행 안내 직후 이미 먼저 말을 걸어뒀다. 여기서 또 인사를
+      // 요청하면 같은 자리에 인사가 두 번 뜬다.
+      !firstHelloChecked ||
+      firstHello ||
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
@@ -960,7 +1004,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         progress: journey?.progress ?? {},
       },
     });
-  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
+  }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello, firstHelloChecked]);
 
   // 자동 스크롤 정책 — 페이지 전체는 절대 안 건드림, 메시지 컨테이너만 움직임.
   // 이전 사고: scrollIntoView()가 부모 체인 모두 끌고 내려가서 페이지까지 같이 움직임.
@@ -2528,6 +2572,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             <span>
               비공개 상담 — 이 탭의 대화는 <strong>서비스에 저장되지만 상대방에게는 보이지 않아요</strong>. 아모라와 1:1로 이야기할 수 있어요.
             </span>
+          </div>
+        )}
+
+        {firstHelloMessage && activeTab === "shared" && (
+          <div className="animate-fade-in" data-testid="amora-first-hello-message">
+            <ChatBubble
+              message={firstHelloMessage}
+              isCurrentUser={false}
+            />
           </div>
         )}
 

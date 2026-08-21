@@ -98,7 +98,7 @@ export default function ResetPasswordPage() {
 
       <div className="relative z-10 w-full max-w-[420px] animate-fade-in">
         <div className="text-center mb-10">
-          <Link href="/">
+          <Link href="/landing">
             <Logo size="md" />
           </Link>
           <p className="text-[14px] text-taupe-500 font-light mt-3">

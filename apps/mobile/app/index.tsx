@@ -1,4 +1,4 @@
-// 루트: 세션 → 온보딩 여부 → 대시보드 or 로그인
+// 루트: 세션 → 온보딩 여부 → 웨딩 라운지 or 로그인
 import { useEffect, useState } from "react";
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
@@ -130,7 +130,7 @@ export default function Index() {
     case "onboarding":
       return <Redirect href="/onboarding" />;
     case "dashboard":
-      return <Redirect href="/(tabs)/dashboard" />;
+      return <Redirect href="/(tabs)/lounge" />;
   }
 }
 

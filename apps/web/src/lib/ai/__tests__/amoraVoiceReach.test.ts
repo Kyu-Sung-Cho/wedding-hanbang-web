@@ -42,17 +42,36 @@ describe("아모라 정체성이 프롬프트와 사용자 표면에서 같은 �
     }
   });
 
+  it("아모라를 '파트너'라고도 부르지 않는다", () => {
+    // 정본 호칭은 "결혼 준비 동반자"다(wedding/CLAUDE.md). 이 제품에서 "파트너"는
+    // **배우자될 사람**을 가리키고, 그 단어는 고위험 안전 정규식에도 가해자를 가리키는
+    // 명사로 들어 있다(lib/ai/amoraQuestionScope.ts). 모델이 자기를 그렇게 부르면
+    // "파트너가 때렸어" 같은 문장에서 주어가 누구인지가 흐려진다 — 라벨 문제가 아니라
+    // 의미 충돌이다.
+    for (const [label, text] of [
+      ["시스템 프롬프트", prompts],
+      ["목소리 계약", voice],
+      ["프로필 편집기 프롬프트", profilePrompt],
+      ["커뮤니티 댓글 프롬프트", communityPrompt],
+    ] as const) {
+      expect(text, `${label}가 아모라를 파트너로 소개한다`).not.toMatch(
+        /(AI|웨딩)\s*파트너\s*(['"`*]*아모라|아모라)?/u,
+      );
+    }
+  });
+
   it("자기소개와 역할 정의가 서로 다른 말을 하지 않는다", () => {
-    expect(prompts).toContain("결혼 준비를 함께 걷는 AI 파트너입니다");
-    expect(voice).toContain("결혼 준비를 함께 걷는 AI 파트너입니다");
+    expect(prompts).toContain("결혼 준비를 함께 걷는 AI 동반자입니다");
+    expect(voice).toContain("결혼 준비를 함께 걷는 AI 동반자입니다");
     // 사람인 척 금지는 개명과 무관하게 남아 있어야 한다. "지인처럼"이지 "지인인 척"이 아니다.
     expect(voice).toContain("사람인 척하거나 실제 결혼·상담 경험을 지어내지 마세요");
   });
 
   it("법적 AI 고지가 모델의 자기소개와 같은 이름을 쓴다", () => {
     // 고지와 자기소개가 서로 다른 이름을 말하는 상태는 개명 전보다 나쁘다.
-    expect(aiNotice).toContain("AI 파트너");
+    expect(aiNotice).toContain("AI 동반자");
     expect(aiNotice).not.toContain("AI 플래너");
+    expect(aiNotice).not.toContain("AI 파트너");
   });
 
   it("실행 위임 문장은 그대로 둔다", () => {

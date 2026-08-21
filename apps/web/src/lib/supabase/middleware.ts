@@ -1,4 +1,4 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 // 인증이 필요한 보호 경로만 정의
@@ -33,6 +33,93 @@ function buildCustomerGateRedirect(
   return url;
 }
 
+/**
+ * 루트(`/`)는 앱의 문이다 — 세션이 있으면 앱으로, 없으면 로그인으로.
+ *
+ * ## 왜 페이지가 아니라 여기서 판정하는가
+ *
+ * **진짜 307을 내보내기 위해서다.** 같은 판정을 서버 컴포넌트(`app/page.tsx`)의
+ * `redirect()`로 하면, 세션을 물어보는 동안 응답이 이미 스트리밍으로 나가기 시작해서
+ * 브라우저에는 `200 + HTML`이 도착하고 리다이렉트는 클라이언트에서 일어난다. 사람
+ * 눈에는 같아 보이지만 (1) 크롤러에게는 리다이렉트가 아니라 폴백 문서가 정답으로
+ * 보이고 (2) 그 문서가 한 번 그려졌다 사라진다.
+ *
+ * `app/page.tsx`의 같은 판정은 **폴백으로 남겨둔다** — 미들웨어가 돌지 않거나 Supabase
+ * 설정이 없는 환경에서도 루트는 랜딩이 아니라 문으로 동작해야 한다. 두 곳의 판정
+ * 결과는 같아야 하며, 갈리면 로그인한 사람이 두 화면 사이를 오간다.
+ *
+ * ## 체험(demo_mode) 쿠키를 여기서 보지 않는 이유
+ *
+ * `demo_mode`는 누구나 한 줄로 세팅할 수 있는 **표식**일 뿐이고, 체험의 진짜 자격은
+ * 서명된 `demo_session` 토큰이다(`lib/demoSession.ts`의
+ * `hasSignedDemoSessionFromCookieHeader`). 표식만 믿고 라운지로 보내면 **만료된 체험
+ * 쿠키를 든 사람이 라운지에 갔다가 다시 로그인으로 튕기고**, 그 튕김은 클라이언트에서
+ * 일어나서 UTM까지 함께 사라진다(로컬에서 재현했다). 로그인 화면에는 "로그인 없이
+ * 체험하기"가 그대로 있으니 체험하려던 사람도 거기서 한 번에 이어갈 수 있다.
+ *
+ * 아래 `updateSession`이 이미 방문한 경로를 **통과**시킬 때 표식만 보는 것과는 다른
+ * 판단이다 — 그건 목적지를 고르는 게 아니라 막지 않는 것이다.
+ *
+ * 서명 검증이 **불가능해서**가 아니다. 이 저장소의 미들웨어 진입점(`src/proxy.ts`)은
+ * Next 16의 Proxy 파일이라 항상 Node.js 런타임으로 컴파일되고(빌드 산출물
+ * `.next/server/functions-config-manifest.json`의 `"/_middleware": {"runtime":"nodejs"}`),
+ * `node:crypto`를 그대로 쓸 수 있다. 그래서 여기서 `hasSignedDemoSessionFromCookieHeader`를
+ * 호출해 **살아 있는 체험만 라운지로 보내는 선택도 가능하다.** 지금 그렇게 하지 않은
+ * 이유는 두 가지다. (1) 그건 누가 어디에 착지하는지를 바꾸는 제품 결정이고, 이 변경의
+ * 목적은 목적지가 아니라 전달 방식(200 → 307)이었다. (2) 정문이 Node 전용 API에 묶이면
+ * 나중에 이 파일을 Edge로 옮길 수 없다. 바꾸려면 그 두 가지를 알고 바꿔라.
+ *
+ * ## 온보딩 여부는 보지 않는다
+ *
+ * 세션이 있으면 라운지로 보내고, 온보딩을 아직 안 마쳤으면 그 다음 요청에서
+ * `updateSession`이 온보딩으로 돌린다. 여기서 프로필까지 읽으면 같은 판정을 두 곳에서
+ * 하게 된다.
+ */
+async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
+  const cookiesToApply: { name: string; value: string; options?: CookieOptions }[] = [];
+  let signedIn = false;
+
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            // 토큰이 갱신됐다면 그 쿠키를 리다이렉트 응답에 실어 보내야 한다.
+            // 여기서 흘리면 다음 요청이 다시 로그아웃 상태로 도착한다.
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value);
+              cookiesToApply.push({ name, value, options });
+            });
+          },
+        },
+      },
+    );
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    signedIn = Boolean(user);
+  } catch {
+    // 세션을 못 물어보는 상황이면 로그인으로 보낸다 — 그 화면은 누구에게나 열려 있고,
+    // 거기서 다시 앱으로 들어갈 수 있다. 도메인 루트가 통째로 오류가 되면 안 된다.
+    signedIn = false;
+  }
+
+  const destination = request.nextUrl.clone();
+  destination.pathname = signedIn ? "/wedding/lounge" : "/login";
+  // UTM 같은 유입 표식은 목적지까지 들고 간다 — clone이 search를 그대로 들고 온다.
+
+  const response = NextResponse.redirect(destination);
+  cookiesToApply.forEach(({ name, value, options }) =>
+    response.cookies.set(name, value, options),
+  );
+  return response;
+}
+
 export async function updateSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
@@ -44,6 +131,11 @@ export async function updateSession(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_URL.includes("your-project")
   ) {
     return supabaseResponse;
+  }
+
+  // 루트는 공개 경로가 아니라 **문**이다. isProtectedPath보다 먼저 봐야 한다.
+  if (pathname === "/") {
+    return await redirectAppDoor(request);
   }
 
   // 공개 경로는 auth 체크 없이 즉시 통과 (핵심 최적화)
