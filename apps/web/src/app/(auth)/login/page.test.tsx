@@ -205,6 +205,15 @@ describe("login return journey", () => {
       setInput(passwordInputs[1], "Strong1!");
     });
 
+    // 필수 동의 없이는 가입이 시작되지 않는다(가입 동의 테스트가 따로 고정한다).
+    for (const label of ["이용약관 동의", "개인정보 처리방침 동의"]) {
+      const box = [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.includes(label));
+      await act(async () => {
+        box?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+      });
+    }
+
     await act(async () => {
       container.querySelector("form")?.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
@@ -215,6 +224,9 @@ describe("login return journey", () => {
     const requestInit = vi.mocked(fetch).mock.calls[0]?.[1];
     expect(JSON.parse(String(requestInit?.body))).toMatchObject({
       redirect: START_HERE_REDIRECT,
+      termsAgreed: true,
+      privacyAgreed: true,
+      marketingAgreed: false,
     });
     expect(container.textContent).toContain("같은 브라우저에서 인증하면 아모라 화면으로 이어져요");
   });

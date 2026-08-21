@@ -8,6 +8,13 @@ import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import SignupConsent from "@/components/auth/SignupConsent";
+import {
+  EMPTY_SIGNUP_CONSENT,
+  buildSignupConsentSubmission,
+  isSignupConsentComplete,
+  type SignupConsentState,
+} from "@hanbang/shared";
 import { loginModeFromSearch, type LoginMode } from "@/lib/auth/loginMode";
 import {
   buildOAuthCallbackUrl,
@@ -73,6 +80,9 @@ export default function LoginPage() {
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
   const [cameFromStartHere, setCameFromStartHere] = useState(false);
+  // 가입 동의. 로그인·비밀번호 찾기 모드에서는 쓰지 않는다.
+  const [consent, setConsent] = useState<SignupConsentState>(EMPTY_SIGNUP_CONSENT);
+  const consentComplete = isSignupConsentComplete(consent);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -125,6 +135,12 @@ export default function LoginPage() {
   }, []);
 
   const handleOAuth = async (provider: "kakao" | "google" | "apple") => {
+    // 소셜 경로도 계정을 만든다. 가입 모드에서 필수 동의 없이 시작하면
+    // 동의 기록 없는 계정이 생긴다.
+    if (mode === "signup" && !consentComplete) {
+      setError("이용약관과 개인정보 처리방침에 동의해주세요.");
+      return;
+    }
     setLoading(provider);
     setError("");
     // 실제 로그인 시작 시 데모 모드 쿠키 제거
@@ -198,6 +214,14 @@ export default function LoginPage() {
       const supabase = createClient();
 
       if (mode === "signup") {
+        // 버튼이 잠겨 있어 보통은 닿지 않는다. 그래도 여기서 먼저 막는다 —
+        // 아래 buildSignupConsentSubmission 이 던지면 그 식별자가
+        // "오류: SIGNUP_CONSENT_REQUIRED" 로 사용자에게 그대로 보인다.
+        if (!consentComplete) {
+          setError("이용약관과 개인정보 처리방침에 동의해주세요.");
+          setLoading(null);
+          return;
+        }
         // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
         captureEvent("signup_started", {
           method: "email",
@@ -211,6 +235,7 @@ export default function LoginPage() {
             password,
             name,
             turnstileToken,
+            ...buildSignupConsentSubmission(consent),
             redirect: new URLSearchParams(window.location.search).get("redirect"),
           }),
         });
@@ -528,6 +553,16 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {/* 필수 동의 — 이 화면에는 약관·처리방침 링크가 하나도 없었다.
+                    가입 버튼과 소셜 버튼 양쪽이 이 상태를 본다. */}
+                {mode === "signup" && (
+                  <SignupConsent
+                    value={consent}
+                    onChange={setConsent}
+                    disabled={loading !== null}
+                  />
+                )}
+
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
                   <TurnstileWidget
@@ -551,7 +586,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
+                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || !consentComplete || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
