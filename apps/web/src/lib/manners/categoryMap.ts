@@ -15,6 +15,7 @@ import { MANNERS_PARTS } from "./data";
  * 호출부가 카드를 안 그린다 — 죽은 링크보다 낫다.
  */
 const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
+  greeting: "first-family-visit",
   meeting: "family-meeting",
   venue: "wedding-day",
   studio: "photo-manners",
@@ -34,6 +35,7 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   mc: "congratulatory-speech",
   ham: "gifts-and-traditions",
   pyebaek: "traditional-greetings",
+  registration: "marriage-registration",
 };
 
 export const MAPPED_MANNERS_CATEGORY_KEYS = Object.keys(CATEGORY_MANNERS_SLUG);

@@ -32,6 +32,7 @@ export interface ChecklistItem {
  * 필요한 경우에만 익숙한 명칭을 뒤에 덧붙인다.
  */
 export const PLANNING_CATEGORY_LABELS = {
+  greeting: "배우자 부모님께 첫인사",
   meeting: "부모님 첫 만남",
   venue: "결혼식장",
   studio: "웨딩 사진 촬영",
@@ -51,6 +52,7 @@ export const PLANNING_CATEGORY_LABELS = {
   mc: "결혼식 진행·축하 노래",
   ham: "가족에게 전하는 전통 혼례 선물",
   pyebaek: "결혼식 뒤 전통 인사",
+  registration: "혼인신고와 주소·보험 신고",
   reserve: "예비비·사용처 미정",
 } as const;
 
@@ -69,6 +71,68 @@ export interface CategoryChecklistTemplate {
 }
 
 export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
+  // 기본 확인 순서 0: 두 사람이 각자 다녀오는 자리
+  {
+    key: "greeting",
+    label: PLANNING_CATEGORY_LABELS.greeting,
+    icon: "Users",
+    tip: "두 사람이 각자 배우자의 부모님을 따로 찾아뵙는 자리입니다. 날짜와 만날 곳, 선물, 입고 갈 옷을 미리 정하고 부를 말도 맞춰보세요.",
+    ddayStart: 390,
+    ddayDeadline: 330,
+    items: [
+      {
+        id: "registration_11",
+        label: "빌린 집이라면 계약서에 날짜 도장(확정일자) 받기",
+        done: false,
+        note: "주소 옮기는 신고를 하러 갈 때 함께 처리할 수 있는지 미리 물어보세요.",
+      },
+      {
+        id: "housing_10",
+        label: "계약 전에 등기부등본으로 집 주인과 빚 상태 확인",
+        done: false,
+        note: "계약서에 서명하러 나온 사람이 서류에 적힌 소유자와 같은지 신분증으로 맞춰 보세요.",
+      },
+      {
+        id: "greeting_01",
+        label: "각자 찾아뵐 날짜와 시간, 만날 곳 확정",
+        done: false,
+        note: "선물과 옷차림이 거기서 갈리니 집으로 갈지 밖에서 뵐지 배우자에게 먼저 물어보세요.",
+      },
+      {
+        id: "greeting_02",
+        label: "결혼 계획을 어디까지 말할지 두 사람이 맞춰보기",
+        done: false,
+        note: "한 사람만 알고 있는 이야기가 그 자리에서 처음 나오지 않게 미리 나눠 보세요.",
+      },
+      { id: "greeting_03", label: "부모님과 가족에 대해 미리 들어두기", done: false },
+      {
+        id: "greeting_04",
+        label: "부모님을 어떻게 부를지 정하기",
+        done: false,
+        note: "집집마다 부르는 말이 달라서 어떻게 부르면 좋을지 배우자에게 먼저 물어보세요.",
+      },
+      {
+        id: "greeting_05",
+        label: "가족이 함께 드실 선물이나 꽃 준비 (필요한 경우)",
+        done: false,
+        note: "차게 두어야 하는 음식은 그 집 사정을 알기 어려우니 상온에 두어도 되는 쪽으로 고르세요.",
+      },
+      { id: "greeting_06", label: "부모님께 따로 드릴 작은 선물 준비 (필요한 경우)", done: false },
+      {
+        id: "greeting_07",
+        label: "그날 입고 갈 옷 정하고 손질해 두기",
+        done: false,
+        note: "현관에서 신을 벗는 자리라 양말이나 스타킹을 챙기는 사람이 많아요.",
+      },
+      { id: "greeting_08", label: "자기소개와 인사말 미리 연습하기", done: false },
+      {
+        id: "greeting_09",
+        label: "찾아뵙고 온 뒤 들은 이야기 두 사람이 정리하기",
+        done: false,
+        note: "들은 이야기를 각자 기억나는 대로 적어 보고 서로 다른 데가 있는지 맞춰 보세요.",
+      },
+    ],
+  },
   // 기본 확인 순서 1: 먼저 합의할 항목
   {
     key: "meeting",
@@ -200,6 +264,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "고른 뒤에 바꿀 수 있는지, 고르지 않은 사진은 언제까지 남아 있는지 함께 물어보세요.",
       },
+      {
+        id: "studio_11",
+        label: "완성된 사진 파일과 앨범 받고 확인 (해당하는 경우)",
+        done: false,
+        note: "받은 자리에서 파일이 열리는지 확인하고 고른 사진이 다 들어왔는지 맞춰 보세요.",
+      },
     ],
   },
   {
@@ -237,6 +307,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         label: "결혼식 전 드레스를 입어보고 최종 확인",
         done: false,
         note: "당일에 뒷지퍼와 잠금 고리를 누가 잠가 줄지 이때 함께 정해 두세요.",
+      },
+      {
+        id: "dress_09",
+        label: "빌린 드레스와 예식 정장 돌려주기 (해당하는 경우)",
+        done: false,
+        note: "언제까지 어디로 가져가야 하는지, 맡긴 돈이 있다면 언제 돌아오는지 함께 물어보세요.",
       },
     ],
   },
@@ -355,6 +431,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "받는 자리에서 단추와 끈을 직접 매어 보면 결혼식 당일에 입는 시간이 줄어요.",
       },
+      {
+        id: "hanbok_08",
+        label: "빌린 한복 돌려주기 (해당하는 경우)",
+        done: false,
+        note: "빌릴 때 함께 받은 것을 목록으로 적어 두고 가져가기 전에 맞춰 보세요.",
+      },
     ],
   },
   {
@@ -466,6 +548,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       },
       { id: "houseware_06", label: "침구와 생활용품 구매", done: false },
       { id: "houseware_07", label: "신혼집 입주 및 정리", done: false },
+      {
+        id: "houseware_08",
+        label: "배송받은 자리에서 설치와 상태 확인",
+        done: false,
+        note: "포장을 뜯을 때 흠집과 작동을 함께 확인하고 문제가 보이면 설치하러 온 분에게 바로 말하세요.",
+      },
     ],
   },
   {
@@ -519,6 +607,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         label: "입주 청소 및 이사 일정 확정",
         done: false,
         note: "짐을 직접 보여주고 받은 값인지, 이사하는 날 더 붙는 비용이 있는지 날짜를 잡기 전에 물어보세요.",
+      },
+      {
+        id: "housing_11",
+        label: "남은 금액 납부하고 열쇠 받기",
+        done: false,
+        note: "돈을 보내기 전에 등기부등본을 다시 떼어 그사이 달라진 데가 없는지 확인하세요.",
       },
     ],
   },
@@ -608,6 +702,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "받는 날짜만 정하지 말고 파일을 내려받을 수 있는 기간이 언제까지인지도 함께 물어보세요.",
       },
+      {
+        id: "snap_10",
+        label: "완성된 사진과 영상 내려받아 따로 보관",
+        done: false,
+        note: "빠진 장면이 없는지 확인하고 다른 곳에도 한 벌 옮겨 두세요.",
+      },
     ],
   },
   {
@@ -679,6 +779,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         label: "결혼식장 꽃 장식이 더 필요한지 협의",
         done: false,
         note: "포함이라고 들은 꽃 장식이 어디까지인지 계약서에 항목으로 적어 달라고 하세요.",
+      },
+      {
+        id: "bouquet_07",
+        label: "결혼식 당일 꽃이 도착할 시간과 장소 확인",
+        done: false,
+        note: "그 시간에 대신 받아 줄 사람이 있는지 결혼식장에 물어보고 연락처를 업체에 알려 두세요.",
       },
     ],
   },
@@ -789,12 +895,89 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       },
       { id: "pyebaek_04", label: "결혼식장 안에 진행할 장소가 있는지 확인", done: false },
       {
+        id: "pyebaek_07",
+        label: "주문한 음식이 도착할 시간과 장소 확인",
+        done: false,
+        note: "상하기 쉬운 것이 있는지, 남은 음식은 어떻게 하는지 업체에 미리 물어보세요.",
+      },
+      {
         id: "pyebaek_05",
         label: "진행 순서를 미리 확인",
         done: false,
         note: "절 순서와 횟수는 집안마다 달라서, 맞히려 하기보다 인사를 받으실 어른께 직접 여쭤보세요.",
       },
       { id: "pyebaek_06", label: "입을 한복과 신발 확인", done: false },
+    ],
+  },
+
+  {
+    key: "registration",
+    label: PLANNING_CATEGORY_LABELS.registration,
+    icon: "FileText",
+    tip: "결혼식과 혼인신고는 다른 일입니다. 언제 낼지는 두 사람이 정하고, 신고서에 함께 적을 것과 신고 뒤 기한이 붙은 것을 미리 확인하세요.",
+    ddayStart: 90,
+    ddayDeadline: -30,
+    items: [
+      {
+        id: "registration_01",
+        label: "혼인신고를 언제 할지 두 사람이 정하기",
+        done: false,
+        note: "국내에서 하는 신고에는 정해진 기한이 없어서 결혼식 앞이든 뒤든 절차상 문제가 없어요.",
+      },
+      {
+        id: "registration_02",
+        label: "혼인신고 시기가 세금에 영향을 주는지 알아보기 (해당하는 경우)",
+        done: false,
+        note: "미루기로 정하기 전에 두 사람 각각 해당되는지 국세청 안내로 먼저 확인해 보세요.",
+      },
+      {
+        id: "registration_03",
+        label: "자녀의 성과 본을 어떻게 할지 이야기하기",
+        done: false,
+        note: "지금 정하지 않으면 나중에는 법원에 청구해야 하고 그대로 될지는 알 수 없어요.",
+      },
+      {
+        id: "registration_04",
+        label: "혼인신고서에 적을 등록기준지 확인하기",
+        done: false,
+        note: "가족관계증명서에서 확인할 수 있으니 가기 전에 미리 떼어 두세요.",
+      },
+      {
+        id: "registration_05",
+        label: "성인 증인 두 사람에게 신고서 서명 부탁하기",
+        done: false,
+        note: "서명을 받지 않은 채로 가면 그 자리에서 진행이 어려우니 방문 전에 받아 두세요.",
+      },
+      {
+        id: "registration_06",
+        label: "혼인신고를 접수하는 곳 확인하기",
+        done: false,
+        note: "주소 옮기는 신고를 받는 곳과 안내되는 곳이 달라서 출발 전에 전화로 물어보세요.",
+      },
+      {
+        id: "registration_07",
+        label: "한 사람만 갈 때 필요한 서류 확인하기 (해당하는 경우)",
+        done: false,
+        note: "서명이나 도장만으로는 모자랄 수 있으니 무엇을 더 챙겨야 하는지 미리 물어보세요.",
+      },
+      {
+        id: "registration_08",
+        label: "혼인신고서 작성하고 접수하기",
+        done: false,
+        note: "받아 주는 방법이 달라질 수 있으니 어느 쪽으로 낼 수 있는지 가기 전에 한 번 더 확인하세요.",
+      },
+      {
+        id: "registration_09",
+        label: "새 주소로 옮기는 신고(전입신고) 기한 확인하고 신고하기",
+        done: false,
+        note: "기한을 세는 시작점이 혼인신고한 날이 아니라 이사한 날이에요.",
+      },
+      {
+        id: "registration_10",
+        label: "건강보험에 배우자를 올릴 수 있는지 알아보기 (해당하는 경우)",
+        done: false,
+        note: "늦어도 신고는 받아 주지만 많이 늦으면 그 사이 보험료를 따로 내게 될 수 있어요.",
+      },
     ],
   },
 ];

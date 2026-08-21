@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  FileText,
   Users, Building2, Camera, Shirt, Palette, Gem, Flower2, Plane, Home, Key,
   Mail, Gift, Video, Package, Sparkles, Flower, Heart, Mic, Box, CheckCircle2,
   ChevronRight, Circle,
@@ -16,6 +17,7 @@ import type { ProgressItem, ChecklistItem } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  FileText,
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
   Flower2, Plane, Home, Key, Mail, Gift,
   Sparkles, Flower, Heart, Mic, Box,
