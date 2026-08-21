@@ -1,8 +1,69 @@
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { SCHEDULE_CARE_MOMENT_OPTIONS } from "@hanbang/shared/constants";
 
-const PLANNING_CATEGORY_DESCRIPTION =
-  "meeting=양쪽 부모님이 함께 만나는 자리, venue=결혼식장, studio=웨딩 사진 촬영, dress=드레스·예식 정장, makeup=헤어·메이크업, ring=결혼반지·기념 선물, hanbok=한복, yedan=두 가족에게 드릴 선물, honeymoon=신혼여행, houseware=가전·가구·생활용품, housing=신혼집, invitation=종이·모바일 초대장, snap=결혼식 날 사진·영상, shoes=결혼식 신발, bouquet=손에 드는 꽃·꽃 장식, gift=결혼식에 온 분께 드릴 선물, mc=결혼식 진행·축하 노래, ham=가족에게 전하는 전통 혼례 선물, pyebaek=결혼식 뒤 전통 인사";
+/**
+ * 도구 스키마의 분야 목록은 **손으로 적지 않는다.**
+ *
+ * 2026-08-21에 분야를 열아홉에서 스물하나로 늘렸는데 이 파일의 enum 여섯 개와 설명
+ * 문자열이 옛 열아홉 개인 채로 남았다. 프롬프트 쪽(`prompts.ts`)은 템플릿에서 뽑아
+ * 쓰기 때문에 아모라는 새 분야를 **말할 수는 있는데 지목할 수는 없는** 상태가 됐다.
+ * 실행기(`scheduleTools`)는 템플릿 기반이라 받아줄 준비가 돼 있었고, 막힌 것은 오직
+ * 모델에게 건네는 이 목록이었다.
+ *
+ * 그래서 정본에서 뽑는다. 분야가 늘면 아모라도 같이 안다.
+ */
+/**
+ * **DB가 아직 받지 못하는 분야는 모델에게 주지 않는다.**
+ *
+ * 쓰기 도구는 `apply_amora_atomic_tool_execution`을 지나는데, 그 본체(지금은
+ * `..._pre_shared_revision`으로 이름만 바뀐 `20260716112000` 마이그레이션)가 분야 키
+ * 화이트리스트를 여섯 군데 하드코딩해 두었고 거기에 열아홉 개뿐이다.
+ *
+ * 그래서 여기서 정본 그대로를 열어 주면 오히려 나빠진다. 지금은 모델이 새 분야를
+ * 지목하지 못해 조용히 넘어가는데, 열어 주면 모델이 지목하고 DB가 거절해서 **스트리밍
+ * 되던 답이 지워지고 "다시 이어갈 수 없어요"가 뜬다.** 같은 말을 다시 해도 같은 자리에서
+ * 죽는다.
+ *
+ * DB 쪽을 고치려면 마이그레이션을 새로 추가해야 하고, 그러면 릴리스 매니페스트와
+ * Vercel 소유자 서명까지 함께 가야 한다(안 그러면 프로덕션 빌드가 통째로 죽는다).
+ * 그건 파운더가 여는 문이라 여기서 하지 않는다.
+ *
+ * `toolSchemaMatchesDatabase.test.ts`가 이 목록을 마이그레이션 원문에서 뽑은 것과
+ * 대조한다. DB가 새 분야를 받게 되는 순간 그 검사가 실패하고, 그때 이 제약을 지우면 된다.
+ */
+const CATEGORIES_THE_DATABASE_CANNOT_ACCEPT = new Set(["greeting", "registration"]);
+
+export const CHECKLIST_CATEGORY_KEYS = CATEGORY_CHECKLISTS
+  .map(({ key }) => key)
+  .filter((key) => !CATEGORIES_THE_DATABASE_CANNOT_ACCEPT.has(key));
+
+/** 예산에는 체크리스트에 없는 예비비 칸이 하나 더 있다. */
+export const BUDGET_CATEGORY_KEYS = Object.keys(PLANNING_CATEGORY_LABELS)
+  .filter((key) => !CATEGORIES_THE_DATABASE_CANNOT_ACCEPT.has(key));
+
+/** 일정은 어느 분야에도 안 걸리는 일정을 위해 `general`을 함께 받는다. */
+export const SCHEDULE_CATEGORY_KEYS = ["general", ...CHECKLIST_CATEGORY_KEYS];
+
+/**
+ * 라벨만으로는 모델이 가르기 어려운 분야에만 풀이를 덧붙인다.
+ *
+ * `greeting`(배우자 부모님께 첫인사)과 `meeting`(부모님 첫 만남)은 이름이 비슷한데
+ * 서로 다른 자리다 — 앞의 것은 각자 따로 가고, 뒤의 것은 넷이 함께 만난다.
+ * 라벨을 그대로 주면 모델이 섞는다.
+ */
+const CATEGORY_GLOSS: Record<string, string> = {
+  greeting: "각자 상대 부모님을 따로 처음 뵙는 자리",
+  meeting: "두 사람이 양쪽 부모님과 함께 만나는 자리",
+  registration: "혼인신고와 그 뒤 주소·보험 신고",
+};
+
+const PLANNING_CATEGORY_DESCRIPTION = CATEGORY_CHECKLISTS
+  .filter(({ key }) => !CATEGORIES_THE_DATABASE_CANNOT_ACCEPT.has(key))
+  .map(({ key, label }) => `${key}=${CATEGORY_GLOSS[key] ?? label}`)
+  .join(", ");
 
 const BUDGET_CATEGORY_DESCRIPTION =
   `${PLANNING_CATEGORY_DESCRIPTION}, reserve=예비비`;
@@ -47,11 +108,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
+          enum: CHECKLIST_CATEGORY_KEYS,
           description: `변경할 카테고리. ${PLANNING_CATEGORY_DESCRIPTION}`,
         },
         status: {
@@ -97,11 +154,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek", "reserve",
-          ],
+          enum: BUDGET_CATEGORY_KEYS,
           description: `카테고리. ${BUDGET_CATEGORY_DESCRIPTION}`,
         },
         budget: {
@@ -137,12 +190,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
             properties: {
               category: {
                 type: "string",
-                enum: [
-                  "meeting", "venue", "studio", "dress", "makeup", "ring",
-                  "hanbok", "yedan", "honeymoon", "houseware", "housing",
-                  "invitation", "snap", "shoes", "bouquet", "gift", "mc",
-                  "ham", "pyebaek", "reserve",
-                ],
+                enum: BUDGET_CATEGORY_KEYS,
                 description: "카테고리 키",
               },
               budget: {
@@ -286,11 +334,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         category_key: {
           type: "string",
-          enum: [
-            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
+          enum: SCHEDULE_CATEGORY_KEYS,
           description: `관련 카테고리 (선택). 대표 준비 일정이면 반드시 넣습니다. general=일반, ${PLANNING_CATEGORY_DESCRIPTION}`,
         },
         schedule_scope: {
@@ -436,11 +480,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         category: {
           type: "string",
-          enum: [
-            "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
+          enum: CHECKLIST_CATEGORY_KEYS,
           description: `카테고리. ${PLANNING_CATEGORY_DESCRIPTION}`,
         },
         item_id: {
@@ -501,11 +541,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         category_key: {
           type: "string",
-          enum: [
-            "general", "meeting", "venue", "studio", "dress", "makeup", "ring",
-            "hanbok", "yedan", "honeymoon", "houseware", "housing",
-            "invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek",
-          ],
+          enum: SCHEDULE_CATEGORY_KEYS,
           description: "관련 카테고리. 불명확하면 general",
         },
         priority: {

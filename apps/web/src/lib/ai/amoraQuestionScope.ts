@@ -41,6 +41,20 @@ export interface ClassifyAmoraQuestionScopeInput {
   userText: string;
   requestKind?: "chat" | "initial_greeting" | "mediation";
   hasApprovedWeddingAction?: boolean;
+  /**
+   * 서버가 `resolveAmoraWeddingClarificationContinuity`로 증명한 경우에만 참이다.
+   * 아모라가 W0 턴에서 **되물은 직후**의 짧은 답이라는 뜻이며, 그 증명은
+   * 직전 사용자 발화의 재판정과 서버가 기록한 assistant `question_scope`에서 온다.
+   *
+   * 이 플래그 없이는 되묻기 고리에서 빠져나올 수 없었다. "일정 넣어줘" →
+   * (아모라가 연도를 되묻는다) → "응 넣어줘"가 그 문장만으로는 W4로 떨어져
+   * 도구가 0개가 되고, 확인 카드조차 낼 수 없어 아모라가 또 되물었다.
+   *
+   * `hasApprovedWeddingAction`과 같은 자리에서 처리한다. 그 위의 안전·고위험·
+   * 범위 밖 판정이 모두 먼저 끝난 뒤라야 하기 때문이다 — 현재 발화가 새로
+   * 들고 온 의료·법률·금융·안전 신호는 어떤 연속성으로도 세탁되지 않는다.
+   */
+  hasWeddingClarificationContinuity?: boolean;
 }
 
 const NON_WEDDING_INVESTMENT_PATTERN =
@@ -107,7 +121,7 @@ const RELATIONSHIP_CONFIDANT_PATTERN =
 // EXPLICIT_NON_WEDDING_STATE_PATTERN은 `회사`+`예산|일정` 조합을 요구하므로
 // 이 어휘를 막지 못한다 — 그물이 있다고 믿고 낱말만 더하면 그대로 샌다.
 const AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN =
-  /견적|추가금|뭐\s*부터|무엇\s*부터|어디\s*서?\s*부터|뭐\s*먼저|늦었|늦은\s*(?:거|건|걸|편)|디데이|d-\s*\d+|호칭|(?:사진|스냅|촬영|앨범)\s*원본|원본\s*(?:사진|파일)|예산(?:을|이|은|도)?\s*.{0,8}(?:초과|넘었|모자라|부족|줄여|아껴)/iu;
+  /견적|추가금|뭐\s*부터|무엇\s*부터|어디\s*서?\s*부터|뭐\s*먼저|늦었|늦은\s*(?:거|건|걸|편)|디데이|d-\s*\d+|호칭|(?:사진|스냅|촬영|앨범)\s*원본|원본\s*(?:사진|파일)|예산(?:을|이|은|도)?\s*.{0,8}(?:초과|넘었|모자라|부족|줄여|아껴|늘려|올려)/iu;
 const NON_WEDDING_DOMAIN_HINT_PATTERN =
   /회사|업무|직장|출근|퇴사|이직|취업|면접|프로젝트|시험|자격증|숙제|과제|이사|입주|전세|월세|창업|개업|다이어트|운동|여행|유학|군대|병원|수술|인테리어|리모델링|공사|자동차|차량/iu;
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
@@ -130,8 +144,22 @@ const CANONICAL_BUDGET_AMOUNT_STATEMENT_PATTERN =
 const CANONICAL_NATURAL_BUDGET_READ_PATTERN =
   /(?:남은\s*)?예산(?:을|은|이|도)?\s*.{0,12}(?:얼마|보여|알려|현황|확인|조회)/iu;
 const CANONICAL_SCHEDULE_STATE_PATTERN = /일정|스케줄/iu;
+// `넣어`는 **아모라가 스스로 가르치는 동사**다. `amoraVoice.ts:51`이
+// "8월 10일처럼 날짜만 알려주시면 바로 넣을게요"라고 말해 놓고, 사용자가 그대로
+// "8월 10일 일정에 넣어줘"라고 답하면 이 목록에 없어서 W4로 떨어져 도구가 0개가
+// 됐다. 제품이 가르친 말을 제품이 못 알아듣는 것이라, 다른 어휘 추가와 근거의
+// 성격이 다르다.
+//
+// 오탐은 **새로 생기지 않는다**(실측으로 확인했지, 추론이 아니다). 이 분기는
+// 일정·동사·날짜 셋을 모두 요구하는데, 그 모양이면 이미 배포된 동사로도 똑같이
+// 걸린다: "이사 일정 내일로 추가해줘" -> 이 변경 전에도 W0. `넣어`만 W4였다.
+// 겨냥 코퍼스 10개에서 오탐 2개가 나왔고 둘 다 이 기존 모양이다.
+//
+// (앞서 같은 논리를 던지다에 옮겼다가 틀렸다 — 거기서는 합성동사에 `던지` 철자가
+//  아예 없어 예전엔 걸릴 수 없었다. 여기서는 같은 문장이 이미 걸린다는 것을
+//  실행해서 확인했다. 옮기지 말고 매번 재라는 뜻이다.)
 const CANONICAL_SCHEDULE_MUTATION_PATTERN =
-  /추가|등록|잡아|변경|바꾸|바꿔|옮겨|수정|취소|삭제|미뤄|당겨/iu;
+  /추가|등록|잡아|변경|바꾸|바꿔|옮겨|수정|취소|삭제|미뤄|당겨|넣어|넣자|넣을/iu;
 const CANONICAL_DATE_OR_TIME_PATTERN =
   /\d{4}\s*년|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}[./-]\d{1,2}|오늘|내일|모레|이번\s*주|다음\s*주|다다음\s*주|(?:월|화|수|목|금|토|일)요일|오전|오후|\d{1,2}\s*시/iu;
 const CANONICAL_SCHEDULE_READ_PATTERN =
@@ -151,6 +179,7 @@ export function classifyAmoraQuestionScope({
   userText,
   requestKind = "chat",
   hasApprovedWeddingAction = false,
+  hasWeddingClarificationContinuity = false,
 }: ClassifyAmoraQuestionScopeInput): AmoraQuestionScopeClassification {
   const normalizedText = normalizeAmoraSafetyText(userText);
   const structuredSafetyAssessment = assessAmoraSafetyText(normalizedText);
@@ -272,10 +301,28 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
-  if (hasApprovedWeddingAction) {
+  // 서버가 검증한 승인 액션, 그리고 서버가 증명한 되묻기 직후의 답.
+  // 둘 다 위의 안전·고위험·범위 밖 관문을 이미 통과한 뒤에만 여기에 닿는다.
+  if (hasApprovedWeddingAction || hasWeddingClarificationContinuity) {
     return {
       scope: "W0_wedding_core",
-      allowsLongTermMemory: true,
+      // 되묻기 연속성으로 올라온 턴은 **장기 기억을 켜지 않는다.**
+      //
+      // 이 관문은 "이 발화에서 서버가 아무 신호도 못 찾았다"를 조건으로 삼는다.
+      // 그래서 되묻기 직후의 짧은 말이면 무엇이든 통과한다 — 감사에서 재보니
+      // "그냥 다 취소", "엄마한테 물어볼게", "회사 회식 있어", "배고파" 같은
+      // **답이 아닌 말 8개 중 7개**가 올라왔다. 답인지 아닌지를 이 자리에서
+      // 가릴 방법이 없다(있었으면 애초에 W4로 안 떨어졌다).
+      //
+      // 도구와 문맥은 그래도 여는 게 맞다 — 잘못 열려도 아모라가 엉뚱한 답을
+      // 할 뿐이고, 변경은 여전히 확인 카드를 눌러야 일어난다. 하지만 **기억은
+      // 다르다.** 한 번 들어가면 커플이 함께 보는 기록에 남고, "배고파"를
+      // 결혼 준비 사실로 저장할 이유는 어디에도 없다. 이 턴이 남겨야 할
+      // durable한 사실은 확인된 액션 경로가 이미 따로 기록한다.
+      //
+      // 승인된 액션(`hasApprovedWeddingAction`)은 사용자가 카드를 눌러 확인한
+      // 것이라 사정이 다르므로 기존대로 기억을 켠다.
+      allowsLongTermMemory: hasApprovedWeddingAction,
       confidence: "high",
       needsClarification: false,
     };

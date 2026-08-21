@@ -905,6 +905,29 @@ export default function ScheduleScreen() {
           result,
         ));
         setApprovalError(result.partial);
+        // 사라진 요청이 어떻게 끝났는지 말한다. 안 말하면 파트너가 거절한
+        // 화면과 승인한 화면이 똑같다 — 둘 다 카드가 없어지고 일정은 그대로다.
+        //
+        // 백그라운드 폴링(`silent`)에서는 띄우지 않는다. 사용자가 보고 있지
+        // 않을 때 모달을 띄우면 소음이고, 이 구분은 이 함수가 이미 쓰고 있다
+        // (바로 위 `setApprovalLoading`). 사용자가 직접 새로고침한 순간에만
+        // 말한다. 문구는 능동 경로가 쓰는 것을 그대로 쓴다.
+        if (!options?.silent) {
+          const resolved = (result.resolvedOutcomes ?? []).find(
+            (outcome) => outcome.status === "rejected" || outcome.status === "applied",
+          );
+          if (resolved?.status === "rejected") {
+            Alert.alert(
+              "일정 변경을 반영하지 않았어요",
+              "기존 일정은 그대로 유지돼요.",
+            );
+          } else if (resolved?.status === "applied") {
+            Alert.alert(
+              "일정 변경을 반영했어요",
+              "두 사람의 확인이 끝나 최신 일정에 반영됐어요.",
+            );
+          }
+        }
       }
     } catch {
       if (approvalLoadSequenceRef.current === loadSequence) {

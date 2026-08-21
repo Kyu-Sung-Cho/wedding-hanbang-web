@@ -6,6 +6,7 @@ import {
 } from "@hanbang/shared/amora-preparation-topic-consumer-state";
 
 const TOPIC_KEYS = [
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -25,6 +26,7 @@ const TOPIC_KEYS = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ];
 
 function view(overrides = {}) {

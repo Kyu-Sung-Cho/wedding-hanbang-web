@@ -10,6 +10,7 @@ import {
 } from "@hanbang/shared/amora-preparation-topic-consumer-state";
 
 const TOPIC_KEYS = Object.freeze([
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -29,6 +30,7 @@ const TOPIC_KEYS = Object.freeze([
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ]);
 
 function topicView(topicKey, overrides = {}) {
@@ -88,7 +90,7 @@ const TOPIC_SCENARIOS = Object.freeze([
   }),
 ]);
 
-test("19개 준비 주제가 정상·배제·변경·부분 조회에서 같은 truth policy와 상태 규칙을 쓴다", () => {
+test("21개 준비 주제가 정상·배제·변경·부분 조회에서 같은 truth policy와 상태 규칙을 쓴다", () => {
   for (const topicKey of TOPIC_KEYS) {
     for (const scenario of TOPIC_SCENARIOS) {
       const result = buildAmoraPreparationTopicConsumerState(

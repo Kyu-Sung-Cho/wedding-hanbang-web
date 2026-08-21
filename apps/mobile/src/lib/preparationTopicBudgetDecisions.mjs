@@ -7,6 +7,7 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const MAX_TIMEOUT_MS = 60_000;
 const UNSAFE_DISPLAY_TEXT_RE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
 const CANONICAL_TOPIC_KEYS = Object.freeze([
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -26,6 +27,7 @@ const CANONICAL_TOPIC_KEYS = Object.freeze([
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ]);
 
 function isRecord(value) {

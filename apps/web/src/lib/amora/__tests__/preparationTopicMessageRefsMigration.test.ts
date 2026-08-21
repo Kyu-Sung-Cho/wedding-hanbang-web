@@ -44,6 +44,12 @@ const SHARED_ANSWER_ID = "40000000-0000-4000-8000-000000000001";
 const PRIVATE_QUESTION_ID = "30000000-0000-4000-8000-000000000002";
 const PRIVATE_ANSWER_ID = "40000000-0000-4000-8000-000000000002";
 const REQUEST_ID = "50000000-0000-4000-8000-000000000001";
+// 정본 분야는 스물한 개이지만 이 목록은 열아홉 개다. 이 파일은 정본이 아니라
+// **DB가 실제로 받는 집합**을 확인하는 검사이고, 그 DB가 지금 열아홉 개다.
+// 빠진 둘 "greeting" 과 "registration" 은 마이그레이션
+// 20260816120000_amora_preparation_topic_message_refs.sql 의 CHECK(24~28행)와
+// 함수 가드(559~563, 783~787행) 어디에도 없다. 여기에 그 둘을 더하면 이 검사가
+// 거짓을 주장하게 된다 — 실제로 넣어 보면 22023 으로 거절된다.
 const TOPIC_KEYS = [
   "meeting", "venue", "studio", "dress", "makeup", "ring", "hanbok",
   "yedan", "honeymoon", "houseware", "housing", "invitation", "snap",

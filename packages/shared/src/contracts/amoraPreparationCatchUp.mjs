@@ -35,6 +35,19 @@ const SELF_REPORTED_STAGES = new Set(["starting", "already_preparing", "unknown"
 const CATCH_UP_STATES = new Set(["completed", "in_progress", "unknown", "not_applicable"]);
 const CATCH_UP_SCOPES = new Set(["owner_private", "couple_shared"]);
 
+// 이 목록은 정본 분야(스물한 개)의 거울이 **아니다.** DB 화이트리스트(열아홉 개)의
+// 거울이다. 빠진 둘은 누락이 아니라 아직 DB가 받지 못하는 키다 —
+// supabase/migrations/20260816190000_amora_preparation_catch_up.sql 의 164~168행
+// topicKey NOT IN 목록, 45~49행 CHECK, 438~459행 라벨 CASE 세 곳이 모두 열아홉 개다.
+//
+// 여기에 두 키를 넣으면 온보딩이 **끝나지 않는다.** 화면에 칩이 생기고, 고르면 RPC가
+// 22023을 던지는데 apps/web/src/app/api/onboarding/route.ts 가 그 코드를 매핑하지 않아
+// 503 + retryPolicy "same_request" 로 떨어진다. 그 return 은 completeProfile 보다 앞이라
+// 같은 요청을 다시 보내도 같은 자리에서 다시 죽는다.
+//
+// 마이그레이션이 열리는 날 아래 상수를 비우고 두 키를 목록에 더하면 된다.
+export const AMORA_PREPARATION_CATCH_UP_TOPICS_THE_DATABASE_CANNOT_ACCEPT =
+  Object.freeze(["greeting", "registration"]);
 export const AMORA_PREPARATION_CATCH_UP_TOPICS = Object.freeze([
   Object.freeze({ topicKey: "meeting", topicLabel: "부모님 첫 만남" }),
   Object.freeze({ topicKey: "venue", topicLabel: "결혼식장" }),

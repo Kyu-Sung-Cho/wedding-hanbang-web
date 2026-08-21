@@ -364,9 +364,10 @@ test("one failed status read keeps another verified topic and marks the result p
   assert.equal(result.partial, true);
 });
 
-test("status fan-out is bounded to the nineteen canonical progress topics", async () => {
+test("status fan-out is bounded to the twenty-one canonical progress topics", async () => {
   const canonicalTopicKeys = [
-    "meeting",
+    "greeting",
+  "meeting",
     "venue",
     "studio",
     "dress",
@@ -385,6 +386,7 @@ test("status fan-out is bounded to the nineteen canonical progress topics", asyn
     "mc",
     "ham",
     "pyebaek",
+  "registration",
   ];
   const { receipt: receiptTemplate, statusPayload } = exactInput();
   const progress = Object.fromEntries(canonicalTopicKeys.map((topicKey, index) => [
@@ -424,8 +426,8 @@ test("status fan-out is bounded to the nineteen canonical progress topics", asyn
   };
   const receipts = canonicalTopicKeys.map(makeReceipt);
   const excludedReceipts = [
-    makeReceipt("__events", 20),
-    makeReceipt("unlisted", 21),
+    makeReceipt("__events", 22),
+    makeReceipt("unlisted", 23),
   ];
   const receiptByRequestId = new Map(
     receipts.map((receipt) => [receipt.source_ref_id, receipt]),
@@ -439,7 +441,7 @@ test("status fan-out is bounded to the nineteen canonical progress topics", asyn
   const result = await loadPreparationTopicBudgetDecisions({
     ownerId: OWNER_ID,
     coupleId: COUPLE_ID,
-    currentJourneyRevision: 19,
+    currentJourneyRevision: 21,
     progress,
     timeoutMs: 250,
     isCurrent: () => true,
@@ -457,18 +459,18 @@ test("status fan-out is bounded to the nineteen canonical progress topics", asyn
         ...statusPayload,
         requestId,
         summary: receipt.title,
-        journey: { ...statusPayload.journey, state_revision: 19, progress },
+        journey: { ...statusPayload.journey, state_revision: 21, progress },
       }), { status: 200 });
     },
   });
 
-  assert.equal(fetchedRequestIds.length, 19);
-  assert.equal(new Set(fetchedRequestIds).size, 19);
+  assert.equal(fetchedRequestIds.length, 21);
+  assert.equal(new Set(fetchedRequestIds).size, 21);
   assert.deepEqual(
     result.budgetDecisionReceipts.map((receipt) => receipt.source_ref_id),
     receipts.map((receipt) => receipt.source_ref_id),
   );
-  assert.equal(result.budgetDecisionVerifications.length, 19);
+  assert.equal(result.budgetDecisionVerifications.length, 21);
   assert.deepEqual(
     result.budgetDecisionVerifications.map((verification) => verification.journey.topicKey),
     canonicalTopicKeys,

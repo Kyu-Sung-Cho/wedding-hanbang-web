@@ -11,6 +11,7 @@ export { OFFLINE_EVAL_SUITE };
 const DEFAULT_TIMEOUT_MS = 180_000;
 const PRODUCTION_HOST = "hanbang.ai";
 const OFFLINE_CORE_DOMAINS = [
+  "greeting",
   "meeting",
   "venue",
   "studio",
@@ -30,6 +31,7 @@ const OFFLINE_CORE_DOMAINS = [
   "mc",
   "ham",
   "pyebaek",
+  "registration",
 ];
 const OFFLINE_SCOPES = ["W0", "W1", "W2", "W3", "W4", "W5"];
 const OFFLINE_ACTION_POLICIES = new Set([
@@ -560,7 +562,7 @@ export function validateOfflineEvalSuite(suite = OFFLINE_EVAL_SUITE) {
     coreDomains.length !== OFFLINE_CORE_DOMAINS.length ||
     new Set(coreDomains).size !== OFFLINE_CORE_DOMAINS.length
   ) {
-    failures.push("offline suite must declare exactly 19 unique wedding core domains");
+    failures.push(`offline suite must declare exactly ${OFFLINE_CORE_DOMAINS.length} unique wedding core domains`);
   }
   for (const domain of OFFLINE_CORE_DOMAINS) {
     if (!coreDomains.includes(domain)) failures.push(`missing canonical core domain: ${domain}`);

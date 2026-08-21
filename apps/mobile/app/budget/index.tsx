@@ -414,6 +414,22 @@ export default function BudgetScreen() {
           ) {
             pendingApprovalRef.current = null;
             setPendingApproval(null);
+            // 카드만 지우고 아무 말도 안 하면, 파트너가 **거절한** 화면과
+            // **승인한** 화면이 똑같아진다 — 둘 다 카드가 사라지고 예산은
+            // 그대로다. 두 사람이 확인해야 반영된다는 경계가 "내 입력이
+            // 사라졌다"로 읽힌다.
+            //
+            // 문구는 능동 경로(`reloadAfterConflict`)가 이미 쓰는 것을 그대로
+            // 쓴다. 같은 결과를 두 경로가 다르게 말할 이유가 없다. 상태를 바로
+            // 위에서 비웠으므로 다음 폴링에서 다시 뜨지 않는다.
+            Alert.alert(
+              pendingOutcome.status === "rejected"
+                ? "이번 변경은 반영되지 않았어요"
+                : "예산 기록이 바뀌었어요",
+              pendingOutcome.status === "rejected"
+                ? "파트너가 동의하지 않았거나 요청이 이미 종료됐어요. 기존 예산을 유지하고 최신 내용을 불러올게요."
+                : "다른 기기나 파트너가 먼저 수정했을 수 있어요. 최신 예산을 불러온 뒤 다시 입력해 주세요.",
+            );
           } else {
             throw new Error("PENDING_BUDGET_STATUS_MISMATCH");
           }

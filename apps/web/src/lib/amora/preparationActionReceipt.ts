@@ -19,6 +19,12 @@ const CHAT_REQUEST_KEY_RE = new RegExp(
   "i",
 );
 const ACTION_ID_RE = /^[0-9A-Za-z_-]{1,200}$/u;
+// 이 집합은 정본이 아니라 **짝인 공유 계약이 받아 주는 키**를 따라간다. 여기서 통과한
+// topicKey 를 packages/shared/src/contracts/amoraPreparationTopicMessageRef.mjs 가 다시
+// 검증하고, 거기서 걸리면 한 줄이 아니라 영수증 목록 **전체**가 503 이 된다.
+// 그래서 두 키를 여기에만 넣으면 안 된다 — 그쪽 계약은 DB(19개)에 묶여 있다.
+export const RECEIPT_TOPIC_KEYS_THE_DATABASE_CANNOT_ACCEPT =
+  Object.freeze(["greeting", "registration"]);
 const TOPIC_KEYS = new Set([
   "meeting", "venue", "studio", "dress", "makeup", "ring", "hanbok",
   "yedan", "honeymoon", "houseware", "housing", "invitation", "snap",

@@ -562,6 +562,12 @@ function CelebrationDots() {
   );
 }
 
+function isOnboardingRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
@@ -1111,34 +1117,80 @@ export default function OnboardingScreen() {
             inviteCode: data.inviteCode,
           });
 
-      if (completion.kind === "invite_code") {
-        setResultCode(completion.inviteCode);
-        void (async () => {
-          // 기한은 /api/couple/code 에서 읽는다 — 온보딩 라우트는 couples 를
-          // 직접 만지지 않는 경계를 지킨다. 못 읽으면 아무 말도 하지 않는다.
-          try {
-            const codeRes = await apiFetch("/api/couple/code");
-            if (!codeRes.ok) return;
-            const codePayload = (await codeRes.json().catch(() => null)) as
-              | { inviteCodeExpiresAt?: unknown }
-              | null;
-            // 늦게 도착하면 이미 다른 계정일 수 있다. 그 화면에 이전 커플의
-            // 기한을 찍지 않는다.
-            if (!submissionOwnerStillCurrent()) return;
-            setResultDeadline(describeInviteDeadline(codePayload?.inviteCodeExpiresAt));
-          } catch {
-            // 조용히 넘어간다.
-          }
-        })();
-        animateStepTransition(5);
-      } else if (completion.pathname === "/(tabs)/chat") {
-        router.replace({
-          pathname: completion.pathname,
-          params: completion.params,
-        });
-      } else {
-        router.replace(completion.pathname);
+      const proceed = () => {
+        if (completion.kind === "invite_code") {
+          setResultCode(completion.inviteCode);
+          void (async () => {
+            // 기한은 /api/couple/code 에서 읽는다 — 온보딩 라우트는 couples 를
+            // 직접 만지지 않는 경계를 지킨다. 못 읽으면 아무 말도 하지 않는다.
+            try {
+              const codeRes = await apiFetch("/api/couple/code");
+              if (!codeRes.ok) return;
+              const codePayload = (await codeRes.json().catch(() => null)) as
+                | { inviteCodeExpiresAt?: unknown }
+                | null;
+              // 늦게 도착하면 이미 다른 계정일 수 있다. 그 화면에 이전 커플의
+              // 기한을 찍지 않는다.
+              if (!submissionOwnerStillCurrent()) return;
+              setResultDeadline(describeInviteDeadline(codePayload?.inviteCodeExpiresAt));
+            } catch {
+              // 조용히 넘어간다.
+            }
+          })();
+          animateStepTransition(5);
+        } else if (completion.pathname === "/(tabs)/chat") {
+          router.replace({
+            pathname: completion.pathname,
+            params: completion.params,
+          });
+        } else {
+          router.replace(completion.pathname);
+        }
+      };
+
+      // 서버는 200 안에서 결과를 구분해 보낸다 — 바로 반영됐는지, 상대의 확인을
+      // 기다리는지(`planChange.status === "pending_partner"`), 일부 입력이 이번
+      // 요청에서 미뤄졌는지(`routineProgress.status === "deferred"`).
+      //
+      // 이걸 안 읽고 대시보드로 넘기면, 나중에 합류한 사람은 결혼 날짜를 입력하고도
+      // 아무 말을 못 듣고 홈은 계속 "결혼식 날짜를 알려주세요"라고 말한다.
+      // **두 사람이 확인해야 반영된다는 제품의 약속이 데이터 유실로 읽힌다.**
+      // 웹은 같은 값을 이미 읽어 안내하고 있었다
+      // (apps/web/src/app/(auth)/onboarding/page.tsx:216-231, 497-546).
+      // 정본이 "주 제품"이라 부르는 쪽만 침묵하고 있었다.
+      const pendingPartnerSummary =
+        isOnboardingRecord(data.planChange)
+        && data.planChange.status === "pending_partner"
+        && typeof data.planChange.summary === "string"
+          ? data.planChange.summary
+          : null;
+      const deferredProgressMessage =
+        isOnboardingRecord(data.routineProgress)
+        && data.routineProgress.status === "deferred"
+        && typeof data.routineProgress.message === "string"
+          ? data.routineProgress.message
+          : null;
+
+      if (pendingPartnerSummary || deferredProgressMessage) {
+        Alert.alert(
+          pendingPartnerSummary
+            ? "파트너 확인을 요청했어요"
+            : "저장되지 않은 입력이 있어요",
+          [
+            pendingPartnerSummary,
+            pendingPartnerSummary
+              ? "아직 계획에는 반영되지 않았어요. 두 사람이 모두 확인하면 자동으로 반영됩니다."
+              : null,
+            deferredProgressMessage,
+          ]
+            .filter((line): line is string => typeof line === "string")
+            .join("\n\n"),
+          [{ text: "확인하고 계속하기", onPress: proceed }],
+        );
+        return;
       }
+
+      proceed();
     } catch (err) {
       if (!submissionOwnerStillCurrent()) return;
       const message = err instanceof Error ? err.message : "저장에 실패했어요";

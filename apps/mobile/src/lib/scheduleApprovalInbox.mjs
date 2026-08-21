@@ -353,10 +353,19 @@ export async function fetchScheduleApprovalInbox({ apiFetch, ownerId, coupleId }
           coupleId,
         );
         if (latest.status !== "pending_partner") {
+          // 왜 사라졌는지를 함께 돌려준다. 이 값을 버리면 파트너가 **거절한**
+          // 화면과 **승인한** 화면이 똑같아진다 — 둘 다 카드가 조용히 없어진다.
+          // 두 사람이 확인해야 반영된다는 경계가 "요청이 증발했다"로 읽힌다.
           return {
             request: null,
             partial: false,
             definitivelyRemovedId: candidate.requestId,
+            resolvedOutcome: {
+              requestId: candidate.requestId,
+              status: latest.status,
+              summary: latest.summary,
+              role: candidate.role,
+            },
           };
         }
         return {
@@ -381,6 +390,11 @@ export async function fetchScheduleApprovalInbox({ apiFetch, ownerId, coupleId }
     requests: verified.flatMap((result) => result.request ? [result.request] : []),
     definitivelyRemovedIds: verified.flatMap((result) => (
       result.definitivelyRemovedId ? [result.definitivelyRemovedId] : []
+    )),
+    // 사라진 요청이 **어떻게** 끝났는지. 화면이 이걸 읽어 사용자에게 말한다.
+    // `definitivelyRemovedIds`는 병합 로직이 쓰던 그대로 남겨 둔다.
+    resolvedOutcomes: verified.flatMap((result) => (
+      result.resolvedOutcome ? [result.resolvedOutcome] : []
     )),
     partial: allCandidates.length > MAX_APPROVAL_STATUS_CHECKS
       || verified.some((result) => result.partial),

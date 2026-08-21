@@ -6,6 +6,15 @@ export const AMORA_PREPARATION_SCHEDULE_DECISION_PAGE_LIMIT = 24;
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu;
+// 이 집합도 정본의 거울이 아니라 DB 화이트리스트의 거울이다 —
+// supabase/migrations/20260816120000_amora_preparation_topic_message_refs.sql 의
+// 24~28행 CHECK, 559~563행과 783~787행 함수 가드가 모두 열아홉 개다.
+//
+// 여기에 두 키를 넣으면 모바일 저장 대화상자(apps/mobile/app/(tabs)/chat.tsx)에
+// **누를 때마다 400이 나는 항목 두 개**가 생긴다. 이 집합이 나가는 관문과 들어오는
+// 검증을 동시에 맡고 있기 때문이다.
+export const AMORA_PREPARATION_TOPIC_KEYS_THE_DATABASE_CANNOT_ACCEPT =
+  Object.freeze(["greeting", "registration"]);
 const TOPIC_KEYS = new Set([
   "meeting",
   "venue",

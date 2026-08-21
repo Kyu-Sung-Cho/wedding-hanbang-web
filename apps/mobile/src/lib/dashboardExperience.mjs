@@ -19,6 +19,13 @@ const DASHBOARD_ACTION_SOURCES = new Set([
   "guardrail",
   "manual",
 ]);
+// amora_actions 쓰기 화이트리스트의 글자 그대로의 사본이다 —
+// supabase/migrations/20260716112000_amora_atomic_mutation_coverage.sql 1114~1121행,
+// 20260816150000_amora_provider_backed_add_action_application.sql 701~706행.
+// 정본(스물한 개)이 아니라 DB(열아홉 개)를 따라간다. 모르는 키가 오면 태그만 잃는 게
+// 아니라 그 행이 통째로 사라지므로(180행), DB 가 먼저 열리면 여기도 함께 열어야 한다.
+export const DASHBOARD_ACTION_CATEGORY_KEYS_THE_DATABASE_CANNOT_ACCEPT =
+  Object.freeze(["greeting", "registration"]);
 const DASHBOARD_ACTION_CATEGORY_KEYS = new Set([
   "meeting", "venue", "studio", "dress", "makeup", "ring", "hanbok",
   "yedan", "honeymoon", "houseware", "housing", "invitation", "snap",
