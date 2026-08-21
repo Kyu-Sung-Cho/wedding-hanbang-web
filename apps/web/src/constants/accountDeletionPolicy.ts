@@ -45,15 +45,22 @@ export const ACCOUNT_DELETION_FACTS: readonly AccountDeletionFact[] = [
   },
   {
     key: "vendor_owner_blocked",
-    text: "등록한 업체가 있으면 먼저 정리해야 탈퇴할 수 있어요.",
-    emphasis: false,
-  },
-  {
-    key: "timing",
-    text: "접수하면 바로 처리를 시작해요. 안전 확인이 필요한 파일이 있으면 확인한 뒤 완료돼요.",
+    // "먼저 정리해야 한다"고 적었었다. 그런데 소유자가 자기 업체를 내리는
+    // 수단이 제품에 없다(오너용 DELETE 라우트도, 화면도 없다). 할 수 없는
+    // 일을 지시하지 않는다.
+    text: "등록한 업체가 있으면 탈퇴가 완료되지 않아요. 고객센터로 먼저 문의해 주세요.",
     emphasis: false,
   },
 ];
+
+// ⚠️ 처리 시점("접수하면 바로 처리를 시작해요")은 여기 두지 않는다.
+// 접수 스위치(ACCOUNT_DELETION_INTAKE_ENABLED)가 꺼져 있으면 그 문장이
+// 거짓이 되는데, 이 목록은 클라이언트에서 조건 없이 렌더된다.
+// 이 목록은 **무엇이 지워지고 무엇이 남는가**만 말한다 — 스위치와 무관하게
+// 참인 것들이다. 처리 절차는 제출 결과가 알려준다:
+//   접수 열림  -> 202/409 가 "처리 중" 또는 "검토 중"을 돌려준다
+//   접수 닫힘  -> 503 이 support@hanbang.ai 접수 경로를 돌려준다
+// 두 응답 모두 apps/web/src/app/(app)/settings/page.tsx 가 그대로 보여준다.
 
 /** 약관·처리방침에 같은 사실이 적혀 있는지 검사할 때 쓰는 핵심 어구. */
 export const ACCOUNT_DELETION_POLICY_ANCHORS: readonly string[] = [

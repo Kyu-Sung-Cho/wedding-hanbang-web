@@ -80,13 +80,36 @@ describe("탈퇴 정책이 화면과 문서에서 같은 말을 한다", () => {
   });
 
   it("문서가 여전히 설정 페이지를 탈퇴 경로로 안내한다", () => {
-    // 이 문장이 참이려면 접수 API 가 실제로 열려 있어야 한다. 그 조건은
-    // scripts/check-amora-production-env.mjs 의
-    // accountDeletionWorkerFollowsIntake 가 배포 시점에 검사한다.
+    // ⚠️ 이 자리에 "그 조건은 accountDeletionWorkerFollowsIntake 가 배포
+    // 시점에 검사한다"고 적었었다. **거짓이다.** 그 검사식은
+    //   INTAKE !== "true" || CRON === "true"
+    // 라서 접수가 꺼져 있으면(INTAKE="false") 공허하게 참이 된다. 즉 접수가
+    // 닫힌 채로도 빌드는 통과하고, 이 두 문장은 그동안 참이 아니다.
+    //
+    // 지금 운영은 접수가 닫혀 있고, 제출하면 503 이 support@hanbang.ai 접수
+    // 경로를 돌려준다(api/auth/delete/route.ts:41-49). 문서의 이 문장이
+    // 완전히 참이 되는 것은 접수를 켠 릴리스부터다. 이 테스트가 지키는 것은
+    // "문서가 설정 페이지를 가리킨다"는 사실뿐이고, 그 경로가 오늘 열려
+    // 있는지까지는 **아무 자동 검사도 보장하지 않는다.**
     const privacy = source("src/app/privacy/page.tsx");
     const terms = source("src/app/terms/page.tsx");
     expect(privacy).toContain("설정 페이지에서 직접 처리할 수 있습니다");
     expect(terms).toContain("설정 페이지에서 탈퇴를 신청할 수 있습니다");
+  });
+
+  it("정책 목록이 스위치에 따라 거짓이 되는 문장을 담지 않는다", () => {
+    // "접수하면 바로 처리를 시작해요"가 여기 있었다. 이 목록은 클라이언트가
+    // 조건 없이 렌더하는데, 접수가 꺼져 있으면 그 문장은 거짓이 된다.
+    // 이 목록은 **무엇이 지워지고 무엇이 남는가**만 말해야 한다.
+    const texts = ACCOUNT_DELETION_FACTS.map((fact) => fact.text).join("\n");
+    for (const timing of ["바로 처리를 시작", "즉시 삭제", "곧바로 삭제"]) {
+      expect(texts, `처리 시점 단정("${timing}")은 스위치에 따라 거짓이 된다`)
+        .not.toContain(timing);
+    }
+    // 사용자가 할 수 없는 일을 지시하지 않는다. 오너가 자기 업체를 내리는
+    // 수단이 제품에 없다(오너용 DELETE 라우트도, 화면도 없다).
+    expect(texts).not.toContain("먼저 정리해야 탈퇴할 수 있어요");
+    expect(texts).toContain("고객센터로 먼저 문의해 주세요");
   });
 });
 

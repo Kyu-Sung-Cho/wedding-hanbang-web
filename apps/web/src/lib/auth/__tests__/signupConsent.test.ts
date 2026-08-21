@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -63,6 +65,35 @@ describe("가입 동의 계약", () => {
     });
     expect(isSignupConsentAll(setAllSignupConsent(true))).toBe(true);
     expect(setAllSignupConsent(false)).toEqual(EMPTY_SIGNUP_CONSENT);
+  });
+
+  // 문서 본문을 고치고 판 번호를 그대로 두면, 동의 기록이 사용자가 본 적 없는
+  // 옛 판을 가리킨다. 기록이 있으나 틀린 상태이고 없는 것보다 나쁘다.
+  // 2026-08-21 에 실제로 그 상태를 만들었다가 감사에서 잡혔다.
+  describe("동의 판 번호가 실제 문서와 같은 날을 가리킨다", () => {
+    const DOCS = [
+      { label: "이용약관", path: "src/app/terms/page.tsx" },
+      { label: "개인정보 처리방침", path: "src/app/privacy/page.tsx" },
+    ];
+
+    function lastModifiedIso(path: string): string | null {
+      const html = readFileSync(resolve(process.cwd(), path), "utf8");
+      const match = html.match(/최종 수정일:\s*(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/u);
+      if (!match) return null;
+      const [, year, month, day] = match;
+      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+    }
+
+    for (const doc of DOCS) {
+      it(`${doc.label}의 최종 수정일과 일치한다`, () => {
+        const iso = lastModifiedIso(doc.path);
+        expect(iso, `${doc.path} 에서 최종 수정일을 찾지 못했다`).not.toBeNull();
+        expect(
+          iso,
+          `${doc.label} 본문을 고쳤으면 SIGNUP_CONSENT_POLICY_VERSION 도 올려야 한다`,
+        ).toBe(SIGNUP_CONSENT_POLICY_VERSION);
+      });
+    }
   });
 
   describe("서버가 요청 본문을 읽을 때", () => {

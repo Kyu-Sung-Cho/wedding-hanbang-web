@@ -14,6 +14,25 @@ function source(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
 }
 
+/**
+ * 주석을 걷어낸 뒤의 내용. 화면에 나가는 것만 본다.
+ *
+ * ⚠️ 이 함수가 없던 동안 아래 두 테스트가 **원문**을 보고 있었다. 그래서
+ * 가입 링크를 `{/* ... *\/}` 로 감싸 화면에서 지워도 세 단언이 모두 통과했다.
+ * 가드가 지키려던 것("가입으로 가는 길이 화면에 있다")을 정확히 못 지켰다.
+ */
+function rendered(relativePath: string): string {
+  return source(relativePath)
+    // 블록 주석은 **여러 줄에 걸친다.** 줄 단위 필터로 지우면 여는 줄만
+    // 사라지고 가운데 줄은 남는다 — 실제로 그 구멍 때문에, 가입 링크를
+    // `{/* ... */}` 로 감싸 화면에서 지워도 이 파일의 단언이 전부 통과했다.
+    // 뮤테이션으로 확인하기 전까지는 그것을 몰랐다.
+    .replace(/\{\s*\/\*[\s\S]*?\*\/\s*\}/g, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    // 줄 주석. `https://` 같은 값 안의 슬래시를 먹지 않도록 줄머리만 본다.
+    .replace(/^[ \t]*\/\/.*$/gm, "");
+}
+
 const SURFACES = [
   "src/components/landing/redesign/landingContent.ts",
   "src/components/landing/redesign/SharedPrivateSection.tsx",
@@ -31,19 +50,8 @@ const SURFACES = [
 describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
   it("계정을 아직 못 쓴다고 말하지 않는다", () => {
     for (const relative of SURFACES) {
-      const content = source(relative);
-      // 주석은 왜 바꿨는지 설명하느라 옛 문구를 인용할 수 있다. 화면에 나가는
-      // 문자열만 본다 — 줄 단위로 주석을 걷어내고 검사한다.
-      const rendered = content
-        .split("\n")
-        .filter((line) => {
-          const trimmed = line.trim();
-          return !trimmed.startsWith("//")
-            && !trimmed.startsWith("*")
-            && !trimmed.startsWith("/*")
-            && !trimmed.startsWith("{/*");
-        })
-        .join("\n");
+      // 주석은 왜 바꿨는지 설명하느라 옛 문구를 인용할 수 있다.
+      const visible = rendered(relative);
 
       for (const lie of [
         "계정 베타가 아직 제공 전",
@@ -51,7 +59,7 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
         "계정 베타 기능이 제공되면",
         "계정 베타(미제공)",
       ]) {
-        expect(rendered, `${relative} 가 "${lie}" 라고 말한다`).not.toContain(lie);
+        expect(visible, `${relative} 가 "${lie}" 라고 말한다`).not.toContain(lie);
       }
     }
   });
@@ -61,15 +69,16 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
       "src/components/landing/redesign/LandingHeader.tsx",
       "src/components/landing/redesign/MobileLandingMenu.tsx",
     ]) {
-      const content = source(relative);
-      expect(content, `${relative} 에 가입 링크가 없다`)
+      // 주석 안의 링크는 화면이 아니다. 렌더되는 쪽만 본다.
+      const visible = rendered(relative);
+      expect(visible, `${relative} 에 가입 링크가 없다`)
         .toContain('href="/login?mode=signup"');
-      expect(content, `${relative} 에 가입 라벨이 없다`).toContain("회원가입");
+      expect(visible, `${relative} 에 가입 라벨이 없다`).toContain("회원가입");
     }
   });
 
   it("마지막 행동 자리가 대기열이 아니라 가입으로 보낸다", () => {
-    const closing = source("src/components/landing/redesign/ClosingAction.tsx");
+    const closing = rendered("src/components/landing/redesign/ClosingAction.tsx");
     expect(closing).toContain('href="/login?mode=signup"');
     // /beta 는 승인 대기열이었다. 기다릴 이유가 없는 사람을 거기로 보내면 안 된다.
     expect(closing, "클로징이 아직 대기열로 보낸다").not.toContain('href="/beta"');

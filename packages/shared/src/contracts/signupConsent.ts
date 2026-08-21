@@ -10,10 +10,18 @@
 // 항목 구성(필수 2 / 선택 1)과 라벨은 모바일 구현을 정본으로 옮겼다.
 
 /**
- * 동의를 받은 시점의 약관·처리방침 판. 두 문서 모두 2026년 7월 30일 시행이다.
- * 문서를 개정하면 이 값을 함께 올려서, 어느 판에 동의했는지 남게 한다.
+ * 동의를 받은 시점의 약관·처리방침 판.
+ *
+ * **문서를 고치면 이 값을 함께 올려야 한다.** 안 올리면 동의 기록이 사용자가
+ * 실제로 본 적 없는 옛 판을 가리킨다 — 기록이 있으나 틀린 상태이고, 기록이
+ * 없는 것보다 나쁘다. 실제로 2026-08-21 에 두 문서 본문을 고치고 이 값을
+ * 그대로 두어 그 상태가 됐던 적이 있다.
+ *
+ * 현재 값의 근거:
+ *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 21일
+ *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 8월 21일
  */
-export const SIGNUP_CONSENT_POLICY_VERSION = "2026-07-30";
+export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-21";
 
 export type SignupConsentKey = "terms" | "privacy" | "marketing";
 

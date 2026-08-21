@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 31일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 21일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -49,6 +49,7 @@ export default function PrivacyPage() {
                   <li>예산 항목과 실제 지출, 할 일, 일정, 메모, 아모라에게 보낸 질문과 첨부 파일, 아모라의 답변</li>
                   <li>프로필 사진과 커뮤니티에 올린 글·댓글·사진·파일</li>
                   <li>마케팅 수신 동의 여부</li>
+                  <li>가입 시 받은 필수 동의(이용약관·개인정보 처리방침) 여부, 동의한 시각, 동의 당시 문서 판(예: 2026-08-21)</li>
                 </ul>
               </div>
               <div>
@@ -209,7 +210,7 @@ export default function PrivacyPage() {
           ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 30일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제1조 동의 기록 항목, 제6조 탈퇴 처리 범위)은 같은 날부터 적용합니다.</p>
           </section>
         </div>
       </div>
