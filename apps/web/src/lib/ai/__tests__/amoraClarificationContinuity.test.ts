@@ -272,6 +272,60 @@ describe("안전: 짧은 확인이 위기·고위험 경계를 넘지 못한다"
 });
 
 // ---------------------------------------------------------------------------
+// 라운드3 감사가 잰 것들. 열리는 것과 열리지 않는 것을 숫자로 고정한다.
+// ---------------------------------------------------------------------------
+describe("연속성이 여는 범위", () => {
+  const PAIR_TEXT = "10월 17일 오후 2시에 드레스 투어 일정 넣어줘";
+
+  // 이 관문은 "서버가 이 발화에서 아무 신호도 못 찾았다"를 조건으로 삼는다.
+  // 그래서 되묻기 직후의 짧은 말이면 **답이 아니어도** 통과한다. 감사 실측:
+  // 답이 아닌 말 8개 중 7개가 올라왔다. 답인지 아닌지를 이 자리에서 가릴
+  // 방법은 없다 — 있었으면 애초에 W4로 떨어지지 않았다.
+  it.each([
+    "그냥 다 취소",
+    "엄마한테 물어볼게",
+    "회사 회식 있어",
+    "배고파",
+  ])("답이 아닌 짧은 말도 범위는 올라간다(알려진 대가): %s", (currentText) => {
+    const rows = [
+      userRow("m1", PAIR_TEXT),
+      aiRow("m2", "2026년으로 넣을까요, 2027년으로 넣을까요?", "m1", "W0_wedding_core"),
+      userRow("cur", currentText),
+    ];
+    expect(resolveRaw(rows, currentText, "cur")).not.toBeNull();
+  });
+
+  // **그러나 기억은 열리지 않는다.** 도구가 잘못 열리면 아모라가 엉뚱한 답을
+  // 할 뿐이고 변경은 카드를 눌러야 일어나지만, 기억은 한 번 들어가면 커플이
+  // 함께 보는 기록에 남는다. "배고파"를 결혼 준비 사실로 저장할 이유는 없다.
+  it("연속성으로 올라온 턴은 장기 기억을 켜지 않는다", () => {
+    const c = classifyAmoraQuestionScope({
+      userText: "응 넣어줘",
+      hasWeddingClarificationContinuity: true,
+    });
+    expect(c.scope).toBe("W0_wedding_core");
+    expect(c.allowsLongTermMemory).toBe(false);
+    expect(
+      filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, c).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("사용자가 카드를 눌러 확인한 턴은 기존대로 기억을 켠다", () => {
+    expect(
+      classifyAmoraQuestionScope({
+        userText: "응",
+        hasApprovedWeddingAction: true,
+      }).allowsLongTermMemory,
+    ).toBe(true);
+  });
+
+  // 감정 표현은 W3라 게이트가 먼저 거부한다 — 감사에서 유일하게 막힌 하나.
+  it("감정을 털어놓는 말은 게이트가 거부한다", () => {
+    expect(isAmoraClarificationAnswerShaped("오늘 너무 지쳤어")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 사이에 낀 턴은 **벽**이어야 한다. 지워진 자리는 구멍이 된다.
 //
 // 이 블록은 실제로 있었던 결함을 고정한다. 처음에는 이 판정에

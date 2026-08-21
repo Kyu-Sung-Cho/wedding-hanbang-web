@@ -350,7 +350,23 @@ export function classifyAmoraQuestionScope({
   if (hasApprovedWeddingAction || hasWeddingClarificationContinuity) {
     return {
       scope: "W0_wedding_core",
-      allowsLongTermMemory: true,
+      // 되묻기 연속성으로 올라온 턴은 **장기 기억을 켜지 않는다.**
+      //
+      // 이 관문은 "이 발화에서 서버가 아무 신호도 못 찾았다"를 조건으로 삼는다.
+      // 그래서 되묻기 직후의 짧은 말이면 무엇이든 통과한다 — 감사에서 재보니
+      // "그냥 다 취소", "엄마한테 물어볼게", "회사 회식 있어", "배고파" 같은
+      // **답이 아닌 말 8개 중 7개**가 올라왔다. 답인지 아닌지를 이 자리에서
+      // 가릴 방법이 없다(있었으면 애초에 W4로 안 떨어졌다).
+      //
+      // 도구와 문맥은 그래도 여는 게 맞다 — 잘못 열려도 아모라가 엉뚱한 답을
+      // 할 뿐이고, 변경은 여전히 확인 카드를 눌러야 일어난다. 하지만 **기억은
+      // 다르다.** 한 번 들어가면 커플이 함께 보는 기록에 남고, "배고파"를
+      // 결혼 준비 사실로 저장할 이유는 어디에도 없다. 이 턴이 남겨야 할
+      // durable한 사실은 확인된 액션 경로가 이미 따로 기록한다.
+      //
+      // 승인된 액션(`hasApprovedWeddingAction`)은 사용자가 카드를 눌러 확인한
+      // 것이라 사정이 다르므로 기존대로 기억을 켠다.
+      allowsLongTermMemory: hasApprovedWeddingAction,
       confidence: "high",
       needsClarification: false,
     };
