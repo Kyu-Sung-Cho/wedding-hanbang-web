@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOnboardingStore } from "@/stores/onboardingStore";
 import Logo from "@/components/ui/Logo";
@@ -33,6 +33,9 @@ export default function OnboardingPage() {
   const [codeCopied, setCodeCopied] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
   const [deferredProgressNotice, setDeferredProgressNotice] = useState("");
+  // 안내를 읽고 "확인하고 계속하기"를 눌렀을 때 갈 곳은 경로마다 다르다.
+  // 중립 준비 공간은 자기 리다이렉트를 여기 담아두고, 레거시는 기존 분기를 쓴다.
+  const pendingContinuationRef = useRef<(() => void) | null>(null);
   // 중립 준비 공간이 켜지면 역할·상세 스텝을 건너뛰고 한 화면에서 시작한다.
   // 서버가 플래그를 판정해 capabilities로 내려준다 — 클라이언트가 정하지 않는다.
   const [neutralPreparationSpaceEnabled, setNeutralPreparationSpaceEnabled] =
@@ -186,6 +189,32 @@ export default function OnboardingPage() {
       // 온보딩 완료 쿠키 설정
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
+      // 승인 대기·보류 판정을 **경로를 고르기 전에** 한다.
+      //
+      // 예전에는 이 계산이 아래 레거시 분기에만 있었고 중립 준비 공간 분기가
+      // 그보다 먼저 무조건 return 했다. 그래서 나중에 합류한 사람은 결혼 날짜를
+      // 입력하고도 아무 말을 못 듣고 채팅으로 넘어갔다 — 날짜는 두 사람 승인
+      // 대기에 걸려 있는데 홈은 계속 "결혼식 날짜를 알려주세요"라고 말한다.
+      // 합류는 두 슬롯이 다 차 있어 날짜 변경이 항상 고영향이므로, 이건 드문
+      // 경우가 아니라 **두 번째 사람의 정상 경로**다.
+      //
+      // 같은 결함을 모바일에서 먼저 고쳤다(apps/mobile/app/onboarding/index.tsx).
+      // 두 표면이 같은 상태를 다르게 말하면 커플이 서로 다른 것을 본다.
+      const isPendingPartner =
+        data.planChange?.status === "pending_partner"
+        && typeof data.planChange.summary === "string";
+      const hasDeferredRoutineProgress =
+        data.routineProgress?.status === "deferred"
+        && typeof data.routineProgress.message === "string";
+      const showPendingNotice = () => {
+        if (isPendingPartner) {
+          setPendingPlanNotice(data.planChange.summary);
+        }
+        if (hasDeferredRoutineProgress) {
+          setDeferredProgressNotice(data.routineProgress.message);
+        }
+      };
+
       if (neutralCoupleAction) {
         // 새로 만든 경우 초대 코드를 보여준다. 안 보여주면 상대를 부르려고
         // 설정 화면을 뒤져야 한다 — 함께 준비하는 게 이 제품의 요지인데.
@@ -195,16 +224,24 @@ export default function OnboardingPage() {
           setShowInviteModal(true);
           return;
         }
-        window.location.href = resolveNeutralPreparationSpaceRedirect({
-          search: window.location.search,
-          origin: window.location.origin,
-          prefill: buildNeutralPreparationPrefill({
-            weddingDate: typeof data.journey?.wedding_date === "string"
-              ? data.journey.wedding_date
-              : null,
-            focusPriority: neutralFocus,
-          }),
-        });
+        const goToNeutralDestination = () => {
+          window.location.href = resolveNeutralPreparationSpaceRedirect({
+            search: window.location.search,
+            origin: window.location.origin,
+            prefill: buildNeutralPreparationPrefill({
+              weddingDate: typeof data.journey?.wedding_date === "string"
+                ? data.journey.wedding_date
+                : null,
+              focusPriority: neutralFocus,
+            }),
+          });
+        };
+        if (isPendingPartner || hasDeferredRoutineProgress) {
+          pendingContinuationRef.current = goToNeutralDestination;
+          showPendingNotice();
+          return;
+        }
+        goToNeutralDestination();
         return;
       }
 
@@ -213,19 +250,8 @@ export default function OnboardingPage() {
         void loadInviteDeadline();
       }
 
-      const isPendingPartner =
-        data.planChange?.status === "pending_partner"
-        && typeof data.planChange.summary === "string";
-      const hasDeferredRoutineProgress =
-        data.routineProgress?.status === "deferred"
-        && typeof data.routineProgress.message === "string";
-      if (isPendingPartner) {
-        setPendingPlanNotice(data.planChange.summary);
-      }
-      if (hasDeferredRoutineProgress) {
-        setDeferredProgressNotice(data.routineProgress.message);
-      }
       if (isPendingPartner || hasDeferredRoutineProgress) {
+        showPendingNotice();
         return;
       }
 
@@ -297,6 +323,13 @@ export default function OnboardingPage() {
   const continueAfterPendingPlan = () => {
     setPendingPlanNotice("");
     setDeferredProgressNotice("");
+    // 중립 준비 공간이 담아둔 목적지가 있으면 그리로 간다. 없으면 레거시 경로.
+    const continuation = pendingContinuationRef.current;
+    pendingContinuationRef.current = null;
+    if (continuation) {
+      continuation();
+      return;
+    }
     if (inviteCodeResult && store.coupleAction === "create") {
       setShowInviteModal(true);
       return;

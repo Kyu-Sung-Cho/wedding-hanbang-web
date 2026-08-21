@@ -61,6 +61,13 @@ export function fetchScheduleApprovalInbox(input: {
 }): Promise<{
   requests: ScheduleApprovalRequest[];
   definitivelyRemovedIds: string[];
+  /** 사라진 요청이 어떻게 끝났는지. 화면이 사용자에게 말하는 근거. */
+  resolvedOutcomes: Array<{
+    requestId: string;
+    status: ScheduleApprovalStatus["status"];
+    summary: string;
+    role: ScheduleApprovalRequest["role"];
+  }>;
   partial: boolean;
 }>;
 

@@ -365,6 +365,14 @@ test("loading the schedule inbox confirms every active server request against it
       summary: "일정: 드레스 피팅 · 2026-08-20 14:00",
     }],
     definitivelyRemovedIds: [terminalRequestId],
+    // 사라진 이유를 함께 돌려준다 — 이게 없으면 화면이 거절과 승인을
+    // 구분해 말할 수 없다.
+    resolvedOutcomes: [{
+      requestId: terminalRequestId,
+      status: "rejected",
+      summary: "일정: 드레스 피팅 · 2026-08-20 14:00",
+      role: "requester",
+    }],
     partial: false,
   });
   assert.deepEqual(calls.map(({ path, options }) => ({

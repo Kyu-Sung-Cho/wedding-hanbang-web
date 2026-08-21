@@ -85,6 +85,23 @@ function hasShortAmoraContinuityCue(text: string): boolean {
 }
 
 /**
+ * 직전 대화를 **설명·지목·선택**으로 되짚는 말인가. 이 형태들은 이미 여기
+ * context-only 계약이 맡고 있다 — 답만 필요하지 도구가 필요하지 않다.
+ *
+ * `amoraClarificationContinuity`가 이 집합을 빼고 판정하기 위해 내보낸다.
+ * 같은 문장을 두 계약이 서로 다르게 다루면 어느 쪽이 이기는지 아무도 모르게 된다.
+ * 확인·지시형(`ACTION_SHAPED_...`)은 일부러 넣지 않았다 — "응", "네",
+ * "그렇게 해줘"는 되묻기에 대한 답이고, 그 답이 도구를 잃는 것이 고치려는 결함이다.
+ */
+export function hasAmoraExplanatoryContinuityCue(text: string): boolean {
+  const normalized = text.normalize("NFKC").trim();
+  return CONTEXTUAL_EXPLANATION_PATTERN.test(normalized)
+    || CONTEXTUAL_SELECTION_PATTERN.test(normalized)
+    || BARE_CONTEXT_REFERENCE_PATTERN.test(normalized)
+    || hasExplicitAmoraW3ContinuityReference(normalized);
+}
+
+/**
  * Cheap, current-turn-only gate for deciding whether the route may perform
  * the exact three-row continuity lookup. This grants no context or capability.
  */
