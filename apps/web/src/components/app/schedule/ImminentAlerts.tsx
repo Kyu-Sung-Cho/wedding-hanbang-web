@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import {
+  FileText,
   Clock,
   ChevronDown,
   ChevronUp,
@@ -28,6 +29,7 @@ import {
 import type { ImminentCategory } from "@/utils/imminentChecklist";
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  FileText,
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
   Flower2, Plane, Home, Key, Mail, Gift,
   Sparkles, Flower, Heart, Mic, Box,

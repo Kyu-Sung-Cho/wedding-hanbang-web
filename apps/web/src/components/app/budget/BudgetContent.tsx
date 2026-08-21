@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
+  FileText,
   TrendingDown,
   TrendingUp,
   AlertTriangle,
@@ -44,6 +45,7 @@ import Link from "next/link";
 import PaymentLedger from "./PaymentLedger";
 
 const ICON_MAP: Record<string, React.ElementType> = {
+  FileText,
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
   Flower2, Plane, Home, Key, Mail, Gift, Wallet,
   Sparkles, Flower, Heart, Mic, Box, Tag,

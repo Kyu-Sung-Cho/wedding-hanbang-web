@@ -76,4 +76,35 @@ describe("체크리스트 항목 안내 문구", () => {
     const bad = notes.filter((n) => RAW.test(n.note));
     expect(bad.map((n) => `${n.where}: ${n.note}`)).toEqual([]);
   });
+
+  /**
+   * **어느 항목이 안내를 가져야 하는가.**
+   *
+   * 위 검사들은 쓰인 문구가 올바른지만 본다. 그래서 안내 58개가 실릴 때까지도 *어디에*
+   * 실릴지는 코드 어디에도 없었고, 결과는 분야마다 네 개씩이었다. 그렇게 채우면 건너뛰어도
+   * 그만인 전통 항목은 차고 정작 계약금이 걸린 자리는 빈다 — 실제로 사진 촬영은 아홉 중
+   * 하나였다.
+   *
+   * 기준은 분야 균형이 아니라 **되돌릴 수 있는가**다. 후보를 비교하는 걸음은 마음이 바뀌면
+   * 되돌리면 되지만, 확정하고 주문하고 계약하는 걸음은 그 뒤로 돈이 묶인다. 그 자리에서
+   * 묻지 않은 한 가지는 나중에 물어도 소용이 없다.
+   *
+   * 라벨의 동사로 판별해서 **항목이 새로 늘어도 저절로 걸리게** 한다. 목록을 손으로 적으면
+   * 다음에 추가되는 항목은 아무도 모르게 빠진다.
+   */
+  it("되돌릴 수 없는 걸음에는 안내가 붙어 있다", () => {
+    const POINT_OF_NO_RETURN = /확정|주문|계약|발송|납부|결제|서명/;
+
+    const irreversible = CATEGORY_CHECKLISTS.flatMap((category) =>
+      category.items
+        .filter((item) => POINT_OF_NO_RETURN.test(item.label))
+        .map((item) => ({ where: `${category.key}/${item.id}`, label: item.label, note: item.note })),
+    );
+
+    // 판별식이 아무것도 못 고르면 이 검사는 늘 통과한다. 먼저 실제로 고르는지 본다.
+    expect(irreversible.length).toBeGreaterThan(15);
+
+    const bare = irreversible.filter((item) => item.note === undefined);
+    expect(bare.map((item) => `${item.where}: ${item.label}`)).toEqual([]);
+  });
 });
