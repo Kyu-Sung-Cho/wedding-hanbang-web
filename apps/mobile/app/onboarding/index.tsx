@@ -200,6 +200,12 @@ function CelebrationDots() {
   );
 }
 
+function isOnboardingRecord(
+  value: unknown,
+): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
@@ -246,7 +252,7 @@ export default function OnboardingScreen() {
   const [budgetTendency, setBudgetTendency] = useState<BudgetTendency | null>(null);
   const [guestCount, setGuestCount] = useState<GuestCount | null>(null);
 
-  // Step 5: 준비 현황 — 단계 한 줄은 필수, 19항목은 선택
+  // Step 5: 준비 현황 — 단계 한 줄도 19항목도 **선택이다**(관문 근거는 `canNext` case 5)
   const [preparationStage, setPreparationStage] =
     useState<PreparationStageValue | null>(null);
   const [categoryStatuses, setCategoryStatuses] = useState(() =>
