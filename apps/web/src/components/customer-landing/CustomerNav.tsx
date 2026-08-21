@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { useEffect, useState } from "react";
 import Logo from "@/components/ui/Logo";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -45,6 +47,8 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
    *
    * 그래서 못 찾으면 그 앵커가 사는 화면으로 실제로 보낸다.
    */
+  const router = useRouter();
+
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
     e.preventDefault();
     setMenuOpen(false);
@@ -53,7 +57,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
-    window.location.href = `${SCROLL_ANCHOR_HOME}${href}`;
+    router.push(`${SCROLL_ANCHOR_HOME}${href}`);
   }
 
   const navLinks = [

@@ -4,7 +4,6 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  ACCOUNT_DELETION_INTAKE_CAPABILITY,
   ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE,
   parseAccountDeletionIntakeCapability,
 } from "../deletionIntake";
