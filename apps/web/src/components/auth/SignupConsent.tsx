@@ -16,18 +16,51 @@ type SignupConsentProps = Readonly<{
   disabled?: boolean;
 }>;
 
-function Box({ checked, size }: { checked: boolean; size: "lg" | "sm" }) {
+/**
+ * 진짜 `<input type="checkbox">` 위에 그림을 얹는다.
+ *
+ * 처음에는 `<button aria-pressed>` 로 만들었다. 그러면 보조기술이 "토글 버튼,
+ * 눌림"이라고 읽는데, 이건 **법적 동의 컨트롤**이라 "체크박스, 선택됨"으로
+ * 읽혀야 맞다. 모바일도 accessibilityRole="checkbox" 를 쓴다.
+ * 겸사겸사 손으로 만든 버튼도 둘 줄었다.
+ */
+function CheckBox({
+  id,
+  checked,
+  disabled,
+  onChange,
+  size,
+  labelledBy,
+}: {
+  id: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: () => void;
+  size: "lg" | "sm";
+  labelledBy: string;
+}) {
   const box = size === "lg" ? "size-5" : "size-[18px]";
   return (
-    <span
-      aria-hidden="true"
-      className={`${box} shrink-0 rounded-md border flex items-center justify-center transition-colors ${
-        checked
-          ? "border-[#36534E] bg-[#36534E] text-white"
-          : "border-black/[0.14] bg-white text-transparent"
-      }`}
-    >
-      <Check className="size-3" strokeWidth={3} />
+    <span className="relative inline-flex shrink-0">
+      <input
+        id={id}
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={onChange}
+        aria-labelledby={labelledBy}
+        className={`peer ${box} absolute inset-0 z-10 cursor-pointer opacity-0 disabled:cursor-not-allowed`}
+      />
+      <span
+        aria-hidden="true"
+        className={`${box} rounded-md border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#36534E] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
+          checked
+            ? "border-[#36534E] bg-[#36534E] text-white"
+            : "border-black/[0.14] bg-white text-transparent"
+        }`}
+      >
+        <Check className="size-3" strokeWidth={3} />
+      </span>
     </span>
   );
 }
@@ -52,43 +85,53 @@ export default function SignupConsent({
 
   return (
     <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3.5">
-      <button
-        type="button"
-        disabled={disabled}
-        aria-pressed={all}
-        onClick={() => onChange(setAllSignupConsent(!all))}
-        className="flex w-full items-center gap-2.5 text-left disabled:opacity-50"
-      >
-        <Box checked={all} size="lg" />
-        <span className="text-[14px] font-medium text-[#263832]">전체 동의</span>
-      </button>
+      <div className="flex w-full items-center gap-2.5">
+        <CheckBox
+          id="signup-consent-all"
+          checked={all}
+          disabled={disabled}
+          onChange={() => onChange(setAllSignupConsent(!all))}
+          size="lg"
+          labelledBy="signup-consent-all-label"
+        />
+        <label
+          id="signup-consent-all-label"
+          htmlFor="signup-consent-all"
+          className="cursor-pointer text-[14px] font-medium text-[#263832]"
+        >
+          전체 동의
+        </label>
+      </div>
 
       <div className="my-3 h-px bg-black/[0.06]" />
 
       <ul className="space-y-2.5">
         {SIGNUP_CONSENT_ITEMS.map((item) => (
           <li key={item.key} className="flex items-center gap-2.5">
-            <button
-              type="button"
+            <CheckBox
+              id={`signup-consent-${item.key}`}
+              checked={value[item.key]}
               disabled={disabled}
-              aria-pressed={value[item.key]}
-              onClick={() => toggle(item.key)}
-              className="flex flex-1 items-center gap-2.5 text-left disabled:opacity-50"
+              onChange={() => toggle(item.key)}
+              size="sm"
+              labelledBy={`signup-consent-${item.key}-label`}
+            />
+            <label
+              id={`signup-consent-${item.key}-label`}
+              htmlFor={`signup-consent-${item.key}`}
+              className="flex-1 cursor-pointer text-[13px] text-[#4E6A62]"
             >
-              <Box checked={value[item.key]} size="sm" />
-              <span className="text-[13px] text-[#4E6A62]">
-                <span
-                  className={
-                    item.required
-                      ? "font-medium text-[#36534E]"
-                      : "text-[#928980]"
-                  }
-                >
-                  {item.required ? "[필수]" : "[선택]"}
-                </span>{" "}
-                {item.label}
-              </span>
-            </button>
+              <span
+                className={
+                  item.required
+                    ? "font-medium text-[#36534E]"
+                    : "text-[#928980]"
+                }
+              >
+                {item.required ? "[필수]" : "[선택]"}
+              </span>{" "}
+              {item.label}
+            </label>
             {item.href && (
               <Link
                 href={item.href}

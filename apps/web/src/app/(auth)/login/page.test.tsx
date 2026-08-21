@@ -207,11 +207,11 @@ describe("login return journey", () => {
     });
 
     // 필수 동의 없이는 가입이 시작되지 않는다(가입 동의 테스트가 따로 고정한다).
-    for (const label of ["이용약관 동의", "개인정보 처리방침 동의"]) {
-      const box = [...container.querySelectorAll("button")]
-        .find((button) => button.textContent?.includes(label));
+    // 동의 항목은 진짜 체크박스다 — 버튼이 아니다.
+    for (const key of ["terms", "privacy"]) {
+      const box = container.querySelector<HTMLInputElement>(`#signup-consent-${key}`);
       await act(async () => {
-        box?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        box?.click();
       });
     }
 

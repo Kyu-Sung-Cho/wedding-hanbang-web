@@ -10,6 +10,7 @@ import {
 } from "@hanbang/shared";
 
 import SignupConsent from "@/components/auth/SignupConsent";
+import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 
 type ConsentGateClientProps = Readonly<{
@@ -87,24 +88,29 @@ export default function ConsentGateClient({ destination }: ConsentGateClientProp
           </p>
         ) : null}
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          loading={submitting}
+          disabled={!complete}
           onClick={handleSubmit}
-          disabled={!complete || submitting}
-          className="mt-6 w-full rounded-2xl bg-gradient-to-br from-[#36534E] to-[#2B423E] py-3.5 text-[14px] font-medium text-white transition-all hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+          className="mt-6"
         >
           {submitting ? "저장 중..." : "동의하고 계속하기"}
-        </button>
+        </Button>
 
         {/* 동의하지 않을 자유가 있어야 동의가 동의다. 나가는 길을 준다. */}
-        <button
-          type="button"
-          onClick={handleSignOut}
+        <Button
+          variant="ghost"
+          size="md"
+          fullWidth
           disabled={submitting}
-          className="mt-3 w-full py-3 text-[13px] text-[#928980] underline underline-offset-2 transition-colors hover:text-[#36534E] disabled:opacity-40"
+          onClick={handleSignOut}
+          className="mt-3 font-normal underline underline-offset-2"
         >
           동의하지 않고 로그아웃
-        </button>
+        </Button>
 
         <p className="mt-6 text-[12px] leading-relaxed text-[#928980]">
           계정 삭제를 원하시면 로그아웃 후 고객센터(support@hanbang.ai)로 알려주세요.

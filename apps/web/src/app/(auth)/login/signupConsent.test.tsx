@@ -35,6 +35,19 @@ async function click(el: Element | undefined) {
   });
 }
 
+/**
+ * 동의 항목은 `<button aria-pressed>` 가 아니라 진짜 체크박스다 —
+ * 법적 동의 컨트롤은 "토글 버튼, 눌림"이 아니라 "체크박스, 선택됨"으로
+ * 읽혀야 한다(모바일도 accessibilityRole="checkbox").
+ */
+async function toggleConsent(container: HTMLElement, key: string) {
+  const box = container.querySelector<HTMLInputElement>(`#signup-consent-${key}`);
+  expect(box, `signup-consent-${key} 체크박스가 없다`).not.toBeNull();
+  await act(async () => {
+    box?.click();
+  });
+}
+
 describe("가입 동의", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -68,6 +81,8 @@ describe("가입 동의", () => {
     expect(container.textContent).toContain("이용약관 동의");
     expect(container.textContent).toContain("개인정보 처리방침 동의");
     expect(container.textContent).toContain("[필수]");
+    // 버튼이 아니라 체크박스로 읽혀야 한다.
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(4);
   });
 
   it("동의 전에는 잠기고, 필수 2개만 체크하면 열린다 — 마케팅은 선택이다", async () => {
@@ -93,14 +108,15 @@ describe("가입 동의", () => {
     expect(container.querySelector('button[type="submit"]')?.hasAttribute("disabled"))
       .toBe(true);
 
-    await click(findButton(container, "이용약관 동의"));
-    await click(findButton(container, "개인정보 처리방침 동의"));
+    await toggleConsent(container, "terms");
+    await toggleConsent(container, "privacy");
 
     expect(container.querySelector('button[type="submit"]')?.hasAttribute("disabled"))
       .toBe(false);
     // 마케팅은 켜지지 않은 채로 통과해야 한다
-    const marketing = findButton(container, "마케팅 정보 수신 동의");
-    expect(marketing?.getAttribute("aria-pressed")).toBe("false");
+    expect(
+      container.querySelector<HTMLInputElement>("#signup-consent-marketing")?.checked,
+    ).toBe(false);
   });
 
   it("동의 없이 소셜 가입을 누르면 계정 생성이 시작되지 않는다", async () => {
@@ -117,8 +133,8 @@ describe("가입 동의", () => {
   it("동의한 뒤에는 소셜 가입이 진행된다", async () => {
     await act(async () => root.render(<LoginPage />));
 
-    await click(findButton(container, "이용약관 동의"));
-    await click(findButton(container, "개인정보 처리방침 동의"));
+    await toggleConsent(container, "terms");
+    await toggleConsent(container, "privacy");
     await click(findButton(container, "Google"));
 
     expect(mocks.signInWithOAuth).toHaveBeenCalledTimes(1);
