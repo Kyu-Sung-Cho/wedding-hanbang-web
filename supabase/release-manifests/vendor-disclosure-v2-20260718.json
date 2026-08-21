@@ -8,7 +8,7 @@
   },
   "remoteBaselineContract": {
     "file": "supabase/release-contracts/vendor-disclosure-production-baseline-v1-20260815.json",
-    "sha256": "2f10e5a9115d7d713dbc93ec0d58fb48c0cb8b03926be0786b02b7c605643760"
+    "sha256": "54028caae5e970d7c9a87a787184a55da4643981c3399cd12e3dae7e62ecd3ed"
   },
   "requiredRemoteHead": "20260716117000",
   "migrationFloor": "20260718120000",
@@ -464,6 +464,18 @@
     {
       "file": "20260819100000_amora_preparation_action_receipt_binding_read.sql",
       "sha256": "5141c65448b0e454c7fc6545f3705c7342cd95685f3f5f9f30bcf4dff56e64a6"
+    },
+    {
+      "file": "20260820120000_neutral_join_reports_legacy_space.sql",
+      "sha256": "8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80"
+    },
+    {
+      "file": "20260820130000_legacy_join_blocks_neutral_space.sql",
+      "sha256": "6e0668148b9773f27b00b30b59b36d221ed876056b23f636bb9608ab8db6e3c0"
+    },
+    {
+      "file": "20260820140000_neutral_schedule_assignee_label.sql",
+      "sha256": "457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23"
     }
   ],
   "deploymentEvidence": {

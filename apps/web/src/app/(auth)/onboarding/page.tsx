@@ -285,6 +285,8 @@ export default function OnboardingPage() {
     })}`;
   };
 
+  // neutralCoupleAction이 있으면 중립 준비 공간 경로다 — 역할·예식일·예산·스타일을
+  // 묻지 않고 바로 시작한다. 나머지는 각자 필요한 화면에서 채운다.
   const handleSubmit = async (
     neutralCoupleAction?: "create" | "join",
   ) => {
@@ -382,6 +384,19 @@ export default function OnboardingPage() {
       document.cookie = "onboarding_complete=true; path=/; max-age=31536000";
 
       if (neutralCoupleAction) {
+        // 새로 만든 경우 초대 코드를 보여준다. 안 보여주면 상대를 부르려고
+        // 설정 화면을 뒤져야 한다 — 함께 준비하는 게 이 제품의 요지인데.
+        if (neutralCoupleAction === "create" && typeof data.inviteCode === "string") {
+          if (!submissionOwnerStillCurrent()) return;
+          const ownerBoundInviteCode = {
+            code: data.inviteCode,
+            ownerUserId: expectedActorUserId,
+          } satisfies OwnerBoundInviteCode;
+          inviteCodeResultRef.current = ownerBoundInviteCode;
+          setInviteCodeResult(ownerBoundInviteCode);
+          setShowInviteModal(true);
+          return;
+        }
         window.location.href = resolveNeutralPreparationSpaceRedirect({
           search: window.location.search,
           origin: window.location.origin,
@@ -564,10 +579,15 @@ export default function OnboardingPage() {
       clearOwnerBoundInviteResult(resultToContinue);
       return;
     }
-    window.location.href = getAuthRedirectPath(
-      window.location.search,
-      window.location.origin,
-    );
+    window.location.href = neutralPreparationSpaceEnabled
+      ? resolveNeutralPreparationSpaceRedirect({
+          search: window.location.search,
+          origin: window.location.origin,
+        })
+      : getAuthRedirectPath(
+          window.location.search,
+          window.location.origin,
+        );
   };
 
   return (

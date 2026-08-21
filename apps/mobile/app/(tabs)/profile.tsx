@@ -40,16 +40,14 @@ import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
 import { createLatestSettingsLoadGate } from "@/lib/weddingSettings";
-import { resolvePreparationMemberPresentation } from "@/lib/neutralMemberPresentation.mjs";
 
-const NEUTRAL_PREPARATION_SPACE_ENABLED =
-  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
 
 interface ProfileData {
+  /** 중립 준비 공간이면 role은 저장 슬롯이지 사용자가 고른 값이 아니다. */
+  usesNeutralMembers?: boolean;
   name: string | null;
   email: string | null;
   role: string | null;
-  memberModelVersion: 1 | 2 | null;
   weddingDate: string | null;
   dday: number | null;
   coupleId: string | null;
@@ -129,9 +127,7 @@ export default function ProfileScreen() {
 
     let weddingDate: string | null = null;
     let partnerName: string | null = null;
-    let memberModelVersion: 1 | 2 | null = data?.couple_id
-      ? NEUTRAL_PREPARATION_SPACE_ENABLED ? null : 1
-      : null;
+    let usesNeutralMembers = false;
 
     if (data?.couple_id) {
       // 결혼일
@@ -152,22 +148,14 @@ export default function ProfileScreen() {
         partnerName = partners[0].name ?? null;
       }
 
-      if (NEUTRAL_PREPARATION_SPACE_ENABLED) {
-        const { data: preparationSpace, error: preparationSpaceError } = await supabase
-          .from("couples")
-          .select("member_model_version" as "bride_id")
-          .eq("id", data.couple_id)
-          .maybeSingle();
-        const rawMemberModelVersion = (
-          preparationSpace as unknown as Record<string, unknown> | null
-        )?.member_model_version;
-        if (
-          !preparationSpaceError
-          && (rawMemberModelVersion === 1 || rawMemberModelVersion === 2)
-        ) {
-          memberModelVersion = rawMemberModelVersion;
-        }
-      }
+      // 컬럼이 아직 없는 DB에서는 조회가 실패한다. 그 상태에서는 중립 커플이
+      // 존재할 수 없으므로 기존(v1)으로 본다 — 화면 전체를 죽이지 않는다.
+      const { data: memberModel } = await supabase
+        .from("couples")
+        .select("member_model_version")
+        .eq("id", data.couple_id)
+        .maybeSingle();
+      usesNeutralMembers = memberModel?.member_model_version === 2;
     }
 
     // 커뮤니티 활동 통계
@@ -210,11 +198,11 @@ export default function ProfileScreen() {
       name: data?.name ?? null,
       email: user.email ?? null,
       role: data?.role ?? null,
-      memberModelVersion,
       weddingDate,
       dday: calcDday(weddingDate),
       coupleId: data?.couple_id ?? null,
       partnerName,
+      usesNeutralMembers,
     });
   }, [profileLoadGate]);
 
@@ -294,12 +282,15 @@ export default function ProfileScreen() {
     ]);
   }
 
-  const memberPresentation = resolvePreparationMemberPresentation({
-    memberModelVersion: profile?.memberModelVersion ?? null,
-    compatibilityRole: profile?.role === "bride" || profile?.role === "groom"
-      ? profile.role
-      : null,
-  });
+  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
+  // 값을 중립어로 바꾸는 게 아니라 배지 자체를 렌더하지 않는다.
+  const roleLabel = profile?.usesNeutralMembers
+    ? null
+    : profile?.role === "bride"
+      ? "신부"
+      : profile?.role === "groom"
+        ? "신랑"
+        : null;
   const initial = profile?.name?.charAt(0) ?? "?";
 
   const appVersion =
@@ -328,9 +319,9 @@ export default function ProfileScreen() {
                 <Text style={styles.name}>
                   {profile?.name ?? "게스트"}
                 </Text>
-                {memberPresentation && (
+                {roleLabel && (
                   <View style={styles.roleBadge}>
-                    <Text style={styles.roleBadgeText}>{memberPresentation.valueLabel}</Text>
+                    <Text style={styles.roleBadgeText}>{roleLabel}</Text>
                   </View>
                 )}
               </View>

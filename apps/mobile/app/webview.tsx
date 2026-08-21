@@ -57,6 +57,9 @@ function titleFromUrl(url: string): string {
   try {
     const pathname = new URL(url).pathname;
     if (pathname === "/price" || pathname.startsWith("/price/")) return "업체 공시가";
+    // 예절 안내는 편마다 하위 경로가 있다(/wedding/manners/cost-saving). 아래 map은
+    // **마지막 조각**으로 찾기 때문에 편 안으로 들어가면 못 잡는다 — prefix로 본다.
+    if (/^\/(wedding\/)?manners(\/|$)/.test(pathname)) return "결혼 예절 안내";
     const segment = pathname.split("/").filter(Boolean).pop();
     const map: Record<string, string> = {
       vendors: "업체 탐색",
@@ -73,6 +76,36 @@ function titleFromUrl(url: string): string {
   }
 }
 
+/**
+ * 웹의 로그인 필요 화면 → 앱의 같은 화면.
+ *
+ * 웹뷰에는 앱의 세션이 없다(쿠키를 넘기지 않는다). 그래서 웹 페이지 안의 링크를 따라
+ * 로그인 필요 경로로 들어가면, **앱에 이미 로그인한 사용자가 웹 로그인 폼을 만난다.**
+ * 실제로 예절 안내 첫 화면의 주 CTA가 `/wedding/checklist`다.
+ *
+ * 같은 화면이 앱에 네이티브로 있으므로 거기로 넘긴다. 세션 토큰을 웹뷰에 주입하는
+ * 방법도 있지만 그건 보안 결정이라 여기서 하지 않는다.
+ *
+ * 공개 페이지(`/price`, `/start-here`, `/demo`, `/manners`)는 로그인이 필요 없으니
+ * 그대로 웹뷰에서 연다 — 막으면 오히려 읽을 것을 못 읽게 된다.
+ */
+const WEB_TO_NATIVE: Readonly<Record<string, string>> = {
+  checklist: "/checklist",
+  budget: "/budget",
+  schedule: "/schedule",
+  settings: "/settings",
+  bookings: "/bookings",
+  vendors: "/vendors",
+  chat: "/chat",
+};
+
+export function nativeRouteForWebPath(pathname: string): string | null {
+  const parts = pathname.split("/").filter(Boolean);
+  const head = parts[0] === "wedding" ? parts[1] : parts[0];
+  if (!head) return null;
+  return WEB_TO_NATIVE[head] ?? null;
+}
+
 export default function WebViewScreen() {
   const params = useLocalSearchParams<{ url?: string | string[] }>();
   const url = firstParam(params.url);
@@ -84,6 +117,8 @@ export default function WebViewScreen() {
   const [bridgeRequestGate] = useState(() => createMobileWebApiRequestGate());
   const [bridgeAuthRedirectGate] = useState(() => createMobileWebApiAuthRedirectGate());
   const [loading, setLoading] = useState(true);
+  // 불러오지 못했을 때. 지금까지는 실패해도 스피너만 꺼져서 플랫폼 기본 에러 화면이 남았다.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [currentTitle, setCurrentTitle] = useState(titleFromUrl(safeUrl ?? ""));
   const [currentUrl, setCurrentUrl] = useState(safeUrl ?? "");
   const [canGoBack, setCanGoBack] = useState(false);
@@ -157,6 +192,12 @@ export default function WebViewScreen() {
     }
     const nextUrl = normalizeMobileSiteUrl(event.url, SITE_ORIGIN);
     if (nextUrl) {
+      // 로그인 필요한 화면은 웹뷰에서 열지 않는다 — 웹뷰에 세션이 없어 로그인 폼이 뜬다.
+      const native = nativeRouteForWebPath(new URL(nextUrl).pathname);
+      if (native) {
+        router.replace(native as Parameters<typeof router.replace>[0]);
+        return false;
+      }
       setCurrentTitle(titleFromUrl(nextUrl));
       return true;
     }
@@ -179,6 +220,7 @@ export default function WebViewScreen() {
 
   const handleLoadStart = useCallback(() => {
     documentEpochRef.current += 1;
+    setLoadFailed(false);
     setLoading(true);
   }, []);
 
@@ -305,14 +347,34 @@ export default function WebViewScreen() {
         </View>
       )}
 
+      {/* 불러오지 못했을 때 — 플랫폼 기본 에러 대신 다시 시도할 자리를 준다 */}
+      {loadFailed ? (
+        <View style={styles.failure}>
+          <Text style={styles.failureTitle}>지금은 불러오지 못했어요</Text>
+          <Text style={styles.failureBody}>
+            연결을 확인한 뒤 다시 시도해 주세요. 앱에 저장된 준비 목록은 그대로 있어요.
+          </Text>
+          <Pressable
+            style={styles.retryButton}
+            onPress={() => { setLoadFailed(false); webViewRef.current?.reload(); }}
+            accessibilityRole="button"
+            accessibilityLabel="다시 시도"
+          >
+            <Text style={styles.retryLabel}>다시 시도</Text>
+          </Pressable>
+        </View>
+      ) : null}
+
       {/* WebView */}
       <WebView
         ref={webViewRef}
         source={{ uri: safeUrl }}
         originWhitelist={[SITE_ORIGIN]}
-        style={{ flex: 1 }}
+        style={loadFailed ? styles.hidden : { flex: 1 }}
         onLoadStart={handleLoadStart}
         onLoadEnd={() => setLoading(false)}
+        onError={() => { setLoadFailed(true); setLoading(false); }}
+        onHttpError={() => { setLoadFailed(true); setLoading(false); }}
         onMessage={handleMessage}
         onNavigationStateChange={handleNavigationStateChange}
         onShouldStartLoadWithRequest={handleNavigation}
@@ -333,6 +395,19 @@ export default function WebViewScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
+  hidden: { width: 0, height: 0, opacity: 0 },
+  failure: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 10 },
+  failureTitle: { fontSize: 17, fontWeight: "700", color: colors.noir[800] },
+  failureBody: { fontSize: 14, lineHeight: 21, color: colors.textTertiary, textAlign: "center" },
+  retryButton: {
+    marginTop: 8,
+    minHeight: 48,
+    justifyContent: "center",
+    paddingHorizontal: 24,
+    borderRadius: 999,
+    backgroundColor: colors.noir[800],
+  },
+  retryLabel: { fontSize: 15, fontWeight: "600", color: "#fff" },
   header: {
     flexDirection: "row",
     alignItems: "center",

@@ -16,6 +16,20 @@ const nullableInviteMigrationPath = resolve(
   "../../supabase/migrations/20260818110000_restore_couple_invite_nullable_contract.sql",
 );
 const nullableInviteMigration = readFileSync(nullableInviteMigrationPath, "utf8");
+const legacySpaceReportMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260820120000_neutral_join_reports_legacy_space.sql",
+  ),
+  "utf8",
+);
+const legacyJoinGuardMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260820130000_legacy_join_blocks_neutral_space.sql",
+  ),
+  "utf8",
+);
 
 const OWNER_ID = "00000000-0000-4000-8000-000000000001";
 const PARTNER_ID = "00000000-0000-4000-8000-000000000002";
@@ -223,6 +237,8 @@ async function createDatabase() {
   `);
   if (migration) await db.exec(migration);
   await db.exec(nullableInviteMigration);
+  await db.exec(legacySpaceReportMigration);
+  await db.exec(legacyJoinGuardMigration);
   return db;
 }
 
@@ -231,6 +247,91 @@ afterEach(async () => {
 });
 
 describe("neutral preparation-space migration", () => {
+  it("구버전 앱이 역할을 골라 중립 공간에 합류하지 못한다", async () => {
+    // 웹 플래그를 먼저 켜고 앱 배포가 늦으면, 구버전 앱 사용자가 v2 커플에
+    // 'bride'/'groom'을 박은 채 들어온다. 그 사고 구간을 DB에서 닫는다.
+    const db = await createDatabase();
+
+    await setPersona(db, "authenticated", OWNER_ID);
+    const created = await db.query<{ result: { invite_code: string } }>(`
+      SELECT public.create_neutral_preparation_space_for_current_user() AS result
+    `);
+    const neutralCode = created.rows[0]?.result.invite_code;
+    expect(neutralCode).toMatch(/^WH-[A-Z0-9]{12}$/u);
+
+    // 구버전 앱 경로 두 개 모두 막혀야 한다
+    await setPersona(db, "service_role");
+    const viaServer = await db.query<{ result: Record<string, unknown> }>(`
+      SELECT public.join_couple_server(
+        '${PARTNER_ID}'::uuid, '${neutralCode}', 'groom'
+      ) AS result
+    `);
+    expect(viaServer.rows[0]?.result).toMatchObject({
+      success: false,
+      joined: false,
+      error_code: "NEUTRAL_PREPARATION_SPACE",
+    });
+
+    await setPersona(db, "authenticated", PARTNER_ID);
+    const viaLegacy = await db.query<{ result: Record<string, unknown> }>(`
+      SELECT public.join_couple('${neutralCode}', 'groom') AS result
+    `);
+    expect(viaLegacy.rows[0]?.result).toMatchObject({
+      success: false,
+      error_code: "NEUTRAL_PREPARATION_SPACE",
+    });
+
+    // 아무것도 바뀌지 않았는지 확인한다 — 막혔다는 응답만으로는 부족하다
+    await setPersona(db, "service_role");
+    const state = await db.query<{ groom_id: string | null; partner_couple_id: string | null }>(`
+      SELECT couple.groom_id, partner.couple_id AS partner_couple_id
+      FROM public.couples AS couple
+      JOIN public.profiles AS partner ON partner.id = '${PARTNER_ID}'
+      WHERE couple.invite_code = '${neutralCode}'
+    `);
+    expect(state.rows[0]).toEqual({ groom_id: null, partner_couple_id: null });
+  });
+
+  it("기존(v1) 커플의 역할 합류는 그대로 동작한다", async () => {
+    // 가드가 과해서 기존 경로까지 막으면 그건 회귀다
+    const db = await createDatabase();
+    await setPersona(db, "service_role");
+    const result = await db.query<{ result: Record<string, unknown> }>(`
+      SELECT public.join_couple_server(
+        '${PARTNER_ID}'::uuid, 'WH-LEGACY000001', 'groom'
+      ) AS result
+    `);
+    expect(result.rows[0]?.result).toMatchObject({ success: true, joined: true });
+  });
+
+  it("기존(v1) 초대 코드는 '틀린 코드'가 아니라 '기존 방식'으로 구분해 알려준다", async () => {
+    // 이 구분이 없으면 플래그를 켜는 순간, 이미 발급된 v1 코드가 전부
+    // "초대 코드가 올바르지 않습니다"가 되어 기존 사용자가 영원히 연결 못 한다.
+    const db = await createDatabase();
+    await setPersona(db, "service_role");
+
+    const legacy = await db.query<{ result: Record<string, unknown> }>(`
+      SELECT public.join_neutral_preparation_space_server(
+        '${PARTNER_ID}'::uuid, 'WH-LEGACY000001'
+      ) AS result
+    `);
+    expect(legacy.rows[0]?.result).toMatchObject({
+      success: false,
+      joined: false,
+      error_code: "LEGACY_PREPARATION_SPACE",
+    });
+
+    // 진짜로 없는 코드는 여전히 INVALID_INVITE_CODE 여야 한다
+    const missing = await db.query<{ result: Record<string, unknown> }>(`
+      SELECT public.join_neutral_preparation_space_server(
+        '${PARTNER_ID}'::uuid, 'WH-NOSUCHCODE1'
+      ) AS result
+    `);
+    expect(missing.rows[0]?.result).toMatchObject({
+      error_code: "INVALID_INVITE_CODE",
+    });
+  });
+
   it("restores the nullable invite contract required by one-time redemption", async () => {
     const db = await createDatabase();
     const column = await db.query<{ attnotnull: boolean }>(`
@@ -377,9 +478,12 @@ describe("neutral preparation-space migration", () => {
         '${PARTNER_ID}', 'WH-LEGACY000001'
       ) AS result
     `);
+    // 합류가 막힌다는 계약은 그대로다. 다만 "틀린 코드"가 아니라 "기존 방식
+    // 공간"으로 구분해 알려준다(20260820120000) — 사용자가 할 일이 다르다.
     expect(joinAttempt.rows[0]?.result).toMatchObject({
       success: false,
-      error_code: "INVALID_INVITE_CODE",
+      joined: false,
+      error_code: "LEGACY_PREPARATION_SPACE",
     });
 
     const state = await db.query<{

@@ -15,6 +15,7 @@ import { determineStage } from "@/lib/ai/stage-router";
 import {
   COUPLE_INVITE_EXPAND_REQUIRED_CODE,
   isJoinCoupleServerRpcMissing,
+  isMembershipRpcMissing,
   joinCoupleThroughServerRpc,
   joinNeutralPreparationSpaceThroughServerRpc,
   parseMembershipRpcResponse,
@@ -862,6 +863,8 @@ export async function POST(request: Request) {
       preparationCatchUp: rawPreparationCatchUp,
     } = body;
 
+    // 중립 준비 공간: 역할을 묻지 않고 시작한다. 내부 슬롯 배정은 DB 함수가 하고,
+    // 앱은 그 값을 정체성으로 취급하지 않는다.
     if (
       rawMembershipMode !== undefined
       && rawMembershipMode !== "neutral_preparation_space"
@@ -901,7 +904,7 @@ export async function POST(request: Request) {
     }
     const role: CoupleRole | null = neutralPreparationSpace
       ? null
-      : rawRole as CoupleRole;
+      : (rawRole as CoupleRole);
 
     if (rawCoupleAction !== "create" && rawCoupleAction !== "join") {
       return privateResponse({ error: "유효하지 않은 커플 연결 방식입니다." }, 400);
@@ -1021,6 +1024,19 @@ export async function POST(request: Request) {
 
     if (rpcResponse.error) {
       console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
+      // 함수 자체가 없으면(=마이그레이션 미적용) "잠시 후 다시" 는 거짓말이다.
+      // 몇 번을 눌러도 안 되고, 사용자는 자기가 뭘 잘못한 줄 안다.
+      if (isMembershipRpcMissing(rpcResponse.error)) {
+        return privateResponse(
+          {
+            error: neutralPreparationSpace
+              ? "새 방식 준비 공간을 아직 사용할 수 없어요. 잠시 뒤 다시 열립니다."
+              : "커플 연결 기능을 일시적으로 사용할 수 없어요.",
+            code: "MEMBERSHIP_RPC_UNAVAILABLE",
+          },
+          503,
+        );
+      }
       return privateResponse(
         { error: "커플 연결을 완료하지 못했습니다. 잠시 후 다시 시도해주세요." },
         500,

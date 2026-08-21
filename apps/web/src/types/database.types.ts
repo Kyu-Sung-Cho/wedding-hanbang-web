@@ -31,10 +31,13 @@ export interface Couple {
   invite_code: string | null;
   bride_id: string | null;
   groom_id: string | null;
-  /** 1=legacy bride/groom presentation, 2=roleless preparation-space presentation. */
-  member_model_version?: 1 | 2;
   /** 첫 2인 roster가 성립한 시각. 값이 있으면 빈 슬롯에 새 멤버를 초대할 수 없다. */
   membership_sealed_at: string | null;
+  /**
+   * 2면 중립 준비 공간이다 — bride/groom은 저장 슬롯일 뿐 사용자가 고른 역할이
+   * 아니므로 화면에 역할로 표시하지 않는다. 컬럼이 없는 DB에서는 1로 본다.
+   */
+  member_model_version?: 1 | 2;
   created_at: string;
   updated_at: string;
 }

@@ -14,6 +14,8 @@ type NeutralPreparationStartProps = Readonly<{
   onSelectJoin: () => void;
   onPartnerCodeChange: (code: string) => void;
   onJoin: () => void;
+  /** 실패 문구. 없으면 사용자는 버튼이 원상복귀하는 것만 보고 이유를 모른다. */
+  error?: string;
 }>;
 
 export default function NeutralPreparationStart({
@@ -24,9 +26,15 @@ export default function NeutralPreparationStart({
   onSelectJoin,
   onPartnerCodeChange,
   onJoin,
+  error = "",
 }: NeutralPreparationStartProps) {
   return (
     <section aria-labelledby="neutral-preparation-title" className="space-y-6">
+      {error ? (
+        <p role="alert" className="text-center text-[13px] text-rose-600">
+          {error}
+        </p>
+      ) : null}
       <div className="text-center">
         <h1
           id="neutral-preparation-title"

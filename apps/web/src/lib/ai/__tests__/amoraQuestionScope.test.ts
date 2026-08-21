@@ -368,11 +368,51 @@ describe("Amora question-scope ceiling", () => {
     "이 견적 800만원인데 괜찮은 거야?",
     "예산 초과했는데 어디서 줄여?",
   ])("routes a real preparation utterance into W0 instead of a clarification: %s", (userText) => {
+    // 이 넷은 어휘 목록에 없다는 이유만으로 W4였다. W4는 도구 0개 + 저장 커플 문맥
+    // 삭제 + "이 요청이 결혼 준비의 어떤 결정과 연결되는지" 되묻기다. 결혼 준비 앱의
+    // 아모라 대화에서 가장 흔한 첫 질문에 그 답을 돌려주고 있었다.
     expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
       scope: "W0_wedding_core",
       allowsLongTermMemory: true,
       confidence: "high",
       needsClarification: false,
+    });
+  });
+
+  it.each([
+    "남편은 무관심하고 나만 다 하고 있어",
+    "아내가 요즘 나한테 말을 안 해",
+    "시어머니가 나를 싫어해",
+    "시댁에서 전화가 자꾸 와",
+    "처가에 뭐라고 말해야 할지 모르겠어",
+  ])("answers a one-sided relationship account but never stores it: %s", (userText) => {
+    // 두 실패가 모두 비싸다. W4로 떨어뜨리면 감정을 털어놓은 사람에게 "이 요청이 결혼
+    // 준비의 어떤 결정과 연결되는지" 되묻는다. 반대로 장기 기억에 넣으면 커플이 함께
+    // 쓰는 제품에 **한쪽의 관계 불만이 기록으로 쌓인다.**
+    //
+    // 그래서 답은 하되 기억은 끈다. 새 형태가 아니다 — 중재 요청이 이미 같은 이유로
+    // W1 + 기억 off를 쓴다("한쪽 당사자의 요약이지 둘이 확정한 사실이 아니다").
+    const classification = classifyAmoraQuestionScope({ userText });
+
+    expect(classification.scope).toBe("W1_wedding_adjacent");
+    expect(classification.allowsLongTermMemory).toBe(false);
+    expect(classification.needsClarification).toBe(false);
+    // 저장 문맥은 읽을 수 있어야 "할 일이 한쪽에 몰려 있네요"가 가능하다.
+    expect(
+      filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification).map((tool) => tool.name),
+    ).toContain("get_wedding_info");
+  });
+
+  it.each([
+    "상견례에서 시어머니가 예단 얘기를 꺼냈어",
+    "남편이랑 웨딩홀 보러 가기로 했어",
+    "남편이랑 뭐부터 해야 할지 모르겠어",
+  ])("still gives a preparation question full wedding authority: %s", (userText) => {
+    // 배우자·시가를 가리킨다고 해서 준비 질문까지 기억에서 빠지면 안 된다. 같은 문장에
+    // 웨딩 신호가 있으면 위쪽 경로에서 먼저 W0로 잡힌다.
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: true,
     });
   });
 
@@ -384,48 +424,15 @@ describe("Amora question-scope ceiling", () => {
     "여행 예산 초과했는데 어디서 줄여?",
     "병원 예약 늦었어",
     "이직 준비가 늦은 건가?",
-  ])("does not let ambiguous preparation vocabulary borrow wedding authority: %s", (userText) => {
+  ])("does not let the new preparation vocabulary borrow wedding authority: %s", (userText) => {
+    // 이 반례는 **새로 넣은 어휘를 깨려고** 따로 만든 것이다. 기존 오탐 코퍼스는 이
+    // 낱말들을 아무도 노리지 않으므로, 거기서 오탐 0이 나와도 아무것도 증명하지 않는다
+    // (이 파일 위쪽 폭력 어휘에서 이미 같은 실수를 했다).
+    //
+    // 맨 앞 EXPLICIT_NON_WEDDING_STATE_PATTERN은 `회사`+`예산|일정` 조합을 요구하므로
+    // "회사 일 뭐부터 해야 해?"를 막지 못한다. NON_WEDDING_DOMAIN_HINT_PATTERN이 없으면
+    // 이 줄들이 전부 W0가 된다.
     expect(classifyAmoraQuestionScope({ userText }).scope).toBe("W4_out_of_scope");
-  });
-
-  it.each([
-    "남편은 무관심하고 나만 다 하고 있어",
-    "아내가 요즘 나한테 말을 안 해",
-    "시어머니가 나를 싫어해",
-    "시댁에서 전화가 자꾸 와",
-    "처가에 뭐라고 말해야 할지 모르겠어",
-  ])("answers a one-sided relationship account but never stores it: %s", (userText) => {
-    const classification = classifyAmoraQuestionScope({ userText });
-
-    expect(classification).toMatchObject({
-      scope: "W1_wedding_adjacent",
-      allowsLongTermMemory: false,
-      needsClarification: false,
-    });
-    expect(
-      filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification).map((tool) => tool.name),
-    ).toContain("get_wedding_info");
-  });
-
-  it.each([
-    "상견례에서 시어머니가 예단 얘기를 꺼냈어",
-    "남편이랑 웨딩홀 보러 가기로 했어",
-    "남편이랑 뭐부터 해야 할지 모르겠어",
-  ])("still gives a preparation question full wedding authority: %s", (userText) => {
-    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
-      scope: "W0_wedding_core",
-      allowsLongTermMemory: true,
-    });
-  });
-
-  it.each([
-    "혼주 준비는 뭐가 남았어?",
-    "보정본 언제 받아?",
-  ])("recognizes common wedding vocabulary without asking for scope proof: %s", (userText) => {
-    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
-      scope: "W0_wedding_core",
-      needsClarification: false,
-    });
   });
 
   it("accepts generic state nouns only when the current message carries a wedding signal", () => {
@@ -445,7 +452,11 @@ describe("Amora question-scope ceiling", () => {
     }
   });
 
-  it("answers an unclear turn like a person without opening tools or stored facts", () => {
+  it("answers an unclear turn like a person instead of demanding it prove its scope", () => {
+    // 어휘 목록을 아무리 늘려도 목록에 없는 말은 계속 나온다. 그때마다 나가는 문장이
+    // 이 갈래다. 여기서 무슨 태도를 취하느냐가 어휘 하나보다 크다.
+    //
+    // 이 갈래는 서버가 판단을 못 한 경우지 사용자가 잘못 말한 경우가 아니다.
     const classification = classifyAmoraQuestionScope({ userText: "이거 어떻게 하면 돼?" });
     expect(classification).toMatchObject({
       scope: "W4_out_of_scope",
@@ -456,23 +467,27 @@ describe("Amora question-scope ceiling", () => {
 
     expect(instruction).toContain("먼저 사람처럼 반응하세요");
     expect(instruction).toContain("그것부터 짧게 알아주고");
+    // 답 자체를 막던 문구와 판정형 되물음 지시가 돌아오면 안 된다.
     expect(instruction).not.toContain("본문 답이나 실행을 시작하지 말고");
     expect(instruction).not.toContain("이 요청이 결혼 준비의 어떤 결정과 연결되는지");
+
+    // 태도만 바꾼다. 열지 않는 것은 그대로다 — 이 셋이 빠지면 따뜻한 대신 위험해진다.
     expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
     expect(instruction).toContain("확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고");
     expect(instruction).toContain("저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요");
   });
 
-  it("keeps a high-confidence out-of-scope task on the existing refusal boundary", () => {
+  it("keeps the high-confidence out-of-scope branch on its existing boundary wording", () => {
+    // 코딩·주식처럼 확신을 갖고 범위 밖이라고 판정한 갈래는 다른 문제다. 되묻는 게
+    // 아니라 범위를 알리는 자리이므로 이번 변경에서 건드리지 않았다.
     const classification = classifyAmoraQuestionScope({
       userText: "청첩장 웹사이트 TypeScript 코드를 대신 작성해줘",
     });
     expect(classification.needsClarification).toBe(false);
 
     const instruction = buildAmoraQuestionScopeInstruction(classification);
-    expect(instruction).toContain(
-      "아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요",
-    );
+
+    expect(instruction).toContain("아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요");
     expect(instruction).toContain("도구 실행과 장기 기억 저장은 하지 마세요");
   });
 

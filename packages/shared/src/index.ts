@@ -37,3 +37,4 @@ export * from "./contracts/commandLease";
 export * from "./contracts/preparationStatus";
 export * from "./contracts/coupleInviteCode";
 export * from "./contracts/mutationActor";
+export * from "./contracts/neutralPreparationSpace";

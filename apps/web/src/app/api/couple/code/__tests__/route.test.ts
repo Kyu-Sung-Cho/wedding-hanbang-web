@@ -73,7 +73,6 @@ function couple(
     bride_id: string | null;
     groom_id: string | null;
     membership_sealed_at: string | null;
-    invite_code_issued_at: string | null;
     invite_code_expires_at: string | null;
   }> = {},
 ) {
@@ -82,8 +81,8 @@ function couple(
     bride_id: USER_ID,
     groom_id: null,
     membership_sealed_at: null,
-    invite_code_issued_at: "2026-08-12T00:00:00.000Z",
-    invite_code_expires_at: "2099-08-19T00:00:00.000Z",
+    // 기본은 넉넉히 남은 코드. 만료 케이스는 테스트에서 명시적으로 넣는다.
+    invite_code_expires_at: new Date(Date.now() + 6 * 86400000).toISOString(),
     ...overrides,
   };
 }
@@ -278,7 +277,6 @@ describe("/api/couple/code roster epoch fence", () => {
           single: {
             data: couple({
               invite_code: "WH-OLD123",
-              invite_code_issued_at: "2026-08-01T00:00:00.000Z",
               invite_code_expires_at: "2026-08-08T00:00:00.000Z",
             }),
             error: null,
@@ -325,6 +323,77 @@ describe("/api/couple/code roster epoch fence", () => {
     await expect(response.json()).resolves.toEqual({ inviteCode: "WH-NEW123" });
     expect(filters).toContainEqual(["is", "membership_sealed_at", null]);
     expect(filters).toContainEqual(["eq", "invite_code", "WH-OLD123"]);
+  });
+
+  // 20260812030000 이 모든 살아있는 코드에 7일 창을 박았다. 운영 기준 19개가
+  // 2026-08-27 에 한꺼번에 만료된다. 앱이 이걸 안 보면 화면엔 코드가 보이는데
+  // 상대는 "초대 코드가 올바르지 않습니다"를 받는다 — 파트너 연결은 이 제품에서
+  // 가장 크게 새는 구간이라 조용히 죽으면 안 된다.
+  it("만료된 코드는 조용히 새 코드로 갈아끼운다", async () => {
+    const expiredCode = "WH-EXPIRED001";
+    const { filters } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: expiredCode,
+              invite_code_expires_at: new Date(Date.now() - 1000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+        { maybeSingle: { data: couple({ invite_code: "WH-FRESH0001" }), error: null } },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ inviteCode: "WH-FRESH0001" });
+    // 만료된 기존 코드를 기대값으로 CAS 해야 한다 — null 로 하면 아무것도 안 바뀐다
+    expect(filters).toContainEqual(["eq", "invite_code", expiredCode]);
+  });
+
+  it("아직 안 만료된 코드는 괜히 회전시키지 않는다", async () => {
+    const { fromCalls } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        {
+          single: {
+            data: couple({
+              invite_code: "WH-STILLGOOD",
+              invite_code_expires_at: new Date(Date.now() + 86400000).toISOString(),
+            }),
+            error: null,
+          },
+        },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ inviteCode: "WH-STILLGOOD" });
+    // 멀쩡한 코드를 회전시키면 상대가 이미 받은 코드가 죽는다
+    expect(fromCalls.filter((name) => name === "couples")).toHaveLength(1);
+  });
+
+  it("만료 컬럼이 없는 DB 에서도 커플 카드가 죽지 않는다", async () => {
+    // 앱이 마이그레이션보다 먼저 나가는 일은 이 저장소에서 실제로 있었다.
+    const { fromCalls } = setup({
+      profiles: [profileSuccess],
+      couples: [
+        { single: { data: null, error: { code: "42703", message: "column does not exist" } } },
+        { single: { data: couple({ invite_code: "WH-LEGACYOK1" }), error: null } },
+      ],
+    });
+
+    const response = await GET(request("GET"));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ inviteCode: "WH-LEGACYOK1" });
+    expect(fromCalls.filter((name) => name === "couples").length).toBeGreaterThanOrEqual(2);
   });
 
   it("checks profile and couple lookup errors before privileged writes", async () => {

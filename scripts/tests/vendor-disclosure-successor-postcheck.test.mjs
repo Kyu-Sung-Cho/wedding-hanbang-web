@@ -126,14 +126,14 @@ test("successor table and ordered migration evidence is complete and source-deri
     .map(({ file }) => file.slice(0, 14));
 
   assert.equal(createdTables.length, 112);
-  assert.equal(pendingVersions.length, 81);
+  assert.equal(pendingVersions.length, 84);
   for (const table of createdTables) {
     assert.match(sql, new RegExp(String.raw`\('${table.replaceAll("_", "[_]")}'::name\)`, "i"));
   }
   for (const version of pendingVersions) {
     assert.match(sql, new RegExp(String.raw`\('${version}'::text\)`, "i"));
   }
-  assert.match(sql, /max\(version::text\)[\s\S]*20260819100000/i);
+  assert.match(sql, /max\(version::text\)[\s\S]*20260820140000/i);
 });
 
 test("each security evidence group is tied to its exact hosted object", () => {

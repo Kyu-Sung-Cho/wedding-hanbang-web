@@ -8,12 +8,35 @@ const INVITE_CODE_PATTERN = /^WH-[A-Z0-9]{6,12}$/;
 
 type CoupleRecord = {
   invite_code: string | null;
-  invite_code_issued_at: string | null;
-  invite_code_expires_at: string | null;
   bride_id: string | null;
   groom_id: string | null;
   membership_sealed_at: string | null;
+  /** 20260812030000 이 붙인 7일 창. 없는 DB 도 있으므로 선택 필드다. */
+  invite_code_expires_at?: string | null;
 };
+
+// 20260812030000 이 초대 코드에 7일 만료를 붙였다. 그 컬럼이 아직 없는 DB 에서
+// 42703 하나로 커플 카드 전체를 죽이지 않는다 — 앱이 마이그레이션보다 먼저
+// 나가는 일은 이 저장소에서 실제로 있었다.
+const COUPLE_COLUMNS_WITH_EXPIRY =
+  "invite_code, bride_id, groom_id, membership_sealed_at, invite_code_expires_at";
+const COUPLE_COLUMNS_LEGACY =
+  "invite_code, bride_id, groom_id, membership_sealed_at";
+const UNDEFINED_COLUMN = "42703";
+
+/**
+ * 만료된 코드는 join 쪽에서 조용히 거절된다(20260812030000 의
+ * join_couple_invite_core 가 invite_code_expires_at > now 를 요구한다).
+ * 화면이 그걸 모르면 사용자는 멀쩡해 보이는 코드를 계속 공유하고 상대는 계속
+ * 실패한다 — 파트너 연결은 이 제품에서 가장 크게 새는 구간이다.
+ */
+function isInviteCodeExpired(couple: CoupleRecord): boolean {
+  const expiresAt = couple.invite_code_expires_at;
+  if (couple.invite_code === null || !expiresAt) return false;
+  const parsed = Date.parse(expiresAt);
+  if (Number.isNaN(parsed)) return false;
+  return parsed <= Date.now();
+}
 
 class CoupleCodeError extends Error {
   constructor(
@@ -53,20 +76,6 @@ function isFullyLinked(couple: CoupleRecord) {
   return Boolean(couple.bride_id && couple.groom_id);
 }
 
-function hasActiveInvite(couple: CoupleRecord, now = Date.now()) {
-  if (!validateInviteCode(couple.invite_code)) return false;
-  if (
-    typeof couple.invite_code_issued_at !== "string"
-    || typeof couple.invite_code_expires_at !== "string"
-  ) return false;
-  const issuedAt = Date.parse(couple.invite_code_issued_at);
-  const expiresAt = Date.parse(couple.invite_code_expires_at);
-  return Number.isFinite(issuedAt)
-    && Number.isFinite(expiresAt)
-    && expiresAt > issuedAt
-    && expiresAt > now;
-}
-
 async function loadCoupleContext(
   admin: ReturnType<typeof getAdmin>,
   userId: string,
@@ -97,13 +106,19 @@ async function loadCoupleById(
   coupleId: string,
   userId: string,
 ) {
-  const { data, error } = await admin
+  let { data, error } = await admin
     .from("couples")
-    .select(
-      "invite_code, invite_code_issued_at, invite_code_expires_at, bride_id, groom_id, membership_sealed_at",
-    )
+    .select(COUPLE_COLUMNS_WITH_EXPIRY)
     .eq("id", coupleId)
     .single();
+
+  if (error?.code === UNDEFINED_COLUMN) {
+    ({ data, error } = await admin
+      .from("couples")
+      .select(COUPLE_COLUMNS_LEGACY)
+      .eq("id", coupleId)
+      .single());
+  }
 
   if (error && !isNotFound(error)) {
     throw new CoupleCodeError(
@@ -162,11 +177,14 @@ async function compareAndSwapInviteCode(
     ? query.is("invite_code", null)
     : query.eq("invite_code", expectedCode);
 
-  const { data, error } = await query
-    .select(
-      "invite_code, invite_code_issued_at, invite_code_expires_at, bride_id, groom_id, membership_sealed_at",
-    )
+  let { data, error } = await query
+    .select(COUPLE_COLUMNS_WITH_EXPIRY)
     .maybeSingle();
+  if (error?.code === UNDEFINED_COLUMN) {
+    ({ data, error } = await query
+      .select(COUPLE_COLUMNS_LEGACY)
+      .maybeSingle());
+  }
   if (error) {
     throw new CoupleCodeError(
       500,
@@ -185,11 +203,11 @@ function activeCodeResponse(couple: CoupleRecord) {
       isMembershipSealed: true,
     };
   }
-  if (!hasActiveInvite(couple)) {
+  if (!validateInviteCode(couple.invite_code)) {
     throw new CoupleCodeError(
       500,
       "초대 코드를 확인할 수 없어요. 잠시 후 다시 시도해 주세요.",
-      "STORED_INVITE_LIFECYCLE_INVALID",
+      "STORED_INVITE_CODE_INVALID",
     );
   }
   return {
@@ -239,6 +257,8 @@ export async function GET(request: Request) {
     if (couple.membership_sealed_at) {
       return NextResponse.json(activeCodeResponse(couple));
     }
+    // 저장된 코드가 형식부터 어긋나면 조용히 갈아끼우지 말고 멈춘다 — 회전은
+    // 만료를 위한 것이지 손상된 데이터를 덮는 수단이 아니다.
     if (couple.invite_code !== null && !validateInviteCode(couple.invite_code)) {
       throw new CoupleCodeError(
         500,
@@ -246,7 +266,11 @@ export async function GET(request: Request) {
         "STORED_INVITE_CODE_INVALID",
       );
     }
-    if (hasActiveInvite(couple)) {
+    // 만료됐으면 조용히 새 코드로 갈아끼운다. 사용자가 "왜 안 되지"를 겪기 전에.
+    // 만료 자체는 20260812030000 의 의도이므로 되돌리지 않고, 화면이 그 사실을
+    // 반영하게 한다.
+    const expired = isInviteCodeExpired(couple);
+    if (couple.invite_code !== null && !expired) {
       return NextResponse.json(activeCodeResponse(couple));
     }
 
@@ -254,7 +278,8 @@ export async function GET(request: Request) {
     const updated = await compareAndSwapInviteCode(
       admin,
       coupleId,
-      couple.invite_code,
+      // 만료된 코드는 NULL 이 아니다. 기대값을 틀리면 CAS 가 아무것도 안 바꾼다.
+      expired ? couple.invite_code : null,
       generatedCode,
     );
     if (updated) {

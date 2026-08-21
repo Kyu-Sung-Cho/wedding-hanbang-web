@@ -1,59 +1,14 @@
-import {
-  describeCoupleInviteCodeProblem,
-  normalizeCoupleInviteCode,
+// 판정·요청 조립은 @hanbang/shared 에 있다. 웹과 모바일이 같은 구현을 쓰지
+// 않으면 한쪽만 중립이 되는 상태가 생긴다 — 실제로 그랬다.
+export {
+  buildNeutralPreparationSpaceSubmission,
+  parseNeutralPreparationSpaceCapability,
+  type NeutralPreparationSpaceSubmission,
 } from "@hanbang/shared";
 
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
 
-type NeutralPreparationSpaceSubmission = Readonly<{
-  membershipMode: "neutral_preparation_space";
-  coupleAction: "create" | "join";
-  partnerInviteCode?: string;
-  weddingDate: null;
-  venue: null;
-  totalBudget: null;
-  progress: Readonly<Record<string, never>>;
-}>;
-
-export function parseNeutralPreparationSpaceCapability(
-  value: unknown,
-): boolean {
-  return value !== null
-    && typeof value === "object"
-    && !Array.isArray(value)
-    && (value as Record<string, unknown>).neutralPreparationSpace === true;
-}
-
-export function buildNeutralPreparationSpaceSubmission(input: {
-  coupleAction: "create" | "join";
-  partnerInviteCode: string;
-}): NeutralPreparationSpaceSubmission {
-  if (input.coupleAction === "create") {
-    return {
-      membershipMode: "neutral_preparation_space",
-      coupleAction: "create",
-      weddingDate: null,
-      venue: null,
-      totalBudget: null,
-      progress: {},
-    };
-  }
-
-  const partnerInviteCode = normalizeCoupleInviteCode(input.partnerInviteCode);
-  if (describeCoupleInviteCodeProblem(partnerInviteCode) !== null) {
-    throw new Error("INVALID_NEUTRAL_PREPARATION_INVITE_CODE");
-  }
-  return {
-    membershipMode: "neutral_preparation_space",
-    coupleAction: "join",
-    partnerInviteCode,
-    weddingDate: null,
-    venue: null,
-    totalBudget: null,
-    progress: {},
-  };
-}
-
+// 리다이렉트만 웹 전용이다 — 모바일은 라우터 경로가 다르다.
 export function resolveNeutralPreparationSpaceRedirect(input: {
   search: string;
   origin: string;

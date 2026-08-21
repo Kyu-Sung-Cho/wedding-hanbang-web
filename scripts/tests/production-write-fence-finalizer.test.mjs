@@ -1986,7 +1986,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 113-migration successor keeps finalization blocked through the preparation-action receipt binding-read tail", async () => {
+test("the current 116-migration successor keeps finalization blocked through the neutral schedule assignee-label tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1994,22 +1994,10 @@ test("the current 113-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 113);
+  assert.equal(manifest.expandMigrations.length, 116);
   assert.deepEqual(
     manifest.expandMigrations.slice(-15),
     [
-      {
-        file: "20260816150000_amora_provider_backed_add_action_application.sql",
-        sha256: "1e7870be4051c4fd9017d6909b453739e8eda9fdd4100339d47d9a79d7777483",
-      },
-      {
-        file: "20260816160000_amora_atomic_action_href_parity.sql",
-        sha256: "afe0eabc7cc774d219715224906bfd328e0df011bb76f9caea69615a93a4af7c",
-      },
-      {
-        file: "20260816170000_amora_booking_outcome_provenance.sql",
-        sha256: "9b673303585070facadb062d042c1cd23342cafe368612037571597ff72f5457",
-      },
       {
         file: "20260816180000_amora_neutral_preparation_space.sql",
         sha256: "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867",
@@ -2057,6 +2045,18 @@ test("the current 113-migration successor keeps finalization blocked through the
       {
         file: "20260819100000_amora_preparation_action_receipt_binding_read.sql",
         sha256: "5141c65448b0e454c7fc6545f3705c7342cd95685f3f5f9f30bcf4dff56e64a6",
+      },
+      {
+        file: "20260820120000_neutral_join_reports_legacy_space.sql",
+        sha256: "8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80",
+      },
+      {
+        file: "20260820130000_legacy_join_blocks_neutral_space.sql",
+        sha256: "6e0668148b9773f27b00b30b59b36d221ed876056b23f636bb9608ab8db6e3c0",
+      },
+      {
+        file: "20260820140000_neutral_schedule_assignee_label.sql",
+        sha256: "457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23",
       },
     ],
   );

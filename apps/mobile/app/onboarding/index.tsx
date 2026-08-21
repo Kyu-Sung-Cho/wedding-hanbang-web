@@ -1,4 +1,6 @@
-// 온보딩 화면 — 중립 첫 가치(기능 플래그) + 기존 5단계 호환 경로
+// 온보딩 화면 — 중립 첫 가치 + 기존 5단계 호환 경로.
+// 중립 준비 공간이 켜지면 한 화면(역할·예식일·예산·스타일을 묻지 않음),
+// 꺼져 있으면 기존 5단계. 판정은 서버가 /api/auth/me 의 capabilities 로 내려준다.
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
@@ -26,7 +28,7 @@ import {
   type WeddingPriorityValue,
   type WeddingStyleValue,
 } from "@hanbang/shared";
-import { apiFetchForExpectedUser } from "@/lib/api";
+import { apiFetch, apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
 import { stagePlanningFoundationDraftHandoff } from "@/lib/planningFoundationDraftHandoff";
@@ -49,6 +51,7 @@ import {
   describeCoupleInviteCodeProblem,
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
+  parseNeutralPreparationSpaceCapability,
 } from "@hanbang/shared";
 import { PrimaryButton } from "@/components/ui/AppUI";
 import {
@@ -110,9 +113,6 @@ const BUDGET_OPTIONS = WEDDING_BUDGET_TENDENCY_OPTIONS.map((option) => ({
 }));
 const GUEST_OPTIONS = WEDDING_GUEST_COUNT_OPTIONS;
 const coupleStepActions = getOnboardingCoupleStepActions();
-const neutralFirstValueEnabled =
-  process.env.EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
-
 const EMPTY_PLANNING_FOUNDATION_OVERVIEW = Object.freeze({
   version: 1,
   coverage: Object.freeze({
@@ -532,6 +532,9 @@ export default function OnboardingScreen() {
   const [ownerVerification, setOwnerVerification] = useState<
     "checking" | "ready" | "error"
   >("checking");
+  // 서버가 판정한다. 소유자 확인과 같은 왕복에서 받아오므로, 아래 게이트가
+  // 열리기 전에 값이 정해진다 — 역할 카드가 먼저 번쩍일 창이 없다.
+  const [neutralEnabled, setNeutralEnabled] = useState(false);
   const formOwnerUserIdRef = useRef<string | null>(null);
   const formOwnerStillCurrentRef = useRef(false);
   const ownerCheckGenerationRef = useRef(0);
@@ -641,6 +644,22 @@ export default function OnboardingScreen() {
       }
       formOwnerUserIdRef.current = user.id;
       formOwnerStillCurrentRef.current = true;
+
+      // 중립 준비 공간 판정은 서버 몫이다. 앱이 자기 환경변수로 정하면
+      // 서버가 거절하는 경로를 앱만 열어 둔 채로 어긋난다.
+      const capabilityRes = await apiFetch("/api/auth/me");
+      if (ownerCheckGenerationRef.current !== generation) return;
+      if (!capabilityRes.ok) throw new Error(`auth/me ${capabilityRes.status}`);
+      const capabilityData = await capabilityRes.json();
+      if (
+        ownerCheckGenerationRef.current !== generation
+        || formOwnerUserIdRef.current !== user.id
+        || !formOwnerStillCurrentRef.current
+      ) return;
+      setNeutralEnabled(
+        parseNeutralPreparationSpaceCapability(capabilityData?.capabilities),
+      );
+
       const restoredCatchUp = await readPreparationCatchUpDraft({ ownerUserId: user.id });
       if (
         ownerCheckGenerationRef.current !== generation
@@ -1053,6 +1072,10 @@ export default function OnboardingScreen() {
   }
 
   function handleNext() {
+    if (neutralEnabled && step === 1) {
+      handleSubmit();
+      return;
+    }
     if (step === 4) {
       handleSubmit();
     } else if (step === 5) {
@@ -1113,7 +1136,7 @@ export default function OnboardingScreen() {
     );
   }
 
-  if (neutralFirstValueEnabled) {
+  if (neutralEnabled) {
     return (
       <NeutralPlanningFoundation
         firstValue={planningFoundationFirstValue}
@@ -1178,14 +1201,16 @@ export default function OnboardingScreen() {
               <ArrowLeft size={24} color={colors.noir[800]} />
             </Pressable>
           ) : <View style={{ width: 24 }} />}
-          <Text style={styles.stepText}>{step}/{totalSteps}</Text>
+          <Text style={styles.stepText}>{neutralEnabled ? "" : `${step}/${totalSteps}`}</Text>
           <View style={{ width: 24 }} />
         </View>
 
-        {/* 진행 바 */}
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${(step / totalSteps) * 100}%` }]} />
-        </View>
+        {/* 진행 바 — 한 화면이면 5단계 진행 표시가 거짓말이 된다 */}
+        {!neutralEnabled && (
+          <View style={styles.progressBar}>
+            <View style={[styles.progressFill, { width: `${(step / totalSteps) * 100}%` }]} />
+          </View>
+        )}
 
         {/* 애니메이션 래퍼 */}
         <Animated.View
@@ -1194,8 +1219,8 @@ export default function OnboardingScreen() {
             transform: [{ translateY: contentSlide }],
           }}
         >
-          {/* Step 1: 역할 */}
-          {step === 1 && (
+          {/* Step 1(기존): 역할 */}
+          {step === 1 && !neutralEnabled && (
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>반가워요!</Text>
               <Text style={[styles.stepDesc, styles.roleStepDesc]}>결혼 준비에서의 역할을 알려주세요</Text>
@@ -1519,7 +1544,7 @@ export default function OnboardingScreen() {
                       ? "대시보드로 이동"
                       : "다음"}
               </Text>
-              {step < 5 && <ArrowRight size={20} color="#FFF" />}
+              {!neutralEnabled && step < 5 && <ArrowRight size={20} color="#FFF" />}
             </>
           )}
         </Pressable>

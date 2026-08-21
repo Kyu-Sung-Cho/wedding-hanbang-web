@@ -58,9 +58,12 @@ test("profile and settings resolve the member model before rendering a role labe
     "utf8",
   );
 
-  for (const source of [profileSource, settingsSource]) {
-    assert.match(source, /EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED/u);
-    assert.match(source, /member_model_version/u);
-    assert.match(source, /resolvePreparationMemberPresentation/u);
-  }
+  // 설정은 공유 표기 모듈을 통과한다 — 라벨을 화면마다 손으로 적지 않는다.
+  assert.match(settingsSource, /EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED/u);
+  assert.match(settingsSource, /member_model_version/u);
+  assert.match(settingsSource, /resolvePreparationMemberPresentation/u);
+
+  // 프로필은 v2 에서 배지를 아예 그리지 않는다(중립어로 바꾸는 게 아니다).
+  assert.match(profileSource, /member_model_version === 2/u);
+  assert.match(profileSource, /usesNeutralMembers.{0,40}[?].{0,20}null/su);
 });

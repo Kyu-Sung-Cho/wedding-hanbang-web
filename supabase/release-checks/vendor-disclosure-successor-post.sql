@@ -208,26 +208,29 @@ expected_successor_migrations(version) AS (VALUES
   ('20260818160000'::text),
   ('20260818170000'::text),
   ('20260818180000'::text),
-  ('20260819100000'::text)
+  ('20260819100000'::text),
+  ('20260820120000'::text),
+  ('20260820130000'::text),
+  ('20260820140000'::text)
 ),
 migration_ledger_contract AS (
   SELECT (
     CASE WHEN
-      (SELECT pg_catalog.count(*) FROM expected_successor_migrations) = 81
+      (SELECT pg_catalog.count(*) FROM expected_successor_migrations) = 84
       AND (
         SELECT pg_catalog.count(*)
         FROM expected_successor_migrations AS expected
         JOIN supabase_migrations.schema_migrations AS applied
           ON applied.version::text = expected.version
-      ) = 81
+      ) = 84
       AND (
         SELECT pg_catalog.max(version::text)
         FROM supabase_migrations.schema_migrations
-      ) IS NOT DISTINCT FROM '20260819100000'
+      ) IS NOT DISTINCT FROM '20260820140000'
       AND NOT EXISTS (
         SELECT 1
         FROM supabase_migrations.schema_migrations AS applied
-        WHERE applied.version::text BETWEEN '20260730100000' AND '20260819100000'
+        WHERE applied.version::text BETWEEN '20260730100000' AND '20260820140000'
           AND NOT EXISTS (
             SELECT 1
             FROM expected_successor_migrations AS expected

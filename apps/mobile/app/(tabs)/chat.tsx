@@ -1,5 +1,6 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
-// 기존 공간은 역할별 색을 유지하고, 중립 준비공간은 나/파트너 표기만 사용한다.
+// bride/groom 은 저장 슬롯이지 정체성이 아니다 — 라벨은 이름을, 색은 나/상대 축을 쓴다.
+// userRole 이 아직 null 인 창에서도 sender_id 로 내 메시지를 가려 오귀속을 막는다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, ScrollView, StyleSheet,
@@ -11,7 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { router, useLocalSearchParams } from "expo-router";
-import { ArrowRight, Check, CheckCircle2, Send, ShieldCheck, SlidersHorizontal, Sparkles, Heart, X, Lock, RotateCcw, Square, Users } from "lucide-react-native";
+import { ArrowRight, Check, CheckCircle2, Send, ShieldCheck, SlidersHorizontal, Sparkles, Heart, X, Lock, RotateCcw, Square, User, Users } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import type {
   BudgetImpactPreview,
@@ -122,7 +123,6 @@ import {
   buildFirstUseCriterionCorrectionDraft,
   buildFirstUseCorrectionDraft,
   getFirstUsePendingActionPresentation,
-  getAmoraParticipantPresentation,
   getFirstUseSharedDraftPresentation,
   getReviewedActionContinuationPresentation,
   isFirstUseSharedActionDraftText,
@@ -7095,18 +7095,9 @@ export default function ChatScreen() {
       && topicMessageFocusState.targetMessageId === item.id;
     const isPinnedSafetyCard = item.metadata?.pinned_safety_card === true;
     const isPartnerMsg = item.metadata?.target === "partner";
-    const isBride = item.sender_type === "bride";
-    const participantPresentation = (
-      item.sender_type === "bride" || item.sender_type === "groom"
-    ) && userRole
-      ? getAmoraParticipantPresentation({
-          memberModelVersion,
-          senderType: item.sender_type,
-          viewerRole: userRole,
-          userName,
-          partnerName,
-        })
-      : null;
+    // userRole 이 아직 null 이면 isMe 가 false 로 떨어져 내 메시지가 상대처럼 보인다.
+    // 그 창에서 이름을 붙이면 오귀속이므로 sender_id 로 한 번 더 본다.
+    const isSelfMessage = Boolean(userId) && item.sender_id === userId;
     const {
       placeResults,
       receipts,
@@ -7239,25 +7230,16 @@ export default function ChatScreen() {
       ? colors.surface
       : isMe
         ? colors.noir[800]
-        : participantPresentation?.tone === "partner_neutral"
-          ? colors.ivory[200]
-          : isBride ? "#F5E6DF" : "#E8EDF5";
+        : colors.ivory.warm;
     const textColor = isMe ? "#FFF" : colors.noir[800];
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
-          <View style={[
-            st.avatar,
-            isAi
-              ? st.avatarAi
-              : participantPresentation?.tone === "partner_neutral"
-                ? st.avatarPartner
-                : isBride ? st.avatarBride : st.avatarGroom,
-          ]}>
+          <View style={[st.avatar, isAi ? st.avatarAi : st.avatarPerson]}>
             {isAi
               ? <Sparkles size={12} color={colors.gold.DEFAULT} />
-              : <Text style={st.avatarLetter}>{participantPresentation?.avatarLabel}</Text>}
+              : <User size={12} color={colors.noir[800]} />}
           </View>
         )}
         <View style={[
@@ -7269,7 +7251,7 @@ export default function ChatScreen() {
           receipts.length > 0 && st.toolReceiptMessageBody,
           isFocusedTopicOriginal && st.focusedTopicMessageBody,
         ]}>
-          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : participantPresentation?.senderLabel ?? "파트너"}{isPartnerMsg ? " ♥" : ""}</Text>}
+          {!isMe && <Text style={st.senderLabel}>{isAi ? "아모라" : isSelfMessage ? userName : partnerName ?? "파트너"}{isPartnerMsg ? " ♥" : ""}</Text>}
           {isFocusedTopicOriginal && (
             <Text style={st.focusedTopicMessageLabel} accessibilityLiveRegion="polite">
               저장한 원문
@@ -7291,7 +7273,7 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{item.content}</Text>
               </View>
             ) : shouldRenderPersonalizedNarrative ? (
-              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: isBride ? "#E8C5B8" : "#C5CEE0" }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
                 {isThinking ? <ThinkingDots /> : <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>{getQuoteAnalysisMessagePresentation(visibleBubbleContent ?? "").text}</Text>}
               </View>
             ) : null
@@ -8738,10 +8720,7 @@ const st = StyleSheet.create({
   toolReceiptMessageBody: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   avatarAi: { backgroundColor: colors.noir[800] },
-  avatarPartner: { backgroundColor: colors.ivory[200] },
-  avatarBride: { backgroundColor: "#F5E6DF" },
-  avatarGroom: { backgroundColor: "#E8EDF5" },
-  avatarLetter: { fontSize: 8, fontWeight: "700", color: colors.noir[800] },
+  avatarPerson: { backgroundColor: colors.ivory.warm },
   senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
   focusedTopicMessageLabel: { alignSelf: "flex-start", marginLeft: spacing[1], marginBottom: spacing[1], paddingHorizontal: spacing[2], paddingVertical: spacing[1], borderRadius: radius.full, overflow: "hidden", fontSize: 11, lineHeight: 16, fontWeight: "600", color: colors.sage[500], backgroundColor: colors.sage.pale },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },

@@ -99,18 +99,18 @@ test("pins the full exact 139-table post-expand and three migration-ledger contr
   assert.equal(EXPECTED_TABLES.length, 139);
   assert.deepEqual(quotedBlock(source, "VDPostExpandExpectedTables"), EXPECTED_TABLES);
   assert.equal(listSha(EXPECTED_TABLES), "ddf672a17f28e99fd20646a3376cee696430b8b599e10979f6d2c7fd23e5482f");
-  assert.equal(ALL_VERSIONS.length, 228);
-  assert.equal(ALL_VERSIONS.at(-1), "20260819100000");
-  assert.equal(listSha(ALL_VERSIONS), "fce41214ad99822f21a7fcef73107e0902ee21e3ef12cae3de2715f2f5905d60");
-  assert.equal(RELEASE_VERSIONS.length, 113);
-  assert.equal(listSha(RELEASE_VERSIONS), "807cacbc3a0df7f488908c3cd619879d389dd277bda37f97032d06fb960a44bf");
-  assert.equal(APPLIED_SUFFIX.length, 81);
-  assert.equal(listSha(APPLIED_SUFFIX), "0c7b8fad2430f261550cabebefa4b0412ade421b48cab3a6fa618b31e9b57685");
+  assert.equal(ALL_VERSIONS.length, 231);
+  assert.equal(ALL_VERSIONS.at(-1), "20260820140000");
+  assert.equal(listSha(ALL_VERSIONS), "611f9ead63e878a220d5de8b1a7210a03797080539d21d23ebd2e4786893d993");
+  assert.equal(RELEASE_VERSIONS.length, 116);
+  assert.equal(listSha(RELEASE_VERSIONS), "1c24fc4f606781a8320089695054d49b3ded7bb306a260d909e7ac5e2fe2351d");
+  assert.equal(APPLIED_SUFFIX.length, 84);
+  assert.equal(listSha(APPLIED_SUFFIX), "84e91d98540f481c5c5294f063f7e26421b5de9838557a5d44cdc46a3fea35bd");
   assert.deepEqual(quotedBlock(source, "VDPostExpandVerificationReceiptKeys"), RECEIPT_KEYS);
-  assert.match(source, /VDPostExpandMigrationCount = 228/);
-  assert.match(source, /VDPostExpandReleaseMigrationCount = 113/);
-  assert.match(source, /VDPostExpandAppliedSuffixCount = 81/);
-  assert.match(source, /VDPostExpandMigrationHead = '20260819100000'/);
+  assert.match(source, /VDPostExpandMigrationCount = 231/);
+  assert.match(source, /VDPostExpandReleaseMigrationCount = 116/);
+  assert.match(source, /VDPostExpandAppliedSuffixCount = 84/);
+  assert.match(source, /VDPostExpandMigrationHead = '20260820140000'/);
 });
 
 test("canonical capture and verifier are encrypted, durable, external, pushed-commit bound", async () => {

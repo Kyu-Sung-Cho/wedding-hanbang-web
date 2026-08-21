@@ -68,11 +68,18 @@ export const JOIN_NEUTRAL_PREPARATION_SPACE_SERVER_RPC =
 export const COUPLE_INVITE_EXPAND_REQUIRED_CODE =
   "COUPLE_INVITE_EXPAND_REQUIRED";
 
-export function isJoinCoupleServerRpcMissing(error: unknown): boolean {
+/**
+ * RPC 함수 자체가 없을 때(마이그레이션 미적용) 나는 오류인가.
+ * 일시 장애와 구분해야 한다 — 재시도를 권하면 영원히 실패한다.
+ */
+export function isMembershipRpcMissing(error: unknown): boolean {
   if (!error || typeof error !== "object" || Array.isArray(error)) return false;
   const code = (error as { code?: unknown }).code;
   return code === "PGRST202" || code === "42883";
 }
+
+/** @deprecated isMembershipRpcMissing 를 쓴다. 이름이 좁아 호출부가 안 생겼다. */
+export const isJoinCoupleServerRpcMissing = isMembershipRpcMissing;
 
 export async function joinCoupleThroughServerRpc(
   client: MembershipRpcClient,
@@ -180,7 +187,66 @@ const ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
     status: 429,
     message: "초대 코드 확인을 너무 많이 시도했어요. 잠시 후 다시 시도해 주세요.",
   },
+  // 구버전 앱이 역할을 골라 중립 공간에 합류하려 할 때 DB(20260820130000)가 내는 코드.
+  NEUTRAL_PREPARATION_SPACE: {
+    status: 409,
+    message:
+      "이 준비 공간은 역할을 고르지 않는 방식이에요. 앱을 최신으로 업데이트한 뒤 다시 시도해 주세요.",
+  },
 };
+
+// 중립 경로 전용 문구. 위 ERROR_RESPONSES 를 그대로 쓰면 역할을 고른 적 없는
+// 사용자에게 "이미 신부 역할이 연결되어 있습니다" 같은 말이 나간다. 그래서
+// 표를 공유하지 않고, 모르는 코드도 성별 표로 흘려보내지 않는다.
+const NEUTRAL_ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
+  // 코드가 틀린 게 아니다 — 사용자가 할 일이 다르므로 다르게 말한다.
+  // 20260820130000 이 내는 코드. 매핑이 없으면 failureFor 폴백으로 500
+  // "커플 연결을 완료하지 못했습니다"가 나가 사용자가 이유를 모른다.
+  NEUTRAL_PREPARATION_SPACE: {
+    status: 409,
+    message:
+      "이 준비 공간은 역할을 고르지 않는 방식이에요. 앱을 최신으로 업데이트한 뒤 다시 시도해 주세요.",
+  },
+  LEGACY_PREPARATION_SPACE: {
+    status: 409,
+    message:
+      "이 초대 코드는 역할을 고르는 기존 방식으로 만들어진 공간이에요. 코드를 만든 분에게 새 코드를 요청해 주세요.",
+  },
+  INVALID_INVITE_CODE: {
+    status: 404,
+    message: "초대 코드를 찾지 못했어요. 코드를 다시 확인해 주세요.",
+  },
+  ALREADY_LINKED: {
+    status: 409,
+    message: "이미 다른 준비 공간에 연결된 계정이에요.",
+  },
+  SLOT_ALREADY_LINKED: {
+    status: 409,
+    message: "이 준비 공간은 이미 두 사람이 연결되어 있어요.",
+  },
+  MEMBERSHIP_CONFLICT: {
+    status: 409,
+    message: "연결 상태가 방금 바뀌었어요. 다시 시도해 주세요.",
+  },
+  RATE_LIMITED: {
+    status: 429,
+    message: "초대 코드 확인을 너무 많이 시도했어요. 잠시 후 다시 시도해 주세요.",
+  },
+};
+
+function neutralFailureFor(errorCode: string): MembershipRpcFailure {
+  const normalizedCode = errorCode.trim().toUpperCase();
+  const response = NEUTRAL_ERROR_RESPONSES[normalizedCode];
+  if (response) {
+    return { ok: false, errorCode: normalizedCode, ...response };
+  }
+  return {
+    ok: false,
+    status: 500,
+    message: "준비 공간 연결을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    errorCode: normalizedCode || "INVALID_RPC_RESPONSE",
+  };
+}
 
 function failureFor(errorCode: string): MembershipRpcFailure {
   const normalizedCode = errorCode.trim().toUpperCase();
@@ -261,7 +327,7 @@ export function parseNeutralMembershipRpcResponse(
   expectedActorUserId?: string,
 ): NeutralMembershipRpcOutcome {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return failureFor("INVALID_RPC_RESPONSE");
+    return neutralFailureFor("INVALID_RPC_RESPONSE");
   }
 
   const payload = value as MembershipRpcPayload;
@@ -271,7 +337,7 @@ export function parseNeutralMembershipRpcResponse(
       : typeof payload.error === "string" && payload.error.trim()
         ? LEGACY_ERROR_CODES[payload.error.trim()] ?? "UNKNOWN_RPC_ERROR"
         : null;
-  if (errorCode) return failureFor(errorCode);
+  if (errorCode) return neutralFailureFor(errorCode);
 
   const expectedKeys = action === "create"
     ? [
@@ -312,7 +378,7 @@ export function parseNeutralMembershipRpcResponse(
       && payload.actor_user_id !== expectedActorUserId
     )
   ) {
-    return failureFor("INVALID_RPC_RESPONSE");
+    return neutralFailureFor("INVALID_RPC_RESPONSE");
   }
 
   return {

@@ -44,63 +44,71 @@ export async function getCommunityAuthorMap(
 
   let roleMap: Record<string, UserRole | null> = {};
   try {
-    const neutralPreparationSpaceEnabled =
-      process.env.AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED === "true";
-    const adminClient = createAdminClient();
-    const { data: profiles, error: profileError } = await adminClient
+    const admin = createAdminClient();
+    const { data: profiles, error: profileError } = await admin
       .from("profiles")
-      .select((neutralPreparationSpaceEnabled ? "id, role, couple_id" : "id, role") as "id, role")
+      .select("id, role, couple_id")
       .in("id", uniqueAuthorIds);
 
     if (profileError) {
       console.error("[community.authors] profile role lookup failed:", profileError);
     } else {
-      const internalProfiles = (profiles ?? []) as unknown as Array<{
-        id?: unknown;
-        role?: unknown;
-        couple_id?: unknown;
-      }>;
-      let memberModelByCoupleId: Record<string, 1 | 2> = {};
-      if (neutralPreparationSpaceEnabled) {
-        const coupleIds = [...new Set(internalProfiles.flatMap((profile) => (
-          typeof profile.couple_id === "string" ? [profile.couple_id] : []
-        )))];
-        if (coupleIds.length > 0) {
-          const { data: couples, error: coupleError } = await adminClient
-            .from("couples")
-            .select("id, member_model_version" as "id")
-            .in("id", coupleIds);
-          if (coupleError) {
-            console.error("[community.authors] member model lookup failed:", coupleError);
-          } else {
-            memberModelByCoupleId = Object.fromEntries(
-              ((couples ?? []) as unknown as Array<{
-                id?: unknown;
-                member_model_version?: unknown;
-              }>).flatMap((couple) => (
-                typeof couple.id === "string"
-                && (couple.member_model_version === 1 || couple.member_model_version === 2)
-                  ? [[couple.id, couple.member_model_version] as const]
-                  : []
-              )),
+      // 중립 준비 공간의 작성자는 role을 고른 적이 없다. 그 슬롯값으로 아바타를
+      // 그리면 본인이 고르지도 않은 성별이 남에게 보인다. 여기 한 곳에서 null로
+      // 만들면 웹·모바일의 모든 아바타 표면이 함께 해결된다.
+      const coupleIds = Array.from(
+        new Set(
+          (profiles ?? [])
+            .map((profile) => profile.couple_id as string | null)
+            .filter((id): id is string => typeof id === "string"),
+        ),
+      );
+      const neutralCoupleIds = new Set<string>();
+      let memberModelLookupFailed = false;
+      if (coupleIds.length > 0) {
+        // 컬럼이 없는 DB에서는 조회가 실패한다. 그 상태에선 중립 커플이 존재할
+        // 수 없으므로 아무도 중립이 아니다 — 커뮤니티를 죽이지 않는다.
+        const { data: couples, error: coupleError } = await admin
+          .from("couples")
+          .select("id, member_model_version")
+          .in("id", coupleIds);
+        if (coupleError) {
+          // 컬럼이 아직 없는 것과 조회가 잠깐 실패한 것은 다르다. 전자는 중립 커플이
+          // 존재할 수 없다는 증거이므로 기존 방식으로 봐도 안전하지만, 후자는 아무것도
+          // 모르는 상태다 — 거기서 슬롯값을 그리면 고르지도 않은 성별이 남에게 보인다.
+          // 같은 구분을 api/chat/route.ts 가 이미 schemaNotReady 로 쓰고 있다.
+          if (["42703", "PGRST202", "PGRST204"].includes(coupleError.code ?? "")) {
+            console.warn(
+              "[community.authors] member_model_version 미적용 — 전원 기존 방식으로 본다",
+              coupleError.code,
             );
+          } else {
+            console.error(
+              "[community.authors] member model lookup failed:",
+              coupleError.code,
+            );
+            memberModelLookupFailed = true;
+          }
+        } else {
+          for (const couple of couples ?? []) {
+            if ((couple as { member_model_version?: unknown }).member_model_version === 2) {
+              neutralCoupleIds.add(couple.id as string);
+            }
           }
         }
       }
+
       roleMap = Object.fromEntries(
-        internalProfiles.flatMap((profile) => typeof profile.id === "string" ? [[
-          profile.id,
-          isUserRole(profile.role)
-          && (
-            !neutralPreparationSpaceEnabled
-            || (
-              typeof profile.couple_id === "string"
-              && memberModelByCoupleId[profile.couple_id] === 1
-            )
-          )
-            ? profile.role
-            : null,
-        ] as const] : [])
+        (profiles ?? []).map((profile) => {
+          const coupleId = profile.couple_id as string | null;
+          const isNeutral = coupleId !== null && neutralCoupleIds.has(coupleId);
+          return [
+            profile.id as string,
+            isNeutral || memberModelLookupFailed || !isUserRole(profile.role)
+              ? null
+              : profile.role,
+          ];
+        })
       );
     }
   } catch (error) {

@@ -241,10 +241,15 @@ test("neutral first value routes the self report only into an explicit private d
   );
 });
 
-test("the neutral first-value surface is flag gated and never asks for a role", () => {
+test("the neutral first-value surface is server-capability gated and never asks for a role", () => {
   assert.match(
     onboardingSource,
-    /EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED/,
+    /parseNeutralPreparationSpaceCapability/,
+  );
+  // 앱이 자기 환경변수로 정하면 서버 판정과 어긋난다
+  assert.ok(
+    !/EXPO_PUBLIC_AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED/.test(onboardingSource),
+    "온보딩이 중립 여부를 클라이언트 플래그로 정하고 있다",
   );
   assert.match(
     onboardingSource,
@@ -260,7 +265,7 @@ test("the neutral first-value surface is flag gated and never asks for a role", 
   );
   assert.match(
     onboardingSource,
-    /neutralFirstValueEnabled[\s\S]{0,120}NeutralPlanningFoundation/,
+    /neutralEnabled[\s\S]{0,120}NeutralPlanningFoundation/,
   );
 });
 
