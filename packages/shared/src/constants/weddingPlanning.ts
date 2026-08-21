@@ -129,6 +129,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         note: "방 크기와 소음, 화장실 위치는 사진에 안 나오니 예약 전에 한 번 가보세요.",
       },
       {
+        id: "meeting_07",
+        label: "식사비를 누가 낼지 미리 정하기",
+        done: false,
+        note: "누가 낼지 그 자리에서 정하지 말고, 두 사람이 각자 부모님 생각을 먼저 여쭤보세요.",
+      },
+      {
         id: "meeting_03",
         label: "참석자와 옷차림 확인",
         done: false,
@@ -469,6 +475,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "결혼식 날짜가 밀릴 수도 있으니 일정을 바꾸거나 취소할 때 어떤 비용이 생기는지 예약 전에 물어보세요.",
       },
+      {
+        id: "honeymoon_09",
+        label: "각자 회사에 결혼 휴가 신청하기 (해당하는 경우)",
+        done: false,
+        note: "며칠을 쓸 수 있는지, 언제까지 내야 하는지가 회사마다 달라서 여행 날짜를 굳히기 전에 물어보세요.",
+      },
       { id: "honeymoon_03", label: "항공권 예약", done: false },
       {
         id: "honeymoon_04",
@@ -643,6 +655,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "링크만 덜렁 보내면 가짜 문자로 오해받으니 이름과 날짜·장소를 메시지에 그대로 적어 보내세요.",
       },
+      {
+        id: "invitation_08",
+        label: "결혼식장에 최종 식사 인원 알리기",
+        done: false,
+        note: "보낸 명단이 아니라 오겠다고 답한 사람을 세고, 부모님 쪽 인원은 두 집안에 미리 여쭤 두세요.",
+      },
     ],
   },
   {
@@ -809,7 +827,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "mc",
     label: PLANNING_CATEGORY_LABELS.mc,
     icon: "Mic",
-    tip: "진행자와 축하 노래가 필요한지 정한 뒤, 맡을 사람과 순서, 필요한 장비, 사전 확인 날짜를 맞추세요.",
+    tip: "주례와 진행자, 축하 노래가 각각 필요한지 정한 뒤, 맡을 사람과 순서, 필요한 장비, 사전 확인 날짜를 맞추세요.",
     ddayStart: 90,
     ddayDeadline: 14,
     items: [
@@ -822,6 +840,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       },
       { id: "mc_03", label: "축하 노래를 부탁할 사람과 곡 정하기", done: false },
       { id: "mc_04", label: "축하 공연이나 별도 행사가 필요한지 정하기", done: false },
+      {
+        id: "mc_07",
+        label: "주례를 모실지 정하고 부탁드리기",
+        done: false,
+        note: "모시지 않기로 하면 그 자리를 무엇으로 채울지 결혼식장과 미리 이야기해 보세요.",
+      },
       { id: "mc_05", label: "결혼식 진행 순서를 맡은 사람에게 전달", done: false },
       { id: "mc_06", label: "결혼식 전 진행 순서를 맞춰볼 날짜 정하기", done: false },
     ],
