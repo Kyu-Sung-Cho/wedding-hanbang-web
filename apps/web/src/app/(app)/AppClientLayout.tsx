@@ -7,7 +7,6 @@ import AiNoticeFooter from "@/components/common/AiNoticeFooter";
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
-import { usePageViewTracker } from "@/hooks/useEventTracker";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
@@ -59,7 +58,6 @@ export default function AppClientLayout({
     pathname === "/wedding/vendors" || pathname.startsWith("/wedding/vendors/")
   ) && searchParams.get("preview") === "1";
 
-  usePageViewTracker(isInitialized && !isDemo && !analyticsSuppressed);
   // 첫 hydration에서는 Zustand가 아직 isDemo=false다. 서버가 검증한 데모라면
   // 이 순간에도 Supabase 세션 구독을 만들지 않아야 INITIAL_SESSION 이벤트가
   // 데모 상태를 지우고 원격 Auth 대기로 되돌리는 경쟁 조건이 생기지 않는다.
