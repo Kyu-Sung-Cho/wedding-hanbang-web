@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
@@ -449,7 +450,7 @@ export function syncToolResult(result: ToolExecutionResult) {
       if (!result.success) break;
       const delKey = result.toolOutput.key as string;
       const curProgressDel = authStore.journey?.progress ?? {};
-      const isKnownDel = delKey in (curProgressDel as Record<string, unknown>) || ["meeting","venue","studio","dress","makeup","ring","hanbok","yedan","honeymoon","houseware","housing","invitation","snap","shoes","bouquet","gift","mc","ham","pyebaek","reserve"].includes(delKey);
+      const isKnownDel = delKey in (curProgressDel as Record<string, unknown>) || Object.keys(PLANNING_CATEGORY_LABELS).includes(delKey);
       if (isKnownDel) {
         const hiddenDel: string[] = ((curProgressDel as Record<string, unknown>).__hidden as string[]) ?? [];
         const restDel = { ...(curProgressDel as Record<string, unknown>) };

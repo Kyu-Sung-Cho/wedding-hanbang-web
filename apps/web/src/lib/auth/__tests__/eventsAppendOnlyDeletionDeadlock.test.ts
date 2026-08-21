@@ -182,7 +182,13 @@ describe("public.events append-only 트리거와 SET NULL FK의 교착 (알려�
     await insertEvent(db, { anonId: "anon-old", userId: USER_ID });
 
     await expectAppendOnlyRejection(() =>
-      db.exec("DELETE FROM public.events WHERE created_at < now();"),
+      // `<`가 아니라 `<=`인 이유: `created_at`의 기본값도 `now()`이고 `now()`는 트랜잭션
+      // 시작 시각이라, 넣은 트랜잭션과 지우는 트랜잭션이 같은 시각을 받으면 `<`에 걸리는
+      // 행이 하나도 없다. 그러면 DELETE가 일어나지 않아 트리거도 안 걸리고, 이 검사는
+      // "막혔다"를 기대한 자리에서 아무 오류도 못 받아 실패한다. 2026-08-21에 같은 트리에서
+      // 세 번 돌려 한 번 그렇게 실패했다. 이 검사가 보려는 것은 날짜 조건이 아니라
+      // **보유기간 파기 모양의 DELETE가 트리거에 막힌다**는 것이라, 조건을 넓혀도 뜻은 같다.
+      db.exec("DELETE FROM public.events WHERE created_at <= now();"),
     );
   });
 
