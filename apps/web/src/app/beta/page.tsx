@@ -65,7 +65,9 @@ export default async function BetaPage() {
       </section>
 
       {/* Body: 좌측 혜택·조건 + 우측 신청 카드 */}
-      <section className="px-[clamp(20px,5vw,60px)] pb-[clamp(80px,10vw,140px)]">
+      {/* 상단 내비의 "베타 신청"이 여기로 스크롤한다. 이 id 가 없으면 그 버튼은
+          preventDefault 뒤 아무 일도 하지 않고 끝난다(CustomerNav.handleClick). */}
+      <section id="cta" className="px-[clamp(20px,5vw,60px)] pb-[clamp(80px,10vw,140px)]">
         <div className="max-w-[1240px] mx-auto grid grid-cols-1 lg:grid-cols-[1.2fr_1fr] gap-12 lg:gap-20 items-start">
           {/* 좌측 */}
           <div className="space-y-14">
