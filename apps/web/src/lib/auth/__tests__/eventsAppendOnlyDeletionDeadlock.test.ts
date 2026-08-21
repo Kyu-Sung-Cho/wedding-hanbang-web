@@ -106,16 +106,25 @@ async function createEventsDatabase() {
 
 async function insertEvent(
   db: PGlite,
-  columns: { anonId: string; userId?: string; agencyId?: string },
+  columns: {
+    anonId: string;
+    userId?: string;
+    agencyId?: string;
+    /** 보유기간 시나리오용 명시 시각. 없으면 컬럼 기본값 now() 를 쓴다. */
+    createdAt?: string;
+  },
 ) {
   await db.exec(`
-    INSERT INTO public.events (anon_id, surface, event_type, user_id, agency_id)
+    INSERT INTO public.events (
+      anon_id, surface, event_type, user_id, agency_id, created_at
+    )
     VALUES (
       '${columns.anonId}',
       'price_list',
       'page_view',
       ${columns.userId ? `'${columns.userId}'` : "NULL"},
-      ${columns.agencyId ? `'${columns.agencyId}'` : "NULL"}
+      ${columns.agencyId ? `'${columns.agencyId}'` : "NULL"},
+      ${columns.createdAt ? `'${columns.createdAt}'` : "now()"}
     );
   `);
 }
@@ -179,10 +188,20 @@ describe("public.events append-only 트리거와 SET NULL FK의 교착 (알려�
 
   it("보유기간 만료 파기도 같은 트리거에 막힌다", async () => {
     const db = await createEventsDatabase();
-    await insertEvent(db, { anonId: "anon-old", userId: USER_ID });
+    // 파기 대상이 되려면 행이 보유기간을 넘겨야 한다. created_at 을 기본값 now()
+    // 으로 두고 `created_at < now()` 로 지우면, 삽입과 삭제가 같은 트랜잭션
+    // 타임스탬프를 받는 순간 0행이 지워져 트리거가 아예 걸리지 않는다.
+    // 그러면 결함이 사라진 게 아닌데 테스트만 통과한다.
+    await insertEvent(db, {
+      anonId: "anon-old",
+      userId: USER_ID,
+      createdAt: "2020-01-01T00:00:00Z",
+    });
 
     await expectAppendOnlyRejection(() =>
-      db.exec("DELETE FROM public.events WHERE created_at < now();"),
+      db.exec(
+        "DELETE FROM public.events WHERE created_at < now() - interval '365 days';",
+      ),
     );
   });
 
