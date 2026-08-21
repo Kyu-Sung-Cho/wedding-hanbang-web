@@ -200,12 +200,6 @@ function CelebrationDots() {
   );
 }
 
-function isOnboardingRecord(
-  value: unknown,
-): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
