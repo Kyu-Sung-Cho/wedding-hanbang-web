@@ -11,7 +11,7 @@ describe("BetaForm role support boundary", () => {
   it("성별 역할을 묻지 않는다", () => {
     const container = document.createElement("div");
     container.innerHTML = renderToStaticMarkup(
-      <BetaForm current={0} total={50} progress={0} />,
+      <BetaForm current={0} />,
     );
     const html = container.innerHTML;
 
@@ -29,7 +29,7 @@ describe("BetaForm role support boundary", () => {
   it("지원 범위 고지는 그대로 남는다", () => {
     const container = document.createElement("div");
     container.innerHTML = renderToStaticMarkup(
-      <BetaForm current={0} total={50} progress={0} />,
+      <BetaForm current={0} />,
     );
 
     const note = container.querySelector("#beta-role-support-note");
@@ -42,9 +42,25 @@ describe("BetaForm role support boundary", () => {
     );
   });
 
+  it("없는 정원과 마감을 만들어내지 않는다", () => {
+    // "N / 50쌍" 과 진척 막대, 그리고 50건을 넘으면 뜨는 "마감되었어요" 화면이
+    // 있었다. 세는 것은 preregistrations 의 이메일 행이지 커플이 아니고,
+    // 50 은 정원이 아니다 — 심사도 정원도 없고 계정은 승인 없이 바로 만든다.
+    // 없는 희소성으로 사람을 돌려보내면 안 된다.
+    const counterShown = renderToStaticMarkup(<BetaForm current={42} />);
+    expect(counterShown).not.toContain("쌍");
+    expect(counterShown).not.toContain("/ 50");
+    expect(counterShown).toContain("지금까지 사전등록");
+
+    // 넘쳐도 문을 닫지 않는다.
+    const overCapacity = renderToStaticMarkup(<BetaForm current={999} />);
+    expect(overCapacity).not.toContain("마감");
+    expect(overCapacity).toContain("이메일");
+  });
+
   it("예식일을 2026년 안으로 가두지 않는다", () => {
     const html = renderToStaticMarkup(
-      <BetaForm current={0} total={50} progress={0} />,
+      <BetaForm current={0} />,
     );
 
     // 2026-06-01 ~ 2026-12-31 하드코딩 탓에 2027년 예식은 입력조차 못 했다.

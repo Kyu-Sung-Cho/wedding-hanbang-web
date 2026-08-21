@@ -25,12 +25,11 @@ function isoDaysFromToday(days: number): string {
 }
 
 interface BetaFormProps {
+  /** 지금까지 사전등록한 사람 수. 정원이 아니라 사실 하나다. */
   current: number;
-  total: number;
-  progress: number;
 }
 
-export default function BetaForm({ current, total, progress }: BetaFormProps) {
+export default function BetaForm({ current }: BetaFormProps) {
   const showCounter = shouldShowBetaCounter(current);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
@@ -132,23 +131,20 @@ export default function BetaForm({ current, total, progress }: BetaFormProps) {
 
       {showCounter ? (
         <>
-          {/* 진척 — 숫자는 sans-serif + tabular-nums (Cormorant "1"이 Roman "I"로 보이는 이슈 방지) */}
+          {/* "N / 50쌍" 이라고 적고 진척 막대를 그렸었다. 두 가지가 거짓이다.
+              (1) 세는 것은 preregistrations 의 **이메일 행**이지 커플이 아니다.
+              (2) 50 은 정원이 아니다 — 심사도 정원도 없고, 계정은 승인 없이
+                  바로 만들 수 있다. 없는 희소성을 만들면 기다릴 이유가 없는
+                  사람을 기다리게 한다. 숫자만 사실대로 보여준다. */}
           <div className="flex items-baseline gap-3 mb-3">
             <span className="font-sans tabular-nums text-white text-[56px] md:text-[64px] font-light leading-none tracking-normal">
               {current}
             </span>
-            <span className="text-white/40 text-lg font-light tabular-nums">/ {total}쌍</span>
+            <span className="text-white/40 text-lg font-light">명</span>
           </div>
-          <p className="text-[11px] tracking-[0.22em] text-white/50 mb-6 font-medium">
-            현재 신청
+          <p className="text-[11px] tracking-[0.22em] text-white/50 mb-10 font-medium">
+            지금까지 사전등록
           </p>
-          <div className="h-px bg-white/10 w-full relative overflow-hidden mb-10">
-            <div
-              className="absolute top-0 left-0 h-full bg-rose-light transition-all duration-700"
-              style={{ width: `${Math.max(progress, 3)}%` }}
-              aria-hidden
-            />
-          </div>
         </>
       ) : (
         <p className="mb-10 text-[13px] font-medium tracking-[0.16em] text-white/55">

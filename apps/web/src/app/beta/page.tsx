@@ -1,8 +1,7 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Footer from "@/components/landing/Footer";
 import BetaForm from "./BetaForm";
-import { Check } from "lucide-react";
-import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+import { getBetaCount } from "@/lib/beta-count";
 import { PUBLIC_COUPLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
 // 서버 페치 — 실제 신청 수 (ISR: 60초)
@@ -31,8 +30,6 @@ const CONDITIONS = [
 
 export default async function BetaPage() {
   const current = await getBetaCount();
-  const progress = Math.min(100, (current / BETA_TOTAL) * 100);
-  const isFull = current >= BETA_TOTAL;
 
   return (
     <main className="min-h-screen bg-noir-800">
@@ -134,21 +131,10 @@ export default async function BetaPage() {
 
           {/* 우측: Form or Full */}
           <div className="lg:sticky lg:top-24">
-            {isFull ? (
-              <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
-                <Check className="w-8 h-8 text-rose-light mb-6" />
-                <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-4">
-                  현재 베타 신청이 <em className="not-italic text-rose-light">마감되었어요</em>
-                </h2>
-                <p className="text-white/70 text-[15px] leading-[1.8] font-light mb-6">
-                  많은 관심 감사드립니다.
-                  <br />
-                  베타 종료 후 정식 출시 소식을 전해드릴게요.
-                </p>
-              </div>
-            ) : (
-              <BetaForm current={current} total={BETA_TOTAL} progress={progress} />
-            )}
+            {/* 사전등록이 50건을 넘으면 "마감되었어요"로 문을 닫고 있었다.
+                정원이 없으므로 마감될 것도 없고, 계정은 승인 없이 바로 만들 수
+                있다. 없는 마감으로 사람을 돌려보내지 않는다. */}
+            <BetaForm current={current} />
           </div>
         </div>
       </section>
