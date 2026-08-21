@@ -449,6 +449,40 @@ describe("구조: 연결이 증명되지 않으면 이어지지 않는다", () =
     expect(resolve({ currentText: long })).toBeNull();
   });
 
+  // 아래 다섯은 라운드2 뮤테이션 일제 점검에서 **아무 테스트도 잡지 않던** 관문이다.
+  // 지워도 초록불이던 방어선은 방어선이 아니다.
+  it("현재 행이 요청자 본인의 것이 아니면 거부한다", () => {
+    const rows = buildRows({ currentText: "응 넣어줘" });
+    (rows[2] as { sender_id: unknown }).sender_id = MID_USER_ID;
+    expect(resolveRaw(rows, "응 넣어줘")).toBeNull();
+  });
+
+  it("현재 행이 상대에게 보낸 메시지면 거부한다", () => {
+    const rows = buildRows({ currentText: "응 넣어줘" });
+    (rows[2] as { metadata: unknown }).metadata = { target: "partner" };
+    expect(resolveRaw(rows, "응 넣어줘")).toBeNull();
+  });
+
+  it("직전 사용자 행이 상대에게 보낸 메시지면 거부한다", () => {
+    const rows = buildRows({ currentText: "응 넣어줘" });
+    (rows[0] as { metadata: unknown }).metadata = { target: "partner" };
+    expect(resolveRaw(rows, "응 넣어줘")).toBeNull();
+  });
+
+  it("현재 행과 아모라 행의 공개 범위가 다르면 거부한다", () => {
+    const rows = buildRows({ currentText: "응 넣어줘" });
+    (rows[2] as { visibility: unknown }).visibility = "bride_private";
+    expect(resolveRaw(rows, "응 넣어줘")).toBeNull();
+  });
+
+  // 아모라 행의 id만 현재 행과 같게 둔다. 다른 관문(회신 결속·현재 행 결속)은
+  // 그대로 통과하므로 **중복 검사만이** 이 턴을 막을 수 있다.
+  it("세 행 중 두 개가 같은 id면 거부한다", () => {
+    const rows = buildRows({ currentText: "응 넣어줘" });
+    (rows[1] as { id: unknown }).id = CURRENT_ID;
+    expect(resolveRaw(rows, "응 넣어줘")).toBeNull();
+  });
+
   it("되묻기가 두 번 연속되면 두 번째 답은 이어지지 않는다(한 홉 경계)", () => {
     expect(
       resolve({ priorUserText: "사진 촬영만", currentText: "응 넣어줘" }),
