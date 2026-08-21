@@ -29,7 +29,11 @@ export async function GET(request: Request) {
     const isGuestProbe = new URL(request.url).searchParams.get("guest_probe") === "1";
     const isDemoRequest = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
     const neutralPreparationSpace = isNeutralPreparationSpaceEnabled();
-    const capabilities = { neutralPreparationSpace };
+    // 자동 탈퇴 접수가 열려 있는지. 설정 화면이 사유 선택과 확인 문구 타이핑을 다
+    // 시킨 **뒤에야** 503을 받던 것을 막는다 — 판정은 여기서만 하고 화면은 받은
+    // 값만 본다. `api/auth/delete` 와 같은 환경변수를 읽는다.
+    const accountDeletionIntake = process.env.ACCOUNT_DELETION_INTAKE_ENABLED === "true";
+    const capabilities = { neutralPreparationSpace, accountDeletionIntake };
     const {
       data: { user },
     } = await supabase.auth.getUser();
