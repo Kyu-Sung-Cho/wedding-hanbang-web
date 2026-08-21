@@ -636,7 +636,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       Object.values(currentDrafts).forEach((draft) => {
         draft.attachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       });
-      return createEmptyComposerDrafts();
+      const emptied = createEmptyComposerDrafts();
+      // 사용자가 직접 친 글은 신원이 바뀌면 버리는 게 맞지만,
+      // 온보딩에서 넘어온 초안은 이 신원을 위해 만들어졌다.
+      const pending = pendingPrefillRef.current;
+      if (pending) {
+        emptied.shared_ai = { ...emptied.shared_ai, input: pending };
+      }
+      return emptied;
     });
     setActiveTab("shared");
     setMessageTarget("ai");
@@ -739,6 +746,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const searchParams = useSearchParams();
   const router = useRouter();
   const prefillAppliedRef = useRef(false);
+  // 적용한 초안을 기억해 둔다. authStore 가 늦게 하이드레이션되면
+  // composerIdentity 가 바뀌어 모든 초안을 비우는데, 로그인 직후 진입은 항상
+  // 그 순서라 방금 채운 초안이 지워졌다.
+  const pendingPrefillRef = useRef<string | null>(null);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
     const queryPrefill = searchParams?.get("prefill");
@@ -788,6 +799,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       return;
     }
     prefillAppliedRef.current = true;
+    pendingPrefillRef.current = prefill;
     setDraftInput("shared_ai", prefill);
     // 질문 원문과 일회성 가입 표식은 입력창에 적용한 직후 주소에서 제거한다.
     if (shouldCleanUrl) {
