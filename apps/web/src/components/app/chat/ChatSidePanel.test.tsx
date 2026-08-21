@@ -1550,6 +1550,26 @@ describe("ChatSidePanel attachment sending", () => {
     }));
   });
 
+  it("shows Amora's own first hello instead of asking the model for a second greeting", async () => {
+    // 첫 실행 안내 직후에는 아모라가 이미 먼저 말을 걸어뒀다. 여기서 인사를 또
+    // 요청하면 같은 자리에 인사가 두 번 뜬다.
+    mocks.initialLoadDone = true;
+    await act(async () => {
+      root.render(
+        <ChatSidePanel
+          isOpen
+          onClose={vi.fn()}
+          firstHello={"안녕하세요, 아모라예요.\n\n오늘은 딱 한 가지만 정해볼까요?"}
+        />,
+      );
+      await Promise.resolve();
+    });
+
+    expect(mocks.requestInitialGreeting).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="amora-first-hello-message"]')).not.toBeNull();
+    expect(container.textContent).toContain("오늘은 딱 한 가지만 정해볼까요?");
+  });
+
   it("invalidates a pending file read when the profile or couple changes", async () => {
     const pendingReaders: FileReader[] = [];
     vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) {

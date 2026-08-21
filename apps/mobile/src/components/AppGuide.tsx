@@ -30,7 +30,14 @@ import {
 import { colors, spacing, radius, fontSize } from "@hanbang/design-tokens";
 
 const MAX_GUIDE_WIDTH = 430;
-const ASYNC_KEY = "@hanbang/app_guide_seen";
+/**
+ * 이 안내를 끝까지 본 적이 있는가.
+ *
+ * 첫 실행에 이 안내를 자동으로 띄우지는 않는다 — 그 자리는 라운지 코치마크
+ * (`src/components/lounge/FirstRunCoachMarks.tsx`)가 맡는다. 둘 다 자동으로 뜨면 처음
+ * 온 사람이 안내를 두 번 받는다. 이 안내는 설정에서 사람이 직접 열어 보는 서비스 소개다.
+ */
+export const APP_GUIDE_SEEN_KEY = "@hanbang/app_guide_seen";
 
 interface MockSlideProps {
   mockWidth: number;
@@ -394,26 +401,36 @@ export default function AppGuide({ onClose }: AppGuideProps) {
     viewAreaCoveragePercentThreshold: 50,
   }).current;
 
+  // 끝까지 본 사실을 남긴다. 예전에는 "다시 보지 않기"를 누른 사람만 기록돼서, 정상적으로
+  // 완주한 사람은 안 본 사람과 구별되지 않았다.
+  const rememberSeen = useCallback(async () => {
+    try {
+      await AsyncStorage.setItem(APP_GUIDE_SEEN_KEY, "true");
+    } catch {
+      // 저장 실패해도 닫기를 막지 않는다. 안내를 다 본 사람이 기록 실패로 갇히면 안 된다.
+    }
+  }, []);
+
+  const finishGuide = useCallback(async () => {
+    await rememberSeen();
+    onClose();
+  }, [onClose, rememberSeen]);
+
   const goToNext = useCallback(() => {
     if (isLastSlide) {
-      onClose();
+      void finishGuide();
       return;
     }
     flatListRef.current?.scrollToIndex({
       index: currentIndex + 1,
       animated: true,
     });
-  }, [currentIndex, isLastSlide, onClose]);
+  }, [currentIndex, finishGuide, isLastSlide]);
 
   // 다시 보지 않기: AsyncStorage에 플래그 저장 후 닫기
   const handleNeverShow = useCallback(async () => {
-    try {
-      await AsyncStorage.setItem(ASYNC_KEY, "true");
-    } catch {
-      // 저장 실패해도 닫기
-    }
-    onClose();
-  }, [onClose]);
+    await finishGuide();
+  }, [finishGuide]);
 
   const slideIds = ["welcome", "home", "ai", "community", "budget", "start"];
 
@@ -426,11 +443,14 @@ export default function AppGuide({ onClose }: AppGuideProps) {
         {index === 3 && <CommunitySlide mockWidth={mockWidth} />}
         {index === 4 && <BudgetScheduleSlide mockWidth={mockWidth} />}
         {index === 5 && (
-          <StartSlide onStart={onClose} onNeverShow={handleNeverShow} />
+          <StartSlide
+            onStart={() => void finishGuide()}
+            onNeverShow={handleNeverShow}
+          />
         )}
       </View>
     ),
-    [guideWidth, mockWidth, onClose, handleNeverShow]
+    [guideWidth, mockWidth, finishGuide, handleNeverShow]
   );
 
   return (

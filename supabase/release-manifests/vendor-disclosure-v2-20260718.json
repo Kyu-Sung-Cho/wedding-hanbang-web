@@ -354,6 +354,10 @@
       "sha256": "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324"
     },
     {
+      "file": "20260819090000_first_run_tutorial_state.sql",
+      "sha256": "f4675c7f9d2bd6b898f76893487d1ec852a9056e51b83eb7d35573b3a5c267b2"
+    },
+    {
       "file": "20260820120000_neutral_join_reports_legacy_space.sql",
       "sha256": "8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80"
     },

@@ -24,7 +24,7 @@ test("web and mobile both consume the shared journey realtime stream", () => {
   );
 
   for (const path of [
-    "../../app/(tabs)/dashboard.tsx",
+    "../../app/(tabs)/lounge.tsx",
     "../../app/budget/index.tsx",
     "../../app/schedule/index.tsx",
   ]) {

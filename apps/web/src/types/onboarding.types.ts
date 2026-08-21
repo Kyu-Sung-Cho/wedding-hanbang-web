@@ -1,10 +1,11 @@
 import type { UserRole } from "./database.types";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import type {
-  WeddingBudgetTendencyValue,
-  WeddingGuestCountValue,
-  WeddingPriorityValue,
-  WeddingStyleValue,
+import {
+  createPreparationProgressItems,
+  type PreparationProgressStatus,
+  type WeddingBudgetTendencyValue,
+  type WeddingGuestCountValue,
+  type WeddingPriorityValue,
+  type WeddingStyleValue,
 } from "@hanbang/shared";
 
 // 웨딩 스타일 선호도 타입
@@ -36,7 +37,8 @@ export interface OnboardingState {
   progressChecklist: ProgressChecklistItem[];
 }
 
-export type ChecklistStatus = "not_started" | "in_progress" | "completed" | "not_applicable";
+/** 상태 어휘의 정본도 @hanbang/shared다 — 웹 3상태 / 앱 4상태로 갈라져 있던 것을 합쳤다. */
+export type ChecklistStatus = PreparationProgressStatus;
 
 export interface ProgressChecklistItem {
   key: string;
@@ -53,33 +55,8 @@ export const ONBOARDING_STEPS = [
   { step: 5, title: "준비 현황", description: "현재 준비 상태를 알려주세요" },
 ] as const;
 
-const PROGRESS_CATEGORY_KEYS = [
-  "greeting",
-  "meeting",
-  "venue",
-  "studio",
-  "dress",
-  "makeup",
-  "ring",
-  "hanbok",
-  "yedan",
-  "honeymoon",
-  "houseware",
-  "housing",
-  "invitation",
-  "snap",
-  "shoes",
-  "bouquet",
-  "gift",
-  "mc",
-  "ham",
-  "pyebaek",
-  "registration",
-] as const;
-
+// 19항목의 정본은 @hanbang/shared로 옮겼다. 여기 따로 적어 두면 앱이 자기 나름대로
+// 목록을 조립하게 되고, 카테고리가 하나 늘어난 날 앱 온보딩이 통째로 400을 맞는다
+// (서버는 모르는 키가 하나만 섞여도 요청 전체를 거절한다).
 export const PROGRESS_CHECKLIST_ITEMS: ProgressChecklistItem[] =
-  PROGRESS_CATEGORY_KEYS.map((key) => ({
-    key,
-    label: PLANNING_CATEGORY_LABELS[key],
-    status: "not_started",
-  }));
+  createPreparationProgressItems();

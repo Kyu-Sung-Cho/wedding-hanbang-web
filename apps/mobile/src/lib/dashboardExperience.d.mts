@@ -35,7 +35,7 @@ export interface DashboardFocus {
   description: string;
   ctaLabel: string;
   route:
-    | "/onboarding"
+    | "/settings"
     | "/checklist"
     | "/schedule"
     | "/bookings"

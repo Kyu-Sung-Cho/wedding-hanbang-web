@@ -9,6 +9,8 @@
     "build": "node ../../scripts/build-web-safely.mjs",
     "start": "npx next start",
     "lint": "eslint",
+    "tokens:sync": "tsx ./scripts/sync-design-token-css.mjs",
+    "tokens:check": "tsx ./scripts/sync-design-token-css.mjs --check",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "clean": "rm -rf .next node_modules tsconfig.tsbuildinfo"
@@ -26,12 +28,13 @@
     "next": "16.2.11",
     "openai": "6.46.0",
     "posthog-js": "^1.386.2",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "resend": "^6.9.1",
     "sharp": "0.35.0",
-    "zustand": "^5.0.11",
-    "zod": "4.3.6"
+    "zod": "4.3.6",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.4",

@@ -104,15 +104,10 @@ const nextConfig: NextConfig = {
         destination: "/wedding/manners",
         permanent: true,
       },
-      // 루트는 **서비스를 설명하는 랜딩**으로 보낸다(2026-07-29).
-      // 그전에는 커뮤니티 피드로 바로 떨어졌는데, 피드는 이 서비스를 이미 아는
-      // 사람에게나 쓸모 있는 화면이라 첫 방문자는 "여기가 뭐 하는 곳인지" 알 수
-      // 없었다. 앱으로 들어가는 문(`/wedding`)은 랜딩 안에서 링크로 연다.
-      {
-        source: "/",
-        destination: "/landing",
-        permanent: false,
-      },
+      // 루트(`/`)는 여기서 보내지 않는다. 2026-08-20부터 루트는 **앱의 문**이라
+      // 세션에 따라 로그인과 라운지로 갈리는데, 엣지 리다이렉트는 세션을 볼 수 없다.
+      // 판정은 `src/app/page.tsx`가 한다 — 이유는 그 파일 주석에 있다.
+      // 서비스를 설명하는 랜딩은 `/landing`에 그대로 있고 sitemap·canonical도 그쪽이다.
       // 유통 테스트 착지 A — 비로그인 견적·추가금 진단 (UTM 쿼리는 자동 보존됨)
       {
         source: "/check",

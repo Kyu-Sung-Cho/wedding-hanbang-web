@@ -13,7 +13,7 @@ export default function PrivacyPage() {
     <div className="min-h-screen bg-ivory-50">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/[0.04]">
         <div className="max-w-[800px] mx-auto px-6 h-16 flex items-center">
-          <Link href="/" className="flex items-center gap-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
+          <Link href="/landing" className="flex items-center gap-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
             <ArrowLeft className="w-4 h-4" />
             홈으로
           </Link>

@@ -54,6 +54,7 @@ import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 
 type Status = "not_started" | "in_progress" | "completed" | "not_applicable";
 
@@ -126,22 +127,22 @@ const categories: CategoryMeta[] = [
 
 const statusMeta: Record<Status, { label: string; tone: string; dot: string }> = {
   not_started: {
-    label: "예정",
+    label: PREPARATION_PROGRESS_STATUS_LABELS.not_started,
     tone: "border-[#eadfc9] bg-white text-[#5d6879]",
     dot: "bg-[#c8bda8]",
   },
   in_progress: {
-    label: "진행 중",
+    label: PREPARATION_PROGRESS_STATUS_LABELS.in_progress,
     tone: "border-[#dfc88f] bg-[#fff8ec] text-[#9d6f36]",
     dot: "bg-[#b68a3a]",
   },
   completed: {
-    label: "완료",
+    label: PREPARATION_PROGRESS_STATUS_LABELS.completed,
     tone: "border-[#cdd8bf] bg-[#f4f8ee] text-[#607044]",
     dot: "bg-[#7b8b56]",
   },
   not_applicable: {
-    label: "해당 없음",
+    label: PREPARATION_PROGRESS_STATUS_LABELS.not_applicable,
     tone: "border-[#e3e0da] bg-[#f6f4f0] text-[#8b857c]",
     dot: "bg-[#a7a198]",
   },

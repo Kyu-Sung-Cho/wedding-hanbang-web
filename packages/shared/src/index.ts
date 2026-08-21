@@ -15,4 +15,8 @@ export * from "./contracts/decisionPacket";
 export * from "./contracts/commandLease";
 export * from "./contracts/preparationStatus";
 export * from "./contracts/coupleInviteCode";
+export * from "./contracts/coupleInviteLink";
+export * from "./contracts/firstRunTutorial";
+export * from "./contracts/amoraFirstHello";
+export * from "./contracts/loungeFirstRun";
 export * from "./contracts/neutralPreparationSpace";
