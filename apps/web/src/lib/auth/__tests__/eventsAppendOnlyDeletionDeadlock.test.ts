@@ -40,6 +40,27 @@ const priceConsumerMigration = readFileSync(
   "utf8",
 ).replace(/\r\n/g, "\n");
 
+// ⚠️ 이 픽스처는 한때 **트리거 4개 중 2개만** 세우고 있었다. 운영의
+// public.events 에는 events_append_only / events_no_truncate 외에
+// events_active_agency_fence / events_active_vendor_fence 가 더 있다.
+// 손으로 만든 픽스처에서 통과한 것은 증명이 아니라 운일 수 있다.
+// 그래서 네 개를 모두 세운다(운영 실측으로 확인한 구성).
+const disclosureFoundationMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260718130000_vendor_disclosure_foundation.sql",
+  ),
+  "utf8",
+).replace(/\r\n/g, "\n");
+
+const crossContractMigration = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260718203000_price_consumer_cross_contract_hardening.sql",
+  ),
+  "utf8",
+).replace(/\r\n/g, "\n");
+
 /** 고친 쪽. 손으로 옮겨 적으면 원본이 바뀌어도 눈치채지 못한다. */
 const detachFixMigration = readFileSync(
   resolve(
@@ -85,9 +106,41 @@ const appendOnlyTrigger = statement(
   "events_append_only 트리거",
 );
 
+const noTruncateTrigger = statement(
+  priceConsumerMigration,
+  /CREATE TRIGGER events_no_truncate[\s\S]*?EXECUTE FUNCTION public\.reject_event_mutation\(\);/,
+  "events_no_truncate 트리거",
+);
+
+const vendorFenceFunction = statement(
+  disclosureFoundationMigration,
+  /CREATE OR REPLACE FUNCTION public\.enforce_non_rejected_vendor_reference\(\)[\s\S]*?\$enforce_non_rejected_vendor_reference\$;/,
+  "enforce_non_rejected_vendor_reference()",
+);
+
+const vendorFenceTrigger = statement(
+  disclosureFoundationMigration,
+  /CREATE TRIGGER events_active_vendor_fence[\s\S]*?EXECUTE FUNCTION public\.enforce_non_rejected_vendor_reference\(\);/,
+  "events_active_vendor_fence 트리거",
+);
+
+const agencyFenceFunction = statement(
+  crossContractMigration,
+  /CREATE OR REPLACE FUNCTION public\.enforce_active_agency_reference\(\)[\s\S]*?\$enforce_active_agency_reference\$;/,
+  "enforce_active_agency_reference()",
+);
+
+const agencyFenceTrigger = statement(
+  crossContractMigration,
+  /CREATE TRIGGER events_active_agency_fence[\s\S]*?EXECUTE FUNCTION public\.enforce_active_agency_reference\(\);/,
+  "events_active_agency_fence 트리거",
+);
+
 const USER_ID = "11111111-1111-4111-8111-111111111111";
 const OTHER_USER_ID = "22222222-2222-4222-8222-222222222222";
 const AGENCY_ID = "33333333-3333-4333-8333-333333333333";
+const VENDOR_ID = "44444444-4444-4444-8444-444444444444";
+const REJECTED_VENDOR_ID = "55555555-5555-4555-8555-555555555555";
 
 /** applyFix=false 면 고치기 전 상태를 그대로 세운다(대조군). */
 async function createEventsDatabase(applyFix = true) {
@@ -95,7 +148,15 @@ async function createEventsDatabase(applyFix = true) {
   await db.exec(`
     CREATE SCHEMA auth;
     CREATE TABLE auth.users (id uuid PRIMARY KEY);
-    CREATE TABLE public.agencies (id uuid PRIMARY KEY);
+    CREATE TABLE public.agencies (
+      id uuid PRIMARY KEY,
+      is_active boolean NOT NULL DEFAULT true,
+      merged_into_agency_id uuid
+    );
+    CREATE TABLE public.vendors (
+      id uuid PRIMARY KEY,
+      status text NOT NULL DEFAULT 'approved'
+    );
     CREATE TABLE public.events (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       anon_id text NOT NULL,
@@ -109,26 +170,42 @@ async function createEventsDatabase(applyFix = true) {
   await db.exec(eventsColumns);
   await db.exec(originalRejectMutation);
   await db.exec(appendOnlyTrigger);
+  await db.exec(noTruncateTrigger);
+  // 운영에 실제로 걸려 있는 나머지 두 트리거. 둘 다 컬럼 한정
+  // (UPDATE OF vendor_id / UPDATE OF agency_id)이라 user_id 만 바뀌는
+  // FK 주도 UPDATE 에는 발화하지 않는다 — 그 사실을 픽스처가 증명하게 한다.
+  await db.exec(vendorFenceFunction);
+  await db.exec(vendorFenceTrigger);
+  await db.exec(agencyFenceFunction);
+  await db.exec(agencyFenceTrigger);
   if (applyFix) await db.exec(fixedRejectMutation);
   await db.exec(`
     INSERT INTO auth.users (id) VALUES ('${USER_ID}'), ('${OTHER_USER_ID}');
     INSERT INTO public.agencies (id) VALUES ('${AGENCY_ID}');
+    INSERT INTO public.vendors (id, status)
+      VALUES ('${VENDOR_ID}', 'approved'), ('${REJECTED_VENDOR_ID}', 'rejected');
   `);
   return db;
 }
 
 async function insertEvent(
   db: PGlite,
-  columns: { anonId: string; userId?: string; agencyId?: string },
+  columns: {
+    anonId: string;
+    userId?: string;
+    agencyId?: string;
+    vendorId?: string;
+  },
 ) {
   await db.exec(`
-    INSERT INTO public.events (anon_id, surface, event_type, user_id, agency_id)
+    INSERT INTO public.events (anon_id, surface, event_type, user_id, agency_id, vendor_id)
     VALUES (
       '${columns.anonId}',
       'price_list',
       'page_view',
       ${columns.userId ? `'${columns.userId}'` : "NULL"},
-      ${columns.agencyId ? `'${columns.agencyId}'` : "NULL"}
+      ${columns.agencyId ? `'${columns.agencyId}'` : "NULL"},
+      ${columns.vendorId ? `'${columns.vendorId}'` : "NULL"}
     );
   `);
 }
@@ -260,6 +337,79 @@ describe("고친 뒤에도 append-only 는 append-only 다", () => {
     expect(
       await count(db, `SELECT count(*)::int AS count FROM auth.users WHERE id = '${USER_ID}'`),
     ).toBe(0);
+  });
+
+  it("업체·대행사 fence 가 함께 걸려 있어도 탈퇴가 끝난다", async () => {
+    // 이 픽스처가 fence 두 개를 빠뜨리고 있던 동안, 위 테스트들의 통과는
+    // 증명이 아니라 운이었을 수 있다. 네 트리거가 다 있는 상태에서 다시 본다.
+    const db = await createEventsDatabase();
+    await insertEvent(db, {
+      anonId: "anon-fenced",
+      userId: USER_ID,
+      agencyId: AGENCY_ID,
+      vendorId: VENDOR_ID,
+    });
+
+    await db.exec(`DELETE FROM auth.users WHERE id = '${USER_ID}';`);
+
+    expect(
+      await count(db, "SELECT count(*)::int AS count FROM public.events WHERE user_id IS NULL"),
+    ).toBe(1);
+  });
+
+  it("참조한 업체가 나중에 거절돼도 탈퇴가 막히지 않는다", async () => {
+    // fence 가 컬럼 한정(UPDATE OF vendor_id)이 아니었다면, 지금은 거절된
+    // 업체를 예전에 본 사람이 전부 탈퇴 불가가 된다. 운영에 303행이 업체를
+    // 참조하고 있으므로 실제로 일어날 수 있는 조합이다.
+    const db = await createEventsDatabase();
+    await insertEvent(db, {
+      anonId: "anon-vendor-later-rejected",
+      userId: USER_ID,
+      vendorId: VENDOR_ID,
+    });
+    await db.exec(
+      `UPDATE public.vendors SET status = 'rejected' WHERE id = '${VENDOR_ID}';`,
+    );
+
+    await db.exec(`DELETE FROM auth.users WHERE id = '${USER_ID}';`);
+
+    expect(
+      await count(db, `SELECT count(*)::int AS count FROM auth.users WHERE id = '${USER_ID}'`),
+    ).toBe(0);
+  });
+
+  it("참조한 대행사가 비활성이어도 탈퇴가 막히지 않는다", async () => {
+    const db = await createEventsDatabase();
+    await insertEvent(db, {
+      anonId: "anon-agency-later-inactive",
+      userId: USER_ID,
+      agencyId: AGENCY_ID,
+    });
+    await db.exec(
+      `UPDATE public.agencies SET is_active = false WHERE id = '${AGENCY_ID}';`,
+    );
+
+    await db.exec(`DELETE FROM auth.users WHERE id = '${USER_ID}';`);
+
+    expect(
+      await count(db, `SELECT count(*)::int AS count FROM auth.users WHERE id = '${USER_ID}'`),
+    ).toBe(0);
+  });
+
+  it("fence 자체는 그대로 살아 있다 — 거절된 업체를 새로 참조할 수 없다", async () => {
+    const db = await createEventsDatabase();
+
+    let message: string | null = null;
+    try {
+      await insertEvent(db, {
+        anonId: "anon-new-rejected",
+        userId: USER_ID,
+        vendorId: REJECTED_VENDOR_ID,
+      });
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("VENDOR_REFERENCE_REJECTED");
   });
 
   it("두 FK가 모두 SET NULL이라는 사실을 마이그레이션 원문에서 확인한다", () => {
