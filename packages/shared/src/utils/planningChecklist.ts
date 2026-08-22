@@ -96,6 +96,60 @@ export function getPlanningChecklistCounts(
   };
 }
 
+/**
+ * 화면에 그릴 분야 상태를 정한다. **저장된 status 를 그대로 믿지 않는다.**
+ *
+ * `progress.status` 는 두 가지가 한 칸에 섞여 있다.
+ *
+ * 1. **항목에서 파생한 캐시.** 체크를 토글할 때마다 `calculatePlanningChecklistStatus`
+ *    결과가 저장된다(모달·일정 화면·아모라 쓰기·모바일, 여섯 곳 전부).
+ * 2. **분야 단위 선언.** 온보딩에서 "이건 이미 했어요"를 고르면 항목 없이 status 만
+ *    저장되고(`buildOnboardingProgress`), 대시보드의 세 버튼 피커와 아모라의
+ *    `update_task_status` 도 항목을 건드리지 않고 status 만 바꾼다. 서버 검증도
+ *    이 모양을 허용한다 — `checklist` 키가 없으면 통과시킨다.
+ *
+ * 1번은 **템플릿에 항목이 늘면 낡는다.** 열한 개를 다 끝내 `completed` 로 저장된 분야에
+ * 열두 번째 항목이 생기면, 화면은 개수는 병합본에서 세고(11/12) 상태는 저장값을 써서
+ * `11/12개 완료 · 완료` 가 된다. 더 나쁜 것은 라운지 '지금 할 일'과 마감 알림이
+ * 저장값이 `completed` 라는 이유로 그 분야를 통째로 숨기는 것이다 — 새 항목이 보이지
+ * 않으니 열지 않고, 열지 않으니 저장값이 갱신될 계기도 없다.
+ *
+ * 그래서 **항목 기록이 있을 때만** 파생한다. 두 종류를 가르는 표지는 저장된 `checklist`
+ * 배열의 유무다.
+ *
+ * - `not_applicable` 은 사용자가 "안 해요"로 고른 값이고 파생이 만들 수 없는 값이라
+ *   (`calculatePlanningChecklistStatus` 의 반환형이 이 값을 제외한다) 언제나 보존한다.
+ *   이걸 덮으면 함·폐백을 생략한 커플에게 지워지지 않는 할 일이 생긴다.
+ * - 항목 기록이 없으면 **파생할 근거가 없다.** 온보딩에서 분야 단위로 "했어요"라고 말한
+ *   사람에게 0/12 "시작 전"을 보여주는 것은 낡은 "완료"보다 나쁘다.
+ *
+ * 이 함수는 **읽는 쪽만** 고친다. 낡은 값을 만드는 쓰기 경로와 DB에 남은 낡은 행은
+ * 그대로다 — 증상을 없애지 원인을 없애지 않는다.
+ */
+export function resolvePlanningChecklistStatus(
+  templateItems: readonly PlanningChecklistItem[],
+  saved: PlanningChecklistProgress | undefined,
+): PlanningChecklistStatus {
+  // 저장된 값을 그대로 믿지 않는다. DB에 옛 형식이나 알 수 없는 값이 남아 있을 수 있어
+  // 호출부마다 화이트리스트를 두던 것을 여기로 모았다. 호출부가 `{ status, checklist }`
+  // 리터럴을 만들지 않아도 되게 하려는 뜻도 있다 — 그 모양은 저장 경로를 훑는
+  // `checklistWritePaths` 검사가 쓰기로 오인한다.
+  const stored = saved?.status;
+  const status: PlanningChecklistStatus | undefined =
+    stored === "not_started" || stored === "in_progress"
+    || stored === "completed" || stored === "not_applicable"
+      ? stored
+      : undefined;
+
+  if (status === "not_applicable") return "not_applicable";
+  if (!Array.isArray(saved?.checklist) || saved.checklist.length === 0) {
+    return status ?? "not_started";
+  }
+  return calculatePlanningChecklistStatus(
+    mergePlanningChecklist(templateItems, saved.checklist),
+  );
+}
+
 /** 웹·모바일·아모라가 공유하는 단일 진행률 계약. */
 export function summarizePlanningChecklist(
   templates: readonly PlanningChecklistTemplateLike[],
