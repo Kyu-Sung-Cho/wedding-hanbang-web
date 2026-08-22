@@ -26,6 +26,7 @@ import {
   Mic,
   Box,
 } from "lucide-react";
+import Button from "@/components/ui/Button";
 import type { ImminentCategory } from "@/utils/imminentChecklist";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -188,13 +189,14 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
                   </button>
 
                   {!item.hasScheduledEvent && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => onScheduleClick(item.key)}
-                      className="shrink-0 self-center rounded-full border border-[#36534E] px-3 py-1.5 text-[12px] font-semibold text-[#36534E] transition-colors hover:bg-[#36534E] hover:text-white mr-3"
+                      className="mr-3 shrink-0 self-center"
                     >
                       날짜 잡기
-                    </button>
+                    </Button>
                   )}
                 </div>
               );
