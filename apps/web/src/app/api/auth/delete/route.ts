@@ -9,6 +9,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge, isRecord } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { CONTACT } from "@/lib/constants/contact";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const NO_STORE_HEADERS = { "Cache-Control": "no-store" };
@@ -41,9 +42,9 @@ export async function DELETE(request: Request) {
     if (process.env.ACCOUNT_DELETION_INTAKE_ENABLED !== "true") {
       return NextResponse.json(
         {
-          error: "자동 계정 삭제 접수를 점검 중이에요. support@hanbang.ai로 요청해 주시면 확인 후 안내해 드릴게요.",
+          error: `자동 계정 삭제 접수를 점검 중이에요. ${CONTACT.email}로 요청해 주시면 확인 후 안내해 드릴게요.`,
           code: "ACCOUNT_DELETION_INTAKE_DISABLED",
-          supportEmail: "support@hanbang.ai",
+          supportEmail: CONTACT.email,
         },
         { status: 503, headers: NO_STORE_HEADERS },
       );

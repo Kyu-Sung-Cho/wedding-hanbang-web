@@ -8,6 +8,7 @@ import {
   ACCOUNT_DELETION_FACTS,
   ACCOUNT_DELETION_POLICY_ANCHORS,
 } from "@/constants/accountDeletionPolicy";
+import { CONTACT } from "@/lib/constants/contact";
 
 // 설정 화면은 사유 선택과 "탈퇴합니다" 입력 확인까지 갖춘 모달을 그대로 렌더하면서
 // 제출하면 항상 503 이었고, 약관 제10조·처리방침 제6조는 "설정 페이지에서 직접
@@ -81,7 +82,7 @@ describe("탈퇴 정책이 화면과 문서에서 같은 말을 한다", () => {
 
   // ⚠️ 이 테스트의 이름은 "문서가 **여전히** 설정 페이지를 탈퇴 경로로 안내한다"
   // 였고, 본문은 그 문장이 소스에 있는지만 봤다. 그런데 접수 스위치가 꺼져 있으면
-  // 제출은 503 이고 앱은 support@hanbang.ai 를 돌려준다
+  // 제출은 503 이고 앱은 고객센터 주소(CONTACT.email)를 돌려준다
   // (api/auth/delete/route.ts:41-49). **테스트가 거짓 문장을 붙잡아 두고 있었고,
   // 심지어 주석에 "그 경로가 오늘 열려 있는지까지는 아무 자동 검사도 보장하지
   // 않는다"고 스스로 적어 두었다.**
@@ -104,7 +105,11 @@ describe("탈퇴 정책이 화면과 문서에서 같은 말을 한다", () => {
     expect(privacy).not.toContain("설정 페이지에서 직접 처리할 수 있습니다");
     expect(terms).not.toContain("설정 페이지에서 탈퇴를 신청할 수 있습니다");
     for (const doc of [privacy, terms]) {
-      expect(doc).toContain("support@hanbang.ai");
+      // 이 검사는 **파일 원문**을 읽으므로 상수가 풀린 값을 볼 수 없다. 주소를 축자로
+      // 찾으면 두 화면이 상수를 쓰도록 고친 순간 이 검사가 실패한다 — 실제로 그랬다.
+      // 그래서 "주소가 적혀 있나"가 아니라 **"한 곳에서 가져오나"**를 본다.
+      // 떠도는 주소가 없다는 것은 `contactAddressIsSingleSourced` 가 따로 지킨다.
+      expect(doc).toContain("CONTACT.email");
     }
     expect(privacy).toContain("탈퇴는 현재 고객센터");
     expect(terms).toContain("현재는 고객센터");

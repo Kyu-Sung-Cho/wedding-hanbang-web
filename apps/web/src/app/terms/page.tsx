@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CONTACT } from "@/lib/constants/contact";
 import { ArrowLeft } from "lucide-react";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
@@ -130,7 +131,7 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (회원 탈퇴 및 자격 상실)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. 현재는 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.</li>
+              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. 현재는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.</li>
               <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한되고 계정 삭제 절차가 시작됩니다. 임시 파일 접근 링크가 만료되고 파일 소유권과 삭제 대상을 확인한 뒤, 더 이상 필요하지 않은 개인정보를 지체 없이 파기합니다. 처리 범위와 기간은 개인정보 처리방침을 따릅니다.</li>
               <li>계정 삭제는 되돌릴 수 없습니다. 같은 이메일로 다시 가입하더라도 이전 기록은 복구되지 않습니다.</li>
               <li>연결된 파트너가 있는 경우, 두 사람이 함께 만든 준비 기록과 주고받은 대화는 남은 파트너의 화면에 그대로 유지되고 탈퇴한 회원의 식별 정보만 제거됩니다. 남은 파트너도 자신의 기록에 대해 같은 권리를 가집니다.</li>
@@ -152,7 +153,7 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제12조 (분쟁 해결 및 관할)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>이용 문의와 불만은 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수할 수 있습니다.</li>
+              <li>이용 문의와 불만은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수할 수 있습니다.</li>
               <li>운영자와 회원은 분쟁이 생기면 먼저 사실관계를 확인하고 원만한 해결을 위해 노력합니다. 해결되지 않는 경우 관계 법령에 따른 소비자 분쟁조정 절차를 이용할 수 있습니다.</li>
               <li>소송이 필요한 경우 관할 법원은 민사소송법 등 관계 법령에 따라 정합니다.</li>
             </ol>

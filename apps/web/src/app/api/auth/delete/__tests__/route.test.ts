@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CONTACT } from "@/lib/constants/contact";
 
 import { requestAccountDeletion } from "@/lib/accountDeletion/communityStorageSaga";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -63,8 +64,8 @@ describe("/api/auth/delete DELETE", () => {
       expect(response.headers.get("Cache-Control")).toBe("no-store");
       expect(await response.json()).toEqual(expect.objectContaining({
         code: "ACCOUNT_DELETION_INTAKE_DISABLED",
-        supportEmail: "support@hanbang.ai",
-        error: expect.stringContaining("support@hanbang.ai"),
+        supportEmail: CONTACT.email,
+        error: expect.stringContaining(CONTACT.email),
       }));
       expect(createClientFromRequest).not.toHaveBeenCalled();
       expect(checkRateLimitPersistent).not.toHaveBeenCalled();
