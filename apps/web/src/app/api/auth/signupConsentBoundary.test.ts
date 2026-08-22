@@ -66,7 +66,7 @@ describe("가입 동의 서버 관문 (실행)", () => {
     mocks.verifyTurnstile.mockResolvedValue({ ok: true, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.generateLink.mockResolvedValue({
-      data: { properties: { action_link: "https://example.test/action" } },
+      data: { properties: { hashed_token: "tok_test" } },
       error: null,
     });
     mocks.createAdminClient.mockReturnValue({

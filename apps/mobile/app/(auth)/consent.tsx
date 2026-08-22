@@ -9,7 +9,7 @@
 // 없으면 모바일 소셜 사용자는 온보딩 제출에서 "동의해야 시작할 수 있어요"만
 // 반복해서 보고 아무것도 할 수 없다.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -26,6 +26,7 @@ import { CheckCircle2, Circle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
   EMPTY_SIGNUP_CONSENT,
+  isPreConsentAccount,
   SIGNUP_CONSENT_ITEMS,
   buildSignupConsentSubmission,
   isSignupConsentAll,
@@ -42,10 +43,24 @@ import { supabase } from "@/lib/supabase";
 const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 
 export default function ConsentScreen() {
+  // 이 화면에는 두 종류의 사람이 선다 — 방금 소셜로 계정이 만들어진 사람과,
+  // 동의를 받기 시작하기 전부터 쓰던 사람. 한쪽에게 맞는 문구가 다른 쪽에게는
+  // 거짓이라 갈라 쓴다(웹의 ConsentGateClient 와 같은 판정).
+  const [existingAccount, setExistingAccount] = useState(false);
   const [consent, setConsent] = useState<SignupConsentState>(EMPTY_SIGNUP_CONSENT);
   const [submitting, setSubmitting] = useState(false);
   const complete = isSignupConsentComplete(consent);
   const all = isSignupConsentAll(consent);
+
+  useEffect(() => {
+    let cancelled = false;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!cancelled) setExistingAccount(isPreConsentAccount(data.user?.created_at));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function toggle(key: SignupConsentKey) {
     setConsent((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -87,12 +102,13 @@ export default function ConsentScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>시작하기 전에 확인해주세요</Text>
-        {/* 이 사람은 계정이 이미 만들어진 상태다. "가입"이라고 부르면
-            방금 한 일을 부정하는 말이 된다. 무엇이 남았는지만 말한다. */}
+        <Text style={styles.title}>
+          {existingAccount ? "약관 동의를 한 번만 받을게요" : "시작하기 전에 확인해주세요"}
+        </Text>
         <Text style={styles.subtitle}>
-          계정은 만들어졌어요. 서비스를 이용하려면 이용약관과 개인정보 처리방침에 동의가
-          필요해요.
+          {existingAccount
+            ? "가입하실 때는 동의를 따로 받지 않았어요. 이용약관과 개인정보 처리방침을 확인해 주시면 쓰시던 그대로 이어집니다. 계정과 기록은 그대로 있어요."
+            : "계정은 만들어졌어요. 서비스를 이용하려면 이용약관과 개인정보 처리방침에 동의가 필요해요."}
         </Text>
 
         <View style={styles.agreementSection}>

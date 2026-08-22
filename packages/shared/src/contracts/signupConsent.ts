@@ -23,6 +23,33 @@
  */
 export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-21";
 
+/**
+ * 가입 화면에서 **동의를 받기 시작한** 시각.
+ *
+ * 이 시각보다 먼저 만들어진 계정은 동의 기록이 없다 — 옛 가입 화면에는 약관
+ * 항목이 아예 없었기 때문이다(그 화면의 소스에 "약관"이라는 글자가 0건이었다).
+ * 그 사람들도 동의 관문을 한 번 지나야 하지만, **처음 온 사람이 아니다.**
+ *
+ * 구분이 필요한 이유는 문구다. 몇 달 써 온 사람에게 "계정은 만들어졌어요"라고
+ * 말하면 방금 무슨 일이 일어난 건지 알 수 없고, 자기 계정에 문제가 생긴 것으로
+ * 읽힌다(2026-08-22 파운더 지적: "뜬금없다").
+ */
+export const SIGNUP_CONSENT_INTRODUCED_AT = "2026-08-22T00:00:00.000Z";
+
+/**
+ * 동의를 받기 시작하기 **전에** 만들어진 계정인가.
+ *
+ * 파싱할 수 없는 값이면 false — 확실하지 않을 때는 신규로 보는 편이 안전하다.
+ * 신규용 문구는 어느 쪽에도 거짓이 아니지만, 기존 회원용 문구를 방금 가입한
+ * 사람에게 보이면 "가입할 때 동의를 안 받았다"는 틀린 말이 된다.
+ */
+export function isPreConsentAccount(createdAt: string | null | undefined): boolean {
+  if (!createdAt) return false;
+  const created = Date.parse(createdAt);
+  if (Number.isNaN(created)) return false;
+  return created < Date.parse(SIGNUP_CONSENT_INTRODUCED_AT);
+}
+
 export type SignupConsentKey = "terms" | "privacy" | "marketing";
 
 export type SignupConsentItem = Readonly<{

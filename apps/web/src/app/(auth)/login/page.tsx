@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import SignupConsent from "@/components/auth/SignupConsent";
+import { authErrorMessage } from "@/lib/auth/authErrorMessages";
 import {
   hasAnyWebOAuthProvider,
   isWebOAuthProviderEnabled,
@@ -129,13 +130,14 @@ export default function LoginPage() {
     const hashError = hashParams.get("error");
     const hashDescription = hashParams.get("error_description");
 
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
-    }
+    // ⚠️ 예전에는 이 값들을 **그대로** 화면에 붙였다. 그래서 "로그인 오류: no_code"
+    // 같은 내부 표현이 사용자에게 노출됐고, 값이 URL 에서 오므로 링크만 보내면
+    // 누구나 이 화면에 아무 문장이나 띄울 수 있었다. 아는 코드만 우리말로 옮기고
+    // 원문은 화면에 올리지 않는다. `error_description` 은 Supabase 가 붙이는
+    // 영문 설명이라 표시 대상이 아니다 — 존재 여부만 실패 신호로 쓴다.
+    const failure = hashError ?? (hashDescription ? "verify_failed" : null) ?? callbackError;
+    const message = authErrorMessage(failure);
+    if (message) setError(message);
   }, []);
 
   const handleOAuth = async (provider: "kakao" | "google" | "apple") => {

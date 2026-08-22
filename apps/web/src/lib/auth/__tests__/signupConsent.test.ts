@@ -5,11 +5,13 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_SIGNUP_CONSENT,
   SIGNUP_CONSENT_ITEMS,
+  SIGNUP_CONSENT_INTRODUCED_AT,
   SIGNUP_CONSENT_POLICY_VERSION,
   buildSignupConsentRecord,
   buildSignupConsentSubmission,
   hasRecordedSignupConsent,
   isSignupConsentAll,
+  isPreConsentAccount,
   isSignupConsentComplete,
   parseSignupConsent,
   setAllSignupConsent,
@@ -186,5 +188,26 @@ describe("가입 동의 계약", () => {
       expect(parsed?.consentPolicyVersion).toBe(SIGNUP_CONSENT_POLICY_VERSION);
       expect(parsed?.marketingAgreed).toBe(true);
     });
+  });
+});
+
+describe("동의를 받기 시작하기 전에 만들어진 계정", () => {
+  it("그 전에 만들어졌으면 기존 회원으로 본다", () => {
+    // 옛 가입 화면에는 약관 항목이 아예 없었다 — 기록이 없는 게 정상이다.
+    expect(isPreConsentAccount("2026-03-01T09:00:00.000Z")).toBe(true);
+    expect(isPreConsentAccount("2026-08-21T23:59:59.000Z")).toBe(true);
+  });
+
+  it("그 뒤에 만들어졌으면 신규로 본다", () => {
+    expect(isPreConsentAccount(SIGNUP_CONSENT_INTRODUCED_AT)).toBe(false);
+    expect(isPreConsentAccount("2026-09-01T00:00:00.000Z")).toBe(false);
+  });
+
+  it("읽을 수 없는 값이면 신규 쪽으로 기운다", () => {
+    // 기존 회원용 문구를 방금 가입한 사람에게 보이면 "가입할 때 동의를 안 받았다"는
+    // 틀린 말이 된다. 반대 방향의 실수는 문구가 덜 친절해질 뿐이다.
+    for (const bad of [null, undefined, "", "어제", "not-a-date"]) {
+      expect(isPreConsentAccount(bad as string | null | undefined), String(bad)).toBe(false);
+    }
   });
 });
