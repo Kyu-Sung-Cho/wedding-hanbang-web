@@ -74,10 +74,15 @@ describe("settings invite panel visibility", () => {
   it("shows a scannable invite while the partner has not joined yet", async () => {
     // isDemo 경로를 쓰는 이유: 권한 API를 타지 않고도 `awaiting_partner`를
     // 정본(resolveCoupleConnectionState)으로 통과시키는 유일한 로컬 경로다.
+    // 이 브랜치의 설정 화면은 "지금 보고 있는 계정"이 확인돼야 커플 영역을 그린다
+    // (`currentSettingsMutationOwner`). 데모 경로에서는 그 확인이 `user.id === "demo"`를
+    // 요구하므로, 데모 사용자를 함께 세운다. 관문을 우회하는 것이 아니라 관문이
+    // 요구하는 조건을 갖추는 것이다.
     useAuthStore.setState({
       couple: AWAITING_COUPLE,
       partner: null,
       isDemo: true,
+      user: { id: "demo" } as never,
     });
 
     await act(async () => {
@@ -99,6 +104,7 @@ describe("settings invite panel visibility", () => {
       couple: LINKED_COUPLE,
       partner: PARTNER as Profile,
       isDemo: true,
+      user: { id: "demo" } as never,
     });
 
     await act(async () => {

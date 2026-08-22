@@ -57,6 +57,19 @@ type InviteCodePanelProps = {
    * `tone`이 `"active"`면 담담하게, 그 외(임박·만료)에는 눈에 띄게 적는다.
    */
   notice?: { message: string; tone: string } | null;
+  /**
+   * 코드 자체를 클립보드에 넣는 일을 화면이 대신하게 한다.
+   *
+   * 초대 코드는 커플 공간에 들어오는 열쇠다. 설정 화면은 지금 로그인한 사람의 코드가
+   * 맞는지 확인한 뒤에만 클립보드에 넣는다(`copyOwnerBoundInviteCode`). 이 패널이
+   * 클립보드를 직접 만지면 그 방어를 우회하는 두 번째 경로가 생기므로, 넘겨받았을
+   * 때는 항상 이 콜백을 부르고 결과만 표시에 쓴다. 모바일 `InviteCodeCard` 가 같은
+   * 이유로 같은 모양을 쓴다.
+   *
+   * 넘기지 않으면 패널이 직접 복사한다 — 온보딩 완료 모달처럼 방금 이 사람에게
+   * 발급된 코드만 있는 자리에는 확인할 다른 주인이 없다.
+   */
+  onCopyCode?: (code: string) => boolean | Promise<boolean>;
   className?: string;
 };
 
@@ -143,6 +156,7 @@ export default function InviteCodePanel({
   code,
   variant = "settings",
   notice = null,
+  onCopyCode,
   className = "",
 }: InviteCodePanelProps) {
   // 서버 스냅샷은 null이다. 렌더 중에 그냥 window를 읽으면 서버가 그린 첫 HTML과
@@ -160,7 +174,9 @@ export default function InviteCodePanel({
 
   const handleCopy = useCallback(
     async (forCode: string, target: CopyTarget, value: string) => {
-      const copied = await copyText(value);
+      const copied = target === "code" && onCopyCode
+        ? await onCopyCode(value)
+        : await copyText(value);
       setCopyState({ code: forCode, target, failed: !copied });
       if (!copied) return;
       window.setTimeout(() => {
@@ -171,7 +187,7 @@ export default function InviteCodePanel({
         );
       }, 2000);
     },
-    [],
+    [onCopyCode],
   );
 
   const normalizedCode = normalizeCoupleInviteCode(code);

@@ -10,6 +10,7 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 import Logo from "@/components/ui/Logo";
 import StepIndicator from "@/components/onboarding/StepIndicator";
 import RoleSelection from "@/components/onboarding/RoleSelection";
+import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import CoupleLink from "@/components/onboarding/CoupleLink";
 import WeddingDetails from "@/components/onboarding/WeddingDetails";
@@ -671,9 +672,9 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleCopyCode = async () => {
+  const handleCopyCode = async (): Promise<boolean> => {
     const resultToCopy = inviteCodeResult;
-    if (!resultToCopy) return;
+    if (!resultToCopy) return false;
 
     const resultOwnerStillCurrent = () => (
       inviteCodeResultRef.current === resultToCopy
@@ -701,12 +702,14 @@ export default function OnboardingPage() {
         )),
         purgeOwnerBoundSecret: () => clearOwnerBoundInviteResult(resultToCopy),
       });
-      if (!didCopy) return;
+      if (!didCopy) return false;
       setCodeCopied(true);
       setTimeout(() => setCodeCopied(false), 2000);
+      return true;
     } catch {
       // Clipboard failures remain unacknowledged. The shared fence separately
       // purges and clears any secret copied during a late account switch.
+      return false;
     }
   };
 
@@ -1073,27 +1076,26 @@ export default function OnboardingPage() {
                 파트너가 들어오면 두 사람이 같은 화면을 봐요.
               </p>
 
-              <div className="bg-ivory-100 rounded-2xl p-5 mb-5">
-                <p className="text-[28px] font-mono font-bold text-noir-800 tracking-[0.15em]">
-                  {inviteCodeForCurrentOwner}
-                </p>
-                {inviteDeadline && (
-                  <p className="mt-3 text-[13px] font-medium text-[#795252]">
-                    {inviteDeadline}
-                  </p>
-                )}
-              </div>
+              {/* 코드 표시·복사·링크·QR·공유 문구는 설정 화면과 같은 패널을 쓴다.
+                  두 화면이 각자 복사 로직을 가지면 한쪽만 고쳐진다.
 
-              <button
-                onClick={handleCopyCode}
-                className={`w-full py-3 rounded-2xl text-[14px] font-medium transition-all mb-3 ${
-                  codeCopied
-                    ? "bg-green-500 text-white"
-                    : "bg-[#795252] text-white hover:bg-[#946a6a]"
-                }`}
-              >
-                {codeCopied ? "복사 완료!" : "코드 복사하기"}
-              </button>
+                  넘기는 코드는 **소유자 결속을 통과한 값**이다. 늦게 도착한 응답이나
+                  계정이 바뀐 뒤의 값이면 `inviteCodeForCurrentOwner`가 null이 되고,
+                  패널은 코드가 없으면 아무것도 그리지 않는다(이중 잠금).
+
+                  복사는 패널이 직접 하지 않고 `handleCopyCode`를 부른다 — 지금 이
+                  화면의 주인이 맞는지 확인한 뒤에만 클립보드에 넣는다.
+
+                  기한(#136)은 코드를 보내는 이 자리에서 말해야 한다. */}
+              <InviteCodePanel
+                code={inviteCodeForCurrentOwner}
+                variant="modal"
+                notice={
+                  inviteDeadline ? { message: inviteDeadline, tone: "active" } : null
+                }
+                onCopyCode={handleCopyCode}
+                className="mb-5"
+              />
 
               <button
                 onClick={continueAfterInviteResult}

@@ -31,6 +31,17 @@ vi.mock("framer-motion", () => ({
   AnimatePresence: ({ children }: { children: React.ReactNode }) => children,
 }));
 vi.mock("@/components/ui/Logo", () => ({ default: () => <span>Hanbang</span> }));
+// 페이지는 계정 소유자를 auth 이벤트로도 재확인한다. 이 테스트는 DOM 만 보므로
+// 실제 Supabase 클라이언트 대신 구독만 흉내 낸다.
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      onAuthStateChange: () => ({
+        data: { subscription: { unsubscribe: () => {} } },
+      }),
+    },
+  }),
+}));
 
 import OnboardingPage from "../page";
 import { useOnboardingStore } from "@/stores/onboardingStore";

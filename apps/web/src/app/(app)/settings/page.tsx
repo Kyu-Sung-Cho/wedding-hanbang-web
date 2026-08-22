@@ -315,9 +315,9 @@ export default function SettingsPage() {
     }
   };
 
-  const handleCopy = async () => {
+  const handleCopy = async (): Promise<boolean> => {
     const expectedActorUserId = currentSettingsMutationOwner();
-    if (!expectedActorUserId) return;
+    if (!expectedActorUserId) return false;
 
     try {
       const didCopy = await copyOwnerBoundInviteCode({
@@ -332,13 +332,15 @@ export default function SettingsPage() {
           setCopied(false);
         },
       });
-      if (!didCopy) return;
+      if (!didCopy) return false;
       setCopied(true);
       setTimeout(() => {
         if (currentSettingsMutationOwner() === expectedActorUserId) setCopied(false);
       }, 2000);
+      return true;
     } catch {
       // Clipboard permission failures leave the code unchanged and unacknowledged.
+      return false;
     }
   };
 
@@ -1131,41 +1133,20 @@ export default function SettingsPage() {
               패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
           {phase === "awaiting_partner" && coupleCode && (
             <div className="mb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-[#B5ADA3] mb-1">나의 커플 코드</p>
-                  <p className="text-xl font-display font-medium text-[#1A1A1F] tracking-wider">{coupleCode}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => void handleCopy()}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-white text-sm text-[#504444] shadow-sm hover:text-[#795252] transition-colors"
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 text-[#2E7D5A]" />
-                        <span className="text-[#2E7D5A]">복사됨</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4" />
-                        복사
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-              {inviteWindowNotice && (
-                <p
-                  className={
-                    inviteWindowNotice.tone === "active"
-                      ? "mt-2 text-sm text-[#928980]"
-                      : "mt-2 text-sm font-medium text-[#795252]"
-                  }
-                >
-                  {inviteWindowNotice.message}
-                </p>
-              )}
+              {/* 코드 표시·복사·링크·QR·공유 문구는 온보딩 완료 모달과 같은 패널을 쓴다.
+                  두 화면이 각자 복사 로직을 가지면 한쪽만 고쳐진다.
+
+                  복사는 패널이 직접 하지 않고 `handleCopy`를 부른다 — 지금 로그인한
+                  사람의 코드가 맞는지 확인한 뒤에만 클립보드에 넣는 방어가 이 화면에
+                  있고, 패널이 클립보드를 만지면 그 방어를 우회하는 두 번째 경로가 생긴다.
+
+                  기한 안내(#136)는 코드를 보내는 이 자리에서 말해야 한다. */}
+              <InviteCodePanel
+                code={coupleCode}
+                variant="settings"
+                notice={inviteWindowNotice}
+                onCopyCode={handleCopy}
+              />
               <button
                 onClick={handleRegenerateCode}
                 disabled={regenerating || !visibleCoupleConnection.canInvite}

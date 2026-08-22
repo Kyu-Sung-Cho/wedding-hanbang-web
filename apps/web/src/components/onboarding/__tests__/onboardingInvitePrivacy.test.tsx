@@ -49,6 +49,20 @@ function findButton(container: HTMLElement, label: string): HTMLButtonElement {
   return button;
 }
 
+/**
+ * "다음"은 두 자리에 있다 — 스텝을 넘기는 하단 CTA와, 마지막 스텝 안에서 국면을
+ * (단계 선택 → 19항목) 넘기는 버튼. 여기서 필요한 것은 뒤쪽이다.
+ */
+function findLastButton(container: HTMLElement, label: string): HTMLButtonElement {
+  const buttons = Array.from(container.querySelectorAll("button"))
+    .filter((candidate) => candidate.textContent?.includes(label));
+  const button = buttons[buttons.length - 1];
+  if (!(button instanceof HTMLButtonElement)) {
+    throw new Error(`Button not found: ${label}`);
+  }
+  return button;
+}
+
 describe("onboarding invite result privacy", () => {
   let root: Root;
   let container: HTMLDivElement;
@@ -129,6 +143,16 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
+    });
+
+    await act(async () => {
       findButton(container, "시작하기").click();
       await Promise.resolve();
       await Promise.resolve();
@@ -136,7 +160,7 @@ describe("onboarding invite result privacy", () => {
     });
 
     expect(container.textContent).toContain(A_INVITE_CODE);
-    const retainedCopyButton = findButton(container, "코드 복사하기");
+    const retainedCopyButton = findButton(container, "코드 복사");
     expect(authHarness.listener).not.toBeNull();
 
     canonicalOwnerUserId = USER_B;
@@ -159,13 +183,23 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
+    });
+
+    await act(async () => {
       findButton(container, "시작하기").click();
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    const copyButton = findButton(container, "코드 복사하기");
+    const copyButton = findButton(container, "코드 복사");
     canonicalOwnerUserId = USER_B;
     await act(async () => {
       copyButton.click();
@@ -185,6 +219,16 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
+    });
+
+    await act(async () => {
       findButton(container, "시작하기").click();
       await Promise.resolve();
       await Promise.resolve();
@@ -196,7 +240,7 @@ describe("onboarding invite result privacy", () => {
       throw new Error("clipboard unavailable");
     });
     await act(async () => {
-      findButton(container, "코드 복사하기").click();
+      findButton(container, "코드 복사").click();
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -216,6 +260,16 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
+    });
+
+    await act(async () => {
       findButton(container, "시작하기").click();
       await Promise.resolve();
       await Promise.resolve();
@@ -226,7 +280,7 @@ describe("onboarding invite result privacy", () => {
       if (value === A_INVITE_CODE) canonicalOwnerUserId = USER_B;
     });
     await act(async () => {
-      findButton(container, "코드 복사하기").click();
+      findButton(container, "코드 복사").click();
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -248,6 +302,16 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
+    });
+
+    await act(async () => {
       findButton(container, "시작하기").click();
       await Promise.resolve();
       await Promise.resolve();
@@ -263,7 +327,7 @@ describe("onboarding invite result privacy", () => {
       return true;
     });
     await act(async () => {
-      findButton(container, "코드 복사하기").click();
+      findButton(container, "코드 복사").click();
       await Promise.resolve();
       await Promise.resolve();
       await Promise.resolve();
@@ -286,6 +350,16 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
+    });
+
+    await act(async () => {
       findButton(container, "시작하기").click();
       await Promise.resolve();
       await Promise.resolve();
@@ -293,7 +367,7 @@ describe("onboarding invite result privacy", () => {
     });
 
     await act(async () => {
-      findButton(container, "코드 복사하기").click();
+      findButton(container, "코드 복사").click();
       await Promise.resolve();
       await Promise.resolve();
     });
@@ -316,6 +390,16 @@ describe("onboarding invite result privacy", () => {
       root.render(<OnboardingPage />);
       await Promise.resolve();
       await Promise.resolve();
+    });
+
+    await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
     });
 
     await act(async () => {
@@ -342,6 +426,16 @@ describe("onboarding invite result privacy", () => {
       root.render(<OnboardingPage />);
       await Promise.resolve();
       await Promise.resolve();
+    });
+
+    await act(async () => {
+      // 마지막 스텝은 두 국면이다(단계 선택 → 19항목). 단계를 하나 고르고 "다음"을
+      // 눌러야 저장 버튼이 나온다 — main이 나눈 화면이고, 이 검사는 저장 경로를 본다.
+      findButton(container, "이제 막 시작했어요").click();
+    });
+
+    await act(async () => {
+      findLastButton(container, "다음").click();
     });
 
     await act(async () => {
