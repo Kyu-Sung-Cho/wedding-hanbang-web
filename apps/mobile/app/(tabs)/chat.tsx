@@ -380,19 +380,6 @@ async function saveAmoraMediationOfferDismissals(
  * 서버로 보내는 대화 맥락(messages)에도 들어가지 않는다.
  */
 const AMORA_FIRST_HELLO_MESSAGE_ID = "amora_first_hello_local";
-/**
- * 처음 온 사람이 무엇부터 물어볼지 고르는 칩.
- *
- * 빈 화면에만 있었는데, 아모라가 먼저 건넨 첫마디가 놓이면 화면은 더 이상 비어 있지 않다.
- * 그때 칩까지 사라지면 정작 칩이 가장 필요한 사람이 칩을 못 본다. 그래서 목록을 여기 한 벌만
- * 두고 두 자리에서 같이 쓴다.
- */
-const AMORA_STARTER_PROMPTS = [
-  "웨딩 사진 촬영 예산을 정리해줘",
-  "지금 먼저 할 일 세 가지를 알려줘",
-  "결혼식장 계약 전에 무엇을 확인해야 해?",
-] as const;
-
 interface ToolExecutionResult {
   toolName: string;
   toolInput: Record<string, unknown>;
@@ -8809,9 +8796,6 @@ const st = StyleSheet.create({
   setupGateButtonText: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: "#FFFFFF" },
   loading: { flex: 1, alignItems: "center", justifyContent: "center", gap: 10 },
   loadingText: { fontSize: 13, color: colors.textTertiary },
-  suggestions: { width: "100%", gap: 8 },
-  sugBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 16, paddingVertical: 13, borderRadius: 16, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
-  sugText: { fontSize: 14, color: colors.noir[800] },
   messageList: { paddingHorizontal: 16, paddingVertical: 12, gap: 10 },
   msgRow: { flexDirection: "row", alignItems: "flex-end", gap: 8 },
   msgRowRight: { alignSelf: "flex-end", flexDirection: "row-reverse" },

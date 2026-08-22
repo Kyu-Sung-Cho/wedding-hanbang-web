@@ -723,7 +723,10 @@ test("the conversation places the greeting itself instead of waiting to be spoke
   // 대화가 비어 있어도 첫마디가 있으면 빈 화면 대신 인사가 보인다.
   assert.match(chatSource, /displayedMessages\.length === 0 \? \(/);
   // 그래도 "무엇부터 물어보지"에 서 있는 사람이라 시작 칩은 남는다.
-  assert.match(chatSource, /const AMORA_STARTER_PROMPTS = \[/);
+  // 선언이 있는지가 아니라 **그려지는지**를 본다. 예전 단언은 상수 선언만 봐서,
+  // 화면에서 칩을 그리는 쪽이 사라져도 통과했다 — 실제로 그 상태로 병합됐다.
+  assert.match(chatSource, /<AmoraStarterCard/);
+  assert.equal(chatSource.match(/<AmoraStarterCard/gu)?.length, 2);
   assert.match(
     chatSource,
     /scopedMessages\.length === 0 && firstHelloMessage && !isP/,
