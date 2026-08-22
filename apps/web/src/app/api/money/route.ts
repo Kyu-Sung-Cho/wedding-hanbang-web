@@ -127,7 +127,13 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // 이 한 줄만 DB 오류 원문을 사용자에게 돌려주고 서버 로그도 안 남겼다. 같은 파일의
+      // GET(:46-48)과 `money/[id]` 의 PATCH·DELETE 는 이미 올바른 모양이다 — 원문은 서버에,
+      // 화면에는 한국어 고정 문구. 운영자는 못 보고 사용자만 Postgres 문장을 받던 역전이었다.
+      console.error("[money POST] supabase:", error);
+      return NextResponse.json({ error: "축의금을 저장하지 못했습니다." }, { status: 500 });
+    }
     return NextResponse.json({ money: data }, { status: 201 });
   } catch (err) {
     console.error("[money POST]", err);

@@ -8,6 +8,17 @@ export type SupabaseServiceDestinationInput = {
   productionProjectRef: string | undefined;
   productionWriteConfirmation?: string | undefined;
   access: SupabaseServiceAccess;
+  /**
+   * 이 코드가 배포된 서버에서 도는가.
+   *
+   * 관문이 확인 문자열만 보고 **어디서 실행되는지는 보지 않았다.** 그래서 운영 값을
+   * 그대로 물려받은 개발 PC 의 `pnpm dev` 가 운영 DB 에 쓸 수 있었다 — 실제로 그렇게
+   * 커플 기록이 상한 적이 있다.
+   *
+   * `runtime` 쓰기에만 건다. 릴리스 절차(`operator-write`)는 사람이 로컬에서 돌리는 것이
+   * 정상이고, 그쪽은 릴리스 매니페스트와 확인 문자열이 따로 지킨다.
+   */
+  runningOnDeployedServer?: boolean;
 };
 
 export type VerifiedSupabaseServiceDestination = {
@@ -141,6 +152,7 @@ export function verifySupabaseServiceDestination(
   }
 
   const keyKind = validateServiceRoleKey(input.serviceRoleKey, expectedProjectRef, actualUrl.origin);
+
   if (expectedProjectRef === productionProjectRef && input.access !== "read") {
     const expectedConfirmation = `${input.access === "runtime" ? "RUNTIME_WRITE" : "OPERATOR_WRITE"}:${expectedProjectRef}`;
     if (input.productionWriteConfirmation !== expectedConfirmation) {
@@ -149,6 +161,28 @@ export function verifySupabaseServiceDestination(
         "Production service-role writes require a separate project-scoped confirmation.",
       );
     }
+  }
+
+  // 확인 문자열을 **가지고 있어도** 배포된 서버가 아니면 런타임 쓰기를 막는다.
+  //
+  // 실제 사고가 이 모양이었다 — 운영 환경변수를 통째로 복사한 개발 PC 의 `pnpm dev` 가
+  // 운영 DB 를 가리켜 커플 기록이 상했다. 확인 문자열은 **실행 위치를 증명하지 못한다.**
+  // 복사되면 같이 복사된다.
+  //
+  // 확인 문자열 검사 **뒤**에 둔다. 문자열이 아예 없는 흔한 경우에는 그쪽 메시지가 더
+  // 알맞고, 이 검사는 문자열까지 갖춘 드문 경우의 마지막 문턱이다.
+  //
+  // `runtime` 에만 건다. 릴리스 절차(`operator-write`)는 사람이 로컬에서 돌리는 것이
+  // 정상이고, 그쪽은 릴리스 매니페스트와 확인 문자열이 따로 지킨다.
+  if (
+    expectedProjectRef === productionProjectRef
+    && input.access === "runtime"
+    && input.runningOnDeployedServer === false
+  ) {
+    blocked(
+      "PRODUCTION_RUNTIME_WRITE_OFF_SERVER",
+      "Production runtime writes are only allowed from the deployed server.",
+    );
   }
 
   return { url: actualUrl.origin, projectRef: expectedProjectRef, keyKind };
@@ -165,5 +199,7 @@ export function verifyRuntimeSupabaseServiceDestination(
     productionProjectRef: env.SUPABASE_PRODUCTION_PROJECT_REF,
     productionWriteConfirmation: env.SUPABASE_PRODUCTION_WRITE_CONFIRM,
     access: "runtime",
+    // Vercel 이 배포 실행에만 넣어 주는 표식. 개발 PC 에는 없다.
+    runningOnDeployedServer: env.VERCEL === "1",
   });
 }
