@@ -44,6 +44,7 @@ import {
 } from "@/lib/amoraFirstHello";
 import ErrorRetry from "@/components/ErrorRetry";
 import TodayOneCareCard from "@/components/dashboard/TodayOneCareCard";
+import PartnerChangeNotice from "@/components/lounge/PartnerChangeNotice";
 import WeddingHomeExperience, {
   type WeddingHomeData,
 } from "@/components/dashboard/WeddingHomeExperience";
@@ -818,6 +819,7 @@ export default function DashboardScreen() {
           loading={loading}
           refreshing={refreshing}
           onRefresh={onRefresh}
+          partnerChanges={<PartnerChangeNotice refreshVersion={careRefreshVersion} />}
           todayOneCare={<TodayOneCareCard refreshVersion={careRefreshVersion} />}
           firstArrival={
             firstArrivalView ? (
