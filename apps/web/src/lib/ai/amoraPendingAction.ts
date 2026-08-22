@@ -491,13 +491,55 @@ export function resolveAmoraPendingAction({
   };
 }
 
+/**
+ * 계약문에 넣을 한 도구의 입력 필드 설명.
+ *
+ * 이름을 안 알려주면 모델이 지어낸다. 그리고 지어낸 키가 하나라도 있으면
+ * `hasOnlyDeclaredTopLevelKeys`가 표식을 통째로 버리는데 그건 조용하다 —
+ * 2026-08-22 스테이징 실측에서 표식 10개가 전부 이렇게 사라졌다
+ * (`start_time`·`end_time`·`location`, 그리고 `budget` 대신 `amount`).
+ * 값이 정해진 필드는 값 목록까지 준다. 같은 함정이 enum 에서 반복되기 때문이다.
+ */
+function describeToolInputFields(tool: AiToolDefinition): string {
+  const properties = isRecord(tool.input_schema.properties)
+    ? tool.input_schema.properties
+    : {};
+  const required = new Set(
+    Array.isArray(tool.input_schema.required)
+      ? (tool.input_schema.required as unknown[]).filter(
+          (name): name is string => typeof name === "string",
+        )
+      : [],
+  );
+  const fields = Object.entries(properties).map(([name, rawSchema]) => {
+    const schema = isRecord(rawSchema) ? rawSchema : {};
+    const type = typeof schema.type === "string" ? schema.type : "값";
+    const enumValues = Array.isArray(schema.enum)
+      ? schema.enum.filter((value) => typeof value === "string" || typeof value === "number")
+      : [];
+    const detail = enumValues.length > 0
+      ? `${type}: ${enumValues.map(String).join("|")}`
+      : type;
+    return `${name}${required.has(name) ? "*" : ""}(${detail})`;
+  });
+  return fields.length > 0 ? fields.join(", ") : "(입력 없음)";
+}
+
 export function buildAmoraPendingActionPrompt(
-  supportedToolNames: readonly string[],
+  supportedTools: readonly AiToolDefinition[],
 ): string {
   return [
     "[서버 발급 후속 확인 계약]",
     "- 사용자의 확인이 필요한 변경을 제안하거나 적용 여부를 물을 때는, 그 답변 안에 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 사용자가 확인해도 실행할 방법이 없습니다.",
-    `- 제안 가능한 변경 도구: ${supportedToolNames.join(", ")}`,
+    "- 제안 가능한 변경 도구와 input 필드 (`*`는 필수). **아래에 없는 이름을 쓰면 표식이 통째로 버려지고 사용자는 확인 버튼을 받지 못합니다. 값을 넣을 자리가 없으면 지어내지 말고 memo 같은 선언된 필드에 넣거나 생략하세요.**",
+    ...supportedTools.map(
+      (tool) => `  · ${tool.name}: ${describeToolInputFields(tool)}`,
+    ),
+    // 필드 이름을 알려주면 모델이 그 자리를 채우려 한다. 그런데 `event_id`·`item_id`
+    // 같은 식별자는 프롬프트 문맥에 아예 없다(일정 문맥은 날짜·제목·메모뿐).
+    // 이름만 알려주고 이 줄을 빼면, 예전엔 다른 지어낸 키에 걸려 버려지던 표식이
+    // 이제는 스키마를 통과해 **지어낸 id로 카드가 나간다.**
+    "- `_id`로 끝나는 필드는 이 대화에서 서버가 실제로 알려준 값만 쓰세요. 모르면 지어내지 말고 표식 없이 어느 항목인지 먼저 되물으세요.",
     "- 표식 형식: [pending_action]{\"tool\":\"도구명\",\"input\":{...}}[/pending_action]",
     "- 모든 입력값이 확정됐을 때만 표식을 쓰세요. 값이 아직 모호하면 표식 없이 값부터 확인하세요. 보이는 확인 문장은 서버가 검증된 tool/input으로 직접 만듭니다.",
     "- 표식은 서버가 제거·검증하며, 사용자가 서버가 발급한 정확한 action_id를 바로 다음 공유 요청으로 확인한 경우에만 실행됩니다.",

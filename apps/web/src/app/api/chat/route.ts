@@ -2777,9 +2777,7 @@ export async function POST(request: Request) {
     : pendingOfferEnabled
       ? {
           kind: "proposal",
-          text: buildAmoraPendingActionPrompt(
-            pendingProposalTools.map((tool) => tool.name),
-          ),
+          text: buildAmoraPendingActionPrompt(pendingProposalTools),
         }
       : undefined;
   const promptContext = {
