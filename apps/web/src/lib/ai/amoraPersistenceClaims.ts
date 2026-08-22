@@ -195,9 +195,37 @@ function removeUnverifiedPersistenceClaims(text: string): {
   return {
     text: removedClaimCount === 0
       ? normalizedText
-      : dropDanglingConnective(kept.join("\n\n")),
+      : repairSplitEmphasis(dropDanglingConnective(kept.join("\n\n"))),
     removedClaimCount,
   };
+}
+
+/**
+ * 문장을 지우면 강조 구간이 쪼개진다.
+ *
+ * 2026-08-22 라이브에서 사용자가 본 것:
+ *
+ *     우리 예산은 아직 **400만 원으로 확정되지 않았어요.
+ *
+ *     ** 400만 원과 600만 원 중 어느 쪽을…
+ *
+ * 여는 `**` 와 닫는 `**` 사이의 문장이 지워지면서 둘이 서로 다른 문단으로
+ * 갈라졌다. 마크다운은 문단을 넘는 강조를 허용하지 않아 **별표가 글자 그대로
+ * 화면에 보인다.**
+ *
+ * 짝이 맞지 않는 문단에서는 강조를 통째로 지운다 — 꾸밈을 잃는 편이 별표가
+ * 노출되는 것보다 낫다.
+ */
+function repairSplitEmphasis(text: string): string {
+  return text
+    .split("\n\n")
+    .map((paragraph) => {
+      const markers = paragraph.match(/\*\*/g);
+      return markers && markers.length % 2 === 1
+        ? paragraph.replace(/\*\*/g, "")
+        : paragraph;
+    })
+    .join("\n\n");
 }
 
 /**

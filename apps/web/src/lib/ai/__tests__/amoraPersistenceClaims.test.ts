@@ -317,3 +317,46 @@ describe("지운 자리를 수습한다", () => {
     expect(result.text).toContain("아직 실제 준비에는 반영되지 않았어요");
   });
 });
+
+/**
+ * 2026-08-22 라이브. 문장을 지우니 강조 구간이 문단을 가로질렀다:
+ *
+ *     우리 예산은 아직 **400만 원으로 확정되지 않았어요.
+ *
+ *     ** 400만 원과 600만 원 중 어느 쪽을…
+ *
+ * 마크다운은 문단을 넘는 강조를 허용하지 않아 별표가 글자 그대로 보였다.
+ */
+describe("지우면서 강조가 쪼개지지 않는다", () => {
+  it("짝이 문단을 가로지르면 강조를 지운다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: [
+        "우리 예산은 아직 **400만 원으로 확정되지 않았어요.",
+        "예산을 400만 원으로 저장했어요.",
+        "** 400만 원과 600만 원 중 어느 쪽으로 할까요?",
+      ].join("\n"),
+      toolResults: [],
+      hasPendingAction: false,
+      persistenceMode: "durable",
+      userRequestedChange: false,
+    });
+
+    for (const paragraph of result.text.split("\n\n")) {
+      const markers = paragraph.match(/\*\*/g) ?? [];
+      expect(markers.length % 2).toBe(0);
+    }
+    expect(result.text).not.toContain("저장했어요");
+  });
+
+  it("한 문단 안에서 짝이 맞는 강조는 그대로 둔다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "예산을 저장했어요. 지금은 **400만 원**이 기준이에요.",
+      toolResults: [],
+      hasPendingAction: false,
+      persistenceMode: "durable",
+      userRequestedChange: false,
+    });
+
+    expect(result.text).toContain("**400만 원**");
+  });
+});
