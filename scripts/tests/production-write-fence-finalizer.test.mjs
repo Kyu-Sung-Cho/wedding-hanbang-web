@@ -1999,10 +1999,6 @@ test("the current 118-migration successor keeps finalization blocked through the
     manifest.expandMigrations.slice(-15),
     [
       {
-        file: "20260816190000_amora_preparation_catch_up.sql",
-        sha256: "637d56cfba243e25f6488d1aaf08f1873b9d4aad30bb54f7cedc3870b1eb9cce",
-      },
-      {
         file: "20260818100000_restore_signup_profile_trigger.sql",
         sha256: "16fa1a4af7832c69e937faeaff7f88115699e377e1445f9c4cdc524b86f4a53a",
       },
@@ -2037,6 +2033,10 @@ test("the current 118-migration successor keeps finalization blocked through the
       {
         file: "20260818180000_amora_decision_node_updated_at_clock.sql",
         sha256: "d633a58e209ba46cae83566e81f1c9e0b2750b1593be7e8e5406d1bf0ddba4e6",
+      },
+      {
+        file: "20260819090000_first_run_tutorial_state.sql",
+        sha256: "f4675c7f9d2bd6b898f76893487d1ec852a9056e51b83eb7d35573b3a5c267b2",
       },
       {
         file: "20260819100000_amora_preparation_action_receipt_binding_read.sql",
