@@ -714,9 +714,24 @@ export async function PATCH(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return privateResponse({ error: "인증이 필요합니다." }, 401);
 
+    // 한도가 **정확히 10**이었다. 그래서 체크리스트에서 항목 열 개를 체크하면
+    // 열한 번째부터 "요청이 너무 많습니다"로 막혔다 — 스트레스 테스트가 아니라
+    // **평범한 사용에서 바로 걸리는 값**이었다(2026-08-22 파운더 제보).
+    //
+    // 이름은 `plan-change` 지만 이 한도는 **모든 PATCH 가 함께 쓴다.** 결혼 날짜·예산처럼
+    // 드문 변경을 염두에 둔 값이 체크 토글에도 그대로 걸린 것이다. 체크리스트는 여러 개를
+    // 연달아 누르는 화면이다.
+    //
+    // 40으로 올린다. 사람이 손으로 누르는 속도의 상한에 가깝고(1.5초에 하나씩 1분),
+    // 사용자별 키라 남용은 자기 커플 기록에만 미친다. 몸집도 이미 제한돼 있다
+    // (`MAX_BODY_BYTES`).
+    //
+    // 근본 수정은 클라이언트가 토글을 **묶어서** 보내는 것이다. 지금 `updateJourney` 는
+    // 호출마다 요청 하나를 보내는데, 반환값으로 파트너 확인 대기·충돌·거절을 구분해
+    // 화면이 그 결과를 쓰기 때문에 지연·병합이 그 계약을 깨뜨린다. 그래서 출시 뒤로 미뤘다.
     const limited = await checkRateLimitPersistent(
       rateLimitKey("journey:plan-change", request, user.id),
-      { maxRequests: 10, windowMs: 60 * 1000 },
+      { maxRequests: 40, windowMs: 60 * 1000 },
       { failClosed: true },
     );
     if (limited) return privateNoStore(limited);
