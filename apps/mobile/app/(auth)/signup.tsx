@@ -170,7 +170,11 @@ export default function SignupScreen() {
           email: email.trim(),
           password,
           name: name.trim(),
-          marketingAgreed: agreeMarketing,
+          consent: {
+            terms: agreeTerms,
+            privacy: agreePrivacy,
+            marketing: agreeMarketing,
+          },
         },
         turnstileTokenRef.current,
       );

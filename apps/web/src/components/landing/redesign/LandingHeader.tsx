@@ -42,6 +42,14 @@ export default function LandingHeader() {
         <div className="flex items-center gap-2">
           <MobileLandingMenu items={navItems} />
 
+          {/* 랜딩 어디에도 회원가입으로 가는 링크가 없었다. 가입은 승인 관문 없이
+              열려 있는데 화면은 그 사실을 말하지 않았다. */}
+          <Link
+            href="/login?mode=signup"
+            className={`hidden min-h-11 items-center px-2 text-[14px] font-semibold text-white/72 transition-colors duration-200 hover:text-white sm:inline-flex ${focusRing}`}
+          >
+            회원가입
+          </Link>
           <Link
             href="/login"
             className={`hidden min-h-11 items-center px-2 text-[14px] font-semibold text-white/72 transition-colors duration-200 hover:text-white sm:inline-flex ${focusRing}`}

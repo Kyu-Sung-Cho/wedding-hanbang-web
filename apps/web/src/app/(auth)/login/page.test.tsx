@@ -147,8 +147,9 @@ describe("login return journey", () => {
 
     expect(container.textContent).toContain("방금 본 준비를 이어갈게요.");
     expect(container.textContent).toContain("입력창에서 확인한 뒤 직접 보낼 수 있어요");
-    expect(container.textContent).toContain("제공 기능·이용 기간·무료 상담 한도");
-    expect(container.textContent).toContain("신청만으로 결제되지 않아요");
+    // /beta 승인 대기열을 가리키던 문구였다. 가입이 열린 뒤로는 승인 절차가 없다.
+    expect(container.textContent).toContain("지금은 가입에 승인 절차가 없고 결제도 요청하지 않아요");
+    expect(container.textContent).toContain("서비스 전체에 하루 상한이 있어서");
 
     const kakaoButton = [...container.querySelectorAll("button")]
       .find((button) => button.textContent?.trim() === "카카오");
@@ -205,6 +206,15 @@ describe("login return journey", () => {
       setInput(passwordInputs[1], "Strong1!");
     });
 
+    // 필수 동의 없이는 가입이 시작되지 않는다(가입 동의 테스트가 따로 고정한다).
+    // 동의 항목은 진짜 체크박스다 — 버튼이 아니다.
+    for (const key of ["terms", "privacy"]) {
+      const box = container.querySelector<HTMLInputElement>(`#signup-consent-${key}`);
+      await act(async () => {
+        box?.click();
+      });
+    }
+
     await act(async () => {
       container.querySelector("form")?.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
@@ -215,6 +225,9 @@ describe("login return journey", () => {
     const requestInit = vi.mocked(fetch).mock.calls[0]?.[1];
     expect(JSON.parse(String(requestInit?.body))).toMatchObject({
       redirect: START_HERE_REDIRECT,
+      termsAgreed: true,
+      privacyAgreed: true,
+      marketingAgreed: false,
     });
     expect(container.textContent).toContain("같은 브라우저에서 인증하면 아모라 화면으로 이어져요");
   });

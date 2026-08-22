@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
 import { clearDemoCookies } from "@/lib/demoSession";
 import {
   getOptionalSameOriginRedirectPath,
@@ -90,6 +91,21 @@ export async function GET(request: Request) {
         "no_user",
         requestedPostLoginPath,
       ));
+    }
+
+    // 소셜 로그인은 Supabase 가 계정을 직접 만든다. 그 경로로 처음 들어온
+    // 사람은 가입 화면을 거치지 않았으므로 동의 화면을 본 적도, 기록도 없다.
+    // 제품 화면에 들여보내기 전에 동의를 받는다. 온보딩보다 앞이다 —
+    // 온보딩은 이미 제품 사용이다.
+    if (!hasRecordedSignupConsent(user.user_metadata)) {
+      const consentUrl = new URL(SIGNUP_CONSENT_PATH, origin);
+      const intended = from === "demo"
+        ? "/wedding/onboarding"
+        : getPostLoginRedirectPath(search, origin, false);
+      consentUrl.searchParams.set("redirect", intended);
+      const response = NextResponse.redirect(consentUrl);
+      clearDemoCookies(response);
+      return response;
     }
 
     // 고객 전용: 프로필/온보딩 체크

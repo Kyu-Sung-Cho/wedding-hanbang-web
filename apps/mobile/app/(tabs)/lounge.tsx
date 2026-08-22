@@ -12,6 +12,7 @@ import {
   isOnlyStageSuggestion,
   PREPARATION_STAGE_PROGRESS_KEY,
   PREPARATION_STAGE_VALUES,
+  resolvePlanningChecklistStatus,
   shouldShowFirstRunTutorial,
   WEDDING_STYLE_OPTIONS,
   type PreparationStageValue,
@@ -178,17 +179,27 @@ function calcUrgentTasks(
         }
       | undefined;
 
-    if (categoryProgress?.status === "completed" || categoryProgress?.status === "not_applicable") continue;
+    // 게이트가 둘이었고 **둘 다 저장값만 봤다.** 위는 저장된 status를, 아래 `allDone`은
+    // 저장된 배열만 보고 템플릿과 병합하지 않았다. 그래서 항목이 늘면 열한 개를 끝낸
+    // 분야가 양쪽에서 걸러져 열두 번째 항목이 긴급 목록에 영영 안 뜬다. 모바일은 그
+    // 분야를 한 번 열어야 저장값이 갱신되는데, 여기서 숨기면 열 계기조차 없다.
+    //
+    // 두 게이트를 리졸버 하나로 합친다. 항목 기록이 있으면 병합본에서 파생하고, 없으면
+    // 저장된 선언을 그대로 둔다. `checklist`의 원소는 `label`이 없지만 판정에 쓰이는
+    // 것은 `id`와 `done`뿐이다.
+    const resolvedStatus = resolvePlanningChecklistStatus(
+      category.items,
+      categoryProgress as unknown as Parameters<typeof resolvePlanningChecklistStatus>[1],
+    );
+    if (resolvedStatus === "completed" || resolvedStatus === "not_applicable") continue;
 
+    // 아래는 체크리스트 배열이 없는 **옛 플랫 불리언 모양**만 남긴다. 운영 데이터에 이
+    // 모양이 남아 있는지 확인하지 못해 지우지 않았다.
     let allDone = false;
     if (
-      categoryProgress?.checklist
-      && Array.isArray(categoryProgress.checklist)
+      !Array.isArray(categoryProgress?.checklist)
+      && categoryProgress && typeof categoryProgress === "object"
     ) {
-      allDone =
-        categoryProgress.checklist.length > 0
-        && categoryProgress.checklist.every((item) => item.done);
-    } else if (categoryProgress && typeof categoryProgress === "object") {
       const booleanValues = Object.values(categoryProgress).filter(
         (value): value is boolean => typeof value === "boolean",
       );

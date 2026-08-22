@@ -1,6 +1,6 @@
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { ProgressItem } from "@/types/database.types";
-import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
+import { getChecklistCounts, mergeChecklist, resolveStatus } from "@/utils/checklist";
 
 type Status = ProgressItem["status"];
 
@@ -13,18 +13,26 @@ type Status = ProgressItem["status"];
  * not_applicable을 못 돌려줘서 그 아래 분기가 통째로 죽은 코드였던 것이다.
  */
 export function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
-  const status = progress[key]?.status;
+  const saved = progress[key];
+  const status = saved?.status;
   // "해당 없음"도 그대로 돌려준다. 예전엔 이 화이트리스트에서 빠져 있어서 아래
   // `getProgressSummary`의 not_applicable 분기가 **도달할 수 없는 죽은 코드**였다.
   // 그래서 체크리스트 화면은 끈 분야를 분모에서 빼는데 이 화면은 넣어, 같은 계정에서
   // 진행률이 서로 다르게 나왔다.
-  if (
-    status === "completed"
-    || status === "in_progress"
-    || status === "not_started"
-    || status === "not_applicable"
-  ) return status;
-  return "not_started";
+  // 저장값을 그대로 쓰지 않는다. `:69`가 완료된 분야를 할 일 목록에서 빼는데, 템플릿에
+  // 항목이 늘면 저장값이 낡아 **새 항목이 통째로 숨는다.** 항목 기록이 있을 때만 파생하고
+  // 없으면 저장된 선언을 그대로 둔다 — 판단 근거는 `resolvePlanningChecklistStatus` 참고.
+  // 위 화이트리스트와 같은 검증을 리졸버가 안에서 한다.
+  const template = CATEGORY_CHECKLISTS.find((category) => category.key === key);
+  if (!template) {
+    return (
+      status === "completed"
+      || status === "in_progress"
+      || status === "not_started"
+      || status === "not_applicable"
+    ) ? status : "not_started";
+  }
+  return resolveStatus(template.items, saved);
 }
 
 export function getChecklistProgress(progress: Record<string, ProgressItem>, key: string) {

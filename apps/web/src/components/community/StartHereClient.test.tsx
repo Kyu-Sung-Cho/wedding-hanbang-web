@@ -263,7 +263,7 @@ describe("StartHereClient first visit", () => {
     });
 
     const signupLink = [...container.querySelectorAll("a")].find((link) =>
-      link.textContent?.includes("계정 베타로 계속 관리하기"),
+      link.textContent?.includes("계정 만들고 계속 관리하기"),
     );
     expect(signupLink?.getAttribute("href")).toBe(
       "/login?mode=signup&redirect=%2Fwedding%2Fchat&source=start-here",

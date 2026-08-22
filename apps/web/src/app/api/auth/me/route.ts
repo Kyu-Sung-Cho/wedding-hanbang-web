@@ -2,6 +2,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
+import { hasRecordedSignupConsent } from "@hanbang/shared";
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
     const isGuestProbe = new URL(request.url).searchParams.get("guest_probe") === "1";
     const isDemoRequest = hasSignedDemoSessionFromCookieHeader(request.headers.get("cookie"));
     const neutralPreparationSpace = isNeutralPreparationSpaceEnabled();
-    const capabilities = { neutralPreparationSpace };
+    const baseCapabilities = { neutralPreparationSpace };
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -52,6 +53,15 @@ export async function GET(request: Request) {
         { status: 401, headers: PRIVATE_NO_STORE_HEADERS },
       );
     }
+
+    // 웹은 콜백과 앱 셸에서 동의 없는 계정을 /consent 로 돌려세운다. 모바일은
+    // 다른 콜백(/auth/mobile-callback)을 쓰므로 그 관문에 닿지 않는다.
+    // 여기서 사실만 내보내 두면, 모바일이 자기 화면을 붙일 때 서버를 다시
+    // 고칠 필요가 없다. 지금 아무도 읽지 않아도 거짓이 아니다.
+    const capabilities = {
+      ...baseCapabilities,
+      requiresSignupConsent: !hasRecordedSignupConsent(user.user_metadata),
+    };
 
     const admin = createAdminClient();
     const _debug: Record<string, unknown> = {};
