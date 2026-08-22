@@ -218,13 +218,36 @@ export function getPendingAmoraBudgetImpactPreview(
   );
 }
 
+/**
+ * 서버가 찍은 만료 시각이 지났는지. **이 기기 시계를 믿을 수 있을 때만** 판정한다.
+ *
+ * 진짜 만료는 서버가 막는다 — `authorize_amora_shared_action_execution` 이
+ * `AMORA_SHARED_ACTION_EXPIRED` 로 거절한다. 여기 판정은 울타리가 아니라 버튼을
+ * 보여줄지 정하는 화면 편의다. 그래서 시계를 못 믿는 동안 만료라고 단정하지 않는다.
+ *
+ * `action.issuedAt > nowMs` 가 참이라는 것은 만료가 아니라 **이 기기 시계가 서버보다
+ * 느리다**는 뜻이다. 그렇게 단정하면 방금 받은 제안에 "확인 시간이 지났어요" 가 뜨고
+ * (chat.tsx:3399·3528) 적용 경로가 조용히 막혀 버튼이 죽는다. 휴대폰은 시계가 어긋나
+ * 있는 일이 흔하고, 그 사람은 아모라가 제안한 어떤 변경도 확인할 수 없다.
+ *
+ * 웹도 같은 한 줄을 갖고 있었고 함께 고쳤다(PendingAmoraActionCard.tsx).
+ */
+export function isPendingAmoraActionExpired(
+  action: PendingAmoraAction,
+  nowMs: number,
+): boolean {
+  if (!Number.isFinite(nowMs) || nowMs <= 0) return false;
+  if (action.issuedAt > nowMs) return false;
+  return nowMs >= action.expiresAt;
+}
+
 export function getPendingActionDisabledReason(
   action: PendingAmoraAction,
   nowMs: number,
   isLatest: boolean,
   busy: boolean,
 ): PendingActionDisabledReason {
-  if (!Number.isFinite(nowMs) || action.issuedAt > nowMs || nowMs >= action.expiresAt) return "expired";
+  if (isPendingAmoraActionExpired(action, nowMs)) return "expired";
   if (!isLatest) return "not_latest";
   if (busy) return "busy";
   return null;
