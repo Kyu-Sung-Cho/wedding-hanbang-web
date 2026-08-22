@@ -5,40 +5,6 @@ function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
 }
 
-export async function sendPreregistrationEmail(email: string) {
-  if (!process.env.RESEND_API_KEY) return;
-  try {
-    await getResend().emails.send({
-      from: "Hanbang <noreply@hanbang.ai>",
-      to: email,
-      subject: "웨딩한방 사전등록이 완료되었습니다!",
-      html: `
-        <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
-          <div style="text-align: center; margin-bottom: 32px;">
-            <img src="https://hanbang.ai/images/logo-512-transparent.png" alt="웨딩한방" width="64" height="64" style="width: 64px; height: 64px; object-fit: contain;" />
-          </div>
-          <h1 style="font-size: 24px; font-weight: 300; color: #1A1A1F; text-align: center; margin-bottom: 16px;">
-            사전등록이 완료되었습니다!
-          </h1>
-          <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
-            웨딩한방에 관심을 가져주셔서 감사합니다.<br>
-            새 소식이 생기면 이 주소로 알려드릴게요.
-          </p>
-          <div style="text-align: center; padding: 24px; background: #FAF7F2; border-radius: 16px; margin-bottom: 32px;">
-            <p style="font-size: 13px; color: #928980; margin: 0;">등록된 이메일</p>
-            <p style="font-size: 16px; color: #1A1A1F; font-weight: 500; margin: 8px 0 0;">${email}</p>
-          </div>
-          <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
-            © 2026 웨딩한방. All rights reserved.
-          </p>
-        </div>
-      `,
-    });
-  } catch (error) {
-    console.error("이메일 발송 실패:", error);
-  }
-}
-
 export async function sendVendorApprovalEmail(email: string, vendorName: string) {
   if (!process.env.RESEND_API_KEY) return;
   try {

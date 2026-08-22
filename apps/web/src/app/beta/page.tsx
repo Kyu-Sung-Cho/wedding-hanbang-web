@@ -1,10 +1,7 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Footer from "@/components/landing/Footer";
-import BetaForm from "./BetaForm";
-import { getBetaCount } from "@/lib/beta-count";
 import { PUBLIC_COUPLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
-// 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
 
 export const metadata = {
@@ -29,8 +26,6 @@ const CONDITIONS = [
 ];
 
 export default async function BetaPage() {
-  const current = await getBetaCount();
-
   return (
     <main className="min-h-screen bg-noir-800">
       <CustomerNav />
@@ -131,12 +126,26 @@ export default async function BetaPage() {
             </div>
           </div>
 
-          {/* 우측: Form or Full */}
+          {/* 우측: 바로 시작 */}
           <div className="lg:sticky lg:top-24">
-            {/* 사전등록이 50건을 넘으면 "마감되었어요"로 문을 닫고 있었다.
-                정원이 없으므로 마감될 것도 없고, 계정은 승인 없이 바로 만들 수
-                있다. 없는 마감으로 사람을 돌려보내지 않는다. */}
-            <BetaForm current={current} />
+            {/*
+              사전등록 폼을 걷어냈다(2026-08-23 파운더 결정). 계정은 승인 없이 지금
+              바로 만들 수 있어서 대기열에 세울 이유가 없었고, 폼은 **동의 절차 없이**
+              이메일·이름·예식 예정일을 받고 있었다 — 처리방침 제1조에도 그 수집이
+              없었다. 안내만 붙이는 대신 받는 것을 없앴다.
+            */}
+            <div className="rounded-[20px] border border-white/15 bg-white/[0.04] p-8">
+              <h2 className="text-[22px] font-semibold text-white">지금 바로 시작할 수 있어요</h2>
+              <p className="mt-3 text-[14px] leading-[1.8] text-white/70">
+                승인을 기다리지 않아도 됩니다. 계정을 만들면 아모라와 바로 이야기할 수 있어요.
+              </p>
+              <a
+                href="/login"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 text-[15px] font-semibold text-noir-800 transition-colors hover:bg-white/90"
+              >
+                계정 만들기
+              </a>
+            </div>
           </div>
         </div>
       </section>
