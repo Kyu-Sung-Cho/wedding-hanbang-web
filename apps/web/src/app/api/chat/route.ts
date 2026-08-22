@@ -109,6 +109,7 @@ import {
 } from "@/lib/ai/amoraClarificationContinuity";
 import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import {
   buildAmoraApprovedActionPrompt,
@@ -2738,8 +2739,14 @@ export async function POST(request: Request) {
   // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
   // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
   // 재설계 이후 운영에서 변경 실행 0건.)
+  // 지금 실제로 쓸 수 없는 도구는 모델에게 주지 않는다. 주면 모델이 그것을 부르고,
+  // 실행기가 "설정되지 않았습니다" 같은 내부 사정을 사용자에게 돌려준다 —
+  // 이 저장소가 반복해서 고쳐온 부류다. 없는 기능을 설명하는 것보다 없는 편이 낫다.
+  const runnableTools = visibilityScopedTools.filter((tool) => (
+    tool.name !== "search_nearby_places" || isPlaceSearchConfigured()
+  ));
   const availableTools = filterAmoraToolsByQuestionScope(
-    visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name)),
+    runnableTools.filter((tool) => !isMutatingTool(tool.name)),
     questionScope,
   );
   const availableToolNameSet = new Set(

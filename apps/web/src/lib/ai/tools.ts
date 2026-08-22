@@ -1124,7 +1124,12 @@ export const BETA_DISABLED_TOOL_NAMES: ReadonlySet<string> = new Set([
   "create_booking",
   "get_my_bookings",
   "cancel_booking",
-  "search_nearby_places",
+  // `search_nearby_places` 는 2026-08-22에 열었다. 여기 묶여 있던 이유는 업체 추천
+  // 보류였는데, 이 도구는 **업체를 찾아주지 않는다** — 안에 울타리가 두 겹 있다:
+  // 웨딩업체 질의를 `wedding_vendor_query_blocked` 로 막고, 네이버 결과에서도
+  // 웨딩업체를 걸러낸다. 남는 것은 상견례 식당 같은 일반 장소뿐이고, 그건
+  // 예약·결제 없이 공개 검색 결과를 보여주는 것이다.
+  // 자격증명이 없으면 라우트가 `isPlaceSearchConfigured()` 로 걸러 모델에게 주지 않는다.
   "delete_category",
   "reset_category",
   "delete_schedule_event",

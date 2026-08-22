@@ -1842,6 +1842,20 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it("renders NAVER results over SSE but never stores or forwards provider content", async () => {
+    // 2026-08-22부터 라우트는 **지금 쓸 수 없는 도구를 모델에게 주지 않는다**
+    // (`isPlaceSearchConfigured()`). 자격증명이 없으면 장소 검색이 도구 목록에서
+    // 빠지므로, NAVER 렌더링 계약을 확인하려면 설정된 상태를 만들어야 한다.
+    const savedId = process.env.NAVER_API_HUB_CLIENT_ID;
+    const savedSecret = process.env.NAVER_API_HUB_CLIENT_SECRET;
+    process.env.NAVER_API_HUB_CLIENT_ID = "test-hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "test-hub-secret";
+    const restoreNaverEnv = () => {
+      if (savedId === undefined) delete process.env.NAVER_API_HUB_CLIENT_ID;
+      else process.env.NAVER_API_HUB_CLIENT_ID = savedId;
+      if (savedSecret === undefined) delete process.env.NAVER_API_HUB_CLIENT_SECRET;
+      else process.env.NAVER_API_HUB_CLIENT_SECRET = savedSecret;
+    };
+
     const placeTool = {
       name: "search_nearby_places",
       description: "Search NAVER places",
@@ -1943,6 +1957,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(persistedPayload).not.toContain("pstatic.net");
     } finally {
       mocks.safeTools.pop();
+      restoreNaverEnv();
     }
   });
 
