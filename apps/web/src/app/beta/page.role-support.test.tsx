@@ -15,10 +15,6 @@ vi.mock("@/lib/beta-count", () => ({
   BETA_TOTAL: 50,
   getBetaCount: vi.fn(async () => 0),
 }));
-vi.mock("./BetaForm", () => ({
-  default: () => <div data-testid="beta-form" />,
-}));
-
 import BetaPage from "./page";
 
 describe("BetaPage role support boundary", () => {

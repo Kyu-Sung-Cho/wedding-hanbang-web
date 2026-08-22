@@ -10,13 +10,13 @@ import { describe, expect, it } from "vitest";
  * 실키가 발급되기 전에는 서버가 `skipped:true`로 통과시켜 아무 문제가 없어 보인다.
  * 키를 넣는 순간 그 화면은 토큰을 만들 방법이 없으므로 **영구 실패**한다.
  * 2026-07-23에 이 방식으로 가입·사전등록·비번재설정이 전면 차단됐고(`fb1dca94`),
+ * 사전등록은 2026-08-23에 폼 자체를 걷어내서 목록에서 뺐다.
  * `6a95dd5b`가 `/demo/login`의 가입 경로만 고치고 바로 아래 forgot 경로는
  * 같은 상태로 남겨 뒀다. 사람이 다시 못 보고 넘길 자리라 테스트로 잠근다.
  */
 const GATED_ENDPOINTS = [
   "/api/auth/signup",
   "/api/auth/forgot-password",
-  "/api/preregister",
   "/api/survey",
 ] as const;
 

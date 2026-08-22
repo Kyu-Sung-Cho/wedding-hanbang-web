@@ -24,7 +24,6 @@ const ACTIVE_PUBLIC_SOURCES = [
   "src/app/landing/page.tsx",
   "src/app/demo/page.tsx",
   "src/app/beta/page.tsx",
-  "src/app/beta/BetaForm.tsx",
   "src/components/customer-landing/CustomerNav.tsx",
   "src/components/landing/redesign/landingContent.ts",
   "src/components/landing/redesign/TransformationHero.tsx",
