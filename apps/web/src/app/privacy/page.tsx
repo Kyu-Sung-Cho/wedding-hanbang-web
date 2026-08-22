@@ -22,7 +22,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 31일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 22일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -49,6 +49,7 @@ export default function PrivacyPage() {
                   <li>예산 항목과 실제 지출, 할 일, 일정, 메모, 아모라에게 보낸 질문과 첨부 파일, 아모라의 답변</li>
                   <li>프로필 사진과 커뮤니티에 올린 글·댓글·사진·파일</li>
                   <li>마케팅 수신 동의 여부</li>
+                  <li>가입 시 받은 필수 동의(이용약관·개인정보 처리방침) 여부, 동의한 시각, 동의 당시 문서 판(예: 2026-08-22)</li>
                 </ul>
               </div>
               <div>
@@ -144,7 +145,7 @@ export default function PrivacyPage() {
               </table>
             </div>
             <p className="mt-3 text-[13px] text-taupe-500">
-              일부 사업자는 국외에서 정보를 처리할 수 있습니다. 실제 운영 계정의 처리 국가, 이전 항목·목적·시기·방법과 보유기간을 확인한 별도 국외 이전 고지가 완료되기 전에는 해당 국외 이전 기능을 운영 환경에서 켜지 않습니다.
+              위 수탁 업체는 국외에 서버를 두고 있어, 서비스를 이용하시면 개인정보가 국외로 이전됩니다. 이전받는 자의 연락처, 이전되는 국가와 시기·방법, 이전 항목과 이용 목적, 보유·이용 기간을 담은 국외 이전 고지는 준비 중이며 확정되는 대로 이 방침에 반영합니다. 국외 이전을 원하지 않으시면 서비스 이용을 중단하고 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 계정 삭제를 요청하실 수 있습니다.
             </p>
           </section>
 
@@ -152,7 +153,8 @@ export default function PrivacyPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (정보주체의 권리)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
-              <li>이용 내역 확인 및 탈퇴는 설정 페이지에서 직접 처리할 수 있습니다.</li>
+              <li>이용 내역은 설정 페이지에서 확인할 수 있습니다. 탈퇴는 현재 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다. 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 접수 전에 안내해 드립니다.</li>
+              <li>연결된 파트너와 함께 만든 준비 기록과 대화는 두 사람의 정보가 섞여 있어 남은 파트너의 화면에 유지되고, 탈퇴한 회원의 식별 정보만 제거됩니다. 등록한 업체가 있으면 해당 업체를 먼저 정리해야 탈퇴가 완료됩니다.</li>
               <li>그 밖의 요청은 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>
           </section>
@@ -208,7 +210,7 @@ export default function PrivacyPage() {
           ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 30일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제1조 동의 기록 항목, 제6조 탈퇴 처리 범위)은 같은 날부터 적용합니다.</p>
           </section>
         </div>
       </div>

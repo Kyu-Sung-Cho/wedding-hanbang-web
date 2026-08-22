@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { resolveStatusByKey } from "@/utils/checklist";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
@@ -554,7 +555,7 @@ async function executeToolOnce(
       case "cancel_booking":
         return await executeCancelBooking(toolInput, context);
       case "get_market_price":
-        return executeGetMarketPrice(toolInput);
+        return await executeGetMarketPrice(toolInput, getAdminClient());
       case "analyze_contract_readiness":
         return executeAnalyzeContractReadiness(toolInput);
       case "simulate_guest_guarantee":
@@ -1173,8 +1174,10 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
   }
 
   const allKeys = Object.keys(CATEGORY_LABELS);
+  // 화면과 같은 기준으로 센다. 저장값을 그대로 세면 항목이 늘었을 때 아모라만
+  // "완료"라고 말하고 화면은 "진행 중"이라 그린다.
   const completedCount = allKeys.filter(
-    (k) => progress[k]?.status === "completed"
+    (k) => resolveStatusByKey(k, progress[k]) === "completed"
   ).length;
 
   return {

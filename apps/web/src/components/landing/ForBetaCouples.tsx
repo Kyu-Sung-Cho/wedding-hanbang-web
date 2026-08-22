@@ -7,12 +7,15 @@ import { shouldShowBetaCounter } from "@/constants/beta";
 import SectionLabel from "./SectionLabel";
 import { PUBLIC_COUPLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
+// /beta 와 같은 말을 해야 한다. 그 페이지는 승인 대기열에서 사전등록으로
+// 바뀌었는데 이 섹션만 "참여 전 확인"·"이용 기간" 같은 심사 서사를 남겨두면
+// 같은 사이트 안에서 정면으로 모순된다. "이용 기간"은 저장소 어디에도 근거가
+// 없는 말이었다.
 const BENEFITS = [
-  "운영 검증을 마친 기능부터 먼저 사용",
+  "기능 변경과 정식 출시 소식을 이메일로 안내",
   "불편한 점과 필요한 기능을 제품팀에 전달",
-  "기능 변경과 정식 출시 소식 안내",
-  "제공 기능·이용 기간·무료 상담 한도를 참여 전 확인",
-  "추가 이용 방법·비용은 아직 미정 · 신청만으로 결제되지 않음",
+  "지금 바로 계정을 만들어 쓸 수도 있어요 · 승인을 기다리지 않아도 됩니다",
+  "추가 이용 방법·비용은 아직 미정 · 사전등록만으로 결제되지 않음",
 ];
 
 const CONDITIONS = [

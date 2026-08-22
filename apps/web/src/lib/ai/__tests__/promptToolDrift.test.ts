@@ -145,13 +145,21 @@ describe("프롬프트와 도구 목록이 어긋나지 않는다", () => {
       "get_vendor_detail",
       "check_vendor_availability",
       "get_available_slots",
-      "search_nearby_places",
     ];
     // 이 금지는 도구가 꺼져 있다는 사실에 딸린 것이다. 다시 켜면 여기서 먼저 실패해서
     // 출처 문구를 되살릴지 함께 판단하게 된다.
     for (const name of lookupTools) {
       expect(BETA_DISABLED_TOOL_NAMES.has(name), `${name}가 켜졌다`).toBe(true);
     }
+
+    // `search_nearby_places` 는 2026-08-22에 켰다(파운더 결정). 그래서 이 목록에서
+    // 뺐다 — 이 테스트가 설계된 대로 먼저 실패해서 판단하게 만들었고, 판단 결과는
+    // 이렇다: **업체 쪽 출처 서식은 그대로 금지한다.** 업체 조회 도구는 여전히 전부
+    // 꺼져 있으므로 "검색한 업체"는 지금도 참이 될 수 없다. 장소는 이제 실제로
+    // 조회하지만, 출처는 프롬프트 문구가 아니라 **장소 카드가 직접 들고 있다**
+    // (이름·주소·전화·지도/블로그 링크). 프롬프트에 "방금 검색한 장소" 같은 서식을
+    // 넣을 이유가 없고, 넣으면 도구가 실패한 턴에도 모델이 그렇게 말한다.
+    expect(BETA_DISABLED_TOOL_NAMES.has("search_nearby_places")).toBe(false);
 
     const RETRIEVAL_CLAIMS = [
       /방금\s*검색한/,

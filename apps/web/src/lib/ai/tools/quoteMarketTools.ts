@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
   analyzeAmoraQuoteCheck,
@@ -6,18 +7,234 @@ import {
   type AmoraQuoteRegion,
 } from "@/lib/amora/quoteCheck";
 
-export function executeGetMarketPrice(input: Record<string, unknown>): ToolExecutionResult {
+/**
+ * 공시가 통계를 돌려주는 카테고리. `v_public_official_prices.price_category` 실측값이다
+ * (2026-08-22: hall 1081 · studio 718 · dress 525 · makeup 285). 여기 없는 항목은
+ * 공시 자료가 없으므로 통계를 만들지 않는다 — 없는 표본에서 평균을 내면 그게 곧
+ * 지어낸 수치다.
+ */
+const MARKET_PRICE_CATEGORIES = new Set(["hall", "studio", "dress", "makeup"]);
+
+const MARKET_PRICE_SOURCE_FALLBACK = "한국소비자원 참가격";
+const MARKET_PRICE_ROW_LIMIT = 2_000;
+
+/**
+ * 결혼식장 공시는 한 카테고리 안에 **성격이 다른 네 가지**가 섞여 있다
+ * (2026-08-22 실측: 식대 326 · 옵션 325 · 대관료 318 · 장식비 112).
+ * 식대는 1인당 금액이라 5만~7만 원대이고 대관료는 건당이라 수백만 원대다.
+ *
+ * 이걸 한 덩어리로 중위값을 내면 "웨딩홀 대관료 중위가 105만 원, 범위 3만 5천 원~
+ * 6,600만 원" 같은 숫자가 나온다 — 실제로 라이브에서 그렇게 나왔다. 출처가 붙어
+ * 있어도 **뜻이 틀린 숫자**이고, 그건 지어낸 숫자보다 나을 것이 없다.
+ *
+ * `item_name` 은 `<홀이름> <항목>` 형태라 마지막 낱말이 항목이다.
+ */
+const HALL_ITEM_TYPES = ["대관료", "식대", "옵션", "장식비"] as const;
+type HallItemType = (typeof HALL_ITEM_TYPES)[number];
+
+/** 1인당으로 공시되는 항목. 건당 금액과 나란히 두면 사용자가 오해한다. */
+const PER_PERSON_HALL_ITEM_TYPES = new Set<HallItemType>(["식대"]);
+
+function hallItemTypeOf(itemName: unknown): HallItemType | null {
+  if (typeof itemName !== "string") return null;
+  const last = itemName.trim().split(/\s+/).pop() ?? "";
+  return (HALL_ITEM_TYPES as readonly string[]).includes(last)
+    ? (last as HallItemType)
+    : null;
+}
+
+interface PriceStats {
+  sampleCount: number;
+  minKrw: number;
+  medianKrw: number;
+  maxKrw: number;
+}
+
+/**
+ * 공시 한 행은 금액 구간(min~max)으로 온다. 구간의 중점을 그 행의 대표값으로 쓴다.
+ * 값이 없는 행(0 또는 결측)은 표본에서 뺀다 — 0을 최솟값으로 두면 "최소 0원"이라는
+ * 거짓이 나온다.
+ */
+function midpointOf(row: Record<string, unknown>): number | null {
+  const usable = [Number(row.price_min_krw), Number(row.price_max_krw)]
+    .filter((value) => Number.isFinite(value) && value > 0);
+  if (usable.length === 0) return null;
+  return Math.round(usable.reduce((sum, value) => sum + value, 0) / usable.length);
+}
+
+function statsOf(midpoints: number[]): PriceStats | null {
+  if (midpoints.length === 0) return null;
+  return {
+    sampleCount: midpoints.length,
+    minKrw: Math.min(...midpoints),
+    medianKrw: median(midpoints),
+    maxKrw: Math.max(...midpoints),
+  };
+}
+
+function median(values: number[]): number {
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? Math.round((sorted[middle - 1] + sorted[middle]) / 2)
+    : sorted[middle];
+}
+
+function formatKrw(value: number): string {
+  if (value >= 10_000 && value % 10_000 === 0) {
+    return `${(value / 10_000).toLocaleString("ko-KR")}만원`;
+  }
+  return `${value.toLocaleString("ko-KR")}원`;
+}
+
+/**
+ * 검수·공시된 결혼서비스 가격의 **카테고리 통계**를 돌려준다.
+ *
+ * 2026-08-22 이전에는 이 실행기가 데이터를 한 줄도 읽지 않고 "과거 고정 시세표는
+ * 종료했어요" 라는 고정 문구만 돌려줬다. 마이그레이션 뒤 재배선이 안 된 것인데,
+ * 도구 설명문은 계속 모델에게 "한국소비자원 참가격 통계를 조회합니다" 라고 말하고
+ * 있었다. 그 결과 아모라는 "웨딩홀 대관료 평균 알려줘" 에 **알 수 있는 것을
+ * 모른다고** 답했다(스테이징 실측).
+ *
+ * 업체 이름·식별자는 돌려주지 않는다. 이것은 통계이지 업체 추천이 아니다 —
+ * 업체 추천·예약은 별도의 보류 대상이고 그 경계를 이 도구가 넘지 않는다.
+ * 수치와 함께 **출처와 기준 시점을 항상** 돌려준다. 근거 없는 숫자는 아모라가
+ * 지어낸 것과 구별되지 않는다.
+ */
+export async function executeGetMarketPrice(
+  input: Record<string, unknown>,
+  client: SupabaseClient,
+): Promise<ToolExecutionResult> {
+  const category = typeof input.category === "string" ? input.category.trim() : "";
+  const region = typeof input.region === "string" ? input.region.trim() : "";
+
+  if (!MARKET_PRICE_CATEGORIES.has(category)) {
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: {
+        error: "unsupported_category",
+        supportedCategories: [...MARKET_PRICE_CATEGORIES],
+      },
+      success: false,
+      displayMessage:
+        "공시가 통계는 결혼식장·스튜디오·드레스·메이크업만 있어요. 어느 항목을 볼까요?",
+    };
+  }
+
+  const requestedItemType = typeof input.itemType === "string" ? input.itemType.trim() : "";
+  const itemType = category === "hall"
+      && (HALL_ITEM_TYPES as readonly string[]).includes(requestedItemType)
+    ? (requestedItemType as HallItemType)
+    : null;
+
+  let query = client
+    .from("v_public_official_prices")
+    .select("price_min_krw,price_max_krw,source_label,period_label,region_code,item_name")
+    .eq("is_current", true)
+    .eq("price_category", category);
+  if (region) query = query.eq("region_code", region);
+
+  const { data, error } = await query.limit(MARKET_PRICE_ROW_LIMIT);
+  if (error) {
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: { error: "price_lookup_failed" },
+      success: false,
+      displayMessage: "공시가를 불러오지 못했어요. 잠시 후 다시 확인해 주세요.",
+    };
+  }
+
+  const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+  const first = rows[0];
+  const source = typeof first?.source_label === "string" && first.source_label
+    ? first.source_label
+    : MARKET_PRICE_SOURCE_FALLBACK;
+  const period = typeof first?.period_label === "string" ? first.period_label : null;
+  const base = { category, region: region || null, source, period, publicPath: "/price" };
+
+  const emptyResult: ToolExecutionResult = {
+    toolName: "get_market_price",
+    toolInput: input,
+    toolOutput: {
+      ...base,
+      source: MARKET_PRICE_SOURCE_FALLBACK,
+      sampleCount: 0,
+      minKrw: null,
+      medianKrw: null,
+      maxKrw: null,
+    },
+    success: true,
+    // 없을 때도 출처는 밝힌다. 어디를 찾아봤는지 알아야 사용자가 다음을 정한다.
+    displayMessage:
+      `${MARKET_PRICE_SOURCE_FALLBACK} 공시가에는 해당 조건의 금액이 없어요. 금액을 임의로 말씀드리지 않을게요.`,
+  };
+
+  // 결혼식장인데 항목을 고르지 않았으면 **섞지 않고 유형별로 나눠서** 준다.
+  // 단일 중위값을 함께 주면 모델이 그걸 집어 쓰므로 아예 넣지 않는다.
+  if (category === "hall" && !itemType) {
+    const buckets = new Map<HallItemType, number[]>();
+    for (const row of rows) {
+      const type = hallItemTypeOf(row.item_name);
+      const midpoint = midpointOf(row);
+      if (!type || midpoint === null) continue;
+      buckets.set(type, [...(buckets.get(type) ?? []), midpoint]);
+    }
+    const breakdown = HALL_ITEM_TYPES
+      .map((type) => ({ itemType: type, stats: statsOf(buckets.get(type) ?? []) }))
+      .filter((entry): entry is { itemType: HallItemType; stats: PriceStats } => entry.stats !== null)
+      .map((entry) => ({
+        itemType: entry.itemType,
+        perPerson: PER_PERSON_HALL_ITEM_TYPES.has(entry.itemType),
+        ...entry.stats,
+      }));
+    if (breakdown.length === 0) return emptyResult;
+
+    return {
+      toolName: "get_market_price",
+      toolInput: input,
+      toolOutput: { ...base, breakdown },
+      success: true,
+      displayMessage:
+        `${source} 기준 결혼식장 공시가입니다. 항목마다 단위가 달라 따로 봅니다 — `
+        + breakdown
+          .map((entry) => (
+            `${entry.itemType}${entry.perPerson ? "(1인)" : ""} 중간값 `
+            + `${formatKrw(entry.medianKrw)} (${entry.sampleCount}건)`
+          ))
+          .join(", ")
+        + ". 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
+    };
+  }
+
+  const midpoints: number[] = [];
+  for (const row of rows) {
+    if (itemType && hallItemTypeOf(row.item_name) !== itemType) continue;
+    const midpoint = midpointOf(row);
+    if (midpoint !== null) midpoints.push(midpoint);
+  }
+
+  const stats = statsOf(midpoints);
+  if (!stats) return emptyResult;
+
+  const perPerson = itemType !== null && PER_PERSON_HALL_ITEM_TYPES.has(itemType);
+  const label = itemType ? `${itemType}${perPerson ? "(1인 기준)" : ""}` : null;
+
   return {
     toolName: "get_market_price",
     toolInput: input,
     toolOutput: {
-      status: "migrated_to_published_disclosures",
-      publicPath: "/price",
-      sourcePolicy: "reviewed_published_vendor_disclosures_only",
+      ...base,
+      ...(itemType ? { itemType, perPerson } : {}),
+      ...stats,
     },
     success: true,
     displayMessage:
-      "과거 고정 시세표는 종료했어요. 최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 함께 확인해 주세요.",
+      `${source} 기준 ${label ? `${label} ` : ""}공시가 ${stats.sampleCount}건: `
+      + `중간값 ${formatKrw(stats.medianKrw)}`
+      + ` (최소 ${formatKrw(stats.minKrw)} ~ 최대 ${formatKrw(stats.maxKrw)}).`
+      + " 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
   };
 }
 

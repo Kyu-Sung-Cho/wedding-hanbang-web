@@ -53,7 +53,10 @@ describe("탈퇴가 거부될 것을 미리 말한다", () => {
     ).toMatch(/ACCOUNT_DELETION_INTAKE_ENABLED/u);
     // 이름이 파일 어딘가에 있기만 하면 통과하던 판은 **잡지 못했다.**
     // 값을 만들어놓고 capabilities 에 안 넣어도 초록이었다. 반환 객체 안을 본다.
-    const literal = /const capabilities = \{[^}]*accountDeletionIntake[^}]*\}/u;
+    // main 이 `capabilities` 를 `baseCapabilities` 로 쪼갠 뒤 이 검사가 정확히
+    // 걸렸다 — 이름이 바뀌면 값이 안 실려도 통과하는 것을 막으려던 검사이므로
+    // 그게 제 역할이다. 이름은 둘 다 받되 **객체 리터럴 안**인지는 계속 본다.
+    const literal = /const (?:base)?[Cc]apabilities = \{[^}]*accountDeletionIntake[^}]*\}/u;
     expect(
       me,
       "`accountDeletionIntake` 가 capabilities 객체 안에 들어 있어야 합니다 — "

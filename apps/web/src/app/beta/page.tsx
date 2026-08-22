@@ -1,24 +1,25 @@
 import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Footer from "@/components/landing/Footer";
 import BetaForm from "./BetaForm";
-import { Check } from "lucide-react";
-import { getBetaCount, BETA_TOTAL } from "@/lib/beta-count";
+import { getBetaCount } from "@/lib/beta-count";
 import { PUBLIC_COUPLE_SUPPORT_NOTICES } from "@/constants/coupleRoleSupport";
 
 // 서버 페치 — 실제 신청 수 (ISR: 60초)
 export const revalidate = 60;
 
 export const metadata = {
-  title: "베타 신청 · 웨딩한방",
-  description: "아모라의 운영 검증에 참여할 베타 이용자를 모집합니다. 제공 기능, 이용 기간과 무료 상담 한도는 참여 전에 안내합니다.",
+  title: "사전등록 · 웨딩한방",
+  description: "웨딩한방 소식을 먼저 받아보세요. 계정은 지금 바로 만들 수 있고, 이 페이지는 사전등록입니다.",
 };
 
+// 이 페이지는 원래 "승인 후 참여"를 전제로 쓰여 있었다. 가입은 승인 관문 없이
+// 열려 있으므로 그 전제가 거짓이 됐다 — 기다릴 이유가 없는 사람을 대기열에
+// 세우고, 오지 않을 심사 회신을 기다리게 만든다. 사전등록으로 정정한다.
 const BENEFITS = [
-  "운영 검증을 마친 기능부터 먼저 사용",
+  "기능 변경과 정식 출시 소식을 이메일로 안내",
   "불편한 점과 필요한 기능을 제품팀에 전달",
-  "기능 변경과 정식 출시 소식 안내",
-  "제공 기능·이용 기간·무료 상담 한도를 참여 전 확인",
-  "추가 이용 방법·비용은 아직 미정 · 신청만으로 결제되지 않음",
+  "지금 바로 계정을 만들어 쓸 수도 있어요 · 승인을 기다리지 않아도 됩니다",
+  "추가 이용 방법·비용은 아직 미정 · 사전등록만으로 결제되지 않음",
 ];
 
 const CONDITIONS = [
@@ -29,8 +30,6 @@ const CONDITIONS = [
 
 export default async function BetaPage() {
   const current = await getBetaCount();
-  const progress = Math.min(100, (current / BETA_TOTAL) * 100);
-  const isFull = current >= BETA_TOTAL;
 
   return (
     <main className="min-h-screen bg-noir-800">
@@ -57,9 +56,9 @@ export default async function BetaPage() {
             <em className="not-italic text-rose-light">함께해 주실 분</em>을 찾습니다.
           </h1>
           <p className="text-white/70 text-[15px] md:text-[17px] leading-[1.9] font-light max-w-xl mt-8">
-            안전 검증을 마친 기능부터 사용해 보고,
+            계정은 지금 바로 만들 수 있어요.
             <br />
-            참여 전 제공 기능·이용 기간·무료 상담 한도를 정확히 안내받으세요.
+            아직 시작할 때가 아니라면, 소식만 먼저 받아보세요.
           </p>
         </div>
       </section>
@@ -118,15 +117,15 @@ export default async function BetaPage() {
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">02</span>
-                  이메일로 참여 가능 여부와 제공 기능·기간·무료 상담 한도 안내
+                  등록하신 주소로 접수 확인 메일 발송
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">03</span>
-                  안내를 확인한 뒤 참여 결정·동의 및 계정 사용 시작
+                  기능 변경·정식 출시 소식이 생기면 같은 주소로 안내
                 </li>
                 <li className="flex items-baseline gap-5">
                   <span className="font-display text-rose-light/60 text-sm w-7 shrink-0">04</span>
-                  사용 의견 전달 및 변경·종료 일정 확인
+                  기다리지 않고 지금 시작하려면 회원가입으로 바로 이용
                 </li>
               </ul>
             </div>
@@ -134,21 +133,10 @@ export default async function BetaPage() {
 
           {/* 우측: Form or Full */}
           <div className="lg:sticky lg:top-24">
-            {isFull ? (
-              <div className="border border-white/15 rounded-[28px] p-10 md:p-12 backdrop-blur-sm bg-white/[0.03]">
-                <Check className="w-8 h-8 text-rose-light mb-6" />
-                <h2 className="font-serif-kr text-[24px] md:text-[28px] text-white font-light leading-snug mb-4">
-                  현재 베타 신청이 <em className="not-italic text-rose-light">마감되었어요</em>
-                </h2>
-                <p className="text-white/70 text-[15px] leading-[1.8] font-light mb-6">
-                  많은 관심 감사드립니다.
-                  <br />
-                  베타 종료 후 정식 출시 소식을 전해드릴게요.
-                </p>
-              </div>
-            ) : (
-              <BetaForm current={current} total={BETA_TOTAL} progress={progress} />
-            )}
+            {/* 사전등록이 50건을 넘으면 "마감되었어요"로 문을 닫고 있었다.
+                정원이 없으므로 마감될 것도 없고, 계정은 승인 없이 바로 만들 수
+                있다. 없는 마감으로 사람을 돌려보내지 않는다. */}
+            <BetaForm current={current} />
           </div>
         </div>
       </section>

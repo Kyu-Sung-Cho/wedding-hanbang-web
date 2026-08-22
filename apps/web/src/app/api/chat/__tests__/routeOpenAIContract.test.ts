@@ -1842,6 +1842,20 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it("renders NAVER results over SSE but never stores or forwards provider content", async () => {
+    // 2026-08-22부터 라우트는 **지금 쓸 수 없는 도구를 모델에게 주지 않는다**
+    // (`isPlaceSearchConfigured()`). 자격증명이 없으면 장소 검색이 도구 목록에서
+    // 빠지므로, NAVER 렌더링 계약을 확인하려면 설정된 상태를 만들어야 한다.
+    const savedId = process.env.NAVER_API_HUB_CLIENT_ID;
+    const savedSecret = process.env.NAVER_API_HUB_CLIENT_SECRET;
+    process.env.NAVER_API_HUB_CLIENT_ID = "test-hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "test-hub-secret";
+    const restoreNaverEnv = () => {
+      if (savedId === undefined) delete process.env.NAVER_API_HUB_CLIENT_ID;
+      else process.env.NAVER_API_HUB_CLIENT_ID = savedId;
+      if (savedSecret === undefined) delete process.env.NAVER_API_HUB_CLIENT_SECRET;
+      else process.env.NAVER_API_HUB_CLIENT_SECRET = savedSecret;
+    };
+
     const placeTool = {
       name: "search_nearby_places",
       description: "Search NAVER places",
@@ -1943,6 +1957,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(persistedPayload).not.toContain("pstatic.net");
     } finally {
       mocks.safeTools.pop();
+      restoreNaverEnv();
     }
   });
 
@@ -5738,13 +5753,20 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const secondRequestKey = mocks.claim.mock.calls[1]?.[0]?.requestKey;
     expect(firstRequestKey).toBe(secondRequestKey);
     expect(firstRequestKey).not.toContain("aaaaaaaa");
-    expect(mocks.atomicResponses).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          confirmed_amora_action_id: actionId,
-        }),
-      }),
-    ]));
+    // 여기서 예전에는 아모라 응답 metadata 에 `confirmed_amora_action_id` 가
+    // **있어야 한다**고 단언했다. 정반대였다.
+    //
+    // 그 키는 **사용자 확인 행의 표식**이고, DB 트리거는 그 키를 가진 행을 확인 행으로
+    // 보고 `role <> 'user'` 이면 거부한다(AMORA_SHARED_ACTION_CONFIRMATION_INVALID,
+    // 22023). 이 테스트는 DB 를 모킹하므로 트리거가 돌지 않았고, 그래서
+    // **운영에서 확정 실행 턴의 응답이 한 번도 커밋되지 못하는 동안 초록불이었다**
+    // (2026-08-22 스테이징에서 4/4 재현: 예산은 바뀌는데 아모라는 말이 없다).
+    expect(mocks.atomicResponses.length).toBeGreaterThan(0);
+    for (const response of mocks.atomicResponses) {
+      expect(
+        (response as { metadata?: Record<string, unknown> }).metadata ?? {},
+      ).not.toHaveProperty("confirmed_amora_action_id");
+    }
   });
 
   it("rejects a high-impact action before cost or mutation when both confirmations are absent", async () => {

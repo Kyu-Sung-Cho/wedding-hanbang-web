@@ -147,17 +147,26 @@ describe("login return journey", () => {
 
     expect(container.textContent).toContain("방금 본 준비를 이어갈게요.");
     expect(container.textContent).toContain("입력창에서 확인한 뒤 직접 보낼 수 있어요");
-    expect(container.textContent).toContain("제공 기능·이용 기간·무료 상담 한도");
-    expect(container.textContent).toContain("신청만으로 결제되지 않아요");
+    // /beta 승인 대기열을 가리키던 문구였다. 가입이 열린 뒤로는 승인 절차가 없다.
+    expect(container.textContent).toContain("지금은 가입에 승인 절차가 없고 결제도 요청하지 않아요");
+    expect(container.textContent).toContain("서비스 전체에 하루 상한이 있어서");
 
-    const kakaoButton = [...container.querySelectorAll("button")]
-      .find((button) => button.textContent?.trim() === "카카오");
+    // ⚠️ 이 단언은 카카오 버튼을 앵커로 삼고 있었다. 카카오가 게이트 뒤로
+    // 들어가 화면에서 사라진 뒤에도 **조용히 통과했다** — `.find()` 가
+    // undefined 를 돌려주는데 `expect(undefined).not.toBeNull()` 은 통과하고,
+    // `?? Node.DOCUMENT_POSITION_FOLLOWING` 폴백이 기대값을 그대로 만들어 줬다.
+    // 원탭 버튼이 화면에 0개여도 초록불이었다.
+    //
+    // 앵커를 실제로 렌더되는 버튼으로 바꾸고, `toBeDefined()` 와 폴백 제거로
+    // 앵커가 없으면 실패하게 만든다. 카카오가 안 보이는 것 자체는
+    // socialProviderRender.test.tsx 가 렌더 수준에서 지킨다.
+    const oneTapButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.trim() === "Google");
     const emailInput = container.querySelector('input[type="email"]');
-    expect(kakaoButton).not.toBeNull();
+    expect(oneTapButton).toBeDefined();
     expect(emailInput).not.toBeNull();
     expect(
-      kakaoButton?.compareDocumentPosition(emailInput as Node)
-        ?? Node.DOCUMENT_POSITION_FOLLOWING,
+      oneTapButton!.compareDocumentPosition(emailInput as Node),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 
@@ -205,6 +214,15 @@ describe("login return journey", () => {
       setInput(passwordInputs[1], "Strong1!");
     });
 
+    // 필수 동의 없이는 가입이 시작되지 않는다(가입 동의 테스트가 따로 고정한다).
+    // 동의 항목은 진짜 체크박스다 — 버튼이 아니다.
+    for (const key of ["terms", "privacy"]) {
+      const box = container.querySelector<HTMLInputElement>(`#signup-consent-${key}`);
+      await act(async () => {
+        box?.click();
+      });
+    }
+
     await act(async () => {
       container.querySelector("form")?.dispatchEvent(
         new Event("submit", { bubbles: true, cancelable: true }),
@@ -215,6 +233,9 @@ describe("login return journey", () => {
     const requestInit = vi.mocked(fetch).mock.calls[0]?.[1];
     expect(JSON.parse(String(requestInit?.body))).toMatchObject({
       redirect: START_HERE_REDIRECT,
+      termsAgreed: true,
+      privacyAgreed: true,
+      marketingAgreed: false,
     });
     expect(container.textContent).toContain("같은 브라우저에서 인증하면 아모라 화면으로 이어져요");
   });

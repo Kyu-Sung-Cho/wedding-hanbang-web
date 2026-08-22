@@ -44,6 +44,25 @@ function mobileRequest(path: string, body: unknown) {
   });
 }
 
+/**
+ * 메일에 **실제로 실린** 인증 링크.
+ *
+ * 예전에는 `generateLink(options.redirectTo)` 를 봤다. 그 인자는 Supabase 가
+ * 만드는 링크의 목적지였는데, 그 링크 자체가 결과를 해시로 돌려줘 서버에서
+ * 쓸 수 없었다(2026-08-22). 이제 링크는 우리가 만들어 메일에 넣으므로,
+ * 사용자가 누르는 그 URL 을 직접 본다.
+ */
+function confirmLinkFromSentEmail(): URL {
+  const html = String(mocks.send.mock.calls[0]?.[0]?.html ?? "");
+  // 정규식을 쓰지 않는다 — 이 저장소에서 이스케이프가 깨진 정규식이 조용히
+  // 다른 것을 매칭한 적이 있다. 경계 문자로 자르는 편이 눈으로 검증된다.
+  const start = html.indexOf("https://hanbang.ai/api/auth/confirm");
+  if (start === -1) throw new Error("보낸 메일에 인증 링크가 없다");
+  let end = start;
+  while (end < html.length && !['"', "'", "<", " ", "\n"].includes(html[end])) end += 1;
+  return new URL(html.slice(start, end).replace(/&amp;/g, "&"));
+}
+
 function rawMobileRequest(path: string, body: string) {
   return new Request(`https://hanbang.ai/api/auth/${path}`, {
     method: "POST",
@@ -61,7 +80,7 @@ describe("mobile Turnstile boundary", () => {
     mocks.verifyTurnstile.mockResolvedValue({ ok: false, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.generateLink.mockResolvedValue({
-      data: { properties: { action_link: "https://example.test/action" } },
+      data: { properties: { hashed_token: "tok_test" } },
       error: null,
     });
     mocks.createAdminClient.mockReturnValue({
@@ -75,6 +94,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
     }));
 
     expect(response.status).toBe(400);
@@ -133,6 +156,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
     }));
 
@@ -148,14 +175,17 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
       redirect: "/wedding/chat",
     }));
 
-    const redirectTo = mocks.generateLink.mock.calls[0]?.[0]?.options?.redirectTo;
-    const callback = new URL(redirectTo);
-    expect(callback.pathname).toBe("/api/auth/callback");
-    expect(callback.searchParams.get("redirect")).toBe("/wedding/chat");
+    const confirmLink = confirmLinkFromSentEmail();
+    expect(confirmLink.pathname).toBe("/api/auth/confirm");
+    expect(confirmLink.searchParams.get("redirect")).toBe("/wedding/chat");
   });
 
   it("drops an external post-signup destination from the email confirmation callback", async () => {
@@ -165,15 +195,19 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
       redirect: "https://attacker.example/steal",
     }));
 
-    const redirectTo = mocks.generateLink.mock.calls[0]?.[0]?.options?.redirectTo;
-    const callback = new URL(redirectTo);
-    expect(callback.pathname).toBe("/api/auth/callback");
-    expect(callback.searchParams.has("redirect")).toBe(false);
-    expect(redirectTo).not.toContain("attacker.example");
+    const confirmLink = confirmLinkFromSentEmail();
+    expect(confirmLink.origin).toBe("https://hanbang.ai");
+    expect(confirmLink.pathname).toBe("/api/auth/confirm");
+    expect(confirmLink.searchParams.has("redirect")).toBe(false);
+    expect(confirmLink.href).not.toContain("attacker.example");
   });
 
   it("does not expose a raw signup provider failure", async () => {
@@ -188,6 +222,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
     }));
     const body = await response.json();

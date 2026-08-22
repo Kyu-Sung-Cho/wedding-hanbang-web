@@ -26,7 +26,16 @@ function authenticatedClient(onboardingCompleted = true) {
     auth: {
       exchangeCodeForSession: vi.fn().mockResolvedValue({ error: null }),
       getUser: vi.fn().mockResolvedValue({
-        data: { user: { id: "00000000-0000-4000-8000-000000000001" } },
+        data: {
+          user: {
+            id: "00000000-0000-4000-8000-000000000001",
+            // 동의 기록이 없으면 콜백이 /consent 로 돌려세운다(소셜 로그인
+            // 계정을 막는 관문). 이 파일이 지키려는 것은 리다이렉트 안전성과
+            // 온보딩 순서이므로, 그 관문은 통과시켜 놓고 본다.
+            // 관문 자체는 socialConsentGate.test.ts 가 고정한다.
+            user_metadata: { terms_agreed: true, privacy_agreed: true },
+          },
+        },
       }),
     },
     from: vi.fn(() => ({

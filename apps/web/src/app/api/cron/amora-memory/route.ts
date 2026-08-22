@@ -196,11 +196,40 @@ async function processJob(
   }
   let compilation: Awaited<ReturnType<typeof compileAmoraMemory>>;
   try {
+    // 이미 쓰고 있는 키를 모델에게 보여준다. 안 보여주면 같은 주제에 새 키를
+    // 지어내 옛 값과 새 값이 **둘 다 활성**으로 남는다(2026-08-22 스테이징 실측:
+    // `guest_count:expected` "200명 정도" 와 `guest_count:total` "300명",
+    // `ceremony:venue_type` "실내" 와 `venue:format` "야외"). DB 의 유니크 색인은
+    // 같은 키만 막을 수 있고, 다른 키로 들어오면 막을 방법이 없다.
+    //
+    // 이 조회가 실패해도 **작업을 죽이지 않는다.** 키 목록은 정확도를 높이는
+    // 보조 자료이지 컴파일의 전제가 아니다. 실패했다고 기억을 통째로 못 만들면
+    // 보조 자료 하나 때문에 기능이 멈춘다.
+    let existingMemoryKeys: string[] = [];
+    try {
+      const { data: existingKeyRows, error: existingKeyError } = await admin
+        .from("decision_nodes")
+        .select("memory_key")
+        .eq("couple_id", job.couple_id)
+        .eq("visibility", job.visibility)
+        .is("superseded_at", null)
+        .not("memory_key", "is", null)
+        .order("updated_at", { ascending: false })
+        .limit(200);
+      if (existingKeyError) throw existingKeyError;
+      existingMemoryKeys = (existingKeyRows ?? [])
+        .map((row) => (row as { memory_key?: unknown }).memory_key)
+        .filter((key): key is string => typeof key === "string");
+    } catch {
+      console.warn("[amora-memory-cron] existing memory keys unavailable");
+    }
+
     compilation = await compileAmoraMemory({
       coupleId: job.couple_id,
       userId: job.user_id,
       visibility: job.visibility,
       messages: batch.messages,
+      existingMemoryKeys,
       // 예산 초과로 미룰 작업이면 대화 원문이 토큰 계산 요청으로도 나가면 안 된다.
       // 그래서 같은 검사를 모든 provider 요청 앞에서 한 번 더 건다.
       beforeProviderEgress: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),

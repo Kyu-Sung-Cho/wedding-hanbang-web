@@ -8,6 +8,18 @@ import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
+import SignupConsent from "@/components/auth/SignupConsent";
+import { authErrorMessage } from "@/lib/auth/authErrorMessages";
+import {
+  hasAnyWebOAuthProvider,
+  isWebOAuthProviderEnabled,
+} from "@/lib/auth/oauthProviders";
+import {
+  EMPTY_SIGNUP_CONSENT,
+  buildSignupConsentSubmission,
+  isSignupConsentComplete,
+  type SignupConsentState,
+} from "@hanbang/shared";
 import { loginModeFromSearch, type LoginMode } from "@/lib/auth/loginMode";
 import {
   buildOAuthCallbackUrl,
@@ -73,6 +85,9 @@ export default function LoginPage() {
   const [touched, setTouched] = useState({ name: false, email: false, password: false, passwordConfirm: false });
   const [turnstileToken, setTurnstileToken] = useState("");
   const [cameFromStartHere, setCameFromStartHere] = useState(false);
+  // 가입 동의. 로그인·비밀번호 찾기 모드에서는 쓰지 않는다.
+  const [consent, setConsent] = useState<SignupConsentState>(EMPTY_SIGNUP_CONSENT);
+  const consentComplete = isSignupConsentComplete(consent);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -115,16 +130,23 @@ export default function LoginPage() {
     const hashError = hashParams.get("error");
     const hashDescription = hashParams.get("error_description");
 
-    if (hashDescription) {
-      setError(`로그인 오류: ${decodeURIComponent(hashDescription.replace(/\+/g, " "))}`);
-    } else if (hashError) {
-      setError(`로그인 오류: ${decodeURIComponent(hashError)}`);
-    } else if (callbackError) {
-      setError(`로그인 오류: ${decodeURIComponent(callbackError)}`);
-    }
+    // ⚠️ 예전에는 이 값들을 **그대로** 화면에 붙였다. 그래서 "로그인 오류: no_code"
+    // 같은 내부 표현이 사용자에게 노출됐고, 값이 URL 에서 오므로 링크만 보내면
+    // 누구나 이 화면에 아무 문장이나 띄울 수 있었다. 아는 코드만 우리말로 옮기고
+    // 원문은 화면에 올리지 않는다. `error_description` 은 Supabase 가 붙이는
+    // 영문 설명이라 표시 대상이 아니다 — 존재 여부만 실패 신호로 쓴다.
+    const failure = hashError ?? (hashDescription ? "verify_failed" : null) ?? callbackError;
+    const message = authErrorMessage(failure);
+    if (message) setError(message);
   }, []);
 
   const handleOAuth = async (provider: "kakao" | "google" | "apple") => {
+    // 소셜 경로도 계정을 만든다. 가입 모드에서 필수 동의 없이 시작하면
+    // 동의 기록 없는 계정이 생긴다.
+    if (mode === "signup" && !consentComplete) {
+      setError("이용약관과 개인정보 처리방침에 동의해주세요.");
+      return;
+    }
     setLoading(provider);
     setError("");
     // 실제 로그인 시작 시 데모 모드 쿠키 제거
@@ -198,6 +220,14 @@ export default function LoginPage() {
       const supabase = createClient();
 
       if (mode === "signup") {
+        // 버튼이 잠겨 있어 보통은 닿지 않는다. 그래도 여기서 먼저 막는다 —
+        // 아래 buildSignupConsentSubmission 이 던지면 그 식별자가
+        // "오류: SIGNUP_CONSENT_REQUIRED" 로 사용자에게 그대로 보인다.
+        if (!consentComplete) {
+          setError("이용약관과 개인정보 처리방침에 동의해주세요.");
+          setLoading(null);
+          return;
+        }
         // 서버 API로 회원가입 (Supabase Admin + Resend 이메일 발송)
         captureEvent("signup_started", {
           method: "email",
@@ -211,6 +241,7 @@ export default function LoginPage() {
             password,
             name,
             turnstileToken,
+            ...buildSignupConsentSubmission(consent),
             redirect: new URLSearchParams(window.location.search).get("redirect"),
           }),
         });
@@ -353,12 +384,14 @@ export default function LoginPage() {
                     같은 브라우저에서 30분 안에 이 가입 흐름을 마치면, 임시로 남긴 첫 질문을 입력창에서 확인한 뒤 직접 보낼 수 있어요. 다른 기기나 다른 로그인 경로에서는 날짜를 다시 확인해 주세요.
                   </p>
                   <p className="mt-2 text-[12px] leading-5 text-[#4E6A62]">
-                    계정 베타의 제공 기능·이용 기간·무료 상담 한도는 참여 안내에서 먼저 확인할 수 있어요. 추가 이용 방법과 비용은 아직 정해지지 않았고, 신청만으로 결제되지 않아요.
+                    지금은 가입에 승인 절차가 없고 결제도 요청하지 않아요. 다만 아모라 상담은 서비스 전체에 하루 상한이 있어서, 그날 상한에 닿으면 다음 날 이어서 쓰도록 안내해요. 추가 이용 방법과 비용은 아직 정해지지 않았어요.
                   </p>
                 </div>
               ) : null}
 
-              {mode !== "forgot" ? (
+              {/* provider 가 하나도 안 켜져 있으면 "빠르게 로그인하기" 제목과
+                  구분선만 덩그러니 남는다. 자리째 감춘다. */}
+              {mode !== "forgot" && hasAnyWebOAuthProvider() ? (
                 <>
                   <div className="mb-5 flex items-center gap-4">
                     <div className="h-px flex-1 bg-platinum" />
@@ -369,6 +402,10 @@ export default function LoginPage() {
                   </div>
 
                   <div className="mb-5 flex gap-3">
+                    {/* 카카오는 운영 Supabase 에서 꺼져 있다(authorize -> 400
+                        "provider is not enabled"). 눌러도 동작하지 않는 버튼은
+                        없는 것보다 나쁘다 — 모바일이 이미 같은 규칙을 쓴다. */}
+                    {isWebOAuthProviderEnabled("kakao") ? (
                     <button
                       onClick={() => handleOAuth("kakao")}
                       disabled={loading !== null}
@@ -379,6 +416,8 @@ export default function LoginPage() {
                       </svg>
                       카카오
                     </button>
+                    ) : null}
+                    {isWebOAuthProviderEnabled("google") ? (
                     <button
                       onClick={() => handleOAuth("google")}
                       disabled={loading !== null}
@@ -392,6 +431,8 @@ export default function LoginPage() {
                       </svg>
                       Google
                     </button>
+                    ) : null}
+                    {isWebOAuthProviderEnabled("apple") ? (
                     <button
                       onClick={() => handleOAuth("apple")}
                       disabled={loading !== null}
@@ -402,6 +443,7 @@ export default function LoginPage() {
                       </svg>
                       Apple
                     </button>
+                    ) : null}
                   </div>
 
                   <div className="mb-5 flex items-center gap-4">
@@ -528,6 +570,16 @@ export default function LoginPage() {
                   </div>
                 )}
 
+                {/* 필수 동의 — 이 화면에는 약관·처리방침 링크가 하나도 없었다.
+                    가입 버튼과 소셜 버튼 양쪽이 이 상태를 본다. */}
+                {mode === "signup" && (
+                  <SignupConsent
+                    value={consent}
+                    onChange={setConsent}
+                    disabled={loading !== null}
+                  />
+                )}
+
                 {/* 봇 확인 — 이메일 발송 표면(회원가입·비밀번호 찾기)에 노출 */}
                 {(mode === "signup" || mode === "forgot") && TURNSTILE_ENABLED && (
                   <TurnstileWidget
@@ -551,7 +603,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
+                  disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || !consentComplete || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
                   className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#36534E] to-[#2B423E] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"

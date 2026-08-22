@@ -46,11 +46,44 @@ describe("legal pages reflect the current product", () => {
     expect(terms).not.toContain("홍보, 개선의 목적으로 해당 콘텐츠를 무상");
   });
 
-  it("does not pretend unverified retention and overseas processing are complete", () => {
+  it("does not pretend unverified retention is complete", () => {
     expect(privacy).toContain("출시 전에 확정하여 고지");
-    expect(privacy).toContain("별도 국외 이전 고지가 완료되기 전에는");
     expect(privacy).toContain("질문·답변·첨부 파일·도구 입력값 원문을 복제하지 않습니다");
     expect(privacy).not.toContain("웹사이트 방문 기록: <strong>3개월</strong>");
+  });
+
+  // ⚠️ 여기 있던 단언은 `expect(privacy).toContain("별도 국외 이전 고지가 완료되기
+  // 전에는")` 이었다. 그 문장의 전문은 "…국외 이전 기능을 운영 환경에서 켜지
+  // 않습니다" 인데, 프로덕션에는 미국 PostHog·Sentry 가 켜져 있었고 원본 DB 도
+  // 국외에 있다. **테스트가 거짓 문장을 붙잡아 두고 있었다.**
+  //
+  // 그래서 문장을 고정하는 대신 **약속과 현실이 어긋나는지**를 본다.
+  it("국외 이전을 하면서 '안 켰다'고 말하지 않는다", () => {
+    for (const falseClaim of [
+      "국외 이전 기능을 운영 환경에서 켜지 않습니다",
+      "국외로 이전하지 않습니다",
+      "국외 이전은 하지 않습니다",
+    ]) {
+      expect(privacy, falseClaim).not.toContain(falseClaim);
+    }
+    // 실제로 일어나는 일을 말하고, 원치 않는 사람이 할 수 있는 것을 준다.
+    expect(privacy).toContain("개인정보가 국외로 이전됩니다");
+    expect(privacy).toContain("국외 이전을 원하지 않으시면");
+  });
+
+  it("탈퇴 창구를 앱이 실제로 여는 곳과 같게 말한다", () => {
+    // 접수 스위치가 꺼져 있으면 앱은 "support@hanbang.ai 로 요청해 주세요"라고
+    // 답한다(api/auth/delete/route.ts). 문서만 "설정 페이지에서"라고 말하면
+    // 사용자는 없는 버튼을 찾아다닌다.
+    const intakeOpen = process.env.ACCOUNT_DELETION_INTAKE_ENABLED === "true";
+    if (intakeOpen) return;
+
+    for (const doc of [terms, privacy]) {
+      expect(doc).not.toContain("설정 페이지에서 탈퇴");
+      expect(doc).not.toContain("설정 페이지에서 탈퇴를 신청");
+    }
+    expect(terms).toContain("고객센터");
+    expect(privacy).toContain("탈퇴는 현재 고객센터");
   });
 
   it("keeps the obsolete contact-collecting research survey closed", () => {

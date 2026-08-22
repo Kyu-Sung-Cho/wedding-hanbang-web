@@ -59,7 +59,11 @@ function CommunityFooter() {
           title="둘러보기"
           items={[
             { label: "후기·질문", href: weddingPath("/community#community-feed") },
-            { label: "가격·후기", href: weddingPath("/community?category=tour_review&search=견적&feed=all#community-feed") },
+            // "가격·후기"를 뺐다. `category=tour_review` 공개 글이 0건이라 구조적으로
+            // 항상 빈 화면이었다(라이브 확인). 게다가 그 검색어가 아래 피드까지 덮어서,
+            // "아래 최신 글은 계속 볼 수 있어요"라고 말한 뒤 아래도 비어 있었다.
+            // 같은 파일 위쪽 주석의 원칙 그대로다: 있는 척하는 링크는 신뢰를 깎는다.
+            // 커뮤니티 글은 바로 위 "후기·질문"이 이미 덮는다.
             { label: "동기방", href: weddingPath("/community/cohort") },
             { label: "글쓰기", href: weddingPath("/community/post/write") },
             { label: "북마크", href: weddingPath("/community/my/bookmarks") },

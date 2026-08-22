@@ -41,6 +41,7 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
+import { ACCOUNT_DELETION_FACTS } from "@/constants/accountDeletionPolicy";
 import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,
@@ -1093,7 +1094,7 @@ export default function SettingsPage() {
           <span className="min-w-0 flex-1">
             <span className="block text-[17px] font-medium text-[#243832]">아모라가 기억하는 것</span>
             <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
-              기억을 켜거나 끄고, 잘못 이해한 내용은 직접 고치거나 지울 수 있어요
+              아모라가 무엇을 기억하는지 보고, 잘못 이해한 내용은 고치거나 지울 수 있어요
             </span>
           </span>
           <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
@@ -1248,10 +1249,8 @@ export default function SettingsPage() {
               <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
                 정말 탈퇴하시겠어요?
               </h3>
-              <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-6">
+              <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-5">
                 계정과 직접 소유한 데이터 삭제를 요청합니다.
-                <br />
-                안전 확인이 필요한 경우 완료까지 시간이 걸릴 수 있어요.
               </p>
 
               {deletionIntakeOpen !== true && (
@@ -1263,8 +1262,41 @@ export default function SettingsPage() {
                 </p>
               )}
 
+              {/* 되돌릴 수 없는 행동 앞에서는 무엇이 지워지고 무엇이 남는지
+                  먼저 보여준다. 특히 "파트너 화면에는 남는다"는 사실은
+                  사람이 놀라는 자리다. */}
+              <div className="mb-5 rounded-xl bg-[#F6F3F2] px-4 py-4">
+                <p className="text-[13px] font-medium text-[#504444] mb-2.5">
+                  탈퇴하면 이렇게 돼요
+                </p>
+                <ul className="space-y-2">
+                  {ACCOUNT_DELETION_FACTS.map((fact) => (
+                    <li
+                      key={fact.key}
+                      className={`text-[12px] leading-[1.6] ${
+                        fact.emphasis ? "font-medium text-[#504444]" : "text-[#928980]"
+                      }`}
+                    >
+                      {fact.text}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-3 text-[11px] text-[#928980]">
+                  자세한 내용은{" "}
+                  <a href="/privacy" target="_blank" rel="noreferrer" className="underline">
+                    개인정보 처리방침
+                  </a>
+                  과{" "}
+                  <a href="/terms" target="_blank" rel="noreferrer" className="underline">
+                    이용약관
+                  </a>
+                  에 있어요.
+                </p>
+              </div>
+
               {deletionIntakeOpen === true && (
               <>
+
               {/* 탈퇴 사유 */}
               <div className="mb-5">
                 <p className="text-sm text-[#504444] mb-3">탈퇴 사유를 선택해주세요</p>

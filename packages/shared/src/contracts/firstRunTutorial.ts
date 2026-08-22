@@ -96,7 +96,7 @@ export const FIRST_RUN_TUTORIAL_STEPS: readonly FirstRunTutorialStep[] = [
   {
     id: "amora-fab",
     title: "막히면 아모라에게",
-    body: "무엇부터 할지 모르겠을 때 여기를 누르세요. 방금 아모라가 먼저 말을 걸어뒀어요.",
+    body: "무엇부터 할지 모르겠을 때 여기를 누르세요. 안내를 마치면 아모라가 먼저 말을 걸어요.",
     optional: false,
   },
 ] as const;

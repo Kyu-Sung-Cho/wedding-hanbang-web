@@ -20,3 +20,4 @@ export * from "./contracts/firstRunTutorial";
 export * from "./contracts/amoraFirstHello";
 export * from "./contracts/loungeFirstRun";
 export * from "./contracts/neutralPreparationSpace";
+export * from "./contracts/signupConsent";

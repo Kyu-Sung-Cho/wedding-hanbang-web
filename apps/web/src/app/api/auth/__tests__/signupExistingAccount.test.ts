@@ -70,3 +70,37 @@ describe("계정이 있는지 밖에서 알 수 없어야 한다", () => {
     expect(source).toMatch(/sendExistingAccountNotice[\s\S]*?Promise<void>/u);
   });
 });
+
+// 동의 없이 만들어진 계정이 문제였다. 검사가 계정 생성보다 **앞**에 있어야
+// 하고, 동의 사실이 실제로 기록돼야 한다.
+describe("필수 동의 없이는 계정을 만들지 않는다", () => {
+  it("동의 검사가 계정 생성보다 먼저 온다", () => {
+    // 파일 위쪽 sendExistingAccountNotice 도 generateLink 를 쓴다(type: "recovery").
+    // 계정을 만드는 쪽은 type: "signup" 하나뿐이므로 그것을 지목한다.
+    const consentAt = source.indexOf("parseSignupConsent(body)");
+    const createAt = source.indexOf('type: "signup"');
+    expect(consentAt).toBeGreaterThan(-1);
+    expect(createAt).toBeGreaterThan(-1);
+    expect(consentAt).toBeLessThan(createAt);
+  });
+
+  it("동의가 없으면 400 으로 되돌린다", () => {
+    expect(source).toMatch(
+      /if \(!consent\)[\s\S]{0,400}SIGNUP_CONSENT_REQUIRED[\s\S]{0,200}status: 400/u,
+    );
+  });
+
+  it("동의 기록을 손으로 만들지 않고 공유 빌더를 쓴다", () => {
+    // 기록의 모양(terms_agreed·privacy_agreed·consent_policy_version·
+    // consent_agreed_at)은 packages/shared 의 buildSignupConsentRecord 가
+    // 만든다. 소셜 경로(/api/auth/consent)도 같은 빌더를 쓰므로, 두 경로가
+    // 갈라지면 관문이 저장된 동의를 못 읽는다.
+    //
+    // 실제 저장 값은 signupConsentBoundary.test.ts 가 라우트를 **실행해서**
+    // 확인한다. 여기서는 손으로 지은 기록이 끼어들지 않는지만 본다.
+    expect(source).toContain("buildSignupConsentRecord(consent,");
+    for (const handwritten of ["terms_agreed:", "privacy_agreed:", "consent_agreed_at:"]) {
+      expect(source, `${handwritten} 를 손으로 짓고 있다`).not.toContain(handwritten);
+    }
+  });
+});

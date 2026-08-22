@@ -22,7 +22,7 @@ export default function TermsPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">서비스 이용약관</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 7월 30일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 22일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -130,8 +130,11 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (회원 탈퇴 및 자격 상실)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원은 언제든지 설정 페이지에서 탈퇴를 신청할 수 있습니다.</li>
+              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. 현재는 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.</li>
               <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한되고 계정 삭제 절차가 시작됩니다. 임시 파일 접근 링크가 만료되고 파일 소유권과 삭제 대상을 확인한 뒤, 더 이상 필요하지 않은 개인정보를 지체 없이 파기합니다. 처리 범위와 기간은 개인정보 처리방침을 따릅니다.</li>
+              <li>계정 삭제는 되돌릴 수 없습니다. 같은 이메일로 다시 가입하더라도 이전 기록은 복구되지 않습니다.</li>
+              <li>연결된 파트너가 있는 경우, 두 사람이 함께 만든 준비 기록과 주고받은 대화는 남은 파트너의 화면에 그대로 유지되고 탈퇴한 회원의 식별 정보만 제거됩니다. 남은 파트너도 자신의 기록에 대해 같은 권리를 가집니다.</li>
+              <li>회원이 등록한 업체가 있는 경우에는 해당 업체를 먼저 정리해야 탈퇴할 수 있습니다.</li>
               <li>운영자는 회원이 법령이나 본 약관을 중대하게 위반한 경우 원칙적으로 이유와 소명 기회를 알린 뒤 이용을 제한하거나 이용계약을 해지할 수 있습니다. 긴급한 피해 방지가 필요한 경우 먼저 제한하고 뒤에 알릴 수 있습니다.</li>
             </ol>
           </section>
@@ -169,7 +172,7 @@ export default function TermsPage() {
           ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 약관은 2026년 7월 30일부터 시행합니다.</p>
+            <p className="text-[13px] text-taupe-400">부칙: 본 약관은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제10조 3~5항: 계정 삭제의 불가역성, 파트너 기록 유지 범위, 업체 등록 회원의 탈퇴 제한)은 회원의 권리를 제한하지 않는 설명 사항으로 같은 날부터 적용합니다.</p>
           </section>
         </div>
       </div>

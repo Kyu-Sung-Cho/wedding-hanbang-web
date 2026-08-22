@@ -50,7 +50,7 @@ import {
   resolveCoupleConnectionState,
   type CoupleInviteWindowNotice,
 } from "@hanbang/shared";
-import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
+import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus } from "@/utils/checklist";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
@@ -149,9 +149,17 @@ const statusMeta: Record<Status, { label: string; tone: string; dot: string }> =
 };
 
 function getStatus(progress: Record<string, ProgressItem>, key: string): Status {
-  const status = progress[key]?.status;
-  if (status === "completed" || status === "in_progress" || status === "not_started" || status === "not_applicable") return status;
-  return "not_started";
+  const saved = progress[key];
+  const status = saved?.status;
+  // 저장값은 템플릿에 항목이 늘면 낡는다. `:261`이 완료된 분야를 "지금 먼저 볼 것"에서
+  // 빼므로, 낡은 채로 두면 새 항목이 숨는다. 근거는 `resolvePlanningChecklistStatus` 참고.
+  const template = CHECKLIST_MAP[key];
+  if (!template) {
+    return status === "completed" || status === "in_progress" || status === "not_started" || status === "not_applicable"
+      ? status
+      : "not_started";
+  }
+  return resolveStatus(template.items, saved);
 }
 
 function getChecklistProgress(progress: Record<string, ProgressItem>, key: string) {
