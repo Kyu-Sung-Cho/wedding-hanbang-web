@@ -105,3 +105,60 @@ describe("서버 확인문을 흉내 낸 가짜 카드는 사용자에게 가지
     expect(result.cleanText).toBe(text);
   });
 });
+
+/**
+ * 2026-08-22 두 번째 관측. 모델은 서버 문장을 **베끼지 않고** 제 말로 확인을
+ * 약속하기도 한다 — "총 예산을 7,000만 원으로 바꾸는 것으로 이해했어요.
+ * 확인해 주시면 적용할게요." 표식이 없으니 사용자가 "확인"이라고 답해도 실행할
+ * action_id 가 없다.
+ *
+ * 이것을 걷어내야 하는 두 번째 이유는 이력이다. 같은 프롬프트로 이력만 바꿔
+ * 10회씩 측정:
+ *
+ *     12턴 모두 표식 있음        표식 10/10
+ *     마지막 1턴만 표식 없음      표식  8/10
+ *     마지막 2턴                표식  4/10
+ *     마지막 3턴                표식  0/10
+ *
+ * 연속 세 번이면 그 대화는 끝난다. 실패한 턴을 확인 문장 모양으로 남겨 두면
+ * 다음 실패를 부른다.
+ */
+describe("제 말로 지어낸 확인 약속", () => {
+  it.each([
+    "총 예산을 **7,000만 원**으로 바꾸는 것으로 이해했어요. 확인해 주시면 적용할게요.",
+    "총 예산을 6,900만 원으로 변경할까요? 확인해 주시면 바로 반영할게요.",
+    "변경 전 확인이 필요해요. 총 결혼 예산을 6,200만 원으로 바꾸는 게 맞다면 “확인”이라고 답해주세요.",
+  ])("표식이 없으면 걷어낸다: %s", (text) => {
+    const result = extract(text);
+    expect(result.pendingAction).toBeNull();
+    expect(result.cleanText).not.toContain("확인해 주시면");
+    expect(result.cleanText).not.toContain("이라고 답해주세요");
+    expect(result.cleanText.trim().length).toBeGreaterThan(0);
+  });
+
+  it("앞에 붙은 진짜 답변은 남긴다", () => {
+    const result = extract(
+      "웨딩홀 대관료는 지역마다 크게 달라요.\n확인해 주시면 적용할게요.",
+    );
+    expect(result.cleanText).toContain("웨딩홀 대관료는 지역마다 크게 달라요.");
+    expect(result.cleanText).not.toContain("확인해 주시면");
+  });
+
+  it("표식이 있으면 서버 확인문이 그대로 간다", () => {
+    const result = extract(
+      `확인해 주시면 적용할게요.[pending_action]${VALID_PAYLOAD}[/pending_action]`,
+    );
+    expect(result.pendingAction).not.toBeNull();
+    expect(result.cleanText).toContain("다음 변경을 적용할까요?");
+  });
+
+  it.each([
+    "어느 카테고리를 말씀하시는 걸까요? 알려주시면 함께 살펴볼게요.",
+    "계약서를 확인해 보시면 위약금 조항이 이미 반영돼 있을 거예요.",
+    "예식장 방문 일정을 확인하고 싶으시면 일정 화면에서 보실 수 있어요.",
+    "두 분이 확인해 주시면 좋겠어요. 서로 생각이 다를 수 있으니까요.",
+  ])("정상적인 되묻기·안내는 건드리지 않는다: %s", (text) => {
+    const result = extract(text);
+    expect(result.cleanText).toBe(text);
+  });
+});

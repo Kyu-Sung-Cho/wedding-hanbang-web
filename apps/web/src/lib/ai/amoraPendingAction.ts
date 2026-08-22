@@ -390,13 +390,54 @@ const FORGED_CONFIRMATION_REPLACEMENT =
   "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시 보내주시겠어요?";
 
 /**
- * 표식이 붙지 않은 턴에서 서버 확인문 문구를 걷어낸다.
+ * 서버 문장을 그대로 베끼지 않고 **제 말로** 확인을 약속하는 형태.
+ *
+ * 계약상 보이는 확인 문장은 서버만 만든다. 그러므로 표식 없이 "확인해 주시면
+ * 적용할게요" 라고 말하는 턴은 정의상 지킬 수 없는 약속이다 — 사용자가 "확인"
+ * 이라고 답해도 실행할 action_id 가 없다.
+ *
+ * 이것을 걷어내는 두 번째 이유는 이력이다. 실측(2026-08-22, 같은 프롬프트로
+ * 이력만 바꿔 10회씩):
+ *
+ *     이력 12턴이 모두 표식을 달고 있음        표식 10/10
+ *     마지막 1턴만 표식 없는 확인 문장          표식  8/10
+ *     마지막 2턴                              표식  4/10
+ *     마지막 3턴                              표식  0/10
+ *
+ * **연속 세 번이면 그 대화는 끝난다.** 한 번의 실패가 이력에 남아 다음 실패를
+ * 부르는 톱니바퀴라, 실패한 턴을 확인 문장 모양으로 남겨 두면 안 된다.
+ *
+ * 넓게 잡으면 정상적인 되묻기를 지우게 되므로 좁게 쓴다. 놓치는 쪽이 낫다.
+ */
+const FORGED_CONFIRMATION_PATTERNS: readonly RegExp[] = [
+  // "확인해 주시면 적용할게요" — 사용자에게 확인을 청하면서 반영을 약속한다.
+  /확인(?:해|하)\s*주(?:시면|세요|시겠|시길)[^.\n]{0,24}(?:적용|반영|저장|변경)\s*(?:할|해|하겠|드릴)/u,
+  // "\"확인\"이라고 답해 주세요" — 서버가 발급한 버튼 대신 낱말로 확인을 받으려 한다.
+  /["“'']\s*확인\s*["”'']\s*(?:이?라고|으로)[^.\n]{0,12}(?:답|말씀|입력)/u,
+];
+
+/** 약속이 시작된 문장의 첫머리. 문장 도중에서 자르면 말이 끊긴 채 남는다. */
+function sentenceStartBefore(text: string, index: number): number {
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
+    if (".!?\n".includes(text[cursor])) return cursor + 1;
+  }
+  return 0;
+}
+
+/**
+ * 표식이 붙지 않은 턴에서 확인 약속을 걷어낸다.
  *
  * 앞에 붙은 실제 답변은 남긴다 — 사용자가 받은 내용까지 지우면 그것대로 손해다.
  * 앞이 비어 있으면 서버 문장으로 대체한다.
  */
 function stripForgedConfirmation(text: string): string {
-  const index = text.indexOf(CANONICAL_CONFIRMATION_OPENING);
+  let index = text.indexOf(CANONICAL_CONFIRMATION_OPENING);
+  for (const pattern of FORGED_CONFIRMATION_PATTERNS) {
+    const match = pattern.exec(text);
+    if (!match) continue;
+    const start = sentenceStartBefore(text, match.index);
+    if (index === -1 || start < index) index = start;
+  }
   if (index === -1) return text;
   const before = text.slice(0, index).trim();
   return before.length > 0 ? before : FORGED_CONFIRMATION_REPLACEMENT;
@@ -491,6 +532,62 @@ export function extractAmoraPendingAction({
       expiresAt: now + getAmoraPendingActionTtlMs(marker.tool, marker.input),
     },
   };
+}
+
+/**
+ * 저장된 제안을 이력용 표식으로 되돌린다.
+ *
+ * 아모라의 답변은 표식이 **제거된 채** 저장된다 — 서버가 떼어 metadata 로 옮기기
+ * 때문이다. 그래서 다음 턴의 이력에는 "적용할까요?" 라고만 말하고 표식은 없는
+ * 아모라 턴이 쌓이고, 모델은 자기 앞 턴의 그 모양을 따라 한다. 대화가 길수록
+ * 나쁜 예시가 많아진다.
+ *
+ * 실측(2026-08-22, 스테이징에서 같은 요청을 이력만 늘려가며 12회):
+ *
+ *     이력 14~24행   카드 3/6
+ *     이력 26~36행   카드 0/6
+ *
+ * 실패한 턴은 전부 "확인해 주시면 적용할게요" 같은 **표식 없는 확인 문장**이었다.
+ * 이력이 가르친 그대로다. 사용자 대화는 12턴을 훌쩍 넘으므로, 이대로면 어느
+ * 순간부터 아모라가 아무것도 저장하지 못한다.
+ *
+ * 되붙인 표식은 제공자에게 보내는 배열에만 들어간다. 저장된 본문은 그대로다.
+ */
+export function renderAmoraPendingActionMarker(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+  if (value.version !== 2) return null;
+  const tool = value.tool;
+  const input = value.input;
+  if (typeof tool !== "string" || tool.length === 0) return null;
+  if (!isRecord(input)) return null;
+  let payload: string;
+  try {
+    payload = JSON.stringify({ tool, input });
+  } catch {
+    return null;
+  }
+  if (payload.length > MAX_PENDING_ACTION_JSON_CHARS) return null;
+  return `[pending_action]${payload}[/pending_action]`;
+}
+
+/**
+ * 아모라의 지난 턴을 **제공자에게 돌려줄 때**의 본문.
+ *
+ * 표식을 낸 턴은 표식을 되붙이고, 확인만 약속하고 표식이 없던 턴은 그 약속을
+ * 걷어낸다. 둘 다 같은 이유다 — 이력은 모델에게 "아모라 턴은 이렇게 생겼다"를
+ * 가르치는 자리다.
+ *
+ * 저장된 본문은 건드리지 않는다. 이 함수의 결과는 제공자에게 보내는 배열에만
+ * 들어간다. 그래서 **이미 망가진 지난 대화도 이 경로에서 회복된다** — 정화를
+ * 생성 시점에만 두면 운영에 이미 쌓인 대화는 영영 그대로다.
+ */
+export function buildAmoraHistoryContent(
+  content: string,
+  pendingAction: unknown,
+): string {
+  const marker = renderAmoraPendingActionMarker(pendingAction);
+  if (marker) return `${content}\n${marker}`;
+  return stripForgedConfirmation(content);
 }
 
 export function resolveAmoraPendingAction({

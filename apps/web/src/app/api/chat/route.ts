@@ -114,6 +114,7 @@ import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy
 import {
   buildAmoraApprovedActionPrompt,
   buildAmoraPendingActionPrompt,
+  buildAmoraHistoryContent,
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
@@ -2292,7 +2293,16 @@ export async function POST(request: Request) {
 
   const toCanonicalMessage = (row: CanonicalChatRow) => {
     if (row.sender_type === "ai" || row.role === "assistant") {
-      return { role: "assistant" as const, content: row.content, id: row.id };
+      // 제안했던 턴은 표식을 되붙이고, 확인만 약속하고 표식이 없던 턴은 그
+      // 약속을 걷어낸다. 이력은 모델에게 "아모라 턴은 이렇게 생겼다"를 가르친다.
+      return {
+        role: "assistant" as const,
+        content: buildAmoraHistoryContent(
+          row.content,
+          row.metadata?.pending_amora_action,
+        ),
+        id: row.id,
+      };
     }
     const roleLabel = speakerLabelFor({
       neutral: usesNeutralMemberPresentation,
