@@ -127,12 +127,10 @@ describe("제 말로 지어낸 확인 약속", () => {
   it.each([
     "총 예산을 **7,000만 원**으로 바꾸는 것으로 이해했어요. 확인해 주시면 적용할게요.",
     "총 예산을 6,900만 원으로 변경할까요? 확인해 주시면 바로 반영할게요.",
-    "변경 전 확인이 필요해요. 총 결혼 예산을 6,200만 원으로 바꾸는 게 맞다면 “확인”이라고 답해주세요.",
   ])("표식이 없으면 걷어낸다: %s", (text) => {
     const result = extract(text);
     expect(result.pendingAction).toBeNull();
     expect(result.cleanText).not.toContain("확인해 주시면");
-    expect(result.cleanText).not.toContain("이라고 답해주세요");
     expect(result.cleanText.trim().length).toBeGreaterThan(0);
   });
 
@@ -160,5 +158,75 @@ describe("제 말로 지어낸 확인 약속", () => {
   ])("정상적인 되묻기·안내는 건드리지 않는다: %s", (text) => {
     const result = extract(text);
     expect(result.cleanText).toBe(text);
+  });
+
+  /**
+   * 첫 판이 놓친 형태들. 적대적 검토가 실제로 재현해 냈다.
+   *
+   * 원인은 사이를 벌린 `[^.\n]{0,24}` 가 `?`·`!`·`,` 를 통과시켜 **정규식이
+   * 문장 경계를 넘은 것**이었다. 위 음성 사례 네 개가 전부 마침표로 끝나서
+   * 이 구멍을 보지 못했다. 그래서 여기 있는 문장은 하나도 마침표로 안 끊긴다.
+   */
+  it.each([
+    // 확인 요청과 "변경할" 이 서로 다른 문장이다.
+    "제가 이해한 게 맞는지 확인해 주시겠어요? 일정 변경할 부분이 있으면 알려주세요.",
+    // 쉼표 뒤의 "변경할" 은 명사를 꾸미는 말이지 약속이 아니다.
+    "어느 쪽을 말씀하시는지 확인해 주세요, 그래야 예산 변경할 항목을 정확히 짚을 수 있어요.",
+    "예식장 후보 세 곳을 정리했어요. 어느 곳이 마음에 드는지 확인해 주시겠어요? 일정 변경할 수도 있으니 알려주세요.",
+    // 아모라가 아니라 업체에게 확인을 받으라는 안내다.
+    "업체에 “확인”이라고 답장하시면 예약이 잡혀요.",
+    // 지금은 **의도적으로 놓친다.** 위 문장과 모양이 같아, 확인을 받을 상대가
+    // 아모라인지 업체인지 가를 신호가 문장 안에 없다. 상대를 추측하는 규칙을
+    // 덧붙이면 이 파일이 처음에 만든 것과 같은 종류의 오탐이 다시 생긴다.
+    "총 결혼 예산을 6,200만 원으로 바꾸는 게 맞다면 “확인”이라고 답해주세요.",
+    // 숫자·주소 안의 마침표가 문장 끝으로 오인되면 안 된다.
+    "대관료는 3.5억이 아니라 3,500만 원이에요. https://example.com/a.b 에서 확인하실 수 있어요.",
+  ])("문장 경계를 넘어 잡지 않는다: %s", (text) => {
+    const result = extract(text);
+    expect(result.cleanText).toBe(text);
+  });
+
+  it("중재 블록 안은 건드리지 않는다 — 지우면 중재 카드가 조용히 사라진다", () => {
+    const text = [
+      "두 분 이야기를 들어보니 서로 아끼는 마음은 같았어요.",
+      "[mediation]",
+      "공감: 두 분 다 서두르고 싶지 않으셨어요.",
+      "합의안: 다음 주에 다시 이야기하기로 하고, 확인해 주시면 반영할게요.",
+      "[/mediation]",
+    ].join("\n");
+    const result = extract(text);
+    expect(result.cleanText).toContain("[mediation]");
+    expect(result.cleanText).toContain("[/mediation]");
+    expect(result.cleanText).toContain("합의안");
+  });
+
+  it("지운 자리에는 다음 걸음을 남긴다 — 막다른 길로 두지 않는다", () => {
+    const result = extract(
+      "총 예산을 7,000만 원으로 바꾸는 것으로 이해했어요. 확인해 주시면 적용할게요.",
+    );
+    expect(result.cleanText).toContain("이해했어요");
+    expect(result.cleanText).not.toContain("확인해 주시면");
+    expect(result.cleanText).toContain("다시 보내주시겠어요?");
+  });
+
+  /**
+   * 문장 분할이 숫자·주소 안의 마침표를 문장 끝으로 보면, 한 문장이 둘로 쪼개져
+   * 확인 요청과 약속이 갈라지고 **지어낸 확인이 그대로 통과한다.** 그래서 마침표는
+   * 뒤에 공백이나 끝이 올 때만 문장 끝으로 본다.
+   */
+  it.each([
+    "확인해 주시면 3.5억으로 반영할게요.",
+    "확인해 주시면 https://example.com/a 자료를 저장할게요.",
+  ])("소수점·주소가 문장을 쪼개 탐지를 빠져나가지 않는다: %s", (text) => {
+    const result = extract(text);
+    expect(result.cleanText).not.toContain("확인해 주시면");
+  });
+
+  it("뒤따르는 정상 답변까지 지우지 않는다", () => {
+    const result = extract(
+      "확인해 주시면 적용할게요. 그리고 예식장 방문은 주말이 붐빈다는 점도 참고하세요.",
+    );
+    expect(result.cleanText).toContain("주말이 붐빈다는 점도 참고하세요");
+    expect(result.cleanText).not.toContain("확인해 주시면");
   });
 });

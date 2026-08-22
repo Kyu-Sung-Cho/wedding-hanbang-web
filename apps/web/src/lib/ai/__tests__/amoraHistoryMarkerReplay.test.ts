@@ -90,11 +90,39 @@ describe("buildAmoraHistoryContent", () => {
       .toContain("[pending_action]");
   });
 
-  it("지난 대화에 남은 지어낸 확인 약속은 걷어낸다", () => {
+  /**
+   * 이력에서는 **턴을 통째로** 바꾼다. 사용자 화면은 약속 문장만 지우는데, 그렇게
+   * 남긴 앞말이 바로 모델이 따라 하는 모양이기 때문이다. 실측:
+   *
+   *     앞말이 남은 이력      표식 3/10   (약속만 지움 — 효과 없음)
+   *     턴 전체가 안내 문구    표식 10/10
+   */
+  it("지난 대화에 남은 지어낸 확인 약속은 턴 전체를 바꾼다", () => {
     const past = "총 예산을 7,000만 원으로 바꾸는 것으로 이해했어요. 확인해 주시면 적용할게요.";
     const replayed = buildAmoraHistoryContent(past, null);
     expect(replayed).not.toContain("확인해 주시면");
-    expect(replayed.trim().length).toBeGreaterThan(0);
+    expect(replayed).not.toContain("이해했어요");
+    expect(replayed).toContain("다시 보내주시겠어요?");
+  });
+
+  it("사용자 화면 정화를 거친 턴도 이력에서는 안내 문구만 남는다", () => {
+    const stored = [
+      "총 예산을 7,000만 원으로 바꾸는 것으로 이해했어요.",
+      "",
+      "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시 보내주시겠어요?",
+    ].join("\n");
+    const replayed = buildAmoraHistoryContent(stored, null);
+    expect(replayed).toBe(
+      "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시 보내주시겠어요?",
+    );
+  });
+
+  it("모델이 서버 확인문을 베낀 지난 턴도 이력에서 지운다", () => {
+    const replayed = buildAmoraHistoryContent(
+      "다음 변경을 적용할까요?\n- 변경: 총 결혼 예산 변경",
+      null,
+    );
+    expect(replayed).not.toContain("다음 변경을 적용할까요?");
   });
 
   it("평범한 답변은 그대로 돌아온다", () => {

@@ -409,38 +409,117 @@ const FORGED_CONFIRMATION_REPLACEMENT =
  *
  * 넓게 잡으면 정상적인 되묻기를 지우게 되므로 좁게 쓴다. 놓치는 쪽이 낫다.
  */
-const FORGED_CONFIRMATION_PATTERNS: readonly RegExp[] = [
-  // "확인해 주시면 적용할게요" — 사용자에게 확인을 청하면서 반영을 약속한다.
-  /확인(?:해|하)\s*주(?:시면|세요|시겠|시길)[^.\n]{0,24}(?:적용|반영|저장|변경)\s*(?:할|해|하겠|드릴)/u,
-  // "\"확인\"이라고 답해 주세요" — 서버가 발급한 버튼 대신 낱말로 확인을 받으려 한다.
-  /["“'']\s*확인\s*["”'']\s*(?:이?라고|으로)[^.\n]{0,12}(?:답|말씀|입력)/u,
-];
+/**
+ * **한 문장 안에서** 확인을 청하고 곧바로 반영을 약속하는 형태만 잡는다.
+ *
+ * 첫 판은 `[^.\n]{0,24}` 로 사이를 벌려 놨는데, 그 문자열 집합이 `?`·`!`·`,` 를
+ * 통과시켜 **정규식이 문장 경계를 넘었다.** 적대적 검토가 실제로 재현했다:
+ *
+ *     "제가 이해한 게 맞는지 확인해 주시겠어요? 일정 변경할 부분이 있으면 알려주세요."
+ *       → "확인해 주시겠어요? 일정 변경할" 이 한 매치로 잡혀 답변이 통째로 사라졌다
+ *
+ * 그래서 두 가지를 좁혔다. 첫째, 판정은 문장 단위로 한다(아래 `splitSentences`).
+ * 둘째, 약속 쪽은 **종결어미까지** 요구한다 — "변경할 항목", "반영할 부분" 처럼
+ * 명사를 꾸미는 말은 약속이 아니다.
+ */
+const CONFIRMATION_REQUEST_RE = /확인(?:해|하)\s*주(?:시면|세요|시겠|시길|셔야)/u;
+const APPLY_PROMISE_RE =
+  /(?:적용|반영|저장|변경)(?:할게요|할께요|하겠습니다|하겠어요|해\s*드릴게요|해\s*드리겠습니다|해\s*둘게요)/u;
+/**
+ * 이 문장이 지킬 수 없는 확인 약속인가.
+ *
+ * `"확인"이라고 답해주세요` 형태도 지어낸 확인이지만 **잡지 않는다.** 그 문장만
+ * 봐서는 확인을 받을 상대가 아모라인지 업체인지 가를 신호가 없어서다 —
+ * "업체에 “확인”이라고 답장하시면 예약이 잡혀요" 는 정상 안내인데 같은 모양이다.
+ * 상대를 추측하는 규칙을 덧붙이면 이 파일이 처음에 만든 것과 같은 종류의 오탐이
+ * 다시 생긴다. 놓치는 쪽을 고른다.
+ */
+function isForgedConfirmationSentence(sentence: string): boolean {
+  return CONFIRMATION_REQUEST_RE.test(sentence)
+    && APPLY_PROMISE_RE.test(sentence);
+}
 
-/** 약속이 시작된 문장의 첫머리. 문장 도중에서 자르면 말이 끊긴 채 남는다. */
-function sentenceStartBefore(text: string, index: number): number {
-  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-    if (".!?\n".includes(text[cursor])) return cursor + 1;
+/**
+ * 문장으로 쪼갠다. 마침표는 **뒤에 공백이나 끝이 올 때만** 문장 끝으로 본다 —
+ * 그러지 않으면 `3.5`, `https://a.com/b` 한가운데가 문장 경계가 된다(검토에서
+ * 실제로 지적된 형태다). `?`·`!`·줄바꿈은 그 자체로 끝이다.
+ */
+const SENTENCE_END_RE = /(?:\.(?=\s|$)|[!?]+|\n)+/gu;
+
+function splitSentences(text: string): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  let cursor = 0;
+  SENTENCE_END_RE.lastIndex = 0;
+  for (
+    let match = SENTENCE_END_RE.exec(text);
+    match !== null;
+    match = SENTENCE_END_RE.exec(text)
+  ) {
+    const end = match.index + match[0].length;
+    if (end > cursor) spans.push({ start: cursor, end });
+    cursor = end;
   }
-  return 0;
+  if (cursor < text.length) spans.push({ start: cursor, end: text.length });
+  return spans;
+}
+
+/**
+ * 중재 블록 구간. 이 안은 건드리지 않는다.
+ *
+ * 갈등 중재 답변은 `[mediation]…[/mediation]` 안에 합의안을 담아 보내고, 서버는
+ * **이 정화가 끝난 뒤에** 그 블록을 꺼낸다. 블록 안을 지우면 중재 카드가 조용히
+ * 사라진다 — 오류도 남지 않는다. 검토가 재현했다.
+ */
+const MEDIATION_BLOCK_RE = /\[\s*mediation\s*\][\s\S]*?\[\s*\/\s*mediation\s*\]/giu;
+
+function protectedSpans(text: string): { start: number; end: number }[] {
+  const spans: { start: number; end: number }[] = [];
+  MEDIATION_BLOCK_RE.lastIndex = 0;
+  for (
+    let match = MEDIATION_BLOCK_RE.exec(text);
+    match !== null;
+    match = MEDIATION_BLOCK_RE.exec(text)
+  ) {
+    spans.push({ start: match.index, end: match.index + match[0].length });
+  }
+  return spans;
 }
 
 /**
  * 표식이 붙지 않은 턴에서 확인 약속을 걷어낸다.
  *
- * 앞에 붙은 실제 답변은 남긴다 — 사용자가 받은 내용까지 지우면 그것대로 손해다.
- * 앞이 비어 있으면 서버 문장으로 대체한다.
+ * 서버 문장을 그대로 베낀 경우(`CANONICAL_CONFIRMATION_OPENING`)는 그 뒤가 통째로
+ * 서버 형식 블록이므로 거기서부터 끝까지 자른다. 제 말로 지어낸 약속은 **그 문장만**
+ * 지운다 — 매치 지점부터 끝까지 버리면 오탐 한 번에 뒤따르는 정상 답변이 전부
+ * 사라진다(검토가 지적한 형태다).
+ *
+ * 무엇을 지웠으면 **무엇을 하면 되는지 함께 남긴다.** 앞말만 남기면 "…으로
+ * 이해했어요." 로 끝나 사용자는 누를 것도 할 것도 없이 기다리게 된다.
  */
 function stripForgedConfirmation(text: string): string {
-  let index = text.indexOf(CANONICAL_CONFIRMATION_OPENING);
-  for (const pattern of FORGED_CONFIRMATION_PATTERNS) {
-    const match = pattern.exec(text);
-    if (!match) continue;
-    const start = sentenceStartBefore(text, match.index);
-    if (index === -1 || start < index) index = start;
+  const canonicalIndex = text.indexOf(CANONICAL_CONFIRMATION_OPENING);
+  const base = canonicalIndex === -1 ? text : text.slice(0, canonicalIndex);
+
+  const protectedRanges = protectedSpans(base);
+  const isProtected = (span: { start: number; end: number }) =>
+    protectedRanges.some((range) => span.start < range.end && span.end > range.start);
+
+  let kept = "";
+  let removedAny = false;
+  for (const span of splitSentences(base)) {
+    const sentence = base.slice(span.start, span.end);
+    if (!isProtected(span) && isForgedConfirmationSentence(sentence)) {
+      removedAny = true;
+      continue;
+    }
+    kept += sentence;
   }
-  if (index === -1) return text;
-  const before = text.slice(0, index).trim();
-  return before.length > 0 ? before : FORGED_CONFIRMATION_REPLACEMENT;
+
+  if (canonicalIndex === -1 && !removedAny) return text;
+  const before = kept.trim();
+  return before.length > 0
+    ? `${before}\n\n${FORGED_CONFIRMATION_REPLACEMENT}`
+    : FORGED_CONFIRMATION_REPLACEMENT;
 }
 
 // 모델은 표식을 정확한 모양으로만 내지 않는다. 실측: `[ pending_action ]`(괄호 안 공백)
@@ -587,7 +666,43 @@ export function buildAmoraHistoryContent(
 ): string {
   const marker = renderAmoraPendingActionMarker(pendingAction);
   if (marker) return `${content}\n${marker}`;
-  return stripForgedConfirmation(content);
+  return sanitizeHistoryConfirmation(content);
+}
+
+/**
+ * 이력에서는 **턴을 통째로** 안내 문구로 바꾼다.
+ *
+ * 사용자에게 보이는 쪽은 약속 문장 하나만 지운다 — 지우는 만큼 손해이기 때문이다.
+ * 그런데 그렇게 남긴 앞말("총 예산을 7,000만 원으로 바꾸는 것으로 이해했어요.")이
+ * 바로 모델이 따라 하는 모양이다. 실측으로 확인했다:
+ *
+ *     실패 3턴, 앞말이 남은 이력          표식 3/10   (약속만 지움 — 효과 없음)
+ *     실패 3턴, 턴 전체가 안내 문구        표식 10/10
+ *     실패 6턴, 앞말이 남은 이력          표식 5/10
+ *     실패 6턴, 턴 전체가 안내 문구        표식  7/10
+ *
+ * 그래서 두 경로를 가른다. 이력은 모델만 보므로 통째로 바꿔도 사용자가 잃는 것이
+ * 없고, 사용자 화면은 보수적으로 둔다.
+ *
+ * 판정의 첫 신호는 추측이 아니다 — **서버가 직접 넣은 안내 문구**가 들어 있으면
+ * 그 턴은 확인 발급에 실패한 턴이다.
+ */
+function sanitizeHistoryConfirmation(text: string): string {
+  if (text.includes(FORGED_CONFIRMATION_REPLACEMENT)) {
+    return FORGED_CONFIRMATION_REPLACEMENT;
+  }
+  // 고치기 전에 쌓인 지난 턴은 안내 문구가 없다. 그 경우만 문장을 살펴본다.
+  if (text.includes(CANONICAL_CONFIRMATION_OPENING)) {
+    return FORGED_CONFIRMATION_REPLACEMENT;
+  }
+  const ranges = protectedSpans(text);
+  const forged = splitSentences(text).some((span) => {
+    if (ranges.some((range) => span.start < range.end && span.end > range.start)) {
+      return false;
+    }
+    return isForgedConfirmationSentence(text.slice(span.start, span.end));
+  });
+  return forged ? FORGED_CONFIRMATION_REPLACEMENT : text;
 }
 
 export function resolveAmoraPendingAction({
