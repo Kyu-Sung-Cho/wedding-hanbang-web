@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { buildSignupConsentRecord, parseSignupConsent } from "@hanbang/shared";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   checkRateLimitPersistent,
@@ -150,11 +151,22 @@ export async function POST(request: Request) {
     const password = body.password;
     const name = cleanOptionalText(body.name, 60);
     const requestedRedirect = cleanOptionalText(body.redirect, 500);
-    // 마케팅 수신 동의 기록 — 명시적 true만 동의로 저장 (미전달=false, 웹 폼은 현재 미수집)
-    const marketingConsent = body.marketingAgreed === true;
+    // 필수 동의(이용약관·개인정보 처리방침)와 선택 동의(마케팅)를 함께 읽는다.
+    // 클라이언트 판정을 믿지 않고 서버가 다시 본다 — 동의 없이 만들어진
+    // 계정이 정확히 문제이므로, 없으면 계정을 만들지 않는다.
+    const consent = parseSignupConsent(body);
 
     if (!email || !password || !name) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
+    }
+    if (!consent) {
+      return NextResponse.json(
+        {
+          error: "이용약관과 개인정보 처리방침에 동의해야 가입할 수 있어요.",
+          code: "SIGNUP_CONSENT_REQUIRED",
+        },
+        { status: 400 },
+      );
     }
     if (!isStrongPassword(password)) {
       return NextResponse.json(
@@ -204,7 +216,13 @@ export async function POST(request: Request) {
       email,
       password,
       options: {
-        data: { name, marketing_agreed: marketingConsent },
+        // 무엇에, 어느 판에, 언제 동의했는지 남긴다. 동의를 받았다는 주장만
+        // 있고 기록이 없으면 받지 않은 것과 같다. 기록의 모양은 공유 계약이
+        // 만든다 — /api/auth/consent(소셜 경로)와 갈라지면 안 된다.
+        data: {
+          name,
+          ...buildSignupConsentRecord(consent, new Date().toISOString()),
+        },
         redirectTo: buildOAuthCallbackUrl(callbackSearch, siteUrl),
       },
     });

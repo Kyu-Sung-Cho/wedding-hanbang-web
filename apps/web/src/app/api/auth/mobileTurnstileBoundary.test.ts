@@ -75,6 +75,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
     }));
 
     expect(response.status).toBe(400);
@@ -133,6 +137,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
     }));
 
@@ -148,6 +156,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
       redirect: "/wedding/chat",
     }));
@@ -165,6 +177,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
       redirect: "https://attacker.example/steal",
     }));
@@ -188,6 +204,10 @@ describe("mobile Turnstile boundary", () => {
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
+      // 필수 동의 없이는 계정을 만들지 않는다(가입 동의 계약). 이 파일이
+      // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
+      termsAgreed: true,
+      privacyAgreed: true,
       turnstileToken: "proof",
     }));
     const body = await response.json();

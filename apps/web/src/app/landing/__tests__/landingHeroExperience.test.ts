@@ -44,7 +44,7 @@ describe("landing hero product experience contract", () => {
     expect(content).toContain("먼저 살펴볼 준비 3가지");
     expect(content, "산출물을 개수로만 말하면 안 된다").not.toMatch(/지금 볼 세 가지가 나와요/u);
     expect(hero, "히어로가 아모라로 이어지지 않는다").toContain("아모라");
-    expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
+    expect(content).toContain("계정을 만들면 아모라가 한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("한 번에 한 가지 변경을 제안하고");
     expect(content).toContain("확인한 변경만 준비 기록에 반영해요");
     expect(content).toContain("아모라와 시작하기");
@@ -139,7 +139,7 @@ describe("landing hero product experience contract", () => {
     expect(body).not.toContain("계정 베타");
 
     // 경계 문구는 사라지지 않는다. 위계만 CTA 아래로 내려간다.
-    expect(betaBoundary).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
+    expect(betaBoundary).toContain("계정을 만들면 아모라가 한 번에 한 가지 변경을 제안하고");
     expect(betaBoundary).toContain("확인한 변경만 준비 기록에 반영해요");
     expect(hero).toContain("landingContent.hero.betaBoundary");
     expect(hero.indexOf("landingContent.hero.body")).toBeLessThan(
