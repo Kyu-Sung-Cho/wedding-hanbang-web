@@ -1,5 +1,5 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
-import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
+import { mergeChecklist, getChecklistCounts, resolveStatus } from "@/utils/checklist";
 import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 
@@ -36,7 +36,9 @@ export function getImminentCategories(
 
   for (const cat of CATEGORY_CHECKLISTS) {
     const item = progress[cat.key];
-    const status: ProgressItem["status"] = item?.status ?? "not_started";
+    // 저장값을 그대로 믿으면 항목이 늘었을 때 그 분야가 통째로 알림에서 빠진다 —
+    // 새 항목이 마감을 넘겨도 아무 말도 안 하게 된다. 항목 기록이 있으면 파생한다.
+    const status: ProgressItem["status"] = resolveStatus(cat.items, item);
     // 완료했거나 "해당 없음"으로 끈 항목은 마감 알림에서 제외한다.
     if (status === "completed" || status === "not_applicable") continue;
 
@@ -103,7 +105,9 @@ export function getCompletedImminentCategories(
 
   for (const cat of CATEGORY_CHECKLISTS) {
     const item = progress[cat.key];
-    const status: ProgressItem["status"] = item?.status ?? "not_started";
+    // 위 루프와 같은 기준을 써야 한 분야가 "임박"과 "완료" 양쪽에 동시에 들거나
+    // 양쪽에서 동시에 빠지는 일이 없다.
+    const status: ProgressItem["status"] = resolveStatus(cat.items, item);
     if (status !== "completed") continue;
 
     const deadlineDate = new Date(weddingDate);
