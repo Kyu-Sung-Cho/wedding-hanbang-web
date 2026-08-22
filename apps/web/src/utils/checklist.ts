@@ -2,6 +2,7 @@ import { CHECKLIST_MAP } from "@/constants/checklists";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 import {
   calculatePlanningChecklistStatus,
+  isPlanningChecklistStatusDeclared,
   resolvePlanningChecklistStatus,
   getPlanningChecklistCounts,
   mergePlanningChecklist,
@@ -51,6 +52,16 @@ export function resolveStatusByKey(
   const template = CHECKLIST_MAP[key];
   if (!template) return saved?.status as ProgressItem["status"] | undefined;
   return resolveStatus(template.items, saved);
+}
+
+/**
+ * 이 분야의 상태가 항목이 아니라 **분야 단위 선언**에서 온 것인가.
+ * 그렇다면 화면은 개수를 나란히 쓰면 안 된다 — `0/9개 완료 · 완료` 가 된다.
+ */
+export function isStatusDeclared(
+  saved: { status?: string; checklist?: ChecklistItem[] } | undefined
+): boolean {
+  return isPlanningChecklistStatusDeclared(saved as never);
 }
 
 // 체크리스트 완료 카운트

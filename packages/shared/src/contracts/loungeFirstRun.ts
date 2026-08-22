@@ -152,6 +152,24 @@ const FALLBACK_NEXT_STEP: LoungeFirstRunNextStep = NEXT_STEP_BY_STAGE.just_start
  *
  * @param recorded 저장된 카테고리별 상태(예약 키 제외). `{ venue: "completed", ... }`
  */
+/**
+ * 제안에서 **뺀** 항목. 이미 그 값으로 저장된 커플을 "직접 입력한 사람"으로 바꾸지
+ * 않으려고 남겨 둔다.
+ *
+ * 2026-08-22에 세 단계가 상견례(`meeting`)를 완료로 제안하던 것을 뺐다 — 어느 문장도
+ * 상견례를 말하지 않는데 사용자가 말한 적 없는 것이 본인 기록으로 남았기 때문이다.
+ * 그런데 이 대조는 저장값과 제안값이 **정확히** 같아야 "아직 아무것도 안 함"으로 본다.
+ * 지난 제안을 기억하지 않으면, 어제 온보딩을 마친 커플이 오늘 갑자기 "뭔가 직접
+ * 입력한 사람"이 되어 첫 도착 화면을 잃는다.
+ *
+ * 여기 적힌 값은 **한때 제안이었던 것**이지 지금 제안이 아니다. 새로 저장되지 않는다.
+ */
+const RETIRED_STAGE_SUGGESTIONS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  venue_booked: { meeting: "completed" },
+  sdm_in_progress: { meeting: "completed" },
+  wrapping_up: { meeting: "completed" },
+};
+
 export function isOnlyStageSuggestion(
   recorded: Readonly<Record<string, string>>,
   stage: PreparationStageValue | null | undefined,
@@ -159,12 +177,18 @@ export function isOnlyStageSuggestion(
   const suggested = findPreparationStageOption(stage)?.suggested;
   if (!suggested) return Object.keys(recorded).length === 0;
 
-  const recordedKeys = Object.keys(recorded);
   const suggestedKeys = Object.keys(suggested);
-  if (recordedKeys.length !== suggestedKeys.length) return false;
-
   for (const key of suggestedKeys) {
     if (recorded[key] !== suggested[key as keyof typeof suggested]) return false;
+  }
+
+  // 제안에 없는 키가 남아 있으면 사람이 손으로 넣은 것이다 — 단 **한때 제안이었던**
+  // 값은 예외다. 위 `RETIRED_STAGE_SUGGESTIONS` 주석 참고.
+  const retired = (stage && RETIRED_STAGE_SUGGESTIONS[stage]) ?? {};
+  for (const key of Object.keys(recorded)) {
+    if (key in suggested) continue;
+    if (recorded[key] === retired[key]) continue;
+    return false;
   }
   return true;
 }

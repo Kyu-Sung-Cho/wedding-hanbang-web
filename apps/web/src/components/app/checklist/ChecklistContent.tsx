@@ -9,9 +9,10 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { directionParticle } from "@/lib/korean/particles";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
-import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus } from "@/utils/checklist";
+import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus, isStatusDeclared } from "@/utils/checklist";
 
 type Filter = "all" | "active" | "completed" | "skipped";
 
@@ -111,12 +112,15 @@ export default function ChecklistContent() {
       // 저장값을 그대로 쓰면 항목이 늘었을 때 `11/12개 완료 · 완료`가 된다 — 개수는
       // 병합본에서 세는데 상태만 낡은 값이기 때문이다. 항목 기록이 있으면 파생한다.
       const status = resolveStatus(template.items, saved);
+      // 항목 기록 없이 분야만 완료로 표시된 경우다. 개수를 나란히 쓰면
+      // `0/9개 완료 · 완료` 가 되어 고장난 것처럼 읽힌다.
+      const declared = isStatusDeclared(saved);
       const checklist = mergeChecklist(template.items, saved?.checklist, status);
       const counts = getChecklistCounts(checklist);
       const aliases = CATEGORY_SEARCH_ALIASES[template.key]?.join(" ") ?? "";
       const searchable = `${template.label} ${aliases} ${template.tip} ${checklist.map((item) => `${item.label} ${item.note ?? ""}`).join(" ")}`
         .toLocaleLowerCase("ko-KR");
-      return { template, status, counts, guide: mannersPartForCategory(template.key), searchable };
+      return { template, status, counts, declared, guide: mannersPartForCategory(template.key), searchable };
     }).filter(({ status, searchable }) =>
       matchesFilter(status, filter) && (!normalizedQuery || searchable.includes(normalizedQuery)),
     );
@@ -199,7 +203,7 @@ export default function ChecklistContent() {
 
         {categories.length > 0 ? (
           <ul className="mt-3 grid gap-3 md:grid-cols-2">
-            {categories.map(({ template, status, counts, guide }) => {
+            {categories.map(({ template, status, counts, declared, guide }) => {
               const percent = status === "not_applicable" || counts.total === 0
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
@@ -227,7 +231,11 @@ export default function ChecklistContent() {
                           <ChevronRight className="h-4 w-4 shrink-0 text-[#a59d91]" />
                         </span>
                         <span className="mt-1 block text-[13px] leading-5 text-[#5d6879]">
-                          {status === "not_applicable" ? "진행률과 알림에서 제외됨" : `${counts.done}/${counts.total}개 완료 · ${STATUS_LABEL[status]}`}
+                          {status === "not_applicable"
+                            ? "진행률과 알림에서 제외됨"
+                            : declared
+                              ? `${STATUS_LABEL[status]}${directionParticle(STATUS_LABEL[status])} 표시함 · 항목은 확인 전`
+                              : `${counts.done}/${counts.total}개 완료 · ${STATUS_LABEL[status]}`}
                         </span>
                       </span>
                     </div>
