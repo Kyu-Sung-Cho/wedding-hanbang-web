@@ -5738,13 +5738,20 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const secondRequestKey = mocks.claim.mock.calls[1]?.[0]?.requestKey;
     expect(firstRequestKey).toBe(secondRequestKey);
     expect(firstRequestKey).not.toContain("aaaaaaaa");
-    expect(mocks.atomicResponses).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        metadata: expect.objectContaining({
-          confirmed_amora_action_id: actionId,
-        }),
-      }),
-    ]));
+    // 여기서 예전에는 아모라 응답 metadata 에 `confirmed_amora_action_id` 가
+    // **있어야 한다**고 단언했다. 정반대였다.
+    //
+    // 그 키는 **사용자 확인 행의 표식**이고, DB 트리거는 그 키를 가진 행을 확인 행으로
+    // 보고 `role <> 'user'` 이면 거부한다(AMORA_SHARED_ACTION_CONFIRMATION_INVALID,
+    // 22023). 이 테스트는 DB 를 모킹하므로 트리거가 돌지 않았고, 그래서
+    // **운영에서 확정 실행 턴의 응답이 한 번도 커밋되지 못하는 동안 초록불이었다**
+    // (2026-08-22 스테이징에서 4/4 재현: 예산은 바뀌는데 아모라는 말이 없다).
+    expect(mocks.atomicResponses.length).toBeGreaterThan(0);
+    for (const response of mocks.atomicResponses) {
+      expect(
+        (response as { metadata?: Record<string, unknown> }).metadata ?? {},
+      ).not.toHaveProperty("confirmed_amora_action_id");
+    }
   });
 
   it("rejects a high-impact action before cost or mutation when both confirmations are absent", async () => {

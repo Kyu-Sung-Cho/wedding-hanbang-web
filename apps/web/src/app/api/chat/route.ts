@@ -3148,9 +3148,18 @@ export async function POST(request: Request) {
             ...(typeof bodyUserMessageId === "string"
               ? { in_reply_to_user_message_id: bodyUserMessageId }
               : {}),
-            ...(typeof bodyConfirmedActionId === "string"
-              ? { confirmed_amora_action_id: bodyConfirmedActionId }
-              : {}),
+            // `confirmed_amora_action_id`는 **사용자 확인 행의 표식**이다.
+            //
+            // 아모라 응답 행에 같은 키를 찍으면 DB 트리거가 그 행도 확인 행으로 보고
+            // `role <> 'user'` 에서 거부한다(AMORA_SHARED_ACTION_CONFIRMATION_INVALID,
+            // 22023). 그러면 **변경은 이미 적용됐는데 아모라 응답만 커밋되지 않아**
+            // 사용자는 침묵과 오류를 본다 — 돈·날짜가 바뀐 턴에서 가장 나쁜 결과다.
+            // 2026-08-22 스테이징에서 확인 턴 4/4 재현.
+            //
+            // 이 키를 응답 행에서 읽는 소비자는 없다. 웹·모바일 모두 사용자 행에서만
+            // 읽고(`sender_role !== "ai"` 요구), 나머지는 `=== undefined` 로 일반
+            // 메시지를 가려낸다. 응답과 확인의 연결은 `in_reply_to_user_message_id`가
+            // 이미 갖고 있다.
             ...(visibleClientRequestKey !== clientRequestId
               ? { client_visible_request_id: visibleClientRequestKey }
               : {}),
