@@ -287,3 +287,56 @@ export function parseWeddingSettingsResponse(
     careAvailability: input.careAvailability,
   };
 }
+
+/**
+ * 결혼 예정일·식장·총 예산은 `wedding_journeys` 에 직접 쓸 수 없다.
+ *
+ * `20260731123000_couple_plan_change_write_boundary.sql` 이 그 테이블에 트리거를 걸어,
+ * 계획 변경 세션 맥락 없이 들어온 UPDATE 를 `COUPLE_PLAN_CHANGE_APPROVAL_REQUIRED`(42501)
+ * 로 거절한다. 그런데 설정 저장이 쓰는 `patch_wedding_settings_atomic` 은 그 경계가
+ * 생기기 전에 만들어졌고 이후 갱신되지 않았다 — 여전히 `UPDATE public.wedding_journeys`
+ * 를 직접 한다. 그래서 이 세 필드는 파트너 유무와 관계없이 **항상** 저장에 실패했다.
+ *
+ * 웹 설정은 이 셋만 `/api/journey`(→ `submit_couple_plan_change`)로 따로 보내서 살아
+ * 있었고, 모바일만 여섯 필드를 옛 경로로 한꺼번에 보내고 있었다. 그래서 앱에서는
+ * 온보딩을 지난 뒤 결혼식 날짜와 식장을 바꿀 방법이 아예 없었다.
+ *
+ * 빌더는 그대로 두고 보내기 직전에 가른다 — 빌더가 만드는 값 자체는 옳고, 틀린 것은
+ * 목적지뿐이다.
+ */
+const PLAN_CHANGE_KEYS = ["wedding_date", "venue", "total_budget"] as const;
+
+export interface SplitWeddingSettingsPatch {
+  /** `/api/settings/wedding-profile` 로 보낼 나머지. 바뀐 게 없으면 null. */
+  profilePatch: WeddingSettingsPatchBody | null;
+  /** `/api/journey` 로 보낼 계획 변경. 바뀐 게 없으면 null. */
+  planChanges: Record<string, string | number | null> | null;
+}
+
+export function splitWeddingSettingsPatch(
+  patch: WeddingSettingsPatchBody,
+): SplitWeddingSettingsPatch {
+  const profileChanges: WeddingSettingsPatchBody["changes"] = {};
+  const profileExpected: WeddingSettingsPatchBody["expected"] = {};
+  const planChanges: Record<string, string | number | null> = {};
+
+  for (const [key, value] of Object.entries(patch.changes)) {
+    if ((PLAN_CHANGE_KEYS as readonly string[]).includes(key)) {
+      planChanges[key] = value;
+      continue;
+    }
+    profileChanges[key] = value;
+    if (key in patch.expected) profileExpected[key] = patch.expected[key];
+  }
+
+  return {
+    profilePatch: Object.keys(profileChanges).length > 0
+      ? {
+          expected_couple_id: patch.expected_couple_id,
+          changes: profileChanges,
+          expected: profileExpected,
+        }
+      : null,
+    planChanges: Object.keys(planChanges).length > 0 ? planChanges : null,
+  };
+}
