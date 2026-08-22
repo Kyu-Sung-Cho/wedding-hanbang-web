@@ -885,20 +885,32 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   },
   {
     name: "get_market_price",
+    // 카테고리·지역은 `v_public_official_prices` 실측값이다(2026-08-22). 스키마가
+    // 데이터와 갈라지면 모델이 없는 값을 골라 조회가 늘 0건이 된다 — 같은 실수를
+    // pending_action 표식에서 이미 한 번 했다.
     description:
-      "한국소비자원 참가격 결혼서비스 표본 통계를 조회합니다. 사용자가 공식 평균·중간값 참고자료를 요청할 때 사용하며, 개별 견적의 적정성·업체 품질·최종 결제액 판정에는 사용하지 않습니다.",
+      "검수·공시된 결혼서비스 가격(한국소비자원 참가격)의 카테고리 통계를 조회합니다. 사용자가 평균·중간값 같은 참고 금액을 물을 때 사용하며, 결과에는 출처와 기준 시점이 함께 옵니다. 개별 업체 추천·품질 판정·최종 결제액 판정에는 사용하지 않습니다.",
     input_schema: {
       type: "object" as const,
       properties: {
         category: {
           type: "string",
-          enum: ["total", "venue", "sdm", "studio", "dress", "makeup", "options", "seasonal"],
-          description: "조회할 카테고리. total=전체 비용, venue=결혼식장, sdm=사진 촬영·드레스·헤어·메이크업 묶음, studio=웨딩 사진 촬영, dress=드레스, makeup=헤어·메이크업, options=항목별 상세, seasonal=날짜에 따른 가격 차이",
+          enum: ["hall", "studio", "dress", "makeup"],
+          description: "조회할 항목. hall=결혼식장, studio=웨딩 사진 촬영, dress=드레스, makeup=헤어·메이크업. 공시 자료가 있는 항목은 이 넷뿐입니다.",
         },
-        scope: {
+        region: {
           type: "string",
-          enum: ["national", "seoul"],
-          description: "전국/서울 구분 (기본: national)",
+          enum: [
+            "seoul_gangnam3", "seoul_etc", "gyeonggi", "incheon", "gangwon",
+            "chungcheong", "daejeon", "jeolla", "gwangju", "gyeongsang",
+            "daegu", "busan", "ulsan", "jeju",
+          ],
+          description: "지역을 좁힐 때만 넣습니다. 비우면 전국 공시가 전체를 봅니다. seoul_gangnam3=서울 강남·서초·송파, seoul_etc=그 외 서울.",
+        },
+        itemType: {
+          type: "string",
+          enum: ["대관료", "식대", "옵션", "장식비"],
+          description: "category=hall 일 때만 씁니다. 식대는 1인당 금액이고 대관료는 건당이라 단위가 다릅니다. 비우면 네 항목을 각각 나눠서 돌려주니, 사용자가 한 항목만 물었을 때만 지정하세요.",
         },
       },
       required: ["category"],

@@ -554,7 +554,7 @@ async function executeToolOnce(
       case "cancel_booking":
         return await executeCancelBooking(toolInput, context);
       case "get_market_price":
-        return executeGetMarketPrice(toolInput);
+        return await executeGetMarketPrice(toolInput, getAdminClient());
       case "analyze_contract_readiness":
         return executeAnalyzeContractReadiness(toolInput);
       case "simulate_guest_guarantee":

@@ -5,26 +5,30 @@ import {
 } from "../quoteMarketTools";
 
 describe("quoteMarketTools", () => {
-  it("routes legacy market-price requests to reviewed published disclosures", () => {
-    const result = executeGetMarketPrice({ category: "total", scope: "national" });
+  // 이 두 테스트가 지키던 것은 "정적 시세표를 폐기한 뒤 숫자를 지어내지 말 것"이고
+  // 그 계약은 지금도 유효하다. 다만 2026-08-22에 실행기가 실제 공시가
+  // (`v_public_official_prices`, 한국소비자원 참가격 2026Q3)를 읽도록 재배선되면서,
+  // 폐기된 옛 카테고리(total/seasonal/sdm/options/venue)는 **조회 자체를 거부**하는
+  // 형태로 바뀌었다. 단언을 그 형태에 맞추되 "수치를 만들지 않는다"는 본래 의도는
+  // 그대로 둔다. 실제 통계 계약은 `marketPriceIsSourced.test.ts` 가 따로 고정한다.
+  const rejectingClient = {
+    from: () => {
+      throw new Error("공시 자료가 없는 카테고리는 조회조차 하면 안 된다");
+    },
+  } as never;
 
-    expect(result.toolName).toBe("get_market_price");
-    expect(result.success).toBe(true);
-    expect(result.displayMessage).toContain("과거 고정 시세표는 종료");
-    expect(result.displayMessage).not.toMatch(/\d+만원/u);
-    expect(result.toolOutput).toMatchObject({
-      status: "migrated_to_published_disclosures",
-      publicPath: "/price",
-      sourcePolicy: "reviewed_published_vendor_disclosures_only",
-    });
-  });
+  it.each(["total", "seasonal", "sdm", "options", "venue"])(
+    "폐기된 카테고리 '%s' 로는 수치를 만들지 않는다",
+    async (category) => {
+      const result = await executeGetMarketPrice({ category }, rejectingClient);
 
-  it("does not fabricate a seasonal benchmark after the static dataset is retired", () => {
-    const result = executeGetMarketPrice({ category: "seasonal" });
-
-    expect(result.toolOutput).toMatchObject({ publicPath: "/price" });
-    expect(result.displayMessage).not.toContain("중간값");
-  });
+      expect(result.toolName).toBe("get_market_price");
+      expect(result.success).toBe(false);
+      expect(result.displayMessage).not.toMatch(/\d+만원/u);
+      expect(result.displayMessage).not.toContain("중간값");
+      expect(result.toolOutput).toMatchObject({ error: "unsupported_category" });
+    },
+  );
 
   it("asks for checklist items before quote analysis when included items are missing", () => {
     const result = executeAnalyzeQuoteWithTrustEngine({
