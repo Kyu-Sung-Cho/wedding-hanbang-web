@@ -119,7 +119,7 @@ function VendorRecommendCards({
               <FileCheck2 className="h-5 w-5 text-[#52715D]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1A1A1F]">조건에 맞는 공시 업체를 찾지 못했어요</p>
+              <p className="text-base font-semibold text-[var(--hb-text-strong)]">조건에 맞는 공시 업체를 찾지 못했어요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#5D6861]">
                 지역이나 예산, 필수 조건 중 하나를 조금 넓혀서 다시 찾아볼게요. 확인되지 않은 가격을 임의로 추천하지는 않을게요.
               </p>
@@ -140,8 +140,8 @@ function VendorRecommendCards({
               <Sparkles className="w-5 h-5 text-[#C4967E]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1A1A1F]">현재 업체 추천은 제공하지 않아요</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+              <p className="text-base font-semibold text-[var(--hb-text-strong)]">현재 업체 추천은 제공하지 않아요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                 직접 받은 견적의 포함 항목·추가금·변경 및 환불 조건은 견적 체크에서 확인하고,
                 아모라와 예산·할 일·일정을 정리할 수 있어요.
               </p>
@@ -162,14 +162,14 @@ function VendorRecommendCards({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-lg font-semibold text-[#1A1A1F] truncate">
+                <p className="text-lg font-semibold text-[var(--hb-text-strong)] truncate">
                   {v.name}
                 </p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
                   {hasRating(v.rating, v.reviewCount) && (
                     <>
-                      <Star className="h-4 w-4 fill-[#C9A96E] text-[#C9A96E]" />
-                      <span className="text-sm text-[#928980]">{v.rating} ({v.reviewCount})</span>
+                      <Star className="h-4 w-4 fill-[#C9A96E] text-[var(--hb-primary)]" />
+                      <span className="text-sm text-[var(--hb-text-muted)]">{v.rating} ({v.reviewCount})</span>
                     </>
                   )}
                   {v.location && (
@@ -204,7 +204,7 @@ function VendorRecommendCards({
                 {v.tags.slice(0, 4).map((tag) => (
                   <span
                     key={tag}
-                    className="text-sm px-2.5 py-0.5 rounded-full bg-[#FAF7F2] text-[#928980] border border-black/[0.04]"
+                    className="text-sm px-2.5 py-0.5 rounded-full bg-[#FAF7F2] text-[var(--hb-text-muted)] border border-black/[0.04]"
                   >
                     {tag}
                   </span>
@@ -257,14 +257,14 @@ function VendorRecommendCards({
                   <button
                     onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
                     disabled={disabled}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#946a6a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#946a6a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Package className="h-4 w-4" />
                     상품·스태프 보기
                   </button>
                   <Link
                     href={v.link}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-black/[0.06] text-[#B5ADA3] transition-colors hover:border-[#C4967E]/30 hover:text-[#C4967E]"
+                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-black/[0.06] text-[var(--hb-text-muted)] transition-colors hover:border-[#C4967E]/30 hover:text-[#C4967E]"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </Link>
@@ -411,8 +411,8 @@ function VendorDetailCard({
       <div className="rounded-xl border border-black/[0.06] bg-white shadow-sm w-full max-w-[460px] overflow-hidden">
         {/* 헤더 */}
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
-          <p className="text-lg font-semibold text-[#1A1A1F]">{output.vendorName}</p>
-          <p className="text-sm text-[#928980] mt-1">
+          <p className="text-lg font-semibold text-[var(--hb-text-strong)]">{output.vendorName}</p>
+          <p className="text-sm text-[var(--hb-text-muted)] mt-1">
             {isOfficial
               ? "공시 근거를 먼저 확인하고, 필요하면 예약 보조 정보를 이어서 보세요"
               : hasStaff ? "상품과 스태프를 선택해 주세요" : "상품을 선택하면 등록된 방문·상담 시간 후보를 확인할 수 있어요"}
@@ -515,7 +515,7 @@ function VendorDetailCard({
         <div className="px-5 pt-4 pb-2">
           <div className="flex items-center gap-2 mb-2.5">
             <Package className="w-5 h-5 text-[#C4967E]" />
-            <span className="text-base font-semibold text-[#1A1A1F]">
+            <span className="text-base font-semibold text-[var(--hb-text-strong)]">
               {isOfficial ? "예약 보조 정보" : "상품 선택"}
             </span>
           </div>
@@ -527,7 +527,7 @@ function VendorDetailCard({
           )}
 
           {products.length === 0 ? (
-            <p className="text-sm text-[#B5ADA3] py-2">
+            <p className="text-sm text-[var(--hb-text-muted)] py-2">
               {isOfficial ? "등록된 예약 보조 상품이 없습니다" : "등록된 상품이 없습니다"}
             </p>
           ) : (
@@ -552,7 +552,7 @@ function VendorDetailCard({
                             {p.name}
                           </p>
                           {p.isPopular && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[#C9A96E] font-medium">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[var(--hb-primary)] font-medium">
                               인기
                             </span>
                           )}
@@ -563,19 +563,19 @@ function VendorDetailCard({
                               <span className="text-sm font-semibold text-[#C4967E]">
                                 {formatPrice(p.discountPrice)}
                               </span>
-                              <span className="text-sm text-[#B5ADA3] line-through">
+                              <span className="text-sm text-[var(--hb-text-muted)] line-through">
                                 {formatPrice(p.price)}
                               </span>
                             </>
                           ) : (
-                            <span className="text-sm font-semibold text-[#1A1A1F]">
+                            <span className="text-sm font-semibold text-[var(--hb-text-strong)]">
                               {formatPrice(p.price)}
                             </span>
                           )}
                           {p.duration && (
                             <>
-                              <span className="text-sm text-[#B5ADA3]">·</span>
-                              <span className="text-sm text-[#928980]">
+                              <span className="text-sm text-[var(--hb-text-muted)]">·</span>
+                              <span className="text-sm text-[var(--hb-text-muted)]">
                                 {p.duration >= 60 ? `${Math.floor(p.duration / 60)}시간` : ""}
                                 {p.duration % 60 > 0 ? ` ${p.duration % 60}분` : ""}
                               </span>
@@ -593,7 +593,7 @@ function VendorDetailCard({
                         {p.includes.slice(0, 5).map((inc, i) => (
                           <span
                             key={i}
-                            className="text-xs px-2 py-0.5 rounded bg-[#FAF7F2] text-[#928980]"
+                            className="text-xs px-2 py-0.5 rounded bg-[#FAF7F2] text-[var(--hb-text-muted)]"
                           >
                             {inc}
                           </span>
@@ -612,7 +612,7 @@ function VendorDetailCard({
           <div className="px-5 pt-2 pb-4">
             <div className="flex items-center gap-2 mb-2.5">
               <Users className="w-5 h-5 text-[#C4967E]" />
-              <span className="text-base font-semibold text-[#1A1A1F]">스태프 선택</span>
+              <span className="text-base font-semibold text-[var(--hb-text-strong)]">스태프 선택</span>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -626,7 +626,7 @@ function VendorDetailCard({
                     className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
-                        : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
+                        : "border-black/[0.06] text-[var(--hb-text-muted)] hover:border-[#C4967E]/30"
                       } disabled:opacity-40`}
                   >
                     {s.name}
@@ -640,7 +640,7 @@ function VendorDetailCard({
                 className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors
                   ${selectedStaff === null
                     ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
-                    : "border-black/[0.06] text-[#928980] hover:border-[#C4967E]/30"
+                    : "border-black/[0.06] text-[var(--hb-text-muted)] hover:border-[#C4967E]/30"
                   } disabled:opacity-40`}
               >
                 상관없음
@@ -656,7 +656,7 @@ function VendorDetailCard({
               onClick={() => handleConfirm(selectedProduct!, selectedStaff)}
               disabled={disabled || !selectedProduct || confirmed}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                bg-[#795252] text-white text-base font-medium
+                bg-[var(--hb-primary)] text-white text-base font-medium
                 hover:bg-[#946a6a] active:scale-[0.98]
                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
@@ -741,14 +741,14 @@ function TimeslotPicker({
       <div className="flex justify-start ml-14 my-2">
         <div className="rounded-xl border border-black/[0.06] bg-white px-5 py-4 shadow-sm max-w-[440px]">
           <div className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-[#B5ADA3]" />
-            <p className="text-base text-[#928980]">
+            <Calendar className="w-5 h-5 text-[var(--hb-text-muted)]" />
+            <p className="text-base text-[var(--hb-text-muted)]">
               {filterLabel
                 ? `${filterLabel}에 아모라에 등록된 가능 시간 후보가 없습니다`
                 : "아모라에 등록된 가능 시간 후보가 없습니다"}
             </p>
           </div>
-          <p className="mt-2 text-xs leading-relaxed text-[#928980]">
+          <p className="mt-2 text-xs leading-relaxed text-[var(--hb-text-muted)]">
             실제 가능 여부와 최종 확정은 업체에 별도로 확인해 주세요.
           </p>
         </div>
@@ -763,9 +763,9 @@ function TimeslotPicker({
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-[#C4967E]" />
-            <p className="text-lg font-semibold text-[#1A1A1F]">아모라에 등록된 가능 시간 후보</p>
+            <p className="text-lg font-semibold text-[var(--hb-text-strong)]">아모라에 등록된 가능 시간 후보</p>
           </div>
-          <p className="text-sm text-[#928980] mt-1">
+          <p className="text-sm text-[var(--hb-text-muted)] mt-1">
             {output.vendorName}
             {filterLabel && !usingFallback ? ` · ${filterLabel}` : ""}
             {" · 실제 가능 여부와 최종 확정은 업체 확인이 필요해요"}
@@ -799,7 +799,7 @@ function TimeslotPicker({
                       onClick={() => handleSelect(slot)}
                       disabled={disabled}
                       className="px-4 py-2 rounded-lg border border-black/[0.06] text-sm
-                        text-[#1A1A1F] hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
+                        text-[var(--hb-text-strong)] hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
                         active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       <span className="font-medium">{slot.time}</span>
@@ -873,10 +873,10 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             <CheckCircle2 className="w-4 h-4 text-white" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-[#1A1A1F]">
+            <p className="text-sm font-semibold text-[var(--hb-text-strong)]">
               {cancelled ? "아모라 기록 취소 표시 요청됨" : "아모라에 예약 요청을 기록했어요"}
             </p>
-            <p className="text-xs text-[#928980]">
+            <p className="text-xs text-[var(--hb-text-muted)]">
               {cancelled
                 ? "업체 취소 전달·확정은 별도 확인"
                 : "업체에 전달되거나 확정된 상태가 아니에요"}
@@ -889,36 +889,36 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
           <div className="rounded-lg bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-[#C4967E]" />
-              <span className="text-xs text-[#928980]">업체</span>
-              <span className="text-xs font-medium text-[#1A1A1F] ml-auto">{output.vendorName}</span>
+              <span className="text-xs text-[var(--hb-text-muted)]">업체</span>
+              <span className="text-xs font-medium text-[var(--hb-text-strong)] ml-auto">{output.vendorName}</span>
             </div>
             {output.productName && (
               <div className="flex items-center gap-2">
                 <Package className="w-3.5 h-3.5 text-[#C4967E]" />
-                <span className="text-xs text-[#928980]">상품</span>
-                <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
+                <span className="text-xs text-[var(--hb-text-muted)]">상품</span>
+                <span className="text-xs font-medium text-[var(--hb-text-strong)] ml-auto">
                   {output.productName}
                 </span>
               </div>
             )}
             <div className="flex items-center gap-2">
               <FileCheck2 className="w-3.5 h-3.5 text-[#C4967E]" />
-              <span className="text-xs text-[#928980]">아모라 내부 후보 견적</span>
-              <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
+              <span className="text-xs text-[var(--hb-text-muted)]">아모라 내부 후보 견적</span>
+              <span className="text-xs font-medium text-[var(--hb-text-strong)] ml-auto">
                 {output.quotedAmount > 0 ? formatPrice(output.quotedAmount) : "미확정"}
               </span>
             </div>
             {output.staffName && (
               <div className="flex items-center gap-2">
                 <Users className="w-3.5 h-3.5 text-[#C4967E]" />
-                <span className="text-xs text-[#928980]">담당</span>
-                <span className="text-xs font-medium text-[#1A1A1F] ml-auto">{output.staffName}</span>
+                <span className="text-xs text-[var(--hb-text-muted)]">담당</span>
+                <span className="text-xs font-medium text-[var(--hb-text-strong)] ml-auto">{output.staffName}</span>
               </div>
             )}
             <div className="flex items-center gap-2">
               <Clock className="w-3.5 h-3.5 text-[#C4967E]" />
-              <span className="text-xs text-[#928980]">일시</span>
-              <span className="text-xs font-medium text-[#1A1A1F] ml-auto">
+              <span className="text-xs text-[var(--hb-text-muted)]">일시</span>
+              <span className="text-xs font-medium text-[var(--hb-text-strong)] ml-auto">
                 {dateLabel} {output.time}
               </span>
             </div>
@@ -956,7 +956,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setShowCancelConfirm(false)}
-                      className="px-2.5 py-1 text-xs rounded-md bg-white border border-black/[0.06] text-[#928980]"
+                      className="px-2.5 py-1 text-xs rounded-md bg-white border border-black/[0.06] text-[var(--hb-text-muted)]"
                     >
                       아니요
                     </button>
@@ -973,7 +973,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
                 <button
                   onClick={() => setShowCancelConfirm(true)}
                   disabled={disabled}
-                  className="text-xs text-[#B5ADA3] hover:text-red-400 transition-colors disabled:opacity-40"
+                  className="text-xs text-[var(--hb-text-muted)] hover:text-red-400 transition-colors disabled:opacity-40"
                 >
                   기록 취소 표시
                 </button>
@@ -1034,27 +1034,27 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
             <X className="w-5 h-5 text-white" />
           </div>
           <div>
-            <p className="text-lg font-semibold text-[#1A1A1F]">아모라 예약 기록을 취소로 표시했어요</p>
+            <p className="text-lg font-semibold text-[var(--hb-text-strong)]">아모라 예약 기록을 취소로 표시했어요</p>
           </div>
         </div>
         <div className="px-5 pb-4">
           <div className="rounded-lg bg-white border border-black/[0.04] px-4 py-3 flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-[#928980]" />
-              <span className="text-sm text-[#928980]">업체</span>
-              <span className="text-sm font-medium text-[#928980] ml-auto line-through">{output.vendorName}</span>
+              <Sparkles className="w-4 h-4 text-[var(--hb-text-muted)]" />
+              <span className="text-sm text-[var(--hb-text-muted)]">업체</span>
+              <span className="text-sm font-medium text-[var(--hb-text-muted)] ml-auto line-through">{output.vendorName}</span>
             </div>
             {output.productName && (
               <div className="flex items-center gap-2">
-                <Package className="w-4 h-4 text-[#928980]" />
-                <span className="text-sm text-[#928980]">상품</span>
-                <span className="text-sm font-medium text-[#928980] ml-auto line-through">{output.productName}</span>
+                <Package className="w-4 h-4 text-[var(--hb-text-muted)]" />
+                <span className="text-sm text-[var(--hb-text-muted)]">상품</span>
+                <span className="text-sm font-medium text-[var(--hb-text-muted)] ml-auto line-through">{output.productName}</span>
               </div>
             )}
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[#928980]" />
-              <span className="text-sm text-[#928980]">일시</span>
-              <span className="text-sm font-medium text-[#928980] ml-auto line-through">{dateLabel} {output.time}</span>
+              <Clock className="w-4 h-4 text-[var(--hb-text-muted)]" />
+              <span className="text-sm text-[var(--hb-text-muted)]">일시</span>
+              <span className="text-sm font-medium text-[var(--hb-text-muted)] ml-auto line-through">{dateLabel} {output.time}</span>
             </div>
           </div>
           <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
@@ -1169,10 +1169,10 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               <Search className="h-5 w-5 text-[#218A00]" aria-hidden="true" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1A1A1F]">
+              <p className="text-base font-semibold text-[var(--hb-text-strong)]">
                 {output.query ? `‘${output.query}’ 네이버™에서 바로 보기` : "네이버™에서 바로 검색하기"}
               </p>
-              <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                 검색 결과 연결이 지연되고 있어 네이버의 최신 검색 화면으로 바로 이어드려요.
               </p>
               <span className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-[#218A00]">
@@ -1186,13 +1186,13 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               href={handoffMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 border-t border-black/[0.05] py-3 text-sm font-medium text-[#1A1A1F] transition-colors hover:bg-[#FAF7F2]"
+              className="flex items-center justify-center gap-2 border-t border-black/[0.05] py-3 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[#FAF7F2]"
             >
               <MapPin className="h-4 w-4" aria-hidden="true" />
               네이버 지도에서 보기
             </a>
           )}
-          <p className="border-t border-black/[0.05] bg-[#FAFAF8] px-4 py-2 text-[10px] text-[#928980]">
+          <p className="border-t border-black/[0.05] bg-[#FAFAF8] px-4 py-2 text-[10px] text-[var(--hb-text-muted)]">
             네이버™는 NAVER®의 등록상표입니다.
           </p>
         </div>
@@ -1233,10 +1233,10 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               <MapPin className="w-5 h-5 text-[#C4967E]" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-base font-semibold text-[#1A1A1F]">
+              <p className="text-base font-semibold text-[var(--hb-text-strong)]">
                 {output.query ? `'${output.query}' 근처 결과를 못 찾았어요` : "근처 장소 검색 결과가 없어요"}
               </p>
-              <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                 다른 키워드로 다시 물어봐 주시거나, 좀 더 넓은 지역으로 알려주시면 다시 찾아볼게요.
               </p>
             </div>
@@ -1266,7 +1266,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
         {output.query && (
           <div className="flex items-center gap-2 px-1">
             <MapPin className="w-5 h-5 text-[#C4967E]" />
-            <span className="text-sm text-[#928980] font-medium">
+            <span className="text-sm text-[var(--hb-text-muted)] font-medium">
               &apos;{output.query}&apos; 네이버™ 검색 결과
             </span>
           </div>
@@ -1317,7 +1317,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                           ? `${p.name} 사진을 불러오지 못했어요`
                           : `${p.name} 검색 사진이 아직 없어요`
                       }
-                      className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center text-[#928980]"
+                      className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center text-[var(--hb-text-muted)]"
                     >
                       <MapPin className="h-5 w-5 text-[#A77B74]" aria-hidden="true" />
                       <span className="text-[10px] leading-tight">사진 준비 중</span>
@@ -1328,7 +1328,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 <div className="flex-1 min-w-0">
                   {/* 이름 + 검색 링크 표시 */}
                   <div className="flex min-w-0 items-center justify-between gap-2">
-                    <p className="min-w-0 truncate text-lg font-semibold text-[#1A1A1F]">
+                    <p className="min-w-0 truncate text-lg font-semibold text-[var(--hb-text-strong)]">
                       {p.name}
                     </p>
                     <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-[#A77B74] sm:text-xs">
@@ -1340,7 +1340,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                   {/* 태그 줄: 음식종류 + 세부카테고리 + 후기 수 */}
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     {p.cuisineType && (
-                      <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[#1A1A1F] font-medium">
+                      <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[var(--hb-text-strong)] font-medium">
                         {cuisineEmoji[p.cuisineType] || "🍴"} {p.cuisineType}
                       </span>
                     )}
@@ -1385,15 +1385,15 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                   {/* 주소 + 전화 */}
                   <div className="flex items-center gap-3 mt-2.5">
                     <div className="flex items-center gap-1.5">
-                      <MapPin className="w-4 h-4 text-[#B5ADA3] shrink-0" />
-                      <span className="text-sm text-[#928980] truncate max-w-[220px]">
+                      <MapPin className="w-4 h-4 text-[var(--hb-text-muted)] shrink-0" />
+                      <span className="text-sm text-[var(--hb-text-muted)] truncate max-w-[220px]">
                         {p.address}
                       </span>
                     </div>
                     {p.telephone && (
                       <div className="flex items-center gap-1.5">
-                        <Phone className="w-3.5 h-3.5 text-[#B5ADA3] shrink-0" />
-                        <span className="text-sm text-[#928980]">
+                        <Phone className="w-3.5 h-3.5 text-[var(--hb-text-muted)] shrink-0" />
+                        <span className="text-sm text-[var(--hb-text-muted)]">
                           {p.telephone}
                         </span>
                       </div>
@@ -1409,7 +1409,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 href={p.mapsUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-[#1A1A1F] hover:bg-[#FAF7F2] transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium text-[var(--hb-text-strong)] hover:bg-[#FAF7F2] transition-colors"
               >
                 <ExternalLink className="w-4 h-4" />
                 네이버 지도
@@ -1428,7 +1428,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
 
             <div
               role="note"
-              className="flex flex-col gap-1 border-t border-black/[0.04] bg-[#FAFAF8] px-4 py-2.5 text-[11px] leading-relaxed text-[#928980] sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+              className="flex flex-col gap-1 border-t border-black/[0.04] bg-[#FAFAF8] px-4 py-2.5 text-[11px] leading-relaxed text-[var(--hb-text-muted)] sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
               {p.imageUrl && (
                 <span className="shrink-0 font-medium text-[#7A6F66]">사진 출처: 네이버 이미지 검색</span>

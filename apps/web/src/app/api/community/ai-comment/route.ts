@@ -47,7 +47,7 @@ const CATEGORY_HINTS: Record<string, string> = {
   free: "이 글은 자유게시판 글입니다. 공감하며 따뜻하게 응원해주세요.",
 };
 
-const SYSTEM_PROMPT = `당신은 웨딩한방의 AI 결혼 준비 동반자 '아모라'입니다. 커뮤니티 게시글에 짧고 도움이 되는 댓글을 작성합니다.
+const SYSTEM_PROMPT = `당신은 웨딩한방 AI 동반자 '아모라'입니다. 커뮤니티 게시글에 짧고 도움이 되는 댓글을 작성합니다.
 
 규칙:
 - 반드시 2-3문장 이내로 작성

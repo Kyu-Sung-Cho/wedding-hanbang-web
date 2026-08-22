@@ -30,7 +30,7 @@ $ExpectedArtifactFiles = @(
 function Show-Help {
   Write-Host 'Vendor-disclosure successor post-expand Production backup'
   Write-Host ''
-  Write-Host 'Captures the exact 139-table / 232-migration Production state with read-only'
+  Write-Host 'Captures the exact 139-table / 233-migration Production state with read-only'
   Write-Host 'linked queries. Public, Auth users, and Storage metadata/object inventory are'
   Write-Host 'encrypted in memory as HBAM2 artifacts protected by Windows DPAPI CurrentUser.'
   Write-Host 'No logical plaintext is written to disk. -Help performs no I/O.'
@@ -284,8 +284,8 @@ try {
       'columns', 'constraints', 'schema_contract', 'auth_schema_contract', 'storage_schema_contract')) {
       if (-not $inventory.PSObject.Properties[$field]) { throw "Inventory is missing $field." }
     }
-    if (@($inventory.migration_versions).Count -ne 232 -or [string]@($inventory.migration_versions)[-1] -ne $script:VDPostExpandMigrationHead -or
-        @($inventory.release_migration_versions).Count -ne 117 -or @($inventory.applied_suffix_versions).Count -ne 85 -or
+    if (@($inventory.migration_versions).Count -ne 233 -or [string]@($inventory.migration_versions)[-1] -ne $script:VDPostExpandMigrationHead -or
+        @($inventory.release_migration_versions).Count -ne 118 -or @($inventory.applied_suffix_versions).Count -ne 86 -or
         @($inventory.auth_schema_contract).Count -lt 1 -or @($inventory.storage_schema_contract).Count -lt 1) {
       throw 'Inventory migration/Auth/Storage contract is incomplete.'
     }
@@ -347,10 +347,10 @@ try {
     backup_contract_version = $BackupContractVersion; created_at_utc = [DateTimeOffset]::UtcNow.ToString('o')
     source_captured_at = [string]$data.captured_at; source_project_ref = $ExpectedProjectRef
     source_database_identity = $data.source_database_identity; source_database_identity_sha256 = $identityDigests[0]
-    source_migration_head = $script:VDPostExpandMigrationHead; source_migration_count = 232
+    source_migration_head = $script:VDPostExpandMigrationHead; source_migration_count = 233
     source_migration_versions_sha256 = $script:VDPostExpandMigrationVersionsSha256
-    release_migration_count = 117; release_migration_versions_sha256 = $script:VDPostExpandReleaseMigrationVersionsSha256
-    applied_suffix_count = 85; applied_suffix_versions_sha256 = $script:VDPostExpandAppliedSuffixVersionsSha256
+    release_migration_count = 118; release_migration_versions_sha256 = $script:VDPostExpandReleaseMigrationVersionsSha256
+    applied_suffix_count = 86; applied_suffix_versions_sha256 = $script:VDPostExpandAppliedSuffixVersionsSha256
     expected_tables = @($script:VDPostExpandExpectedTables); table_count = 139
     table_contract_sha256 = $script:VDPostExpandTableContractSha256
     source_relation_contract_sha256 = $relationDigests[0]
@@ -394,7 +394,7 @@ try {
     BackupSetId = $backupSetId; ManifestSha256 = $manifestSha; Release = $Release
     ProjectRef = $ExpectedProjectRef; GitCommit = $ExpectedCommit; BackupContractId = $BackupContractId
     BackupContractVersion = 2; SourceMigrationHead = $script:VDPostExpandMigrationHead
-    SourceMigrationCount = 232; ReleaseMigrationCount = 117; AppliedSuffixCount = 85
+    SourceMigrationCount = 233; ReleaseMigrationCount = 118; AppliedSuffixCount = 86
     TableCount = 139; TableContractSha256 = $script:VDPostExpandTableContractSha256
     SourceDatabaseSystemIdentifier = [string]$data.source_database_identity.system_identifier
     SourceDatabaseOid = [string]$data.source_database_identity.database_oid

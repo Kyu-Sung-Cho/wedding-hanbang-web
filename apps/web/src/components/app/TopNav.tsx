@@ -12,7 +12,7 @@ import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPat
 import { useAuthStore } from "@/stores/authStore";
 
 const pageTitles: Record<string, string> = {
-  "/lounge": "오늘 할 일",
+  "/lounge": "웨딩 라운지",
   "/chat": "아모라",
   "/budget": "예산",
   "/market-prices": "시세 정보",

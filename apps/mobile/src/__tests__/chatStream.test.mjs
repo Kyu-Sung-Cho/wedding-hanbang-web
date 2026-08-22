@@ -3535,7 +3535,20 @@ test("mobile UI exposes accessible shared/private scopes and renders only the se
   assert.match(sourceText, /const activeLane = resolveAmoraChatLane\(activeScope, target, hasLinkedPartner\)/);
   assert.match(sourceText, /const input = activeLane \? inputByLane\[activeLane\] : ""/);
   assert.match(sourceText, /isMessageInChatScope\(message\.visibility, activeScope, userRole\)/);
-  assert.match(sourceText, /const visibleMessages = useMemo\(\(\) => \[\.\.\.scopedMessages\]\.reverse\(\)/);
+  // 화면에 그리는 목록은 여전히 "선택된 범위로 거른 것"에서만 나온다. 여기에 붙는 것은
+  // 아모라가 먼저 건넨 첫마디 하나뿐이고, 그것도 함께 대화 범위에서만 붙는다.
+  assert.match(
+    sourceText,
+    /const displayedMessages = useMemo\(\s*\(\) => \(firstHelloMessage \? \[firstHelloMessage, \.\.\.scopedMessages\] : scopedMessages\)/,
+  );
+  assert.match(
+    sourceText,
+    /const visibleMessages = useMemo\(\(\) => \[\.\.\.displayedMessages\]\.reverse\(\)/,
+  );
+  assert.match(
+    sourceText,
+    /if \(!firstHelloBody \|\| activeScope !== "shared" \|\| target === "partner"\) \{\s*return null;/,
+  );
   assert.match(sourceText, /function handleScopeChange\(nextScope: ChatScope\)/);
   assert.match(sourceText, /selectChatScope\([\s\S]*nextScope,[\s\S]*userRole/);
   assert.match(sourceText, /accessibilityLabel="상담 공개 범위"/);

@@ -135,6 +135,9 @@ function RootLayout() {
             <Stack.Screen name="(auth)" options={{ animation: "fade" }} />
             <Stack.Screen name="(tabs)" options={{ animation: "fade" }} />
             <Stack.Screen name="onboarding" options={{ headerShown: false, animation: "fade" }} />
+            {/* 초대 링크(`hanbang://invite#WH-...`)가 착지하는 자리. 코드만 꺼내
+                기억하고 곧바로 루트나 로그인으로 넘기므로 화면이 남지 않게 fade로 둔다. */}
+            <Stack.Screen name="invite" options={{ headerShown: false, animation: "fade" }} />
             <Stack.Screen name="schedule" options={{ headerShown: false }} />
             <Stack.Screen name="checklist" options={{ headerShown: false }} />
             <Stack.Screen name="budget" options={{ headerShown: false }} />

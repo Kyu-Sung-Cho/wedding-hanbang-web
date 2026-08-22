@@ -8,7 +8,7 @@ const scheduleSource = readFileSync(
   "utf8",
 );
 const dashboardSource = readFileSync(
-  new URL("../../app/(tabs)/dashboard.tsx", import.meta.url),
+  new URL("../../app/(tabs)/lounge.tsx", import.meta.url),
   "utf8",
 );
 const apiSource = readFileSync(

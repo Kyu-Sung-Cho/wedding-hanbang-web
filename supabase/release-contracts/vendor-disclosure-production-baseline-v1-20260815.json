@@ -135,7 +135,7 @@
       "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60"
     }
   ],
-  "pendingSuccessorCount": 85,
+  "pendingSuccessorCount": 86,
   "firstPendingSuccessor": "20260730100000",
   "lastPendingSuccessor": "20260820150000",
   "requiredRuntimeChecks": [

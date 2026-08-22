@@ -73,6 +73,16 @@ function deferred() {
   return { promise, resolve };
 }
 
+/** expo-router 경로가 가리키는 파일. 없으면 null. */
+function resolveRoute(route) {
+  const base = `../../app${route}`;
+  for (const candidate of [`${base}.tsx`, `${base}/index.tsx`]) {
+    const path = fileURLToPath(new URL(candidate, import.meta.url));
+    if (existsSync(path)) return path;
+  }
+  return null;
+}
+
 const emptyInput = {
   hasCouple: true,
   weddingDate: "2027-05-15",
@@ -587,7 +597,33 @@ test("a coupled member with no date starts from Amora's state review and keeps t
   assert.doesNotMatch(handoff?.prompt ?? "", /자동으로 저장|바로 공유/);
 });
 
-test("a task saved for today outranks a heuristic checklist timing", () => {
+test("the date fix lands on a screen that can actually edit the wedding date", () => {
+  const focus = buildDashboardFocus({ ...emptyInput, weddingDate: null });
+  // 이 브랜치에서 날짜를 고치러 가는 곳은 주 동선이 아니라 대체 동선이다.
+  // 주 동선은 준비 상태 확인(채팅)이고, 날짜만 고칠 사람을 위해 설정을 따로 연다.
+  const dateFixRoute = focus.alternateAction.route;
+
+  // 목적지 화면이 실재하고, 그 화면에 결혼 예정일 입력이 실제로 있어야 한다.
+  // 없는 화면이나 못 고치는 화면으로 보내는 것은 버튼이 없는 것보다 나쁘다.
+  const screen = resolveRoute(dateFixRoute);
+  assert.ok(screen, `${dateFixRoute}에 해당하는 화면이 없습니다`);
+  const source = readFileSync(screen, "utf8");
+  assert.match(source, /결혼 예정일/);
+  assert.match(source, /updateField\("weddingDate", v\)/);
+
+  // 라운지 화면이 그 경로를 실제로 열 수 있어야 한다 — switch에 case가 없으면 버튼이
+  // 아무 일도 하지 않는다.
+  const homeExperience = readFileSync(
+    fileURLToPath(new URL("../components/dashboard/WeddingHomeExperience.tsx", import.meta.url)),
+    "utf8",
+  );
+  assert.ok(
+    homeExperience.includes("openAlternateFocus(focus.alternateAction)"),
+    "라운지 화면이 대체 동선을 열지 않습니다",
+  );
+});
+
+test("an overdue preparation item takes priority over lower-risk work", () => {
   const focus = buildDashboardFocus({
     ...emptyInput,
     todayTasks: [{ title: "청첩장 문구 정하기", categoryKey: "invitation" }],
@@ -2238,7 +2274,7 @@ test("login returns through the shared onboarding gate before opening home", () 
   const source = readFileSync(fileURLToPath(loginUrl), "utf8");
 
   assert.equal(
-    source.includes('router.replace("/(tabs)/dashboard")'),
+    source.includes('router.replace("/(tabs)/lounge")'),
     false,
   );
   assert.ok(

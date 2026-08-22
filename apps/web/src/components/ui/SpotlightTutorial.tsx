@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
@@ -42,7 +42,19 @@ interface Props {
   replayOnTrigger?: boolean;
   /** 시작 딜레이 (ms). 기본 600 */
   delayMs?: number;
+  /**
+   * 투어가 끝났을 때 한 번 부른다.
+   *
+   * 왜 필요한가: 지금까지 "봤다"는 사실은 localStorage에만 남아서, 부르는 쪽이
+   * 그 사실을 계정에 적거나 다음 화면(아모라 말풍선)에 넘길 방법이 없었다.
+   * `reason`으로 완주와 건너뛰기를 구분해 주지만, **둘 다 끝난 것**이다 —
+   * 건너뛴 사람에게 매번 다시 띄우는 건 안내가 아니라 방해다.
+   */
+  onFinish?: (reason: SpotlightFinishReason) => void;
 }
+
+/** 완주("completed")인지 사용자가 도중에 닫았는지("skipped"). 둘 다 "끝났다"이다. */
+export type SpotlightFinishReason = "completed" | "skipped";
 
 const TOOLTIP_W = 320;
 const VIEWPORT_MARGIN = 16;
@@ -55,6 +67,7 @@ export default function SpotlightTutorial({
   prerequisiteKey,
   replayOnTrigger = false,
   delayMs = 600,
+  onFinish,
 }: Props) {
   const [visible, setVisible] = useState(false);
   const [stepIndex, setStepIndex] = useState(0);
@@ -109,15 +122,31 @@ export default function SpotlightTutorial({
   // ─── 타겟 요소 위치 추적 ────────────────────────────────────
   const currentStep = steps[stepIndex];
 
-  const finishInternal = useCallback(() => {
-    try {
-      localStorage.setItem(storageKey, "true");
-    } catch {
-      /* */
-    }
-    setVisible(false);
-    setStepIndex(0);
-  }, [storageKey]);
+  // onFinish는 부르는 쪽에서 매 렌더 새로 만들어지기 쉽다. 그대로 의존성에 넣으면
+  // finishInternal이 계속 바뀌면서 키보드·스킵 이펙트가 매번 재구독된다.
+  const onFinishRef = useRef(onFinish);
+  useEffect(() => {
+    onFinishRef.current = onFinish;
+  }, [onFinish]);
+
+  // 끝난 사실은 한 번만 알린다 — 완료 버튼 뒤에 Escape가 들어와도 두 번 쓰지 않는다.
+  const finishNotified = useRef(false);
+
+  const finishInternal = useCallback(
+    (reason: SpotlightFinishReason) => {
+      try {
+        localStorage.setItem(storageKey, "true");
+      } catch {
+        /* */
+      }
+      setVisible(false);
+      setStepIndex(0);
+      if (finishNotified.current) return;
+      finishNotified.current = true;
+      onFinishRef.current?.(reason);
+    },
+    [storageKey],
+  );
 
   const updateRect = useCallback(() => {
     if (!currentStep) return;
@@ -160,7 +189,9 @@ export default function SpotlightTutorial({
       if (stepIndex < steps.length - 1) {
         setStepIndex((i) => i + 1);
       } else {
-        finishInternal();
+        // 마지막 앵커가 화면에 없어 건너뛴 경우다. 사용자가 닫은 게 아니라
+        // 투어가 끝까지 간 것이므로 완주로 본다.
+        finishInternal("completed");
       }
     }, 400);
     return () => window.clearTimeout(t);
@@ -170,7 +201,7 @@ export default function SpotlightTutorial({
     if (stepIndex < steps.length - 1) {
       setStepIndex(stepIndex + 1);
     } else {
-      finishInternal();
+      finishInternal("completed");
     }
   }, [stepIndex, steps.length, finishInternal]);
 
@@ -182,7 +213,7 @@ export default function SpotlightTutorial({
   useEffect(() => {
     if (!visible) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") finishInternal();
+      if (e.key === "Escape") finishInternal("skipped");
       else if (e.key === "ArrowRight" || e.key === "Enter") next();
       else if (e.key === "ArrowLeft") prev();
     };
@@ -333,7 +364,7 @@ export default function SpotlightTutorial({
               </span>
               <button
                 type="button"
-                onClick={finishInternal}
+                onClick={() => finishInternal("skipped")}
                 className="flex items-center gap-1 text-xs text-[#B5ADA3] hover:text-[#1b1c1c] transition-colors"
                 aria-label="튜토리얼 종료"
               >

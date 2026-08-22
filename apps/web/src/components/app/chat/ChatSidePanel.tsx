@@ -71,6 +71,13 @@ function fileInputKey(file: File): string {
 interface ChatSidePanelProps {
   isOpen: boolean;
   onClose: () => void;
+  /**
+   * 아모라가 먼저 건넨 첫마디 전문. 첫 실행 안내가 끝난 직후에만 들어온다.
+   *
+   * 이 값이 있으면 모델에게 인사를 **다시 요청하지 않는다** — 아모라가 이미 말을
+   * 걸어둔 자리에 인사가 두 번 뜨면 먼저 말을 건 것이 아니라 두 번 말한 것이 된다.
+   */
+  firstHello?: string | null;
 }
 
 interface MediationConsentContext {
@@ -90,7 +97,11 @@ interface ChatComposerDraft {
   retryClientRequestId: string | null;
 }
 
-export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
+export default function ChatSidePanel({
+  isOpen,
+  onClose,
+  firstHello = null,
+}: ChatSidePanelProps) {
   const router = useRouter();
   const { profile, couple, journey, partner, isDemo } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
@@ -273,6 +284,25 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
     )),
     [activeScope, messages, myPrivateVisibility],
   );
+  /**
+   * 아모라의 첫마디. 서버에 저장된 메시지가 아니라 이 화면 위에만 있는 말이다 —
+   * 모델 호출도 DB 쓰기도 없이 온보딩 입력만으로 만들어졌기 때문이다.
+   * 그래서 함께 대화(shared) 범위의 맨 위에 한 번 놓고, 답장은 평소 경로로 간다.
+   */
+  const firstHelloMessage = useMemo<ChatMessage | null>(() => {
+    if (!firstHello || !coupleId || isDemo) return null;
+    return {
+      id: "amora-first-hello",
+      couple_id: coupleId,
+      sender_id: null,
+      sender_role: "ai",
+      visibility: "shared",
+      content: firstHello,
+      metadata: {},
+      created_at: new Date().toISOString(),
+    };
+  }, [coupleId, firstHello, isDemo]);
+
   const artifactsMatchActiveVisibility =
     !!activeVisibility && artifactVisibility === activeVisibility;
   const errorMatchesActiveVisibility = artifactsMatchActiveVisibility
@@ -595,6 +625,9 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
       !profile ||
       !senderRole ||
       isDemo ||
+      // 아모라가 첫 실행 안내 직후 이미 먼저 말을 걸어뒀다. 여기서 또 인사를
+      // 요청하면 같은 자리에 인사가 두 번 뜬다.
+      firstHello ||
       !initialLoadDone ||
       isStreaming ||
       messages.length > 0 ||
@@ -614,7 +647,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
         progress: journey?.progress ?? {},
       },
     });
-  }, [isOpen, coupleId, profile, senderRole, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo]);
+  }, [isOpen, coupleId, profile, senderRole, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello]);
 
   // 자동 스크롤
   useEffect(() => {
@@ -1325,7 +1358,7 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
             </div>
             <div>
               <h3 className="text-sm font-medium text-noir-800">아모라 AI</h3>
-              <p className="text-[0.6875rem] text-taupe-400">AI 결혼 준비 동반자</p>
+              <p className="text-[0.6875rem] text-taupe-400">AI 동반자</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -1533,6 +1566,14 @@ export default function ChatSidePanel({ isOpen, onClose }: ChatSidePanelProps) {
 
             {/* 메시지 영역 */}
             <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+              {firstHelloMessage && activeScope === "shared" && (
+                <div className="animate-fade-in" data-testid="amora-first-hello-message">
+                  <ChatBubble
+                    message={firstHelloMessage}
+                    isCurrentUser={false}
+                  />
+                </div>
+              )}
               {(() => {
                 // 최근 3개 AI 메시지 ID 계산 (피드백 버튼 표시용)
                 const recentAiIds = new Set(

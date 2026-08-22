@@ -17,10 +17,30 @@ function source(relativePath: string): string {
 
 describe("onboarding reliability", () => {
   it("does not turn an entered expense into an invented category budget", () => {
+    // 조립 코드는 화면 밖(순수 함수)으로 옮겼다. 규칙이 사는 파일을 따라간다.
+    const progressBuilder = source("src/lib/onboarding/buildOnboardingProgress.ts");
     const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
 
-    expect(onboardingPage).toContain("spent: costInWon");
+    expect(progressBuilder).toContain("spent: costInWon");
+    expect(progressBuilder).not.toContain("budget: costInWon");
+    expect(onboardingPage).toContain("buildOnboardingProgress({");
     expect(onboardingPage).not.toContain("budget: costInWon");
+  });
+
+  it("keeps the joining partner out of the shared preparation progress", () => {
+    const onboardingPage = source("src/app/(auth)/onboarding/page.tsx");
+
+    // 합류 제출은 단계도 19항목도 싣지 않는다 — 먼저 시작한 파트너의 기록을
+    // 나중에 온 사람의 세션 값으로 덮지 않기 위해서다.
+    expect(onboardingPage).toContain(
+      'const isJoiningPartner = store.coupleAction === "join";',
+    );
+    expect(onboardingPage).toContain(
+      "preparationStage: isJoiningPartner ? null : store.preparationStage,",
+    );
+    expect(onboardingPage).toContain(
+      "includeChecklist: includeChecklist && !isJoiningPartner,",
+    );
   });
 
   it("tags the web onboarding budget as canonical won and keeps an undecided value null", () => {

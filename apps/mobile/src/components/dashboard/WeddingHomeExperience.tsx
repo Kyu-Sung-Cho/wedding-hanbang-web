@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -53,6 +53,11 @@ import {
 import type { AmoraPersonalizationPreferences } from "@/lib/amoraPersonalization.mjs";
 import type { AmoraCoreCriterion } from "@hanbang/shared/amora-core-criterion";
 import type { AmoraCoupleCriterionResponse } from "@hanbang/shared/amora-couple-criterion";
+import { LOUNGE_CONTENT_BOTTOM_PADDING } from "@/lib/firstRunTutorial";
+import {
+  FirstRunAnchor,
+  useFirstRunAnchorScroller,
+} from "@/components/lounge/FirstRunAnchors";
 import { AppText, SectionHeader, StatusPill, appShadow } from "@/components/ui/AppUI";
 import AmoraRecommendationWhySheet from "@/components/dashboard/AmoraRecommendationWhySheet";
 
@@ -88,6 +93,14 @@ interface WeddingHomeExperienceProps {
   refreshing: boolean;
   onRefresh: () => void;
   renderTodayOneCare?: (fallback: ReactNode, focus: DashboardFocus) => ReactNode;
+  /**
+   * 첫 도착 카드들(확인했어요 · 다음 걸음 · 초대). 두 사람이 만든 데이터가 아직 없을
+   * 때만 라운지가 넣어준다. 이 화면은 언제 보일지 판단하지 않는다 — 판단이 두 곳에
+   * 있으면 한쪽만 고쳐진다.
+   */
+  firstArrival?: ReactNode;
+  /** 왜 아직 비어 있는지 한 줄. 빈 준비 도구 격자 바로 위에 붙는다. */
+  emptyNote?: ReactNode;
 }
 
 const SERVICE_ICONS = {
@@ -245,7 +258,9 @@ function openCompanionChat(
     brief: companionBrief,
   });
   if (!companionHandoff) {
-    router.push("/(tabs)/chat");
+    // 핸드오프를 못 만들어도 빈 화면으로 떨어뜨리지 않는다. 히어로에서 온 사람은
+    // "오늘 확인할 게 없다"를 방금 읽었으므로 그 맥락은 들고 간다.
+    router.push("/(tabs)/chat?entry=lounge_focus_calm");
     return;
   }
   router.push({
@@ -314,8 +329,21 @@ export default function WeddingHomeExperience({
   refreshing,
   onRefresh,
   renderTodayOneCare,
+  firstArrival,
+  emptyNote,
 }: WeddingHomeExperienceProps) {
   const [whySheetVisible, setWhySheetVisible] = useState(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const registerFirstRunScroller = useFirstRunAnchorScroller();
+
+  // 첫 실행 안내가 화면 아래 요소를 짚어야 할 때 이 스크롤을 빌려 쓴다. 안내가 없는
+  // 화면에서는 등록만 되고 아무도 부르지 않는다.
+  useEffect(() => {
+    registerFirstRunScroller((y) => {
+      scrollRef.current?.scrollTo({ y, animated: true });
+    });
+    return () => registerFirstRunScroller(null);
+  }, [registerFirstRunScroller]);
 
   useEffect(() => {
     setWhySheetVisible(false);
@@ -538,6 +566,7 @@ export default function WeddingHomeExperience({
   return (
     <>
     <ScrollView
+      ref={scrollRef}
       style={styles.scroll}
       contentContainerStyle={styles.content}
       refreshControl={
@@ -568,9 +597,15 @@ export default function WeddingHomeExperience({
             </View>
           </View>
 
-          {renderTodayOneCare && focus
-            ? renderTodayOneCare(companionFallback, focus)
-            : companionFallback}
+          {/* 첫 도착 카드들. 스크롤 콘텐츠의 직속 자식이어야 안내가 자리를 제대로 잰다. */}
+          {firstArrival}
+
+          {/* 첫 실행 안내의 "여기부터 보시면 돼요"가 가리키는 곳. */}
+          <FirstRunAnchor id="lounge-focus">
+            {renderTodayOneCare && focus
+              ? renderTodayOneCare(companionFallback, focus)
+              : companionFallback}
+          </FirstRunAnchor>
 
           <View style={styles.weddingContext} accessibilityRole="summary">
             <View style={styles.weddingContextTop}>
@@ -652,6 +687,9 @@ export default function WeddingHomeExperience({
               {getWeddingMomentMessage(data.dday)}
             </Text>
           </View>
+
+          {/* 아직 두 사람이 만든 것이 없을 때, 왜 비어 있는지 한 줄. */}
+          {emptyNote}
 
           {preparationSection ? (
             <View style={styles.section}>
@@ -834,7 +872,7 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: spacing[5],
     paddingTop: spacing[4],
-    paddingBottom: 128,
+    paddingBottom: LOUNGE_CONTENT_BOTTOM_PADDING,
   },
   intro: {
     minHeight: 58,

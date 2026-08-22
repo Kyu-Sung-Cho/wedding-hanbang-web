@@ -2,7 +2,13 @@ import { act, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  buildAmoraFirstHello,
+  FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
+} from "@hanbang/shared";
+
 import AppClientLayout from "./AppClientLayout";
+import { resetAmoraFirstHelloMemory } from "@/lib/amora/pendingFirstHello";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -15,6 +21,12 @@ const mocks = vi.hoisted(() => ({
   userId: "10000000-0000-4000-8000-000000000001" as string | null,
   initializeCalls: [] as Array<{ initialDemo?: boolean } | undefined>,
   authSyncCalls: [] as boolean[],
+  pageViewCalls: [] as boolean[],
+  profile: null as { id?: string; role?: string | null } | null,
+  journey: null as
+    | { wedding_date?: string | null; progress?: Record<string, unknown> }
+    | null,
+  partner: null as { id: string } | null,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -39,8 +51,26 @@ vi.mock("@/components/app/TopNav", () => ({
 }));
 
 vi.mock("@/components/app/chat/ChatSidePanel", () => ({
-  default: ({ isOpen }: { isOpen: boolean }) => (
-    <div data-testid="global-amora-panel" data-open={String(isOpen)} />
+  default: ({
+    isOpen,
+    onClose,
+    firstHello,
+  }: {
+    isOpen: boolean;
+    onClose?: () => void;
+    firstHello?: string | null;
+  }) => (
+    <div
+      data-testid="global-amora-panel"
+      data-open={String(isOpen)}
+      data-first-hello={firstHello ?? ""}
+    >
+      <button
+        type="button"
+        data-testid="global-amora-panel-close"
+        onClick={() => onClose?.()}
+      />
+    </div>
   ),
 }));
 
@@ -59,6 +89,9 @@ vi.mock("@/stores/authStore", () => ({
     isLoading: false,
     isDemo: mocks.isDemo,
     user: mocks.userId ? { id: mocks.userId } : null,
+    profile: mocks.profile,
+    journey: mocks.journey,
+    partner: mocks.partner,
   }),
 }));
 
@@ -81,6 +114,12 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.userId = "10000000-0000-4000-8000-000000000001";
     mocks.initializeCalls.length = 0;
     mocks.authSyncCalls.length = 0;
+    mocks.pageViewCalls.length = 0;
+    mocks.profile = null;
+    mocks.journey = null;
+    mocks.partner = null;
+    window.localStorage.clear();
+    resetAmoraFirstHelloMemory();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -193,4 +232,197 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector(".ph-no-capture")).toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).not.toBeNull();
   });
+
+  it("첫 실행 안내가 끝나면 아모라가 먼저 말을 건다", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { role: "bride" };
+    mocks.journey = {
+      wedding_date: "2026-10-17",
+      progress: { __stage: "venue_booked" },
+    };
+    await renderLayout();
+
+    // 안내가 끝나기 전에는 말풍선도 읽지 않음 표시도 없다.
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
+    expect(container.querySelector('[data-testid="amora-first-hello-dot"]')).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+
+    const bubble = container.querySelector('[data-testid="amora-first-hello-bubble"]');
+    expect(bubble).not.toBeNull();
+    expect(container.querySelector('[data-testid="amora-first-hello-dot"]')).not.toBeNull();
+    // 문구는 모델이 아니라 온보딩 입력만으로 만들어진다.
+    const expected = buildAmoraFirstHello({
+      weddingDate: "2026-10-17",
+      preparationStage: "venue_booked",
+      partnerLinked: false,
+      now: Date.now(),
+    });
+    expect(bubble?.textContent).toContain(expected.preview);
+
+    // 누르면 대화가 열리고 첫마디 전문이 이미 놓여 있다.
+    const openButton = bubble?.querySelector("button");
+    await act(async () => (openButton as HTMLButtonElement | null)?.click());
+
+    const panel = container.querySelector('[data-testid="global-amora-panel"]');
+    expect(panel?.getAttribute("data-open")).toBe("true");
+    expect(panel?.getAttribute("data-first-hello")).toBe(expected.body);
+  });
+
+  it("말풍선을 닫으면 다시 뜨지 않는다", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { role: "groom" };
+    await renderLayout();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).not.toBeNull();
+
+    const dismiss = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="아모라 인사 닫기"]',
+    );
+    await act(async () => dismiss?.click());
+
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
+    expect(container.querySelector('[data-testid="amora-first-hello-dot"]')).toBeNull();
+
+    // 그래도 첫마디 자체는 남아 있어 버튼을 눌렀을 때 아모라가 먼저 말한 상태로 열린다.
+    const launcher = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="아모라 AI 상담"]',
+    );
+    await act(async () => launcher?.click());
+    expect(
+      container.querySelector('[data-testid="global-amora-panel"]')
+        ?.getAttribute("data-first-hello"),
+    ).not.toBe("");
+  });
+  it("첫마디는 한 번만 건넨다 — 대화를 닫으면 사라진다", async () => {
+    // 이 메시지는 chat_messages에 저장되지 않는 화면 전용이라, 남겨두면 패널을 열
+    // 때마다 아모라가 같은 인사를 다시 하는 것처럼 보인다. 앱은 이미 한 번만
+    // 보여주고 지운다 — 두 플랫폼이 같아야 한다.
+    mocks.isDemo = false;
+    mocks.profile = { role: "bride" };
+    await renderLayout();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+
+    const bubble = container.querySelector('[data-testid="amora-first-hello-bubble"]');
+    await act(async () => (bubble?.querySelector("button") as HTMLButtonElement | null)?.click());
+
+    const panel = () => container.querySelector('[data-testid="global-amora-panel"]');
+    expect(panel()?.getAttribute("data-first-hello")).not.toBe("");
+
+    // 닫는다.
+    const close = container.querySelector<HTMLButtonElement>(
+      '[data-testid="global-amora-panel-close"]',
+    );
+    await act(async () => close?.click());
+
+    // 다시 열면 첫마디는 더 이상 놓여 있지 않다.
+    const launcher = container.querySelector<HTMLButtonElement>(
+      'button[aria-label="아모라 AI 상담"]',
+    );
+    await act(async () => launcher?.click());
+    expect(panel()?.getAttribute("data-open")).toBe("true");
+    expect(panel()?.getAttribute("data-first-hello")).toBe("");
+  });
+
+  /** 새로고침 — 같은 계정으로 화면을 처음부터 다시 그린다. */
+  async function remountLayout() {
+    await act(async () => root.unmount());
+    document.body.replaceChildren();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await renderLayout();
+  }
+
+  it("새로고침해도 첫마디는 그 계정에서 사라지지 않는다", async () => {
+    // 안내 완료는 이미 계정에 적혀 안내가 다시 뜨지 않는다. 화면 상태에만 담아두면
+    // 새로고침한 사람은 그 계정으로 첫마디를 영영 못 만난다.
+    mocks.isDemo = false;
+    mocks.profile = { id: "user-1", role: "bride" };
+    await renderLayout();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+    const preview = container
+      .querySelector('[data-testid="amora-first-hello-bubble"]')
+      ?.textContent;
+    expect(preview).toBeTruthy();
+
+    await remountLayout();
+
+    expect(
+      container.querySelector('[data-testid="amora-first-hello-bubble"]')?.textContent,
+    ).toBe(preview);
+  });
+
+  it("말풍선을 닫고 새로고침하면 알림은 조용하고 인사는 대화에 남는다", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "user-1", role: "groom" };
+    await renderLayout();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="아모라 인사 닫기"]')
+        ?.click(),
+    );
+
+    await remountLayout();
+
+    // 말풍선은 알림이고 첫마디는 인사다. "알림 봤다"가 "인사 필요 없다"는 아니다.
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')
+        ?.click(),
+    );
+    expect(
+      container
+        .querySelector('[data-testid="global-amora-panel"]')
+        ?.getAttribute("data-first-hello"),
+    ).not.toBe("");
+  });
+
+  it("한 번 건넨 뒤에는 새로고침해도 다시 놓이지 않는다", async () => {
+    mocks.isDemo = false;
+    mocks.profile = { id: "user-1", role: "bride" };
+    await renderLayout();
+
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
+    });
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')
+        ?.click(),
+    );
+
+    // 이번 페이지 로드의 기억까지 지우면 "다음에 다시 켰을 때"와 같은 상태가 된다.
+    resetAmoraFirstHelloMemory();
+    await remountLayout();
+
+    expect(container.querySelector('[data-testid="amora-first-hello-bubble"]')).toBeNull();
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')
+        ?.click(),
+    );
+    expect(
+      container
+        .querySelector('[data-testid="global-amora-panel"]')
+        ?.getAttribute("data-first-hello"),
+    ).toBe("");
+  });
+
 });

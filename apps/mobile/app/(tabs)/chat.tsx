@@ -9,6 +9,7 @@ import {
   type ViewToken,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
 import { router, useLocalSearchParams } from "expo-router";
@@ -45,12 +46,21 @@ import {
   hasMediationSafetySignal,
 } from "@hanbang/shared/mediation-offer";
 import { readAmoraPrivateMediationDraftMetadata } from "@hanbang/shared/mediation-provenance";
+import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import {
   assertAmoraRequestActor,
   assertSharedActionActor,
 } from "@/lib/amoraSharedActionActorFence.mjs";
 import { normalizeMediationBlock } from "@/lib/amoraMediation";
+import {
+  consumePendingAmoraFirstHello,
+  getDeliveredAmoraFirstHello,
+} from "@/lib/amoraFirstHello";
+import {
+  AMORA_CHAT_ENTRY_PARAM,
+  getAmoraChatEntryPrefill,
+} from "@/lib/amoraChatEntry";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
   getAmoraActionApprovalPolicy,
@@ -363,6 +373,26 @@ async function saveAmoraMediationOfferDismissals(
     { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
   );
 }
+/**
+ * 아모라가 먼저 건넨 첫마디의 자리.
+ *
+ * chat_messages에 저장하지 않는다 — 이건 대화 기록이 아니라 인사이고, DB에 남기면 모델이
+ * 나중에 "내가 그렇게 말했다"를 근거로 삼는다. 그래서 화면에만 놓이는 로컬 메시지이고,
+ * 서버로 보내는 대화 맥락(messages)에도 들어가지 않는다.
+ */
+const AMORA_FIRST_HELLO_MESSAGE_ID = "amora_first_hello_local";
+/**
+ * 처음 온 사람이 무엇부터 물어볼지 고르는 칩.
+ *
+ * 빈 화면에만 있었는데, 아모라가 먼저 건넨 첫마디가 놓이면 화면은 더 이상 비어 있지 않다.
+ * 그때 칩까지 사라지면 정작 칩이 가장 필요한 사람이 칩을 못 본다. 그래서 목록을 여기 한 벌만
+ * 두고 두 자리에서 같이 쓴다.
+ */
+const AMORA_STARTER_PROMPTS = [
+  "웨딩 사진 촬영 예산을 정리해줘",
+  "지금 먼저 할 일 세 가지를 알려줘",
+  "결혼식장 계약 전에 무엇을 확인해야 해?",
+] as const;
 
 interface ToolExecutionResult {
   toolName: string;
@@ -2797,6 +2827,7 @@ export default function ChatScreen() {
   // state gates mediation only; ordinary chat and care remain available.
   const [hasDevicePrivateMediationSafetyHold, setHasDevicePrivateMediationSafetyHold] =
     useState(true);
+  const [firstHelloBody, setFirstHelloBody] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -2860,7 +2891,6 @@ export default function ChatScreen() {
     )),
     [activeScope, messages, userRole],
   );
-  const visibleMessages = useMemo(() => [...scopedMessages].reverse(), [scopedMessages]);
   const localPrivateMediationSafetyEpoch = useMemo(() => {
     if (!userRole) return 0;
     const privateVisibility: ChatMessageVisibility = `${userRole}_private`;
@@ -2932,6 +2962,68 @@ export default function ChatScreen() {
     && !hasLocalPrivateMediationSafetyHold
     && !hasDevicePrivateMediationSafetyHold
     && !dismissedMediationOfferKeys.has(mediationOffer.offerKey);
+  /**
+   * 라운지에서 아모라가 먼저 건넨 첫마디. 사람이 먼저 말을 걸어야 대화가 시작되는 게
+   * 아니라, 열었을 때 이미 놓여 있어야 한다.
+   *
+   * `messages`에 섞지 않는 이유: 그 배열은 서버로 보내는 맥락이자 리얼타임 동기화 대상이라,
+   * 저장되지 않은 로컬 메시지를 넣으면 새로고침마다 사라졌다 나타나고 모델에게는 없는
+   * 기록으로 간다. 화면에 그릴 때만 앞에 붙인다.
+   */
+  const firstHelloMessage = useMemo<ChatMessage | null>(() => {
+    if (!firstHelloBody || activeScope !== "shared" || target === "partner") {
+      return null;
+    }
+    return {
+      id: AMORA_FIRST_HELLO_MESSAGE_ID,
+      couple_id: coupleId ?? "",
+      sender_id: null,
+      role: "assistant",
+      sender_type: "ai",
+      content: firstHelloBody,
+      metadata: null,
+      visibility: "shared",
+    };
+  }, [activeScope, coupleId, firstHelloBody, target]);
+  const displayedMessages = useMemo(
+    () => (firstHelloMessage ? [firstHelloMessage, ...scopedMessages] : scopedMessages),
+    [firstHelloMessage, scopedMessages],
+  );
+  const visibleMessages = useMemo(() => [...displayedMessages].reverse(), [displayedMessages]);
+
+  // 어느 문으로 들어왔는가. 라운지의 버튼·카드·첫 도착 CTA는 서로 다른 키를 들고 오고,
+  // 그 키가 입력창 초안 한 줄을 정한다(웹의 ?prefill=과 같은 자리다). 탭으로 그냥 들어온
+  // 사람에게는 키가 없고, 그러면 아무것도 채우지 않는다.
+  const entryParam = useLocalSearchParams()[AMORA_CHAT_ENTRY_PARAM];
+  const entryPrefillAppliedRef = useRef(false);
+  useEffect(() => {
+    if (entryPrefillAppliedRef.current) return;
+    const prefill = getAmoraChatEntryPrefill(entryParam);
+    if (!prefill) return;
+    // 한 번만 놓는다. 다시 놓으면 사람이 지운 초안이 화면이 다시 그려질 때마다 되살아난다.
+    entryPrefillAppliedRef.current = true;
+    // 공유 아모라 레인에만 놓는다. 파트너 대화나 비공개 상담에 진입 문구가 섞이면,
+    // 사람은 자기가 쓰지 않은 말을 상대에게 보낼 뻔한다.
+    setInputByLane((current) =>
+      updateAmoraChatLaneRecord(current, "shared_ai", prefill),
+    );
+  }, [entryParam]);
+
+  // 라운지에서 만들어 둔 첫마디를 가져온다. 모델을 부르지 않으므로 네트워크가 느려도
+  // 대화를 열자마자 놓여 있다.
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const delivered = getDeliveredAmoraFirstHello();
+      const hello =
+        delivered ?? (await consumePendingAmoraFirstHello({ storage: AsyncStorage }));
+      if (!active || !hello) return;
+      setFirstHelloBody(hello.body);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
   const activeW5PersistenceState = useMemo<{
     rawDisclosurePersisted: boolean | null;
     persistence: RawDisclosurePersistence;
@@ -8109,7 +8201,7 @@ export default function ChatScreen() {
             <ActivityIndicator color={colors.rose[500]} />
             <Text style={st.loadingText}>대화를 준비하는 중이에요</Text>
           </View>
-        ) : scopedMessages.length === 0 ? (
+        ) : displayedMessages.length === 0 ? (
           <ScrollView
             style={st.emptyScroll}
             contentContainerStyle={st.empty}
@@ -8219,6 +8311,12 @@ export default function ChatScreen() {
               <Text style={st.mediationOfferActionText}>조율 도움 받기</Text>
             </Pressable>
           </View>
+        )}
+
+        {/* 아모라의 첫마디만 놓여 있고 아직 오간 말이 없을 때. 화면은 비어 있지 않지만
+            이 사람은 여전히 "무엇부터 물어보지"에 서 있다. */}
+        {initialLoaded && scopedMessages.length === 0 && firstHelloMessage && !isP && (
+          <View style={st.suggestions}>{AMORA_STARTER_PROMPTS.map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => handleAiSuggestion(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
         )}
 
         {!hasActiveW5SafetyCard && quotaRemaining !== null && !streaming && (

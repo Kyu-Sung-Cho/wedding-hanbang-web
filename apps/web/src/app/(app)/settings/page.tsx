@@ -12,7 +12,6 @@ import {
   Bell,
   LogOut,
   ChevronRight,
-  Copy,
   Check,
   Pencil,
   Save,
@@ -39,6 +38,7 @@ import {
   selectOwnerBoundCoupleConnection,
 } from "@/lib/couples/settingsInviteActorFence";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
+import InviteCodePanel from "@/components/invite/InviteCodePanel";
 import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,
@@ -111,7 +111,6 @@ export default function SettingsPage() {
     updateProfile,
   } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
-  const [copied, setCopied] = useState(false);
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
@@ -217,8 +216,6 @@ export default function SettingsPage() {
       partnerPresent: Boolean(partner),
       membershipSealedAt: couple?.membership_sealed_at,
     };
-
-    setCopied(false);
 
     if (!couple) {
       setCoupleConnection(resolveCoupleConnectionState(null, context));
@@ -1127,6 +1124,9 @@ export default function SettingsPage() {
         </div>
 
         <div className="bg-[#F6F3F2] rounded-xl p-5">
+          {/* 코드가 보이는 유일한 조건은 `awaiting_partner`다. 연결이 끝나면
+              /api/couple/code가 inviteCode: null을 주고 패널도 함께 사라진다 —
+              패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
           {phase === "awaiting_partner" && coupleCode && (
             <div className="mb-3">
               <div className="flex items-center justify-between">
@@ -1213,7 +1213,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex-1">
                 <p className="text-base text-[#504444] font-medium">파트너 초대 대기</p>
-                <p className="text-sm text-[#928980]">위 코드를 파트너에게 공유해 주세요</p>
+                <p className="text-sm text-[#928980]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
               </div>
               <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
             </div>

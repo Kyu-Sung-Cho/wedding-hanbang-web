@@ -493,7 +493,7 @@ export function validateAmoraProfileUpdate(value: unknown): AmoraProfileUpdateRe
   return { shouldUpdate: true, profile };
 }
 
-const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방의 AI 결혼 준비 동반자 아모라를 위한 "커플 개인화 프로필 편집기"입니다.
+const PROFILE_SYSTEM_PROMPT = `당신은 웨딩한방 AI 동반자 아모라의 "커플 개인화 프로필 편집기"입니다.
 
 목표:
 - 전역 모델을 학습시키지 않고, 이 커플에게만 적용할 장기 프로필을 갱신합니다.

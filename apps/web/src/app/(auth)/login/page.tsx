@@ -325,7 +325,7 @@ export default function LoginPage() {
             <Logo size="md" />
           </Link>
           <p className="text-[14px] text-[#635b51] font-light mt-3">
-            AI 결혼 준비 동반자 아모라와 함께하는 결혼 준비
+            아모라와 함께하는 결혼 준비
           </p>
         </div>
 

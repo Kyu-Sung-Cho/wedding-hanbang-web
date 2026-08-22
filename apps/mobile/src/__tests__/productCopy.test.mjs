@@ -5,7 +5,7 @@ import { fileURLToPath, URL } from "node:url";
 
 const ACTIVE_PRODUCT_SOURCES = [
   "app/(auth)/login.tsx",
-  "app/(tabs)/dashboard.tsx",
+  "app/(tabs)/lounge.tsx",
   "app/(tabs)/chat.tsx",
   "app/budget/index.tsx",
   "src/components/AppGuide.tsx",
@@ -13,6 +13,9 @@ const ACTIVE_PRODUCT_SOURCES = [
   "src/lib/dashboardExperience.mjs",
   "src/lib/weddingSettings.ts",
   "app/onboarding/index.tsx",
+  "src/components/onboarding/PreparationProgressList.tsx",
+  // 온보딩에서 사람에게 보이는 문구 일부가 이 모듈로 옮겨졌다(저장되지 않은 입력 알림).
+  "src/lib/onboardingFlow.mjs",
   "app/settings/index.tsx",
   "app/schedule/index.tsx",
   "app/community/cohort-discovery.tsx",
@@ -220,4 +223,30 @@ test("mobile outcome and review copy identifies unverified user records", () => 
   assert.match(bookings, /아모라가 이용·결제를 검증한 후기가 아니에요/);
   assert.match(bookings, /입력 기준 추가 지출/);
   assert.doesNotMatch(bookings, /공개 후기로 공유|실제 결과 저장|실제 금액과 만족도/);
+});
+
+test("amora is never introduced as a planner on any active mobile screen", () => {
+  // 제품 계약(CLAUDE.md)의 정본 호칭은 "결혼 준비 동반자"다. 대행하는 플래너가 아니고,
+  // 이 제품에서 "파트너"는 배우자될 사람을 가리키므로 아모라의 호칭으로 쓰지 않는다.
+  //
+  // 웹에는 같은 금지가 amoraVoiceReach.test.ts:28에 이미 있었는데 모바일은 그 테스트
+  // 밖이라, 채팅 헤더가 "AI 웨딩 플래너"인 채로 계속 배포되고 있었다.
+  const published = ACTIVE_PRODUCT_SOURCES.join("\n");
+  // 영문 표기도 막는다. 한글만 막아뒀더니 라운지 전폭 카드의 eyebrow가
+  // "AI WEDDING PLANNER"인 채로 이 가드를 그대로 지나갔다 — 대문자 장식 문구라
+  // 눈에도 덜 띄고, 사용자에게는 똑같이 보이는 자리다.
+  for (const banned of [
+    "웨딩 플래너",
+    "웨딩플래너",
+    "AI 플래너",
+    "WEDDING PLANNER",
+    "Wedding Planner",
+    "wedding planner",
+    "AI PLANNER",
+  ]) {
+    assert.ok(
+      !published.includes(banned),
+      `아모라를 "${banned}"로 소개하는 문구가 남아 있습니다`,
+    );
+  }
 });
