@@ -10,6 +10,10 @@ import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import SignupConsent from "@/components/auth/SignupConsent";
 import {
+  hasAnyWebOAuthProvider,
+  isWebOAuthProviderEnabled,
+} from "@/lib/auth/oauthProviders";
+import {
   EMPTY_SIGNUP_CONSENT,
   buildSignupConsentSubmission,
   isSignupConsentComplete,
@@ -383,7 +387,9 @@ export default function LoginPage() {
                 </div>
               ) : null}
 
-              {mode !== "forgot" ? (
+              {/* provider 가 하나도 안 켜져 있으면 "빠르게 로그인하기" 제목과
+                  구분선만 덩그러니 남는다. 자리째 감춘다. */}
+              {mode !== "forgot" && hasAnyWebOAuthProvider() ? (
                 <>
                   <div className="mb-5 flex items-center gap-4">
                     <div className="h-px flex-1 bg-platinum" />
@@ -394,6 +400,10 @@ export default function LoginPage() {
                   </div>
 
                   <div className="mb-5 flex gap-3">
+                    {/* 카카오는 운영 Supabase 에서 꺼져 있다(authorize -> 400
+                        "provider is not enabled"). 눌러도 동작하지 않는 버튼은
+                        없는 것보다 나쁘다 — 모바일이 이미 같은 규칙을 쓴다. */}
+                    {isWebOAuthProviderEnabled("kakao") ? (
                     <button
                       onClick={() => handleOAuth("kakao")}
                       disabled={loading !== null}
@@ -404,6 +414,8 @@ export default function LoginPage() {
                       </svg>
                       카카오
                     </button>
+                    ) : null}
+                    {isWebOAuthProviderEnabled("google") ? (
                     <button
                       onClick={() => handleOAuth("google")}
                       disabled={loading !== null}
@@ -417,6 +429,8 @@ export default function LoginPage() {
                       </svg>
                       Google
                     </button>
+                    ) : null}
+                    {isWebOAuthProviderEnabled("apple") ? (
                     <button
                       onClick={() => handleOAuth("apple")}
                       disabled={loading !== null}
@@ -427,6 +441,7 @@ export default function LoginPage() {
                       </svg>
                       Apple
                     </button>
+                    ) : null}
                   </div>
 
                   <div className="mb-5 flex items-center gap-4">

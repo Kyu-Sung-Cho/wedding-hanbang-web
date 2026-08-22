@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { withParticle } from "@/lib/korean/particles";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -1390,7 +1391,7 @@ function LatestPosts({
                 : "지금 올라온 글";
   const feedMoreLabel = `${feedTitle} 더보기`;
   const previewDescription = isSearching
-    ? `"${searchQuery}"와 가까운 공개 경험 ${formatCount(total)}건`
+    ? `"${searchQuery}"${withParticle(searchQuery)} 가까운 공개 경험 ${formatCount(total)}건`
     : selectedCategory
       ? `${categoryDisplayLabels[selectedCategory]} 게시글 ${formatCount(total)}개`
       : currentSort === "hot"

@@ -1048,7 +1048,7 @@ export default function SettingsPage() {
           <span className="min-w-0 flex-1">
             <span className="block text-[17px] font-medium text-[#243832]">아모라가 기억하는 것</span>
             <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
-              기억을 켜거나 끄고, 잘못 이해한 내용은 직접 고치거나 지울 수 있어요
+              아모라가 무엇을 기억하는지 보고, 잘못 이해한 내용은 고치거나 지울 수 있어요
             </span>
           </span>
           <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
