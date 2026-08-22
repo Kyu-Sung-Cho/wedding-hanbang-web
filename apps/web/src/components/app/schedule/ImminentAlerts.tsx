@@ -73,15 +73,19 @@ const URGENCY_STYLES: Record<string, {
 interface Props {
   items: ImminentCategory[];
   onCategoryClick: (key: string) => void;
+  /**
+   * 이 패널의 이름은 「날짜를 정할 항목」인데, 여기서 날짜를 정할 방법이 없었다.
+   * 행을 누르면 체크리스트 창이 열려서, 날짜를 잡으려면 화면 위 `일정 추가`로 가
+   * 분야를 다시 고르는 수밖에 없었다. 그래서 행에서 바로 날짜를 잡게 한다.
+   */
+  onScheduleClick: (key: string) => void;
 }
 
-export default function ImminentAlerts({ items, onCategoryClick }: Props) {
+export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick }: Props) {
   const [expanded, setExpanded] = useState(true);
 
   if (items.length === 0) return null;
 
-  const overdueCount = items.filter((i) => i.urgency === "overdue").length;
-  const urgentCount = items.filter((i) => i.urgency === "urgent").length;
   const needsScheduleCount = items.filter((i) => !i.hasScheduledEvent).length;
 
   return (
@@ -101,13 +105,16 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
             </h3>
             <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">{items.length}건</span>
           </div>
-          {(overdueCount > 0 || urgentCount > 0) && (
+          {/*
+            이 배지가 `지남·급함이 하나라도 있을 때` 안에 중첩돼 있었다. 그래서 마감을
+            아직 넘기지 않은 커플 — 즉 **일정대로 잘 가고 있어서 미리 알려줘야 할 사람** — 은
+            "몇 건이 날짜가 없다"를 한 번도 못 봤다. 뒤처진 뒤에야 알려주는 셈이었다.
+          */}
+          {needsScheduleCount > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
-              {needsScheduleCount > 0 && (
-                <span className="rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold text-white">
-                  {needsScheduleCount} 일정 필요
-                </span>
-              )}
+              <span className="rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold text-white">
+                {needsScheduleCount} 일정 필요
+              </span>
             </div>
           )}
         </div>
@@ -132,15 +139,18 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                 : 0;
 
               return (
-                <button
+                <div
                   key={item.key}
-                  onClick={() => onCategoryClick(item.key)}
-                  className="w-full flex items-stretch hover:bg-[#FAFAF8] transition-colors text-left group"
+                  className="w-full flex items-stretch hover:bg-[#FAFAF8] transition-colors group"
                 >
                   {/* 좌측 컬러 스트립 */}
                   <div className={`w-1 flex-shrink-0 ${styles.stripBg}`} />
 
-                  <div className="grid flex-1 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-3 px-3 py-3 sm:grid-cols-[2.25rem_minmax(0,1fr)_auto]">
+                  <button
+                    type="button"
+                    onClick={() => onCategoryClick(item.key)}
+                    className="grid flex-1 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-3 px-3 py-3 text-left"
+                  >
                     {/* 아이콘 */}
                     <div className={`flex h-9 w-9 items-center justify-center rounded-[12px] ${styles.iconBox}`}>
                       <IconComp className={`h-4 w-4 ${styles.iconColor}`} />
@@ -165,12 +175,28 @@ export default function ImminentAlerts({ items, onCategoryClick }: Props) {
                       </div>
                     </div>
 
-                    {/* 실제 날짜를 정해야 하는 항목 */}
-                    <span className={`col-start-2 w-fit rounded-full px-2.5 py-1 text-[12px] font-semibold sm:col-start-auto ${styles.badgeBg} ${styles.badgeText}`}>
-                      일정 필요
-                    </span>
-                  </div>
-                </button>
+                    {/*
+                      이 배지는 `hasScheduledEvent` 를 보지 않고 **늘** 그려졌다. 그래서 이미
+                      날짜를 잡아 둔 분야에도 "일정 필요"라고 말했다. 머리의 개수는
+                      날짜 없는 것만 세므로 배지와 개수가 서로 다른 말을 하고 있었다.
+                    */}
+                    {!item.hasScheduledEvent && (
+                      <span className={`col-start-2 w-fit rounded-full px-2.5 py-1 text-[12px] font-semibold ${styles.badgeBg} ${styles.badgeText}`}>
+                        일정 필요
+                      </span>
+                    )}
+                  </button>
+
+                  {!item.hasScheduledEvent && (
+                    <button
+                      type="button"
+                      onClick={() => onScheduleClick(item.key)}
+                      className="shrink-0 self-center rounded-full border border-[#36534E] px-3 py-1.5 text-[12px] font-semibold text-[#36534E] transition-colors hover:bg-[#36534E] hover:text-white mr-3"
+                    >
+                      날짜 잡기
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

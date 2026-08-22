@@ -118,6 +118,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
   // 이벤트 CRUD 상태
   const [eventFormMode, setEventFormMode] = useState<"add" | "edit" | null>(null);
+  /** 「날짜를 정할 항목」에서 바로 날짜를 잡을 때 폼에 미리 채울 분야. */
+  const [eventFormCategoryKey, setEventFormCategoryKey] = useState<string>("");
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [selectedDateForAdd, setSelectedDateForAdd] = useState<string | null>(null);
   const [pendingCancelId, setPendingCancelId] = useState<string | null>(null);
@@ -247,6 +249,20 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     setSelectedCategory(key);
   }, []);
 
+  /**
+   * 「날짜를 정할 항목」에서 날짜를 잡는다.
+   *
+   * 이 패널은 이름이 약속하는 것을 할 수 없었다 — 행을 누르면 체크리스트 창이 열려서,
+   * 날짜를 잡으려면 화면 위 `일정 추가`로 가 분야를 처음부터 다시 고르는 수밖에 없었다.
+   * 패널은 이미 어느 분야인지 아니까 그대로 폼에 넘긴다.
+   */
+  const handleScheduleCategory = useCallback((key: string) => {
+    setEditingEvent(null);
+    setSelectedDateForAdd(null);
+    setEventFormCategoryKey(key);
+    setEventFormMode("add");
+  }, []);
+
   // 타임라인 인라인 체크리스트 토글
   const handleToggleChecklistItem = useCallback(
     async (categoryKey: string, itemId: string) => {
@@ -346,6 +362,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     if (blockUnsafeEventMutation()) return;
     setSelectedDateForAdd(date);
     setEditingEvent(null);
+    // 패널에서 한 번 고른 분야가 다음 일반 추가에 남지 않게 비운다.
+    setEventFormCategoryKey("");
     setEventFormMode("add");
   }, [blockUnsafeEventMutation]);
 
@@ -353,6 +371,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     if (blockUnsafeEventMutation()) return;
     setSelectedDateForAdd(null);
     setEditingEvent(null);
+    setEventFormCategoryKey("");
     setEventFormMode("add");
   }, [blockUnsafeEventMutation]);
 
@@ -656,6 +675,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 <ImminentAlerts
                   items={imminentCategories}
                   onCategoryClick={handleCategoryClick}
+                  onScheduleClick={handleScheduleCategory}
                 />
               </div>
             )}
@@ -843,6 +863,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           mode={eventFormMode ?? "add"}
           event={editingEvent}
           defaultDate={selectedDateForAdd}
+          defaultCategoryKey={eventFormCategoryKey}
           assigneeContext={assigneeContext}
           onSave={handleSaveEvent}
           onCancel={editingEvent ? () => handleCancelEvent(editingEvent.id) : undefined}
@@ -850,6 +871,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             setEventFormMode(null);
             setEditingEvent(null);
             setSelectedDateForAdd(null);
+            setEventFormCategoryKey("");
           }}
         />
       </div>
