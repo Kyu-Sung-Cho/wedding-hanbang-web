@@ -1,6 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import {
+  ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE,
+  parseAccountDeletionIntakeCapability,
+} from "@/lib/account/deletionIntake";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { AnimatePresence } from "framer-motion";
@@ -113,6 +117,40 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
+  /**
+   * 자동 탈퇴 접수가 열려 있는가. 서버가 판정해 `/api/auth/me` 의 capabilities 로 내려준다.
+   *
+   * **모르는 동안(null)에는 닫힌 것으로 그린다.** 열려 있다고 잘못 그리면 사용자가
+   * 확인 문구까지 친 뒤에 거부당하고, 닫혔다고 잘못 그리면 안내가 한 번 더 뜰 뿐이다.
+   */
+  const [deletionIntakeOpen, setDeletionIntakeOpen] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (isDemo) return;
+    const controller = new AbortController();
+    let cancelled = false;
+
+    fetch("/api/auth/me", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload: unknown = await response.json().catch(() => null);
+        if (cancelled) return;
+        setDeletionIntakeOpen(
+          parseAccountDeletionIntakeCapability(
+            (payload as { capabilities?: unknown } | null)?.capabilities,
+          ),
+        );
+      })
+      .catch(() => {
+        // 판정을 못 읽었으면 닫힌 것으로 둔다(초기값 그대로).
+      });
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [isDemo]);
+
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
   const [resettingWedding, setResettingWedding] = useState(false);
@@ -398,7 +436,15 @@ export default function SettingsPage() {
   ];
 
   const handleDeleteAccount = async () => {
-    if (deleteConfirmText !== "탈퇴합니다" || !deleteReason) return;
+    // 자동 접수가 닫혀 있으면 사유도 확인 문구도 묻지 않는다 — 지워지지 않을 일에
+    // 파기 확인 절차를 시키는 것은 사용자를 헛수고시키는 것이다. 그때 이 요청은
+    // 서버가 안내(503 + supportEmail)를 돌려주게 하는 용도이고, 아무것도 지우지 않는다.
+    if (
+      deletionIntakeOpen === true
+      && (deleteConfirmText !== "탈퇴합니다" || !deleteReason)
+    ) {
+      return;
+    }
     setDeleting(true);
     setDeleteError("");
 
@@ -1207,6 +1253,15 @@ export default function SettingsPage() {
                 계정과 직접 소유한 데이터 삭제를 요청합니다.
               </p>
 
+              {deletionIntakeOpen !== true && (
+                <p
+                  role="status"
+                  className="mb-5 rounded-xl border border-[#E2D3C8] bg-[#FBF8F2] px-4 py-3 text-sm leading-relaxed text-[#36534E]"
+                >
+                  {ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE}
+                </p>
+              )}
+
               {/* 되돌릴 수 없는 행동 앞에서는 무엇이 지워지고 무엇이 남는지
                   먼저 보여준다. 특히 "파트너 화면에는 남는다"는 사실은
                   사람이 놀라는 자리다. */}
@@ -1238,6 +1293,9 @@ export default function SettingsPage() {
                   에 있어요.
                 </p>
               </div>
+
+              {deletionIntakeOpen === true && (
+              <>
 
               {/* 탈퇴 사유 */}
               <div className="mb-5">
@@ -1273,6 +1331,8 @@ export default function SettingsPage() {
                   className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[#B5ADA3]"
                 />
               </div>
+              </>
+              )}
 
               {deleteError && (
                 <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
@@ -1280,10 +1340,18 @@ export default function SettingsPage() {
 
               <button
                 onClick={handleDeleteAccount}
-                disabled={deleteConfirmText !== "탈퇴합니다" || !deleteReason || deleting}
+                disabled={
+                  deleting
+                  || (deletionIntakeOpen === true
+                    && (deleteConfirmText !== "탈퇴합니다" || !deleteReason))
+                }
                 className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {deleting ? "요청 중..." : "계정 삭제 요청"}
+                {deleting
+                  ? "요청 중..."
+                  : deletionIntakeOpen === true
+                    ? "계정 삭제 요청"
+                    : "요청 방법 확인하기"}
               </button>
 
               <button

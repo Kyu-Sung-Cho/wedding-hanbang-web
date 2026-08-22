@@ -12,6 +12,7 @@ import {
 import SignupConsent from "@/components/auth/SignupConsent";
 import Button from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
+import { CONTACT } from "@/lib/constants/contact";
 
 type ConsentGateClientProps = Readonly<{
   /** 동의를 마친 뒤 돌아갈 곳. 서버가 같은 출처인지 확인한 값이다. */
@@ -138,7 +139,7 @@ export default function ConsentGateClient({
         </Button>
 
         <p className="mt-6 text-[12px] leading-relaxed text-[#928980]">
-          계정 삭제를 원하시면 로그아웃 후 고객센터(support@hanbang.ai)로 알려주세요.
+          계정 삭제를 원하시면 로그아웃 후 고객센터({CONTACT.email})로 알려주세요.
         </p>
       </div>
     </main>

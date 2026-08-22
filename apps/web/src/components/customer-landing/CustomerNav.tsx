@@ -1,5 +1,7 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+
 import { useEffect, useState } from "react";
 import Logo from "@/components/ui/Logo";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -9,6 +11,12 @@ const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 interface CustomerNavProps {
   demoMode?: boolean;
 }
+
+/**
+ * 화면 안 앵커(`#cta`)를 못 찾았을 때 보낼 곳. 베타 신청 폼이 실제로 있는 화면이다.
+ * `/about` 에도 같은 앵커가 있지만 신청의 정본은 `/beta` 다.
+ */
+const SCROLL_ANCHOR_HOME = "/beta";
 
 export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
@@ -30,13 +38,26 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
     return () => { document.body.style.overflow = ""; };
   }, [menuOpen]);
 
+  /**
+   * 같은 화면 안 앵커로 스크롤한다. **타깃이 없으면 조용히 끝나지 않는다.**
+   *
+   * `preventDefault()` 를 이미 불렀기 때문에, 타깃을 못 찾고 그냥 반환하면 브라우저의
+   * 기본 이동도 막힌 채로 **아무 일도 일어나지 않는다.** 실제로 `/demo` 와 `/beta` 의
+   * "베타 신청" 이 그랬다 — `id="cta"` 는 `/about` 에만 있었다.
+   *
+   * 그래서 못 찾으면 그 앵커가 사는 화면으로 실제로 보낸다.
+   */
+  const router = useRouter();
+
   function handleClick(e: React.MouseEvent<HTMLAnchorElement>, href: string) {
     e.preventDefault();
     setMenuOpen(false);
-    const target = document.querySelector(href);
+    const target = href.startsWith("#") ? document.querySelector(href) : null;
     if (target) {
       target.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
     }
+    router.push(`${SCROLL_ANCHOR_HOME}${href}`);
   }
 
   const navLinks = [
