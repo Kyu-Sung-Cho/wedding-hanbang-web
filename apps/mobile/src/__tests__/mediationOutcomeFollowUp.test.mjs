@@ -487,7 +487,7 @@ test("recipient-private card keeps bounded choices accessible without free text 
 
 test("dashboard keeps mediation in both urgent-action and ordinary-care fallback chains", async () => {
   const source = await readFile(
-    resolve(HERE, "../../app/(tabs)/dashboard.tsx"),
+    resolve(HERE, "../../app/(tabs)/lounge.tsx"),
     "utf8",
   );
   assert.match(source, /<AmoraMediationOutcomeFollowUp/);

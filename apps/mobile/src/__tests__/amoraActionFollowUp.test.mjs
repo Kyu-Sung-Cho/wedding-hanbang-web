@@ -804,7 +804,7 @@ test("every fresh owner verification failure purges the prior owner's surface", 
 
 test("dashboard composes generic loading, v1 fallback, and acknowledged home refresh", async () => {
   const source = await readFile(
-    resolve(HERE, "../../app/(tabs)/dashboard.tsx"),
+    resolve(HERE, "../../app/(tabs)/lounge.tsx"),
     "utf8",
   );
 
@@ -904,7 +904,7 @@ test("manual refresh releases only the exact locally pinned receipt generation",
 
   const [controllerSource, dashboardSource] = await Promise.all([
     readFile(resolve(HERE, "../components/dashboard/AmoraActionFollowUpV2.tsx"), "utf8"),
-    readFile(resolve(HERE, "../../app/(tabs)/dashboard.tsx"), "utf8"),
+    readFile(resolve(HERE, "../../app/(tabs)/lounge.tsx"), "utf8"),
   ]);
   assert.match(controllerSource, /receiptReleaseVersion = 0/);
   assert.match(controllerSource, /receiptPinnedReleaseVersionRef\.current = receiptReleaseVersion/);

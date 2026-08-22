@@ -90,7 +90,7 @@ test("quick start continues into the private Amora first-value entry", () => {
     inviteCode: null,
   }), {
     kind: "route",
-    pathname: "/(tabs)/dashboard",
+    pathname: "/(tabs)/lounge",
   });
 });
 

@@ -269,5 +269,5 @@ export function resolveOnboardingCompletion({ mode, coupleAction, inviteCode }) 
     return { kind: "invite_code", inviteCode };
   }
 
-  return { kind: "route", pathname: "/(tabs)/dashboard" };
+  return { kind: "route", pathname: "/(tabs)/lounge" };
 }

@@ -130,7 +130,8 @@ test("today-one preference envelope enforces opt-in and the fixed daily limit", 
 test("today-one native navigation maps every exact shared contract route", () => {
   assert.equal(getTodayOneNativeRoute("/schedule"), "/schedule");
   assert.equal(getTodayOneNativeRoute("/budget"), "/budget");
-  assert.equal(getTodayOneNativeRoute("/dashboard"), "/dashboard");
+  // 계약값은 `/dashboard` 그대로지만, 이 앱이 여는 화면은 웨딩 라운지다.
+  assert.equal(getTodayOneNativeRoute("/dashboard"), "/(tabs)/lounge");
   assert.equal(getTodayOneNativeRoute("//evil.example"), null);
   assert.equal(getTodayOneNativeRoute("/schedule?next=https://evil.example"), null);
   assert.equal(getTodayOneNativeRoute("/(tabs)/chat"), null);

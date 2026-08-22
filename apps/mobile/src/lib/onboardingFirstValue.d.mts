@@ -142,7 +142,7 @@ export type OnboardingCompletion =
     }
   | {
       kind: "route";
-      pathname: "/(tabs)/dashboard";
+      pathname: "/(tabs)/lounge";
     }
   | {
       kind: "invite_code";

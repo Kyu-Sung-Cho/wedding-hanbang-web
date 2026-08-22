@@ -85,7 +85,7 @@ test("verified applied actions join search, pagination, and exact dashboard cont
   assert.match(notesSource, /stageActionReceiptHomeHandoff\(\{/u);
   assert.match(notesSource, /ownerUserId: snapshot\.identity\.ownerId/u);
   assert.match(notesSource, /actionId: record\.openAction\.actionId/u);
-  assert.match(notesSource, /pathname: "\/\(tabs\)\/dashboard"/u);
+  assert.match(notesSource, /pathname: "\/\(tabs\)\/lounge"/u);
   assert.match(notesSource, /params: \{ actionReceiptHandoff \}/u);
   assert.match(notesSource, /record\.type === "applied_receipt"[\s\S]{0,200}"홈에서 확인"/u);
   assert.match(notesSource, /hasMorePreparationRecords/u);

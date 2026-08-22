@@ -898,7 +898,7 @@ export default function AmoraPreparationNotesScreen() {
       });
       if (!actionReceiptHandoff) return;
       router.push({
-        pathname: "/(tabs)/dashboard",
+        pathname: "/(tabs)/lounge",
         params: { actionReceiptHandoff },
       });
       return;

@@ -5594,7 +5594,7 @@ export default function ChatScreen() {
         : current
     ));
     setLaneFailure(failureLane, null);
-    router.push("/(tabs)/dashboard");
+    router.push("/(tabs)/lounge");
   }
 
   function handlePreparationTopicReturn() {
@@ -7386,7 +7386,7 @@ export default function ChatScreen() {
                 });
                 if (!actionReceiptHandoff) return;
                 router.push({
-                  pathname: "/(tabs)/dashboard",
+                  pathname: "/(tabs)/lounge",
                   params: { actionReceiptHandoff },
                 });
               }}
@@ -8498,7 +8498,7 @@ export default function ChatScreen() {
                     scheduleCareFollowUpEntryStatus === "stale"
                     || !scheduleCareRouteBinding
                   ) {
-                    router.push("/(tabs)/dashboard");
+                    router.push("/(tabs)/lounge");
                     return;
                   }
                   setScheduleCareFollowUpEntryStatus(null);

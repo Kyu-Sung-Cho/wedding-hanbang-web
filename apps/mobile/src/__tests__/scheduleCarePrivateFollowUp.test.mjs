@@ -777,7 +777,7 @@ test("the one-shot schedule-care handoff carries the exact opaque binding but or
 test("the D+1 card revalidates owner, couple, and canonical source before staging a private-only chat draft", async () => {
   const [cardSource, dashboardSource] = await Promise.all([
     readFile(new URL("../components/dashboard/TodayOneCareCard.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../../app/(tabs)/dashboard.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../../app/(tabs)/lounge.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(cardSource, /expectedCoupleId\?: string \| null/);

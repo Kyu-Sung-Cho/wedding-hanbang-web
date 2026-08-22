@@ -110,10 +110,18 @@ export function parseTodayOnePreferenceEnvelope(value) {
   return preference ? { available: true, preference } : null;
 }
 
+/**
+ * 공유 계약의 surface 값을 이 앱이 실제로 열 수 있는 화면 경로로 옮긴다.
+ *
+ * `/dashboard` 는 서버가 내려주는 계약값이고 웹도 같은 문자열을 쓴다. 그래서 계약은
+ * 그대로 두고, 여는 순간에만 이 앱의 화면 이름으로 바꾼다 — 첫 화면이 `dashboard` 에서
+ * `웨딩 라운지` 로 합쳐졌고(파운더 결정, CLAUDE.md) `(tabs)/dashboard` 라우트는 없다.
+ * 이 매핑이 없으면 "오늘의 한 가지"의 원본 열기가 존재하지 않는 화면으로 간다.
+ */
 export function getTodayOneNativeRoute(href) {
-  return href === "/schedule" || href === "/budget" || href === "/dashboard"
-    ? href
-    : null;
+  if (href === "/schedule" || href === "/budget") return href;
+  if (href === "/dashboard") return "/(tabs)/lounge";
+  return null;
 }
 
 export function getTodayOneNativeKindPresentation(kind) {

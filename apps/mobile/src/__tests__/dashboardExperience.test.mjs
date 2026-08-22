@@ -40,7 +40,7 @@ function createDeepModuleStub() {
 
 function loadDashboardModuleForTest() {
   const typescript = nodeRequire("typescript");
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
   const compiled = typescript.transpileModule(source, {
     compilerOptions: {
@@ -199,7 +199,7 @@ test("a missed same-owner couple change is sealed on app resume and realtime rec
   });
   assert.equal(await staleCommit, null);
 
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
   assert.match(source, /AppState\.addEventListener\(\s*"change"/);
   assert.match(
@@ -293,7 +293,7 @@ test("an initial auth interleaving leaves exactly one current-couple realtime ch
 
   assert.deepEqual(activeChannels, [{ sessionGeneration: 1, coupleId: "couple-b" }]);
 
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
   assert.match(source, /event === "INITIAL_SESSION"/);
   assert.match(source, /clearDashboardSession\(\)[\s\S]{0,300}scheduleInitialization\(\)/);
@@ -366,7 +366,7 @@ test("manual refresh never releases a provisional outcome before its canonical r
     hadDeferredReload: true,
   });
 
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
   assert.match(
     source,
@@ -503,7 +503,7 @@ test("a late ABA callback cannot confirm or release a newer same-couple receipt 
 });
 
 test("dashboard binds receipt pin, deferred realtime, and explicit acknowledgement to one coordinator", () => {
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
 
   assert.match(source, /onReceiptPinned=\{\(receiptIdentity, leaseToken\) =>[\s\S]{0,220}confirmActionReceiptLease\([\s\S]{0,120}leaseToken/);
@@ -520,7 +520,7 @@ test("dashboard binds receipt pin, deferred realtime, and explicit acknowledgeme
 });
 
 test("same-identity resume, reconnect, and profile events reconcile before a hard reset", () => {
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
 
   const reconciliationStart = source.indexOf("const scheduleDashboardIdentityReconciliation = (");
@@ -658,7 +658,7 @@ test("home does not present checklist completion as overall wedding progress", (
     import.meta.url,
   )), "utf8");
   const dashboardSource = readFileSync(fileURLToPath(new URL(
-    "../../app/(tabs)/dashboard.tsx",
+    "../../app/(tabs)/lounge.tsx",
     import.meta.url,
   )), "utf8");
 
@@ -1481,7 +1481,7 @@ test("a receipt can select only its exact current-couple open action", () => {
 
 test("chat stages and dashboard resolves one owner-bound receipt before showing its exact canonical action", () => {
   const dashboardSource = readFileSync(fileURLToPath(new URL(
-    "../../app/(tabs)/dashboard.tsx",
+    "../../app/(tabs)/lounge.tsx",
     import.meta.url,
   )), "utf8");
   const chatSource = readFileSync(fileURLToPath(new URL(
@@ -1505,7 +1505,7 @@ test("chat stages and dashboard resolves one owner-bound receipt before showing 
 
 test("a rejected exact receipt handoff never falls back to a different current action", () => {
   const dashboardSource = readFileSync(fileURLToPath(new URL(
-    "../../app/(tabs)/dashboard.tsx",
+    "../../app/(tabs)/lounge.tsx",
     import.meta.url,
   )), "utf8");
 
@@ -1524,7 +1524,7 @@ test("a rejected exact receipt handoff never falls back to a different current a
 });
 
 test("dashboard reads a bounded open-action set and selects one inside the verified couple fence", () => {
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
   const loaderSource = source.slice(
     source.indexOf("async function loadPreferredOpenAmoraAction"),
@@ -1557,7 +1557,7 @@ test("dashboard reads a bounded open-action set and selects one inside the verif
 
 test("dashboard binds recent action feedback to the verified owner and couple before rendering recovery", () => {
   const dashboardSource = readFileSync(fileURLToPath(new URL(
-    "../../app/(tabs)/dashboard.tsx",
+    "../../app/(tabs)/lounge.tsx",
     import.meta.url,
   )), "utf8");
   const homeSource = readFileSync(fileURLToPath(new URL(
@@ -1565,7 +1565,20 @@ test("dashboard binds recent action feedback to the verified owner and couple be
     import.meta.url,
   )), "utf8");
 
-  assert.match(dashboardSource, /loadOwnerAmoraActionOutcomeFeedback\(\s*user\.id,\s*profile\.couple_id,\s*apiFetchForExpectedUser/);
+  // 소유자 확인이 붙은 fetch 는 라운지가 직접 들지 않는다 — 첫 인사 경로가 네트워크를
+  // 타지 않는다는 계약(firstRunTutorial.test.mjs)이 lounge.tsx 안의 `apiFetch` 문자열을
+  // 금지하기 때문이다. 그래서 화면과 읽기 래퍼를 함께 보고, 두 조각이 이어졌을 때에만
+  // "확인된 소유자에게 묶여 있다"고 판정한다.
+  const ownerDataSource = readFileSync(fileURLToPath(new URL(
+    "../lib/loungeOwnerData.mjs",
+    import.meta.url,
+  )), "utf8");
+
+  assert.match(dashboardSource, /loadLoungeActionFeedback\(\s*user\.id,\s*profile\.couple_id/);
+  assert.match(
+    ownerDataSource,
+    /loadLoungeActionFeedback\([\s\S]{0,160}loadOwnerAmoraActionOutcomeFeedback\(\s*ownerUserId,\s*coupleId,\s*apiFetchForExpectedUser/,
+  );
   assert.match(dashboardSource, /actionFeedback,/);
   assert.match(dashboardSource, /if \(focus\.suppressActionFollowUpClaim\) return companionFallback/);
   assert.match(homeSource, /applyDashboardActionOutcomeFeedback\(\{\s*focus:\s*groundedFocus,\s*openAction:\s*data\.openAction,\s*feedback:\s*data\.actionFeedback/);
@@ -1940,7 +1953,7 @@ test("a verified empty quiet home offers one optional criterion setup without tr
 
 test("home loads owner-private personalization after grounded data and renders it without blocking the base action", () => {
   const dashboardSource = readFileSync(fileURLToPath(new URL(
-    "../../app/(tabs)/dashboard.tsx",
+    "../../app/(tabs)/lounge.tsx",
     import.meta.url,
   )), "utf8");
   const experienceSource = readFileSync(fileURLToPath(new URL(
@@ -1948,8 +1961,25 @@ test("home loads owner-private personalization after grounded data and renders i
     import.meta.url,
   )), "utf8");
 
-  assert.match(dashboardSource, /loadOwnerAmoraPersonalization\(\s*user\.id,\s*apiFetchForExpectedUser/);
-  assert.match(dashboardSource, /loadOwnerAmoraCoreCriterion\(\s*user\.id,\s*apiFetchForExpectedUser/);
+  // 소유자 확인이 붙은 fetch 는 라운지가 직접 들지 않는다 — 첫 인사 경로가 네트워크를
+  // 타지 않는다는 계약(firstRunTutorial.test.mjs)이 lounge.tsx 안의 `apiFetch` 문자열을
+  // 금지하기 때문이다. 그래서 화면과 읽기 래퍼를 함께 보고, 두 조각이 이어졌을 때에만
+  // "확인된 소유자에게 묶여 있다"고 판정한다.
+  const ownerDataSource = readFileSync(fileURLToPath(new URL(
+    "../lib/loungeOwnerData.mjs",
+    import.meta.url,
+  )), "utf8");
+
+  assert.match(dashboardSource, /loadLoungePersonalization\(\s*user\.id/);
+  assert.match(dashboardSource, /loadLoungeCoreCriterion\(\s*user\.id/);
+  assert.match(
+    ownerDataSource,
+    /loadLoungePersonalization\([\s\S]{0,160}loadOwnerAmoraPersonalization\(\s*ownerUserId,\s*apiFetchForExpectedUser/,
+  );
+  assert.match(
+    ownerDataSource,
+    /loadLoungeCoreCriterion\([\s\S]{0,160}loadOwnerAmoraCoreCriterion\(\s*ownerUserId,\s*apiFetchForExpectedUser/,
+  );
   assert.match(
     dashboardSource,
     /mergeForIdentity\([\s\S]{0,520}coreCriterionLoaded:\s*coreCriterionResult\.loaded/,
@@ -2061,7 +2091,7 @@ test("home-to-chat handoff is private, never auto-sent, and cannot overwrite ano
     import.meta.url,
   );
   const chatUrl = new URL("../../app/(tabs)/chat.tsx", import.meta.url);
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const experienceSource = readFileSync(fileURLToPath(experienceUrl), "utf8");
   const chatSource = readFileSync(fileURLToPath(chatUrl), "utf8");
   const dashboardSource = readFileSync(fileURLToPath(dashboardUrl), "utf8");
@@ -2107,7 +2137,7 @@ test("a home without a canonical couple never exposes a dead Amora handoff", () 
 });
 
 test("partner continuity requires a real recent timestamp", () => {
-  const dashboardUrl = new URL("../../app/(tabs)/dashboard.tsx", import.meta.url);
+  const dashboardUrl = new URL("../../app/(tabs)/lounge.tsx", import.meta.url);
   const source = readFileSync(fileURLToPath(dashboardUrl), "utf8");
 
   assert.match(source, /if \(!categoryProgress\.updated_at\) \{\s*continue;\s*\}/);
