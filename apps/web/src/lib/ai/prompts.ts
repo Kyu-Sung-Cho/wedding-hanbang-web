@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { resolveStatusByKey } from "@/utils/checklist";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
@@ -93,7 +94,8 @@ function generateBehaviorInsights(context: {
     // `cost` is a legacy amount with no reliable budget/spend meaning. Only an
     // explicit `spent` field participates in spend-derived guidance.
     const catSpent = isValidWeddingWonAmount(p.spent) ? p.spent : 0;
-    const status = p.status as string | undefined;
+    // 저장값이 아니라 화면과 같은 기준으로 읽는다 — 항목이 늘면 저장값이 낡는다.
+    const status = resolveStatusByKey(key, p as Parameters<typeof resolveStatusByKey>[1]);
 
     if (status === "completed") {
       completedCount++;
@@ -369,7 +371,8 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   const categoryStatus = Object.entries(CATEGORY_LABELS)
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-      const status = p.status === "completed" ? "✅완료" : p.status === "in_progress" ? "🔄진행중" : "⬜예정";
+      const resolved = resolveStatusByKey(key, p as Parameters<typeof resolveStatusByKey>[1]);
+      const status = resolved === "completed" ? "✅완료" : resolved === "in_progress" ? "🔄진행중" : "⬜예정";
       const budget = isValidWeddingWonAmount(p.budget)
         ? `${(p.budget / 10000).toLocaleString()}만원`
         : "미설정";
@@ -432,7 +435,8 @@ ${CHECKLIST_CHECK_POINTS}
     : "";
 
   const completedCount = progressEntries
-    .filter(([, v]) => (v as { status: string }).status === "completed").length;
+    .filter(([k, v]) => resolveStatusByKey(k, v as Parameters<typeof resolveStatusByKey>[1]) === "completed")
+    .length;
   const totalCount = Object.keys(CATEGORY_LABELS).length;
 
   const formatWon = (amount: number) => `${(amount / 10000).toLocaleString()}만원`;
