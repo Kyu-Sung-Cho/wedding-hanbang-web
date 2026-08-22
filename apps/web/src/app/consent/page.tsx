@@ -6,6 +6,12 @@ import { createClient } from "@/lib/supabase/server";
 
 import ConsentGateClient from "./ConsentGateClient";
 
+// 이 화면은 **세션을 읽어야** 무엇을 보여줄지 정해진다. 정적 생성 대상이
+// 아니다. 없으면 Next 가 빌드 때 프리렌더를 시도하고, 그 시점에는 Supabase
+// 환경변수가 없어 "Your project's URL and Key are required" 로 **빌드 전체가
+// 죽는다.** 실제로 이 PR 의 첫 Preview 빌드가 그렇게 죽었다.
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "약관 동의 · 웨딩한방",
   robots: { index: false, follow: false },
