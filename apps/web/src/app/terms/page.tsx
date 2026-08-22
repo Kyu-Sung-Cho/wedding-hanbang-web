@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CONTACT } from "@/lib/constants/contact";
 import { ArrowLeft } from "lucide-react";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
@@ -149,7 +150,7 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제12조 (분쟁 해결 및 관할)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>이용 문의와 불만은 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수할 수 있습니다.</li>
+              <li>이용 문의와 불만은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수할 수 있습니다.</li>
               <li>운영자와 회원은 분쟁이 생기면 먼저 사실관계를 확인하고 원만한 해결을 위해 노력합니다. 해결되지 않는 경우 관계 법령에 따른 소비자 분쟁조정 절차를 이용할 수 있습니다.</li>
               <li>소송이 필요한 경우 관할 법원은 민사소송법 등 관계 법령에 따라 정합니다.</li>
             </ol>

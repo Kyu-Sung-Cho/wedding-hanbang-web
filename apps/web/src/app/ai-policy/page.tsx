@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { CONTACT } from "@/lib/constants/contact";
 import Link from "next/link";
 
 export const metadata: Metadata = {
@@ -90,8 +91,8 @@ export default function AIPolicyPage() {
             </li>
             <li>
               <strong className="text-[#1b1c1c]">이메일</strong>:{" "}
-              <a href="mailto:support@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
-                support@hanbang.ai
+              <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[#795252] transition-colors">
+                {CONTACT.email}
               </a>
             </li>
           </ul>
@@ -121,8 +122,8 @@ export default function AIPolicyPage() {
           </h2>
           <p className="text-sm text-[#504444] leading-relaxed">
             사실과 다른 답변, 부적절한 내용, 저장·공유 문제를 발견하면{" "}
-            <a href="mailto:support@hanbang.ai" className="underline hover:text-[#795252] transition-colors">
-              support@hanbang.ai
+            <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[#795252] transition-colors">
+              {CONTACT.email}
             </a>
             로 알려주세요. 접수 내용을 확인한 뒤 처리 결과를 안내합니다.
           </p>

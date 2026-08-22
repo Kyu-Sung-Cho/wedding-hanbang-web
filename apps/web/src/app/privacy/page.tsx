@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CONTACT } from "@/lib/constants/contact";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
 import { ArrowLeft } from "lucide-react";
@@ -153,7 +154,7 @@ export default function PrivacyPage() {
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
               <li>이용 내역 확인 및 탈퇴는 설정 페이지에서 직접 처리할 수 있습니다.</li>
-              <li>그 밖의 요청은 고객센터(<a href="mailto:support@hanbang.ai" className="text-rose-500 underline">support@hanbang.ai</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
+              <li>그 밖의 요청은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>
           </section>
 
@@ -182,7 +183,7 @@ export default function PrivacyPage() {
             <div className="mt-3 px-4 py-3 bg-white rounded-lg">
               <ul className="space-y-1 text-[13px] text-charcoal">
                 <li>담당: 웨딩한방 개인정보 보호 담당</li>
-                <li>이메일: <a href="mailto:support@hanbang.ai" className="text-rose-500">support@hanbang.ai</a></li>
+                <li>이메일: <a href={`mailto:${CONTACT.email}`} className="text-rose-500">{CONTACT.email}</a></li>
               </ul>
             </div>
           </section>

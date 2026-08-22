@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import { CONTACT } from "@/lib/constants/contact";
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY);
@@ -56,7 +57,7 @@ export async function sendVendorApprovalEmail(email: string, vendorName: string)
           <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
             <strong>${vendorName}</strong>의 파트너 등록이 승인 완료되었습니다.<br>
             이제 웨딩한방 업체 탐색에 노출됩니다.<br>
-            문의사항은 partner@hanbang.ai로 연락해주세요.
+            문의사항은 ${CONTACT.email}로 연락해주세요.
           </p>
           <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
             © 2026 웨딩한방. All rights reserved.
@@ -97,7 +98,7 @@ export async function sendVendorRejectionEmail(email: string, vendorName: string
           </p>
           ${reasonBlock}
           <p style="font-size: 14px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
-            문의사항은 partner@hanbang.ai로 연락해주세요.
+            문의사항은 ${CONTACT.email}로 연락해주세요.
           </p>
           <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
             © 2026 웨딩한방. All rights reserved.
