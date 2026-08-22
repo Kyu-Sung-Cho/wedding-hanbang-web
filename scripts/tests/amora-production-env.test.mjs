@@ -126,30 +126,55 @@ test("the expand deployment keeps destructive AI-log retention disabled", () => 
   }
 });
 
-test("the expand deployment keeps account deletion progression disabled", () => {
-  for (const unsafe of ["", "true", "FALSE"]) {
-    const result = runChecker(validEnv({
-      ACCOUNT_DELETION_CRON_ENABLED: unsafe,
-    }));
-    assert.equal(result.status, 1);
+test("account deletion flags must state true or false, never blank or mis-cased", () => {
+  for (const unsafe of ["", "FALSE", "TRUE", "yes", "1"]) {
     assert.deepEqual(
-      JSON.parse(result.stdout).failed,
-      ["accountDeletionWorkerDisabledForExpandDeploy"],
+      JSON.parse(runChecker(validEnv({
+        ACCOUNT_DELETION_CRON_ENABLED: unsafe,
+      })).stdout).failed,
+      ["accountDeletionWorkerStateExplicit"],
+      `worker=${JSON.stringify(unsafe)}`,
+    );
+    assert.deepEqual(
+      JSON.parse(runChecker(validEnv({
+        ACCOUNT_DELETION_INTAKE_ENABLED: unsafe,
+      })).stdout).failed,
+      ["accountDeletionIntakeStateExplicit"],
+      `intake=${JSON.stringify(unsafe)}`,
     );
   }
 });
 
-test("the expand deployment keeps account deletion intake disabled", () => {
-  for (const unsafe of ["", "true", "TRUE"]) {
-    const result = runChecker(validEnv({
-      ACCOUNT_DELETION_INTAKE_ENABLED: unsafe,
-    }));
-    assert.equal(result.status, 1);
-    assert.deepEqual(
-      JSON.parse(result.stdout).failed,
-      ["accountDeletionIntakeDisabledForExpandDeploy"],
-    );
-  }
+// 접수만 켜고 워커를 꺼두면 요청은 쌓이는데 아무도 처리하지 않는다.
+// 사용자에게는 "안전하게 처리 중"이라고 말해 놓고 영원히 처리되지 않는다.
+test("intake cannot be enabled while the deletion worker stays off", () => {
+  const result = runChecker(validEnv({
+    ACCOUNT_DELETION_INTAKE_ENABLED: "true",
+    ACCOUNT_DELETION_CRON_ENABLED: "false",
+  }));
+  assert.equal(result.status, 1);
+  assert.deepEqual(
+    JSON.parse(result.stdout).failed,
+    ["accountDeletionWorkerFollowsIntake"],
+  );
+});
+
+test("both account deletion flags on together is a valid production state", () => {
+  const result = runChecker(validEnv({
+    ACCOUNT_DELETION_INTAKE_ENABLED: "true",
+    ACCOUNT_DELETION_CRON_ENABLED: "true",
+  }));
+  assert.equal(result.status, 0, result.stdout);
+});
+
+// 워커만 켜는 것은 막지 않는다 — 접수가 꺼져 있으면 새 작업이 생기지 않고,
+// 이미 쌓인 작업을 처리해 비우는 정당한 상태다.
+test("the worker may run while intake is closed to drain existing jobs", () => {
+  const result = runChecker(validEnv({
+    ACCOUNT_DELETION_INTAKE_ENABLED: "false",
+    ACCOUNT_DELETION_CRON_ENABLED: "true",
+  }));
+  assert.equal(result.status, 0, result.stdout);
 });
 
 test("the expand deployment keeps conversation-segment reads disabled", () => {

@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
   },
   codeText: {
     fontSize: 20,
-    letterSpacing: 1.5,
+    letterSpacing: 0,
     color: colors.noir[900],
     fontFamily: "CormorantGaramond_600SemiBold",
     textAlign: "center",

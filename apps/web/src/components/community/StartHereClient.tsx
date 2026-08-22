@@ -398,7 +398,7 @@ export default function StartHereClient() {
                   <p className="text-[12px] font-semibold text-[#E2D3C8]">03 · 첫 질문으로 이어가기</p>
                   <h3 className="mt-2 text-[20px] font-semibold">이제 아모라에게 한 가지만 물어보세요.</h3>
                   <p className="mt-2 text-[14px] leading-6 text-white/82">
-                    날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 계정 베타 이용 중이라면 계정 채팅에서 이어져요.
+                    날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 로그인해 있으면 계정 채팅에서 이어져요.
                   </p>
                   <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                     <StartDemoButton
@@ -412,7 +412,7 @@ export default function StartHereClient() {
                       onClick={rememberSignupHandoff}
                       className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
                     >
-                      계정 베타로 계속 관리하기
+                      계정 만들고 계속 관리하기
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
                     </Link>
                   </div>
@@ -473,7 +473,7 @@ export default function StartHereClient() {
                     onClick={rememberSignupHandoff}
                     className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-[#36534E]/20 px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#EDF2EA]"
                   >
-                    계정 베타로 천천히 관리하기
+                    계정 만들고 천천히 관리하기
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
                   </Link>
                 </div>

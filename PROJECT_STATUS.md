@@ -190,7 +190,7 @@ wedding-hanbang-web/
 
 ### 4.4 일정 관리 (`/schedule`)
 **기능**:
-- D-day 기반 자동 체크리스트 (20 카테고리, 132 항목)
+- D-day 기반 자동 체크리스트 (21 카테고리, 171 항목 — 정본은 `packages/shared/src/constants/weddingPlanning.ts`)
 - 타임라인 뷰 (D-180 → D-Day)
 - 캘린더 뷰 (이벤트 표시)
 - 긴급 알림 (3일/2주/1주 색상 구분)

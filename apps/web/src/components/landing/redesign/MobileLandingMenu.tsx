@@ -87,6 +87,13 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
           </Link>
         ))}
         <Link
+          href="/login?mode=signup"
+          onClick={closeMenu}
+          className={`flex min-h-11 items-center border-t border-white/12 px-4 py-3 text-[14px] font-semibold text-white/78 transition-colors duration-200 hover:bg-white/8 hover:text-white ${focusRing}`}
+        >
+          회원가입
+        </Link>
+        <Link
           href="/login"
           onClick={closeMenu}
           className={`flex min-h-11 items-center border-t border-white/12 px-4 py-3 text-[14px] font-semibold text-white/78 transition-colors duration-200 hover:bg-white/8 hover:text-white ${focusRing}`}

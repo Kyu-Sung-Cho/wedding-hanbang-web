@@ -40,7 +40,7 @@ export function generateMetadata(): Metadata {
   // 여기를 고치면 `src/app/page.tsx`의 title도 같이 고쳐야 한다.
   const title = "웨딩한방 | 둘이 말하면 결혼 준비가 정리돼요 · 공시된 가격·위약금 원문";
   const description =
-    "웨딩한방은 둘이 함께 관리하는 결혼 준비 공간이에요. 계정 베타에서는 대화 정리 AI 아모라가 한 번에 한 가지 변경을 제안하고, 확인한 변경만 준비 기록에 반영해요.";
+    "웨딩한방은 둘이 함께 관리하는 결혼 준비 공간이에요. 계정을 만들면 대화 정리 AI 아모라가 한 번에 한 가지 변경을 제안하고, 확인한 변경만 준비 기록에 반영해요.";
 
   return {
     title,
@@ -77,8 +77,8 @@ export default function LandingPage() {
         <TransformationHero />
         <ProblemMirrorSection />
         {/* 문제를 보여준 직후에 "지금 당장 무료로 이만큼 된다"를 둔다.
-            아래 섹션들은 대부분 계정 베타(미제공)를 설명하므로, 그 전에
-            오늘 쓸 수 있는 것을 먼저 세워야 처음 온 사람이 빈손으로 읽지 않는다. */}
+            아래 섹션들은 대부분 로그인이 필요한 구간을 설명하므로, 그 전에
+            가입 없이 쓸 수 있는 것을 먼저 세워야 처음 온 사람이 빈손으로 읽지 않는다. */}
         <AvailableNowSection />
         <PreparationResult />
         <ContinuitySection />

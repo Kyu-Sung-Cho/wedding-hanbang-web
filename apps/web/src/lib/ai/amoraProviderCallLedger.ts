@@ -519,6 +519,12 @@ async function finalizeProviderReceipt(
     toolRoundCheckpoint?: AtomicAmoraToolRoundCheckpointInput | null;
   },
 ): Promise<ProviderReceiptFinalizeResult | null> {
+  // 실패 사유를 여기서 붙잡아 두지 않으면 마지막 로그가 "실패했다"로 끝난다.
+  // 2026-08-22: 확정 실행 턴에서 이 경로가 실패해 **예산은 바뀌었는데 아모라 응답이
+  // 커밋되지 않았다**(사용자는 침묵과 오류만 봤다). 원인을 찾는 데 로그가 한 줄도
+  // 도움이 되지 않았다 — 아래 catch 가 예외를, 조건문이 RPC error 를 버렸기 때문이다.
+  // 콘텐츠는 남기지 않는다. 코드·이유만 남긴다.
+  let lastFailure: string | null = null;
   for (let attempt = 1; attempt <= FINALIZE_MAX_ATTEMPTS; attempt += 1) {
     try {
       const commonParams = {
@@ -614,12 +620,32 @@ async function finalizeProviderReceipt(
           receiptStatus: receiptStatus ?? "unknown",
         };
       }
-    } catch {
+      // 22023(invalid_parameter_value)의 가장 흔한 원인은 **본문이 비어 있는 것**이다
+      // (RPC 가 `char_length(btrim(p_message_content)) < 1` 을 거부한다). 내용은
+      // 절대 남기지 않고 길이만 남긴다 — 이게 없으면 다음 사람도 또 추측한다.
+      // 같은 22023 을 서로 다른 검사 두 곳이 쓴다(INVALID_INPUT / RECEIPT_INVALID).
+      // 코드만 남기면 어느 쪽인지 알 수 없다. RPC 가 돌려주는 예외 이름은 서버가
+      // 정한 상수라 사용자 콘텐츠가 아니다 — 그것만 남긴다.
+      lastFailure = error
+        ? `rpc:${error.code ?? "unknown"}:${String(error.message ?? "").slice(0, 60)}${
+          values.atomicChatResponse
+            ? `:contentLen=${values.atomicChatResponse.content.trim().length}`
+            : ""
+        }`
+        : !isRecord(row)
+          ? "no_row"
+          : row?.finalized !== true
+            ? "not_finalized"
+            : values.atomicChatResponse && !parseAtomicChatFinalization(row)
+              ? "atomic_chat_unparsed"
+              : `status:${receiptStatus ?? "null"}`;
+    } catch (error) {
       // Retry the same claim-token-scoped, idempotent settlement RPC.
+      lastFailure = `threw:${error instanceof Error ? error.name : "unknown"}`;
     }
   }
   reportOperationalError(
-    "[ai-ledger] prepared receipt finalize failed after retries",
+    `[ai-ledger] prepared receipt finalize failed after retries (${lastFailure ?? "unknown"})`,
     "amora_provider_receipt_finalize_failed",
   );
   return null;

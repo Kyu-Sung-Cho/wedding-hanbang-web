@@ -22,14 +22,14 @@ export async function sendPreregistrationEmail(email: string) {
           </h1>
           <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
             웨딩한방에 관심을 가져주셔서 감사합니다.<br>
-            정식 출시 시 우선 초대와 특별 할인 혜택을 보내드리겠습니다.
+            새 소식이 생기면 이 주소로 알려드릴게요.
           </p>
           <div style="text-align: center; padding: 24px; background: #FAF7F2; border-radius: 16px; margin-bottom: 32px;">
             <p style="font-size: 13px; color: #928980; margin: 0;">등록된 이메일</p>
             <p style="font-size: 16px; color: #1A1A1F; font-weight: 500; margin: 8px 0 0;">${email}</p>
           </div>
           <p style="font-size: 12px; color: #B5ADA3; text-align: center;">
-            © 2025 웨딩한방. All rights reserved.
+            © 2026 웨딩한방. All rights reserved.
           </p>
         </div>
       `,

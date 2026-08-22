@@ -8,6 +8,7 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
+import { buildEmailConfirmUrl } from "@/lib/auth/emailConfirmLink";
 import {
   isRecord,
   normalizeEmail,
@@ -78,9 +79,6 @@ export async function POST(request: Request) {
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"}/reset-password`,
-      },
     });
 
     if (error) {
@@ -89,13 +87,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
-    if (!data?.properties?.action_link) {
+    if (!data?.properties?.hashed_token) {
       // 보안상 성공으로 응답
       return NextResponse.json({ success: true });
     }
 
-    // Resend로 비밀번호 재설정 이메일 발송
-    const resetLink = data.properties.action_link;
+    // Resend로 비밀번호 재설정 이메일 발송.
+    // Supabase 의 action_link 를 쓰지 않는 이유는 @/lib/auth/emailConfirmLink 에
+    // 적어 뒀다 — 그 링크는 재설정 화면을 "인증 확인 중"에서 영원히 멈추게 했다.
+    const resetLink = buildEmailConfirmUrl({
+      siteUrl: process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai",
+      tokenHash: data.properties.hashed_token,
+      type: "recovery",
+    });
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     // 여기서는 계정 존재 여부가 새지 않도록 응답을 바꾸지 않는다. 다만 발송

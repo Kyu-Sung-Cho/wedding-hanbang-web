@@ -358,6 +358,8 @@ describe("proxy production write fence", () => {
   it.each([
     "/api/cron/amora-memory",
     "/api/auth/callback",
+    // 메일 인증 링크. GET 이지만 세션을 세우고 가입을 확정한다.
+    "/api/auth/confirm",
     "/api/auth/me",
     "/api/couple/code",
     "/api/messages",

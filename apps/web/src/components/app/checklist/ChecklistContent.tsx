@@ -11,11 +11,7 @@ import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
-import {
-  getChecklistCounts,
-  mergeChecklist,
-  summarizePlanningChecklist,
-} from "@/utils/checklist";
+import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus } from "@/utils/checklist";
 
 type Filter = "all" | "active" | "completed" | "skipped";
 
@@ -112,7 +108,9 @@ export default function ChecklistContent() {
     const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
     return CATEGORY_CHECKLISTS.map((template) => {
       const saved = progress[template.key];
-      const status = saved?.status ?? "not_started";
+      // 저장값을 그대로 쓰면 항목이 늘었을 때 `11/12개 완료 · 완료`가 된다 — 개수는
+      // 병합본에서 세는데 상태만 낡은 값이기 때문이다. 항목 기록이 있으면 파생한다.
+      const status = resolveStatus(template.items, saved);
       const checklist = mergeChecklist(template.items, saved?.checklist, status);
       const counts = getChecklistCounts(checklist);
       const aliases = CATEGORY_SEARCH_ALIASES[template.key]?.join(" ") ?? "";

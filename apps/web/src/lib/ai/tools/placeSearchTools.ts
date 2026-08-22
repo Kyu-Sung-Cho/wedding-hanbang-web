@@ -111,6 +111,18 @@ function imageMatchesPlace(
   return imageIdentity.includes(placeIdentity);
 }
 
+/**
+ * 이 도구를 지금 쓸 수 있는가.
+ *
+ * 라우트가 도구 목록을 만들 때 이걸 본다. 쓸 수 없으면 **모델에게 주지 않는다** —
+ * 예전에는 자격증명이 없어도 도구를 주고, 실행하면 사용자에게
+ * "네이버 API 키가 설정되지 않았습니다." 를 돌려줬다. 내부 사정을 사용자에게
+ * 말하는 것이고, 이 저장소가 반복해서 고쳐온 부류다.
+ */
+export function isPlaceSearchConfigured(): boolean {
+  return readNaverSearchConfig() !== null;
+}
+
 function readNaverSearchConfig(): NaverSearchConfig | null {
   const hubClientId = process.env.NAVER_API_HUB_CLIENT_ID?.trim();
   const hubClientSecret = process.env.NAVER_API_HUB_CLIENT_SECRET?.trim();
@@ -210,7 +222,10 @@ export async function executeSearchNearbyPlaces(
         handoff: buildNaverHandoff(query),
       },
       success: false,
-      displayMessage: "네이버 API 키가 설정되지 않았습니다.",
+      // 사용자에게 우리 설정 사정을 말하지 않는다. 정상 경로에서는 라우트가
+      // `isPlaceSearchConfigured()` 로 걸러 이 도구를 아예 주지 않으므로 여기까지
+      // 오지 않는다 — 이 문구는 그 필터가 뚫렸을 때의 마지막 방어다.
+      displayMessage: "지금은 장소를 찾아드릴 수 없어요. 찾으시는 지역과 종류를 알려주시면 확인할 방법을 같이 정리해 드릴게요.",
     };
   }
 

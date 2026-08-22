@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { BETA_DISABLED_TOOL_NAMES, BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 
 function source(relativePath: string): string {
   return readFileSync(resolve(process.cwd(), relativePath), "utf8");
@@ -156,7 +157,6 @@ describe("web MVP product direction", () => {
       "create_booking",
       "get_my_bookings",
       "cancel_booking",
-      "search_nearby_places",
     ]) {
       expect(tools).toMatch(
         new RegExp(`BETA_DISABLED_TOOL_NAMES[\\s\\S]*"${disabledTool}"`),
@@ -164,6 +164,16 @@ describe("web MVP product direction", () => {
     }
     expect(chatRoute).not.toContain('from("vendor_bookings")');
     expect(chatRoute).toContain("bookings: []");
+
+    // `search_nearby_places` 는 2026-08-22 파운더 결정으로 열렸다. 같은 목록에
+    // 있었지만 **업체를 찾아주는 도구가 아니다** — 웨딩업체 질의를
+    // `wedding_vendor_query_blocked` 로 막고 네이버 결과에서도 웨딩업체를 걸러낸다.
+    // 남는 것은 상견례 식당 같은 일반 장소뿐이고 예약·결제 경로가 없다.
+    //
+    // 여기서는 소스 텍스트가 아니라 **실제 집합**을 본다. 이 파일의 다른 검사처럼
+    // 정규식으로 보면 근거를 적은 주석에 이름이 들어 있다는 이유로 통과해 버린다.
+    expect(BETA_DISABLED_TOOL_NAMES.has("search_nearby_places")).toBe(false);
+    expect(BETA_SAFE_TOOLS.map((tool) => tool.name)).toContain("search_nearby_places");
   });
 
   it("does not bring retired money management back through lifecycle prompts", () => {

@@ -85,10 +85,26 @@ const checks = {
     env.AMORA_TODAY_ONE_ENABLED === "false",
   aiLogRetentionCronDisabledForExpandDeploy:
     env.AI_LOG_RETENTION_CRON_ENABLED === "false",
-  accountDeletionIntakeDisabledForExpandDeploy:
-    env.ACCOUNT_DELETION_INTAKE_ENABLED === "false",
-  accountDeletionWorkerDisabledForExpandDeploy:
-    env.ACCOUNT_DELETION_CRON_ENABLED === "false",
+  // 탈퇴 접수와 워커는 이제 켤 수 있다. 다만 상태를 명시해야 배포된다
+  // (proactiveChatStateExplicit 와 같은 방식 — 의식적 설정 강제).
+  //
+  // 켤 수 있게 된 이유: public.events 의 append-only 트리거와
+  // ON DELETE SET NULL FK 가 서로를 막아 계정 삭제 트랜잭션이 통째로
+  // 롤백되던 결함을 20260821120000_events_append_only_allows_fk_detach.sql
+  // 이 고쳤다. 그전에 켰다면 사용자는 탈퇴도 못 하고 업로드도 막힌 채
+  // 갇혔고, 워커는 무한 재시도하며 아무 신호도 내지 않았다.
+  accountDeletionIntakeStateExplicit:
+    env.ACCOUNT_DELETION_INTAKE_ENABLED === "true"
+    || env.ACCOUNT_DELETION_INTAKE_ENABLED === "false",
+  accountDeletionWorkerStateExplicit:
+    env.ACCOUNT_DELETION_CRON_ENABLED === "true"
+    || env.ACCOUNT_DELETION_CRON_ENABLED === "false",
+  // 접수만 켜고 워커를 꺼두면 요청은 받아 놓고 아무도 처리하지 않는다.
+  // 사용자에게는 "처리 중"이라고 말한 채 영원히 처리되지 않는 상태다.
+  // 그 조합만 따로 막는다.
+  accountDeletionWorkerFollowsIntake:
+    env.ACCOUNT_DELETION_INTAKE_ENABLED !== "true"
+    || env.ACCOUNT_DELETION_CRON_ENABLED === "true",
   productionWriteFenceStateExplicit:
     env.PRODUCTION_WRITE_FENCE_ENABLED === "true"
     || env.PRODUCTION_WRITE_FENCE_ENABLED === "false",

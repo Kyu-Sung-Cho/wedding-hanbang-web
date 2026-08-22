@@ -22,7 +22,7 @@ describe("landing first visit clarity", () => {
     // 본문이 직접 아모라를 말할 필요는 없다 — 아모라는 로그인이 필요하고 본문은
     // 이 자리에서 실제로 되는 것을 말한다. 다만 히어로 전체는 아모라로 이어져야 한다.
     expect(hero, "히어로가 아모라로 이어지지 않는다").toContain("아모라");
-    expect(content).toContain("계정 베타에서는 한 번에 한 가지 변경을 제안하고");
+    expect(content).toContain("계정을 만들면 아모라가 한 번에 한 가지 변경을 제안하고");
     expect(hero.indexOf("둘이 말하면,")).toBeLessThan(
       hero.indexOf("landingContent.hero.body"),
     );

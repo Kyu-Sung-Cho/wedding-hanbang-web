@@ -45,7 +45,7 @@ export default function ClosingAction() {
             34.9%(1280) · 53.1%(390)를 차지하고 페이지의 마지막 행동이 접힘선 아래
             53px(1280) · 266px(390)로 밀렸다. 지우지 않고 나눈다 — 이 버튼이 지금
             여는 것을 설명하는 두 개는 앞에(P6: 이용 전 고지), 이 버튼이 열지 않는
-            계정 베타를 설명하는 두 개는 행동 뒤에 둔다. */}
+            계정에서 달라지는 것을 설명하는 두 개는 행동 뒤에 둔다. */}
         <dl className="mx-auto mt-8 grid max-w-[46rem] gap-x-8 gap-y-4 text-left sm:grid-cols-2">
           {startConditions.slice(0, 2).map((condition) => (
             <div key={condition.label} className="border-t border-[#243832]/14 pt-3">
@@ -88,16 +88,15 @@ export default function ClosingAction() {
             </div>
           ))}
         </dl>
-        {/* 위 문구가 "제공 기능·이용 기간·무료 상담 한도는 참여 안내에서 확인하고
-            참여 여부를 결정해요"라고 말하는데, 정작 그 참여 안내(/beta)로 가는 링크가
-            살아 있는 랜딩에는 없었다(기존 링크 3개는 모두 렌더되지 않는 컴포넌트에
-            있었다). 근거로 인용한 문서는 그 자리에서 열 수 있어야 한다. */}
+        {/* 랜딩 전체에 회원가입으로 가는 링크가 하나도 없었다. 이 자리는
+            /beta(승인 대기열 신청)로 보내고 있었는데, 가입은 승인 관문 없이
+            열려 있으므로 기다릴 이유가 없는 사람을 대기열로 흘려보냈다. */}
         <div className="mt-5 flex justify-center">
           <Link
-            href="/beta"
+            href="/login?mode=signup"
             className={`${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
           >
-            계정 베타 참여 안내 보기
+            계정 만들고 시작하기
           </Link>
         </div>
       </div>

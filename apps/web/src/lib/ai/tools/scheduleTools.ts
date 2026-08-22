@@ -2,7 +2,7 @@ import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types"
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
-import { mergeChecklist, calculateStatus } from "@/utils/checklist";
+import { mergeChecklist, calculateStatus, resolveStatusByKey } from "@/utils/checklist";
 import {
   addEvent,
   cancelEvent,
@@ -29,15 +29,12 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
   const progress = ctx.weddingContext.progress;
   const allKeys = CATEGORY_CHECKLISTS.map(({ key }) => key);
 
-  const completed = allKeys.filter(
-    (key) => progress[key]?.status === "completed"
-  );
-  const inProgress = allKeys.filter(
-    (key) => progress[key]?.status === "in_progress"
-  );
-  const notStarted = allKeys.filter(
-    (key) => !progress[key] || progress[key].status === "not_started"
-  );
+  // 저장값을 그대로 세면 항목이 늘었을 때 아모라가 화면과 다른 숫자를 말한다 —
+  // 화면은 파생값으로 "진행 중"이라 그리는데 아모라는 "완료했어요"라고 한다.
+  const statusOf = (key: string) => resolveStatusByKey(key, progress[key]) ?? "not_started";
+  const completed = allKeys.filter((key) => statusOf(key) === "completed");
+  const inProgress = allKeys.filter((key) => statusOf(key) === "in_progress");
+  const notStarted = allKeys.filter((key) => statusOf(key) === "not_started");
 
   return {
     toolName: "get_schedule_summary",

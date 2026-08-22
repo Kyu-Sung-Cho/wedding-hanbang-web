@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { resolvePostAuthLanding } from "@/lib/auth/postAuthLanding";
 import {
   getOptionalSameOriginRedirectPath,
   getPostLoginRedirectPath,
@@ -69,11 +70,14 @@ export async function GET(request: Request) {
     const { error: sessionError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (sessionError) {
+      // 원문은 로그에만 남긴다. URL 에 실으면 로그인 화면이 그것을 그대로
+      // 출력했고(내부 표현 노출), 값이 URL 에서 오므로 링크만 보내면 누구나
+      // 아무 문장이나 띄울 수 있었다.
       console.error("콜백: 세션 교환 에러:", sessionError.message);
       return NextResponse.redirect(loginErrorDestination(
         origin,
         loginPath,
-        sessionError.message,
+        "session_failed",
         requestedPostLoginPath,
       ));
     }
@@ -92,33 +96,29 @@ export async function GET(request: Request) {
       ));
     }
 
-    // 고객 전용: 프로필/온보딩 체크
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("onboarding_completed")
-      .eq("id", user.id)
-      .maybeSingle();
-
-    if (profileError) {
-      console.error("콜백: 프로필 조회 에러:", profileError.message);
-    }
-
-    if (!profile || !profile.onboarding_completed) {
-      const onboardingPath = from === "demo"
+    // 동의 -> 온보딩 -> 목적지 판정은 메일 링크(`/api/auth/confirm`)에도 똑같이
+    // 필요하다. 복제하면 두 판정이 갈리는 날 사람이 두 화면 사이에 갇히므로
+    // 한 곳에서만 정한다.
+    const landing = await resolvePostAuthLanding({
+      readOnboardingProfile: () => supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", user.id)
+        .maybeSingle(),
+      userMetadata: user.user_metadata,
+      pendingPath: from === "demo"
         ? "/wedding/onboarding"
-        : getPostLoginRedirectPath(search, origin, false);
-      const response = NextResponse.redirect(new URL(onboardingPath, origin));
-      // 실제 로그인 시 데모 모드 쿠키 제거
-      clearDemoCookies(response);
-      return response;
-    }
-
-    // 일반 고객 → 대시보드
-    const response = NextResponse.redirect(new URL(postLoginPath, origin));
-    response.cookies.set("onboarding_complete", "true", {
-      path: "/",
-      maxAge: 60 * 60 * 24 * 365,
+        : getPostLoginRedirectPath(search, origin, false),
+      completedPath: postLoginPath,
     });
+
+    const response = NextResponse.redirect(new URL(landing.path, origin));
+    if (landing.markOnboardingComplete) {
+      response.cookies.set("onboarding_complete", "true", {
+        path: "/",
+        maxAge: 60 * 60 * 24 * 365,
+      });
+    }
     // 실제 로그인 시 데모 모드 쿠키 제거
     clearDemoCookies(response);
     return response;
@@ -128,7 +128,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(loginErrorDestination(
       origin,
       loginPath,
-      msg,
+      "session_failed",
       requestedPostLoginPath,
     ));
   }
