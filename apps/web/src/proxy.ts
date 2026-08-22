@@ -128,6 +128,10 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname.startsWith("/api/cron/") ||
     [
       "/api/auth/callback",
+      // 메일 인증 링크가 도착하는 자리. GET 이지만 verifyOtp 로 세션을 세우고
+      // 가입 확인을 확정하므로 callback 과 같은 부류다 — 쓰기를 막는 창에서
+      // 한쪽만 통과하면 두 로그인 경로가 다르게 동작한다.
+      "/api/auth/confirm",
       "/api/auth/me",
       "/api/couple/code",
       "/api/messages",

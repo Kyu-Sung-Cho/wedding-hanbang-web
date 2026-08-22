@@ -41,13 +41,32 @@ export default function ResetPasswordPage() {
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
   useEffect(() => {
-    // Supabase가 hash fragment로 세션을 전달하므로 클라이언트에서 처리
+    // 세션은 **서버**가 세운다(`/api/auth/confirm`). 여기서는 그 세션이 있는지만
+    // 확인하고 폼을 연다.
+    //
+    // ⚠️ 예전에는 `PASSWORD_RECOVERY` 이벤트만 기다렸다. 그 이벤트는 브라우저가
+    // 해시(`#access_token=…`)를 직접 해석할 때만 오는데, `@supabase/ssr` 의
+    // createBrowserClient 가 `flowType:"pkce"` 를 덮어쓸 수 없게 박아 둬서
+    // (createBrowserClient.js:34,38) auth-js 가 해시를 만나면 세션을 만들기 전에
+    // 예외를 던졌다. 그래서 **이벤트가 영원히 오지 않았고**, 이 화면은
+    // "인증 확인 중"에서 멈춘 채 비밀번호를 바꿀 방법이 사라졌다.
+    let cancelled = false;
     const supabase = createClient();
-    supabase.auth.onAuthStateChange((event: string) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setReady(true);
-      }
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled && data.session) setReady(true);
     });
+
+    // 링크를 직접 붙여넣는 등 클라이언트가 세션을 세우는 경로도 남겨 둔다.
+    const { data: listener } = supabase.auth.onAuthStateChange((event: string) => {
+      if (cancelled) return;
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   const handleReset = async (e: React.FormEvent) => {
