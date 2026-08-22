@@ -2137,6 +2137,11 @@ export async function POST(request: Request) {
         .filter((event) => event.status !== "cancelled")
         .map((event) => ({ id: event.id, date: event.date, title: event.title }))
       : [],
+    // 총예산을 넘기지 않으면 예산 판정이 있어도 돌지 않는다. 옛 총예산 영수증이
+    // 현재처럼 회상되던 문제가 여기서 끊긴다(2026-08-22).
+    totalBudgetKrw: isRecord(journey) && typeof journey.total_budget === "number"
+      ? journey.total_budget
+      : null,
   };
   const liveDecisions = decisionsData.filter((d) => !isSupersededDecision(
     { category: d.category, title: d.title, chosenValue: d.chosen_value },

@@ -361,14 +361,43 @@ describe("사이에 낀 턴이 연속성을 끊는다", () => {
     expect(resolveRaw(rows, "응", "cur")).toBeNull();
   });
 
-  it("한 홉만 이어진다 — 승인된 턴이 다음 턴의 근거가 되지 않는다", () => {
-    const rows = [
+  // 2026-08-22 이 경계를 옮겼다. 예전에는 **한 홉만** 이어졌고, 그래서 아모라가 두 번
+  // 되물으면 사용자가 세 번 말하고도 아무것도 못 얻었다(파운더 실측:
+  // "총 예산 5000만원" → 포함 범위 되물음 → "신혼집은 빼고…" → 다시 되물음 →
+  // "네 그렇게 적용해줘" 에서 도구 0개, 그리고 "저장할 수 없어요"라는 기능 부재 선언).
+  //
+  // 이제 되묻기 쌍을 최대 3홉까지 거슬러 올라가 닻(단독 W0 발화)을 찾는다. 다만
+  // **홉마다 원래 가드를 전부 다시 본다** — 그 계약은 `amoraClarificationMultiHop.test.ts`
+  // 가 홉 중간의 카드·안전 신호·범위·상대 대상·공개 범위로 하나씩 고정한다.
+  //
+  // 이 시나리오(아모라가 "넣을게요"라고 완료를 주장한 뒤의 "응")가 이어지는 것은
+  // 받아들인다. 카드 없는 완료 주장 자체가 별도로 막히는 결함이고
+  // (`amoraForgedConfirmation`·지속성 주장 가드), 여기서 열리는 것은 조회 도구와
+  // 카드 자격뿐이며 장기 기억은 계속 꺼져 있다.
+  it("되묻기 사슬을 거슬러 닻을 찾는다 — 단, 카드가 있었으면 멈춘다", () => {
+    const chained = [
       ...WEDDING_PAIR,
       userRow("m3", "응"),
       aiRow("m4", "2026년으로 넣을게요.", "m3", "W0_wedding_core"),
       userRow("cur", "응"),
     ];
-    expect(resolveRaw(rows, "응", "cur")).toBeNull();
+    expect(resolveRaw(chained, "응", "cur")).not.toBeNull();
+
+    // 중간 턴이 확인 카드를 냈다면 그 확인은 버튼이어야 한다. 사슬은 거기서 끊긴다.
+    const withCard = [
+      ...WEDDING_PAIR,
+      userRow("m3", "응"),
+      {
+        ...aiRow("m4", "2026년으로 넣을까요?", "m3", "W0_wedding_core"),
+        metadata: {
+          in_reply_to_user_message_id: "m3",
+          question_scope: "W0_wedding_core",
+          pending_amora_action: { actionId: "a", tool: "add_schedule_event" },
+        },
+      },
+      userRow("cur", "응"),
+    ];
+    expect(resolveRaw(withCard, "응", "cur")).toBeNull();
   });
 
   it("상대의 웨딩 요청을 빌려 쓰지 못한다", () => {

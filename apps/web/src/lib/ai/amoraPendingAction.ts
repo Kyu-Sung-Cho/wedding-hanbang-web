@@ -567,9 +567,17 @@ function describeToolInputFields(tool: AiToolDefinition): string {
     const enumValues = Array.isArray(schema.enum)
       ? schema.enum.filter((value) => typeof value === "string" || typeof value === "number")
       : [];
-    const detail = enumValues.length > 0
+    // 이름만 알려주면 모델이 그 자리를 **아무 단위로나** 채운다. 2026-08-22 라이브에서
+    // "총 예산을 5000만원으로" 가 `total_budget: 5000`(=5,000원)으로 저장될 뻔했다.
+    // 스키마 설명("원 단위. 예: 30000000 = 3000만원")은 정확한데, 변경 도구는 provider
+    // `tools` 배열에 없어서 모델이 그 설명을 볼 길이 이 계약문뿐이다.
+    const description = typeof schema.description === "string"
+      ? schema.description.replace(/\s+/gu, " ").trim()
+      : "";
+    const base = enumValues.length > 0
       ? `${type}: ${enumValues.map(String).join("|")}`
       : type;
+    const detail = description ? `${base} — ${description}` : base;
     return `${name}${required.has(name) ? "*" : ""}(${detail})`;
   });
   return fields.length > 0 ? fields.join(", ") : "(입력 없음)";

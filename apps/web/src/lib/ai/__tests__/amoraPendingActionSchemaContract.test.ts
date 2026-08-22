@@ -84,6 +84,40 @@ describe("계약문이 입력 필드 이름을 알려준다", () => {
     }
   });
 
+  it("단위가 있는 필드는 단위를 함께 알려준다", () => {
+    // 2026-08-22 라이브: 사용자가 "총 예산을 5000만원으로 바꿔줘" 라고 했는데 카드에
+    // **5,000원**이 찍혔다. 모델이 `total_budget: 5000` 을 보낸 것이다.
+    //
+    // 스키마 설명은 정확했다 — "새로운 총 예산 금액 (원 단위). 예: 30000000 = 3000만원".
+    // 그런데 **변경 도구는 provider `tools` 배열에 없어서** 모델이 그 설명을 볼 길이
+    // 없다. 모델이 보는 것은 이 계약문뿐인데, 처음 만들 때 이름과 타입만 넣고 설명을
+    // 버렸다. 이름을 알려준 대가로 의미를 잃은 것이고, 그 결과가 자릿수 사고다.
+    const budgetTool = MUTATING_TOOLS.find((tool) => tool.name === "update_budget")!;
+    const prompt = buildAmoraPendingActionPrompt([budgetTool]);
+    expect(prompt).toContain("원 단위");
+    expect(prompt).toContain("30000000");
+  });
+
+  it("설명이 있는 필드는 설명을 싣는다", () => {
+    const withDescription = MUTATING_TOOLS.filter((tool) =>
+      Object.values(declaredProperties(tool)).some((schema) =>
+        typeof (schema as { description?: unknown }).description === "string"
+      ),
+    );
+    expect(withDescription.length).toBeGreaterThan(0);
+    for (const tool of withDescription) {
+      const prompt = buildAmoraPendingActionPrompt([tool]);
+      for (const [field, schema] of Object.entries(declaredProperties(tool))) {
+        const description = (schema as { description?: unknown }).description;
+        if (typeof description !== "string" || description.length === 0) continue;
+        // 설명은 길 수 있으니 앞부분이 실려 있으면 된다. 통째로 요구하면
+        // 계약문이 프롬프트 예산을 잡아먹는다.
+        const head = description.slice(0, 12);
+        expect(prompt, `${tool.name}.${field} 설명이 없다`).toContain(head);
+      }
+    }
+  });
+
   it("식별자 필드는 지어내지 말라고 함께 말한다", () => {
     // 필드 이름을 알려주는 순간 모델은 그 자리를 채우려 한다. 그런데 `event_id`는
     // 프롬프트 문맥에 없다 — 일정 문맥은 날짜·제목·메모뿐이다. 이 경고가 없으면
@@ -192,22 +226,23 @@ describe("검증은 느슨해지지 않았다", () => {
 
   it("계약문이 지어낸 이름을 정답처럼 싣지 않는다", () => {
     const prompt = buildAmoraPendingActionPrompt(MUTATING_TOOLS);
-    // 부분 문자열로 재면 안 된다 — `apply_budget_plan.allocations` 안에 `location`이
-    // 들어 있어서 멀쩡한 필드가 위반으로 잡힌다. 필드 단위로 잘라서 본다.
-    const advertised = new Set(
-      [...prompt.matchAll(/(?:^|[\s,])([a-z_][a-z0-9_]*)\*?\(/gm)].map((match) => match[1]),
-    );
+    // 렌더된 텍스트를 파싱해 "광고된 필드"를 뽑는 방식은 **버렸다.** 필드 설명에도
+    // 괄호와 쉼표가 들어가서(`sanggyeonrye(양쪽 부모님이 함께 만나는 자리)`)
+    // 설명 속 낱말이 필드로 잡힌다. 실제로 `reserve`·`sanggyeonrye` 가 그렇게 잡혔다.
+    // 파서를 더 정교하게 만들 수는 있지만, 그건 계약이 아니라 서식을 고정하는 것이고
+    // 다음 서식 변경에서 또 깨진다.
+    //
+    // 계약문은 `describeToolInputFields` 가 **스키마에서** 만들므로 "광고 ⊆ 선언"은
+    // 구조적으로 참이다. 여기서 지킬 값이 있는 것은 **지어낸 이름이 스키마에 슬쩍
+    // 들어오지 않는 것**이고, 그건 데이터로 확인한다.
     const declaredEverywhere = new Set(
       MUTATING_TOOLS.flatMap((tool) => Object.keys(declaredProperties(tool))),
     );
-    expect(advertised.size).toBeGreaterThan(0);
     for (const invented of ["start_time", "end_time", "location", "amount"]) {
       expect(declaredEverywhere.has(invented), `${invented} 가 실제 스키마에 생겼다`).toBe(false);
-      expect(advertised.has(invented), `계약문이 ${invented} 를 필드로 광고한다`).toBe(false);
     }
-    // 계약문이 광고하는 이름은 전부 실제 선언 필드여야 한다.
-    for (const name of advertised) {
-      expect(declaredEverywhere.has(name), `계약문에만 있는 필드: ${name}`).toBe(true);
-    }
+    // 그리고 계약문이 스키마에서 나왔다는 것 자체는 위의 "선언 필드가 전부 계약문에
+    // 나온다" 검사들이 도구마다 확인한다.
+    expect(prompt.length).toBeGreaterThan(0);
   });
 });
