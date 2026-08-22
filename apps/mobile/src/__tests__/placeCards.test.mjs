@@ -34,6 +34,7 @@ test("place search result keeps the fields and Naver destinations used by mobile
         priceRange: "1인 약 5만원",
         hasPrivateRoom: true,
         blogReviewCount: 128,
+        blogSnippet: "룸이 조용해서 상견례하기 좋았어요.",
         imageUrl: "https://search.pstatic.net/place.jpg",
         searchUrl: "https://search.naver.com/search.naver?query=한방정식",
         mapsUrl: "https://map.naver.com/p/search/한방정식",
@@ -56,6 +57,9 @@ test("place search result keeps the fields and Naver destinations used by mobile
     priceRange: "1인 약 5만원",
     hasPrivateRoom: true,
     blogReviewCount: 128,
+    // 웹 카드는 쓰는데 모바일 모델에는 아예 없던 필드. 리뷰 한 줄이 안 실려
+    // 오면 카드에 이름·주소·사진만 남는다.
+    blogSnippet: "룸이 조용해서 상견례하기 좋았어요.",
     imageUrl: "https://search.pstatic.net/place.jpg",
     searchUrl: "https://search.naver.com/search.naver?query=한방정식",
     mapsUrl: "https://map.naver.com/p/search/한방정식",

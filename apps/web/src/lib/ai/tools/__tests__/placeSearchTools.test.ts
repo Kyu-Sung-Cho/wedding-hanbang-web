@@ -165,12 +165,18 @@ describe("placeSearchTools", () => {
       imageTitle: "한방정식 강남점 외관",
       link: "https://example.com/place",
     });
+    // 링크는 **이름 + 구**로 간다. 전에는 주소를 통째로 붙였는데, 그러면
+    // 검색어가 길어 네이버에서 결과가 아예 없는 가게가 있었다(2026-08-23 실측:
+    // "부엉이산장 강남점 서울특별시 강남구 테헤란로1길 28-11 1층" → 0건,
+    // "부엉이산장 강남점 강남구" → 1건). 눌러도 빈 화면이 뜨는 카드였다.
     expect(new URL(String(output.places[0].searchUrl)).searchParams.get("query"))
-      .toBe("한방정식 서울 강남구 테헤란로");
+      .toBe("한방정식 강남구");
     expect(decodeURIComponent(String(output.places[0].mapsUrl)))
-      .toContain("한방정식 서울 강남구 테헤란로");
+      .toContain("한방정식 강남구");
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 지역 1 + 이미지 1 + 블로그 1. 블로그는 상품이 꺼져 있으면 실패하지만
+    // 그 실패가 카드를 막지 않는다(아래 별도 테스트).
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     for (const [input, init] of fetchMock.mock.calls) {
       expect(new URL(String(input)).origin).toBe("https://naverapihub.apigw.ntruss.com");
       expect(init?.headers).toEqual({
@@ -178,6 +184,52 @@ describe("placeSearchTools", () => {
         "X-NCP-APIGW-API-KEY": "hub-secret",
       });
     }
+  });
+
+  /**
+   * 2026-08-23 운영의 실제 조건이다. API HUB 애플리케이션에 블로그 상품을
+   * 신청하지 않으면 네이버가 401 을 준다:
+   *
+   *     {"error":{"errorCode":401,"message":"요청한 API는 이 Application에서
+   *      활성화되어 있지 않습니다"}}
+   *
+   * 신청하지 않은 상품은 고장이 아니다. 그 실패로 장소 카드까지 못 내면
+   * 사용자는 이유 없이 아무것도 못 받는다.
+   */
+  it("블로그 상품이 꺼져 있어도 장소 카드는 그대로 나온다", async () => {
+    process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
+    process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
+    stubSearchFetch((url) => {
+      if (url.pathname.endsWith("/local")) {
+        return jsonResponse({ items: [localItem()] });
+      }
+      if (url.pathname.endsWith("/image")) return jsonResponse({ items: [] });
+      if (url.pathname.endsWith("/blog")) {
+        return jsonResponse({
+          error: {
+            errorCode: 401,
+            message: "요청한 API는 이 Application에서 활성화되어 있지 않습니다.",
+          },
+        }, 401);
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+
+    const result = await executeSearchNearbyPlaces({ query: "강남 한정식" });
+    const output = result.toolOutput as {
+      places: Array<Record<string, unknown>>;
+      warnings?: string[];
+    };
+
+    expect(result.success).toBe(true);
+    expect(output.places).toHaveLength(1);
+    expect(output.places[0].name).toBe("한방정식");
+    // 리뷰 자리는 비어 있을 뿐, 카드는 이름·주소로 그대로 선다.
+    expect(output.places[0].blogReviewCount).toBe(0);
+    expect(output.places[0].blogSnippet).toBeNull();
+    expect(output.places[0].priceRange).toBeNull();
+    // 신청하지 않은 상품은 경고로 남기지 않는다 — 고장이 아니다.
+    expect(output.warnings ?? []).not.toContain("blog_enrichment_failed");
   });
 
   it("keeps only general places when NAVER Local mixes in wedding vendors", async () => {
@@ -210,7 +262,8 @@ describe("placeSearchTools", () => {
 
     expect(result.success).toBe(true);
     expect(output.places).toEqual([expect.objectContaining({ name: "샘플 한정식" })]);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 지역 1 + 이미지 1 + 블로그 1.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("returns an empty general-place result when every local item is a wedding vendor", async () => {
