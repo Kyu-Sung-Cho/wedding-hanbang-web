@@ -18,7 +18,6 @@ import PreparationStageSelect from "@/components/onboarding/PreparationStageSele
 import ProgressChecklist from "@/components/onboarding/ProgressChecklist";
 import { consumePendingCoupleInviteCode } from "@/lib/couples/pendingInvite";
 import { buildOnboardingProgress } from "@/lib/onboarding/buildOnboardingProgress";
-import NeutralPreparationStart from "@/components/onboarding/NeutralPreparationStart";
 import { buildJoinedDashboardRedirect } from "@/lib/amora/dashboardCompanion";
 import { getAuthRedirectPath } from "@/lib/auth/safeRedirect";
 import { describeInviteDeadline } from "@hanbang/shared";
@@ -80,6 +79,10 @@ export default function OnboardingPage() {
     useState<OwnerBoundInviteCode | null>(null);
   // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
   const [inviteDeadline, setInviteDeadline] = useState<string | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
+  // 판정 전에는 어느 쪽도 그리지 않는다. 기본값으로 그리면 첫 프레임에 역할
+  // 카드(신부/신랑)가 뜨고, 판정이 실패하면 그 화면이 영구가 된다.
+  const [capabilitiesResolved, setCapabilitiesResolved] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [pendingPlanNotice, setPendingPlanNotice] = useState("");
   const [deferredProgressNotice, setDeferredProgressNotice] = useState("");
@@ -208,6 +211,7 @@ export default function OnboardingPage() {
       setNeutralPreparationSpaceEnabled(
         parseNeutralPreparationSpaceCapability(data.capabilities),
       );
+      setCapabilitiesResolved(true);
       formOwnerUserIdRef.current = ownerUserId;
       setFormOwnerUserId(ownerUserId);
       setError("");

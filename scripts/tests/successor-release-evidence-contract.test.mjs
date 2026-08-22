@@ -324,7 +324,7 @@ test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고
   assert.equal(result.manifest.status, "deployment_blocked");
   assert.equal(result.remoteBaseline.observedRemoteHead, "20260727090000");
   assert.equal(result.remoteBaseline.appliedMigrations.length, 32);
-  assert.equal(result.pendingMigrations.length, 85);
+  assert.equal(result.pendingMigrations.length, 86);
   assert.equal(
     result.pendingMigrations.at(0)?.file,
     "20260730100000_retire_undisclosed_community_agents.sql",
@@ -667,7 +667,7 @@ test("preparation topic message references migration stays exact-hash pinned and
 
 test("the pinned successor tail stays exact-hash pinned and remains deployment-blocked", () => {
   const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
-  assert.equal(result.manifest.expandMigrations.length, 117);
+  assert.equal(result.manifest.expandMigrations.length, 118);
   assert.deepEqual(
     result.manifest.expandMigrations.at(-5),
     AMORA_PREPARATION_ACTION_RECEIPT_BINDING_READ_MIGRATION,
@@ -716,12 +716,12 @@ test("the pinned successor tail stays exact-hash pinned and remains deployment-b
     result.manifest.expandMigrations.at(-16),
     AMORA_NEUTRAL_PREPARATION_SPACE_MIGRATION,
   );
-  assert.equal(result.pendingMigrations.length, 85);
+  assert.equal(result.pendingMigrations.length, 86);
   assert.deepEqual(
     result.pendingMigrations.at(-5),
     AMORA_PREPARATION_ACTION_RECEIPT_BINDING_READ_MIGRATION,
   );
-  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 85);
+  assert.equal(result.remoteBaseline.contract.pendingSuccessorCount, 86);
   assert.equal(
     result.remoteBaseline.contract.lastPendingSuccessor,
     "20260820150000",

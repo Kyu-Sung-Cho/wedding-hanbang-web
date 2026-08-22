@@ -99,17 +99,17 @@ test("pins the full exact 139-table post-expand and three migration-ledger contr
   assert.equal(EXPECTED_TABLES.length, 139);
   assert.deepEqual(quotedBlock(source, "VDPostExpandExpectedTables"), EXPECTED_TABLES);
   assert.equal(listSha(EXPECTED_TABLES), "ddf672a17f28e99fd20646a3376cee696430b8b599e10979f6d2c7fd23e5482f");
-  assert.equal(ALL_VERSIONS.length, 232);
+  assert.equal(ALL_VERSIONS.length, 233);
   assert.equal(ALL_VERSIONS.at(-1), "20260820150000");
-  assert.equal(listSha(ALL_VERSIONS), "d9d4961b96a03053eb77c393db89267893b58e189ea25f73ae2c292508cc6b5d");
-  assert.equal(RELEASE_VERSIONS.length, 117);
-  assert.equal(listSha(RELEASE_VERSIONS), "fde764ba6ac9575abb78d4fd432ceb175704d24670e7a90740ffa71e566cace9");
-  assert.equal(APPLIED_SUFFIX.length, 85);
-  assert.equal(listSha(APPLIED_SUFFIX), "4375c7302b88953beefb1b4e46f4a7f27e82354f1ad363c2d190751c54ce1fc7");
+  assert.equal(listSha(ALL_VERSIONS), "35a5379aa9ccbf37dc8e907dc445221e92e9721b23592d4aaa57c2677ce22dec");
+  assert.equal(RELEASE_VERSIONS.length, 118);
+  assert.equal(listSha(RELEASE_VERSIONS), "779e13bde642b648e855b0866e09c42ea2bb7eb98064a752fa926121f04a6483");
+  assert.equal(APPLIED_SUFFIX.length, 86);
+  assert.equal(listSha(APPLIED_SUFFIX), "1f78511129ea9f0ecec899149c044ab3c2244f2dcf476adf8b790f3ccc44146c");
   assert.deepEqual(quotedBlock(source, "VDPostExpandVerificationReceiptKeys"), RECEIPT_KEYS);
-  assert.match(source, /VDPostExpandMigrationCount = 232/);
-  assert.match(source, /VDPostExpandReleaseMigrationCount = 117/);
-  assert.match(source, /VDPostExpandAppliedSuffixCount = 85/);
+  assert.match(source, /VDPostExpandMigrationCount = 233/);
+  assert.match(source, /VDPostExpandReleaseMigrationCount = 118/);
+  assert.match(source, /VDPostExpandAppliedSuffixCount = 86/);
   assert.match(source, /VDPostExpandMigrationHead = '20260820150000'/);
 });
 

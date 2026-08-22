@@ -1421,7 +1421,10 @@ test("the mobile blank state renders the entry plan as draft-only choices", () =
   );
   assert.match(
     chatSource,
-    /scopedMessages\.length === 0 \? \([\s\S]{0,160}<ScrollView[\s\S]{0,1200}<AmoraStarterCard/,
+    // 게이트가 보는 목록 이름은 고정하지 않는다. 아모라가 먼저 건넨 첫마디가 놓이면
+    // 화면은 비어 있지 않으므로 `displayedMessages` 가 맞다(chatStream.test.mjs 가 그걸
+    // 요구한다). 여기서 확인할 것은 빈 화면에 시작 카드가 있다는 것이다.
+    /(?:scoped|displayed)Messages\.length === 0 \? \([\s\S]{0,160}<ScrollView[\s\S]{0,1200}<AmoraStarterCard/,
   );
   assert.match(chatSource, /keyboardShouldPersistTaps="handled"/);
 });
@@ -1432,9 +1435,13 @@ test("a rejected home handoff still opens the safe blank Amora entry", () => {
     "utf8",
   );
 
+  // 요점은 "막다른 길이 아니다"이지 URL 모양이 아니다. main이 나중에 더한 계약
+  // (amoraChatEntry.test.mjs)은 이 파일의 모든 문이 맥락(`?entry=`)을 들고 가야 하고
+  // 맥락 없는 옛 push는 남아 있으면 안 된다고 못박는다. 두 계약을 함께 지키려면
+  // 여기서 경로 문자열을 고정하지 않고, 채팅으로 열린다는 것만 확인한다.
   assert.match(
     experienceSource,
-    /if \(!companionHandoff\) \{\s*router\.push\("\/\(tabs\)\/chat"\);\s*return;\s*\}/,
+    /if \(!companionHandoff\) \{[\s\S]{0,240}router\.push\("\/\(tabs\)\/chat[^"]*"\);\s*return;\s*\}/,
   );
 });
 

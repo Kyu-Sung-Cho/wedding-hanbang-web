@@ -1097,11 +1097,14 @@ export default function SettingsScreen() {
                       뒤에는 빈 QR이나 "null" 글자가 그려질 수 없다. 복사는 카드가
                       직접 하지 않고 아래 콜백을 부른다 — 소유자 확인을 거치는
                       경로가 이 화면에만 있어야 한다. */}
+                  {/* 소유자 관문은 위의 `phase`가 이미 세웠다 — `phase`는
+                      `visibleCoupleConnection`에서 오므로, 여기 닿았다는 것은
+                      이 코드가 지금 로그인한 사람의 것이라는 뜻이다. */}
                   <InviteCodeCard
-                    code={visibleCoupleConnection.inviteCode}
+                    code={coupleConnection.inviteCode}
                     label="커플 초대 코드"
                     copied={codeCopied}
-                    copyDisabled={!visibleCoupleConnection.canInvite}
+                    copyDisabled={!coupleConnection.canInvite}
                     onCopy={copyInviteCode}
                   />
                   {/* 기한은 코드를 보내는 이 자리에서 말해야 한다. main의 #136이

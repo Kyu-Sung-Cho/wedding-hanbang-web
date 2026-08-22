@@ -1986,7 +1986,7 @@ test("a deployment-blocked successor prevents predecessor finalizer selection", 
   }
 });
 
-test("the current 117-migration successor keeps finalization blocked through the invite-expiry message tail", async () => {
+test("the current 118-migration successor keeps finalization blocked through the invite-expiry message tail", async () => {
   const manifest = JSON.parse(await readFile(
     join(
       sourceRepoRoot,
@@ -1994,7 +1994,7 @@ test("the current 117-migration successor keeps finalization blocked through the
     ),
     "utf8",
   ));
-  assert.equal(manifest.expandMigrations.length, 117);
+  assert.equal(manifest.expandMigrations.length, 118);
   assert.deepEqual(
     manifest.expandMigrations.slice(-15),
     [

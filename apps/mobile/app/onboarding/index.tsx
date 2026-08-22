@@ -1,6 +1,7 @@
 // 온보딩 화면 — 중립 첫 가치 + 기존 5단계 호환 경로.
 // 중립 준비 공간이 켜지면 한 화면(역할·예식일·예산·스타일을 묻지 않음),
-// 꺼져 있으면 기존 5단계. 판정은 서버가 /api/auth/me 의 capabilities 로 내려준다.
+// 꺼져 있으면 6단계(역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 준비 현황 → 완료).
+// 판정은 서버가 /api/auth/me 의 capabilities 로 내려준다 — 앱이 정하지 않는다.
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   View, Text, Pressable, TextInput, StyleSheet, ScrollView,
@@ -28,6 +29,9 @@ import {
   type WeddingPriorityValue,
   type WeddingStyleValue,
 } from "@hanbang/shared";
+import * as Clipboard from "expo-clipboard";
+import * as SecureStore from "expo-secure-store";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiFetch, apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { evaluateOnboardingBudgetManwon } from "@/lib/onboardingBudget.mjs";
@@ -46,11 +50,40 @@ import {
   type OnboardingSubmissionMode,
 } from "@/lib/onboardingFirstValue.mjs";
 import {
+  evaluateWeddingDateInput,
+  formatWeddingDateInput,
+} from "@/lib/onboardingFirstValue.mjs";
+import {
+  buildOnboardingProgressPayload,
+  describeOnboardingSubmitNotice,
+  getNextOnboardingStep,
+  getOnboardingStepPosition,
+  getPreviousOnboardingStep,
+  ONBOARDING_DONE_STEP,
+  ONBOARDING_PREPARATION_STEP,
+  shouldAskPreparationProgress,
+} from "@/lib/onboardingFlow.mjs";
+import { consumePendingCoupleInviteCode } from "@/lib/pendingCoupleInvite.mjs";
+import {
+  clearOnboardingDraft,
+  loadOnboardingDraft,
+  saveOnboardingDraft,
+} from "@/lib/onboardingDraft";
+import PreparationProgressList, {
+  createPreparationStatuses,
+} from "@/components/onboarding/PreparationProgressList";
+import InviteCodeCard from "@/components/invite/InviteCodeCard";
+import {
   COUPLE_INVITE_CODE_MAX_LENGTH,
   COUPLE_INVITE_CODE_PLACEHOLDER,
+  PREPARATION_STAGE_OPTIONS,
   describeCoupleInviteCodeProblem,
+  findPreparationStageOption,
   isCoupleInviteCode,
   normalizeCoupleInviteCode,
+  type PreparationProgressCategoryKey,
+  type PreparationProgressStatus,
+  type PreparationStageValue,
   buildNeutralPreparationSpaceSubmission,
   describeInviteDeadline,
   parseNeutralPreparationSpaceCapability,
@@ -76,6 +109,9 @@ type WeddingStyle = WeddingStyleValue;
 type PriorityItem = WeddingPriorityValue;
 type BudgetTendency = WeddingBudgetTendencyValue;
 type GuestCount = WeddingGuestCountValue;
+
+/** 입력이 멈춘 뒤 이만큼 기다렸다 기기에 적는다. 글자마다 쓰면 저장소가 계속 깨어 있다. */
+const ONBOARDING_DRAFT_SAVE_DELAY_MS = 400;
 
 const STYLE_EMOJI: Record<WeddingStyle, string> = {
   minimal: "\u{1F90D}",
@@ -562,12 +598,6 @@ function CelebrationDots() {
   );
 }
 
-function isOnboardingRecord(
-  value: unknown,
-): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
@@ -603,11 +633,22 @@ export default function OnboardingScreen() {
   const submissionGenerationRef = useRef(0);
   const catchUpDraftWriteQueueRef = useRef<Promise<void>>(Promise.resolve());
   const catchUpDraftActionRef = useRef(false);
+  const [resultCodeCopied, setResultCodeCopied] = useState(false);
+  // 초대 링크를 눌러서 들어왔는지. 코드가 이미 채워져 있는 이유를 화면이 말해줘야
+  // 한다 — 안 그러면 자기가 친 적 없는 글자가 입력칸에 있는 것으로 보인다.
+  const [inviteCodeFromLink, setInviteCodeFromLink] = useState(false);
   // 코드를 보내는 그 화면이 기한을 말해야 한다. 서버가 모르면 아무 말도 안 한다.
   const [resultDeadline, setResultDeadline] = useState<string | null>(null);
   const [neutralFocus, setNeutralFocus] = useState<WeddingPriorityValue | null>(null);
 
   const budgetEvaluation = evaluateOnboardingBudgetManwon(budget);
+  // 날짜는 제출 전에 이 화면에서 판정한다 — 예전에는 자유 텍스트를 그대로 보내고
+  // 마지막 화면에서 400을 받았는데, 그때는 무엇이 틀렸는지 볼 자리가 없었다.
+  const weddingDateEvaluation = evaluateWeddingDateInput(weddingDate);
+  const weddingDateBlocked =
+    !weddingDateUndecided
+    && weddingDateEvaluation.status !== "empty"
+    && weddingDateEvaluation.status !== "valid";
   // 아직 다 치지 않은 상태를 틀렸다고 하지 않는다 — 타이핑 중에 빨간 글씨가 뜨면
   // 사람은 자기가 잘못한 줄 안다. 파트너 코드는 붙여넣는 경우가 많아 길이가 한 번에 찬다.
   const inviteCodeProblem = coupleAction === "join" && inviteCode.length >= 4
@@ -623,6 +664,178 @@ export default function OnboardingScreen() {
   const [priorities, setPriorities] = useState<PriorityItem[]>([]);
   const [budgetTendency, setBudgetTendency] = useState<BudgetTendency | null>(null);
   const [guestCount, setGuestCount] = useState<GuestCount | null>(null);
+
+  // Step 5: 준비 현황 — 단계 한 줄도 19항목도 **선택이다**(관문 근거는 `canNext` case 5)
+  const [preparationStage, setPreparationStage] =
+    useState<PreparationStageValue | null>(null);
+  const [categoryStatuses, setCategoryStatuses] = useState(() =>
+    createPreparationStatuses(),
+  );
+  // 스텝 5는 화면 두 개다. 단계 한 줄을 먼저 받고("stage"), 19항목은 "다음"을 눌러야
+  // 나온다("detail"). 웹과 같은 순서다 — 한 화면에 다 펼쳐두면 제안값을 스크롤해
+  // 보지도 않은 채 저장 버튼이 눌린다. 스텝 번호를 나누지 않는 이유는 서버가 완료 시
+  // onboarding_step: 5를 쓰기 때문이다.
+  const [stagePhase, setStagePhase] = useState<"stage" | "detail">("stage");
+  // 저장된 초안을 아직 못 읽었는데 저장부터 하면, 빈 초기 상태가 초안을 덮는다.
+  const draftRestoredRef = useRef(false);
+  // 서버에 저장된 뒤에는 다시 적지 않는다. 완료 화면(코드 보여주기)도 상태 변화라,
+  // 지운 직후에 저장 타이머가 한 번 더 돌면 이미 끝난 온보딩의 초안이 되살아난다.
+  const draftDoneRef = useRef(false);
+
+  function handleStagePress(value: PreparationStageValue) {
+    // 이미 고른 단계를 한 번 더 누른 것이라면 아무것도 하지 않는다. 19항목 화면에서
+    // 손으로 고쳐둔 상태가 있는데 여기서 다시 채우면, 사용자가 직접 말한 것이
+    // 제안값으로 덮인다. 2국면이 되면서 이 경로는 더 흔해졌다 — 국면 B에서 뒤로
+    // 가면 고른 단계가 선택된 채 보이고, 그 카드를 다시 누르기 쉽다.
+    if (preparationStage === value) return;
+    setPreparationStage(value);
+    // 단계를 바꾸면 아래 19항목도 그 단계의 제안값으로 다시 채운다. 앞 단계에서
+    // 켜졌던 "완료"가 남아 있으면 사용자가 고르지 않은 상태가 화면에 눌러앉는다.
+    setCategoryStatuses(
+      createPreparationStatuses(findPreparationStageOption(value)?.suggested),
+    );
+  }
+
+  /**
+   * 이미 온보딩을 마친 사람은 여기 서 있으면 안 된다.
+   *
+   * 라운지의 제일 큰 버튼이 날짜를 고치라며 이 화면을 열던 시절, 그 사람이 역할이나
+   * 커플 연결을 처음과 다르게 고르면 서버가 커플 구성이 어긋났다고 돌려주고 화면은
+   * "고객 지원에 문의해주세요"로 끝났다. 그 경로는 목적지를 설정 화면으로 옮겨 막았고,
+   * 이건 그 뒤에 남는 뒷문(딥링크·예전 화면·뒤로가기)을 막는 빗장이다.
+   *
+   * 판정은 앱 루트 게이트(`app/index.tsx`)와 같은 값 하나만 본다 — 판정을 복제하면
+   * 두 곳이 서로 다른 답을 하는 날이 온다.
+   *
+   * 확인하는 동안 화면을 가리지 않는다. 여기서 스피너를 세우면 연결이 느린 사람은
+   * 가입 자체를 못 하고, 이 빗장이 막는 건 이미 계정이 있는 사람의 잘못된 재입장뿐이다.
+   */
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!active || !session) return;
+        const { data: profile, error } = await supabase
+          .from("profiles")
+          .select("onboarding_completed")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (!active || error) return;
+        if (profile?.onboarding_completed === true) {
+          router.replace("/(tabs)/lounge");
+        }
+      } catch {
+        // 물어보지 못했으면 그대로 온보딩을 걷게 둔다. 못 물어봤다는 이유로 가입을
+        // 막는 것이 이 화면에서 할 수 있는 가장 나쁜 일이다.
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /**
+   * 저장해 둔 초안을 되살리고, 그다음에 초대 링크로 들어온 코드를 받아 "코드로 합류"
+   * 경로에 앉힌다.
+   *
+   * 순서가 이유가 있다: 링크로 정해진 join은 초안의 예전 선택보다 세다. 반대로 하면
+   * 링크를 눌러 들어온 사람이 예전에 고르던 "새로 만들기"로 되돌아간다.
+   *
+   * 스텝을 건너뛰지는 않는다. 역할(신부/신랑)은 합류하는 사람도 반드시 골라야 하고,
+   * 그 화면이 스텝 1이다. 링크가 대신 골라주면 서버에는 역할 없는 프로필이 남는다.
+   * 그래서 여기서는 "무엇을 할지"(join)와 "어떤 코드로"(inviteCode)만 채워두고,
+   * 사람은 평소대로 스텝 1부터 걷는다 — 스텝 2에 오면 코드가 이미 들어 있다.
+   */
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      const draft = await loadOnboardingDraft(AsyncStorage);
+      if (!active) return;
+      if (draft) {
+        setStep(draft.step);
+        setRole(draft.role);
+        setCoupleAction(draft.coupleAction);
+        setWeddingDate(draft.weddingDate);
+        setWeddingDateUndecided(draft.weddingDateUndecided);
+        setVenue(draft.venue);
+        setBudget(draft.budget);
+        setWeddingStyle(draft.weddingStyle);
+        setPriorities(draft.priorities);
+        setBudgetTendency(draft.budgetTendency);
+        setGuestCount(draft.guestCount);
+        setPreparationStage(draft.preparationStage);
+        setCategoryStatuses(createPreparationStatuses(draft.categoryStatuses));
+        setStagePhase(draft.stagePhase);
+      }
+      // 복원이 끝나야 저장을 시작한다. 먼저 저장하면 빈 초기 상태가 저장된 초안을 덮는다.
+      draftRestoredRef.current = true;
+
+      const linkedCode = await consumePendingCoupleInviteCode({
+        storage: SecureStore,
+      });
+      if (!active || !linkedCode) return;
+      setCoupleAction("join");
+      setInviteCode(linkedCode);
+      setInviteCodeFromLink(true);
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  /**
+   * 적은 것을 기기에 남긴다. 초대 코드는 넘기지 않는다 — 커플 공간의 열쇠라 기기에
+   * 눌러앉으면 안 되고, 링크로 받은 코드는 이미 한 번만 쓰이도록 따로 관리된다.
+   *
+   * 글자 하나마다 쓰지 않도록 잠깐 묵혔다 쓴다. 화면을 떠나면 타이머는 정리된다.
+   */
+  useEffect(() => {
+    if (!draftRestoredRef.current || draftDoneRef.current) return;
+    const timer = setTimeout(() => {
+      void saveOnboardingDraft(AsyncStorage, {
+        step,
+        role,
+        coupleAction,
+        weddingDate,
+        weddingDateUndecided,
+        venue,
+        budget,
+        weddingStyle,
+        priorities,
+        budgetTendency,
+        guestCount,
+        preparationStage,
+        categoryStatuses,
+        stagePhase,
+      });
+    }, ONBOARDING_DRAFT_SAVE_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [
+    step,
+    role,
+    coupleAction,
+    weddingDate,
+    weddingDateUndecided,
+    venue,
+    budget,
+    weddingStyle,
+    priorities,
+    budgetTendency,
+    guestCount,
+    preparationStage,
+    categoryStatuses,
+    stagePhase,
+  ]);
+
+  function handleCategoryStatusChange(
+    key: PreparationProgressCategoryKey,
+    status: PreparationProgressStatus,
+  ) {
+    setCategoryStatuses((prev) => ({ ...prev, [key]: status }));
+  }
 
   function togglePriority(item: PriorityItem) {
     setPriorities((prev) => {
@@ -640,7 +853,14 @@ export default function OnboardingScreen() {
   const brideScale = useRef(new Animated.Value(1)).current;
   const groomScale = useRef(new Animated.Value(1)).current;
 
-  const totalSteps = 5;
+  // 1 역할 · 2 커플 연결 · 3 결혼 정보 · 4 웨딩 스타일 · 5 준비 현황 · 6 완료
+  // 합류하는 사람은 5를 걷지 않는다(준비 현황은 커플 공유 데이터라 다시 물으면
+  // 파트너가 적어둔 것을 덮는다). 그래서 진행 표시의 분모도 그 사람이 실제로 보는
+  // 화면 수로 계산한다 — 6단계라고 써놓고 4단계에서 끝나면 사람은 앱이 고장 난 줄 안다.
+  const DONE_STEP = ONBOARDING_DONE_STEP;
+  const asksPreparation = shouldAskPreparationProgress(coupleAction);
+  const { position: stepPosition, total: totalSteps } =
+    getOnboardingStepPosition(step, coupleAction);
 
   const resetCatchUpState = useCallback(() => {
     setCatchUpPhase("edit");
@@ -835,8 +1055,16 @@ export default function OnboardingScreen() {
     switch (step) {
       case 1: return role !== null;
       case 2: return coupleAction === "create" || (coupleAction === "join" && isCoupleInviteCode(inviteCode));
-      case 3: return budgetEvaluation.status !== "invalid";
+      case 3: return budgetEvaluation.status !== "invalid" && !weddingDateBlocked;
       case 4: return true; // 선호도는 선택사항
+      // 단계 한 줄도 선택이다 — **웹과 같은 규칙이다.**
+      //
+      // 원래 여기만 필수였다. 그런데 같은 질문을 웹은 선택으로, 앱은 필수로 물으면
+      // 한 커플이 두 화면에서 서로 다른 관문을 만난다. 웹 쪽 판단 근거는
+      // `apps/web/src/app/(auth)/onboarding/page.tsx`의 `canProceed` case 5에 적어 뒀다
+      // (요지: 이 값의 소비처 둘 다 null 폴백이 있어 없어도 아무것도 안 죽는다).
+      // 한쪽만 바꿀 이유가 없어서 같이 연다.
+      case 5: return true;
       default: return false;
     }
   }
@@ -973,11 +1201,29 @@ export default function OnboardingScreen() {
     void handleSubmit("neutral_first_value", foundationStage);
   }
 
+  /**
+   * 두 경로가 한 함수를 쓴다. 중립 준비 공간은 모드를 넘기고, 6단계 경로는 19항목을
+   * 보낼지만 넘긴다(`saveCategories`).
+   *
+   * `saveCategories`가 false면 19항목은 한 줄도 보내지 않는다. 단계 선택지에 붙은
+   * 제안값은 화면 초깃값일 뿐이고, 사용자가 확인하지 않은 "완료"를 준비 사실로
+   * 기록하면 체크리스트 완료율과 예산이 사실이 아닌 쪽으로 움직인다.
+   *
+   * 합류한 사람은 이 값과 무관하게 단계도 19항목도 보내지 않는다 —
+   * `buildOnboardingProgressPayload`가 커플 공유 데이터를 덮는 경로를 한 곳에서 막는다.
+   */
   async function handleSubmit(
-    mode: OnboardingSubmissionMode | "neutral_first_value" = "detailed",
+    modeOrSaveCategories:
+      | OnboardingSubmissionMode
+      | "neutral_first_value"
+      | boolean = "detailed",
     requestedFoundationStage: PlanningFoundationSelfReportedStage | null = foundationStage,
     catchUpSubmission?: AmoraPreparationCatchUpDraftSubmission,
   ) {
+    const saveCategories =
+      typeof modeOrSaveCategories === "boolean" ? modeOrSaveCategories : true;
+    const mode: OnboardingSubmissionMode | "neutral_first_value" =
+      typeof modeOrSaveCategories === "boolean" ? "detailed" : modeOrSaveCategories;
     const expectedActorUserId = formOwnerUserIdRef.current;
     if (!expectedActorUserId || !formOwnerStillCurrentRef.current) {
       Alert.alert("계정이 바뀌었어요", "현재 계정에서 온보딩을 다시 시작해 주세요.");
@@ -995,6 +1241,11 @@ export default function OnboardingScreen() {
       return;
     }
     if (mode === "neutral_first_value" && requestedFoundationStage === null) {
+      Alert.alert("준비 상태를 골라주세요", "지금 어디쯤인지만 알려주시면 돼요.");
+      return;
+    }
+    if (weddingDateBlocked) {
+      Alert.alert("결혼 예정일을 확인해주세요", weddingDateEvaluation.message);
       return;
     }
 
@@ -1012,7 +1263,8 @@ export default function OnboardingScreen() {
               focusPriority: neutralFocus,
             }),
           })
-        : buildOnboardingSubmissionPayload({
+        : {
+          ...buildOnboardingSubmissionPayload({
             role,
             coupleAction,
             inviteCode,
@@ -1024,7 +1276,25 @@ export default function OnboardingScreen() {
             priorities,
             budgetTendency,
             guestCount,
-          }, mode);
+          }, mode),
+          // 준비 현황(단계 + 19항목)은 6단계 경로의 마지막 화면에서 온다.
+          // `quick_start` 는 아무것도 보내지 않는 것이 계약이라 여기서만 더한다.
+          ...(mode === "detailed"
+            ? {
+                progress: buildOnboardingProgressPayload({
+                  coupleAction,
+                  stage: preparationStage,
+                  preferences: {
+                    weddingStyle,
+                    priorities,
+                    budgetTendency,
+                    guestCount,
+                  },
+                  categoryStatuses: saveCategories ? categoryStatuses : null,
+                }),
+              }
+            : {}),
+        };
 
       const res = await apiFetchForExpectedUser(expectedActorUserId, "/api/onboarding", {
         method: "POST",
@@ -1117,7 +1387,11 @@ export default function OnboardingScreen() {
             inviteCode: data.inviteCode,
           });
 
-      const proceed = () => {
+      const goOn = () => {
+        // 서버에 저장됐으면 기기의 초안은 역할이 끝났다. 남겨두면 다음에 이 화면을
+        // 열었을 때 이미 저장된 입력이 되살아난다.
+        draftDoneRef.current = true;
+        void clearOnboardingDraft(AsyncStorage);
         if (completion.kind === "invite_code") {
           setResultCode(completion.inviteCode);
           void (async () => {
@@ -1148,49 +1422,20 @@ export default function OnboardingScreen() {
         }
       };
 
-      // 서버는 200 안에서 결과를 구분해 보낸다 — 바로 반영됐는지, 상대의 확인을
-      // 기다리는지(`planChange.status === "pending_partner"`), 일부 입력이 이번
-      // 요청에서 미뤄졌는지(`routineProgress.status === "deferred"`).
-      //
-      // 이걸 안 읽고 대시보드로 넘기면, 나중에 합류한 사람은 결혼 날짜를 입력하고도
-      // 아무 말을 못 듣고 홈은 계속 "결혼식 날짜를 알려주세요"라고 말한다.
-      // **두 사람이 확인해야 반영된다는 제품의 약속이 데이터 유실로 읽힌다.**
-      // 웹은 같은 값을 이미 읽어 안내하고 있었다
-      // (apps/web/src/app/(auth)/onboarding/page.tsx:216-231, 497-546).
-      // 정본이 "주 제품"이라 부르는 쪽만 침묵하고 있었다.
-      const pendingPartnerSummary =
-        isOnboardingRecord(data.planChange)
-        && data.planChange.status === "pending_partner"
-        && typeof data.planChange.summary === "string"
-          ? data.planChange.summary
-          : null;
-      const deferredProgressMessage =
-        isOnboardingRecord(data.routineProgress)
-        && data.routineProgress.status === "deferred"
-        && typeof data.routineProgress.message === "string"
-          ? data.routineProgress.message
-          : null;
-
-      if (pendingPartnerSummary || deferredProgressMessage) {
+      // 서버는 200을 주면서도 입력을 미뤄둘 수 있다. 준비 현황이 보류되거나
+      // (routineProgress) 결혼 예정일 같은 값이 파트너 확인을 기다린다(planChange).
+      // res.ok만 보고 넘기면 사람은 저장된 줄 알고 나간다 — 웹과 같은 문구로 먼저 알린다.
+      const notice = describeOnboardingSubmitNotice(data);
+      if (notice) {
         Alert.alert(
-          pendingPartnerSummary
-            ? "파트너 확인을 요청했어요"
-            : "저장되지 않은 입력이 있어요",
-          [
-            pendingPartnerSummary,
-            pendingPartnerSummary
-              ? "아직 계획에는 반영되지 않았어요. 두 사람이 모두 확인하면 자동으로 반영됩니다."
-              : null,
-            deferredProgressMessage,
-          ]
-            .filter((line): line is string => typeof line === "string")
-            .join("\n\n"),
-          [{ text: "확인하고 계속하기", onPress: proceed }],
+          notice.title,
+          notice.message,
+          [{ text: "확인하고 계속하기", onPress: goOn }],
+          { cancelable: false },
         );
         return;
       }
-
-      proceed();
+      goOn();
     } catch (err) {
       if (!submissionOwnerStillCurrent()) return;
       const message = err instanceof Error ? err.message : "저장에 실패했어요";
@@ -1208,18 +1453,50 @@ export default function OnboardingScreen() {
     }
   }
 
+  /**
+   * 완료 화면의 코드 복사. 이 화면의 코드는 방금 이 사람에게 발급된 것이라 다른
+   * 사람의 코드가 섞일 자리가 없다 — 그래서 설정 화면처럼 소유자를 다시 확인하는
+   * 단계 없이 바로 클립보드에 넣는다.
+   */
+  async function copyResultCode() {
+    if (!resultCode) return;
+    try {
+      await Clipboard.setStringAsync(resultCode);
+      setResultCodeCopied(true);
+      setTimeout(() => setResultCodeCopied(false), 2000);
+    } catch {
+      Alert.alert("오류", "코드 복사에 실패했어요.");
+    }
+  }
+
   function handleNext() {
+    // 중립 준비 공간은 화면이 하나다. 첫 화면의 CTA가 곧 제출이고, 19항목은 묻지
+    // 않으므로 저장할 카테고리도 없다.
     if (neutralEnabled && step === 1) {
-      handleSubmit();
+      void handleSubmit(false);
       return;
     }
-    if (step === 4) {
-      handleSubmit();
-    } else if (step === 5) {
-      router.replace("/(tabs)/dashboard");
-    } else {
-      animateStepTransition(step + 1);
+    if (step === DONE_STEP) {
+      router.replace("/(tabs)/lounge");
+      return;
     }
+    if (step === ONBOARDING_PREPARATION_STEP) {
+      // 단계를 고른 다음에야 19항목을 본다. 같은 화면에 펼쳐 두면 제안값을 확인하지
+      // 않은 채로 저장이 눌린다.
+      if (stagePhase === "stage") {
+        setStagePhase("detail");
+        return;
+      }
+      handleSubmit(true);
+      return;
+    }
+    const next = getNextOnboardingStep(step, coupleAction);
+    // 다음 화면이 없으면 여기가 제출 지점이다 — 합류한 사람에게는 스텝 4가 마지막이다.
+    if (next === null) {
+      handleSubmit(true);
+      return;
+    }
+    animateStepTransition(next);
   }
 
   function handlePrimaryFooterAction() {
@@ -1231,12 +1508,18 @@ export default function OnboardingScreen() {
   }
 
   function handleBack() {
-    if (step > 1 && step < 5) {
-      animateStepTransition(step - 1);
+    // 19항목에서 뒤로 가면 스텝 4가 아니라 단계 선택으로 돌아간다. 두 화면이 한 스텝
+    // 안에 있으므로 되돌아갈 곳도 그 안이다.
+    if (step === ONBOARDING_PREPARATION_STEP && stagePhase === "detail") {
+      setStagePhase("stage");
+      return;
+    }
+    const previous = getPreviousOnboardingStep(step, coupleAction);
+    if (previous !== null) {
+      animateStepTransition(previous);
     }
   }
 
-  const nextDisabled = (!canNext() && step < 5) || submitting;
   const formOwnerReady =
     ownerVerification === "ready"
     && formOwnerUserId !== null
@@ -1330,6 +1613,14 @@ export default function OnboardingScreen() {
       />
     );
   }
+  // main 은 여기서 `capabilitiesResolved` 도 봤다. 이 브랜치에서는 그 판정이 소유자
+  // 확인과 같은 왕복에서 끝나고, 위의 `formOwnerReady` 관문이 그 전에 화면을 막는다.
+  const nextDisabled = (!canNext() && step < DONE_STEP) || submitting;
+  // 하단 CTA가 저장 버튼이 되는 자리. 준비 현황은 19항목 화면(국면 B)에서만이고,
+  // 그 화면을 걷지 않는 사람은 마지막 입력 화면이 곧 저장 지점이다.
+  const submitsOnNext = step === ONBOARDING_PREPARATION_STEP
+    ? stagePhase === "detail"
+    : step !== DONE_STEP && getNextOnboardingStep(step, coupleAction) === null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -1337,19 +1628,26 @@ export default function OnboardingScreen() {
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {/* 헤더 */}
         <View style={styles.header}>
-          {step > 1 && step < 5 ? (
+          {step > 1 && step < DONE_STEP ? (
             <Pressable onPress={handleBack} hitSlop={12}>
               <ArrowLeft size={24} color={colors.noir[800]} />
             </Pressable>
           ) : <View style={{ width: 24 }} />}
-          <Text style={styles.stepText}>{neutralEnabled ? "" : `${step}/${totalSteps}`}</Text>
+          <Text style={styles.stepText}>
+            {neutralEnabled ? "" : `${stepPosition}/${totalSteps}`}
+          </Text>
           <View style={{ width: 24 }} />
         </View>
 
-        {/* 진행 바 — 한 화면이면 5단계 진행 표시가 거짓말이 된다 */}
+        {/* 진행 바 — 한 화면이면 여러 단계 진행 표시가 거짓말이 된다 */}
         {!neutralEnabled && (
           <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${(step / totalSteps) * 100}%` }]} />
+            <View
+              style={[
+                styles.progressFill,
+                { width: `${(stepPosition / totalSteps) * 100}%` },
+              ]}
+            />
           </View>
         )}
 
@@ -1436,10 +1734,19 @@ export default function OnboardingScreen() {
 
               {coupleAction === "join" && (
                 <>
+                  {inviteCodeFromLink && (
+                    <Text style={styles.inviteCodeFromLink}>
+                      초대 링크에서 받은 코드를 넣어 뒀어요.
+                    </Text>
+                  )}
                   <TextInput
                     style={styles.inviteCodeInput}
                     value={inviteCode}
-                    onChangeText={(value) => setInviteCode(normalizeCoupleInviteCode(value))}
+                    onChangeText={(value) => {
+                      // 사람이 직접 고치기 시작하면 링크 안내는 사실이 아니게 된다.
+                      setInviteCodeFromLink(false);
+                      setInviteCode(normalizeCoupleInviteCode(value));
+                    }}
                     placeholder={`초대코드 입력 (예: ${COUPLE_INVITE_CODE_PLACEHOLDER})`}
                     placeholderTextColor={colors.taupe[400]}
                     autoCapitalize="characters"
@@ -1475,15 +1782,24 @@ export default function OnboardingScreen() {
               {!weddingDateUndecided && (
                 <View>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, weddingDateBlocked && styles.inputInvalid]}
                     value={weddingDate}
-                    onChangeText={setWeddingDate}
+                    // 하이픈은 사람이 아니라 앱이 넣는다. 자유 텍스트일 때 "2026/10/15"가
+                    // 들어와도 제출 전까지 아무도 몰랐고, 서버 400은 이 화면을 떠난 뒤에 왔다.
+                    onChangeText={(value) => setWeddingDate(formatWeddingDateInput(value))}
                     placeholder="YYYY-MM-DD"
                     placeholderTextColor={colors.taupe[400]}
-                    keyboardType={Platform.OS === "ios" ? "numbers-and-punctuation" : "default"}
+                    keyboardType="number-pad"
                     maxLength={10}
+                    accessibilityLabel="결혼 예정일, 숫자 여덟 자리"
+                    accessibilityHint="2026년 10월 15일이면 20261015를 입력합니다. 하이픈은 자동으로 들어갑니다."
                   />
-                  <Text style={styles.fieldHint}>예: 2026-10-15</Text>
+                  <Text
+                    style={[styles.fieldHint, weddingDateBlocked && styles.fieldHintInvalid]}
+                    accessibilityRole={weddingDateBlocked ? "alert" : undefined}
+                  >
+                    {weddingDateBlocked ? "확인 필요 · " : ""}{weddingDateEvaluation.message}
+                  </Text>
                 </View>
               )}
               <Pressable
@@ -1626,8 +1942,53 @@ export default function OnboardingScreen() {
             </View>
           )}
 
-          {/* Step 5: 완료 */}
-          {step === 5 && (
+          {/* Step 5-A: 준비 단계 한 줄 */}
+          {step === ONBOARDING_PREPARATION_STEP && asksPreparation && stagePhase === "stage" && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>준비 현황</Text>
+              <Text style={styles.stepDesc}>지금 어디까지 왔는지 한 줄만 알려주세요</Text>
+
+              <View style={styles.stageList}>
+                {PREPARATION_STAGE_OPTIONS.map((option) => {
+                  const selected = preparationStage === option.value;
+                  return (
+                    <Pressable
+                      key={option.value}
+                      style={[styles.stageCard, selected && styles.stageCardActive]}
+                      onPress={() => handleStagePress(option.value)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${option.label} 선택`}
+                      accessibilityState={{ selected }}
+                    >
+                      <Text style={[styles.stageLabel, selected && styles.stageLabelActive]}>
+                        {option.label}
+                      </Text>
+                      <Text style={styles.stageHint}>{option.hint}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          )}
+
+          {/* Step 5-B: 항목별 현황(선택) */}
+          {step === ONBOARDING_PREPARATION_STEP && asksPreparation && stagePhase === "detail" && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>항목별 현황</Text>
+              <Text style={styles.stepDesc}>항목별로 더 알려주실 수 있나요? (선택)</Text>
+
+              <View style={styles.stageDetail}>
+                <PreparationProgressList
+                  statuses={categoryStatuses}
+                  onChange={handleCategoryStatusChange}
+                  disabled={submitting}
+                />
+              </View>
+            </View>
+          )}
+
+          {/* Step 6: 완료 */}
+          {step === DONE_STEP && (
             <View style={styles.stepContent}>
               <View style={styles.doneSection}>
                 <CelebrationDots />
@@ -1640,15 +2001,17 @@ export default function OnboardingScreen() {
                 웨딩한방과 함께{"\n"}우리답게 결혼을 준비하세요
               </Text>
 
-              {resultCode ? (
-                <View style={styles.codeCard}>
-                  <Text style={styles.codeLabel}>파트너 초대코드</Text>
-                  <Text style={styles.codeValue}>{resultCode}</Text>
-                  <Text style={styles.codeHint}>이 코드를 파트너에게 보내주세요</Text>
-                  {resultDeadline ? (
-                    <Text style={styles.codeHint}>{resultDeadline}</Text>
-                  ) : null}
-                </View>
+              <InviteCodeCard
+                code={resultCode}
+                tone="dark"
+                label="파트너 초대 코드"
+                copied={resultCodeCopied}
+                onCopy={copyResultCode}
+                style={styles.doneInviteCard}
+              />
+              {/* 기한은 코드를 보내는 이 자리에서 말한다(#136). 서버가 모르면 침묵한다. */}
+              {resultDeadline ? (
+                <Text style={styles.codeHint}>{resultDeadline}</Text>
               ) : null}
             </View>
           )}
@@ -1659,20 +2022,21 @@ export default function OnboardingScreen() {
       {/* 하단 버튼 */}
       <View style={styles.footer}>
         <Pressable
-          style={[styles.nextBtn, !canNext() && step < 5 && styles.nextBtnDisabled]}
+          style={[styles.nextBtn, !canNext() && step < DONE_STEP && styles.nextBtnDisabled]}
           onPress={handlePrimaryFooterAction}
           disabled={nextDisabled}
           accessibilityRole="button"
-          accessibilityLabel={step === 2
-            ? coupleStepActions.primary.label
-            : step === 4
-              ? "온보딩 시작하기"
-              : step === 5
-                ? "대시보드로 이동"
-                : "다음 단계"}
-          accessibilityHint={step === 2
-            ? coupleStepActions.primary.accessibilityHint
-            : undefined}
+          accessibilityLabel={
+            neutralEnabled
+              ? "시작하기"
+              : step === DONE_STEP
+                ? "웨딩 라운지로 이동"
+                : step === ONBOARDING_PREPARATION_STEP && stagePhase === "detail"
+                  ? "준비 현황 저장하고 시작하기"
+                  : submitsOnNext
+                    ? "저장하고 시작하기"
+                    : "다음 단계"
+          }
           accessibilityState={{ disabled: nextDisabled, busy: submitting }}
         >
           {submitting ? (
@@ -1680,15 +2044,19 @@ export default function OnboardingScreen() {
           ) : (
             <>
               <Text style={styles.nextText}>
-                {step === 2
+                {neutralEnabled
+                  ? "시작하기"
+                  : step === 2
                   ? coupleStepActions.primary.label
-                  : step === 4
-                    ? "시작하기"
-                    : step === 5
-                      ? "대시보드로 이동"
+                  : step === DONE_STEP
+                    ? "웨딩 라운지로 이동"
+                    : submitsOnNext
+                      ? "저장하고 시작하기"
                       : "다음"}
               </Text>
-              {!neutralEnabled && step < 5 && <ArrowRight size={20} color="#FFF" />}
+              {!neutralEnabled && step < DONE_STEP && (
+                <ArrowRight size={20} color="#FFF" />
+              )}
             </>
           )}
         </Pressable>
@@ -1707,9 +2075,9 @@ export default function OnboardingScreen() {
           </Pressable>
         )}
 
-        {step === 4 && (
+        {step === 4 && !submitsOnNext && (
           <Pressable
-            onPress={() => void handleSubmit()}
+            onPress={handleNext}
             style={styles.skipBtn}
             disabled={submitting}
             accessibilityRole="button"
@@ -1717,6 +2085,29 @@ export default function OnboardingScreen() {
             accessibilityState={{ disabled: submitting, busy: submitting }}
           >
             <Text style={styles.skipText}>건너뛰기</Text>
+          </Pressable>
+        )}
+
+        {step === ONBOARDING_PREPARATION_STEP && stagePhase === "detail" && (
+          <Pressable
+            onPress={() => handleSubmit(false)}
+            style={styles.skipBtn}
+            disabled={submitting}
+            accessibilityRole="button"
+            accessibilityLabel="항목별 현황 건너뛰고 시작하기"
+            // 단계를 안 골랐으면 "고른 단계만 저장한다"고 말하면 안 된다 — 고른 적이
+            // 없다. 화면을 읽어주는 사람에게 특히 그렇다.
+            //
+            // "아무것도 저장 안 해요"라고도 하지 않는다. 이 버튼은 `handleSubmit(false)`라
+            // 앞 화면에서 받은 예식일·예산은 그대로 저장된다. 범위를 이 화면으로 좁혀 말한다.
+            accessibilityHint={
+              preparationStage === null
+                ? "이 화면에서는 아무것도 저장하지 않아요."
+                : "고른 단계만 저장하고 항목별 상태는 저장하지 않아요."
+            }
+            accessibilityState={{ disabled: submitting, busy: submitting }}
+          >
+            <Text style={styles.skipText}>건너뛰고 시작하기</Text>
           </Pressable>
         )}
       </View>
@@ -2116,6 +2507,14 @@ const styles = StyleSheet.create({
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textSecondary,
   },
+  inviteCodeFromLink: {
+    marginTop: 16,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textSecondary,
+    lineHeight: 18,
+    textAlign: "center",
+  },
   inviteCodeInput: {
     padding: 14,
     borderRadius: 14,
@@ -2144,6 +2543,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+  fieldHintInvalid: { color: colors.noir[800] },
+  inputInvalid: { borderColor: colors.danger },
   input: {
     padding: 14,
     borderRadius: 14,
@@ -2366,11 +2767,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 3,
   },
-  codeCard: {
-    backgroundColor: colors.noir[800],
-    borderRadius: 20,
-    padding: 24,
-    alignItems: "center",
+  doneInviteCard: {
     marginTop: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
@@ -2378,24 +2775,35 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 4,
   },
-  codeLabel: {
-    fontSize: 13,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.taupe[400],
-    marginBottom: 8,
+
+  // Step 5: 준비 현황
+  stageList: { gap: 10 },
+  stageCard: {
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    borderRadius: 18,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.border,
+    gap: 4,
   },
-  codeValue: {
-    fontSize: 28,
-    fontFamily: "CormorantGaramond_600SemiBold",
-    color: "#FFFFFF",
-    letterSpacing: 0,
-    marginBottom: 8,
+  stageCardActive: {
+    borderColor: colors.rose[500],
+    backgroundColor: colors.rose.pale + "20",
   },
-  codeHint: {
+  stageLabel: {
+    fontSize: 15,
+    fontFamily: "NotoSansKR_600SemiBold",
+    color: colors.noir[800],
+  },
+  stageLabelActive: { color: colors.rose[500] },
+  stageHint: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.taupe[400],
+    color: colors.textSecondary,
+    lineHeight: 18,
   },
+  stageDetail: { marginTop: 4 },
 
   // Footer
   footer: { padding: 24, gap: 12 },
@@ -2421,6 +2829,12 @@ const styles = StyleSheet.create({
   },
   skipBtn: { alignItems: "center", paddingVertical: 8 },
   skipBtnDisabled: { opacity: 0.4 },
+  // 완료 화면의 기한 한 줄(#136)이 쓰는 스타일. 병합 중 유실됐다가 되살렸다.
+  codeHint: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.taupe[400],
+  },
   skipText: {
     fontSize: 14,
     fontFamily: "NotoSansKR_400Regular",

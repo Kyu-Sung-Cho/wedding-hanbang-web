@@ -126,7 +126,7 @@ test("successor table and ordered migration evidence is complete and source-deri
     .map(({ file }) => file.slice(0, 14));
 
   assert.equal(createdTables.length, 112);
-  assert.equal(pendingVersions.length, 85);
+  assert.equal(pendingVersions.length, 86);
   for (const table of createdTables) {
     assert.match(sql, new RegExp(String.raw`\('${table.replaceAll("_", "[_]")}'::name\)`, "i"));
   }

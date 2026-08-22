@@ -8315,7 +8315,13 @@ export default function ChatScreen() {
         {/* 아모라의 첫마디만 놓여 있고 아직 오간 말이 없을 때. 화면은 비어 있지 않지만
             이 사람은 여전히 "무엇부터 물어보지"에 서 있다. */}
         {initialLoaded && scopedMessages.length === 0 && firstHelloMessage && !isP && (
-          <View style={st.suggestions}>{AMORA_STARTER_PROMPTS.map((q) => (<Pressable key={q} style={({ pressed }) => [st.sugBtn, pressed && { opacity: 0.85 }]} onPress={() => handleAiSuggestion(q)}><Text style={st.sugText}>{q}</Text></Pressable>))}</View>
+          <AmoraStarterCard
+            activeScope={activeScope}
+            hasLinkedPartner={hasLinkedPartner}
+            disabled={streaming || pendingIngestReconciliation}
+            onSelect={handleAiSuggestion}
+            onPersonalize={() => setPersonalizationVisible(true)}
+          />
         )}
 
         {!hasActiveW5SafetyCard && quotaRemaining !== null && !streaming && (

@@ -22,6 +22,7 @@ import {
   RotateCcw,
   BrainCircuit,
   ShieldCheck,
+  Copy,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -111,6 +112,7 @@ export default function SettingsPage() {
     updateProfile,
   } = useAuthStore();
   const { prefs: notifications, togglePref: toggleNotification } = useNotificationPrefs();
+  const [copied, setCopied] = useState(false);
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
