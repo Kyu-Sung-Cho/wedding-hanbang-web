@@ -362,7 +362,7 @@ function formatCanonicalConfirmation(
   }
 
   const confirmation = [
-    "다음 변경을 적용할까요?",
+    CANONICAL_CONFIRMATION_OPENING,
     `- 변경: ${toolLabel}`,
     ...fieldLines,
   ].join("\n");
@@ -371,6 +371,52 @@ function formatCanonicalConfirmation(
     : null;
 }
 
+/**
+ * 서버가 만드는 확인문의 첫 줄. **서버 소유 문자열이다.**
+ *
+ * 모델이 이 문장을 흉내 내 표식 없이 쓰면 누를 버튼이 없는 가짜 카드가 된다
+ * (2026-08-22 라이브: 진짜 카드가 나오기 시작하자 모델이 이력에서 배워 재생산했고,
+ * 그 턴이 다시 이력에 쌓여 **진짜 카드를 막았다**). 그래서 이 문자열은 한 곳에서만
+ * 정의하고, 표식 없이 나타나면 지운다.
+ */
+const CANONICAL_CONFIRMATION_OPENING = "다음 변경을 적용할까요?";
+
+/**
+ * 가짜 확인문을 지운 자리에 남길 말. 침묵은 답이 아니다 — 사용자는 방금 무언가를
+ * 부탁했고, 무엇을 다시 해야 하는지 알아야 한다. 서버가 소유하는 문장이라 모델이
+ * 지어낸 상태를 옮겨 적지 않는다.
+ */
+const FORGED_CONFIRMATION_REPLACEMENT =
+  "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시 보내주시겠어요?";
+
+/**
+ * 표식이 붙지 않은 턴에서 서버 확인문 문구를 걷어낸다.
+ *
+ * 앞에 붙은 실제 답변은 남긴다 — 사용자가 받은 내용까지 지우면 그것대로 손해다.
+ * 앞이 비어 있으면 서버 문장으로 대체한다.
+ */
+function stripForgedConfirmation(text: string): string {
+  const index = text.indexOf(CANONICAL_CONFIRMATION_OPENING);
+  if (index === -1) return text;
+  const before = text.slice(0, index).trim();
+  return before.length > 0 ? before : FORGED_CONFIRMATION_REPLACEMENT;
+}
+
+// 모델은 표식을 정확한 모양으로만 내지 않는다. 실측: `[ pending_action ]`(괄호 안 공백)
+// 을 내자 정확 일치 정규식이 못 잡아 **`{"tool":…}` 원문이 사용자 화면에 그대로
+// 보였다**(2026-08-22). 관대하게 잡는 쪽이 안전하다 — 잡으면 카드가 되고, 못 잡으면
+// 내부 계약이 새기 때문이다. 대소문자·공백만 허용하고 낱말 자체는 그대로 요구한다.
+const PENDING_ACTION_OPEN_TAG = String.raw`\[\s*pending_action\s*\]`;
+const PENDING_ACTION_CLOSE_TAG = String.raw`\[\s*\/\s*pending_action\s*\]`;
+const PENDING_ACTION_PAIR_RE = new RegExp(
+  `${PENDING_ACTION_OPEN_TAG}([\\s\\S]*?)${PENDING_ACTION_CLOSE_TAG}`,
+  "gi",
+);
+const PENDING_ACTION_ANY_TAG_RE = new RegExp(
+  `\\[\\s*\\/?\\s*pending_action\\s*\\]`,
+  "i",
+);
+
 function cleanPendingActionTags(text: string): {
   cleanText: string;
   payloads: string[];
@@ -378,13 +424,13 @@ function cleanPendingActionTags(text: string): {
 } {
   const payloads: string[] = [];
   const withoutCompleteTags = text.replace(
-    /\[pending_action\]([\s\S]*?)\[\/pending_action\]/gi,
+    PENDING_ACTION_PAIR_RE,
     (_match, payload: string) => {
       payloads.push(payload);
       return "";
     },
   );
-  const danglingTagIndex = withoutCompleteTags.search(/\[\/?pending_action\]/i);
+  const danglingTagIndex = withoutCompleteTags.search(PENDING_ACTION_ANY_TAG_RE);
   const withoutDanglingTag = danglingTagIndex === -1
     ? withoutCompleteTags
     : withoutCompleteTags.slice(0, danglingTagIndex);
@@ -405,7 +451,11 @@ export function extractAmoraPendingAction({
   pendingAction: StoredAmoraPendingAction | null;
   hadPendingActionTag: boolean;
 } {
-  const { cleanText, payloads, hadPendingActionTag } = cleanPendingActionTags(text);
+  const { cleanText: strippedText, payloads, hadPendingActionTag } =
+    cleanPendingActionTags(text);
+  // 카드가 안 나오는 모든 경로에서 **가짜 확인문을 먼저 걷어낸다.** 라우트가 따로
+  // 부르게 만들면 언젠가 빠뜨린다 — 이 저장소는 그 방식으로 여러 번 당했다.
+  const cleanText = stripForgedConfirmation(strippedText);
   if (payloads.length !== 1 || payloads[0].length > MAX_PENDING_ACTION_JSON_CHARS) {
     return { cleanText, pendingAction: null, hadPendingActionTag };
   }
