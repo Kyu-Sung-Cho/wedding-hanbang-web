@@ -51,8 +51,18 @@ export interface PreparationStageOption {
   /** 고르기 전에 헷갈리지 않도록 붙이는 한 마디. */
   hint: string;
   /**
-   * 다음 화면(19항목)의 입력칸 초깃값 제안. **저장값이 아니다.**
+   * 다음 화면의 입력칸 초깃값 제안. **저장값이 아니다.**
    * 사용자가 그 화면에서 확인하고 넘겨야만 서버로 간다.
+   *
+   * **기준: 사용자가 고른 문장이 실제로 말한 것만 담는다.**
+   *
+   * 2026-08-22까지 세 단계가 `meeting`(상견례)을 완료로 제안했다. 그런데 어느 문장도
+   * 상견례를 말하지 않는다 — "결혼식장을 계약했어요", "촬영·드레스·메이크업을 진행
+   * 중이에요", "거의 마무리 단계예요"는 전부 **계약·예약**에 관한 말이고 상견례는
+   * 가족을 만나는 일이다. 식장을 먼저 잡고 상견례를 나중에 하는 커플이 많다.
+   *
+   * 그래서 파운더가 "체크를 다 안 했는데 완료라고 뜬다"고 제보했다. 확인 화면을 한 번
+   * 지나기는 하지만, 그냥 넘기면 **본인이 말한 적 없는 것이 본인 기록으로 남는다.**
    */
   suggested: Partial<Record<PlanningCategoryKey, SuggestedStatus>>;
 }
@@ -74,7 +84,7 @@ export const PREPARATION_STAGE_OPTIONS: readonly PreparationStageOption[] = [
     value: "venue_booked",
     label: "결혼식장을 계약했어요",
     hint: "날짜와 장소가 정해졌어요",
-    suggested: { venue: "completed", meeting: "completed" },
+    suggested: { venue: "completed" },
   },
   {
     value: "sdm_in_progress",
@@ -82,7 +92,6 @@ export const PREPARATION_STAGE_OPTIONS: readonly PreparationStageOption[] = [
     hint: "식장은 끝났고 그다음을 정하고 있어요",
     suggested: {
       venue: "completed",
-      meeting: "completed",
       studio: "in_progress",
       dress: "in_progress",
       makeup: "in_progress",
@@ -94,7 +103,6 @@ export const PREPARATION_STAGE_OPTIONS: readonly PreparationStageOption[] = [
     hint: "큰 건 정해졌고 남은 걸 챙기는 중이에요",
     suggested: {
       venue: "completed",
-      meeting: "completed",
       studio: "completed",
       dress: "completed",
       makeup: "completed",

@@ -126,6 +126,30 @@ export function getPlanningChecklistCounts(
  * 이 함수는 **읽는 쪽만** 고친다. 낡은 값을 만드는 쓰기 경로와 DB에 남은 낡은 행은
  * 그대로다 — 증상을 없애지 원인을 없애지 않는다.
  */
+/**
+ * 이 분야의 상태가 **항목에서 나온 것이 아니라 분야 단위로 선언된 것**인가.
+ *
+ * 온보딩에서 "준비 단계" 한 줄을 고르면 여러 분야가 한꺼번에 완료로 채워진다
+ * (`preparationStage.ts`의 `suggested`). 대시보드의 세 버튼 피커와 아모라의
+ * `update_task_status` 도 항목을 건드리지 않고 상태만 바꾼다. 그런 행은 저장된
+ * `checklist` 배열이 없다.
+ *
+ * 그때 화면이 개수와 상태를 나란히 쓰면 **`0/9개 완료 · 완료`** 가 된다. 파운더가
+ * 2026-08-22에 "체크를 다 안 했는데 완료라고 뜬다"고 제보한 것이 이것이다. 고장이
+ * 아니라 "항목별로는 안 셌지만 이 분야는 끝났다고 표시함"인데, 화면이 그 말을 못 한다.
+ *
+ * 그래서 화면이 구분해서 말할 수 있게 이 판정을 내준다. 상태를 바꾸지는 않는다 —
+ * 선언을 파생으로 덮으면 온보딩에서 "이미 했어요"라고 한 분야가 전부 "시작 전"으로
+ * 뒤집힌다.
+ */
+export function isPlanningChecklistStatusDeclared(
+  saved: PlanningChecklistProgress | undefined,
+): boolean {
+  const stored = saved?.status;
+  if (stored !== "in_progress" && stored !== "completed") return false;
+  return !Array.isArray(saved?.checklist) || saved.checklist.length === 0;
+}
+
 export function resolvePlanningChecklistStatus(
   templateItems: readonly PlanningChecklistItem[],
   saved: PlanningChecklistProgress | undefined,
