@@ -9,6 +9,7 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { directionParticle } from "@/lib/korean/particles";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist, resolveStatus, isStatusDeclared } from "@/utils/checklist";
@@ -233,7 +234,7 @@ export default function ChecklistContent() {
                           {status === "not_applicable"
                             ? "진행률과 알림에서 제외됨"
                             : declared
-                              ? `${STATUS_LABEL[status]}로 표시함 · 항목은 확인 전`
+                              ? `${STATUS_LABEL[status]}${directionParticle(STATUS_LABEL[status])} 표시함 · 항목은 확인 전`
                               : `${counts.done}/${counts.total}개 완료 · ${STATUS_LABEL[status]}`}
                         </span>
                       </span>
