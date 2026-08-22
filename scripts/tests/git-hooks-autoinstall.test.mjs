@@ -86,3 +86,46 @@ test("git 저장소가 아니면 조용히 넘어간다", () => {
   // 설치 실패가 pnpm install 전체를 막으면 안 된다.
   execFileSync(process.execPath, ["scripts/install-git-hooks.mjs"], { cwd: sandbox });
 });
+
+/**
+ * 훅이 **켜져 있는 것**과 훅이 **무언가를 하는 것**은 다르다.
+ *
+ * 위 검사들은 `core.hooksPath` 가 `.githooks` 를 가리키는지만 본다. 그래서
+ * `.githooks/pre-push` 를 `#!/bin/sh` + `exit 0` 껍데기로 바꿔도 **4/4 통과했다**
+ * (2026-08-22 샌드박스에서 실제로 재현). 이 저장소의 CI 는 꺼져 있어 pre-push 가
+ * 유일한 안전망인데, 그 안전망이 빈 껍데기가 되는 것을 아무도 못 봤다.
+ *
+ * 주석이 아니라 **실제 명령줄**을 본다. 처음 판은 파일 전체에서 "test" 를 찾았는데
+ * 훅의 주석과 echo 문구에도 그 낱말이 있어서, `turbo run typecheck lint` 로 줄여도
+ * 통과했다. 세는 자리를 틀리면 아무것도 못 지킨다.
+ */
+test("pre-push 훅이 빈 껍데기가 아니다", () => {
+  const hook = readFileSync(path.join(repoRoot, ".githooks", "pre-push"), "utf8");
+
+  assert.ok(
+    hook.length > 300,
+    `pre-push 훅이 ${hook.length}자뿐이다. 껍데기로 바뀐 것 같다.`,
+  );
+
+  const lines = hook
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+
+  const runner = lines.find((line) => line.includes("turbo run"));
+  assert.ok(runner, "pre-push 훅이 turbo 를 부르지 않는다. CI 가 꺼져 있어 이게 유일한 안전망이다.");
+
+  const afterRun = runner.split("turbo run")[1] || "";
+  const tasks = afterRun.split("--")[0].trim().split(/[ \t]+/u);
+  for (const task of ["typecheck", "lint", "test"]) {
+    assert.ok(
+      tasks.includes(task),
+      `pre-push 훅이 ${task} 를 안 돌린다 (도는 것: ${tasks.join(", ") || "없음"}).`,
+    );
+  }
+
+  assert.ok(
+    lines.some((line) => line === "exit 1"),
+    "pre-push 훅에 실패 시 푸시를 막는 문장이 없다. 검사를 돌리기만 하고 결과를 버리는 셈이다.",
+  );
+});
