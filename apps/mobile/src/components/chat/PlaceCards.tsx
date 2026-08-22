@@ -125,7 +125,7 @@ function PlaceCard({ place, index }: { place: PlaceCardModel; index: number }) {
         accessibilityRole={primaryUrl ? "link" : undefined}
         accessibilityLabel={
           primaryUrl
-            ? `${place.name} 네이버에서 바로 검색`
+            ? `${place.name} 네이버에서 리뷰·별점 보기`
             : `${place.name} 장소 정보`
         }
         accessibilityHint={primaryUrl ? "외부 브라우저에서 열립니다" : undefined}
@@ -152,34 +152,9 @@ function PlaceCard({ place, index }: { place: PlaceCardModel; index: number }) {
               <Text style={styles.detailText} numberOfLines={1}>전화 {place.telephone}</Text>
             </View>
           ) : null}
-          {place.blogReviewCount !== null && place.blogReviewCount > 0 ? (
-            <View style={styles.detailRow}>
-              <BookOpen size={13} color={colors.textTertiary} />
-              <Text style={styles.detailText}>블로그 검색 {place.blogReviewCount.toLocaleString()}건</Text>
-            </View>
+          {primaryUrl ? (
+            <Text style={styles.tapHint}>눌러서 네이버에서 리뷰·별점 보기</Text>
           ) : null}
-          {place.blogSnippet ? (
-            <Text style={styles.blogSnippetText} numberOfLines={2}>
-              “{place.blogSnippet}”
-            </Text>
-          ) : null}
-          {place.priceRange || place.hasPrivateRoom ? (
-            <View style={styles.blogMentionRow}>
-              <Text style={styles.blogMentionSource}>블로그 언급</Text>
-              {place.priceRange ? (
-                <Text style={styles.blogMentionText}>가격 {place.priceRange}</Text>
-              ) : null}
-              {place.hasPrivateRoom ? (
-                <Text style={styles.blogMentionText}>룸 언급 있음</Text>
-              ) : null}
-            </View>
-          ) : null}
-          {place.priceRange || place.hasPrivateRoom ? (
-            <Text style={styles.sourceNote}>
-              가격·룸은 검색 문구 기반 참고 정보예요. 최신 정보는 매장에 확인해 주세요.
-            </Text>
-          ) : null}
-          {primaryUrl ? <Text style={styles.tapHint}>눌러서 네이버에서 보기</Text> : null}
         </View>
       </Pressable>
 
@@ -283,7 +258,7 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
         <PlaceCard key={place.id} place={place} index={index} />
       ))}
       <Text style={styles.providerNote}>
-        장소 정보는 네이버 지역 검색, 사진은 네이버 이미지 검색 결과예요. 최신 정보는 네이버 또는 매장에 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
+        장소 정보는 네이버 지역 검색, 사진은 네이버 이미지 검색 결과예요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
       </Text>
     </View>
   );
@@ -309,19 +284,9 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 11, color: colors.rose[600], fontWeight: "600" },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8 },
   addressText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
-  blogSnippetText: {
-    fontSize: 12,
-    lineHeight: 18,
-    color: colors.textSecondary,
-    fontStyle: "italic",
-  },
   descriptionText: { marginTop: 7, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
   detailRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
   detailText: { flex: 1, fontSize: 11, lineHeight: 16, color: colors.textSecondary },
-  blogMentionRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 5, marginTop: 7 },
-  blogMentionSource: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 999, backgroundColor: colors.ivory[200], fontSize: 10, color: colors.textTertiary, fontWeight: "600" },
-  blogMentionText: { fontSize: 10, lineHeight: 15, color: colors.textSecondary },
-  sourceNote: { marginTop: 4, fontSize: 10, lineHeight: 15, color: colors.textTertiary },
   tapHint: { marginTop: 6, fontSize: 10, color: colors.textTertiary },
   actions: { flexDirection: "row", borderTopWidth: 1, borderTopColor: colors.border },
   action: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 5, paddingHorizontal: 4, paddingVertical: 10 },

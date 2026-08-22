@@ -13,11 +13,6 @@ export interface PlaceCardModel {
   category: string;
   description: string | null;
   telephone: string | null;
-  priceRange: string | null;
-  hasPrivateRoom: boolean;
-  blogReviewCount: number | null;
-  /** 블로그 글에서 그 가게를 말한 한 줄. 출처를 밝혀 보여준다. */
-  blogSnippet: string | null;
   imageUrl: string | null;
   searchUrl: string | null;
   mapsUrl: string | null;
@@ -50,12 +45,6 @@ function safeProviderUrl(value: unknown, domain: "naver.com" | "pstatic.net"): s
   } catch {
     return null;
   }
-}
-
-function asCount(value: unknown): number | null {
-  return typeof value === "number" && Number.isFinite(value) && value >= 0
-    ? Math.floor(value)
-    : null;
 }
 
 export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsModel {
@@ -96,10 +85,6 @@ export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsMod
       category: asString(value.category) ?? asString(value.cuisineType) ?? asString(value.categoryFull) ?? "카테고리 정보 없음",
       description: asString(value.description),
       telephone: asString(value.telephone),
-      priceRange: asString(value.priceRange),
-      hasPrivateRoom: value.hasPrivateRoom === true,
-      blogReviewCount: asCount(value.blogReviewCount),
-      blogSnippet: asString(value.blogSnippet),
       imageUrl: safeProviderUrl(value.imageUrl, "pstatic.net"),
       searchUrl: safeProviderUrl(value.searchUrl, "naver.com")
         ?? safeProviderUrl(value.link, "naver.com"),
