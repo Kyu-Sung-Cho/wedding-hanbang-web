@@ -231,6 +231,50 @@ const COMPILER_PROMPT = `당신은 아모라의 장기기억 정리기입니다.
 - 사용자가 바꾼 값은 같은 memory_key를 사용합니다.
 - 출력은 스키마에 맞는 JSON만 반환합니다.`;
 
+/** `memory_key` 스키마와 같은 모양만 싣는다. 잡값이 예시로 들어가면 모델이 따라 쓴다. */
+const MEMORY_KEY_SHAPE = /^[a-z][a-z0-9_]{1,31}:[a-z0-9_]{2,48}$/u;
+/**
+ * 지시문에 실을 기존 키 상한. 기억이 쌓일수록 지시문이 대화를 밀어내면 안 된다.
+ * 넘치면 최근 것부터 자른다 — 호출자가 최근순으로 넘긴다.
+ */
+const MAX_EXISTING_KEYS_IN_PROMPT = 120;
+
+/**
+ * 이 커플이 **이미 쓰고 있는** `memory_key` 를 지시문에 실어 준다.
+ *
+ * 2026-08-22 스테이징 실측: 기억을 켜고 값을 바꿨더니 같은 주제에 다른 키가 생겨
+ * 옛 값과 새 값이 **둘 다 활성**으로 남았다.
+ *
+ *     guest_count:expected "200명 정도"  /  guest_count:total "300명"
+ *     ceremony:venue_type  "실내"        /  venue:format      "야외"
+ *
+ * DB 는 제 몫을 했다(같은 키에 활성 행 하나만 허용). 문제는 모델이 **그 커플이 어떤
+ * 키를 쓰는지 본 적이 없다**는 것이다. 프롬프트에 "바뀐 값은 같은 키를 쓰세요"라고
+ * 적어 두었지만, 본 적 없는 키를 재사용할 수는 없다.
+ *
+ * 오늘 pending_action 표식에서 고친 것과 같은 형태다 — **지시만 있고 자료가 없으면
+ * 모델은 지어낸다.**
+ */
+export function buildAmoraMemoryCompilerInstructions(
+  existingMemoryKeys: readonly string[],
+): string {
+  const keys: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of existingMemoryKeys) {
+    if (typeof raw !== "string") continue;
+    const key = raw.trim();
+    if (!MEMORY_KEY_SHAPE.test(key) || seen.has(key)) continue;
+    seen.add(key);
+    keys.push(key);
+    if (keys.length >= MAX_EXISTING_KEYS_IN_PROMPT) break;
+  }
+  if (keys.length === 0) return COMPILER_PROMPT;
+  return `${COMPILER_PROMPT}
+
+- 이 대화 상대가 **이미 쓰고 있는 memory_key** 목록입니다. 같은 주제를 정리할 때는 새 키를 만들지 말고 **아래 키를 그대로** 쓰세요. 그래야 바뀐 값이 옛 값을 대체합니다. 새 키를 만들면 옛 값이 함께 살아남아 서로 모순되는 기억이 됩니다.
+${keys.map((key) => `  · ${key}`).join("\n")}`;
+}
+
 const RESPONSE_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -549,6 +593,13 @@ export async function compileAmoraMemory(input: {
   visibility: AmoraMemoryVisibility;
   messages: MemoryCompilerMessage[];
   /**
+   * 이 커플·이 공개 범위에서 **지금 살아 있는** `memory_key` 들, 최근 것부터.
+   * 없으면 모델이 같은 주제에 새 키를 지어내 옛 값과 새 값이 함께 남는다
+   * (2026-08-22 실측: `guest_count:expected` "200명" 과 `guest_count:total` "300명"
+   * 이 둘 다 활성). 자세한 근거는 `buildAmoraMemoryCompilerInstructions`.
+   */
+  existingMemoryKeys?: readonly string[];
+  /**
    * Required gate ahead of every content-bearing provider request, token
    * counting included. `beforeGeneration` runs after counting and therefore
    * cannot keep the conversation out of the count request.
@@ -580,7 +631,9 @@ export async function compileAmoraMemory(input: {
     maxOutputTokens: 800,
     beforeProviderEgress: input.beforeProviderEgress,
     beforeGeneration: input.beforeGeneration,
-    instructions: COMPILER_PROMPT,
+    instructions: buildAmoraMemoryCompilerInstructions(
+      input.existingMemoryKeys ?? [],
+    ),
     input: batch.input,
     responseFormat: {
       name: "amora_memory_compilation_v2",

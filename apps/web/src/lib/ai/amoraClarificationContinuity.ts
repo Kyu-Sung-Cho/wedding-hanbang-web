@@ -165,8 +165,20 @@ export function resolveAmoraWeddingClarificationContinuity<
   // 적어 두었다: "그 행들의 존재는 연속성을 끊어야지, 필터링 뒤에 인접해
   // 보이게 만들면 안 된다."
   const current = rawOldestFirstRows[rawOldestFirstRows.length - 1];
-  const assistant = rawOldestFirstRows[rawOldestFirstRows.length - 2];
-  const priorUser = rawOldestFirstRows[rawOldestFirstRows.length - 3];
+  // 되묻기 쌍을 몇 번까지 거슬러 올라갈 것인가.
+  //
+  // 1이면 되묻기가 두 번인 순간 끊긴다 — 2026-08-22 라이브에서 파운더가 겪은 것이
+  // 그것이다("총 예산 5000만원" → 포함 범위 되물음 → "신혼집은 빼고…" → 다시 되물음
+  // → "네 그렇게 적용해줘" 에서 도구 0개). 되묻기의 답에는 주제어가 없어서
+  // ("신혼집은 빼고 나머지 다 포함해서") 그 답 자체는 단독 W0이 아니고, 그래서 닻이
+  // 두 홉 뒤로 밀린다.
+  //
+  // 무한정 올라가지는 않는다. 멀어질수록 "아직 그 주제에 답하는 중"이라는 주장이
+  // 약해진다. 3홉이면 되묻기 세 번까지 — 그보다 길게 되묻는 것은 이 파일이 이어줄
+  // 문제가 아니라 아모라가 덜 묻게 만들 문제다.
+  const MAX_CLARIFICATION_HOPS = 3;
+  let assistant = rawOldestFirstRows[rawOldestFirstRows.length - 2];
+  let priorUser = rawOldestFirstRows[rawOldestFirstRows.length - 3];
   if (!current || !assistant || !priorUser) return null;
   if (
     typeof current.id !== "string"
@@ -193,76 +205,93 @@ export function resolveAmoraWeddingClarificationContinuity<
   // 아모라 행이 서버가 쓴 것이고, 직전 사용자 행에 명시적으로 묶여 있고,
   // 그때 서버가 **W0으로 판정했다고 기록**했는가. 이 metadata가 "직전 턴의
   // 성격"의 유일한 신뢰 가능한 출처다 — 본문에서 다시 추측하지 않는다.
-  const assistantMetadata = isRecord(assistant.metadata)
-    ? assistant.metadata
-    : null;
-  if (
-    assistantMetadata === null
-    || assistant.role !== "assistant"
-    || assistant.sender_type !== "ai"
-    || assistant.sender_id !== null
-    || typeof assistant.content !== "string"
-    || assistantMetadata.target === "partner"
-    || assistantMetadata.in_reply_to_user_message_id !== priorUser.id
-    || assistantMetadata.question_scope !== "W0_wedding_core"
-  ) {
-    return null;
-  }
+  //
+  // 이 검사는 **홉마다 다시 돈다.** 거슬러 올라가면서 가드를 한 번이라도 건너뛰면
+  // 그 지점이 그대로 구멍이 된다.
+  const isValidClarificationPair = (
+    amora: T,
+    answered: T,
+    answerer: T,
+  ): boolean => {
+    const metadata = isRecord(amora.metadata) ? amora.metadata : null;
+    if (
+      metadata === null
+      || amora.role !== "assistant"
+      || amora.sender_type !== "ai"
+      || amora.sender_id !== null
+      || typeof amora.content !== "string"
+      || metadata.target === "partner"
+      || metadata.in_reply_to_user_message_id !== answered.id
+      || metadata.question_scope !== "W0_wedding_core"
+      // 카드가 떠 있던 턴의 확인은 버튼(action_id)뿐이어야 한다.
+      || metadata.pending_amora_action !== undefined
+      // 아모라가 쓴 그 문장 자체가 안전 맥락은 아닌가.
+      || hasAmoraSafetySignal(amora.content)
+    ) {
+      return false;
+    }
+    // 되묻기에 답한 사람이 지금 요청한 사람과 같고, 상대에게 보낸 말이 아닌가.
+    // 공유 대화에서는 상대의 발화도 보인다.
+    if (
+      answered.role !== "user"
+      || answered.sender_type === "ai"
+      || answered.sender_id !== requesterUserId
+      || (isRecord(answered.metadata) && answered.metadata.target === "partner")
+      || typeof answered.content !== "string"
+    ) {
+      return false;
+    }
+    // 세 행이 같은 공개 범위에 있는가. 비공개 대화의 되묻기가 공유 턴의 권한을
+    // 빌려오면 안 된다.
+    return answerer.visibility === amora.visibility
+      && amora.visibility === answered.visibility;
+  };
 
-  // 직전 사용자 발화가 지금 다시 봐도 W0인가.
-  // `selectAmoraTrustedHistoryRows`는 W0과 W1을 함께 통과시킨다. 여기서는 W0만
-  // 받는다 — W1은 한쪽의 관계 진술이라 장기 기억을 끄고 조회 도구만 주는
+  // 닻(단독 W0인 사용자 발화)을 찾을 때까지 되묻기 쌍을 거슬러 올라간다.
+  // 매 홉에서 위 가드를 전부 다시 확인하고, 하나라도 어긋나면 거기서 멈춘다.
+  let answerer: T = current;
+  let hop = 1;
+  for (;;) {
+    if (!assistant || !priorUser) return null;
+    if (typeof assistant.id !== "string" || typeof priorUser.id !== "string") return null;
+    if (!isValidClarificationPair(assistant, priorUser, answerer)) return null;
+    if (
+      classifyAmoraQuestionScope({ userText: priorUser.content as string }).scope
+        === "W0_wedding_core"
+    ) {
+      break;
+    }
+    if (hop >= MAX_CLARIFICATION_HOPS) return null;
+    // 한 쌍 더 위로. 이 답변(`priorUser`)도 되묻기의 답이었는지 확인한다.
+    const index = rawOldestFirstRows.indexOf(priorUser);
+    if (index < 2) return null;
+    answerer = priorUser;
+    assistant = rawOldestFirstRows[index - 1];
+    priorUser = rawOldestFirstRows[index - 2];
+    hop += 1;
+  }
+  const assistantMetadata = isRecord(assistant.metadata) ? assistant.metadata : null;
+  if (assistantMetadata === null) return null;
+
+  // 위 루프가 홉마다 확인한 것들 — 서버가 쓴 아모라 행, 직전 사용자 행에 묶임,
+  // `question_scope` W0, 확인 카드 없음, 안전 신호 없음, 요청자 본인, 상대 대상 아님,
+  // 공개 범위 일치 — 은 여기서 다시 보지 않는다. 한 곳에서만 판정해야 홉이 늘어도
+  // 가드가 갈라지지 않는다.
+  //
+  // 닻은 **단독으로 W0인 사용자 발화**다. `selectAmoraTrustedHistoryRows`는 W0과 W1을
+  // 함께 통과시키지만 여기서는 W0만 받는다 — W1은 장기 기억을 끄고 조회 도구만 주는
   // 범위이고, 그걸 짧은 확인 하나로 W0까지 올리면 그 계약이 깨진다.
   //
-  // 여기에 `hasAmoraSafetySignal(priorUser.content)`를 따로 두지 않는다. 그
-  // 함수는 같은 `classifyAmoraQuestionScope`를 다시 부르므로, W0으로 판정된
-  // 문장에 대해서는 **정의상 항상 false**다. 실제로 그 줄을 지우고 테스트를
-  // 돌려봤더니 21개가 전부 통과했다 — 깨뜨려도 아무도 모르는 방어선은 방어선이
-  // 아니라 다음 사람을 속이는 주석이다. 안전 경계는 바로 위 W0 판정 한 줄이
-  // 지고 있고, 그 줄을 지우면 위기 코퍼스 테스트가 즉시 빨개진다.
-  // 공유 대화에서는 상대의 발화도 보인다. 상대가 낸 웨딩 요청을 빌려
-  // 내 짧은 확인이 W0를 받으면 안 된다.
+  // 여기에 `hasAmoraSafetySignal(priorUser.content)`를 따로 두지 않는다. 그 함수는 같은
+  // `classifyAmoraQuestionScope`를 다시 부르므로 W0으로 판정된 문장에 대해서는 정의상
+  // 항상 false다. 안전 경계는 W0 판정 한 줄이 지고 있고, 그 줄을 지우면 위기 코퍼스
+  // 테스트가 즉시 빨개진다.
+
+  // 루프의 가드가 이미 확인했지만, 타입 경계에서 한 번 더 좁힌다.
   if (
-    priorUser.role !== "user"
-    || priorUser.sender_type === "ai"
-    || priorUser.sender_id !== requesterUserId
-    || (isRecord(priorUser.metadata) && priorUser.metadata.target === "partner")
-    || typeof priorUser.content !== "string"
-    || classifyAmoraQuestionScope({ userText: priorUser.content }).scope
-      !== "W0_wedding_core"
-  ) {
-    return null;
-  }
-
-  // 아모라가 쓴 그 문장 자체가 안전 맥락은 아닌가.
-  if (hasAmoraSafetySignal(assistant.content)) {
-    return null;
-  }
-
-  // **이미 확인 카드를 냈다면 이어주지 않는다.**
-  //
-  // 되묻기에는 두 종류가 있고 둘을 섞으면 안 된다.
-  //   (a) 값이 모자라 산문으로 되묻는다 — 카드가 없다. 사용자가 답해도 도구가
-  //       없어 아무 일도 못 하는 것이 이 파일이 고치는 결함이다.
-  //   (b) 값이 다 확정돼 확인 카드를 냈다 — 이때 "응, 해줘"라고 **타이핑**하는
-  //       것은 확인이 아니다. 확인은 서버가 발급한 action_id를 다음 요청에
-  //       실어 보내는 것뿐이고, 그래야 무엇이 저장될지 사용자가 보고 누른 것과
-  //       서버가 실행하는 것이 같다는 보장이 선다.
-  //
-  // 처음에는 "아모라가 물음표나 `~까요`로 끝났는가"라는 어휘 검사가 우연히
-  // (b)를 막고 있었다. 그걸 정밀도 필터로 오해하고 지웠더니 기존 계약 테스트가
-  // 바로 빨개졌다 — 카드가 떠 있는데 산문 "응, 해줘"에 도구가 열렸다.
-  // 판정 근거를 어휘에서 **서버가 남긴 사실**로 옮긴다. 어형은 놓칠 수 있어도
-  // 카드의 존재는 못 놓친다.
-  if (assistantMetadata.pending_amora_action !== undefined) {
-    return null;
-  }
-
-  // 세 행이 같은 공개 범위에 있는가. 비공개 대화의 되묻기가 공유 턴의 권한을
-  // 빌려오면 안 된다.
-  if (
-    current.visibility !== assistant.visibility
-    || assistant.visibility !== priorUser.visibility
+    typeof priorUser.content !== "string"
+    || typeof priorUser.id !== "string"
+    || typeof assistant.id !== "string"
   ) {
     return null;
   }

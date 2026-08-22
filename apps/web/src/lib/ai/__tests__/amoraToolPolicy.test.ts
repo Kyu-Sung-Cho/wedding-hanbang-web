@@ -69,10 +69,17 @@ describe("selectAmoraTools", () => {
       "create_booking",
       "get_my_bookings",
       "cancel_booking",
-      "search_nearby_places",
     ]) {
       expect(safeNames.has(retiredName)).toBe(false);
     }
+
+    // `search_nearby_places` 는 2026-08-22 파운더 결정으로 이 목록에서 나왔다.
+    // 같은 묶음에 있었지만 성격이 다르다 — 이 도구는 **업체를 찾아주지 않는다.**
+    // 안에 울타리가 두 겹 있다: 웨딩업체 질의를 `wedding_vendor_query_blocked` 로
+    // 막고, 네이버 결과에서도 웨딩업체를 걸러낸다. 남는 것은 상견례 식당 같은
+    // 일반 장소뿐이고 예약·결제 경로가 없다. 자세한 계약은
+    // `tools/__tests__/placeSearchAvailability.test.ts` 가 고정한다.
+    expect(safeNames.has("search_nearby_places")).toBe(true);
   });
 
   it("unlocks only matching mutations when write intent is explicit", () => {

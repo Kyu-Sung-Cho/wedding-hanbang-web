@@ -109,10 +109,12 @@ import {
 } from "@/lib/ai/amoraClarificationContinuity";
 import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import {
   buildAmoraApprovedActionPrompt,
   buildAmoraPendingActionPrompt,
+  buildAmoraHistoryContent,
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
@@ -2136,6 +2138,11 @@ export async function POST(request: Request) {
         .filter((event) => event.status !== "cancelled")
         .map((event) => ({ id: event.id, date: event.date, title: event.title }))
       : [],
+    // 총예산을 넘기지 않으면 예산 판정이 있어도 돌지 않는다. 옛 총예산 영수증이
+    // 현재처럼 회상되던 문제가 여기서 끊긴다(2026-08-22).
+    totalBudgetKrw: isRecord(journey) && typeof journey.total_budget === "number"
+      ? journey.total_budget
+      : null,
   };
   const liveDecisions = decisionsData.filter((d) => !isSupersededDecision(
     { category: d.category, title: d.title, chosenValue: d.chosen_value },
@@ -2286,7 +2293,16 @@ export async function POST(request: Request) {
 
   const toCanonicalMessage = (row: CanonicalChatRow) => {
     if (row.sender_type === "ai" || row.role === "assistant") {
-      return { role: "assistant" as const, content: row.content, id: row.id };
+      // 제안했던 턴은 표식을 되붙이고, 확인만 약속하고 표식이 없던 턴은 그
+      // 약속을 걷어낸다. 이력은 모델에게 "아모라 턴은 이렇게 생겼다"를 가르친다.
+      return {
+        role: "assistant" as const,
+        content: buildAmoraHistoryContent(
+          row.content,
+          row.metadata?.pending_amora_action,
+        ),
+        id: row.id,
+      };
     }
     const roleLabel = speakerLabelFor({
       neutral: usesNeutralMemberPresentation,
@@ -2738,8 +2754,14 @@ export async function POST(request: Request) {
   // 실행 금지" 지시와 경합했고, 모델이 호출도 표식도 못 하는 마비 상태로
   // "기능이 연결돼 있지 않다"는 환각 응답을 만들던 것이 운영 E2E로 확인됨 —
   // 재설계 이후 운영에서 변경 실행 0건.)
+  // 지금 실제로 쓸 수 없는 도구는 모델에게 주지 않는다. 주면 모델이 그것을 부르고,
+  // 실행기가 "설정되지 않았습니다" 같은 내부 사정을 사용자에게 돌려준다 —
+  // 이 저장소가 반복해서 고쳐온 부류다. 없는 기능을 설명하는 것보다 없는 편이 낫다.
+  const runnableTools = visibilityScopedTools.filter((tool) => (
+    tool.name !== "search_nearby_places" || isPlaceSearchConfigured()
+  ));
   const availableTools = filterAmoraToolsByQuestionScope(
-    visibilityScopedTools.filter((tool) => !isMutatingTool(tool.name)),
+    runnableTools.filter((tool) => !isMutatingTool(tool.name)),
     questionScope,
   );
   const availableToolNameSet = new Set(
@@ -2777,9 +2799,7 @@ export async function POST(request: Request) {
     : pendingOfferEnabled
       ? {
           kind: "proposal",
-          text: buildAmoraPendingActionPrompt(
-            pendingProposalTools.map((tool) => tool.name),
-          ),
+          text: buildAmoraPendingActionPrompt(pendingProposalTools),
         }
       : undefined;
   const promptContext = {
@@ -3150,9 +3170,18 @@ export async function POST(request: Request) {
             ...(typeof bodyUserMessageId === "string"
               ? { in_reply_to_user_message_id: bodyUserMessageId }
               : {}),
-            ...(typeof bodyConfirmedActionId === "string"
-              ? { confirmed_amora_action_id: bodyConfirmedActionId }
-              : {}),
+            // `confirmed_amora_action_id`는 **사용자 확인 행의 표식**이다.
+            //
+            // 아모라 응답 행에 같은 키를 찍으면 DB 트리거가 그 행도 확인 행으로 보고
+            // `role <> 'user'` 에서 거부한다(AMORA_SHARED_ACTION_CONFIRMATION_INVALID,
+            // 22023). 그러면 **변경은 이미 적용됐는데 아모라 응답만 커밋되지 않아**
+            // 사용자는 침묵과 오류를 본다 — 돈·날짜가 바뀐 턴에서 가장 나쁜 결과다.
+            // 2026-08-22 스테이징에서 확인 턴 4/4 재현.
+            //
+            // 이 키를 응답 행에서 읽는 소비자는 없다. 웹·모바일 모두 사용자 행에서만
+            // 읽고(`sender_role !== "ai"` 요구), 나머지는 `=== undefined` 로 일반
+            // 메시지를 가려낸다. 응답과 확인의 연결은 `in_reply_to_user_message_id`가
+            // 이미 갖고 있다.
             ...(visibleClientRequestKey !== clientRequestId
               ? { client_visible_request_id: visibleClientRequestKey }
               : {}),
