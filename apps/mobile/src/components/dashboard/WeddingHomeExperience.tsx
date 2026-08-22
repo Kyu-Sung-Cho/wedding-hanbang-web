@@ -60,6 +60,11 @@ interface WeddingHomeExperienceProps {
   loading: boolean;
   refreshing: boolean;
   onRefresh: () => void;
+  /**
+   * 파트너가 무엇을 바꿨는지 알리는 줄. 시간에 민감하고 누를 것이 있어서
+   * 첫 도착 카드보다 위, 화면 맨 앞에 온다.
+   */
+  partnerChanges?: ReactNode;
   todayOneCare?: ReactNode;
   /**
    * 첫 도착 카드들(확인했어요 · 다음 걸음 · 초대). 두 사람이 만든 데이터가 아직 없을
@@ -224,6 +229,7 @@ export default function WeddingHomeExperience({
   loading,
   refreshing,
   onRefresh,
+  partnerChanges,
   todayOneCare,
   firstArrival,
   emptyNote,
@@ -308,6 +314,10 @@ export default function WeddingHomeExperience({
               </AppText>
             </View>
           </View>
+
+          {/* 알림이 없으면 이 자식은 null 을 렌더한다. 감싸는 View 에 여백을 두면
+              빈 틈이 늘 남으므로, 여백은 카드가 스스로 갖는다. */}
+          {partnerChanges}
 
           {/* 첫 도착 카드들. 스크롤 콘텐츠의 직속 자식이어야 안내가 자리를 제대로 잰다. */}
           {firstArrival}
