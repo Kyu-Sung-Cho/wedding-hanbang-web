@@ -18,10 +18,10 @@
  * 그대로 두어 그 상태가 됐던 적이 있다.
  *
  * 현재 값의 근거:
- *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 21일
- *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 8월 21일
+ *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 22일
+ *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 8월 22일
  */
-export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-21";
+export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-22";
 
 /**
  * 가입 화면에서 **동의를 받기 시작한** 시각.
