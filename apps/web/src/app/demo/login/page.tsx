@@ -6,6 +6,10 @@ import { motion } from "framer-motion";
 import { Eye, EyeOff } from "lucide-react";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
+import {
+  hasAnyWebOAuthProvider,
+  isWebOAuthProviderEnabled,
+} from "@/lib/auth/oauthProviders";
 
 type Mode = "login" | "signup" | "forgot";
 
@@ -408,6 +412,8 @@ export default function DemoLoginPage() {
             )}
           </div>
 
+          {hasAnyWebOAuthProvider() ? (
+          <>
           {/* 구분선 */}
           <div className="flex items-center gap-4 mb-5">
             <div className="flex-1 h-px bg-platinum" />
@@ -415,8 +421,11 @@ export default function DemoLoginPage() {
             <div className="flex-1 h-px bg-platinum" />
           </div>
 
-          {/* 소셜 로그인 */}
+          {/* 소셜 로그인 — 카카오는 운영 Supabase 에서 꺼져 있다
+              (authorize -> 400 "provider is not enabled"). 규칙은
+              lib/auth/oauthProviders.ts 한 곳에 있다. */}
           <div className="flex gap-3">
+            {isWebOAuthProviderEnabled("kakao") ? (
             <button
               onClick={() => handleOAuth("kakao")}
               disabled={loading !== null}
@@ -427,6 +436,8 @@ export default function DemoLoginPage() {
               </svg>
               카카오
             </button>
+            ) : null}
+            {isWebOAuthProviderEnabled("google") ? (
             <button
               onClick={() => handleOAuth("google")}
               disabled={loading !== null}
@@ -440,6 +451,8 @@ export default function DemoLoginPage() {
               </svg>
               Google
             </button>
+            ) : null}
+            {isWebOAuthProviderEnabled("apple") ? (
             <button
               onClick={() => handleOAuth("apple")}
               disabled={loading !== null}
@@ -450,7 +463,10 @@ export default function DemoLoginPage() {
               </svg>
               Apple
             </button>
+            ) : null}
           </div>
+          </>
+          ) : null}
         </div>
 
         {/* 하단 링크 */}
