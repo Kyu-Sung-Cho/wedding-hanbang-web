@@ -3152,6 +3152,10 @@ export async function POST(request: Request) {
             hasPendingAction: pendingExtraction.pendingAction !== null,
             persistenceMode: isDemo ? "demo" : "durable",
             demoUserText: lastUserText,
+            // 이번 턴에 제안 도구가 하나도 안 열렸다면 사용자는 변경을 요청한 것이
+            // 아니다. 그때 "다시 요청해주세요" 안내를 붙이면 요청하지도 않은
+            // 변경의 실패를 사과받는 셈이 된다.
+            userRequestedChange: pendingOfferEnabled,
           });
           const persistenceSafeText = persistenceClaimGuard.text;
           const metadata: Record<string, unknown> = {

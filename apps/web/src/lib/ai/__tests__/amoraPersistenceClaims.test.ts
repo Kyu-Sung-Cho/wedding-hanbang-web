@@ -250,3 +250,70 @@ describe("guardUnverifiedAmoraPersistenceClaims", () => {
     });
   });
 });
+
+/**
+ * 2026-08-22 스테이징 라이브에서 사용자가 실제로 본 답변.
+ *
+ * "친구는 스드메에 600만원 썼대" 라고만 했는데 돌아온 것:
+ *
+ *     다만 업체마다 포함 구성과 별도 금액이 달라서, …
+ *     …먼저 정하면 돼요.
+ *     실제 실행 결과가 확인되지 않아 이 변경은 아직 반영되지 않았어요.
+ *     변경할 내용을 확인한 뒤 다시 요청해주세요.
+ *
+ * 두 가지가 잘못됐다. 앞 문장이 거짓 주장이라 지워지면서 **"다만" 만 남았고**,
+ * 요청하지도 않은 변경의 **실패 안내**가 붙었다.
+ */
+describe("지운 자리를 수습한다", () => {
+  it("앞 문장이 지워져도 접속사만 남기지 않는다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "스드메 예산을 600만 원으로 반영했어요. 다만 업체마다 포함 구성이 달라요.",
+      toolResults: [],
+      hasPendingAction: false,
+      persistenceMode: "durable",
+    });
+
+    expect(result.text).not.toContain("반영했어요");
+    expect(result.text.startsWith("다만")).toBe(false);
+    expect(result.text).toContain("업체마다 포함 구성이 달라요");
+  });
+
+  it("사용자가 변경을 요청하지 않았으면 실패 안내를 붙이지 않는다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "스드메 예산을 600만 원으로 반영했어요. 업체마다 포함 구성이 달라요.",
+      toolResults: [],
+      hasPendingAction: false,
+      persistenceMode: "durable",
+      userRequestedChange: false,
+    });
+
+    expect(result.text).not.toContain("반영했어요");
+    expect(result.text).not.toContain("다시 요청해주세요");
+    expect(result.text).toContain("업체마다 포함 구성이 달라요");
+    expect(result.corrected).toBe(true);
+  });
+
+  it("변경을 요청한 턴에서는 그대로 알린다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "스드메 예산을 600만 원으로 반영했어요.",
+      toolResults: [],
+      hasPendingAction: false,
+      persistenceMode: "durable",
+      userRequestedChange: true,
+    });
+
+    expect(result.text).toContain("실제 실행 결과가 확인되지 않아");
+  });
+
+  it("확인 카드가 나온 턴은 요청 여부와 무관하게 안내한다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "예산을 반영했어요.",
+      toolResults: [],
+      hasPendingAction: true,
+      persistenceMode: "durable",
+      userRequestedChange: false,
+    });
+
+    expect(result.text).toContain("아직 실제 준비에는 반영되지 않았어요");
+  });
+});
