@@ -57,6 +57,11 @@ interface Props {
   mode: "add" | "edit";
   event: ScheduleEvent | null;
   defaultDate: string | null;
+  /**
+   * 새 일정에 미리 채워 둘 분야. 「날짜를 정할 항목」에서 바로 날짜를 잡을 때 쓴다 —
+   * 그 패널은 이미 어느 분야인지 알고 있으므로 사용자가 다시 고를 이유가 없다.
+   */
+  defaultCategoryKey?: string;
   assigneeContext?: ScheduleEventAssigneeContext;
   onSave: (data: {
     date: string;
@@ -77,6 +82,7 @@ export default function EventFormModal({
   mode,
   event,
   defaultDate,
+  defaultCategoryKey,
   assigneeContext = {},
   onSave,
   onCancel,
@@ -121,13 +127,13 @@ export default function EventFormModal({
       setDate(defaultDate ?? "");
       setTime("");
       setMemo("");
-      setCategoryKey("");
+      setCategoryKey(defaultCategoryKey ?? "");
       setStatus("planned");
       setCompletionCriteria("");
       setAssigneeSelection("unassigned");
       setExternalAssigneeLabel("");
     }
-  }, [isOpen, mode, event, defaultDate]);
+  }, [isOpen, mode, event, defaultDate, defaultCategoryKey]);
 
   const memberOptions = useMemo(() => {
     const options: Array<{ id: string; label: string }> = [];
