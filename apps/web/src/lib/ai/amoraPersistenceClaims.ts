@@ -59,12 +59,24 @@ export function composeAmoraPersistenceTerminal({
   hasPendingAction,
   persistenceMode,
   demoUserText = "",
+  userRequestedChange = true,
 }: {
   text: string;
   toolResults: readonly ToolExecutionResult[];
   hasPendingAction: boolean;
   persistenceMode: "durable" | "demo";
   demoUserText?: string;
+  /**
+   * 이번 턴에 사용자가 변경을 요청할 수 있었는가(제안 도구가 열렸는가).
+   *
+   * 거짓 저장 주장을 지운 뒤 붙이는 안내는 "변경할 내용을 확인한 뒤 다시
+   * 요청해주세요" 라고 말한다. 사용자가 아무것도 요청하지 않은 턴에서는 그 말이
+   * 틀렸다 — 2026-08-22 라이브에서 "친구는 스드메에 600만원 썼대" 에 그 안내가
+   * 붙었다. 요청하지도 않은 변경의 실패를 사과받는 셈이다.
+   *
+   * 기본값은 기존 동작(붙인다)이다.
+   */
+  userRequestedChange?: boolean;
 }): AmoraPersistenceTerminalResult {
   const mutationReceipts = toolResults.filter((result) =>
     isMutatingTool(result.toolName));
@@ -119,9 +131,13 @@ export function composeAmoraPersistenceTerminal({
     };
   }
 
-  const notice = hasPendingAction
-    ? SERVER_OWNED_PENDING_NOTICE
-    : SERVER_OWNED_UNVERIFIED_NOTICE;
+  // 요청하지 않은 변경의 실패를 알릴 이유가 없다. 거짓 주장은 이미 지웠으므로
+  // 사용자가 잘못 믿을 것도 남아 있지 않다.
+  const notice = !hasPendingAction && !userRequestedChange
+    ? null
+    : hasPendingAction
+      ? SERVER_OWNED_PENDING_NOTICE
+      : SERVER_OWNED_UNVERIFIED_NOTICE;
 
   return {
     text: [sanitized.text, notice].filter(Boolean).join("\n\n"),
@@ -177,9 +193,53 @@ function removeUnverifiedPersistenceClaims(text: string): {
   }
 
   return {
-    text: removedClaimCount === 0 ? normalizedText : kept.join("\n\n"),
+    text: removedClaimCount === 0
+      ? normalizedText
+      : repairSplitEmphasis(dropDanglingConnective(kept.join("\n\n"))),
     removedClaimCount,
   };
+}
+
+/**
+ * 문장을 지우면 강조 구간이 쪼개진다.
+ *
+ * 2026-08-22 라이브에서 사용자가 본 것:
+ *
+ *     우리 예산은 아직 **400만 원으로 확정되지 않았어요.
+ *
+ *     ** 400만 원과 600만 원 중 어느 쪽을…
+ *
+ * 여는 `**` 와 닫는 `**` 사이의 문장이 지워지면서 둘이 서로 다른 문단으로
+ * 갈라졌다. 마크다운은 문단을 넘는 강조를 허용하지 않아 **별표가 글자 그대로
+ * 화면에 보인다.**
+ *
+ * 짝이 맞지 않는 문단에서는 강조를 통째로 지운다 — 꾸밈을 잃는 편이 별표가
+ * 노출되는 것보다 낫다.
+ */
+function repairSplitEmphasis(text: string): string {
+  return text
+    .split("\n\n")
+    .map((paragraph) => {
+      const markers = paragraph.match(/\*\*/g);
+      return markers && markers.length % 2 === 1
+        ? paragraph.replace(/\*\*/g, "")
+        : paragraph;
+    })
+    .join("\n\n");
+}
+
+/**
+ * 앞 문장을 지우면 잇는 말만 남는다.
+ *
+ * 2026-08-22 라이브에서 사용자가 실제로 본 것: **"다만 업체마다 포함 구성과…"**
+ * — 앞 문장이 거짓 저장 주장이라 지워졌는데 "다만" 이 그대로 남아, 무엇에 대한
+ * 단서인지 알 수 없는 문장이 됐다.
+ */
+const DANGLING_CONNECTIVE_RE =
+  /^(?:다만|하지만|그렇지만|그러나|그런데|그리고|또한|또|그래서|따라서|그러니까|대신)\s*,?\s*/u;
+
+function dropDanglingConnective(text: string): string {
+  return text.replace(DANGLING_CONNECTIVE_RE, "");
 }
 
 /**

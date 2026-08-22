@@ -16,6 +16,8 @@ export interface PlaceCardModel {
   priceRange: string | null;
   hasPrivateRoom: boolean;
   blogReviewCount: number | null;
+  /** 블로그 글에서 그 가게를 말한 한 줄. 출처를 밝혀 보여준다. */
+  blogSnippet: string | null;
   imageUrl: string | null;
   searchUrl: string | null;
   mapsUrl: string | null;
@@ -97,6 +99,7 @@ export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsMod
       priceRange: asString(value.priceRange),
       hasPrivateRoom: value.hasPrivateRoom === true,
       blogReviewCount: asCount(value.blogReviewCount),
+      blogSnippet: asString(value.blogSnippet),
       imageUrl: safeProviderUrl(value.imageUrl, "pstatic.net"),
       searchUrl: safeProviderUrl(value.searchUrl, "naver.com")
         ?? safeProviderUrl(value.link, "naver.com"),

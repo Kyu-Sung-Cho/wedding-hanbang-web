@@ -158,6 +158,11 @@ function PlaceCard({ place, index }: { place: PlaceCardModel; index: number }) {
               <Text style={styles.detailText}>블로그 검색 {place.blogReviewCount.toLocaleString()}건</Text>
             </View>
           ) : null}
+          {place.blogSnippet ? (
+            <Text style={styles.blogSnippetText} numberOfLines={2}>
+              “{place.blogSnippet}”
+            </Text>
+          ) : null}
           {place.priceRange || place.hasPrivateRoom ? (
             <View style={styles.blogMentionRow}>
               <Text style={styles.blogMentionSource}>블로그 언급</Text>
@@ -304,6 +309,12 @@ const styles = StyleSheet.create({
   categoryText: { fontSize: 11, color: colors.rose[600], fontWeight: "600" },
   addressRow: { flexDirection: "row", alignItems: "flex-start", gap: 5, marginTop: 8 },
   addressText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
+  blogSnippetText: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textSecondary,
+    fontStyle: "italic",
+  },
   descriptionText: { marginTop: 7, fontSize: 11, lineHeight: 17, color: colors.textSecondary },
   detailRow: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 6 },
   detailText: { flex: 1, fontSize: 11, lineHeight: 16, color: colors.textSecondary },
