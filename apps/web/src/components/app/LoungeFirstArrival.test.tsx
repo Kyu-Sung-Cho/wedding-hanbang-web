@@ -296,9 +296,14 @@ describe("온보딩이 채워준 제안값만 있는 상태는 '아직 아무것
 
   it("제안값이 있어도 남긴 항목이 더 적으면 진짜 입력으로 본다", () => {
     // 사용자가 제안된 항목 하나를 도로 비워둔 것도 사람이 한 결정이다.
+    //
+    // 단계를 이름으로 박지 않는다. 2026-08-22에 `venue_booked` 의 제안이 둘에서 하나로
+    // 줄면서(상견례 제거) "하나만 남김"이 곧 "제안 그대로"가 돼 이 검사의 전제가 무너졌다.
+    // 제안이 둘 이상인 단계를 그때그때 고른다.
     const option = PREPARATION_STAGE_OPTIONS.find(
-      (candidate) => candidate.value === "venue_booked",
+      (candidate) => Object.keys(candidate.suggested).length >= 2,
     )!;
+    expect(option, "제안이 둘 이상인 단계가 없다 — 이 검사의 전제를 다시 정해야 한다").toBeTruthy();
     const [firstKey] = Object.keys(option.suggested);
 
     expect(
