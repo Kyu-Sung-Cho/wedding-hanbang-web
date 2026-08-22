@@ -12,6 +12,24 @@ import {
 } from "@/stores/onboardingStore";
 import { PROGRESS_CHECKLIST_ITEMS } from "@/types/onboarding.types";
 
+/**
+ * 이 화면은 그리는 즉시 계정 변경을 구독한다(소유자 관문). 구독을 세우지 않으면
+ * 진짜 Supabase 클라이언트를 만들려다 렌더에서 죽고, 아래 페이로드 단언은 한 번도
+ * 실행되지 않는다. 이 검사가 보려는 것은 나가는 페이로드이므로 구독은 빈 껍데기면 된다.
+ */
+vi.mock("@/lib/supabase/client", () => ({
+  createClient: () => ({
+    auth: {
+      onAuthStateChange: () => ({
+        data: { subscription: { unsubscribe: () => {} } },
+      }),
+    },
+  }),
+}));
+
+/** 이 화면의 주인. 아래 세 곳(복원 초안·서버 응답·소유자 관문)이 같은 값을 써야 한다. */
+const OWNER_USER_ID = "33333333-3333-4333-8333-333333333333";
+
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -27,6 +45,10 @@ function primeRestoredSession() {
     JSON.stringify({
       version: 0,
       state: {
+        // 주인을 적지 않으면 `bindOwner`가 "다른 사람의 초안"으로 보고 초기 상태로
+        // 되돌린다. 그러면 아래 단계·19항목이 애초에 사라진 채 검사가 통과한다 —
+        // 즉 "합류하는 쪽은 아무것도 덮지 않는다"를 증명하지 못하는 거짓 초록이 된다.
+        ownerUserId: OWNER_USER_ID,
         currentStep: 2,
         role: "bride",
         coupleAction: "join",
@@ -77,7 +99,12 @@ describe("초대 코드로 합류하는 제출", () => {
             }),
           } as Response;
         }
-        return { ok: true, json: async () => ({ profile: null }) } as Response;
+        // 소유자 관문은 /api/auth/me 의 user.id 로 이 화면의 주인을 정한다.
+        // 사람이 없으면 화면이 확인 중 상태에 머물러 제출 버튼 자체가 없다.
+        return {
+          ok: true,
+          json: async () => ({ user: { id: OWNER_USER_ID }, profile: null }),
+        } as Response;
       }),
     );
   });

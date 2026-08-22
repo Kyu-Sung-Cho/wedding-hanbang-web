@@ -7,7 +7,23 @@ import { useOnboardingStore } from "@/stores/onboardingStore";
 
 const USER_A = "11111111-1111-4111-8111-111111111111";
 const USER_B = "22222222-2222-4222-8222-222222222222";
-const A_INVITE_CODE = "WH-A-SECRET";
+/**
+ * A 계정의 초대 코드. 값은 아무거나여도 되지만 **형식은 진짜여야 한다** —
+ * `InviteCodePanel` 이 `^WH-[A-Z0-9]{6,12}$`(DB 의 `join_couple` 과 같은 규칙,
+ * packages/shared/src/contracts/coupleInviteCode.ts)에 맞지 않으면 `return null`
+ * 로 통째로 사라진다. 예전 값 `WH-A-SECRET` 은 하이픈이 하나 더 있어 그 규칙에
+ * 걸렸고, 코드가 화면에 아예 없으니 "계정이 바뀌면 코드가 사라진다"를 보는
+ * 이 파일의 단언들이 전부 거저 통과할 뻔했다.
+ */
+const A_INVITE_CODE = "WH-ASECRET1";
+
+/**
+ * 복사에 성공했을 때 패널이 켜는 표시. `InviteCodePanel` 의 COPY_LABELS.code.done
+ * 과 같은 값이어야 한다 — 여기가 어긋나면 "성공 표시가 남아 있으면 안 된다"는
+ * 아래 단언들이 없는 문자열을 찾으며 늘 통과한다. 실제로 그랬다: main 이 이 문구를
+ * `복사 완료!` 에서 바꾼 뒤로 두 단언이 죽은 채 초록불이었다.
+ */
+const COPIED_LABEL = "코드 복사됨";
 
 const authHarness = vi.hoisted(() => ({
   listener: null as null | ((
@@ -101,6 +117,16 @@ describe("onboarding invite result privacy", () => {
           user: { id: canonicalOwnerUserId },
           profile: null,
         }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      // 저장 직후 앱은 초대 코드의 기한을 여기서 읽는다. 모르는 주소로 두면 이
+      // 가짜 fetch 가 던지고, 그 예외는 화면이 조용히 삼킨다 — 검사가 아무것도
+      // 눈치채지 못한 채 다음 사람에게 함정으로 남는다. 기한은 이 파일의 관심사가
+      // 아니므로 "없음"을 준다.
+      if (url === "/api/couple/code") {
+        return new Response(JSON.stringify({ inviteCodeExpiresAt: null }), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         });
@@ -291,7 +317,7 @@ describe("onboarding invite result privacy", () => {
     expect(writeText).toHaveBeenNthCalledWith(2, "");
     expect(execCommand).not.toHaveBeenCalled();
     expect(container.textContent).not.toContain(A_INVITE_CODE);
-    expect(container.textContent).not.toContain("복사 완료!");
+    expect(container.textContent).not.toContain(COPIED_LABEL);
   });
 
   it("clears A's fallback copy and hides its result when auth becomes B inside execCommand", async () => {
@@ -339,7 +365,7 @@ describe("onboarding invite result privacy", () => {
     expect(execCommand).toHaveBeenCalledTimes(2);
     expect(fallbackWrites).toEqual([A_INVITE_CODE, ""]);
     expect(container.textContent).not.toContain(A_INVITE_CODE);
-    expect(container.textContent).not.toContain("복사 완료!");
+    expect(container.textContent).not.toContain(COPIED_LABEL);
   });
 
   it("copies once when the rendered, stored, result, and canonical owners all agree", async () => {
@@ -375,7 +401,7 @@ describe("onboarding invite result privacy", () => {
     expect(writeText).toHaveBeenCalledOnce();
     expect(writeText).toHaveBeenCalledWith(A_INVITE_CODE);
     expect(execCommand).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("복사 완료!");
+    expect(container.textContent).toContain(COPIED_LABEL);
   });
 
   it("does not reopen A's invite after canonical auth becomes B before pending continuation", async () => {

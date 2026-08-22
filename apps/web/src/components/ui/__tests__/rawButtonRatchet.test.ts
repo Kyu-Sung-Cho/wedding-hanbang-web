@@ -97,8 +97,30 @@ import { describe, expect, it } from "vitest";
  * 여기는 708이다. 그래서 병합하면 이 줄에서 충돌이 난다. 그건 고장이 아니라 래칫이
  * 시키는 일이다: **합친 트리를 실제로 세서** 그 값을 넣어라. 큰 쪽을 반사적으로
  * 고르지 마라 — 그게 이 주석이 한 번 거짓이 된 경위다.
+ *
+ * ## 합친 트리에서 다시 셌다 (2026-08-22)
+ *
+ * 이 파일은 `origin/main` 병합으로 이 브랜치에 **처음 들어왔다** — 릴리스 브랜치
+ * (codex/release-activation-20260819)에는 없던 검사다. `origin/main` 트리에서는
+ * 708로 맞지만, 두 쪽을 합친 이 트리를 세면 717이다. 그래서 위 "병합할 때" 절이
+ * 시키는 대로 합친 트리의 실측값을 넣는다.
+ *
+ * 차이 9개는 릴리스 브랜치가 main과 다르게 가진 파일에서 나온다(파일 단위 대조):
+ *
+ *   +4  components/app/chat/MediationCard.tsx        (4→8)
+ *   +2  components/app/TodayOneCard.tsx              (3→5)
+ *   +1  components/app/chat/ChatContent.tsx          (35→36)
+ *   +1  components/app/chat/ChatSidePanel.tsx        (17→18)
+ *   +1  app/beta/BetaForm.tsx                        (1→2)
+ *   +1  app/(app)/settings/amora-memory/page.tsx     (12→13)
+ *   -1  components/auth/SignupConsent.tsx            (1→0)
+ *
+ * 전부 래칫이 이 트리에 있기 전에 쓰인 제품 코드다. **이 숫자를 맞추려고 새로 만든
+ * 버튼은 하나도 없다** — 위 6개 예외와 달리 여기 9개는 아직 근거를 대지 않았으므로,
+ * 줄일 수 있는 쪽부터 프리미티브로 옮기고 이 절을 지우는 것이 다음 사람의 몫이다.
+ * 중재 카드 4개가 한 파일에 몰려 있으니 거기서 시작하면 된다.
  */
-const BASELINE = 708;
+const BASELINE = 717;
 
 const SOURCE_ROOT = path.join(process.cwd(), "src");
 
