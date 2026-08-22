@@ -79,22 +79,35 @@ describe("탈퇴 정책이 화면과 문서에서 같은 말을 한다", () => {
     }
   });
 
-  it("문서가 여전히 설정 페이지를 탈퇴 경로로 안내한다", () => {
-    // ⚠️ 이 자리에 "그 조건은 accountDeletionWorkerFollowsIntake 가 배포
-    // 시점에 검사한다"고 적었었다. **거짓이다.** 그 검사식은
-    //   INTAKE !== "true" || CRON === "true"
-    // 라서 접수가 꺼져 있으면(INTAKE="false") 공허하게 참이 된다. 즉 접수가
-    // 닫힌 채로도 빌드는 통과하고, 이 두 문장은 그동안 참이 아니다.
-    //
-    // 지금 운영은 접수가 닫혀 있고, 제출하면 503 이 support@hanbang.ai 접수
-    // 경로를 돌려준다(api/auth/delete/route.ts:41-49). 문서의 이 문장이
-    // 완전히 참이 되는 것은 접수를 켠 릴리스부터다. 이 테스트가 지키는 것은
-    // "문서가 설정 페이지를 가리킨다"는 사실뿐이고, 그 경로가 오늘 열려
-    // 있는지까지는 **아무 자동 검사도 보장하지 않는다.**
+  // ⚠️ 이 테스트의 이름은 "문서가 **여전히** 설정 페이지를 탈퇴 경로로 안내한다"
+  // 였고, 본문은 그 문장이 소스에 있는지만 봤다. 그런데 접수 스위치가 꺼져 있으면
+  // 제출은 503 이고 앱은 support@hanbang.ai 를 돌려준다
+  // (api/auth/delete/route.ts:41-49). **테스트가 거짓 문장을 붙잡아 두고 있었고,
+  // 심지어 주석에 "그 경로가 오늘 열려 있는지까지는 아무 자동 검사도 보장하지
+  // 않는다"고 스스로 적어 두었다.**
+  //
+  // 그래서 문장을 고정하는 대신 **문서가 앱이 실제로 여는 창구를 가리키는지**를
+  // 양방향으로 본다. 접수를 켜는 릴리스에서는 반대 방향이 자동으로 걸린다.
+  it("문서가 앱이 실제로 여는 탈퇴 창구를 가리킨다", () => {
     const privacy = source("src/app/privacy/page.tsx");
     const terms = source("src/app/terms/page.tsx");
-    expect(privacy).toContain("설정 페이지에서 직접 처리할 수 있습니다");
-    expect(terms).toContain("설정 페이지에서 탈퇴를 신청할 수 있습니다");
+    const intakeOpen = process.env.ACCOUNT_DELETION_INTAKE_ENABLED === "true";
+
+    if (intakeOpen) {
+      expect(privacy).toContain("설정 페이지");
+      expect(terms).toContain("설정 페이지");
+      return;
+    }
+
+    // 접수가 닫혀 있는 동안 문서가 설정 페이지를 가리키면, 사용자는 눌러도
+    // 503 이 나오는 버튼을 찾아다니게 된다.
+    expect(privacy).not.toContain("설정 페이지에서 직접 처리할 수 있습니다");
+    expect(terms).not.toContain("설정 페이지에서 탈퇴를 신청할 수 있습니다");
+    for (const doc of [privacy, terms]) {
+      expect(doc).toContain("support@hanbang.ai");
+    }
+    expect(privacy).toContain("탈퇴는 현재 고객센터");
+    expect(terms).toContain("현재는 고객센터");
   });
 
   it("정책 목록이 스위치에 따라 거짓이 되는 문장을 담지 않는다", () => {

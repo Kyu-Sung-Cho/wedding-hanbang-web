@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { hasRecordedSignupConsent } from "@hanbang/shared";
+import { hasRecordedSignupConsent, isPreConsentAccount } from "@hanbang/shared";
 
 import { getOptionalSameOriginRedirectPath } from "@/lib/auth/safeRedirect";
 import { createClient } from "@/lib/supabase/server";
@@ -52,5 +52,10 @@ export default async function ConsentPage({
     redirect(destination);
   }
 
-  return <ConsentGateClient destination={destination} />;
+  return (
+    <ConsentGateClient
+      destination={destination}
+      existingAccount={isPreConsentAccount(user.created_at)}
+    />
+  );
 }

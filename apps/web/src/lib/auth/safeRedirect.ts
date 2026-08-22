@@ -51,7 +51,13 @@ export function getSameOriginRedirectPath(
     ?? "/login";
 }
 
-function getRequestedAuthRedirectPath(search: string, origin: string): string | null {
+/**
+ * 로그인 이후 되돌아갈 수 있는 경로만 남긴다 — 다른 출처, 인증 화면 자체,
+ * API 경로는 버린다. 메일 링크를 만들 때도 이 검사를 통과한 값만 싣는다
+ * (`api/auth/signup`). 검사를 건너뛰면 우리가 보낸 메일이 사용자를 아무 데로나
+ * 데려가는 링크가 된다.
+ */
+export function getRequestedAuthRedirectPath(search: string, origin: string): string | null {
   const requested = getOptionalSameOriginRedirectPath(
     new URLSearchParams(search).get("redirect"),
     origin,

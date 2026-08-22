@@ -9,7 +9,8 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
-import { buildOAuthCallbackUrl } from "@/lib/auth/safeRedirect";
+import { buildEmailConfirmUrl } from "@/lib/auth/emailConfirmLink";
+import { getRequestedAuthRedirectPath } from "@/lib/auth/safeRedirect";
 import {
   cleanOptionalText,
   isRecord,
@@ -50,9 +51,13 @@ async function sendExistingAccountNotice({
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email,
-      options: { redirectTo: `${siteUrl}/reset-password` },
     });
-    const recoveryLink = error ? null : data?.properties?.action_link ?? null;
+    // action_link 를 쓰지 않는 이유는 @/lib/auth/emailConfirmLink 주석에 있다.
+    // 그 링크는 결과를 해시로 돌려주고, 해시는 서버에 오지 않는다.
+    const hashedToken = error ? null : data?.properties?.hashed_token ?? null;
+    const recoveryLink = hashedToken
+      ? buildEmailConfirmUrl({ siteUrl, tokenHash: hashedToken, type: "recovery" })
+      : null;
 
     const safeName = escapeHtml(name);
     const loginUrl = `${siteUrl}/login`;
@@ -208,9 +213,13 @@ export async function POST(request: Request) {
 
     const supabase = getAdminSupabase();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai";
-    const callbackSearch = requestedRedirect
-      ? `?${new URLSearchParams({ redirect: requestedRedirect })}`
-      : "";
+    // 사용자가 보낸 값이다. 메일에 싣기 전에 같은 출처·허용 경로인지 거른다.
+    const safeRedirect = requestedRedirect
+      ? getRequestedAuthRedirectPath(
+          `?${new URLSearchParams({ redirect: requestedRedirect })}`,
+          siteUrl,
+        )
+      : null;
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "signup",
       email,
@@ -223,7 +232,6 @@ export async function POST(request: Request) {
           name,
           ...buildSignupConsentRecord(consent, new Date().toISOString()),
         },
-        redirectTo: buildOAuthCallbackUrl(callbackSearch, siteUrl),
       },
     });
 
@@ -252,11 +260,19 @@ export async function POST(request: Request) {
       );
     }
 
-    if (!data?.properties?.action_link) {
+    if (!data?.properties?.hashed_token) {
       return NextResponse.json({ error: "인증 링크 생성에 실패했습니다." }, { status: 500 });
     }
 
-    const confirmLink = data.properties.action_link;
+    // 링크는 우리 라우트를 가리킨다. Supabase 의 action_link 는 결과를 해시로
+    // 돌려주는데 해시는 서버에 오지 않아, 그 링크를 누른 사람은 전원
+    // `/login?error=no_code` 로 떨어졌다(2026-08-22 실측).
+    const confirmLink = buildEmailConfirmUrl({
+      siteUrl,
+      tokenHash: data.properties.hashed_token,
+      type: "signup",
+      redirectPath: safeRedirect,
+    });
     const resend = new Resend(process.env.RESEND_API_KEY);
     const safeName = escapeHtml(name);
 
