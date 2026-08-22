@@ -64,6 +64,22 @@ const DATE_LIKE =
   /\d{1,2}\s*월\s*\d{1,2}\s*일|\d{2,4}\s*년\s*\d{1,2}\s*월|(?:이번|다음|담)\s*주\s*(?:월|화|수|목|금|토|일)?요?일?/;
 const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|vendor|venue|booking/i;
 const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수료|contract|clause|refund/i;
+/**
+ * 견적을 봐 달라는 말.
+ *
+ * `analyze_quote` 는 `CONTRACT_READ_TOOLS` 안에 있었고 그 묶음은 `CONTRACT_INTENT` 로만
+ * 열렸는데, 거기에 "견적"이 없었다. "견적"은 `BUDGET_INTENT` 에 있어서 예산 도구만
+ * 열렸다. 그래서 **"스드메 290 견적 받았는데 봐줘"로는 견적 체크가 채팅에서 안 열렸다** —
+ * 프롬프트가 "핵심 기능"이라 부르는 것인데도.
+ *
+ * `CONTRACT_INTENT` 를 넓히지 않는다. 넓히면 계약 판정 도구까지 함께 열리는데, 아모라의
+ * 계약 해석은 2026-08-18 파운더 결정으로 걷어낸 방향이다. 견적 하나만 여는 좁은 문을 낸다.
+ *
+ * 고위험 판정과 겹치지 않는 것도 확인했다 — `amoraQuestionScope.ts` 의
+ * `HIGH_RISK_DOMAIN_PATTERN` 은 `계약서.{0,16}(봐|검토|…)` 를 잡지만 "견적"은 안 잡는다.
+ * 계약 어휘로 열었다면 그 판정이 먼저 떨어져 도구가 **빈 배열**이 됐을 것이다.
+ */
+const QUOTE_INTENT = /견적|estimate|quotation/i;
 const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|remember|note|remind/i;
 const BUDGET_CATEGORY_WORDS =
   /상견례|예식장|웨딩홀|스튜디오|드레스|턱시도|메이크업|스드메|예물|반지|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|영상|웨딩\s*구두|부케|꽃장식|답례품|사회|축가|폐백|예비비/;
@@ -360,11 +376,18 @@ export function selectAmoraTools({
     || specialistType === "contract_reviewer"
     || attachmentKind === "document";
   const hasActionIntent = ACTION_INTENT.test(userText);
+  // 견적서는 보통 **사진**으로 온다. 계약 의도는 `document` 만 보므로 사진을 올리면
+  // 견적 체크가 안 열렸다.
+  const hasQuoteIntent = QUOTE_INTENT.test(userText)
+    || specialistType === "budget_optimizer"
+    || attachmentKind === "image"
+    || attachmentKind === "document";
   if (hasBudgetIntent) addAll(selected, BUDGET_READ_TOOLS);
   if (hasScheduleIntent) addAll(selected, SCHEDULE_READ_TOOLS);
   if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
   if (hasContractIntent) addAll(selected, CONTRACT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
+  if (hasQuoteIntent) selected.add("analyze_quote");
   // Each mutation family requires current-turn, domain-specific language.
   // Assistant prose and generic approvals are never authority to write.
   if (BUDGET_INTENT.test(userText)) {
