@@ -46,7 +46,6 @@ import {
   hasMediationSafetySignal,
 } from "@hanbang/shared/mediation-offer";
 import { readAmoraPrivateMediationDraftMetadata } from "@hanbang/shared/mediation-provenance";
-import { useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import {
   assertAmoraRequestActor,

@@ -764,7 +764,8 @@ export default function WeddingHomeExperience({
             </View>
           ) : null}
 
-          <View style={styles.section}>
+          {/* 첫 실행 안내의 "준비는 여기서 이어가요"가 가리키는 곳. */}
+          <FirstRunAnchor id="lounge-tools" style={styles.section}>
             <SectionHeader
               eyebrow="PREPARATION TOOLS"
               title="필요할 때 바로 꺼내 쓰기"
@@ -807,7 +808,7 @@ export default function WeddingHomeExperience({
                 );
               })}
             </View>
-          </View>
+          </FirstRunAnchor>
 
           <View style={styles.trustPromise}>
             <View style={styles.trustIcon}>
