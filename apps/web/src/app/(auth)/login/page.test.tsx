@@ -151,14 +151,22 @@ describe("login return journey", () => {
     expect(container.textContent).toContain("지금은 가입에 승인 절차가 없고 결제도 요청하지 않아요");
     expect(container.textContent).toContain("서비스 전체에 하루 상한이 있어서");
 
-    const kakaoButton = [...container.querySelectorAll("button")]
-      .find((button) => button.textContent?.trim() === "카카오");
+    // ⚠️ 이 단언은 카카오 버튼을 앵커로 삼고 있었다. 카카오가 게이트 뒤로
+    // 들어가 화면에서 사라진 뒤에도 **조용히 통과했다** — `.find()` 가
+    // undefined 를 돌려주는데 `expect(undefined).not.toBeNull()` 은 통과하고,
+    // `?? Node.DOCUMENT_POSITION_FOLLOWING` 폴백이 기대값을 그대로 만들어 줬다.
+    // 원탭 버튼이 화면에 0개여도 초록불이었다.
+    //
+    // 앵커를 실제로 렌더되는 버튼으로 바꾸고, `toBeDefined()` 와 폴백 제거로
+    // 앵커가 없으면 실패하게 만든다. 카카오가 안 보이는 것 자체는
+    // socialProviderRender.test.tsx 가 렌더 수준에서 지킨다.
+    const oneTapButton = [...container.querySelectorAll("button")]
+      .find((button) => button.textContent?.trim() === "Google");
     const emailInput = container.querySelector('input[type="email"]');
-    expect(kakaoButton).not.toBeNull();
+    expect(oneTapButton).toBeDefined();
     expect(emailInput).not.toBeNull();
     expect(
-      kakaoButton?.compareDocumentPosition(emailInput as Node)
-        ?? Node.DOCUMENT_POSITION_FOLLOWING,
+      oneTapButton!.compareDocumentPosition(emailInput as Node),
     ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
   });
 

@@ -23,7 +23,11 @@
  * 까지 사라진다.** 그건 고치려던 문제보다 큰 회귀다. 그래서 운영에서 실제로
  * 동작이 확인된 것은 기본 켜짐, 꺼져 있는 것으로 확인된 카카오만 기본 꺼짐이다.
  *
- * 카카오를 켜는 날 `NEXT_PUBLIC_KAKAO_OAUTH_ENABLED=true` 하나만 바꾸면 된다.
+ * 카카오를 켜는 날 바꿀 값은 `NEXT_PUBLIC_KAKAO_OAUTH_ENABLED=true` 하나지만,
+ * **값만 바꿔서는 반영되지 않는다.** 아래 readFlag() 주석처럼 이 값은 빌드
+ * 시점에 번들로 박히고, 이 프로젝트는 env 변경으로 재빌드가 걸리지 않는다 —
+ * 새 배포가 나가야 버튼이 돌아온다. turbo 의 globalEnv/build.env 에도 등록돼
+ * 있어야 빌드가 그 값을 본다(turbo.json).
  * 반대로 Google·Apple 이 운영에서 꺼지면 `=false` 로 즉시 숨길 수 있다.
  */
 

@@ -97,22 +97,11 @@ describe("화면이 그 규칙을 실제로 쓴다", () => {
     return readFileSync(resolve(process.cwd(), relative), "utf8");
   }
 
-  for (const screen of SCREENS) {
-    it(`${screen} 이 provider 를 조건 없이 렌더하지 않는다`, () => {
-      const html = source(screen);
-      // 세 버튼 모두 게이트 뒤에 있어야 한다.
-      for (const provider of ["kakao", "google", "apple"]) {
-        expect(
-          html,
-          `${screen} 의 ${provider} 버튼에 게이트가 없다`,
-        ).toContain(`isWebOAuthProviderEnabled("${provider}")`);
-      }
-      // provider 가 다 꺼졌을 때 제목·구분선만 남지 않도록 자리째 감싼다.
-      expect(html, `${screen} 에 소셜 자리 전체 게이트가 없다`)
-        .toContain("hasAnyWebOAuthProvider()");
-    });
-  }
-
+  // ⚠️ 여기 있던 검사는 `html.toContain('isWebOAuthProviderEnabled("kakao")')`
+  // 였다. **조건을 뒤집어도(`!isWebOAuthProviderEnabled`) 통과하고, 게이트를
+  // 주석으로 만들어도 통과한다.** 감사자가 뮤테이션으로 실증했다.
+  // 렌더 결과를 보는 단언은 아래 describe 로 옮겼다. 여기 남기는 것은
+  // 문자열로만 확인 가능한 것 — "규칙이 한 곳에 있는가" 뿐이다.
   it("규칙이 화면마다 복제되지 않고 한 곳에 있다", () => {
     for (const screen of SCREENS) {
       const html = source(screen);
