@@ -292,8 +292,12 @@ export default function CalendarView({
         </div>
       )}
 
-      {/* 결혼식 날짜 없을 때 */}
-      {!weddingDate && (
+      {/* 달력에 그릴 것이 없을 때 — 왜 비었는지 말해 준다.
+          예전에는 `!weddingDate` 일 때만 띄웠다. 그런데 예식일이 있어도 등록한 일정이
+          0 건이면 격자만 덩그러니 남는다. 운영 54 커플 중 절반 넘게가 그 상태다.
+          예식일이 멀면 「날짜를 정할 항목」도 비어(창이 60일) 화면에 단서가 하나도
+          없어진다. 문구는 이미 있던 것을 그대로 쓴다. */}
+      {(!weddingDate || activeEvents.length === 0) && (
         <div className="mt-6 text-center py-8">
           <p className="text-[17px] text-[#504444]">
             날짜를 정한 일정만 캘린더에 표시됩니다

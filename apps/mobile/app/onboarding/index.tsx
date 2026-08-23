@@ -52,6 +52,7 @@ import PreparationProgressList, {
   createPreparationStatuses,
 } from "@/components/onboarding/PreparationProgressList";
 import InviteCodeCard from "@/components/invite/InviteCodeCard";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
   COUPLE_INVITE_CODE_MAX_LENGTH,
   COUPLE_INVITE_CODE_PLACEHOLDER,
@@ -203,7 +204,16 @@ function CelebrationDots() {
 export default function OnboardingScreen() {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState<Role | null>(null);
-  const [coupleAction, setCoupleAction] = useState<CoupleAction>("create");
+  // 미리 고르지 않는다.
+  //
+  // 기본값이 "create" 였을 때, 초대받아 온 사람이 아무것도 안 누르고 「다음」을 누르면
+  // 자기 커플이 조용히 만들어졌다. 코드가 화면에 없는 경로는 흔하다 — 딥링크 보관이
+  // 30분이고 가입이 메일 확인을 강제하며, 복사 버튼은 링크가 아니라 맨 코드를 준다.
+  //
+  // 그리고 이건 한 번 더 누르면 되는 일이 아니다. 자기 커플이 생기면 파트너 코드로의
+  // 합류를 서버가 영구 거절하고(ALREADY_LINKED), 앱 안에는 되돌릴 화면이 없다.
+  // 웹은 같은 자리에서 반드시 고르게 한다(`onboardingStore.ts` 의 `coupleAction: null`).
+  const [coupleAction, setCoupleAction] = useState<CoupleAction | null>(null);
   const [inviteCode, setInviteCode] = useState("");
   const [weddingDate, setWeddingDate] = useState("");
   const [weddingDateUndecided, setWeddingDateUndecided] = useState(false);
@@ -379,7 +389,9 @@ export default function OnboardingScreen() {
       void saveOnboardingDraft(AsyncStorage, {
         step,
         role,
-        coupleAction,
+        // 아직 안 골랐으면 초안에도 남기지 않는다. 기본값을 지운 이유가
+        // "안 고른 상태"를 실제로 유지하기 위해서다.
+        coupleAction: coupleAction ?? undefined,
         weddingDate,
         weddingDateUndecided,
         venue,
@@ -492,6 +504,8 @@ export default function OnboardingScreen() {
   function canNext(): boolean {
     if (neutralEnabled) {
       // 중립 경로는 한 화면이다. 초대 코드로 합류할 때만 코드가 필요하다.
+      // 고르기 전에는 통과시키지 않는다 — 안 고른 채 넘어가면 새 커플이 만들어진다.
+      if (coupleAction === null) return false;
       return coupleAction === "create" || isCoupleInviteCode(inviteCode);
     }
     switch (step) {
@@ -520,6 +534,18 @@ export default function OnboardingScreen() {
    * `buildOnboardingProgressPayload`가 커플 공유 데이터를 덮는 경로를 한 곳에서 막는다.
    */
   async function handleSubmit(saveCategories: boolean) {
+    // 둘 중 하나를 반드시 고른 뒤에만 보낸다.
+    //
+    // 예전에는 「새로 시작하기」가 기본으로 선택돼 있어, 초대받은 사람이 아무것도
+    // 안 누르고도 자기 커플을 만들 수 있었다. 그렇게 만들어진 커플은 되돌릴 수 없다 —
+    // 서버가 뒤늦은 합류를 영구 거절하고(ALREADY_LINKED) 앱 안에 복구 화면이 없다.
+    if (coupleAction === null) {
+      Alert.alert(
+        "어떻게 시작할지 골라주세요",
+        "새로 시작할지, 초대 코드로 합류할지 먼저 선택해 주세요. 나중에 바꿀 수 없어요.",
+      );
+      return;
+    }
     // 중립 경로는 예산을 묻지 않는다 — 물어보지 않은 값을 검사하면 통과할 수 없다.
     if (!neutralEnabled && budgetEvaluation.status === "invalid") {
       Alert.alert("예산을 확인해주세요", budgetEvaluation.message);
@@ -622,7 +648,9 @@ export default function OnboardingScreen() {
       }
       goOn();
     } catch (err) {
-      Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
+      // 네트워크가 끊기면 여기로 "Network request failed" 가 온다. 신규 사용자가
+      // 제품에서 처음 보는 문장이 영어이면 안 된다.
+      Alert.alert("오류", toKoreanErrorMessage(err, "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setSubmitting(false);
     }
