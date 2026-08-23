@@ -4,9 +4,10 @@ import test from "node:test";
 
 const root = new URL("../../", import.meta.url);
 // 2026-08-08 파운더 결정으로 도구 중심 정의를 동반자 정의가 승계했다.
+// 2026-08-23 파운더 결정으로 두 사람 승인이 없어지고 알림이 그 자리를 맡았다.
 // 정본: docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md
 const currentProductDefinition =
-  "웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에 준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만 예산·체크리스트·일정에 남기는 서비스입니다.";
+  "웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한 시기에 준비하는 사람들의 기록을 함께 보며, 확인한 것만 예산·체크리스트·일정에 남기고 바뀐 내용을 서로에게 알리는 서비스입니다.";
 const currentProductDefinitionPlain = currentProductDefinition.replace(
   "서비스입니다.",
   "서비스다.",

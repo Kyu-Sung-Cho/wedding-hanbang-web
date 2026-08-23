@@ -376,6 +376,10 @@
     {
       "file": "20260821120000_events_append_only_allows_fk_detach.sql",
       "sha256": "8ec5581ebfa914cafc8ff7f8abc79d8c8e83f955727343e2a3fa40a2fbfa1b44"
+    },
+    {
+      "file": "20260823120000_couple_approval_becomes_notification.sql",
+      "sha256": "b5fe4301afb1e928996df5dfd448ed9a7882c3d3e1f5afdb2509fb4dcdc4d036"
     }
   ],
   "deploymentEvidence": {
