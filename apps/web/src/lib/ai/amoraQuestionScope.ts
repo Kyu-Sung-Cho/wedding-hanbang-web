@@ -576,18 +576,41 @@ export function buildAmoraQuestionScopeInstruction(
  * 게이트가 두 갈래를 함께 봐야 한다. 그 조건을 각 게이트에 복사해두면 한 곳만
  * 고치는 일이 생기고, 그게 정확히 이 결함이 생긴 방식이다. 조건은 여기 한 벌만 둔다.
  *
- * `requestKind`로 문턱이 갈린다. 중재는 상대에게 갈 내용이라 강압적 통제 어휘까지
- * 낮춰 보고, 일반 발화는 신체 폭력 서술만 본다. 일반 발화에까지 낮춘 문턱을 쓰면
- * 평범한 대화가 조용히 비공개로 새는 대가가 더 크다.
+ * 강압적 통제 서술도 일반 대화에서 공유 레인에 남기지 않는다(2026-08-23).
+ *
+ * 예전에는 중재 요청에서만 그 어휘를 봤다. 이유는 "일반 발화에까지 낮춘 문턱을
+ * 쓰면 평범한 대화가 조용히 비공개로 새는 대가가 더 크다" 였다. 그 대가를
+ * 실제로 재보니 **0이었다**:
+ *
+ *     강압 통제 서술 10문장   3건 탐지 (재현율 30%)
+ *     평범한 결혼 문장 32문장  0건 탐지 (오탐 0%)
+ *
+ * 음성 사례에는 같은 어휘를 무해하게 쓰는 문장을 일부러 넣었다 — "신랑 월급
+ * 관리는 신랑이", "코로나 때문에 친구들을 못 만난 지 오래", "지출을 매일
+ * 확인하고", "시댁에 가는 날짜를 미리 보고드리기로", "싸우면 며칠 말을 안 하는
+ * 스타일". 하나도 안 걸린다. 탐지기가 낱말이 아니라 다중 토큰 패턴을 보기 때문이다.
+ *
+ * 반대편 대가는 실측했다: 라이브에서 통제 서술 11건이 전부 `shared` 로 저장돼
+ * **상대가 읽을 수 있었다.** 통제를 털어놓은 사람의 말이 통제하는 사람에게 간다.
+ *
+ * **이 함수는 가시성만 정한다.** 질문 범위 분류(`classifyAmoraQuestionScope`)는
+ * 호출부가 따로 하므로 도구·기억은 이 변경의 영향을 받지 않는다. 주석이 걱정한
+ * "도구가 전부 막혀 제품 실패" 는 여기서 일어나지 않는다.
+ *
+ * 재현율 30%는 낮다. 넓히는 것은 별건이고, 넓힐 때마다 위 음성 코퍼스로 오탐을
+ * 다시 재야 한다.
  */
 export function hasAmoraSafetySignal(
   userText: string,
   requestKind: "chat" | "mediation" = "chat",
 ): boolean {
   const classification = classifyAmoraQuestionScope({ userText, requestKind });
-  return (
-    classification.scope === "W5_safety_override"
-    || (classification.scope === "W2_high_risk_adjacent"
-      && classification.highRiskReason === "safety")
-  );
+  if (classification.scope === "W5_safety_override") return true;
+  if (
+    classification.scope === "W2_high_risk_adjacent"
+    && classification.highRiskReason === "safety"
+  ) {
+    return true;
+  }
+  return hasCoerciveControlSignal(userText);
 }
