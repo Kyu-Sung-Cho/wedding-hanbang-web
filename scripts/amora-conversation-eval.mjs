@@ -1026,8 +1026,29 @@ export function createEvalToken(secret, requestId, timestamp = Date.now()) {
   return `v1.${issuedAt}.${signature}`;
 }
 
-async function startDemoSession(baseUrl, timeoutMs) {
-  const response = await fetchWithTimeout(`${baseUrl}/api/demo/start`, { method: "POST" }, timeoutMs);
+/**
+ * 데모 세션을 연다.
+ *
+ * 예전에는 헤더 없이 POST 했다. `/api/demo/start` 의 `isTrustedMutationRequest` 는
+ * **브라우저의 교차 사이트 요청**을 막는 장치라 헤더 없는 서버 도구를 거절한다. 그래서
+ * 2026-08-03 이후 운영 평가가 첫 걸음에서 403 으로 끝났고, 아무도 몰랐다.
+ *
+ * 이제 `/api/chat` 과 같은 방식으로 자기를 밝힌다 — 요청 ID 하나에 묶인 5분짜리
+ * HMAC 토큰. Origin 헤더를 지어내지 않는다.
+ */
+async function startDemoSession(baseUrl, timeoutMs, evalSecret) {
+  const requestId = randomUUID();
+  const response = await fetchWithTimeout(
+    `${baseUrl}/api/demo/start`,
+    {
+      method: "POST",
+      headers: {
+        "X-Amora-Eval": createEvalToken(evalSecret, requestId),
+        "X-Amora-Eval-Request-Id": requestId,
+      },
+    },
+    timeoutMs,
+  );
   invariant(response.ok, `Demo session failed: ${response.status} ${await response.text()}`);
   const cookie = getCookieHeader(response);
   invariant(cookie, "Demo session did not return a cookie");
@@ -1146,7 +1167,7 @@ async function main() {
   console.error(
     `Amora eval target=${options.baseUrl} scenarios=${activeScenarios.length} samples=${options.samples} expected_model_calls=${expectedCalls}`,
   );
-  const cookie = await startDemoSession(options.baseUrl, options.timeoutMs);
+  const cookie = await startDemoSession(options.baseUrl, options.timeoutMs, options.evalSecret);
   const results = [];
 
   for (const scenario of activeScenarios) {
