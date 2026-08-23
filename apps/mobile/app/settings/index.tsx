@@ -402,7 +402,7 @@ export default function SettingsScreen() {
             } catch (error) {
               Alert.alert(
                 "새 커플을 시작하지 못했어요",
-                error instanceof Error ? error.message : "잠시 후 다시 시도해 주세요.",
+                toKoreanErrorMessage(error, "잠시 후 다시 시도해 주세요."),
               );
             } finally {
               setResettingCouple(false);
@@ -537,7 +537,7 @@ export default function SettingsScreen() {
                       await finishSignOut();
                     } catch (err) {
                       const message =
-                        err instanceof Error ? err.message : "탈퇴 처리 중 오류가 발생했어요";
+                        toKoreanErrorMessage(err, "탈퇴를 끝내지 못했어요. 잠시 뒤 다시 시도해 주세요.");
                       Alert.alert("오류", message);
                     }
                   },
