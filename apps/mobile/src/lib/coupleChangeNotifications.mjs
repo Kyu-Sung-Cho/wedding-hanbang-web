@@ -172,13 +172,23 @@ export function selectCoupleChangesForViewer(envelope, viewerUserId, limit = 3) 
  * 기다리게 하는 요청이 화면에서 사라졌고**, 24시간 뒤 조용히 만료됐다.
  *
  * `actionId` 가 없으면 승인을 보낼 수 없으므로 결정 줄로 치지 않는다.
+ *
+ * **앱 안에 결정할 다른 곳이 없는 표면만 여기서 받는다.** `/schedule` 요청은
+ * 일정 화면에 이미 확인함이 있고("동의하고 반영"·"반영하지 않기",
+ * `scheduleApprovalInbox.mjs`), 같은 요청을 두 화면이 서로 다른 말로 물으면
+ * 사용자는 다른 일로 읽는다. `/budget` 은 다르다 — 예산 화면의 승인함은
+ * `role === "requester"` 행만 담아(`budgetRevision.mjs:406`) 내가 확인해야 하는
+ * 요청은 담기지 않는다. `/dashboard`·`/lounge` 는 아예 화면이 없다.
  */
+const DECIDABLE_HERE = new Set(["/dashboard", "/lounge", "/budget"]);
+
 export function selectPlanChangeDecisions(notifications) {
   if (!Array.isArray(notifications)) return [];
   return notifications
     .filter((row) => isRecord(row)
       && row.toolName === "manual_plan_change"
       && row.eventKind === "approval_requested"
+      && DECIDABLE_HERE.has(row.href)
       && typeof row.actionId === "string"
       && UUID_RE.test(row.actionId))
     .slice()

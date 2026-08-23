@@ -417,3 +417,20 @@ test("200 이어도 상태가 다르면 반영했다고 말하지 않는다", ()
   );
   assert.equal(readPlanChangeDecisionOutcome(200, null, "accept").kind, "unconfirmed");
 });
+
+
+// 같은 요청을 두 화면이 서로 다른 말로 물으면 사용자는 다른 일로 읽는다.
+// 라운지 버튼은 **앱 안에 결정할 다른 곳이 없는 표면**에만 붙인다.
+test("일정 요청은 라운지 결정 줄이 아니다 — 일정 화면에 확인함이 있다", () => {
+  const parsed = parseCoupleChangeNotifications(
+    envelope([{ ...PLAN_REQUEST, href: "/schedule" }]),
+  );
+  assert.deepEqual(selectPlanChangeDecisions(parsed.notifications), []);
+});
+
+test("예산 요청은 라운지 결정 줄이다 — 예산 화면 승인함이 이 요청을 안 담는다", () => {
+  const parsed = parseCoupleChangeNotifications(
+    envelope([{ ...PLAN_REQUEST, href: "/budget" }]),
+  );
+  assert.equal(selectPlanChangeDecisions(parsed.notifications).length, 1);
+});

@@ -58,7 +58,9 @@ export default function PartnerChangeNotice({
   refreshVersion?: number;
 }) {
   const [state, setState] = useState<ViewState>({ kind: "quiet" });
-  const [decidingId, setDecidingId] = useState<string | null>(null);
+  // 어느 줄인지만이 아니라 **어느 결정인지**도 담는다. 그러지 않으면 진행
+  // 표시가 누르지 않은 버튼에 붙는다.
+  const [deciding, setDeciding] = useState<{ id: string; decision: PlanChangeDecision } | null>(null);
   const [authGeneration, setAuthGeneration] = useState(0);
   const loadGeneration = useRef(0);
   const sessionUserId = useRef<string | null>(null);
@@ -174,10 +176,10 @@ export default function PartnerChangeNotice({
   const decide = useCallback(
     async (notification: CoupleChangeNotification, decision: PlanChangeDecision) => {
       const plan = buildPlanChangeDecisionRequest(notification.actionId, decision);
-      if (!plan || decidingId) return;
+      if (!plan || deciding) return;
       const userId = sessionUserId.current ?? (await currentVerifiedUserId());
       if (!userId) return;
-      setDecidingId(notification.id);
+      setDeciding({ id: notification.id, decision });
       try {
         const res = await apiFetchForExpectedUser(userId, plan.path, {
           method: plan.method,
@@ -202,12 +204,12 @@ export default function PartnerChangeNotice({
       } catch {
         Alert.alert("처리하지 못했어요", "연결을 확인한 뒤 다시 시도해 주세요.");
       } finally {
-        setDecidingId(null);
+        setDeciding(null);
       }
       // 성공이든 실패든 서버가 정본이다. 다시 읽어 화면을 맞춘다.
       await load();
     },
-    [decidingId, load],
+    [deciding, load],
   );
 
   const open = useCallback(
@@ -257,9 +259,14 @@ export default function PartnerChangeNotice({
       </View>
 
       {state.awaitingDecision.map((notification) => {
-        const busy = decidingId === notification.id;
+        const busy = deciding?.id === notification.id;
         return (
-          <View key={notification.id} style={styles.row} accessible>
+          // 이 줄에는 `accessible` 을 붙이지 않는다. iOS 에서 그것은
+          // isAccessibilityElement=YES 가 되어 **안에 있는 두 버튼이 VoiceOver
+          // 초점을 못 받는다** — 라벨은 한 문장으로 읽히지만 누를 수가 없어서
+          // 이 화면이 없애려던 결과(24시간 뒤 만료)가 그대로 남는다.
+          // 아래 읽기 전용 줄에는 상호작용 자식이 없어 `accessible` 이 옳다.
+          <View key={notification.id} style={styles.row}>
             <View style={styles.rowText}>
               <View style={styles.rowTitleLine}>
                 <Text style={styles.rowTitle} numberOfLines={2}>
@@ -267,36 +274,48 @@ export default function PartnerChangeNotice({
                 </Text>
                 <Text style={styles.waitingPill}>확인 필요</Text>
               </View>
-              <Text style={styles.rowMessage} numberOfLines={3}>
-                {notification.message}
-              </Text>
+              {/*
+                여기서는 요약을 자르지 않는다. 바로 아래 버튼이 되돌릴 수 없는
+                반영을 실행하는데, 요약은 240자까지 오고 예식일·예식장·총예산·
+                카테고리 예산이 한 요청에 함께 담길 수 있다. 세 줄로 자르면
+                사용자는 **못 본 변경까지 승인한다.** 서버 계약도 "승인을
+                요청받는 모든 변경값을 공개한다"이다.
+              */}
+              <Text style={styles.rowMessage}>{notification.message}</Text>
               <View style={styles.decisionRow}>
                 <Pressable
                   onPress={() => void decide(notification, "accept")}
-                  disabled={decidingId !== null}
+                  disabled={deciding !== null}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: deciding !== null, busy: busy && deciding?.decision === "accept" }}
                   accessibilityLabel={`${notification.title} 확인하고 반영`}
                   style={({ pressed }) => [
                     styles.acceptButton,
-                    (pressed || decidingId !== null) && styles.buttonDim,
+                    (pressed || deciding !== null) && styles.buttonDim,
                   ]}
                 >
-                  {busy ? (
+                  {/* 진행 표시는 **누른 버튼**에 붙이고 라벨을 지우지 않는다.
+                      지우면 거절을 눌렀는데 "확인하고 반영" 자리에서 스피너가
+                      도는 것으로 보인다. 웹도 라벨 옆에 덧붙인다. */}
+                  {busy && deciding?.decision === "accept" ? (
                     <ActivityIndicator size="small" color={colors.surface} />
-                  ) : (
-                    <Text style={styles.acceptLabel}>확인하고 반영</Text>
-                  )}
+                  ) : null}
+                  <Text style={styles.acceptLabel}>확인하고 반영</Text>
                 </Pressable>
                 <Pressable
                   onPress={() => void decide(notification, "reject")}
-                  disabled={decidingId !== null}
+                  disabled={deciding !== null}
                   accessibilityRole="button"
+                  accessibilityState={{ disabled: deciding !== null, busy: busy && deciding?.decision === "reject" }}
                   accessibilityLabel={`${notification.title} 이번 요청 거절`}
                   style={({ pressed }) => [
                     styles.rejectButton,
-                    (pressed || decidingId !== null) && styles.buttonDim,
+                    (pressed || deciding !== null) && styles.buttonDim,
                   ]}
                 >
+                  {busy && deciding?.decision === "reject" ? (
+                    <ActivityIndicator size="small" color={colors.rose[600]} />
+                  ) : null}
                   <Text style={styles.rejectLabel}>이번 요청 거절</Text>
                 </Pressable>
               </View>
@@ -414,6 +433,8 @@ const styles = StyleSheet.create({
   },
   acceptButton: {
     minHeight: 44,
+    flexDirection: "row",
+    gap: spacing[1],
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing[4],
@@ -425,6 +446,8 @@ const styles = StyleSheet.create({
   acceptLabel: { fontSize: 13, fontWeight: "600", color: colors.surface },
   rejectButton: {
     minHeight: 44,
+    flexDirection: "row",
+    gap: spacing[1],
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing[4],
