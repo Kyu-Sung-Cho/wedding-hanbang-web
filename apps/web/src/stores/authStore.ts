@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { PlanChangeError } from "@/lib/journey/planChangeError";
 import { createClient } from "@/lib/supabase/client";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { useCommunityStore } from "@/stores/communityStore";
@@ -448,11 +449,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         | null;
       if (!res.ok) {
-        throw new Error(
-          typeof data?.error === "string"
-            ? data.error
-            : "결혼 준비 정보를 저장하지 못했습니다.",
-        );
+        const message = typeof data?.error === "string"
+          ? data.error
+          : "결혼 준비 정보를 저장하지 못했습니다.";
+        // 코드가 있으면 실어 보낸다. 화면은 **문자열이 아니라 코드**를 보고
+        // 사용자에게 보여도 되는 사유인지 판단한다(내부 오류 원문 유출 방지).
+        if (typeof (data as { code?: unknown } | null)?.code === "string") {
+          throw new PlanChangeError((data as { code: string }).code, message);
+        }
+        throw new Error(message);
       }
 
       if (

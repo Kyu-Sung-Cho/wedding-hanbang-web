@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useState } from "react";
+import type { CommentMutationResult } from "@/stores/communityStore";
 import Link from "next/link";
 import {
   Check,
@@ -40,8 +41,8 @@ interface CommentItemProps {
   postId: string;
   currentUserId: string | null;
   isReply?: boolean;
-  onDelete: (commentId: string) => Promise<boolean>;
-  onEdit: (commentId: string, content: string) => Promise<boolean>;
+  onDelete: (commentId: string) => Promise<CommentMutationResult>;
+  onEdit: (commentId: string, content: string) => Promise<CommentMutationResult>;
   onVote: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
   onReply: (parentId: string, content: string) => Promise<boolean>;
   onBlockedUser?: (userId: string) => void;
@@ -66,6 +67,8 @@ export default function CommentItem({
   const [editContent, setEditContent] = useState(comment.content);
   const [submittingEdit, setSubmittingEdit] = useState(false);
   const [replyError, setReplyError] = useState<string | null>(null);
+  /** 수정·삭제가 거절됐을 때 서버가 준 이유. 답글 경로의 `replyError` 와 같은 역할이다. */
+  const [actionError, setActionError] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportReason, setReportReason] = useState<ReportReason | "">("");
   const [reportDescription, setReportDescription] = useState("");
@@ -101,9 +104,16 @@ export default function CommentItem({
     if (!trimmed || submittingEdit) return;
 
     setSubmittingEdit(true);
-    const ok = await onEdit(comment.id, trimmed);
+    setActionError(null);
+    const result = await onEdit(comment.id, trimmed);
     setSubmittingEdit(false);
-    if (ok) setIsEditing(false);
+    if (result.ok) {
+      setIsEditing(false);
+      return;
+    }
+    // 거절도 이유가 있다. 개인정보가 섞였다는 422 가 대표적인데, 예전에는 버튼
+    // 라벨만 되돌아오고 왜 안 됐는지 말하지 않아 같은 버튼을 반복해 누르게 됐다.
+    setActionError(result.message);
   }
 
   async function handleReplySubmit() {
@@ -131,8 +141,15 @@ export default function CommentItem({
   }
 
   async function handleDelete() {
-    await onDelete(comment.id);
-    setShowDeleteConfirm(false);
+    setActionError(null);
+    const result = await onDelete(comment.id);
+    if (result.ok) {
+      setShowDeleteConfirm(false);
+      return;
+    }
+    // 확인창을 닫지 않는다. 닫으면 댓글이 그대로 남은 화면만 보여 "눌렀는데
+    // 아무 일도 없었다" 가 된다.
+    setActionError(result.message);
   }
 
   function openReportModal() {
@@ -357,6 +374,11 @@ export default function CommentItem({
                       {submittingEdit ? "저장 중..." : "저장"}
                     </button>
                   </div>
+                  {actionError ? (
+                    <p role="alert" className="mt-2 text-sm text-[#D95F5F]">
+                      {actionError}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : isAmoraAI ? (
@@ -564,11 +586,19 @@ export default function CommentItem({
               <p className="mt-1 text-sm text-[#878680]">
                 삭제된 {isReply ? "답글" : "답변"}은 복구할 수 없습니다.
               </p>
+              {actionError ? (
+                <p role="alert" className="mt-3 text-sm text-[#D95F5F]">
+                  {actionError}
+                </p>
+              ) : null}
             </div>
             <div className="flex border-t border-[#F0EFED]">
               <button
                 type="button"
-                onClick={() => setShowDeleteConfirm(false)}
+                onClick={() => {
+                  setActionError(null);
+                  setShowDeleteConfirm(false);
+                }}
                 className="flex-1 px-4 py-3 text-sm font-medium text-[#878680] hover:bg-[#FAFAF8] transition-all duration-200"
               >
                 취소

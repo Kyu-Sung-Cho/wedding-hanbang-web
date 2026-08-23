@@ -44,17 +44,36 @@ function setFeedbackState(messageId: string, rating: StoredChatFeedbackRating) {
   }
 }
 
-// 피드백 API 호출
-async function submitFeedback(messageId: string, rating: "good" | "bad", correction?: string) {
+/** 기본 문구. 옆의 저장 버튼이 쓰는 "저장 실패 · 다시" 와 같은 결이다. */
+const FEEDBACK_FAILED = "의견을 남기지 못했어요. 다시 시도해 주세요.";
+
+/**
+ * 피드백 API 호출.
+ *
+ * 예전에는 `res.ok` 만 돌려줘서 **서버가 준 이유가 여기서 사라졌다.** 1시간에 20회
+ * 제한(429), 세션 만료(401), 저장 실패(500) 가 전부 "아무 일도 안 일어남"으로 보였다.
+ */
+async function submitFeedback(
+  messageId: string,
+  rating: "good" | "bad",
+  correction?: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
   try {
     const res = await fetch("/api/chat/feedback", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId, rating, correction }),
     });
-    return res.ok;
+    if (res.ok) return { ok: true };
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    return {
+      ok: false,
+      message: typeof data?.error === "string" && data.error.trim()
+        ? data.error
+        : FEEDBACK_FAILED,
+    };
   } catch {
-    return false;
+    return { ok: false, message: FEEDBACK_FAILED };
   }
 }
 
@@ -154,13 +173,17 @@ export function AiFeedbackRow({
   });
   const [correction, setCorrection] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedbackError, setFeedbackError] = useState<string | null>(null);
 
   const handleGood = useCallback(async () => {
     setIsSubmitting(true);
-    const ok = await submitFeedback(messageId, "good");
-    if (ok) {
+    setFeedbackError(null);
+    const result = await submitFeedback(messageId, "good");
+    if (result.ok) {
       setFeedbackState(messageId, "good");
       setStatus("submitted");
+    } else {
+      setFeedbackError(result.message);
     }
     setIsSubmitting(false);
   }, [messageId]);
@@ -173,10 +196,14 @@ export function AiFeedbackRow({
   const handleBadSubmit = useCallback(async () => {
     if (!correction.trim()) return;
     setIsSubmitting(true);
-    const ok = await submitFeedback(messageId, "bad", correction.trim());
-    if (ok) {
+    setFeedbackError(null);
+    const result = await submitFeedback(messageId, "bad", correction.trim());
+    if (result.ok) {
       setFeedbackState(messageId, "bad");
       setStatus("submitted");
+    } else {
+      // 적은 내용은 그대로 둔다 — 다시 보낼 수 있어야 한다.
+      setFeedbackError(result.message);
     }
     setIsSubmitting(false);
   }, [messageId, correction]);
@@ -217,6 +244,11 @@ export function AiFeedbackRow({
             <Send className="w-4 h-4" />
           </button>
         </div>
+        {feedbackError ? (
+          <p role="alert" className="text-sm text-[#D95F5F]">
+            {feedbackError}
+          </p>
+        ) : null}
         <p className="text-xs leading-relaxed text-[#928980]">
           이 의견과 해당 공유 답변은 품질 확인용 기록에 저장돼요. 민감정보는
           적지 마세요. 다음 답변을 바로 바꾸려면 채팅에 그대로 말씀해 주세요.
@@ -226,9 +258,15 @@ export function AiFeedbackRow({
   }
 
   return (
+    <div className="mt-2 flex flex-col gap-1">
+      {feedbackError ? (
+        <p role="alert" className="text-sm text-[#D95F5F]">
+          {feedbackError}
+        </p>
+      ) : null}
     <div
       data-testid="amora-feedback-row"
-      className="mt-2 flex items-center gap-3 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover/ai:opacity-100 sm:focus-within:opacity-100"
+      className="flex items-center gap-3 opacity-100 transition-opacity duration-200 sm:opacity-0 sm:group-hover/ai:opacity-100 sm:focus-within:opacity-100"
     >
       <button
         type="button"
@@ -250,6 +288,7 @@ export function AiFeedbackRow({
         <ThumbsDown className="w-4 h-4" />
         <span>아쉬워요</span>
       </button>
+    </div>
     </div>
   );
 }

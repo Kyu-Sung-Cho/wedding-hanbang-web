@@ -19,6 +19,23 @@ import {
   scopedCommunitySessionCacheKey,
 } from "@/lib/community/viewerPrivacyCache";
 
+/**
+ * 댓글 수정·삭제의 결과.
+ *
+ * 예전에는 `boolean` 이었다. 그래서 **서버가 준 이유가 여기서 버려졌다** — 개인정보가
+ * 섞였다는 422, 권한이 없다는 403, 저장에 실패했다는 503 이 전부 `false` 한 글자로
+ * 뭉개졌고, 화면은 아무 말도 못 했다. 사용자는 같은 버튼을 반복해 누르는 막다른 길에
+ * 갇혔다. 같은 파일의 답글 경로는 이미 이유를 말하고 있었다.
+ */
+export type CommentMutationResult = { ok: true } | { ok: false; message: string };
+
+/** 서버가 이유를 안 줬을 때. 같은 파일의 답글 실패 문구와 같은 결로 쓴다. */
+const COMMENT_EDIT_FAILED =
+  "댓글을 수정하지 못했어요. 내용을 그대로 두었으니 다시 시도해 주세요.";
+const COMMENT_DELETE_FAILED =
+  "댓글을 지우지 못했어요. 잠시 후 다시 시도해 주세요.";
+const BOOKMARK_FAILED = "저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
+
 interface CommunityState {
   // Viewer ownership boundary. null is the guest scope.
   viewerId: string | null;
@@ -62,13 +79,13 @@ interface CommunityState {
   deletePost: (id: string) => Promise<boolean>;
   votePost: (postId: string, voteType: 1 | 0) => Promise<void>;
   voteComment: (commentId: string, voteType: 1 | -1 | 0) => Promise<void>;
-  toggleBookmark: (postId: string) => Promise<void>;
+  toggleBookmark: (postId: string) => Promise<CommentMutationResult>;
   createComment: (
     input: CreateCommentInput,
     options?: { idempotencyKey?: string },
   ) => Promise<boolean>;
-  updateComment: (commentId: string, content: string) => Promise<boolean>;
-  deleteComment: (commentId: string) => Promise<boolean>;
+  updateComment: (commentId: string, content: string) => Promise<CommentMutationResult>;
+  deleteComment: (commentId: string) => Promise<CommentMutationResult>;
   incrementView: (postId: string) => Promise<void>;
   fetchProfile: () => Promise<void>;
   applyOwnNickname: (userId: string, nickname: string) => void;
@@ -553,22 +570,34 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   },
 
   toggleBookmark: async (postId) => {
+    // 결과를 돌려준다. 예전에는 void 라서 화면이 **낙관적으로 뒤집은 아이콘을
+    // 되돌릴 수도, 왜 안 됐는지 말할 수도** 없었다. 서버는 401·403·503 을 이유와
+    // 함께 준다(`api/community/posts/[id]/bookmark`).
     const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const state = get();
       const visiblePost = state.currentPost?.id === postId
         ? state.currentPost
         : state.posts.find((post) => post.id === postId);
-      if (!visiblePost) return;
+      if (!visiblePost) return { ok: false, message: BOOKMARK_FAILED };
       const desiredBookmarked = !visiblePost.user_bookmarked;
       const res = await fetch(`/api/community/posts/${postId}/bookmark`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ bookmarked: desiredBookmarked }),
       });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return;
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: typeof data?.error === "string" && data.error.trim()
+            ? data.error
+            : BOOKMARK_FAILED,
+        };
+      }
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) {
+        return { ok: false, message: BOOKMARK_FAILED };
+      }
       set((s) => ({
         posts: s.posts.map((p) =>
           p.id === postId
@@ -587,7 +616,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
             }
           : s.currentPost,
       }));
-    } catch { /* ignore */ }
+      return { ok: true };
+    } catch {
+      return { ok: false, message: BOOKMARK_FAILED };
+    }
   },
 
   createComment: async (input, options) => {
@@ -655,7 +687,7 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
   updateComment: async (commentId, content) => {
     const viewerSnapshot = captureViewerSnapshot(get());
     const trimmed = content.trim();
-    if (!trimmed) return false;
+    if (!trimmed) return { ok: false, message: COMMENT_EDIT_FAILED };
 
     try {
       const res = await fetch(`/api/community/comments/${commentId}`, {
@@ -663,12 +695,23 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: trimmed }),
       });
-      if (!res.ok) return false;
-
       const data = (await res.json().catch(() => null)) as {
         comment?: Partial<CommentWithAuthor>;
+        error?: string;
       } | null;
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
+      if (!res.ok) {
+        // 서버는 왜 막았는지 말해 준다(개인정보 422, 권한 403, 정지 안내 등).
+        // 그것을 그대로 올린다 — 여기서 문구를 지어내면 사용자는 다시 막힌다.
+        return {
+          ok: false,
+          message: typeof data?.error === "string" && data.error.trim()
+            ? data.error
+            : COMMENT_EDIT_FAILED,
+        };
+      }
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) {
+        return { ok: false, message: COMMENT_EDIT_FAILED };
+      }
       const nextContent = data?.comment?.content ?? trimmed;
       const nextUpdatedAt = data?.comment?.updated_at ?? new Date().toISOString();
 
@@ -681,9 +724,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
       };
 
       set((s) => ({ comments: s.comments.map(updateComment) }));
-      return true;
+      return { ok: true };
     } catch {
-      return false;
+      return { ok: false, message: COMMENT_EDIT_FAILED };
     }
   },
 
@@ -691,8 +734,18 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
     const viewerSnapshot = captureViewerSnapshot(get());
     try {
       const res = await fetch(`/api/community/comments/${commentId}`, { method: "DELETE" });
-      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) return false;
-      if (!res.ok) return false;
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!isViewerSnapshotCurrent(get, viewerSnapshot)) {
+        return { ok: false, message: COMMENT_DELETE_FAILED };
+      }
+      if (!res.ok) {
+        return {
+          ok: false,
+          message: typeof data?.error === "string" && data.error.trim()
+            ? data.error
+            : COMMENT_DELETE_FAILED,
+        };
+      }
       // 소프트 삭제 반영
       const updateComment = (c: CommentWithAuthor): CommentWithAuthor => {
         if (c.id === commentId) return { ...c, is_deleted: true, content: "삭제된 댓글입니다." };
@@ -700,9 +753,9 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         return c;
       };
       set((s) => ({ comments: s.comments.map(updateComment) }));
-      return true;
+      return { ok: true };
     } catch {
-      return false;
+      return { ok: false, message: COMMENT_DELETE_FAILED };
     }
   },
 

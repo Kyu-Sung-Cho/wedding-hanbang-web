@@ -61,6 +61,7 @@ export default function PostCard({ post }: PostCardProps) {
   const [bookmarking, setBookmarking] = useState(false);
   const [shareToast, setShareToast] = useState(false);
   const [loginPrompt, setLoginPrompt] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
 
   const displayVote = optimisticVote === undefined ? (post.user_vote === 1 ? 1 : null) : optimisticVote;
   const displayUpvoteCount = Math.max(0, (post.upvote_count ?? 0) + optimisticUpvoteDelta);
@@ -102,6 +103,12 @@ export default function PostCard({ post }: PostCardProps) {
     setTimeout(() => setLoginPrompt(false), 2000);
   }
 
+  /** 서버가 거절한 이유를 이미 있는 인라인 토스트로 말한다. */
+  function showActionToast(message: string) {
+    setActionToast(message);
+    setTimeout(() => setActionToast(null), 3000);
+  }
+
   async function handleLike(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
@@ -130,10 +137,20 @@ export default function PostCard({ post }: PostCardProps) {
     e.stopPropagation();
     if (!isLoggedIn) return showLoginToast();
     if (bookmarking) return;
-    setBookmarked((prev) => !prev);
+    // 먼저 뒤집되 **되돌릴 준비를 한다.** 예전에는 실패해도 채워진 채 남아서
+    // 저장된 줄 알고 화면을 떠났다. 같은 파일의 추천(handleLike)은 이미 되돌린다.
+    const previous = bookmarked;
+    setBookmarked(!previous);
     setBookmarking(true);
     try {
-      await toggleBookmark(post.id);
+      const result = await toggleBookmark(post.id);
+      if (!result.ok) {
+        setBookmarked(previous);
+        showActionToast(result.message);
+      }
+    } catch {
+      setBookmarked(previous);
+      showActionToast("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBookmarking(false);
     }
@@ -169,13 +186,18 @@ export default function PostCard({ post }: PostCardProps) {
   return (
     <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] sm:p-5">
       {/* 인라인 토스트 */}
-      {(shareToast || loginPrompt) && (
-        <div className="absolute top-3 right-3 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1A1A1F] text-white text-xs font-medium shadow-lg animate-fade-in">
+      {(shareToast || loginPrompt || actionToast) && (
+        <div
+          role={actionToast ? "alert" : undefined}
+          className="absolute top-3 right-3 z-10 inline-flex max-w-[80%] items-center gap-1.5 rounded-full bg-[#1A1A1F] px-3 py-1.5 text-xs font-medium text-white shadow-lg animate-fade-in"
+        >
           {shareToast ? (
             <>
               <Check className="w-3.5 h-3.5" />
               링크 복사됨
             </>
+          ) : actionToast ? (
+            actionToast
           ) : (
             "로그인이 필요해요"
           )}

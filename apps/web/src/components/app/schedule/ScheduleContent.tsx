@@ -23,6 +23,7 @@ import {
   type ScheduleEventDraft,
 } from "@/utils/scheduleEvents";
 import { getImminentCategories } from "@/utils/imminentChecklist";
+import { planChangeMessage } from "@/lib/journey/planChangeError";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
@@ -124,6 +125,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   // 고정하는 계약 테스트 두 개가 걸려 있어서, 출시 주에 손댈 일이 아니다. 기본값만
   // 옮기면 되돌리는 것도 이 한 줄이다.
   const [viewMode, setViewMode] = useState<"timeline" | "calendar">("calendar");
+  /** 복원 요청을 보내는 중인 일정. 버튼 자리에 표시를 남기려고 둔다. */
+  const [restoringEventId, setRestoringEventId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // 이벤트 CRUD 상태
@@ -168,8 +171,11 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         );
         return result;
       } catch (error) {
+        // 서버가 아는 사유를 말했다면 그것을 보여준다. "잠시 후 다시 시도" 는
+        // 상대가 거절했거나 화면이 낡은 경우에는 **틀린 안내**다 — 다시 눌러도 같다.
         setJourneyError(
-          "일정 변경을 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
+          planChangeMessage(error)
+            ?? "일정 변경을 저장하지 못했어요. 최신 화면을 다시 불러온 뒤 다시 시도해 주세요.",
         );
         throw error;
       }
@@ -511,6 +517,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     async (eventId: string) => {
       if (!journey) return;
       if (blockUnsafeEventMutation()) return;
+      // 누른 자리에 표시를 남긴다. 결과 배너는 화면 맨 위에 있고 이 버튼은
+      // 달력 아래라, 표시가 없으면 눌렸는지조차 알 수 없다.
+      setRestoringEventId(eventId);
+      try {
       await saveJourney({
         progress: restoreEvent(
           progress as Record<string, unknown>,
@@ -521,6 +531,9 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         pending: "파트너 승인 전에는 취소됨 상태가 유지됩니다.",
         applied: "일정을 예정 상태로 복원했어요.",
       });
+      } finally {
+        setRestoringEventId(null);
+      }
     },
     [blockUnsafeEventMutation, journey, progress, saveJourney],
   );
@@ -875,10 +888,12 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   <button
                     type="button"
                     onClick={() => void handleRestoreEvent(event.id).catch(() => undefined)}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#36534E] px-4 py-2 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#36534E] hover:text-white"
+                    disabled={restoringEventId !== null}
+                    aria-busy={restoringEventId === event.id}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#36534E] px-4 py-2 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#36534E] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw className="h-4 w-4" />
-                    복원 요청
+                    {restoringEventId === event.id ? "요청 보내는 중..." : "복원 요청"}
                   </button>
                 </article>
               ))}
