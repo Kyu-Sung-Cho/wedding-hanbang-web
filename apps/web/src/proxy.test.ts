@@ -173,6 +173,51 @@ describe("proxy API mutation trust boundary", () => {
     expect(middlewareMock.updateSession).not.toHaveBeenCalled();
   });
 
+  it("lets the release evaluator reach the route on its two paths", async () => {
+    // 2026-08-03 이후 운영 대화 평가가 여기서 403 으로 죽어 있었다. 라우트만 고쳐서는
+    // 안 된다 — 요청이 라우트에 닿지도 못했다.
+    for (const pathname of ["/api/demo/start", "/api/chat"]) {
+      middlewareMock.updateSession.mockClear();
+      const request = new NextRequest(`https://hanbang.ai${pathname}`, {
+        method: "POST",
+        headers: { "x-amora-eval": "v1.1700000000000.signature" },
+      });
+
+      await proxy(request);
+      expect(middlewareMock.updateSession, pathname).toHaveBeenCalled();
+    }
+  });
+
+  it("does not open other paths to the same header", async () => {
+    // 헤더 하나로 저장소 전체 변경 경로가 열리면 안 된다.
+    const response = await proxy(new NextRequest("https://hanbang.ai/api/community/posts", {
+      method: "POST",
+      headers: { "x-amora-eval": "v1.1700000000000.signature" },
+    }));
+
+    expect(response.status).toBe(403);
+    expect(middlewareMock.updateSession).not.toHaveBeenCalled();
+  });
+
+  it("still blocks the evaluation paths without the header", async () => {
+    const response = await proxy(new NextRequest("https://hanbang.ai/api/demo/start", {
+      method: "POST",
+      headers: { origin: "https://evil.example", "sec-fetch-site": "cross-site" },
+    }));
+
+    expect(response.status).toBe(403);
+  });
+
+  it("does not accept an absurdly long token as a pass", async () => {
+    // 값의 진위는 라우트가 판정하지만, 미들웨어가 무한한 헤더를 그냥 흘리지는 않는다.
+    const response = await proxy(new NextRequest("https://hanbang.ai/api/demo/start", {
+      method: "POST",
+      headers: { "x-amora-eval": "v".repeat(500) },
+    }));
+
+    expect(response.status).toBe(403);
+  });
+
   it("allows a same-origin browser mutation to continue", async () => {
     const request = new NextRequest("https://hanbang.ai/api/community/posts", {
       method: "POST",

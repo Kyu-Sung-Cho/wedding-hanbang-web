@@ -14,6 +14,43 @@ const PUBLIC_NON_AMBIENT_MUTATION_PATHS = new Set([
   "/api/release/write-fence-probe",
 ]);
 
+/**
+ * 릴리스 평가기가 지나가야 하는 두 경로.
+ *
+ * ## 왜 여기까지 손대야 했나
+ *
+ * 운영 대화 평가가 2026-08-03 이후 한 번도 못 돌았다. 데모 세션을 만드는 첫 걸음에서
+ * 미들웨어가 403 을 냈고, 아무도 몰랐다.
+ *
+ *     Error: Demo session failed: 403 {"error":"untrusted_mutation_origin"}
+ *
+ * 라우트만 고쳐서는 안 된다 — 요청이 라우트에 닿지도 못한다.
+ *
+ * ## 왜 헤더 존재만 보는가
+ *
+ * 이 관문은 **브라우저의 교차 출처 요청**을 막는 장치다. 그런데 브라우저는 교차 출처
+ * 요청에 임의 헤더를 붙이지 못한다 — 프리플라이트가 먼저 가고, 우리 API 는 그것을
+ * 허용하지 않는다. 폼 전송도 커스텀 헤더를 만들 수 없다. 그래서 **커스텀 헤더의 존재
+ * 자체가 CSRF 방어**이고, 이 관문이 지키려던 성질을 잃지 않는다.
+ *
+ * 암호 검증은 여기서 하지 않는다. 미들웨어는 Edge 런타임이라 `node:crypto` 가 없고,
+ * HMAC 을 두 번 구현하면 두 곳이 갈라진다. 실제 구속은 라우트가 한다 —
+ * `/api/demo/start` 와 `/api/chat` 둘 다 토큰이 틀리면 **401** 을 낸다.
+ * 즉 여기는 문을 여는 곳이 아니라, 문 앞까지 오게 두는 곳이다.
+ *
+ * 스크립트가 Origin 헤더를 지어내게 하는 방법은 쓰지 않았다. 그건 도구가 브라우저인
+ * 척하는 것이고, 무엇이 왜 통과하는지 코드에 남지 않는다.
+ */
+const AMORA_EVAL_HEADER_NAME = "x-amora-eval";
+const RELEASE_EVALUATION_PATHS = new Set(["/api/demo/start", "/api/chat"]);
+
+function looksLikeReleaseEvaluation(request: NextRequest): boolean {
+  if (!RELEASE_EVALUATION_PATHS.has(request.nextUrl.pathname)) return false;
+  const token = request.headers.get(AMORA_EVAL_HEADER_NAME);
+  // 길이만 본다. 값의 진위는 라우트가 HMAC 으로 판정한다.
+  return typeof token === "string" && token.length > 0 && token.length <= 200;
+}
+
 function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   const { pathname } = request.nextUrl;
 
@@ -230,6 +267,7 @@ export async function proxy(request: NextRequest) {
     isUnsafeApiMethod
     && !PUBLIC_NON_AMBIENT_MUTATION_PATHS.has(request.nextUrl.pathname)
     && !isRouteAuthenticatedServerMutation
+    && !looksLikeReleaseEvaluation(request)
     && !isTrustedMutationRequest(request)
   ) {
     return NextResponse.json(
