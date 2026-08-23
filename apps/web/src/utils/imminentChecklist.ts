@@ -1,6 +1,10 @@
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts, resolveStatus } from "@/utils/checklist";
-import { findCategoryScheduleEvent } from "@/utils/scheduleEvents";
+import {
+  findCategoryScheduleEvent,
+  getEvents,
+  getScheduleEventStatus,
+} from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 
 export interface ImminentCategory {
@@ -84,6 +88,35 @@ export function getImminentCategories(
   result.sort((a, b) => a.deadlineDaysLeft - b.deadlineDaysLeft);
 
   return result;
+}
+
+/** 라운지 주차 카드가 "곧 확인할 분야"로 고르는 개수. */
+export const WEEKLY_IMMINENT_LIMIT = 3;
+
+/**
+ * 라운지 주차 카드가 고르는 "곧 확인할 분야".
+ *
+ * 이름을 붙여 밖으로 뺀 이유가 있다. 이 목록은 주차 카드에만 필요한 것이 아니라
+ * **같은 화면 아래쪽의 「놓치기 쉬운 항목」이 무엇을 빼야 하는지**를 정한다.
+ * 두 곳이 각자 계산하면 정렬 기준이 조금만 달라져도 같은 분야가 한 화면에
+ * 두 번 나오고, 그게 실제로 있던 일이다 — 두 블록이 문구까지 같았다
+ * (`기본 확인 시점까지 N일`).
+ *
+ * 그래서 고르는 곳은 여기 한 곳이다. 주차 카드도, 라운지 목록도 이 함수를 부른다.
+ */
+export function getWeeklyImminentCategories(
+  progress: Record<string, ProgressItem>,
+  weddingDate: string | null | undefined,
+): ImminentCategory[] {
+  const parsed = weddingDate ? new Date(weddingDate) : null;
+  const validWedding = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+  const events = getEvents(progress as Record<string, unknown>).filter(
+    (event) => getScheduleEventStatus(event) !== "cancelled",
+  );
+  return getImminentCategories(progress, validWedding, events).slice(
+    0,
+    WEEKLY_IMMINENT_LIMIT,
+  );
 }
 
 /**

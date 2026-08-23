@@ -55,6 +55,7 @@ import {
   getStatus,
 } from "@/app/(app)/lounge/progressSummary";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
@@ -354,7 +355,19 @@ export default function LoungePage() {
   }, [progress, storedActions]);
   const upcomingEvents = useMemo(() => getUpcomingEvents(progress), [progress]);
   const priorities = useMemo(() => buildPriorities(plan, openActions, upcomingEvents), [plan, openActions, upcomingEvents]);
-  const activeCategories = useMemo(() => getActiveCategories(progress, plan.dday), [progress, plan.dday]);
+  // 주차 카드가 위에서 이미 그린 분야. 아래 「놓치기 쉬운 항목」에서 뺀다 —
+  // 빼기 전에는 같은 분야가 한 화면에 두 번, 문구까지 같게 나왔다.
+  const weeklyImminentKeys = useMemo(
+    () =>
+      new Set(
+        getWeeklyImminentCategories(progress, journey?.wedding_date).map((item) => item.key),
+      ),
+    [progress, journey?.wedding_date],
+  );
+  const activeCategories = useMemo(
+    () => getActiveCategories(progress, plan.dday, weeklyImminentKeys),
+    [progress, plan.dday, weeklyImminentKeys],
+  );
   const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
   const budgetWidth = Math.min(100, Math.max(0, budgetPercent));
   const progressPercent = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;
