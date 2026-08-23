@@ -94,10 +94,15 @@ import {
 import {
   selectAmoraPendingProposalTools,
   selectAmoraTools,
+  collectAmoraChecklistLabels,
+  mentionsKnownChecklistItem,
+  AMORA_CHECKLIST_STATE_VERB,
 } from "@/lib/ai/amoraToolPolicy";
 import {
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
+  type AmoraQuestionScopeClassification,
+  hasAmoraSafetySignal,
 } from "@/lib/ai/amoraQuestionScope";
 import {
   buildAmoraBoundedContinuity,
@@ -1241,6 +1246,69 @@ export async function POST(request: Request) {
       : trustedCanonicalScopeUserRow && earlyCrisisUserText !== null
         ? classifyAmoraQuestionScope({ userText: earlyCrisisUserText })
         : null;
+
+  // 이 커플의 체크리스트 항목을 끝냈다는 말은 **정의상 결혼 핵심**이다.
+  //
+  // 실측(2026-08-23): "디자인 초안 선택 다 했어" 가 `W4_out_of_scope` 로 떨어졌다.
+  // 사용자가 결혼 준비 항목을 끝냈다고 말했는데 "결혼과 무관" 으로 분류된 것이다.
+  // 그러면 커플 자료 읽기가 통째로 건너뛰어지고(W2/W3/W4), 항목 이름을 모르니
+  // 관문도 못 열리고, 카드도 안 나온다. 사슬의 첫 칸이 여기다.
+  //
+  // 어휘를 넓혀 고치지 않는다 — 다음 표현에서 또 막히고, 넓히다 안전 경계를 깬
+  // 전례가 있다. 대신 **서버가 가진 사실**(이 커플의 항목 이름)과 대조한다.
+  //
+  // 리스크를 0으로 두기 위한 경계:
+  //   · W4 에서만 올린다. W2·W5 안전 축은 이 코드에 닿지도 않는다.
+  //   · 올리기만 하고 내리지 않는다.
+  //   · 완료·해제 표현이 없으면 조회조차 하지 않는다(대부분의 턴은 질의 0회).
+  //   · 존재하지 않는 항목에는 절대 열리지 않는다 — 이름이 자료에 있어야 한다.
+  let checklistScopeRescue: AmoraQuestionScopeClassification | null = null;
+  if (
+    requestKind === "chat"
+    && !isDemo
+    && preliminaryQuestionScope?.scope === "W4_out_of_scope"
+    && earlyCrisisUserText !== null
+    && AMORA_CHECKLIST_STATE_VERB.test(earlyCrisisUserText)
+    // 안전 신호가 있으면 구제하지 않는다.
+    //
+    // "초대장 주문·제작 다 했는데 신랑이 화내서 무서웠어요" 처럼 항목 이름과
+    // 안전 서술이 한 문장에 있을 수 있다. 그때 W0 로 올리면 **기억이 켜진다**.
+    // 통제·폭력 서술은 기억에 남기지 않는 것이 계약이므로, 그런 문장은 구제
+    // 대상에서 빼고 원래 판정(W4)을 그대로 둔다. 비공개 보호는 이와 별개
+    // 경로(`hasAmoraSafetySignal` → 가시성)로 이미 걸린다.
+    && !hasAmoraSafetySignal(earlyCrisisUserText, "chat")
+  ) {
+    try {
+      const journeyProgress = await supabase
+        .from("wedding_journeys")
+        .select("progress")
+        .eq("couple_id", dataCoupleId)
+        .single();
+      const labels = collectAmoraChecklistLabels(journeyProgress.data?.progress);
+      if (mentionsKnownChecklistItem(earlyCrisisUserText, labels)) {
+        checklistScopeRescue = {
+          scope: "W0_wedding_core",
+          // **기억은 켜지 않는다.** 이 구제의 목적은 체크리스트 카드가 나오게
+          // 하는 것뿐이고, 기억까지 열 이유가 없다.
+          //
+          // 실측(2026-08-23): "초대장 주문·제작 다 했는데 신랑이 화내서
+          // 무서웠어요" 가 구제를 통과했다. 위 안전 가드가 있는데도 통과한 이유는
+          // 강압 통제 탐지기의 재현율이 30% 라 "화내서 무서웠어요" 를 못 잡기
+          // 때문이다. 그 상태에서 기억까지 켜면 두려움 서술이 장기 기억에 남는다.
+          //
+          // 탐지기를 넓히는 것은 별건이고 오탐을 다시 재야 한다. 그동안 이
+          // 구제가 **기억을 절대 열지 않게** 두면 그 위험이 사라진다.
+          allowsLongTermMemory: false,
+          confidence: "high",
+          needsClarification: false,
+        };
+      }
+    } catch (error) {
+      // 조회 실패로 대화를 막지 않는다. 구제가 없을 뿐 예전 동작 그대로다.
+      console.error("[chat] checklist scope rescue lookup failed", error);
+    }
+  }
+  const effectivePreliminaryScope = checklistScopeRescue ?? preliminaryQuestionScope;
   // 아모라가 되물은 직후의 짧은 답일 수 있는가. 현재 발화만 보는 값싼 판정이고
   // 아무 권한도 주지 않는다 — 저장된 결혼 문맥 읽기를 건너뛸지만 정한다.
   // 실제 판정은 행이 도착한 뒤 `resolveAmoraWeddingClarificationContinuity`가 한다.
@@ -1282,11 +1350,11 @@ export async function POST(request: Request) {
       || (
         requestKind === "chat"
         && trustedCanonicalScopeUserRow !== null
-        && preliminaryQuestionScope !== null
+        && effectivePreliminaryScope !== null
         && (
-          preliminaryQuestionScope.scope === "W2_high_risk_adjacent"
-          || preliminaryQuestionScope.scope === "W3_social_care"
-          || preliminaryQuestionScope.scope === "W4_out_of_scope"
+          effectivePreliminaryScope.scope === "W2_high_risk_adjacent"
+          || effectivePreliminaryScope.scope === "W3_social_care"
+          || effectivePreliminaryScope.scope === "W4_out_of_scope"
         )
       )
     );
@@ -2554,12 +2622,20 @@ export async function POST(request: Request) {
           currentUserText: lastUserText,
         })
       : null;
-  const questionScope = classifyAmoraQuestionScope({
+  const classifiedQuestionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
     hasWeddingClarificationContinuity: Boolean(weddingClarificationContinuity),
   });
+  // 예비 판정에서 이미 구제된 턴은 최종 판정도 같아야 한다. 여기서 다시
+  // W4 로 떨어지면 자료만 읽고 도구는 닫히는 어긋난 상태가 된다.
+  // **W4 일 때만** 대체한다 — 안전 축(W2·W5)에는 손대지 않는다.
+  const questionScope =
+    checklistScopeRescue !== null
+    && classifiedQuestionScope.scope === "W4_out_of_scope"
+      ? checklistScopeRescue
+      : classifiedQuestionScope;
   // 한 문장이 두 연속성에 모두 걸릴 수 있다("네", "그렇게 해줘"). 그때는 되묻기
   // 연속성이 이긴다 — 범위가 W0이면 provider 입력은 이미 신뢰 이력 전체를 쓰므로
   // 여기서 만든 3턴 묶음은 쓰이지도 않고, 남겨두면 `linked_context_only`(도구 금지)
@@ -2723,26 +2799,10 @@ export async function POST(request: Request) {
   // 같은 도구를 받았으므로 여기서 새로 열리는 권한은 없다.
   // 관문이 손으로 쓴 낱말 대신 **이 커플의 실제 항목 이름**을 보게 한다.
   // 항목이 없으면 빈 배열이고, 그러면 규칙이 아무것도 열지 않는다.
-  const coupleChecklistLabels: string[] = (() => {
-    // **클라이언트가 보낸 weddingContext 가 아니라 서버가 읽은 journey** 를 쓴다.
-    // 클라이언트 값은 위조할 수 있고 낡을 수 있는데, 이 값은 "무엇을 바꿀 수
-    // 있는가"를 정하는 자리다. 서버가 이미 같은 요청에서 wedding_journeys 를
-    // 읽으므로 추가 질의도 없다.
-    const progress = isRecord(journey) ? journey.progress : undefined;
-    if (!progress || typeof progress !== "object" || Array.isArray(progress)) return [];
-    const labels: string[] = [];
-    for (const value of Object.values(progress as Record<string, unknown>)) {
-      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-      const checklist = (value as Record<string, unknown>).checklist;
-      if (!Array.isArray(checklist)) continue;
-      for (const item of checklist) {
-        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-        const label = (item as Record<string, unknown>).label;
-        if (typeof label === "string" && label.trim().length > 0) labels.push(label);
-      }
-    }
-    return labels.slice(0, 120);
-  })();
+  // 범위 구제와 같은 목록을 본다(`collectAmoraChecklistLabels`). 한 벌만 둔다.
+  const coupleChecklistLabels = collectAmoraChecklistLabels(
+    isRecord(journey) ? journey.progress : undefined,
+  );
   const toolIntentText = weddingClarificationContinuity
     ? `${weddingClarificationContinuity.priorUserText}\n${lastUserText}`
     : lastUserText;

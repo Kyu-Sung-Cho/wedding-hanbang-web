@@ -277,7 +277,7 @@ export interface AmoraToolRoutingMessage {
 }
 
 /** 완료·해제를 뜻하는 말. 항목 이름만으로는 "물어본 것"과 구분되지 않는다. */
-const CHECKLIST_STATE_VERB =
+export const AMORA_CHECKLIST_STATE_VERB =
   /(?:완료|끝냈|끝났|마쳤|했어|했음|했습니다|다\s*했|체크|해제|되돌|취소)/i;
 
 /** 공백·가운뎃점·괄호를 지우고 견준다. 사용자는 "주문·제작" 을 "주문 제작" 으로 쓴다. */
@@ -295,6 +295,29 @@ function normalizeLabelToken(value: string): string {
  * 한 토큰만 스쳐도 열리면 "디자인 좋아요" 같은 말에 카드가 나온다. 두 조건이
  * 그것을 막는다.
  */
+/**
+ * journey.progress 에서 체크리스트 항목 이름만 모은다.
+ *
+ * 범위 판정과 도구 관문이 **같은 목록**을 봐야 한다. 각자 긁어모으면 한쪽만
+ * 고치는 일이 생기고, 그러면 "범위는 올라갔는데 도구는 안 열린다" 같은
+ * 어긋남이 생긴다.
+ */
+export function collectAmoraChecklistLabels(progress: unknown): string[] {
+  if (!progress || typeof progress !== "object" || Array.isArray(progress)) return [];
+  const labels: string[] = [];
+  for (const value of Object.values(progress as Record<string, unknown>)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const checklist = (value as Record<string, unknown>).checklist;
+    if (!Array.isArray(checklist)) continue;
+    for (const item of checklist) {
+      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+      const label = (item as Record<string, unknown>).label;
+      if (typeof label === "string" && label.trim().length > 0) labels.push(label);
+    }
+  }
+  return labels.slice(0, 120);
+}
+
 export function mentionsKnownChecklistItem(
   userText: string,
   labels: readonly string[] | undefined,
@@ -405,7 +428,7 @@ export function selectAmoraPendingProposalTools({
     // 나오고 "디자인 초안 선택 다 했어" 는 안 나왔다. `SCHEDULE_INTENT` 에
     // "체크리스트" 가 있는지 여부가 전부였다. 낱말을 더 넣는 것은 다음 표현에서
     // 또 막히므로, 서버가 가진 사실(항목 이름)과 대조한다.
-    || (CHECKLIST_STATE_VERB.test(userText)
+    || (AMORA_CHECKLIST_STATE_VERB.test(userText)
       && mentionsKnownChecklistItem(userText, checklistLabels))
   ) {
     addAll(selected, SCHEDULE_WRITE_TOOLS);
@@ -482,7 +505,7 @@ export function selectAmoraTools({
   if (
     CHECKLIST_WRITE.test(userText)
     // 손으로 쓴 낱말이 없어도, 이 커플의 실제 항목 이름 + 완료/해제 표현이면 연다.
-    || (CHECKLIST_STATE_VERB.test(userText)
+    || (AMORA_CHECKLIST_STATE_VERB.test(userText)
       && mentionsKnownChecklistItem(userText, checklistLabels))
   ) {
     selected.add("toggle_checklist_item");
