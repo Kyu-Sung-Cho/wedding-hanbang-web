@@ -40,6 +40,20 @@ function verifyErrorCode(message: string): "link_expired" | "link_invalid" | "ve
   return "verify_failed";
 }
 
+/**
+ * 메일 링크 스캐너가 토큰을 태우지 못하게 한다.
+ *
+ * Next 는 HEAD 핸들러가 없으면 **GET 핸들러로 처리**한다. 그러면 메일 서비스나
+ * 보안 제품이 링크를 미리 훑는 HEAD 한 번에 일회용 토큰이 소진되고, 정작
+ * 사용자가 눌렀을 때는 죽은 링크가 된다. 2026-08-22 운영 실측으로 확인했다:
+ * `curl -I` 가 GET 과 똑같이 307 을 냈다.
+ *
+ * 부작용 없이 200 만 돌려준다.
+ */
+export async function HEAD() {
+  return new Response(null, { status: 200, headers: { "Cache-Control": "no-store" } });
+}
+
 export async function GET(request: Request) {
   const { search, searchParams, origin } = new URL(request.url);
   const tokenHash = searchParams.get("token_hash");
@@ -103,9 +117,25 @@ export async function GET(request: Request) {
 
     if (verifyError) {
       console.error("메일 인증: 교환 실패:", verifyError.message);
-      return NextResponse.redirect(
-        loginError(origin, verifyErrorCode(verifyError.message), requestedPath),
-      );
+
+      // 같은 브라우저에서 링크를 두 번 열었을 수 있다(뒤로가기, 두 번 탭).
+      // 그때는 이미 세션이 서 있으므로 오류를 보여줄 이유가 없다.
+      const { data: { user: existing } } = await supabase.auth.getUser();
+      if (existing) {
+        return NextResponse.redirect(new URL(
+          type === "recovery" ? RESET_PASSWORD_PATH : getPostLoginRedirectPath(search, origin, false),
+          origin,
+        ));
+      }
+
+      // 세션이 없다. 가입 확인 링크라면 **계정은 이미 인증됐을 가능성이 높다** —
+      // 한국 모바일 메일 앱은 링크를 먼저 앱 내부 웹뷰로 열어 토큰을 태우고,
+      // 사용자는 그 뒤 진짜 브라우저에서 같은 링크를 다시 연다. 그 사람에게
+      // "새 메일을 받으세요"는 틀린 안내다 — 할 일은 그냥 로그인이다.
+      const code = type === "signup"
+        ? "signup_link_used"
+        : verifyErrorCode(verifyError.message);
+      return NextResponse.redirect(loginError(origin, code, requestedPath));
     }
 
     const { data: { user } } = await supabase.auth.getUser();

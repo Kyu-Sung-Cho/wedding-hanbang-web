@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, useEffect, useMemo } from "react";
 import Logo from "@/components/ui/Logo";
+import { AUTH_ERROR_MESSAGES } from "@/lib/auth/authErrorMessages";
 import { getSameOriginRedirectPath } from "@/lib/auth/safeRedirect";
 import { createClient } from "@/lib/supabase/client";
 
@@ -37,6 +38,8 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [ready, setReady] = useState(false);
+  // 세션이 없다는 것이 **확정된** 상태. 회전만 계속 돌리면 사용자는 기다리다 나간다.
+  const [noSession, setNoSession] = useState(false);
 
   const passwordChecks = useMemo(() => checkPasswordStrength(password), [password]);
 
@@ -54,13 +57,20 @@ export default function ResetPasswordPage() {
     const supabase = createClient();
 
     void supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled && data.session) setReady(true);
+      if (cancelled) return;
+      if (data.session) setReady(true);
+      // 세션이 없으면 **여기서 끝난다.** 회전을 계속 돌리면 무엇이 잘못됐는지
+      // 알려주지 않은 채 사람을 붙잡아 두게 된다.
+      else setNoSession(true);
     });
 
     // 링크를 직접 붙여넣는 등 클라이언트가 세션을 세우는 경로도 남겨 둔다.
     const { data: listener } = supabase.auth.onAuthStateChange((event: string) => {
       if (cancelled) return;
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") setReady(true);
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN") {
+        setReady(true);
+        setNoSession(false);
+      }
     });
 
     return () => {
@@ -140,6 +150,28 @@ export default function ResetPasswordPage() {
                 로그인 페이지로 이동합니다...
               </p>
             </div>
+          ) : noSession ? (
+            /* 세션이 없는 것이 **확정된** 상태. 예전에는 이때도 회전을 계속 돌려
+               무엇이 잘못됐는지 알려주지 않은 채 사람을 붙잡아 뒀다. */
+            <div className="text-center py-4">
+              <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />
+                </svg>
+              </div>
+              <h1 className="font-serif-kr text-[24px] font-light text-noir-800 mb-2">
+                링크를 확인하지 못했어요
+              </h1>
+              <p className="text-[14px] text-taupe-500 font-light leading-relaxed">
+                {AUTH_ERROR_MESSAGES.link_expired}
+              </p>
+              <a
+                href="/login"
+                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-noir-800 text-[14px] font-medium text-white"
+              >
+                로그인 화면으로
+              </a>
+            </div>
           ) : !ready ? (
             <div className="text-center py-4">
               <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
@@ -152,13 +184,6 @@ export default function ResetPasswordPage() {
               </h1>
               <p className="text-[14px] text-taupe-500 font-light">
                 잠시만 기다려주세요...
-              </p>
-              <p className="text-[12px] text-taupe-400 mt-4">
-                이 페이지가 계속 표시되면{" "}
-                <a href="/login" className="text-rose-500 hover:underline">
-                  비밀번호 찾기
-                </a>
-                를 다시 시도해주세요.
               </p>
             </div>
           ) : (
