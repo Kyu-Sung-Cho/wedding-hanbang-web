@@ -35,6 +35,10 @@ import {
 import { uploadCommunityMedia } from "@/lib/community/uploadMedia";
 import { isCommunityMediaPublishingUiEnabled } from "@/lib/community/mediaPublishingUiGate";
 import { weddingPath } from "@/lib/weddingPaths";
+import {
+  describePublicPostContactFinding,
+  findPublicPostContactDetails,
+} from "@hanbang/shared";
 import type {
   CommunityCategory,
   PostVisibility,
@@ -616,11 +620,15 @@ function PostWriteContent() {
       return;
     }
     if (!asDraft && visibility === "public" && !publicSafetyConfirmed) {
-      setError(
-        MEDIA_PUBLISHING_UI_ENABLED
-          ? "전체 공개 전에 본문과 사진에서 개인정보를 가렸는지 확인해 주세요."
-          : "전체 공개 전에 본문에서 개인정보를 지웠는지 확인해 주세요.",
+      // 확인 관문은 원래 있었지만 문구가 일반적이라, 사용자는 무엇을 찾아야 하는지
+      // 몰랐다. 실제로 들어 있는 것을 짚어 준다 — 찾을 것을 알면 지울 수 있다.
+      const finding = describePublicPostContactFinding(
+        findPublicPostContactDetails(title, content, sponsorshipDetail),
       );
+      const base = MEDIA_PUBLISHING_UI_ENABLED
+        ? "전체 공개 전에 본문과 사진에서 개인정보를 가렸는지 확인해 주세요."
+        : "전체 공개 전에 본문에서 개인정보를 지웠는지 확인해 주세요.";
+      setError(finding ? `${finding} ${base}` : base);
       return;
     }
 

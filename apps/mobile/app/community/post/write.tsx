@@ -14,6 +14,10 @@ import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import * as ImagePicker from "expo-image-picker";
 import * as Crypto from "expo-crypto";
 import { AppHeader } from "@/components/ui/AppUI";
+import {
+  describePublicPostContactWarning,
+  findPublicPostContactDetails,
+} from "@hanbang/shared/utils";
 
 const CATEGORIES = [
   { key: "is_normal", label: "이거 정상이야?" },
@@ -121,6 +125,23 @@ export default function WritePostScreen() {
     return urls;
   }
 
+  /**
+   * 연락처가 들어 있으면 **한 번 알리고 결정을 넘긴다.** 막지도, 글을 고치지도 않는다.
+   * 커뮤니티 글은 로그인 없이도 읽히므로 여기 적은 번호는 공개 인터넷에 올라간다.
+   */
+  function confirmPublicContact(): Promise<boolean> {
+    const message = describePublicPostContactWarning(
+      findPublicPostContactDetails(title, content, sponsorDetail),
+    );
+    if (!message) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      Alert.alert("올리기 전에 확인해 주세요", message, [
+        { text: "다시 볼게요", style: "cancel", onPress: () => resolve(false) },
+        { text: "그대로 올리기", onPress: () => resolve(true) },
+      ]);
+    });
+  }
+
   async function handleSubmit() {
     if (!category) { Alert.alert("알림", "카테고리를 선택해주세요."); return; }
     if (!title.trim()) { Alert.alert("알림", "제목을 입력해주세요."); return; }
@@ -128,6 +149,7 @@ export default function WritePostScreen() {
     if (adDisclosure === "sponsored" && sponsorDetail.trim().length < 5) {
       Alert.alert("알림", "협찬 내용을 5자 이상 입력해주세요."); return;
     }
+    if (!(await confirmPublicContact())) return;
 
     setSubmitting(true);
     try {
