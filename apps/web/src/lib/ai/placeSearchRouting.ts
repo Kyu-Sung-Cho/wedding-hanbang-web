@@ -6,6 +6,18 @@ export const PLACE_SEARCH_TOOL_NAME = "search_nearby_places";
 
 const PLACE_KIND_RE =
   /(상견례\s*(?:식당|장소)?|식당|음식점|맛집|레스토랑|카페|한정식|중식당?|일식집?|양식집?|뷔페|다이닝|술집|와인바)/i;
+/**
+ * 실제로 "먹을 곳" 을 가리키는 말. `PLACE_KIND_RE` 의 맨 "상견례" 는 예절 질문
+ * ("상견례 예절 알려줘")에도 붙으므로 도구를 줄지 판단할 때는 이쪽을 본다.
+ */
+const VENUE_KIND_RE =
+  /(상견례\s*(?:식당|장소|자리)|식당|음식점|맛집|레스토랑|카페|한정식|중식당?|일식집?|양식집?|뷔페|다이닝|술집|와인바)/i;
+/**
+ * 부탁이 아니라 물음으로 오는 경우. 사람은 "찾아줘" 만 쓰지 않는다 —
+ * "어디가 좋을까", "괜찮은 곳 알려줘", "어때" 로도 같은 것을 묻는다.
+ */
+const SOFT_ASK_RE =
+  /(알려\s*줘|알려\s*주세요|어디|좋을까|괜찮은\s*(?:곳|데)|있을까|없을까|어때|부탁|보여\s*줘|리스트|목록)/i;
 const LOCATION_RE =
   /(내\s*근처|우리\s*동네|서울|부산|대구|인천|광주|대전|울산|세종|제주|강남|홍대|건대|신촌|잠실|판교|분당|수원|일산|여의도|성수|청담|압구정|연남|[가-힣0-9]{1,12}(?:시|군|구|동|읍|면|역|로|길)(?=\s|에서|근처|주변|쪽|에|$))/i;
 const SEARCH_ACTION_RE =
@@ -54,21 +66,27 @@ function mentionsSomewhere(normalized: string): boolean {
  * 도구 자체가 목록에서 빠졌고, 아모라는 **없는 기능이라고 말할 수밖에** 없었다.
  * 사용자에게는 제품이 못 하는 것으로 보인다.
  *
- * 이제 종류와 검색 행동만 있으면 도구를 준다. 지역이 없으면 어디서 찾을지
- * 되묻는 것은 정당한 되묻기다 — "기능이 없다"는 답과 다르다.
+ * 이제 먹을 곳을 가리키는 말과 묻는 형태만 있으면 도구를 준다. 지역이 없으면
+ * 어디서 찾을지 되묻는 것은 정당한 되묻기다 — "기능이 없다"는 답과 다르다.
+ *
+ * **넉넉하게 주는 것이 옳다.** 이건 네이버 지역 검색이고, 결과에서 웨딩업체는
+ * `placeSearchTools` 가 항목 단위로 걸러낸다(질의 차단 + 결과 필터 두 겹).
+ * 앞단에서 막으면 사용자는 제품이 못 하는 것으로 받아들이지만, 뒤에서 거르면
+ * 잘못 섞인 것만 사라진다.
  */
 export function isPlaceSearchCandidate(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  return PLACE_KIND_RE.test(normalized) && SEARCH_ACTION_RE.test(normalized);
+  if (!VENUE_KIND_RE.test(normalized)) return false;
+  return SEARCH_ACTION_RE.test(normalized) || SOFT_ASK_RE.test(normalized);
 }
 
 export function isExplicitPlaceSearchIntent(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  return mentionsSomewhere(normalized)
-    && PLACE_KIND_RE.test(normalized)
-    && SEARCH_ACTION_RE.test(normalized);
+  // 강제는 "줄지" 판정 위에 **지역이 있는가** 만 얹는다. 두 판정이 갈라지면
+  // 도구는 있는데 안 부르거나, 강제하는데 도구가 없는 상태가 생긴다.
+  return isPlaceSearchCandidate(normalized) && mentionsSomewhere(normalized);
 }
 
 export function getAvailableChatTools(options: {
