@@ -67,6 +67,11 @@ interface WeddingHomeExperienceProps {
   partnerChanges?: ReactNode;
   todayOneCare?: ReactNode;
   /**
+   * 아모라가 챙기기로 한 것. 사용자가 승인해서 저장된 것이므로 선제 케어(todayOneCare)
+   * 보다 뒤, 준비 도구보다 앞에 온다 — 이미 약속한 일이 도구 목록에 밀리면 안 된다.
+   */
+  amoraActions?: ReactNode;
+  /**
    * 첫 도착 카드들(확인했어요 · 다음 걸음 · 초대). 두 사람이 만든 데이터가 아직 없을
    * 때만 라운지가 넣어준다. 이 화면은 언제 보일지 판단하지 않는다 — 판단이 두 곳에
    * 있으면 한쪽만 고쳐진다.
@@ -231,6 +236,7 @@ export default function WeddingHomeExperience({
   onRefresh,
   partnerChanges,
   todayOneCare,
+  amoraActions,
   firstArrival,
   emptyNote,
 }: WeddingHomeExperienceProps) {
@@ -384,6 +390,10 @@ export default function WeddingHomeExperience({
 
           {todayOneCare ? (
             <View style={styles.todayOneSection}>{todayOneCare}</View>
+          ) : null}
+
+          {amoraActions ? (
+            <View style={styles.todayOneSection}>{amoraActions}</View>
           ) : null}
 
           {/* 첫 실행 안내의 "준비는 여기서 이어가요"가 가리키는 곳. */}
