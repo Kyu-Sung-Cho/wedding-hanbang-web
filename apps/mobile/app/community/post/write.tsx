@@ -10,6 +10,7 @@ import { ChevronDown, Eye, Edit3, Check, ImagePlus, X } from "lucide-react-nativ
 import { colors } from "@hanbang/design-tokens";
 import { apiFetch } from "@/lib/api";
 import { uploadCommunityMedia } from "@/lib/communityUpload";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import * as ImagePicker from "expo-image-picker";
 import * as Crypto from "expo-crypto";
 import { AppHeader } from "@/components/ui/AppUI";
@@ -181,16 +182,7 @@ export default function WritePostScreen() {
         { text: "확인", onPress: () => router.back() },
       ]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "작성에 실패했어요";
-      // 영문 Supabase 에러 번역
-      const translated = msg.includes("duplicate")
-        ? "이미 동일한 글이 존재합니다."
-        : msg.includes("permission")
-          ? "권한이 없습니다. 다시 로그인해주세요."
-          : msg.includes("network")
-            ? "네트워크 오류가 발생했어요. 인터넷 연결을 확인해주세요."
-            : msg;
-      Alert.alert("오류", translated);
+      Alert.alert("오류", toKoreanErrorMessage(err, "글을 올리지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setSubmitting(false);
     }
