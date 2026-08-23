@@ -56,6 +56,7 @@ import {
 import { clearCommunityCaches } from "@/lib/communityPostCache";
 import { purgeCommunityDecisionPendingForOwnerWithRetry } from "@/lib/communityDecisionPending";
 import { hasActiveCareConsent } from "@/lib/careSettings";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import { ActionRow, AppHeader, LoadingState, PrimaryButton, Surface } from "@/components/ui/AppUI";
 import AppGuide from "@/components/AppGuide";
 import InviteCodeCard from "@/components/invite/InviteCodeCard";
@@ -285,15 +286,7 @@ export default function SettingsScreen() {
         Animated.timing(checkScale, { toValue: 0, duration: 1500, delay: 1000, useNativeDriver: true }),
       ]).start(() => setSaved(false));
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "저장 중 오류가 발생했어요";
-      // 영문 Supabase 에러 번역
-      const translated = message.includes("permission")
-        ? "권한이 없습니다. 다시 로그인해주세요."
-        : message.includes("network")
-          ? "네트워크 오류가 발생했어요."
-          : message;
-      Alert.alert("오류", translated);
+      Alert.alert("오류", toKoreanErrorMessage(err, "저장 중 문제가 있었어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setSaving(false);
     }
@@ -358,9 +351,7 @@ export default function SettingsScreen() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "비밀번호 변경 중 오류가 발생했어요";
-      Alert.alert("오류", message);
+      Alert.alert("오류", toKoreanErrorMessage(err, "비밀번호를 바꾸지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setPasswordSaving(false);
     }
