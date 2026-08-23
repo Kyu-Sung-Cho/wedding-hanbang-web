@@ -385,8 +385,33 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       const vendor = p.vendor ? `업체: ${promptData(p.vendor, 200)}` : "";
       const notes = p.notes ? `메모: ${promptData(p.notes, 500)}` : "";
       const checklist = Array.isArray(p.checklist) ? p.checklist as { id: string; label: string; done: boolean }[] : [];
+      // 개수만 주면 `toggle_checklist_item` 을 절대 못 쓴다. 그 도구는 `item_id`
+      // (예: venue_03)를 필수로 받는데, 예전에는 프롬프트가 id·label 을 버리고
+      // "할일: 3/12완료" 만 남겼다. 그래서 아모라는 준 적 없는 ID 를 내라는 요구를
+      // 받았고, 라이브에서 **사용자에게 "항목 ID를 알려주세요"라고 되물었다**
+      // (2026-08-23 실측). 사용자는 그런 걸 모른다.
+      //
+      // ID 를 지어내지 않고 모른다고 말한 것 자체는 옳다 — 할루시네이션 가드가
+      // 작동한 것이다. 고칠 곳은 모델이 아니라 자료였다.
+      //
+      // 미완료를 먼저 싣는다. 완료 항목은 되돌릴 때만 필요하고, 프롬프트 예산은
+      // 유한하다. 카테고리당 상한을 두어 체크리스트가 길어져도 프롬프트가
+      // 터지지 않게 한다.
+      const CHECKLIST_ITEMS_PER_CATEGORY = 12;
+      const orderedChecklist = [
+        ...checklist.filter((c) => !c.done),
+        ...checklist.filter((c) => c.done),
+      ];
+      const shownChecklist = orderedChecklist.slice(0, CHECKLIST_ITEMS_PER_CATEGORY);
+      const hiddenChecklistCount = orderedChecklist.length - shownChecklist.length;
       const checklistInfo = checklist.length > 0
-        ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
+        ? [
+            `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`,
+            shownChecklist
+              .map((c) => `${c.done ? "✅" : "⬜"}${c.id}=${promptData(c.label, 60)}`)
+              .join(", "),
+            hiddenChecklistCount > 0 ? `그 밖에 ${hiddenChecklistCount}개 더 있음` : "",
+          ].filter(Boolean).join(" / ")
         : "";
       const parts = [
         `${label}(${key}): ${status}, 예산: ${budget}`,
