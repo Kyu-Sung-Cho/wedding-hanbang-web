@@ -247,10 +247,52 @@ function formatNumber(value: number): string {
 }
 
 function formatWon(value: number): string {
+  // 0 은 "0만 원"이 아니라 "0원"이다. 지출 0 을 적어 보낼 때 실제로 이렇게 보였다.
+  if (value === 0) return "0원";
   if (Number.isInteger(value / 10_000)) {
     return `${formatNumber(value / 10_000)}만 원`;
   }
   return `${formatNumber(value)}원`;
+}
+
+/**
+ * 날짜만 한국어로 읽어준다.
+ *
+ * 확인 카드의 나머지는 이미 사람 말이다 — 금액은 "5,500만 원", enum 은 "업체·가족과의
+ * 약속". 그런데 날짜만 `"2027-04-17"` 로 **따옴표까지 붙은 채** 나왔다. 사용자가 결혼식
+ * 날짜를 바꾸기 직전에 읽는 줄이 이것이다.
+ *
+ * ## 따옴표를 통째로 없애지 않는 이유
+ *
+ * 문자열 값의 따옴표는 **줄 위조를 막는다.** 제목에 개행을 넣으면 `- 총 예산: 1원` 같은
+ * 가짜 확인 줄을 만들 수 있는데, `JSON.stringify` 가 개행을 `
+` 으로 접어 한 줄에
+ * 가둔다. 그래서 자유 문자열은 그대로 두고, **모양이 확실한 날짜만** 바꾼다.
+ *
+ * 날짜 필드에는 스키마 pattern 이 없는 것도 있다(`update_wedding_date`). 그러니 스키마를
+ * 믿지 말고 **값의 모양을 여기서 직접 확인한다.** 달력에 없는 날짜(2027-02-31)나 다른
+ * 모양이면 따옴표 붙은 원래 표시로 돌아간다 — 이상한 값은 이상하게 보여야 한다.
+ */
+const DATE_FIELDS: ReadonlySet<string> = new Set([
+  "wedding_date",
+  "date",
+  "expected_date",
+  "due_date",
+]);
+
+function formatKoreanDate(value: string): string | null {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/u.exec(value);
+  if (!match) return null;
+  const [, year, month, day] = match;
+  const utc = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (Number.isNaN(utc.getTime())) return null;
+  // 2027-02-31 처럼 넘쳐서 다른 날로 굴러간 값을 거른다.
+  if (utc.getUTCFullYear() !== Number(year)
+    || utc.getUTCMonth() + 1 !== Number(month)
+    || utc.getUTCDate() !== Number(day)) {
+    return null;
+  }
+  return `${Number(year)}년 ${Number(month)}월 ${Number(day)}일`;
 }
 
 function formatFieldValue(key: string, value: unknown): string {
@@ -265,6 +307,10 @@ function formatFieldValue(key: string, value: unknown): string {
     const normalized = value;
     if (key === "booking_id") {
       return JSON.stringify(`…${normalized.slice(-8)}`);
+    }
+    if (DATE_FIELDS.has(key)) {
+      const korean = formatKoreanDate(normalized);
+      if (korean) return korean;
     }
     const categoryLabel = key === "category" || key === "category_key"
       ? CATEGORY_LABELS[normalized]
