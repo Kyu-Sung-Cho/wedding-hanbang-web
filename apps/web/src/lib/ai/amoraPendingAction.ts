@@ -715,6 +715,24 @@ export function renderAmoraPendingActionMarker(value: unknown): string | null {
 // 반영되지 않았습니다" 만 답했다). 표식이 사실이 아님만 알리면 된다.
 const UNCONFIRMED_PROPOSAL_HISTORY_NOTE = "[미확인 제안 — 저장된 값 아님]";
 
+/**
+ * 이 아모라 턴이 **실패 안내**인가.
+ *
+ * 표식 없이 확인 문장만 쓴 턴은 서버가 지우고 `FORGED_CONFIRMATION_REPLACEMENT`
+ * 로 바꾼다. 사용자에게는 그게 맞다 — 무엇을 다시 해야 하는지 알아야 하니까.
+ *
+ * 그런데 그 문장을 **모델 이력에도 그대로 보여주면** 모델은 그것을 아모라 턴의
+ * 모양으로 배운다. 실측(2026-08-24): 운영 대화 최근 17개 아모라 턴 중 3개가 이
+ * 안내였고, 그 뒤로 일정 취소 요청 3번 연속 카드가 나오지 않았다. 같은 일이
+ * 스테이징에서도 5번 연속 재현됐다. 실패 몇 번이 그 대화를 **영구히** 망친다.
+ *
+ * 그래서 이 턴은 프로바이더 이력에서 뺀다. DB 와 화면은 그대로다.
+ */
+export function isAmoraFailedProposalNotice(content: unknown): boolean {
+  return typeof content === "string"
+    && content.includes(FORGED_CONFIRMATION_REPLACEMENT);
+}
+
 export function buildAmoraHistoryContent(
   content: string,
   pendingAction: unknown,

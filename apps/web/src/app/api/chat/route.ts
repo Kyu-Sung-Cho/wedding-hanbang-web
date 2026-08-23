@@ -123,6 +123,7 @@ import {
   buildAmoraApprovedActionPrompt,
   buildAmoraPendingActionPrompt,
   buildAmoraHistoryContent,
+  isAmoraFailedProposalNotice,
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
@@ -2364,6 +2365,10 @@ export async function POST(request: Request) {
 
   const toCanonicalMessage = (row: CanonicalChatRow) => {
     if (row.sender_type === "ai" || row.role === "assistant") {
+      // 실패 안내는 모델에게 보여주지 않는다. 보여주면 모델이 그것을 아모라
+      // 턴의 모양으로 배워서, 몇 번의 실패가 그 대화를 영구히 망친다
+      // (2026-08-24 운영·스테이징 양쪽에서 재현). 화면과 DB 는 그대로다.
+      if (isAmoraFailedProposalNotice(row.content)) return null;
       // 제안했던 턴은 표식을 되붙이고, 확인만 약속하고 표식이 없던 턴은 그
       // 약속을 걷어낸다. 이력은 모델에게 "아모라 턴은 이렇게 생겼다"를 가르친다.
       return {
@@ -2389,7 +2394,9 @@ export async function POST(request: Request) {
       id: row.id,
     };
   };
-  const canonicalMessages = canonicalRows.map(toCanonicalMessage);
+  const canonicalMessages = canonicalRows
+    .map(toCanonicalMessage)
+    .filter((message): message is NonNullable<typeof message> => message !== null);
 
   // Signed demo만 DB가 없으므로 client history를 사용한다. 실제 사용자 턴은
   // canonical DB history만 prompt source로 허용한다.
@@ -2950,7 +2957,9 @@ export async function POST(request: Request) {
         oldestFirstRows: canonicalRows,
         currentUserMessageId: currentCanonicalUserMessageId,
         visibility,
-      }).map(toCanonicalMessage)
+      })
+        .map(toCanonicalMessage)
+        .filter((message): message is NonNullable<typeof message> => message !== null)
     : typedMessages;
   const providerMessages = allowsStoredProviderContext
     ? takeRecentAmoraConversation(trustedStoredProviderMessages)
