@@ -1,8 +1,0 @@
- no   | score=6 | ev=2 | roles=bride/groom | below_threshold | A 예단 갈등 (부모 언급 포함)
-OFFER | score=9 | ev=2 | roles=bride/groom | mutual_conflict_evidence | B 예식장 예산 갈등 (부모 언급 없음)
- no   | score=6 | ev=2 | roles=bride/groom | below_threshold | C 일상적 서운함
- no   | score=7 | ev=1 | roles=bride | one_sided_evidence | D 한쪽만 갈등 표현
- no   | score=0 | ev=0 | roles=- | one_sided_evidence | E 완곡한 의견 차이
-OFFER | score=15 | ev=2 | roles=bride/groom | mutual_conflict_evidence | F 교과서적 강한 갈등
- no   | score=0 | ev=0 | roles=- | insufficient_direct_messages | G 아모라에게만 말함 (target=ai)
- no   | score=3 | ev=2 | roles=bride/groom | below_threshold | H 이모티콘/ㅋㅋ 섞인 갈등
