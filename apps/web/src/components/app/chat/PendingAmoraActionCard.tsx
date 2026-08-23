@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Loader2, RotateCcw, ShieldCheck, Users, X } from "lucide-react";
+import { SHARED_PLAN_TOOLS } from "@hanbang/shared";
 import {
   getAmoraActionApprovalPolicy,
   getAmoraPendingActionTtlMs,
@@ -273,6 +274,8 @@ export default function PendingAmoraActionCard({
 }: PendingAmoraActionCardProps) {
   const approvalPolicy = getAmoraActionApprovalPolicy(action.tool, action.input);
   const requiresCoupleApproval = approvalPolicy === "couple";
+  // 공유 계획을 건드리는 변경인가 — 상대에게 알림이 가는 것들이다.
+  const notifiesPartner = SHARED_PLAN_TOOLS.has(action.tool);
   const [approvalStatus, setApprovalStatus] =
     useState<SharedActionApprovalStatus | null>(null);
   const [approvalError, setApprovalError] = useState<string | null>(null);
@@ -480,6 +483,15 @@ export default function PendingAmoraActionCard({
   );
 
   let approvalCopy: string | null = approvalError ?? applicationNotice;
+  // 승인이 없어진 자리에 **알림**이 들어왔다(2026-08-23 파운더 결정). 그런데
+  // 바꾸는 사람에게는 그 사실을 아무도 알려주지 않았다 — 혼자 총예산을 바꾸고,
+  // 상대는 종 아이콘으로만 알게 되어 "상의 없이 바뀌었다" 로 읽힌다.
+  //
+  // 상대에게 알려야 하는 변경(공유 계획)일 때만 붙인다. 체크리스트 하나 체크할
+  // 때마다 이 문장이 뜨면 아무도 안 읽는다.
+  if (!approvalCopy && !requiresCoupleApproval && notifiesPartner) {
+    approvalCopy = "확인하면 바로 반영되고, 상대에게 바뀐 내용이 알림으로 가요.";
+  }
   if (!approvalCopy && requiresCoupleApproval) {
     if (approvalError) {
       approvalCopy = approvalError;

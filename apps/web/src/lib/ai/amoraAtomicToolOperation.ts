@@ -394,6 +394,25 @@ function buildCategoryBudgetOperation(
       "예산 항목과 금액을 다시 확인해 주세요.",
     );
   }
+
+  // 사용자가 예산 화면에서 지운 항목에는 쓰지 않는다.
+  //
+  // 삭제는 `progress.__hidden` 에 키를 넣는 방식이라 값 자체는 남아 있다.
+  // 그래서 여기서 막지 않으면 쓰기는 성공하고 아모라는 "반영했어요" 라고
+  // 말하는데 **예산 화면에는 아무 변화가 없다**(합계에도 안 잡힌다).
+  // 사용자에게는 아모라가 거짓말한 것으로 보인다(2026-08-24 감사).
+  //
+  // 되살리는 도구는 없으므로 화면을 가리킨다 — 화면에는 되살리는 길이 있다.
+  const hiddenKeys = (context.weddingContext.progress as Record<string, unknown>)
+    ?.__hidden;
+  if (Array.isArray(hiddenKeys) && hiddenKeys.includes(category)) {
+    return noOpFailure(
+      "update_category_budget",
+      toolInput,
+      "category_hidden_by_user",
+      `${CATEGORY_LABELS[category as keyof typeof CATEGORY_LABELS] ?? category}은(는) 예산 화면에서 빼두신 항목이라 지금은 반영하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.`,
+    );
+  }
   const progress = context.weddingContext.progress as Record<string, unknown>;
   const existing = progress[category];
   if (existing !== undefined && !isRecord(existing)) {

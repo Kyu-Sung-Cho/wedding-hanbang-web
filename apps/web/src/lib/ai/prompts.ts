@@ -368,8 +368,19 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   const progressEntries = Object.entries(context.progress)
     .filter(([k]) => k !== "__events" && k !== "__budgetScope");
 
+  // 사용자가 예산 화면에서 지운 항목은 아모라에게도 보이지 않아야 한다.
+  // 보이면 아모라가 그 항목을 제안하고, 쓰면 "반영했어요" 라고 말하는데 화면은
+  // 그대로다 — 사용자에게는 거짓말로 읽힌다(2026-08-24 감사).
+  const hiddenCategoryKeys = new Set(
+    Array.isArray((context.progress as Record<string, unknown>)?.__hidden)
+      ? ((context.progress as Record<string, unknown>).__hidden as unknown[])
+          .filter((key): key is string => typeof key === "string")
+      : [],
+  );
+
   // 카테고리별 상세 현황 생성
   const categoryStatus = Object.entries(CATEGORY_LABELS)
+    .filter(([key]) => !hiddenCategoryKeys.has(key))
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
       const resolved = resolveStatusByKey(key, p as Parameters<typeof resolveStatusByKey>[1]);

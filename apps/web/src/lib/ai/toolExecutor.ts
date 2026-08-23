@@ -1130,7 +1130,16 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   // 사용자가 입력하거나 계약 금액으로 확인한 예산과 명시적 기록 지출만 보고한다.
   // 기록 지출은 결제 완료 증거가 아니다.
   // 미입력 예산이나 상태를 근거로 금액을 추정하지 않는다.
-  const categories = Object.keys(CATEGORY_LABELS).map((key) => {
+  // 예산 화면에서 지운 항목은 요약에서도 뺀다. 화면과 다른 숫자를 말하지 않게.
+  const hiddenBudgetKeys = new Set(
+    Array.isArray((progress as Record<string, unknown>).__hidden)
+      ? ((progress as Record<string, unknown>).__hidden as unknown[])
+          .filter((key): key is string => typeof key === "string")
+      : [],
+  );
+  const categories = Object.keys(CATEGORY_LABELS)
+    .filter((key) => !hiddenBudgetKeys.has(key))
+    .map((key) => {
     const p = (progress[key] ?? {}) as Record<string, unknown>;
     const hasSetBudget = isValidWonAmount(p.budget);
     const allocated = hasSetBudget ? (p.budget as number) : null;
