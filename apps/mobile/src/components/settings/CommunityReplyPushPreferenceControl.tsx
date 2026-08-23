@@ -111,8 +111,23 @@ export default function CommunityReplyPushPreferenceControl() {
         </View>
         <View style={styles.copy}>
           <Text style={styles.title}>커뮤니티 답글 푸시</Text>
+          {/*
+            켜면 실제로 일어나는 일만 적는다 — 동의를 저장하고 이 기기를 등록한다.
+            발송은 아직 하지 않는다: 발송기는 어느 스케줄러에도 붙어 있지 않고
+            (`apps/web/vercel.json` 크론 목록에 없다), 그 부재를 테스트가 롤아웃
+            승인 전까지 잠가 두었다(community-notification-push/route.test.ts:52).
+
+            예전 문구는 "앱을 닫아도 … 알려드려요" 였다. 권한을 허용한 실기기에서는
+            토글이 오류 없이 켜지므로, 사용자는 약속을 받고도 알림을 영영 못 받는다.
+            같은 파일의 오류 문구가 이미 "아직 외부 푸시는 보내지 않아요" 라고
+            사실을 말하고 있어 두 문장이 서로 어긋나 있었다.
+
+            앱 안 알림 목록을 대안으로 안내하지 않는다 — 모바일에는 커뮤니티 알림
+            목록 화면이 없다. 없는 곳을 가리키면 거짓말이 하나 더 늘 뿐이다.
+          */}
           <Text style={styles.description}>
-            앱을 닫아도 내가 쓴 글·댓글의 새 답글을 알려드려요. 직접 켜기 전에는 보내지 않아요.
+            새 답글 알림을 받을 기기로 등록해 둬요. 휴대폰 알림은 아직 보내지 않고,
+            시작할 때 켜 두신 분에게만 보내드려요.
           </Text>
         </View>
         {saving ? (
