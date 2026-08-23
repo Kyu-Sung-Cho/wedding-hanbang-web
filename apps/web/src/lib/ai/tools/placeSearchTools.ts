@@ -198,6 +198,57 @@ function readNaverSearchConfig(): NaverSearchConfig | null {
   return null;
 }
 
+/**
+ * 검색어가 말한 종류를 앞으로 올린다. **버리지는 않는다.**
+ *
+ * 네이버는 "강남 한정식" 에 주꾸미요리·요리주점을 먼저 준다(2026-08-23 실측:
+ * 아쭈(주꾸미요리) · 부엉이산장(요리주점) · 벌교한상(한식) · 수담 한정식 · 정식당).
+ * 우리 검색어는 정확했고 순위가 네이버 것이다. 그래도 "상견례 할 한정식집" 을
+ * 물은 사람에게 주꾸미집이 맨 위면 답이 틀린 것처럼 보인다.
+ *
+ * 걸러내지 않는 이유: 네이버가 분류를 다르게 붙인 진짜 후보를 우리가 지우면
+ * 사용자는 그 가게가 있는 줄도 모른다. 순서만 바꾸면 손해가 없다.
+ */
+export function rankPlacesByQueryKind<T extends { category?: string | null; categoryFull?: string | null }>(
+  places: T[],
+  query: string,
+): T[] {
+  const kinds = ["한정식", "한식", "일식", "중식", "양식", "이탈리안", "뷔페", "카페", "베이커리", "코스요리"];
+  // "한식" 은 "한정식" 의 부분문자열이 아니다(한-정-식). 그래서 상위 갈래를 따로 적는다 —
+  // 한정식집을 찾는 사람에게 한식집은 후보지만 주꾸미집보다는 뒤다.
+  const broader: Readonly<Record<string, readonly string[]>> = {
+    한정식: ["한식"],
+    이탈리안: ["양식"],
+    베이커리: ["카페"],
+    코스요리: ["양식", "한식"],
+  };
+  const direct = kinds.filter((kind) => query.includes(kind));
+  if (direct.length === 0) return places;
+  const asked = [
+    ...direct,
+    ...direct.flatMap((kind) => broader[kind] ?? []).filter((kind) => !direct.includes(kind)),
+  ];
+  // **구체적인 분류를 먼저 본다.** `categoryFull` 은 `음식점>한식>주꾸미요리` 처럼
+  // 상위 갈래를 달고 있어서, 그걸로 세면 주꾸미집도 "한식" 으로 잡힌다(실측).
+  // 가게에 실제로 붙은 이름(`category`)이 맞을 때가 훨씬 강한 신호다.
+  const score = (place: T): number => {
+    const specific = place.category ?? "";
+    const full = place.categoryFull ?? "";
+    for (let i = 0; i < asked.length; i += 1) {
+      if (specific.includes(asked[i])) return 100 + (asked.length - i);
+    }
+    for (let i = 0; i < asked.length; i += 1) {
+      if (full.includes(asked[i])) return asked.length - i;
+    }
+    return 0;
+  };
+  // 같은 점수면 네이버 순서를 그대로 둔다.
+  return places
+    .map((place, index) => ({ place, index, score: score(place) }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map((entry) => entry.place);
+}
+
 function buildNaverHandoff(query: string): { searchUrl: string; mapsUrl: string } {
   return {
     searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
@@ -429,7 +480,7 @@ export async function executeSearchNearbyPlaces(
       toolName: "search_nearby_places",
       toolInput: input,
       toolOutput: {
-        places,
+        places: rankPlacesByQueryKind(places, query),
         query,
         provider: config.provider,
         providerUnavailable: false,
