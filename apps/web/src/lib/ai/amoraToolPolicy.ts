@@ -1,3 +1,4 @@
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import type { SpecialistType } from "@/types/moat.types";
 
@@ -302,17 +303,37 @@ function normalizeLabelToken(value: string): string {
  * 고치는 일이 생기고, 그러면 "범위는 올라갔는데 도구는 안 열린다" 같은
  * 어긋남이 생긴다.
  */
+/**
+ * 아모라가 알아볼 체크리스트 항목 이름.
+ *
+ * **정본은 저장값이 아니라 템플릿이다.** 화면은
+ * `mergePlanningChecklist(template, saved)` 로 그리는데, 그 병합은 템플릿 라벨이
+ * 이기고 저장값에서는 `done` 만 가져온다. 그래서 사용자가 화면에서 읽는 이름은
+ * 언제나 템플릿의 이름이다.
+ *
+ * 그런데 이 함수는 저장된 progress 의 라벨을 그대로 읽고 있었다. 둘이 다르면
+ * 아모라는 **사용자가 말한 이름을 영영 못 알아본다.**
+ *
+ * 실측(2026-08-24 운영): 체크리스트 항목 173개 중 90개, 19커플 중 15커플의
+ * 저장 라벨이 물음표로 깨져 있었다(`'??? ??? ??'`). 화면은 멀쩡했고 아모라만
+ * 못 알아봤다 — "항목 이름을 다시 보내주세요" 를 반복했다.
+ *
+ * 이제 템플릿에서 이름을 가져온다. 저장값이 어떻게 깨져 있든 아모라가 보는
+ * 이름과 사용자가 보는 이름이 같아진다.
+ */
 export function collectAmoraChecklistLabels(progress: unknown): string[] {
   if (!progress || typeof progress !== "object" || Array.isArray(progress)) return [];
+  const stored = progress as Record<string, unknown>;
   const labels: string[] = [];
-  for (const value of Object.values(progress as Record<string, unknown>)) {
-    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
-    const checklist = (value as Record<string, unknown>).checklist;
-    if (!Array.isArray(checklist)) continue;
-    for (const item of checklist) {
-      if (!item || typeof item !== "object" || Array.isArray(item)) continue;
-      const label = (item as Record<string, unknown>).label;
-      if (typeof label === "string" && label.trim().length > 0) labels.push(label);
+  for (const template of CATEGORY_CHECKLISTS) {
+    const saved = stored[template.key];
+    // 그 분야를 아직 열지 않은 커플에게는 항목을 세지 않는다 — 없는 항목을
+    // 완료 처리하겠다고 나서지 않게.
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) continue;
+    for (const item of template.items) {
+      if (typeof item.label === "string" && item.label.trim().length > 0) {
+        labels.push(item.label);
+      }
     }
   }
   return labels.slice(0, 120);
