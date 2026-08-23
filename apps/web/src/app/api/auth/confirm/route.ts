@@ -11,6 +11,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { isEmailConfirmType } from "@/lib/auth/emailConfirmLink";
+import { verifyEmailConfirmSignature } from "@/lib/auth/emailConfirmSignature";
 import { resolvePostAuthLanding } from "@/lib/auth/postAuthLanding";
 import {
   getOptionalSameOriginRedirectPath,
@@ -52,6 +53,24 @@ export async function GET(request: Request) {
 
   if (!tokenHash || !isEmailConfirmType(type)) {
     return NextResponse.redirect(loginError(origin, "link_invalid", requestedPath));
+  }
+
+  // 만료는 **교환하기 전에** 본다. verifyOtp 를 먼저 부르면 만료된 링크로도
+  // 세션이 서고, 그 뒤에 막아 봐야 이미 늦다.
+  //
+  // Supabase 쪽 만료도 그대로 살아 있다 — 둘 중 짧은 쪽이 이긴다.
+  const verdict = verifyEmailConfirmSignature({
+    tokenHash,
+    type,
+    expiresAt: searchParams.get("exp"),
+    signature: searchParams.get("sig"),
+    nowMs: Date.now(),
+  });
+  if (verdict !== "valid") {
+    // 서명 없는 옛 링크와 만료된 링크는 사용자가 할 일이 같다 — 새 메일 받기.
+    const code = verdict === "invalid" ? "link_invalid" : "link_expired";
+    console.error(`메일 인증: 링크 거절(${verdict})`);
+    return NextResponse.redirect(loginError(origin, code, requestedPath));
   }
 
   try {
