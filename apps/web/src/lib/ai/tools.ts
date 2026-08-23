@@ -374,7 +374,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         schedule_scope: {
           type: "string",
           enum: ["confirmed_fact", "shared_commitment", "external_commitment"],
-          description: "변경하는 일정의 성격. 일정 수정은 값과 관계없이 두 사람 확인 대상입니다.",
+          description: "변경하는 일정의 성격. 값과 관계없이 사용자 확인 카드를 거칩니다.",
         },
       },
       required: ["event_id"],
@@ -383,7 +383,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "cancel_schedule_event",
     description:
-      "일정을 지우지 않고 취소 상태로 바꾸며 취소 시각·처리한 구성원·선택적 사유를 남깁니다. 먼저 get_schedule_events로 event_id와 현재 상태를 확인하세요. 두 사람의 확인이 필요합니다.",
+      "일정을 지우지 않고 취소 상태로 바꾸며 취소 시각·처리한 구성원·선택적 사유를 남깁니다. event_id는 문맥의 `### 등록된 일정` 줄 앞(`evt_…=`)에 있습니다. 거기 없는 일정이면 지어내지 말고 어느 일정인지 되물으세요.",
     input_schema: {
       type: "object" as const,
       additionalProperties: false,
@@ -419,7 +419,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "restore_schedule_event",
     description:
-      "취소 상태인 일정 하나를 예정 상태로 복원하고 취소 감사 정보는 제거합니다. 먼저 get_schedule_events로 event_id와 현재 상태를 확인하세요. 두 사람의 확인이 필요합니다.",
+      "취소 상태인 일정 하나를 예정 상태로 복원하고 취소 감사 정보는 제거합니다. event_id는 문맥의 `### 등록된 일정` 줄 앞(`evt_…=`)에 있습니다. 거기 없는 일정이면 지어내지 말고 어느 일정인지 되물으세요.",
     input_schema: {
       type: "object" as const,
       additionalProperties: false,
