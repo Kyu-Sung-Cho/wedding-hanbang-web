@@ -276,6 +276,49 @@ export interface AmoraToolRoutingMessage {
   content: string;
 }
 
+/** 완료·해제를 뜻하는 말. 항목 이름만으로는 "물어본 것"과 구분되지 않는다. */
+const CHECKLIST_STATE_VERB =
+  /(?:완료|끝냈|끝났|마쳤|했어|했음|했습니다|다\s*했|체크|해제|되돌|취소)/i;
+
+/** 공백·가운뎃점·괄호를 지우고 견준다. 사용자는 "주문·제작" 을 "주문 제작" 으로 쓴다. */
+function normalizeLabelToken(value: string): string {
+  return value.replace(/[\s·・.,()[\]{}'"`~!?]/gu, "");
+}
+
+/**
+ * 사용자가 **이 커플에 실제로 있는** 체크리스트 항목을 말했는가.
+ *
+ * 이름 전체가 그대로 나오길 요구하면 못 잡는다 — 사람은 "초대장 디자인 초안
+ * 선택" 을 "디자인 초안 선택" 이라고 줄여 말한다. 그래서 이름을 토큰으로 쪼개
+ * **과반(60%) 이상이 문장에 있고 최소 두 개가 맞을 때** 그 항목으로 본다.
+ *
+ * 한 토큰만 스쳐도 열리면 "디자인 좋아요" 같은 말에 카드가 나온다. 두 조건이
+ * 그것을 막는다.
+ */
+export function mentionsKnownChecklistItem(
+  userText: string,
+  labels: readonly string[] | undefined,
+): boolean {
+  if (!labels || labels.length === 0) return false;
+  const haystack = normalizeLabelToken(userText);
+  if (haystack.length === 0) return false;
+  for (const label of labels) {
+    if (typeof label !== "string") continue;
+    const tokens = label
+      .split(/[\s·・/]+/u)
+      .map(normalizeLabelToken)
+      .filter((token) => token.length >= 2);
+    if (tokens.length === 0) continue;
+    const matched = tokens.filter((token) => haystack.includes(token)).length;
+    if (matched >= 2 && matched / tokens.length >= 0.6) return true;
+    // 토큰이 하나뿐인 짧은 이름은 전체가 그대로 나와야 한다.
+    if (tokens.length === 1 && haystack.includes(tokens[0]) && tokens[0].length >= 4) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface SelectAmoraToolsInput {
   availableTools: readonly AiToolDefinition[];
   userText: string;
@@ -283,6 +326,18 @@ export interface SelectAmoraToolsInput {
   attachmentKind?: "none" | "image" | "document";
   /** 직전 대화만 전달. 구현이 마지막 2개/각 600자로 다시 제한한다. */
   routingContext?: readonly AmoraToolRoutingMessage[];
+  /**
+   * 이 커플의 실제 체크리스트 항목 이름.
+   *
+   * 관문이 손으로 쓴 낱말 목록만 보면, 사용자가 그 낱말을 안 쓰는 순간 기능이
+   * 사라진다. 실측(2026-08-23): "체크리스트에서 디자인 초안 선택 다 했어" 는
+   * 카드가 나오고 **"디자인 초안 선택 다 했어" 는 안 나온다.** 낱말 하나 차이다.
+   *
+   * 항목 이름은 서버가 가진 사실이다. 그것을 말했으면 그게 곧 의도다. 목록을
+   * 넓히는 대신 커플의 자료와 대조하면 새 항목이 생겨도 패턴을 안 짜도 되고,
+   * 존재하지 않는 항목에는 절대 안 열린다.
+   */
+  checklistLabels?: readonly string[];
 }
 
 function addAll(target: Set<string>, names: readonly string[]): void {
@@ -298,6 +353,7 @@ export function selectAmoraPendingProposalTools({
   availableTools,
   userText,
   specialistType,
+  checklistLabels,
 }: SelectAmoraToolsInput): AiToolDefinition[] {
   const selected = new Set<string>();
   // 남의 이야기와 가정에는 카드를 내지 않는다. `selectAmoraTools` 는 이 가드를
@@ -342,6 +398,15 @@ export function selectAmoraPendingProposalTools({
     || DIRECT_TASK_STATUS_DECLARATION.test(userText)
     || TASK_STATUS_CHANGE_REQUEST.test(userText)
     || specialistType === "ceremony_coordinator"
+    // 손으로 쓴 낱말이 없어도, **이 커플에 실제로 있는** 체크리스트 항목 이름을
+    // 완료·해제 표현과 함께 말했으면 연다.
+    //
+    // 실측(2026-08-23): "체크리스트에서 디자인 초안 선택 다 했어" 는 카드가
+    // 나오고 "디자인 초안 선택 다 했어" 는 안 나왔다. `SCHEDULE_INTENT` 에
+    // "체크리스트" 가 있는지 여부가 전부였다. 낱말을 더 넣는 것은 다음 표현에서
+    // 또 막히므로, 서버가 가진 사실(항목 이름)과 대조한다.
+    || (CHECKLIST_STATE_VERB.test(userText)
+      && mentionsKnownChecklistItem(userText, checklistLabels))
   ) {
     addAll(selected, SCHEDULE_WRITE_TOOLS);
   }
@@ -362,6 +427,7 @@ export function selectAmoraTools({
   userText,
   specialistType,
   attachmentKind = "none",
+  checklistLabels,
 }: SelectAmoraToolsInput): AiToolDefinition[] {
   const selected = new Set<string>();
   const acceptsDirectDeclaration = !NON_EXECUTABLE_DECLARATION.test(userText);
@@ -413,7 +479,14 @@ export function selectAmoraTools({
     || (acceptsDirectDeclaration && DIRECT_TASK_STATUS_DECLARATION.test(userText))) {
     selected.add("update_task_status");
   }
-  if (CHECKLIST_WRITE.test(userText)) selected.add("toggle_checklist_item");
+  if (
+    CHECKLIST_WRITE.test(userText)
+    // 손으로 쓴 낱말이 없어도, 이 커플의 실제 항목 이름 + 완료/해제 표현이면 연다.
+    || (CHECKLIST_STATE_VERB.test(userText)
+      && mentionsKnownChecklistItem(userText, checklistLabels))
+  ) {
+    selected.add("toggle_checklist_item");
+  }
   if (
     !NON_EXECUTABLE_RESTORE.test(userText)
     && (

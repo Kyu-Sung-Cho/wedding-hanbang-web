@@ -2721,6 +2721,28 @@ export async function POST(request: Request) {
   // "응 넣어줘"에는 일정도 예산도 없다. 연속성이 증명된 턴에서만 직전 W0 발화를
   // 앞에 붙여 같은 의도를 다시 읽게 한다. 그 문장은 자기 턴에서 이미 W0로 판정돼
   // 같은 도구를 받았으므로 여기서 새로 열리는 권한은 없다.
+  // 관문이 손으로 쓴 낱말 대신 **이 커플의 실제 항목 이름**을 보게 한다.
+  // 항목이 없으면 빈 배열이고, 그러면 규칙이 아무것도 열지 않는다.
+  const coupleChecklistLabels: string[] = (() => {
+    // **클라이언트가 보낸 weddingContext 가 아니라 서버가 읽은 journey** 를 쓴다.
+    // 클라이언트 값은 위조할 수 있고 낡을 수 있는데, 이 값은 "무엇을 바꿀 수
+    // 있는가"를 정하는 자리다. 서버가 이미 같은 요청에서 wedding_journeys 를
+    // 읽으므로 추가 질의도 없다.
+    const progress = isRecord(journey) ? journey.progress : undefined;
+    if (!progress || typeof progress !== "object" || Array.isArray(progress)) return [];
+    const labels: string[] = [];
+    for (const value of Object.values(progress as Record<string, unknown>)) {
+      if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+      const checklist = (value as Record<string, unknown>).checklist;
+      if (!Array.isArray(checklist)) continue;
+      for (const item of checklist) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        const label = (item as Record<string, unknown>).label;
+        if (typeof label === "string" && label.trim().length > 0) labels.push(label);
+      }
+    }
+    return labels.slice(0, 120);
+  })();
   const toolIntentText = weddingClarificationContinuity
     ? `${weddingClarificationContinuity.priorUserText}\n${lastUserText}`
     : lastUserText;
@@ -2728,6 +2750,7 @@ export async function POST(request: Request) {
     availableTools: candidateTools,
     userText: toolIntentText,
     specialistType,
+    checklistLabels: coupleChecklistLabels,
     attachmentKind,
   });
   const initialPlaceSearchToolChoice = getPlaceSearchToolChoice({
@@ -2783,6 +2806,7 @@ export async function POST(request: Request) {
             userText: toolIntentText,
             specialistType,
             attachmentKind,
+            checklistLabels: coupleChecklistLabels,
           }).filter(
             (tool) =>
               getAmoraActionApprovalPolicy(tool.name) !== "blocked",
