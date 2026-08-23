@@ -197,6 +197,7 @@ export type WeddingPlannerPromptContext = {
     actualAmount?: number | null;
   }>;
   scheduleEvents: Array<{
+    id?: string;
     date: string;
     title: string;
     memo?: string;
@@ -533,7 +534,10 @@ ${CHECKLIST_CHECK_POINTS}
       for (const e of upcoming) {
         const cat = e.categoryKey ? ` (${CATEGORY_LABELS[e.categoryKey] ?? promptData(e.categoryKey, 80)})` : "";
         const memo = e.memo ? ` - 메모 ${promptData(e.memo, 500)}` : "";
-        lines.push(`  - ${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
+        // `event_id` 를 싣지 않으면 취소·변경 도구를 쓸 방법이 없다. 지난 일정에는
+        // 붙이지 않는다 — 되돌릴 일이 없고 프롬프트만 늘어난다.
+        const id = e.id ? `${promptData(e.id, 200)}=` : "";
+        lines.push(`  - ${id}${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
       }
     }
     if (past.length > 0) {

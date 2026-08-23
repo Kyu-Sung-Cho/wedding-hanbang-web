@@ -154,10 +154,16 @@ describe("resolveAmoraWeddingContext", () => {
       allowClientContext: false,
     });
 
+    // 2026-08-23부터 `id`도 함께 싣는다 — 일정 취소·변경 도구가 `event_id`를
+    // 필수로 받는데 그 값을 아모라가 볼 길이 없어서, 사용자에게 화면에서 ID를
+    // 읽어오라고 되물었다. 이 테스트의 계약은 "취소된 일정을 현재처럼 보여주지
+    // 않는다"이고 그건 아래 두 줄이 지킨다.
     expect(result.scheduleEvents).toEqual([
-      { date: "2027-05-10", title: "진행할 드레스 피팅" },
+      { id: "018f4dc8-3f4b-7d29-a271-0e27a7ea4cb9", date: "2027-05-10", title: "진행할 드레스 피팅" },
     ]);
     expect(JSON.stringify(result.scheduleEvents)).not.toContain("취소한 드레스 피팅");
+    // 취소된 일정의 id도 새지 않는다 — 새면 아모라가 그걸로 표식을 낼 수 있다.
+    expect(JSON.stringify(result.scheduleEvents)).not.toContain("018f4dc8-3f4b-7d29-a271-0e27a7ea4cb7");
   });
 
   it("uses the same 10억원 product ceiling as every wedding budget write path", () => {
