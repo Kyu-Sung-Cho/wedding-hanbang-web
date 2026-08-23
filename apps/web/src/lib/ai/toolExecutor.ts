@@ -411,10 +411,28 @@ async function executeMutatingToolWithLedger({
           applyAmoraAtomicToolResultToContext(committed, context);
           return committed;
         }
-      } catch {
+        // 실패 사유를 남긴다. 예전에는 `error` 를 버리고 세 번 재시도한 뒤
+        // "atomic commit outcome unavailable" 만 던졌다. 그래서 운영에서 일정
+        // 취소가 100% 실패하는데 **왜인지 알 방법이 없었다**(2026-08-23, 원인
+        // 추적에 몇 시간이 들었다). 콘텐츠는 남기지 않고 코드만 남긴다.
+        if (error) {
+          console.error("[amora-tool] atomic commit rejected", {
+            tool: toolName,
+            attempt,
+            code: error.code ?? "unknown",
+            message: error.message?.slice(0, 200) ?? "",
+          });
+        }
+      } catch (thrown) {
         // Retry the same operation-key-scoped transaction. A committed first
         // attempt returns its stored result; an uncommitted one has no domain
         // side effect by construction.
+        console.error("[amora-tool] atomic commit threw", {
+          tool: toolName,
+          attempt,
+          name: thrown instanceof Error ? thrown.name : typeof thrown,
+          message: thrown instanceof Error ? thrown.message.slice(0, 200) : "",
+        });
       }
     }
     // Do not let the provider turn this uncertainty into a terminal assistant
