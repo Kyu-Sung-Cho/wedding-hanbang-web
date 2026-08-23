@@ -1,4 +1,46 @@
--- DASHBOARD REFERENCE. 이 파일은 마이그레이션이 아니다.
+-- 적용 완료 기록. 2026-08-23, 파운더 지시로 실행했다.
+--
+-- 이 파일은 마이그레이션이 아니다. `storage.objects` 는 호스팅 Supabase 소유라
+-- `supabase db push` 로 나가지 않는다. 아래는 **실제로 운영에 적용한 문장과 그 근거**다.
+--
+-- ## 실행 전에 확인한 것
+--
+-- 운영 실측(읽기 전용): `Anyone can view chat image` 가 PERMISSIVE / SELECT /
+-- `{public}` / 조건 `bucket_id = 'chat-image'` 로 **실재**했다. 저장소 기록만이 아니라
+-- 운영에 살아 있었다. 같은 모양의 `Anyone can view chat images`(복수)도 있었다 —
+-- 그 창고는 존재하지 않지만 정책은 남아 있었다.
+--
+-- **앱이 이 정책에 의존하지 않는 것**도 확인했다. 첨부 읽기는 전부 서비스 롤로
+-- 서명 URL 을 만들어 간다(`api/chat/image-urls/route.ts` 의 `getServiceClient()` →
+-- `createSignedUrls`). 서비스 롤은 RLS 를 우회한다. 클라이언트가 `chat-image` 를 직접
+-- 읽는 코드는 웹·모바일 어디에도 없다(업로드와 고아 파일 정리뿐).
+--
+-- 그래서 **새 SELECT 정책을 넣지 않았다.** 아무도 쓰지 않는데 여는 것은 표면만 늘린다.
+--
+-- 롤백 자료: 실행 직전 `storage.objects` 정책 23 개 전체를 뽑아 두었다.
+--
+-- ## 실행 결과
+--
+-- 적용 뒤 `chat-image` 에는 PERMISSIVE SELECT 정책이 **하나도 없다.** 남은 SELECT 는
+-- 셋인데 전부 무관하거나 안전하다 — disclosure fence(RESTRICTIVE), `vendor-images`
+-- 공개(의도됨), `vendor-licenses`(조건이 `service_role`).
+--
+-- 업로드·수정·삭제 정책은 건드리지 않았고 그대로 있다.
+--
+-- ## 남은 것 — 업로드 쪽에 같은 모양이 있다
+--
+-- `Authenticated users can upload chat image` 의 조건이 `bucket_id = 'chat-image'`
+-- 하나뿐이라, 로그인만 하면 **남의 커플 폴더에 올릴 수 있다.** 엄격한 정책 둘이 이미
+-- 있는데(`chat-image couple folder write`, `... own uploader folder write pf46ue_0`)
+-- PERMISSIVE 는 OR 로 합쳐지므로 느슨한 쪽이 이긴다.
+--
+-- **지우지 않았다.** 엄격한 정책이 `(storage.foldername(name))[2] = auth.uid()` 를
+-- 요구하는데, 앱이 넣는 `senderId` 가 정말 `auth.uid()` 인지 실제 업로드로 확인해야
+-- 한다. 출시 일주일 전에 업로드를 깨뜨릴 위험이 이득보다 크다고 판단했다. 읽기가
+-- 닫힌 지금 이 건의 영향은 "남의 폴더를 어지럽힐 수 있다" 이지 "읽을 수 있다" 가
+-- 아니다. 출시 뒤 업로드를 한 번 실측하고 정리할 것.
+--
+-- ── 아래가 실제로 실행한 문장이다 ──────────────────────────────────────────
 --
 -- `storage.objects` 는 호스팅 Supabase 가 `supabase_storage_admin` 으로 소유한다.
 -- 이 저장소의 운영 문서가 못 박아 두었다 — "Normal migrations and SQL Editor sessions
@@ -39,27 +81,11 @@
 DROP POLICY IF EXISTS "Anyone can view chat image" ON storage.objects;
 DROP POLICY IF EXISTS "Anyone can view chat images" ON storage.objects;
 
--- ── 2) 커플 범위 조회 정책을 넣는다 ────────────────────────────────────────
+-- ── 2) 새 SELECT 정책은 넣지 않았다 ─────────────────────────────────────
 --
--- 표현식은 이 저장소가 이미 쓰는 것과 **같은 모양**이다
--- (`supabase/migrations/20260615091000_make_chat_images_private.sql` 의
---  `chat-image couple folder write`). 새 방식을 발명하지 않는다.
---
--- 경로는 `{커플}/{보낸사람}/{내용해시}.{확장자}` 이고
--- (`apps/web/src/lib/chat/attachmentStorage.ts:102`), 첫 칸이 커플이다.
-
-DROP POLICY IF EXISTS "chat-image couple folder read" ON storage.objects;
-CREATE POLICY "chat-image couple folder read"
-  ON storage.objects FOR SELECT TO authenticated
-  USING (
-    bucket_id = 'chat-image'
-    AND (storage.foldername(name))[1] IN (
-      SELECT couple_id::text
-      FROM public.profiles
-      WHERE id = auth.uid()
-        AND couple_id IS NOT NULL
-    )
-  );
+-- 처음 초안은 커플 범위 SELECT 를 함께 넣으려 했다. 그런데 앱이 서비스 롤로만 읽는
+-- 것을 확인하고 뺐다. 나중에 클라이언트가 직접 읽어야 할 일이 생기면 그때
+-- `chat-image couple folder write` 와 같은 모양으로 추가하면 된다.
 
 -- ── 3) 함께 치우면 좋은 것 (선택) ──────────────────────────────────────────
 --
