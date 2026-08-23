@@ -8,7 +8,7 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
-import { buildEmailConfirmUrl } from "@/lib/auth/emailConfirmLink";
+import { buildEmailConfirmUrl, describeEmailConfirmTtl } from "@/lib/auth/emailConfirmLink";
 import {
   isRecord,
   normalizeEmail,
@@ -118,7 +118,7 @@ export async function POST(request: Request) {
           </h1>
           <p style="font-size: 15px; color: #4A4A52; line-height: 1.7; text-align: center; margin-bottom: 32px;">
             아래 버튼을 클릭하여 새 비밀번호를 설정해주세요.<br>
-            이 링크는 24시간 동안 유효합니다.
+            이 링크는 ${describeEmailConfirmTtl("recovery")} 동안만 유효합니다.
           </p>
           <div style="text-align: center; margin-bottom: 32px;">
             <a href="${resetLink}" style="display: inline-block; padding: 14px 40px; background: #1A1A1F; color: white; border-radius: 24px; text-decoration: none; font-size: 14px; font-weight: 500;">
