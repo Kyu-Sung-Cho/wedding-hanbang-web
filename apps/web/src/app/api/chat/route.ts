@@ -21,6 +21,7 @@ import {
 } from "@/lib/ai/amoraPromptComposer";
 import { AMORA_EVAL_HEADER, verifyAmoraEvalToken } from "@/lib/ai/amoraEvalAuth";
 import { saveAutomaticDissatisfaction } from "@/lib/ai/automaticFeedback";
+import { shouldRescueChecklistScope } from "@/lib/ai/amoraChecklistScopeRescue";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import {
   getAvailableChatTools,
@@ -1270,15 +1271,8 @@ export async function POST(request: Request) {
     && !isDemo
     && preliminaryQuestionScope?.scope === "W4_out_of_scope"
     && earlyCrisisUserText !== null
+    // 완료·해제 표현이 없으면 DB 조회조차 하지 않는다(대부분의 턴은 질의 0회).
     && AMORA_CHECKLIST_STATE_VERB.test(earlyCrisisUserText)
-    // 안전 신호가 있으면 구제하지 않는다.
-    //
-    // "초대장 주문·제작 다 했는데 신랑이 화내서 무서웠어요" 처럼 항목 이름과
-    // 안전 서술이 한 문장에 있을 수 있다. 그때 W0 로 올리면 **기억이 켜진다**.
-    // 통제·폭력 서술은 기억에 남기지 않는 것이 계약이므로, 그런 문장은 구제
-    // 대상에서 빼고 원래 판정(W4)을 그대로 둔다. 비공개 보호는 이와 별개
-    // 경로(`hasAmoraSafetySignal` → 가시성)로 이미 걸린다.
-    && !hasAmoraSafetySignal(earlyCrisisUserText, "chat")
   ) {
     try {
       const journeyProgress = await supabase
@@ -1287,7 +1281,14 @@ export async function POST(request: Request) {
         .eq("couple_id", dataCoupleId)
         .single();
       const labels = collectAmoraChecklistLabels(journeyProgress.data?.progress);
-      if (mentionsKnownChecklistItem(earlyCrisisUserText, labels)) {
+      // 판정은 `shouldRescueChecklistScope` 한 곳에만 둔다. 예전에는 이 조건이
+      // 여기 인라인으로 있었고 경계 테스트가 그것을 **복사**해 두어, 안전 판정
+      // 한 줄이 바뀌자 둘이 갈라졌다.
+      if (shouldRescueChecklistScope({
+        userText: earlyCrisisUserText,
+        checklistLabels: labels,
+        isWeddingCoreCandidate: true,
+      })) {
         checklistScopeRescue = {
           scope: "W0_wedding_core",
           // **기억은 켜지 않는다.** 이 구제의 목적은 체크리스트 카드가 나오게

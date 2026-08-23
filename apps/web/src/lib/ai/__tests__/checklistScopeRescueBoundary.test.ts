@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
-import {
-  AMORA_CHECKLIST_STATE_VERB,
-  collectAmoraChecklistLabels,
-  mentionsKnownChecklistItem,
-} from "@/lib/ai/amoraToolPolicy";
-import { classifyAmoraQuestionScope, hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
+import { collectAmoraChecklistLabels } from "@/lib/ai/amoraToolPolicy";
+import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { shouldRescueChecklistScope } from "@/lib/ai/amoraChecklistScopeRescue";
 
 /**
  * "이 커플의 체크리스트 항목을 끝냈다" 는 말은 결혼 핵심이다.
@@ -25,13 +22,19 @@ const PROGRESS = {
   },
 };
 
-/** 라우트의 구제 조건을 그대로 옮긴 것. 실제 분기와 같은 순서로 본다. */
+/**
+ * 라우트와 **같은 함수**를 부른다.
+ *
+ * 예전에는 여기서 라우트의 조건을 복사해 다시 구현했다. 안전 판정 한 줄이
+ * 바뀌자 둘이 갈라졌고, 이 파일은 라우트가 아니라 자기 사본을 재고 있었다.
+ */
 function rescues(userText: string, progress: unknown): boolean {
-  const scope = classifyAmoraQuestionScope({ userText }).scope;
-  if (scope !== "W4_out_of_scope") return false;
-  if (!AMORA_CHECKLIST_STATE_VERB.test(userText)) return false;
-  if (hasAmoraSafetySignal(userText, "chat")) return false;
-  return mentionsKnownChecklistItem(userText, collectAmoraChecklistLabels(progress));
+  return shouldRescueChecklistScope({
+    userText,
+    checklistLabels: collectAmoraChecklistLabels(progress),
+    isWeddingCoreCandidate:
+      classifyAmoraQuestionScope({ userText }).scope === "W4_out_of_scope",
+  });
 }
 
 describe("체크리스트 범위 구제의 경계", () => {
