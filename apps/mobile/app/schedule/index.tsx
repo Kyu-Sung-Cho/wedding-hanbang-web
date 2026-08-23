@@ -19,6 +19,8 @@ import {
   stripPlanningChecklistNotes,
   summarizePlanningChecklist,
   type PlanningChecklistStatus,
+  todayYmdInKst,
+  upcomingYmdInKst,
 } from "@hanbang/shared/utils";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
@@ -143,14 +145,8 @@ function applyChecklistState(
 
 /* ───── helpers ───── */
 function getUpcomingDays(n: number): string[] {
-  const days: string[] = [];
-  const today = new Date();
-  for (let i = 0; i < n; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
-    days.push(d.toISOString().slice(0, 10));
-  }
-  return days;
+  // toISOString() 은 폰에서도 UTC 라 한국 새벽 0~9시에는 어제부터 시작했다.
+  return upcomingYmdInKst(n);
 }
 
 function formatDate(dateStr: string): string {
@@ -1025,7 +1021,8 @@ export default function ScheduleScreen() {
   /* ── 이벤트 모달 ── */
   function openAddEventModal() {
     setEditingEventId(null);
-    const today = new Date().toISOString().slice(0, 10);
+    // 저장되는 값이다. UTC 로 읽으면 한국 새벽에 **어제 날짜로 일정이 저장된다.**
+    const today = todayYmdInKst();
     setFormTitle("");
     setFormDate(today);
     setFormTime("");

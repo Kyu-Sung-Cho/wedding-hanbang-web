@@ -22,6 +22,7 @@ import {
 
 import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
+import { ymdInKst } from "@/lib/utils/kstDate";
 
 import { landingContent } from "./landingContent";
 import PreparationPreview from "./PreparationPreview";
@@ -95,7 +96,9 @@ export default function TransformationHero() {
   // 입력이 거부됐다는 사실이 어떤 경로로도 전달되지 않아, 사용자는 자기가 뭘
   // 잘못했는지 모른 채 결과가 사라지는 것만 본다.
   const isPastDate = dateText !== "" && !hasPreview;
-  const todayYmd = new Date().toISOString().slice(0, 10);
+  // toISOString() 은 브라우저에서도 UTC 라, 한국 새벽 0~9시에는 min 이 어제가 되어
+  // 지난 날짜를 고를 수 있었다.
+  const todayYmd = ymdInKst();
 
   const startWithDate = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

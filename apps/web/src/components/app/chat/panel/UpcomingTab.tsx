@@ -7,6 +7,7 @@ import { getImminentCategories, getCompletedImminentCategories } from "@/utils/i
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { ymdInKst } from "@/lib/utils/kstDate";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -66,7 +67,9 @@ export default function UpcomingTab() {
     [progress, weddingDate]
   );
 
-  const todayStr = now ? now.toISOString().slice(0, 10) : "";
+  // 같은 파일의 getDaysUntil 은 로컬 시간이라 맞다. 이 줄만 UTC 라서 한국 새벽에는
+  // 지난 일정이 "1일 전" 라벨을 달고 다가오는 목록에 남았다.
+  const todayStr = now ? ymdInKst(now) : "";
   const upcomingEvents: ScheduleEvent[] = useMemo(() => {
     if (!todayStr) return [];
     return getEvents(progress as Record<string, unknown>)

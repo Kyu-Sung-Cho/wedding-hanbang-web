@@ -29,6 +29,7 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
+import { ymdInKst } from "@/lib/utils/kstDate";
 import type {
   ChecklistItem,
   ScheduleEvent,
@@ -217,7 +218,9 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   }, [eventMutationBlockReason]);
 
   // 다가오는 일정
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // toISOString() 은 브라우저에서도 UTC 라, 한국 새벽 0~9시에는 어제가 기준이 되어
+  // **이미 지난 일정이 "다가오는 일정"에 남았다.**
+  const todayStr = ymdInKst();
   const upcomingEvents = useMemo(() => {
     return activeEvents
       .filter(
