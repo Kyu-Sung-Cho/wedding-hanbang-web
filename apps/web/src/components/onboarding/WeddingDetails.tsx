@@ -1,5 +1,7 @@
 "use client";
 
+import { ymdInKst } from "@/lib/utils/kstDate";
+
 interface WeddingDetailsProps {
   weddingDate: string | null;
   weddingDateUndecided: boolean;
@@ -57,7 +59,7 @@ export default function WeddingDetails({
             value={weddingDate ?? ""}
             onChange={(e) => onDateChange(e.target.value || null)}
             disabled={weddingDateUndecided}
-            min={new Date().toISOString().split("T")[0]}
+            min={ymdInKst()}
             className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
           />
           <button
