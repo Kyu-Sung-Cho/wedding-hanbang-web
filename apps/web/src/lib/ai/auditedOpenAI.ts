@@ -235,7 +235,25 @@ async function createOpenAIResponseWithAuditInternal<T>(
       },
       safety_identifier: safetyIdentifier,
       service_tier: "default",
-      prompt_cache_options: { mode: "explicit" },
+      // 프롬프트 캐싱: 암묵 경계를 켠다.
+      //
+      // 예전에는 `{ mode: "explicit" }` 로 암묵 경계를 끄고, 아래
+      // assertNoPromptCacheBreakpoints 로 명시 경계도 금지해 캐싱을 이중으로
+      // 잠가 두었다. 주석의 조건은 "측정 전에는 끈다" 였다.
+      //
+      // 2026-08-23 그 측정을 했다(스테이징 원장 실측):
+      //   호출당 입력 23,000토큰 / 출력 50토큰 — 비용의 99.8%가 입력이다
+      //   cache_read_input_tokens 는 전 호출 null — 캐시가 한 번도 안 걸렸다
+      //   시스템 프롬프트 441개 갈래를 재니 정적 접두부가 85~100%이고,
+      //   서로 다른 두 커플에 대해 **글자 단위로 동일**했다
+      //
+      // 켜도 모델이 받는 프롬프트는 한 글자도 바뀌지 않는다 — 같은 토큰을
+      // 보내고 청구만 달라진다. 그래서 답변 품질에 영향이 없다(파운더 판단
+      // 기준: "품질이 절대 떨어져서는 안 된다").
+      //
+      // 명시 경계는 여전히 금지다(assertNoPromptCacheBreakpoints). 그것을
+      // 쓰려면 커플 문맥을 instructions 밖으로 옮겨야 하는데, 그건 프롬프트
+      // 구조를 바꾸는 일이라 위 기준에 어긋난다.
       store: false,
     };
 

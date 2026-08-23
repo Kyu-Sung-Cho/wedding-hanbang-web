@@ -355,7 +355,6 @@ describe("audited OpenAI Responses", () => {
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       model: "gpt-5.6-luna",
       store: false,
-      prompt_cache_options: { mode: "explicit" },
       reasoning: { effort: "none" },
     }), undefined);
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
