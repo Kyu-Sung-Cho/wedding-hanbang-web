@@ -426,7 +426,7 @@ test("offline observation contracts normalize obfuscated crisis text and fail cl
   );
 });
 
-test("locks the production suite to six explicitly opted-in scenarios", () => {
+test("locks the production suite to seven explicitly opted-in scenarios", () => {
   const expectedIds = [
     "budget_overwhelm",
     "direct_practical_answer",
@@ -434,6 +434,10 @@ test("locks the production suite to six explicitly opted-in scenarios", () => {
     "mixed_emotion_change_is_honest_without_tools",
     "mediation_stays_neutral_and_structured",
     "contract_completion_keeps_one_urgent_risk",
+    // 2026-08-22 추가. 중재 요청이 아닌 **평범한 함께 대화**에서 밀어붙였을 때
+    // 한쪽 편을 들지 않는지 본다. 기존 중립 시나리오는 requestKind: "mediation"
+    // 이라 이 경로를 한 번도 지나지 않았다.
+    "shared_chat_never_picks_a_side_between_partners",
   ];
 
   assert.deepEqual(

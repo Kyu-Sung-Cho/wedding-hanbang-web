@@ -194,3 +194,35 @@ describe("위기 카드가 아모라의 메시지로 보인다", () => {
     expect(cardMarkup).not.toContain("parseEtiquetteTags");
   });
 });
+
+describe("두 사람 사이를 가르지 않는다", () => {
+  // 2026-08-22 운영 실측. "둘이 계속 싸우기만 해. 그냥 네가 정해줘. 호텔이야 스몰웨딩이야?"
+  // 에 아모라가 "하나만 고르라면 ○○을 먼저 권할게요"로 답했다. 함께 대화라 상대도 읽는다.
+  //
+  // 버그가 아니라 규칙이 시킨 것이었다 — `AMORA_CARE_VOICE` 의 "결정" 역할이 "비교·추천·판단을
+  // 명확히 요청했다면 결론부터"라고 하는데, 그 규칙이 **선택지 중 고르기**와 **두 사람 중
+  // 편들기**를 구분하지 않았다. 랜딩은 "아모라는 대신 결정하지 않고"를 약속한다.
+  //
+  // 중립 규칙 자체는 있었지만 `AMORA_MEDIATION_TURN_GUARD` 안이라 구조화 중재 요청에만
+  // 붙었다. 평범한 대화 턴에는 아무것도 붙지 않았다.
+  it("keeps the couple-neutrality carve-out in the always-attached voice, not only in mediation", () => {
+    const decisionRole = voice.slice(
+      voice.indexOf("- **결정**"),
+      voice.indexOf("- **실행**"),
+    );
+    expect(decisionRole.length).toBeGreaterThan(0);
+    expect(decisionRole).toContain("두 사람의 의견이 갈린 자리");
+    expect(decisionRole).toContain("한쪽 손을 들어주지 마세요");
+    // 밀어붙이는 말들을 그대로 적어 둔다. 모델이 "정해줘"만 막고 "누구 말이 맞아"는
+    // 통과시키는 일이 없도록.
+    expect(decisionRole).toContain("네가 정해줘");
+    expect(decisionRole).toContain("누구 말이 맞아");
+    // 사물 비교까지 막으면 제품이 쓸모를 잃는다. 예외의 경계를 함께 고정한다.
+    expect(decisionRole).toContain("사물");
+  });
+
+  it("still attaches that voice on every turn", () => {
+    // 규칙이 아무리 좋아도 프롬프트에 실리지 않으면 없는 것이다.
+    expect(prompts).toContain("${AMORA_CARE_VOICE}");
+  });
+});
