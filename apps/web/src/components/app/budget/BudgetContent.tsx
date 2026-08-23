@@ -410,10 +410,10 @@ function BudgetRow({
 
   return (
     <div
-      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#fcf9f8] transition-colors max-md:flex-wrap max-md:gap-2"
+      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[#fcf9f8] transition-colors max-lg:flex-wrap max-lg:gap-2"
     >
       {/* 아이콘 + 이름 + 포함·별도 항목 확인 */}
-      <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-md:w-full">
+      <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-lg:w-full">
         <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
           isOver
             ? "bg-red-50"
@@ -425,7 +425,7 @@ function BudgetRow({
         <HiddenCostBadge catKey={catKey} />
 
         {/* 모바일 전용: 상태 + 삭제를 라벨 옆에 배치 */}
-        <div className="md:hidden ml-auto flex items-center gap-1.5 flex-shrink-0">
+        <div className="lg:hidden ml-auto flex items-center gap-1.5 flex-shrink-0">
           <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
             status === "완료" ? "bg-sage-500/10 text-sage-500" :
             status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
@@ -448,7 +448,7 @@ function BudgetRow({
       </div>
 
       {/* 진행 바 + 퍼센트 */}
-      <div className="flex-1 min-w-0 max-md:order-last max-md:w-full">
+      <div className="flex-1 min-w-0 max-lg:order-last max-lg:w-full">
         {budget > 0 ? (
           <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-[#f6f3f2] rounded-full overflow-hidden">
@@ -471,12 +471,12 @@ function BudgetRow({
       </div>
 
       {/* 분담 선택 */}
-      <div className="flex-shrink-0 max-md:w-auto">
+      <div className="flex-shrink-0 max-lg:w-auto">
         <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
       </div>
 
       {/* 지출 (편집 가능) */}
-      <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
+      <div className="flex flex-col items-end flex-shrink-0 max-lg:w-auto">
         <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">기록 지출</span>
         <InlineMoneyEdit
           value={spent}
@@ -491,7 +491,7 @@ function BudgetRow({
       <span className="text-sm text-[#B5ADA3]/60 flex-shrink-0 self-end mb-1">/</span>
 
       {/* 예산 (편집 가능) */}
-      <div className="flex flex-col items-end flex-shrink-0 max-md:w-auto">
+      <div className="flex flex-col items-end flex-shrink-0 max-lg:w-auto">
         <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">예산</span>
         <InlineMoneyEdit
           value={budget}
@@ -506,7 +506,7 @@ function BudgetRow({
       </div>
 
       {/* 상태 + 삭제 (데스크탑 전용 — 모바일은 라벨 옆에 배치) */}
-      <div className="hidden md:flex items-center gap-1.5 flex-shrink-0">
+      <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
         <div className={`text-xs px-2.5 py-1 rounded-full font-medium ${
           status === "완료" ? "bg-sage-500/10 text-sage-500" :
           status === "진행중" ? "bg-[#795252]/10 text-[#795252]" :
