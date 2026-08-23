@@ -92,66 +92,68 @@ const action = {
   operationKey: "b".repeat(64),
   confirmation: "드레스 피팅 일정을 추가할까요?",
   issuedAt: Date.parse("2026-07-17T00:00:00.000Z"),
-  expiresAt: Date.parse("2026-07-17T00:10:00.000Z"),
+  // `add_schedule_event` 는 공유 계획 도구라 창이 24시간이다(2026-08-23).
+  expiresAt: Date.parse("2026-07-18T00:00:00.000Z"),
 };
 
-test("mobile uses the exact input-aware approval policy", () => {
-  assert.equal(
-    getAmoraActionApprovalPolicy("add_schedule_event", {
-      schedule_scope: "confirmed_fact",
-    }),
-    "single",
-  );
-  assert.equal(getAmoraActionApprovalPolicy("add_schedule_event", {}), "couple");
-  assert.equal(
-    getAmoraActionApprovalPolicy("add_schedule_event", {
-      schedule_scope: "shared_commitment",
-    }),
-    "couple",
-  );
-  assert.equal(getAmoraActionApprovalPolicy("update_schedule_event", {}), "couple");
+test("모바일도 웹과 같은 승인 정책을 쓴다 — 전부 한 사람 확인", () => {
+  // 2026-08-23 파운더 결정. 두 사람 승인을 없애고 상대에게는 알림을 준다.
+  // 입력값에 따라 갈리던 것(카테고리 예산에 금액이 있으면 두 사람)도 없어졌다.
+  for (const input of [{}, { schedule_scope: "confirmed_fact" }, { schedule_scope: "shared_commitment" }]) {
+    assert.equal(getAmoraActionApprovalPolicy("add_schedule_event", input), "single");
+  }
+  assert.equal(getAmoraActionApprovalPolicy("update_schedule_event", {}), "single");
   assert.equal(getAmoraActionApprovalPolicy("update_category_budget", {}), "single");
   assert.equal(
     getAmoraActionApprovalPolicy("update_category_budget", { budget: 30_000_000 }),
-    "couple",
+    "single",
   );
   assert.equal(getAmoraActionApprovalPolicy("add_custom_category", {}), "single");
   assert.equal(
     getAmoraActionApprovalPolicy("add_custom_category", { budget: 3_000_000 }),
-    "couple",
+    "single",
   );
-  assert.equal(getAmoraActionApprovalPolicy("update_budget", {}), "couple");
+  assert.equal(getAmoraActionApprovalPolicy("update_budget", {}), "single");
+
+  // 막힌 것은 그대로 막혀 있다 — 이 단언은 이번 변경으로 약해지지 않는다.
   assert.equal(getAmoraActionApprovalPolicy("unknown_tool", {}), "blocked");
+  assert.equal(getAmoraActionApprovalPolicy("delete_schedule_event", {}), "blocked");
+  assert.equal(getAmoraActionApprovalPolicy("create_booking", {}), "blocked");
 });
 
-test("mobile binds 10-minute and 24-hour TTLs to the exact policy", () => {
-  assert.equal(
-    getAmoraPendingActionTtlMs("add_schedule_event", {
-      schedule_scope: "confirmed_fact",
-    }),
-    10 * 60 * 1_000,
-  );
-  assert.equal(
-    getAmoraPendingActionTtlMs("add_schedule_event", {}),
-    24 * 60 * 60 * 1_000,
-  );
+test("모바일 TTL이 도구별 창과 정확히 맞는다", () => {
+  // 2026-08-23: TTL을 승인 정책이 아니라 **도구**로 정한다. 공유 계획 변경은
+  // 금액을 한 번 더 생각할 시간이 필요하고, 바로 눌러 끝내는 것은 10분이면 된다.
+  // 정책에서 파생시키면 정책이 전부 single이 된 순간 이미 발급된 24시간 카드가
+  // 모두 만료로 죽는다.
+  for (const input of [{ schedule_scope: "confirmed_fact" }, {}]) {
+    assert.equal(
+      getAmoraPendingActionTtlMs("add_schedule_event", input),
+      24 * 60 * 60 * 1_000,
+    );
+  }
   assert.equal(
     getAmoraPendingActionTtlMs("update_schedule_event", {}),
     24 * 60 * 60 * 1_000,
   );
+  assert.equal(
+    getAmoraPendingActionTtlMs("toggle_checklist_item", {}),
+    10 * 60 * 1_000,
+  );
 
-  const ambiguousSchedule = {
+  // 저장된 카드의 만료 시각이 그 도구의 창과 다르면 읽지 않는다.
+  const sharedPlanCard = {
     ...action,
     input: { date: "2026-08-02", title: "상담" },
     expiresAt: action.issuedAt + 24 * 60 * 60 * 1_000,
   };
   assert.deepEqual(getPendingAmoraAction(message({
-    metadata: { pending_amora_action: ambiguousSchedule },
-  })), ambiguousSchedule);
+    metadata: { pending_amora_action: sharedPlanCard },
+  })), sharedPlanCard);
   assert.equal(getPendingAmoraAction(message({
     metadata: {
       pending_amora_action: {
-        ...ambiguousSchedule,
+        ...sharedPlanCard,
         expiresAt: action.issuedAt + 10 * 60 * 1_000,
       },
     },
@@ -364,7 +366,13 @@ test("mobile accepts pending actions only from structurally valid shared AI meta
   })), null);
   const blocked = getPendingAmoraAction(message({
     metadata: {
-      pending_amora_action: { ...action, tool: "update_amora_action" },
+      pending_amora_action: {
+        ...action,
+        tool: "update_amora_action",
+        // 공유 계획 도구가 아니므로 창이 10분이다. 만료 시각이 도구와 맞아야
+        // 파싱된다 — 막힌 도구도 "막혔다"고 보여주려면 읽히긴 해야 한다.
+        expiresAt: action.issuedAt + 10 * 60 * 1_000,
+      },
     },
   }));
   assert.equal(blocked?.tool, "update_amora_action");

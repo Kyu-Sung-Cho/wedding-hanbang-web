@@ -14,10 +14,12 @@ import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 //   1. 새 마이그레이션을 진짜 Postgres(PGlite)에 실행해 문법과 postcheck를 확인한다.
 //   2. 변경 가능한 모든 도구에 대해 TS와 SQL의 판정이 같은지 대조한다.
 
-const migrationPath = resolve(
-  process.cwd(),
-  "../../supabase/migrations/20260805120000_amora_log_wedding_event_couple_approval.sql",
-);
+// 정책 함수를 덮어쓰는 마이그레이션을 **적용 순서대로** 실행한다. 마지막 것이
+// 현재 정본이다. 하나만 실행하면 옛 정의를 현재라고 착각하게 된다.
+const migrationPaths = [
+  "20260805120000_amora_log_wedding_event_couple_approval.sql",
+  "20260823120000_couple_approval_becomes_notification.sql",
+].map((name) => resolve(process.cwd(), "../../supabase/migrations", name));
 
 /** SQL 정책 함수가 실제로 받는 모양에 가까운 입력. 없으면 빈 객체. */
 const REPRESENTATIVE_INPUT: Readonly<Record<string, Record<string, unknown>>> = {
@@ -27,7 +29,7 @@ const REPRESENTATIVE_INPUT: Readonly<Record<string, Record<string, unknown>>> = 
   add_custom_category: { label: "예단", budget: 1_000_000 },
 };
 
-describe("log_wedding_event couple approval migration", () => {
+describe("승인 정책이 앱과 DB에서 같다", () => {
   let db: PGlite;
 
   beforeEach(async () => {
@@ -39,7 +41,9 @@ describe("log_wedding_event couple approval migration", () => {
     `);
     // 마이그레이션 안의 postcheck 블록이 여기서 함께 실행된다. 판정이 어긋나면
     // 이 줄에서 예외가 나며 테스트가 실패한다.
-    await db.exec(await readFile(migrationPath, "utf8"));
+    for (const migrationPath of migrationPaths) {
+      await db.exec(await readFile(migrationPath, "utf8"));
+    }
   });
 
   afterEach(async () => {
@@ -54,17 +58,17 @@ describe("log_wedding_event couple approval migration", () => {
     return result.rows[0].policy;
   }
 
-  it("requires both members to put a wedding moment on the shared calendar", async () => {
-    // 미래든 과거든 같다. 이 도구의 입력에는 성격을 밝힐 자리가 없고
-    // (moment_type·date·title·memo뿐), 모르면 더 조심하는 쪽으로 간다.
+  it("공유 달력에 넣는 것도 한 사람 확인이다 — 상대는 알림으로 안다", async () => {
+    // 2026-08-23 파운더 결정. 예전에는 "성격을 밝힐 자리가 없으니 더 조심하는
+    // 쪽으로" 두 사람 확인을 받았다. 이제 상대 보호는 승인이 아니라 알림이 한다.
     expect(await policyOf("log_wedding_event", {
       moment_type: "venue_tour",
       date: "2027-03-12",
-    })).toBe("couple");
+    })).toBe("single");
     expect(await policyOf("log_wedding_event", {
       moment_type: "sanggyeonrye",
       date: "2020-03-12",
-    })).toBe("couple");
+    })).toBe("single");
   });
 
   it("keeps the single-member path for a fact whose scope is stated", async () => {
@@ -74,12 +78,12 @@ describe("log_wedding_event couple approval migration", () => {
     })).toBe("single");
   });
 
-  it("leaves every unrelated tool exactly where it was", async () => {
+  it("막힌 것은 그대로 막혀 있고 나머지는 한 사람 확인이다", async () => {
     expect(await policyOf("toggle_checklist_item", {})).toBe("single");
     expect(await policyOf("add_amora_action", {})).toBe("single");
     expect(await policyOf("update_task_status", {})).toBe("single");
-    expect(await policyOf("update_budget", {})).toBe("couple");
-    expect(await policyOf("cancel_schedule_event", {})).toBe("couple");
+    expect(await policyOf("update_budget", {})).toBe("single");
+    expect(await policyOf("cancel_schedule_event", {})).toBe("single");
     expect(await policyOf("delete_schedule_event", {})).toBe("blocked");
     expect(await policyOf("create_booking", {})).toBe("blocked");
   });
