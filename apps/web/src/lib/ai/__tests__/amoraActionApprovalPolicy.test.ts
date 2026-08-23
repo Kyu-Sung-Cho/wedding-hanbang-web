@@ -206,13 +206,29 @@ describe("앱에서 직접 고쳐도 상대에게 알림이 간다", () => {
     expect(boundarySql).toContain("함께 쓰는 계획이 변경됐어요");
   });
 
-  it("고영향 판정이 꺼져 모든 변경이 1인 경로로 간다", () => {
+  it("정족수만 1로 내리고 고영향 판정은 건드리지 않는다", () => {
+    // 처음에는 `couple_plan_change_is_high_impact` 를 통째로 false 로 만들었다.
+    // 그 판정은 "몇 명이 승인하나" 가 아니라 "이 쓰기가 감사 경로를 타야 하나"
+    // 이고, `enforce_couple_plan_change_write_boundary` 가 그 값으로 표식 없는
+    // 직접 쓰기를 막는다. false 로 만들면 그 방어선이 함께 꺼진다.
     const sql = readFileSync(
       join(migrations, "20260823120000_couple_approval_becomes_notification.sql"),
       "utf8",
     );
-    expect(sql).toContain("FUNCTION public.couple_plan_change_is_high_impact");
-    expect(sql).toContain("SELECT false;");
+    expect(sql).not.toContain("FUNCTION public.couple_plan_change_is_high_impact");
+    expect(sql).toContain("v_required_count := 1;");
+    expect(sql).toContain("v_expected_required := 1;");
+    expect(sql).toContain("v_request.required_count <> 1");
+  });
+
+  it("일정 취소·복원이 멱등성 허용 목록에 들어 있다", () => {
+    // 이 둘이 없어서 아모라의 일정 취소가 도입 이래 한 번도 반영되지 못했다.
+    const sql = readFileSync(
+      join(migrations, "20260823120000_couple_approval_becomes_notification.sql"),
+      "utf8",
+    );
+    const claim = sql.slice(sql.indexOf("FUNCTION public.claim_amora_tool_execution"));
+    expect(claim).toContain("'cancel_schedule_event', 'restore_schedule_event'");
   });
 
   it("DB의 TTL 검증이 정책에서 떨어져 두 값을 모두 받는다", () => {

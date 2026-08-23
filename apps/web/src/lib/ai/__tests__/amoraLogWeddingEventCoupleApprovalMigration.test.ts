@@ -16,10 +16,30 @@ import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 
 // 정책 함수를 덮어쓰는 마이그레이션을 **적용 순서대로** 실행한다. 마지막 것이
 // 현재 정본이다. 하나만 실행하면 옛 정의를 현재라고 착각하게 된다.
+//
+// 20260823120000 은 통째로 실행할 수 없다 — 같은 파일이 커플 계획 변경 함수도
+// 다시 정의하는데, 그 본문은 `wedding_journeys` 같은 테이블을 참조하므로 빈
+// PGlite 인스턴스에서는 올라가지 않는다. 이 파일이 재는 계약은 **정책 판정이
+// 앱과 DB에서 같은가** 하나뿐이므로 그 함수만 떼어 실행한다.
 const migrationPaths = [
   "20260805120000_amora_log_wedding_event_couple_approval.sql",
-  "20260823120000_couple_approval_becomes_notification.sql",
 ].map((name) => resolve(process.cwd(), "../../supabase/migrations", name));
+
+const policyOverridePath = resolve(
+  process.cwd(),
+  "../../supabase/migrations/20260823120000_couple_approval_becomes_notification.sql",
+);
+
+/** 새 마이그레이션에서 `amora_shared_action_policy` 정의만 떼어낸다. */
+function extractPolicyFunction(sql: string): string {
+  const start = sql.indexOf(
+    "CREATE OR REPLACE FUNCTION public.amora_shared_action_policy",
+  );
+  if (start < 0) throw new Error("정책 함수를 찾지 못했습니다");
+  const end = sql.indexOf("$function$;", sql.indexOf("$function$", start) + 1);
+  if (end < 0) throw new Error("정책 함수의 끝을 찾지 못했습니다");
+  return sql.slice(start, end + "$function$;".length);
+}
 
 /** SQL 정책 함수가 실제로 받는 모양에 가까운 입력. 없으면 빈 객체. */
 const REPRESENTATIVE_INPUT: Readonly<Record<string, Record<string, unknown>>> = {
@@ -44,6 +64,9 @@ describe("승인 정책이 앱과 DB에서 같다", () => {
     for (const migrationPath of migrationPaths) {
       await db.exec(await readFile(migrationPath, "utf8"));
     }
+    await db.exec(
+      extractPolicyFunction(await readFile(policyOverridePath, "utf8")),
+    );
   });
 
   afterEach(async () => {
