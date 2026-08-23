@@ -1,67 +1,101 @@
 import { describe, expect, it } from "vitest";
+
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
-import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { resolveAmoraWeddingClarificationContinuity } from "@/lib/ai/amoraClarificationContinuity";
 
 /**
- * 통제를 털어놓은 말이 통제하는 사람에게 가면 안 된다.
+ * 2026-08-23 오전에 나는 `hasCoerciveControlSignal` 을 `hasAmoraSafetySignal` 의
+ * 마지막 갈래로 붙였다. 그리고 이 파일에 "평범한 결혼 대화는 비공개로 새지
+ * 않는다" 는 테스트를 15문장으로 써서 **오탐 0건**을 확인했다.
  *
- * 2026-08-23 라이브 실측: 강압 통제 서술 11건이 전부 `visibility: shared` 로
- * 저장돼 상대가 읽을 수 있었다. `hasAmoraSafetySignal` 이 그 게이트인데
- * 중재 요청에서만 강압 어휘를 봤기 때문이다.
+ * 그 15문장은 트리거를 밟지 않는 문장들이었다. 트리거는 명사(문자·카톡·메시지·
+ * 위치·폰 / 돈·카드·계좌·통장)와 동사(다 확인, 공유해야)가 한 창 안에 있을 때
+ * 걸리는데, 내가 고른 반례에는 그 조합이 하나도 없었다. 실패할 수 없는 측정이었다.
  *
- * 이 파일은 두 가지를 함께 고정한다 — 보호가 실제로 걸리는지, 그리고 그 대가로
- * 평범한 대화가 비공개로 새지 않는지. 둘 중 하나만 보면 반대쪽이 무너진다.
+ * 적대적 감사가 조합을 밟는 문장을 만들자 전부 걸렸다. 그래서 되돌렸다.
+ *
+ * 이 파일은 이제 **되돌린 것이 되돌아온 채로 있는지**를 지킨다. 반례는 내가
+ * 상상한 문장이 아니라 실제로 터졌던 문장이다.
  */
 
-const 통제_서술 = [
-  "예비신랑이 제 월급을 자기가 관리하겠다고 카드를 다 가져갔어요",
-  "결혼 준비하면서 친구들 만나지 말라고 해서 요즘 아무도 못 만나요",
-  "제 휴대폰을 매일 확인해요. 누구랑 연락했는지 다 봐요",
-];
+/** 실측으로 걸렸던 문장들. 전부 결혼 준비 한복판의 표현이다. */
+const ORDINARY_WEDDING_TALK = [
+  "청첩장 문자 문구를 다 확인했어요",
+  "카톡으로 청첩장 보낼 명단 다 확인했어",
+  "하객들한테 보낼 문자 명단을 다 확인했어요",
+  "예식장에서 보낸 계약 문자 내용을 다 확인했어요",
+  "스드메 견적 카톡으로 받은 거 다 확인했어",
+  "혼주 한복 대여점 위치를 지도로 다 확인했어요",
+  "축의금 들어온 돈은 부모님이 가져가시는 게 맞나요?",
+  "축의금 계좌를 하나로 모아서 부모님께 맡기라고 하시는데 어떻게 하나요",
+  "웨딩홀 계약할 때 카드로 결제하려면 부모님 허락받아야 하나요?",
+  "부모님이 지원해 주기로 한 돈을 아직 안 줘서 예약금을 못 넣었어요",
+  "결혼식 당일 부케 전달할 친구한테 메시지 다 확인받았어요",
+  "신혼집 잔금 낼 돈을 은행에서 안 줘서 애먹었어요",
+] as const;
 
-// 같은 어휘를 **무해하게** 쓰는 문장. 쉬운 반례만 쓰면 오탐을 못 본다.
-const 평범한_대화 = [
-  "신랑 월급 관리는 신랑이 하고 제 월급은 제가 관리해요",
-  "생활비 카드를 하나로 합칠까 하는데 어떻게들 하세요",
-  "예단비는 어머니가 관리해 주시기로 했어요",
-  "코로나 때문에 친구들을 못 만난 지 오래됐어요",
-  "청첩장 돌릴 때 친구들 다 만나야 하나요? 시간이 없어서요",
-  "혼주 화장 예약을 제가 다 확인했어요",
-  "예산을 초과할까 봐 지출을 매일 확인하고 있어요",
-  "스케줄을 서로 공유해서 어디 있는지 다 알아요",
-  "시댁에 가는 날짜를 미리 보고드리기로 했어요",
-  "저희는 싸우면 서로 며칠 말을 안 하는 스타일이에요",
-  "혼수 얘기하다가 어머니가 목소리를 높이셨어요",
-  "제가 반대해도 신랑이 자기 의견을 밀어붙일 때가 있어요",
-  "통장을 합치는 게 좋을지 따로 두는 게 좋을지 모르겠어요",
-  "직장을 그만두고 결혼 준비에 집중할까 고민이에요",
-  "예산은 신랑이 관리하기로 했어요",
-];
+/** 아모라가 실제로 낼 법한 되묻기. 여기 걸리면 대화가 끊긴다. */
+const AMORA_CLARIFYING_QUESTIONS = [
+  "문자로 보낼 분들을 먼저 다 확인해 드릴까요?",
+  "예식장 위치를 지도로 공유해야 할까요?",
+  "모바일 청첩장 링크를 카톡으로 공유해야 할까요?",
+  "청첩장 문자 초안을 신랑님과 공유해야 할까요?",
+  "하객 명단을 문자 보낼 분과 카톡 보낼 분으로 나눠서 다 확인해 드릴까요?",
+] as const;
 
-describe("강압 통제 서술은 공유 레인에 남지 않는다", () => {
-  it("일반 대화에서도 보호가 걸린다", () => {
-    for (const text of 통제_서술) {
-      expect(hasAmoraSafetySignal(text, "chat"), `보호가 안 걸린다: ${text}`).toBe(true);
-    }
+describe("평범한 결혼 대화가 안전 경로로 새지 않는다", () => {
+  it.each(ORDINARY_WEDDING_TALK)("공유 대화에서 사라지지 않는다: %s", (text) => {
+    // 걸리면 사용자 문장이 공유 탭에서 조용히 없어지고 비공개로 옮겨진다.
+    expect(hasAmoraSafetySignal(text, "chat")).toBe(false);
   });
 
-  it("중재에서도 그대로 걸린다", () => {
-    for (const text of 통제_서술) {
-      expect(hasAmoraSafetySignal(text, "mediation")).toBe(true);
-    }
+  it.each(ORDINARY_WEDDING_TALK)("상대에게 보내는 것도 막히지 않는다: %s", (text) => {
+    // 걸리면 "폭력·위협·통제와 관련된 민감한 안전 내용" 이라며 전송이 막힌다.
+    expect(hasAmoraSafetySignal(text, "chat")).toBe(false);
   });
+});
 
-  it("평범한 결혼 대화는 비공개로 새지 않는다", () => {
-    const 샌것 = 평범한_대화.filter((t) => hasAmoraSafetySignal(t, "chat"));
-    expect(샌것, `평범한 대화가 비공개로 샌다: ${샌것.join(" / ")}`).toEqual([]);
+describe("되묻기가 대화를 끊지 않는다", () => {
+  const anchor = "청첩장 보낼 하객 명단 정리해줘";
+  const USER_ID = "11111111-2222-4333-8444-555555555555";
+
+  it.each(AMORA_CLARIFYING_QUESTIONS)("연속성이 살아 있다: %s", (question) => {
+    // `amoraClarificationContinuity` 가 아모라의 되묻기 문장에 이 함수를 건다.
+    // 걸리면 사용자가 "응" 이라고 답해도 W4로 떨어져 도구가 0개가 된다 —
+    // PR #148 이 고쳤던 "되묻는 순간 죽는" 고리다.
+    expect(hasAmoraSafetySignal(question, "chat")).toBe(false);
+
+    const continuity = resolveAmoraWeddingClarificationContinuity({
+      rawOldestFirstRows: [
+        {
+          id: "m1", sender_id: USER_ID, sender_type: "groom", role: "user",
+          content: anchor, metadata: null, visibility: "shared",
+        },
+        {
+          id: "m2", sender_id: null, sender_type: "ai", role: "assistant",
+          content: question,
+          metadata: {
+            in_reply_to_user_message_id: "m1",
+            question_scope: "W0_wedding_core",
+            memory_eligible: true,
+          },
+          visibility: "shared",
+        },
+        {
+          id: "m3", sender_id: USER_ID, sender_type: "groom", role: "user",
+          content: "응 그렇게 해줘", metadata: null, visibility: "shared",
+        },
+      ],
+      requesterUserId: USER_ID,
+      currentUserMessageId: "m3",
+      currentUserText: "응 그렇게 해줘",
+    });
+    expect(continuity).not.toBeNull();
   });
+});
 
-  // 이 변경은 **가시성만** 바꾼다. 질문 범위가 함께 바뀌면 도구가 막혀
-  // "제품 실패" 가 된다 — 원 주석이 정확히 그것을 걱정했다.
-  it("질문 범위는 건드리지 않는다 — 도구가 막히면 안 된다", () => {
-    for (const text of 통제_서술) {
-      const scope = classifyAmoraQuestionScope({ userText: text, requestKind: "chat" }).scope;
-      expect(scope, `대화 범위가 고위험으로 떨어졌다: ${text}`).not.toBe("W2_high_risk_adjacent");
-    }
+describe("W5 위기 신호는 그대로 잡는다", () => {
+  it("되돌림이 진짜 안전 경로까지 끄지는 않았다", () => {
+    expect(hasAmoraSafetySignal("남편이 저를 때렸어요", "chat")).toBe(true);
   });
 });
