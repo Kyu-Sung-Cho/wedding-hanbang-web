@@ -32,7 +32,11 @@ function translateError(message: string): string {
   if (message.includes("Invalid login")) {
     return "이메일과 비밀번호가 맞지 않아요. 카카오·구글·Apple로 시작한 계정이라면 비밀번호가 아직 없을 수 있어요 — 아래 '비밀번호 찾기'에서 정하실 수 있어요.";
   }
-  if (message.includes("Email not confirmed")) return "이메일 인증이 완료되지 않았습니다.";
+  // 사실만 말하고 끝내면 사용자는 뭘 해야 할지 모른다. 메일함부터 보게 하고,
+  // 없을 때의 다음 행동까지 문장 안에 넣는다(웹의 `authErrorMessages.ts` 와 같은 규칙).
+  if (message.includes("Email not confirmed")) {
+    return "이메일 인증이 아직 안 끝났어요. 메일함에서 확인 메일의 버튼을 눌러주세요. 메일이 없으면 같은 이메일로 회원가입을 다시 진행하면 새 메일을 보내드려요.";
+  }
   if (message.includes("Too many requests")) return "요청이 너무 많습니다. 잠시 후 다시 시도해주세요.";
   if (message.includes("User not found")) return "등록되지 않은 이메일입니다.";
   if (message.includes("Network")) return "네트워크 연결을 확인해주세요.";

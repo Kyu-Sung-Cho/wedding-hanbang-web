@@ -321,6 +321,12 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       // 저장에 `__events` 밖의 변경이 섞여 있으면 AMORA_MANUAL_SCHEDULE_MIXED_DELTA_DENIED로
       // 막는다(20260802140000 마이그레이션). 그래서 일정 → 체크 두 번에 나눠 보낸다.
       // 순서가 중요하다 — 일정이 실패하면 체크도 하지 않아야 화면과 저장이 어긋나지 않는다.
+      // 날짜 저장이 "상대 확인 대기"로 끝났는지 기억한다.
+      //
+      // 두 번의 저장은 각각 안내 문구를 세우는데, 두 번째가 첫 번째를 덮는다.
+      // 그래서 날짜는 대기 중인데 화면에는 "저장했어요" 만 남았다 — 사용자는 날짜가
+      // 반영된 줄 알고 화면을 떠나고, 어디에도 날짜가 없는 것을 나중에 발견한다.
+      let datePending = false;
       try {
         if (data.date) {
           const upserted = upsertCategoryEvent(
@@ -335,9 +341,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             },
             pendingChecklistSchedule.categoryLabel
           );
-          await saveJourney({
+          const dateResult = await saveJourney({
             progress: upserted.newProgress as unknown as Record<string, ProgressItem>,
           });
+          datePending = dateResult?.status === "pending_partner";
         }
 
         // 첫 저장이 그대로 반영됐다면 스토어의 progress는 이미 `__events`를 담고 있다.
@@ -347,14 +354,24 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         const latestProgress = (useAuthStore.getState().journey?.progress
           ?? progress) as unknown as Record<string, unknown>;
 
-        await saveJourney({
-          progress: buildChecklistProgress(
-            latestProgress,
-            pendingChecklistSchedule.categoryKey,
-            pendingChecklistSchedule.itemId,
-            true
-          ) as unknown as Record<string, ProgressItem>,
-        });
+        await saveJourney(
+          {
+            progress: buildChecklistProgress(
+              latestProgress,
+              pendingChecklistSchedule.categoryKey,
+              pendingChecklistSchedule.itemId,
+              true
+            ) as unknown as Record<string, ProgressItem>,
+          },
+          datePending
+            ? {
+                pending:
+                  "확인 표시와 날짜 모두 상대방 확인을 기다리고 있어요. 두 분 확인 전에는 반영되지 않습니다.",
+                applied:
+                  "확인 표시는 저장했어요. 날짜는 상대방이 확인해야 일정에 반영돼요.",
+              }
+            : undefined,
+        );
         setPendingChecklistSchedule(null);
       } catch {
         // saveJourney가 이미 오류 문구를 세팅했다. 창을 닫지 않아 다시 시도할 수 있다.

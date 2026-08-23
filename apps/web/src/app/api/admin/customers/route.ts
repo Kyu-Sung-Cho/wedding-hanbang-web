@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { todayYmdInKst } from "@hanbang/shared/utils";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 
 export async function GET(request: Request) {
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
     const total = customers.length;
     const onboarded = customers.filter((c) => c.onboardingCompleted).length;
     const coupled = customers.filter((c) => c.hasPartner).length;
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayYmdInKst();
     const todayCount = customers.filter((c) => c.createdAt?.slice(0, 10) === today).length;
 
     return NextResponse.json({

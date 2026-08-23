@@ -735,7 +735,9 @@ function WhatWeDo() {
       icon: ClipboardList,
       label: "체크리스트",
       body: "대화에서 정한 다음 할 일과 끝낸 일을 한곳에서 이어서 봐요.",
-      href: "/schedule",
+      // 「일정」 카드와 같은 곳으로 보내면 안 된다. 일정 화면의 기본 뷰가 달력이 된
+      // 뒤로 이 카드의 설명("할 일과 끝낸 일")과 도착지가 어긋났다.
+      href: "/checklist",
     },
     {
       icon: Wallet,

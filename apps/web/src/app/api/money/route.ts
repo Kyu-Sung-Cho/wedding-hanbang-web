@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { todayYmdInKst } from "@hanbang/shared/utils";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import {
   cleanOptionalEnum,
@@ -110,7 +111,8 @@ export async function POST(request: Request) {
     if (cleanReceivedAt === undefined) {
       return NextResponse.json({ error: "날짜 형식이 올바르지 않습니다." }, { status: 400 });
     }
-    const receivedAt = cleanReceivedAt ?? new Date().toISOString().slice(0, 10);
+    // 서버는 UTC 로 돈다. 그냥 자르면 한국 새벽 0~9 시에 **어제 날짜로 저장된다.**
+    const receivedAt = cleanReceivedAt ?? todayYmdInKst();
 
     const { data, error } = await supabase
       .from("congratulatory_money")
