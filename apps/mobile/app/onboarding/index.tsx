@@ -52,6 +52,7 @@ import PreparationProgressList, {
   createPreparationStatuses,
 } from "@/components/onboarding/PreparationProgressList";
 import InviteCodeCard from "@/components/invite/InviteCodeCard";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
   COUPLE_INVITE_CODE_MAX_LENGTH,
   COUPLE_INVITE_CODE_PLACEHOLDER,
@@ -622,7 +623,9 @@ export default function OnboardingScreen() {
       }
       goOn();
     } catch (err) {
-      Alert.alert("오류", err instanceof Error ? err.message : "저장에 실패했어요");
+      // 네트워크가 끊기면 여기로 "Network request failed" 가 온다. 신규 사용자가
+      // 제품에서 처음 보는 문장이 영어이면 안 된다.
+      Alert.alert("오류", toKoreanErrorMessage(err, "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setSubmitting(false);
     }

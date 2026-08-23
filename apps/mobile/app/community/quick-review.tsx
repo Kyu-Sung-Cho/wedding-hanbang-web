@@ -11,6 +11,7 @@ import { colors } from "@hanbang/design-tokens";
 import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { apiFetch } from "@/lib/api";
 import { AppHeader, PrimaryButton } from "@/components/ui/AppUI";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 
 const CATEGORIES = [
   { key: "venue", label: PLANNING_CATEGORY_LABELS.venue },
@@ -71,8 +72,7 @@ export default function QuickReviewScreen() {
         { text: "확인", onPress: () => router.back() },
       ]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "작성에 실패했어요";
-      Alert.alert("오류", msg);
+      Alert.alert("오류", toKoreanErrorMessage(err, "후기를 올리지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setSubmitting(false);
     }

@@ -28,6 +28,7 @@ import { colors } from "@hanbang/design-tokens";
 import { PLANNING_CATEGORY_LABELS } from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
   createOwnerCoupleSessionFence,
   type OwnerCoupleSessionToken,
@@ -911,7 +912,7 @@ function BookingDetailSheet({
           : "사용자가 입력한 기록 지출로 저장했어요. 결제 증빙을 뜻하지 않아요."
       );
     } catch (err) {
-      setOutcomeError(err instanceof Error ? err.message : "저장에 실패했습니다.");
+      setOutcomeError(toKoreanErrorMessage(err, "저장하지 못했어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
       setSavingOutcome(false);
     }
