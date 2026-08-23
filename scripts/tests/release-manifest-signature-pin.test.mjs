@@ -53,7 +53,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 펜스는 next build 앞에서 정확히 일치할 때만 통과하기 때문이다.
  */
 const EXPECTED_SIGNATURE =
-  "580a0f6109290eb7ff9d70d74e1bd2f4d398a7fbdeac6d8a478385bf875a76aa";
+  "313b92853c26301f61bd0890b180df575ad0177b0fe6c1eec9af93d101155ba9";
 
 test("측정기가 살아 있다", () => {
   const actual = expectedProductionAuthorizationSha256(repoRoot);
