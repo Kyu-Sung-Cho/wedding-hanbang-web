@@ -58,9 +58,31 @@ export interface AmoraFirstHello {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+// 이 제품은 KST 하나만 쓴다. `coupleConnection.ts` 도 같은 이유로 고정 오프셋을 직접
+// 쓴다 — 한국은 서머타임이 없어 +09:00 이 언제나 정확하다.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
 /**
- * 예식일까지 남은 날. 시간대 때문에 하루가 어긋나면 D-day가 틀리므로, 두 값을 모두
- * "그 날의 00:00 UTC"로 맞춘 뒤 뺀다.
+ * 예식일까지 남은 날.
+ *
+ * ## 왜 KST 로 오늘을 읽는가
+ *
+ * 예식일은 사용자가 고른 **한국 날짜**다("2027-04-17" 은 한국의 4월 17일). 그런데
+ * "오늘"을 `getUTCDate()` 로 읽으면 Vercel(UTC)에서 **한국 새벽 00:00~09:00 동안 어제**가
+ * 되어 D-day 가 하루 많게 나왔다. 하루 24시간 중 9시간이다.
+ *
+ *     예식일 2026-08-25, 한국 2026-08-24 06:00
+ *       실제 D-1  ->  화면 "결혼식까지 2일 남았어요"
+ *
+ * 가장 나쁜 형태는 **예식 당일 새벽**이다 — "오늘이 결혼식이네요" 대신 "결혼식까지
+ * 1일 남았어요"가 나갔다.
+ *
+ * 웹은 이미 `lib/utils/kstDate.ts` 로 같은 사고를 한 번 겪고 고쳤고, 그 파일 머리말이
+ * "모든 사용자-노출 날짜 계산은 이 헬퍼를 통과시킨다"고 적어 뒀다. 이 계산만 그 규칙
+ * 밖에 있었다.
+ *
+ * 기존 검사가 못 잡은 이유: `NOW = Date.UTC(2026, 7, 20)` 은 KST 09:00 이라 UTC 와
+ * 날짜가 일치하기 시작하는 첫 시각이다. 깨진 구간을 한 번도 지나지 않았다.
  *
  * 형식이 아니거나 실재하지 않는 날짜면 null — 없는 D-day를 지어내지 않는다.
  */
@@ -84,11 +106,11 @@ export function daysUntilWedding(
     return null;
   }
 
-  const today = new Date(now);
+  const todayKst = new Date(now + KST_OFFSET_MS);
   const todayUtc = Date.UTC(
-    today.getUTCFullYear(),
-    today.getUTCMonth(),
-    today.getUTCDate(),
+    todayKst.getUTCFullYear(),
+    todayKst.getUTCMonth(),
+    todayKst.getUTCDate(),
   );
   return Math.round((target - todayUtc) / MS_PER_DAY);
 }
