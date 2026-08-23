@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Bell, ChevronRight } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
@@ -8,12 +8,15 @@ import { apiFetchForExpectedUser } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import {
   buildMarkReadBody,
+  buildPlanChangeDecisionRequest,
   canOpenCoupleChange,
   getCoupleChangeNativeRoute,
   isAwaitingMyApproval,
   parseCoupleChangeNotifications,
+  readPlanChangeDecisionOutcome,
   selectCoupleChangesForViewer,
   type CoupleChangeNotification,
+  type PlanChangeDecision,
 } from "@/lib/coupleChangeNotifications.mjs";
 import { appShadow } from "@/components/ui/AppUI";
 
@@ -39,6 +42,8 @@ type ViewState =
       visible: CoupleChangeNotification[];
       unreadCount: number;
       hiddenCount: number;
+      /** 내가 눌러야 끝나는 계획 변경 요청. 읽음 여부와 무관하게 남는다. */
+      awaitingDecision: CoupleChangeNotification[];
     };
 
 async function currentVerifiedUserId(): Promise<string | null> {
@@ -53,6 +58,7 @@ export default function PartnerChangeNotice({
   refreshVersion?: number;
 }) {
   const [state, setState] = useState<ViewState>({ kind: "quiet" });
+  const [decidingId, setDecidingId] = useState<string | null>(null);
   const [authGeneration, setAuthGeneration] = useState(0);
   const loadGeneration = useRef(0);
   const sessionUserId = useRef<string | null>(null);
@@ -89,7 +95,9 @@ export default function PartnerChangeNotice({
       // 봉투의 주인이 보는 사람과 같을 때만 그린다 — 웹이 이미 같은 대조를 한다.
       const picked = selectCoupleChangesForViewer(parsed, userId, VISIBLE_LIMIT);
       setState(
-        picked.unreadCount === 0 ? { kind: "quiet" } : { kind: "ready", ...picked },
+        picked.unreadCount === 0 && picked.awaitingDecision.length === 0
+          ? { kind: "quiet" }
+          : { kind: "ready", ...picked },
       );
     } catch (error) {
       if (
@@ -153,6 +161,55 @@ export default function PartnerChangeNotice({
     [load],
   );
 
+  /**
+   * 라운지에서 바로 확인·거절한다.
+   *
+   * 여기가 없던 동안 `/dashboard` 표면 요청(식장만 바꾼 경우가 대표적이다)은
+   * 모바일에서 처리할 방법이 아예 없었다 — 배지만 뜨고 24시간 뒤 만료됐다.
+   * 웹 알림 패널이 이미 같은 두 버튼을 갖고 있고, 서버 계약도 같다.
+   *
+   * 결과는 반드시 말한다. 말하지 않으면 **상대가 거절한 화면과 내가 반영한
+   * 화면이 똑같다** — 둘 다 줄이 사라지고 라운지 숫자만 남는다.
+   */
+  const decide = useCallback(
+    async (notification: CoupleChangeNotification, decision: PlanChangeDecision) => {
+      const plan = buildPlanChangeDecisionRequest(notification.actionId, decision);
+      if (!plan || decidingId) return;
+      const userId = sessionUserId.current ?? (await currentVerifiedUserId());
+      if (!userId) return;
+      setDecidingId(notification.id);
+      try {
+        const res = await apiFetchForExpectedUser(userId, plan.path, {
+          method: plan.method,
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: plan.body,
+        });
+        const payload = await res.json().catch(() => null);
+        const outcome = readPlanChangeDecisionOutcome(res.status, payload, decision);
+        if (outcome.kind === "applied") {
+          Alert.alert("계획 변경을 반영했어요", "두 사람의 확인이 끝나 최신 기록에 반영됐어요.");
+        } else if (outcome.kind === "rejected") {
+          Alert.alert("계획 변경을 반영하지 않았어요", "기존 정보는 그대로 유지돼요.");
+        } else if (outcome.kind === "pending") {
+          Alert.alert("확인을 보냈어요", "상대의 확인이 끝나면 반영돼요.");
+        } else {
+          // 서버가 준 문장을 그대로 쓴다. 만료·충돌·권한이 서로 다른 말을 한다.
+          Alert.alert(
+            "처리하지 못했어요",
+            outcome.message ?? "잠시 후 라운지를 새로고침한 뒤 다시 확인해 주세요.",
+          );
+        }
+      } catch {
+        Alert.alert("처리하지 못했어요", "연결을 확인한 뒤 다시 시도해 주세요.");
+      } finally {
+        setDecidingId(null);
+      }
+      // 성공이든 실패든 서버가 정본이다. 다시 읽어 화면을 맞춘다.
+      await load();
+    },
+    [decidingId, load],
+  );
+
   const open = useCallback(
     (notification: CoupleChangeNotification) => {
       // 갈 데가 없으면 읽음 처리도 하지 않는다. 화면은 그대로인데 줄만 사라지면
@@ -178,20 +235,75 @@ export default function PartnerChangeNotice({
         <View style={styles.headerLabel}>
           <Bell size={14} color={colors.rose[600]} />
           <Text style={styles.eyebrow}>
-            {state.unreadCount === 1
-              ? "함께 볼 소식이 하나 있어요"
-              : `함께 볼 소식이 ${state.unreadCount}개 있어요`}
+            {state.awaitingDecision.length > 0
+              ? (state.awaitingDecision.length === 1
+                ? "함께 확인할 변경이 하나 있어요"
+                : `함께 확인할 변경이 ${state.awaitingDecision.length}개 있어요`)
+              : (state.unreadCount === 1
+                ? "함께 볼 소식이 하나 있어요"
+                : `함께 볼 소식이 ${state.unreadCount}개 있어요`)}
           </Text>
         </View>
-        <Pressable
-          onPress={() => void markRead("all")}
-          accessibilityRole="button"
-          accessibilityLabel="알림 모두 읽음으로 표시"
-          hitSlop={8}
-        >
-          <Text style={styles.markAll}>모두 읽음</Text>
-        </Pressable>
+        {state.unreadCount > 0 ? (
+          <Pressable
+            onPress={() => void markRead("all")}
+            accessibilityRole="button"
+            accessibilityLabel="알림 모두 읽음으로 표시"
+            hitSlop={8}
+          >
+            <Text style={styles.markAll}>모두 읽음</Text>
+          </Pressable>
+        ) : null}
       </View>
+
+      {state.awaitingDecision.map((notification) => {
+        const busy = decidingId === notification.id;
+        return (
+          <View key={notification.id} style={styles.row} accessible>
+            <View style={styles.rowText}>
+              <View style={styles.rowTitleLine}>
+                <Text style={styles.rowTitle} numberOfLines={2}>
+                  {notification.title}
+                </Text>
+                <Text style={styles.waitingPill}>확인 필요</Text>
+              </View>
+              <Text style={styles.rowMessage} numberOfLines={3}>
+                {notification.message}
+              </Text>
+              <View style={styles.decisionRow}>
+                <Pressable
+                  onPress={() => void decide(notification, "accept")}
+                  disabled={decidingId !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${notification.title} 확인하고 반영`}
+                  style={({ pressed }) => [
+                    styles.acceptButton,
+                    (pressed || decidingId !== null) && styles.buttonDim,
+                  ]}
+                >
+                  {busy ? (
+                    <ActivityIndicator size="small" color={colors.surface} />
+                  ) : (
+                    <Text style={styles.acceptLabel}>확인하고 반영</Text>
+                  )}
+                </Pressable>
+                <Pressable
+                  onPress={() => void decide(notification, "reject")}
+                  disabled={decidingId !== null}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${notification.title} 이번 요청 거절`}
+                  style={({ pressed }) => [
+                    styles.rejectButton,
+                    (pressed || decidingId !== null) && styles.buttonDim,
+                  ]}
+                >
+                  <Text style={styles.rejectLabel}>이번 요청 거절</Text>
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        );
+      })}
 
       {state.visible.map((notification) => {
         const openable = canOpenCoupleChange(notification);
@@ -293,6 +405,36 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   rowMessage: { fontSize: 13, lineHeight: 20, color: colors.textSecondary },
+  decisionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing[2],
+    marginTop: spacing[2],
+    flexWrap: "wrap",
+  },
+  acceptButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing[4],
+    borderRadius: radius.lg,
+    // 웹 알림 패널의 "확인하고 반영" 버튼과 같은 색이다(#36534E). 같은 결정을
+    // 두 화면이 다른 색으로 물으면 사용자는 다른 일로 읽는다.
+    backgroundColor: colors.noir[800],
+  },
+  acceptLabel: { fontSize: 13, fontWeight: "600", color: colors.surface },
+  rejectButton: {
+    minHeight: 44,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: spacing[4],
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+  },
+  rejectLabel: { fontSize: 13, fontWeight: "600", color: colors.rose[600] },
+  buttonDim: { opacity: 0.6 },
   more: {
     paddingHorizontal: spacing[4],
     paddingBottom: spacing[4],

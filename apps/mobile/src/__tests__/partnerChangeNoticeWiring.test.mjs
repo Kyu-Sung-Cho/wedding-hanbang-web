@@ -66,3 +66,49 @@ test("요청이 시작 시점 사용자에게 묶인다", () => {
     "세션에 묶이지 않은 apiFetch 를 쓰고 있다",
   );
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 라운지에서 바로 확인·거절
+//
+// `/dashboard` 표면 요청은 모바일에서 처리할 방법이 아예 없었다 — 배지만 뜨고
+// 24시간 뒤 만료됐다. 순수 로직은 위 파일이 지키고, 여기서는 **화면이 그 로직을
+// 실제로 부르는지**를 본다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+test("결정 줄을 그리고 두 버튼을 붙인다", () => {
+  assert.match(source, /state\.awaitingDecision\.map\(/u);
+  assert.match(source, /확인하고 반영/u);
+  assert.match(source, /이번 요청 거절/u);
+});
+
+test("서버 계약은 라이브러리가 만든 것만 쓴다 — 화면이 경로를 지어내지 않는다", () => {
+  assert.match(source, /buildPlanChangeDecisionRequest\(/u);
+  assert.ok(
+    !/["'`]\/api\/couple-plan-changes/u.test(source),
+    "화면이 승인 경로 문자열을 직접 쓰고 있다",
+  );
+  assert.match(source, /apiFetchForExpectedUser\(userId, plan\.path/u);
+});
+
+test("반영과 거절이 서로 다른 결과를 말한다", () => {
+  // 말하지 않으면 상대가 거절한 화면과 내가 반영한 화면이 똑같다.
+  assert.match(source, /outcome\.kind === "applied"/u);
+  assert.match(source, /outcome\.kind === "rejected"/u);
+  const alerts = source.match(/Alert\.alert\(\s*"[^"]+"/gu) ?? [];
+  assert.ok(alerts.length >= 4, `결과 안내가 너무 적다: ${alerts.length}`);
+  assert.equal(new Set(alerts).size, alerts.length, "같은 문구를 여러 결과에 쓰고 있다");
+});
+
+test("실패 문구는 서버가 준 것을 쓴다", () => {
+  assert.match(source, /outcome\.message/u);
+});
+
+test("결정한 뒤 서버를 다시 읽는다", () => {
+  const decide = source.slice(source.indexOf("const decide = useCallback("));
+  const body = decide.slice(0, decide.indexOf("const open = useCallback("));
+  assert.match(body, /await load\(\)/u, "결정 뒤 재적재가 없다 — 줄이 그대로 남는다");
+});
+
+test("두 번 누르는 것을 막는다", () => {
+  assert.match(source, /disabled=\{decidingId !== null\}/u);
+});

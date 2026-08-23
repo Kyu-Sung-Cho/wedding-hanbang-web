@@ -100,6 +100,10 @@ function parseNotification(value) {
     href: value.href,
     createdAt: value.created_at,
     readAt: value.read_at,
+    // 검사만 하고 버리면 안 된다. 이 값이 계획 변경 요청 번호이고, 이것 없이는
+    // 모바일이 무엇을 승인해야 하는지 서버에 말할 수 없다 — 화면에 "확인 필요"만
+    // 뜨고 누를 것이 없던 이유가 바로 이 한 줄이었다.
+    actionId: typeof value.action_id === "string" ? value.action_id : null,
   };
 }
 
@@ -143,13 +147,88 @@ export function getCoupleChangeNativeRoute(href) {
  * 데모 세션은 `ownerId: null` 과 빈 목록을 돌려준다 — 일치로 치지 않고 조용히 비운다.
  */
 export function selectCoupleChangesForViewer(envelope, viewerUserId, limit = 3) {
-  const empty = { visible: [], unreadCount: 0, hiddenCount: 0 };
+  const empty = { visible: [], unreadCount: 0, hiddenCount: 0, awaitingDecision: [] };
   if (!isRecord(envelope) || !Array.isArray(envelope.notifications)) return empty;
   if (typeof viewerUserId !== "string" || !UUID_RE.test(viewerUserId)) return empty;
   if (typeof envelope.ownerId !== "string") return empty;
   // 저장소 관례대로 대소문자를 무시하고 견준다.
   if (envelope.ownerId.toLowerCase() !== viewerUserId.toLowerCase()) return empty;
-  return selectUnreadCoupleChanges(envelope.notifications, limit);
+  const awaitingDecision = selectPlanChangeDecisions(envelope.notifications);
+  // 결정 줄은 아래 목록에서 뺀다. 같은 줄이 위아래로 두 번 그려지면 사용자는
+  // 요청이 두 건인 줄 안다.
+  const decisionIds = new Set(awaitingDecision.map((row) => row.id));
+  const rest = envelope.notifications.filter(
+    (row) => !(isRecord(row) && decisionIds.has(row.id)),
+  );
+  return { ...selectUnreadCoupleChanges(rest, limit), awaitingDecision };
+}
+
+/**
+ * **내가 눌러야 끝나는** 계획 변경 요청.
+ *
+ * 읽음 여부를 보지 않는다. 웹 `/api/notifications` 가 이 종류만 읽음과 무관하게
+ * 따로 실어 보내는 것과 같은 이유다 — 읽었다고 요청이 끝난 것이 아니다.
+ * 예전 모바일은 안 읽은 줄만 그렸기 때문에 **"모두 읽음"을 누르면 아직 상대를
+ * 기다리게 하는 요청이 화면에서 사라졌고**, 24시간 뒤 조용히 만료됐다.
+ *
+ * `actionId` 가 없으면 승인을 보낼 수 없으므로 결정 줄로 치지 않는다.
+ */
+export function selectPlanChangeDecisions(notifications) {
+  if (!Array.isArray(notifications)) return [];
+  return notifications
+    .filter((row) => isRecord(row)
+      && row.toolName === "manual_plan_change"
+      && row.eventKind === "approval_requested"
+      && typeof row.actionId === "string"
+      && UUID_RE.test(row.actionId))
+    .slice()
+    .sort((left, right) => {
+      const byTime = String(right.createdAt).localeCompare(String(left.createdAt));
+      return byTime !== 0 ? byTime : String(right.id).localeCompare(String(left.id));
+    });
+}
+
+/**
+ * 승인·거절 요청. 서버 계약은 웹이 이미 쓰고 있는 것과 같다 —
+ * `POST` 가 확인, `DELETE` 가 거절이고 본문은 빈 객체다.
+ */
+export function buildPlanChangeDecisionRequest(actionId, decision) {
+  if (typeof actionId !== "string" || !UUID_RE.test(actionId)) return null;
+  if (decision !== "accept" && decision !== "reject") return null;
+  return {
+    path: `/api/couple-plan-changes/${encodeURIComponent(actionId.toLowerCase())}`,
+    method: decision === "accept" ? "POST" : "DELETE",
+    body: "{}",
+  };
+}
+
+/**
+ * 서버 응답을 화면이 말할 수 있는 결과로 옮긴다.
+ *
+ * 문구를 여기서 지어내지 않는다. 실패는 **서버가 준 `error` 를 그대로** 쓴다
+ * (만료·충돌·권한이 각각 다른 문장을 갖고 있다). 성공만 능동 경로가 이미
+ * 쓰는 문장을 따른다.
+ */
+export function readPlanChangeDecisionOutcome(status, payload, decision) {
+  const body = isRecord(payload) ? payload : {};
+  const serverMessage = typeof body.error === "string" && body.error.length > 0
+    ? body.error
+    : null;
+  if (!Number.isSafeInteger(status)) {
+    return { kind: "error", message: serverMessage };
+  }
+  if (status >= 200 && status < 300) {
+    if (decision === "accept") {
+      if (body.status === "applied") return { kind: "applied", message: null };
+      // 202. 정족수가 아직 안 찼다 — 실패가 아니므로 실패라고 말하지 않는다.
+      if (body.status === "pending_partner") return { kind: "pending", message: null };
+    } else if (body.status === "rejected") {
+      return { kind: "rejected", message: null };
+    }
+    return { kind: "unconfirmed", message: serverMessage };
+  }
+  if (body.code === "PLAN_CHANGE_STALE") return { kind: "stale", message: serverMessage };
+  return { kind: "error", message: serverMessage };
 }
 
 export function selectUnreadCoupleChanges(notifications, limit = 3) {
@@ -193,9 +272,12 @@ export function isAwaitingMyApproval(notification) {
  * 이 줄을 눌러 **다른 화면으로 갈 수 있는가.**
  *
  * `/dashboard`·`/lounge` 알림은 지금 보고 있는 라운지를 가리킨다. 눌러도 화면은
- * 그대로인데 읽음 처리만 되면 그 줄은 아무 일도 없이 사라진다. 특히 모바일에는
- * 계획 변경 승인 화면이 따로 없어서, 승인 대기 줄이 그렇게 없어지면 확인할 방법이
- * 사라진다. 그런 줄은 눌리지 않게 두고 "모두 읽음"으로만 지운다.
+ * 그대로인데 읽음 처리만 되면 그 줄은 아무 일도 없이 사라진다. 그런 줄은 눌리지
+ * 않게 둔다.
+ *
+ * 승인이 필요한 줄은 이제 여기에 기대지 않는다 — `selectPlanChangeDecisions` 가
+ * 따로 골라 라운지에서 바로 확인·거절 버튼을 받는다. 예전에는 그 화면이 없어서
+ * `/dashboard` 표면 요청이 모바일에서 영영 처리되지 못했다.
  */
 export function canOpenCoupleChange(notification) {
   if (!isRecord(notification)) return false;
