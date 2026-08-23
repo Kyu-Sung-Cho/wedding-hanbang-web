@@ -706,12 +706,33 @@ export function renderAmoraPendingActionMarker(value: unknown): string | null {
  * 들어간다. 그래서 **이미 망가진 지난 대화도 이 경로에서 회복된다** — 정화를
  * 생성 시점에만 두면 운영에 이미 쌓인 대화는 영영 그대로다.
  */
+/**
+ * 이력의 표식 앞에 붙는 한 줄. 이 값이 **제안일 뿐 확정이 아님**을 모델에게 알린다.
+ * 사용자에게는 보이지 않는다 — 이력은 제공자에게만 간다.
+ */
+// 짧게 둔다. 길게 쓰면 모델이 그 문장에 매달려 **정작 물어본 것에 답하지 않는다**
+// (2026-08-23 실측: 긴 안내를 붙였더니 "총예산 얼마야?" 에 금액 대신 "그 변경들은
+// 반영되지 않았습니다" 만 답했다). 표식이 사실이 아님만 알리면 된다.
+const UNCONFIRMED_PROPOSAL_HISTORY_NOTE = "[미확인 제안 — 저장된 값 아님]";
+
 export function buildAmoraHistoryContent(
   content: string,
   pendingAction: unknown,
 ): string {
   const marker = renderAmoraPendingActionMarker(pendingAction);
-  if (marker) return `${content}\n${marker}`;
+  // 표식은 모델에게 "아모라 턴은 이렇게 생겼다"를 가르치려고 되붙인다. 그런데
+  // 그 안의 숫자를 **현재 값으로 읽는** 부작용이 있었다.
+  //
+  // 실측(2026-08-23): 사용자가 "총예산 9천5백만원으로 바꿔줘"로 카드를 받고
+  // 확인하지 않았는데, 다음 턴에서 아모라가 "9,500만 원에 신혼집도 포함인가요?"
+  // 라고 되물었다. DB 실제 값은 7,000만 원이었다. **버려진 제안 하나가 그 뒤
+  // 대화를 오염시킨다** — 팀 시연에서 카드를 한 번만 안 눌러도 바로 드러난다.
+  //
+  // 그래서 표식 앞에 확인되지 않았다는 한 줄을 붙인다. 표식 자체는 그대로라
+  // 모양 학습 효과는 유지되고, 값이 사실이 아님만 분명해진다.
+  if (marker) {
+    return `${content}\n${UNCONFIRMED_PROPOSAL_HISTORY_NOTE}\n${marker}`;
+  }
   return sanitizeHistoryConfirmation(content);
 }
 

@@ -92,4 +92,12 @@ describe("ChatBubble etiquette tags", () => {
     expect(container.textContent).not.toContain("가족 이야기 더 나누기");
     expect(guideLinks()[0]?.getAttribute("href")).toContain("/manners/");
   });
+
+  // 모델은 프롬프트와 달리 제목을 덧붙인다(2026-08-23 실측:
+  // `[etiquette:2:상견례]`). 숫자만 받으면 태그가 날것으로 사용자에게 보인다.
+  it("제목이 붙은 태그도 읽기 카드로 바꾼다", async () => {
+    await render("상견례는 처음 만나는 자리예요. [etiquette:2:상견례]");
+    expect(container.textContent).not.toContain("[etiquette:2:상견례]");
+    expect(container.textContent).not.toContain("etiquette");
+  });
 });
