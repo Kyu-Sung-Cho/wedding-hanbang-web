@@ -91,6 +91,9 @@ describe("legal pages reflect the current product", () => {
     const surveyApi = source("src/app/api/survey/route.ts");
 
     expect(surveyPage).toContain("notFound()");
+    // notFound() 만으로는 부족하다. 이 선언이 없으면 Next 가 닫힌 페이지를
+    // 미리 렌더해 200 으로 서빙하고, 검색엔진이 그것을 색인한다.
+    expect(surveyPage).toContain('dynamic = "force-dynamic"');
     expect(surveyApi).toContain("status: 410");
     expect(surveyApi).toContain('"Cache-Control": "no-store"');
     expect(surveyApi).not.toContain("customer_survey_responses");
