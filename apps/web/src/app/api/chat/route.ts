@@ -25,6 +25,8 @@ import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import {
   getAvailableChatTools,
   getPlaceSearchToolChoice,
+  isPlaceSearchCandidate,
+  PLACE_SEARCH_TOOL_NAME,
 } from "@/lib/ai/placeSearchRouting";
 import {
   getClientSafeToolInput,
@@ -2818,9 +2820,16 @@ export async function POST(request: Request) {
     round: 0,
     tools: candidateTools,
   });
-  const selectedTools = initialPlaceSearchToolChoice
+  // 도구를 **주는 것**과 **강제로 부르게 하는 것**을 나눈다. 예전에는 하나였고,
+  // 그래서 지역명을 못 알아본 문장("공덕에 상견례 한정식집 찾아줘")에서 도구가
+  // 목록에서 통째로 빠져 아모라가 "검색 기능이 지금 없어요" 라고 답했다
+  // (2026-08-23 실측). 사용자에게는 제품이 못 하는 것으로 보인다.
+  const offersPlaceSearch =
+    initialPlaceSearchToolChoice !== undefined
+    || isPlaceSearchCandidate(lastUserText);
+  const selectedTools = offersPlaceSearch
     ? candidateTools.filter((tool) => (
-        tool.name === initialPlaceSearchToolChoice.name
+        tool.name === PLACE_SEARCH_TOOL_NAME
         || policySelectedTools.includes(tool)
       ))
     : policySelectedTools;

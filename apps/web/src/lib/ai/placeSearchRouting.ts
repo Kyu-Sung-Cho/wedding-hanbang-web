@@ -9,19 +9,66 @@ const PLACE_KIND_RE =
 const LOCATION_RE =
   /(내\s*근처|우리\s*동네|서울|부산|대구|인천|광주|대전|울산|세종|제주|강남|홍대|건대|신촌|잠실|판교|분당|수원|일산|여의도|성수|청담|압구정|연남|[가-힣0-9]{1,12}(?:시|군|구|동|읍|면|역|로|길)(?=\s|에서|근처|주변|쪽|에|$))/i;
 const SEARCH_ACTION_RE =
-  /(찾아\s*줘|찾아\s*주세요|찾아\s*봐|검색해\s*줘|검색해\s*주세요|검색해\s*봐|추천해\s*줘|추천해\s*주세요|추천해\s*봐|추천\s*해줘|골라\s*줘|알아봐\s*줘|어디가\s*(?:좋아|괜찮아)|어디\s*(?:있어|있나요))/i;
+  /(찾아\s*줘|찾아\s*주세요|찾아\s*봐|찾아\s*달라|검색해\s*줘|검색해\s*주세요|검색해\s*봐|추천해\s*줘|추천해\s*주세요|추천해\s*봐|추천\s*해줘|추천해\s*달라|추천\s*좀|골라\s*줘|알아봐\s*줘|어디가\s*(?:좋아|괜찮아)|어디\s*(?:있어|있나요))/i;
 const NEGATED_SEARCH_RE =
   /(찾지\s*마|검색하지\s*마|추천하지\s*마|알아보지\s*마|찾을\s*필요\s*(?:없어|없습니다))/i;
 
 /**
- * 명시적인 외부 장소 검색 발화만 강제 도구 호출로 보낸다.
- * 예절 질문이나 웨딩 업체 추천을 잘못 네이버 지역 검색으로 보내지 않도록
- * 장소 종류와 검색 행동이 모두 있는 경우로 범위를 좁힌다.
+ * 동네 이름은 목록으로 관리할 수 없다.
+ *
+ * 실측(2026-08-23): 사용자가 "공덕에 상견례 한정식집 찾아줘" 라고 했는데 아모라가
+ * **"직접 검색하는 기능은 지금 없어요"** 라고 답했다. 거짓말이 아니었다 — 위
+ * `LOCATION_RE` 에 공덕이 없어서 도구가 모델에게 아예 주어지지 않았다. 같은 문장의
+ * "강남" 판은 카드가 나왔다. 마포·합정·서초도 같은 이유로 막힌다.
+ *
+ * 그래서 접미사(구·동·역…)나 이름 목록에 기대지 않고 **조사**를 본다. 한국어에서
+ * 장소는 "공덕에", "합정 근처", "마포에서" 처럼 온다. 다만 "주말에", "다음 주에"
+ * 처럼 시간도 같은 조사를 쓰므로 그것만 따로 뺀다.
  */
+const TIME_WORD_RE =
+  /^(오늘|내일|모레|주말|평일|아침|점심|저녁|밤|낮|새벽|이번\s*주|다음\s*주|이번\s*달|다음\s*달|올해|내년|[0-9]{1,2}월|[0-9]{1,2}일|[0-9]{1,2}시)$/;
+const PARTICLE_PLACE_RE =
+  /([가-힣]{2,12})\s*(?:에서|에|근처|주변|쪽)(?=\s|$)/g;
+
+function mentionsSomewhere(normalized: string): boolean {
+  if (LOCATION_RE.test(normalized)) return true;
+  PARTICLE_PLACE_RE.lastIndex = 0;
+  for (
+    let match = PARTICLE_PLACE_RE.exec(normalized);
+    match !== null;
+    match = PARTICLE_PLACE_RE.exec(normalized)
+  ) {
+    const token = match[1];
+    if (TIME_WORD_RE.test(token)) continue;
+    // 종류를 가리키는 말이 조사를 달고 나온 것("한정식집에")은 장소 이름이 아니다.
+    if (PLACE_KIND_RE.test(token)) continue;
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 이 발화에 **장소 검색 도구를 줄지** 정한다(강제 호출과는 별개).
+ *
+ * 예전에는 강제 호출 판정 하나가 두 일을 겸했다. 그래서 지역을 못 알아보면
+ * 도구 자체가 목록에서 빠졌고, 아모라는 **없는 기능이라고 말할 수밖에** 없었다.
+ * 사용자에게는 제품이 못 하는 것으로 보인다.
+ *
+ * 이제 종류와 검색 행동만 있으면 도구를 준다. 지역이 없으면 어디서 찾을지
+ * 되묻는 것은 정당한 되묻기다 — "기능이 없다"는 답과 다르다.
+ */
+export function isPlaceSearchCandidate(userText: string): boolean {
+  const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
+  return PLACE_KIND_RE.test(normalized) && SEARCH_ACTION_RE.test(normalized);
+}
+
 export function isExplicitPlaceSearchIntent(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  return LOCATION_RE.test(normalized) && PLACE_KIND_RE.test(normalized) && SEARCH_ACTION_RE.test(normalized);
+  return mentionsSomewhere(normalized)
+    && PLACE_KIND_RE.test(normalized)
+    && SEARCH_ACTION_RE.test(normalized);
 }
 
 export function getAvailableChatTools(options: {
