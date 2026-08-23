@@ -306,7 +306,10 @@ interface ChatStoreState {
     weddingContext: WeddingContext;
     /** 요청자가 확인창에 직접 작성한 요약. 대화 원문을 자동 복사하면 안 된다. */
     conflictContext: string;
-  }) => Promise<void>;
+    // 안전 홀드로 막히면 안내 카드가 **나만 보기 탭**에 들어간다. 호출부가 그
+    // 탭으로 옮겨 주지 않으면 사용자는 다이얼로그만 닫히고 아무 일도 일어나지
+    // 않는 것을 본다 — 버튼이 고장난 것으로 읽힌다(2026-08-24 감사).
+  }) => Promise<"safety_hold" | "sent">;
   clearMessages: (
     coupleId: string,
     mode: "view_reset_shared" | "delete_shared" | "view_reset_private" | "delete_private"
@@ -2696,19 +2699,19 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 갈등 중재: 사용자가 명시적으로 요청한 구조화 초안
   requestMediation: async ({ coupleId, senderRole, senderName, weddingContext, conflictContext }) => {
-    if (get().isStreaming || get().isSending) return;
+    if (get().isStreaming || get().isSending) return "sent";
     if (senderRole !== "bride" && senderRole !== "groom") {
       set({ error: "현재 커플 역할을 확인한 뒤 다시 시도해 주세요." });
-      return;
+      return "sent";
     }
     const lifecycleBinding = captureChatLifecycleBinding(coupleId);
-    if (!lifecycleBinding || lifecycleBinding.role !== senderRole) return;
+    if (!lifecycleBinding || lifecycleBinding.role !== senderRole) return "sent";
     const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
 
     const requesterSummary = conflictContext.trim().slice(0, 600);
     if (requesterSummary.length < 4) {
       set({ error: "아모라에게 전달할 상황을 짧게 적어주세요." });
-      return;
+      return "sent";
     }
 
     // 중재 요청의 답은 공유 레인에 저장된다. 그래서 안전 판정은 **보내기 전에**
@@ -2753,7 +2756,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         quotaRemaining: null,
         failedRequest: null,
       }));
-      return;
+      // 안내 카드가 어느 탭에 있는지 호출부가 알아야 한다.
+      return "safety_hold";
     }
 
     set({
@@ -2803,7 +2807,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         }),
         signal: abortController.signal,
       });
-      if (!isCurrentLifecycle()) return;
+      if (!isCurrentLifecycle()) return "sent";
 
       clearTimeout(fetchTimeout);
 
@@ -2858,7 +2862,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           if (isCurrentLifecycle()) set({ error: streamError.message });
         },
       });
-      if (!isCurrentLifecycle()) return;
+      if (!isCurrentLifecycle()) return "sent";
 
       if (!gotDone && !fullContent && !get().error) {
         set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
@@ -2868,10 +2872,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         const aiMetadata: ChatMessageMetadata = finalMetadata ?? {};
         const isDemo = document.cookie.includes("demo_mode=true");
         await saveAiMessage(set, { coupleId, fullContent, aiMetadata, isDemo });
-        if (!isCurrentLifecycle()) return;
+        if (!isCurrentLifecycle()) return "sent";
       }
     } catch (err) {
-      if (!isCurrentLifecycle()) return;
+      if (!isCurrentLifecycle()) return "sent";
       logChatDiagnostic("중재 요청 실패", err);
       const isAbort = err instanceof DOMException && err.name === "AbortError";
       const isServerRejection =
@@ -2890,6 +2894,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         set({ isStreaming: false, streamingContent: "", streamingToolResults: [] });
       }
     }
+    return "sent";
   },
 
   // 대화 초기화

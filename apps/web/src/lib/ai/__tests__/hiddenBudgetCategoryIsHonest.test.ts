@@ -21,7 +21,12 @@ import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 
 const HIDDEN = "hanbok";
 
-function contextWith(hidden: string[]) {
+type TestContext = {
+  coupleId: string;
+  weddingContext: { progress: Record<string, unknown> };
+};
+
+function contextWith(hidden: string[]): TestContext {
   return {
     coupleId: "11111111-1111-4111-8111-111111111111",
     weddingContext: {
@@ -31,7 +36,7 @@ function contextWith(hidden: string[]) {
         __hidden: hidden,
       },
     },
-  } as never;
+  };
 }
 
 function promptWith(hidden: string[]) {
@@ -56,7 +61,7 @@ describe("지운 예산 항목에는 쓰지 않는다", () => {
     const op = buildAmoraAtomicToolOperation(
       "update_category_budget",
       { category: HIDDEN, budget: 3_000_000 },
-      contextWith([HIDDEN]),
+      contextWith([HIDDEN]) as never,
       "a".repeat(64),
     );
     expect(op.domainMutation).toEqual({ kind: "none" });
@@ -68,7 +73,7 @@ describe("지운 예산 항목에는 쓰지 않는다", () => {
     const op = buildAmoraAtomicToolOperation(
       "update_category_budget",
       { category: "venue", budget: 21_000_000 },
-      contextWith([HIDDEN]),
+      contextWith([HIDDEN]) as never,
       "b".repeat(64),
     );
     expect(op.result.success).toBe(true);

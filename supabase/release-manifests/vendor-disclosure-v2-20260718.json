@@ -384,6 +384,10 @@
     {
       "file": "20260824120000_amora_schedule_cancel_can_actually_apply.sql",
       "sha256": "97a22b7008a62c536fa42df13489a9e832103cd0bbeb9fca726112b7522b0cf1"
+    },
+    {
+      "file": "20260824130000_mediation_tells_the_partner.sql",
+      "sha256": "cb48ee05096e630716994091bff745de0342f2f82fc7cb2f57a3176f58f21c2b"
     }
   ],
   "deploymentEvidence": {

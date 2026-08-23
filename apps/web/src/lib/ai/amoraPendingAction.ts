@@ -432,6 +432,23 @@ const CANONICAL_CONFIRMATION_OPENING = "다음 변경을 적용할까요?";
  * 부탁했고, 무엇을 다시 해야 하는지 알아야 한다. 서버가 소유하는 문장이라 모델이
  * 지어낸 상태를 옮겨 적지 않는다.
  */
+/**
+ * 한 답변에 표식이 둘 이상일 때의 안내.
+ *
+ * 계약은 "표식을 정확히 하나" 로 못 박고 있고, 둘이면 서버가 **둘 다** 버린다.
+ * 하나만 골라 적용하면 나머지가 조용히 사라져 사용자는 둘 다 된 줄 안다 —
+ * 이 저장소가 가장 싫어하는 부류다.
+ *
+ * 그런데 그동안 남기던 말이 "같은 요청을 한 번만 다시 보내주시겠어요?" 였다.
+ * 같은 요청을 다시 보내면 또 둘이 나오므로 **무한 고리**다(2026-08-24 감사).
+ * "예산 6천으로 올리고 상견례도 다음 주 토요일로 잡아줘" 처럼 두 가지를 한
+ * 문장에 담는 것은 흔한 요청이다.
+ *
+ * 그래서 빠져나갈 방법을 알려준다.
+ */
+const MULTI_ACTION_REPLACEMENT =
+  "한 번에 두 가지를 바꾸는 건 아직 어려워요. 하나씩 말씀해 주시면 바로 확인 카드로 만들어 드릴게요.";
+
 const FORGED_CONFIRMATION_REPLACEMENT =
   "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시 보내주시겠어요?";
 
@@ -622,6 +639,17 @@ export function extractAmoraPendingAction({
   // 카드가 안 나오는 모든 경로에서 **가짜 확인문을 먼저 걷어낸다.** 라우트가 따로
   // 부르게 만들면 언젠가 빠뜨린다 — 이 저장소는 그 방식으로 여러 번 당했다.
   const cleanText = stripForgedConfirmation(strippedText);
+  // **서로 다른** 변경을 둘 이상 낸 경우만 이 안내를 쓴다. 똑같은 표식을 두 번
+  // 쓴 것은 모델이 제 말을 반복한 것이고, 사용자에게 "하나씩 말해달라" 고 하면
+  // 엉뚱한 말이 된다 — 사용자는 하나만 부탁했으니까.
+  if (new Set(payloads).size > 1) {
+    // 하나만 적용하지 않는다 — 나머지가 조용히 사라지면 사용자는 둘 다 된 줄 안다.
+    return {
+      cleanText: MULTI_ACTION_REPLACEMENT,
+      pendingAction: null,
+      hadPendingActionTag,
+    };
+  }
   if (payloads.length !== 1 || payloads[0].length > MAX_PENDING_ACTION_JSON_CHARS) {
     return { cleanText, pendingAction: null, hadPendingActionTag };
   }

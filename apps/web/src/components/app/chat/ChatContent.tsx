@@ -1810,7 +1810,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       setMediationConsentOpen(false);
       setMediationDismissed(true);
       setMessageTarget("ai");
-      await requestStructuredMediation({
+      const outcome = await requestStructuredMediation({
         coupleId,
         senderRole: profile.role,
         senderName: profile.name ?? "사용자",
@@ -1822,6 +1822,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         },
         conflictContext: requesterSummary,
       });
+      // 안전 홀드로 막히면 안내 카드가 **나만 보기 탭**에 들어간다. 옮겨 주지
+      // 않으면 다이얼로그만 닫히고 화면은 그대로다 — 오류도, 안내도, 스피너도
+      // 없어서 사용자는 버튼이 고장났다고 읽는다(2026-08-24 감사).
+      //
+      // 메시지 전송 경로에는 같은 전환이 이미 있다(`ephemeral_safety`).
+      // 중재만 빠져 있었다.
+      if (outcome === "safety_hold") {
+        setActiveTab("private");
+        setMessageTarget("ai");
+      }
     },
     [coupleId, journey, profile, requestStructuredMediation],
   );
