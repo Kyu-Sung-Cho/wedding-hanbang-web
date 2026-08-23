@@ -565,29 +565,49 @@ export function buildAmoraQuestionScopeInstruction(
 }
 
 /**
- * 이 발화에 **안전 사유** 신호가 있는가.
+ * 이 발화가 안전 경로로 다뤄져야 하는가 — **가시성 판정용**.
  *
- * 안전 판정은 두 갈래로 갈려 있다. 하나는 packages/shared의
- * `classifyAmoraCrisis`/`assessAmoraSafetyText`이고, 다른 하나가 여기다. 두 갈래는
- * 서로를 대신하지 못한다 — B에만 걸리는 문장이 실측 12개 중 11개였다
- * (`__tests__/mediationSafetyLaneGap.test.ts`).
+ * ## 2026-08-23 되돌림: 강압 통제 탐지기를 여기 붙이지 않는다
  *
- * 그래서 "안전 서술은 공유 레인에 남지 않는다"는 계약을 지키려면 모든 저장·발송
- * 게이트가 두 갈래를 함께 봐야 한다. 그 조건을 각 게이트에 복사해두면 한 곳만
- * 고치는 일이 생기고, 그게 정확히 이 결함이 생긴 방식이다. 조건은 여기 한 벌만 둔다.
+ * 같은 날 오전에 `hasCoerciveControlSignal(userText)` 을 이 함수의 마지막 갈래로
+ * 붙였다. 의도는 "통제를 털어놓은 말이 통제하는 사람에게 가지 않게" 였다.
  *
- * `requestKind`로 문턱이 갈린다. 중재는 상대에게 갈 내용이라 강압적 통제 어휘까지
- * 낮춰 보고, 일반 발화는 신체 폭력 서술만 본다. 일반 발화에까지 낮춘 문턱을 쓰면
- * 평범한 대화가 조용히 비공개로 새는 대가가 더 크다.
+ * 적대적 감사가 재현했고 나도 다시 쟀다 — 평범한 결혼 문장이 걸린다:
+ *
+ *     FLAG W0_wedding_core | 청첩장 문자 문구를 다 확인했어요
+ *     FLAG W0_wedding_core | 스드메 견적 카톡으로 받은 거 다 확인했어
+ *     FLAG W0_wedding_core | 축의금 들어온 돈은 부모님이 가져가시는 게 맞나요?
+ *     FLAG W0_wedding_core | 웨딩홀 계약할 때 카드로 결제하려면 부모님 허락받아야 하나요?
+ *
+ * 걸리면 그 말이 공유 대화에서 조용히 사라져 비공개로 옮겨지고, 상대에게 직접
+ * 보내려던 것이면 "폭력·위협·통제와 관련된 민감한 안전 내용" 이라며 막힌다.
+ * 게다가 이 함수는 가시성 전용이 아니었다 — `amoraClarificationContinuity.ts` 가
+ * 아모라 자신의 되묻기 문장에 이걸 걸어서, "되묻는 순간 죽는" 고리(PR #148 에서
+ * 고친 것)가 되살아났다.
+ *
+ * 탐지기 파일 머리말이 이미 경고하고 있었다: "이것은 안전 경계가 아니다…
+ * 낱말을 넓혀 봤더니 평범한 결혼 대화 30개 중 15개를 잘못 걸어 되돌렸다."
+ * 나는 넓히지 않고 **적용 범위를 넓혔는데** 결과는 같았다.
+ *
+ * 내가 함께 넣었던 음성 코퍼스 15문장은 이걸 잡을 수 없었다 — 트리거 명사와
+ * 트리거 동사를 한 창 안에 둔 문장이 하나도 없었다. 내가 고른 반례가 그 경로를
+ * 밟지 않은 것이다.
+ *
+ * 그래서 되돌린다. 강압 통제 탐지기는 **중재 요청**에서만 쓴다(이 파일 아래쪽).
+ * 통제 서술이 상대에게 보이는 문제는 여전히 실재하지만, 재현율 30%짜리 정규식을
+ * 전 대화에 걸어서 풀 문제가 아니다.
  */
 export function hasAmoraSafetySignal(
   userText: string,
   requestKind: "chat" | "mediation" = "chat",
 ): boolean {
   const classification = classifyAmoraQuestionScope({ userText, requestKind });
-  return (
-    classification.scope === "W5_safety_override"
-    || (classification.scope === "W2_high_risk_adjacent"
-      && classification.highRiskReason === "safety")
-  );
+  if (classification.scope === "W5_safety_override") return true;
+  if (
+    classification.scope === "W2_high_risk_adjacent"
+    && classification.highRiskReason === "safety"
+  ) {
+    return true;
+  }
+  return false;
 }

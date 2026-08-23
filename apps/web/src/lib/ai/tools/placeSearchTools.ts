@@ -3,7 +3,7 @@ import type { ToolExecutionResult } from "@/types/database.types";
 const WEDDING_VENDOR_QUERY_PATTERN =
   /웨딩\s*(?:홀|스튜디오|드레스|메이크업|플래너|업체|촬영|사진)|결혼\s*(?:식장|준비\s*업체)|예식\s*(?:장|업체)|웨딩홀|스드메|스튜디오|드레스|(?:혼주\s*)?메이크업|본식(?:\s*(?:스냅|영상))?/i;
 
-type NaverSearchKind = "local" | "image" | "blog";
+type NaverSearchKind = "local" | "image";
 
 interface NaverSearchConfig {
   provider: "api_hub";
@@ -20,13 +20,9 @@ interface PlaceSearchResult {
   cuisineType: string;
   description: string | null;
   telephone: string | null;
-  priceRange: string | null;
-  hasPrivateRoom: boolean;
   searchUrl: string;
   mapsUrl: string;
   blogSearchUrl: string;
-  blogReviewCount: number;
-  blogSnippet: string | null;
   imageUrl: string | null;
   imageSourceUrl: string | null;
   imageTitle: string | null;
@@ -137,79 +133,6 @@ const PLACE_QUERY_FILLER =
 const PLACE_QUERY_MAX_TOKENS = 3;
 
 /**
- * 블로그 글에서 **그 가게를 실제로 말한 것만** 추린다.
- *
- * 지역 검색만으로는 카드에 이름·주소·사진밖에 못 채운다. 사용자가 알고 싶은
- * "사람들이 뭐라고 하나", "얼마쯤 하나" 는 네이버 지역 API 에 아예 없다.
- * 블로그 검색이 그 자리를 메우는 유일한 출처다.
- *
- * 다만 **검색 결과에 가게 이름이 없으면 그 글은 그 가게 이야기가 아니다.**
- * 제목·본문 어디에도 이름이 없는 글까지 세면 아무 가게나 후기가 많아 보인다.
- * 그래서 이름이 들어간 글만 센다.
- *
- * 가격은 블로그가 말한 것을 **그대로 옮길 뿐** 우리가 계산하지 않는다. 카드도
- * "블로그 언급" 이라고 출처를 밝혀 보여준다.
- */
-const BLOG_PRICE_RE = /([1-9]\d{0,2}(?:,\d{3})*|\d+(?:\.\d+)?)\s*(만원|만\s?원|원)/u;
-const BLOG_PRIVATE_ROOM_RE = /(?:룸|별실|개별\s?룸|프라이빗\s?룸|독립\s?공간)/u;
-const MAX_BLOG_SNIPPET_CHARS = 90;
-
-export function summarizeBlogMentions(
-  placeName: string,
-  data: unknown,
-): {
-  count: number;
-  snippet: string | null;
-  priceRange: string | null;
-  hasPrivateRoom: boolean;
-} {
-  const identity = normalizePlaceIdentity(placeName);
-  if ([...identity].length < 2) {
-    return { count: 0, snippet: null, priceRange: null, hasPrivateRoom: false };
-  }
-
-  const mentioning = recordItems(data).filter((item) => {
-    const text = normalizePlaceIdentity(
-      `${stripHtmlTags(stringField(item, "title"))} ${stripHtmlTags(stringField(item, "description"))}`,
-    );
-    return text.includes(identity);
-  });
-
-  if (mentioning.length === 0) {
-    return { count: 0, snippet: null, priceRange: null, hasPrivateRoom: false };
-  }
-
-  const bodies = mentioning.map((item) =>
-    stripHtmlTags(stringField(item, "description")).replace(/\s+/g, " ").trim());
-  const snippetSource = bodies.find((body) => body.length > 0) ?? null;
-  const joined = bodies.join(" ");
-  const price = BLOG_PRICE_RE.exec(joined);
-
-  // 우리가 읽는 것은 앞의 다섯 글뿐이라, 그중 몇 개가 이름을 말했는지를 세면
-  // **최대 5** 를 넘을 수 없다. 그 숫자를 "블로그 검색 N건" 으로 보여주면
-  // 수천 건 있는 가게가 3건짜리로 보인다.
-  //
-  // 그래서 화면에 낼 수는 네이버가 알려준 **검색 결과 총 수**를 쓴다. 다만
-  // 표본 다섯 중 하나도 그 가게를 말하지 않았다면 그 검색은 엉뚱한 것이므로
-  // (위에서 이미 0으로 돌려보낸다) 여기까지 오지 않는다.
-  const reportedTotal = isRecord(data) && typeof data.total === "number"
-    && Number.isFinite(data.total) && data.total >= 0
-    ? Math.floor(data.total)
-    : null;
-
-  return {
-    count: reportedTotal !== null
-      ? Math.max(reportedTotal, mentioning.length)
-      : mentioning.length,
-    snippet: snippetSource
-      ? snippetSource.slice(0, MAX_BLOG_SNIPPET_CHARS)
-      : null,
-    priceRange: price ? `${price[1]}${price[2].replace(/\s/g, "")}` : null,
-    hasPrivateRoom: BLOG_PRIVATE_ROOM_RE.test(joined),
-  };
-}
-
-/**
  * 카드를 눌렀을 때 네이버에서 **그 가게가 나오게** 하는 검색어.
  *
  * 전에는 `이름 + 전체 도로명 주소` 로 검색했는데, 그러면 검색어가 너무 길어
@@ -273,6 +196,57 @@ function readNaverSearchConfig(): NaverSearchConfig | null {
   }
 
   return null;
+}
+
+/**
+ * 검색어가 말한 종류를 앞으로 올린다. **버리지는 않는다.**
+ *
+ * 네이버는 "강남 한정식" 에 주꾸미요리·요리주점을 먼저 준다(2026-08-23 실측:
+ * 아쭈(주꾸미요리) · 부엉이산장(요리주점) · 벌교한상(한식) · 수담 한정식 · 정식당).
+ * 우리 검색어는 정확했고 순위가 네이버 것이다. 그래도 "상견례 할 한정식집" 을
+ * 물은 사람에게 주꾸미집이 맨 위면 답이 틀린 것처럼 보인다.
+ *
+ * 걸러내지 않는 이유: 네이버가 분류를 다르게 붙인 진짜 후보를 우리가 지우면
+ * 사용자는 그 가게가 있는 줄도 모른다. 순서만 바꾸면 손해가 없다.
+ */
+export function rankPlacesByQueryKind<T extends { category?: string | null; categoryFull?: string | null }>(
+  places: T[],
+  query: string,
+): T[] {
+  const kinds = ["한정식", "한식", "일식", "중식", "양식", "이탈리안", "뷔페", "카페", "베이커리", "코스요리"];
+  // "한식" 은 "한정식" 의 부분문자열이 아니다(한-정-식). 그래서 상위 갈래를 따로 적는다 —
+  // 한정식집을 찾는 사람에게 한식집은 후보지만 주꾸미집보다는 뒤다.
+  const broader: Readonly<Record<string, readonly string[]>> = {
+    한정식: ["한식"],
+    이탈리안: ["양식"],
+    베이커리: ["카페"],
+    코스요리: ["양식", "한식"],
+  };
+  const direct = kinds.filter((kind) => query.includes(kind));
+  if (direct.length === 0) return places;
+  const asked = [
+    ...direct,
+    ...direct.flatMap((kind) => broader[kind] ?? []).filter((kind) => !direct.includes(kind)),
+  ];
+  // **구체적인 분류를 먼저 본다.** `categoryFull` 은 `음식점>한식>주꾸미요리` 처럼
+  // 상위 갈래를 달고 있어서, 그걸로 세면 주꾸미집도 "한식" 으로 잡힌다(실측).
+  // 가게에 실제로 붙은 이름(`category`)이 맞을 때가 훨씬 강한 신호다.
+  const score = (place: T): number => {
+    const specific = place.category ?? "";
+    const full = place.categoryFull ?? "";
+    for (let i = 0; i < asked.length; i += 1) {
+      if (specific.includes(asked[i])) return 100 + (asked.length - i);
+    }
+    for (let i = 0; i < asked.length; i += 1) {
+      if (full.includes(asked[i])) return asked.length - i;
+    }
+    return 0;
+  };
+  // 같은 점수면 네이버 순서를 그대로 둔다.
+  return places
+    .map((place, index) => ({ place, index, score: score(place) }))
+    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map((entry) => entry.place);
 }
 
 function buildNaverHandoff(query: string): { searchUrl: string; mapsUrl: string } {
@@ -433,13 +407,9 @@ export async function executeSearchNearbyPlaces(
         cuisineType: category.main,
         description: description || null,
         telephone: stringField(item, "telephone") || null,
-        priceRange: null,
-        hasPrivateRoom: false,
         searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(searchTerm)}`,
         mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(searchTerm)}`,
         blogSearchUrl: `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(`${searchTerm} 후기`)}`,
-        blogReviewCount: 0,
-        blogSnippet: null,
         imageUrl: null,
         imageSourceUrl: null,
         imageTitle: null,
@@ -478,20 +448,6 @@ export async function executeSearchNearbyPlaces(
       })
     );
 
-    // 블로그 언급은 **있으면 좋은 것**이지 필수가 아니다. API HUB 에서 블로그
-    // 상품을 신청하지 않으면 401 로 거절되는데(2026-08-23 실측: "요청한 API는 이
-    // Application에서 활성화되어 있지 않습니다"), 그때 장소 카드까지 못 내면
-    // 안 된다. 실패는 조용히 넘기고 카드는 이름·주소·사진으로 그대로 나간다.
-    // 콘솔에서 블로그를 켜면 코드를 고치지 않아도 언급이 붙는다.
-    const blogResults = await Promise.allSettled(
-      basePlaces.map((place) => fetchNaverSearch(
-        config,
-        "blog",
-        { query: `${place.name} 후기`, display: "5", start: "1", sort: "sim" },
-        3000
-      ))
-    );
-
     const warnings = new Set<string>();
     const places = basePlaces.map((place, idx) => {
       const imageResult = imageResults[idx];
@@ -513,17 +469,6 @@ export async function executeSearchNearbyPlaces(
         warnings.add("image_enrichment_failed");
       }
 
-      // 블로그가 꺼져 있으면 여기서 조용히 지나간다 — 경고도 남기지 않는다.
-      // 신청하지 않은 상품은 고장이 아니다.
-      const blogResult = blogResults[idx];
-      if (blogResult.status === "fulfilled") {
-        const mention = summarizeBlogMentions(place.name, blogResult.value);
-        nextPlace.blogReviewCount = mention.count;
-        nextPlace.blogSnippet = mention.snippet;
-        nextPlace.priceRange = mention.priceRange;
-        nextPlace.hasPrivateRoom = mention.hasPrivateRoom;
-      }
-
       return nextPlace;
     });
 
@@ -535,7 +480,7 @@ export async function executeSearchNearbyPlaces(
       toolName: "search_nearby_places",
       toolInput: input,
       toolOutput: {
-        places,
+        places: rankPlacesByQueryKind(places, query),
         query,
         provider: config.provider,
         providerUnavailable: false,

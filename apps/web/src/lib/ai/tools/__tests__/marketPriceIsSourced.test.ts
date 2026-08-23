@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { executeGetMarketPrice } from "@/lib/ai/tools/quoteMarketTools";
+import { DISCLOSURE_ROUND, disclosureRoundLabel } from "@/lib/price/period";
 
 /**
  * 2026-08-22 스테이징 실측: "웨딩홀 대관료 평균 알려줘" 에 아모라가
@@ -42,6 +43,7 @@ function clientReturning(rows: Row[], error: unknown = null) {
   };
 }
 
+/** DB 에 실제로 저장된 값. 내부 스냅샷 이름이 박혀 있다(운영 실측). */
 const SOURCE = "한국소비자원 참가격 · 2026Q3";
 
 function row(min: number, max: number, region = "seoul_gangnam3"): Row {
@@ -69,9 +71,22 @@ describe("공시가를 돌려줄 때 출처를 함께 돌려준다", () => {
 
     expect(result.success).toBe(true);
     const output = result.toolOutput as Record<string, unknown>;
-    expect(output.source).toBe(SOURCE);
-    expect(output.period).toBe("2026Q3");
+    // **DB 값을 그대로 말하면 안 된다.** `2026Q3` 은 우리 내부 스냅샷 이름이고
+    // 실제 공시 라운드는 2025-11 이다(lib/price/period.ts). 소비자 화면은 이미
+    // 이 보정을 거치는데 아모라만 안 거쳐서, 같은 자료를 화면은 "2025년 11월",
+    // 아모라는 "2026년 3분기"라고 말하고 있었다 — 9개월 된 가격이 현재 분기로
+    // 보인다. 예전 이 테스트가 그 틀린 값을 고정하고 있었다.
+    expect(output.period).toBe(disclosureRoundLabel());
+    expect(output.source).toBe(`한국소비자원 참가격 · ${disclosureRoundLabel()}`);
     expect(output.sampleCount).toBe(3);
+
+    // 내부 스냅샷 이름은 사용자에게 닿는 어디에도 없어야 한다.
+    const surfaced = JSON.stringify(output) + String(result.displayMessage);
+    expect(surfaced, "내부 스냅샷 이름이 새어 나갔다").not.toMatch(/\d{4}Q[1-4]/u);
+    // 표시값이 리터럴로 굳지 않게 정본 상수와 묶어 둔다.
+    expect(disclosureRoundLabel()).toBe(
+      `${DISCLOSURE_ROUND.slice(0, 4)}년 ${Number(DISCLOSURE_ROUND.slice(5))}월`,
+    );
     // 사용자에게 보이는 문장에도 출처가 있어야 한다. 도구 출력에만 있으면
     // 모델이 숫자만 옮겨 적고 출처는 흘린다.
     expect(result.displayMessage).toContain("한국소비자원 참가격");

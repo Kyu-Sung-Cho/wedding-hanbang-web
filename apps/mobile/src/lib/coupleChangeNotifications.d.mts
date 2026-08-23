@@ -31,7 +31,22 @@ export interface CoupleChangeNotification {
   href: CoupleChangeHref;
   createdAt: string;
   readAt: string | null;
+  /** 계획 변경 요청 번호. 승인·거절을 보낼 때 쓴다. */
+  actionId: string | null;
 }
+
+export type PlanChangeDecision = "accept" | "reject";
+
+export interface PlanChangeDecisionRequest {
+  path: string;
+  method: "POST" | "DELETE";
+  body: string;
+}
+
+export type PlanChangeDecisionOutcome = {
+  kind: "applied" | "rejected" | "pending" | "unconfirmed" | "stale" | "error";
+  message: string | null;
+};
 
 export interface CoupleChangeNotificationsEnvelope {
   ownerId: string | null;
@@ -54,7 +69,23 @@ export declare function selectCoupleChangesForViewer(
   visible: CoupleChangeNotification[];
   unreadCount: number;
   hiddenCount: number;
+  awaitingDecision: CoupleChangeNotification[];
 };
+
+export declare function selectPlanChangeDecisions(
+  notifications: unknown,
+): CoupleChangeNotification[];
+
+export declare function buildPlanChangeDecisionRequest(
+  actionId: unknown,
+  decision: unknown,
+): PlanChangeDecisionRequest | null;
+
+export declare function readPlanChangeDecisionOutcome(
+  status: unknown,
+  payload: unknown,
+  decision: PlanChangeDecision,
+): PlanChangeDecisionOutcome;
 
 export declare function canOpenCoupleChange(notification: unknown): boolean;
 

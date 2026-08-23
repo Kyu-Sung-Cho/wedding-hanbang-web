@@ -31,6 +31,8 @@ test("place search result keeps the fields and Naver destinations used by mobile
         category: "한식",
         description: "조용한 한정식 식당",
         telephone: "02-1234-5678",
+        // 옛 서버가 보내던 칸들이다. 아직 흘러 들어와도 모델이 삼켜야 한다 —
+        // 채울 수 없는 숫자(블로그 글 수)를 리뷰 수인 양 카드에 올리지 않는다.
         priceRange: "1인 약 5만원",
         hasPrivateRoom: true,
         blogReviewCount: 128,
@@ -54,12 +56,6 @@ test("place search result keeps the fields and Naver destinations used by mobile
     category: "한식",
     description: "조용한 한정식 식당",
     telephone: "02-1234-5678",
-    priceRange: "1인 약 5만원",
-    hasPrivateRoom: true,
-    blogReviewCount: 128,
-    // 웹 카드는 쓰는데 모바일 모델에는 아예 없던 필드. 리뷰 한 줄이 안 실려
-    // 오면 카드에 이름·주소·사진만 남는다.
-    blogSnippet: "룸이 조용해서 상견례하기 좋았어요.",
     imageUrl: "https://search.pstatic.net/place.jpg",
     searchUrl: "https://search.naver.com/search.naver?query=한방정식",
     mapsUrl: "https://map.naver.com/p/search/한방정식",
@@ -177,10 +173,15 @@ test("mobile place cards expose accessible Naver links and a broken-image fallba
   assert.ok(component.includes("네이버 지도에서 보기"));
   assert.ok(component.includes("지도"));
   assert.ok(component.includes("블로그"));
-  assert.ok(component.includes("블로그 언급"));
-  assert.ok(component.includes("룸 언급 있음"));
-  assert.ok(component.includes("가격·룸은 검색 문구 기반 참고 정보예요"));
   assert.ok(!component.includes(">단독룸<"));
   assert.ok(component.includes("전화"));
-  assert.ok(component.includes("블로그 검색"));
+
+  // 리뷰 수·별점은 네이버 지역 API 가 주지 않는다. 블로그 글 수를 그 자리에
+  // 놓으면 다른 숫자를 리뷰 수로 읽게 된다 — 카드는 대신 어디서 볼 수 있는지
+  // 말한다(2026-08-23 파운더 결정).
+  assert.ok(component.includes("눌러서 네이버에서 리뷰·별점 보기"));
+  assert.ok(component.includes("리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요"));
+  for (const dead of ["블로그 검색 {", "블로그 언급", "룸 언급 있음", "blogSnippet", "priceRange"]) {
+    assert.ok(!component.includes(dead), `카드에 남아 있으면 안 되는 표시: ${dead}`);
+  }
 });

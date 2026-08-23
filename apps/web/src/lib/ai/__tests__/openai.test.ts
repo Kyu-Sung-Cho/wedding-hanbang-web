@@ -176,13 +176,27 @@ describe("OpenAI Responses adapter", () => {
     expect(result.requestId).toBe("req_test");
     expect(result.responseId).toBe("resp_1");
     expect(result.usageStatus).toBe("complete");
+    // 프롬프트 캐싱을 다시 잠그면 비용이 약 4배로 돌아간다.
+    //
+    // 2026-08-23 실측: 호출당 입력 23,000토큰 / 출력 50토큰이라 비용의 99.8%가
+    // 입력인데, `mode:"explicit"` 이 암묵 경계를 꺼서 cache_read_input_tokens 가
+    // 전 호출 null 이었다. 시스템 프롬프트의 정적 접두부는 85~100%이고 서로 다른
+    // 커플에 대해 글자 단위로 동일하다(441개 갈래 실측).
+    //
+    // 켜도 모델이 받는 프롬프트는 한 글자도 안 바뀐다 — 같은 토큰을 보내고
+    // 청구만 달라진다. 그래서 답변 품질에 영향이 없다.
+    const sentBody = create.mock.calls[0][0] as Record<string, unknown>;
+    expect(
+      (sentBody.prompt_cache_options as { mode?: string } | undefined)?.mode,
+      "mode:'explicit' 은 암묵 경계를 꺼서 캐싱을 통째로 막는다",
+    ).not.toBe("explicit");
+
     expect(create).toHaveBeenCalledWith(expect.objectContaining({
       model: "gpt-5.6-luna",
       store: false,
       include: ["reasoning.encrypted_content"],
       safety_identifier: expect.stringMatching(/^[a-f0-9]{64}$/),
       service_tier: "default",
-      prompt_cache_options: { mode: "explicit" },
       reasoning: { effort: "none" },
       max_output_tokens: 1_400,
       parallel_tool_calls: false,

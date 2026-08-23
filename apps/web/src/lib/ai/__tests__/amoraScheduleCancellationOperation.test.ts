@@ -53,7 +53,9 @@ afterEach(() => {
 });
 
 describe("Amora schedule cancellation and restoration", () => {
-  it("exposes cancel/restore as couple-approved mutations and never exposes legacy delete", () => {
+  // 2026-08-23 파운더 결정으로 승인은 한 사람이다. 상대에게는 알림이 간다.
+  // 이 테스트의 나머지 절반(legacy delete 를 절대 노출하지 않는다)은 그대로다.
+  it("exposes cancel/restore as single-approved mutations and never exposes legacy delete", () => {
     const safeNames = BETA_SAFE_TOOLS.map((tool) => tool.name);
     const allNames = WEDDING_TOOLS.map((tool) => tool.name);
 
@@ -64,10 +66,14 @@ describe("Amora schedule cancellation and restoration", () => {
     expect(safeNames).not.toContain("delete_schedule_event");
     expect(getAmoraActionApprovalPolicy("cancel_schedule_event", {
       event_id: EVENT_ID,
-    })).toBe("couple");
+    })).toBe("single");
     expect(getAmoraActionApprovalPolicy("restore_schedule_event", {
       event_id: EVENT_ID,
-    })).toBe("couple");
+    })).toBe("single");
+    // 아모라가 손대지 않기로 한 삭제는 그대로 막혀 있다.
+    expect(getAmoraActionApprovalPolicy("delete_schedule_event", {
+      event_id: EVENT_ID,
+    })).toBe("blocked");
     expect(isMutatingTool("cancel_schedule_event")).toBe(true);
     expect(isMutatingTool("restore_schedule_event")).toBe(true);
     expect(AMORA_ATOMIC_TOOL_NAMES.has("cancel_schedule_event")).toBe(true);

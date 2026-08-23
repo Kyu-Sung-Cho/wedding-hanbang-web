@@ -14,6 +14,13 @@ const BLOCKED_OBJECT_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 type UnknownRecord = Record<string, unknown>;
 
 export interface NormalizedScheduleEvent {
+  /**
+   * 일정 도구(`update_schedule_event`·`cancel_schedule_event`)는 `event_id` 를
+   * 필수로 받는다. 예전에는 이 정규화가 id 를 버려서 아모라가 그 값을 볼 길이
+   * 없었고, 라이브에서 **"그 일정의 확인된 ID가 없어서 취소할 수 없다"**고
+   * 답했다(2026-08-23). 사용자는 내부 id 를 모른다 — 그러니 우리가 실어야 한다.
+   */
+  id?: string;
   date: string;
   title: string;
   memo?: string;
@@ -198,7 +205,9 @@ function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedS
     if (!date || !title) continue;
     const memo = sanitizeUserFacingScheduleMemo(boundedString(rawEvent.memo, 500));
     const categoryKey = boundedString(rawEvent.categoryKey, 80);
+    const id = boundedString(rawEvent.id, 200);
     events.push({
+      ...(id ? { id } : {}),
       date,
       title,
       ...(memo ? { memo } : {}),

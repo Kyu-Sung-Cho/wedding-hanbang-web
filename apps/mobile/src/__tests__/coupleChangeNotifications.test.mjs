@@ -7,7 +7,10 @@ import {
   getCoupleChangeNativeRoute,
   isAwaitingMyApproval,
   parseCoupleChangeNotifications,
+  buildPlanChangeDecisionRequest,
+  readPlanChangeDecisionOutcome,
   selectCoupleChangesForViewer,
+  selectPlanChangeDecisions,
   selectUnreadCoupleChanges,
 } from "../lib/coupleChangeNotifications.mjs";
 
@@ -185,7 +188,9 @@ test("봉투 주인이 보는 사람과 다르면 한 줄도 그리지 않는다
   const theirs = selectCoupleChangesForViewer(
     parsedEnvelope([APPLIED, REQUESTED], OTHER), VIEWER, 3,
   );
-  assert.deepEqual(theirs, { visible: [], unreadCount: 0, hiddenCount: 0 });
+  assert.deepEqual(theirs, {
+    visible: [], unreadCount: 0, hiddenCount: 0, awaitingDecision: [],
+  });
 });
 
 test("대소문자가 달라도 같은 사람으로 본다 — 저장소 관례", () => {
@@ -200,7 +205,7 @@ test("대소문자가 달라도 같은 사람으로 본다 — 저장소 관례"
 test("데모 세션(ownerId null)은 조용히 비운다", () => {
   assert.deepEqual(
     selectCoupleChangesForViewer(parsedEnvelope([APPLIED], null), VIEWER, 3),
-    { visible: [], unreadCount: 0, hiddenCount: 0 },
+    { visible: [], unreadCount: 0, hiddenCount: 0, awaitingDecision: [] },
   );
 });
 
@@ -208,7 +213,7 @@ test("보는 사람을 모르면 그리지 않는다", () => {
   for (const bad of [null, undefined, "", "not-a-uuid"]) {
     assert.deepEqual(
       selectCoupleChangesForViewer(parsedEnvelope([APPLIED]), bad, 3),
-      { visible: [], unreadCount: 0, hiddenCount: 0 },
+      { visible: [], unreadCount: 0, hiddenCount: 0, awaitingDecision: [] },
     );
   }
 });
@@ -255,4 +260,177 @@ test("라운지를 가리키는 줄은 누를 수 없다", () => {
   assert.equal(canOpenCoupleChange(dash), false);
   assert.equal(canOpenCoupleChange(lounge), false);
   assert.equal(canOpenCoupleChange(null), false);
+});
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 라운지에서 바로 확인·거절한다
+//
+// `/dashboard` 표면 요청(식장만 바꾼 경우가 대표적이다)은 모바일에서 처리할
+// 방법이 아예 없었다. 파서가 `action_id` 를 검사만 하고 버렸고, 그 줄은 라운지를
+// 가리켜 눌리지도 않았다 — 배지만 뜨고 24시간 뒤 만료됐다.
+//
+// 아래 행 모양은 `submit_couple_plan_change`(20260731123000_couple_plan_change_
+// write_boundary.sql:1951-1985)가 실제로 넣는 것이다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PLAN_REQUEST = {
+  id: "7c7c7c7c-7c7c-4c7c-8c7c-7c7c7c7c7c7c",
+  event_kind: "approval_requested",
+  action_id: "8d8d8d8d-8d8d-4d8d-8d8d-8d8d8d8d8d8d",
+  tool_name: "manual_plan_change",
+  title: "함께 확인할 계획 변경이 있어요",
+  message: "예식장을 바꾸려고 해요.",
+  href: "/dashboard",
+  read_at: null,
+  created_at: "2026-08-23T01:00:00.000Z",
+};
+
+test("계획 변경 요청은 라운지에서 결정할 줄로 뽑힌다", () => {
+  const parsed = parseCoupleChangeNotifications(envelope([PLAN_REQUEST]));
+  const decisions = selectPlanChangeDecisions(parsed.notifications);
+  assert.equal(decisions.length, 1);
+  assert.equal(decisions[0].actionId, PLAN_REQUEST.action_id);
+});
+
+test("파서가 action_id 를 버리지 않는다 — 이게 없으면 승인할 대상을 모른다", () => {
+  const parsed = parseCoupleChangeNotifications(envelope([PLAN_REQUEST]));
+  assert.equal(parsed.notifications[0].actionId, PLAN_REQUEST.action_id);
+});
+
+// #12. 예전에는 "모두 읽음"을 누르면 아직 상대를 기다리게 하는 요청이 화면에서
+// 사라졌다. 웹은 같은 종류를 읽음과 무관하게 다시 실어 온다.
+test("읽음 처리를 해도 아직 내가 눌러야 하는 요청은 남는다", () => {
+  const parsed = parseCoupleChangeNotifications(
+    envelope([{ ...PLAN_REQUEST, read_at: "2026-08-23T02:00:00.000Z" }]),
+  );
+  const picked = selectCoupleChangesForViewer(parsed, VIEWER, 3);
+  assert.equal(picked.unreadCount, 0);
+  assert.equal(picked.awaitingDecision.length, 1);
+});
+
+test("결정 줄은 아래 목록에서 빠진다 — 같은 줄을 두 번 그리지 않는다", () => {
+  const parsed = parseCoupleChangeNotifications(envelope([APPLIED, PLAN_REQUEST]));
+  const picked = selectCoupleChangesForViewer(parsed, VIEWER, 3);
+  assert.equal(picked.awaitingDecision.length, 1);
+  assert.equal(picked.visible.length, 1);
+  assert.equal(picked.visible[0].id, APPLIED.id);
+});
+
+test("내가 낸 요청(파트너 확인 대기)은 내가 결정할 줄이 아니다", () => {
+  const parsed = parseCoupleChangeNotifications(envelope([{
+    ...PLAN_REQUEST,
+    id: "9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e9e9e",
+    event_kind: "approval_pending",
+    title: "파트너 확인을 기다리는 계획 변경이에요",
+  }]));
+  assert.deepEqual(selectPlanChangeDecisions(parsed.notifications), []);
+});
+
+test("action_id 가 없으면 결정 줄로 세지 않는다 — 보낼 곳을 모른다", () => {
+  const parsed = parseCoupleChangeNotifications(
+    envelope([{ ...PLAN_REQUEST, action_id: null }]),
+  );
+  assert.equal(parsed.notifications.length, 1);
+  assert.deepEqual(selectPlanChangeDecisions(parsed.notifications), []);
+});
+
+// 아모라 카드(`update_budget` 등)는 다른 서버 경로(`/api/amora/shared-actions`)로
+// 처리한다. 여기 버튼이 붙으면 엉뚱한 엔드포인트로 간다.
+test("계획 변경이 아닌 승인 요청에는 버튼을 붙이지 않는다", () => {
+  const parsed = parseCoupleChangeNotifications(envelope([REQUESTED]));
+  assert.equal(parsed.notifications[0].eventKind, "approval_requested");
+  assert.deepEqual(selectPlanChangeDecisions(parsed.notifications), []);
+});
+
+test("남의 봉투면 결정 줄도 그리지 않는다", () => {
+  const parsed = parseCoupleChangeNotifications(envelope([PLAN_REQUEST], OTHER));
+  const picked = selectCoupleChangesForViewer(parsed, VIEWER, 3);
+  assert.deepEqual(picked.awaitingDecision, []);
+});
+
+test("승인·거절 요청은 웹과 같은 서버 계약을 쓴다", () => {
+  const accept = buildPlanChangeDecisionRequest(PLAN_REQUEST.action_id, "accept");
+  assert.deepEqual(accept, {
+    path: `/api/couple-plan-changes/${PLAN_REQUEST.action_id}`,
+    method: "POST",
+    body: "{}",
+  });
+  const reject = buildPlanChangeDecisionRequest(PLAN_REQUEST.action_id, "reject");
+  assert.equal(reject.method, "DELETE");
+  assert.equal(reject.path, accept.path);
+});
+
+test("요청 번호는 소문자로 보낸다 — 서버가 소문자로 대조한다", () => {
+  const built = buildPlanChangeDecisionRequest(
+    PLAN_REQUEST.action_id.toUpperCase(), "accept",
+  );
+  assert.equal(built.path, `/api/couple-plan-changes/${PLAN_REQUEST.action_id}`);
+});
+
+test("잘못된 입력으로는 요청을 만들지 않는다", () => {
+  for (const bad of [null, undefined, "", "not-a-uuid", 42]) {
+    assert.equal(buildPlanChangeDecisionRequest(bad, "accept"), null);
+  }
+  for (const bad of ["cancel", "withdraw", "", null, undefined]) {
+    assert.equal(buildPlanChangeDecisionRequest(PLAN_REQUEST.action_id, bad), null);
+  }
+});
+
+// 결과를 말하지 않으면 **상대가 거절한 화면과 내가 반영한 화면이 똑같다.**
+test("반영과 거절을 구분해서 읽는다", () => {
+  assert.deepEqual(
+    readPlanChangeDecisionOutcome(200, { status: "applied" }, "accept"),
+    { kind: "applied", message: null },
+  );
+  assert.deepEqual(
+    readPlanChangeDecisionOutcome(200, { status: "rejected" }, "reject"),
+    { kind: "rejected", message: null },
+  );
+  assert.equal(
+    readPlanChangeDecisionOutcome(202, { status: "pending_partner" }, "accept").kind,
+    "pending",
+  );
+});
+
+test("실패 문구는 지어내지 않고 서버 것을 그대로 쓴다", () => {
+  const stale = readPlanChangeDecisionOutcome(
+    409,
+    { code: "PLAN_CHANGE_STALE", error: "그 사이 준비 정보가 바뀌었어요. 최신 화면을 다시 불러와 주세요." },
+    "accept",
+  );
+  assert.equal(stale.kind, "stale");
+  assert.equal(stale.message, "그 사이 준비 정보가 바뀌었어요. 최신 화면을 다시 불러와 주세요.");
+
+  const conflict = readPlanChangeDecisionOutcome(
+    409, { code: "PLAN_CHANGE_REJECTED", error: "이미 거절된 변경 요청입니다." }, "accept",
+  );
+  assert.equal(conflict.kind, "error");
+  assert.equal(conflict.message, "이미 거절된 변경 요청입니다.");
+});
+
+// 200 인데 기대한 상태가 아니면 성공이라고 말하면 안 된다. 웹이 같은 검사를 한다.
+test("200 이어도 상태가 다르면 반영했다고 말하지 않는다", () => {
+  assert.equal(
+    readPlanChangeDecisionOutcome(200, { status: "pending_partner" }, "reject").kind,
+    "unconfirmed",
+  );
+  assert.equal(readPlanChangeDecisionOutcome(200, null, "accept").kind, "unconfirmed");
+});
+
+
+// 같은 요청을 두 화면이 서로 다른 말로 물으면 사용자는 다른 일로 읽는다.
+// 라운지 버튼은 **앱 안에 결정할 다른 곳이 없는 표면**에만 붙인다.
+test("일정 요청은 라운지 결정 줄이 아니다 — 일정 화면에 확인함이 있다", () => {
+  const parsed = parseCoupleChangeNotifications(
+    envelope([{ ...PLAN_REQUEST, href: "/schedule" }]),
+  );
+  assert.deepEqual(selectPlanChangeDecisions(parsed.notifications), []);
+});
+
+test("예산 요청은 라운지 결정 줄이다 — 예산 화면 승인함이 이 요청을 안 담는다", () => {
+  const parsed = parseCoupleChangeNotifications(
+    envelope([{ ...PLAN_REQUEST, href: "/budget" }]),
+  );
+  assert.equal(selectPlanChangeDecisions(parsed.notifications).length, 1);
 });

@@ -102,12 +102,8 @@ describe("VendorToolCard place search results", () => {
                   cuisineType: "한식",
                   description: "상견례 장소",
                   telephone: null,
-                  priceRange: "인당 약 5만원",
-                  hasPrivateRoom: true,
                   mapsUrl,
                   blogSearchUrl,
-                  blogReviewCount: 12,
-                  blogSnippet: null,
                   link: null,
                   imageUrl: null,
                   imageSourceUrl: null,
@@ -121,19 +117,23 @@ describe("VendorToolCard place search results", () => {
     });
 
     const placeLink = container.querySelector<HTMLAnchorElement>(
-      'a[aria-label="한방정식 네이버 검색에서 보기"]',
+      'a[aria-label="한방정식 네이버에서 리뷰·별점 보기"]',
     );
     expect(placeLink?.getAttribute("href")).toBe(searchUrl);
     expect(placeLink?.getAttribute("target")).toBe("_blank");
     expect(placeLink?.getAttribute("rel")).toContain("noopener");
-    expect(placeLink?.textContent).toContain("네이버에서 보기");
-    expect(placeLink?.textContent).toContain("블로그 가격 언급");
-    expect(placeLink?.textContent).toContain("룸 언급 있음");
-    expect(placeLink?.textContent).not.toContain("🚪 룸 있음");
+    // 우리가 못 가져오는 것(리뷰 수·별점)은 카드가 **어디서 볼 수 있는지**를
+    // 말한다. 그냥 "네이버에서 보기" 면 눌러야 할 이유가 없다.
+    expect(placeLink?.textContent).toContain("리뷰·별점 보기");
     expect(placeLink?.querySelector("a")).toBeNull();
 
+    // 블로그에서 주워 온 가격·룸 추정은 더 이상 카드에 없다.
+    expect(container.textContent).not.toContain("블로그 가격 언급");
+    expect(container.textContent).not.toContain("룸 언급 있음");
+    expect(container.textContent).not.toMatch(/블로그 (?:검색|후기) ?[\d,]+/u);
+
     expect(container.textContent).toContain("장소 정보는 네이버 지역 검색 결과예요");
-    expect(container.textContent).toContain("최신 정보는 네이버 또는 매장에 확인해 주세요");
+    expect(container.textContent).toContain("리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요");
 
     const actionLinks = Array.from(container.querySelectorAll<HTMLAnchorElement>("a"));
     const mapLink = actionLinks.find((link) => link.textContent?.includes("네이버 지도")) ?? null;
@@ -166,12 +166,8 @@ describe("VendorToolCard place search results", () => {
                   cuisineType: "한식",
                   description: "상견례 장소",
                   telephone: null,
-                  priceRange: null,
-                  hasPrivateRoom: false,
                   mapsUrl: "https://map.naver.com/p/search/%ED%95%9C%EB%B0%A9%EC%A0%95%EC%8B%9D",
                   blogSearchUrl: "https://search.naver.com/search.naver?where=blog&query=%ED%95%9C%EB%B0%A9%EC%A0%95%EC%8B%9D",
-                  blogReviewCount: 0,
-                  blogSnippet: null,
                   link: null,
                   imageUrl,
                   imageSourceUrl,
@@ -194,7 +190,7 @@ describe("VendorToolCard place search results", () => {
     );
     expect(sourceLink).toBeNull();
     expect(container.textContent).toContain("사진 출처: 네이버 이미지 검색");
-    expect(container.textContent).toContain("최신 정보는 네이버 또는 매장에 확인해 주세요");
+    expect(container.textContent).toContain("리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요");
 
     await act(async () => {
       image?.dispatchEvent(new Event("error", { bubbles: true }));

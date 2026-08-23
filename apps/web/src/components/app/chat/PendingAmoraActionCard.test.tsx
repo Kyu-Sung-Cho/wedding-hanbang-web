@@ -215,25 +215,21 @@ describe("PendingAmoraActionCard", () => {
     expect(container.textContent).not.toContain("결제액");
   });
 
-  it("records only my first confirmation and clearly says nothing changed yet", async () => {
+  // 2026-08-23 파운더 결정으로 두 사람 승인이 없어졌다. 여기 있던 여섯 개는
+  // 1/2 표 세기·철회·만장일치 같은 정족수 기계장치였고, 그 화면 자체가 없어졌다.
+  //
+  // 그대로 남는 것 둘만 옮겨 적는다.
+  //   1. 확인이 곧 반영이 아니라 **적용 리스를 먼저 잡는다** — 두 화면이 같은
+  //      변경을 두 번 반영하지 못하게 하는 장치다. 승인과 무관하게 살아 있다.
+  //   2. 승인 RPC(POST)를 **부르지 않는다** — 이제 DB가 single 정책에 대해
+  //      `AMORA_SHARED_ACTION_COUPLE_APPROVAL_NOT_REQUIRED` 예외를 던지므로,
+  //      실수로 부르면 확인 버튼이 통째로 죽는다.
+  it("한 사람이 확인하면 승인 단계 없이 바로 적용으로 넘어간다", async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: false,
-        acceptedCount: 0,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: true,
-        acceptedCount: 1,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      applicationGranted: true,
+      retryAfterMs: 0,
+    }), { status: 200 }));
     const onApply = vi.fn();
 
     await act(async () => {
@@ -249,241 +245,28 @@ describe("PendingAmoraActionCard", () => {
       );
     });
     await act(async () => Promise.resolve());
+
     const confirm = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="이 공동 변경을 확인"]',
+      'button[aria-label="확인한 내용을 이대로 적용"]',
     );
     expect(confirm).not.toBeNull();
-
     await act(async () => confirm?.click());
     await act(async () => Promise.resolve());
 
-    expect(onApply).not.toHaveBeenCalled();
-    expect(container.textContent).toContain("내 확인 1/2");
-    expect(container.textContent).toContain("아직 반영되지 않았어요");
+    expect(onApply).toHaveBeenCalledTimes(1);
+    // 부른 요청은 적용 리스(PUT) 하나뿐이어야 한다. POST가 섞이면 DB가 거부한다.
+    const methods = fetchMock.mock.calls.map(
+      (call) => (call[1] as RequestInit | undefined)?.method,
+    );
+    expect(methods).toEqual(["PUT"]);
   });
 
-  it("lets me withdraw my linked-couple confirmation without applying the change", async () => {
-    const messageId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  it("다른 화면이 이미 반영을 시작했으면 두 번 반영하지 않는다", async () => {
     const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: true,
-        acceptedCount: 1,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: false,
-        acceptedCount: 0,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }));
-    const onApply = vi.fn();
-
-    await act(async () => {
-      root.render(
-        <PendingAmoraActionCard
-          action={action}
-          messageId={messageId}
-          disabledReason={null}
-          isApplying={false}
-          onApply={onApply}
-          onDismiss={vi.fn()}
-        />,
-      );
-    });
-    await act(async () => Promise.resolve());
-
-    const withdraw = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="내 공동 변경 확인 취소"]',
-    );
-    expect(withdraw).not.toBeNull();
-
-    await act(async () => withdraw?.click());
-    await act(async () => Promise.resolve());
-
-    expect(fetchMock).toHaveBeenLastCalledWith(
-      `/api/amora/shared-actions/${action.actionId}`,
-      expect.objectContaining({
-        method: "DELETE",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId }),
-      }),
-    );
-    expect(container.textContent).toContain("현재 0/2");
-    expect(onApply).not.toHaveBeenCalled();
-  });
-
-  it("still lets me withdraw after both confirmations but before applying", async () => {
-    const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: true,
-        acceptedCount: 2,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: true,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: false,
-        acceptedCount: 1,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }));
-    const onApply = vi.fn();
-
-    await act(async () => {
-      root.render(
-        <PendingAmoraActionCard
-          action={action}
-          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-          disabledReason={null}
-          isApplying={false}
-          onApply={onApply}
-          onDismiss={vi.fn()}
-        />,
-      );
-    });
-    await act(async () => Promise.resolve());
-
-    const withdraw = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="내 공동 변경 확인 취소"]',
-    );
-    expect(withdraw).not.toBeNull();
-    await act(async () => withdraw?.click());
-    await act(async () => Promise.resolve());
-
-    expect(container.textContent).toContain("상대방 확인 1/2");
-    expect(onApply).not.toHaveBeenCalled();
-  });
-
-  it("shows a withdrawal failure and never applies the change", async () => {
-    const errorMessage = "이미 반영된 변경은 확인을 취소할 수 없어요.";
-    const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: true,
-        acceptedCount: 1,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        error: errorMessage,
-      }), { status: 409 }));
-    const onApply = vi.fn();
-
-    await act(async () => {
-      root.render(
-        <PendingAmoraActionCard
-          action={action}
-          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-          disabledReason={null}
-          isApplying={false}
-          onApply={onApply}
-          onDismiss={vi.fn()}
-        />,
-      );
-    });
-    await act(async () => Promise.resolve());
-
-    const withdraw = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="내 공동 변경 확인 취소"]',
-    );
-    await act(async () => withdraw?.click());
-    await act(async () => Promise.resolve());
-
-    expect(container.textContent).toContain(errorMessage);
-    expect(container.querySelector(
-      'button[aria-label="내 공동 변경 확인 취소"]',
-    )).not.toBeNull();
-    expect(onApply).not.toHaveBeenCalled();
-  });
-
-  it("applies only after the other member makes the exact proposal unanimous", async () => {
-    const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: false,
-        acceptedCount: 1,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: true,
-        acceptedCount: 2,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: true,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        applicationGranted: true,
-        retryAfterMs: 0,
-      }), { status: 200 }));
-    const onApply = vi.fn();
-
-    await act(async () => {
-      root.render(
-        <PendingAmoraActionCard
-          action={action}
-          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-          disabledReason={null}
-          isApplying={false}
-          onApply={onApply}
-          onDismiss={vi.fn()}
-        />,
-      );
-    });
-    await act(async () => Promise.resolve());
-    const confirm = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="이 공동 변경을 확인하고 바로 반영"]',
-    );
-    expect(container.textContent).toContain("확인하고 바로 반영");
-    expect(container.textContent).toContain(
-      "내 확인을 누르면 바로 반영을 시작해요",
-    );
-    await act(async () => confirm?.click());
-    await act(async () => Promise.resolve());
-
-    expect(onApply).toHaveBeenCalledOnce();
-    expect(onApply).toHaveBeenCalledWith(action.actionId);
-  });
-
-  it("does not create a second confirmation while another client owns the application lease", async () => {
-    const fetchMock = vi.mocked(fetch);
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: false,
-        acceptedCount: 1,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: false,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        approvalMode: "couple",
-        accepted: true,
-        acceptedCount: 2,
-        requiredCount: 2,
-        partnerLinked: true,
-        ready: true,
-      }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        applicationGranted: false,
-        retryAfterMs: 30_000,
-      }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      applicationGranted: false,
+      retryAfterMs: 30_000,
+    }), { status: 200 }));
     const onApply = vi.fn();
 
     await act(async () => {
@@ -501,15 +284,13 @@ describe("PendingAmoraActionCard", () => {
     await act(async () => Promise.resolve());
 
     const confirm = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="이 공동 변경을 확인하고 바로 반영"]',
+      'button[aria-label="확인한 내용을 이대로 적용"]',
     );
     await act(async () => confirm?.click());
     await act(async () => Promise.resolve());
 
     expect(onApply).not.toHaveBeenCalled();
-    expect(container.textContent).toContain(
-      "다른 화면에서 반영을 시작했어요",
-    );
+    expect(container.textContent).toContain("다른 화면에서 반영을 시작했어요");
     expect(container.textContent).toContain("30초 뒤");
   });
 });

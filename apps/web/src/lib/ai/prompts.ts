@@ -197,6 +197,7 @@ export type WeddingPlannerPromptContext = {
     actualAmount?: number | null;
   }>;
   scheduleEvents: Array<{
+    id?: string;
     date: string;
     title: string;
     memo?: string;
@@ -385,8 +386,33 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       const vendor = p.vendor ? `업체: ${promptData(p.vendor, 200)}` : "";
       const notes = p.notes ? `메모: ${promptData(p.notes, 500)}` : "";
       const checklist = Array.isArray(p.checklist) ? p.checklist as { id: string; label: string; done: boolean }[] : [];
+      // 개수만 주면 `toggle_checklist_item` 을 절대 못 쓴다. 그 도구는 `item_id`
+      // (예: venue_03)를 필수로 받는데, 예전에는 프롬프트가 id·label 을 버리고
+      // "할일: 3/12완료" 만 남겼다. 그래서 아모라는 준 적 없는 ID 를 내라는 요구를
+      // 받았고, 라이브에서 **사용자에게 "항목 ID를 알려주세요"라고 되물었다**
+      // (2026-08-23 실측). 사용자는 그런 걸 모른다.
+      //
+      // ID 를 지어내지 않고 모른다고 말한 것 자체는 옳다 — 할루시네이션 가드가
+      // 작동한 것이다. 고칠 곳은 모델이 아니라 자료였다.
+      //
+      // 미완료를 먼저 싣는다. 완료 항목은 되돌릴 때만 필요하고, 프롬프트 예산은
+      // 유한하다. 카테고리당 상한을 두어 체크리스트가 길어져도 프롬프트가
+      // 터지지 않게 한다.
+      const CHECKLIST_ITEMS_PER_CATEGORY = 12;
+      const orderedChecklist = [
+        ...checklist.filter((c) => !c.done),
+        ...checklist.filter((c) => c.done),
+      ];
+      const shownChecklist = orderedChecklist.slice(0, CHECKLIST_ITEMS_PER_CATEGORY);
+      const hiddenChecklistCount = orderedChecklist.length - shownChecklist.length;
       const checklistInfo = checklist.length > 0
-        ? `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`
+        ? [
+            `할일: ${checklist.filter((c) => c.done).length}/${checklist.length}완료`,
+            shownChecklist
+              .map((c) => `${c.done ? "✅" : "⬜"}${c.id}=${promptData(c.label, 60)}`)
+              .join(", "),
+            hiddenChecklistCount > 0 ? `그 밖에 ${hiddenChecklistCount}개 더 있음` : "",
+          ].filter(Boolean).join(" / ")
         : "";
       const parts = [
         `${label}(${key}): ${status}, 예산: ${budget}`,
@@ -508,7 +534,10 @@ ${CHECKLIST_CHECK_POINTS}
       for (const e of upcoming) {
         const cat = e.categoryKey ? ` (${CATEGORY_LABELS[e.categoryKey] ?? promptData(e.categoryKey, 80)})` : "";
         const memo = e.memo ? ` - 메모 ${promptData(e.memo, 500)}` : "";
-        lines.push(`  - ${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
+        // `event_id` 를 싣지 않으면 취소·변경 도구를 쓸 방법이 없다. 지난 일정에는
+        // 붙이지 않는다 — 되돌릴 일이 없고 프롬프트만 늘어난다.
+        const id = e.id ? `${promptData(e.id, 200)}=` : "";
+        lines.push(`  - ${id}${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
       }
     }
     if (past.length > 0) {
@@ -839,6 +868,7 @@ ${AMORA_CARE_VOICE}
 - 현재 연도는 **${_thisYear}년**입니다. "올해"=${_thisYear}, "내년"=${_nextYear}, "내후년"=${_yearAfter}.
 - 사용자가 "내년 X월 Y일"이라고 하면 반드시 **${_nextYear}-MM-DD** 형식으로 변환하세요. ${_thisYear - 1}년 이하는 절대 사용 금지.
 - 사용자가 연도 없이 "X월 Y일"만 말하면, 오늘(${todayIso}) 이후 가장 가까운 미래 날짜로 해석하세요. 과거가 되지 않게.
+- **올해 남은 달은 ${_thisYear}년 ${Number(todayIso.slice(5, 7))}~12월입니다.** 사용자가 말한 달이 이 안에 있으면 그 날짜는 **미래**이고, ${_thisYear}년으로 해석합니다. 오늘보다 앞선 달일 때만 ${_nextYear}년입니다. (실측 오류: 오늘이 ${_thisYear}-08-23인데 "9월 20일"을 "이미 지난 날짜"라고 답한 적이 있습니다. 같은 해 뒤쪽 달은 지난 날짜가 아닙니다.)
 - 모든 도구 호출(update_wedding_date, add_schedule_event, update_schedule_event 등)에서 날짜 인자는 반드시 **오늘(${todayIso}) 이후의 미래 날짜**여야 합니다.
 - 예약에서 사용자가 특정 날짜를 말하면 그 날짜가 절대 기준입니다. 빈 시간이 없더라도 전날/다음날로 바꿔 예약하지 말고, "그 날짜는 불가"와 대체 후보를 분리해서 안내하세요.
 - 결혼식 날짜를 답할 때는 "${_thisYear}년" 또는 "${_nextYear}년" 같이 4자리 연도를 명시하세요. 절대 ${_thisYear - 1}년 같은 과거 연도로 답하지 마세요.
@@ -852,17 +882,17 @@ ${categoryStatus}${checkPointsSection}${bookingsSection}${scheduleSection}${summ
 
 ## 아모라의 사고방식
 
-당신은 매뉴얼 문구를 되풀이하는 챗봇이 아니라, 결혼 준비의 맥락과 실무를 함께 정리하는 **AI 결혼 준비 도우미**입니다.
+당신은 매뉴얼 문구를 되풀이하는 챗봇이 아니라, 결혼 준비의 맥락과 실무를 함께 정리하는 **결혼 준비 동반자**입니다.
 
 **아모라의 최종 역할:**
-- 아모라는 질문에 답하는 AI가 아니라, 사용자가 생각한 결혼식을 실수 없이 끝까지 해내도록 옆에 붙어 있는 파트너입니다.
+- 아모라는 질문에 답하는 AI가 아니라, 사용자가 생각한 결혼식을 실수 없이 끝까지 해내도록 옆에서 함께 걷는 동반자입니다.
 - 준비 시작 전, 업체 탐색, 견적 비교, 계약 전 확인, 결혼식 직전·당일, 식 후 감사 인사까지 전 여정을 함께 봅니다.
 - 결정·실행 역할을 선택했고 실제 누락 위험이 있을 때만, 사용자가 놓칠 수 있는 다음 실수 1개를 조용히 잡아주세요.
 - 사용자가 "정했어", "예약했어", "계약했어", "보냈어", "식 끝났어"라고 하면 짧게 축하하세요. 마감·추가 납부·저장 누락처럼 지금 놓치면 되돌리기 어려운 실무만 한 가지 챙기고, 나머지는 사용자가 원할 때 이어가세요.
 - 식이 끝난 뒤에도 혼인신고, 앨범/영상 수령, 업체 후기, 감사 인사, 도와준 사람에게 따로 보낼 메시지를 도와주세요.
 - spent 필드는 사용자가 기록한 금액일 뿐 결제 완료 증거가 아닙니다. cost 필드는 이전 버전의 용도 미확인 값이므로 예산·지출·결제 합계나 초과 판단에 쓰지 마세요.
 
-**파트너 모드의 기본 행동:**
+**동반자로서의 기본 행동:**
 - 위의 "먼저 이번 턴의 역할 하나를 고르기" 원칙을 먼저 적용하세요. 아래 행동을 모든 답변에 한꺼번에 넣지 마세요.
 - 사용자가 업체와 말해야 하면 카톡/문자/전화 스크립트를 만들어주세요.
 - 사용자가 가족이나 파트너와 말해야 하면 감정이 상하지 않는 문장으로 바꿔주세요.

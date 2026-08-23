@@ -174,9 +174,8 @@ describe("placeSearchTools", () => {
     expect(decodeURIComponent(String(output.places[0].mapsUrl)))
       .toContain("한방정식 강남구");
 
-    // 지역 1 + 이미지 1 + 블로그 1. 블로그는 상품이 꺼져 있으면 실패하지만
-    // 그 실패가 카드를 막지 않는다(아래 별도 테스트).
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // 지역 1 + 이미지 1. 블로그는 부르지 않는다(아래 별도 테스트).
+    expect(fetchMock).toHaveBeenCalledTimes(2);
     for (const [input, init] of fetchMock.mock.calls) {
       expect(new URL(String(input)).origin).toBe("https://naverapihub.apigw.ntruss.com");
       expect(init?.headers).toEqual({
@@ -187,31 +186,27 @@ describe("placeSearchTools", () => {
   });
 
   /**
-   * 2026-08-23 운영의 실제 조건이다. API HUB 애플리케이션에 블로그 상품을
-   * 신청하지 않으면 네이버가 401 을 준다:
+   * 2026-08-23 파운더 결정: 리뷰 수는 우리가 붙이지 않는다.
    *
-   *     {"error":{"errorCode":401,"message":"요청한 API는 이 Application에서
-   *      활성화되어 있지 않습니다"}}
+   * 사용자가 말한 "리뷰"는 네이버 화면의 **별점과 리뷰 작성 수**다. 그런데
+   * 네이버 지역 검색 API 가 주는 칸은 title·link·category·description·
+   * telephone·address·roadAddress·mapx·mapy 뿐이고 별점도 리뷰 수도 없다
+   * (실측: 소담옥 1,329 · 서리원 마포본점 ★4.57·1,148 · 기와 3,006 — API 응답에
+   * 전부 없음). 블로그 검색 결과 수는 그것과 다른 숫자라 카드에 얹으면
+   * 오히려 사용자를 속인다.
    *
-   * 신청하지 않은 상품은 고장이 아니다. 그 실패로 장소 카드까지 못 내면
-   * 사용자는 이유 없이 아무것도 못 받는다.
+   * 그래서 리뷰는 카드를 눌러 네이버에서 보게 한다. 이 테스트는 우리가
+   * 블로그 상품을 **아예 부르지 않는다**는 것을 고정한다 — 부르지 않으므로
+   * 콘솔에서 신청할 필요도 없고, 401 로 실패할 자리도 없다.
    */
-  it("블로그 상품이 꺼져 있어도 장소 카드는 그대로 나온다", async () => {
+  it("리뷰를 붙이겠다고 블로그 검색을 부르지 않는다", async () => {
     process.env.NAVER_API_HUB_CLIENT_ID = "hub-id";
     process.env.NAVER_API_HUB_CLIENT_SECRET = "hub-secret";
-    stubSearchFetch((url) => {
+    const fetchMock = stubSearchFetch((url) => {
       if (url.pathname.endsWith("/local")) {
         return jsonResponse({ items: [localItem()] });
       }
       if (url.pathname.endsWith("/image")) return jsonResponse({ items: [] });
-      if (url.pathname.endsWith("/blog")) {
-        return jsonResponse({
-          error: {
-            errorCode: 401,
-            message: "요청한 API는 이 Application에서 활성화되어 있지 않습니다.",
-          },
-        }, 401);
-      }
       throw new Error(`Unexpected URL: ${url}`);
     });
 
@@ -224,12 +219,19 @@ describe("placeSearchTools", () => {
     expect(result.success).toBe(true);
     expect(output.places).toHaveLength(1);
     expect(output.places[0].name).toBe("한방정식");
-    // 리뷰 자리는 비어 있을 뿐, 카드는 이름·주소로 그대로 선다.
-    expect(output.places[0].blogReviewCount).toBe(0);
-    expect(output.places[0].blogSnippet).toBeNull();
-    expect(output.places[0].priceRange).toBeNull();
-    // 신청하지 않은 상품은 경고로 남기지 않는다 — 고장이 아니다.
-    expect(output.warnings ?? []).not.toContain("blog_enrichment_failed");
+
+    const paths = fetchMock.mock.calls.map(([input]) => new URL(String(input)).pathname);
+    expect(paths).not.toContain("/search/v1/blog");
+    expect(paths.some((path) => path.endsWith("/blog"))).toBe(false);
+
+    // 채울 수 없는 칸은 null 로 두지 않고 아예 내보내지 않는다. 카드가 그릴
+    // 자리를 만들면 언젠가 0 이나 빈 값이 그려진다.
+    for (const dead of ["blogReviewCount", "blogSnippet", "priceRange", "hasPrivateRoom"]) {
+      expect(output.places[0]).not.toHaveProperty(dead);
+    }
+
+    // 대신 눌러서 갈 곳은 반드시 있어야 한다 — 리뷰를 거기서 보라고 했으므로.
+    expect(String(output.places[0].searchUrl)).toContain("search.naver.com");
   });
 
   it("keeps only general places when NAVER Local mixes in wedding vendors", async () => {
@@ -262,8 +264,8 @@ describe("placeSearchTools", () => {
 
     expect(result.success).toBe(true);
     expect(output.places).toEqual([expect.objectContaining({ name: "샘플 한정식" })]);
-    // 지역 1 + 이미지 1 + 블로그 1.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // 지역 1 + 이미지 1.
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("returns an empty general-place result when every local item is a wedding vendor", async () => {

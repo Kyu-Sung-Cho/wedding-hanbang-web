@@ -318,9 +318,17 @@ function formatTime(dateStr: string) {
 }
 
 // [etiquette:N] 태그 파싱
+//
+// 제목이 붙은 `[etiquette:2:상견례]` 도 받는다.
+//
+// 프롬프트는 `[etiquette:번호]` 만 쓰라고 하지만 모델은 제목을 덧붙인다
+// (2026-08-23 실측: `[etiquette:2:상견례]`, `[etiquette:3:예물예단]`).
+// 숫자만 받는 정규식은 그 형태를 못 잡아 **태그가 날것 그대로 사용자에게
+// 보였다.** 모델을 더 조이는 것보다 화면이 관대한 편이 안전하다 — 못 읽으면
+// 그대로 노출되고, 읽으면 읽기 카드가 된다.
 function parseEtiquetteTags(text: string): { cleanText: string; partNumbers: number[] } {
   const partNumbers: number[] = [];
-  const cleanText = text.replace(/\[etiquette:(\d+)\]/g, (_, num) => {
+  const cleanText = text.replace(/\[etiquette:(\d+)(?::[^\]]*)?\]/g, (_, num) => {
     const n = parseInt(num, 10);
     if (n >= 1 && n <= 25 && !partNumbers.includes(n)) partNumbers.push(n);
     return "";

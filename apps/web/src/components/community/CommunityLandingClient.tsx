@@ -622,8 +622,7 @@ function AmoraBlock() {
           <p className="mt-3 max-w-xl text-[13px] font-medium leading-[1.75] text-[#5d6879] md:text-[14px]">
             커뮤니티에서 확인한 조건과 다음 행동을 아모라에게 이어서 말해보세요.
             웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한
-            시기에 준비하는 사람들의 기록을 함께 보며, 두 사람이 확인한 것만
-            예산·체크리스트·일정에 남기는 서비스예요.
+            시기에 준비하는 사람들의 기록을 함께 보며, 확인한 것만 예산·체크리스트·일정에 남기고 바뀐 내용을 서로에게 알리는 서비스예요.
           </p>
 
           <div className="mt-5 flex flex-col gap-2.5 sm:flex-row sm:items-center">

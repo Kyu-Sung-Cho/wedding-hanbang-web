@@ -46,6 +46,19 @@ const tools: AiToolDefinition[] = [
     },
   },
   {
+    // 짧은 창(10분)을 갖는 도구. 공유 계획이 아니라 바로 눌러 끝내는 것이다.
+    name: "update_task_status",
+    description: "test",
+    input_schema: {
+      type: "object",
+      properties: {
+        category: { type: "string" },
+        status: { type: "string" },
+      },
+      required: ["category", "status"],
+    },
+  },
+  {
     name: "apply_budget_plan",
     description: "test",
     input_schema: {
@@ -166,16 +179,19 @@ describe("Amora pending actions", () => {
     });
   });
 
-  it("gives two-person decisions time to reach a partner but keeps reversible actions short-lived", () => {
-    const coupleAction = extract(
+  // 2026-08-23: 두 사람 승인이 없어졌지만 긴 창은 남긴다. 이유가 "상대가 볼
+  // 시간"에서 "금액을 한 번 더 생각할 시간"으로 바뀐 것뿐이다. 값을 줄였다면
+  // 이미 발급된 카드가 전부 만료로 죽었을 것이다.
+  it("공유 계획 변경에는 넉넉한 창을, 즉시 누르는 것에는 짧은 창을 준다", () => {
+    const sharedPlanAction = extract(
       '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
     ).pendingAction;
-    const singleAction = extract(
-      '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-08-01","title":"드레스 피팅","schedule_scope":"confirmed_fact"}}[/pending_action]',
+    const quickAction = extract(
+      '[pending_action]{"tool":"update_task_status","input":{"category":"invitation","status":"completed"}}[/pending_action]',
     ).pendingAction;
 
-    expect(coupleAction?.expiresAt).toBe(NOW + 24 * 60 * 60 * 1_000);
-    expect(singleAction?.expiresAt).toBe(NOW + 10 * 60 * 1_000);
+    expect(sharedPlanAction?.expiresAt).toBe(NOW + 24 * 60 * 60 * 1_000);
+    expect(quickAction?.expiresAt).toBe(NOW + 10 * 60 * 1_000);
   });
 
   it.each([

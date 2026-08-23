@@ -1081,12 +1081,8 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       cuisineType: string;
       description: string | null;
       telephone: string | null;
-      priceRange: string | null;
-      hasPrivateRoom: boolean;
       mapsUrl: string;
       blogSearchUrl: string;
-      blogReviewCount: number;
-      blogSnippet: string | null;
       link: string | null;
       imageUrl: string | null;
       imageSourceUrl: string | null;
@@ -1209,13 +1205,6 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
     );
   }
 
-  // 블로그 리뷰 수 포맷
-  const formatCount = (n: number) => {
-    if (n >= 10000) return `${(n / 10000).toFixed(1)}만`;
-    if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
-    return n.toLocaleString();
-  };
-
   // 음식 종류별 이모지
   const cuisineEmoji: Record<string, string> = {
     "한식": "🍚", "양식": "🍝", "일식": "🍣", "중식": "🥟",
@@ -1245,7 +1234,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               href={p.searchUrl || p.mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              aria-label={`${p.name} 네이버 검색에서 보기`}
+              aria-label={`${p.name} 네이버에서 리뷰·별점 보기`}
               className="block px-5 pt-4 pb-3.5 outline-none transition-colors hover:bg-[#FBF8F2] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A77B74]"
             >
               <div className="flex items-start gap-3">
@@ -1295,12 +1284,12 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                       {p.name}
                     </p>
                     <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-[#A77B74] sm:text-xs">
-                      네이버에서 보기
+                      리뷰·별점 보기
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>
                   </div>
 
-                  {/* 태그 줄: 음식종류 + 세부카테고리 + 후기 수 */}
+                  {/* 태그 줄: 음식종류 + 세부카테고리 */}
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     {p.cuisineType && (
                       <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[var(--hb-text-strong)] font-medium">
@@ -1312,36 +1301,11 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                         {p.category}
                       </span>
                     )}
-                    {p.blogReviewCount > 0 && (
-                      <span
-                        className="text-sm px-2.5 py-0.5 rounded-full bg-[#E8F5E9] text-[#2E7D5A] font-medium"
-                        title="네이버 블로그에서 이 가게가 언급된 글 수 (정확한 후기 수와 다를 수 있어요)"
-                      >
-                        블로그 {formatCount(p.blogReviewCount)}+
-                      </span>
-                    )}
                   </div>
 
-                  {/* 블로그 검색 문구에서 포착된 가격·룸 참고 정보 */}
-                  {(p.priceRange || p.hasPrivateRoom) && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      {p.priceRange && (
-                        <span className="text-sm font-medium text-[#36534E]">
-                          블로그 가격 언급 · {p.priceRange}
-                        </span>
-                      )}
-                      {p.hasPrivateRoom && (
-                        <span className="rounded-full bg-[#C7D1C2]/40 px-2.5 py-0.5 text-sm font-medium text-[#36534E]">
-                          룸 언급 있음
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 설명 또는 블로그 스니펫 */}
-                  {(p.description || p.blogSnippet) && (
+                  {p.description && (
                     <p className="text-sm text-[#6B6560] mt-2 leading-[1.5] line-clamp-2">
-                      {p.description || p.blogSnippet}
+                      {p.description}
                     </p>
                   )}
 
@@ -1396,7 +1360,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               {p.imageUrl && (
                 <span className="shrink-0 font-medium text-[#7A6F66]">사진 출처: 네이버 이미지 검색</span>
               )}
-              <span>장소 정보는 네이버 지역 검색 결과예요. 가격·룸 등 최신 정보는 네이버 또는 매장에 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.</span>
+              <span>장소 정보는 네이버 지역 검색 결과예요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.</span>
             </div>
           </div>
         ))}
