@@ -214,7 +214,9 @@ describe("Amora schedule cancellation and restoration", () => {
     expect(extracted.pendingAction).toMatchObject(payload);
     expect(extracted.cleanText).toContain("일정 취소");
     expect(extracted.cleanText).toContain("드레스 최종 피팅");
-    expect(extracted.cleanText).toContain("2026-08-20");
+    // 2026-08-23: 확인 카드가 날짜를 한국어로 읽어준다. 이 검사의 의도(내부 ID 대신
+    // 사람이 읽는 제목+날짜로 대상을 식별한다)는 그대로이고, 표기만 더 읽기 쉬워졌다.
+    expect(extracted.cleanText).toContain("2026년 8월 20일");
     expect(extracted.cleanText).toContain("업체와 날짜 재조정");
     expect(extracted.cleanText).not.toContain(EVENT_ID);
 
