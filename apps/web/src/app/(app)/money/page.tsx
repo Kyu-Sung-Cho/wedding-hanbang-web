@@ -4,6 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { useMoneyStore } from "@/stores/moneyStore";
 import type { Side, Relation, MoneyMethod, CongratulatoryMoney } from "@/types/money.types";
+import { todayYmdInKst } from "@hanbang/shared/utils";
 import {
   Plus, Search, Download, Wallet,
   Edit3, Trash2, X, Check,
@@ -35,7 +36,7 @@ export default function MoneyPage() {
     relation: "" as string,
     method: "cash" as MoneyMethod,
     memo: "",
-    received_at: new Date().toISOString().slice(0, 10),
+    received_at: todayYmdInKst(),
   });
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export default function MoneyPage() {
       relation: "",
       method: "cash",
       memo: "",
-      received_at: new Date().toISOString().slice(0, 10),
+      received_at: todayYmdInKst(),
     });
     setEditId(null);
     setShowForm(false);
@@ -150,7 +151,7 @@ export default function MoneyPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `축의금_내역_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `축의금_내역_${todayYmdInKst()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

@@ -97,6 +97,20 @@ export default function SettingsPage() {
   const [coupleConnection, setCoupleConnection] = useState<CoupleConnectionState>(() =>
     resolveCoupleConnectionState(null),
   );
+  /**
+   * 커플 연결 조회가 어디쯤인지.
+   *
+   * `resolveCoupleConnectionState(null)` 은 "모름"(`unavailable`)을 돌려준다. 그런데 그
+   * 값 하나로 **불러오는 중 · 응답이 이상함 · 요청이 실패함**을 전부 그렸다. 그래서
+   * 파트너가 아직 없는 사람이 설정을 열면, 조회가 끝나기도 전에 「연결 상태를 확인하지
+   * 못했어요 · 고객지원에 문의」가 먼저 인사했다. 첫날 사용자가 가장 먼저 하는 일이
+   * 배우자 초대인데 그 문에 사실이 아닌 오류가 붙어 있던 셈이다.
+   *
+   * 모바일 설정에는 이 구분이 이미 있다. 같은 모양으로 셋을 가른다.
+   */
+  const [connectionLookup, setConnectionLookup] =
+    useState<"loading" | "ready" | "failed">("loading");
+  const [connectionRetryNonce, setConnectionRetryNonce] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
 
   // 수정 모드
@@ -188,6 +202,7 @@ export default function SettingsPage() {
     // Clear any retained invite immediately. Local partner/seal evidence can
     // still identify linked or sealed states while the privileged API loads.
     setCoupleConnection(resolveCoupleConnectionState(null, context));
+    setConnectionLookup("loading");
 
     fetch("/api/couple/code", { signal: controller.signal })
       .then(async (response) => {
@@ -195,17 +210,21 @@ export default function SettingsPage() {
         if (!response.ok) throw new Error("COUPLE_CONNECTION_LOOKUP_FAILED");
         if (!cancelled) {
           setCoupleConnection(resolveCoupleConnectionState(payload, context));
+          setConnectionLookup("ready");
         }
       })
       .catch(() => {
         // Fail closed: never restore a previously displayed invite code.
+        // 다만 **실패했다는 사실은 말한다.** 조용히 "모름" 화면으로 두면 사용자는
+        // 자기 커플이 잘못됐다고 읽는다.
+        if (!cancelled) setConnectionLookup("failed");
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [couple, isDemo, partner]);
+  }, [couple, isDemo, partner, connectionRetryNonce]);
 
   const phase = coupleConnection.phase;
   const coupleCode = coupleConnection.inviteCode;
@@ -938,6 +957,25 @@ export default function SettingsPage() {
               </div>
               <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
             </div>
+          ) : connectionLookup === "loading" ? (
+            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[#504444]">연결 상태를 불러오는 중이에요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#928980]">잠시만 기다려 주세요.</p>
+            </div>
+          ) : connectionLookup === "failed" ? (
+            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[#1A1A1F]">연결 상태를 불러오지 못했어요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
+                커플 연결이 잘못된 것은 아니에요. 연결 상태만 못 읽었으니 다시 시도해 주세요.
+              </p>
+              <button
+                type="button"
+                onClick={() => setConnectionRetryNonce((value) => value + 1)}
+                className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+              >
+                다시 시도
+              </button>
+            </div>
           ) : (
             <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p className="text-base font-medium text-[#1A1A1F]">연결 상태를 확인하지 못했어요</p>
@@ -1181,10 +1219,18 @@ export default function SettingsPage() {
               <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
                 새 커플로 다시 시작할까요?
               </h3>
+              {/* 되돌릴 수 없는 행동이다. 예전 문구는 "새 파트너 코드로 다시 연결할 수
+                  있어요" 라고 해서 되돌릴 수 있는 일처럼 읽혔다. 끊긴 자리는 봉인되고
+                  트리거가 재삽입을 영구 차단하므로 **지금 이 사람에게는 다시 돌아올 수
+                  없다.** 모바일이 이미 정직하게 말한다 —
+                  `apps/mobile/app/settings/index.tsx` 의 "이 작업은 되돌릴 수 없어요". */}
               <p className="text-sm text-[#928980] text-center leading-relaxed mb-6">
-                현재 커플 연결을 끊고 온보딩으로 돌아갑니다.
+                현재 커플 연결과 함께 보던 준비 데이터를 분리하고 온보딩으로 돌아갑니다.
                 <br />
-                내 계정은 유지되며, 새 파트너 코드로 다시 연결할 수 있어요.
+                <span className="font-semibold text-[#795252]">이 작업은 되돌릴 수 없어요</span>
+                {" — "}지금 커플로는 다시 연결할 수 없습니다.
+                <br />
+                내 계정과 내가 쓴 대화는 유지돼요.
               </p>
 
               <label className="block text-sm text-[#504444] mb-2">
