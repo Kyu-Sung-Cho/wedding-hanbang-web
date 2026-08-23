@@ -199,6 +199,30 @@ describe("아모라 첫마디", () => {
     expect(daysUntilWedding(null, NOW)).toBeNull();
   });
 
+  it("한국 새벽에도 D-day 가 하루 어긋나지 않는다", () => {
+    // 예식일은 사용자가 고른 한국 날짜다. "오늘"을 UTC 로 읽으면 KST 00:00~09:00 동안
+    // 어제가 되어 D-day 가 하루 많게 나왔다. 하루 24시간 중 9시간이다.
+    //
+    // 위의 NOW(= Date.UTC(2026,7,20))는 KST 09:00 이라 UTC 와 날짜가 일치하기 시작하는
+    // 첫 시각이다. 그래서 기존 검사는 깨진 구간을 한 번도 지나지 않았다.
+    const kstHour = (hour: number) => Date.UTC(2026, 7, 24, hour) - 9 * 60 * 60 * 1000;
+
+    for (const hour of [0, 3, 6, 8, 9, 15, 23]) {
+      expect(daysUntilWedding("2026-08-25", kstHour(hour)), `${hour}시 KST`).toBe(1);
+      expect(daysUntilWedding("2026-08-24", kstHour(hour)), `${hour}시 KST`).toBe(0);
+      expect(daysUntilWedding("2026-08-23", kstHour(hour)), `${hour}시 KST`).toBe(-1);
+    }
+  });
+
+  it("예식 당일 새벽에 '내일'이라고 말하지 않는다", () => {
+    // 가장 나쁜 형태다. 결혼식 날 아침에 "결혼식까지 1일 남았어요"를 받는다.
+    const weddingMorning = Date.UTC(2026, 7, 25, 7) - 9 * 60 * 60 * 1000;
+    const hello = buildAmoraFirstHello({ weddingDate: "2026-08-25", now: weddingMorning });
+
+    expect(hello.body).toContain("오늘이 결혼식이네요");
+    expect(hello.body).not.toMatch(/\d+일 남았어요/);
+  });
+
   it("아는 것이 하나도 없어도 말은 건다", () => {
     const hello = buildAmoraFirstHello({ now: NOW });
     expect(hello.preview.length).toBeGreaterThan(0);
