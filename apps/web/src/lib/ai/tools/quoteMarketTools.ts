@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
 import {
   analyzeAmoraQuoteCheck,
   getQuoteCheckItems,
@@ -130,7 +131,7 @@ export async function executeGetMarketPrice(
 
   let query = client
     .from("v_public_official_prices")
-    .select("price_min_krw,price_max_krw,source_label,period_label,region_code,item_name")
+    .select("price_min_krw,price_max_krw,source_label,region_code,item_name")
     .eq("is_current", true)
     .eq("price_category", category);
   if (region) query = query.eq("region_code", region);
@@ -148,10 +149,16 @@ export async function executeGetMarketPrice(
 
   const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
   const first = rows[0];
+  // DB 의 `source_label`·`period_label` 을 그대로 말하면 **우리 내부 스냅샷
+  // 이름을 공시 시점이라고 주장하게 된다.** 운영 실측: 두 값 모두 `2026Q3` 인데
+  // 실제 공시 라운드는 2025-11 이다. 소비자 화면은 이미 이 보정을 거치는데
+  // (`/price`, 업체 상세) 아모라만 안 거쳐서, **같은 자료를 화면은 "2025년 11월",
+  // 아모라는 "2026년 3분기"라고 말하고 있었다** — 9개월 된 가격이 현재 분기로
+  // 보인다. 근거를 대는 자리라 더 나쁘다.
   const source = typeof first?.source_label === "string" && first.source_label
-    ? first.source_label
+    ? displaySourceLabel(first.source_label)
     : MARKET_PRICE_SOURCE_FALLBACK;
-  const period = typeof first?.period_label === "string" ? first.period_label : null;
+  const period = disclosureRoundLabel();
   const base = { category, region: region || null, source, period, publicPath: "/price" };
 
   const emptyResult: ToolExecutionResult = {
