@@ -7,8 +7,7 @@ import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
-import { getImminentCategories } from "@/utils/imminentChecklist";
-import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
 
@@ -34,10 +33,6 @@ interface WeeklyCardProps {
 export default function WeeklyCard({ weddingDate, totalBudget, progress, actions }: WeeklyCardProps) {
   const data = useMemo(() => {
     const progressRecord = progress as Record<string, unknown>;
-    const weddingDateObj = weddingDate ? new Date(weddingDate) : null;
-    const validWedding =
-      weddingDateObj && !Number.isNaN(weddingDateObj.getTime()) ? weddingDateObj : null;
-
     // 아모라 한 줄 — 1순위 오늘의 모멘트, 2순위 lifecycle 경고, 3순위 저장 정보 범위 안내
     const dueCells = buildDueMomentCells({ weddingDate, progress: progressRecord });
     const topCell = dueCells[0];
@@ -55,11 +50,10 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         ? plan.primaryAction.href
         : null;
 
-    // 곧 확인할 분야 3 — 기본 확인 시점이 가까운 것
-    const events = getEvents(progressRecord).filter(
-      (event) => getScheduleEventStatus(event) !== "cancelled",
-    );
-    const imminent = getImminentCategories(progress, validWedding, events).slice(0, 3);
+    // 곧 확인할 분야 3 — 기본 확인 시점이 가까운 것.
+    // 고르는 규칙은 `getWeeklyImminentCategories` 한 곳에 있다. 라운지 아래쪽
+    // 「놓치기 쉬운 항목」이 **여기 나온 것을 빼야** 해서, 두 곳이 같은 함수를 본다.
+    const imminent = getWeeklyImminentCategories(progress, weddingDate);
 
     // 알아둘 예절 — 가장 임박한 카테고리에 해당하는 파트가 있을 때만.
     // 없으면 null이고, 그 자리는 아래에서 가족 이야기 카드가 대신한다.

@@ -64,7 +64,18 @@ export function getProgressSummary(progress: Record<string, ProgressItem>) {
   );
 }
 
-export function getActiveCategories(progress: Record<string, ProgressItem>, dday: number | null) {
+/**
+ * 「놓치기 쉬운 항목」에 그릴 분야.
+ *
+ * `excludeKeys`는 **같은 화면 위쪽 주차 카드가 이미 그린 분야**다. 빼지 않으면 같은
+ * 분야가 한 화면에 두 번, 문구까지 같게 나온다(`기본 확인 시점까지 N일`). 실제로
+ * 그랬다. 빼는 것은 `slice` **앞**이어야 한다 — 뒤에서 빼면 목록이 6개보다 줄어든다.
+ */
+export function getActiveCategories(
+  progress: Record<string, ProgressItem>,
+  dday: number | null,
+  excludeKeys: ReadonlySet<string> = new Set(),
+) {
   return CATEGORY_CHECKLISTS.map((category) => {
     const counts = getChecklistProgress(progress, category.key);
     const status = getStatus(progress, category.key);
@@ -75,6 +86,7 @@ export function getActiveCategories(progress: Record<string, ProgressItem>, dday
     // 끝낸 분야와 "해당 없음"으로 끈 분야는 할 일 목록에서 뺀다. 끈 분야를 남겨 두면
     // 함·폐백을 생략한 커플에게 영원히 지워지지 않는 할 일이 보인다.
     .filter((item) => item.status !== "completed" && item.status !== "not_applicable")
+    .filter((item) => !excludeKeys.has(item.category.key))
     .sort((a, b) => {
       if (a.status !== b.status) return a.status === "in_progress" ? -1 : b.status === "in_progress" ? 1 : 0;
       const aDeadline = a.daysUntilDeadline ?? 9999;

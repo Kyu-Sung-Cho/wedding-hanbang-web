@@ -113,7 +113,16 @@ interface ScheduleContentProps {
 
 export default function ScheduleContent({ embedded = false }: ScheduleContentProps = {}) {
   const { journey, updateJourney, profile, partner, isDemo } = useAuthStore();
-  const [viewMode, setViewMode] = useState<"timeline" | "calendar">("timeline");
+  // 기본은 달력이다.
+  //
+  // 타임라인은 체크리스트 화면과 **같은 것**을 그린다 — 같은 상수(`CATEGORY_CHECKLISTS`),
+  // 같은 병합 함수, 같은 토글 핸들러를 쓰고 D-day 구간으로 묶기만 한다. 일정 화면이
+  // 체크리스트를 한 번 더 그릴 이유가 없다.
+  //
+  // 타임라인을 지우지는 않았다. 그 573 줄에는 "어느 화면이 무엇을 그려야 하는가"를
+  // 고정하는 계약 테스트 두 개가 걸려 있어서, 출시 주에 손댈 일이 아니다. 기본값만
+  // 옮기면 되돌리는 것도 이 한 줄이다.
+  const [viewMode, setViewMode] = useState<"timeline" | "calendar">("calendar");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // 이벤트 CRUD 상태
@@ -517,6 +526,142 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
   const progressPct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
+  /**
+   * 「다가오는 일정」과 「날짜를 정할 항목」을 상수로 빼 둔다.
+   *
+   * 둘의 **순서를 바꿔야 하기 때문**이다. 등록한 일정이 하나도 없는 커플에게 빈 달력을
+   * 먼저 보여주면 화면이 죽는다 — 운영 54 커플을 실제로 세어 보니 절반 이상이 0 건이고
+   * 3 건 이상은 3 커플뿐이었다. 그런 커플에게는 「날짜를 정할 항목」이 먼저 와야 한다.
+   * 그것이 빈 달력에서 나가는 문이기 때문이다(각 행의 `날짜 잡기`).
+   *
+   * 반대로 일정이 있는 커플에게는 「다가오는 일정」이 먼저다. 어느 쪽이든 **두 블록이
+   * 동시에 위아래로 겹치지는 않는다.**
+   */
+  const hasUpcoming = upcomingEvents.length > 0;
+
+  const imminentPanel =
+    imminentCategories.length > 0 ? (
+  <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+    <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
+      기본 일정 확인
+    </h3>
+    <ImminentAlerts
+      items={imminentCategories}
+      onCategoryClick={handleCategoryClick}
+      onScheduleClick={handleScheduleCategory}
+    />
+  </div>
+    ) : null;
+
+  const upcomingPanel = (
+    <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
+          다가오는 일정
+        </h3>
+        <button
+          onClick={handleAddEventQuick}
+          className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-[#36534E] transition-colors hover:text-[#2d4642]"
+        >
+          <Plus className="w-4 h-4" />
+          추가
+        </button>
+      </div>
+
+      {upcomingEvents.length === 0 ? (
+        <p className="text-[14px] font-medium text-[#5d6879]">예정된 일정이 없어요</p>
+      ) : (
+        <div className="space-y-3">
+          {upcomingEvents.map((evt) => (
+            <div
+              key={evt.id}
+              className="group flex items-start gap-3 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3 transition-colors hover:bg-white"
+            >
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+                <CalendarDays className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[#071629]">
+                  {evt.title}
+                </p>
+                <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                  <p className="text-[12px] font-medium text-[#5d6879]">
+                    {formatEventDate(evt.date)}
+                  </p>
+                  {evt.categoryKey && (
+                    <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#36534E]">
+                      {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
+                    </span>
+                  )}
+                  <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                    {getScheduleEventAssigneeLabel(
+                      evt.assignee,
+                      assigneeContext,
+                    )}
+                  </span>
+                </div>
+                {evt.completionCriteria && (
+                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[#5d6879]">
+                    완료 기준 · {evt.completionCriteria}
+                  </p>
+                )}
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <span className="inline-flex items-center rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
+                  {getDaysUntil(evt.date)}
+                </span>
+                <div className="flex items-center gap-1 transition-opacity">
+                  {pendingCancelId === evt.id ? (
+                    <>
+                      <span className="sr-only">일정 취소 요청</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void handleCancelEvent(evt.id)
+                            .then(() => setPendingCancelId(null))
+                            .catch(() => undefined);
+                        }}
+                        className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2d4642]"
+                      >
+                        취소 요청 보내기
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingCancelId(null)}
+                        className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[#504444] transition-colors hover:bg-[#EFEBEA]"
+                      >
+                        닫기
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleEditEvent(evt)}
+                        aria-label={`${evt.title} 일정 수정`}
+                        className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f6f3f2] hover:text-[#795252]"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPendingCancelId(evt.id)}
+                        aria-label={`${evt.title} 일정 취소 요청`}
+                        className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[#36534E]"
+                      >
+                        <Ban className="h-4 w-4" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className={embedded ? "bg-[#fcf9f8]" : ""}>
       <div
@@ -600,8 +745,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           일정이 우선입니다.
         </p>
 
-        {/* Main content: left view + right sidebar */}
-        <div className="grid grid-cols-1 gap-4 animate-fade-in xl:grid-cols-[minmax(0,1fr)_minmax(320px,360px)]">
+        {/* 본문 한 칸 — 위: 지금 볼 것 / 아래: 달력 */}
+        <div className="grid grid-cols-1 gap-4 animate-fade-in">
+          {hasUpcoming ? upcomingPanel : imminentPanel}
+
           {/* Left: View toggle + Timeline/Calendar (2 cols) */}
           <div className="overflow-hidden rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
             {/* View toggle header */}
@@ -664,130 +811,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             </div>
           </div>
 
-          {/* Right sidebar */}
-          <div className="grid self-start gap-4 lg:grid-cols-2 xl:grid-cols-1">
-            {/* Imminent Alerts */}
-            {imminentCategories.length > 0 && (
-              <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
-                <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
-                  기본 일정 확인
-                </h3>
-                <ImminentAlerts
-                  items={imminentCategories}
-                  onCategoryClick={handleCategoryClick}
-                  onScheduleClick={handleScheduleCategory}
-                />
-              </div>
-            )}
-
-            {/* Upcoming Events */}
-            <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
-                  다가오는 일정
-                </h3>
-                <button
-                  onClick={handleAddEventQuick}
-                  className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-[#36534E] transition-colors hover:text-[#2d4642]"
-                >
-                  <Plus className="w-4 h-4" />
-                  추가
-                </button>
-              </div>
-
-              {upcomingEvents.length === 0 ? (
-                <p className="text-[14px] font-medium text-[#5d6879]">예정된 일정이 없어요</p>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingEvents.map((evt) => (
-                    <div
-                      key={evt.id}
-                      className="group flex items-start gap-3 rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] p-3 transition-colors hover:bg-white"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
-                        <CalendarDays className="h-4 w-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[#071629]">
-                          {evt.title}
-                        </p>
-                        <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                          <p className="text-[12px] font-medium text-[#5d6879]">
-                            {formatEventDate(evt.date)}
-                          </p>
-                          {evt.categoryKey && (
-                            <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#36534E]">
-                              {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
-                            </span>
-                          )}
-                          <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
-                            {getScheduleEventAssigneeLabel(
-                              evt.assignee,
-                              assigneeContext,
-                            )}
-                          </span>
-                        </div>
-                        {evt.completionCriteria && (
-                          <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[#5d6879]">
-                            완료 기준 · {evt.completionCriteria}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span className="inline-flex items-center rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
-                          {getDaysUntil(evt.date)}
-                        </span>
-                        <div className="flex items-center gap-1 transition-opacity">
-                          {pendingCancelId === evt.id ? (
-                            <>
-                              <span className="sr-only">일정 취소 요청</span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  void handleCancelEvent(evt.id)
-                                    .then(() => setPendingCancelId(null))
-                                    .catch(() => undefined);
-                                }}
-                                className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2d4642]"
-                              >
-                                취소 요청 보내기
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPendingCancelId(null)}
-                                className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[#504444] transition-colors hover:bg-[#EFEBEA]"
-                              >
-                                닫기
-                              </button>
-                            </>
-                          ) : (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleEditEvent(evt)}
-                                aria-label={`${evt.title} 일정 수정`}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f6f3f2] hover:text-[#795252]"
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setPendingCancelId(evt.id)}
-                                aria-label={`${evt.title} 일정 취소 요청`}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[#36534E]"
-                              >
-                                <Ban className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
+          {hasUpcoming ? imminentPanel : null}
         </div>
 
         {cancelledEvents.length > 0 && (

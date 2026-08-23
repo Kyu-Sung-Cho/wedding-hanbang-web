@@ -172,6 +172,20 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement {
   return button;
 }
 
+/**
+ * 타임라인 뷰로 전환한다.
+ *
+ * 2026-08-23 기본 뷰가 캘린더로 바뀌었다. 이 파일의 검사 대상은 **일정 변경 경계**이지
+ * 어느 뷰가 기본이냐가 아니므로, 검사를 약하게 만드는 대신 이 파일이 쓰는 가짜
+ * `TimelineView` 를 명시적으로 띄운다. 검사하는 내용은 전과 같다.
+ */
+async function showTimeline(container: HTMLElement) {
+  await act(async () => {
+    findButton(container, "타임라인").click();
+    await Promise.resolve();
+  });
+}
+
 describe("ScheduleContent event mutation integrity", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -206,6 +220,7 @@ describe("ScheduleContent event mutation integrity", () => {
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });
+    await showTimeline(container);
 
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       SCHEDULE_EVENT_REPAIR_MESSAGE,
@@ -244,6 +259,7 @@ describe("ScheduleContent event mutation integrity", () => {
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });
+    await showTimeline(container);
 
     await act(async () => {
       findButton(container, "테스트 일정 취소 요청").click();
@@ -297,6 +313,7 @@ describe("ScheduleContent event mutation integrity", () => {
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });
+    await showTimeline(container);
     await act(async () => {
       findButton(container, "테스트 일정 취소 요청").click();
       await Promise.resolve();
@@ -320,6 +337,7 @@ describe("ScheduleContent event mutation integrity", () => {
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });
+    await showTimeline(container);
     await act(async () => {
       findButton(container, "테스트 일정 취소 요청").click();
       await Promise.resolve();
@@ -360,6 +378,7 @@ describe("ScheduleContent event mutation integrity", () => {
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });
+    await showTimeline(container);
     expect(container.textContent).toContain("취소됨");
     expect(container.textContent).toContain(VALID_EVENT.title);
     expect(container.textContent).toContain("2026-08-01");
@@ -394,6 +413,7 @@ describe("ScheduleContent event mutation integrity", () => {
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });
+    await showTimeline(container);
 
     await act(async () => {
       findButton(container, "테스트 일정 추가").click();
