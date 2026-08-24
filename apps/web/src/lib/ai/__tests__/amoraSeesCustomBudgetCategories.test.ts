@@ -434,3 +434,42 @@ describe("배정 합계를 아모라가 더하지 않게 한다", () => {
     }
   });
 });
+
+describe("자리를 아껴 커스텀 항목이 밀려나지 않게 한다", () => {
+  // 고정 22개에 `legacy_amount_unclassified: false` 를 다 실으면 770자인데,
+  // 이 도구는 턴당 4,000자에서 잘린다. 그 자리를 직접 추가한 항목이 써야 한다.
+  // 운영 실측(2026-08-24): 3,936자 → 3,196자, 생략 1개 → 0개.
+  it("거짓인 legacy 플래그는 싣지 않는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { category: "venue", status: "in_progress", budget: 20_000_000 },
+    }));
+    expect(JSON.stringify(result.toolOutput)).not.toContain("legacy_amount_unclassified");
+  });
+
+  it("참일 때는 그대로 싣는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { category: "venue", status: "in_progress", cost: 15_000_000 },
+    }));
+    const out = result.toolOutput as { categories: { key: string; legacy_amount_unclassified?: boolean }[] };
+    expect(out.categories.find((c) => c.key === "venue")?.legacy_amount_unclassified).toBe(true);
+    expect(result.displayMessage).toContain("용도 미확인");
+  });
+
+  it("실제 커플 모양에서 커스텀이 하나도 밀려나지 않는다", async () => {
+    // 고정 5개 + 커스텀 4개 — 운영 스모크 커플의 실제 모양이다.
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { category: "venue", status: "not_started", budget: 22_000_000 },
+      ring: { category: "ring", status: "not_started", budget: 4_000_000 },
+      studio: { category: "studio", status: "not_started", budget: 3_000_000 },
+      dress: { category: "dress", status: "not_started", budget: 2_000_000 },
+      makeup: { category: "makeup", status: "not_started", budget: 1_500_000 },
+      custom_a1: { category: "custom_a1", label: "차량 이동", status: "in_progress", budget: 1_200_000 },
+      custom_a2: { category: "custom_a2", label: "테스트A3", status: "not_started", budget: 950_000 },
+      custom_a3: { category: "custom_a3", label: "예단 운반", status: "not_started", budget: 300_000 },
+      custom_a4: { category: "custom_a4", label: "테스트B", status: "not_started" },
+    }));
+    const out = result.toolOutput as { custom_categories_omitted: number; categories: { key: string }[] };
+    expect(out.custom_categories_omitted).toBe(0);
+    expect(out.categories.filter((c) => c.key.startsWith("custom_"))).toHaveLength(4);
+  });
+});
