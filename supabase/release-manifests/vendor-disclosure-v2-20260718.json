@@ -392,6 +392,14 @@
     {
       "file": "20260824140000_amora_can_change_custom_budget_categories.sql",
       "sha256": "3fa576cd358acf453d9b60223a928bccf591ae4579e62ef54b00eef42ba5dfac"
+    },
+    {
+      "file": "20260824150000_amora_custom_category_label_match.sql",
+      "sha256": "99130586a5683f25b9016c0dcfc9b025d21994507ac2e30da30f6d5fd20aba7f"
+    },
+    {
+      "file": "20260824160000_first_budget_entry_is_not_a_mixed_change.sql",
+      "sha256": "c59837668362a3ebb23fdf7e06d7c4764336c25c1e62c911e106f5600ad4cde3"
     }
   ],
   "deploymentEvidence": {

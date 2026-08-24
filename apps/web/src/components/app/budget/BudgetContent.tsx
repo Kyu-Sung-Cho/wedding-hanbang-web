@@ -1459,9 +1459,13 @@ export default function BudgetContent({
               <div className="space-y-4">
                 <div>
                   <label className="text-[11px] uppercase tracking-widest text-[#B5ADA3] mb-1.5 block">카테고리 이름 <span className="text-[#795252]">*</span></label>
+                  {/* 60자는 아모라(add_custom_category)가 거절하는 경계와 같다.
+                      화면만 더 길게 받으면 아모라가 이름을 잘라 부르고, 그 잘린
+                      이름으로 고치면 같은 항목이 하나 더 생긴다. */}
                   <input
                     autoFocus
                     type="text"
+                    maxLength={60}
                     value={newCatLabel}
                     onChange={(e) => setNewCatLabel(e.target.value)}
                     onKeyDown={(e) => {

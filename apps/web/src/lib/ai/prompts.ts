@@ -464,7 +464,19 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   //
   // 아모라가 이걸 못 보면 **방금 자기가 만든 항목을 다음 턴에 모른다**고 답한다.
   // 예산 화면에는 멀쩡히 보이는데 아모라만 모르는 상태였다(2026-08-24 감사).
-  const customCategoryStatus = listCustomBudgetCategories(context.progress)
+  // 개수 상한을 둔다. 이 목록은 `## 커플 상황` 안이라 **절단 불가 영역**으로
+  // 떼어지는데, 그 영역만으로 48,000자를 넘으면 컴포저가 예외를 던져 대화가
+  // 통째로 죽는다(amoraPromptComposer). journey API 는 progress 키를 300개까지
+  // 받으므로 사용자가 스스로 그 상태를 만들 수 있다. 넘치는 만큼은 개수로
+  // 알리고 화면을 가리킨다 — 이 파일의 다른 목록도 같은 방식이다.
+  const CUSTOM_CATEGORIES_IN_PROMPT = 40;
+  const allCustomCategories = listCustomBudgetCategories(context.progress);
+  const hiddenCustomCount = Math.max(
+    0,
+    allCustomCategories.length - CUSTOM_CATEGORIES_IN_PROMPT,
+  );
+  const customCategoryStatus = allCustomCategories
+    .slice(0, CUSTOM_CATEGORIES_IN_PROMPT)
     .map(({ key, label, value }) => {
       const status = value.status === "completed"
         ? "✅완료"
@@ -484,7 +496,11 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     })
     .join("\n");
 
-  const categoryStatus = [fixedCategoryStatus, customCategoryStatus]
+  const customOverflowNote = hiddenCustomCount > 0
+    ? `  - 직접 추가한 항목 ${hiddenCustomCount}개가 더 있음 — 전체는 예산 화면에서 확인`
+    : "";
+
+  const categoryStatus = [fixedCategoryStatus, customCategoryStatus, customOverflowNote]
     .filter((section) => section.length > 0)
     .join("\n");
 
@@ -507,12 +523,23 @@ ${CHECKLIST_CHECK_POINTS}
     : "";
 
   // 총 지출 + 배정 예산 계산
+  //
+  // 예산 화면과 **같은 것을 센다**(BudgetContent 의 totalSpent/totalAllocated):
+  // 숨긴 항목은 빼고, 사용자가 직접 추가한 항목은 넣는다. 예전에는 고정 20개를
+  // 전부(숨긴 것까지) 세고 커스텀은 아예 빼서, 아모라가 말하는 합계가 화면 상단
+  // 숫자와 갈렸다(2026-08-24 감사).
   let totalSpent = 0;
   let totalAllocated = 0;
-  for (const [key] of Object.entries(CATEGORY_LABELS)) {
-    const p = (context.progress[key] ?? {}) as Record<string, unknown>;
-    totalSpent += isValidWeddingWonAmount(p.spent) ? p.spent : 0;
-    totalAllocated += isValidWeddingWonAmount(p.budget) ? p.budget : 0;
+  const countEntry = (entry: Record<string, unknown>) => {
+    totalSpent += isValidWeddingWonAmount(entry.spent) ? entry.spent : 0;
+    totalAllocated += isValidWeddingWonAmount(entry.budget) ? entry.budget : 0;
+  };
+  for (const key of Object.keys(CATEGORY_LABELS)) {
+    if (hiddenCategoryKeys.has(key)) continue;
+    countEntry((context.progress[key] ?? {}) as Record<string, unknown>);
+  }
+  for (const custom of listCustomBudgetCategories(context.progress)) {
+    countEntry(custom.value);
   }
   const spentInfo = totalSpent > 0
     ? `기록 지출 합계: ${(totalSpent / 10000).toLocaleString()}만원`
@@ -1233,8 +1260,6 @@ Step 설명, 합계 검증, 표, 보정 노트 — **모두** 한글로. 영어 
 - 도구 결과 → 자연스러운 한국어 요약 (JSON 그대로 보여주지 마세요)
 - "정했어/계약했어" → completed로 상태 변경
 - **예산 일괄 배분은 apply_budget_plan 하나로** — 카테고리별 update_category_budget 20번 호출 금지
-- **직접 추가한 예산 항목**(위 카테고리 현황에서 custom_ 으로 시작하는 것)은 update_category_budget으로 바꿀 수 없습니다. 금액을 고칠 때도 저장된 이름 그대로 add_custom_category를 부르세요 — 이름이 같으면 새로 만들지 않고 그 항목을 고칩니다.
-- 예산 항목을 **없애 달라는 요청은 아모라가 못 합니다.** 되는 척하지 말고 예산 화면에서 지울 수 있다고 안내하세요. 금액을 0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다 — 화면에는 0원짜리 항목이 그대로 남습니다.
 
 ## 모멘트 일정 캡처 (먼저 챙기는 언니의 본체)
 - 사용자가 대화 중 결혼 준비 일정의 날짜를 말하면 날짜와 제목을 정리해 보여주세요. "기억해줘/저장해줘/챙겨줘"처럼 저장 의사가 명확한 경우에도 별도 확인을 받은 뒤에만 \`log_wedding_event\`를 실행하세요.

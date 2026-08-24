@@ -3,6 +3,15 @@ import { join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  AMORA_MAX_TOOL_CALLS_PER_TURN,
+  AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN,
+} from "@/lib/ai/amoraRequestPolicy";
+import {
+  AMORA_SYSTEM_PROMPT_MAX_CHARS,
+  buildAmoraSystemPrompt,
+} from "@/lib/ai/amoraPromptComposer";
+import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
@@ -55,8 +64,8 @@ function makeCtx(progress: Record<string, unknown>): ToolExecutionContext {
   };
 }
 
-function promptWith(progress: Record<string, unknown>): string {
-  return getWeddingPlannerSystemPrompt({
+function promptContext(progress: Record<string, unknown>) {
+  return {
     weddingDate: "2027-05-15",
     budget: 50_000_000,
     venue: null,
@@ -69,7 +78,11 @@ function promptWith(progress: Record<string, unknown>): string {
     chatSummaries: [],
     pastConflicts: [],
     pastDecisions: [],
-  } as never);
+  } as never;
+}
+
+function promptWith(progress: Record<string, unknown>): string {
+  return getWeddingPlannerSystemPrompt(promptContext(progress));
 }
 
 beforeEach(() => {
@@ -156,54 +169,210 @@ describe("직접 추가한 항목을 고칠 수 있되 슬롯을 지어내지는
   //
   // 규칙을 넓히되 **새 슬롯을 임의 키로 만드는 길은 계속 막아야 한다.**
   // 그 경계가 사라지면 모델이 아무 키나 지목할 수 있게 된다.
-  const sql = readFileSync(
-    join(
-      process.cwd(),
-      "..",
-      "..",
-      "supabase",
-      "migrations",
-      "20260824140000_amora_can_change_custom_budget_categories.sql",
-    ),
-    "utf8",
+  //
+  // 이 검사는 SQL 을 실행하지 않는다 — 조건이 파일에 남아 있는지만 본다.
+  // 그래서 **주석은 먼저 걷어낸다.** 걷어내지 않으면 분기를 통째로 주석 처리해도
+  // 통과한다(2026-08-24 적대적 검토에서 지적됨). 실제 동작은 스테이징·운영에서
+  // 경우별로 실측했고 그 표는 마이그레이션 머리말에 있다.
+  function activeSql(file: string): string {
+    return readFileSync(
+      join(process.cwd(), "..", "..", "supabase", "migrations", file),
+      "utf8",
+    )
+      .split("\n")
+      .filter((line) => !line.trim().startsWith("--"))
+      .join("\n");
+  }
+
+  const keyRuleSql = activeSql(
+    "20260824140000_amora_can_change_custom_budget_categories.sql",
+  );
+  const labelRuleSql = activeSql(
+    "20260824150000_amora_custom_category_label_match.sql",
   );
 
   it("새로 만들 때는 라벨에서 유도한 해시 키만 받는다", () => {
-    expect(sql).toContain("char_length(v_key) = 31");
-    expect(sql).toContain("v_key ~ '^custom_[0-9a-f]{24}$'");
+    expect(keyRuleSql).toContain(
+      "(char_length(v_key) = 31 AND v_key ~ '^custom_[0-9a-f]{24}$')",
+    );
   });
 
   it("기존 슬롯은 CAS 로 존재가 확인될 때만 연다", () => {
-    expect(sql).toContain("v_expected_present");
+    expect(keyRuleSql).toContain("v_expected_present");
+    expect(keyRuleSql).toContain("v_key ~ '^custom_[0-9A-Za-z_-]{1,48}$'");
   });
 
-  it("저장된 이름이 그대로일 때만 연다 — 다른 항목 덮어쓰기 금지", () => {
-    expect(sql).toContain("v_expected ->> 'label' = v_value ->> 'label'");
+  it("최신 판은 이름을 TS 와 같은 규칙으로 대조한다", () => {
+    // 정확 일치로 되돌리면 화면에서 만든 "차량  이동"(공백 두 칸)을 고칠 수 없다.
+    expect(labelRuleSql).toContain("lower(regexp_replace(");
+    expect(labelRuleSql).toContain("btrim(v_expected ->> 'label')");
+    expect(labelRuleSql).toContain("btrim(v_value ->> 'label')");
+    expect(labelRuleSql).not.toContain("v_expected ->> 'label' = v_value ->> 'label'");
+  });
+
+  it("두 마이그레이션 모두 원장에 등록돼 있다", () => {
+    const manifest = JSON.parse(
+      readFileSync(
+        join(
+          process.cwd(), "..", "..", "supabase", "release-manifests",
+          "vendor-disclosure-v2-20260718.json",
+        ),
+        "utf8",
+      ),
+    ) as { expandMigrations: { file: string }[] };
+    const files = new Set(manifest.expandMigrations.map((entry) => entry.file));
+    expect(files.has("20260824140000_amora_can_change_custom_budget_categories.sql")).toBe(true);
+    expect(files.has("20260824150000_amora_custom_category_label_match.sql")).toBe(true);
   });
 });
 
-describe("항목을 없애 달라는 말에 되는 척하지 않는다", () => {
-  // 아모라에게는 예산 항목을 없애는 도구가 없다(delete_category 는 베타에서
-  // 꺼져 있다). 그런데 그 사실을 어디에서도 알려주지 않아, 모델이 금액을 0원으로
-  // 바꾸고 지웠다고 말할 여지가 있었다 — 화면에는 0원짜리 항목이 그대로 남는다.
-  //
-  // 지우는 길은 예산 화면에 실제로 있다(BudgetContent 의 __hidden).
-  const prompt = promptWith(PROGRESS);
-
-  it("없앨 수 없다는 사실이 프롬프트에 있다", () => {
-    expect(prompt).toContain("없애 달라는 요청은 아모라가 못 합니다");
+describe("안내가 모델이 실제로 받는 프롬프트에 있다", () => {
+  // 원본 프롬프트를 보면 안 된다. `removeLegacyOperationalInstructions` 가
+  // `## 도구 사용 핵심 규칙` 을 통째로 지우기 때문에, 거기 쓴 안내는 원본에는
+  // 있고 **모델이 받는 것에는 없다**. 실제로 그 자리에 썼다가 운영에서
+  // 아모라가 삭제를 거절하면서도 어디서 지우는지 말하지 않았다(2026-08-24).
+  const delivered = buildAmoraSystemPrompt(promptContext(PROGRESS), {
+    enabledToolNames: [
+      "get_budget_summary",
+      "update_category_budget",
+      "add_custom_category",
+      "apply_budget_plan",
+    ],
+    requestKind: "chat",
+    persistenceMode: "durable",
   });
 
-  it("대신 갈 곳을 알려준다", () => {
-    expect(prompt).toContain("예산 화면에서 지울 수 있다고 안내하세요");
+  it("커스텀 항목은 add_custom_category 로 고치라고 알려준다", () => {
+    expect(delivered).toContain("`update_category_budget`으로 바꿀 수 없습니다");
+    expect(delivered).toContain("`add_custom_category`를 호출하세요");
+  });
+
+  it("없앨 수 없다는 사실과 갈 곳을 같이 알려준다", () => {
+    expect(delivered).toContain("없애 달라는 요청은 지금 도구로 할 수 없습니다");
+    expect(delivered).toContain("어디서 할 수 있는지 같은 답에서 알려주세요");
+    expect(delivered).toContain("예산 화면에서 그 항목의 삭제 버튼으로 직접 지울 수 있습니다");
   });
 
   it("0원으로 바꾸는 것이 삭제가 아니라고 못 박는다", () => {
-    expect(prompt).toContain("0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다");
+    expect(delivered).toContain("0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다");
   });
 
-  it("직접 추가한 항목은 add_custom_category 로 고치라고 알려준다", () => {
-    expect(prompt).toContain("add_custom_category");
-    expect(prompt).toContain("update_category_budget으로 바꿀 수 없습니다");
+  it("커스텀 항목 목록도 전달본에 살아 있다", () => {
+    // 목록은 `## 커플 상황` 이라 살아남는다 — 대조군이다.
+    expect(delivered).toContain("차량 이동");
+  });
+
+  it("없애는 도구가 켜지면 그 안내는 저절로 빠진다", () => {
+    const withDelete = buildAmoraSystemPrompt(promptContext(PROGRESS), {
+      enabledToolNames: ["get_budget_summary", "add_custom_category", "delete_category"],
+      requestKind: "chat",
+      persistenceMode: "durable",
+    });
+    expect(withDelete).not.toContain("없애 달라는 요청은 지금 도구로 할 수 없습니다");
+  });
+});
+
+describe("예산 요약이 모델 상한 안에 들어간다", () => {
+  // 도구 결과는 턴당 4,000자에서 잘린다. 넘으면 배열이 통째로 버려지고 앞뒤
+  // 조각만 남아 고정 카테고리가 모델 시야에서 사라진다. 고정 22개만으로 이미
+  // 3,576자라, 커스텀을 그냥 이어 붙이면 3개에서 넘는다(2026-08-24 실측).
+  const CAP = Math.floor(
+    AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN / AMORA_MAX_TOOL_CALLS_PER_TURN,
+  );
+
+  function crowded(customCount: number): Record<string, unknown> {
+    const progress: Record<string, unknown> = {};
+    for (const key of Object.keys(CATEGORY_LABELS)) {
+      progress[key] = { category: key, status: "in_progress", budget: 12_345_678, spent: 2_345_678 };
+    }
+    for (let i = 0; i < customCount; i += 1) {
+      const key = `custom_${String(1_773_727_842_937 + i)}`;
+      progress[key] = {
+        category: key,
+        label: `직접 추가한 항목 ${i}`,
+        status: "in_progress",
+        budget: 1_234_567,
+        spent: 234_567,
+      };
+    }
+    return progress;
+  }
+
+  it.each([3, 5, 20, 60])("커스텀 %i개여도 상한을 넘지 않는다", async (n) => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx(crowded(n)));
+    expect(JSON.stringify(result.toolOutput).length).toBeLessThanOrEqual(CAP);
+  });
+
+  it("고정 카테고리는 하나도 밀려나지 않는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx(crowded(20)));
+    const out = result.toolOutput as { categories: Array<{ key: string }> };
+    const shown = new Set(out.categories.map((c) => c.key));
+    for (const key of Object.keys(CATEGORY_LABELS)) expect(shown.has(key)).toBe(true);
+  });
+
+  it("생략했으면 개수를 밝히고 합계에는 그대로 넣는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx(crowded(20)));
+    const out = result.toolOutput as { custom_categories_omitted: number; total_spent: number };
+    expect(out.custom_categories_omitted).toBeGreaterThan(0);
+    // 합계는 생략과 무관하게 전부 센다 — 화면 상단 숫자와 같아야 한다.
+    expect(out.total_spent).toBe(2_345_678 * Object.keys(CATEGORY_LABELS).length + 234_567 * 20);
+    expect(result.displayMessage).toContain("예산 화면에서 확인");
+  });
+
+  it("넉넉할 때는 생략하지 않는다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx(crowded(1)));
+    const out = result.toolOutput as { custom_categories_omitted: number; categories: Array<{ key: string }> };
+    expect(out.custom_categories_omitted).toBe(0);
+    expect(out.categories.some((c) => c.key.startsWith("custom_"))).toBe(true);
+  });
+});
+
+describe("항목이 아주 많아도 대화가 죽지 않는다", () => {
+  // 커스텀 목록은 `## 커플 상황` 안이라 절단 불가 영역으로 떼어진다. 그 영역만으로
+  // 48,000자를 넘으면 컴포저가 예외를 던져 대화가 통째로 죽는다. journey API 는
+  // progress 키를 300개까지 받으므로 사용자가 스스로 그 상태를 만들 수 있다.
+  function many(n: number): Record<string, unknown> {
+    const progress: Record<string, unknown> = {};
+    for (let i = 0; i < n; i += 1) {
+      const key = `custom_${String(1_773_727_842_937 + i)}`;
+      progress[key] = {
+        category: key,
+        label: `아주 긴 이름을 가진 직접 추가 항목 ${String(i).padStart(3, "0")} 어쩌구저쩌구`,
+        status: "in_progress",
+        budget: 1_234_567,
+      };
+    }
+    return progress;
+  }
+
+  const build = (n: number) =>
+    buildAmoraSystemPrompt(promptContext(many(n)), {
+      enabledToolNames: ["get_budget_summary", "add_custom_category"],
+      requestKind: "chat",
+      persistenceMode: "durable",
+    });
+
+  it.each([100, 300])("커스텀 %i개여도 프롬프트가 한도 안에 있다", (n) => {
+    // 상한이 없으면 300개에서 74,902자까지 자란다(2026-08-24 실측).
+    // 이 목록은 절단 불가 영역이라 48,000자 한도가 조용히 뚫린다.
+    expect(build(n).length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+
+  it("항목이 늘어도 프롬프트가 같이 자라지 않는다", () => {
+    // 차이는 "N개가 더 있음" 의 자릿수뿐이어야 한다. 상한이 없으면 항목 수에
+    // 비례해 자란다(100개 53,702자 → 300개 74,902자).
+    expect(build(300).length - build(100).length).toBeLessThan(20);
+  });
+
+  it("실리지 않은 개수를 밝히고 화면을 가리킨다", () => {
+    const prompt = promptWith(many(100));
+    expect(prompt).toContain("개가 더 있음");
+    expect(prompt).toContain("예산 화면에서 확인");
+  });
+
+  it("적을 때는 전부 싣고 생략 문구도 없다", () => {
+    const prompt = promptWith(many(3));
+    expect(prompt).not.toContain("개가 더 있음");
+    expect(prompt).toContain("항목 002");
   });
 });
