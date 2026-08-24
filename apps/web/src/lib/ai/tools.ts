@@ -217,7 +217,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "add_custom_category",
     description:
-      "기존 20개 카테고리에 없는 새로운 예산 항목을 추가합니다. '차량 이동에 50만원 썼어', '사진 촬영 공간 예산은 30만원이야' 등 기존 카테고리에 없는 항목에 사용합니다.",
+      "기존 20개 카테고리에 없는 예산 항목을 추가하거나 바꿉니다. '차량 이동에 50만원 썼어', '사진 촬영 공간 예산은 30만원이야' 등 기존 카테고리에 없는 항목에 사용합니다. 이미 같은 이름의 항목이 있으면 새로 만들지 않고 그 항목의 금액을 바꿉니다 — 직접 추가한 항목은 update_category_budget으로는 바꿀 수 없으니 이 도구를 쓰세요.",
     input_schema: {
       type: "object" as const,
       properties: {

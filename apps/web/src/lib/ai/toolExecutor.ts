@@ -40,6 +40,7 @@ import {
   executeGetAmoraActions,
   executeUpdateAmoraAction,
 } from "@/lib/ai/tools/amoraActionTools";
+import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import {
   CATEGORY_LABELS,
   STATUS_LABELS,
@@ -1159,6 +1160,23 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       status: (p.status as string) || "not_started",
     };
   });
+
+  // 사용자가 직접 추가한 예산 항목도 요약에 넣는다.
+  //
+  // 넣지 않으면 아모라가 말하는 합계가 예산 화면의 합계와 갈린다 — 화면은
+  // 이 항목들을 더하는데 요약은 고정 20개만 훑었다(2026-08-24 감사).
+  for (const custom of listCustomBudgetCategories(progress)) {
+    const hasSetBudget = isValidWonAmount(custom.value.budget);
+    categories.push({
+      key: custom.key,
+      label: custom.label,
+      allocated: hasSetBudget ? (custom.value.budget as number) : null,
+      allocated_is_set: hasSetBudget,
+      spent: isValidWonAmount(custom.value.spent) ? (custom.value.spent as number) : 0,
+      legacy_amount_unclassified: Object.prototype.hasOwnProperty.call(custom.value, "cost"),
+      status: (custom.value.status as string) || "not_started",
+    });
+  }
 
   const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
   const remaining = total - totalSpent;

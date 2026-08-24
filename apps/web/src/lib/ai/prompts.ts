@@ -1,3 +1,4 @@
+import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { resolveStatusByKey } from "@/utils/checklist";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
@@ -379,7 +380,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   );
 
   // 카테고리별 상세 현황 생성
-  const categoryStatus = Object.entries(CATEGORY_LABELS)
+  const fixedCategoryStatus = Object.entries(CATEGORY_LABELS)
     .filter(([key]) => !hiddenCategoryKeys.has(key))
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
@@ -457,6 +458,34 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
       ].filter(Boolean);
       return `  - ${parts.join(" | ")}`;
     })
+    .join("\n");
+
+  // 사용자가 직접 추가한 예산 항목도 같은 목록에 싣는다.
+  //
+  // 아모라가 이걸 못 보면 **방금 자기가 만든 항목을 다음 턴에 모른다**고 답한다.
+  // 예산 화면에는 멀쩡히 보이는데 아모라만 모르는 상태였다(2026-08-24 감사).
+  const customCategoryStatus = listCustomBudgetCategories(context.progress)
+    .map(({ key, label, value }) => {
+      const status = value.status === "completed"
+        ? "✅완료"
+        : value.status === "in_progress" ? "🔄진행중" : "⬜예정";
+      const budget = isValidWeddingWonAmount(value.budget)
+        ? `${(value.budget / 10000).toLocaleString()}만원`
+        : "미설정";
+      const spent = isValidWeddingWonAmount(value.spent)
+        ? `기록 지출: ${(value.spent / 10000).toLocaleString()}만원`
+        : "";
+      const parts = [
+        `${promptData(label, 60)}(${key}): ${status}, 예산: ${budget}`,
+        spent,
+        "직접 추가한 항목",
+      ].filter(Boolean);
+      return `  - ${parts.join(" | ")}`;
+    })
+    .join("\n");
+
+  const categoryStatus = [fixedCategoryStatus, customCategoryStatus]
+    .filter((section) => section.length > 0)
     .join("\n");
 
   // 항목마다 놓치기 쉬운 것 — 사용자 진행 상태와 무관한 제품 지식이라 항상 같다.
@@ -1204,6 +1233,8 @@ Step 설명, 합계 검증, 표, 보정 노트 — **모두** 한글로. 영어 
 - 도구 결과 → 자연스러운 한국어 요약 (JSON 그대로 보여주지 마세요)
 - "정했어/계약했어" → completed로 상태 변경
 - **예산 일괄 배분은 apply_budget_plan 하나로** — 카테고리별 update_category_budget 20번 호출 금지
+- **직접 추가한 예산 항목**(위 카테고리 현황에서 custom_ 으로 시작하는 것)은 update_category_budget으로 바꿀 수 없습니다. 금액을 고칠 때도 저장된 이름 그대로 add_custom_category를 부르세요 — 이름이 같으면 새로 만들지 않고 그 항목을 고칩니다.
+- 예산 항목을 **없애 달라는 요청은 아모라가 못 합니다.** 되는 척하지 말고 예산 화면에서 지울 수 있다고 안내하세요. 금액을 0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다 — 화면에는 0원짜리 항목이 그대로 남습니다.
 
 ## 모멘트 일정 캡처 (먼저 챙기는 언니의 본체)
 - 사용자가 대화 중 결혼 준비 일정의 날짜를 말하면 날짜와 제목을 정리해 보여주세요. "기억해줘/저장해줘/챙겨줘"처럼 저장 의사가 명확한 경우에도 별도 확인을 받은 뒤에만 \`log_wedding_event\`를 실행하세요.
