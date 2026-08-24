@@ -1,4 +1,9 @@
 import { createHash } from "node:crypto";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import {
+  mergePlanningChecklist,
+  resolvePlanningChecklistStatus,
+} from "@hanbang/shared/utils";
 import type { ToolExecutionResult } from "@/types/database.types";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { formatWon } from "@/lib/ai/tools/toolTypes";
@@ -347,6 +352,38 @@ function buildTaskStatusOperation(
       "no_change",
       "이미 같은 진행 상태로 설정되어 있어요.",
     );
+  }
+
+  // 화면이 보여줄 수 없는 상태로는 바꾸지 않는다.
+  //
+  // 체크리스트 배열이 있는 분야는 저장된 `status` 가 **완전히 무시되고** 항목에서
+  // 파생된다(resolvePlanningChecklistStatus). 그래서 9개 중 3개만 체크된 결혼식장을
+  // "완료"로 바꾸면, 서버는 저장하고 아모라는 "완료로 변경했어요" 라고 말하는데
+  // **어느 화면도 바뀌지 않고** 다음 턴에는 아모라도 다시 "진행 중" 이라고 한다
+  // (2026-08-24 감사). 사용자에게는 아모라가 자기 말을 뒤집는 것으로 보인다.
+  //
+  // 항목을 대신 체크해 주지는 않는다 — 사용자가 하지 않은 일을 했다고 적는 것이다.
+  const checklistTemplate = CATEGORY_CHECKLISTS.find(
+    (entry: { key: string }) => entry.key === category,
+  );
+  if (checklistTemplate && Array.isArray((value as { checklist?: unknown }).checklist)) {
+    const visible = resolvePlanningChecklistStatus(
+      checklistTemplate.items,
+      value as never,
+    );
+    if (visible !== status) {
+      const merged = mergePlanningChecklist(
+        checklistTemplate.items,
+        (value as { checklist?: typeof checklistTemplate.items }).checklist,
+      );
+      const done = merged.filter((item: { done?: boolean }) => item.done === true).length;
+      return noOpFailure(
+        "update_task_status",
+        toolInput,
+        "status_follows_checklist",
+        `${CATEGORY_LABELS[category] ?? category}은(는) 체크리스트 ${merged.length}개 중 ${done}개가 완료라 화면에는 "${STATUS_LABELS[visible] ?? visible}"으로 보여요. 분야 상태는 항목을 체크하면 따라 바뀌어요 — 남은 항목을 완료로 표시해 드릴까요?`,
+      );
+    }
   }
   const domainMutation = journeyProgressEntryMutation(category, value, context);
   if (!domainMutation) {

@@ -757,8 +757,13 @@ const UNCONFIRMED_PROPOSAL_HISTORY_NOTE = "[미확인 제안 — 저장된 값 �
  * 그래서 이 턴은 프로바이더 이력에서 뺀다. DB 와 화면은 그대로다.
  */
 export function isAmoraFailedProposalNotice(content: unknown): boolean {
-  return typeof content === "string"
-    && content.includes(FORGED_CONFIRMATION_REPLACEMENT);
+  if (typeof content !== "string") return false;
+  // "한 번에 두 가지" 안내도 같은 성격이다 — 카드를 못 낸 턴이고, 이력에 남으면
+  // 모델이 그 모양을 배운다. 사용자가 안내대로 하나씩 나눠 말해도 카드가 점점
+  // 안 나오고 "확인해 주시면 적용할게요" 같은 누를 것 없는 말만 하게 된다
+  // (2026-08-24 감사). 위조 확인문만 거르던 것을 둘 다 거른다.
+  return content.includes(FORGED_CONFIRMATION_REPLACEMENT)
+    || content.includes(MULTI_ACTION_REPLACEMENT);
 }
 
 export function buildAmoraHistoryContent(

@@ -360,9 +360,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           )
         )
       ) return false;
+      // 파트너·커플도 함께 세운다.
+      //
+      // 예전에는 journey 만 갱신해서, 상대가 합류해도 먼저 시작한 사람 화면은
+      // 계속 "혼자 준비 중" 이었다. 먼저 시작한 쪽은 코드가 안 먹혔다고 오해해
+      // 코드를 다시 보내거나 재발급한다(2026-08-24 감사).
+      const refreshed = data as {
+        journey: WeddingJourney | null;
+        partner?: unknown;
+        couple?: unknown;
+      };
       set({
-        journey:
-          (data as { journey: WeddingJourney | null }).journey ?? null,
+        journey: refreshed.journey ?? null,
+        ...("partner" in refreshed
+          ? { partner: (refreshed.partner ?? null) as AuthState["partner"] }
+          : {}),
+        ...("couple" in refreshed
+          ? { couple: (refreshed.couple ?? null) as AuthState["couple"] }
+          : {}),
       });
       return true;
     } catch (err) {

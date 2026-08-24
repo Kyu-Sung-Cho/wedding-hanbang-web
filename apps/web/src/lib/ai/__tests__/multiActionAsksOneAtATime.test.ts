@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
+import {
+  extractAmoraPendingAction,
+  isAmoraFailedProposalNotice,
+} from "@/lib/ai/amoraPendingAction";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 
 /**
@@ -85,5 +88,26 @@ describe("한 번에 두 가지를 부탁하면 빠져나갈 방법을 알려준
     expect(result.pendingAction).toBeNull();
     expect(result.hadPendingActionTag).toBe(false);
     expect(result.cleanText).toContain("결혼식장");
+  });
+});
+
+describe("이 안내는 프로바이더 이력에 남기지 않는다", () => {
+  // 카드를 못 낸 턴이 이력에 남으면 모델이 그 모양을 배운다. 사용자가 안내대로
+  // 하나씩 나눠 말해도 카드가 점점 안 나오고 "확인해 주시면 적용할게요" 같은
+  // 누를 것 없는 말만 하게 된다(2026-08-24 감사).
+  it("두 가지 안내 턴은 걸러진다", () => {
+    const result = extract(`${BUDGET_MARKER}
+${SCHEDULE_MARKER}`);
+    expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(true);
+  });
+
+  it("평범한 답변은 걸러지지 않는다", () => {
+    expect(isAmoraFailedProposalNotice("지금은 결혼식장부터 보면 돼요.")).toBe(false);
+  });
+
+  it("카드가 나온 턴도 걸러지지 않는다", () => {
+    const result = extract(`알겠어요.
+${BUDGET_MARKER}`);
+    expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(false);
   });
 });
