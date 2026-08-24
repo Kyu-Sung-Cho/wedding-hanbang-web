@@ -26,6 +26,8 @@ export default function MoneyPage() {
   const [filterSide, setFilterSide] = useState<Side | "all">("all");
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  /** 저장 중. 두 번 눌러 두 줄이 남는 것을 막고, 눌린 것을 화면에 보인다. */
+  const [saving, setSaving] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // 폼 상태
@@ -84,6 +86,10 @@ export default function MoneyPage() {
 
   const handleSubmit = async () => {
     if (!form.guest_name.trim() || !form.amount) return;
+    // 두 번 누르면 두 번 저장됐다. 예식장 로비처럼 회선이 느린 곳에서 실제로
+    // 일어나는 일이고, 같은 하객이 두 줄로 남으면 정산이 어긋난다.
+    if (saving) return;
+    setSaving(true);
     setSaveError(null);
     try {
     if (editId) {
@@ -111,6 +117,8 @@ export default function MoneyPage() {
       // 저장에 실패했으면 폼을 비우지 않는다 — 하객 앞에서 다시 받아 적을 수는 없다.
       setSaveError(err instanceof Error ? err.message : "저장하지 못했어요. 다시 시도해 주세요.");
       return;
+    } finally {
+      setSaving(false);
     }
     resetForm();
   };
@@ -298,12 +306,13 @@ export default function MoneyPage() {
           ) : null}
           <button
             onClick={handleSubmit}
-            disabled={!form.guest_name.trim() || !form.amount}
+            disabled={!form.guest_name.trim() || !form.amount || saving}
+            aria-busy={saving}
             aria-label={editId ? "축의금 수정 저장" : "축의금 추가 저장"}
             className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-5 h-5" />
-            {editId ? "수정 완료" : "추가"}
+            {saving ? "저장 중..." : editId ? "수정 완료" : "추가"}
           </button>
         </div>
       )}
