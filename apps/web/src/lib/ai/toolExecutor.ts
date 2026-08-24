@@ -44,6 +44,8 @@ import {
   AMORA_MAX_TOOL_CALLS_PER_TURN,
   AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN,
 } from "@/lib/ai/amoraRequestPolicy";
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import { mergePlanningChecklist } from "@hanbang/shared/utils";
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import {
   CATEGORY_LABELS,
@@ -1309,6 +1311,27 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
     (k) => resolveStatusByKey(k, progress[k]) === "completed"
   ).length;
 
+  // 체크리스트 **세부 항목** 수를 함께 센다.
+  //
+  // 예전에는 카테고리 단위 숫자(completed_count)만 줬는데, 이름이 모호해서
+  // 모델이 그것을 "완료한 항목 수"로 읽었다. 그래서 방금 체크리스트 항목을
+  // 완료 처리한 직후에 아모라가 "완료된 세부 항목은 아직 없어요" 라고 답했다
+  // (2026-08-24 운영 실측 — 프롬프트에는 `할일: 1/9완료` 가 정확히 실려 있었다).
+  //
+  // 라벨과 마찬가지로 **템플릿이 정본**이고 저장값에서는 done 만 가져온다.
+  let checklistDone = 0;
+  let checklistTotal = 0;
+  for (const category of CATEGORY_CHECKLISTS) {
+    const saved = (progress[category.key] as { checklist?: unknown } | undefined)?.checklist;
+    const merged = mergePlanningChecklist(
+      category.items,
+      Array.isArray(saved) ? (saved as typeof category.items) : undefined,
+    );
+    checklistTotal += merged.length;
+    checklistDone += merged.filter((item: { done?: boolean }) => item.done === true).length;
+  }
+
+  const categoryPercent = Math.round((completedCount / allKeys.length) * 100);
   return {
     toolName: "get_wedding_info",
     toolInput: {},
@@ -1317,13 +1340,17 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
       d_day: dDay,
       venue,
       total_budget: budget,
-      progress_percent: Math.round((completedCount / allKeys.length) * 100),
+      progress_percent: categoryPercent,
       completed_count: completedCount,
       total_categories: allKeys.length,
+      // 위 셋은 **카테고리** 단위다. 아래 둘이 체크리스트 세부 항목이다.
+      completed_categories: completedCount,
+      checklist_items_done: checklistDone,
+      checklist_items_total: checklistTotal,
     },
     success: true,
     displayMessage: weddingDate
-      ? `결혼 예정일: ${weddingDate} (D-${dDay}) / 예산: ${formatWon(budget)} / 진행률: ${Math.round((completedCount / allKeys.length) * 100)}%`
-      : `결혼 예정일 미설정 / 예산: ${formatWon(budget)}`,
+      ? `결혼 예정일: ${weddingDate} (D-${dDay}) / 예산: ${formatWon(budget)} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${allKeys.length}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
+      : `결혼 예정일 미설정 / 예산: ${formatWon(budget)} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`,
   };
 }

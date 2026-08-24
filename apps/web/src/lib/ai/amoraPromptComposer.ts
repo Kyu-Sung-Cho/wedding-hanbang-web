@@ -149,21 +149,21 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   if (has("update_wedding_date", "add_schedule_event", "update_schedule_event")) {
     lines.push(
       "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 날짜가 모호하면 저장 전에 한 번 확인하세요.",
-      "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두 사람 확인을 받으세요. 일정 수정은 항상 두 사람 확인 대상입니다.",
+      "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
     );
   }
 
   if (enabled.has("cancel_schedule_event")) {
     lines.push(
-      "- 일정 취소 요청은 삭제로 바꾸지 마세요. 현재 일정을 조회한 뒤 `cancel_schedule_event`로 취소 기록을 남기고 두 사람 확인을 받으세요.",
+      "- 일정 취소 요청은 삭제로 바꾸지 마세요. 현재 일정을 조회한 뒤 `cancel_schedule_event`로 취소 기록을 남기고 사용자 확인을 받으세요. 반영되면 상대에게 알림이 갑니다.",
     );
   }
 
   if (enabled.has("restore_schedule_event")) {
     lines.push(
       enabled.has("get_schedule_events")
-        ? "- 취소 기록을 되돌려 달라는 명시적 요청에만 `get_schedule_events`의 status=cancelled로 대상을 확인한 뒤 `restore_schedule_event`를 제안하고 두 사람 확인을 받으세요."
-        : "- 취소 기록을 되돌려 달라는 명시적 요청에만 `restore_schedule_event`를 제안하고 두 사람 확인을 받으세요.",
+        ? "- 취소 기록을 되돌려 달라는 명시적 요청에만 `get_schedule_events`의 status=cancelled로 대상을 확인한 뒤 `restore_schedule_event`를 제안하고 사용자 확인을 받으세요."
+        : "- 취소 기록을 되돌려 달라는 명시적 요청에만 `restore_schedule_event`를 제안하고 사용자 확인을 받으세요.",
     );
   }
 

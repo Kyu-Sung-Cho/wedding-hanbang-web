@@ -505,6 +505,28 @@ export function executeGetScheduleEvents(
   const listLabel = statusFilter === "cancelled" ? "취소 일정" : "일정";
   const publicEvents = filtered.map(scheduleEventForTool);
 
+  // 기본 조회 창은 30일인데, 결혼식은 보통 6~18개월 뒤라 등록된 일정 대부분이
+  // 그 밖에 있다. 그래서 "등록된 일정 알려줘" 에 "없어요" 가 나왔다
+  // (2026-08-24 운영 실측: 2027-04-10 일정이 있는데 없다고 답했다).
+  //
+  // 창은 그대로 두되 **밖에 무엇이 있는지 함께 준다.** 그래야 아모라가
+  // "이 기간엔 없고 2027-04-10에 하나 있어요" 라고 사실대로 말할 수 있다.
+  const outside = events
+    .filter((event) => {
+      const status = getScheduleEventStatus(event);
+      if (statusFilter !== "all" && status !== statusFilter) return false;
+      return (fromDate !== null && event.date < fromDate)
+        || (toDate !== null && event.date > toDate);
+    })
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const nextOutside = toDate !== null
+    ? outside.find((event) => event.date > toDate) ?? null
+    : null;
+
+  const outsideNote = outside.length > 0
+    ? ` (이 기간 밖에 ${outside.length}개 더 있음${nextOutside ? `, 가장 가까운 것은 ${nextOutside.date} ${nextOutside.title}` : ""})`
+    : "";
+
   return {
     toolName: "get_schedule_events", toolInput: input,
     toolOutput: {
@@ -513,11 +535,15 @@ export function executeGetScheduleEvents(
       from_date: fromDate,
       to_date: toDate,
       status_filter: statusFilter,
+      outside_range_count: outside.length,
+      next_outside_range: nextOutside
+        ? scheduleEventForTool(nextOutside)
+        : null,
     },
     success: true,
     displayMessage: filtered.length > 0
-      ? `${rangeLabel}의 ${filtered.length}개 ${listLabel}: ${filtered.map((event) => `${event.date} ${event.title}`).join(", ")}`
-      : `${rangeLabel}에 해당하는 ${listLabel}이 없습니다.`,
+      ? `${rangeLabel}의 ${filtered.length}개 ${listLabel}: ${filtered.map((event) => `${event.date} ${event.title}`).join(", ")}${outsideNote}`
+      : `${rangeLabel}에 해당하는 ${listLabel}이 없습니다.${outsideNote}`,
   };
 }
 

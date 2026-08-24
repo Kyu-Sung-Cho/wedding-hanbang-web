@@ -100,7 +100,9 @@ describe("DailyAmoraFocusBridge", () => {
     const link = container.querySelector<HTMLAnchorElement>("a");
     expect(link ? readPrefill(link) : null).toBe(DAILY_AMORA_COUPLE_PROMPT);
     expect(DAILY_AMORA_COUPLE_PROMPT).toContain("담당자는 정하지 말고");
-    expect(DAILY_AMORA_COUPLE_PROMPT).toContain("둘 다 확인한 뒤 반영");
+    // 2026-08-23 에 두 사람 승인이 없어졌다. 이 지시문은 아모라가 사용자에게
+    // 말하는 내용이라, 낡은 규칙이 남으면 일어나지 않는 일을 약속하게 된다.
+    expect(DAILY_AMORA_COUPLE_PROMPT).not.toContain("둘 다 확인");
   });
 
   it("uses the focus title only on screen, not in the URL or analytics", async () => {

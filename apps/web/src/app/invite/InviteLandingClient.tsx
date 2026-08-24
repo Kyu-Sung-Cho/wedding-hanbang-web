@@ -137,14 +137,17 @@ export default function InviteLandingClient() {
           </Button>
         </div>
 
+        {/* 웹에서 계속하기가 **기본 행동**이다.
+
+            초대받은 사람이 처음 보는 화면인데, 예전에는 진한 버튼이
+            `hanbang://` 딥링크였다. 웹 베타에는 설치할 앱이 없어서(저장소에
+            App Store·Play 링크가 없다) iOS 는 "주소가 유효하지 않습니다",
+            안드로이드는 아무 일도 일어나지 않았다. 커플의 두 번째 사람이
+            첫 화면에서 한 번 막히고 되돌아와 보조 버튼을 찾아야 했다
+            (2026-08-24 감사). */}
         <div className="mt-6 flex flex-col gap-2.5">
-          {appLink ? (
-            <Button variant="primary" fullWidth href={appLink}>
-              앱에서 열기
-            </Button>
-          ) : null}
           <Button
-            variant="secondary"
+            variant="primary"
             fullWidth
             // 눌렀을 때는 보관에 넣고 깨끗한 주소로 간다. 이 href는 그게 안 될 때
             // (저장소가 막혔거나 새 탭으로 열었을 때)만 쓰이는 대비책이다.
@@ -154,11 +157,16 @@ export default function InviteLandingClient() {
           >
             웹에서 계속하기
           </Button>
+          {appLink ? (
+            <Button variant="secondary" fullWidth href={appLink}>
+              앱에서 열기
+            </Button>
+          ) : null}
         </div>
 
         <p className="mt-5 text-[12px] leading-5 text-[#8b857c]">
-          앱이 아직 없다면 &lsquo;웹에서 계속하기&rsquo;로 바로 시작할 수 있어요.
-          나중에 앱에서 같은 계정으로 이어집니다.
+          웹에서 바로 시작할 수 있어요. 앱을 이미 쓰고 계시면 &lsquo;앱에서
+          열기&rsquo;로 같은 계정에서 이어집니다.
         </p>
       </div>
     </main>
