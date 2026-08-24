@@ -425,6 +425,8 @@ export default function WritePostScreen() {
                         style={styles.thumbRemove}
                         onPress={() => removeImage(idx)}
                         hitSlop={8}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${idx + 1}번째 사진 빼기`}
                       >
                         <X size={12} color="#FFF" />
                       </Pressable>

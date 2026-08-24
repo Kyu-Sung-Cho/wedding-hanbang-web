@@ -1117,6 +1117,8 @@ export default function SettingsScreen() {
               <Pressable
                 onPress={() => setPasswordModalVisible(false)}
                 hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="비밀번호 변경 창 닫기"
               >
                 <X size={22} color={colors.noir[800]} />
               </Pressable>

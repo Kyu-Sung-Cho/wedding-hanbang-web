@@ -949,6 +949,9 @@ export default function CohortChatScreen() {
                   (!input.trim() || sending) && styles.sendBtnDisabled,
                 ]}
                 onPress={handleSend}
+                accessibilityRole="button"
+                accessibilityLabel="메시지 보내기"
+                accessibilityState={{ disabled: !input.trim() || sending, busy: sending }}
                 disabled={!input.trim() || sending}
               >
                 {sending ? (

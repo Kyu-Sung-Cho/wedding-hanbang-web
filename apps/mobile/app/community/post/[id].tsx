@@ -923,6 +923,9 @@ export default function PostDetailScreen() {
                 <Pressable
                   onPress={handleVote}
                   hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={userVote === 1 ? "추천 취소" : "추천"}
+                  accessibilityState={{ selected: userVote === 1, disabled: voteSyncing || bookmarkSyncing }}
                   disabled={voteSyncing || bookmarkSyncing}
                   style={[
                     styles.voteBtn,
@@ -1048,6 +1051,9 @@ export default function PostDetailScreen() {
               pressed && { transform: [{ scale: 0.92 }] },
             ]}
             onPress={handleComment}
+            accessibilityRole="button"
+            accessibilityLabel="댓글 등록"
+            accessibilityState={{ disabled: !commentText.trim() || submitting, busy: submitting }}
             disabled={!commentText.trim() || submitting}
           >
             {submitting ? (
