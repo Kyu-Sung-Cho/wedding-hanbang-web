@@ -30,6 +30,21 @@ export type VerifiedSupabaseServiceDestination = {
 const PROJECT_REF = /^[a-z0-9]{20}$/;
 const OPAQUE_SECRET = /^sb_secret_[A-Za-z0-9_-]{24,}$/;
 
+/**
+ * 저장소가 소유한 운영 프로젝트 신원.
+ *
+ * 관문은 "운영인가"를 `input.productionProjectRef` 로 판단하는데, **그 값을 주는 곳이
+ * 목적지를 고르는 환경과 같다.** 즉 잘못 적힌 환경이 진짜 운영 목적지를 "확인이 필요
+ * 없는 곳"으로 강등시킬 수 있다.
+ *
+ * 그래서 운영 ref 를 코드에 못박아 함께 본다. 환경이 무엇을 말하든 이 목록에 있는
+ * 목적지는 운영이다. PR #112(2026-08-18)가 짚은 것을 그대로 가져왔다.
+ * `scripts/lib/supabase-service-destination.mjs` 도 같은 목록을 갖는다.
+ */
+export const REPOSITORY_PRODUCTION_PROJECT_REFS: readonly string[] = Object.freeze([
+  "slrtobkksjmxgzatjyqb",
+]);
+
 export class SupabaseDestinationError extends Error {
   readonly code: string;
 
@@ -153,7 +168,9 @@ export function verifySupabaseServiceDestination(
 
   const keyKind = validateServiceRoleKey(input.serviceRoleKey, expectedProjectRef, actualUrl.origin);
 
-  if (expectedProjectRef === productionProjectRef && input.access !== "read") {
+  const targetsProduction = expectedProjectRef === productionProjectRef
+    || REPOSITORY_PRODUCTION_PROJECT_REFS.includes(expectedProjectRef);
+  if (targetsProduction && input.access !== "read") {
     const expectedConfirmation = `${input.access === "runtime" ? "RUNTIME_WRITE" : "OPERATOR_WRITE"}:${expectedProjectRef}`;
     if (input.productionWriteConfirmation !== expectedConfirmation) {
       blocked(
@@ -175,7 +192,7 @@ export function verifySupabaseServiceDestination(
   // `runtime` 에만 건다. 릴리스 절차(`operator-write`)는 사람이 로컬에서 돌리는 것이
   // 정상이고, 그쪽은 릴리스 매니페스트와 확인 문자열이 따로 지킨다.
   if (
-    expectedProjectRef === productionProjectRef
+    targetsProduction
     && input.access === "runtime"
     && input.runningOnDeployedServer === false
   ) {

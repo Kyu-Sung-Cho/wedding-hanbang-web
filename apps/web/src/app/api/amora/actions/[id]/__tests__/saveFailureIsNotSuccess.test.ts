@@ -123,18 +123,10 @@ describe("아모라 행동 저장", () => {
     expect(state.updateCalls).toBe(0);
   });
 
-  it("RPC 가 실패해도 폴백이 성공하면 200 이다", async () => {
-    state.rpcError = { message: "function unavailable" };
-    const response = await patchDone();
-    expect(response.status).toBe(200);
-    expect(state.updateCalls).toBe(1);
-  });
-
-  it("두 쓰기가 모두 실패하면 성공이라고 말하지 않는다", async () => {
+  it("RPC 가 실패하면 성공이라고 말하지 않는다", async () => {
     // 이 검사가 없으면 사용자는 완료됐다고 믿고, 앱은 줄을 지우고,
     // 다음에 열면 그대로 살아 있다.
     state.rpcError = { message: "function unavailable" };
-    state.updateError = { message: "write boundary rejected" };
 
     const response = await patchDone();
 
@@ -144,10 +136,26 @@ describe("아모라 행동 저장", () => {
     expect(payload.error).toContain("수정하지 못했");
   });
 
+  it("실패해도 오래된 progress 전체를 되돌려 쓰지 않는다", async () => {
+    // **이것이 이 파일에서 가장 중요한 줄이다.**
+    //
+    // 예전에는 RPC 가 실패하면 이 요청이 앞서 읽어 둔 progress 전체를 직접 UPDATE 로
+    // 되돌려 썼다. RPC 는 부분 병합인데 직접 UPDATE 는 문서 전체 덮어쓰기다 — 그 사이
+    // 상대가 저장한 예산·일정·체크리스트가 통째로 사라진다.
+    //
+    // 오늘 이 자리를 한 번 고쳤는데 그때는 폴백을 남기고 오류만 확인했다. 그러면 폴백이
+    // **성공했을 때** 남의 저장분이 사라지는 경로가 그대로 남는다. PR #112(2026-08-18)가
+    // 그것을 짚어 놨고 그 판단이 맞다.
+    state.rpcError = { message: "function unavailable" };
+
+    await patchDone();
+
+    expect(state.updateCalls, "직접 UPDATE 가 일어났습니다").toBe(0);
+  });
+
   it("저장 실패를 '찾지 못했습니다'로 바꾸지 않는다", async () => {
     // 404 는 대상이 없다는 뜻이다. 대상은 있었고 쓰기가 실패한 것이다.
     state.rpcError = { message: "function unavailable" };
-    state.updateError = { message: "write boundary rejected" };
 
     const response = await patchDone();
     expect(response.status).not.toBe(404);
