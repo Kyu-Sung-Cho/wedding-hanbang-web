@@ -473,3 +473,53 @@ describe("자리를 아껴 커스텀 항목이 밀려나지 않게 한다", () =
     expect(out.categories.filter((c) => c.key.startsWith("custom_"))).toHaveLength(4);
   });
 });
+
+describe("합계는 도구가 준 값을 그대로 쓴다", () => {
+  // 2026-08-24 운영: 도구가 total_allocated 를 정확히 줬는데도 모델이 한 번
+  // 직접 더해 다른 숫자를 말했다(실제 3,495만원 → 3,945만원). 이후 6회는
+  // 정확했으니 흔하지는 않지만, 사용자에게는 화면과 다른 금액으로 보인다.
+  //
+  // 두 겹으로 줄인다 — 표시 문구에 그 숫자를 넣고(모델이 가장 잘 되받는다),
+  // 직접 더하지 말라고 도구 계약에 적는다.
+  it("표시 문구가 배정 합계와 미배정을 말한다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { category: "venue", status: "in_progress", budget: 20_000_000 },
+      custom_a1: { category: "custom_a1", label: "차량 이동", status: "in_progress", budget: 1_200_000 },
+    }));
+    // 5,000만 총예산 · 배정 2,120만 · 미배정 2,880만
+    expect(result.displayMessage).toContain("항목 배정 2,120만원");
+    expect(result.displayMessage).toContain("미배정 2,880만원");
+  });
+
+  it("배정이 총예산을 넘어도 죽지 않는다", async () => {
+    // formatWon 은 음수에서 RangeError 를 던진다. 배정 초과는 정상 상태이고
+    // 예산 화면에도 초과 표시가 있으므로, 여기서 던지면 요약 자체가 실패한다.
+    const result = await executeTool("get_budget_summary", {}, makeCtx({
+      venue: { category: "venue", status: "in_progress", budget: 60_000_000 },
+      custom_a1: { category: "custom_a1", label: "차량 이동", status: "in_progress", budget: 1_200_000 },
+    }));
+    expect(result.success).toBe(true);
+    const out = result.toolOutput as { total_allocated: number; unallocated: number };
+    expect(out.total_allocated).toBe(61_200_000);
+    expect(out.unallocated).toBe(-11_200_000);
+    expect(result.displayMessage).toContain("배정이 총예산보다 1,120만원 많음");
+  });
+  it("직접 더하지 말라고 도구 계약에 적혀 있다", () => {
+    const delivered = buildAmoraSystemPrompt(promptContext(PROGRESS), {
+      enabledToolNames: ["get_budget_summary", "add_custom_category"],
+      requestKind: "chat",
+      persistenceMode: "durable",
+    });
+    expect(delivered).toContain("카테고리 금액을 직접 더하지 마세요");
+    expect(delivered).toContain("`total_allocated`");
+  });
+
+  it("예산 도구가 없으면 그 규칙도 빠진다", () => {
+    const delivered = buildAmoraSystemPrompt(promptContext(PROGRESS), {
+      enabledToolNames: ["get_schedule_summary"],
+      requestKind: "chat",
+      persistenceMode: "durable",
+    });
+    expect(delivered).not.toContain("카테고리 금액을 직접 더하지 마세요");
+  });
+});

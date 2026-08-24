@@ -1245,6 +1245,11 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   const balanceLabel = remaining >= 0
     ? `잔여 ${formatWon(remaining)}`
     : `예산 ${formatWon(Math.abs(remaining))} 초과`;
+  // 배정이 총예산을 넘는 것은 정상 상태다(예산 화면에도 초과 표시가 있다).
+  // formatWon 은 음수에서 예외를 던지므로 잔여와 같은 방식으로 갈라 쓴다.
+  const allocationLabel = unallocated >= 0
+    ? `미배정 ${formatWon(unallocated)}`
+    : `배정이 총예산보다 ${formatWon(Math.abs(unallocated))} 많음`;
   const sourceNote = categories.some((c) => !c.allocated_is_set)
     ? " (항목별 예산은 입력된 금액만 표시)"
     : "";
@@ -1269,7 +1274,10 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       custom_categories_omitted: customOmitted,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}${legacyNote}${omittedNote}`,
+    // 배정 합계와 미배정을 문구에도 넣는다. 예전에는 이 둘이 문구에 없어서,
+    // 모델이 값을 받고도 한 번은 다른 숫자를 말했다(2026-08-24 운영: 실제
+    // 3,495만원인데 3,945만원이라고 답했다). 모델은 표시 문구를 가장 잘 되받는다.
+    displayMessage: `총 예산 ${formatWon(total)} / 항목 배정 ${formatWon(totalAllocated)} / ${allocationLabel} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}${legacyNote}${omittedNote}`,
   };
 }
 

@@ -174,6 +174,16 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // `removeLegacyOperationalInstructions` 가 그 섹션을 통째로 지운다. 원본
   // 프롬프트에는 있고 모델이 받는 프롬프트에는 없어서, 실측(2026-08-24 운영)에서
   // 아모라가 삭제를 거절하면서도 어디서 지우는지는 끝내 말하지 않았다.
+  // 금액 합계는 도구가 준 값을 그대로 쓰게 한다.
+  //
+  // 2026-08-24 운영: 도구가 total_allocated 를 정확히 줬는데도 모델이 한 번
+  // 직접 더해 다른 숫자를 말했다(실제 3,495만원 → 3,945만원). 사용자에게는
+  // 화면과 다른 금액으로 보인다.
+  if (enabled.has("get_budget_summary")) {
+    lines.push(
+      "- 예산 합계를 말할 때는 `get_budget_summary` 가 준 `total_allocated`·`unallocated`·`total_spent` 를 그대로 쓰세요. 카테고리 금액을 직접 더하지 마세요 — 도구가 준 값과 다른 숫자를 말하면 사용자가 화면에서 보는 것과 어긋납니다.",
+    );
+  }
   if (enabled.has("add_custom_category")) {
     lines.push(
       "- 사용자가 직접 추가한 예산 항목(카테고리 현황에서 `custom_`으로 시작하는 것)은 `update_category_budget`으로 바꿀 수 없습니다. 금액을 고칠 때도 목록에 적힌 이름을 그대로 써서 `add_custom_category`를 호출하세요 — 이름이 같으면 새로 만들지 않고 그 항목을 고칩니다.",
