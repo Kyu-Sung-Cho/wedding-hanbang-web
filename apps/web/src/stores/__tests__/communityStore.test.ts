@@ -689,9 +689,10 @@ describe("useCommunityStore feed cache", () => {
       }),
     });
 
-    const ok = await useCommunityStore.getState().updateComment("reply-1", "  나을듯욯ㅎ  ");
+    const result = await useCommunityStore.getState().updateComment("reply-1", "  나을듯욯ㅎ  ");
 
-    expect(ok).toBe(true);
+    // 결과가 boolean 이 아니다 — 실패하면 **서버가 준 이유**를 함께 들고 온다.
+    expect(result.ok).toBe(true);
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/community/comments/reply-1",
       expect.objectContaining({
@@ -705,9 +706,11 @@ describe("useCommunityStore feed cache", () => {
   });
 
   it("does not submit empty comment edits", async () => {
-    const ok = await useCommunityStore.getState().updateComment("comment-1", "   ");
+    const result = await useCommunityStore.getState().updateComment("comment-1", "   ");
 
-    expect(ok).toBe(false);
+    expect(result.ok).toBe(false);
+    // 거절에는 이유가 붙어야 한다. 화면이 그것을 그린다.
+    if (!result.ok) expect(result.message.length).toBeGreaterThan(0);
     expect(mockFetch).not.toHaveBeenCalled();
   });
 });

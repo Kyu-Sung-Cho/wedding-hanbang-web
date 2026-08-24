@@ -84,8 +84,8 @@ describe("CommentItem participation recovery", () => {
           comment={comment}
           postId="post-1"
           currentUserId={currentUserId}
-          onDelete={vi.fn(async () => true)}
-          onEdit={vi.fn(async () => true)}
+          onDelete={vi.fn(async () => ({ ok: true }) as const)}
+          onEdit={vi.fn(async () => ({ ok: true }) as const)}
           onVote={onVote}
           onReply={onReply}
         />,

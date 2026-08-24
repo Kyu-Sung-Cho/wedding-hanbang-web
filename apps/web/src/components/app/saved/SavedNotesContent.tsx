@@ -33,6 +33,8 @@ export default function SavedNotesContent() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [memoDraft, setMemoDraft] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** 저장·삭제가 거절된 이유. 불러오기 실패와 달리 목록은 그대로 두고 위에 띄운다. */
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setStatus("loading");
@@ -54,6 +56,12 @@ export default function SavedNotesContent() {
     void load();
   }, [load]);
 
+  /** 서버가 준 이유를 읽는다. 없으면 부르는 쪽이 준 기본 문구. */
+  async function readError(response: Response, fallback: string): Promise<string> {
+    const data = (await response.json().catch(() => null)) as { error?: string } | null;
+    return typeof data?.error === "string" && data.error.trim() ? data.error : fallback;
+  }
+
   const saveMemo = useCallback(async (id: string) => {
     setBusyId(id);
     try {
@@ -66,9 +74,14 @@ export default function SavedNotesContent() {
         const memo = memoDraft.trim() ? memoDraft.trim() : null;
         setNotes((current) => current.map((note) => (note.id === id ? { ...note, memo } : note)));
         setEditingId(null);
+        setActionError(null);
+      } else {
+        // 편집 상태는 유지하되 **왜 안 됐는지 말한다.** 예전에는 아무 신호가 없어
+        // 눌러도 아무 일이 없는 것처럼 보였다. 서버는 401/403/404/500 을 문장으로 준다.
+        setActionError(await readError(response, "메모를 저장하지 못했어요."));
       }
     } catch {
-      // 실패하면 편집 상태를 유지해 사용자가 다시 시도할 수 있게 둔다.
+      setActionError("메모를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusyId(null);
     }
@@ -82,9 +95,14 @@ export default function SavedNotesContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (response.ok) setNotes((current) => current.filter((note) => note.id !== id));
+      if (response.ok) {
+        setNotes((current) => current.filter((note) => note.id !== id));
+        setActionError(null);
+      } else {
+        setActionError(await readError(response, "저장한 이야기를 지우지 못했어요."));
+      }
     } catch {
-      // 무시 — 목록은 그대로 남는다.
+      setActionError("저장한 이야기를 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusyId(null);
     }
@@ -110,6 +128,12 @@ export default function SavedNotesContent() {
         <p className="flex items-center gap-2 py-12 text-base text-[#928980]">
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
           불러오는 중이에요
+        </p>
+      ) : null}
+
+      {actionError ? (
+        <p role="alert" className="mt-4 text-sm text-[#D95F5F]">
+          {actionError}
         </p>
       ) : null}
 

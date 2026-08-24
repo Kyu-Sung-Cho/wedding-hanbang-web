@@ -81,6 +81,10 @@ const fadeIn = {
   animate: { opacity: 1, y: 0 },
 };
 
+/** 재발급이 실패했을 때. 코드가 사라진 이유를 말하고 다음 행동을 준다. */
+const REGENERATE_FAILED =
+  "초대 코드를 다시 만들지 못했어요. 연결 상태를 다시 불러오는 중이에요 — 잠시 뒤 화면을 확인해 주세요.";
+
 export default function SettingsPage() {
   const {
     user,
@@ -112,6 +116,8 @@ export default function SettingsPage() {
     useState<"loading" | "ready" | "failed">("loading");
   const [connectionRetryNonce, setConnectionRetryNonce] = useState(0);
   const [regenerating, setRegenerating] = useState(false);
+  /** 재발급이 거절된 이유. 코드가 화면에서 사라진 이유를 말해 준다. */
+  const [regenerateError, setRegenerateError] = useState("");
 
   // 수정 모드
   const [editingName, setEditingName] = useState(false);
@@ -264,19 +270,32 @@ export default function SettingsPage() {
       const payload: unknown = await res.json().catch(() => null);
       if (res.ok) {
         setCoupleConnection(resolveCoupleConnectionState(payload));
+        setRegenerateError("");
       } else {
         // A join can win the race after this screen loaded. Remove the old
         // code immediately and let the next canonical GET reveal the phase.
+        //
+        // **그 GET 을 실제로 부른다.** 예전에는 이 주석이 적힌 대로 되지 않았다 —
+        // 코드만 지우고 조회를 다시 걸지 않아, 멀쩡한 코드가 화면에서 사라진 채
+        // 「연결 상태를 확인하지 못했어요 · 고객지원에 문의」만 남았다.
         setCoupleConnection(resolveCoupleConnectionState(null, {
           partnerPresent: Boolean(partner),
           membershipSealedAt: couple?.membership_sealed_at,
         }));
+        setRegenerateError(
+          typeof (payload as { error?: unknown } | null)?.error === "string"
+            ? String((payload as { error: string }).error)
+            : REGENERATE_FAILED,
+        );
+        setConnectionRetryNonce((value) => value + 1);
       }
     } catch {
       setCoupleConnection(resolveCoupleConnectionState(null, {
         partnerPresent: Boolean(partner),
         membershipSealedAt: couple?.membership_sealed_at,
       }));
+      setRegenerateError(REGENERATE_FAILED);
+      setConnectionRetryNonce((value) => value + 1);
     } finally {
       setRegenerating(false);
     }
@@ -956,6 +975,12 @@ export default function SettingsPage() {
                 <p className="text-sm text-[#928980]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
               </div>
               <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
+            </div>
+          ) : regenerateError ? (
+            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p role="alert" className="text-sm leading-relaxed text-[#D95F5F]">
+                {regenerateError}
+              </p>
             </div>
           ) : connectionLookup === "loading" ? (
             <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">

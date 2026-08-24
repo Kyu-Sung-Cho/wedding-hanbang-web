@@ -19,8 +19,8 @@ const mocks = vi.hoisted(() => ({
     void options;
     return true;
   }),
-  updateComment: vi.fn(async () => true),
-  deleteComment: vi.fn(async () => true),
+  updateComment: vi.fn(async () => ({ ok: true }) as const),
+  deleteComment: vi.fn(async () => ({ ok: true }) as const),
   voteComment: vi.fn(async () => undefined),
   purgePrivacyState: vi.fn(),
   comments: [] as CommentWithAuthor[],

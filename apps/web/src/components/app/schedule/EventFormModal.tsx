@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { planChangeMessage } from "@/lib/journey/planChangeError";
 import { X, Ban, CalendarDays } from "lucide-react";
 import type {
   ScheduleEvent,
@@ -47,6 +48,10 @@ function getSaveErrorMessage(error: unknown, action: "save" | "cancel"): string 
     return INVALID_FIELD_MESSAGES[error.field]
       ?? "입력한 일정 내용을 다시 확인해 주세요.";
   }
+  // 서버가 **아는 코드로** 사유를 말했다면 그것을 쓴다. 모르는 오류는 그대로
+  // 아래 기본 문구로 떨어진다 — 내부 오류 원문이 화면에 나가면 안 된다.
+  const known = planChangeMessage(error);
+  if (known) return known;
   return action === "save"
     ? "일정을 저장하지 못했어요. 잠시 후 다시 시도해 주세요."
     : "일정 취소 요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요.";

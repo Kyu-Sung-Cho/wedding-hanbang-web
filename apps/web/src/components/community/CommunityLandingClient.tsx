@@ -1787,14 +1787,24 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
       return;
     }
     if (bookmarking) return;
-    setBookmarked((value) => !value);
+    // 먼저 뒤집되 되돌릴 준비를 한다 — 실패했는데 채워진 채 남으면 저장된 줄 안다.
+    const previous = bookmarked;
+    setBookmarked(!previous);
     setBookmarking(true);
     try {
-      await toggleBookmark(post.id);
+      const result = await toggleBookmark(post.id);
+      if (!result.ok) {
+        setBookmarked(previous);
+        showToast(result.message);
+        return;
+      }
       captureEvent("community_post_bookmark", {
         action: bookmarked ? "remove" : "add",
         category: post.category,
       });
+    } catch {
+      setBookmarked(previous);
+      showToast("저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBookmarking(false);
     }
