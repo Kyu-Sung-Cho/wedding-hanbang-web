@@ -40,6 +40,10 @@ import {
   executeGetAmoraActions,
   executeUpdateAmoraAction,
 } from "@/lib/ai/tools/amoraActionTools";
+import {
+  AMORA_MAX_TOOL_CALLS_PER_TURN,
+  AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN,
+} from "@/lib/ai/amoraRequestPolicy";
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import {
   CATEGORY_LABELS,
@@ -1165,21 +1169,50 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   //
   // 넣지 않으면 아모라가 말하는 합계가 예산 화면의 합계와 갈린다 — 화면은
   // 이 항목들을 더하는데 요약은 고정 20개만 훑었다(2026-08-24 감사).
-  for (const custom of listCustomBudgetCategories(progress)) {
+  const customCategories = listCustomBudgetCategories(progress).map((custom) => {
     const hasSetBudget = isValidWonAmount(custom.value.budget);
-    categories.push({
+    return {
       key: custom.key,
-      label: custom.label,
+      // 프롬프트도 60자에서 자른다(prompts.ts). 여기만 원본을 실으면 같은 항목을
+      // 두 표면이 다른 이름으로 부른다.
+      label: custom.label.slice(0, 60),
       allocated: hasSetBudget ? (custom.value.budget as number) : null,
       allocated_is_set: hasSetBudget,
       spent: isValidWonAmount(custom.value.spent) ? (custom.value.spent as number) : 0,
       legacy_amount_unclassified: Object.prototype.hasOwnProperty.call(custom.value, "cost"),
       status: (custom.value.status as string) || "not_started",
-    });
-  }
+    };
+  });
 
-  const totalSpent = categories.reduce((s, c) => s + c.spent, 0);
+  // 합계는 실린 것만이 아니라 **전부** 센다 — 화면 상단 숫자와 같아야 한다.
+  const totalSpent = [...categories, ...customCategories]
+    .reduce((sum, entry) => sum + entry.spent, 0);
   const remaining = total - totalSpent;
+
+  // 도구 결과는 턴당 4,000자에서 잘린다(route.ts 의 perToolFeedbackBudget).
+  // 넘으면 boundAmoraToolResultJson 이 배열을 통째로 버리고 앞뒤 조각만 남기는데,
+  // 그러면 고정 카테고리가 모델 시야에서 사라지고 잘린 자리가 숫자 한가운데면
+  // 화면과 다른 금액을 말하게 된다. 고정 22개만으로 이미 3,576자라 커스텀 3개면
+  // 넘는다(2026-08-24 실측). 그래서 **여기서 먼저** 줄이고, 줄였다는 사실을
+  // 구조화해 알린다 — 그래야 아모라가 "더 있어요"라고 정직하게 말할 수 있다.
+  const perToolFeedbackBudget = Math.floor(
+    AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN / AMORA_MAX_TOOL_CALLS_PER_TURN,
+  );
+  const shownCustom: typeof customCategories = [];
+  for (const entry of customCategories) {
+    const projected = JSON.stringify({
+      total_budget: total,
+      total_spent: totalSpent,
+      recorded_spend_basis: "explicit_spent_only",
+      remaining,
+      categories: [...categories, ...shownCustom, entry],
+      custom_categories_omitted: customCategories.length,
+    }).length;
+    if (projected > perToolFeedbackBudget - 200) break;
+    shownCustom.push(entry);
+  }
+  const customOmitted = customCategories.length - shownCustom.length;
+  categories.push(...shownCustom);
   const balanceLabel = remaining >= 0
     ? `잔여 ${formatWon(remaining)}`
     : `예산 ${formatWon(Math.abs(remaining))} 초과`;
@@ -1188,6 +1221,9 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
     : "";
   const legacyNote = categories.some((c) => c.legacy_amount_unclassified)
     ? " · 용도 미확인 이전 금액은 예산·기록 지출 합계에서 제외"
+    : "";
+  const omittedNote = customOmitted > 0
+    ? ` · 직접 추가한 항목 ${customOmitted}개는 목록에서 생략(합계에는 포함) — 전체는 예산 화면에서 확인`
     : "";
 
   return {
@@ -1199,9 +1235,10 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       recorded_spend_basis: "explicit_spent_only",
       remaining,
       categories,
+      custom_categories_omitted: customOmitted,
     },
     success: true,
-    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}${legacyNote}`,
+    displayMessage: `총 예산 ${formatWon(total)} / 기록된 지출 ${formatWon(totalSpent)} / ${balanceLabel}${sourceNote}${legacyNote}${omittedNote}`,
   };
 }
 

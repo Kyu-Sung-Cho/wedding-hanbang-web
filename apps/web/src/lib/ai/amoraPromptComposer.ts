@@ -167,6 +167,29 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
+  // 사용자가 직접 추가한 예산 항목은 `update_category_budget` 으로 못 바꾼다 —
+  // 그 도구의 스키마가 고정 20개 키만 받는 enum 이라 표식이 검증에서 버려진다.
+  //
+  // 이 안내가 여기 있는 이유: 원래 `## 도구 사용 핵심 규칙` 에 썼는데
+  // `removeLegacyOperationalInstructions` 가 그 섹션을 통째로 지운다. 원본
+  // 프롬프트에는 있고 모델이 받는 프롬프트에는 없어서, 실측(2026-08-24 운영)에서
+  // 아모라가 삭제를 거절하면서도 어디서 지우는지는 끝내 말하지 않았다.
+  if (enabled.has("add_custom_category")) {
+    lines.push(
+      "- 사용자가 직접 추가한 예산 항목(카테고리 현황에서 `custom_`으로 시작하는 것)은 `update_category_budget`으로 바꿀 수 없습니다. 금액을 고칠 때도 목록에 적힌 이름을 그대로 써서 `add_custom_category`를 호출하세요 — 이름이 같으면 새로 만들지 않고 그 항목을 고칩니다.",
+    );
+  }
+
+  // 없애는 도구가 꺼져 있을 때만. 나중에 켜지면 이 안내는 저절로 빠진다.
+  if (
+    has("update_category_budget", "add_custom_category", "apply_budget_plan", "get_budget_summary")
+    && !has("delete_category", "reset_category")
+  ) {
+    lines.push(
+      "- 예산 항목을 없애 달라는 요청은 지금 도구로 할 수 없습니다. 못 한다고만 말하고 끝내지 마세요 — 어디서 할 수 있는지 같은 답에서 알려주세요. 예산 화면에서 그 항목의 삭제 버튼으로 직접 지울 수 있습니다. 금액을 0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다 — 화면에는 0원짜리 항목이 그대로 남습니다.",
+    );
+  }
+
   if (enabled.has("apply_budget_plan")) {
     lines.push(
       "- 예산 일괄 배분은 사용자가 명시적으로 확정한 뒤 `apply_budget_plan` 한 번으로 적용하세요. 합계는 총예산과 정확히 일치해야 합니다.",
