@@ -832,6 +832,27 @@ export default function SettingsScreen() {
                   <Text style={styles.fieldHint}>
                     {inviteWindowNotice?.message ?? "이 코드를 파트너에게 공유해 주세요"}
                   </Text>
+                  {/* 두 사람이 각자 앱을 깔고 각자 "시작하기"를 누르면 둘 다 여기 서서
+                      서로의 코드를 기다린다. 그 상태에서 상대 코드를 넣을 자리가 없으면
+                      나갈 문이 없다 — 웹 설정에는 이 버튼이 단계와 무관하게 있는데
+                      모바일에는 `sealed_single`(연결 종료)에만 있어서, 주 제품인 앱에서만
+                      막혀 있었다. 온보딩은 이미 끝나 다시 열리지 않고, 서버는
+                      `ALREADY_LINKED_TO_ANOTHER_COUPLE` 로 거절한다. */}
+                  <Text style={[styles.fieldHint, styles.restartHint]}>
+                    파트너도 따로 시작해서 각자 코드가 생겼다면, 한 사람이 다시 시작한 뒤
+                    상대의 코드를 넣어 주세요.
+                  </Text>
+                  <Pressable
+                    onPress={handleStartNewCouple}
+                    disabled={resettingCouple}
+                    accessibilityRole="button"
+                    accessibilityLabel="현재 커플 연결을 끊고 새 커플로 다시 시작"
+                    style={({ pressed }) => [styles.restartLink, pressed && { opacity: 0.6 }]}
+                  >
+                    <Text style={styles.restartLinkText}>
+                      {resettingCouple ? "준비 중..." : "새 커플로 다시 시작"}
+                    </Text>
+                  </Pressable>
                 </View>
               ) : phase === "linked" ? (
                 <View style={styles.connectionNotice}>
@@ -1213,6 +1234,20 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   supportLinkText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.rose[500],
+    textDecorationLine: "underline",
+  },
+  // 초대 대기 중의 복구 경로. 코드를 보내는 일이 먼저이므로 기본 버튼으로 올리지 않고
+  // 링크로 둔다 — 다만 찾을 수는 있어야 한다.
+  restartHint: { marginTop: 10 },
+  restartLink: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 2,
+    paddingVertical: 8,
+  },
+  restartLinkText: {
     fontSize: 13,
     fontWeight: "600",
     color: colors.rose[500],

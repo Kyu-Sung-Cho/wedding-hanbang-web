@@ -24,6 +24,22 @@ test("mobile sealed-single UI never tells the member to share an invite code", (
   assert.doesNotMatch(settingsSource, /hanbang\.ai\/support/);
 });
 
+// 두 사람이 각자 앱을 깔고 각자 "시작하기"를 누르면 둘 다 awaiting_partner 에 서서
+// 서로의 코드를 기다린다. 그 화면에 나갈 문이 없으면 주 제품인 앱 안에서 커플이 영구히
+// 갈라진다 — 온보딩은 다시 열리지 않고 서버는 ALREADY_LINKED_TO_ANOTHER_COUPLE 로 거절한다.
+// 웹 설정에는 이 버튼이 국면과 무관하게 있었고 모바일에만 없었다.
+test("mobile awaiting-partner offers a way out when both partners started separately", () => {
+  const awaiting = settingsSource.slice(
+    settingsSource.indexOf('phase === "awaiting_partner" ? ('),
+    settingsSource.indexOf('phase === "linked" ? ('),
+  );
+  assert.ok(awaiting.length > 0, "awaiting_partner 분기를 찾지 못했습니다");
+  assert.match(awaiting, /handleStartNewCouple/);
+  assert.match(awaiting, /새 커플로 다시 시작/);
+  // 왜 눌러야 하는지 말해 주지 않으면 찾지 못한다.
+  assert.match(awaiting, /파트너도 따로 시작해서/);
+});
+
 test("mobile restart uses the authenticated atomic reset endpoint", () => {
   assert.match(settingsSource, /apiFetch\("\/api\/couple\/reset"/);
   assert.match(settingsSource, /confirmText:\s*"초기화합니다"/);
