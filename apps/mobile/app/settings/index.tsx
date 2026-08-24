@@ -50,6 +50,7 @@ import {
   buildWeddingSettingsPatch,
   createLatestSettingsLoadGate,
   parseWeddingSettingsResponse,
+  splitWeddingSettingsPatch,
   type WeddingSettingsData,
   type WeddingSettingsSnapshot,
 } from "@/lib/weddingSettings";
@@ -64,6 +65,10 @@ import TodayOnePreferenceControl from "@/components/settings/TodayOnePreferenceC
 import CommunityReplyPushPreferenceControl from "@/components/settings/CommunityReplyPushPreferenceControl";
 
 type SettingsData = WeddingSettingsData;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 type CoupleCodeResponse = {
   inviteCode?: unknown;
@@ -231,6 +236,78 @@ export default function SettingsScreen() {
     data.totalBudget !== initialData.totalBudget
   );
 
+  /**
+   * 계획 변경(결혼 예정일·식장·총 예산)을 승인 경로로 보낸다.
+   *
+   * 웹 설정이 하는 것과 같은 경로다(`/api/journey` → `submit_couple_plan_change`).
+   * 파트너가 연결돼 있으면 서버가 `pending_partner` 를 돌려주고, 그때는 아직 반영되지
+   * 않았다고 말해야 한다 — 저장했다고 말하면 이 제품이 가장 하면 안 되는 거짓말이 된다.
+   *
+   * `expected_revision` 은 필수다(route.ts 가 없으면 400). 이 화면이 들고 있는 값에는
+   * 없으므로 보내기 직전에 `/api/auth/me` 에서 현재 값을 읽는다.
+   */
+  async function submitWeddingPlanChange(
+    changes: Record<string, string | number | null>,
+  ): Promise<"applied" | "pending_partner"> {
+    const meResponse = await apiFetch("/api/auth/me");
+    const mePayload: unknown = await meResponse.json().catch(() => null);
+    const revision =
+      isRecord(mePayload) && isRecord(mePayload.journey)
+        ? mePayload.journey.state_revision
+        : null;
+    if (!meResponse.ok || typeof revision !== "number") {
+      throw new Error("결혼 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
+    }
+
+    const response = await apiFetch("/api/journey", {
+      method: "PATCH",
+      body: JSON.stringify({ expected_revision: revision, ...changes }),
+    });
+    const payload: unknown = await response.json().catch(() => null);
+    if (!response.ok) {
+      const message =
+        isRecord(payload) && typeof payload.error === "string"
+          ? payload.error
+          : "결혼 정보를 저장하지 못했어요.";
+      throw new Error(message);
+    }
+    return isRecord(payload) && payload.status === "pending_partner"
+      ? "pending_partner"
+      : "applied";
+  }
+
+  /** 계획 변경만 있었을 때의 마무리. 서버가 정본이므로 화면 값을 지어내지 않고 다시 읽는다. */
+  async function reloadAfterPlanChange(
+    outcome: "applied" | "pending_partner" | null,
+  ) {
+    // 파트너 확인을 기다리는 중이면 서버 값은 아직 예전 그대로다. 다시 읽어야
+    // 화면이 "저장된 것처럼" 남아 있지 않는다.
+    try {
+      const refreshed = await apiFetch("/api/settings/wedding-profile");
+      if (refreshed.ok) {
+        const parsed = parseWeddingSettingsResponse(await refreshed.json());
+        setData(parsed.data);
+        setInitialData(parsed.data);
+        setSettingsSnapshot(parsed.snapshot);
+      }
+    } catch (refreshError) {
+      console.error("설정 다시 불러오기 실패:", refreshError);
+    }
+
+    if (outcome === "pending_partner") {
+      Alert.alert(
+        "상대방 확인을 기다려요",
+        "결혼 정보 변경을 요청했어요. 두 분이 확인하기 전에는 반영되지 않아요.",
+      );
+      return;
+    }
+    setSaved(true);
+    Animated.sequence([
+      Animated.spring(checkScale, { toValue: 1, friction: 3, useNativeDriver: true }),
+      Animated.timing(checkScale, { toValue: 0, duration: 1500, delay: 1000, useNativeDriver: true }),
+    ]).start(() => setSaved(false));
+  }
+
   async function handleSave() {
     if (!data || !settingsSnapshot) return;
     setSaving(true);
@@ -242,9 +319,22 @@ export default function SettingsScreen() {
         return;
       }
 
+      // 결혼 예정일·식장·총 예산은 계획 변경 경로로만 쓸 수 있다. 옛 설정 경로로 같이
+      // 보내면 DB 트리거가 셋 때문에 **저장 전체**를 거절해서, 같이 고친 이름까지 함께
+      // 날아간다. 그래서 보내기 직전에 가른다 — 자세한 이유는 splitWeddingSettingsPatch.
+      const { profilePatch, planChanges } = splitWeddingSettingsPatch(patch);
+      const planOutcome = planChanges
+        ? await submitWeddingPlanChange(planChanges)
+        : null;
+
+      if (!profilePatch) {
+        await reloadAfterPlanChange(planOutcome);
+        return;
+      }
+
       const response = await apiFetch("/api/settings/wedding-profile", {
         method: "PATCH",
-        body: JSON.stringify(patch),
+        body: JSON.stringify(profilePatch),
       });
       const responseBody = await response.json().catch(() => ({}));
       if (!response.ok) {
