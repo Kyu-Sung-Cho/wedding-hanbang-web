@@ -60,8 +60,14 @@ describe("처음 넣는 예산이 거절되지 않는다", () => {
     expect(sql.split("v_new_residual ->> 'category' = v_key").length - 1).toBe(2);
   });
 
-  it("status 는 정해진 값만 받는다", () => {
-    expect(sql).toContain("'not_started', 'in_progress', 'completed'");
+  it("status 는 정해진 값만 받는다 — 두 함수 모두", () => {
+    // toContain 한 번이면 두 함수 중 하나에서 지워도 통과한다
+    // (2026-08-24 적대적 검토가 재현). 나머지 조건과 같이 개수를 고정한다.
+    expect(sql.split("'not_started', 'in_progress', 'completed'").length - 1).toBe(2);
+  });
+
+  it("label 은 문자열만 받는다 — 두 함수 모두", () => {
+    expect(sql.split("jsonb_typeof(v_new_residual -> 'label') = 'string'").length - 1).toBe(2);
   });
 
   it("거절 자체를 없애지는 않았다", () => {

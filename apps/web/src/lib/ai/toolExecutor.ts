@@ -1212,7 +1212,11 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
     (sum, entry) => sum + (entry.allocated ?? 0),
     0,
   );
-  const unallocated = total - totalAllocated;
+  // 총예산을 아직 안 넣은 커플이 있다. 그때 `total` 은 0 이라 미배정을 그대로
+  // 계산하면 음수가 되고, 사용자가 정한 적 없는 총액을 기준으로 "초과"라고
+  // 단정하게 된다. 예산 화면은 `hasTotalBudget` 으로 갈라 아무 말도 하지 않는다.
+  const hasTotalBudget = total > 0;
+  const unallocated = hasTotalBudget ? total - totalAllocated : null;
 
   // 도구 결과는 턴당 4,000자에서 잘린다(route.ts 의 perToolFeedbackBudget).
   // 넘으면 boundAmoraToolResultJson 이 배열을 통째로 버리고 앞뒤 조각만 남기는데,
@@ -1242,14 +1246,18 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   }
   const customOmitted = customCategories.length - shownCustom.length;
   categories.push(...shownCustom);
-  const balanceLabel = remaining >= 0
-    ? `잔여 ${formatWon(remaining)}`
-    : `예산 ${formatWon(Math.abs(remaining))} 초과`;
+  const balanceLabel = !hasTotalBudget
+    ? "총예산 미설정"
+    : remaining >= 0
+      ? `잔여 ${formatWon(remaining)}`
+      : `예산 ${formatWon(Math.abs(remaining))} 초과`;
   // 배정이 총예산을 넘는 것은 정상 상태다(예산 화면에도 초과 표시가 있다).
   // formatWon 은 음수에서 예외를 던지므로 잔여와 같은 방식으로 갈라 쓴다.
-  const allocationLabel = unallocated >= 0
-    ? `미배정 ${formatWon(unallocated)}`
-    : `배정이 총예산보다 ${formatWon(Math.abs(unallocated))} 많음`;
+  const allocationLabel = unallocated === null
+    ? "미배정은 총예산을 넣어야 알 수 있음"
+    : unallocated >= 0
+      ? `미배정 ${formatWon(unallocated)}`
+      : `배정이 총예산보다 ${formatWon(Math.abs(unallocated))} 많음`;
   const sourceNote = categories.some((c) => !c.allocated_is_set)
     ? " (항목별 예산은 입력된 금액만 표시)"
     : "";

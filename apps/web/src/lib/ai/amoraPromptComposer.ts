@@ -184,7 +184,14 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       "- 예산 합계를 말할 때는 `get_budget_summary` 가 준 `total_allocated`·`unallocated`·`total_spent` 를 그대로 쓰세요. 카테고리 금액을 직접 더하지 마세요 — 도구가 준 값과 다른 숫자를 말하면 사용자가 화면에서 보는 것과 어긋납니다.",
     );
   }
-  if (enabled.has("add_custom_category")) {
+  // 조건에 `add_custom_category` 를 쓰면 **절대 걸리지 않는다** — 쓰기 도구는
+  // `availableTools = runnableTools.filter((t) => !isMutatingTool(t.name))` 에서
+  // 걸러지므로 enabledToolNames 에 들어오지 않는다. 모델은 그 도구를 별도
+  // 계약(buildAmoraPendingActionPrompt)으로 안다.
+  //
+  // 2026-08-24: 처음에 그렇게 걸어서 이 안내가 운영에서 한 번도 나가지 않았다.
+  // 테스트가 존재하지 않는 도구 집합을 넘겨 초록이었다. 예산 읽기 도구로 건다.
+  if (has("get_budget_summary", "update_category_budget", "apply_budget_plan")) {
     lines.push(
       "- 사용자가 직접 추가한 예산 항목(카테고리 현황에서 `custom_`으로 시작하는 것)은 `update_category_budget`으로 바꿀 수 없습니다. 금액을 고칠 때도 목록에 적힌 이름을 그대로 써서 `add_custom_category`를 호출하세요 — 이름이 같으면 새로 만들지 않고 그 항목을 고칩니다.",
     );

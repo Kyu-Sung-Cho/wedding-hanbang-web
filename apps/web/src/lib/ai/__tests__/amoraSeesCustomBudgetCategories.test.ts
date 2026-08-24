@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -11,6 +11,8 @@ import {
   AMORA_SYSTEM_PROMPT_MAX_CHARS,
   buildAmoraSystemPrompt,
 } from "@/lib/ai/amoraPromptComposer";
+import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { getWeddingPlannerSystemPrompt } from "@/lib/ai/prompts";
 import { executeTool } from "@/lib/ai/toolExecutor";
@@ -63,6 +65,10 @@ function makeCtx(progress: Record<string, unknown>): ToolExecutionContext {
     },
   };
 }
+
+const PRODUCTION_ENABLED_TOOL_NAMES = BETA_SAFE_TOOLS
+  .filter((tool) => !isMutatingTool(tool.name))
+  .map((tool) => tool.name);
 
 function promptContext(progress: Record<string, unknown>) {
   return {
@@ -174,19 +180,33 @@ describe("직접 추가한 항목을 고칠 수 있되 슬롯을 지어내지는
   // 그래서 **주석은 먼저 걷어낸다.** 걷어내지 않으면 분기를 통째로 주석 처리해도
   // 통과한다(2026-08-24 적대적 검토에서 지적됨). 실제 동작은 스테이징·운영에서
   // 경우별로 실측했고 그 표는 마이그레이션 머리말에 있다.
+  const MIGRATIONS_DIR = join(process.cwd(), "..", "..", "supabase", "migrations");
+
+  function latestMigrationDefining(signature: string): string {
+    const files = readdirSync(MIGRATIONS_DIR)
+      .filter((name) => name.endsWith(".sql"))
+      .filter((name) => readFileSync(join(MIGRATIONS_DIR, name), "utf8").includes(signature))
+      .sort();
+    if (files.length === 0) throw new Error(`정의를 찾지 못했다: ${signature}`);
+    return files[files.length - 1];
+  }
+
   function activeSql(file: string): string {
-    return readFileSync(
-      join(process.cwd(), "..", "..", "supabase", "migrations", file),
-      "utf8",
-    )
+    return readFileSync(join(MIGRATIONS_DIR, file), "utf8")
       .split("\n")
       .filter((line) => !line.trim().startsWith("--"))
       .join("\n");
   }
 
-  const keyRuleSql = activeSql(
-    "20260824140000_amora_can_change_custom_budget_categories.sql",
-  );
+  // **마지막으로 재정의한 파일**을 디렉토리에서 계산해 고른다.
+  //
+  // 처음에는 20260824140000 을 손으로 박았는데, 20260824150000 이 같은 함수를
+  // 다시 정의하면서 그 파일이 죽은 정의가 됐다. 그래서 살아 있는 정의에서 키
+  // 규칙을 통째로 지워도 가드가 초록이었다(2026-08-24 적대적 검토가 재현).
+  // 다음번 재정의에도 가드가 따라가게 계산해서 고른다.
+  const keyRuleSql = activeSql(latestMigrationDefining(
+    "CREATE OR REPLACE FUNCTION public.apply_amora_atomic_tool_execution_pre_shared_revision",
+  ));
   const labelRuleSql = activeSql(
     "20260824150000_amora_custom_category_label_match.sql",
   );
@@ -232,12 +252,12 @@ describe("안내가 모델이 실제로 받는 프롬프트에 있다", () => {
   // 있고 **모델이 받는 것에는 없다**. 실제로 그 자리에 썼다가 운영에서
   // 아모라가 삭제를 거절하면서도 어디서 지우는지 말하지 않았다(2026-08-24).
   const delivered = buildAmoraSystemPrompt(promptContext(PROGRESS), {
-    enabledToolNames: [
-      "get_budget_summary",
-      "update_category_budget",
-      "add_custom_category",
-      "apply_budget_plan",
-    ],
+    // **운영이 실제로 넘기는 집합을 쓴다.**
+    // 쓰기 도구는 `availableTools = runnableTools.filter((t) => !isMutatingTool(t.name))`
+    // 에서 걸러져 enabledToolNames 에 오지 않는다. 예전에는 여기에 손으로
+    // `add_custom_category` 를 넣어서, 그 이름으로 건 안내가 운영에서 한 번도
+    // 나가지 않는데도 테스트는 초록이었다(2026-08-24 적대적 검토가 잡음).
+    enabledToolNames: PRODUCTION_ENABLED_TOOL_NAMES,
     requestKind: "chat",
     persistenceMode: "durable",
   });
@@ -503,6 +523,23 @@ describe("합계는 도구가 준 값을 그대로 쓴다", () => {
     expect(out.total_allocated).toBe(61_200_000);
     expect(out.unallocated).toBe(-11_200_000);
     expect(result.displayMessage).toContain("배정이 총예산보다 1,120만원 많음");
+  });
+  it("총예산을 안 넣었으면 초과라고 단정하지 않는다", async () => {
+    // 총예산 미설정이면 total 이 0 이라 미배정이 음수가 된다. 사용자가 정한 적
+    // 없는 총액을 기준으로 "초과"라고 말하면 안 된다 — 예산 화면은 그때 아무
+    // 말도 하지 않는다(hasTotalBudget).
+    const ctx = makeCtx({
+      venue: { category: "venue", status: "in_progress", budget: 20_000_000 },
+    });
+    ctx.weddingContext.budget = 0;
+    const result = await executeTool("get_budget_summary", {}, ctx);
+    expect(result.success).toBe(true);
+    const out = result.toolOutput as { total_allocated: number; unallocated: number | null };
+    expect(out.total_allocated).toBe(20_000_000);
+    expect(out.unallocated).toBeNull();
+    expect(result.displayMessage).not.toContain("초과");
+    expect(result.displayMessage).not.toContain("많음");
+    expect(result.displayMessage).toContain("총예산");
   });
   it("직접 더하지 말라고 도구 계약에 적혀 있다", () => {
     const delivered = buildAmoraSystemPrompt(promptContext(PROGRESS), {

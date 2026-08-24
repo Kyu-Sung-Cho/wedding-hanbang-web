@@ -1,5 +1,6 @@
 "use client";
 
+import { sumRecordedSpend } from "@/lib/budgetTotals";
 import {
   FileText,
   Users, Building2, Camera, Shirt, Palette, Gem, Flower2, Plane, Home, Key,
@@ -63,7 +64,9 @@ export default function BudgetTab() {
 
   const incomplete = categories.filter((c) => c.status !== "completed" && c.status !== "not_applicable");
   const completed = categories.filter((c) => c.status === "completed" || c.status === "not_applicable");
-  const totalSpent = categories.reduce((sum, c) => sum + c.spent, 0);
+  // 예산 화면과 같은 것을 센다 — 지운 항목 제외, 직접 추가한 항목 포함.
+  // 목록(categories)은 고정 카테고리만 그리지만 합계는 화면과 같아야 한다.
+  const totalSpent = sumRecordedSpend(progress, CATEGORY_CHECKLISTS.map((c) => c.key));
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">

@@ -550,6 +550,32 @@ function buildBudgetPlanOperation(
   }
 
   const progress = context.weddingContext.progress as Record<string, unknown>;
+
+  // 사용자가 예산 화면에서 지운 항목에는 배분하지 않는다.
+  //
+  // `update_category_budget` 에는 이미 있는 거절인데 여기만 빠져 있었다.
+  // 그대로 두면 아모라는 "배분했어요" 라고 말하는데 예산 화면에는 그 항목이
+  // 없어서 합계도 안 맞는다 — 사용자에게는 거짓말로 보인다.
+  // 남는 돈이 자동으로 가는 예비비도 지워져 있을 수 있어 같이 본다.
+  const hiddenKeys = new Set(
+    Array.isArray(progress.__hidden)
+      ? (progress.__hidden as unknown[]).filter(
+          (key): key is string => typeof key === "string",
+        )
+      : [],
+  );
+  const hiddenTargets = finalAllocations
+    .filter((item) => hiddenKeys.has(item.category))
+    .map((item) => CATEGORY_LABELS[item.category] ?? item.category);
+  if (hiddenTargets.length > 0) {
+    return noOpFailure(
+      "apply_budget_plan",
+      toolInput,
+      "category_hidden_by_user",
+      `${hiddenTargets.join("·")}은(는) 예산 화면에서 빼두신 항목이라 배분하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.`,
+    );
+  }
+
   const entries: Record<string, unknown>[] = [];
   let progressChanged = false;
   for (const allocation of finalAllocations) {

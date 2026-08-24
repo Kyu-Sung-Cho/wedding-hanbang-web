@@ -93,3 +93,55 @@ describe("지운 항목은 아모라에게 보이지도 않는다", () => {
     expect(withHidden).toContain("(venue)");
   });
 });
+
+describe("일괄 배분도 지운 항목에는 넣지 않는다", () => {
+  // `update_category_budget` 에는 있던 거절이 `apply_budget_plan` 에만 빠져 있었다
+  // (2026-08-24 적대적 검토). 그대로 두면 아모라는 "배분했어요" 라고 말하는데
+  // 예산 화면에는 그 항목이 없어 합계도 안 맞는다.
+  it("지운 항목이 배분에 있으면 아무것도 반영하지 않는다", () => {
+    const op = buildAmoraAtomicToolOperation(
+      "apply_budget_plan",
+      {
+        total_budget: 50_000_000,
+        allocations: [
+          { category: "venue", budget: 20_000_000 },
+          { category: HIDDEN, budget: 3_000_000 },
+        ],
+      },
+      contextWith([HIDDEN]) as never,
+      "c".repeat(64),
+    );
+    expect(op.domainMutation).toEqual({ kind: "none" });
+    expect(op.result.success).toBe(false);
+    expect(op.result.displayMessage).toContain("예산 화면");
+  });
+
+  it("남는 돈이 지워진 예비비로 자동으로 가지 않는다", () => {
+    const op = buildAmoraAtomicToolOperation(
+      "apply_budget_plan",
+      { total_budget: 50_000_000, allocations: [{ category: "venue", budget: 20_000_000 }] },
+      contextWith(["reserve"]) as never,
+      "d".repeat(64),
+    );
+    // 총예산 5,000만 중 2,000만만 배분 → 남는 3,000만이 예비비로 가려 한다.
+    expect(op.domainMutation).toEqual({ kind: "none" });
+    expect(op.result.displayMessage).toContain("예산 화면");
+  });
+
+  it("지우지 않은 항목만 있으면 그대로 배분한다", () => {
+    const op = buildAmoraAtomicToolOperation(
+      "apply_budget_plan",
+      {
+        total_budget: 50_000_000,
+        allocations: [
+          { category: "venue", budget: 20_000_000 },
+          { category: "reserve", budget: 30_000_000 },
+        ],
+      },
+      contextWith([HIDDEN]) as never,
+      "e".repeat(64),
+    );
+    expect(op.result.success).toBe(true);
+    expect(op.domainMutation).not.toEqual({ kind: "none" });
+  });
+});
