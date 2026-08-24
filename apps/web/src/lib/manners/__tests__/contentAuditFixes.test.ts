@@ -134,13 +134,15 @@ describe("두 사람이 읽는 글이 한쪽 성별을 독자로 세우지 않�
 });
 
 describe("축의금을 언제 이야기할지 체크리스트가 말한다", () => {
-  it("청첩장 분야에 항목이 있다", () => {
+  it("초대장 분야에 항목이 있다", () => {
     // 예절 안내가 "예식이 끝난 뒤에 처음 꺼내면 반드시 감정이 상한다" 며 청첩장
     // 발송 전을 시한으로 못 박는데, 그 시한이 걸린 분야에 항목이 없었다.
     const invitation = CATEGORY_CHECKLISTS.find((c) => c.key === "invitation");
     const item = invitation?.items.find((i) => i.label.includes("축의금"));
     expect(item, "축의금 항목이 없다").toBeTruthy();
-    expect(item?.note).toContain("청첩장");
+    // 이 파일은 업계 용어를 쓰지 않는다 — 모바일 `productCopy.test.mjs` 가 "청첩장" 을,
+    // 웹 `mvpDirection.test.ts` 가 "양가" 를 막는다. 둘 다 이 상수 파일까지 훑는다.
+    expect(item?.note).toContain("초대장");
   });
 });
 
