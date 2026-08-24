@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { sumRecordedSpend } from "@/lib/budgetTotals";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 import {
@@ -203,11 +204,11 @@ function BudgetMiniCard() {
     return [{ key, label: CATEGORY_LABELS[key], budget, spent, pct }];
   });
 
-  let totalSpent = 0;
-  for (const key of Object.keys(CATEGORY_LABELS)) {
-    totalSpent += readExplicitProgressSpent(progress[key]);
-    if (!Number.isSafeInteger(totalSpent)) return null;
-  }
+  // 예산 화면과 **같은 것을 센다** — 지운 항목은 빼고 직접 추가한 항목은 넣는다.
+  // 예전에는 고정 카테고리만 세서, 이 위젯 바로 위의 아모라 문구와 다른 숫자가
+  // 한 카드 안에 나란히 찍혔다(2026-08-24 적대적 검토).
+  const totalSpent = sumRecordedSpend(progress, Object.keys(CATEGORY_LABELS));
+  if (!Number.isSafeInteger(totalSpent)) return null;
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
