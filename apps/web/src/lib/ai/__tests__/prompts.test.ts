@@ -1346,7 +1346,11 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
 
   it("가격 컨텍스트가 고정 시세 대신 검수·발행된 공시 조회를 강제한다", () => {
     expect(prompt).toContain("검수·발행된 업체별 공시 데이터");
-    expect(prompt).toContain("업체 공시가 검색·추천 도구");
+    // 2026-08-24: 도구 이름을 그대로 쓴다. 예전 문구("업체 공시가 검색·추천 도구")는
+    // 도구를 약속하면서 **이름이 없어** applyEnabledToolContract 가 걸러내지 못했고,
+    // 조회 도구가 없는 턴에도 남아 못 하는 조회를 약속했다. 이 검사의 의도(고정 시세
+    // 대신 검수·발행된 공시 조회를 쓴다)는 그대로다.
+    expect(prompt).toContain("get_market_price 로 조회하고");
     expect(prompt).not.toMatch(/조사 기준: 20\d{2}년 \d{1,2}월/);
     expect(prompt).not.toContain("한국소비자원 참가격 결혼서비스 통계");
   });
