@@ -1126,6 +1126,17 @@ async function executeUpdateVenue(
   };
 }
 
+interface BudgetSummaryCategory {
+  key: string;
+  label: string;
+  allocated: number | null;
+  allocated_is_set: boolean;
+  spent: number;
+  status: string;
+  /** 참일 때만 싣는다 — 자리를 아끼기 위해서다. */
+  legacy_amount_unclassified?: true;
+}
+
 function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   const total = isValidWonAmount(ctx.weddingContext.budget)
     ? ctx.weddingContext.budget
@@ -1160,9 +1171,12 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       allocated,
       allocated_is_set: hasSetBudget,
       spent,
-      legacy_amount_unclassified: legacyAmountUnclassified,
+      // 거짓일 때는 싣지 않는다. 22개 카테고리에 `false` 를 다 실으면 770자인데,
+      // 이 도구는 턴당 4,000자에서 잘린다 — 그 자리를 사용자가 직접 추가한 항목이
+      // 써야 한다. 이 값은 참일 때만 의미가 있다(용도 미확인 이전 금액).
+      ...(legacyAmountUnclassified ? { legacy_amount_unclassified: true } : {}),
       status: (p.status as string) || "not_started",
-    };
+    } as BudgetSummaryCategory;
   });
 
   // 사용자가 직접 추가한 예산 항목도 요약에 넣는다.
@@ -1179,9 +1193,11 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       allocated: hasSetBudget ? (custom.value.budget as number) : null,
       allocated_is_set: hasSetBudget,
       spent: isValidWonAmount(custom.value.spent) ? (custom.value.spent as number) : 0,
-      legacy_amount_unclassified: Object.prototype.hasOwnProperty.call(custom.value, "cost"),
+      ...(Object.prototype.hasOwnProperty.call(custom.value, "cost")
+        ? { legacy_amount_unclassified: true as const }
+        : {}),
       status: (custom.value.status as string) || "not_started",
-    };
+    } as BudgetSummaryCategory;
   });
 
   // 합계는 실린 것만이 아니라 **전부** 센다 — 화면 상단 숫자와 같아야 한다.
