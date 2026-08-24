@@ -1593,15 +1593,22 @@ export default function ScheduleScreen() {
               </AppText>
               <Text style={styles.opsDday}>{formatDday(dday)}</Text>
             </View>
+            {/* "지연" 이라고 부르지 않는다.
+                `ddayDeadline` 은 화면 정렬용 기본 확인 시점이고 실제 마감이 아니다
+                (`weddingPlanning.ts` 의 상수 주석). 게다가 이 수에는 예식이 끝나야
+                할 수 있는 일이 들어간다 — "빌린 드레스 돌려주기", "완성된 앨범 받기"
+                같은 항목이 예식 전 내내 빨간불로 잡혔다. 웹은 같은 값을 "기본 확인
+                시점에서 N일 지남" 이라고 말하고, 이 파일도 다른 자리에서는
+                "기본 확인 시점 지남" 이라고 옳게 쓴다. */}
             <StatusPill
               label={
                 overdueCount > 0
-                  ? `${overdueCount}개 지연`
+                  ? `기본 확인 시점 지남 ${overdueCount}개`
                   : dday === null
                     ? "날짜 필요"
                     : getPhaseLabel(dday)
               }
-              tone={overdueCount > 0 ? "danger" : "rose"}
+              tone="rose"
             />
           </View>
           <AppText variant="body" style={styles.opsCopy}>

@@ -163,9 +163,19 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     ddayStart: 360,
     ddayDeadline: 270,
     items: [
-      { id: "venue_01", label: "원하는 결혼식장 형태 정하기", done: false },
+      {
+        id: "venue_01",
+        label: "원하는 결혼식장 형태 정하기",
+        done: false,
+        note: "종교시설에서 하실 생각이면 그곳에 먼저 가능한 일정과 미리 받아야 할 절차가 있는지 물어보세요.",
+      },
       { id: "venue_02", label: "비교할 장소 후보 정리", done: false },
-      { id: "venue_03", label: "장소 방문 날짜 예약하고 직접 확인", done: false },
+      {
+        id: "venue_03",
+        label: "장소 방문 날짜 예약하고 직접 확인",
+        done: false,
+        note: "입구에서 식장·화장실까지 계단 없이 갈 수 있는지 방문한 날 직접 걸어서 확인해 보세요.",
+      },
       {
         id: "venue_04",
         label: "하객 식사 메뉴와 1인당 금액 확인",
@@ -399,7 +409,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "hanbok_02",
         label: "한복을 입을 사람 정하기",
         done: false,
-        note: "두 집안 어른 중 어느 분까지 입으실지 먼저 여쭤보고 몇 벌이 필요한지 정하세요.",
+        note: "여쭐 어른이 계시면 어느 분까지 입으실지 먼저 여쭤보고, 아니면 두 사람 것부터 정하세요.",
       },
       { id: "hanbok_03", label: "한복 업체 후보 방문하고 비교", done: false },
       { id: "hanbok_04", label: "한복 천과 색상 선택", done: false },
@@ -630,6 +640,15 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     ddayDeadline: 45,
     items: [
       { id: "invitation_01", label: "종이·모바일 초대장 중 필요한 형태 정하기", done: false },
+      {
+        // 171항목 중 축의금에 닿는 유일한 항목이다. 예절 안내가 "예식이 끝난 뒤에
+        // 처음 꺼내면 반드시 감정이 상한다"며 청첩장 발송 전을 시한으로 못 박는데,
+        // 그 시한이 걸린 분야가 바로 여기인데도 항목이 없었다.
+        id: "invitation_09",
+        label: "축의금을 누가 받고 어떻게 나눌지 양가와 정하기",
+        done: false,
+        note: "접수를 누가 맡고 정산과 분배를 어떻게 할지 청첩장을 돌리기 전에 두 집안과 맞춰 두세요.",
+      },
       { id: "invitation_02", label: "초대장 디자인 초안 선택", done: false },
       {
         id: "invitation_03",
