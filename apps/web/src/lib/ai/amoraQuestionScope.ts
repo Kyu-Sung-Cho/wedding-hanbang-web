@@ -32,6 +32,8 @@ export interface AmoraQuestionScopeClassification {
   highRiskReason?: AmoraHighRiskReason;
   allowsLongTermMemory: boolean;
   confidence: "high" | "low";
+  /** 되묻기 직후의 답으로 인정돼 W0 이 된 턴인가. */
+  rescuedByClarificationAnswer?: boolean;
   needsClarification: boolean;
 }
 
@@ -393,6 +395,17 @@ export function classifyAmoraQuestionScope({
       allowsLongTermMemory: hasApprovedWeddingAction,
       confidence: "high",
       needsClarification: false,
+      // 이 턴이 **되묻기 구제로** W0 이 됐다는 표시.
+      //
+      // 위 주석이 인정하듯 답이 아닌 말도 함께 올라온다. 그때 "엉뚱한 답을 할
+      // 뿐" 이라고 봤는데, 실측은 달랐다 — 2026-08-24 운영에서 "파이썬으로 정렬
+      // 알고리즘 짜줘" 가 이 관문으로 W0 이 되어 **삽입 정렬 전체 구현**이 나갔다.
+      // 엉뚱한 답이 아니라 다른 분야의 대행이었다.
+      //
+      // 구제 조건은 건드리지 않는다(안전 축과 맞닿아 있다). 대신 지시문에
+      // 대행 금지를 남겨, 도구·문맥은 열리되 결혼 밖 과업은 하지 않게 한다.
+      rescuedByClarificationAnswer: hasWeddingClarificationContinuity
+        && !hasApprovedWeddingAction,
     };
   }
   if (
@@ -488,6 +501,10 @@ export function filterAmoraToolsByQuestionScope<T extends AiToolDefinition>(
     : [...tools];
 }
 
+/** 결혼 밖 과업을 대신 해 주지 않는다 — 모호 갈래와 되묻기 구제가 함께 쓴다. */
+const OFF_DOMAIN_REFUSAL_LINE =
+  "- 결혼 준비와 분명히 무관한 대행은 하지 마세요. 코드·프로그램 작성, 숙제·시험 답안, 다른 분야의 업무 문서가 그렇습니다. 짧게 무엇을 돕는 서비스인지 알리고, 결혼 준비 쪽으로 바꿔 도울 수 있는 것이 있으면 하나만 제시하세요.";
+
 export function buildAmoraQuestionScopeInstruction(
   classification: AmoraQuestionScopeClassification,
   options: { linkedContextOnly?: boolean } = {},
@@ -501,6 +518,18 @@ export function buildAmoraQuestionScopeInstruction(
   const scopeLines: Record<AmoraQuestionScope, readonly string[]> = {
     W0_wedding_core: [
       "- 결혼 준비의 핵심 질문에 답하세요. 새 실행은 이번 요청에 실제로 활성화된 도구 또는 서버가 발급한 확정 액션 계약 안에서만 가능하며, 확인된 실행 결과 없이 완료됐다고 말하지 마세요.",
+      // 되묻기 구제로 올라온 턴에는 대행 금지를 남긴다.
+      //
+      // 그 관문은 "서버가 이 발화에서 아무 신호도 못 찾았다"가 조건이라 답이
+      // 아닌 말도 함께 올라온다. 2026-08-24 운영에서 "파이썬으로 정렬 알고리즘
+      // 짜줘" 가 그렇게 W0 이 되어 삽입 정렬 전체 구현이 나갔다.
+      //
+      // 어휘 목록을 넓히는 길은 이미 폐기됐다 — "신랑이 파이썬 개발자라" 같은
+      // 평범한 결혼 문장이 함께 걸린다(amoraIdentityAndOffDomain.test.ts).
+      // 그래서 여기서도 목록이 아니라 **태도**로 막는다.
+      ...(classification.rescuedByClarificationAnswer
+        ? [OFF_DOMAIN_REFUSAL_LINE]
+        : []),
     ],
     W1_wedding_adjacent: [
       "- 신혼 생활·커플 재정·가족 조율 중 결혼 준비에 미치는 영향만 다루세요.",
@@ -543,7 +572,7 @@ export function buildAmoraQuestionScopeInstruction(
             // 만들어달라고 할까?"처럼 낱말이 든 평범한 결혼 문장이 같이 걸린다. 창을
             // 좁혀 맞추면 내 예문 두 개에만 맞을 뿐이다. 그래서 목록이 아니라 **불확실할
             // 때의 태도**에 한 줄을 둔다 — 코드든 숙제든 주식이든 한 번에 덮는다.
-            "- 결혼 준비와 분명히 무관한 대행은 하지 마세요. 코드·프로그램 작성, 숙제·시험 답안, 다른 분야의 업무 문서가 그렇습니다. 짧게 무엇을 돕는 서비스인지 알리고, 결혼 준비 쪽으로 바꿔 도울 수 있는 것이 있으면 하나만 제시하세요.",
+            OFF_DOMAIN_REFUSAL_LINE,
             "- 다만 청첩장 문구, 감사 인사, 업체·가족에게 보낼 문장처럼 결혼 준비의 글쓰기는 그대로 도와드리세요. 위 금지는 결혼 준비 밖의 일에만 해당합니다.",
             "- 다만 확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고, 저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요.",
             "- 도구 실행과 장기 기억 저장은 하지 마세요.",

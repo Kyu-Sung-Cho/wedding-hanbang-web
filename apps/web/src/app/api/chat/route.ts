@@ -38,6 +38,7 @@ import {
 } from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
+import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
@@ -3198,8 +3199,11 @@ export async function POST(request: Request) {
           });
         };
         const prepareTerminalResponse = (fullText: string) => {
+          // 모델의 사고 서두를 먼저 걷어낸다. 아모라는 사용자에게 한국어로만
+          // 말하므로, 한글이 하나도 없는 앞쪽 문단은 답이 아니라 사고다.
+          // 2026-08-24 운영에서 영어 사고가 내부 표식까지 그대로 나갔다.
           const { cleanText: afterSuggest, suggestions } = extractSuggestions(
-            fullText,
+            stripAmoraReasoningPreamble(fullText),
           );
           const pendingExtraction = extractAmoraPendingAction({
             text: afterSuggest,
