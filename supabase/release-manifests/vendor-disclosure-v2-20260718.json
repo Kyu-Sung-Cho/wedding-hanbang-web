@@ -388,6 +388,10 @@
     {
       "file": "20260824130000_mediation_tells_the_partner.sql",
       "sha256": "cb48ee05096e630716994091bff745de0342f2f82fc7cb2f57a3176f58f21c2b"
+    },
+    {
+      "file": "20260824140000_amora_can_change_custom_budget_categories.sql",
+      "sha256": "3fa576cd358acf453d9b60223a928bccf591ae4579e62ef54b00eef42ba5dfac"
     }
   ],
   "deploymentEvidence": {
