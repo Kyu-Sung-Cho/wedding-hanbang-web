@@ -1185,9 +1185,18 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
   });
 
   // 합계는 실린 것만이 아니라 **전부** 센다 — 화면 상단 숫자와 같아야 한다.
-  const totalSpent = [...categories, ...customCategories]
-    .reduce((sum, entry) => sum + entry.spent, 0);
+  const everyEntry = [...categories, ...customCategories];
+  const totalSpent = everyEntry.reduce((sum, entry) => sum + entry.spent, 0);
   const remaining = total - totalSpent;
+
+  // 배정 합계를 **직접 준다.** 예전에는 이 값이 없어서 아모라가 카테고리를 하나씩
+  // 더해야 했는데, 실제로 항목 하나를 빠뜨려 화면과 다른 숫자를 말했다
+  // (2026-08-24 운영: 실제 3,445만원인데 3,045만원이라고 답했다).
+  const totalAllocated = everyEntry.reduce(
+    (sum, entry) => sum + (entry.allocated ?? 0),
+    0,
+  );
+  const unallocated = total - totalAllocated;
 
   // 도구 결과는 턴당 4,000자에서 잘린다(route.ts 의 perToolFeedbackBudget).
   // 넘으면 boundAmoraToolResultJson 이 배열을 통째로 버리고 앞뒤 조각만 남기는데,
@@ -1206,9 +1215,13 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       recorded_spend_basis: "explicit_spent_only",
       remaining,
       categories: [...categories, ...shownCustom, entry],
+      total_allocated: totalAllocated,
+      unallocated,
       custom_categories_omitted: customCategories.length,
     }).length;
-    if (projected > perToolFeedbackBudget - 200) break;
+    // 상한과 정확히 비교한다. 여유를 두면 자리가 남는데도 항목이 빠진다
+    // (2026-08-24 운영: 3,728자로 상한 아래인데 커스텀 2개가 생략됐다).
+    if (projected > perToolFeedbackBudget) break;
     shownCustom.push(entry);
   }
   const customOmitted = customCategories.length - shownCustom.length;
@@ -1234,6 +1247,8 @@ function executeGetBudgetSummary(ctx: ExecutionContext): ToolExecutionResult {
       total_spent: totalSpent,
       recorded_spend_basis: "explicit_spent_only",
       remaining,
+      total_allocated: totalAllocated,
+      unallocated,
       categories,
       custom_categories_omitted: customOmitted,
     },

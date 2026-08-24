@@ -376,3 +376,61 @@ describe("항목이 아주 많아도 대화가 죽지 않는다", () => {
     expect(prompt).toContain("항목 002");
   });
 });
+
+describe("배정 합계를 아모라가 더하지 않게 한다", () => {
+  // 예전에는 total_allocated 가 없어서 아모라가 카테고리를 하나씩 더했는데,
+  // 운영에서 실제로 항목 하나를 빠뜨렸다 — 실제 3,445만원인데 3,045만원이라고
+  // 답했다(2026-08-24). 나열한 항목의 합과도, DB 와도 다른 숫자였다.
+  const PROGRESS_WITH_MANY: Record<string, unknown> = {
+    venue: { category: "venue", status: "not_started", budget: 22_000_000 },
+    ring: { category: "ring", status: "not_started", budget: 4_000_000 },
+    studio: { category: "studio", status: "not_started", budget: 3_000_000 },
+    dress: { category: "dress", status: "not_started", budget: 2_000_000 },
+    makeup: { category: "makeup", status: "not_started", budget: 1_500_000 },
+    custom_1787536365775x: { category: "custom_1787536365775x", label: "테스트A3", status: "not_started", budget: 950_000 },
+    custom_2dc1411117df5674e3eee3b6: { category: "custom_2dc1411117df5674e3eee3b6", label: "차량 이동", status: "in_progress", budget: 700_000 },
+    custom_1787543270831: { category: "custom_1787543270831", label: "예단 운반", status: "not_started", budget: 300_000 },
+  };
+  const TRUTH = 34_450_000;
+
+  it("배정 합계를 직접 준다", async () => {
+    const result = await executeTool("get_budget_summary", {}, makeCtx(PROGRESS_WITH_MANY));
+    const out = result.toolOutput as { total_allocated: number; unallocated: number };
+    expect(out.total_allocated).toBe(TRUTH);
+    expect(out.unallocated).toBe(50_000_000 - TRUTH);
+  });
+
+  it("목록에서 생략된 항목도 합계에는 들어간다", async () => {
+    const crowded: Record<string, unknown> = { ...PROGRESS_WITH_MANY };
+    for (const key of Object.keys(CATEGORY_LABELS)) {
+      crowded[key] = { category: key, status: "in_progress", budget: 12_345_678, spent: 2_345_678 };
+    }
+    for (let i = 0; i < 30; i += 1) {
+      const key = `custom_extra_${i}`;
+      crowded[key] = { category: key, label: `추가 항목 ${i}`, status: "in_progress", budget: 1_000_000 };
+    }
+    const result = await executeTool("get_budget_summary", {}, makeCtx(crowded));
+    const out = result.toolOutput as {
+      total_allocated: number;
+      custom_categories_omitted: number;
+      categories: { key: string; allocated: number | null }[];
+    };
+    expect(out.custom_categories_omitted).toBeGreaterThan(0);
+    // 실린 것만 더한 값보다 커야 한다 — 생략된 것도 합계에 있다는 뜻이다.
+    const shownSum = out.categories.reduce((sum, c) => sum + (c.allocated ?? 0), 0);
+    expect(out.total_allocated).toBeGreaterThan(shownSum);
+  });
+
+  it("자리가 남으면 생략하지 않는다", async () => {
+    // 운영에서 3,728자(상한 4,000)인데도 커스텀 2개가 잘렸다 — 여유가 과했다.
+    const result = await executeTool("get_budget_summary", {}, makeCtx(PROGRESS_WITH_MANY));
+    const out = result.toolOutput as {
+      custom_categories_omitted: number;
+      categories: { key: string }[];
+    };
+    expect(out.custom_categories_omitted).toBe(0);
+    for (const key of ["custom_1787536365775x", "custom_2dc1411117df5674e3eee3b6", "custom_1787543270831"]) {
+      expect(out.categories.some((c) => c.key === key)).toBe(true);
+    }
+  });
+});
