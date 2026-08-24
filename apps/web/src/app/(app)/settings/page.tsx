@@ -893,7 +893,7 @@ export default function SettingsPage() {
         </div>
       </motion.div>
 
-      {/* 커플 연동 */}
+      {/* 커플 연결 */}
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
@@ -904,7 +904,7 @@ export default function SettingsPage() {
             <Heart className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">커플 연동</h3>
+            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">커플 연결</h3>
             <p className="text-base text-[#504444] font-light">파트너와 함께 준비 현황을 공유하세요</p>
           </div>
         </div>

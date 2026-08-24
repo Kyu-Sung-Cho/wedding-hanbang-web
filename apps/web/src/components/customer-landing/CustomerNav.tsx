@@ -62,7 +62,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
 
   const navLinks = [
     { href: weddingPath(), label: "커뮤니티", scroll: false },
-    { href: weddingPath("/market-prices"), label: "시세 정보", scroll: false },
+    { href: weddingPath("/market-prices"), label: "공시 가격", scroll: false },
     { href: weddingPath("/manners"), label: "결혼 예절", scroll: false },
     { href: "/about", label: "소개", scroll: false },
     { href: "#cta", label: "베타 신청", scroll: true },

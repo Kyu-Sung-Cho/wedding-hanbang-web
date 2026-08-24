@@ -1285,7 +1285,11 @@ export default function ChatSidePanel({
                 {activeScope === "private" && <Lock className="h-3 w-3" aria-hidden="true" />}
                 {activeScope === "private"
                   ? "현재 범위 · 나만 (상담) — 서비스에 저장되며 상대방에게는 보이지 않아요"
-                  : "현재 범위 · 함께 대화 — 파트너에게 보여요"}
+                  : partner
+          ? "현재 범위 · 함께 대화 — 파트너에게 보여요"
+          // 아직 배우자를 연결하지 않은 사람에게 "파트너에게 보여요" 는 사실이
+          // 아니다. 지금은 아무도 못 본다. 나중에 연결하면 보인다는 것을 말한다.
+          : "현재 범위 · 함께 대화 — 파트너를 연결하면 이 대화를 함께 볼 수 있어요"}
               </p>
             </div>
 

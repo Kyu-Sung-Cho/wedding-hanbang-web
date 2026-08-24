@@ -146,7 +146,7 @@ describe("초대 카드", () => {
     const html = renderToStaticMarkup(<LoungeFirstArrival view={view!} />);
 
     expect(html).toContain("파트너를 부르면 같이 봐요");
-    expect(html).toContain("설정 &gt; 커플 연동");
+    expect(html).toContain("설정 &gt; 커플 연결");
     expect(html).not.toMatch(/WH-[A-Z0-9]/);
   });
 

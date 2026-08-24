@@ -275,7 +275,7 @@ export default function ProfileScreen() {
                 <View style={styles.partnerRow}>
                   <Heart size={12} color={colors.rose[500]} />
                   <Text style={styles.partnerText}>
-                    커플 연동됨: {profile.partnerName}
+                    커플 연결됨: {profile.partnerName}
                   </Text>
                 </View>
               )}
