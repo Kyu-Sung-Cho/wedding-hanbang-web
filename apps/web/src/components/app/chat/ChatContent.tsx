@@ -49,7 +49,10 @@ import {
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
 import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
-import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
+import {
+  assessSelfReportedConflictOffer,
+  shouldOfferMediation,
+} from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 import {
   resizeChatComposerToContent,
@@ -748,11 +751,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, []);
   const [mediationDismissed, setMediationDismissed] = useState(false);
   const [mediationConsentOpen, setMediationConsentOpen] = useState(false);
-  const showMediationBanner =
+  const mutualConflictOffer =
     activeTab === "shared"
     && !mediationDismissed
     && !mediationConsentOpen
     && shouldOfferMediation(messages);
+  // 두 사람이 서로에게 싸운 기록이 없어도, 한 사람이 아모라에게 갈등을
+  // 이야기했으면 문은 보여준다. 시작하지는 않는다 — 문구도 다르다.
+  const selfReportedConflictOffer =
+    activeTab === "shared"
+    && !mediationDismissed
+    && !mediationConsentOpen
+    && !mutualConflictOffer
+    && assessSelfReportedConflictOffer(messages, senderRole ?? null).shouldOffer;
+  const showMediationBanner = mutualConflictOffer || selfReportedConflictOffer;
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isNearBottomRef = useRef(true);
@@ -1798,7 +1810,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       setMediationConsentOpen(false);
       setMediationDismissed(true);
       setMessageTarget("ai");
-      await requestStructuredMediation({
+      const outcome = await requestStructuredMediation({
         coupleId,
         senderRole: profile.role,
         senderName: profile.name ?? "사용자",
@@ -1810,6 +1822,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         },
         conflictContext: requesterSummary,
       });
+      // 안전 홀드로 막히면 안내 카드가 **나만 보기 탭**에 들어간다. 옮겨 주지
+      // 않으면 다이얼로그만 닫히고 화면은 그대로다 — 오류도, 안내도, 스피너도
+      // 없어서 사용자는 버튼이 고장났다고 읽는다(2026-08-24 감사).
+      //
+      // 메시지 전송 경로에는 같은 전환이 이미 있다(`ephemeral_safety`).
+      // 중재만 빠져 있었다.
+      if (outcome === "safety_hold") {
+        setActiveTab("private");
+        setMessageTarget("ai");
+      }
     },
     [coupleId, journey, profile, requestStructuredMediation],
   );
@@ -3021,10 +3043,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-base text-[#1A1A1F] leading-relaxed font-medium">
-                  두 분 사이에 의견 차이가 있는 것 같아요
+                  {selfReportedConflictOffer
+                    ? "혼자 마음에 담아두고 계신 것 같아요"
+                    : "두 분 사이에 의견 차이가 있는 것 같아요"}
                 </p>
                 <p className="text-sm text-[#504444] leading-relaxed mt-1">
-                  아모라가 중립적으로 의견 조율을 도와드릴게요
+                  {selfReportedConflictOffer
+                    ? "원하시면 아모라가 두 분이 함께 볼 수 있게 정리해 드릴게요"
+                    : "아모라가 중립적으로 의견 조율을 도와드릴게요"}
                 </p>
                 <button
                   onClick={openMediationConsent}

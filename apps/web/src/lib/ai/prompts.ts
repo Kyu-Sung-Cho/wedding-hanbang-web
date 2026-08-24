@@ -368,8 +368,19 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   const progressEntries = Object.entries(context.progress)
     .filter(([k]) => k !== "__events" && k !== "__budgetScope");
 
+  // 사용자가 예산 화면에서 지운 항목은 아모라에게도 보이지 않아야 한다.
+  // 보이면 아모라가 그 항목을 제안하고, 쓰면 "반영했어요" 라고 말하는데 화면은
+  // 그대로다 — 사용자에게는 거짓말로 읽힌다(2026-08-24 감사).
+  const hiddenCategoryKeys = new Set(
+    Array.isArray((context.progress as Record<string, unknown>)?.__hidden)
+      ? ((context.progress as Record<string, unknown>).__hidden as unknown[])
+          .filter((key): key is string => typeof key === "string")
+      : [],
+  );
+
   // 카테고리별 상세 현황 생성
   const categoryStatus = Object.entries(CATEGORY_LABELS)
+    .filter(([key]) => !hiddenCategoryKeys.has(key))
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
       const resolved = resolveStatusByKey(key, p as Parameters<typeof resolveStatusByKey>[1]);
@@ -385,7 +396,29 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
         : "";
       const vendor = p.vendor ? `업체: ${promptData(p.vendor, 200)}` : "";
       const notes = p.notes ? `메모: ${promptData(p.notes, 500)}` : "";
-      const checklist = Array.isArray(p.checklist) ? p.checklist as { id: string; label: string; done: boolean }[] : [];
+      // 라벨은 **템플릿이 정본**이다. 화면도 `mergePlanningChecklist` 로 그리는데
+      // 그 병합은 템플릿 라벨이 이기고 저장값에서는 `done` 만 가져온다. 저장된
+      // 라벨을 그대로 쓰면 아모라가 보는 이름과 사용자가 보는 이름이 갈린다.
+      //
+      // 실측(2026-08-24 운영): 저장 라벨 173개 중 90개가 물음표로 깨져 있었다.
+      // 화면은 멀쩡했고 아모라만 "항목 이름을 다시 보내주세요" 를 반복했다.
+      const savedChecklist = Array.isArray(p.checklist)
+        ? p.checklist as { id: string; label?: string; done?: boolean }[]
+        : [];
+      const templateItems =
+        CATEGORY_CHECKLISTS.find((entry) => entry.key === key)?.items ?? [];
+      const doneById = new Map(
+        savedChecklist.map((item) => [item.id, item.done === true]),
+      );
+      const checklist = templateItems.length > 0
+        ? templateItems.map((item) => ({
+            id: item.id,
+            label: item.label,
+            done: doneById.get(item.id) ?? false,
+          }))
+        : savedChecklist
+            .filter((item) => typeof item.label === "string" && item.label.length > 0)
+            .map((item) => ({ id: item.id, label: item.label as string, done: item.done === true }));
       // 개수만 주면 `toggle_checklist_item` 을 절대 못 쓴다. 그 도구는 `item_id`
       // (예: venue_03)를 필수로 받는데, 예전에는 프롬프트가 id·label 을 버리고
       // "할일: 3/12완료" 만 남겼다. 그래서 아모라는 준 적 없는 ID 를 내라는 요구를

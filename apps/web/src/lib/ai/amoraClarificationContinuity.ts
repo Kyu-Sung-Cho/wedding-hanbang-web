@@ -84,6 +84,36 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * 범위 밖으로 판정된 W4(confidence high)는 전부 여기서 걸러진다. 위기 발화
  * 직후의 "응"이라도 그 "응"이 새 위험 신호를 담고 있으면 여기 오지 않는다.
  */
+/**
+ * 이 답이 **그대로 하라는 승낙**인가.
+ *
+ * 카드가 떠 있던 턴 뒤의 승낙은 버튼(action_id)으로만 받는다 — 자유 문장이
+ * 확인을 대신하면 서버가 검증한 입력이 아닌 것이 저장될 수 있다.
+ *
+ * 그런데 사람은 카드를 보고 **숫자를 고치기도 한다.** "아니 4천으로 해줘" 는
+ * 승낙이 아니라 새 지시다. 그것까지 막으면 도구가 0개가 되어, 아모라가
+ * 결혼 준비와 무슨 관련인지 되묻는 엉뚱한 답이 돌아온다(2026-08-24 감사).
+ *
+ * 그래서 **맨 승낙만** 막고 정정은 통과시킨다. 통과해도 얻는 것은 범위와
+ * 도구뿐이고, 실제 적용은 여전히 `confirmedActionId` + 리스를 거쳐야 한다.
+ */
+const BARE_AFFIRMATION_RE =
+  /^(?:응+|네+|넹|예|그래|그럼|좋아|좋아요|ㅇㅇ|오케이|ok|okay|그렇게)\s*(?:요|용)?\s*(?:해\s*줘|해\s*주세요|해줘요|적용해\s*줘|적용해\s*주세요|맞아|맞아요|부탁|부탁해|부탁해요|고마워)?\s*[.!~]*$/i;
+
+function isBareAffirmation(text: string): boolean {
+  const normalized = text.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (normalized.length === 0) return false;
+  if (BARE_AFFIRMATION_RE.test(normalized)) return true;
+  // "응 넣어줘", "네 그렇게 적용해줘" 처럼 승낙어로 시작해 실행만 요청하는 경우.
+  //
+  // `` 를 쓰지 않는다 — 자바스크립트의 단어 경계는 ASCII 기준이라 한글 뒤에서는
+  // 매치되지 않는다. 이 저장소가 전에 같은 자리에서 당한 적이 있다.
+  return /^(?:응+|네+|넹|예|그래|그럼|좋아요?|ㅇㅇ|오케이|ok|okay)(?=$|[\s.!~,])/i
+    .test(normalized)
+    && !/\d/.test(normalized)
+    && !/(아니|말고|대신|빼고|바꿔|다시|수정|고쳐)/.test(normalized);
+}
+
 export function isAmoraClarificationAnswerShaped(text: string): boolean {
   if (typeof text !== "string") return false;
   const normalized = text.normalize("NFKC").trim();
@@ -223,8 +253,12 @@ export function resolveAmoraWeddingClarificationContinuity<
       || metadata.target === "partner"
       || metadata.in_reply_to_user_message_id !== answered.id
       || metadata.question_scope !== "W0_wedding_core"
-      // 카드가 떠 있던 턴의 확인은 버튼(action_id)뿐이어야 한다.
-      || metadata.pending_amora_action !== undefined
+      // 카드가 떠 있던 턴의 **승낙**은 버튼(action_id)뿐이어야 한다. 다만 숫자를
+      // 고치는 정정("아니 4천으로 해줘")은 승낙이 아니라 새 지시이고, 그것까지
+      // 막으면 도구가 0개가 된다. 연속성이 주는 것은 범위와 도구뿐이고 적용은
+      // 여전히 `confirmedActionId` + 리스를 거친다.
+      || (metadata.pending_amora_action !== undefined
+        && isBareAffirmation(currentUserText))
       // 아모라가 쓴 그 문장 자체가 안전 맥락은 아닌가.
       || hasAmoraSafetySignal(amora.content)
     ) {

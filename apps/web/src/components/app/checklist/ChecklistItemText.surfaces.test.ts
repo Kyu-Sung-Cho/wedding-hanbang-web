@@ -37,6 +37,11 @@ const SURFACES: Record<string, { role: Role; why: string }> = {
   "src/components/app/schedule/ScheduleContent.tsx": { role: "writes", why: "저장 경로 — 그리지 않는다" },
   "src/lib/ai/amoraAtomicToolOperation.ts": { role: "writes", why: "아모라 원자 실행 저장 경로" },
   "src/lib/ai/tools/scheduleTools.ts": { role: "writes", why: "아모라 도구 저장 경로" },
+
+  "src/lib/ai/amoraToolPolicy.ts": {
+    role: "counts",
+    why: "아모라가 알아볼 항목 이름 목록만 만든다 — 그리지 않는다. 이름은 템플릿이 정본이고, 저장된 라벨은 쓰지 않는다(2026-08-24: 운영 저장 라벨 173개 중 90개가 깨져 있었고 화면은 템플릿을 써서 멀쩡했다)",
+  },
 };
 
 /**

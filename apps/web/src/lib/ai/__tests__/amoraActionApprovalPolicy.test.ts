@@ -221,6 +221,18 @@ describe("앱에서 직접 고쳐도 상대에게 알림이 간다", () => {
     expect(sql).toContain("v_request.required_count <> 1");
   });
 
+  it("일정 취소·복원이 원자 커밋 허용 목록에도 들어 있다", () => {
+    // 관문이 둘이었다. 멱등성 관문을 고치자 이게 드러났고, 이 오류는 코드가
+    // `catch {}` 로 삼켜서 로그에 남지 않았다 — 삼킨 자리에 로깅을 넣은 뒤에야
+    // `AMORA_ATOMIC_SCHEDULE_MUTATION_INVALID` 한 줄로 나왔다.
+    const sql = readFileSync(
+      join(migrations, "20260824120000_amora_schedule_cancel_can_actually_apply.sql"),
+      "utf8",
+    );
+    expect(sql).toContain("apply_amora_atomic_tool_execution_v1");
+    expect(sql).toContain("'cancel_schedule_event', 'restore_schedule_event'");
+  });
+
   it("일정 취소·복원이 멱등성 허용 목록에 들어 있다", () => {
     // 이 둘이 없어서 아모라의 일정 취소가 도입 이래 한 번도 반영되지 못했다.
     const sql = readFileSync(
