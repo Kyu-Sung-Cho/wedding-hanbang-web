@@ -264,8 +264,9 @@ describe("placeSearchTools", () => {
 
     expect(result.success).toBe(true);
     expect(output.places).toEqual([expect.objectContaining({ name: "샘플 한정식" })]);
-    // 지역 1 + 이미지 1.
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 지역 1 + 기준점 1 + 이미지 1. 검색어에 "강남역"이 있으면 그 좌표를 한 번 찾아
+    // 가까운 순으로 세운다(2026-08-24). 기준점이 없는 검색어에서는 이 호출이 없다.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("returns an empty general-place result when every local item is a wedding vendor", async () => {
@@ -298,7 +299,7 @@ describe("placeSearchTools", () => {
       },
       displayMessage: `'${query}'에서 일반 장소 검색 결과를 찾지 못했습니다.`,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);  // 지역 1 + 기준점 1(검색어에 "강남역")
   });
 
   it("does not fall back to the legacy Developers API", async () => {

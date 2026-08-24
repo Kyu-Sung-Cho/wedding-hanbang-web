@@ -1,4 +1,10 @@
 import type { ToolExecutionResult } from "@/types/database.types";
+import {
+  describeDistance,
+  extractPlaceAnchor,
+  parseNaverPoint,
+  rankPlacesByDistance,
+} from "@/lib/ai/tools/placeDistance";
 
 const WEDDING_VENDOR_QUERY_PATTERN =
   /웨딩\s*(?:홀|스튜디오|드레스|메이크업|플래너|업체|촬영|사진)|결혼\s*(?:식장|준비\s*업체)|예식\s*(?:장|업체)|웨딩홀|스드메|스튜디오|드레스|(?:혼주\s*)?메이크업|본식(?:\s*(?:스냅|영상))?/i;
@@ -339,12 +345,27 @@ export async function executeSearchNearbyPlaces(
   }
 
   try {
-    const localData = await fetchNaverSearch(
-      config,
-      "local",
-      { query, display: "5", start: "1", sort: "comment" },
-      5000
-    );
+    // 검색어에 "강남역" 같은 기준점이 있으면 그 좌표를 따로 한 번 찾는다. 두 요청은
+    // 서로를 기다릴 이유가 없으므로 나란히 보낸다. 기준점 조회가 실패해도 검색은
+    // 그대로 진행된다(`.catch(() => null)`).
+    //
+    // 후보를 늘리려고 정렬을 달리해 한 번 더 부르는 안도 만들어 봤지만 뺐다. 네이버가
+    // 한 번에 5건까지만 주는 것은 맞지만, **어느 정렬이 실제로 더 가까운 집을 주는지
+    // 여기서 잴 수가 없다.** 호출을 늘리는 값이 증명되지 않은 채로 남는다. 지금 고치는
+    // 문제는 "순서"이고 그것은 기준점 하나로 풀린다.
+    const anchorName = extractPlaceAnchor(query);
+    const [localData, anchorData] = await Promise.all([
+      fetchNaverSearch(config, "local", { query, display: "5", start: "1", sort: "comment" }, 5000),
+      anchorName
+        ? fetchNaverSearch(
+            config,
+            "local",
+            { query: anchorName, display: "1", start: "1", sort: "random" },
+            4000,
+          ).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
     let items = recordItems(localData).slice(0, 5);
 
     // 모델은 사용자 말투를 그대로 옮겨 적는다. 네이버 지역 검색은 키워드로
@@ -418,6 +439,24 @@ export async function executeSearchNearbyPlaces(
         mapy: stringField(item, "mapy") || null,
       };
     });
+
+    // 기준점에서 가까운 순으로 다시 세우고 5개로 줄인다. 기준점을 못 구했거나 좌표를
+    // 확신할 수 없으면 `rankPlacesByDistance` 가 순서를 손대지 않으므로, 그때의 결과는
+    // 리뷰 많은 순 — 오늘과 같다.
+    const anchorItem = anchorData ? recordItems(anchorData)[0] : undefined;
+    const anchorPoint = anchorItem
+      ? parseNaverPoint(stringField(anchorItem, "mapx"), stringField(anchorItem, "mapy"))
+      : null;
+    const rankedPlaces = rankPlacesByDistance(basePlaces, anchorPoint)
+      .slice(0, 5)
+      .map(({ place, distanceMeters }) => ({
+        ...place,
+        distanceMeters,
+        // 걷는 거리인 척하지 않는다. 문구가 "직선"이라고 먼저 말한다.
+        distanceLabel: anchorName ? describeDistance(anchorName, distanceMeters) : null,
+      }));
+    basePlaces.length = 0;
+    basePlaces.push(...rankedPlaces);
 
     if (basePlaces.length === 0) {
       return {
