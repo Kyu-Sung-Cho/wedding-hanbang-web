@@ -76,19 +76,15 @@ async function updateLegacyAmoraAction(
     p_remove_keys: [],
   });
 
-  if (patchError) {
-    // 폴백의 오류를 보지 않으면, 두 쓰기가 모두 실패해도 아래에서 `updated` 를
-    // 그대로 돌려주고 라우트는 200 을 낸다. 사용자는 완료 처리가 됐다고 믿고
-    // 화면에서 줄이 사라지는데, 다음에 열면 그대로 살아 있다.
-    //
-    // 저장에 실패한 것은 404("찾지 못했습니다")가 아니다. 던져서 라우트가 500 을
-    // 내게 한다 — 그래야 앱이 줄을 지우지 않는다.
-    const { error: fallbackError } = await admin
-      .from("wedding_journeys")
-      .update({ progress: nextProgress })
-      .eq("id", journey.id);
-    if (fallbackError) throw fallbackError;
-  }
+  // 원자적 병합만 쓴다. 실패했다고 이 요청이 읽어 둔 **오래된 progress 전체**로
+  // 되돌려 쓰면, 그 사이 상대가 저장한 예산·일정·체크리스트를 통째로 지운다
+  // (RPC 는 부분 병합이고 직접 UPDATE 는 문서 전체 덮어쓰기다).
+  //
+  // 오늘 이 자리를 한 번 고쳤는데 그때는 폴백을 남기고 오류만 확인했다. PR #112 가
+  // 2026-08-18 에 이미 더 정확히 짚어 놨다 — 문제는 오류를 안 본 것만이 아니라
+  // **폴백이 성공해도 남의 저장분을 지운다**는 것이다. 같은 무효식은
+  // lib/ai/tools/progressTools.ts 에서 이미 닫혀 있다.
+  if (patchError) throw patchError;
 
   return updated;
 }
