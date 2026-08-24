@@ -363,4 +363,32 @@ describe("pending action message boundary", () => {
     expect(getPendingActionDisabledReason(action, now, false, false)).toBe("not_latest");
     expect(getPendingActionDisabledReason(action, now, true, true)).toBe("busy");
   });
+
+  // 2026-08-22 운영 실측: 브라우저 시계가 서버보다 1.5초 느렸고, 그동안 갓 나온 카드가
+  // "확인 시간이 지났어요"를 띄웠다. 시계가 크게 어긋난 기기라면 그 상태가 풀리지 않아
+  // 사용자는 아모라가 제안한 어떤 변경도 확인할 수 없다.
+  it("does not call a fresh proposal expired when this device's clock lags the server", () => {
+    // 서버가 찍은 발급 시각이 이 기기의 '지금'보다 뒤에 있다 = 시계가 느리다.
+    const laggingClock = action.issuedAt - 1_500;
+    expect(laggingClock).toBeLessThan(action.expiresAt);
+
+    expect(isPendingAmoraActionExpired(action, laggingClock)).toBe(false);
+    // 버튼이 살아 있어야 한다. 정말 만료됐다면 서버가 거절한다.
+    expect(getPendingActionDisabledReason(action, laggingClock, true, false)).toBeNull();
+  });
+
+  it("does not call a proposal expired before the clock has been read", () => {
+    // ChatContent 는 nowMs 를 0 으로 시작하고 마운트 뒤 효과에서 처음 채운다.
+    // 그 사이 모든 카드가 만료로 보이면 안 된다.
+    expect(isPendingAmoraActionExpired(action, 0)).toBe(false);
+    expect(isPendingAmoraActionExpired(action, Number.NaN)).toBe(false);
+    expect(getPendingActionDisabledReason(action, 0, true, false)).toBeNull();
+  });
+
+  it("still expires once the clock is usable and the server instant has passed", () => {
+    // 위 두 완화가 진짜 만료까지 열어버리면 안 된다.
+    expect(isPendingAmoraActionExpired(action, action.expiresAt)).toBe(true);
+    expect(isPendingAmoraActionExpired(action, action.expiresAt + 60_000)).toBe(true);
+    expect(getPendingActionDisabledReason(action, action.expiresAt, true, false)).toBe("expired");
+  });
 });

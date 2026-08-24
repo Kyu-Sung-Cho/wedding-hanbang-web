@@ -72,6 +72,7 @@ const {
   getPendingAmoraAction,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  isPendingAmoraActionExpired,
   getSharedActionApprovalPresentation,
   parseSharedActionApprovalStatus,
 } = helperModule.exports;
@@ -388,6 +389,27 @@ test("mobile disables expired, superseded, and in-flight actions", () => {
   assert.equal(getPendingActionDisabledReason(action, action.expiresAt, true, false), "expired");
   assert.equal(getPendingActionDisabledReason(action, beforeExpiry, false, false), "not_latest");
   assert.equal(getPendingActionDisabledReason(action, beforeExpiry, true, true), "busy");
+});
+
+// 휴대폰은 시계가 어긋나 있는 일이 흔하다. 그때 방금 받은 제안이 만료로 보이면
+// 그 사람은 아모라가 제안한 어떤 변경도 확인할 수 없다. 진짜 만료는 서버가 막는다.
+test("mobile does not call a fresh proposal expired when the phone clock lags the server", () => {
+  const laggingClock = action.issuedAt - 1_500;
+  assert.ok(laggingClock < action.expiresAt);
+  assert.equal(isPendingAmoraActionExpired(action, laggingClock), false);
+  assert.equal(getPendingActionDisabledReason(action, laggingClock, true, false), null);
+});
+
+test("mobile does not call a proposal expired before the clock has been read", () => {
+  assert.equal(isPendingAmoraActionExpired(action, 0), false);
+  assert.equal(isPendingAmoraActionExpired(action, Number.NaN), false);
+  assert.equal(getPendingActionDisabledReason(action, 0, true, false), null);
+});
+
+test("mobile still expires once the clock is usable and the server instant has passed", () => {
+  assert.equal(isPendingAmoraActionExpired(action, action.expiresAt), true);
+  assert.equal(isPendingAmoraActionExpired(action, action.expiresAt + 60_000), true);
+  assert.equal(getPendingActionDisabledReason(action, action.expiresAt, true, false), "expired");
 });
 
 test("mobile confirmation button sends and retries the exact server action id", () => {

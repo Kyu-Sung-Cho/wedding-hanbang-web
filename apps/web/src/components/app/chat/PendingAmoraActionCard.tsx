@@ -125,11 +125,33 @@ export function getPendingAmoraBudgetImpactPreview(
   );
 }
 
+/**
+ * 서버가 찍은 만료 시각이 지났는지. **이 기기 시계를 믿을 수 있을 때만** 판정한다.
+ *
+ * 이 함수는 울타리가 아니라 화면 편의다. 진짜 만료는 서버가 막는다 —
+ * `authorize_amora_shared_action_execution` 이 `AMORA_SHARED_ACTION_EXPIRED` 로 거절한다.
+ * 그래서 시계를 못 믿는 동안 "만료됐다"고 단정할 이유가 없고, 단정하면 두 곳이 함께 죽는다.
+ *
+ *   1. 카드가 "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요"를
+ *      띄운다 — 방금 나온 제안인데 사용자에게 포기하고 다시 물으라고 말한다.
+ *   2. 적용 핸들러(`ChatContent`·`ChatSidePanel`)가 아무 말 없이 `return` 한다 —
+ *      버튼을 눌러도 아무 일도 일어나지 않는다.
+ *
+ * 예전 판정은 `action.issuedAt > nowMs`를 만료로 셌다. 그런데 그 조건이 참이라는 것은
+ * 만료가 아니라 **이 기기 시계가 서버보다 느리다**는 뜻이다. 2026-08-22 운영 실측에서
+ * 브라우저 시계가 서버보다 1.5초 느렸고, NTP가 어긋난 기기는 그보다 훨씬 크게 벌어진다.
+ * 그런 기기의 사용자는 아모라가 제안한 어떤 변경도 확인할 수 없었다.
+ *
+ * 마운트 직후의 `nowMs === 0`(아직 시계를 읽기 전)도 같은 이유로 만료가 아니다.
+ * 시계를 못 믿는 동안에는 버튼을 살려 두고, 정말 만료됐다면 서버가 거절한다.
+ */
 export function isPendingAmoraActionExpired(
   action: PendingAmoraAction,
   nowMs: number,
 ): boolean {
-  return !Number.isFinite(nowMs) || action.issuedAt > nowMs || nowMs >= action.expiresAt;
+  if (!Number.isFinite(nowMs) || nowMs <= 0) return false;
+  if (action.issuedAt > nowMs) return false;
+  return nowMs >= action.expiresAt;
 }
 
 export function getPendingActionDisabledReason(
