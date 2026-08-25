@@ -2059,7 +2059,12 @@ export default function ScheduleScreen() {
               <Text style={styles.modalTitle}>
                 {editingEventId !== null ? "일정 수정" : "일정 추가"}
               </Text>
-              <Pressable onPress={() => setModalVisible(false)} hitSlop={12}>
+              <Pressable
+                onPress={() => setModalVisible(false)}
+                hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="일정 창 닫기"
+              >
                 <X size={24} color={colors.textTertiary} />
               </Pressable>
             </View>

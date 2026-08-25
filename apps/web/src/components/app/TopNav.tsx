@@ -15,7 +15,7 @@ const pageTitles: Record<string, string> = {
   "/lounge": "웨딩 라운지",
   "/chat": "아모라",
   "/budget": "예산",
-  "/market-prices": "시세 정보",
+  "/market-prices": "공시 가격",
   "/checklist": "웨딩 체크리스트",
   "/schedule": "일정",
   "/favorites": "즐겨찾기",

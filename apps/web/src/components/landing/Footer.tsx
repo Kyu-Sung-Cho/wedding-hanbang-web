@@ -9,7 +9,7 @@ import { weddingPath } from "@/lib/weddingPaths";
 const SERVICE_LINKS = [
   { label: "아모라 채팅", href: weddingPath("/chat") },
   { label: "커뮤니티", href: weddingPath() },
-  { label: "시세 정보", href: weddingPath("/market-prices") },
+  { label: "공시 가격", href: weddingPath("/market-prices") },
   { label: "내 즐겨찾기", href: weddingPath("/favorites") },
 ];
 

@@ -117,7 +117,11 @@ export default function UpcomingTab() {
           </div>
         ) : (
           <p className="text-sm text-taupe-400 py-2 text-center">
-            {weddingDate ? "임박한 항목이 없습니다" : "결혼 날짜를 설정하세요"}
+            {weddingDate
+              ? "임박한 항목이 없습니다"
+              // 어디서 설정하는지 안 알려주면 시키기만 하고 길은 안 낸 것이다.
+              // 결혼 예정일을 고치는 자리는 설정 화면이다(`app/(app)/settings`).
+              : "설정 > 결혼 예정일을 입력하면 곧 확인할 항목을 여기에 모아드려요"}
           </p>
         )}
       </CollapsibleSection>

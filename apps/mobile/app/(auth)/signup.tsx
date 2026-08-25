@@ -325,7 +325,14 @@ export default function SignupScreen() {
                 : <Circle size={24} color={colors.taupe[400]} />
               }
               <Text style={styles.agreeAllText}>전체 동의</Text>
-              <Pressable onPress={toggleAgreementSection} hitSlop={8} style={styles.chevronBtn}>
+              <Pressable
+                onPress={toggleAgreementSection}
+                hitSlop={8}
+                style={styles.chevronBtn}
+                accessibilityRole="button"
+                accessibilityLabel={showAgreements ? "약관 항목 접기" : "약관 항목 펼치기"}
+                accessibilityState={{ expanded: showAgreements }}
+              >
                 {showAgreements
                   ? <ChevronUp size={20} color={colors.taupe[400]} />
                   : <ChevronDown size={20} color={colors.taupe[400]} />

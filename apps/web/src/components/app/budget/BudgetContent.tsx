@@ -737,6 +737,8 @@ export default function BudgetContent({
   // 총 예산 편집
   const [editingTotal, setEditingTotal] = useState(false);
   const [totalText, setTotalText] = useState("");
+  /** 총 예산 입력이 거절된 이유. 없으면 화면이 조용해진다. */
+  const [totalBudgetError, setTotalBudgetError] = useState("");
   const totalInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -975,13 +977,18 @@ export default function BudgetContent({
 
   const handleTotalBudgetSave = async () => {
     const num = parseFloat(totalText);
-    if (!isNaN(num) && num > 0) {
-      try {
-        await saveJourney({ total_budget: Math.round(num * 10000) });
-        setEditingTotal(false);
-      } catch {
-        return;
-      }
+    // 조건에 안 맞으면 **아무 일도 안 일어났다.** 닫히지도, 저장되지도, 말해주지도
+    // 않아서 버튼이 죽은 것처럼 보였다. 0 을 넣거나 칸을 비운 사람이 그렇게 갇혔다.
+    if (isNaN(num) || num <= 0) {
+      setTotalBudgetError("0보다 큰 금액을 넣어주세요. 아직 안 정했다면 그냥 닫으셔도 돼요.");
+      return;
+    }
+    setTotalBudgetError("");
+    try {
+      await saveJourney({ total_budget: Math.round(num * 10000) });
+      setEditingTotal(false);
+    } catch {
+      // saveJourney 가 이미 오류 문구를 세웠다. 편집 상태를 열어 둬 다시 시도할 수 있게 한다.
     }
   };
 
@@ -1038,24 +1045,40 @@ export default function BudgetContent({
               )}
             </div>
             {editingTotal ? (
-              <div className="flex items-end gap-2 mb-3 flex-wrap">
+              <div className="mb-3">
+              <div className="flex items-end gap-2 flex-wrap">
                 <input
                   ref={totalInputRef}
                   type="number"
                   value={totalText}
-                  onChange={(e) => setTotalText(e.target.value)}
+                  onChange={(e) => {
+                    setTotalText(e.target.value);
+                    setTotalBudgetError("");
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleTotalBudgetSave();
-                    if (e.key === "Escape") setEditingTotal(false);
+                    if (e.key === "Escape") { setTotalBudgetError(""); setEditingTotal(false); }
                   }}
                   className="w-full max-w-full rounded-xl border border-[#36534E]/35 px-3 py-2 font-serif-kr text-[34px] font-medium leading-none text-[#071629] focus:border-[#36534E] focus:outline-none focus:ring-2 focus:ring-[#36534E]/10 sm:w-[170px]"
                 />
                 <button onClick={handleTotalBudgetSave} className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#36534E] text-white hover:bg-[#2d4642]">
                   <Check className="w-5 h-5" />
                 </button>
-                <button onClick={() => setEditingTotal(false)} className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]">
+                <button
+                  onClick={() => {
+                    setTotalBudgetError("");
+                    setEditingTotal(false);
+                  }}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]"
+                >
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+              {totalBudgetError ? (
+                <p role="alert" className="mt-2 text-sm text-[#D95F5F]">
+                  {totalBudgetError}
+                </p>
+              ) : null}
               </div>
             ) : (
               <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[#071629]">

@@ -45,7 +45,7 @@ const CATEGORY_SEARCH_ALIASES: Record<string, readonly string[]> = {
   makeup: ["헤메", "메이크업", "스드메"],
   ring: ["웨딩링", "웨딩밴드", "예물"],
   hanbok: ["혼주 한복"],
-  yedan: ["예단", "이바지"],
+  yedan: ["예단"],
   honeymoon: ["허니문"],
   houseware: ["혼수", "가전", "가구"],
   housing: ["전세", "월세", "매매"],
@@ -118,9 +118,13 @@ export default function ChecklistContent() {
       const checklist = mergeChecklist(template.items, saved?.checklist, status);
       const counts = getChecklistCounts(checklist);
       const aliases = CATEGORY_SEARCH_ALIASES[template.key]?.join(" ") ?? "";
-      const searchable = `${template.label} ${aliases} ${template.tip} ${checklist.map((item) => `${item.label} ${item.note ?? ""}`).join(" ")}`
+      const guide = mannersPartForCategory(template.key);
+      // 이 카드가 여는 예절 편의 제목도 검색 대상이다. 없을 때는 "이바지"처럼
+      // 항목 라벨에 없는 말을 별칭에 억지로 박아야 했고, 그러다 엉뚱한 분야로
+      // 보냈다 — 「이바지·답례품 예절」을 여는 것은 예단이 아니라 선물 분야다.
+      const searchable = `${template.label} ${aliases} ${guide?.title ?? ""} ${template.tip} ${checklist.map((item) => `${item.label} ${item.note ?? ""}`).join(" ")}`
         .toLocaleLowerCase("ko-KR");
-      return { template, status, counts, declared, guide: mannersPartForCategory(template.key), searchable };
+      return { template, status, counts, declared, guide, searchable };
     }).filter(({ status, searchable }) =>
       matchesFilter(status, filter) && (!normalizedQuery || searchable.includes(normalizedQuery)),
     );

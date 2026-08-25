@@ -1004,7 +1004,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "registration_11",
         label: "빌린 집이라면 계약서에 날짜 도장(확정일자) 받기",
         done: false,
-        note: "주소 옮기는 신고를 하러 갈 때 함께 처리할 수 있는지 미리 물어보세요.",
+        note: "주소 옮기는 신고와 함께 되는지, 남은 금액을 보내는 날과 견줘 언제가 좋은지 물어보세요.",
       },
       {
         id: "registration_09",

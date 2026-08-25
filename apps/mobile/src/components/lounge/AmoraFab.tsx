@@ -56,16 +56,25 @@ export default function AmoraFab({
       style={[styles.root, { bottom: getAmoraFabBottomOffset() }]}
     >
       {bubble ? (
-        <Pressable
-          style={({ pressed }) => [styles.bubble, pressed && styles.bubblePressed]}
-          onPress={onPress}
-          accessibilityRole="button"
-          accessibilityLabel={`아모라: ${bubble}`}
-          accessibilityHint="눌러서 아모라와의 대화를 열어요"
-        >
-          <Text style={styles.bubbleText} numberOfLines={3}>
-            {bubble}
-          </Text>
+        // 닫기 버튼을 말풍선 **밖**에 둔다.
+        //
+        // 안에 두면 바깥 Pressable 이 `accessibilityRole="button"` 과 라벨을 갖고
+        // 있어서 하나의 접근성 요소가 되고, **스크린리더에서는 자식 버튼이 삼켜져
+        // 누를 수 없다.** 이 저장소는 같은 방식으로 승인 버튼을 한 번 잃은 적이 있다.
+        // `bubbleClose` 는 이미 절대 위치라 형제로 옮겨도 자리가 그대로다.
+        <View style={styles.bubbleWrap}>
+          <Pressable
+            style={({ pressed }) => [styles.bubble, pressed && styles.bubblePressed]}
+            onPress={onPress}
+            accessibilityRole="button"
+            accessibilityLabel={`아모라: ${bubble}`}
+            accessibilityHint="눌러서 아모라와의 대화를 열어요"
+          >
+            <Text style={styles.bubbleText} numberOfLines={3}>
+              {bubble}
+            </Text>
+            <View style={styles.bubbleTail} />
+          </Pressable>
           {onDismissBubble ? (
             <Pressable
               style={({ pressed }) => [styles.bubbleClose, pressed && styles.pressed]}
@@ -77,8 +86,7 @@ export default function AmoraFab({
               <X size={14} color={colors.taupe[500]} />
             </Pressable>
           ) : null}
-          <View style={styles.bubbleTail} />
-        </Pressable>
+        </View>
       ) : null}
 
       <Animated.View style={[styles.buttonWrap, { transform: [{ scale }] }]}>
@@ -117,10 +125,15 @@ const styles = StyleSheet.create({
     right: 18,
     alignItems: "flex-end",
   },
-  bubble: {
+  // 말풍선과 닫기 버튼을 담는 자리. 닫기가 말풍선 밖으로 나오면서 필요해졌고,
+  // 바깥 여백은 여기가 진다(말풍선 자신은 안쪽 여백만 갖는다).
+  bubbleWrap: {
     maxWidth: 250,
     marginBottom: spacing[3],
     marginRight: 6,
+  },
+  bubble: {
+    maxWidth: 250,
     paddingVertical: spacing[3],
     paddingLeft: spacing[4],
     paddingRight: spacing[5],
