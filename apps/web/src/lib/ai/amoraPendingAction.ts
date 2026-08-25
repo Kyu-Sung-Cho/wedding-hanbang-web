@@ -913,6 +913,39 @@ function describeToolInputFields(tool: AiToolDefinition): string {
   return fields.length > 0 ? fields.join(", ") : "(입력 없음)";
 }
 
+/**
+ * 화면에 아직 적용되지 않은 변경 카드가 떠 있는지 본다.
+ *
+ * 2026-08-25 운영 실측. 카드가 뜬 뒤 사용자가 버튼 대신 말로 승인하면
+ * (`응`, `네 적용해줘`, `그렇게 해줘`, `좋아 그걸로 하자` — 4/4 전부)
+ * 아모라가 카드를 모른 채 답했다. 최악은 이것이다:
+ *
+ *   사용자: 좋아 그걸로 하자
+ *   아모라: 좋아요. 그 선택으로 진행할게요.
+ *
+ * 아무것도 반영되지 않았다(DB 확인 — 그 카테고리는 키조차 없었다).
+ * 클라이언트는 **버튼 클릭에서만** confirmedActionId 를 보내므로, 말로 한
+ * 승인은 평범한 대화 턴으로 들어온다.
+ *
+ * 카드의 자기 id 를 기대값으로 넘겨 `resolveAmoraPendingAction` 을 그대로
+ * 태운다. 만료·서명·도구 허용까지 같은 검증을 받되 확인 id 만 요구하지 않는다.
+ * 이건 실행 권한이 아니라 **읽기 신호**다 — 실제 적용은 여전히 서버가 발급한
+ * action_id 를 받아야 한다.
+ */
+export function describeUnconfirmedAmoraPendingAction({
+  value,
+  allowedTools,
+  now,
+}: Omit<ResolvePendingActionInput, "confirmedActionId">): StoredAmoraPendingAction | null {
+  if (!isRecord(value) || typeof value.actionId !== "string") return null;
+  return resolveAmoraPendingAction({
+    value,
+    confirmedActionId: value.actionId,
+    allowedTools,
+    now,
+  });
+}
+
 export function buildAmoraPendingActionPrompt(
   supportedTools: readonly AiToolDefinition[],
 ): string {

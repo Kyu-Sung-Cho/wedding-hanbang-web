@@ -128,6 +128,7 @@ import {
   isAmoraFailedProposalNotice,
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
+  describeUnconfirmedAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import {
@@ -2520,6 +2521,22 @@ export async function POST(request: Request) {
           now: Date.now(),
         })
       : null;
+  // 버튼을 누르지 않고 말로 승인했을 때를 위한 **읽기 신호**.
+  // 실행 권한이 아니다 — 적용은 여전히 서버 발급 action_id 를 받아야 한다.
+  const awaitingPendingCard =
+    bodyConfirmedActionId === undefined
+    && !isDemo
+    && requestKind === "chat"
+    && visibility === "shared"
+    && previousCanonicalRow?.role === "assistant"
+    && previousCanonicalRow.sender_type === "ai"
+    && previousCanonicalRow.visibility === visibility
+      ? describeUnconfirmedAmoraPendingAction({
+          value: previousCanonicalRow.metadata?.pending_amora_action,
+          allowedTools: PENDING_ACTION_TOOLS,
+          now: Date.now(),
+        })
+      : null;
   if (bodyConfirmedActionId !== undefined && !approvedPendingAction) {
     await releaseClaimBeforeStream("AMORA_PENDING_ACTION_CONFIRMATION_REJECTED");
     return NextResponse.json(
@@ -2938,6 +2955,7 @@ export async function POST(request: Request) {
       actionContract,
       questionScope,
       linkedContextMode: boundedContinuity?.mode,
+      awaitingCardConfirmation: awaitingPendingCard?.confirmation,
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
   const systemPrompt = buildSystemPromptForTools(availableTools);
