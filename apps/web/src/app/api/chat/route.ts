@@ -39,6 +39,7 @@ import {
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
+import { stripAmoraSpamTail } from "@/lib/ai/amoraSpamTail";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
@@ -127,6 +128,7 @@ import {
   isAmoraFailedProposalNotice,
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
+  describeUnconfirmedAmoraPendingAction,
 } from "@/lib/ai/amoraPendingAction";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import {
@@ -2475,6 +2477,8 @@ export async function POST(request: Request) {
     lastUserText = latestUserRow.content;
   }
 
+  // 첫마디에 대한 답인지. 블록 안에서 정해 아래 범위 판정이 쓴다.
+  let firstHelloAnswered = false;
   // 아모라가 화면에서 건넨 첫마디를 이 턴의 맥락 맨 앞에 놓는다.
   //
   // 그 인사는 모델이 쓰지 않고 온보딩 입력만으로 만들어져 화면에만 존재한다. 그대로
@@ -2499,6 +2503,18 @@ export async function POST(request: Request) {
       now: Date.now(),
     });
     if (firstHelloTurn) typedMessages = [firstHelloTurn, ...typedMessages];
+    // 아모라의 첫마디는 "오늘은 딱 한 가지만 정해볼까요? 무엇부터 볼지
+    // 모르겠으면 그렇게 말씀해 주셔도 돼요." 로 끝난다. 그 초대에 가장 자연스러운
+    // 답 — "응"·"네"·"그래"·"좋아"·"모르겠어" — 은 **전부 W4로 떨어진다**(실측).
+    //
+    // 그러면 도구가 0개가 되고 저장된 커플 문맥도 provider 경계를 못 넘는다.
+    // 아모라가 직접 권한 답을 사람이 그대로 했는데 첫 턴부터 아무것도 못 한다.
+    //
+    // 되묻기 구제(`weddingClarificationContinuity`)는 [직전 사용자, 아모라,
+    // 현재] 세 행을 요구하는데 첫마디 앞에는 사용자 행이 없어 닿지 않는다.
+    // 여기서 잇는다 — 이 인사는 **서버가 커플 자신의 여정 데이터로 만든 것**이라
+    // 정의상 결혼 이야기이고, 모델도 방금 그것을 문맥으로 받았다.
+    firstHelloAnswered = firstHelloTurn !== null && isClarificationAnswerShaped;
   }
 
   const previousCanonicalRow = canonicalRows.length >= 2
@@ -2515,6 +2531,22 @@ export async function POST(request: Request) {
       ? resolveAmoraPendingAction({
           value: previousCanonicalRow.metadata?.pending_amora_action,
           confirmedActionId: bodyConfirmedActionId,
+          allowedTools: PENDING_ACTION_TOOLS,
+          now: Date.now(),
+        })
+      : null;
+  // 버튼을 누르지 않고 말로 승인했을 때를 위한 **읽기 신호**.
+  // 실행 권한이 아니다 — 적용은 여전히 서버 발급 action_id 를 받아야 한다.
+  const awaitingPendingCard =
+    bodyConfirmedActionId === undefined
+    && !isDemo
+    && requestKind === "chat"
+    && visibility === "shared"
+    && previousCanonicalRow?.role === "assistant"
+    && previousCanonicalRow.sender_type === "ai"
+    && previousCanonicalRow.visibility === visibility
+      ? describeUnconfirmedAmoraPendingAction({
+          value: previousCanonicalRow.metadata?.pending_amora_action,
           allowedTools: PENDING_ACTION_TOOLS,
           now: Date.now(),
         })
@@ -2633,11 +2665,37 @@ export async function POST(request: Request) {
           currentUserText: lastUserText,
         })
       : null;
+  // 답이 **이미 W0인데** 도구 의도만 없는 턴. 범위는 멀쩡하니 구제할 것이 없고,
+  // 도구 선택기만 어휘를 못 찾아 0개가 된다.
+  //
+  // 2026-08-25 운영 실측 — 아모라가 자기가 물어 놓고 답을 받은 뒤:
+  //   "이 대화에서는 할 일을 실제로 저장하는 도구가 없어 아직 반영되지 않았어요."
+  //   "이 대화에서는 체크리스트 상태를 변경하는 도구가 없어 …"
+  // 첫 사용자에게는 제품에 그 기능이 없는 것으로 보인다.
+  //
+  // 같은 행 가드·홉 가드를 그대로 지나며, 넘겨주는 것은 도구 선택용 의도뿐이다.
+  // 범위·장기 기억·저장 문맥 권한은 아래 판정들이 그대로 정한다.
+  const toolIntentContinuity =
+    !weddingClarificationContinuity
+    && !isDemo
+    && requestKind === "chat"
+    && isDurableUserMessageBound
+    && !approvedPendingAction
+    && typeof bodyUserMessageId === "string"
+      ? resolveAmoraWeddingClarificationContinuity({
+          rawOldestFirstRows: canonicalRows,
+          requesterUserId: actorId,
+          currentUserMessageId: bodyUserMessageId,
+          currentUserText: lastUserText,
+          answerShape: "tool_intent",
+        })
+      : null;
   const classifiedQuestionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
-    hasWeddingClarificationContinuity: Boolean(weddingClarificationContinuity),
+    hasWeddingClarificationContinuity:
+      Boolean(weddingClarificationContinuity) || firstHelloAnswered,
   });
   // 예비 판정에서 이미 구제된 턴은 최종 판정도 같아야 한다. 여기서 다시
   // W4 로 떨어지면 자료만 읽고 도구는 닫히는 어긋난 상태가 된다.
@@ -2814,8 +2872,10 @@ export async function POST(request: Request) {
   const coupleChecklistLabels = collectAmoraChecklistLabels(
     isRecord(journey) ? journey.progress : undefined,
   );
-  const toolIntentText = weddingClarificationContinuity
-    ? `${weddingClarificationContinuity.priorUserText}\n${lastUserText}`
+  const carriedToolIntent =
+    weddingClarificationContinuity ?? toolIntentContinuity;
+  const toolIntentText = carriedToolIntent
+    ? `${carriedToolIntent.priorUserText}\n${lastUserText}`
     : lastUserText;
   const policySelectedTools = selectAmoraTools({
     availableTools: candidateTools,
@@ -2937,6 +2997,7 @@ export async function POST(request: Request) {
       actionContract,
       questionScope,
       linkedContextMode: boundedContinuity?.mode,
+      awaitingCardConfirmation: awaitingPendingCard?.confirmation,
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
   const systemPrompt = buildSystemPromptForTools(availableTools);
@@ -3250,9 +3311,16 @@ export async function POST(request: Request) {
               && !extractedMediationText
                 ? mediationBlockToOrdinaryText(extractedMediation)
                 : extractedMediationText;
+          // 꼬리에 붙는 한국어 웹 스팸을 걷어낸다. 2026-08-25 운영에서 예산 요약
+          // 끝에 업소 광고 문구가 그대로 붙어 나갔다.
+          //
+          // **표식을 다 걷어낸 뒤에** 본다. 처음에는 원문에 바로 걸었는데,
+          // 그러면 답변 끝에 [suggestions]·[pending_action] 블록이 붙는 턴에서는
+          // 스팸이 문자열 끝이 아니라 그 블록 앞에 있어 통째로 놓친다 —
+          // 하필 예산·일정 저장 제안 턴이 그 모양이고, 사고가 난 턴도 예산이었다.
           const cleanText = requiresW4AttachmentReuploadGuidance
             ? "지금 요청만으로는 이 파일이 결혼 준비와 어떤 관련이 있는지 확인할 수 없어요. 결혼 준비 관련 파일이라면 관련성을 한 줄로 알려주시고, 파일을 다시 첨부해 주세요."
-            : providerCleanText;
+            : stripAmoraSpamTail(providerCleanText);
           const persistenceClaimGuard = composeAmoraPersistenceTerminal({
             text: cleanText,
             toolResults,
@@ -3263,6 +3331,12 @@ export async function POST(request: Request) {
             // 아니다. 그때 "다시 요청해주세요" 안내를 붙이면 요청하지도 않은
             // 변경의 실패를 사과받는 셈이 된다.
             userRequestedChange: pendingOfferEnabled,
+            // 모델이 표식을 냈는데 검증에서 버려졌으면 카드가 안 나온다.
+            // 본문이 중립적으로 쓰여 있으면 지울 거짓 주장도 없어 **아무 말도
+            // 안 나가고** 사용자는 아무것도 저장되지 않는다.
+            droppedPendingActionTag:
+              pendingExtraction.hadPendingActionTag
+              && pendingExtraction.pendingAction === null,
           });
           const persistenceSafeText = persistenceClaimGuard.text;
           const metadata: Record<string, unknown> = {

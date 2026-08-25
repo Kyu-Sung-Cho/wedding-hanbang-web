@@ -178,6 +178,14 @@ interface PendingAmoraActionCardProps {
   messageId: string;
   disabledReason: PendingActionDisabledReason;
   isApplying: boolean;
+  /**
+   * 배우자가 합류했는가.
+   *
+   * 이 카드는 공유 계획을 바꿀 때 "상대에게 바뀐 내용이 알림으로 가요" 라고
+   * 적는다. 혼자 쓰는 사람에게는 **없는 사람에 대한 약속**이다 — 베타에서
+   * 처음 써 보는 사람은 대개 아직 혼자다.
+   */
+  partnerLinked?: boolean;
   onApply: (actionId: string) => void;
   onDismiss: () => void;
 }
@@ -199,6 +207,13 @@ const BUDGET_WARNING_COPY: Record<BudgetImpactWarning, string> = {
 };
 
 function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
+  // 총예산을 아직 안 정한 커플에게 "배분 후 남는 금액" 은 뜻이 없다.
+  //
+  // 신규 커플의 총예산은 0이라, 첫 항목 예산을 잡으면 이 줄이
+  // "0원 → -2,200만원" 이 된다. 처음 저장해 보는 사람이 자기 첫 카드에서
+  // 마이너스를 본다. 2026-08-25 적대적 검토.
+  const totalBudgetIsSet =
+    preview.current.totalBudget > 0 || preview.proposed.totalBudget > 0;
   const rows = [
     {
       label: "총예산",
@@ -218,17 +233,24 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
       proposed: preview.proposed.recordedSpend,
       delta: preview.delta.recordedSpend,
     },
-    {
-      label: "배분 후 남는 금액",
-      current: preview.current.unallocatedBudget,
-      proposed: preview.proposed.unallocatedBudget,
-      delta: preview.delta.unallocatedBudget,
-    },
+    ...(totalBudgetIsSet
+      ? [{
+          label: "배분 후 남는 금액",
+          current: preview.current.unallocatedBudget,
+          proposed: preview.proposed.unallocatedBudget,
+          delta: preview.delta.unallocatedBudget,
+        }]
+      : []),
   ];
 
   return (
     <div className="mt-3 rounded-xl border border-[#E5D8CE] bg-white/80 p-3">
       <h4 className="text-xs font-semibold text-[#2B2525]">변경 영향</h4>
+      {!totalBudgetIsSet && (
+        <p className="mt-1 text-[11px] leading-4 text-[#746866]">
+          총예산을 아직 정하지 않아 남는 금액은 계산하지 않았어요.
+        </p>
+      )}
       <dl className="mt-2 space-y-2">
         {rows.map((row) => (
           <div
@@ -291,13 +313,16 @@ export default function PendingAmoraActionCard({
   messageId,
   disabledReason,
   isApplying,
+  // 기본값은 false 다. 호출부가 빠뜨리면 **덜 약속하는** 쪽으로 틀린다 —
+  // 없는 사람에게 알림이 간다고 말하는 것보다 낫다.
+  partnerLinked = false,
   onApply,
   onDismiss,
 }: PendingAmoraActionCardProps) {
   const approvalPolicy = getAmoraActionApprovalPolicy(action.tool, action.input);
   const requiresCoupleApproval = approvalPolicy === "couple";
   // 공유 계획을 건드리는 변경인가 — 상대에게 알림이 가는 것들이다.
-  const notifiesPartner = SHARED_PLAN_TOOLS.has(action.tool);
+  const notifiesPartner = SHARED_PLAN_TOOLS.has(action.tool) && partnerLinked;
   const [approvalStatus, setApprovalStatus] =
     useState<SharedActionApprovalStatus | null>(null);
   const [approvalError, setApprovalError] = useState<string | null>(null);

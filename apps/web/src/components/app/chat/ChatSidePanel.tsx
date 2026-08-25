@@ -1459,6 +1459,7 @@ export default function ChatSidePanel({
                           messageId={msg.id}
                           disabledReason={pendingActionDisabledReason}
                           isApplying={applyingPendingActionId === pendingAction.actionId}
+                          partnerLinked={Boolean(partner)}
                           onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
                           onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                         />

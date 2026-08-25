@@ -2777,6 +2777,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     messageId={msg.id}
                     disabledReason={pendingActionDisabledReason}
                     isApplying={applyingPendingActionId === pendingAction.actionId}
+                    partnerLinked={Boolean(partner)}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
                     onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                   />

@@ -31,6 +31,11 @@ type BuildAmoraSystemPromptOptions = {
   maxChars?: number;
   requestKind: "chat" | "initial_greeting" | "mediation";
   persistenceMode: "durable" | "demo";
+  /**
+   * 직전 답변에 아직 적용되지 않은 변경 카드가 화면에 떠 있을 때 그 확인 문구.
+   * 실행 권한이 아니라 읽기 신호다 — 적용은 여전히 서버 발급 action_id 를 받는다.
+   */
+  awaitingCardConfirmation?: string;
 };
 
 // A 48k-character system prompt stays far below the 272k-token long-context
@@ -569,10 +574,28 @@ export function buildAmoraSystemPrompt(
   const linkedContextContract = options.linkedContextMode === "linked_context_only"
     ? `\n\n[서버 확정 연결 문맥 계약]\n- context_mode: linked_context_only\n- capabilities: none\n- 입력의 첫 사용자-아모라 쌍은 서버가 검증한 바로 직전 웨딩 대화 1회입니다.\n- 현재 question_scope는 권한 경계로 그대로 유지됩니다. 다른 과거 대화·저장 정보로 넓히거나 도구·저장·실행·변경 제안을 만들지 마세요. 동의 표현도 대화 문맥일 뿐 실행 확인이 아닙니다.`
     : "";
+  // 화면에 아직 안 눌린 변경 카드가 있으면 그 사실을 모델에게 알린다.
+  //
+  // 2026-08-25 운영 실측: 카드가 뜬 뒤 사용자가 버튼 대신 말로 승인하면
+  // (`응`·`네 적용해줘`·`그렇게 해줘`·`좋아 그걸로 하자` 4/4) 아모라가
+  // 카드를 모른 채 답했다. "좋아요. 그 선택으로 진행할게요." 라고 해 놓고
+  // 아무것도 반영되지 않은 경우까지 있었다.
+  //
+  // 버튼 문구는 지어내지 않고 화면이 실제로 쓰는 것을 그대로 쓴다
+  // (`PendingAmoraActionCard`: "이대로 적용").
+  const awaitingCardContract = options.awaitingCardConfirmation
+    ? `
+
+[화면에 대기 중인 변경 카드]
+- 직전 답변의 변경 카드가 아직 적용되지 않은 채 화면에 떠 있습니다: ${options.awaitingCardConfirmation}
+- 사용자가 동의를 표해도 그 말만으로는 반영되지 않습니다. 화면의 **이대로 적용** 버튼을 눌러야 반영됩니다.
+- 반영했다고, 진행하겠다고 말하지 마세요. 무엇을 말하는지 모르겠다고도 하지 마세요 — 무엇을 기다리는지 위에 적혀 있습니다.
+- 같은 변경의 표식을 다시 내지 마세요. 사용자가 값을 바꾸고 싶어 할 때만 새 표식을 내세요.`
+    : "";
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${questionScopeContract}${linkedContextContract}`;
+  )}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {

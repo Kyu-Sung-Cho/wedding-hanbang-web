@@ -172,10 +172,25 @@ function buildWarnings(
   proposed: JourneyBudgetSnapshot,
 ): BudgetImpactWarning[] {
   const warnings: BudgetImpactWarning[] = [];
-  if (proposed.summary.allocatedBudget > proposed.summary.totalBudget) {
+  // **총예산을 아직 안 정한 커플에게 초과라고 말하지 않는다.**
+  //
+  // 신규 커플의 총예산은 0이다(`journey?.total_budget ?? 0`). 그 상태에서
+  // 첫 항목 예산을 잡으면 배분 합계가 0보다 커지므로 이 두 경고가 무조건
+  // 뜬다 — 첫 저장 카드에서 "총예산보다 커요" 를 보게 된다.
+  //
+  // 아직 정하지 않은 것을 넘었다고 말할 수는 없다. 총예산이 실제로 잡힌
+  // 뒤부터 비교한다. 2026-08-25 적대적 검토.
+  const totalBudgetIsSet = proposed.summary.totalBudget > 0;
+  if (
+    totalBudgetIsSet
+    && proposed.summary.allocatedBudget > proposed.summary.totalBudget
+  ) {
     warnings.push("allocated_over_total");
   }
-  if (proposed.summary.recordedSpend > proposed.summary.totalBudget) {
+  if (
+    totalBudgetIsSet
+    && proposed.summary.recordedSpend > proposed.summary.totalBudget
+  ) {
     warnings.push("recorded_spend_over_total");
   }
   if ([...proposed.categories.values()].some(

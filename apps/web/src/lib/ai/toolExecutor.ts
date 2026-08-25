@@ -1,3 +1,4 @@
+import { daysUntilWedding } from "@hanbang/shared";
 import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { resolveStatusByKey } from "@/utils/checklist";
@@ -1296,13 +1297,29 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
   const budget = isValidWonAmount(ctx.weddingContext.budget)
     ? ctx.weddingContext.budget
     : 0;
+  // 신규 커플의 총예산은 0이다. 그걸 그대로 `"예산: 0원"` 이라고 말하면
+  // **정하지 않은 것**과 **0원으로 정한 것**이 같은 문장이 된다. 예정일은 이미
+  // "미설정" 이라고 구분해 말하는데 예산만 그러지 않았다.
+  const budgetLabel = budget > 0 ? formatWon(budget) : "아직 정하지 않음";
 
-  let dDay: number | null = null;
-  if (weddingDate) {
-    dDay = Math.ceil(
-      (new Date(weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    );
-  }
+  // 한국 새벽 00:00~09:00 에는 UTC 가 아직 어제라, 인스턴트 차이를 올림하면
+  // 하루가 더 나온다. 가장 나쁜 형태는 **예식 당일 새벽** 이다 — 결혼식 날
+  // 아침에 "D-1" 이 나간다(2026-08-25 재현).
+  //
+  // 첫마디는 이미 `daysUntilWedding` 으로 고쳤는데 이 계산만 규칙 밖에 있었다.
+  const dDay: number | null = weddingDate
+    ? daysUntilWedding(weddingDate, Date.now())
+    : null;
+  // `daysUntilWedding` 은 계산할 수 없는 날짜에 null 을 준다. 예전 계산은
+  // 항상 숫자였기 때문에 표기가 `D-${dDay}` 로 고정돼 있었다 — 그대로 두면
+  // "D-null"·"D-0"·"D--3" 이 아모라에게 그대로 간다.
+  const dDayLabel = dDay === null
+    ? ""
+    : dDay > 0
+      ? ` (D-${dDay})`
+      : dDay === 0
+        ? " (D-Day)"
+        : ` (D+${Math.abs(dDay)})`;
 
   const allKeys = Object.keys(CATEGORY_LABELS);
   // 화면과 같은 기준으로 센다. 저장값을 그대로 세면 항목이 늘었을 때 아모라만
@@ -1350,7 +1367,7 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
     },
     success: true,
     displayMessage: weddingDate
-      ? `결혼 예정일: ${weddingDate} (D-${dDay}) / 예산: ${formatWon(budget)} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${allKeys.length}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
-      : `결혼 예정일 미설정 / 예산: ${formatWon(budget)} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`,
+      ? `결혼 예정일: ${weddingDate}${dDayLabel} / 예산: ${budgetLabel} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${allKeys.length}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
+      : `결혼 예정일 미설정 / 예산: ${budgetLabel} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`,
   };
 }

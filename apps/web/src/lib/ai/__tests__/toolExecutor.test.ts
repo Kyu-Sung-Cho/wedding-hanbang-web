@@ -157,8 +157,14 @@ describe("get_wedding_info — 손상된 기존 예산 방어", () => {
 
     expect(result.success).toBe(true);
     expect(result.toolOutput.total_budget).toBe(0);
-    expect(result.displayMessage).toContain("예산: 0원");
+    // 이 검사의 본뜻 — 손상된 값이 금액으로 새지 않는가.
     expect(result.displayMessage).not.toContain("-1");
+    // 예전에는 "예산: 0원" 이었다. 신규 커플의 총예산도 0이라, 그 문장은
+    // **정하지 않은 것**과 **0원으로 정한 것**을 구분하지 못했다(2026-08-25).
+    // 손상된 값도 도구가 보기엔 정하지 않은 것과 같으므로 같은 문장을 쓴다 —
+    // 없는 금액을 단언하는 것보다 낫다.
+    expect(result.displayMessage).toContain("예산: 아직 정하지 않음");
+    expect(result.displayMessage).not.toContain("예산: 0원");
   });
 });
 
