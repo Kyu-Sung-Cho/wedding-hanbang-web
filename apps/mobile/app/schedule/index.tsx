@@ -12,7 +12,10 @@ import {
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
+import {
+  sanitizeUserFacingScheduleMemo,
+  daysUntilWedding,
+} from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
   mergePlanningChecklist,
@@ -89,6 +92,10 @@ interface ScheduleEvent {
 
 type ScheduleMutationErrorCode =
   | "stale"
+  // 상대가 거절한 것은 **다시 눌러도 결과가 같다.** 예전에는 이 코드가 없어서
+  // "failed" 로 떨어졌고 화면이 "다시 시도해 주세요" 라고 말했다.
+  // 같은 앱의 예산 화면은 이미 네 코드를 다 다루고 있었다(`app/budget/index.tsx`).
+  | "rejected"
   | "active_request"
   | "target_changed"
   | "invalid_snapshot"
@@ -154,13 +161,14 @@ function formatDate(dateStr: string): string {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+// 예식일은 사용자가 고른 **한국 날짜**다. 기기 시간대로 오늘을 읽으면
+// 해외에 있을 때 채팅(서버·KST)과 이 화면이 서로 다른 D-day 를 말한다.
+//
+// 웹은 2026-08-25 에 서버 계산을 `daysUntilWedding`(KST 고정)으로 통일했다.
+// 모바일 화면 세 곳은 각자 `calcDday` 를 갖고 있었고 파싱 방식마저 서로
+// 달랐다(하나는 날짜만 있는 문자열을 UTC 자정으로 읽었다).
 function calcDday(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  const wedding = new Date(`${dateStr}T00:00:00`);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  wedding.setHours(0, 0, 0, 0);
-  return Math.ceil((wedding.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return daysUntilWedding(dateStr, Date.now());
 }
 
 function formatDday(dday: number | null): string {
@@ -321,6 +329,21 @@ async function submitScheduleEvents(
     if (
       response.status === 409
       && isRecord(payload)
+      && payload.code === "PLAN_CHANGE_REJECTED"
+    ) {
+      throw new ScheduleMutationError("rejected");
+    }
+    if (
+      response.status === 409
+      && isRecord(payload)
+      && payload.code === "PLAN_CHANGE_CONFLICT"
+    ) {
+      // 서버가 충돌이라고 말한 것도 화면이 낡은 경우다 — 다시 눌러도 같다.
+      throw new ScheduleMutationError("stale");
+    }
+    if (
+      response.status === 409
+      && isRecord(payload)
       && payload.code === "PLAN_CHANGE_ACTIVE_REQUEST"
     ) {
       throw new ScheduleMutationError("active_request");
@@ -332,6 +355,20 @@ async function submitScheduleEvents(
   } catch {
     throw new ScheduleMutationError("failed");
   }
+}
+
+/**
+ * 상대가 거절했을 때. **다시 눌러도 결과가 같다.**
+ *
+ * 문구는 지어내지 않고 웹의 표(`apps/web/src/lib/journey/planChangeError.ts` 의
+ * `PLAN_CHANGE_MESSAGES`)와 같은 것을 쓴다. 두 화면이 같은 상황에 다른 말을
+ * 하면 사용자는 무엇이 일어났는지 모른다.
+ */
+function showScheduleRejectedAlert() {
+  Alert.alert(
+    "파트너가 이 변경을 거절했어요",
+    "최신 화면을 다시 확인해 주세요.",
+  );
 }
 
 function showActiveScheduleRequestAlert() {
@@ -881,6 +918,9 @@ export default function ScheduleScreen() {
         showActiveScheduleRequestAlert();
         const identity = approvalIdentityRef.current;
         if (identity) await loadApprovalRequests(identity);
+      } else if (error instanceof ScheduleMutationError && error.code === "rejected") {
+        showScheduleRejectedAlert();
+        await loadData();
       } else if (error instanceof ScheduleMutationError && error.code === "stale") {
         Alert.alert(
           "최신 상태를 다시 불러왔어요",
@@ -942,6 +982,8 @@ export default function ScheduleScreen() {
       if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
       if (error instanceof ScheduleMutationError && error.code === "active_request") {
         showActiveScheduleRequestAlert();
+      } else if (error instanceof ScheduleMutationError && error.code === "rejected") {
+        showScheduleRejectedAlert();
       } else if (error instanceof ScheduleMutationError && error.code === "stale") {
         Alert.alert("최신 상태를 다시 불러왔어요", "최신 내용에서 다시 선택해 주세요.");
       } else {
@@ -1155,6 +1197,11 @@ export default function ScheduleScreen() {
         showActiveScheduleRequestAlert();
         const identity = approvalIdentityRef.current;
         if (identity) await loadApprovalRequests(identity);
+      } else if (error instanceof ScheduleMutationError && error.code === "rejected") {
+        setModalVisible(false);
+        setEditingEventId(null);
+        showScheduleRejectedAlert();
+        await loadData();
       } else if (
         error instanceof ScheduleMutationError
         && (error.code === "stale" || error.code === "target_changed")

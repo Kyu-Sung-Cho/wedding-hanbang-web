@@ -15,7 +15,11 @@ const sharedSource = readFileSync(
 test("mobile schedule load and edit both use the shared legacy-id sanitizer", () => {
   assert.match(
     scheduleSource,
-    /import\s*\{\s*sanitizeUserFacingScheduleMemo\s*\}\s*from\s*["']@hanbang\/shared["']/,
+    // 이 검사의 뜻은 **공용 sanitizer 를 쓴다**는 것이지 import 를 하나만 한다는
+    // 것이 아니다. 예전 정규식은 이름 하나짜리 형태만 허용해서 같은 모듈에서
+    // 다른 것을 함께 가져오면 깨졌다(2026-08-25 daysUntilWedding 을 추가하다 걸렸다).
+    // 이름이 목록 안에 있는지로 바꾼다.
+    /import\s*\{[^}]*sanitizeUserFacingScheduleMemo[^}]*\}\s*from\s*["']@hanbang\/shared["']/,
   );
   assert.match(scheduleSource, /memo:\s*sanitizeUserFacingScheduleMemo\(event\.memo\)/);
   assert.match(

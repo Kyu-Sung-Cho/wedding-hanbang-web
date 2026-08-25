@@ -106,7 +106,7 @@ function isBareAffirmation(text: string): boolean {
   if (BARE_AFFIRMATION_RE.test(normalized)) return true;
   // "응 넣어줘", "네 그렇게 적용해줘" 처럼 승낙어로 시작해 실행만 요청하는 경우.
   //
-  // `` 를 쓰지 않는다 — 자바스크립트의 단어 경계는 ASCII 기준이라 한글 뒤에서는
+  // `\b` 를 쓰지 않는다 — 자바스크립트의 단어 경계는 ASCII 기준이라 한글 뒤에서는
   // 매치되지 않는다. 이 저장소가 전에 같은 자리에서 당한 적이 있다.
   return /^(?:응+|네+|넹|예|그래|그럼|좋아요?|ㅇㅇ|오케이|ok|okay)(?=$|[\s.!~,])/i
     .test(normalized)

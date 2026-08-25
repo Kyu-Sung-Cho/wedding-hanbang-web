@@ -1714,6 +1714,16 @@ function formatSignedWon(value: number): string {
 }
 
 function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
+  // 총예산을 아직 안 정한 커플에게 "배분 후 남는 금액" 은 뜻이 없다.
+  //
+  // 신규 커플의 총예산은 0이라, 첫 항목 예산을 잡으면 이 줄이
+  // "0원 → -2,200만원" 이 된다. 처음 저장해 보는 사람이 자기 첫 카드에서
+  // 마이너스를 본다.
+  //
+  // 웹은 2026-08-25 에 고쳤는데(`PendingAmoraActionCard.tsx`) 모바일은 같은 줄을
+  // 따로 갖고 있어서 그대로 남아 있었다. 제품 계약상 모바일이 주 제품이다.
+  const totalBudgetIsSet =
+    preview.current.totalBudget > 0 || preview.proposed.totalBudget > 0;
   const rows = [
     {
       label: "총예산",
@@ -1733,17 +1743,24 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
       proposed: preview.proposed.recordedSpend,
       delta: preview.delta.recordedSpend,
     },
-    {
-      label: "배분 후 남는 금액",
-      current: preview.current.unallocatedBudget,
-      proposed: preview.proposed.unallocatedBudget,
-      delta: preview.delta.unallocatedBudget,
-    },
+    ...(totalBudgetIsSet
+      ? [{
+          label: "배분 후 남는 금액",
+          current: preview.current.unallocatedBudget,
+          proposed: preview.proposed.unallocatedBudget,
+          delta: preview.delta.unallocatedBudget,
+        }]
+      : []),
   ];
 
   return (
     <View style={st.budgetImpactCard}>
       <Text style={st.budgetImpactTitle}>변경 영향</Text>
+      {!totalBudgetIsSet && (
+        <Text style={st.budgetImpactLabel}>
+          총예산을 아직 정하지 않아 남는 금액은 계산하지 않았어요.
+        </Text>
+      )}
       {rows.map((row) => (
         <View key={row.label} style={st.budgetImpactRow}>
           <Text style={st.budgetImpactLabel}>{row.label}</Text>
