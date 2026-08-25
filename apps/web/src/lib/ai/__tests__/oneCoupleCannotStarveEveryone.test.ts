@@ -158,3 +158,56 @@ describe("무료 한도를 꺼도 하루 상한은 산다", () => {
     vi.unstubAllEnvs();
   });
 });
+
+/**
+ * **채팅은 `reserveAmoraTurn` 을 부르지 않는다.**
+ *
+ * 아모라 채팅은 `reserveAmoraProviderCall` 을 탄다
+ * (`amoraProviderCallLedger.ts` → `app/api/chat/route.ts` 의 `costGuard` 옵션).
+ * `reserveAmoraTurn` 을 부르는 것은 커뮤니티 AI 댓글과 기억 컴파일뿐이다.
+ *
+ * 처음에 하루 상한을 `reserveAmoraTurn` 에만 넣었다. 테스트 10개가 초록이었고
+ * PR 이 병합됐고 프로덕션 배포까지 성공했는데 — **주 제품에서 아무 일도 하지
+ * 않았다.** 라이브로 138턴 쓴 커플에게 요청을 보내 통과하는 것을 보고 알았다.
+ *
+ * 오늘 같은 부류를 네 번째 겪는다(도구 목록·테스트 입력·환경변수·호출 경로).
+ * 그래서 이 검사는 **채팅이 실제로 부르는 함수**를 직접 부른다.
+ */
+describe("채팅이 타는 경로에도 하루 상한이 걸린다", () => {
+  async function reserveProviderCall(isAdmin = false) {
+    const { reserveAmoraProviderCall } = await import("@/lib/ai/costGuard");
+    return reserveAmoraProviderCall(makeAdmin(), {
+      coupleId: "11111111-1111-4111-8111-111111111111",
+      isAdmin,
+      maxCostMicrousd: 50_000,
+      receiptId: "22222222-2222-4222-8222-222222222222",
+      claimToken: "33333333-3333-4333-8333-333333333333",
+      requestKey: "chat:abc:def",
+    });
+  }
+
+  it("한도에 닿으면 provider 예약 자체를 막는다", async () => {
+    dailyCount = 138; // 운영에서 실제로 관측된 값
+    const result = await reserveProviderCall();
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe("couple_daily");
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("한도 아래면 통과한다", async () => {
+    dailyCount = 10;
+    rpc.mockResolvedValue({ data: [{ allowed: true }], error: null });
+    const result = await reserveProviderCall();
+    expect(result.allowed).toBe(true);
+    expect(rpc).toHaveBeenCalled();
+  });
+
+  it("무료 한도를 꺼도 여기서도 산다", async () => {
+    vi.stubEnv("AMORA_COUPLE_QUOTA_ENABLED", "false");
+    vi.resetModules();
+    dailyCount = 138;
+    const result = await reserveProviderCall();
+    expect(result.allowed).toBe(false);
+    vi.unstubAllEnvs();
+  });
+});
