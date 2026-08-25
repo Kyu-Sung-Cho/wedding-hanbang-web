@@ -29,6 +29,7 @@
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
 //   AMORA_COUPLE_DAILY_CAP (기본 80; 커플당 **하루** 상한)
+//   AMORA_COUPLE_DAILY_CAP_ENABLED=false (하루 상한만 해제 — 무료 한도 스위치와 별개)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -105,6 +106,16 @@ const COUPLE_DAILY_CAP = readPositivePostgresInteger(
 );
 const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
 const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
+// 하루 상한은 **무료 한도와 다른 것을 지킨다.**
+//
+// `AMORA_COUPLE_QUOTA_ENABLED=false` 는 베타에서 무료 턴 제한을 없애려고
+// 켠 스위치다(운영 실측: 커플 카운터 710·397·193턴, 기본 한도 100). 그런데
+// 처음에 하루 상한을 그 스위치에 묶어서, **배선하고 배포했는데 아무 일도 안
+// 하는 상태**로 나갔다(2026-08-25 라이브에서 잡음).
+//
+// 무료 턴을 얼마나 주느냐는 요금 결정이고, 한 커플이 전 서비스를 멈추지
+// 못하게 하는 것은 가용성 결정이다. 스위치를 따로 둔다.
+const COUPLE_DAILY_CAP_ENABLED = process.env.AMORA_COUPLE_DAILY_CAP_ENABLED !== "false";
 // Keep the atomic global reservation when the per-couple quota is disabled.
 // The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
 const DISABLED_COUPLE_CAP = POSTGRES_INT_MAX;
@@ -230,7 +241,11 @@ export async function reserveAmoraTurn(
   // 세는 데 실패하면 **통과시킨다.** 이 한도는 공정성이지 지갑이 아니고,
   // 지갑은 아래 RPC 의 전역 비용 상한이 원자적으로 지킨다. 장부 조회 실패로
   // 정상 사용자를 막는 쪽이 더 나쁘다.
-  if (appliesCoupleQuota) {
+  const appliesCoupleDailyCap =
+    !params.isAdmin
+    && (params.quotaScope ?? "standard") === "standard"
+    && COUPLE_DAILY_CAP_ENABLED;
+  if (appliesCoupleDailyCap) {
     const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
     if (usedToday !== null && usedToday >= COUPLE_DAILY_CAP) {
       return DENY_COUPLE_DAILY;
