@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BrainCircuit,
@@ -66,9 +66,49 @@ type MemoryProfile = {
 /**
  * 기억을 처음 켜는 순간 서버가 무엇을 지우는지 사람 말로 옮긴다.
  *
+ * 끝에 조사를 붙이지 않는다. 목록의 마지막이 "…개"(모음)일 때도 "상담 참고
+ * 맥락"(자음)일 때도 맞는 조사가 달라진다. 조사 후보를 괄호로 나열하는 기계 한국어는
+ * 제품을 미완성으로 보이게 하므로, 여기서 문장을 끊고 다음 문장으로 넘긴다.
+ *
  * 숫자는 서버가 SQL 의 DELETE 조건과 같은 조건으로 센 값이다. 여기서 다시 계산하지
  * 않는다 — 화면이 말한 숫자와 실제로 지워지는 양이 어긋나면 경고가 없느니만 못하다.
  */
+/**
+ * 되돌릴 수 없는 일을 하기 전에 한 번 멈춘다.
+ *
+ * 이 화면에는 그런 자리가 둘이다 — **기억 초기화**와 **처음 켜기**(켜는 순간 서버가
+ * 기존 자동 기억·대화 요약·프로필을 지운다). 둘은 문구만 다르고 생김새가 같았다.
+ *
+ * 손으로 만든 버튼 태그는 늘리지 않는다(`rawButtonRatchet.test.ts` — 그 래칫은
+ * 주석 안의 글자까지 세므로 여기에 태그를 그대로 적지 않는다). 두 패널을
+ * 따로 두면 버튼이 넷이 되지만, 같은 것을 하나로 두면 둘이면 된다. `Button`
+ * 프리미티브에는 아직 위험(빨강) 변형이 없고 `--hb-danger` 토큰도 없어서, 변형을
+ * 새로 만드는 것은 디자인 결정이라 여기서 하지 않는다.
+ */
+function DangerConfirm({
+  className, title, body, confirmLabel, cancelLabel, busy, onConfirm, onCancel,
+}: {
+  className: string;
+  title: string;
+  body: ReactNode;
+  confirmLabel: string;
+  cancelLabel: string;
+  busy: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className={className}>
+      <p className="text-sm font-medium text-red-800">{title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-red-700">{body}</p>
+      <div className="mt-3 flex gap-2">
+        <button type="button" disabled={busy} onClick={onConfirm} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">{confirmLabel}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 rounded-lg bg-white px-4 text-sm font-medium text-[#243832] ring-1 ring-[#E2D3C8]">{cancelLabel}</button>
+      </div>
+    </div>
+  );
+}
+
 function describePendingPurge(setting: MemorySetting): string {
   const parts: string[] = [];
   if (setting.pendingPurge.memories > 0) parts.push(`정리된 기억 ${setting.pendingPurge.memories}개`);
@@ -367,22 +407,18 @@ export default function AmoraMemorySettingsPage() {
           </section>
 
           {confirmEnable && setting && (
-            <section className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 sm:px-6">
-              <p className="text-sm font-medium text-red-800">
-                {activeVisibility === "shared"
-                  ? "두 분이 모두 켜는 순간, 지금 쌓여 있는 기록이 지워져요"
-                  : "켜는 순간, 지금 쌓여 있는 기록이 지워져요"}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed text-red-700">
-                {describePendingPurge(setting)}이(가) 사라지고 되돌릴 수 없어요. 동의하기 전에
-                아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과
-                채팅 원문, 저장한 일정·예산은 그대로예요.
-              </p>
-              <div className="mt-3 flex gap-2">
-                <button type="button" disabled={busy} onClick={() => void applyMemoryToggle()} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">지우고 켜기</button>
-                <button type="button" disabled={busy} onClick={() => setConfirmEnable(false)} className="min-h-11 rounded-lg bg-white px-4 text-sm font-medium text-[#243832] ring-1 ring-[#E2D3C8]">그대로 두기</button>
-              </div>
-            </section>
+            <DangerConfirm
+              className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 sm:px-6"
+              title={activeVisibility === "shared"
+                ? "두 분이 모두 켜는 순간, 지금 쌓여 있는 기록이 지워져요"
+                : "켜는 순간, 지금 쌓여 있는 기록이 지워져요"}
+              body={`${describePendingPurge(setting)}. 되돌릴 수 없어요. 동의하기 전에 아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과 채팅 원문, 저장한 일정·예산은 그대로예요.`}
+              confirmLabel="지우고 켜기"
+              cancelLabel="그대로 두기"
+              busy={busy}
+              onConfirm={() => void applyMemoryToggle()}
+              onCancel={() => setConfirmEnable(false)}
+            />
           )}
 
           {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
@@ -411,14 +447,16 @@ export default function AmoraMemorySettingsPage() {
             </div>
 
             {confirmClear && (
-              <div className="border-b border-red-100 bg-red-50 px-5 py-4 sm:px-6">
-                <p className="text-sm font-medium text-red-800">이 범위의 대화 요약과 맞춤 맥락까지 모두 지울까요?</p>
-                <p className="mt-1 text-xs leading-relaxed text-red-700">기억 기능도 꺼지며, 삭제 시점 이전 채팅에서 다시 만들지 않아요. 채팅 원문과 직접 저장한 일정·예산은 그대로예요.</p>
-                <div className="mt-3 flex gap-2">
-                  <button type="button" disabled={busy} onClick={() => void clearScope()} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">모두 지우기</button>
-                  <button type="button" disabled={busy} onClick={() => setConfirmClear(false)} className="min-h-11 rounded-lg bg-white px-4 text-sm font-medium text-[#243832] ring-1 ring-[#E2D3C8]">취소</button>
-                </div>
-              </div>
+              <DangerConfirm
+                className="border-b border-red-100 bg-red-50 px-5 py-4 sm:px-6"
+                title="이 범위의 대화 요약과 맞춤 맥락까지 모두 지울까요?"
+                body="기억 기능도 꺼지며, 삭제 시점 이전 채팅에서 다시 만들지 않아요. 채팅 원문과 직접 저장한 일정·예산은 그대로예요."
+                confirmLabel="모두 지우기"
+                cancelLabel="취소"
+                busy={busy}
+                onConfirm={() => void clearScope()}
+                onCancel={() => setConfirmClear(false)}
+              />
             )}
 
             {memories.length === 0 ? (

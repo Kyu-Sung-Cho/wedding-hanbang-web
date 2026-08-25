@@ -262,7 +262,7 @@ export default function AmoraMemoryScreen() {
         activeVisibility === "shared"
           ? "두 분이 모두 켜면 지금 기록이 지워져요"
           : "켜면 지금 기록이 지워져요",
-        `${describePendingPurge(setting)}이(가) 사라지고 되돌릴 수 없어요. 동의하기 전에 아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과 채팅 원문, 저장한 일정·예산은 그대로예요.`,
+        `${describePendingPurge(setting)}. 되돌릴 수 없어요. 동의하기 전에 아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과 채팅 원문, 저장한 일정·예산은 그대로예요.`,
         [
           { text: "그대로 두기", style: "cancel" },
           { text: "지우고 켜기", style: "destructive", onPress: () => { void applyMemoryToggle(); } },

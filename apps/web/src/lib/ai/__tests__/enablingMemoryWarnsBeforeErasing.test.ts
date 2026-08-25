@@ -138,6 +138,15 @@ describe("웹 설정 화면이 켜기 전에 멈춘다", () => {
   it("남는 것도 함께 말한다 — 다 사라진다고 읽히면 안 된다", () => {
     expect(page).toContain("채팅 원문");
   });
+
+  it("기계 한국어를 쓰지 않는다", () => {
+    // 목록의 마지막이 "…개"(모음)일 수도 "상담 참고 맥락"(자음)일 수도 있어서
+    // 조사를 고정하면 "1개이(가) 사라지고" 가 된다. 운영 데이터로 확인한 실제 문장이다.
+    // 답은 조사 후보를 나열하는 게 아니라 거기서 문장을 끊는 것이다.
+    expect(page).not.toContain("이(가)");
+    expect(page).not.toContain("을(를)");
+    expect(page).not.toContain("와(과)");
+  });
 });
 
 describe("모바일도 같은 말을 한다", () => {
@@ -160,5 +169,11 @@ describe("모바일도 같은 말을 한다", () => {
   it("웹과 같은 사실을 말한다", () => {
     expect(screen).toContain("되돌릴 수 없어요");
     expect(screen).toContain("채팅 원문");
+  });
+
+  it("기계 한국어를 쓰지 않는다", () => {
+    expect(screen).not.toContain("이(가)");
+    expect(screen).not.toContain("을(를)");
+    expect(screen).not.toContain("와(과)");
   });
 });

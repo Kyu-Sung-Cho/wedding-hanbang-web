@@ -280,8 +280,13 @@ describe("reserveAmoraTurn (원자 예약)", () => {
 
     const r = await reserveAmoraTurn(admin, BASE);
 
+    // 구분은 `reason` 이 진다. 예전에는 여기서 문구까지 고정했는데, 그 문구가
+    // "안전 예산" 이라는 **내부 용어**여서 테스트가 그 유출을 지키고 있었다.
     expect(r).toMatchObject({ allowed: false, reason: "global_budget" });
-    expect(r.message).toContain("안전 예산");
+    // 사용자에게 필요한 것은 원인이 아니라 **언제 다시 되는가** 다.
+    expect(r.message).toContain("내일");
+    expect(r.message).not.toContain("예산");
+    expect(r.message).not.toContain("잠시 후");
   });
 
   it("유효하지 않은 최악 비용은 RPC 전에 fail-closed 한다", async () => {
