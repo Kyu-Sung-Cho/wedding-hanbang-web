@@ -16,7 +16,19 @@
 const MIN_PART = 1;
 const MAX_PART = 25;
 
-const CITATION_RE = /\[\s*etiquette\s*:\s*(\d{1,3})\s*\]/gi;
+/**
+ * 번호 뒤에 **제목이 붙어서 온다.** 프롬프트는 `[etiquette:번호]` 만 쓰라고 하지만
+ * 모델은 지키지 않는다 — 운영 실측(2026-08-26): 표식이 든 assistant 메시지 23건 중
+ * **6건**이 제목 형태였고, 네 가지가 나왔다.
+ *
+ *     [etiquette:2:상견례]  [etiquette:4:청첩장]
+ *     [etiquette:8:혼수]    [etiquette:3:예물예단함]
+ *
+ * 웹(`ChatBubble.tsx:370`)은 이 형태를 받도록 이미 고쳐져 있었는데 모바일은 아니었다.
+ * 그래서 걷어내려고 만든 이 파일을 통과해서 사용자 화면에 그대로 남았다.
+ * 모바일이 소비자의 주 제품이므로 이쪽이 더 나쁘다.
+ */
+const CITATION_RE = /\[\s*etiquette\s*:\s*(\d{1,3})\s*(?::[^\]]*)?\]/gi;
 
 /**
  * @param {unknown} content
