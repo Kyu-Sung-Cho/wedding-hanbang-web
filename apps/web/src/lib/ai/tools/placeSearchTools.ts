@@ -255,6 +255,38 @@ export function rankPlacesByQueryKind<T extends { category?: string | null; cate
     .map((entry) => entry.place);
 }
 
+/** `rankPlacesByQueryKind` 와 같은 목록을 본다. 한 곳만 고치면 갈라진다. */
+const PLACE_KINDS = ["한정식", "한식", "일식", "중식", "양식", "이탈리안", "뷔페", "카페", "베이커리", "코스요리"] as const;
+
+/**
+ * 상견례 검색에 **음식 종류를 채워 넣는다.**
+ *
+ * 네이버 지역 검색은 키워드 매칭이라 종류가 없으면 자리가 무너진다
+ * (2026-08-25 실측):
+ *
+ *     "공덕 상견례"    → 을밀대(냉면) · 모연(소고기구이) · 아소정(냉면)
+ *     "강남역 상견례"  → 딘타이펑(중식) · 바바인디아(인도음식) · 도원참치(생선회)
+ *     "상견례 장소"    → 성심당 · 이성당 · 씨엘비베이커리   ← 전부 베이커리
+ *
+ * 종류를 붙이면 곧바로 제자리를 찾는다:
+ *
+ *     "공덕 상견례 한정식"    → 한식 5/5
+ *     "강남역 상견례 한정식"  → 한정식 5/5
+ *
+ * 반대로 `상견례` 라는 낱말 자체를 더하는 것은 값이 없다(같은 실측:
+ * 강남역 +1, 판교 −1, 공덕 0). 그래서 그건 하지 않는다.
+ *
+ * 사용자가 종류를 말했으면 건드리지 않는다 — 중식당에서 하겠다는 사람에게
+ * 한정식을 밀어 넣으면 그건 도움이 아니다.
+ */
+export function fillPlaceKindForFamilyMeeting(query: string): string | null {
+  if (!/상견례/u.test(query)) return null;
+  if (PLACE_KINDS.some((kind) => query.includes(kind))) return null;
+  // 이미 다른 음식 이름을 말했으면(초밥·스테이크 등) 그것도 존중한다.
+  if (/초밥|스시|스테이크|파스타|딤섬|샤브|갈비|불고기|장어|복요리/u.test(query)) return null;
+  return `${query} 한정식`;
+}
+
 function buildNaverHandoff(query: string): { searchUrl: string; mapsUrl: string } {
   return {
     searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
@@ -354,8 +386,12 @@ export async function executeSearchNearbyPlaces(
     // 여기서 잴 수가 없다.** 호출을 늘리는 값이 증명되지 않은 채로 남는다. 지금 고치는
     // 문제는 "순서"이고 그것은 기준점 하나로 풀린다.
     const anchorName = extractPlaceAnchor(query);
+    // 상견례인데 음식 종류가 없으면 서버가 채운다. 모델 지시만 믿지 않는다 —
+    // 지시만 있고 자료가 없으면 모델이 지어낸다는 것을 이 저장소에서 여러 번
+    // 확인했고, 이 경우는 지어내는 대신 **엉뚱한 집을 5개** 가져온다.
+    const searchQuery = fillPlaceKindForFamilyMeeting(query) ?? query;
     const [localData, anchorData] = await Promise.all([
-      fetchNaverSearch(config, "local", { query, display: "5", start: "1", sort: "comment" }, 5000),
+      fetchNaverSearch(config, "local", { query: searchQuery, display: "5", start: "1", sort: "comment" }, 5000),
       anchorName
         ? fetchNaverSearch(
             config,
@@ -379,7 +415,7 @@ export async function executeSearchNearbyPlaces(
     // 도구 설명에도 짧게 쓰라고 적었지만 그것만 믿지 않는다 — 지시만 있고
     // 자료가 없으면 모델은 지어낸다는 것을 이 저장소에서 여러 번 확인했다.
     // 첫 시도가 비면 서버가 스스로 줄여 한 번 더 찾는다.
-    const shortened = items.length === 0 ? shortenPlaceQuery(query) : null;
+    const shortened = items.length === 0 ? shortenPlaceQuery(searchQuery) : null;
     if (shortened !== null) {
       const retryData = await fetchNaverSearch(
         config,
