@@ -22,6 +22,7 @@ import {
   AMORA_MAX_TOTAL_ATTACHMENT_BYTES,
 } from "@/lib/ai/amoraAttachments";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
+import { observeAmoraSafetyRecall } from "@/lib/ai/amoraSafetyRecallProbe";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
 
 const MAX_BODY_BYTES = 8 * 1024;
@@ -484,6 +485,11 @@ export async function POST(request: Request) {
 
     // This deterministic policy must run before rate limiting, attachment path
     // handling, durable writes, Realtime visibility, or any provider request.
+    const narrowSafetySignal = hasAmoraSafetySignal(content, "chat");
+    // 좁은 그물이 놓친 것을 **센다.** 동작은 바꾸지 않는다 —
+    // 지금 규모에서 미탐 빈도가 낮다는 것은 쟀지만(687건 중 1건),
+    // 사용자가 늘었을 때 판단할 근거가 없으면 안 된다.
+    observeAmoraSafetyRecall(content, narrowSafetySignal);
     const deliveryPlan = planAmoraCrisisDelivery({
       userText: content,
       requestedVisibility,
@@ -493,7 +499,7 @@ export async function POST(request: Request) {
       // 다른 갈래(신체 폭력 서술 등)는 호출자가 넣어줘야 본다. 여기가 사용자 원문의
       // durable visibility를 정하는 정식 경로이므로, 빠지면 "안전 서술은 공유 레인에
       // 남지 않는다"는 계약이 문장에 따라 갈린다.
-      externalSafetySignal: hasAmoraSafetySignal(content, "chat"),
+      externalSafetySignal: narrowSafetySignal,
     });
     if (deliveryPlan.disposition === "local_safety_hold") {
       let rawDisclosurePersisted: boolean | null = null;
