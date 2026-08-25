@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { stripAmoraSpamTail } from "@/lib/ai/amoraSpamTail";
+import { scrubAmoraSpam, stripAmoraSpamTail } from "@/lib/ai/amoraSpamTail";
 
 /**
  * 2026-08-25 운영에서 아모라가 예산 요약 끝에 업소 광고 문구를 붙여 내보냈다.
@@ -117,14 +117,42 @@ describe("답변 꼬리에 붙는 스팸", () => {
     expect(stripAmoraSpamTail("정리했어요.출장안마 출장안마")).toBe("정리했어요.");
   });
 
-  it("본문 한가운데는 자르지 않는다", () => {
-    // 뒤에 80자를 넘게 남으면 꼬리가 아니라 본문이다.
+  /**
+   * **본문 한가운데는 자르지 않는다. 대신 그 답변을 보여주지 않는다.**
+   *
+   * 처음에는 꼬리만 보고 본문은 그대로 내보냈다 — 자르면 문장이 깨지기
+   * 때문이다. 그런데 업소 광고가 섞인 답을 보이는 것이 깨진 문장보다 낫다고
+   * 볼 근거가 없다. 결혼을 준비하는 사람에게 한 번 보이면 그것으로 나쁘다.
+   *
+   * 대체 문장은 서버가 쓴다 — 모델이 무슨 일이 있었는지 지어내지 못하게.
+   */
+  it("본문 한가운데에 섞이면 그 답변을 보여주지 않는다", () => {
     const line = "출장안마 라는 말이 왜 검색어에 뜨는지는 저도 모르겠지만, 결혼 준비와는 관계가 없으니 예산 이야기로 돌아갈게요. 지금 배정된 금액부터 같이 볼까요?";
-    expect(stripAmoraSpamTail(line)).toBe(line);
+    const result = scrubAmoraSpam(line);
+    expect(result.action).toBe("replaced_body");
+    expect(result.text).not.toContain("출장안마");
+    expect(result.text).toContain("다시 보내주시겠어요");
   });
 
-  it("답변이 통째로 스팸이면 빈 답을 만들지 않는다", () => {
-    expect(stripAmoraSpamTail("출장안마")).toBe("출장안마");
+  it("꼬리는 예전처럼 잘라내고 본문은 남긴다", () => {
+    const result = scrubAmoraSpam("예산은 6,200만 원이에요.출장안마");
+    expect(result.action).toBe("trimmed_tail");
+    expect(result.text).toBe("예산은 6,200만 원이에요.");
+  });
+
+  it("깨끗한 답변은 손대지 않는다", () => {
+    const clean = "현재 저장된 총예산은 **6,200만 원**이에요.";
+    const result = scrubAmoraSpam(clean);
+    expect(result.action).toBe("none");
+    expect(result.text).toBe(clean);
+  });
+
+  it("답변이 통째로 스팸이면 그것도 보여주지 않는다", () => {
+    // 예전에는 잘라낼 것이 없다고 보고 원문을 그대로 돌려줬다 —
+    // 즉 "출장안마" 만 있는 답이 사용자에게 갔다.
+    const result = scrubAmoraSpam("출장안마");
+    expect(result.action).toBe("replaced_body");
+    expect(result.text).not.toContain("출장안마");
   });
 
   /**
@@ -144,8 +172,10 @@ describe("답변 꼬리에 붙는 스팸", () => {
       + '[pending_action]{"tool":"update_budget","input":{"budget":62000000}}[/pending_action]'
       + "[suggestions]항목별로 나눠볼까요?[/suggestions]";
 
-    // 원문에 그대로 걸면 아무것도 못 자른다 — 첫 판이 이랬다.
-    expect(stripAmoraSpamTail(withMarkers)).toBe(withMarkers);
+    // 원문에 그대로 걸면 스팸이 문자열 끝이 아니라 표식 앞에 놓인다.
+    // 첫 판은 그래서 아무것도 못 잘랐고, 지금은 **답변을 통째로 버린다** —
+    // 멀쩡한 답과 카드까지 함께 사라진다. 순서가 더 중요해졌다는 뜻이다.
+    expect(scrubAmoraSpam(withMarkers).action).toBe("replaced_body");
 
     // 운영 순서대로 표식을 먼저 걷어내면 잘린다.
     const afterMarkers = withMarkers

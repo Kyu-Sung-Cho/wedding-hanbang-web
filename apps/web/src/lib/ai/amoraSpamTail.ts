@@ -77,20 +77,56 @@ const SPAM_TERM_SOURCE = `(?<![가-힣])(?:${SPAM_TAIL_TERMS.join("|")})`;
  */
 const MAX_SPAM_TAIL_CHARS = 80;
 
-export function stripAmoraSpamTail(text: string): string {
-  if (typeof text !== "string" || text.length === 0) return text;
+/**
+ * 본문 한가운데에 스팸이 섞였을 때 대신 보여줄 문장.
+ *
+ * 잘라내면 문장이 깨지고, 깨진 문장을 보이는 것이 나은지 확신할 근거가 없다.
+ * 그렇다고 업소 광고가 섞인 답을 그대로 보이는 것은 더 나쁘다. 결혼을
+ * 준비하는 사람에게 한 번 보이면 그것으로 충분히 나쁘다.
+ *
+ * 이 문장은 서버가 쓴다 — 모델이 무슨 일이 있었는지 지어내지 못하게.
+ */
+const SPAM_BODY_REPLACEMENT =
+  "답변을 정리하는 중에 문제가 생겨 그대로 보여드리기 어려워요. 같은 질문을 한 번만 다시 보내주시겠어요?";
+
+export type AmoraSpamScrubResult = {
+  text: string;
+  /** 무엇을 했는가 — 로그와 테스트가 이 값을 본다. */
+  action: "none" | "trimmed_tail" | "replaced_body";
+};
+
+/**
+ * 스팸 어휘를 찾아 처리한다.
+ *
+ * 꼬리면 잘라내고, 본문 한가운데면 답변을 보여주지 않는다.
+ * 예전에는 꼬리만 봤다 — 그래서 문장 사이에 섞인 형태는 그대로 나갔다.
+ *
+ * **이것은 여전히 차단 목록이다.** 목록 밖 어휘는 지나간다. 원천은 모델
+ * 자신이라(사용자 입력도 도구 결과도 아니다) 우리 쪽에서 막을 수 있는
+ * 마지막 자리가 여기다.
+ */
+export function scrubAmoraSpam(text: string): AmoraSpamScrubResult {
+  if (typeof text !== "string" || text.length === 0) {
+    return { text, action: "none" };
+  }
   // 정규식을 매번 새로 만든다. 전역 플래그의 `lastIndex` 를 모듈 수준에서
   // 공유하면 호출 순서에 따라 결과가 달라진다.
   for (const match of text.matchAll(new RegExp(SPAM_TERM_SOURCE, "gu"))) {
     if (match.index === undefined) continue;
-    // 본문 한가운데는 자르지 않는다. 자르면 문장이 깨지고, 깨진 문장을
-    // 보이는 것이 나은지 확신할 근거가 없다.
-    if (text.length - match.index > MAX_SPAM_TAIL_CHARS) continue;
-    // **첫 번째** 자리에서 끝까지 자른다. 모델이 꼬리를 두 번 붙이면
-    // 마지막 것만 자르는 규칙은 하나를 남긴다.
-    const kept = text.slice(0, match.index).trimEnd();
-    // 답변이 통째로 스팸이면 자를 것이 아니라 다른 문제다. 빈 답을 만들지 않는다.
-    return kept.length === 0 ? text : kept;
+    if (text.length - match.index <= MAX_SPAM_TAIL_CHARS) {
+      // **첫 번째** 자리에서 끝까지 자른다. 모델이 꼬리를 두 번 붙이면
+      // 마지막 것만 자르는 규칙은 하나를 남긴다.
+      const kept = text.slice(0, match.index).trimEnd();
+      return kept.length === 0
+        ? { text: SPAM_BODY_REPLACEMENT, action: "replaced_body" }
+        : { text: kept, action: "trimmed_tail" };
+    }
+    return { text: SPAM_BODY_REPLACEMENT, action: "replaced_body" };
   }
-  return text;
+  return { text, action: "none" };
+}
+
+/** 문자열만 필요한 호출부를 위한 겉옷. */
+export function stripAmoraSpamTail(text: string): string {
+  return scrubAmoraSpam(text).text;
 }
