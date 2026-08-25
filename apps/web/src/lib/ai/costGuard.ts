@@ -105,6 +105,18 @@ const COUPLE_DAILY_CAP = readPositivePostgresInteger(
   DEFAULT_COUPLE_DAILY_CAP,
 );
 const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
+// **꺼져 있으면 그 사실이 보여야 한다.**
+//
+// 이 스위치는 긴급용이다 — 켜면 커플 한도·전역 일일 상한·전역 비용 상한이
+// 전부 무효가 되고 지갑에 천장이 없어진다. 그런데 꺼진 상태는 아무 데도
+// 나타나지 않았다.
+//
+// 2026-08-25: 하루 상한을 세 번 만들어 세 번 배포했는데 운영에서 한 번도
+// 동작하지 않았다. 스위치·호출 경로를 차례로 의심하다 마지막에 남은 것이
+// 이것이었다. 조건을 하나씩 지워 낼 때까지 아무 단서도 없었다.
+if (!GUARD_ENABLED) {
+  console.error("[costGuard] DISABLED — 커플 한도·전역 일일 상한·전역 비용 상한이 모두 무효입니다 (AMORA_COST_GUARD_ENABLED=false)");
+}
 const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
 // 하루 상한은 **무료 한도와 다른 것을 지킨다.**
 //
