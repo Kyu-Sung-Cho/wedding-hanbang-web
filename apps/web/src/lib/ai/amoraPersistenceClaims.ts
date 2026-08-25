@@ -60,6 +60,7 @@ export function composeAmoraPersistenceTerminal({
   persistenceMode,
   demoUserText = "",
   userRequestedChange = true,
+  droppedPendingActionTag = false,
 }: {
   text: string;
   toolResults: readonly ToolExecutionResult[];
@@ -77,6 +78,18 @@ export function composeAmoraPersistenceTerminal({
    * 기본값은 기존 동작(붙인다)이다.
    */
   userRequestedChange?: boolean;
+  /**
+   * 모델이 변경 표식을 냈는데 서버 검증에서 버려졌는가.
+   *
+   * 표식이 스키마를 통과 못 하면(지어낸 도구 이름·없는 필드) 카드가 안 나온다.
+   * 그때 모델 본문이 거짓 성공 주장을 담고 있으면 아래 정리가 잡아내지만,
+   * **중립적으로 쓰여 있으면 지울 것이 없어 아무 말도 안 나간다.**
+   * 사용자는 평범한 답을 읽고 아무것도 저장되지 않는다.
+   *
+   * 표식을 냈다는 것은 모델이 변경을 의도했다는 뜻이다. 그러니 반영되지
+   * 않았다는 사실은 알려야 한다. 2026-08-25 적대적 검토.
+   */
+  droppedPendingActionTag?: boolean;
 }): AmoraPersistenceTerminalResult {
   const mutationReceipts = toolResults.filter((result) =>
     isMutatingTool(result.toolName));
@@ -123,6 +136,17 @@ export function composeAmoraPersistenceTerminal({
   }
 
   if (sanitized.removedClaimCount === 0) {
+    // 지울 거짓 주장이 없어도, 표식이 버려졌으면 그 사실은 알려야 한다.
+    if (droppedPendingActionTag) {
+      return {
+        text: [sanitized.text, SERVER_OWNED_UNVERIFIED_NOTICE]
+          .filter(Boolean)
+          .join("\n\n"),
+        corrected: true,
+        removedClaimCount: 0,
+        source: "server_correction",
+      };
+    }
     return {
       text: sanitized.text,
       corrected: trustCorrected,

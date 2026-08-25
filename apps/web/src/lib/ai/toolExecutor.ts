@@ -1,3 +1,4 @@
+import { daysUntilWedding } from "@hanbang/shared";
 import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { resolveStatusByKey } from "@/utils/checklist";
@@ -1297,12 +1298,14 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
     ? ctx.weddingContext.budget
     : 0;
 
-  let dDay: number | null = null;
-  if (weddingDate) {
-    dDay = Math.ceil(
-      (new Date(weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    );
-  }
+  // 한국 새벽 00:00~09:00 에는 UTC 가 아직 어제라, 인스턴트 차이를 올림하면
+  // 하루가 더 나온다. 가장 나쁜 형태는 **예식 당일 새벽** 이다 — 결혼식 날
+  // 아침에 "D-1" 이 나간다(2026-08-25 재현).
+  //
+  // 첫마디는 이미 `daysUntilWedding` 으로 고쳤는데 이 계산만 규칙 밖에 있었다.
+  const dDay: number | null = weddingDate
+    ? daysUntilWedding(weddingDate, Date.now())
+    : null;
 
   const allKeys = Object.keys(CATEGORY_LABELS);
   // 화면과 같은 기준으로 센다. 저장값을 그대로 세면 항목이 늘었을 때 아모라만

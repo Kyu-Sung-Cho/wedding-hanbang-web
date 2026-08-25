@@ -3331,6 +3331,12 @@ export async function POST(request: Request) {
             // 아니다. 그때 "다시 요청해주세요" 안내를 붙이면 요청하지도 않은
             // 변경의 실패를 사과받는 셈이 된다.
             userRequestedChange: pendingOfferEnabled,
+            // 모델이 표식을 냈는데 검증에서 버려졌으면 카드가 안 나온다.
+            // 본문이 중립적으로 쓰여 있으면 지울 거짓 주장도 없어 **아무 말도
+            // 안 나가고** 사용자는 아무것도 저장되지 않는다.
+            droppedPendingActionTag:
+              pendingExtraction.hadPendingActionTag
+              && pendingExtraction.pendingAction === null,
           });
           const persistenceSafeText = persistenceClaimGuard.text;
           const metadata: Record<string, unknown> = {

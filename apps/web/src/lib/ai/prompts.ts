@@ -30,6 +30,7 @@ import {
   allowsUrgency,
   normalizePreparationStatus,
   type PreparationStatus,
+  daysUntilWedding,
 } from "@hanbang/shared";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
@@ -76,11 +77,15 @@ function generateBehaviorInsights(context: {
   const categoryKeys = Object.keys(CATEGORY_LABELS);
 
   // D-day까지 남은 일수
+  // 한국 새벽 00:00~09:00 에는 UTC 가 아직 어제라, 인스턴트 차이를 올림하면
+  // 하루가 더 나온다. 가장 나쁜 형태는 **예식 당일 새벽** 이다 — 결혼식 날
+  // 아침에 "D-1" 이 나간다(2026-08-25 재현).
+  //
+  // 첫마디는 이미 `daysUntilWedding` 으로 고쳤는데 이 계산만 규칙 밖에 있었다.
   let daysLeft = Infinity;
   if (context.weddingDate) {
-    daysLeft = Math.ceil(
-      (new Date(context.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-    );
+    const remaining = daysUntilWedding(context.weddingDate, Date.now());
+    if (remaining !== null) daysLeft = remaining;
   }
 
   // 카테고리별 예산/지출/상태 집계
@@ -315,8 +320,15 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   // D-day 계산
   let dDayInfo = "";
   if (context.weddingDate && allowsCountdown(preparation)) {
-    const diff = Math.ceil((new Date(context.weddingDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-    dDayInfo = diff > 0 ? `(D-${diff})` : diff === 0 ? "(D-Day!)" : `(D+${Math.abs(diff)})`;
+    // 위와 같은 이유로 KST 기준이다. 계산할 수 없는 날짜면 D-day 를 적지 않는다.
+    const diff = daysUntilWedding(context.weddingDate, Date.now());
+    dDayInfo = diff === null
+      ? ""
+      : diff > 0
+        ? `(D-${diff})`
+        : diff === 0
+          ? "(D-Day!)"
+          : `(D+${Math.abs(diff)})`;
   }
 
   // 멈춘 사람에게 남는 일은 준비가 아니라 정리다. 재촉과 축하를 거두고, 사용자가

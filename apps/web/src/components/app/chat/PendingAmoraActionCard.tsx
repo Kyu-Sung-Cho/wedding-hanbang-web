@@ -207,6 +207,13 @@ const BUDGET_WARNING_COPY: Record<BudgetImpactWarning, string> = {
 };
 
 function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
+  // 총예산을 아직 안 정한 커플에게 "배분 후 남는 금액" 은 뜻이 없다.
+  //
+  // 신규 커플의 총예산은 0이라, 첫 항목 예산을 잡으면 이 줄이
+  // "0원 → -2,200만원" 이 된다. 처음 저장해 보는 사람이 자기 첫 카드에서
+  // 마이너스를 본다. 2026-08-25 적대적 검토.
+  const totalBudgetIsSet =
+    preview.current.totalBudget > 0 || preview.proposed.totalBudget > 0;
   const rows = [
     {
       label: "총예산",
@@ -226,17 +233,24 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
       proposed: preview.proposed.recordedSpend,
       delta: preview.delta.recordedSpend,
     },
-    {
-      label: "배분 후 남는 금액",
-      current: preview.current.unallocatedBudget,
-      proposed: preview.proposed.unallocatedBudget,
-      delta: preview.delta.unallocatedBudget,
-    },
+    ...(totalBudgetIsSet
+      ? [{
+          label: "배분 후 남는 금액",
+          current: preview.current.unallocatedBudget,
+          proposed: preview.proposed.unallocatedBudget,
+          delta: preview.delta.unallocatedBudget,
+        }]
+      : []),
   ];
 
   return (
     <div className="mt-3 rounded-xl border border-[#E5D8CE] bg-white/80 p-3">
       <h4 className="text-xs font-semibold text-[#2B2525]">변경 영향</h4>
+      {!totalBudgetIsSet && (
+        <p className="mt-1 text-[11px] leading-4 text-[#746866]">
+          총예산을 아직 정하지 않아 남는 금액은 계산하지 않았어요.
+        </p>
+      )}
       <dl className="mt-2 space-y-2">
         {rows.map((row) => (
           <div
