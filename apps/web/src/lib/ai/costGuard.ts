@@ -128,6 +128,27 @@ const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
 // 무료 턴을 얼마나 주느냐는 요금 결정이고, 한 커플이 전 서비스를 멈추지
 // 못하게 하는 것은 가용성 결정이다. 스위치를 따로 둔다.
 const COUPLE_DAILY_CAP_ENABLED = process.env.AMORA_COUPLE_DAILY_CAP_ENABLED !== "false";
+
+// **지금 걸려 있는 값을 한 번은 말한다.**
+//
+// 이 상한들은 Vercel 에서 Sensitive 로 저장돼 있어 **값을 되읽을 수 없다**.
+// 그래서 "공개 규모에 이 값이 맞는가" 를 아무도 답할 수 없었다 — 바꾸려면
+// 무엇을 바꾸는지 모르는 채로 덮어써야 했다.
+//
+// 2026-08-25: 하루 상한이 안 먹는 원인을 찾느라 세 번 배포하고 네 번 눌러
+// 봤는데, 값이 보였다면 첫 번째에 알았다. 비밀이 아니라 **설정 숫자**다.
+//
+// 서버에서만 찍는다. Vercel 함수 로그에서 `[costGuard] config` 로 찾는다.
+console.info("[costGuard] config", {
+  guardEnabled: GUARD_ENABLED,
+  coupleLifetimeQuota: COUPLE_QUOTA_ENABLED ? FREE_PER_COUPLE : "off",
+  coupleDailyCap: COUPLE_DAILY_CAP_ENABLED ? COUPLE_DAILY_CAP : "off",
+  globalDailyTurns: GLOBAL_DAILY_CAP,
+  globalDailyCostUsd: GLOBAL_DAILY_COST_CAP_MICROUSD / 1_000_000,
+  // 턴당 실측 $0.027(2026-08-25 운영 5일치) 로 나눈 값. 비용 상한이 먼저
+  // 걸리는지 턴 상한이 먼저 걸리는지 바로 보인다.
+  costCapReachedAtTurns: Math.floor(GLOBAL_DAILY_COST_CAP_MICROUSD / 27_000),
+});
 // Keep the atomic global reservation when the per-couple quota is disabled.
 // The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
 const DISABLED_COUPLE_CAP = POSTGRES_INT_MAX;

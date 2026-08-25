@@ -255,3 +255,55 @@ describe("비용 가드 전체 해제", () => {
     expect(JSON.stringify(err.mock.calls)).not.toContain("DISABLED");
   });
 });
+
+/**
+ * **지금 걸려 있는 값을 아무도 볼 수 없었다.**
+ *
+ * 이 상한들은 Vercel 에서 Sensitive 로 저장돼 값을 되읽을 수 없다. 그래서
+ * "공개 규모에 이 값이 맞는가" 를 답할 수 없었고, 바꾸려면 무엇을 바꾸는지
+ * 모르는 채로 덮어써야 했다.
+ *
+ * 2026-08-25 에 하루 상한이 안 먹는 원인을 찾느라 세 번 배포하고 네 번 눌러
+ * 봤는데, 값이 보였다면 첫 번째에 알았다. 비밀이 아니라 설정 숫자다.
+ */
+describe("걸려 있는 값을 한 번은 말한다", () => {
+  it("모듈이 뜰 때 설정을 찍는다", async () => {
+    vi.resetModules();
+    vi.restoreAllMocks();
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await import("@/lib/ai/costGuard");
+
+    const logged = JSON.stringify(info.mock.calls);
+    expect(logged).toContain("[costGuard] config");
+    // 다섯 가지가 다 보여야 "무엇이 먼저 걸리는가" 를 답할 수 있다.
+    for (const key of [
+      "guardEnabled",
+      "coupleLifetimeQuota",
+      "coupleDailyCap",
+      "globalDailyTurns",
+      "globalDailyCostUsd",
+    ]) {
+      expect(logged).toContain(key);
+    }
+  });
+
+  it("비용 상한이 몇 턴에 해당하는지 함께 말한다", async () => {
+    // 턴 상한과 비용 상한 중 **어느 쪽이 먼저 걸리는가** 가 실제 질문이다.
+    vi.resetModules();
+    vi.restoreAllMocks();
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await import("@/lib/ai/costGuard");
+    expect(JSON.stringify(info.mock.calls)).toContain("costCapReachedAtTurns");
+  });
+
+  it("끈 것은 숫자가 아니라 off 로 말한다", async () => {
+    // 0 이나 큰 숫자로 찍으면 "낮게 설정됨" 과 구분이 안 된다.
+    vi.stubEnv("AMORA_COUPLE_DAILY_CAP_ENABLED", "false");
+    vi.resetModules();
+    vi.restoreAllMocks();
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    await import("@/lib/ai/costGuard");
+    expect(JSON.stringify(info.mock.calls)).toContain('"coupleDailyCap":"off"');
+    vi.unstubAllEnvs();
+  });
+});
