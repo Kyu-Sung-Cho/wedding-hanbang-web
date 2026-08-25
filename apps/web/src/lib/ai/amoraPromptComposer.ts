@@ -118,48 +118,44 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     "- 도구는 한 번에 하나씩 호출하고, 결과를 확인한 뒤 다음 호출을 결정하세요.",
   ];
 
-  if (has(
-    "update_budget",
-    "update_wedding_date",
-    "update_task_status",
-    "update_venue",
-    "update_category_budget",
-    "apply_budget_plan",
-    "add_custom_category",
-    "delete_category",
-    "reset_category",
-    "add_schedule_event",
-    "update_schedule_event",
-    "cancel_schedule_event",
-    "restore_schedule_event",
-    "delete_schedule_event",
-    "toggle_checklist_item",
-    "add_amora_action",
-    "log_wedding_event",
-    "update_amora_action",
-    "create_booking",
-    "cancel_booking",
-  )) {
+  // **이 규칙은 언제나 간다.**
+  //
+  // 예전에는 쓰기 도구 20개를 나열해 걸었는데, 쓰기 도구는 운영에서
+  // `!isMutatingTool` 로 걸러져 이 목록에 절대 들어오지 않는다. 그래서
+  // **제품 계약의 핵심 규칙이 모델에게 한 번도 가지 않았다**
+  // (2026-08-25 구조 검사로 발견).
+  //
+  // 모델이 확인 카드를 낼 수 있는지 여부는 별도 계약이 정한다. 이 줄은
+  // "확인 없이 바꾸지 말고, 반영된 것만 반영됐다고 말하라" 는 태도라
+  // 도구 구성과 무관하게 늘 필요하다.
+  {
     lines.push(
       "- 데이터 변경은 실행할 값과 범위를 보여주고 사용자가 명시적으로 적용을 확인한 뒤, 그 확인에 결합된 활성 도구로만 처리하세요. 맞는 도구나 확인 권한이 없으면 반영되지 않았다고 분명히 말하세요.",
       "- 변경 결과를 확인한 뒤 무엇이 실제로 반영됐는지 짧게 알려주세요.",
     );
   }
 
-  if (has("update_wedding_date", "add_schedule_event", "update_schedule_event")) {
+  // 쓰기 도구 이름으로 걸면 **절대 참이 되지 않는다** — 쓰기 도구는
+  // `availableTools = runnableTools.filter((t) => !isMutatingTool(t.name))` 에서
+  // 걸러져 enabledToolNames 에 들어오지 않는다(모델은 별도 계약으로 안다).
+  //
+  // 2026-08-25 운영 실측 — 이 줄들이 안 가서 실제로 기능이 깨졌다:
+  //   "11월 15일에 본식 리허설 잡아줘" → 카드 없음, "연도에 따라 달라…"
+  // 그래서 같은 주제의 **조회 도구**로 건다.
+  if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
       "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 날짜가 모호하면 저장 전에 한 번 확인하세요.",
       "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
     );
   }
 
-  if (enabled.has("cancel_schedule_event")) {
+  if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
       "- 일정 취소 요청은 삭제로 바꾸지 마세요. 현재 일정을 조회한 뒤 `cancel_schedule_event`로 취소 기록을 남기고 사용자 확인을 받으세요. 반영되면 상대에게 알림이 갑니다.",
     );
   }
 
-  if (enabled.has("restore_schedule_event")) {
+  if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
       enabled.has("get_schedule_events")
         ? "- 취소 기록을 되돌려 달라는 명시적 요청에만 `get_schedule_events`의 status=cancelled로 대상을 확인한 뒤 `restore_schedule_event`를 제안하고 사용자 확인을 받으세요."
@@ -207,13 +203,15 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
-  if (enabled.has("apply_budget_plan")) {
+  // 2026-08-25 운영 실측 — 이 줄이 안 가서 아모라가 배분안을 **말로만** 하고
+  // 확인 카드를 내지 않았다. 사용자는 읽기만 하고 적용할 방법이 없었다.
+  if (enabled.has("get_budget_summary")) {
     lines.push(
       "- 예산 일괄 배분은 사용자가 명시적으로 확정한 뒤 `apply_budget_plan` 한 번으로 적용하세요. 합계는 총예산과 정확히 일치해야 합니다.",
     );
   }
 
-  if (enabled.has("log_wedding_event")) {
+  if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
       "- 사용자가 준비 일정의 날짜와 제목을 명시적으로 저장을 확인한 뒤에만 `log_wedding_event`로 저장하세요. 저장 성공 여부만 안내하고, 수신 동의와 기능 상태가 확인되지 않은 선제 알림은 약속하지 마세요.",
     );

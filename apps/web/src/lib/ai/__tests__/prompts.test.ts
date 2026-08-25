@@ -323,7 +323,14 @@ describe("getWeddingPlannerSystemPrompt", () => {
       {
         requestKind: "chat",
         persistenceMode: "durable",
-        enabledToolNames: ["log_wedding_event", "create_booking"],
+        // **운영이 실제로 넘기는 이름을 쓴다.**
+        //
+        // 예전에는 여기에 `log_wedding_event` 처럼 쓰기 도구 이름을 넘겼는데,
+        // 운영은 그것들을 `!isMutatingTool` 로 걸러내므로 조립기 조건이 절대
+        // 참이 되지 않는다. 그래서 **이 줄이 모델에게 한 번도 가지 않는데도**
+        // 이 검사는 초록이었다(2026-08-25 운영 실측으로 드러남 — 아모라가
+        // 연도 없는 날짜를 해석하지 못하고 배분 카드도 내지 않았다).
+        enabledToolNames: ["get_schedule_events", "get_schedule_summary"],
       },
     );
 
