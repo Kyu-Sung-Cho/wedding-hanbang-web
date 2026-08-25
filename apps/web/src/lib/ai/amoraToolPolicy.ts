@@ -81,7 +81,15 @@ const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수�
  * 계약 어휘로 열었다면 그 판정이 먼저 떨어져 도구가 **빈 배열**이 됐을 것이다.
  */
 const QUOTE_INTENT = /견적|estimate|quotation/i;
-const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|remember|note|remind/i;
+// `할 일` 이 빠져 있었다 — 가장 자연스러운 한국어 표현인데.
+//
+// 2026-08-25 운영 실측: "결혼식장 계약서 확인하는 걸 다음 할 일로 추가해줘" 에
+// 행동 카드 도구가 하나도 안 열려서, 아모라가 일정 도구로 카드를 내거나
+// "앱의 할 일 추가에서 직접 입력해 주세요" 라고 답했다. 설계된 기능이 가장
+// 흔한 말로는 닿지 않았다.
+//
+// 같은 파일의 `ACTION_ADD_WRITE` 에는 이미 들어 있다 — 두 선택기가 갈려 있었다.
+const ACTION_INTENT = /기억|기록|메모|액션|챙겨|리마인드|할\s*일|투두|remember|note|remind|to-?do/i;
 const BUDGET_CATEGORY_WORDS =
   /상견례|예식장|웨딩홀|스튜디오|드레스|턱시도|메이크업|스드메|예물|반지|한복|예단|신혼여행|혼수|신혼집|청첩장|스냅|영상|웨딩\s*구두|부케|꽃장식|답례품|사회|축가|폐백|예비비/;
 const KNOWN_BUDGET_CATEGORY = new RegExp(BUDGET_CATEGORY_WORDS.source, "i");
