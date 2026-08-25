@@ -2285,6 +2285,9 @@ export async function POST(request: Request) {
     metadata: {
       target?: string;
       pending_amora_action?: unknown;
+      // 아직 안 누른 카드를 새 답변으로 옮길 때 **원래 값 그대로** 들고 간다.
+      pending_amora_action_journey_revision?: unknown;
+      pending_amora_action_impact_preview?: unknown;
       in_reply_to_user_message_id?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
@@ -2689,6 +2692,17 @@ export async function POST(request: Request) {
           currentUserText: lastUserText,
           answerShape: "tool_intent",
         })
+      : null;
+  // 카드를 옮길 때 **원래 값 그대로** 들고 간다. 저니 리비전이 바뀌면
+  // 적용이 정상적으로 거부되어야 하므로 새로 계산하지 않는다.
+  const carriedPendingActionRevision = awaitingPendingCard !== null
+    && isRecord(previousCanonicalRow?.metadata)
+    && typeof previousCanonicalRow.metadata.pending_amora_action_journey_revision === "number"
+      ? previousCanonicalRow.metadata.pending_amora_action_journey_revision
+      : null;
+  const carriedPendingActionImpactPreview = awaitingPendingCard !== null
+    && isRecord(previousCanonicalRow?.metadata)
+      ? previousCanonicalRow.metadata.pending_amora_action_impact_preview ?? null
       : null;
   const classifiedQuestionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
@@ -3384,6 +3398,35 @@ export async function POST(request: Request) {
                       }
                     : {}),
                 }
+              // **아직 안 누른 카드를 새 답변으로 옮긴다.**
+              //
+              // 화면은 카드가 **최신 공유 메시지**에 있을 때만 누를 수 있게 한다
+              // (`getPendingActionDisabledReason` 의 `not_latest`). 그래서 사용자가
+              // 버튼 대신 "응 그렇게 해줘" 라고 치는 순간 그 카드가 잠긴다 —
+              // 그런데 오늘 넣은 안내는 바로 그 버튼을 누르라고 말한다.
+              // 아모라가 "이대로 적용을 누르세요" 라고 하는데 버튼에는
+              // "새 대화가 이어져 이 제안은 적용할 수 없어요" 가 떠 있었다.
+              //
+              // 새 권한을 만드는 것이 아니다. **같은 action_id·같은 만료·같은
+              // 입력**을 최신 답변으로 옮기기만 한다. 실행은 여전히 서버가 발급한
+              // id 를 받아야 하고, 저니 리비전도 원래 값을 그대로 들고 간다 —
+              // 그 사이 계획이 바뀌었으면 적용은 정상적으로 거부된다.
+              : awaitingPendingCard
+                ? {
+                    pending_amora_action: awaitingPendingCard,
+                    ...(carriedPendingActionRevision !== null
+                      ? {
+                          pending_amora_action_journey_revision:
+                            carriedPendingActionRevision,
+                        }
+                      : {}),
+                    ...(carriedPendingActionImpactPreview
+                      ? {
+                          pending_amora_action_impact_preview:
+                            carriedPendingActionImpactPreview,
+                        }
+                      : {}),
+                  }
               : {}),
             ...(persistenceClaimGuard.removedClaimCount > 0
               ? {

@@ -1,3 +1,4 @@
+import { daysUntilWedding } from "@hanbang/shared";
 // 프로필/설정 화면
 import { useState, useCallback } from "react";
 import {
@@ -65,15 +66,14 @@ interface CommunityProfileStats {
   total_upvotes_received?: number | null;
 }
 
+// 예식일은 사용자가 고른 **한국 날짜**다. 기기 시간대로 오늘을 읽으면
+// 해외에 있을 때 채팅(서버·KST)과 이 화면이 서로 다른 D-day 를 말한다.
+//
+// 웹은 2026-08-25 에 서버 계산을 `daysUntilWedding`(KST 고정)으로 통일했다.
+// 모바일 화면 세 곳은 각자 `calcDday` 를 갖고 있었고 파싱 방식마저 서로
+// 달랐다(하나는 날짜만 있는 문자열을 UTC 자정으로 읽었다).
 function calcDday(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  const wedding = new Date(dateStr);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  wedding.setHours(0, 0, 0, 0);
-  return Math.ceil(
-    (wedding.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
-  );
+  return daysUntilWedding(dateStr, Date.now());
 }
 
 function formatDdayLabel(dday: number): string {
