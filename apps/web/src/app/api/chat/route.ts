@@ -39,6 +39,7 @@ import {
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
+import { stripAmoraSpamTail } from "@/lib/ai/amoraSpamTail";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
@@ -3202,8 +3203,10 @@ export async function POST(request: Request) {
           // 모델의 사고 서두를 먼저 걷어낸다. 아모라는 사용자에게 한국어로만
           // 말하므로, 한글이 하나도 없는 앞쪽 문단은 답이 아니라 사고다.
           // 2026-08-24 운영에서 영어 사고가 내부 표식까지 그대로 나갔다.
+          // 꼬리에 붙는 한국어 웹 스팸도 같이 걷어낸다. 2026-08-25 운영에서
+          // 예산 요약 끝에 업소 광고 문구가 그대로 붙어 나갔다.
           const { cleanText: afterSuggest, suggestions } = extractSuggestions(
-            stripAmoraReasoningPreamble(fullText),
+            stripAmoraSpamTail(stripAmoraReasoningPreamble(fullText)),
           );
           const pendingExtraction = extractAmoraPendingAction({
             text: afterSuggest,
