@@ -241,16 +241,8 @@ export async function reserveAmoraTurn(
   // 세는 데 실패하면 **통과시킨다.** 이 한도는 공정성이지 지갑이 아니고,
   // 지갑은 아래 RPC 의 전역 비용 상한이 원자적으로 지킨다. 장부 조회 실패로
   // 정상 사용자를 막는 쪽이 더 나쁘다.
-  const appliesCoupleDailyCap =
-    !params.isAdmin
-    && (params.quotaScope ?? "standard") === "standard"
-    && COUPLE_DAILY_CAP_ENABLED;
-  if (appliesCoupleDailyCap) {
-    const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
-    if (usedToday !== null && usedToday >= COUPLE_DAILY_CAP) {
-      return DENY_COUPLE_DAILY;
-    }
-  }
+  const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
+  if (dailyDenial) return dailyDenial;
 
   try {
     const { data, error } = await admin.rpc("reserve_amora_turn", {
@@ -324,6 +316,34 @@ async function countCoupleTurnsToday(
   }
 }
 
+/**
+ * 오늘 몫을 다 썼으면 거부 결과를, 아니면 null 을 준다.
+ *
+ * **두 예약 경로가 같은 규칙을 쓰게 하려고 뽑았다.** 처음에는
+ * `reserveAmoraTurn` 에만 넣었는데 **채팅은 그 함수를 부르지 않는다** —
+ * 채팅은 `reserveAmoraProviderCall` 을 탄다(`amoraProviderCallLedger` 경유).
+ * 그래서 만들고 배포까지 했는데 주 제품에서 아무 일도 하지 않았다
+ * (2026-08-25 라이브에서 138턴 커플이 통과하는 것을 보고 알았다).
+ *
+ * 한 턴에 provider 호출이 평균 1.3회라(운영 실측 221턴 / 281호출) 이 검사가
+ * 턴당 여러 번 돈다. 세는 대상이 `chat_turn` 이라 결과는 같으므로 무해하다.
+ * 경계에서 진행 중인 턴이 잘릴 수 있으나, 그때 사용자는 이유가 적힌 문구를 본다.
+ */
+async function denyIfCoupleUsedTodayUp(
+  admin: SupabaseClient,
+  params: { coupleId: string; isAdmin: boolean; quotaScope?: string },
+): Promise<CostGuardResult | null> {
+  const applies =
+    GUARD_ENABLED
+    && !params.isAdmin
+    && (params.quotaScope ?? "standard") === "standard"
+    && COUPLE_DAILY_CAP_ENABLED;
+  if (!applies) return null;
+  const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
+  if (usedToday === null) return null;
+  return usedToday >= COUPLE_DAILY_CAP ? DENY_COUPLE_DAILY : null;
+}
+
 // 예약 성공 직후 커플 잔여 무료 턴 수 조회 (PK 단건 — 카운터에 이번 예약이 이미 반영됨)
 /**
  * Reserves one provider-call receipt. This counts the logical request once and
@@ -347,6 +367,10 @@ export async function reserveAmoraProviderCall(
     console.error("[costGuard] invalid provider receipt reservation; blocking call");
     return DENY_UNAVAILABLE;
   }
+
+  // **채팅이 실제로 타는 경로다.** 같은 하루 상한을 여기에도 건다.
+  const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
+  if (dailyDenial) return dailyDenial;
 
   const appliesCoupleQuota =
     GUARD_ENABLED
