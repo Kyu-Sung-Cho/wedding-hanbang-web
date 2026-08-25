@@ -392,3 +392,69 @@ describe("pending action message boundary", () => {
     expect(getPendingActionDisabledReason(action, action.expiresAt, true, false)).toBe("expired");
   });
 });
+
+/**
+ * 이 카드는 공유 계획을 바꿀 때 "상대에게 바뀐 내용이 알림으로 가요" 라고 적는다.
+ * 배우자가 아직 합류하지 않았으면 **없는 사람에 대한 약속**이다 — 베타에서 처음
+ * 써 보는 사람은 대개 아직 혼자다(2026-08-25 적대적 검토).
+ */
+describe("배우자 합류 여부에 따른 알림 문구", () => {
+  const NOTICE = "상대에게 바뀐 내용이 알림으로 가요";
+  let root: Root;
+  let container: HTMLDivElement;
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  async function renderWith(partnerLinked: boolean) {
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          partnerLinked={partnerLinked}
+          onApply={() => {}}
+          onDismiss={() => {}}
+        />,
+      );
+    });
+  }
+
+  it("합류했으면 알림이 간다고 알려준다", async () => {
+    await renderWith(true);
+    expect(container.textContent).toContain(NOTICE);
+  });
+
+  it("아직 혼자면 그 약속을 하지 않는다", async () => {
+    await renderWith(false);
+    expect(container.textContent).not.toContain(NOTICE);
+  });
+
+  it("빠뜨리면 약속하지 않는 쪽으로 틀린다", async () => {
+    // 기본값이 false 인 이유. 없는 사람에게 알림이 간다고 말하는 것보다
+    // 알려야 할 사람에게 안 알리는 편이 낫다.
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={null}
+          isApplying={false}
+          onApply={() => {}}
+          onDismiss={() => {}}
+        />,
+      );
+    });
+    expect(container.textContent).not.toContain(NOTICE);
+  });
+});

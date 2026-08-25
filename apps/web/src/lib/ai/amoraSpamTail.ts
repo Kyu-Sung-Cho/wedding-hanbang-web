@@ -43,7 +43,6 @@ const SPAM_TAIL_TERMS = [
   "출장\\s?마사지",
   "안마방",
   "립카페",
-  "건마",
   "풀싸롱",
   "룸싸롱",
   "룸살롱",
@@ -58,18 +57,40 @@ const SPAM_TAIL_TERMS = [
   "조건만남",
 ];
 
-/** 스팸 어휘가 문자열 맨 끝(뒤에는 공백·문장부호만)에 나타나는 자리. */
-const SPAM_TAIL = new RegExp(
-  `(?:${SPAM_TAIL_TERMS.join("|")})[\\s\\p{P}\\p{S}]*$`,
-  "u",
-);
+/**
+ * 스팸 어휘가 나타나는 자리.
+ *
+ * 앞에 한글이 붙어 있으면 다른 낱말의 일부다 — `드립카페` 의 `립카페` 를
+ * 잘라 `드` 한 글자만 남기던 결함이 실제로 있었다.
+ *
+ * `건마` 는 아예 뺐다. 앞 글자가 숫자면 경계 검사를 통과하는데
+ * (`5건마다`·`3건마`) 그건 평범한 한국어다. 두 글자짜리는 그만큼 위험하다.
+ */
+const SPAM_TERM_SOURCE = `(?<![가-힣])(?:${SPAM_TAIL_TERMS.join("|")})`;
+
+/**
+ * 스팸 어휘 뒤에 얼마나 더 붙어 있어도 꼬리로 볼 것인가.
+ *
+ * 처음엔 `[\s\p{P}]*$` 로 문장 끝만 봤다. 그래서 전화번호나 주소가 붙은
+ * 형태 — **실제로 클릭을 유도하는 쪽** — 이 통째로 살아남았다. 어휘만 덩그러니
+ * 있는 무해한 형태는 잘리고 유해한 형태는 나가는 역전이었다.
+ */
+const MAX_SPAM_TAIL_CHARS = 80;
 
 export function stripAmoraSpamTail(text: string): string {
   if (typeof text !== "string" || text.length === 0) return text;
-  const match = SPAM_TAIL.exec(text);
-  if (match === null || match.index === undefined) return text;
-  const kept = text.slice(0, match.index).trimEnd();
-  // 답변이 통째로 스팸이면 자를 것이 아니라 다른 문제다. 빈 답을 만들지 않는다.
-  if (kept.length === 0) return text;
-  return kept;
+  // 정규식을 매번 새로 만든다. 전역 플래그의 `lastIndex` 를 모듈 수준에서
+  // 공유하면 호출 순서에 따라 결과가 달라진다.
+  for (const match of text.matchAll(new RegExp(SPAM_TERM_SOURCE, "gu"))) {
+    if (match.index === undefined) continue;
+    // 본문 한가운데는 자르지 않는다. 자르면 문장이 깨지고, 깨진 문장을
+    // 보이는 것이 나은지 확신할 근거가 없다.
+    if (text.length - match.index > MAX_SPAM_TAIL_CHARS) continue;
+    // **첫 번째** 자리에서 끝까지 자른다. 모델이 꼬리를 두 번 붙이면
+    // 마지막 것만 자르는 규칙은 하나를 남긴다.
+    const kept = text.slice(0, match.index).trimEnd();
+    // 답변이 통째로 스팸이면 자를 것이 아니라 다른 문제다. 빈 답을 만들지 않는다.
+    return kept.length === 0 ? text : kept;
+  }
+  return text;
 }

@@ -124,9 +124,11 @@ describe("말로 한 승인", () => {
       persistenceMode: "durable",
       enabledToolNames: READ_ONLY_BETA_TOOLS,
       awaitingCardConfirmation: card.confirmation,
-      maxChars: 12_000,
+      maxChars: 20_000,
     });
-    expect(trimmed.length).toBeLessThanOrEqual(12_000);
+    expect(trimmed.length).toBeLessThanOrEqual(20_000);
+    // 실제로 잘린 프롬프트여야 검사에 뜻이 있다.
+    expect(trimmed.length).toBeGreaterThan(15_000);
     expect(trimmed).toContain("[화면에 대기 중인 변경 카드]");
     expect(trimmed).toContain("이대로 적용");
   });

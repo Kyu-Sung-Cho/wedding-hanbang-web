@@ -114,7 +114,13 @@ function isBareAffirmation(text: string): boolean {
     && !/(아니|말고|대신|빼고|바꿔|다시|수정|고쳐)/.test(normalized);
 }
 
-export function isAmoraClarificationAnswerShaped(text: string): boolean {
+/**
+ * 되묻기의 답으로 **생긴 것**인가. 범위 판정은 보지 않는다.
+ *
+ * 길이·물음표·설명형 단서 — 세 가지는 답이 어느 범위로 떨어지든 똑같이
+ * 물어야 한다. 범위 조건만 호출자마다 다르다.
+ */
+function hasClarificationAnswerShape(text: string): boolean {
   if (typeof text !== "string") return false;
   const normalized = text.normalize("NFKC").trim();
   if (normalized.length === 0) return false;
@@ -130,11 +136,49 @@ export function isAmoraClarificationAnswerShaped(text: string): boolean {
   if (QUESTION_MARK_PATTERN.test(normalized)) return false;
   // 설명·지목·선택형 되짚기는 이미 bounded continuity의 context-only 계약이
   // 맡는다. 한 문장을 두 계약이 다투게 두지 않는다.
-  if (hasAmoraExplanatoryContinuityCue(normalized)) return false;
+  return !hasAmoraExplanatoryContinuityCue(normalized);
+}
+
+export function isAmoraClarificationAnswerShaped(text: string): boolean {
+  if (!hasClarificationAnswerShape(text)) return false;
   const classification = classifyAmoraQuestionScope({ userText: text });
   return classification.scope === "W4_out_of_scope"
     && classification.confidence === "low"
     && classification.needsClarification;
+}
+
+/**
+ * 되묻기의 답인데 **그 답 자체가 이미 결혼 이야기**인 경우.
+ *
+ * 범위 구제(위 함수)는 답이 범위 밖으로 보일 때를 위한 것이다. 그런데 답이
+ * W0으로 잘 판정되는데도 깨지는 자리가 따로 있다 — 도구 선택이다.
+ *
+ * 2026-08-25 운영 실측:
+ *
+ *   사용자: 할 일 하나 추가해줘          (W0/high, 행동 도구 열림)
+ *   아모라: 어떤 할 일을 추가할지 내용이 필요해요.
+ *   사용자: 청첩장 시안 고르기            (W0/high, 그러나 행동 도구 0개)
+ *   아모라: 이 대화에서는 할 일을 실제로 저장하는 도구가 없어 …
+ *
+ *   사용자: 체크리스트 하나 완료 처리해줘  (W0/high)
+ *   아모라: 어떤 항목을 완료 처리할지 알려주세요.
+ *   사용자: 청첩장 문구 정하기            (W0/high, 그러나 도구 0개)
+ *   아모라: 이 대화에서는 체크리스트 상태를 변경하는 도구가 없어 …
+ *
+ * 도구 선택기는 **어휘로 의도를 고른다.** 되묻기의 답에는 그 어휘가 없다 —
+ * 항목 이름만 있다. 그래서 아모라가 자기가 물어 놓고, 답을 받고, 기능이
+ * 없다고 말한다. 첫 사용자에게는 제품에 기능이 없는 것으로 보인다.
+ *
+ * 여기서 넘겨주는 것은 **도구 선택용 의도뿐**이다. 범위·장기 기억·저장 문맥
+ * 권한은 이 함수가 건드리지 않는다. 닻이 단독 W0이라는 조건은 호출부의
+ * 홉 가드가 그대로 지고 있으므로, 이 답이 새로 얻는 도구는 닻이 자기 턴에서
+ * 이미 받았던 것뿐이다.
+ */
+export function isAmoraToolIntentAnswerShaped(text: string): boolean {
+  if (!hasClarificationAnswerShape(text)) return false;
+  const classification = classifyAmoraQuestionScope({ userText: text });
+  // W1~W3 은 도구·기억 계약이 따로 있다. 그 경계를 되묻기로 넘기지 않는다.
+  return classification.scope === "W0_wedding_core";
 }
 
 export type ResolveAmoraWeddingClarificationContinuityInput<
@@ -152,6 +196,14 @@ export type ResolveAmoraWeddingClarificationContinuityInput<
   requesterUserId: string;
   currentUserMessageId: string;
   currentUserText: string;
+  /**
+   * 무엇을 이어받으려는가.
+   *
+   * `scope_rescue`(기본) — 답이 범위 밖으로 보일 때 범위를 되살린다.
+   * `tool_intent` — 답이 이미 W0인데 도구 의도만 없을 때, 도구 선택에
+   * 쓸 의도를 이어받는다. 범위·기억·저장 문맥 권한은 주지 않는다.
+   */
+  answerShape?: "scope_rescue" | "tool_intent";
 };
 
 /**
@@ -172,10 +224,15 @@ export function resolveAmoraWeddingClarificationContinuity<
   requesterUserId,
   currentUserMessageId,
   currentUserText,
+  answerShape = "scope_rescue",
 }: ResolveAmoraWeddingClarificationContinuityInput<
   T
 >): AmoraWeddingClarificationContinuity | null {
-  if (!isAmoraClarificationAnswerShaped(currentUserText)) return null;
+  // 기본은 범위 구제다. 도구 의도만 이어받을 때는 답이 이미 W0인 경우를 본다.
+  const answerIsEligible = answerShape === "tool_intent"
+    ? isAmoraToolIntentAnswerShaped(currentUserText)
+    : isAmoraClarificationAnswerShaped(currentUserText);
+  if (!answerIsEligible) return null;
   if (rawOldestFirstRows.length < 3) return null;
 
   // **거르지 않은 마지막 세 행.** 처음에는 여기에
