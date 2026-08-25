@@ -13,11 +13,44 @@ const PLACE_KIND_RE =
 const VENUE_KIND_RE =
   /(상견례\s*(?:식당|장소|자리)|식당|음식점|맛집|레스토랑|카페|한정식|중식당?|일식집?|양식집?|뷔페|다이닝|술집|와인바)/i;
 /**
+ * 사람은 가게 종류를 대지 않는다.
+ *
+ * 실측(2026-08-26, 운영): "공덕 근처 상견례 할 만한 곳 알려줘" 에 아모라가
+ * **"공덕 근처 업체를 직접 검색하거나 예약할 수는 없어요"** 라고 답했다. 위
+ * `VENUE_KIND_RE` 가 `상견례` 뒤에 `식당|장소|자리` 중 하나를 요구하는데
+ * "상견례 **할 만한 곳**" 에는 그 낱말이 없어서 도구가 목록에서 빠졌다.
+ * 실제 말투 14개로 재니 5개만 열렸다.
+ *
+ * 그래서 "무엇을 파는 가게인가" 대신 **먹거나 마주 앉는 자리인가**로 본다.
+ * 두 조각이 함께 있어야 한다 —
+ *
+ *   먹는 맥락(밥·식사·상견례·부모님 뵙기)  +  자리를 가리키는 말(곳·데·자리·어디)
+ *
+ * 한쪽만으로는 열지 않는다. "곳" 하나로 열면 "드레스 볼 곳", "예식장 알아볼 곳"
+ * 까지 네이버 검색이 열리고, 그건 지금 보류해 둔 업체 추천을 뒷문으로 여는 것이다.
+ */
+const MEAL_CONTEXT_RE =
+  /(상견례|밥|식사|끼니|먹을|먹기|먹는|드실|드시|모시고|뵙|어른|양가|부모님)/i;
+/**
+ * `어디` 를 그냥 넣었더니 장소가 아닌 뜻이 줄줄이 걸렸다 — 함정 12문장 중 7개가
+ * 열렸다("상견례 **어디까지** 준비해야 해", "비용은 **어디서 나오는**", "예절
+ * **어디서 배울**"). 그래서 `어디` 는 **어디서 하느냐**를 묻는 꼴일 때만 센다.
+ */
+const GENERIC_PLACE_RE =
+  /(곳|데(?=\s|$|를|가|는|도|에)|자리|장소|어디\s*(?:서|에서)?\s*(?:하|할|함))/i;
+
+/** 먹거나 마주 앉을 자리를 묻고 있는가. 가게 종류를 대지 않아도 알아본다. */
+function mentionsSomewhereToEat(normalized: string): boolean {
+  if (VENUE_KIND_RE.test(normalized)) return true;
+  return MEAL_CONTEXT_RE.test(normalized) && GENERIC_PLACE_RE.test(normalized);
+}
+/**
  * 부탁이 아니라 물음으로 오는 경우. 사람은 "찾아줘" 만 쓰지 않는다 —
  * "어디가 좋을까", "괜찮은 곳 알려줘", "어때" 로도 같은 것을 묻는다.
  */
 const SOFT_ASK_RE =
-  /(알려\s*줘|알려\s*주세요|어디|좋을까|괜찮은\s*(?:곳|데)|있을까|없을까|어때|부탁|보여\s*줘|리스트|목록)/i;
+  // 맨 "추천" 도 부탁이다 — "상견례 하기 좋은 한정식 추천" 이 어형 때문에 막혔다.
+  /(알려\s*줘|알려\s*주세요|어디|좋을까|괜찮은\s*(?:곳|데)|있을까|없을까|어때|부탁|보여\s*줘|리스트|목록|추천)/i;
 const LOCATION_RE =
   /(내\s*근처|우리\s*동네|서울|부산|대구|인천|광주|대전|울산|세종|제주|강남|홍대|건대|신촌|잠실|판교|분당|수원|일산|여의도|성수|청담|압구정|연남|[가-힣0-9]{1,12}(?:시|군|구|동|읍|면|역|로|길)(?=\s|에서|근처|주변|쪽|에|$))/i;
 const SEARCH_ACTION_RE =
@@ -77,7 +110,7 @@ function mentionsSomewhere(normalized: string): boolean {
 export function isPlaceSearchCandidate(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  if (!VENUE_KIND_RE.test(normalized)) return false;
+  if (!mentionsSomewhereToEat(normalized)) return false;
   return SEARCH_ACTION_RE.test(normalized) || SOFT_ASK_RE.test(normalized);
 }
 

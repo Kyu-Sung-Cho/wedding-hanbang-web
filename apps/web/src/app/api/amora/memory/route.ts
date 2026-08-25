@@ -8,6 +8,10 @@ import {
 } from "@/lib/ai/amoraMemoryCompiler";
 import { isAuxiliaryMemoryRuntimeEnabled } from "@/lib/ai/amoraMemoryQueue";
 import {
+  EMPTY_PURGE_PREVIEW,
+  previewAmoraMemoryPurge,
+} from "@/lib/ai/amoraMemoryPurgePreview";
+import {
   AMORA_PROFILE_PROJECTION_QUERY_LIMIT,
   normalizeAmoraProfileProjectionRows,
   projectAmoraProfiles,
@@ -92,7 +96,7 @@ export async function GET(request: Request) {
     const [settingsResult, memoriesResult, profileNodesResult, consentsResult, coupleResult] = await Promise.all([
       supabase
         .from("amora_memory_settings")
-        .select("visibility, enabled, enabled_at, memory_reset_at, updated_at")
+        .select("visibility, enabled, enabled_at, memory_reset_at, legacy_purged_at, updated_at")
         .eq("couple_id", context.coupleId)
         .in("visibility", context.allowedVisibilities),
       supabase
@@ -158,8 +162,25 @@ export async function GET(request: Request) {
         requiredCount,
         enabledAt: row?.enabled_at ?? null,
         memoryResetAt: row?.memory_reset_at ?? null,
+        legacyPurgedAt: row?.legacy_purged_at ?? null,
       };
     });
+    // 최초 활성화는 기존 자동 기억·대화 요약·프로필을 지운다. 켜기 전에 몇 개가
+    // 사라지는지 화면이 말할 수 있어야 한다 — 지금까지는 아무도 말하지 않았다.
+    const purgePreviews = await Promise.all(
+      settings.map(async (setting) => {
+        if (setting.legacyPurgedAt !== null) return EMPTY_PURGE_PREVIEW;
+        return previewAmoraMemoryPurge(admin, {
+          coupleId: context.coupleId,
+          visibility: setting.visibility,
+          legacyPurgedAt: setting.legacyPurgedAt,
+        });
+      }),
+    );
+    const settingsWithPurge = settings.map((setting, index) => ({
+      ...setting,
+      pendingPurge: purgePreviews[index] ?? EMPTY_PURGE_PREVIEW,
+    }));
     const enabledProfileVisibilities = settings
       .filter((setting) => setting.enabled)
       .map((setting) => setting.visibility);
@@ -206,7 +227,7 @@ export async function GET(request: Request) {
     return NextResponse.json(
       {
         runtimeEnabled: isAuxiliaryMemoryRuntimeEnabled(),
-        settings,
+        settings: settingsWithPurge,
         memories,
         profiles: projectedProfiles,
       },
