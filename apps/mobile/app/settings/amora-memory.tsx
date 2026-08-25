@@ -46,7 +46,22 @@ type MemorySetting = {
   consentedByMe: boolean;
   consentedCount: number;
   requiredCount: number;
+  legacyPurgedAt: string | null;
+  pendingPurge: { memories: number; summaries: number; profiles: number; total: number };
 };
+
+/**
+ * 켜는 순간 무엇이 사라지는지 사람 말로 옮긴다. 숫자는 서버가 SQL 의 DELETE 조건과
+ * 같은 조건으로 센 값이고, 여기서 다시 계산하지 않는다. 웹 설정 화면과 같은 문장이다 —
+ * 같은 상황에 두 화면이 다른 말을 하면 사용자는 무엇이 일어나는지 모른다.
+ */
+function describePendingPurge(setting: MemorySetting): string {
+  const parts: string[] = [];
+  if (setting.pendingPurge.memories > 0) parts.push(`정리된 기억 ${setting.pendingPurge.memories}개`);
+  if (setting.pendingPurge.summaries > 0) parts.push(`대화 요약 ${setting.pendingPurge.summaries}개`);
+  if (setting.pendingPurge.profiles > 0) parts.push("상담 참고 맥락");
+  return parts.join(", ");
+}
 
 type MemoryItem = {
   id: string;
@@ -221,8 +236,8 @@ export default function AmoraMemoryScreen() {
     });
   }
 
-  async function toggleMemory() {
-    if (!setting || busy || (!data?.runtimeEnabled && !setting.consentedByMe)) return;
+  async function applyMemoryToggle() {
+    if (!setting) return;
     setBusy(true);
     setError(null);
     try {
@@ -233,6 +248,29 @@ export default function AmoraMemoryScreen() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function toggleMemory() {
+    if (!setting || busy || (!data?.runtimeEnabled && !setting.consentedByMe)) return;
+    // 처음 켜는 순간 서버가 기존 자동 기억·대화 요약·맞춤 맥락을 지운다. 되돌릴 수
+    // 없으므로 무엇이 사라지는지 먼저 보여준다. 웹 설정 화면과 같은 사실을 말한다.
+    const willPurge = !setting.consentedByMe
+      && setting.legacyPurgedAt === null
+      && setting.pendingPurge.total > 0;
+    if (willPurge) {
+      Alert.alert(
+        activeVisibility === "shared"
+          ? "두 분이 모두 켜면 지금 기록이 지워져요"
+          : "켜면 지금 기록이 지워져요",
+        `${describePendingPurge(setting)}이(가) 사라지고 되돌릴 수 없어요. 동의하기 전에 아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과 채팅 원문, 저장한 일정·예산은 그대로예요.`,
+        [
+          { text: "그대로 두기", style: "cancel" },
+          { text: "지우고 켜기", style: "destructive", onPress: () => { void applyMemoryToggle(); } },
+        ],
+      );
+      return;
+    }
+    await applyMemoryToggle();
   }
 
   function openEditor(memory: MemoryItem) {

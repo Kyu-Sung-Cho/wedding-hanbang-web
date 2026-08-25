@@ -28,6 +28,8 @@ type MemorySetting = {
   requiredCount: number;
   enabledAt: string | null;
   memoryResetAt: string | null;
+  legacyPurgedAt: string | null;
+  pendingPurge: { memories: number; summaries: number; profiles: number; total: number };
 };
 
 type MemoryItem = {
@@ -60,6 +62,20 @@ type MemoryProfile = {
   confidence_score: number;
   updated_at: string;
 };
+
+/**
+ * 기억을 처음 켜는 순간 서버가 무엇을 지우는지 사람 말로 옮긴다.
+ *
+ * 숫자는 서버가 SQL 의 DELETE 조건과 같은 조건으로 센 값이다. 여기서 다시 계산하지
+ * 않는다 — 화면이 말한 숫자와 실제로 지워지는 양이 어긋나면 경고가 없느니만 못하다.
+ */
+function describePendingPurge(setting: MemorySetting): string {
+  const parts: string[] = [];
+  if (setting.pendingPurge.memories > 0) parts.push(`정리된 기억 ${setting.pendingPurge.memories}개`);
+  if (setting.pendingPurge.summaries > 0) parts.push(`대화 요약 ${setting.pendingPurge.summaries}개`);
+  if (setting.pendingPurge.profiles > 0) parts.push("상담 참고 맥락");
+  return parts.join(", ");
+}
 
 type MemoryResponse = {
   runtimeEnabled: boolean;
@@ -101,6 +117,7 @@ export default function AmoraMemorySettingsPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editValue, setEditValue] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmEnable, setConfirmEnable] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -151,10 +168,25 @@ export default function AmoraMemorySettingsPage() {
   async function toggleMemory() {
     if (!setting || busy) return;
     if (!data?.runtimeEnabled && !setting.consentedByMe) return;
+    // 처음 켜는 순간 서버가 기존 자동 기억·대화 요약·맞춤 맥락을 지운다. 되돌릴 수
+    // 없으므로 무엇이 사라지는지 먼저 보여주고, 사람이 한 번 더 누르게 한다.
+    const willPurge = !setting.consentedByMe
+      && setting.legacyPurgedAt === null
+      && setting.pendingPurge.total > 0;
+    if (willPurge && !confirmEnable) {
+      setConfirmEnable(true);
+      return;
+    }
+    await applyMemoryToggle();
+  }
+
+  async function applyMemoryToggle() {
+    if (!setting || busy) return;
     setBusy(true);
     setError(null);
     try {
       await patch({ action: "toggle", visibility: activeVisibility, enabled: !setting.consentedByMe });
+      setConfirmEnable(false);
       await load();
     } catch (toggleError) {
       setError(toggleError instanceof Error ? toggleError.message : "설정을 바꾸지 못했어요.");
@@ -333,6 +365,25 @@ export default function AmoraMemorySettingsPage() {
               </button>
             </div>
           </section>
+
+          {confirmEnable && setting && (
+            <section className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 sm:px-6">
+              <p className="text-sm font-medium text-red-800">
+                {activeVisibility === "shared"
+                  ? "두 분이 모두 켜는 순간, 지금 쌓여 있는 기록이 지워져요"
+                  : "켜는 순간, 지금 쌓여 있는 기록이 지워져요"}
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-red-700">
+                {describePendingPurge(setting)}이(가) 사라지고 되돌릴 수 없어요. 동의하기 전에
+                아모라가 혼자 정리해 둔 것이라, 켤 때는 지금부터 새로 쌓아요. 직접 고친 기억과
+                채팅 원문, 저장한 일정·예산은 그대로예요.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <button type="button" disabled={busy} onClick={() => void applyMemoryToggle()} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">지우고 켜기</button>
+                <button type="button" disabled={busy} onClick={() => setConfirmEnable(false)} className="min-h-11 rounded-lg bg-white px-4 text-sm font-medium text-[#243832] ring-1 ring-[#E2D3C8]">그대로 두기</button>
+              </div>
+            </section>
+          )}
 
           {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
