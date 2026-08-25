@@ -211,3 +211,47 @@ describe("채팅이 타는 경로에도 하루 상한이 걸린다", () => {
     vi.unstubAllEnvs();
   });
 });
+
+/**
+ * **비용 가드가 통째로 꺼져 있으면 하루 상한도 꺼진다 — 그리고 그게 맞다.**
+ *
+ * `AMORA_COST_GUARD_ENABLED=false` 는 긴급 스위치다. 켜면 커플 한도·전역
+ * 일일 상한·전역 비용 상한이 전부 무효가 된다. 하루 상한만 살려 두면
+ * "긴급 해제" 라는 계약이 깨진다.
+ *
+ * 문제는 **꺼진 상태가 아무 데도 안 보였다**는 것이다. 2026-08-25 에 하루
+ * 상한을 세 번 만들어 세 번 배포했는데 운영에서 한 번도 동작하지 않았고,
+ * 스위치·호출 경로를 차례로 의심하다 조건을 하나씩 지워 낸 뒤에야 이것이
+ * 남았다. 그래서 모듈이 뜰 때 소리를 내게 했다.
+ */
+describe("비용 가드 전체 해제", () => {
+  it("하루 상한도 함께 꺼진다", async () => {
+    vi.stubEnv("AMORA_COST_GUARD_ENABLED", "false");
+    vi.resetModules();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    dailyCount = 500;
+    const result = await reserve();
+    expect(result.allowed).toBe(true);
+    vi.unstubAllEnvs();
+  });
+
+  it("꺼져 있으면 소리를 낸다", async () => {
+    vi.stubEnv("AMORA_COST_GUARD_ENABLED", "false");
+    vi.resetModules();
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await import("@/lib/ai/costGuard");
+    const logged = JSON.stringify(err.mock.calls);
+    expect(logged).toContain("DISABLED");
+    expect(logged).toContain("AMORA_COST_GUARD_ENABLED=false");
+    vi.unstubAllEnvs();
+  });
+
+  it("켜져 있으면 조용하다", async () => {
+    vi.resetModules();
+    // vitest 는 같은 대상의 spy 를 재사용한다 — 앞 검사의 호출이 남아 있다.
+    vi.restoreAllMocks();
+    const err = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    await import("@/lib/ai/costGuard");
+    expect(JSON.stringify(err.mock.calls)).not.toContain("DISABLED");
+  });
+});
