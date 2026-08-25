@@ -9,7 +9,7 @@
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import test from "node:test";
 import assert from "node:assert/strict";
 
