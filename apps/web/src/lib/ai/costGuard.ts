@@ -28,6 +28,7 @@
 //   AMORA_FREE_MESSAGES_PER_COUPLE (기본 100)
 //   AMORA_GLOBAL_DAILY_MESSAGE_CAP (기본 300)
 //   AMORA_GLOBAL_DAILY_COST_CAP_USD (기본 $20; provider 호출 전 최악 비용 예약)
+//   AMORA_COUPLE_DAILY_CAP (기본 80; 커플당 **하루** 상한)
 //   AMORA_COST_GUARD_ENABLED=false 로 완전 비활성(긴급 시)
 
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -37,6 +38,19 @@ const POSTGRES_BIGINT_SAFE_MAX = Number.MAX_SAFE_INTEGER;
 const DEFAULT_FREE_PER_COUPLE = 100;
 const DEFAULT_GLOBAL_DAILY_CAP = 300;
 const DEFAULT_GLOBAL_DAILY_COST_CAP_USD = 20;
+/**
+ * 커플 한 쌍이 **하루에** 쓸 수 있는 상담 턴.
+ *
+ * 전역 상한만 있으면 그것은 한 사람이 당길 수 있는 **전 서비스 킬 스위치**다.
+ * 커플당 누적 무료 한도는 평생 기준이라 하루치를 막지 못한다.
+ *
+ * 2026-08-25 운영 실측: 24시간 동안 한 커플이 158턴을 썼다. 전역 기본 상한이
+ * 300이므로 그런 사용자 둘이면 그날 **모든 사용자**가 막힌다.
+ *
+ * 80은 사람이 하루에 쓰기엔 넉넉하고(실측 두 번째 커플 67턴), 한 쌍이 전역
+ * 상한을 혼자 태우지는 못하는 값이다.
+ */
+const DEFAULT_COUPLE_DAILY_CAP = 80;
 
 function readPositivePostgresInteger(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -85,6 +99,10 @@ const GLOBAL_DAILY_COST_CAP_MICROUSD = readPositiveUsdMicros(
   "AMORA_GLOBAL_DAILY_COST_CAP_USD",
   DEFAULT_GLOBAL_DAILY_COST_CAP_USD,
 );
+const COUPLE_DAILY_CAP = readPositivePostgresInteger(
+  "AMORA_COUPLE_DAILY_CAP",
+  DEFAULT_COUPLE_DAILY_CAP,
+);
 const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
 const COUPLE_QUOTA_ENABLED = process.env.AMORA_COUPLE_QUOTA_ENABLED !== "false";
 // Keep the atomic global reservation when the per-couple quota is disabled.
@@ -97,7 +115,7 @@ const BACKGROUND_COST_LEDGER_COUPLE_ID = "00000000-0000-4000-8000-000000000002";
 
 export interface CostGuardResult {
   allowed: boolean;
-  reason?: "couple_quota" | "global_daily" | "global_budget" | "guard_unavailable";
+  reason?: "couple_quota" | "couple_daily" | "global_daily" | "global_budget" | "guard_unavailable";
   message?: string;
   /** 커플 무료 상담 잔여 횟수 — 예약 성공 시에만 채워짐(소진 예고 UX용). 실패해도 undefined일 뿐 차단과 무관. */
   remaining?: number;
@@ -111,6 +129,8 @@ export class AmoraCostGuardError extends Error {
     this.name = "AmoraCostGuardError";
     this.code = result.reason === "couple_quota"
       ? "COST_GUARD_COUPLE_QUOTA"
+      : result.reason === "couple_daily"
+        ? "COST_GUARD_COUPLE_DAILY"
       : result.reason === "global_daily"
         ? "COST_GUARD_GLOBAL_DAILY"
         : result.reason === "global_budget"
@@ -160,6 +180,13 @@ const DENY_COUPLE: CostGuardResult = {
     "이 커플에 제공된 베타 무료 상담 한도를 모두 사용했어요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
 };
 
+const DENY_COUPLE_DAILY: CostGuardResult = {
+  allowed: false,
+  reason: "couple_daily",
+  message:
+    "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.",
+};
+
 const DENY_UNAVAILABLE: CostGuardResult = {
   allowed: false,
   reason: "guard_unavailable",
@@ -193,6 +220,22 @@ export async function reserveAmoraTurn(
   const ledgerCoupleId = params.quotaScope === "background"
     ? BACKGROUND_COST_LEDGER_COUPLE_ID
     : params.coupleId;
+
+  // **한 커플이 전역 상한을 혼자 태우지 못하게 한다.**
+  //
+  // 전역 상한만 있으면 그것은 한 사람이 당길 수 있는 전 서비스 킬 스위치다.
+  // 커플당 무료 한도는 평생 기준이라 하루치를 막지 못한다.
+  // 2026-08-25 실측: 24시간에 한 커플이 158턴을 썼다.
+  //
+  // 세는 데 실패하면 **통과시킨다.** 이 한도는 공정성이지 지갑이 아니고,
+  // 지갑은 아래 RPC 의 전역 비용 상한이 원자적으로 지킨다. 장부 조회 실패로
+  // 정상 사용자를 막는 쪽이 더 나쁘다.
+  if (appliesCoupleQuota) {
+    const usedToday = await countCoupleTurnsToday(admin, params.coupleId);
+    if (usedToday !== null && usedToday >= COUPLE_DAILY_CAP) {
+      return DENY_COUPLE_DAILY;
+    }
+  }
 
   try {
     const { data, error } = await admin.rpc("reserve_amora_turn", {
@@ -228,6 +271,41 @@ export async function reserveAmoraTurn(
   } catch (err) {
     console.error("[costGuard] 원자 예약 예외 (차단):", err);
     return DENY_UNAVAILABLE;
+  }
+}
+
+/**
+ * 오늘(KST) 이 커플이 쓴 상담 턴 수.
+ *
+ * 전역 예약 RPC 안이 아니라 그 앞에서 센다. 원자적이지 않지만 이 한도의
+ * 목적은 지갑이 아니라 **공정성**이다 — 경합으로 한두 턴이 더 나가도 상관없다.
+ * 돈을 지키는 것은 전역 비용 상한이고 그건 여전히 RPC 안에서 원자적이다.
+ *
+ * RPC 자신이 같은 장부에서 카운터를 시드한다(`ai_interactions_log` 의
+ * `chat_turn`). 인덱스 `(couple_id, created_at DESC)` 가 있다.
+ */
+async function countCoupleTurnsToday(
+  admin: SupabaseClient,
+  coupleId: string,
+): Promise<number | null> {
+  // KST 자정. 서버는 UTC 라 직접 만든다.
+  const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+  const nowKst = new Date(Date.now() + KST_OFFSET_MS);
+  const startKstMidnightUtc = new Date(
+    Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate())
+      - KST_OFFSET_MS,
+  );
+  try {
+    const { count, error } = await admin
+      .from("ai_interactions_log")
+      .select("id", { count: "exact", head: true })
+      .eq("couple_id", coupleId)
+      .eq("interaction_type", "chat_turn")
+      .gte("created_at", startKstMidnightUtc.toISOString());
+    if (error) return null;
+    return typeof count === "number" ? count : null;
+  } catch {
+    return null;
   }
 }
 

@@ -6,6 +6,7 @@ type MemoryBudgetReason = NonNullable<CostGuardResult["reason"]>;
 
 const REASON_CODE: Record<MemoryBudgetReason, string> = {
   couple_quota: "COUPLE_QUOTA",
+  couple_daily: "COUPLE_DAILY",
   global_daily: "GLOBAL_DAILY",
   global_budget: "GLOBAL_BUDGET",
   guard_unavailable: "GUARD_UNAVAILABLE",
