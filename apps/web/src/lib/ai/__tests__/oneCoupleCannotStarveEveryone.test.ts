@@ -123,3 +123,38 @@ describe("기존 계약을 깨지 않는다", () => {
     expect(result.reason).toBe("couple_quota");
   });
 });
+
+/**
+ * **운영은 무료 한도를 꺼 둔 상태다.**
+ *
+ * `AMORA_COUPLE_QUOTA_ENABLED=false` 가 걸려 있다(2026-08-25 실측: 커플
+ * 카운터가 710·397·193턴인데 기본 무료 한도는 100). 베타에서 무료 턴 제한을
+ * 없애려고 켠 스위치다.
+ *
+ * 처음에 나는 하루 상한을 그 스위치에 묶었다. 그래서 배선하고 테스트하고
+ * **배포까지 했는데 운영에서 아무 일도 하지 않았다** — 라이브로 158턴 쓴
+ * 커플에게 요청을 보내 통과하는 것을 보고서야 알았다.
+ *
+ * 무료 턴을 얼마나 주느냐는 **요금** 결정이고, 한 커플이 전 서비스를 멈추지
+ * 못하게 하는 것은 **가용성** 결정이다. 같은 스위치에 묶으면 안 된다.
+ */
+describe("무료 한도를 꺼도 하루 상한은 산다", () => {
+  it("AMORA_COUPLE_QUOTA_ENABLED=false 에서도 막는다", async () => {
+    vi.stubEnv("AMORA_COUPLE_QUOTA_ENABLED", "false");
+    vi.resetModules();
+    dailyCount = 158; // 운영에서 실제로 관측된 값
+    const result = await reserve();
+    expect(result.allowed).toBe(false);
+    expect(result.reason).toBe("couple_daily");
+    vi.unstubAllEnvs();
+  });
+
+  it("자체 스위치로는 끌 수 있다", async () => {
+    vi.stubEnv("AMORA_COUPLE_DAILY_CAP_ENABLED", "false");
+    vi.resetModules();
+    dailyCount = 500;
+    const result = await reserve();
+    expect(result.allowed).toBe(true);
+    vi.unstubAllEnvs();
+  });
+});
