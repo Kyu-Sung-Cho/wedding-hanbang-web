@@ -10,6 +10,7 @@
 // 반복해서 보고 아무것도 할 수 없다.
 
 import { useEffect, useState } from "react";
+import { CONTACT } from "@hanbang/shared/constants";
 import {
   ActivityIndicator,
   Alert,
@@ -188,7 +189,7 @@ export default function ConsentScreen() {
         </Pressable>
 
         <Text style={styles.footnote}>
-          계정 삭제를 원하시면 로그아웃 후 고객센터(support@hanbang.ai)로 알려주세요.
+          계정 삭제를 원하시면 로그아웃 후 고객센터({CONTACT.email})로 알려주세요.
         </Text>
       </ScrollView>
     </SafeAreaView>

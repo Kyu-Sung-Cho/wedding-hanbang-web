@@ -20,7 +20,13 @@ test("mobile sealed-single UI never tells the member to share an invite code", (
   // 2026-07-27: `https://hanbang.ai/support`는 대상 페이지가 없어 외부 브라우저로
   // 404를 열고 있었다 — 하필 막힌 사용자가 누르는 자리다. 웹이 이미 공개한 연락처
   // (개인정보처리방침·AI 정책의 mailto)로 바꿨다. 요구는 그대로 "문의할 곳을 준다"이다.
-  assert.match(settingsSource, /mailto:ceo@hanbang\.ai/);
+  //
+  // 2026-08-26: 그때 주소를 **문자열로 박아** 두어서, 이 단언이 `ceo@hanbang.ai` 를
+  // 고정하고 있었다. 웹은 8/22 에 연락처를 `contact@hanbang.ai` 로 옮겼는데 모바일은
+  // 이 테스트 때문에도 못 따라갔다. 요구는 주소가 아니라 **문의할 곳을 준다**이므로,
+  // 공유 상수를 쓰는지로 잰다.
+  assert.match(settingsSource, /mailto:\$\{CONTACT\.email\}/);
+  assert.match(settingsSource, /import \{ CONTACT \} from "@hanbang\/shared\/constants"/);
   assert.doesNotMatch(settingsSource, /hanbang\.ai\/support/);
 });
 

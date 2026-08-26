@@ -1,4 +1,5 @@
 import { daysUntilWedding } from "@hanbang/shared";
+import { CONTACT } from "@hanbang/shared/constants";
 // 프로필/설정 화면
 import { useState, useCallback } from "react";
 import {
@@ -398,7 +399,7 @@ export default function ProfileScreen() {
               icon={HelpCircle}
               label="고객센터"
               onPress={() =>
-                Linking.openURL("mailto:ceo@hanbang.ai")
+                Linking.openURL(`mailto:${CONTACT.email}`)
               }
             />
             <MenuItem
