@@ -10,6 +10,7 @@ import NotificationPanel from "@/components/app/NotificationPanel";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
+import { daysUntilWedding } from "@/lib/utils/weddingDate";
 
 const pageTitles: Record<string, string> = {
   "/lounge": "웨딩 라운지",
@@ -56,10 +57,14 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
   const today = useMemo(() => new Date(), []);
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
-  const dday =
-    weddingDate
-      ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-      : null;
+  // **한국 새벽 0~9시에 하루가 더 나왔다.**
+  //
+  // `new Date("YYYY-MM-DD")` 는 UTC 자정으로 파싱되고 `new Date()` 는 지금 이 순간이다.
+  // KST 0~9시는 UTC 로 전날 15~24시라 차이가 온전한 일수보다 조금 크고, `Math.ceil`
+  // 이 그걸 올려 하루를 더한다. 예식 당일 새벽에 "D-1" 이 뜨는 종류다.
+  //
+  // `daysUntilWedding` 은 예식일과 오늘을 **둘 다 KST 자정으로** 맞춘 뒤 비교한다.
+  const dday = daysUntilWedding(journey?.wedding_date);
   const progress = journey?.progress ?? {};
   const { notifications, newCount, dismiss, dismissAll } = useNotifications(weddingDate, progress, prefs);
 

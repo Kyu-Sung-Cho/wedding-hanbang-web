@@ -31,6 +31,7 @@ import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
 import { ymdInKst } from "@/lib/utils/kstDate";
+import { daysUntilWedding } from "@/lib/utils/weddingDate";
 import type {
   ChecklistItem,
   ScheduleEvent,
@@ -258,10 +259,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const totalDone = checklistSummary.done;
   const totalItems = checklistSummary.total;
 
-  const today = new Date();
-  const dday = weddingDate
-    ? Math.ceil((weddingDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    : null;
+  // **한국 새벽 0~9시에 하루가 더 나왔다.**
+  //
+  // `new Date("YYYY-MM-DD")` 는 UTC 자정으로 파싱되고 `new Date()` 는 지금 이 순간이다.
+  // KST 0~9시는 UTC 로 전날 15~24시라 차이가 온전한 일수보다 조금 크고, `Math.ceil`
+  // 이 그걸 올려 하루를 더한다. 예식 당일 새벽에 "D-1" 이 뜨는 종류다.
+  //
+  // `daysUntilWedding` 은 예식일과 오늘을 **둘 다 KST 자정으로** 맞춘 뒤 비교한다.
+  const dday = daysUntilWedding(weddingDateValue);
 
   const handleCategoryClick = useCallback((key: string) => {
     setSelectedCategory(key);
@@ -546,11 +551,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   }
 
   // D-day
+  //
+  // 예식일과 같은 이유로 새벽에 하루가 어긋났다. `new Date(ymd + "T00:00:00")` 는
+  // **브라우저 시간대**의 자정이라 KST 기기에서는 맞지만, 서버 렌더나 다른 시간대
+  // 기기에서는 어긋난다. 예식일 쪽과 같은 도우미를 쓴다.
   function getDaysUntil(dateString: string): string {
-    const diff = Math.ceil(
-      (new Date(dateString + "T00:00:00").getTime() - today.getTime()) /
-        (1000 * 60 * 60 * 24)
-    );
+    const diff = daysUntilWedding(dateString);
+    if (diff === null) return "";
     if (diff === 0) return "오늘";
     if (diff === 1) return "내일";
     if (diff < 0) return `${Math.abs(diff)}일 전`;
