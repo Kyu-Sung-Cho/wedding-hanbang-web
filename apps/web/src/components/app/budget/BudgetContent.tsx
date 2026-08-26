@@ -348,7 +348,7 @@ function InlineMoneyEdit({
         }`}
         title={`${label} 수정`}
       >
-        <span className={`text-base font-medium ${
+        <span className={`whitespace-nowrap text-base font-medium ${
           highlight === "spent" ? "text-[#1b1c1c]" : "text-[#504444]"
         }`}>
           {value > 0 || !emptyLabel ? formatWon(value) : emptyLabel}
@@ -567,7 +567,7 @@ function BudgetCard({
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
-    <div className="group bg-white rounded-2xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow">
+    <div className="group bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow">
       {/* 상단: 아이콘 + 이름 + 상태 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -592,17 +592,24 @@ function BudgetCard({
             </div>
           </div>
         </div>
-        {onDelete && (
-          <button
-            onClick={() => {
-              void Promise.resolve(onDelete(catKey)).catch(() => undefined);
-            }}
-            className="tap-area w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-            title={`${label} 삭제`}
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
+        {/* 분담 표시는 헤더에 둔다. 값 줄에 지출·예산과 나란히 두면 360px 에서
+            셋이 264px 를 나눠 갖느라 금액 상자가 38~42px 로 눌리고, 전역
+            `overflow-wrap: anywhere` 탓에 "1,150만원" 이 "1,15"/"0만원" 으로
+            쪼개졌다(2026-08-26 운영 실측). */}
+        <div className="flex shrink-0 items-center gap-1">
+          <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
+          {onDelete && (
+            <button
+              onClick={() => {
+                void Promise.resolve(onDelete(catKey)).catch(() => undefined);
+              }}
+              className="tap-area w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+              title={`${label} 삭제`}
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 진행 바 */}
@@ -633,7 +640,7 @@ function BudgetCard({
       </div>
 
       {/* 지출/예산/분담 */}
-      <div className="flex items-end justify-between gap-2">
+      <div className="flex items-end gap-3">
         <div className="flex items-end gap-3 min-w-0">
           <div className="flex flex-col items-start">
             <span className="text-xs uppercase tracking-widest text-[#B5ADA3] mb-0.5">기록 지출</span>
@@ -657,7 +664,6 @@ function BudgetCard({
             />
           </div>
         </div>
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
       </div>
     </div>
   );
@@ -1202,7 +1208,9 @@ export default function BudgetContent({
                       <Users className="h-4 w-4 text-[#36534E]" aria-hidden="true" />
                       <span className="text-[13px] font-medium text-[#5d6879]">{opt.label}</span>
                     </div>
-                    <p className={`font-serif-kr text-[25px] font-medium leading-none break-words ${
+                    {/* `break-words` 는 좁은 칸에서 "1,417만원" 을 숫자 중간에서 끊는다.
+                        360px 2열 그리드에서 칸 폭이 111px 뿐이라 25px 로는 안 들어간다. */}
+                    <p className={`font-serif-kr whitespace-nowrap text-[20px] font-medium leading-none sm:text-[25px] ${
                       amount > 0 ? "text-[#071629]" : "text-[#9a9188]"
                     }`}>
                       {formatWon(amount)}
