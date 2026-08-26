@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
@@ -116,5 +119,92 @@ describe("항목 안내의 근거", () => {
       "이야기해 두면 좋은 것이 몇 가지 있어요.",
     ];
     expect(단정.filter((sentence) => TELLS_USER_WHAT_TO_DO.test(sentence))).toEqual([]);
+  });
+});
+
+/**
+ * 근거 링크가 **무엇으로 가는지** 화면에서 말하는가.
+ *
+ * 링크가 어디로 가는지는 이미 맞았다(위 검사들). 문제는 사용자가 그것을 모른다는 것이었다 —
+ * 혼인신고 분야를 열면 똑같은 「근거 보기」가 **일곱 개** 늘어서는데, 실제 목적지는
+ * 「가져갈 것」·「어디에 내나요」·「신고를 마친 뒤 챙길 것」·「자녀의 성과 본」으로 흩어져 있다.
+ * 무엇을 얻을지 모르는 링크는 눌리지 않는다.
+ *
+ * **문구가 아니라 구별을 검사한다.** "절 제목을 쓴다"만 보면 한 분야의 링크가 전부 같은
+ * 제목으로 뭉쳐도 통과한다. 한 화면 안에서 링크가 실제로 갈리는지를 본다.
+ */
+describe("근거 링크가 무엇으로 가는지 말한다", () => {
+  /** 화면이 그리는 규칙과 같은 것만 적는다 — 표시에서만 절 번호를 벗긴다. */
+  const displayHeading = (heading: string) => heading.replace(/^[0-9]+[.] */, "");
+
+  it("컴포넌트가 절 제목을 실제로 쓴다", () => {
+    // 소스를 읽는 이유: 이 문구는 렌더 시점에 만들어지고, 붙박이 문자열이 되돌아오는 것을
+    // 막는 것이 목적이다. 낱말이 아니라 **배선**을 본다.
+    const component = readFileSync(
+      resolve(process.cwd(), "src/components/app/checklist/ChecklistItemSource.tsx"),
+      "utf8",
+    );
+
+    expect(component.length, "컴포넌트를 못 읽었다 — 경로가 낡았다").toBeGreaterThan(500);
+    expect(component, "같은 편 링크가 절 제목을 쓰지 않는다").toContain("source.heading");
+    expect(component, "붙박이 「근거 보기」가 돌아왔다").not.toContain('"근거 보기"');
+  });
+
+  it("절 번호는 표시에서만 벗기고 조회 키는 그대로 둔다", () => {
+    // 키를 자르면 `noteSourceLink` 의 절 조회가 통째로 깨진다. 번호가 붙은 편이 실재하는지
+    // 부터 확인한다 — 0건이면 이 검사가 조용히 통과한다.
+    const numbered = noteSourceItemIds()
+      .map((id) => noteSourceLink(id)!)
+      .filter((link) => /^[0-9]+[.] /.test(link.heading));
+    expect(numbered.length, "번호 붙은 절 제목이 하나도 없다 — 이 검사가 죽어 있다")
+      .toBeGreaterThan(0);
+
+    for (const link of numbered) {
+      expect(displayHeading(link.heading), "표시에서 절 번호가 안 벗겨졌다")
+        .not.toMatch(/^[0-9]+[.] /);
+      // 조회 키(원본 heading)로는 절이 여전히 찾아져야 한다.
+      const part = MANNERS_PARTS.find((p) => link.href.startsWith(`/manners/${p.slug}#`))!;
+      expect(
+        part.sections.some((section) => section.heading === link.heading),
+        "번호를 벗긴 값이 조회 키로 새어 들어갔다",
+      ).toBe(true);
+    }
+  });
+
+  it("서로 다른 절로 가는 링크는 서로 다른 문구를 단다", () => {
+    // 혼인신고가 이 검사의 출발점이다 — 일곱 개가 전부 같은 다섯 글자 「근거 보기」였고,
+    // 실제 목적지는 다섯 개의 다른 절이었다.
+    //
+    // **"문구가 다 다른가"를 묻지 않는다.** 그렇게 물었더니 예단·함이 걸렸는데, 그 둘은
+    // 항목 넷이 정말로 **같은 절 하나**를 가리킨다 — 문구가 같은 것이 옳다. 물어야 할 것은
+    // 절이 갈리는 만큼 문구도 갈리는가, 즉 절→문구가 일대일인가다.
+    //
+    // 다른 편으로 가는 링크는 편 제목을 쓰므로(같은 편에 여러 절이 있어도 한 문구다) 여기서
+    // 뺀다. 그건 "이건 다른 편이다"를 알리는 것이 목적이라 뭉치는 것이 설계다.
+    const perCategory = new Map<string, { sections: Set<string>; labels: Set<string> }>();
+    for (const id of noteSourceItemIds()) {
+      const categoryKey = id.slice(0, id.lastIndexOf("_"));
+      const link = noteSourceLink(id)!;
+      const categoryPart = mannersPartForCategory(categoryKey)?.slug;
+      if (!link.href.startsWith(`/manners/${categoryPart}#`)) continue;
+      if (!perCategory.has(categoryKey)) {
+        perCategory.set(categoryKey, { sections: new Set(), labels: new Set() });
+      }
+      const bucket = perCategory.get(categoryKey)!;
+      bucket.sections.add(link.heading);
+      bucket.labels.add(displayHeading(link.heading));
+    }
+
+    // 측정기 자가검증 — 절이 여럿인 분야가 없으면 아래 대조가 조용히 통과한다.
+    const multi = [...perCategory].filter(([, b]) => b.sections.size >= 2);
+    expect(multi.length, "절이 둘 이상인 분야가 없다 — 이 검사가 죽어 있다").toBeGreaterThan(0);
+
+    const collapsed = multi
+      .filter(([, b]) => b.labels.size !== b.sections.size)
+      .map(([key, b]) => `${key}(절 ${b.sections.size} → 문구 ${b.labels.size})`);
+    expect(
+      collapsed,
+      `다른 절로 가는데 같은 문구를 단다: ${collapsed.join(", ")}`,
+    ).toEqual([]);
   });
 });

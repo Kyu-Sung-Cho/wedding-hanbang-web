@@ -496,32 +496,54 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   // 통째로 죽는다(amoraPromptComposer). journey API 는 progress 키를 300개까지
   // 받으므로 사용자가 스스로 그 상태를 만들 수 있다. 넘치는 만큼은 개수로
   // 알리고 화면을 가리킨다 — 이 파일의 다른 목록도 같은 방식이다.
-  const CUSTOM_CATEGORIES_IN_PROMPT = 40;
+  // **개수가 아니라 글자 수로 막는다.**
+  //
+  // 처음에는 40개로 막았다. 그런데 라벨은 최대 60자까지 실리고(`promptData(label, 60)`)
+  // 키도 `custom_` + 24자가 될 수 있어서, 한 줄이 90자일 수도 150자일 수도 있다.
+  // **개수로는 길이를 묶을 수 없다.**
+  //
+  // 실제로 40개 상한인 채로 전체 프롬프트가 48,566자가 되어 한도 48,000을 넘었다
+  // (2026-08-26 실측, 라벨 30자 기준). 이 목록은 `## 커플 상황` 안이라 절단 불가
+  // 영역으로 떼어지므로, 넘친 만큼은 **선택 영역의 꼬리**가 대신 잘린다 — 그 꼬리가
+  // 후속 질문(`[suggestions]`) 계약이었다. 커스텀 항목이 34개를 넘는 커플에게는
+  // 제안 칩이 조용히 사라지고 있었고, 아무도 그것을 볼 수 없었다.
+  //
+  // 개수 상한이 무의미했던 것은 아니다 — 그것이 없으면 300개에서 74,902자가 되어
+  // 절단 불가 영역만으로 한도를 넘고 컴포저가 예외를 던진다(대화가 통째로 죽는다).
+  // 치명적 경우는 막고 있었고, 못 막은 것은 **조용한 손실** 쪽이다.
+  //
+  // 넘치는 만큼은 개수로 알리고 화면을 가리킨다 — 이 파일의 다른 목록도 같은 방식이다.
+  const CUSTOM_CATEGORY_PROMPT_CHARS = 2_000;
   const allCustomCategories = listCustomBudgetCategories(context.progress);
-  const hiddenCustomCount = Math.max(
-    0,
-    allCustomCategories.length - CUSTOM_CATEGORIES_IN_PROMPT,
-  );
-  const customCategoryStatus = allCustomCategories
-    .slice(0, CUSTOM_CATEGORIES_IN_PROMPT)
-    .map(({ key, label, value }) => {
-      const status = value.status === "completed"
-        ? "✅완료"
-        : value.status === "in_progress" ? "🔄진행중" : "⬜예정";
-      const budget = isValidWeddingWonAmount(value.budget)
-        ? `${(value.budget / 10000).toLocaleString()}만원`
-        : "미설정";
-      const spent = isValidWeddingWonAmount(value.spent)
-        ? `기록 지출: ${(value.spent / 10000).toLocaleString()}만원`
-        : "";
-      const parts = [
-        `${promptData(label, 60)}(${key}): ${status}, 예산: ${budget}`,
-        spent,
-        "직접 추가한 항목",
-      ].filter(Boolean);
-      return `  - ${parts.join(" | ")}`;
-    })
-    .join("\n");
+  const renderCustomCategory = ({ key, label, value }: (typeof allCustomCategories)[number]) => {
+    const status = value.status === "completed"
+      ? "✅완료"
+      : value.status === "in_progress" ? "🔄진행중" : "⬜예정";
+    const budget = isValidWeddingWonAmount(value.budget)
+      ? `${(value.budget / 10000).toLocaleString()}만원`
+      : "미설정";
+    const spent = isValidWeddingWonAmount(value.spent)
+      ? `기록 지출: ${(value.spent / 10000).toLocaleString()}만원`
+      : "";
+    const parts = [
+      `${promptData(label, 60)}(${key}): ${status}, 예산: ${budget}`,
+      spent,
+      "직접 추가한 항목",
+    ].filter(Boolean);
+    return `  - ${parts.join(" | ")}`;
+  };
+
+  const customLines: string[] = [];
+  let customChars = 0;
+  for (const category of allCustomCategories) {
+    const line = renderCustomCategory(category);
+    // +1 은 줄바꿈. 한 줄도 못 실을 만큼 예산이 작으면 그대로 0줄이 된다.
+    if (customChars + line.length + 1 > CUSTOM_CATEGORY_PROMPT_CHARS) break;
+    customLines.push(line);
+    customChars += line.length + 1;
+  }
+  const hiddenCustomCount = allCustomCategories.length - customLines.length;
+  const customCategoryStatus = customLines.join("\n");
 
   const customOverflowNote = hiddenCustomCount > 0
     ? `  - 직접 추가한 항목 ${hiddenCustomCount}개가 더 있음 — 전체는 예산 화면에서 확인`
@@ -1574,7 +1596,7 @@ ${getVendorAsymmetryContext()}
 
 예절·관습 질문에 답할 때, 이어서 읽을 만한 챕터가 있으면 \`[etiquette:번호]\` 태그를 1~2개 붙이세요. 화면이 이 태그를 읽기 카드로 바꿔 줍니다. 태그는 문장 끝에 두고, 본문에서 태그를 설명하지 마세요.
 
-**태그는 '더 읽을 곳'이지 '근거'가 아닙니다.** 이 가이드에는 출처 표기가 없습니다 — 금액·기간·법률 수치를 이 가이드에서 가져와 말하지 마세요. 위 규칙(수치·법률은 공식 원문을 확인하지 못하면 말하지 않는다)이 그대로 우선합니다. 사용자가 "가이드에 얼마라고 나왔더라"라고 물으면, 그 숫자는 관행을 적어둔 것이고 확인된 기준이 아니라고 말한 뒤 두 사람 상황을 물어보세요.
+**태그는 '더 읽을 곳'이지 '근거'가 아닙니다.** 당신에게는 편 제목만 주어지고 본문은 주어지지 않습니다 — 금액·기간·법률 수치를 이 가이드에서 가져와 말하지 마세요. 위 규칙(수치·법률은 공식 원문을 확인하지 못하면 말하지 않는다)이 그대로 우선합니다. 사용자가 "가이드에 얼마라고 나왔더라"라고 물으면 그 숫자를 부정하지도 되풀이하지도 말고, 그 편 아래 출처 표시를 확인해 달라고 안내한 뒤 두 사람 상황을 물어보세요.
 
 **비슷한 항목 구분:**
 - \`1:첫인사\` = 본인이 **혼자** 상대방 부모님 댁 방문. "상대방 부모님 첫 인사" / "상대방 부모님을 처음 뵙는다" → **1번**.

@@ -390,6 +390,62 @@ describe("항목이 아주 많아도 대화가 죽지 않는다", () => {
     expect(prompt).toContain("예산 화면에서 확인");
   });
 
+  // 라벨이 길어도 한도 안에 있다.
+  //
+  // 처음 상한은 **개수**(40개)였다. 그런데 라벨은 최대 60자까지 실리고
+  // (`promptData(label, 60)`) 키도 `custom_` + 24자가 될 수 있어서 한 줄이 90자일 수도
+  // 150자일 수도 있다 — 개수로는 길이를 못 묶는다. 위 두 검사가 쓰는 라벨 하나로만
+  // 재면 그 사실이 안 보인다. **가장 긴 경우를 따로 잰다.**
+  function worstCase(n: number): Record<string, unknown> {
+    const progress: Record<string, unknown> = {};
+    for (let i = 0; i < n; i += 1) {
+      const suffix = String(i);
+      const key = `custom_${"0123456789abcdef01234567".slice(0, 24 - suffix.length)}${suffix}`;
+      progress[key] = {
+        category: key,
+        // promptData 가 60자로 자르므로 그보다 길게 줘서 상한값을 그대로 쓰게 한다.
+        label: "가".repeat(200),
+        status: "in_progress",
+        budget: 1_234_567,
+        spent: 999_999,
+      };
+    }
+    return progress;
+  }
+
+  it("라벨과 키가 가장 길어도 한도 안에 있다", () => {
+    const length = buildAmoraSystemPrompt(promptContext(worstCase(300)), {
+      enabledToolNames: ["get_budget_summary", "add_custom_category"],
+      requestKind: "chat",
+      persistenceMode: "durable",
+    }).length;
+    expect(length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+
+  // 넘쳤을 때 **무엇을 잃는지**를 못 박는다.
+  //
+  // 넘겨도 예외가 나지는 않는다 — 컴포저가 선택 영역을 줄 단위로 자른다
+  // (`amoraPromptComposer.ts:654-662`). 그래서 실패가 조용하다. 2026-08-26 실측:
+  // 커스텀 34개부터 한도를 넘었고, 잘려 나간 것은 **후속 질문(`[suggestions]`) 계약
+  // 18줄 전부**였다. 그 커플에게는 제안 칩이 이유 없이 사라졌고 아무도 볼 수 없었다.
+  //
+  // 길이만 재면 이걸 못 잡는다 — 운영 경로는 잘라서라도 한도를 맞추기 때문에 늘 통과한다.
+  // 그래서 **운영과 같은 호출**(maxChars 를 넘김)로 계약이 남아 있는지 본다.
+  it("항목이 많아도 후속 질문 계약이 잘려 나가지 않는다", () => {
+    const production = (progress: Record<string, unknown>) =>
+      buildAmoraSystemPrompt(promptContext(progress), {
+        enabledToolNames: ["get_budget_summary", "add_custom_category"],
+        requestKind: "chat",
+        persistenceMode: "durable",
+        maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+
+    // 측정기 자가검증 — 빈 상태에서도 없으면 아래 대조가 아무것도 증명하지 않는다.
+    expect(production({}), "빈 상태에서도 제안 계약이 없다 — 이 검사가 죽어 있다")
+      .toContain("[suggestions]");
+    expect(production(worstCase(300)), "항목이 많으면 제안 계약이 잘려 나간다")
+      .toContain("[suggestions]");
+  });
   it("적을 때는 전부 싣고 생략 문구도 없다", () => {
     const prompt = promptWith(many(3));
     expect(prompt).not.toContain("개가 더 있음");

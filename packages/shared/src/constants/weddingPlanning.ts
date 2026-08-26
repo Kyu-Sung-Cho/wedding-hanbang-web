@@ -121,7 +121,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     ddayStart: 360,
     ddayDeadline: 300,
     items: [
-      { id: "meeting_01", label: "양쪽 부모님 첫 만남 날짜 조율", done: false },
+      {
+        id: "meeting_01",
+        label: "양쪽 부모님 첫 만남 날짜 조율",
+        done: false,
+        note: "두 사람이 각자 부모님께 편한 날을 먼저 여쭙고, 겹치는 날만 추려서 전하세요.",
+      },
       {
         id: "meeting_02",
         label: "만날 장소 정하고 예약",
@@ -856,23 +861,48 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     ddayStart: 90,
     ddayDeadline: 14,
     items: [
-      { id: "mc_01", label: "결혼식 진행을 맡을 사람 정하기", done: false },
+      {
+        id: "mc_01",
+        label: "결혼식 진행을 맡을 사람 정하기",
+        done: false,
+        note: "가까운 분께 부탁하면 그분은 하객으로 앉지 못하니 그 점도 함께 이야기해 보세요.",
+      },
       {
         id: "mc_02",
         label: "전문 진행자를 이용한다면 계약 조건 확인",
         done: false,
         note: "진행자가 못 오게 됐을 때 대신 올 사람이 있는지 계약 전에 확인해 두세요.",
       },
-      { id: "mc_03", label: "축하 노래를 부탁할 사람과 곡 정하기", done: false },
-      { id: "mc_04", label: "축하 공연이나 별도 행사가 필요한지 정하기", done: false },
+      {
+        id: "mc_03",
+        label: "축하 노래를 부탁할 사람과 곡 정하기",
+        done: false,
+        note: "제목만 보고 고르면 가사에서 사고가 나니, 부탁드릴 분과 처음부터 끝까지 함께 읽어 보세요.",
+      },
+      {
+        id: "mc_04",
+        label: "축하 공연이나 별도 행사가 필요한지 정하기",
+        done: false,
+        note: "넣기로 하면 앞뒤 순서에서 시간을 얼마나 쓸지 결혼식장과 먼저 맞춰 보세요.",
+      },
       {
         id: "mc_07",
         label: "주례를 모실지 정하고 부탁드리기",
         done: false,
         note: "모시지 않기로 하면 그 자리를 무엇으로 채울지 결혼식장과 미리 이야기해 보세요.",
       },
-      { id: "mc_05", label: "결혼식 진행 순서를 맡은 사람에게 전달", done: false },
-      { id: "mc_06", label: "결혼식 전 진행 순서를 맞춰볼 날짜 정하기", done: false },
+      {
+        id: "mc_05",
+        label: "결혼식 진행 순서를 맡은 사람에게 전달",
+        done: false,
+        note: "순서표만 보내지 말고 맡은 분의 이름과 관계를 어떻게 부를지까지 함께 전하세요.",
+      },
+      {
+        id: "mc_06",
+        label: "결혼식 전 진행 순서를 맞춰볼 날짜 정하기",
+        done: false,
+        note: "음향 장비로 노래를 실제 틀어 보는 시간까지 그날 안에 넣어 두세요.",
+      },
     ],
   },
   {
