@@ -625,7 +625,7 @@ export default function CommentItem({
             role="dialog"
             aria-modal="true"
             aria-labelledby={`comment-report-title-${comment.id}`}
-            className="max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white shadow-xl"
+            className="max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             {reportSubmitted ? (

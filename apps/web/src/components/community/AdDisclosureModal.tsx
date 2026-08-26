@@ -32,7 +32,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="w-full max-w-lg bg-white rounded-2xl p-8 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="w-full max-w-lg bg-white rounded-2xl p-8 shadow-2xl max-h-[90dvh] overflow-y-auto">
         <h2 className="text-2xl font-serif text-[#1A1A1F] mb-2" style={{ fontFamily: "'Paperlogy', sans-serif" }}>
           이 글은 어떤 유형인가요?
         </h2>

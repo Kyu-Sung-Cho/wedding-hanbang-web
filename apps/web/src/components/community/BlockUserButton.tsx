@@ -94,7 +94,7 @@ export default function BlockUserButton({
             role="dialog"
             aria-modal="true"
             aria-labelledby={`block-user-title-${userId}`}
-            className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-xl"
+            className="max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4 border-b border-[#F0EFED] p-5">

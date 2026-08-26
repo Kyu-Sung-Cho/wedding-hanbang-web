@@ -1241,7 +1241,7 @@ function PostPickerModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-xl max-h-[80vh] flex flex-col shadow-2xl"
+        className="bg-white rounded-2xl w-full max-w-xl max-h-[80dvh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-[#e5d8ca]">
