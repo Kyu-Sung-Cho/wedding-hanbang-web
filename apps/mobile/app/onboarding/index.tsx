@@ -268,6 +268,14 @@ export default function OnboardingScreen() {
   // onboarding_step: 5를 쓰기 때문이다.
   const [stagePhase, setStagePhase] = useState<"stage" | "detail">("stage");
   // 저장된 초안을 아직 못 읽었는데 저장부터 하면, 빈 초기 상태가 초안을 덮는다.
+  /**
+   * 이 초안의 주인.
+   *
+   * 로그아웃해도 초안은 기기에 최대 7일 남는다. 그래서 한 폰을 두 사람이 번갈아 쓰면
+   * 앞사람의 예식일·식장·예산이 다음 사람 화면에 떴다. 적은 사람의 id 를 함께 적어
+   * 그 사람일 때만 되살린다 — 세션이 끊겼다 다시 로그인한 본인은 그대로 이어받는다.
+   */
+  const draftOwnerIdRef = useRef<string | null>(null);
   const draftRestoredRef = useRef(false);
   // 서버에 저장된 뒤에는 다시 적지 않는다. 완료 화면(코드 보여주기)도 상태 변화라,
   // 지운 직후에 저장 타이머가 한 번 더 돌면 이미 끝난 온보딩의 초안이 되살아난다.
@@ -343,7 +351,14 @@ export default function OnboardingScreen() {
   useEffect(() => {
     let active = true;
     void (async () => {
-      const draft = await loadOnboardingDraft(AsyncStorage);
+      // 주인을 먼저 확인한다. 세션이 없으면 되살릴 대상 자체가 없다.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!active) return;
+      const ownerId = session?.user.id ?? null;
+      draftOwnerIdRef.current = ownerId;
+      const draft = ownerId
+        ? await loadOnboardingDraft(AsyncStorage, Date.now(), ownerId)
+        : null;
       if (!active) return;
       if (draft) {
         setStep(draft.step);
@@ -386,6 +401,8 @@ export default function OnboardingScreen() {
   useEffect(() => {
     if (!draftRestoredRef.current || draftDoneRef.current) return;
     const timer = setTimeout(() => {
+      // 주인을 모르면 적지 않는다 — 주인 없이 적힌 초안은 다음 사람에게 열린다.
+      if (!draftOwnerIdRef.current) return;
       void saveOnboardingDraft(AsyncStorage, {
         step,
         role,
@@ -403,7 +420,7 @@ export default function OnboardingScreen() {
         preparationStage,
         categoryStatuses,
         stagePhase,
-      });
+      }, Date.now(), draftOwnerIdRef.current);
     }, ONBOARDING_DRAFT_SAVE_DELAY_MS);
     return () => clearTimeout(timer);
   }, [

@@ -43,6 +43,7 @@ import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,
   type CoupleConnectionState,
+  ACCOUNT_DELETION_FACTS,
 } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
@@ -542,9 +543,18 @@ export default function SettingsScreen() {
 
   // 회원 탈퇴
   function handleDeleteAccount() {
+    // 되돌릴 수 없는 행동 앞에서 무엇이 지워지고 무엇이 남는지 먼저 말한다.
+    //
+    // 예전에는 "계정과 직접 소유한 데이터 삭제를 요청해요" 한 줄뿐이라,
+    // **배우자 화면에 내 대화가 그대로 남는다는 것**과 **업체를 등록했으면 탈퇴가
+    // 완료되지 않는다는 것**을 모른 채 두 번 눌러 진행했다. 웹은 같은 자리에서
+    // 이 사실들을 보여준다 — 문장은 지어내지 않고 공유 상수를 그대로 쓴다.
     Alert.alert(
       "회원 탈퇴",
-      "계정과 직접 소유한 데이터 삭제를 요청해요. 안전 확인이 필요한 경우 완료까지 시간이 걸릴 수 있어요.",
+      [
+        "계정과 직접 소유한 데이터 삭제를 요청해요. 안전 확인이 필요한 경우 완료까지 시간이 걸릴 수 있어요.",
+        ...ACCOUNT_DELETION_FACTS.map((fact) => `· ${fact.text}`),
+      ].join("\n\n"),
       [
         { text: "취소", style: "cancel" },
         {
