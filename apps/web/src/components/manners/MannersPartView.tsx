@@ -5,6 +5,51 @@ import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 /**
+ * 이 글을 읽는 데 실제로 걸리는 시간.
+ *
+ * 예전에는 `JSON.stringify(part.sections).length / 1800` 이었는데 두 곳에서 틀렸다.
+ *
+ *   1. **JSON 길이를 셌다.** 따옴표·중괄호·`"kind"` 같은 키 이름까지 글자로 세어
+ *      실제 본문보다 1.36배 부풀었다(25편 실측).
+ *   2. **분당 1,800자를 가정했다.** 한국어 묵독은 그 3분의 1 수준이고, 이 글에는 표와
+ *      목록이 섞여 있어 더 느리다.
+ *
+ * 둘이 곱해져 **화면이 실제의 절반을 표시했다.** 「축의금」은 8분이라고 적혀 있었지만
+ * 실제로는 10,377자짜리다. 8분인 줄 알고 연 사람이 17분을 쓰게 되고, 그 사람은 다음에
+ * 이 가이드를 안 연다. 예상 시간은 장식이 아니라 **읽을지 말지를 정하는 숫자**다.
+ */
+/**
+ * 목차와 제목에 붙일 절 번호는 **위치로 매긴다.**
+ *
+ * 25편 중 제목에 번호를 직접 적어 둔 것은 5편뿐이다(`invitation-sending`, `cost-saving` 등).
+ * 그래서 어떤 편은 「1. 먼저 할 일」로, 어떤 편은 「가져갈 것」으로 보여 목록의 생김새가
+ * 편마다 달랐고, 11개짜리 긴 편에서 지금 어디쯤인지 알 수 없었다.
+ *
+ * 원본 제목에 이미 번호가 있으면 **표시할 때만** 벗기고 위치 번호를 붙인다. 원본은 그대로
+ * 둔다 — 그 문자열이 `noteSources` 의 절 조회 키다(벗긴 값을 키로 쓰면 링크가 통째로 깨진다).
+ */
+function sectionLabel(heading: string): string {
+  return heading.replace(/^[0-9]+[.] */, "");
+}
+
+const KOREAN_CHARS_PER_MINUTE = 600;
+
+/** 사람이 읽는 글자만 센다 — 블록 종류나 근거 번호는 화면에 글로 나오지 않는다. */
+function readableCharCount(value: unknown): number {
+  if (typeof value === "string") return value.length;
+  if (Array.isArray(value)) return value.reduce<number>((sum, item) => sum + readableCharCount(item), 0);
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>).reduce<number>(
+      (sum, [key, item]) =>
+        key === "kind" || key === "sourceRefs" || key === "unsourced"
+          ? sum
+          : sum + readableCharCount(item),
+      0,
+    );
+  }
+  return 0;
+}
+/**
  * 결혼 예절 안내 본문 렌더러. 서버 전용이고 클라이언트 JS가 0이다.
  *
  * 삭제된 원본 화면(`EtiquetteClient.tsx` 1,307줄)은 절반이 체크박스·메모·일정 팝오버였다.
@@ -183,20 +228,35 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
     .map((source) => source.checkedAt)
     .sort()
     .at(-1);
-  const readingMinutes = Math.max(3, Math.ceil(JSON.stringify(part.sections).length / 1800));
+  const readingMinutes = Math.max(
+    1,
+    Math.round(readableCharCount(part.sections) / KOREAN_CHARS_PER_MINUTE),
+  );
 
   return (
     <div className="mx-auto grid w-full max-w-[1120px] gap-8 px-4 py-8 sm:px-6 sm:py-10 lg:grid-cols-[220px_minmax(0,760px)] lg:items-start lg:justify-center">
-      <aside className="lg:sticky lg:top-[92px]" aria-label="이 글의 목차">
-        <p className="text-[12px] font-semibold tracking-[0.12em] text-[#8F5150]">이 글에서 바로 찾기</p>
-        <nav className="mt-3 flex gap-2 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible">
+      {/*
+        목차는 **읽는 동안에도 닿아야 한다.**
+
+        예전에는 모바일에서 글 맨 위 가로 칩 줄이라 스크롤하면 사라졌다. 「축의금」은 절이
+        11개이고 실제로 17분짜리인데, 6절을 읽다가 3절로 돌아가려면 맨 위까지 올라가야 했다.
+        모바일이 주 제품이므로 그쪽이 기준이다. 상단 헤더는 고정이 아니라(`manners/layout.tsx`)
+        `top-0` 이 안전하다.
+      */}
+      <aside
+        className="sticky top-0 z-20 -mx-4 border-b border-[#243832]/10 bg-[#fffdf8]/95 px-4 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:top-[92px] lg:z-auto lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
+        aria-label="이 글의 목차"
+      >
+        <p className="hidden text-[12px] font-semibold tracking-[0.12em] text-[#8F5150] lg:block">이 글에서 바로 찾기</p>
+        <nav className="flex gap-2 overflow-x-auto pb-1 lg:mt-3 lg:flex-col lg:overflow-visible lg:pb-2">
           {part.sections.map((section, index) => (
             <a
               key={section.heading}
               href={`#section-${index + 1}`}
               className="shrink-0 rounded-full border border-[#243832]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
             >
-              {section.heading}
+              <span aria-hidden className="mr-1.5 text-[#8F5150]/70">{index + 1}</span>
+              {sectionLabel(section.heading)}
             </a>
           ))}
         </nav>
@@ -240,7 +300,12 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
       <div className="mt-8 space-y-9">
         {part.sections.map((section, index) => (
           <section key={section.heading} id={`section-${index + 1}`} className="scroll-mt-24">
-            <h2 className="text-[17px] font-semibold leading-snug text-[#243832]">{section.heading}</h2>
+            <h2 className="text-[17px] font-semibold leading-snug text-[#243832]">
+              <span aria-hidden className="mr-2 text-[#8F5150]/70">
+                {index + 1}/{part.sections.length}
+              </span>
+              {sectionLabel(section.heading)}
+            </h2>
             <div className="mt-3 space-y-4">
               {section.blocks.map((block, index) => (
                 <Block key={`${section.heading}-${index}`} block={block} sources={part.sources} />
