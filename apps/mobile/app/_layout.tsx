@@ -10,6 +10,7 @@ import { initSentry, registerSentryNavigationContainer, Sentry } from "@/lib/sen
 import { disposeAuthListener, initAuthListener } from "@/lib/authListener";
 import { colors } from "@hanbang/design-tokens";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import ConsentGate from "@/components/ConsentGate";
 import OfflineBanner from "@/components/OfflineBanner";
 
 const paperlogyFonts = {
@@ -125,6 +126,7 @@ function RootLayout() {
         <SafeAreaProvider>
           <OfflineBanner />
           <StatusBar style="dark" />
+          <ConsentGate>
           <Stack
             screenOptions={{
               headerShown: false,
@@ -148,6 +150,7 @@ function RootLayout() {
             <Stack.Screen name="webview" options={{ headerShown: false }} />
             <Stack.Screen name="community" options={{ headerShown: false }} />
           </Stack>
+          </ConsentGate>
         </SafeAreaProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>
