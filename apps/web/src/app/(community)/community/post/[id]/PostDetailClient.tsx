@@ -563,7 +563,7 @@ export default function PostDetailClient({
 
                 {/* 시간 */}
                 <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
-                <span className="text-[13px] text-[#B5ADA3] whitespace-nowrap">{timeAgo(post.created_at)}</span>
+                <span suppressHydrationWarning className="text-[13px] text-[#B5ADA3] whitespace-nowrap">{timeAgo(post.created_at)}</span>
 
                 {/* 카테고리 */}
                 {categoryInfo && (
@@ -1349,7 +1349,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                         <span className="shrink-0 rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
                           {itemCategory?.shortLabel ?? "커뮤니티"}
                         </span>
-                        <span className="truncate">{timeAgo(item.created_at)}</span>
+                        <span suppressHydrationWarning className="truncate">{timeAgo(item.created_at)}</span>
                       </div>
                       <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.45] text-[#071629]">
                         {item.title}

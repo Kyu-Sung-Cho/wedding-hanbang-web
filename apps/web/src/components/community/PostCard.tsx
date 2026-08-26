@@ -214,7 +214,7 @@ export default function PostCard({ post }: PostCardProps) {
                     {categoryInfo.shortLabel}
                   </span>
                 )}
-                <span className="text-xs sm:text-sm text-[#635b51]">{timeAgo(post.created_at)}</span>
+                <span suppressHydrationWarning className="text-xs sm:text-sm text-[#635b51]">{timeAgo(post.created_at)}</span>
 
                 {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
                   <AdDisclosureBadge

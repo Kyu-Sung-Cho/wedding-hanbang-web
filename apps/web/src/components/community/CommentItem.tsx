@@ -333,7 +333,7 @@ export default function CommentItem({
               <ContentOriginBadge origin={contentOrigin} />
 
               <span className="text-[#B5ADA3]">&middot;</span>
-              <time className="text-[#B5ADA3]" title={comment.created_at}>
+              <time suppressHydrationWarning className="text-[#B5ADA3]" title={comment.created_at}>
                 {timeAgo(comment.created_at)}
               </time>
             </div>
