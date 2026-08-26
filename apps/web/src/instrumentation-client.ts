@@ -11,9 +11,21 @@ import {
   sanitizeSentryTransaction,
 } from "@hanbang/shared";
 
+import { attachClientErrorSink } from "@/lib/observability/clientErrorReport";
+import { resolveDeploymentEnvironment } from "@/lib/observability/deploymentEnvironment";
+
 type SentryModule = typeof import("@sentry/nextjs");
 
 const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+
+/** 프리뷰 배포를 운영으로 착각하지 않게 하는 값. 판정 규칙과 이유는 도우미에 있다. */
+function resolveEnvironment(): string {
+  return resolveDeploymentEnvironment({
+    vercelEnv: process.env.NEXT_PUBLIC_VERCEL_ENV,
+    hostname: typeof window !== "undefined" ? window.location.hostname : undefined,
+    nodeEnv: process.env.NODE_ENV,
+  });
+}
 
 let sentry: SentryModule | null = null;
 const buffered: unknown[] = [];
@@ -45,7 +57,7 @@ if (typeof window !== "undefined" && dsn) {
         mod.init({
           dsn,
           enabled: true,
-          environment: process.env.NODE_ENV,
+          environment: resolveEnvironment(),
           tracesSampleRate: 0.1,
           // 브라우저에서 잡히는 오류에는 사용자가 입력한 문장이 그대로 실릴 수 있다.
           // 서버·edge와 같은 규칙으로 나가기 전에 지운다.
@@ -58,6 +70,23 @@ if (typeof window !== "undefined" && dsn) {
         sentry = mod;
         for (const error of buffered) mod.captureException(error);
         buffered.length = 0;
+        // 에러 경계가 담아 둔 것도 여기서 함께 흘린다. 경계가 잡은 오류는 위의
+        // window 리스너에 안 걸리므로 이 통로가 유일하다.
+        //
+        // digest 를 fingerprint 에 넣는 이유: 운영 빌드의 서버 컴포넌트 오류는
+        // 라우트와 무관하게 문구가 같고 스택도 비어 있어, 그냥 두면 전 라우트가
+        // 한 이슈로 뭉쳐 "새 이슈" 알림이 한 번만 울린다.
+        attachClientErrorSink((error, context) => {
+          mod.captureException(
+            error,
+            context.digest
+              ? {
+                  tags: { next_digest: context.digest },
+                  fingerprint: ["{{ default }}", context.digest],
+                }
+              : undefined,
+          );
+        });
       })
       .catch(() => {
         // 모니터링 로드 실패가 서비스를 막으면 안 된다.

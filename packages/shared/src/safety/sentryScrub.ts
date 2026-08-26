@@ -55,10 +55,34 @@ function removeCommonPrivateFields<T extends ScrubbableEvent>(event: T): T {
   return event;
 }
 
+/**
+ * Sentry의 DOM breadcrumb은 클릭된 요소를 CSS 선택자처럼 적으면서
+ * `["aria-label","type","name","title","alt"]` 속성값을 **그대로** 붙인다.
+ * 이 앱에서 그 자리에 오는 것은 사용자 자신의 글이다:
+ *
+ *     button[aria-label="상견례_견적_최종.pdf 첨부 제거"]     ← 첨부 파일명
+ *     a[aria-label="…게시글 보기"]                            ← 커뮤니티 글 제목
+ *     img[alt="예비신부수민"]                                  ← 닉네임
+ *
+ * `redactSentryText`는 URL·이메일·전화·주민번호·토큰 패턴만 보므로 한글 문장은
+ * 하나도 안 걸린다. 그래서 값만 지우고 **구조(태그·class·id)는 남긴다** — 어디를
+ * 눌렀는지는 알아야 사고를 재현한다.
+ *
+ * `type`은 남긴다. `button`·`submit` 같은 고정값이라 사용자 자료가 아니다.
+ *
+ * 값 안에 따옴표가 들어가도 놓치지 않도록 `"]`까지 최소 매칭한다.
+ */
+const DOM_ATTRIBUTE_WITH_USER_TEXT = /\[(aria-label|title|alt|name)="[\s\S]*?"\]/g;
+
 export function sanitizeSentryBreadcrumb<T extends ScrubbableBreadcrumb>(breadcrumb: T): T {
+  const withoutAttributeValues = breadcrumb.message?.replace(
+    DOM_ATTRIBUTE_WITH_USER_TEXT,
+    `[$1="${REDACTED}"]`,
+  );
+
   return {
     ...breadcrumb,
-    message: redactSentryText(breadcrumb.message),
+    message: redactSentryText(withoutAttributeValues),
     // breadcrumb data에는 요청 본문과 상태가 그대로 실린다.
     data: undefined,
   };

@@ -2,6 +2,10 @@
 
 import { useEffect } from "react";
 
+// 여기서 끌어오는 것은 의존성 없는 20여 줄짜리 모듈이다. 이 화면은 루트 레이아웃까지
+// 깨진 뒤에 뜨므로 무거운 것을 새로 부르면 이 화면마저 못 뜬다.
+import { reportClientError } from "@/lib/observability/clientErrorReport";
+
 // 최후의 에러 화면(루트 레이아웃까지 깨진 경우). 사용자에게는 스택·내부 메시지를
 // 절대 보여주지 않는다 — 원문은 콘솔·모니터링으로만 흘리고, 화면에는 다음 행동만 둔다.
 export default function GlobalError({
@@ -13,6 +17,8 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error("[global-error]", error.digest ?? error.message);
+    // 경계가 잡은 오류는 window error 이벤트를 안 만든다 — 명시적으로 보내야 한다.
+    reportClientError(error);
   }, [error]);
 
   return (
