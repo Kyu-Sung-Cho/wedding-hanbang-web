@@ -3,12 +3,18 @@
 import Link from "next/link";
 import { useEffect } from "react";
 
+import { reportClientError } from "@/lib/observability/clientErrorReport";
+
 // 루트 에러 경계. 이게 없으면 어느 화면에서든 Next 기본 "Application error" 원문이
 // 그대로 노출된다 — 사용자에게는 내부 사정 대신 다음 행동만 보여준다.
 export default function RootError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     // 원문은 콘솔·모니터링으로만 흘리고 화면에는 올리지 않는다.
     console.error("[root-error]", error.digest ?? error.message);
+    // **React 에러 경계가 잡은 오류는 window 의 error 이벤트를 안 만든다.** 그래서
+    // 이 줄이 없으면 사용자가 깨진 화면을 보는 바로 그 경우가 모니터링에 안 남는다
+    // (2026-08-26 확인: 웹이 Sentry 로 의도적으로 보내던 오류는 AI 원장 실패 3줄뿐이었다).
+    reportClientError(error);
   }, [error]);
 
   return (

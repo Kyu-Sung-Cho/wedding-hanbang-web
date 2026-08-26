@@ -1,6 +1,24 @@
 "use client";
 
-export default function PriceCategoryError({ reset }: { reset: () => void }) {
+import { useEffect } from "react";
+
+import { reportClientError } from "@/lib/observability/clientErrorReport";
+
+export default function PriceCategoryError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    // 이 경계가 잡으면 루트 경계까지 올라가지 않는다 — React 는 가장 가까운
+    // 하나만 쓴다. 그래서 여기서 직접 보내지 않으면 이 화면은 모니터링에
+    // 아무것도 안 남긴다(콘솔에는 Next 가 원문을 찍는다).
+    console.error("[price-category-error]", error.digest ?? error.message);
+    reportClientError(error);
+  }, [error]);
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#FBF8F2] px-5 text-[#243832]">
       <div className="max-w-md text-center">
