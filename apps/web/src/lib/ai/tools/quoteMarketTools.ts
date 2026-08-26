@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
+import { priceRegionLabel } from "@/lib/price/labels";
 import {
   analyzeAmoraQuoteCheck,
   getQuoteCheckItems,
@@ -188,6 +189,17 @@ export async function executeGetMarketPrice(
   const period = disclosureRoundLabel();
   const base = { category, region: region || null, source, period, publicPath: "/price" };
 
+  // **잰 범위를 수치와 같은 문장에 넣는다.** 2026-08-26 운영 실측: 지역을 말하지 않고
+  // "대관료는 보통 얼마야?" 라고 묻자 아모라가 `seoul_gangnam3` 으로 조회해
+  // 대관료 중위 770만·식대 1인 11.5만을 답했다(각각 n=41·43 — 강남권 부분집합과
+  // 정확히 일치). 200명 기준 식대만 **전국 1,280만 vs 강남 2,300만**이라 1,000만원
+  // 넘게 어긋난다. 문장은 "보통 얼마"에 대한 답처럼 읽혔다.
+  //
+  // 좁히는 것 자체는 막지 않는다 — 예식장이 강남이면 강남값이 더 맞다. 막는 것은
+  // **좁힌 사실이 문장에서 빠지는 것**이다. `toolOutput.region` 은 예전에도 있었지만
+  // 모델이 그걸 옮겨 적어야만 사용자에게 닿았고, 실제로는 옮겨 적지 않았다.
+  const scope = region ? priceRegionLabel(region) : "전국";
+
   const emptyResult: ToolExecutionResult = {
     toolName: "get_market_price",
     toolInput: input,
@@ -202,7 +214,7 @@ export async function executeGetMarketPrice(
     success: true,
     // 없을 때도 출처는 밝힌다. 어디를 찾아봤는지 알아야 사용자가 다음을 정한다.
     displayMessage:
-      `${MARKET_PRICE_SOURCE_FALLBACK} 공시가에는 해당 조건의 금액이 없어요. 금액을 임의로 말씀드리지 않을게요.`,
+      `${MARKET_PRICE_SOURCE_FALLBACK} ${scope} 공시가에는 해당 조건의 금액이 없어요. 금액을 임의로 말씀드리지 않을게요.`,
   };
 
   // 결혼식장인데 항목을 고르지 않았으면 **섞지 않고 유형별로 나눠서** 준다.
@@ -231,7 +243,7 @@ export async function executeGetMarketPrice(
       toolOutput: { ...base, breakdown },
       success: true,
       displayMessage:
-        `${source} 기준 결혼식장 공시가입니다. 항목마다 단위가 달라 따로 봅니다 — `
+        `${source} 기준 ${scope} 결혼식장 공시가입니다. 항목마다 단위가 달라 따로 봅니다 — `
         + breakdown
           .map((entry) => (
             `${entry.itemType}${entry.perPerson ? "(1인)" : ""} 중간값 `
@@ -265,7 +277,7 @@ export async function executeGetMarketPrice(
     },
     success: true,
     displayMessage:
-      `${source} 기준 ${label ? `${label} ` : ""}공시가 ${stats.sampleCount}건: `
+      `${source} 기준 ${scope} ${label ? `${label} ` : ""}공시가 ${stats.sampleCount}건: `
       + `중간값 ${formatKrw(stats.medianKrw)}`
       + ` (최소 ${formatKrw(stats.minKrw)} ~ 최대 ${formatKrw(stats.maxKrw)}).`
       + " 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",
