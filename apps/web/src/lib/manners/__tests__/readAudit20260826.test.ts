@@ -175,3 +175,40 @@ describe("긴 글에서 목차가 따라온다", () => {
     expect(aside, "목차가 모바일에서 스크롤과 함께 사라진다").toContain("sticky top-0");
   });
 });
+
+describe("접수처에서 자기 항목을 찾을 수 있다", () => {
+  // 요건 목록에는 미성년자 동의만 있고 피성년후견인이 없는데, 준비물에는 그 서류가 있었다.
+  // 이 목록은 「접수처에서 막히는 일을 줄이려고」 만든 것이다 — 성년후견을 받는 당사자와
+  // 가족이 여기서 자기 줄을 못 찾고 헛걸음한다. 민법 제808조 제2항 실재 확인(국가법령정보센터).
+  const registration = part("marriage-registration");
+
+  it("피성년후견인 동의가 요건 목록에 있다", () => {
+    const requirements = registration?.sections.find((s) => s.heading.includes("요건"));
+    expect(requirements, "요건 절을 못 찾았다").toBeTruthy();
+    expect(JSON.stringify(requirements)).toContain("제808조 제2항");
+  });
+
+  it("그 조문을 지는 출처가 있다", () => {
+    const labels = (registration?.sources ?? []).map((s) => s.label).join(" | ");
+    expect(labels, "민법 조문 출처가 없다").toMatch(/민법.*제808조|제808조.*민법/);
+  });
+});
+
+describe("예산을 잡으라고 만든 표가 예산을 잡게 한다", () => {
+  // 두 줄 다 「1인당」인데 7~15만과 5~10만대라, 여섯 분 예산을 30만원대로 잡을지
+  // 90만원대로 잡을지 이 표로는 못 정했다. 값은 관행 정리라 건드리지 않고 읽는 법을 붙였다.
+  it("두 줄의 관계를 말한다", () => {
+    const table = part("family-meeting")?.sections
+      .flatMap((s) => s.blocks)
+      .find((b) => b.kind === "table");
+    expect(table, "상견례 표를 못 찾았다").toBeTruthy();
+    expect(table && "limits" in table ? table.limits : "").toContain("포함 관계가 아니라");
+  });
+
+  it("참고란이 값과 상관있는 말을 한다", () => {
+    // 「음식을 고르는 시간이 없어 대화에 집중하기 좋습니다」는 다른 팁과 한 글자도 다르지
+    // 않은 복사본이었고, 금액 표의 참고란에 들어갈 말이 아니었다.
+    expect(JSON.stringify(part("family-meeting")?.sections))
+      .not.toContain("음식을 고르는 시간이 없어 대화에 집중하기 좋습니다\", \"");
+  });
+});
