@@ -239,3 +239,22 @@ describe("확인 못 한 범위를 그 자리에서 밝힌다", () => {
       .toContain("대상주택 요건은 저희가 1차 자료로 확인하지 못했습니다");
   });
 });
+
+describe("부모 없이 치러도 가장 비싼 절차를 찾을 수 있다", () => {
+  // 예식장 비용 정산 — 그날 가장 큰 금액이 오가는 절차 — 이 「양가 어른(혼주)의 당일」
+  // 절 안에만 있었다. 「두 사람 — 식이 끝난 뒤」에는 0줄이었다. 내용을 옮기지 않고
+  // 누가 맡든 해야 하는 일로 자리를 잡아 줬다.
+  const sectionOf = (heading: string) =>
+    part("wedding-day")?.sections.find((s) => s.heading === heading);
+
+  it("두 사람 절에서 정산으로 가는 길이 있다", () => {
+    const after = sectionOf("두 사람 — 식이 끝난 뒤");
+    expect(after, "절을 못 찾았다").toBeTruthy();
+    expect(JSON.stringify(after)).toContain("예식장 비용 정산");
+  });
+
+  it("혼주 절이 부모만의 일이 아니라고 말한다", () => {
+    expect(JSON.stringify(sectionOf("양가 어른(혼주)의 당일")))
+      .toContain("두 사람이 직접 맡거나");
+  });
+});
