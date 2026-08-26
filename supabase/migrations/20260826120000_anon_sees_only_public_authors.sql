@@ -38,6 +38,23 @@
 -- 15 는 우연이 아니라 **현재 작성자 집합과 정확히 같은 수**다. 그래서 지금 화면에
 -- 이름이 나오던 자리는 하나도 비지 않는다.
 --
+-- ## uid 가 없다고 다 익명이 아니다
+--
+-- 처음엔 `WHEN auth.uid() IS NULL THEN <좁힌 조건>` 으로 썼다. 그런데 **서버가
+-- 서비스 롤로 부를 때도 uid 는 NULL** 이라, 적용 직후 운영에서 재 보니:
+--
+--     service_role = 15   (원래 42)
+--     anon         = 15
+--
+-- `community/cohort`, `community/profiles/[userId]`, `community/blocks`,
+-- `lib/community/authorProfiles`, `lib/community/publicPostDetail` 이 전부
+-- `createAdminClient()` 로 이 뷰를 읽는다. 글을 쓴 적 없는 사람의 이름이
+-- **로그인한 사람의 화면에서도** 조용히 비었을 것이다.
+--
+-- 그래서 좁히는 대상을 웹에서 오는 역할(`anon`·`authenticated`)로 못박았다.
+-- PostgREST 는 JWT 의 role 로 세션 역할을 바꾸므로 뷰 안에서 `current_user` 가
+-- 그 역할이다(운영에서 `current_user in view=service_role` 로 확인).
+--
 -- ## 동기방은 원래 익명에게 닫혀 있다
 --
 -- 이 뷰의 호출자 중 절반은 동기방(멤버 목록·메시지·타임라인)이다. 좁히면 그쪽이
@@ -59,7 +76,19 @@ WITH (security_barrier = true) AS
   WHERE public.community_runtime_mode() <> 'disabled'::text
     AND COALESCE(profile.is_suspended, false) = false
     AND CASE
-      WHEN auth.uid() IS NULL THEN
+      -- 로그인한 사람이 먼저다. 이 갈래는 예전 그대로 — 차단 관계를 그대로 본다.
+      WHEN auth.uid() IS NOT NULL THEN
+        profile.user_id = auth.uid()
+        OR community_private.viewer_can_see_current_user(profile.user_id)
+      -- **`auth.uid() IS NULL` 을 곧 "익명" 으로 읽으면 안 된다.** 서버가 서비스
+      -- 롤로 부를 때도 uid 는 NULL 이다. 처음에 그렇게 썼다가 운영에서 재 보니
+      -- `service_role=15` 로 떨어져 있었다(원래 42). 동기방 멤버 목록·프로필
+      -- 페이지·차단 목록이 `createAdminClient()` 로 이 뷰를 읽기 때문에, 글을 쓴 적
+      -- 없는 사람의 이름이 로그인 화면에서도 조용히 비었을 것이다.
+      --
+      -- 그래서 좁히는 대상을 **웹에서 오는 역할**로 못박는다. PostgREST 는 JWT 의
+      -- role 로 세션 역할을 바꾸므로 뷰 안에서 `current_user` 가 그 역할이다.
+      WHEN current_user IN ('anon', 'authenticated') THEN
         EXISTS (
           SELECT 1
           FROM public.community_posts p
@@ -73,9 +102,9 @@ WITH (security_barrier = true) AS
           WHERE c.author_id = profile.user_id
             AND p.visibility = 'public'
         )
-      ELSE
-        profile.user_id = auth.uid()
-        OR community_private.viewer_can_see_current_user(profile.user_id)
+      -- 서버 내부 경로(service_role·postgres). 예전과 똑같이 전부 본다 — 여기서
+      -- 좁히면 로그인 사용자가 보는 화면이 깨진다.
+      ELSE TRUE
     END;
 
 COMMENT ON VIEW public.community_public_profiles IS

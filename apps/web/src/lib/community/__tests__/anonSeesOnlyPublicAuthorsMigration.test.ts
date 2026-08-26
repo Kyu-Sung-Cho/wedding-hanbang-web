@@ -57,11 +57,11 @@ const sql = raw
 const dense = sql.replace(/\s+/gu, "");
 
 /**
- * `CASE WHEN auth.uid() IS NULL THEN …` 과 `ELSE` 사이, 즉 **로그아웃일 때만 도는
- * 조건식**. 문자열을 찾는 대신 이 갈래를 통째로 꺼내서 본다 — 그러지 않으면
- * `THEN TRUE OR EXISTS(…)` 처럼 옛 동작을 되살리면서 검사만 비껴가는 모양을 놓친다.
+ * 좁혀진 갈래, 즉 **웹에서 오는 역할일 때만 도는 조건식**. 문자열을 찾는 대신 이
+ * 갈래를 통째로 꺼내서 본다 — 그러지 않으면 `THEN TRUE OR EXISTS(…)` 처럼 옛
+ * 동작을 되살리면서 검사만 비껴가는 모양을 놓친다.
  */
-const ANON_BRANCH_START = "WHENauth.uid()ISNULLTHEN";
+const ANON_BRANCH_START = "WHENcurrent_userIN('anon','authenticated')THEN";
 const anonBranch = (() => {
   const from = dense.indexOf(ANON_BRANCH_START);
   if (from < 0) return "";
@@ -116,6 +116,24 @@ describe("로그아웃 갈래가 공개 작성자로 좁혀져 있다", () => {
     // 나머지를 아무리 잘 써도 전부 통과한다.
     expect(anonBranch, "무조건 참인 항이 끼어 있다").not.toMatch(/(^|OR|\()TRUE\b/u);
     expect(anonBranch).not.toMatch(/auth\.uid\(\)ISNULLOR/u);
+  });
+});
+
+describe("서버 내부 경로는 좁히지 않는다", () => {
+  it("좁히는 조건이 uid 유무가 아니라 역할이다", () => {
+    // **`auth.uid() IS NULL` 을 곧 '익명' 으로 읽으면 서버까지 좁혀진다.**
+    // 서비스 롤로 부를 때도 uid 는 NULL 이다. 실제로 그렇게 썼다가 운영에서
+    // service_role 이 42 → 15 로 떨어져 있었다. 동기방 멤버 목록·프로필 페이지·
+    // 차단 목록이 `createAdminClient()` 로 이 뷰를 읽는다.
+    expect(dense, "좁히는 갈래가 역할로 못박혀 있지 않다").toContain(ANON_BRANCH_START);
+    expect(dense, "uid 유무로 좁히면 서비스 롤까지 걸린다")
+      .not.toContain("WHENauth.uid()ISNULLTHEN");
+  });
+
+  it("역할 목록이 웹 두 개뿐이다 — service_role 이 끼면 서버가 좁혀진다", () => {
+    const roles = ANON_BRANCH_START.match(/'([a-z_]+)'/gu) ?? [];
+    expect(roles).toEqual(["'anon'", "'authenticated'"]);
+    expect(dense).not.toMatch(/IN\([^)]*'service_role'[^)]*\)THEN/u);
   });
 });
 
