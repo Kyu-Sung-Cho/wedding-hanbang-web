@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ACCOUNT_DELETION_FACTS,
   ACCOUNT_DELETION_POLICY_ANCHORS,
-} from "@/constants/accountDeletionPolicy";
+} from "@hanbang/shared/constants";
 import { CONTACT } from "@/lib/constants/contact";
 
 // 설정 화면은 사유 선택과 "탈퇴합니다" 입력 확인까지 갖춘 모달을 그대로 렌더하면서

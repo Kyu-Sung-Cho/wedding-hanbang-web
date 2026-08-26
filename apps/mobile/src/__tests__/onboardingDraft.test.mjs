@@ -294,7 +294,8 @@ test("the screen restores before it saves, and a link beats a stale choice", () 
   assert.match(onboardingSource, /if \(!draftRestoredRef\.current \|\| draftDoneRef\.current\) return;/);
   assert.match(
     onboardingSource,
-    /const draft = await loadOnboardingDraft\(AsyncStorage\);[\s\S]{0,1600}draftRestoredRef\.current = true;[\s\S]{0,400}consumePendingCoupleInviteCode/,
+    // 인자는 늘었지만(주인 id) 순서는 그대로여야 한다.
+    /await loadOnboardingDraft\(\s*AsyncStorage[\s\S]{0,80}?\)[\s\S]{0,1600}draftRestoredRef\.current = true;[\s\S]{0,400}consumePendingCoupleInviteCode/,
   );
   // 링크로 정해진 join이 초안의 예전 선택보다 뒤에 적용돼야 한다.
   const restoreIndex = onboardingSource.indexOf("setCoupleAction(draft.coupleAction)");
@@ -319,4 +320,69 @@ test("an already-onboarded person is sent back to the lounge by the root gate's 
   // 확인하는 동안 화면을 가리지 않는다 — 여기서 스피너를 세우면 연결이 느린 사람은
   // 가입 자체를 못 하고, 이 빗장이 막는 건 이미 계정이 있는 사람의 잘못된 재입장뿐이다.
   assert.doesNotMatch(onboardingSource, /gateChecking|checkingOnboardingGate/);
+});
+
+/* ─────────────────────────────────────────────
+   (g) 초안은 적은 사람의 것이다
+   ───────────────────────────────────────────── */
+
+test("한 폰을 넘겨받은 다음 사람에게는 앞사람의 초안이 보이지 않는다", async () => {
+  // 로그아웃해도 초안은 기기에 최대 7일 남는다. 그래서 계정을 바꿔 로그인하면
+  // 앞사람의 예식일·식장·예산이 다음 사람 화면에 떴다.
+  const storage = createMemoryStorage();
+  const now = Date.parse("2026-08-25T02:00:00.000Z");
+  const 앞사람 = "11111111-1111-4111-8111-111111111111";
+  const 다음사람 = "22222222-2222-4222-8222-222222222222";
+
+  await draft.saveOnboardingDraft(storage, FILLED_DRAFT, now, 앞사람);
+
+  assert.equal(
+    await draft.loadOnboardingDraft(storage, now + 60_000, 다음사람),
+    null,
+    "다음 사람에게 앞사람의 초안이 보인다",
+  );
+  // 주인을 모르는 채로 읽는 것도 막는다.
+  assert.equal(await draft.loadOnboardingDraft(storage, now + 60_000, null), null);
+});
+
+test("세션이 끊겼다 다시 로그인한 본인은 그대로 이어받는다", async () => {
+  // 이것이 로그아웃 때 지우지 않은 이유다 — `signOut` 은 세션 만료(401)에서도
+  // 자동으로 불린다(`lib/api.ts`). 거기서 지우면 초안이 존재하는 이유를 잃는다.
+  const storage = createMemoryStorage();
+  const now = Date.parse("2026-08-25T02:00:00.000Z");
+  const 본인 = "11111111-1111-4111-8111-111111111111";
+
+  await draft.saveOnboardingDraft(storage, FILLED_DRAFT, now, 본인);
+  const restored = await draft.loadOnboardingDraft(storage, now + 60_000, 본인);
+
+  assert.equal(restored?.step, 4);
+  assert.equal(restored?.venue, "어느 홀");
+  assert.equal(restored?.budget, "3000");
+});
+
+test("주인이 적히지 않은 옛 초안은 되살리지 않는다", async () => {
+  // 이 변경 이전에 적힌 초안은 누구 것인지 알 수 없다. 보여주는 쪽이 더 나쁘다.
+  const storage = createMemoryStorage();
+  const now = Date.parse("2026-08-25T02:00:00.000Z");
+
+  await storage.setItem(
+    draft.ONBOARDING_DRAFT_KEY,
+    JSON.stringify({ savedAt: now, draft: FILLED_DRAFT }),
+  );
+
+  assert.equal(
+    await draft.loadOnboardingDraft(storage, now + 60_000, "11111111-1111-4111-8111-111111111111"),
+    null,
+  );
+});
+
+test("화면이 주인을 모르면 적지도 않는다", () => {
+  // 주인 없이 적힌 초안은 다음 사람에게 열린다.
+  assert.match(onboardingSource, /if \(!draftOwnerIdRef\.current\) return;/);
+  // 저장과 복원 둘 다 주인을 넘긴다.
+  assert.match(onboardingSource, /draftOwnerIdRef\.current\);/);
+  assert.match(
+    onboardingSource,
+    /loadOnboardingDraft\(AsyncStorage, Date\.now\(\), ownerId\)/,
+  );
 });

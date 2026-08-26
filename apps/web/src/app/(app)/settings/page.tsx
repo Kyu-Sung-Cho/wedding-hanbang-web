@@ -41,7 +41,7 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 import { CONTACT } from "@/lib/constants/contact";
 import TodayOnePreferenceControl from "@/components/app/TodayOnePreferenceControl";
 import InviteCodePanel from "@/components/invite/InviteCodePanel";
-import { ACCOUNT_DELETION_FACTS } from "@/constants/accountDeletionPolicy";
+import { ACCOUNT_DELETION_FACTS } from "@hanbang/shared/constants";
 import {
   describeCoupleInviteWindow,
   resolveCoupleConnectionState,

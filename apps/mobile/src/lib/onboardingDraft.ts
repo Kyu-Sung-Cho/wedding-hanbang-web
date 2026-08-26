@@ -15,6 +15,20 @@
  * 쓰이도록 따로 들고 있다. 웹도 같은 이유로 partialize에서 빼고, 읽는 쪽에서 한 번 더
  * 버린다 — 여기서도 타입에 없고 파싱에서도 버린다.
  *
+ * ## 초안은 적은 사람의 것이다
+ *
+ * 로그아웃해도 이 초안은 기기에 남고 최대 7일 산다. 그래서 한 폰을 두 사람이 번갈아
+ * 쓰거나 계정을 바꿔 로그인하면 **앞사람이 적은 예식일·식장·예산이 다음 사람 화면에
+ * 떴다.** 초대 코드는 위와 같은 이유로 이미 빼 두었는데 나머지에는 같은 보호가 없었다.
+ *
+ * 로그아웃 때 지우는 길은 택하지 않았다. `signOut` 은 **세션 만료(401)에서도 자동으로**
+ * 불리므로(`lib/api.ts`), 거기서 지우면 온보딩 도중 세션이 끊긴 사람이 초안이 존재하는
+ * 이유 그 자체를 잃는다.
+ *
+ * 대신 **적은 사람의 id 를 함께 적어** 그 사람일 때만 되살린다. 세션이 끊겼다 다시
+ * 로그인한 본인은 그대로 이어받고, 다른 사람은 못 본다. 주인을 모르는 초안(이 변경
+ * 이전에 적힌 것)은 되살리지 않는다 — 누구 것인지 모르는 것을 보여주는 쪽이 더 나쁘다.
+ *
  * ## 왜 실패가 조용한가
  *
  * 이 저장은 편의 장치다. 저장소가 막힌 기기에서 초안을 못 적었다고 온보딩이 멈추면,
@@ -176,6 +190,7 @@ export function normalizeOnboardingDraft(
 export function parseOnboardingDraft(
   raw: unknown,
   now: number = Date.now(),
+  expectedOwnerId: string | null = null,
 ): OnboardingDraft | null {
   if (typeof raw !== "string" || raw.length === 0) return null;
   let parsed: unknown;
@@ -193,6 +208,16 @@ export function parseOnboardingDraft(
   if (savedAt > now) return null;
   if (now - savedAt > ONBOARDING_DRAFT_MAX_AGE_MS) return null;
 
+  // 주인이 다르면 없는 것으로 본다.
+  //
+  // `expectedOwnerId` 를 준 쪽(앱)은 그 사람의 초안만 받는다. 안 준 쪽은 주인이
+  // 적히지 않은 초안만 받는다 — 앱은 언제나 주고, 주인 없는 초안은 이 변경 이전에
+  // 적힌 것이라 누구 것인지 알 수 없다.
+  const storedOwnerId = typeof record.ownerId === "string" && record.ownerId
+    ? record.ownerId
+    : null;
+  if ((expectedOwnerId ?? null) !== storedOwnerId) return null;
+
   const draft = record.draft;
   if (!draft || typeof draft !== "object" || Array.isArray(draft)) return null;
   return normalizeOnboardingDraft(draft as Partial<OnboardingDraft>);
@@ -201,18 +226,28 @@ export function parseOnboardingDraft(
 export function serializeOnboardingDraft(
   draft: Readonly<Partial<OnboardingDraft>>,
   now: number = Date.now(),
+  ownerId: string | null = null,
 ): string {
-  return JSON.stringify({ savedAt: now, draft: normalizeOnboardingDraft(draft) });
+  return JSON.stringify({
+    savedAt: now,
+    // 주인을 함께 적는다. 없으면 아예 넣지 않아, 옛 형식과 새 형식을 값으로 가른다.
+    ...(ownerId ? { ownerId } : {}),
+    draft: normalizeOnboardingDraft(draft),
+  });
 }
 
 export async function saveOnboardingDraft(
   storage: OnboardingDraftStorage | null,
   draft: Readonly<Partial<OnboardingDraft>>,
   now: number = Date.now(),
+  ownerId: string | null = null,
 ): Promise<void> {
   if (!storage) return;
   try {
-    await storage.setItem(ONBOARDING_DRAFT_KEY, serializeOnboardingDraft(draft, now));
+    await storage.setItem(
+      ONBOARDING_DRAFT_KEY,
+      serializeOnboardingDraft(draft, now, ownerId),
+    );
   } catch {
     // 저장 실패가 온보딩을 막지 않는다. 못 적었을 뿐 화면은 그대로 걸어간다.
   }
@@ -221,10 +256,15 @@ export async function saveOnboardingDraft(
 export async function loadOnboardingDraft(
   storage: OnboardingDraftStorage | null,
   now: number = Date.now(),
+  expectedOwnerId: string | null = null,
 ): Promise<OnboardingDraft | null> {
   if (!storage) return null;
   try {
-    return parseOnboardingDraft(await storage.getItem(ONBOARDING_DRAFT_KEY), now);
+    return parseOnboardingDraft(
+      await storage.getItem(ONBOARDING_DRAFT_KEY),
+      now,
+      expectedOwnerId,
+    );
   } catch {
     return null;
   }
