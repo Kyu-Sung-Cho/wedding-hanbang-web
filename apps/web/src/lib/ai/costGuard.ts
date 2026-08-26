@@ -52,6 +52,39 @@ const DEFAULT_GLOBAL_DAILY_COST_CAP_USD = 20;
  * 상한을 혼자 태우지는 못하는 값이다.
  */
 const DEFAULT_COUPLE_DAILY_CAP = 80;
+/**
+ * 로그인 없이 하는 **체험**이 하루에 태울 수 있는 몫.
+ *
+ * ## 무엇이 문제였나
+ *
+ * 체험은 실사용자와 **같은 전역 하루 지갑**을 썼다. 게다가 커플당 하루 상한이
+ * 체험에는 걸리지 않는다(`denyIfCoupleUsedTodayUp` 이 standard 가 아니면 즉시
+ * null). 막는 것은 IP당 시간당 60회뿐이다.
+ *
+ * 그래서 출시 공지 후 구경하는 사람이 몰리면 **가입한 사람이 첫 메시지부터**
+ * "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요" 를 본다. 한국시간 자정까지
+ * 풀리지 않는다. 제품이 가장 잘 보여야 하는 날에 정확히 그 확률이 올라간다.
+ *
+ * ## 어떻게 나누나
+ *
+ * 전역 카운터 키(`global:<KST날짜>`)는 RPC 안에 박혀 있어 지갑을 물리적으로 쪼개려면
+ * 마이그레이션이 필요하다. 대신 **같은 카운터에 체험만 낮은 천장**을 넘긴다 —
+ * RPC 가 `IF v_global_count >= p_global_cap` 으로 비교하므로
+ * (`20260716097000_amora_atomic_cost_budget.sql:164`), 체험은 이 값에서 멈추고
+ * 그 차이가 실사용자 몫으로 남는다.
+ *
+ * 부작용은 의도한 것이다: 하루가 바쁘면 **체험이 먼저 꺼진다.** 가입한 사람이
+ * 밀려나는 것보다 낫고, 체험이 막힌 사람에게는 가입이라는 다음 걸음이 있다.
+ *
+ * ## 왜 장부를 세지 않나
+ *
+ * 커플당 하루 상한처럼 `ai_interactions_log` 를 세려 했는데 **체험은 그 표에
+ * `couple_id` 를 남기지 않는다**(2026-08-26 운영 실측: 체험 합성 ID 로 조회하면
+ * `chat_turn` 0건인데 `amora_turn_counters` 는 89턴). 그 방식이었으면 체험은
+ * 영원히 0으로 세어져 상한이 한 번도 안 걸렸을 것이다.
+ */
+const DEFAULT_DEMO_GLOBAL_DAILY_CAP = 150;
+const DEFAULT_DEMO_GLOBAL_DAILY_COST_CAP_USD = 4;
 
 function readPositivePostgresInteger(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -104,6 +137,49 @@ const COUPLE_DAILY_CAP = readPositivePostgresInteger(
   "AMORA_COUPLE_DAILY_CAP",
   DEFAULT_COUPLE_DAILY_CAP,
 );
+const DEMO_GLOBAL_DAILY_CAP = readPositivePostgresInteger(
+  "AMORA_DEMO_GLOBAL_DAILY_CAP",
+  DEFAULT_DEMO_GLOBAL_DAILY_CAP,
+);
+const DEMO_GLOBAL_DAILY_COST_CAP_MICROUSD = readPositiveUsdMicros(
+  "AMORA_DEMO_GLOBAL_DAILY_COST_CAP_USD",
+  DEFAULT_DEMO_GLOBAL_DAILY_COST_CAP_USD,
+);
+
+/**
+ * 체험이 볼 천장. 실사용자보다 **낮을 때만** 뜻이 있으므로 더 낮은 쪽을 쓴다.
+ *
+ * 설정을 잘못해 체험 몫이 전역보다 커지면 분리가 사라지는데, 그건 조용히
+ * 일어나면 안 된다 — `Math.min` 으로 막고 시작 로그에 실제 적용값을 찍는다.
+ */
+export function resolveGlobalCaps(input: {
+  quotaScope: string | undefined;
+  globalTurns: number;
+  globalCostMicrousd: number;
+  demoTurns: number;
+  demoCostMicrousd: number;
+}): { turns: number; costMicrousd: number } {
+  if (input.quotaScope !== "demo") {
+    return { turns: input.globalTurns, costMicrousd: input.globalCostMicrousd };
+  }
+  return {
+    turns: Math.min(input.demoTurns, input.globalTurns),
+    costMicrousd: Math.min(input.demoCostMicrousd, input.globalCostMicrousd),
+  };
+}
+
+function globalCapsFor(quotaScope: string | undefined): {
+  turns: number;
+  costMicrousd: number;
+} {
+  return resolveGlobalCaps({
+    quotaScope,
+    globalTurns: GLOBAL_DAILY_CAP,
+    globalCostMicrousd: GLOBAL_DAILY_COST_CAP_MICROUSD,
+    demoTurns: DEMO_GLOBAL_DAILY_CAP,
+    demoCostMicrousd: DEMO_GLOBAL_DAILY_COST_CAP_MICROUSD,
+  });
+}
 const GUARD_ENABLED = process.env.AMORA_COST_GUARD_ENABLED !== "false";
 // **꺼져 있으면 그 사실이 보여야 한다.**
 //
@@ -148,6 +224,12 @@ console.info("[costGuard] config", {
   // 턴당 실측 $0.027(2026-08-25 운영 5일치) 로 나눈 값. 비용 상한이 먼저
   // 걸리는지 턴 상한이 먼저 걸리는지 바로 보인다.
   costCapReachedAtTurns: Math.floor(GLOBAL_DAILY_COST_CAP_MICROUSD / 27_000),
+  // 체험 몫. 실사용자에게 남는 것은 globalDailyTurns - demoGlobalTurns 다.
+  demoGlobalTurns: Math.min(DEMO_GLOBAL_DAILY_CAP, GLOBAL_DAILY_CAP),
+  demoGlobalCostUsd: Math.min(
+    DEMO_GLOBAL_DAILY_COST_CAP_MICROUSD,
+    GLOBAL_DAILY_COST_CAP_MICROUSD,
+  ) / 1_000_000,
 });
 // Keep the atomic global reservation when the per-couple quota is disabled.
 // The RPC parameter is PostgreSQL INTEGER, so the sentinel must stay within int4.
@@ -285,12 +367,14 @@ export async function reserveAmoraTurn(
   if (dailyDenial) return dailyDenial;
 
   try {
+    // 체험은 실사용자보다 낮은 천장을 본다 — 같은 카운터를 쓰되 먼저 멈춘다.
+    const caps = globalCapsFor(params.quotaScope);
     const { data, error } = await admin.rpc("reserve_amora_turn", {
       p_couple_id: ledgerCoupleId,
       p_couple_cap: coupleCap,
-      p_global_cap: GLOBAL_DAILY_CAP,
+      p_global_cap: caps.turns,
       p_reserve_cost_microusd: params.maxCostMicrousd,
-      p_global_cost_cap_microusd: GLOBAL_DAILY_COST_CAP_MICROUSD,
+      p_global_cost_cap_microusd: caps.costMicrousd,
     });
     if (error) {
       console.error("[costGuard] 원자 예약 실패 (차단):", error.message);
@@ -421,6 +505,8 @@ export async function reserveAmoraProviderCall(
   const ledgerCoupleId = params.quotaScope === "background"
     ? BACKGROUND_COST_LEDGER_COUPLE_ID
     : params.coupleId;
+  // 체험은 실사용자보다 낮은 천장을 본다 — 같은 카운터를 쓰되 먼저 멈춘다.
+  const providerCaps = globalCapsFor(params.quotaScope);
 
   try {
     const { data, error } = await admin.rpc("reserve_amora_provider_call", {
@@ -429,10 +515,10 @@ export async function reserveAmoraProviderCall(
       p_request_key: params.requestKey,
       p_cost_couple_id: ledgerCoupleId,
       p_couple_cap: coupleCap,
-      p_global_cap: GUARD_ENABLED ? GLOBAL_DAILY_CAP : POSTGRES_INT_MAX,
+      p_global_cap: GUARD_ENABLED ? providerCaps.turns : POSTGRES_INT_MAX,
       p_reserve_cost_microusd: params.maxCostMicrousd,
       p_global_cost_cap_microusd: GUARD_ENABLED
-        ? GLOBAL_DAILY_COST_CAP_MICROUSD
+        ? providerCaps.costMicrousd
         : POSTGRES_BIGINT_SAFE_MAX,
     });
     if (error) {
