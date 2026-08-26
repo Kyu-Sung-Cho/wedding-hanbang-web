@@ -673,15 +673,25 @@ export default function PendingAmoraActionCard({
             {approvalMutation === "withdraw" ? "취소 중…" : "내 확인 취소"}
           </button>
         )}
+        {/*
+          보이는 글자와 접근성 이름을 같게 둔다. 예전에는 보이는 글자가 "이번 화면에서
+          숨기기" 인데 이름은 "…에서**만** 숨기기" 라 이름이 보이는 글자를 담지 못했다
+          (WCAG 2.5.3 Label in Name). 음성으로 보이는 대로 부르면 그 버튼이 안 잡힌다.
+
+          문구는 모바일(`app/(tabs)/chat.tsx`)에 맞춘다. 같은 카드인데 웹은 "이번 화면에서
+          숨기기", 모바일은 "지금은 적용하지 않기" 로 갈려 있었다. 모바일 쪽이 하는 일을
+          더 정확히 말한다 — 이 버튼은 결정을 저장하지 않고 화면에서만 치우며, 다음
+          답변에 같은 카드가 다시 붙는다(route.ts 의 캐리포워드).
+        */}
         <button
           type="button"
           onClick={onDismiss}
           disabled={isApplying}
-          aria-label="이 제안을 이번 화면에서만 숨기기"
+          aria-label="지금은 적용하지 않기"
           className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[#504444] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <X className="h-4 w-4" aria-hidden="true" />
-          이번 화면에서 숨기기
+          지금은 적용하지 않기
         </button>
       </div>
     </section>

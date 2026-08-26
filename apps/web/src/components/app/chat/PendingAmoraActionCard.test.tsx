@@ -140,8 +140,14 @@ describe("PendingAmoraActionCard", () => {
     const buttons = container.querySelectorAll("button");
     expect(buttons).toHaveLength(2);
     expect(buttons[0]?.getAttribute("aria-label")).toBe("확인한 내용을 이대로 적용");
-    expect(buttons[1]?.textContent).toContain("이번 화면에서 숨기기");
-    expect(buttons[1]?.getAttribute("aria-label")).toBe("이 제안을 이번 화면에서만 숨기기");
+    // 문구는 모바일과 같게 맞췄다. **접근성 이름이 보이는 글자를 담아야 한다** —
+    // 예전에는 보이는 글자가 "이번 화면에서 숨기기" 인데 이름은 "…에서만 숨기기" 라
+    // 음성으로 보이는 대로 불러도 그 버튼이 안 잡혔다(WCAG 2.5.3 Label in Name).
+    const dismissText = buttons[1]?.textContent?.trim() ?? "";
+    const dismissLabel = buttons[1]?.getAttribute("aria-label") ?? "";
+    expect(dismissText).toContain("지금은 적용하지 않기");
+    expect(dismissLabel).toBe("지금은 적용하지 않기");
+    expect(dismissLabel, "접근성 이름이 보이는 글자를 담지 않는다").toContain(dismissText);
 
     await act(async () => buttons[0]?.click());
     await act(async () => Promise.resolve());

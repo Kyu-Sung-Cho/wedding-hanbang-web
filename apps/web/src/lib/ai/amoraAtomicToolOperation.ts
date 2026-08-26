@@ -1450,6 +1450,44 @@ export function buildAmoraAtomicToolOperation(
         "수정할 일정을 찾지 못했어요. 현재 일정을 다시 확인해 주세요.",
       );
     }
+    // 카드에 "대상 일정"·"현재 날짜" 로 보여 준 값이 실제와 맞는지 다시 본다.
+    //
+    // 형제 도구(cancel·restore)는 이 둘을 **필수**로 받고 제목까지 정확 일치를
+    // 요구한다. 여기서는 두 가지를 다르게 한다:
+    //
+    // 1. **선택 필드다.** 필수로 만들면 모델이 하나만 빠뜨려도 표식이 조용히
+    //    통째로 버려져 카드가 0건이 된다 — 이 저장소가 실제로 겪은 실패 모양이다.
+    // 2. **제목은 느슨하게 본다.** 프롬프트가 제목을 300자로 자르고 trim 해서
+    //    싣기 때문에(`prompts.ts` 의 `promptData`), 정확 일치를 요구하면 긴 제목의
+    //    일정은 **영구히 못 옮기게** 된다. 날짜는 잘리지 않으므로 정확히 본다.
+    //
+    // 값이 어긋난다는 것은 그 사이 일정이 바뀌었거나 모델이 딴 일정을 집었다는
+    // 뜻이다. 사용자가 카드에서 본 것과 다른 것을 바꾸면 안 된다.
+    const expectedDate = toolInput.expected_date;
+    if (typeof expectedDate === "string" && expectedDate !== existing.date) {
+      return noOpFailure(
+        toolName,
+        toolInput,
+        "schedule_target_changed",
+        "선택한 일정의 날짜가 달라져 적용하지 않았어요. 현재 일정을 다시 확인해 주세요.",
+      );
+    }
+    const expectedTitle = toolInput.expected_title;
+    if (typeof expectedTitle === "string") {
+      const seen = expectedTitle.trim();
+      const actual = existing.title.trim();
+      // 잘린 제목도 통과시킨다: 모델이 본 것이 실제 제목의 앞부분이면 같은 일정이다.
+      const matches = actual === seen || actual.startsWith(seen) || seen.startsWith(actual);
+      if (!matches) {
+        return noOpFailure(
+          toolName,
+          toolInput,
+          "schedule_target_changed",
+          "선택한 일정의 제목이 달라져 적용하지 않았어요. 현재 일정을 다시 확인해 주세요.",
+        );
+      }
+    }
+
     const updates: Partial<ScheduleEvent> = {};
     if (toolInput.date !== undefined) updates.date = toolInput.date as string;
     if (toolInput.time !== undefined) updates.time = toolInput.time as string;

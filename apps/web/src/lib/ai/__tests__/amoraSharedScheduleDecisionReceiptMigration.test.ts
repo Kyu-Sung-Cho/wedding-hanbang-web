@@ -21,6 +21,19 @@ const scheduleDecisionMigrationSql = readFileSync(
   "utf8",
 );
 
+/**
+ * 옮기기 카드가 "무엇을 어디서" 옮기는지 말할 수 있게 트리거의 입력 키 화이트리스트를
+ * 넓힌 마이그레이션. **이 줄이 없으면 이 파일은 옛 트리거를 검사한다** — 도구 스키마만
+ * 고치고 운영에서 22023 으로 죽는 상태를 초록불로 통과시킨다.
+ */
+const moveCardMigrationSql = readFileSync(
+  resolve(
+    process.cwd(),
+    "../../supabase/migrations/20260827090000_move_card_can_name_what_it_moves.sql",
+  ),
+  "utf8",
+);
+
 const BRIDE_ID = "10000000-0000-4000-8000-000000000001";
 const GROOM_ID = "10000000-0000-4000-8000-000000000002";
 const OUTSIDER_ID = "10000000-0000-4000-8000-000000000003";
@@ -313,6 +326,7 @@ async function createDatabase() {
   `);
   await db.exec(sharedActionMigrationSql);
   await db.exec(scheduleDecisionMigrationSql);
+  await db.exec(moveCardMigrationSql);
   return db;
 }
 
@@ -604,6 +618,108 @@ describe("Amora shared schedule decision receipts", () => {
         decision_node_id: expect.any(String),
         decision_count: 1,
       });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  /**
+   * 옮기기 카드가 "무엇을 어디서" 옮기는지 말하려면 `expected_title`·`expected_date`
+   * 가 카드 입력에 실려야 한다(형제 도구 cancel·restore 는 이미 그렇고, 카드가
+   * 그것을 "대상 일정"·"현재 날짜" 로 찍는다).
+   *
+   * **그런데 도구 스키마만 고치면 운영에서 조용히 죽는다.** 이 트리거가 승인된
+   * 입력 키를 정확히 6개로 잠그고 있어서 선언 안 된 키가 하나라도 있으면
+   * `AMORA_SHARED_SCHEDULE_UPDATE_DELTA_INVALID`(22023) 로 적용 전체가 롤백된다.
+   * 아래 두 검사가 그 관문이 실제로 열렸는지, 그리고 여전히 닫혀 있어야 할 것은
+   * 닫혀 있는지를 함께 본다.
+   */
+  it("옮기기 카드가 대상 일정·현재 날짜를 실어도 적용된다", async () => {
+    const db = await createDatabase();
+    try {
+      const revision = await seedScheduleEvents(db, [EVENT_ONE]);
+      const updatedEvent: ScheduleEvent = {
+        ...EVENT_ONE,
+        date: "2027-09-05",
+        updatedAt: "2027-01-02T00:00:00.000Z",
+      };
+      const updates = { date: updatedEvent.date };
+      const toolInput = {
+        event_id: EVENT_ONE.id,
+        ...updates,
+        // 이 둘이 이 검사의 전부다.
+        expected_title: EVENT_ONE.title,
+        expected_date: EVENT_ONE.date,
+      };
+      const identity = await prepareApprovedScheduleAction(db, {
+        toolName: "update_schedule_event",
+        toolInput,
+        journeyRevision: revision,
+      });
+
+      await applyScheduleMutation(db, {
+        toolName: "update_schedule_event",
+        toolInput,
+        identity,
+        expectedPresent: true,
+        expected: [EVENT_ONE],
+        value: [updatedEvent],
+        event: updatedEvent,
+        previousEvent: EVENT_ONE,
+        updates,
+      });
+
+      const state = await db.query<{ mutation_kind: string; after_event: ScheduleEvent }>(`
+        SELECT receipt.mutation_kind, receipt.after_event
+        FROM public.amora_shared_action_journey_mutation_receipts AS receipt
+        WHERE receipt.couple_id = '${COUPLE_ID}'::uuid
+      `);
+      expect(state.rows[0]).toMatchObject({
+        mutation_kind: "update",
+        after_event: updatedEvent,
+      });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  });
+
+  it("측정기가 살아 있다 — 선언 안 된 키는 여전히 거절된다", async () => {
+    const db = await createDatabase();
+    try {
+      const revision = await seedScheduleEvents(db, [EVENT_ONE]);
+      const updatedEvent: ScheduleEvent = {
+        ...EVENT_ONE,
+        date: "2027-09-05",
+        updatedAt: "2027-01-02T00:00:00.000Z",
+      };
+      const updates = { date: updatedEvent.date };
+      const toolInput = {
+        event_id: EVENT_ONE.id,
+        ...updates,
+        // 화이트리스트를 넓혔다고 아무 키나 통과하면 안 된다.
+        vendor_name: "소네 스튜디오",
+      };
+      const identity = await prepareApprovedScheduleAction(db, {
+        toolName: "update_schedule_event",
+        toolInput,
+        journeyRevision: revision,
+      });
+
+      await expect(
+        applyScheduleMutation(db, {
+          toolName: "update_schedule_event",
+          toolInput,
+          identity,
+          expectedPresent: true,
+          expected: [EVENT_ONE],
+          value: [updatedEvent],
+          event: updatedEvent,
+          previousEvent: EVENT_ONE,
+          updates,
+        }),
+      ).rejects.toThrow(/AMORA_SHARED_SCHEDULE_UPDATE_DELTA_INVALID/u);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();
