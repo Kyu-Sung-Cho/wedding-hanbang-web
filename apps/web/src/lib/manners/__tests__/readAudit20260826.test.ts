@@ -212,3 +212,30 @@ describe("예산을 잡으라고 만든 표가 예산을 잡게 한다", () => {
       .not.toContain("음식을 고르는 시간이 없어 대화에 집중하기 좋습니다\", \"");
   });
 });
+
+describe("기관 이름을 대고 말한 것은 그 기관 자료로 받친다", () => {
+  // 식약처를 대고 건강 수치 둘을 말하는데 출처 8건에 식약처가 없었다. 확인해 보니
+  // 「2시간 이내」는 실재하고, 「32~43℃」는 그 자료에 없다 — 같은 페이지는 다른 균의
+  // 43~47℃를 말한다. 확인된 것만 남겼다.
+  const wedding = part("small-wedding");
+
+  it("2시간 권고에 식약처 출처가 붙어 있다", () => {
+    expect(JSON.stringify(wedding?.sections)).toContain("2시간 이내에 먹도록");
+    expect((wedding?.sources ?? []).map((s) => s.label).join(" | "))
+      .toContain("식품의약품안전처");
+  });
+
+  it("확인 못 한 온도 구간을 식약처가 말한 것처럼 적지 않는다", () => {
+    expect(JSON.stringify(wedding?.sections), "확인되지 않은 온도 구간이 되살아났다")
+      .not.toContain("32~43℃");
+  });
+});
+
+describe("확인 못 한 범위를 그 자리에서 밝힌다", () => {
+  it("대출 신청 기한과 대상주택 요건의 한계를 적는다", () => {
+    // 기한을 넘기면 대출 자체가 불가능해지고, 대상주택 요건에 안 맞으면 계약금을 잃는다.
+    // 주택도시기금 안내가 자바스크립트로 그려져 1차 자료로 확인하지 못했다.
+    expect(JSON.stringify(part("cost-saving")?.sections))
+      .toContain("대상주택 요건은 저희가 1차 자료로 확인하지 못했습니다");
+  });
+});
