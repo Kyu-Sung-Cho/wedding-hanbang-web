@@ -168,3 +168,77 @@ test("동의하지 않고 나갈 길이 있다", () => {
   assert.match(screenSource, /동의하지 않고 로그아웃/);
   assert.match(screenSource, /signOut\(/);
 });
+
+// ── 동의를 **받지 않는** 화면 ─────────────────────────────────────────
+// 2026-08-25 파운더 지적: "동의 얻는거 왜 로그인 전에 나와?"
+//
+// 로그인 화면에 "계속하면 이용약관과 개인정보처리방침에 동의하는 것으로
+// 간주됩니다"가 있었다. 두 가지가 잘못됐다.
+//
+//   1. 받는 자리가 아니다. 이 화면에 선 사람은 아직 로그인하지 않았다.
+//   2. 곧 거짓이 된다. 소셜로 계정이 막 만들어진 사람은 바로 다음 화면에서
+//      (auth)/consent 를 만나 항목별로 체크한다 — 위 테스트들이 고정하는
+//      바로 그 관문이다. 앱이 두 말을 하는 셈이고, 기록이 없으므로 관문
+//      쪽이 진실이다.
+//
+// 동의는 **가입 화면**과 **동의 관문** 두 곳에서만 받는다.
+
+const loginSource = readFileSync(
+  fileURLToPath(new URL("../../app/(auth)/login.tsx", import.meta.url)),
+  "utf8",
+);
+
+/**
+ * 주석을 걷어낸 소스.
+ *
+ * 아래 검사는 **사용자가 읽는 문구**를 보는데, 원문을 그대로 보면 "왜 이
+ * 문장을 쓰지 않는가"를 설명하는 주석이 금지어에 걸려 잘못된 빨간불이 난다.
+ * 실제로 이 저장소에서 2026-08-23 에 그렇게 났다.
+ */
+function withoutComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//gu, "").replace(/^\s*\/\/.*$/gmu, "");
+}
+
+test("로그인 화면은 동의를 받지도, 받았다고 말하지도 않는다", () => {
+  const visible = withoutComments(loginSource);
+  for (const claim of ["간주", "동의하는 것으로", "동의한 것으로", "동의로 봅니다"]) {
+    assert.equal(
+      visible.includes(claim),
+      false,
+      `로그인 화면이 동의를 주장한다: ${claim}`,
+    );
+  }
+  // 체크박스를 옮겨 오는 것도 답이 아니다 — 여기서 받으면 계정이 없다.
+  assert.equal(visible.includes("SIGNUP_CONSENT_ITEMS"), false);
+  assert.equal(visible.includes("buildSignupConsentSubmission"), false);
+});
+
+test("대신 약관·처리방침을 읽을 수는 있다", () => {
+  // 주장하지 않는 것과 감추는 것은 다르다. 로그인을 결정하기 전에 무엇에
+  // 묶이는지 확인하려는 사람에게는 이 링크가 필요하다.
+  const visible = withoutComments(loginSource);
+  assert.match(visible, /<Text style=\{styles\.policyLink\}>이용약관<\/Text>/u);
+  assert.match(visible, /<Text style=\{styles\.policyLink\}>개인정보 처리방침<\/Text>/u);
+
+  // 주소를 손으로 짓지 않는다. siteUrl 헬퍼는 운영에서 EXPO_PUBLIC_SITE_URL
+  // 이 없거나 안전하지 않으면 던진다 — 하드코딩하면 그 보호가 사라진다.
+  assert.match(loginSource, /buildMobileSiteUrl\("\/terms", siteOrigin\)/u);
+  assert.match(loginSource, /buildMobileSiteUrl\("\/privacy", siteOrigin\)/u);
+  assert.equal(loginSource.includes('"https://hanbang.ai/terms"'), false);
+});
+
+test("링크를 감싼 View 가 스크린리더에서 버튼을 삼키지 않는다", () => {
+  // 이 저장소에서 실제로 있었던 일이다 — accessible 한 단어가 자식 Pressable 을
+  // 삼켜 VoiceOver 로는 누를 수 없게 됐다.
+  // 구간을 "styles.policyLinks" 에서 시작하면 닮는다 — accessible 은 그보다
+  // **앞**인 여는 태그 안에 붙기 때문이다. 실제로 이 검사를 처음 썼을 때
+  // 그랬고, 변형(<View accessible style={styles.policyLinks}>)을 심었는데
+  // 초록불이었다. 여는 태그부터 잎는다.
+  const at = loginSource.indexOf("styles.policyLinks");
+  assert.ok(at > -1, "policyLinks 블록이 없다");
+  const opensAt = loginSource.lastIndexOf("<View", at);
+  assert.ok(opensAt > -1, "여는 태그를 못 찾았다");
+  const block = loginSource.slice(opensAt, at + 900);
+  assert.equal(/\baccessible\b(?!\w)/u.test(block), false, "accessible 이 자식을 삼킨다");
+  assert.equal((block.match(/accessibilityRole="link"/gu) ?? []).length, 2);
+});
