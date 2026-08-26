@@ -532,6 +532,59 @@ function renderAiMarkdown(text: string): React.ReactNode {
       i++;
       continue;
     }
+    // 인용문 (>)
+    //
+    // 2026-08-26 운영 실측: 8월 아모라 답변 384건 중 27건(7%)에 마크다운 원문이
+    // 글자 그대로 찍혔고 그중 25건이 `>` 였다. 하필 **업체에 보낼 문장을 인용문으로
+    // 주는 패턴**이라, "복사해서 보내세요" 라고 준 문장 앞에 `>` 가 붙어 나갔다.
+    //
+    // 프롬프트로 서식을 금지하는 방식은 쓰지 않는다 — 모델이 지키지 않으면 그대로
+    // 재발하고, 실제로 넉 달간 재발했다. 렌더러가 받아 주는 쪽이 결정적이다.
+    if (/^>\s?/.test(trimmed)) {
+      const quoted: string[] = [];
+      while (i < lines.length && /^>\s?/.test(lines[i].trim())) {
+        quoted.push(lines[i].trim().replace(/^>\s?/, ""));
+        i++;
+      }
+      blocks.push(
+        <div
+          key={`q-${i}`}
+          className="my-2 border-l-2 border-[#C4967E]/60 bg-[#FBF7F4] py-2 pl-3 pr-2 text-[#504444]"
+        >
+          {quoted.map((q, qi) => (
+            <div key={qi} className="leading-relaxed">
+              {q === "" ? <span className="block h-2" /> : renderInlineMd(q, `q-${i}-${qi}`)}
+            </div>
+          ))}
+        </div>
+      );
+      continue;
+    }
+    // 수평선 (---, ***, ___)
+    if (/^([-*_])\1{2,}$/.test(trimmed.replace(/\s+/g, ""))) {
+      blocks.push(<div key={i} className="my-3 border-t border-[#E8DDD3]" />);
+      i++;
+      continue;
+    }
+    // 코드펜스 (```) — 안쪽은 서식을 적용하지 않고 그대로 보여 준다.
+    if (/^```/.test(trimmed)) {
+      const code: string[] = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+        code.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++; // 닫는 펜스
+      blocks.push(
+        <pre
+          key={`c-${i}`}
+          className="my-2 overflow-x-auto rounded-lg bg-[#F5F1EE] px-3 py-2 text-[0.8125rem] leading-relaxed text-[#3A3330]"
+        >
+          {code.join("\n")}
+        </pre>
+      );
+      continue;
+    }
     // 빈 줄 → 간격
     if (trimmed === "") {
       blocks.push(<div key={i} className="h-2" />);
