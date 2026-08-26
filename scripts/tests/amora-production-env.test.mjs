@@ -113,17 +113,29 @@ test("the production environment gate blocks a weak admin bootstrap secret", () 
   assert.deepEqual(report.failed, ["adminBootstrapSecretConfigured"]);
 });
 
-test("the expand deployment keeps destructive AI-log retention disabled", () => {
-  for (const unsafe of ["", "true", "TRUE"]) {
+// 예전에는 이 값이 "false" 여야만 배포됐다("keeps destructive AI-log retention
+// disabled"). 그런데 이 크론이 하는 일은 삭제가 아니라 **원문 마스킹**이고
+// (`redact_old_ai_interactions` 는 행을 남기고 텍스트만 바꾼다), 끄고 두는 쪽이
+// 개인정보처리방침의 90일 약속을 어긴다 — 2026-08-26 운영 실측 90일 초과 1,028행.
+// 그래서 탈퇴 플래그와 같은 "명시해야 배포된다" 규칙으로 바꾼다.
+test("AI-log retention must state true or false, never blank or mis-cased", () => {
+  for (const unsafe of ["", "TRUE", "False", "yes", "1"]) {
     const result = runChecker(validEnv({
       AI_LOG_RETENTION_CRON_ENABLED: unsafe,
     }));
     assert.equal(result.status, 1);
     assert.deepEqual(
       JSON.parse(result.stdout).failed,
-      ["aiLogRetentionCronDisabledForExpandDeploy"],
+      ["aiLogRetentionCronStateExplicit"],
     );
   }
+});
+
+test("AI-log retention may be switched on", () => {
+  // 켜는 것이 배포를 막지 않아야 한다. 이 단언이 없으면 게이트를 되돌려도 아무도 모른다.
+  const result = runChecker(validEnv({ AI_LOG_RETENTION_CRON_ENABLED: "true" }));
+  assert.equal(result.status, 0, result.stdout);
+  assert.deepEqual(JSON.parse(result.stdout).failed, []);
 });
 
 test("account deletion flags must state true or false, never blank or mis-cased", () => {
