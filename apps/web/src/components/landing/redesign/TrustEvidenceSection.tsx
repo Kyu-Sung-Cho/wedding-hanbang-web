@@ -81,7 +81,7 @@ export default function TrustEvidenceSection({
             </p>
             <dl className="mt-6 grid grid-cols-2 gap-4 border-t border-white/12 pt-5">
               <div>
-                <dt className="text-[12px] font-semibold text-white/64">표시된 업체</dt>
+                <dt className="text-[12px] font-semibold text-white/64">규정을 공개한 업체</dt>
                 <dd className="mt-1 text-[24px] font-bold tracking-[-0.025em]">
                   {publishedVendorCount.toLocaleString("ko-KR")}곳
                 </dd>
