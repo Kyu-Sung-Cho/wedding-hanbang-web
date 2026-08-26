@@ -404,6 +404,10 @@
     {
       "file": "20260826000000_harden_cohort_timeline_and_contract_writes.sql",
       "sha256": "20b1f7a83fe8dc9221f83784189c17c67736c643c9f65fe614ed1108d99f1e4f"
+    },
+    {
+      "file": "20260826120000_anon_sees_only_public_authors.sql",
+      "sha256": "58c497e6ee1ed1d0d30f8dfbf30f7eaac7fe8d9f0134eb292f7a6db957833b85"
     }
   ],
   "deploymentEvidence": {
