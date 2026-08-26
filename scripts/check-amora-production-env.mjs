@@ -83,8 +83,24 @@ const checks = {
     env.AMORA_CONVERSATION_SEGMENT_READ_ENABLED === "false",
   todayOneDisabledForExpandDeploy:
     env.AMORA_TODAY_ONE_ENABLED === "false",
-  aiLogRetentionCronDisabledForExpandDeploy:
-    env.AI_LOG_RETENTION_CRON_ENABLED === "false",
+  // AI 로그 파기는 이제 켤 수 있다. 다만 상태를 명시해야 배포된다
+  // (accountDeletion*StateExplicit 와 같은 방식 — 의식적 설정 강제).
+  //
+  // 켤 수 있게 된 이유: 이 크론이 하는 일은 **삭제가 아니라 원문 마스킹**이다.
+  // `redact_old_ai_interactions` (20260613120000_ai_log_retention_policy.sql) 는
+  // 행을 지우지 않고 `user_input`/`ai_output` 을 `[redacted_after_retention]` 로
+  // 바꾸고 `tool_input`/`tool_output` 을 비운다. 비용·토큰·감사 행은 그대로 남는다.
+  //
+  // 그리고 끄고 두는 쪽이 오히려 약속을 어긴다. 개인정보처리방침이 90일을 말하는데
+  // 2026-08-26 운영 실측으로 90일 초과 1,028행이 원문을 들고 있었다(사용자 입력 432건,
+  // 아모라 답변 1,025건, 가장 오래된 것 125일). 크론은 등록돼 있었지만
+  // (`apps/web/vercel.json`, 매일 18:30 UTC) 꺼져 있으면 **200 OK 를 돌려주기 때문에**
+  // Vercel 에는 성공으로 보였다.
+  //
+  // 운영에 RPC 가 실제로 존재하는 것도 확인했다(PostgREST 스펙, `p_retention` 파라미터).
+  aiLogRetentionCronStateExplicit:
+    env.AI_LOG_RETENTION_CRON_ENABLED === "true"
+    || env.AI_LOG_RETENTION_CRON_ENABLED === "false",
   // 탈퇴 접수와 워커는 이제 켤 수 있다. 다만 상태를 명시해야 배포된다
   // (proactiveChatStateExplicit 와 같은 방식 — 의식적 설정 강제).
   //
