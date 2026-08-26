@@ -154,12 +154,32 @@ describe("호칭 비대칭을 이름 붙여 말한다", () => {
 
 describe("읽는 시간을 절반으로 말하지 않는다", () => {
   it("JSON 길이가 아니라 사람이 읽는 글자를 센다", () => {
-    const view = stripComments(
-      readFileSync(resolve(process.cwd(), "src/components/manners/MannersPartView.tsx"), "utf8"),
+    const readingTime = stripComments(
+      readFileSync(resolve(process.cwd(), "src/lib/manners/readingTime.ts"), "utf8"),
     );
-    expect(view, "JSON 길이로 읽기 시간을 계산한다").not.toContain("JSON.stringify(part.sections).length");
-    expect(view).toContain("readableCharCount");
-    expect(view).toContain("KOREAN_CHARS_PER_MINUTE");
+    expect(readingTime, "JSON 길이로 읽기 시간을 계산한다").not.toContain("JSON.stringify");
+    expect(readingTime).toContain("KOREAN_CHARS_PER_MINUTE");
+  });
+
+  it("목록 카드와 본문이 같은 함수를 쓴다", () => {
+    // 카드는 「17분」, 본문은 「8분」 처럼 갈리면 안 된다. 두 화면이 각자 계산하면
+    // 반드시 갈린다 — 예전에 본문이 실제의 절반을 말한 것도 계산이 한 곳에만 있었기 때문이다.
+    for (const path of [
+      "src/components/manners/MannersPartView.tsx",
+      "src/app/manners/page.tsx",
+    ]) {
+      const source = stripComments(readFileSync(resolve(process.cwd(), path), "utf8"));
+      expect(source, `${path}: 공유 계산을 안 쓴다`).toContain("readingMinutesOf");
+      expect(source, `${path}: 자기 계산식을 따로 갖고 있다`).not.toContain("/ 1800");
+    }
+  });
+
+  it("목록 카드가 분량을 문 앞에서 알려준다", () => {
+    // 예전에는 오디언스·제목·부제뿐이라 3분짜리와 18분짜리가 같은 카드였다.
+    const index = stripComments(
+      readFileSync(resolve(process.cwd(), "src/app/manners/page.tsx"), "utf8"),
+    );
+    expect(index).toContain("개 절");
   });
 });
 
@@ -256,5 +276,80 @@ describe("부모 없이 치러도 가장 비싼 절차를 찾을 수 있다", ()
   it("혼주 절이 부모만의 일이 아니라고 말한다", () => {
     expect(JSON.stringify(sectionOf("양가 어른(혼주)의 당일")))
       .toContain("두 사람이 직접 맡거나");
+  });
+});
+
+describe("빽빽함 — 눈이 구별할 수 있게", () => {
+  const view = () =>
+    stripComments(
+      readFileSync(resolve(process.cwd(), "src/components/manners/MannersPartView.tsx"), "utf8"),
+    );
+
+  it("절과 절 사이에 선이 있다", () => {
+    // 예전에는 이 파일 전체에서 border-t 가 맨 아래 출처 절 **한 곳**뿐이었다.
+    // 본문 171개 절 사이 구분선이 0개라, 스크롤하면 34개 블록이 균질한 기둥으로 지나갔다.
+    // **어느 divide-y 인지 지목한다.** 첫 판은 문자열만 물었는데, 모바일 표 행의
+    // `divide-y divide-[#243832]/10` 이 대신 답해서 절 구분선을 지워도 통과했다
+    // (변형 시험이 잡음). 절을 감싸는 그 한 줄을 정확히 집는다.
+    const container = view()
+      .split(String.fromCharCode(10))
+      .find((line) => line.includes('<div className="mt-8'));
+    expect(container, "절 컨테이너 줄을 못 찾았다").toBeTruthy();
+    expect(container, "절과 절 사이에 구분선이 없다").toContain("divide-y");
+  });
+
+  it("절 제목이 본문보다 확실히 크다", () => {
+    // 17px 대 14px = 1.21배였다. 제목이 제목으로 안 보였다.
+    const heading = view().match(/<h2 className="text-\[(\d+)px\] font-semibold leading-snug/);
+    expect(heading, "절 제목 h2 를 못 찾았다").toBeTruthy();
+    expect(Number(heading![1]), "절 제목이 본문 14px 의 1.4배 미만이다")
+      .toBeGreaterThanOrEqual(20);
+  });
+
+  it("「하면 편해요」와 「조심하세요」가 다른 색이다", () => {
+    // 예전에는 안쪽 색이 서로 ΔE 1.57 — 사람이 알아채는 문턱 아래였고, 라벨 색까지 같았다.
+    // 경고는 이 코퍼스에서 가장 중요한 블록인데 팁과 구별되지 않았다.
+    const source = view();
+    const tone = source.slice(source.indexOf("const BLOCK_TONE"), source.indexOf("} as const;"));
+    expect(tone.length).toBeGreaterThan(100);
+    const boxes = [...tone.matchAll(/bg-\[#([0-9A-Fa-f]{6})\]/g)].map((m) => m[1].toLowerCase());
+    expect(boxes.length, "상자 색을 두 개 못 찾았다").toBe(2);
+    expect(new Set(boxes).size, "팁과 경고가 같은 바탕색이다").toBe(2);
+    // 라벨도 갈려야 한다 — 예전엔 둘 다 #8F5150 이었다.
+    expect(tone, "라벨 색이 갈리지 않는다").toContain("labelColor");
+    const labels = [...tone.matchAll(/labelColor: "text-\[#([0-9A-Fa-f]{6})\]"/g)].map((m) => m[1].toLowerCase());
+    expect(new Set(labels).size, "팁과 경고 라벨이 같은 색이다").toBe(2);
+  });
+
+  it("목록 항목 사이가 항목 안 줄 사이보다 넓다", () => {
+    // space-y-1.5(6px) 는 항목 안 줄 사이 10.5px 보다 좁았다. 항목 79%가 2줄 이상이라
+    // 불릿이 구분자 노릇을 못 하고 목록이 문단으로 뭉갰다.
+    const ul = view().match(/<ul className="mt-[\d.]+ space-y-([\d.]+)">/);
+    expect(ul, "목록 ul 을 못 찾았다").toBeTruthy();
+    expect(Number(ul![1]), "항목 간격이 좁다").toBeGreaterThanOrEqual(2.5);
+  });
+});
+
+describe("긴 편은 목차를 먼저 보여준다", () => {
+  it("머리에 세로 차례가 있다", () => {
+    // 상단 sticky 칩 띠는 실폭 1,776px 에 창 343px — 11개 중 2.3개만 보인다.
+    // 첫 화면 812px 중 본문이 59px(7%)뿐이라, 한 번은 세로로 전부 보여준다.
+    const source = stripComments(
+      readFileSync(resolve(process.cwd(), "src/components/manners/MannersPartView.tsx"), "utf8"),
+    );
+    expect(source).toContain('aria-label="이 글의 차례"');
+    expect(source, "절이 적은 편에도 그린다").toContain("part.sections.length >= 4");
+  });
+
+  it("읽은 뒤 CTA 가 읽은 뒤에 있다", () => {
+    // 자기 문구가 「읽은 뒤 준비하기」인데 첫 화면 134px(16.5%)를 읽기 전에 먹고 있었다.
+    const source = stripComments(
+      readFileSync(resolve(process.cwd(), "src/components/manners/MannersPartView.tsx"), "utf8"),
+    );
+    const headerEnd = source.indexOf("</header>");
+    const cta = source.indexOf("읽은 뒤 준비하기");
+    expect(headerEnd, "header 를 못 찾았다").toBeGreaterThan(-1);
+    expect(cta, "CTA 를 못 찾았다").toBeGreaterThan(-1);
+    expect(cta, "CTA 가 아직 머리에 있다").toBeGreaterThan(headerEnd);
   });
 });
