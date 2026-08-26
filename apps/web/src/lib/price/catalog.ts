@@ -148,7 +148,28 @@ export type PriceCatalogFilter = {
  * 예산 조합·필터 같은 **"얼마다"라고 말하는 자리**에서는 뺀다.
  */
 export function comparableOffers(vendor: PriceVendor): PriceOffer[] {
-  return vendor.offers.filter((offer) => offer.agencyId !== null);
+  const throughAgency = vendor.offers.filter((offer) => offer.agencyId !== null);
+  if (throughAgency.length > 0) return throughAgency;
+
+  // **예식장은 대행사를 거치지 않는다 — 전부 빼면 카테고리가 통째로 사라진다.**
+  //
+  // 2026-08-26 운영 실측(카테고리별 대행사 없는 행의 비율):
+  //
+  //     hall     1,081 / 1,081  = 100.0%   ← 하나도 안 남는다
+  //     studio     718 /     9  =   1.3%
+  //     dress      525 /     5  =   1.0%
+  //     makeup     285 /     3  =   1.1%
+  //
+  // 그 결과 라이브 `/price/hall` 에서 가격을 한 번이라도 입력하면 '전체 189곳' 이
+  // '0개 업체 · 조건에 맞는 공시 업체가 아직 없어요' 가 됐다(최소 1만원을 넣어도
+  // 0개). 같은 조작이 `/price/studio` 에서는 296→286 으로 정상 동작한다.
+  // 공시 가격이 이 제품의 유일한 해자인데, 예산을 넣는 순간 그 화면이 비었다.
+  //
+  // 위 필터가 막는 것은 **한 카드 안에서 단위가 섞이는 것**이다(루미디아의 "1벌당
+  // 30만~70만" 이 대행사 150만 단일가와 섞여 최저가가 됐다). 대행사 행이 하나도
+  // 없는 카드는 섞일 상대가 없으므로 그 위험이 성립하지 않는다 — 자기 공시값만
+  // 자기들끼리 비교된다. 그래서 **비었을 때만** 원본으로 되돌린다.
+  return vendor.offers;
 }
 
 /**
