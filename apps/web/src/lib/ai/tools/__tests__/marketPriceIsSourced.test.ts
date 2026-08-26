@@ -34,6 +34,12 @@ function clientReturning(rows: Row[], error: unknown = null) {
   builder.in = vi.fn(chain);
   builder.gt = vi.fn(chain);
   builder.limit = vi.fn(() => Promise.resolve({ data: rows, error }));
+  // 2026-08-26: 조회가 `.limit()` 하나에서 `.range()` 페이지 넘기기로 바뀌었다 —
+  // PostgREST 가 서버 상한 1,000행에서 잘라 예식장 1,081건 중 81건이 조용히 빠지고
+  // 중간값이 1.5배 어긋났기 때문이다. 이 검사들의 의도(출처를 말한다·수치를 지어내지
+  // 않는다·중간값이 맞다)는 그대로이고 조회 방식만 따라간다.
+  builder.range = vi.fn((from: number, to: number) =>
+    Promise.resolve({ data: rows.slice(from, to + 1), error }));
   return {
     from: vi.fn(() => builder),
     __builder: builder,
