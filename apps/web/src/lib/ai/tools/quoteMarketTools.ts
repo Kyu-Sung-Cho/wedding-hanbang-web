@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { disclosureRoundLabel, displaySourceLabel } from "@/lib/price/period";
+import { priceRegionLabel } from "@/lib/price/labels";
 import {
   analyzeAmoraQuoteCheck,
   getQuoteCheckItems,
@@ -129,14 +130,40 @@ export async function executeGetMarketPrice(
     ? (requestedItemType as HallItemType)
     : null;
 
-  let query = client
-    .from("v_public_official_prices")
-    .select("price_min_krw,price_max_krw,source_label,region_code,item_name")
-    .eq("is_current", true)
-    .eq("price_category", category);
-  if (region) query = query.eq("region_code", region);
+  // **`.limit()` 만으로는 전부 오지 않는다.**
+  //
+  // PostgREST 는 서버 쪽 상한(1,000행)에서 자른다 — `.limit(2000)` 을 줘도
+  // 2026-08-26 운영 실측으로 `content-range: 0-999/1081` 이 돌아온다. 즉 예식장은
+  // **1,081건 중 1,000건**만 보고 min/median/max 를 냈고, 잘린 81건은 아무 데도
+  // 나타나지 않았다. 정렬이 무작위가 아니므로 중간값이 한쪽으로 밀린다.
+  //
+  // 이 파일의 첫 원칙이 "없는 표본에서 평균을 내면 그게 곧 지어낸 수치다" 인데,
+  // **일부 표본에서 낸 중간값도 같은 종류다.** 페이지를 끝까지 넘겨 모으고,
+  // 그래도 다 못 모으면 통계를 내지 않는다.
+  const buildQuery = () => {
+    let q = client
+      .from("v_public_official_prices")
+      .select("price_min_krw,price_max_krw,source_label,region_code,item_name")
+      .eq("is_current", true)
+      .eq("price_category", category);
+    if (region) q = q.eq("region_code", region);
+    return q;
+  };
 
-  const { data, error } = await query.limit(MARKET_PRICE_ROW_LIMIT);
+  const PAGE = 1_000;
+  const collected: Record<string, unknown>[] = [];
+  let error: { message?: string } | null = null;
+  let truncated = false;
+  for (let from = 0; from < MARKET_PRICE_ROW_LIMIT; from += PAGE) {
+    const page = await buildQuery().range(from, from + PAGE - 1);
+    if (page.error) { error = page.error; break; }
+    const rows = Array.isArray(page.data) ? page.data : [];
+    collected.push(...(rows as Record<string, unknown>[]));
+    if (rows.length < PAGE) break;
+    // 상한까지 채웠는데 더 남았을 수 있다 — 그 경우는 아래에서 통계를 내지 않는다.
+    if (from + PAGE >= MARKET_PRICE_ROW_LIMIT) truncated = true;
+  }
+  const data = collected;
   if (error) {
     return {
       toolName: "get_market_price",
@@ -147,7 +174,8 @@ export async function executeGetMarketPrice(
     };
   }
 
-  const rows = (Array.isArray(data) ? data : []) as Record<string, unknown>[];
+  // 다 못 모았으면 통계를 내지 않는다 — 일부 표본의 중간값은 지어낸 수치와 같다.
+  const rows = truncated ? [] : data;
   const first = rows[0];
   // DB 의 `source_label`·`period_label` 을 그대로 말하면 **우리 내부 스냅샷
   // 이름을 공시 시점이라고 주장하게 된다.** 운영 실측: 두 값 모두 `2026Q3` 인데
@@ -160,6 +188,17 @@ export async function executeGetMarketPrice(
     : MARKET_PRICE_SOURCE_FALLBACK;
   const period = disclosureRoundLabel();
   const base = { category, region: region || null, source, period, publicPath: "/price" };
+
+  // **잰 범위를 수치와 같은 문장에 넣는다.** 2026-08-26 운영 실측: 지역을 말하지 않고
+  // "대관료는 보통 얼마야?" 라고 묻자 아모라가 `seoul_gangnam3` 으로 조회해
+  // 대관료 중위 770만·식대 1인 11.5만을 답했다(각각 n=41·43 — 강남권 부분집합과
+  // 정확히 일치). 200명 기준 식대만 **전국 1,280만 vs 강남 2,300만**이라 1,000만원
+  // 넘게 어긋난다. 문장은 "보통 얼마"에 대한 답처럼 읽혔다.
+  //
+  // 좁히는 것 자체는 막지 않는다 — 예식장이 강남이면 강남값이 더 맞다. 막는 것은
+  // **좁힌 사실이 문장에서 빠지는 것**이다. `toolOutput.region` 은 예전에도 있었지만
+  // 모델이 그걸 옮겨 적어야만 사용자에게 닿았고, 실제로는 옮겨 적지 않았다.
+  const scope = region ? priceRegionLabel(region) : "전국";
 
   const emptyResult: ToolExecutionResult = {
     toolName: "get_market_price",
@@ -175,7 +214,7 @@ export async function executeGetMarketPrice(
     success: true,
     // 없을 때도 출처는 밝힌다. 어디를 찾아봤는지 알아야 사용자가 다음을 정한다.
     displayMessage:
-      `${MARKET_PRICE_SOURCE_FALLBACK} 공시가에는 해당 조건의 금액이 없어요. 금액을 임의로 말씀드리지 않을게요.`,
+      `${MARKET_PRICE_SOURCE_FALLBACK} ${scope} 공시가에는 해당 조건의 금액이 없어요. 금액을 임의로 말씀드리지 않을게요.`,
   };
 
   // 결혼식장인데 항목을 고르지 않았으면 **섞지 않고 유형별로 나눠서** 준다.
@@ -204,7 +243,7 @@ export async function executeGetMarketPrice(
       toolOutput: { ...base, breakdown },
       success: true,
       displayMessage:
-        `${source} 기준 결혼식장 공시가입니다. 항목마다 단위가 달라 따로 봅니다 — `
+        `${source} 기준 ${scope} 결혼식장 공시가입니다. 항목마다 단위가 달라 따로 봅니다 — `
         + breakdown
           .map((entry) => (
             `${entry.itemType}${entry.perPerson ? "(1인)" : ""} 중간값 `
@@ -238,7 +277,7 @@ export async function executeGetMarketPrice(
     },
     success: true,
     displayMessage:
-      `${source} 기준 ${label ? `${label} ` : ""}공시가 ${stats.sampleCount}건: `
+      `${source} 기준 ${scope} ${label ? `${label} ` : ""}공시가 ${stats.sampleCount}건: `
       + `중간값 ${formatKrw(stats.medianKrw)}`
       + ` (최소 ${formatKrw(stats.minKrw)} ~ 최대 ${formatKrw(stats.maxKrw)}).`
       + " 개별 업체 금액은 업체 공시가에서 출처와 기준 시점을 함께 확인해 주세요.",

@@ -905,7 +905,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
             "chungcheong", "daejeon", "jeolla", "gwangju", "gyeongsang",
             "daegu", "busan", "ulsan", "jeju",
           ],
-          description: "지역을 좁힐 때만 넣습니다. 비우면 전국 공시가 전체를 봅니다. seoul_gangnam3=서울 강남·서초·송파, seoul_etc=그 외 서울.",
+          description: "사용자가 지역을 말했을 때만 넣습니다. 말하지 않았으면 반드시 비워서 전국 공시가 전체를 봅니다 — 임의로 좁히면 금액이 배로 달라집니다(200명 식대 전국 1,280만 vs 강남권 2,300만). seoul_gangnam3=서울 강남·서초·송파, seoul_etc=그 외 서울.",
         },
         itemType: {
           type: "string",
