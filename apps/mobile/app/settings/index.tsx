@@ -1,5 +1,6 @@
 // 설정 화면 — 프로필/결혼정보 직접 편집 + 알림, 계정관리, 앱 정보
 import { useEffect, useState, useRef } from "react";
+import { CONTACT } from "@hanbang/shared/constants";
 import {
   View,
   Text,
@@ -965,7 +966,7 @@ export default function SettingsScreen() {
                     {resettingCouple ? "준비 중..." : "새 커플로 다시 시작"}
                   </PrimaryButton>
                   <Pressable
-                    onPress={() => Linking.openURL("mailto:ceo@hanbang.ai")}
+                    onPress={() => Linking.openURL(`mailto:${CONTACT.email}`)}
                     style={({ pressed }) => [styles.supportLink, pressed && { opacity: 0.6 }]}
                     accessibilityRole="link"
                   >
@@ -979,7 +980,7 @@ export default function SettingsScreen() {
                     안전을 위해 새 멤버 초대는 잠시 멈췄어요. 다시 열어 보거나 고객지원에 문의해 주세요.
                   </Text>
                   <Pressable
-                    onPress={() => Linking.openURL("mailto:ceo@hanbang.ai")}
+                    onPress={() => Linking.openURL(`mailto:${CONTACT.email}`)}
                     style={({ pressed }) => [styles.supportLink, pressed && { opacity: 0.6 }]}
                     accessibilityRole="link"
                   >

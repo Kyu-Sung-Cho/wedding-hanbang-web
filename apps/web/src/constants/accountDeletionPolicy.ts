@@ -59,7 +59,7 @@ export const ACCOUNT_DELETION_FACTS: readonly AccountDeletionFact[] = [
 // 이 목록은 **무엇이 지워지고 무엇이 남는가**만 말한다 — 스위치와 무관하게
 // 참인 것들이다. 처리 절차는 제출 결과가 알려준다:
 //   접수 열림  -> 202/409 가 "처리 중" 또는 "검토 중"을 돌려준다
-//   접수 닫힘  -> 503 이 support@hanbang.ai 접수 경로를 돌려준다
+//   접수 닫힘  -> 503 이 `CONTACT.email` 접수 경로를 돌려준다
 // 두 응답 모두 apps/web/src/app/(app)/settings/page.tsx 가 그대로 보여준다.
 
 /** 약관·처리방침에 같은 사실이 적혀 있는지 검사할 때 쓰는 핵심 어구. */
