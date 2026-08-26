@@ -1096,7 +1096,7 @@ export default function PostDetailClient({
             onClick={() => setShowReportModal(false)}
           >
             <div
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden"
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
               onClick={(e) => e.stopPropagation()}
             >
               {reportSubmitted ? (

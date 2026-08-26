@@ -423,6 +423,110 @@ function buildChecks(skipDemo) {
         }
       },
     });
+
+    // 모바일에서 컨트롤이 자기 모양을 지키는가.
+    //
+    // globals.css 의 44px 최소 탭타깃 규칙은 레이어 밖에 있어서 Tailwind 의 `h-*`/`min-h-*`
+    // 유틸리티를 전부 이긴다. 그래서 한때 `w-12 h-7 rounded-full` 로 그린 알림 토글이
+    // 44x44 원이 되고 안의 knob(absolute 24px)이 트랙 밖으로 삐져나왔다 —
+    // 2026-08-26 운영에서 "한 입 베어 문 동그라미"로 보였다.
+    //
+    // 이 검사는 그 회귀를 화면에서 잡는다. 소스에 특정 클래스가 있는지 묻지 않고,
+    // **실제로 렌더된 상자**를 잰다. 그래야 CSS 쪽에서 되돌려도 걸린다.
+    checks.push({
+      name: "mobile-control-geometry",
+      path: "/login",
+      viewport: { width: 360, height: 800 },
+      isMobile: true,
+      hasTouch: true,
+      deviceScaleFactor: 2,
+      async assert(page, result, options) {
+        // 데모 세션은 **페이지 안에서** 만든다. `page.request.post` 는 브라우저 fetch
+        // 메타데이터(`sec-fetch-site`, `Origin`)를 안 붙여서 `/api/demo/start` 의
+        // 교차출처 가드에 403 으로 막힌다 — 같은 이유로 이 파일의 다른 데모 검사들도
+        // 지금 403 을 받고 있다. 여기서는 진짜 브라우저 요청으로 연다.
+        const demoStatus = await page.evaluate(async () => {
+          const response = await fetch("/api/demo/start", { method: "POST", credentials: "include" });
+          return response.status;
+        });
+        if (demoStatus < 200 || demoStatus >= 300) {
+          addFailure(result, `Expected demo session API to succeed, got ${demoStatus}`);
+          return;
+        }
+
+        await page.goto(`${options.baseUrl}/wedding/settings`, {
+          waitUntil: "domcontentloaded",
+          timeout: options.timeoutMs,
+        });
+        await page.waitForLoadState("networkidle", { timeout: 8_000 }).catch(() => {});
+        await page.waitForTimeout(800);
+        result.finalUrl = page.url();
+        result.title = await page.title().catch(() => result.title);
+
+        const switches = page.locator('[role="switch"]');
+        const switchCount = await switches.count();
+        if (switchCount === 0) {
+          addFailure(result, "Expected the settings page to render notification switches");
+          return;
+        }
+
+        const geometry = await page.evaluate(() => {
+          const track = document.querySelector('[role="switch"]');
+          track.scrollIntoView({ block: "center", behavior: "instant" });
+          const trackBox = track.getBoundingClientRect();
+          const knob = track.children[0] ? track.children[0].getBoundingClientRect() : null;
+          const cx = trackBox.left + trackBox.width / 2;
+          const cy = trackBox.top + trackBox.height / 2;
+          // 44px 탭 영역이 살아 있는지 — 보이는 상자 위/아래 밖을 눌러도 스위치가 잡혀야 한다.
+          const outsideBox = (dy) => {
+            const hit = document.elementFromPoint(cx, cy + dy);
+            return !!hit && (hit === track || track.contains(hit));
+          };
+          const reach = 21 - trackBox.height / 2;
+          return {
+            width: Math.round(trackBox.width * 10) / 10,
+            height: Math.round(trackBox.height * 10) / 10,
+            knobOverhangRight: knob ? Math.round((knob.right - trackBox.right) * 10) / 10 : null,
+            knobOverhangBottom: knob ? Math.round((knob.bottom - trackBox.bottom) * 10) / 10 : null,
+            tapReachesAbove: reach > 1 ? outsideBox(-reach) : true,
+            tapReachesBelow: reach > 1 ? outsideBox(reach) : true,
+          };
+        });
+
+        // 알약이어야 한다. 44x44 로 부풀면 폭/높이 비가 1 이 되어 원이 된다.
+        if (geometry.height > 32) {
+          addFailure(
+            result,
+            `Expected the notification switch to keep its 28px track height, got ${geometry.height}px (44px tap-target rule likely inflated it)`,
+          );
+        }
+        if (geometry.width < geometry.height * 1.4) {
+          addFailure(
+            result,
+            `Expected the notification switch to render as a pill, got ${geometry.width}x${geometry.height}`,
+          );
+        }
+        if (geometry.knobOverhangRight !== null && geometry.knobOverhangRight > 0) {
+          addFailure(
+            result,
+            `Expected the switch knob to stay inside its track, it overhangs by ${geometry.knobOverhangRight}px`,
+          );
+        }
+        if (geometry.knobOverhangBottom !== null && geometry.knobOverhangBottom > 0) {
+          addFailure(
+            result,
+            `Expected the switch knob to stay inside its track vertically, it overhangs by ${geometry.knobOverhangBottom}px`,
+          );
+        }
+        // 모양을 되찾는 대가로 손가락이 닿는 영역까지 잃으면 안 된다.
+        if (!geometry.tapReachesAbove || !geometry.tapReachesBelow) {
+          addFailure(
+            result,
+            "Expected the switch to keep a 44px tap area beyond its visible track (.tap-area)",
+          );
+        }
+      },
+    });
   }
 
   return checks;

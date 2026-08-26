@@ -131,7 +131,7 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
         onMouseEnter={() => setShow(true)}
         onMouseLeave={() => setShow(false)}
         onClick={() => setShow(!show)}
-        className="w-6 h-6 rounded-full flex items-center justify-center text-sm bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
+        className="tap-area w-6 h-6 rounded-full flex items-center justify-center text-sm bg-[#795252]/10 text-[#795252] hover:bg-[#795252]/15 transition-colors flex-shrink-0"
         title="포함·별도 항목 확인"
       >
         <AlertTriangle className="w-4 h-4" />
@@ -314,7 +314,7 @@ function InlineMoneyEdit({
           <button
             onClick={() => void save()}
             disabled={saving}
-            className="w-6 h-6 rounded flex items-center justify-center text-sage-500 hover:bg-sage-500/10 disabled:opacity-50"
+            className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-sage-500 hover:bg-sage-500/10 disabled:opacity-50"
             title="저장"
           >
             <Check className="w-3.5 h-3.5" />
@@ -322,7 +322,7 @@ function InlineMoneyEdit({
           <button
             onClick={cancel}
             disabled={saving}
-            className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2] disabled:opacity-50"
+            className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2] disabled:opacity-50"
             title="취소"
           >
             <X className="w-3.5 h-3.5" />
@@ -362,7 +362,7 @@ function InlineMoneyEdit({
           onClick={() => {
             void Promise.resolve(onReset()).catch(() => undefined);
           }}
-          className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
+          className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
           <X className="w-4 h-4" />
@@ -438,7 +438,7 @@ function BudgetRow({
               onClick={() => {
                 void Promise.resolve(onDelete(catKey)).catch(() => undefined);
               }}
-              className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
+              className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors"
               title={`${label} 삭제`}
             >
               <X className="w-3.5 h-3.5" />
@@ -519,7 +519,7 @@ function BudgetRow({
             onClick={() => {
               void Promise.resolve(onDelete(catKey)).catch(() => undefined);
             }}
-            className="w-5 h-5 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            className="tap-area shrink-0 w-5 h-5 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
             title={`${label} 삭제`}
           >
             <X className="w-3 h-3" />
@@ -597,7 +597,7 @@ function BudgetCard({
             onClick={() => {
               void Promise.resolve(onDelete(catKey)).catch(() => undefined);
             }}
-            className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+            className="tap-area w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
             title={`${label} 삭제`}
           >
             <X className="w-3.5 h-3.5" />
@@ -1061,7 +1061,7 @@ export default function BudgetContent({
                   }}
                   className="w-full max-w-full rounded-xl border border-[#36534E]/35 px-3 py-2 font-serif-kr text-[34px] font-medium leading-none text-[#071629] focus:border-[#36534E] focus:outline-none focus:ring-2 focus:ring-[#36534E]/10 sm:w-[170px]"
                 />
-                <button onClick={handleTotalBudgetSave} className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#36534E] text-white hover:bg-[#2d4642]">
+                <button onClick={handleTotalBudgetSave} className="flex tap-area shrink-0 h-9 w-9 items-center justify-center rounded-lg bg-[#36534E] text-white hover:bg-[#2d4642]">
                   <Check className="w-5 h-5" />
                 </button>
                 <button
@@ -1069,7 +1069,7 @@ export default function BudgetContent({
                     setTotalBudgetError("");
                     setEditingTotal(false);
                   }}
-                  className="w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]"
+                  className="tap-area shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2]"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1249,13 +1249,13 @@ export default function BudgetContent({
           <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="flex -space-x-1">
-                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                <div className="w-11 h-11 shrink-0 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Camera className="w-5 h-5 text-[#795252]" />
                 </div>
-                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                <div className="w-11 h-11 shrink-0 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Shirt className="w-5 h-5 text-[#795252]" />
                 </div>
-                <div className="w-11 h-11 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
+                <div className="w-11 h-11 shrink-0 rounded-full bg-[#795252]/10 flex items-center justify-center ring-2 ring-white">
                   <Palette className="w-5 h-5 text-[#795252]" />
                 </div>
               </div>
@@ -1473,7 +1473,7 @@ export default function BudgetContent({
                 <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">새 항목 추가</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2] transition-colors"
+                  className="tap-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#f6f3f2] transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>

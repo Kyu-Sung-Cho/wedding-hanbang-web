@@ -83,7 +83,7 @@ export default function CalendarView({
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -92,7 +92,7 @@ export default function CalendarView({
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
