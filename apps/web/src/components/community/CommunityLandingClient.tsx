@@ -595,6 +595,21 @@ function CommunityLandingViewer({
  * 추정치를 적지 않고 운영 조회로 확정한 값이다.
  * 판정 근거: docs/operations/VENDOR_IDENTITY_REVIEW_2026-08-05.md
  */
+/**
+ * **이 수는 가격이 아니라 취소·환불 규정을 센다.**
+ *
+ * 2026-08-26 실측으로 셋이 갈렸다.
+ *
+ *     406   취소·환불 규정 원문이 공개된 업체 카드   (studio 190·dress 128·makeup 88·예식장 0)
+ *     829   가격 공시가 실려 있는 업체 카드          (studio 296·dress 200·makeup 144·hall 189)
+ *     831   규정 원문의 **행** 수 — 406곳의 것이지 829곳의 것이 아니다
+ *
+ * 406 은 829 의 완전한 부분집합이다(교집합 406/406). 그런데 라벨이 "표시된 업체"
+ * 였고 같은 화면 머리말이 "공개 가격과 규정" 이라, 읽는 사람은 406 을 가격 업체 수로
+ * 받고 `/price` 에서 829 를 본다. **숫자가 아니라 라벨이 문제였다.**
+ *
+ * 그래서 406 을 829 로 "맞추면" 안 된다 — 831건은 406곳의 것이라 그 순간 거짓이 된다.
+ */
 const PUBLISHED_VENDOR_COUNT = 406;
 const PUBLISHED_POLICY_COUNT = 831;
 
@@ -924,7 +939,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
               <p className="text-[11.5px] font-semibold text-[#9fb8ae]">
-                업체 {PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳 · 위약금 원문{" "}
+                규정 공개 업체 {PUBLISHED_VENDOR_COUNT.toLocaleString("ko-KR")}곳 · 위약금 원문{" "}
                 {PUBLISHED_POLICY_COUNT.toLocaleString("ko-KR")}건 · 로그인 없이
               </p>
 
