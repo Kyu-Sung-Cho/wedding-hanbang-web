@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
@@ -82,6 +83,14 @@ export default function MannersIndexPage() {
                       </p>
                       <p className="mt-1.5 text-[13px] leading-[1.65] text-[#3d4a45]/85">
                         {part.subtitle}
+                      </p>
+                      {/*
+                        분량을 **문 앞에서** 알려준다. 예전에는 카드에 오디언스·제목·부제뿐이라
+                        3분짜리와 18분짜리가 똑같이 생겼고, 사람은 모르고 들어갔다가 나왔다.
+                        본문과 같은 함수를 쓴다 — 두 화면이 다른 숫자를 말하면 안 된다.
+                      */}
+                      <p className="mt-2 text-[12px] text-[#3d4a45]/70">
+                        {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절
                       </p>
                     </Link>
                   </li>
