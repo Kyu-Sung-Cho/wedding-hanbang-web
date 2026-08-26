@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated,
+  Animated, Linking,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -17,6 +17,14 @@ import {
   isOAuthProviderEnabled,
   signInWithOAuth,
 } from "@/lib/auth";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
+
+const siteOrigin = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const TERMS_URL = buildMobileSiteUrl("/terms", siteOrigin);
+const PRIVACY_URL = buildMobileSiteUrl("/privacy", siteOrigin);
 
 const SOCIAL_PROVIDER_LABEL = {
   kakao: "카카오",
@@ -344,9 +352,43 @@ export default function LoginScreen() {
             </Text>
           )}
 
-          <Text style={styles.disclaimer}>
-            계속하면 이용약관과 개인정보처리방침에{"\n"}동의하는 것으로 간주됩니다
-          </Text>
+          {/*
+            여기 있던 문장은 "계속하면 약관과 처리방침에 동의한 것으로 본다"는
+            뜻이었다. 두 가지가 잘못됐다.
+
+            첫째, **동의를 받는 자리가 아니다.** 이 화면에 서 있는 사람은 아직
+            로그인하지 않았다. 이미 쓰던 사람이면 가입할 때 항목별로 받았고,
+            처음 오는 사람이면 가입 화면이나 동의 관문에서 받는다.
+
+            둘째, **그 문장은 곧 거짓이 된다.** 소셜로 계정이 막 만들어진 사람은
+            바로 다음 화면에서 (auth)/consent 를 만나 항목별로 체크한다
+            (resolveRootDestination 이 그리로 보낸다). 그런데 이 문장은 그보다
+            앞에서 이미 받은 것이라고 말한다. 앱이 스스로 두 말을 하는 셈이고,
+            실제로 받아 둔 기록이 없으므로 뒤의 관문 쪽이 진실이다.
+
+            그래서 받았다고 주장하지 않고 **읽을 수 있게만** 둔다. 로그인을
+            결정하기 전에 무엇에 묶이는지 확인하고 싶은 사람에게 이 링크가
+            필요하고, 동의는 받는 자리에서 받는다.
+          */}
+          <View style={styles.policyLinks}>
+            <Pressable
+              onPress={() => { void Linking.openURL(TERMS_URL); }}
+              accessibilityRole="link"
+              accessibilityLabel="이용약관 열기"
+              hitSlop={8}
+            >
+              <Text style={styles.policyLink}>이용약관</Text>
+            </Pressable>
+            <Text style={styles.policySeparator}>·</Text>
+            <Pressable
+              onPress={() => { void Linking.openURL(PRIVACY_URL); }}
+              accessibilityRole="link"
+              accessibilityLabel="개인정보 처리방침 열기"
+              hitSlop={8}
+            >
+              <Text style={styles.policyLink}>개인정보 처리방침</Text>
+            </Pressable>
+          </View>
         </ScrollView>
         </DismissKeyboard>
       </KeyboardAvoidingView>
@@ -542,12 +584,25 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  disclaimer: {
+  policyLinks: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 24,
+  },
+  policySeparator: {
     fontSize: 12,
     fontFamily: "NotoSansKR_400Regular",
     color: colors.textTertiary,
+    lineHeight: 18,
+  },
+  policyLink: {
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.textTertiary,
+    textDecorationLine: "underline",
     textAlign: "center",
-    marginTop: 24,
     lineHeight: 18,
   },
 });

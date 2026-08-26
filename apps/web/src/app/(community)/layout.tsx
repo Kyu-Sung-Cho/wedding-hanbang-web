@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
 import { Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
@@ -9,12 +11,33 @@ import Logo from "@/components/ui/Logo";
 import { CONTACT } from "@/lib/constants/contact";
 import { isWeddingCourtEnabled } from "@/lib/features/weddingLaunchFlags";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { createClient } from "@/lib/supabase/server";
 
-export default function CommunityLayout({
+export default async function CommunityLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // 동의 관문은 `(app)` 그룹에만 있었다. 커뮤니티는 그 밖이라, 동의 기록이 없는
+  // 계정이 주소만 치고 들어와 **글을 쓸 수 있었다** — 서버도 막지 않는다
+  // (동의를 요구하는 API 는 `/api/onboarding` 하나뿐이다).
+  //
+  // 해당 인구가 좁지 않다. 동의 수집은 2026-08-22 에 들어왔고
+  // (`SIGNUP_CONSENT_INTRODUCED_AT`), 그 전에 만들어진 계정은 **전부** 기록이
+  // 없다. 새로 로그인하면 `postAuthLanding` 이 잡지만, 이미 세션을 들고 있는
+  // 사람은 그 길을 지나지 않는다.
+  //
+  // ⚠️ **비로그인은 절대 막지 않는다.** 커뮤니티 읽기는 로그인 없이 열려 있고,
+  // 이 저장소에는 로그아웃일 때 늘 나는 `getUser()` 오류를 "확인 실패"로 읽어
+  // 커뮤니티 세 곳이 비로그인을 차단한 이력이 있다. 그래서 오류를 보지 않고
+  // **사람이 확실히 있을 때만** 판단한다 — 오류도 로그아웃도 `user` 가 `null`
+  // 이라 그대로 통과한다. `AuthenticatedAppShell` 과 같은 모양이다.
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user && !hasRecordedSignupConsent(user.user_metadata)) {
+    redirect(SIGNUP_CONSENT_PATH);
+  }
+
   const weddingCourtEnabled = isWeddingCourtEnabled();
 
   return (
