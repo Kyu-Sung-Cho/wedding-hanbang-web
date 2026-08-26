@@ -930,7 +930,7 @@ function PriorityCard({
             type="button"
             onClick={() => item.actionId && onActionStatus(item.actionId, "done")}
             disabled={updating}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`tap-area inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               item.tone === "steady"
                 ? "border-white/15 bg-white/10 text-white hover:bg-white/15"
                 : "border-[#d8e0d5] bg-white text-[#36534E] hover:bg-[#f6f9f6]"
@@ -943,7 +943,7 @@ function PriorityCard({
             type="button"
             onClick={() => item.actionId && onActionStatus(item.actionId, "dismissed")}
             disabled={updating}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`tap-area inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               item.tone === "steady"
                 ? "border-white/15 bg-transparent text-white/75 hover:bg-white/10"
                 : "border-[#eadfc9] bg-transparent text-[#6d6254] hover:bg-white/60"

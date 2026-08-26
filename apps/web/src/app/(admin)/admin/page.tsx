@@ -850,7 +850,7 @@ export default function AdminPage() {
             {/* 업체 상세 모달 */}
             {selectedVendor && (
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedVendor(null)}>
-                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80dvh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-serif-kr text-[20px] font-normal text-noir-800">업체 상세 정보</h3>
                     <button onClick={() => setSelectedVendor(null)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors">
@@ -1100,7 +1100,7 @@ export default function AdminPage() {
             {/* 예약 상세 모달 */}
             {selectedBooking && (
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedBooking(null)}>
-                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80vh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80dvh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-serif-kr text-[20px] font-normal text-noir-800">예약 상세</h3>
                     <button onClick={() => setSelectedBooking(null)} className="p-1.5 rounded-lg hover:bg-ivory-warm transition-colors">

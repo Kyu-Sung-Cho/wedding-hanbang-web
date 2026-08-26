@@ -628,10 +628,10 @@ export default function SettingsPage() {
                     className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -647,7 +647,7 @@ export default function SettingsPage() {
                 )}
                 <button
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
-                  className="w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+                  className="tap-area shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
@@ -672,10 +672,10 @@ export default function SettingsPage() {
                     className="px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -684,7 +684,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[#1A1A1F]">{dateStr}</p>
                   <button
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
-                    className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -709,10 +709,10 @@ export default function SettingsPage() {
                     className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -721,7 +721,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[#1A1A1F] truncate">{venueStr}</p>
                   <button
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
-                    className="w-6 h-6 shrink-0 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                    className="tap-area w-6 h-6 shrink-0 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -748,10 +748,10 @@ export default function SettingsPage() {
                     />
                     <span className="text-sm text-[#B5ADA3] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -760,7 +760,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[#1A1A1F]">{budgetStr}</p>
                   <button
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
-                    className="w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -780,7 +780,7 @@ export default function SettingsPage() {
         className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[0_4px_14px_rgba(196,150,126,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[0_4px_14px_rgba(196,150,126,0.2)]">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -900,7 +900,7 @@ export default function SettingsPage() {
         className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[0_4px_14px_rgba(121,82,82,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[0_4px_14px_rgba(121,82,82,0.2)]">
             <Heart className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -1026,8 +1026,8 @@ export default function SettingsPage() {
               }}
               className="mt-3 w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
             >
-              <span className="flex items-center gap-3">
-                <span className="w-10 h-10 rounded-full bg-[#F6F3F2] flex items-center justify-center">
+              <span className="flex min-w-0 items-center gap-3">
+                <span className="w-10 h-10 shrink-0 rounded-full bg-[#F6F3F2] flex items-center justify-center">
                   <RotateCcw className="w-5 h-5 text-[#795252]" />
                 </span>
                 <span>
@@ -1048,7 +1048,7 @@ export default function SettingsPage() {
         className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[0_4px_14px_rgba(46,125,90,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[0_4px_14px_rgba(46,125,90,0.2)]">
             <Bell className="w-5 h-5 text-white" />
           </div>
           <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">알림 설정</h3>
@@ -1073,7 +1073,7 @@ export default function SettingsPage() {
                 aria-label={item.label}
                 aria-checked={notifications[item.key]}
                 onClick={() => toggleNotification(item.key)}
-                className={`w-12 h-7 rounded-full transition-colors relative ${
+                className={`tap-area relative h-7 w-12 shrink-0 rounded-full transition-colors ${
                   notifications[item.key] ? "bg-gradient-to-br from-[#795252] to-[#946a6a]" : "bg-[#B5ADA3]/30"
                 }`}
               >
@@ -1229,14 +1229,14 @@ export default function SettingsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5 py-6"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[420px] bg-white rounded-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[#F6F3F2] flex items-center justify-center">
                 <RotateCcw className="w-6 h-6 text-[#795252]" />
@@ -1304,14 +1304,14 @@ export default function SettingsPage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-5 py-6"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] bg-white rounded-xl p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
                 <Trash2 className="w-6 h-6 text-red-400" />

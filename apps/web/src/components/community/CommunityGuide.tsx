@@ -569,7 +569,7 @@ export default function CommunityGuide() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) close(); }}
     >
-      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl">
+      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl">
         {/* 상단 진행 바 */}
         <div className="h-1 bg-[#f6efe5]">
           <div

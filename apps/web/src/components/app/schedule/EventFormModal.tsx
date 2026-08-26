@@ -305,7 +305,7 @@ export default function EventFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="schedule-event-form-title"
-        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92vh] max-w-[480px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 animate-fade-in"
+        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 animate-fade-in"
       >
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-4">

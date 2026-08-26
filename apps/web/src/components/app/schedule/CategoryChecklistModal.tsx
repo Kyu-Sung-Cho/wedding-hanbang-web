@@ -263,7 +263,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 max-h-[84vh] flex flex-col overflow-hidden animate-fade-in"
+        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 max-h-[84dvh] flex flex-col overflow-hidden animate-fade-in"
       >
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-5">

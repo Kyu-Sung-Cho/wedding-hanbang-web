@@ -1241,7 +1241,7 @@ function PostPickerModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-xl max-h-[80vh] flex flex-col shadow-2xl"
+        className="bg-white rounded-2xl w-full max-w-xl max-h-[80dvh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-[#e5d8ca]">
@@ -1785,7 +1785,7 @@ function TimelineEventModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl border border-[#F0EFED] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
+      <div className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#F0EFED] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
         <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
           준비 기록 추가
         </h3>

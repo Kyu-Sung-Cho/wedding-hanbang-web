@@ -2332,7 +2332,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 return !v;
               });
             }}
-            className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-lg transition-colors ${
               searchOpen
                 ? "text-[#795252] bg-[#795252]/10"
                 : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
@@ -2344,7 +2344,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </button>
           <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-            className={`flex items-center justify-center w-9 h-9 rounded-lg transition-colors ${
+            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-lg transition-colors ${
               infoPanelOpen
                 ? "text-[#795252] bg-[#795252]/10"
                 : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
@@ -2357,7 +2357,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           {messages.length > 0 && (
             <button
               onClick={openNewChatModal}
-              className="flex items-center justify-center w-9 h-9 rounded-lg text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+              className="flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-lg text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
               aria-label="대화 화면 정리"
               title="대화 화면 정리"
             >
@@ -3038,7 +3038,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               onClick={() => {
                 setMediationDismissed(true);
               }}
-              className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
+              className="absolute top-2.5 right-2.5 tap-area shrink-0 w-6 h-6 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
             >
               <X className="w-4 h-4" />
             </button>
