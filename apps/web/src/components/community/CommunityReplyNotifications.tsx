@@ -5,6 +5,14 @@ import { Bell, CheckCheck, LoaderCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { isAllowedCommunityReplyWebHref } from "@hanbang/shared/community-notification";
 
+/** 로그인하지 않아서 못 읽는 것. 네트워크 실패와 **다르게** 다뤄야 한다. */
+class SignedOutError extends Error {
+  constructor() {
+    super("signed out");
+    this.name = "SignedOutError";
+  }
+}
+
 type CommunityReplyNotification = {
   id: string;
   actor_id: string;
@@ -80,6 +88,7 @@ export default function CommunityReplyNotifications({
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notificationState, setNotificationState] = useState<NotificationState>({
@@ -95,7 +104,10 @@ export default function CommunityReplyNotifications({
   const refresh = useCallback(async (signal?: AbortSignal) => {
     const expectedOwnerId = ownerId;
     const sequence = ++requestSequenceRef.current;
-    if (currentOwnerRef.current === expectedOwnerId) setError(null);
+    if (currentOwnerRef.current === expectedOwnerId) {
+      setError(null);
+      setSignedOut(false);
+    }
     try {
       const response = await fetch("/api/community/notifications", {
         cache: "no-store",
@@ -115,6 +127,16 @@ export default function CommunityReplyNotifications({
         && typeof payload.ownerId === "string"
           ? payload.ownerId
           : null;
+      // **401 은 실패가 아니라 "아직 로그인하지 않았다" 이다.**
+      //
+      // 비로그인(체험 포함) 방문자가 커뮤니티 첫 화면에서 벨을 누르면 이 요청이
+      // 401 을 주는데, 그것을 네트워크 실패와 같은 catch 로 묶어 "새 답변을 불러오지
+      // 못했어요" + [다시 시도] 를 빨간 글씨로 띄웠다. 다시 눌러도 영원히 같은 401 이다.
+      // 커뮤니티 첫 화면은 비로그인 유입의 착지점이라, 거기서 벨을 누른 사람은 전부
+      // 고장난 서비스를 봤다.
+      if (response.status === 401 || response.status === 403) {
+        throw new SignedOutError();
+      }
       if (
         !response.ok
         || responseOwnerId?.toLowerCase() !== expectedOwnerId.toLowerCase()
@@ -142,7 +164,12 @@ export default function CommunityReplyNotifications({
         && sequence === requestSequenceRef.current
         && currentOwnerRef.current === expectedOwnerId
       ) {
-        setError("새 답변을 불러오지 못했어요.");
+        setError(
+          caught instanceof SignedOutError
+            ? "로그인하면 내 글에 달린 새 답변을 여기서 볼 수 있어요."
+            : "새 답변을 불러오지 못했어요.",
+        );
+        setSignedOut(caught instanceof SignedOutError);
       }
     } finally {
       if (
@@ -341,16 +368,25 @@ export default function CommunityReplyNotifications({
               </div>
             ) : error && notifications.length === 0 ? (
               <div className="px-5 py-8 text-center">
-                <p className="text-sm text-[#8F6662]">{error}</p>
+                {/* 로그인 안내는 오류색으로 쓰지 않는다 — 고장이 아니다. */}
+                <p className={`text-sm ${signedOut ? "text-[#504444]" : "text-[#8F6662]"}`}>{error}</p>
+                {/* 버튼을 두 개로 나누지 않는다 — 손으로 만든 버튼은 늘리지 않기로
+                    했고(`rawButtonRatchet.test.ts`), 같은 자리에 같은 모양으로 서는
+                    버튼이라 하나면 된다. 로그인 안 한 경우엔 다시 눌러도 영원히 같은
+                    401 이므로 [다시 시도] 대신 로그인으로 보낸다. */}
                 <button
                   type="button"
                   onClick={() => {
+                    if (signedOut) {
+                      router.push("/login");
+                      return;
+                    }
                     setLoading(true);
                     void refresh();
                   }}
                   className="mt-3 min-h-10 rounded-lg border border-[#C7D1C2] px-4 text-sm font-medium text-[#36534E]"
                 >
-                  다시 시도
+                  {signedOut ? "로그인하기" : "다시 시도"}
                 </button>
               </div>
             ) : notifications.length === 0 ? (
