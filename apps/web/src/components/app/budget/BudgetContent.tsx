@@ -594,7 +594,7 @@ function BudgetCard({
         </div>
         {/* 분담 표시는 헤더에 둔다. 값 줄에 지출·예산과 나란히 두면 360px 에서
             셋이 264px 를 나눠 갖느라 금액 상자가 38~42px 로 눌리고, 전역
-            `overflow-wrap: anywhere` 탓에 "1,150만원" 이 "1,15"/"0만원" 으로
+            `overflow-wrap: anywhere` 탓에 금액이 자릿수 중간에서 두 줄로
             쪼개졌다(2026-08-26 운영 실측). */}
         <div className="flex shrink-0 items-center gap-1">
           <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
@@ -1208,7 +1208,7 @@ export default function BudgetContent({
                       <Users className="h-4 w-4 text-[#36534E]" aria-hidden="true" />
                       <span className="text-[13px] font-medium text-[#5d6879]">{opt.label}</span>
                     </div>
-                    {/* `break-words` 는 좁은 칸에서 "1,417만원" 을 숫자 중간에서 끊는다.
+                    {/* `break-words` 는 좁은 칸에서 금액을 자릿수 중간에서 끊는다.
                         360px 2열 그리드에서 칸 폭이 111px 뿐이라 25px 로는 안 들어간다. */}
                     <p className={`font-serif-kr whitespace-nowrap text-[20px] font-medium leading-none sm:text-[25px] ${
                       amount > 0 ? "text-[#071629]" : "text-[#9a9188]"
