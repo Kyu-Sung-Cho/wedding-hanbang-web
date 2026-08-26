@@ -408,6 +408,10 @@
     {
       "file": "20260826120000_anon_sees_only_public_authors.sql",
       "sha256": "3020d6af41ea453af33a75b5716a221122b3b8130d442738458c19ada427bcb9"
+    },
+    {
+      "file": "20260827090000_move_card_can_name_what_it_moves.sql",
+      "sha256": "574a238ecd0b26ba0c736ca78b9dc2961e6fa3cc1fc871dbadafc1809e507acd"
     }
   ],
   "deploymentEvidence": {

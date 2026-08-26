@@ -371,6 +371,26 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           maxLength: 2000,
           description: "변경할 메모. 메모 변경 불필요 시 생략",
         },
+        // 이 둘이 없으면 확인 카드가 "무엇을 어디서" 옮기는지 말하지 못한다.
+        // 카드 문구는 서버가 선언된 키로만 만들고(`formatCanonicalConfirmation`),
+        // 본문에 덧붙인 설명은 표식이 있으면 통째로 갈아치워진다. 그래서 옮기는
+        // 대상과 원래 날짜를 사용자에게 보여줄 길은 이 필드뿐이다.
+        //
+        // 형제 도구(`cancel_schedule_event`·`restore_schedule_event`)는 이 둘을
+        // **필수**로 받는다. 여기서는 선택으로 둔다 — 필수로 만들면 모델이 하나만
+        // 빠뜨려도 표식이 조용히 통째로 버려져 카드가 0건이 되고, 이 저장소가
+        // 실제로 겪은 실패 모양이 그것이다. 채우면 보이고, 안 채우면 예전과 같다.
+        expected_title: {
+          type: "string",
+          minLength: 1,
+          maxLength: 500,
+          description: "옮기려는 일정의 **현재** 제목. `### 등록된 일정`에 적힌 그대로 넣으면 확인 카드에 '대상 일정'으로 보입니다. 사용자가 무엇이 바뀌는지 알려면 필요합니다.",
+        },
+        expected_date: {
+          type: "string",
+          pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+          description: "옮기려는 일정의 **현재** 날짜 (YYYY-MM-DD). 확인 카드에 '현재 날짜'로 보입니다. 새 날짜는 `date`에 넣으세요.",
+        },
         schedule_scope: {
           type: "string",
           enum: ["confirmed_fact", "shared_commitment", "external_commitment"],

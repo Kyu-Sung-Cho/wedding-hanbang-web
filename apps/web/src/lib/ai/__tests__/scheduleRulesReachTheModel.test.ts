@@ -126,11 +126,13 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     expect(prompt).toContain("다른 일정이면 말씀해 주세요");
   });
 
-  it("두 갈래를 본문에 적으라는 규칙이 살아 있다", () => {
+  it("본문에 덧붙인 설명이 사라진다는 것을 알려준다", () => {
+    // 여기 원래 "답변 본문에 두 갈래를 적으라" 는 규칙을 검사했다. 그 규칙 자체가
+    // 틀렸다 — `extractAmoraPendingAction` 이 표식을 찾으면
+    // `cleanText: marker.confirmation` 으로 본문을 갈아치운다. 운영 실측으로도
+    // 카드가 붙은 AI 메시지 37/37 이 서버 정형 문구뿐이었다.
     const prompt = deliveredPrompt();
-    expect(prompt).toContain("답변 본문에");
-    // 카드 확인 문구는 서버가 쓴다는 사실을 모델이 알아야 본문에 적는다.
-    expect(prompt).toContain("서버가 도구 입력값만");
+    expect(prompt).toContain("본문에 덧붙인 설명은 남지 않으니");
   });
 
   it("등록된 일정 블록이 event_id 와 함께 실린다 — 옮길 대상을 못 고르면 규칙이 무의미하다", () => {
