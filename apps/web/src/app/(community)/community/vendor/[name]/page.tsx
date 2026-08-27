@@ -238,7 +238,7 @@ export default function VendorDetailPage() {
                       {post.author?.nickname ?? "익명"}
                     </span>
                     <span>·</span>
-                    <span>{timeAgo(post.created_at)}</span>
+                    <span suppressHydrationWarning>{timeAgo(post.created_at)}</span>
                     {post.rating != null && (
                       <>
                         <span>·</span>

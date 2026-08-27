@@ -1914,7 +1914,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
               </span>
             )}
           </div>
-          <span className="shrink-0 pt-0.5">{timeAgo(post.created_at)}</span>
+          <span suppressHydrationWarning className="shrink-0 pt-0.5">{timeAgo(post.created_at)}</span>
         </div>
         <h3 className="mt-2 line-clamp-2 break-words font-serif-kr text-[16.5px] font-medium leading-[1.38] text-[#071629] [overflow-wrap:anywhere] sm:text-[17px]">
           {post.title}

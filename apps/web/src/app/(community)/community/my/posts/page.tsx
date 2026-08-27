@@ -355,7 +355,7 @@ export default function MyPostsPage() {
                       {post.title}
                     </Link>
                     <div className="flex items-center gap-3 mt-2 text-[11px] text-[#B5ADA3]">
-                      <span>{timeAgo(post.created_at)}</span>
+                      <span suppressHydrationWarning>{timeAgo(post.created_at)}</span>
                       <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.view_count}</span>
                       <span>좋아요 {post.upvote_count}</span>
                       <Link
