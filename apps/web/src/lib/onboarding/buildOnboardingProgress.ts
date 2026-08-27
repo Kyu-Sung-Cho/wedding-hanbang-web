@@ -1,4 +1,5 @@
 import {
+  defaultPreparationProgressStatus,
   PREPARATION_STAGE_PROGRESS_KEY,
   type PreparationStageValue,
 } from "@hanbang/shared";
@@ -40,10 +41,13 @@ export function buildOnboardingProgress({
 
   if (includeChecklist) {
     for (const item of checklist) {
-      // `not_started`는 새로 생긴 사실이 아니라 기본 상태다. 이걸 보내면 파트너가
-      // 이미 "준비 중"으로 적어둔 항목이 이쪽 기본값으로 덮인다. 모바일도 같은
-      // 이유로 이 상태만 빼고 보낸다.
-      if (item.status === "not_started") continue;
+      // 기본 상태는 새로 생긴 사실이 아니다. 이걸 보내면 파트너가 이미 "준비 중"으로
+      // 적어둔 항목이 이쪽 기본값으로 덮인다. 모바일도 같은 이유로 기본값을 빼고 보낸다.
+      //
+      // 기본값이 분야마다 다르다 — 안 하는 집이 더 많은 분야는 "안 해요"에서 시작한다.
+      // `not_started` 하나만 걸러 내면 그 분야는 사용자가 화면을 그냥 넘겨도 "안 해요"가
+      // 새 사실인 양 저장되어 파트너가 켜 둔 값을 덮는다.
+      if (item.status === defaultPreparationProgressStatus(item.key)) continue;
 
       // 입력한 실제 지출만 원 단위로 저장한다. 계획 예산은 사용자가 예산 화면에서
       // 별도로 입력하며, 실제 지출을 예산으로 추정하지 않는다.

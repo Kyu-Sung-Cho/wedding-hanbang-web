@@ -34,6 +34,7 @@ export interface ChecklistItem {
 export const PLANNING_CATEGORY_LABELS = {
   greeting: "배우자 부모님께 첫인사",
   meeting: "부모님 첫 만남",
+  address: "서로의 부모님을 부르는 말",
   venue: "결혼식장",
   studio: "웨딩 사진 촬영",
   dress: "드레스·예식 정장",
@@ -53,6 +54,8 @@ export const PLANNING_CATEGORY_LABELS = {
   ham: "가족에게 전하는 전통 혼례 선물",
   pyebaek: "결혼식 뒤 전통 인사",
   registration: "혼인신고와 주소·보험 신고",
+  ibaji: "결혼 뒤 상대 집에 보내는 음식",
+  housewarming: "집들이",
   reserve: "예비비·사용처 미정",
 } as const;
 
@@ -67,8 +70,48 @@ export interface CategoryChecklistTemplate {
   ddayStart: number;
   /** 화면 정렬용 기본 확인 시점이며 실제 마감일이 아니다. */
   ddayDeadline: number;
+  /**
+   * **이 자리에서 하지 않는 것.** 할 일 행이 아니라 분야 맨 아래에 붙는 안내 한 줄이다.
+   *
+   * 항목으로 만들면 체크할 수 있는 일이 되고, 그러면 "안 하기로 한 것"이 다시 할 일이
+   * 된다. 진행률 분모에도 들어가서 안 한 것이 미완료로 남는다. 그래서 행이 아니라
+   * 안내다 — `note`가 항목 하나에 붙는 것과 같은 자리를 분야 단위로 가진다.
+   */
+  notDoing?: { title: string; body: string };
+  /**
+   * 저장된 값이 하나도 없을 때 이 분야가 시작하는 상태.
+   *
+   * **안 하는 집이 더 많은 자리**를 "시작 전"으로 두면 아무도 고르지 않은 할 일이
+   * 진행률 분모에 계속 남는다. 그런 분야는 "안 해요"에서 시작하고, 하기로 한 사람이
+   * 되돌린다. 되돌린 값은 저장되므로 이 기본값이 다시 덮지 않는다.
+   *
+   * 없으면 종전대로 `not_started`다.
+   */
+  defaultStatus?: "not_applicable";
   items: ChecklistItem[];
 }
+
+/**
+ * 템플릿에서 내린 항목 id.
+ *
+ * 항목을 배열에서 지우는 것만으로는 화면에서 사라지지 않는다. 저장된 체크 기록은
+ * `{id, label, done}` 배열째로 남아 있고, `mergePlanningChecklist`는 템플릿에 없는
+ * 저장 항목을 **잃지 않으려고 뒤에 다시 붙인다**. 그 장치가 없으면 사용자가 직접 만든
+ * 항목이 배포마다 지워지므로 그 동작 자체는 옳다.
+ *
+ * 그래서 "제품이 내린 항목"과 "우리가 모르는 항목"을 가르는 목록이 따로 필요하다.
+ * 여기 적힌 id는 병합에서 버린다. DB 행은 다음 저장 때 새 배열로 덮이며 저절로 정리되고,
+ * 다른 항목의 완료 기록은 건드리지 않는다.
+ *
+ * - `meeting_05`, `meeting_06` — 전체 예산과 비용 분담을 부모님 첫 만남 자리의 할 일로
+ *   두었던 항목. 그 자리의 예절 안내(`family-meeting`)는 재산·연봉 같은 돈 이야기를
+ *   꺼내지 말라고 하는데 체크리스트는 같은 날 하라고 시키고 있었다. 분담 항목 자체는
+ *   `houseware_01`과 `yedan_01`·`yedan_02`에 그대로 있다.
+ */
+export const RETIRED_CHECKLIST_ITEM_IDS: ReadonlySet<string> = new Set([
+  "meeting_05",
+  "meeting_06",
+]);
 
 export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
   // 기본 확인 순서 0: 두 사람이 각자 다녀오는 자리
@@ -117,9 +160,16 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "meeting",
     label: PLANNING_CATEGORY_LABELS.meeting,
     icon: "Users",
-    tip: "두 사람이 양쪽 부모님과 처음 함께 만나는 일정입니다. 날짜·장소·참석자와 이 자리에서 나눌 주제를 미리 맞춰보세요.",
+    tip: "두 사람이 양쪽 부모님과 처음 함께 만나는 일정입니다. 날짜와 장소, 참석자와 옷차림, 서로 드릴 선물이 필요한지를 미리 맞춰보세요.",
     ddayStart: 360,
     ddayDeadline: 300,
+    // 예절 안내(`family-meeting`)는 이 자리에서 "재산이나 연봉 같은 돈 이야기"를 피하라고
+    // 적어 두었는데, 체크리스트는 같은 날 전체 예산과 분담을 이야기하라고 시키고 있었다.
+    // 두 항목을 내리고 대신 여기서 어디에 있는지 알려 준다.
+    notDoing: {
+      title: "이 날 안 하는 것",
+      body: `재산이나 연봉 같은 돈 이야기, 전체 예산과 비용 분담은 이 자리에서 꺼내지 않아요. 분담 이야기는 「${PLANNING_CATEGORY_LABELS.houseware}」, 「${PLANNING_CATEGORY_LABELS.yedan}」에 항목으로 따로 있어요.`,
+    },
     items: [
       {
         id: "meeting_01",
@@ -146,17 +196,22 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         note: "형제자매도 함께 오는지, 어느 정도로 차려입을지 두 집안에 같은 질문으로 미리 물어보세요.",
       },
       { id: "meeting_04", label: "서로 드릴 선물이 필요한지 합의", done: false },
+    ],
+  },
+  {
+    key: "address",
+    label: PLANNING_CATEGORY_LABELS.address,
+    icon: "Users",
+    tip: "결혼하면 서로의 가족을 부르는 말이 달라집니다. 두 사람이 어떻게 부를지 먼저 맞추고, 그 집에서 쓰는 말이 따로 있으면 그 자리에서 여쭤보세요.",
+    ddayStart: 390,
+    ddayDeadline: 300,
+    defaultStatus: "not_applicable",
+    items: [
       {
-        id: "meeting_05",
-        label: "결혼식 날짜와 전체 예산 이야기",
+        id: "address_01",
+        label: "서로의 부모님을 어떻게 부를지 두 사람이 정하기",
         done: false,
-        note: "그날 정해진 것을 두 사람이 어떤 말로 전할지 정해두세요. 말이 서로 다르면 이야기가 다시 돌아갈 수 있어요.",
-      },
-      {
-        id: "meeting_06",
-        label: "가전·가구와 두 가족에게 드릴 선물의 비용 분담 이야기",
-        done: false,
-        note: "그 자리에서 말로 오간 약속은 서로 다르게 기억하니 그날 안에 적어 함께 확인해 두세요.",
+        note: "부르는 말이 애매하면 잘못 부르고 넘어가기 전에 그 자리에서 여쭤보세요.",
       },
     ],
   },
@@ -276,11 +331,14 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "dress",
     label: PLANNING_CATEGORY_LABELS.dress,
     icon: "Shirt",
-    tip: "입었을 때의 편안함, 움직임, 원하는 분위기를 함께 보세요. 배우자가 입을 예식용 정장도 필요한지 따로 확인하세요.",
+    // 두 사람이 각자 무엇을 입을지 정하는 분야다. 예전 문구는 드레스를 기본으로 두고
+    // 예식 정장을 "배우자 것도 따로 확인"으로 뒤에 붙여, 누가 무엇을 입는지 화면이 먼저
+    // 정해 버렸다.
+    tip: "결혼식에 두 사람이 각자 무엇을 입을지 정하는 분야입니다. 드레스든 예식 정장이든 입었을 때의 편안함과 움직임, 원하는 분위기를 같은 기준으로 보세요.",
     ddayStart: 300,
     ddayDeadline: 120,
     items: [
-      { id: "dress_01", label: "원하는 드레스 분위기와 편안함 기준 정하기", done: false },
+      { id: "dress_01", label: "두 사람이 각자 입을 옷의 분위기와 편안함 기준 정하기", done: false },
       { id: "dress_02", label: "비교할 드레스 매장 후보 정리", done: false },
       {
         id: "dress_03",
@@ -298,7 +356,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       { id: "dress_06", label: "머리에 쓰는 면사포·머리 장식·장갑·신발 포함 여부 확인", done: false },
       {
         id: "dress_07",
-        label: "배우자 예식 정장 선택하고 대여·맞춤 정하기",
+        label: "예식 정장 선택하고 대여·맞춤 정하기",
         done: false,
         note: "셔츠와 넥타이, 소매 단추, 신발까지 하루 전에 한 번 다 입어 보세요.",
       },
@@ -747,13 +805,13 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "shoes",
     label: PLANNING_CATEGORY_LABELS.shoes,
     icon: "Sparkles",
-    tip: "옷 길이와 이동 동선을 고려해 신발 높이와 편안함을 확인하세요. 갈아 신을 신발이 필요한지도 함께 정하세요.",
+    tip: "두 사람이 각자 신을 신발을 함께 정하세요. 옷 길이와 이동 동선을 고려해 높이와 편안함을 확인하고, 갈아 신을 신발이 필요한지도 정하세요.",
     ddayStart: 90,
     ddayDeadline: 30,
     items: [
       {
         id: "shoes_01",
-        label: "드레스에 맞는 굽 높이 결정",
+        label: "입을 옷에 맞는 굽 높이 결정",
         done: false,
         note: "굽만 신어 보면 알기 어려우니, 긴 자락이 있는 옷을 입은 채 걸어 보고 정하세요.",
       },
@@ -776,14 +834,14 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         done: false,
         note: "한복을 빌린다면 신발도 함께 나오는지, 따로 준비해야 하는지 업체에 미리 물어보세요.",
       },
-      { id: "shoes_06", label: "배우자 결혼식 신발 준비", done: false },
+      { id: "shoes_06", label: "예식 정장에 신을 신발 준비", done: false },
     ],
   },
   {
     key: "bouquet",
     label: PLANNING_CATEGORY_LABELS.bouquet,
     icon: "Flower",
-    tip: "손에 들 꽃이 필요하다면 원하는 분위기, 생화나 인조 꽃 여부, 전달 시간과 보관 방법을 업체와 확인하세요.",
+    tip: "두 사람이 들거나 다는 꽃을 함께 정하세요. 필요하다면 원하는 분위기, 생화나 인조 꽃 여부, 전달 시간과 보관 방법을 업체와 확인하세요.",
     ddayStart: 90,
     ddayDeadline: 14,
     items: [
@@ -803,7 +861,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
       },
       {
         id: "bouquet_05",
-        label: "배우자가 옷에 달 작은 꽃 장식도 필요한지 확인",
+        label: "옷에 다는 작은 꽃 장식 준비",
         done: false,
         note: "옷에 다는 꽃은 핀이 빠지기 쉬우니 고정 방법을 미리 확인해 두세요.",
       },
@@ -1047,6 +1105,42 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         label: "건강보험에 배우자를 올릴 수 있는지 알아보기 (해당하는 경우)",
         done: false,
         note: "늦어도 신고는 받아 주지만 많이 늦으면 그 사이 보험료를 따로 내게 될 수 있어요.",
+      },
+    ],
+  },
+
+  // 기본 확인 순서 5: 결혼식이 끝난 뒤
+  {
+    key: "ibaji",
+    label: PLANNING_CATEGORY_LABELS.ibaji,
+    icon: "Package",
+    tip: "결혼 뒤 상대 집에 음식을 보낼지는 가족과 먼저 합의하세요. 보내기로 했다면 규모와 예산, 전달 시기를 함께 정하세요.",
+    ddayStart: 60,
+    ddayDeadline: -7,
+    defaultStatus: "not_applicable",
+    items: [
+      {
+        id: "ibaji_01",
+        label: "결혼 뒤 상대 집에 음식을 보낼지 가족과 합의",
+        done: false,
+        note: "두 사람이 먼저 정한 뒤 같은 말로 양쪽 집안에 전하고, 규모와 시기도 함께 맞춰 두세요.",
+      },
+    ],
+  },
+  {
+    key: "housewarming",
+    label: PLANNING_CATEGORY_LABELS.housewarming,
+    icon: "Home",
+    tip: "집들이는 꼭 해야 하는 자리가 아닙니다. 하기로 했다면 누구를 언제 부를지, 음식은 어떻게 할지 두 사람이 먼저 정하세요.",
+    ddayStart: 30,
+    ddayDeadline: -60,
+    defaultStatus: "not_applicable",
+    items: [
+      {
+        id: "housewarming_01",
+        label: "집들이를 할지, 한다면 누구를 언제 부를지 정하기",
+        done: false,
+        note: "부모님과 지인을 같은 날 부를지 나눠 부를지부터 정하고 준비할 양을 가늠해 보세요.",
       },
     ],
   },

@@ -192,6 +192,7 @@ function calcUrgentTasks(
     const resolvedStatus = resolvePlanningChecklistStatus(
       category.items,
       categoryProgress as unknown as Parameters<typeof resolvePlanningChecklistStatus>[1],
+      category.defaultStatus,
     );
     if (resolvedStatus === "completed" || resolvedStatus === "not_applicable") continue;
 

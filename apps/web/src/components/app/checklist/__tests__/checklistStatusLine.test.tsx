@@ -67,12 +67,20 @@ describe("분야 한 줄이 상황마다 하는 말", () => {
     act(() => { root.render(<ChecklistContent />); });
   }
 
-  /** 그 분야 카드가 실제로 그린 한 줄. */
+  /**
+   * 그 분야 카드가 실제로 그린 한 줄.
+   *
+   * 고정 길이로 잘라내면 **다음 카드의 글자가 딸려 온다.** 항목 수가 같은 분야가 뒤에
+   * 오면 `0/5개 완료` 가 이웃에서 들어와, 이 카드가 개수를 안 썼는지 보는 검사가
+   * 엉뚱하게 실패한다. 그래서 다음 분야 라벨에서 끊는다.
+   */
   function lineForCategory(): string {
     const text = container.textContent ?? "";
     const at = text.indexOf(category.label);
     expect(at, `${category.label} 카드를 못 찾았다`).toBeGreaterThanOrEqual(0);
-    return text.slice(at, at + 160);
+    const nextLabel = CATEGORY_CHECKLISTS[CATEGORY_CHECKLISTS.indexOf(category) + 1]?.label;
+    const nextAt = nextLabel ? text.indexOf(nextLabel, at + category.label.length) : -1;
+    return text.slice(at, nextAt >= 0 ? nextAt : at + 160);
   }
 
   const items = (doneCount: number) =>

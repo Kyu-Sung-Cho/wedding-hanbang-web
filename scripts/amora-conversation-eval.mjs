@@ -12,6 +12,7 @@ const PRODUCTION_HOST = "hanbang.ai";
 const OFFLINE_CORE_DOMAINS = [
   "greeting",
   "meeting",
+  "address",
   "venue",
   "studio",
   "dress",
@@ -31,6 +32,8 @@ const OFFLINE_CORE_DOMAINS = [
   "ham",
   "pyebaek",
   "registration",
+  "ibaji",
+  "housewarming",
 ];
 const OFFLINE_SCOPES = ["W0", "W1", "W2", "W3", "W4", "W5"];
 const OFFLINE_ACTION_POLICIES = new Set([

@@ -1,3 +1,5 @@
+import { RETIRED_CHECKLIST_ITEM_IDS } from "../constants/weddingPlanning";
+
 export type PlanningChecklistStatus =
   | "not_started"
   | "in_progress"
@@ -20,11 +22,16 @@ export interface PlanningChecklistProgress {
 export interface PlanningChecklistTemplateLike {
   key: string;
   items: PlanningChecklistItem[];
+  /** 저장된 값이 없을 때의 시작 상태. `CategoryChecklistTemplate`과 같은 뜻이다. */
+  defaultStatus?: "not_applicable";
 }
 
 /**
  * 템플릿의 안정적인 순서를 유지하면서 이전 버전·직접 추가 항목도 잃지 않는다.
  * 알 수 없는 저장 항목은 마지막에 붙여 round-trip 저장 시에도 보존한다.
+ *
+ * 예외는 **제품이 내린 항목**뿐이다(`RETIRED_CHECKLIST_ITEM_IDS`). 그것까지 되살리면
+ * 템플릿에서 지운 항목이 이미 한 번이라도 저장한 커플에게는 영영 남는다.
  */
 export function mergePlanningChecklist<T extends PlanningChecklistItem>(
   template: readonly T[],
@@ -50,6 +57,7 @@ export function mergePlanningChecklist<T extends PlanningChecklistItem>(
 
   const appendedIds = new Set<string>();
   for (const item of saved) {
+    if (RETIRED_CHECKLIST_ITEM_IDS.has(item.id)) continue;
     if (!templateIds.has(item.id) && !appendedIds.has(item.id)) {
       merged.push({ ...item });
       appendedIds.add(item.id);
@@ -150,9 +158,15 @@ export function isPlanningChecklistStatusDeclared(
   return !Array.isArray(saved?.checklist) || saved.checklist.length === 0;
 }
 
+/**
+ * @param defaultStatus 저장된 값이 하나도 없을 때 쓸 상태. 함·폐백처럼 안 하는 집이 더
+ *   많은 분야는 `"not_applicable"`을 넘겨 "안 해요"에서 시작한다. 사용자가 되돌리면
+ *   저장된 상태가 생기므로 이 값은 그때부터 쓰이지 않는다.
+ */
 export function resolvePlanningChecklistStatus(
   templateItems: readonly PlanningChecklistItem[],
   saved: PlanningChecklistProgress | undefined,
+  defaultStatus?: "not_applicable",
 ): PlanningChecklistStatus {
   // 저장된 값을 그대로 믿지 않는다. DB에 옛 형식이나 알 수 없는 값이 남아 있을 수 있어
   // 호출부마다 화이트리스트를 두던 것을 여기로 모았다. 호출부가 `{ status, checklist }`
@@ -167,7 +181,7 @@ export function resolvePlanningChecklistStatus(
 
   if (status === "not_applicable") return "not_applicable";
   if (!Array.isArray(saved?.checklist) || saved.checklist.length === 0) {
-    return status ?? "not_started";
+    return status ?? defaultStatus ?? "not_started";
   }
   return calculatePlanningChecklistStatus(
     mergePlanningChecklist(templateItems, saved.checklist),
@@ -194,7 +208,14 @@ export function summarizePlanningChecklist(
 
   for (const template of templates) {
     const saved = progress[template.key];
-    if (saved?.status === "not_applicable") {
+    // 저장값만 보면 "안 해요"에서 시작하는 분야가 아무도 안 건드린 동안 분모에 남는다.
+    // 리졸버가 저장값 → 템플릿 기본값 순서로 정해 준다.
+    const status = resolvePlanningChecklistStatus(
+      template.items,
+      saved,
+      template.defaultStatus,
+    );
+    if (status === "not_applicable") {
       skippedCategories += 1;
       continue;
     }

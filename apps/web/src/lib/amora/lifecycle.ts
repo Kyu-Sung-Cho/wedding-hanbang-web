@@ -87,10 +87,10 @@ interface BuildAmoraLifecyclePlanInput {
  * 늘렸을 때 실제로 그렇게 됐다. `lifecycle.test.ts`가 빠짐없음을 검사한다.
  */
 const PHASES = [
-  { id: "foundation", label: "기초 결정", keys: ["greeting", "meeting", "venue"] },
+  { id: "foundation", label: "기초 결정", keys: ["greeting", "meeting", "address", "venue"] },
   { id: "core", label: "핵심 계약", keys: ["studio", "dress", "makeup", "ring"] },
   { id: "life", label: "생활 준비", keys: ["hanbok", "yedan", "honeymoon", "houseware", "housing"] },
-  { id: "final", label: "결혼식 마무리", keys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek", "registration"] },
+  { id: "final", label: "결혼식 마무리", keys: ["invitation", "snap", "shoes", "bouquet", "gift", "mc", "ham", "pyebaek", "registration", "ibaji", "housewarming"] },
 ];
 
 /** 검사가 쓴다 — 어느 단계에도 안 들어간 분야가 있으면 안 된다. */

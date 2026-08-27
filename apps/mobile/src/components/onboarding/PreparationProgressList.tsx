@@ -4,6 +4,7 @@ import {
   PREPARATION_PROGRESS_CATEGORY_KEYS,
   PREPARATION_PROGRESS_STATUS_OPTIONS,
   createPreparationProgressItems,
+  defaultPreparationProgressStatus,
   type PreparationProgressCategoryKey,
   type PreparationProgressStatus,
 } from "@hanbang/shared";
@@ -40,9 +41,29 @@ export function createPreparationStatuses(
 ): PreparationStatusMap {
   const statuses = {} as PreparationStatusMap;
   for (const key of PREPARATION_PROGRESS_CATEGORY_KEYS) {
-    statuses[key] = suggested?.[key] ?? "not_started";
+    // 시작 상태도 정본에서 온다. 안 하는 집이 더 많은 분야는 체크리스트에서 "안 해요"로
+    // 시작하는데 여기만 "아직"으로 물으면 같은 분야를 두 화면이 다르게 말한다.
+    statuses[key] = suggested?.[key] ?? defaultPreparationProgressStatus(key);
   }
   return statuses;
+}
+
+/**
+ * 서버로 보낼 자격이 있는 것만 남긴다.
+ *
+ * 시작 상태와 같은 값은 사용자가 새로 말한 것이 아니다. 그대로 보내면 파트너가 이미
+ * 켜 둔 분야가 이쪽 기본값으로 되돌아간다 — `not_started` 를 안 보내는 이유와 같고
+ * (`onboardingFirstValue.mjs`), 기본값이 분야마다 다를 뿐이다.
+ */
+export function withoutDefaultPreparationStatuses(
+  statuses: PreparationStatusMap,
+): Record<string, PreparationProgressStatus> {
+  const changed: Record<string, PreparationProgressStatus> = {};
+  for (const key of PREPARATION_PROGRESS_CATEGORY_KEYS) {
+    if (statuses[key] === defaultPreparationProgressStatus(key)) continue;
+    changed[key] = statuses[key];
+  }
+  return changed;
 }
 
 interface PreparationProgressListProps {
@@ -60,7 +81,7 @@ export default function PreparationProgressList({
   disabled = false,
 }: PreparationProgressListProps) {
   const answered = PREPARATION_PROGRESS_CATEGORY_KEYS.filter(
-    (key) => statuses[key] !== "not_started",
+    (key) => statuses[key] !== defaultPreparationProgressStatus(key),
   ).length;
 
   return (

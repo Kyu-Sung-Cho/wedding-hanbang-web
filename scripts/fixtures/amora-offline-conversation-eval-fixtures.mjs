@@ -9,6 +9,7 @@
 const WEDDING_CORE_INPUTS = [
   ["greeting", "여자친구 부모님께 처음 인사드리러 가는데 뭘 준비해야 해?"],
   ["meeting", "양가 부모님 첫 만남 날짜와 장소를 정리하고 싶어."],
+  ["address", "결혼하면 서로의 부모님을 뭐라고 불러야 할지 둘이 맞추고 싶어."],
   ["venue", "결혼식장 계약 전에 꼭 확인할 조건을 정리해줘."],
   ["studio", "웨딩 사진 촬영 견적에서 원본과 보정본 조건을 보고 싶어."],
   ["dress", "드레스와 예식 정장 피팅 일정을 같이 정리해줘."],
@@ -28,6 +29,8 @@ const WEDDING_CORE_INPUTS = [
   ["ham", "가족에게 전하는 전통 혼례 선물은 꼭 해야 하는지 알고 싶어."],
   ["pyebaek", "결혼식 뒤 전통 인사를 할지 가족과 중립적으로 상의하고 싶어."],
   ["registration", "혼인신고는 언제 하는 게 좋고 뭘 챙겨 가야 해?"],
+  ["ibaji", "결혼 뒤 상대 집에 음식을 보낼지 양가와 중립적으로 상의하고 싶어."],
+  ["housewarming", "집들이를 할지, 한다면 누구를 언제 부를지 정리하고 싶어."],
 ];
 
 export const OFFLINE_WEDDING_CORE_DOMAINS = WEDDING_CORE_INPUTS.map(([domain]) => domain);

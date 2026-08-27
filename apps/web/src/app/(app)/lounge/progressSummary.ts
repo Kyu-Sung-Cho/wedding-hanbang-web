@@ -32,7 +32,7 @@ export function getStatus(progress: Record<string, ProgressItem>, key: string): 
       || status === "not_applicable"
     ) ? status : "not_started";
   }
-  return resolveStatus(template.items, saved);
+  return resolveStatus(template.items, saved, template.defaultStatus);
 }
 
 export function getChecklistProgress(progress: Record<string, ProgressItem>, key: string) {

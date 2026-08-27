@@ -23,7 +23,7 @@
  * 화면이 좁게 잡을 이유가 없다.
  */
 
-import { PLANNING_CATEGORY_LABELS } from "./weddingPlanning";
+import { CHECKLIST_MAP, PLANNING_CATEGORY_LABELS } from "./weddingPlanning";
 import type { PlanningCategoryKey } from "./weddingPlanning";
 
 /**
@@ -40,6 +40,7 @@ export const PREPARATION_PROGRESS_CATEGORY_KEYS = [
   // 이 파일이 정본인 이유가 정확히 그것이라, 카테고리가 늘면 여기부터 고친다.
   "greeting",
   "meeting",
+  "address",
   "venue",
   "studio",
   "dress",
@@ -59,6 +60,8 @@ export const PREPARATION_PROGRESS_CATEGORY_KEYS = [
   "ham",
   "pyebaek",
   "registration",
+  "ibaji",
+  "housewarming",
 ] as const satisfies readonly PlanningCategoryKey[];
 
 export type PreparationProgressCategoryKey =
@@ -137,13 +140,32 @@ export interface PreparationProgressItem {
 }
 
 /**
+ * 저장된 값이 없을 때 이 분야가 갖는 상태. 체크리스트 템플릿이 정본이다.
+ *
+ * 온보딩이 **이 값과 같은 상태는 보내지 않는다.** 기본 상태는 새로 생긴 사실이 아니라서,
+ * 보내면 파트너가 이미 적어 둔 값이 이쪽 기본값으로 덮인다. `not_started` 하나만 걸러
+ * 내던 규칙을 기본값 전체로 넓힌 이유가 그것이다.
+ */
+export function defaultPreparationProgressStatus(
+  key: string,
+): PreparationProgressStatus {
+  const templateDefault = CHECKLIST_MAP[key]?.defaultStatus;
+  return templateDefault ?? "not_started";
+}
+
+/**
  * 화면이 처음 그릴 목록. 순서는 위 배열이 정본이고, 라벨은 `PLANNING_CATEGORY_LABELS`에서
  * 온다 — 라벨을 화면마다 다시 적으면 한쪽만 고쳐진다.
+ *
+ * 시작 상태도 템플릿에서 가져온다. 안 하는 집이 더 많은 분야는 체크리스트에서 "안 해요"로
+ * 시작하는데(`CategoryChecklistTemplate.defaultStatus`), 온보딩만 "아직"으로 물으면 같은
+ * 분야를 두 화면이 다르게 말하고, 사용자가 그 화면을 그냥 넘기는 순간 "아직"이 저장돼
+ * 기본값이 덮인다.
  */
 export function createPreparationProgressItems(): PreparationProgressItem[] {
   return PREPARATION_PROGRESS_CATEGORY_KEYS.map((key) => ({
     key,
     label: PLANNING_CATEGORY_LABELS[key],
-    status: "not_started" as PreparationProgressStatus,
+    status: defaultPreparationProgressStatus(key),
   }));
 }

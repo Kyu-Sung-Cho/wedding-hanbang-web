@@ -68,12 +68,13 @@ test("the keys the app can send are exactly the keys the server accepts", () => 
   assert.doesNotMatch(listSource, /PLANNING_CATEGORY_LABELS/);
   assert.doesNotMatch(listSource, /Object\.hasOwn/);
 
-  // 21개다. 처음에는 19개였는데 main의 #135("체크리스트가 빠뜨린 절차를 채운다")가
-  // greeting·registration 을 추가했다. 병합할 때 이 정본 목록에 옮기지 않았으면
-  // 서버는 21개를 알고 화면은 19개를 그리는 상태가 됐을 것이다 — 이 테스트가 막는
-  // 사고가 정확히 그것이라, 숫자를 갱신하는 것이 여기서 할 일이다.
-  assert.equal(canonicalCategoryKeys.length, 21);
-  assert.equal(new Set(canonicalCategoryKeys).size, 21);
+  // 24개다. 처음에는 19개였는데 main의 #135("체크리스트가 빠뜨린 절차를 채운다")가
+  // greeting·registration 을, 이번 잠금 변경이 address·ibaji·housewarming 을 더했다.
+  // 병합할 때 이 정본 목록에 옮기지 않았으면 서버는 24개를 알고 화면은 21개를 그리는
+  // 상태가 됐을 것이다 — 이 테스트가 막는 사고가 정확히 그것이라, 숫자를 갱신하는 것이
+  // 여기서 할 일이다.
+  assert.equal(canonicalCategoryKeys.length, 24);
+  assert.equal(new Set(canonicalCategoryKeys).size, 24);
   // 예비비는 준비 항목이 아니라 예산의 남은 자리다 — 서버 허용 집합에도 없다.
   assert.ok(!canonicalCategoryKeys.includes("reserve"));
 });

@@ -36,9 +36,10 @@ export function calculateStatus(
  */
 export function resolveStatus(
   templateItems: readonly ChecklistItem[],
-  saved: { status?: string; checklist?: ChecklistItem[] } | undefined
+  saved: { status?: string; checklist?: ChecklistItem[] } | undefined,
+  defaultStatus?: "not_applicable"
 ): ProgressItem["status"] {
-  return resolvePlanningChecklistStatus(templateItems, saved as never);
+  return resolvePlanningChecklistStatus(templateItems, saved as never, defaultStatus);
 }
 
 /**
@@ -51,7 +52,7 @@ export function resolveStatusByKey(
 ): ProgressItem["status"] | undefined {
   const template = CHECKLIST_MAP[key];
   if (!template) return saved?.status as ProgressItem["status"] | undefined;
-  return resolveStatus(template.items, saved);
+  return resolveStatus(template.items, saved, template.defaultStatus);
 }
 
 /**

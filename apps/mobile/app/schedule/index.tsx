@@ -640,9 +640,12 @@ export default function ScheduleScreen() {
         const itemStates: Record<string, boolean> = Object.fromEntries(
           checkItems.map((item) => [item.id, item.done]),
         );
-        const status: PlanningChecklistStatus = dbCatData?.status === "not_applicable"
-          ? "not_applicable"
-          : calculatePlanningChecklistStatus(checkItems);
+        // 저장값이 없으면 템플릿의 시작 상태를 쓴다 — 안 하는 집이 더 많은 분야는
+        // 아무도 고르지 않은 동안 "안 해요"로 있는다.
+        const status: PlanningChecklistStatus =
+          (dbCatData?.status ?? cat.defaultStatus) === "not_applicable"
+            ? "not_applicable"
+            : calculatePlanningChecklistStatus(checkItems);
 
         cats.push({ key: cat.key, label: cat.label, items: checkItems, status });
         progMap[cat.key] = itemStates;
@@ -952,7 +955,7 @@ export default function ScheduleScreen() {
           })).filter((item) => item.id.length > 0)
         : [];
       const checklist = mergePlanningChecklist(template.items, saved);
-      const wasSkipped = existing.status === "not_applicable";
+      const wasSkipped = (existing.status ?? template.defaultStatus) === "not_applicable";
       const nextCategory = {
         ...existing,
         category: categoryKey,

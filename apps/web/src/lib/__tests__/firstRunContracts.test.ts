@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLoungeFirstRunView,
+  CHECKLIST_MAP,
   FIRST_RUN_TUTORIAL_STEPS,
   FIRST_RUN_TUTORIAL_VERSION,
   PREPARATION_PROGRESS_CATEGORY_KEYS,
@@ -34,18 +35,32 @@ describe("준비 현황 19항목", () => {
     expect(PROGRESS_CHECKLIST_ITEMS.map((item) => item.key)).toEqual([
       ...PREPARATION_PROGRESS_CATEGORY_KEYS,
     ]);
-    // main의 #135가 greeting·registration 을 추가해 21개가 됐다. 이 숫자를 갱신하는
-    // 것이 이 테스트가 요구하는 일이다 — 정본이 늘었는데 화면이 못 따라오면 그 분야는
-    // 보이지만 저장되지 않는다.
-    expect(PREPARATION_PROGRESS_CATEGORY_KEYS).toHaveLength(21);
-    expect(new Set(PREPARATION_PROGRESS_CATEGORY_KEYS).size).toBe(21);
+    // main의 #135가 greeting·registration 을 추가해 21개가 됐고, 잠금 변경이
+    // address·ibaji·housewarming 을 더해 24개가 됐다. 이 숫자를 갱신하는 것이 이
+    // 테스트가 요구하는 일이다 — 정본이 늘었는데 화면이 못 따라오면 그 분야는 보이지만
+    // 저장되지 않는다.
+    expect(PREPARATION_PROGRESS_CATEGORY_KEYS).toHaveLength(24);
+    expect(new Set(PREPARATION_PROGRESS_CATEGORY_KEYS).size).toBe(24);
   });
 
   it("모든 항목이 라벨을 갖는다", () => {
     for (const item of PROGRESS_CHECKLIST_ITEMS) {
       expect(item.label.length).toBeGreaterThan(0);
-      expect(item.status).toBe("not_started");
+      // 시작 상태는 체크리스트 템플릿에서 온다. 안 하는 집이 더 많은 분야는 거기서
+      // "안 해요"로 시작하므로, 온보딩만 "아직"으로 물으면 같은 분야를 두 화면이
+      // 다르게 말한다.
+      expect(item.status, item.key).toBe(
+        CHECKLIST_MAP[item.key]?.defaultStatus ?? "not_started",
+      );
     }
+  });
+
+  it("체크리스트에서 '안 해요'로 시작하는 분야가 실제로 있다", () => {
+    // 위 검사는 기본값이 전부 not_started 여도 통과한다. 표본이 있는지 먼저 본다.
+    const skippedByDefault = PREPARATION_PROGRESS_CATEGORY_KEYS.filter(
+      (key) => CHECKLIST_MAP[key]?.defaultStatus === "not_applicable",
+    );
+    expect(skippedByDefault).toEqual(["address", "ibaji", "housewarming"]);
   });
 
   it("고르는 말과 보여주는 말이 같다", () => {
