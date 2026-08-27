@@ -82,7 +82,7 @@ export function planAmoraCrisisDelivery(input: {
       effectiveVisibility,
       safetyPrivacyRedirected: input.requestedVisibility !== effectiveVisibility,
       partnerDeliveryHeld: input.target === "partner",
-      response: buildAmoraCrisisResponse(classification.kind),
+      response: buildAmoraCrisisResponse(classification.kind, classification.language),
     };
   }
 

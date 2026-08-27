@@ -10,6 +10,17 @@ export type { AmoraCrisisKind };
 
 export interface AmoraCrisisClassification {
   kind: AmoraCrisisKind;
+  /**
+   * 위기 신호를 **영어 갈래가 찾았을 때만** `"en"` 이다.
+   *
+   * 왜 필요한가: 아래 응답문은 전부 한국어다. 영어로 위기를 말한 사람에게
+   * 한국어 벽이 나가면 **안내를 못 읽는다** — 읽을 수 없는 안내는 안내가 아니고,
+   * 영어 갈래를 붙인 목적 자체가 사라진다.
+   *
+   * 한국어 갈래가 찾은 경우에는 이 값이 없다. 그러므로 한국어 사용자가 보는
+   * 문구는 한 글자도 바뀌지 않는다.
+   */
+  language?: "en";
 }
 
 export const AMORA_CRISIS_CONTACT_POLICY_VERSION =
@@ -69,7 +80,37 @@ const MULTI_PARTY_SELF_HARM_RESPONSE = [
   OUTSIDE_KOREA_GUIDANCE,
 ].join("\n\n");
 
-export function buildAmoraCrisisResponse(kind: AmoraCrisisKind): string {
+/**
+ * 영어로 위기를 말한 사람에게 먼저 붙이는 블록.
+ *
+ * **연락처는 한국어 응답과 같은 값이다** — 번역일 뿐 새 사실이 아니므로
+ * `AMORA_CRISIS_CONTACT_POLICY_VERSION` 은 올리지 않는다. 번호가 바뀌는 날에는
+ * 한국어·영어·검사·정책 버전을 **함께** 고쳐야 한다.
+ *
+ * 한국어 본문을 지우지 않고 앞에 붙인다. 한 사람이 두 언어를 다 읽을 수도 있고,
+ * 옆에 있는 사람이 한국어만 읽을 수도 있다.
+ */
+function englishCrisisPrefix(kind: AmoraCrisisKind): string {
+  const opening = kind === "third_party_self_harm"
+    ? "Thank you for telling someone. Please don't carry this alone — this person needs immediate human help, and Amora is not a crisis service."
+    : kind === "interpersonal_danger"
+      ? "Your safety comes first right now. Amora is not a crisis service, so please get immediate human help."
+      : "You don't have to carry this alone right now. Amora is not a crisis service, so please get immediate human help.";
+  return [
+    opening,
+    "If you are in immediate danger or already hurt, call **112 (police)** or **119 (fire/ambulance)** now. If you can, do not stay alone and move away from anything or anywhere that could hurt you.",
+    "In Korea, the suicide prevention counseling line **109** is open 24 hours. **1366** is the 24-hour line for domestic and dating violence.",
+    "If you are outside Korea, please call your local emergency number or a local crisis line right away.",
+  ].join("\n\n");
+}
+
+export function buildAmoraCrisisResponse(
+  kind: AmoraCrisisKind,
+  language?: "en",
+): string {
+  if (language === "en") {
+    return `${englishCrisisPrefix(kind)}\n\n---\n\n${buildAmoraCrisisResponse(kind)}`;
+  }
   if (kind === "self_harm") return SELF_HARM_RESPONSE;
   if (kind === "third_party_self_harm") return THIRD_PARTY_SELF_HARM_RESPONSE;
   if (kind === "interpersonal_danger") return INTERPERSONAL_DANGER_RESPONSE;
@@ -422,14 +463,21 @@ export function classifyAmoraCrisis(
     }
   }
 
+  /**
+   * 영어 갈래가 찾은 경우에만 언어를 실어 보낸다. 한국어 갈래가 잡았으면
+   * `english` 는 전부 false 이므로 `undefined` 가 되고, 한국어 사용자가 보는
+   * 문구는 한 글자도 바뀌지 않는다.
+   */
+  const language = englishFound ? ("en" as const) : undefined;
+  const at = (kind: AmoraCrisisKind): AmoraCrisisClassification =>
+    language ? { kind, language } : { kind };
+
   if ((selfHarm || thirdPartySelfHarm) && interpersonalDanger) {
-    return { kind: "combined_interpersonal_self_harm" };
+    return at("combined_interpersonal_self_harm");
   }
-  if (selfHarm && thirdPartySelfHarm) {
-    return { kind: "multi_party_self_harm" };
-  }
-  if (selfHarm) return { kind: "self_harm" };
-  if (thirdPartySelfHarm) return { kind: "third_party_self_harm" };
-  if (interpersonalDanger) return { kind: "interpersonal_danger" };
+  if (selfHarm && thirdPartySelfHarm) return at("multi_party_self_harm");
+  if (selfHarm) return at("self_harm");
+  if (thirdPartySelfHarm) return at("third_party_self_harm");
+  if (interpersonalDanger) return at("interpersonal_danger");
   return null;
 }

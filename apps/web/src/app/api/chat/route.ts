@@ -990,7 +990,10 @@ export async function POST(request: Request) {
     : classifyAmoraCrisis(earlyCrisisUserText);
   if (earlyCrisisClassification) {
     return replayEphemeralCrisisMessage(
-      buildAmoraCrisisResponse(earlyCrisisClassification.kind),
+      buildAmoraCrisisResponse(
+        earlyCrisisClassification.kind,
+        earlyCrisisClassification.language,
+      ),
       earlyCrisisClassification.kind,
     );
   }

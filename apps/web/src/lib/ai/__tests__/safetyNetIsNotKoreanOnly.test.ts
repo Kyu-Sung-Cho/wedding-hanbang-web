@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyAmoraCrisis } from "@/lib/ai/amoraCrisisSafety";
+import { buildAmoraCrisisResponse, classifyAmoraCrisis } from "@/lib/ai/amoraCrisisSafety";
 
 /**
  * 안전망이 한국어 정규식 전용이라 같은 위기를 영어로 말하면 아무것도 걸리지 않았다.
@@ -356,5 +356,90 @@ describe("적대적 검토가 무너뜨린 자리", () => {
   it.each(KOREAN_WITH_ENGLISH_WORDS)("영어 낱말이 한국어 판정을 뒤집지 않는다: %s", (text) => {
     const expected = ({"친구가 손목을 그었어요. self-harm 이라고 하죠?": "third_party_self_harm", "언니가 자해했어요. self harm 검색해봤는데 어떻게 도와야 할지 모르겠어요": "third_party_self_harm"} as Record<string, string>)[text] ?? null;
     expect(classifyAmoraCrisis(text)?.kind ?? null).toBe(expected);
+  });
+});
+
+describe("영어로 물어본 사람이 읽을 수 있는 안내를 받는다", () => {
+  /**
+   * 응답문은 전부 한국어였다. 영어 갈래를 붙여 위기를 **잡기만** 하고 한국어
+   * 벽을 돌려주면, 정작 그 사람은 안내를 못 읽는다 — 목적이 절반만 달성된다.
+   *
+   * 연락처는 한국어 응답과 같은 값이다(112·119·109·1366). 번역일 뿐
+   * 새 사실이 아니므로 `AMORA_CRISIS_CONTACT_POLICY_VERSION` 은 그대로 둔다.
+   */
+  const enResponse = (text: string) => {
+    const c = classifyAmoraCrisis(text);
+    expect(c, "전제 확인 — 위기로 잡히지 않으면 아래가 무의미하다").not.toBeNull();
+    return buildAmoraCrisisResponse(c!.kind, c!.language);
+  };
+
+  it("영어 위기에는 영어 안내가 먼저 온다", () => {
+    const r = enResponse("I want to kill myself");
+    expect(r, "영어 안내가 없다").toMatch(/immediate danger|Amora is not a crisis service/u);
+    expect(r.indexOf("Amora is not a crisis service"), "한국어가 먼저 온다")
+      .toBeLessThan(r.indexOf("아모라는 위기 상담기관이 아니"));
+  });
+
+  it("긴급 번호가 한국어 응답과 같다", () => {
+    const r = enResponse("My husband hits me");
+    for (const number of ["112", "119", "109", "1366"]) {
+      expect(r, `${number} 가 영어 안내에 없다`).toContain(number);
+    }
+  });
+
+  it("한국어 본문도 함께 남는다 — 옆 사람이 한국어만 읽을 수 있다", () => {
+    expect(enResponse("I want to kill myself")).toContain("자살예방상담전화 109");
+  });
+
+  it("제3자·대인 위험은 첫 문장이 다르다", () => {
+    expect(enResponse("My friend said she wants to die"))
+      .toContain("Thank you for telling someone");
+    expect(enResponse("My husband hits me")).toContain("Your safety comes first");
+  });
+
+  it("**한국어 위기에는 영어가 한 글자도 붙지 않는다**", () => {
+    for (const text of ["죽고 싶어요", "남편이 칼로 협박했어요", "친구가 죽고 싶다고 해요"]) {
+      const c = classifyAmoraCrisis(text);
+      expect(c, text).not.toBeNull();
+      expect(c!.language, "한국어인데 영어로 표시됐다").toBeUndefined();
+      expect(
+        buildAmoraCrisisResponse(c!.kind, c!.language),
+        "한국어 사용자에게 영어가 섞여 나간다",
+      ).not.toMatch(/Amora is not a crisis service/u);
+    }
+  });
+});
+
+describe("웹 클라이언트가 쓰는 경로에서도 읽을 수 있다", () => {
+  /**
+   * `ChatContent.tsx:1480` 은 서버를 기다리지 않고 `planAmoraCrisisDelivery` 로
+   * 위기 안내를 **먼저 화면에 띄운다.** 그 경로가 언어를 안 넘기면 영어 사용자는
+   * 서버 응답이 오기 전까지 한국어 벽만 본다 — 가장 급한 순간이다.
+   *
+   * 변형 검사에서 그 호출부의 언어를 지웠을 때 **아무 검사도 안 깨졌다.**
+   */
+  it("영어 위기에 영어 안내가 즉시 뜬다", async () => {
+    const { planAmoraCrisisDelivery } = await import("@hanbang/shared/amora-crisis-delivery");
+    const plan = planAmoraCrisisDelivery({
+      userText: "I want to kill myself",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+    expect(plan.disposition, "위기로 잡히지 않았다").toBe("local_safety_hold");
+    expect(plan.response ?? "", "클라이언트 즉시 안내가 한국어뿐이다")
+      .toContain("Amora is not a crisis service");
+  });
+
+  it("한국어 위기에는 영어가 안 붙는다", async () => {
+    const { planAmoraCrisisDelivery } = await import("@hanbang/shared/amora-crisis-delivery");
+    const plan = planAmoraCrisisDelivery({
+      userText: "죽고 싶어요",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+    expect(plan.disposition).toBe("local_safety_hold");
+    expect(plan.response ?? "").not.toMatch(/Amora is not a crisis service/u);
   });
 });
