@@ -202,10 +202,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
     key: "address",
     label: PLANNING_CATEGORY_LABELS.address,
     icon: "Users",
+    // 건너뛸 수 있는 자리로 두지 않는다. 이바지·집들이는 안 하는 집이 더 많은 **전통**이라
+    // "안 해요"에서 시작하지만, 호칭은 전통이 아니라 두 사람이 언젠가는 하게 되는 대화다.
+    // 그래서 종전대로 할 일에서 시작한다.
     tip: "결혼하면 서로의 가족을 부르는 말이 달라집니다. 두 사람이 어떻게 부를지 먼저 맞추고, 그 집에서 쓰는 말이 따로 있으면 그 자리에서 여쭤보세요.",
     ddayStart: 390,
     ddayDeadline: 300,
-    defaultStatus: "not_applicable",
     items: [
       {
         id: "address_01",

@@ -10,17 +10,21 @@ import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 /**
  * "안 해요"에서 시작하는 분야의 계약.
  *
- * 이바지·호칭·집들이는 하는 집도 있고 안 하는 집도 있다. 그런 자리를 "시작 전"으로
- * 두면 아무도 고르지 않은 할 일이 진행률 분모에 눌러앉고, 라운지의 "지금 할 일"과
- * 마감 알림에도 계속 뜬다 — 함·폐백을 생략한 커플에게 지워지지 않는 할 일이 생겼던
- * 것과 같은 모양이다.
+ * 이바지와 집들이는 하는 집도 있고 안 하는 집도 있다. 그런 자리를 "시작 전"으로 두면
+ * 아무도 고르지 않은 할 일이 진행률 분모에 눌러앉고, 라운지의 "지금 할 일"과 마감
+ * 알림에도 계속 뜬다 — 함·폐백을 생략한 커플에게 지워지지 않는 할 일이 생겼던 것과
+ * 같은 모양이다.
+ *
+ * **호칭(`address`)은 여기 없다.** 같은 날 함께 들어왔지만 안 하는 집이 더 많은
+ * *전통*이 아니라 두 사람이 언젠가는 하게 되는 대화라서, 종전대로 할 일에서 시작한다.
+ * 아래 마지막 검사가 그 구분을 고정한다.
  *
  * 그래서 저장된 값이 없으면 "안 해요"로 시작한다. 여기서 확인하는 것은 세 가지다 —
  * 정말 그 상태로 시작하는가, 진행률에서 빠지는가, 그리고 **되돌리면 되돌아오는가.**
  * 마지막이 빠지면 하기로 한 커플이 이 분야를 영영 못 쓴다.
  */
 describe("안 해요로 시작하는 분야", () => {
-  const SKIPPED_BY_DEFAULT = ["address", "ibaji", "housewarming"] as const;
+  const SKIPPED_BY_DEFAULT = ["ibaji", "housewarming"] as const;
 
   it("정본에서 그 분야를 실제로 찾아낸다", () => {
     // 목록이 비면 아래 검사는 전부 빈 배열끼리 비교해 늘 통과한다.
@@ -112,5 +116,24 @@ describe("안 해요로 시작하는 분야", () => {
     expect(mannersPartForCategory("ibaji")?.slug).toBe("return-gift");
     expect(mannersPartForCategory("gift")?.slug).toBe("return-gift");
     expect(CHECKLIST_MAP.ibaji.items).not.toEqual(CHECKLIST_MAP.gift.items);
+  });
+
+  /**
+   * 호칭은 건너뛸 수 있는 자리가 **아니다.**
+   *
+   * 이바지·집들이와 같은 날 들어왔고 똑같이 한 줄짜리라, 셋을 한 덩어리로 보고 기본값도
+   * 같이 맞추기 쉽다. 실제로 처음 판이 그랬다. 하지만 앞의 둘은 안 하는 집이 더 많은
+   * 전통이고 호칭은 두 사람이 언젠가는 하게 되는 대화다 — 시작부터 "안 해요"로 접어두면
+   * 아무도 그 대화를 꺼내지 않는다.
+   */
+  it("호칭은 할 일에서 시작한다", () => {
+    const address = CHECKLIST_MAP.address;
+    expect(address.defaultStatus).toBeUndefined();
+    expect(
+      resolvePlanningChecklistStatus(address.items, undefined, address.defaultStatus),
+    ).toBe("not_started");
+    // 한 줄짜리라는 이유로 다시 건너뛸 수 있는 자리로 묶이지 않게 함께 못 박는다.
+    expect(address.items).toHaveLength(1);
+    expect(summarizePlanningChecklist([address], {}).total).toBe(1);
   });
 });

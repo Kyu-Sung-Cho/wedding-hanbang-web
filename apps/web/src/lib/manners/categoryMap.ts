@@ -58,10 +58,6 @@ const PRIMARY_CATEGORY_FOR_PART: Readonly<Record<string, string>> = {
   "gifts-and-traditions": "yedan",
   "wedding-day": "venue",
   "photo-manners": "studio",
-  // 「이바지·답례품 예절」은 두 주제를 한 편에 담는다. 편에서 체크리스트로 건너올 때는
-  // 하객 답례품 쪽으로 보낸다 — 항목이 일곱이고 실제로 돈이 걸리는 쪽이다. 이바지는
-  // 상대 집에 보내는 음식이라 같은 편을 읽더라도 다른 분야다.
-  "return-gift": "gift",
 };
 
 export function categoryKeysForMannersPart(slug: string): string[] {

@@ -88,9 +88,9 @@ const DEMO_JOURNEY: WeddingJourney = {
     mc: { category: "mc", status: "not_started" },
     ham: { category: "ham", status: "not_started" },
     pyebaek: { category: "pyebaek", status: "not_started" },
-    // 안 하는 집이 더 많아 템플릿이 "안 해요"에서 시작하는 세 분야. 데모도 같은 값을
+    address: { category: "address", status: "not_started" },
+    // 안 하는 집이 더 많아 템플릿이 "안 해요"에서 시작하는 두 분야. 데모도 같은 값을
     // 보여야 둘러보는 사람이 실제 첫 화면과 다른 것을 보지 않는다.
-    address: { category: "address", status: "not_applicable" },
     ibaji: { category: "ibaji", status: "not_applicable" },
     housewarming: { category: "housewarming", status: "not_applicable" },
     // 데모 일정은 결혼식 날짜(10/15) 전에 두어 다가오는 일정 화면을 확인할 수 있게 한다.

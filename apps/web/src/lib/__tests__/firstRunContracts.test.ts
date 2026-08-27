@@ -57,10 +57,12 @@ describe("준비 현황 19항목", () => {
 
   it("체크리스트에서 '안 해요'로 시작하는 분야가 실제로 있다", () => {
     // 위 검사는 기본값이 전부 not_started 여도 통과한다. 표본이 있는지 먼저 본다.
+    // 호칭(`address`)은 여기 없다 — 안 하는 집이 더 많은 전통이 아니라 두 사람이
+    // 언젠가는 하게 되는 대화라서 할 일에서 시작한다.
     const skippedByDefault = PREPARATION_PROGRESS_CATEGORY_KEYS.filter(
       (key) => CHECKLIST_MAP[key]?.defaultStatus === "not_applicable",
     );
-    expect(skippedByDefault).toEqual(["address", "ibaji", "housewarming"]);
+    expect(skippedByDefault).toEqual(["ibaji", "housewarming"]);
   });
 
   it("고르는 말과 보여주는 말이 같다", () => {

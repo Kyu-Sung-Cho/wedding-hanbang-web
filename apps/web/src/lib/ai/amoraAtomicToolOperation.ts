@@ -370,7 +370,6 @@ function buildTaskStatusOperation(
     const visible = resolvePlanningChecklistStatus(
       checklistTemplate.items,
       value as never,
-      checklistTemplate.defaultStatus,
     );
     if (visible !== status) {
       const merged = mergePlanningChecklist(
