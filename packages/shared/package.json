@@ -12,6 +12,7 @@
     "./chat-lane": "./src/utils/chatLane.ts",
     "./amora-crisis-classifier": "./src/safety/amoraCrisisClassifier.ts",
     "./amora-crisis": "./src/safety/amoraCrisisSafety.ts",
+    "./amora-crisis-english": "./src/safety/amoraCrisisEnglish.ts",
     "./amora-crisis-delivery": "./src/safety/amoraCrisisDelivery.ts",
     "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts",
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
