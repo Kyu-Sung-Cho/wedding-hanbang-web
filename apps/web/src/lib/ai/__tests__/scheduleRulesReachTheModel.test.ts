@@ -123,7 +123,33 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     const prompt = deliveredPrompt();
     expect(prompt, "애매함과 값 모호를 구분해 주지 않는다")
       .toContain("값이 모호한 것이 아닙니다");
-    expect(prompt).toContain("다른 일정이면 말씀해 주세요");
+    // 예전에는 "본문에 '다른 일정이면 말씀해 주세요' 를 덧붙여라" 였는데, 표식이
+    // 있으면 본문이 사라지므로 그 단서는 사용자에게 절대 안 보였다. 이제 카드가
+    // expected_* 로 스스로 무엇을 바꾸는지 말한다.
+    expect(prompt).toContain("무엇을 바꾸려는지 카드가 스스로 말하게");
+  });
+
+  it("설명을 title·memo 에 담으라고 시키지 않는다 — 그 둘은 일정을 덮어쓴다", () => {
+    /**
+     * 어제 여기에 "꼭 필요한 정보는 표식의 `title`·`memo` 같은 필드에 담으세요" 를
+     * 썼다. **위험한 지시였다** — `update_schedule_event` 에서 그 둘은 화면 문구가
+     * 아니라 저장된 일정을 그대로 덮어쓴다(`updates.memo = ...`, 병합 아님).
+     * 모델이 설명문을 거기 담으면 사용자가 직접 쓴 메모가 지워진다.
+     */
+    const prompt = deliveredPrompt();
+    expect(prompt, "설명을 title·memo 에 담으라고 시킨다")
+      .not.toMatch(/필요한 정보는 표식의 `title`·`memo`/u);
+    expect(prompt, "그 둘이 일정을 덮어쓴다는 경고가 없다")
+      .toContain("저장된 일정 자체를 덮어씁니다");
+  });
+
+  it("본문에 한 문장 덧붙이라고 시키지 않는다 — 표식이 있으면 본문이 사라진다", () => {
+    // 계약문이 자기 안에서 모순돼 있었다: 한 줄은 "본문에 덧붙여라", 다른 줄은
+    // "본문은 남지 않는다". 그래서 아모라가 확신 없음을 알려도 사용자에겐 안 보였다.
+    const prompt = deliveredPrompt();
+    expect(prompt).not.toContain("한 문장을 덧붙이세요");
+    // 대신 카드가 스스로 말하게 한다.
+    expect(prompt).toContain("카드가 스스로 말하게");
   });
 
   it("본문에 덧붙인 설명이 사라진다는 것을 알려준다", () => {
@@ -132,7 +158,7 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     // `cleanText: marker.confirmation` 으로 본문을 갈아치운다. 운영 실측으로도
     // 카드가 붙은 AI 메시지 37/37 이 서버 정형 문구뿐이었다.
     const prompt = deliveredPrompt();
-    expect(prompt).toContain("본문에 덧붙인 설명은 남지 않으니");
+    expect(prompt).toContain("본문에 덧붙인 설명은 남지 않습니다");
   });
 
   it("등록된 일정 블록이 event_id 와 함께 실린다 — 옮길 대상을 못 고르면 규칙이 무의미하다", () => {
