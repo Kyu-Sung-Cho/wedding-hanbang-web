@@ -1,12 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ClipboardCheck } from "lucide-react";
+import { ArrowRight, ClipboardCheck, MapPin } from "lucide-react";
 import { cache } from "react";
 
 import { PriceAmoraBridge } from "@/components/price/PriceAmoraBridge";
 import { loadPriceCatalogWithBuildFallback } from "@/lib/price/buildCatalog";
-import { PRICE_CATEGORIES, type PriceCatalog, type PriceCategory } from "@/lib/price/catalog";
-import { PRICE_CATEGORY_LABELS } from "@/lib/price/labels";
+import {
+  PRICE_CATEGORIES,
+  vendorRegionCodes,
+  type PriceCatalog,
+  type PriceCategory,
+} from "@/lib/price/catalog";
+import { PRICE_CATEGORY_LABELS, PRICE_REGION_OPTIONS } from "@/lib/price/labels";
 import { disclosureRoundLabel } from "@/lib/price/period";
 import { loadPublicPriceCatalog } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -28,6 +33,23 @@ const loadCounts = cache((): Promise<PriceCatalog> => (
     loadPublicPriceCatalog(createPublicClient(), { optionCategories: [] })
   ))
 ));
+
+type RegionSummary = { code: string; label: string; count: number };
+
+function buildCrossRegionCounts(catalog: PriceCatalog): RegionSummary[] {
+  const tally = new Map<string, number>();
+  for (const category of PRICE_CATEGORIES) {
+    for (const vendor of catalog.categories[category]) {
+      for (const code of new Set(vendorRegionCodes(vendor))) {
+        tally.set(code, (tally.get(code) ?? 0) + 1);
+      }
+    }
+  }
+  return PRICE_REGION_OPTIONS
+    .map(([code, label]) => ({ code, label, count: tally.get(code) ?? 0 }))
+    .filter(({ count }) => count > 0)
+    .sort((left, right) => right.count - left.count);
+}
 
 // 각 카테고리에서 실제로 공시되는 항목만 적는다(없는 정보를 약속하지 않는다).
 const CATEGORY_HINTS: Record<PriceCategory, string> = {
@@ -55,6 +77,9 @@ export default async function PriceIndexPage() {
   const catalog = await loadCounts();
   const period = disclosureRoundLabel();
   const total = PRICE_CATEGORIES.reduce((sum, category) => sum + (catalog.counts[category] ?? 0), 0);
+  const regionCounts = buildCrossRegionCounts(catalog);
+  const topRegions = regionCounts.slice(0, 5);
+  const otherRegionCount = regionCounts.slice(5).reduce((sum, r) => sum + r.count, 0);
 
   return (
     <>
@@ -116,6 +141,39 @@ export default async function PriceIndexPage() {
             </li>
           ))}
         </ul>
+
+        {regionCounts.length > 0 ? (
+          <section className="mt-8" aria-labelledby="region-overview-heading">
+            <div className="flex items-center gap-2">
+              <MapPin aria-hidden="true" className="size-4 text-[#8F6662]" />
+              <h2 id="region-overview-heading" className="text-lg font-bold tracking-normal text-[#243832]">
+                어느 지역에서 준비하세요?
+              </h2>
+            </div>
+            <p className="mt-2 text-sm leading-6 text-[#243832]/75">
+              같은 업체라도 대행사 지역에 따라 가격이 달라요. 카테고리를 고른 뒤 지역을 선택하면 해당 지역 대행사 가격만 볼 수 있어요.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {topRegions.map(({ code, label, count }) => (
+                <span
+                  key={code}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[#243832]/12 bg-white px-3 py-1.5 text-sm"
+                >
+                  <span className="font-semibold text-[#243832]">{label}</span>
+                  <span className="text-xs tabular-nums text-[#36534E]/70">{count.toLocaleString()}곳</span>
+                </span>
+              ))}
+              {otherRegionCount > 0 ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-dashed border-[#243832]/20 bg-[#FBF8F2] px-3 py-1.5 text-sm text-[#243832]/70">
+                  그 밖의 지역 {otherRegionCount.toLocaleString()}곳
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-3 text-xs leading-5 text-[#243832]/60">
+              지역 분포는 대행사 공시 기준이에요. 지역이 적어 보여도 공시한 업체만 실어서 그렇지, 실제 업체 수와는 달라요.
+            </p>
+          </section>
+        ) : null}
 
         <Link
           href="/wedding/community/quote-check"

@@ -638,4 +638,56 @@ describe("PriceVendorCard", () => {
     expect(regionalLinks).toHaveLength(2);
     expect(container.querySelector('a[href="/price/vendor/vendor-region-link"]')).toBeNull();
   });
+
+  it("shows a category badge for quick scanning", async () => {
+    const categories = ["studio", "dress", "makeup", "hall"] as const;
+    const expectedLabels = ["스튜디오", "드레스", "메이크업", "웨딩홀"];
+
+    for (let i = 0; i < categories.length; i += 1) {
+      const vendor: PriceVendor = {
+        id: `vendor-${categories[i]}`,
+        slug: `vendor-${categories[i]}`,
+        name: `${expectedLabels[i]} 업체`,
+        aliases: [],
+        category: categories[i],
+        regionCode: "seoul_gangnam3",
+        offers: [],
+      };
+
+      await act(async () => {
+        root.render(
+          <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+        );
+      });
+
+      const categoryBadge = container.querySelector('[data-card-category="true"]');
+      expect(categoryBadge?.textContent).toBe(expectedLabels[i]);
+    }
+  });
+
+  it("shows category and region badges on the same line for scannability", async () => {
+    const vendor: PriceVendor = {
+      id: "vendor-scannable",
+      slug: "vendor-scannable",
+      name: "스캔 가능 업체",
+      aliases: [],
+      category: "studio",
+      regionCode: "seoul_gangnam3",
+      offers: [],
+    };
+
+    await act(async () => {
+      root.render(
+        <PriceVendorCard vendor={vendor} isWishlisted={false} onToggleWishlist={() => {}} />,
+      );
+    });
+
+    const categoryBadge = container.querySelector('[data-card-category="true"]');
+    const regionBadge = container.querySelector('[data-card-regions="true"]');
+    expect(categoryBadge).not.toBeNull();
+    expect(regionBadge).not.toBeNull();
+    expect(categoryBadge?.parentElement).toBe(regionBadge?.parentElement);
+    expect(categoryBadge?.parentElement?.className).toContain("flex");
+    expect(categoryBadge?.parentElement?.className).toContain("flex-wrap");
+  });
 });
