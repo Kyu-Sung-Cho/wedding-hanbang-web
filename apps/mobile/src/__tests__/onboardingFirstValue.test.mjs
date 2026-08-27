@@ -143,9 +143,13 @@ test("mobile onboarding runs six steps and asks for the preparation stage before
 
 test("the skip button on the preparation step submits without the item statuses", () => {
   assert.match(onboardingSource, /onPress=\{\(\) => handleSubmit\(false\)\}/);
+  // 저장을 누른 경우에도 **화면 기본값과 같은 값은 빼고** 보낸다. 기본값이 분야마다
+  // 달라서(안 하는 집이 더 많은 자리는 "안 해요"로 시작한다) `not_started` 하나만
+  // 거르는 `onboardingFirstValue.mjs` 로는 부족하고, 그대로 보내면 파트너가 켜 둔
+  // 분야가 이쪽 기본값으로 되돌아간다.
   assert.match(
     onboardingSource,
-    /categoryStatuses: saveCategories \? categoryStatuses : null,/,
+    /categoryStatuses: saveCategories\s*\?\s*withoutDefaultPreparationStatuses\(categoryStatuses\)\s*:\s*null,/,
   );
 });
 
