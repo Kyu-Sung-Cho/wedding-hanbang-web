@@ -42,6 +42,8 @@ async function post(headers: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
+  // 이 파일은 **공개 체험이 켜진 상태**의 동작을 잰다. 기본값은 꺼짐이므로 명시한다.
+  vi.stubEnv("NEXT_PUBLIC_DEMO_TRIAL_ENABLED", "true");
   vi.resetModules();
   process.env.AMORA_EVAL_SECRET = SECRET;
 });

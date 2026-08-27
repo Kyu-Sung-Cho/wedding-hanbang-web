@@ -139,3 +139,35 @@ function readdirSyncSafe(dir: string): Array<{ name: string; isDirectory: () => 
     return [];
   }
 }
+
+describe("데모 화면에서도 정품 로그인으로 보낸다", () => {
+  /**
+   * 예전에는 `demoMode` 일 때 `/demo/login` 으로 보냈다. 그 화면은 `/login` 의
+   * 복제본이었고 **더 나빴다**:
+   *
+   *   /login       "또는 로그인 없이 체험하기 …"   ← 체험 입구 있음(스위치가 켜져 있을 때)
+   *   /demo/login  "INTERNAL DEV" 배지            ← 체험 입구 0개
+   *
+   * `/price` 와 공시가 상세에서 "먼저 보기" → `/demo` → 상단 "로그인" 두 번이면
+   * 닿는 공개 자리였다. 처음 온 사람이 그 화면에서 비밀번호를 넣는다.
+   *
+   * 변형 검사에서 이 줄을 되돌렸을 때 **아무 검사도 안 깨졌다.**
+   */
+  it("loginHref 가 demoMode 로 갈리지 않는다", () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { join } = require("node:path") as typeof import("node:path");
+    const source = readFileSync(
+      join(__dirname, "..", "CustomerNav.tsx"),
+      "utf8",
+    );
+    const line = source
+      .split(String.fromCharCode(10))
+      .find((candidate) => candidate.includes("const loginHref"));
+    expect(line ?? "", "loginHref 선언이 사라졌다").toContain("loginHref");
+    expect(line ?? "", "데모 화면이 다시 복제 로그인으로 간다")
+      .not.toContain("demoMode");
+    expect(line ?? "").toContain('"/login"');
+  });
+});

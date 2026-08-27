@@ -24,6 +24,9 @@ import { POST } from "./route";
 
 describe("POST /api/demo/start", () => {
   beforeEach(() => {
+    // 이 파일은 **공개 체험이 켜진 상태**의 동작을 잰다. 기본값은 꺼짐이므로 명시한다
+    // (닫힌 상태는 publicDemoTrialIsClosed.test.ts 가 잰다).
+    vi.stubEnv("NEXT_PUBLIC_DEMO_TRIAL_ENABLED", "true");
     mocks.checkRateLimit.mockReturnValue(null);
     mocks.createClient.mockReturnValue({
       auth: { getUser: mocks.getUser },
