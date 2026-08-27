@@ -1,3 +1,4 @@
+import { assessEnglishCrisisSignals } from "./amoraCrisisEnglish";
 import {
   assessAmoraSafetyText,
   normalizeAmoraSafetyText,
@@ -310,15 +311,30 @@ export function classifyAmoraCrisis(
   ) {
     return { kind: structuredAssessment.kind };
   }
+  // 영어 갈래는 아래 한국어 정규식 어디에도 걸리지 않는다. 2026-08-27 실측으로
+  // 같은 뜻 12쌍 중 한국어 8건이 잡히고 영어는 0건이었다.
+  //
+  // 한국어 판정이 빠져나가기 **전에** 영어를 본다. 다만 정직하게 적어 둔다 —
+  // 시험한 영어 문장은 전부 `assessAmoraSafetyText` 에서 `inconclusive` 로 나오므로
+  // 아래 `!englishFound` 는 **오늘은 한 번도 걸리지 않는 방어선이다.** 한국어 판정이
+  // 영어 문장을 `no_safety_signal` 로 단정하게 되는 날을 위한 것이고, 변형 검사에서
+  // 이 조건을 지워도 아무 검사도 깨지지 않는다는 것을 확인했다.
+  const english = assessEnglishCrisisSignals(text);
+  const englishFound =
+    english.selfHarm || english.thirdPartySelfHarm || english.interpersonalDanger;
   if (
-    structuredAssessment.resolution === "non_immediate_safety"
-    || structuredAssessment.resolution === "no_safety_signal"
+    !englishFound
+    && (
+      structuredAssessment.resolution === "non_immediate_safety"
+      || structuredAssessment.resolution === "no_safety_signal"
+    )
   ) {
     return null;
   }
-  let selfHarm = false;
-  let thirdPartySelfHarm = false;
-  let interpersonalDanger = CURRENT_STALKING_COMPOSITE_PATTERN.test(text);
+  let selfHarm = english.selfHarm;
+  let thirdPartySelfHarm = english.thirdPartySelfHarm;
+  let interpersonalDanger =
+    english.interpersonalDanger || CURRENT_STALKING_COMPOSITE_PATTERN.test(text);
 
   for (const segment of text.split(SEGMENT_BOUNDARY_PATTERN)) {
     const candidate = segment.trim();
