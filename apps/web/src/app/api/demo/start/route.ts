@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { setDemoCookies } from "@/lib/demoSession";
 import { isPreviewStubMode } from "@/lib/previewStub";
+import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { createClient } from "@/lib/supabase/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
@@ -51,6 +52,23 @@ function isReleaseEvaluationRequest(request: Request): boolean {
 
 export async function POST(request: Request) {
   const evaluation = isReleaseEvaluationRequest(request);
+  /**
+   * **공개 체험이 닫혀 있으면 브라우저 요청은 여기서 끝난다.**
+   *
+   * 버튼을 숨기는 것만으로는 부족하다 — 이 주소는 그냥 POST 한 번이면 닿고,
+   * 그 뒤는 인증 없이 LLM 을 쓰는 대화가 열린다. 실사용자와 같은 지갑을 쓰므로
+   * 익명 방문자가 전역 하루 상한을 먼저 태울 수 있다.
+   *
+   * 릴리스 평가기(`X-Amora-Eval`)는 이 스위치와 무관하게 통과한다. 그건 브라우저가
+   * 아니라 64자 비밀값을 가진 내부 도구이고, 이 경로가 막혀 운영 대화 평가가
+   * 2026-08-03 이후 통째로 멈췄던 적이 있다.
+   */
+  if (!evaluation && !isPublicDemoTrialEnabled()) {
+    return NextResponse.json(
+      { error: "지금은 로그인 없이 체험할 수 없어요. 가입하시면 아모라와 바로 대화할 수 있어요." },
+      { status: 404, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
+  }
   // 토큰을 들고 왔는데 검증에 실패하면 조용히 브라우저 검사로 흘려보내지 않는다.
   // `/api/chat` 이 같은 자리에서 401 을 내므로 모양을 맞춘다.
   if (!evaluation && request.headers.get(AMORA_EVAL_HEADER)) {

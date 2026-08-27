@@ -6,6 +6,7 @@ import { Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Logo from "@/components/ui/Logo";
 import { createClient } from "@/lib/supabase/client";
+import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import SignupConsent from "@/components/auth/SignupConsent";
@@ -662,14 +663,16 @@ export default function LoginPage() {
                 )}
               </div>
 
-              {/* 구분선 */}
+              {/* 데모 체험 — 닫혀 있으면 구분선까지 함께 사라진다.
+                  버튼만 지우면 "또는" 이 아무것도 잇지 않는 채로 남는다. */}
+              {isPublicDemoTrialEnabled() && (
+              <>
               <div className="flex items-center gap-4 mb-5">
                 <div className="flex-1 h-px bg-platinum" />
                 <span className="text-[11px] text-[#928980]">또는</span>
                 <div className="flex-1 h-px bg-platinum" />
               </div>
 
-              {/* 데모 체험 */}
               <button
                 onClick={handleDemo}
                 className="w-full flex items-center justify-center gap-2 py-3.5 px-6 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 border-[1.5px] border-[#36534E]/35 text-[#36534E] hover:border-[#36534E] hover:bg-[#EEF4F1]"
@@ -683,6 +686,8 @@ export default function LoginPage() {
               <p className="text-[11px] text-[#635b51] text-center mt-4 font-light leading-5">
                 체험 대화와 변경은 계정의 준비 기록에 남지 않아요. 체험 연결을 위한 임시 정보와 쿠키는 사용할 수 있어요.
               </p>
+              </>
+              )}
           </>
         </div>
 

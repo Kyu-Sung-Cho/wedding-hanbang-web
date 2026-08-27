@@ -1,100 +1,95 @@
-import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true;
+// `vi.mock` 은 파일 맨 위로 끌어올려지므로 목 함수도 `vi.hoisted` 안에서 만들어야 한다.
+const { redirect } = vi.hoisted(() => ({
+  redirect: vi.fn((to: string) => {
+    throw new Error(`NEXT_REDIRECT:${to}`);
+  }),
+}));
+vi.mock("next/navigation", () => ({ redirect }));
 
-vi.mock("framer-motion", () => ({ motion: { div: "div" } }));
-vi.mock("@/components/ui/Logo", () => ({ default: () => <span>Hanbang</span> }));
-vi.mock("@/lib/supabase/client", () => ({ createClient: vi.fn() }));
-// 가입·비밀번호 찾기는 Turnstile 위젯이 있는 /login으로 넘긴다(라우터 필요).
-const push = vi.fn();
-vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
-
-import DemoLoginPage from "./page";
+import DemoLoginRedirect from "./page";
 
 /**
- * React 제어 입력은 `.value` 직접 대입으로는 onChange가 뜨지 않는다
- * (React가 값을 내부에서 추적한다). 네이티브 setter로 넣고 input 이벤트를 쏜다.
+ * `/demo/login` 은 `/login` 의 복제본이었다. 두 가지가 달랐고 **복제본 쪽이 나빴다**:
+ *
+ * 1. `INTERNAL DEV` 배지가 조건 없이 렌더됐다 — 공개 화면에서 두 클릭에 닿는 자리다.
+ * 2. **"로그인 없이 체험하기" 입구가 없었다.** 정품 `/login` 에는 있다.
+ *    데모를 보러 온 사람을 데모를 못 쓰는 화면으로 보내고 있었다.
+ *
+ * 운영 실측(2026-08-27):
+ *
+ *     /login       "또는 로그인 없이 체험하기 …"      체험 입구 있음
+ *     /demo/login  "INTERNAL DEV"                    체험 입구 0개
+ *
+ * 이 파일은 그 되돌림을 막는다. 특히 **쿼리 보존**이 중요하다 —
+ * `api/auth/callback/route.ts` 가 `from=demo` 소셜 로그인 실패를 이 주소로
+ * 돌려보내므로, 쿼리를 버리면 그 오류 문구가 사용자에게 영영 안 보인다.
  */
-function setNativeValue(field: HTMLInputElement, value: string): void {
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
-  setter?.call(field, value);
-  field.dispatchEvent(new Event("input", { bubbles: true }));
+
+async function redirectTargetOf(
+  params: Record<string, string | string[] | undefined>,
+): Promise<string> {
+  redirect.mockClear();
+  try {
+    await DemoLoginRedirect({ searchParams: Promise.resolve(params) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.startsWith("NEXT_REDIRECT:")) throw error;
+  }
+  expect(redirect, "리다이렉트를 부르지 않았다").toHaveBeenCalledTimes(1);
+  return redirect.mock.calls[0][0];
 }
 
-function setControlledValue(root: HTMLElement, selector: string, value: string): void {
-  const field = root.querySelector<HTMLInputElement>(selector);
-  if (!field) throw new Error(`입력을 찾지 못했다: ${selector}`);
-  setNativeValue(field, value);
-}
+describe("측정기가 살아 있다", () => {
+  it("이 페이지는 화면을 그리지 않고 리다이렉트만 한다", async () => {
+    await expect(redirectTargetOf({})).resolves.toBe("/login");
+  });
+});
 
-describe("demo login accessibility", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    push.mockReset();
-    window.history.replaceState({}, "", "/demo/login");
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
+describe("정품 로그인으로 보낸다", () => {
+  it("쿼리가 없으면 그냥 /login", async () => {
+    expect(await redirectTargetOf({})).toBe("/login");
   });
 
-  afterEach(async () => {
-    await act(async () => root.unmount());
-    container.remove();
+  it("소셜 로그인 실패 문구를 잃지 않는다", async () => {
+    expect(await redirectTargetOf({ error: "access_denied" }))
+      .toBe("/login?error=access_denied");
   });
 
-  it("gives every password visibility control an accessible name", async () => {
-    await act(async () => root.render(<DemoLoginPage />));
-
-    expect(
-      container.querySelector('button[aria-label="비밀번호 표시"]'),
-    ).not.toBeNull();
-
-    const signupButton = [...container.querySelectorAll("button")]
-      .find((button) => button.textContent?.trim() === "회원가입");
-    await act(async () => {
-      signupButton?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
-
-    expect(
-      container.querySelector('button[aria-label="비밀번호 확인 표시"]'),
-    ).not.toBeNull();
+  it("여러 파라미터를 모두 옮긴다", async () => {
+    const target = await redirectTargetOf({ error: "verify_failed", mode: "signup" });
+    expect(target.startsWith("/login?")).toBe(true);
+    expect(target).toContain("error=verify_failed");
+    expect(target).toContain("mode=signup");
   });
 
-  // 이 화면에는 Turnstile 위젯이 없다. 실키가 발급되면 여기서 보낸 가입·비밀번호
-  // 재설정은 토큰 누락으로 영구 실패하므로, 위젯이 있는 /login으로 넘겨야 한다.
-  // `6a95dd5b`이 가입만 고치고 비밀번호 찾기는 같은 상태로 남겨 뒀다.
-  it.each([
-    ["회원가입", "signup"],
-    ["비밀번호를 잊으셨나요?", "forgot"],
-  ])("'%s'은 위젯이 있는 /login으로 넘긴다", async (tabLabel, mode) => {
-    await act(async () => root.render(<DemoLoginPage />));
+  it("배열로 온 값도 버리지 않는다", async () => {
+    expect(await redirectTargetOf({ error: ["first", "second"] }))
+      .toBe("/login?error=first");
+  });
 
-    const tab = [...container.querySelectorAll("button")]
-      .find((button) => button.textContent?.trim() === tabLabel);
-    await act(async () => {
-      tab?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    });
+  it("빈 배열은 빈 쿼리를 만들지 않는다", async () => {
+    expect(await redirectTargetOf({ error: [] })).toBe("/login");
+  });
+});
 
-    // 리다이렉트는 폼 검증을 통과한 뒤에 일어난다 — 필수 항목을 실제로 채운다.
-    await act(async () => {
-      setControlledValue(container, 'input[type="email"]', "someone@example.com");
-      if (mode === "signup") {
-        setControlledValue(container, 'input[placeholder="이름 *"]', "민이");
-        const passwords = container.querySelectorAll<HTMLInputElement>('input[type="password"]');
-        for (const field of passwords) setNativeValue(field, "Abcdef1!");
-      }
-    });
-
-    const form = container.querySelector("form");
-    await act(async () => {
-      form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-    });
-
-    expect(push).toHaveBeenCalledWith(`/login?mode=${mode}`);
+describe("INTERNAL DEV 배지가 공개 화면에 다시 생기지 않는다", () => {
+  it("이 라우트 소스에 배지 문구가 없다", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join, resolve } = await import("node:path");
+    const root = resolve(__dirname, "..", "..", "..", "..", "..", "..");
+    const source = readFileSync(
+      join(root, "apps", "web", "src", "app", "demo", "login", "page.tsx"),
+      "utf8",
+    );
+    // 주석에서 무엇이 있었는지 설명하는 것은 허용한다. 렌더되는 문자열만 막는다.
+    const rendered = source
+      .replace(/\/\*[\s\S]*?\*\//gu, "")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("//"))
+      .join("\n");
+    expect(rendered, "공개 화면에 내부 개발 배지가 돌아왔다")
+      .not.toContain("INTERNAL DEV");
   });
 });

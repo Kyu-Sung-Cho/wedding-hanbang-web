@@ -20,7 +20,20 @@ const SCROLL_ANCHOR_HOME = "/beta";
 
 export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
-  const loginHref = demoMode ? "/demo/login" : "/login";
+  /**
+   * **데모 화면에서도 정품 로그인으로 보낸다.**
+   *
+   * 예전에는 `/demo/login` 으로 보냈다. 그 화면은 `/login` 의 복제본인데
+   * 두 가지가 달랐다:
+   *
+   * 1. `INTERNAL DEV` 배지가 조건 없이 렌더된다 — 공개 화면에서 닿는 자리다.
+   * 2. **"로그인 없이 체험하기" 입구가 없다.** 정품 `/login` 에는 있다
+   *    (`handleDemo` → `/api/demo/start`).
+   *
+   * 즉 데모를 보러 온 사람을 데모를 **못 쓰는** 화면으로 보내고 있었다.
+   * 정품으로 보내면 배지가 사라지고 체험 입구가 생긴다.
+   */
+  const loginHref = "/login";
   const [scrolled, setScrolled] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 

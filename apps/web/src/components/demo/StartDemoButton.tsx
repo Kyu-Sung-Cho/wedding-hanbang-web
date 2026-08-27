@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { captureEvent } from "@/lib/analytics";
 import { rememberDemoAmoraPrefill } from "@/lib/chat/demoHandoff";
+import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 
 // 아모라 체험은 그동안 로그인 페이지의 버튼 하나로만 들어갈 수 있었다.
 // 가격을 다 본 사람에게 "체험하려면 로그인 페이지로 가세요"는 앞뒤가 맞지 않아
@@ -33,6 +34,15 @@ export function StartDemoButton({
   const [error, setError] = useState("");
   const errorId = useId();
   const router = useRouter();
+
+  /**
+   * **체험이 닫혀 있으면 버튼을 아예 그리지 않는다.**
+   *
+   * 이 한 곳이 공개 표면 네 자리(`/price` 한 곳, 커뮤니티 시작하기 세 곳)를
+   * 모두 덮는다. 버튼을 남긴 채 서버만 막으면 사용자는 눌러 보고 실패를 겪는다 —
+   * 그건 닫는 것이 아니라 고장 낸 것이다.
+   */
+  if (!isPublicDemoTrialEnabled()) return null;
 
   async function startDemo() {
     if (pending) return;
