@@ -30,6 +30,9 @@ describe("StartHereClient first visit", () => {
   let root: Root;
 
   beforeEach(() => {
+    // 이 describe 는 **공개 체험이 켜진 상태**의 동작을 잰다. 기본값은 꺼짐이므로
+    // 명시한다 (닫힌 상태는 아래 별도 describe 가 잰다).
+    vi.stubEnv("NEXT_PUBLIC_DEMO_TRIAL_ENABLED", "true");
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-01T09:00:00+09:00"));
     vi.clearAllMocks();
@@ -52,6 +55,7 @@ describe("StartHereClient first visit", () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("turns one date into a calm priority and hands it directly to Amora", async () => {
@@ -321,3 +325,95 @@ describe("StartHereClient first visit", () => {
     );
   });
 });
+
+/**
+ * 체험을 닫으면 `StartDemoButton` 이 아무것도 그리지 않는다. 이 화면은 그 버튼을
+ * **세 자리**에서 쓰므로, 닫는 순간 갈 곳이 사라지는 자리가 생길 수 있다.
+ *
+ * 실제로 하나가 그랬다: "아직 날짜가 없나요?" 뒤에 버튼만 있어서, 버튼이 빠지면
+ * **질문만 덩그러니 남고 아무 데도 안 갔다.** 나머지 두 자리는 옆에 "계정 만들고…"
+ * 링크가 있어 괜찮았다.
+ *
+ * 원래 있던 검사 이름이 "아주 이른 준비자를 막다른 길에 두지 않는다" 였는데,
+ * 그 검사는 **체험 버튼의 글자**를 봤다. 스위치를 끄면 그 글자가 사라지므로
+ * 검사가 지키려던 것(= 앞으로 갈 길이 있다)을 못 지킨다. 여기서 그것을 잰다.
+ */
+describe("StartHereClient 체험이 닫혀 있을 때", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    // 스위치를 건드리지 않는다 — 기본값이 닫힘이라는 것 자체를 잰다.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-01T09:00:00+09:00"));
+    vi.clearAllMocks();
+    vi.stubGlobal("crypto", { randomUUID: () => HANDOFF_ID });
+    window.sessionStorage.clear();
+    window.localStorage.clear();
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(async () => {
+    await act(async () => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  async function renderAt(hash: string): Promise<void> {
+    window.history.replaceState({}, "", `/start-here${hash}`);
+    await act(async () => root.render(<StartHereClient />));
+    await act(async () => {
+      vi.runOnlyPendingTimers();
+    });
+  }
+
+  it("측정기 확인 — 닫힌 상태에서는 체험 버튼 글자가 하나도 없다", async () => {
+    await renderAt("#date=2030-05-01");
+    for (const label of [
+      "날짜 없이 기준부터 물어보기",
+      "이 날짜로 아모라에게 물어보기",
+      "이 세 가지를 아모라와 정하기",
+    ]) {
+      expect(container.textContent ?? "", `"${label}" 가 남아 있다`).not.toContain(label);
+    }
+  });
+
+  it("아주 이른 준비자에게 갈 길이 남아 있다", async () => {
+    await renderAt("#date=2030-05-01");
+    for (const startingPoint of [
+      "편안한 예산 범위",
+      "초대할 사람의 범위",
+      "원하는 크기와 분위기",
+    ]) {
+      expect(container.textContent).toContain(startingPoint);
+    }
+    expect(container.textContent, "세 가지를 보여 주고 다음 걸음이 없다")
+      .toContain("계정 만들고 천천히 관리하기");
+  });
+
+  it("날짜가 있는 사람에게도 갈 길이 남아 있다", async () => {
+    await renderAt("#date=2027-05-01");
+    expect(container.textContent).toContain("계정 만들고 계속 관리하기");
+  });
+
+  it("\"아직 날짜가 없나요?\" 가 아무 데도 못 가는 문장으로 남지 않는다", async () => {
+    await renderAt("#date=2030-05-01");
+    const text = container.textContent ?? "";
+    expect(text, "전제 확인 — 질문 자체가 사라졌다").toContain("아직 날짜가 없나요?");
+    const after = text.slice(text.indexOf("아직 날짜가 없나요?"));
+    expect(after.slice(0, 60), "질문 뒤에 갈 곳이 없다")
+      .toContain("날짜 없이 기준부터 시작하기");
+  });
+
+  it("체험을 전제로 한 설명 문구가 남지 않는다", async () => {
+    await renderAt("#date=2027-05-01");
+    expect(container.textContent ?? "", "닫아 놓고 '로그인 없이 여는 체험' 이라고 말한다")
+      .not.toContain("로그인 없이 여는 체험");
+  });
+});
+

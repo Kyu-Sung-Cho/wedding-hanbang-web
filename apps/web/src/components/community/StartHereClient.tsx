@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarDays, Check, LockKeyhole } from "lucide-react";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
+import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
 import { captureEvent } from "@/lib/analytics";
@@ -264,14 +265,30 @@ export default function StartHereClient() {
               </span>
             </label>
 
+            {/**
+              * 체험이 닫혀 있으면 `StartDemoButton` 이 아무것도 그리지 않는다.
+              * 그러면 **"아직 날짜가 없나요?" 만 덩그러니 남아** 아무 데도 안 간다.
+              * 날짜가 없는 사람에게 갈 곳을 주는 것이 이 줄의 존재 이유이므로,
+              * 체험이 없으면 가입으로 잇는다.
+              */}
             <div className="mt-3 text-[13px] leading-6 text-[#4E6A62]">
               <span>아직 날짜가 없나요?</span>{" "}
-              <StartDemoButton
-                label="날짜 없이 기준부터 물어보기"
-                prefill={undatedAmoraPrefill}
-                analyticsSource="start_here_without_date"
-                className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662] disabled:opacity-60"
-              />
+              {isPublicDemoTrialEnabled() ? (
+                <StartDemoButton
+                  label="날짜 없이 기준부터 물어보기"
+                  prefill={undatedAmoraPrefill}
+                  analyticsSource="start_here_without_date"
+                  className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662] disabled:opacity-60"
+                />
+              ) : (
+                <Link
+                  href={buildStartHereSignupHref()}
+                  onClick={rememberSignupHandoff}
+                  className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662]"
+                >
+                  날짜 없이 기준부터 시작하기
+                </Link>
+              )}
             </div>
 
             <fieldset className="mt-6">
@@ -397,8 +414,11 @@ export default function StartHereClient() {
                 <div className="mt-7 bg-[#36534E] px-5 py-6 text-white sm:px-6">
                   <p className="text-[12px] font-semibold text-[#E2D3C8]">03 · 첫 질문으로 이어가기</p>
                   <h3 className="mt-2 text-[20px] font-semibold">이제 아모라에게 한 가지만 물어보세요.</h3>
+                  {/* 체험이 닫히면 "로그인 없이 여는 체험" 이라는 설명이 사실이 아니게 된다. */}
                   <p className="mt-2 text-[14px] leading-6 text-white/82">
-                    날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 로그인해 있으면 계정 채팅에서 이어져요.
+                    {isPublicDemoTrialEnabled()
+                      ? "날짜와 지금 볼 항목을 입력창에 임시로 넘겨드려요. 로그인 없이 여는 체험은 계정 기록에 남지 않고, 로그인해 있으면 계정 채팅에서 이어져요."
+                      : "날짜와 지금 볼 항목을 가입 화면으로 임시로 넘겨드려요. 계정을 만들면 그 내용으로 아모라와 바로 이어갈 수 있어요."}
                   </p>
                   <div className="mt-5 flex flex-col gap-2 sm:flex-row">
                     <StartDemoButton
