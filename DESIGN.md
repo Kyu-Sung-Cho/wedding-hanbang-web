@@ -23,6 +23,18 @@
 - **Data/tables:** Paperlogy with tabular number styling where available.
 - **Scale:** xs 12, sm 14, base 16, lg 18, xl 20, 2xl 24, 3xl 30, 4xl 36, 5xl 48.
 - **Rule:** Text inside compact mobile UI must be scan-first. Keep the font family consistent and vary only weight/size for hierarchy.
+- **Landing handwriting exception (2026-08-27):** The marketing landing (`/landing`, `/`) may use
+  **Gaegu** for short handwritten accents only — section eyebrows, the wordmark, and the large
+  count figures. Body text, headings, buttons, and all fine print stay Paperlogy.
+  This is a deliberate exception to the "one family" rule above, scoped to the landing:
+  the page is built as a wedding-preparation *notebook* (ruled cards, tape tags, pen underlines),
+  and the handwriting is what makes that reading legible rather than decorative.
+  Gaegu is SIL OFL and is **self-hosted** at `apps/web/public/fonts/gaegu/`
+  (the site CSP is `font-src 'self' data:` — verified 2026-08-27 from the live response
+  header on `/landing`; the block that does allow Google Fonts is `/sai` only —
+  so a linked webfont would silently
+  fall back and erase the design). Subset to the characters actually used.
+  **Do not use Gaegu anywhere inside the product surfaces.**
 
 ## Color
 
@@ -34,6 +46,19 @@
 - **Champagne taupe:** `#B89785` and `#E2D3C8` for rare highlights, not primary buttons everywhere.
 - **Semantic:** success `#6D806E`, warning `#B89785`, danger `#D95F5F`, info `#36534E`.
 - **Rule:** Do not turn the app into a pink app. Dusty mauve should guide attention, not paint every object.
+- **Paper — landing only (2026-08-27):** The landing is built as a wedding-preparation notebook, and
+  that needs paper and pens the brand palette does not have. Source of truth is the `paper` group in
+  `packages/design-tokens/src/colors.ts`; mirrored into `globals.css` as `--color-paper-*`.
+  - Paper: sheet `#FDFCF7`, tint `#F8F4EA`, card `#FFFFFF`, rule `#EDEAE0`, edge `#E2DED2`,
+    divider `#DDD8C9`. `tint` is one step deeper than `sheet` and alternates section grounds —
+    without it the "tinted" sections repaint the page colour and the section boundary vanishes.
+  - Ink: `#26251F`, soft `#4A483F`, faint `#605E54`
+  - Pens: blue `#35638A` (links, handwritten emphasis), hover `#24465F`, red circle `#B8452F`,
+    tape `#F6E7A8` on `#6C5410`, outline-button border `#CFCABA`
+  - Margin florals (line art): stem `#A2937F`, gypsophila `#8FA08D`
+  - **Rule:** Landing surfaces only. Product screens keep the eucalyptus-rose palette above.
+    The brand palette still sets the page's overall temperature — the ivory ground, the rose and
+    sage in the margin florals — and `paper` only supplies what sits on top of it.
 
 ## Spacing
 
@@ -104,3 +129,6 @@
 | 2026-08-05 | 왼쪽 2px 규칙선은 "인용된 출처"에만 쓴다. 반영 결과는 sage로 표시한다 | 같은 `border-l-2 border-[#A77B74]`가 히어로에서는 출처(커플이 한 말), PreparationResult에서는 목적지(반영된 기록)를 뜻해 의미가 정반대였다. sage는 이 문서가 이미 "operational states"에 배정한 색이다. |
 | 2026-08-05 | eyebrow 장식은 뜻을 바꿀 때만 붙이고, 붙일 때는 16px 글리프 하나로 통일한다 | eyebrow 8개에 장식이 5종(6px 점, 14px Sparkles, 32px 규칙선 ×2, 16px 체크, 48px 원형 메달리언) 섞이고 3개는 맨몸이라, 같은 층위의 라벨이 섹션마다 다른 격식으로 읽혔다. 히어로 하나에만 점과 Sparkles가 같이 붙어 있었다. 뜻을 지는 것은 둘뿐이다 — 기본이 아닌 행위자(아모라 = AI)와 릴리스 경계(운영 공개 전). 나머지는 이 문서의 "Decoration level: Intentional… Avoid decorative noise"에 어긋나므로 없앤다. 적용 후 실측: 글리프 2개 · 맨몸 6개. |
 | 2026-08-05 | `inline-flex` 레시피(`primaryAction*`·`secondaryLink*`)는 `mx-auto`로 가운데 정렬하지 않는다 | inline 요소에 auto margin은 아무 일도 하지 않는다. 마무리 섹션의 CTA와 로그인 링크가 각자 `mx-auto`를 걸고 같은 line box에 앉아, 1280 실측에서 로그인 링크가 버튼 위로 겹쳤다. 가운데 정렬과 세로 쌓기는 부모 컨테이너가 맡는다. |
+| 2026-08-27 | 랜딩 헤드라인 스케일의 출처가 `landingType.ts` 에서 `components/landing/redesign/notebook.tsx` 로 옮겨간다 | 랜딩을 "결혼 준비 노트" 문법으로 다시 지으면서 섹션 구성이 통째로 바뀌었다(옛 섹션 7개 삭제). 규칙 자체는 그대로다 — 단계는 셋이고 H1 이 항상 가장 크다. 위 2026-08-05 줄의 위계 역전 사고를 막는 것이 목적이고, `notebook.tsx` 의 `sectionTitle` 최대값(2.9rem)이 히어로 최대값(3.6rem)보다 작은 것이 그 장치다. |
+| 2026-08-27 | 랜딩 카드의 글줄은 줄 간격(32px)에 맞춘다 | 노트 카드의 줄무늬는 32px 간격인데 본문이 `leading-[1.7]`(25.5px)이라 글이 줄 위에 안 앉고 어긋나, 줄무늬가 종이가 아니라 그냥 배경 무늬로 읽혔다. `notebook.tsx` 의 `ruled` 가 16px/32px 를 들고 있고 카드 안쪽 여백도 32의 배수다. |
+| 2026-08-27 | 크기를 정하는 CSS 클래스에는 유틸리티 크기를 얹지 않는다 | `.landing-tape` 가 `font-size` 를 갖고 있는데 쓰는 쪽에서 `text-[15px]` 를 걸었더니 클래스가 이겨서 인라인 크기가 조용히 죽었다(화면은 12px 로 나왔다). 크기는 한쪽만 소유한다. |

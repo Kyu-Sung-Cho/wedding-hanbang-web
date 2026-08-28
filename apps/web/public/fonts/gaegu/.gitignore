@@ -1,0 +1,6 @@
+# 원본 ttf 는 굵기당 3MB 라 저장소에 두지 않는다.
+# 실제로 실리는 것은 `scripts/subset-gaegu.py` 가 구운 woff2(49KB) 뿐이다.
+#
+# 카피를 고쳐 다시 구워야 하면 Google Fonts 에서 원본을 여기에 내려받고
+# `python scripts/subset-gaegu.py` 를 돌린다 — LICENSE.md 참고.
+*.ttf

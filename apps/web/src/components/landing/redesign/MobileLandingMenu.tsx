@@ -12,7 +12,7 @@ type MobileLandingMenuProps = {
 };
 
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2D3C8] focus-visible:ring-offset-4 focus-visible:ring-offset-[#243832]";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2";
 
 export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
   const detailsRef = useRef<HTMLDetailsElement>(null);
@@ -59,7 +59,7 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
         aria-expanded={isOpen}
         aria-controls="landing-mobile-menu"
         title="메뉴"
-        className={`flex h-11 w-11 cursor-pointer list-none items-center justify-center [&::-webkit-details-marker]:hidden ${focusRing}`}
+        className={`flex h-11 w-11 cursor-pointer list-none items-center justify-center text-[var(--color-paper-ink)] [&::-webkit-details-marker]:hidden ${focusRing}`}
       >
         {isOpen ? (
           <X className="h-5 w-5" aria-hidden="true" />
@@ -74,14 +74,14 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
         // 화면에서 x=211이라 224px 패널이 왼쪽으로 13px 밀려나 메뉴 글자가 잘렸다
         // (실측 -13..211). 360px 이상은 여유가 있어 그대로 두고, 그 아래에서만
         // 뷰포트에 붙여 항상 화면 안에 들어오게 한다.
-        className="fixed inset-x-3 top-16 flex flex-col rounded-[16px] border border-white/12 bg-[#243832] p-2 shadow-overlay min-[360px]:absolute min-[360px]:inset-x-auto min-[360px]:right-0 min-[360px]:top-12 min-[360px]:w-56"
+        className="fixed inset-x-3 top-16 flex flex-col rounded-[6px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-2 shadow-overlay min-[360px]:absolute min-[360px]:inset-x-auto min-[360px]:right-0 min-[360px]:top-12 min-[360px]:w-56"
       >
         {items.map((item) => (
           <Link
             key={item.href}
             href={item.href}
             onClick={closeMenu}
-            className={`flex min-h-11 items-center px-4 py-3 text-[14px] font-semibold text-white/78 transition-colors duration-200 hover:bg-white/8 hover:text-white ${focusRing}`}
+            className={`flex min-h-11 items-center px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
           >
             {item.label}
           </Link>
@@ -89,14 +89,14 @@ export default function MobileLandingMenu({ items }: MobileLandingMenuProps) {
         <Link
           href="/login?mode=signup"
           onClick={closeMenu}
-          className={`flex min-h-11 items-center border-t border-white/12 px-4 py-3 text-[14px] font-semibold text-white/78 transition-colors duration-200 hover:bg-white/8 hover:text-white ${focusRing}`}
+          className={`flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
         >
           회원가입
         </Link>
         <Link
           href="/login"
           onClick={closeMenu}
-          className={`flex min-h-11 items-center border-t border-white/12 px-4 py-3 text-[14px] font-semibold text-white/78 transition-colors duration-200 hover:bg-white/8 hover:text-white ${focusRing}`}
+          className={`flex min-h-11 items-center border-t border-[var(--color-paper-divider)] px-4 py-3 text-[14px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:bg-[var(--color-paper-sheet)] hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
         >
           로그인
         </Link>

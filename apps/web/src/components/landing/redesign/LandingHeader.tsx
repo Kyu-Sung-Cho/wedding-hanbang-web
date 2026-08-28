@@ -1,38 +1,39 @@
 import Link from "next/link";
 
-import { primaryActionSm } from "./landingType";
+import { headerAuth, headerNav } from "./landingContent";
 import MobileLandingMenu from "./MobileLandingMenu";
 import TrackedLandingLink from "./TrackedLandingLink";
+import { shell } from "./notebook";
 
-const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
-
-const navItems = [
-  { label: "어떻게 정리되나요", href: "#how-it-works" },
-  { label: "함께·나만 보기", href: "#privacy" },
-  { label: "신뢰 기준", href: "#trust" },
-  { label: "시작 조건·비용", href: "#start-conditions" },
-] as const;
-
+/**
+ * 헤더.
+ *
+ * 종이 위에 얹힌 띠로 둔다. 이전 헤더는 짙은 유칼립투스 바탕(#243832)이었는데,
+ * 그러면 페이지 맨 위가 노트가 아니라 앱 크롬으로 읽힌다.
+ *
+ * 내비 항목은 `landingContent.headerNav` 가 정본이고 본문 섹션 순서와 같아야 한다.
+ * 항목이 본문에 없는 앵커를 가리키면 눌러도 아무 일이 안 일어난다 — 실제로 있었다.
+ */
 const focusRing =
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#E2D3C8] focus-visible:ring-offset-4 focus-visible:ring-offset-[#243832]";
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2";
 
 export default function LandingHeader() {
   return (
-    <header className="sticky top-0 z-50 border-b border-white/12 bg-[#243832]/96 pt-[env(safe-area-inset-top)] text-white backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-[var(--color-paper-edge)] bg-[var(--color-paper-sheet)]/95 pt-[env(safe-area-inset-top)] backdrop-blur">
       <div className={`${shell} flex h-14 items-center justify-between gap-5 lg:h-16`}>
         <Link
           href="/landing"
-          className={`inline-flex min-h-11 shrink-0 items-center whitespace-nowrap text-[20px] font-semibold tracking-[-0.02em] ${focusRing}`}
+          className={`landing-hand inline-flex min-h-11 shrink-0 items-center whitespace-nowrap text-[20px] text-[var(--color-paper-ink)] ${focusRing}`}
         >
           웨딩한방
         </Link>
 
-        <nav className="hidden items-center gap-5 lg:flex xl:gap-8" aria-label="랜딩페이지 주요 메뉴">
-          {navItems.map((item) => (
+        <nav className="hidden items-center gap-6 lg:flex" aria-label="랜딩페이지 주요 메뉴">
+          {headerNav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`inline-flex min-h-11 items-center text-[14px] font-medium text-white/74 transition-colors duration-200 hover:text-white ${focusRing}`}
+              className={`inline-flex min-h-11 items-center text-[14px] font-medium text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
             >
               {item.label}
             </Link>
@@ -40,30 +41,23 @@ export default function LandingHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <MobileLandingMenu items={navItems} />
-
-          {/* 랜딩 어디에도 회원가입으로 가는 링크가 없었다. 가입은 승인 관문 없이
-              열려 있는데 화면은 그 사실을 말하지 않았다. */}
+          {/* 가입·로그인은 좁은 화면에서 메뉴 안에 있다(MobileLandingMenu).
+              넓은 화면에는 메뉴가 없으므로 여기서 내놓는다 — 없으면 데스크톱에서만
+              가입 경로가 사라진다. */}
           <Link
-            href="/login?mode=signup"
-            className={`hidden min-h-11 items-center px-2 text-[14px] font-semibold text-white/72 transition-colors duration-200 hover:text-white sm:inline-flex ${focusRing}`}
+            href={headerAuth.signUp.href}
+            className={`hidden min-h-11 items-center px-3 text-[14px] font-medium text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-ink)] motion-reduce:transition-none lg:inline-flex ${focusRing}`}
           >
-            회원가입
-          </Link>
-          <Link
-            href="/login"
-            className={`hidden min-h-11 items-center px-2 text-[14px] font-semibold text-white/72 transition-colors duration-200 hover:text-white sm:inline-flex ${focusRing}`}
-          >
-            로그인
+            {headerAuth.signUp.label}
           </Link>
           <TrackedLandingLink
-            href="/start-here"
+            href="/wedding-code"
             source="landing_header"
-            className={`${primaryActionSm} shrink-0 justify-center whitespace-nowrap ${focusRing}`}
+            className={`hidden min-h-10 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-5 text-[14px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black motion-reduce:transition-none sm:inline-flex ${focusRing}`}
           >
-            <span className="sm:hidden">시작하기</span>
-            <span className="hidden sm:inline">아모라와 시작하기</span>
+            스무 장면 답해보기
           </TrackedLandingLink>
+          <MobileLandingMenu items={headerNav} />
         </div>
       </div>
     </header>

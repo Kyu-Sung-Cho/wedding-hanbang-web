@@ -247,6 +247,48 @@ function hasPathEnding(url, expectedEnding) {
 function buildChecks(skipDemo) {
   const checks = [
     {
+      // 도메인 루트가 랜딩에 도착한다 (2026-08-27 파운더 결정).
+      //
+      // 이 케이스가 없어서, 루트가 로그인으로 가던 시절에도 라이브에서는 아무도
+      // 몰랐다. `/wedding/lounge` 는 보호 경로라 다른 판정을 밟는다 — 루트는
+      // **문**이고 세션에 따라 갈리므로 따로 밟아야 한다.
+      //
+      // 여기 실패하면 광고·외부 링크·입소문이 전부 잘못된 곳에 착지하고 있다는 뜻이다.
+      name: "root-door-unauth-lands-on-landing",
+      path: "/",
+      async assert(page, result) {
+        if (!hasPathEnding(result.finalUrl, "/landing")) {
+          addFailure(
+            result,
+            `Expected domain root to land on /landing for a signed-out visitor, got ${result.finalUrl}`,
+          );
+          return;
+        }
+        // 도착만 하고 빈 문서면 소용이 없다. 첫 화면이 실제로 무언가 말하는지 본다.
+        const heading = await page.evaluate(
+          () => document.querySelector("h1")?.textContent?.trim() ?? "",
+        );
+        if (heading.length < 8) {
+          addFailure(result, `Landing rendered without an H1 (got ${JSON.stringify(heading)})`);
+        }
+      },
+    },
+    {
+      // 유입 표식이 목적지까지 간다. 루트에서 끊기면 어느 캠페인에서 왔는지 사라진다.
+      name: "root-door-keeps-utm",
+      path: "/?utm_source=smoke&utm_campaign=root-door",
+      async assert(_page, result) {
+        const url = new URL(result.finalUrl);
+        if (!hasPathEnding(result.finalUrl, "/landing")) {
+          addFailure(result, `Expected /landing, got ${url.pathname}`);
+          return;
+        }
+        if (url.searchParams.get("utm_source") !== "smoke") {
+          addFailure(result, `Root door dropped utm_source (${url.search || "no query"})`);
+        }
+      },
+    },
+    {
       name: "wedding-home",
       path: "/wedding",
       async assert(_page, result) {

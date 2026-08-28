@@ -30,10 +30,25 @@ const section = read("src/components/landing/redesign/AvailableNowSection.tsx");
 const page = read("src/app/landing/page.tsx");
 
 /** availableNow 블록만 잘라 본다 — 같은 파일의 다른 목록도 `note:`를 쓴다.
- *  `availableNowLead`가 이 접두사로 시작하므로 대표 카드도 함께 검사된다(의도). */
+ *
+ *  끝 경계가 `export const preparationRecords`였는데 2026-08-27 개편으로 그 export가
+ *  사라졌다. `indexOf`가 -1을 주면 `slice(start, -1)`이 되어 **파일 끝까지** 잘렸고,
+ *  그 바람에 푸터의 `mailto:` 링크가 이 섹션의 href로 세어져 실패했다. 지금 이 배열
+ *  바로 다음에 오는 export를 끝으로 삼는다.
+ *
+ *  대표 카드(`availableNowLead`)도 없어졌다. 섹션을 이끄는 문장은 이제
+ *  `landingContent.availableNow`에 있고, 아래 "수량어" 검사가 그쪽을 따로 읽는다. */
 const availableNowBlock = content.slice(
   content.indexOf("export const availableNow"),
-  content.indexOf("export const preparationRecords"),
+  content.indexOf("export const footerLinks"),
+);
+
+/** 섹션을 이끄는 문장(eyebrow·title·body). 카드 개수를 소개하는 자리라 카드 배열과
+ *  따로 검사한다 — 카드 본문에는 "세 가지"·"25편"처럼 개수와 무관한 수가 정상적으로
+ *  들어 있어서, 둘을 한 덩어리로 세면 수량어 검사가 그것들에 걸려 넘어진다. */
+const availableNowLead = content.slice(
+  content.indexOf("  availableNow: {"),
+  content.indexOf("  closing: {"),
 );
 
 /** 주석은 벗긴다. 왜 안 쓰는지 설명하려면 그 이름을 적어야 하는데,
@@ -52,15 +67,34 @@ const GATED_SURFACES = [
 ];
 
 describe("landing available-now section", () => {
-  it("renders on the landing before the account-beta sections", () => {
+  it("renders on the landing before the last call to action", () => {
     expect(page).toContain("<AvailableNowSection />");
+
+    // 원래 이 단언은 `<PreparationResult />`(계정 베타 결과 미리보기)보다 **앞**일 것을
+    // 요구했다. 그 컴포넌트는 2026-08-27 개편으로 삭제됐고, 새 순서는 계정 베타를
+    // 설명하는 `<ConfirmSection />`을 오히려 앞에 둔다(page.tsx의 섹션 순서 주석이
+    // 그 이유를 적어 뒀다 — ⑦은 "빈손으로 나가지 않게" 마지막 행동 직전에 둔다).
+    //
+    // 그래서 지키는 대상을 "계정 베타보다 앞"에서 **"마지막 행동을 부르기 전"**으로
+    // 옮긴다. 의도는 같다: 처음 온 사람이 오늘 쓸 수 있는 것을 하나도 못 보고
+    // 결정 앞에 서지 않게 한다. 이 목록이 마무리·푸터 뒤로 가라앉으면 실패한다.
     expect(
       page.indexOf("<AvailableNowSection />"),
-      "지금 되는 것이 계정 베타 설명보다 뒤에 오면 처음 온 사람이 빈손으로 읽는다",
-    ).toBeLessThan(page.indexOf("<PreparationResult />"));
+      "지금 되는 것이 마지막 행동보다 뒤에 오면 처음 온 사람이 빈손으로 결정한다",
+    ).toBeLessThan(page.indexOf("<ClosingAction />"));
+    expect(page.indexOf("<ClosingAction />"), "마무리 섹션을 찾지 못했다")
+      .toBeGreaterThan(-1);
   });
 
   it("lists only paths that were verified to open without login", () => {
+    // 끝 경계를 못 찾으면 `slice(start, -1)`이 되어 블록이 파일 끝까지 넓어지고,
+    // 푸터의 `mailto:` 까지 이 섹션의 링크로 세어진다 — 2026-08-27에 실제로 그렇게
+    // 실패했다. 경계가 사라지면 그 자리에서 알아채도록 먼저 확인한다.
+    expect(
+      content.indexOf("export const footerLinks"),
+      "availableNow 블록의 끝 경계를 찾지 못했다 — slice가 파일 끝까지 넓어진다",
+    ).toBeGreaterThan(content.indexOf("export const availableNow"));
+
     const hrefs = [...availableNowBlock.matchAll(/href:\s*"([^"]+)"/gu)].map((m) => m[1]);
     expect(hrefs.length, "availableNow 항목이 없다").toBeGreaterThanOrEqual(4);
 
@@ -94,9 +128,18 @@ describe("landing available-now section", () => {
 
   it("never routes these cards through the Amora start tracker", () => {
     // TrackedLandingLink는 landing_amora_start_click을 쏘고 날짜 handoff를 지운다.
-    // 이 넷은 아모라를 열지 않으므로 둘 다 틀린 동작이 된다.
+    // 이 카드들은 아모라를 열지 않으므로 둘 다 틀린 동작이 된다.
     expect(withoutComments(section)).not.toContain("TrackedLandingLink");
-    expect(section, "보조 링크는 공유 레시피를 쓴다").toContain("${secondaryLink}");
+
+    // 원래 이 자리에는 `${secondaryLink}`(landingType.ts의 링크 레시피)를 쓰는지
+    // 봤다. 2026-08-27 개편으로 공유 레시피가 `landingType.ts`에서 `notebook.tsx`로
+    // 옮겨 갔고 — 지금 landingType.ts를 import하는 제품 파일은 0개다 — 링크는
+    // 레시피 없이 인라인 클래스로 쓴다. 지키려던 것은 "이 섹션이 자기만의 문법을
+    // 발명하지 않는다"이므로, 대상을 현재의 공유 프리미티브로 옮긴다.
+    expect(section, "공유 프리미티브를 쓰지 않는다").toContain('from "./notebook"');
+    for (const primitive of ["<Section", "<NoteCard", "bodyText", "noteText"]) {
+      expect(section, `${primitive}을 쓰지 않고 자기 스타일을 만든다`).toContain(primitive);
+    }
   });
 
   it("names the scene count the destination screen actually asks", () => {
@@ -152,26 +195,35 @@ describe("landing available-now section", () => {
    * 카피가 "아래 넷"이라고 하는데 카드가 다섯 장이면 랜딩이 첫 화면부터 세는 법을
    * 틀린다(2026-08-20 실측). 위의 `>= 4` 검사는 개수가 늘어도 통과하므로 수량어를
    * 잡지 못한다. 개수와 문구를 한 곳에 묶는다.
+   *
+   * 2026-08-27 개편이 그 묶는 방식을 바꿨다. 카드에 `id`가 없어졌고, 개수는 카피에
+   * 손으로 적는 대신 **본문이 `availableNow.length`에서 센다**(AvailableNowSection).
+   * 그래서 "카피의 수량어 == 카드 수"를 대조하는 대신, 그 대조가 필요 없는 구조인지를
+   * 지킨다 — ① 본문이 배열 길이로 세고 ② 그 옆에 손으로 적은 수가 없어야 한다.
+   * 둘 중 하나만 지키면 화면이 다시 두 개의 수를 말할 수 있다.
    */
   it("수량어가 실제 카드 수와 일치한다", () => {
-    const count = [...availableNowBlock.matchAll(/id:\s*"[^"]+"/gu)].length;
-    const numberWord = ["", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱"][count];
+    // `id:`가 사라졌으므로 카드마다 하나씩 있는 `cta: {`로 센다.
+    const count = [...availableNowBlock.matchAll(/cta:\s*\{/gu)].length;
+    expect(count, "availableNow 카드를 세지 못했다").toBeGreaterThanOrEqual(4);
 
-    expect(numberWord, `카드 ${count}장에 대응하는 수량어가 없다`).toBeTruthy();
+    // ① 개수는 배열에서 나온다. 리터럴로 갈아 끼우면 이 단언이 먼저 깨진다.
+    expect(section, "본문이 availableNow.length로 세지 않는다")
+      .toContain("{availableNow.length}가지는");
 
-    const copy = [
-      content.match(/body:\s*"([^"]*계정 없이 지금 열려[^"]*)"/u)?.[1] ?? "",
-      content.match(/"([^"]*로그인·결제를 요구하지 않아요[^"]*)"/u)?.[1] ?? "",
-    ].join("\n");
-
-    expect(copy, "availableNow 카피를 찾지 못했다").not.toBe("\n");
+    // ② 섹션을 이끄는 문장에는 개수를 말하는 다른 수가 없어야 한다. 카드 본문에는
+    //    "세 가지"·"25편"·"12개"처럼 개수와 무관한 수가 정상적으로 들어 있으므로
+    //    이끄는 문장(eyebrow·title·body)만 본다.
+    expect(availableNowLead, "availableNow 카피를 찾지 못했다").toContain("계정 없이 지금 열려");
 
     const wrongWords = ["하나", "둘", "셋", "넷", "다섯", "여섯", "일곱"].filter(
-      (word) => word !== numberWord && copy.includes(word),
+      (word) => availableNowLead.includes(word),
     );
-    expect(wrongWords, `카드는 ${count}장인데 카피가 "${wrongWords.join(", ")}"라고 한다`)
-      .toEqual([]);
-    expect(copy, `카드 ${count}장이면 "${numberWord}"이라고 써야 한다`)
-      .toContain(numberWord);
+    expect(
+      wrongWords,
+      `카드는 ${count}장인데 이끄는 문장이 "${wrongWords.join(", ")}"라고 한다`,
+    ).toEqual([]);
+    expect(availableNowLead, "이끄는 문장이 개수를 숫자로 적어 두었다")
+      .not.toMatch(/\d+\s*(가지|개|편)/u);
   });
 });
