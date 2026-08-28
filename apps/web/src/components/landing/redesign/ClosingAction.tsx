@@ -1,4 +1,4 @@
-import Link from "next/link";
+import TrackedLandingLink from "./TrackedLandingLink";
 
 import { BloomGarland } from "./LandingBloom";
 import { landingContent } from "./landingContent";
@@ -35,26 +35,29 @@ export default function ClosingAction() {
         </p>
 
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link
+          <TrackedLandingLink
+            source="landing_closing_primary"
             href={closing.primary.href}
             className="inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-8 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:w-auto"
           >
             {closing.primary.label}
-          </Link>
-          <Link
+          </TrackedLandingLink>
+          <TrackedLandingLink
+            source="landing_closing_signup"
             href={closing.secondary.href}
             className="inline-flex min-h-12 w-full items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-8 text-[16px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:border-[var(--color-paper-ink)] hover:text-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:w-auto"
           >
             {closing.secondary.label}
-          </Link>
+          </TrackedLandingLink>
         </div>
 
-        <Link
+        <TrackedLandingLink
+          source="landing_closing_login"
           href={closing.tertiary.href}
           className={`mt-5 inline-flex min-h-11 items-center text-[14px] font-semibold text-[var(--color-paper-pen)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-pen-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none`}
         >
           {closing.tertiary.label}
-        </Link>
+        </TrackedLandingLink>
 
         <p className={`mx-auto mt-7 max-w-[52ch] ${noteText}`}>{closing.note}</p>
       </div>

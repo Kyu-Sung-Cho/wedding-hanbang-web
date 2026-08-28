@@ -49,7 +49,7 @@ describe("TrackedLandingLink", () => {
 
     expect(window.sessionStorage.getItem(START_HERE_DATE_HANDOFF_KEY)).toBeNull();
     expect(mocks.captureEvent).toHaveBeenCalledWith(
-      "landing_amora_start_click",
+      "landing_cta_click",
       { source: "landing_header" },
     );
   });

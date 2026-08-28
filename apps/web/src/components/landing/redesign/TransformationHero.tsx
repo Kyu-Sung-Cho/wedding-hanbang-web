@@ -1,4 +1,4 @@
-import Link from "next/link";
+import TrackedLandingLink from "./TrackedLandingLink";
 
 import { BouquetCorner } from "./LandingBloom";
 import { landingContent } from "./landingContent";
@@ -61,18 +61,20 @@ export default function TransformationHero() {
         <p className={`mt-7 max-w-[46ch] ${bodyText}`}>{hero.body}</p>
 
         <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Link
+          <TrackedLandingLink
+            source="landing_hero_primary"
             href={hero.primary.href}
             className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           >
             {hero.primary.label}
-          </Link>
-          <Link
+          </TrackedLandingLink>
+          <TrackedLandingLink
+            source="landing_hero_secondary"
             href={hero.secondary.href}
             className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-7 text-[16px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:border-[var(--color-paper-ink)] hover:text-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           >
             {hero.secondary.label}
-          </Link>
+          </TrackedLandingLink>
         </div>
 
         <p className={`relative mt-5 max-w-[42ch] ${noteText}`}>{hero.note}</p>

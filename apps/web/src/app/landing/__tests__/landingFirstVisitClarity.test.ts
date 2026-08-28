@@ -264,7 +264,6 @@ describe("landing first visit clarity", () => {
   });
 
   it("shows the scene a first visitor recognises before asking for an account", () => {
-    const content = rendered(CONTENT_PATH);
     const scenesBlock = contentBlock("scenes", "noSide");
     const scenes = rendered(SCENES);
 

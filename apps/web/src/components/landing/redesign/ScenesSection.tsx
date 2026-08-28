@@ -1,4 +1,4 @@
-import Link from "next/link";
+import TrackedLandingLink from "./TrackedLandingLink";
 
 import { landingContent } from "./landingContent";
 import { NoteCard, Section, bodyText, noteText, quoteText, ruled } from "./notebook";
@@ -44,12 +44,13 @@ export default function ScenesSection() {
 
         <div>
           <p className={bodyText}>{scenes.body}</p>
-          <Link
+          <TrackedLandingLink
+            source="landing_scenes"
             href="/wedding-code"
             className="mt-6 inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           >
             스무 장면 답해보기
-          </Link>
+          </TrackedLandingLink>
           <p className={`mt-5 ${noteText}`}>{scenes.note}</p>
         </div>
       </div>

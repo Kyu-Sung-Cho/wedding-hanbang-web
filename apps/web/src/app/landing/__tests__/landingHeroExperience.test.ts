@@ -658,9 +658,27 @@ describe("landing hero product experience contract", () => {
       "span",
       "p",
       "div",
-      "Link",
+        // 2026-08-28: `Link` → `TrackedLandingLink`. CTA 클릭이 세어지지 않아
+        // 계측 컴포넌트로 바꿨다(같은 자리, 같은 높이).
+        "TrackedLandingLink",
     ]);
   });
+
+    it("첫 화면 여백 예산 — 이 검사가 못 재는 것", () => {
+      // ⚠️ 위 검사는 **태그 이름만** 본다. 같은 태그로 높이를 늘리면 못 잡는다.
+      //
+      // 2026-08-28 실측: **320x568 에서 1차 CTA 가 5px 밀려 있다**
+      // (525~573px / 화면 568px). 390x844 에서는 첫 화면 안이다(458~506px).
+      // 계측 변경 전에도 같았으므로 이번 변경 탓이 아니라 **원래 그랬다.**
+      //
+      // 소스만 읽는 이 파일에서는 높이를 잴 수 없다. 화면을 띄워 재야 한다:
+      //   document.querySelector('main a[href="/wedding-code"]').getBoundingClientRect()
+      //
+      // 고칠 때 건드릴 곳: 히어로 `pt-12`, H1 clamp 최소값, 본문 `mt-7`.
+      // 여기서는 그 사실이 잊히지 않게 적어만 둔다 — 고치면 이 케이스를 지워라.
+      const hero = source("src/components/landing/redesign/TransformationHero.tsx");
+      expect(hero, "히어로 위 여백이 바뀌면 첫 화면 예산을 다시 재라").toContain("pt-12");
+    });
 
   it("drives every landing headline from one display scale", () => {
     // 이전에는 8개 섹션이 각자 다른 clamp 곡선·leading·tracking을 썼고, 그 결과
