@@ -101,7 +101,65 @@ function isCommunitySafetyExitPath(request: NextRequest): boolean {
     && isCommunitySafetyExitRoute(request.nextUrl.pathname);
 }
 
+/** 앱이 연결한 도메인은 apex 하나뿐이지만, 이 두 파일은 리다이렉트를 따라가지 않는다. */
+const APP_LINK_PATHS = new Set([
+  "/.well-known/apple-app-site-association",
+  "/.well-known/assetlinks.json",
+]);
+
+/**
+ * `www.hanbang.ai` → `hanbang.ai`. 경로와 쿼리를 그대로 들고 간다.
+ *
+ * ## 왜 필요한가
+ *
+ * 둘은 **서로 다른 오리진**이고, 인증 쿠키에 `domain` 을 주지 않으므로
+ * (`lib/supabase/server.ts`) 세션이 호스트별로 갈린다 — www 에서 로그인한 사람이
+ * apex 로 가면 로그아웃 상태다. 게다가 비밀번호 재설정 메일은 호스트와 무관하게 늘
+ * apex 를 가리키므로(`api/auth/forgot-password` 의
+ * `NEXT_PUBLIC_SITE_URL || "https://hanbang.ai"`), www 로 들어온 사람은 재설정 뒤
+ * **세션이 없는 호스트**에 떨어진다.
+ *
+ * 2026-08-29 라이브 실측(수정 전):
+ *
+ *     https://hanbang.ai/       → 307 → hanbang.ai/landing        (맞다)
+ *     https://www.hanbang.ai/   → 307 → www.hanbang.ai/landing    (www 에 머문다)
+ *
+ * ## 왜 `next.config.ts` 가 아니라 여기인가
+ *
+ * 거기 `source: "/:path*"` 를 쓰면 `/.well-known` 의 앱 링크 두 파일까지 삼킨다.
+ * `lib/appLinks/__tests__/appLinkIdentity.test.ts` 가 그 catch-all 을 금지하고,
+ * 그 파일에 `.well-known` 을 **언급하는 것 자체**도 막는다(예외를 적어 넣어 우회하지
+ * 못하게). 그래서 여기서 그 두 경로만 비켜 간다.
+ *
+ * 앱이 연결한 도메인은 `applinks:hanbang.ai` 하나뿐이라(`apps/mobile/app.json`)
+ * www 에서 그 파일을 가져가는 것은 없다. 그래도 비켜 두는 편이 싸다.
+ *
+ * ## 루트 판정을 가로채지 않는다
+ *
+ * `src/app/__tests__/rootIsTheAppDoor.test.ts` 가 막는 것은 `source: "/"` 로
+ * **세션 판정**을 엣지가 가로채는 것이다. 여기는 호스트만 보고 apex 로 넘기고,
+ * 랜딩·라운지를 가르는 판정은 apex 도착 뒤 `redirectAppDoor` 가 그대로 한다.
+ */
+function redirectWwwToApex(request: NextRequest): NextResponse | null {
+  // `Host` 헤더와 `nextUrl` 둘 다 본다. 헤더는 프록시 뒤에서 비어 오기도 하고,
+  // `nextUrl.hostname` 은 요청 URL 에서 온다 — 어느 쪽이든 www 면 옮긴다.
+  // 정확히 이 호스트 하나만이다. `www.` 로 시작하는 것을 통째로 묶으면
+  // 프리뷰·로컬까지 끌려간다.
+  const headerHost = request.headers.get("host")?.toLowerCase().split(":")[0] ?? "";
+  const urlHost = request.nextUrl.hostname.toLowerCase();
+  if (headerHost !== "www.hanbang.ai" && urlHost !== "www.hanbang.ai") return null;
+  if (APP_LINK_PATHS.has(request.nextUrl.pathname)) return null;
+  const target = new URL(request.nextUrl.toString());
+  target.protocol = "https:";
+  target.host = "hanbang.ai";
+  target.port = "";
+  return NextResponse.redirect(target, 308);
+}
+
 export async function proxy(request: NextRequest) {
+  const wwwRedirect = redirectWwwToApex(request);
+  if (wwwRedirect) return wwwRedirect;
+
   const isWeddingCodeResearchPath =
     request.nextUrl.pathname === "/internal/wedding-code-research" ||
     request.nextUrl.pathname.startsWith("/internal/wedding-code-research/");
