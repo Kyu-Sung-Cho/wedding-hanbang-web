@@ -828,8 +828,12 @@ describe("landing hero product experience contract", () => {
 
     // 장면 하나는 첫 화면 바로 다음에서 실제 문항 그대로 보여준다.
     // 카피에 있는 것만으로는 부족하다 — 그리는 자리도 함께 본다.
-    expect(block("scenes")).toContain(
-      "둘 다 마음에 든 결혼식장이 정해둔 예산보다 300만원 비쌌어요.",
+    //
+    // **문장을 옮겨 적지 않는다.** 여기 적었던 문장은 라이브 문항이 아니라
+    // 지어낸 것이었고, 그래서 랜딩이 틀린 견본을 보여 주는데도 통과했다.
+    // 라이브와의 대조는 `landingSampleMatchesLive.test.ts` 가 전담한다.
+    expect(block("scenes")).toMatch(
+      /scene:\s*"[^"]{16,}"/u,
     );
     expect(scenes).toContain("scenes.sample");
     expectVisible("ScenesSection.tsx", scenes, "scenes.sample");

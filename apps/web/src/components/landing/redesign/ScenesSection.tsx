@@ -22,19 +22,16 @@ export default function ScenesSection() {
     <Section id="scenes" eyebrow={scenes.eyebrow} title={scenes.title} tinted>
       <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:items-center">
         <NoteCard tilt={-0.5}>
-          <p className="landing-hand text-[16px] text-[var(--color-paper-pen)]">장면 07</p>
+          {/* 번호를 붙이지 않는다. 처음엔 "장면 07" 이라고 적었는데 지어낸 번호였고,
+              순서는 바뀔 수 있어서 랜딩이 고정하면 그때부터 거짓이 된다. */}
+          <p className="landing-hand text-[16px] text-[var(--color-paper-pen)]">
+            {scenes.sample.scene}
+          </p>
           <p className={`mt-2 ${quoteText} text-[var(--color-paper-ink)]`}>
-            {scenes.sample.split("\n").map((line) => (
-              <span key={line} className="block">
-                {line}
-              </span>
-            ))}
+            {scenes.sample.question}
           </p>
           <ul className="mt-6 space-y-2">
-            {[
-              "그래도 여기서 하고 싶다. 다른 데서 줄이자.",
-              "300만원이면 다른 데 쓰는 게 낫다.",
-            ].map((choice) => (
+            {scenes.sample.options.map((choice) => (
               <li
                 key={choice}
                 className={`rounded-[6px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-tint)] px-4 py-2 ${ruled}`}

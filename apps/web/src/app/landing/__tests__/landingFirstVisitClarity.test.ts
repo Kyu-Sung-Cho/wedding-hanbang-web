@@ -316,10 +316,15 @@ describe("landing first visit clarity", () => {
 
     // 그 장면이 실제로 화면에 있고, 컴포넌트가 문장을 다시 적지 않고 정본을 렌더한다.
     // 장면 예시는 `scenes` 블록의 것이다 — 다른 블록으로 옮기면 그 섹션이 빈다.
+    //
+    // **문장을 여기 옮겨 적지 않는다.** 예전에 그렇게 했다가, 랜딩이 라이브 문항과
+    // 다른 지어낸 문장을 보여 주는데도 이 단언이 통과했다(오히려 라이브에 맞추자
+    // 실패했다). 문항이 실제와 같은지는 `landingSampleMatchesLive.test.ts` 가 본다.
+    // 여기서는 **자리가 비지 않았나**만 본다.
     expect(scenesBlock, "처음 온 사람이 자기 얘기로 읽을 장면이 없다")
-      .toContain("둘 다 마음에 든 결혼식장이 정해둔 예산보다 300만원 비쌌어요.");
-    expect(content, "장면 예시가 정본에서 사라졌다")
-      .toContain("둘 다 마음에 든 결혼식장이 정해둔 예산보다 300만원 비쌌어요.");
+      .toMatch(/scene:\s*"[^"]{16,}"/u);
+    expect(scenesBlock, "장면에 딸린 질문이 없다").toMatch(/question:\s*"[^"]{8,}"/u);
+    expect(scenesBlock, "고를 답이 없다").toMatch(/options:\s*\[/u);
     expect(scenes).toContain("{scenes.sample");
     expect(scenes).toContain("{scenes.body}");
   });
