@@ -123,11 +123,15 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
 
   afterEach(() => vi.unstubAllEnvs());
 
-  it("세션이 없으면 307로 로그인에 보낸다", async () => {
+  // 2026-08-27 파운더 결정으로 로그아웃 목적지가 `/login` → `/landing` 이 됐다.
+  // 웹의 일은 유입·설명인데(CLAUDE.md 제품 계약) 정문이 로그인 벽이면 그 일을 못 한다.
+  // 로그인한 사람은 그대로 라운지로 간다 — 8-20 결정이 막으려던 왕복은 안 생긴다.
+  // 이유 전문은 `app/page.tsx` 주석에 있다.
+  it("세션이 없으면 307로 랜딩에 보낸다", async () => {
     const response = await updateSession(new NextRequest("https://hanbang.ai/"));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://hanbang.ai/login");
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
   });
 
   it("세션이 있으면 307로 라운지에 보낸다", async () => {
@@ -140,21 +144,21 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
   });
 
   it("유입 표식을 목적지까지 들고 간다", async () => {
-    // 루트에서 쿼리가 끊기면 어느 캠페인에서 온 가입인지가 로그인 직전에 사라진다.
+    // 루트에서 쿼리가 끊기면 어느 캠페인에서 왔는지가 랜딩 직전에 사라진다.
     const response = await updateSession(
       new NextRequest("https://hanbang.ai/?utm_source=kakao&utm_campaign=spring"),
     );
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://hanbang.ai/login?utm_source=kakao&utm_campaign=spring",
+      "https://hanbang.ai/landing?utm_source=kakao&utm_campaign=spring",
     );
   });
 
   it("위조 가능한 체험 표식만으로 라운지에 보내지 않는다", async () => {
     // `demo_mode`는 위조 가능한 표식이고, 체험의 진짜 자격은 서명된 `demo_session`이다
     // (`lib/demoSession.ts`). 표식만 믿고 라운지로 보내면 **만료된 체험 쿠키를 든 사람이
-    // 라운지에 갔다가 다시 로그인으로 튕기고**, 그 튕김이 클라이언트에서 일어나 UTM까지
+    // 라운지에 갔다가 다시 튕기고**, 그 튕김이 클라이언트에서 일어나 UTM까지
     // 사라진다. 서명 검증이 불가능해서가 아니라 목적지를 바꾸지 않기로 한 결정이다 —
     // 자세한 이유는 `middleware.ts`의 `redirectAppDoor` 주석에 있다.
     const request = new NextRequest("https://hanbang.ai/?utm_source=kakao");
@@ -164,7 +168,7 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
 
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
-      "https://hanbang.ai/login?utm_source=kakao",
+      "https://hanbang.ai/landing?utm_source=kakao",
     );
   });
 
@@ -174,7 +178,34 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
     const response = await updateSession(new NextRequest("https://hanbang.ai/"));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://hanbang.ai/login");
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
+  });
+
+  it.each([
+    "/landing",
+    "/wedding-code",
+    "/price",
+    "/wedding/manners",
+    "/wedding/community/quote-check",
+    "/start-here",
+    "/wedding",
+    "/login",
+  ])("루트가 보내는 곳과 랜딩이 부르는 곳은 로그아웃에게 열려 있다 — %s", async (path) => {
+    // 루트가 `/landing` 으로 보내는데 그 `/landing` 이 보호 경로가 되면,
+    // 처음 온 사람은 `/` → `/landing` → `/login?redirect=/landing` 으로 두 번 튕긴다.
+    // 정문이 조용히 막히는 방식이고, 이걸 막는 장치가 없었다.
+    //
+    // 랜딩이 "로그인 없이 지금 열려 있다" 고 약속하는 경로들도 같이 본다 —
+    // 그 약속은 카피가 아니라 미들웨어가 지킨다.
+    //
+    // `isProtectedPath` 는 `startsWith` 라, 목록에 짧은 접두사가 하나 들어오면
+    // 여러 공개 경로가 한꺼번에 막힌다. 그래서 문자열 대조가 아니라 **동작**으로 본다.
+    mocks.getUser.mockResolvedValueOnce({ data: { user: null } });
+
+    const response = await updateSession(new NextRequest(`https://hanbang.ai${path}`));
+
+    expect(response.status, `${path} 가 로그아웃을 튕겨낸다`).toBe(200);
+    expect(response.headers.get("location"), `${path} 가 어딘가로 보낸다`).toBeNull();
   });
 
   it("갱신된 세션 쿠키를 리다이렉트에 실어 보낸다", async () => {

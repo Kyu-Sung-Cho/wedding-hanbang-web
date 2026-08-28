@@ -1,104 +1,65 @@
-import { ArrowRight } from "lucide-react";
-
-import Link from "next/link";
-
-import { landingContent, startConditions } from "./landingContent";
-import {
-  displaySection,
-  primaryActionLg,
-  secondaryLink,
-  sectionEyebrow,
-  sectionLede,
-  sectionRhythm,
-} from "./landingType";
 import TrackedLandingLink from "./TrackedLandingLink";
 
-const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
+import { BloomGarland } from "./LandingBloom";
+import { landingContent } from "./landingContent";
+import { bodyText, noteText, sectionTitle, shell } from "./notebook";
 
+/**
+ * 마무리.
+ *
+ * 첫 화면과 **같은 행동**을 부른다 — 스무 장면. 다른 걸 부르면 페이지 전체가
+ * 무엇을 시키려는 건지 흐려진다.
+ *
+ * 가입을 여기서 요구하지 않는다. 우리 후크는 로그인 없이 만져지는 것이고,
+ * 가입은 그다음에 해도 늦지 않는다.
+ *
+ * 바탕은 흰 종이다. 바로 위 섹션이 tint 라 같은 색을 쓰면 경계가 사라진다
+ * (실측으로 확인했다 — 8·9번 섹션이 둘 다 rgb(248,244,234) 였다).
+ * 흰 종이를 써서 마지막에 새 장을 편 것처럼 만든다.
+ */
 export default function ClosingAction() {
+  const { closing } = landingContent;
+
   return (
     <section
-      id="start-conditions"
-      className="relative isolate scroll-mt-20 overflow-hidden bg-ivory-blush text-[#243832]"
-      aria-labelledby="landing-closing-title"
+      className="relative overflow-hidden border-t border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] py-20 sm:py-28"
+      aria-labelledby="closing-title"
     >
-      <div
-        className="absolute -left-28 -top-40 -z-10 h-[420px] w-[420px] rounded-full border border-[#8F6662]/14"
-        aria-hidden="true"
-      />
-      <div
-        className="absolute -bottom-48 -right-24 -z-10 h-[440px] w-[440px] rounded-full border border-[#36534E]/12"
-        aria-hidden="true"
-      />
-      <div className={`${shell} ${sectionRhythm} text-center`}>
-        <p className={sectionEyebrow}>{landingContent.closing.eyebrow}</p>
-        <h2
-          id="landing-closing-title"
-          className={`mx-auto mt-4 max-w-4xl ${displaySection}`}
-        >
-          {landingContent.closing.title}
+      <BloomGarland className="pointer-events-none absolute inset-x-0 top-0 h-[150px] w-full opacity-50" />
+      <div className={`${shell} relative text-center`}>
+        <h2 id="closing-title" className={sectionTitle}>
+          {closing.title}
         </h2>
-        <p className={`mx-auto mt-6 max-w-[34rem] ${sectionLede} text-[#36534E]/82`}>
-          {landingContent.closing.body}
+        <p className={`mx-auto mt-5 max-w-[42ch] ${bodyText}`}>
+          {closing.body}
         </p>
-        {/* 조건 네 개를 한 덩어리로 버튼 앞에 쌓아 두니, 실측에서 미세문구가 섹션의
-            34.9%(1280) · 53.1%(390)를 차지하고 페이지의 마지막 행동이 접힘선 아래
-            53px(1280) · 266px(390)로 밀렸다. 지우지 않고 나눈다 — 이 버튼이 지금
-            여는 것을 설명하는 두 개는 앞에(P6: 이용 전 고지), 이 버튼이 열지 않는
-            계정에서 달라지는 것을 설명하는 두 개는 행동 뒤에 둔다. */}
-        <dl className="mx-auto mt-8 grid max-w-[46rem] gap-x-8 gap-y-4 text-left sm:grid-cols-2">
-          {startConditions.slice(0, 2).map((condition) => (
-            <div key={condition.label} className="border-t border-[#243832]/14 pt-3">
-              <dt className={sectionEyebrow}>{condition.label}</dt>
-              <dd className="mt-1 text-[12px] leading-5 text-[#243832]/76">
-                {condition.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {/* 두 링크 모두 `inline-flex`라 `mx-auto`가 아무 일도 하지 않는다. 그래서
-            둘이 같은 line box에 나란히 놓여 로그인 링크가 버튼 위로 겹쳐 있었다
-            (1280 실측). 가운데 정렬과 세로 쌓기는 부모가 책임진다. */}
-        <div className="mt-8 flex flex-col items-center gap-4">
+
+        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <TrackedLandingLink
-            href="/start-here"
-            source="landing_closing"
-            className={`${primaryActionLg} max-w-full justify-center focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
+            source="landing_closing_primary"
+            href={closing.primary.href}
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-8 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:w-auto"
           >
-            아모라와 시작하기
-            <ArrowRight className="h-4 w-4 transition-transform duration-200 motion-safe:group-hover:translate-x-1" aria-hidden="true" />
+            {closing.primary.label}
           </TrackedLandingLink>
-          <Link
-            href="/login"
-            className={`${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
+          <TrackedLandingLink
+            source="landing_closing_signup"
+            href={closing.secondary.href}
+            className="inline-flex min-h-12 w-full items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-8 text-[16px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:border-[var(--color-paper-ink)] hover:text-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:w-auto"
           >
-            계정이 있다면 로그인
-          </Link>
+            {closing.secondary.label}
+          </TrackedLandingLink>
         </div>
-        <dl className="mx-auto mt-10 grid max-w-4xl overflow-hidden border border-[#243832]/14 bg-white/34 text-left sm:grid-cols-2">
-          {startConditions.slice(2).map((condition, index) => (
-            <div
-              key={condition.label}
-              className={`p-5 sm:p-6 ${index === 0 ? "border-b border-[#243832]/10 sm:border-b-0 sm:border-r sm:border-[#243832]/10" : ""}`}
-            >
-              <dt className="text-[14px] font-semibold text-rose-700">{condition.label}</dt>
-              <dd className="mt-2 text-[14px] font-medium leading-6 text-[#243832]/76">
-                {condition.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        {/* 랜딩 전체에 회원가입으로 가는 링크가 하나도 없었다. 이 자리는
-            /beta(승인 대기열 신청)로 보내고 있었는데, 가입은 승인 관문 없이
-            열려 있으므로 기다릴 이유가 없는 사람을 대기열로 흘려보냈다. */}
-        <div className="mt-5 flex justify-center">
-          <Link
-            href="/login?mode=signup"
-            className={`${secondaryLink} focus-visible:ring-offset-4 focus-visible:ring-offset-ivory-blush`}
-          >
-            계정 만들고 시작하기
-          </Link>
-        </div>
+
+        <TrackedLandingLink
+          source="landing_closing_login"
+          href={closing.tertiary.href}
+          className={`mt-5 inline-flex min-h-11 items-center text-[14px] font-semibold text-[var(--color-paper-pen)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-pen-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none`}
+        >
+          {closing.tertiary.label}
+        </TrackedLandingLink>
+
+        <p className={`mx-auto mt-7 max-w-[52ch] ${noteText}`}>{closing.note}</p>
       </div>
     </section>
   );

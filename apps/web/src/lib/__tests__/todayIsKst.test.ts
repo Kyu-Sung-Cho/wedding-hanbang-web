@@ -44,11 +44,15 @@ const FIXED_SITES = [
     path: "src/components/onboarding/WeddingDetails.tsx",
     expected: "min={ymdInKst()}",
   },
-  {
-    label: "랜딩 예식일 입력의 최소 날짜",
-    path: "src/components/landing/redesign/TransformationHero.tsx",
-    expected: "const todayYmd = ymdInKst();",
-  },
+  // 2026-08-27: "랜딩 예식일 입력의 최소 날짜" 항목을 뺐다.
+  //
+  // 랜딩을 새 IA 로 다시 지으면서 히어로에서 **날짜 입력 자체가 없어졌다.** 첫 행동이
+  // 날짜 입력에서 "스무 장면 답하기"(`/wedding-code`)로 바뀌었기 때문이다.
+  // 지킬 자리가 없어진 것이지 규칙이 느슨해진 것이 아니다.
+  //
+  // 날짜를 받는 자리는 `/start-here` 로 옮겨졌는데 그쪽은 `min` 을 아예 걸지 않는다
+  // (지난 날짜도 받는 화면이다). KST 경계 문제가 아니라 원래 무제한 입력이므로
+  // 여기 항목으로 옮기지 않았다.
 ] as const;
 
 describe("사용자에게 보이는 '오늘'은 한국 기준이다", () => {

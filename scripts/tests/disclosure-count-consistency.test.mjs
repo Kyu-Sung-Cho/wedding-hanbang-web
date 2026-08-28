@@ -88,29 +88,68 @@ test("첫 화면·공시 허브·운영 점검이 같은 공시 규모를 말한
     `위약금 건수 불일치: 공시 허브 ${hubPolicies} vs 감사 ${auditPolicies}`,
   );
 
-  // 2026-07-29부터 루트(`/`)가 착지하는 서비스 랜딩도 같은 두 숫자를 말한다.
-  // 표면이 하나 늘었으니 대조 대상도 함께 늘린다 — 안 그러면 이 페이지만
-  // 조용히 옛 값을 주장하게 된다.
-  const servicePolicies = single(
-    servicePage,
-    /const PUBLISHED_POLICY_COUNT = (\d+);/g,
-    "서비스 랜딩 위약금 건수",
-  );
-  const serviceVendors = single(
-    servicePage,
-    /const PUBLISHED_VENDOR_COUNT = (\d+);/g,
-    "서비스 랜딩 업체 수",
-  );
+  // 2026-07-29부터 루트(`/`)가 착지하는 서비스 랜딩도 대조 대상이다.
+  //
+  // **말하지 않는 것은 위반이 아니다.** 2026-08-27 재작성에서 서비스 랜딩은 이 두 수를
+  // 화면에서 걷어냈다 — 공시 가격이 첫 화면 자산에서 "우리가 업체 편이 아니라는 증거"
+  // 곁블록으로 내려갔고, 근거 없는 수를 앞세우지 않기로 했다. 이 테스트가 지키는 것은
+  // "여러 화면이 **다른** 수를 말하는 것"이지 "모든 화면이 수를 말하는 것"이 아니다.
+  //
+  // 그래서 선언이 있으면 대조하고, 없으면 넘어간다. 다만 **한쪽만 선언한 상태**는
+  // 막는다 — 업체 수는 지웠는데 위약금 건수만 남아 있으면 그 화면은 절반의 근거로
+  // 절반의 주장을 하게 된다.
+  const optional = (source, pattern) => {
+    const matches = [...source.matchAll(pattern)];
+    assert.ok(matches.length <= 1, "서비스 랜딩이 같은 수를 두 번 선언한다");
+    return matches.length === 1 ? Number(matches[0][1]) : null;
+  };
+  const servicePolicies = optional(servicePage, /const PUBLISHED_POLICY_COUNT = (\d+);/g);
+  const serviceVendors = optional(servicePage, /const PUBLISHED_VENDOR_COUNT = (\d+);/g);
+
   assert.equal(
-    servicePolicies,
-    auditPolicies,
-    `위약금 건수 불일치: 서비스 랜딩 ${servicePolicies} vs 감사 ${auditPolicies}`,
+    servicePolicies === null,
+    serviceVendors === null,
+    "서비스 랜딩이 두 수 중 하나만 선언했다"
+      + ` (위약금 ${servicePolicies}, 업체 ${serviceVendors})`
+      + " — 둘 다 말하거나 둘 다 말하지 않아야 한다",
   );
-  assert.equal(
-    serviceVendors,
-    landingVendors,
-    `업체 수 불일치: 서비스 랜딩 ${serviceVendors} vs 첫 화면 ${landingVendors}`,
-  );
+
+  if (servicePolicies !== null) {
+    assert.equal(
+      servicePolicies,
+      auditPolicies,
+      `위약금 건수 불일치: 서비스 랜딩 ${servicePolicies} vs 감사 ${auditPolicies}`,
+    );
+    assert.equal(
+      serviceVendors,
+      landingVendors,
+      `업체 수 불일치: 서비스 랜딩 ${serviceVendors} vs 첫 화면 ${landingVendors}`,
+    );
+  }
+});
+
+test("서비스 랜딩이 상수 밖에서 공시 규모를 주장하지 않는다", () => {
+  // 위 테스트를 "선언이 있으면 대조" 로 바꾸면서 생긴 빈틈을 막는다.
+  // 상수를 지우고 본문에 숫자를 손으로 적으면 대조를 통째로 우회할 수 있다 —
+  // 실제로 이 저장소에서 랜딩 406 vs 공시 허브 829 로 두 화면이 갈린 적이 있다.
+  const files = [
+    "apps/web/src/app/landing/page.tsx",
+    "apps/web/src/components/landing/redesign/landingContent.ts",
+  ];
+  for (const relativePath of files) {
+    const source = read(relativePath);
+    // 주석은 뺀다 — 왜 숫자를 안 쓰는지 설명하려면 그 숫자를 적어야 한다.
+    const copy = source
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/[^\n]*/g, "");
+    const claims = [...copy.matchAll(/(\d[\d,]{2,})\s*(곳|건|개)(?![월])/g)].map((m) => m[0]);
+    assert.deepEqual(
+      claims,
+      [],
+      `${relativePath} 가 공시 규모를 손으로 적었다: ${claims.join(", ")}`
+        + " — 수를 말하려면 PUBLISHED_* 상수로 선언해 대조를 받아야 한다",
+    );
+  }
 });
 
 test("업체 수는 위약금 공시 업체로만 쓴다", () => {
