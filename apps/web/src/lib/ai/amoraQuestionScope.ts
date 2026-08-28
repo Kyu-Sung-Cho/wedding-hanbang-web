@@ -191,8 +191,58 @@ const SOCIAL_CARE_PATTERN =
 const BARE_STATE_MUTATION_PATTERN =
   /^\s*예산\s*(?:을|를|이|가|은|는)?\s*(?:변경|수정|바꿔|바꾸|추가|삭제|지워|없애)?\s*(?:해\s*주세요|해\s*줘|하고\s*싶어|해|줘)?\s*[.!?]*\s*$/u;
 
+/**
+ * `예산` 바로 앞에 **다른 화제의 명사**가 붙어 있는가.
+ *
+ * 정본 분기는 화제를 보지 않아서 `자퇴 예산 보여줘`·`게임 예산 얼마나 잡아야 해?`
+ * 가 결혼 예산 도구와 커플 저장 문맥을 받았다. 제외 목록으로는 닫을 수 없다 —
+ * 결혼이 아닌 화제의 집합에는 끝이 없다.
+ *
+ * 그래서 반대로 뒤집었다. `예산` 을 꾸미는 말은 **닫힌 집합**이다:
+ * 수량·범위를 가리키는 몇 낱말, 몇 개의 부사, 그리고 결혼 낱말. 그 밖의 명사가
+ * 앞에 오면 다른 분야의 예산이다.
+ *
+ * 첫머리의 `예산` 은 여기 걸리지 않는다 — `예산 보여줘`, `예산 현황 알려줘` 는
+ * 이 앱의 본래 기능이고 기존 계약이 W0 으로 고정하고 있다.
+ */
+const BUDGET_MODIFIER_ALLOWLIST = new Set([
+  "전체", "총", "우리", "남은", "이번", "다음", "현재", "항목별", "지금",
+  "다시", "그럼", "근데", "그런데", "이제", "아직", "좀", "한번", "대략",
+  "예상", "초기", "최종", "실제", "남는", "쓸",
+]);
+
+function budgetBelongsToAnotherTopic(text: string): boolean {
+  const match = /([가-힣]{1,8})\s*예산/u.exec(text);
+  if (match === null) return false;
+  const modifier = match[1];
+  if (BUDGET_MODIFIER_ALLOWLIST.has(modifier)) return false;
+  if (
+    WEDDING_CORE_SIGNAL_PATTERN.test(modifier)
+    || WEDDING_ADJACENT_PATTERN.test(modifier)
+  ) {
+    return false;
+  }
+  // 바로 앞이 아니어도 **같은 절 안에** 결혼 낱말이 있으면 결혼 예산이다 —
+  // `신혼집 인테리어 예산 보여줘` 의 꾸미는 말은 `인테리어` 지만 이건 신혼집
+  // 이야기다. 절을 넘지 않으므로 "이건 결혼 얘기야. 자퇴 예산 짜줘" 는 못 넘는다.
+  return !WEDDING_STATE_PHRASE_PATTERN.test(text);
+}
+
+/**
+ * `예산` 은 **앞에 다른 화제 명사가 없을 때만** 결혼 예산으로 본다.
+ *
+ * 처음에는 맨 `예산` 을 넣었다. 내가 고른 반례 26개로는 유출이 0이었는데,
+ * 그 26개가 전부 가드 목록(`여행`·`회사`·`이사`·`유학`…)에 이미 있는 화제였다.
+ * 목록에 **없는** 화제 25종으로 다시 재니 200건 중 168건이 W0 이 됐다:
+ *
+ *     자퇴 예산 짜줘 / 게임 예산 보여줘 / 도박 빚 예산 얼마나 잡아야 해?
+ *
+ * 유출 문장은 하나같이 `<화제 명사> 예산` 이고, 살려야 할 운영 문장은 하나같이
+ * 문장 첫머리이거나 결혼 대화에서 쓰는 앞말이 붙어 있다. 그래서 낱말을 더
+ * 늘리는 대신 **자리**를 조건에 넣었다 — 제외 목록으로는 닫을 수 없다.
+ */
 const LATE_WEDDING_PREP_SIGNAL_PATTERN =
-  /대관료|예산/u;
+  /대관료|(?:^|[.!?]\s*|(?:그럼|근데|그런데|우리|남은|전체|총|이제|아직|항목별|다시|올해|내년)\s+)예산/u;
 /**
  * `LATE_WEDDING_PREP_SIGNAL_PATTERN` 전용 제외 목록. **기존
  * `NON_WEDDING_DOMAIN_HINT_PATTERN` 을 넓히지 않는다** — 그 목록은 위쪽
@@ -525,6 +575,8 @@ export function classifyAmoraQuestionScope({
   // 결혼 낱말이 함께 있으면 그대로 둔다 — "예식장 근처 병원 일정 알려줘" 의
   // `병원` 때문에 정본 경로가 끊기면 안 된다.
   const canonicalTopicIsElsewhere =
+    budgetBelongsToAnotherTopic(normalizedText)
+    ||
     (
       NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
       || LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText)
