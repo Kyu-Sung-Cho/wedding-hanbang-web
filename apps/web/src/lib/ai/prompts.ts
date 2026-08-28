@@ -2,6 +2,10 @@ import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { resolveStatusByKey } from "@/utils/checklist";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import {
+  computePreparationPriorities,
+  EARLY_STARTING_POINTS,
+} from "@/lib/marketing/preparationPriorities";
 import { getMarketPriceContext } from "@/constants/marketPrices";
 import { getHiddenCostContext } from "@/constants/hiddenCosts";
 import { getVendorAsymmetryContext } from "@/constants/vendorAsymmetry";
@@ -571,6 +575,89 @@ ${CHECKLIST_CHECK_POINTS}
 - 금액·기간 수치나 법령 이름을 붙이지 마세요. 업체·계약마다 다르고 틀리면 그게 사고입니다.`
     : "";
 
+  /**
+   * "뭐부터 해야 하나요"의 답. **제품이 이미 계산해서 화면에 보여주는 것과 같은 것.**
+   *
+   * ## 왜 필요한가
+   *
+   * 2026-08-27 팀 테스트에서 "결혼 준비를 뭐부터 해야 할지 하나도 모르겠어요" 에
+   * 아모라가 **"날짜와 예산 중 어느 쪽인가요?" 질문 하나**로 답했다. 재현했더니
+   * 그대로였다.
+   *
+   * 이건 계약문의 억제 규칙("부담이 가장 작은 질문 하나만") 때문이 아니다. 그 규칙의
+   * 조건은 "막힌 지점이 아직 흐리면" 인데, **"뭐부터?" 는 흐린 것이 아니라 명확한
+   * 요청**이다 — 순서를 알려달라는. 같은 계약문의 `실행` 역할이 "할 일이 분명하면
+   * 필요한 정보를 바로 주세요" 라고 말한다.
+   *
+   * 진짜 이유는 **아모라에게 그 답이 없었다는 것**이다. `/start-here` 화면은
+   * 결혼일 하나로 "지금 볼 세 가지" 를 계산해 보여주는데(`computePreparationPriorities`),
+   * 그 계산이 프롬프트에 실리지 않았다. 위 `CHECKLIST_CHECK_POINTS` 가 같은 이유로
+   * 이미 한 번 추가됐다 — "같은 제품 안에 답이 있는데도 일반론으로 답했다".
+   * 확인 포인트는 그때 고쳐졌고 **순서는 안 고쳐졌다.**
+   *
+   * ## 무엇이 실리는가
+   *
+   * 화면과 **같은 함수**를 쓴다. 두 곳이 각자 계산하면 대화와 앱이 서로 다른 3가지를
+   * 말하게 된다 — 그 드리프트를 막으려고 랜딩과 `/start-here` 가 이미 이 함수를
+   * 공유하고 있다.
+   *
+   * 순수 함수라 네트워크·DB·인증이 없고, 결혼일이 없으면 아무것도 싣지 않는다.
+   */
+  const preparationOrderSection = (() => {
+    if (!context.weddingDate) return "";
+    const dday = daysUntilWedding(context.weddingDate, Date.now());
+    if (dday === null || dday < 0) return "";
+    const { activeNow, visiblePriorities } = computePreparationPriorities(dday);
+    if (visiblePriorities.length === 0) return "";
+    /**
+     * **화면과 같은 분기를 탄다.** `/start-here` 는 시작점을 지난 항목이 하나도 없으면
+     * (`activeNow.length === 0`) 항목 이름 대신 `EARLY_STARTING_POINTS` 를 보여준다 —
+     * 그 구간에서 항목을 나열해도 전부 "아직 안 해도 되는 것" 이라 도움이 안 되기 때문이다.
+     *
+     * 이 분기를 안 맞추면 결혼일이 먼 사용자에게 **대화와 화면이 서로 다른 세 가지**를
+     * 말한다. 처음 쓸 때 실제로 그랬다.
+     */
+    const lines = activeNow.length === 0
+      ? EARLY_STARTING_POINTS
+        .map((point, index) => `${index + 1}. ${point.title}\n   · ${point.body}`)
+        .join("\n")
+      : visiblePriorities
+        .map((priority, index) => {
+          // `daysUntilStart` 는 **지금부터** 시작점까지 남은 날이다. "예식 N개월 뒤"로
+          // 읽히게 쓰면 시점이 반대로 뒤집힌다.
+          const months = Math.max(1, Math.round(priority.daysUntilStart / 30));
+          const timing = priority.started
+            ? "지금 확인할 때"
+            : `아직 시작 전 — 앞으로 ${months}개월쯤 뒤부터`;
+          const steps = priority.firstSteps
+            .slice(0, 2)
+            .map((step) => `   · ${step}`)
+            .join("\n");
+          return `${index + 1}. ${priority.label} (${timing})\n${steps}`;
+        })
+        .join("\n");
+    const heading = activeNow.length === 0
+      ? "## 아직 이르면 먼저 맞출 기준 3가지"
+      : "## 지금 확인할 준비 3가지";
+    return `
+
+${heading}
+
+사용자가 **"뭐부터 해야 하나요", "어디서부터", "순서를 모르겠어요"** 처럼 시작점을 물으면
+아래 세 가지로 답하세요. 이건 앱의 준비 화면이 같은 결혼일로 계산해 보여주는 것과 **같은
+목록**이라, 여기서 답하면 대화와 화면이 같은 말을 하게 됩니다.
+
+${lines}
+
+- 일반론("보통 날짜부터 정해요")으로 답하지 말고 **이 세 가지를 이름으로** 말하세요.
+- 세 가지를 한꺼번에 쏟지 말고, 지금 가장 급한 하나를 짚고 나머지는 이름만 짧게 붙이세요.
+  묻지 않은 전체 체크리스트나 월별 계획표를 펼치지 마세요.
+- 사용자가 "둘 다 모르겠어요", "그것도 모르겠어요" 라고 하면 되묻지 말고 **첫 번째 항목의
+  첫 걸음 한 가지**를 그대로 제안하세요. 시작점을 못 정하는 것이 막막함의 내용입니다.
+- 이 목록은 결혼일만으로 계산한 **기본 순서**입니다. 사용자가 이미 끝낸 것, 안 하기로 한
+  것이 있으면 그 말을 우선하세요.`;
+  })();
+
   // 총 지출 + 배정 예산 계산
   //
   // 예산 화면과 **같은 것을 센다**(BudgetContent 의 totalSpent/totalAllocated):
@@ -1016,7 +1103,7 @@ ${preparationInstruction}
 
 ## 커플 상황
 ${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
-${categoryStatus}${checkPointsSection}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
+${categoryStatus}${checkPointsSection}${preparationOrderSection}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
 
 ## 아모라의 사고방식
 

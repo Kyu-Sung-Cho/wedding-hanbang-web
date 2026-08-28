@@ -72,6 +72,32 @@ function compareStartedByUrgency(
  *             지난 날짜에 "지금 알아볼 것"을 말하면 틀린 안내가 된다.
  * @param skipped 사용자가 "우린 안 해요"로 뺀 항목. 랜딩에는 이 선택이 없다.
  */
+/**
+ * 아직 어떤 항목도 기본 확인 시작점을 지나지 않았을 때 보여줄 세 가지.
+ *
+ * `computePreparationPriorities` 가 `activeNow` 를 비워 돌려주는 구간(결혼일이 아주 먼
+ * 경우)에서 쓴다. 그때는 항목 이름을 나열해도 "아직 안 해도 되는 것" 뿐이라, 두 사람이
+ * 먼저 맞출 **기준**을 준다.
+ *
+ * 이 상수는 `/start-here` 화면 안에만 있었다. 아모라 프롬프트가 같은 구간에서 다른
+ * 세 가지를 말하면 대화와 화면이 어긋나므로 여기로 옮겨 공유한다 — 위
+ * `computePreparationPriorities` 를 공유한 것과 같은 이유다.
+ */
+export const EARLY_STARTING_POINTS = [
+  {
+    title: "편안한 예산 범위",
+    body: "얼마까지 쓰는 게 편안한지 상한선부터 이야기해요.",
+  },
+  {
+    title: "초대할 사람의 범위",
+    body: "꼭 함께하고 싶은 사람부터 떠올려요.",
+  },
+  {
+    title: "원하는 크기와 분위기",
+    body: "작고 편안하게 할지, 많은 사람과 축하할지 기준을 맞춰요.",
+  },
+] as const;
+
 export function computePreparationPriorities(
   dday: number | null,
   { skipped }: { skipped?: ReadonlySet<string> } = {},
