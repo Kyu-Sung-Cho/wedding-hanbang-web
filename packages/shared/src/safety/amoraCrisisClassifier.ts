@@ -474,9 +474,30 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   const knownOtherReportsReporterSelfHarm = new RegExp(
     `(?:^|[\\s,.!?])${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도)\\s*[^\\n.!?]{0,20}${REPORTER_ACTOR_PATTERN.source}\\s*[^\\n.!?]{0,40}(?:죽\\s*고\\s*싶|죽겠|그만\\s*살고\\s*싶|사라지고\\s*싶|자살|자해)`,
   );
-  const otherInterpersonalDanger = new RegExp(
-    `${PARTNER_PATTERN.source}(?:가|이|는|은)?\\s*.{0,48}(?:(?:칼|흉기).{0,24}(?:협박|위협|들고)|(?:협박|위협|때리|폭행|감금|가둬|가뒀|가둔|가두)|(?:휴대폰|전화기).{0,20}뺏.{0,24}(?:집|방|차).{0,12}(?:가둬|가뒀|가둔)|(?:집|문)\\s*앞.{0,28}기다리.{0,28}(?:계속\\s*)?(?:따라오|따라와|쫓아오)|차로.{0,20}${REPORTER_TARGET_PATTERN.source}\\s*.{0,12}들이받(?:으려|으려고|을\\s*거))`,
+  // 신체 위험을 뜻하지 않는 "협박"의 목적어. 결혼 준비에서 일상적으로 쓰인다 —
+  // "이혼한다고 협박", "파혼한다고 협박", "위약금으로 협박". 이런 문장에 112·119
+  // 응급 안내를 내보내면 사실이 아닐 뿐 아니라, 이 경로는 원문을 저장도 전송도
+  // 하지 않으므로 **사용자가 쓴 글이 사라진다**.
+  const nonPhysicalThreatObject =
+    /(?:이혼|파혼|헤어지|결혼\s*(?:안|못)|취소|파기|소송|고소|신고|위약금|환불|계약|해지|잠수|연락\s*(?:안|끊)|다이어트|담배|술)/;
+  // 화자를 목적어로 잡되 **조사를 요구한다.** 조사 없이 두면 `날짜`의 `날`,
+  // `저녁`의 `저` 같은 부분일치가 걸린다 — 실제로 "날짜 안 바꾸면 결혼 못 시킨다고
+  // 협박하세요" 가 그렇게 즉시위기로 확정됐다.
+  const reporterObjectBound = /(?:(?:나|저)(?:를|한테|에게|더러|보고)|날(?=\s)|절(?=\s))/;
+  // 협박·위협은 그 자체로 신체 위험이 아니다. 같은 정규식의 다른 갈래
+  // (`칼|흉기`, `차로 … 들이받`)는 이미 문맥이나 목적어를 요구하는데 이 갈래만
+  // 아무것도 요구하지 않아서, 파트너 호칭이 어디든 들어 있으면 확정됐다.
+  // 그래서 **화자가 대상일 때만** 여기서 잡는다. 흉기·살해 협박은 위 갈래와
+  // `currentReporterTargetDanger` 가 이미 덮는다.
+  const threatAtReporter = new RegExp(
+    `${PARTNER_PATTERN.source}(?:가|이|는|은)?\\s*.{0,32}${reporterObjectBound.source}\\s*.{0,16}(?:협박|위협)`,
   );
+  const otherInterpersonalDanger = new RegExp(
+    `${PARTNER_PATTERN.source}(?:가|이|는|은)?\\s*.{0,48}(?:(?:칼|흉기).{0,24}(?:협박|위협|들고)|(?:때리|폭행|감금|가둬|가뒀|가둔|가두|폭력(?:을|를)?\\s*(?:쓰|썼|행사|휘두))|(?:휴대폰|전화기).{0,20}뺏.{0,24}(?:집|방|차).{0,12}(?:가둬|가뒀|가둔)|(?:집|문)\\s*앞.{0,28}기다리.{0,28}(?:계속\\s*)?(?:따라오|따라와|쫓아오)|차로.{0,20}${REPORTER_TARGET_PATTERN.source}\\s*.{0,12}들이받(?:으려|으려고|을\\s*거))`,
+  );
+  // 화자를 향한 협박이라도 목적어가 이혼·위약금 같은 비신체 사안이면 응급이 아니다.
+  const reporterThreatIsPhysical =
+    threatAtReporter.test(text) && !nonPhysicalThreatObject.test(text);
   const otherInterpersonalDangerAction: AmoraSafetyAction = /칼|흉기/.test(text)
     ? "weapon_threat"
     : /따라오|따라와|쫓아오|스토킹/.test(text)
@@ -991,6 +1012,7 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
 
   if (
     otherInterpersonalDanger.test(text)
+    || reporterThreatIsPhysical
     || currentReporterTargetDanger.test(text)
   ) {
     return {

@@ -83,7 +83,7 @@ const BENIGN_WEDDING_IDIOMS: readonly RegExp[] = [
   /\bsuicide\s+squad\b/gi,
   // "hit me up" / "beat me at cards" / "that hit me hard" — 폭력이 아니다.
   // 셋 다 처음 만든 반례에는 없었고, 반례를 어렵게 만든 뒤에야 드러났다.
-  /\bhits?\s+me\s+up\b/gi,
+  /\bhit(?:s|ting)?\s+me\s+up\b/gi,
   /**
    * **이 둘은 원래 넓었고, 진짜 폭력 서술을 지우고 있었다.**
    *
@@ -96,9 +96,11 @@ const BENIGN_WEDDING_IDIOMS: readonly RegExp[] = [
    */
   /\bhit\s+me\s+with\s+(?:a|an|the|another)?\s*(?:huge|big|massive|hefty|surprise|unexpected|another|\d+)?\s*(?:quote|bill|invoice|fee|charge|estimate|price|number|news|question|update|idea|request|surcharge|guests?|people|changes?|demands?)\b/gi,
   /\b(?:that|this|it|the\s+news|news|the\s+cost|reality)\s+hit\s+me\s+hard\b/gi,
-  /\bbeat\s+me\s+(?:at|to|by|in)\b/gi,
+  /\bbeat(?:s|ing)?\s+me\s+(?:at|to|by|in)\b/gi,
   /\bhits?\s+the\s+(?:gym|road|floor|bar|slopes|books|hay)\b/gi,
   /\bslapped\s+me\s+on\s+the\s+back\b/gi,
+  /\bdomestic\s+(?:violence|abuse)\s+(?:awareness|charity|charities|organi[sz]ation|nonprofit|shelter|hotline|helpline|campaign|fundraiser|foundation|month|prevention|survivors?)\b/gi,
+  /\b(?:awareness|charity|donation|fundraiser|campaign|shelter|hotline)\b[^.!?]{0,32}\bdomestic\s+(?:violence|abuse)\b/gi,
   // 업체가 비용을 "때린다" 는 영어 관용구. "They slapped me with a huge
   // cancellation fee" 가 폭력으로 나갔다.
   /\b(?:slapped|hit|stuck|charged)\s+me\s+with\s+(?:a|an|the)?\s*[^.!?]{0,24}(?:fee|charge|bill|invoice|penalty|surcharge|cost|deposit|quote)\b/gi,
@@ -200,13 +202,15 @@ const INTERPERSONAL_DANGER: readonly RegExp[] = [
   // 능동형만 있어서 "I was raped last night" 이 안 걸렸다.
   /\b(?:rap(?:e|ed|ing))\s+me\b/i,
   /\bi\s+(?:was|got)\s+(?:rap(?:ed)|sexually\s+assaulted|assaulted|attacked|beaten|strangled)\b/i,
+  /\bi\s+(?:am|'m|was|have\s+been)\s+being\s+(?:(?:physically|emotionally|verbally|sexually)\s+)*(?:abused|assaulted|beaten|hurt|hit)\b/i,
   /\b(?:sexually\s+)?assault(?:ed)?\s+me\b/i,
   /\bforced\s+me\s+to\s+have\s+sex\b/i,
   /\bthreaten(?:ed|s)?\s+to\s+kill\s+(?:me|us)\b/i,
   // "He said he would kill me" · "he's going to kill me" — 위협의 전달 형태.
-  /\b(?:he|she|they)\s+(?:said|told\s+me)\b[^.!?]{0,30}\b(?:would|will|'ll|is\s+going\s+to|gonna)\s+(?:kill|hurt|beat)\s+(?:me|us)\b/i,
+  /\b(?:he|she|they)\s+(?:said|told\s+me)\b[^.!?]{0,30}\b(?:would|will|'ll|'d|is\s+going\s+to|gonna)\s+(?:kill|hurt|beat)\s+(?:me|us)\b/i,
   /\b(?:he|she|they)(?:'s|\s+is|\s+was)\s+going\s+to\s+(?:kill|hurt|beat|attack)\s+(?:me|us)\b/i,
   /\bthreaten(?:ed|s)?\s+me\s+with\s+(?:a\s+)?(?:knife|gun|weapon|bat|scissors)\b/i,
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse))\s+(?:keeps?|kept|is|'s|was|has\s+been)\s+threaten(?:ing|ed|s)?\s+(?:me|us)\b/i,
   /\b(?:pulled|held)\s+a\s+(?:knife|gun)\s+on\s+me\b/i,
   /**
    * **주어를 사람으로 못박는다.** 원래는 주어를 안 봐서 업체가 주어인 평범한
@@ -221,7 +225,7 @@ const INTERPERSONAL_DANGER: readonly RegExp[] = [
   /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?))\b[^.!?]{0,20}\block(?:s|ed)\s+me\s+in(?:side)?\b/i,
   /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?))\b[^.!?]{0,20}(?:won'?t|wouldn'?t|doesn'?t|does\s+not)\s+let\s+me\s+(?:leave|go\s+out|see\s+(?:my|anyone))\b/i,
   /\b(?:afraid|scared|terrified)\s+(?:that\s+)?(?:he|she|they)\s+(?:will|'ll|might|is\s+going\s+to|would)\s+(?:hurt|kill|hit|attack)\s+(?:me|us)\b/i,
-  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse))\s+(?:is|'s|was|has\s+been)\s+(?:physically\s+|emotionally\s+|verbally\s+|sexually\s+)?abusive\b/i,
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse))\s+(?:is|'s|was|has\s+been)\s+(?:(?:physically|emotionally|verbally|sexually|financially)\s+(?:and\s+)?)*abusive\b/i,
   /\bdomestic\s+(?:violence|abuse)\b/i,
 ];
 
