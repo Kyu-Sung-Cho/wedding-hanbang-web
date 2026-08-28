@@ -215,6 +215,12 @@ function budgetBelongsToAnotherTopic(text: string): boolean {
   const match = /([가-힣]{1,8})\s*예산/u.exec(text);
   if (match === null) return false;
   const modifier = match[1];
+  // 조사로 끝나면 꾸미는 말이 아니라 앞 구절의 꼬리다. 이걸 빼지 않으면
+  // "합계 3,500만 원을 예산표에 새로 등록해 줘" 의 `원을` 이 화제로 잡혀
+  // 멀쩡한 예산 요청이 범위 밖으로 떨어진다(기존 테스트가 잡아냈다).
+  if (/(?:을|를|이|가|은|는|에|의|로|와|과|도|만|께|서|나)$/u.test(modifier)) {
+    return false;
+  }
   if (BUDGET_MODIFIER_ALLOWLIST.has(modifier)) return false;
   if (
     WEDDING_CORE_SIGNAL_PATTERN.test(modifier)
@@ -242,7 +248,7 @@ function budgetBelongsToAnotherTopic(text: string): boolean {
  * 늘리는 대신 **자리**를 조건에 넣었다 — 제외 목록으로는 닫을 수 없다.
  */
 const LATE_WEDDING_PREP_SIGNAL_PATTERN =
-  /대관료|(?:^|[.!?]\s*|(?:그럼|근데|그런데|우리|남은|전체|총|이제|아직|항목별|다시|올해|내년)\s+)예산/u;
+  /대관료|예산\s*(?:항목|표)|(?:^|[.!?]\s*|(?:그럼|근데|그런데|우리|남은|전체|총|이제|아직|항목별|다시|올해|내년)\s+)예산/u;
 /**
  * `LATE_WEDDING_PREP_SIGNAL_PATTERN` 전용 제외 목록. **기존
  * `NON_WEDDING_DOMAIN_HINT_PATTERN` 을 넓히지 않는다** — 그 목록은 위쪽
@@ -680,7 +686,10 @@ export function classifyAmoraQuestionScope({
     LATE_WEDDING_PREP_SIGNAL_PATTERN.test(normalizedText)
     && !NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
     && !LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText)
-    && !BARE_STATE_MUTATION_PATTERN.test(normalizedText);
+    && !BARE_STATE_MUTATION_PATTERN.test(normalizedText)
+    // `예산 항목`·`예산표` 갈래에도 같은 화제 필터가 필요하다 —
+    // "자퇴 예산 항목별로 정리해줘" 가 여기로 새어 나갔다.
+    && !budgetBelongsToAnotherTopic(normalizedText);
   if (lateWeddingPrep) {
     return {
       scope: "W0_wedding_core",
