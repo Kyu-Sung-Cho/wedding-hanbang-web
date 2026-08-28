@@ -80,12 +80,14 @@ describe("가입 동의", () => {
     expect(hrefs).toContain("/privacy");
     expect(container.textContent).toContain("이용약관 동의");
     expect(container.textContent).toContain("개인정보 처리방침 동의");
+    // 만 14세 확인도 필수 항목이다(개인정보보호법 제22조의2).
+    expect(container.textContent).toContain("만 14세 이상입니다");
     expect(container.textContent).toContain("[필수]");
     // 버튼이 아니라 체크박스로 읽혀야 한다.
-    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(4);
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(5);
   });
 
-  it("동의 전에는 잠기고, 필수 2개만 체크하면 열린다 — 마케팅은 선택이다", async () => {
+  it("동의 전에는 잠기고, 필수 3개만 체크하면 열린다 — 마케팅은 선택이다", async () => {
     await act(async () => root.render(<LoginPage />));
 
     // 이름·비밀번호를 채운다
@@ -110,6 +112,7 @@ describe("가입 동의", () => {
 
     await toggleConsent(container, "terms");
     await toggleConsent(container, "privacy");
+    await toggleConsent(container, "age14");
 
     expect(container.querySelector('button[type="submit"]')?.hasAttribute("disabled"))
       .toBe(false);
@@ -135,6 +138,7 @@ describe("가입 동의", () => {
 
     await toggleConsent(container, "terms");
     await toggleConsent(container, "privacy");
+    await toggleConsent(container, "age14");
     await click(findButton(container, "Google"));
 
     expect(mocks.signInWithOAuth).toHaveBeenCalledTimes(1);

@@ -437,11 +437,17 @@ export default function OnboardingPage() {
         </div>
 
         {/* 스텝 인디케이터 */}
+        {/*
+          진행 표시는 **한 벌만** 그린다. 여기 두 벌이 형제로 나란히 있어서,
+          초대 코드로 합류하는 사람에게 "2단계 중 2번째"(coupleAction 판)와
+          "5단계 중 2번째"(조건부 판)가 동시에 보였다. 제품에서 처음 보는
+          화면에서 남은 단계가 몇 개인지 알 수 없었고, 실제로는 2단계에서
+          끝나므로 세 단계를 더 기다리다 갑자기 끝난 것처럼 느낀다.
+
+          남긴 쪽은 coupleAction 을 받는 판이다 — 합류 흐름의 실제 단계 수를
+          아는 것은 이쪽뿐이다(JOIN_VISIBLE_STEPS).
+        */}
         <StepIndicator currentStep={store.currentStep} coupleAction={store.coupleAction} />
-        {/* 중립 준비 공간은 첫 가치를 막는 역할·상세 스텝을 건너뛴다. */}
-        {capabilitiesResolved && !neutralPreparationSpaceEnabled && (
-          <StepIndicator currentStep={store.currentStep} />
-        )}
 
         {/* 카드 */}
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">

@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -183,6 +184,29 @@ export async function updateSession(request: NextRequest) {
       ? buildCustomerGateRedirect(request, "/login")
       : request.nextUrl.clone();
     if (protectedType === "admin") url.pathname = "/admin/login";
+    return NextResponse.redirect(url);
+  }
+
+  // 동의 관문이 온보딩보다 **먼저** 와야 한다.
+  //
+  // 소셜 로그인은 Supabase 가 계정을 직접 만들기 때문에 동의 기록이 없다. 그런
+  // 계정이 다시 들어오면 아래 온보딩 검사가 `/wedding/onboarding` 으로 돌려세우는데,
+  // 온보딩은 `(auth)` 라우트 그룹이라 `AuthenticatedAppShell`·`(community)/layout`
+  // 의 동의 관문 밖이다. 그래서 관문을 하나도 지나지 않은 채 온보딩을 처음부터 끝까지
+  // 채우고, 저장을 누르면 `/api/onboarding` 이 `SIGNUP_CONSENT_REQUIRED` 로 400 을
+  // 낸다. 화면은 그 문장을 빨간 한 줄로만 그리고 갈 곳을 알려주지 않는다 —
+  // 다시 눌러도 같은 결과이고, 사실상 첫 실행이 거기서 끝난다.
+  //
+  // 동의 화면 자체는 지나보낸다. 막으면 동의할 방법이 사라진다.
+  // 가려던 곳은 `redirect` 로 넘긴다 — 동의를 마친 사람을 처음 자리로 돌려보낸다.
+  if (
+    protectedType === "customer"
+    && pathname !== SIGNUP_CONSENT_PATH
+    && !hasRecordedSignupConsent(user.user_metadata)
+  ) {
+    const url = request.nextUrl.clone();
+    url.pathname = SIGNUP_CONSENT_PATH;
+    url.search = `?redirect=${encodeURIComponent(pathname)}`;
     return NextResponse.redirect(url);
   }
 

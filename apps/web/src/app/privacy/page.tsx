@@ -23,7 +23,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 22일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 28일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -62,6 +62,22 @@ export default function PrivacyPage() {
                 </ul>
               </div>
             </div>
+          </section>
+
+          {/*
+            방침 전문에 "14세"·"법정대리인"·"아동" 이 한 번도 없었다. 가입 동의에도
+            연령 항목이 없어, 만 14세 미만이 가입해도 아무것도 걸러지지 않았다.
+            생년월일을 새로 수집하지 않고 확인 항목으로 거른다 — 거르는 데 필요하지
+            않은 정보를 더 받는 것은 최소수집 원칙에 어긋난다.
+          */}
+          <section>
+            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제1조의2 (만 14세 미만 아동의 개인정보)</h2>
+            <ol className="list-decimal pl-5 space-y-2">
+              <li>웨딩한방은 만 14세 이상만 이용할 수 있습니다. 회원은 가입할 때 만 14세 이상임을 확인하며, 그 확인 여부와 시각을 계정에 기록합니다.</li>
+              <li>운영자는 만 14세 미만 아동의 개인정보를 수집하지 않습니다. 「개인정보 보호법」 제22조의2가 요구하는 법정대리인 동의 절차를 제공하지 않기 때문입니다.</li>
+              <li>만 14세 미만임이 확인된 계정은 지체 없이 삭제하고 수집된 개인정보를 파기합니다. 법정대리인은 고객센터로 해당 계정의 확인과 삭제를 요청하실 수 있습니다.</li>
+              <li>운영자는 생년월일을 수집하지 않습니다.</li>
+            </ol>
           </section>
 
           <section>
@@ -145,9 +161,73 @@ export default function PrivacyPage() {
                 </tbody>
               </table>
             </div>
-            <p className="mt-3 text-[13px] text-taupe-500">
-              위 수탁 업체는 국외에 서버를 두고 있어, 서비스를 이용하시면 개인정보가 국외로 이전됩니다. 이전받는 자의 연락처, 이전되는 국가와 시기·방법, 이전 항목과 이용 목적, 보유·이용 기간을 담은 국외 이전 고지는 준비 중이며 확정되는 대로 이 방침에 반영합니다. 국외 이전을 원하지 않으시면 서비스 이용을 중단하고 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 계정 삭제를 요청하실 수 있습니다.
-            </p>
+            {/*
+              여기에는 "국외 이전 고지는 준비 중이며 확정되는 대로 반영합니다" 만
+              있었다. 그런데 이전은 **이미 일어나고 있다** — 위 표의 수탁사 중
+              PostHog·Sentry 는 미국 엔드포인트를 쓰고(운영 응답의 CSP 에
+              `us.i.posthog.com`·`ingest.us.sentry.io` 가 그대로 있다), 운영
+              데이터베이스는 인도 리전이다. 준비 중이라고 적어 둔 채 이전하는 것은
+              개인정보보호법 제28조의8 이 요구하는 사전 고지가 아니다.
+
+              그래서 법이 요구하는 항목을 채운다. **확인한 것만 적는다** —
+              각 수탁사의 개인정보 보호 담당 연락처는 저장소·운영 어디에도 근거가
+              없어 지어내지 않았고, 그 항목만 별도로 남겨 두었다.
+            */}
+            <div className="mt-4">
+              <h3 className="text-[14px] font-medium text-noir-800 mb-2">국외 이전에 관한 고지</h3>
+              <p className="text-[13px] text-charcoal">
+                위 수탁 업체는 국외에 서버를 두고 있어, 서비스를 이용하시면 개인정보가 국외로 이전됩니다. 이전은 회원이 서비스를 이용하는 시점에 암호화된 통신(HTTPS)으로 자동으로 이루어지며, 별도의 저장 매체를 통한 이전은 없습니다.
+              </p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="w-full text-[13px] border-collapse">
+                  <thead>
+                    <tr className="border-b border-black/[0.06]">
+                      <th className="py-2 text-left font-medium text-noir-800">이전받는 자</th>
+                      <th className="py-2 text-left font-medium text-noir-800">이전되는 국가</th>
+                      <th className="py-2 text-left font-medium text-noir-800">이전 항목</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-charcoal">
+                    <tr className="border-b border-black/[0.04]">
+                      <td className="py-2 align-top">Supabase, Inc.</td>
+                      <td className="py-2 align-top">인도(데이터베이스 리전), 미국(사업자 소재지)</td>
+                      <td className="py-2 align-top">제1조의 모든 항목 — 계정 식별자, 회원이 입력한 결혼 준비 정보, 아모라 대화와 첨부 파일, 커뮤니티 게시물</td>
+                    </tr>
+                    <tr className="border-b border-black/[0.04]">
+                      <td className="py-2 align-top">Vercel Inc.</td>
+                      <td className="py-2 align-top">미국</td>
+                      <td className="py-2 align-top">접속 로그, IP 주소, 브라우저·OS 정보</td>
+                    </tr>
+                    <tr className="border-b border-black/[0.04]">
+                      <td className="py-2 align-top">OpenAI</td>
+                      <td className="py-2 align-top">미국</td>
+                      <td className="py-2 align-top">아모라에게 보낸 질문과 첨부 파일, 답변 생성에 필요한 대화 문맥</td>
+                    </tr>
+                    <tr className="border-b border-black/[0.04]">
+                      <td className="py-2 align-top">Resend, Inc.</td>
+                      <td className="py-2 align-top">미국</td>
+                      <td className="py-2 align-top">이메일 주소</td>
+                    </tr>
+                    <tr className="border-b border-black/[0.04]">
+                      <td className="py-2 align-top">PostHog, Inc.</td>
+                      <td className="py-2 align-top">미국</td>
+                      <td className="py-2 align-top">접속 기록, 페이지 조회 기록, 이용 통계</td>
+                    </tr>
+                    <tr>
+                      <td className="py-2 align-top">Functional Software, Inc. (Sentry)</td>
+                      <td className="py-2 align-top">미국</td>
+                      <td className="py-2 align-top">오류 기록과 보안 기록</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <ul className="mt-3 list-disc pl-5 space-y-1 text-[13px] text-charcoal">
+                <li>이전 목적은 위 위탁 업무와 같습니다.</li>
+                <li>보유·이용 기간은 위탁 계약이 끝나거나 제3조의 보유 기간이 지날 때까지이며, 그 이후에는 파기합니다.</li>
+                <li>이전받는 자의 개인정보 보호 담당 연락처는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 요청하시면 안내해 드립니다.</li>
+                <li>국외 이전을 원하지 않으시면 서비스 이용을 중단하고 고객센터로 계정 삭제를 요청하실 수 있습니다. 다만 위 수탁 업무 없이는 서비스의 핵심 기능을 제공할 수 없어, 일부 기능만 선택적으로 제외할 수는 없습니다.</li>
+              </ul>
+            </div>
           </section>
 
           <section>

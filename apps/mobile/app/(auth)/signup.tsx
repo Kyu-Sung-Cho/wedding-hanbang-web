@@ -85,6 +85,9 @@ export default function SignupScreen() {
   const [agreeAll, setAgreeAll] = useState(false);
   const [agreeTerms, setAgreeTerms] = useState(false);
   const [agreePrivacy, setAgreePrivacy] = useState(false);
+  // 만 14세 이상 확인. 생년월일은 받지 않는다 — 거르는 데 필요하지 않은 정보를
+  // 더 받는 것은 최소수집 원칙에 어긋난다.
+  const [agreeAge14, setAgreeAge14] = useState(false);
   const [agreeMarketing, setAgreeMarketing] = useState(false);
 
   const emailInvalid = emailTouched && email.length > 0 && !isValidEmail(email);
@@ -95,14 +98,21 @@ export default function SignupScreen() {
     setAgreeAll(next);
     setAgreeTerms(next);
     setAgreePrivacy(next);
+    setAgreeAge14(next);
     setAgreeMarketing(next);
   }
 
-  function updateAgreements(terms: boolean, privacy: boolean, marketing: boolean) {
+  function updateAgreements(
+    terms: boolean,
+    privacy: boolean,
+    age14: boolean,
+    marketing: boolean,
+  ) {
     setAgreeTerms(terms);
     setAgreePrivacy(privacy);
+    setAgreeAge14(age14);
     setAgreeMarketing(marketing);
-    setAgreeAll(terms && privacy && marketing);
+    setAgreeAll(terms && privacy && age14 && marketing);
   }
 
   const toggleAgreementSection = useCallback(() => {
@@ -111,7 +121,7 @@ export default function SignupScreen() {
   }, []);
 
   const canSubmit = name.trim() && email.trim() && isValidEmail(email) && isStrongPassword(password) &&
-    password === confirmPassword && agreeTerms && agreePrivacy;
+    password === confirmPassword && agreeTerms && agreePrivacy && agreeAge14;
 
   async function handleSignup() {
     if (!canSubmit) return;
@@ -124,8 +134,8 @@ export default function SignupScreen() {
       Alert.alert("알림", "비밀번호가 일치하지 않습니다.");
       return;
     }
-    if (!agreeTerms || !agreePrivacy) {
-      Alert.alert("알림", "필수 약관에 동의해주세요.");
+    if (!agreeTerms || !agreePrivacy || !agreeAge14) {
+      Alert.alert("알림", "필수 항목에 모두 동의해주세요.");
       return;
     }
 
@@ -173,6 +183,7 @@ export default function SignupScreen() {
           consent: {
             terms: agreeTerms,
             privacy: agreePrivacy,
+            age14: agreeAge14,
             marketing: agreeMarketing,
           },
         },
@@ -346,7 +357,7 @@ export default function SignupScreen() {
 
                 {/* 이용약관 (필수) */}
                 <View style={styles.agreeRow}>
-                  <Pressable onPress={() => updateAgreements(!agreeTerms, agreePrivacy, agreeMarketing)}>
+                  <Pressable onPress={() => updateAgreements(!agreeTerms, agreePrivacy, agreeAge14, agreeMarketing)}>
                     {agreeTerms
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
                       : <Circle size={20} color={colors.taupe[400]} />
@@ -362,7 +373,7 @@ export default function SignupScreen() {
 
                 {/* 개인정보 처리방침 (필수) */}
                 <View style={styles.agreeRow}>
-                  <Pressable onPress={() => updateAgreements(agreeTerms, !agreePrivacy, agreeMarketing)}>
+                  <Pressable onPress={() => updateAgreements(agreeTerms, !agreePrivacy, agreeAge14, agreeMarketing)}>
                     {agreePrivacy
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
                       : <Circle size={20} color={colors.taupe[400]} />
@@ -376,9 +387,29 @@ export default function SignupScreen() {
                   </Pressable>
                 </View>
 
+                {/* 만 14세 이상 (필수) */}
+                <View style={styles.agreeRow}>
+                  <Pressable
+                    onPress={() =>
+                      updateAgreements(agreeTerms, agreePrivacy, !agreeAge14, agreeMarketing)
+                    }
+                    accessibilityRole="checkbox"
+                    accessibilityState={{ checked: agreeAge14 }}
+                    accessibilityLabel="필수 만 14세 이상입니다"
+                  >
+                    {agreeAge14
+                      ? <CheckCircle2 size={20} color={colors.rose[500]} />
+                      : <Circle size={20} color={colors.taupe[400]} />
+                    }
+                  </Pressable>
+                  <Text style={styles.agreeText}>
+                    <Text style={styles.agreeRequired}>[필수]</Text> 만 14세 이상입니다
+                  </Text>
+                </View>
+
                 {/* 마케팅 수신 (선택) */}
                 <View style={styles.agreeRow}>
-                  <Pressable onPress={() => updateAgreements(agreeTerms, agreePrivacy, !agreeMarketing)}>
+                  <Pressable onPress={() => updateAgreements(agreeTerms, agreePrivacy, agreeAge14, !agreeMarketing)}>
                     {agreeMarketing
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
                       : <Circle size={20} color={colors.taupe[400]} />

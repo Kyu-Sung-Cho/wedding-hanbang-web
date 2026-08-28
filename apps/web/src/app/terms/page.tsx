@@ -23,7 +23,7 @@ export default function TermsPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">서비스 이용약관</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 22일</p>
+        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 28일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -40,6 +40,15 @@ export default function TermsPage() {
               <li>&quot;업체&quot;란 결혼식장, 사진 촬영, 드레스, 헤어·메이크업 등 결혼 준비 상품이나 서비스를 제공하는 사업자를 말합니다. 서비스에 업체 정보가 보인다는 사실만으로 운영자와 해당 업체 사이의 입점·제휴 관계가 생기지는 않습니다.</li>
               <li>&quot;아모라&quot;란 운영자가 제공하는 인공지능 기반 결혼 준비 도우미를 말합니다.</li>
               <li>&quot;콘텐츠&quot;란 회원이 서비스에 게시하거나 전송한 글, 사진, 파일, 댓글 등의 정보를 말합니다.</li>
+            </ol>
+          </section>
+
+          <section>
+            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제2조의2 (이용 자격)</h2>
+            <ol className="list-decimal pl-5 space-y-2">
+              <li><strong>웨딩한방은 만 14세 이상만 이용할 수 있습니다.</strong> 「개인정보 보호법」 제22조의2에 따라 만 14세 미만 아동의 개인정보는 법정대리인의 동의를 받아야 처리할 수 있는데, 운영자는 그 동의를 받는 절차를 제공하지 않습니다.</li>
+              <li>회원은 가입할 때 만 14세 이상임을 확인합니다. 운영자는 생년월일을 따로 수집하지 않습니다 — 확인만으로 충분한 정보를 더 받지 않기 위해서입니다.</li>
+              <li>만 14세 미만임이 확인된 계정은 지체 없이 삭제하고, 그때까지 수집된 개인정보도 함께 파기합니다.</li>
             </ol>
           </section>
 

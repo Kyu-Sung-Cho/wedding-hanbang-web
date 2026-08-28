@@ -975,7 +975,7 @@ ${profileBlocks.join("\n\n")}
     const recentConsidering = recent.filter((d) => d.decisionType === "considering" || d.decisionType === "exploring");
 
     const formatDetailed = (d: typeof context.pastDecisions[number]): string => {
-      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const dateStr = ymdInKst(new Date(d.createdAt));
       const categoryLabel = CATEGORY_LABELS[d.category] ?? promptData(d.category, 80);
       const sourceTag = d.source === "chat" ? "" : ` [${promptData(d.source, 40)}]`;
       const valueText = d.value ? ` | 값 ${promptData(d.value, 500)}` : "";
@@ -994,7 +994,7 @@ ${profileBlocks.join("\n\n")}
 
     // 오래된 결정: 압축 (날짜 + 카테고리 + 제목만, reasoning 생략)
     const formatCompact = (d: typeof context.pastDecisions[number]): string => {
-      const dateStr = new Date(d.createdAt).toISOString().slice(0, 10);
+      const dateStr = ymdInKst(new Date(d.createdAt));
       const categoryLabel = CATEGORY_LABELS[d.category] ?? promptData(d.category, 80);
       const valueText = d.value ? ` | 값 ${promptData(d.value, 500)}` : "";
       const truthText = d.vendorDeliveryStatus || d.vendorConfirmationStatus
@@ -1061,7 +1061,7 @@ ${sections.join("\n\n")}
   let pastConflictsSection = "";
   if (context.pastConflicts && context.pastConflicts.length > 0) {
     const formatConflict = (c: NonNullable<typeof context.pastConflicts>[number], i: number): string => {
-      const dateStr = new Date(c.createdAt).toISOString().slice(0, 10);
+      const dateStr = ymdInKst(new Date(c.createdAt));
       const resolutionText = c.resolution ? ` | 합의 ${promptData(c.resolution, 800)}` : "";
       const reasonText = c.reasoning ? ` | 배경 ${promptData(c.reasoning, 800)}` : "";
       const stageText = c.stageTag ? ` [${promptData(c.stageTag, 40)}]` : "";

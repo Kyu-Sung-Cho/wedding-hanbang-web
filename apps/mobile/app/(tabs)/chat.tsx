@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
-} from "react-native";
+  KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking } from "react-native";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
@@ -69,6 +69,14 @@ import {
 import { PlaceCards } from "@/components/chat/PlaceCards";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
+
+// 사이트 주소는 헬퍼로 짓는다. 운영에서 EXPO_PUBLIC_SITE_URL 이 없거나 안전하지
+// 않으면 이 헬퍼가 던진다 — 하드코딩하면 그 보호가 사라진다.
+const amoraSiteOrigin = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const AI_POLICY_URL = buildMobileSiteUrl("/ai-policy", amoraSiteOrigin);
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
@@ -3885,6 +3893,30 @@ export default function ChatScreen() {
         {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
       </View>
 
+      {/*
+        아모라 답변이 AI 생성물임을 화면에서 항상 확인할 수 있게 한다.
+
+        모바일에는 이 표시가 **한 곳도 없었다**(2026-08-28 감사). 그런데 약관과
+        AI 정책은 표시가 포함된다고 대외에 공표하고 있었고, 웹은
+        `ChatContent` 헤더에 같은 배지를 늘 그린다. 주 제품인 앱에서만 사용자가
+        그 표시를 한 번도 못 보고, AI 정책으로 갈 경로도 앱 안에 없었다.
+
+        문구는 웹과 같은 것을 쓴다 — 두 화면이 같은 사실을 다르게 말하면 안 된다.
+      */}
+      <View style={st.aiNotice}>
+        <View style={st.aiDot} />
+        <Text style={st.aiNoticeStrong}>AI 생성 답변</Text>
+        <Text style={st.aiNoticeText}>· 계약·가격·중요 일정은 원문을 다시 확인해 주세요</Text>
+        <Pressable
+          onPress={() => { void Linking.openURL(AI_POLICY_URL); }}
+          accessibilityRole="link"
+          accessibilityLabel="AI 정책 열기"
+          hitSlop={8}
+        >
+          <Text style={st.aiNoticeLink}>AI 정책</Text>
+        </Pressable>
+      </View>
+
       <View style={st.scopeSection} accessibilityLabel="상담 공개 범위">
         <View style={st.scopeRow}>
           <Pressable
@@ -4088,6 +4120,24 @@ const st = StyleSheet.create({
   headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   headerSub: { fontSize: 11, color: colors.textTertiary },
+  aiNotice: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    backgroundColor: colors.surface,
+  },
+  aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.rose[500] },
+  aiNoticeStrong: { fontSize: 11, fontWeight: "600", color: colors.rose[500] },
+  aiNoticeText: { fontSize: 11, color: colors.textTertiary },
+  aiNoticeLink: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.textTertiary,
+    textDecorationLine: "underline",
+  },
   scopeSection: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   scopeRow: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 14, backgroundColor: colors.ivory.warm },
   scopeBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 },

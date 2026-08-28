@@ -40,7 +40,13 @@ function consentRequest(body: unknown) {
   });
 }
 
-const AGREED = { termsAgreed: true, privacyAgreed: true, marketingAgreed: false };
+const AGREED = {
+  termsAgreed: true,
+  privacyAgreed: true,
+  // 만 14세 확인이 빠지면 서버가 계정을 만들지 않는다(개인정보보호법 제22조의2).
+  ageOver14Confirmed: true,
+  marketingAgreed: false,
+};
 
 describe("POST /api/auth/consent", () => {
   beforeEach(() => {

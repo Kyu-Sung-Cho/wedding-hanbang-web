@@ -49,6 +49,7 @@ const VALID_BODY = {
   turnstileToken: "proof",
   termsAgreed: true,
   privacyAgreed: true,
+  ageOver14Confirmed: true,
   marketingAgreed: false,
 };
 
@@ -80,6 +81,12 @@ describe("가입 동의 서버 관문 (실행)", () => {
     { label: "약관만 동의했다", patch: { privacyAgreed: false } },
     { label: "처리방침만 동의했다", patch: { termsAgreed: false } },
     { label: "둘 다 거부했다", patch: { termsAgreed: false, privacyAgreed: false } },
+    // 만 14세 확인은 화면에서만 막으면 안 된다 — 앱을 거치지 않는 요청이
+    // 그대로 통과한다. 개인정보보호법 제22조의2는 만 14세 미만 아동의 개인정보를
+    // 법정대리인 동의 없이 처리하지 못하게 하는데 이 서비스에는 그 절차가 없다.
+    { label: "만 14세 확인이 없다", patch: { ageOver14Confirmed: undefined } },
+    { label: "만 14세 확인을 거부했다", patch: { ageOver14Confirmed: false } },
+    { label: '만 14세 확인에 문자열 "true" 를 보냈다', patch: { ageOver14Confirmed: "true" } },
     // 문자열 "true" 를 동의로 받아주면 클라이언트 실수가 조용히 통과한다.
     { label: '문자열 "true" 를 보냈다', patch: { termsAgreed: "true", privacyAgreed: "true" } },
     { label: "숫자 1 을 보냈다", patch: { termsAgreed: 1, privacyAgreed: 1 } },
