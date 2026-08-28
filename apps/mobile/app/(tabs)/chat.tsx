@@ -517,6 +517,14 @@ type ChatStreamUpdateCallback = (
   metadata: ChatMessageMetadata | null,
 ) => void;
 
+/**
+ * 이 앱이 카드로 그릴 수 있는 도구.
+ *
+ * 지금은 장소 검색 하나뿐이다(`PlaceCards`). 카드를 새로 만들면 여기에 더한다 —
+ * 더하지 않으면 서버가 계속 글로 답하게 두므로 사용자는 답을 받는다.
+ */
+const MOBILE_RENDERED_TOOLS = ["search_nearby_places"] as const;
+
 class ChatTransportError extends Error {
   constructor(
     public readonly code: "AUTH" | "CANCELLED" | "EMPTY" | "HTTP" | "NETWORK" | "STREAM" | "TIMEOUT",
@@ -1339,6 +1347,16 @@ function streamChatWithXhr(
     xhr.open("POST", `${API_BASE}/api/chat`, true);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    // 이 앱이 실제로 카드로 그릴 수 있는 도구를 알린다.
+    //
+    // 서버는 도구 결과 뒤에 "이 결과는 카드로 자동 표시되니 텍스트로 나열하지
+    // 마세요" 라는 지시를 붙이는데, 그 판정이 클라이언트를 구분하지 않았다.
+    // 모바일에는 견적·계약 확인·하객 보증 카드가 없어서, 모델은 답을 글로도
+    // 쓰지 않고 카드도 안 나와 **화면에 아무것도 남지 않았다.**
+    xhr.setRequestHeader(
+      "x-hanbang-rendered-tools",
+      MOBILE_RENDERED_TOOLS.join(","),
+    );
     xhr.timeout = CHAT_REQUEST_TIMEOUT_MS;
     xhr.onprogress = consumeAvailableText;
     xhr.onload = () => {

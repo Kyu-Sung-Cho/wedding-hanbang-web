@@ -44,8 +44,15 @@ const compiled = ts.transpileModule(parserDeclarations, {
     target: ts.ScriptTarget.ES2022,
   },
 });
+// `MOBILE_RENDERED_TOOLS` 는 함수가 아니라 상수라 위 필터에 안 잡힌다. 값을
+// 여기 옮겨 적으면 소스와 갈라지므로 **소스에서 뽑아** 주입한다.
+const renderedToolsDeclaration = (
+  sourceText.match(/const MOBILE_RENDERED_TOOLS = \[[^\]]*\] as const;/u)?.[0] ?? ""
+).replace(" as const", "");
+assert.notEqual(renderedToolsDeclaration, "", "missing MOBILE_RENDERED_TOOLS");
+
 const loadParser = new Function(
-  `const API_BASE = "https://hanbang.ai";\nconst CHAT_REQUEST_TIMEOUT_MS = 180000;\n${compiled.outputText}\nreturn { ChatTransportError, createChatStreamParser, applyChatStreamUpdate, mergeRealtimeMessage, reconcileChatStreamUpdate, streamChatWithXhr };`,
+  `const API_BASE = "https://hanbang.ai";\nconst CHAT_REQUEST_TIMEOUT_MS = 180000;\n${renderedToolsDeclaration}\n${compiled.outputText}\nreturn { ChatTransportError, createChatStreamParser, applyChatStreamUpdate, mergeRealtimeMessage, reconcileChatStreamUpdate, streamChatWithXhr };`,
 );
 const {
   ChatTransportError,
