@@ -1649,8 +1649,12 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
       return "베타 기간에 드리는 무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
+    case "COST_GUARD_COUPLE_DAILY":
+      return "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_GLOBAL_BUDGET":
-      return "오늘 아모라의 안전 한도에 도달했어요. 잠시 후 다시 시도해 주세요.";
+      // "안전 한도" 는 우리 내부 용어이고, 카운터는 한국 시간 자정에 풀리므로
+      // "잠시 후" 는 사용자를 헛되이 다시 누르게 만든다. 서버가 이미 고친 문구다.
+      return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)";
     case "COST_GUARD_UNAVAILABLE":
       return "아모라 사용량을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
     default:
@@ -1661,6 +1665,7 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
   // 왜 막혔는지 서버가 코드로 밝힌 경우에는 그것부터 전한다.
   if (error instanceof ChatTransportError) {
+    // 서버 문장이 정본이다. 표는 서버가 문장을 못 준 경우의 폴백일 뿐이다.
     const reason = getServerCodeFailureMessage(error.serverCode);
     if (reason) return reason;
   }
