@@ -1,3 +1,4 @@
+import { asksWhereToStart } from "@/lib/marketing/preparationPriorities";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildFirstHelloContextTurn } from "@/lib/ai/firstHelloContext";
@@ -2982,6 +2983,8 @@ export async function POST(request: Request) {
         }
       : undefined;
   const promptContext = {
+    // 준비 순서 목록은 시작점을 묻는 턴에만 싣는다 — 프롬프트 상한에 여유가 없다.
+    startingPointAsked: asksWhereToStart(lastUserText),
     weddingDate: weddingDateForStage,
     budget: resolvedWeddingContext.budget,
     venue: resolvedWeddingContext.venue,

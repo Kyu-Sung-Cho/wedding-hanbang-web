@@ -14,7 +14,10 @@ import { ArrowRight, CalendarDays, Check, LockKeyhole } from "lucide-react";
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
-import { computePreparationPriorities } from "@/lib/marketing/preparationPriorities";
+import {
+  computePreparationPriorities,
+  EARLY_STARTING_POINTS,
+} from "@/lib/marketing/preparationPriorities";
 import { captureEvent } from "@/lib/analytics";
 import { readStartHereDateHandoff } from "@/lib/marketing/startHereDateHandoff";
 import {
@@ -35,20 +38,6 @@ type ResultState = "empty" | "past" | "early" | "priorities";
 // 작은 결혼식·재혼 등에서 흔히 생략하는 항목. 정답이 아니라 기본값 제안일 뿐이라
 // 화면에서 언제든 되돌릴 수 있게 한다(제품 원칙: 관습을 정답처럼 가정하지 않기).
 const OFTEN_SKIPPED = new Set(["ham", "pyebaek", "yedan", "hanbok"]);
-const EARLY_STARTING_POINTS = [
-  {
-    title: "편안한 예산 범위",
-    body: "얼마까지 쓰는 게 편안한지 상한선부터 이야기해요.",
-  },
-  {
-    title: "초대할 사람의 범위",
-    body: "꼭 함께하고 싶은 사람부터 떠올려요.",
-  },
-  {
-    title: "원하는 크기와 분위기",
-    body: "작고 편안하게 할지, 많은 사람과 축하할지 기준을 맞춰요.",
-  },
-] as const;
 
 function buildUndatedAmoraPrefill(preset: Preset): string {
   const style = preset === "small"
