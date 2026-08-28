@@ -25,13 +25,15 @@ export default function OneRoomSection() {
         <NoteCard tilt={0.6}>
           <ol className="space-y-6">
             <li>
-              <p className="landing-hand text-[14px] text-[var(--color-paper-pen)]">화요일 밤 · 신부</p>
+              {/* 손글씨(Gaegu)에 가운뎃점 U+00B7 글리프가 없다 — 쓰면 그 글자만
+                  다른 서체로 그려진다. `scripts/subset-gaegu.py` 가 경고로 알려준다. */}
+              <p className="landing-hand text-[14px] text-[var(--color-paper-pen)]">화요일 밤, 신부</p>
               <p className={`mt-1 ${ruled} text-[var(--color-paper-ink)]`}>
                 예식장 견적이 800 더 나왔어. 오늘은 얘기 못 하겠다.
               </p>
             </li>
             <li>
-              <p className="landing-hand text-[14px] text-[var(--color-paper-pen)]">수요일 아침 · 신랑</p>
+              <p className="landing-hand text-[14px] text-[var(--color-paper-pen)]">수요일 아침, 신랑</p>
               <p className={`mt-1 ${ruled} text-[var(--color-paper-ink)]`}>
                 어제 그거 봤어. 어디를 줄이면 될까?
               </p>

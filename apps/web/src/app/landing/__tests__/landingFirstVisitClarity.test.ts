@@ -201,7 +201,7 @@ describe("landing first visit clarity", () => {
     expect(confirmBlock)
       .toContain("계정 베타에서는 예산·할 일·일정 중 한 번에 한 가지 변경을 제안하고");
     expect(confirmBlock, "제안하는 쪽이 아모라라는 것이 화면에서 사라졌다")
-      .toContain("아모라의 제안 · 아직 반영 전");
+      .toContain("아모라의 제안, 아직 반영 전");
     // 정본에 남아 있어도 그리지 않으면 화면에는 없다.
     expect(confirm, "확인 섹션이 confirm.body 를 그리지 않는다").toContain("{confirm.body}");
     expect(confirm, "‘아직 반영 전’ 라벨을 그리는 자리가 없다")

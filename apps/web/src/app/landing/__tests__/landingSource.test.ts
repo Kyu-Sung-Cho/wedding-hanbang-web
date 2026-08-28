@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import {
+  REDESIGN_DIR,
   contentBlock,
   everyLandingComponent,
   renderedSections,
@@ -65,6 +69,24 @@ describe("stripComments", () => {
     const out = stripComments(src);
     expect(out).toContain("살아 있어야 한다");
     expect(out).not.toContain("사람");
+  });
+
+  it("정규식 리터럴 안의 // 는 아직 못 넘긴다 — 알려진 한계다", () => {
+    // 이 스캐너는 정규식 리터럴을 모른다. 나눗셈과 정규식 시작을 구분하려면
+    // 앞 토큰을 봐야 해서 간단하지 않다.
+    //
+    // 고치지 않기로 했다면 **한계를 검사로 고정한다.** 이 단언이 어느 날 실패하면
+    // 누군가 스캐너를 고친 것이고, 그때 landingSource.ts 의 경고 문구도 지워야 한다.
+    const SLASH = String.fromCharCode(47);
+    // `const re = /x//y/; const kept = 1;` — 정규식 안에 `//` 가 있고, **같은 줄**에
+    // 코드가 이어진다. 스캐너는 `//` 부터 줄 끝까지 자르므로 뒤가 통째로 사라진다.
+    const src = `const re = ${SLASH}x${SLASH}${SLASH}y${SLASH}; const kept = 1;`;
+    const out = stripComments(src);
+    expect(out, "정규식을 넘기게 됐다면 landingSource.ts 의 한계 경고를 지워라")
+      .not.toContain("kept");
+
+    // 실제 랜딩 소스는 그런 정규식을 쓰지 않는다 — 쓰면 위 한계에 걸린다.
+    // 값이 큰 검사가 아니라 여기서는 문서만 가리킨다.
   });
 
   it("이스케이프된 따옴표를 문자열의 끝으로 읽지 않는다", () => {

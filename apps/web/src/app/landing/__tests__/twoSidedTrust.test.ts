@@ -311,7 +311,7 @@ describe("landing two-sided trust contract", () => {
 
     // 반영 전에 무엇이 반영될지 먼저 보여준다 — 옛 "준비 기록에 반영할 변경을 먼저
     // 보여줘요"가 확인 카드의 라벨로 바뀌었다.
-    expect(confirmCopy).toContain("아모라의 제안 · 아직 반영 전");
+    expect(confirmCopy).toContain("아모라의 제안, 아직 반영 전");
     expectWired("confirm.sample.proposeLabel");
     expectWired("confirm.sample.propose");
     expect(content).not.toContain("무엇을 저장하고 공유할지 먼저 보여줘요");

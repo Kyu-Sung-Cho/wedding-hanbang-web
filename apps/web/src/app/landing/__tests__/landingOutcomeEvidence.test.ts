@@ -212,7 +212,7 @@ describe("landing product outcome evidence", () => {
     // 아무 일도 일어나지 않는다는 약속이 글이 아니라 그림으로도 보인다. 옛
     // `PreparationResult`의 "제안마다 따로 확인"·"한 번의 확인에는 한 가지 변경만
     // 포함돼요"가 여기로 옮겨 왔다.
-    expect(block.confirm).toContain("아모라의 제안 · 아직 반영 전");
+    expect(block.confirm).toContain("아모라의 제안, 아직 반영 전");
     expect(block.confirm).toContain('confirm: "확인"');
     expect(block.confirm).toContain('later: "나중에"');
     expect(componentSource("ConfirmSection.tsx")).toContain(
@@ -428,13 +428,13 @@ describe("landing product outcome evidence", () => {
     expectRendersCopy("OneRoomSection.tsx", "oneRoom.note");
 
     const oneRoom = componentSource("OneRoomSection.tsx");
-    expect(oneRoom).toContain("화요일 밤 · 신부");
-    expect(oneRoom).toContain("수요일 아침 · 신랑");
+    expect(oneRoom).toContain("화요일 밤, 신부");
+    expect(oneRoom).toContain("수요일 아침, 신랑");
     // 시간이 지난다는 게 이 장면의 전부다. 두 시각이 그 순서로 있어야 한다.
     expect(
-      oneRoom.indexOf("수요일 아침 · 신랑"),
+      oneRoom.indexOf("수요일 아침, 신랑"),
       "다음 날 아침이 화요일 밤보다 먼저 온다",
-    ).toBeGreaterThan(oneRoom.indexOf("화요일 밤 · 신부"));
+    ).toBeGreaterThan(oneRoom.indexOf("화요일 밤, 신부"));
     // 샘플이라는 고지가 같은 카드 안에 있어야 한다 — 실제 이용 현황으로 읽히면 안 된다.
     expect(oneRoom, "샘플 고지가 사라졌다").toContain(
       "이름·금액은 기능을 보여주기 위한 샘플이고 실제 이용 현황이 아니에요.",

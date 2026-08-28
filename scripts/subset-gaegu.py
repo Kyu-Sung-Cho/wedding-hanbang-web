@@ -43,6 +43,12 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'apps', 'web', 'public', 'fonts', 'gaegu')
 REDESIGN = os.path.join(ROOT, 'apps', 'web', 'src', 'components', 'landing', 'redesign')
 
+# 컴포넌트에서 손글씨로 나가는 리터럴을 뽑는 정규식. `{` `}` 가 든 조각은 표현식이라 건너뛴다.
+# 문자열 리터럴 하나를 뽑는 정규식. 이스케이프를 두 번 적지 않으려고 상수로 둔다.
+STR_LITERAL = r'"((?:[^"\\]|\\.)*)"'
+
+HAND_LITERAL = re.compile(r'landing-hand[^>]*>\s*([^<{}]{1,120}?)\s*<')
+
 text = ''
 
 # 1) 카피 정본의 문자열 전부. 주석은 뺀다 — 화면에 안 나간다.
@@ -55,7 +61,7 @@ for m in re.finditer(r'"((?:[^"\\]|\\.)*)"', src):
 # 2) 컴포넌트에 직접 적힌 손글씨 리터럴. `{` `}` 가 든 조각은 표현식이라 건너뛴다.
 for f in glob.glob(os.path.join(REDESIGN, '*.tsx')):
     s = io.open(f, encoding='utf-8').read()
-    for m in re.finditer(r'landing-hand[^>]*>\s*([^<{}]{1,120}?)\s*<', s):
+    for m in re.finditer(HAND_LITERAL, s):
         text += m.group(1)
 
 # 3) 어느 카피에도 안 걸리지만 화면에 뜰 수 있는 것 — 워드마크·숫자·문장부호
@@ -78,9 +84,33 @@ for weight in (700,):
 missing = sorted(wanted - have)
 chars = ''.join(sorted(wanted & have))
 print('카피에서 뽑은 글자 %d자 · 폰트에 있는 것 %d자' % (len(wanted), len(chars)))
-if missing:
-    print('  ⚠ 원본에 없어 손글씨로 못 그리는 글자 %d개: %s' % (len(missing), ''.join(missing)))
-    print('    이 글자가 손글씨 자리에 있으면 그 글자만 다른 서체로 나온다.')
+
+# 손글씨로 **실제로 나가는** 글자만 따로 모아 경고한다.
+#
+# 처음에는 카피 전체(손글씨로 안 나가는 것 포함)를 기준으로 경고했다. 그러면 경고가
+# 늘 떠 있어서 아무도 안 읽는다 — 실제로 가운뎃점이 손글씨 라벨 세 곳에 쓰이고 있는데
+# 내가 그 경고를 보고도 넘겼다. 지금은 손글씨 자리에 없는 글자면 경고하지 않는다.
+hand = ''
+for f in glob.glob(os.path.join(REDESIGN, '*.tsx')):
+    src_tsx = io.open(f, encoding='utf-8').read()
+    for m in re.finditer(HAND_LITERAL, src_tsx):
+        hand += m.group(1)
+# 손글씨로 나가는 카피 키의 값. 위에서 뽑아 둔 문자열 목록을 다시 쓴다 —
+# 정규식을 두 번 적으면 두 곳이 어긋난다.
+for key in ('eyebrow', 'proposeLabel', 'saidLabel', 'scene'):
+    for line in src.split(chr(10)):
+        if line.strip().startswith(key + ':'):
+            found = re.search(STR_LITERAL, line)
+            if found:
+                hand += found.group(1)
+
+hand_missing = sorted({c for c in hand if c in set(missing)})
+if hand_missing:
+    print('  ⚠ **손글씨 자리에 있는데 원본 폰트에 없는 글자**: %s' % ''.join(hand_missing))
+    print('    그 글자만 다른 서체로 그려진다. 카피에서 빼거나 손글씨를 벗겨라.')
+elif missing:
+    print('  (원본에 없는 글자 %d개: %s — 손글씨 자리에는 없으니 문제되지 않는다)'
+          % (len(missing), ''.join(missing)))
 
 made = []
 for weight in (700,):
