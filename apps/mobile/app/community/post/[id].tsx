@@ -1,5 +1,6 @@
 // 게시글 상세 + 댓글 + 투표/북마크
 import { useEffect, useState, useCallback, useRef } from "react";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, TextInput,
   ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Animated,
@@ -632,9 +633,8 @@ export default function PostDetailScreen() {
       void loadComments(token.ownerId, loadSequenceRef.current, { silent: true });
     } catch (error) {
       if (!(await isActionOwnerCurrent(token))) return;
-      const message = error instanceof Error && error.message.length <= 240
-        ? error.message
-        : "댓글 작성에 실패했어요.";
+      // 길이만 보면 짧은 영어 문장이 그대로 통과한다("Network request failed").
+      const message = toKoreanErrorMessage(error, "댓글 작성에 실패했어요.");
       showActionNotice(`${message} 입력한 내용은 유지했어요.`);
     } finally {
       const shouldCommit = await isActionOwnerCurrent(token);
