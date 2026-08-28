@@ -57,16 +57,20 @@ describe("다른 영역의 일정·예산은 그대로 막힌다", () => {
       .not.toBe("W0_wedding_core");
   });
 
-  // 이 두 개는 걸린다. **새 오탐이 아니라 이미 있던 모양**이다 — 같은 문장을
-  // 이미 배포된 동사로 쓰면 이 변경 전에도 W0였다. 사실로 고정해 둔다.
+  // 예전에는 이 둘이 W0 이었다. 새 동사가 만든 오탐이 아니라 정본 분기에 결혼 밖
+  // 화제를 거르는 장치가 없어서였고, 그때는 사실로 고정해 두었다.
+  //
+  // 2026-08-29 그 구멍을 막았다(`amoraQuestionScope.ts` 의 `canonicalTopicIsElsewhere`).
+  // 이 테스트가 지키려던 것은 **두 동사가 같은 판정을 받는다**는 대칭이므로 그대로
+  // 두고, 이제 둘 다 결혼 밖으로 막힌다는 것까지 함께 고정한다.
   it.each([
     ["이사 일정 내일로 넣어줘", "이사 일정 내일로 추가해줘"],
     ["면접 일정 다음 주로 넣어줘", "면접 일정 다음 주로 등록해줘"],
   ])(
-    "새 동사와 기존 동사가 같은 판정을 받는다(노출은 이전부터): %s",
+    "새 동사와 기존 동사가 같은 판정을 받는다: %s",
     (withNewVerb, withShippedVerb) => {
       const shipped = classifyAmoraQuestionScope({ userText: withShippedVerb }).scope;
-      expect(shipped).toBe("W0_wedding_core");
+      expect(shipped).not.toBe("W0_wedding_core");
       expect(classifyAmoraQuestionScope({ userText: withNewVerb }).scope)
         .toBe(shipped);
     },

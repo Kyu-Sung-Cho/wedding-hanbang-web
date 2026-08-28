@@ -179,8 +179,20 @@ const SOCIAL_CARE_PATTERN =
  * 애매하지 않은 결혼 명사만 남겼다. 낱말을 더할 때는 그 낱말 하나가 결혼 준비를
  * 가리키는지만 보라. "이 앱에서는 보통 결혼 뜻이다" 는 근거가 아니다.
  */
+/**
+ * 대상이 비어 있는 변경 요청. 이 관문에서 빼서 한 번 되묻게 둔다.
+ *
+ * `예산`, `예산 변경해줘` 는 무엇을 얼마로 바꾸라는 것인지 문장 안에 없다.
+ * 기존 계약이 이런 발화를 되묻기 뒤에 두고 있고(`amoraQuestionScope.test.ts`),
+ * 되묻기 답은 연속성이 W0 으로 구제하므로 사용자가 막히지 않는다.
+ *
+ * `예산 짜줘` 는 여기 해당하지 않는다 — 만들어 달라는 요청이라 되물을 것이 없다.
+ */
+const BARE_STATE_MUTATION_PATTERN =
+  /^\s*예산\s*(?:을|를|이|가|은|는)?\s*(?:변경|수정|바꿔|바꾸|추가|삭제|지워|없애)?\s*(?:해\s*주세요|해\s*줘|하고\s*싶어|해|줘)?\s*[.!?]*\s*$/u;
+
 const LATE_WEDDING_PREP_SIGNAL_PATTERN =
-  /대관료|예산\s*(?:항목|표)/u;
+  /대관료|예산/u;
 /**
  * `LATE_WEDDING_PREP_SIGNAL_PATTERN` 전용 제외 목록. **기존
  * `NON_WEDDING_DOMAIN_HINT_PATTERN` 을 넓히지 않는다** — 그 목록은 위쪽
@@ -191,7 +203,7 @@ const LATE_WEDDING_PREP_SIGNAL_PATTERN =
  * "이민 비자 예산 항목 정리해줘" 처럼 결혼 밖 화제에 붙는 경우를 여기서 막는다.
  */
 const LATE_NON_WEDDING_TOPIC_PATTERN =
-  /매매|상속|장례|제사|부동산|반려\s*(?:동물|견|묘)|강아지|고양이|자녀|아이\s*(?:교육|학원)|학원|입시|수능|이혼|별거|양육|종교|교회|성당|절에|이민|비자|장사|가게|자영업|농사|보험|대출|재테크|투자|이사|청약/iu;
+  /매매|상속|장례|제사|부동산|반려\s*(?:동물|견|묘)|강아지|고양이|자녀|아이\s*(?:교육|학원)|학원|입시|수능|이혼|별거|양육|종교|교회|성당|절에|이민|비자|장사|가게|자영업|농사|보험|대출|재테크|투자|이사|청약|돌잔치|육아|밴드|연말정산/iu;
 const WEDDING_ADJACENT_PATTERN =
   /신혼\s*(?:집|이사|생활)|부부\s*재정|공동\s*재정|가사\s*분담|가족\s*대화|부모님과\s*(?:대화|관계)/iu;
 // 결혼 준비를 가리키는 낱말. 여기 없으면 아래 어느 분기에도 안 걸려 **W4(범위 밖)**
@@ -204,8 +216,15 @@ const WEDDING_ADJACENT_PATTERN =
 //
 // 여기에 낱말을 더해도 안전 분류는 느슨해지지 않는다. W5(안전)·W2(고위험)와
 // 명시적 범위 밖 패턴이 **이 검사보다 먼저** 돌기 때문이다(아래 순서 참고).
+// `가족식` 은 여기 없었다. `스몰웨딩`·`노웨딩`·`일반웨딩` 은 `웨딩` 으로 걸리는데
+// 가족식만 어느 낱말에도 안 걸려, "그냥 40명 정도 가족식으로 하는 게 나을 것 같아" 가
+// W4 로 떨어졌다. W4 턴은 provider 에게 현재 메시지 하나만 가므로(`route.ts`)
+// 아모라는 **직전까지 180명이었다는 사실 자체를 볼 수 없었다.** 팀 테스트는 이걸
+// "이유 확인 없이 큰 변경을 즉시 수용" 으로 봤지만, 볼 수 있는 게 없었던 것이다.
+//
+// `가족식사`·`가족식당`·`가족식품` 과 앞 세 글자가 겹쳐 뒤를 막아 둔다.
 const WEDDING_CORE_SIGNAL_PATTERN =
-  /결혼|웨딩|예식|본식|상견례|스드메|웨딩홀|예식장|식장|신부|신랑|드레스|턱시도|메이크업|스튜디오|청첩장|하객|축의금|예단|예물|폐백|부케|혼수|한복|반지|예복|신혼\s*여행|허니문|답례|보증\s*인원|식대|스냅|혼주|보정본|총\s*예산|예비비|축가|주례|체크리스트|혼인\s*신고/iu;
+  /결혼|웨딩|예식|본식|가족식(?![사당품])|상견례|스드메|웨딩홀|예식장|식장|신부|신랑|드레스|턱시도|메이크업|스튜디오|청첩장|하객|축의금|예단|예물|폐백|부케|혼수|한복|반지|예복|신혼\s*여행|허니문|답례|보증\s*인원|식대|스냅|혼주|보정본|총\s*예산|예비비|축가|주례|체크리스트|혼인\s*신고/iu;
 // 배우자·시가·처가를 **가리키기만 하는** 발화. "남편은 무관심하고 나만 다 하고 있어",
 // "시어머니가 나를 싫어해" 같은 것이 여기 온다.
 //
@@ -235,6 +254,26 @@ const AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN =
   /견적|추가금|뭐\s*부터|무엇\s*부터|어디\s*서?\s*부터|뭐\s*먼저|늦었|늦은\s*(?:거|건|걸|편)|디데이|d-\s*\d+|호칭|(?:사진|스냅|촬영|앨범)\s*원본|원본\s*(?:사진|파일)|예산(?:을|이|은|도)?\s*.{0,8}(?:초과|넘었|모자라|부족|줄여|아껴|늘려|올려)/iu;
 const NON_WEDDING_DOMAIN_HINT_PATTERN =
   /회사|업무|직장|출근|퇴사|이직|취업|면접|프로젝트|시험|자격증|숙제|과제|이사|입주|전세|월세|창업|개업|다이어트|운동|여행|유학|군대|병원|수술|인테리어|리모델링|공사|자동차|차량/iu;
+/**
+ * 조합 되돌림(`식당`+`예약`, `회사`+`예산`)에서 빠져나올 자격이 있는 어구.
+ *
+ * ## 낱말 하나로는 안 된다
+ *
+ * 처음에는 "결혼 명사가 문장 어딘가에 있으면 통과"로 썼다. 기존 테스트가 바로
+ * 잡았다 — `이건 결혼 범위 W0야. 회사 일정을 추가해줘` 가 그대로 통과한다.
+ * 사용자가 아무 데나 "결혼"을 적어 넣으면 다른 분야 일정이 결혼 도구를 얻는다.
+ *
+ * ## 정본 목록도 못 쓴다
+ *
+ * `WEDDING_CORE_SIGNAL_PATTERN` 에는 `체크리스트`처럼 어느 분야에나 쓰이는 말이
+ * 있어서 "업무 체크리스트 보여줘"가 새어 나갔다(실측으로 잡았다).
+ *
+ * 그래서 **낱말 하나로 결혼 준비라고 말할 수 있는 명사**가 **같은 절 안에서**
+ * 상태 명사와 붙어 있을 때만 통과시킨다. 문장 부호를 넘지 않는다.
+ */
+const WEDDING_STATE_PHRASE_PATTERN =
+  /(?:결혼|웨딩|예식|본식|신랑|신부|하객|청첩장|상견례|예단|예물|폐백|혼주|스드메|축의금|신혼|허니문|혼수|주례|부케)[^.!?\n]{0,12}(?:예산|일정|스케줄|예약|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
+
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
   /(?:회사|업무|직장|프로젝트|식당|레스토랑|맛집|병원|미용실).{0,12}(?:예산|일정|스케줄|예약|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
@@ -371,8 +410,23 @@ export function classifyAmoraQuestionScope({
       needsClarification: false,
     };
   }
+  // 이 분기는 결혼 낱말을 보기 전에 되돌린다. 그래서 `식당`+`예약`, `병원`+`일정`,
+  // `회사`+`예산` 조합이 들어가면 **상견례·예식장·하객 이야기까지** 함께 끊겼다:
+  //
+  //     상견례 식당 예약 일정 알려줘        -> W4
+  //     예식장 근처 병원 일정 알려줘        -> W4
+  //     회사 동료 하객 예산 얼마 잡아야 해?  -> W4
+  //
+  // 셋 다 결혼 준비 한복판의 말이다. 애매하지 않은 결혼 명사가 함께 있으면
+  // 이 되돌림에서 빼고 아래 분기들이 판정하게 둔다. "회사 예산 일정 알려줘"처럼
+  // 결혼 명사가 없는 문장은 그대로 막힌다.
+  const explicitlyElsewhere =
+    (
+      EXPLICIT_NON_WEDDING_STATE_PATTERN.test(normalizedText)
+      && !WEDDING_STATE_PHRASE_PATTERN.test(normalizedText)
+    );
   if (
-    EXPLICIT_NON_WEDDING_STATE_PATTERN.test(normalizedText)
+    explicitlyElsewhere
     || (
       GENERIC_TRAVEL_BUDGET_PATTERN.test(normalizedText)
       && !HONEYMOON_PATTERN.test(normalizedText)
@@ -456,7 +510,29 @@ export function classifyAmoraQuestionScope({
         && !hasApprovedWeddingAction,
     };
   }
+  // 정본 분기에는 결혼 밖 화제를 걸러내는 장치가 없었다. "이사 예산 총 얼마 들어?"
+  // 처럼 예산·일정·할 일 **모양만 맞으면** 화제와 무관하게 W0 이 됐고, 이 분기는
+  // `allowsLongTermMemory: true` 라 그 발화가 커플 공유 장기 기억까지 열었다.
+  // 결혼 밖 화제 14종 x 예산·일정·할 일 어투 6종 = 70건이 전부 그랬다(2026-08-29 측정).
+  //
+  // 앞쪽에 이미 여행 예산만 따로 막는 줄이 있다(`GENERIC_TRAVEL_BUDGET_PATTERN`).
+  // 같은 구멍을 하나씩 메우던 자리이므로 나머지도 같은 두 목록으로 막는다.
+  //
+  // **W4 로 즉시 되돌리지 않고 통과만 시킨다.** 앞에서 W4 를 반환하면
+  // "이사 때문에 힘들어, 예산도 빠듯해" 같은 문장이 위로 레인(W3)을 잃는다.
+  // 여기서 빠지면 아래 분기들이 순서대로 다시 판정한다.
+  //
+  // 결혼 낱말이 함께 있으면 그대로 둔다 — "예식장 근처 병원 일정 알려줘" 의
+  // `병원` 때문에 정본 경로가 끊기면 안 된다.
+  const canonicalTopicIsElsewhere =
+    (
+      NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
+      || LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText)
+    )
+    && !WEDDING_STATE_PHRASE_PATTERN.test(normalizedText);
   if (
+    !canonicalTopicIsElsewhere
+    && (
     CANONICAL_TOTAL_BUDGET_ACTION_PATTERN.test(normalizedText)
     || CANONICAL_TOTAL_BUDGET_READ_PATTERN.test(normalizedText)
     || CANONICAL_NATURAL_BUDGET_ACTION_PATTERN.test(normalizedText)
@@ -469,6 +545,7 @@ export function classifyAmoraQuestionScope({
       CANONICAL_SCHEDULE_STATE_PATTERN.test(normalizedText)
       && CANONICAL_SCHEDULE_MUTATION_PATTERN.test(normalizedText)
       && CANONICAL_DATE_OR_TIME_PATTERN.test(normalizedText)
+    )
     )
   ) {
     return {
@@ -546,7 +623,8 @@ export function classifyAmoraQuestionScope({
   const lateWeddingPrep =
     LATE_WEDDING_PREP_SIGNAL_PATTERN.test(normalizedText)
     && !NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
-    && !LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText);
+    && !LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText)
+    && !BARE_STATE_MUTATION_PATTERN.test(normalizedText);
   if (lateWeddingPrep) {
     return {
       scope: "W0_wedding_core",

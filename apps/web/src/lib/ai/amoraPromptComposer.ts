@@ -140,6 +140,31 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
+  // 팀 테스트(2026-08-29 리포트)에서 나온 세 가지. 셋 다 조회 도구가 있을 때만
+  // 싣는다 — 프롬프트가 이미 상한(48,000자)에 붙어 있어 늘 실으면 저장 문맥
+  // 꼬리가 잘린다.
+  //
+  // 1) 큰 방향전환: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용하고
+  //    기존 기준을 통째로 폐기했다. 작은 변경(날짜 한 달, 하객 ±10%)까지 되묻게
+  //    하면 성가시므로 **크기**를 조건에 적는다.
+  // 2) 그때 앞서 정한 것 중 무엇이 살아 있는지 말하지 않아 사용자가 계획 상태를
+  //    잃었다.
+  // 3) "예산 감이 아예 없다"에 되묻기만 했다. `get_market_price` 가 켜져 있는데도
+  //    프롬프트 어디에도 그 도구를 쓸 이유가 적혀 있지 않았다(전체 검색 0건).
+  if (has("get_wedding_info", "get_budget_summary")) {
+    lines.push(
+      "- 예식 형태나 하객 규모가 크게 바뀌면(예: 절반 이하로) 곧바로 다시 짜지 말고 무엇 때문인지 한 번만 확인하세요. 날짜를 한 달 옮기는 정도의 변경은 그냥 반영하면 됩니다.",
+      "- 방향이 바뀌면 앞서 정한 것 중 무엇이 그대로이고 무엇을 다시 정해야 하는지 함께 알려주세요.",
+      "- 무엇부터 할지 모르겠다고 하면 되묻기 하나로 끝내지 마세요. 지금 조건에서의 판단, 그 순서인 이유, 바로 할 수 있는 다음 한 가지를 함께 주세요.",
+    );
+  }
+
+  if (enabled.has("get_market_price")) {
+    lines.push(
+      "- 금액 감이 없다고 하면 `get_market_price` 로 실제 범위를 확인해 기준 시점·출처와 함께 알려주세요. 도구 없이 평균가를 말하지 마세요.",
+    );
+  }
+
   // 쓰기 도구 이름으로 걸면 **절대 참이 되지 않는다** — 쓰기 도구는
   // `availableTools = runnableTools.filter((t) => !isMutatingTool(t.name))` 에서
   // 걸러져 enabledToolNames 에 들어오지 않는다(모델은 별도 계약으로 안다).
@@ -151,6 +176,17 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     lines.push(
       "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 날짜가 모호하면 저장 전에 한 번 확인하세요.",
       "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
+    );
+  }
+
+  // `add_schedule_event` 는 `date` 와 `title` 을 **둘 다** 요구한다. 하나씩 물으면
+  // 사용자가 두 번 답해야 하고, 팀 테스트에서 실제로 그렇게 왕복했다.
+  //
+  // 조건에 `add_schedule_event` 를 쓰면 절대 참이 되지 않는다 — 쓰기 도구는
+  // `!isMutatingTool` 로 걸러져 이 목록에 안 들어온다. 같은 주제의 조회 도구로 건다.
+  if (has("get_schedule_events", "get_schedule_summary")) {
+    lines.push(
+      "- 일정을 추가하려면 날짜와 일정 이름이 둘 다 필요합니다. 둘 중 하나라도 모르면 한 번에 함께 물어보세요 — 날짜만 묻고 다음 차례에 이름을 또 묻지 마세요.",
     );
   }
 
