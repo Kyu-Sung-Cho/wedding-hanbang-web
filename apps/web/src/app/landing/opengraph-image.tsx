@@ -29,10 +29,32 @@ const paperlogyBold = readFile(join(
   "public/fonts/paperlogy/Paperlogy-7Bold.ttf",
 ));
 
+/**
+ * 랜딩과 같은 종이 색.
+ *
+ * satori 는 CSS 변수를 못 읽으므로 리터럴로 적는다. 값의 출처는
+ * `packages/design-tokens/src/colors.ts` 의 `paper` 그룹이고,
+ * `globals.css` 의 `--color-paper-*` 와 같아야 한다. 여기만 바꾸면 카드와 화면이 갈린다.
+ *
+ * 2026-08-27 이전에는 짙은 유칼립투스 그라디언트였다. 링크를 받은 사람에게는 이 카드가
+ * 제품의 첫 화면인데, 카드가 짙은 초록이고 누르면 크림색 노트가 나와 같은 제품으로
+ * 안 읽혔다.
+ */
+const PAPER = {
+  sheet: "#FDFCF7",
+  ink: "#26251F",
+  inkSoft: "#4A483F",
+  inkFaint: "#605E54",
+  pen: "#35638A",
+} as const;
+
+/** H1 정본의 줄바꿈. 소스에 리터럴로 적으면 편집 도구가 진짜 줄바꿈으로 바꿔 놓는다. */
+const BREAK = String.fromCharCode(10);
+
 export default async function OpenGraphImage() {
-  // H1은 화면에서 세 줄로 끊긴다. 카드에서도 같은 자리에서 끊어 같은 문장으로 읽히게 한다.
-  const [lead, ...rest] = landingContent.hero.title.split(", ");
-  const tail = rest.join(", ");
+  // H1은 화면에서 두 덩어리로 끊긴다. 카드에서도 같은 자리에서 끊어 같은 문장으로 읽히게 한다.
+  // 정본이 줄바꿈을 갖고 있으므로 그걸 그대로 쓴다 — 여기서 다시 나누면 두 곳이 갈린다.
+  const [lead, tail] = landingContent.hero.title.split(BREAK);
   // 본문 두 문장을 다 넣으면 1200px에서 두 줄로 넘쳐 "요."만 남는 고아 줄이 생긴다.
   // 첫 문장이 "무엇을 넣으면 무엇이 나오는지"를 이미 말하므로 거기까지만 쓴다.
   const lede = `${landingContent.hero.body.split(". ")[0]}.`;
@@ -47,8 +69,8 @@ export default async function OpenGraphImage() {
           flexDirection: "column",
           justifyContent: "space-between",
           padding: "62px 72px",
-          color: "white",
-          background: "linear-gradient(135deg, #243832 0%, #243832 52%, #2C433C 100%)",
+          color: PAPER.ink,
+          background: PAPER.sheet,
           fontFamily: "Paperlogy",
         }}
       >
@@ -61,8 +83,8 @@ export default async function OpenGraphImage() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              background: "#8F6662",
-              color: "white",
+              background: PAPER.pen,
+              color: PAPER.sheet,
               fontSize: 24,
             }}
           >
@@ -72,19 +94,19 @@ export default async function OpenGraphImage() {
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <div style={{ display: "flex", color: "#E2D3C8", fontSize: 28 }}>
-            {landingContent.hero.aiRole}
+          <div style={{ display: "flex", color: PAPER.pen, fontSize: 28 }}>
+            둘이 함께 준비하는 결혼
           </div>
-          <div style={{ display: "flex", flexDirection: "column", fontSize: 74, lineHeight: 1.14, letterSpacing: -2.5 }}>
-            <div style={{ display: "flex", color: "rgba(255,255,255,0.88)" }}>{lead},</div>
-            <div style={{ display: "flex", color: "#E2D3C8" }}>{tail}</div>
+          <div style={{ display: "flex", flexDirection: "column", fontSize: 58, lineHeight: 1.2, letterSpacing: -2 }}>
+            <div style={{ display: "flex", color: PAPER.ink }}>{lead}</div>
+            <div style={{ display: "flex", color: PAPER.pen }}>{tail}</div>
           </div>
-          <div style={{ display: "flex", fontSize: 30, color: "rgba(255,255,255,0.82)" }}>
+          <div style={{ display: "flex", fontSize: 30, color: PAPER.inkSoft }}>
             {lede}
           </div>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "space-between", color: "rgba(255,255,255,0.72)", fontSize: 23 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", color: PAPER.inkFaint, fontSize: 23 }}>
           <div style={{ display: "flex" }}>로그인·결제 없이 지금 확인</div>
           <div style={{ display: "flex" }}>hanbang.ai</div>
         </div>

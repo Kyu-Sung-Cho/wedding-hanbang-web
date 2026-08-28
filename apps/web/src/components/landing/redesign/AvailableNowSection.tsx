@@ -1,100 +1,66 @@
-import { ArrowRight, CalendarCheck, FileSearch, MessagesSquare, ReceiptText, Users } from "lucide-react";
 import Link from "next/link";
 
 import { availableNow, landingContent } from "./landingContent";
-import {
-  displaySection,
-  secondaryLink,
-  sectionEyebrow,
-  sectionLede,
-  sectionRhythm,
-} from "./landingType";
+import { NoteCard, Section, bodyText, noteText } from "./notebook";
 
 /**
- * 지금 가입 없이 되는 것.
+ * ⑦ 로그인 없이 지금 되는 것.
  *
- * 왜 이 섹션이 필요한가: 랜딩 지면의 대부분이 **로그인이 필요한** 계정 구간을
- * 설명하는 데 쓰이고 있었다(문서의 65%). 그런데 코드 전수 조사에서 로그인 없이
- * 오늘 실제로 되는 것이 16가지 확인됐고, 랜딩은 그중 사실상 아무것도 말하지
- * 않았다. 처음 온 사람이 자기가 지금 가질 수 없는 것에 대한 페이지를 읽고 있었다.
+ * 위 섹션들이 대부분 계정이 필요한 구간을 설명하므로, 여기서 **가입 없이 오늘
+ * 쓸 수 있는 것**을 세워야 처음 온 사람이 빈손으로 나가지 않는다.
  *
- * 아모라는 여기 없다. 2026-08-06 파운더 결정으로 로그인 없는 아모라 이용에는
- * 한도를 걸 예정이라, "가입 없이 아모라를 쓸 수 있다"고 약속하지 않는다.
+ * ⚠️ 개수를 손으로 적지 마라. `availableNow.length` 에서 계산한다 —
+ * 카드 수와 어긋난 진술이 랜딩 최상단에서 1초 만에 반증된 적이 있다.
  *
- * 여기 싣는 네 가지는 전부 **로그인 없이 200 응답을 직접 확인**한 경로다. 링크를
- * 걸었는데 막혀 있으면 그 자체가 거짓말이 되므로, 새 항목을 추가할 때도 실제
- * 응답을 확인하고 넣는다. 게이트로 막힌 기능(업체 추천·예약·축의금·동기방 등
- * 16가지)은 코드에 있어도 여기 넣지 않는다.
+ * 개수는 **제목이 아니라 본문**에 넣는다. 제목에 끼워 넣으려고 "이만큼"을
+ * "6가지"로 치환했더니 "6가지은 지금"이 나왔다 — 한국어 조사는 앞 글자의
+ * 받침을 따라가므로 숫자를 문자열로 갈아 끼우면 틀린다. 여기서는 뒤에
+ * "는"이 오는 자리에만 넣어 그 함정을 구조적으로 피한다.
+ *
+ * `landingAvailableNow.test.ts` 가 이 목록의 문구에서 금지어를 검사한다.
+ * "후기" 는 금지어다 — 커뮤니티 글은 후기가 아니라 질문과 답변이다.
  */
-
-const cardIcons = {
-  "start-here": CalendarCheck,
-  price: ReceiptText,
-  "quote-check": FileSearch,
-  "wedding-code": Users,
-  community: MessagesSquare,
-} as const;
-
-const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8 lg:px-10";
-
 export default function AvailableNowSection() {
+  const { availableNow: copy } = landingContent;
+
   return (
-    <section
-      id="available-now"
-      className="scroll-mt-20 bg-white text-[#243832]"
-      aria-labelledby="landing-available-now-title"
+    <Section
+      id="now"
+      eyebrow={copy.eyebrow}
+      title={copy.title}
+      tinted
     >
-      <div className={`${shell} ${sectionRhythm}`}>
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:items-end lg:gap-16">
-          <div>
-            <p className={sectionEyebrow}>{landingContent.availableNow.eyebrow}</p>
-            <h2
-              id="landing-available-now-title"
-              className={`mt-4 max-w-[680px] ${displaySection}`}
-            >
-              {landingContent.availableNow.title}
-            </h2>
-          </div>
-          <p className={`max-w-[34rem] ${sectionLede} text-[#36534E]/82 lg:pb-1`}>
-            {landingContent.availableNow.body}
-          </p>
-        </div>
+      <p className={`mt-6 max-w-[52ch] ${bodyText}`}>
+        아래 {availableNow.length}가지는 {copy.body}
+      </p>
 
-        <ul className="mt-10 lg:mt-14 grid gap-px overflow-hidden border border-[#243832]/14 bg-[#243832]/14 sm:grid-cols-2">
-          {availableNow.map((item) => {
-            const Icon = cardIcons[item.id];
-            return (
-              <li key={item.id} className="flex flex-col bg-white p-6 sm:p-8">
-                <Icon className="h-6 w-6 text-rose-700" aria-hidden="true" />
-                <h3 className="mt-5 text-[20px] font-semibold leading-[1.3] tracking-[-0.02em]">
-                  {item.title}
-                </h3>
-                <p className="mt-3 text-[16px] leading-[1.7] text-[#36534E]">{item.body}</p>
-                {/* 각 항목이 "왜 안심해도 되는지"를 카드 안에서 끝낸다 —
-                    저장 여부·출처처럼 이용 전에 알아야 할 사실이다(P6). */}
-                <p className="mt-3 text-[12px] leading-5 text-[#243832]/72">{item.note}</p>
-                {/* `TrackedLandingLink`를 쓰지 않는다. 그건 아모라를 여는 링크 전용이라
-                    `landing_amora_start_click`을 쏘고 날짜 handoff를 지운다 — 여기 넷은
-                    아모라를 열지 않으므로 둘 다 틀린 동작이 된다. */}
-                <Link
-                  href={item.href}
-                  className={`group mt-auto gap-2 pt-5 ${secondaryLink} focus-visible:ring-offset-2`}
-                >
-                  {item.action}
-                  <ArrowRight
-                    className="h-4 w-4 transition-transform duration-200 motion-safe:group-hover:translate-x-0.5"
-                    aria-hidden="true"
-                  />
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+      <ul className="mt-9 grid gap-5 sm:grid-cols-2">
+        {availableNow.map((item, index) => (
+          <li key={item.cta.href}>
+            <NoteCard className="flex h-full flex-col" tilt={index % 2 === 0 ? -0.4 : 0.4}>
+              <p className="landing-hand text-[18px] leading-[1.4] text-[var(--color-paper-ink)]">
+                {item.title}
+              </p>
+              <p className="mt-3 text-[16px] leading-[1.75] text-[var(--color-paper-ink-soft)]">
+                {item.body}
+              </p>
+              <p className="mt-3 text-[14px] leading-[1.7] text-[var(--color-paper-ink-faint)]">
+                {item.note}
+              </p>
+              <Link
+                href={item.cta.href}
+                className="mt-auto inline-flex min-h-11 items-center pt-5 text-[14px] font-semibold text-[var(--color-paper-pen)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-pen-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+              >
+                {item.cta.label}
+              </Link>
+            </NoteCard>
+          </li>
+        ))}
+      </ul>
 
-        <p className="mt-6 text-[14px] leading-[1.7] text-[#36534E]/82">
-          {landingContent.availableNow.boundary}
-        </p>
-      </div>
-    </section>
+      <p className={`mt-7 ${noteText}`}>
+        계정을 만들면 예산·할 일·일정이 열려요. 지금은 결제를 요청하지 않아요.
+      </p>
+    </Section>
   );
 }

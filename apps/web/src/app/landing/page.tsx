@@ -2,93 +2,106 @@ import type { Metadata } from "next";
 
 import AvailableNowSection from "@/components/landing/redesign/AvailableNowSection";
 import ClosingAction from "@/components/landing/redesign/ClosingAction";
-import CommunityBridgeSection from "@/components/landing/redesign/CommunityBridgeSection";
-import ContinuitySection from "@/components/landing/redesign/ContinuitySection";
+import ConfirmSection from "@/components/landing/redesign/ConfirmSection";
 import LandingFooter from "@/components/landing/redesign/LandingFooter";
 import LandingHeader from "@/components/landing/redesign/LandingHeader";
-import PreparationResult from "@/components/landing/redesign/PreparationResult";
-import ProblemMirrorSection from "@/components/landing/redesign/ProblemMirrorSection";
-import SharedPrivateSection from "@/components/landing/redesign/SharedPrivateSection";
+import NoSideSection from "@/components/landing/redesign/NoSideSection";
+import NotForVendorsSection from "@/components/landing/redesign/NotForVendorsSection";
+import OneRoomSection from "@/components/landing/redesign/OneRoomSection";
+import PrivateLaneSection from "@/components/landing/redesign/PrivateLaneSection";
+import ScenesSection from "@/components/landing/redesign/ScenesSection";
 import TransformationHero from "@/components/landing/redesign/TransformationHero";
-import TrustEvidenceSection from "@/components/landing/redesign/TrustEvidenceSection";
 
 export const revalidate = 86_400;
 
 /**
- * 한국소비자원 공개 자료와 실제 화면의 공시 규모를 맞춘다.
- * 분기 자료 갱신 전에는 `pnpm audit:production`으로 실제 수치를 먼저 확인한다.
- * `scripts/tests/disclosure-count-consistency.test.mjs`가 다른 공개 화면과의 일치를 검사한다.
+ * 제목은 두 가지를 동시에 진다. 앞은 이 페이지가 파는 약속이고, 뒤는 검색 결과에서
+ * 우리를 구분해 주는 것이다.
+ *
+ * 2026-08-27 에 바꿨다. 이전 제목은 "공시된 가격·위약금 원문" 을 차별점으로 걸었는데,
+ * 그건 한국소비자원 참가격이라 **공개 자료**다. 누구나 볼 수 있는 것을 우리 차별점으로
+ * 걸 수 없다. 우리만 할 수 있는 것은 **두 사람의 대화를 한 덩어리로 읽는 것**이다
+ * (`api/chat/route.ts:1889` — couple_id 로 읽고 sender_id 필터가 없다).
+ *
+ * 루트 폴백과 **같은 문자열**이어야 한다. 여기를 고치면 `src/app/page.tsx` 의
+ * title 도 같이 고친다. 두 곳이 검사한다:
+ *
+ *   `components/community/__tests__/landingFunnelInstrumentation.test.ts`  ← 정본
+ *   `__tests__/landingTitleParity.test.ts`                                 ← canonical·sitemap 까지
+ *
+ * (2026-08-27에 앞의 것을 "저장소에 없다"고 잘못 판단해 뒤의 것을 새로 만들었다.
+ * 파일 **내용**만 grep 했는데 그 파일은 자기 이름을 안 들고 있었다 — 파일 이름도
+ * 같이 찾아야 한다. 둘 다 남긴 이유는 추출 방식이 달라 서로의 사각지대를 덮기 때문이다.)
  */
-/**
- * 업체 수는 커뮤니티 첫 화면(`CommunityLandingClient`)과 **같은 값이어야 한다** —
- * 위 정합성 테스트가 두 화면을 대조한다. 다른 브랜치에서 414로 옮겨 적었다가
- * 그 테스트가 실패했다(`업체 수 불일치: 서비스 랜딩 414 vs 첫 화면 412`).
- * 근거 없는 수를 옮겨 적지 않고, `pnpm audit:production` 실측값만 쓴다.
- * 2026-08-08 재측정으로 412 → 406(신원 규칙에 병합 11쌍·지점 25건·사본 1건 추가).
- * 바꾸려면 두 화면과 실측 날짜를 함께 바꾼다.
- */
-const PUBLISHED_POLICY_COUNT = 831;
-const PUBLISHED_VENDOR_COUNT = 406;
-const PUBLISHED_COUNTS_VERIFIED_AT = "2026.08.08";
-
 export function generateMetadata(): Metadata {
-  // 제목은 두 가지를 동시에 져야 한다. 앞은 이 페이지가 파는 약속(둘이 말하면
-  // 정리된다)이고, 뒤는 검색 결과에서 우리를 구분해 주는 유일한 사실이다 —
-  // 공시된 가격·위약금 원문은 다른 곳에 없다. `landingFunnelInstrumentation`이
-  // 첫 화면 셋 모두에 이 차별점을 강제하고, 루트 폴백과 같은 문자열일 것도
-  // 요구한다(리다이렉트가 안 걸리는 환경에서 제목이 갈리지 않게).
-  // 여기를 고치면 `src/app/page.tsx`의 title도 같이 고쳐야 한다.
-  const title = "웨딩한방 | 둘이 말하면 결혼 준비가 정리돼요 · 공시된 가격·위약금 원문";
+  // 상수를 이 함수 **안에** 둔다. 밖으로 빼면
+  // `components/community/__tests__/landingFunnelInstrumentation.test.ts` 의 추출기
+  // (`generateMetadata … const title = "…"`)가 못 읽어 제목을 빈 문자열로 보고,
+  // 루트 폴백과의 동일성 검사가 조용히 무의미해진다. 실제로 그렇게 됐었다.
+  const title = "웨딩한방 | 결혼 준비, 둘이 어디서 갈리는지부터";
   const description =
-    "웨딩한방은 둘이 함께 관리하는 결혼 준비 공간이에요. 계정을 만들면 대화 정리 AI 아모라가 한 번에 한 가지 변경을 제안하고, 확인한 변경만 준비 기록에 반영해요.";
+    "결혼 준비에서 싸우는 건 가격 때문이 아니라 둘의 기준이 다른 걸 몰라서예요. "
+    + "스무 장면에 각자 답하면 어디서 갈렸는지 나란히 볼 수 있어요. 가입 없이 지금 열려 있어요.";
 
   return {
     title,
     description,
     alternates: { canonical: "/landing" },
-    // openGraph.images / twitter.images를 여기 적지 않는다. 같은 폴더의
-    // `opengraph-image.tsx`가 파일 규약으로 카드를 만들고, 여기서 images를
-    // 명시하면 그 규약이 덮인다(start-here도 같은 방식).
+    // openGraph.images / twitter.images 를 여기 적지 않는다. 같은 폴더의
+    // `opengraph-image.tsx` 가 파일 규약으로 카드를 만들고, 여기서 images 를
+    // 명시하면 그 규약이 덮인다.
     openGraph: {
-      title,
-      description,
+      title: title,
+      description: description,
       url: "/landing",
       type: "website",
     },
     twitter: {
       card: "summary_large_image",
-      title,
-      description,
+      title: title,
+      description: description,
     },
   };
 }
 
+/**
+ * 랜딩 — 결혼 준비 노트.
+ *
+ * ## 섹션 순서에 이유가 있다
+ *
+ *   히어로   둘의 기준이 다른 걸 몰라서 싸운다        ← 자기 얘기로 읽히는 문장
+ *   ①        장면 하나를 보여주고 만지게 한다          ← 로그인 없이 되는 유일한 후크
+ *   ②        편을 들지 않는다                          ← "ChatGPT 로 되잖아" 를 먼저 받는다
+ *   ③        같은 얘기를 두 번 안 해도 된다            ← 제일 큰 차별점
+ *   ④        나만 보는 자리                            ← ③ 이 만든 걱정을 바로 받는다
+ *   ⑤        확인한 것만 남는다                        ← 대화가 어디로 가는지
+ *   ⑥        업체 편이 아니다                          ← 공시 가격은 여기 곁블록 한 줄
+ *   ⑦        가입 없이 지금 되는 것                    ← 빈손으로 나가지 않게
+ *   마무리   첫 화면과 같은 행동을 부른다
+ *
+ * ④ 를 ③ 앞으로 옮기지 마라. ③ 이 "두 사람 대화가 한 덩어리" 라고 말한 직후에
+ * 사람들은 "그럼 내가 쓴 게 다 가나" 를 걱정한다. 그 걱정을 다음 섹션이 받지 않으면
+ * ③ 이 불안으로 끝난다.
+ */
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#FBF8F2] text-[#243832]">
+    <div className="min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
       <a
         href="#main-content"
-        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-full bg-[#FBF8F2] px-5 py-3 text-[14px] font-semibold text-[#243832] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[#8F6662] focus:ring-offset-2"
+        className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-[6px] bg-[var(--color-paper-card)] px-5 py-3 text-[14px] font-semibold text-[var(--color-paper-ink)] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-paper-pen)] focus:ring-offset-2"
       >
         본문 바로가기
       </a>
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
         <TransformationHero />
-        <ProblemMirrorSection />
-        {/* 문제를 보여준 직후에 "지금 당장 무료로 이만큼 된다"를 둔다.
-            아래 섹션들은 대부분 로그인이 필요한 구간을 설명하므로, 그 전에
-            가입 없이 쓸 수 있는 것을 먼저 세워야 처음 온 사람이 빈손으로 읽지 않는다. */}
+        <ScenesSection />
+        <NoSideSection />
+        <OneRoomSection />
+        <PrivateLaneSection />
+        <ConfirmSection />
+        <NotForVendorsSection />
         <AvailableNowSection />
-        <PreparationResult />
-        <ContinuitySection />
-        <SharedPrivateSection />
-        <CommunityBridgeSection />
-        <TrustEvidenceSection
-          publishedPolicyCount={PUBLISHED_POLICY_COUNT}
-          publishedVendorCount={PUBLISHED_VENDOR_COUNT}
-          countsVerifiedAt={PUBLISHED_COUNTS_VERIFIED_AT}
-        />
         <ClosingAction />
       </main>
       <LandingFooter />

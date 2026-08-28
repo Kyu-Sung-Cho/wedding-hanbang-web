@@ -181,6 +181,36 @@
   --color-platinum: #E6DDD2;
   /* @generated:design-tokens theme end */
 
+  /* Paper — 랜딩의 "결혼 준비 노트" 표면.
+   *
+   * 2026-08-27. 랜딩을 손으로 적는 노트의 문법(줄 그은 카드·테이프·손글씨·
+   * 펜 밑줄)으로 다시 짜면서 필요해진 색이다. 브랜드 팔레트(유칼립투스-로즈)는
+   * 화면의 분위기를 만들고, 이 그룹은 그 위에 놓이는 종이와 필기구를 만든다.
+   *
+   * 원본은 packages/design-tokens/src/colors.ts 의 `paper` 그룹이다.
+   * 위 생성 블록에 넣지 않은 이유: 이 브랜치에는 아직 생성기가 없다
+   * (sync-design-token-css.mjs 는 PR #141 에 있고 미병합). 생성기가 들어오면
+   * colors.ts 의 같은 값에서 다시 만들어지므로 결과가 달라지지 않는다.
+   *
+   * 랜딩 밖에서 쓰지 말 것. 제품 화면은 계속 브랜드 팔레트를 쓴다. */
+  --color-paper-sheet: #FDFCF7;
+  --color-paper-tint: #F8F4EA;
+  --color-paper-card: #FFFFFF;
+  --color-paper-rule: #EDEAE0;
+  --color-paper-edge: #E2DED2;
+  --color-paper-divider: #DDD8C9;
+  --color-paper-ink: #26251F;
+  --color-paper-ink-soft: #4A483F;
+  --color-paper-ink-faint: #605E54;
+  --color-paper-pen: #35638A;
+  --color-paper-pen-deep: #24465F;
+  --color-paper-mark: #B8452F;
+  --color-paper-tape: #F6E7A8;
+  --color-paper-tape-ink: #6C5410;
+  --color-paper-outline: #CFCABA;
+  --color-paper-stem: #A2937F;
+  --color-paper-gyp: #8FA08D;
+
   /* Elevation — 두 단계만 쓴다.
    * raised   : 지면 위에 얹힌 표면(카드·폼 패널)
    * overlay  : 지면에서 떠서 다른 것을 덮는 표면(팝오버·제품 데모)
@@ -1079,3 +1109,86 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
     animation: none;
   }
 }
+
+/* ─────────────────────────────────────────────────────────────
+ * 랜딩 — 결혼 준비 노트
+ *
+ * 랜딩(/landing, /)은 손으로 적는 노트의 문법으로 짠다. 줄 그은 카드에 적고,
+ * 테이프로 이름표를 붙이고, 파란 펜으로 밑줄을 긋고, 빨간 펜으로 동그라미를 친다.
+ * 여백에는 꽃을 그려 둔다.
+ *
+ * 색은 `--color-paper-*`(브랜드 팔레트 밖 · 랜딩 전용). DESIGN.md 의 Color 절 참고.
+ * 손글씨는 Gaegu — 짧은 강조에만, 본문은 Paperlogy. Typography 절의 예외 항목 참고.
+ * **제품 화면에서는 이 클래스들을 쓰지 않는다.**
+ * ───────────────────────────────────────────────────────────── */
+
+/* 700 하나만 싣는다 — `.landing-hand` 가 굵기를 고정하므로 400 은 아무도 안 쓴다. */
+@font-face {
+  font-family: "Gaegu";
+  src: url("/fonts/gaegu/gaegu-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* 손글씨 — 섹션 머리말·워드마크·큰 숫자에만. 본문에 쓰지 마라. */
+.landing-hand {
+  font-family: "Gaegu", var(--font-paperlogy), cursive;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+/* 줄 그은 노트 카드 */
+.landing-note {
+  background: var(--color-paper-card);
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent 0 31px,
+    var(--color-paper-rule) 31px 32px
+  );
+  border: 1px solid var(--color-paper-edge);
+  border-radius: 6px;
+  box-shadow: 0 10px 24px rgba(38, 37, 31, 0.07);
+}
+
+/* 테이프 이름표 */
+.landing-tape {
+  display: inline-block;
+  padding: 5px 16px;
+  background: var(--color-paper-tape);
+  color: var(--color-paper-tape-ink);
+  /* 크기는 여기서만 정한다. 쓰는 쪽에서 text-* 를 얹으면 이 선언이 이겨서
+   * 조용히 죽는다 — 실제로 eyebrow 에 15px 를 걸었는데 12px 로 나왔다.
+   * Gaegu 는 같은 px 에서 Paperlogy 보다 작아 보여 한 단계 올린다. */
+  font-size: 16px;
+  font-weight: 700;
+  transform: rotate(-1.5deg);
+}
+
+/* 파란 펜 밑줄 */
+.landing-pen {
+  border-bottom: 2px solid var(--color-paper-pen);
+  padding-bottom: 1px;
+}
+
+/* 빨간 펜 동그라미 */
+.landing-circle {
+  display: inline-block;
+  padding: 1px 8px;
+  border: 2px solid var(--color-paper-mark);
+  border-radius: 999px / 60%;
+  color: var(--color-paper-mark);
+}
+
+/* 여백의 꽃 — 라인아트 SVG 가 쓰는 색.
+ * 채도를 층으로 나눠야 겹친 꽃잎이 깊이로 읽힌다. 선만 그리면 클립아트가 된다. */
+.landing-bloom .p0 { fill: rgba(210, 180, 170, 0.38); stroke: var(--color-rose-500); stroke-width: 1.25; }
+.landing-bloom .p1 { fill: rgba(234, 221, 216, 0.52); stroke: var(--color-gold); stroke-width: 1.05; }
+.landing-bloom .p2 { fill: rgba(243, 233, 221, 0.68); stroke: var(--color-gold); stroke-width: 0.9; }
+.landing-bloom .p3 { fill: rgba(251, 248, 242, 0.82); stroke: var(--color-rose-500); stroke-width: 0.8; }
+.landing-bloom .ln { stroke: var(--color-rose-500); stroke-width: 0.78; fill: none; }
+.landing-leaf .lf  { fill: rgba(109, 128, 110, 0.26); stroke: var(--color-sage-500); stroke-width: 0.98; }
+.landing-leaf .ln  { stroke: var(--color-sage-500); stroke-width: 0.98; fill: none; }
+.landing-gyp .ln   { stroke: var(--color-paper-gyp); stroke-width: 0.82; fill: none; }
+.landing-gyp .bud  { fill: rgba(251, 248, 242, 0.95); stroke: var(--color-paper-gyp); stroke-width: 0.82; }
+.landing-stem .ln  { stroke: var(--color-paper-stem); stroke-width: 1.02; fill: none; }

@@ -34,7 +34,8 @@ function buildCustomerGateRedirect(
 }
 
 /**
- * 루트(`/`)는 앱의 문이다 — 세션이 있으면 앱으로, 없으면 로그인으로.
+ * 루트(`/`)는 앱의 문이다 — 세션이 있으면 라운지로, 없으면 랜딩으로.
+ * 로그아웃 목적지는 2026-08-27 파운더 결정으로 `/login` 에서 `/landing` 이 됐다.
  *
  * ## 왜 페이지가 아니라 여기서 판정하는가
  *
@@ -104,13 +105,13 @@ async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
     } = await supabase.auth.getUser();
     signedIn = Boolean(user);
   } catch {
-    // 세션을 못 물어보는 상황이면 로그인으로 보낸다 — 그 화면은 누구에게나 열려 있고,
-    // 거기서 다시 앱으로 들어갈 수 있다. 도메인 루트가 통째로 오류가 되면 안 된다.
+    // 세션을 못 물어보는 상황이면 랜딩으로 보낸다 — 그 화면은 누구에게나 열려 있고,
+    // 거기에 로그인 링크가 있다. 도메인 루트가 통째로 오류가 되면 안 된다.
     signedIn = false;
   }
 
   const destination = request.nextUrl.clone();
-  destination.pathname = signedIn ? "/wedding/lounge" : "/login";
+  destination.pathname = signedIn ? "/wedding/lounge" : "/landing";
   // UTM 같은 유입 표식은 목적지까지 들고 간다 — clone이 search를 그대로 들고 온다.
 
   const response = NextResponse.redirect(destination);
@@ -134,6 +135,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // 루트는 공개 경로가 아니라 **문**이다. isProtectedPath보다 먼저 봐야 한다.
+  // 로그아웃이면 랜딩, 로그인돼 있으면 라운지 — 이유는 `app/page.tsx` 주석에 있다.
   if (pathname === "/") {
     return await redirectAppDoor(request);
   }
