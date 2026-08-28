@@ -144,8 +144,8 @@ describe("PriceExplorer", () => {
     expect(container.textContent).toContain("업체·가격·연결 정보의 정확성이 보장되지 않습니다.");
     const previewBadge = container.querySelector('[role="status"][aria-label="관리자 미리보기 상태"]');
     expect(previewBadge?.className).toContain("border-[#B89785]/35");
-    expect(previewBadge?.className).toContain("bg-[#F7F1E8]");
-    expect(previewBadge?.className).toContain("text-[#36534E]");
+    expect(previewBadge?.className).toContain("bg-[var(--hb-surface-hover)]");
+    expect(previewBadge?.className).toContain("text-[var(--hb-text-strong)]");
     const hrefs = Array.from(container.querySelectorAll<HTMLAnchorElement>("a"))
       .map((anchor) => anchor.getAttribute("href"));
     expect(hrefs).toContain("/wedding/vendors?category=dress&preview=1");

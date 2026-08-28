@@ -31,7 +31,7 @@ export default function CommunityNav({
   const profile = useAuthStore((state) => state.profile);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#eadfc9] bg-[#fffdf7]/94 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 border-b border-[var(--hb-hairline)] bg-[#fffdf7]/94 backdrop-blur-xl">
       <div className="mx-auto flex h-[76px] w-full max-w-[1320px] items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center gap-4">
           <Link
@@ -41,7 +41,7 @@ export default function CommunityNav({
           >
             <Logo size="md" />
           </Link>
-          <span className="hidden truncate border-l border-[#eadfc9] pl-4 text-[12px] font-semibold leading-none text-[#36534e] lg:inline">
+          <span className="hidden truncate border-l border-[var(--hb-hairline)] pl-4 text-[12px] font-semibold leading-none text-[var(--hb-text-strong)] lg:inline">
             결혼 준비, 아모라와 처음부터 끝까지.
           </span>
         </div>
@@ -61,7 +61,7 @@ export default function CommunityNav({
           {weddingCourtEnabled && (
             <Link
               {...weddingLinkProps("/community/wedding-court")}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#eadfc9] text-[#36534e] transition-colors hover:border-[#a77b74] hover:text-[#8f6662]"
+              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] transition-colors hover:border-[#a77b74] hover:text-[#8f6662]"
               aria-label="오늘의 웨딩 선택 법정"
               title="오늘의 웨딩 선택 법정"
             >
@@ -90,7 +90,7 @@ export default function CommunityNav({
         <button
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#071629] md:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[#071629] md:hidden"
           aria-label="커뮤니티 메뉴"
           aria-expanded={mobileOpen}
         >
@@ -98,7 +98,7 @@ export default function CommunityNav({
         </button>
       </div>
       {mobileOpen && (
-        <div className="border-t border-[#eadfc9] bg-[#fffdf7] md:hidden">
+        <div className="border-t border-[var(--hb-hairline)] bg-[#fffdf7] md:hidden">
           <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-2 px-4 py-4 sm:px-6 lg:px-8">
             {baseNavItems.map((item) => (
               <Link
@@ -114,7 +114,7 @@ export default function CommunityNav({
               <Link
                 {...weddingLinkProps("/community/wedding-court")}
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center gap-2 rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[#36534e] hover:bg-white"
+                className="inline-flex items-center gap-2 rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[var(--hb-text-strong)] hover:bg-white"
               >
                 <Gavel className="h-4 w-4" aria-hidden />
                 오늘의 웨딩 선택 법정
@@ -123,7 +123,7 @@ export default function CommunityNav({
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
               onClick={() => setMobileOpen(false)}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
             >
               고민 올리기
               <PenSquare className="h-4 w-4" />
@@ -136,7 +136,7 @@ export default function CommunityNav({
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#071629]"
+                className="inline-flex items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#071629]"
               >
                 로그인
               </Link>

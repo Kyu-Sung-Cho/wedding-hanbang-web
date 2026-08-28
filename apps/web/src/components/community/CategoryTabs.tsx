@@ -48,8 +48,8 @@ export default function CategoryTabs() {
           href={weddingPath()}
           className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
             isActive("/community") && currentPath === "/community"
-              ? "bg-[#f6efe5] text-[#36534E] font-bold"
-              : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+              ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
+              : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
           }`}
         >
           <Home
@@ -64,7 +64,7 @@ export default function CategoryTabs() {
 
         <Link
           href={weddingPath("/community?sort=hot")}
-          className="flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 text-[#635b51] hover:bg-white hover:text-[#36534E]"
+          className="flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
         >
           <Flame className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
           <span className="text-sm">인기</span>
@@ -74,7 +74,7 @@ export default function CategoryTabs() {
         <div className="pt-3">
           <button
             onClick={() => setMoreOpen(!moreOpen)}
-            className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-[#635b51] uppercase tracking-wider hover:text-[#36534E] transition-colors"
+            className="flex items-center justify-between w-full px-3 py-2 text-xs font-medium text-[var(--hb-text-body)] uppercase tracking-wider hover:text-[var(--hb-text-strong)] transition-colors"
           >
             <span>카테고리</span>
             <ChevronDown
@@ -100,8 +100,8 @@ export default function CategoryTabs() {
                   href={weddingPath(href)}
                   className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
                     active
-                      ? "bg-[#f6efe5] text-[#36534E] font-bold"
-                      : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+                      ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
+                      : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
                   }`}
                 >
                   <Icon
@@ -117,15 +117,15 @@ export default function CategoryTabs() {
         </div>
 
         <div className="pt-3">
-          <div className="px-3 py-2 text-xs font-medium text-[#635b51] uppercase tracking-wider">
+          <div className="px-3 py-2 text-xs font-medium text-[var(--hb-text-body)] uppercase tracking-wider">
             내 활동
           </div>
           <Link
             href={weddingPath("/community/my/bookmarks")}
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/bookmarks")
-                ? "bg-[#f6efe5] text-[#36534E] font-bold"
-                : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+                ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
+                : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
             }`}
           >
             <Bookmark
@@ -140,8 +140,8 @@ export default function CategoryTabs() {
             href={weddingPath("/community/my/upvoted")}
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/upvoted")
-                ? "bg-[#f6efe5] text-[#36534E] font-bold"
-                : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+                ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
+                : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
             }`}
           >
             <ThumbsUp
@@ -156,8 +156,8 @@ export default function CategoryTabs() {
             href={weddingPath("/community/my/blocks")}
             className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
               isActive("/community/my/blocks")
-                ? "bg-[#f6efe5] text-[#36534E] font-bold"
-                : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+                ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
+                : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
             }`}
           >
             <Ban
@@ -177,8 +177,8 @@ export default function CategoryTabs() {
             href={weddingPath()}
             className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
               currentPath === "/community"
-                ? "bg-[#36534E] text-white font-medium"
-                : "text-[#635b51] bg-white border border-[#e5d8ca] hover:bg-[#f6efe5]"
+                ? "bg-[var(--hb-primary)] text-white font-medium"
+                : "text-[var(--hb-text-body)] bg-white border border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"
             }`}
           >
             전체
@@ -192,8 +192,8 @@ export default function CategoryTabs() {
                 href={weddingPath(href)}
                 className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
                   active
-                    ? "bg-[#36534E] text-white font-medium"
-                    : "text-[#635b51] bg-white border border-[#e5d8ca] hover:bg-[#f6efe5]"
+                    ? "bg-[var(--hb-primary)] text-white font-medium"
+                    : "text-[var(--hb-text-body)] bg-white border border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"
                 }`}
               >
                 {cat.shortLabel}

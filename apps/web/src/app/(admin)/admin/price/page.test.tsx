@@ -438,7 +438,7 @@ describe("admin price optimistic concurrency UX", () => {
     expect(container.querySelector('a[href="/api/admin/price/export"]')).not.toBeNull();
     const activePriceTab = [...container.querySelectorAll<HTMLButtonElement>("button")]
       .find((button) => button.textContent === "개별 가격");
-    expect(activePriceTab?.className).toContain("bg-[#36534E]");
+    expect(activePriceTab?.className).toContain("bg-[var(--hb-primary)]");
   });
 
   it("shows the bulk approval count before allowing any approval POST", async () => {

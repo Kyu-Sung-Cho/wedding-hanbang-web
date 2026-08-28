@@ -32,7 +32,7 @@ export default function NumbersAnchor() {
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="숫자로 먼저" />
-          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal mb-5">
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal mb-5">
             가격 앞에는
             <br />
             확인 가능한 <em className="not-italic text-rose-500">근거</em>가 있어야 합니다.
@@ -54,7 +54,7 @@ export default function NumbersAnchor() {
               className="py-14 md:py-16 px-6 md:px-10 md:first:pl-0 md:last:pr-0 flex flex-col"
             >
               {/* 라벨 */}
-              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-taupe-400 font-medium mb-6">
+              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-[var(--hb-text-muted)] font-medium mb-6">
                 {card.label}
               </p>
 
@@ -64,7 +64,7 @@ export default function NumbersAnchor() {
               </p>
 
               {/* 확인 기준 */}
-              <p className="mt-12 text-[12px] md:text-[13px] tracking-[0.18em] text-taupe-400 font-medium pt-5 border-t border-platinum/60">
+              <p className="mt-12 text-[12px] md:text-[13px] tracking-[0.18em] text-[var(--hb-text-muted)] font-medium pt-5 border-t border-platinum/60">
                 기준 &nbsp; {card.source}
               </p>
             </motion.div>
@@ -81,7 +81,7 @@ export default function NumbersAnchor() {
         >
           <Link
             href={weddingPath("/market-prices")}
-            className="group inline-flex items-center gap-2 text-[14px] text-noir-800 font-medium border-b border-noir-800 pb-2 tracking-[0.02em] hover:text-rose-500 hover:border-rose-500 transition-colors"
+            className="group inline-flex items-center gap-2 text-[14px] text-[var(--hb-text-strong)] font-medium border-b border-[var(--hb-primary)] pb-2 tracking-[0.02em] hover:text-[var(--color-rose-700)] hover:border-rose-500 transition-colors"
           >
             지역별 · 항목별 공시가 보기
             <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />

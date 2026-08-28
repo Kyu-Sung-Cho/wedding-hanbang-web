@@ -33,7 +33,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="w-full max-w-lg bg-white rounded-2xl p-8 shadow-2xl max-h-[90dvh] overflow-y-auto">
-        <h2 className="text-2xl font-serif text-[#1A1A1F] mb-2" style={{ fontFamily: "'Paperlogy', sans-serif" }}>
+        <h2 className="text-2xl font-serif text-[var(--hb-text-strong)] mb-2" style={{ fontFamily: "'Paperlogy', sans-serif" }}>
           이 글은 어떤 유형인가요?
         </h2>
         <p className="text-sm text-[#878680] mb-6">
@@ -62,7 +62,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-[#1A1A1F]">{opt.label}</span>
+                    <span className="font-medium text-[var(--hb-text-strong)]">{opt.label}</span>
                     {isSelected && <CheckCircle2 size={18} style={{ color: opt.color }} />}
                   </div>
                   <p className="text-sm text-[#878680]">{opt.description}</p>
@@ -74,7 +74,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
 
         {selected === "sponsored" && (
           <div className="mt-5">
-            <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">
+            <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">
               어떤 혜택을 받았나요?
             </label>
             <textarea
@@ -82,7 +82,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
               onChange={(e) => setDetail(e.target.value)}
               placeholder="예: 드레스 입어보기 비용 1회 제공받음"
               rows={3}
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none resize-none text-sm"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none resize-none text-sm"
             />
           </div>
         )}
@@ -101,7 +101,7 @@ export default function AdDisclosureModal({ onSelect }: AdDisclosureModalProps) 
         <button
           type="button"
           onClick={handleSubmit}
-          className="mt-6 w-full bg-[#36534E] text-white rounded-xl py-3 font-medium hover:bg-[#2B423E] transition-colors"
+          className="mt-6 w-full bg-[var(--hb-primary)] text-white rounded-xl py-3 font-medium hover:bg-[var(--hb-primary-hover)] transition-colors"
         >
           확인
         </button>

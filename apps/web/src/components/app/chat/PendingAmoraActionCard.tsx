@@ -275,7 +275,7 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
           </summary>
           <ul className="mt-2 space-y-2">
             {preview.categories.map((category) => (
-              <li key={category.key} className="rounded-lg bg-[#F8F4F0] px-2.5 py-2 text-xs leading-5 text-[#504444]">
+              <li key={category.key} className="rounded-lg bg-[#F8F4F0] px-2.5 py-2 text-xs leading-5 text-[var(--hb-text-body)]">
                 <p className="font-medium text-[#3D3434]">{category.label}</p>
                 {category.currentBudget !== category.proposedBudget && (
                   <p>
@@ -613,7 +613,7 @@ export default function PendingAmoraActionCard({
               ? "두 분 확인이 필요한 변경이에요"
               : "적용하기 전에 확인해 주세요"}
           </h3>
-          <p id={detailId} className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#504444]">
+          <p id={detailId} className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--hb-text-body)]">
             {action.confirmation}
           </p>
         </div>
@@ -688,7 +688,7 @@ export default function PendingAmoraActionCard({
           onClick={onDismiss}
           disabled={isApplying}
           aria-label="지금은 적용하지 않기"
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[#504444] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <X className="h-4 w-4" aria-hidden="true" />
           지금은 적용하지 않기

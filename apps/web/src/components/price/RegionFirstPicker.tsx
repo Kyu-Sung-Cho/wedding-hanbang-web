@@ -34,7 +34,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
         <h2 id="region-first-heading" className="mt-2 text-xl font-bold sm:text-2xl">
           어느 지역에서 준비하세요?
         </h2>
-        <p className="mt-2 text-sm leading-6 text-[#36534E]/85">
+        <p className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]/85">
           같은 업체라도 어느 대행사를 끼는지에 따라 가격이 달라요. 지역을 고르면 그
           지역 대행사가 공시한 가격만 보여드릴게요.
         </p>
@@ -45,10 +45,10 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
               <button
                 type="button"
                 onClick={() => onSelect(code)}
-                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[#243832]/12 bg-[#FBF8F2] px-4 text-sm font-bold text-[#243832] transition-colors hover:border-[#8F6662]/45 hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)] px-4 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662]/45 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
               >
                 {label}
-                <span className="text-xs font-semibold tabular-nums text-[#36534E]/60">
+                <span className="text-xs font-semibold tabular-nums text-[var(--hb-text-muted)]">
                   {count.toLocaleString("ko-KR")}
                 </span>
               </button>
@@ -59,7 +59,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
         <button
           type="button"
           onClick={() => onSelect("")}
-          className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[#36534E] underline underline-offset-4 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+          className="mt-4 inline-flex min-h-11 items-center text-sm font-semibold text-[var(--hb-text-strong)] underline underline-offset-4 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
         >
           지역 상관없이 전체 {totalCount.toLocaleString("ko-KR")}곳 둘러보기
         </button>
@@ -88,7 +88,7 @@ export function ThinCoverageNotice({
   if (!regionCode || count > THIN_COVERAGE_THRESHOLD) return null;
   return (
     <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6">
-      <p className="rounded-xl bg-[#F7F1E8] px-4 py-3 text-sm leading-6 text-[#36534E]">
+      <p className="rounded-xl bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-6 text-[var(--hb-text-strong)]">
         {priceRegionLabel(regionCode)}은 아직 가격을 공시한 업체가{" "}
         <span className="font-bold">{count.toLocaleString("ko-KR")}곳</span>뿐이에요.
         공시한 업체만 싣기 때문이라, 실제 업체 수와는 다릅니다.{" "}
@@ -120,14 +120,14 @@ export function RegionChip({ regionCode, count, onChange }: RegionChipProps) {
       <span className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#F0E4DC] px-3.5 text-sm font-bold text-[#8F5150]">
         <MapPin aria-hidden="true" className="size-3.5" />
         {regionCode ? priceRegionLabel(regionCode) : "전체 지역"}
-        <span className="text-xs font-semibold tabular-nums text-[#8F5150]/70">
+        <span className="text-xs font-semibold tabular-nums text-[var(--hb-text-muted)]">
           {count.toLocaleString("ko-KR")}곳
         </span>
       </span>
       <button
         type="button"
         onClick={onChange}
-        className="inline-flex min-h-9 items-center rounded-full border border-[#243832]/12 px-3.5 text-sm font-semibold text-[#36534E] hover:border-[#8F6662]/45 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+        className="inline-flex min-h-9 items-center rounded-full border border-[var(--hb-primary)]/12 px-3.5 text-sm font-semibold text-[var(--hb-text-strong)] hover:border-[#8F6662]/45 hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
       >
         지역 바꾸기
       </button>

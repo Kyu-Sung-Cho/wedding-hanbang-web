@@ -151,7 +151,7 @@ export default function DatePickerPopover({
 
       {/* Popover */}
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-noir-800 border border-white/15 rounded-2xl p-4 shadow-[0_24px_60px_-10px_rgba(0,0,0,0.6)]">
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 bg-[var(--hb-primary)] border border-white/15 rounded-2xl p-4 shadow-[0_24px_60px_-10px_rgba(0,0,0,0.6)]">
           {/* Month navigation */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -209,7 +209,7 @@ export default function DatePickerPopover({
                   aria-label={isToday ? `${format(d, "M월 d일")} (오늘)` : undefined}
                   className={`aspect-square rounded-lg text-[13px] font-light tabular-nums transition-colors relative ${
                     selected
-                      ? "bg-rose-light text-noir-800 font-medium"
+                      ? "bg-rose-light text-[var(--hb-text-strong)] font-medium"
                       : disabledCell
                         ? `${isToday ? "text-white/50" : "text-white/15"} cursor-not-allowed`
                         : inMonth

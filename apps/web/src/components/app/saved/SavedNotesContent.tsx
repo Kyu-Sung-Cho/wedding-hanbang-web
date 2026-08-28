@@ -115,17 +115,17 @@ export default function SavedNotesContent() {
           <Bookmark aria-hidden="true" className="h-4 w-4" />
           저장한 이야기
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-[#1A1A1F] sm:text-3xl">
+        <h1 className="mt-2 text-2xl font-bold text-[var(--hb-text-strong)] sm:text-3xl">
           다시 볼 것만 모아뒀어요
         </h1>
-        <p className="mt-2 text-base leading-7 text-[#928980]">
+        <p className="mt-2 text-base leading-7 text-[var(--hb-text-muted)]">
           아모라와 나눈 이야기 중 저장한 것들이에요. 대화에서 저장 버튼을 누르면
           여기 쌓입니다. 둘 중 누가 저장해도 같이 보여요.
         </p>
       </header>
 
       {status === "loading" ? (
-        <p className="flex items-center gap-2 py-12 text-base text-[#928980]">
+        <p className="flex items-center gap-2 py-12 text-base text-[var(--hb-text-muted)]">
           <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
           불러오는 중이에요
         </p>
@@ -139,7 +139,7 @@ export default function SavedNotesContent() {
 
       {status === "error" ? (
         <div className="py-12">
-          <p className="text-base font-semibold text-[#1A1A1F]">지금은 불러오지 못했어요.</p>
+          <p className="text-base font-semibold text-[var(--hb-text-strong)]">지금은 불러오지 못했어요.</p>
           <button
             type="button"
             onClick={() => void load()}
@@ -152,8 +152,8 @@ export default function SavedNotesContent() {
 
       {status === "ready" && notes.length === 0 ? (
         <div className="py-14 text-center">
-          <p className="text-base font-semibold text-[#1A1A1F]">아직 저장한 이야기가 없어요.</p>
-          <p className="mt-2 text-base text-[#928980]">
+          <p className="text-base font-semibold text-[var(--hb-text-strong)]">아직 저장한 이야기가 없어요.</p>
+          <p className="mt-2 text-base text-[var(--hb-text-muted)]">
             아모라가 한 말 아래 &ldquo;저장&rdquo;을 누르면 여기로 모여요.
           </p>
           <Link
@@ -173,7 +173,7 @@ export default function SavedNotesContent() {
               className="rounded-2xl border border-[#E8E0D8] bg-white p-5"
             >
               <div className="flex items-start justify-between gap-3">
-                <p className="text-sm text-[#B5ADA3]">
+                <p className="text-sm text-[var(--hb-text-muted)]">
                   {formatSavedAt(note.createdAt)}
                   {note.savedByMe ? " · 내가 저장" : " · 파트너가 저장"}
                 </p>
@@ -181,7 +181,7 @@ export default function SavedNotesContent() {
                   type="button"
                   onClick={() => void removeNote(note.id)}
                   disabled={busyId === note.id}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-[#B5ADA3] hover:text-[#9A6B62] disabled:opacity-40"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-[var(--hb-text-muted)] hover:text-[#9A6B62] disabled:opacity-40"
                   aria-label="저장 지우기"
                 >
                   <Trash2 aria-hidden="true" className="h-4 w-4" />
@@ -190,7 +190,7 @@ export default function SavedNotesContent() {
               </div>
 
               {/* 원문 그대로 — 우리가 줄이거나 바꾸지 않는다. */}
-              <p className="mt-3 whitespace-pre-line text-base leading-7 text-[#1A1A1F]">
+              <p className="mt-3 whitespace-pre-line text-base leading-7 text-[var(--hb-text-strong)]">
                 {note.content}
               </p>
 
@@ -201,7 +201,7 @@ export default function SavedNotesContent() {
                     onChange={(event) => setMemoDraft(event.target.value.slice(0, 500))}
                     rows={2}
                     placeholder="왜 저장했는지 적어두면 나중에 찾기 쉬워요"
-                    className="w-full rounded-xl border border-[#E8E0D8] bg-[#FAF8F5] px-3 py-2 text-base text-[#1A1A1F] placeholder-[#B5ADA3] focus:border-[#C4967E]/40 focus:outline-none"
+                    className="w-full rounded-xl border border-[#E8E0D8] bg-[#FAF8F5] px-3 py-2 text-base text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:border-[#C4967E]/40 focus:outline-none"
                   />
                   <div className="mt-2 flex gap-2">
                     <button
@@ -215,7 +215,7 @@ export default function SavedNotesContent() {
                     <button
                       type="button"
                       onClick={() => setEditingId(null)}
-                      className="min-h-11 rounded-xl px-4 text-base font-semibold text-[#928980] hover:text-[#1A1A1F]"
+                      className="min-h-11 rounded-xl px-4 text-base font-semibold text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)]"
                     >
                       취소
                     </button>

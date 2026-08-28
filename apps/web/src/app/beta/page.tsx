@@ -27,8 +27,10 @@ const CONDITIONS = [
 
 export default async function BetaPage() {
   return (
-    <main className="min-h-screen bg-noir-800">
-      <CustomerNav />
+    <main className="min-h-screen bg-[var(--hb-primary)]">
+      {/* 이 화면은 어두운 히어로다. 안 넘기면 로고·메뉴가 어두운 글자로 나와
+          어두운 바탕에 묻힌다(2026-08-28 실측 1.13:1). */}
+      <CustomerNav onDark />
 
       {/* Hero */}
       <section className="relative pt-[120px] md:pt-[160px] pb-[clamp(60px,8vw,100px)] px-[clamp(20px,5vw,60px)] overflow-hidden">
@@ -141,7 +143,7 @@ export default async function BetaPage() {
               </p>
               <a
                 href="/login"
-                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 text-[15px] font-semibold text-noir-800 transition-colors hover:bg-white/90"
+                className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-white px-7 text-[15px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-white/90"
               >
                 계정 만들기
               </a>

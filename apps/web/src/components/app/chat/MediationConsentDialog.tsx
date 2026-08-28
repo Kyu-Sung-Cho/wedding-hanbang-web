@@ -106,7 +106,7 @@ export default function MediationConsentDialog({
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#F3E9E4] text-[#795252]">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
           </div>
-          <h2 id={titleId} className="text-lg font-semibold text-[#1A1A1F]">
+          <h2 id={titleId} className="text-lg font-semibold text-[var(--hb-text-strong)]">
             아모라에게 조율 초안을 요청할까요?
           </h2>
           <p
@@ -132,7 +132,7 @@ export default function MediationConsentDialog({
             maxLength={MAX_MEDIATION_SUMMARY_CHARS}
             onChange={(event) => setSummary(event.target.value)}
             placeholder="예: 결혼식장 예산 상한선을 두고 의견이 달라요."
-            className="mt-2 min-h-28 w-full resize-y rounded-xl border border-[#D8CEC6] bg-white px-3.5 py-3 text-sm leading-relaxed text-[#1A1A1F] outline-none placeholder:text-[#A49B95] focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/15"
+            className="mt-2 min-h-28 w-full resize-y rounded-xl border border-[#D8CEC6] bg-white px-3.5 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)] outline-none placeholder:text-[#A49B95] focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/15"
           />
           <div className="mt-1.5 flex items-start justify-between gap-3">
             <p className="text-xs leading-relaxed text-[#746A63]">

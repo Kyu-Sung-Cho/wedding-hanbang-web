@@ -12,26 +12,26 @@ import {
 
 type Step = "pick" | "give" | "face";
 
-const surface = "rounded-[20px] border border-[#EFE4D7] bg-white";
+const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#36534E] px-6"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
-  + " hover:bg-[#243832] active:-translate-y-[3px] motion-reduce:transform-none"
-  + " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+  + " hover:bg-[var(--hb-primary)] active:-translate-y-[3px] motion-reduce:transform-none"
+  + " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
   + " focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border"
-  + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[#36534E]"
-  + " transition-colors duration-150 ease-out hover:bg-[#F7F1E8]"
+  + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)]"
+  + " transition-colors duration-150 ease-out hover:bg-[var(--hb-surface-hover)]"
   + " active:-translate-y-[3px] motion-reduce:transform-none focus-visible:outline-none"
-  + " focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2";
+  + " focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2";
 // 밑줄은 여기 넣지 않는다. `underline`과 `no-underline`을 같은 요소에 겹치면 어느 쪽이
 // 이기는지가 클래스 문자열 순서가 아니라 생성된 CSS 순서로 정해져서 밑줄이 남는다.
 const quietLink =
   "inline-flex min-h-[44px] items-center justify-center rounded-full px-3 text-[13px]"
   + " font-semibold text-[#8F6662] transition-colors"
-  + " hover:text-[#36534E] focus-visible:outline-none focus-visible:ring-2"
-  + " focus-visible:ring-[#36534E] focus-visible:ring-offset-2";
+  + " hover:text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2"
+  + " focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2";
 
 /**
  * 「오늘 한 마디」.
@@ -80,19 +80,19 @@ export default function TodayClient({
         <CardFace card={mine} />
 
         <div className="mx-auto mt-6 w-full max-w-[340px]">
-          <p className="text-[15px] font-semibold leading-[1.7] text-[#243832]">
+          <p className="text-[15px] font-semibold leading-[1.7] text-[var(--hb-text-strong)]">
             오늘은 이 한 문장만 꺼내도 충분해요.
           </p>
-          <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[#8F6662]">
+          <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--color-rose-700)]">
             저희는 이 카드를 보관하지 않아요.
           </p>
 
           {theirs ? (
-            <div className="mt-6 border-t border-[#EFE4D7] pt-5">
-              <p className="text-[12px] font-semibold text-[#8F6662]">
+            <div className="mt-6 border-t border-[var(--hb-hairline)] pt-5">
+              <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">
                 상대가 나한테 물어줄 한 마디
               </p>
-              <p className="mt-1.5 text-[16px] font-semibold leading-[1.5] text-[#243832]">
+              <p className="mt-1.5 text-[16px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                 {theirs.say}
               </p>
               {/*
@@ -118,7 +118,7 @@ export default function TodayClient({
                 )}
                 {copied ? "링크를 복사했어요" : "이 한 장 보낼 링크 복사"}
               </button>
-              <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[#8F6662]">
+              <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                 링크에는 이 한 장만 담겨요. 내가 고른 카드는 가지 않아요.
               </p>
             </div>
@@ -141,7 +141,7 @@ export default function TodayClient({
   return (
     <Shell>
       <section className={`${surface} overflow-hidden`}>
-        <div className="bg-[#243832] px-5 py-7 text-white sm:px-8">
+        <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
           <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">
             오늘 한 마디
           </p>
@@ -154,13 +154,13 @@ export default function TodayClient({
         </div>
 
         {giving && mine ? (
-          <div className="border-b border-[#EFE4D7] bg-[#F7F1E8] px-5 py-3 sm:px-8">
-            <p className="text-[12px] font-semibold text-[#8F6662]">내가 물어볼 한 마디</p>
-            <p className="mt-1 truncate text-[14px] font-semibold text-[#243832]">{mine.say}</p>
+          <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-3 sm:px-8">
+            <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">내가 물어볼 한 마디</p>
+            <p className="mt-1 truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">{mine.say}</p>
           </div>
         ) : null}
 
-        <div className="divide-y divide-[#EFE4D7]">
+        <div className="divide-y divide-[var(--hb-hairline)]">
           {drawn.map((card) => {
             const selected = draft?.id === card.id;
             return (
@@ -170,22 +170,22 @@ export default function TodayClient({
                 data-card={card.id}
                 aria-pressed={selected}
                 onClick={() => setDraft(card)}
-                className={`flex min-h-[88px] w-full items-center justify-between gap-3 px-5 py-5 text-left transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#36534E] sm:px-8 ${
-                  selected ? "bg-[#F7F1E8]" : "bg-white hover:bg-[#FBF8F2]"
+                className={`flex min-h-[88px] w-full items-center justify-between gap-3 px-5 py-5 text-left transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)] sm:px-8 ${
+                  selected ? "bg-[var(--hb-surface-hover)]" : "bg-white hover:bg-[var(--hb-surface-page)]"
                 }`}
               >
                 <span>
-                  <span className="block text-[13px] font-medium leading-[1.5] text-[#8F6662]">
+                  <span className="block text-[13px] font-medium leading-[1.5] text-[var(--color-rose-700)]">
                     {card.scene}
                   </span>
-                  <span className="mt-1.5 block text-[17px] font-semibold leading-[1.5] text-[#243832]">
+                  <span className="mt-1.5 block text-[17px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                     {card.say}
                   </span>
                 </span>
                 <span
                   aria-hidden="true"
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                    selected ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#C7D1C2]"
+                    selected ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#C7D1C2]"
                   }`}
                 >
                   {selected ? <Check className="h-4 w-4" /> : null}
@@ -195,7 +195,7 @@ export default function TodayClient({
           })}
         </div>
 
-        <div className="border-t border-[#EFE4D7] px-5 py-3 text-center sm:px-8">
+        <div className="border-t border-[var(--hb-hairline)] px-5 py-3 text-center sm:px-8">
           <button
             type="button"
             data-shuffle="true"
@@ -215,7 +215,7 @@ export default function TodayClient({
         모바일 390px에서 버튼 셋을 한 줄에 넣으면 전부 두 줄로 깨진다.
         아래 줄은 항상 주버튼 하나(+뒤로)만 두고, 건너뛰기는 그 아래 텍스트 링크로 내린다.
       */}
-      <div className="sticky bottom-0 mt-5 bg-gradient-to-t from-[#FBF8F2] via-[#FBF8F2] via-70% pb-3 pt-4">
+      <div className="sticky bottom-0 mt-5 bg-gradient-to-t from-[var(--hb-surface-page)] via-[var(--hb-surface-page)] via-70% pb-3 pt-4">
         <div className="flex gap-3">
           {giving ? (
             <button
@@ -271,7 +271,7 @@ export default function TodayClient({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-dvh bg-[#FBF8F2] px-4 py-6 sm:px-6 sm:py-10">
+    <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-[560px]">{children}</div>
     </main>
   );
@@ -284,18 +284,18 @@ export function CardFace({ card }: { card: TodayCard }) {
       data-card-face={card.id}
       className={`${surface} mx-auto w-full max-w-[340px] px-6 py-7`}
     >
-      <p className="text-[13px] font-medium leading-[1.5] text-[#8F6662]">{card.scene}</p>
-      <h2 className="mt-4 text-[24px] font-semibold leading-[1.4] text-[#243832]">{card.say}</h2>
+      <p className="text-[13px] font-medium leading-[1.5] text-[var(--color-rose-700)]">{card.scene}</p>
+      <h2 className="mt-4 text-[24px] font-semibold leading-[1.4] text-[var(--hb-text-strong)]">{card.say}</h2>
 
-      <div className="mt-6 border-t border-[#EFE4D7] pt-4">
-        <p className="text-[12px] font-semibold text-[#8F6662]">언제</p>
-        <p className="mt-1 text-[15px] font-medium leading-[1.6] text-[#243832]">{card.when}</p>
+      <div className="mt-6 border-t border-[var(--hb-hairline)] pt-4">
+        <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">언제</p>
+        <p className="mt-1 text-[15px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">{card.when}</p>
       </div>
 
       {card.check ? (
-        <div className="mt-4 rounded-[12px] bg-[#F7F1E8] px-4 py-3">
+        <div className="mt-4 rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3">
           <p className="text-[12px] font-semibold text-[#6D806E]">계약 전 확인할 것</p>
-          <p className="mt-1 text-[13px] font-medium leading-[1.65] text-[#36534E]">
+          <p className="mt-1 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-strong)]">
             {card.check}
           </p>
         </div>
@@ -303,7 +303,7 @@ export function CardFace({ card }: { card: TodayCard }) {
 
       {/* 스크린샷 한 장이 어디서 왔는지 들고 다녀야 하므로 읽히는 색을 쓴다.
           연한 세이지(#C7D1C2)는 흰 배경에서 대비 2:1도 안 나와 캡처하면 사라진다. */}
-      <p className="mt-6 text-[11px] font-semibold tracking-[0.14em] text-[#8F6662]">
+      <p className="mt-6 text-[11px] font-semibold tracking-[0.14em] text-[var(--color-rose-700)]">
         오늘 한 마디 · hanbang.ai
       </p>
     </section>

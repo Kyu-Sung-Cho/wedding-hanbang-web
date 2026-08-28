@@ -1147,7 +1147,7 @@ export default function ChatSidePanel({
       {/* 패널 */}
       <div
         ref={panelRef}
-        className={`fixed z-50 flex flex-col overflow-hidden bg-ivory-50 shadow-[-4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out
+        className={`fixed z-50 flex flex-col overflow-hidden bg-[var(--hb-surface-page)] shadow-[-4px_0_24px_rgba(0,0,0,0.08)] transition-transform duration-300 ease-out
           md:top-0 md:right-0 md:w-[400px] md:h-full md:border-l md:border-black/[0.06]
           max-md:bottom-0 max-md:left-0 max-md:right-0 max-md:h-[78dvh] max-md:min-h-[420px] max-md:max-h-[calc(100dvh-4.5rem)] max-md:rounded-t-[22px] max-md:border-t max-md:border-black/[0.06] max-md:shadow-[0_-18px_45px_rgba(7,22,41,0.18)]
           ${isOpen
@@ -1186,8 +1186,8 @@ export default function ChatSidePanel({
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-noir-800">아모라 AI</h3>
-              <p className="text-[0.6875rem] text-taupe-400">AI 동반자</p>
+              <h3 className="text-sm font-medium text-[var(--hb-text-strong)]">아모라 AI</h3>
+              <p className="text-[0.6875rem] text-[var(--hb-text-muted)]">AI 동반자</p>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -1199,7 +1199,7 @@ export default function ChatSidePanel({
                 title="대화 화면 정리"
                 aria-label="현재 대화 범위를 내 화면에서 정리"
               >
-                <EyeOff className="w-4 h-4 text-taupe-500" />
+                <EyeOff className="w-4 h-4 text-[var(--hb-text-body)]" />
               </button>
             )}
             <button
@@ -1209,7 +1209,7 @@ export default function ChatSidePanel({
               title="전체 화면으로 보기"
               aria-label="아모라 상담 전체 화면으로 보기"
             >
-              <Maximize2 className="w-4 h-4 text-taupe-500" />
+              <Maximize2 className="w-4 h-4 text-[var(--hb-text-body)]" />
             </button>
             <button
               type="button"
@@ -1219,7 +1219,7 @@ export default function ChatSidePanel({
               aria-label="아모라 상담 패널 닫기"
               data-panel-initial-focus
             >
-              <X className="w-4 h-4 text-taupe-500" />
+              <X className="w-4 h-4 text-[var(--hb-text-body)]" />
             </button>
           </div>
         </div>
@@ -1228,11 +1228,11 @@ export default function ChatSidePanel({
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
               <Sparkles className="w-10 h-10 text-rose-500/30 mx-auto mb-3" />
-              <p className="text-[0.8125rem] text-taupe-500 mb-1">
+              <p className="text-[0.8125rem] text-[var(--hb-text-body)] mb-1">
                 {isDemo ? "로그인 후 이용할 수 있어요" : "온보딩을 완료해주세요"}
               </p>
               {isDemo && (
-                <a href="/login" className="text-xs text-rose-500 font-medium hover:underline">
+                <a href="/login" className="text-xs text-[var(--color-rose-700)] font-medium hover:underline">
                   로그인하기
                 </a>
               )}
@@ -1254,7 +1254,7 @@ export default function ChatSidePanel({
                   className={`min-h-11 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     activeScope === "shared"
                       ? "bg-white text-[#795252] shadow-sm"
-                      : "text-[#928980] hover:text-[#504444]"
+                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
                   함께 대화
@@ -1268,7 +1268,7 @@ export default function ChatSidePanel({
                   className={`flex min-h-11 items-center justify-center gap-1 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     activeScope === "private"
                       ? "bg-white text-[#5a6147] shadow-sm"
-                      : "text-[#928980] hover:text-[#504444]"
+                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
                   <Lock className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1296,7 +1296,7 @@ export default function ChatSidePanel({
             {/* 대화 화면 정리 확인 */}
             {showClearConfirm && (
               <div className="mx-3 mt-2 flex items-center justify-between gap-3 rounded-xl border border-[#E8DDD3] bg-[#FAF7F2] p-2.5">
-                <p className="text-xs leading-relaxed text-[#504444]">
+                <p className="text-xs leading-relaxed text-[var(--hb-text-body)]">
                   {activeScope === "private"
                     ? "나만의 상담 이전 메시지를 내 화면에서만 숨길까요?"
                     : "함께 대화의 이전 메시지를 내 화면에서만 숨길까요?"}
@@ -1305,7 +1305,7 @@ export default function ChatSidePanel({
                   </span>
                 </p>
                 <div className="flex shrink-0 gap-1.5">
-                  <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-taupe-500 hover:bg-gray-50">취소</button>
+                  <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-[var(--hb-text-body)] hover:bg-gray-50">취소</button>
                   <button type="button" onClick={handleClearChat} className="min-h-11 rounded-lg bg-[#795252] px-3 text-[0.6875rem] text-white hover:bg-[#946a6a]">내 화면에서만 숨기기</button>
                 </div>
               </div>
@@ -1315,7 +1315,7 @@ export default function ChatSidePanel({
               && !isStreaming
               && messageTarget === "ai"
               && artifactsMatchActiveVisibility && (
-              <div className="mx-3 mt-2 flex items-center justify-between rounded-xl bg-[#f6efe5] p-2.5">
+              <div className="mx-3 mt-2 flex items-center justify-between rounded-xl bg-[var(--hb-surface-hover)] p-2.5">
                 <p className="text-xs font-medium leading-relaxed text-[#6d625a]">
                   {quotaRemaining > 0
                     ? `베타 무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
@@ -1324,7 +1324,7 @@ export default function ChatSidePanel({
                 <button
                   type="button"
                   onClick={() => useChatStore.setState({ quotaRemaining: null })}
-                  className="ml-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[#b5ada3] hover:text-[#6d625a]"
+                  className="ml-2 flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:text-[#6d625a]"
                   aria-label="상담 횟수 안내 닫기"
                 >
                   <X className="h-4 w-4" />
@@ -1519,7 +1519,7 @@ export default function ChatSidePanel({
                   <button
                     type="button"
                     onClick={() => setMediationDismissed(true)}
-                    className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-[#B5ADA3] hover:text-[#928980]"
+                    className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:text-[var(--hb-text-muted)]"
                     aria-label="조율 상담 제안 숨기기"
                   >
                     <X className="w-3 h-3" />
@@ -1529,7 +1529,7 @@ export default function ChatSidePanel({
                       <Sparkles className="w-3.5 h-3.5 text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs text-[#1A1A1F] leading-relaxed">
+                      <p className="text-xs text-[var(--hb-text-strong)] leading-relaxed">
                         혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
                       </p>
                       <button
@@ -1573,7 +1573,7 @@ export default function ChatSidePanel({
                     ) : (
                       <div className="w-12 h-12 rounded-lg border border-black/[0.06] bg-gray-50 flex flex-col items-center justify-center">
                         {getFileIcon(att.mediaType)}
-                        <span className="text-[8px] text-taupe-400 mt-0.5 truncate max-w-[40px]">{att.fileName.split(".").pop()}</span>
+                        <span className="text-[8px] text-[var(--hb-text-muted)] mt-0.5 truncate max-w-[40px]">{att.fileName.split(".").pop()}</span>
                       </div>
                     )}
                     <button
@@ -1615,7 +1615,7 @@ export default function ChatSidePanel({
                     className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
-                        : "text-taupe-400 hover:text-taupe-500 border border-transparent"
+                        : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
                     }`}
                   >
                     <Sparkles className="w-3 h-3" />
@@ -1629,7 +1629,7 @@ export default function ChatSidePanel({
                     className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
-                        : "text-taupe-400 hover:text-taupe-500 border border-transparent"
+                        : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
                     }`}
                   >
                     <Heart className="w-3 h-3" />
@@ -1648,7 +1648,7 @@ export default function ChatSidePanel({
                   title="파일 첨부"
                   aria-label="파일 첨부"
                 >
-                  <Paperclip className="w-4 h-4 text-taupe-400" />
+                  <Paperclip className="w-4 h-4 text-[var(--hb-text-muted)]" />
                 </button>
                 <input
                   ref={fileInputRef}
@@ -1676,7 +1676,7 @@ export default function ChatSidePanel({
                   placeholder={messageTarget === "partner" ? "상대방에게 메시지..." : "결혼 준비에서 궁금한 점을 물어보세요…"}
                   disabled={isComposerBusy}
                   aria-label="메시지 입력"
-                  className="flex-1 px-2 py-2 text-[0.8125rem] text-noir-800 placeholder:text-taupe-400 bg-transparent outline-none disabled:opacity-50 min-w-0"
+                  className="flex-1 px-2 py-2 text-[0.8125rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 min-w-0"
                 />
                 <button
                   type="button"

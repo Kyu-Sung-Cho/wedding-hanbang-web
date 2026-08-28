@@ -67,21 +67,21 @@ export default function MyBookmarksPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
-        <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors">
-          <ArrowLeft className="w-4 h-4 text-noir-800" />
+        <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-[var(--hb-surface-hover)] transition-colors">
+          <ArrowLeft className="w-4 h-4 text-[var(--hb-text-strong)]" />
         </Link>
-        <h1 className="font-serif-kr text-[20px] text-noir-800">북마크</h1>
+        <h1 className="font-serif-kr text-[20px] text-[var(--hb-text-strong)]">북마크</h1>
       </div>
 
       {loading ? (
         <div className="py-16 flex justify-center">
-          <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
+          <Loader2 className="w-6 h-6 text-[var(--hb-text-muted)] animate-spin" />
         </div>
       ) : posts.length === 0 ? (
         <div className="py-16 text-center">
-          <Bookmark className="w-10 h-10 text-[#B5ADA3]/40 mx-auto mb-3" />
-          <p className="text-[14px] text-[#928980]">북마크한 글이 없습니다</p>
-          <Link href={weddingPath()} className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors">
+          <Bookmark className="w-10 h-10 text-[var(--hb-text-muted)]/40 mx-auto mb-3" />
+          <p className="text-[14px] text-[var(--hb-text-muted)]">북마크한 글이 없습니다</p>
+          <Link href={weddingPath()} className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[var(--hb-primary)] hover:bg-[#9A6B62] transition-colors">
             커뮤니티 둘러보기
           </Link>
         </div>

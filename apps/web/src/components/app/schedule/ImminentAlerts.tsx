@@ -91,7 +91,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
 
   return (
     <div
-      className="overflow-hidden rounded-[14px] border border-[#eadfc9]/70 bg-[#fffdf7] animate-fade-in"
+      className="overflow-hidden rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[#fffdf7] animate-fade-in"
     >
       {/* 헤더 */}
       <button
@@ -100,7 +100,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Clock className="h-4 w-4 shrink-0 text-[#36534E]" />
+            <Clock className="h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
             <h3 className="min-w-0 truncate text-[14px] font-semibold text-[#071629]">
               날짜를 정할 항목
             </h3>
@@ -113,16 +113,16 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
           */}
           {needsScheduleCount > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
-              <span className="rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold text-white">
+              <span className="rounded-full bg-[var(--hb-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                 {needsScheduleCount} 일정 필요
               </span>
             </div>
           )}
         </div>
         {expanded ? (
-          <ChevronUp className="mt-0.5 w-5 h-5 shrink-0 text-[#B5ADA3]" />
+          <ChevronUp className="mt-0.5 w-5 h-5 shrink-0 text-[var(--hb-text-muted)]" />
         ) : (
-          <ChevronDown className="mt-0.5 w-5 h-5 shrink-0 text-[#B5ADA3]" />
+          <ChevronDown className="mt-0.5 w-5 h-5 shrink-0 text-[var(--hb-text-muted)]" />
         )}
       </button>
 
@@ -202,7 +202,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
               );
             })}
           </div>
-          <p className="border-t border-[#eadfc9]/70 px-4 py-3 text-[11px] leading-5 text-[#7a8290]">
+          <p className="border-t border-[var(--hb-hairline)]/70 px-4 py-3 text-[11px] leading-5 text-[#7a8290]">
             표시 순서는 기본 일정 기준이며, 업체나 가족과 정한 실제 날짜가 우선입니다.
           </p>
         </div>

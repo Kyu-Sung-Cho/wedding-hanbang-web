@@ -47,10 +47,10 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
           >
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.04]">
-              <h3 className="text-lg font-medium text-noir-800">결혼 준비 현황</h3>
+              <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-50 hover:text-noir-800 transition-colors"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -65,7 +65,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
                       ? "text-rose-500"
-                      : "text-taupe-400 hover:text-taupe-500"
+                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -103,10 +103,10 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
 
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04]">
-              <h3 className="text-lg font-medium text-noir-800">결혼 준비 현황</h3>
+              <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-50 hover:text-noir-800 transition-colors"
+                className="w-9 h-9 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -121,7 +121,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
                       ? "text-rose-500"
-                      : "text-taupe-400 hover:text-taupe-500"
+                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />

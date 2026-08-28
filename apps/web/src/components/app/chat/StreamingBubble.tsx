@@ -36,21 +36,21 @@ export default function StreamingBubble({
         </div>
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <span className="text-base font-medium text-[#928980]">아모라</span>
+          <span className="text-base font-medium text-[var(--hb-text-muted)]">아모라</span>
           <div
             className="bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border border-black/[0.06] shadow-sm"
             aria-live="polite"
             aria-busy="true"
           >
             {content.trim() ? (
-              <p className="whitespace-pre-wrap break-words text-sm leading-7 text-[#1A1A1F] sm:text-[0.9375rem]">
+              <p className="whitespace-pre-wrap break-words text-sm leading-7 text-[var(--hb-text-strong)] sm:text-[0.9375rem]">
                 {content}
                 <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-[#C4967E] align-middle" aria-hidden="true" />
               </p>
             ) : (
               <div className="flex items-center gap-2 py-0.5" role="status">
                 <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin" aria-hidden="true" />
-                <span className="text-xs sm:text-sm text-[#928980]">
+                <span className="text-xs sm:text-sm text-[var(--hb-text-muted)]">
                   답변을 정리하고 있어요…
                 </span>
               </div>

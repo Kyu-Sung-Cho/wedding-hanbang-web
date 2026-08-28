@@ -41,8 +41,8 @@ export default function SortSelector({
             onClick={() => onSortChange(option.key)}
             className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
               isActive
-                ? "bg-[#36534E] text-white"
-                : "bg-white text-[#928980] hover:bg-[#f6efe5] hover:text-[#635b51]"
+                ? "bg-[var(--hb-primary)] text-white"
+                : "bg-white text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-body)]"
             }`}
           >
             {option.label}
@@ -60,8 +60,8 @@ export default function SortSelector({
                 onClick={() => onPeriodChange(p.key)}
                 className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
                   period === p.key
-                    ? "bg-[#36534E] text-white"
-                    : "bg-white text-[#928980] hover:bg-[#f6efe5] hover:text-[#635b51]"
+                    ? "bg-[var(--hb-primary)] text-white"
+                    : "bg-white text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-body)]"
                 }`}
               >
                 {p.label}

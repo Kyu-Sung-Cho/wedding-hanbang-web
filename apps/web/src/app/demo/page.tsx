@@ -38,7 +38,7 @@ const previews = [
 
 export default function DemoPage() {
   return (
-    <main className="min-h-screen bg-ivory-50 text-noir-800">
+    <main className="min-h-screen bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]">
       <CustomerNav demoMode />
       <section className="px-5 pb-16 pt-32 sm:px-8 sm:pt-40">
         <div className="mx-auto max-w-5xl">
@@ -56,26 +56,26 @@ export default function DemoPage() {
         </div>
       </section>
 
-      <section aria-labelledby="preview-heading" className="bg-ivory-warm px-5 py-16 sm:px-8 sm:py-24">
+      <section aria-labelledby="preview-heading" className="bg-[var(--hb-surface-hover)] px-5 py-16 sm:px-8 sm:py-24">
         <div className="mx-auto max-w-5xl">
           <h2 id="preview-heading" className="sr-only">아모라 기능 원칙</h2>
           <div className="grid gap-5 md:grid-cols-2">
             {previews.map((preview) => (
               <article key={preview.eyebrow} className="rounded-3xl border border-black/[0.06] bg-white p-7 shadow-[0_16px_45px_rgba(27,28,28,0.05)] sm:p-9">
-                <p className="text-xs font-semibold tracking-[0.14em] text-rose-500">{preview.eyebrow}</p>
+                <p className="text-xs font-semibold tracking-[0.14em] text-[var(--color-rose-700)]">{preview.eyebrow}</p>
                 <h3 className="mt-4 font-serif-kr text-2xl font-medium leading-snug">{preview.title}</h3>
                 <p className="mt-4 text-sm leading-7 text-charcoal">{preview.description}</p>
               </article>
             ))}
           </div>
 
-          <div className="mt-10 rounded-3xl bg-noir-800 px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
+          <div className="mt-10 rounded-3xl bg-[var(--hb-primary)] px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
             <div>
               <h2 className="font-serif-kr text-2xl">현재 서비스 화면을 둘러보실래요?</h2>
               <p className="mt-2 text-sm leading-6 text-white/70">베타 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-0">
-              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-noir-800">
+              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
                 서비스 둘러보기
               </Link>
               <Link href="/beta" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/40 px-6 text-sm font-semibold text-white">

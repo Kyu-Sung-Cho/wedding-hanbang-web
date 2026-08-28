@@ -86,7 +86,7 @@ export default function UserMenu() {
           onClick={() => setOpen((v) => !v)}
           aria-label="내 메뉴"
           aria-expanded={open}
-          className="h-11 w-11 rounded-full flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAFAF8] hover:text-[#1A1A1F] transition-all"
+          className="h-11 w-11 rounded-full flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)] transition-all"
         >
           <User className="w-5 h-5" />
         </button>
@@ -101,13 +101,13 @@ export default function UserMenu() {
                 const Icon = item.Icon;
                 const inner = (
                   <div className="flex items-center gap-3 px-4 py-2.5 text-left hover:bg-[#FAFAF8] transition-colors">
-                    <Icon className="w-4 h-4 text-[#36534E] shrink-0" />
+                    <Icon className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0" />
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-medium text-[#1A1A1F] leading-tight">
+                      <div className="text-sm font-medium text-[var(--hb-text-strong)] leading-tight">
                         {item.label}
                       </div>
                       {item.sub && (
-                        <div className="text-[11px] text-[#928980] mt-0.5 leading-tight">
+                        <div className="text-[11px] text-[var(--hb-text-muted)] mt-0.5 leading-tight">
                           {item.sub}
                         </div>
                       )}

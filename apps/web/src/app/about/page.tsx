@@ -19,16 +19,16 @@ export const metadata = {
 export default async function AboutPage() {
   const current = await getBetaCount();
   return (
-    <main className="min-h-screen bg-ivory-50">
+    <main className="min-h-screen bg-[var(--hb-surface-page)]">
       <CustomerNav />
 
       {/* 간단한 상단 타이틀 */}
-      <section className="pt-[120px] md:pt-[160px] pb-[clamp(60px,8vw,100px)] px-[clamp(20px,5vw,60px)] bg-ivory-50">
+      <section className="pt-[120px] md:pt-[160px] pb-[clamp(60px,8vw,100px)] px-[clamp(20px,5vw,60px)] bg-[var(--hb-surface-page)]">
         <div className="max-w-[1240px] mx-auto">
-          <p className="text-[11px] tracking-[0.3em] text-rose-500 mb-5 font-medium">
+          <p className="text-[11px] tracking-[0.3em] text-[var(--color-rose-700)] mb-5 font-medium">
             이 브랜드의 이야기
           </p>
-          <h1 className="font-serif-kr text-[clamp(36px,5vw,64px)] font-light text-noir-800 leading-[1.15] tracking-normal max-w-3xl">
+          <h1 className="font-serif-kr text-[clamp(36px,5vw,64px)] font-light text-[var(--hb-text-strong)] leading-[1.15] tracking-normal max-w-3xl">
             우리가 믿는
             <br />
             <em className="not-italic text-rose-500">결혼 준비의 원칙.</em>

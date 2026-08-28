@@ -83,9 +83,9 @@ export function pricePolicyLabel(type: PricePolicyType): string {
 
 const PRICE_POLICY_BADGE_CLASSES: Record<PricePolicyType, string> = {
   penalty: "bg-danger-500/10 text-danger-700",
-  refund: "bg-sage-pale/45 text-noir-800",
-  change: "bg-gold-light/55 text-taupe-500",
-  other: "bg-ivory-200 text-taupe-500",
+  refund: "bg-sage-pale/45 text-[var(--hb-text-strong)]",
+  change: "bg-gold-light/55 text-[var(--hb-text-body)]",
+  other: "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)]",
 };
 
 export function pricePolicyBadgeClass(type: PricePolicyType): string {

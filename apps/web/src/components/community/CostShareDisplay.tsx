@@ -46,10 +46,10 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <Wallet className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[12px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">
                 총 비용
               </p>
-              <p className="text-sm font-medium text-[#1A1A1F]">
+              <p className="text-sm font-medium text-[var(--hb-text-strong)]">
                 {formatCost(data.totalCost)}
               </p>
             </div>
@@ -60,10 +60,10 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <MapPin className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[12px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">
                 지역
               </p>
-              <p className="text-sm font-medium text-[#1A1A1F]">
+              <p className="text-sm font-medium text-[var(--hb-text-strong)]">
                 {data.region}
               </p>
             </div>
@@ -74,10 +74,10 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <Users className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[12px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">
                 하객 수
               </p>
-              <p className="text-sm font-medium text-[#1A1A1F]">
+              <p className="text-sm font-medium text-[var(--hb-text-strong)]">
                 {data.guestCount}명
               </p>
             </div>
@@ -88,10 +88,10 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <CalendarDays className="w-4 h-4" />
             </div>
             <div>
-              <p className="text-[12px] text-[#928980] leading-none mb-0.5">
+              <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">
                 결혼 시기
               </p>
-              <p className="text-sm font-medium text-[#1A1A1F]">
+              <p className="text-sm font-medium text-[var(--hb-text-strong)]">
                 {data.weddingDate}
               </p>
             </div>
@@ -102,7 +102,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
       {/* 카테고리별 내역 */}
       {data.categories.length > 0 && (
         <div className="p-4 sm:p-5">
-          <h4 className="text-sm font-medium text-[#1A1A1F] mb-3">
+          <h4 className="text-sm font-medium text-[var(--hb-text-strong)] mb-3">
             항목별 비용
           </h4>
           <div className="space-y-3">
@@ -110,23 +110,23 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
               <div key={cat.key}>
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-2 min-w-0">
-                    <span className="text-sm text-[#1A1A1F] font-medium">
+                    <span className="text-sm text-[var(--hb-text-strong)] font-medium">
                       {cat.label}
                     </span>
                     {cat.vendor && (
-                      <span className="text-xs text-[#928980] truncate">
+                      <span className="text-xs text-[var(--hb-text-muted)] truncate">
                         {cat.vendor}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
                     {cat.contractCost != null && cat.extraCost != null && (
-                      <span className="text-[11px] text-[#B5ADA3]">
+                      <span className="text-[11px] text-[var(--hb-text-muted)]">
                         계약 {cat.contractCost.toLocaleString()} + 추가{" "}
                         {cat.extraCost.toLocaleString()}
                       </span>
                     )}
-                    <span className="text-sm font-medium text-[#1A1A1F]">
+                    <span className="text-sm font-medium text-[var(--hb-text-strong)]">
                       {formatCost(cat.cost)}
                     </span>
                   </div>
@@ -141,7 +141,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
                 </div>
 
                 {cat.notes && (
-                  <p className="mt-1 text-xs text-[#928980]">{cat.notes}</p>
+                  <p className="mt-1 text-xs text-[var(--hb-text-muted)]">{cat.notes}</p>
                 )}
               </div>
             ))}
@@ -160,7 +160,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
                   후회한 점
                 </span>
               </div>
-              <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap">
                 {data.regretPoints}
               </p>
             </div>
@@ -174,7 +174,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
                   잘한 점
                 </span>
               </div>
-              <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap">
                 {data.goodPoints}
               </p>
             </div>
@@ -188,7 +188,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
                   조언
                 </span>
               </div>
-              <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+              <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap">
                 {data.advice}
               </p>
             </div>

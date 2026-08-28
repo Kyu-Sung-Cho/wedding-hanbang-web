@@ -73,17 +73,17 @@ export default function WeddingStylePreferences({
   return (
     <div className="space-y-7">
       <div className="text-center">
-        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
+        <h2 className="text-[22px] font-semibold text-[var(--hb-text-strong)] mb-2">
           결혼식 선호
         </h2>
-        <p className="text-[14px] text-taupe-400">
+        <p className="text-[14px] text-[var(--hb-text-muted)]">
           알고 있는 만큼만 골라도 돼요
         </p>
       </div>
 
       {/* Q1: 결혼식 분위기 */}
       <div className="space-y-3">
-        <p className="text-[14px] font-medium text-noir-800">
+        <p className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           결혼식 공간과 연출에서 원하는 분위기는 무엇인가요?
         </p>
         <div className="grid grid-cols-2 gap-3">
@@ -98,10 +98,10 @@ export default function WeddingStylePreferences({
               }`}
             >
               <div className="text-[28px] mb-1.5">{opt.emoji}</div>
-              <div className="text-[15px] font-semibold text-noir-800">
+              <div className="text-[15px] font-semibold text-[var(--hb-text-strong)]">
                 {opt.label}
               </div>
-              <div className="text-[11px] text-taupe-400 mt-0.5">
+              <div className="text-[11px] text-[var(--hb-text-muted)] mt-0.5">
                 {opt.desc}
               </div>
             </button>
@@ -112,10 +112,10 @@ export default function WeddingStylePreferences({
       {/* Q2: 가장 중요한 항목 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-[14px] font-medium text-noir-800">
+          <p className="text-[14px] font-medium text-[var(--hb-text-strong)]">
             더 중요하게 생각하는 항목은 무엇인가요?
           </p>
-          <span className="text-[11px] text-taupe-400">
+          <span className="text-[11px] text-[var(--hb-text-muted)]">
             최대 3개 선택
           </span>
         </div>
@@ -152,7 +152,7 @@ export default function WeddingStylePreferences({
                   </div>
                 )}
                 <div className="text-[22px] mb-1">{opt.emoji}</div>
-                <div className="text-[12px] font-medium text-noir-800">
+                <div className="text-[12px] font-medium text-[var(--hb-text-strong)]">
                   {opt.label}
                 </div>
               </button>
@@ -163,7 +163,7 @@ export default function WeddingStylePreferences({
 
       {/* Q3: 예산 성향 */}
       <div className="space-y-3">
-        <p className="text-[14px] font-medium text-noir-800">
+        <p className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           돈을 쓸 때 어떤 기준을 더 중요하게 생각하나요?
         </p>
         <div className="grid grid-cols-3 gap-2.5">
@@ -178,10 +178,10 @@ export default function WeddingStylePreferences({
               }`}
             >
               <div className="text-[22px] mb-1">{opt.emoji}</div>
-              <div className="text-[13px] font-semibold text-noir-800">
+              <div className="text-[13px] font-semibold text-[var(--hb-text-strong)]">
                 {opt.label}
               </div>
-              <div className="text-[10px] text-taupe-400 mt-0.5">
+              <div className="text-[10px] text-[var(--hb-text-muted)] mt-0.5">
                 {opt.desc}
               </div>
             </button>
@@ -191,7 +191,7 @@ export default function WeddingStylePreferences({
 
       {/* Q4: 예상 하객 수 */}
       <div className="space-y-3">
-        <p className="text-[14px] font-medium text-noir-800">
+        <p className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           예상 하객 수는?
         </p>
         <div className="flex flex-col gap-2">
@@ -201,8 +201,8 @@ export default function WeddingStylePreferences({
               onClick={() => onGuestCountChange(opt.value)}
               className={`w-full px-4 py-3 rounded-xl border-2 transition-all text-left text-[13px] font-medium ${
                 preferences.guestCount === opt.value
-                  ? "border-rose-500 bg-rose-500/5 text-noir-800 shadow-[0_2px_12px_rgba(121,82,82,0.12)]"
-                  : "border-black/[0.06] bg-white text-taupe-500 hover:border-black/[0.12]"
+                  ? "border-rose-500 bg-rose-500/5 text-[var(--hb-text-strong)] shadow-[0_2px_12px_rgba(121,82,82,0.12)]"
+                  : "border-black/[0.06] bg-white text-[var(--hb-text-body)] hover:border-black/[0.12]"
               }`}
             >
               {opt.label}

@@ -97,7 +97,7 @@ const VARIANT_STYLES: Record<
   }
 > = {
   modal: {
-    root: "rounded-2xl bg-ivory-100 p-5",
+    root: "rounded-2xl bg-[var(--hb-surface-hover)] p-5",
     align: "items-center text-center",
     codeText: "text-[26px] tracking-[0.14em]",
     qrSize: 132,
@@ -198,7 +198,7 @@ export default function InviteCodePanel({
     `inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors ${
       copiedTarget === target
         ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
-        : "bg-[#F6F3F2] text-[#504444] hover:text-[#795252]"
+        : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:text-[#795252]"
     }`;
 
   const copyIcon = (target: CopyTarget, Fallback: typeof Copy) =>
@@ -211,9 +211,9 @@ export default function InviteCodePanel({
   return (
     <div className={`${styles.root} ${className}`.trim()}>
       <div className={`flex flex-col ${styles.align}`}>
-        <p className="text-sm text-[#B5ADA3]">초대 코드</p>
+        <p className="text-sm text-[var(--hb-text-muted)]">초대 코드</p>
         <p
-          className={`mt-1 font-mono font-semibold text-[#1A1A1F] break-all ${styles.codeText}`}
+          className={`mt-1 font-mono font-semibold text-[var(--hb-text-strong)] break-all ${styles.codeText}`}
         >
           {usableCode}
         </p>
@@ -221,7 +221,7 @@ export default function InviteCodePanel({
           <p
             className={
               notice.tone === "active"
-                ? "mt-2 text-sm text-[#928980]"
+                ? "mt-2 text-sm text-[var(--hb-text-muted)]"
                 : "mt-2 text-sm font-medium text-[#795252]"
             }
           >
@@ -281,7 +281,7 @@ export default function InviteCodePanel({
                 title="초대 코드 QR"
               />
             </span>
-            <p className="mt-2 text-[12px] leading-relaxed text-[#928980]">
+            <p className="mt-2 text-[12px] leading-relaxed text-[var(--hb-text-muted)]">
               파트너 폰의 기본 카메라로 찍으면 초대 화면이 열려요.
             </p>
           </div>

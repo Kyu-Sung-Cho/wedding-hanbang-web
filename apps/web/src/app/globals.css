@@ -742,21 +742,8 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   color: rgba(54, 83, 78, 0.55) !important;
 }
 
-.hanbang-service-theme [class~="text-[#1b1c1c]"],
-.hanbang-service-theme [class~="text-[#1A1A1F]"],
-.hanbang-service-theme [class~="text-noir-800"] {
+.hanbang-service-theme [class~="text-[#1b1c1c]"] {
   color: var(--hb-text) !important;
-}
-
-.hanbang-service-theme [class~="text-[#504444]"],
-.hanbang-service-theme [class~="text-taupe-500"] {
-  color: var(--hb-body) !important;
-}
-
-.hanbang-service-theme [class~="text-[#B5ADA3]"],
-.hanbang-service-theme [class~="text-[#928980]"],
-.hanbang-service-theme [class~="text-taupe-400"] {
-  color: var(--hb-muted) !important;
 }
 
 .hanbang-service-theme [class~="text-sage-500"] {
@@ -783,9 +770,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme [class~="bg-[#f3e7e1]"],
 .hanbang-service-theme [class~="bg-[#f6f3f2]"],
 .hanbang-service-theme [class~="bg-[#F6F3F2]"],
-.hanbang-service-theme [class~="bg-[#fcf9f8]"],
-.hanbang-service-theme [class~="bg-ivory-100"],
-.hanbang-service-theme [class~="bg-ivory-warm"] {
+.hanbang-service-theme [class~="bg-[#fcf9f8]"] {
   background-color: var(--hb-ivory-warm) !important;
 }
 
@@ -1010,7 +995,6 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   border-color: var(--hb-navy) !important;
 }
 
-:where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#eadfc9]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8c7ad]"],
 :where(.hanbang-service-theme, .hanbang-community-theme) [class~="border-[#d8bb86]"] {
   border-color: var(--hb-line) !important;

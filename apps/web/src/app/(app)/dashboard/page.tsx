@@ -128,7 +128,7 @@ const categories: CategoryMeta[] = [
 const statusMeta: Record<Status, { label: string; tone: string; dot: string }> = {
   not_started: {
     label: PREPARATION_PROGRESS_STATUS_LABELS.not_started,
-    tone: "border-[#eadfc9] bg-white text-[#5d6879]",
+    tone: "border-[var(--hb-hairline)] bg-white text-[#5d6879]",
     dot: "bg-[#c8bda8]",
   },
   in_progress: {
@@ -406,7 +406,7 @@ export default function DashboardPage() {
           aria-labelledby="joined-plan-title"
         >
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
               <HeartHandshake className="h-5 w-5" />
             </span>
             <div className="min-w-0">
@@ -415,7 +415,7 @@ export default function DashboardPage() {
               </p>
               <h2
                 id="joined-plan-title"
-                className="mt-1 font-serif-kr text-[24px] font-medium leading-tight text-[#243832]"
+                className="mt-1 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]"
               >
                 이제 이 계획을 함께 봐요
               </h2>
@@ -445,7 +445,7 @@ export default function DashboardPage() {
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
               href={joinedReviewHref}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E] sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] sm:w-auto"
             >
               함께 확인할 내용 찾기
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -461,7 +461,7 @@ export default function DashboardPage() {
         </section>
       )}
       {couple && !partner && (inviteCode || inviteCodeError) && (
-        <section className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+        <section className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-[15px] font-semibold text-[#071629]">
@@ -486,7 +486,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={copyCode}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
               >
                 <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -504,8 +504,8 @@ export default function DashboardPage() {
 
       {/* 결혼식 날짜가 없으면 첫 행동 하나를, 있으면 이번 주 내용을 보여준다. */}
       {!journey?.wedding_date ? (
-        <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+        <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
+          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
             시작하기
             <Sparkles className="h-4 w-4" />
           </p>
@@ -519,14 +519,14 @@ export default function DashboardPage() {
           <div className="mt-4 flex flex-wrap gap-2.5">
             <Link
               href={weddingPath("/settings")}
-              className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E]"
+              className="inline-flex items-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
             >
               결혼식 날짜 입력하기
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href={weddingPath("/chat")}
-              className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#f6efe5]"
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
             >
               아직 막막하면, 아모라랑 시작하기
             </Link>
@@ -541,8 +541,8 @@ export default function DashboardPage() {
       )}
 
       <section className="grid gap-4 lg:grid-cols-2" data-tutorial-target="dashboard-hero">
-        <div className="flex h-full flex-col rounded-[20px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+        <div className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
+          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
             {companionCopy.loungeLabel}
             <Sparkles className="h-4 w-4" />
           </p>
@@ -560,7 +560,7 @@ export default function DashboardPage() {
         </div>
 
         <div
-          className="flex h-full flex-col rounded-[20px] border border-[#eadfc9] bg-[#36534E] p-4 text-white shadow-[0_14px_36px_rgba(54,83,78,0.13)] md:p-5"
+          className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-[var(--hb-primary)] p-4 text-white shadow-[0_14px_36px_rgba(54,83,78,0.13)] md:p-5"
           data-tutorial-target="dashboard-briefing"
         >
           <div className="mb-3 flex items-start justify-between gap-4">
@@ -572,7 +572,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href={amoraPromptHref}
-            className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[#36534E]"
+            className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
           >
             {companionCopy.amoraCtaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -617,13 +617,13 @@ export default function DashboardPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="group rounded-[16px] border border-[#eadfc9] bg-white/90 p-3.5 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] sm:p-4"
+            className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] sm:p-4"
           >
             <span className="flex items-center justify-between gap-3">
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E] sm:h-9 sm:w-9">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)] sm:h-9 sm:w-9">
                 <card.icon className="h-4 w-4 stroke-[1.55] sm:h-[18px] sm:w-[18px]" />
               </span>
-              <ChevronRight className="h-4 w-4 text-[#36534E] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="h-4 w-4 text-[var(--hb-text-strong)] transition-transform group-hover:translate-x-0.5" />
             </span>
             <p className="mt-2.5 text-[11px] font-semibold text-[#9d6f36] sm:mt-3">{card.label}</p>
             <h2 className="mt-1 truncate text-[16px] font-semibold text-[#071629] sm:text-[18px]">{card.value}</h2>
@@ -635,13 +635,13 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid items-stretch gap-4 lg:grid-cols-[1.28fr_0.72fr]" data-tutorial-target="dashboard-dday-budget">
-        <div className="h-full rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+        <div className="h-full rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
               <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
             </div>
-            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-full border border-[#eadfc9] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-full border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
               전체 체크리스트
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
@@ -657,10 +657,10 @@ export default function DashboardPage() {
                   key={category.key}
                   type="button"
                   onClick={() => setSelectedCategory(category)}
-                  className="group rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-3 text-left transition-colors hover:border-[#d8bb86] hover:bg-white"
+                  className="group rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-3 text-left transition-colors hover:border-[#d8bb86] hover:bg-white"
                 >
                   <span className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
                         <Icon className="h-4 w-4" />
                       </span>
                     <span className="min-w-0 flex-1">
@@ -677,7 +677,7 @@ export default function DashboardPage() {
                     </span>
                   </span>
                   <span className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-                    <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${percent}%` }} />
+                    <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${percent}%` }} />
                   </span>
                   <span className="mt-1.5 flex items-center justify-between text-[11px] font-medium text-[#7a8290]">
                     <span>체크리스트</span>
@@ -690,13 +690,13 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid h-full gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-[0.92fr_1.08fr]">
-          <section className="flex flex-col justify-between rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
                 <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">기록 지출 흐름</h2>
               </div>
-              <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="예산 관리로 이동">
+              <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)]" aria-label="예산 관리로 이동">
                 <Wallet className="h-4 w-4" />
               </Link>
             </div>
@@ -706,12 +706,12 @@ export default function DashboardPage() {
                   <p className="text-[11px] font-semibold text-[#7a8290]">기록 지출</p>
                   <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
                 </div>
-                <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
+                <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[var(--hb-text-strong)]">
                   {hasTotalBudget ? `${budgetPercent}%` : "계산 전"}
                 </p>
               </div>
               <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-                <span className="block h-full rounded-full bg-[#36534E]" style={{ width: `${budgetBarPercent}%` }} />
+                <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${budgetBarPercent}%` }} />
               </span>
               <p className="mt-2 text-[10px] font-medium text-[#7a8290]">
                 기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
@@ -721,35 +721,35 @@ export default function DashboardPage() {
               <span>
                 {hasTotalBudget ? `총 예산 ${formatWon(totalBudget)}` : "총 예산 미입력"}
               </span>
-              <Link href={weddingPath("/budget")} className="inline-flex items-center font-semibold text-[#36534E]">
+              <Link href={weddingPath("/budget")} className="inline-flex items-center font-semibold text-[var(--hb-text-strong)]">
                 자세히
                 <ArrowRight className="ml-1 h-3 w-3" />
               </Link>
             </div>
           </section>
 
-          <section className="flex flex-col justify-between rounded-[16px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
                 <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">다가오는 일정</h2>
               </div>
-              <Link href={weddingPath("/schedule?new=1")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[#36534E]" aria-label="일정 추가하기">
+              <Link href={weddingPath("/schedule?new=1")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)]" aria-label="일정 추가하기">
                 <Bell className="h-4 w-4" />
               </Link>
             </div>
             <div className="space-y-2">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.slice(0, 2).map((event) => (
-                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[12px] border border-[#eadfc9] bg-[#fffdf7] px-3.5 py-2.5">
+                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[12px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-3.5 py-2.5">
                     <p className="truncate text-[13px] font-semibold text-[#071629]">{event.title}</p>
                     <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">{formatDate(event.date)}</p>
                   </Link>
                 ))
               ) : (
-                <div className="rounded-[12px] border border-dashed border-[#eadfc9] bg-[#fffdf7] px-3.5 py-4">
+                <div className="rounded-[12px] border border-dashed border-[var(--hb-hairline)] bg-[#fffdf7] px-3.5 py-4">
                   <div className="flex items-start gap-3">
-                    <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#36534E]" />
+                    <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--hb-text-strong)]" />
                     <div>
                       <p className="text-[13px] font-semibold text-[#071629]">등록된 일정이 없어요.</p>
                       <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">첫 상담이나 예약 일정을 추가해보세요.</p>
@@ -758,7 +758,7 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-            <Link href={weddingPath("/schedule")} className="mt-2.5 inline-flex items-center text-[12px] font-semibold text-[#36534E]">
+            <Link href={weddingPath("/schedule")} className="mt-2.5 inline-flex items-center text-[12px] font-semibold text-[var(--hb-text-strong)]">
               일정 관리 열기
               <ArrowRight className="ml-1 h-3 w-3" />
             </Link>
@@ -766,7 +766,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-[22px] border border-[#eadfc9] bg-[#fffaf0] p-6 md:grid-cols-3" data-tutorial-target="dashboard-start-guide">
+      <section className="grid gap-4 rounded-[22px] border border-[var(--hb-hairline)] bg-[#fffaf0] p-6 md:grid-cols-3" data-tutorial-target="dashboard-start-guide">
         {[
           { icon: HeartHandshake, title: "커뮤니티에서 찾고", desc: "실제 후기와 질문으로 선택지를 좁혀요.", href: "/community" },
           { icon: MessageCircle, title: "아모라에게 묻고", desc: "우리 상황에 맞게 견적과 조건을 해석해요.", href: "/chat" },
@@ -798,7 +798,7 @@ export default function DashboardPage() {
 
 function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] p-2.5 sm:p-3.5">
+    <div className="min-w-0 rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-2.5 sm:p-3.5">
       <p className="truncate text-[10px] font-semibold text-[#7a8290] sm:text-[11px]">{label}</p>
       <p className="mt-1.5 truncate font-serif-kr text-[21px] font-medium leading-none text-[#071629] sm:text-[24px]">{value}</p>
       <p className="mt-1.5 truncate text-[10px] font-medium text-[#5d6879] sm:text-[11px]">{note}</p>
@@ -818,7 +818,7 @@ function HandoffMetric({
   return (
     <div className="min-w-0 rounded-[14px] border border-[#DCE5D8] bg-white/88 p-3">
       <dt className="text-[10px] font-semibold text-[#71806D]">{label}</dt>
-      <dd className="mt-1 truncate text-[13px] font-semibold text-[#243832]">
+      <dd className="mt-1 truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">
         {value}
       </dd>
       {note && (
@@ -864,8 +864,8 @@ function CategoryPanel({
   };
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#061a34]/45 px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
-      <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[#eadfc9] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.22)]">
-        <div className="flex items-start justify-between gap-4 border-b border-[#eadfc9] bg-[#fff8ec] p-5">
+      <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.22)]">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[#fff8ec] p-5">
           <div className="flex items-start gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
               <Icon className="h-6 w-6" />
@@ -878,7 +878,7 @@ function CategoryPanel({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[#eadfc9] bg-white text-[#5d6879]"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white text-[#5d6879]"
             aria-label="닫기"
           >
             <X className="h-4 w-4" />
@@ -896,7 +896,7 @@ function CategoryPanel({
                 className={`rounded-full border px-3 py-3 text-[13px] font-semibold ${
                   status === nextStatus
                     ? "border-[#061a34] bg-[#061a34] text-white"
-                    : "border-[#eadfc9] bg-white text-[#5d6879]"
+                    : "border-[var(--hb-hairline)] bg-white text-[#5d6879]"
                 } disabled:opacity-50`}
               >
                 {statusMeta[nextStatus].label}
@@ -912,7 +912,7 @@ function CategoryPanel({
             </p>
           )}
 
-          <div className="rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-5">
+          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-5">
             <p className="mb-3 text-[13px] font-semibold text-[#9d6f36]">먼저 확인할 것</p>
             <div className="space-y-3">
               {category.tasks.map((task) => (
@@ -928,7 +928,7 @@ function CategoryPanel({
             <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
               아모라에게 묻기
             </Link>
-            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
               일정에서 보기
             </Link>
           </div>

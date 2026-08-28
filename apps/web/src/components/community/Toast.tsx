@@ -71,8 +71,8 @@ const typeConfig: Record<
   { border: string; iconBg: string; Icon: typeof CheckCircle }
 > = {
   success: {
-    border: "border-l-[#36534E]",
-    iconBg: "text-[#36534E]",
+    border: "border-l-[var(--hb-primary)]",
+    iconBg: "text-[var(--hb-text-strong)]",
     Icon: CheckCircle,
   },
   error: {
@@ -82,7 +82,7 @@ const typeConfig: Record<
   },
   info: {
     border: "border-l-[#1A1A1F]",
-    iconBg: "text-[#1A1A1F]",
+    iconBg: "text-[var(--hb-text-strong)]",
     Icon: Info,
   },
   warning: {
@@ -102,10 +102,10 @@ function ToastItemComponent({ toast }: { toast: ToastItem }) {
       className={`flex w-80 items-center gap-3 rounded-2xl border-l-4 bg-white px-4 py-3 shadow-md animate-slide-in-right ${border}`}
     >
       <Icon className={`h-5 w-5 shrink-0 ${iconBg}`} />
-      <p className="flex-1 text-sm text-[#1A1A1F]">{toast.message}</p>
+      <p className="flex-1 text-sm text-[var(--hb-text-strong)]">{toast.message}</p>
       <button
         onClick={() => removeToast(toast.id)}
-        className="shrink-0 rounded p-0.5 text-[#B5ADA3] transition-colors hover:text-[#878680]"
+        className="shrink-0 rounded p-0.5 text-[var(--hb-text-muted)] transition-colors hover:text-[#878680]"
       >
         <X className="h-4 w-4" />
       </button>

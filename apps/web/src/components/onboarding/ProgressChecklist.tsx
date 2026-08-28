@@ -25,35 +25,35 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
+        <h2 className="text-[22px] font-semibold text-[var(--hb-text-strong)] mb-2">
           준비 현황
         </h2>
-        <p className="text-[14px] text-taupe-400">
+        <p className="text-[14px] text-[var(--hb-text-muted)]">
           이미 시작한 분야가 있으면 현재 상태만 알려주세요
         </p>
       </div>
 
       {stageNotice && (
-        <p className="rounded-2xl bg-ivory-100 px-4 py-3 text-[12px] leading-relaxed text-taupe-500">
+        <p className="rounded-2xl bg-[var(--hb-surface-hover)] px-4 py-3 text-[12px] leading-relaxed text-[var(--hb-text-body)]">
           {stageNotice}
         </p>
       )}
 
       {/* 진행률 */}
-      <div className="bg-ivory-100 rounded-2xl p-4">
+      <div className="bg-[var(--hb-surface-hover)] rounded-2xl p-4">
         <div className="flex items-center justify-center gap-6 mb-3">
           <div className="text-center">
             <div className="text-[20px] font-bold text-[#2E7D5A]">{completedCount}</div>
-            <div className="text-[10px] text-taupe-400">완료</div>
+            <div className="text-[10px] text-[var(--hb-text-muted)]">완료</div>
           </div>
           <div className="text-center">
             <div className="text-[20px] font-bold text-rose-500">{inProgressCount}</div>
-            <div className="text-[10px] text-taupe-400">준비 중</div>
+            <div className="text-[10px] text-[var(--hb-text-muted)]">준비 중</div>
           </div>
           <div className="text-center">
             {/* "안 해요"로 표시한 항목은 아직 남은 일이 아니므로 여기서 세지 않는다. */}
-            <div className="text-[20px] font-bold text-taupe-400">{notStartedCount}</div>
-            <div className="text-[10px] text-taupe-400">아직</div>
+            <div className="text-[20px] font-bold text-[var(--hb-text-muted)]">{notStartedCount}</div>
+            <div className="text-[10px] text-[var(--hb-text-muted)]">아직</div>
           </div>
         </div>
         <div className="w-full bg-black/[0.06] rounded-full h-1.5">
@@ -68,7 +68,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
             />
           </div>
         </div>
-        <div className="text-[11px] text-taupe-400 mt-2 text-center">
+        <div className="text-[11px] text-[var(--hb-text-muted)] mt-2 text-center">
           {answeredCount === 0
             ? "아직 시작한 분야가 없어도 괜찮아요"
             : `${answeredCount}개 분야의 현재 상태를 입력했어요`}
@@ -93,8 +93,8 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                   지금 신경 쓸 일이 아니라서 같은 무게로 보여야 한다. */}
               <span className={`text-[13px] font-medium flex-1 min-w-[88px] ${
                 item.status === "completed" || item.status === "in_progress"
-                  ? "text-noir-800"
-                  : "text-taupe-500"
+                  ? "text-[var(--hb-text-strong)]"
+                  : "text-[var(--hb-text-body)]"
               }`}>
                 {item.label}
               </span>
@@ -113,7 +113,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                           : opt.value === "in_progress"
                             ? "bg-rose-500 text-white"
                             : "bg-taupe-400 text-white"
-                        : "bg-black/[0.04] text-taupe-400 hover:bg-black/[0.08]"
+                        : "bg-black/[0.04] text-[var(--hb-text-muted)] hover:bg-black/[0.08]"
                     }`}
                   >
                     {opt.label}
@@ -134,16 +134,16 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                     onCostChange(item.key, num ? Number(num) : undefined);
                   }}
                   placeholder="사용한 비용"
-                  className="flex-1 px-3 py-2 rounded-lg border border-black/[0.06] bg-white text-[12px] text-noir-800 outline-none focus:border-[#2E7D5A] transition-colors placeholder:text-taupe-400"
+                  className="flex-1 px-3 py-2 rounded-lg border border-black/[0.06] bg-white text-[12px] text-[var(--hb-text-strong)] outline-none focus:border-[#2E7D5A] transition-colors placeholder:text-[var(--hb-text-muted)]"
                 />
-                <span className="text-[11px] text-taupe-400 whitespace-nowrap">만원</span>
+                <span className="text-[11px] text-[var(--hb-text-muted)] whitespace-nowrap">만원</span>
               </div>
             )}
           </div>
         ))}
       </div>
 
-      <p className="text-[12px] text-taupe-400 text-center">
+      <p className="text-[12px] text-[var(--hb-text-muted)] text-center">
         여기서는 분야별 상태만 저장하며, 세부 할 일은 다음 화면에서 직접 확인해요
       </p>
     </div>

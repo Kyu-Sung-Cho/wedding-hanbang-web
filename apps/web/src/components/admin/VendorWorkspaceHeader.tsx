@@ -12,15 +12,15 @@ export function VendorWorkspaceHeader({ active }: { active: ActiveWorkspace }) {
     { key: "enrich" as const, href: "/admin/enrich", label: "업체 정보 보강", icon: Sparkles },
   ];
   return (
-    <header className="border-b border-[#E2D3C8] bg-[#FBF8F2]">
+    <header className="border-b border-[#E2D3C8] bg-[var(--hb-surface-page)]">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#36534E] text-white">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--hb-primary)] text-white">
             <Store aria-hidden="true" size={19} />
           </span>
           <div>
-            <p className="text-xs font-semibold tracking-[0.12em] text-[#8F6662]">WEDDING HANBANG ADMIN</p>
-            <h1 className="text-lg font-bold text-[#243832]">업체 데이터 운영실</h1>
+            <p className="text-xs font-semibold tracking-[0.12em] text-[var(--color-rose-700)]">WEDDING HANBANG ADMIN</p>
+            <h1 className="text-lg font-bold text-[var(--hb-text-strong)]">업체 데이터 운영실</h1>
           </div>
         </div>
         <nav aria-label="업체 데이터 관리" className="flex flex-wrap items-center gap-2">
@@ -31,8 +31,8 @@ export function VendorWorkspaceHeader({ active }: { active: ActiveWorkspace }) {
               aria-current={active === key ? "page" : undefined}
               className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold transition-colors ${
                 active === key
-                  ? "bg-[#36534E] text-white"
-                  : "text-[#36534E] hover:bg-[#EFE4D7]"
+                  ? "bg-[var(--hb-primary)] text-white"
+                  : "text-[var(--hb-text-strong)] hover:bg-[#EFE4D7]"
               }`}
             >
               <Icon aria-hidden="true" size={16} />
@@ -56,7 +56,7 @@ export function AdminLoadingState({ label }: { label: string }) {
   return (
     <div className="grid min-h-[360px] place-items-center" role="status">
       <div className="text-center">
-        <span className="mx-auto mb-3 block h-8 w-8 animate-spin rounded-full border-2 border-[#C7D1C2] border-t-[#36534E]" />
+        <span className="mx-auto mb-3 block h-8 w-8 animate-spin rounded-full border-2 border-[#C7D1C2] border-t-[var(--hb-primary)]" />
         <p className="text-sm text-[#6D806E]">{label}</p>
       </div>
     </div>
@@ -66,12 +66,12 @@ export function AdminLoadingState({ label }: { label: string }) {
 export function AdminErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
     <div className="mx-auto my-16 max-w-lg rounded-2xl border border-[#D95F5F]/30 bg-white p-7 text-center" role="alert">
-      <p className="font-semibold text-[#243832]">데이터를 불러오지 못했습니다</p>
+      <p className="font-semibold text-[var(--hb-text-strong)]">데이터를 불러오지 못했습니다</p>
       <p className="mt-2 text-sm leading-6 text-[#6D806E]">{message}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-5 min-h-11 rounded-lg bg-[#36534E] px-5 text-sm font-semibold text-white"
+        className="mt-5 min-h-11 rounded-lg bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
       >
         다시 시도
       </button>
@@ -118,7 +118,7 @@ export function SignedSourceLink({
             href={file.signed_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[#36534E] hover:bg-[#F7F1E8]"
+            className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
           >
             {files.length > 1 ? `원본 ${index + 1} · ` : ""}{file.label}
           </a>
@@ -132,7 +132,7 @@ export function SignedSourceLink({
       onClick={() => void load()}
       disabled={loading}
       title={error || undefined}
-      className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[#36534E] hover:bg-[#F7F1E8]"
+      className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
     >
       {loading ? "원본 링크 준비 중…" : error ? "원본 다시 열기" : `${label}${expectedCount > 1 ? ` ${expectedCount}개` : ""}`}
     </button>

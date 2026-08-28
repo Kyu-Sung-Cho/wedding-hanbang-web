@@ -139,17 +139,17 @@ export default function PollDisplay({
   };
 
   return (
-    <section className="mt-5 bg-gradient-to-br from-[#fbf8f2] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[0_4px_20px_rgb(121,82,82,0.04)]">
+    <section className="mt-5 bg-gradient-to-br from-[var(--hb-surface-page)] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[0_4px_20px_rgb(121,82,82,0.04)]">
       {/* 헤더 */}
       <div className="flex items-start gap-3 mb-4">
-        <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[#36534E]/10 text-[#36534E]">
+        <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
           <BarChart3 className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-[#263832] leading-snug break-words">
+          <h3 className="text-base font-semibold text-[var(--hb-text-strong)] leading-snug break-words">
             {poll.question}
           </h3>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#928980]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--hb-text-muted)]">
             <span className="inline-flex items-center gap-1">
               <Users className="w-3.5 h-3.5" />
               {poll.total_voters === null
@@ -171,7 +171,7 @@ export default function PollDisplay({
             {remaining && (
               <span
                 className={`inline-flex items-center gap-1 ${
-                  isClosed ? "text-[#928980]" : "text-[#36534E] font-medium"
+                  isClosed ? "text-[var(--hb-text-muted)]" : "text-[var(--hb-text-strong)] font-medium"
                 }`}
               >
                 <Clock className="w-3.5 h-3.5" />
@@ -184,7 +184,7 @@ export default function PollDisplay({
 
       {/* 안내: 결과 가림 */}
       {!showResults && (
-        <div className="mb-3 px-3 py-2 text-xs text-[#36534E] bg-[#fbf8f2] border border-[#f0eeec] rounded-lg flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 text-xs text-[var(--hb-text-strong)] bg-[var(--hb-surface-page)] border border-[#f0eeec] rounded-lg flex items-center gap-2">
           <Lock className="w-3.5 h-3.5" />
           투표하면 결과가 공개돼요. 다른 사람들의 의견에 영향받지 않게 먼저 골라주세요.
         </div>
@@ -192,7 +192,7 @@ export default function PollDisplay({
 
       {/* 안내: 마감됨 */}
       {isClosed && (
-        <div className="mb-3 px-3 py-2 text-xs text-[#635b51] bg-[#f6efe5] border border-[#e5d8ca] rounded-lg flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 text-xs text-[var(--hb-text-body)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-lg flex items-center gap-2">
           <Lock className="w-3.5 h-3.5" />
           마감된 투표예요. 더 이상 변경할 수 없어요.
         </div>
@@ -218,15 +218,15 @@ export default function PollDisplay({
               disabled={disabled}
               className={`group relative w-full overflow-hidden rounded-xl border transition-all duration-200 ${
                 isSelected
-                  ? "border-[#36534E] bg-white shadow-[0_2px_8px_rgb(121,82,82,0.12)]"
-                  : "border-[#e5d8ca] bg-white hover:border-[#36534E] hover:bg-[#fbf8f2]"
+                  ? "border-[var(--hb-primary)] bg-white shadow-[0_2px_8px_rgb(121,82,82,0.12)]"
+                  : "border-[var(--hb-hairline)] bg-white hover:border-[var(--hb-primary)] hover:bg-[var(--hb-surface-page)]"
               } ${disabled && !isPending ? "cursor-not-allowed opacity-90" : ""}`}
             >
               {/* 결과 막대 (배경) */}
               {optionResultsVisible && (
                 <div
                   className={`absolute inset-y-0 left-0 transition-all duration-500 ease-out ${
-                    isSelected ? "bg-[#36534E]/12" : "bg-[#f6efe5]"
+                    isSelected ? "bg-[var(--hb-primary)]/12" : "bg-[var(--hb-surface-hover)]"
                   }`}
                   style={{ width: `${percent}%` }}
                   aria-hidden
@@ -237,7 +237,7 @@ export default function PollDisplay({
               <div className="relative flex items-center gap-3 px-3 py-3">
                 {/* 옵션 이미지 */}
                 {opt.image_url && (
-                  <div className="shrink-0 relative w-12 h-12 rounded-lg overflow-hidden border border-[#f0eeec] bg-[#f6efe5]">
+                  <div className="shrink-0 relative w-12 h-12 rounded-lg overflow-hidden border border-[#f0eeec] bg-[var(--hb-surface-hover)]">
                     <Image
                       src={opt.image_url}
                       alt=""
@@ -255,7 +255,7 @@ export default function PollDisplay({
                       : "w-5 h-5 rounded-full border-2"
                   } ${
                     isSelected
-                      ? "border-[#36534E] bg-[#36534E] text-white"
+                      ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                       : "border-[#B5ADA3] bg-white"
                   }`}
                 >
@@ -271,7 +271,7 @@ export default function PollDisplay({
                 <div className="flex-1 text-left min-w-0">
                   <p
                     className={`text-base leading-snug break-words ${
-                      isSelected ? "font-semibold text-[#263832]" : "font-medium text-[#263832]"
+                      isSelected ? "font-semibold text-[var(--hb-text-strong)]" : "font-medium text-[var(--hb-text-strong)]"
                     }`}
                   >
                     {opt.label}
@@ -280,15 +280,15 @@ export default function PollDisplay({
 
                 {/* 결과 숫자 */}
                 <div className="shrink-0 flex items-center gap-2 text-right">
-                  {isPending && <Loader2 className="w-4 h-4 text-[#36534E] animate-spin" />}
+                  {isPending && <Loader2 className="w-4 h-4 text-[var(--hb-text-strong)] animate-spin" />}
                   {showResults && voteCount !== null && (
                     <>
-                      <span className="text-xs text-[#928980] tabular-nums">
+                      <span className="text-xs text-[var(--hb-text-muted)] tabular-nums">
                         {voteCount.toLocaleString()}표
                       </span>
                       <span
                         className={`text-base font-semibold tabular-nums ${
-                          isSelected ? "text-[#36534E]" : "text-[#635b51]"
+                          isSelected ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-body)]"
                         }`}
                       >
                         {percent}%
@@ -307,12 +307,12 @@ export default function PollDisplay({
         <p className="mt-3 text-sm text-red-500">{error}</p>
       )}
       {!isAuthenticated && (
-        <p className="mt-3 text-xs text-[#928980] text-center">
+        <p className="mt-3 text-xs text-[var(--hb-text-muted)] text-center">
           로그인하면 투표하고 결과를 볼 수 있어요.
         </p>
       )}
       {hasVoted && !isClosed && !poll.allow_multiple && (
-        <p className="mt-3 text-xs text-[#928980] text-center">
+        <p className="mt-3 text-xs text-[var(--hb-text-muted)] text-center">
           선택을 다시 누르면 취소되고, 다른 옵션을 누르면 변경돼요.
         </p>
       )}

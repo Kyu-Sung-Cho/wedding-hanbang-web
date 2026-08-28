@@ -331,7 +331,7 @@ export default function CommunityOperationsPage() {
       <main className="flex min-h-screen items-center justify-center bg-[#F8F5EF] px-4">
         <div className="text-center">
           <Loader2
-            className="mx-auto mb-3 h-8 w-8 animate-spin text-[#36534E]"
+            className="mx-auto mb-3 h-8 w-8 animate-spin text-[var(--hb-text-strong)]"
             aria-hidden="true"
           />
           <p className="text-sm text-[#6F6A62]">
@@ -351,7 +351,7 @@ export default function CommunityOperationsPage() {
           <div>
             <Link
               href="/admin"
-              className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#36534E] hover:underline"
+              className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-text-strong)] hover:underline"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               관리자 대시보드
@@ -382,7 +382,7 @@ export default function CommunityOperationsPage() {
               type="button"
               onClick={() => void loadOperations(windowDays)}
               disabled={loading}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] hover:bg-[#F3F7F2] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCcw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -413,7 +413,7 @@ export default function CommunityOperationsPage() {
         {loading && !health ? (
           <section className="rounded-3xl border border-black/5 bg-white p-10 text-center">
             <Loader2
-              className="mx-auto mb-3 h-7 w-7 animate-spin text-[#36534E]"
+              className="mx-auto mb-3 h-7 w-7 animate-spin text-[var(--hb-text-strong)]"
               aria-hidden="true"
             />
             <p className="text-sm text-[#6F6A62]">운영 상태를 측정 중입니다.</p>
@@ -654,7 +654,7 @@ export default function CommunityOperationsPage() {
                               href={`/wedding/community/post/${item.post_id}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[#36534E] hover:underline"
+                              className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)] hover:underline"
                             >
                               공개 화면 확인
                               <ExternalLink
@@ -718,7 +718,7 @@ export default function CommunityOperationsPage() {
                               type="button"
                               onClick={() => void saveClassification(item)}
                               disabled={savingId !== null}
-                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-semibold text-white hover:bg-[#29423E] disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[#29423E] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {savingId === item.id ? (
                                 <Loader2

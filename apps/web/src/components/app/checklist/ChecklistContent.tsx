@@ -134,7 +134,7 @@ export default function ChecklistContent() {
 
   return (
     <main className="mx-auto w-full max-w-[1120px] px-4 py-7 sm:px-6 sm:py-10">
-      <header className="border-b border-[#eadfc9] pb-7">
+      <header className="border-b border-[var(--hb-hairline)] pb-7">
         <p className="text-[12px] font-semibold tracking-[0.14em] text-[#9d6f36]">WEDDING CHECKLIST</p>
         <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
@@ -145,10 +145,10 @@ export default function ChecklistContent() {
               첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
-          <div className="min-w-[240px] rounded-[18px] border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">
+          <div className="min-w-[240px] rounded-[18px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-5 py-4">
             <div className="flex items-end justify-between gap-4">
               <span className="text-[13px] font-medium text-[#5d6879]">전체 진행률</span>
-              <strong className="text-[30px] font-semibold leading-none text-[#36534e]">{summary.percent}%</strong>
+              <strong className="text-[30px] font-semibold leading-none text-[var(--hb-text-strong)]">{summary.percent}%</strong>
             </div>
             <div
               className="mt-3 h-2 overflow-hidden rounded-full bg-[#efe9dc]"
@@ -158,7 +158,7 @@ export default function ChecklistContent() {
               aria-valuemax={100}
               aria-valuenow={summary.percent}
             >
-              <div className="h-full rounded-full bg-[#36534e] transition-[width]" style={{ width: `${summary.percent}%` }} />
+              <div className="h-full rounded-full bg-[var(--hb-primary)] transition-[width]" style={{ width: `${summary.percent}%` }} />
             </div>
             <p className="mt-2 text-[12px] text-[#7a8290]">
               {summary.done}개 완료 · {remaining}개 남음
@@ -189,7 +189,7 @@ export default function ChecklistContent() {
               onClick={() => setFilter(item.value)}
               className={`shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
                 filter === item.value
-                  ? "border-[#36534e] bg-[#36534e] text-white"
+                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                   : "border-[#dcd4c3] bg-white text-[#5d6879] hover:border-[#9d6f36]"
               }`}
             >
@@ -245,7 +245,7 @@ export default function ChecklistContent() {
                     </div>
                     {status !== "not_applicable" && (
                       <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#f0ece4]">
-                        <span className="block h-full rounded-full bg-[#36534e]" style={{ width: `${percent}%` }} />
+                        <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${percent}%` }} />
                       </span>
                     )}
                   </button>

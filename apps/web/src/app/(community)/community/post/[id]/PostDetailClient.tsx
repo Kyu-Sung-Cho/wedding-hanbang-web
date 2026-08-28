@@ -119,7 +119,7 @@ function DecisionRecordOverview({
       }
     : isQuestion && post.is_resolved
       ? {
-          tone: "border-[#c7d1c2] bg-[#eef4f1] text-[#36534E]",
+          tone: "border-[#c7d1c2] bg-[#eef4f1] text-[var(--hb-text-strong)]",
           title: "질문자가 해결됐다고 표시한 기록",
           body: "특정 답변을 채택했다는 뜻은 아닙니다. 아래 질문과 답변 과정을 함께 확인하세요.",
         }
@@ -136,7 +136,7 @@ function DecisionRecordOverview({
               body: "직접 겪은 사람이 답하기 전까지는 추측으로 결론 내리지 않습니다.",
             }
           : {
-              tone: "border-[#c7d1c2] bg-[#f5f7f2] text-[#36534E]",
+              tone: "border-[#c7d1c2] bg-[#f5f7f2] text-[var(--hb-text-strong)]",
               title: "사람이 남긴 경험 기록",
               body: "작성 출처와 광고·혜택 표시를 확인한 뒤 내 상황과 같은 조건만 참고하세요.",
             };
@@ -145,7 +145,7 @@ function DecisionRecordOverview({
 
   return (
     <section
-      className="mb-5 mt-1 overflow-hidden rounded-[16px] border border-[#e6ded2] bg-[#fbf8f2]"
+      className="mb-5 mt-1 overflow-hidden rounded-[16px] border border-[#e6ded2] bg-[var(--hb-surface-page)]"
       aria-label="이 기록의 상태와 출처"
     >
       <div className="grid md:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] md:divide-x md:divide-[#e6ded2]">
@@ -185,13 +185,13 @@ function DecisionRecordOverview({
 
       {!isMembersOnly && (
         <nav className="grid grid-cols-3 border-t border-[#e6ded2] bg-white/70" aria-label="이 기록 둘러보기">
-          <a href="#decision-question" className="flex min-h-11 items-center justify-center px-2 text-center text-[11px] font-semibold text-[#36534E] hover:bg-[#eef4f1]">
+          <a href="#decision-question" className="flex min-h-11 items-center justify-center px-2 text-center text-[11px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#eef4f1]">
             {contentLabel}
           </a>
-          <a href="#comments" className="flex min-h-11 items-center justify-center border-x border-[#e6ded2] px-2 text-center text-[11px] font-semibold text-[#36534E] hover:bg-[#eef4f1]">
+          <a href="#comments" className="flex min-h-11 items-center justify-center border-x border-[#e6ded2] px-2 text-center text-[11px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#eef4f1]">
             {responseLabel} {post.comment_count > 0 ? post.comment_count : ""}
           </a>
-          <a href="#decision-next-action" className="flex min-h-11 items-center justify-center px-2 text-center text-[11px] font-semibold text-[#36534E] hover:bg-[#eef4f1]">
+          <a href="#decision-next-action" className="flex min-h-11 items-center justify-center px-2 text-center text-[11px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#eef4f1]">
             내 준비에 반영
           </a>
         </nav>
@@ -493,26 +493,26 @@ export default function PostDetailClient({
     <div className="min-h-screen bg-[#FAFAF8]">
       <div className="mx-auto w-full max-w-[1160px] px-4 sm:px-6 lg:px-8 py-5">
         {/* 브레드크럼 네비게이션 */}
-        <nav className="flex items-center gap-1 text-sm text-[#B5ADA3] mb-3 overflow-hidden">
+        <nav className="flex items-center gap-1 text-sm text-[var(--hb-text-muted)] mb-3 overflow-hidden">
           <Link
             href={weddingPath()}
-            className="shrink-0 hover:text-[#36534E] transition-colors"
+            className="shrink-0 hover:text-[var(--hb-text-strong)] transition-colors"
           >
             커뮤니티
           </Link>
           {categoryInfo && (
             <>
-              <span className="shrink-0 text-[#B5ADA3]">/</span>
+              <span className="shrink-0 text-[var(--hb-text-muted)]">/</span>
               <Link
                 href={communityCategoryFeedPath(post.category)}
-                className="shrink-0 hover:text-[#36534E] transition-colors"
+                className="shrink-0 hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 {categoryInfo.label}
               </Link>
             </>
           )}
-          <span className="shrink-0 text-[#B5ADA3]">/</span>
-          <span className="truncate text-[#1A1A1F]">{post.title}</span>
+          <span className="shrink-0 text-[var(--hb-text-muted)]">/</span>
+          <span className="truncate text-[var(--hb-text-strong)]">{post.title}</span>
         </nav>
 
         <div className="grid gap-5 lg:grid-cols-[minmax(0,760px)_300px] lg:items-start lg:justify-center">
@@ -545,7 +545,7 @@ export default function PostDetailClient({
                   href={weddingPath(
                     `/community?author_id=${post.author_id}&feed=all#community-feed`,
                   )}
-                  className="text-[15px] font-medium text-[#1A1A1F] hover:text-[#36534E] transition-colors duration-200 whitespace-nowrap"
+                  className="text-[15px] font-medium text-[var(--hb-text-strong)] hover:text-[var(--hb-text-strong)] transition-colors duration-200 whitespace-nowrap"
                 >
                   {author.nickname}
                 </Link>
@@ -554,7 +554,7 @@ export default function PostDetailClient({
                 {/* 결혼 동기 */}
                 {author.wedding_year && author.wedding_month && (
                   <>
-                    <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
+                    <span className="text-[var(--hb-text-muted)] text-[13px] hidden sm:inline">&middot;</span>
                     <span className="text-[13px] text-[#878680] whitespace-nowrap">
                       {String(author.wedding_year).slice(2)}.{String(author.wedding_month).padStart(2, "0")} 동기
                     </span>
@@ -562,16 +562,16 @@ export default function PostDetailClient({
                 )}
 
                 {/* 시간 */}
-                <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
-                <span suppressHydrationWarning className="text-[13px] text-[#B5ADA3] whitespace-nowrap">{timeAgo(post.created_at)}</span>
+                <span className="text-[var(--hb-text-muted)] text-[13px] hidden sm:inline">&middot;</span>
+                <span suppressHydrationWarning className="text-[13px] text-[var(--hb-text-muted)] whitespace-nowrap">{timeAgo(post.created_at)}</span>
 
                 {/* 카테고리 */}
                 {categoryInfo && (
                   <>
-                    <span className="text-[#B5ADA3] text-[13px] hidden sm:inline">&middot;</span>
+                    <span className="text-[var(--hb-text-muted)] text-[13px] hidden sm:inline">&middot;</span>
                     <Link
                       href={communityCategoryFeedPath(post.category)}
-                      className="text-[13px] font-medium text-[#36534E] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
+                      className="text-[13px] font-medium text-[var(--hb-text-strong)] hover:text-[#9A6B62] transition-colors duration-200 whitespace-nowrap"
                     >
                       {categoryInfo.label}
                     </Link>
@@ -597,9 +597,9 @@ export default function PostDetailClient({
               </div>
 
               {/* 제목 */}
-              <h1 className="text-[23px] sm:text-[26px] font-medium text-[#1A1A1F] leading-snug mb-3">
+              <h1 className="text-[23px] sm:text-[26px] font-medium text-[var(--hb-text-strong)] leading-snug mb-3">
                 {post.is_pinned && (
-                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[var(--hb-text-strong)] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-4 h-4" />
                     PIN
                   </span>
@@ -616,7 +616,7 @@ export default function PostDetailClient({
                   </span>
                 )}
                 {post.ai_comment && (
-                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[var(--hb-text-strong)] mr-2 text-sm font-medium align-middle">
                     <Sparkles className="w-4 h-4" />
                     AI 분석
                   </span>
@@ -643,7 +643,7 @@ export default function PostDetailClient({
                   <>
                     {/* 블러 처리된 미리보기 */}
                     <div
-                      className="ugc-text text-base text-[#1A1A1F] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
+                      className="ugc-text text-base text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap blur-sm select-none pointer-events-none max-h-40 overflow-hidden"
                       dangerouslySetInnerHTML={{
                         __html: sanitizeHtml(post.content.slice(0, 300)),
                       }}
@@ -651,7 +651,7 @@ export default function PostDetailClient({
                     {/* 로그인 유도 오버레이 */}
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-gradient-to-t from-white via-white/90 to-transparent">
                       <Lock className="w-8 h-8 text-[#878680] mb-2" />
-                      <p className="text-base font-medium text-[#1A1A1F] mb-1">
+                      <p className="text-base font-medium text-[var(--hb-text-strong)] mb-1">
                         회원 전용 게시글입니다
                       </p>
                       <p className="text-sm text-[#878680] mb-3">
@@ -659,7 +659,7 @@ export default function PostDetailClient({
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-lg transition-all duration-200"
                       >
                         로그인하기
                       </Link>
@@ -667,7 +667,7 @@ export default function PostDetailClient({
                   </>
                 ) : (
                   <div
-                    className="community-post-content ugc-text text-[15px] text-[#1A1A1F] leading-[1.75] whitespace-pre-wrap break-words"
+                    className="community-post-content ugc-text text-[15px] text-[var(--hb-text-strong)] leading-[1.75] whitespace-pre-wrap break-words"
                     dangerouslySetInnerHTML={{
                       __html: sanitizeHtml(post.content),
                     }}
@@ -833,19 +833,19 @@ export default function PostDetailClient({
                       <Wallet className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">총 비용</p>
-                      <p className="text-base font-semibold text-[#1A1A1F]">{formatPrice(post.cost_data.totalCost)}만원</p>
+                      <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">총 비용</p>
+                      <p className="text-base font-semibold text-[var(--hb-text-strong)]">{formatPrice(post.cost_data.totalCost)}만원</p>
                     </div>
                     {post.cost_data.region && (
                       <div className="ml-4">
-                        <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">지역</p>
-                        <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.region}</p>
+                        <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">지역</p>
+                        <p className="text-sm font-medium text-[var(--hb-text-strong)]">{post.cost_data.region}</p>
                       </div>
                     )}
                     {post.cost_data.guestCount && (
                       <div className="ml-4">
-                        <p className="text-[12px] text-[#B5ADA3] leading-none mb-0.5">하객</p>
-                        <p className="text-sm font-medium text-[#1A1A1F]">{post.cost_data.guestCount}명</p>
+                        <p className="text-[12px] text-[var(--hb-text-muted)] leading-none mb-0.5">하객</p>
+                        <p className="text-sm font-medium text-[var(--hb-text-strong)]">{post.cost_data.guestCount}명</p>
                       </div>
                     )}
                   </div>
@@ -878,7 +878,7 @@ export default function PostDetailClient({
                       <Link
                         key={vendor.id}
                         href={weddingPath(`/vendors/${vendor.id}`)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-lg hover:border-[#B5ADA3] transition-all duration-200"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-lg hover:border-[#B5ADA3] transition-all duration-200"
                       >
                         {vendor.thumbnail_url && (
                           <Image
@@ -903,12 +903,12 @@ export default function PostDetailClient({
               {/* 질문 작성자가 직접 관리하는 해결 상태. 특정 댓글 채택을 뜻하지 않는다. */}
               {!isMembersOnly && canAuthorManageResolution && (
                 <section
-                  className="mt-5 rounded-xl border border-[#C7D1C2] bg-[#F7F1E8] px-4 py-4"
+                  className="mt-5 rounded-xl border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-4 py-4"
                   aria-labelledby="resolution-control-title"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 text-[#36534E]">
+                      <div className="flex items-center gap-2 text-[var(--hb-text-strong)]">
                         {post.is_resolved ? (
                           <CheckCircle2 className="h-4 w-4 shrink-0" />
                         ) : (
@@ -923,7 +923,7 @@ export default function PostDetailClient({
                             : "도움이 충분했나요?"}
                         </h2>
                       </div>
-                      <p className="mt-1 text-xs leading-relaxed text-[#635b51]">
+                      <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-body)]">
                         {post.is_resolved
                           ? "추가 의견이 필요하면 언제든 다시 열 수 있어요. 기존 답변은 그대로 유지됩니다."
                           : "충분한 도움을 받았다면 해결됨으로 표시해 주세요. 답변은 계속 남길 수 있어요."}
@@ -934,7 +934,7 @@ export default function PostDetailClient({
                       onClick={handleResolutionToggle}
                       disabled={resolutionSaving}
                       aria-pressed={post.is_resolved}
-                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#36534E] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#243832] disabled:cursor-wait disabled:opacity-60"
+                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
                     >
                       {resolutionSaving ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -961,13 +961,13 @@ export default function PostDetailClient({
               )}
 
               {/* 액션바 — 모바일: wrap 허용 / 데스크탑: 한 줄 */}
-              <div className="mt-5 pt-4 border-t border-[#F0EFED] flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-2 text-[14px] sm:text-[15px] text-[#B5ADA3]">
+              <div className="mt-5 pt-4 border-t border-[#F0EFED] flex flex-wrap items-center gap-x-1 gap-y-1 sm:gap-x-2 text-[14px] sm:text-[15px] text-[var(--hb-text-muted)]">
                 <button
                   type="button"
                   onClick={handleVote}
                   disabled={isVoting}
                   className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
-                    isLiked ? "bg-[#f6efe5] text-[#36534E]" : "hover:bg-[#FAFAF8]"
+                    isLiked ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" : "hover:bg-[#FAFAF8]"
                   } disabled:opacity-50`}
                   aria-label="좋아요"
                 >
@@ -1008,7 +1008,7 @@ export default function PostDetailClient({
                     toggleBookmark(post.id);
                   }}
                   className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap ${
-                    post.user_bookmarked ? "text-[#36534E]" : ""
+                    post.user_bookmarked ? "text-[var(--hb-text-strong)]" : ""
                   }`}
                 >
                   <Bookmark
@@ -1046,7 +1046,7 @@ export default function PostDetailClient({
                   <>
                     <Link
                       href={weddingPath(`/community/post/write?edit=${post.id}`)}
-                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[#635b51] transition-all duration-200 ml-auto whitespace-nowrap"
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[var(--hb-text-body)] transition-all duration-200 ml-auto whitespace-nowrap"
                     >
                       수정
                     </Link>
@@ -1068,7 +1068,7 @@ export default function PostDetailClient({
         <div className="mt-3 flex">
           <Link
             href={categoryInfo ? communityCategoryFeedPath(post.category) : weddingPath()}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[#B5ADA3] hover:text-[#36534E] transition-all duration-200"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-all duration-200"
           >
             <List className="w-4 h-4" />
             목록으로
@@ -1103,7 +1103,7 @@ export default function PostDetailClient({
                 <div className="p-8 text-center">
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#FAFAF8] flex items-center justify-center">
                     <svg
-                      className="w-6 h-6 text-[#36534E]"
+                      className="w-6 h-6 text-[var(--hb-text-strong)]"
                       fill="none"
                       viewBox="0 0 24 24"
                       stroke="currentColor"
@@ -1116,7 +1116,7 @@ export default function PostDetailClient({
                       />
                     </svg>
                   </div>
-                  <p className="text-base font-medium text-[#1A1A1F]">
+                  <p className="text-base font-medium text-[var(--hb-text-strong)]">
                     신고가 접수되었습니다
                   </p>
                   <p className="mt-1 text-sm text-[#878680]">
@@ -1127,7 +1127,7 @@ export default function PostDetailClient({
                 <>
                   {/* 헤더 */}
                   <div className="flex items-center justify-between px-5 py-4 border-b border-[#F0EFED]">
-                    <h3 className="text-base font-medium text-[#1A1A1F]">
+                    <h3 className="text-base font-medium text-[var(--hb-text-strong)]">
                       게시글 신고
                     </h3>
                     <button
@@ -1152,22 +1152,22 @@ export default function PostDetailClient({
                           key={reason.value}
                           className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${
                             reportReason === reason.value
-                              ? "border-[#36534E] bg-[#36534E]/5"
+                              ? "border-[var(--hb-primary)] bg-[var(--hb-primary)]/5"
                               : "border-[#F0EFED] hover:bg-[#FAFAF8]"
                           }`}
                         >
                           <div
                             className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
                               reportReason === reason.value
-                                ? "border-[#36534E]"
+                                ? "border-[var(--hb-primary)]"
                                 : "border-[#B5ADA3]"
                             }`}
                           >
                             {reportReason === reason.value && (
-                              <div className="w-2 h-2 rounded-full bg-[#36534E]" />
+                              <div className="w-2 h-2 rounded-full bg-[var(--hb-primary)]" />
                             )}
                           </div>
-                          <span className="text-sm text-[#1A1A1F]">
+                          <span className="text-sm text-[var(--hb-text-strong)]">
                             {reason.label}
                           </span>
                           <input
@@ -1189,7 +1189,7 @@ export default function PostDetailClient({
                       placeholder="추가 설명 (선택)"
                       rows={3}
                       maxLength={500}
-                      className="mt-4 w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+                      className="mt-4 w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
                     />
                   </div>
 
@@ -1205,7 +1205,7 @@ export default function PostDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowReportModal(false)}
-                      className="px-4 py-2 text-sm font-medium text-[#878680] hover:text-[#1A1A1F] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
+                      className="px-4 py-2 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -1238,7 +1238,7 @@ export default function PostDetailClient({
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
                   <Flag className="w-5 h-5 text-red-500" />
                 </div>
-                <h3 className="text-base font-medium text-[#1A1A1F]">
+                <h3 className="text-base font-medium text-[var(--hb-text-strong)]">
                   게시글을 삭제하시겠습니까?
                 </h3>
                 <p className="mt-1 text-sm text-[#878680]">
@@ -1302,7 +1302,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
   return (
     <aside className="hidden lg:block">
       <div className="sticky top-24 space-y-4">
-        <section className="rounded-2xl border border-[#eadfc9] bg-white p-4 shadow-sm">
+        <section className="rounded-2xl border border-[var(--hb-hairline)] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="font-serif-kr text-[20px] font-medium text-[#071629]">
@@ -1314,14 +1314,14 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
             </div>
             <Link
               href={weddingPath()}
-              className="text-[12px] font-semibold text-[#36534E]"
+              className="text-[12px] font-semibold text-[var(--hb-text-strong)]"
             >
               더보기
             </Link>
           </div>
 
           {posts.length > 0 ? (
-            <div className="divide-y divide-[#eadfc9]">
+            <div className="divide-y divide-[var(--hb-hairline)]">
               {posts.map((item) => {
                 const thumb = getPostThumbnail(item);
                 const itemCategory = CATEGORY_MAP[item.category];

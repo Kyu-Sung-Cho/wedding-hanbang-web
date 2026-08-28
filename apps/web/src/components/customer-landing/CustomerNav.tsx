@@ -10,6 +10,17 @@ const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
 
 interface CustomerNavProps {
   demoMode?: boolean;
+  /**
+   * 이 헤더가 **어두운 히어로 위에** 떠 있는가.
+   *
+   * 헤더는 스크롤 전에는 투명이라 뒤 페이지 색이 그대로 비친다. 그래서 로고와 메뉴
+   * 글자가 밝아야 할지 어두워야 할지는 **페이지가 알고 헤더는 모른다.**
+   *
+   * 안 넘기면 `/beta` 처럼 어두운 페이지에서 어두운 글자가 어두운 바탕에 얹힌다 —
+   * 2026-08-28 실측 대비 1.13:1 로 사실상 안 보였다. 스크롤해서 헤더가 밝아지면
+   * 다시 어두운 글자로 돌아온다.
+   */
+  onDark?: boolean;
 }
 
 /**
@@ -18,7 +29,7 @@ interface CustomerNavProps {
  */
 const SCROLL_ANCHOR_HOME = "/beta";
 
-export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
+export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
   /**
    * **데모 화면에서도 정품 로그인으로 보낸다.**
@@ -86,12 +97,12 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
       <nav
         className={`fixed top-0 left-0 right-0 z-[1000] px-[clamp(16px,5vw,60px)] h-[72px] flex items-center justify-between transition-all duration-500 ${
           scrolled || menuOpen
-            ? "bg-ivory-50/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+            ? "bg-[var(--hb-surface-page)]/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
             : ""
         }`}
       >
         <a href={demoMode ? "/demo" : "/"} className="no-underline">
-          <Logo size="sm" />
+          <Logo size="sm" variant={onDark && !(scrolled || menuOpen) ? "white" : "default"} />
         </a>
 
         {/* 데스크톱 메뉴 */}
@@ -102,7 +113,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
                 key={link.href}
                 href={link.href}
                 onClick={(e) => handleClick(e, link.href)}
-                className="relative text-charcoal text-[14px] font-normal tracking-wide no-underline hover:text-noir-800 transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full"
+                className={`relative ${onDark && !(scrolled || menuOpen) ? "text-[var(--hb-on-primary)]" : "text-charcoal"} text-[14px] font-normal tracking-wide no-underline hover:text-[var(--hb-text-strong)] transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full`}
               >
                 {link.label}
               </a>
@@ -110,7 +121,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
               <a
                 key={link.href}
                 href={link.href}
-                className="relative text-charcoal text-[14px] font-normal tracking-wide no-underline hover:text-noir-800 transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full"
+                className={`relative ${onDark && !(scrolled || menuOpen) ? "text-[var(--hb-on-primary)]" : "text-charcoal"} text-[14px] font-normal tracking-wide no-underline hover:text-[var(--hb-text-strong)] transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full`}
               >
                 {link.label}
               </a>
@@ -132,17 +143,17 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
           aria-label="메뉴"
         >
           <span
-            className={`block w-5 h-[1.5px] bg-noir-800 transition-all duration-300 origin-center ${
+            className={`block w-5 h-[1.5px] bg-[var(--hb-primary)] transition-all duration-300 origin-center ${
               menuOpen ? "rotate-45 translate-y-[6.5px]" : ""
             }`}
           />
           <span
-            className={`block w-5 h-[1.5px] bg-noir-800 transition-all duration-300 ${
+            className={`block w-5 h-[1.5px] bg-[var(--hb-primary)] transition-all duration-300 ${
               menuOpen ? "opacity-0 scale-x-0" : ""
             }`}
           />
           <span
-            className={`block w-5 h-[1.5px] bg-noir-800 transition-all duration-300 origin-center ${
+            className={`block w-5 h-[1.5px] bg-[var(--hb-primary)] transition-all duration-300 origin-center ${
               menuOpen ? "-rotate-45 -translate-y-[6.5px]" : ""
             }`}
           />
@@ -159,7 +170,7 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
 
       {/* 모바일 슬라이드 다운 메뉴 */}
       <div
-        className={`fixed top-[72px] left-0 right-0 z-[999] bg-ivory-50/98 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 ease-in-out md:hidden ${
+        className={`fixed top-[72px] left-0 right-0 z-[999] bg-[var(--hb-surface-page)]/98 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 ease-in-out md:hidden ${
           menuOpen
             ? "max-h-[calc(100vh-72px)] opacity-100"
             : "max-h-0 opacity-0"
@@ -172,10 +183,10 @@ export default function CustomerNav({ demoMode }: CustomerNavProps = {}) {
               key={link.href}
               href={link.href}
               onClick={link.scroll ? (e) => handleClick(e, link.href) : () => setMenuOpen(false)}
-              className="flex items-center justify-between py-4 text-[16px] text-noir-800 font-medium no-underline border-b border-platinum/40 hover:text-rose-500 transition-colors"
+              className="flex items-center justify-between py-4 text-[16px] text-[var(--hb-text-strong)] font-medium no-underline border-b border-platinum/40 hover:text-rose-500 transition-colors"
             >
               {link.label}
-              <svg className="w-4 h-4 text-taupe-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 text-[var(--hb-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </a>

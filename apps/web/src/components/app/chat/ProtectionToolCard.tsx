@@ -139,14 +139,14 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
         <div className="grid grid-cols-2 divide-x divide-black/[0.06] border-b border-black/[0.06]">
           <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[#928980]">문서 확인 상태</p>
+            <p className="text-xs text-[var(--hb-text-muted)]">문서 확인 상태</p>
             <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${risk.bg} ${risk.text}`}>
               {data.riskLabel ?? "확인 필요 항목 있음"}
             </p>
           </div>
           <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[#928980]">필수 미확인</p>
-            <p className="mt-1 text-lg font-semibold text-[#1A1A1F]">{blockers.length}개</p>
+            <p className="text-xs text-[var(--hb-text-muted)]">필수 미확인</p>
+            <p className="mt-1 text-lg font-semibold text-[var(--hb-text-strong)]">{blockers.length}개</p>
           </div>
         </div>
 
@@ -156,14 +156,14 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
               <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${risk.dot}`} />
               <div>
                 <p className={`text-sm font-semibold ${risk.text}`}>{title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-[#504444]">{data.summaryText}</p>
+                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">{data.summaryText}</p>
               </div>
             </div>
           </div>
 
           {blockers.length > 0 && (
             <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1F]">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
                 계약 전 먼저 막을 것
               </div>
@@ -171,7 +171,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
                 {blockers.slice(0, 4).map((item) => (
                   <div key={item.id} className="rounded-xl border border-red-100 bg-red-50/50 px-3 py-2.5">
                     <p className="text-sm font-semibold text-red-700">{item.label}</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-[#504444]">{item.reason}</p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-text-body)]">{item.reason}</p>
                   </div>
                 ))}
               </div>
@@ -180,7 +180,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
           {warnings.length > 0 && (
             <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1F]">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                 <FileCheck2 className="h-4 w-4 text-amber-600" />
                 추가로 확인하면 좋은 것
               </div>
@@ -196,7 +196,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
           {confirmed.length > 0 && (
             <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1F]">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600" />
                 확인된 항목
               </div>
@@ -212,13 +212,13 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
           {questions.length > 0 && (
             <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1F]">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                 <MessageSquareText className="h-4 w-4 text-[#2F5F51]" />
                 업체에 바로 물어볼 문장
               </div>
               <ol className="space-y-1.5">
                 {questions.slice(0, 5).map((question, index) => (
-                  <li key={`${question}-${index}`} className="flex gap-2 text-sm leading-relaxed text-[#504444]">
+                  <li key={`${question}-${index}`} className="flex gap-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
                     <span className="font-semibold text-[#2F5F51]">{index + 1}.</span>
                     <span>{question}</span>
                   </li>
@@ -229,10 +229,10 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
           {evidence.length > 0 && (
             <section className="mt-4 rounded-xl border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
-              <p className="mb-2 text-sm font-semibold text-[#1A1A1F]">저장할 증빙</p>
+              <p className="mb-2 text-sm font-semibold text-[var(--hb-text-strong)]">저장할 증빙</p>
               <div className="flex flex-wrap gap-1.5">
                 {evidence.map((item) => (
-                  <span key={item} className="rounded-full bg-white px-2.5 py-1 text-xs text-[#504444] shadow-sm">
+                  <span key={item} className="rounded-full bg-white px-2.5 py-1 text-xs text-[var(--hb-text-body)] shadow-sm">
                     {item}
                   </span>
                 ))}
@@ -243,14 +243,14 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
           {data.messageToVendor && (
             <section className="mt-4 rounded-xl border border-[#D8C7BB] bg-white px-3 py-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-[#1A1A1F]">복사해서 보낼 확인 문구</p>
+                <p className="text-sm font-semibold text-[var(--hb-text-strong)]">복사해서 보낼 확인 문구</p>
                 <CopyButton text={data.messageToVendor} />
               </div>
-              <p className="whitespace-pre-line text-xs leading-relaxed text-[#504444]">{data.messageToVendor}</p>
+              <p className="whitespace-pre-line text-xs leading-relaxed text-[var(--hb-text-body)]">{data.messageToVendor}</p>
             </section>
           )}
 
-          <p className="mt-3 text-[0.6875rem] leading-relaxed text-[#928980]">
+          <p className="mt-3 text-[0.6875rem] leading-relaxed text-[var(--hb-text-muted)]">
             {data.sourceNote} {data.disclaimer}
           </p>
         </div>
@@ -320,15 +320,15 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
               <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${risk.dot}`} />
               <div>
                 <p className={`text-sm font-semibold ${risk.text}`}>{data.summaryTitle}</p>
-                <p className="mt-1 text-sm leading-relaxed text-[#504444]">{data.summaryText}</p>
+                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">{data.summaryText}</p>
               </div>
             </div>
           </div>
 
           {isInputNeeded ? (
             <div className="mt-4 rounded-xl border border-[#EFE5DA] bg-[#FAF8F5] px-4 py-3">
-              <p className="text-sm font-semibold text-[#1A1A1F]">한 번에 필요한 정보</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#504444]">{data.recommendation}</p>
+              <p className="text-sm font-semibold text-[var(--hb-text-strong)]">한 번에 필요한 정보</p>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">{data.recommendation}</p>
             </div>
           ) : (
             <>
@@ -341,15 +341,15 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
               {scenarios.length > 0 && (
                 <section className="mt-4 overflow-hidden rounded-xl border border-[#EFE5DA]">
-                  <div className="grid grid-cols-4 bg-[#FAF8F5] px-3 py-2 text-xs font-semibold text-[#928980]">
+                  <div className="grid grid-cols-4 bg-[#FAF8F5] px-3 py-2 text-xs font-semibold text-[var(--hb-text-muted)]">
                     <span>상황</span>
                     <span className="text-right">참석</span>
                     <span className="text-right">정산</span>
                     <span className="text-right">식대</span>
                   </div>
                   {scenarios.map((scenario) => (
-                    <div key={scenario.id} className="grid grid-cols-4 border-t border-[#EFE5DA] px-3 py-2 text-sm text-[#504444]">
-                      <span className="font-medium text-[#1A1A1F]">{scenario.label}</span>
+                    <div key={scenario.id} className="grid grid-cols-4 border-t border-[#EFE5DA] px-3 py-2 text-sm text-[var(--hb-text-body)]">
+                      <span className="font-medium text-[var(--hb-text-strong)]">{scenario.label}</span>
                       <span className="text-right">{scenario.attendanceGuests}명</span>
                       <span className="text-right">{scenario.payableGuests}명</span>
                       <span className="text-right">{formatManwon(scenario.mealTotalManwon)}</span>
@@ -360,8 +360,8 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
               {data.recommendation && (
                 <section className="mt-4 rounded-xl border border-[#D8C7BB] bg-white px-3 py-3">
-                  <p className="mb-1 text-sm font-semibold text-[#1A1A1F]">아모라 판단</p>
-                  <p className="text-sm leading-relaxed text-[#504444]">{data.recommendation}</p>
+                  <p className="mb-1 text-sm font-semibold text-[var(--hb-text-strong)]">아모라 판단</p>
+                  <p className="text-sm leading-relaxed text-[var(--hb-text-body)]">{data.recommendation}</p>
                 </section>
               )}
             </>
@@ -369,13 +369,13 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
           {questions.length > 0 && (
             <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[#1A1A1F]">
+              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                 <MessageSquareText className="h-4 w-4 text-[#2F5F51]" />
                 결혼식장에 확인할 것
               </div>
               <ol className="space-y-1.5">
                 {questions.slice(0, 5).map((question, index) => (
-                  <li key={`${question}-${index}`} className="flex gap-2 text-sm leading-relaxed text-[#504444]">
+                  <li key={`${question}-${index}`} className="flex gap-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
                     <span className="font-semibold text-[#2F5F51]">{index + 1}.</span>
                     <span>{question}</span>
                   </li>
@@ -387,14 +387,14 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
           {data.venueMessage && (
             <section className="mt-4 rounded-xl border border-[#D8C7BB] bg-white px-3 py-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-[#1A1A1F]">복사해서 보낼 확인 문구</p>
+                <p className="text-sm font-semibold text-[var(--hb-text-strong)]">복사해서 보낼 확인 문구</p>
                 <CopyButton text={data.venueMessage} />
               </div>
-              <p className="whitespace-pre-line text-xs leading-relaxed text-[#504444]">{data.venueMessage}</p>
+              <p className="whitespace-pre-line text-xs leading-relaxed text-[var(--hb-text-body)]">{data.venueMessage}</p>
             </section>
           )}
 
-          <p className="mt-3 text-[0.6875rem] leading-relaxed text-[#928980]">{data.sourceNote}</p>
+          <p className="mt-3 text-[0.6875rem] leading-relaxed text-[var(--hb-text-muted)]">{data.sourceNote}</p>
         </div>
       </div>
     </div>
@@ -404,11 +404,11 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
     <div className="rounded-xl border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
-      <div className="mb-1 flex items-center gap-1.5 text-[#928980]">
+      <div className="mb-1 flex items-center gap-1.5 text-[var(--hb-text-muted)]">
         {icon}
         <span className="text-xs">{label}</span>
       </div>
-      <p className="text-base font-semibold text-[#1A1A1F]">{value}</p>
+      <p className="text-base font-semibold text-[var(--hb-text-strong)]">{value}</p>
     </div>
   );
 }

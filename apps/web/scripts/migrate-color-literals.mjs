@@ -62,6 +62,12 @@ const MAP = {
     "#635B51": "--hb-text-body",
     "#504444": "--hb-text-body",
     "#5F5B52": "--hb-text-body",
+    // 2026-08-28 2차: 아래 셋이 빠져 있어서 **그라디언트 한쪽만 바뀌는** 일이 생겼다.
+    // 로그인 버튼이 `from-[#36534E] to-[#2B423E]` 였는데 앞만 잉크가 되고 뒤가
+    // 유칼립투스로 남아 초록 버튼이 됐다. 짝이 되는 색은 함께 옮겨야 한다.
+    "#2B423E": "--hb-text-strong",
+    "#4E6A62": "--hb-text-body",
+    "#5E665F": "--hb-text-body",
     "#B5ADA3": "--hb-text-muted",
     "#928980": "--hb-text-muted",
     "#7D7166": "--hb-text-muted",
@@ -74,6 +80,8 @@ const MAP = {
     "#FFFFFF": "--hb-surface-raised",
     "#F6EFE5": "--hb-surface-hover",
     "#F7F1E8": "--hb-surface-hover",
+    // 그라디언트 짝. `from-[#36534E] to-[#2B423E]` 처럼 둘이 함께 온다.
+    "#2B423E": "--hb-primary-hover",
   },
   border: {
     // 진한 테두리는 **진한 채로** 옮긴다. 여기서 hairline 을 쓰면 선이 사라진다.
@@ -82,6 +90,40 @@ const MAP = {
     "#E5D8CA": "--hb-hairline",
     "#EADFC9": "--hb-hairline",
     "#EFE4D7": "--hb-hairline",
+  },
+};
+
+/**
+ * **이름 있는 클래스** → 역할 변수.
+ *
+ * `text-[#36534E]` 말고 `text-noir-800` 형태다. 2026-08-28 실측으로 816곳이 있었고,
+ * `/terms`·`/privacy` 는 색 리터럴이 **0개**인데 화면은 옛 색이었다 — 전부 이 형태였다.
+ * 리터럴만 옮기면 그런 화면은 영원히 안 바뀐다.
+ *
+ * 중립색(글자·바탕·선)만 옮긴다. 강조색(rose·sage)은 **뜻을 지는 색**이라 기계로
+ * 옮기면 의미가 바뀐다 — 눈으로 보면서 따로 한다.
+ */
+const NAMED = {
+  text: {
+    "noir-800": "--hb-text-strong",
+    "noir-900": "--hb-text-strong",
+    "noir-soft": "--hb-text-body",
+    "taupe-500": "--hb-text-body",
+    "taupe-400": "--hb-text-muted",
+    "ivory-50": "--hb-on-primary",
+  },
+  bg: {
+    "noir-800": "--hb-primary",
+    "noir-900": "--hb-primary",
+    "ivory-50": "--hb-surface-page",
+    "ivory-100": "--hb-surface-hover",
+    "ivory-warm": "--hb-surface-hover",
+    "ivory-200": "--hb-surface-hover",
+  },
+  border: {
+    "noir-800": "--hb-primary",
+    "ivory-200": "--hb-hairline",
+    "taupe-400": "--hb-hairline",
   },
 };
 
@@ -94,7 +136,12 @@ const PREFIX_GROUP = {
 
 /** 이 폴더 밑은 건드리지 않는다. */
 const SKIP = [
-  path.join("src", "components", "landing"),   // 이미 종이 언어
+  // ⚠️ `components/landing` **전체**가 아니라 `redesign` 만 건너뛴다.
+  // 처음에 폴더째 건너뛰었다가 `/about`·`/beta`·`/demo` 가 하나도 안 바뀌었다 —
+  // 그 화면들은 `components/landing/` 의 **옛 마케팅 컴포넌트**
+  // (`CelebrationHero` 37곳 · `PreparationOutcomePreview` 31곳 등)를 쓰는데,
+  // 그것들은 종이 언어가 아니었다(2026-08-28 화면 실측으로 드러났다).
+  path.join("src", "components", "landing", "redesign"), // 이미 종이 언어
   path.join("src", "lib", "weddingCode", "research"), // 연구 프로토타입 (DESIGN.md 예외)
 ];
 
@@ -132,6 +179,24 @@ function planFor(text) {
           from: m[2] + m[3] + m[4],
           to: `${m[2]}var(${role})${m[4]}`,
         });
+      }
+
+      // 이름 있는 클래스도 같은 접두사 묶음을 쓴다: `text-noir-800` → `text-[var(--hb-text-strong)]`
+      const namedTable = NAMED[group] ?? {};
+      for (const [name, role] of Object.entries(namedTable)) {
+        const nre = new RegExp(
+          `(^|[\\s"'\`])((?:[\\w[\\]@&().#%/*+~:-]+:)?${prefix}-)(${name})(?![\\w-])`,
+          "gu",
+        );
+        let nm;
+        while ((nm = nre.exec(text)) !== null) {
+          edits.push({
+            at: nm.index + nm[1].length,
+            length: nm[2].length + nm[3].length,
+            from: nm[2] + nm[3],
+            to: `${nm[2]}[var(${role})]`,
+          });
+        }
       }
     }
   }

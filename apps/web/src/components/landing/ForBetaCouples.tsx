@@ -39,7 +39,7 @@ export default function ForBetaCouples({ current = 0, total = 50 }: ForBetaCoupl
   return (
     <section
       id="cta"
-      className="relative py-[clamp(112px,16vw,200px)] px-[clamp(20px,5vw,60px)] overflow-hidden bg-noir-800"
+      className="relative py-[clamp(112px,16vw,200px)] px-[clamp(20px,5vw,60px)] overflow-hidden bg-[var(--hb-primary)]"
     >
       {/* 은은한 따뜻한 glow 레이어 */}
       <div

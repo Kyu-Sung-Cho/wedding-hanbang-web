@@ -91,7 +91,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
             type="button"
             onClick={() => go(index - 1)}
             aria-label="이전 슬라이드"
-            className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
+            className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--hb-primary)]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[var(--hb-primary-hover)]"
           >
             <ChevronLeft className="w-5 h-5 text-white" />
           </button>
@@ -101,7 +101,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
             type="button"
             onClick={() => go(index + 1)}
             aria-label="다음 슬라이드"
-            className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#36534E]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[#2B423E]"
+            className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[var(--hb-primary)]/82 backdrop-blur-sm flex items-center justify-center shadow-md transition-opacity opacity-90 sm:opacity-0 group-hover:opacity-100 hover:bg-[var(--hb-primary-hover)]"
           >
             <ChevronRight className="w-5 h-5 text-white" />
           </button>
@@ -118,11 +118,11 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
               onClick={() => go(i)}
               aria-label={`${i + 1}번 슬라이드로 이동`}
               className={`no-min-tap transition-all rounded-full ${
-                i === index ? "w-5 h-1.5 bg-[#36534E]" : "w-1.5 h-1.5 bg-[#d8cfc1] hover:bg-[#b5ada3]"
+                i === index ? "w-5 h-1.5 bg-[var(--hb-primary)]" : "w-1.5 h-1.5 bg-[#d8cfc1] hover:bg-[#b5ada3]"
               }`}
             />
           ))}
-          <span className="ml-2 rounded-full bg-[#36534E] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">
+          <span className="ml-2 rounded-full bg-[var(--hb-primary)] px-2 py-0.5 text-[11px] font-semibold tabular-nums text-white">
             {index + 1}/{total}
           </span>
         </div>
@@ -167,7 +167,7 @@ function SlideItem({ slide, active }: { slide: SlideMedia; active: boolean }) {
             className="absolute inset-0 flex items-center justify-center bg-black/20 hover:bg-black/30 transition-colors"
           >
             <span className="w-16 h-16 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-              <Play className="w-7 h-7 text-[#1A1A1F] fill-[#1A1A1F] ml-0.5" />
+              <Play className="w-7 h-7 text-[var(--hb-text-strong)] fill-[#1A1A1F] ml-0.5" />
             </span>
           </button>
         )}
@@ -176,7 +176,7 @@ function SlideItem({ slide, active }: { slide: SlideMedia; active: boolean }) {
   }
 
   return (
-    <div className="w-full shrink-0 relative bg-[#fbf8f2] flex items-center justify-center">
+    <div className="w-full shrink-0 relative bg-[var(--hb-surface-page)] flex items-center justify-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={slide.url}

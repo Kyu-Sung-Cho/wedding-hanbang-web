@@ -24,19 +24,19 @@ export const metadata = {
 
 export default function CommunityAboutPage() {
   return (
-    <div className="min-h-screen bg-[#fbf8f2]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)]">
       {/* ─── Hero ─── */}
       <section className="px-4 sm:px-6 md:px-10 pt-16 sm:pt-24 pb-12 sm:pb-16">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="text-xs tracking-[0.3em] text-[#36534E] mb-5 font-medium uppercase">
+          <p className="text-xs tracking-[0.3em] text-[var(--hb-text-strong)] mb-5 font-medium uppercase">
             Wedding Hanbang Guide
           </p>
-          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[#263832] leading-[1.2] tracking-normal mb-6">
+          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal mb-6">
             혼자 고민하지 마세요.
             <br />
-            <em className="not-italic text-[#36534E]">함께 준비해요.</em>
+            <em className="not-italic text-[var(--hb-text-strong)]">함께 준비해요.</em>
           </h1>
-          <p className="text-base sm:text-lg text-[#635b51] font-light leading-relaxed max-w-xl mx-auto">
+          <p className="text-base sm:text-lg text-[var(--hb-text-body)] font-light leading-relaxed max-w-xl mx-auto">
             웨딩한방 커뮤니티는 예비 신랑신부가 솔직한 후기와 정보를
             나누는 공간이에요. 같은 시기에 결혼하는 동기들과 함께,
             실제 경험을 참고해 더 차분하게 결정해보세요.
@@ -45,16 +45,16 @@ export default function CommunityAboutPage() {
       </section>
 
       {/* ─── 우리의 취지 ─── */}
-      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-white border-y border-[#e5d8ca]">
+      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-white border-y border-[var(--hb-hairline)]">
         <div className="max-w-3xl mx-auto">
-          <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase">
+          <p className="text-xs tracking-[0.3em] text-[var(--hb-text-muted)] mb-3 font-medium uppercase">
             Why we exist
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-8 leading-snug">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-8 leading-snug">
             왜 만들었나요?
           </h2>
 
-          <div className="space-y-6 text-[#263832]">
+          <div className="space-y-6 text-[var(--hb-text-strong)]">
             <p className="text-base sm:text-lg leading-[1.85] font-light">
               결혼 준비는 처음이라 모든 게 막막해요. 사진 촬영·드레스·메이크업
               가격을 어떻게 비교할지, 결혼식장에 따로 내는 금액은 무엇인지,
@@ -66,7 +66,7 @@ export default function CommunityAboutPage() {
               필요 이상의 비용을 치르거나, 후회되는 결정을 내리게 돼요.
             </p>
             <p className="text-base sm:text-lg leading-[1.85] font-light">
-              <span className="font-medium text-[#36534E]">웨딩한방 커뮤니티</span>는
+              <span className="font-medium text-[var(--hb-text-strong)]">웨딩한방 커뮤니티</span>는
               회원들이 자신이 겪은 일과 궁금한 점을 나누고,
               같은 시기에 결혼하는 동기들끼리 응원하는 공간이에요.
               혼자 고민하던 결정을 함께 풀어나가요.
@@ -78,10 +78,10 @@ export default function CommunityAboutPage() {
       {/* ─── 핵심 기능 ─── */}
       <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16">
         <div className="max-w-5xl mx-auto">
-          <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase text-center">
+          <p className="text-xs tracking-[0.3em] text-[var(--hb-text-muted)] mb-3 font-medium uppercase text-center">
             What you can do
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-12 leading-snug text-center">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-12 leading-snug text-center">
             여기서 할 수 있는 것
           </h2>
 
@@ -91,8 +91,8 @@ export default function CommunityAboutPage() {
                 icon: MessageCircle,
                 title: "솔직한 후기 읽기",
                 desc: "사진 촬영·드레스·메이크업, 결혼식장, 신혼여행에 관해 회원이 작성한 후기와 질문을 찾아봐요. 일반 글의 경험 여부는 별도 인증되지 않을 수 있어요.",
-                color: "from-[#36534E]/15 to-[#36534E]/5",
-                iconColor: "text-[#36534E]",
+                color: "from-[var(--hb-primary)]/15 to-[var(--hb-primary)]/5",
+                iconColor: "text-[var(--hb-text-strong)]",
               },
               {
                 icon: Users,
@@ -112,7 +112,7 @@ export default function CommunityAboutPage() {
                 icon: PenSquare,
                 title: "내 경험 나누기",
                 desc: "사진과 함께 후기를 올리면 비슷한 상황의 다른 커플에게 큰 도움이 돼요.",
-                color: "from-[#B89785]/20 to-[#2B423E]/5",
+                color: "from-[#B89785]/20 to-[var(--hb-primary-hover)]/5",
                 iconColor: "text-[#B89785]",
               },
               {
@@ -126,15 +126,15 @@ export default function CommunityAboutPage() {
                 icon: Sparkles,
                 title: "아모라 견적 체크리스트",
                 desc: "받은 견적서의 빠진 항목, 추가금 가능성, 계약 전 질문을 먼저 정리해요.",
-                color: "from-[#36534E]/20 to-[#2B423E]/5",
-                iconColor: "text-[#36534E]",
+                color: "from-[var(--hb-primary)]/20 to-[var(--hb-primary-hover)]/5",
+                iconColor: "text-[var(--hb-text-strong)]",
               },
             ].map((feature) => {
               const Icon = feature.icon;
               return (
                 <div
                   key={feature.title}
-                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[#36534E]/30 hover:shadow-sm transition-all"
+                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[var(--hb-primary)]/30 hover:shadow-sm transition-all"
                 >
                   <div
                     className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center`}
@@ -142,10 +142,10 @@ export default function CommunityAboutPage() {
                     <Icon className={`w-6 h-6 ${feature.iconColor}`} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-[#263832] mb-1.5 leading-snug">
+                    <h3 className="text-lg font-semibold text-[var(--hb-text-strong)] mb-1.5 leading-snug">
                       {feature.title}
                     </h3>
-                    <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed">
+                    <p className="text-sm sm:text-base text-[var(--hb-text-body)] font-light leading-relaxed">
                       {feature.desc}
                     </p>
                   </div>
@@ -159,10 +159,10 @@ export default function CommunityAboutPage() {
       {/* ─── 커뮤니티 약속 ─── */}
       <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16">
         <div className="max-w-3xl mx-auto">
-          <p className="text-xs tracking-[0.3em] text-[#928980] mb-3 font-medium uppercase text-center">
+          <p className="text-xs tracking-[0.3em] text-[var(--hb-text-muted)] mb-3 font-medium uppercase text-center">
             Our promise
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-10 leading-snug text-center">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-10 leading-snug text-center">
             우리의 약속
           </h2>
 
@@ -204,26 +204,26 @@ export default function CommunityAboutPage() {
                 >
                   <rule.Icon className="w-5 h-5" strokeWidth={2.5} />
                 </div>
-                <div className="text-base font-semibold text-[#263832] mb-1">
+                <div className="text-base font-semibold text-[var(--hb-text-strong)] mb-1">
                   {rule.label}
                 </div>
-                <div className="text-sm text-[#635b51] font-light leading-relaxed">
+                <div className="text-sm text-[var(--hb-text-body)] font-light leading-relaxed">
                   {rule.desc}
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="bg-gradient-to-br from-[#fbf8f2] to-white rounded-2xl border border-[#f0efed] p-6 sm:p-8">
+          <div className="bg-gradient-to-br from-[var(--hb-surface-page)] to-white rounded-2xl border border-[#f0efed] p-6 sm:p-8">
             <div className="flex items-start gap-4">
-              <div className="shrink-0 w-12 h-12 rounded-xl bg-[#36534E] flex items-center justify-center">
+              <div className="shrink-0 w-12 h-12 rounded-xl bg-[var(--hb-primary)] flex items-center justify-center">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-[#263832] mb-2">
+                <h3 className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">
                   광고와 추천은 분명히 구분합니다
                 </h3>
-                <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed">
+                <p className="text-sm sm:text-base text-[var(--hb-text-body)] font-light leading-relaxed">
                   업체와 협력 관계에 있는 글은 명확히 표시되고, 알고리즘
                   추천에서 제외돼요. 신고된 글은 별도 기준으로 검토되며,
                   거짓·과장된 후기는 제재 대상이에요. 신뢰는 우리 커뮤니티의
@@ -236,7 +236,7 @@ export default function CommunityAboutPage() {
       </section>
 
       {/* ─── 신뢰 기반 ─── */}
-      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-[#36534E] text-white">
+      <section className="px-4 sm:px-6 md:px-10 py-12 sm:py-16 bg-[var(--hb-primary)] text-white">
         <div className="max-w-3xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
             {[
@@ -279,10 +279,10 @@ export default function CommunityAboutPage() {
       <section className="px-4 sm:px-6 md:px-10 py-16 sm:py-20">
         <div className="max-w-2xl mx-auto text-center">
           <Star className="w-8 h-8 text-[#B89785] mx-auto mb-5" />
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[#263832] mb-4 leading-snug">
+          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-4 leading-snug">
             지금 시작해보세요
           </h2>
-          <p className="text-base sm:text-lg text-[#635b51] font-light leading-relaxed mb-8 max-w-xl mx-auto">
+          <p className="text-base sm:text-lg text-[var(--hb-text-body)] font-light leading-relaxed mb-8 max-w-xl mx-auto">
             서로의 경험이 누군가에게는 큰 도움이 됩니다.
             <br />
             지금 바로 커뮤니티를 둘러보세요.
@@ -290,14 +290,14 @@ export default function CommunityAboutPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href={weddingPath()}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[#36534E] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[var(--hb-primary)] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
             >
               커뮤니티 둘러보기
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href={weddingPath("/community/post/write")}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white border border-[#e5d8ca] text-[#263832] text-base font-medium hover:bg-[#fbf8f2] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] text-base font-medium hover:bg-[var(--hb-surface-page)] transition-all"
             >
               <PenSquare className="w-4 h-4" />첫 글 쓰러 가기
             </Link>

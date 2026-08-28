@@ -75,12 +75,12 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[#eadfc9]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
+      <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={onMenuToggle}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#071629] md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[#071629] md:hidden"
             aria-label="메뉴 열기"
           >
             <Menu className="h-5 w-5" />
@@ -118,7 +118,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 rounded-full border border-[#eadfc9] bg-white px-4 py-2 sm:flex">
+          <div className="hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex">
             <span className="h-2 w-2 rounded-full bg-[#b68a3a]" />
             <span className="text-[13px] font-semibold text-[#071629]">
               {dday === null ? "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}

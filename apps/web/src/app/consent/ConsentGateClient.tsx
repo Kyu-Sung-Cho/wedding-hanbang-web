@@ -72,7 +72,7 @@ export default function ConsentGateClient({
   }
 
   return (
-    <main className="min-h-screen bg-[#FBF8F2] px-5 py-16">
+    <main className="min-h-screen bg-[var(--hb-surface-page)] px-5 py-16">
       <div className="mx-auto w-full max-w-[420px]">
         {/* 이 화면에는 두 종류의 사람이 선다. 한쪽에게 맞는 문구가 다른 쪽에게는
             거짓이 되므로 갈라 쓴다.
@@ -84,20 +84,20 @@ export default function ConsentGateClient({
               자기 계정에 문제가 생긴 것으로 읽힌다. */}
         {existingAccount ? (
           <>
-            <h1 className="text-[22px] font-semibold text-[#263832]">
+            <h1 className="text-[22px] font-semibold text-[var(--hb-text-strong)]">
               약관 동의를 한 번만 받을게요
             </h1>
-            <p className="mt-3 text-[14px] leading-relaxed text-[#4E6A62]">
+            <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
               가입하실 때는 동의를 따로 받지 않았어요. 이용약관과 개인정보 처리방침을
               확인해 주시면 쓰시던 그대로 이어집니다. 계정과 기록은 그대로 있어요.
             </p>
           </>
         ) : (
           <>
-            <h1 className="text-[22px] font-semibold text-[#263832]">
+            <h1 className="text-[22px] font-semibold text-[var(--hb-text-strong)]">
               시작하기 전에 확인해 주세요
             </h1>
-            <p className="mt-3 text-[14px] leading-relaxed text-[#4E6A62]">
+            <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
               계정은 만들어졌어요. 서비스를 이용하려면 이용약관과 개인정보 처리방침에
               동의가 필요해요.
             </p>
@@ -138,7 +138,7 @@ export default function ConsentGateClient({
           동의하지 않고 로그아웃
         </Button>
 
-        <p className="mt-6 text-[12px] leading-relaxed text-[#928980]">
+        <p className="mt-6 text-[12px] leading-relaxed text-[var(--hb-text-muted)]">
           계정 삭제를 원하시면 로그아웃 후 고객센터({CONTACT.email})로 알려주세요.
         </p>
       </div>
