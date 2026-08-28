@@ -10,6 +10,7 @@ import { ToastContainer } from "@/components/community/Toast";
 import Logo from "@/components/ui/Logo";
 import { CONTACT } from "@/lib/constants/contact";
 import { isWeddingCourtEnabled } from "@/lib/features/weddingLaunchFlags";
+import { isPreviewStubMode } from "@/lib/previewStub";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { createClient } from "@/lib/supabase/server";
 
@@ -32,8 +33,17 @@ export default async function CommunityLayout({
   // 커뮤니티 세 곳이 비로그인을 차단한 이력이 있다. 그래서 오류를 보지 않고
   // **사람이 확실히 있을 때만** 판단한다 — 오류도 로그아웃도 `user` 가 `null`
   // 이라 그대로 통과한다. `AuthenticatedAppShell` 과 같은 모양이다.
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  //
+  // 프리뷰(스텁)에는 Supabase 자격증명이 **아예 없다**. `createClient()` 가 생성
+  // 단계에서 터지므로 여기서도 건너뛴다 — 같은 그룹의 `community/page.tsx` 가 같은
+  // 이유로 이미 그렇게 하고 있었고, 이 레이아웃만 빠져 있었다. 스텁에는 세션도
+  // 동의 기록도 없어 판단할 사람이 없고, 이 관문은 원래 "사람이 확실히 있을 때만"
+  // 도는 것이라 건너뛴다고 막히는 사람이 늘지 않는다. 프로덕션에서 이 플래그가
+  // 켜지면 `assertPreviewStubDeployment` 가 빌드를 죽인다.
+  const viewerResult = isPreviewStubMode()
+    ? null
+    : await (await createClient()).auth.getUser();
+  const user = viewerResult?.data.user ?? null;
   if (user && !hasRecordedSignupConsent(user.user_metadata)) {
     redirect(SIGNUP_CONSENT_PATH);
   }

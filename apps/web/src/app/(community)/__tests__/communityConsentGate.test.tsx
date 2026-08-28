@@ -28,6 +28,8 @@ const state = vi.hoisted(() => ({
   user: null as { user_metadata?: unknown } | null,
   error: null as { message: string } | null,
   redirected: [] as string[],
+  createClientCalls: 0,
+  createClientThrows: false,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -40,14 +42,22 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
-  createClient: async () => ({
-    auth: {
-      getUser: async () => ({
-        data: { user: state.user },
-        error: state.error,
-      }),
-    },
-  }),
+  createClient: async () => {
+    state.createClientCalls += 1;
+    if (state.createClientThrows) {
+      // 자격증명이 없으면 실제 `createClient()` 는 여기서 터진다. 프리뷰가
+      // 그렇다 — 부르는 것 자체가 사고다.
+      throw new Error("Your project's URL and Key are required to create a Supabase client!");
+    }
+    return {
+      auth: {
+        getUser: async () => ({
+          data: { user: state.user },
+          error: state.error,
+        }),
+      },
+    };
+  },
 }));
 
 async function renderLayout() {
@@ -60,6 +70,8 @@ beforeEach(() => {
   state.user = null;
   state.error = null;
   state.redirected = [];
+  state.createClientCalls = 0;
+  state.createClientThrows = false;
 });
 
 afterEach(() => {
@@ -112,5 +124,37 @@ describe("비로그인은 막지 않는다", () => {
     state.error = { message: "Auth session missing!" };
     await expect(renderLayout()).resolves.toBeTruthy();
     expect(state.redirected).toEqual([]);
+  });
+});
+
+describe("프리뷰(스텁)에는 Supabase 가 없다", () => {
+  /**
+   * 프리뷰 배포에는 `NEXT_PUBLIC_SUPABASE_*` 가 아예 없다
+   * (`NEXT_PUBLIC_PREVIEW_STUB_MODE=true` 로 일부러 없앤 환경이다). 자격증명이
+   * 없으면 `createClient()` 는 **생성 단계에서** 터진다. 관문이 그걸 부르면
+   * 빌드 때는 프리렌더가 죽고, 빌드를 통과시켜도 커뮤니티 전 페이지가 500 이
+   * 된다. 같은 그룹의 `community/page.tsx` 는 이미 건너뛰고 있었다.
+   */
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("스텁에서는 Supabase 를 부르지 않고 그대로 렌더한다", async () => {
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "true");
+    state.createClientThrows = true;
+
+    await expect(renderLayout()).resolves.toBeTruthy();
+    expect(state.createClientCalls).toBe(0);
+    expect(state.redirected).toEqual([]);
+  });
+
+  it("스텁이 아니면 종전대로 Supabase 로 판단한다", async () => {
+    // 스텁 갈래가 넓어져 관문이 통째로 사라지면 동의 없는 계정이 그냥 들어온다.
+    vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "false");
+    state.user = { user_metadata: {} };
+
+    await expect(renderLayout()).rejects.toThrow("NEXT_REDIRECT");
+    expect(state.createClientCalls).toBe(1);
+    expect(state.redirected).toEqual(["/consent"]);
   });
 });
