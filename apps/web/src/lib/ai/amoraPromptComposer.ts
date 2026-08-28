@@ -179,14 +179,21 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
-  // `add_schedule_event` 는 `date` 와 `title` 을 **둘 다** 요구한다. 하나씩 물으면
-  // 사용자가 두 번 답해야 하고, 팀 테스트에서 실제로 그렇게 왕복했다.
+  // 팀 테스트에서 일정 세 개를 넣는 데 세 턴이 걸렸다:
+  //
+  //     Turn 14  세 개를 일정에 추가해줘        -> "각각의 실행 날짜가 필요해요"
+  //     Turn 15  8월 26일, 27일, 29일          -> "각 일정의 유형이 필요해요"
+  //     Turn 16  두 사람의 약속으로 등록해줘     -> 그러고도 반영 안 됨
+  //
+  // `add_schedule_event` 의 필수 필드는 `date` 와 `title` 뿐이고 `schedule_scope`
+  // 는 선택이다. 모호하면 shared_commitment 로 두라는 줄이 이미 위에 있는데도
+  // 모델이 물었으므로, 나눠 묻지 말라고 분명히 적는다.
   //
   // 조건에 `add_schedule_event` 를 쓰면 절대 참이 되지 않는다 — 쓰기 도구는
   // `!isMutatingTool` 로 걸러져 이 목록에 안 들어온다. 같은 주제의 조회 도구로 건다.
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      "- 일정을 추가하려면 날짜와 일정 이름이 둘 다 필요합니다. 둘 중 하나라도 모르면 한 번에 함께 물어보세요 — 날짜만 묻고 다음 차례에 이름을 또 묻지 마세요.",
+      "- 일정을 추가하는 데 모르는 것이 여러 개면 한 번에 모아서 물어보세요. 날짜를 묻고, 답을 받은 뒤 유형을 또 묻고, 다시 확인하는 식으로 나누지 마세요. 약속의 성격이 분명하지 않으면 묻지 말고 shared_commitment로 두세요.",
     );
   }
 

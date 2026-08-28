@@ -1,9 +1,9 @@
 /**
  * 일정을 넣을 때 날짜와 이름을 **한 번에** 묻는다.
  *
- * `add_schedule_event` 는 `date` 와 `title` 을 둘 다 요구한다(`tools.ts`).
- * 팀 테스트에서 아모라는 날짜를 먼저 묻고, 답을 받은 뒤 다시 어떤 일정인지
- * 물었다 — 한 번에 될 일이 두 턴이 됐다.
+ * 팀 테스트에서 일정 세 개를 넣는 데 세 턴이 걸렸다 — 날짜를 묻고, 답을 받은 뒤
+ * 유형을 또 묻고, 그러고도 반영에 실패했다. `add_schedule_event` 의 필수 필드는
+ * `date` 와 `title` 뿐이고 `schedule_scope` 는 선택이다.
  *
  * ## 원본이 아니라 합성된 프롬프트에 묻는다
  *
@@ -50,7 +50,7 @@ const compose = (enabledToolNames: string[]) =>
     persistenceMode: "durable",
   });
 
-const RULE = "날짜와 일정 이름이 둘 다 필요합니다";
+const RULE = "모르는 것이 여러 개면 한 번에 모아서 물어보세요";
 
 describe("일정은 한 번에 묻는다", () => {
   it("운영 도구 집합이면 규칙이 모델에게 간다", () => {
@@ -59,7 +59,7 @@ describe("일정은 한 번에 묻는다", () => {
 
   it("날짜만 묻고 이름을 또 묻지 말라고 분명히 쓴다", () => {
     // 문구가 남아 있어도 뒷문장이 사라지면 규칙이 반쪽이 된다.
-    expect(compose(PRODUCTION_ENABLED_TOOL_NAMES)).toContain("한 번에 함께 물어보세요");
+    expect(compose(PRODUCTION_ENABLED_TOOL_NAMES)).toContain("유형을 또 묻고, 다시 확인하는 식으로 나누지 마세요");
   });
 
   it("일정 도구가 없으면 싣지 않는다", () => {
