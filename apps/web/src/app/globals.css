@@ -123,23 +123,29 @@
   /* @generated:design-tokens root end */
 
   /* @generated:design-tokens roles start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  /* 역할 — 누를 수 있는 것 (기본값은 제품 정체인 유칼립투스) */
-  --hb-primary: #36534E;
-  --hb-primary-hover: #2B423E;
+  /* 역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크) */
+  --hb-primary: #26251F;
+  --hb-primary-hover: #12110D;
   --hb-on-primary: #FFFFFF;
 
   /* 역할 — 초점 */
-  --hb-focus-ring: #36534E;
+  --hb-focus-ring: #35638A;
 
   /* 역할 — 표면과 경계 */
   --hb-surface-raised: #FFFFFF;
-  --hb-surface-hover: #F6EFE5;
-  --hb-hairline: #E5D8CA;
+  --hb-surface-hover: #F8F4EA;
+  --hb-hairline: #E2DED2;
 
   /* 역할 — 글자 */
-  --hb-text-strong: #263832;
-  --hb-text-body: #5F5B52;
-  --hb-text-muted: #7D7166;
+  --hb-text-strong: #26251F;
+  --hb-text-body: #4A483F;
+  --hb-text-muted: #605E54;
+
+  /* 역할 — 어디서나 통하는 표면·강조 (테마 밖에서도 정의된다) */
+  --hb-surface-page: #FDFCF7;
+  --hb-accent: #35638A;
+  --hb-accent-hover: #24465F;
+  --hb-success: #637465;
   /* @generated:design-tokens roles end */
 }
 
@@ -710,18 +716,18 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-service-theme {
   color: #263832;
   /* @generated:design-tokens service-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  --hb-navy: #36534E;
-  --hb-navy-soft: #2B423E;
-  --hb-gold: #36534E;
-  --hb-gold-deep: #36534E;
-  --hb-gold-light: rgba(54, 83, 78, 0.22);
-  --hb-ivory: #FBF8F2;
-  --hb-ivory-warm: #F6EFE5;
-  --hb-line: #E5D8CA;
-  --hb-muted: #7D7166;
-  --hb-text: #263832;
-  --hb-body: #5F5B52;
-  --hb-success: #36534E;
+  --hb-navy: #26251F;
+  --hb-navy-soft: #4A483F;
+  --hb-gold: #35638A;
+  --hb-gold-deep: #24465F;
+  --hb-gold-light: rgba(53, 99, 138, 0.16);
+  --hb-ivory: #FDFCF7;
+  --hb-ivory-warm: #F8F4EA;
+  --hb-line: #E2DED2;
+  --hb-muted: #605E54;
+  --hb-text: #26251F;
+  --hb-body: #4A483F;
+  --hb-success: #637465;
   /* @generated:design-tokens service-theme end */
 }
 
@@ -871,18 +877,18 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .hanbang-community-theme {
   color: #263832;
   /* @generated:design-tokens community-theme start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
-  --hb-navy: #36534E;
-  --hb-navy-soft: #2B423E;
-  --hb-gold: #36534E;
-  --hb-gold-deep: #36534E;
-  --hb-gold-light: rgba(54, 83, 78, 0.22);
-  --hb-ivory: #FBF8F2;
-  --hb-ivory-warm: #F6EFE5;
-  --hb-line: #E5D8CA;
-  --hb-muted: #7D7166;
-  --hb-text: #263832;
-  --hb-body: #5F5B52;
-  --hb-success: #36534E;
+  --hb-navy: #26251F;
+  --hb-navy-soft: #4A483F;
+  --hb-gold: #35638A;
+  --hb-gold-deep: #24465F;
+  --hb-gold-light: rgba(53, 99, 138, 0.16);
+  --hb-ivory: #FDFCF7;
+  --hb-ivory-warm: #F8F4EA;
+  --hb-line: #E2DED2;
+  --hb-muted: #605E54;
+  --hb-text: #26251F;
+  --hb-body: #4A483F;
+  --hb-success: #637465;
   /* @generated:design-tokens community-theme end */
 }
 
