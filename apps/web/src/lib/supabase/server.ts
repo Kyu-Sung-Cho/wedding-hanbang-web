@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { unstable_rethrow } from "next/navigation";
 
 import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
@@ -39,7 +40,15 @@ export async function createClient() {
         },
       }
     );
-  } catch {
+  } catch (error) {
+    // `cookies()` 는 정적 생성 중 "이 라우트는 동적이다"를 알리려고 throw 한다.
+    // 그 신호까지 삼키면 Next 는 프리렌더를 계속 진행하고, 바로 아래 익명
+    // 클라이언트가 자격증명 없이 만들어지며 터진다 — 프리뷰(스텁)에는 Supabase
+    // 값이 없어서 `(community)` 그룹 전체가 빌드 중 죽었다.
+    //
+    // 프레임워크 제어 흐름 오류는 되던져 Next 가 라우트를 동적으로 표시하게 두고,
+    // 진짜 오류만 아래 익명 클라이언트로 되돌린다.
+    unstable_rethrow(error);
     // cookies() 실패 시 익명 클라이언트 (API Route 외부 호출 등)
     return createAnonymousClient();
   }
