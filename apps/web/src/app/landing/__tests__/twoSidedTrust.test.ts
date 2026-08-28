@@ -219,14 +219,23 @@ describe("landing two-sided trust contract", () => {
     // `footer.tagline` 으로 옮겨도 통과했다(2026-08-27 변형).
     const heroCopy = contentBlock("hero", "scenes");
     expect(heroCopy).toContain("둘의 기준이 다른 걸 몰라서예요.");
-    expect(heroCopy).toContain("웨딩한방은 둘이 어디서 갈리는지부터 봅니다.");
+    expect(heroCopy).toContain("웨딩한방은 둘이 그 기준을 맞춰 가는 곳이고, 정한 것만 남겨요.");
     expectWired("hero.body");
     expectWired("hero.note");
     // H1 은 줄바꿈·색 강조 때문에 컴포넌트가 손으로 적는다(정본과 글자가 같은지는
     // `landingHeadlineParity.test.ts` 가 본다). 여기서는 **첫 화면에 후크가 남아
     // 있는지**만 본다 — h1 을 통째로 지워도 카피 문자열이 대신 대답하던 자리다.
-    expect(hero, "첫 화면 H1 에서 후크가 사라졌다").toContain("둘의 기준이 다른 걸");
-    expect(hero, "첫 화면 H1 에서 후크가 사라졌다").toContain("몰라서예요.");
+    //
+    // 2026-08-28: 후크가 H1 에서 **본문 첫 문장으로 내려갔다**(파운더 결정).
+    // H1 은 이제 제품이 무엇인지 말한다 — 이전 판은 H1 이 독자를 진단하고 본문이
+    // 기능을 팔아서, 첫 화면 어디에도 웨딩한방이 무엇인지가 없었다.
+    //
+    // 그래서 후크는 **카피와 컴포넌트 양쪽에서** 확인한다. H1 만 보던 옛 방식은
+    // 이제 자리가 달라 못 쓰고, 카피만 보면 히어로가 hero.body 를 안 그려도
+    // 통과한다 — 바로 위 `expectWired("hero.body")` 가 그 갈래를 막는다.
+    expect(heroCopy, "첫 화면에서 후크가 사라졌다").toContain("부딪히는 건 가격 때문이 아니라");
+    expect(hero, "첫 화면 H1 이 제품을 말하지 않는다").toContain("둘이 같이");
+    expect(hero, "첫 화면 H1 이 제품을 말하지 않는다").toContain("하는 자리.");
 
     // 아모라를 소개하는 자리에는 AI 고지가 붙는다(AI 기본법 — 사람인 것처럼 소개하지
     // 않는다). 옛 라벨 "아모라 · 대화를 정리하는 AI"가 문장 둘로 바뀌었고, 한계까지

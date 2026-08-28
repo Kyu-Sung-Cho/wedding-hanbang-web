@@ -2,7 +2,10 @@ import { landingContent } from "./landingContent";
 import { NoteCard, Section, bodyText, noteText, ruled } from "./notebook";
 
 /**
- * ③ 같은 얘기를 두 번 하지 않아도 된다.
+ * ③ 함께 보는 자리에 한 말은, 둘 다에게 남는다.
+ *
+ * (2026-08-28 제목 변경. 옛 제목은 "같은 얘기를 두 번 하지 않아도 돼요"였고 같은
+ * 약속을 없어진 수고 쪽에서 말했다. 지금은 일어나는 일 쪽에서 말한다.)
  *
  * 이 제품의 제일 큰 차별점이고, **1:1 챗봇이 구조적으로 못 하는 자리**다.
  * 근거: `api/chat/route.ts:1889-1905` 가 `.eq("couple_id", dataCoupleId)` 로 읽고

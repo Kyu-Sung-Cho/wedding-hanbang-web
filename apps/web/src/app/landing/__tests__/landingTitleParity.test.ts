@@ -69,10 +69,41 @@ describe("랜딩과 루트 폴백의 제목", () => {
 
   it("설명이 두 곳 모두에 있고 비어 있지 않다", () => {
     // 설명이 없으면 검색 결과의 두 줄을 검색엔진이 본문에서 임의로 뽑는다.
-    const root = read("src/app/page.tsx");
-    const landing = read("src/app/landing/page.tsx");
-    expect(root).toMatch(/description:\s*\n?\s*"[^"]{40,}/u);
-    expect(landing).toMatch(/const description =\s*\n?\s*"[^"]{40,}/u);
+    //
+    // ⚠️ **첫 문자열 리터럴의 길이로 재지 마라.** 옛 검사는
+    // `/description:\s*\n?\s*"[^"]{40,}/` 였는데, 설명이 여러 줄로 이어 붙는
+    // 형태(`"…" + "…" + "…"`)가 되자 **첫 조각만** 보고 39자라 실패했다 —
+    // 실제 설명은 90자가 넘는데도(2026-08-28). 길이를 재려면 이어 붙인 것을
+    // 다 모아야 한다.
+    // 선언 뒤부터 `"…" + "…" + "…"` 를 이어 붙는 동안만 따라가며 모은다.
+    // `+` 가 끊기면 멈추므로 뒤따르는 다른 필드를 삼키지 않는다.
+    const fullDescription = (source: string, anchor: RegExp): string => {
+      const found = anchor.exec(source);
+      expect(found, `설명 선언을 찾지 못했다: ${anchor}`).toBeTruthy();
+      let rest = source.slice((found?.index ?? 0) + (found?.[0].length ?? 0));
+      const parts: string[] = [];
+      for (;;) {
+        const literal = /^\s*"((?:[^"\\]|\\.)*)"/u.exec(rest);
+        if (!literal) break;
+        parts.push(literal[1]);
+        rest = rest.slice(literal[0].length);
+        const plus = /^\s*\+/u.exec(rest);
+        if (!plus) break;
+        rest = rest.slice(plus[0].length);
+      }
+      return parts.join("");
+    };
+
+    // 앵커는 여는 따옴표 **앞에서** 끝난다 — 리터럴 스캐너가 그것부터 읽는다.
+    const rootDescription = fullDescription(read("src/app/page.tsx"), /description:/u);
+    const landingDescription = fullDescription(
+      read("src/app/landing/page.tsx"),
+      /const description =/u,
+    );
+    expect(rootDescription.length, `루트 설명이 짧다: ${rootDescription}`).toBeGreaterThanOrEqual(40);
+    expect(landingDescription.length, `랜딩 설명이 짧다: ${landingDescription}`).toBeGreaterThanOrEqual(40);
+    // 두 곳이 같아야 한다. 제목만 맞추고 설명이 갈리면 유입 경로마다 다른 소개가 나간다.
+    expect(rootDescription, "루트와 랜딩의 설명이 다르다").toBe(landingDescription);
   });
 
   it("canonical 과 sitemap 이 랜딩을 가리킨다", () => {

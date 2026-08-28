@@ -97,8 +97,10 @@ describe("web MVP product direction", () => {
     // 카피 정본 한 곳에서 정한다**는 것이므로, 같은 일을 하는 새 문장으로 옮긴다.
     // 조건을 느슨하게 하지 않는다 — 셋 다 글자 그대로, **있어야 할 블록에서** 대조한다.
     // (파일 전체에서 찾으면 그 문장을 푸터 태그라인으로 옮겨도 통과한다.)
+    // 2026-08-28: 문장이 바뀌었다. 옛 문장은 제품이 아니라 기능 하나를 말했다.
+    // 지키는 것은 같다 — 랜딩이 제품을 무엇이라고 부르는지 정본 한 곳에서 정한다.
     expect(contentBlock("hero", "scenes"), "제품 소개 문장이 히어로 밖으로 나갔다")
-      .toContain("웨딩한방은 둘이 어디서 갈리는지부터 봅니다");
+      .toContain("웨딩한방은 둘이 그 기준을 맞춰 가는 곳이고, 정한 것만 남겨요");
     // 아모라를 소개하는 자리에서 AI라는 것을 먼저 말한다(옛 `aiRole`이 지던 몫).
     expect(contentBlock("noSide", "oneRoom"), "AI 고지가 아모라 소개 자리에 없다")
       .toContain("아모라 답변은 AI가 만든 내용이에요");
@@ -206,7 +208,8 @@ describe("web MVP product direction", () => {
     const sectionIds = landingSectionIds();
     for (const [label, href] of [
       ["갈린 자리 보기", "#scenes"],
-      ["편을 들지 않아요", "#noside"],
+      // 2026-08-28: 섹션 제목이 부정문에서 바뀌면서 내비 라벨도 따라갔다.
+      ["둘의 조건 나란히", "#noside"],
       ["확인한 것만", "#confirm"],
       ["지금 되는 것", "#now"],
     ]) {

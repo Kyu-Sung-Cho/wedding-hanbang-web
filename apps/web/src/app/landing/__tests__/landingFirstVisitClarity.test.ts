@@ -148,11 +148,16 @@ describe("landing first visit clarity", () => {
     // "둘이 말하면, 결혼 준비가 정리돼요."가 그 자리였고, 지금은 히어로 본문이 잇는다.
     // **히어로 블록 안에서** 찾는다 — 파일 전체로 물으면 이 문장을 footer.tagline 으로
     // 옮겨도 통과한다(2026-08-28 변형으로 확인).
+    //
+    // 2026-08-28: 문장이 바뀌었다. 이전 "웨딩한방은 둘이 어디서 갈리는지부터 봅니다."
+    // 는 이 계약의 이름("제품을 한 문장으로")을 달고 있으면서 실제로는 **기능 하나**
+    // 를 말했다 — 처음 온 사람이 첫 화면에서 이걸 퀴즈로 읽었다. 지키는 계약은 같고
+    // 문장이 그 계약을 이제 진짜로 지킨다.
     expect(heroBlock, "제품을 한 문장으로 말하는 문장이 히어로에 없다")
-      .toContain("웨딩한방은 둘이 어디서 갈리는지부터 봅니다.");
+      .toContain("웨딩한방은 둘이 그 기준을 맞춰 가는 곳이고, 정한 것만 남겨요.");
     // 입력(각자 답한다)과 출력(어디서 갈렸는지 나란히)이 같은 문장 안에 있어야 한다.
     expect(heroBlock).toContain(
-      "스무 장면에 각자 답하면, 어느 자리에서 생각이 갈렸는지 고른 문장 그대로 나란히 보여드려요.",
+      "각자 답하면 어디서 갈렸는지 고른 문장 그대로 나란히 보여줘요.",
     );
     // 카피에 남아 있어도 그리는 자리가 없으면 화면은 빈다.
     expect(hero, "히어로가 hero.body 를 그리지 않는다 — 카피만 남고 화면은 빈다")
@@ -208,9 +213,10 @@ describe("landing first visit clarity", () => {
       .toContain("{confirm.sample.proposeLabel}");
 
     // 히어로 안에서 약속(H1)이 설명(본문)보다 먼저 온다.
-    expect(hero.indexOf("결혼 준비에서 싸우는 건"), "히어로에서 H1 문장을 찾지 못함")
+    // (2026-08-28 H1 문장 변경 — 순서 계약은 그대로)
+    expect(hero.indexOf("결혼 준비,"), "히어로에서 H1 문장을 찾지 못함")
       .toBeGreaterThan(-1);
-    expect(hero.indexOf("결혼 준비에서 싸우는 건")).toBeLessThan(hero.indexOf("{hero.body}"));
+    expect(hero.indexOf("결혼 준비,")).toBeLessThan(hero.indexOf("{hero.body}"));
 
     // 정본에 없는 키를 렌더하면 화면이 조용히 빈다 — 지워진
     // `landingContent.hero.emotionalLine` 참조가 히어로에 남아 실제로 그랬다.

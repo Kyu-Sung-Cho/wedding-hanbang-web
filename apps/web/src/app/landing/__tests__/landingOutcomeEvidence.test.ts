@@ -422,7 +422,9 @@ describe("landing product outcome evidence", () => {
     expectRenderedOnLanding("OneRoomSection.tsx");
     expectReadsCanonicalCopy("OneRoomSection.tsx", "oneRoom");
 
-    expect(block.oneRoom).toContain("같은 얘기를 두 번 하지 않아도 돼요.");
+    // 2026-08-28: "같은 얘기를 두 번 하지 않아도 돼요."에서 바꿨다. 지키는 약속은
+    // 같다 — 없어진 수고가 아니라 일어나는 일로 말한다.
+    expect(block.oneRoom).toContain("함께 보는 자리에 한 말은, 둘 다에게 남아요.");
     expect(block.oneRoom).toContain("다음 날 아침 상대가 열었을 때 그 대화가 그대로 있어요.");
     expectRendersCopy("OneRoomSection.tsx", "oneRoom.body");
     expectRendersCopy("OneRoomSection.tsx", "oneRoom.note");

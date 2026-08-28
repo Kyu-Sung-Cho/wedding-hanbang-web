@@ -13,16 +13,24 @@ import { bodyText, noteText, shell } from "./notebook";
  * 한 덩어리로 읽는다는 구조**다(`api/chat/route.ts:1889`). 그런데 그건 설명해야
  * 알아듣는 이야기라 첫 화면에 못 쓴다.
  *
- * 첫 화면은 처음 온 사람이 자기 얘기라고 느끼는 문장이어야 하고, 그게
- * "둘의 기준이 다른 걸 몰라서" 다. 그리고 그 문장을 **로그인 없이 바로 만져 볼 수
- * 있다** — 웨딩코드는 supabase 0 · fetch 0 · getUser 0 이고 답이 URL 해시에 실린다.
- * 비로그인 아모라 체험이 #245 로 닫힌 지금, 만질 수 있는 후크는 이것뿐이다.
+ * 처음 온 사람이 자기 얘기라고 느끼는 문장은 "둘의 기준이 다른 걸 몰라서" 다.
+ * 그리고 그 문장을 **로그인 없이 바로 만져 볼 수 있다** — 웨딩코드는
+ * supabase 0 · fetch 0 · getUser 0 이고 답이 URL 해시에 실린다. 비로그인 아모라
+ * 체험이 #245 로 닫힌 지금, 만질 수 있는 후크는 이것뿐이다.
+ *
+ * ## 왜 후크가 H1 이 아니라 본문 첫 문장인가
+ *
+ * 2026-08-28 파운더 결정. 이전 판은 H1 이 **독자를 진단**했고("싸우는 건 가격
+ * 때문이 아니라…") 본문은 기능 하나를 팔았다. 그래서 첫 화면 어디에도 웨딩한방이
+ * **무엇인지**가 없었고 스무 장면 퀴즈로 읽혔다. 지금은 H1 이 무엇인지 말하고,
+ * 후크는 본문 첫 문장이 그대로 잇는다 — 후크가 사라진 게 아니라 자리를 옮겼다.
  *
  * ## 첫 화면 규칙
  *
- * H1 에 장면 낱말이 들어가야 한다(`싸우다`). 도구 이름(예산·일정·체크리스트)을
- * 첫 화면에 늘어놓지 않는다 — 85개 시안을 재 보니 장면 낱말 대 도구 낱말 비가
- * 평균 0.47 이었고, 1.0 을 넘긴 시안이 하나도 없었다.
+ * 도구 이름(예산·일정·체크리스트)을 첫 화면에 늘어놓지 않는다 — 85개 시안을 재
+ * 보니 장면 낱말 대 도구 낱말 비가 평균 0.47 이었고, 1.0 을 넘긴 시안이 하나도
+ * 없었다. 도구 이름은 ⑤ 확인 섹션이 진다. 이 규칙은
+ * `landingHeroExperience.test.ts` 가 글자로 막는다.
  */
 export default function TransformationHero() {
   const { hero } = landingContent;
@@ -51,11 +59,9 @@ export default function TransformationHero() {
         <h1
           id="hero-title"
           className="max-w-[19ch] text-balance text-[clamp(2rem,6.4vw,3.6rem)] font-semibold leading-[1.16] tracking-[-0.045em] text-[var(--color-paper-ink)]">
-          결혼 준비에서 싸우는 건
+          결혼 준비,
           <br />
-          가격 때문이 아니라,
-          <br />
-          <span className="landing-pen">둘의 기준이 다른 걸</span> 몰라서예요.
+          <span className="landing-pen">둘이 같이</span> 하는 자리.
         </h1>
 
         <p className={`mt-7 max-w-[46ch] ${bodyText}`}>{hero.body}</p>
