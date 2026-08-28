@@ -134,6 +134,7 @@ export default function ConsentScreen() {
           {SIGNUP_CONSENT_ITEMS.map((item) => (
             <View key={item.key} style={styles.agreeRow}>
               <Pressable
+                hitSlop={12}
                 disabled={submitting}
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: consent[item.key] }}

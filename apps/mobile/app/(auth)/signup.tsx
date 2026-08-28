@@ -346,7 +346,7 @@ export default function SignupScreen() {
 
                 {/* 이용약관 (필수) */}
                 <View style={styles.agreeRow}>
-                  <Pressable onPress={() => updateAgreements(!agreeTerms, agreePrivacy, agreeMarketing)}>
+                  <Pressable hitSlop={12} onPress={() => updateAgreements(!agreeTerms, agreePrivacy, agreeMarketing)}>
                     {agreeTerms
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
                       : <Circle size={20} color={colors.taupe[400]} />
@@ -355,14 +355,14 @@ export default function SignupScreen() {
                   <Text style={styles.agreeText}>
                     <Text style={styles.agreeRequired}>[필수]</Text> 이용약관 동의
                   </Text>
-                  <Pressable onPress={() => Linking.openURL(`${SITE}/terms`)}>
+                  <Pressable hitSlop={12} onPress={() => Linking.openURL(`${SITE}/terms`)}>
                     <Text style={styles.agreeLink}>보기</Text>
                   </Pressable>
                 </View>
 
                 {/* 개인정보 처리방침 (필수) */}
                 <View style={styles.agreeRow}>
-                  <Pressable onPress={() => updateAgreements(agreeTerms, !agreePrivacy, agreeMarketing)}>
+                  <Pressable hitSlop={12} onPress={() => updateAgreements(agreeTerms, !agreePrivacy, agreeMarketing)}>
                     {agreePrivacy
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
                       : <Circle size={20} color={colors.taupe[400]} />
@@ -371,14 +371,14 @@ export default function SignupScreen() {
                   <Text style={styles.agreeText}>
                     <Text style={styles.agreeRequired}>[필수]</Text> 개인정보 처리방침 동의
                   </Text>
-                  <Pressable onPress={() => Linking.openURL(`${SITE}/privacy`)}>
+                  <Pressable hitSlop={12} onPress={() => Linking.openURL(`${SITE}/privacy`)}>
                     <Text style={styles.agreeLink}>보기</Text>
                   </Pressable>
                 </View>
 
                 {/* 마케팅 수신 (선택) */}
                 <View style={styles.agreeRow}>
-                  <Pressable onPress={() => updateAgreements(agreeTerms, agreePrivacy, !agreeMarketing)}>
+                  <Pressable hitSlop={12} onPress={() => updateAgreements(agreeTerms, agreePrivacy, !agreeMarketing)}>
                     {agreeMarketing
                       ? <CheckCircle2 size={20} color={colors.rose[500]} />
                       : <Circle size={20} color={colors.taupe[400]} />

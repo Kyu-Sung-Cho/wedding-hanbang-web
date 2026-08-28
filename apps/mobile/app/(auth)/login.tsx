@@ -255,11 +255,11 @@ export default function LoginScreen() {
 
             {/* 비밀번호 찾기 + 회원가입 */}
             <View style={styles.linkRow}>
-              <Pressable onPress={() => router.push({ pathname: "/(auth)/forgot-password" })}>
+              <Pressable hitSlop={12} onPress={() => router.push({ pathname: "/(auth)/forgot-password" })}>
                 <Text style={styles.link}>비밀번호 찾기</Text>
               </Pressable>
               <Text style={styles.linkDot}>|</Text>
-              <Pressable onPress={() => router.push({ pathname: "/(auth)/signup" })}>
+              <Pressable hitSlop={12} onPress={() => router.push({ pathname: "/(auth)/signup" })}>
                 <Text style={[styles.link, { color: colors.rose[500] }]}>회원가입</Text>
               </Pressable>
             </View>

@@ -946,12 +946,12 @@ export default function BudgetScreen() {
             <View style={s.editRow}>
               <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="number-pad" autoFocus editable={!savingTotal} maxLength={6} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
               <Text style={s.totalUnit}>만원</Text>
-              <Pressable onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 변경 요청" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
+              <Pressable hitSlop={{ top: 12, bottom: 12, left: 8, right: 4 }} onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 변경 요청" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
                 {savingTotal
                   ? <ActivityIndicator size="small" color={colors.rose[500]} />
                   : <Check size={22} color={colors.rose[500]} />}
               </Pressable>
-              <Pressable onPress={closeTotalEditor} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 편집 취소"><X size={22} color={colors.taupe[400]} /></Pressable>
+              <Pressable hitSlop={{ top: 12, bottom: 12, left: 4, right: 12 }} onPress={closeTotalEditor} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 편집 취소"><X size={22} color={colors.taupe[400]} /></Pressable>
             </View>
           ) : (
             <Pressable style={s.totalRow} onPress={openTotalEdit}>
@@ -1124,7 +1124,7 @@ export default function BudgetScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.modalOv}>
           <View style={s.modalCon}>
             <View style={s.modalHandle} />
-            <View style={s.modalHead}><Text style={s.modalTitle}>{budgetCategories.find((category) => category.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={closeCategoryEditor} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 편집 닫기"><X size={24} color={colors.textTertiary} /></Pressable></View>
+            <View style={s.modalHead}><Text style={s.modalTitle}>{budgetCategories.find((category) => category.key === editingKey)?.label ?? ""} 수정</Text><Pressable hitSlop={12} onPress={closeCategoryEditor} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 편집 닫기"><X size={24} color={colors.textTertiary} /></Pressable></View>
             <Text style={s.fLabel}>예산 (만원)</Text>
             <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" editable={!saving} maxLength={6} accessibilityLabel="카테고리 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>기록 지출 (만원 · 결제 확인과 별도)</Text>

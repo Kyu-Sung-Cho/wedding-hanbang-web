@@ -3,6 +3,7 @@ import { useState } from "react";
 import {
   View, Text, TextInput, ScrollView, StyleSheet, Pressable,
   Alert, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -80,99 +81,104 @@ export default function QuickReviewScreen() {
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
-      <AppHeader title="15초 후기" onBack={() => router.back()} />
-
-      <ScrollView
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
-        contentContainerStyle={s.content}
-        keyboardShouldPersistTaps="handled"
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
-        {/* 업체명 */}
-        <Text style={s.label}>업체명</Text>
-        <TextInput
-          style={s.input}
-          value={vendorName}
-          onChangeText={setVendorName}
-          placeholder="업체 이름을 입력하세요"
-          placeholderTextColor={colors.taupe[400]}
-        />
+        <AppHeader title="15초 후기" onBack={() => router.back()} />
 
-        {/* 카테고리 */}
-        <Text style={s.label}>카테고리</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll}>
-          <View style={s.chipRow}>
-            {CATEGORIES.map((cat) => (
-              <Pressable
-                key={cat.key}
-                style={[s.chip, category === cat.key && s.chipActive]}
-                onPress={() => setCategory(cat.key)}
-              >
-                <Text style={[s.chipText, category === cat.key && s.chipTextActive]}>
-                  {cat.label}
-                </Text>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={s.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* 업체명 */}
+          <Text style={s.label}>업체명</Text>
+          <TextInput
+            style={s.input}
+            value={vendorName}
+            onChangeText={setVendorName}
+            placeholder="업체 이름을 입력하세요"
+            placeholderTextColor={colors.taupe[400]}
+          />
+
+          {/* 카테고리 */}
+          <Text style={s.label}>카테고리</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.chipScroll}>
+            <View style={s.chipRow}>
+              {CATEGORIES.map((cat) => (
+                <Pressable
+                  key={cat.key}
+                  style={[s.chip, category === cat.key && s.chipActive]}
+                  onPress={() => setCategory(cat.key)}
+                >
+                  <Text style={[s.chipText, category === cat.key && s.chipTextActive]}>
+                    {cat.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* 별점 */}
+          <Text style={s.label}>별점</Text>
+          <View style={s.starRow}>
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Pressable key={n} onPress={() => setRating(n)} hitSlop={4}>
+                <Star
+                  size={36}
+                  color={n <= rating ? colors.gold.DEFAULT : colors.taupe[400]}
+                  fill={n <= rating ? colors.gold.DEFAULT : "none"}
+                />
               </Pressable>
             ))}
+            {rating > 0 && (
+              <Text style={s.ratingNum}>{rating}.0</Text>
+            )}
           </View>
+
+          {/* 한줄 후기 */}
+          <Text style={s.label}>한줄 후기</Text>
+          <TextInput
+            style={s.input}
+            value={review}
+            onChangeText={(t) => setReview(t.slice(0, REVIEW_MAX))}
+            placeholder="한 줄로 후기를 남겨주세요"
+            placeholderTextColor={colors.taupe[400]}
+            maxLength={REVIEW_MAX}
+          />
+          <Text style={s.charCount}>{review.length}/{REVIEW_MAX}</Text>
+
+          {/* 광고 표시 */}
+          <Text style={s.label}>글 유형</Text>
+          <View style={s.adRow}>
+            {AD_OPTIONS.map((ad) => {
+              const active = adDisclosure === ad.key;
+              return (
+                <Pressable
+                  key={ad.key}
+                  style={[s.adChip, active && s.adChipActive]}
+                  onPress={() => setAdDisclosure(ad.key)}
+                >
+                  <View style={[s.radio, active && s.radioActive]}>
+                    {active && <View style={s.radioFill} />}
+                  </View>
+                  <Text style={[s.adChipText, active && s.adChipTextActive]}>{ad.label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <PrimaryButton
+            style={s.submitButton}
+            onPress={handleSubmit}
+            disabled={submitting}
+            icon={submitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
+          >
+            {submitting ? "등록 중" : "후기 등록하기"}
+          </PrimaryButton>
         </ScrollView>
-
-        {/* 별점 */}
-        <Text style={s.label}>별점</Text>
-        <View style={s.starRow}>
-          {[1, 2, 3, 4, 5].map((n) => (
-            <Pressable key={n} onPress={() => setRating(n)} hitSlop={4}>
-              <Star
-                size={36}
-                color={n <= rating ? colors.gold.DEFAULT : colors.taupe[400]}
-                fill={n <= rating ? colors.gold.DEFAULT : "none"}
-              />
-            </Pressable>
-          ))}
-          {rating > 0 && (
-            <Text style={s.ratingNum}>{rating}.0</Text>
-          )}
-        </View>
-
-        {/* 한줄 후기 */}
-        <Text style={s.label}>한줄 후기</Text>
-        <TextInput
-          style={s.input}
-          value={review}
-          onChangeText={(t) => setReview(t.slice(0, REVIEW_MAX))}
-          placeholder="한 줄로 후기를 남겨주세요"
-          placeholderTextColor={colors.taupe[400]}
-          maxLength={REVIEW_MAX}
-        />
-        <Text style={s.charCount}>{review.length}/{REVIEW_MAX}</Text>
-
-        {/* 광고 표시 */}
-        <Text style={s.label}>글 유형</Text>
-        <View style={s.adRow}>
-          {AD_OPTIONS.map((ad) => {
-            const active = adDisclosure === ad.key;
-            return (
-              <Pressable
-                key={ad.key}
-                style={[s.adChip, active && s.adChipActive]}
-                onPress={() => setAdDisclosure(ad.key)}
-              >
-                <View style={[s.radio, active && s.radioActive]}>
-                  {active && <View style={s.radioFill} />}
-                </View>
-                <Text style={[s.adChipText, active && s.adChipTextActive]}>{ad.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <PrimaryButton
-          style={s.submitButton}
-          onPress={handleSubmit}
-          disabled={submitting}
-          icon={submitting ? <ActivityIndicator size="small" color="#FFFFFF" /> : undefined}
-        >
-          {submitting ? "등록 중" : "후기 등록하기"}
-        </PrimaryButton>
-      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
