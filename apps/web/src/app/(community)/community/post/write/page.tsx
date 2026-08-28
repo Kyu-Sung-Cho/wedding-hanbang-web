@@ -190,6 +190,20 @@ function PostWriteContent() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inlineImageInputRef = useRef<HTMLInputElement>(null);
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /**
+   * 초안을 **일부러 지운 뒤**인가.
+   *
+   * 발행에 성공하면 `localStorage.removeItem(draftKey)` 뒤에 `router.push` 로 화면을
+   * 떠나는데, 그 이동이 이 컴포넌트를 언마운트시킨다. 언마운트 저장이 그때도 돌면
+   * **방금 발행한 내용이 초안으로 되살아나** 다음에 글쓰기를 열 때 다시 뜬다.
+   * 사용자는 같은 글을 두 번 올리게 된다.
+   */
+  const draftIntentionallyClearedRef = useRef(false);
+  /**
+   * 이 에디터가 **어느 사용자로** 마운트됐는가. 언마운트 저장이 신원 전환 뒤에
+   * 도는 것을 막는 데 쓴다(아래 정리 블록 참고).
+   */
+  const mountedViewerIdRef = useRef<string | null>(null);
   const pendingCreateCommandRef = useRef<{
     fingerprint: string;
     idempotencyKey: string;
@@ -237,6 +251,9 @@ function PostWriteContent() {
         return;
       }
       setUserId(data.user.id);
+      // 언마운트 저장이 "그때 그 사람" 인지 대조할 기준. 상태가 아니라 ref 인 이유는
+      // 정리 블록의 클로저가 첫 렌더 값을 붙들기 때문이다.
+      mountedViewerIdRef.current = data.user.id;
       setAuthChecked(true);
     });
   }, [isEditMode, router]);
@@ -446,11 +463,23 @@ function PostWriteContent() {
   }, [category, title, content, visibility, images, tags, vendorTags, adDisclosure, sponsorshipDetail, priceData, poll, inlineImages, postMode, slides, draftKey]);
 
   // 자동 저장 (30초마다)
+  //
+  // `persistDraft` 는 본문·제목에 의존하는 useCallback 이라 **키를 칠 때마다 신원이
+  // 바뀐다.** 그것을 effect 의존성에 그대로 두면 타이머가 매 입력마다 정리되고 다시
+  // 시작해서, 30초 이상 손을 멈추지 않는 사람에게는 자동 저장이 **한 번도 돌지
+  // 않는다.** 길게 쓰는 사람일수록 안 저장되는 셈이라 정반대다.
+  //
+  // 그래서 최신 함수는 ref 로 들고, 타이머는 한 번만 만든다.
+  const persistDraftRef = useRef(persistDraft);
+  useEffect(() => {
+    persistDraftRef.current = persistDraft;
+  }, [persistDraft]);
+
   useEffect(() => {
     if (isEditMode) return;
 
     autoSaveRef.current = setInterval(() => {
-      if (persistDraft()) {
+      if (persistDraftRef.current()) {
         setAutoSaveFlash(true);
         setTimeout(() => setAutoSaveFlash(false), 2000);
       }
@@ -458,8 +487,25 @@ function PostWriteContent() {
 
     return () => {
       if (autoSaveRef.current) clearInterval(autoSaveRef.current);
+      // 화면을 떠날 때 한 번 더 저장한다. 타이머만 있으면 마지막 30초가 통째로
+      // 사라지고, 뒤로가기·탭 이동은 `beforeunload` 가 잡지 못한다.
+      //
+      // 단, **일부러 지운 뒤에는 저장하지 않는다.** 발행 성공은
+      // `removeItem` → `router.push` → 언마운트 순서라, 이 가드가 없으면 방금
+      // 발행한 내용이 초안으로 되살아나 사용자가 같은 글을 두 번 올리게 된다.
+      //
+      // **신원이 바뀐 뒤에도 저장하지 않는다.** 로그아웃·세션 만료는
+      // `bindViewer` 의 purge → `set({user})` → 이 에디터 언마운트 순서로 돌아서,
+      // 이 가드가 없으면 방금 지워진 A 의 초안을 A 의 키에 **다시 써 넣는다.**
+      // 키가 사용자별이라 다음 사람이 읽지는 못하지만, 공용 기기에 남는 것은
+      // `viewerPrivacyCache` 가 지키기로 한 계약을 깨는 것이다.
+      const stillSameViewer =
+        (useAuthStore.getState().user?.id ?? null) === mountedViewerIdRef.current;
+      if (!draftIntentionallyClearedRef.current && stillSameViewer) {
+        persistDraftRef.current();
+      }
     };
-  }, [isEditMode, persistDraft]);
+  }, [isEditMode]);
 
   // 텍스트 영역 자동 높이 조절
   const autoResize = useCallback(() => {
@@ -706,6 +752,7 @@ function PostWriteContent() {
         }
         // 임시저장 삭제
         localStorage.removeItem(draftKey);
+        draftIntentionallyClearedRef.current = true;
         setHasUnsavedChanges(false);
         router.push(communityPostPath(editId));
       } else {
@@ -725,6 +772,7 @@ function PostWriteContent() {
         pendingCreateCommandRef.current = null;
         // 임시저장 삭제
         localStorage.removeItem(draftKey);
+        draftIntentionallyClearedRef.current = true;
         setHasUnsavedChanges(false);
         if (asDraft) {
           router.push(weddingPath());

@@ -81,11 +81,28 @@ function matchingStorageKeys(
 /** Clears browser-persisted community data that can be viewer-specific. */
 export function purgeCommunityBrowserPrivacyCache(options?: {
   preserveGuestDraftHandoff?: boolean;
+  /**
+   * 이 전환으로 **들어오는** 뷰어. 그 사람 자신의 임시저장은 지우지 않는다.
+   *
+   * 없이는 앱을 다시 열 때마다 내 초안이 사라졌다. 스토어에 `persist` 가 없어
+   * `viewerId` 가 늘 `null` 로 시작하므로, 로그인한 채 아무 화면이나 새로 열면
+   * `null → 내 아이디` 전환이 일어나고 이 purge 가 **내 것까지** 지웠다. 화면은
+   * "자동 저장됨" 이라고 알려 준 뒤였다.
+   *
+   * 초안 키는 사용자별로 나뉘어 있으므로(`communityPostDraftKey`), 들어오는
+   * 사람 자신의 키 하나만 남기는 것은 **구조적으로** 남의 글을 남길 수 없다.
+   */
+  preserveViewerId?: string | null;
 }): void {
   if (typeof window === "undefined") return;
   const preserveGuestDraftHandoff =
     options?.preserveGuestDraftHandoff === true
     && hasGuestCommunityDraftHandoff();
+  const incomingViewerId = options?.preserveViewerId?.trim() || null;
+  const preservedOwnDraftKey =
+    incomingViewerId !== null && incomingViewerId !== "demo"
+      ? communityPostDraftKey(incomingViewerId)
+      : null;
 
   try {
     matchingStorageKeys(window.sessionStorage, (key) =>
@@ -105,7 +122,8 @@ export function purgeCommunityBrowserPrivacyCache(options?: {
         && !(
           preserveGuestDraftHandoff
           && key === communityPostDraftKey(null)
-        ),
+        )
+        && !(preservedOwnDraftKey !== null && key === preservedOwnDraftKey),
     ).forEach((key) => window.localStorage.removeItem(key));
   } catch {
     // A failed purge must not make an auth transition throw.

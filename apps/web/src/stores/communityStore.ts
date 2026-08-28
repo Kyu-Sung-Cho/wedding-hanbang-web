@@ -848,6 +848,10 @@ export const useCommunityStore = create<CommunityState>((set, get) => ({
         && normalizedViewerId !== null
         && normalizedViewerId !== "demo"
         && hasGuestCommunityDraftHandoff(),
+      // 들어오는 사람 자신의 임시저장은 남긴다. 스토어에 persist 가 없어 새 문서마다
+      // `viewerId` 가 null 로 시작하므로, 이것이 없으면 로그인한 채 아무 화면이나
+      // 다시 여는 것만으로 내 초안이 지워진다.
+      preserveViewerId: normalizedViewerId,
     });
     set((state) => ({
       viewerId: normalizedViewerId,
