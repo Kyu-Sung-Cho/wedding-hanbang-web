@@ -4,6 +4,7 @@ import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import {
+  asksWhereToStart,
   computePreparationPriorities,
   EARLY_STARTING_POINTS,
 } from "@/lib/marketing/preparationPriorities";
@@ -53,9 +54,10 @@ const ENABLED = BETA_SAFE_TOOLS
   .filter((tool) => !isMutatingTool(tool.name))
   .map((tool) => tool.name);
 
-function promptFor(weddingDate: string | null): string {
+function promptFor(weddingDate: string | null, startingPointAsked = true): string {
   return buildAmoraSystemPrompt(
     {
+      startingPointAsked,
       weddingDate,
       budget: 50_000_000,
       venue: null,
@@ -130,7 +132,7 @@ describe("시작점을 묻는 답이 프롬프트에 실린다", () => {
      */
     const prompt = promptFor(NEAR);
     expect(prompt).toContain("한꺼번에 쏟지 말고");
-    expect(prompt).toContain("월별 계획표를 펼치지 마세요");
+    expect(prompt).toContain("계획표를 펼치지 마세요");
   });
 });
 
@@ -182,5 +184,61 @@ describe("시점 문구가 뒤집히지 않는다", () => {
     }
     // 섞이는 구간을 못 찾으면 이 검사는 아무것도 지키지 못한다.
     throw new Error("시작된 항목과 안 된 항목이 섞이는 D-day 구간을 못 찾았다");
+  });
+});
+
+describe("묻지 않은 턴에는 한 글자도 싣지 않는다", () => {
+  /**
+   * **왜 조건부인가.** 아모라 시스템 프롬프트 상한은 48,000자인데 운영에서 문맥이
+   * 가장 많은 커플(일정 18 · 요약 1)은 이미 그 천장에 붙어 있다. 매 턴 실으면
+   * 저장 문맥 꼬리가 그만큼 더 잘린다(실측 427자).
+   *
+   * 그래서 시작점을 묻는 턴에만 싣는다 — 그 턴에서는 순서가 정확히 필요한 것이고,
+   * 나머지 턴에서는 **0자**다. 상한을 올리지 않아도 되는 이유가 이것이다.
+   */
+  it("플래그가 없으면 섹션이 없다", () => {
+    const prompt = promptFor(NEAR, false);
+    expect(prompt).not.toContain("## 지금 확인할 준비 3가지");
+    expect(prompt).not.toContain("## 아직 이르면 먼저 맞출 기준 3가지");
+  });
+
+  it("플래그만 다르고 나머지가 같으면 그 섹션 길이만큼만 차이 난다", () => {
+    const asked = promptFor(NEAR, true);
+    const quiet = promptFor(NEAR, false);
+    expect(asked.length, "묻는 턴이 더 길어야 한다").toBeGreaterThan(quiet.length);
+    // 섹션 하나 분량. 크게 벗어나면 다른 것이 함께 딸려 들어온 것이다.
+    expect(asked.length - quiet.length).toBeLessThan(900);
+  });
+});
+
+describe("시작점을 묻는지 가리는 판정", () => {
+  it.each([
+    "결혼 준비를 뭐부터 해야 할지 하나도 모르겠어요",
+    "뭐부터 해야 해?",
+    "무엇부터 준비하면 되나요",
+    "어디서부터 손대야 할지 모르겠어요",
+    "뭐 먼저 할까?",
+    "순서를 모르겠어요",
+    "어떻게 시작해야 하나요",
+    "처음이라 막막해요",
+  ])("묻는 말로 본다: %s", (text) => {
+    expect(asksWhereToStart(text), "시작점 질문인데 못 알아본다").toBe(true);
+  });
+
+  it.each([
+    "드레스 피팅 6월 12일로 잡아줘",
+    "예산 3천만원으로 바꿔줘",
+    "예식장 계약할 때 뭘 확인해야 해?",
+    "남편이랑 하객 수로 의견이 갈려요",
+    "축의금은 보통 얼마나 하나요",
+    "",
+  ])("묻는 말이 아니다: %s", (text) => {
+    expect(asksWhereToStart(text), "엉뚱한 턴에 순서 목록이 실린다").toBe(false);
+  });
+
+  it("문자열이 아니면 false", () => {
+    expect(asksWhereToStart(null)).toBe(false);
+    expect(asksWhereToStart(undefined)).toBe(false);
+    expect(asksWhereToStart(42)).toBe(false);
   });
 });

@@ -98,6 +98,34 @@ export const EARLY_STARTING_POINTS = [
   },
 ] as const;
 
+/**
+ * 사용자가 **시작점을 묻고 있는가**.
+ *
+ * ## 왜 필요한가 — 프롬프트에 공짜 자리가 없다
+ *
+ * 아모라 시스템 프롬프트 상한은 48,000자인데, 운영에서 문맥이 가장 많은 커플은
+ * 이미 그 천장에 붙어 있다(일정 18 · 요약 1 → 약 48,019자). 준비 순서를 **매 턴**
+ * 실으면 그만큼 저장 문맥 꼬리가 더 잘린다.
+ *
+ * 그런데 그 목록은 **시작점을 물을 때만** 쓸모가 있다. 그래서 물을 때만 싣는다 —
+ * 나머지 턴에서는 0자다.
+ *
+ * ## 좁게 쓴다
+ *
+ * 넓히면 매 턴 실리는 것과 같아진다. 어휘는 `amoraQuestionScope` 의
+ * `AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN` 이 이미 결혼 준비 발화로 인정한 것
+ * ("뭐부터", "무엇부터", "어디서부터", "뭐 먼저")에서 출발했고, 같은 뜻의
+ * 표현만 더했다. 이 판정은 도구·안전·공개 범위 어디에도 영향을 주지 않는다 —
+ * **프롬프트에 문단 하나를 넣을지만 정한다.**
+ */
+const WHERE_TO_START_PATTERN =
+  /(?:뭐|무엇|어디)\s*(?:서)?\s*부터|뭐\s*먼저|무엇\s*먼저|어떤\s*(?:것|거)\s*부터|순서(?:를|가|는)?\s*(?:모르|어떻게|어떡)|어떻게\s*시작|시작(?:을|은|이)?\s*(?:어떻게|어디서|뭐)|첫\s*단계|처음이라\s*(?:막막|막연|모르)|하나도\s*모르겠/u;
+
+export function asksWhereToStart(text: unknown): boolean {
+  if (typeof text !== "string" || text.length === 0) return false;
+  return WHERE_TO_START_PATTERN.test(text);
+}
+
 export function computePreparationPriorities(
   dday: number | null,
   { skipped }: { skipped?: ReadonlySet<string> } = {},
