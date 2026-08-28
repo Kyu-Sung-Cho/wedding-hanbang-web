@@ -8,7 +8,7 @@ import LandingHeader from "@/components/landing/redesign/LandingHeader";
 import AmoraNoteSection from "@/components/landing/redesign/AmoraNoteSection";
 import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
 import BoundariesSection from "@/components/landing/redesign/BoundariesSection";
-import PriceCompareSection from "@/components/landing/redesign/PriceCompareSection";
+import CommunitySection from "@/components/landing/redesign/CommunitySection";
 import TransformationHero from "@/components/landing/redesign/TransformationHero";
 
 export const revalidate = 86_400;
@@ -37,10 +37,11 @@ export function generateMetadata(): Metadata {
   // `components/community/__tests__/landingFunnelInstrumentation.test.ts` 의 추출기
   // (`generateMetadata … const title = "…"`)가 못 읽어 제목을 빈 문자열로 보고,
   // 루트 폴백과의 동일성 검사가 조용히 무의미해진다. 실제로 그렇게 됐었다.
-  const title = "웨딩한방 | 결혼 준비, 둘이 어디서 갈리는지부터";
+  const title = "웨딩한방 | 결혼 준비 노트, 같이 정리해요";
   const description =
-    "결혼 준비에서 싸우는 건 가격 때문이 아니라 둘의 기준이 다른 걸 몰라서예요. "
-    + "스무 장면에 각자 답하면 어디서 갈렸는지 나란히 볼 수 있어요. 가입 없이 지금 열려 있어요.";
+    "어디에 뭘 적어뒀는지 헷갈릴 때가 있잖아요. 결혼 준비의 고민을 아모라와 이야기하고, "
+    + "확인한 것만 예산·할 일·일정에 남고, 바뀌면 파트너에게 알림이 가요. "
+    + "비슷한 시기에 결혼하는 사람들의 기록도 함께 봐요.";
 
   return {
     title,
@@ -66,21 +67,19 @@ export function generateMetadata(): Metadata {
 /**
  * 랜딩 — 결혼 준비 노트.
  *
- * ## 섹션 순서에 이유가 있다
+ * ## 섹션 순서 = 제품 계약의 축 순서
  *
- *   히어로   둘의 기준이 다른 걸 몰라서 싸운다        ← 자기 얘기로 읽히는 문장
- *   ①        장면 하나를 보여주고 만지게 한다          ← 로그인 없이 되는 유일한 후크
- *   ②        편을 들지 않는다                          ← "ChatGPT 로 되잖아" 를 먼저 받는다
- *   ③        같은 얘기를 두 번 안 해도 된다            ← 제일 큰 차별점
- *   ④        나만 보는 자리                            ← ③ 이 만든 걱정을 바로 받는다
- *   ⑤        확인한 것만 남는다                        ← 대화가 어디로 가는지
- *   ⑥        업체 편이 아니다                          ← 공시 가격은 여기 곁블록 한 줄
- *   ⑦        가입 없이 지금 되는 것                    ← 빈손으로 나가지 않게
- *   마무리   첫 화면과 같은 행동을 부른다
+ *   히어로     결혼 준비 노트, 같이 정리해요
+ *   ①  아모라   대화 한 토막을 노트에 적어 보여 준다      ← 제품의 중심
+ *   ②  확인     확인한 것만 예산·할 일·일정에 남는다      ← 그 대화가 어디로 가나
+ *   ③  커뮤니티 같은 분기에 결혼하는 사람들의 기록        ← 계약의 둘째 축
+ *   ④  지금 되는 것  견적·스무장면·공시가·예절            ← 로그인 없이 만질 것
+ *   ⑤  경계     하지 않는 것 넷                           ← 업체 편이 아니라는 증거
+ *   마무리     첫 화면과 같은 행동을 부른다
  *
- * ④ 를 ③ 앞으로 옮기지 마라. ③ 이 "두 사람 대화가 한 덩어리" 라고 말한 직후에
- * 사람들은 "그럼 내가 쓴 게 다 가나" 를 걱정한다. 그 걱정을 다음 섹션이 받지 않으면
- * ③ 이 불안으로 끝난다.
+ * ①②③ 이 CLAUDE.md 제품 계약의 세 축이고 ④ 는 부가 도구다. 공시 가격·위약금은
+ * 한때 ③ 자리에 전용 섹션으로 있었는데, 파운더가 "메인 기능을 소개해야지" 로
+ * 바로잡아 ④ 안의 카드 한 장으로 내렸다.
  */
 export default function LandingPage() {
   return (
@@ -98,15 +97,18 @@ export default function LandingPage() {
       <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
-        {/* 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 순서다.
-            보여 주고(히어로·아모라 노트) → 증거를 놓고(위약금 비교) →
-            지금 할 수 있는 것을 주고 → 계정에서 달라지는 것을 말하고 →
-            하지 않는 것을 밝히고 → 한 가지만 정하자고 끝낸다. */}
+        {/* 순서는 **제품 계약의 축 순서**다(CLAUDE.md).
+            "고민을 아모라와 이야기하고(②) → 확인한 것만 예산·할 일·일정에 남기고
+            바뀐 내용을 서로에게 알리고(③) → 비슷한 시기 사람들의 기록을 함께 보며(④)".
+            그다음이 부가 도구(⑤ 견적·스무장면·공시가·예절), 경계(⑥), 마무리(⑦).
+
+            공시 가격·위약금은 **부가 기능이라 ⑤ 안의 카드 한 장**이다. 한때 이 자리에
+            전용 섹션으로 앞세웠는데, 파운더가 "메인 기능을 소개해야지" 로 바로잡았다. */}
         <TransformationHero />
         <AmoraNoteSection />
-        <PriceCompareSection />
-        <AvailableNowSection />
         <ConfirmSection />
+        <CommunitySection />
+        <AvailableNowSection />
         <BoundariesSection />
         <ClosingAction />
       </main>
