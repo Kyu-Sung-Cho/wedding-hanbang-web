@@ -317,7 +317,7 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
     // 2026-08-28 색 개편에서 팁 쪽이 역할 변수(`bg-[var(--hb-primary)]/[0.05]`)로
     // 바뀌자 하나만 남아 실패했다 — **색은 여전히 서로 달랐는데도.** 지켜야 할 것은
     // 표기법이 아니라 "둘이 다른가" 이므로, 값을 통째로 꺼내 비교한다.
-    const grab = (key) => {
+    const grab = (key: string): string[] => {
       const found = new RegExp(`${key}:\\s*"([^"]+)"`, "gu");
       return [...tone.matchAll(found)].map((m) => m[1]);
     };
@@ -326,7 +326,7 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
     expect(new Set(boxes).size, "팁과 경고가 같은 바탕색이다").toBe(2);
     // 바탕이 "다르다" 만으로는 부족하다 — 투명도만 다르고 색이 같으면 사람 눈에는 같다.
     // 그래서 **색 자리**(hex 또는 역할 변수 이름)를 뽑아 그것이 다른지 본다.
-    const hueOf = (value) =>
+    const hueOf = (value: string): string =>
       (/bg-\[(?:var\((--[\w-]+)\)|(#[0-9A-Fa-f]{6}))\]/u.exec(value) ?? [])
         .slice(1)
         .find(Boolean)

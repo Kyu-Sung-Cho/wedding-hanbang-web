@@ -5,11 +5,10 @@ import ClosingAction from "@/components/landing/redesign/ClosingAction";
 import ConfirmSection from "@/components/landing/redesign/ConfirmSection";
 import LandingFooter from "@/components/landing/redesign/LandingFooter";
 import LandingHeader from "@/components/landing/redesign/LandingHeader";
-import NoSideSection from "@/components/landing/redesign/NoSideSection";
-import NotForVendorsSection from "@/components/landing/redesign/NotForVendorsSection";
-import OneRoomSection from "@/components/landing/redesign/OneRoomSection";
-import PrivateLaneSection from "@/components/landing/redesign/PrivateLaneSection";
-import ScenesSection from "@/components/landing/redesign/ScenesSection";
+import AmoraNoteSection from "@/components/landing/redesign/AmoraNoteSection";
+import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
+import BoundariesSection from "@/components/landing/redesign/BoundariesSection";
+import PriceCompareSection from "@/components/landing/redesign/PriceCompareSection";
 import TransformationHero from "@/components/landing/redesign/TransformationHero";
 
 export const revalidate = 86_400;
@@ -85,23 +84,30 @@ export function generateMetadata(): Metadata {
  */
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
+    // `relative` 는 꽃 레이어(`LandingBloomLayer`)의 기준점이다. 빼면 꽃이 화면
+    // 기준으로 붙어 스크롤해도 따라다닌다. `overflow-hidden` 은 여백 밖으로 나간
+    // 가지가 가로 스크롤을 만들지 않게 한다.
+    <div className="relative min-h-screen overflow-hidden bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-[6px] bg-[var(--color-paper-card)] px-5 py-3 text-[14px] font-semibold text-[var(--color-paper-ink)] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-paper-pen)] focus:ring-offset-2"
       >
         본문 바로가기
       </a>
+      {/* 여백의 꽃. 페이지 전체에 걸친다 — 시안 배치 그대로. */}
+      <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
+        {/* 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 순서다.
+            보여 주고(히어로·아모라 노트) → 증거를 놓고(위약금 비교) →
+            지금 할 수 있는 것을 주고 → 계정에서 달라지는 것을 말하고 →
+            하지 않는 것을 밝히고 → 한 가지만 정하자고 끝낸다. */}
         <TransformationHero />
-        <ScenesSection />
-        <NoSideSection />
-        <OneRoomSection />
-        <PrivateLaneSection />
-        <ConfirmSection />
-        <NotForVendorsSection />
+        <AmoraNoteSection />
+        <PriceCompareSection />
         <AvailableNowSection />
+        <ConfirmSection />
+        <BoundariesSection />
         <ClosingAction />
       </main>
       <LandingFooter />

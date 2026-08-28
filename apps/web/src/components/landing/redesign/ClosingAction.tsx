@@ -1,65 +1,62 @@
 import TrackedLandingLink from "./TrackedLandingLink";
 
-import { BloomGarland } from "./LandingBloom";
 import { landingContent } from "./landingContent";
-import { bodyText, noteText, sectionTitle, shell } from "./notebook";
+import { band, noteText, shell } from "./notebook";
 
 /**
  * 마무리.
  *
- * 첫 화면과 **같은 행동**을 부른다 — 스무 장면. 다른 걸 부르면 페이지 전체가
- * 무엇을 시키려는 건지 흐려진다.
+ * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 마지막 섹션이다.
+ * 한 줄을 손글씨로 크게 쓰고 행동 둘만 남긴다 — 여기까지 읽은 사람에게
+ * 설명을 더 얹지 않는다.
  *
- * 가입을 여기서 요구하지 않는다. 우리 후크는 로그인 없이 만져지는 것이고,
- * 가입은 그다음에 해도 늦지 않는다.
+ * ## 버튼이 히어로와 같아야 한다
  *
- * 바탕은 흰 종이다. 바로 위 섹션이 tint 라 같은 색을 쓰면 경계가 사라진다
- * (실측으로 확인했다 — 8·9번 섹션이 둘 다 rgb(248,244,234) 였다).
- * 흰 종이를 써서 마지막에 새 장을 편 것처럼 만든다.
+ * 첫 화면과 마무리가 다른 행동을 부르면 페이지 전체가 무엇을 시키려는 건지 흐려진다.
+ * 시안의 첫 버튼("가입 없이 물어보기")은 경로가 닫혀 있어(2026-08-27) 히어로와 같은
+ * 행동으로 맞췄다.
  */
 export default function ClosingAction() {
   const { closing } = landingContent;
 
   return (
-    <section
-      className="relative overflow-hidden border-t border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] py-20 sm:py-28"
-      aria-labelledby="closing-title"
-    >
-      <BloomGarland className="pointer-events-none absolute inset-x-0 top-0 h-[150px] w-full opacity-50" />
-      <div className={`${shell} relative text-center`}>
-        <h2 id="closing-title" className={sectionTitle}>
+    <section className={`${band} text-center`} aria-labelledby="closing-title">
+      <div className={shell}>
+        <h2
+          id="closing-title"
+          className="landing-hand text-[clamp(1.9rem,5.4vw,2.9rem)] leading-[1.3] text-[var(--color-paper-ink)]"
+        >
           {closing.title}
         </h2>
-        <p className={`mx-auto mt-5 max-w-[42ch] ${bodyText}`}>
-          {closing.body}
-        </p>
 
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <TrackedLandingLink
             source="landing_closing_primary"
             href={closing.primary.href}
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-8 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:w-auto"
+            className="inline-flex min-h-[54px] items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           >
             {closing.primary.label}
           </TrackedLandingLink>
           <TrackedLandingLink
             source="landing_closing_signup"
             href={closing.secondary.href}
-            className="inline-flex min-h-12 w-full items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-8 text-[16px] font-semibold text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:border-[var(--color-paper-ink)] hover:text-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none sm:w-auto"
+            className="inline-flex min-h-[54px] items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-6 text-[16px] font-semibold text-[var(--color-paper-ink)] transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
           >
             {closing.secondary.label}
           </TrackedLandingLink>
         </div>
 
-        <TrackedLandingLink
-          source="landing_closing_login"
-          href={closing.tertiary.href}
-          className={`mt-5 inline-flex min-h-11 items-center text-[14px] font-semibold text-[var(--color-paper-pen)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-pen-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none`}
-        >
-          {closing.tertiary.label}
-        </TrackedLandingLink>
+        <p className="mt-6">
+          <TrackedLandingLink
+            source="landing_closing_login"
+            href={closing.tertiary.href}
+            className="landing-pen text-[15px] font-medium text-[var(--color-paper-ink)]"
+          >
+            {closing.tertiary.label}
+          </TrackedLandingLink>
+        </p>
 
-        <p className={`mx-auto mt-7 max-w-[52ch] ${noteText}`}>{closing.note}</p>
+        <p className={`mx-auto mt-8 max-w-[58ch] ${noteText}`}>{closing.note}</p>
       </div>
     </section>
   );

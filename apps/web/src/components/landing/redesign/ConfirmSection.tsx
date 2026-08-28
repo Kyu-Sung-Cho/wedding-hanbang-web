@@ -42,7 +42,9 @@ export default function ConfirmSection() {
               {confirm.sample.proposeLabel}
             </p>
             <p className={`mt-1 font-medium ${ruled} text-[var(--color-paper-ink)]`}>
-              {confirm.sample.propose}
+              {confirm.sample.proposeLead}
+              <span className="landing-circle font-medium">{confirm.sample.proposeMark}</span>
+              {confirm.sample.proposeTail}
             </p>
             {/* 진짜 버튼이 아니다. 눌리지 않는 그림이라는 걸 보조기기에도 알려야 한다. */}
             <div className="mt-4 flex gap-2" aria-hidden="true">

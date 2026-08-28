@@ -1,66 +1,86 @@
 import Link from "next/link";
 
-import { availableNow, landingContent } from "./landingContent";
-import { NoteCard, Section, bodyText, noteText } from "./notebook";
+import TrackedLandingLink from "./TrackedLandingLink";
+
+import { landingContent } from "./landingContent";
+import { band, noteText, sectionTitle, shell } from "./notebook";
 
 /**
- * ⑦ 로그인 없이 지금 되는 것.
+ * 로그인 없이 지금 되는 것 세 가지.
  *
- * 위 섹션들이 대부분 계정이 필요한 구간을 설명하므로, 여기서 **가입 없이 오늘
- * 쓸 수 있는 것**을 세워야 처음 온 사람이 빈손으로 나가지 않는다.
+ * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 `#now` 섹션이다.
+ * 카드마다 테이프에 번호(01·02·03)를 붙여 순서가 아니라 **목록**임을 보인다.
  *
- * ⚠️ 개수를 손으로 적지 마라. `availableNow.length` 에서 계산한다 —
- * 카드 수와 어긋난 진술이 랜딩 최상단에서 1초 만에 반증된 적이 있다.
+ * ## 카드 아래 작은 글씨가 본문이다
  *
- * 개수는 **제목이 아니라 본문**에 넣는다. 제목에 끼워 넣으려고 "이만큼"을
- * "6가지"로 치환했더니 "6가지은 지금"이 나왔다 — 한국어 조사는 앞 글자의
- * 받침을 따라가므로 숫자를 문자열로 갈아 끼우면 틀린다. 여기서는 뒤에
- * "는"이 오는 자리에만 넣어 그 함정을 구조적으로 피한다.
+ * 세 카드의 `note` 는 장식이 아니라 **계약**이다. 특히 02 의 "점수도 궁합도 매기지
+ * 않아요" 는 CLAUDE.md 가 요구하는 고지다(WeddingCode 는 검증된 궁합 검사가 아니다).
+ * 지우면 화면이 금지된 약속을 하게 된다.
  *
- * `landingAvailableNow.test.ts` 가 이 목록의 문구에서 금지어를 검사한다.
- * "후기" 는 금지어다 — 커뮤니티 글은 후기가 아니라 질문과 답변이다.
+ * ## 여기 있는 것만 적는다
+ *
+ * 시안은 카드 아래에 "아모라 대화도 로그인 없이 열려 있어요" 라고 적었다. 비로그인
+ * 아모라 체험은 2026-08-27에 닫혔으므로 그 줄에서 아모라를 뺐다. 남은 둘 — 공시
+ * 가격·위약금 원문과 커뮤니티 — 은 오늘 실제로 로그인 없이 열린다.
  */
 export default function AvailableNowSection() {
-  const { availableNow: copy } = landingContent;
+  const { availableNow } = landingContent;
 
   return (
-    <Section
+    <section
       id="now"
-      eyebrow={copy.eyebrow}
-      title={copy.title}
-      tinted
+      className={`${band} bg-[var(--color-paper-tint)]`}
+      aria-labelledby="now-title"
     >
-      <p className={`mt-6 max-w-[52ch] ${bodyText}`}>
-        아래 {availableNow.length}가지는 {copy.body}
-      </p>
+      <div className={shell}>
+        <p className="mb-4">
+          <span className="landing-hand text-[19px] text-[var(--color-paper-pen)]">
+            {availableNow.eyebrow}
+          </span>
+        </p>
 
-      <ul className="mt-9 grid gap-5 sm:grid-cols-2">
-        {availableNow.map((item, index) => (
-          <li key={item.cta.href}>
-            <NoteCard className="flex h-full flex-col" tilt={index % 2 === 0 ? -0.4 : 0.4}>
-              <p className="landing-hand text-[18px] leading-[1.4] text-[var(--color-paper-ink)]">
-                {item.title}
-              </p>
-              <p className="mt-3 text-[16px] leading-[1.75] text-[var(--color-paper-ink-soft)]">
-                {item.body}
-              </p>
-              <p className="mt-3 text-[14px] leading-[1.7] text-[var(--color-paper-ink-faint)]">
-                {item.note}
-              </p>
+        <h2 id="now-title" className={sectionTitle}>
+          {availableNow.title}
+        </h2>
+
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+          {availableNow.cards.map((card) => (
+            <TrackedLandingLink
+              key={card.no}
+              source="landing_now_card"
+              href={card.href}
+              className="landing-note block px-6 py-7 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+            >
+              <span className="landing-tape landing-hand mb-5 inline-block">{card.no}</span>
+              <span className="block text-[17px] font-semibold text-[var(--color-paper-ink)]">
+                {card.title}
+              </span>
+              {/* 줄 간격 32px — 카드 줄무늬 위에 글이 얹히게. */}
+              <span className="mt-3 block text-[16px] leading-8 text-[var(--color-paper-ink-soft)]">
+                {card.body}
+              </span>
+              <span className={`mt-5 block ${noteText}`}>{card.note}</span>
+            </TrackedLandingLink>
+          ))}
+        </div>
+
+        <p className={`mt-8 ${noteText}`}>
+          {availableNow.footLead}
+          {availableNow.footLinks.map((link, index) => (
+            <span key={link.href}>
+              {index > 0 ? "과 " : ""}
               <Link
-                href={item.cta.href}
-                className="mt-auto inline-flex min-h-11 items-center pt-5 text-[14px] font-semibold text-[var(--color-paper-pen)] underline underline-offset-4 transition-colors duration-200 hover:text-[var(--color-paper-pen-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+                href={link.href}
+                className="landing-pen font-medium text-[var(--color-paper-ink)]"
               >
-                {item.cta.label}
+                {link.label}
               </Link>
-            </NoteCard>
-          </li>
-        ))}
-      </ul>
-
-      <p className={`mt-7 ${noteText}`}>
-        계정을 만들면 예산·할 일·일정이 열려요. 지금은 결제를 요청하지 않아요.
-      </p>
-    </Section>
+              {index === 0 ? " " : ""}
+            </span>
+          ))}
+          {availableNow.footTail}
+        </p>
+      </div>
+    </section>
   );
 }

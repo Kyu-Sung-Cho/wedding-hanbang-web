@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { footerLinks, landingContent } from "./landingContent";
+import { landingContent } from "./landingContent";
 import { shell } from "./notebook";
 
 /**
@@ -18,9 +18,9 @@ export default function LandingFooter() {
   const { footer } = landingContent;
 
   const groups = [
-    { label: "로그인 없이", items: footerLinks.open },
-    { label: "계정 베타", items: footerLinks.beta },
-    { label: "정책·문의", items: footerLinks.policy },
+    // 2026-08-28: 정본 시안으로 되돌리면서 푸터 열이 카피 정본으로 옮겨졌다.
+    // 목록을 여기서 손으로 적으면 카피와 갈린다.
+    ...footer.columns.map((column) => ({ label: column.heading, items: column.links })),
   ];
 
   return (
