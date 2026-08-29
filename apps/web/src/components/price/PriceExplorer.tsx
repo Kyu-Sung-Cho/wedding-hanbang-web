@@ -674,7 +674,7 @@ export function PriceExplorer({
           ) : null}
         </section>
       ) : null}
-      <section className="border-b border-[var(--hb-primary)]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-6 pt-8 sm:px-6 sm:pb-8 sm:pt-12">
+      <section className="border-b border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)] px-4 pb-6 pt-8 sm:px-6 sm:pb-8 sm:pt-12">
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>

@@ -304,7 +304,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading || !isPasswordValid(passwordChecks) || password !== passwordConfirm}
-                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[0_10px_24px_rgba(38,37,31,0.07)] hover:shadow-[0_10px_24px_rgba(38,37,31,0.07)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading ? "처리 중..." : "비밀번호 변경"}
                 </button>
