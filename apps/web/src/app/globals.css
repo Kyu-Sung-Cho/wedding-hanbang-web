@@ -213,7 +213,11 @@
   --color-paper-mark: #B8452F;
   --color-paper-tape: #F6E7A8;
   --color-paper-tape-ink: #6C5410;
-  --color-paper-outline: #CFCABA;
+  /* 선 버튼 테두리 — **컨트롤의 경계**라 WCAG 1.4.11 의 3:1 이 적용된다.
+     2026-08-29 실측: 옛 #CFCABA 는 sheet 1.60 / card 1.64 / tint 1.49:1 로 셋 다
+     미달이었다. 지금 값은 3.36 / 3.45 / 3.13:1.
+     카드 테두리는 `--color-paper-edge` 다 — 이 값을 장식에 쓰지 마라. */
+  --color-paper-outline: #8F8A7A;
   --color-paper-stem: #A2937F;
   --color-paper-gyp: #8FA08D;
 

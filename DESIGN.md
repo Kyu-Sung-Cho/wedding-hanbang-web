@@ -55,7 +55,12 @@
     without it the "tinted" sections repaint the page colour and the section boundary vanishes.
   - Ink: `#26251F`, soft `#4A483F`, faint `#605E54`
   - Pens: blue `#35638A` (links, handwritten emphasis), hover `#24465F`, red circle `#B8452F`,
-    tape `#F6E7A8` on `#6C5410`, outline-button border `#CFCABA`
+    tape `#F6E7A8` on `#6C5410`, outline-button border `#8F8A7A`
+    - ⚠️ outline-button border 는 **장식이 아니라 컨트롤의 경계**다. 테두리 버튼은 이 선
+      하나로 "누를 수 있는 것"이 되므로 WCAG 1.4.11 의 3:1 이 적용된다. 2026-08-29 실측:
+      옛 `#CFCABA` 는 sheet 1.60 / card 1.64 / tint 1.49:1 로 셋 다 미달이었고, 지금 값은
+      3.36 / 3.45 / 3.13:1 이다. 밝게 되돌리려면 세 지면 모두에서 3:1 을 다시 재라.
+      카드 테두리는 `edge` 다 — 둘을 바꿔 쓰지 마라.
   - Margin florals (line art): stem `#A2937F`, gypsophila `#8FA08D`
   - **Rule (2026-08-28에 바뀜):** ~~Landing surfaces only~~ → **제품 화면도 이 표면 언어를 쓴다.**
     파운더 결정으로 종이 문법이 제품 전체로 넓어졌다. 바탕·카드·선·잉크는 `paper` 에서
