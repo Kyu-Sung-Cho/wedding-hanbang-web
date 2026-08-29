@@ -144,9 +144,16 @@ const nextConfig: NextConfig = {
         destination: "/price",
         permanent: false,
       },
+      // 2026-08-29 운영 실측: `/dashboard` 가 `Location: /wedding/lounge/` 를 내
+      // 슬래시를 떼는 308 이 한 홉 더 붙었다. `:path*` 가 0개에도 걸리기 때문이다.
       {
-        source: "/dashboard/:path*",
-        destination: "/wedding/lounge/:path*",
+        source: "/dashboard",
+        destination: "/wedding/lounge",
+        permanent: false,
+      },
+      {
+        source: "/dashboard/:path+",
+        destination: "/wedding/lounge/:path+",
         permanent: false,
       },
       {
@@ -169,14 +176,21 @@ const nextConfig: NextConfig = {
         destination: "/wedding",
         permanent: false,
       },
+      // 위의 `/community` 정확 규칙이 0개 경우를 먼저 잡으므로 오늘은 증상이 없다.
+      // 그래도 `:path+` 로 좁힌다 — 앞 규칙이 언제 사라질지에 안전을 걸지 않는다.
       {
-        source: "/community/:path*",
-        destination: "/wedding/community/:path*",
+        source: "/community/:path+",
+        destination: "/wedding/community/:path+",
         permanent: false,
       },
       {
-        source: "/wedding/dashboard/:path*",
-        destination: "/wedding/lounge/:path*",
+        source: "/wedding/dashboard",
+        destination: "/wedding/lounge",
+        permanent: false,
+      },
+      {
+        source: "/wedding/dashboard/:path+",
+        destination: "/wedding/lounge/:path+",
         permanent: false,
       },
       {
@@ -185,8 +199,8 @@ const nextConfig: NextConfig = {
         permanent: false,
       },
       {
-        source: "/wedding/wedding/:path*",
-        destination: "/wedding/:path*",
+        source: "/wedding/wedding/:path+",
+        destination: "/wedding/:path+",
         permanent: false,
       },
       {
@@ -214,11 +228,22 @@ const nextConfig: NextConfig = {
         destination: "/price/vendor-id/:id",
         permanent: false,
       },
-      ...weddingAppRoutes.map((route) => ({
-        source: `/${route}/:path*`,
-        destination: `/wedding/${route}/:path*`,
-        permanent: false,
-      })),
+      // 빈 경로와 하위 경로를 **따로** 잡는다. `:path*`는 0개 세그먼트에도 걸려서
+      // `/manners` → `/wedding/manners/`처럼 목적지에 빈 꼬리 슬래시를 남긴다.
+      // 그러면 한 번 더 308로 슬래시를 떼야 해 왕복이 늘고, 리라이트 쪽에서는
+      // 500까지 났다(아래 rewrites 주석). `:path+`는 1개 이상만 매치한다.
+      ...weddingAppRoutes.flatMap((route) => [
+        {
+          source: `/${route}`,
+          destination: `/wedding/${route}`,
+          permanent: false,
+        },
+        {
+          source: `/${route}/:path+`,
+          destination: `/wedding/${route}/:path+`,
+          permanent: false,
+        },
+      ]),
     ];
   },
 
@@ -236,14 +261,41 @@ const nextConfig: NextConfig = {
         source: "/wedding",
         destination: "/community",
       },
+      // 이건 manners·vendors 와 **같은 등급의 위험**이었다 — 목적지 `/community` 아래에
+      // `[category]` 자식이 있어서, 0개 세그먼트로 닿으면 `/community/.rsc` 가 빈
+      // category 로 읽혀 500 이 난다. 오늘 안 터진 이유는 위쪽 `/wedding/community`
+      // 정확 리다이렉트가 먼저 가로채기 때문이지 이 규칙이 안전해서가 아니다.
       {
-        source: "/wedding/community/:path*",
-        destination: "/community/:path*",
+        source: "/wedding/community/:path+",
+        destination: "/community/:path+",
       },
-      ...weddingAppRoutes.map((route) => ({
-        source: `/wedding/${route}/:path*`,
-        destination: `/${route}/:path*`,
-      })),
+      // `:path*`는 0개 세그먼트에도 걸린다. `/wedding/manners`가 목적지 `/manners/`로
+      // 넘어가고, RSC 요청은 거기에 `.rsc`를 붙여 `/manners/.rsc`를 만든다. 그 경로는
+      // 빈 슬러그를 가진 `/manners/[slug]`로 읽혀 서버가 500으로 죽었다(운영 로그:
+      // "Failed to handle /manners/.rsc … Could not resolve param value for segment: slug").
+      // 문서 요청은 `/manners`로 정규화돼 200이라 화면으로는 안 보였고, 프리페치만
+      // 조용히 실패했다. `:path+`는 1개 이상만 매치하므로 빈 꼬리 슬래시가 생기지
+      // 않는다. 빈 경로는 아래에서 정확히 잡는다.
+      //
+      // **터지는 조건은 하나다 — 목적지 아래에 동적 세그먼트 자식이 있는가.**
+      // 프리렌더 여부는 상관없다. 2026-08-29 운영 실측(14개 라우트 전수, demo_mode
+      // 쿠키로 인증 게이트 뒤까지):
+      //   500  manners (`manners/[slug]`) · vendors (`vendors/[id]`)
+      //   200  나머지 12개 — 동적 자식이 없어 빈 슬래시가 그냥 부모로 정규화된다
+      // 익명 사용자에게는 `/manners`만 보인다. `/wedding/vendors`는 미들웨어의
+      // CUSTOMER_PATHS에 있어 로그아웃이면 307로 먼저 잘리지만, **로그인·체험
+      // 사용자에게는 똑같이 500이었다.** 처음에 "manners 하나뿐"이라고 적었던 것은
+      // 로그아웃 상태만 재고 내린 오판이다.
+      ...weddingAppRoutes.flatMap((route) => [
+        {
+          source: `/wedding/${route}`,
+          destination: `/${route}`,
+        },
+        {
+          source: `/wedding/${route}/:path+`,
+          destination: `/${route}/:path+`,
+        },
+      ]),
     ];
   },
 
