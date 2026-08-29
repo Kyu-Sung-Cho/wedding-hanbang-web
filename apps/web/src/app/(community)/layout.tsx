@@ -13,6 +13,24 @@ import { isWeddingCourtEnabled } from "@/lib/features/weddingLaunchFlags";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * 로그인한 사람인지 **요청마다** 봐야 하므로 정적으로 미리 만들 수 없다.
+ *
+ * 이 선언이 없으면 Next 가 이 라우트를 프리렌더하려 든다. 그때
+ * `createClient()` 안의 `cookies()` 가 "이 라우트는 동적" 신호를 던지는데,
+ * 그 함수의 `catch {}` 가 그것을 삼키고 익명 클라이언트로 넘어간다
+ * (`lib/supabase/server.ts`). Supabase 환경변수가 있는 곳(운영·로컬)에서는
+ * 조용히 통과하지만 **없는 곳(Vercel Preview)에서는 빌드가 통째로 죽는다.**
+ *
+ *     Error occurred prerendering page "/community/budget"
+ *     Error: Your project's URL and Key are required to create a Supabase client!
+ *
+ * 2026-08-28 13:13 부터 프리뷰가 전부 이렇게 실패했고, 운영은 값이 있어서
+ * 멀쩡해 보였다. 같은 그룹의 `community/page.tsx` 와 `post/[id]/page.tsx` 는
+ * 이미 이 선언을 갖고 있다.
+ */
+export const dynamic = "force-dynamic";
+
 export default async function CommunityLayout({
   children,
 }: {

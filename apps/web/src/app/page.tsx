@@ -2,6 +2,12 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * 로그인 여부로 갈라지므로 요청마다 판정한다 — 정적으로 미리 만들 수 없다.
+ * 자세한 이유는 `(community)/layout.tsx` 의 같은 선언 주석에 적었다.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   // 이 폴백과 실제 착지 랜딩의 제목이 갈리면 유입 경로마다 다른 제목이 보인다.
   // `src/app/landing/page.tsx`의 title과 **글자까지 같아야** 한다.
