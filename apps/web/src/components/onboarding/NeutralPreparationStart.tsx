@@ -57,11 +57,11 @@ export default function NeutralPreparationStart({
       <div className="text-center">
         <h1
           id="neutral-preparation-title"
-          className="text-[22px] font-semibold text-noir-800"
+          className="text-[22px] font-semibold text-[var(--hb-text-strong)]"
         >
           역할을 정하지 않아도 시작할 수 있어요
         </h1>
-        <p className="mt-2 text-[14px] leading-relaxed text-taupe-500">
+        <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">
           지금 아는 것만 알려주세요. 장소·예산은 나중에 채워도 돼요.
         </p>
       </div>
@@ -71,7 +71,7 @@ export default function NeutralPreparationStart({
       <div className="space-y-2">
         <label
           htmlFor="neutral-wedding-date"
-          className="block text-[14px] font-medium text-noir-800"
+          className="block text-[14px] font-medium text-[var(--hb-text-strong)]"
         >
           결혼식 날짜, 정하셨어요?
         </label>
@@ -82,9 +82,9 @@ export default function NeutralPreparationStart({
           disabled={loading}
           min={todayIsoDate()}
           onChange={(event) => onWeddingDateChange(event.target.value)}
-          className="w-full rounded-2xl border border-black/[0.06] bg-white px-5 py-3.5 text-[16px] text-noir-800 outline-none transition-colors focus:border-rose-500 disabled:opacity-50"
+          className="w-full rounded-2xl border border-black/[0.06] bg-white px-5 py-3.5 text-[16px] text-[var(--hb-text-strong)] outline-none transition-colors focus:border-rose-500 disabled:opacity-50"
         />
-        <p className="text-[12px] text-taupe-400">
+        <p className="text-[12px] text-[var(--hb-text-muted)]">
           아직이면 비워 두세요. 나중에 언제든 바꿀 수 있어요.
         </p>
       </div>
@@ -92,9 +92,9 @@ export default function NeutralPreparationStart({
       {/* 지금 신경 쓰이는 것 — 저장은 곁가지이고, 첫 대화를 여는 게 목적이다.
           첫 인사는 저장된 정보를 먼저 꺼내지 못하므로 초안으로 넘긴다. */}
       <div className="space-y-2">
-        <p className="text-[14px] font-medium text-noir-800">
+        <p className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           지금 제일 신경 쓰이는 건 뭐예요?{" "}
-          <span className="font-normal text-taupe-400">(선택)</span>
+          <span className="font-normal text-[var(--hb-text-muted)]">(선택)</span>
         </p>
         <div className="grid grid-cols-2 gap-2">
           {WEDDING_PRIORITY_OPTIONS.map((option) => {
@@ -111,7 +111,7 @@ export default function NeutralPreparationStart({
                 className={`min-h-11 rounded-2xl border px-3 py-2.5 text-[13px] leading-snug transition-colors disabled:opacity-50 ${
                   selected
                     ? "border-[#795252] bg-[#795252]/[0.08] font-medium text-[#795252]"
-                    : "border-black/[0.08] bg-white text-taupe-500 hover:bg-black/[0.02]"
+                    : "border-black/[0.08] bg-white text-[var(--hb-text-body)] hover:bg-black/[0.02]"
                 }`}
               >
                 {option.label}
@@ -135,17 +135,17 @@ export default function NeutralPreparationStart({
           disabled={loading}
           aria-expanded={coupleAction === "join"}
           onClick={onSelectJoin}
-          className="w-full rounded-2xl border border-black/[0.08] bg-white px-5 py-3.5 text-[14px] font-medium text-noir-800 transition-colors hover:bg-black/[0.02] disabled:opacity-50"
+          className="w-full rounded-2xl border border-black/[0.08] bg-white px-5 py-3.5 text-[14px] font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-black/[0.02] disabled:opacity-50"
         >
           초대 코드로 함께 시작하기
         </button>
       </div>
 
       {coupleAction === "join" && (
-        <div className="space-y-3 rounded-2xl bg-ivory-100 p-4">
+        <div className="space-y-3 rounded-2xl bg-[var(--hb-surface-hover)] p-4">
           <label
             htmlFor="neutral-partner-code"
-            className="block text-center text-[13px] font-medium text-taupe-500"
+            className="block text-center text-[13px] font-medium text-[var(--hb-text-body)]"
           >
             상대방에게 받은 초대 코드
           </label>
@@ -159,20 +159,20 @@ export default function NeutralPreparationStart({
             onChange={(event) => onPartnerCodeChange(
               normalizeCoupleInviteCode(event.target.value),
             )}
-            className="w-full rounded-2xl border border-black/[0.06] bg-white px-5 py-3.5 text-center font-mono text-[16px] tracking-[0.2em] text-noir-800 outline-none transition-colors placeholder:text-taupe-400 focus:border-rose-500 disabled:opacity-50"
+            className="w-full rounded-2xl border border-black/[0.06] bg-white px-5 py-3.5 text-center font-mono text-[16px] tracking-[0.2em] text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] focus:border-rose-500 disabled:opacity-50"
           />
           <button
             type="button"
             disabled={loading || partnerCode.length === 0}
             onClick={onJoin}
-            className="w-full rounded-2xl bg-[#36534E] py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[#243832] disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full rounded-2xl bg-[var(--hb-primary)] py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {loading ? "연결 중..." : "이 코드로 함께 시작하기"}
           </button>
         </div>
       )}
 
-      <p className="text-center text-[12px] leading-relaxed text-taupe-400">
+      <p className="text-center text-[12px] leading-relaxed text-[var(--hb-text-muted)]">
         이 선택만으로 상담 문장이나 준비 완료 기록을 만들지 않아요. 필요한
         변경은 아모라가 먼저 보여주고 확인을 받은 뒤 반영해요.
       </p>

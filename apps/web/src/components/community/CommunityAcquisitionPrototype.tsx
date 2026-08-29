@@ -168,8 +168,8 @@ function SearchBox({
       onSubmit={submit}
       className={`flex min-h-14 items-center gap-3 rounded-full border p-1.5 pl-5 shadow-[0_16px_50px_rgba(36,56,50,0.10)] ${
         dark
-          ? "border-white/20 bg-white text-[#243832]"
-          : "border-[#ddd3c5] bg-white text-[#243832]"
+          ? "border-white/20 bg-white text-[var(--hb-text-strong)]"
+          : "border-[#ddd3c5] bg-white text-[var(--hb-text-strong)]"
       }`}
       role="search"
     >
@@ -186,7 +186,7 @@ function SearchBox({
       />
       <button
         type="submit"
-        className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[#36534E] px-5 font-sans text-[13px] font-bold text-white transition-colors hover:bg-[#243832]"
+        className="inline-flex h-11 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 font-sans text-[13px] font-bold text-white transition-colors hover:bg-[var(--hb-primary)]"
       >
         경험 찾기
       </button>
@@ -204,7 +204,7 @@ function CaseLink({ item, className }: { item: DecisionCase; className?: string 
   return (
     <Link {...linkProps} className={className}>
       <span className="flex flex-wrap items-center gap-2 font-sans text-[11px] font-semibold">
-        <span className="rounded-full bg-[#e8efe9] px-2.5 py-1 text-[#36534E]">{item.category}</span>
+        <span className="rounded-full bg-[#e8efe9] px-2.5 py-1 text-[var(--hb-text-strong)]">{item.category}</span>
         {item.resolved && (
           <span className="inline-flex items-center gap-1 text-[#65736e]">
             <Check className="h-3.5 w-3.5" /> 해결된 고민
@@ -212,7 +212,7 @@ function CaseLink({ item, className }: { item: DecisionCase; className?: string 
         )}
         {item.example && <span className="text-[#9b775f]">예시 데이터</span>}
       </span>
-      <strong className="mt-3 block break-keep font-serif text-[20px] font-medium leading-[1.42] text-[#243832] sm:text-[23px]">
+      <strong className="mt-3 block break-keep font-serif text-[20px] font-medium leading-[1.42] text-[var(--hb-text-strong)] sm:text-[23px]">
         {item.title}
       </strong>
       <span className="mt-2 block line-clamp-2 font-sans text-[13px] leading-6 text-[#69746f]">
@@ -230,17 +230,17 @@ function CaseLink({ item, className }: { item: DecisionCase; className?: string 
 
 function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total: number }) {
   return (
-    <div className="min-h-screen bg-[#FBF8F2] text-[#243832]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]">
       <PrototypeNotice variant="decision" />
 
       <main>
         <section className="overflow-hidden border-b border-[#e2d9cd]">
           <div className="mx-auto grid w-full max-w-[1320px] gap-12 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] lg:items-center lg:px-8 lg:py-24">
             <div>
-              <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[#8F6662]">
+              <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">
                 결혼 준비 판단 커뮤니티
               </p>
-              <div role="heading" aria-level={1} className="mt-5 max-w-[760px] break-keep font-serif text-[42px] font-medium leading-[1.12] tracking-[-0.04em] text-[#243832] sm:text-[58px] lg:text-[68px]">
+              <div role="heading" aria-level={1} className="mt-5 max-w-[760px] break-keep font-serif text-[42px] font-medium leading-[1.12] tracking-[-0.04em] text-[var(--hb-text-strong)] sm:text-[58px] lg:text-[68px]">
                 결혼 준비,
                 <br />이게 맞는지 함께 확인해요.
               </div>
@@ -273,7 +273,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
 
             <aside className="relative">
               <div className="absolute -left-8 -top-10 hidden h-28 w-28 rounded-full bg-[#eadbd7] blur-3xl lg:block" />
-              <p className="mb-3 font-sans text-[11px] font-bold tracking-[0.14em] text-[#8F6662]">
+              <p className="mb-3 font-sans text-[11px] font-bold tracking-[0.14em] text-[var(--color-rose-700)]">
                 먼저 읽어볼 결정 기록
               </p>
               <CaseLink
@@ -290,14 +290,14 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
         <section className="mx-auto w-full max-w-[1320px] px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-              <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[#8F6662]">결정 라이브러리</p>
+              <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">결정 라이브러리</p>
               <h2 className="mt-3 break-keep font-serif text-[32px] font-medium tracking-[-0.03em] sm:text-[42px]">
                 정보가 아니라, 결정까지 읽어요
               </h2>
             </div>
             <Link
               {...weddingLinkProps("/community?feed=all#community-feed")}
-              className="inline-flex items-center gap-1 self-start font-sans text-[13px] font-bold text-[#36534E]"
+              className="inline-flex items-center gap-1 self-start font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
             >
               모든 경험 보기 <ArrowRight className="h-4 w-4" />
             </Link>
@@ -314,7 +314,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
           </div>
         </section>
 
-        <section className="bg-[#36534E] text-white">
+        <section className="bg-[var(--hb-primary)] text-white">
           <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8 lg:py-16">
             <div>
               <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[#d7c1bb]">경험을 내 준비로</p>
@@ -327,7 +327,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
             </div>
             <Link
               {...weddingLinkProps("/chat?source=community_prototype")}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#F7F1E8] px-6 font-sans text-[13px] font-bold text-[#243832]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--hb-surface-hover)] px-6 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
             >
               <Sparkles className="h-4 w-4 text-[#8F6662]" /> 내 상황 정리하기
             </Link>
@@ -344,14 +344,14 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
   const feature = cases[0];
 
   return (
-    <div className="min-h-screen bg-[#f7f1e8] text-[#243832]">
+    <div className="min-h-screen bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]">
       <PrototypeNotice variant="stories" />
 
       <main>
         <section className="mx-auto w-full max-w-[1320px] px-4 pb-16 pt-12 sm:px-6 sm:pt-20 lg:px-8 lg:pb-24">
           <div className="grid gap-10 border-b border-[#cfc4b6] pb-12 lg:grid-cols-[190px_minmax(0,1fr)] lg:gap-16 lg:pb-20">
             <aside className="order-2 lg:order-1">
-              <p className="font-sans text-[11px] font-bold tracking-[0.18em] text-[#8F6662]">WEDDING NOTES</p>
+              <p className="font-sans text-[11px] font-bold tracking-[0.18em] text-[var(--color-rose-700)]">WEDDING NOTES</p>
               <p className="mt-4 font-serif text-[20px] leading-8 text-[#53615c]">
                 먼저 준비한 사람이
                 <br />다음 커플에게 남긴
@@ -366,7 +366,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
             </aside>
 
             <div className="order-1 lg:order-2">
-              <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[#8F6662]">결정 매거진</p>
+              <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">결정 매거진</p>
               <div role="heading" aria-level={1} className="mt-5 max-w-[970px] break-keep font-serif text-[46px] font-medium leading-[1.08] tracking-[-0.045em] sm:text-[66px] lg:text-[84px]">
                 남의 선택을 구경하지 말고,
                 <br />결정의 이유를 가져가세요.
@@ -378,7 +378,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
           </div>
 
           <article className="grid gap-8 py-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.7fr)] lg:gap-16 lg:py-20">
-            <div className="rounded-[32px] bg-[#36534E] p-7 text-white sm:p-10 lg:min-h-[500px] lg:p-14">
+            <div className="rounded-[32px] bg-[var(--hb-primary)] p-7 text-white sm:p-10 lg:min-h-[500px] lg:p-14">
               <div className="flex items-center justify-between gap-4 font-sans text-[11px] font-bold tracking-[0.14em] text-[#d8c4bd]">
                 <span>DECISION STORY 01</span>
                 {feature.example && <span>예시 데이터</span>}
@@ -390,13 +390,13 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
               <div className="mt-10 flex flex-wrap gap-3 font-sans text-[12px] font-semibold">
                 <span className="rounded-full border border-white/25 px-3 py-2">상황</span>
                 <span className="rounded-full border border-white/25 px-3 py-2">비교 기준</span>
-                <span className="rounded-full bg-white px-3 py-2 text-[#36534E]">결정 후 결과</span>
+                <span className="rounded-full bg-white px-3 py-2 text-[var(--hb-text-strong)]">결정 후 결과</span>
               </div>
             </div>
 
             <div className="flex flex-col justify-between py-2">
               <div>
-                <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[#8F6662]">이 기록에서 가져갈 것</p>
+                <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">이 기록에서 가져갈 것</p>
                 <ol className="mt-6 space-y-6">
                   {[
                     "처음 견적과 실제 결제액을 분리해 보기",
@@ -414,7 +414,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
                 {...(feature.id
                   ? communityPostLinkProps(feature.id)
                   : weddingLinkProps("/community?feed=all#community-feed"))}
-                className="mt-8 inline-flex items-center gap-2 self-start border-b border-[#36534E] pb-1 font-sans text-[13px] font-bold"
+                className="mt-8 inline-flex items-center gap-2 self-start border-b border-[var(--hb-primary)] pb-1 font-sans text-[13px] font-bold"
               >
                 전체 결정 기록 읽기 <ArrowUpRight className="h-4 w-4" />
               </Link>
@@ -422,7 +422,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
           </article>
         </section>
 
-        <section className="border-y border-[#d8cec1] bg-[#FBF8F2]">
+        <section className="border-y border-[#d8cec1] bg-[var(--hb-surface-page)]">
           <div className="mx-auto w-full max-w-[1320px] px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
             <div className="flex items-center justify-between gap-4">
               <h2 className="font-serif text-[30px] font-medium sm:text-[40px]">같은 순간을 지난 사람들</h2>
@@ -455,11 +455,11 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
 
 function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
   return (
-    <div className="min-h-screen bg-[#fffdf8] text-[#243832]">
+    <div className="min-h-screen bg-[#fffdf8] text-[var(--hb-text-strong)]">
       <PrototypeNotice variant="clinic" />
 
       <main>
-        <section className="bg-[#243832] text-white">
+        <section className="bg-[var(--hb-primary)] text-white">
           <div className="mx-auto grid w-full max-w-[1320px] gap-10 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.65fr)] lg:items-center lg:px-8 lg:py-24">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 font-sans text-[11px] font-bold text-[#e3cec7]">
@@ -496,7 +496,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
               </ul>
               <Link
                 {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-                className="mt-8 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[#F7F1E8] px-5 font-sans text-[13px] font-bold text-[#243832]"
+                className="mt-8 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-surface-hover)] px-5 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
               >
                 내 질문 시작하기 <ArrowRight className="h-4 w-4" />
               </Link>
@@ -509,12 +509,12 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
             <div>
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
-                  <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[#8F6662]">ANSWER NEEDED</p>
+                  <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">ANSWER NEEDED</p>
                   <h2 className="mt-3 font-serif text-[32px] font-medium sm:text-[42px]">지금 답이 필요한 질문</h2>
                 </div>
                 <Link
                   {...weddingLinkProps("/community?feed=all&sort=unanswered#community-feed")}
-                  className="inline-flex items-center gap-1 self-start font-sans text-[13px] font-bold text-[#36534E]"
+                  className="inline-flex items-center gap-1 self-start font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
                 >
                   답변 대기 전체 보기 <ChevronRight className="h-4 w-4" />
                 </Link>
@@ -540,7 +540,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
                       </span>
                       <strong className="mt-2 block break-keep font-serif text-[20px] font-medium leading-7 sm:text-[23px]">{item.title}</strong>
                     </span>
-                    <span className="inline-flex items-center gap-1 self-start font-sans text-[12px] font-bold text-[#36534E] sm:self-center">
+                    <span className="inline-flex items-center gap-1 self-start font-sans text-[12px] font-bold text-[var(--hb-text-strong)] sm:self-center">
                       경험 보태기 <ArrowUpRight className="h-4 w-4" />
                     </span>
                   </Link>
@@ -565,7 +565,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
           </div>
         </section>
 
-        <section className="border-t border-[#ded5c8] bg-[#FBF8F2]">
+        <section className="border-t border-[#ded5c8] bg-[var(--hb-surface-page)]">
           <div className="mx-auto grid w-full max-w-[1320px] gap-5 px-4 py-12 sm:grid-cols-3 sm:px-6 lg:px-8 lg:py-16">
             {[
               ["01", "질문을 구체화해요", "지역·시기·예산과 이미 확인한 내용을 함께 적어요."],

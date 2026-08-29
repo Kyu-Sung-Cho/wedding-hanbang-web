@@ -48,9 +48,9 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
               key={tool.href}
               href={tool.href}
               title={`${tool.label} - ${tool.description}`}
-              className="group flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-[#635b51] transition-all hover:bg-[#F5F0EE] hover:text-[#36534E]"
+              className="group flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-[var(--hb-text-body)] transition-all hover:bg-[#F5F0EE] hover:text-[var(--hb-text-strong)]"
             >
-              <Icon className="h-4 w-4 text-[#36534E]" />
+              <Icon className="h-4 w-4 text-[var(--hb-text-strong)]" />
               <span className="hidden lg:inline">{tool.label}</span>
             </Link>
           );
@@ -61,8 +61,8 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
 
   return (
     <div className="mb-6">
-      <div className="mb-3 flex items-center gap-2 border-b border-[#e5d8ca] pb-2">
-        <BarChart3 className="h-4 w-4 text-[#36534E]" />
+      <div className="mb-3 flex items-center gap-2 border-b border-[var(--hb-hairline)] pb-2">
+        <BarChart3 className="h-4 w-4 text-[var(--hb-text-strong)]" />
         <h3 className="font-serif-kr text-lg text-[#1C1917]">준비 도구</h3>
       </div>
 
@@ -75,14 +75,14 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
               href={tool.href}
               className="group flex w-full items-start gap-3 rounded-xl bg-white p-3 text-left shadow-sm transition-all hover:bg-[#F5F0EE]/60"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#36534E] text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)] text-white">
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-[#1C1917] group-hover:text-[#36534E]">
+                <p className="text-sm font-medium text-[#1C1917] group-hover:text-[var(--hb-text-strong)]">
                   {tool.label}
                 </p>
-                <p className="mt-0.5 text-xs leading-snug text-[#635b51]">
+                <p className="mt-0.5 text-xs leading-snug text-[var(--hb-text-body)]">
                   {tool.description}
                 </p>
               </div>

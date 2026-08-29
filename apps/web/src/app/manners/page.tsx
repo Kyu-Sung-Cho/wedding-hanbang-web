@@ -37,7 +37,7 @@ export default function MannersIndexPage() {
         </p>
         <Link
           {...weddingLinkProps("/checklist")}
-          className="mt-5 inline-flex rounded-full bg-[#36534e] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+          className="mt-5 inline-flex rounded-full bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
         >
           웨딩 체크리스트 열기
         </Link>
@@ -48,7 +48,7 @@ export default function MannersIndexPage() {
           사유가 정확히 "수치에 출처 0건"이었으므로, 문구를 실제 상태에 맞춘다.
           각 편 상단과 표마다 출처 유무가 다시 표시되므로 여기서는 갈린다는 사실만 말한다.
         */}
-        <p className="mt-4 rounded-xl border border-[#243832]/12 bg-[#243832]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
+        <p className="mt-4 rounded-xl border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
           여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다릅니다. 공개된
           자료로 확인한 편에는 어디서 확인했는지와 확인한 날짜를 적어 뒀고, 아직 확인하지
           못한 편에는 각 글 위에 그렇게 표시해 뒀어요.
@@ -73,12 +73,12 @@ export default function MannersIndexPage() {
                     <Link
                       href={`/wedding/manners/${part.slug}`}
                       prefetch={false}
-                      className="block h-full rounded-2xl border border-[#243832]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
+                      className="block h-full rounded-2xl border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
                     >
-                      <p className="text-[11.5px] font-semibold tracking-wide text-[#243832]/55">
+                      <p className="text-[11.5px] font-semibold tracking-wide text-[var(--hb-text-muted)]">
                         {AUDIENCE_LABEL[part.audience]}
                       </p>
-                      <p className="mt-1 text-[15.5px] font-semibold leading-snug text-[#243832]">
+                      <p className="mt-1 text-[15.5px] font-semibold leading-snug text-[var(--hb-text-strong)]">
                         {part.title}
                       </p>
                       <p className="mt-1.5 text-[13px] leading-[1.65] text-[#3d4a45]/85">
@@ -89,7 +89,7 @@ export default function MannersIndexPage() {
                         3분짜리와 18분짜리가 똑같이 생겼고, 사람은 모르고 들어갔다가 나왔다.
                         본문과 같은 함수를 쓴다 — 두 화면이 다른 숫자를 말하면 안 된다.
                       */}
-                      <p className="mt-2 text-[12px] text-[#3d4a45]/70">
+                      <p className="mt-2 text-[12px] text-[var(--hb-text-muted)]">
                         {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절
                       </p>
                     </Link>

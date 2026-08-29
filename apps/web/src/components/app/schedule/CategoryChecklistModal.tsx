@@ -273,12 +273,12 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 <Icon className="w-5 h-5 text-[#795252]" />
               </div>
               <div>
-                <h3 id={titleId} className="text-2xl font-semibold text-[#1A1A1F]">{template.label}</h3>
+                <h3 id={titleId} className="text-2xl font-semibold text-[var(--hb-text-strong)]">{template.label}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
-                  <span className="text-sm text-[#B5ADA3]">
+                  <span className="text-sm text-[var(--hb-text-muted)]">
                     {isNotApplicable ? "진행률에서 제외됨" : `${done}/${total} 완료`}
                   </span>
                 </div>
@@ -289,7 +289,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               type="button"
               onClick={onClose}
               aria-label={`${template.label} 체크리스트 닫기`}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[#F6F3F2] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -309,7 +309,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               style={{ width: `${percent}%` }}
             />
           </div>
-          <p className="text-sm text-[#B5ADA3] mt-1.5 text-right">{percent}% 달성</p>
+          <p className="text-sm text-[var(--hb-text-muted)] mt-1.5 text-right">{percent}% 달성</p>
 
           {/* 가족·지역마다 하는 항목이 달라서, 안 하는 건 안 한다고 말할 수 있어야 한다. */}
           <button
@@ -320,14 +320,14 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           >
             {isNotApplicable ? (
               <>
-                <span className="font-medium text-[#1A1A1F]">다시 준비 목록에 넣기</span>
+                <span className="font-medium text-[var(--hb-text-strong)]">다시 준비 목록에 넣기</span>
                 <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
                   지금은 진행률과 마감 알림에서 빠져 있어요.
                 </span>
               </>
             ) : (
               <>
-                <span className="font-medium text-[#1A1A1F]">우리는 이건 안 해요</span>
+                <span className="font-medium text-[var(--hb-text-strong)]">우리는 이건 안 해요</span>
                 <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
                   진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
                 </span>
@@ -374,7 +374,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   item={item}
                   idPrefix={`${titleId}-${item.id}`}
                   labelClassName={`text-[17px] leading-snug ${
-                    item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
+                    item.done ? "text-[var(--hb-text-muted)] line-through" : "text-[var(--hb-text-body)]"
                   }`}
                 />
               </button>
@@ -401,7 +401,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           )}
           <div className="flex items-start gap-2.5">
             <Lightbulb className="w-5 h-5 text-[#C9A96E] flex-shrink-0 mt-0.5" />
-            <p className="text-base text-[#504444] font-light leading-relaxed">
+            <p className="text-base text-[var(--hb-text-body)] font-light leading-relaxed">
               {template.tip}
             </p>
           </div>
@@ -410,18 +410,18 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
             className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)]">
               <BookOpen className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-[#1A1A1F]">
+              <p className="truncate text-base font-semibold text-[var(--hb-text-strong)]">
                 {relatedGuide ? relatedGuide.title : "아모라에게 물어보기"}
               </p>
-              <p className="text-sm text-[#B5ADA3]">
+              <p className="text-sm text-[var(--hb-text-muted)]">
                 {relatedGuide ? "관련 예절 가이드를 읽고 준비 기준 맞추기" : "우리 상황에 맞는 준비 순서 정리하기"}
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#795252]" />
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[#795252]" />
           </Link>
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>

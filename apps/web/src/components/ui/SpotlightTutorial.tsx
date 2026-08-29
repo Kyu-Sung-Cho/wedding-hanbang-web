@@ -359,13 +359,13 @@ export default function SpotlightTutorial({
 
           <div className="px-5 pt-3 pb-4">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-xs font-medium text-[#B5ADA3]">
+              <span className="text-xs font-medium text-[var(--hb-text-muted)]">
                 {stepIndex + 1} / {steps.length}
               </span>
               <button
                 type="button"
                 onClick={() => finishInternal("skipped")}
-                className="flex items-center gap-1 text-xs text-[#B5ADA3] hover:text-[#1b1c1c] transition-colors"
+                className="flex items-center gap-1 text-xs text-[var(--hb-text-muted)] hover:text-[#1b1c1c] transition-colors"
                 aria-label="튜토리얼 종료"
               >
                 건너뛰기
@@ -376,7 +376,7 @@ export default function SpotlightTutorial({
             <h3 className="font-serif-kr text-lg leading-snug text-[#1b1c1c] mb-1.5">
               {currentStep.title}
             </h3>
-            <p className="text-sm leading-relaxed text-[#504444] mb-4">
+            <p className="text-sm leading-relaxed text-[var(--hb-text-body)] mb-4">
               {currentStep.description}
             </p>
 
@@ -385,7 +385,7 @@ export default function SpotlightTutorial({
                 type="button"
                 onClick={prev}
                 disabled={isFirst}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-[#504444] hover:text-[#1b1c1c] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                className="flex items-center gap-1 px-3 py-2 text-sm text-[var(--hb-text-body)] hover:text-[#1b1c1c] disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
                 이전

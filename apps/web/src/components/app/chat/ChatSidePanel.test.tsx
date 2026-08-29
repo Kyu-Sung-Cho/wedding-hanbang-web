@@ -1078,7 +1078,7 @@ describe("ChatSidePanel attachment sending", () => {
 
     expect(container.textContent).not.toContain("개인 상담 일시 오류");
     expect(container.textContent).not.toContain("개인 상담 후속 질문");
-    expect(container.textContent).not.toContain("베타 무료 상담이 2회 남았어요");
+    expect(container.textContent).not.toContain("무료 상담이 2회 남았어요");
     expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .some((button) => button.textContent?.trim() === "다시 시도")).toBe(false);
 
@@ -1091,7 +1091,7 @@ describe("ChatSidePanel attachment sending", () => {
 
     expect(container.textContent).toContain("개인 상담 일시 오류");
     expect(container.textContent).toContain("개인 상담 후속 질문");
-    expect(container.textContent).toContain("베타 무료 상담이 2회 남았어요");
+    expect(container.textContent).toContain("무료 상담이 2회 남았어요");
     expect(Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .some((button) => button.textContent?.trim() === "다시 시도")).toBe(true);
   });

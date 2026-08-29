@@ -52,7 +52,7 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
     shortLabel: "선배 Q&A",
     description: "결혼을 먼저 끝낸 선배에게 현실적인 선택 기준과 경험을 묻는 공간입니다.",
     icon: "GraduationCap",
-    color: "text-[#1A1A1F]",
+    color: "text-[var(--hb-text-strong)]",
     bgColor: "bg-[#F0EFED]",
     allowVendorTags: false,
     allowPriceForm: false,

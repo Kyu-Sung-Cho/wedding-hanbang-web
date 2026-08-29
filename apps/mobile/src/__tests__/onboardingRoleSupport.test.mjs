@@ -11,7 +11,7 @@ const onboardingSource = readFileSync(
 test("mobile onboarding states the current role limit and privacy-safe expansion direction", () => {
   assert.match(
     onboardingSource,
-    /현재 베타 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요\./,
+    /지금 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요\./,
   );
   assert.match(
     onboardingSource,

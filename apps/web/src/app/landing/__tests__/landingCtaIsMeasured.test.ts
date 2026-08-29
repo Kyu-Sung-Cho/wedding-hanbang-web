@@ -37,7 +37,7 @@ describe("랜딩 행동 버튼은 계측된다", () => {
     const offenders: string[] = [];
     for (const [file, source] of everyLandingComponent()) {
       if (file === "LandingFooter.tsx" || file === "MobileLandingMenu.tsx") continue;
-      for (const m of source.matchAll(/<Link[\s\S]{0,240}?href="([^"]+)"/gu)) {
+      for (const m of source.matchAll(/<Link[\s>][\s\S]{0,240}?href="([^"]+)"/gu)) {
         if (FUNNEL_HREFS.includes(m[1])) offenders.push(`${file}: <Link href="${m[1]}">`);
       }
     }

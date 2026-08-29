@@ -120,7 +120,7 @@ export default function CostShareEditor({
       value={value || ""}
       onChange={(e) => onChangeVal(Math.min(Number(e.target.value) || 0, 999999))}
       placeholder={placeholder}
-      className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+      className="w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
     />
   );
 
@@ -128,14 +128,14 @@ export default function CostShareEditor({
     <div className="space-y-5">
       {/* 기본 정보 */}
       <div className="bg-white border border-[#F5F2ED] rounded-2xl p-4 sm:p-5 space-y-4">
-        <h4 className="text-sm font-medium text-[#1A1A1F]">
+        <h4 className="text-sm font-medium text-[var(--hb-text-strong)]">
           기본 정보
         </h4>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* 총 비용 */}
           <div>
-            <label className="block text-xs font-medium text-[#928980] mb-1.5">
+            <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
               총 비용 (만원)
             </label>
             {numInput(data.totalCost, (v) => updateField("totalCost", v), "예: 3000")}
@@ -143,13 +143,13 @@ export default function CostShareEditor({
 
           {/* 지역 */}
           <div>
-            <label className="block text-xs font-medium text-[#928980] mb-1.5">
+            <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
               지역
             </label>
             <select
               value={data.region}
               onChange={(e) => updateField("region", e.target.value)}
-              className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors appearance-none"
+              className="w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors appearance-none"
             >
               <option value="">선택하세요</option>
               {REGIONS.map((r) => (
@@ -162,7 +162,7 @@ export default function CostShareEditor({
 
           {/* 하객 수 */}
           <div>
-            <label className="block text-xs font-medium text-[#928980] mb-1.5">
+            <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
               하객 수
             </label>
             {numInput(data.guestCount, (v) => updateField("guestCount", v), "예: 200")}
@@ -170,14 +170,14 @@ export default function CostShareEditor({
 
           {/* 결혼 시기 */}
           <div>
-            <label className="block text-xs font-medium text-[#928980] mb-1.5">
+            <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
               결혼 시기
             </label>
             <input
               type="month"
               value={data.weddingDate}
               onChange={(e) => updateField("weddingDate", e.target.value)}
-              className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
+              className="w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
             />
           </div>
         </div>
@@ -186,10 +186,10 @@ export default function CostShareEditor({
       {/* 카테고리별 비용 */}
       <div className="bg-white border border-[#F5F2ED] rounded-2xl p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-[#1A1A1F]">
+          <h4 className="text-sm font-medium text-[var(--hb-text-strong)]">
             항목별 비용
           </h4>
-          <div className="text-xs text-[#928980]">
+          <div className="text-xs text-[var(--hb-text-muted)]">
             소계:{" "}
             <span className="font-medium text-emerald-600">
               {categoryTotal.toLocaleString()}만원
@@ -220,7 +220,7 @@ export default function CostShareEditor({
                 <button
                   type="button"
                   onClick={() => toggleExpand(i)}
-                  className="p-0.5 text-[#B5ADA3] hover:text-[#928980] transition-colors"
+                  className="p-0.5 text-[var(--hb-text-muted)] hover:text-[var(--hb-text-muted)] transition-colors"
                 >
                   {expandedRows.has(i) ? (
                     <ChevronUp className="w-4 h-4" />
@@ -228,7 +228,7 @@ export default function CostShareEditor({
                     <ChevronDown className="w-4 h-4" />
                   )}
                 </button>
-                <span className="text-sm font-medium text-[#1A1A1F] min-w-[80px]">
+                <span className="text-sm font-medium text-[var(--hb-text-strong)] min-w-[80px]">
                   {cat.label}
                 </span>
                 <div className="flex-1">
@@ -241,7 +241,7 @@ export default function CostShareEditor({
                 <button
                   type="button"
                   onClick={() => removeCategory(i)}
-                  className="p-1.5 text-[#B5ADA3] hover:text-red-500 transition-colors"
+                  className="p-1.5 text-[var(--hb-text-muted)] hover:text-red-500 transition-colors"
                   aria-label={`${cat.label} 삭제`}
                 >
                   <Trash2 className="w-4 h-4" />
@@ -253,7 +253,7 @@ export default function CostShareEditor({
                 <div className="px-4 py-3 space-y-3 bg-white">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs text-[#B5ADA3] mb-1">
+                      <label className="block text-xs text-[var(--hb-text-muted)] mb-1">
                         업체명
                       </label>
                       <input
@@ -263,11 +263,11 @@ export default function CostShareEditor({
                           updateCategory(i, "vendor", e.target.value)
                         }
                         placeholder="업체명"
-                        className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
+                        className="w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs text-[#B5ADA3] mb-1">
+                      <label className="block text-xs text-[var(--hb-text-muted)] mb-1">
                         계약금 (만원)
                       </label>
                       {numInput(
@@ -277,7 +277,7 @@ export default function CostShareEditor({
                       )}
                     </div>
                     <div>
-                      <label className="block text-xs text-[#B5ADA3] mb-1">
+                      <label className="block text-xs text-[var(--hb-text-muted)] mb-1">
                         추가금 (만원)
                       </label>
                       {numInput(
@@ -288,7 +288,7 @@ export default function CostShareEditor({
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs text-[#B5ADA3] mb-1">
+                    <label className="block text-xs text-[var(--hb-text-muted)] mb-1">
                       메모
                     </label>
                     <input
@@ -298,7 +298,7 @@ export default function CostShareEditor({
                         updateCategory(i, "notes", e.target.value)
                       }
                       placeholder="참고사항"
-                      className="w-full px-3 py-2 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
+                      className="w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
                     />
                   </div>
                 </div>
@@ -312,7 +312,7 @@ export default function CostShareEditor({
           <div className="relative group">
             <button
               type="button"
-              className="flex items-center gap-2 px-4 py-2.5 text-sm text-[#928980] bg-[#FAF8F5] border border-dashed border-[#F5F2ED] rounded-xl hover:border-[#36534E] hover:text-[#36534E] transition-colors w-full justify-center"
+              className="flex items-center gap-2 px-4 py-2.5 text-sm text-[var(--hb-text-muted)] bg-[#FAF8F5] border border-dashed border-[#F5F2ED] rounded-xl hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] transition-colors w-full justify-center"
             >
               <Plus className="w-4 h-4" />
               항목 추가
@@ -324,7 +324,7 @@ export default function CostShareEditor({
                   key={c.key}
                   type="button"
                   onClick={() => addCategory(c.key, c.label)}
-                  className="w-full text-left px-4 py-2.5 text-sm text-[#1A1A1F] hover:bg-[#FAF8F5] transition-colors"
+                  className="w-full text-left px-4 py-2.5 text-sm text-[var(--hb-text-strong)] hover:bg-[#FAF8F5] transition-colors"
                 >
                   {c.label}
                 </button>
@@ -336,12 +336,12 @@ export default function CostShareEditor({
 
       {/* 소감 */}
       <div className="bg-white border border-[#F5F2ED] rounded-2xl p-4 sm:p-5 space-y-4">
-        <h4 className="text-sm font-medium text-[#1A1A1F]">
+        <h4 className="text-sm font-medium text-[var(--hb-text-strong)]">
           소감 (선택)
         </h4>
 
         <div>
-          <label className="block text-xs font-medium text-[#928980] mb-1.5">
+          <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
             후회한 점
           </label>
           <textarea
@@ -349,12 +349,12 @@ export default function CostShareEditor({
             onChange={(e) => updateField("regretPoints", e.target.value)}
             placeholder="돌이켜 보면 아쉬웠던 점..."
             rows={3}
-            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none"
+            className="w-full px-4 py-3 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[#928980] mb-1.5">
+          <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
             잘한 점
           </label>
           <textarea
@@ -362,12 +362,12 @@ export default function CostShareEditor({
             onChange={(e) => updateField("goodPoints", e.target.value)}
             placeholder="만족했던 선택이나 결정..."
             rows={3}
-            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none"
+            className="w-full px-4 py-3 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-[#928980] mb-1.5">
+          <label className="block text-xs font-medium text-[var(--hb-text-muted)] mb-1.5">
             예비 부부에게 조언
           </label>
           <textarea
@@ -375,7 +375,7 @@ export default function CostShareEditor({
             onChange={(e) => updateField("advice", e.target.value)}
             placeholder="예비 신랑신부에게 해주고 싶은 말..."
             rows={3}
-            className="w-full px-4 py-3 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors resize-none"
+            className="w-full px-4 py-3 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors resize-none"
           />
         </div>
       </div>

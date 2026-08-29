@@ -209,7 +209,7 @@ export function PriceUploadConfirmationQueue({
           onClick={() => void refresh()}
           disabled={refreshing || busyId !== null}
           aria-busy={refreshing}
-          className="min-h-10 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[#36534E] disabled:opacity-40"
+          className="min-h-10 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)] disabled:opacity-40"
         >
           {refreshing ? "새로고침 중…" : "대기 목록 새로고침"}
         </button>
@@ -221,7 +221,7 @@ export function PriceUploadConfirmationQueue({
         </p>
       )}
       {rows.length === 0 ? (
-        <p className="mt-4 rounded-lg bg-[#F2F7F3] px-3 py-3 text-sm text-[#36534E]">
+        <p className="mt-4 rounded-lg bg-[#F2F7F3] px-3 py-3 text-sm text-[var(--hb-text-strong)]">
           {hasLoaded
             ? "확인이 필요한 업로드가 없습니다."
             : "대기 목록 새로고침을 눌러 기존 확인 항목을 불러오세요."}
@@ -236,21 +236,21 @@ export function PriceUploadConfirmationQueue({
               && pendingChoice.vendorId === candidate.vendorId
             ));
             return (
-              <li key={row.confirmation_id} className="rounded-xl border border-[#EFE4D7] p-3">
-                <p className="text-sm font-bold text-[#243832]">
+              <li key={row.confirmation_id} className="rounded-xl border border-[var(--hb-hairline)] p-3">
+                <p className="text-sm font-bold text-[var(--hb-text-strong)]">
                   {row.entry_index + 1}번 입력 · {row.vendor_name}
                 </p>
                 <ul className="mt-3 grid gap-2 md:grid-cols-2">
                   {row.candidates.map((candidate) => (
-                    <li key={candidate.vendorId} className="rounded-lg bg-[#FBF8F2] p-3">
+                    <li key={candidate.vendorId} className="rounded-lg bg-[var(--hb-surface-page)] p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <strong className="text-sm text-[#36534E]">{candidate.vendorName}</strong>
+                          <strong className="text-sm text-[var(--hb-text-strong)]">{candidate.vendorName}</strong>
                           <p className="mt-1 text-xs text-[#6D806E]">
                             유사도 {Math.round(candidate.similarity * 100)}%
                             {candidate.vendorSlug ? ` · ${candidate.vendorSlug}` : ""}
                           </p>
-                          <p className="mt-1 text-xs font-semibold text-[#36534E]">
+                          <p className="mt-1 text-xs font-semibold text-[var(--hb-text-strong)]">
                             {MATCH_KIND_LABELS[candidate.matchKind]}
                             {candidate.category
                               ? ` · ${CATEGORY_LABELS[candidate.category] ?? candidate.category}`
@@ -270,7 +270,7 @@ export function PriceUploadConfirmationQueue({
                             vendorId: candidate.vendorId,
                           })}
                           disabled={busyId !== null || outcome?.kind === "success"}
-                          className="min-h-10 shrink-0 rounded-lg bg-[#36534E] px-3 text-xs font-semibold text-white disabled:opacity-40"
+                          className="min-h-10 shrink-0 rounded-lg bg-[var(--hb-primary)] px-3 text-xs font-semibold text-white disabled:opacity-40"
                         >
                           이 후보 검토
                         </button>
@@ -284,7 +284,7 @@ export function PriceUploadConfirmationQueue({
                     aria-label="최종 연결 확인"
                   >
                     <p className="text-sm font-bold text-[#70472D]">최종 연결 확인</p>
-                    <p className="mt-2 text-sm leading-6 text-[#243832]">
+                    <p className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]">
                       업로드의 <strong>{row.vendor_name}</strong>을(를) 기존 업체
                       {" "}<strong>{selectedCandidate.vendorName}</strong>에 연결합니다.
                     </p>
@@ -297,7 +297,7 @@ export function PriceUploadConfirmationQueue({
                         type="button"
                         onClick={() => setPendingChoice(null)}
                         disabled={isBusy}
-                        className="min-h-10 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[#36534E] disabled:opacity-40"
+                        className="min-h-10 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)] disabled:opacity-40"
                       >
                         선택 취소
                       </button>
@@ -314,7 +314,7 @@ export function PriceUploadConfirmationQueue({
                   </div>
                 )}
                 {outcome?.kind === "success" && (
-                  <p role="status" className="mt-3 rounded-lg bg-[#E8F3EA] px-3 py-2 text-sm font-semibold text-[#36534E]">
+                  <p role="status" className="mt-3 rounded-lg bg-[#E8F3EA] px-3 py-2 text-sm font-semibold text-[var(--hb-text-strong)]">
                     연결 완료 · 가격 {outcome.stagedPrices}건을 검수 대기로 적재했습니다.
                   </p>
                 )}

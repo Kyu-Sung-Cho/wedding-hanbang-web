@@ -190,14 +190,14 @@ export default function VendorTagPicker({
                   className="w-5 h-5 rounded-full object-cover"
                 />
               ) : (
-                <Store className="w-4 h-4 text-[#B5ADA3]" />
+                <Store className="w-4 h-4 text-[var(--hb-text-muted)]" />
               )}
-              <span className="text-[#1A1A1F]">{v.business_name}</span>
-              <span className="text-xs text-[#B5ADA3]">{v.category}</span>
+              <span className="text-[var(--hb-text-strong)]">{v.business_name}</span>
+              <span className="text-xs text-[var(--hb-text-muted)]">{v.category}</span>
               <button
                 type="button"
                 onClick={() => removeVendor(v.id)}
-                className="p-0.5 text-[#B5ADA3] hover:text-[#36534E] transition-colors"
+                className="p-0.5 text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-colors"
                 aria-label={`${v.business_name} 제거`}
               >
                 <X className="w-3.5 h-3.5" />
@@ -211,7 +211,7 @@ export default function VendorTagPicker({
       {vendorIds.length < MAX_VENDORS && (
         <div ref={containerRef} className="relative">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#B5ADA3]" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--hb-text-muted)]" />
             <input
               type="text"
               value={query}
@@ -220,7 +220,7 @@ export default function VendorTagPicker({
                 if (results.length > 0) setIsOpen(true);
               }}
               placeholder="업체명 검색 (2글자 이상)"
-              className="w-full pl-10 pr-4 py-2.5 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
             />
           </div>
 
@@ -228,15 +228,15 @@ export default function VendorTagPicker({
           {isOpen && (
             <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-[#F5F2ED] rounded-xl shadow-lg">
               {loading ? (
-                <div className="px-4 py-3 text-sm text-[#B5ADA3]">
+                <div className="px-4 py-3 text-sm text-[var(--hb-text-muted)]">
                   검색 중...
                 </div>
               ) : searchFailed ? (
-                <div className="px-4 py-3 text-sm text-[#B5ADA3]">
+                <div className="px-4 py-3 text-sm text-[var(--hb-text-muted)]">
                   업체 목록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.
                 </div>
               ) : results.length === 0 ? (
-                <div className="px-4 py-3 text-sm text-[#B5ADA3]">
+                <div className="px-4 py-3 text-sm text-[var(--hb-text-muted)]">
                   검색 결과가 없습니다
                 </div>
               ) : (
@@ -262,21 +262,21 @@ export default function VendorTagPicker({
                         />
                       ) : (
                         <div className="w-8 h-8 rounded-lg bg-[#F5F2ED] flex items-center justify-center">
-                          <Store className="w-4 h-4 text-[#B5ADA3]" />
+                          <Store className="w-4 h-4 text-[var(--hb-text-muted)]" />
                         </div>
                       )}
                       <div className="min-w-0">
-                        <p className="text-sm font-medium text-[#1A1A1F] truncate">
+                        <p className="text-sm font-medium text-[var(--hb-text-strong)] truncate">
                           {vendor.business_name}
                         </p>
-                        <p className="text-xs text-[#B5ADA3]">
+                        <p className="text-xs text-[var(--hb-text-muted)]">
                           {vendor.category}
                           {vendor.rating != null &&
                             ` / ${vendor.rating.toFixed(1)}점`}
                         </p>
                       </div>
                       {isSelected && (
-                        <span className="ml-auto text-xs text-[#36534E]">
+                        <span className="ml-auto text-xs text-[var(--hb-text-strong)]">
                           선택됨
                         </span>
                       )}
@@ -289,7 +289,7 @@ export default function VendorTagPicker({
         </div>
       )}
 
-      <p className="text-xs text-[#B5ADA3]">
+      <p className="text-xs text-[var(--hb-text-muted)]">
         {vendorIds.length}/{MAX_VENDORS}개 업체 태그
       </p>
     </div>

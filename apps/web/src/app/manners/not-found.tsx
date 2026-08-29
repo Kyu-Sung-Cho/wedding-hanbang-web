@@ -25,7 +25,7 @@ export default function MannersNotFound() {
       <Link
         href="/wedding/manners"
         prefetch={false}
-        className="mt-6 inline-flex rounded-full border border-[#243832]/15 bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[#243832] transition-colors hover:border-[#8F5150]/45"
+        className="mt-6 inline-flex rounded-full border border-[var(--hb-primary)]/15 bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F5150]/45"
       >
         예절 안내 전체 보기
       </Link>

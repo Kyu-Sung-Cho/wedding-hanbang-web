@@ -42,18 +42,18 @@ import {
   decodeWeddingCodeShareHash,
 } from "@/lib/weddingCode/scene/link";
 
-const surface = "rounded-[20px] border border-[#EFE4D7] bg-white";
+const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#36534E] px-6"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
-  + " hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2"
-  + " focus-visible:ring-[#36534E] focus-visible:ring-offset-2"
+  + " hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2"
+  + " focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
   + " disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border"
-  + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[#36534E]"
-  + " transition-colors duration-150 ease-out hover:bg-[#F7F1E8] focus-visible:outline-none"
-  + " focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2";
+  + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)]"
+  + " transition-colors duration-150 ease-out hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none"
+  + " focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2";
 
 type Step = "intro" | "quiz" | "result";
 
@@ -184,7 +184,7 @@ export default function WeddingCodeV06Client({
     return (
       <Shell>
         <section className={`${surface} overflow-hidden`}>
-          <div className="bg-[#243832] px-5 py-8 text-white sm:px-8">
+          <div className="bg-[var(--hb-primary)] px-5 py-8 text-white sm:px-8">
             <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[26px] font-semibold leading-[1.35] sm:text-[30px]">
               {theirs
@@ -213,7 +213,7 @@ export default function WeddingCodeV06Client({
               "답은 기기 안에서 계산하며 서버 DB에 저장하지 않아요.",
               "공유 링크에는 답을 나타내는 코드가 들어가므로 함께 볼 사람에게만 보내요.",
             ].map((line) => (
-              <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[#36534E]">
+              <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
                 <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#6D806E]" />
                 {line}
               </p>
@@ -229,7 +229,7 @@ export default function WeddingCodeV06Client({
           {theirs ? "나도 답해보기" : "시작하기"}
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </button>
-        <p className="mt-3 text-center text-[13px] font-medium text-[#8F6662]">
+        <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
           {sceneCount} 문항
         </p>
       </Shell>
@@ -288,24 +288,24 @@ export default function WeddingCodeV06Client({
         >
           <div
             data-progress={done}
-            className="h-full rounded-full bg-[#36534E] transition-[width] duration-200"
+            className="h-full rounded-full bg-[var(--hb-primary)] transition-[width] duration-200"
             style={{ width: `${(done / questions.length) * 100}%` }}
           />
         </div>
-        <p className="text-[13px] font-semibold tabular-nums text-[#8F6662]">
+        <p className="text-[13px] font-semibold tabular-nums text-[var(--color-rose-700)]">
           {index + 1}/{questions.length}
         </p>
       </div>
 
       <section className={`${surface} overflow-hidden`} data-question={question.key}>
-        <div className="border-b border-[#EFE4D7] bg-[#F7F1E8] px-5 py-5 sm:px-8">
-          <p className="text-[16px] font-semibold leading-[1.55] text-[#243832]">
+        <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
+          <p className="text-[16px] font-semibold leading-[1.55] text-[var(--hb-text-strong)]">
             {question.scene}
           </p>
-          <p className="mt-2 text-[14px] font-medium text-[#8F6662]">{question.question}</p>
+          <p className="mt-2 text-[14px] font-medium text-[var(--color-rose-700)]">{question.question}</p>
         </div>
 
-        <div className="divide-y divide-[#EFE4D7]">
+        <div className="divide-y divide-[var(--hb-hairline)]">
           {question.options.map((option) => {
             const selected = picked === option.value;
             return (
@@ -317,17 +317,17 @@ export default function WeddingCodeV06Client({
                 onClick={() => {
                   setAnswers((previous) => ({ ...previous, [question.key]: option.value }));
                 }}
-                className={`flex min-h-[64px] w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#36534E] sm:px-8 ${
-                  selected ? "bg-[#F7F1E8]" : "bg-white hover:bg-[#FBF8F2]"
+                className={`flex min-h-[64px] w-full items-center justify-between gap-3 px-5 py-4 text-left transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)] sm:px-8 ${
+                  selected ? "bg-[var(--hb-surface-hover)]" : "bg-white hover:bg-[var(--hb-surface-page)]"
                 }`}
               >
-                <span className="text-[16px] font-semibold leading-[1.5] text-[#243832]">
+                <span className="text-[16px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                   {option.label}
                 </span>
                 <span
                   aria-hidden="true"
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                    selected ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#C7D1C2]"
+                    selected ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#C7D1C2]"
                   }`}
                 >
                   {selected ? <Check className="h-4 w-4" /> : null}
@@ -354,7 +354,7 @@ export default function WeddingCodeV06Client({
         type="button"
         data-skip-question={question.key}
         onClick={skipQuestion}
-        className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-full px-4 text-[13px] font-medium text-[#8F6662] underline underline-offset-4 transition-colors hover:text-[#36534E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+        className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-full px-4 text-[13px] font-medium text-[var(--color-rose-700)] underline underline-offset-4 transition-colors hover:text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
       >
         이 장면은 우리와 안 맞아요 — 건너뛰기
       </button>
@@ -364,7 +364,7 @@ export default function WeddingCodeV06Client({
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-dvh bg-[#FBF8F2] px-4 py-6 sm:px-6 sm:py-10">
+    <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-[560px]">{children}</div>
     </main>
   );
@@ -425,7 +425,7 @@ ${shareUrl}`
         {copied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
         {copied ? "복사했어요" : theirs ? "결과 링크 복사하기" : "내 코드와 링크 보내기"}
       </button>
-      <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[#8F6662]">
+      <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
         {theirs
           ? "링크에는 두 사람의 답이 포함돼요. 먼저 답한 사람에게만 보내 주세요."
           : "링크에는 내 답이 포함돼요. 함께 비교할 사람에게만 보내 주세요."}
@@ -450,10 +450,10 @@ ${shareUrl}`
       return (
         <>
           <section className={`${surface} px-6 py-7`} data-result="solo" data-empty="">
-            <h1 className="text-[20px] font-semibold leading-[1.45] text-[#243832]">
+            <h1 className="text-[20px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
               {weddingCodeSceneCountLabel(config.questions.length)} 장면을 모두 건너뛰셨어요
             </h1>
-            <p className="mt-3 text-[14px] font-medium leading-[1.7] text-[#36534E]">
+            <p className="mt-3 text-[14px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
               우리 상황과 맞는 장면이 없었다면 그대로 두셔도 괜찮아요. 답을 지어내는 것보다
               비워두는 편이 나아요. 한 장면만 답해도 그 주제는 읽어드릴 수 있어요.
             </p>
@@ -472,7 +472,7 @@ ${shareUrl}`
         <WeddingCodeBadge letters={letters} />
 
         <section className={`${surface} mt-4 overflow-hidden`} data-result="solo">
-          <div className="bg-[#243832] px-5 py-7 text-white sm:px-8">
+          <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
             <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
               내가 반복해서 고른 것
@@ -497,7 +497,7 @@ ${shareUrl}`
             </p>
           </div>
 
-          <div className="divide-y divide-[#EFE4D7]">
+          <div className="divide-y divide-[var(--hb-hairline)]">
             {profile.axes.map((reading) => {
               const absence = describeSelfAxisAbsence(reading);
               // 건너뛴 주제에 카피를 붙이면 고르지도 않은 답을 읽어주는 것이 된다.
@@ -507,7 +507,7 @@ ${shareUrl}`
                     <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
                       {reading.axisLabel}
                     </p>
-                    <p className="mt-2 text-[14px] font-medium leading-[1.6] text-[#8F6662]">
+                    <p className="mt-2 text-[14px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                       이 주제는 건너뛰었어요. 안 맞는 장면을 비워둔 건 답을 지어내지 않은 거예요.
                     </p>
                   </article>
@@ -518,20 +518,20 @@ ${shareUrl}`
                   <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
                     {reading.axisLabel}
                   </p>
-                  <h2 className="mt-2 text-[18px] font-semibold leading-[1.45] text-[#243832]">
+                  <h2 className="mt-2 text-[18px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
                     {reading.title}
                   </h2>
-                  <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+                  <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                     {describeSelfAxisReading(reading)}
                   </p>
 
                   <div className="mt-4 space-y-2">
                     {reading.evidence.map((quote) => (
-                      <div key={quote.scene} className="rounded-[12px] bg-[#F7F1E8] px-4 py-3">
-                        <p className="text-[12px] font-medium leading-[1.5] text-[#8F6662]">
+                      <div key={quote.scene} className="rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3">
+                        <p className="text-[12px] font-medium leading-[1.5] text-[var(--color-rose-700)]">
                           {quote.scene}
                         </p>
-                        <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[#243832]">
+                        <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                           “{quote.label}”
                         </p>
                       </div>
@@ -539,17 +539,17 @@ ${shareUrl}`
                   </div>
 
                   {absence ? (
-                    <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#36534E]">
+                    <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
                       {absence}
                     </p>
                   ) : null}
 
-                  <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#36534E]">
-                    <b className="font-semibold text-[#243832]">상대에게 미리 말해두기: </b>
+                  <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                    <b className="font-semibold text-[var(--hb-text-strong)]">상대에게 미리 말해두기: </b>
                     “{reading.tellPartner}”
                   </p>
-                  <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[#36534E]">
-                    <b className="font-semibold text-[#243832]">한 가지 챙긴다면: </b>
+                  <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                    <b className="font-semibold text-[var(--hb-text-strong)]">한 가지 챙긴다면: </b>
                     {reading.watchOut}
                   </p>
                 </article>
@@ -557,10 +557,10 @@ ${shareUrl}`
             })}
           </div>
 
-          <div className="border-t border-[#EFE4D7] bg-[#FBF8F2] px-5 py-5 sm:px-8">
-            <p className="text-[13px] font-medium leading-[1.7] text-[#36534E]">
+          <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
+            <p className="text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
               여기까지는 내 답만 본 거예요.{" "}
-              <b className="font-semibold text-[#243832]">둘이 어디서 갈렸는지</b>는 상대도 같은
+              <b className="font-semibold text-[var(--hb-text-strong)]">둘이 어디서 갈렸는지</b>는 상대도 같은
               장면에 답해야 나와요.
             </p>
           </div>
@@ -601,7 +601,7 @@ ${shareUrl}`
       <WeddingCodePair mine={myLetters} theirs={theirLetters} />
 
       <section className={`${surface} mt-4 overflow-hidden`} data-result="couple">
-        <div className="bg-[#243832] px-5 py-7 text-white sm:px-8">
+        <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
           <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
           {/*
             비교한 장면 수는 열여섯이 아니라 **둘 다 답한 장면 수**다. 한 사람이 열두
@@ -630,7 +630,7 @@ ${shareUrl}`
         </div>
 
         {top.length > 0 ? (
-          <div className="divide-y divide-[#EFE4D7]">
+          <div className="divide-y divide-[var(--hb-hairline)]">
             {top.map((gap) => {
               const described = describeGap(gap, {
                 first: "먼저 답한 사람",
@@ -645,21 +645,21 @@ ${shareUrl}`
                   <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
                     {described.headline}
                   </p>
-                  <p className="mt-2 text-[13px] font-medium leading-[1.5] text-[#8F6662]">
+                  <p className="mt-2 text-[13px] font-medium leading-[1.5] text-[var(--color-rose-700)]">
                     {gap.scene}
                   </p>
                   <div className="mt-4 space-y-2.5">
                     {described.quotes.map((quote) => (
                       <p
                         key={quote}
-                        className="rounded-[12px] bg-[#F7F1E8] px-4 py-3 text-[15px] font-semibold leading-[1.5] text-[#243832]"
+                        className="rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]"
                       >
                         {quote}
                       </p>
                     ))}
                   </div>
-                  <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#36534E]">
-                    <b className="font-semibold text-[#243832]">다음 대화: </b>
+                  <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+                    <b className="font-semibold text-[var(--hb-text-strong)]">다음 대화: </b>
                     {described.nextScene}
                   </p>
                 </article>
@@ -668,7 +668,7 @@ ${shareUrl}`
           </div>
         ) : (
           <div className="px-5 py-6 sm:px-8">
-            <p className="text-[15px] font-medium leading-[1.7] text-[#36534E]">
+            <p className="text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
               함께 답한 장면에서 모두 같은 방향이었어요. 그중 문장까지 똑같았던 건{" "}
               {map.identical.length}곳이에요 — 나머지는 같은 쪽을 보면서 다른 말로 표현한
               자리예요.
@@ -677,12 +677,12 @@ ${shareUrl}`
         )}
 
         {map.identical.length > 0 ? (
-          <div className="border-t border-[#EFE4D7] bg-[#FBF8F2] px-5 py-5 sm:px-8">
-            <p className="text-[12px] font-semibold text-[#8F6662]">토씨까지 같았던 곳</p>
-            <p className="mt-1.5 text-[15px] font-semibold leading-[1.5] text-[#243832]">
+          <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
+            <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">토씨까지 같았던 곳</p>
+            <p className="mt-1.5 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
               “{map.identical[0].firstLabel}”
             </p>
-            <p className="mt-1 text-[13px] font-medium text-[#8F6662]">
+            <p className="mt-1 text-[13px] font-medium text-[var(--color-rose-700)]">
               {map.identical[0].scene}
               {map.identical.length > 1 ? ` 외 ${map.identical.length - 1}곳` : ""}
             </p>
@@ -725,7 +725,7 @@ ${shareUrl}`
 function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
   return (
     <section className={`${surface} overflow-hidden`} data-wedding-code={letters.code}>
-      <div className="bg-[#243832] px-5 py-8 text-center text-white sm:px-8">
+      <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
         <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">내 웨딩코드</p>
         <p className="mt-3 flex justify-center gap-1.5 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
           {letters.slots.map((slot) => (
@@ -754,12 +754,12 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
         </p>
       </div>
 
-      <div className="divide-y divide-[#EFE4D7]">
+      <div className="divide-y divide-[var(--hb-hairline)]">
         {letters.slots.map((slot) => (
           <div key={slot.axis} className="flex gap-4 px-5 py-4 sm:px-8">
             <span
               aria-hidden="true"
-              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7F1E8] text-[18px] font-semibold text-[#243832]"
+              className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[18px] font-semibold text-[var(--hb-text-strong)]"
             >
               {slot.letter}
             </span>
@@ -767,14 +767,14 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
               <p className="text-[12px] font-semibold text-[#6D806E]">
                 {slot.axisLabel} · {WEDDING_CODE_FIRMNESS_LABEL[slot.firmness]}
               </p>
-              <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[#243832]">
+              <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                 {slot.meaning}
               </p>
-              <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+              <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                 {slot.tally}
               </p>
               {slot.caution ? (
-                <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+                <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                   {slot.caution}
                 </p>
               ) : null}
@@ -805,7 +805,7 @@ function WeddingCodePair({
 
   return (
     <section className={`${surface} overflow-hidden`} data-code-pair="">
-      <div className="bg-[#243832] px-5 py-7 text-center text-white sm:px-8">
+      <div className="bg-[var(--hb-primary)] px-5 py-7 text-center text-white sm:px-8">
         <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">두 사람의 웨딩코드</p>
         <p className="mt-3 text-[30px] font-semibold leading-none tracking-[0.04em] sm:text-[38px]">
           {theirs.code} <span className="text-[#6D806E]">×</span> {mine.code}
@@ -818,16 +818,16 @@ function WeddingCodePair({
               : "글자가 모두 같아요. 그래도 같은 글자 안에서 고른 문장은 다를 수 있어요."}
         </p>
       </div>
-      <div className="divide-y divide-[#EFE4D7]">
+      <div className="divide-y divide-[var(--hb-hairline)]">
         {comparison.map((item) => (
           <div key={item.axis} data-code-slot={item.axis} data-code-state={item.state} className="flex items-center gap-4 px-5 py-3.5 sm:px-8">
-            <span className="flex shrink-0 items-center gap-1.5 text-[17px] font-semibold text-[#243832]">
+            <span className="flex shrink-0 items-center gap-1.5 text-[17px] font-semibold text-[var(--hb-text-strong)]">
               {item.first.letter}
-              <span className="text-[13px] font-medium text-[#8F6662]">·</span>
+              <span className="text-[13px] font-medium text-[var(--color-rose-700)]">·</span>
               {item.second.letter}
             </span>
-            <p className="min-w-0 text-[13px] font-medium leading-[1.6] text-[#36534E]">
-              <b className="font-semibold text-[#243832]">{item.axisLabel}</b>
+            <p className="min-w-0 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
+              <b className="font-semibold text-[var(--hb-text-strong)]">{item.axisLabel}</b>
               {item.state === "different"
                 ? " — 서로 다른 자리예요"
                 : item.state === "same"
@@ -869,11 +869,11 @@ function TellPartnerDraft({ profile }: { profile: WeddingCodeSelfProfile }) {
 
   return (
     <section className={`${surface} mt-4 overflow-hidden`} data-tell-partner="">
-      <div className="border-b border-[#EFE4D7] bg-[#F7F1E8] px-5 py-5 sm:px-8">
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[#243832]">
+      <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
+        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
           상대에게 보낼 말
         </h2>
-        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
           내 답으로 만든 초안이에요. 내 말투로 고쳐 쓰세요. 이 글은 공유 링크에 들어가지
           않고 저장되지도 않아요 — 복사해서 원하는 곳에 직접 붙여넣는 거예요.
         </p>
@@ -890,7 +890,7 @@ function TellPartnerDraft({ profile }: { profile: WeddingCodeSelfProfile }) {
             setText(event.target.value);
             setCopied(false);
           }}
-          className="w-full resize-y rounded-[12px] border border-[#C7D1C2] bg-white px-4 py-3 text-[15px] font-medium leading-[1.7] text-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+          className="w-full resize-y rounded-[12px] border border-[#C7D1C2] bg-white px-4 py-3 text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <button
@@ -945,36 +945,36 @@ function AmoraStyleProposals({ profile }: { profile: WeddingCodeSelfProfile }) {
 
   return (
     <section className={`${surface} mt-4 overflow-hidden`} data-amora-proposals="">
-      <div className="border-b border-[#EFE4D7] bg-[#F7F1E8] px-5 py-5 sm:px-8">
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[#243832]">
+      <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
+        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
           아모라에게 알려줄 도움 방식
         </h2>
-        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
           내 답과 같은 뜻인 설정값이에요. 웨딩코드가 자동으로 바꾸지 않고, 설정 화면에서
           직접 고를 때만 아모라에 적용돼요.
         </p>
       </div>
-      <div className="divide-y divide-[#EFE4D7]">
+      <div className="divide-y divide-[var(--hb-hairline)]">
         {proposals.map((proposal) => (
           <div key={proposal.field} data-proposal={proposal.field} className="px-5 py-5 sm:px-8">
-            <p className="text-[15px] font-semibold leading-[1.5] text-[#243832]">
+            <p className="text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
               {proposal.choiceLabel}
             </p>
-            <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+            <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
               {proposal.basis}
             </p>
-            <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[#36534E]">
+            <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
               {proposal.effect}
             </p>
             {proposal.caution ? (
-              <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[#8F6662]">
+              <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                 {proposal.caution}
               </p>
             ) : null}
           </div>
         ))}
       </div>
-      <div className="border-t border-[#EFE4D7] bg-[#FBF8F2] px-5 py-5 sm:px-8">
+      <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
         {user ? (
           <>
             <button
@@ -997,18 +997,18 @@ function AmoraStyleProposals({ profile }: { profile: WeddingCodeSelfProfile }) {
                   : "이 방식으로 아모라에 반영하기"}
             </button>
             {personalization.error ? (
-              <p role="alert" className="mt-2 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+              <p role="alert" className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                 {personalization.error}
               </p>
             ) : null}
-            <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[#8F6662]">
+            <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
               {applied
                 ? "다음 대화부터 아모라가 이 방식으로 움직여요. 설정 화면에서 언제든 바꿀 수 있어요."
                 : "위 설정값만 내 계정에 저장돼요. 웨딩코드 답과 고른 문장은 저장하지 않아요."}
             </p>
             <a
               href="/settings/amora-style"
-              className="mt-3 inline-block text-[13px] font-semibold text-[#36534E] underline underline-offset-4"
+              className="mt-3 inline-block text-[13px] font-semibold text-[var(--hb-text-strong)] underline underline-offset-4"
             >
               설정 화면에서 직접 보기
             </a>
@@ -1021,7 +1021,7 @@ function AmoraStyleProposals({ profile }: { profile: WeddingCodeSelfProfile }) {
             >
               로그인하고 아모라에 반영하기
             </a>
-            <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[#8F6662]">
+            <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
               로그인하면 위 설정값을 내 계정에 저장할 수 있어요. 웨딩코드 답과 고른 문장은
               저장하지 않아요.
             </p>
@@ -1049,15 +1049,15 @@ function SelfProfilePair({
   const combination = buildWeddingCodeCoupleCombination(first, second);
   return (
     <section className={`${surface} mt-4 overflow-hidden`} data-result="self-pair">
-      <div className="border-b border-[#EFE4D7] bg-[#F7F1E8] px-5 py-5 sm:px-8">
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[#243832]">
+      <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
+        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
           각자 반복해서 고른 것
         </h2>
-        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
           두 사람이 각각 어떤 답을 몇 번 골랐는지만 세었어요.
         </p>
       </div>
-      <div className="divide-y divide-[#EFE4D7]">
+      <div className="divide-y divide-[var(--hb-hairline)]">
         {first.axes.map((firstReading, index) => {
           const secondReading = second.axes[index];
           const combined = combination.find((item) => item.axis === firstReading.axis);
@@ -1072,8 +1072,8 @@ function SelfProfilePair({
                     data-pair-state={combined.state}
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                       combined.state === "split"
-                        ? "bg-[#F7F1E8] text-[#8F6662]"
-                        : "bg-[#EEF2EC] text-[#36534E]"
+                        ? "bg-[var(--hb-surface-hover)] text-[var(--color-rose-700)]"
+                        : "bg-[#EEF2EC] text-[var(--hb-text-strong)]"
                     }`}
                   >
                     {combined.state === "split" ? "서로 다름" : "방향 같음"}
@@ -1086,22 +1086,22 @@ function SelfProfilePair({
                   { name: "나중에 답한 사람", reading: secondReading },
                 ].map(({ name, reading }) => (
                   <div key={name}>
-                    <p className="text-[13px] font-medium text-[#8F6662]">{name}</p>
+                    <p className="text-[13px] font-medium text-[var(--color-rose-700)]">{name}</p>
                     {/*
                       건너뛴 사람에게 제목을 붙이면 고르지도 않은 답을 읽어주는 것이 된다.
                       「…나뉘었어요」 밑에 「아직 답하지 않았어요」가 같이 뜨면 둘 중 하나는
                       거짓말이다.
                     */}
                     {reading.answered === 0 ? (
-                      <p className="mt-0.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+                      <p className="mt-0.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                         이 주제는 건너뛰었어요.
                       </p>
                     ) : (
                       <>
-                        <p className="mt-0.5 text-[15px] font-semibold leading-[1.5] text-[#243832]">
+                        <p className="mt-0.5 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                           {reading.title}
                         </p>
-                        <p className="mt-0.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
+                        <p className="mt-0.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
                           {describeSelfAxisReading(reading)}
                         </p>
                       </>
@@ -1110,7 +1110,7 @@ function SelfProfilePair({
                 ))}
               </div>
               {combined ? (
-                <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[#36534E]">
+                <p className="mt-3 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
                   {combined.directive}
                 </p>
               ) : null}

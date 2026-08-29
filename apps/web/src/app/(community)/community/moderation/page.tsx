@@ -159,7 +159,7 @@ export default function CommunityModerationPage() {
         <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
           <ShieldCheck className="h-5 w-5" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-noir-900 sm:text-3xl">
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--hb-text-strong)] sm:text-3xl">
           운영 알림과 이의제기
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-taupe-600">
@@ -199,15 +199,15 @@ export default function CommunityModerationPage() {
       ) : notices.length === 0 ? (
         <div className="rounded-2xl border border-black/[0.06] bg-white px-5 py-12 text-center">
           <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-600" />
-          <p className="mt-3 text-sm font-medium text-noir-900">
+          <p className="mt-3 text-sm font-medium text-[var(--hb-text-strong)]">
             확인할 운영 알림이 없어요.
           </p>
-          <p className="mt-1 text-sm text-taupe-500">
+          <p className="mt-1 text-sm text-[var(--hb-text-body)]">
             커뮤니티로 돌아가 다른 예비부부의 고민을 살펴보세요.
           </p>
           <Link
             href="/community?feed=all"
-            className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-noir-900 px-5 text-sm font-medium text-white"
+            className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-medium text-white"
           >
             커뮤니티 보기
           </Link>
@@ -234,11 +234,11 @@ export default function CommunityModerationPage() {
                           새 알림
                         </span>
                       )}
-                      <span className="text-sm font-semibold text-noir-900">
+                      <span className="text-sm font-semibold text-[var(--hb-text-strong)]">
                         {ACTION_LABEL[notice.action]}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-taupe-500">
+                    <p className="mt-1 text-xs text-[var(--hb-text-body)]">
                       {new Date(notice.created_at).toLocaleString("ko-KR")}
                     </p>
                   </div>
@@ -255,8 +255,8 @@ export default function CommunityModerationPage() {
                 </div>
 
                 <div className="mt-4 rounded-xl bg-stone-50 p-4">
-                  <p className="text-xs font-medium text-taupe-500">조치 사유</p>
-                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-noir-800">
+                  <p className="text-xs font-medium text-[var(--hb-text-body)]">조치 사유</p>
+                  <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--hb-text-strong)]">
                     {notice.reason}
                   </p>
                 </div>
@@ -284,7 +284,7 @@ export default function CommunityModerationPage() {
                   <div className="mt-4">
                     <label
                       htmlFor={`appeal-${notice.event_id}`}
-                      className="text-sm font-medium text-noir-900"
+                      className="text-sm font-medium text-[var(--hb-text-strong)]"
                     >
                       다시 검토가 필요한 이유
                     </label>
@@ -311,7 +311,7 @@ export default function CommunityModerationPage() {
                       type="button"
                       onClick={() => void submitAppeal(notice)}
                       disabled={submittingEventId === notice.event_id}
-                      className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-noir-900 px-5 text-sm font-medium text-white disabled:opacity-50"
+                      className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-medium text-white disabled:opacity-50"
                     >
                       {submittingEventId === notice.event_id
                         ? "접수 중"
@@ -319,7 +319,7 @@ export default function CommunityModerationPage() {
                     </button>
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-taupe-500">
+                  <p className="mt-4 text-sm text-[var(--hb-text-body)]">
                     이 조치는 별도 이의제기 대상이 아닙니다. 문의가 필요하면
                     고객지원으로 알려 주세요.
                   </p>

@@ -139,7 +139,7 @@ function FieldBlock({
       }
     >
       <dt className="text-xs font-semibold text-[#6F6A62]">{label}</dt>
-      <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[#243832]">
+      <dd className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--hb-text-strong)]">
         {children}
       </dd>
     </div>
@@ -154,13 +154,13 @@ function EvidenceCard({
   index: number;
 }) {
   return (
-    <li className="border-t border-[#EFE4D7] py-4 first:border-t-0 first:pt-0 last:pb-0">
+    <li className="border-t border-[var(--hb-hairline)] py-4 first:border-t-0 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6F6A62]">
-        <span className="font-semibold text-[#36534E]">근거 {index + 1}</span>
+        <span className="font-semibold text-[var(--hb-text-strong)]">근거 {index + 1}</span>
         <span>{CONTENT_ORIGIN_LABELS[evidence.contentOrigin]}</span>
         <span>{APPLICABILITY_LABELS[evidence.applicability] ?? "적용 상태 확인 필요"}</span>
       </div>
-      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[#243832]">
+      <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--hb-text-strong)]">
         {evidence.content ?? "공개할 수 있는 근거 본문이 없습니다."}
       </p>
       <p className="mt-2 text-xs leading-5 text-[#6F6A62]">
@@ -404,18 +404,18 @@ export function DecisionOutcomeReviewQueue() {
   const initialFailure = !loading && items.length === 0 && error !== null;
 
   return (
-    <main className="min-h-screen bg-[#FBF8F2] px-4 py-6 text-[#243832] sm:px-6 sm:py-10">
+    <main className="min-h-screen bg-[var(--hb-surface-page)] px-4 py-6 text-[var(--hb-text-strong)] sm:px-6 sm:py-10">
       <div className="mx-auto max-w-6xl">
         <header className="mb-7 flex flex-col gap-4 border-b border-[#E2D3C8] pb-6 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <Link
               href="/admin/community"
-              className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#36534E] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#36534E]"
+              className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-text-strong)] hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               커뮤니티 운영
             </Link>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#8F6662]">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-[var(--color-rose-700)]">
               Human publication review
             </p>
             <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] sm:text-3xl">
@@ -433,7 +433,7 @@ export function DecisionOutcomeReviewQueue() {
               void loadQueue();
             }}
             disabled={loading || loadingMore || busyOutcomeId !== null}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] hover:bg-[#F3F7F2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCcw
               className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -445,10 +445,10 @@ export function DecisionOutcomeReviewQueue() {
 
         <section
           aria-labelledby="review-policy-heading"
-          className="mb-6 border-l-4 border-[#36534E] bg-[#F3F7F2] px-5 py-4"
+          className="mb-6 border-l-4 border-[var(--hb-primary)] bg-[#F3F7F2] px-5 py-4"
         >
           <div className="flex gap-3">
-            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[#36534E]" aria-hidden="true" />
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--hb-text-strong)]" aria-hidden="true" />
             <div>
               <h2 id="review-policy-heading" className="text-sm font-semibold">
                 검수 기준 {REVIEW_POLICY_VERSION}
@@ -485,7 +485,7 @@ export function DecisionOutcomeReviewQueue() {
             className="border border-[#E2D3C8] bg-white px-6 py-16 text-center"
             aria-live="polite"
           >
-            <Loader2 className="mx-auto h-7 w-7 animate-spin text-[#36534E]" aria-hidden="true" />
+            <Loader2 className="mx-auto h-7 w-7 animate-spin text-[var(--hb-text-strong)]" aria-hidden="true" />
             <p className="mt-3 text-sm text-[#6F6A62]">검수할 결과를 불러오고 있습니다.</p>
           </section>
         ) : initialFailure ? (
@@ -498,7 +498,7 @@ export function DecisionOutcomeReviewQueue() {
             <button
               type="button"
               onClick={() => void loadQueue()}
-              className="mt-5 min-h-11 rounded-xl bg-[#36534E] px-5 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+              className="mt-5 min-h-11 rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
             >
               다시 불러오기
             </button>
@@ -527,7 +527,7 @@ export function DecisionOutcomeReviewQueue() {
                   className="border border-[#E2D3C8] bg-white"
                   aria-labelledby={`outcome-title-${item.outcomeId}`}
                 >
-                  <div className="flex flex-col gap-4 border-b border-[#EFE4D7] px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
+                  <div className="flex flex-col gap-4 border-b border-[var(--hb-hairline)] px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6F6A62]">
                         <span>{item.authorNickname}</span>
@@ -544,7 +544,7 @@ export function DecisionOutcomeReviewQueue() {
                     <div
                       className={
                         item.sourceAvailable
-                          ? "inline-flex shrink-0 items-center gap-2 bg-[#EEF5EE] px-3 py-2 text-xs font-semibold text-[#36534E]"
+                          ? "inline-flex shrink-0 items-center gap-2 bg-[#EEF5EE] px-3 py-2 text-xs font-semibold text-[var(--hb-text-strong)]"
                           : "inline-flex shrink-0 items-center gap-2 bg-[#FFF2EE] px-3 py-2 text-xs font-semibold text-[#A63C2C]"
                       }
                     >
@@ -558,11 +558,11 @@ export function DecisionOutcomeReviewQueue() {
                   </div>
 
                   <div className="grid gap-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-                    <div className="space-y-5 border-b border-[#EFE4D7] px-5 py-6 xl:border-b-0 xl:border-r sm:px-6">
+                    <div className="space-y-5 border-b border-[var(--hb-hairline)] px-5 py-6 xl:border-b-0 xl:border-r sm:px-6">
                       <section aria-labelledby={`source-heading-${item.outcomeId}`}>
                         <h3
                           id={`source-heading-${item.outcomeId}`}
-                          className="text-sm font-semibold text-[#36534E]"
+                          className="text-sm font-semibold text-[var(--hb-text-strong)]"
                         >
                           질문과 요청
                         </h3>
@@ -575,7 +575,7 @@ export function DecisionOutcomeReviewQueue() {
                       <section aria-labelledby={`evidence-heading-${item.outcomeId}`}>
                         <h3
                           id={`evidence-heading-${item.outcomeId}`}
-                          className="text-sm font-semibold text-[#36534E]"
+                          className="text-sm font-semibold text-[var(--hb-text-strong)]"
                         >
                           선택 근거
                         </h3>
@@ -601,7 +601,7 @@ export function DecisionOutcomeReviewQueue() {
                       <section aria-labelledby={`result-heading-${item.outcomeId}`}>
                         <h3
                           id={`result-heading-${item.outcomeId}`}
-                          className="text-sm font-semibold text-[#36534E]"
+                          className="text-sm font-semibold text-[var(--hb-text-strong)]"
                         >
                           결정과 결과
                         </h3>
@@ -617,12 +617,12 @@ export function DecisionOutcomeReviewQueue() {
                       </section>
 
                       <section
-                        className="border-t border-[#EFE4D7] pt-5"
+                        className="border-t border-[var(--hb-hairline)] pt-5"
                         aria-labelledby={`relationship-heading-${item.outcomeId}`}
                       >
                         <h3
                           id={`relationship-heading-${item.outcomeId}`}
-                          className="text-sm font-semibold text-[#36534E]"
+                          className="text-sm font-semibold text-[var(--hb-text-strong)]"
                         >
                           상업관계 공개
                         </h3>
@@ -647,10 +647,10 @@ export function DecisionOutcomeReviewQueue() {
                         </div>
                       )}
 
-                      <div className="border-t border-[#EFE4D7] pt-5">
+                      <div className="border-t border-[var(--hb-hairline)] pt-5">
                         <label
                           htmlFor={`review-reason-${item.outcomeId}`}
-                          className="text-sm font-semibold text-[#36534E]"
+                          className="text-sm font-semibold text-[var(--hb-text-strong)]"
                         >
                           사람이 확인한 검수 사유
                         </label>
@@ -664,7 +664,7 @@ export function DecisionOutcomeReviewQueue() {
                           disabled={busyOutcomeId !== null}
                           aria-describedby={reasonHelpId}
                           placeholder="예: 원문과 선택 근거, 상업관계 공개 범위를 직접 확인했습니다."
-                          className="mt-2 w-full resize-y rounded-xl border border-[#C7D1C2] bg-white px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-[#9B958B] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/15 disabled:bg-[#F5F2ED]"
+                          className="mt-2 w-full resize-y rounded-xl border border-[#C7D1C2] bg-white px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-[#9B958B] focus:border-[var(--hb-primary)] focus:ring-2 focus:ring-[var(--hb-primary)]/15 disabled:bg-[#F5F2ED]"
                         />
                         <div
                           id={reasonHelpId}
@@ -691,7 +691,7 @@ export function DecisionOutcomeReviewQueue() {
                             onClick={() => stageReview(item, "publish")}
                             disabled={!canPublish || busyOutcomeId !== null}
                             aria-describedby={!canPublish ? publishBlockId : undefined}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E] disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                             공개 승인 검토
@@ -730,7 +730,7 @@ export function DecisionOutcomeReviewQueue() {
                               type="button"
                               onClick={() => setConfirmation(null)}
                               disabled={isBusy}
-                              className="min-h-11 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] disabled:opacity-50"
+                              className="min-h-11 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
                             >
                               취소
                             </button>
@@ -741,7 +741,7 @@ export function DecisionOutcomeReviewQueue() {
                               aria-busy={isBusy}
                               className={
                                 confirmation.decision === "publish"
-                                  ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                                  ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
                                   : "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#9A3F35] px-4 text-sm font-semibold text-white disabled:opacity-50"
                               }
                             >
@@ -767,7 +767,7 @@ export function DecisionOutcomeReviewQueue() {
                   type="button"
                   onClick={() => void loadQueue({ append: true, cursor: nextCursor })}
                   disabled={loadingMore || busyOutcomeId !== null}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-5 text-sm font-semibold text-[#36534E] hover:bg-[#F3F7F2] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] disabled:opacity-50"
                 >
                   {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   {loadingMore ? "불러오는 중" : "대기 결과 더 불러오기"}

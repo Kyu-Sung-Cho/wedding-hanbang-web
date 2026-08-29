@@ -1638,7 +1638,7 @@ function getAmoraSharedActionFailureMessage(
 function getServerCodeFailureMessage(serverCode: string | null): string | null {
   switch (serverCode) {
     case "COST_GUARD_COUPLE_QUOTA":
-      return "베타 기간에 드리는 무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
+      return "무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_GLOBAL_BUDGET":
@@ -3980,8 +3980,8 @@ export default function ChatScreen() {
           <View style={st.quotaBar} accessibilityLiveRegion="polite">
             <Text style={st.quotaText}>
               {quotaRemaining > 0
-                ? `베타 무료 상담이 ${quotaRemaining}회 남았어요.`
-                : "베타 무료 상담을 모두 사용했어요."}
+                ? `무료 상담이 ${quotaRemaining}회 남았어요.`
+                : "무료 상담을 모두 사용했어요."}
             </Text>
             <Pressable
               style={({ pressed }) => [st.quotaDismiss, pressed && { opacity: 0.62 }]}

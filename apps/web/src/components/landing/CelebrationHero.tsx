@@ -19,7 +19,7 @@ const amoraStartHref = "/start-here";
 export default function CelebrationHero() {
   return (
     <section
-      className="relative isolate overflow-hidden bg-[#F7F1E8] text-[#243832]"
+      className="relative isolate overflow-hidden bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]"
       aria-labelledby="celebration-hero-title"
     >
       <div
@@ -31,7 +31,7 @@ export default function CelebrationHero() {
         className={`${shell} grid gap-10 py-8 sm:gap-14 sm:py-12 lg:min-h-[min(780px,calc(100svh-7rem))] lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:items-center lg:gap-14 lg:py-14 xl:gap-20`}
       >
         <div className="relative z-20 min-w-0 max-w-[540px] animate-fade-in motion-reduce:animate-none">
-          <p className="flex items-center gap-3 text-[12px] font-semibold tracking-[-0.01em] text-[#36534E] sm:text-[13px]">
+          <p className="flex items-center gap-3 text-[12px] font-semibold tracking-[-0.01em] text-[var(--hb-text-strong)] sm:text-[13px]">
             <span
               className="h-px w-8 shrink-0 bg-[#8F6662]"
               aria-hidden="true"
@@ -41,7 +41,7 @@ export default function CelebrationHero() {
 
           <h1
             id="celebration-hero-title"
-            className="mt-5 tracking-[-0.055em] text-[#243832] sm:mt-7"
+            className="mt-5 tracking-[-0.055em] text-[var(--hb-text-strong)] sm:mt-7"
           >
             <span className="block text-[clamp(2rem,9vw,2.5rem)] font-medium leading-[1.05]">
               우리, 정말 결혼하는구나.
@@ -53,31 +53,31 @@ export default function CelebrationHero() {
             </span>
           </h1>
 
-          <p className="mt-5 max-w-[33rem] text-[15px] font-normal leading-[1.72] text-[#36534E] sm:mt-6 sm:text-[16px]">
+          <p className="mt-5 max-w-[33rem] text-[15px] font-normal leading-[1.72] text-[var(--hb-text-strong)] sm:mt-6 sm:text-[16px]">
             예산 이야기부터 해야 할 일, 중요한 날짜까지 한 대화방에서
             말해보세요. 아모라가 보기 쉽게 정리하고, 확인 버튼을 누른 내용만
             우리 준비에 저장해요.
           </p>
 
           <div
-            className="mt-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.15fr)] items-center gap-1.5 border-y border-[#243832]/12 py-3.5 sm:mt-7 sm:gap-2.5 sm:py-4"
+            className="mt-6 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_auto_minmax(0,1.15fr)] items-center gap-1.5 border-y border-[var(--hb-primary)]/12 py-3.5 sm:mt-7 sm:gap-2.5 sm:py-4"
             aria-label="아모라와 함께 준비하는 세 단계"
           >
-            <p className="text-center text-[12px] font-semibold leading-[1.35] text-[#243832] sm:text-[13px]">
+            <p className="text-center text-[12px] font-semibold leading-[1.35] text-[var(--hb-text-strong)] sm:text-[13px]">
               같이 말해요
             </p>
             <ArrowRight
               className="h-3.5 w-3.5 shrink-0 text-[#8F6662]"
               aria-hidden="true"
             />
-            <p className="text-center text-[12px] font-semibold leading-[1.35] text-[#243832] sm:text-[13px]">
+            <p className="text-center text-[12px] font-semibold leading-[1.35] text-[var(--hb-text-strong)] sm:text-[13px]">
               보기 쉽게 정리해요
             </p>
             <ArrowRight
               className="h-3.5 w-3.5 shrink-0 text-[#8F6662]"
               aria-hidden="true"
             />
-            <p className="text-center text-[12px] font-semibold leading-[1.35] text-[#243832] sm:text-[13px]">
+            <p className="text-center text-[12px] font-semibold leading-[1.35] text-[var(--hb-text-strong)] sm:text-[13px]">
               확인하면 저장돼요
             </p>
           </div>
@@ -102,13 +102,13 @@ export default function CelebrationHero() {
             </Link>
             <Link
               href="/login"
-              className="inline-flex min-h-11 items-center justify-center px-1 text-center text-[14px] font-semibold leading-5 text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-[#F7F1E8]"
+              className="inline-flex min-h-11 items-center justify-center px-1 text-center text-[14px] font-semibold leading-5 text-[var(--hb-text-strong)] underline decoration-[var(--hb-text-strong)]/30 underline-offset-4 transition-colors hover:text-[var(--color-rose-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-[#F7F1E8]"
             >
               계정이 있다면 로그인
             </Link>
           </div>
 
-          <p className="mt-4 flex items-start gap-2 text-[13px] font-medium leading-5 text-[#36534E]">
+          <p className="mt-4 flex items-start gap-2 text-[13px] font-medium leading-5 text-[var(--hb-text-strong)]">
             <LockKeyhole
               className="mt-0.5 h-4 w-4 shrink-0 text-[#8F6662]"
               aria-hidden="true"
@@ -138,7 +138,7 @@ function CoupleRoomPreview() {
       className="relative min-h-[700px] min-w-0 w-full animate-fade-in motion-reduce:animate-none sm:min-h-[720px] lg:min-h-[660px]"
       aria-label="로그인 없이 체험하는 커플 대화방 기능 예시"
     >
-      <div className="absolute inset-x-0 top-0 h-[540px] overflow-hidden rounded-[24px] bg-[#243832] shadow-[0_26px_70px_rgba(36,56,50,0.16)] sm:h-[580px] sm:rounded-[28px] lg:inset-y-0 lg:h-auto lg:rounded-[32px]">
+      <div className="absolute inset-x-0 top-0 h-[540px] overflow-hidden rounded-[24px] bg-[var(--hb-primary)] shadow-[0_26px_70px_rgba(36,56,50,0.16)] sm:h-[580px] sm:rounded-[28px] lg:inset-y-0 lg:h-auto lg:rounded-[32px]">
         <picture className="absolute inset-0 block h-full w-full">
           <source
             media="(max-width: 1024px) and (orientation: portrait)"
@@ -157,7 +157,7 @@ function CoupleRoomPreview() {
           className="absolute inset-0 bg-[linear-gradient(180deg,rgba(36,56,50,0.02)_55%,rgba(36,56,50,0.5)_100%)]"
           aria-hidden="true"
         />
-        <div className="absolute right-4 top-4 rounded-full border border-white/25 bg-[#243832]/88 px-3.5 py-2 text-right text-white shadow-lg backdrop-blur-sm sm:right-5 sm:top-5">
+        <div className="absolute right-4 top-4 rounded-full border border-white/25 bg-[var(--hb-primary)]/88 px-3.5 py-2 text-right text-white shadow-lg backdrop-blur-sm sm:right-5 sm:top-5">
           <p className="text-[11px] font-medium text-white/82">결혼식까지</p>
           <p className="mt-0.5 text-[22px] font-semibold tracking-[-0.04em]">
             D-184
@@ -166,18 +166,18 @@ function CoupleRoomPreview() {
       </div>
 
       <div className="absolute inset-x-3 bottom-0 overflow-hidden rounded-[22px] border border-white/90 bg-white/96 shadow-[0_24px_65px_rgba(36,56,50,0.2)] backdrop-blur-md sm:left-7 sm:right-auto sm:w-[82%] sm:max-w-[480px] sm:rounded-[26px] lg:-left-10 lg:bottom-7 lg:w-[78%]">
-        <div className="flex items-center gap-3 border-b border-[#243832]/10 px-4 py-3.5 sm:px-5 sm:py-4">
+        <div className="flex items-center gap-3 border-b border-[var(--hb-primary)]/10 px-4 py-3.5 sm:px-5 sm:py-4">
           <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white"
             aria-hidden="true"
           >
             <MessageCircle className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <p className="text-[13px] font-semibold leading-5 text-[#243832] sm:text-[14px]">
+            <p className="text-[13px] font-semibold leading-5 text-[var(--hb-text-strong)] sm:text-[14px]">
               민지 · 현우의 대화방
             </p>
-            <p className="text-[12px] font-medium leading-4 text-[#36534E] sm:text-[13px]">
+            <p className="text-[12px] font-medium leading-4 text-[var(--hb-text-strong)] sm:text-[13px]">
               둘이 함께 대화해요 · 로그인 없이 눌러볼 수 있어요
             </p>
           </div>
@@ -185,22 +185,22 @@ function CoupleRoomPreview() {
 
         <div className="space-y-3 px-4 py-4 sm:px-5">
           <div className="flex items-end justify-end gap-2">
-            <span className="text-[11px] font-medium text-[#36534E]">민지</span>
-            <p className="max-w-[78%] rounded-[16px] rounded-br-[5px] bg-[#F3E9DD] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-[#243832]">
+            <span className="text-[11px] font-medium text-[var(--hb-text-strong)]">민지</span>
+            <p className="max-w-[78%] rounded-[16px] rounded-br-[5px] bg-[#F3E9DD] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-[var(--hb-text-strong)]">
               드레스 투어, 10월 17일 오후 어때?
             </p>
           </div>
 
           <div className="flex items-end gap-2">
-            <p className="max-w-[82%] rounded-[16px] rounded-bl-[5px] bg-[#36534E] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-white">
+            <p className="max-w-[82%] rounded-[16px] rounded-bl-[5px] bg-[var(--hb-primary)] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-white">
               좋아. 아모라, 우리 일정에 넣어줘.
             </p>
-            <span className="text-[11px] font-medium text-[#36534E]">현우</span>
+            <span className="text-[11px] font-medium text-[var(--hb-text-strong)]">현우</span>
           </div>
         </div>
 
         <div
-          className="border-t border-[#243832]/10 bg-[#F7FAF5] px-4 py-4 sm:px-5"
+          className="border-t border-[var(--hb-primary)]/10 bg-[#F7FAF5] px-4 py-4 sm:px-5"
           aria-live="polite"
         >
           {demoApplied ? (
@@ -213,10 +213,10 @@ function CoupleRoomPreview() {
                   <Check className="h-4 w-4" />
                 </span>
                 <div>
-                  <p className="text-[14px] font-semibold text-[#243832]">
+                  <p className="text-[14px] font-semibold text-[var(--hb-text-strong)]">
                     우리 일정에 저장됐어요
                   </p>
-                  <p className="mt-0.5 text-[12px] leading-5 text-[#36534E]">
+                  <p className="mt-0.5 text-[12px] leading-5 text-[var(--hb-text-strong)]">
                     10월 17일(토) 오후 2시 · 드레스 투어
                   </p>
                 </div>
@@ -224,7 +224,7 @@ function CoupleRoomPreview() {
               <button
                 type="button"
                 onClick={() => setDemoApplied(false)}
-                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-[#36534E]/18 bg-white px-4 text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#8F6662] hover:text-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--hb-primary)]/18 bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662] hover:text-[var(--color-rose-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 다시 보기
@@ -238,10 +238,10 @@ function CoupleRoomPreview() {
                   aria-hidden="true"
                 />
                 <div className="min-w-0">
-                  <p className="text-[13px] font-semibold text-[#36534E]">
+                  <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">
                     아모라의 일정 제안 · 저장 전 확인
                   </p>
-                  <p className="mt-1 text-[13px] font-semibold leading-5 text-[#243832]">
+                  <p className="mt-1 text-[13px] font-semibold leading-5 text-[var(--hb-text-strong)]">
                     10월 17일(토) 오후 2시 ‘드레스 투어’를 우리 일정에
                     저장할까요?
                   </p>
@@ -250,7 +250,7 @@ function CoupleRoomPreview() {
               <button
                 type="button"
                 onClick={applyDemoSchedule}
-                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[#36534E] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
                 우리 일정에 저장하기
@@ -259,7 +259,7 @@ function CoupleRoomPreview() {
           )}
         </div>
 
-        <p className="border-t border-[#243832]/8 bg-[#FBF8F2] px-4 py-2.5 text-center text-[13px] font-medium leading-5 text-[#36534E] sm:px-5">
+        <p className="border-t border-[var(--hb-primary)]/8 bg-[var(--hb-surface-page)] px-4 py-2.5 text-center text-[13px] font-medium leading-5 text-[var(--hb-text-strong)] sm:px-5">
           기능 예시이며 실제로 저장되지 않아요
         </p>
       </div>

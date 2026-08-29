@@ -16,7 +16,17 @@ export type LandingCtaSource =
   | "landing_header"
   | "landing_hero_primary"
   | "landing_hero_secondary"
-  | "landing_scenes"
+  // 2026-08-28 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 되돌리면서
+  // 섹션 구성이 바뀌었다. `landing_scenes` 는 그 시안에 없는 섹션이라 없어지고,
+  // 공시 위약금 비교와 "지금 되는 것" 카드 세 장이 새로 센다.
+  //
+  // ⚠️ 2026-08-29에 `landing_scenes_cta` 가 **되돌아왔다.** 시안에는 없던 섹션이지만
+  // 운영 랜딩(`hanbang.ai/landing` 의 `#scenes`)에는 계속 있었고, 파운더가 운영과
+  // 비슷해야 한다고 지적해 장면 카드를 되살렸다. 이 자리를 지우면 스무 장면으로
+  // 가는 클릭이 어디서도 세어지지 않는다.
+  | "landing_scenes_cta"
+  | "landing_community_cta"
+  | "landing_now_card"
   | "landing_closing_primary"
   | "landing_closing_signup"
   | "landing_closing_login";

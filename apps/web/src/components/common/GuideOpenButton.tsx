@@ -19,7 +19,7 @@ export default function GuideOpenButton({
       <button
         type="button"
         onClick={() => window.dispatchEvent(new CustomEvent(eventName))}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[#eadfc9] bg-white/80 px-4 text-[12px] font-semibold text-[#928980] transition-colors hover:text-[#36534E]"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-[var(--hb-hairline)] bg-white/80 px-4 text-[12px] font-semibold text-[var(--hb-text-muted)] transition-colors hover:text-[var(--hb-text-strong)]"
       >
         <CircleHelp className="h-3.5 w-3.5" />
         {label}

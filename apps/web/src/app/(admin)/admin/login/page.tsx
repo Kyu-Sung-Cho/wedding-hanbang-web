@@ -175,7 +175,7 @@ export default function AdminLoginPage() {
   const isInitialSetup = pageMode === "initial-setup";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-noir-900 via-[#1a1520] to-noir-900 flex items-center justify-center px-5">
+    <div className="min-h-screen bg-gradient-to-br from-[var(--hb-primary)] via-[#1a1520] to-[var(--hb-primary)] flex items-center justify-center px-5">
       {/* 배경 장식 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] rounded-full bg-[radial-gradient(circle,rgba(201,169,110,0.1),transparent)] blur-[80px]" />

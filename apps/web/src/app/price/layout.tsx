@@ -25,7 +25,7 @@ const POLICY_LINKS = [
 export default function PriceLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-[#fffdf8]">
-      <header className="border-b border-[#243832]/10 bg-[#fffdf8]">
+      <header className="border-b border-[var(--hb-primary)]/10 bg-[#fffdf8]">
         <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <Link
             {...weddingLinkProps()}
@@ -35,7 +35,7 @@ export default function PriceLayout({ children }: { children: React.ReactNode })
           >
             <Logo size="sm" />
           </Link>
-          <nav aria-label="주요 메뉴" className="flex items-center gap-4 text-[13px] font-semibold text-[#243832] sm:gap-5 sm:text-sm">
+          <nav aria-label="주요 메뉴" className="flex items-center gap-4 text-[13px] font-semibold text-[var(--hb-text-strong)] sm:gap-5 sm:text-sm">
             {HEADER_LINKS.map((link) => (
               <Link key={link.href} href={link.href} prefetch={false} className="hover:text-[#8F5150]">
                 {link.label}

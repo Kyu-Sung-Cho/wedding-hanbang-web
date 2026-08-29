@@ -198,7 +198,7 @@ export default function TodayOnePreferenceControl() {
         <button
           type="button"
           onClick={() => void load(true)}
-          className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E2D3C8] px-4 text-sm font-semibold text-[#36534E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+          className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E2D3C8] px-4 text-sm font-semibold text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
           다시 불러오기
@@ -217,15 +217,15 @@ export default function TodayOnePreferenceControl() {
     <div className="mt-5 border-t border-[#E8E0D8] px-5 pt-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#F7F1E8] text-[#36534E]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]">
             <Sparkles className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[17px] font-medium text-[#243832]">
+              <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">
                 아모라 오늘의 한 가지(인앱)
               </p>
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#F7F1E8] px-2 py-1 text-[11px] font-semibold text-[#36534E]">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[var(--hb-surface-hover)] px-2 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
                 <ShieldCheck className="h-3 w-3" aria-hidden="true" />
                 {preference.enabled ? (paused ? "일시정지 중" : "사용 중") : "기본 꺼짐"}
               </span>
@@ -242,8 +242,8 @@ export default function TodayOnePreferenceControl() {
           aria-checked={preference.enabled}
           disabled={saving !== null}
           onClick={() => void update(preference.enabled ? "disable" : "enable")}
-          className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] disabled:cursor-wait disabled:opacity-60 ${
-            preference.enabled ? "bg-[#36534E]" : "bg-[#B5ADA3]/30"
+          className={`relative mt-1 h-7 w-12 shrink-0 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60 ${
+            preference.enabled ? "bg-[var(--hb-primary)]" : "bg-[#B5ADA3]/30"
           }`}
         >
           <span
@@ -259,7 +259,7 @@ export default function TodayOnePreferenceControl() {
         <div className="mt-3 flex flex-wrap items-center gap-2 pl-[52px]">
           {paused ? (
             <>
-              <span className="inline-flex items-center gap-1.5 text-xs text-[#8F6662]">
+              <span className="inline-flex items-center gap-1.5 text-xs text-[var(--color-rose-700)]">
                 <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
                 {formatPause(preference.pausedUntil!)}까지 쉬어요
               </span>
@@ -267,7 +267,7 @@ export default function TodayOnePreferenceControl() {
                 type="button"
                 disabled={saving !== null}
                 onClick={() => void update("enable")}
-                className="min-h-9 rounded-full border border-[#C7D1C2] px-3 text-xs font-semibold text-[#36534E] disabled:cursor-wait disabled:opacity-60"
+                className="min-h-9 rounded-full border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)] disabled:cursor-wait disabled:opacity-60"
               >
                 다시 시작
               </button>
@@ -277,7 +277,7 @@ export default function TodayOnePreferenceControl() {
               type="button"
               disabled={saving !== null}
               onClick={() => void update("pause_24h")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#E2D3C8] px-3 text-xs font-semibold text-[#8F6662] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#E2D3C8] px-3 text-xs font-semibold text-[var(--color-rose-700)] disabled:cursor-wait disabled:opacity-60"
             >
               <BellOff className="h-3.5 w-3.5" aria-hidden="true" />
               24시간 쉬기

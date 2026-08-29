@@ -428,12 +428,12 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-ivory-50 via-ivory-warm to-ivory-deep flex items-center justify-center px-5 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-[var(--hb-surface-page)] via-[var(--hb-surface-hover)] to-ivory-deep flex items-center justify-center px-5 py-10">
       <div className="w-full max-w-[480px]">
         {/* 로고 */}
         <div className="text-center mb-8">
           <Logo size="md" />
-          <p className="text-[13px] text-taupe-400 mt-2">결혼 준비 시작하기</p>
+          <p className="text-[13px] text-[var(--hb-text-muted)] mt-2">결혼 준비 시작하기</p>
         </div>
 
         {/* 스텝 인디케이터 */}
@@ -447,10 +447,10 @@ export default function OnboardingPage() {
         <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
           {capabilitiesFailed ? (
             <div className="py-10 text-center" role="alert">
-              <p className="text-[15px] text-[#1A1A1F]">
+              <p className="text-[15px] text-[var(--hb-text-strong)]">
                 준비 화면을 불러오지 못했어요.
               </p>
-              <p className="mt-2 text-[13px] text-taupe-400">
+              <p className="mt-2 text-[13px] text-[var(--hb-text-muted)]">
                 연결을 확인하고 다시 시도해 주세요.
               </p>
               <button
@@ -463,7 +463,7 @@ export default function OnboardingPage() {
             </div>
           ) : !capabilitiesResolved ? (
             <div className="py-16 text-center" aria-busy="true">
-              <p className="text-[13px] text-taupe-400">불러오는 중…</p>
+              <p className="text-[13px] text-[var(--hb-text-muted)]">불러오는 중…</p>
             </div>
           ) : neutralPreparationSpaceEnabled ? (
             <NeutralPreparationStart
@@ -582,7 +582,7 @@ export default function OnboardingPage() {
                   }
                   store.prevStep();
                 }}
-                className="px-6 py-3 rounded-2xl text-[14px] font-medium border border-black/[0.08] text-taupe-500 hover:bg-black/[0.02] transition-all"
+                className="px-6 py-3 rounded-2xl text-[14px] font-medium border border-black/[0.08] text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
               >
                 이전
               </button>
@@ -609,7 +609,7 @@ export default function OnboardingPage() {
                 {store.currentStep === 4 && (
                   <button
                     onClick={() => store.nextStep()}
-                    className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
+                    className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
                   >
                     나중에 설정할게요
                   </button>
@@ -637,7 +637,7 @@ export default function OnboardingPage() {
                 <button
                   onClick={handleSkipChecklist}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-taupe-400 hover:text-taupe-500 hover:bg-black/[0.02] transition-all"
+                  className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
                 >
                   건너뛰고 시작하기
                 </button>
@@ -672,20 +672,20 @@ export default function OnboardingPage() {
               </div>
               <h3
                 id="pending-plan-title"
-                className="mb-2 text-[20px] font-semibold text-noir-800"
+                className="mb-2 text-[20px] font-semibold text-[var(--hb-text-strong)]"
               >
                 {pendingPlanNotice
                   ? "파트너 확인을 요청했어요"
                   : "저장되지 않은 입력이 있어요"}
               </h3>
               {pendingPlanNotice && (
-                <p className="mb-3 text-[13px] leading-relaxed text-taupe-500">
+                <p className="mb-3 text-[13px] leading-relaxed text-[var(--hb-text-body)]">
                   {pendingPlanNotice}
                 </p>
               )}
               {pendingPlanNotice && (
                 <p
-                  className={`${deferredProgressNotice ? "mb-3" : "mb-6"} text-[12px] leading-relaxed text-taupe-400`}
+                  className={`${deferredProgressNotice ? "mb-3" : "mb-6"} text-[12px] leading-relaxed text-[var(--hb-text-muted)]`}
                 >
                   아직 계획에는 반영되지 않았어요. 두 사람이 모두 확인하면 자동으로 반영됩니다.
                 </p>
@@ -731,10 +731,10 @@ export default function OnboardingPage() {
                 </svg>
               </div>
 
-              <h3 className="text-[20px] font-semibold text-noir-800 mb-2">
+              <h3 className="text-[20px] font-semibold text-[var(--hb-text-strong)] mb-2">
                 파트너 초대 코드
               </h3>
-              <p className="text-[13px] text-taupe-400 mb-5 leading-relaxed">
+              <p className="text-[13px] text-[var(--hb-text-muted)] mb-5 leading-relaxed">
                 코드·링크를 보내거나, 옆에 있는 파트너에게 QR을 바로 보여주세요.
                 <br />
                 파트너가 들어오면 두 사람이 같은 화면을 봐요.
@@ -772,7 +772,7 @@ export default function OnboardingPage() {
                         window.location.origin,
                       );
                 }}
-                className="w-full py-3 rounded-2xl text-[14px] font-medium text-taupe-500 hover:text-noir-800 hover:bg-black/[0.02] transition-all"
+                className="w-full py-3 rounded-2xl text-[14px] font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-black/[0.02] transition-all"
               >
                 결혼 준비 계속하기
               </button>

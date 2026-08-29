@@ -189,8 +189,8 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
 
   return (
     <section data-testid="lounge-first-arrival" className="grid gap-4">
-      <div className="rounded-[22px] border border-[#eadfc9] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:p-6">
-        <p className="inline-flex items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+      <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)] md:p-6">
+        <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           확인했어요
         </p>
@@ -201,7 +201,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
           {view.echo.map((line) => (
             <div
               key={line.label}
-              className="min-w-0 rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] p-3.5"
+              className="min-w-0 rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-3.5"
             >
               <dt className="text-[11px] font-semibold text-[#9d6f36]">{line.label}</dt>
               <dd className="mt-1.5 truncate text-[14px] font-semibold text-[#071629]">
@@ -213,7 +213,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
       </div>
 
       {/* 화면에서 가장 큰 요소. 다음에 할 수 있는 일은 하나만 크게 세운다. */}
-      <div className="rounded-[22px] border border-[#29433e] bg-[#36534E] p-5 text-white shadow-[0_16px_38px_rgba(54,83,78,0.16)] md:p-6">
+      <div className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[0_16px_38px_rgba(54,83,78,0.16)] md:p-6">
         <p className="text-[12px] font-semibold text-[#ecd7a4]">다음 걸음 하나</p>
         <h2 className="mt-1.5 font-serif-kr text-[27px] font-medium leading-tight md:text-[30px]">
           {view.nextStep.title}
@@ -223,7 +223,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
         </p>
         <Link
           {...nextStepLink}
-          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
+          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
         >
           {view.nextStep.cta}
           <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -231,9 +231,9 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
       </div>
 
       {view.invite && (
-        <div className="rounded-[22px] border border-[#eadfc9] bg-[#fffaf0] p-5 md:p-6">
+        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-[#fffaf0] p-5 md:p-6">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[#36534E]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)]">
               <Users className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -248,7 +248,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               </p>
               <Link
                 {...inviteLink}
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#36534E] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
               >
                 {view.invite.cta}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -269,7 +269,7 @@ export function LoungeFirstArrivalEmptyNote({ view }: { view: LoungeFirstRunView
   return (
     <p
       data-testid="lounge-first-arrival-empty-note"
-      className="inline-flex items-start gap-2 rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-[12px] font-medium leading-[1.6] text-[#5d6879]"
+      className="inline-flex items-start gap-2 rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-[12px] font-medium leading-[1.6] text-[#5d6879]"
     >
       <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#9d6f36]" aria-hidden="true" />
       {view.emptyNote}

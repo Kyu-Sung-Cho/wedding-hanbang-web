@@ -1,9 +1,9 @@
 ﻿export default function CategoryFeedLoading() {
   return (
-    <div className="min-h-screen bg-[#fbf8f2] flex flex-col">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] flex flex-col">
       <div className="flex-1 flex w-full max-w-[1320px] mx-auto">
         {/* 왼쪽 사이드바 — 카테고리 페이지 실제 폭 그대로 */}
-        <aside className="hidden xl:flex bg-[#fbf8f2] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[#e5d8ca] z-40">
+        <aside className="hidden xl:flex bg-[var(--hb-surface-page)] h-[calc(100vh-4rem)] w-56 2xl:w-60 sticky top-16 flex-col pt-6 pb-5 px-3 border-r border-[var(--hb-hairline)] z-40">
           <div className="space-y-2">
             {Array.from({ length: 8 }).map((_, i) => (
               <div
@@ -26,7 +26,7 @@
               <div className="h-5 w-64 bg-[#f3efed] rounded animate-pulse" />
             </div>
 
-            <div className="flex items-center gap-3 px-1 border-b border-[#e5d8ca] pb-4">
+            <div className="flex items-center gap-3 px-1 border-b border-[var(--hb-hairline)] pb-4">
               <div className="h-8 w-16 bg-[#f1e8da] rounded-lg animate-pulse" />
               <div className="h-8 w-16 bg-[#f1e8da] rounded-lg animate-pulse" />
               <div className="h-8 w-20 bg-[#f1e8da] rounded-lg animate-pulse" />
@@ -59,7 +59,7 @@
         </main>
 
         {/* 오른쪽 사이드바 skeleton */}
-        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[#e5d8ca] sticky top-16 h-[calc(100vh-4rem)] bg-[#fbf8f2] space-y-4">
+        <aside className="hidden xl:block w-72 2xl:w-80 shrink-0 px-4 2xl:px-5 py-6 border-l border-[var(--hb-hairline)] sticky top-16 h-[calc(100vh-4rem)] bg-[var(--hb-surface-page)] space-y-4">
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-36 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-64 animate-pulse" />
           <div className="bg-white rounded-xl border border-[#F0EFED] p-5 h-28 animate-pulse" />

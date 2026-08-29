@@ -149,25 +149,25 @@ export default function ImageUploader({
           onClick={() => fileInputRef.current?.click()}
           className={`flex flex-col items-center justify-center gap-2 py-8 px-4 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${
             dragOver
-              ? "border-[#36534E] bg-[#36534E]/5"
+              ? "border-[var(--hb-primary)] bg-[var(--hb-primary)]/5"
               : "border-[#F5F2ED] bg-[#FAF8F5] hover:border-[#B5ADA3]"
           }`}
         >
           {uploading ? (
-            <Loader2 className="w-8 h-8 text-[#36534E] animate-spin" />
+            <Loader2 className="w-8 h-8 text-[var(--hb-text-strong)] animate-spin" />
           ) : (
-            <Upload className="w-8 h-8 text-[#B5ADA3]" />
+            <Upload className="w-8 h-8 text-[var(--hb-text-muted)]" />
           )}
           <div className="text-center">
-            <p className="text-sm font-medium text-[#928980]">
+            <p className="text-sm font-medium text-[var(--hb-text-muted)]">
               {uploading
                 ? progress || "업로드 중..."
                 : "클릭하거나 파일을 드래그하세요"}
             </p>
-            <p className="mt-1 text-xs text-[#B5ADA3]">
+            <p className="mt-1 text-xs text-[var(--hb-text-muted)]">
               이미지 5MB · GIF 6MB / {images.length}/{max}개
             </p>
-            <p className="mt-0.5 text-xs text-[#B5ADA3]">
+            <p className="mt-0.5 text-xs text-[var(--hb-text-muted)]">
               JPG, PNG, GIF, WEBP
             </p>
           </div>
@@ -199,7 +199,7 @@ export default function ImageUploader({
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-[#F5F2ED] border border-[#F5F2ED]">
                 {isVideoUrl(url) ? (
                   <div className="w-full h-full flex items-center justify-center bg-[#1A1A1F]/10">
-                    <Film className="w-8 h-8 text-[#928980]" />
+                    <Film className="w-8 h-8 text-[var(--hb-text-muted)]" />
                   </div>
                 ) : (
                   <Image
@@ -214,7 +214,7 @@ export default function ImageUploader({
               <button
                 type="button"
                 onClick={() => removeImage(i)}
-                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[#36534E]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                className="absolute -top-2 -right-2 w-6 h-6 flex items-center justify-center bg-[var(--hb-primary)]/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label={`파일 ${i + 1} 삭제`}
               >
                 <X className="w-3.5 h-3.5" />
@@ -227,7 +227,7 @@ export default function ImageUploader({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#F5F2ED] text-[#B5ADA3] hover:border-[#36534E] hover:text-[#36534E] transition-colors"
+              className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#F5F2ED] text-[var(--hb-text-muted)] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] transition-colors"
             >
               <ImageIcon className="w-5 h-5" />
               <span className="text-[10px]">추가</span>

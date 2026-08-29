@@ -46,7 +46,8 @@
 - **Champagne taupe:** `#B89785` and `#E2D3C8` for rare highlights, not primary buttons everywhere.
 - **Semantic:** success `#6D806E`, warning `#B89785`, danger `#D95F5F`, info `#36534E`.
 - **Rule:** Do not turn the app into a pink app. Dusty mauve should guide attention, not paint every object.
-- **Paper — landing only (2026-08-27):** The landing is built as a wedding-preparation notebook, and
+- **Paper — 제품 전체의 표면 언어 (2026-08-27 랜딩 도입 · 2026-08-28 제품으로 확장):**
+  The landing is built as a wedding-preparation notebook, and
   that needs paper and pens the brand palette does not have. Source of truth is the `paper` group in
   `packages/design-tokens/src/colors.ts`; mirrored into `globals.css` as `--color-paper-*`.
   - Paper: sheet `#FDFCF7`, tint `#F8F4EA`, card `#FFFFFF`, rule `#EDEAE0`, edge `#E2DED2`,
@@ -54,11 +55,24 @@
     without it the "tinted" sections repaint the page colour and the section boundary vanishes.
   - Ink: `#26251F`, soft `#4A483F`, faint `#605E54`
   - Pens: blue `#35638A` (links, handwritten emphasis), hover `#24465F`, red circle `#B8452F`,
-    tape `#F6E7A8` on `#6C5410`, outline-button border `#CFCABA`
+    tape `#F6E7A8` on `#6C5410`, outline-button border `#8F8A7A`
+    - ⚠️ outline-button border 는 **장식이 아니라 컨트롤의 경계**다. 테두리 버튼은 이 선
+      하나로 "누를 수 있는 것"이 되므로 WCAG 1.4.11 의 3:1 이 적용된다. 2026-08-29 실측:
+      옛 `#CFCABA` 는 sheet 1.60 / card 1.64 / tint 1.49:1 로 셋 다 미달이었고, 지금 값은
+      3.36 / 3.45 / 3.13:1 이다. 밝게 되돌리려면 세 지면 모두에서 3:1 을 다시 재라.
+      카드 테두리는 `edge` 다 — 둘을 바꿔 쓰지 마라.
   - Margin florals (line art): stem `#A2937F`, gypsophila `#8FA08D`
-  - **Rule:** Landing surfaces only. Product screens keep the eucalyptus-rose palette above.
-    The brand palette still sets the page's overall temperature — the ivory ground, the rose and
-    sage in the margin florals — and `paper` only supplies what sits on top of it.
+  - **Rule (2026-08-28에 바뀜):** ~~Landing surfaces only~~ → **제품 화면도 이 표면 언어를 쓴다.**
+    파운더 결정으로 종이 문법이 제품 전체로 넓어졌다. 바탕·카드·선·잉크는 `paper` 에서
+    나온다. 화면마다 색을 새로 정하지 말고 **역할 변수**(`--hb-*`)를 써라 — 값은
+    `packages/design-tokens/src/webCssVars.ts` 한 곳이 정하고, `:root`·`service-theme`·
+    `community-theme` 세 블록이 거기서 생성된다.
+  - **브랜드 팔레트는 뜻을 진다.** 유칼립투스·로즈·세이지가 사라진 게 아니라 역할이
+    갈렸다 — 종이가 **바탕**을, 브랜드가 **뜻**(성공·경고·위험, 여백 꽃의 온도)을 맡는다.
+    둘 다 종이로 칠하면 화면에서 "성공"과 "본문"을 구분할 수 없다. 실제로 그랬다:
+    `--hb-success` 가 본문과 같은 `#36534E` 였다.
+  - **Rule:** 손글씨(Gaegu)는 이 확장에 포함되지 않는다. 위 Typography 절의 금지가
+    그대로 살아 있다 — 예산표·일정·체크리스트처럼 훑어 읽는 화면에서 읽히지 않는다.
 
 ## Spacing
 
@@ -132,3 +146,6 @@
 | 2026-08-27 | 랜딩 헤드라인 스케일의 출처가 `landingType.ts` 에서 `components/landing/redesign/notebook.tsx` 로 옮겨간다 | 랜딩을 "결혼 준비 노트" 문법으로 다시 지으면서 섹션 구성이 통째로 바뀌었다(옛 섹션 7개 삭제). 규칙 자체는 그대로다 — 단계는 셋이고 H1 이 항상 가장 크다. 위 2026-08-05 줄의 위계 역전 사고를 막는 것이 목적이고, `notebook.tsx` 의 `sectionTitle` 최대값(2.9rem)이 히어로 최대값(3.6rem)보다 작은 것이 그 장치다. |
 | 2026-08-27 | 랜딩 카드의 글줄은 줄 간격(32px)에 맞춘다 | 노트 카드의 줄무늬는 32px 간격인데 본문이 `leading-[1.7]`(25.5px)이라 글이 줄 위에 안 앉고 어긋나, 줄무늬가 종이가 아니라 그냥 배경 무늬로 읽혔다. `notebook.tsx` 의 `ruled` 가 16px/32px 를 들고 있고 카드 안쪽 여백도 32의 배수다. |
 | 2026-08-27 | 크기를 정하는 CSS 클래스에는 유틸리티 크기를 얹지 않는다 | `.landing-tape` 가 `font-size` 를 갖고 있는데 쓰는 쪽에서 `text-[15px]` 를 걸었더니 클래스가 이겨서 인라인 크기가 조용히 죽었다(화면은 12px 로 나왔다). 크기는 한쪽만 소유한다. |
+| 2026-08-28 | 랜딩의 종이 표면 언어를 제품 전체로 넓힌다. 손글씨는 넓히지 않는다 | 파운더 지시: "모든 디자인을 이렇게 바꾸라고 일관되게 레이아웃은 다 다르겠지만 스타일은 비슷하게 이쁘게해줘". 실측된 원인은 취향이 아니라 구조였다 — 화면에 직접 박힌 색이 **514종**이고(`#243832` 534회 옆에 거의 같은 `#263832` 182회가 따로 논다), 공유 프리미티브는 `Button` 하나뿐인데 그마저 77개 화면 중 **4개**만 쓴다. 그래서 화면을 하나씩 칠하는 대신 **역할 변수의 값을 옮겼다** — `webCssVars.ts` 가 `:root`·`service-theme`·`community-theme` 세 블록을 같은 토큰에서 생성하므로, 브리지 규칙 65개가 참조하는 색이 한 번에 따라온다. 손글씨를 제외한 이유는 데이터가 빽빽한 화면에서 읽히지 않기 때문이다. |
+| 2026-08-28 | `--hb-success` 를 유칼립투스에서 `sage.deep`(#637465)으로 옮기고 `sage.deep` 을 새 토큰으로 만든다 | success 가 본문과 같은 색(#36534E)이라 화면에서 "성공"과 "본문"이 구별되지 않았다. DESIGN.md 가 배정한 sage 로 되돌리되, `sage[500]`(#6D806E)은 흰 카드에서 **4.23:1** 이라 본문 크기 글자에 못 쓴다(계산으로 확인). 로즈가 `600`(4.95) 옆에 `700`(6.25)을 둔 것과 같은 구조로 어두운 단계를 만들었고, 4.98:1 로 rose-600 과 같은 대비 등급에 앉는다. |
+| 2026-08-28 | 초점 링을 파란 펜(#35638A)으로 둔다 | 잉크(#26251F)와 같은 색이면 어두운 버튼 위에서 링이 사라진다. 링은 `ring-offset-2` 로 버튼에서 떨어져 **바탕 위**에 그려지므로 판정 기준은 바탕과의 대비다(6.19:1). 처음에 버튼 색과 재서 2.42 로 "미달"을 냈는데, 그 짝은 화면에 존재하지 않는다. |

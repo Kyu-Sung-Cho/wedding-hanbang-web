@@ -37,7 +37,7 @@ export default function QuickReviewPage() {
   const [showAdModal, setShowAdModal] = useState(false);
 
   const inputCls =
-    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none text-base";
+    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none text-base";
 
   function validate(): string | null {
     if (!vendorName.trim()) return "업체명을 입력해주세요.";
@@ -100,7 +100,7 @@ export default function QuickReviewPage() {
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10">
       <h1
-        className="font-serif text-3xl font-medium text-[#1A1A1F] mb-2"
+        className="font-serif text-3xl font-medium text-[var(--hb-text-strong)] mb-2"
         style={{ fontFamily: "'Paperlogy', sans-serif" }}
       >
         15초 후기
@@ -110,14 +110,14 @@ export default function QuickReviewPage() {
       </p>
 
       {!profile ? (
-        <div className="mb-6 rounded-2xl border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">
-          <p className="text-sm font-semibold text-[#243832]">후기를 올리려면 로그인이 필요해요</p>
-          <p className="mt-1 text-sm leading-6 text-[#243832]/70">
+        <div className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-5 py-4">
+          <p className="text-sm font-semibold text-[var(--hb-text-strong)]">후기를 올리려면 로그인이 필요해요</p>
+          <p className="mt-1 text-sm leading-6 text-[var(--hb-text-strong)]/70">
             먼저 로그인해두면 다 쓰고 나서 다시 쓰는 일이 없어요. 닉네임은 익명으로 시작하고, 실명은 공개되지 않아요.
           </p>
           <Link
             href={QUICK_REVIEW_LOGIN_HREF}
-            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white"
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
           >
             로그인하고 이어서 쓰기
           </Link>
@@ -129,7 +129,7 @@ export default function QuickReviewPage() {
         className="bg-white border border-[#F0EFED] rounded-2xl p-6 sm:p-8 space-y-5"
       >
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
+          <label className="block text-sm font-medium text-[var(--hb-text-strong)] mb-2">
             업체명
           </label>
           <input
@@ -143,7 +143,7 @@ export default function QuickReviewPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
+          <label className="block text-sm font-medium text-[var(--hb-text-strong)] mb-2">
             카테고리
           </label>
           <select
@@ -160,7 +160,7 @@ export default function QuickReviewPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">별점</label>
+          <label className="block text-sm font-medium text-[var(--hb-text-strong)] mb-2">별점</label>
           <div className="flex gap-1">
             {[1, 2, 3, 4, 5].map((n) => {
               const active = (hoverRating || rating) >= n;
@@ -188,7 +188,7 @@ export default function QuickReviewPage() {
 
         {MEDIA_PUBLISHING_UI_ENABLED && (
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
+          <label className="block text-sm font-medium text-[var(--hb-text-strong)] mb-2">
             사진 (최대 3장)
           </label>
           <ImageUploader images={images} onChange={setImages} max={3} />
@@ -196,8 +196,8 @@ export default function QuickReviewPage() {
         )}
 
         <div>
-          <label className="block text-sm font-medium text-[#1A1A1F] mb-2">
-            한 줄 후기 <span className="text-[#B5ADA3] text-xs">({oneLiner.length}/100)</span>
+          <label className="block text-sm font-medium text-[var(--hb-text-strong)] mb-2">
+            한 줄 후기 <span className="text-[var(--hb-text-muted)] text-xs">({oneLiner.length}/100)</span>
           </label>
           <input
             type="text"
@@ -212,7 +212,7 @@ export default function QuickReviewPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-[#36534E] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full bg-[var(--hb-primary)] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "후기 등록"}
         </button>

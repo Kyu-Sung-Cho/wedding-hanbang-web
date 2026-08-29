@@ -101,7 +101,7 @@ export default function BlockUserButton({
               <div>
                 <h2
                   id={`block-user-title-${userId}`}
-                  className="text-base font-semibold text-[#1A1A1F]"
+                  className="text-base font-semibold text-[var(--hb-text-strong)]"
                 >
                   {completed ? "차단했어요" : `${nickname}님을 차단할까요?`}
                 </h2>
@@ -122,24 +122,24 @@ export default function BlockUserButton({
 
             {completed ? (
               <div className="p-5">
-                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4f1] text-[#36534E]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4f1] text-[var(--hb-text-strong)]">
                   <Check className="h-5 w-5" />
                 </div>
-                <p className="mt-3 text-sm leading-relaxed text-[#635b51]">
+                <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-body)]">
                   로그인한 커뮤니티에서 서로의 새 글·답변·알림을 숨기고 새
                   답글과 직접 답변 요청을 막았어요.
                 </p>
                 <div className="mt-5 flex gap-2">
                   <Link
                     href={weddingPath("/community/my/blocks")}
-                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-[#d8d1cc] px-4 text-sm font-semibold text-[#635b51]"
+                    className="inline-flex min-h-11 flex-1 items-center justify-center rounded-lg border border-[#d8d1cc] px-4 text-sm font-semibold text-[var(--hb-text-body)]"
                   >
                     차단 관리
                   </Link>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    className="min-h-11 flex-1 rounded-lg bg-[#36534E] px-4 text-sm font-semibold text-white"
+                    className="min-h-11 flex-1 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
                   >
                     확인
                   </button>
@@ -147,12 +147,12 @@ export default function BlockUserButton({
               </div>
             ) : (
               <div className="p-5">
-                <ul className="space-y-2 text-sm leading-relaxed text-[#635b51]">
+                <ul className="space-y-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
                   <li>• 로그인한 피드·검색·동기방에서 서로의 활동을 숨겨요.</li>
                   <li>• 새 답글·알림·직접 경험 답변 요청을 서로 만들 수 없어요.</li>
                   <li>• 상대에게 차단 알림이나 차단한 사람의 이름은 보내지 않아요.</li>
                 </ul>
-                <p className="mt-4 rounded-xl bg-[#FBF8F2] px-3 py-3 text-xs leading-relaxed text-[#7D7166]">
+                <p className="mt-4 rounded-xl bg-[var(--hb-surface-page)] px-3 py-3 text-xs leading-relaxed text-[var(--hb-text-muted)]">
                   공개 글은 로그아웃한 공개 주소에서 계속 보일 수 있어요. 공개
                   자체를 검토해야 하는 괴롭힘·개인정보 문제라면 차단과 별도로
                   신고해 주세요.
@@ -170,7 +170,7 @@ export default function BlockUserButton({
                     type="button"
                     onClick={() => setOpen(false)}
                     disabled={submitting}
-                    className="min-h-11 flex-1 rounded-lg border border-[#d8d1cc] px-4 text-sm font-semibold text-[#635b51] disabled:opacity-40"
+                    className="min-h-11 flex-1 rounded-lg border border-[#d8d1cc] px-4 text-sm font-semibold text-[var(--hb-text-body)] disabled:opacity-40"
                   >
                     취소
                   </button>

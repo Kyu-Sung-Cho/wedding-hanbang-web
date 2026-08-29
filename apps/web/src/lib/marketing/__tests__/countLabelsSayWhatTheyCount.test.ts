@@ -219,7 +219,10 @@ describe("랜딩은 수 대신 출처를 남긴다", () => {
     // ⚠️ 파일 전체에서 찾던 옛 형태는 **자리를 안 봤다.** 출처 문장을 히어로 note 로
     // 옮겨도(=푸터 고지가 사라져도) 통과했다. 이 고지는 푸터가 지는 몫이므로
     // `footer` 블록에서 찾는다 — 경계를 못 찾으면 `contentBlock` 이 던진다.
-    const footerCopy = contentBlock("footer", "notDoing");
+    // 2026-08-29: `footer` 다음 경계가 `notDoing` 이었는데 그 블록이 없어졌다
+      // (`boundaries` 로 이름이 바뀌었고 순서도 footer 앞으로 갔다). 지금 `footer` 는
+      // `landingContent` 의 마지막 블록이라 다음 최상위 export 를 경계로 쓴다.
+      const footerCopy = contentBlock("footer", "headerNav");
     expect(footerCopy).toContain("한국소비자원 참가격");
     expect(footerCopy, "공시 기준 시점이 없다").toMatch(/\d{4}년 \d{1,2}월 공시 기준/u);
     expect(footerCopy, "화면 집계 확인 시점이 없다")
@@ -239,13 +242,53 @@ describe("장면 수는 도착 화면이 묻는 문항 수다", () => {
   );
 
   it("첫 화면과 마무리가 같은 수를 말한다", () => {
-    // 이 두 자리가 무방비였다. `landingAvailableNow.test.ts` 는 `availableNow`
-    // 블록만 보므로, 히어로를 "열여섯 장면"으로 바꿔도 아무도 안 깨졌다.
-    // 히어로는 첫 화면이고 마무리는 마지막 행동이다 — 둘 다 이 수로 사람을 부른다.
-    expect(contentBlock("hero", "scenes"), `라이브 설정은 ${live} 장면이다`)
-      .toContain(`${live} 장면`);
-    expect(contentBlock("closing", "footer"), `라이브 설정은 ${live} 장면이다`)
-      .toContain(`${live} 장면`);
+    // 이 자리가 무방비였다. `landingAvailableNow.test.ts` 는 `availableNow` 블록만
+    // 보므로, 히어로를 "열여섯 장면"으로 바꿔도 아무도 안 깨졌다.
+    //
+    // 2026-08-29: 랜딩이 정본 시안으로 다시 지어지면서 히어로가 더 이상 장면 수로
+    // 사람을 부르지 않는다 — 첫 행동이 공시 가격으로 바뀌었다. 지키려는 것은 특정
+    // 자리가 아니라 **화면이 말하는 장면 수가 도착 화면의 문항 수와 같은가** 이다.
+    //
+    // ⚠️ 처음에는 `availableNow` 한 블록만 보도록 옮겼다. 그런데 `closing.note` 가
+    // 여전히 "… 견적 점검, 스무 장면, 예절 가이드 …" 라고 말한다. 자리를 하나만
+    // 집으면 **다른 자리는 무방비로 남는다** — 이 검사가 원래 고치려던 바로 그
+    // 실패 방식이다. 그래서 자리를 손으로 적지 않고 **`장면` 이라고 말하는 블록을
+    // 전부 찾아** 하나하나 라이브 라벨과 대조한다. 카피가 옮겨 다녀도 따라간다.
+    const BLOCKS = [
+      ["hero", "amoraNote"],
+      ["amoraNote", "scenes"],
+      ["scenes", "noSide"],
+      ["noSide", "oneRoom"],
+      ["oneRoom", "privateLane"],
+      ["privateLane", "community"],
+      ["community", "availableNow"],
+      ["availableNow", "confirm"],
+      ["confirm", "boundaries"],
+      ["boundaries", "closing"],
+      ["closing", "footer"],
+      ["footer", "headerNav"],
+    ] as const;
+
+    const speaking = BLOCKS
+      .map(([from, to]) => [from, contentBlock(from, to)] as const)
+      .filter(([, text]) => text.includes("장면"));
+
+    expect(
+      speaking.map(([name]) => name),
+      "랜딩 어느 블록도 장면 수를 말하지 않는다 — 이 검사가 헛돈다",
+    ).not.toEqual([]);
+
+    for (const [name, text] of speaking) {
+      expect(text, `${name} 블록의 장면 수가 라이브 설정(${live})과 다르다`)
+        .toContain(`${live} 장면`);
+    }
+
+    // 그 수를 말하는 자리에서 도착 화면으로 가는 길도 살아 있어야 한다 — 수만 맞고
+    // 링크가 없으면 사람은 어디로 가야 할지 모른다.
+    expect(
+      BLOCKS.map(([from, to]) => contentBlock(from, to)).join(""),
+      "웨딩코드로 가는 길이 랜딩에서 사라졌다",
+    ).toMatch(/href:\s*"\/wedding-code"/u);
   });
 
   it("랜딩 어디에도 다른 장면 수가 남아 있지 않다", () => {

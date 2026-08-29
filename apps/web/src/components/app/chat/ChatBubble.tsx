@@ -212,7 +212,7 @@ export function AiFeedbackRow({
     return (
       <div
         role="status"
-        className="mt-2 flex items-center gap-1.5 text-sm text-[#B5ADA3]"
+        className="mt-2 flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)]"
       >
         <Check className="w-4 h-4" />
         <span>의견을 남겼어요</span>
@@ -230,7 +230,7 @@ export function AiFeedbackRow({
             onChange={(e) => setCorrection(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleBadSubmit(); }}
             placeholder="예: 더 짧게, 덜 딱딱하게"
-            className="flex-1 text-base px-3 py-2 rounded-lg border border-[#E8E0D8] bg-[#FAF8F5] text-[#1A1A1F] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
+            className="flex-1 text-base px-3 py-2 rounded-lg border border-[#E8E0D8] bg-[#FAF8F5] text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
             autoFocus
             disabled={isSubmitting}
           />
@@ -249,7 +249,7 @@ export function AiFeedbackRow({
             {feedbackError}
           </p>
         ) : null}
-        <p className="text-xs leading-relaxed text-[#928980]">
+        <p className="text-xs leading-relaxed text-[var(--hb-text-muted)]">
           이 의견과 해당 공유 답변은 품질 확인용 기록에 저장돼요. 민감정보는
           적지 마세요. 다음 답변을 바로 바꾸려면 채팅에 그대로 말씀해 주세요.
         </p>
@@ -272,7 +272,7 @@ export function AiFeedbackRow({
         type="button"
         onClick={handleGood}
         disabled={isSubmitting}
-        className="flex items-center gap-1.5 text-sm text-[#B5ADA3] hover:text-[#C4967E] transition-colors disabled:opacity-40"
+        className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] hover:text-[#C4967E] transition-colors disabled:opacity-40"
         title="도움됐어요"
       >
         <ThumbsUp className="w-4 h-4" />
@@ -282,7 +282,7 @@ export function AiFeedbackRow({
         type="button"
         onClick={handleBadClick}
         disabled={isSubmitting}
-        className="flex items-center gap-1.5 text-sm text-[#B5ADA3] hover:text-[#928980] transition-colors disabled:opacity-40"
+        className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-text-muted)] transition-colors disabled:opacity-40"
         title="아쉬워요"
       >
         <ThumbsDown className="w-4 h-4" />
@@ -329,7 +329,7 @@ function SaveNoteButton({ messageId, content }: { messageId: string; content: st
     <button
       onClick={handleSave}
       disabled={status === "saving"}
-      className="flex items-center gap-1.5 text-sm text-[#B5ADA3] transition-colors hover:text-[#C4967E] disabled:opacity-40"
+      className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] transition-colors hover:text-[#C4967E] disabled:opacity-40"
       title="나중에 다시 보기"
     >
       <Bookmark className="w-4 h-4" />
@@ -381,7 +381,7 @@ function renderInlineMd(text: string, prefix: string): React.ReactNode {
   return parts.map((part, i) => {
     if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
       return (
-        <strong key={`${prefix}-${i}`} className="font-semibold text-[#1A1A1F]">
+        <strong key={`${prefix}-${i}`} className="font-semibold text-[var(--hb-text-strong)]">
           {part.slice(2, -2)}
         </strong>
       );
@@ -437,7 +437,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
                 {headerCells.map((c, ci) => (
                   <th
                     key={ci}
-                    className="px-2.5 py-1.5 text-left font-semibold text-[#1A1A1F] border-b border-[#E8DDD3]"
+                    className="px-2.5 py-1.5 text-left font-semibold text-[var(--hb-text-strong)] border-b border-[#E8DDD3]"
                   >
                     {renderInlineMd(c, `th-${i}-${ci}`)}
                   </th>
@@ -450,7 +450,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
                   {row.map((c, ci) => (
                     <td
                       key={ci}
-                      className="px-2.5 py-1.5 text-[#1A1A1F] border-b border-[#E8DDD3]/60 align-top"
+                      className="px-2.5 py-1.5 text-[var(--hb-text-strong)] border-b border-[#E8DDD3]/60 align-top"
                     >
                       {renderInlineMd(c, `td-${i}-${ri}-${ci}`)}
                     </td>
@@ -471,7 +471,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
       blocks.push(
         <div
           key={i}
-          className="font-serif-kr font-semibold text-base sm:text-lg text-[#1A1A1F] mt-3 first:mt-0 mb-1.5"
+          className="font-serif-kr font-semibold text-base sm:text-lg text-[var(--hb-text-strong)] mt-3 first:mt-0 mb-1.5"
         >
           {renderInlineMd(headingMatch[2], `h-${i}`)}
         </div>
@@ -549,7 +549,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
       blocks.push(
         <div
           key={`q-${i}`}
-          className="my-2 border-l-2 border-[#C4967E]/60 bg-[#FBF7F4] py-2 pl-3 pr-2 text-[#504444]"
+          className="my-2 border-l-2 border-[#C4967E]/60 bg-[#FBF7F4] py-2 pl-3 pr-2 text-[var(--hb-text-body)]"
         >
           {quoted.map((q, qi) => (
             <div key={qi} className="leading-relaxed">
@@ -641,7 +641,7 @@ export default function ChatBubble({
         </div>
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <span className="text-base font-medium text-[#928980] flex items-center gap-1.5">
+          <span className="text-base font-medium text-[var(--hb-text-muted)] flex items-center gap-1.5">
             아모라
             {aiIsPrivate && (
               <span className="inline-flex items-center gap-1 text-xs text-[#5a6147] font-normal">
@@ -653,7 +653,7 @@ export default function ChatBubble({
           <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
-            <div className="text-sm sm:text-[0.9375rem] text-[#1A1A1F] leading-relaxed break-words">
+            <div className="text-sm sm:text-[0.9375rem] text-[var(--hb-text-strong)] leading-relaxed break-words">
               {renderAiMarkdown(cleanText)}
             </div>
             {/* 2026-08-19 — 태그가 가리키는 챕터로 직접 보낸다. 같은 날 레거시 25편을
@@ -671,14 +671,14 @@ export default function ChatBubble({
                       {...weddingLinkProps(`/manners/${part.slug}`)}
                       className="flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
                     >
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)]">
                         <BookOpen className="h-5 w-5 text-white" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-base font-medium text-[#1A1A1F]">{part.title}</p>
-                        <p className="truncate text-sm text-[#928980]">{part.subtitle}</p>
+                        <p className="truncate text-base font-medium text-[var(--hb-text-strong)]">{part.title}</p>
+                        <p className="truncate text-sm text-[var(--hb-text-muted)]">{part.subtitle}</p>
                       </div>
-                      <ChevronRight className="h-5 w-5 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#C4967E]" />
+                      <ChevronRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[#C4967E]" />
                     </Link>
                   );
                 })}
@@ -692,7 +692,7 @@ export default function ChatBubble({
               messageId={message.id}
             />
           )}
-          <span className="text-sm text-[#B5ADA3] ml-1">
+          <span className="text-sm text-[var(--hb-text-muted)] ml-1">
             {formatTime(created_at)}
           </span>
           {/* AI 고지 footer 는 채팅 상단 헤더 배지로 통합됨 — 메시지별 반복 제거.
@@ -772,7 +772,7 @@ export default function ChatBubble({
               {displayContent}
             </p>
           </div>
-          <span className="text-sm text-[#B5ADA3] mr-1">
+          <span className="text-sm text-[var(--hb-text-muted)] mr-1">
             {formatTime(created_at)}
           </span>
         </div>
@@ -812,11 +812,11 @@ export default function ChatBubble({
         <div
           className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-2xl rounded-tl-md px-5 py-4 shadow-sm`}
         >
-          <p className="text-sm text-[#1A1A1F] leading-relaxed whitespace-pre-wrap">
+          <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap">
             {displayContent}
           </p>
         </div>
-        <span className="text-sm text-[#B5ADA3] ml-1">
+        <span className="text-sm text-[var(--hb-text-muted)] ml-1">
           {formatTime(created_at)}
         </span>
       </div>
@@ -863,14 +863,14 @@ function ClearRequestCard({
             <RefreshCw className="w-3.5 h-3.5 text-[#795252]" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[#1A1A1F]">
+            <p className="text-sm font-semibold text-[var(--hb-text-strong)]">
               {isAccepted
                 ? "함께 새로 시작했어요"
                 : isDeclined
                   ? "함께 새로시작 요청이 거절됐어요"
                   : "함께 대화 새로시작 제안"}
             </p>
-            <p className="mt-0.5 text-xs leading-relaxed text-[#504444]">
+            <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-text-body)]">
               {isAccepted
                 ? "양쪽 화면이 깨끗하게 정리됐어요. 데이터는 보존돼 있어요."
                 : isDeclined
@@ -896,7 +896,7 @@ function ClearRequestCard({
                   type="button"
                   disabled={pending !== null}
                   onClick={() => handle("decline")}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-[#E8DDD3] text-[#504444] text-xs font-medium hover:bg-[#FAF7F2] disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-[#E8DDD3] text-[var(--hb-text-body)] text-xs font-medium hover:bg-[#FAF7F2] disabled:opacity-50"
                 >
                   <XIcon className="w-3.5 h-3.5" />
                   거절

@@ -48,14 +48,14 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
         className="w-full flex items-center justify-between"
       >
         <div className="flex items-center gap-2">
-          <HelpCircle size={18} className="text-[#36534E]" />
-          <span className="text-sm font-medium text-[#1A1A1F]">
+          <HelpCircle size={18} className="text-[var(--hb-text-strong)]" />
+          <span className="text-sm font-medium text-[var(--hb-text-strong)]">
             이 글은 가격 질문이에요
           </span>
         </div>
         <div
           className={`w-10 h-6 rounded-full transition-colors relative ${
-            enabled ? "bg-[#36534E]" : "bg-[#F0EFED]"
+            enabled ? "bg-[var(--hb-primary)]" : "bg-[#F0EFED]"
           }`}
         >
           <div
@@ -69,11 +69,11 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
       {enabled && (
         <div className="mt-5 space-y-4">
           <div>
-            <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">카테고리</label>
+            <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">카테고리</label>
             <select
               value={vendorCategory}
               onChange={(e) => setVendorCategory(e.target.value as CohortContractCategory)}
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none bg-white"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none bg-white"
             >
               {COHORT_CONTRACT_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>
@@ -85,7 +85,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">
+              <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">
                 기본금 (만원) *
               </label>
               <input
@@ -93,11 +93,11 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
                 placeholder="예: 300"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">
+              <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">
                 추가금 (만원)
               </label>
               <input
@@ -105,42 +105,42 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
                 placeholder="예: 50"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">업체명</label>
+              <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">업체명</label>
               <input
                 type="text"
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
                 placeholder="선택 사항"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">지역</label>
+              <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">지역</label>
               <input
                 type="text"
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="예: 서울 강남"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
           </div>
 
           <div>
-            <label className="text-sm font-medium text-[#1A1A1F] mb-2 block">상세 내역</label>
+            <label className="text-sm font-medium text-[var(--hb-text-strong)] mb-2 block">상세 내역</label>
             <textarea
               value={details}
               onChange={(e) => setDetails(e.target.value)}
               rows={3}
               placeholder="포함 내역, 조건 등 (선택)"
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[#36534E] focus:outline-none resize-none text-sm"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none resize-none text-sm"
             />
           </div>
         </div>

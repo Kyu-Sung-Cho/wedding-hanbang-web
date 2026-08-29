@@ -24,7 +24,7 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   confirmed: { label: "확정 상태 기록(근거 미확인)", color: "text-[#795252] bg-[#795252]/15" },
   in_service: { label: "진행 기록", color: "text-[#795252] bg-[#795252]/15" },
   service_completed: { label: "진행 완료 기록", color: "text-white bg-[#795252]" },
-  completed: { label: "기록 완료", color: "text-[#504444] bg-[#F6F3F2]" },
+  completed: { label: "기록 완료", color: "text-[var(--hb-text-body)] bg-[#F6F3F2]" },
   cancelled: { label: "내부 취소 표시", color: "text-red-500 bg-red-500/10" },
 };
 
@@ -67,7 +67,7 @@ export default function BookingsPage() {
     return (
       <div className="max-w-[700px] mx-auto text-center py-20">
         <AlertCircle className="w-10 h-10 text-red-400 mx-auto mb-3" />
-        <p className="text-base text-[#504444]">{error}</p>
+        <p className="text-base text-[var(--hb-text-body)]">{error}</p>
       </div>
     );
   }
@@ -85,8 +85,8 @@ export default function BookingsPage() {
 
   return (
     <div className="mx-auto max-w-[860px]">
-      <div className="mb-5 rounded-[18px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#36534E]">
+      <div className="mb-5 rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in sm:p-5">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
           WEDDING HANBANG
         </p>
         <h1 className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[#071629] sm:text-[30px]">예약 요청 기록</h1>
@@ -96,15 +96,15 @@ export default function BookingsPage() {
       </div>
 
       {bookings.length === 0 ? (
-        <div className="rounded-[18px] border border-[#eadfc9] bg-white/90 p-8 text-center shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in">
-          <Calendar className="mx-auto mb-4 h-12 w-12 text-[#36534E]/45" />
+        <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-8 text-center shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in">
+          <Calendar className="mx-auto mb-4 h-12 w-12 text-[var(--hb-text-strong)]/45" />
           <p className="mb-2 font-serif-kr text-[22px] font-medium text-[#071629]">아직 예약 요청 기록이 없어요</p>
           <p className="mb-6 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
             업체를 둘러보고 방문·상담 후보를 아모라에 기록해 보세요
           </p>
           <Link
             {...weddingLinkProps("/vendors")}
-            className="inline-flex items-center gap-2 rounded-full bg-[#36534E] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
+            className="inline-flex items-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             업체 둘러보기
           </Link>
@@ -121,7 +121,7 @@ export default function BookingsPage() {
 
                   return (
                     <div key={booking.id} className="animate-fade-in">
-                      <div className="block rounded-[18px] border border-[#eadfc9] bg-white/90 px-5 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+                      <div className="block rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 px-5 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
                         <div className="flex items-center gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5">
@@ -168,7 +168,7 @@ export default function BookingsPage() {
                   return (
                     <div
                       key={booking.id}
-                      className="flex items-center gap-4 rounded-[16px] border border-[#eadfc9]/70 bg-white/80 px-5 py-4"
+                      className="flex items-center gap-4 rounded-[16px] border border-[var(--hb-hairline)]/70 bg-white/80 px-5 py-4"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
@@ -179,7 +179,7 @@ export default function BookingsPage() {
                             {statusConfig?.label ?? booking.status}
                           </span>
                         </div>
-                        <span className="text-sm text-[#B5ADA3]">
+                        <span className="text-sm text-[var(--hb-text-muted)]">
                           {formatBookingDate(booking.bookingDate)}
                         </span>
                       </div>

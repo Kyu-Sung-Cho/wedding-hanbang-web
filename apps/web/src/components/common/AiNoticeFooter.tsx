@@ -13,7 +13,7 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
   const isDark = variant === "dark";
 
   const borderCls = isDark ? "border-white/10" : "border-[#e5dcdc]";
-  const textCls = isDark ? "text-white/60" : "text-[#504444]";
+  const textCls = isDark ? "text-white/60" : "text-[var(--hb-text-body)]";
   const iconBgCls = isDark
     ? "bg-white/10 text-white/80"
     : "bg-[#795252]/10 text-[#795252]";

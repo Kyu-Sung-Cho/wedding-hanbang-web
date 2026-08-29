@@ -143,7 +143,7 @@ function GlobalChatAssistant() {
           {showBubble && (
             <div
               data-testid="amora-first-hello-bubble"
-              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-2xl border border-[#eadfc9] bg-white p-3 shadow-[0_14px_34px_rgba(6,26,52,0.14)] md:bottom-[6.5rem] md:right-6"
+              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-2xl border border-[var(--hb-hairline)] bg-white p-3 shadow-[0_14px_34px_rgba(6,26,52,0.14)] md:bottom-[6.5rem] md:right-6"
             >
               <button
                 type="button"
@@ -228,10 +228,10 @@ export default function AppClientLayout({
 
   if (!isInitialized || isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--hb-surface-page)]">
         <div className="text-center">
-          <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[#36534e] border-t-transparent" />
-          <p className="text-[13px] font-medium text-[#7d7166]">웨딩 라운지를 불러오는 중...</p>
+          <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-[var(--hb-primary)] border-t-transparent" />
+          <p className="text-[13px] font-medium text-[var(--hb-text-muted)]">웨딩 라운지를 불러오는 중...</p>
         </div>
       </div>
     );
@@ -242,7 +242,7 @@ export default function AppClientLayout({
       className={`${analyticsSuppressed ? "ph-no-capture " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh
-          ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[#fbf8f2]"
+          ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[var(--hb-surface-page)]"
           : "hanbang-service-theme min-h-screen bg-[linear-gradient(180deg,#fbf8f2_0%,#ffffff_48%,#f6efe5_100%)]"
       }`}
     >

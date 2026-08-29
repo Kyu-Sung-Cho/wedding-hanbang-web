@@ -195,7 +195,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           disabled={favoriteStatus === "loading" || favoriteStatus === "error" || busy !== null}
           aria-busy={favoriteStatus === "loading" || busy === "favorite"}
           aria-pressed={favorite}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#243832]/20 bg-white px-4 text-sm font-bold text-[#243832] disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[var(--hb-primary)]/20 bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)] disabled:opacity-50"
         >
           <Heart className={`size-4 ${favorite ? "fill-[#B89785] text-[#B89785]" : ""}`} aria-hidden="true" />
           {favorite ? "찜했어요" : "찜하기"}
@@ -206,7 +206,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           disabled={alertStatus === "loading" || alertStatus === "error" || busy !== null}
           aria-busy={alertStatus === "loading" || busy === "alert"}
           aria-pressed={subscribed}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-bold text-white disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-bold text-white disabled:opacity-50"
         >
           <Bell className={`size-4 ${subscribed ? "fill-white" : ""}`} aria-hidden="true" />
           {subscribed ? "가격 알림 받는 중" : "가격변동 알림 받기"}
@@ -223,7 +223,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           <button
             type="button"
             onClick={() => void loadSavedState()}
-            className="inline-flex min-h-11 items-center rounded-full border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[#FBF8F2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+            className="inline-flex min-h-11 items-center rounded-full border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
           >
             다시 불러오기
           </button>
