@@ -28,7 +28,7 @@ import { CONTENT_PATH, everyLandingComponent, rendered } from "./landingSource";
  *
  * ## 2026-08-29 개편에서 옮긴 것
  *
- * 랜딩이 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 다시 지어지면서
+ * 랜딩이 정본 시안(`docs/landing/NotebookBest.html`)으로 다시 지어지면서
  * **장면 견본을 통째로 보여 주던 `ScenesSection` 과 `scenes` 카피 블록이 없어졌다.**
  * 웨딩코드는 이제 부가 도구 카드 한 장(`availableNow.cards[1]`)으로만 나온다:
  *

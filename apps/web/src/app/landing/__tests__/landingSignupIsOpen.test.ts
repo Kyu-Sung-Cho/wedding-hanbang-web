@@ -31,7 +31,7 @@ import {
 //
 // ## 2026-08-29 개편으로 옮겨 온 자리
 //
-// 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 랜딩을 다시 지으면서 섹션이
+// 정본 시안(`docs/landing/NotebookBest.html`)으로 랜딩을 다시 지으면서 섹션이
 // 통째로 바뀌었다. 이 파일이 보던 자리도 따라 옮겼다:
 //
 //   헤더 가입 라벨   컴포넌트 하드코딩 "회원가입" → `landingContent.headerAuth.signUp`

@@ -41,7 +41,7 @@ import { contentBlock, rendered, renderedSections } from "./landingSource";
  *
  * ## 2026-08-29 재조준 — 랜딩이 정본 시안으로 다시 지어졌다
  *
- * 랜딩이 `웨딩한방-랜딩시안/NotebookBest.html` 로 다시 지어지면서 섹션 구성이 통째로
+ * 랜딩이 `docs/landing/NotebookBest.html` 로 다시 지어지면서 섹션 구성이 통째로
  * 바뀌었다. 옛 짝(ScenesSection·NoSideSection·OneRoomSection·PrivateLaneSection·
  * NotForVendorsSection)은 컴포넌트와 정본 키가 **함께** 지워졌고, 그 자리를
  * 아모라·확인·커뮤니티·지금 되는 것·경계·마무리가 나눠 받는다. 짝 목록과

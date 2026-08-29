@@ -29,7 +29,7 @@ import {
  *
  * ## 2026-08-29 개편 — 이 파일이 붙잡던 자리가 통째로 움직였다
  *
- * 랜딩이 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 다시 지어지면서:
+ * 랜딩이 정본 시안(`docs/landing/NotebookBest.html`)으로 다시 지어지면서:
  *
  * - `availableNow` 가 **최상위 export 가 아니라** `landingContent.availableNow` 안으로
  *   들어갔고, 항목은 `cards` 배열이 됐다. 옛 경계(`export const availableNow` →

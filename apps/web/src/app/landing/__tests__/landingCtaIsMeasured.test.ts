@@ -102,10 +102,26 @@ describe("랜딩 행동 버튼은 계측된다", () => {
     expect(tracked, "captureEvent 가 { source } 외의 것을 싣는다").toMatch(
       /captureEvent\(\s*"landing_cta_click"\s*,\s*\{\s*source\s*\}\s*\)/u,
     );
-    for (const leak of ["window.location", "document.", "children", "label", "textContent"]) {
-      expect(tracked, `계측이 ${leak} 를 싣는다`).not.toMatch(
-        new RegExp(`captureEvent[\s\S]{0,120}${leak.replace(".", "\.")}`, "u"),
-      );
+    // ⚠️ 이 검사는 **두 번 틀려 있었다.**
+    //
+    // 처음엔 이렇게 쓰여 있었다:
+    //   new RegExp(`captureEvent[\s\S]{0,120}${leak.replace(".", "\.")}`, "u")
+    // 템플릿 리터럴이 `\s`→`s`, `\S`→`S`, `\.`→`.` 로 **조리해서** 실제 패턴은
+    // `captureEvent[sS]{0,120}document.` 였고, `.not.toMatch` 라 **무조건 통과**했다.
+    // (`\b` 가 백스페이스로 박히던 사고와 같은 병인데, 제어문자를 안 남겨 스캐너가 못 본다.)
+    //
+    // 그걸 String.raw 로 되살리자 **오탐**이 나왔다 — `{0,120}` 은 바이트 창이라
+    // 호출 **뒤** 60자에 있는 JSX 본문 `{children}` 까지 삼킨다. 그건 계측에 실리는
+    // 것이 아니라 그냥 렌더되는 자식이다. 양쪽으로 틀렸으면 기계가 틀린 것이다.
+    //
+    // 그래서 창을 재지 않고 **호출의 인자만** 꺼내 본다. 정규식 이스케이프가 아예
+    // 필요 없어져서 위의 조리 사고가 다시 날 자리도 사라진다.
+    const calls = [...tracked.matchAll(/captureEvent\(([\s\S]*?)\)/gu)].map((m) => m[1]);
+    expect(calls.length, "captureEvent 호출을 못 찾았다 — 이 검사가 아무것도 안 보고 있다").toBeGreaterThan(0);
+    for (const args of calls) {
+      for (const leak of ["window.location", "document.", "children", "label", "textContent"]) {
+        expect(args, `계측 인자가 ${leak} 를 싣는다`).not.toContain(leak);
+      }
     }
   });
 });

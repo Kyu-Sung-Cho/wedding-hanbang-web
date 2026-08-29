@@ -16,7 +16,7 @@ export type LandingCtaSource =
   | "landing_header"
   | "landing_hero_primary"
   | "landing_hero_secondary"
-  // 2026-08-28 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 되돌리면서
+  // 2026-08-28 정본 시안(`docs/landing/NotebookBest.html`)으로 되돌리면서
   // 섹션 구성이 바뀌었다. `landing_scenes` 는 그 시안에 없는 섹션이라 없어지고,
   // 공시 위약금 비교와 "지금 되는 것" 카드 세 장이 새로 센다.
   //

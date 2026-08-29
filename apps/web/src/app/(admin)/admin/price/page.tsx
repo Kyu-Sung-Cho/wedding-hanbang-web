@@ -985,8 +985,15 @@ function PriceReviewWorkspace() {
                   <p className="leading-6">
                     <strong>업체 공개 승인도 필요합니다.</strong> 이 가격을 승인해도 업체 상태가 승인되지 않으면 소비자 화면과 아모라 추천에 노출되지 않습니다.
                   </p>
-                  <Link href="/admin/vendors" className="shrink-0 rounded-lg border border-[#C98E5C] bg-white px-3 py-2 text-xs font-bold text-[#70472D] hover:bg-[#FFF9F1]">
-                    업체 검토로 이동
+                  {/* ⚠️ 여기 `href="/admin/vendors"` 였는데 **그 페이지는 없다.** 지워진
+                      것이 아니라 만들어진 적이 없다(git 이력 0건) — 계획서의 경로를 코드에
+                      먼저 적어 둔 것으로 보인다. 눌러도 404 였다.
+                      업체 승인/반려는 `/admin` 의 "업체 심사" 탭이 이미 전부 하고 있다
+                      (`admin/page.tsx` 의 `activeTab === "vendors"`, `/api/admin/vendors`).
+                      다만 그 화면은 URL 을 읽지 않고 첫 탭("사전등록")에서 시작하므로,
+                      어디로 가는지 문구로 알려 준다. */}
+                  <Link href="/admin" className="shrink-0 rounded-lg border border-[#C98E5C] bg-white px-3 py-2 text-xs font-bold text-[#70472D] hover:bg-[#FFF9F1]">
+                    관리자 대시보드 · 업체 심사 탭
                   </Link>
                 </div>
               )}
