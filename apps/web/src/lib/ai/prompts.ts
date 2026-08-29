@@ -630,7 +630,37 @@ ${CHECKLIST_CHECK_POINTS}
   const preparationOrderSection = (() => {
     // 시작점을 묻는 턴에만 싣는다. 매 턴 실으면 저장 문맥 꼬리가 그만큼 더 잘린다.
     if (!context.startingPointAsked) return "";
-    if (!context.weddingDate) return "";
+    /**
+     * **결혼일이 없어도 답이 있어야 한다.**
+     *
+     * 예전에는 여기서 그냥 빈 문자열을 돌려줬다. 그래서 날짜를 아직 안 정한
+     * 커플이 "뭐부터 해야 해?" 라고 물으면 아모라는 아무 안내도 못 받았다 —
+     * 팀 테스트(2026-08-29 리포트)의 커플이 정확히 그 상태였고, 리포트가 지적한
+     * "초보자 리딩 부족"·"왜 그 순서인지 설명 부족"이 여기서 나왔다.
+     *
+     * 화면과 어긋나지 않는다. `/start-here` 의 날짜 없음 흐름도 아모라에게
+     * "날짜를 잡기 전에 둘이 먼저 맞춰볼 기준 한 가지"를 묻고
+     * (`StartHereClient` 의 `buildUndatedAmoraPrefill`), `EARLY_STARTING_POINTS`
+     * 는 두 곳이 같은 세 가지를 말하라고 공유해 둔 상수다.
+     */
+    if (!context.weddingDate) {
+      const earlyLines = EARLY_STARTING_POINTS
+        .map((point, index) => `${index + 1}. ${point.title}\n   · ${point.body}`)
+        .join("\n");
+      return `
+
+## 날짜를 정하기 전에 먼저 맞출 기준 3가지
+
+결혼식 날짜가 아직 없습니다. "뭐부터", "어디서부터", "순서를 모르겠어요" 에는
+아래로 답하세요. 앱의 준비 화면도 날짜가 없을 때 같은 세 가지를 기준으로 씁니다.
+
+${earlyLines}
+
+- 한꺼번에 쏟지 말고 **가장 먼저 맞출 하나**를 짚고, 왜 그것이 먼저인지 한 줄로
+  덧붙이세요.
+- "둘 다 모르겠어요" 에는 되묻지 말고 **첫 항목의 첫 걸음 한 가지**를 그대로 제안하세요.
+- 날짜는 이 세 가지가 정해진 뒤에 잡아도 됩니다. 날짜부터 정하라고 몰지 마세요.`;
+    }
     const dday = daysUntilWedding(context.weddingDate, Date.now());
     if (dday === null || dday < 0) return "";
     const { activeNow, visiblePriorities } = computePreparationPriorities(dday);
