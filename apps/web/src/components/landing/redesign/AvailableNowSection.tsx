@@ -52,7 +52,7 @@ export default function AvailableNowSection() {
               className="landing-note block px-6 py-7 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
             >
               <span className="landing-tape landing-hand mb-5 inline-block">{card.no}</span>
-              <span className="block text-[17px] font-semibold text-[var(--color-paper-ink)]">
+              <span className="block text-[18px] font-semibold text-[var(--color-paper-ink)]">
                 {card.title}
               </span>
               {/* 줄 간격 32px — 카드 줄무늬 위에 글이 얹히게. */}
@@ -75,7 +75,10 @@ export default function AvailableNowSection() {
               >
                 {link.label}
               </Link>
-              {index === 0 ? " " : ""}
+              {/* ⚠️ 여기 `{index === 0 ? " " : ""}` 가 있었다. 링크 뒤에 공백을 넣으면
+                  다음 조각 "과 " 가 앞말에서 떨어져 **"원문 과 커뮤니티 도"** 로 나갔다
+                  (2026-08-29 라이브 실측). 한국어 조사는 앞말에 붙는다 — 조각을 이어
+                  붙이는 자리에서는 조사 쪽에 공백을 두지 않는다. */}
             </span>
           ))}
           {availableNow.footTail}

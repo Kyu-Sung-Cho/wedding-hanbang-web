@@ -121,10 +121,20 @@ export function NoteCard({
   );
 }
 
-/** 파란 펜 밑줄 — 문장 안의 짧은 강조에만. */
-export function Pen({ children }: { children: ReactNode }) {
-  return <span className="landing-pen font-medium text-[var(--color-paper-ink)]">{children}</span>;
-}
+// ⚠️ 2026-08-29에 `Pen` 을 지웠다.
+//
+// 그 컴포넌트는 `landing-pen`(파란 펜 밑줄)을 `<span>` 에 씌우고 주석에
+// "문장 안의 짧은 강조에만" 이라고 적어 두었다. **호출자는 0개였는데** 그 설명이
+// 규칙을 반대로 가르쳤다.
+//
+// 이 랜딩에서 파란 펜 밑줄은 **"누를 수 있다"** 는 뜻 하나다. 정본 시안
+// (`웨딩한방-랜딩시안/NotebookBest.html`)도 `.pen` 을 실제 링크 두 곳에만 썼고,
+// `landingDesignSystem.test.ts` 의 "파란 펜 밑줄은 누를 수 있는 것에만 붙는다" 가
+// 이를 고정한다.
+//
+// 실제로 같은 날 `CommunitySection` 의 카테고리 이름 다섯이 이 밑줄을 달고 링크가
+// 아닌 채로 화면에 나가 있었다. 강조가 필요하면 굵기와 색으로 한다 — 밑줄을 다시
+// 씌우는 헬퍼를 만들지 마라.
 
 /** 빨간 펜 동그라미 — 페이지 전체에서 다섯 번을 넘기지 않는다. */
 export function Circled({ children }: { children: ReactNode }) {

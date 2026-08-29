@@ -24,10 +24,12 @@ interface CustomerNavProps {
 }
 
 /**
- * 화면 안 앵커(`#cta`)를 못 찾았을 때 보낼 곳. 베타 신청 폼이 실제로 있는 화면이다.
- * `/about` 에도 같은 앵커가 있지만 신청의 정본은 `/beta` 다.
+ * 화면 안 앵커를 못 찾았을 때 보낼 곳.
+ *
+ * 2026-08-29에 `/beta` 에서 랜딩으로 옮겼다 — 파운더 결정으로 베타를 하지 않게 되면서
+ * 그 페이지가 없어졌다. 랜딩이 본문 앵커(`#now`·`#trust`)를 들고 있는 화면이다.
  */
-const SCROLL_ANCHOR_HOME = "/beta";
+const SCROLL_ANCHOR_HOME = "/landing";
 
 export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {}) {
   const isComingSoon = demoMode ? false : isComingSoonEnv;
@@ -89,7 +91,6 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
     { href: weddingPath("/market-prices"), label: "공시 가격", scroll: false },
     { href: weddingPath("/manners"), label: "결혼 예절", scroll: false },
     { href: "/about", label: "소개", scroll: false },
-    { href: "#cta", label: "베타 신청", scroll: true },
   ];
 
   return (

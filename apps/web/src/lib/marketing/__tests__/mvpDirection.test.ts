@@ -97,13 +97,26 @@ describe("web MVP product direction", () => {
     // 카피 정본 한 곳에서 정한다**는 것이므로, 같은 일을 하는 새 문장으로 옮긴다.
     // 조건을 느슨하게 하지 않는다 — 셋 다 글자 그대로, **있어야 할 블록에서** 대조한다.
     // (파일 전체에서 찾으면 그 문장을 푸터 태그라인으로 옮겨도 통과한다.)
-    expect(contentBlock("hero", "scenes"), "제품 소개 문장이 히어로 밖으로 나갔다")
-      .toContain("웨딩한방은 둘이 어디서 갈리는지부터 봅니다");
-    // 아모라를 소개하는 자리에서 AI라는 것을 먼저 말한다(옛 `aiRole`이 지던 몫).
-    expect(contentBlock("noSide", "oneRoom"), "AI 고지가 아모라 소개 자리에 없다")
+    // 2026-08-29: 랜딩이 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 다시
+    // 지어지면서 블록 이름이 전부 바뀌었다(`scenes`·`noSide`·`oneRoom`·
+    // `notForVendors` -> `amoraNote`·`community`·`availableNow`·`boundaries`).
+    // **지키는 것은 그대로다** — 랜딩이 제품과 아모라를 무엇이라고 부르는지가
+    // 카피 정본 한 곳에서 정해지고, 각 문장이 **있어야 할 블록에** 있다.
+    // 여기서도 파일 전체를 훑지 않는다(그러면 문장을 푸터로 옮겨도 통과한다).
+    //
+    // 후크가 "둘이 어디서 갈리는지"에서 "결혼 준비 노트, 같이 정리해요"로 바뀌었다.
+    // 스무 장면은 없어진 게 아니라 "지금 되는 것" 카드 한 장으로 내려갔다.
+    const heroBlock = contentBlock("hero", "amoraNote");
+    expect(heroBlock, "제품 소개 문장이 히어로 밖으로 나갔다")
+      .toContain("결혼 준비 노트");
+    // 아모라를 무엇이라고 부르는지도 히어로가 정한다(옛 `aiRole`이 지던 몫의 앞쪽).
+    expect(heroBlock, "아모라를 부르는 이름이 히어로에 없다")
+      .toContain("아모라 · 대화를 정리하는 AI");
+    // 그리고 아모라가 **처음 말하는 자리**에서 AI라는 것을 밝힌다(뒤쪽 몫).
+    expect(contentBlock("amoraNote", "scenes"), "AI 고지가 아모라 소개 자리에 없다")
       .toContain("아모라 답변은 AI가 만든 내용이에요");
     // 도구 세 이름은 "확인한 것만 남는다"를 말하는 자리에서 불린다.
-    expect(contentBlock("confirm", "notForVendors")).toContain("예산·할 일·일정");
+    expect(contentBlock("confirm", "boundaries")).toContain("예산·할 일·일정");
 
     // 히어로가 카피를 자기 안에 하드코딩하지 않고 정본에서 읽는다.
     expect(hero).toContain("const { hero } = landingContent;");
@@ -156,16 +169,32 @@ describe("web MVP product direction", () => {
     const sections = renderedSections();
     const at = (name: string) => sections.indexOf(name);
 
-    expect(at("ScenesSection"), "장면 섹션이 렌더되지 않는다").toBeGreaterThanOrEqual(0);
-    expect(at("NotForVendorsSection"), "신뢰 설명이 장면보다 앞에 온다")
-      .toBeGreaterThan(at("ScenesSection"));
+    // 2026-08-29: `ScenesSection` · `NotForVendorsSection` 도 개편에서 없어졌다.
+    // 같은 자리를 지금은 `AvailableNowSection`(로그인 없이 바로 누를 수 있는 것 넷)과
+    // `BoundariesSection`(하지 않는 것, id="trust")이 잇는다. 지키는 것은 같다 —
+    // **사람이 먼저 만질 것이 신뢰·면책 설명보다 앞에 온다.**
+    expect(at("AvailableNowSection"), "만질 것이 렌더되지 않는다").toBeGreaterThanOrEqual(0);
+    expect(at("BoundariesSection"), "신뢰 설명이 만질 것보다 앞에 온다")
+      .toBeGreaterThan(at("AvailableNowSection"));
 
     // `landing/page.tsx` 주석이 "④를 ③ 앞으로 옮기지 마라"고 못 박은 순서다.
     // ③이 "두 사람 대화가 한 덩어리"라고 말한 직후에 사람들은 "그럼 내가 쓴 게 다
     // 가나"를 걱정하고, 그 걱정을 ④(나만 보는 자리)가 받지 않으면 ③이 불안으로 끝난다.
+    // ⚠️ 2026-08-29에 이 두 줄을 **지웠다가 같은 날 되살렸다.** 지운 이유로 이렇게
+    // 적었다: "지킬 대상이 사라졌다 — 개편된 랜딩에는 '두 사람 대화가 한 덩어리'라고
+    // 말하는 섹션이 아예 없다."
+    //
+    // **그 섹션을 없앤 게 나였다.** 내 삭제를 근거로 계약까지 지운 것이다. 파운더가
+    // 운영 랜딩(`hanbang.ai/landing`)과 비슷해야 한다고 지적해 두 섹션을 되살렸고,
+    // 그러자 규칙의 대상도 함께 돌아왔다. 다음에 이 줄을 지우고 싶으면 **먼저
+    // 물어라 — 대상이 정말 없어졌나, 아니면 내가 없앴나.**
+    //
+    // 규칙 자체는 그대로다: ③이 "두 사람 대화가 한 덩어리"라고 말한 직후에 사람들은
+    // "그럼 내가 쓴 게 다 가나"를 걱정하고, ④(나만 보는 자리)가 그 걱정을 받지 않으면
+    // ③이 불안으로 끝난다.
     expect(at("OneRoomSection"), "한 방 섹션이 렌더되지 않는다").toBeGreaterThanOrEqual(0);
-    expect(at("PrivateLaneSection"), "나만 보는 자리가 한 방 설명보다 앞에 온다")
-      .toBeGreaterThan(at("OneRoomSection"));
+    expect(at("PrivateLaneSection"), "나만 보는 자리가 한 방 설명 바로 뒤가 아니다")
+      .toBe(at("OneRoomSection") + 1);
 
     expect(community).toContain('data-community-home-order="search-first"');
     expect(searchHubRender).toBeGreaterThanOrEqual(0);
@@ -188,10 +217,13 @@ describe("web MVP product direction", () => {
     // 옮겨 갔다(`headerNav` · `footerLinks`). 읽는 곳을 옮기되, 컴포넌트가 그 정본을
     // 실제로 쓰는지도 함께 본다 — 정본만 고치고 컴포넌트가 자기 목록을 따로 들면
     // 이 검사가 화면과 무관해진다.
+    // 2026-08-29: 푸터 링크 정본이 `footerLinks` 라는 별도 export 에서
+    // `landingContent.footer.columns` 안으로 들어갔다. 묶음 이름을 데이터가 직접
+    // 들고 있어서(`heading`) 컴포넌트가 이름을 손으로 적을 자리가 없어졌다.
     const landingNav = contentBlock("headerNav");
-    const landingProductLinks = contentBlock("footerLinks", "headerAuth");
+    const landingProductLinks = contentBlock("footer", "headerNav");
     expect(landingHeader).toContain("headerNav");
-    expect(landingFooter).toContain("footerLinks");
+    expect(landingFooter, "푸터가 링크 정본을 읽지 않는다").toContain("footer.columns");
     // 목록을 읽기만 하고 목적지를 손으로 적으면(`href="#"`) 아래 라벨·앵커 검사가
     // 전부 통과하면서 눌러도 아무 데도 가지 않는다.
     expect(landingHeader, "헤더가 카피의 href를 쓰지 않는다").toContain("href={item.href}");
@@ -204,11 +236,12 @@ describe("web MVP product direction", () => {
     // #start-conditions → #scenes·#noside·#confirm·#now). 이름이 바뀐 것이지
     // 성격이 바뀐 게 아니다 — 여전히 본문 이야기 앵커이고, 제품 라우트가 아니다.
     const sectionIds = landingSectionIds();
+    // 2026-08-29 개편으로 항목이 셋으로 줄고 이름도 바뀌었다(#scenes·#noside·
+    // #confirm·#now -> #community·#now·#trust). 성격은 그대로 — 본문 이야기 앵커다.
     for (const [label, href] of [
-      ["갈린 자리 보기", "#scenes"],
-      ["편을 들지 않아요", "#noside"],
-      ["확인한 것만", "#confirm"],
+      ["커뮤니티", "#community"],
       ["지금 되는 것", "#now"],
+      ["하지 않는 것", "#trust"],
     ]) {
       expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
       // 개편 전에는 본문에 없는 앵커를 가리키는 항목이 실제로 있었다(눌러도 아무
@@ -220,10 +253,17 @@ describe("web MVP product direction", () => {
     // 항목마다 `note: "로그인 필요"`를 달았고, 지금은 묶음 이름이 그 경계를 말한다.
     // 어느 쪽이든 지키는 것은 같다 — 미로그인 방문자가 예고 없이 로그인 화면에
     // 도착하지 않는다. 그래서 묶음 이름과 배선을 함께 고정한다.
-    const landingOpenLinks = blockBetween(landingProductLinks, "  open: [", "  ],");
-    const landingBetaLinks = blockBetween(landingProductLinks, "  beta: [", "  ],");
-    expect(landingFooter).toContain('{ label: "로그인 없이", items: footerLinks.open }');
-    expect(landingFooter).toContain('{ label: "계정 베타", items: footerLinks.beta }');
+    // 묶음 이름이 데이터에 있으므로 그 이름으로 잘라 읽는다.
+    const group = (heading: string) =>
+      blockBetween(landingProductLinks, `heading: "${heading}"`, "],");
+    const landingOpenLinks = group("로그인 없이");
+    // ⚠️ 묶음 이름이 "계정 베타" 였다. **2026-08-29 파운더 결정으로 베타를 하지
+    // 않는다** — 계정은 그냥 만드는 것이다. 이름을 되돌리지 마라.
+    const landingAccountLinks = group("계정이 필요한 것");
+    expect(landingProductLinks, "베타 틀이 푸터로 돌아왔다").not.toContain("베타");
+    // 컴포넌트가 묶음을 정본에서 만들어 낸다(이름을 따로 적지 않는다).
+    expect(landingFooter, "푸터가 묶음 이름을 정본에서 읽지 않는다")
+      .toContain("label: column.heading");
     // 계정이 필요한 목적지에서 예산·할 일·일정을 계속 이름으로 부른다.
     // (옛 푸터는 "할 일·일정"과 "예산"을 따로 걸었고 지금은 한 줄로 합쳤다.)
     //
@@ -232,7 +272,7 @@ describe("web MVP product direction", () => {
     // 두 줄이 모두 `/login`으로 간다. 이름을 살려 두면 카피에 없는 링크를
     // 요구하는 셈이라 조용히 통과시킬 방법이 없다. 아모라 진입점을 푸터에
     // 되살릴지는 제품 결정이므로 여기서 대신 정하지 않고, 보고서에 남긴다.
-    expect(landingBetaLinks).toContain('label: "예산·할 일·일정"');
+    expect(landingAccountLinks).toContain('label: "예산·할 일·일정"');
     // 이 두 줄은 커뮤니티를 랜딩 안쪽 설명 띠(#community-bridge)로 보내고 "운영 공개
     // 전"이라고 달아 두는 상태를 고정했다. 그건 사실이 아니었다 — 커뮤니티는 이미
     // 열려 있고 로그인 없이 읽힌다(hanbang.ai/community 200 확인). 열려 있는 것을

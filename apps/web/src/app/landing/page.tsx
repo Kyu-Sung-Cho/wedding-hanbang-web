@@ -9,6 +9,10 @@ import AmoraNoteSection from "@/components/landing/redesign/AmoraNoteSection";
 import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
 import BoundariesSection from "@/components/landing/redesign/BoundariesSection";
 import CommunitySection from "@/components/landing/redesign/CommunitySection";
+import NoSideSection from "@/components/landing/redesign/NoSideSection";
+import OneRoomSection from "@/components/landing/redesign/OneRoomSection";
+import PrivateLaneSection from "@/components/landing/redesign/PrivateLaneSection";
+import ScenesSection from "@/components/landing/redesign/ScenesSection";
 import TransformationHero from "@/components/landing/redesign/TransformationHero";
 
 export const revalidate = 86_400;
@@ -84,9 +88,16 @@ export function generateMetadata(): Metadata {
 export default function LandingPage() {
   return (
     // `relative` 는 꽃 레이어(`LandingBloomLayer`)의 기준점이다. 빼면 꽃이 화면
-    // 기준으로 붙어 스크롤해도 따라다닌다. `overflow-hidden` 은 여백 밖으로 나간
-    // 가지가 가로 스크롤을 만들지 않게 한다.
-    <div className="relative min-h-screen overflow-hidden bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
+    // 기준으로 붙어 스크롤해도 따라다닌다.
+    //
+    // ⚠️ 여기 `overflow-hidden` 이 있었다. 여백 밖으로 나간 가지가 가로 스크롤을
+    // 만들지 않게 하려던 것인데, **조상의 overflow 는 `position: sticky` 를 깬다.**
+    // 그래서 헤더가 `sticky top-0 z-50` 인데도 안 붙었다 — 2026-08-29 실측에서
+    // 2,500px 스크롤 뒤 헤더 top 이 -2500 이었다(7,400px 짜리 화면에서 내비가
+    // 통째로 사라진다). 자르는 일은 `LandingBloomLayer` 가 자기 상자에서 이미
+    // 한다(정본 시안도 `.bq-layer { overflow: hidden }` 으로 레이어에만 걸었고
+    // 래퍼에는 없다). 여기에 다시 넣지 마라 — 헤더가 조용히 죽는다.
+    <div className="relative min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-[6px] bg-[var(--color-paper-card)] px-5 py-3 text-[14px] font-semibold text-[var(--color-paper-ink)] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-paper-pen)] focus:ring-offset-2"
@@ -97,16 +108,43 @@ export default function LandingPage() {
       <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
-        {/* 순서는 **제품 계약의 축 순서**다(CLAUDE.md).
-            "고민을 아모라와 이야기하고(②) → 확인한 것만 예산·할 일·일정에 남기고
-            바뀐 내용을 서로에게 알리고(③) → 비슷한 시기 사람들의 기록을 함께 보며(④)".
-            그다음이 부가 도구(⑤ 견적·스무장면·공시가·예절), 경계(⑥), 마무리(⑦).
+        {/* 순서는 **방문자가 하는 질문의 순서**다.
+            운영 랜딩(`hanbang.ai/landing`)이 이 구조였고, 2026-08-29 시안 개편에서
+            섹션 넷(`scenes`·`noside`·`oneroom`·`private`)을 잃으면서 본문이 운영의
+            58%(2,144자 / 3,700자)로 줄었다. 파운더가 "운영과 비슷해야 한다"고
+            지적해 되살렸다. 각 섹션의 눈썹이 **실제로 하는 질문**인 이유가 이것이다.
 
-            공시 가격·위약금은 **부가 기능이라 ⑤ 안의 카드 한 장**이다. 한때 이 자리에
-            전용 섹션으로 앞세웠는데, 파운더가 "메인 기능을 소개해야지" 로 바로잡았다. */}
+            보여준다 → 반론에 답한다 → 걱정에 답한다 → 무엇이 남는지 → 어디서 찾는지
+
+            ① 히어로            무엇인지
+            ② 아모라 노트       아모라가 답하는 모습 (설명 대신 장면)
+            ③ 확인한 것만       "그럼 아모라가 내 계획을 바꾸나?"   ← ② 직후여야 한다
+            ④ 장면 하나         스무 장면이 어떻게 생겼는지
+            ⑤ 편을 안 든다      "ChatGPT 로 되잖아요?"
+            ⑥ 한 덩어리 대화    "우리 둘한테 뭐가 달라지냐면"
+            ⑦ 나만 보는 자리    "그럼 내가 쓴 게 다 가나요?"       ← ⑥ 직후여야 한다
+            ⑧ 커뮤니티          비슷한 시기 사람들의 기록 (제품 계약 둘째 축)
+            ⑨ 지금 되는 것      가입 없이 오늘 할 수 있는 것
+            ⑩ 안 하는 것        "이거 광고 아닌가요?"
+            ⑪ 마무리
+
+            ⚠️ **인접 규칙이 둘 있고 둘 다 같은 이유다** — 어떤 섹션은 읽고 나면
+            곧바로 걱정이 생기고, 다음 섹션이 그 걱정을 받지 않으면 앞 섹션이
+            불안으로 끝난다.
+              ② → ③  아모라가 답하는 걸 보면 "내 예산을 마음대로 바꾸나"를 걱정한다
+              ⑥ → ⑦  "두 사람 대화가 한 덩어리"를 읽으면 "내가 쓴 게 다 가나"를 걱정한다
+            사이에 다른 섹션을 끼우지 마라. `landingFirstVisitClarity.test.ts` 와
+            `mvpDirection.test.ts` 가 각각 하나씩 고정한다.
+
+            공시 가격·위약금은 **부가 기능이라 ⑨ 안의 카드 한 장**이다. 한때 전용
+            섹션으로 앞세웠는데, 파운더가 "메인 기능을 소개해야지" 로 바로잡았다. */}
         <TransformationHero />
         <AmoraNoteSection />
         <ConfirmSection />
+        <ScenesSection />
+        <NoSideSection />
+        <OneRoomSection />
+        <PrivateLaneSection />
         <CommunitySection />
         <AvailableNowSection />
         <BoundariesSection />

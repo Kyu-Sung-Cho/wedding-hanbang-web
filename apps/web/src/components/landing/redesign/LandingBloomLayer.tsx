@@ -27,13 +27,13 @@ export default function LandingBloomLayer() {
       className="pointer-events-none absolute inset-0 z-0 overflow-hidden"
     >
       {/* 위를 가로지르는 화환. 폭을 꽉 채운다. */}
-      <BloomGarland className="absolute -top-[10px] left-0 right-0 w-full opacity-[0.34] sm:opacity-[0.44] lg:opacity-[0.58]" />
+      <BloomGarland className="absolute top-[58px] left-0 right-0 w-full opacity-[0.34] sm:opacity-[0.44] lg:-top-[10px] lg:opacity-[0.58]" />
 
       {/* 왼쪽 위 곁가지 */}
-      <BloomSprig className="absolute -left-[74px] top-[26%] w-[clamp(120px,13vw,206px)] opacity-[0.46]" />
+      <BloomSprig className="absolute -left-[74px] top-[26%] hidden w-[clamp(120px,13vw,206px)] opacity-[0.46] lg:block" />
 
       {/* 오른쪽 가운데 — 뒤집어 바깥을 향하게 */}
-      <BouquetCorner className="absolute -right-[62px] top-[48%] w-[clamp(132px,15vw,232px)] -scale-x-100 opacity-[0.42]" />
+      <BouquetCorner className="absolute -right-[62px] top-[48%] hidden w-[clamp(132px,15vw,232px)] -scale-x-100 opacity-[0.42] lg:block" />
 
       {/* 왼쪽 아래 — 태블릿 아래에서는 감춘다 */}
       <BloomSprig className="absolute -left-[58px] top-[71%] hidden w-[clamp(104px,11vw,176px)] opacity-[0.38] lg:block" />

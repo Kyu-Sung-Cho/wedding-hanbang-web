@@ -46,7 +46,10 @@ export default function CommunitySection() {
         <div className="mt-9 grid gap-5 lg:grid-cols-2 lg:gap-7">
           {/* 동기방 — 분기 이름을 실제로 보여 준다. */}
           <div className="landing-note px-6 py-7">
-            <ul>
+            {/* 줄마다 붙는 "동기방" 라벨은 `aria-hidden` 이다 — 넷을 다 읽으면
+                "2026년 1분기 동기방, 2026년 2분기 동기방…" 으로 같은 말이 네 번
+                되풀이된다. 대신 목록 자체에 이름을 줘서 한 번만 말하게 한다. */}
+            <ul aria-label="분기별 동기방">
               {community.cohorts.map((cohort) => (
                 <li
                   key={cohort}
@@ -75,7 +78,12 @@ export default function CommunitySection() {
                   key={topic}
                   className="text-[16px] leading-8 text-[var(--color-paper-ink-soft)]"
                 >
-                  <span className="landing-pen font-medium text-[var(--color-paper-ink)]">
+                  {/* ⚠️ 여기 `landing-pen` 이 붙어 있었다. 그건 **파란 펜 밑줄**이고
+                      이 랜딩에서 밑줄은 "누를 수 있다"는 뜻이다 — 정본 시안도 `.pen` 을
+                      실제 링크에만 썼고, `landingDesignSystem.test.ts` 는 그 조합을
+                      "홀로 서는 링크의 레시피"로 못 박는다. 카테고리 이름은 링크가
+                      아니라서 눌러도 아무 일이 없다. 강조는 굵기와 색으로만 한다. */}
+                  <span className="font-medium text-[var(--color-paper-ink)]">
                     {topic}
                   </span>
                 </li>

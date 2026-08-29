@@ -149,7 +149,59 @@ describe("랜딩 랜드마크", () => {
 
     // 그 섹션들이 실제로 page.tsx 에 그려지는지도 본다 — id 는 있는데 페이지가
     // 그 컴포넌트를 안 그리면 앵커는 여전히 죽는다.
-    expect(renderedSections().length).toBeGreaterThanOrEqual(8);
+    // 2026-08-29: 여기는 `>= 8` 이었다. 정본 시안으로 다시 지으면서 `<main>` 안이
+    // 일곱이 됐다. 숫자만 7로 낮추면 이 줄은 아무것도 지키지 않는다 — 섹션을
+    // 하나 지우고 다른 하나를 둘로 쪼개도 통과한다. 그래서 **목록을 고정한다**.
+    // 새 섹션을 더하는 것은 자유이고(부분집합 검사), 있던 것을 지우면 깨진다.
+    const inMain = renderedSections();
+    for (const section of [
+      "TransformationHero",
+      "AmoraNoteSection",
+      "ConfirmSection",
+      "CommunitySection",
+      "AvailableNowSection",
+      "BoundariesSection",
+      "ClosingAction",
+    ]) {
+      expect(inMain, `${section} 이 <main> 에서 사라졌다`).toContain(section);
+    }
     expect(page).toContain("<main");
+  });
+  it("sticky 헤더 위에 overflow 를 얹지 않는다", () => {
+    // 2026-08-29 실측: 헤더는 `sticky top-0 z-50` 인데 **안 붙었다.** 2,500px 스크롤
+    // 뒤 헤더의 top 이 -2500 이었다 — 7,400px 짜리 랜딩에서 내비가 통째로 사라진다.
+    //
+    // 원인은 헤더가 아니라 **조상**이다. `page.tsx` 의 래퍼가 `overflow-hidden` 을
+    // 갖고 있었고, 조상의 overflow 가 `visible` 이 아니면 그 안의 sticky 는
+    // 가장 가까운 스크롤 컨테이너를 그 조상으로 잡아 붙을 자리를 잃는다.
+    // 꽃 장식의 음수 오프셋을 자르려고 넣은 것이었는데, 자르는 일은
+    // `LandingBloomLayer` 가 자기 상자에서 이미 한다(정본 시안도 그렇게 뒀다).
+    //
+    // 브라우저 없이 잡을 수 있는 형태로 고정한다: **랜딩 표면에 sticky 가 있다면
+    // 페이지 래퍼는 overflow 를 갖지 않는다.**
+    const page = rendered("src/app/landing/page.tsx");
+    const header = rendered("src/components/landing/redesign/LandingHeader.tsx");
+
+    // 전제 확인 — sticky 가 없어졌다면 이 검사는 지킬 대상이 없다.
+    expect(header, "헤더가 더 이상 sticky 가 아니다 — 이 검사의 전제가 깨졌다")
+      .toMatch(/sticky/u);
+
+    // 래퍼(=`return (` 뒤 첫 `<div`)의 클래스만 본다. 파일 전체에서 찾으면
+    // 섹션 안의 정당한 overflow 까지 잡는다.
+    const at = page.indexOf("<div");
+    expect(at, "랜딩 래퍼 <div> 를 못 찾았다").toBeGreaterThan(-1);
+    const wrapper = page.slice(at, page.indexOf(">", at));
+    expect(
+      wrapper,
+      "래퍼가 overflow 를 가지면 sticky 헤더가 조용히 죽는다. 자르는 일은 "
+        + "LandingBloomLayer 가 자기 상자에서 한다.",
+    ).not.toMatch(/overflow-(hidden|clip|auto|scroll|x-hidden|y-hidden)/u);
+
+    // 꽃 레이어가 자기 상자에서 자르는지도 함께 본다 — 여기까지 없어지면 래퍼의
+    // overflow 를 되돌리고 싶어진다.
+    expect(
+      rendered("src/components/landing/redesign/LandingBloomLayer.tsx"),
+      "꽃 레이어가 스스로 자르지 않는다 — 래퍼에 overflow 를 넣고 싶어진다",
+    ).toMatch(/overflow-hidden/u);
   });
 });

@@ -44,7 +44,7 @@ export default function LandingFooter() {
                   <li key={`${group.label}-${item.href}-${item.label}`}>
                     <Link
                       href={item.href}
-                      className="inline-flex min-h-10 items-center text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-pen)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+                      className="inline-flex min-h-11 items-center text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-pen)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
                     >
                       {item.label}
                     </Link>

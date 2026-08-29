@@ -50,7 +50,7 @@ export default function ClosingAction() {
           <TrackedLandingLink
             source="landing_closing_login"
             href={closing.tertiary.href}
-            className="landing-pen text-[15px] font-medium text-[var(--color-paper-ink)]"
+            className="landing-pen inline-flex min-h-11 items-center text-[16px] font-medium text-[var(--color-paper-ink)]"
           >
             {closing.tertiary.label}
           </TrackedLandingLink>
