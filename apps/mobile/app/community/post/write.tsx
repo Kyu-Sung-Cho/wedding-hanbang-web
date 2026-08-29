@@ -105,7 +105,7 @@ export default function WritePostScreen() {
   async function uploadImages(): Promise<string[]> {
     if (!COMMUNITY_MEDIA_UI_ENABLED) {
       if (images.length > 0) {
-        throw new Error("통제 베타에서는 커뮤니티 이미지를 발행할 수 없어요.");
+        throw new Error("지금은 커뮤니티 이미지를 발행할 수 없어요.");
       }
       return [];
     }

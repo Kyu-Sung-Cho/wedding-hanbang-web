@@ -289,7 +289,7 @@ const DENY_GLOBAL: CostGuardResult = {
   allowed: false,
   reason: "global_daily",
   message:
-    "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)",
+    "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.",
 };
 
 // 사용자에게는 위 `DENY_GLOBAL` 과 **같은 상황**이다 — 서비스 전체가 오늘 천장에
@@ -303,14 +303,14 @@ const DENY_GLOBAL_BUDGET: CostGuardResult = {
   allowed: false,
   reason: "global_budget",
   message:
-    "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)",
+    "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.",
 };
 
 const DENY_COUPLE: CostGuardResult = {
   allowed: false,
   reason: "couple_quota",
   message:
-    "이 커플에 제공된 베타 무료 상담 한도를 모두 사용했어요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
+    "이 커플에 제공된 무료 상담 한도를 모두 사용했어요. 추가 이용 방법과 시점은 아직 정해지지 않았어요.",
 };
 
 const DENY_COUPLE_DAILY: CostGuardResult = {

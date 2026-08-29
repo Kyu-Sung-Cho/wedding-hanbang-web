@@ -54,7 +54,7 @@ test("중립 화면에는 성별 문구가 없다", () => {
 test("기존 5단계 경로는 그대로 남아 있다", () => {
   // 플래그가 꺼진 기기에서 온보딩이 사라지면 안 된다
   assert.match(onboarding, /step === 1 && !neutralEnabled/u);
-  assert.match(onboarding, /현재 베타 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요/u);
+  assert.match(onboarding, /지금 커플 연결은 신부 1명·신랑 1명 구성부터 지원해요/u);
 });
 
 test("중립 화면이 예식일과 관심사를 받는다", () => {

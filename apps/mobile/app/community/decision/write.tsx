@@ -869,7 +869,7 @@ export default function DecisionThreadWriteScreen() {
       >
         <View style={styles.intro}>
           <View style={styles.introMeta}>
-            <StatusPill label="계약·추가금 통제 베타" tone="neutral" />
+            <StatusPill label="계약·추가금 기록" tone="neutral" />
             {(content || title || experienceScope || preparationStage || contractPhase
               || coarseRegion || desiredAnswer || commercialRelationship !== "none"
               || sponsorshipDetail) ? (
@@ -995,7 +995,7 @@ export default function DecisionThreadWriteScreen() {
           <View style={styles.safetyText}>
             <AppText variant="bodyStrong">공개 전 공급·안전 확인</AppText>
             <AppText variant="caption">
-              전화번호, 정확한 일정, 계약서 원문 같은 개인정보는 서버에서도 검사해요. 사진은 통제 베타에서 발행하지 않습니다.
+              전화번호, 정확한 일정, 계약서 원문 같은 개인정보는 서버에서도 검사해요. 사진은 지금 발행하지 않습니다.
             </AppText>
           </View>
         </Surface>

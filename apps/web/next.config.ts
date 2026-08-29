@@ -94,6 +94,14 @@ const nextConfig: NextConfig = {
       //
       // 개별 파트로 정확히 보내려면 쿼리를 slug로 옮겨야 하지만, 옛 주소가 색인된
       // 적이 없어(사이트맵 0건) 목록으로 보내는 편이 단순하고 안전하다.
+      // 2026-08-29 파운더 결정으로 베타를 하지 않게 되면서 `/beta` 를 없앴다.
+      // 옛 링크·북마크·검색 결과가 404 로 떨어지지 않게 랜딩으로 보낸다.
+      // 되돌릴 결정이 아니므로 permanent 다.
+      {
+        source: "/beta",
+        destination: "/landing",
+        permanent: true,
+      },
       {
         source: "/etiquette",
         destination: "/wedding/manners",

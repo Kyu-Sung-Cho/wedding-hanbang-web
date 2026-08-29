@@ -880,9 +880,9 @@ function PostWriteContent() {
               로그인은 게시할 때만 필요해요. 작성한 내용은 이 기기에 임시 저장됩니다.
             </p>
             <p className="mt-2 text-[12px] leading-relaxed text-[var(--color-rose-700)]">
-              전화번호·이메일·주소·계좌번호·서명·QR코드는 지워주세요. 현재 통제
-              베타에서는 사진 없이 텍스트로만 질문할 수 있어요. 다시 열 때 24시간이
-              지난 임시저장은 삭제됩니다.
+              전화번호·이메일·주소·계좌번호·서명·QR코드는 지워주세요. 지금은 사진
+              없이 텍스트로만 질문할 수 있어요. 다시 열 때 24시간이 지난 임시저장은
+              삭제됩니다.
             </p>
           </div>
         )}
@@ -1034,7 +1034,7 @@ function PostWriteContent() {
                             ? "1. 지금 어떤 상황인가요?\n2. 이미 들은 조건이나 해본 선택이 있나요?\n3. 실제 비용·계약·후회한 점 중 무엇을 듣고 싶나요?"
                             : MEDIA_PUBLISHING_UI_ENABLED
                               ? "내용을 입력하세요. 이미지나 GIF를 본문 중간에 붙여넣거나 끌어 놓거나, 아래 버튼으로 삽입할 수 있어요."
-                              : "내용을 입력하세요. 통제 베타에서는 텍스트 게시물만 작성할 수 있어요."
+                              : "내용을 입력하세요. 지금은 텍스트 게시물만 작성할 수 있어요."
                       }
                       maxLength={CONTENT_MAX_LENGTH}
                       className={`w-full px-4 py-3 text-base text-[var(--hb-text-strong)] bg-[var(--hb-surface-hover)] border rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors resize-none leading-relaxed min-h-[220px] ${
@@ -1179,7 +1179,7 @@ function PostWriteContent() {
               <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
                 <p className="text-sm font-semibold text-[var(--hb-text-strong)]">기존 미디어</p>
                 <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
-                  통제 베타에서는 새 미디어를 추가하거나 바꿀 수 없어요. 기존 첨부는
+                  지금은 새 미디어를 추가하거나 바꿀 수 없어요. 기존 첨부는
                   그대로 둔 채 텍스트만 수정하거나, 아래에서 모두 제거할 수 있어요.
                 </p>
                 <button

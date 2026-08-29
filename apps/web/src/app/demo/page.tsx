@@ -72,14 +72,11 @@ export default function DemoPage() {
           <div className="mt-10 rounded-3xl bg-[var(--hb-primary)] px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
             <div>
               <h2 className="font-serif-kr text-2xl">현재 서비스 화면을 둘러보실래요?</h2>
-              <p className="mt-2 text-sm leading-6 text-white/70">베타 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>
+              <p className="mt-2 text-sm leading-6 text-white/70">새 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-0">
               <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
                 서비스 둘러보기
-              </Link>
-              <Link href="/beta" className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/40 px-6 text-sm font-semibold text-white">
-                베타 소식 받기
               </Link>
             </div>
           </div>
