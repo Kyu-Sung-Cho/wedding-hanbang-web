@@ -31,25 +31,19 @@ const CONTEXTUAL_EXPLANATION_PATTERN =
 const CONTEXTUAL_SELECTION_PATTERN =
   /^(?:(?:첫|두|세)\s*번째|[1-3]\s*번|그(?:거|것|게|걸))(?:가|이|은|는|도|으로|로)?\s*(?:더\s*)?(?:(?:좋아|괜찮아|마음에\s*들어|나아|어때)(?:요)?|(?:할게|할래|고를게|선택할게)(?:요)?)[.!?\s]*$/u;
 /**
- * 직전 대화를 **가리키며 무언가를 부탁하는** 말.
+ * 이 발화가 **다른 분야를 명시하고 있는가.**
  *
- * 기존 단서들은 문장이 지시대명사 하나로 **끝날** 것을 요구한다("그거", "그거 자세히
- * 설명해줘"). 그래서 팀 테스트의 이 문장이 아무 문맥도 못 받았다:
+ * 이 목록은 문을 **닫는 데만** 쓴다. 그래서 틀려도 손해가 한쪽으로만 간다:
  *
- *     (직전) 우리는 예단이랑 폐백은 생략하고 싶어
- *     그걸 부모님께 어떻게 말해야 덜 부딪힐까? 실제로 보낼 말까지 써줘.
- *     -> "어떤 내용을 부모님께 말씀드리려는지 아직 몰라서…"
+ *   - 놓치면  -> 결혼 턴이 자기 대화 한 쌍을 본다(무해).
+ *   - 과하면  -> 지금과 같다(문맥 없음). 회귀가 아니다.
  *
- * W4 턴은 provider 에게 현재 메시지 하나만 간다(`route.ts` 의 `providerMessages`).
- * 모델이 잊은 것이 아니라 받은 것이 없었다.
- *
- * 이 단서는 **권한을 늘리지 않는다.** 여기서 나오는 것은 context-only 계약이라
- * 도구도 저장 정보도 붙지 않고, 서버가 검증한 직전 한 쌍이 전부다. 같은 방의
- * 자기 대화이므로 커플 경계도 넘지 않는다. 이미 도구가 0개인 턴에 직전 한 쌍을
- * 얹는 것뿐이다.
+ * 낱말 목록으로 "결혼인가"를 **여는** 판정은 이 저장소에서 세 번 실패했다.
+ * 결혼이 아닌 화제의 집합에 끝이 없기 때문이다. 반대로 "이 발화가 날씨·역사·
+ * 회사를 말하고 있는가"는 그 발화가 스스로 말해 주므로 닫는 쪽으로는 쓸 수 있다.
  */
-const LEADING_ANAPHORIC_REQUEST_PATTERN =
-  /^(?:그(?:걸|거|것|게)|그\s*(?:얘기|이야기|내용|부분|말))(?:을|를|은|는|도|에|에다|에게)?\s+\S/u;
+const OTHER_DOMAIN_TOPIC_PATTERN =
+  /날씨|기온|미세먼지|역사|문법|번역|메뉴|뭐\s*먹|맛집|레시피|요리법|주식|코인|증권|정치|선거|뉴스|스포츠|축구|야구|코딩|프로그래밍|알고리즘|회사|업무|직장|출근|퇴근|시스템\s*프롬프트|지시사항|프롬프트를?\s*출력|무슨\s*모델|날짜가\s*며칠|오늘\s*며칠/iu;
 
 const BARE_CONTEXT_REFERENCE_PATTERN =
   /^(?:(?:아까|방금)(?:\s+말한)?\s*(?:거|것|말|얘기)|그(?:거|것|게|걸))[.!?\s]*$/u;
@@ -95,19 +89,6 @@ export function hasExplicitAmoraW3ContinuityReference(text: string): boolean {
     && EXPLICIT_W3_REFERENCE_PATTERNS.some((pattern) => pattern.test(normalized));
 }
 
-function hasShortAmoraContinuityCue(text: string): boolean {
-  const normalized = text.normalize("NFKC").trim();
-  return (
-    ACTION_SHAPED_CONTEXT_REFERENCE_PATTERN.test(normalized)
-    || CONTEXTUAL_EXPLANATION_PATTERN.test(normalized)
-    || CONTEXTUAL_SELECTION_PATTERN.test(normalized)
-    || BARE_CONTEXT_REFERENCE_PATTERN.test(normalized)
-    || (
-      LEADING_ANAPHORIC_REQUEST_PATTERN.test(normalized)
-      && !EXPLICIT_TOPIC_BREAK_PATTERN.test(normalized)
-    )
-  );
-}
 
 /**
  * 직전 대화를 **설명·지목·선택**으로 되짚는 말인가. 이 형태들은 이미 여기
@@ -140,10 +121,37 @@ export function canAttemptAmoraBoundedContinuity(text: string): boolean {
   const currentScope = classifyAmoraQuestionScope({ userText: text });
   const hasExplicitW3Reference = hasExplicitAmoraW3ContinuityReference(text);
   return (
+    // **되짚는 단서를 요구하지 않는다.**
+    //
+    // 예전에는 지시대명사·설명 요청 같은 단서를 요구했다. 운영 실측이 그것으로는
+    // 부족하다고 말한다 — 아모라 턴 467건 중 71건이 `W4` 로 떨어져 provider 에게
+    // 현재 메시지 하나만 갔고(`route.ts` 의 `providerMessages`), **그중 38건은
+    // 직전이 W0 결혼 대화였다.** 그 38건을 직접 읽어 보면:
+    //
+    //     승낙("네, 적용해줘" · "좋아 그걸로 하자")            8
+    //     예산·대관료·진행 상황 질문                          9
+    //     부모님·양가·상견례 상의                            10
+    //     그 밖의 결혼 준비 대화                              8
+    //     진짜 결혼 밖(날씨 · 오늘 며칠 · 프롬프트 인젝션)      3
+    //
+    // 35/38 이 결혼 대화였다. 되짚는 표현은 그중 소수에만 있다.
+    //
+    // **안전 경계는 그대로다.** 이 함수는 아무것도 주지 않는다 — 라우트가 세 행을
+    // 읽어볼지만 정하고, 실제 판정은 `buildAmoraBoundedContinuity` 가 한다.
+    // 거기서 **직전 사용자 발화를 다시 판정해 W0/W1 일 때만** 잇고, 같은 방·같은
+    // 세그먼트·요청자 본인·아모라가 그 발화에 답한 것까지 확인한다. 안전(W5)·
+    // 고위험(W2)·위로(W3) 턴 뒤에는 애초에 연결되지 않는다.
+    //
+    // 얻는 것도 딱 그만큼이다 — `capabilities: "none"` 이라 **도구는 그대로 0개**,
+    // 저장된 커플 정보도 안 붙는다. 이미 도구가 0개인 턴에 자기 대화 한 쌍을
+    // 얹는 것뿐이다.
     currentScope.scope === "W4_out_of_scope"
     && currentScope.confidence === "low"
     && currentScope.needsClarification
-    && (hasShortAmoraContinuityCue(text) || hasExplicitW3Reference)
+    // 사용자가 "그거 말고" 처럼 **직전 것이 아니라고 명시**하면 잇지 않는다.
+    && !EXPLICIT_TOPIC_BREAK_PATTERN.test(text.normalize("NFKC").trim())
+    // 발화가 다른 분야를 스스로 말하고 있으면 잇지 않는다.
+    && !OTHER_DOMAIN_TOPIC_PATTERN.test(text.normalize("NFKC").trim())
   ) || (
     currentScope.scope === "W3_social_care"
     && hasExplicitW3Reference

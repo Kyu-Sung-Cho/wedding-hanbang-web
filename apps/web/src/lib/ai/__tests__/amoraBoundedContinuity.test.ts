@@ -87,6 +87,16 @@ describe("Amora bounded W3 continuity", () => {
     "왜 그걸 추천했어요?",
     "두 번째로 할래요",
     "좀 더 자세히 설명해주세요",
+    // 2026-08-29 에 부정 목록에서 옮겨 왔다.
+    //
+    // 예전 계약은 "되짚는 **단서**가 있어야 문맥을 준다" 였고, 그 틀에서 이 문장은
+    // 단서로 치기엔 너무 헐거웠다. 지금 계약은 "다른 분야를 말하지 않는 한 대화
+    // 안에 있다" 이다 — 운영 실측에서 결혼 대화 도중 끊긴 38건 중 35건이 진짜
+    // 결혼 대화였고, 되짚는 표현은 그중 소수에만 있었다.
+    //
+    // 결혼 대화 도중의 "이유를 알려줘" 는 직전 것을 묻는 말이다. 문맥을 주는 것이
+    // 맞고, 줘도 도구는 0개다.
+    "이유를 알려줘",
   ])("allows an exact-row lookup candidate for %s without granting authority", (text) => {
     expect(canAttemptAmoraBoundedContinuity(text)).toBe(true);
   });
@@ -100,7 +110,6 @@ describe("Amora bounded W3 continuity", () => {
     "회사 계획 정리해줘",
     "역사 설명해줘",
     "아까 날씨 다시 설명해줘",
-    "이유를 알려줘",
     "그래서 오늘 뭐 먹을까?",
     "그거 오늘 뭐 먹을까?",
   ])("does not use a loose reference to pull wedding context into %s", (text) => {
