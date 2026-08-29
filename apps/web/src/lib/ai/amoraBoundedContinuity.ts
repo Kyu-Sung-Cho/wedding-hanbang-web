@@ -30,6 +30,27 @@ const CONTEXTUAL_EXPLANATION_PATTERN =
   /^(?:왜(?:\s*그런(?:데|지))?(?:\s*(?:다시\s*)?(?:설명|정리)해\s*(?:줘|주세요))?|왜\s*(?:그렇게\s*생각해(?:요)?|그게\s*더\s*좋아(?:요)?|(?:그렇게|그걸)\s*추천(?:해|했어)(?:요)?)|무슨\s*뜻(?:이야|이에요|이죠)|(?:좀\s*)?(?:더\s*)?자세히\s*(?:설명|정리)해\s*(?:줘|주세요)|(?:(?:아까|방금)\s+(?:말한\s+)?(?:거|것|말|얘기)|앞에서\s*말한(?:\s+(?:거|것|말|얘기))?|그(?:거|것|게|걸|\s*말|\s*얘기))(?:가|이|은|는|도|을|를)?\s*(?:다시\s*)?(?:설명|정리)해\s*(?:줘|주세요))[.!?\s]*$/u;
 const CONTEXTUAL_SELECTION_PATTERN =
   /^(?:(?:첫|두|세)\s*번째|[1-3]\s*번|그(?:거|것|게|걸))(?:가|이|은|는|도|으로|로)?\s*(?:더\s*)?(?:(?:좋아|괜찮아|마음에\s*들어|나아|어때)(?:요)?|(?:할게|할래|고를게|선택할게)(?:요)?)[.!?\s]*$/u;
+/**
+ * 직전 대화를 **가리키며 무언가를 부탁하는** 말.
+ *
+ * 기존 단서들은 문장이 지시대명사 하나로 **끝날** 것을 요구한다("그거", "그거 자세히
+ * 설명해줘"). 그래서 팀 테스트의 이 문장이 아무 문맥도 못 받았다:
+ *
+ *     (직전) 우리는 예단이랑 폐백은 생략하고 싶어
+ *     그걸 부모님께 어떻게 말해야 덜 부딪힐까? 실제로 보낼 말까지 써줘.
+ *     -> "어떤 내용을 부모님께 말씀드리려는지 아직 몰라서…"
+ *
+ * W4 턴은 provider 에게 현재 메시지 하나만 간다(`route.ts` 의 `providerMessages`).
+ * 모델이 잊은 것이 아니라 받은 것이 없었다.
+ *
+ * 이 단서는 **권한을 늘리지 않는다.** 여기서 나오는 것은 context-only 계약이라
+ * 도구도 저장 정보도 붙지 않고, 서버가 검증한 직전 한 쌍이 전부다. 같은 방의
+ * 자기 대화이므로 커플 경계도 넘지 않는다. 이미 도구가 0개인 턴에 직전 한 쌍을
+ * 얹는 것뿐이다.
+ */
+const LEADING_ANAPHORIC_REQUEST_PATTERN =
+  /^(?:그(?:걸|거|것|게)|그\s*(?:얘기|이야기|내용|부분|말))(?:을|를|은|는|도|에|에다|에게)?\s+\S/u;
+
 const BARE_CONTEXT_REFERENCE_PATTERN =
   /^(?:(?:아까|방금)(?:\s+말한)?\s*(?:거|것|말|얘기)|그(?:거|것|게|걸))[.!?\s]*$/u;
 
@@ -81,6 +102,10 @@ function hasShortAmoraContinuityCue(text: string): boolean {
     || CONTEXTUAL_EXPLANATION_PATTERN.test(normalized)
     || CONTEXTUAL_SELECTION_PATTERN.test(normalized)
     || BARE_CONTEXT_REFERENCE_PATTERN.test(normalized)
+    || (
+      LEADING_ANAPHORIC_REQUEST_PATTERN.test(normalized)
+      && !EXPLICIT_TOPIC_BREAK_PATTERN.test(normalized)
+    )
   );
 }
 
