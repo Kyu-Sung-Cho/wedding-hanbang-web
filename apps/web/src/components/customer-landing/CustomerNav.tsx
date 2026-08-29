@@ -6,7 +6,15 @@ import { useEffect, useState } from "react";
 import Logo from "@/components/ui/Logo";
 import { weddingPath } from "@/lib/weddingPaths";
 
-const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon";
+// ⚠️ 여기 `const isComingSoonEnv = process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon"`
+// 가 있었다. 켜지면 주 행동 버튼이 "시작하기" 대신 **"미리 체험하기"** 가 됐다.
+//
+// 2026-08-29 라이브 실측: 그 env 가 운영에 켜져 있어서 `/about` 이 실제로 그렇게
+// 나가고 있었다. 파운더 결정으로 없앤다 — "베타"라는 낱말은 없지만 **"아직 정식이
+// 아니다"라는 같은 틀**이고, 계정은 그냥 만들 수 있는 것이다(CLAUDE.md 2026-08-29).
+//
+// env 를 끄지 않고 **코드에서 뺐다.** env 는 다시 켜질 수 있지만 분기가 없으면
+// 아무 일도 일어나지 않는다. `NEXT_PUBLIC_LAUNCH_MODE` 는 이제 참조 0건이다.
 
 interface CustomerNavProps {
   demoMode?: boolean;
@@ -32,7 +40,6 @@ interface CustomerNavProps {
 const SCROLL_ANCHOR_HOME = "/landing";
 
 export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {}) {
-  const isComingSoon = demoMode ? false : isComingSoonEnv;
   /**
    * **데모 화면에서도 정품 로그인으로 보낸다.**
    *
@@ -132,7 +139,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
             href={loginHref}
             className="px-6 py-2.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
           >
-            {isComingSoon ? "미리 체험하기" : "시작하기"}
+            시작하기
           </a>
         </div>
 
@@ -200,7 +207,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
               onClick={() => setMenuOpen(false)}
               className="flex items-center justify-center gap-2 w-full py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-full text-[14px] font-medium no-underline transition-all shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"
             >
-              {isComingSoon ? "미리 체험하기" : "서비스 시작하기"}
+              서비스 시작하기
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
               </svg>

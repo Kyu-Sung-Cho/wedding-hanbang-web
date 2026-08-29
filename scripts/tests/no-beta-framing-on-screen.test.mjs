@@ -58,7 +58,21 @@ function walk(dir, out) {
   return out;
 }
 
-test("화면 문자열에 '베타' 라는 틀이 없다", () => {
+/**
+ * 막는 말들.
+ *
+ * `베타` 는 파운더가 이름으로 든 넷("계정 베타"·"사전등록"·"베타 신청"·"승인 대기")을
+ * 통째로 덮는다.
+ *
+ * ⚠️ 2026-08-29에 **"미리 체험하기" 를 추가**했다. 그 낱말에는 "베타" 가 없지만
+ * `NEXT_PUBLIC_LAUNCH_MODE=coming_soon` 이 켜지면 주 행동 버튼이 "시작하기" 대신
+ * 그것으로 바뀌었고, 그 env 가 **운영에 켜져 있어 `/about` 이 실제로 그렇게 나가고
+ * 있었다**(라이브 실측). "아직 정식이 아니다" 라는 같은 틀이라 파운더가 함께 없앴다.
+ * 분기는 `CustomerNav` 에서 지웠고, 이 줄은 그것이 돌아오는 것을 막는다.
+ */
+const BANNED = ["베타", "미리 체험하기", "coming_soon"];
+
+test("화면 문자열에 '아직 정식이 아니다' 라는 틀이 없다", () => {
   const files = [...walk(webSrc, []), ...walk(mobileSrc, [])];
   assert.ok(files.length > 200, `소스를 ${files.length}개만 찾았다 — 걷기가 깨졌는지 보라`);
 
@@ -66,8 +80,9 @@ test("화면 문자열에 '베타' 라는 틀이 없다", () => {
   for (const file of files) {
     const source = stripComments(readFileSync(file, "utf8"));
     source.split("\n").forEach((line, index) => {
-      if (!line.includes("베타")) return;
-      offenders.push(`${relative(repoRoot, file)}:${index + 1} — ${line.trim().slice(0, 70)}`);
+      const hit = BANNED.find((word) => line.includes(word));
+      if (!hit) return;
+      offenders.push(`${relative(repoRoot, file)}:${index + 1} [${hit}] — ${line.trim().slice(0, 60)}`);
     });
   }
 
@@ -82,8 +97,14 @@ test("화면 문자열에 '베타' 라는 틀이 없다", () => {
 
 test("검사기가 실제로 틀을 잡는다", () => {
   // 위 검사가 0건이라 "잡을 수 있는가"를 증명하지 못한다. 답을 아는 표본으로 잰다.
-  const planted = 'const msg = "계정 베타에서는 아직 쓸 수 없어요";';
-  assert.ok(stripComments(planted).includes("베타"), "심어 둔 틀을 못 잡았다");
+  for (const planted of [
+    'const msg = "계정 베타에서는 아직 쓸 수 없어요";',
+    '{isComingSoon ? "미리 체험하기" : "시작하기"}',
+    'process.env.NEXT_PUBLIC_LAUNCH_MODE === "coming_soon"',
+  ]) {
+    const clean = stripComments(planted);
+    assert.ok(BANNED.some((w) => clean.includes(w)), `심어 둔 틀을 못 잡았다: ${planted}`);
+  }
 
   // 주석에 남긴 기록은 걸리지 않아야 한다 — 걸리면 왜 없앴는지를 못 적는다.
   const note = ["// 2026-08-29 파운더 결정으로 베타 틀을 없앴다", 'const ok = "지금은 텍스트만";'].join("\n");
