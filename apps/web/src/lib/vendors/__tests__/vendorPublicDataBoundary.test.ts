@@ -139,7 +139,7 @@ describe("public vendor data boundary", () => {
     expect(canonicalResolver).toContain('`/price/${priceCategory(publicVendor.data?.category ?? null)}`');
     expect(nextConfig).toContain('destination: "/price/vendor-id/:id"');
     expect(nextConfig.indexOf('destination: "/price/vendor-id/:id"'))
-      .toBeLessThan(nextConfig.indexOf("...weddingAppRoutes.map"));
+      .toBeLessThan(nextConfig.indexOf("...weddingAppRoutes.flatMap"));
     expect(mobileList).toContain('Redirect href="/market-prices"');
     expect(mobileDetail).toContain("buildLegacyVendorDetailUrl(rawId, siteOrigin)");
     for (const legacySurface of [webList, webDetail, publicUuidResolver, canonicalResolver, mobileList, mobileDetail]) {
