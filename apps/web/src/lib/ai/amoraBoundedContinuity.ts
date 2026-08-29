@@ -33,10 +33,20 @@ const CONTEXTUAL_SELECTION_PATTERN =
 /**
  * 이 발화가 **다른 분야를 명시하고 있는가.**
  *
- * 이 목록은 문을 **닫는 데만** 쓴다. 그래서 틀려도 손해가 한쪽으로만 간다:
+ * 이 목록은 문을 **닫는 데만** 쓴다. 여는 판정에 낱말을 쓰면 결혼이 아닌 화제의
+ * 집합이 무한해서 못 막지만, "이 발화가 날씨·역사·회사를 말하는가" 는 발화가
+ * 스스로 말해 주기 때문이다.
  *
- *   - 놓치면  -> 결혼 턴이 자기 대화 한 쌍을 본다(무해).
- *   - 과하면  -> 지금과 같다(문맥 없음). 회귀가 아니다.
+ * **손해가 대칭이 아니라고 적었다가 고쳤다.** 적대적 검토가 재현한 실제 대가:
+ *
+ *   - 놓치면 -> `노트북 추천해줘` 같은 결혼 밖 발화에 직전 결혼 대화 한 쌍
+ *              (사용자 최대 800자 + 아모라 최대 1,200자)이 provider 입력 앞에
+ *              붙는다. 결혼 밖 20문장 중 12문장이 그랬다. 같은 방 자기 대화이고
+ *              도구는 0개지만 **무해하지는 않다** — 모델이 결혼 문맥으로 답을
+ *              끌고 갈 수 있다. 그래서 이 레인의 지시문에 결혼 밖 대행 금지 줄을
+ *              함께 넣었다(`buildAmoraQuestionScopeInstruction`).
+ *   - 과하면 -> 결혼 후속 발화가 문맥을 잃는다. 이쪽도 공짜가 아니라서, 되짚는
+ *              단서가 있으면 이 검사보다 앞서게 두었다.
  *
  * 낱말 목록으로 "결혼인가"를 **여는** 판정은 이 저장소에서 세 번 실패했다.
  * 결혼이 아닌 화제의 집합에 끝이 없기 때문이다. 반대로 "이 발화가 날씨·역사·
@@ -44,6 +54,27 @@ const CONTEXTUAL_SELECTION_PATTERN =
  */
 const OTHER_DOMAIN_TOPIC_PATTERN =
   /날씨|기온|미세먼지|역사|문법|번역|메뉴|뭐\s*먹|맛집|레시피|요리법|주식|코인|증권|정치|선거|뉴스|스포츠|축구|야구|코딩|프로그래밍|알고리즘|회사|업무|직장|출근|퇴근|시스템\s*프롬프트|지시사항|프롬프트를?\s*출력|무슨\s*모델|날짜가\s*며칠|오늘\s*며칠/iu;
+
+/**
+ * 직전 대화를 **가리키며 무언가를 부탁하는** 말.
+ *
+ * 기존 단서들은 문장이 지시대명사 하나로 **끝날** 것을 요구한다("그거", "그거 자세히
+ * 설명해줘"). 그래서 팀 테스트의 이 문장이 아무 문맥도 못 받았다:
+ *
+ *     (직전) 우리는 예단이랑 폐백은 생략하고 싶어
+ *     그걸 부모님께 어떻게 말해야 덜 부딪힐까? 실제로 보낼 말까지 써줘.
+ *     -> "어떤 내용을 부모님께 말씀드리려는지 아직 몰라서…"
+ *
+ * W4 턴은 provider 에게 현재 메시지 하나만 간다(`route.ts` 의 `providerMessages`).
+ * 모델이 잊은 것이 아니라 받은 것이 없었다.
+ *
+ * 이 단서는 **권한을 늘리지 않는다.** 여기서 나오는 것은 context-only 계약이라
+ * 도구도 저장 정보도 붙지 않고, 서버가 검증한 직전 한 쌍이 전부다. 같은 방의
+ * 자기 대화이므로 커플 경계도 넘지 않는다. 이미 도구가 0개인 턴에 직전 한 쌍을
+ * 얹는 것뿐이다.
+ */
+const LEADING_ANAPHORIC_REQUEST_PATTERN =
+  /^(?:그(?:걸|거|것|게)|그\s*(?:얘기|이야기|내용|부분|말))(?:을|를|은|는|도|에|에다|에게)?\s+\S/u;
 
 const BARE_CONTEXT_REFERENCE_PATTERN =
   /^(?:(?:아까|방금)(?:\s+말한)?\s*(?:거|것|말|얘기)|그(?:거|것|게|걸))[.!?\s]*$/u;
@@ -82,6 +113,20 @@ export type BuildAmoraBoundedContinuityInput = {
   visibility: AmoraBoundedContinuityRow["visibility"];
   segmentId: string;
 };
+
+function hasShortAmoraContinuityCue(text: string): boolean {
+  const normalized = text.normalize("NFKC").trim();
+  return (
+    ACTION_SHAPED_CONTEXT_REFERENCE_PATTERN.test(normalized)
+    || CONTEXTUAL_EXPLANATION_PATTERN.test(normalized)
+    || CONTEXTUAL_SELECTION_PATTERN.test(normalized)
+    || BARE_CONTEXT_REFERENCE_PATTERN.test(normalized)
+    || (
+      LEADING_ANAPHORIC_REQUEST_PATTERN.test(normalized)
+      && !EXPLICIT_TOPIC_BREAK_PATTERN.test(normalized)
+    )
+  );
+}
 
 export function hasExplicitAmoraW3ContinuityReference(text: string): boolean {
   const normalized = text.normalize("NFKC").trim();
@@ -148,10 +193,19 @@ export function canAttemptAmoraBoundedContinuity(text: string): boolean {
     currentScope.scope === "W4_out_of_scope"
     && currentScope.confidence === "low"
     && currentScope.needsClarification
-    // 사용자가 "그거 말고" 처럼 **직전 것이 아니라고 명시**하면 잇지 않는다.
-    && !EXPLICIT_TOPIC_BREAK_PATTERN.test(text.normalize("NFKC").trim())
-    // 발화가 다른 분야를 스스로 말하고 있으면 잇지 않는다.
-    && !OTHER_DOMAIN_TOPIC_PATTERN.test(text.normalize("NFKC").trim())
+    && (
+      // (가) 되짚는 단서가 있으면 그대로 통과한다. 이 갈래를 지웠다가 되살렸다 —
+      //      지우니 `그거 회사에 언제 말해야 할까?` 처럼 **지시대명사가 있는데
+      //      다른 분야 낱말이 섞인** 결혼 후속 발화 5건이 새로 끊겼다.
+      //      사용자가 직전 것을 명시적으로 가리키면 아래 화제 검사보다 우선한다.
+      hasShortAmoraContinuityCue(text)
+      || hasExplicitW3Reference
+      // (나) 단서가 없어도, **다른 분야를 말하지 않으면** 대화 안에 있다고 본다.
+      || (
+        !EXPLICIT_TOPIC_BREAK_PATTERN.test(text.normalize("NFKC").trim())
+        && !OTHER_DOMAIN_TOPIC_PATTERN.test(text.normalize("NFKC").trim())
+      )
+    )
   ) || (
     currentScope.scope === "W3_social_care"
     && hasExplicitW3Reference
