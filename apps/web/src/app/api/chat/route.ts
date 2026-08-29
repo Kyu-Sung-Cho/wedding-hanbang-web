@@ -2732,6 +2732,20 @@ export async function POST(request: Request) {
     && requestKind === "chat"
     && isDurableUserMessageBound
     && !weddingClarificationContinuity
+    // 되묻기 연속성만이 아니라 **범위가 W0/W1 로 살아난 모든 경우**를 빼야 한다.
+    // 체크리스트 구제(`shouldRescueChecklistScope`)도 W0 을 만드는데 여기서
+    // 빠져 있었다. 그때 `linked_context_only`(도구 금지) 라벨과 되살아난 도구가
+    // 부딪혀 `buildAmoraSystemPrompt` 가 예외를 던지고, 그 지점을 감싸는 try 가
+    // 없어 **요청 클레임이 안 풀린 채 POST 가 500** 이 된다.
+    //
+    //   직전: "예식장 후보 두 곳을 비교해줘"(W0)
+    //   현재: "만날 장소 정하고 예약 다 했는데 다음은 뭐야?"
+    //         (커플의 체크리스트 항목 이름이라 구제가 걸린다)
+    //
+    // 도구 개수가 아니라 **범위**로 가른다 — 아래 조립부의
+    // `hasEligibleLinkedScope` 가 요구하는 것과 같은 조건이다.
+    && questionScope.scope !== "W0_wedding_core"
+    && questionScope.scope !== "W1_wedding_adjacent"
     && typeof bodyUserMessageId === "string"
     && shouldLoadBoundedContinuity
       ? buildAmoraBoundedContinuity({
