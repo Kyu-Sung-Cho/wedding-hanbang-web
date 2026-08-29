@@ -37,7 +37,7 @@ import {
  *
  * ## 2026-08-29 정본 시안으로 다시 지음 — 계약은 자리를 옮겼을 뿐이다
  *
- * 랜딩이 `웨딩한방-랜딩시안/NotebookBest.html` 로 다시 지어지며 섹션이 통째로 바뀌었다.
+ * 랜딩이 `docs/landing/NotebookBest.html` 로 다시 지어지며 섹션이 통째로 바뀌었다.
  * `ScenesSection` `NoSideSection` `OneRoomSection` `PrivateLaneSection`
  * `NotForVendorsSection` `PriceCompareSection` 이 없어졌다. **그 섹션들이 지고 있던
  * 고지는 사라진 게 아니라 옮겨 갔고, 이 파일은 옮겨 간 자리를 검사한다:**

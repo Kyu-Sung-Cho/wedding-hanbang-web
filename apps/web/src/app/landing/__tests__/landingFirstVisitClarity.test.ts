@@ -45,7 +45,7 @@ import {
  *
  * ## 2026-08-29 이사 — 랜딩이 정본 시안으로 다시 지어졌다
  *
- * 랜딩이 `웨딩한방-랜딩시안/NotebookBest.html` 로 다시 지어지면서 섹션 여섯
+ * 랜딩이 `docs/landing/NotebookBest.html` 로 다시 지어지면서 섹션 여섯
  * (`ScenesSection` `NoSideSection` `OneRoomSection` `PrivateLaneSection`
  * `NotForVendorsSection` `PriceCompareSection`)과 그 카피 블록이 통째로 없어졌다.
  * **없어진 것은 자리이지 고지가 아니다.** 위 일곱 교훈은 그대로 두고, 각 단언이 지키던

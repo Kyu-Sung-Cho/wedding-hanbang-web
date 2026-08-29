@@ -61,7 +61,7 @@ import {
  *
  * ## 2026-08-29 재조준 — 랜딩이 정본 시안으로 다시 지어졌다
  *
- * `웨딩한방-랜딩시안/NotebookBest.html` 로 되돌리면서 섹션 구성이 통째로 바뀌었다.
+ * `docs/landing/NotebookBest.html` 로 되돌리면서 섹션 구성이 통째로 바뀌었다.
  * 없어진 컴포넌트(ScenesSection · NoSideSection · OneRoomSection ·
  * PrivateLaneSection · NotForVendorsSection · PriceCompareSection)를 가리키던
  * 단언은 **지우지 않고**, 그 컴포넌트가 지고 있던 계약이 옮겨간 자리로 따라갔다.
@@ -1185,23 +1185,30 @@ describe("landing design system", () => {
   it("파란 펜 밑줄은 누를 수 있는 것에만 붙는다", () => {
     // `.landing-pen` 은 globals.css 에서 `border-bottom: 2px solid …` 다. 이 랜딩에서
     // 밑줄은 **"누를 수 있다"** 는 뜻이고, 바로 위 레시피 검사도 그 조합을 "홀로 서는
-    // 링크"로 못 박는다. 정본 시안(`NotebookBest.html`)도 `.pen` 을 실제 링크 두 곳에만
-    // 썼다.
+    // 링크"로 못 박는다.
+    //
+    // ⚠️ 여기 "정본 시안도 `.pen` 을 실제 링크 두 곳에만 썼다" 고 적혀 있었다. **거꾸로다.**
+    // 시안은 `.pen` 을 두 번 쓰는데 둘 다 문장 안 `<span class="pen">` 이고 링크가 아니다
+    // (NotebookBest.html:1452). 구현이 그 두 자리를 진짜 링크로 만든 것이다
+    // (`AvailableNowSection.tsx`). 시안이 근거가 아니라 **이 저장소의 좁힌 약속**이 근거다.
     //
     // 2026-08-29 실측: `CommunitySection` 의 카테고리 이름 다섯이 그 밑줄을 달고
     // 있었는데 링크가 아니었다. 화면에서는 링크와 구분되지 않아 눌러도 아무 일이
     // 없다 — 이 저장소가 "이 서비스는 고장났다고 읽는 실패" 라고 부르는 종류다.
     //
-    // 예외는 손글씨 강조다. `landing-hand` 와 함께 쓰인 밑줄은 펜으로 그은 강조선이지
-    // 링크가 아니다(히어로의 질문 한 줄이 그렇다).
+    // ⚠️ 여기 손글씨 예외(`landing-hand` 와 함께면 통과)가 있었고, 근거로 "히어로의 질문
+    // 한 줄이 그렇다" 를 들었다. **그 자리는 존재하지 않았다** — `TransformationHero` 의
+    // `landing-pen` 은 0곳이고, `landing-hand`+`landing-pen` 동시 사용은 저장소 전체에서
+    // `AmoraNoteSection.tsx:36` **하나뿐**이었다. 예외가 그 한 줄을 합법화하려고 만들어졌고,
+    // 그 한 줄은 정본 시안(1348행)에 밑줄이 없다. 그래서 줄과 예외를 함께 없앴다.
+    // 이제 규칙에 예외가 없다 — 밑줄은 누를 수 있는 것에만.
     const offenders: string[] = [];
     for (const [file, src] of surfaces) {
       // 여는 태그를 하나씩 훑는다. 태그 이름과 클래스를 같이 봐야 판정이 된다.
       for (const [tag] of src.matchAll(/<[A-Za-z][^>]*>/gu)) {
         if (!/landing-pen/u.test(tag)) continue;
         const isInteractive = /^<(?:a|button|Link|TrackedLandingLink)\b/u.test(tag);
-        const isHandwriting = /landing-hand/u.test(tag);
-        if (isInteractive || isHandwriting) continue;
+        if (isInteractive) continue;
         offenders.push(`${file}: ${tag.slice(0, 72)}`);
       }
     }

@@ -4,7 +4,7 @@ import { noteText, shell } from "./notebook";
 /**
  * 아모라가 무엇을 하는지 **한 장면으로** 보여 준다.
  *
- * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 첫 섹션 아래쪽 카드다.
+ * 정본 시안 `docs/landing/NotebookBest.html` 의 첫 섹션 아래쪽 카드다.
  * 설명하는 문장 대신 실제 대화 한 토막을 노트에 적어 둔 모양으로 보여 준다 —
  * "아모라는 대화를 정리하는 AI" 라는 말보다 이 카드 하나가 빠르다.
  *
@@ -33,7 +33,13 @@ export default function AmoraNoteSection() {
         </h2>
 
         <div className="landing-note px-6 py-8 sm:px-10 sm:py-10">
-          <p className="landing-hand landing-pen mb-6 inline-block text-[22px] text-[var(--color-paper-pen)]">
+          {/* ⚠️ 여기 `landing-pen`(파란 펜 밑줄)이 있었다. 이 랜딩에서 밑줄은
+              **"누를 수 있다"** 는 뜻인데(globals.css 의 `border-bottom`), 이 줄은
+              링크가 아니다. 정본 시안의 같은 문장(NotebookBest.html:1348)도
+              `<p class="hand" style="…color:#35638A">` 로 **밑줄이 없다** — 파란
+              손글씨는 색과 서체가 이미 지고 있다. `inline-block` 은 밑줄 폭을
+              글자에 맞추려던 것이라 함께 뺐다(시안도 블록 `<p>` 다). */}
+          <p className="landing-hand mb-6 text-[22px] text-[var(--color-paper-pen)]">
             {amoraNote.ask}
           </p>
 

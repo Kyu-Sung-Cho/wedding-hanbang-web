@@ -6,7 +6,7 @@ import { band, noteText, shell } from "./notebook";
 /**
  * 마무리.
  *
- * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 마지막 섹션이다.
+ * 정본 시안 `docs/landing/NotebookBest.html` 의 마지막 섹션이다.
  * 한 줄을 손글씨로 크게 쓰고 행동 둘만 남긴다 — 여기까지 읽은 사람에게
  * 설명을 더 얹지 않는다.
  *

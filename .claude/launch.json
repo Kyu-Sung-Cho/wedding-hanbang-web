@@ -19,7 +19,7 @@
       "name": "web-paper-3400",
       "runtimeExecutable": "node",
       "runtimeArgs": [
-        "scripts/dev-web-local.mjs"
+        "scripts/dev-web-local.mjs", "-p", "3400"
       ],
       "port": 3400,
       "url": "http://localhost:3400"

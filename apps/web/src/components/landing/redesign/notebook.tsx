@@ -128,7 +128,7 @@ export function NoteCard({
 // 규칙을 반대로 가르쳤다.
 //
 // 이 랜딩에서 파란 펜 밑줄은 **"누를 수 있다"** 는 뜻 하나다. 정본 시안
-// (`웨딩한방-랜딩시안/NotebookBest.html`)도 `.pen` 을 실제 링크 두 곳에만 썼고,
+// (`docs/landing/NotebookBest.html`)도 `.pen` 을 실제 링크 두 곳에만 썼고,
 // `landingDesignSystem.test.ts` 의 "파란 펜 밑줄은 누를 수 있는 것에만 붙는다" 가
 // 이를 고정한다.
 //

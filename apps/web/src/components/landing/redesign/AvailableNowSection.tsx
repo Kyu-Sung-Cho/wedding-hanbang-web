@@ -6,14 +6,18 @@ import { landingContent } from "./landingContent";
 import { band, noteText, sectionTitle, shell } from "./notebook";
 
 /**
- * 로그인 없이 지금 되는 것 세 가지.
+ * 로그인 없이 지금 되는 것 네 가지.
  *
- * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 `#now` 섹션이다.
- * 카드마다 테이프에 번호(01·02·03)를 붙여 순서가 아니라 **목록**임을 보인다.
+ * 정본 시안 `docs/landing/NotebookBest.html` 의 `#now` 섹션이다.
+ * 카드마다 테이프에 번호(01~04)를 붙여 순서가 아니라 **목록**임을 보인다.
+ *
+ * ⚠️ 시안의 `#now` 는 `.g3` 에 카드 셋이었고 주석도 "세 가지" 였다. 공시 가격이
+ * 전용 섹션에서 이 안의 카드로 내려오며(파운더 결정) **넷**이 됐는데 수량 서술만
+ * 셋으로 남아 있었다. 그래서 그리드도 시안의 3열이 아니라 2열이다.
  *
  * ## 카드 아래 작은 글씨가 본문이다
  *
- * 세 카드의 `note` 는 장식이 아니라 **계약**이다. 특히 02 의 "점수도 궁합도 매기지
+ * 네 카드의 `note` 는 장식이 아니라 **계약**이다. 특히 02 의 "점수도 궁합도 매기지
  * 않아요" 는 CLAUDE.md 가 요구하는 고지다(WeddingCode 는 검증된 궁합 검사가 아니다).
  * 지우면 화면이 금지된 약속을 하게 된다.
  *
@@ -43,7 +47,11 @@ export default function AvailableNowSection() {
           {availableNow.title}
         </h2>
 
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 lg:gap-6">
+        {/* ⚠️ 여기 `lg:grid-cols-3` 이 있었다. 카드는 **넷**이라 lg 에서 네 번째가
+            혼자 줄을 찼다. 2열로 두면 2×2 로 떨어진다. `lg:grid-cols-4` 는 쓰지
+            마라 — shell 폭(max-w 1080 · px-8)에서 카드당 약 236px 이라 각 카드의
+            `note` 고지문이 6~8줄로 늘어진다. 그 고지문은 장식이 아니라 계약이다. */}
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:gap-6">
           {availableNow.cards.map((card) => (
             <TrackedLandingLink
               key={card.no}

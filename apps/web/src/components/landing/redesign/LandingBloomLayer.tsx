@@ -1,9 +1,22 @@
 import { BloomGarland, BloomSprig, BouquetCorner } from "./LandingBloom";
 
 /**
- * 페이지 여백에 그린 꽃 — **정본 시안의 배치 그대로.**
+ * 페이지 여백에 그린 꽃 — 정본 시안의 **꽃 배치** 그대로.
  *
- * 출처: `웨딩한방-랜딩시안/NotebookBest.html` 의 `.bq-*` 규칙.
+ * 출처: `docs/landing/NotebookBest.html` 의 `.bq-layer`·`.bq--*` 규칙.
+ *
+ * ⚠️ 여기 "정본 시안의 배치 그대로" · "출처: `.bq-*` 규칙" 이라고만 적혀 있었다.
+ * 시안의 `.bq-*` 는 **넷**인데 옮긴 것은 뒤의 둘뿐이다:
+ *
+ *   .bq-layer / .bq--*   꽃 배치           → 옮겼다(이 파일)
+ *   .bq-wash             radial-gradient 워시 → **안 옮겼다**
+ *   .bq-grain            fractalNoise 종이 결  → **안 옮겼다**
+ *
+ * 그대로 옮기면 안 된다. 시안은 `body` 가 배경을 지고 래퍼가 투명이라
+ * `z-index: -1/-2` 가 보이지만, 여기는 `app/landing/page.tsx` 의 래퍼가
+ * `bg-[var(--color-paper-sheet)]` 로 **불투명**이다 — 그대로면 안 보이거나,
+ * z-index 를 올려 본문 위에 `multiply` 를 씌우게 된다. 시트 위 본문 대비를
+ * 재고 나서 넣어라(카드는 불투명 흰색이라 영향이 없다).
  *
  * ## 왜 컴포넌트 하나로 묶나
  *

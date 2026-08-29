@@ -50,7 +50,7 @@ export default function LandingHeader() {
           >
             {headerAuth.logIn.label}
           </Link>
-          {/* 2026-08-28: 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)의 헤더는
+          {/* 2026-08-28: 정본 시안(`docs/landing/NotebookBest.html`)의 헤더는
               오른쪽 끝 버튼이 "시작하기" 다. 그전에는 "스무 장면 답해보기" 가 하드코딩돼
               있었는데, 시안에 없는 행동이고 카피 정본을 읽지도 않았다. */}
           <TrackedLandingLink

@@ -6,7 +6,7 @@ import { bodyText, noteText, shell } from "./notebook";
 /**
  * 첫 화면.
  *
- * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 그대로다.
+ * 정본 시안 `docs/landing/NotebookBest.html` 그대로다.
  *
  * ## 후크가 "노트" 인 이유
  *

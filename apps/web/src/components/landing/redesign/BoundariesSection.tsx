@@ -6,7 +6,7 @@ import { band, noteText, sectionTitle, shell } from "./notebook";
 /**
  * 하지 않는 것 넷.
  *
- * 정본 시안 `웨딩한방-랜딩시안/NotebookBest.html` 의 `#trust` 섹션이다.
+ * 정본 시안 `docs/landing/NotebookBest.html` 의 `#trust` 섹션이다.
  *
  * ## 이 섹션만은 부정문이 맞다
  *

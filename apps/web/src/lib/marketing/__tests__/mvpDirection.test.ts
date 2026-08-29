@@ -97,7 +97,7 @@ describe("web MVP product direction", () => {
     // 카피 정본 한 곳에서 정한다**는 것이므로, 같은 일을 하는 새 문장으로 옮긴다.
     // 조건을 느슨하게 하지 않는다 — 셋 다 글자 그대로, **있어야 할 블록에서** 대조한다.
     // (파일 전체에서 찾으면 그 문장을 푸터 태그라인으로 옮겨도 통과한다.)
-    // 2026-08-29: 랜딩이 정본 시안(`웨딩한방-랜딩시안/NotebookBest.html`)으로 다시
+    // 2026-08-29: 랜딩이 정본 시안(`docs/landing/NotebookBest.html`)으로 다시
     // 지어지면서 블록 이름이 전부 바뀌었다(`scenes`·`noSide`·`oneRoom`·
     // `notForVendors` -> `amoraNote`·`community`·`availableNow`·`boundaries`).
     // **지키는 것은 그대로다** — 랜딩이 제품과 아모라를 무엇이라고 부르는지가

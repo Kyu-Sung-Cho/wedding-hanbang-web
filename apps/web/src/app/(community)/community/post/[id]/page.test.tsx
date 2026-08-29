@@ -324,18 +324,53 @@ describe("public post server rendering", () => {
     expect(html).not.toContain("게시글을 찾을 수 없습니다");
   });
 
-  it("uses the framework 404 for a missing or non-public post", async () => {
+  /**
+   * ⚠️ 이 검사는 `notFound()` 가 **던져지는 것**을 요구했다. 실제로 던지고 있었는데,
+   * 사용자에게는 **빈 화면**이 나갔다.
+   *
+   * 이 라우트는 `dynamic = "force-dynamic"` 이라 커뮤니티 껍데기와 로딩 스켈레톤이
+   * 먼저 흘러나간다. 그 뒤에 던지면 React 는 그 경계를 실패로 표시하고(`<!--$~-->`)
+   * 대체 내용을 끝내 보내지 않는다 — 위 내비와 아래 푸터만 있고 가운데가 빈 화면이다.
+   * 2026-08-29 실측(운영·로컬 동일): 실제 글 997자 vs 없는 글 319자, 20초를 기다려도
+   * 그대로. `not-found.tsx`·`error.tsx` 를 이 세그먼트에 넣어도 **그리지 않았다.**
+   *
+   * 그래서 던지지 않고 그 자리에서 안내를 그린다. **지켜야 할 계약은 그대로다** —
+   * 없는 글과 차단된 글이 구별되지 않아야 한다. 아래 두 검사가 그것을 잰다.
+   */
+  it("없는 글에 빈 화면이 아니라 안내를 그린다", async () => {
     mocks.getPublicCommunityPostDetail.mockResolvedValue(null);
 
-    await expect(
-      PostDetailPage({
-        params: Promise.resolve({ id: "private-post" }),
-      }),
-    ).rejects.toThrow("NEXT_NOT_FOUND");
-    expect(mocks.notFound).toHaveBeenCalledTimes(1);
+    const element = await PostDetailPage({
+      params: Promise.resolve({ id: "private-post" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("글을 찾을 수 없어요");
+    expect(mocks.notFound).not.toHaveBeenCalled();
+    // 껍데기만 남는 것을 막는 게 목적이다 — 본문이 실제로 있는지 센다.
+    expect(html.replace(/<[^>]*>/gu, "").trim().length).toBeGreaterThan(40);
   });
 
-  it("returns the same 404 for a signed-in viewer blocked from the post author", async () => {
+  it("읽기 자체가 실패해도 빈 화면을 주지 않는다", async () => {
+    // `postError`(예: 주소에 UUID 가 아닌 값)면 로더가 throw 한다. 그것까지 받아야
+    // 한다 — 던지면 위와 같은 빈 화면이다.
+    mocks.getPublicCommunityPostDetail.mockRejectedValue(
+      new Error("COMMUNITY_PUBLIC_POST_DETAIL_UNAVAILABLE"),
+    );
+
+    const element = await PostDetailPage({
+      params: Promise.resolve({ id: "not-a-uuid" }),
+    });
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("글을 불러오지 못했어요");
+    // 내부 식별자와 DB 원문을 화면에 쓰지 않는다.
+    expect(html).not.toContain("COMMUNITY_PUBLIC_POST_DETAIL_UNAVAILABLE");
+  });
+
+  it("차단된 글은 없는 글과 **글자 하나까지** 같아야 한다", async () => {
+    // 여기가 이 검사의 핵심이다. 두 화면이 다르면 "차단됐다"와 "없다"를 구별할 수
+    // 있게 되고, 그것만으로 글의 존재가 새어 나간다.
     mocks.serverUserId = "20000000-0000-4000-8000-000000000002";
     mocks.viewerPostVisible = false;
     mocks.getPublicCommunityPostDetail.mockResolvedValue(
@@ -345,14 +380,24 @@ describe("public post server rendering", () => {
       }),
     );
 
-    await expect(
-      PostDetailPage({
-        params: Promise.resolve({ id: "post-1" }),
-      }),
-    ).rejects.toThrow("NEXT_NOT_FOUND");
+    const blocked = renderToStaticMarkup(
+      await PostDetailPage({ params: Promise.resolve({ id: "post-1" }) }),
+    );
 
+    expect(blocked).not.toContain("anonymous fallback must stay hidden");
+    expect(blocked).not.toContain("blocked author content");
     expect(mocks.getPublicCommunityPostDetail).not.toHaveBeenCalled();
-    expect(mocks.notFound).toHaveBeenCalledTimes(1);
+    expect(mocks.notFound).not.toHaveBeenCalled();
+
+    // 같은 렌더러로 "없는 글"을 그려 **똑같은지** 대조한다.
+    mocks.serverUserId = null;
+    mocks.viewerPostVisible = true;
+    mocks.getPublicCommunityPostDetail.mockResolvedValue(null);
+    const missing = renderToStaticMarkup(
+      await PostDetailPage({ params: Promise.resolve({ id: "missing" }) }),
+    );
+
+    expect(blocked).toBe(missing);
   });
 
   it("does not put an anonymous detail fallback in signed-in server HTML", async () => {
