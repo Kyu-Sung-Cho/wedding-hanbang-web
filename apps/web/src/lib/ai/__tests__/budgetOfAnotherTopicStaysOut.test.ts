@@ -23,8 +23,9 @@ import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
 const classify = (userText: string) => classifyAmoraQuestionScope({ userText });
 
 const FOREIGN_TOPICS = [
-  "자퇴", "게임", "유튜브", "도박 빚", "파산", "문신", "담배", "술", "알바", "휴학",
-  "편입", "커밍아웃", "밴드", "논문", "고소", "왕따", "괴롭힘", "친구 채무", "로또",
+  "자퇴", "게임", "유튜브", "도박 빚", "파산", "문신", "담배", "알바", "휴학",
+  // `밴드`·`술` 은 일부러 뺐다 — 웨딩 밴드는 반지이고 주류는 예산 항목이다.
+  "편입", "커밍아웃", "논문", "고소", "왕따", "괴롭힘", "친구 채무", "로또",
   "육아", "돌잔치", "연말정산", "골프", "등산", "보이스피싱",
 ];
 const BUDGET_FORMS = [

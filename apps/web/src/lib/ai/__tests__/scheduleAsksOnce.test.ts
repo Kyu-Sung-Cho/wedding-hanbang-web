@@ -50,7 +50,7 @@ const compose = (enabledToolNames: string[]) =>
     persistenceMode: "durable",
   });
 
-const RULE = "모르는 것이 여러 개면 한 번에 모아서 물어보세요";
+const RULE = "모르는 것이 여러 개면 한 번에 모아 물으세요";
 
 describe("일정은 한 번에 묻는다", () => {
   it("운영 도구 집합이면 규칙이 모델에게 간다", () => {
@@ -59,7 +59,7 @@ describe("일정은 한 번에 묻는다", () => {
 
   it("날짜만 묻고 이름을 또 묻지 말라고 분명히 쓴다", () => {
     // 문구가 남아 있어도 뒷문장이 사라지면 규칙이 반쪽이 된다.
-    expect(compose(PRODUCTION_ENABLED_TOOL_NAMES)).toContain("유형을 또 묻고, 다시 확인하는 식으로 나누지 마세요");
+    expect(compose(PRODUCTION_ENABLED_TOOL_NAMES)).toContain("날짜→유형→재확인으로 나누지 마세요");
   });
 
   it("일정 도구가 없으면 싣지 않는다", () => {

@@ -140,7 +140,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
-  // 팀 테스트(2026-08-29 리포트)에서 나온 세 가지. 셋 다 조회 도구가 있을 때만
+  // 팀 테스트(2026-08-29 리포트)에서 나온 것들. 조회 도구가 있을 때만
   // 싣는다 — 프롬프트가 이미 상한(48,000자)에 붙어 있어 늘 실으면 저장 문맥
   // 꼬리가 잘린다.
   //
@@ -153,15 +153,14 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   //    프롬프트 어디에도 그 도구를 쓸 이유가 적혀 있지 않았다(전체 검색 0건).
   if (has("get_wedding_info", "get_budget_summary")) {
     lines.push(
-      "- 예식 형태나 하객 규모가 크게 바뀌면(예: 절반 이하로) 곧바로 다시 짜지 말고 무엇 때문인지 한 번만 확인하세요. 날짜를 한 달 옮기는 정도의 변경은 그냥 반영하면 됩니다.",
-      "- 방향이 바뀌면 앞서 정한 것 중 무엇이 그대로이고 무엇을 다시 정해야 하는지 함께 알려주세요.",
-      "- 무엇부터 할지 모르겠다고 하면 되묻기 하나로 끝내지 마세요. 지금 조건에서의 판단, 그 순서인 이유, 바로 할 수 있는 다음 한 가지를 함께 주세요.",
+      "- 예식 형태·하객 규모가 절반 이하로 바뀌면 다시 짜기 전에 이유를 한 번만 확인하고, 앞서 정한 것 중 무엇이 남고 무엇을 다시 정할지 알려주세요. 날짜 한 달 이동 정도는 그냥 반영합니다.",
+      "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요.",
     );
   }
 
   if (enabled.has("get_market_price")) {
     lines.push(
-      "- 금액 감이 없다고 하면 `get_market_price` 로 실제 범위를 확인해 기준 시점·출처와 함께 알려주세요. 도구 없이 평균가를 말하지 마세요.",
+      "- 금액 감이 없다면 `get_market_price` 로 범위를 확인해 기준 시점·출처와 함께 말하고, 도구 없이 평균가를 지어내지 마세요.",
     );
   }
 
@@ -193,7 +192,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // `!isMutatingTool` 로 걸러져 이 목록에 안 들어온다. 같은 주제의 조회 도구로 건다.
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      "- 일정을 추가하는 데 모르는 것이 여러 개면 한 번에 모아서 물어보세요. 날짜를 묻고, 답을 받은 뒤 유형을 또 묻고, 다시 확인하는 식으로 나누지 마세요. 약속의 성격이 분명하지 않으면 묻지 말고 shared_commitment로 두세요.",
+      "- 일정 추가에 모르는 것이 여러 개면 한 번에 모아 물으세요. 날짜→유형→재확인으로 나누지 마세요. 성격이 모호하면 묻지 말고 shared_commitment로 둡니다.",
     );
   }
 

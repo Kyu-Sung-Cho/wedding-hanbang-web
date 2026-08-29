@@ -49,40 +49,40 @@ const without = (...drop: string[]) =>
 describe("큰 방향전환은 이유를 한 번 확인한다", () => {
   // Turn 17: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용했다.
   it("크기 조건과 함께 실린다", () => {
-    expect(delivered).toContain("크게 바뀌면");
-    expect(delivered).toContain("한 번만 확인하세요");
+    expect(delivered).toContain("절반 이하로 바뀌면");
+    expect(delivered).toContain("이유를 한 번만 확인하고");
   });
 
   it("작은 변경까지 되묻게 하지는 않는다", () => {
     // 이 단서가 빠지면 날짜 한 달 옮기는 것도 되묻는다.
-    expect(delivered).toContain("날짜를 한 달 옮기는 정도의 변경은 그냥 반영");
+    expect(delivered).toContain("날짜 한 달 이동 정도는 그냥 반영");
   });
 
   it("결혼 조회 도구가 없으면 싣지 않는다", () => {
-    expect(without("get_wedding_info", "get_budget_summary")).not.toContain("크게 바뀌면");
+    expect(without("get_wedding_info", "get_budget_summary")).not.toContain("절반 이하로 바뀌면");
   });
 });
 
 describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
   it("무엇이 그대로이고 무엇을 다시 정할지 말하게 한다", () => {
-    expect(delivered).toContain("무엇이 그대로이고 무엇을 다시 정해야 하는지");
+    expect(delivered).toContain("무엇이 남고 무엇을 다시 정할지");
   });
 
   it("결혼 조회 도구가 없으면 싣지 않는다", () => {
     expect(without("get_wedding_info", "get_budget_summary"))
-      .not.toContain("무엇이 그대로이고");
+      .not.toContain("무엇이 남고 무엇을 다시 정할지");
   });
 });
 
 describe("무엇부터 할지 모른다고 하면 되묻기로 끝내지 않는다", () => {
   it("판단·이유·다음 한 가지를 함께 주게 한다", () => {
-    expect(delivered).toContain("되묻기 하나로 끝내지 마세요");
-    expect(delivered).toContain("바로 할 수 있는 다음 한 가지");
+    expect(delivered).toContain("되묻기로 끝내지 말고");
+    expect(delivered).toContain("판단·이유·다음 한 가지를 함께");
   });
 
   it("결혼 조회 도구가 없으면 싣지 않는다", () => {
     expect(without("get_wedding_info", "get_budget_summary"))
-      .not.toContain("되묻기 하나로 끝내지 마세요");
+      .not.toContain("되묻기로 끝내지 말고");
   });
 });
 
@@ -90,14 +90,14 @@ describe("금액 감이 없다고 하면 시세 도구를 쓴다", () => {
   // 이 도구는 켜져 있는데 프롬프트 어디에도 쓸 이유가 적혀 있지 않았다.
   it("도구 이름과 출처 요구가 함께 실린다", () => {
     expect(delivered).toContain("`get_market_price`");
-    expect(delivered).toContain("기준 시점·출처와 함께");
+    expect(delivered).toContain("기준 시점·출처와 함께 말하고");
   });
 
   it("지어내지 말라는 단서가 붙어 있다", () => {
-    expect(delivered).toContain("도구 없이 평균가를 말하지 마세요");
+    expect(delivered).toContain("도구 없이 평균가를 지어내지 마세요");
   });
 
   it("그 도구가 없으면 싣지 않는다", () => {
-    expect(without("get_market_price")).not.toContain("도구 없이 평균가를 말하지 마세요");
+    expect(without("get_market_price")).not.toContain("도구 없이 평균가를 지어내지 마세요");
   });
 });
