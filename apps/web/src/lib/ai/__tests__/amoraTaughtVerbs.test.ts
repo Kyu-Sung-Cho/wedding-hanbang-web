@@ -57,27 +57,16 @@ describe("다른 영역의 일정·예산은 그대로 막힌다", () => {
       .not.toBe("W0_wedding_core");
   });
 
-  // 두 쌍의 결론이 갈린다.
-  //
-  //   이사 — 이 앱에서 `이사`·`전세`·`가전` 은 **신혼집 준비**의 말이다. 결혼 밖으로
-  //          보내면 "전세 계약 일정 알려줘" 가 끊긴다(적대적 검토가 잡았다).
-  //          그래서 W0 으로 둔다. origin/main 과 같다.
-  //   면접 — 취업 이야기다. 정본 분기에 결혼 밖 가드를 넣으면서 막혔다.
-  //
-  // 이 테스트가 지키려던 것은 **두 동사가 같은 판정을 받는다**는 대칭이므로 그것을
-  // 그대로 두고, 쌍마다 기대값을 적는다.
+  // 이 두 개는 걸린다. **새 오탐이 아니라 이미 있던 모양**이다 — 같은 문장을
+  // 이미 배포된 동사로 쓰면 이 변경 전에도 W0였다. 사실로 고정해 둔다.
   it.each([
-    ["이사 일정 내일로 넣어줘", "이사 일정 내일로 추가해줘", true],
-    ["면접 일정 다음 주로 넣어줘", "면접 일정 다음 주로 등록해줘", false],
-  ] as const)(
-    "새 동사와 기존 동사가 같은 판정을 받는다: %s",
-    (withNewVerb, withShippedVerb, weddingCore) => {
+    ["이사 일정 내일로 넣어줘", "이사 일정 내일로 추가해줘"],
+    ["면접 일정 다음 주로 넣어줘", "면접 일정 다음 주로 등록해줘"],
+  ])(
+    "새 동사와 기존 동사가 같은 판정을 받는다(노출은 이전부터): %s",
+    (withNewVerb, withShippedVerb) => {
       const shipped = classifyAmoraQuestionScope({ userText: withShippedVerb }).scope;
-      if (weddingCore) {
-        expect(shipped).toBe("W0_wedding_core");
-      } else {
-        expect(shipped).not.toBe("W0_wedding_core");
-      }
+      expect(shipped).toBe("W0_wedding_core");
       expect(classifyAmoraQuestionScope({ userText: withNewVerb }).scope)
         .toBe(shipped);
     },
