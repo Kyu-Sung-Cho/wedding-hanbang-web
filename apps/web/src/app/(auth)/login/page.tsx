@@ -338,7 +338,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[linear-gradient(180deg,#fffdf7_0%,#ffffff_52%,#f5f8f1_100%)] flex items-center justify-center px-5 py-10">
+    <main className="min-h-screen bg-[var(--hb-surface-page)] flex items-center justify-center px-5 py-10">
       {/* 배경 장식 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#eef4f1,transparent)] blur-[100px] opacity-45" />

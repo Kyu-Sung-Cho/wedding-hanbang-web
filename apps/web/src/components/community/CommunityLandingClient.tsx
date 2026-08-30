@@ -1115,7 +1115,7 @@ function SearchHub({
       aria-labelledby="community-search-heading"
     >
       <div
-        className="overflow-hidden rounded-[24px] border border-[#d8c7ad] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(247,241,232,0.9))] px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
+        className="overflow-hidden rounded-[24px] border border-[#d8c7ad] bg-white px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
         data-tutorial-target="community-categories"
       >
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-7">
@@ -2142,7 +2142,7 @@ function BestPostsPanel() {
 
 function AmoraSidebarPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_58%,#eef4eb_100%)] p-5 shadow-[var(--shadow-raised)]">
+    <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-white p-5 shadow-[var(--shadow-raised)]">
       <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
         아모라에게 묻기
       </span>
@@ -2180,7 +2180,7 @@ const MARKET_SNAPSHOT_CATEGORIES: readonly PriceCategory[] = [
 
 function MarketSnapshotPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[var(--shadow-raised)]">
+    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
       <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
         출처·기준 시점 공개
       </span>

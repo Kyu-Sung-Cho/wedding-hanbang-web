@@ -225,7 +225,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] text-[var(--hb-text-strong)]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]">
       <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1240px] py-5 sm:w-[calc(100%_-_48px)] sm:py-7">
         <RoomHeader room={room} />
 
@@ -294,7 +294,7 @@ function LoaderText() {
 function CohortLoginRequired({ roomId }: { roomId: string }) {
   const redirect = weddingPath(`/community/cohort/${roomId}`);
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] px-4 py-10 sm:px-6">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 py-10 sm:px-6">
       <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
