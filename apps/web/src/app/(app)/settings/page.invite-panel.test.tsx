@@ -71,6 +71,33 @@ describe("settings invite panel visibility", () => {
     document.body.replaceChildren();
   });
 
+  /**
+   * 준비 공간이 없는 계정이 이 화면에서 **영원히 "불러오는 중"** 이었다.
+   *
+   * `connectionLookup` 의 첫 값이 `"loading"` 인데, 커플이 없는 갈래가 그 값을
+   * 바꾸지 않고 `return` 했다. 불러올 것이 없는 것이지 불러오는 중이 아니다.
+   *
+   * 2026-08-31 파운더가 실제로 그 화면을 봤다 — 배우자를 연결하려고 다른 계정으로
+   * 들어갔는데, 그 계정은 아직 준비 공간이 없어서 이 카드가 멈춰 있었다.
+   */
+  it("준비 공간이 없으면 로딩에서 멈추지 않고 갈 곳을 알려준다", async () => {
+    useAuthStore.setState({ couple: null, partner: null, isDemo: false });
+
+    await act(async () => {
+      root.render(<SettingsPage />);
+    });
+
+    const text = container.textContent ?? "";
+    expect(text).not.toContain("연결 상태를 불러오는 중이에요");
+    expect(text).toContain("아직 준비 공간이 없어요");
+    // 코드가 왜 없는지와 어디로 가면 되는지를 같이 말한다.
+    expect(text).toContain("코드로 함께 시작");
+    const link = [...container.querySelectorAll("a")].find(
+      (a) => a.getAttribute("href") === "/onboarding",
+    );
+    expect(link, "시작 화면으로 가는 길이 없다").toBeTruthy();
+  });
+
   it("shows a scannable invite while the partner has not joined yet", async () => {
     // isDemo 경로를 쓰는 이유: 권한 API를 타지 않고도 `awaiting_partner`를
     // 정본(resolveCoupleConnectionState)으로 통과시키는 유일한 로컬 경로다.

@@ -187,7 +187,13 @@ export default function SettingsPage() {
     };
 
     if (!couple) {
+      // **판정을 끝냈다고 표시한다.** 예전에는 여기서 그냥 나가서
+      // `connectionLookup` 이 첫 값인 "loading" 으로 남았고, 준비 공간이 없는
+      // 계정은 이 카드가 **영원히 "연결 상태를 불러오는 중이에요"** 였다
+      // (2026-08-31 파운더가 실제로 그 화면을 봤다). 불러올 것이 없는 것이지
+      // 불러오는 중이 아니다.
       setCoupleConnection(resolveCoupleConnectionState(null, context));
+      setConnectionLookup("ready");
       return;
     }
 
@@ -982,6 +988,22 @@ export default function SettingsPage() {
               <p role="alert" className="text-sm leading-relaxed text-[#D95F5F]">
                 {regenerateError}
               </p>
+            </div>
+          ) : !couple ? (
+            /* 준비 공간이 없는 계정. 초대 코드는 공간이 있어야 생기므로 여기서
+               보여줄 코드가 없다 — 그 사실과 갈 곳을 같이 말한다. */
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[var(--hb-text-strong)]">아직 준비 공간이 없어요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
+                초대 코드는 준비 공간을 만든 뒤에 생겨요. 상대에게 받은 코드가 있다면
+                시작 화면에서 그 코드로 함께 시작할 수 있어요.
+              </p>
+              <Link
+                href="/onboarding"
+                className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
+              >
+                시작 화면으로 가기
+              </Link>
             </div>
           ) : connectionLookup === "loading" ? (
             <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
