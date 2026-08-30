@@ -345,7 +345,7 @@ function WeddingCase({
 }) {
   return (
     <article className="overflow-hidden rounded-[24px] border border-[#e2d3c8] bg-white shadow-[var(--shadow-overlay)]">
-      <header className="bg-[linear-gradient(135deg,#243832_0%,#36534e_100%)] px-5 py-6 text-white sm:px-8">
+      <header className="bg-[var(--hb-primary)] px-5 py-6 text-white sm:px-8">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-[11px] font-bold text-white/85">
             <Sparkles className="h-3.5 w-3.5" aria-hidden />

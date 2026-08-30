@@ -84,7 +84,7 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#183832_0%,#2f5f55_58%,#12302b_100%)] text-white">
+    <footer className="bg-[var(--hb-primary)] text-white">
       <div className="mx-auto grid w-full max-w-[1320px] gap-9 px-4 py-8 sm:px-6 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr] lg:px-8">
         <div>
           <FooterBrand />

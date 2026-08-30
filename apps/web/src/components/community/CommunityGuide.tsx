@@ -180,7 +180,7 @@ function SlideCohort() {
       </div>
 
       {/* 동기방 카드 */}
-      <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 mb-4 shadow-sm">
+      <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-white p-4 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="text-[17px] text-[var(--hb-text-strong)] font-semibold">샘플 동기방</div>
