@@ -118,11 +118,11 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
   const answeredCount = Object.values(itemStates).filter((s) => s !== "unknown").length;
 
   return (
-    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
+    <div className="w-full max-w-[440px] rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 */}
       <div className="bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-6 py-5">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-[6px] bg-white/20 flex items-center justify-center">
             <Search className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -209,7 +209,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             <button
               onClick={handleSubmit}
               disabled={disabled}
-              className="w-full py-3.5 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-[6px] text-base font-semibold text-white bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               확인 질문 정리하기
             </button>
@@ -217,7 +217,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
         </>
       ) : (
         <div className="px-5 py-7 text-center">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-emerald-50 flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-[6px] bg-emerald-50 flex items-center justify-center">
             <CheckCircle2 className="w-6 h-6 text-emerald-600" />
           </div>
           <p className="text-base text-[var(--hb-text-strong)] font-medium">상태를 정리했어요</p>
@@ -242,7 +242,7 @@ function ChecklistItemRow({
   return (
     <div className="px-5 py-3">
       <div className="flex min-w-0 items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${severity.badge}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-[6px] font-medium ${severity.badge}`}>
             {severity.label}
           </span>
           <span className="text-sm text-[var(--hb-text-strong)]">{item.name}</span>
@@ -250,7 +250,7 @@ function ChecklistItemRow({
       <div
         role="group"
         aria-label={`${item.name} 상태`}
-        className="mt-2 grid grid-cols-3 overflow-hidden rounded-lg border border-black/[0.08]"
+        className="mt-2 grid grid-cols-3 overflow-hidden rounded-[6px] border border-black/[0.08]"
       >
         {([
           { value: "included", label: "포함", icon: Check },
@@ -302,7 +302,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
   };
 
   return (
-    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
+    <div className="w-full max-w-[440px] rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 — 판정(점수·등급) 없이 아직 확인하지 않은 항목 수만 */}
       <div className="bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] px-6 py-5">
         <div className="flex items-center justify-between">
@@ -312,7 +312,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
               {vendorName || CATEGORY_LABELS[category] || "묶음"} 견적
             </p>
           </div>
-          <div className="rounded-2xl bg-white/10 px-3 py-2 text-center">
+          <div className="rounded-[6px] bg-white/10 px-3 py-2 text-center">
             <p className="text-xl font-bold text-white">{missingItems.length}</p>
             <p className="text-xs text-white/60 -mt-0.5">확인 필요</p>
           </div>
@@ -397,7 +397,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
             <div className="px-5 pb-3.5">
               <div className="flex flex-wrap gap-2">
                 {includedItems.map((item) => (
-                  <span key={item.name} className="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  <span key={item.name} className="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-[6px] bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                     <CheckCircle2 className="w-4 h-4" />{item.name}
                   </span>
                 ))}
@@ -429,7 +429,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
                 {notNeededItems.map((item) => (
                   <span
                     key={item.name}
-                    className="inline-flex items-center gap-1 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-2.5 py-1 text-sm text-[var(--hb-text-body)]"
+                    className="inline-flex items-center gap-1 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-2.5 py-1 text-sm text-[var(--hb-text-body)]"
                   >
                     <Minus className="w-4 h-4" />
                     {item.name}
@@ -458,13 +458,13 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={`rounded-xl border ${style.border} ${style.bg} mb-2 overflow-hidden`}>
+    <div className={`rounded-[6px] border ${style.border} ${style.bg} mb-2 overflow-hidden`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full px-3.5 py-2.5 flex items-center justify-between text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${style.badge}`}>{style.label}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-[6px] font-medium flex-shrink-0 ${style.badge}`}>{style.label}</span>
           <span className="text-sm text-[var(--hb-text-strong)] truncate">
             {ITEM_CATEGORY_LABELS[item.category] ? `[${ITEM_CATEGORY_LABELS[item.category]}] ` : ""}{item.name}
           </span>
@@ -484,7 +484,7 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
             <HelpCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-[var(--hb-text-strong)] leading-relaxed">{item.reason}</p>
           </div>
-          <div className="bg-white rounded-lg px-3 py-2.5 border border-black/[0.04]">
+          <div className="bg-white rounded-[6px] px-3 py-2.5 border border-black/[0.04]">
             <p className="text-xs text-[#C4967E] font-medium mb-1">계약 전 확인 질문</p>
             <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed">&ldquo;{item.checkQuestion}&rdquo;</p>
           </div>

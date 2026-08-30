@@ -37,7 +37,7 @@ export function ComboBar({
     <aside className="fixed inset-x-0 bottom-0 z-[90] border-t border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)]/95 pb-[env(safe-area-inset-bottom)] shadow-[var(--shadow-raised)] backdrop-blur-xl" aria-label="사진·드레스·메이크업 조합">
       <div className="mx-auto max-w-6xl px-3 py-3 sm:px-6">
         <div className="flex items-center justify-between gap-3">
-          <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} className="flex min-h-11 min-w-0 items-center gap-2 rounded-lg text-left text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-[#B89785]">
+          <button type="button" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded} className="flex min-h-11 min-w-0 items-center gap-2 rounded-[6px] text-left text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-[#B89785]">
             <span className="min-w-0">
               <span className="block text-[11px] font-bold text-[var(--color-rose-700)]">사진·드레스·메이크업 조합 · {count}/3</span>
               <strong className="block truncate text-base tabular-nums">총 {krwToManwonLabel(totalKrw)}</strong>
@@ -66,7 +66,7 @@ export function ComboBar({
             {(Object.keys(SLOT_LABELS) as ComboCategory[]).map((category) => {
               const selection = selections[category];
               return (
-                <div key={category} className="min-w-0 rounded-xl border border-[var(--hb-primary)]/10 bg-white px-3 py-2.5">
+                <div key={category} className="min-w-0 rounded-[6px] border border-[var(--hb-primary)]/10 bg-white px-3 py-2.5">
                   <p className="text-[10px] font-bold text-[var(--hb-text-muted)]">{SLOT_LABELS[category]}</p>
                   {selection ? (
                     <div className="mt-1 flex items-center gap-1">

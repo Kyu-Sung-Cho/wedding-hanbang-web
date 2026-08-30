@@ -50,7 +50,7 @@ export function DisclosureSourcePreview({
             href={source.signed_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-9 shrink-0 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-bold text-[var(--hb-text-strong)] hover:bg-[#F2F7F3]"
+            className="inline-flex min-h-9 shrink-0 items-center rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-xs font-bold text-[var(--hb-text-strong)] hover:bg-[#F2F7F3]"
           >
             원본 파일 열기
           </a>
@@ -73,7 +73,7 @@ export function DisclosureSourcePreview({
           href={source.signed_url}
           target="_blank"
           rel="noreferrer"
-          className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
+          className="mt-3 inline-flex min-h-10 items-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
         >
           원본 파일 열기
         </a>

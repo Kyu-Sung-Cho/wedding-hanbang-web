@@ -496,7 +496,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
   return (
     <div className="mt-2.5 pt-2.5 border-t border-black/[0.06] space-y-1.5">
       {actions.map((action) => (
-        <div key={action.id} className="rounded-lg bg-white/70 border border-black/[0.04] p-2.5">
+        <div key={action.id} className="rounded-[6px] bg-white/70 border border-black/[0.04] p-2.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="text-xs font-semibold text-[var(--hb-text-strong)] leading-snug">{action.title}</p>
@@ -584,12 +584,12 @@ function ScheduleMiniCard() {
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
       {saveNotice && (
-        <p role="status" className="rounded-lg bg-[#F2F8F5] px-3 py-2 text-xs text-[#315B49]">
+        <p role="status" className="rounded-[6px] bg-[#F2F8F5] px-3 py-2 text-xs text-[#315B49]">
           {saveNotice}
         </p>
       )}
       {saveError && (
-        <p role="alert" className="rounded-lg bg-[#FFF7F7] px-3 py-2 text-xs text-[#8A3535]">
+        <p role="alert" className="rounded-[6px] bg-[#FFF7F7] px-3 py-2 text-xs text-[#8A3535]">
           {saveError}
         </p>
       )}
@@ -612,7 +612,7 @@ function ScheduleMiniCard() {
               key={item.id}
               disabled={Boolean(savingItemId)}
               onClick={() => void handleToggle(cat.key, item.id)}
-              className="flex w-full items-center gap-2 rounded py-1 pl-2 text-left hover:bg-black/[0.02] disabled:cursor-wait disabled:opacity-60"
+              className="flex w-full items-center gap-2 rounded-[6px] py-1 pl-2 text-left hover:bg-black/[0.02] disabled:cursor-wait disabled:opacity-60"
             >
               <div className="flex-shrink-0">
                 {item.done ? (
@@ -671,7 +671,7 @@ export default function ActionCard({ result }: ActionCardProps) {
   return (
     <div className="flex justify-start ml-11 my-1.5">
       <div
-        className={`rounded-xl border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
+        className={`rounded-[6px] border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
       >
         <div className="flex items-center gap-1.5 mb-1.5">
           <span className={isLegacyScheduleDelete ? "text-[#B89785]" : "text-[#C4967E]"}>

@@ -92,7 +92,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
-                  className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${
+                  className={`flex items-center gap-3 rounded-[6px] px-4 py-3 text-[14px] font-semibold transition-colors ${
                     isActive
                       ? "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                       : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-accent-hover)]"
@@ -107,7 +107,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         </nav>
 
         <div className="px-3 pb-4">
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white p-4">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4">
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[14px] font-semibold text-white">
                 {userInitial}
@@ -121,7 +121,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           <button
             type="button"
             onClick={() => void signOut()}
-            className="mt-2 flex w-full items-center gap-2 rounded-[14px] border border-[var(--hb-hairline)] bg-white px-4 py-3 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
+            className="mt-2 flex w-full items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-3 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
           >
             <LogOut className="h-4 w-4" />
             로그아웃

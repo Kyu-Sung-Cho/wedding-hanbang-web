@@ -48,7 +48,7 @@ export default function MannersIndexPage() {
           사유가 정확히 "수치에 출처 0건"이었으므로, 문구를 실제 상태에 맞춘다.
           각 편 상단과 표마다 출처 유무가 다시 표시되므로 여기서는 갈린다는 사실만 말한다.
         */}
-        <p className="mt-4 rounded-xl border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
+        <p className="mt-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
           여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다릅니다. 공개된
           자료로 확인한 편에는 어디서 확인했는지와 확인한 날짜를 적어 뒀고, 아직 확인하지
           못한 편에는 각 글 위에 그렇게 표시해 뒀어요.
@@ -73,7 +73,7 @@ export default function MannersIndexPage() {
                     <Link
                       href={`/wedding/manners/${part.slug}`}
                       prefetch={false}
-                      className="block h-full rounded-2xl border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
+                      className="block h-full rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
                     >
                       <p className="text-[11.5px] font-semibold tracking-wide text-[var(--hb-text-muted)]">
                         {AUDIENCE_LABEL[part.audience]}

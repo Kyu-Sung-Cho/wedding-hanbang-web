@@ -242,7 +242,7 @@ export default function StartHereClient() {
 
             <label className="mt-6 block">
               <span className="text-[14px] font-semibold text-[var(--hb-text-strong)]">예식 예정일</span>
-              <span className="mt-2 flex min-h-14 items-center gap-3 rounded-[14px] border border-[var(--hb-primary)]/14 bg-[var(--hb-surface-page)] px-4 transition-colors focus-within:border-[var(--hb-primary)]/55 focus-within:ring-2 focus-within:ring-[var(--hb-primary)]/10">
+              <span className="mt-2 flex min-h-14 items-center gap-3 rounded-[6px] border border-[var(--hb-primary)]/14 bg-[var(--hb-surface-page)] px-4 transition-colors focus-within:border-[var(--hb-primary)]/55 focus-within:ring-2 focus-within:ring-[var(--hb-primary)]/10">
                 <CalendarDays aria-hidden="true" className="h-5 w-5 shrink-0 text-[#8F6662]" />
                 <input
                   id="wedding-date"
@@ -414,12 +414,12 @@ export default function StartHereClient() {
                       label="이 날짜로 아모라에게 물어보기"
                       prefill={amoraPrefill}
                       analyticsSource="start_here_priorities"
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
                     />
                     <Link
                       href={buildStartHereSignupHref()}
                       onClick={rememberSignupHandoff}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
                     >
                       계정 만들고 계속 관리하기
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -441,7 +441,7 @@ export default function StartHereClient() {
                 <button
                   type="button"
                   onClick={resetPastDate}
-                  className="mt-6 inline-flex min-h-12 w-fit items-center justify-center rounded-[14px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
+                  className="mt-6 inline-flex min-h-12 w-fit items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
                 >
                   다른 날짜 선택하기
                 </button>
@@ -475,12 +475,12 @@ export default function StartHereClient() {
                     label="이 세 가지를 아모라와 정하기"
                     prefill={amoraPrefill}
                     analyticsSource="start_here_early"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:opacity-60"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:opacity-60"
                   />
                   <Link
                     href={buildStartHereSignupHref()}
                     onClick={rememberSignupHandoff}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-[var(--hb-primary)]/20 px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EDF2EA]"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EDF2EA]"
                   >
                     계정 만들고 천천히 관리하기
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />

@@ -139,7 +139,7 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
       {show && (
         <div
           ref={tooltipRef}
-          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[var(--hb-text-body)] rounded-xl p-3 shadow-[var(--shadow-raised)] pointer-events-none"
+          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[var(--hb-text-body)] rounded-[6px] p-3 shadow-[var(--shadow-raised)] pointer-events-none"
         >
           <div className="text-[11px] font-medium text-[var(--hb-accent-hover)] mb-1.5 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
@@ -187,14 +187,14 @@ function PayerSelector({
           setError("");
           setOpen(!open);
         }}
-        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-sm text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-[6px] text-sm text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] transition-colors"
         title="분담 변경"
       >
         <Users className="h-4 w-4" aria-hidden="true" />
         <span>{currentLabel}</span>
       </button>
       {open && (
-        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-xl shadow-[var(--shadow-raised)] overflow-hidden">
+        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden">
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -308,13 +308,13 @@ function InlineMoneyEdit({
               if (e.key === "Enter") void save();
               if (e.key === "Escape" && !saving) cancel();
             }}
-            className="w-[80px] px-2 py-1 rounded-lg border border-[var(--hb-hairline)] text-[13px] text-right text-[var(--hb-text-strong)] focus:outline-none border-[var(--hb-accent)] focus:ring-2 ring-[rgba(54,83,78,0.30)] disabled:opacity-50"
+            className="w-[80px] px-2 py-1 rounded-[6px] border border-[var(--hb-hairline)] text-[13px] text-right text-[var(--hb-text-strong)] focus:outline-none border-[var(--hb-accent)] focus:ring-2 ring-[rgba(54,83,78,0.30)] disabled:opacity-50"
           />
           <span className="text-[11px] text-[var(--hb-text-muted)]">만원</span>
           <button
             onClick={() => void save()}
             disabled={saving}
-            className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-success)] hover:bg-[#eef4ed] disabled:opacity-50"
+            className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-success)] hover:bg-[#eef4ed] disabled:opacity-50"
             title="저장"
           >
             <Check className="w-3.5 h-3.5" />
@@ -322,7 +322,7 @@ function InlineMoneyEdit({
           <button
             onClick={cancel}
             disabled={saving}
-            className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
+            className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
             title="취소"
           >
             <X className="w-3.5 h-3.5" />
@@ -341,7 +341,7 @@ function InlineMoneyEdit({
     <div className="flex items-center gap-1">
       <button
         onClick={startEdit}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg transition-colors ${
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] transition-colors ${
           highlight === "spent"
             ? "bg-[#f3e9df]"
             : "hover:bg-[var(--hb-surface-hover)]"
@@ -362,7 +362,7 @@ function InlineMoneyEdit({
           onClick={() => {
             void Promise.resolve(onReset()).catch(() => undefined);
           }}
-          className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
+          className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
           <X className="w-4 h-4" />
@@ -414,7 +414,7 @@ function BudgetRow({
     >
       {/* 아이콘 + 이름 + 포함·별도 항목 확인 */}
       <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-lg:w-full">
-        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+        <div className={`w-11 h-11 rounded-[6px] flex items-center justify-center flex-shrink-0 ${
           isOver
             ? "bg-red-50"
             : "bg-[var(--hb-surface-hover)]"
@@ -438,7 +438,7 @@ function BudgetRow({
               onClick={() => {
                 void Promise.resolve(onDelete(catKey)).catch(() => undefined);
               }}
-              className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
+              className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
               title={`${label} 삭제`}
             >
               <X className="w-3.5 h-3.5" />
@@ -519,7 +519,7 @@ function BudgetRow({
             onClick={() => {
               void Promise.resolve(onDelete(catKey)).catch(() => undefined);
             }}
-            className="tap-area shrink-0 w-5 h-5 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            className="tap-area shrink-0 w-5 h-5 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
             title={`${label} 삭제`}
           >
             <X className="w-3 h-3" />
@@ -567,11 +567,11 @@ function BudgetCard({
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
-    <div className="group bg-white rounded-2xl p-4 sm:p-6 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow">
+    <div className="group bg-white rounded-[6px] p-4 sm:p-6 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow">
       {/* 상단: 아이콘 + 이름 + 상태 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+          <div className={`w-11 h-11 rounded-[6px] flex items-center justify-center flex-shrink-0 ${
             isOver ? "bg-red-50" : "bg-[var(--hb-surface-hover)]"
           }`}>
             <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[var(--hb-accent-hover)]"}`} />
@@ -603,7 +603,7 @@ function BudgetCard({
               onClick={() => {
                 void Promise.resolve(onDelete(catKey)).catch(() => undefined);
               }}
-              className="tap-area w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+              className="tap-area w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
               title={`${label} 삭제`}
             >
               <X className="w-3.5 h-3.5" />
@@ -1010,7 +1010,7 @@ export default function BudgetContent({
         {journeyNotice && (
           <div
             role="status"
-            className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+            className="rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
           >
             {journeyNotice}
           </div>
@@ -1018,7 +1018,7 @@ export default function BudgetContent({
         {journeyError && (
           <div
             role="alert"
-            className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+            className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
           >
             {journeyError}
           </div>
@@ -1027,7 +1027,7 @@ export default function BudgetContent({
         {/* 상단 스탯 3개 - Editorial */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {/* Total Budget */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
+          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <Sparkles className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
@@ -1065,9 +1065,9 @@ export default function BudgetContent({
                     if (e.key === "Enter") handleTotalBudgetSave();
                     if (e.key === "Escape") { setTotalBudgetError(""); setEditingTotal(false); }
                   }}
-                  className="w-full max-w-full rounded-xl border border-[var(--hb-primary)]/35 px-3 py-2 font-serif-kr text-[34px] font-medium leading-none text-[var(--hb-text-strong)] focus:border-[var(--hb-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--hb-primary)]/10 sm:w-[170px]"
+                  className="w-full max-w-full rounded-[6px] border border-[var(--hb-primary)]/35 px-3 py-2 font-serif-kr text-[34px] font-medium leading-none text-[var(--hb-text-strong)] focus:border-[var(--hb-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--hb-primary)]/10 sm:w-[170px]"
                 />
-                <button onClick={handleTotalBudgetSave} className="flex tap-area shrink-0 h-9 w-9 items-center justify-center rounded-lg bg-[var(--hb-primary)] text-white hover:bg-[#2d4642]">
+                <button onClick={handleTotalBudgetSave} className="flex tap-area shrink-0 h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white hover:bg-[#2d4642]">
                   <Check className="w-5 h-5" />
                 </button>
                 <button
@@ -1075,7 +1075,7 @@ export default function BudgetContent({
                     setTotalBudgetError("");
                     setEditingTotal(false);
                   }}
-                  className="tap-area shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)]"
+                  className="tap-area shrink-0 w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)]"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -1104,7 +1104,7 @@ export default function BudgetContent({
           </div>
 
           {/* Spent */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
+          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <TrendingUp className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/35" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               RECORDED SPEND
@@ -1127,7 +1127,7 @@ export default function BudgetContent({
           </div>
 
           {/* Remaining */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
+          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <TrendingDown className={`pointer-events-none absolute right-4 top-4 h-5 w-5 ${isOverBudget ? "text-red-400/60" : "text-[var(--hb-text-strong)]/35"}`} />
             <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${isOverBudget ? "text-red-400" : "text-[var(--hb-text-strong)]"}`}>
               REMAINING
@@ -1162,7 +1162,7 @@ export default function BudgetContent({
         {legacyReviewItems.length > 0 && (
           <section
             role="status"
-            className="rounded-[16px] border border-[#D8C7BB] bg-[#FFF9F2] px-4 py-4 text-sm text-[var(--hb-text-body)]"
+            className="rounded-[6px] border border-[#D8C7BB] bg-[#FFF9F2] px-4 py-4 text-sm text-[var(--hb-text-body)]"
           >
             <h3 className="font-semibold text-[#2B2525]">용도 미확인 이전 금액</h3>
             <p className="mt-1 leading-6">
@@ -1185,7 +1185,7 @@ export default function BudgetContent({
 
         {/* 분담 현황 (Editorial Style) */}
         {totalSpent > 0 && (
-          <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <div className="mb-4 flex items-center gap-3">
               <Users className="h-5 w-5 text-[var(--hb-text-strong)]" />
               <div>
@@ -1200,7 +1200,7 @@ export default function BudgetContent({
                 return (
                   <div
                     key={opt.value}
-                    className={`rounded-[14px] border border-[var(--hb-hairline)]/70 p-3.5 transition-colors ${
+                    className={`rounded-[6px] border border-[var(--hb-hairline)]/70 p-3.5 transition-colors ${
                       amount > 0 ? "bg-[var(--hb-surface-page)]" : "bg-[#f7f3ec]/55"
                     }`}
                   >
@@ -1236,9 +1236,9 @@ export default function BudgetContent({
         {/* 검수된 공시가 비교 안내 — /price는 베이스패스 밖 최상위 표면이라 절대 경로 */}
         <Link
           href="/price"
-          className="group flex items-center gap-4 rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 px-4 py-4 shadow-[var(--shadow-raised)] transition-shadow hover:shadow-[var(--shadow-raised)] animate-fade-in md:px-5"
+          className="group flex items-center gap-4 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 px-4 py-4 shadow-[var(--shadow-raised)] transition-shadow hover:shadow-[var(--shadow-raised)] animate-fade-in md:px-5"
         >
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#f7f3ec]">
+          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#f7f3ec]">
             <TrendingUp className="h-5 w-5 text-[var(--hb-text-strong)]" />
           </div>
           <div className="flex-1 min-w-0">
@@ -1253,7 +1253,7 @@ export default function BudgetContent({
         </Link>
 
         {/* 사진 촬영·의상·메이크업 묶음 */}
-        <div className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
+        <div className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
           <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="flex -space-x-1">
@@ -1375,9 +1375,9 @@ export default function BudgetContent({
           {/* 카테고리 추가 카드 */}
           <button
             onClick={() => setShowAddModal(true)}
-            className="group flex items-center justify-center gap-3 bg-white/60 rounded-2xl p-6 border-2 border-dashed border-[#B5ADA3]/40 border-[var(--hb-accent)] hover:bg-white transition-colors min-h-[180px]"
+            className="group flex items-center justify-center gap-3 bg-white/60 rounded-[6px] p-6 border-2 border-dashed border-[#B5ADA3]/40 border-[var(--hb-accent)] hover:bg-white transition-colors min-h-[180px]"
           >
-            <div className="w-11 h-11 rounded-xl flex items-center justify-center border-2 border-dashed border-[#B5ADA3]/60 group-hover:border-[var(--hb-hairline)] transition-colors">
+            <div className="w-11 h-11 rounded-[6px] flex items-center justify-center border-2 border-dashed border-[#B5ADA3]/60 group-hover:border-[var(--hb-hairline)] transition-colors">
               <Plus className="w-5 h-5 text-[var(--hb-text-muted)] group-hover:text-[var(--hb-accent-hover)]" />
             </div>
             <span className="text-base text-[var(--hb-text-muted)] group-hover:text-[var(--hb-accent-hover)] font-serif-kr">새 항목 추가</span>
@@ -1387,9 +1387,9 @@ export default function BudgetContent({
         {/* 하단: Hidden Costs + AI Spotlight */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
           {/* 포함·별도 확인 섹션 */}
-          <div className="bg-white rounded-2xl shadow-[var(--shadow-raised)] p-6 sm:p-8">
+          <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6 sm:p-8">
             <div className="flex items-start gap-3 mb-5">
-              <div className="w-10 h-10 rounded-xl bg-[rgba(54,83,78,0.10)] flex items-center justify-center flex-shrink-0">
+              <div className="w-10 h-10 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <div className="min-w-0">
@@ -1412,8 +1412,8 @@ export default function BudgetContent({
                 if (!cat || !data) return null;
                 const Icon = ICON_MAP[cat.icon] ?? Building2;
                 return (
-                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-[var(--hb-surface-hover)]">
-                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center flex-shrink-0">
+                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)]">
+                    <div className="w-8 h-8 rounded-[6px] bg-white flex items-center justify-center flex-shrink-0">
                       <Icon className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -1428,7 +1428,7 @@ export default function BudgetContent({
           </div>
 
           {/* AI Spotlight */}
-          <div className="relative rounded-2xl overflow-hidden min-h-[240px] sm:min-h-[280px] bg-[var(--hb-primary)] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
+          <div className="relative rounded-[6px] overflow-hidden min-h-[240px] sm:min-h-[280px] bg-[var(--hb-primary)] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
             <div className="relative">
               <p className="text-xs tracking-widest uppercase text-[var(--hb-accent-hover)] mb-3 font-medium">
                 AI 예산 분석
@@ -1476,12 +1476,12 @@ export default function BudgetContent({
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-            <div className="relative bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
+            <div className="relative bg-white rounded-[6px] w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">새 항목 추가</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="tap-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+                  className="tap-area shrink-0 w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1505,7 +1505,7 @@ export default function BudgetContent({
                       }
                     }}
                     placeholder="예: 웨딩카, 답례떡"
-                    className="w-full px-4 py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                    className="w-full px-4 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
                   />
                 </div>
 
@@ -1517,7 +1517,7 @@ export default function BudgetContent({
                       value={newCatBudget}
                       onChange={(e) => setNewCatBudget(e.target.value)}
                       placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                      className="w-full px-4 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
                     />
                   </div>
                   <div>
@@ -1527,7 +1527,7 @@ export default function BudgetContent({
                       value={newCatSpent}
                       onChange={(e) => setNewCatSpent(e.target.value)}
                       placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                      className="w-full px-4 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
                     />
                   </div>
                 </div>
@@ -1536,14 +1536,14 @@ export default function BudgetContent({
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
+                  className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                 >
                   취소
                 </button>
                 <button
                   onClick={() => void handleAddCategory().catch(() => undefined)}
                   disabled={!newCatLabel.trim()}
-                  className="flex-1 py-2.5 rounded-xl bg-[var(--hb-primary)] text-white text-[13px] font-medium disabled:opacity-40 bg-[var(--hb-text-body)] transition-colors"
+                  className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-primary)] text-white text-[13px] font-medium disabled:opacity-40 bg-[var(--hb-text-body)] transition-colors"
                 >
                   추가
                 </button>
@@ -1562,7 +1562,7 @@ export default function BudgetContent({
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-              <div className="relative bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
+              <div className="relative bg-white rounded-[6px] w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-red-400" />
@@ -1588,7 +1588,7 @@ export default function BudgetContent({
                           onClick={() => {
                             void handleResetCategory(deletingKey).catch(() => undefined);
                           }}
-                          className="flex-1 py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-accent-hover)] font-medium bg-[#f3e9df] transition-colors"
+                          className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-accent-hover)] font-medium bg-[#f3e9df] transition-colors"
                         >
                           데이터 초기화
                         </button>
@@ -1596,14 +1596,14 @@ export default function BudgetContent({
                           onClick={() => {
                             void handleDeleteCategory(deletingKey).catch(() => undefined);
                           }}
-                          className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                          className="flex-1 py-2.5 rounded-[6px] bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                         >
                           항목 삭제
                         </button>
                       </div>
                       <button
                         onClick={() => setDeletingKey(null)}
-                        className="py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
+                        className="py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                       >
                         취소
                       </button>
@@ -1612,7 +1612,7 @@ export default function BudgetContent({
                     <>
                       <button
                         onClick={() => setDeletingKey(null)}
-                        className="flex-1 py-2.5 rounded-xl bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
+                        className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                       >
                         취소
                       </button>
@@ -1620,7 +1620,7 @@ export default function BudgetContent({
                         onClick={() => {
                           void handleDeleteCategory(deletingKey).catch(() => undefined);
                         }}
-                        className="flex-1 py-2.5 rounded-xl bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                        className="flex-1 py-2.5 rounded-[6px] bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                       >
                         삭제
                       </button>

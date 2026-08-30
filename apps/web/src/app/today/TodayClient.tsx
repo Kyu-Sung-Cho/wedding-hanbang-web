@@ -12,7 +12,7 @@ import {
 
 type Step = "pick" | "give" | "face";
 
-const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
+const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
@@ -293,7 +293,7 @@ export function CardFace({ card }: { card: TodayCard }) {
       </div>
 
       {card.check ? (
-        <div className="mt-4 rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3">
+        <div className="mt-4 rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3">
           <p className="text-[12px] font-semibold text-[#6D806E]">계약 전 확인할 것</p>
           <p className="mt-1 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-strong)]">
             {card.check}

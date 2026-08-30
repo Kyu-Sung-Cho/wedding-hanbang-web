@@ -149,7 +149,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
             return (
               <div
                 key={category}
-                className="flex min-h-12 items-center justify-between rounded-2xl border border-[var(--hb-primary)]/10 bg-white px-4 text-sm"
+                className="flex min-h-12 items-center justify-between rounded-[6px] border border-[var(--hb-primary)]/10 bg-white px-4 text-sm"
               >
                 <span className="font-semibold">{PRICE_CATEGORY_LABELS[category]}</span>
                 <span className="tabular-nums text-[var(--hb-text-strong)]/75">{status === "ready" ? count : "–"}</span>
@@ -161,7 +161,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
         {status === "loading" ? (
           <section
             aria-live="polite"
-            className="flex min-h-64 items-center justify-center rounded-[24px] border border-[var(--hb-primary)]/10 bg-white"
+            className="flex min-h-64 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/10 bg-white"
           >
             <div className="text-center">
               <LoaderCircle aria-hidden="true" className="mx-auto size-7 animate-spin text-[#8F6662]" />
@@ -242,7 +242,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
                     ))}
                   </div>
                 ) : (
-                  <div className="rounded-[20px] border border-dashed border-[var(--hb-primary)]/15 bg-white/55 px-5 py-5 text-sm text-[var(--hb-text-strong)]/60">
+                  <div className="rounded-[6px] border border-dashed border-[var(--hb-primary)]/15 bg-white/55 px-5 py-5 text-sm text-[var(--hb-text-strong)]/60">
                     이 카테고리에 찜한 공식 가격 업체가 없어요.
                   </div>
                 )}
@@ -252,12 +252,12 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
         ) : null}
 
         {feedback ? (
-          <p role="alert" className="mt-5 rounded-2xl bg-[#A43E3E]/8 px-4 py-3 text-sm font-semibold text-[#A43E3E]">
+          <p role="alert" className="mt-5 rounded-[6px] bg-[#A43E3E]/8 px-4 py-3 text-sm font-semibold text-[#A43E3E]">
             {feedback}
           </p>
         ) : null}
 
-        <div className="mt-10 overflow-hidden rounded-[20px] border border-[var(--hb-primary)]/10 bg-white">
+        <div className="mt-10 overflow-hidden rounded-[6px] border border-[var(--hb-primary)]/10 bg-white">
           <PriceDisclosureFooter />
         </div>
       </div>
@@ -277,7 +277,7 @@ function StateCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
+    <section className="rounded-[6px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         {icon}
       </span>

@@ -79,7 +79,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
   if (block.kind === "tip" || block.kind === "warning") {
     const tone = BLOCK_TONE[block.kind];
     return (
-      <div className={`rounded-xl border px-4 py-3 ${tone.box}`}>
+      <div className={`rounded-[6px] border px-4 py-3 ${tone.box}`}>
         <p className={`text-[12px] font-semibold tracking-wide ${tone.labelColor}`}>
           {block.title ?? tone.label}
         </p>
@@ -91,7 +91,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
   if (block.kind === "dialogue") {
     // 이 제품의 값은 "예의를 지키세요"가 아니라 실제로 할 수 있는 문장이다.
     return (
-      <div className="rounded-xl border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-3">
+      <div className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-3">
         <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-text-strong)]/70">
           {block.title ?? "이렇게 말할 수 있어요"}
         </p>
@@ -119,7 +119,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
     .filter((source): source is MannersSource => Boolean(source));
 
   return (
-    <figure className="rounded-xl border border-[var(--hb-primary)]/12 bg-white/70">
+    <figure className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70">
       <figcaption className="border-b border-[var(--hb-primary)]/10 px-4 py-3">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
           <p className="text-[14px] font-semibold text-[var(--hb-text-strong)]">{block.title}</p>
@@ -237,7 +237,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             <a
               key={section.heading}
               href={`#section-${index + 1}`}
-              className="shrink-0 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
+              className="shrink-0 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-[6px] lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
             >
               <span aria-hidden className="mr-1.5 text-[#8F5150]/70">{index + 1}</span>
               {sectionLabel(section.heading)}
@@ -254,7 +254,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         </h1>
         <p className="mt-3 text-[14px] leading-[1.8] text-[#3d4a45]">{part.description}</p>
         {/* 삭제 사유였던 "가족·지역마다 답이 다르다"에 대한 답이다. 접거나 흐리지 않는다. */}
-        <p className="mt-4 rounded-xl border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
+        <p className="mt-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
           {part.caveat}
         </p>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#3d4a45]">
@@ -278,7 +278,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         */}
         {part.sections.length >= 4 ? (
           <nav
-            className="mt-5 rounded-[16px] border border-[var(--hb-primary)]/12 bg-white/60 px-4 py-3.5"
+            className="mt-5 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/60 px-4 py-3.5"
             aria-label="이 글의 차례"
           >
             <p className="text-[12px] font-semibold tracking-wide text-[#8F5150]">
@@ -335,7 +335,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         아래에는 나가는 링크가 0개라, 20화면을 내려온 사람이 갈 곳이 없었다.
         옮기면 두 문제가 같이 풀린다.
       */}
-      <div className="mt-5 rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
+      <div className="mt-5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
         <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">읽은 뒤 준비하기</p>
         <p className="mt-1 text-[14px] leading-6 text-[#3d4a45]">
           {checklistLabel

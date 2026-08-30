@@ -91,7 +91,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
 
   return (
     <div
-      className="overflow-hidden rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] animate-fade-in"
+      className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] animate-fade-in"
     >
       {/* 헤더 */}
       <button
@@ -153,7 +153,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
                     className="grid flex-1 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-3 px-3 py-3 text-left"
                   >
                     {/* 아이콘 */}
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-[12px] ${styles.iconBox}`}>
+                    <div className={`flex h-9 w-9 items-center justify-center rounded-[6px] ${styles.iconBox}`}>
                       <IconComp className={`h-4 w-4 ${styles.iconColor}`} />
                     </div>
 

@@ -147,7 +147,7 @@ function Perspectives({
         {perspectives.map((perspective) => (
           <div
             key={perspective.choice}
-            className="rounded-[16px] bg-[var(--hb-surface-hover)] px-4 py-4"
+            className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-4"
           >
             <p className="text-[11px] font-semibold text-[var(--color-rose-700)]">
               {perspectiveHeading(perspective)}
@@ -192,7 +192,7 @@ function ChoiceGroup({
               type="button"
               aria-pressed={selected}
               onClick={() => onChange(choice)}
-              className={`min-h-[76px] rounded-[16px] border px-4 py-4 text-left transition ${
+              className={`min-h-[76px] rounded-[6px] border px-4 py-4 text-left transition ${
                 selected
                   ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                   : "border-[#e2d3c8] bg-white text-[var(--hb-text-strong)] hover:border-[#a77b74]"
@@ -315,7 +315,7 @@ function VoteForm({
         type="button"
         disabled={!ready || submitting}
         onClick={onSubmit}
-        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--hb-primary)] px-5 text-[15px] font-bold text-white shadow-[var(--shadow-raised)] transition hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[15px] font-bold text-white shadow-[var(--shadow-raised)] transition hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
       >
         {submitting
           ? "선택을 남기는 중..."
@@ -344,7 +344,7 @@ function WeddingCase({
   onSubmit: () => void;
 }) {
   return (
-    <article className="overflow-hidden rounded-[24px] border border-[#e2d3c8] bg-white shadow-[var(--shadow-overlay)]">
+    <article className="overflow-hidden rounded-[6px] border border-[#e2d3c8] bg-white shadow-[var(--shadow-overlay)]">
       <header className="bg-[var(--hb-primary)] px-5 py-6 text-white sm:px-8">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-[11px] font-bold text-white/85">
@@ -388,7 +388,7 @@ function WeddingCase({
               distribution={weddingCase.firstRound.distribution}
               choices={weddingCase.choices}
             />
-            <div className="rounded-[14px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[13px] font-semibold text-[#52635e]">
+            <div className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[13px] font-semibold text-[#52635e]">
               {weddingCase.firstRound.predictionMatchesCurrentLean === null
                 ? "현재는 두 선택이 비슷하게 나뉘었어요."
                 : weddingCase.firstRound.predictionMatchesCurrentLean
@@ -398,7 +398,7 @@ function WeddingCase({
             <Perspectives perspectives={weddingCase.firstRound.perspectives} />
           </>
         ) : (
-          <div className="flex gap-3 rounded-[14px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] px-4 py-4">
+          <div className="flex gap-3 rounded-[6px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] px-4 py-4">
             <Eye className="mt-0.5 h-5 w-5 shrink-0 text-[#8f6662]" aria-hidden />
             <div>
               <p className="text-[13px] font-bold text-[var(--hb-text-strong)]">
@@ -412,7 +412,7 @@ function WeddingCase({
         )}
 
         {weddingCase.newEvidence ? (
-          <section className="rounded-[18px] border border-[#c7d1c2] bg-[#f2f5ef] px-5 py-5">
+          <section className="rounded-[6px] border border-[#c7d1c2] bg-[#f2f5ef] px-5 py-5">
             <div className="flex items-center gap-2 text-[var(--hb-text-strong)]">
               <LockKeyhole className="h-4 w-4" aria-hidden />
               <p className="text-[12px] font-bold tracking-[0.1em]">
@@ -446,7 +446,7 @@ function WeddingCase({
               choices={weddingCase.choices}
             />
             <Perspectives perspectives={weddingCase.appealRound.perspectives} />
-            <section className="rounded-[18px] bg-[var(--hb-primary)] px-5 py-5 text-white">
+            <section className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-5 text-white">
               <div className="flex items-center gap-2 text-[#d9e2d6]">
                 <Scale className="h-4 w-4" aria-hidden />
                 <p className="text-[12px] font-bold tracking-[0.1em]">
@@ -675,7 +675,7 @@ export default function WeddingCourtClient() {
         {loading ? (
           <div
             role="status"
-            className="rounded-[24px] border border-[#e2d3c8] bg-white px-6 py-16 text-center"
+            className="rounded-[6px] border border-[#e2d3c8] bg-white px-6 py-16 text-center"
           >
             <RefreshCw
               className="mx-auto h-6 w-6 animate-spin text-[#6d806e]"
@@ -686,7 +686,7 @@ export default function WeddingCourtClient() {
             </p>
           </div>
         ) : loginRequired ? (
-          <div className="rounded-[24px] border border-[#e2d3c8] bg-white px-6 py-12 text-center shadow-[var(--shadow-overlay)]">
+          <div className="rounded-[6px] border border-[#e2d3c8] bg-white px-6 py-12 text-center shadow-[var(--shadow-overlay)]">
             <LockKeyhole className="mx-auto h-7 w-7 text-[#8f6662]" aria-hidden />
             <h2 className="mt-4 text-[21px] font-extrabold text-[var(--hb-text-strong)]">
               로그인하고 내 선택을 남겨보세요
@@ -702,7 +702,7 @@ export default function WeddingCourtClient() {
             </Link>
           </div>
         ) : loadError ? (
-          <div className="rounded-[24px] border border-[#e2d3c8] bg-white px-6 py-12 text-center">
+          <div className="rounded-[6px] border border-[#e2d3c8] bg-white px-6 py-12 text-center">
             <p role="alert" className="text-[14px] font-semibold text-[#b64f4f]">
               {loadError}
             </p>
@@ -759,7 +759,7 @@ export default function WeddingCourtClient() {
             />
           </>
         ) : (
-          <div className="rounded-[24px] border border-[#e2d3c8] bg-white px-6 py-12 text-center">
+          <div className="rounded-[6px] border border-[#e2d3c8] bg-white px-6 py-12 text-center">
             <p className="text-[14px] font-semibold text-[#52635e]">
               지금 열려 있는 합성 사건이 없어요.
             </p>

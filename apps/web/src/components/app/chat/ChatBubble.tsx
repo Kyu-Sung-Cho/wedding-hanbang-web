@@ -140,7 +140,7 @@ function ChatImageAttachments({
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+            className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
           >
             <FileText className="w-5 h-5 text-white/80" />
             <span className="text-sm text-white/80">PDF 문서</span>
@@ -151,7 +151,7 @@ function ChatImageAttachments({
             key={i}
             src={url}
             alt={`첨부 이미지 ${i + 1}`}
-            className="max-w-[200px] max-h-[200px] rounded-xl object-cover border border-white/20 shadow-sm"
+            className="max-w-[200px] max-h-[200px] rounded-[6px] object-cover border border-white/20 shadow-sm"
           />
         )
       )}
@@ -230,7 +230,7 @@ export function AiFeedbackRow({
             onChange={(e) => setCorrection(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleBadSubmit(); }}
             placeholder="예: 더 짧게, 덜 딱딱하게"
-            className="flex-1 text-base px-3 py-2 rounded-lg border border-[#E8E0D8] bg-[#FAF8F5] text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
+            className="flex-1 text-base px-3 py-2 rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:outline-none focus:border-[#C4967E]/40"
             autoFocus
             disabled={isSubmitting}
           />
@@ -239,7 +239,7 @@ export function AiFeedbackRow({
             aria-label="의견 보내기"
             onClick={handleBadSubmit}
             disabled={isSubmitting || !correction.trim()}
-            className="p-2 rounded-lg bg-[#C4967E]/10 text-[#9A6B62] hover:bg-[#C4967E]/20 disabled:opacity-40 transition-colors"
+            className="p-2 rounded-[6px] bg-[#C4967E]/10 text-[#9A6B62] hover:bg-[#C4967E]/20 disabled:opacity-40 transition-colors"
           >
             <Send className="w-4 h-4" />
           </button>
@@ -430,7 +430,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
         j++;
       }
       blocks.push(
-        <div key={`t-${i}`} className="my-2 overflow-x-auto rounded-lg border border-[#E8DDD3] bg-white/80">
+        <div key={`t-${i}`} className="my-2 overflow-x-auto rounded-[6px] border border-[#E8DDD3] bg-white/80">
           <table className="min-w-[34rem] w-full text-[0.8125rem] sm:text-sm border-collapse">
             <thead>
               <tr className="bg-[#FAF7F2]">
@@ -487,10 +487,10 @@ function renderAiMarkdown(text: string): React.ReactNode {
       blocks.push(
         <div
           key={i}
-          className="my-1.5 flex items-start gap-2 rounded-lg border border-[#E8DDD3]/70 bg-white/70 px-3 py-2"
+          className="my-1.5 flex items-start gap-2 rounded-[6px] border border-[#E8DDD3]/70 bg-white/70 px-3 py-2"
         >
           <span
-            className={`mt-0.5 flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center rounded border ${
+            className={`mt-0.5 flex h-[1.125rem] w-[1.125rem] shrink-0 items-center justify-center rounded-[6px] border ${
               checked
                 ? "border-[#2E7D5A] bg-[#2E7D5A]"
                 : "border-[#B5ADA3] bg-white"
@@ -578,7 +578,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
       blocks.push(
         <pre
           key={`c-${i}`}
-          className="my-2 overflow-x-auto rounded-lg bg-[#F5F1EE] px-3 py-2 text-[0.8125rem] leading-relaxed text-[#3A3330]"
+          className="my-2 overflow-x-auto rounded-[6px] bg-[#F5F1EE] px-3 py-2 text-[0.8125rem] leading-relaxed text-[#3A3330]"
         >
           {code.join("\n")}
         </pre>
@@ -650,7 +650,7 @@ export default function ChatBubble({
               </span>
             )}
           </span>
-          <div className={`bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
+          <div className={`bg-white rounded-[6px] rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
             aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
           }`}>
             <div className="text-sm sm:text-[0.9375rem] text-[var(--hb-text-strong)] leading-relaxed break-words">
@@ -669,9 +669,9 @@ export default function ChatBubble({
                     <Link
                       key={num}
                       {...weddingLinkProps(`/manners/${part.slug}`)}
-                      className="flex items-center gap-3 rounded-xl border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
+                      className="flex items-center gap-3 rounded-[6px] border border-[#E8D5CD]/40 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] px-3 py-3 transition-colors hover:border-[#C4967E]/30 group"
                     >
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)]">
+                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)]">
                         <BookOpen className="h-5 w-5 text-white" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -766,7 +766,7 @@ export default function ChatBubble({
           {/* 첨부 파일 (이미지 + PDF) */}
           <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
           <div
-            className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-2xl rounded-tr-md px-5 py-4 shadow-sm`}
+            className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-[6px] rounded-tr-md px-5 py-4 shadow-sm`}
           >
             <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
               {displayContent}
@@ -810,7 +810,7 @@ export default function ChatBubble({
         </div>
         <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
         <div
-          className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-2xl rounded-tl-md px-5 py-4 shadow-sm`}
+          className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-[6px] rounded-tl-md px-5 py-4 shadow-sm`}
         >
           <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap">
             {displayContent}
@@ -857,7 +857,7 @@ function ClearRequestCard({
 
   return (
     <div className="flex justify-center w-full my-2">
-      <div className="w-full max-w-[28rem] rounded-xl border border-[#E8DDD3] bg-gradient-to-br from-[#FAF7F2] to-white shadow-sm px-4 py-3">
+      <div className="w-full max-w-[28rem] rounded-[6px] border border-[#E8DDD3] bg-gradient-to-br from-[#FAF7F2] to-white shadow-sm px-4 py-3">
         <div className="flex items-start gap-2.5">
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgba(54,83,78,0.10)]">
             <RefreshCw className="w-3.5 h-3.5 text-[var(--hb-accent-hover)]" />
@@ -887,7 +887,7 @@ function ClearRequestCard({
                   type="button"
                   disabled={pending !== null}
                   onClick={() => handle("accept")}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--hb-primary)] text-white text-xs font-medium bg-[var(--hb-text-body)] disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[6px] bg-[var(--hb-primary)] text-white text-xs font-medium bg-[var(--hb-text-body)] disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {pending === "accept" ? "처리 중..." : "동의"}
@@ -896,7 +896,7 @@ function ClearRequestCard({
                   type="button"
                   disabled={pending !== null}
                   onClick={() => handle("decline")}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-[#E8DDD3] text-[var(--hb-text-body)] text-xs font-medium hover:bg-[#FAF7F2] disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[6px] bg-white border border-[#E8DDD3] text-[var(--hb-text-body)] text-xs font-medium hover:bg-[#FAF7F2] disabled:opacity-50"
                 >
                   <XIcon className="w-3.5 h-3.5" />
                   거절

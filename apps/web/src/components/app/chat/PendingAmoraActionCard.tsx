@@ -244,7 +244,7 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
   ];
 
   return (
-    <div className="mt-3 rounded-xl border border-[#E5D8CE] bg-white/80 p-3">
+    <div className="mt-3 rounded-[6px] border border-[#E5D8CE] bg-white/80 p-3">
       <h4 className="text-xs font-semibold text-[#2B2525]">변경 영향</h4>
       {!totalBudgetIsSet && (
         <p className="mt-1 text-[11px] leading-4 text-[#746866]">
@@ -275,7 +275,7 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
           </summary>
           <ul className="mt-2 space-y-2">
             {preview.categories.map((category) => (
-              <li key={category.key} className="rounded-lg bg-[#F8F4F0] px-2.5 py-2 text-xs leading-5 text-[var(--hb-text-body)]">
+              <li key={category.key} className="rounded-[6px] bg-[#F8F4F0] px-2.5 py-2 text-xs leading-5 text-[var(--hb-text-body)]">
                 <p className="font-medium text-[#3D3434]">{category.label}</p>
                 {category.currentBudget !== category.proposedBudget && (
                   <p>
@@ -294,7 +294,7 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
       )}
 
       {preview.warnings.length > 0 && (
-        <ul className="mt-3 space-y-1 rounded-lg bg-[#FFF2EF] px-2.5 py-2 text-xs leading-5 text-[#8A3D31]">
+        <ul className="mt-3 space-y-1 rounded-[6px] bg-[#FFF2EF] px-2.5 py-2 text-xs leading-5 text-[#8A3D31]">
           {preview.warnings.map((warning) => (
             <li key={warning}>• {BUDGET_WARNING_COPY[warning]}</li>
           ))}
@@ -601,7 +601,7 @@ export default function PendingAmoraActionCard({
       aria-describedby={`${detailId}${disabledReason ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
       }`}
-      className="ml-11 mt-2 max-w-[94%] rounded-2xl border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem]"
+      className="ml-11 mt-2 max-w-[94%] rounded-[6px] border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem]"
     >
       <div className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#F2E8DE] text-[var(--hb-accent-hover)]" aria-hidden="true">
@@ -631,7 +631,7 @@ export default function PendingAmoraActionCard({
         <div
           id={approvalStatusId}
           role="status"
-          className={`mt-3 flex items-start gap-2 rounded-xl px-3 py-2.5 text-xs leading-5 ${
+          className={`mt-3 flex items-start gap-2 rounded-[6px] px-3 py-2.5 text-xs leading-5 ${
             approvalError
               ? "bg-[#FFF2EF] text-[#8A3D31]"
               : "bg-[#F2F7F4] text-[#2F5F51]"
@@ -648,7 +648,7 @@ export default function PendingAmoraActionCard({
           onClick={() => void confirmOrApply()}
           disabled={disabled}
           aria-label={applyAriaLabel}
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[#2F5F51] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#274F44] disabled:cursor-not-allowed disabled:bg-[#B5ADA3] disabled:text-white"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] bg-[#2F5F51] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#274F44] disabled:cursor-not-allowed disabled:bg-[#B5ADA3] disabled:text-white"
         >
           {approvalMutation === "confirm" || loadingApproval ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -663,7 +663,7 @@ export default function PendingAmoraActionCard({
             onClick={() => void withdrawApproval()}
             disabled={isSavingApproval}
             aria-label="내 공동 변경 확인 취소"
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-accent-hover)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-accent-hover)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {approvalMutation === "withdraw" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -688,7 +688,7 @@ export default function PendingAmoraActionCard({
           onClick={onDismiss}
           disabled={isApplying}
           aria-label="지금은 적용하지 않기"
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <X className="h-4 w-4" aria-hidden="true" />
           지금은 적용하지 않기

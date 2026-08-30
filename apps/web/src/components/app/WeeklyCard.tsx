@@ -68,7 +68,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
   }, [weddingDate, totalBudget, progress, actions]);
 
   return (
-    <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
           이번 주 한 장
@@ -77,7 +77,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
       </div>
 
       {/* 아모라 한 줄 브리핑 — 저장된 정보의 범위를 숨기지 않는다. */}
-      <div className="mt-3 flex items-start gap-2.5 rounded-[14px] bg-[#f6f9f6] px-4 py-3">
+      <div className="mt-3 flex items-start gap-2.5 rounded-[6px] bg-[#f6f9f6] px-4 py-3">
         <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
         <p className="text-[14px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
           {data.brief}
@@ -95,7 +95,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {/* 곧 확인할 분야 */}
-        <div className="rounded-[14px] border border-[#f0e9da] p-3.5">
+        <div className="rounded-[6px] border border-[#f0e9da] p-3.5">
           <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
             <ListChecks className="h-3.5 w-3.5" />
             곧 확인할 분야
@@ -142,7 +142,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         {data.mannersPart ? (
           <Link
             {...weddingLinkProps(data.mannersPart.href)}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+            className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
               <BookOpen className="h-3.5 w-3.5" />
@@ -160,7 +160,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
              일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */
           <Link
             {...weddingLinkProps("/chat")}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+            className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
               <BookOpen className="h-3.5 w-3.5" />
@@ -177,7 +177,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
         <Link
           {...weddingLinkProps("/community/quote-check")}
-          className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+          className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
         >
           <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
             <AlertTriangle className="h-3.5 w-3.5" />
@@ -194,7 +194,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
       {/* 아모라가 기억하는 다음 행동 — 채팅 밖 첫 노출 */}
       {data.openActions.length > 0 && (
-        <div className="mt-3 rounded-[14px] border border-[#f0e9da] bg-[var(--hb-surface-page)] p-3.5">
+        <div className="mt-3 rounded-[6px] border border-[#f0e9da] bg-[var(--hb-surface-page)] p-3.5">
           <p className="mb-2 text-[12px] font-semibold text-[var(--hb-text-body)]">아모라가 기억하는 다음 행동</p>
           <ul className="space-y-1.5">
             {data.openActions.map((action) => (

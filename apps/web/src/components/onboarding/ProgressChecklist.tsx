@@ -34,13 +34,13 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
       </div>
 
       {stageNotice && (
-        <p className="rounded-2xl bg-[var(--hb-surface-hover)] px-4 py-3 text-[12px] leading-relaxed text-[var(--hb-text-body)]">
+        <p className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[12px] leading-relaxed text-[var(--hb-text-body)]">
           {stageNotice}
         </p>
       )}
 
       {/* 진행률 */}
-      <div className="bg-[var(--hb-surface-hover)] rounded-2xl p-4">
+      <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-4">
         <div className="flex items-center justify-center gap-6 mb-3">
           <div className="text-center">
             <div className="text-[20px] font-bold text-[#2E7D5A]">{completedCount}</div>
@@ -78,7 +78,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
       {/* 체크리스트 */}
       <div className="space-y-2">
         {items.map((item) => (
-          <div key={item.key} className={`rounded-xl border transition-all ${
+          <div key={item.key} data-checklist-row={item.key} className={`rounded-[6px] border transition-all ${
             item.status === "completed"
               ? "border-[#2E7D5A]/30 bg-[#2E7D5A]/[0.03]"
               : item.status === "in_progress"
@@ -106,7 +106,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                   <button
                     key={opt.value}
                     onClick={() => onStatusChange(item.key, opt.value)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all ${
+                    className={`px-2.5 py-1 rounded-[6px] text-[11px] font-medium transition-all ${
                       item.status === opt.value
                         ? opt.value === "completed"
                           ? "bg-[#2E7D5A] text-white"
@@ -134,7 +134,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                     onCostChange(item.key, num ? Number(num) : undefined);
                   }}
                   placeholder="사용한 비용"
-                  className="flex-1 px-3 py-2 rounded-lg border border-black/[0.06] bg-white text-[12px] text-[var(--hb-text-strong)] outline-none focus:border-[#2E7D5A] transition-colors placeholder:text-[var(--hb-text-muted)]"
+                  className="flex-1 px-3 py-2 rounded-[6px] border border-black/[0.06] bg-white text-[12px] text-[var(--hb-text-strong)] outline-none focus:border-[#2E7D5A] transition-colors placeholder:text-[var(--hb-text-muted)]"
                 />
                 <span className="text-[11px] text-[var(--hb-text-muted)] whitespace-nowrap">만원</span>
               </div>

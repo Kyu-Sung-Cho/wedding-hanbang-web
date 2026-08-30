@@ -69,7 +69,7 @@ export function BudgetFinderModal({
     >
       <div
         ref={dialogRef}
-        className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-[var(--hb-surface-page)] p-5 shadow-2xl sm:rounded-[28px] sm:p-7"
+        className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-[28px] bg-[var(--hb-surface-page)] p-5 shadow-2xl sm:rounded-[6px] sm:p-7"
         role="dialog"
         aria-modal="true"
         aria-labelledby="budget-finder-title"
@@ -97,7 +97,7 @@ export function BudgetFinderModal({
         >
           <label className="text-sm font-semibold text-[var(--hb-text-strong)]">
             최대 예산
-            <span className="mt-2 flex min-h-12 items-center rounded-xl border border-[var(--hb-primary)]/15 bg-white px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
+            <span className="mt-2 flex min-h-12 items-center rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
               <input
                 value={budgetManwon}
                 onChange={(event) => setBudgetManwon(event.target.value.replace(/[^0-9.]/g, ""))}
@@ -113,37 +113,37 @@ export function BudgetFinderModal({
             <select
               value={agencyId}
               onChange={(event) => setAgencyId(event.target.value)}
-              className="mt-2 min-h-12 w-full rounded-xl border border-[var(--hb-primary)]/15 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#B89785]"
+              className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-3 text-sm outline-none focus:ring-2 focus:ring-[#B89785]"
             >
               <option value="">전체 대행사</option>
               {agencies.map((agency) => <option key={agency.id} value={agency.id}>{agency.name}</option>)}
             </select>
           </label>
-          <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)]">
+          <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)]">
             <Search aria-hidden="true" className="size-4" />
             조합 찾기
           </button>
         </form>
 
-        <p id="budget-finder-disclaimer" className="mt-4 rounded-xl bg-[#F5ECE4] px-4 py-3 text-xs leading-5 text-[var(--hb-text-strong)]/75">
+        <p id="budget-finder-disclaimer" className="mt-4 rounded-[6px] bg-[#F5ECE4] px-4 py-3 text-xs leading-5 text-[var(--hb-text-strong)]/75">
           공시 최저가 기준의 참고 조합이에요. 옵션·날짜·계약 조건에 따라 실제 금액은 달라질 수 있어요.
         </p>
 
         {results !== null ? (
           <div className="mt-5 space-y-3" aria-live="polite">
             {results.length === 0 ? (
-              <p className="rounded-2xl border border-dashed border-[var(--hb-primary)]/20 bg-white px-5 py-8 text-center text-sm text-[var(--hb-text-strong)]/70">
+              <p className="rounded-[6px] border border-dashed border-[var(--hb-primary)]/20 bg-white px-5 py-8 text-center text-sm text-[var(--hb-text-strong)]/70">
                 조건 안에서 찾은 조합이 없어요. 예산이나 대행사 조건을 넓혀보세요.
               </p>
             ) : results.map((result, index) => (
-              <article key={`${result.studio.vendorId}:${result.dress.vendorId}:${result.makeup.vendorId}`} className="rounded-2xl border border-[var(--hb-primary)]/12 bg-white p-4">
+              <article key={`${result.studio.vendorId}:${result.dress.vendorId}:${result.makeup.vendorId}`} className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white p-4">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-xs font-bold text-[var(--color-rose-700)]">추천 {index + 1}</p>
                   <p className="font-bold tabular-nums text-[var(--hb-text-strong)]">{krwToManwonLabel(result.totalKrw)}</p>
                 </div>
                 <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
                   {(["studio", "dress", "makeup"] as const).map((category) => (
-                    <div key={category} className="rounded-xl bg-[var(--hb-surface-page)] p-3">
+                    <div key={category} className="rounded-[6px] bg-[var(--hb-surface-page)] p-3">
                       <dt className="text-[11px] font-bold text-[var(--hb-text-muted)]">{category === "studio" ? "스튜디오" : category === "dress" ? "드레스" : "메이크업"}</dt>
                       <dd className="mt-1 truncate font-semibold text-[var(--hb-text-strong)]">{result[category].vendorName}</dd>
                     </div>

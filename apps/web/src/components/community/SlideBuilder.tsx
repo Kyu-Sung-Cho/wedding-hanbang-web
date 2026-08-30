@@ -196,7 +196,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
       </div>
 
       {error && (
-        <p className="mb-3 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700">
+        <p className="mb-3 px-3 py-2 rounded-[6px] bg-red-50 border border-red-200 text-xs text-red-700">
           {error}
         </p>
       )}
@@ -207,7 +207,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           {slides.map((slide, idx) => (
             <div
               key={`${slide.url}-${idx}`}
-              className="relative group rounded-xl overflow-hidden border border-[#F0EFED] bg-[var(--hb-surface-page)] aspect-square"
+              className="relative group rounded-[6px] overflow-hidden border border-[#F0EFED] bg-[var(--hb-surface-page)] aspect-square"
             >
               {/* 미디어 미리보기 */}
                 {slide.type === "video" ? (
@@ -280,7 +280,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading || remaining <= 0}
-          className={`w-full px-6 py-10 rounded-xl border-2 border-dashed text-center transition-colors ${
+          className={`w-full px-6 py-10 rounded-[6px] border-2 border-dashed text-center transition-colors ${
             isDragging
               ? "border-[var(--hb-primary)] bg-[#eef4f1]"
               : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] hover:border-[var(--hb-primary)]/55 hover:bg-[#f4f8f5]"

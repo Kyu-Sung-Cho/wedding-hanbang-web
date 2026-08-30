@@ -184,7 +184,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[var(--shadow-raised)] sm:p-5">
+    <article className="relative rounded-[6px] border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[var(--shadow-raised)] sm:p-5">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt || actionToast) && (
         <div
@@ -210,7 +210,7 @@ export default function PostCard({ post }: PostCardProps) {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 sm:space-x-3 flex-wrap">
                 {categoryInfo && (
-                  <span className={`text-xs sm:text-sm font-medium px-2.5 py-1 rounded ${categoryBadgeStyle}`}>
+                  <span className={`text-xs sm:text-sm font-medium px-2.5 py-1 rounded-[6px] ${categoryBadgeStyle}`}>
                     {categoryInfo.shortLabel}
                   </span>
                 )}
@@ -250,7 +250,7 @@ export default function PostCard({ post }: PostCardProps) {
             {(post.cost_data || post.poll) && (
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 {post.cost_data && (
-                  <div className="bg-[var(--hb-surface-hover)] rounded-lg px-3 py-1.5 inline-block">
+                  <div className="bg-[var(--hb-surface-hover)] rounded-[6px] px-3 py-1.5 inline-block">
                     <span className="text-xs text-[var(--hb-text-body)]">비용: </span>
                     <span className="text-sm font-medium text-[var(--hb-text-strong)]">{formatPrice(post.cost_data.totalCost)}만원</span>
                   </div>
@@ -262,7 +262,7 @@ export default function PostCard({ post }: PostCardProps) {
                   return (
                     <Link
                       href={communityPostPath(post.id)}
-                      className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
+                      className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-[6px] transition-colors ${
                         isClosed
                           ? "text-[var(--hb-text-muted)] bg-[var(--hb-surface-hover)] border-[var(--hb-hairline)] hover:bg-white"
                           : "text-[var(--hb-text-strong)] bg-[var(--hb-surface-page)] border-[#f0eeec] hover:border-[var(--hb-primary)] hover:bg-white"
@@ -387,7 +387,7 @@ export default function PostCard({ post }: PostCardProps) {
         {(hasImage || (hasSlides && isVideoSlide && !slideThumb)) && (
           <Link
             href={communityPostPath(post.id)}
-            className="relative h-24 w-28 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
+            className="relative h-24 w-28 rounded-[6px] overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
           >
             {thumbUrl ? (
               <Image

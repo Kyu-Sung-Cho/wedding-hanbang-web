@@ -60,14 +60,14 @@ export default function WeddingDetails({
             onChange={(e) => onDateChange(e.target.value || null)}
             disabled={weddingDateUndecided}
             min={ymdInKst()}
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
           />
           <button
             onClick={() => {
               onDateUndecidedChange(!weddingDateUndecided);
               if (!weddingDateUndecided) onDateChange(null);
             }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               weddingDateUndecided
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
@@ -89,14 +89,14 @@ export default function WeddingDetails({
             value={sanggyeonryeDate ?? ""}
             onChange={(e) => onSanggyeonryeDateChange(e.target.value || null)}
             disabled={sanggyeonryeUndecided}
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
           />
           <button
             onClick={() => {
               onSanggyeonryeUndecidedChange(!sanggyeonryeUndecided);
               if (!sanggyeonryeUndecided) onSanggyeonryeDateChange(null);
             }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               sanggyeonryeUndecided
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
@@ -120,14 +120,14 @@ export default function WeddingDetails({
             onChange={(e) => onVenueChange(e.target.value || null)}
             disabled={venueUndecided}
             placeholder="예: 샘플 결혼식장, 샘플 호텔"
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] disabled:opacity-40"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] disabled:opacity-40"
           />
           <button
             onClick={() => {
               onVenueUndecidedChange(!venueUndecided);
               if (!venueUndecided) onVenueChange(null);
             }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               venueUndecided
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
@@ -154,13 +154,13 @@ export default function WeddingDetails({
             }}
             placeholder="직접 입력"
             aria-label="총 예산 금액"
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)]"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)]"
           />
           <span className="text-[13px] text-[var(--hb-text-body)] whitespace-nowrap">만원</span>
           <button
             type="button"
             onClick={() => onBudgetChange(0)}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               budget === 0
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"

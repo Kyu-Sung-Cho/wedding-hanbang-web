@@ -1,0 +1,17 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 880, "h": 1000 },
+    { "file": "BeforeAfter.dc.html", "x": 980, "y": 0, "w": 760, "h": 720 },
+    { "file": "Remaining.dc.html", "x": 980, "y": 840, "w": 700, "h": 760 }
+  ],
+  "annotations": [
+    {
+      "id": "what-this-is",
+      "x": 0,
+      "y": -150,
+      "w": 420,
+      "text": "웨딩한방 표면 언어 점검\n\n왼쪽은 지금 제품이 쓰는 값,\n오른쪽 위는 정리 전후 숫자,\n오른쪽 아래는 남은 일입니다."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

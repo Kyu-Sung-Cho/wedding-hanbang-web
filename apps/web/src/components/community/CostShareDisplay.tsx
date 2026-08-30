@@ -37,12 +37,12 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
       : 0;
 
   return (
-    <div className="bg-white border border-black/[0.04] rounded-2xl overflow-hidden">
+    <div className="bg-white border border-black/[0.04] rounded-[6px] overflow-hidden">
       {/* 요약 바 */}
       <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 to-white border-b border-[#F5F2ED]">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
               <Wallet className="w-4 h-4" />
             </div>
             <div>
@@ -56,7 +56,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-sky-100 flex items-center justify-center text-sky-600 shrink-0">
               <MapPin className="w-4 h-4" />
             </div>
             <div>
@@ -70,7 +70,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
               <Users className="w-4 h-4" />
             </div>
             <div>
@@ -84,7 +84,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600 shrink-0">
+            <div className="w-8 h-8 rounded-[6px] bg-violet-100 flex items-center justify-center text-violet-600 shrink-0">
               <CalendarDays className="w-4 h-4" />
             </div>
             <div>

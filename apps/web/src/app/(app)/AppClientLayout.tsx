@@ -143,7 +143,7 @@ function GlobalChatAssistant() {
           {showBubble && (
             <div
               data-testid="amora-first-hello-bubble"
-              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-2xl border border-[var(--hb-hairline)] bg-white p-3 shadow-[var(--shadow-raised)] md:bottom-[6.5rem] md:right-6"
+              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-3 shadow-[var(--shadow-raised)] md:bottom-[6.5rem] md:right-6"
             >
               <button
                 type="button"

@@ -191,7 +191,7 @@ export default function MyPostsPage() {
       </div>
 
       {profile && (
-        <section className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-white px-5 py-4 shadow-[var(--shadow-raised)]">
+        <section className="mb-6 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-4 shadow-[var(--shadow-raised)]">
           <div className="flex items-start gap-4">
             <Avatar
               nickname={nicknameInput || profile.nickname}
@@ -207,7 +207,7 @@ export default function MyPostsPage() {
                     value={nicknameInput}
                     onChange={(event) => setNicknameInput(event.target.value)}
                     maxLength={20}
-                    className="h-10 w-full rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
+                    className="h-10 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
                     placeholder="커뮤니티 닉네임"
                   />
                   <div className="flex flex-wrap gap-2">
@@ -292,7 +292,7 @@ export default function MyPostsPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
+            className={`px-4 py-2 rounded-[6px] text-[13px] font-medium transition-colors ${
               tab === t.key ? "bg-[var(--hb-primary)] text-white" : "bg-white border border-black/[0.06] text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)]"
             }`}
           >
@@ -311,7 +311,7 @@ export default function MyPostsPage() {
           <p className="text-[14px] text-[var(--hb-text-muted)]">
             {tab === "published" ? "아직 작성한 글이 없습니다" : "임시저장된 글이 없습니다"}
           </p>
-          <Link href={weddingPath("/community/post/write")} className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[var(--hb-primary)] hover:bg-[#9A6B62] transition-colors">
+          <Link href={weddingPath("/community/post/write")} className="inline-block mt-4 px-5 py-2.5 rounded-[6px] text-[13px] font-medium text-white bg-[var(--hb-primary)] hover:bg-[#9A6B62] transition-colors">
             글쓰기
           </Link>
         </div>
@@ -322,7 +322,7 @@ export default function MyPostsPage() {
             const isResolutionPost =
               post.category === "is_normal" || post.category === "ama";
             return (
-              <div key={post.id} className="bg-white rounded-2xl border border-black/[0.04] px-5 py-4 hover:shadow-sm transition-shadow">
+              <div key={post.id} className="bg-white rounded-[6px] border border-black/[0.04] px-5 py-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
@@ -370,13 +370,13 @@ export default function MyPostsPage() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Link
                       href={weddingPath(`/community/post/write?edit=${post.id}`)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </Link>
                     <button
                       onClick={() => handleDelete(post.id)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-red-50 hover:text-red-400 transition-colors"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-red-50 hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

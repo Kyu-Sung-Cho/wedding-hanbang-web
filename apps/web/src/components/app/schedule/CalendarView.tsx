@@ -83,7 +83,7 @@ export default function CalendarView({
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -92,7 +92,7 @@ export default function CalendarView({
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -126,7 +126,7 @@ export default function CalendarView({
             <button
               key={day.toISOString()}
               onClick={() => setSelectedDate(isSelected ? null : day)}
-              className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-[15px] transition-all ${
+              className={`relative aspect-square rounded-[6px] flex flex-col items-center justify-center gap-0.5 text-[15px] transition-all ${
                 !inMonth
                   ? "text-[var(--hb-text-muted)]/40"
                   : isWedding
@@ -184,7 +184,7 @@ export default function CalendarView({
         <div
           className="mt-5 overflow-hidden animate-fade-in"
         >
-          <div className="bg-[var(--hb-surface-hover)] rounded-xl p-5">
+          <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-5">
             <div className="flex items-center justify-between mb-4">
               <p className="font-serif-kr text-[17px] font-normal text-[var(--hb-text-strong)]">
                 {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
@@ -212,7 +212,7 @@ export default function CalendarView({
                   <button
                     key={evt.id}
                     onClick={() => onEditEvent(evt)}
-                    className="w-full rounded-xl bg-white p-3.5 text-left transition-shadow hover:shadow-[var(--shadow-raised)]"
+                    className="w-full rounded-[6px] bg-white p-3.5 text-left transition-shadow hover:shadow-[var(--shadow-raised)]"
                   >
                     <div className="flex items-start gap-3">
                       <div className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
@@ -256,7 +256,7 @@ export default function CalendarView({
                           </p>
                         )}
                         {evt.completionCriteria && (
-                          <div className="mt-2 rounded-lg border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
+                          <div className="mt-2 rounded-[6px] border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
                             <p className="mb-1 text-[11px] font-semibold text-[#4F6451]">
                               완료 기준
                             </p>
@@ -266,7 +266,7 @@ export default function CalendarView({
                           </div>
                         )}
                         {shouldShowMemo && (
-                          <div className="mt-2 rounded-lg border border-[var(--hb-hairline)]/70 bg-[#fffdf8] px-3 py-2">
+                          <div className="mt-2 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[#fffdf8] px-3 py-2">
                             <p className="mb-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
                               메모
                             </p>

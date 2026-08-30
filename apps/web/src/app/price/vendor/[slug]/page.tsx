@@ -403,7 +403,7 @@ export default async function VendorPricePage({
           </div>
 
           {activeRegionCode ? (
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--hb-primary)]/15 bg-white px-4 py-3 text-sm">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 py-3 text-sm">
               <p className="font-semibold">
                 현재 {REGION_LABELS[activeRegionCode]} 공시 가격만 표시하고 있어요.
               </p>
@@ -486,7 +486,7 @@ export default async function VendorPricePage({
           <section aria-labelledby="price-history-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
             <h2 id="price-history-heading" className="text-2xl font-bold">공시가 히스토리</h2>
             <p className="mt-2 text-sm text-[var(--hb-text-strong)]/70">발행된 기준 시점별 가격 변화를 확인하세요.</p>
-            <div className="mt-5 overflow-x-auto rounded-xl border border-[var(--hb-primary)]/12 bg-white">
+            <div className="mt-5 overflow-x-auto rounded-[6px] border border-[var(--hb-primary)]/12 bg-white">
               <table className="w-full min-w-[560px] text-left text-sm">
                 <thead className="bg-[#F5ECE4] text-xs text-[var(--hb-text-strong)]/85">
                   <tr>
@@ -538,14 +538,14 @@ export default async function VendorPricePage({
                 20%와 100%로 갈리는 경우까지 있었다. 왜 여러 장인지 모르면 그냥
                 스크롤로 지나친다. */}
             {policyAgencyCount >= 2 ? (
-              <p className="mt-3 rounded-xl bg-[#FDE5E2] px-4 py-3 text-sm font-semibold leading-6 text-[#8F5150]">
+              <p className="mt-3 rounded-[6px] bg-[#FDE5E2] px-4 py-3 text-sm font-semibold leading-6 text-[#8F5150]">
                 이 업체는 대행사 {policyAgencyCount}곳이 서로 다른 문구로 공시했어요.
                 계약할 대행사의 조건을 직접 비교해 보세요.
               </p>
             ) : null}
             <ul className="mt-5 space-y-3">
               {policies.map((policy) => (
-                <li key={policy.id} className="rounded-2xl border border-[#8F6662]/25 bg-[var(--hb-surface-page)] px-5 py-4">
+                <li key={policy.id} className="rounded-[6px] border border-[#8F6662]/25 bg-[var(--hb-surface-page)] px-5 py-4">
                   <p className="text-xs font-bold text-[#8F5150]">
                     {policySectionLabel(policy.semanticType)}
                     {policy.sourceAgency ? (
@@ -568,7 +568,7 @@ export default async function VendorPricePage({
           <h2 id="price-faq-heading" className="text-2xl font-bold">공시 가격 FAQ</h2>
           <dl className="mt-5 space-y-5">
             {PRICE_DISCLOSURE_FAQ_MAIN_ENTITY.map(({ name, acceptedAnswer }) => (
-              <div key={name} className="rounded-2xl border border-[var(--hb-primary)]/10 bg-white px-5 py-4">
+              <div key={name} className="rounded-[6px] border border-[var(--hb-primary)]/10 bg-white px-5 py-4">
                 <dt className="font-bold text-[var(--hb-text-strong)]">{name}</dt>
                 <dd className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]/80">{acceptedAnswer.text}</dd>
               </div>
@@ -587,7 +587,7 @@ export default async function VendorPricePage({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--hb-primary)]/25 px-4 py-2 text-sm font-semibold hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/25 px-4 py-2 text-sm font-semibold hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
               >
                 {label}<ExternalLink aria-hidden="true" className="size-4" />
               </a>
@@ -596,7 +596,7 @@ export default async function VendorPricePage({
               href={naverSearchHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-dashed border-[var(--hb-primary)]/35 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)]/85 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-dashed border-[var(--hb-primary)]/35 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)]/85 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
             >
               네이버 지도에서 검색<ExternalLink aria-hidden="true" className="size-4" />
             </a>

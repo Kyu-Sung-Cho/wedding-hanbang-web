@@ -100,7 +100,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
     >
       <div
         ref={dialogRef}
-        className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-[var(--hb-surface-page)] p-5 shadow-2xl sm:rounded-[28px] sm:p-7"
+        className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-[var(--hb-surface-page)] p-5 shadow-2xl sm:rounded-[6px] sm:p-7"
         role="dialog"
         aria-modal="true"
         aria-labelledby="combo-add-title"
@@ -119,7 +119,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
         <fieldset className="mt-6 space-y-2">
           <legend className="text-sm font-bold text-[var(--hb-text-strong)]">공시 가격 선택</legend>
           {vendor.offers.map((candidate) => (
-            <label key={candidate.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${offerId === candidate.id ? "border-[#8F6662] bg-white" : "border-[var(--hb-primary)]/12 bg-white/55"}`}>
+            <label key={candidate.id} className={`flex cursor-pointer items-start gap-3 rounded-[6px] border p-4 ${offerId === candidate.id ? "border-[#8F6662] bg-white" : "border-[var(--hb-primary)]/12 bg-white/55"}`}>
               <input type="radio" name="offer" value={candidate.id} checked={offerId === candidate.id} onChange={() => {
                 setOfferId(candidate.id);
                 setSelectedOptionIds(new Set());
@@ -137,7 +137,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
 
         <label className="mt-5 block text-sm font-bold text-[var(--hb-text-strong)]">
           내가 받은 기본 견적이 있다면
-          <span className="mt-2 flex min-h-12 items-center rounded-xl border border-[var(--hb-primary)]/15 bg-white px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
+          <span className="mt-2 flex min-h-12 items-center rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
             <input
               value={customManwon}
               onChange={(event) => setCustomManwon(event.target.value)}
@@ -161,7 +161,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
           <fieldset className="mt-5 space-y-2">
             <legend className="text-sm font-bold text-[var(--hb-text-strong)]">추가 옵션</legend>
             {offer.options.map((option) => (
-              <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-xl bg-white px-4 py-3">
+              <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-[6px] bg-white px-4 py-3">
                 <input
                   type="checkbox"
                   checked={selectedOptionIds.has(option.id)}

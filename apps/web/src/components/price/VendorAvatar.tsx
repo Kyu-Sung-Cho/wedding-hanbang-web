@@ -42,7 +42,7 @@ export function VendorAvatar({
       loading="lazy"
       onError={() => setFailed(true)}
       // 아이보리 배경 + 여백: 흰색·투명 로고도 실종되지 않는다.
-      className={`${sizeClass} shrink-0 select-none rounded-2xl border border-[var(--hb-primary)]/10 bg-[var(--hb-surface-hover)] object-contain p-1`}
+      className={`${sizeClass} shrink-0 select-none rounded-[6px] border border-[var(--hb-primary)]/10 bg-[var(--hb-surface-hover)] object-contain p-1`}
     />
   );
 }

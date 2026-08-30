@@ -217,7 +217,7 @@ export default function TodayOnePreferenceControl() {
     <div className="mt-5 border-t border-[#E8E0D8] px-5 pt-5">
       <div className="flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]">
             <Sparkles className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>

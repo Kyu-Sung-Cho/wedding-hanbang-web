@@ -342,7 +342,7 @@ export default function SpotlightTutorial({
       {/* 툴팁 */}
       {tooltipPos && (
         <div
-          className="absolute rounded-2xl bg-white shadow-2xl transition-all duration-200 ease-out"
+          className="absolute rounded-[6px] bg-white shadow-2xl transition-all duration-200 ease-out"
           style={{
             top: tooltipPos.top,
             left: tooltipPos.left,
@@ -393,7 +393,7 @@ export default function SpotlightTutorial({
               <button
                 type="button"
                 onClick={next}
-                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all"
+                className="flex items-center gap-1 px-4 py-2 rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all"
               >
                 {isLast ? "완료" : "다음"}
                 {!isLast && <ChevronRight className="h-4 w-4" />}

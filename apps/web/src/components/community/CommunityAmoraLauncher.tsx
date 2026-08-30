@@ -102,7 +102,7 @@ export default function CommunityAmoraLauncher() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#071629]/35 px-4 backdrop-blur-sm">
           <div
             ref={loginPromptRef}
-            className="w-full max-w-[420px] rounded-[22px] border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] p-5 shadow-[var(--shadow-overlay)]"
+            className="w-full max-w-[420px] rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] p-5 shadow-[var(--shadow-overlay)]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="community-amora-login-title"

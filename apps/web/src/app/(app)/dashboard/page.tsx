@@ -386,7 +386,7 @@ export default function DashboardPage() {
       {journeyNotice && (
         <div
           role="status"
-          className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+          className="rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
         >
           {journeyNotice}
         </div>
@@ -394,7 +394,7 @@ export default function DashboardPage() {
       {journeyError && (
         <div
           role="alert"
-          className="rounded-xl border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
+          className="rounded-[6px] border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
         >
           {journeyError}
         </div>
@@ -402,7 +402,7 @@ export default function DashboardPage() {
       {joinedHandoffVisible && partner && (
         <section
           data-testid="joined-plan-handoff"
-          className="rounded-[20px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
+          className="rounded-[6px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
           aria-labelledby="joined-plan-title"
         >
           <div className="flex items-start gap-3">
@@ -461,7 +461,7 @@ export default function DashboardPage() {
         </section>
       )}
       {couple && !partner && (inviteCode || inviteCodeError) && (
-        <section className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)]">
+        <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-[15px] font-semibold text-[var(--hb-text-strong)]">
@@ -504,7 +504,7 @@ export default function DashboardPage() {
 
       {/* 결혼식 날짜가 없으면 첫 행동 하나를, 있으면 이번 주 내용을 보여준다. */}
       {!journey?.wedding_date ? (
-        <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)] md:p-6">
+        <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)] md:p-6">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
             시작하기
             <Sparkles className="h-4 w-4" />
@@ -541,7 +541,7 @@ export default function DashboardPage() {
       )}
 
       <section className="grid gap-4 lg:grid-cols-2" data-tutorial-target="dashboard-hero">
-        <div className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+        <div className="flex h-full flex-col rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
             {companionCopy.loungeLabel}
             <Sparkles className="h-4 w-4" />
@@ -560,7 +560,7 @@ export default function DashboardPage() {
         </div>
 
         <div
-          className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-[var(--hb-primary)] p-4 text-white shadow-[var(--shadow-raised)] md:p-5"
+          className="flex h-full flex-col rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-primary)] p-4 text-white shadow-[var(--shadow-raised)] md:p-5"
           data-tutorial-target="dashboard-briefing"
         >
           <div className="mb-3 flex items-start justify-between gap-4">
@@ -588,7 +588,7 @@ export default function DashboardPage() {
                     key={category.key}
                     type="button"
                     onClick={() => setSelectedCategory(category)}
-                    className="min-w-0 rounded-[14px] border border-white/10 bg-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.1]"
+                    className="min-w-0 rounded-[6px] border border-white/10 bg-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.1]"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#ffffff]">
                       <Icon className="h-[18px] w-[18px]" />
@@ -603,7 +603,7 @@ export default function DashboardPage() {
                 );
               })
             ) : (
-              <div className="col-span-3 rounded-[14px] border border-white/10 bg-white/[0.06] p-4">
+              <div className="col-span-3 rounded-[6px] border border-white/10 bg-white/[0.06] p-4">
                 <Check className="h-5 w-5 text-[#ffffff]" />
                 <p className="mt-2 text-[14px] font-semibold">주요 준비가 안정적으로 진행 중이에요.</p>
               </div>
@@ -617,7 +617,7 @@ export default function DashboardPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[var(--shadow-raised)] transition-colors hover:border-[var(--hb-hairline)] sm:p-4"
+            className="group rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[var(--shadow-raised)] transition-colors hover:border-[var(--hb-hairline)] sm:p-4"
           >
             <span className="flex items-center justify-between gap-3">
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] sm:h-9 sm:w-9">
@@ -635,7 +635,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid items-stretch gap-4 lg:grid-cols-[1.28fr_0.72fr]" data-tutorial-target="dashboard-dday-budget">
-        <div className="h-full rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+        <div className="h-full rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">진행 현황</p>
@@ -657,7 +657,7 @@ export default function DashboardPage() {
                   key={category.key}
                   type="button"
                   onClick={() => setSelectedCategory(category)}
-                  className="group rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3 text-left transition-colors hover:border-[var(--hb-hairline)] hover:bg-white"
+                  className="group rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3 text-left transition-colors hover:border-[var(--hb-hairline)] hover:bg-white"
                 >
                   <span className="flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
@@ -690,7 +690,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid h-full gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-[0.92fr_1.08fr]">
-          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
+          <section className="flex flex-col justify-between rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">예산</p>
@@ -728,7 +728,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
+          <section className="flex flex-col justify-between rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">일정</p>
@@ -741,13 +741,13 @@ export default function DashboardPage() {
             <div className="space-y-2">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.slice(0, 2).map((event) => (
-                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[12px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-2.5">
+                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-2.5">
                     <p className="truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">{event.title}</p>
                     <p className="mt-0.5 text-[11px] font-medium text-[var(--hb-text-body)]">{formatDate(event.date)}</p>
                   </Link>
                 ))
               ) : (
-                <div className="rounded-[12px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-4">
+                <div className="rounded-[6px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-4">
                   <div className="flex items-start gap-3">
                     <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--hb-text-strong)]" />
                     <div>
@@ -766,13 +766,13 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 rounded-[22px] border border-[var(--hb-hairline)] bg-[#fffaf0] p-6 md:grid-cols-3" data-tutorial-target="dashboard-start-guide">
+      <section className="grid gap-4 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffaf0] p-6 md:grid-cols-3" data-tutorial-target="dashboard-start-guide">
         {[
           { icon: HeartHandshake, title: "커뮤니티에서 찾고", desc: "실제 후기와 질문으로 선택지를 좁혀요.", href: "/community" },
           { icon: MessageCircle, title: "아모라에게 묻고", desc: "우리 상황에 맞게 견적과 조건을 해석해요.", href: "/chat" },
           { icon: ClipboardCheck, title: "결정으로 남기기", desc: "예산과 일정, 체크리스트로 바로 옮겨요.", href: "/schedule" },
         ].map((item) => (
-          <Link key={item.title} href={weddingPath(item.href)} className="flex gap-4 rounded-[16px] bg-white/78 p-5">
+          <Link key={item.title} href={weddingPath(item.href)} className="flex gap-4 rounded-[6px] bg-white/78 p-5">
             <item.icon className="mt-1 h-7 w-7 shrink-0 stroke-[1.55] text-[var(--hb-accent-hover)]" />
             <span>
               <span className="block text-[15px] font-semibold text-[var(--hb-text-strong)]">{item.title}</span>
@@ -798,7 +798,7 @@ export default function DashboardPage() {
 
 function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-2.5 sm:p-3.5">
+    <div className="min-w-0 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-2.5 sm:p-3.5">
       <p className="truncate text-[10px] font-semibold text-[var(--hb-text-body)] sm:text-[11px]">{label}</p>
       <p className="mt-1.5 truncate font-serif-kr text-[21px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[24px]">{value}</p>
       <p className="mt-1.5 truncate text-[10px] font-medium text-[var(--hb-text-body)] sm:text-[11px]">{note}</p>
@@ -816,7 +816,7 @@ function HandoffMetric({
   note?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-[#DCE5D8] bg-white/88 p-3">
+    <div className="min-w-0 rounded-[6px] border border-[#DCE5D8] bg-white/88 p-3">
       <dt className="text-[10px] font-semibold text-[#71806D]">{label}</dt>
       <dd className="mt-1 truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">
         {value}
@@ -864,7 +864,7 @@ function CategoryPanel({
   };
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(54,83,78,0.40)] px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
-      <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)]">
+      <section className="w-full max-w-[560px] overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)]">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-5">
           <div className="flex items-start gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-accent-hover)]">
@@ -906,13 +906,13 @@ function CategoryPanel({
           {saveError && (
             <p
               role="alert"
-              className="mb-5 rounded-xl border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
+              className="mb-5 rounded-[6px] border border-[#E4B7B7] bg-[#FFF7F7] px-4 py-3 text-sm leading-6 text-[#8A3535]"
             >
               {saveError}
             </p>
           )}
 
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-5">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-5">
             <p className="mb-3 text-[13px] font-semibold text-[var(--hb-accent-hover)]">먼저 확인할 것</p>
             <div className="space-y-3">
               {category.tasks.map((task) => (

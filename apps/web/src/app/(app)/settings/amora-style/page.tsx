@@ -270,9 +270,9 @@ export default function AmoraStyleSettingsPage() {
         </div>
       </div>
 
-      <section className="mb-5 rounded-2xl bg-gradient-to-br from-[var(--hb-surface-page)] to-[var(--hb-surface-hover)] p-5 ring-1 ring-[#E2D3C8] sm:p-6">
+      <section className="mb-5 rounded-[6px] bg-gradient-to-br from-[var(--hb-surface-page)] to-[var(--hb-surface-hover)] p-5 ring-1 ring-[#E2D3C8] sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--hb-primary)] text-white">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white">
             <SlidersHorizontal className="h-5 w-5" />
           </span>
           <div>
@@ -288,7 +288,7 @@ export default function AmoraStyleSettingsPage() {
       </section>
 
       {isDemo ? (
-        <section className="rounded-2xl border border-[#E2D3C8] bg-white p-6 text-sm text-[var(--hb-text-strong)]">
+        <section className="rounded-[6px] border border-[#E2D3C8] bg-white p-6 text-sm text-[var(--hb-text-strong)]">
           체험에서는 개인 설정을 저장하지 않아요. 가입 후 내 아모라에 맞출 수
           있어요.
         </section>
@@ -298,14 +298,14 @@ export default function AmoraStyleSettingsPage() {
           도움 방식을 불러오는 중...
         </div>
       ) : personalization.status === "error" ? (
-        <section className="rounded-2xl border border-[#E2D3C8] bg-white p-6">
+        <section className="rounded-[6px] border border-[#E2D3C8] bg-white p-6">
           <p role="alert" className="text-sm text-[#A04A4A]">
             {personalization.error ?? "도움 방식을 불러오지 못했어요."}
           </p>
           <button
             type="button"
             onClick={() => void personalization.load()}
-            className="mt-4 min-h-11 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
+            className="mt-4 min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
           >
             다시 불러오기
           </button>
@@ -316,7 +316,7 @@ export default function AmoraStyleSettingsPage() {
             {SECTIONS.map((section) => (
               <section
                 key={section.key}
-                className="rounded-2xl bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6"
+                className="rounded-[6px] bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6"
               >
                 <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
                   {section.title}
@@ -347,7 +347,7 @@ export default function AmoraStyleSettingsPage() {
                             ),
                           });
                         }}
-                        className={`min-h-16 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] disabled:opacity-50 ${
+                        className={`min-h-16 rounded-[6px] border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] disabled:opacity-50 ${
                           selected
                             ? "border-[#6D806E] bg-[#F1F5EF]"
                             : "border-[#E2D3C8] bg-white hover:bg-[var(--hb-surface-page)]"
@@ -370,7 +370,7 @@ export default function AmoraStyleSettingsPage() {
             ))}
           </div>
 
-          <section className="sticky bottom-4 mt-5 rounded-2xl border border-[#E2D3C8] bg-white/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur sm:p-5">
+          <section className="sticky bottom-4 mt-5 rounded-[6px] border border-[#E2D3C8] bg-white/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
@@ -387,7 +387,7 @@ export default function AmoraStyleSettingsPage() {
                 type="button"
                 disabled={!dirty || personalization.saving}
                 onClick={() => void save()}
-                className="min-h-11 rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-40"
+                className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {personalization.saving ? "저장 중..." : "변경 저장"}
               </button>
@@ -405,7 +405,7 @@ export default function AmoraStyleSettingsPage() {
           </section>
 
           {personalization.profile && (
-            <section className="mt-6 rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-5">
+            <section className="mt-6 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-5">
               {!confirmReset ? (
                 <button
                   type="button"
@@ -425,7 +425,7 @@ export default function AmoraStyleSettingsPage() {
                       type="button"
                       disabled={personalization.saving}
                       onClick={() => void reset()}
-                      className="min-h-11 rounded-xl bg-[#8F6662] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                      className="min-h-11 rounded-[6px] bg-[#8F6662] px-4 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       모두 지우기
                     </button>
@@ -433,7 +433,7 @@ export default function AmoraStyleSettingsPage() {
                       type="button"
                       disabled={personalization.saving}
                       onClick={() => setConfirmReset(false)}
-                      className="min-h-11 rounded-xl border border-[#E2D3C8] bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)]"
+                      className="min-h-11 rounded-[6px] border border-[#E2D3C8] bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)]"
                     >
                       취소
                     </button>

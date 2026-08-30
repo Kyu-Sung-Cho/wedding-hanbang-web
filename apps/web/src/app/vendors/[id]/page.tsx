@@ -56,7 +56,7 @@ export default async function LegacyVendorDetailPage({
             <span className="mt-3 inline-flex rounded-full bg-[var(--hb-primary)]/8 px-2.5 py-1 text-xs font-bold text-[var(--hb-text-strong)]/75">
               {priceRegionLabel(profile.vendor.regionCode)}
             </span>
-            <p className="mt-4 rounded-2xl border border-[#B89785]/35 bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-6 text-[var(--hb-text-strong)]">
+            <p className="mt-4 rounded-[6px] border border-[#B89785]/35 bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-6 text-[var(--hb-text-strong)]">
               이 화면의 업체·가격·연결 정보는 자동 추출 결과이며 정확성이 보장되지 않습니다. 승인 전 원문과 대조해 주세요.
             </p>
           </header>

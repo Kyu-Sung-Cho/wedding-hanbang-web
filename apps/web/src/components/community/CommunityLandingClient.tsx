@@ -666,7 +666,7 @@ function AmoraBlock() {
         <article
           id="decision-start"
           data-tutorial-target="community-decision-start"
-          className="border-y border-[var(--hb-hairline)] bg-white/64 py-4 sm:px-5 lg:rounded-[18px] lg:border lg:p-5"
+          className="border-y border-[var(--hb-hairline)] bg-white/64 py-4 sm:px-5 lg:rounded-[6px] lg:border lg:p-5"
           aria-labelledby="decision-start-heading"
         >
           <div>
@@ -834,7 +834,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
       {/* 진한 초록은 이 화면에서 새로 만든 색이 아니라 푸터가 이미 쓰는 계열이다
           (#183832 → #2f5f55 → #12302b). 크림색 페이지 위에서 첫 화면만 무게를
           갖게 하되 팔레트는 늘리지 않는다. */}
-      <article className="overflow-hidden rounded-[22px] bg-[#12302b] px-5 py-6 shadow-[var(--shadow-overlay)] md:px-9 md:py-8">
+      <article className="overflow-hidden rounded-[6px] bg-[#12302b] px-5 py-6 shadow-[var(--shadow-overlay)] md:px-9 md:py-8">
         {/* 모바일은 세로 한 줄이고, 순서가 곧 우선순위다: 문장 → **증거** → 행동.
             증거를 CTA 뒤로 두면 3초 안에 보이는 것이 다시 주장뿐이 된다.
             데스크톱에서는 증거를 오른쪽 열에 세로로 붙인다. */}
@@ -879,7 +879,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
           </div>
 
           {hasEvidence && (
-            <div className="min-w-0 rounded-[18px] border border-white/12 bg-white/[0.05] p-3.5 md:p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
+            <div className="min-w-0 rounded-[6px] border border-white/12 bg-white/[0.05] p-3.5 md:p-4 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center">
               <p className="px-1 text-[11px] font-semibold text-[#9fb8ae]">
                 카테고리별로, 같은 업체를 취급한 대행사끼리 차이가 가장 컸던 사례
               </p>
@@ -890,7 +890,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
                       href={`/price/${row.category}`}
                       prefetch={false}
                       onClick={() => captureEvent("price_hero_click", { source: "landing_spread_row" })}
-                      className="group block rounded-[14px] border border-white/12 bg-white/[0.06] px-3.5 py-3 transition-colors hover:border-[#d8c79a]/55 hover:bg-white/[0.11]"
+                      className="group block rounded-[6px] border border-white/12 bg-white/[0.06] px-3.5 py-3 transition-colors hover:border-[#d8c79a]/55 hover:bg-white/[0.11]"
                     >
                       <div className="flex items-center justify-between gap-2 text-[11px] font-semibold">
                         {/* 업체명은 세우지 않는다. 묶음 공시의 item_name은 매장 이름이라
@@ -1115,7 +1115,7 @@ function SearchHub({
       aria-labelledby="community-search-heading"
     >
       <div
-        className="overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
+        className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
         data-tutorial-target="community-categories"
       >
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-7">
@@ -1186,7 +1186,7 @@ function SearchHub({
                   })
                 }
                 aria-label={`${item.label} 보기`}
-                className={`group flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] border px-2 text-center transition-all sm:px-3 ${
+                className={`group flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-[6px] border px-2 text-center transition-all sm:px-3 ${
                   active
                     ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                     : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] text-[var(--hb-text-body)] hover:border-[#b68a3a] hover:bg-white"
@@ -1242,7 +1242,7 @@ function SearchHub({
                 })
               }
               aria-label={`${item.label} 보기`}
-              className={`group flex min-h-[58px] items-center gap-2 rounded-[14px] border px-3 text-left transition-all ${
+              className={`group flex min-h-[58px] items-center gap-2 rounded-[6px] border px-3 text-left transition-all ${
                 active
                   ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                   : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/35 hover:bg-white"
@@ -1434,8 +1434,8 @@ function LatestPosts({
     <article
       className={`border border-[var(--hb-hairline)] bg-white/88 ${
         feedFirst
-          ? "rounded-[14px] p-3 shadow-none sm:rounded-[18px] sm:p-5 sm:shadow-[var(--shadow-raised)]"
-          : "rounded-[18px] p-4 shadow-[var(--shadow-raised)] sm:p-5"
+          ? "rounded-[6px] p-3 shadow-none sm:rounded-[6px] sm:p-5 sm:shadow-[var(--shadow-raised)]"
+          : "rounded-[6px] p-4 shadow-[var(--shadow-raised)] sm:p-5"
       }`}
     >
       <div
@@ -1558,7 +1558,7 @@ function LatestPosts({
       )}
 
       {errorMessage && (
-        <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-sm text-[var(--hb-text-body)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-sm text-[var(--hb-text-body)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
             <AlertCircle className="h-4 w-4 shrink-0 text-[var(--hb-accent-hover)]" />
             <span className="break-words">{errorMessage}</span>
@@ -1593,7 +1593,7 @@ function LatestPosts({
         // 오류일 때는 빈 상태 카드를 그리지 않는다 — "찾지 못했어요"는 사실 주장이라
         // 못 불러온 것을 없는 것으로 바꿔 말하게 된다. 위의 오류 배너만 남긴다.
         isSearching ? (
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-8 text-center sm:px-8">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-8 text-center sm:px-8">
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4f1] text-[var(--hb-text-strong)]">
               <Search className="h-5 w-5" />
             </span>
@@ -1708,7 +1708,7 @@ function StatusFeedEmptyState({
           };
 
   return (
-    <section className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-7 sm:px-8 sm:py-9">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-7 sm:px-8 sm:py-9">
       <span className="inline-flex rounded-full bg-[#eef4f1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
         {content.eyebrow}
       </span>
@@ -1869,7 +1869,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           })
         }
         aria-label={`${post.title} 게시글 보기`}
-        className="absolute inset-0 z-0 rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]/40"
+        className="absolute inset-0 z-0 rounded-[6px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]/40"
       />
       {toast && (
         <span className="pointer-events-none absolute right-0 top-4 z-20 rounded-full bg-[var(--hb-primary)] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
@@ -1880,7 +1880,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
       <div className="pointer-events-none relative z-10 min-w-0">
         <div className="flex min-w-0 items-start justify-between gap-2 text-[10.5px] font-medium text-[var(--hb-text-body)]">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="shrink-0 rounded-md bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-accent-hover)]">
+            <span className="shrink-0 rounded-[6px] bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-accent-hover)]">
               {categoryInfo?.shortLabel ?? "커뮤니티"}
             </span>
             {isQuestionPost && post.is_resolved ? (
@@ -1904,12 +1904,12 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
               />
             )}
             {post.is_weekly_best && (
-              <span className="shrink-0 rounded-md bg-[var(--hb-primary)] px-1.5 py-0.5 text-[10px] font-medium text-white">
+              <span className="shrink-0 rounded-[6px] bg-[var(--hb-primary)] px-1.5 py-0.5 text-[10px] font-medium text-white">
                 BEST
               </span>
             )}
             {post.poll && (
-              <span className="shrink-0 rounded-md border border-[var(--hb-hairline)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-text-body)]">
+              <span className="shrink-0 rounded-[6px] border border-[var(--hb-hairline)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-text-body)]">
                 투표
               </span>
             )}
@@ -2018,7 +2018,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         </div>
       </div>
       {imageUrl && (
-        <div className="pointer-events-none relative z-10 mt-1 h-16 w-16 overflow-hidden rounded-[10px] bg-[#f8f4ec] sm:h-[86px] sm:w-[104px] xl:h-[90px] xl:w-[112px]">
+        <div className="pointer-events-none relative z-10 mt-1 h-16 w-16 overflow-hidden rounded-[6px] bg-[#f8f4ec] sm:h-[86px] sm:w-[104px] xl:h-[90px] xl:w-[112px]">
           <Image
             src={imageUrl}
             alt=""
@@ -2100,7 +2100,7 @@ function BestPostsPanel() {
   if (!loading && posts.length === 0) return null;
 
   return (
-    <article className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]">
+    <article className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
           {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
@@ -2112,7 +2112,7 @@ function BestPostsPanel() {
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-7 animate-pulse rounded-md bg-[var(--hb-surface-hover)]" />
+            <div key={index} className="h-7 animate-pulse rounded-[6px] bg-[var(--hb-surface-hover)]" />
           ))}
         </div>
       ) : (
@@ -2142,7 +2142,7 @@ function BestPostsPanel() {
 
 function AmoraSidebarPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
+    <article className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
       <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
         아모라에게 묻기
       </span>
@@ -2180,7 +2180,7 @@ const MARKET_SNAPSHOT_CATEGORIES: readonly PriceCategory[] = [
 
 function MarketSnapshotPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
+    <article className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
       <span className="inline-flex rounded-full bg-[var(--hb-surface-hover)] px-3 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
         출처·기준 시점 공개
       </span>
@@ -2198,7 +2198,7 @@ function MarketSnapshotPanel() {
             <Link
               key={category}
               href={`/price/${category}`}
-              className="group flex min-h-12 items-center justify-between rounded-[12px] border border-[var(--hb-hairline)] bg-white/80 px-3 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+              className="group flex min-h-12 items-center justify-between rounded-[6px] border border-[var(--hb-hairline)] bg-white/80 px-3 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
             >
               <span className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-[var(--hb-accent-hover)]" />
@@ -2291,7 +2291,7 @@ function CohortPreviewPanel() {
 
   return (
     <article
-      className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]"
+      className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]"
       data-tutorial-target="community-cohort"
     >
       <div className="mb-5 flex items-start justify-between gap-4">
@@ -2313,7 +2313,7 @@ function CohortPreviewPanel() {
         <div className="space-y-3">
           <Link
             {...weddingLinkProps(`/community/cohort/${panelState.roomId}`)}
-            className="group flex min-h-[82px] items-center gap-3 rounded-[16px] border border-[var(--hb-primary)]/25 bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[var(--hb-primary)]/55 hover:bg-[#e7f0eb]"
+            className="group flex min-h-[82px] items-center gap-3 rounded-[6px] border border-[var(--hb-primary)]/25 bg-[#EEF4F1] px-4 py-3 transition-colors hover:border-[var(--hb-primary)]/55 hover:bg-[#e7f0eb]"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-sm">
               <Users className="h-5 w-5" />
@@ -2334,7 +2334,7 @@ function CohortPreviewPanel() {
           </Link>
           <Link
             {...weddingLinkProps("/community/cohort")}
-            className="flex min-h-10 items-center justify-between rounded-[14px] border border-[var(--hb-hairline)] bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-body)] transition-colors hover:border-[var(--hb-primary)]/35 hover:text-[var(--hb-text-strong)]"
+            className="flex min-h-10 items-center justify-between rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-body)] transition-colors hover:border-[var(--hb-primary)]/35 hover:text-[var(--hb-text-strong)]"
           >
             다른 분기로 바꾸거나 전체 동기방 보기
             <ChevronRight className="h-3.5 w-3.5" />
@@ -2343,14 +2343,14 @@ function CohortPreviewPanel() {
       ) : (
         <>
           {panelState.status === "checking" && (
-            <div className="mb-3 rounded-[14px] border border-[var(--hb-primary)]/15 bg-[#EEF4F1] px-4 py-3 text-[12px] font-semibold text-[var(--hb-text-strong)]">
+            <div className="mb-3 rounded-[6px] border border-[var(--hb-primary)]/15 bg-[#EEF4F1] px-4 py-3 text-[12px] font-semibold text-[var(--hb-text-strong)]">
               {panelState.note ?? "내 동기방을 확인하고 있어요."}
             </div>
           )}
           {panelState.status === "unauth" && (
             <Link
               href={`/login?redirect=${encodeURIComponent(weddingPath("/community/cohort"))}`}
-              className="mb-3 flex min-h-11 items-center justify-between rounded-[14px] border border-[var(--hb-primary)]/20 bg-[#EEF4F1] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
+              className="mb-3 flex min-h-11 items-center justify-between rounded-[6px] border border-[var(--hb-primary)]/20 bg-[#EEF4F1] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
             >
               로그인하면 예정일 기준으로 바로 입장해요
               <ChevronRight className="h-3.5 w-3.5" />

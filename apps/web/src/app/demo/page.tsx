@@ -61,7 +61,7 @@ export default function DemoPage() {
           <h2 id="preview-heading" className="sr-only">아모라 기능 원칙</h2>
           <div className="grid gap-5 md:grid-cols-2">
             {previews.map((preview) => (
-              <article key={preview.eyebrow} className="rounded-3xl border border-black/[0.06] bg-white p-7 shadow-[var(--shadow-overlay)] sm:p-9">
+              <article key={preview.eyebrow} className="rounded-[6px] border border-black/[0.06] bg-white p-7 shadow-[var(--shadow-overlay)] sm:p-9">
                 <p className="text-xs font-semibold tracking-[0.14em] text-[var(--color-rose-700)]">{preview.eyebrow}</p>
                 <h3 className="mt-4 font-serif-kr text-2xl font-medium leading-snug">{preview.title}</h3>
                 <p className="mt-4 text-sm leading-7 text-charcoal">{preview.description}</p>
@@ -69,7 +69,7 @@ export default function DemoPage() {
             ))}
           </div>
 
-          <div className="mt-10 rounded-3xl bg-[var(--hb-primary)] px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
+          <div className="mt-10 rounded-[6px] bg-[var(--hb-primary)] px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
             <div>
               <h2 className="font-serif-kr text-2xl">현재 서비스 화면을 둘러보실래요?</h2>
               <p className="mt-2 text-sm leading-6 text-white/70">새 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>

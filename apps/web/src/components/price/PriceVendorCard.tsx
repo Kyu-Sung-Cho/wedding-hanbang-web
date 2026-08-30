@@ -228,7 +228,7 @@ export function PriceVendorCard({
   return (
     <article
       ref={cardRef}
-      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[22px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[var(--shadow-raised)]"
+      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[6px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[var(--shadow-raised)]"
     >
       <div
         data-card-header="true"
@@ -246,7 +246,7 @@ export function PriceVendorCard({
                 surface: "price_list",
                 context: { category: vendor.category },
               })}
-              className="line-clamp-2 min-h-12 max-h-12 min-w-0 rounded-sm text-xl font-bold leading-6 tracking-normal text-[var(--hb-text-strong)] [overflow-wrap:anywhere] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+              className="line-clamp-2 min-h-12 max-h-12 min-w-0 rounded-[6px] text-xl font-bold leading-6 tracking-normal text-[var(--hb-text-strong)] [overflow-wrap:anywhere] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               {vendor.name}
             </Link>

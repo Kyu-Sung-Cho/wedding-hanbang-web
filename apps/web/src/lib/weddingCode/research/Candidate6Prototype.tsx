@@ -112,7 +112,7 @@ const VISUAL_BIPOLAR_SHORT_LABELS: Record<Candidate6BipolarDirection, string> = 
 };
 
 const surface =
-  "rounded-[24px] border border-[#EFE4D7] bg-white shadow-[var(--shadow-overlay)]";
+  "rounded-[6px] border border-[#EFE4D7] bg-white shadow-[var(--shadow-overlay)]";
 const primaryButton =
   "no-min-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
@@ -296,7 +296,7 @@ export function Candidate6Prototype({
         <h1
           ref={screenHeadingRef}
           tabIndex={-1}
-          className="c6-fade-up max-w-[420px] rounded text-center text-[24px] font-semibold leading-[1.5] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          className="c6-fade-up max-w-[420px] rounded-[6px] text-center text-[24px] font-semibold leading-[1.5] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
         >
           {sentence}
         </h1>
@@ -326,7 +326,7 @@ export function Candidate6Prototype({
             <h1
               ref={screenHeadingRef}
               tabIndex={-1}
-              className="mt-3 rounded text-[24px] font-semibold leading-[1.3] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D7B1A9] sm:text-[30px]"
+              className="mt-3 rounded-[6px] text-[24px] font-semibold leading-[1.3] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D7B1A9] sm:text-[30px]"
             >
               우리 얘기, 어디서부터 꺼낼까요
             </h1>
@@ -402,7 +402,7 @@ export function Candidate6Prototype({
               첫 화면이 **끝까지 가도 만날 수 없는 카드**를 약속하고 있었다.
               구체적인 카드 대신 절차만 알린다.
             */}
-            <p className="mt-6 rounded-[18px] bg-[#F7F1E8] px-5 py-4 text-[14px] font-medium leading-[1.7] text-[#36534E]">
+            <p className="mt-6 rounded-[6px] bg-[#F7F1E8] px-5 py-4 text-[14px] font-medium leading-[1.7] text-[#36534E]">
               지나온 장면은 마지막에 다시 모아 보여드려요.
             </p>
           </div>
@@ -436,7 +436,7 @@ export function Candidate6Prototype({
                 aria-expanded={contentsOpen}
                 aria-controls={CONTENTS_SHEET_ID}
                 onClick={() => setContentsOpen(true)}
-                className="min-h-[48px] rounded text-[12px] font-semibold text-[#8F6662] underline underline-offset-4"
+                className="min-h-[48px] rounded-[6px] text-[12px] font-semibold text-[#8F6662] underline underline-offset-4"
               >
                 지나온 장면
               </button>
@@ -463,18 +463,18 @@ export function Candidate6Prototype({
               <p className="text-[12px] font-semibold tracking-[0.12em] text-[#8F6662]">
                 {currentItem.chapter}
               </p>
-              <p className="mt-2 inline-flex rounded-[12px] bg-[#F7F1E8] px-3 py-1.5 text-[13px] font-semibold leading-relaxed text-[#36534E]">
+              <p className="mt-2 inline-flex rounded-[6px] bg-[#F7F1E8] px-3 py-1.5 text-[13px] font-semibold leading-relaxed text-[#36534E]">
                 {currentItem.scenario}
               </p>
               <h1
                 id={`candidate6-question-${currentItem.id}`}
                 ref={screenHeadingRef}
                 tabIndex={-1}
-                className="mt-3 rounded text-[22px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
+                className="mt-3 rounded-[6px] text-[22px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
               >
                 {currentItem.prompt}
               </h1>
-              <div className="mt-3 flex gap-3 rounded-[16px] border border-[#C7D1C2] bg-[#F7F1E8] px-3 py-2.5 sm:px-4 sm:py-3.5">
+              <div className="mt-3 flex gap-3 rounded-[6px] border border-[#C7D1C2] bg-[#F7F1E8] px-3 py-2.5 sm:px-4 sm:py-3.5">
                 <ShieldCheck aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[#6D806E]" />
                 <p className="text-[13px] font-medium leading-[1.55] text-[#36534E] sm:text-[14px] sm:leading-[1.65]">
                   <span className="font-semibold">이 장면의 약속:</span> {currentItem.premise}
@@ -559,7 +559,7 @@ export function Candidate6Prototype({
           <h1
             ref={screenHeadingRef}
             tabIndex={-1}
-            className="rounded text-[28px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+            className="rounded-[6px] text-[28px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
           >
             지나온 장면이에요
           </h1>
@@ -573,7 +573,7 @@ export function Candidate6Prototype({
             우리 얘기가 아닌 장면도 있어요. 그렇게 표시해두면 목록이 정직해져요.
           </p>
 
-          <div className="mt-6 divide-y divide-[#EFE4D7] rounded-[20px] border border-[#EFE4D7]">
+          <div className="mt-6 divide-y divide-[#EFE4D7] rounded-[6px] border border-[#EFE4D7]">
             {journey.map((item) => (
               <RecapRow
                 key={item.id}
@@ -616,7 +616,7 @@ export function Candidate6Prototype({
           <h1
             ref={screenHeadingRef}
             tabIndex={-1}
-            className="rounded text-[24px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
+            className="rounded-[6px] text-[24px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
           >
             {giving
               ? "이번엔 상대가 나한테 물어줄 한 마디를 골라주세요"
@@ -629,7 +629,7 @@ export function Candidate6Prototype({
           </p>
 
           {giving && chosenSoFar ? (
-            <div className="mt-4 rounded-[16px] bg-[#F7F1E8] px-4 py-3">
+            <div className="mt-4 rounded-[6px] bg-[#F7F1E8] px-4 py-3">
               <p className="text-[12px] font-semibold text-[#8F6662]">내가 물어볼 한 마디</p>
               <p className="mt-1 truncate text-[14px] font-semibold text-[#243832]">
                 {chosenSoFar.card?.prompt}
@@ -637,7 +637,7 @@ export function Candidate6Prototype({
             </div>
           ) : null}
 
-          <div className="mt-5 divide-y divide-[#EFE4D7] rounded-[20px] border border-[#EFE4D7]">
+          <div className="mt-5 divide-y divide-[#EFE4D7] rounded-[6px] border border-[#EFE4D7]">
             {candidates.map((id) => {
               const entry = CANDIDATE6_SCENE_TEXT[id];
               const selected = draftCardId === id;
@@ -751,7 +751,7 @@ export function Candidate6Prototype({
           <h1
             ref={screenHeadingRef}
             tabIndex={-1}
-            className="rounded text-[20px] font-semibold leading-[1.4] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+            className="rounded-[6px] text-[20px] font-semibold leading-[1.4] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
           >
             이 화면을 상대에게 보여줄까요? 상대가 고른 건 저장되지 않아요.
           </h1>
@@ -791,7 +791,7 @@ export function Candidate6Prototype({
         <h1
           ref={screenHeadingRef}
           tabIndex={-1}
-          className="my-10 max-w-[420px] rounded text-center text-[24px] font-semibold leading-[1.45] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          className="my-10 max-w-[420px] rounded-[6px] text-center text-[24px] font-semibold leading-[1.45] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
         >
           {myCard?.card?.prompt}
         </h1>
@@ -824,7 +824,7 @@ export function Candidate6Prototype({
           <h1
             ref={screenHeadingRef}
             tabIndex={-1}
-            className="rounded text-[24px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
+            className="rounded-[6px] text-[24px] font-semibold leading-[1.35] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74] sm:text-[28px]"
           >
             답은 안 보내고, 한 마디만 건네요
           </h1>
@@ -880,7 +880,7 @@ export function Candidate6Prototype({
         <h1
           ref={screenHeadingRef}
           tabIndex={-1}
-          className="mt-3 rounded text-[24px] font-semibold leading-[1.4] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          className="mt-3 rounded-[6px] text-[24px] font-semibold leading-[1.4] text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
         >
           {myCard?.card?.prompt}
         </h1>
@@ -1021,7 +1021,7 @@ function IntroChoice({
 }) {
   return (
     <label
-      className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-semibold transition-colors ${
+      className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-[6px] border px-4 py-3 text-[15px] font-semibold transition-colors ${
         selected ? "border-[#36534E] bg-[#F7F1E8] text-[#243832]" : "border-[#EFE4D7] text-[#36534E]"
       }`}
     >
@@ -1049,7 +1049,7 @@ function BipolarChoices({
   return (
     <div>
       <p className="text-[15px] font-semibold text-[#243832]">지금 더 편한 시작점을 골라주세요</p>
-      <div className="mt-3 grid grid-cols-2 divide-x divide-[#C7D1C2] overflow-hidden rounded-[16px] border border-[#C7D1C2] bg-[#FBF8F2]">
+      <div className="mt-3 grid grid-cols-2 divide-x divide-[#C7D1C2] overflow-hidden rounded-[6px] border border-[#C7D1C2] bg-[#FBF8F2]">
         <AnchorCard label="첫 번째 이야기" text={leftAnchor} />
         <AnchorCard label="두 번째 이야기" text={rightAnchor} />
       </div>
@@ -1090,7 +1090,7 @@ function ImpactChoices({
 }) {
   return (
     <div>
-      <p className="w-full rounded-[16px] bg-[#F7F1E8] px-4 py-3 text-[16px] font-semibold leading-[1.55] text-[#243832] sm:px-5 sm:py-5 sm:text-[17px] sm:leading-[1.65]">
+      <p className="w-full rounded-[6px] bg-[#F7F1E8] px-4 py-3 text-[16px] font-semibold leading-[1.55] text-[#243832] sm:px-5 sm:py-5 sm:text-[17px] sm:leading-[1.65]">
         {behavior}
       </p>
       <div className="mt-2 grid grid-cols-5 gap-1.5" aria-label="영향 정도 다섯 답">
@@ -1125,7 +1125,7 @@ function EscapeChoices({
     <details
       open={open}
       onToggle={(event) => setOpen(event.currentTarget.open)}
-      className="mt-4 overflow-hidden rounded-[14px] border border-[#EFE4D7] bg-[#FBF8F2]"
+      className="mt-4 overflow-hidden rounded-[6px] border border-[#EFE4D7] bg-[#FBF8F2]"
     >
       <summary className="no-min-tap flex min-h-[56px] cursor-pointer list-none items-center justify-between gap-3 px-4 py-2.5 text-[#36534E] marker:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#36534E]">
         <span>
@@ -1172,7 +1172,7 @@ function ScaleChoice({
 }) {
   return (
     <label
-      className={`no-min-tap flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[12px] border px-1 py-2 text-center text-[12px] font-semibold leading-[1.25] transition duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none focus-within:outline-none focus-within:ring-2 focus-within:ring-[#36534E] focus-within:ring-offset-1 ${
+      className={`no-min-tap flex min-h-[72px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-[6px] border px-1 py-2 text-center text-[12px] font-semibold leading-[1.25] transition duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none focus-within:outline-none focus-within:ring-2 focus-within:ring-[#36534E] focus-within:ring-offset-1 ${
         selected
           ? "border-[#36534E] bg-[#F7F1E8] text-[#243832]"
           : "border-[#EFE4D7] bg-white text-[#36534E] hover:border-[#C7D1C2]"
@@ -1217,7 +1217,7 @@ function ChoiceRow({
 }) {
   return (
     <label
-      className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-[14px] border px-4 py-3 text-[15px] font-semibold leading-relaxed transition duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none ${
+      className={`flex min-h-[48px] cursor-pointer items-center gap-3 rounded-[6px] border px-4 py-3 text-[15px] font-semibold leading-relaxed transition duration-150 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none ${
         selected
           ? "border-[#36534E] bg-[#F7F1E8] text-[#243832]"
           : quiet
@@ -1361,7 +1361,7 @@ function ContentsSheet({
           id={`${CONTENTS_SHEET_ID}-title`}
           ref={titleRef}
           tabIndex={-1}
-          className="rounded text-[16px] font-semibold text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
+          className="rounded-[6px] text-[16px] font-semibold text-[#243832] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#A77B74]"
         >
           지나온 장면
         </p>

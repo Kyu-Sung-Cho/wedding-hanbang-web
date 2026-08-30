@@ -73,9 +73,9 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
             <Link
               key={tool.href}
               href={tool.href}
-              className="group flex w-full items-start gap-3 rounded-xl bg-white p-3 text-left shadow-sm transition-all hover:bg-[#F5F0EE]/60"
+              className="group flex w-full items-start gap-3 rounded-[6px] bg-white p-3 text-left shadow-sm transition-all hover:bg-[#F5F0EE]/60"
             >
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)] text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white">
                 <Icon className="h-4 w-4" />
               </div>
               <div className="min-w-0 flex-1">

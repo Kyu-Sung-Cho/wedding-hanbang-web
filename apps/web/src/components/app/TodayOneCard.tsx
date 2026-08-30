@@ -275,7 +275,7 @@ export default function TodayOneCard() {
   if (view.kind === "error" || view.kind === "stale") {
     return (
       <section
-        className="rounded-2xl border border-[#E2D3C8] bg-white px-5 py-4 shadow-[var(--shadow-raised)]"
+        className="rounded-[6px] border border-[#E2D3C8] bg-white px-5 py-4 shadow-[var(--shadow-raised)]"
         aria-labelledby="today-one-error-title"
       >
         <div className="flex items-start gap-3">
@@ -304,7 +304,7 @@ export default function TodayOneCard() {
   if (view.kind === "empty" || view.kind === "paused") {
     return (
       <section
-        className="rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-5 py-4"
+        className="rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-5 py-4"
         aria-label="아모라 오늘의 한 가지 상태"
       >
         <div className="flex items-center gap-3">
@@ -329,7 +329,7 @@ export default function TodayOneCard() {
   const actions = new Set(card.choices.map((choice) => choice.action));
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-[#C7D1C2] bg-white shadow-[var(--shadow-overlay)]"
+      className="overflow-hidden rounded-[6px] border border-[#C7D1C2] bg-white shadow-[var(--shadow-overlay)]"
       aria-labelledby="today-one-title"
     >
       <div className="bg-[var(--hb-primary)] px-5 py-5 text-white md:px-6">
@@ -382,7 +382,7 @@ export default function TodayOneCard() {
           </div>
         )}
 
-        <p className="rounded-xl bg-[var(--hb-surface-hover)] px-4 py-3 text-xs leading-5 text-[var(--hb-text-strong)]">
+        <p className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-xs leading-5 text-[var(--hb-text-strong)]">
           {card.impact}
         </p>
 

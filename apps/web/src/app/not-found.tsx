@@ -27,7 +27,7 @@ export default function NotFound() {
             <li key={step.href}>
               <Link
                 href={step.href}
-                className="block rounded-[18px] border border-[var(--hb-primary)]/12 bg-white px-5 py-4 transition-colors hover:border-[var(--hb-primary)]/45 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+                className="block rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-5 py-4 transition-colors hover:border-[var(--hb-primary)]/45 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
               >
                 <span className="block text-sm font-bold text-[var(--hb-text-strong)]">{step.label}</span>
                 <span className="mt-1 block text-sm leading-6 text-[var(--hb-text-strong)]/65">{step.desc}</span>

@@ -36,7 +36,7 @@ export function PriceEmptyState({
     : [];
 
   return (
-    <section className="rounded-[24px] border border-[var(--hb-primary)]/12 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
+    <section className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         <FileHeart aria-hidden="true" className="size-6" />
       </span>

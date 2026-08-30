@@ -61,7 +61,7 @@ export default async function ReceivedCardPage({
             </div>
           </>
         ) : (
-          <div className="mx-auto max-w-[340px] rounded-[20px] border border-[var(--hb-hairline)] bg-white px-6 py-8">
+          <div className="mx-auto max-w-[340px] rounded-[6px] border border-[var(--hb-hairline)] bg-white px-6 py-8">
             <h1 className="text-[20px] font-semibold leading-[1.4] text-[var(--hb-text-strong)]">
               카드를 찾지 못했어요
             </h1>

@@ -145,7 +145,7 @@ function DecisionRecordOverview({
 
   return (
     <section
-      className="mb-5 mt-1 overflow-hidden rounded-[16px] border border-[#e6ded2] bg-[var(--hb-surface-page)]"
+      className="mb-5 mt-1 overflow-hidden rounded-[6px] border border-[#e6ded2] bg-[var(--hb-surface-page)]"
       aria-label="이 기록의 상태와 출처"
     >
       <div className="grid md:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] md:divide-x md:divide-[#e6ded2]">
@@ -518,7 +518,7 @@ export default function PostDetailClient({
         <div className="grid gap-5 lg:grid-cols-[minmax(0,760px)_300px] lg:items-start lg:justify-center">
           <main className="min-w-0">
         {/* 메인 포스트 카드 */}
-        <div id="decision-question" className="scroll-mt-24 overflow-hidden rounded-2xl border border-[#e6ded2] bg-white shadow-sm">
+        <div id="decision-question" className="scroll-mt-24 overflow-hidden rounded-[6px] border border-[#e6ded2] bg-white shadow-sm">
           <div className="flex">
             {/* 콘텐츠 영역 */}
             <div className="flex-1 min-w-0 p-4 sm:p-5">
@@ -659,7 +659,7 @@ export default function PostDetailClient({
                       </p>
                       <Link
                         href="/login"
-                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-lg transition-all duration-200"
+                        className="inline-flex items-center px-4 py-2 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-[6px] transition-all duration-200"
                       >
                         로그인하기
                       </Link>
@@ -694,7 +694,7 @@ export default function PostDetailClient({
                         key={idx}
                         type="button"
                         onClick={() => !(/\.(mp4|mov|webm)(\?|$)/i.test(src)) && setLightboxIndex(idx)}
-                        className={`relative overflow-hidden rounded-xl bg-[#FAFAF8] hover:opacity-90 transition-all duration-200 ${
+                        className={`relative overflow-hidden rounded-[6px] bg-[#FAFAF8] hover:opacity-90 transition-all duration-200 ${
                           post.images!.length === 1
                             ? "h-[200px] sm:h-[260px]"
                             : "h-[108px] sm:h-[136px]"
@@ -769,7 +769,7 @@ export default function PostDetailClient({
                     alt=""
                     width={1200}
                     height={900}
-                    className="max-w-full max-h-[90vh] object-contain rounded-2xl"
+                    className="max-w-full max-h-[90vh] object-contain rounded-[6px]"
                     onClick={(e) => e.stopPropagation()}
                   />
 
@@ -828,8 +828,8 @@ export default function PostDetailClient({
               {!isMembersOnly && post.cost_data && (
                 <div className="mt-4 space-y-3">
                   {/* 인라인 가격 요약 바 (PostCard 패턴) */}
-                  <div className="bg-[#FDFCFA] rounded-xl px-4 py-3 border border-[#F5F2ED] flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                  <div className="bg-[#FDFCFA] rounded-[6px] px-4 py-3 border border-[#F5F2ED] flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-[6px] bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                       <Wallet className="w-4 h-4" />
                     </div>
                     <div>
@@ -861,7 +861,7 @@ export default function PostDetailClient({
                     <Link
                       key={tag}
                       href={communityCategoryFeedPath(post.category, tag)}
-                      className="px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
+                      className="px-3 py-1.5 text-sm text-[#878680] bg-[#FAFAF8] rounded-[6px] hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       #{tag}
                     </Link>
@@ -878,7 +878,7 @@ export default function PostDetailClient({
                       <Link
                         key={vendor.id}
                         href={weddingPath(`/vendors/${vendor.id}`)}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-lg hover:border-[#B5ADA3] transition-all duration-200"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px] hover:border-[#B5ADA3] transition-all duration-200"
                       >
                         {vendor.thumbnail_url && (
                           <Image
@@ -903,7 +903,7 @@ export default function PostDetailClient({
               {/* 질문 작성자가 직접 관리하는 해결 상태. 특정 댓글 채택을 뜻하지 않는다. */}
               {!isMembersOnly && canAuthorManageResolution && (
                 <section
-                  className="mt-5 rounded-xl border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-4 py-4"
+                  className="mt-5 rounded-[6px] border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-4 py-4"
                   aria-labelledby="resolution-control-title"
                 >
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -934,7 +934,7 @@ export default function PostDetailClient({
                       onClick={handleResolutionToggle}
                       disabled={resolutionSaving}
                       aria-pressed={post.is_resolved}
-                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
+                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
                     >
                       {resolutionSaving ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -966,7 +966,7 @@ export default function PostDetailClient({
                   type="button"
                   onClick={handleVote}
                   disabled={isVoting}
-                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap ${
+                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-[6px] transition-all duration-200 whitespace-nowrap ${
                     isLiked ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" : "hover:bg-[#FAFAF8]"
                   } disabled:opacity-50`}
                   aria-label="좋아요"
@@ -976,7 +976,7 @@ export default function PostDetailClient({
                 </button>
 
                 {/* 댓글 수 */}
-                <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg cursor-default whitespace-nowrap">
+                <span className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-[6px] cursor-default whitespace-nowrap">
                   답변 {post.comment_count ?? 0}개
                 </span>
 
@@ -990,7 +990,7 @@ export default function PostDetailClient({
                 <button
                   type="button"
                   onClick={handleShare}
-                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap"
+                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap"
                 >
                   <Share2 className="w-4 h-4" />
                   공유
@@ -1007,7 +1007,7 @@ export default function PostDetailClient({
                     }
                     toggleBookmark(post.id);
                   }}
-                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap ${
+                  className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap ${
                     post.user_bookmarked ? "text-[var(--hb-text-strong)]" : ""
                   }`}
                 >
@@ -1023,7 +1023,7 @@ export default function PostDetailClient({
                 <button
                   type="button"
                   onClick={handleReportClick}
-                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap"
+                  className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200 whitespace-nowrap"
                 >
                   <Flag className="w-4 h-4" />
                   신고
@@ -1046,14 +1046,14 @@ export default function PostDetailClient({
                   <>
                     <Link
                       href={weddingPath(`/community/post/write?edit=${post.id}`)}
-                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-[#FAFAF8] text-[var(--hb-text-body)] transition-all duration-200 ml-auto whitespace-nowrap"
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-[#FAFAF8] text-[var(--hb-text-body)] transition-all duration-200 ml-auto whitespace-nowrap"
                     >
                       수정
                     </Link>
                     <button
                       type="button"
                       onClick={() => setShowDeleteModal(true)}
-                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-lg hover:bg-red-50 text-red-500 transition-all duration-200 whitespace-nowrap"
+                      className="inline-flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-[6px] hover:bg-red-50 text-red-500 transition-all duration-200 whitespace-nowrap"
                     >
                       삭제
                     </button>
@@ -1077,14 +1077,14 @@ export default function PostDetailClient({
 
         {/* 토스트: 링크 복사 */}
         {shareToast && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1A1A1F] text-white text-sm rounded-lg shadow-lg animate-fade-in">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1A1A1F] text-white text-sm rounded-[6px] shadow-lg animate-fade-in">
             링크가 복사되었습니다
           </div>
         )}
 
         {/* 토스트: 로그인 필요 */}
         {loginToast && (
-          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1A1A1F] text-white text-sm rounded-lg shadow-lg animate-fade-in">
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-[#1A1A1F] text-white text-sm rounded-[6px] shadow-lg animate-fade-in">
             로그인이 필요합니다
           </div>
         )}
@@ -1096,7 +1096,7 @@ export default function PostDetailClient({
             onClick={() => setShowReportModal(false)}
           >
             <div
-              className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
+              className="bg-white rounded-[6px] shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain"
               onClick={(e) => e.stopPropagation()}
             >
               {reportSubmitted ? (
@@ -1150,7 +1150,7 @@ export default function PostDetailClient({
                       {REPORT_REASONS.map((reason) => (
                         <label
                           key={reason.value}
-                          className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-colors ${
+                          className={`flex items-center gap-3 px-4 py-3 rounded-[6px] border cursor-pointer transition-colors ${
                             reportReason === reason.value
                               ? "border-[var(--hb-primary)] bg-[var(--hb-primary)]/5"
                               : "border-[#F0EFED] hover:bg-[#FAFAF8]"
@@ -1189,13 +1189,13 @@ export default function PostDetailClient({
                       placeholder="추가 설명 (선택)"
                       rows={3}
                       maxLength={500}
-                      className="mt-4 w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
+                      className="mt-4 w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px] resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
                     />
                   </div>
 
                   {/* 에러 메시지 */}
                   {reportError && (
-                    <div className="mx-5 mb-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-lg">
+                    <div className="mx-5 mb-2 px-3 py-2 text-sm text-red-600 bg-red-50 rounded-[6px]">
                       {reportError}
                     </div>
                   )}
@@ -1205,7 +1205,7 @@ export default function PostDetailClient({
                     <button
                       type="button"
                       onClick={() => setShowReportModal(false)}
-                      className="px-4 py-2 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-lg hover:bg-[#F0EFED] transition-all duration-200"
+                      className="px-4 py-2 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#F0EFED] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -1213,7 +1213,7 @@ export default function PostDetailClient({
                       type="button"
                       onClick={handleReportSubmit}
                       disabled={!reportReason || reportSubmitting}
-                      className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {reportSubmitting ? "처리 중..." : "신고하기"}
                     </button>
@@ -1231,7 +1231,7 @@ export default function PostDetailClient({
             onClick={() => setShowDeleteModal(false)}
           >
             <div
-              className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden"
+              className="bg-white rounded-[6px] shadow-xl w-full max-w-sm overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="p-6 text-center">
@@ -1271,7 +1271,7 @@ export default function PostDetailClient({
         {!isMembersOnly && (
           <div
             id="comments"
-            className="mt-3 scroll-mt-24 bg-white rounded-2xl shadow-sm border border-[#F0EFED] p-4"
+            className="mt-3 scroll-mt-24 bg-white rounded-[6px] shadow-sm border border-[#F0EFED] p-4"
           >
             <CommentSection postId={post.id} />
           </div>
@@ -1302,7 +1302,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
   return (
     <aside className="hidden lg:block">
       <div className="sticky top-24 space-y-4">
-        <section className="rounded-2xl border border-[var(--hb-hairline)] bg-white p-4 shadow-sm">
+        <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="font-serif-kr text-[20px] font-medium text-[var(--hb-text-strong)]">
@@ -1334,7 +1334,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                     }`}
                   >
                     {thumb && (
-                      <div className="relative h-[58px] w-[58px] overflow-hidden rounded-xl bg-[#f8f4ec]">
+                      <div className="relative h-[58px] w-[58px] overflow-hidden rounded-[6px] bg-[#f8f4ec]">
                         <Image
                           src={thumb}
                           alt=""
@@ -1346,7 +1346,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                     )}
                     <div className="min-w-0">
                       <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--hb-text-body)]">
-                        <span className="shrink-0 rounded bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[var(--hb-accent-hover)]">
+                        <span className="shrink-0 rounded-[6px] bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[var(--hb-accent-hover)]">
                           {itemCategory?.shortLabel ?? "커뮤니티"}
                         </span>
                         <span suppressHydrationWarning className="truncate">{timeAgo(item.created_at)}</span>
@@ -1368,7 +1368,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
               })}
             </div>
           ) : (
-            <div className="rounded-xl bg-[var(--hb-surface-page)] px-3 py-4 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">
+            <div className="rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-4 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">
               아직 함께 보여드릴 많이 본 글이 없어요.
             </div>
           )}

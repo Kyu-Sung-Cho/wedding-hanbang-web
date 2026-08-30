@@ -79,7 +79,7 @@ export default async function PriceIndexPage() {
           {/* 유통 글의 c 계열 링크가 "위약금 원문을 모아뒀다"고 약속하고 여기로 보낸다.
               그런데 이 페이지에는 위약금이라는 단어조차 없었다(2026-07-26 실측) — 약속하고
               데려와 다른 걸 보여준 셈이다. 도착 즉시 그 약속을 눈으로 확인시킨다. */}
-          <div className="mt-4 rounded-2xl border border-[#8F6662]/25 bg-white px-5 py-4">
+          <div className="mt-4 rounded-[6px] border border-[#8F6662]/25 bg-white px-5 py-4">
             <p className="text-sm font-bold text-[#8F5150]">
               같은 업체인데 대행사에 따라 위약금이 달라요
             </p>
@@ -100,7 +100,7 @@ export default async function PriceIndexPage() {
                 href={`/price/${category}`}
                 // 카테고리 페이지 RSC가 600~900KB — 4개를 미리 받으면 허브가 수 MB를 쓴다.
                 prefetch={false}
-                className="flex min-h-[104px] items-center justify-between gap-4 rounded-[20px] border border-[var(--hb-primary)]/12 bg-white px-5 py-5 transition-colors hover:border-[var(--hb-primary)]/45 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+                className="flex min-h-[104px] items-center justify-between gap-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-5 py-5 transition-colors hover:border-[var(--hb-primary)]/45 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
               >
                 <span className="min-w-0">
                   <span className="flex flex-wrap items-baseline gap-2">
@@ -120,7 +120,7 @@ export default async function PriceIndexPage() {
         <Link
           href="/wedding/community/quote-check"
           prefetch={false}
-          className="mt-6 flex items-center justify-between gap-4 rounded-[20px] bg-[var(--hb-primary)] px-5 py-5 text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+          className="mt-6 flex items-center justify-between gap-4 rounded-[6px] bg-[var(--hb-primary)] px-5 py-5 text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
         >
           <span className="min-w-0">
             <span className="flex items-center gap-2 text-sm font-bold">

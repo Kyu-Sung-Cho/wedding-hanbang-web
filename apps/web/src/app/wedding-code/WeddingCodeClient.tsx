@@ -32,7 +32,7 @@ const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족
 
 웨딩코드는 16개의 실제 상황에서 내가 중요하게 보는 것을 정리하고, 상대와 더 편하게 이야기할 지점을 보여주는 참고 도구예요. 사람을 평가하거나 두 사람의 앞날을 단정하지 않습니다.`;
 
-const card = "rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]";
+const card = "rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]";
 const primaryBtn =
   "inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-7 text-[14px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
 const ghostBtn =
@@ -213,7 +213,7 @@ export default function WeddingCodeClient() {
               ))}
             </div>
             <div className="p-5 sm:p-8">
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5 select-none">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5 select-none">
               <input
                 type="checkbox"
                 checked={consent}
@@ -241,7 +241,7 @@ export default function WeddingCodeClient() {
         {/* ── 참여자 컨텍스트 ── */}
         {step === "context" && (
           <div className={`${card} p-6 sm:p-8`}>
-            <div className="mb-6 rounded-[14px] bg-[#EEF4F1] px-4 py-3">
+            <div className="mb-6 rounded-[6px] bg-[#EEF4F1] px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">기본 상황 {contextAnswerCount} / 4</p>
                 <p className="text-[11px] font-semibold text-[#6d625a]">
@@ -284,7 +284,7 @@ export default function WeddingCodeClient() {
                 value={concernOther}
                 onChange={(e) => setConcernOther(e.target.value)}
                 placeholder="기타 고민을 적어주세요"
-                className="mt-3 w-full rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
+                className="mt-3 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
               />
             )}
 
@@ -316,7 +316,7 @@ export default function WeddingCodeClient() {
                 <button
                   key={opt.value}
                   onClick={() => selectOption(current, opt.value)}
-                  className={`flex items-start gap-3 rounded-[14px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
+                  className={`flex items-start gap-3 rounded-[6px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
                     answers[current.key] === opt.value
                       ? "border-[var(--hb-primary)] bg-[#EEF4F1] text-[var(--hb-text-strong)]"
                       : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/50 hover:bg-[var(--hb-surface-page)]"
@@ -380,7 +380,7 @@ export default function WeddingCodeClient() {
                   onChange={(e) => setFreeText((p) => ({ ...p, [item.key]: e.target.value }))}
                   rows={2}
                   maxLength={1000}
-                  className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
+                  className="w-full resize-none rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
                 />
               </div>
             ))}
@@ -460,7 +460,7 @@ function ScaleScreen({
                 key={n}
                 onClick={() => onChange(item.key, n)}
                 aria-label={`${item.label} — ${n}점 (${WC_SCALE_LABELS[n - 1]})`}
-                className={`h-10 flex-1 rounded-[10px] border text-[14px] font-semibold transition-colors ${
+                className={`h-10 flex-1 rounded-[6px] border text-[14px] font-semibold transition-colors ${
                   values[item.key] === n
                     ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                     : "border-[var(--hb-hairline)] bg-white text-[#6d625a] hover:border-[var(--hb-primary)]/50"

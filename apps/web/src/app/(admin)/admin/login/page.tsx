@@ -190,7 +190,7 @@ export default function AdminLoginPage() {
       >
         {/* 로고 영역 */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-gold to-rose-500 mb-4">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-[6px] bg-gradient-to-br from-gold to-rose-500 mb-4">
             <Shield className="w-7 h-7 text-white" />
           </div>
           <h1 className="font-serif-kr text-[22px] font-light text-white mb-2">
@@ -210,7 +210,7 @@ export default function AdminLoginPage() {
 
         {/* 메인 카드 */}
         {pageMode !== "loading" && (
-          <div className="bg-white/[0.06] backdrop-blur-[20px] rounded-3xl border border-white/[0.08] p-8">
+          <div className="bg-white/[0.06] backdrop-blur-[20px] rounded-[6px] border border-white/[0.08] p-8">
             <h2 className="text-[18px] font-medium text-white text-center mb-1">
               {isInitialSetup ? "최초 관리자 설정" : "관리자 로그인"}
             </h2>
@@ -251,7 +251,7 @@ export default function AdminLoginPage() {
                     value={loginEmail}
                     onChange={(e) => { setLoginEmail(e.target.value); setError(""); }}
                     placeholder="admin@hanbang.ai"
-                    className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                    className="w-full px-5 py-3.5 rounded-[6px] border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                   />
                   {error && <p className="text-[12px] text-rose-400 px-1">{error}</p>}
                   <button
@@ -282,7 +282,7 @@ export default function AdminLoginPage() {
                         value={setupName}
                         onChange={(e) => { setSetupName(e.target.value); setError(""); }}
                         placeholder="홍길동"
-                        className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                        className="w-full px-5 py-3.5 rounded-[6px] border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                       />
                     </div>
                   )}
@@ -293,7 +293,7 @@ export default function AdminLoginPage() {
                       value={loginEmail}
                       onChange={(e) => { setLoginEmail(e.target.value); setError(""); }}
                       placeholder="admin@hanbang.ai"
-                      className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                      className="w-full px-5 py-3.5 rounded-[6px] border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                     />
                   </div>
                   <div>
@@ -303,7 +303,7 @@ export default function AdminLoginPage() {
                       value={loginPassword}
                       onChange={(e) => { setLoginPassword(e.target.value); setError(""); }}
                       placeholder={isInitialSetup ? "6자 이상 설정" : "비밀번호"}
-                      className="w-full px-5 py-3.5 rounded-xl border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                      className="w-full px-5 py-3.5 rounded-[6px] border border-white/[0.1] bg-white/[0.06] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                     />
                   </div>
 
@@ -317,7 +317,7 @@ export default function AdminLoginPage() {
                       value={adminSetupPw}
                       onChange={(e) => { setAdminSetupPw(e.target.value); setError(""); }}
                       placeholder="관리자 인증 비밀번호"
-                      className="w-full px-5 py-3.5 rounded-xl border border-gold/30 bg-gold/[0.04] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
+                      className="w-full px-5 py-3.5 rounded-[6px] border border-gold/30 bg-gold/[0.04] text-[14px] text-white outline-none focus:border-gold transition-colors placeholder:text-white/30"
                     />
                     <p className="text-[11px] text-white/30 mt-1 px-1">
                       환경변수 ADMIN_PASSWORD에 설정된 비밀번호

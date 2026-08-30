@@ -139,10 +139,10 @@ export default function PollDisplay({
   };
 
   return (
-    <section className="mt-5 bg-gradient-to-br from-[var(--hb-surface-page)] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[var(--shadow-raised)]">
+    <section className="mt-5 bg-gradient-to-br from-[var(--hb-surface-page)] to-white border border-[#f0eeec] rounded-[6px] p-5 shadow-[var(--shadow-raised)]">
       {/* 헤더 */}
       <div className="flex items-start gap-3 mb-4">
-        <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
+        <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-[6px] bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
           <BarChart3 className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
@@ -184,7 +184,7 @@ export default function PollDisplay({
 
       {/* 안내: 결과 가림 */}
       {!showResults && (
-        <div className="mb-3 px-3 py-2 text-xs text-[var(--hb-text-strong)] bg-[var(--hb-surface-page)] border border-[#f0eeec] rounded-lg flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 text-xs text-[var(--hb-text-strong)] bg-[var(--hb-surface-page)] border border-[#f0eeec] rounded-[6px] flex items-center gap-2">
           <Lock className="w-3.5 h-3.5" />
           투표하면 결과가 공개돼요. 다른 사람들의 의견에 영향받지 않게 먼저 골라주세요.
         </div>
@@ -192,7 +192,7 @@ export default function PollDisplay({
 
       {/* 안내: 마감됨 */}
       {isClosed && (
-        <div className="mb-3 px-3 py-2 text-xs text-[var(--hb-text-body)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-lg flex items-center gap-2">
+        <div className="mb-3 px-3 py-2 text-xs text-[var(--hb-text-body)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-[6px] flex items-center gap-2">
           <Lock className="w-3.5 h-3.5" />
           마감된 투표예요. 더 이상 변경할 수 없어요.
         </div>
@@ -216,7 +216,7 @@ export default function PollDisplay({
               type="button"
               onClick={() => handleVote(opt.id)}
               disabled={disabled}
-              className={`group relative w-full overflow-hidden rounded-xl border transition-all duration-200 ${
+              className={`group relative w-full overflow-hidden rounded-[6px] border transition-all duration-200 ${
                 isSelected
                   ? "border-[var(--hb-primary)] bg-white shadow-[var(--shadow-raised)]"
                   : "border-[var(--hb-hairline)] bg-white hover:border-[var(--hb-primary)] hover:bg-[var(--hb-surface-page)]"
@@ -237,7 +237,7 @@ export default function PollDisplay({
               <div className="relative flex items-center gap-3 px-3 py-3">
                 {/* 옵션 이미지 */}
                 {opt.image_url && (
-                  <div className="shrink-0 relative w-12 h-12 rounded-lg overflow-hidden border border-[#f0eeec] bg-[var(--hb-surface-hover)]">
+                  <div className="shrink-0 relative w-12 h-12 rounded-[6px] overflow-hidden border border-[#f0eeec] bg-[var(--hb-surface-hover)]">
                     <Image
                       src={opt.image_url}
                       alt=""
@@ -251,7 +251,7 @@ export default function PollDisplay({
                 <div
                   className={`shrink-0 flex items-center justify-center transition-colors ${
                     poll.allow_multiple
-                      ? "w-5 h-5 rounded border-2"
+                      ? "w-5 h-5 rounded-[6px] border-2"
                       : "w-5 h-5 rounded-full border-2"
                   } ${
                     isSelected

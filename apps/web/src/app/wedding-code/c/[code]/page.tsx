@@ -72,7 +72,7 @@ export default async function WeddingCodeMeaningPage({
 
   const letters = parseWeddingCodeString(value)!;
   const upper = value.toUpperCase();
-  const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
+  const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 
   return (
     <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">

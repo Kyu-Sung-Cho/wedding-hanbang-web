@@ -143,7 +143,7 @@ export default function NotificationPanel({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -10, scale: 0.97 }}
         transition={{ duration: 0.2 }}
-        className="absolute right-0 top-full mt-2 w-[360px] max-h-[480px] bg-white rounded-2xl border border-black/[0.06] shadow-xl z-50 overflow-hidden flex flex-col max-md:w-[calc(100vw-32px)] max-md:right-[-8px]"
+        className="absolute right-0 top-full mt-2 w-[360px] max-h-[480px] bg-white rounded-[6px] border border-black/[0.06] shadow-xl z-50 overflow-hidden flex flex-col max-md:w-[calc(100vw-32px)] max-md:right-[-8px]"
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.04]">
@@ -162,7 +162,7 @@ export default function NotificationPanel({
               type="button"
               onClick={onClose}
               aria-label="알림 닫기"
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[#FAF8F5] transition-colors"
+              className="w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[#FAF8F5] transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -216,7 +216,7 @@ export default function NotificationPanel({
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className={`w-8 h-8 rounded-lg ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}
+                          className={`w-8 h-8 rounded-[6px] ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}
                         >
                           <Icon className={`w-4 h-4 ${style.accent}`} />
                         </div>
@@ -247,7 +247,7 @@ export default function NotificationPanel({
                                   type="button"
                                   disabled={Boolean(resolvingId)}
                                   onClick={() => void resolvePlanChange(n, "accept")}
-                                  className="inline-flex items-center gap-1 rounded-md bg-[var(--hb-primary)] px-2.5 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
+                                  className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--hb-primary)] px-2.5 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                                 >
                                   {isResolving && (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -258,7 +258,7 @@ export default function NotificationPanel({
                                   type="button"
                                   disabled={Boolean(resolvingId)}
                                   onClick={() => void resolvePlanChange(n, "reject")}
-                                  className="rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
+                                  className="rounded-[6px] border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
                                 >
                                   이번 요청 거절
                                 </button>
@@ -269,7 +269,7 @@ export default function NotificationPanel({
                                 type="button"
                                 disabled={Boolean(resolvingId)}
                                 onClick={() => void resolvePlanChange(n, "cancel")}
-                                className="inline-flex items-center gap-1 rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-[6px] border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
                               >
                                 {isResolving && (
                                   <Loader2 className="h-3 w-3 animate-spin" />

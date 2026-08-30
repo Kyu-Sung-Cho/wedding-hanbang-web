@@ -53,7 +53,7 @@ function CheckBox({
       />
       <span
         aria-hidden="true"
-        className={`${box} rounded-md border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--hb-primary)] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
+        className={`${box} rounded-[6px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--hb-primary)] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
           checked
             ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
             : "border-black/[0.14] bg-white text-transparent"
@@ -84,7 +84,7 @@ export default function SignupConsent({
   };
 
   return (
-    <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3.5">
+    <div className="rounded-[6px] border border-black/[0.06] bg-white px-4 py-3.5">
       <div className="flex w-full items-center gap-2.5">
         <CheckBox
           id="signup-consent-all"

@@ -26,7 +26,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
       aria-labelledby="region-first-heading"
       className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 sm:pt-7"
     >
-      <div className="rounded-[24px] border border-[#8F6662]/20 bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
+      <div className="rounded-[6px] border border-[#8F6662]/20 bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
         <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8F5150]">
           <MapPin aria-hidden="true" className="size-3.5" />
           먼저 지역부터
@@ -88,7 +88,7 @@ export function ThinCoverageNotice({
   if (!regionCode || count > THIN_COVERAGE_THRESHOLD) return null;
   return (
     <div className="mx-auto max-w-6xl px-4 pt-3 sm:px-6">
-      <p className="rounded-xl bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-6 text-[var(--hb-text-strong)]">
+      <p className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-6 text-[var(--hb-text-strong)]">
         {priceRegionLabel(regionCode)}은 아직 가격을 공시한 업체가{" "}
         <span className="font-bold">{count.toLocaleString("ko-KR")}곳</span>뿐이에요.
         공시한 업체만 싣기 때문이라, 실제 업체 수와는 다릅니다.{" "}

@@ -143,7 +143,7 @@ export default function SavedNotesContent() {
           <button
             type="button"
             onClick={() => void load()}
-            className="mt-3 min-h-11 rounded-xl bg-[#C4967E]/10 px-4 text-base font-bold text-[#9A6B62] hover:bg-[#C4967E]/20"
+            className="mt-3 min-h-11 rounded-[6px] bg-[#C4967E]/10 px-4 text-base font-bold text-[#9A6B62] hover:bg-[#C4967E]/20"
           >
             다시 시도
           </button>
@@ -158,7 +158,7 @@ export default function SavedNotesContent() {
           </p>
           <Link
             {...weddingLinkProps("/chat")}
-            className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[#C4967E] px-5 text-base font-bold text-white hover:bg-[#B5876F]"
+            className="mt-5 inline-flex min-h-11 items-center rounded-[6px] bg-[#C4967E] px-5 text-base font-bold text-white hover:bg-[#B5876F]"
           >
             아모라와 이야기하기
           </Link>
@@ -170,7 +170,7 @@ export default function SavedNotesContent() {
           {notes.map((note) => (
             <li
               key={note.id}
-              className="rounded-2xl border border-[#E8E0D8] bg-white p-5"
+              className="rounded-[6px] border border-[#E8E0D8] bg-white p-5"
             >
               <div className="flex items-start justify-between gap-3">
                 <p className="text-sm text-[var(--hb-text-muted)]">
@@ -181,7 +181,7 @@ export default function SavedNotesContent() {
                   type="button"
                   onClick={() => void removeNote(note.id)}
                   disabled={busyId === note.id}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-sm text-[var(--hb-text-muted)] hover:text-[#9A6B62] disabled:opacity-40"
+                  className="inline-flex min-h-9 items-center gap-1 rounded-[6px] px-2 text-sm text-[var(--hb-text-muted)] hover:text-[#9A6B62] disabled:opacity-40"
                   aria-label="저장 지우기"
                 >
                   <Trash2 aria-hidden="true" className="h-4 w-4" />
@@ -201,21 +201,21 @@ export default function SavedNotesContent() {
                     onChange={(event) => setMemoDraft(event.target.value.slice(0, 500))}
                     rows={2}
                     placeholder="왜 저장했는지 적어두면 나중에 찾기 쉬워요"
-                    className="w-full rounded-xl border border-[#E8E0D8] bg-[#FAF8F5] px-3 py-2 text-base text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:border-[#C4967E]/40 focus:outline-none"
+                    className="w-full rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] px-3 py-2 text-base text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:border-[#C4967E]/40 focus:outline-none"
                   />
                   <div className="mt-2 flex gap-2">
                     <button
                       type="button"
                       onClick={() => void saveMemo(note.id)}
                       disabled={busyId === note.id}
-                      className="min-h-11 rounded-xl bg-[#C4967E] px-4 text-base font-bold text-white hover:bg-[#B5876F] disabled:opacity-40"
+                      className="min-h-11 rounded-[6px] bg-[#C4967E] px-4 text-base font-bold text-white hover:bg-[#B5876F] disabled:opacity-40"
                     >
                       메모 저장
                     </button>
                     <button
                       type="button"
                       onClick={() => setEditingId(null)}
-                      className="min-h-11 rounded-xl px-4 text-base font-semibold text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)]"
+                      className="min-h-11 rounded-[6px] px-4 text-base font-semibold text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)]"
                     >
                       취소
                     </button>

@@ -205,7 +205,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       {blockNotice ? (
         <div
           role="status"
-          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d8d1cc] bg-[var(--hb-surface-page)] px-3 py-2.5 text-xs leading-relaxed text-[var(--hb-text-body)]"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[6px] border border-[#d8d1cc] bg-[var(--hb-surface-page)] px-3 py-2.5 text-xs leading-relaxed text-[var(--hb-text-body)]"
         >
           <span>차단한 회원의 답변을 이 화면에서도 숨겼어요.</span>
           <Link
@@ -236,7 +236,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             placeholder="직접 겪은 범위와 질문자가 다음에 확인할 행동을 적어주세요."
             rows={3}
             maxLength={2000}
-            className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
+            className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-white border border-[#F0EFED] rounded-[6px] resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
           />
           <div className="flex items-center justify-between mt-2">
             <span className="text-xs text-[var(--hb-text-muted)]">
@@ -246,7 +246,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
               type="button"
               onClick={handleSubmit}
               disabled={!newComment.trim() || submitting}
-              className="px-4 py-2 text-base font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-base font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? "등록 중..." : "답변 등록"}
             </button>
@@ -257,7 +257,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           {submitError && (
             <p
               role="alert"
-              className="mt-2 rounded-lg bg-[var(--hb-surface-page)] px-3 py-2 text-xs leading-relaxed text-[var(--color-rose-700)]"
+              className="mt-2 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-2 text-xs leading-relaxed text-[var(--color-rose-700)]"
             >
               {submitError}
             </p>
@@ -265,7 +265,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         </div>
       ) : (
         <div className="mb-4 relative">
-          <div className="px-4 py-4 text-center bg-[#FAFAF8] border border-[#F0EFED] rounded-xl">
+          <div className="px-4 py-4 text-center bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px]">
             <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[var(--hb-text-muted)]" />
             <p className="text-base text-[#878680]">
               <Link
@@ -287,8 +287,8 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             <div key={i} className="animate-pulse flex gap-2">
               <div className="w-7 h-7 bg-[#F0EFED] rounded-full shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-24 bg-[#F0EFED] rounded-lg" />
-                <div className="h-4 w-3/4 bg-[#F0EFED] rounded-lg" />
+                <div className="h-3 w-24 bg-[#F0EFED] rounded-[6px]" />
+                <div className="h-4 w-3/4 bg-[#F0EFED] rounded-[6px]" />
               </div>
             </div>
           ))}

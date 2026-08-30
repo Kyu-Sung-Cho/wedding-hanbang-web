@@ -205,7 +205,7 @@ export default function PaymentLedgerForm({
 
   return (
     <div
-      className="rounded-2xl border border-[#D9CEC1] bg-[var(--hb-surface-page)] p-4 sm:p-5"
+      className="rounded-[6px] border border-[#D9CEC1] bg-[var(--hb-surface-page)] p-4 sm:p-5"
       data-testid="payment-ledger-form"
     >
       <div className="mb-5 flex items-start justify-between gap-4">
@@ -221,7 +221,7 @@ export default function PaymentLedgerForm({
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded-lg p-2 text-[#8E857C] hover:bg-white disabled:opacity-50"
+          className="rounded-[6px] p-2 text-[#8E857C] hover:bg-white disabled:opacity-50"
           aria-label="입력 닫기"
         >
           <X className="h-4 w-4" />
@@ -238,7 +238,7 @@ export default function PaymentLedgerForm({
             onChange={(event) => setItemName(event.target.value)}
             maxLength={100}
             placeholder="예: 예식장 계약, 사진 촬영 계약금"
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74] focus:ring-2 focus:ring-[#A77B74]/15"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74] focus:ring-2 focus:ring-[#A77B74]/15"
           />
         </label>
 
@@ -249,7 +249,7 @@ export default function PaymentLedgerForm({
           <select
             value={categoryKey}
             onChange={(event) => setCategoryKey(event.target.value)}
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           >
             {CATEGORY_OPTIONS.map(([key, label]) => (
               <option key={key} value={key}>{label}</option>
@@ -266,7 +266,7 @@ export default function PaymentLedgerForm({
             onChange={(event) => setVendorDisplayName(event.target.value)}
             maxLength={120}
             placeholder="내가 알아볼 이름"
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
         </label>
 
@@ -279,7 +279,7 @@ export default function PaymentLedgerForm({
             onChange={(event) => setContractAmount(digitsOnly(event.target.value))}
             inputMode="numeric"
             aria-label="계약 총액 원"
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
           {contractPreview && (
             <span className="mt-1 block text-xs text-[#8E857C]">{contractPreview}</span>
@@ -295,7 +295,7 @@ export default function PaymentLedgerForm({
             onChange={(event) => setPaidAmount(digitsOnly(event.target.value))}
             inputMode="numeric"
             aria-label="기지급액 원"
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
           {paidPreview && (
             <span className="mt-1 block text-xs text-[#8E857C]">{paidPreview}</span>
@@ -310,7 +310,7 @@ export default function PaymentLedgerForm({
             type="date"
             value={balanceDueDate}
             onChange={(event) => setBalanceDueDate(event.target.value)}
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
         </label>
 
@@ -324,7 +324,7 @@ export default function PaymentLedgerForm({
             inputMode="numeric"
             aria-label="환불 가능 참고액 원"
             placeholder="확인하지 않았다면 비워 두기"
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm tabular-nums text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           />
         </label>
 
@@ -337,7 +337,7 @@ export default function PaymentLedgerForm({
                 setStatus(event.target.value);
               }
             }}
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           >
             {STATUS_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -356,7 +356,7 @@ export default function PaymentLedgerForm({
                 setEvidenceStatus(event.target.value);
               }
             }}
-            className="w-full rounded-xl border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
+            className="w-full rounded-[6px] border border-[#D9CEC1] bg-white px-3.5 py-3 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[#A77B74]"
           >
             <option value="user_stated">내가 직접 입력</option>
             <option value="provider_written">업체 문서에서 직접 옮김</option>
@@ -364,7 +364,7 @@ export default function PaymentLedgerForm({
         </label>
       </div>
 
-      <div className="mt-4 flex gap-2 rounded-xl bg-[#FFF7EA] px-3 py-2.5 text-xs leading-5 text-[#755D3F]">
+      <div className="mt-4 flex gap-2 rounded-[6px] bg-[#FFF7EA] px-3 py-2.5 text-xs leading-5 text-[#755D3F]">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <p>
           환불 가능 참고액은 확정된 환불 권리나 법률 판단이 아닙니다.
@@ -375,7 +375,7 @@ export default function PaymentLedgerForm({
       {error && (
         <p
           role="alert"
-          className="mt-4 rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2.5 text-sm leading-5 text-[#8C3E3E]"
+          className="mt-4 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2.5 text-sm leading-5 text-[#8C3E3E]"
         >
           {error}
         </p>
@@ -386,7 +386,7 @@ export default function PaymentLedgerForm({
           type="button"
           onClick={onCancel}
           disabled={saving}
-          className="rounded-xl border border-[#D9CEC1] bg-white px-4 py-3 text-sm font-medium text-[#5E5751] disabled:opacity-50"
+          className="rounded-[6px] border border-[#D9CEC1] bg-white px-4 py-3 text-sm font-medium text-[#5E5751] disabled:opacity-50"
         >
           닫기
         </button>
@@ -394,7 +394,7 @@ export default function PaymentLedgerForm({
           type="button"
           onClick={() => void submit()}
           disabled={saving}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--hb-primary)] disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--hb-primary)] disabled:opacity-50"
         >
           <Check className="h-4 w-4" />
           {saving ? "저장 중…" : "공유 기록 저장"}

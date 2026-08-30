@@ -101,7 +101,7 @@ export default function VendorDetailPage() {
       <header className="mb-8">
         <div className="flex items-start gap-4 sm:gap-6">
           {vendor?.thumbnail_url ? (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-[#F0EFED] shrink-0">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-[6px] overflow-hidden bg-[#F0EFED] shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={vendor.thumbnail_url}
@@ -110,7 +110,7 @@ export default function VendorDetailPage() {
               />
             </div>
           ) : (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[var(--hb-surface-page)] to-[#f0efed] flex items-center justify-center shrink-0">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-[6px] bg-gradient-to-br from-[var(--hb-surface-page)] to-[#f0efed] flex items-center justify-center shrink-0">
               <Tag className="w-8 h-8 text-[var(--hb-text-muted)]" />
             </div>
           )}
@@ -155,7 +155,7 @@ export default function VendorDetailPage() {
       </header>
 
       {/* ─── 커뮤니티 통계 ─── */}
-      <section className="bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <section className="bg-white border border-[#F0EFED] rounded-[6px] p-5 sm:p-6 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Stat
           icon={<MessageSquare className="w-3.5 h-3.5" />}
           label="언급수"
@@ -193,14 +193,14 @@ export default function VendorDetailPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/price"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[var(--hb-primary)]/20 bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
           >
             공개 가격 보기
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href={weddingPath("/community/quote-check")}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
           >
             <FileSearch className="h-4 w-4" />
             받은 견적 확인하기
@@ -216,7 +216,7 @@ export default function VendorDetailPage() {
         </h2>
 
         {posts.length === 0 ? (
-          <div className="bg-white border border-[#F0EFED] rounded-2xl p-10 text-center text-[var(--hb-text-muted)]">
+          <div className="bg-white border border-[#F0EFED] rounded-[6px] p-10 text-center text-[var(--hb-text-muted)]">
             아직 관련 게시글이 없어요.
           </div>
         ) : (
@@ -231,7 +231,7 @@ export default function VendorDetailPage() {
                 <Link
                   key={post.id}
                   href={communityPostPath(post.id)}
-                  className="block bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 hover:border-[var(--hb-primary)] transition"
+                  className="block bg-white border border-[#F0EFED] rounded-[6px] p-5 sm:p-6 hover:border-[var(--hb-primary)] transition"
                 >
                   <div className="flex items-center gap-2 text-sm text-[var(--hb-text-muted)] mb-2">
                     <span className="text-[var(--hb-text-strong)] font-medium">

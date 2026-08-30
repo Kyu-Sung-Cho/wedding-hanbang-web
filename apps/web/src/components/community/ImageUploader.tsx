@@ -147,7 +147,7 @@ export default function ImageUploader({
           onDragLeave={() => setDragOver(false)}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`flex flex-col items-center justify-center gap-2 py-8 px-4 border-2 border-dashed rounded-2xl cursor-pointer transition-colors ${
+          className={`flex flex-col items-center justify-center gap-2 py-8 px-4 border-2 border-dashed rounded-[6px] cursor-pointer transition-colors ${
             dragOver
               ? "border-[var(--hb-primary)] bg-[var(--hb-primary)]/5"
               : "border-[#F5F2ED] bg-[#FAF8F5] hover:border-[#B5ADA3]"
@@ -196,7 +196,7 @@ export default function ImageUploader({
         <div className="flex flex-wrap gap-3">
           {images.map((url, i) => (
             <div key={url} className="relative group">
-              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden bg-[#F5F2ED] border border-[#F5F2ED]">
+              <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-[6px] overflow-hidden bg-[#F5F2ED] border border-[#F5F2ED]">
                 {isVideoUrl(url) ? (
                   <div className="w-full h-full flex items-center justify-center bg-[#1A1A1F]/10">
                     <Film className="w-8 h-8 text-[var(--hb-text-muted)]" />
@@ -227,7 +227,7 @@ export default function ImageUploader({
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-[#F5F2ED] text-[var(--hb-text-muted)] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] transition-colors"
+              className="w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center gap-1 rounded-[6px] border-2 border-dashed border-[#F5F2ED] text-[var(--hb-text-muted)] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] transition-colors"
             >
               <ImageIcon className="w-5 h-5" />
               <span className="text-[10px]">추가</span>

@@ -47,7 +47,7 @@ type CoupleReportState =
   | { kind: "ready"; payload: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }> }
   | { kind: "error"; messageKo: string };
 
-const card = "rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]";
+const card = "rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]";
 const primaryBtn =
   "inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 text-[14px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] disabled:opacity-40";
 const ghostBtn =
@@ -313,7 +313,7 @@ export default function WeddingCodeResultClient() {
                 <h2 className="text-[16px] font-semibold text-[var(--hb-text-strong)]">{axis.labelKo}</h2>
               </div>
               <p className="mt-2 text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">{axis.summaryKo}</p>
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[12px] font-semibold text-[var(--hb-text-strong)]">
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[12px] font-semibold text-[var(--hb-text-strong)]">
                 <span>{labels.left}</span>
                 <span aria-hidden="true" className="text-[#A77B74]">↔</span>
                 <span>{labels.right}</span>
@@ -329,7 +329,7 @@ export default function WeddingCodeResultClient() {
           <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">오늘 대화해볼 것</p>
           <div className="mt-3 flex flex-col gap-2.5">
             {report.talkStarters.map((text) => (
-              <p key={text} className="rounded-[12px] bg-[var(--hb-surface-page)] px-4 py-3 text-[13px] font-medium leading-relaxed text-[var(--hb-text-strong)]">
+              <p key={text} className="rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-3 text-[13px] font-medium leading-relaxed text-[var(--hb-text-strong)]">
                 {text}
               </p>
             ))}
@@ -340,7 +340,7 @@ export default function WeddingCodeResultClient() {
           <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">다음 행동 카드</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {report.actionCards.map((action) => (
-              <div key={action.id} className="rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
+              <div key={action.id} className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
                 <p className="text-[14px] font-semibold text-[var(--hb-text-strong)]">{action.titleKo}</p>
                 <p className="mt-1.5 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{action.bodyKo}</p>
               </div>
@@ -359,7 +359,7 @@ export default function WeddingCodeResultClient() {
                 상대가 같은 테스트를 완료하면 두 사람의 준비 방식 겹침도를 만들 수 있어요.
               </p>
               {visibleInviteLink && (
-                <div className="mt-3 flex items-center gap-2 rounded-[12px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5">
+                <div className="mt-3 flex items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5">
                   <p className="min-w-0 flex-1 truncate text-[12px] font-medium text-[var(--hb-text-body)]">{visibleInviteLink}</p>
                   <button
                     onClick={async () => {
@@ -439,7 +439,7 @@ export default function WeddingCodeResultClient() {
           <img
             src={saveOverlay.dataUrl}
             alt="웨딩코드 결과 카드"
-            className="max-h-[70vh] w-auto rounded-[12px] shadow-2xl"
+            className="max-h-[70vh] w-auto rounded-[6px] shadow-2xl"
           />
           <p className="mt-4 text-center text-[14px] font-semibold leading-relaxed text-white">
             이미지를 길게 눌러 사진 앱에 저장하세요.
@@ -529,7 +529,7 @@ function CoupleReportSection({
         )}
       </div>
 
-      <p className="mt-4 rounded-[12px] bg-[var(--hb-surface-page)] px-4 py-3 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">
+      <p className="mt-4 rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-3 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">
         {report.guideKo}
       </p>
 
@@ -582,14 +582,14 @@ function CoupleScenarioCard({
       </div>
 
       <div className="mt-3 grid gap-2">
-        <div className="rounded-[12px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5">
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5">
           <p className="text-[11px] font-semibold text-[var(--color-rose-700)]">
             {sameChoice ? "두 사람 모두 중요하게 본 것" : "한 사람이 더 중요하게 본 것"}
           </p>
           <p className="mt-1 text-[12px] font-medium leading-relaxed text-[var(--hb-text-body)]">{card.firstChoiceKo}</p>
         </div>
         {!sameChoice && (
-          <div className="rounded-[12px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5">
             <p className="text-[11px] font-semibold text-[var(--color-rose-700)]">다른 사람이 더 중요하게 본 것</p>
             <p className="mt-1 text-[12px] font-medium leading-relaxed text-[var(--hb-text-body)]">{card.secondChoiceKo}</p>
           </div>
@@ -605,7 +605,7 @@ function CoupleScenarioCard({
           <p className="text-[11px] font-semibold text-[var(--hb-text-strong)]">해결 방법</p>
           <p className="mt-1 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{card.solutionKo}</p>
         </div>
-        <p className="rounded-[10px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
+        <p className="rounded-[6px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
           {card.firstQuestionKo}
         </p>
       </div>
@@ -628,7 +628,7 @@ function CoupleSolutionCard({
   card: Extract<WeddingCodeCoupleReportPayload, { status: "ready" }>["report"]["solutionCards"][number];
 }) {
   return (
-    <div className="rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5">
+    <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5">
       <div>
         <p className="text-[11px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{card.categoryKo}</p>
         <p className="mt-1 text-[14px] font-semibold leading-snug text-[var(--hb-text-strong)]">{card.titleKo}</p>
@@ -642,7 +642,7 @@ function CoupleSolutionCard({
           <p className="text-[11px] font-semibold text-[var(--hb-text-strong)]">이렇게 해보기</p>
           <p className="mt-1 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{card.solutionKo}</p>
         </div>
-        <p className="rounded-[10px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
+        <p className="rounded-[6px] bg-white px-3 py-2.5 text-[12px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
           {card.firstQuestionKo}
         </p>
       </div>
@@ -660,7 +660,7 @@ function CoupleAxisRow({
   emphasis?: boolean;
 }) {
   return (
-    <div className={`rounded-[14px] border px-4 py-3.5 ${
+    <div className={`rounded-[6px] border px-4 py-3.5 ${
       emphasis ? "border-[var(--hb-primary)]/25 bg-[#EEF4F1]" : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)]"
     }`}>
       <div>

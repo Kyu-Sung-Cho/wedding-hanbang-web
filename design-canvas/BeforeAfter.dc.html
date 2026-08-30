@@ -1,0 +1,112 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap">
+  <style>
+    body { margin: 0; font-family: "Noto Sans KR", system-ui, sans-serif; background: #FBF8F2; color: #26251F; }
+    a { color: #35638A; text-decoration: none; }
+    a:hover { color: #24465F; }
+    .hand { font-family: "Gaegu", "Noto Sans KR", cursive; font-weight: 700; letter-spacing: 0; }
+    .fine { font-size: 13px; line-height: 1.8; color: #605E54; }
+    .num { font-size: 30px; font-weight: 700; letter-spacing: -0.035em; line-height: 1; }
+  </style>
+</helmet>
+
+<div style="width: 760px; padding: 40px 44px 48px; background: #FBF8F2;">
+
+  <p class="hand" style="margin: 0 0 4px; font-size: 24px; color: #35638A;">정리 전과 후</p>
+  <h1 style="margin: 0 0 6px; font-size: 32px; font-weight: 700; letter-spacing: -0.035em; line-height: 1.28;">
+    숫자로 본 변화
+  </h1>
+  <p class="fine" style="margin: 0 0 30px;">
+    저장소 전체를 세어 얻은 값입니다. 오른쪽이 시안이 정한 목표입니다.
+  </p>
+
+  <div style="display: flex; flex-direction: column; gap: 12px;">
+
+    <div style="background: #FFFFFF; border: 1px solid #E2DED2; border-radius: 3px; padding: 20px 22px; box-shadow: 0 10px 24px rgba(38,37,31,0.07);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 3px;">면 그라디언트</div>
+          <div class="fine" style="font-size: 12px;">분홍 히어로, 초록 푸터, 3단 바탕 — 시안에는 하나도 없습니다</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="text-align: right;"><div class="num" style="color: #B8452F;">65</div><div class="fine" style="font-size: 11px;">전</div></div>
+          <div class="fine" style="font-size: 18px; color: #DDD8C9;">→</div>
+          <div style="text-align: right;"><div class="num" style="color: #26251F;">0</div><div class="fine" style="font-size: 11px;">후</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #E2DED2; border-radius: 3px; padding: 20px 22px; box-shadow: 0 10px 24px rgba(38,37,31,0.07);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 3px;">모서리 종류</div>
+          <div class="fine" style="font-size: 12px;">면 3px · 컨트롤 6px · 원형 셋만 남았습니다</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="text-align: right;"><div class="num" style="color: #B8452F;">20</div><div class="fine" style="font-size: 11px;">종</div></div>
+          <div class="fine" style="font-size: 18px; color: #DDD8C9;">→</div>
+          <div style="text-align: right;"><div class="num" style="color: #26251F;">3</div><div class="fine" style="font-size: 11px;">종</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #E2DED2; border-radius: 3px; padding: 20px 22px; box-shadow: 0 10px 24px rgba(38,37,31,0.07);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 3px;">그림자 종류</div>
+          <div class="fine" style="font-size: 12px;">카드용 하나에, 시안에 없는 모달용 하나를 더했습니다</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="text-align: right;"><div class="num" style="color: #B8452F;">144</div><div class="fine" style="font-size: 11px;">종</div></div>
+          <div class="fine" style="font-size: 18px; color: #DDD8C9;">→</div>
+          <div style="text-align: right;"><div class="num" style="color: #26251F;">2</div><div class="fine" style="font-size: 11px;">종</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #FFFFFF; border: 1px solid #E2DED2; border-radius: 3px; padding: 20px 22px; box-shadow: 0 10px 24px rgba(38,37,31,0.07);">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 3px;">색을 강제로 덮던 규칙</div>
+          <div class="fine" style="font-size: 12px;">76개 화면 중 33개에만 걸려서, 같은 버튼이 화면마다 달랐습니다</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="text-align: right;"><div class="num" style="color: #B8452F;">95</div><div class="fine" style="font-size: 11px;">개</div></div>
+          <div class="fine" style="font-size: 18px; color: #DDD8C9;">→</div>
+          <div style="text-align: right;"><div class="num" style="color: #26251F;">63</div><div class="fine" style="font-size: 11px;">개</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background: #F8F4EA; border: 1px solid #E2DED2; border-radius: 3px; padding: 20px 22px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; gap: 20px;">
+        <div style="flex-grow: 1;">
+          <div style="font-size: 15px; font-weight: 700; margin-bottom: 3px;">커뮤니티 화면의 색</div>
+          <div class="fine" style="font-size: 12px;">라이브에서 잰 값입니다. 남색 글자 148곳이 잉크로 바뀌었습니다</div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px;">
+          <div style="text-align: right;"><div class="num" style="color: #605E54;">104</div><div class="fine" style="font-size: 11px;">종</div></div>
+          <div class="fine" style="font-size: 18px; color: #DDD8C9;">→</div>
+          <div style="text-align: right;"><div class="num" style="color: #26251F;">90</div><div class="fine" style="font-size: 11px;">종</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="fine" style="margin: 26px 0 0;">
+    앞의 네 줄은 배포까지 끝났고 운영에서 확인했습니다. 모서리 줄은 아직 검사 중입니다.
+  </p>
+
+</div>
+</x-dc>
+</body>
+</html>

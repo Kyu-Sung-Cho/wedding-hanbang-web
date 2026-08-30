@@ -42,7 +42,7 @@ function SlideEmpathy() {
             className={`flex ${bubble.align === "right" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`px-4 py-3 rounded-2xl text-base leading-relaxed max-w-[280px] ${
+              className={`px-4 py-3 rounded-[6px] text-base leading-relaxed max-w-[280px] ${
                 bubble.align === "right"
                   ? "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)] rounded-br-md"
                   : "bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)] rounded-bl-md border border-[#f6efe5]"
@@ -83,7 +83,7 @@ function SlideRealReview() {
       </div>
 
       {/* Mock 포스트 카드 — 실제 후기처럼 */}
-      <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
+      <div className="w-full max-w-[380px] rounded-[6px] bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#A8D8A8] to-sage-500 flex items-center justify-center">
             <span className="text-base">🌿</span>
@@ -106,7 +106,7 @@ function SlideRealReview() {
         </div>
         {/* 샘플 조건 비교 테이블 */}
         <div className="px-4 pb-3">
-          <div className="bg-[var(--hb-surface-page)] rounded-xl p-3 border border-[#f6efe5]">
+          <div className="bg-[var(--hb-surface-page)] rounded-[6px] p-3 border border-[#f6efe5]">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
                 <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 A</div>
@@ -128,13 +128,13 @@ function SlideRealReview() {
         </div>
         {/* 이미지 */}
         <div className="px-4 pb-3 flex gap-2">
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[var(--hb-primary)]/15 to-[var(--hb-primary)]/5 border border-[var(--hb-primary)]/10 flex items-center justify-center">
+          <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/15 to-[var(--hb-primary)]/5 border border-[var(--hb-primary)]/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-[var(--hb-text-strong)]/40" />
           </div>
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#B89785]/15 to-[var(--hb-primary-hover)]/5 border border-[#B89785]/10 flex items-center justify-center">
+          <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-[#B89785]/15 to-[var(--hb-primary-hover)]/5 border border-[#B89785]/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-[#B89785]/40" />
           </div>
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-sage-500/15 to-sage-500/5 border border-sage-500/10 flex items-center justify-center">
+          <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-sage-500/15 to-sage-500/5 border border-sage-500/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-sage-500/40" />
           </div>
         </div>
@@ -180,7 +180,7 @@ function SlideCohort() {
       </div>
 
       {/* 동기방 카드 */}
-      <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-white p-4 mb-4 shadow-sm">
+      <div className="w-full max-w-[380px] rounded-[6px] border border-[#d8bb86]/60 bg-white p-4 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="text-[17px] text-[var(--hb-text-strong)] font-semibold">샘플 동기방</div>
@@ -214,7 +214,7 @@ function SlideCohort() {
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#7EB8D8] to-[#5A9CC0] shrink-0 mt-0.5" />
           <div>
             <div className="text-sm text-[var(--hb-text-muted)] mb-0.5">행복한예비맘</div>
-            <div className="bg-[var(--hb-surface-page)] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
+            <div className="bg-[var(--hb-surface-page)] rounded-[6px] rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 사진 촬영 견적마다 받는 사진 수와 보정해 주는 사진 수가 달라서 비교하기 어렵네요.
               </span>
@@ -225,7 +225,7 @@ function SlideCohort() {
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#B89785] to-[#DCC9A0] shrink-0 mt-0.5" />
           <div>
             <div className="text-sm text-[var(--hb-text-muted)] mb-0.5">민트초코신부</div>
-            <div className="bg-[var(--hb-surface-page)] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
+            <div className="bg-[var(--hb-surface-page)] rounded-[6px] rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 저는 같은 구성표로 맞춰봤어요. 별도 항목과 기준일도 함께 확인해보세요.
               </span>
@@ -236,7 +236,7 @@ function SlideCohort() {
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[var(--hb-primary-hover)] shrink-0 mt-0.5" />
           <div>
             <div className="text-sm text-[var(--hb-text-muted)] mb-0.5">달빛웨딩</div>
-            <div className="bg-[var(--hb-surface-page)] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
+            <div className="bg-[var(--hb-surface-page)] rounded-[6px] rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
               <span className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 저도 거기 상담 받았어요. 자세한 후기 글로 올려드릴게요 ✍️
               </span>
@@ -271,7 +271,7 @@ function SlideAmora() {
       </div>
 
       {/* 현재 제공되는 라운지 기능만 안내 */}
-      <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
+      <div className="w-full max-w-[380px] rounded-[6px] bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-[var(--hb-primary)] flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
@@ -282,7 +282,7 @@ function SlideAmora() {
           </div>
         </div>
         <div className="px-4 pb-3">
-          <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-xl p-3 mb-2 flex items-start gap-2">
+          <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-[6px] p-3 mb-2 flex items-start gap-2">
             <MessageCircle className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0 mt-0.5" />
             <div className="text-left">
               <div className="text-sm text-[var(--hb-text-strong)] font-semibold mb-0.5">아모라 상담</div>
@@ -291,7 +291,7 @@ function SlideAmora() {
               </div>
             </div>
           </div>
-          <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-xl p-3 flex items-start gap-2">
+          <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-[6px] p-3 flex items-start gap-2">
             <Check className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0 mt-0.5" />
             <div className="text-left">
               <div className="text-sm text-[var(--hb-text-strong)] font-semibold mb-0.5">예산·일정·체크리스트</div>
@@ -347,8 +347,8 @@ function SlideHowToUse() {
 
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 1. 검색 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[var(--hb-surface-page)] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--hb-primary)]/20 to-[var(--hb-primary)]/5 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/20 to-[var(--hb-primary)]/5 flex items-center justify-center shrink-0">
             <Search className="w-5 h-5 text-[var(--hb-text-strong)]" />
           </div>
           <div className="text-left">
@@ -361,8 +361,8 @@ function SlideHowToUse() {
         </div>
 
         {/* 2. 투표 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[var(--hb-surface-page)] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sage-500/20 to-sage-500/5 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-sage-500/20 to-sage-500/5 flex items-center justify-center shrink-0">
             <TrendingUp className="w-5 h-5 text-[var(--hb-success)]" />
           </div>
           <div className="text-left">
@@ -374,8 +374,8 @@ function SlideHowToUse() {
         </div>
 
         {/* 3. 북마크 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[var(--hb-surface-page)] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B89785]/20 to-[var(--hb-primary-hover)]/5 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[#B89785]/20 to-[var(--hb-primary-hover)]/5 flex items-center justify-center shrink-0">
             <Star className="w-5 h-5 text-[#B89785]" />
           </div>
           <div className="text-left">
@@ -387,8 +387,8 @@ function SlideHowToUse() {
         </div>
 
         {/* 4. 글쓰기 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[var(--hb-surface-page)] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[var(--hb-primary)]/20 to-[var(--hb-primary)]/5 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/20 to-[var(--hb-primary)]/5 flex items-center justify-center shrink-0">
             <PenSquare className="w-5 h-5 text-[var(--hb-text-strong)]" />
           </div>
           <div className="text-left">
@@ -425,7 +425,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col items-center text-center px-6">
-      <div className="w-16 h-16 rounded-2xl bg-[var(--hb-primary)] flex items-center justify-center mb-5">
+      <div className="w-16 h-16 rounded-[6px] bg-[var(--hb-primary)] flex items-center justify-center mb-5">
         <Shield className="w-8 h-8 text-white" />
       </div>
 
@@ -460,7 +460,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             desc: "업체 광고임을 글에 표시",
           },
         ].map((rule, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 border"
               style={{ backgroundColor: rule.bg, borderColor: rule.border, color: rule.color }}
@@ -480,7 +480,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
       <button
         onClick={handleStart}
-        className="w-full max-w-[340px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-2xl shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all mb-3"
+        className="w-full max-w-[340px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-[6px] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all mb-3"
       >
         커뮤니티 둘러보기
       </button>
@@ -569,7 +569,7 @@ export default function CommunityGuide() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) close(); }}
     >
-      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl">
+      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-[6px] shadow-2xl">
         {/* 상단 진행 바 */}
         <div className="h-1 bg-[var(--hb-surface-hover)]">
           <div
@@ -616,14 +616,14 @@ export default function CommunityGuide() {
               <button
                 onClick={prev}
                 disabled={current === 0}
-                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
+                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-[6px]"
               >
                 <ChevronLeft className="w-4 h-4" />
                 이전
               </button>
               <button
                 onClick={next}
-                className="flex items-center gap-1 px-6 py-3 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white text-base font-medium rounded-xl transition-colors"
+                className="flex items-center gap-1 px-6 py-3 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white text-base font-medium rounded-[6px] transition-colors"
               >
                 다음
                 <ChevronRight className="w-4 h-4" />

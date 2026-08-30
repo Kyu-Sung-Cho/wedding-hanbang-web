@@ -124,14 +124,14 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
         <div className="bg-[#1A1A1F] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs font-semibold tracking-[0.16em] text-white/50">CONTRACT SHIELD</p>
               <p className="mt-1 text-lg font-semibold leading-snug text-white">{target}</p>
             </div>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-white/10">
               <ShieldCheck className="h-6 w-6 text-white" />
             </div>
           </div>
@@ -151,7 +151,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
         </div>
 
         <div className="px-5 py-4">
-          <div className={`rounded-xl border px-4 py-3 ${risk.bg} ${risk.border}`}>
+          <div className={`rounded-[6px] border px-4 py-3 ${risk.bg} ${risk.border}`}>
             <div className="flex items-start gap-2">
               <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${risk.dot}`} />
               <div>
@@ -169,7 +169,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
               </div>
               <div className="space-y-2">
                 {blockers.slice(0, 4).map((item) => (
-                  <div key={item.id} className="rounded-xl border border-red-100 bg-red-50/50 px-3 py-2.5">
+                  <div key={item.id} className="rounded-[6px] border border-red-100 bg-red-50/50 px-3 py-2.5">
                     <p className="text-sm font-semibold text-red-700">{item.label}</p>
                     <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-text-body)]">{item.reason}</p>
                   </div>
@@ -202,7 +202,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
               </div>
               <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 {confirmed.slice(0, 6).map((item) => (
-                  <div key={item.id} className="rounded-lg bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
+                  <div key={item.id} className="rounded-[6px] bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
                     {item.label}
                   </div>
                 ))}
@@ -228,7 +228,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
           )}
 
           {evidence.length > 0 && (
-            <section className="mt-4 rounded-xl border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
+            <section className="mt-4 rounded-[6px] border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
               <p className="mb-2 text-sm font-semibold text-[var(--hb-text-strong)]">저장할 증빙</p>
               <div className="flex flex-wrap gap-1.5">
                 {evidence.map((item) => (
@@ -241,7 +241,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
           )}
 
           {data.messageToVendor && (
-            <section className="mt-4 rounded-xl border border-[#D8C7BB] bg-white px-3 py-3">
+            <section className="mt-4 rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-[var(--hb-text-strong)]">복사해서 보낼 확인 문구</p>
                 <CopyButton text={data.messageToVendor} />
@@ -299,7 +299,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
         <div className="bg-[#2F5F51] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -308,14 +308,14 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
                 {data.venueName || "하객·식대·보증 인원"}
               </p>
             </div>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-white/10">
               <Users className="h-6 w-6 text-white" />
             </div>
           </div>
         </div>
 
         <div className="px-5 py-4">
-          <div className={`rounded-xl border px-4 py-3 ${risk.bg} ${risk.border}`}>
+          <div className={`rounded-[6px] border px-4 py-3 ${risk.bg} ${risk.border}`}>
             <div className="flex items-start gap-2">
               <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${risk.dot}`} />
               <div>
@@ -326,7 +326,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
           </div>
 
           {isInputNeeded ? (
-            <div className="mt-4 rounded-xl border border-[#EFE5DA] bg-[#FAF8F5] px-4 py-3">
+            <div className="mt-4 rounded-[6px] border border-[#EFE5DA] bg-[#FAF8F5] px-4 py-3">
               <p className="text-sm font-semibold text-[var(--hb-text-strong)]">한 번에 필요한 정보</p>
               <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">{data.recommendation}</p>
             </div>
@@ -340,7 +340,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
               </div>
 
               {scenarios.length > 0 && (
-                <section className="mt-4 overflow-hidden rounded-xl border border-[#EFE5DA]">
+                <section className="mt-4 overflow-hidden rounded-[6px] border border-[#EFE5DA]">
                   <div className="grid grid-cols-4 bg-[#FAF8F5] px-3 py-2 text-xs font-semibold text-[var(--hb-text-muted)]">
                     <span>상황</span>
                     <span className="text-right">참석</span>
@@ -359,7 +359,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
               )}
 
               {data.recommendation && (
-                <section className="mt-4 rounded-xl border border-[#D8C7BB] bg-white px-3 py-3">
+                <section className="mt-4 rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-3">
                   <p className="mb-1 text-sm font-semibold text-[var(--hb-text-strong)]">아모라 판단</p>
                   <p className="text-sm leading-relaxed text-[var(--hb-text-body)]">{data.recommendation}</p>
                 </section>
@@ -385,7 +385,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
           )}
 
           {data.venueMessage && (
-            <section className="mt-4 rounded-xl border border-[#D8C7BB] bg-white px-3 py-3">
+            <section className="mt-4 rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <p className="text-sm font-semibold text-[var(--hb-text-strong)]">복사해서 보낼 확인 문구</p>
                 <CopyButton text={data.venueMessage} />
@@ -403,7 +403,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
+    <div className="rounded-[6px] border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
       <div className="mb-1 flex items-center gap-1.5 text-[var(--hb-text-muted)]">
         {icon}
         <span className="text-xs">{label}</span>
