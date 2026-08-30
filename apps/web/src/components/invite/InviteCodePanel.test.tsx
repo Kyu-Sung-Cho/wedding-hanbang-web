@@ -52,6 +52,44 @@ describe("InviteCodePanel", () => {
     });
   }
 
+  /**
+   * 배우자가 합류하면 지워지는 것을 **코드를 보내기 전에** 말한다.
+   *
+   * 값이 흘러도 화면에 안 보이면 아무 소용이 없으므로 문구 자체를 고정한다.
+   * 지우는 동작은 옳다(새로 들어온 사람이 자기가 없던 시절의 추론을 물려받으면
+   * 안 된다) — 고치는 것은 침묵이다. 2026-08-30 운영 실측으로 혼자인 커플 21쌍이
+   * 이 화면을 본다.
+   */
+  describe("합류하면 지워지는 것", () => {
+    it("개수가 있으면 보내기 전에 말한다", async () => {
+      await render(
+        <InviteCodePanel code={CODE} variant="settings" partnerJoinPurgeTotal={16} />,
+      );
+      const text = container.textContent ?? "";
+      expect(text).toContain("16개");
+      expect(text).toContain("지워져요");
+      // 무엇이 **안** 지워지는지도 같이 말해야 사용자가 겁먹지 않는다.
+      expect(text).toContain("확인한 예산·일정");
+      expect(text).toContain("주고받은 대화는 그대로");
+    });
+
+    it("지울 것이 없거나 못 셌으면 아무 말도 하지 않는다", async () => {
+      for (const total of [0, null, undefined]) {
+        await render(
+          <InviteCodePanel code={CODE} variant="settings" partnerJoinPurgeTotal={total} />,
+        );
+        expect(container.textContent ?? "").not.toContain("지워져요");
+      }
+    });
+
+    it("코드가 없으면 이 문장도 없다 — 보낼 코드가 없으면 할 말도 없다", async () => {
+      await render(
+        <InviteCodePanel code={null} variant="settings" partnerJoinPurgeTotal={16} />,
+      );
+      expect(container.innerHTML).toBe("");
+    });
+  });
+
   it("renders nothing at all when there is no code to share", async () => {
     for (const code of [null, undefined, "", "null", "   ", "WH-"]) {
       await render(<InviteCodePanel code={code} variant="settings" />);

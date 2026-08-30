@@ -20,6 +20,19 @@ export type CoupleConnectionState = {
    * 멀쩡한 코드를 쓰는 사람에게 "예전 코드는 못 쓴다"는 거짓말을 하게 된다.
    */
   inviteReissued: boolean;
+  /**
+   * 배우자가 합류하는 순간 지워질 항목 수. 서버가 못 세면 null(그때는 말하지
+   * 않는다 — 틀린 숫자는 없느니만 못하다).
+   *
+   * 커플 구성이 바뀌면 `trg_reset_amora_memory_after_membership_change` 가 그
+   * 범위의 **아모라가 혼자 정리한 것**(자동 메모·대화 요약·프로필)을 지운다.
+   * 새로 들어온 사람이 자기가 없던 시절의 추론을 "우리 커플의 사실"로 물려받으면
+   * 안 되기 때문이고, 그 판단은 옳다. 문제는 **말을 안 해주던 것**이었다.
+   *
+   * 사용자가 확인한 예산·일정 결정과 주고받은 대화 원문은 이 수에 들어가지
+   * 않는다 — 그것들은 지워지지 않는다.
+   */
+  partnerJoinPurgeTotal: number | null;
 };
 
 export type CoupleConnectionContext = {
@@ -34,6 +47,7 @@ const CLOSED = {
   canInvite: false,
   inviteExpiresAt: null,
   inviteReissued: false,
+  partnerJoinPurgeTotal: null,
 } as const;
 
 const UNAVAILABLE: CoupleConnectionState = { phase: "unavailable", ...CLOSED };
@@ -52,6 +66,17 @@ function classifyStoredSeal(value: unknown): "unsealed" | "sealed" | "invalid" {
 function readTimestamp(value: unknown): string | null {
   if (typeof value !== "string" || value.trim().length === 0) return null;
   return Number.isNaN(Date.parse(value)) ? null : value;
+}
+
+/**
+ * 합류 시 지워질 개수. 0 이면 지워질 것이 없다는 **사실**이므로 그대로 돌려준다
+ * (null 과 다르다 — null 은 "못 셌다"이고 화면이 아무 말도 하지 않는다).
+ */
+function readPurgeTotal(value: unknown): number | null {
+  if (!isRecord(value)) return null;
+  const total = value.total;
+  if (typeof total !== "number" || !Number.isFinite(total) || total < 0) return null;
+  return Math.floor(total);
 }
 
 /**
@@ -98,6 +123,7 @@ export function resolveCoupleConnectionState(
       canInvite: true,
       inviteExpiresAt: readTimestamp(payload.inviteCodeExpiresAt),
       inviteReissued: payload.inviteCodeReissued === true,
+      partnerJoinPurgeTotal: readPurgeTotal(payload.pendingPartnerJoinPurge),
     };
   }
 

@@ -20,6 +20,7 @@ describe("couple connection presentation", () => {
       canInvite: false,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
   });
 
@@ -34,6 +35,7 @@ describe("couple connection presentation", () => {
       canInvite: true,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
     expect(resolveCoupleConnectionState({
       inviteCode: "bad-code",
@@ -45,6 +47,7 @@ describe("couple connection presentation", () => {
       canInvite: false,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
   });
 
@@ -66,6 +69,7 @@ describe("couple connection presentation", () => {
       canInvite: false,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
   });
 
@@ -76,6 +80,7 @@ describe("couple connection presentation", () => {
       canInvite: false,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
     expect(resolveCoupleConnectionState({
       inviteCode: "WH-ABC123",
@@ -87,6 +92,7 @@ describe("couple connection presentation", () => {
       canInvite: false,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
     expect(resolveCoupleConnectionState(
       {
@@ -101,6 +107,7 @@ describe("couple connection presentation", () => {
       canInvite: false,
       inviteExpiresAt: null,
       inviteReissued: false,
+      partnerJoinPurgeTotal: null,
     });
   });
 });

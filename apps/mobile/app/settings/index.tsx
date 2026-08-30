@@ -933,6 +933,23 @@ export default function SettingsScreen() {
                   <Text style={styles.fieldHint}>
                     {inviteWindowNotice?.message ?? "이 코드를 파트너에게 공유해 주세요"}
                   </Text>
+                  {/* 합류하면 지워지는 것을 **보내기 전에** 말한다.
+                      커플 구성이 바뀌면 트리거가 그 범위의 자동 메모·대화 요약·
+                      프로필을 지운다. 새로 들어온 사람이 자기가 없던 시절의 추론을
+                      "우리 커플의 사실"로 물려받으면 안 되니 그 판단은 옳고, 고치는
+                      것은 아무도 그 말을 안 하던 것이다. 손해를 보는 사람은 초대하는
+                      쪽이므로 코드를 보내는 이 자리에 붙인다.
+                      2026-08-30 운영 실측: 혼자인 커플 21쌍, 자동 메모 89 + 요약 6.
+                      확인한 예산·일정과 대화 원문은 지워지지 않는다. */}
+                  {typeof coupleConnection.partnerJoinPurgeTotal === "number"
+                    && coupleConnection.partnerJoinPurgeTotal > 0 ? (
+                    <Text style={[styles.fieldHint, styles.purgeHint]}>
+                      배우자가 연결되면 아모라가 혼자 정리해 둔 기록{" "}
+                      {coupleConnection.partnerJoinPurgeTotal}개가 지워져요. 상대가
+                      함께하기 전의 짐작을 그대로 물려받지 않기 위해서예요. 두 분이
+                      확인한 예산·일정과 지금까지 주고받은 대화는 그대로 남아요.
+                    </Text>
+                  ) : null}
                   {/* 두 사람이 각자 앱을 깔고 각자 "시작하기"를 누르면 둘 다 여기 서서
                       서로의 코드를 기다린다. 그 상태에서 상대 코드를 넣을 자리가 없으면
                       나갈 문이 없다 — 웹 설정에는 이 버튼이 단계와 무관하게 있는데
@@ -1345,6 +1362,8 @@ const styles = StyleSheet.create({
   // 초대 대기 중의 복구 경로. 코드를 보내는 일이 먼저이므로 기본 버튼으로 올리지 않고
   // 링크로 둔다 — 다만 찾을 수는 있어야 한다.
   restartHint: { marginTop: 10 },
+  /** 합류 시 삭제 안내 — 기한 안내와 구분되게 살짝 띄우고 색을 준다. */
+  purgeHint: { marginTop: 10, color: "#795252" },
   restartLink: {
     alignSelf: "flex-start",
     paddingHorizontal: 2,
