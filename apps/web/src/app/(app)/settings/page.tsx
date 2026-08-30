@@ -922,6 +922,7 @@ export default function SettingsPage() {
                 code={coupleCode}
                 variant="settings"
                 notice={inviteWindowNotice}
+                partnerJoinPurgeTotal={coupleConnection.partnerJoinPurgeTotal}
               />
               <button
                 onClick={handleRegenerateCode}

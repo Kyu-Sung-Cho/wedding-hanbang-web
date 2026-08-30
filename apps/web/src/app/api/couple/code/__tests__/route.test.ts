@@ -19,9 +19,17 @@ import { GET, POST } from "../route";
 
 type DbError = { code?: string; message?: string };
 type QueryResult = { data: unknown; error: DbError | null };
+type CountResult = { count: number | null; error: DbError | null };
 type QueryHandler = {
   single?: QueryResult;
   maybeSingle?: QueryResult;
+  /**
+   * `select(..., { count: "exact", head: true })` 처럼 종결 메서드 없이 그대로
+   * await 되는 질의의 답. 합류 시 지워질 개수를 세는 경로가 이 모양이다.
+   */
+  count?: CountResult;
+  onIn?: (column: string, values: unknown) => void;
+  onOr?: (expression: string) => void;
   onUpdate?: (payload: unknown) => void;
   onFilter?: (method: "eq" | "is", column: string, value: unknown) => void;
 };
@@ -41,6 +49,29 @@ class FakeQuery {
   is(column: string, value: unknown) {
     this.handler.onFilter?.("is", column, value);
     return this;
+  }
+  in(column: string, values: unknown) {
+    this.handler.onIn?.(column, values);
+    return this;
+  }
+  or(expression: string) {
+    this.handler.onOr?.(expression);
+    return this;
+  }
+  /**
+   * 종결 메서드 없이 `await` 되는 질의를 흉내낸다. 이걸 넣지 않으면 개수 세는
+   * 경로가 예외로 빠져 **항상 null** 이 되고, 서버가 숫자를 싣는지 아무도 못 잰다
+   * (실제로 이 파일의 기존 16개는 그 상태로 전부 초록이었다).
+   */
+  then(
+    resolve: (value: CountResult) => unknown,
+    reject?: (reason: unknown) => unknown,
+  ) {
+    try {
+      return Promise.resolve(resolve(this.handler.count ?? { count: 0, error: null }));
+    } catch (error) {
+      return reject ? Promise.resolve(reject(error)) : Promise.reject(error);
+    }
   }
   single() {
     return Promise.resolve(
@@ -539,5 +570,105 @@ describe("/api/couple/code roster epoch fence", () => {
     const response = await GET(request("GET"));
 
     expect(response.status).toBe(500);
+  });
+});
+
+/**
+ * 배우자가 합류하면 지워지는 것을 서버가 세어 보낸다.
+ *
+ * 커플 구성이 바뀌면 `trg_reset_amora_memory_after_membership_change`
+ * (20260716090000:265) 가 그 범위의 자동 메모·대화 요약·프로필을 지운다. 그
+ * 판단은 옳다 — 새로 들어온 사람이 자기가 없던 시절의 추론을 "우리 커플의
+ * 사실"로 물려받으면 안 된다. 고치는 것은 **아무도 그 말을 안 하던 것**이다.
+ *
+ * 2026-08-30 운영 실측: 커플 58쌍 중 21쌍이 혼자, 합류 시 자동 메모 89 + 요약 6.
+ * 확인·수정한 것은 0건이고 확정한 예산·일정 41건은 트리거 조건에 걸리지 않는다.
+ */
+describe("합류 시 지워질 것을 초대 응답이 알려준다", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    createClientFromRequestSpy.mockResolvedValue({
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: USER_ID } }, error: null }) },
+    });
+  });
+
+  function purgeHandlers(memories: number, summaries: number, profiles: number) {
+    return {
+      decision_nodes: [{ count: { count: memories, error: null } }],
+      chat_summaries: [{ count: { count: summaries, error: null } }],
+      amora_couple_profiles: [{ count: { count: profiles, error: null } }],
+    };
+  }
+
+  it("혼자인 커플에게는 개수를 실어 보낸다", async () => {
+    setup({
+      profiles: [profileSuccess],
+      couples: [{ single: { data: couple(), error: null } }],
+      ...purgeHandlers(12, 3, 1),
+    });
+
+    const body = await (await GET(request("GET"))).json();
+    expect(body.pendingPartnerJoinPurge).toEqual({
+      memories: 12, summaries: 3, profiles: 1, total: 16,
+    });
+  });
+
+  it("트리거와 같은 범위·같은 조건으로 센다", async () => {
+    // 화면이 보여줄 숫자가 트리거의 DELETE 와 다르면 없느니만 못하다.
+    // 트리거는 `shared` 에 더해 **값이 바뀌는 슬롯의 레인**을 지운다 — 합류하면
+    // 비어 있던 쪽(여기서는 groom)이 채워진다. 그리고 자동 메모만 지운다
+    // (`memory_key` 가 있거나 `extracted_by` 가 붙은 것).
+    const lanes: unknown[] = [];
+    const expressions: string[] = [];
+    setup({
+      profiles: [profileSuccess],
+      couples: [{ single: { data: couple(), error: null } }],
+      decision_nodes: [{
+        count: { count: 1, error: null },
+        onIn: (_column, values) => lanes.push(values),
+        onOr: (expression) => expressions.push(expression),
+      }],
+      chat_summaries: [{ count: { count: 0, error: null }, onIn: (_c, v) => lanes.push(v) }],
+      amora_couple_profiles: [{ count: { count: 0, error: null }, onIn: (_c, v) => lanes.push(v) }],
+    });
+
+    await GET(request("GET"));
+
+    for (const lane of lanes) {
+      expect(lane).toEqual(["shared", "groom_private"]);
+    }
+    expect(expressions).toEqual([
+      "memory_key.not.is.null,metadata->>extracted_by.not.is.null",
+    ]);
+  });
+
+  it("세지 못해도 초대 코드는 그대로 나간다", async () => {
+    // 이 숫자는 초대 코드보다 덜 중요하다. 못 세면 경고만 빠지고 카드는 산다.
+    setup({
+      profiles: [profileSuccess],
+      couples: [{ single: { data: couple(), error: null } }],
+      decision_nodes: [{ count: { count: null, error: { code: "42P01" } } }],
+      chat_summaries: [{ count: { count: 0, error: null } }],
+      amora_couple_profiles: [{ count: { count: 0, error: null } }],
+    });
+
+    const response = await GET(request("GET"));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.inviteCode).toBe("WH-ABC123");
+    expect(body.pendingPartnerJoinPurge).toBeNull();
+  });
+
+  it("이미 두 명이면 세지도 않는다", async () => {
+    // 합류할 사람이 없으므로 물어볼 필요가 없다. 세러 가면 핸들러가 없어 터진다.
+    const { fromCalls } = setup({
+      profiles: [profileSuccess],
+      couples: [{ single: { data: couple({ groom_id: PARTNER_ID }), error: null } }],
+    });
+
+    const body = await (await GET(request("GET"))).json();
+    expect(body.isFullyLinked).toBe(true);
+    expect(body.pendingPartnerJoinPurge).toBeUndefined();
+    expect(fromCalls).not.toContain("decision_nodes");
   });
 });

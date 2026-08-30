@@ -227,6 +227,81 @@ function activeCodeResponse(couple: CoupleRecord, reissued = false) {
   };
 }
 
+/**
+ * 초대 코드 응답에 "합류하면 지워지는 것" 을 얹는다.
+ *
+ * 응답을 만드는 자리가 여섯 군데라 각각에 붙이면 하나를 빠뜨린다. 한 곳에서
+ * 판단한다 — 봉인됐거나 이미 두 명이면 합류할 사람이 없으므로 붙이지 않는다.
+ */
+async function withPartnerJoinPurge(
+  admin: ReturnType<typeof createAdminClient>,
+  coupleId: string,
+  couple: CoupleRecord,
+  reissued = false,
+) {
+  const base = activeCodeResponse(couple, reissued);
+  if (couple.membership_sealed_at || isFullyLinked(couple)) return base;
+  const pendingPartnerJoinPurge = await countPartnerJoinPurge(admin, coupleId, couple);
+  return { ...base, pendingPartnerJoinPurge };
+}
+
+/**
+ * 배우자가 합류하는 순간 지워질 것의 개수.
+ *
+ * `trg_reset_amora_memory_after_membership_change`(20260716090000:265)가
+ * 커플 구성이 바뀌면 그 범위의 **아모라가 혼자 정리한 것**을 지운다. 새로 들어온
+ * 사람이 자기가 없던 시절의 추론을 "우리 커플의 사실"로 물려받으면 안 되기
+ * 때문이고, 그 판단 자체는 바꾸지 않는다.
+ *
+ * 바꾸는 것은 **말을 안 해주던 것**이다. 혼자 시작해서 한참 대화한 뒤 배우자를
+ * 부르는 것은 이 제품에서 가장 흔한 경로인데, 그때 쌓아둔 것이 경고 한 마디 없이
+ * 사라졌다. 손해를 보는 사람은 초대하는 쪽이므로 초대 화면에서 미리 알린다.
+ *
+ * 2026-08-30 운영 실측: 혼자인 커플 21쌍, 합류 시 지워질 자동 메모 89 + 요약 6.
+ * **사용자가 확인·수정한 것은 0건**이고 확정한 예산·일정 결정 41건은 애초에 이
+ * 조건에 걸리지 않는다(`memory_key`도 `extracted_by`도 없다).
+ *
+ * 세는 조건은 트리거의 DELETE 와 같아야 한다 — 틀린 숫자는 없느니만 못하다.
+ * 트리거의 `metadata ? 'extracted_by'` 와 여기 쓰는 `metadata->>'extracted_by'
+ * is not null` 은 운영 316행에서 둘 다 247을 세는 것을 확인했다.
+ */
+async function countPartnerJoinPurge(
+  admin: ReturnType<typeof createAdminClient>,
+  coupleId: string,
+  couple: CoupleRecord,
+): Promise<{ memories: number; summaries: number; profiles: number; total: number } | null> {
+  // 트리거는 `shared` 에 더해 **값이 바뀌는 슬롯의 레인**을 대상에 넣는다.
+  // 합류하면 비어 있던 쪽이 채워지므로 그 레인이다.
+  const visibilities = ["shared"];
+  if (couple.bride_id === null) visibilities.push("bride_private");
+  if (couple.groom_id === null) visibilities.push("groom_private");
+
+  const scoped = (table: "decision_nodes" | "chat_summaries" | "amora_couple_profiles") =>
+    admin
+      .from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("couple_id", coupleId)
+      .in("visibility", visibilities);
+
+  try {
+    const [memoryResult, summaryResult, profileResult] = await Promise.all([
+      scoped("decision_nodes")
+        .or("memory_key.not.is.null,metadata->>extracted_by.not.is.null"),
+      scoped("chat_summaries"),
+      scoped("amora_couple_profiles"),
+    ]);
+    if (memoryResult.error || summaryResult.error || profileResult.error) return null;
+    const memories = memoryResult.count ?? 0;
+    const summaries = summaryResult.count ?? 0;
+    const profiles = profileResult.count ?? 0;
+    return { memories, summaries, profiles, total: memories + summaries + profiles };
+  } catch {
+    // 초대 코드는 이 숫자보다 중요하다. 세지 못하면 경고만 빠지고 코드는 그대로
+    // 나간다 — 카드 전체를 죽이지 않는다.
+    return null;
+  }
+}
+
 function handleError(error: unknown, operation: "GET" | "POST") {
   if (error instanceof CoupleCodeError) {
     console.warn("[couple/code] request rejected", {
@@ -264,7 +339,7 @@ export async function GET(request: Request) {
     // 반영하게 한다.
     const expired = isInviteCodeExpired(couple);
     if (couple.invite_code !== null && !expired) {
-      return NextResponse.json(activeCodeResponse(couple));
+      return NextResponse.json(await withPartnerJoinPurge(admin, coupleId, couple));
     }
 
     const generatedCode = await generateInviteCode(admin);
@@ -281,13 +356,13 @@ export async function GET(request: Request) {
       }
       // 만료된 코드를 갈아끼운 경우에만 "다시 보내라"고 말한다. 코드가 아예
       // 없어서 처음 발급한 경우는 보낸 적도 없으니 할 말이 아니다.
-      return NextResponse.json(activeCodeResponse(updated, expired));
+      return NextResponse.json(await withPartnerJoinPurge(admin, coupleId, updated, expired));
     }
 
     // Another join or code request won the compare-and-swap. Re-read the
     // canonical row; a newly sealed row must never disclose its retained code.
     const canonical = await loadCoupleById(admin, coupleId, authData.user.id);
-    return NextResponse.json(activeCodeResponse(canonical));
+    return NextResponse.json(await withPartnerJoinPurge(admin, coupleId, canonical));
   } catch (error) {
     return handleError(error, "GET");
   }
@@ -339,7 +414,7 @@ export async function POST(request: Request) {
       if (!isMember(updated, authData.user.id) || updated.invite_code !== generatedCode) {
         throw new CoupleCodeError(409, "커플 연결 상태가 변경됐어요.", "UPDATE_STATE_MISMATCH");
       }
-      return NextResponse.json(activeCodeResponse(updated, true));
+      return NextResponse.json(await withPartnerJoinPurge(admin, coupleId, updated, true));
     }
 
     const canonical = await loadCoupleById(admin, coupleId, authData.user.id);
@@ -357,7 +432,7 @@ export async function POST(request: Request) {
         "REGENERATION_UNRESOLVED_RACE",
       );
     }
-    return NextResponse.json(activeCodeResponse(canonical));
+    return NextResponse.json(await withPartnerJoinPurge(admin, coupleId, canonical));
   } catch (error) {
     return handleError(error, "POST");
   }

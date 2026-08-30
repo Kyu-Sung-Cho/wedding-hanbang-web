@@ -57,6 +57,20 @@ type InviteCodePanelProps = {
    * `tone`이 `"active"`면 담담하게, 그 외(임박·만료)에는 눈에 띄게 적는다.
    */
   notice?: { message: string; tone: string } | null;
+  /**
+   * 배우자가 합류하는 순간 지워질 항목 수. `null`이거나 0이면 아무 말도 하지 않는다.
+   *
+   * **왜 여기서 말하는가.** 커플 구성이 바뀌면 DB 트리거가 그 범위의 자동 메모·
+   * 대화 요약·프로필을 지운다. 새로 들어온 사람이 자기가 없던 시절의 추론을
+   * "우리 커플의 사실"로 물려받으면 안 되기 때문이고, 그 판단은 옳다. 그런데
+   * **아무도 그 말을 안 했다.** 혼자 시작해 한참 대화한 뒤 배우자를 부르는 것은
+   * 이 제품에서 가장 흔한 경로이고, 손해를 보는 사람은 초대하는 쪽이다.
+   * 코드를 보내는 이 화면이 보내기 전에 말해야 한다.
+   *
+   * 2026-08-30 운영 실측: 혼자인 커플 21쌍, 지워질 자동 메모 89 + 요약 6.
+   * 사용자가 확인한 예산·일정 결정 41건과 대화 원문은 지워지지 않는다.
+   */
+  partnerJoinPurgeTotal?: number | null;
   className?: string;
 };
 
@@ -143,6 +157,7 @@ export default function InviteCodePanel({
   code,
   variant = "settings",
   notice = null,
+  partnerJoinPurgeTotal = null,
   className = "",
 }: InviteCodePanelProps) {
   // 서버 스냅샷은 null이다. 렌더 중에 그냥 window를 읽으면 서버가 그린 첫 HTML과
@@ -226,6 +241,16 @@ export default function InviteCodePanel({
             }
           >
             {notice.message}
+          </p>
+        )}
+        {typeof partnerJoinPurgeTotal === "number" && partnerJoinPurgeTotal > 0 && (
+          <p className="mt-2 rounded-lg bg-[#FBF6F2] px-3 py-2 text-sm leading-relaxed text-[#795252]">
+            배우자가 연결되면 아모라가 혼자 정리해 둔 기록{" "}
+            <strong className="font-semibold">{partnerJoinPurgeTotal}개</strong>가 지워져요.
+            상대가 함께하기 전의 짐작을 그대로 물려받지 않기 위해서예요.{" "}
+            <span className="text-[var(--hb-text-muted)]">
+              두 분이 확인한 예산·일정과 지금까지 주고받은 대화는 그대로 남아요.
+            </span>
           </p>
         )}
 
