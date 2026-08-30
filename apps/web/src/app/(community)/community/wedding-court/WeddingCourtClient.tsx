@@ -194,7 +194,7 @@ function ChoiceGroup({
               onClick={() => onChange(choice)}
               className={`min-h-[76px] rounded-[16px] border px-4 py-4 text-left transition ${
                 selected
-                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[0_8px_24px_rgba(54,83,78,0.18)]"
+                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                   : "border-[#e2d3c8] bg-white text-[var(--hb-text-strong)] hover:border-[#a77b74]"
               }`}
             >
@@ -315,7 +315,7 @@ function VoteForm({
         type="button"
         disabled={!ready || submitting}
         onClick={onSubmit}
-        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--hb-primary)] px-5 text-[15px] font-bold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
+        className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--hb-primary)] px-5 text-[15px] font-bold text-white shadow-[var(--shadow-raised)] transition hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
       >
         {submitting
           ? "선택을 남기는 중..."
@@ -344,7 +344,7 @@ function WeddingCase({
   onSubmit: () => void;
 }) {
   return (
-    <article className="overflow-hidden rounded-[24px] border border-[#e2d3c8] bg-white shadow-[0_18px_50px_rgba(36,56,50,0.08)]">
+    <article className="overflow-hidden rounded-[24px] border border-[#e2d3c8] bg-white shadow-[var(--shadow-overlay)]">
       <header className="bg-[linear-gradient(135deg,#243832_0%,#36534e_100%)] px-5 py-6 text-white sm:px-8">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-[11px] font-bold text-white/85">
@@ -686,7 +686,7 @@ export default function WeddingCourtClient() {
             </p>
           </div>
         ) : loginRequired ? (
-          <div className="rounded-[24px] border border-[#e2d3c8] bg-white px-6 py-12 text-center shadow-[0_18px_50px_rgba(36,56,50,0.08)]">
+          <div className="rounded-[24px] border border-[#e2d3c8] bg-white px-6 py-12 text-center shadow-[var(--shadow-overlay)]">
             <LockKeyhole className="mx-auto h-7 w-7 text-[#8f6662]" aria-hidden />
             <h2 className="mt-4 text-[21px] font-extrabold text-[var(--hb-text-strong)]">
               로그인하고 내 선택을 남겨보세요

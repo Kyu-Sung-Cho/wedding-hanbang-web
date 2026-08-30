@@ -105,7 +105,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
       <nav
         className={`fixed top-0 left-0 right-0 z-[1000] px-[clamp(16px,5vw,60px)] h-[72px] flex items-center justify-between transition-all duration-500 ${
           scrolled || menuOpen
-            ? "bg-[var(--hb-surface-page)]/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[0_1px_0_rgba(0,0,0,0.04)]"
+            ? "bg-[var(--hb-surface-page)]/92 backdrop-blur-[20px] backdrop-saturate-[180%] shadow-[var(--shadow-raised)]"
             : ""
         }`}
       >
@@ -137,7 +137,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
           )}
           <a
             href={loginHref}
-            className="px-6 py-2.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white rounded-[6px] text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[0_10px_24px_rgba(38,37,31,0.07)]"
+            className="px-6 py-2.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white rounded-[6px] text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[var(--shadow-raised)]"
           >
             시작하기
           </a>
@@ -178,7 +178,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
 
       {/* 모바일 슬라이드 다운 메뉴 */}
       <div
-        className={`fixed top-[72px] left-0 right-0 z-[999] bg-[var(--hb-surface-page)]/98 backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.08)] overflow-hidden transition-all duration-300 ease-in-out md:hidden ${
+        className={`fixed top-[72px] left-0 right-0 z-[999] bg-[var(--hb-surface-page)]/98 backdrop-blur-xl shadow-[var(--shadow-raised)] overflow-hidden transition-all duration-300 ease-in-out md:hidden ${
           menuOpen
             ? "max-h-[calc(100vh-72px)] opacity-100"
             : "max-h-0 opacity-0"
@@ -205,7 +205,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
             <a
               href={loginHref}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center justify-center gap-2 w-full py-3.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white rounded-[6px] text-[14px] font-medium no-underline transition-all shadow-[0_10px_24px_rgba(38,37,31,0.07)]"
+              className="flex items-center justify-center gap-2 w-full py-3.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white rounded-[6px] text-[14px] font-medium no-underline transition-all shadow-[var(--shadow-raised)]"
             >
               서비스 시작하기
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

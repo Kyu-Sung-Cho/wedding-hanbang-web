@@ -13,7 +13,7 @@ export default function CommunityConfigurationUnavailable({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
       <section
-        className="rounded-[28px] border border-[var(--hb-hairline)] bg-white px-6 py-10 text-center shadow-[0_16px_42px_rgba(8,22,38,0.06)] sm:px-10"
+        className="rounded-[28px] border border-[var(--hb-hairline)] bg-white px-6 py-10 text-center shadow-[var(--shadow-overlay)] sm:px-10"
         role="status"
         aria-live="polite"
       >

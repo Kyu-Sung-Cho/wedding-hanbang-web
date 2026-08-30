@@ -212,7 +212,7 @@ export default function CalendarView({
                   <button
                     key={evt.id}
                     onClick={() => onEditEvent(evt)}
-                    className="w-full rounded-xl bg-white p-3.5 text-left transition-shadow hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)]"
+                    className="w-full rounded-xl bg-white p-3.5 text-left transition-shadow hover:shadow-[var(--shadow-raised)]"
                   >
                     <div className="flex items-start gap-3">
                       <div className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />

@@ -63,7 +63,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       {isOpen && <div className="fixed inset-0 z-40 bg-[#061a34]/35 backdrop-blur-sm md:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[16rem] flex-col border-r border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[0_14px_38px_rgba(8,22,38,0.06)] transition-transform duration-300 ${
+        className={`fixed left-0 top-0 z-50 flex h-screen w-[16rem] flex-col border-r border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[var(--shadow-raised)] transition-transform duration-300 ${
           isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
         }`}
       >
@@ -94,7 +94,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   data-tutorial-target={item.tutorialTarget}
                   className={`flex items-center gap-3 rounded-[14px] px-4 py-3 text-[14px] font-semibold transition-colors ${
                     isActive
-                      ? "bg-[#061a34] text-white shadow-[0_10px_24px_rgba(6,26,52,0.12)]"
+                      ? "bg-[#061a34] text-white shadow-[var(--shadow-raised)]"
                       : "text-[#34445a] hover:bg-white hover:text-[#9d6f36]"
                   }`}
                 >

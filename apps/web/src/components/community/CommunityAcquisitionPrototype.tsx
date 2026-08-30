@@ -166,7 +166,7 @@ function SearchBox({
   return (
     <form
       onSubmit={submit}
-      className={`flex min-h-14 items-center gap-3 rounded-full border p-1.5 pl-5 shadow-[0_16px_50px_rgba(36,56,50,0.10)] ${
+      className={`flex min-h-14 items-center gap-3 rounded-full border p-1.5 pl-5 shadow-[var(--shadow-overlay)] ${
         dark
           ? "border-white/20 bg-white text-[var(--hb-text-strong)]"
           : "border-[#ddd3c5] bg-white text-[var(--hb-text-strong)]"
@@ -278,7 +278,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
               </p>
               <CaseLink
                 item={cases[0]}
-                className="relative block rounded-[28px] border border-[#d9cfc1] bg-[#fffdf8] p-6 shadow-[0_24px_80px_rgba(36,56,50,0.12)] transition-transform hover:-translate-y-1 sm:p-8"
+                className="relative block rounded-[28px] border border-[#d9cfc1] bg-[#fffdf8] p-6 shadow-[var(--shadow-overlay)] transition-transform hover:-translate-y-1 sm:p-8"
               />
               <p className="mt-3 text-center font-sans text-[11px] text-[#89857e]">
                 {total > 0 ? `현재 확인할 수 있는 글 ${total.toLocaleString("ko-KR")}개` : "구조 확인용 예시 콘텐츠"}
@@ -619,7 +619,7 @@ function PrototypeSwitcher({ current }: { current: CommunityPrototypeVariant }) 
   return (
     <nav
       aria-label="커뮤니티 프로토타입 시안 전환"
-      className="fixed bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/20 bg-[#172723]/95 p-1.5 font-sans text-white shadow-[0_18px_50px_rgba(0,0,0,0.28)] backdrop-blur"
+      className="fixed bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-1 rounded-full border border-white/20 bg-[#172723]/95 p-1.5 font-sans text-white shadow-[var(--shadow-overlay)] backdrop-blur"
     >
       <button
         type="button"

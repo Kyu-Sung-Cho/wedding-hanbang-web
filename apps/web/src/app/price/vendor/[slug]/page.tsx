@@ -608,7 +608,7 @@ export default async function VendorPricePage({
           ) : null}
         </section>
 
-        <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[var(--hb-primary)]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[var(--hb-text-strong)] shadow-[0_-8px_24px_rgba(36,56,50,0.08)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
+        <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[var(--hb-primary)]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
           <p>가격 출처: 한국소비자원 참가격 · {disclosureRoundLabel()} 공시 기준</p>
           <p>본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.</p>
         </aside>

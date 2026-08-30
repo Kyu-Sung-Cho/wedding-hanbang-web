@@ -70,7 +70,7 @@ export default function CommunityNav({
           )}
           <Link
             {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[6px] bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[6px] bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5"
           >
             고민 올리기
             <PenSquare className="h-4 w-4" />

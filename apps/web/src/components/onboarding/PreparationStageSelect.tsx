@@ -44,7 +44,7 @@ export default function PreparationStageSelect({
             aria-pressed={selected === option.value}
             className={`w-full px-5 py-4 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-left ${
               selected === option.value
-                ? "border-rose-500 bg-rose-500/5 shadow-[0_4px_16px_rgba(121,82,82,0.15)]"
+                ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                 : "border-black/[0.06] bg-white hover:border-black/[0.12]"
             }`}
           >

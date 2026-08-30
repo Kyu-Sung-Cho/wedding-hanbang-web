@@ -61,7 +61,7 @@ export default function DemoPage() {
           <h2 id="preview-heading" className="sr-only">아모라 기능 원칙</h2>
           <div className="grid gap-5 md:grid-cols-2">
             {previews.map((preview) => (
-              <article key={preview.eyebrow} className="rounded-3xl border border-black/[0.06] bg-white p-7 shadow-[0_16px_45px_rgba(27,28,28,0.05)] sm:p-9">
+              <article key={preview.eyebrow} className="rounded-3xl border border-black/[0.06] bg-white p-7 shadow-[var(--shadow-overlay)] sm:p-9">
                 <p className="text-xs font-semibold tracking-[0.14em] text-[var(--color-rose-700)]">{preview.eyebrow}</p>
                 <h3 className="mt-4 font-serif-kr text-2xl font-medium leading-snug">{preview.title}</h3>
                 <p className="mt-4 text-sm leading-7 text-charcoal">{preview.description}</p>

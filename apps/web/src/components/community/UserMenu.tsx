@@ -94,7 +94,7 @@ export default function UserMenu() {
         {open && (
           <div
             role="menu"
-            className="absolute right-0 top-full mt-2 w-64 bg-white border border-[#F0EFED] rounded-2xl shadow-[0_12px_40px_rgba(26,26,31,0.12)] overflow-hidden z-50 animate-fade-in"
+            className="absolute right-0 top-full mt-2 w-64 bg-white border border-[#F0EFED] rounded-2xl shadow-[var(--shadow-raised)] overflow-hidden z-50 animate-fade-in"
           >
             <div className="py-1.5">
               {items.map((item) => {

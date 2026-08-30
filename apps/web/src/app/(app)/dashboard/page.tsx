@@ -402,11 +402,11 @@ export default function DashboardPage() {
       {joinedHandoffVisible && partner && (
         <section
           data-testid="joined-plan-handoff"
-          className="rounded-[20px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[0_12px_34px_rgba(54,83,78,0.08)] md:p-6"
+          className="rounded-[20px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
           aria-labelledby="joined-plan-title"
         >
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
               <HeartHandshake className="h-5 w-5" />
             </span>
             <div className="min-w-0">
@@ -461,7 +461,7 @@ export default function DashboardPage() {
         </section>
       )}
       {couple && !partner && (inviteCode || inviteCodeError) && (
-        <section className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+        <section className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-[15px] font-semibold text-[#071629]">
@@ -504,7 +504,7 @@ export default function DashboardPage() {
 
       {/* 결혼식 날짜가 없으면 첫 행동 하나를, 있으면 이번 주 내용을 보여준다. */}
       {!journey?.wedding_date ? (
-        <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
+        <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)] md:p-6">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
             시작하기
             <Sparkles className="h-4 w-4" />
@@ -541,7 +541,7 @@ export default function DashboardPage() {
       )}
 
       <section className="grid gap-4 lg:grid-cols-2" data-tutorial-target="dashboard-hero">
-        <div className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
+        <div className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
           <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
             {companionCopy.loungeLabel}
             <Sparkles className="h-4 w-4" />
@@ -560,7 +560,7 @@ export default function DashboardPage() {
         </div>
 
         <div
-          className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-[var(--hb-primary)] p-4 text-white shadow-[0_14px_36px_rgba(54,83,78,0.13)] md:p-5"
+          className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-[var(--hb-primary)] p-4 text-white shadow-[var(--shadow-raised)] md:p-5"
           data-tutorial-target="dashboard-briefing"
         >
           <div className="mb-3 flex items-start justify-between gap-4">
@@ -617,7 +617,7 @@ export default function DashboardPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-colors hover:border-[#d8bb86] sm:p-4"
+            className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[var(--shadow-raised)] transition-colors hover:border-[#d8bb86] sm:p-4"
           >
             <span className="flex items-center justify-between gap-3">
               <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)] sm:h-9 sm:w-9">
@@ -635,7 +635,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid items-stretch gap-4 lg:grid-cols-[1.28fr_0.72fr]" data-tutorial-target="dashboard-dday-budget">
-        <div className="h-full rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+        <div className="h-full rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
@@ -660,7 +660,7 @@ export default function DashboardPage() {
                   className="group rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-3 text-left transition-colors hover:border-[#d8bb86] hover:bg-white"
                 >
                   <span className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
                         <Icon className="h-4 w-4" />
                       </span>
                     <span className="min-w-0 flex-1">
@@ -690,7 +690,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid h-full gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-[0.92fr_1.08fr]">
-          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
@@ -728,7 +728,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+          <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
@@ -864,7 +864,7 @@ function CategoryPanel({
   };
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#061a34]/45 px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
-      <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.22)]">
+      <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)]">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[#fff8ec] p-5">
           <div className="flex items-start gap-4">
             <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">

@@ -68,7 +68,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
   }, [weddingDate, totalBudget, progress, actions]);
 
   return (
-    <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
+    <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
           이번 주 한 장

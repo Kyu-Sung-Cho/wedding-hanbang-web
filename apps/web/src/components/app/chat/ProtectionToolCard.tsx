@@ -124,7 +124,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
         <div className="bg-[#1A1A1F] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -299,7 +299,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
         <div className="bg-[#2F5F51] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

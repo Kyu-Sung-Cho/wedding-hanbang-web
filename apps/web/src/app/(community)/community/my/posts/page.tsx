@@ -191,7 +191,7 @@ export default function MyPostsPage() {
       </div>
 
       {profile && (
-        <section className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-white px-5 py-4 shadow-[0_8px_22px_rgba(8,22,38,0.035)]">
+        <section className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-white px-5 py-4 shadow-[var(--shadow-raised)]">
           <div className="flex items-start gap-4">
             <Avatar
               nickname={nicknameInput || profile.nickname}

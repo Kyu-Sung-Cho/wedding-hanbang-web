@@ -444,7 +444,7 @@ export default function OnboardingPage() {
         )}
 
         {/* 카드 */}
-        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
           {capabilitiesFailed ? (
             <div className="py-10 text-center" role="alert">
               <p className="text-[15px] text-[var(--hb-text-strong)]">
@@ -599,7 +599,7 @@ export default function OnboardingPage() {
                     store.nextStep();
                   }}
                   disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[0_10px_24px_rgba(38,37,31,0.07)] hover:shadow-[0_10px_24px_rgba(38,37,31,0.07)] disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   {store.currentStep === 2 && store.coupleAction === "join"
                     ? loading ? "연결 중..." : "파트너와 연결하기"
@@ -620,7 +620,7 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => setStagePhase("detail")}
                   disabled={!canProceed()}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[0_10px_24px_rgba(38,37,31,0.07)] hover:shadow-[0_10px_24px_rgba(38,37,31,0.07)] disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   다음
                 </button>
@@ -630,7 +630,7 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => void handleSubmit()}
                   disabled={loading}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[0_10px_24px_rgba(38,37,31,0.07)] hover:shadow-[0_10px_24px_rgba(38,37,31,0.07)] disabled:opacity-50"
+                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-50"
                 >
                   {loading ? "저장 중..." : "저장하고 시작하기"}
                 </button>
@@ -665,7 +665,7 @@ export default function OnboardingPage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-[400px] rounded-3xl bg-white p-8 text-center shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[400px] rounded-3xl bg-white p-8 text-center shadow-[var(--shadow-overlay)]"
             >
               <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-2xl">
                 🤝
@@ -720,7 +720,7 @@ export default function OnboardingPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-3xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)] text-center"
+              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-3xl p-6 sm:p-8 shadow-[var(--shadow-overlay)] text-center"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-rose-500/10 flex items-center justify-center">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#26251F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

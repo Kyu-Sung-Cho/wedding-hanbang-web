@@ -246,7 +246,7 @@ export default function TimelineView({
             />
 
             {/* 페이즈 카드 */}
-            <div className="w-full overflow-hidden rounded-[14px] border border-[var(--hb-hairline)]/70 bg-white shadow-[0_6px_18px_rgba(8,22,38,0.03)] transition-shadow hover:shadow-[0_8px_24px_rgba(8,22,38,0.055)]">
+            <div className="w-full overflow-hidden rounded-[14px] border border-[var(--hb-hairline)]/70 bg-white shadow-[var(--shadow-raised)] transition-shadow hover:shadow-[var(--shadow-raised)]">
               {/* 페이즈 헤더 */}
               <button
                 type="button"
@@ -453,7 +453,7 @@ export default function TimelineView({
             className="relative pl-12 mb-4 max-md:pl-10 animate-fade-in"
           >
             <div className="absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] border-[#C9A96E] bg-white max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]" />
-            <div className="w-full bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+            <div className="w-full bg-white rounded-xl shadow-[var(--shadow-raised)] overflow-hidden">
               <div className="flex items-center justify-between px-6 py-5">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-[#C9A96E] bg-[#C9A96E]/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>

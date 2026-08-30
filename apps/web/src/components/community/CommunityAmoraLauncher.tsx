@@ -85,7 +85,7 @@ export default function CommunityAmoraLauncher() {
         <button
           type="button"
           onClick={handleOpenAmora}
-          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] text-[var(--hb-text-strong)] shadow-[0_12px_30px_rgba(54,83,78,0.16)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--hb-surface-hover)] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--hb-surface-hover)] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
           // 투어 타겟(landing-amora)은 2026-07-29에 랜딩의 아모라 블록으로 옮겼다.
@@ -102,7 +102,7 @@ export default function CommunityAmoraLauncher() {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#071629]/35 px-4 backdrop-blur-sm">
           <div
             ref={loginPromptRef}
-            className="w-full max-w-[420px] rounded-[22px] border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] p-5 shadow-[0_24px_70px_rgba(8,22,38,0.18)]"
+            className="w-full max-w-[420px] rounded-[22px] border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] p-5 shadow-[var(--shadow-overlay)]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="community-amora-login-title"
@@ -138,7 +138,7 @@ export default function CommunityAmoraLauncher() {
             <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto]">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2f4944]"
+                className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2f4944]"
               >
                 <LogIn className="h-4 w-4" />
                 로그인하기

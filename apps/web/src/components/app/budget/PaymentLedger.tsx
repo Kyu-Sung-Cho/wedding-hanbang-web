@@ -136,7 +136,7 @@ export default function PaymentLedger() {
 
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white shadow-[0_8px_24px_rgba(8,22,38,0.035)]"
+      className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white shadow-[var(--shadow-raised)]"
       aria-labelledby="payment-ledger-title"
     >
       <div className="border-b border-[var(--hb-hairline)] p-4 sm:p-5">

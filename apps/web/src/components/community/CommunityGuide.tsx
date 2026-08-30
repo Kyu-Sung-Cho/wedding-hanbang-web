@@ -480,7 +480,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
       <button
         onClick={handleStart}
-        className="w-full max-w-[340px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all mb-3"
+        className="w-full max-w-[340px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-2xl shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all mb-3"
       >
         커뮤니티 둘러보기
       </button>

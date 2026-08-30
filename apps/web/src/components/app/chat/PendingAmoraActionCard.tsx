@@ -601,7 +601,7 @@ export default function PendingAmoraActionCard({
       aria-describedby={`${detailId}${disabledReason ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
       }`}
-      className="ml-11 mt-2 max-w-[94%] rounded-2xl border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[0_6px_24px_rgba(82,57,45,0.07)] sm:ml-14 sm:max-w-[53.75rem]"
+      className="ml-11 mt-2 max-w-[94%] rounded-2xl border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem]"
     >
       <div className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#F2E8DE] text-[#795252]" aria-hidden="true">

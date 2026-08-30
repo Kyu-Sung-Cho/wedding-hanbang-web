@@ -143,7 +143,7 @@ function GlobalChatAssistant() {
           {showBubble && (
             <div
               data-testid="amora-first-hello-bubble"
-              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-2xl border border-[var(--hb-hairline)] bg-white p-3 shadow-[0_14px_34px_rgba(6,26,52,0.14)] md:bottom-[6.5rem] md:right-6"
+              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-2xl border border-[var(--hb-hairline)] bg-white p-3 shadow-[var(--shadow-raised)] md:bottom-[6.5rem] md:right-6"
             >
               <button
                 type="button"
@@ -172,7 +172,7 @@ function GlobalChatAssistant() {
             type="button"
             onClick={openPanel}
             data-tutorial-target="amora-fab"
-            className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[0_14px_34px_rgba(6,26,52,0.2)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
+            className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
             title="아모라 AI 상담"
             aria-label="아모라 AI 상담"
           >

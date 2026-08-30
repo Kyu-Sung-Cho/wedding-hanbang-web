@@ -60,7 +60,7 @@ export default function EmptyFeedStarter({
 }: EmptyFeedStarterProps) {
   return (
     <div className="space-y-3">
-      <section className="rounded-[16px] border border-[var(--hb-hairline)] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.035)] sm:p-5">
+      <section className="rounded-[16px] border border-[var(--hb-hairline)] bg-white p-4 shadow-[var(--shadow-raised)] sm:p-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-[#EEF4F1] px-2.5 py-1 text-xs font-medium text-[var(--hb-text-strong)]">
@@ -76,7 +76,7 @@ export default function EmptyFeedStarter({
           </div>
           <Link
             href={weddingPath("/community/post/write")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[var(--hb-primary-hover)]"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)]"
           >
             글쓰기
             <ChevronRight className="h-4 w-4" />
@@ -91,7 +91,7 @@ export default function EmptyFeedStarter({
             <Link
               key={item.href}
               href={item.href}
-              className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white p-4 shadow-[0_8px_18px_rgba(8,22,38,0.03)] transition-colors hover:border-[#dfc9c1] hover:bg-[var(--hb-surface-hover)]"
+              className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white p-4 shadow-[var(--shadow-raised)] transition-colors hover:border-[#dfc9c1] hover:bg-[var(--hb-surface-hover)]"
             >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#EEF4F1] text-[var(--hb-text-strong)]">

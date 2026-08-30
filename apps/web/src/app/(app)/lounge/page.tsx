@@ -579,11 +579,11 @@ export default function LoungePage() {
       {showJoinedHandoff && (
         <section
           data-testid="joined-plan-handoff"
-          className="rounded-[22px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[0_14px_36px_rgba(54,83,78,0.09)] md:p-6"
+          className="rounded-[22px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
           aria-labelledby="joined-plan-title"
         >
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
               <HeartHandshake className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -646,7 +646,7 @@ export default function LoungePage() {
         </div>
       )}
       <section className="grid gap-4 lg:grid-cols-[1.12fr_0.88fr]">
-        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
+        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
@@ -702,7 +702,7 @@ export default function LoungePage() {
         {/* 첫 실행 투어의 "여기부터 보시면 돼요" — 오늘 챙길 것 하나가 올라오는 자리다. */}
         <div
           data-tutorial-target="lounge-focus"
-          className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[0_16px_38px_rgba(54,83,78,0.16)] md:p-6"
+          className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)] md:p-6"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -749,7 +749,7 @@ export default function LoungePage() {
         data-tutorial-target="lounge-tools"
         className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
       >
-        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">준비 흐름</p>
@@ -1021,7 +1021,7 @@ function BudgetPanel({
           : "안정";
 
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
@@ -1062,7 +1062,7 @@ function BudgetPanel({
 
 function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
@@ -1094,7 +1094,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
 
 function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading: boolean }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">커뮤니티 참고글</p>
@@ -1135,7 +1135,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
 
 function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">동기방</p>

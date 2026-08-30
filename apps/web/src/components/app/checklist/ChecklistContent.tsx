@@ -212,7 +212,7 @@ export default function ChecklistContent() {
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
               return (
-                <li key={template.key} className="rounded-[18px] border border-[#e5dece] bg-white p-4 shadow-[0_8px_24px_rgba(6,26,52,0.035)]">
+                <li key={template.key} className="rounded-[18px] border border-[#e5dece] bg-white p-4 shadow-[var(--shadow-raised)]">
                   <button
                     type="button"
                     onClick={() => selectCategory(template.key)}

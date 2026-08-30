@@ -581,7 +581,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
   const imminentPanel =
     imminentCategories.length > 0 ? (
-  <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+  <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
     <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
       기본 일정 확인
     </h3>
@@ -594,7 +594,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     ) : null;
 
   const upcomingPanel = (
-    <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+    <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
           다가오는 일정
@@ -617,7 +617,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               key={evt.id}
               className="group flex items-start gap-3 rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[#fffdf7] p-3 transition-colors hover:bg-white"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_12px_rgba(8,22,38,0.04)]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
                 <CalendarDays className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -731,7 +731,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {/* 3-column Stat Row */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 animate-fade-in">
           {/* D-day */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
             <Sparkles className="absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               D-DAY
@@ -751,7 +751,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
 
           {/* Progress */}
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               PROGRESS
             </p>
@@ -770,7 +770,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
 
           {/* Upcoming count */}
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5">
+          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               UPCOMING
             </p>
@@ -790,7 +790,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           {hasUpcoming ? upcomingPanel : imminentPanel}
 
           {/* Left: View toggle + Timeline/Calendar (2 cols) */}
-          <div className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)]">
+          <div className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
             {/* View toggle header */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--hb-hairline)] px-4 py-3 md:px-5">
               <div className="inline-flex rounded-[14px] bg-[#f7f3ec] p-1">
@@ -820,7 +820,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               <button
                 onClick={handleAddEventQuick}
                 disabled={Boolean(eventMutationBlockReason)}
-                className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
                 일정 추가
@@ -857,7 +857,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {cancelledEvents.length > 0 && (
           <section
             aria-labelledby="cancelled-schedule-heading"
-            className="rounded-[18px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] md:p-5"
+            className="rounded-[18px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] md:p-5"
           >
             <div className="mb-3">
               <h3
@@ -1003,7 +1003,7 @@ export function ChecklistSchedulePrompt({
         onClick={onClose}
         className="fixed inset-0 z-50 animate-fade-in bg-[#1A1A1F]/40 backdrop-blur-sm"
       />
-      <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white shadow-[0_24px_70px_rgba(6,26,52,0.2)] animate-fade-in">
+      <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] animate-fade-in">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[#fffdf7] px-6 py-5">
           <div>
             <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">

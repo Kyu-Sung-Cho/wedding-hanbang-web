@@ -889,7 +889,7 @@ function PostWriteContent() {
 
         {/* 모드 토글 — 일반 글 / 인스타 캐러셀(카드 게시물) */}
         {!isGuidedQuestionFlow && MEDIA_PUBLISHING_UI_ENABLED && (
-        <div className="mb-6 inline-flex bg-white border border-[var(--hb-hairline)] rounded-full p-1 shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
+        <div className="mb-6 inline-flex bg-white border border-[var(--hb-hairline)] rounded-full p-1 shadow-[var(--shadow-raised)]">
           <button
             type="button"
             onClick={() => setPostMode("regular")}
@@ -919,7 +919,7 @@ function PostWriteContent() {
           {/* 메인 영역: 제목 + 본문 */}
           <div className="min-w-0 space-y-7">
             {/* 제목 */}
-            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
               <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-2.5">
                 {isGuidedQuestionFlow ? "지금 막힌 일" : "제목"}{" "}
                 <span className="text-[var(--hb-text-strong)]">*</span>
@@ -943,7 +943,7 @@ function PostWriteContent() {
 
             {/* 카드 게시물(인스타 캐러셀) 빌더 — 슬라이드 모드 전용 */}
             {MEDIA_PUBLISHING_UI_ENABLED && postMode === "slides" && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                   슬라이드 <span className="text-[var(--hb-text-strong)]">*</span>
                 </label>
@@ -952,7 +952,7 @@ function PostWriteContent() {
             )}
 
             {/* 작성/미리보기 탭 */}
-            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
               <div className="flex items-center justify-between mb-3">
                 <label className="text-sm font-semibold text-[var(--hb-text-strong)]">
                   {postMode === "slides" ? (
@@ -1154,7 +1154,7 @@ function PostWriteContent() {
 
             {/* 이미지 업로드 — 일반 글 모드 전용 (카드 게시물은 SlideBuilder가 담당) */}
             {MEDIA_PUBLISHING_UI_ENABLED && !isGuidedQuestionFlow && postMode === "regular" && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                   이미지
                 </label>
@@ -1164,7 +1164,7 @@ function PostWriteContent() {
 
             {/* 투표 (폴) — 수정 모드에서는 비활성화. 카드 게시물도 폴 없이 깔끔하게 유지. */}
             {!isEditMode && !isGuidedQuestionFlow && postMode === "regular" && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <PollEditor
                   value={poll}
                   onChange={setPoll}
@@ -1176,7 +1176,7 @@ function PostWriteContent() {
             {!MEDIA_PUBLISHING_UI_ENABLED
               && isEditMode
               && (images.length > 0 || slides.length > 0 || inlineImages.length > 0) && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <p className="text-sm font-semibold text-[var(--hb-text-strong)]">기존 미디어</p>
                 <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                   지금은 새 미디어를 추가하거나 바꿀 수 없어요. 기존 첨부는
@@ -1207,7 +1207,7 @@ function PostWriteContent() {
           <div className="min-w-0 space-y-5 xl:space-y-6">
             {/* 카테고리 선택 */}
             {!isGuidedQuestionFlow && (
-            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
               <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                 카테고리 <span className="text-[var(--hb-text-strong)]">*</span>
               </label>
@@ -1236,7 +1236,7 @@ function PostWriteContent() {
             )}
 
             {/* 공개 범위 */}
-            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
               <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                 공개 범위
               </label>
@@ -1297,7 +1297,7 @@ function PostWriteContent() {
 
             {/* 태그 */}
             {!isGuidedQuestionFlow && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                   태그
                 </label>
@@ -1307,7 +1307,7 @@ function PostWriteContent() {
 
             {/* 업체 태그 (카테고리가 허용하는 경우) */}
             {!isGuidedQuestionFlow && categoryInfo?.allowVendorTags && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                   업체 태그
                 </label>
@@ -1317,7 +1317,7 @@ function PostWriteContent() {
 
             {/* 광고 표시 */}
             {!isGuidedQuestionFlow && (
-            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+            <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
               <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                 광고·협찬 포함 여부
               </label>
@@ -1386,7 +1386,7 @@ function PostWriteContent() {
             {/* 가격 정보 폼 — 가격이 오갈 수 있는 카테고리 전체에 노출 (아모라 시세 코멘트 트리거) */}
             {!isGuidedQuestionFlow
               && (category === "is_normal" || category === "tour_review" || category === "tips_v2") && (
-              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+              <section className="bg-white border border-transparent rounded-2xl p-5 sm:p-6 shadow-[var(--shadow-raised)]">
                 <label className="block text-sm font-semibold text-[var(--hb-text-strong)] mb-3">
                   {category === "is_normal" ? "가격 질문 (선택)" : "가격 정보 (선택)"}
                 </label>
@@ -1421,7 +1421,7 @@ function PostWriteContent() {
               type="button"
               onClick={() => handleSubmit(false)}
               disabled={isSubmitting || !isValid}
-              className="flex items-center justify-center gap-2 px-8 py-3 text-sm font-semibold text-white bg-[var(--hb-primary)] rounded-xl hover:bg-[var(--hb-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
+              className="flex items-center justify-center gap-2 px-8 py-3 text-sm font-semibold text-white bg-[var(--hb-primary)] rounded-xl hover:bg-[var(--hb-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[var(--shadow-raised)]"
             >
               {isSubmitting ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -1463,7 +1463,7 @@ function PostWriteContent() {
             type="button"
             onClick={() => handleSubmit(false)}
             disabled={isSubmitting || !isValid}
-            className="flex-1 flex items-center justify-center gap-2 py-3 text-base font-medium text-white bg-[var(--hb-primary)] rounded-lg hover:bg-[var(--hb-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[0_4px_14px_0_rgba(6,26,52,0.2)]"
+            className="flex-1 flex items-center justify-center gap-2 py-3 text-base font-medium text-white bg-[var(--hb-primary)] rounded-lg hover:bg-[var(--hb-primary-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-[var(--shadow-raised)]"
           >
             {isSubmitting ? (
               <Loader2 className="w-4 h-4 animate-spin" />

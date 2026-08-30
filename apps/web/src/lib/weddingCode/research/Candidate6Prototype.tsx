@@ -112,7 +112,7 @@ const VISUAL_BIPOLAR_SHORT_LABELS: Record<Candidate6BipolarDirection, string> = 
 };
 
 const surface =
-  "rounded-[24px] border border-[#EFE4D7] bg-white shadow-[0_18px_50px_rgba(36,56,50,0.07)]";
+  "rounded-[24px] border border-[#EFE4D7] bg-white shadow-[var(--shadow-overlay)]";
 const primaryButton =
   "no-min-tap inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[#243832] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] focus-visible:ring-offset-2 ease-out active:-translate-y-[4px] active:scale-[1.015] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
@@ -1355,7 +1355,7 @@ function ContentsSheet({
         role="dialog"
         aria-modal="true"
         aria-labelledby={`${CONTENTS_SHEET_ID}-title`}
-        className="c6-sheet-in fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[0_-18px_50px_rgba(36,56,50,0.12)]"
+        className="c6-sheet-in fixed inset-x-0 bottom-0 z-20 rounded-t-[20px] border-t border-[#EFE4D7] bg-white px-4 py-5 shadow-[var(--shadow-raised)]"
       >
         <p
           id={`${CONTENTS_SHEET_ID}-title`}

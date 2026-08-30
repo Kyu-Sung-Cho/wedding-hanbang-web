@@ -277,7 +277,7 @@ function StateCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[0_12px_34px_rgba(36,56,50,0.055)] sm:px-8">
+    <section className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         {icon}
       </span>

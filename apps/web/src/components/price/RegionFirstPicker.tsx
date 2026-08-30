@@ -26,7 +26,7 @@ export function RegionFirstPicker({ counts, totalCount, onSelect }: RegionFirstP
       aria-labelledby="region-first-heading"
       className="mx-auto max-w-6xl px-4 pt-5 sm:px-6 sm:pt-7"
     >
-      <div className="rounded-[24px] border border-[#8F6662]/20 bg-white p-5 shadow-[0_12px_34px_rgba(36,56,50,0.045)] sm:p-6">
+      <div className="rounded-[24px] border border-[#8F6662]/20 bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
         <p className="inline-flex items-center gap-1.5 text-xs font-bold text-[#8F5150]">
           <MapPin aria-hidden="true" className="size-3.5" />
           먼저 지역부터

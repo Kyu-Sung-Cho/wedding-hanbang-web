@@ -20,7 +20,7 @@ export function AmoraQuickStart({
   return (
     <section
       aria-labelledby="amora-quick-start-title"
-      className="mx-auto w-full max-w-[53.75rem] rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4 shadow-[0_8px_24px_rgba(54,83,78,0.06)] sm:p-5"
+      className="mx-auto w-full max-w-[53.75rem] rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="mb-4 flex items-start gap-3">
         <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--hb-primary)] text-white">

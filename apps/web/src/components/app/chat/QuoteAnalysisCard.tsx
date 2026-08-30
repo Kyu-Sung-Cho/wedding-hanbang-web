@@ -118,7 +118,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
   const answeredCount = Object.values(itemStates).filter((s) => s !== "unknown").length;
 
   return (
-    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 */}
       <div className="bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-6 py-5">
         <div className="flex items-center gap-3">
@@ -302,7 +302,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
   };
 
   return (
-    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 — 판정(점수·등급) 없이 아직 확인하지 않은 항목 수만 */}
       <div className="bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] px-6 py-5">
         <div className="flex items-center justify-between">

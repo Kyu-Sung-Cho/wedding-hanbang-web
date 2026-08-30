@@ -372,7 +372,7 @@ export default function AmoraMemorySettingsPage() {
               기억 엔진을 운영 환경에 안전하게 연결하는 중이에요. 지금은 기존 기억을 확인·수정·삭제할 수 있고, 새로 켜기는 최종 점검 후 열려요.
             </p>
           )}
-          <section className="mb-5 rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] sm:p-6">
+          <section className="mb-5 rounded-2xl bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -435,7 +435,7 @@ export default function AmoraMemorySettingsPage() {
             </section>
           )}
 
-          <section className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <section className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-raised)]">
             <div className="flex items-center justify-between gap-3 border-b border-[#F0ECE9] px-5 py-4 sm:px-6">
               <div>
                 <h2 className="font-medium text-[var(--hb-text-strong)]">정리된 기억 {memories.length}개</h2>

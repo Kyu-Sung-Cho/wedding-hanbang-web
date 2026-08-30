@@ -706,7 +706,7 @@ export function PriceExplorer({
               </p>
             </div>
             {!preview ? (
-              <button type="button" onClick={() => setShowBudgetFinder(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[#8F6662] px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,102,98,0.18)] hover:bg-[#7C5754]">
+              <button type="button" onClick={() => setShowBudgetFinder(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[#8F6662] px-5 text-sm font-bold text-white shadow-[var(--shadow-raised)] hover:bg-[#7C5754]">
                 <Calculator aria-hidden="true" className="size-4" />
                 내 예산으로 조합 찾기
               </button>
@@ -762,7 +762,7 @@ export function PriceExplorer({
       ) : null}
 
       <section className="mx-auto max-w-6xl px-4 py-5 sm:px-6 sm:py-7" aria-label="업체 가격 찾기">
-        <div className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white p-3 shadow-[0_12px_34px_rgba(36,56,50,0.045)] sm:p-4">
+        <div className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white p-3 shadow-[var(--shadow-raised)] sm:p-4">
           <div className="flex gap-2">
             {/* 좁은 화면에서는 여백을 줄여 입력 폭을 확보한다(오른쪽에 필터 버튼이 붙는다).
                 색은 라운지 팔레트(#243832·#B89785) 기준 — 구 팔레트(#1D3557·#B5977A)로

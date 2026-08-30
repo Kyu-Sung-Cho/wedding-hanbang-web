@@ -275,7 +275,7 @@ export default function TodayOneCard() {
   if (view.kind === "error" || view.kind === "stale") {
     return (
       <section
-        className="rounded-2xl border border-[#E2D3C8] bg-white px-5 py-4 shadow-[0_12px_32px_rgba(54,83,78,0.06)]"
+        className="rounded-2xl border border-[#E2D3C8] bg-white px-5 py-4 shadow-[var(--shadow-raised)]"
         aria-labelledby="today-one-error-title"
       >
         <div className="flex items-start gap-3">
@@ -329,7 +329,7 @@ export default function TodayOneCard() {
   const actions = new Set(card.choices.map((choice) => choice.action));
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-[#C7D1C2] bg-white shadow-[0_16px_42px_rgba(54,83,78,0.09)]"
+      className="overflow-hidden rounded-2xl border border-[#C7D1C2] bg-white shadow-[var(--shadow-overlay)]"
       aria-labelledby="today-one-title"
     >
       <div className="bg-[var(--hb-primary)] px-5 py-5 text-white md:px-6">

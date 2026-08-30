@@ -24,7 +24,7 @@ type SelectedCohort = {
 function LoadingState() {
   return (
     <div className="min-h-[68vh] bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_52%,#f6efe5_100%)] px-4 py-8 sm:px-6 lg:py-12">
-      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
@@ -59,7 +59,7 @@ function LoadingState() {
           <button
             type="button"
             disabled
-            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white opacity-80 shadow-[0_10px_24px_rgba(54,83,78,0.18)]"
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white opacity-80 shadow-[var(--shadow-raised)]"
           >
             <Loader2 className="h-4 w-4 animate-spin" />
             입장 준비 중
@@ -217,7 +217,7 @@ function CohortIndexInner() {
 
   return (
     <div className="min-h-[68vh] bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_52%,#f6efe5_100%)] px-4 py-8 sm:px-6 lg:py-12">
-      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
@@ -251,7 +251,7 @@ function CohortIndexInner() {
 
           <Link
             href={content.href}
-            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)]"
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)]"
           >
             {content.cta}
             <ArrowRight className="h-4 w-4" />

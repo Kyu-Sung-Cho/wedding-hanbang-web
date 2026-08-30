@@ -393,7 +393,7 @@ export default function SpotlightTutorial({
               <button
                 type="button"
                 onClick={next}
-                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] transition-all"
+                className="flex items-center gap-1 px-4 py-2 rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white text-sm font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all"
               >
                 {isLast ? "완료" : "다음"}
                 {!isLast && <ChevronRight className="h-4 w-4" />}

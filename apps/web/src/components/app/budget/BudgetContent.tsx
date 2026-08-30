@@ -139,7 +139,7 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
       {show && (
         <div
           ref={tooltipRef}
-          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[var(--hb-text-body)] rounded-xl p-3 shadow-[0_8px_30px_rgb(0,0,0,0.12)] pointer-events-none"
+          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[var(--hb-text-body)] rounded-xl p-3 shadow-[var(--shadow-raised)] pointer-events-none"
         >
           <div className="text-[11px] font-medium text-[#795252] mb-1.5 flex items-center gap-1">
             <AlertTriangle className="w-3 h-3" />
@@ -194,7 +194,7 @@ function PayerSelector({
         <span>{currentLabel}</span>
       </button>
       {open && (
-        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.08)] overflow-hidden">
+        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-xl shadow-[var(--shadow-raised)] overflow-hidden">
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -567,7 +567,7 @@ function BudgetCard({
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
-    <div className="group bg-white rounded-2xl p-4 sm:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.06)] transition-shadow">
+    <div className="group bg-white rounded-2xl p-4 sm:p-6 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow">
       {/* 상단: 아이콘 + 이름 + 상태 */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2.5 min-w-0">
@@ -1027,7 +1027,7 @@ export default function BudgetContent({
         {/* 상단 스탯 3개 - Editorial */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           {/* Total Budget */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
+          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <Sparkles className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
@@ -1104,7 +1104,7 @@ export default function BudgetContent({
           </div>
 
           {/* Spent */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
+          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <TrendingUp className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/35" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               RECORDED SPEND
@@ -1127,7 +1127,7 @@ export default function BudgetContent({
           </div>
 
           {/* Remaining */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
+          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <TrendingDown className={`pointer-events-none absolute right-4 top-4 h-5 w-5 ${isOverBudget ? "text-red-400/60" : "text-[var(--hb-text-strong)]/35"}`} />
             <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${isOverBudget ? "text-red-400" : "text-[var(--hb-text-strong)]"}`}>
               REMAINING
@@ -1185,7 +1185,7 @@ export default function BudgetContent({
 
         {/* 분담 현황 (Editorial Style) */}
         {totalSpent > 0 && (
-          <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in md:p-5">
+          <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <div className="mb-4 flex items-center gap-3">
               <Users className="h-5 w-5 text-[var(--hb-text-strong)]" />
               <div>
@@ -1236,7 +1236,7 @@ export default function BudgetContent({
         {/* 검수된 공시가 비교 안내 — /price는 베이스패스 밖 최상위 표면이라 절대 경로 */}
         <Link
           href="/price"
-          className="group flex items-center gap-4 rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 px-4 py-4 shadow-[0_8px_24px_rgba(8,22,38,0.035)] transition-shadow hover:shadow-[0_12px_32px_rgba(8,22,38,0.055)] animate-fade-in md:px-5"
+          className="group flex items-center gap-4 rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 px-4 py-4 shadow-[var(--shadow-raised)] transition-shadow hover:shadow-[var(--shadow-raised)] animate-fade-in md:px-5"
         >
           <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[14px] bg-[#f7f3ec]">
             <TrendingUp className="h-5 w-5 text-[var(--hb-text-strong)]" />
@@ -1253,7 +1253,7 @@ export default function BudgetContent({
         </Link>
 
         {/* 사진 촬영·의상·메이크업 묶음 */}
-        <div className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[0_8px_24px_rgba(8,22,38,0.035)] animate-fade-in">
+        <div className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
           <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="flex -space-x-1">
@@ -1387,7 +1387,7 @@ export default function BudgetContent({
         {/* 하단: Hidden Costs + AI Spotlight */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
           {/* 포함·별도 확인 섹션 */}
-          <div className="bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 sm:p-8">
+          <div className="bg-white rounded-2xl shadow-[var(--shadow-raised)] p-6 sm:p-8">
             <div className="flex items-start gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-[#795252]/10 flex items-center justify-center flex-shrink-0">
                 <AlertTriangle className="w-5 h-5 text-[#795252]" />
@@ -1476,7 +1476,7 @@ export default function BudgetContent({
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-            <div className="relative bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
+            <div className="relative bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
               <div className="flex items-center justify-between mb-5">
                 <h3 className="font-serif-kr text-2xl font-light text-[#1b1c1c]">새 항목 추가</h3>
                 <button
@@ -1562,7 +1562,7 @@ export default function BudgetContent({
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-              <div className="relative bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[0_8px_40px_rgb(0,0,0,0.12)]">
+              <div className="relative bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-red-400" />

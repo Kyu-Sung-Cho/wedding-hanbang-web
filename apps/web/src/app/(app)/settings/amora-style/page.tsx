@@ -316,7 +316,7 @@ export default function AmoraStyleSettingsPage() {
             {SECTIONS.map((section) => (
               <section
                 key={section.key}
-                className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6"
+                className="rounded-2xl bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6"
               >
                 <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
                   {section.title}
@@ -370,7 +370,7 @@ export default function AmoraStyleSettingsPage() {
             ))}
           </div>
 
-          <section className="sticky bottom-4 mt-5 rounded-2xl border border-[#E2D3C8] bg-white/95 p-4 shadow-[0_12px_35px_rgba(36,56,50,0.12)] backdrop-blur sm:p-5">
+          <section className="sticky bottom-4 mt-5 rounded-2xl border border-[#E2D3C8] bg-white/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">

@@ -228,7 +228,7 @@ export function PriceVendorCard({
   return (
     <article
       ref={cardRef}
-      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[22px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[0_12px_34px_rgba(36,56,50,0.055)]"
+      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[22px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[var(--shadow-raised)]"
     >
       <div
         data-card-header="true"

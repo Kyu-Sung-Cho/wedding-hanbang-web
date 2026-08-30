@@ -644,7 +644,7 @@ function AmoraBlock() {
             <Link
               {...weddingLinkProps("/chat")}
               onClick={() => captureEvent("amora_block_click", { source: "landing_amora_block" })}
-              className="group inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] sm:w-auto"
+              className="group inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 text-[14px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] sm:w-auto"
             >
               아모라로 내 상황 정리하기
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -834,7 +834,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
       {/* 진한 초록은 이 화면에서 새로 만든 색이 아니라 푸터가 이미 쓰는 계열이다
           (#183832 → #2f5f55 → #12302b). 크림색 페이지 위에서 첫 화면만 무게를
           갖게 하되 팔레트는 늘리지 않는다. */}
-      <article className="overflow-hidden rounded-[22px] bg-[#12302b] px-5 py-6 shadow-[0_18px_46px_rgba(8,34,28,0.22)] md:px-9 md:py-8">
+      <article className="overflow-hidden rounded-[22px] bg-[#12302b] px-5 py-6 shadow-[var(--shadow-overlay)] md:px-9 md:py-8">
         {/* 모바일은 세로 한 줄이고, 순서가 곧 우선순위다: 문장 → **증거** → 행동.
             증거를 CTA 뒤로 두면 3초 안에 보이는 것이 다시 주장뿐이 된다.
             데스크톱에서는 증거를 오른쪽 열에 세로로 붙인다. */}
@@ -933,7 +933,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
                 href="/price"
                 data-tutorial-target="landing-price"
                 onClick={() => captureEvent("price_hero_click", { source: "landing_hero" })}
-                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[6px] bg-[#f2e8c8] px-7 py-3.5 text-[15px] font-bold text-[#12302b] shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 sm:w-auto sm:self-start"
+                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[6px] bg-[#f2e8c8] px-7 py-3.5 text-[15px] font-bold text-[#12302b] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 sm:w-auto sm:self-start"
               >
                 내 업체는 얼마나 다른지 보기
                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -1115,7 +1115,7 @@ function SearchHub({
       aria-labelledby="community-search-heading"
     >
       <div
-        className="overflow-hidden rounded-[24px] border border-[#d8c7ad] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(247,241,232,0.9))] px-4 py-5 shadow-[0_18px_50px_rgba(8,22,38,0.06)] md:px-9 md:py-8"
+        className="overflow-hidden rounded-[24px] border border-[#d8c7ad] bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(247,241,232,0.9))] px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
         data-tutorial-target="community-categories"
       >
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-7">
@@ -1149,7 +1149,7 @@ function SearchHub({
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
             placeholder="예: 촬영 결과물 별도 금액, 계약 취소 때 내는 금액"
-            className="h-[58px] w-full rounded-full border border-[#cbb99d] bg-white px-5 pr-14 text-[14px] font-medium text-[#061a34] shadow-[0_8px_24px_rgba(8,22,38,0.05)] outline-none placeholder:text-[#a89278] focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_3px_rgba(54,83,78,0.1)] sm:pr-40 md:h-[62px] md:px-7 md:text-[15px]"
+            className="h-[58px] w-full rounded-full border border-[#cbb99d] bg-white px-5 pr-14 text-[14px] font-medium text-[#061a34] shadow-[var(--shadow-raised)] outline-none placeholder:text-[#a89278] focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_3px_rgba(54,83,78,0.1)] sm:pr-40 md:h-[62px] md:px-7 md:text-[15px]"
           />
           <button
             type="submit"
@@ -1188,7 +1188,7 @@ function SearchHub({
                 aria-label={`${item.label} 보기`}
                 className={`group flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] border px-2 text-center transition-all sm:px-3 ${
                   active
-                    ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
+                    ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                     : "border-[var(--hb-hairline)] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"
                 }`}
               >
@@ -1244,7 +1244,7 @@ function SearchHub({
               aria-label={`${item.label} 보기`}
               className={`group flex min-h-[58px] items-center gap-2 rounded-[14px] border px-3 text-left transition-all ${
                 active
-                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[0_10px_22px_rgba(54,83,78,0.14)]"
+                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                   : "border-[var(--hb-hairline)] bg-[#fffdf7] text-[#34445a] hover:border-[var(--hb-primary)]/35 hover:bg-white"
               }`}
             >
@@ -1434,8 +1434,8 @@ function LatestPosts({
     <article
       className={`border border-[var(--hb-hairline)] bg-white/88 ${
         feedFirst
-          ? "rounded-[14px] p-3 shadow-none sm:rounded-[18px] sm:p-5 sm:shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
-          : "rounded-[18px] p-4 shadow-[0_10px_30px_rgba(8,22,38,0.045)] sm:p-5"
+          ? "rounded-[14px] p-3 shadow-none sm:rounded-[18px] sm:p-5 sm:shadow-[var(--shadow-raised)]"
+          : "rounded-[18px] p-4 shadow-[var(--shadow-raised)] sm:p-5"
       }`}
     >
       <div
@@ -1513,7 +1513,7 @@ function LatestPosts({
           {!feedFirst && (
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-              className="hidden h-11 min-w-[112px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
+              className="hidden h-11 min-w-[112px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[var(--shadow-raised)] sm:inline-flex"
               data-tutorial-target="community-write"
             >
               질문하기
@@ -2100,7 +2100,7 @@ function BestPostsPanel() {
   if (!loading && posts.length === 0) return null;
 
   return (
-    <article className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]">
+    <article className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
           {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
@@ -2142,7 +2142,7 @@ function BestPostsPanel() {
 
 function AmoraSidebarPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_58%,#eef4eb_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_58%,#eef4eb_100%)] p-5 shadow-[var(--shadow-raised)]">
       <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
         아모라에게 묻기
       </span>
@@ -2154,7 +2154,7 @@ function AmoraSidebarPanel() {
       </p>
       <Link
         {...weddingLinkProps("/chat")}
-        className="mt-4 flex min-h-11 items-center justify-between rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
+        className="mt-4 flex min-h-11 items-center justify-between rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[var(--shadow-raised)]"
       >
         아모라에게 바로 묻기
         <ChevronRight className="h-4 w-4" />
@@ -2180,7 +2180,7 @@ const MARKET_SNAPSHOT_CATEGORIES: readonly PriceCategory[] = [
 
 function MarketSnapshotPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-[linear-gradient(145deg,#fffdf8_0%,#ffffff_55%,#fbf4e8_100%)] p-5 shadow-[var(--shadow-raised)]">
       <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
         출처·기준 시점 공개
       </span>
@@ -2213,7 +2213,7 @@ function MarketSnapshotPanel() {
       <Link
         href="/price"
         onClick={() => captureEvent("price_hero_click", { source: "landing_market_snapshot" })}
-        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[var(--shadow-raised)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
       >
         전체 공시가 보기
       </Link>
@@ -2291,7 +2291,7 @@ function CohortPreviewPanel() {
 
   return (
     <article
-      className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[0_10px_30px_rgba(8,22,38,0.045)]"
+      className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]"
       data-tutorial-target="community-cohort"
     >
       <div className="mb-5 flex items-start justify-between gap-4">
@@ -2327,7 +2327,7 @@ function CohortPreviewPanel() {
                 {panelState.note}
               </span>
             </span>
-            <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white shadow-[0_8px_18px_rgba(54,83,78,0.16)]">
+            <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-full bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white shadow-[var(--shadow-raised)]">
               입장
               <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
             </span>

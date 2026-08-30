@@ -226,8 +226,12 @@
    * overlay  : 지면에서 떠서 다른 것을 덮는 표면(팝오버·제품 데모)
    * 순수 검정 대신 유칼립투스 잉크(#243832)를 깔아 따뜻한 팔레트에서 차갑게
    * 보이지 않게 한다. */
-  --shadow-raised: 0 16px 40px rgba(36, 56, 50, 0.16);
-  --shadow-overlay: 0 24px 64px rgba(36, 56, 50, 0.28);
+  /* 정본 시안(docs/landing/NotebookBest.html:31)의 **유일한** 그림자다. 시안은
+     `.note` 카드 한 곳에만 그림자를 쓰고 그 외에는 쓰지 않는다. */
+  --shadow-raised: 0 10px 24px rgba(38, 37, 31, 0.07);
+  /* 시안에는 모달·오버레이가 없어 대응값이 없다. 색조만 시안의 잉크로 맞추고
+     띄움 정도는 오버레이가 배경과 분리돼 보일 만큼만 남긴다. */
+  --shadow-overlay: 0 24px 64px rgba(38, 37, 31, 0.18);
 
   /* Fonts — 끝에 emoji fallback 추가 (국기 등 regional indicator 조합 깨짐 방지) */
   --font-serif-kr: var(--font-noto-serif-kr), serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji';
@@ -838,9 +842,9 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --tw-gradient-to: var(--hb-gold) !important;
 }
 
-.hanbang-service-theme [class~="shadow-[0_4px_14px_0_rgba(121,82,82,0.2)]"],
-.hanbang-service-theme [class~="shadow-[0_4px_14px_rgba(121,82,82,0.2)]"],
-.hanbang-service-theme [class~="shadow-[0_8px_24px_rgba(121,82,82,0.2)]"] {
+.hanbang-service-theme [class~="shadow-[var(--shadow-raised)]"],
+.hanbang-service-theme [class~="shadow-[var(--shadow-raised)]"],
+.hanbang-service-theme [class~="shadow-[var(--shadow-raised)]"] {
   box-shadow: 0 14px 34px rgba(38, 56, 50, 0.14) !important;
 }
 

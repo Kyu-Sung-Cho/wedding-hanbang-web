@@ -34,7 +34,7 @@ export default function DailyAmoraFocusBridge({
   return (
     <section
       aria-labelledby="daily-amora-focus-title"
-      className="rounded-[20px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[0_10px_28px_rgba(54,83,78,0.06)] sm:p-5"
+      className="rounded-[20px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white">
