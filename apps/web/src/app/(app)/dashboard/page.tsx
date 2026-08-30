@@ -445,7 +445,7 @@ export default function DashboardPage() {
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
               href={joinedReviewHref}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] sm:w-auto"
             >
               함께 확인할 내용 찾기
               <ArrowRight className="ml-2 h-4 w-4" />
@@ -453,7 +453,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={dismissJoinedHandoff}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 sm:w-auto"
             >
               이 내용 확인했어요
             </button>
@@ -486,7 +486,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={copyCode}
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+                className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
               >
                 <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -519,14 +519,14 @@ export default function DashboardPage() {
           <div className="mt-4 flex flex-wrap gap-2.5">
             <Link
               href={weddingPath("/settings")}
-              className="inline-flex items-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
+              className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
             >
               결혼식 날짜 입력하기
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href={weddingPath("/chat")}
-              className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+              className="inline-flex items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
             >
               아직 막막하면, 아모라랑 시작하기
             </Link>
@@ -572,7 +572,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href={amoraPromptHref}
-            className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-full bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
+            className="mb-4 inline-flex min-h-10 w-full items-center justify-center rounded-[6px] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
           >
             {companionCopy.amoraCtaLabel}
             <ArrowRight className="ml-2 h-4 w-4" />
@@ -641,7 +641,7 @@ export default function DashboardPage() {
               <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
               <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
             </div>
-            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-full border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
               전체 체크리스트
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
@@ -893,7 +893,7 @@ function CategoryPanel({
                 type="button"
                 disabled={saving}
                 onClick={() => void handleStatusChange(nextStatus)}
-                className={`rounded-full border px-3 py-3 text-[13px] font-semibold ${
+                className={`rounded-[6px] border px-3 py-3 text-[13px] font-semibold ${
                   status === nextStatus
                     ? "border-[#061a34] bg-[#061a34] text-white"
                     : "border-[var(--hb-hairline)] bg-white text-[#5d6879]"
@@ -925,10 +925,10 @@ function CategoryPanel({
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-full bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
+            <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-[6px] bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
               아모라에게 묻기
             </Link>
-            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
               일정에서 보기
             </Link>
           </div>

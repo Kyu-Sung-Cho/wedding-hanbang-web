@@ -77,7 +77,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white px-3 py-1.5 text-xs font-medium text-[#2F5F51] hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-1.5 text-xs font-medium text-[#2F5F51] hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
     >
       {copied ? <ClipboardCheck className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
       {copied ? "복사됨" : "문구 복사"}

@@ -427,7 +427,7 @@ export default function CommunityDecisionDiscovery({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setActiveMode(option.mode)}
-                  className={`min-h-9 flex-1 rounded-full px-3 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-1 sm:flex-none ${
+                  className={`min-h-9 flex-1 rounded-[6px] px-3 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-1 sm:flex-none ${
                     selected
                       ? "bg-[var(--hb-primary)] text-white shadow-sm"
                       : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -469,7 +469,7 @@ export default function CommunityDecisionDiscovery({
               <button
                 type="button"
                 onClick={() => setRetryVersion((current) => current + 1)}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
+                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-[6px] px-3 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                 다시 불러오기

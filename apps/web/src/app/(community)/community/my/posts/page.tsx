@@ -232,7 +232,7 @@ export default function MyPostsPage() {
                       type="button"
                       onClick={saveProfile}
                       disabled={profileSaving}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[var(--hb-primary)] px-4 text-xs font-semibold text-white disabled:opacity-60"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-4 text-xs font-semibold text-white disabled:opacity-60"
                     >
                       {profileSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                       저장
@@ -245,7 +245,7 @@ export default function MyPostsPage() {
                         setAvatarInput(profile.avatar_url);
                         setProfileMessage(null);
                       }}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[var(--hb-hairline)] bg-white px-4 text-xs font-semibold text-[var(--hb-text-muted)]"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 text-xs font-semibold text-[var(--hb-text-muted)]"
                     >
                       <X className="h-3.5 w-3.5" />
                       취소
@@ -270,7 +270,7 @@ export default function MyPostsPage() {
                       setAvatarInput(profile.avatar_url);
                       setEditingProfile(true);
                     }}
-                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[var(--hb-hairline)] bg-white px-4 text-xs font-semibold text-[var(--hb-text-strong)]"
+                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 text-xs font-semibold text-[var(--hb-text-strong)]"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     프로필 수정

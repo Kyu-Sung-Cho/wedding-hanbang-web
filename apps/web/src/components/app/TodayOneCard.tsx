@@ -292,7 +292,7 @@ export default function TodayOneCard() {
             <button
               type="button"
               onClick={() => void load(true)}
-              className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
+              className="mt-3 inline-flex min-h-10 items-center justify-center rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
             >
               다시 불러오기
             </button>
@@ -403,7 +403,7 @@ export default function TodayOneCard() {
               type="button"
               disabled={pendingAction !== null}
               onClick={() => void actOnCard("open_source")}
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#8F6662] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#7F5956] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[#8F6662] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#7F5956] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
             >
               {card.nextAction.label}
             </button>
@@ -415,7 +415,7 @@ export default function TodayOneCard() {
                 type="button"
                 disabled={pendingAction !== null}
                 onClick={() => void actOnCard(action)}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E2D3C8] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[#E2D3C8] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
               >
                 {ACTION_LABELS[action]}
               </button>

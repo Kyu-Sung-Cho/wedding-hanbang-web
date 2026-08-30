@@ -117,7 +117,7 @@ export default function QuickReviewPage() {
           </p>
           <Link
             href={QUICK_REVIEW_LOGIN_HREF}
-            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
           >
             로그인하고 이어서 쓰기
           </Link>

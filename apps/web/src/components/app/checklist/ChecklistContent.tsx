@@ -187,7 +187,7 @@ export default function ChecklistContent() {
               type="button"
               aria-pressed={filter === item.value}
               onClick={() => setFilter(item.value)}
-              className={`shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
+              className={`shrink-0 rounded-[6px] border px-4 py-2 text-[13px] font-semibold transition ${
                 filter === item.value
                   ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                   : "border-[#dcd4c3] bg-white text-[#5d6879] hover:border-[#9d6f36]"

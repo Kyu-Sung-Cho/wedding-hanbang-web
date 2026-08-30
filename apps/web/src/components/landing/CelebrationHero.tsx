@@ -224,7 +224,7 @@ function CoupleRoomPreview() {
               <button
                 type="button"
                 onClick={() => setDemoApplied(false)}
-                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--hb-primary)]/18 bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662] hover:text-[var(--color-rose-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/18 bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662] hover:text-[var(--color-rose-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
               >
                 <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                 다시 보기

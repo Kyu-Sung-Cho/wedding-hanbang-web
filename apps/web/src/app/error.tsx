@@ -29,13 +29,13 @@ export default function RootError({ error, reset }: { error: Error & { digest?: 
           <button
             type="button"
             onClick={reset}
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--hb-primary)] px-6 text-sm font-bold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-sm font-bold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           >
             다시 시도하기
           </button>
           <Link
             href="/wedding"
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-[var(--hb-primary)]/18 bg-white px-6 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:bg-[#F5ECE4]/55"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/18 bg-white px-6 text-sm font-bold text-[var(--hb-text-strong)] transition-colors hover:bg-[#F5ECE4]/55"
           >
             홈으로 가기
           </Link>

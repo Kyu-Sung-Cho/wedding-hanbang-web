@@ -138,7 +138,7 @@ export default function CommunityAmoraLauncher() {
             <div className="mt-5 grid gap-2 sm:grid-cols-[1fr_auto]">
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2f4944]"
+                className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-[14px] font-semibold text-white shadow-[0_12px_28px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2f4944]"
               >
                 <LogIn className="h-4 w-4" />
                 로그인하기
@@ -147,7 +147,7 @@ export default function CommunityAmoraLauncher() {
               <button
                 type="button"
                 onClick={() => setLoginPromptOpen(false)}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec]"
+                className="inline-flex items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec]"
               >
                 계속 둘러보기
               </button>

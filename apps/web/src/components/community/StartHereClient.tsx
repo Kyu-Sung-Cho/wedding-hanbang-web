@@ -292,7 +292,7 @@ export default function StartHereClient() {
                     type="button"
                     onClick={() => applyPreset(value)}
                     aria-pressed={preset === value}
-                    className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[14px] font-semibold transition-colors ${
+                    className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                       preset === value
                         ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                         : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
@@ -510,7 +510,7 @@ export default function StartHereClient() {
                       type="button"
                       onClick={() => toggleSkip(category.key)}
                       aria-pressed={off}
-                      className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[14px] font-semibold transition-colors ${
+                      className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                         off
                           ? "border-[var(--hb-primary)]/12 bg-[#f0ece6] text-[#716c65] line-through"
                           : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"

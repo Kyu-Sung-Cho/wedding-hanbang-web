@@ -75,7 +75,7 @@ export default function DemoPage() {
               <p className="mt-2 text-sm leading-6 text-white/70">새 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-0">
-              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
+              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
                 서비스 둘러보기
               </Link>
             </div>

@@ -243,7 +243,7 @@ function ReasonGroup({
               type="button"
               aria-pressed={selected}
               onClick={() => onChange(chip.id)}
-              className={`min-h-11 rounded-full border px-4 text-[13px] font-semibold transition ${
+              className={`min-h-11 rounded-[6px] border px-4 text-[13px] font-semibold transition ${
                 selected
                   ? "border-[#a77b74] bg-[#a77b74] text-white"
                   : "border-[#e2d3c8] bg-[var(--hb-surface-page)] text-[#52635e] hover:border-[#a77b74]"
@@ -696,7 +696,7 @@ export default function WeddingCourtClient() {
             </p>
             <Link
               href={LOGIN_HREF}
-              className="mt-6 inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--hb-primary)] px-6 text-[14px] font-bold text-white"
+              className="mt-6 inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-[14px] font-bold text-white"
             >
               로그인하고 시작하기
             </Link>
@@ -709,7 +709,7 @@ export default function WeddingCourtClient() {
             <button
               type="button"
               onClick={() => void loadCases()}
-              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-full border border-[var(--hb-primary)] px-5 text-[13px] font-bold text-[var(--hb-text-strong)]"
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)] px-5 text-[13px] font-bold text-[var(--hb-text-strong)]"
             >
               <RefreshCw className="h-4 w-4" aria-hidden />
               다시 불러오기

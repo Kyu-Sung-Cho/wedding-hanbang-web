@@ -237,7 +237,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             <a
               key={section.heading}
               href={`#section-${index + 1}`}
-              className="shrink-0 rounded-full border border-[var(--hb-primary)]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
+              className="shrink-0 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
             >
               <span aria-hidden className="mr-1.5 text-[#8F5150]/70">{index + 1}</span>
               {sectionLabel(section.heading)}
@@ -348,7 +348,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               ? `/checklist?category=${encodeURIComponent(primaryCategory)}`
               : `/chat?${new URLSearchParams({ prefill: `${part.title} 내용을 우리 상황에 맞게 정리해줘` })}`,
           )}
-          className="mt-3 inline-flex rounded-full bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+          className="mt-3 inline-flex rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
         >
           {checklistLabel ? `${checklistLabel} 체크리스트 열기` : "아모라에게 물어보기"}
         </Link>

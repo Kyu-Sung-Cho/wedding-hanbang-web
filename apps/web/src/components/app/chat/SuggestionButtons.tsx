@@ -126,7 +126,7 @@ export default function SuggestionButtons({
               onSelect(suggestion);
             }}
             disabled={disabled}
-            className="flex-shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-full
+            className="flex-shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-[6px]
               bg-white border border-black/[0.06] text-[var(--hb-text-body)]
               hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
               active:scale-95

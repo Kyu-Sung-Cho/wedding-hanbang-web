@@ -809,7 +809,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -832,7 +832,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => togglePriority(opt.value)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -855,7 +855,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -878,7 +878,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"

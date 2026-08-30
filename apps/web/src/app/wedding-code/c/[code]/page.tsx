@@ -123,7 +123,7 @@ export default async function WeddingCodeMeaningPage({
 
         <Link
           href="/wedding-code"
-          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
+          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
         >
           내 웨딩코드 받아보기
         </Link>

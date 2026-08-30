@@ -24,7 +24,7 @@ export function PriceAmoraBridge() {
       </p>
       <StartDemoButton
         label="아모라에게 물어보기"
-        className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[var(--hb-primary-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+        className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[var(--hb-primary-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
       />
       <p className="mt-3 text-[13px]">
         <Link href="/demo" prefetch={false} className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">

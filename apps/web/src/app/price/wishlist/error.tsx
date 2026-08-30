@@ -30,7 +30,7 @@ export default function PriceWishlistError({
         <button
           type="button"
           onClick={reset}
-          className="mt-6 min-h-12 rounded-full bg-[var(--hb-primary)] px-6 text-sm font-bold text-white"
+          className="mt-6 min-h-12 rounded-[6px] bg-[var(--hb-primary)] px-6 text-sm font-bold text-white"
         >
           다시 불러오기
         </button>

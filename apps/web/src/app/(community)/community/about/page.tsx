@@ -290,14 +290,14 @@ export default function CommunityAboutPage() {
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href={weddingPath()}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-[var(--hb-primary)] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[6px] bg-[var(--hb-primary)] text-white text-base font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all"
             >
               커뮤니티 둘러보기
               <ArrowRight className="w-4 h-4" />
             </Link>
             <Link
               href={weddingPath("/community/post/write")}
-              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-full bg-white border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] text-base font-medium hover:bg-[var(--hb-surface-page)] transition-all"
+              className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-[6px] bg-white border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] text-base font-medium hover:bg-[var(--hb-surface-page)] transition-all"
             >
               <PenSquare className="w-4 h-4" />첫 글 쓰러 가기
             </Link>

@@ -147,7 +147,7 @@ function CommunityFooter() {
           </p>
           <Link
             {...weddingLinkProps("/lounge")}
-            className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#d8c79a]/70 px-4 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
+            className="mt-4 inline-flex min-h-11 items-center rounded-[6px] border border-[#d8c79a]/70 px-4 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />

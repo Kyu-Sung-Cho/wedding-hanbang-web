@@ -2792,7 +2792,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       type="button"
                       onClick={() => openCommunityDraft(msg, previousHumanMessage)}
                       aria-label={displayCommunityAskCue.ariaLabel}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white/80 px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white/80 px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
                     >
                       <MessageCircle className="h-4 w-4" />
                       {displayCommunityAskCue.label}
@@ -3133,7 +3133,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               onClick={() => handleMessageTargetChange("ai")}
               disabled={isStreaming || isSending}
               aria-pressed={messageTarget === "ai"}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "ai"
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
                   : "bg-white text-[var(--hb-text-body)] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
@@ -3147,7 +3147,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               onClick={() => handleMessageTargetChange("partner")}
               disabled={isStreaming || isSending}
               aria-pressed={messageTarget === "partner"}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "partner"
                   ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
                   : "bg-white text-[var(--hb-text-body)] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"

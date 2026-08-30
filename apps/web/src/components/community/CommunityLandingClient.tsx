@@ -644,7 +644,7 @@ function AmoraBlock() {
             <Link
               {...weddingLinkProps("/chat")}
               onClick={() => captureEvent("amora_block_click", { source: "landing_amora_block" })}
-              className="group inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] sm:w-auto"
+              className="group inline-flex min-h-[50px] w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] sm:w-auto"
             >
               아모라로 내 상황 정리하기
               <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -652,7 +652,7 @@ function AmoraBlock() {
             <Link
               {...weddingLinkProps("/community?feed=all#community-search")}
               onClick={() => captureEvent("community_hero_click", { action: "find_experience" })}
-              className="inline-flex min-h-[50px] w-full items-center justify-center gap-1.5 rounded-full border border-[#d8c7ad] bg-white px-6 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45 sm:w-auto"
+              className="inline-flex min-h-[50px] w-full items-center justify-center gap-1.5 rounded-[6px] border border-[#d8c7ad] bg-white px-6 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45 sm:w-auto"
             >
               다른 해결 경험 더 보기
               <Search className="h-4 w-4" />
@@ -933,7 +933,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
                 href="/price"
                 data-tutorial-target="landing-price"
                 onClick={() => captureEvent("price_hero_click", { source: "landing_hero" })}
-                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#f2e8c8] px-7 py-3.5 text-[15px] font-bold text-[#12302b] shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 sm:w-auto sm:self-start"
+                className="group inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-[6px] bg-[#f2e8c8] px-7 py-3.5 text-[15px] font-bold text-[#12302b] shadow-[0_14px_30px_rgba(0,0,0,0.22)] transition-transform hover:-translate-y-0.5 sm:w-auto sm:self-start"
               >
                 내 업체는 얼마나 다른지 보기
                 <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -1022,7 +1022,7 @@ function SearchHub({
             </div>
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
               data-tutorial-target="community-write"
             >
               고민 올리기
@@ -1068,7 +1068,7 @@ function SearchHub({
                         category: item.category ?? "all",
                       })
                     }
-                    className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[11.5px] font-semibold transition-colors ${
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-[6px] border px-3 text-[11.5px] font-semibold transition-colors ${
                       active
                         ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                         : "border-[var(--hb-hairline)] bg-white text-[#4f5e70] hover:border-[var(--hb-primary)]/40"
@@ -1088,7 +1088,7 @@ function SearchHub({
                 <button
                   type="button"
                   onClick={onClearTag}
-                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--hb-hairline)] bg-[#fbefd6] px-3 text-[11.5px] font-medium text-[#9d6f36]"
+                  className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-[#fbefd6] px-3 text-[11.5px] font-medium text-[#9d6f36]"
                 >
                   #{currentTag} 지우기
                 </button>
@@ -1096,7 +1096,7 @@ function SearchHub({
               {searchQuery && (
                 <Link
                   {...weddingLinkProps("/community?feed=all")}
-                  className="inline-flex min-h-11 items-center rounded-full border border-[var(--hb-hairline)] bg-white px-3 text-[11.5px] font-medium text-[var(--hb-text-strong)]"
+                  className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 text-[11.5px] font-medium text-[var(--hb-text-strong)]"
                 >
                   검색 초기화
                 </Link>
@@ -1135,7 +1135,7 @@ function SearchHub({
         </div>
         <Link
           {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-full border border-[#d8c7ad] bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-[#d8c7ad] bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
         >
           내 상황 질문하기
           <PenSquare className="h-3.5 w-3.5" />
@@ -1209,7 +1209,7 @@ function SearchHub({
           <button
             type="button"
             onClick={() => setDetailOpen((open) => !open)}
-            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-[13px] font-semibold transition-colors ${
+            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border px-4 text-[13px] font-semibold transition-colors ${
               detailOpen || activeDetailCount > 0
                 ? "border-[var(--hb-primary)] bg-[#eef4f1] text-[var(--hb-text-strong)]"
                 : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"
@@ -1269,7 +1269,7 @@ function SearchHub({
             <button
               type="button"
               onClick={onClearTag}
-              className="rounded-full border border-[var(--hb-hairline)] bg-[#fbefd6] px-4 py-2 text-[13px] font-medium text-[#9d6f36]"
+              className="rounded-[6px] border border-[var(--hb-hairline)] bg-[#fbefd6] px-4 py-2 text-[13px] font-medium text-[#9d6f36]"
             >
               #{currentTag} 지우기
             </button>
@@ -1277,7 +1277,7 @@ function SearchHub({
           {searchQuery && (
             <Link
               {...weddingLinkProps()}
-              className="rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--hb-text-strong)]"
+              className="rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-2 text-[13px] font-medium text-[var(--hb-text-strong)]"
             >
               검색 초기화
             </Link>
@@ -1503,7 +1503,7 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <Link
               {...weddingLinkProps(fullFeedHref)}
-              className="inline-flex h-11 w-[100px] items-center justify-center gap-1.5 rounded-full border border-[var(--hb-hairline)] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
+              className="inline-flex h-11 w-[100px] items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
               aria-label={feedMoreLabel}
             >
               더보기
@@ -1513,7 +1513,7 @@ function LatestPosts({
           {!feedFirst && (
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-              className="hidden h-11 min-w-[112px] items-center justify-center gap-1.5 whitespace-nowrap rounded-full bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
+              className="hidden h-11 min-w-[112px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] sm:inline-flex"
               data-tutorial-target="community-write"
             >
               질문하기
@@ -1530,7 +1530,7 @@ function LatestPosts({
         >
           <Link
             {...weddingLinkProps("/community?feed=all&sort=unanswered#community-feed")}
-            className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-3.5 text-[12px] font-semibold ${
+            className={`inline-flex min-h-11 shrink-0 items-center rounded-[6px] border px-3.5 text-[12px] font-semibold ${
               currentSort === "unanswered"
                 ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                 : "border-[var(--hb-hairline)] bg-[#fffdf8] text-[var(--hb-text-strong)]"
@@ -1540,7 +1540,7 @@ function LatestPosts({
           </Link>
           <Link
             {...weddingLinkProps("/community?feed=all&sort=resolved#community-feed")}
-            className={`inline-flex min-h-11 shrink-0 items-center rounded-full border px-3.5 text-[12px] font-semibold ${
+            className={`inline-flex min-h-11 shrink-0 items-center rounded-[6px] border px-3.5 text-[12px] font-semibold ${
               currentSort === "resolved"
                 ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                 : "border-[var(--hb-hairline)] bg-[#fffdf8] text-[var(--hb-text-strong)]"
@@ -1550,7 +1550,7 @@ function LatestPosts({
           </Link>
           <Link
             {...weddingLinkProps("/community/my/posts")}
-            className="inline-flex min-h-11 shrink-0 items-center rounded-full border border-[var(--hb-hairline)] bg-[#fffdf8] px-3.5 text-[12px] font-semibold text-[var(--hb-text-strong)]"
+            className="inline-flex min-h-11 shrink-0 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-3.5 text-[12px] font-semibold text-[var(--hb-text-strong)]"
           >
             내 글
           </Link>
@@ -1567,7 +1567,7 @@ function LatestPosts({
             <button
               type="button"
               onClick={() => useCommunityStore.getState().fetchPosts(true)}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#061a34] px-3 py-2 text-xs font-semibold text-white"
+              className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#061a34] px-3 py-2 text-xs font-semibold text-white"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               다시 불러오기
@@ -1575,7 +1575,7 @@ function LatestPosts({
             <button
               type="button"
               onClick={clearError}
-              className="rounded-full px-3 py-2 text-xs font-semibold text-[#7a8290] hover:bg-white"
+              className="rounded-[6px] px-3 py-2 text-xs font-semibold text-[#7a8290] hover:bg-white"
             >
               닫기
             </button>
@@ -1610,7 +1610,7 @@ function LatestPosts({
                 onClick={() =>
                   captureEvent("community_search_empty_click", { action: "create_question" })
                 }
-                className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-full bg-[var(--hb-primary)] px-5 text-[13px] font-semibold text-white sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[13px] font-semibold text-white sm:w-auto"
               >
                 이 내용으로 질문 만들기
                 <PenSquare className="h-4 w-4" />
@@ -1620,7 +1620,7 @@ function LatestPosts({
                 onClick={() =>
                   captureEvent("community_search_empty_click", { action: "organize_with_amora" })
                 }
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-[#d8c7ad] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] border border-[#d8c7ad] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] sm:w-auto"
               >
                 아모라와 먼저 정리하기
               </Link>
@@ -1644,7 +1644,7 @@ function LatestPosts({
             <div className="flex justify-center py-5">
               <Link
                 {...weddingLinkProps(fullFeedHref)}
-                className="inline-flex min-h-11 items-center rounded-full border border-[var(--hb-hairline)] bg-white px-6 text-[13px] font-semibold text-[#9d6f36] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
+                className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-6 text-[13px] font-semibold text-[#9d6f36] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
                 aria-label={`${feedTitle} 전체 보기`}
               >
                 {feedMoreLabel}
@@ -1721,14 +1721,14 @@ function StatusFeedEmptyState({
       <div className="mt-5 flex flex-col gap-2.5 sm:flex-row">
         <Link
           {...weddingLinkProps(content.primaryHref)}
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full bg-[var(--hb-primary)] px-5 text-[13px] font-semibold text-white"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[13px] font-semibold text-white"
         >
           {content.primaryLabel}
           <ChevronRight className="h-4 w-4" />
         </Link>
         <Link
           {...weddingLinkProps(content.secondaryHref)}
-          className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#d8c7ad] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
+          className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[#d8c7ad] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
         >
           {content.secondaryLabel}
         </Link>
@@ -1956,7 +1956,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
                     : "answered",
               })
             }
-            className={`inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-full px-3.5 text-[11.5px] font-semibold transition-colors ${
+            className={`inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-[6px] px-3.5 text-[11.5px] font-semibold transition-colors ${
               isWaitingForAnswer
                 ? "bg-[#A77B74] text-white hover:bg-[#8F6662]"
                 : isQuestionPost && post.is_resolved
@@ -2154,7 +2154,7 @@ function AmoraSidebarPanel() {
       </p>
       <Link
         {...weddingLinkProps("/chat")}
-        className="mt-4 flex min-h-11 items-center justify-between rounded-full bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
+        className="mt-4 flex min-h-11 items-center justify-between rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)]"
       >
         아모라에게 바로 묻기
         <ChevronRight className="h-4 w-4" />
@@ -2213,7 +2213,7 @@ function MarketSnapshotPanel() {
       <Link
         href="/price"
         onClick={() => captureEvent("price_hero_click", { source: "landing_market_snapshot" })}
-        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+        className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(54,83,78,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
       >
         전체 공시가 보기
       </Link>

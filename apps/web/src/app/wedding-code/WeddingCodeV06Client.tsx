@@ -44,13 +44,13 @@ import {
 
 const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
   + " hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2"
   + " focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
   + " disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] border"
   + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)]"
   + " transition-colors duration-150 ease-out hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none"
   + " focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2";
@@ -354,7 +354,7 @@ export default function WeddingCodeV06Client({
         type="button"
         data-skip-question={question.key}
         onClick={skipQuestion}
-        className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-full px-4 text-[13px] font-medium text-[var(--color-rose-700)] underline underline-offset-4 transition-colors hover:text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
+        className="mt-3 flex min-h-[48px] w-full items-center justify-center rounded-[6px] px-4 text-[13px] font-medium text-[var(--color-rose-700)] underline underline-offset-4 transition-colors hover:text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
       >
         이 장면은 우리와 안 맞아요 — 건너뛰기
       </button>

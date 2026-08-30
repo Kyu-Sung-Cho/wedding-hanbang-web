@@ -258,7 +258,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
                       {...weddingLinkProps(
                         `/community?search=${encodeURIComponent(label)}&feed=all#community-feed`,
                       )}
-                      className="shrink-0 rounded-full border border-[#ddd3c5] bg-[#fffdf8] px-3 py-2 font-sans text-[11px] font-semibold text-[#5f6c68]"
+                      className="shrink-0 rounded-[6px] border border-[#ddd3c5] bg-[#fffdf8] px-3 py-2 font-sans text-[11px] font-semibold text-[#5f6c68]"
                     >
                       {label}
                     </Link>
@@ -327,7 +327,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
             </div>
             <Link
               {...weddingLinkProps("/chat?source=community_prototype")}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[var(--hb-surface-hover)] px-6 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
+              className="inline-flex h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-surface-hover)] px-6 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
             >
               <Sparkles className="h-4 w-4 text-[#8F6662]" /> 내 상황 정리하기
             </Link>
@@ -496,7 +496,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
               </ul>
               <Link
                 {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-                className="mt-8 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-surface-hover)] px-5 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
+                className="mt-8 inline-flex h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-surface-hover)] px-5 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
               >
                 내 질문 시작하기 <ArrowRight className="h-4 w-4" />
               </Link>

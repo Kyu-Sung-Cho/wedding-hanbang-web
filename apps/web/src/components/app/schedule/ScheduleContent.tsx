@@ -820,7 +820,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               <button
                 onClick={handleAddEventQuick}
                 disabled={Boolean(eventMutationBlockReason)}
-                className="inline-flex items-center gap-2 rounded-full bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
                 일정 추가
@@ -1068,7 +1068,7 @@ export function ChecklistSchedulePrompt({
             type="button"
             onClick={completeOnly}
             disabled={saving}
-            className="rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
+            className="rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
           >
             날짜 없이 완료
           </button>
@@ -1076,7 +1076,7 @@ export function ChecklistSchedulePrompt({
             type="button"
             onClick={saveWithDate}
             disabled={saving || !date || Boolean(scheduleMutationBlockReason)}
-            className="rounded-full bg-[var(--hb-primary)] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending.existingEvent ? "일정 수정하고 완료" : "일정 저장하고 완료"}
           </button>

@@ -76,7 +76,7 @@ export default function EmptyFeedStarter({
           </div>
           <Link
             href={weddingPath("/community/post/write")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[var(--hb-primary-hover)]"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_24px_rgba(6,26,52,0.16)] transition-colors hover:bg-[var(--hb-primary-hover)]"
           >
             글쓰기
             <ChevronRight className="h-4 w-4" />

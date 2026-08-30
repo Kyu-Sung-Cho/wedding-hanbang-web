@@ -104,7 +104,7 @@ export default function BookingsPage() {
           </p>
           <Link
             {...weddingLinkProps("/vendors")}
-            className="inline-flex items-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
+            className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-[13px] font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.14)] transition-colors hover:bg-[#2d4642]"
           >
             업체 둘러보기
           </Link>

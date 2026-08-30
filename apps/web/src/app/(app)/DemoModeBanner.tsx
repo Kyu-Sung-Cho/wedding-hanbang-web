@@ -24,7 +24,7 @@ export default function DemoModeBanner() {
         <Link
           href="/login?mode=signup"
           prefetch={false}
-          className="inline-flex min-h-9 shrink-0 items-center self-start rounded-full bg-[var(--hb-primary)] px-4 text-[13px] font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785] sm:self-auto"
+          className="inline-flex min-h-9 shrink-0 items-center self-start rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785] sm:self-auto"
         >
           내 정보로 시작하기
         </Link>

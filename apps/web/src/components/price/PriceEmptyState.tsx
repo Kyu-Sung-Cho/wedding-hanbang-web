@@ -51,7 +51,7 @@ export function PriceEmptyState({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           >
             필터 초기화
           </button>
@@ -62,7 +62,7 @@ export function PriceEmptyState({
             href={surface === "app"
               ? `/wedding/vendors?category=${value}${preview ? "&preview=1" : ""}`
               : `/price/${value}`}
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--hb-primary)]/15 bg-white px-4 py-2.5 text-sm font-semibold text-[var(--hb-text-strong)]/80 hover:bg-[#F5ECE4]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 py-2.5 text-sm font-semibold text-[var(--hb-text-strong)]/80 hover:bg-[#F5ECE4]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
           >
             {PRICE_CATEGORY_LABELS[value]} 공시 보기
           </Link>

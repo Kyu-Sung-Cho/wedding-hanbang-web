@@ -667,7 +667,7 @@ export function PriceExplorer({
                 <p className="text-sm font-bold">조건이 아직 막막하다면 아모라와 먼저 정리해요</p>
                 <p className="mt-1 text-xs leading-5 text-white/70">예산·지역·취향을 함께 좁힌 뒤 공시 근거가 있는 후보만 살펴볼 수 있어요.</p>
               </div>
-              <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)]">
+              <Link href="/wedding/chat" className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[6px] bg-white px-4 text-sm font-bold text-[var(--hb-text-strong)]">
                 아모라와 찾기
               </Link>
             </div>
@@ -706,7 +706,7 @@ export function PriceExplorer({
               </p>
             </div>
             {!preview ? (
-              <button type="button" onClick={() => setShowBudgetFinder(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#8F6662] px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,102,98,0.18)] hover:bg-[#7C5754]">
+              <button type="button" onClick={() => setShowBudgetFinder(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[#8F6662] px-5 text-sm font-bold text-white shadow-[0_10px_24px_rgba(143,102,98,0.18)] hover:bg-[#7C5754]">
                 <Calculator aria-hidden="true" className="size-4" />
                 내 예산으로 조합 찾기
               </button>
@@ -729,7 +729,7 @@ export function PriceExplorer({
                 // 안 볼 탭까지 수 MB를 미리 받게 만든다 — 클릭 시에만 가져온다.
                 prefetch={false}
                 aria-current={value === category ? "page" : undefined}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
               >
                 {PRICE_CATEGORY_LABELS[value]}
                 <span className={value === category ? "text-white/65" : "text-[var(--hb-text-strong)]/45"}>{catalog.counts[value]}</span>
@@ -831,7 +831,7 @@ export function PriceExplorer({
                   ).map((agency) => {
                     const checked = agencyIds.includes(agency.id);
                     return (
-                      <label key={agency.id} className={`inline-flex min-h-11 cursor-pointer items-center rounded-full border px-3 text-xs font-semibold ${checked ? "border-[#8F6662] bg-[#F5ECE4] text-[#7C5754]" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)]/70"}`}>
+                      <label key={agency.id} className={`inline-flex min-h-11 cursor-pointer items-center rounded-[6px] border px-3 text-xs font-semibold ${checked ? "border-[#8F6662] bg-[#F5ECE4] text-[#7C5754]" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)]/70"}`}>
                         <input type="checkbox" checked={checked} onChange={() => {
                           setAgencyIds((current) => checked ? current.filter((id) => id !== agency.id) : [...current, agency.id]);
                         }} className="sr-only" />
@@ -844,7 +844,7 @@ export function PriceExplorer({
                       type="button"
                       onClick={() => setAgencyListOpen((value) => !value)}
                       aria-expanded={agencyListOpen}
-                      className="inline-flex min-h-11 items-center gap-1 rounded-full border border-dashed border-[var(--hb-primary)]/25 bg-[var(--hb-surface-page)] px-3 text-xs font-semibold text-[var(--hb-text-strong)]/70 hover:bg-[#F5ECE4]"
+                      className="inline-flex min-h-11 items-center gap-1 rounded-[6px] border border-dashed border-[var(--hb-primary)]/25 bg-[var(--hb-surface-page)] px-3 text-xs font-semibold text-[var(--hb-text-strong)]/70 hover:bg-[#F5ECE4]"
                     >
                       {agencyListOpen
                         ? "접기"
@@ -864,12 +864,12 @@ export function PriceExplorer({
                   return;
                 }
                 setWishlistOnly((value) => !value);
-              }} disabled={wishlistHydrationStatus !== "ready"} aria-busy={wishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[var(--hb-text-strong)]"}`}>
+              }} disabled={wishlistHydrationStatus !== "ready"} aria-busy={wishlistHydrationStatus === "loading"} aria-pressed={wishlistOnly} className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] px-4 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-50 ${wishlistOnly ? "bg-[#8F6662] text-white" : "bg-[#F5ECE4] text-[var(--hb-text-strong)]"}`}>
                 <Heart aria-hidden="true" className="size-4" fill={wishlistOnly ? "currentColor" : "none"} />
                 찜한 업체만
               </button> : null}
               {activeFilterCount > 0 ? (
-                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-xs font-bold text-[var(--hb-text-strong)]/75 hover:bg-[var(--hb-surface-page)]">
+                <button type="button" onClick={resetFilters} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] px-3 text-xs font-bold text-[var(--hb-text-strong)]/75 hover:bg-[var(--hb-surface-page)]">
                   <RotateCcw aria-hidden="true" className="size-3.5" />
                   필터 초기화
                 </button>
@@ -884,7 +884,7 @@ export function PriceExplorer({
             <button
               type="button"
               onClick={() => setOwnerStateReload((value) => value + 1)}
-              className="inline-flex min-h-11 items-center rounded-full border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+              className="inline-flex min-h-11 items-center rounded-[6px] border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
             >
               다시 불러오기
             </button>
@@ -897,7 +897,7 @@ export function PriceExplorer({
             <button
               type="button"
               onClick={() => setOwnerStateReload((value) => value + 1)}
-              className="inline-flex min-h-11 items-center rounded-full border border-[var(--hb-primary)]/20 bg-[var(--hb-surface-page)] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+              className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-primary)]/20 bg-[var(--hb-surface-page)] px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
             >
               다시 불러오기
             </button>
@@ -920,14 +920,14 @@ export function PriceExplorer({
                     <button
                       type="button"
                       onClick={restoreLatestCombo}
-                      className="inline-flex min-h-11 items-center rounded-full bg-[var(--hb-primary)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                      className="inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       바꾸기
                     </button>
                     <button
                       type="button"
                       onClick={() => setRestoreConfirming(false)}
-                      className="inline-flex min-h-11 items-center rounded-full border border-[var(--hb-primary)]/20 bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                      className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-primary)]/20 bg-white px-4 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       취소
                     </button>
@@ -936,7 +936,7 @@ export function PriceExplorer({
                   <button
                     type="button"
                     onClick={restoreLatestCombo}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                   >
                     최근 저장 조합 불러오기
                   </button>
@@ -992,7 +992,7 @@ export function PriceExplorer({
 
         <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center" aria-hidden={visibleCount >= filtered.length}>
           {visibleCount < filtered.length ? (
-            <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filtered.length))} className="min-h-11 rounded-full border border-[var(--hb-primary)]/15 bg-white px-5 text-sm font-bold text-[var(--hb-text-strong)]">
+            <button type="button" onClick={() => setVisibleCount((count) => Math.min(count + PAGE_SIZE, filtered.length))} className="min-h-11 rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-5 text-sm font-bold text-[var(--hb-text-strong)]">
               더 보기
             </button>
           ) : null}

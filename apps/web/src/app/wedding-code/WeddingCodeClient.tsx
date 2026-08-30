@@ -34,9 +34,9 @@ const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족
 
 const card = "rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
 const primaryBtn =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-7 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-7 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
 const ghostBtn =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
 
 const INTRO_POINTS = [
   { icon: Clock3, label: "3분", body: "16개 장면" },
@@ -268,7 +268,7 @@ export default function WeddingCodeClient() {
                 <button
                   key={c}
                   onClick={() => toggleConcern(c)}
-                  className={`rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                  className={`rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
                     concerns.includes(c)
                       ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                       : "border-[var(--hb-hairline)] bg-white text-[#34445a] hover:border-[#b68a3a]"
@@ -420,7 +420,7 @@ function ContextSelect({
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={value === opt.value}
-            className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+            className={`inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
               value === opt.value
                 ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                 : "border-[var(--hb-hairline)] bg-white text-[#34445a] hover:border-[#b68a3a]"

@@ -316,14 +316,14 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
           <div className="mt-6 flex flex-wrap gap-2.5">
             <Link
               href={`/login?redirect=${encodeURIComponent(redirect)}`}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)]"
             >
               로그인하고 입장
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href={weddingPath()}
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
+              className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -442,7 +442,7 @@ function CohortSidePanel({
         </ul>
         <Link
           href={weddingPath("/chat")}
-          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-4 text-[13px] font-semibold text-[var(--hb-text-strong)]"
+          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[6px] bg-white px-4 text-[13px] font-semibold text-[var(--hb-text-strong)]"
         >
           아모라에게 먼저 물어보기
           <ArrowRight className="h-4 w-4" />
@@ -470,7 +470,7 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
+      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
         active
           ? "bg-[var(--hb-primary)] text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)]"
           : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -902,7 +902,7 @@ function ChatTab({
             type="button"
             onClick={() => setThread("")}
             title="주제를 직접 고르지 않으면 메시지 내용으로 자동 분류돼요."
-            className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-[6px] text-xs sm:text-sm font-medium transition-colors ${
               thread === ""
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#e5d8ca]"
@@ -916,7 +916,7 @@ function ChatTab({
               type="button"
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
               title={`${t.label}: ${t.helper}`}
-              className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-[6px] text-xs sm:text-sm font-medium transition-colors ${
                 thread === t.key
                   ? "bg-[var(--hb-primary)] text-white"
                   : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#e5d8ca]"
@@ -1029,7 +1029,7 @@ function FilterPill({
       onClick={onClick}
       title={helper}
       aria-label={helper ? `${label}: ${helper}` : label}
-      className={`group whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
+      className={`group whitespace-nowrap flex-shrink-0 rounded-[6px] border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
         active
           ? "bg-[var(--hb-primary)] text-white border-[var(--hb-primary)]"
           : "bg-white text-[var(--hb-text-body)] border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"
@@ -1173,7 +1173,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={() => onReport(message.author_id, nickname)}
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium text-[var(--hb-text-muted)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
+              className="rounded-[6px] px-2 py-0.5 text-[11px] font-medium text-[var(--hb-text-muted)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
               title="이 멤버 신고"
             >
               신고
@@ -1356,7 +1356,7 @@ function InfoTab({
             }
             setModalOpen(true);
           }}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           내 견적/계약 등록
@@ -1659,7 +1659,7 @@ function TimelineTab({
         <button
           type="button"
           onClick={openModal}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           기록 추가
@@ -1678,7 +1678,7 @@ function TimelineTab({
           <button
             type="button"
             onClick={openModal}
-            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
+            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
           >
             <Plus className="h-4 w-4" />
             첫 기록 남기기
@@ -1989,7 +1989,7 @@ function CohortDigestCard({
             key={item.key}
             type="button"
             onClick={() => setPeriod(item.key)}
-            className={`min-h-9 rounded-full text-[12px] font-semibold transition-colors ${
+            className={`min-h-9 rounded-[6px] text-[12px] font-semibold transition-colors ${
               period === item.key
                 ? "bg-white text-[var(--hb-text-strong)] shadow-[0_6px_16px_rgba(50,36,17,0.08)]"
                 : "text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"
@@ -2012,7 +2012,7 @@ function CohortDigestCard({
           <button
             type="button"
             onClick={() => loadDigest()}
-            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)]"
+            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)]"
           >
             다시 시도
           </button>
@@ -2026,7 +2026,7 @@ function CohortDigestCard({
           <button
             type="button"
             onClick={() => onTabChange("chat")}
-            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
+            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
           >
             첫 대화 남기기
           </button>
@@ -2153,14 +2153,14 @@ function CohortDigestCard({
             <button
               type="button"
               onClick={() => onTabChange("chat")}
-              className="inline-flex min-h-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
+              className="inline-flex min-h-9 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
             >
               대화 보기
             </button>
             <button
               type="button"
               onClick={() => onTabChange("info")}
-              className="inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[12px] font-semibold text-white"
+              className="inline-flex min-h-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-[12px] font-semibold text-white"
             >
               등록 금액
             </button>

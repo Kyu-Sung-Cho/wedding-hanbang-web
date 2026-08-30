@@ -30,13 +30,13 @@ export default function CommunityConfigurationUnavailable({
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
           <a
             href={retryHref}
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--hb-primary)] px-6 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
           >
             다시 시도
           </a>
           <Link
             href={weddingPath()}
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-6 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EFE4D7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-6 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EFE4D7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
           >
             커뮤니티로 돌아가기
           </Link>

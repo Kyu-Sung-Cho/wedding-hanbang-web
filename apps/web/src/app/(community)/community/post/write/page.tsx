@@ -893,7 +893,7 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={() => setPostMode("regular")}
-            className={`px-4 py-2 text-[13px] font-medium rounded-full transition-all ${
+            className={`px-4 py-2 text-[13px] font-medium rounded-[6px] transition-all ${
               postMode === "regular"
                 ? "bg-[var(--hb-primary)] text-white shadow-sm"
                 : "text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"
@@ -904,7 +904,7 @@ function PostWriteContent() {
           <button
             type="button"
             onClick={() => setPostMode("slides")}
-            className={`px-4 py-2 text-[13px] font-medium rounded-full transition-all ${
+            className={`px-4 py-2 text-[13px] font-medium rounded-[6px] transition-all ${
               postMode === "slides"
                 ? "bg-[var(--hb-primary)] text-white shadow-sm"
                 : "text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"

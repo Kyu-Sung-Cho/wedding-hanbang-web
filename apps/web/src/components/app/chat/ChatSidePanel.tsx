@@ -1612,7 +1612,7 @@ export default function ChatSidePanel({
                     onClick={() => handleMessageTargetChange("ai")}
                     disabled={isComposerBusy}
                     aria-pressed={messageTarget === "ai"}
-                    className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
+                    className={`flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
                         ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
@@ -1626,7 +1626,7 @@ export default function ChatSidePanel({
                     onClick={() => handleMessageTargetChange("partner")}
                     disabled={isComposerBusy}
                     aria-pressed={messageTarget === "partner"}
-                    className={`flex min-h-11 items-center gap-1 rounded-full px-3 text-[0.625rem] font-medium transition-colors ${
+                    className={`flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "partner"
                         ? "bg-gradient-to-r from-pink-500/10 to-purple-500/10 text-pink-600 border border-pink-200"
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"

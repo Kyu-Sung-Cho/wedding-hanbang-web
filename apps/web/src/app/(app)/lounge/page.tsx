@@ -622,7 +622,7 @@ export default function LoungePage() {
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
               {...joinedReviewLink}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
             >
               함께 확인할 내용 찾기
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -630,7 +630,7 @@ export default function LoungePage() {
             <button
               type="button"
               onClick={dismissJoinedHandoff}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
             >
               이 내용 확인했어요
             </button>
@@ -757,7 +757,7 @@ export default function LoungePage() {
             </div>
             <Link
               {...weddingLinkProps("/schedule")}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#fff8ec]"
+              className="inline-flex items-center gap-1 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#fff8ec]"
             >
               전체 체크
               <ArrowRight className="h-3.5 w-3.5" />
@@ -930,7 +930,7 @@ function PriorityCard({
             type="button"
             onClick={() => item.actionId && onActionStatus(item.actionId, "done")}
             disabled={updating}
-            className={`tap-area inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`tap-area inline-flex items-center gap-1.5 rounded-[6px] border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               item.tone === "steady"
                 ? "border-white/15 bg-white/10 text-white hover:bg-white/15"
                 : "border-[#d8e0d5] bg-white text-[var(--hb-text-strong)] hover:bg-[#f6f9f6]"
@@ -943,7 +943,7 @@ function PriorityCard({
             type="button"
             onClick={() => item.actionId && onActionStatus(item.actionId, "dismissed")}
             disabled={updating}
-            className={`tap-area inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`tap-area inline-flex items-center gap-1.5 rounded-[6px] border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               item.tone === "steady"
                 ? "border-white/15 bg-transparent text-white/75 hover:bg-white/10"
                 : "border-[var(--hb-hairline)] bg-transparent text-[#6d6254] hover:bg-white/60"

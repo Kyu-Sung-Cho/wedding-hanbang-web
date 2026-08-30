@@ -59,7 +59,7 @@ function LoadingState() {
           <button
             type="button"
             disabled
-            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white opacity-80 shadow-[0_10px_24px_rgba(54,83,78,0.18)]"
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white opacity-80 shadow-[0_10px_24px_rgba(54,83,78,0.18)]"
           >
             <Loader2 className="h-4 w-4 animate-spin" />
             입장 준비 중
@@ -251,7 +251,7 @@ function CohortIndexInner() {
 
           <Link
             href={content.href}
-            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)]"
+            className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)]"
           >
             {content.cta}
             <ArrowRight className="h-4 w-4" />

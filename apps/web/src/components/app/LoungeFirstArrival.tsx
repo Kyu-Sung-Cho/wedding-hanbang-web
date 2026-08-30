@@ -223,7 +223,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
         </p>
         <Link
           {...nextStepLink}
-          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-full bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
+          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
         >
           {view.nextStep.cta}
           <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -248,7 +248,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               </p>
               <Link
                 {...inviteLink}
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
               >
                 {view.invite.cta}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
