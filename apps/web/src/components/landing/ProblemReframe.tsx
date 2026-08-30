@@ -60,7 +60,7 @@ export default function ProblemReframe() {
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal">
             결혼 준비가 힘든 이유는
             <br />
-            <em className="not-italic text-rose-500">다른 곳</em>에 있습니다.
+            <em className="not-italic text-[var(--hb-accent-hover)]">다른 곳</em>에 있습니다.
           </h2>
         </motion.div>
 

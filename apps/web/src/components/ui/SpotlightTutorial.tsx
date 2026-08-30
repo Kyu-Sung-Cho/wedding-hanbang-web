@@ -350,7 +350,7 @@ export default function SpotlightTutorial({
           }}
         >
           {/* 진행바 */}
-          <div className="h-1 rounded-t-2xl overflow-hidden bg-[#f6f3f2]">
+          <div className="h-1 rounded-t-2xl overflow-hidden bg-[var(--hb-surface-hover)]">
             <div
               className="h-full bg-gradient-to-r from-[#795252] to-[#C9A96E] transition-all duration-300"
               style={{ width: `${((stepIndex + 1) / steps.length) * 100}%` }}
@@ -365,7 +365,7 @@ export default function SpotlightTutorial({
               <button
                 type="button"
                 onClick={() => finishInternal("skipped")}
-                className="flex items-center gap-1 text-xs text-[var(--hb-text-muted)] hover:text-[#1b1c1c] transition-colors"
+                className="flex items-center gap-1 text-xs text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-colors"
                 aria-label="튜토리얼 종료"
               >
                 건너뛰기
@@ -373,7 +373,7 @@ export default function SpotlightTutorial({
               </button>
             </div>
 
-            <h3 className="font-serif-kr text-lg leading-snug text-[#1b1c1c] mb-1.5">
+            <h3 className="font-serif-kr text-lg leading-snug text-[var(--hb-text-strong)] mb-1.5">
               {currentStep.title}
             </h3>
             <p className="text-sm leading-relaxed text-[var(--hb-text-body)] mb-4">
@@ -385,7 +385,7 @@ export default function SpotlightTutorial({
                 type="button"
                 onClick={prev}
                 disabled={isFirst}
-                className="flex items-center gap-1 px-3 py-2 text-sm text-[var(--hb-text-body)] hover:text-[#1b1c1c] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                className="flex items-center gap-1 px-3 py-2 text-sm text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-30 disabled:pointer-events-none transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
                 이전

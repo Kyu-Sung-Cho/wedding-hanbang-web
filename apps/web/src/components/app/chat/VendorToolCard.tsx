@@ -167,7 +167,7 @@ function VendorRecommendCards({
                 <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
                   {hasRating(v.rating, v.reviewCount) && (
                     <>
-                      <Star className="h-4 w-4 fill-[#C9A96E] text-[var(--hb-primary)]" />
+                      <Star className="h-4 w-4 fill-[var(--hb-accent)] text-[var(--hb-primary)]" />
                       <span className="text-sm text-[var(--hb-text-muted)]">{v.rating} ({v.reviewCount})</span>
                     </>
                   )}
@@ -256,7 +256,7 @@ function VendorRecommendCards({
                   <button
                     onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
                     disabled={disabled}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#946a6a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors bg-[var(--hb-text-body)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Package className="h-4 w-4" />
                     상품·스태프 보기
@@ -515,7 +515,7 @@ function VendorDetailCard({
                             {p.name}
                           </p>
                           {p.isPopular && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[var(--hb-primary)] font-medium">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(54,83,78,0.12)] text-[var(--hb-primary)] font-medium">
                               인기
                             </span>
                           )}
@@ -620,7 +620,7 @@ function VendorDetailCard({
               disabled={disabled || !selectedProduct || confirmed}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
                 bg-[var(--hb-primary)] text-white text-base font-medium
-                hover:bg-[#946a6a] active:scale-[0.98]
+                bg-[var(--hb-text-body)] active:scale-[0.98]
                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Calendar className="w-5 h-5" />

@@ -422,7 +422,7 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("google")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-black/[0.08] bg-white py-3 text-[13px] font-medium text-[#071629] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-black/[0.08] bg-white py-3 text-[13px] font-medium text-[var(--hb-text-strong)] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>

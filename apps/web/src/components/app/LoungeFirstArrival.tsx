@@ -190,21 +190,21 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
   return (
     <section data-testid="lounge-first-arrival" className="grid gap-4">
       <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)] md:p-6">
-        <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+        <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           확인했어요
         </p>
-        <h2 className="mt-4 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">
+        <h2 className="mt-4 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">
           말씀해주신 내용이에요
         </h2>
         <dl className="mt-4 grid gap-2.5 sm:grid-cols-3">
           {view.echo.map((line) => (
             <div
               key={line.label}
-              className="min-w-0 rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-3.5"
+              className="min-w-0 rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5"
             >
-              <dt className="text-[11px] font-semibold text-[#9d6f36]">{line.label}</dt>
-              <dd className="mt-1.5 truncate text-[14px] font-semibold text-[#071629]">
+              <dt className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{line.label}</dt>
+              <dd className="mt-1.5 truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
                 {line.value}
               </dd>
             </div>
@@ -214,7 +214,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
 
       {/* 화면에서 가장 큰 요소. 다음에 할 수 있는 일은 하나만 크게 세운다. */}
       <div className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)] md:p-6">
-        <p className="text-[12px] font-semibold text-[#ecd7a4]">다음 걸음 하나</p>
+        <p className="text-[12px] font-semibold text-[#ffffff]">다음 걸음 하나</p>
         <h2 className="mt-1.5 font-serif-kr text-[27px] font-medium leading-tight md:text-[30px]">
           {view.nextStep.title}
         </h2>
@@ -223,7 +223,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
         </p>
         <Link
           {...nextStepLink}
-          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
+          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
         >
           {view.nextStep.cta}
           <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -237,8 +237,8 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               <Users className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-[15px] font-semibold text-[#071629]">{view.invite.title}</h3>
-              <p className="mt-1.5 text-[13px] font-medium leading-[1.7] text-[#5d6879]">
+              <h3 className="text-[15px] font-semibold text-[var(--hb-text-strong)]">{view.invite.title}</h3>
+              <p className="mt-1.5 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-body)]">
                 {view.invite.body}
               </p>
               {/* 코드 자체는 설정에만 있다. 라운지에 그대로 띄우면 화면을 켜 둔 자리에서
@@ -248,7 +248,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               </p>
               <Link
                 {...inviteLink}
-                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
+                className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2"
               >
                 {view.invite.cta}
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -269,9 +269,9 @@ export function LoungeFirstArrivalEmptyNote({ view }: { view: LoungeFirstRunView
   return (
     <p
       data-testid="lounge-first-arrival-empty-note"
-      className="inline-flex items-start gap-2 rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-[12px] font-medium leading-[1.6] text-[#5d6879]"
+      className="inline-flex items-start gap-2 rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[12px] font-medium leading-[1.6] text-[var(--hb-text-body)]"
     >
-      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[#9d6f36]" aria-hidden="true" />
+      <Check className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-accent-hover)]" aria-hidden="true" />
       {view.emptyNote}
     </p>
   );

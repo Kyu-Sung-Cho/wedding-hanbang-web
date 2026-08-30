@@ -39,7 +39,7 @@ const CONTENT_ORIGIN_PRESENTATION: Record<
     label: "업계 종사자",
     description:
       "웨딩 업계 종사자 계정이 작성했어요. 소속이나 이해관계는 글의 광고·협찬 표시도 함께 확인해 주세요.",
-    className: "border-[#d8c7ad] bg-[#fff8ec] text-[#8a642f]",
+    className: "border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] text-[#8a642f]",
   },
   legacy_unverified: {
     label: "출처 확인 전",

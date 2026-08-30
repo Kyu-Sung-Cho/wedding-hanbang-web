@@ -70,7 +70,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
   return (
     <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="flex items-start justify-between gap-3">
-        <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+        <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
           이번 주 한 장
           <CalendarHeart className="h-4 w-4" />
         </p>
@@ -96,7 +96,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {/* 곧 확인할 분야 */}
         <div className="rounded-[14px] border border-[#f0e9da] p-3.5">
-          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
             <ListChecks className="h-3.5 w-3.5" />
             곧 확인할 분야
           </p>
@@ -114,7 +114,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
                         category.urgency === "overdue"
                           ? "text-[#c2410c]"
                           : category.urgency === "urgent"
-                            ? "text-[#9d6f36]"
+                            ? "text-[var(--hb-accent-hover)]"
                             : "text-[var(--hb-text-muted)]"
                       }`}
                     >
@@ -144,7 +144,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             {...weddingLinkProps(data.mannersPart.href)}
             className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
               <BookOpen className="h-3.5 w-3.5" />
               알아둘 예절
             </p>
@@ -162,7 +162,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             {...weddingLinkProps("/chat")}
             className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
               <BookOpen className="h-3.5 w-3.5" />
               가족 이야기
             </p>
@@ -179,7 +179,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
           {...weddingLinkProps("/community/quote-check")}
           className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
         >
-          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
             <AlertTriangle className="h-3.5 w-3.5" />
             계약 전 확인
           </p>
@@ -194,8 +194,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
       {/* 아모라가 기억하는 다음 행동 — 채팅 밖 첫 노출 */}
       {data.openActions.length > 0 && (
-        <div className="mt-3 rounded-[14px] border border-[#f0e9da] bg-[#fffdf7] p-3.5">
-          <p className="mb-2 text-[12px] font-semibold text-[#5d6879]">아모라가 기억하는 다음 행동</p>
+        <div className="mt-3 rounded-[14px] border border-[#f0e9da] bg-[var(--hb-surface-page)] p-3.5">
+          <p className="mb-2 text-[12px] font-semibold text-[var(--hb-text-body)]">아모라가 기억하는 다음 행동</p>
           <ul className="space-y-1.5">
             {data.openActions.map((action) => (
               <li key={action.id}>

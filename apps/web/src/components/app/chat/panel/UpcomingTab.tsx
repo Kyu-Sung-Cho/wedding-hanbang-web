@@ -13,7 +13,7 @@ import CollapsibleSection from "./CollapsibleSection";
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
   overdue: { badge: "bg-[#9A6B62] text-white", text: "text-[#9A6B62]" },
   urgent: { badge: "bg-[#C4967E] text-white", text: "text-[#C4967E]" },
-  soon: { badge: "bg-[#C9A96E] text-white", text: "text-[#C9A96E]" },
+  soon: { badge: "bg-[var(--hb-accent)] text-white", text: "text-[var(--hb-accent-hover)]" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -170,7 +170,7 @@ export default function UpcomingTab() {
                 key={evt.id}
                 className="flex items-center gap-3 py-2"
               >
-                <CalendarDays className="w-5 h-5 text-[#C9A96E] flex-shrink-0" />
+                <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-base text-[var(--hb-text-strong)] font-medium truncate block">
                     {evt.title}
@@ -181,7 +181,7 @@ export default function UpcomingTab() {
                       {formatEventDate(evt.date)}
                     </span>
                     {evt.categoryKey && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E]">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(54,83,78,0.12)] text-[var(--hb-accent-hover)]">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}

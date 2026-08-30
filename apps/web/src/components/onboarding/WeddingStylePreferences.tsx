@@ -138,7 +138,7 @@ export default function WeddingStylePreferences({
                 }`}
               >
                 {selected && (
-                  <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-rose-500 flex items-center justify-center">
+                  <div className="absolute top-1.5 right-1.5 w-4 h-4 rounded-full bg-[var(--hb-primary)] flex items-center justify-center">
                     <svg
                       width="10"
                       height="10"

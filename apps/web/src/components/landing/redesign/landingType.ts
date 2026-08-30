@@ -100,7 +100,7 @@ export const sectionLedeCompact = "text-[14px] leading-[1.7] sm:text-[16px]";
  * 지면이면 4, 문단 안 인라인이면 없음. 그 규칙만 지킨다.
  */
 export const secondaryLink =
-  "inline-flex min-h-11 items-center text-[14px] font-semibold text-noir-800 underline decoration-noir-800/30 underline-offset-4 transition-colors duration-200 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600";
+  "inline-flex min-h-11 items-center text-[14px] font-semibold text-noir-800 underline decoration-noir-800/30 underline-offset-4 transition-colors duration-200 hover:text-[var(--hb-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600";
 /** 어두운 배경 위의 같은 링크. */
 export const secondaryLinkOnDark =
   "inline-flex min-h-11 items-center text-[14px] font-semibold text-gold-light underline decoration-gold-light/40 underline-offset-4 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-light";
@@ -148,7 +148,7 @@ export const sectionRhythmCompact = "py-12 sm:py-14 lg:py-16";
 /* 정렬(`justify-*`)과 포커스 링 색은 배치마다 달라야 하므로 여기 넣지 않는다.
  * 어두운 히어로와 밝은 마무리 섹션은 링 색·offset이 서로 달라야 보인다. */
 const primaryActionBase =
-  "group inline-flex items-center gap-3 rounded-full bg-rose-600 font-semibold text-white transition-[background-color,translate] duration-200 motion-safe:hover:-translate-y-0.5 hover:bg-rose-700 active:translate-y-0 active:bg-rose-700 focus-visible:outline-none focus-visible:ring-2";
+  "group inline-flex items-center gap-3 rounded-full bg-[var(--hb-primary)] font-semibold text-white transition-[background-color,translate] duration-200 motion-safe:hover:-translate-y-0.5 hover:bg-rose-700 active:translate-y-0 active:bg-rose-700 focus-visible:outline-none focus-visible:ring-2";
 
 /** 헤더처럼 좁은 자리. */
 export const primaryActionSm = `${primaryActionBase} min-h-11 px-4 text-[14px] sm:px-5`;

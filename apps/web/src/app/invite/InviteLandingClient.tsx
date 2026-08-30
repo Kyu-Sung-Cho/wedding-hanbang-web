@@ -127,8 +127,8 @@ export default function InviteLandingClient() {
           말하지 않아도 돼요.
         </p>
 
-        <div className="mt-6 rounded-[18px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-5 py-4">
-          <p className="text-[12px] font-semibold text-[#9d6f36]">초대 코드</p>
+        <div className="mt-6 rounded-[18px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
+          <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">초대 코드</p>
           <p className="mt-1 break-all font-mono text-[20px] font-semibold tracking-[0.04em] text-[#2b3a36]">
             {code}
           </p>

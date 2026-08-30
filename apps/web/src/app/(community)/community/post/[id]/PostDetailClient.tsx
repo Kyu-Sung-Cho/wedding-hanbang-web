@@ -125,13 +125,13 @@ function DecisionRecordOverview({
         }
       : isQuestion && hasAnswers
         ? {
-            tone: "border-[#d8c7ad] bg-[#fbf4e7] text-[#7d5a2c]",
+            tone: "border-[var(--hb-hairline)] bg-[#fbf4e7] text-[#7d5a2c]",
             title: "답변을 확인 중인 질문",
             body: `사람의 답변 ${post.comment_count}개가 달렸고, 질문자는 아직 해결 여부를 표시하지 않았습니다.`,
           }
         : isQuestion
           ? {
-              tone: "border-[#d8c7ad] bg-[#fffaf0] text-[#7d5a2c]",
+              tone: "border-[var(--hb-hairline)] bg-[#fffaf0] text-[#7d5a2c]",
               title: "첫 사람 답변을 기다리는 질문",
               body: "직접 겪은 사람이 답하기 전까지는 추측으로 결론 내리지 않습니다.",
             }
@@ -1305,10 +1305,10 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
         <section className="rounded-2xl border border-[var(--hb-hairline)] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-serif-kr text-[20px] font-medium text-[#071629]">
+              <h2 className="font-serif-kr text-[20px] font-medium text-[var(--hb-text-strong)]">
                 많이 본 글
               </h2>
-              <p className="mt-0.5 text-[12px] font-medium text-[#7a8290]">
+              <p className="mt-0.5 text-[12px] font-medium text-[var(--hb-text-body)]">
                 이 글을 본 사람들이 이어서 읽는 글
               </p>
             </div>
@@ -1345,19 +1345,19 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[#7a8290]">
-                        <span className="shrink-0 rounded bg-[#f6ead9] px-1.5 py-0.5 text-[#9d6f36]">
+                      <div className="mb-1 flex min-w-0 items-center gap-1.5 text-[10px] font-medium text-[var(--hb-text-body)]">
+                        <span className="shrink-0 rounded bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[var(--hb-accent-hover)]">
                           {itemCategory?.shortLabel ?? "커뮤니티"}
                         </span>
                         <span suppressHydrationWarning className="truncate">{timeAgo(item.created_at)}</span>
                       </div>
-                      <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.45] text-[#071629]">
+                      <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
                         {item.title}
                       </h3>
-                      <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[#7a8290]">
+                      <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[var(--hb-text-body)]">
                         {stripHtmlPreview(item.content)}
                       </p>
-                      <div className="mt-1.5 flex items-center gap-2 text-[10px] font-medium text-[#7a8290]">
+                      <div className="mt-1.5 flex items-center gap-2 text-[10px] font-medium text-[var(--hb-text-body)]">
                         <span>좋아요 {item.upvote_count ?? 0}</span>
                         <span>답변 {item.comment_count ?? 0}</span>
                         <span>조회 {item.view_count ?? 0}</span>
@@ -1368,7 +1368,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
               })}
             </div>
           ) : (
-            <div className="rounded-xl bg-[#fffdf7] px-3 py-4 text-[13px] font-medium leading-relaxed text-[#7a8290]">
+            <div className="rounded-xl bg-[var(--hb-surface-page)] px-3 py-4 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">
               아직 함께 보여드릴 많이 본 글이 없어요.
             </div>
           )}

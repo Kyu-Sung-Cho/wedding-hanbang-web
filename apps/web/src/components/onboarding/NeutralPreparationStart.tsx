@@ -50,7 +50,7 @@ export default function NeutralPreparationStart({
   return (
     <section aria-labelledby="neutral-preparation-title" className="space-y-6">
       {error ? (
-        <p role="alert" className="text-center text-[13px] text-rose-600">
+        <p role="alert" className="text-center text-[13px] text-[var(--hb-accent-hover)]">
           {error}
         </p>
       ) : null}
@@ -110,7 +110,7 @@ export default function NeutralPreparationStart({
                 }
                 className={`min-h-11 rounded-2xl border px-3 py-2.5 text-[13px] leading-snug transition-colors disabled:opacity-50 ${
                   selected
-                    ? "border-[#795252] bg-[#795252]/[0.08] font-medium text-[#795252]"
+                    ? "border-[var(--hb-hairline)] bg-[#795252]/[0.08] font-medium text-[var(--hb-accent-hover)]"
                     : "border-black/[0.08] bg-white text-[var(--hb-text-body)] hover:bg-black/[0.02]"
                 }`}
               >

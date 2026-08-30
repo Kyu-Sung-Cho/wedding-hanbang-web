@@ -198,7 +198,7 @@ export default function InviteCodePanel({
     `inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors ${
       copiedTarget === target
         ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
-        : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:text-[#795252]"
+        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
     }`;
 
   const copyIcon = (target: CopyTarget, Fallback: typeof Copy) =>
@@ -222,7 +222,7 @@ export default function InviteCodePanel({
             className={
               notice.tone === "active"
                 ? "mt-2 text-sm text-[var(--hb-text-muted)]"
-                : "mt-2 text-sm font-medium text-[#795252]"
+                : "mt-2 text-sm font-medium text-[var(--hb-accent-hover)]"
             }
           >
             {notice.message}

@@ -34,7 +34,7 @@ export default function CompareToHumanPlanner() {
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal">
             아모라는 사람 플래너를
             <br />
-            <em className="not-italic text-rose-500">대체한다고 약속하지 않아요.</em>
+            <em className="not-italic text-[var(--hb-accent-hover)]">대체한다고 약속하지 않아요.</em>
           </h2>
           <p className="mt-6 max-w-2xl text-[15px] leading-7 text-charcoal">
             사람의 현장 경험과 중재가 필요한 일, 반복해서 조건을 정리하고 기록하는 일은 서로 다릅니다. 상황에 맞게 함께 사용할 수 있도록 차이를 설명합니다.
@@ -71,7 +71,7 @@ export default function CompareToHumanPlanner() {
                 <span className="text-[15px] text-charcoal font-light">
                   {row.human}
                 </span>
-                <span className="text-[15px] text-rose-500 font-medium">
+                <span className="text-[15px] text-[var(--hb-accent-hover)] font-medium">
                   {row.amora}
                 </span>
               </motion.div>

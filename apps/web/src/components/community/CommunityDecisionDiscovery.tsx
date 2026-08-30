@@ -129,7 +129,7 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
             </span>
           )}
           {item.viewer.isAuthor && (
-            <span className="rounded-full bg-rose-pale px-2 py-0.5 text-rose-600">
+            <span className="rounded-full bg-rose-pale px-2 py-0.5 text-[var(--hb-accent-hover)]">
               내 질문
             </span>
           )}
@@ -154,7 +154,7 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
             </span>
           )}
           {relationship && (
-            <span className="rounded-full border border-gold-light bg-[var(--hb-surface-hover)] px-2.5 py-1 text-[11px] font-semibold text-rose-600">
+            <span className="rounded-full border border-gold-light bg-[var(--hb-surface-hover)] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
               관계 공개 · {relationship}
             </span>
           )}
@@ -172,7 +172,7 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
               궁금한 점 · {item.desiredAnswer}
             </p>
             {relationship && item.sponsorshipDetail && (
-              <p className="mt-1 line-clamp-1 text-[11px] leading-[1.55] text-rose-600">
+              <p className="mt-1 line-clamp-1 text-[11px] leading-[1.55] text-[var(--hb-accent-hover)]">
                 관계 설명 · {item.sponsorshipDetail}
               </p>
             )}
@@ -185,11 +185,11 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
 
         {item.outcome && (
           <div className="mt-3 border-l-2 border-sage-500 bg-[var(--hb-surface-page)] px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-sage-500">
+            <p className="text-[11px] font-semibold text-[var(--hb-success)]">
               작성자가 돌아와 남긴 결과
             </p>
             {outcomeRelationship && (
-              <p className="mt-1 text-[11px] font-semibold leading-[1.55] text-rose-600">
+              <p className="mt-1 text-[11px] font-semibold leading-[1.55] text-[var(--hb-accent-hover)]">
                 결과 관계 공개 · {outcomeRelationship}
               </p>
             )}
@@ -200,7 +200,7 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
               적용 조건 · {item.outcome.applicableConditions}
             </p>
             {outcomeRelationship && item.outcome.sponsorshipDetail && (
-              <p className="mt-1 line-clamp-2 text-[11px] leading-[1.55] text-rose-600">
+              <p className="mt-1 line-clamp-2 text-[11px] leading-[1.55] text-[var(--hb-accent-hover)]">
                 결과 관계 설명 · {item.outcome.sponsorshipDetail}
               </p>
             )}
@@ -211,7 +211,7 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
           <span>경험 답변 {item.qualifiedPeerAnswerCount}개</span>
           <span>전문 답변 {item.qualifiedProfessionalAnswerCount}개</span>
           {item.viewer.canAnswer && (
-            <span className="font-semibold text-rose-600">내 경험을 나눌 수 있어요</span>
+            <span className="font-semibold text-[var(--hb-accent-hover)]">내 경험을 나눌 수 있어요</span>
           )}
         </div>
       </Link>
@@ -400,7 +400,7 @@ export default function CommunityDecisionDiscovery({
       <div className="overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:px-5">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold tracking-[0.04em] text-rose-600">
+            <p className="text-[11px] font-semibold tracking-[0.04em] text-[var(--hb-accent-hover)]">
               사람의 실제 경험
             </p>
             <h2

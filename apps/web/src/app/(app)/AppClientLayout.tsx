@@ -148,7 +148,7 @@ function GlobalChatAssistant() {
               <button
                 type="button"
                 onClick={openPanel}
-                className="min-w-0 flex-1 text-left text-[13px] font-medium leading-[1.6] text-[#061a34]"
+                className="min-w-0 flex-1 text-left text-[13px] font-medium leading-[1.6] text-[var(--hb-text-strong)]"
               >
                 {firstHello?.preview}
               </button>
@@ -160,7 +160,7 @@ function GlobalChatAssistant() {
                   // 대화를 열면 첫마디는 그대로 놓여 있다.
                   dismissAmoraFirstHelloBubble({ ownerId: ownerIdRef.current });
                 }}
-                className="shrink-0 rounded-full px-1.5 text-[13px] font-semibold text-[#7a8290] hover:text-[#061a34]"
+                className="shrink-0 rounded-full px-1.5 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"
                 aria-label="아모라 인사 닫기"
               >
                 ×
@@ -172,7 +172,7 @@ function GlobalChatAssistant() {
             type="button"
             onClick={openPanel}
             data-tutorial-target="amora-fab"
-            className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[#061a34] text-white shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
+            className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
             title="아모라 AI 상담"
             aria-label="아모라 AI 상담"
           >

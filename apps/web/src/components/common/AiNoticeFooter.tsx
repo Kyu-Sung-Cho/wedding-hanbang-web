@@ -16,9 +16,9 @@ export default function AiNoticeFooter({ variant = "light" }: AiNoticeFooterProp
   const textCls = isDark ? "text-white/60" : "text-[var(--hb-text-body)]";
   const iconBgCls = isDark
     ? "bg-white/10 text-white/80"
-    : "bg-[#795252]/10 text-[#795252]";
-  const labelCls = isDark ? "text-white/80" : "text-[#1b1c1c]";
-  const linkHoverCls = isDark ? "hover:text-white" : "hover:text-[#795252]";
+    : "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)]";
+  const labelCls = isDark ? "text-white/80" : "text-[var(--hb-text-strong)]";
+  const linkHoverCls = isDark ? "hover:text-white" : "hover:text-[var(--hb-accent-hover)]";
 
   return (
     <div className={`border-t ${borderCls} pt-6 mt-6 text-xs ${textCls}`}>

@@ -25,7 +25,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-[#2E7D5A]",
-  in_progress: "bg-rose-500",
+  in_progress: "bg-[var(--hb-primary)]",
   not_started: "bg-taupe-400",
   not_applicable: "bg-[#8b857c]",
 };
@@ -111,7 +111,7 @@ export default function ChecklistTab() {
             {cat.status !== "completed" && (
               <div className="h-1.5 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden mt-1.5">
                 <div
-                  className="h-full bg-rose-500 rounded-full"
+                  className="h-full bg-[var(--hb-primary)] rounded-full"
                   style={{ width: `${pct}%` }}
                 />
               </div>

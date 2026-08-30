@@ -78,7 +78,7 @@ export default function FiveRoles() {
           <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal mb-5">
             견적에서 일정까지,
             <br />
-            <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
+            <em className="not-italic text-[var(--hb-accent-hover)]">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
             아모라는 커뮤니티에서 확인한 내용을 내 웨딩 라운지의 다음 행동으로 이어줍니다.
@@ -97,7 +97,7 @@ export default function FiveRoles() {
               className="group grid grid-cols-[56px_1fr] md:grid-cols-[96px_220px_1fr] gap-x-6 md:gap-x-12 gap-y-3 py-10 md:py-12 items-baseline hover:bg-white/50 transition-colors"
             >
               {/* 넘버 */}
-              <span className="font-display text-2xl md:text-[28px] text-rose-500 font-light tracking-tight">
+              <span className="font-display text-2xl md:text-[28px] text-[var(--hb-accent-hover)] font-light tracking-tight">
                 {role.number}
               </span>
 

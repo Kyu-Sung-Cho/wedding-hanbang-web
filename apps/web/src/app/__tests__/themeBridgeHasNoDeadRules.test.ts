@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
  *
  * `globals.css`의 "Service app theme bridge"는 로그인 후 화면의 옛 rose/taupe 유틸리티를
  * 유칼립투스 그린으로 덮어쓰는 레이어다. 방식은 속성 선택자다 —
- * `.hanbang-service-theme [class~="text-rose-500"] { color: ... !important }`.
+ * `.hanbang-service-theme [class~="text-[var(--hb-accent-hover)]"] { color: ... !important }`.
  *
  * 즉 **문자열 매칭**이다. 컴포넌트에서 그 클래스가 사라지면 규칙은 아무것도 안 하지만,
  * 아무도 모른다. 실제로 2026-08-20에 세어보니 대상 140종 중 **43종이 소스에 0곳**이었다.
@@ -133,7 +133,16 @@ describe("테마 브리지", () => {
     // "죽었다"로 보여 규칙을 통째로 지우게 된다 — 그쪽을 먼저 막는다.
     expect(sources.length).toBeGreaterThan(80);
     expect(reachableDirs.size).toBeGreaterThan(2);
-    expect(bridgeTargets.length).toBeGreaterThan(50);
+    // ⚠️ 하한이 50 이었다. 2026-08-30에 브리지를 **걷어내기 시작**하면서 규칙 32개가
+    // 사라져 대상이 11종만 남았다(색을 다루는 규칙은 전부 은퇴했고, 남은 것은
+    // 글꼴·그라디언트·그림자다). 옛 하한은 이제 "브리지가 줄었다"를 파서 고장으로
+    // 오인한다.
+    //
+    // 이 단언의 목적은 여전히 같다 — **추출이 0을 내는 것**을 막는다. 그래야
+    // 모든 대상이 "죽었다"로 보여 규칙을 통째로 지우는 일이 안 생긴다. 그래서
+    // 숫자만 오늘 값(11)의 아래로 내린다. 브리지가 완전히 은퇴하면 이 파일도
+    // 함께 지워야 한다 — 그때는 지킬 대상이 0이 되는 것이 정답이기 때문이다.
+    expect(bridgeTargets.length).toBeGreaterThan(6);
 
     // 카나리아는 **마이그레이션과 무관한 문자열**이어야 한다.
     //

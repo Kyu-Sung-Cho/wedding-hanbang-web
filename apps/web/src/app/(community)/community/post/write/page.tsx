@@ -870,7 +870,7 @@ function PostWriteContent() {
         )}
 
         {isGuidedQuestionFlow && (
-          <div className="mb-6 rounded-2xl border border-[#d8c7ad] bg-[#fffdf7] px-5 py-4">
+          <div className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
             <p className="text-sm font-semibold text-[var(--hb-text-strong)]">제목보다 상황이 중요해요</p>
             <p className="mt-1 text-[13px] leading-relaxed text-[var(--hb-text-body)]">
               무슨 일이 있었는지, 이미 들은 조건이나 해본 선택, 어떤 경험이 필요한지만
@@ -1273,7 +1273,7 @@ function PostWriteContent() {
                       <> 이미지 메타정보는 제거하지만 사진 속 글자는 자동으로 가려지지 않아요.</>
                     )}
                   </p>
-                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[var(--hb-text-body)]">
+                  <label className="flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 py-2.5 text-[12px] font-medium leading-relaxed text-[var(--hb-text-body)]">
                     <input
                       type="checkbox"
                       checked={publicSafetyConfirmed}

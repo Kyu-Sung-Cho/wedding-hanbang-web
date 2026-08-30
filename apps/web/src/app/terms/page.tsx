@@ -121,8 +121,8 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제9조 (AI 서비스 관련 고지)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>아모라는 인공지능이 답변을 만드는 서비스입니다. 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」에 따른 사전 고지와 생성물 표시를 제공합니다. 자세한 내용은 <Link href="/ai-policy" className="text-rose-500 underline">AI 정책</Link>에서 확인할 수 있습니다.</li>
-              <li>아모라의 AI 생성 응답에는 AI가 만든 내용임을 알리는 표시가 포함됩니다. 상호작용 기록은 <Link href="/privacy" className="text-rose-500 underline">개인정보 처리방침</Link>에 고지한 목적과 기간에 따라 처리합니다.</li>
+              <li>아모라는 인공지능이 답변을 만드는 서비스입니다. 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」에 따른 사전 고지와 생성물 표시를 제공합니다. 자세한 내용은 <Link href="/ai-policy" className="text-[var(--hb-accent-hover)] underline">AI 정책</Link>에서 확인할 수 있습니다.</li>
+              <li>아모라의 AI 생성 응답에는 AI가 만든 내용임을 알리는 표시가 포함됩니다. 상호작용 기록은 <Link href="/privacy" className="text-[var(--hb-accent-hover)] underline">개인정보 처리방침</Link>에 고지한 목적과 기간에 따라 처리합니다.</li>
               <li>아모라는 사용자가 입력한 내용과 연결된 도구의 결과를 바탕으로 준비를 돕지만, 틀리거나 빠진 내용이 있을 수 있습니다. 계약, 결제, 법률, 세금, 의료, 안전처럼 결과가 큰 결정은 해당 원문과 담당 기관 또는 자격 있는 전문가에게 다시 확인해야 합니다.</li>
               <li>예산·할 일·일정에 내용을 저장하거나 함께 준비할 사람에게 공유하는 동작은 실행 전에 회원의 확인을 받습니다.</li>
             </ol>
@@ -131,7 +131,7 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제10조 (회원 탈퇴 및 자격 상실)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. 현재는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.</li>
+              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. 현재는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.</li>
               <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한되고 계정 삭제 절차가 시작됩니다. 임시 파일 접근 링크가 만료되고 파일 소유권과 삭제 대상을 확인한 뒤, 더 이상 필요하지 않은 개인정보를 지체 없이 파기합니다. 처리 범위와 기간은 개인정보 처리방침을 따릅니다.</li>
               <li>계정 삭제는 되돌릴 수 없습니다. 같은 이메일로 다시 가입하더라도 이전 기록은 복구되지 않습니다.</li>
               <li>연결된 파트너가 있는 경우, 두 사람이 함께 만든 준비 기록과 주고받은 대화는 남은 파트너의 화면에 그대로 유지되고 탈퇴한 회원의 식별 정보만 제거됩니다. 남은 파트너도 자신의 기록에 대해 같은 권리를 가집니다.</li>
@@ -153,7 +153,7 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제12조 (분쟁 해결 및 관할)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>이용 문의와 불만은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수할 수 있습니다.</li>
+              <li>이용 문의와 불만은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수할 수 있습니다.</li>
               <li>운영자와 회원은 분쟁이 생기면 먼저 사실관계를 확인하고 원만한 해결을 위해 노력합니다. 해결되지 않는 경우 관계 법령에 따른 소비자 분쟁조정 절차를 이용할 수 있습니다.</li>
               <li>소송이 필요한 경우 관할 법원은 민사소송법 등 관계 법령에 따라 정합니다.</li>
             </ol>

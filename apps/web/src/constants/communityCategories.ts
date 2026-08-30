@@ -41,7 +41,7 @@ export const COMMUNITY_CATEGORIES: CommunityCategoryInfo[] = [
     shortLabel: "준비 팁",
     description: "계약 전 질문, 숨은 비용, 준비 순서처럼 도움이 되는 팁을 모읍니다.",
     icon: "Lightbulb",
-    color: "text-[#C9A96E]",
+    color: "text-[var(--hb-accent-hover)]",
     bgColor: "bg-[#FAF8F0]",
     allowVendorTags: false,
     allowPriceForm: false,

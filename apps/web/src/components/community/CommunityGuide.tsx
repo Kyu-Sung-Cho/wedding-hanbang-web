@@ -115,8 +115,8 @@ function SlideRealReview() {
               </div>
               <div>
                 <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 B</div>
-                <div className="text-base font-semibold text-sage-500">구성 공개</div>
-                <div className="text-sm text-sage-500">원문 확인</div>
+                <div className="text-base font-semibold text-[var(--hb-success)]">구성 공개</div>
+                <div className="text-sm text-[var(--hb-success)]">원문 확인</div>
               </div>
               <div>
                 <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 C</div>
@@ -140,7 +140,7 @@ function SlideRealReview() {
         </div>
         <div className="px-4 py-2.5 border-t border-[#f6efe5] flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 text-sage-500">
+            <div className="flex items-center gap-1 text-[var(--hb-success)]">
               <ChevronUp className="w-5 h-5" />
               <span className="text-base font-semibold">공감</span>
               <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />
@@ -184,7 +184,7 @@ function SlideCohort() {
         <div className="flex items-center justify-between mb-3">
           <div>
             <div className="text-[17px] text-[var(--hb-text-strong)] font-semibold">샘플 동기방</div>
-            <div className="text-sm text-[#7a8290] font-light mt-0.5">비슷한 시기 결혼 예정 커플</div>
+            <div className="text-sm text-[var(--hb-text-body)] font-light mt-0.5">비슷한 시기 결혼 예정 커플</div>
           </div>
           <div className="px-2.5 py-1 rounded-full bg-[var(--hb-primary)]/10 text-sm text-[var(--hb-text-strong)] font-medium">
             예시 화면
@@ -204,7 +204,7 @@ function SlideCohort() {
               style={{ zIndex: 5 - i }}
             />
           ))}
-          <span className="text-sm text-[#7a8290] ml-2">예시 멤버</span>
+          <span className="text-sm text-[var(--hb-text-body)] ml-2">예시 멤버</span>
         </div>
       </div>
 
@@ -363,7 +363,7 @@ function SlideHowToUse() {
         {/* 2. 투표 */}
         <div className="flex items-start gap-3 p-4 rounded-xl bg-[var(--hb-surface-page)] border border-[#f6efe5]">
           <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sage-500/20 to-sage-500/5 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5 text-sage-500" />
+            <TrendingUp className="w-5 h-5 text-[var(--hb-success)]" />
           </div>
           <div className="text-left">
             <div className="text-base text-[var(--hb-text-strong)] font-semibold mb-1">좋은 글은 투표로</div>

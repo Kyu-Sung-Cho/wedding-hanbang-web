@@ -46,13 +46,13 @@ export default function CommunityNav({
           </span>
         </div>
 
-        <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[#071629] md:flex">
+        <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] md:flex">
           {baseNavItems.map((item, index) => (
             <div key={item.legacyPath} className="flex items-center gap-6">
               {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
               <Link
                 {...item.linkProps}
-                className="inline-flex min-h-11 min-w-11 items-center justify-center transition-colors hover:text-[#b68a3a]"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center transition-colors hover:text-[var(--hb-accent-hover)]"
               >
                 {item.label}
               </Link>
@@ -70,7 +70,7 @@ export default function CommunityNav({
           )}
           <Link
             {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[6px] bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[6px] bg-[var(--hb-primary)] px-6 py-3 text-[14px] font-semibold text-[#ffffff] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5"
           >
             고민 올리기
             <PenSquare className="h-4 w-4" />
@@ -80,7 +80,7 @@ export default function CommunityNav({
           ) : (
             <Link
               href="/login"
-              className="inline-flex min-h-11 min-w-11 items-center justify-center text-[14px] font-semibold text-[#071629] transition-colors hover:text-[#b68a3a]"
+              className="inline-flex min-h-11 min-w-11 items-center justify-center text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:text-[var(--hb-accent-hover)]"
             >
               로그인
             </Link>
@@ -90,7 +90,7 @@ export default function CommunityNav({
         <button
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[#071629] md:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] md:hidden"
           aria-label="커뮤니티 메뉴"
           aria-expanded={mobileOpen}
         >
@@ -98,14 +98,14 @@ export default function CommunityNav({
         </button>
       </div>
       {mobileOpen && (
-        <div className="border-t border-[var(--hb-hairline)] bg-[#fffdf7] md:hidden">
+        <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] md:hidden">
           <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-2 px-4 py-4 sm:px-6 lg:px-8">
             {baseNavItems.map((item) => (
               <Link
                 key={item.legacyPath}
                 {...item.linkProps}
                 onClick={() => setMobileOpen(false)}
-                className="rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[#071629] hover:bg-white"
+                className="rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[var(--hb-text-strong)] hover:bg-white"
               >
                 {item.label}
               </Link>
@@ -123,7 +123,7 @@ export default function CommunityNav({
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
               onClick={() => setMobileOpen(false)}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-accent-hover)]"
             >
               고민 올리기
               <PenSquare className="h-4 w-4" />
@@ -136,7 +136,7 @@ export default function CommunityNav({
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#071629]"
+                className="inline-flex items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)]"
               >
                 로그인
               </Link>

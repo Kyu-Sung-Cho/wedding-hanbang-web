@@ -31,7 +31,7 @@ export default async function AboutPage() {
           <h1 className="font-serif-kr text-[clamp(36px,5vw,64px)] font-light text-[var(--hb-text-strong)] leading-[1.15] tracking-normal max-w-3xl">
             우리가 믿는
             <br />
-            <em className="not-italic text-rose-500">결혼 준비의 원칙.</em>
+            <em className="not-italic text-[var(--hb-accent-hover)]">결혼 준비의 원칙.</em>
           </h1>
         </div>
       </section>

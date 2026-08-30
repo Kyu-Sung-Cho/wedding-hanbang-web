@@ -198,7 +198,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
             </p>
           ) : acceptance?.accepted ? (
             <div>
-              <p className="flex min-h-12 items-center gap-2 text-sm font-medium text-[#795252]">
+              <p className="flex min-h-12 items-center gap-2 text-sm font-medium text-[var(--hb-accent-hover)]">
                 <Users className="h-4 w-4" aria-hidden="true" />
                 내가 확인했어요 · 상대방 확인을 기다리고 있어요
               </p>
@@ -233,7 +233,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
               type="button"
               disabled={saving !== null}
               onClick={() => void updateAcceptance("POST")}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 text-sm font-medium text-white transition-colors hover:bg-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] focus-visible:ring-offset-2 disabled:opacity-50"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-medium text-white transition-colors hover:bg-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {saving === "accept"
                 ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

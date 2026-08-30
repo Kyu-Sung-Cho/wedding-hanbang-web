@@ -28,7 +28,7 @@ export default function MannersIndexPage() {
     <div className="mx-auto w-full max-w-[900px] px-4 py-9 sm:px-6 sm:py-12">
       <header>
         <p className="text-[12px] font-semibold tracking-[0.14em] text-[#8F5150]">WEDDING MANNERS GUIDE</p>
-        <h1 className="mt-2 text-[30px] font-semibold leading-snug text-[#1b1c1c] sm:text-[36px]">
+        <h1 className="mt-2 text-[30px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-[36px]">
           결혼 예절 가이드
         </h1>
         <p className="mt-3 max-w-[620px] text-[14.5px] leading-[1.85] text-[#3d4a45]">

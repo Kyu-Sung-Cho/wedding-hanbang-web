@@ -177,7 +177,7 @@ const REPORT_REASON_LABEL: Record<string, string> = {
 
 const REPORT_STATUS_LABEL: Record<ReportStatus, { text: string; cls: string }> = {
   pending: { text: "대기", cls: "bg-gold/10 text-gold" },
-  reviewed: { text: "검토 중", cls: "bg-rose-500/10 text-rose-500" },
+  reviewed: { text: "검토 중", cls: "bg-rose-500/10 text-[var(--hb-accent-hover)]" },
   resolved: { text: "처리됨", cls: "bg-[#2E7D5A]/10 text-[#2E7D5A]" },
   dismissed: { text: "기각", cls: "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]" },
 };
@@ -635,10 +635,10 @@ export default function AdminPage() {
             <Link href="/admin/enrich" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors">
               업체 정보 보강
             </Link>
-            <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
+            <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-lg hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
-            <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-lg hover:border-rose-500 hover:text-rose-500 transition-colors">
+            <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-lg hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
               <LogOut className="w-3.5 h-3.5" /> 로그아웃
             </button>
           </div>
@@ -800,7 +800,7 @@ export default function AdminPage() {
                           <td className="px-6 py-4 text-sm text-[var(--hb-text-body)]">{v.ownerName}</td>
                           <td className="px-6 py-4 text-sm text-[var(--hb-text-body)]">
                             {v.phone && (
-                              <a href={`tel:${v.phone}`} className="flex items-center gap-1 text-rose-500 hover:underline">
+                              <a href={`tel:${v.phone}`} className="flex items-center gap-1 text-[var(--hb-accent-hover)] hover:underline">
                                 <Phone className="w-3 h-3" />{v.phone}
                               </a>
                             )}
@@ -939,7 +939,7 @@ export default function AdminPage() {
               </div>
               <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">커플 연동</p>
-                <p className="font-display text-4xl font-light text-rose-500">{customerStats.coupled}</p>
+                <p className="font-display text-4xl font-light text-[var(--hb-accent-hover)]">{customerStats.coupled}</p>
               </div>
               <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">오늘 가입</p>
@@ -1073,7 +1073,7 @@ export default function AdminPage() {
                             <td className="px-6 py-4 text-sm text-[var(--hb-text-body)]">{customerName}</td>
                             <td className="px-6 py-4 text-sm text-[var(--hb-text-body)]">
                               {b.contactPhone ? (
-                                <a href={`tel:${b.contactPhone}`} className="flex items-center gap-1 text-rose-500 hover:underline">
+                                <a href={`tel:${b.contactPhone}`} className="flex items-center gap-1 text-[var(--hb-accent-hover)] hover:underline">
                                   <Phone className="w-3 h-3" />{b.contactPhone}
                                 </a>
                               ) : "-"}
@@ -1173,9 +1173,9 @@ export default function AdminPage() {
                 {/* 핵심 KPI */}
                 <div className="grid grid-cols-4 gap-4 mb-8 max-md:grid-cols-2">
                   {[
-                    { label: "총 조회수", value: insights.overview.totalViews.toLocaleString(), icon: Eye, color: "text-rose-500" },
+                    { label: "총 조회수", value: insights.overview.totalViews.toLocaleString(), icon: Eye, color: "text-[var(--hb-accent-hover)]" },
                     { label: "활성 사용자", value: insights.overview.activeUsers.toLocaleString(), icon: Users, color: "text-[#2E7D5A]" },
-                    { label: "총 즐겨찾기", value: insights.overview.totalFavorites.toLocaleString(), icon: Heart, color: "text-rose-500" },
+                    { label: "총 즐겨찾기", value: insights.overview.totalFavorites.toLocaleString(), icon: Heart, color: "text-[var(--hb-accent-hover)]" },
                     { label: "기간 예약", value: insights.overview.totalBookings.toLocaleString(), icon: CalendarCheck, color: "text-gold" },
                   ].map((kpi) => (
                     <div key={kpi.label} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
@@ -1207,7 +1207,7 @@ export default function AdminPage() {
                   {/* 인기 업체 */}
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <TrendingUp className="w-4 h-4 text-rose-500" />
+                      <TrendingUp className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                       <h2 className="font-serif-kr text-[16px] font-normal">인기 업체 TOP 10</h2>
                     </div>
                     <div className="space-y-2">
@@ -1332,7 +1332,7 @@ export default function AdminPage() {
                   {/* 이벤트 유형 분석 */}
                   <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
-                      <MousePointerClick className="w-4 h-4 text-rose-500" />
+                      <MousePointerClick className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                       <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">이벤트 분석</h2>
                     </div>
                     <div className="space-y-2">
@@ -1392,7 +1392,7 @@ export default function AdminPage() {
                 {/* 즐겨찾기 트렌드 */}
                 <div className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-8">
                   <div className="flex items-center gap-2 mb-1">
-                    <Heart className="w-4 h-4 text-rose-500" />
+                    <Heart className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                     <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">즐겨찾기 트렌드</h2>
                   </div>
                   <p className="text-[12px] text-[var(--hb-text-muted)] font-light mb-4">일별 신규 즐겨찾기 추이</p>
@@ -1414,7 +1414,7 @@ export default function AdminPage() {
                                 {d.date.slice(5)}: {d.count}건
                               </div>
                               <div
-                                className={`w-full rounded-t-sm transition-colors ${d.count > 0 ? "bg-rose-500 group-hover:bg-rose-600" : "bg-rose-500/10"}`}
+                                className={`w-full rounded-t-sm transition-colors ${d.count > 0 ? "bg-[var(--hb-primary)] group-hover:bg-[var(--hb-primary)]" : "bg-rose-500/10"}`}
                                 style={{ height: Math.max(2, (d.count / maxVal) * 50) }}
                               />
                             </div>
@@ -1440,7 +1440,7 @@ export default function AdminPage() {
             <div className="grid grid-cols-4 gap-4 mb-6 max-md:grid-cols-2">
               {([
                 { key: "pending" as const, label: "대기", cls: "text-gold" },
-                { key: "reviewed" as const, label: "검토 중", cls: "text-rose-500" },
+                { key: "reviewed" as const, label: "검토 중", cls: "text-[var(--hb-accent-hover)]" },
                 { key: "resolved" as const, label: "처리됨", cls: "text-[#2E7D5A]" },
                 { key: "dismissed" as const, label: "기각", cls: "text-[var(--hb-text-strong)]" },
               ]).map((s) => (
@@ -1471,7 +1471,7 @@ export default function AdminPage() {
                   }}
                   className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
                     reportFilter === f.key
-                      ? "border-rose-500 bg-rose-500 text-white"
+                      ? "border-rose-500 bg-[var(--hb-primary)] text-white"
                       : "border-platinum text-[var(--hb-text-body)] hover:border-rose-500"
                   }`}
                 >
@@ -1482,7 +1482,7 @@ export default function AdminPage() {
 
             {reportLoading ? (
               <div className="bg-white rounded-2xl p-16 text-center">
-                <Loader2 className="w-6 h-6 text-rose-500 animate-spin mx-auto" />
+                <Loader2 className="w-6 h-6 text-[var(--hb-accent-hover)] animate-spin mx-auto" />
               </div>
             ) : reports.length === 0 ? (
               <div className="bg-white rounded-2xl p-16 text-center">
@@ -1609,7 +1609,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => updateReportStatus(r.id, "reviewed")}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-rose-500 text-[var(--color-rose-700)] rounded-lg hover:bg-rose-500 hover:text-white transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-rose-500 text-[var(--color-rose-700)] rounded-lg hover:bg-[var(--hb-primary)] hover:text-white transition-colors disabled:opacity-50"
                           >
                             검토 중으로 표시
                           </button>
@@ -1699,7 +1699,7 @@ export default function AdminPage() {
 
                       {reportActionId === r.id && (
                         <div className="mt-2">
-                          <Loader2 className="w-4 h-4 text-rose-500 animate-spin" />
+                          <Loader2 className="w-4 h-4 text-[var(--hb-accent-hover)] animate-spin" />
                         </div>
                       )}
                     </div>
@@ -1730,7 +1730,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[12px] text-[var(--hb-text-body)] mb-1.5">이메일 <span className="text-rose-500">*</span></label>
+                    <label className="block text-[12px] text-[var(--hb-text-body)] mb-1.5">이메일 <span className="text-[var(--hb-accent-hover)]">*</span></label>
                     <input
                       type="email"
                       value={newAdminEmail}
@@ -1741,7 +1741,7 @@ export default function AdminPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-[12px] text-[var(--hb-text-body)] mb-1.5">비밀번호 <span className="text-rose-500">*</span></label>
+                    <label className="block text-[12px] text-[var(--hb-text-body)] mb-1.5">비밀번호 <span className="text-[var(--hb-accent-hover)]">*</span></label>
                     <input
                       type="password"
                       value={newAdminPassword}
@@ -1753,7 +1753,7 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="flex items-center gap-1.5 text-[12px] text-gold font-medium mb-1.5">
-                      <Shield className="w-3.5 h-3.5" /> 관리자 인증 비밀번호 <span className="text-rose-500">*</span>
+                      <Shield className="w-3.5 h-3.5" /> 관리자 인증 비밀번호 <span className="text-[var(--hb-accent-hover)]">*</span>
                     </label>
                     <input
                       type="password"

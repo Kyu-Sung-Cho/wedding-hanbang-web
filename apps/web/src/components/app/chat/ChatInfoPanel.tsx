@@ -64,7 +64,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
-                      ? "text-rose-500"
+                      ? "text-[var(--hb-accent-hover)]"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
@@ -73,7 +73,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   {activeTab === tab.key && (
                     <motion.div
                       layoutId="panel-tab-indicator"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-rose-500 rounded-full"
+                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--hb-primary)] rounded-full"
                     />
                   )}
                 </button>
@@ -120,7 +120,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
-                      ? "text-rose-500"
+                      ? "text-[var(--hb-accent-hover)]"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
@@ -129,7 +129,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   {activeTab === tab.key && (
                     <motion.div
                       layoutId="panel-tab-indicator-mobile"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-rose-500 rounded-full"
+                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--hb-primary)] rounded-full"
                     />
                   )}
                 </button>

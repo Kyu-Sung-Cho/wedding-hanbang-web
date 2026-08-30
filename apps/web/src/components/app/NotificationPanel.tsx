@@ -258,7 +258,7 @@ export default function NotificationPanel({
                                   type="button"
                                   disabled={Boolean(resolvingId)}
                                   onClick={() => void resolvePlanChange(n, "reject")}
-                                  className="rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[#795252] disabled:opacity-50"
+                                  className="rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
                                 >
                                   이번 요청 거절
                                 </button>
@@ -269,7 +269,7 @@ export default function NotificationPanel({
                                 type="button"
                                 disabled={Boolean(resolvingId)}
                                 onClick={() => void resolvePlanChange(n, "cancel")}
-                                className="inline-flex items-center gap-1 rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[#795252] disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
                               >
                                 {isResolving && (
                                   <Loader2 className="h-3 w-3 animate-spin" />

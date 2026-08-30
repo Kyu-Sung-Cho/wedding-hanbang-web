@@ -1169,7 +1169,7 @@ export default function ChatSidePanel({
           <div className="absolute inset-0 z-50 bg-rose-50/90 border-2 border-dashed border-rose-300 rounded-2xl flex items-center justify-center">
             <div className="text-center">
               <Paperclip className="w-8 h-8 text-rose-400 mx-auto mb-2" />
-              <p className="text-[0.8125rem] text-rose-600 font-medium">파일을 놓아주세요</p>
+              <p className="text-[0.8125rem] text-[var(--hb-accent-hover)] font-medium">파일을 놓아주세요</p>
             </div>
           </div>
         )}
@@ -1195,7 +1195,7 @@ export default function ChatSidePanel({
               <button
                 type="button"
                 onClick={() => setShowClearConfirm(true)}
-                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-[#F6F3F2]"
+                className="flex h-11 w-11 items-center justify-center rounded-lg transition-colors hover:bg-[var(--hb-surface-hover)]"
                 title="대화 화면 정리"
                 aria-label="현재 대화 범위를 내 화면에서 정리"
               >
@@ -1244,7 +1244,7 @@ export default function ChatSidePanel({
               <div
                 role="group"
                 aria-label="상담 공개 범위"
-                className="grid grid-cols-2 gap-1 rounded-xl bg-[#F6F3F2] p-1"
+                className="grid grid-cols-2 gap-1 rounded-xl bg-[var(--hb-surface-hover)] p-1"
               >
                 <button
                   type="button"
@@ -1253,7 +1253,7 @@ export default function ChatSidePanel({
                   aria-pressed={activeScope === "shared"}
                   className={`min-h-11 rounded-lg px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     activeScope === "shared"
-                      ? "bg-white text-[#795252] shadow-sm"
+                      ? "bg-white text-[var(--hb-accent-hover)] shadow-sm"
                       : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
@@ -1279,7 +1279,7 @@ export default function ChatSidePanel({
                 role="status"
                 aria-live="polite"
                 className={`mt-1.5 flex items-center gap-1 text-[0.6875rem] leading-relaxed ${
-                  activeScope === "private" ? "text-[#5a6147]" : "text-[#795252]"
+                  activeScope === "private" ? "text-[#5a6147]" : "text-[var(--hb-accent-hover)]"
                 }`}
               >
                 {activeScope === "private" && <Lock className="h-3 w-3" aria-hidden="true" />}
@@ -1300,13 +1300,13 @@ export default function ChatSidePanel({
                   {activeScope === "private"
                     ? "나만의 상담 이전 메시지를 내 화면에서만 숨길까요?"
                     : "함께 대화의 이전 메시지를 내 화면에서만 숨길까요?"}
-                  <span className="mt-1 block text-[#795252]">
+                  <span className="mt-1 block text-[var(--hb-accent-hover)]">
                     서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.
                   </span>
                 </p>
                 <div className="flex shrink-0 gap-1.5">
                   <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-lg bg-white border border-black/[0.06] text-[var(--hb-text-body)] hover:bg-gray-50">취소</button>
-                  <button type="button" onClick={handleClearChat} className="min-h-11 rounded-lg bg-[#795252] px-3 text-[0.6875rem] text-white hover:bg-[#946a6a]">내 화면에서만 숨기기</button>
+                  <button type="button" onClick={handleClearChat} className="min-h-11 rounded-lg bg-[var(--hb-primary)] px-3 text-[0.6875rem] text-white bg-[var(--hb-text-body)]">내 화면에서만 숨기기</button>
                 </div>
               </div>
             )}
@@ -1592,7 +1592,7 @@ export default function ChatSidePanel({
             {messageTarget === "ai" && hasProviderOnlyAttachment && (
               <p
                 role="note"
-                className="px-4 pb-1 text-[0.6875rem] leading-relaxed text-[#795252]"
+                className="px-4 pb-1 text-[0.6875rem] leading-relaxed text-[var(--hb-accent-hover)]"
               >
                 PDF·DOCX 파일은 아모라 분석에만 사용되며 대화 첨부로 저장되지 않아요.
               </p>
@@ -1614,7 +1614,7 @@ export default function ChatSidePanel({
                     aria-pressed={messageTarget === "ai"}
                     className={`flex min-h-11 items-center gap-1 rounded-[6px] px-3 text-[0.625rem] font-medium transition-colors ${
                       messageTarget === "ai"
-                        ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-rose-600 border border-rose-200"
+                        ? "bg-gradient-to-r from-rose-500/10 to-gold/10 text-[var(--hb-accent-hover)] border border-rose-200"
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
                     }`}
                   >
@@ -1689,7 +1689,7 @@ export default function ChatSidePanel({
                   className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"
-                      : "bg-[#795252] hover:bg-[#946a6a]"
+                      : "bg-[var(--hb-primary)] bg-[var(--hb-text-body)]"
                   }`}
                 >
                   <Send className="w-4 h-4" />

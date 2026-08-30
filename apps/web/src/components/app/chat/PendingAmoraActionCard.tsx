@@ -604,7 +604,7 @@ export default function PendingAmoraActionCard({
       className="ml-11 mt-2 max-w-[94%] rounded-2xl border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem]"
     >
       <div className="flex items-start gap-2.5">
-        <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#F2E8DE] text-[#795252]" aria-hidden="true">
+        <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#F2E8DE] text-[var(--hb-accent-hover)]" aria-hidden="true">
           <ShieldCheck className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -622,7 +622,7 @@ export default function PendingAmoraActionCard({
       {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
 
       {disabledReason && (
-        <p id={statusId} role="status" className="mt-3 text-xs leading-5 text-[#795252]">
+        <p id={statusId} role="status" className="mt-3 text-xs leading-5 text-[var(--hb-accent-hover)]">
           {DISABLED_COPY[disabledReason]}
         </p>
       )}
@@ -663,7 +663,7 @@ export default function PendingAmoraActionCard({
             onClick={() => void withdrawApproval()}
             disabled={isSavingApproval}
             aria-label="내 공동 변경 확인 취소"
-            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[#795252] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-accent-hover)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {approvalMutation === "withdraw" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
