@@ -405,7 +405,75 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
 const PRODUCT_SAFETY_HEADINGS = [
   "## 판정 금지 · 업체 상대 발언 금지",
   "## 할루시네이션 방지",
+  // 아래 일곱은 2026-08-30 에 더했다. 절단은 `truncateAtLineBoundary` 가 **꼬리부터
+  // 통째로** 자르는데, 계약 섹션이 전부 문서 뒤쪽에 몰려 있어서 자리가 모자라면
+  // 정확히 이것들부터 사라진다. 실측(읽기 도구셋, 기억 0):
+  //
+  //     앞쪽 4개(대화 원칙·커플 상황·준비 항목·사고방식)  26,862자
+  //     계약 9개는 31,996자 지점부터 끝까지               합계 6,620자
+  //     전체 47,401자 / 상한 48,000 → 여유 599자
+  //
+  // 즉 기억 블록이든 도구 계약이든 조금만 늘면 계약부터 조용히 빠진다. 실제로
+  // 기억을 가득 채우면 21개 헤딩 중 14개가 사라졌고 그 안에 아래가 전부 있었다.
+  // 자리가 없을 때 잘려야 하는 것은 계약이 아니라 참조표(`## 준비 항목에서 확인할 것`)다
+  // — 그쪽은 "여기 없는 항목의 확인 포인트를 지어내지 말고 무엇을 물어보면 되는지만
+  // 제안하라"고 프롬프트가 이미 적어 두어 없어도 안전하게 물러선다.
+  "## 공시 가격 사용 규칙",
+  "## 견적의 포함·불포함 확인 원칙",
+  "## 업체·계약 상담 안전 원칙",
+  "## 업체 추천·예약은 지금 제공하지 않습니다",
+  "## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심",
+  // 메시지 타겟 판별("절대 혼동 금지")이 여기 있다. 잘리면 아모라가 커플끼리 하는
+  // 대화에 끼어든다.
+  "## 대화 규칙",
+  // 중재 두 섹션은 **안전 갈래 턴이 아닐 때만** 여기 남는다 —
+  // `mediationHeadingsFor` 를 보라.
+  "## 커플 갈등 중재",
+  "## 요청 기반 조율 (MEDIATION_REQUEST)",
+  // `[suggestions]` 출력 계약. 잘리면 추천 칩이 한 개도 안 나간다.
+  "## 이어서 할 수 있는 것 (선택)",
 ] as const;
+
+/**
+ * 안전 갈래 턴에서 프롬프트 밖으로 **의도적으로** 빼는 섹션.
+ *
+ * 예전에는 절단이 우연히 지워 주기를 기대했다 — 중재 절충 문장이 문서 뒤쪽이라
+ * 30,000자에서 먼저 사라졌다. 그런데 **운영 상한은 48,000자**라 가벼운 문맥에서는
+ * 그 절단이 아예 일어나지 않았고, 즉 그 방어는 문맥이 무거운 커플에게만 걸렸다.
+ * 우연에 기대는 대신 판정으로 뺀다 — `highRiskReason === "safety"` 와 W5 가
+ * 그 갈래다.
+ *
+ * 본문 섹션 자체도 `**먼저: 안전 신호가 보이면 중재하지 마세요.**` 로 시작하고
+ * 범위 지시문이 `절충안·합의안·역할 분담을 제안하지 말고` 를 따로 싣는다. 이건
+ * 그 둘에 더하는 세 번째 겹이고, 앞의 둘을 대체하지 않는다.
+ */
+const MEDIATION_HEADINGS = [
+  "## 커플 갈등 중재",
+  "## 요청 기반 조율 (MEDIATION_REQUEST)",
+] as const;
+
+function isSafetyScopedTurn(
+  questionScope: AmoraQuestionScopeClassification | undefined,
+): boolean {
+  if (questionScope === undefined) return false;
+  return (
+    questionScope.scope === "W5_safety_override"
+    || (
+      questionScope.scope === "W2_high_risk_adjacent"
+      && questionScope.highRiskReason === "safety"
+    )
+  );
+}
+
+/** 이 턴에서 보호할 헤딩. 안전 갈래면 중재 두 섹션은 보호가 아니라 제거 대상이다. */
+function protectedHeadingsFor(
+  questionScope: AmoraQuestionScopeClassification | undefined,
+): readonly string[] {
+  if (!isSafetyScopedTurn(questionScope)) return PRODUCT_SAFETY_HEADINGS;
+  return PRODUCT_SAFETY_HEADINGS.filter(
+    (heading) => !MEDIATION_HEADINGS.includes(heading as typeof MEDIATION_HEADINGS[number]),
+  );
+}
 
 /** 보호 섹션의 [시작, 끝) 구간. 문서 순서대로 정렬해 돌려준다. */
 function productSafetyRanges(prompt: string): Array<readonly [number, number]> {
@@ -726,8 +794,15 @@ export function buildAmoraSystemPrompt(
   // 같은 목록(PRODUCT_SAFETY_HEADINGS)을 써서 두 보호가 어긋나지 않게 한다 —
   // 예전에는 판정 금지만 여기 있어서 할루시네이션 방지는 절단에 노출돼 있었다.
   let safetyRemainder = detachedToolContract.remainder;
+  // 안전 갈래 턴에서는 중재 지침을 **떼어내 버린다.** 보호 목록에서 빠지는 것만으로는
+  // 부족하다 — 그러면 절단 구간으로 돌아가 자리가 남는 한 그대로 실린다.
+  if (isSafetyScopedTurn(options.questionScope)) {
+    for (const heading of MEDIATION_HEADINGS) {
+      safetyRemainder = detachTopLevelSection(safetyRemainder, heading).remainder;
+    }
+  }
   const detachedSafetySections: string[] = [];
-  for (const heading of PRODUCT_SAFETY_HEADINGS) {
+  for (const heading of protectedHeadingsFor(options.questionScope)) {
     const detached = detachTopLevelSection(safetyRemainder, heading);
     safetyRemainder = detached.remainder;
     if (detached.section) detachedSafetySections.push(detached.section);
