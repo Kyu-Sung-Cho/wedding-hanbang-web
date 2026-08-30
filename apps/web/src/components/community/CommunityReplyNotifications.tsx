@@ -339,7 +339,7 @@ export default function CommunityReplyNotifications({
         <div
           role="dialog"
           aria-label="새 답변 알림"
-          className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-[#EDE4D8] bg-white shadow-[0_18px_48px_rgba(36,56,50,0.16)]"
+          className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-[#EDE4D8] bg-white shadow-[var(--shadow-overlay)]"
         >
           <div className="flex items-center justify-between border-b border-[#F0EFED] px-4 py-3">
             <div>

@@ -34,7 +34,7 @@ export default function DailyAmoraFocusBridge({
   return (
     <section
       aria-labelledby="daily-amora-focus-title"
-      className="rounded-[20px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[0_10px_28px_rgba(54,83,78,0.06)] sm:p-5"
+      className="rounded-[20px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="flex items-start gap-3">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white">
@@ -69,7 +69,7 @@ export default function DailyAmoraFocusBridge({
             mode: partnerLinked ? "couple" : "solo",
           })
         }
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
       >
         {partnerLinked ? "오늘 할 일 같이 나누기" : "오늘 한 가지 시작하기"}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />

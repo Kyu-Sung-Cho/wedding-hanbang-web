@@ -77,7 +77,7 @@ function CopyButton({ text }: { text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white px-3 py-1.5 text-xs font-medium text-[#2F5F51] hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
+      className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-1.5 text-xs font-medium text-[#2F5F51] hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
     >
       {copied ? <ClipboardCheck className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
       {copied ? "복사됨" : "문구 복사"}
@@ -124,7 +124,7 @@ function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
         <div className="bg-[#1A1A1F] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
@@ -299,7 +299,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)]">
+      <div className="w-full max-w-[460px] overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
         <div className="bg-[#2F5F51] px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">

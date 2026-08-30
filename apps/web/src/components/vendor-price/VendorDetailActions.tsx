@@ -223,7 +223,7 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           <button
             type="button"
             onClick={() => void loadSavedState()}
-            className="inline-flex min-h-11 items-center rounded-full border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+            className="inline-flex min-h-11 items-center rounded-[6px] border border-[#8F6662]/30 bg-white px-4 text-xs font-bold hover:bg-[var(--hb-surface-page)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
           >
             다시 불러오기
           </button>

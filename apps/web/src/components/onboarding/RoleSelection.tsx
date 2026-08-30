@@ -55,7 +55,7 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
             aria-pressed={selected === role.value}
             className={`p-6 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-center ${
               selected === role.value
-                ? "border-rose-500 bg-rose-500/5 shadow-[0_4px_16px_rgba(121,82,82,0.15)]"
+                ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                 : "border-black/[0.06] bg-white hover:border-black/[0.12]"
             }`}
           >

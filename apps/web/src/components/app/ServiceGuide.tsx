@@ -419,7 +419,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
       {/* CTA 버튼 */}
       <button
         onClick={onStart}
-        className="w-full max-w-[320px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(54,83,78,0.2)] hover:bg-[var(--hb-primary-hover)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.23)] transition-all mb-5"
+        className="w-full max-w-[320px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-2xl shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] hover:shadow-[var(--shadow-raised)] transition-all mb-5"
       >
         시작하기
       </button>

@@ -198,7 +198,7 @@ export default function TodayOnePreferenceControl() {
         <button
           type="button"
           onClick={() => void load(true)}
-          className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-full border border-[#E2D3C8] px-4 text-sm font-semibold text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
+          className="mt-2 inline-flex min-h-10 items-center gap-2 rounded-[6px] border border-[#E2D3C8] px-4 text-sm font-semibold text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
         >
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
           다시 불러오기
@@ -267,7 +267,7 @@ export default function TodayOnePreferenceControl() {
                 type="button"
                 disabled={saving !== null}
                 onClick={() => void update("enable")}
-                className="min-h-9 rounded-full border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)] disabled:cursor-wait disabled:opacity-60"
+                className="min-h-9 rounded-[6px] border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)] disabled:cursor-wait disabled:opacity-60"
               >
                 다시 시작
               </button>
@@ -277,7 +277,7 @@ export default function TodayOnePreferenceControl() {
               type="button"
               disabled={saving !== null}
               onClick={() => void update("pause_24h")}
-              className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#E2D3C8] px-3 text-xs font-semibold text-[var(--color-rose-700)] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[#E2D3C8] px-3 text-xs font-semibold text-[var(--color-rose-700)] disabled:cursor-wait disabled:opacity-60"
             >
               <BellOff className="h-3.5 w-3.5" aria-hidden="true" />
               24시간 쉬기

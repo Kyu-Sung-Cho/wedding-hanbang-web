@@ -179,7 +179,7 @@ export default function MoneyPage() {
             onClick={handleExportCSV}
             disabled={moneyList.length === 0}
             aria-label="축의금 CSV 다운로드"
-            className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[0_4px_14px_0_rgba(121,82,82,0.08)] disabled:opacity-30 transition-all"
+            className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[var(--shadow-raised)] disabled:opacity-30 transition-all"
           >
             <Download className="w-5 h-5" />
             CSV
@@ -187,7 +187,7 @@ export default function MoneyPage() {
           <button
             onClick={() => { resetForm(); setShowForm(true); }}
             aria-label="축의금 추가 폼 열기"
-            className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-all"
+            className="inline-flex items-center gap-1.5 px-6 py-3 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all"
           >
             <Plus className="w-5 h-5" />
             추가
@@ -197,28 +197,28 @@ export default function MoneyPage() {
 
       {/* 통계 카드 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+        <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-6">
           <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">총 축의금</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
             {stats.total.toLocaleString()}
             <span className="text-base text-[var(--hb-text-muted)] ml-1">원</span>
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+        <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-6">
           <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">총 인원</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
             {stats.count}
             <span className="text-base text-[var(--hb-text-muted)] ml-1">명</span>
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+        <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-6">
           <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">평균</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
             {stats.avg.toLocaleString()}
             <span className="text-base text-[var(--hb-text-muted)] ml-1">원</span>
           </p>
         </div>
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6">
+        <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-6">
           <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">신랑 / 신부</p>
           <p className="text-sm text-[var(--hb-text-body)] mt-1">신랑 <span className="font-medium text-[var(--hb-text-strong)]">{formatMoney(stats.groomTotal)}</span></p>
           <p className="text-sm text-[#795252] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
@@ -227,7 +227,7 @@ export default function MoneyPage() {
 
       {/* 입력 폼 */}
       {showForm && (
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-6 mb-6">
+        <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">
               {editId ? "축의금 수정" : "축의금 추가"}
@@ -309,7 +309,7 @@ export default function MoneyPage() {
             disabled={!form.guest_name.trim() || !form.amount || saving}
             aria-busy={saving}
             aria-label={editId ? "축의금 수정 저장" : "축의금 추가 저장"}
-            className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[0_4px_14px_0_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
+            className="w-full mt-4 py-3.5 bg-gradient-to-br from-[#795252] to-[#946a6a] text-white rounded-xl text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 transition-all flex items-center justify-center gap-2"
           >
             <Check className="w-5 h-5" />
             {saving ? "저장 중..." : editId ? "수정 완료" : "추가"}
@@ -326,7 +326,7 @@ export default function MoneyPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="이름, 관계 검색..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white shadow-[0_4px_14px_0_rgba(0,0,0,0.03)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white shadow-[var(--shadow-raised)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
           />
         </div>
         <div className="flex gap-1">
@@ -352,12 +352,12 @@ export default function MoneyPage() {
           <div className="w-8 h-8 border-2 border-[#795252] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+        <div className="text-center py-20 bg-white rounded-xl shadow-[var(--shadow-raised)]">
           <Wallet className="w-14 h-14 text-[var(--hb-text-muted)] mx-auto mb-4" />
           <p className="text-base text-[var(--hb-text-body)] font-light">축의금 내역이 없습니다</p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+        <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] overflow-hidden">
           {filtered.map((money, i) => (
             <div
               key={money.id}

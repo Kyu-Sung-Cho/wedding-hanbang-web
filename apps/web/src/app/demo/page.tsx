@@ -61,7 +61,7 @@ export default function DemoPage() {
           <h2 id="preview-heading" className="sr-only">아모라 기능 원칙</h2>
           <div className="grid gap-5 md:grid-cols-2">
             {previews.map((preview) => (
-              <article key={preview.eyebrow} className="rounded-3xl border border-black/[0.06] bg-white p-7 shadow-[0_16px_45px_rgba(27,28,28,0.05)] sm:p-9">
+              <article key={preview.eyebrow} className="rounded-3xl border border-black/[0.06] bg-white p-7 shadow-[var(--shadow-overlay)] sm:p-9">
                 <p className="text-xs font-semibold tracking-[0.14em] text-[var(--color-rose-700)]">{preview.eyebrow}</p>
                 <h3 className="mt-4 font-serif-kr text-2xl font-medium leading-snug">{preview.title}</h3>
                 <p className="mt-4 text-sm leading-7 text-charcoal">{preview.description}</p>
@@ -75,7 +75,7 @@ export default function DemoPage() {
               <p className="mt-2 text-sm leading-6 text-white/70">새 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-0">
-              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-full bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
+              <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">
                 서비스 둘러보기
               </Link>
             </div>

@@ -95,7 +95,7 @@ export default function InviteLandingClient() {
   if (!code) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[#F7F3EE] px-6 py-16">
-        <div className="w-full max-w-[420px] rounded-[24px] border border-[#e3ddd3] bg-white p-7 shadow-[0_18px_44px_rgba(54,83,78,0.08)]">
+        <div className="w-full max-w-[420px] rounded-[24px] border border-[#e3ddd3] bg-white p-7 shadow-[var(--shadow-overlay)]">
           <h1 className="text-[20px] font-semibold text-[#2b3a36]">
             초대 코드를 찾지 못했어요
           </h1>
@@ -115,7 +115,7 @@ export default function InviteLandingClient() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#F7F3EE] px-6 py-16">
-      <div className="w-full max-w-[420px] rounded-[24px] border border-[#e3ddd3] bg-white p-7 shadow-[0_18px_44px_rgba(54,83,78,0.08)]">
+      <div className="w-full max-w-[420px] rounded-[24px] border border-[#e3ddd3] bg-white p-7 shadow-[var(--shadow-overlay)]">
         <p className="text-[13px] font-semibold text-[var(--color-rose-700)]">웨딩한방</p>
         <h1 className="mt-2 text-[22px] font-semibold leading-8 text-[#2b3a36]">
           같이 결혼 준비하자고

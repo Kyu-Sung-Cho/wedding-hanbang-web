@@ -13,7 +13,7 @@ export default function CommunityConfigurationUnavailable({
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:py-16">
       <section
-        className="rounded-[28px] border border-[var(--hb-hairline)] bg-white px-6 py-10 text-center shadow-[0_16px_42px_rgba(8,22,38,0.06)] sm:px-10"
+        className="rounded-[28px] border border-[var(--hb-hairline)] bg-white px-6 py-10 text-center shadow-[var(--shadow-overlay)] sm:px-10"
         role="status"
         aria-live="polite"
       >
@@ -30,13 +30,13 @@ export default function CommunityConfigurationUnavailable({
         <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
           <a
             href={retryHref}
-            className="inline-flex min-h-12 items-center justify-center rounded-full bg-[var(--hb-primary)] px-6 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
           >
             다시 시도
           </a>
           <Link
             href={weddingPath()}
-            className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-6 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EFE4D7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+            className="inline-flex min-h-12 items-center justify-center rounded-[6px] border border-[#C7D1C2] bg-[var(--hb-surface-hover)] px-6 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EFE4D7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
           >
             커뮤니티로 돌아가기
           </Link>

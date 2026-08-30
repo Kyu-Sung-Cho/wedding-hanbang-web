@@ -607,10 +607,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-5 mb-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[0_8px_24px_rgba(121,82,82,0.2)]">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <span className="font-display text-3xl text-white font-light">{initials}</span>
           </div>
           <div className="flex-1">
@@ -777,10 +777,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.03 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[0_4px_14px_rgba(196,150,126,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -809,7 +809,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -832,7 +832,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => togglePriority(opt.value)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -855,7 +855,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -878,7 +878,7 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
                         ? "bg-[#795252] text-white shadow-sm"
                         : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
@@ -897,10 +897,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[0_4px_14px_rgba(121,82,82,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Heart className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -1045,10 +1045,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[0_4px_14px_rgba(46,125,90,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Bell className="w-5 h-5 text-white" />
           </div>
           <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">알림 설정</h3>
@@ -1116,13 +1116,13 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.12 }}
-        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[var(--shadow-raised)]"
       >
         <Link
           {...weddingLinkProps("/settings/amora-style")}
           className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--hb-primary)] shadow-[0_4px_14px_rgba(54,83,78,0.2)]">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--hb-primary)] shadow-[var(--shadow-raised)]">
             <Sparkles className="h-5 w-5 text-white" />
           </span>
           <span className="min-w-0 flex-1">
@@ -1145,13 +1145,13 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.13 }}
-        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[var(--shadow-raised)]"
       >
         <Link
           {...weddingLinkProps("/settings/amora-memory")}
           className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8F6662]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#8F6662] shadow-[0_4px_14px_rgba(143,102,98,0.2)]">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#8F6662] shadow-[var(--shadow-raised)]">
             <BrainCircuit className="h-5 w-5 text-white" />
           </span>
           <span className="min-w-0 flex-1">
@@ -1172,7 +1172,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.15 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6"
+        className="bg-white rounded-xl shadow-[var(--shadow-raised)] overflow-hidden mb-6"
       >
         {[
           { label: "이용약관", href: "/terms" },
@@ -1207,7 +1207,7 @@ export default function SettingsPage() {
       >
         <button
           onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-white text-red-400 text-base font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-white text-red-400 text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow"
         >
           <LogOut className="w-5 h-5" />
           로그아웃
@@ -1236,7 +1236,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[#F6F3F2] flex items-center justify-center">
                 <RotateCcw className="w-6 h-6 text-[#795252]" />
@@ -1311,7 +1311,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
                 <Trash2 className="w-6 h-6 text-red-400" />

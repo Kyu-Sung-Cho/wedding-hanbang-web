@@ -397,7 +397,7 @@ export default function CommunityDecisionDiscovery({
       aria-labelledby="community-decision-discovery-title"
       data-community-decision-discovery
     >
-      <div className="overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 shadow-[0_8px_24px_rgba(36,56,50,0.045)]">
+      <div className="overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:px-5">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold tracking-[0.04em] text-rose-600">
@@ -427,7 +427,7 @@ export default function CommunityDecisionDiscovery({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setActiveMode(option.mode)}
-                  className={`min-h-9 flex-1 rounded-full px-3 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-1 sm:flex-none ${
+                  className={`min-h-9 flex-1 rounded-[6px] px-3 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-1 sm:flex-none ${
                     selected
                       ? "bg-[var(--hb-primary)] text-white shadow-sm"
                       : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -469,7 +469,7 @@ export default function CommunityDecisionDiscovery({
               <button
                 type="button"
                 onClick={() => setRetryVersion((current) => current + 1)}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
+                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-[6px] px-3 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                 다시 불러오기

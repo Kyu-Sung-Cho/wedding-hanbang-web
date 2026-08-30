@@ -54,7 +54,7 @@ export default async function ReceivedCardPage({
               </p>
               <Link
                 href="/today"
-                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-full border border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-[6px] border border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
               >
                 나도 한 장 골라보기
               </Link>
@@ -71,7 +71,7 @@ export default async function ReceivedCardPage({
             </p>
             <Link
               href="/today"
-              className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
+              className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
             >
               한 장 골라보기
             </Link>

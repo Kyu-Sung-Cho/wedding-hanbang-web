@@ -213,7 +213,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   if (!authChecked) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[var(--hb-surface-page)] px-4 text-sm font-medium text-[var(--hb-text-muted)]">
-        <div className="rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 shadow-[0_10px_28px_rgba(50,36,17,0.06)]">
+        <div className="rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 shadow-[var(--shadow-raised)]">
           <LoaderText />
         </div>
       </div>
@@ -231,7 +231,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
         <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5">
           <main className="min-w-0">
-            <section className="overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 shadow-[0_16px_38px_rgba(50,36,17,0.055)]">
+            <section className="overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 shadow-[var(--shadow-overlay)]">
               <div className="border-b border-[var(--hb-hairline)] bg-white/70 px-3 py-3 sm:px-4">
                 <div className="grid grid-cols-3 gap-2 rounded-full bg-[var(--hb-surface-hover)] p-1">
                   <TabButton
@@ -295,7 +295,7 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
   const redirect = weddingPath(`/community/cohort/${roomId}`);
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] px-4 py-10 sm:px-6">
-      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
@@ -316,14 +316,14 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
           <div className="mt-6 flex flex-wrap gap-2.5">
             <Link
               href={`/login?redirect=${encodeURIComponent(redirect)}`}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)]"
             >
               로그인하고 입장
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href={weddingPath()}
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
+              className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -343,7 +343,7 @@ function RoomHeader({ room }: { room: CohortRoom | null }) {
   ];
 
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 px-5 py-4 shadow-[0_12px_30px_rgba(50,36,17,0.045)] sm:px-6">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 px-5 py-4 shadow-[var(--shadow-raised)] sm:px-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hb-text-strong)]">Cohort Lounge</p>
@@ -381,11 +381,11 @@ function CohortSidePanel({
 }) {
   return (
     <aside className="grid gap-4 md:sticky md:top-20 md:max-h-[calc(100dvh-245px)] md:self-start md:overflow-y-auto md:pb-1 md:pr-1">
-      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <CohortDigestCard roomId={roomId} onTabChange={onTabChange} onFocusMessage={onFocusMessage} />
       </section>
 
-      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">오늘 이렇게 써보세요</h2>
           <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
@@ -422,15 +422,15 @@ function CohortSidePanel({
         </div>
       </section>
 
-      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
       </section>
 
-      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <CohortPopularPosts roomId={roomId} />
       </section>
 
-      <section className="rounded-[22px] bg-[var(--hb-primary)] p-5 text-white shadow-[0_16px_34px_rgba(54,83,78,0.2)]">
+      <section className="rounded-[22px] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)]">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
           <h2 className="font-serif-kr text-[21px] font-medium">동기방 약속</h2>
@@ -442,7 +442,7 @@ function CohortSidePanel({
         </ul>
         <Link
           href={weddingPath("/chat")}
-          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-4 text-[13px] font-semibold text-[var(--hb-text-strong)]"
+          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[6px] bg-white px-4 text-[13px] font-semibold text-[var(--hb-text-strong)]"
         >
           아모라에게 먼저 물어보기
           <ArrowRight className="h-4 w-4" />
@@ -470,9 +470,9 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
+      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
         active
-          ? "bg-[var(--hb-primary)] text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)]"
+          ? "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
           : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
       }`}
     >
@@ -902,7 +902,7 @@ function ChatTab({
             type="button"
             onClick={() => setThread("")}
             title="주제를 직접 고르지 않으면 메시지 내용으로 자동 분류돼요."
-            className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-[6px] text-xs sm:text-sm font-medium transition-colors ${
               thread === ""
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#e5d8ca]"
@@ -916,7 +916,7 @@ function ChatTab({
               type="button"
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
               title={`${t.label}: ${t.helper}`}
-              className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-[6px] text-xs sm:text-sm font-medium transition-colors ${
                 thread === t.key
                   ? "bg-[var(--hb-primary)] text-white"
                   : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#e5d8ca]"
@@ -994,7 +994,7 @@ function ChatTab({
               type="button"
               onClick={handleSend}
               disabled={!input.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-[var(--hb-primary)] px-4 py-3 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] transition-all hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] disabled:opacity-50 sm:flex-none sm:py-0"
+              className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-[var(--hb-primary)] px-4 py-3 text-white shadow-[var(--shadow-raised)] transition-all hover:shadow-[var(--shadow-raised)] disabled:opacity-50 sm:flex-none sm:py-0"
             >
               <Send className="h-4 w-4" />
               <span className="sm:hidden text-sm font-medium">전송</span>
@@ -1029,7 +1029,7 @@ function FilterPill({
       onClick={onClick}
       title={helper}
       aria-label={helper ? `${label}: ${helper}` : label}
-      className={`group whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
+      className={`group whitespace-nowrap flex-shrink-0 rounded-[6px] border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
         active
           ? "bg-[var(--hb-primary)] text-white border-[var(--hb-primary)]"
           : "bg-white text-[var(--hb-text-body)] border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"
@@ -1173,7 +1173,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={() => onReport(message.author_id, nickname)}
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium text-[var(--hb-text-muted)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
+              className="rounded-[6px] px-2 py-0.5 text-[11px] font-medium text-[var(--hb-text-muted)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
               title="이 멤버 신고"
             >
               신고
@@ -1356,7 +1356,7 @@ function InfoTab({
             }
             setModalOpen(true);
           }}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           내 견적/계약 등록
@@ -1659,7 +1659,7 @@ function TimelineTab({
         <button
           type="button"
           onClick={openModal}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           기록 추가
@@ -1678,7 +1678,7 @@ function TimelineTab({
           <button
             type="button"
             onClick={openModal}
-            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
+            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
           >
             <Plus className="h-4 w-4" />
             첫 기록 남기기
@@ -1785,7 +1785,7 @@ function TimelineEventModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#F0EFED] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
+      <div className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#F0EFED] bg-white p-5 shadow-[var(--shadow-overlay)]">
         <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">
           준비 기록 추가
         </h3>
@@ -1989,9 +1989,9 @@ function CohortDigestCard({
             key={item.key}
             type="button"
             onClick={() => setPeriod(item.key)}
-            className={`min-h-9 rounded-full text-[12px] font-semibold transition-colors ${
+            className={`min-h-9 rounded-[6px] text-[12px] font-semibold transition-colors ${
               period === item.key
-                ? "bg-white text-[var(--hb-text-strong)] shadow-[0_6px_16px_rgba(50,36,17,0.08)]"
+                ? "bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]"
                 : "text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"
             }`}
           >
@@ -2012,7 +2012,7 @@ function CohortDigestCard({
           <button
             type="button"
             onClick={() => loadDigest()}
-            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)]"
+            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)]"
           >
             다시 시도
           </button>
@@ -2026,7 +2026,7 @@ function CohortDigestCard({
           <button
             type="button"
             onClick={() => onTabChange("chat")}
-            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
+            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
           >
             첫 대화 남기기
           </button>
@@ -2153,14 +2153,14 @@ function CohortDigestCard({
             <button
               type="button"
               onClick={() => onTabChange("chat")}
-              className="inline-flex min-h-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
+              className="inline-flex min-h-9 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
             >
               대화 보기
             </button>
             <button
               type="button"
               onClick={() => onTabChange("info")}
-              className="inline-flex min-h-9 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[12px] font-semibold text-white"
+              className="inline-flex min-h-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-[12px] font-semibold text-white"
             >
               등록 금액
             </button>

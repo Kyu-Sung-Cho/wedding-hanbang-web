@@ -257,7 +257,7 @@ export default function AdminLoginPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[0_4px_20px_rgba(201,169,110,0.3)] disabled:opacity-50"
+                    className="w-full py-3.5 rounded-[6px] text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[var(--shadow-raised)] disabled:opacity-50"
                   >
                     {loading ? "발송 중..." : "재설정 메일 보내기"}
                   </button>
@@ -334,7 +334,7 @@ export default function AdminLoginPage() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 rounded-full text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[0_4px_20px_rgba(201,169,110,0.3)] disabled:opacity-50 mt-2"
+                    className="w-full py-3.5 rounded-[6px] text-[14px] font-medium transition-all bg-gradient-to-r from-gold to-rose-500 text-white hover:shadow-[var(--shadow-raised)] disabled:opacity-50 mt-2"
                   >
                     {loading
                       ? "처리 중..."

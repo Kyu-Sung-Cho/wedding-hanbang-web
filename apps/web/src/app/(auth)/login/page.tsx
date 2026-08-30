@@ -362,7 +362,7 @@ export default function LoginPage() {
         </div>
 
         {/* 로그인 카드 */}
-        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[0_8px_40px_rgba(0,0,0,0.04)]">
+        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
           <>
               {/* 정상 로그인 모드 */}
               <h1 className="font-serif-kr text-[24px] font-light text-[var(--hb-text-strong)] text-center mb-2">
@@ -410,7 +410,7 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("kakao")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] py-3 text-[13px] font-medium text-[#191919] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(254,229,0,0.3)]"
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-[#FEE500] py-3 text-[13px] font-medium text-[#191919] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M9 1C4.58 1 1 3.79 1 7.21c0 2.17 1.45 4.08 3.63 5.18l-.93 3.44c-.08.3.26.54.52.37l4.1-2.72c.22.02.44.03.68.03 4.42 0 8-2.79 8-6.3C17 3.79 13.42 1 9 1z" fill="#191919"/>
@@ -422,7 +422,7 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("google")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-black/[0.08] bg-white py-3 text-[13px] font-medium text-[#071629] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl border border-black/[0.08] bg-white py-3 text-[13px] font-medium text-[#071629] transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 01-1.8 2.72v2.26h2.92a8.78 8.78 0 002.68-6.62z" fill="#4285F4"/>
@@ -437,7 +437,7 @@ export default function LoginPage() {
                     <button
                       onClick={() => handleOAuth("apple")}
                       disabled={loading !== null}
-                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-black py-3 text-[13px] font-medium text-white transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)]"
+                      className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-2xl bg-black py-3 text-[13px] font-medium text-white transition-all hover:-translate-y-0.5 hover:shadow-[var(--shadow-raised)]"
                     >
                       <svg width="16" height="16" viewBox="0 0 18 18" fill="none" aria-hidden="true">
                         <path d="M13.1 3.6c.7-.9 1.2-2.1 1.1-3.3-1 .1-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5zM14.1 9.5c0-2.5 2-3.7 2.1-3.8-1.1-1.7-2.9-1.9-3.5-2-1.5-.2-2.9.9-3.6.9-.8 0-1.9-.8-3.2-.8C3.9 3.8 2 5.4 2 8.7c0 2 .8 4 1.7 5.4.8 1.1 1.7 2.4 2.9 2.3 1.1-.1 1.6-.7 2.9-.7s1.8.7 3 .7c1.2 0 2.1-1.1 2.8-2.3.9-1.3 1.2-2.5 1.3-2.6-.1 0-2.5-1-2.5-3.9z" fill="white"/>
@@ -605,7 +605,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || !consentComplete || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
-                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] text-white shadow-[0_4px_14px_0_rgba(54,83,78,0.20)] hover:shadow-[0_6px_20px_rgba(54,83,78,0.24)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
                     ? "처리 중..."

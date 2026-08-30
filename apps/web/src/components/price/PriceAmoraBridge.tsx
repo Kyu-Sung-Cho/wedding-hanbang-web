@@ -11,7 +11,7 @@ export function PriceAmoraBridge() {
       aria-label="아모라 체험 안내"
       className="mt-10 rounded-[24px] border border-[var(--hb-primary)]/15 bg-[var(--hb-primary)]/[0.06] px-5 py-8 text-center sm:px-8"
     >
-      <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_8px_20px_rgba(36,56,50,0.12)]">
+      <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
         <MessageCircleHeart aria-hidden="true" className="size-6" />
       </span>
       <h2 className="mt-4 text-lg font-bold tracking-normal text-[var(--hb-text-strong)]">
@@ -24,7 +24,7 @@ export function PriceAmoraBridge() {
       </p>
       <StartDemoButton
         label="아모라에게 물어보기"
-        className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[var(--hb-primary-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+        className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
       />
       <p className="mt-3 text-[13px]">
         <Link href="/demo" prefetch={false} className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">

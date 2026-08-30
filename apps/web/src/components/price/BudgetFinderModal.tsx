@@ -149,7 +149,7 @@ export function BudgetFinderModal({
                     </div>
                   ))}
                 </dl>
-                <button type="button" onClick={() => onChoose(result)} className="mt-3 min-h-11 w-full rounded-full border border-[var(--hb-primary)]/18 text-sm font-bold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]">
+                <button type="button" onClick={() => onChoose(result)} className="mt-3 min-h-11 w-full rounded-[6px] border border-[var(--hb-primary)]/18 text-sm font-bold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]">
                   이 조합 담기
                 </button>
               </article>

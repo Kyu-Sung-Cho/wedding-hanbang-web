@@ -175,7 +175,7 @@ export default function CategoryTabs() {
         <div className="flex items-center gap-2.5 min-w-max py-1">
           <Link
             href={weddingPath()}
-            className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
+            className={`px-4 py-2 text-sm rounded-[6px] whitespace-nowrap transition-all duration-200 ${
               currentPath === "/community"
                 ? "bg-[var(--hb-primary)] text-white font-medium"
                 : "text-[var(--hb-text-body)] bg-white border border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"
@@ -190,7 +190,7 @@ export default function CategoryTabs() {
               <Link
                 key={cat.key}
                 href={weddingPath(href)}
-                className={`px-4 py-2 text-sm rounded-full whitespace-nowrap transition-all duration-200 ${
+                className={`px-4 py-2 text-sm rounded-[6px] whitespace-nowrap transition-all duration-200 ${
                   active
                     ? "bg-[var(--hb-primary)] text-white font-medium"
                     : "text-[var(--hb-text-body)] bg-white border border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"

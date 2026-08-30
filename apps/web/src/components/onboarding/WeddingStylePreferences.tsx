@@ -93,7 +93,7 @@ export default function WeddingStylePreferences({
               onClick={() => onStyleChange(opt.value)}
               className={`p-4 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-center ${
                 preferences.weddingStyle === opt.value
-                  ? "border-rose-500 bg-rose-500/5 shadow-[0_4px_16px_rgba(121,82,82,0.15)]"
+                  ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                   : "border-black/[0.06] bg-white hover:border-black/[0.12]"
               }`}
             >
@@ -131,7 +131,7 @@ export default function WeddingStylePreferences({
                 disabled={disabled}
                 className={`relative p-3 rounded-xl border-2 transition-all text-center ${
                   selected
-                    ? "border-rose-500 bg-rose-500/5 shadow-[0_2px_12px_rgba(121,82,82,0.12)]"
+                    ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                     : disabled
                       ? "border-black/[0.04] bg-black/[0.02] opacity-50 cursor-not-allowed"
                       : "border-black/[0.06] bg-white hover:border-black/[0.12]"
@@ -173,7 +173,7 @@ export default function WeddingStylePreferences({
               onClick={() => onBudgetTendencyChange(opt.value)}
               className={`p-3.5 rounded-xl border-2 transition-all text-center ${
                 preferences.budgetTendency === opt.value
-                  ? "border-rose-500 bg-rose-500/5 shadow-[0_2px_12px_rgba(121,82,82,0.12)]"
+                  ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                   : "border-black/[0.06] bg-white hover:border-black/[0.12]"
               }`}
             >
@@ -201,7 +201,7 @@ export default function WeddingStylePreferences({
               onClick={() => onGuestCountChange(opt.value)}
               className={`w-full px-4 py-3 rounded-xl border-2 transition-all text-left text-[13px] font-medium ${
                 preferences.guestCount === opt.value
-                  ? "border-rose-500 bg-rose-500/5 text-[var(--hb-text-strong)] shadow-[0_2px_12px_rgba(121,82,82,0.12)]"
+                  ? "border-rose-500 bg-rose-500/5 text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]"
                   : "border-black/[0.06] bg-white text-[var(--hb-text-body)] hover:border-black/[0.12]"
               }`}
             >

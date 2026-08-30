@@ -53,7 +53,7 @@ export default function ChatLoading() {
           <div className="h-9 w-28 bg-[#E8E6E3] rounded-full" />
           <div className="h-9 w-28 bg-[#F0EFED] rounded-full" />
         </div>
-        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[0_4px_20px_rgba(0,0,0,0.04)] flex items-center gap-2 p-2.5">
+        <div className="bg-white rounded-2xl border border-black/[0.06] shadow-[var(--shadow-raised)] flex items-center gap-2 p-2.5">
           <div className="w-12 h-12 rounded-xl bg-[#F5F2ED]" />
           <div className="flex-1 h-6 bg-[#F5F2ED] rounded" />
           <div className="w-12 h-12 rounded-xl bg-[#E8E6E3]" />

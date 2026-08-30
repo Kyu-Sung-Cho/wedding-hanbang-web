@@ -273,7 +273,7 @@ export default function EventFormModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="cancelled-event-edit-title"
-          className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-2xl bg-white p-6 shadow-[0_20px_60px_rgb(0,0,0,0.15)]"
+          className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-2xl bg-white p-6 shadow-[var(--shadow-overlay)]"
         >
           <h3 id="cancelled-event-edit-title" className="text-xl font-semibold text-[var(--hb-text-strong)]">
             취소된 일정은 바로 수정할 수 없어요
@@ -305,7 +305,7 @@ export default function EventFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="schedule-event-form-title"
-        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 animate-fade-in"
+        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden rounded-xl bg-white shadow-[var(--shadow-overlay)] z-50 animate-fade-in"
       >
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-4">
@@ -597,7 +597,7 @@ export default function EventFormModal({
               onClick={handleSubmit}
               type="button"
               disabled={saving || cancelling || !title.trim() || !date}
-              className="min-h-11 px-5 py-2.5 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
+              className="min-h-11 px-5 py-2.5 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[var(--shadow-raised)]"
             >
               {saving
                 ? "저장 중..."

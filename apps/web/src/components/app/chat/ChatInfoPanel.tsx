@@ -94,7 +94,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 h-[85vh] bg-white rounded-t-2xl shadow-[0_-8px_40px_rgba(0,0,0,0.08)] z-50 flex flex-col md:hidden"
+            className="fixed inset-x-0 bottom-0 h-[85vh] bg-white rounded-t-2xl shadow-[var(--shadow-raised)] z-50 flex flex-col md:hidden"
           >
             {/* 핸들 바 */}
             <div className="flex justify-center pt-2 pb-1">

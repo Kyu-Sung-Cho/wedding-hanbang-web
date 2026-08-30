@@ -39,7 +39,7 @@ export default function SortSelector({
             key={option.key}
             type="button"
             onClick={() => onSortChange(option.key)}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
+            className={`shrink-0 rounded-[6px] px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
               isActive
                 ? "bg-[var(--hb-primary)] text-white"
                 : "bg-white text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-body)]"
@@ -58,7 +58,7 @@ export default function SortSelector({
                 key={p.key}
                 type="button"
                 onClick={() => onPeriodChange(p.key)}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
+                className={`shrink-0 rounded-[6px] px-3 py-1.5 text-xs transition-colors duration-200 sm:text-sm ${
                   period === p.key
                     ? "bg-[var(--hb-primary)] text-white"
                     : "bg-white text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-body)]"

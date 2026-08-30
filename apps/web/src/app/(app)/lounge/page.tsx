@@ -579,11 +579,11 @@ export default function LoungePage() {
       {showJoinedHandoff && (
         <section
           data-testid="joined-plan-handoff"
-          className="rounded-[22px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[0_14px_36px_rgba(54,83,78,0.09)] md:p-6"
+          className="rounded-[22px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
           aria-labelledby="joined-plan-title"
         >
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[0_4px_14px_rgba(54,83,78,0.08)]">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
               <HeartHandshake className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
@@ -622,7 +622,7 @@ export default function LoungePage() {
           <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:items-center">
             <Link
               {...joinedReviewLink}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
             >
               함께 확인할 내용 찾기
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
@@ -630,7 +630,7 @@ export default function LoungePage() {
             <button
               type="button"
               onClick={dismissJoinedHandoff}
-              className="inline-flex min-h-11 w-full items-center justify-center rounded-full px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] px-5 text-[13px] font-semibold text-[#5D6879] transition-colors hover:bg-white/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
             >
               이 내용 확인했어요
             </button>
@@ -646,7 +646,7 @@ export default function LoungePage() {
         </div>
       )}
       <section className="grid gap-4 lg:grid-cols-[1.12fr_0.88fr]">
-        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-6">
+        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
@@ -702,7 +702,7 @@ export default function LoungePage() {
         {/* 첫 실행 투어의 "여기부터 보시면 돼요" — 오늘 챙길 것 하나가 올라오는 자리다. */}
         <div
           data-tutorial-target="lounge-focus"
-          className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[0_16px_38px_rgba(54,83,78,0.16)] md:p-6"
+          className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)] md:p-6"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -749,7 +749,7 @@ export default function LoungePage() {
         data-tutorial-target="lounge-tools"
         className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
       >
-        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[#9d6f36]">준비 흐름</p>
@@ -757,7 +757,7 @@ export default function LoungePage() {
             </div>
             <Link
               {...weddingLinkProps("/schedule")}
-              className="inline-flex items-center gap-1 rounded-full border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#fff8ec]"
+              className="inline-flex items-center gap-1 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[#fff8ec]"
             >
               전체 체크
               <ArrowRight className="h-3.5 w-3.5" />
@@ -930,7 +930,7 @@ function PriorityCard({
             type="button"
             onClick={() => item.actionId && onActionStatus(item.actionId, "done")}
             disabled={updating}
-            className={`tap-area inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`tap-area inline-flex items-center gap-1.5 rounded-[6px] border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               item.tone === "steady"
                 ? "border-white/15 bg-white/10 text-white hover:bg-white/15"
                 : "border-[#d8e0d5] bg-white text-[var(--hb-text-strong)] hover:bg-[#f6f9f6]"
@@ -943,7 +943,7 @@ function PriorityCard({
             type="button"
             onClick={() => item.actionId && onActionStatus(item.actionId, "dismissed")}
             disabled={updating}
-            className={`tap-area inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`tap-area inline-flex items-center gap-1.5 rounded-[6px] border px-3 py-1.5 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               item.tone === "steady"
                 ? "border-white/15 bg-transparent text-white/75 hover:bg-white/10"
                 : "border-[var(--hb-hairline)] bg-transparent text-[#6d6254] hover:bg-white/60"
@@ -1021,7 +1021,7 @@ function BudgetPanel({
           : "안정";
 
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
@@ -1062,7 +1062,7 @@ function BudgetPanel({
 
 function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
@@ -1094,7 +1094,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
 
 function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading: boolean }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">커뮤니티 참고글</p>
@@ -1135,7 +1135,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
 
 function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[0_10px_30px_rgba(8,22,38,0.04)]">
+    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[#9d6f36]">동기방</p>

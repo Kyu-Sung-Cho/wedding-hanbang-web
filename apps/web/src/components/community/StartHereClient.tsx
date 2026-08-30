@@ -231,7 +231,7 @@ export default function StartHereClient() {
 
       <div className="mx-auto w-full max-w-[1240px] px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)] lg:gap-10">
-          <section className="bg-white px-5 py-6 shadow-[0_20px_55px_rgba(36,56,50,0.08)] sm:px-7 sm:py-8" aria-labelledby="start-date-title">
+          <section className="bg-white px-5 py-6 shadow-[var(--shadow-overlay)] sm:px-7 sm:py-8" aria-labelledby="start-date-title">
             <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">01 · 예식 예정일</p>
             <h2 id="start-date-title" className="mt-2 text-[25px] font-semibold tracking-[-0.035em] text-[var(--hb-text-strong)]">
               날짜를 알려주세요.
@@ -292,7 +292,7 @@ export default function StartHereClient() {
                     type="button"
                     onClick={() => applyPreset(value)}
                     aria-pressed={preset === value}
-                    className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[14px] font-semibold transition-colors ${
+                    className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                       preset === value
                         ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                         : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
@@ -510,7 +510,7 @@ export default function StartHereClient() {
                       type="button"
                       onClick={() => toggleSkip(category.key)}
                       aria-pressed={off}
-                      className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[14px] font-semibold transition-colors ${
+                      className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                         off
                           ? "border-[var(--hb-primary)]/12 bg-[#f0ece6] text-[#716c65] line-through"
                           : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"

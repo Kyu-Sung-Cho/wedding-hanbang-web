@@ -117,7 +117,7 @@ export default function QuickReviewPage() {
           </p>
           <Link
             href={QUICK_REVIEW_LOGIN_HREF}
-            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-full bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
+            className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
           >
             로그인하고 이어서 쓰기
           </Link>
@@ -212,7 +212,7 @@ export default function QuickReviewPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-[var(--hb-primary)] text-white rounded-xl py-3 px-6 font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full bg-[var(--hb-primary)] text-white rounded-xl py-3 px-6 font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "후기 등록"}
         </button>

@@ -48,7 +48,7 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
               key={tool.href}
               href={tool.href}
               title={`${tool.label} - ${tool.description}`}
-              className="group flex items-center gap-1.5 rounded-full px-3 py-2 text-sm text-[var(--hb-text-body)] transition-all hover:bg-[#F5F0EE] hover:text-[var(--hb-text-strong)]"
+              className="group flex items-center gap-1.5 rounded-[6px] px-3 py-2 text-sm text-[var(--hb-text-body)] transition-all hover:bg-[#F5F0EE] hover:text-[var(--hb-text-strong)]"
             >
               <Icon className="h-4 w-4 text-[var(--hb-text-strong)]" />
               <span className="hidden lg:inline">{tool.label}</span>

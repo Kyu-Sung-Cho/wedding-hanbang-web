@@ -301,7 +301,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
           <button
             type="button"
             onClick={() => fetchComments(postId)}
-            className="mt-3 inline-flex min-h-9 items-center rounded-full border border-[#F0EFED] px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
+            className="mt-3 inline-flex min-h-9 items-center rounded-[6px] border border-[#F0EFED] px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
           >
             다시 불러오기
           </button>

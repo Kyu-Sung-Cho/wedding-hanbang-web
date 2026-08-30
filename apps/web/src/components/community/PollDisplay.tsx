@@ -139,7 +139,7 @@ export default function PollDisplay({
   };
 
   return (
-    <section className="mt-5 bg-gradient-to-br from-[var(--hb-surface-page)] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[0_4px_20px_rgb(121,82,82,0.04)]">
+    <section className="mt-5 bg-gradient-to-br from-[var(--hb-surface-page)] to-white border border-[#f0eeec] rounded-2xl p-5 shadow-[var(--shadow-raised)]">
       {/* 헤더 */}
       <div className="flex items-start gap-3 mb-4">
         <div className="shrink-0 w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
@@ -218,7 +218,7 @@ export default function PollDisplay({
               disabled={disabled}
               className={`group relative w-full overflow-hidden rounded-xl border transition-all duration-200 ${
                 isSelected
-                  ? "border-[var(--hb-primary)] bg-white shadow-[0_2px_8px_rgb(121,82,82,0.12)]"
+                  ? "border-[var(--hb-primary)] bg-white shadow-[var(--shadow-raised)]"
                   : "border-[var(--hb-hairline)] bg-white hover:border-[var(--hb-primary)] hover:bg-[var(--hb-surface-page)]"
               } ${disabled && !isPending ? "cursor-not-allowed opacity-90" : ""}`}
             >

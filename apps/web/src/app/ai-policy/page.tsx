@@ -16,7 +16,7 @@ export default function AIPolicyPage() {
         <div className="mb-10">
           <Link
             href="/landing"
-            className="inline-block text-xs text-[#795252] hover:underline mb-6"
+            className="inline-block text-xs text-[var(--hb-primary)] hover:underline mb-6"
           >
             ← 홈으로
           </Link>
@@ -71,7 +71,7 @@ export default function AIPolicyPage() {
               <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">
                 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」과 개인정보 보호 관계 법령을
                 검토해 운영에 반영합니다. 실제 수집 항목과 보관 범위는{" "}
-                <Link href="/privacy" className="underline hover:text-[#795252]">
+                <Link href="/privacy" className="underline hover:text-[var(--hb-primary)]">
                   개인정보 처리방침
                 </Link>
                 에서 확인할 수 있습니다.
@@ -91,7 +91,7 @@ export default function AIPolicyPage() {
             </li>
             <li>
               <strong className="text-[#1b1c1c]">이메일</strong>:{" "}
-              <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[#795252] transition-colors">
+              <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[var(--hb-primary)] transition-colors">
                 {CONTACT.email}
               </a>
             </li>
@@ -122,7 +122,7 @@ export default function AIPolicyPage() {
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">
             사실과 다른 답변, 부적절한 내용, 저장·공유 문제를 발견하면{" "}
-            <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[#795252] transition-colors">
+            <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[var(--hb-primary)] transition-colors">
               {CONTACT.email}
             </a>
             로 알려주세요. 접수 내용을 확인한 뒤 처리 결과를 안내합니다.

@@ -70,7 +70,7 @@ export default function CommunityNav({
           )}
           <Link
             {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-            className="inline-flex items-center gap-2 whitespace-nowrap rounded-full bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[0_10px_24px_rgba(6,26,52,0.16)] transition-transform hover:-translate-y-0.5"
+            className="inline-flex items-center gap-2 whitespace-nowrap rounded-[6px] bg-[#061a34] px-6 py-3 text-[14px] font-semibold text-[#ecd7a4] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5"
           >
             고민 올리기
             <PenSquare className="h-4 w-4" />
@@ -123,7 +123,7 @@ export default function CommunityNav({
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
               onClick={() => setMobileOpen(false)}
-              className="mt-2 inline-flex items-center justify-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+              className="mt-2 inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
             >
               고민 올리기
               <PenSquare className="h-4 w-4" />
@@ -136,7 +136,7 @@ export default function CommunityNav({
               <Link
                 href="/login"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#071629]"
+                className="inline-flex items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[#071629]"
               >
                 로그인
               </Link>

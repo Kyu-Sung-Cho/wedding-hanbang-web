@@ -179,7 +179,7 @@ export default function SlideBuilder({ slides, onChange, max = 10 }: SlideBuilde
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading || remaining <= 0}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-[var(--hb-primary)] text-white text-sm font-medium shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[6px] bg-[var(--hb-primary)] text-white text-sm font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {uploading ? (
             <>

@@ -228,7 +228,7 @@ export function PriceVendorCard({
   return (
     <article
       ref={cardRef}
-      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[22px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[0_12px_34px_rgba(36,56,50,0.055)]"
+      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[22px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[var(--shadow-raised)]"
     >
       <div
         data-card-header="true"
@@ -553,7 +553,7 @@ export function PriceVendorCard({
             surface: "price_list",
             context: { category: vendor.category },
           })}
-          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-[var(--hb-primary)]/18 px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/18 px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
         >
           상세 보기
         </Link>
@@ -561,7 +561,7 @@ export function PriceVendorCard({
           <button
             type="button"
             onClick={() => onOpenCombo(vendor)}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
           >
             + 조합에 담기
           </button>

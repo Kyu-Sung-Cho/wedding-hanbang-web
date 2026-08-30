@@ -37,7 +37,7 @@ export default function MannersIndexPage() {
         </p>
         <Link
           {...weddingLinkProps("/checklist")}
-          className="mt-5 inline-flex rounded-full bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+          className="mt-5 inline-flex rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
         >
           웨딩 체크리스트 열기
         </Link>

@@ -184,7 +184,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] sm:p-5">
+    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[var(--shadow-raised)] sm:p-5">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt || actionToast) && (
         <div

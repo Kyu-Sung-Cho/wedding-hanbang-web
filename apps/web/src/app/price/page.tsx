@@ -58,7 +58,7 @@ export default async function PriceIndexPage() {
 
   return (
     <>
-      <section className="border-b border-[var(--hb-primary)]/10 bg-[radial-gradient(circle_at_top_right,rgba(181,151,122,0.2),transparent_42%),linear-gradient(180deg,#FFFDF8_0%,#FBF8F2_100%)] px-4 pb-8 pt-8 sm:px-6 sm:pb-10 sm:pt-12">
+      <section className="border-b border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)] px-4 pb-8 pt-8 sm:px-6 sm:pb-10 sm:pt-12">
         <div className="mx-auto max-w-6xl">
           <p className="text-xs font-bold tracking-[0.13em] text-[var(--color-rose-700)]">한국소비자원 참가격 공시</p>
           <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-normal text-[var(--hb-text-strong)] sm:text-4xl">

@@ -126,7 +126,7 @@ export default function NeutralPreparationStart({
           type="button"
           disabled={loading}
           onClick={onCreate}
-          className="w-full rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-5 py-4 text-[15px] font-semibold text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)] transition-all hover:shadow-[0_6px_20px_rgba(121,82,82,0.23)] disabled:cursor-wait disabled:opacity-50"
+          className="w-full rounded-2xl bg-gradient-to-br from-[#795252] to-[#946a6a] px-5 py-4 text-[15px] font-semibold text-white shadow-[var(--shadow-raised)] transition-all hover:shadow-[var(--shadow-raised)] disabled:cursor-wait disabled:opacity-50"
         >
           {loading && coupleAction === null ? "준비 중..." : "아모라와 지금 시작하기"}
         </button>

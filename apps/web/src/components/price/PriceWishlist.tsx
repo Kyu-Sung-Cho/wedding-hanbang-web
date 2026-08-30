@@ -178,7 +178,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           >
             <Link
               href="/login?redirect=%2Fprice%2Fwishlist"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               로그인하고 보기
               <ArrowRight aria-hidden="true" className="size-4" />
@@ -195,7 +195,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
             <button
               type="button"
               onClick={retry}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               <RefreshCw aria-hidden="true" className="size-4" />
               다시 불러오기
@@ -211,7 +211,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
           >
             <Link
               href="/price/studio"
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               공식 가격 둘러보기
               <ArrowRight aria-hidden="true" className="size-4" />
@@ -277,7 +277,7 @@ function StateCard({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[0_12px_34px_rgba(36,56,50,0.055)] sm:px-8">
+    <section className="rounded-[24px] border border-[var(--hb-primary)]/10 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         {icon}
       </span>

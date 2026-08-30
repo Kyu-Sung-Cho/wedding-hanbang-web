@@ -14,13 +14,13 @@ type Step = "pick" | "give" | "face";
 
 const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full bg-[var(--hb-primary)] px-6"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
   + " hover:bg-[var(--hb-primary)] active:-translate-y-[3px] motion-reduce:transform-none"
   + " focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
   + " focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-full border"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] border"
   + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)]"
   + " transition-colors duration-150 ease-out hover:bg-[var(--hb-surface-hover)]"
   + " active:-translate-y-[3px] motion-reduce:transform-none focus-visible:outline-none"
@@ -28,7 +28,7 @@ const secondaryButton =
 // 밑줄은 여기 넣지 않는다. `underline`과 `no-underline`을 같은 요소에 겹치면 어느 쪽이
 // 이기는지가 클래스 문자열 순서가 아니라 생성된 CSS 순서로 정해져서 밑줄이 남는다.
 const quietLink =
-  "inline-flex min-h-[44px] items-center justify-center rounded-full px-3 text-[13px]"
+  "inline-flex min-h-[44px] items-center justify-center rounded-[6px] px-3 text-[13px]"
   + " font-semibold text-[#8F6662] transition-colors"
   + " hover:text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2"
   + " focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2";
