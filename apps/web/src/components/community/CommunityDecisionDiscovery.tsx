@@ -397,7 +397,7 @@ export default function CommunityDecisionDiscovery({
       aria-labelledby="community-decision-discovery-title"
       data-community-decision-discovery
     >
-      <div className="overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
+      <div className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:px-5">
           <div className="min-w-0">
             <p className="text-[11px] font-semibold tracking-[0.04em] text-[var(--hb-accent-hover)]">

@@ -50,7 +50,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
               <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
+                className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -106,7 +106,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
               <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
+                className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>

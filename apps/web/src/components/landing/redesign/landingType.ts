@@ -137,7 +137,11 @@ export const sectionRhythmCompact = "py-12 sm:py-14 lg:py-16";
  *
  * 같은 "아모라와 시작하기"가 헤더 `rounded-full`/14px/44px, 히어로
  * `rounded-xl`(12px)/14px/48px, 마무리 `rounded-[16px]`/15px/56px로 세 가지
- * 실루엣이었다. 하나의 행동은 하나의 물체로 읽혀야 한다. 모양과 전이는 고정하고
+ * 실루엣이었다. 하나의 행동은 하나의 물체로 읽혀야 한다.
+ *
+ * ⚠️ 2026-08-30: 모서리는 이제 정본 시안(docs/landing/NotebookBest.html)을 따른다 —
+ * 컨트롤 6px · 면 3px 둘뿐이다. 위 문장의 12px·16px 은 **그때 있었던 값**의 기록이지
+ * 지금 규격이 아니다. 모양과 전이는 고정하고
  * 크기만 위치에 따라 고른다. 15px는 타입 스케일 밖이라 14/16으로 정렬한다.
  *
  * `translate`를 전이 목록에 넣는 이유: Tailwind v4의 `-translate-y-*`는

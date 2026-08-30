@@ -95,7 +95,7 @@ export default function InviteLandingClient() {
   if (!code) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[#F7F3EE] px-6 py-16">
-        <div className="w-full max-w-[420px] rounded-[24px] border border-[#e3ddd3] bg-white p-7 shadow-[var(--shadow-overlay)]">
+        <div className="w-full max-w-[420px] rounded-[6px] border border-[#e3ddd3] bg-white p-7 shadow-[var(--shadow-overlay)]">
           <h1 className="text-[20px] font-semibold text-[#2b3a36]">
             초대 코드를 찾지 못했어요
           </h1>
@@ -115,7 +115,7 @@ export default function InviteLandingClient() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#F7F3EE] px-6 py-16">
-      <div className="w-full max-w-[420px] rounded-[24px] border border-[#e3ddd3] bg-white p-7 shadow-[var(--shadow-overlay)]">
+      <div className="w-full max-w-[420px] rounded-[6px] border border-[#e3ddd3] bg-white p-7 shadow-[var(--shadow-overlay)]">
         <p className="text-[13px] font-semibold text-[var(--color-rose-700)]">웨딩한방</p>
         <h1 className="mt-2 text-[22px] font-semibold leading-8 text-[#2b3a36]">
           같이 결혼 준비하자고
@@ -127,7 +127,7 @@ export default function InviteLandingClient() {
           말하지 않아도 돼요.
         </p>
 
-        <div className="mt-6 rounded-[18px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
+        <div className="mt-6 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">초대 코드</p>
           <p className="mt-1 break-all font-mono text-[20px] font-semibold tracking-[0.04em] text-[#2b3a36]">
             {code}

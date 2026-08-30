@@ -30,7 +30,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
 
   return (
     <div
-      className="bg-[#FAF8F5] rounded-2xl p-5 border-l-4"
+      className="bg-[#FAF8F5] rounded-[6px] p-5 border-l-4"
       style={{ borderLeftColor: "#36534E" }}
     >
       <div className="flex items-center gap-2 mb-3">

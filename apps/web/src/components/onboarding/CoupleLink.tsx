@@ -57,7 +57,7 @@ export default function CoupleLink({
         {/* 새로 시작하기 */}
         <button
           onClick={() => onSelectAction("create")}
-          className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
+          className={`w-full p-5 rounded-[6px] border-2 text-left transition-all ${
             coupleAction === "create"
               ? "border-rose-500 bg-rose-500/5"
               : "border-black/[0.06] bg-white hover:border-black/[0.12]"
@@ -81,7 +81,7 @@ export default function CoupleLink({
         {/* 파트너 코드 입력 */}
         <button
           onClick={() => onSelectAction("join")}
-          className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
+          className={`w-full p-5 rounded-[6px] border-2 text-left transition-all ${
             coupleAction === "join"
               ? "border-rose-500 bg-rose-500/5"
               : "border-black/[0.06] bg-white hover:border-black/[0.12]"
@@ -116,7 +116,7 @@ export default function CoupleLink({
             onBlur={() => partnerCode && validateCode(partnerCode)}
             placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
             maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
-            className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[16px] text-[var(--hb-text-strong)] text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] placeholder:tracking-[0.2em]"
+            className="w-full px-5 py-3.5 rounded-[6px] border border-black/[0.06] bg-white text-[16px] text-[var(--hb-text-strong)] text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] placeholder:tracking-[0.2em]"
           />
           {prefilledNotice && !codeError && (
             <p className="text-[12px] text-[var(--hb-text-muted)] text-center">{prefilledNotice}</p>
@@ -128,7 +128,7 @@ export default function CoupleLink({
       )}
 
       {coupleAction === "create" && (
-        <div className="bg-[var(--hb-surface-hover)] rounded-2xl p-4 text-center">
+        <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-4 text-center">
           <p className="text-[13px] text-[var(--hb-text-body)]">
             온보딩 완료 후 초대 코드가 생성됩니다.
             <br />

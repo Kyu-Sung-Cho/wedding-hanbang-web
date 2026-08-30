@@ -283,7 +283,7 @@ export default function CommentItem({
         </p>
         <Link
           href={weddingPath("/chat")}
-          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[var(--hb-text-strong)] bg-[var(--hb-primary)]/5 hover:bg-[var(--hb-primary)]/10 rounded-lg transition-colors duration-200"
+          className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium text-[var(--hb-text-strong)] bg-[var(--hb-primary)]/5 hover:bg-[var(--hb-primary)]/10 rounded-[6px] transition-colors duration-200"
         >
           {ctaText}
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -302,7 +302,7 @@ export default function CommentItem({
           ? "ml-6 pl-4 border-l border-[#F0EFED] hover:border-[var(--hb-primary)]/30"
           : ""
       } ${
-        isAmoraAI ? "bg-[#FAF8F5] rounded-xl -mx-1 px-1" : ""
+        isAmoraAI ? "bg-[#FAF8F5] rounded-[6px] -mx-1 px-1" : ""
       } transition-all duration-200`}
     >
       <div className="py-3">
@@ -346,7 +346,7 @@ export default function CommentItem({
                   onChange={(e) => setEditContent(e.target.value)}
                   rows={3}
                   maxLength={2000}
-                  className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
+                  className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px] resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
                 />
                 <div className="mt-2 flex items-center justify-between gap-3">
                   <span className="text-xs text-[var(--hb-text-muted)]">
@@ -359,7 +359,7 @@ export default function CommentItem({
                         setEditContent(comment.content);
                         setIsEditing(false);
                       }}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-lg hover:bg-[#FAFAF8] transition-all duration-200"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200"
                     >
                       <X className="w-3.5 h-3.5" />
                       취소
@@ -368,7 +368,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleEditSubmit}
                       disabled={!editContent.trim() || submittingEdit}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Check className="w-3.5 h-3.5" />
                       {submittingEdit ? "저장 중..." : "저장"}
@@ -396,7 +396,7 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => onVote(comment.id, comment.user_vote === 1 ? 0 : 1)}
-                  className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 transition-colors duration-200 ${
+                  className={`inline-flex items-center gap-1 rounded-[6px] px-2 py-1 transition-colors duration-200 ${
                     comment.user_vote === 1
                       ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]"
                       : "hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)]"
@@ -412,7 +412,7 @@ export default function CommentItem({
               ) : (
                 <Link
                   href={loginHref}
-                  className="inline-flex items-center gap-1 rounded-lg px-2 py-1 transition-colors duration-200 hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)]"
+                  className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 transition-colors duration-200 hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)]"
                   aria-label="로그인하고 도움됐어요 남기기"
                 >
                   <Heart className="w-3.5 h-3.5" />
@@ -435,7 +435,7 @@ export default function CommentItem({
                         setReplyError(null);
                       }
                     }}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] transition-all duration-200 ${
+                    className={`flex items-center gap-1 px-2 py-1 rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200 ${
                       showReplyInput ? "text-[var(--hb-text-strong)]" : ""
                     }`}
                   >
@@ -454,7 +454,7 @@ export default function CommentItem({
                 ) : (
                   <Link
                     href={loginHref}
-                    className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)] transition-all duration-200"
+                    className="flex items-center gap-1 px-2 py-1 rounded-[6px] hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)] transition-all duration-200"
                   >
                     <Reply className="w-3.5 h-3.5" />
                     답글
@@ -468,7 +468,7 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={startEdit}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)] transition-all duration-200"
+                  className="flex items-center gap-1 px-2 py-1 rounded-[6px] hover:bg-[#FAFAF8] hover:text-[var(--hb-text-strong)] transition-all duration-200"
                 >
                   <Pencil className="w-3.5 h-3.5" />
                   수정
@@ -476,7 +476,7 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => setShowDeleteConfirm(true)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-[#FAFAF8] hover:text-[#D85A5A] transition-all duration-200"
+                  className="flex items-center gap-1 px-2 py-1 rounded-[6px] hover:bg-[#FAFAF8] hover:text-[#D85A5A] transition-all duration-200"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   삭제
@@ -489,7 +489,7 @@ export default function CommentItem({
                     <button
                       type="button"
                       onClick={openReportModal}
-                      className="flex items-center gap-1 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-[#FAFAF8] hover:text-[#8F6662]"
+                      className="flex items-center gap-1 rounded-[6px] px-2 py-1 transition-all duration-200 hover:bg-[#FAFAF8] hover:text-[#8F6662]"
                       aria-label={`${isReply ? "답글" : "답변"} 신고`}
                     >
                       <Flag className="h-3.5 w-3.5" />
@@ -504,7 +504,7 @@ export default function CommentItem({
                 ) : (
                   <Link
                     href={reportLoginHref}
-                    className="flex items-center gap-1 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-[#FAFAF8] hover:text-[#8F6662]"
+                    className="flex items-center gap-1 rounded-[6px] px-2 py-1 transition-all duration-200 hover:bg-[#FAFAF8] hover:text-[#8F6662]"
                     aria-label={`로그인하고 ${isReply ? "답글" : "답변"} 신고`}
                   >
                     <Flag className="h-3.5 w-3.5" />
@@ -527,7 +527,7 @@ export default function CommentItem({
                   placeholder="답글을 작성해 주세요..."
                   rows={2}
                   maxLength={2000}
-                  className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
+                  className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px] resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
                 />
                 {replyError ? (
                   <p role="alert" className="mt-2 text-sm text-[#D95F5F]">
@@ -546,7 +546,7 @@ export default function CommentItem({
                         setReplyContent("");
                         setReplyError(null);
                       }}
-                      className="px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-lg hover:bg-[#FAFAF8] transition-all duration-200"
+                      className="px-3 py-1.5 text-sm font-medium text-[#878680] hover:text-[var(--hb-text-strong)] rounded-[6px] hover:bg-[#FAFAF8] transition-all duration-200"
                     >
                       취소
                     </button>
@@ -554,7 +554,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleReplySubmit}
                       disabled={!replyContent.trim() || submittingReply}
-                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="px-3 py-1.5 text-sm font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       {submittingReply ? "등록 중..." : "등록"}
                     </button>
@@ -573,7 +573,7 @@ export default function CommentItem({
           onClick={() => setShowDeleteConfirm(false)}
         >
           <div
-            className="bg-white rounded-2xl shadow-xl w-full max-w-xs overflow-hidden"
+            className="bg-white rounded-[6px] shadow-xl w-full max-w-xs overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 text-center">
@@ -625,7 +625,7 @@ export default function CommentItem({
             role="dialog"
             aria-modal="true"
             aria-labelledby={`comment-report-title-${comment.id}`}
-            className="max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-2xl bg-white shadow-xl"
+            className="max-h-[90dvh] w-full max-w-sm overflow-y-auto rounded-[6px] bg-white shadow-xl"
             onClick={(event) => event.stopPropagation()}
           >
             {reportSubmitted ? (
@@ -646,7 +646,7 @@ export default function CommentItem({
                 <button
                   type="button"
                   onClick={() => setShowReportModal(false)}
-                  className="mt-5 inline-flex min-h-10 w-full items-center justify-center rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
+                  className="mt-5 inline-flex min-h-10 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
                 >
                   확인
                 </button>
@@ -669,7 +669,7 @@ export default function CommentItem({
                   <button
                     type="button"
                     onClick={() => setShowReportModal(false)}
-                    className="rounded-lg p-1.5 text-[#878680] hover:bg-[#FAFAF8]"
+                    className="rounded-[6px] p-1.5 text-[#878680] hover:bg-[#FAFAF8]"
                     aria-label="신고 창 닫기"
                   >
                     <X className="h-4 w-4" />
@@ -685,7 +685,7 @@ export default function CommentItem({
                       {COMMENT_REPORT_REASONS.map((reason) => (
                         <label
                           key={reason.value}
-                          className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border px-3 py-2 text-sm transition-colors ${
+                          className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-[6px] border px-3 py-2 text-sm transition-colors ${
                             reportReason === reason.value
                               ? "border-[var(--hb-primary)] bg-[#eef4f1] text-[var(--hb-text-strong)]"
                               : "border-[#F0EFED] text-[var(--hb-text-body)] hover:border-[#d8d1cc]"
@@ -722,7 +722,7 @@ export default function CommentItem({
                       rows={3}
                       maxLength={1000}
                       placeholder="문제가 우려되는 부분을 짧게 알려 주세요."
-                      className="mt-2 w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] focus:border-[var(--hb-primary)]"
+                      className="mt-2 w-full resize-none rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] focus:border-[var(--hb-primary)]"
                     />
                   </label>
                   <p className="mt-1 text-xs leading-relaxed text-[#878680]">
@@ -733,7 +733,7 @@ export default function CommentItem({
                   {reportError && (
                     <p
                       role="alert"
-                      className="mt-3 rounded-lg bg-[#fbf2f0] px-3 py-2 text-sm leading-relaxed text-[#8F6662]"
+                      className="mt-3 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm leading-relaxed text-[#8F6662]"
                     >
                       {reportError}
                     </p>
@@ -743,7 +743,7 @@ export default function CommentItem({
                     <button
                       type="button"
                       onClick={() => setShowReportModal(false)}
-                      className="min-h-11 flex-1 rounded-lg border border-[#d8d1cc] px-4 text-sm font-semibold text-[var(--hb-text-body)]"
+                      className="min-h-11 flex-1 rounded-[6px] border border-[#d8d1cc] px-4 text-sm font-semibold text-[var(--hb-text-body)]"
                     >
                       취소
                     </button>
@@ -751,7 +751,7 @@ export default function CommentItem({
                       type="button"
                       onClick={handleReportSubmit}
                       disabled={!reportReason || reportSubmitting}
-                      className="min-h-11 flex-1 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                      className="min-h-11 flex-1 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       {reportSubmitting ? "접수 중..." : "신고 접수"}
                     </button>

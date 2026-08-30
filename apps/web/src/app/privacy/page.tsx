@@ -182,7 +182,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제9조 (개인정보 보호책임자)</h2>
             <p>개인정보 관련 문의와 권리 행사는 아래 연락처로 접수할 수 있습니다.</p>
-            <div className="mt-3 px-4 py-3 bg-white rounded-lg">
+            <div className="mt-3 px-4 py-3 bg-white rounded-[6px]">
               <ul className="space-y-1 text-[13px] text-charcoal">
                 <li>담당: 웨딩한방 개인정보 보호 담당</li>
                 <li>이메일: <a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)]">{CONTACT.email}</a></li>
@@ -200,7 +200,7 @@ export default function PrivacyPage() {
           {businessInfo ? (
             <section>
               <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">사업자 정보</h2>
-              <div className="mt-3 px-4 py-3 bg-white rounded-lg">
+              <div className="mt-3 px-4 py-3 bg-white rounded-[6px]">
                 <ul className="space-y-1 text-[13px] text-charcoal">
                   {businessInfoRows(businessInfo).map(([label, value]) => (
                     <li key={label}>{label}: {value}</li>

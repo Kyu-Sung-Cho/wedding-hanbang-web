@@ -42,7 +42,7 @@ import {
   decodeWeddingCodeShareHash,
 } from "@/lib/weddingCode/scene/link";
 
-const surface = "rounded-[20px] border border-[var(--hb-hairline)] bg-white";
+const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
@@ -527,7 +527,7 @@ ${shareUrl}`
 
                   <div className="mt-4 space-y-2">
                     {reading.evidence.map((quote) => (
-                      <div key={quote.scene} className="rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3">
+                      <div key={quote.scene} className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3">
                         <p className="text-[12px] font-medium leading-[1.5] text-[var(--color-rose-700)]">
                           {quote.scene}
                         </p>
@@ -652,7 +652,7 @@ ${shareUrl}`
                     {described.quotes.map((quote) => (
                       <p
                         key={quote}
-                        className="rounded-[12px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]"
+                        className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]"
                       >
                         {quote}
                       </p>
@@ -890,7 +890,7 @@ function TellPartnerDraft({ profile }: { profile: WeddingCodeSelfProfile }) {
             setText(event.target.value);
             setCopied(false);
           }}
-          className="w-full resize-y rounded-[12px] border border-[#C7D1C2] bg-white px-4 py-3 text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
+          className="w-full resize-y rounded-[6px] border border-[#C7D1C2] bg-white px-4 py-3 text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
         />
         <div className="mt-3 flex flex-wrap gap-2">
           <button

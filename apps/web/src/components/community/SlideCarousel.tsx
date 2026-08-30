@@ -74,7 +74,7 @@ export default function SlideCarousel({ slides, aspect = "4/5", className = "" }
       onTouchEnd={onTouchEnd}
       aria-label={`슬라이드 ${index + 1} / ${total}`}
     >
-      <div className="relative overflow-hidden rounded-2xl bg-[#1A1A1F]">
+      <div className="relative overflow-hidden rounded-[6px] bg-[#1A1A1F]">
         {/* 슬라이드 트랙 */}
         <div
           className={`flex transition-transform duration-300 ease-out ${aspectClass}`}

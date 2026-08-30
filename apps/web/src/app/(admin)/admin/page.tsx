@@ -626,19 +626,19 @@ export default function AdminPage() {
             <p className="text-sm text-[var(--hb-text-body)] mt-1">{adminEmail}</p>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-3 max-md:justify-center">
-            <Link href="/admin/community" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors">
+            <Link href="/admin/community" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
               <Shield className="w-3.5 h-3.5" /> 커뮤니티 통제실
             </Link>
-            <Link href="/admin/price" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors">
+            <Link href="/admin/price" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
               공시 가격 검수
             </Link>
-            <Link href="/admin/enrich" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors">
+            <Link href="/admin/enrich" className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)] border border-[#C7D1C2] rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
               업체 정보 보강
             </Link>
-            <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-lg hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
+            <a href="/wedding/lounge" className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-[6px] hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
               <LayoutDashboard className="w-3.5 h-3.5" /> 고객 대시보드
             </a>
-            <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-lg hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
+            <button onClick={handleLogout} className="flex items-center gap-1.5 px-4 py-2 text-sm text-[var(--hb-text-body)] border border-platinum rounded-[6px] hover:border-rose-500 hover:text-[var(--hb-accent-hover)] transition-colors">
               <LogOut className="w-3.5 h-3.5" /> 로그아웃
             </button>
           </div>
@@ -650,7 +650,7 @@ export default function AdminPage() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[14px] font-medium transition-colors ${
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-[6px] text-[14px] font-medium transition-colors ${
                 activeTab === tab.key
                   ? "bg-[var(--hb-primary)] text-white"
                   : "bg-white text-charcoal border border-black/[0.04] hover:border-[var(--hb-primary)]"
@@ -671,17 +671,17 @@ export default function AdminPage() {
         {activeTab === "registrations" && (
           <>
             <div className="grid grid-cols-3 gap-6 mb-10 max-md:grid-cols-1">
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">총 사전등록</p>
                 <p className="font-display text-4xl font-light text-[var(--hb-text-strong)]">{totalCount}</p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">오늘 등록</p>
                 <p className="font-display text-4xl font-light text-[var(--hb-text-strong)]">
                   {dailyCounts.length > 0 ? dailyCounts[dailyCounts.length - 1]?.count || 0 : 0}
                 </p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">최근 7일 평균</p>
                 <p className="font-display text-4xl font-light text-[var(--hb-text-strong)]">
                   {dailyCounts.length > 0
@@ -691,7 +691,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl p-8 border border-black/[0.04] mb-10">
+            <div className="bg-white rounded-[6px] p-8 border border-black/[0.04] mb-10">
               <h2 className="font-serif-kr text-lg font-normal mb-6">날짜별 등록 현황</h2>
               <div className="flex items-end gap-2 h-[200px]">
                 {dailyCounts.slice(-14).map((day) => (
@@ -707,7 +707,7 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
+            <div className="bg-white rounded-[6px] border border-black/[0.04] overflow-hidden">
               <div className="p-8 pb-4"><h2 className="font-serif-kr text-lg font-normal">등록자 목록</h2></div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left">
@@ -742,15 +742,15 @@ export default function AdminPage() {
         {activeTab === "vendors" && (
           <>
             <div className="grid grid-cols-3 gap-6 mb-8 max-md:grid-cols-1">
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <div className="flex items-center gap-2 mb-2"><Shield className="w-4 h-4 text-[var(--hb-text-muted)]" /><p className="text-sm text-[var(--hb-text-body)]">검토 대기</p></div>
                 <p className="font-display text-4xl font-light text-gold">{pendingVendors + draftVendors}</p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <div className="flex items-center gap-2 mb-2"><ShieldCheck className="w-4 h-4 text-[#2E7D5A]" /><p className="text-sm text-[var(--hb-text-body)]">승인됨</p></div>
                 <p className="font-display text-4xl font-light text-[#2E7D5A]">{approvedVendors}</p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <div className="flex items-center gap-2 mb-2"><ShieldX className="w-4 h-4 text-red-500" /><p className="text-sm text-[var(--hb-text-body)]">반려됨</p></div>
                 <p className="font-display text-4xl font-light text-red-500">{rejectedVendors}</p>
               </div>
@@ -765,13 +765,13 @@ export default function AdminPage() {
                 { key: "rejected" as const, label: "반려됨" },
               ]).map((f) => (
                 <button key={f.key} onClick={() => setVendorFilter(f.key)}
-                  className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-[6px] text-[13px] font-medium transition-colors ${
                     vendorFilter === f.key ? "bg-[var(--hb-primary)] text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-[var(--hb-primary)]"
                   }`}>{f.label}</button>
               ))}
             </div>
 
-            <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
+            <div className="bg-white rounded-[6px] border border-black/[0.04] overflow-hidden">
               {vendorLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-6 h-6 text-[var(--hb-text-muted)] animate-spin" />
@@ -816,21 +816,21 @@ export default function AdminPage() {
                           </td>
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
-                              <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors" title="상세 보기">
+                              <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors" title="상세 보기">
                                 <Eye className="w-4 h-4 text-[var(--hb-text-muted)]" />
                               </button>
                               {(v.status === "draft" || v.status === "pending") && (
                                 <>
-                                  <button onClick={() => handleApprove(v.id)} disabled={actionLoading} className="p-1.5 rounded-lg hover:bg-[#2E7D5A]/10 transition-colors disabled:opacity-50" title="승인">
+                                  <button onClick={() => handleApprove(v.id)} disabled={actionLoading} className="p-1.5 rounded-[6px] hover:bg-[#2E7D5A]/10 transition-colors disabled:opacity-50" title="승인">
                                     <Check className="w-4 h-4 text-[#2E7D5A]" />
                                   </button>
-                                  <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-lg hover:bg-red-50 transition-colors" title="반려">
+                                  <button onClick={() => setSelectedVendor(v)} className="p-1.5 rounded-[6px] hover:bg-red-50 transition-colors" title="반려">
                                     <X className="w-4 h-4 text-red-500" />
                                   </button>
                                 </>
                               )}
                               {v.status === "approved" && (
-                                <button onClick={() => handleRevoke(v.id)} disabled={actionLoading} className="p-1.5 rounded-lg hover:bg-amber-50 transition-colors disabled:opacity-50" title="승인 취소">
+                                <button onClick={() => handleRevoke(v.id)} disabled={actionLoading} className="p-1.5 rounded-[6px] hover:bg-amber-50 transition-colors disabled:opacity-50" title="승인 취소">
                                   <RotateCcw className="w-4 h-4 text-amber-600" />
                                 </button>
                               )}
@@ -850,10 +850,10 @@ export default function AdminPage() {
             {/* 업체 상세 모달 */}
             {selectedVendor && (
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedVendor(null)}>
-                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80dvh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-[6px] max-w-lg w-full max-h-[80dvh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-serif-kr text-[20px] font-normal text-[var(--hb-text-strong)]">업체 상세 정보</h3>
-                    <button onClick={() => setSelectedVendor(null)} className="p-1.5 rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors">
+                    <button onClick={() => setSelectedVendor(null)} className="p-1.5 rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
                       <X className="w-5 h-5 text-[var(--hb-text-muted)]" />
                     </button>
                   </div>
@@ -896,15 +896,15 @@ export default function AdminPage() {
                       <div className="mb-4">
                         <label className="block text-[13px] font-medium text-[var(--hb-text-strong)] mb-2">반려 사유 (반려 시)</label>
                         <textarea value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="반려 사유를 입력해주세요..." rows={2}
-                          className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors resize-none" />
+                          className="w-full px-4 py-3 border border-platinum rounded-[6px] text-[14px] outline-none focus:border-rose-500 transition-colors resize-none" />
                       </div>
                       <div className="flex gap-3">
                         <button onClick={() => handleApprove(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-[#2E7D5A] text-white text-[14px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50">
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[6px] bg-[#2E7D5A] text-white text-[14px] font-medium hover:bg-[#246B4C] transition-colors disabled:opacity-50">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} 승인
                         </button>
                         <button onClick={() => handleReject(selectedVendor.id)} disabled={actionLoading}
-                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
+                          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-[6px] bg-red-500 text-white text-[14px] font-medium hover:bg-red-600 transition-colors disabled:opacity-50">
                           {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <X className="w-4 h-4" />} 반려
                         </button>
                       </div>
@@ -913,7 +913,7 @@ export default function AdminPage() {
                   {selectedVendor.status === "approved" && (
                     <div className="mt-6 pt-6 border-t border-black/[0.04]">
                       <button onClick={() => handleRevoke(selectedVendor.id)} disabled={actionLoading}
-                        className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-500 text-white text-[14px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
+                        className="w-full flex items-center justify-center gap-2 py-3 rounded-[6px] bg-amber-500 text-white text-[14px] font-medium hover:bg-amber-600 transition-colors disabled:opacity-50">
                         {actionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />} 승인 취소
                       </button>
                       <p className="mt-2 text-[12px] text-[var(--hb-text-muted)] text-center">승인 취소 시 고객에게 더 이상 노출되지 않으며, 대기 상태로 변경됩니다.</p>
@@ -929,25 +929,25 @@ export default function AdminPage() {
         {activeTab === "customers" && (
           <>
             <div className="grid grid-cols-4 gap-6 mb-8 max-md:grid-cols-2">
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">전체 고객</p>
                 <p className="font-display text-4xl font-light text-[var(--hb-text-strong)]">{customerStats.total}</p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">온보딩 완료</p>
                 <p className="font-display text-4xl font-light text-[#2E7D5A]">{customerStats.onboarded}</p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">커플 연동</p>
                 <p className="font-display text-4xl font-light text-[var(--hb-accent-hover)]">{customerStats.coupled}</p>
               </div>
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <p className="text-sm text-[var(--hb-text-body)] mb-2">오늘 가입</p>
                 <p className="font-display text-4xl font-light text-gold">{customerStats.todayCount}</p>
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
+            <div className="bg-white rounded-[6px] border border-black/[0.04] overflow-hidden">
               <div className="p-8 pb-4"><h2 className="font-serif-kr text-lg font-normal">고객 목록</h2></div>
               {customerLoading ? (
                 <div className="flex items-center justify-center py-16">
@@ -1018,7 +1018,7 @@ export default function AdminPage() {
                 { label: "완료", value: bookingStats.completed, cls: "text-[var(--hb-text-strong)]" },
                 { label: "취소", value: bookingStats.cancelled, cls: "text-red-500" },
               ].map((s) => (
-                <div key={s.label} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
+                <div key={s.label} className="bg-white rounded-[6px] p-6 border border-black/[0.04]">
                   <p className="text-sm text-[var(--hb-text-body)] mb-2">{s.label}</p>
                   <p className={`font-display text-3xl font-light ${s.cls}`}>{s.value}</p>
                 </div>
@@ -1034,13 +1034,13 @@ export default function AdminPage() {
                 { key: "cancelled" as const, label: "취소" },
               ]).map((f) => (
                 <button key={f.key} onClick={() => setBookingFilter(f.key)}
-                  className={`px-4 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-[6px] text-[13px] font-medium transition-colors ${
                     bookingFilter === f.key ? "bg-[var(--hb-primary)] text-white" : "bg-white text-charcoal border border-black/[0.04] hover:border-[var(--hb-primary)]"
                   }`}>{f.label}</button>
               ))}
             </div>
 
-            <div className="bg-white rounded-2xl border border-black/[0.04] overflow-hidden">
+            <div className="bg-white rounded-[6px] border border-black/[0.04] overflow-hidden">
               {bookingLoading ? (
                 <div className="flex items-center justify-center py-16">
                   <Loader2 className="w-6 h-6 text-[var(--hb-text-muted)] animate-spin" />
@@ -1100,10 +1100,10 @@ export default function AdminPage() {
             {/* 예약 상세 모달 */}
             {selectedBooking && (
               <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-5" onClick={() => setSelectedBooking(null)}>
-                <div className="bg-white rounded-2xl max-w-lg w-full max-h-[80dvh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
+                <div className="bg-white rounded-[6px] max-w-lg w-full max-h-[80dvh] overflow-y-auto p-8" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-between mb-6">
                     <h3 className="font-serif-kr text-[20px] font-normal text-[var(--hb-text-strong)]">예약 상세</h3>
-                    <button onClick={() => setSelectedBooking(null)} className="p-1.5 rounded-lg hover:bg-[var(--hb-surface-hover)] transition-colors">
+                    <button onClick={() => setSelectedBooking(null)} className="p-1.5 rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors">
                       <X className="w-5 h-5 text-[var(--hb-text-muted)]" />
                     </button>
                   </div>
@@ -1135,7 +1135,7 @@ export default function AdminPage() {
                     {selectedBooking.memo && (
                       <div>
                         <span className="text-[12px] text-[var(--hb-text-muted)] block mb-1">메모</span>
-                        <p className="text-[13px] text-charcoal font-light leading-relaxed bg-[var(--hb-surface-page)] rounded-xl p-3">{selectedBooking.memo}</p>
+                        <p className="text-[13px] text-charcoal font-light leading-relaxed bg-[var(--hb-surface-page)] rounded-[6px] p-3">{selectedBooking.memo}</p>
                       </div>
                     )}
                   </div>
@@ -1149,12 +1149,12 @@ export default function AdminPage() {
         {activeTab === "insights" && (
           <>
             {/* 기간 선택 */}
-            <div className="flex gap-1 bg-white rounded-lg p-1 border border-black/[0.04] w-fit mb-6">
+            <div className="flex gap-1 bg-white rounded-[6px] p-1 border border-black/[0.04] w-fit mb-6">
               {(["7d", "30d", "90d"] as const).map((p) => (
                 <button
                   key={p}
                   onClick={() => { setInsightsPeriod(p); fetchInsights(p); }}
-                  className={`px-4 py-2 rounded-md text-[13px] font-medium transition-colors ${
+                  className={`px-4 py-2 rounded-[6px] text-[13px] font-medium transition-colors ${
                     insightsPeriod === p ? "bg-[var(--hb-primary)] text-white" : "text-[var(--hb-text-muted)] hover:text-charcoal"
                   }`}
                 >
@@ -1178,7 +1178,7 @@ export default function AdminPage() {
                     { label: "총 즐겨찾기", value: insights.overview.totalFavorites.toLocaleString(), icon: Heart, color: "text-[var(--hb-accent-hover)]" },
                     { label: "기간 예약", value: insights.overview.totalBookings.toLocaleString(), icon: CalendarCheck, color: "text-gold" },
                   ].map((kpi) => (
-                    <div key={kpi.label} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
+                    <div key={kpi.label} className="bg-white rounded-[6px] p-6 border border-black/[0.04]">
                       <div className="flex items-center gap-2 mb-2">
                         <kpi.icon className={`w-4 h-4 ${kpi.color}`} />
                         <p className="text-sm text-[var(--hb-text-body)]">{kpi.label}</p>
@@ -1196,7 +1196,7 @@ export default function AdminPage() {
                     { label: "신규 찜", value: insights.overview.newFavorites },
                     { label: "확정 예약", value: insights.overview.confirmedBookings },
                   ].map((s) => (
-                    <div key={s.label} className="bg-white rounded-2xl p-5 border border-black/[0.04]">
+                    <div key={s.label} className="bg-white rounded-[6px] p-5 border border-black/[0.04]">
                       <p className="text-[12px] text-[var(--hb-text-muted)] mb-1">{s.label}</p>
                       <p className="font-display text-2xl font-light text-[var(--hb-text-strong)]">{s.value}</p>
                     </div>
@@ -1205,7 +1205,7 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-2 gap-6 mb-8 max-lg:grid-cols-1">
                   {/* 인기 업체 */}
-                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                  <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <TrendingUp className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                       <h2 className="font-serif-kr text-[16px] font-normal">인기 업체 TOP 10</h2>
@@ -1218,7 +1218,7 @@ export default function AdminPage() {
                         <span className="text-center">예약</span>
                       </div>
                       {insights.topVendors.map((v, i) => (
-                        <div key={v.id} className="grid grid-cols-5 gap-2 px-3 py-2 rounded-lg bg-[var(--hb-surface-page)]/50 items-center">
+                        <div key={v.id} className="grid grid-cols-5 gap-2 px-3 py-2 rounded-[6px] bg-[var(--hb-surface-page)]/50 items-center">
                           <div className="col-span-2 flex items-center gap-2 min-w-0">
                             <span className="text-[11px] text-[var(--hb-text-muted)] font-medium w-4 flex-shrink-0">{i + 1}</span>
                             <div className="min-w-0">
@@ -1238,7 +1238,7 @@ export default function AdminPage() {
                   </div>
 
                   {/* 카테고리별 통계 */}
-                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                  <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Store className="w-4 h-4 text-gold" />
                       <h2 className="font-serif-kr text-[16px] font-normal">카테고리별 현황</h2>
@@ -1251,7 +1251,7 @@ export default function AdminPage() {
                         <span className="text-center">평점</span>
                       </div>
                       {insights.categoryStats.map((c) => (
-                        <div key={c.category} className="grid grid-cols-4 gap-2 px-3 py-2 rounded-lg bg-[var(--hb-surface-page)]/50 items-center">
+                        <div key={c.category} className="grid grid-cols-4 gap-2 px-3 py-2 rounded-[6px] bg-[var(--hb-surface-page)]/50 items-center">
                           <span className="text-[13px] text-[var(--hb-text-strong)] font-medium">{c.category}</span>
                           <span className="text-[13px] text-charcoal text-center">{c.vendorCount}</span>
                           <span className="text-[13px] text-charcoal text-center">{c.bookingCount}</span>
@@ -1262,7 +1262,7 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-8">
+                <div className="bg-white rounded-[6px] border border-black/[0.04] p-6 mb-8">
                   <div className="flex items-center gap-2 mb-4">
                     <Heart className="w-4 h-4 text-[var(--hb-text-strong)]" />
                     <h2 className="font-serif-kr text-[16px] font-normal">커뮤니티 저장 TOP 10</h2>
@@ -1279,7 +1279,7 @@ export default function AdminPage() {
                       <a
                         key={post.id}
                         href={`/wedding/community/post/${post.id}`}
-                        className="grid grid-cols-[32px_minmax(0,1fr)_80px_80px_80px] gap-2 px-3 py-2 rounded-lg bg-[var(--hb-surface-page)]/50 items-center hover:bg-[var(--hb-surface-hover)] transition-colors max-md:grid-cols-[28px_minmax(0,1fr)_64px]"
+                        className="grid grid-cols-[32px_minmax(0,1fr)_80px_80px_80px] gap-2 px-3 py-2 rounded-[6px] bg-[var(--hb-surface-page)]/50 items-center hover:bg-[var(--hb-surface-hover)] transition-colors max-md:grid-cols-[28px_minmax(0,1fr)_64px]"
                       >
                         <span className="text-[11px] text-[var(--hb-text-muted)] font-medium">{index + 1}</span>
                         <span className="min-w-0">
@@ -1301,7 +1301,7 @@ export default function AdminPage() {
 
                 <div className="grid grid-cols-3 gap-6 mb-8 max-lg:grid-cols-1">
                   {/* 일별 활성 사용자 */}
-                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                  <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-1">
                       <Users className="w-4 h-4 text-[#2E7D5A]" />
                       <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">일별 활성 사용자</h2>
@@ -1315,7 +1315,7 @@ export default function AdminPage() {
                         <div className="flex items-end gap-[2px]" style={{ height: 60 }}>
                           {display.map((d, i) => (
                             <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
-                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[var(--hb-primary)] text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[var(--hb-primary)] text-white text-[10px] px-1.5 py-0.5 rounded-[6px] whitespace-nowrap z-10">
                                 {d.date.slice(5)}: {d.count}명
                               </div>
                               <div
@@ -1330,7 +1330,7 @@ export default function AdminPage() {
                   </div>
 
                   {/* 이벤트 유형 분석 */}
-                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                  <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <MousePointerClick className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                       <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">이벤트 분석</h2>
@@ -1365,7 +1365,7 @@ export default function AdminPage() {
                   </div>
 
                   {/* 인기 페이지 */}
-                  <div className="bg-white rounded-2xl border border-black/[0.04] p-6">
+                  <div className="bg-white rounded-[6px] border border-black/[0.04] p-6">
                     <div className="flex items-center gap-2 mb-4">
                       <Eye className="w-4 h-4 text-gold" />
                       <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">인기 페이지</h2>
@@ -1390,7 +1390,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* 즐겨찾기 트렌드 */}
-                <div className="bg-white rounded-2xl border border-black/[0.04] p-6 mb-8">
+                <div className="bg-white rounded-[6px] border border-black/[0.04] p-6 mb-8">
                   <div className="flex items-center gap-2 mb-1">
                     <Heart className="w-4 h-4 text-[var(--hb-accent-hover)]" />
                     <h2 className="text-[15px] font-medium text-[var(--hb-text-strong)]">즐겨찾기 트렌드</h2>
@@ -1410,7 +1410,7 @@ export default function AdminPage() {
                         <div className="flex items-end gap-[2px]" style={{ height: 60 }}>
                           {display.map((d, i) => (
                             <div key={i} className="flex flex-col items-center flex-1 gap-0.5 group relative">
-                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[var(--hb-primary)] text-white text-[10px] px-1.5 py-0.5 rounded whitespace-nowrap z-10">
+                              <div className="absolute bottom-full mb-1 hidden group-hover:block bg-[var(--hb-primary)] text-white text-[10px] px-1.5 py-0.5 rounded-[6px] whitespace-nowrap z-10">
                                 {d.date.slice(5)}: {d.count}건
                               </div>
                               <div
@@ -1444,7 +1444,7 @@ export default function AdminPage() {
                 { key: "resolved" as const, label: "처리됨", cls: "text-[#2E7D5A]" },
                 { key: "dismissed" as const, label: "기각", cls: "text-[var(--hb-text-strong)]" },
               ]).map((s) => (
-                <div key={s.key} className="bg-white rounded-2xl p-6 border border-black/[0.04]">
+                <div key={s.key} className="bg-white rounded-[6px] p-6 border border-black/[0.04]">
                   <p className="text-sm text-[var(--hb-text-body)] mb-2">{s.label}</p>
                   <p className={`font-display text-3xl font-light ${s.cls}`}>
                     {reportCounts[s.key] ?? 0}
@@ -1469,7 +1469,7 @@ export default function AdminPage() {
                     setReportFilter(f.key);
                     void loadReports(f.key);
                   }}
-                  className={`px-4 py-2 text-sm rounded-lg border transition-colors ${
+                  className={`px-4 py-2 text-sm rounded-[6px] border transition-colors ${
                     reportFilter === f.key
                       ? "border-rose-500 bg-[var(--hb-primary)] text-white"
                       : "border-platinum text-[var(--hb-text-body)] hover:border-rose-500"
@@ -1481,11 +1481,11 @@ export default function AdminPage() {
             </div>
 
             {reportLoading ? (
-              <div className="bg-white rounded-2xl p-16 text-center">
+              <div className="bg-white rounded-[6px] p-16 text-center">
                 <Loader2 className="w-6 h-6 text-[var(--hb-accent-hover)] animate-spin mx-auto" />
               </div>
             ) : reports.length === 0 ? (
-              <div className="bg-white rounded-2xl p-16 text-center">
+              <div className="bg-white rounded-[6px] p-16 text-center">
                 <Flag className="w-10 h-10 text-[var(--hb-text-muted)] mx-auto mb-3" />
                 <p className="text-sm text-[var(--hb-text-body)]">
                   {reportFilter === "pending"
@@ -1528,7 +1528,7 @@ export default function AdminPage() {
                   return (
                     <div
                       key={r.id}
-                      className="bg-white rounded-2xl p-5 border border-black/[0.04]"
+                      className="bg-white rounded-[6px] p-5 border border-black/[0.04]"
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1598,7 +1598,7 @@ export default function AdminPage() {
                             href={linkHref}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-platinum rounded-lg hover:border-rose-500 hover:text-[var(--color-rose-700)] transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-platinum rounded-[6px] hover:border-rose-500 hover:text-[var(--color-rose-700)] transition-colors"
                           >
                             <Eye className="w-3.5 h-3.5" />
                             원본 보기
@@ -1609,7 +1609,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => updateReportStatus(r.id, "reviewed")}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-rose-500 text-[var(--color-rose-700)] rounded-lg hover:bg-[var(--hb-primary)] hover:text-white transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-rose-500 text-[var(--color-rose-700)] rounded-[6px] hover:bg-[var(--hb-primary)] hover:text-white transition-colors disabled:opacity-50"
                           >
                             검토 중으로 표시
                           </button>
@@ -1619,7 +1619,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => updateReportStatus(r.id, "resolved")}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#2E7D5A] text-white rounded-lg hover:bg-[#246548] transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-[#2E7D5A] text-white rounded-[6px] hover:bg-[#246548] transition-colors disabled:opacity-50"
                           >
                             <Check className="w-3.5 h-3.5" />
                             {isMemberReport ? "처리됨으로 표시" : "확정하고 콘텐츠 숨김"}
@@ -1637,7 +1637,7 @@ export default function AdminPage() {
                               }
                             }}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-600 rounded-lg hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-600 rounded-[6px] hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
                           >
                             <ShieldX className="w-3.5 h-3.5" />
                             동기방 비활성화
@@ -1648,7 +1648,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => updateReportStatus(r.id, "dismissed")}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-platinum text-[var(--hb-text-body)] rounded-lg hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-platinum text-[var(--hb-text-body)] rounded-[6px] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] transition-colors disabled:opacity-50"
                           >
                             <X className="w-3.5 h-3.5" />
                             기각
@@ -1667,7 +1667,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => moderatePost(r.id, r.post!.id, "hide")}
                               disabled={reportActionId === r.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gold/40 text-gold rounded-lg hover:bg-gold hover:text-white hover:border-gold transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gold/40 text-gold rounded-[6px] hover:bg-gold hover:text-white hover:border-gold transition-colors disabled:opacity-50"
                               title="visibility를 draft로 변경 — 작성자 외 모두에게 숨김"
                             >
                               숨김 처리
@@ -1678,7 +1678,7 @@ export default function AdminPage() {
                               type="button"
                               onClick={() => moderatePost(r.id, r.post!.id, "restore")}
                               disabled={reportActionId === r.id}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2E7D5A] text-[#2E7D5A] rounded-lg hover:bg-[#2E7D5A] hover:text-white transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-[#2E7D5A] text-[#2E7D5A] rounded-[6px] hover:bg-[#2E7D5A] hover:text-white transition-colors disabled:opacity-50"
                             >
                               공개 복원
                             </button>
@@ -1687,7 +1687,7 @@ export default function AdminPage() {
                             type="button"
                             onClick={() => moderatePost(r.id, r.post!.id, "soft_delete")}
                             disabled={reportActionId === r.id}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-red-500 text-red-500 rounded-[6px] hover:bg-red-500 hover:text-white transition-colors disabled:opacity-50"
                           >
                             이용 제한
                           </button>
@@ -1715,7 +1715,7 @@ export default function AdminPage() {
           <>
             <div className="grid grid-cols-2 gap-6 max-md:grid-cols-1">
               {/* 관리자 추가 폼 */}
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <h2 className="font-serif-kr text-lg font-normal mb-1">새 관리자 추가</h2>
                 <p className="text-[12px] text-[var(--hb-text-muted)] mb-6">기존 관리자만 새 관리자 계정을 생성할 수 있습니다.</p>
                 <form onSubmit={handleCreateAdmin} className="space-y-4">
@@ -1726,7 +1726,7 @@ export default function AdminPage() {
                       value={newAdminName}
                       onChange={(e) => { setNewAdminName(e.target.value); setCreateAdminError(""); }}
                       placeholder="관리자 이름"
-                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      className="w-full px-4 py-3 border border-platinum rounded-[6px] text-[14px] outline-none focus:border-rose-500 transition-colors"
                     />
                   </div>
                   <div>
@@ -1736,7 +1736,7 @@ export default function AdminPage() {
                       value={newAdminEmail}
                       onChange={(e) => { setNewAdminEmail(e.target.value); setCreateAdminError(""); }}
                       placeholder="admin@hanbang.ai"
-                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      className="w-full px-4 py-3 border border-platinum rounded-[6px] text-[14px] outline-none focus:border-rose-500 transition-colors"
                       required
                     />
                   </div>
@@ -1747,7 +1747,7 @@ export default function AdminPage() {
                       value={newAdminPassword}
                       onChange={(e) => { setNewAdminPassword(e.target.value); setCreateAdminError(""); }}
                       placeholder="6자 이상"
-                      className="w-full px-4 py-3 border border-platinum rounded-xl text-[14px] outline-none focus:border-rose-500 transition-colors"
+                      className="w-full px-4 py-3 border border-platinum rounded-[6px] text-[14px] outline-none focus:border-rose-500 transition-colors"
                       required
                     />
                   </div>
@@ -1760,7 +1760,7 @@ export default function AdminPage() {
                       value={adminSetupPw}
                       onChange={(e) => { setAdminSetupPw(e.target.value); setCreateAdminError(""); }}
                       placeholder="ADMIN_PASSWORD"
-                      className="w-full px-4 py-3 border border-gold/30 bg-gold/[0.02] rounded-xl text-[14px] outline-none focus:border-gold transition-colors"
+                      className="w-full px-4 py-3 border border-gold/30 bg-gold/[0.02] rounded-[6px] text-[14px] outline-none focus:border-gold transition-colors"
                       required
                     />
                   </div>
@@ -1775,7 +1775,7 @@ export default function AdminPage() {
                   <button
                     type="submit"
                     disabled={createAdminLoading}
-                    className="w-full py-3 rounded-xl bg-[var(--hb-primary)] text-white text-[14px] font-medium hover:bg-[var(--hb-primary)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-[6px] bg-[var(--hb-primary)] text-white text-[14px] font-medium hover:bg-[var(--hb-primary)] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
                   >
                     {createAdminLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                     {createAdminLoading ? "생성 중..." : "관리자 계정 생성"}
@@ -1784,7 +1784,7 @@ export default function AdminPage() {
               </div>
 
               {/* 관리자 목록 */}
-              <div className="bg-white rounded-2xl p-8 border border-black/[0.04]">
+              <div className="bg-white rounded-[6px] p-8 border border-black/[0.04]">
                 <h2 className="font-serif-kr text-lg font-normal mb-1">관리자 목록</h2>
                 <p className="text-[12px] text-[var(--hb-text-muted)] mb-6">현재 등록된 관리자 계정입니다.</p>
                 {adminListLoading ? (
@@ -1797,7 +1797,7 @@ export default function AdminPage() {
                 ) : (
                   <div className="space-y-3">
                     {adminUsers.map((admin) => (
-                      <div key={admin.id} className="flex items-center gap-4 p-4 rounded-xl bg-[var(--hb-surface-page)] border border-black/[0.02]">
+                      <div key={admin.id} className="flex items-center gap-4 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-black/[0.02]">
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-rose-500 flex items-center justify-center flex-shrink-0">
                           <Shield className="w-5 h-5 text-white" />
                         </div>

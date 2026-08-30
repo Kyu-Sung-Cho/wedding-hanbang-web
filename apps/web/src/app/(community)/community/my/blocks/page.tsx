@@ -128,7 +128,7 @@ export default function BlockedUsersPage() {
         </div>
       </div>
 
-      <section className="mb-5 rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
+      <section className="mb-5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
         <p className="text-sm font-semibold text-[var(--hb-text-strong)]">
           차단은 신고와 별개예요
         </p>
@@ -142,7 +142,7 @@ export default function BlockedUsersPage() {
       {mutationError ? (
         <p
           role="alert"
-          className="mb-4 rounded-xl bg-[#fbf2f0] px-3 py-2 text-sm text-[#8F6662]"
+          className="mb-4 rounded-[6px] bg-[#fbf2f0] px-3 py-2 text-sm text-[#8F6662]"
         >
           {mutationError}
         </p>
@@ -153,24 +153,24 @@ export default function BlockedUsersPage() {
           <Loader2 className="h-6 w-6 animate-spin text-[var(--hb-text-muted)]" />
         </div>
       ) : loadError ? (
-        <div className="rounded-2xl border border-[#ead6d2] bg-white px-5 py-8 text-center">
+        <div className="rounded-[6px] border border-[#ead6d2] bg-white px-5 py-8 text-center">
           <p role="alert" className="text-sm text-[#8F6662]">{loadError}</p>
           <button
             type="button"
             onClick={() => void loadBlocks()}
-            className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#d8d1cc] px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
+            className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-[6px] border border-[#d8d1cc] px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
           >
             <RotateCcw className="h-4 w-4" />
             다시 시도
           </button>
         </div>
       ) : blocks.length === 0 ? (
-        <div className="rounded-2xl border border-black/[0.05] bg-white px-5 py-14 text-center">
+        <div className="rounded-[6px] border border-black/[0.05] bg-white px-5 py-14 text-center">
           <Ban className="mx-auto h-9 w-9 text-[var(--hb-text-muted)]/50" />
           <p className="mt-3 text-sm text-[#878680]">차단한 회원이 없어요.</p>
           <Link
             href={weddingPath()}
-            className="mt-4 inline-flex min-h-10 items-center rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
+            className="mt-4 inline-flex min-h-10 items-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
           >
             커뮤니티로 돌아가기
           </Link>
@@ -184,7 +184,7 @@ export default function BlockedUsersPage() {
             return (
               <article
                 key={block.blocked_user_id}
-                className="rounded-2xl border border-black/[0.05] bg-white px-4 py-4"
+                className="rounded-[6px] border border-black/[0.05] bg-white px-4 py-4"
               >
                 <div className="flex items-center gap-3">
                   <Avatar
@@ -207,7 +207,7 @@ export default function BlockedUsersPage() {
                         setMutationError(null);
                         setConfirmingId(block.blocked_user_id);
                       }}
-                      className="min-h-10 rounded-lg border border-[#d8d1cc] px-3 text-xs font-semibold text-[var(--hb-text-body)]"
+                      className="min-h-10 rounded-[6px] border border-[#d8d1cc] px-3 text-xs font-semibold text-[var(--hb-text-body)]"
                     >
                       차단 해제
                     </button>
@@ -215,7 +215,7 @@ export default function BlockedUsersPage() {
                 </div>
 
                 {confirming ? (
-                  <div className="mt-4 rounded-xl bg-[var(--hb-surface-page)] px-3 py-3">
+                  <div className="mt-4 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-3">
                     <p className="text-xs leading-relaxed text-[var(--hb-text-body)]">
                       앞으로 서로의 공개 활동이 다시 보이고 새 답글을 주고받을 수
                       있어요. 차단 중 숨겨진 과거 알림은 다시 뜨지 않아요.
@@ -225,7 +225,7 @@ export default function BlockedUsersPage() {
                         type="button"
                         onClick={() => setConfirmingId(null)}
                         disabled={unblocking}
-                        className="min-h-9 rounded-lg px-3 text-xs font-semibold text-[var(--hb-text-muted)] disabled:opacity-40"
+                        className="min-h-9 rounded-[6px] px-3 text-xs font-semibold text-[var(--hb-text-muted)] disabled:opacity-40"
                       >
                         취소
                       </button>
@@ -233,7 +233,7 @@ export default function BlockedUsersPage() {
                         type="button"
                         onClick={() => void unblock(block.blocked_user_id)}
                         disabled={unblocking}
-                        className="inline-flex min-h-9 items-center gap-1.5 rounded-lg bg-[var(--hb-primary)] px-3 text-xs font-semibold text-white disabled:opacity-50"
+                        className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-3 text-xs font-semibold text-white disabled:opacity-50"
                       >
                         {unblocking ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />

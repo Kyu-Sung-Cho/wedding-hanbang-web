@@ -139,7 +139,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#c7d1c2] bg-[#f4f6f1]" aria-labelledby="community-next-action-heading">
+    <section className="overflow-hidden rounded-[6px] border border-[#c7d1c2] bg-[#f4f6f1]" aria-labelledby="community-next-action-heading">
       <div className="px-4 py-4 sm:px-5 sm:py-5">
         <p className="text-[10px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">답을 찾은 다음</p>
         <h2 id="community-next-action-heading" className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[var(--hb-text-strong)] sm:text-[22px]">

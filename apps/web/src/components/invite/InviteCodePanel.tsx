@@ -111,14 +111,14 @@ const VARIANT_STYLES: Record<
   }
 > = {
   modal: {
-    root: "rounded-2xl bg-[var(--hb-surface-hover)] p-5",
+    root: "rounded-[6px] bg-[var(--hb-surface-hover)] p-5",
     align: "items-center text-center",
     codeText: "text-[26px] tracking-[0.14em]",
     qrSize: 132,
     actionRow: "justify-center",
   },
   settings: {
-    root: "rounded-xl bg-white p-4 shadow-sm",
+    root: "rounded-[6px] bg-white p-4 shadow-sm",
     align: "items-start text-left",
     codeText: "text-[20px] tracking-[0.1em]",
     qrSize: 112,
@@ -210,7 +210,7 @@ export default function InviteCodePanel({
   const styles = VARIANT_STYLES[variant];
 
   const copyButtonClass = (target: CopyTarget) =>
-    `inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors ${
+    `inline-flex min-h-10 items-center gap-1.5 rounded-[6px] px-3.5 py-2 text-[13px] font-medium transition-colors ${
       copiedTarget === target
         ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
         : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
@@ -295,7 +295,7 @@ export default function InviteCodePanel({
 
         {shareUrl && (
           <div className={`mt-4 flex flex-col ${styles.align}`}>
-            <span className="rounded-xl border border-[#E8DDD3] bg-white p-3">
+            <span className="rounded-[6px] border border-[#E8DDD3] bg-white p-3">
               <QRCodeSVG
                 value={shareUrl}
                 size={styles.qrSize}

@@ -116,7 +116,7 @@ export default function AdminEnrichPage() {
             <h2 className="mt-1 text-2xl font-bold">업체 정보 보강 대기열</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6D806E]">공시 가격을 바탕으로 URL·속성·태그만 보강합니다. 외부 사이트 내용을 자동으로 가져오지 않습니다.</p>
           </div>
-          <div className="rounded-xl bg-[var(--hb-primary)] px-5 py-3 text-white">
+          <div className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-white">
             <p className="text-xs text-white/70">전체 진행률</p>
             <p className="mt-0.5 text-lg font-bold tabular-nums">{progress.all?.done ?? 0} / {progress.all?.total ?? 0}</p>
           </div>
@@ -128,35 +128,35 @@ export default function AdminEnrichPage() {
           ))}
         </section>
 
-        <section className="mt-5 flex flex-wrap items-center gap-3 rounded-xl border border-[#E2D3C8] bg-white p-4" aria-label="대기열 필터">
-          <select value={category} onChange={(event) => setCategory(event.target.value as Category)} aria-label="업체 유형" className="min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-3 text-sm text-[var(--hb-text-strong)]">
+        <section className="mt-5 flex flex-wrap items-center gap-3 rounded-[6px] border border-[#E2D3C8] bg-white p-4" aria-label="대기열 필터">
+          <select value={category} onChange={(event) => setCategory(event.target.value as Category)} aria-label="업체 유형" className="min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-sm text-[var(--hb-text-strong)]">
             {Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <select value={region} onChange={(event) => setRegion(event.target.value)} aria-label="지역" className="min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-3 text-sm text-[var(--hb-text-strong)]">
+          <select value={region} onChange={(event) => setRegion(event.target.value)} aria-label="지역" className="min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-sm text-[var(--hb-text-strong)]">
             {REGIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <select value={status} onChange={(event) => setStatus(event.target.value as EnrichmentStatus)} aria-label="보강 상태" className="min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-3 text-sm text-[var(--hb-text-strong)]">
+          <select value={status} onChange={(event) => setStatus(event.target.value as EnrichmentStatus)} aria-label="보강 상태" className="min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-sm text-[var(--hb-text-strong)]">
             {Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#C7D1C2] px-3 text-sm font-semibold text-[var(--hb-text-strong)]">
+          <label className="inline-flex min-h-10 cursor-pointer items-center gap-2 rounded-[6px] border border-[#C7D1C2] px-3 text-sm font-semibold text-[var(--hb-text-strong)]">
             <input type="checkbox" checked={mine} onChange={(event) => setMine(event.target.checked)} className="accent-[var(--hb-text-strong)]" />
             내가 담당
           </label>
         </section>
 
-        {error && !loading && vendors.length > 0 && <p className="mt-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+        {error && !loading && vendors.length > 0 && <p className="mt-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
         {loading ? (
           <AdminLoadingState label="업체 보강 대기열을 불러오는 중입니다…" />
         ) : error && vendors.length === 0 ? (
           <AdminErrorState message={error} onRetry={() => void load()} />
         ) : vendors.length === 0 ? (
-          <div className="mt-5 rounded-2xl border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center">
+          <div className="mt-5 rounded-[6px] border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center">
             <CheckCircle2 className="mx-auto text-[#6D806E]" aria-hidden="true" />
             <p className="mt-3 font-semibold">이 조건의 업체가 없습니다.</p>
             <p className="mt-1 text-sm text-[#6D806E]">다른 필터를 선택하거나 완료 상태를 확인해 주세요.</p>
           </div>
         ) : (
-          <div className="mt-5 overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white">
+          <div className="mt-5 overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white">
             <div className="hidden grid-cols-[minmax(220px,1fr)_130px_150px_120px_210px] gap-4 border-b border-[#E2D3C8] bg-[var(--hb-surface-hover)] px-5 py-3 text-xs font-bold text-[#6D806E] md:grid">
               <span>업체</span><span>유형</span><span>지역</span><span>상태</span><span className="text-right">작업</span>
             </div>
@@ -169,13 +169,13 @@ export default function AdminEnrichPage() {
                   <p className="text-sm font-semibold text-[#6D806E]">{STATUS_LABELS[vendor.enrichment_status]}</p>
                   <div className="flex justify-start gap-2 md:justify-end">
                     {!vendor.is_assigned && vendor.enrichment_status !== "done" && vendor.enrichment_status !== "skip" && (
-                      <button type="button" disabled={busyId === vendor.id} onClick={() => void assign(vendor.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#C7D1C2] px-3 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><UserPlus size={15} />내가 담당</button>
+                      <button type="button" disabled={busyId === vendor.id} onClick={() => void assign(vendor.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border border-[#C7D1C2] px-3 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><UserPlus size={15} />내가 담당</button>
                     )}
                     {(vendor.assigned_to_me || vendor.enrichment_status === "done" || vendor.enrichment_status === "skip") && (
-                      <Link href={`/admin/enrich/${vendor.id}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[var(--hb-primary)] px-3.5 text-sm font-semibold text-white">{vendor.enrichment_status === "done" || vendor.enrichment_status === "skip" ? "검토" : "편집"}<ArrowRight size={15} /></Link>
+                      <Link href={`/admin/enrich/${vendor.id}`} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-3.5 text-sm font-semibold text-white">{vendor.enrichment_status === "done" || vendor.enrichment_status === "skip" ? "검토" : "편집"}<ArrowRight size={15} /></Link>
                     )}
                     {vendor.is_assigned && !vendor.assigned_to_me && vendor.enrichment_status === "in_progress" && (
-                      <span className="inline-flex min-h-10 items-center rounded-lg bg-[#EFE4D7] px-3 text-xs font-semibold text-[#6D806E]" aria-disabled="true">편집 잠금</span>
+                      <span className="inline-flex min-h-10 items-center rounded-[6px] bg-[#EFE4D7] px-3 text-xs font-semibold text-[#6D806E]" aria-disabled="true">편집 잠금</span>
                     )}
                   </div>
                 </li>

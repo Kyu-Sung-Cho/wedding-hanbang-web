@@ -87,7 +87,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           </button>
           <Link
             {...weddingLinkProps()}
-            className="block rounded-[10px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+            className="block rounded-[6px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
             aria-label="웨딩한방 홈으로 이동"
           >
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]">Wedding Hanbang</p>

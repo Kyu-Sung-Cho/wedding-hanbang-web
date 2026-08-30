@@ -20,10 +20,10 @@ export function AmoraQuickStart({
   return (
     <section
       aria-labelledby="amora-quick-start-title"
-      className="mx-auto w-full max-w-[53.75rem] rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] sm:p-5"
+      className="mx-auto w-full max-w-[53.75rem] rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="mb-4 flex items-start gap-3">
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--hb-primary)] text-white">
+        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white">
           <Sparkles className="h-5 w-5" />
         </span>
         <div>
@@ -46,7 +46,7 @@ export function AmoraQuickStart({
             type="button"
             disabled={disabled}
             onClick={() => onSelect(option)}
-            className="min-h-16 rounded-xl border border-[#E2D3C8] bg-white px-4 py-3 text-left transition-colors hover:border-[#8F6662]/50 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] disabled:cursor-wait disabled:opacity-50"
+            className="min-h-16 rounded-[6px] border border-[#E2D3C8] bg-white px-4 py-3 text-left transition-colors hover:border-[#8F6662]/50 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] disabled:cursor-wait disabled:opacity-50"
           >
             <span className="block text-sm font-semibold text-[var(--hb-text-strong)]">
               {option.label}
@@ -103,7 +103,7 @@ export function AmoraPersonalizationConfirmation({
               type="button"
               disabled={saving}
               onClick={onConfirm}
-              className="min-h-10 rounded-lg bg-[var(--hb-primary)] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D806E] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50"
+              className="min-h-10 rounded-[6px] bg-[var(--hb-primary)] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D806E] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50"
             >
               {saving ? "저장 중..." : "이대로 저장"}
             </button>
@@ -111,13 +111,13 @@ export function AmoraPersonalizationConfirmation({
               type="button"
               disabled={saving}
               onClick={onDismiss}
-              className="min-h-10 rounded-lg border border-[#E2D3C8] bg-white px-3.5 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D806E] focus-visible:ring-offset-2 disabled:opacity-50"
+              className="min-h-10 rounded-[6px] border border-[#E2D3C8] bg-white px-3.5 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D806E] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               이번만
             </button>
             <Link
               href="/settings/amora-style"
-              className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-[#8F6662] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662]"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] px-3 text-sm font-medium text-[#8F6662] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662]"
             >
               <SlidersHorizontal className="h-4 w-4" />
               다른 방식 보기

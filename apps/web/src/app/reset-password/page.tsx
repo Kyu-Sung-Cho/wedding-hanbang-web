@@ -135,10 +135,10 @@ export default function ResetPasswordPage() {
           </p>
         </div>
 
-        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
+        <div className="bg-white/80 backdrop-blur-[20px] rounded-[6px] border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
           {success ? (
             <div className="text-center py-4">
-              <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[#2E7D5A]/10 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-5 rounded-[6px] bg-[#2E7D5A]/10 flex items-center justify-center">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[#2E7D5A]">
                   <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
                 </svg>
@@ -154,7 +154,7 @@ export default function ResetPasswordPage() {
             /* 세션이 없는 것이 **확정된** 상태. 예전에는 이때도 회전을 계속 돌려
                무엇이 잘못됐는지 알려주지 않은 채 사람을 붙잡아 뒀다. */
             <div className="text-center py-4">
-              <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-5 rounded-[6px] bg-rose-500/10 flex items-center justify-center">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--hb-accent-hover)]">
                   <circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />
                 </svg>
@@ -167,14 +167,14 @@ export default function ResetPasswordPage() {
               </p>
               <a
                 href="/login"
-                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-2xl bg-[var(--hb-primary)] text-[14px] font-medium text-white"
+                className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-[14px] font-medium text-white"
               >
                 로그인 화면으로
               </a>
             </div>
           ) : !ready ? (
             <div className="text-center py-4">
-              <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-5 rounded-[6px] bg-rose-500/10 flex items-center justify-center">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--hb-accent-hover)] animate-spin">
                   <path d="M12 6v6l4 2" /><circle cx="12" cy="12" r="10" />
                 </svg>
@@ -202,7 +202,7 @@ export default function ResetPasswordPage() {
                     value={password}
                     onChange={(e) => { setPassword(e.target.value); setError(""); }}
                     placeholder="새 비밀번호"
-                    className="w-full px-5 py-3.5 pr-12 rounded-2xl border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)]"
+                    className="w-full px-5 py-3.5 pr-12 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)]"
                   />
                   <button
                     type="button"
@@ -261,7 +261,7 @@ export default function ResetPasswordPage() {
                       value={passwordConfirm}
                       onChange={(e) => { setPasswordConfirm(e.target.value); setError(""); }}
                       placeholder="비밀번호 확인"
-                      className={`w-full px-5 py-3.5 pr-12 rounded-2xl border bg-white text-[14px] text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] ${
+                      className={`w-full px-5 py-3.5 pr-12 rounded-[6px] border bg-white text-[14px] text-[var(--hb-text-strong)] outline-none transition-colors placeholder:text-[var(--hb-text-muted)] ${
                         passwordConfirm && password !== passwordConfirm
                           ? "border-rose-500/50"
                           : "border-black/[0.06] focus:border-rose-500"
@@ -304,7 +304,7 @@ export default function ResetPasswordPage() {
                 <button
                   type="submit"
                   disabled={loading || !isPasswordValid(passwordChecks) || password !== passwordConfirm}
-                  className="w-full py-3.5 rounded-2xl text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 rounded-[6px] text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading ? "처리 중..." : "비밀번호 변경"}
                 </button>

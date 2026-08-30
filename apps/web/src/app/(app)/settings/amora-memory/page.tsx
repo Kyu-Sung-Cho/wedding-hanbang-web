@@ -102,8 +102,8 @@ function DangerConfirm({
       <p className="text-sm font-medium text-red-800">{title}</p>
       <p className="mt-1 text-xs leading-relaxed text-red-700">{body}</p>
       <div className="mt-3 flex gap-2">
-        <button type="button" disabled={busy} onClick={onConfirm} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">{confirmLabel}</button>
-        <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 rounded-lg bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)] ring-1 ring-[#E2D3C8]">{cancelLabel}</button>
+        <button type="button" disabled={busy} onClick={onConfirm} className="min-h-11 rounded-[6px] bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">{confirmLabel}</button>
+        <button type="button" disabled={busy} onClick={onCancel} className="min-h-11 rounded-[6px] bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)] ring-1 ring-[#E2D3C8]">{cancelLabel}</button>
       </div>
     </div>
   );
@@ -309,9 +309,9 @@ export default function AmoraMemorySettingsPage() {
         </div>
       </div>
 
-      <section className="mb-5 rounded-2xl bg-gradient-to-br from-[var(--hb-surface-page)] to-[var(--hb-surface-hover)] p-5 ring-1 ring-[#E2D3C8] sm:p-6">
+      <section className="mb-5 rounded-[6px] bg-gradient-to-br from-[var(--hb-surface-page)] to-[var(--hb-surface-hover)] p-5 ring-1 ring-[#E2D3C8] sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#8F6662] text-white">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#8F6662] text-white">
             <BrainCircuit className="h-5 w-5" />
           </span>
           <div>
@@ -329,7 +329,7 @@ export default function AmoraMemorySettingsPage() {
       </section>
 
       {data && data.settings.length > 1 && (
-        <div className="mb-4 grid grid-cols-2 rounded-xl bg-[#EDE7E5] p-1" role="tablist" aria-label="기억 범위">
+        <div className="mb-4 grid grid-cols-2 rounded-[6px] bg-[#EDE7E5] p-1" role="tablist" aria-label="기억 범위">
           {data.settings.map((item) => {
             const shared = item.visibility === "shared";
             return (
@@ -344,7 +344,7 @@ export default function AmoraMemorySettingsPage() {
                   setDeletingId(null);
                   setEditingId(null);
                 }}
-                className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-all ${activeVisibility === item.visibility ? "bg-white text-[var(--hb-text-strong)] shadow-sm" : "text-[#6F6660]"}`}
+                className={`flex min-h-11 items-center justify-center gap-2 rounded-[6px] px-3 text-sm font-medium transition-all ${activeVisibility === item.visibility ? "bg-white text-[var(--hb-text-strong)] shadow-sm" : "text-[#6F6660]"}`}
               >
                 {shared ? <Users className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                 {shared ? "둘이 함께" : "나만 상담"}
@@ -355,24 +355,24 @@ export default function AmoraMemorySettingsPage() {
       )}
 
       {loading ? (
-        <div className="flex min-h-64 items-center justify-center rounded-2xl bg-white">
+        <div className="flex min-h-64 items-center justify-center rounded-[6px] bg-white">
           <Loader2 className="h-6 w-6 animate-spin text-[var(--hb-accent-hover)]" />
         </div>
       ) : error && !data ? (
-        <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
+        <div className="rounded-[6px] bg-white p-8 text-center shadow-sm">
           <p className="text-sm text-[var(--hb-accent-hover)]">{error}</p>
-          <button type="button" onClick={() => void load()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-medium text-white">
+          <button type="button" onClick={() => void load()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-medium text-white">
             <RefreshCw className="h-4 w-4" /> 다시 불러오기
           </button>
         </div>
       ) : (
         <>
           {data && !data.runtimeEnabled && (
-            <p role="status" className="mb-4 rounded-xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]">
+            <p role="status" className="mb-4 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]">
               기억 엔진을 운영 환경에 안전하게 연결하는 중이에요. 지금은 기존 기억을 확인·수정·삭제할 수 있고, 새로 켜기는 최종 점검 후 열려요.
             </p>
           )}
-          <section className="mb-5 rounded-2xl bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
+          <section className="mb-5 rounded-[6px] bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6">
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -408,7 +408,7 @@ export default function AmoraMemorySettingsPage() {
 
           {confirmEnable && setting && (
             <DangerConfirm
-              className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 sm:px-6"
+              className="mb-4 rounded-[6px] border border-red-200 bg-red-50 px-5 py-4 sm:px-6"
               title={activeVisibility === "shared"
                 ? "두 분이 모두 켜는 순간, 지금 쌓여 있는 기록이 지워져요"
                 : "켜는 순간, 지금 쌓여 있는 기록이 지워져요"}
@@ -421,10 +421,10 @@ export default function AmoraMemorySettingsPage() {
             />
           )}
 
-          {error && <p role="alert" className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+          {error && <p role="alert" className="mb-4 rounded-[6px] bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
 
           {profileLines.length > 0 && (
-            <section className="mb-5 rounded-2xl border border-[#E8DDD3] bg-[#fffdfb] p-5 sm:p-6">
+            <section className="mb-5 rounded-[6px] border border-[#E8DDD3] bg-[#fffdfb] p-5 sm:p-6">
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-[#2E7D5A]" />
                 <h2 className="font-medium text-[var(--hb-text-strong)]">상담할 때 참고하는 맥락</h2>
@@ -435,14 +435,14 @@ export default function AmoraMemorySettingsPage() {
             </section>
           )}
 
-          <section className="overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-raised)]">
+          <section className="overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]">
             <div className="flex items-center justify-between gap-3 border-b border-[#F0ECE9] px-5 py-4 sm:px-6">
               <div>
                 <h2 className="font-medium text-[var(--hb-text-strong)]">정리된 기억 {memories.length}개</h2>
                 <p className="mt-0.5 text-xs text-[#6D806E]">직접 고친 기억은 아모라가 자동으로 덮어쓰지 않아요</p>
               </div>
               {setting && !confirmClear && (
-                <button type="button" onClick={() => setConfirmClear(true)} className="min-h-11 rounded-lg px-3 text-sm font-medium text-red-600 hover:bg-red-50">기억 초기화</button>
+                <button type="button" onClick={() => setConfirmClear(true)} className="min-h-11 rounded-[6px] px-3 text-sm font-medium text-red-600 hover:bg-red-50">기억 초기화</button>
               )}
             </div>
 
@@ -473,11 +473,11 @@ export default function AmoraMemorySettingsPage() {
                     <article key={memory.id} className="px-5 py-5 sm:px-6">
                       {editing ? (
                         <div className="space-y-3">
-                          <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={60} aria-label="기억 제목" className="min-h-11 w-full rounded-xl bg-[var(--hb-surface-hover)] px-4 text-sm text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]" />
-                          <textarea value={editValue} onChange={(event) => setEditValue(event.target.value)} maxLength={160} rows={3} aria-label="기억 내용" className="w-full resize-none rounded-xl bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]" />
+                          <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={60} aria-label="기억 제목" className="min-h-11 w-full rounded-[6px] bg-[var(--hb-surface-hover)] px-4 text-sm text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]" />
+                          <textarea value={editValue} onChange={(event) => setEditValue(event.target.value)} maxLength={160} rows={3} aria-label="기억 내용" className="w-full resize-none rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]" />
                           <div className="flex gap-2">
-                            <button type="button" disabled={busy || !editTitle.trim() || !editValue.trim()} onClick={() => void saveMemory(memory)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-medium text-white disabled:opacity-40"><Check className="h-4 w-4" /> 저장</button>
-                            <button type="button" onClick={() => setEditingId(null)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"><X className="h-4 w-4" /> 취소</button>
+                            <button type="button" disabled={busy || !editTitle.trim() || !editValue.trim()} onClick={() => void saveMemory(memory)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-medium text-white disabled:opacity-40"><Check className="h-4 w-4" /> 저장</button>
+                            <button type="button" onClick={() => setEditingId(null)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] px-4 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"><X className="h-4 w-4" /> 취소</button>
                           </div>
                         </div>
                       ) : (
@@ -504,12 +504,12 @@ export default function AmoraMemorySettingsPage() {
                           </div>
                           </div>
                           {deletingId === memory.id && (
-                            <div className="mt-3 rounded-xl border border-red-100 bg-red-50 px-4 py-3">
+                            <div className="mt-3 rounded-[6px] border border-red-100 bg-red-50 px-4 py-3">
                               <p className="text-sm font-medium text-red-800">이 기억을 지울까요?</p>
                               <p className="mt-1 text-xs leading-relaxed text-red-700">삭제한 항목은 백그라운드 작업이 다시 만들지 않아요.</p>
                               <div className="mt-3 flex gap-2">
-                                <button type="button" disabled={busy} onClick={() => void deleteMemory(memory)} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">삭제</button>
-                                <button type="button" disabled={busy} onClick={() => setDeletingId(null)} className="min-h-11 rounded-lg bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)] ring-1 ring-[#E2D3C8]">취소</button>
+                                <button type="button" disabled={busy} onClick={() => void deleteMemory(memory)} className="min-h-11 rounded-[6px] bg-red-600 px-4 text-sm font-medium text-white disabled:opacity-50">삭제</button>
+                                <button type="button" disabled={busy} onClick={() => setDeletingId(null)} className="min-h-11 rounded-[6px] bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)] ring-1 ring-[#E2D3C8]">취소</button>
                               </div>
                             </div>
                           )}

@@ -90,7 +90,7 @@ export default function CelebrationHero() {
                   source: "landing_hero",
                 })
               }
-              className="group inline-flex min-h-14 w-full items-center justify-between gap-4 rounded-[16px] bg-[#8F6662] px-5 text-[15px] font-semibold text-white shadow-[var(--shadow-raised)] transition-[background-color,box-shadow] duration-200 hover:bg-[#7D5753] hover:shadow-[var(--shadow-overlay)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-[#F7F1E8] sm:w-auto sm:min-w-60"
+              className="group inline-flex min-h-14 w-full items-center justify-between gap-4 rounded-[6px] bg-[#8F6662] px-5 text-[15px] font-semibold text-white shadow-[var(--shadow-raised)] transition-[background-color,box-shadow] duration-200 hover:bg-[#7D5753] hover:shadow-[var(--shadow-overlay)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-4 focus-visible:ring-offset-[#F7F1E8] sm:w-auto sm:min-w-60"
             >
               <span>로그인 없이 아모라에게 물어보기</span>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/16">
@@ -138,7 +138,7 @@ function CoupleRoomPreview() {
       className="relative min-h-[700px] min-w-0 w-full animate-fade-in motion-reduce:animate-none sm:min-h-[720px] lg:min-h-[660px]"
       aria-label="로그인 없이 체험하는 커플 대화방 기능 예시"
     >
-      <div className="absolute inset-x-0 top-0 h-[540px] overflow-hidden rounded-[24px] bg-[var(--hb-primary)] shadow-[var(--shadow-overlay)] sm:h-[580px] sm:rounded-[28px] lg:inset-y-0 lg:h-auto lg:rounded-[32px]">
+      <div className="absolute inset-x-0 top-0 h-[540px] overflow-hidden rounded-[6px] bg-[var(--hb-primary)] shadow-[var(--shadow-overlay)] sm:h-[580px] sm:rounded-[6px] lg:inset-y-0 lg:h-auto lg:rounded-[6px]">
         <picture className="absolute inset-0 block h-full w-full">
           <source
             media="(max-width: 1024px) and (orientation: portrait)"
@@ -165,7 +165,7 @@ function CoupleRoomPreview() {
         </div>
       </div>
 
-      <div className="absolute inset-x-3 bottom-0 overflow-hidden rounded-[22px] border border-white/90 bg-white/96 shadow-[var(--shadow-overlay)] backdrop-blur-md sm:left-7 sm:right-auto sm:w-[82%] sm:max-w-[480px] sm:rounded-[26px] lg:-left-10 lg:bottom-7 lg:w-[78%]">
+      <div className="absolute inset-x-3 bottom-0 overflow-hidden rounded-[6px] border border-white/90 bg-white/96 shadow-[var(--shadow-overlay)] backdrop-blur-md sm:left-7 sm:right-auto sm:w-[82%] sm:max-w-[480px] sm:rounded-[6px] lg:-left-10 lg:bottom-7 lg:w-[78%]">
         <div className="flex items-center gap-3 border-b border-[var(--hb-primary)]/10 px-4 py-3.5 sm:px-5 sm:py-4">
           <span
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white"
@@ -186,13 +186,13 @@ function CoupleRoomPreview() {
         <div className="space-y-3 px-4 py-4 sm:px-5">
           <div className="flex items-end justify-end gap-2">
             <span className="text-[11px] font-medium text-[var(--hb-text-strong)]">민지</span>
-            <p className="max-w-[78%] rounded-[16px] rounded-br-[5px] bg-[#F3E9DD] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-[var(--hb-text-strong)]">
+            <p className="max-w-[78%] rounded-[6px] rounded-br-[5px] bg-[#F3E9DD] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-[var(--hb-text-strong)]">
               드레스 투어, 10월 17일 오후 어때?
             </p>
           </div>
 
           <div className="flex items-end gap-2">
-            <p className="max-w-[82%] rounded-[16px] rounded-bl-[5px] bg-[var(--hb-primary)] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-white">
+            <p className="max-w-[82%] rounded-[6px] rounded-bl-[5px] bg-[var(--hb-primary)] px-3.5 py-2.5 text-[13px] font-medium leading-[1.45] text-white">
               좋아. 아모라, 우리 일정에 넣어줘.
             </p>
             <span className="text-[11px] font-medium text-[var(--hb-text-strong)]">현우</span>
@@ -250,7 +250,7 @@ function CoupleRoomPreview() {
               <button
                 type="button"
                 onClick={applyDemoSchedule}
-                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 focus-visible:ring-offset-[#F7FAF5]"
               >
                 <Check className="h-4 w-4" aria-hidden="true" />
                 우리 일정에 저장하기

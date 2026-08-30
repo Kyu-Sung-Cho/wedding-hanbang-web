@@ -581,7 +581,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
   const imminentPanel =
     imminentCategories.length > 0 ? (
-  <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+  <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
     <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">
       기본 일정 확인
     </h3>
@@ -594,7 +594,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     ) : null;
 
   const upcomingPanel = (
-    <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+    <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
         <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">
           다가오는 일정
@@ -615,7 +615,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           {upcomingEvents.map((evt) => (
             <div
               key={evt.id}
-              className="group flex items-start gap-3 rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] p-3 transition-colors hover:bg-white"
+              className="group flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] p-3 transition-colors hover:bg-white"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
                 <CalendarDays className="h-4 w-4" />
@@ -661,14 +661,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                             .then(() => setPendingCancelId(null))
                             .catch(() => undefined);
                         }}
-                        className="min-h-11 rounded-lg bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2d4642]"
+                        className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2d4642]"
                       >
                         취소 요청 보내기
                       </button>
                       <button
                         type="button"
                         onClick={() => setPendingCancelId(null)}
-                        className="min-h-11 rounded-lg bg-[var(--hb-surface-hover)] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] transition-colors hover:bg-[#EFEBEA]"
+                        className="min-h-11 rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] transition-colors hover:bg-[#EFEBEA]"
                       >
                         닫기
                       </button>
@@ -679,7 +679,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         type="button"
                         onClick={() => handleEditEvent(evt)}
                         aria-label={`${evt.title} 일정 수정`}
-                        className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
+                        className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -687,7 +687,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         type="button"
                         onClick={() => setPendingCancelId(evt.id)}
                         aria-label={`${evt.title} 일정 취소 요청`}
-                        className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[var(--hb-text-strong)]"
+                        className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[var(--hb-text-strong)]"
                       >
                         <Ban className="h-4 w-4" />
                       </button>
@@ -714,7 +714,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {journeyNotice && (
           <div
             role="status"
-            className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+            className="rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
           >
             {journeyNotice}
           </div>
@@ -722,7 +722,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {(eventMutationBlockReason || journeyError) && (
           <div
             role="alert"
-            className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+            className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
           >
             {eventMutationBlockReason ?? journeyError}
           </div>
@@ -731,7 +731,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {/* 3-column Stat Row */}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3 animate-fade-in">
           {/* D-day */}
-          <div className="relative overflow-hidden rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
             <Sparkles className="absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               D-DAY
@@ -751,7 +751,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
 
           {/* Progress */}
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               PROGRESS
             </p>
@@ -770,7 +770,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
 
           {/* Upcoming count */}
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               UPCOMING
             </p>
@@ -790,13 +790,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           {hasUpcoming ? upcomingPanel : imminentPanel}
 
           {/* Left: View toggle + Timeline/Calendar (2 cols) */}
-          <div className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
+          <div className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
             {/* View toggle header */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--hb-hairline)] px-4 py-3 md:px-5">
-              <div className="inline-flex rounded-[14px] bg-[#f7f3ec] p-1">
+              <div className="inline-flex rounded-[6px] bg-[#f7f3ec] p-1">
                 <button
                   onClick={() => setViewMode("timeline")}
-                  className={`inline-flex items-center rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                  className={`inline-flex items-center rounded-[6px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
                     viewMode === "timeline"
                       ? "bg-white text-[var(--hb-text-strong)] shadow-sm"
                       : "text-[var(--hb-text-body)]"
@@ -807,7 +807,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 </button>
                 <button
                   onClick={() => setViewMode("calendar")}
-                  className={`inline-flex items-center rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                  className={`inline-flex items-center rounded-[6px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
                     viewMode === "calendar"
                       ? "bg-white text-[var(--hb-text-strong)] shadow-sm"
                       : "text-[var(--hb-text-body)]"
@@ -857,7 +857,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {cancelledEvents.length > 0 && (
           <section
             aria-labelledby="cancelled-schedule-heading"
-            className="rounded-[18px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] md:p-5"
+            className="rounded-[6px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] md:p-5"
           >
             <div className="mb-3">
               <h3
@@ -874,7 +874,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               {cancelledEvents.map((event) => (
                 <article
                   key={`cancelled-${event.id}`}
-                  className="flex flex-col gap-3 rounded-[14px] border border-[#e2d3c8] bg-white px-4 py-3 sm:flex-row sm:items-center"
+                  className="flex flex-col gap-3 rounded-[6px] border border-[#e2d3c8] bg-white px-4 py-3 sm:flex-row sm:items-center"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
@@ -897,7 +897,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     onClick={() => void handleRestoreEvent(event.id).catch(() => undefined)}
                     disabled={restoringEventId !== null}
                     aria-busy={restoringEventId === event.id}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--hb-primary)] px-4 py-2 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-primary)] px-4 py-2 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw className="h-4 w-4" />
                     {restoringEventId === event.id ? "요청 보내는 중..." : "복원 요청"}
@@ -1003,7 +1003,7 @@ export function ChecklistSchedulePrompt({
         onClick={onClose}
         className="fixed inset-0 z-50 animate-fade-in bg-[#1A1A1F]/40 backdrop-blur-sm"
       />
-      <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] animate-fade-in">
+      <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] animate-fade-in">
         <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-6 py-5">
           <div>
             <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
@@ -1019,7 +1019,7 @@ export function ChecklistSchedulePrompt({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f7f3ec]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[#f7f3ec]"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1034,7 +1034,7 @@ export function ChecklistSchedulePrompt({
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[15px] font-medium text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
+              className="w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[15px] font-medium text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
             />
           </div>
           <div>
@@ -1045,18 +1045,18 @@ export function ChecklistSchedulePrompt({
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               rows={4}
-              className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
+              className="w-full resize-none rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
             />
           </div>
           {pending.existingEvent && (
-            <p className="rounded-xl bg-[var(--hb-primary)]/10 px-4 py-3 text-[13px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
+            <p className="rounded-[6px] bg-[var(--hb-primary)]/10 px-4 py-3 text-[13px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
               이미 등록된 {pending.categoryLabel} 일정이 있어요. 저장하면 새로 만들지 않고 기존 일정 날짜를 바꿉니다.
             </p>
           )}
           {(scheduleMutationBlockReason || saveError) && (
             <p
               role="alert"
-              className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
+              className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
             >
               {scheduleMutationBlockReason ?? saveError}
             </p>

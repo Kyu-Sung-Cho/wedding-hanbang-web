@@ -66,7 +66,7 @@ export default function CohortCard({
   // 아직 배정 안된 상태 → CTA 카드
   if (!room) {
     return (
-      <div className="rounded-xl border border-[#F0EFED] bg-white p-5">
+      <div className="rounded-[6px] border border-[#F0EFED] bg-white p-5">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-[var(--hb-text-strong)]" />
           <h3 className="font-serif text-base text-[var(--hb-text-strong)]">
@@ -84,7 +84,7 @@ export default function CohortCard({
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[0, 1, 2].map((offset) => {
               const y = (now?.getFullYear() ?? year) + offset;
@@ -98,7 +98,7 @@ export default function CohortCard({
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[
               { v: 1, label: "1분기" },
@@ -117,7 +117,7 @@ export default function CohortCard({
           type="button"
           onClick={handleAssign}
           disabled={loading}
-          className="w-full rounded-lg bg-[var(--hb-primary)] px-4 py-3 text-sm font-medium text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-60"
+          className="w-full rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-sm font-medium text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-60"
         >
           {loading ? "배정 중..." : "동기방 입장하기"}
         </button>
@@ -133,7 +133,7 @@ export default function CohortCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full rounded-xl border border-[#F0EFED] bg-[var(--hb-primary)] p-5 text-left transition-all hover:border-[var(--hb-primary)]/40 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
+      className="group w-full rounded-[6px] border border-[#F0EFED] bg-[var(--hb-primary)] p-5 text-left transition-all hover:border-[var(--hb-primary)]/40 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">

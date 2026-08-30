@@ -205,7 +205,7 @@ export default function PollEditor({
       <button
         type="button"
         onClick={enable}
-        className="flex items-center gap-2 w-full px-4 py-3 text-base font-medium text-[var(--hb-text-body)] bg-white border border-dashed border-[var(--hb-hairline)] rounded-xl hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-page)] transition-colors"
+        className="flex items-center gap-2 w-full px-4 py-3 text-base font-medium text-[var(--hb-text-body)] bg-white border border-dashed border-[var(--hb-hairline)] rounded-[6px] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-page)] transition-colors"
       >
         <BarChart3 className="w-5 h-5" />
         투표 추가하기
@@ -225,7 +225,7 @@ export default function PollEditor({
         <button
           type="button"
           onClick={disable}
-          className="flex items-center gap-1 px-2 py-1 text-sm text-[var(--hb-text-muted)] hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+          className="flex items-center gap-1 px-2 py-1 text-sm text-[var(--hb-text-muted)] hover:text-red-500 hover:bg-red-50 rounded-[6px] transition-colors"
         >
           <Trash2 className="w-4 h-4" />
           제거
@@ -243,7 +243,7 @@ export default function PollEditor({
           onChange={(e) => updateAndSync({ question: e.target.value.slice(0, QUESTION_MAX) })}
           placeholder="예: 두 드레스 중 어떤 게 더 어울릴까요?"
           maxLength={QUESTION_MAX}
-          className="w-full px-3 py-2.5 text-base text-[var(--hb-text-strong)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-lg placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
+          className="w-full px-3 py-2.5 text-base text-[var(--hb-text-strong)] bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-[6px] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
         />
         <p className="mt-1 text-xs text-right text-[var(--hb-text-muted)]">
           {draftQuestion.length} / {QUESTION_MAX}
@@ -252,7 +252,7 @@ export default function PollEditor({
 
       {/* 에러 */}
       {error && (
-        <div className="px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+        <div className="px-3 py-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-[6px]">
           {error}
         </div>
       )}
@@ -272,7 +272,7 @@ export default function PollEditor({
             {mediaUploadsEnabled && (
             <div className="shrink-0 relative">
               {opt.image_url ? (
-                <div className="relative w-14 h-14 rounded-lg overflow-hidden border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)]">
+                <div className="relative w-14 h-14 rounded-[6px] overflow-hidden border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)]">
                   <Image
                     src={opt.image_url}
                     alt={`옵션 ${idx + 1}`}
@@ -293,7 +293,7 @@ export default function PollEditor({
                   type="button"
                   onClick={() => fileInputRefs.current[idx]?.click()}
                   disabled={uploadingIdx !== null}
-                  className="w-14 h-14 flex items-center justify-center rounded-lg border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] hover:bg-white transition-colors disabled:opacity-50"
+                  className="w-14 h-14 flex items-center justify-center rounded-[6px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)] hover:border-[var(--hb-primary)] hover:text-[var(--hb-text-strong)] hover:bg-white transition-colors disabled:opacity-50"
                   aria-label="이미지 추가"
                   title="이미지 추가 (선택)"
                 >
@@ -321,7 +321,7 @@ export default function PollEditor({
             )}
 
             {/* 텍스트 입력 */}
-            <div className="flex-1 flex items-center bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-lg overflow-hidden focus-within:border-[var(--hb-primary)] focus-within:ring-1 focus-within:ring-[var(--hb-primary)]/30 transition-colors">
+            <div className="flex-1 flex items-center bg-[var(--hb-surface-hover)] border border-[var(--hb-hairline)] rounded-[6px] overflow-hidden focus-within:border-[var(--hb-primary)] focus-within:ring-1 focus-within:ring-[var(--hb-primary)]/30 transition-colors">
               <span className="pl-3 pr-1 text-sm font-medium text-[var(--hb-text-muted)] tabular-nums">
                 {idx + 1}.
               </span>
@@ -346,7 +346,7 @@ export default function PollEditor({
               type="button"
               onClick={() => removeOption(idx)}
               disabled={draftOptions.length <= MIN_OPTIONS}
-              className="shrink-0 w-9 self-stretch flex items-center justify-center rounded-lg text-[var(--hb-text-muted)] hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              className="shrink-0 w-9 self-stretch flex items-center justify-center rounded-[6px] text-[var(--hb-text-muted)] hover:text-red-500 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
               aria-label="선택지 삭제"
             >
               <X className="w-4 h-4" />
@@ -359,7 +359,7 @@ export default function PollEditor({
           <button
             type="button"
             onClick={addOption}
-            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm font-medium text-[var(--hb-text-strong)] bg-white border border-dashed border-[var(--hb-hairline)] rounded-lg hover:border-[var(--hb-primary)] hover:bg-[var(--hb-surface-page)] transition-colors"
+            className="flex items-center gap-2 w-full px-3 py-2.5 text-sm font-medium text-[var(--hb-text-strong)] bg-white border border-dashed border-[var(--hb-hairline)] rounded-[6px] hover:border-[var(--hb-primary)] hover:bg-[var(--hb-surface-page)] transition-colors"
           >
             <Plus className="w-4 h-4" />
             선택지 추가
@@ -406,7 +406,7 @@ export default function PollEditor({
                 key={preset.key}
                 type="button"
                 onClick={() => updateAndSync({ deadlinePreset: preset.key })}
-                className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                className={`px-3 py-1.5 text-sm font-medium rounded-[6px] border transition-all ${
                   isSelected
                     ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                     : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]"
@@ -437,10 +437,10 @@ function PollOptionToggle({ icon: Icon, label, description, checked, onChange }:
     <button
       type="button"
       onClick={() => onChange(!checked)}
-      className="flex items-start gap-3 w-full px-3 py-2.5 text-left bg-white border border-[#f0eeec] rounded-lg hover:border-[var(--hb-primary)] transition-colors"
+      className="flex items-start gap-3 w-full px-3 py-2.5 text-left bg-white border border-[#f0eeec] rounded-[6px] hover:border-[var(--hb-primary)] transition-colors"
     >
       <div
-        className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${
+        className={`shrink-0 w-9 h-9 flex items-center justify-center rounded-[6px] transition-colors ${
           checked ? "bg-[var(--hb-primary)] text-white" : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)]"
         }`}
       >

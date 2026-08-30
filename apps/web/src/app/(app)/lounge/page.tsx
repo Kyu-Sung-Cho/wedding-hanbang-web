@@ -579,7 +579,7 @@ export default function LoungePage() {
       {showJoinedHandoff && (
         <section
           data-testid="joined-plan-handoff"
-          className="rounded-[22px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
+          className="rounded-[6px] border border-[#C7D1C2] bg-[#F7FAF5] p-5 shadow-[var(--shadow-raised)] md:p-6"
           aria-labelledby="joined-plan-title"
         >
           <div className="flex items-start gap-3">
@@ -646,7 +646,7 @@ export default function LoungePage() {
         </div>
       )}
       <section className="grid gap-4 lg:grid-cols-[1.12fr_0.88fr]">
-        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)] md:p-6">
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)] md:p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
@@ -663,7 +663,7 @@ export default function LoungePage() {
                 {plan.stageLabel} · {plan.stageSummary}
               </p>
             </div>
-            <div className="min-w-[116px] rounded-[18px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-right">
+            <div className="min-w-[116px] rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-right">
               <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">결혼식 날짜</p>
               <p className="mt-1 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)]">
                 {getDdayLabel(plan.dday)}
@@ -702,7 +702,7 @@ export default function LoungePage() {
         {/* 첫 실행 투어의 "여기부터 보시면 돼요" — 오늘 챙길 것 하나가 올라오는 자리다. */}
         <div
           data-tutorial-target="lounge-focus"
-          className="rounded-[22px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)] md:p-6"
+          className="rounded-[6px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)] md:p-6"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -749,7 +749,7 @@ export default function LoungePage() {
         data-tutorial-target="lounge-tools"
         className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]"
       >
-        <div className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">준비 흐름</p>
@@ -770,7 +770,7 @@ export default function LoungePage() {
                 <CategoryRow key={item.category.key} item={item} />
               ))
             ) : (
-              <div className="sm:col-span-2 rounded-[16px] border border-[#dce8d4] bg-[#f6fbf4] p-4">
+              <div className="sm:col-span-2 rounded-[6px] border border-[#dce8d4] bg-[#f6fbf4] p-4">
                 <CheckCircle2 className="h-5 w-5 text-[#607044]" />
                 <p className="mt-2 text-[14px] font-semibold text-[var(--hb-text-strong)]">열려 있는 핵심 항목이 안정적이에요.</p>
               </div>
@@ -789,7 +789,7 @@ export default function LoungePage() {
         <CohortPulsePanel cohort={cohortState} />
       </section>
 
-      <section className="grid gap-3 rounded-[22px] border border-[var(--hb-hairline)] bg-[#fffaf0] p-5 md:grid-cols-3">
+      <section className="grid gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffaf0] p-5 md:grid-cols-3">
         {[
           {
             icon: HeartHandshake,
@@ -810,7 +810,7 @@ export default function LoungePage() {
             href: weddingPath("/schedule"),
           },
         ].map((item) => (
-          <Link key={item.title} {...weddingLinkProps(item.href)} className="group flex gap-4 rounded-[16px] bg-white/80 p-4 hover:bg-white">
+          <Link key={item.title} {...weddingLinkProps(item.href)} className="group flex gap-4 rounded-[6px] bg-white/80 p-4 hover:bg-white">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]">
               <item.icon className="h-5 w-5" />
             </span>
@@ -843,7 +843,7 @@ function MetricTile({
   return (
     <div
       data-tutorial-target={tutorialTarget}
-      className="min-w-0 rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5"
+      className="min-w-0 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5"
     >
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{label}</p>
@@ -865,7 +865,7 @@ function HandoffMetric({
   note?: string;
 }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-[#DCE5D8] bg-white/88 p-3">
+    <div className="min-w-0 rounded-[6px] border border-[#DCE5D8] bg-white/88 p-3">
       <dt className="text-[10px] font-semibold text-[#71806D]">{label}</dt>
       <dd className="mt-1 truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">
         {value}
@@ -901,7 +901,7 @@ function PriorityCard({
   const hasActionControls = Boolean(item.actionId);
 
   return (
-    <div className={`rounded-[16px] border p-3.5 transition-transform hover:-translate-y-0.5 ${tone}`}>
+    <div className={`rounded-[6px] border p-3.5 transition-transform hover:-translate-y-0.5 ${tone}`}>
       <div className="flex items-start gap-3">
         <span
           className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ${
@@ -973,7 +973,7 @@ function CategoryRow({
   return (
     <Link
       {...weddingLinkProps("/schedule")}
-      className="group rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5 hover:border-[var(--hb-hairline)] hover:bg-white"
+      className="group rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5 hover:border-[var(--hb-hairline)] hover:bg-white"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -1021,7 +1021,7 @@ function BudgetPanel({
           : "안정";
 
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">예산</p>
@@ -1062,7 +1062,7 @@ function BudgetPanel({
 
 function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">일정</p>
@@ -1073,7 +1073,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
       <div className="mt-4 space-y-2">
         {events.length > 0 ? (
           events.slice(0, 3).map((event) => (
-            <Link key={event.id} {...weddingLinkProps("/schedule")} className="flex items-start gap-3 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-3 hover:bg-white">
+            <Link key={event.id} {...weddingLinkProps("/schedule")} className="flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-3 hover:bg-white">
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">{event.title}</span>
@@ -1082,7 +1082,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
             </Link>
           ))
         ) : (
-          <div className="rounded-[14px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
+          <div className="rounded-[6px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
             <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">가까운 일정이 없어요.</p>
             <p className="mt-1 text-[11px] font-medium leading-[1.5] text-[var(--hb-text-body)]">상담, 업체 방문, 옷을 입어보는 날짜를 넣으면 여기서 먼저 보여드려요.</p>
           </div>
@@ -1094,7 +1094,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
 
 function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading: boolean }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">커뮤니티 참고글</p>
@@ -1104,13 +1104,13 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
       </div>
       <div className="mt-4 space-y-2">
         {loading ? (
-          <div className="flex items-center gap-2 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4 text-[13px] font-medium text-[var(--hb-text-body)]">
+          <div className="flex items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4 text-[13px] font-medium text-[var(--hb-text-body)]">
             <Loader2 className="h-4 w-4 animate-spin" />
             불러오는 중...
           </div>
         ) : posts.length > 0 ? (
           posts.map((post) => (
-            <Link key={post.id} {...weddingLinkProps(`/community/post/${post.id}`)} className="block rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5 hover:bg-white">
+            <Link key={post.id} {...weddingLinkProps(`/community/post/${post.id}`)} className="block rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5 hover:bg-white">
               <p className="line-clamp-1 text-[14px] font-semibold text-[var(--hb-text-strong)]">{post.title}</p>
               <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">{stripHtml(post.content)}</p>
               <p className="mt-2 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
@@ -1119,7 +1119,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
             </Link>
           ))
         ) : (
-          <div className="rounded-[14px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
+          <div className="rounded-[6px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
             <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">아직 저장한 글이 없어요.</p>
             <p className="mt-1 text-[11px] font-medium leading-[1.5] text-[var(--hb-text-body)]">견적, 후기, 체크글을 저장하면 라운지에서 바로 다시 볼 수 있어요.</p>
           </div>
@@ -1135,7 +1135,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
 
 function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
   return (
-    <section className="rounded-[22px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)]">
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">동기방</p>
@@ -1145,13 +1145,13 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
       </div>
       <div className="mt-4">
         {cohort.loading ? (
-          <div className="flex items-center gap-2 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4 text-[13px] font-medium text-[var(--hb-text-body)]">
+          <div className="flex items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4 text-[13px] font-medium text-[var(--hb-text-body)]">
             <Loader2 className="h-4 w-4 animate-spin" />
             확인 중...
           </div>
         ) : cohort.room ? (
           <div className="space-y-3">
-            <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
+            <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[14px] font-semibold text-[var(--hb-text-strong)]">{cohort.room.name}</p>
                 <span className="rounded-full bg-[#eef4ef] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
@@ -1166,7 +1166,7 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
             {cohort.digest && cohort.digest.topicBreakdown.length > 0 && (
               <div className="grid grid-cols-3 gap-2">
                 {cohort.digest.topicBreakdown.slice(0, 3).map((item) => (
-                  <div key={item.topic} className="rounded-[14px] border border-[var(--hb-hairline)] bg-white px-3 py-2.5">
+                  <div key={item.topic} className="rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 py-2.5">
                     <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{item.label}</p>
                     <p className="mt-1 font-serif-kr text-[22px] font-medium leading-none text-[var(--hb-text-strong)]">{item.count}</p>
                   </div>
@@ -1175,13 +1175,13 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
             )}
 
             {cohort.digest?.highlights?.[0] && (
-              <p className="rounded-[14px] bg-[#f6f9f6] px-4 py-3 text-[12px] font-medium leading-[1.65] text-[var(--hb-text-strong)]">
+              <p className="rounded-[6px] bg-[#f6f9f6] px-4 py-3 text-[12px] font-medium leading-[1.65] text-[var(--hb-text-strong)]">
                 {cohort.digest.highlights[0]}
               </p>
             )}
           </div>
         ) : (
-          <div className="rounded-[14px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
+          <div className="rounded-[6px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
             <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">동기방이 아직 연결되지 않았어요.</p>
             <p className="mt-1 text-[11px] font-medium leading-[1.5] text-[var(--hb-text-body)]">예식 시기를 기준으로 같은 분기 방에 입장할 수 있어요.</p>
           </div>

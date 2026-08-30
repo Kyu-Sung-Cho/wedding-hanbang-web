@@ -46,7 +46,7 @@ export default function CategoryTabs() {
         {/* 주요 네비 */}
         <Link
           href={weddingPath()}
-          className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+          className={`flex items-center px-3 py-2.5 rounded-[6px] group transition-colors duration-200 ${
             isActive("/community") && currentPath === "/community"
               ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
               : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -64,7 +64,7 @@ export default function CategoryTabs() {
 
         <Link
           href={weddingPath("/community?sort=hot")}
-          className="flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
+          className="flex items-center px-3 py-2.5 rounded-[6px] group transition-colors duration-200 text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
         >
           <Flame className="mr-2.5 w-4 h-4 opacity-60 group-hover:opacity-100" />
           <span className="text-sm">인기</span>
@@ -98,7 +98,7 @@ export default function CategoryTabs() {
                 <Link
                   key={cat.key}
                   href={weddingPath(href)}
-                  className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+                  className={`flex items-center px-3 py-2.5 rounded-[6px] group transition-colors duration-200 ${
                     active
                       ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
                       : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -122,7 +122,7 @@ export default function CategoryTabs() {
           </div>
           <Link
             href={weddingPath("/community/my/bookmarks")}
-            className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+            className={`flex items-center px-3 py-2.5 rounded-[6px] group transition-colors duration-200 ${
               isActive("/community/my/bookmarks")
                 ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
                 : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -138,7 +138,7 @@ export default function CategoryTabs() {
 
           <Link
             href={weddingPath("/community/my/upvoted")}
-            className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+            className={`flex items-center px-3 py-2.5 rounded-[6px] group transition-colors duration-200 ${
               isActive("/community/my/upvoted")
                 ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
                 : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
@@ -154,7 +154,7 @@ export default function CategoryTabs() {
 
           <Link
             href={weddingPath("/community/my/blocks")}
-            className={`flex items-center px-3 py-2.5 rounded-lg group transition-colors duration-200 ${
+            className={`flex items-center px-3 py-2.5 rounded-[6px] group transition-colors duration-200 ${
               isActive("/community/my/blocks")
                 ? "bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] font-bold"
                 : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"

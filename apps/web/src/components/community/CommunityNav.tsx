@@ -105,7 +105,7 @@ export default function CommunityNav({
                 key={item.legacyPath}
                 {...item.linkProps}
                 onClick={() => setMobileOpen(false)}
-                className="rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[var(--hb-text-strong)] hover:bg-white"
+                className="rounded-[6px] px-3 py-3 text-[15px] font-semibold text-[var(--hb-text-strong)] hover:bg-white"
               >
                 {item.label}
               </Link>
@@ -114,7 +114,7 @@ export default function CommunityNav({
               <Link
                 {...weddingLinkProps("/community/wedding-court")}
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex items-center gap-2 rounded-[12px] px-3 py-3 text-[15px] font-semibold text-[var(--hb-text-strong)] hover:bg-white"
+                className="inline-flex items-center gap-2 rounded-[6px] px-3 py-3 text-[15px] font-semibold text-[var(--hb-text-strong)] hover:bg-white"
               >
                 <Gavel className="h-4 w-4" aria-hidden />
                 오늘의 웨딩 선택 법정

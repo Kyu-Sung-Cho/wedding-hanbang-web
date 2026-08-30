@@ -38,7 +38,7 @@ export default function StreamingBubble({
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
           <span className="text-base font-medium text-[var(--hb-text-muted)]">아모라</span>
           <div
-            className="bg-white rounded-2xl rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border border-black/[0.06] shadow-sm"
+            className="bg-white rounded-[6px] rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border border-black/[0.06] shadow-sm"
             aria-live="polite"
             aria-busy="true"
           >

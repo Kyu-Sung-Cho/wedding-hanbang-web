@@ -41,7 +41,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
   }, [enabled, vendorCategory, basePrice, extraPrice, vendorName, region, details, onChange]);
 
   return (
-    <div className="bg-white border border-[#F0EFED] rounded-2xl p-5">
+    <div className="bg-white border border-[#F0EFED] rounded-[6px] p-5">
       <button
         type="button"
         onClick={() => setEnabled((v) => !v)}
@@ -73,7 +73,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
             <select
               value={vendorCategory}
               onChange={(e) => setVendorCategory(e.target.value as CohortContractCategory)}
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none bg-white"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none bg-white"
             >
               {COHORT_CONTRACT_CATEGORIES.map((c) => (
                 <option key={c.key} value={c.key}>
@@ -93,7 +93,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
                 placeholder="예: 300"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
             <div>
@@ -105,7 +105,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
                 placeholder="예: 50"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
           </div>
@@ -118,7 +118,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={vendorName}
                 onChange={(e) => setVendorName(e.target.value)}
                 placeholder="선택 사항"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
             <div>
@@ -128,7 +128,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
                 value={region}
                 onChange={(e) => setRegion(e.target.value)}
                 placeholder="예: 서울 강남"
-                className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none"
+                className="w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none"
               />
             </div>
           </div>
@@ -140,7 +140,7 @@ export default function PriceQuestionForm({ onChange }: PriceQuestionFormProps) 
               onChange={(e) => setDetails(e.target.value)}
               rows={3}
               placeholder="포함 내역, 조건 등 (선택)"
-              className="w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none resize-none text-sm"
+              className="w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none resize-none text-sm"
             />
           </div>
         </div>

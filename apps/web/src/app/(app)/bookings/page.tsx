@@ -85,7 +85,7 @@ export default function BookingsPage() {
 
   return (
     <div className="mx-auto max-w-[860px]">
-      <div className="mb-5 rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in sm:p-5">
+      <div className="mb-5 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in sm:p-5">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
           WEDDING HANBANG
         </p>
@@ -96,7 +96,7 @@ export default function BookingsPage() {
       </div>
 
       {bookings.length === 0 ? (
-        <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-8 text-center shadow-[var(--shadow-raised)] animate-fade-in">
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-8 text-center shadow-[var(--shadow-raised)] animate-fade-in">
           <Calendar className="mx-auto mb-4 h-12 w-12 text-[var(--hb-text-strong)]/45" />
           <p className="mb-2 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">아직 예약 요청 기록이 없어요</p>
           <p className="mb-6 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
@@ -121,7 +121,7 @@ export default function BookingsPage() {
 
                   return (
                     <div key={booking.id} className="animate-fade-in">
-                      <div className="block rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 px-5 py-4 shadow-[var(--shadow-raised)]">
+                      <div className="block rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 px-5 py-4 shadow-[var(--shadow-raised)]">
                         <div className="flex items-center gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5">
@@ -168,7 +168,7 @@ export default function BookingsPage() {
                   return (
                     <div
                       key={booking.id}
-                      className="flex items-center gap-4 rounded-[16px] border border-[var(--hb-hairline)]/70 bg-white/80 px-5 py-4"
+                      className="flex items-center gap-4 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-white/80 px-5 py-4"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">

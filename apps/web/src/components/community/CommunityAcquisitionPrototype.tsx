@@ -278,7 +278,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
               </p>
               <CaseLink
                 item={cases[0]}
-                className="relative block rounded-[28px] border border-[#d9cfc1] bg-[#fffdf8] p-6 shadow-[var(--shadow-overlay)] transition-transform hover:-translate-y-1 sm:p-8"
+                className="relative block rounded-[6px] border border-[#d9cfc1] bg-[#fffdf8] p-6 shadow-[var(--shadow-overlay)] transition-transform hover:-translate-y-1 sm:p-8"
               />
               <p className="mt-3 text-center font-sans text-[11px] text-[#89857e]">
                 {total > 0 ? `현재 확인할 수 있는 글 ${total.toLocaleString("ko-KR")}개` : "구조 확인용 예시 콘텐츠"}
@@ -308,7 +308,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
               <CaseLink
                 key={item.id ?? `${item.title}-${index}`}
                 item={item}
-                className="block min-h-[280px] rounded-[24px] border border-[#ded5c8] bg-white p-6 transition-colors hover:border-[#a9bab4]"
+                className="block min-h-[280px] rounded-[6px] border border-[#ded5c8] bg-white p-6 transition-colors hover:border-[#a9bab4]"
               />
             ))}
           </div>
@@ -378,7 +378,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
           </div>
 
           <article className="grid gap-8 py-12 lg:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.7fr)] lg:gap-16 lg:py-20">
-            <div className="rounded-[32px] bg-[var(--hb-primary)] p-7 text-white sm:p-10 lg:min-h-[500px] lg:p-14">
+            <div className="rounded-[6px] bg-[var(--hb-primary)] p-7 text-white sm:p-10 lg:min-h-[500px] lg:p-14">
               <div className="flex items-center justify-between gap-4 font-sans text-[11px] font-bold tracking-[0.14em] text-[#d8c4bd]">
                 <span>DECISION STORY 01</span>
                 {feature.example && <span>예시 데이터</span>}
@@ -478,7 +478,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
               </div>
             </div>
 
-            <aside className="rounded-[28px] border border-white/15 bg-white/5 p-6 backdrop-blur sm:p-8">
+            <aside className="rounded-[6px] border border-white/15 bg-white/5 p-6 backdrop-blur sm:p-8">
               <div className="flex items-center justify-between gap-4">
                 <span className="inline-flex items-center gap-2 font-sans text-[12px] font-bold text-[#e3cec7]">
                   <CircleHelp className="h-4 w-4" /> 질문 준비하기
@@ -527,7 +527,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
                     {...(item.id
                       ? communityPostLinkProps(item.id)
                       : weddingLinkProps("/community?feed=all&sort=unanswered#community-feed"))}
-                    className="group grid gap-4 rounded-[22px] border border-[#ded5c8] bg-white p-5 transition-colors hover:border-[#a9bab4] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6"
+                    className="group grid gap-4 rounded-[6px] border border-[#ded5c8] bg-white p-5 transition-colors hover:border-[#a9bab4] sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6"
                   >
                     <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3e7e3] text-[#8F6662]">
                       <MessageCircle className="h-5 w-5" />
@@ -548,7 +548,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
               </div>
             </div>
 
-            <aside className="rounded-[26px] bg-[#edf1ec] p-6 sm:p-8 lg:self-start">
+            <aside className="rounded-[6px] bg-[#edf1ec] p-6 sm:p-8 lg:self-start">
               <HeartHandshake className="h-7 w-7 text-[#8F6662]" />
               <h3 className="mt-5 break-keep font-serif text-[26px] font-medium leading-9">당신의 경험이 가장 필요한 질문만 보여드릴게요.</h3>
               <p className="mt-4 font-sans text-[13px] leading-6 text-[#65716c]">

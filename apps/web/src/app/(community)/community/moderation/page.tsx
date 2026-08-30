@@ -156,7 +156,7 @@ export default function CommunityModerationPage() {
   return (
     <main className="mx-auto min-h-[70vh] w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8">
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-[var(--hb-accent-hover)]">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[6px] bg-rose-50 text-[var(--hb-accent-hover)]">
           <ShieldCheck className="h-5 w-5" aria-hidden="true" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--hb-text-strong)] sm:text-3xl">
@@ -170,7 +170,7 @@ export default function CommunityModerationPage() {
 
       {loading ? (
         <div
-          className="flex min-h-48 items-center justify-center rounded-2xl border border-black/[0.06] bg-white"
+          className="flex min-h-48 items-center justify-center rounded-[6px] border border-black/[0.06] bg-white"
           role="status"
         >
           <Loader2 className="h-5 w-5 animate-spin text-[var(--hb-accent-hover)]" />
@@ -178,7 +178,7 @@ export default function CommunityModerationPage() {
         </div>
       ) : loadError ? (
         <div
-          className="rounded-2xl border border-red-200 bg-red-50 p-5"
+          className="rounded-[6px] border border-red-200 bg-red-50 p-5"
           role="alert"
         >
           <div className="flex gap-3">
@@ -188,7 +188,7 @@ export default function CommunityModerationPage() {
               <button
                 type="button"
                 onClick={() => void loadNotices()}
-                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl border border-red-300 px-4 text-sm font-medium text-red-700"
+                className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-red-300 px-4 text-sm font-medium text-red-700"
               >
                 <RotateCcw className="h-4 w-4" />
                 다시 시도
@@ -197,7 +197,7 @@ export default function CommunityModerationPage() {
           </div>
         </div>
       ) : notices.length === 0 ? (
-        <div className="rounded-2xl border border-black/[0.06] bg-white px-5 py-12 text-center">
+        <div className="rounded-[6px] border border-black/[0.06] bg-white px-5 py-12 text-center">
           <CheckCircle2 className="mx-auto h-7 w-7 text-emerald-600" />
           <p className="mt-3 text-sm font-medium text-[var(--hb-text-strong)]">
             확인할 운영 알림이 없어요.
@@ -207,7 +207,7 @@ export default function CommunityModerationPage() {
           </p>
           <Link
             href="/community?feed=all"
-            className="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-medium text-white"
+            className="mt-5 inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-medium text-white"
           >
             커뮤니티 보기
           </Link>
@@ -219,7 +219,7 @@ export default function CommunityModerationPage() {
             return (
               <article
                 key={notice.id}
-                className={`rounded-2xl border bg-white p-5 shadow-sm ${
+                className={`rounded-[6px] border bg-white p-5 shadow-sm ${
                   notice.read_at
                     ? "border-black/[0.06]"
                     : "border-rose-200 ring-1 ring-rose-100"
@@ -254,7 +254,7 @@ export default function CommunityModerationPage() {
                   )}
                 </div>
 
-                <div className="mt-4 rounded-xl bg-stone-50 p-4">
+                <div className="mt-4 rounded-[6px] bg-stone-50 p-4">
                   <p className="text-xs font-medium text-[var(--hb-text-body)]">조치 사유</p>
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--hb-text-strong)]">
                     {notice.reason}
@@ -262,7 +262,7 @@ export default function CommunityModerationPage() {
                 </div>
 
                 {appeal ? (
-                  <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <div className="mt-4 rounded-[6px] border border-emerald-200 bg-emerald-50 p-4">
                     <p className="text-sm font-semibold text-emerald-900">
                       이의제기 {APPEAL_STATUS_LABEL[appeal.status]}
                     </p>
@@ -300,7 +300,7 @@ export default function CommunityModerationPage() {
                       rows={4}
                       maxLength={2_000}
                       placeholder="사실관계, 빠진 맥락, 수정한 내용을 구체적으로 적어 주세요."
-                      className="mt-2 w-full rounded-xl border border-black/10 px-3 py-3 text-sm leading-6 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
+                      className="mt-2 w-full rounded-[6px] border border-black/10 px-3 py-3 text-sm leading-6 outline-none transition focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
                     />
                     {submitError[notice.event_id] && (
                       <p className="mt-2 text-sm text-red-600" role="alert">
@@ -311,7 +311,7 @@ export default function CommunityModerationPage() {
                       type="button"
                       onClick={() => void submitAppeal(notice)}
                       disabled={submittingEventId === notice.event_id}
-                      className="mt-3 inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-medium text-white disabled:opacity-50"
+                      className="mt-3 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-medium text-white disabled:opacity-50"
                     >
                       {submittingEventId === notice.event_id
                         ? "접수 중"

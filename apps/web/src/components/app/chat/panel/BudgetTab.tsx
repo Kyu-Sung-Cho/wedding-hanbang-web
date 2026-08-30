@@ -101,7 +101,7 @@ export default function BudgetTab() {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
             return (
               <div key={cat.key} className="flex items-center gap-3 py-2">
-                <div className="w-8 h-8 rounded-md bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
                   <IconComp className="w-4 h-4 text-[var(--hb-text-body)]" />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -129,7 +129,7 @@ export default function BudgetTab() {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
             return (
               <div key={cat.key} className="flex items-center gap-3 py-2 opacity-60">
-                <div className="w-8 h-8 rounded-md bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
                   <IconComp className="w-4 h-4 text-[#2E7D5A]" />
                 </div>
                 <div className="flex-1 min-w-0">

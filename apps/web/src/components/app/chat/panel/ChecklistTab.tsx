@@ -89,7 +89,7 @@ export default function ChecklistTab() {
       <div key={cat.key}>
         <button
           onClick={() => toggleExpand(cat.key)}
-          className={`w-full flex items-center gap-3 py-2 hover:bg-[var(--hb-surface-page)] rounded-lg transition-colors ${dimmed ? "opacity-60" : ""}`}
+          className={`w-full flex items-center gap-3 py-2 hover:bg-[var(--hb-surface-page)] rounded-[6px] transition-colors ${dimmed ? "opacity-60" : ""}`}
         >
           {/* 펼침 화살표 */}
           <motion.div
@@ -100,7 +100,7 @@ export default function ChecklistTab() {
             <ChevronRight className="w-4 h-4 text-[var(--hb-text-muted)]" />
           </motion.div>
 
-          <div className="w-8 h-8 rounded-md bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
+          <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
             <IconComp className={`w-4 h-4 ${cat.status === "completed" ? "text-[#2E7D5A]" : "text-[var(--hb-text-body)]"}`} />
           </div>
           <div className="flex-1 min-w-0">

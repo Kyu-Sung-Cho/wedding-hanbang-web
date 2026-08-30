@@ -137,7 +137,7 @@ function CommunityFooter() {
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="rounded-[6px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="mb-3 flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-[#d8c79a]" />
             <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>

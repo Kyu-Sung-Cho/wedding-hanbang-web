@@ -91,7 +91,7 @@ export default function WeddingStylePreferences({
             <button
               key={opt.value}
               onClick={() => onStyleChange(opt.value)}
-              className={`p-4 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-center ${
+              className={`p-4 rounded-[6px] border-2 transition-all hover:-translate-y-0.5 text-center ${
                 preferences.weddingStyle === opt.value
                   ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                   : "border-black/[0.06] bg-white hover:border-black/[0.12]"
@@ -129,7 +129,7 @@ export default function WeddingStylePreferences({
                 key={opt.value}
                 onClick={() => onTogglePriority(opt.value)}
                 disabled={disabled}
-                className={`relative p-3 rounded-xl border-2 transition-all text-center ${
+                className={`relative p-3 rounded-[6px] border-2 transition-all text-center ${
                   selected
                     ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                     : disabled
@@ -171,7 +171,7 @@ export default function WeddingStylePreferences({
             <button
               key={opt.value}
               onClick={() => onBudgetTendencyChange(opt.value)}
-              className={`p-3.5 rounded-xl border-2 transition-all text-center ${
+              className={`p-3.5 rounded-[6px] border-2 transition-all text-center ${
                 preferences.budgetTendency === opt.value
                   ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                   : "border-black/[0.06] bg-white hover:border-black/[0.12]"
@@ -199,7 +199,7 @@ export default function WeddingStylePreferences({
             <button
               key={opt.value}
               onClick={() => onGuestCountChange(opt.value)}
-              className={`w-full px-4 py-3 rounded-xl border-2 transition-all text-left text-[13px] font-medium ${
+              className={`w-full px-4 py-3 rounded-[6px] border-2 transition-all text-left text-[13px] font-medium ${
                 preferences.guestCount === opt.value
                   ? "border-rose-500 bg-rose-500/5 text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]"
                   : "border-black/[0.06] bg-white text-[var(--hb-text-body)] hover:border-black/[0.12]"

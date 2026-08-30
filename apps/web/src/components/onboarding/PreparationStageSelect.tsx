@@ -42,7 +42,7 @@ export default function PreparationStageSelect({
             type="button"
             onClick={() => onSelect(option.value)}
             aria-pressed={selected === option.value}
-            className={`w-full px-5 py-4 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-left ${
+            className={`w-full px-5 py-4 rounded-[6px] border-2 transition-all hover:-translate-y-0.5 text-left ${
               selected === option.value
                 ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                 : "border-black/[0.06] bg-white hover:border-black/[0.12]"

@@ -163,7 +163,7 @@ function AttributeField({
     return (
       <fieldset>
         <legend className="text-sm font-semibold text-[var(--hb-text-strong)]">{definition.label}</legend>
-        <div className="mt-2 inline-flex overflow-hidden rounded-lg border border-[#C7D1C2] bg-white">
+        <div className="mt-2 inline-flex overflow-hidden rounded-[6px] border border-[#C7D1C2] bg-white">
           {([{ label: "예", value: true }, { label: "아니오", value: false }, { label: "확인 필요", value: null }] as const).map((item) => (
             <button
               key={item.label}
@@ -347,14 +347,14 @@ export default function AdminEnrichEditorPage() {
             <h2 className="mt-2 text-2xl font-bold">{vendor.name}</h2>
             <p className="mt-1 text-sm text-[#6D806E]">{CATEGORY_LABELS[vendor.category]} · {vendorRegionLabel(vendor.region_code) || "지역 미확인"} · {ENRICHMENT_STATUS_LABELS[vendor.enrichment_status] ?? "상태 미확인"}</p>
           </div>
-          <p className="rounded-lg bg-white px-3 py-2 text-xs text-[#6D806E]">⌘/Ctrl+S 저장 · ⌘/Ctrl+Enter 완료 후 다음</p>
+          <p className="rounded-[6px] bg-white px-3 py-2 text-xs text-[#6D806E]">⌘/Ctrl+S 저장 · ⌘/Ctrl+Enter 완료 후 다음</p>
         </div>
-        {notice && <p className="mb-4 rounded-lg bg-[#C7D1C2]/45 px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
-        {error && <p className="mb-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
-        {!canEdit && <p className="mb-4 rounded-lg border border-[#B89785] bg-[var(--hb-surface-hover)] px-4 py-3 text-sm font-semibold text-[#6A443F]" role="status">{vendor.is_assigned ? "다른 담당자가 작업한 업체입니다. 현재는 읽기 전용으로 검토할 수 있습니다." : "편집하려면 대기열에서 먼저 ‘내가 담당’을 선택하세요."}</p>}
+        {notice && <p className="mb-4 rounded-[6px] bg-[#C7D1C2]/45 px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
+        {error && <p className="mb-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+        {!canEdit && <p className="mb-4 rounded-[6px] border border-[#B89785] bg-[var(--hb-surface-hover)] px-4 py-3 text-sm font-semibold text-[#6A443F]" role="status">{vendor.is_assigned ? "다른 담당자가 작업한 업체입니다. 현재는 읽기 전용으로 검토할 수 있습니다." : "편집하려면 대기열에서 먼저 ‘내가 담당’을 선택하세요."}</p>}
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(540px,1.05fr)]">
-          <section className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white">
+          <section className="overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white">
             <div className="border-b border-[#E2D3C8] bg-[var(--hb-surface-hover)] px-5 py-4"><p className="text-xs font-semibold tracking-wide text-[var(--color-rose-700)]">READ-ONLY EVIDENCE</p><h3 className="mt-1 font-bold">공시 가격과 근거</h3></div>
             {prices.length === 0 ? (
               <div className="px-5 py-14 text-center text-sm text-[#6D806E]">연결된 공시 가격이 없습니다. URL·속성은 입력할 수 있지만 가격 근거는 미확인으로 남습니다.</div>
@@ -379,18 +379,18 @@ export default function AdminEnrichEditorPage() {
           </section>
 
           <section className="space-y-5">
-            <div className="rounded-2xl border border-[#E2D3C8] bg-white p-5">
-              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold tracking-wide text-[var(--color-rose-700)]">TEAM-CURATED LINKS</p><h3 className="mt-1 font-bold">URL과 검색 도우미</h3></div><div className="flex flex-wrap gap-2">{searchLinks && [["네이버 검색", searchLinks.naverSearch], ["네이버 지도", searchLinks.naverMap], ["인스타그램 검색", searchLinks.instagram]].map(([label, href]) => <a key={label} href={href} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)]">{label}<ExternalLink size={12} /></a>)}</div></div>
+            <div className="rounded-[6px] border border-[#E2D3C8] bg-white p-5">
+              <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold tracking-wide text-[var(--color-rose-700)]">TEAM-CURATED LINKS</p><h3 className="mt-1 font-bold">URL과 검색 도우미</h3></div><div className="flex flex-wrap gap-2">{searchLinks && [["네이버 검색", searchLinks.naverSearch], ["네이버 지도", searchLinks.naverMap], ["인스타그램 검색", searchLinks.instagram]].map(([label, href]) => <a key={label} href={href} target="_blank" rel="noreferrer" className="inline-flex min-h-9 items-center gap-1 rounded-[6px] border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)]">{label}<ExternalLink size={12} /></a>)}</div></div>
               <p className="mt-3 text-xs leading-5 text-[#6D806E]">검색 도우미는 검색 페이지를 새 탭으로 열기만 합니다. 서비스 서버는 외부 사이트를 가져오거나 저장하지 않습니다.</p>
               <div className="mt-4 grid gap-4">
                 {[{ key: "official_url", label: "공식 홈페이지" }, { key: "naver_place_url", label: "네이버 플레이스" }, { key: "instagram_url", label: "인스타그램" }].map(({ key, label }) => <label key={key} className="text-sm font-semibold text-[var(--hb-text-strong)]">{label}<input disabled={!canEdit} type="url" placeholder="https://" value={urls[key as keyof typeof urls]} onChange={(event) => setUrls((current) => ({ ...current, [key]: event.target.value }))} className="enrich-input mt-2 disabled:bg-[var(--hb-surface-hover)] disabled:opacity-70" /></label>)}
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#E2D3C8] bg-white p-5">
+            <div className="rounded-[6px] border border-[#E2D3C8] bg-white p-5">
               <p className="text-xs font-semibold tracking-wide text-[var(--color-rose-700)]">SCHEMA-VALIDATED ATTRIBUTES</p><h3 className="mt-1 font-bold">업체 속성</h3>
               {vendor.category === "dress" && fittingFeeSuggestion ? (
-                <aside className="mt-4 rounded-xl border border-[#B89785] bg-[var(--hb-surface-hover)] p-4" aria-label="승인된 공시 피팅비 제안">
+                <aside className="mt-4 rounded-[6px] border border-[#B89785] bg-[var(--hb-surface-hover)] p-4" aria-label="승인된 공시 피팅비 제안">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-[var(--color-rose-700)]">승인된 공시 옵션에서 제안</p>
@@ -400,7 +400,7 @@ export default function AdminEnrichEditorPage() {
                       type="button"
                       disabled={!canEdit || attributes.fitting_fee_krw === fittingFeeSuggestion.value_krw}
                       onClick={() => setAttributes((current) => ({ ...current, fitting_fee_krw: fittingFeeSuggestion.value_krw }))}
-                      className="inline-flex min-h-11 items-center rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+                      className="inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
                     >
                       {attributes.fitting_fee_krw === fittingFeeSuggestion.value_krw ? "제안 적용됨" : "제안 적용"}
                     </button>
@@ -412,16 +412,16 @@ export default function AdminEnrichEditorPage() {
               <div className="mt-5 grid gap-5 sm:grid-cols-2">{definitions.map((definition) => <AttributeField key={definition.key} definition={definition} value={attributes[definition.key]} disabled={!canEdit} onChange={(value) => setAttributes((current) => ({ ...current, [definition.key]: value }))} />)}</div>
             </div>
 
-            <div className="rounded-2xl border border-[#E2D3C8] bg-white p-5">
+            <div className="rounded-[6px] border border-[#E2D3C8] bg-white p-5">
               <p className="text-xs font-semibold tracking-wide text-[var(--color-rose-700)]">CURATED TAGS</p><h3 className="mt-1 font-bold">태그 선택</h3>
               <div className="mt-5 space-y-5">{tagsByGroup.map(([group, groupTags]) => <fieldset key={group}><legend className="text-sm font-semibold text-[var(--hb-text-strong)]">{TAG_GROUP_LABELS[group] ?? group}</legend><div className="mt-2 flex flex-wrap gap-2">{groupTags.map((tag) => { const selected = selectedTagIds.includes(tag.id); return <label key={tag.id} className={`${canEdit ? "cursor-pointer" : "cursor-not-allowed opacity-60"} rounded-full border px-3 py-2 text-sm ${selected ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}><input type="checkbox" disabled={!canEdit} checked={selected} onChange={() => setSelectedTagIds((current) => selected ? current.filter((id) => id !== tag.id) : [...current, tag.id])} className="sr-only" />{tag.label}</label>; })}</div></fieldset>)}</div>
             </div>
 
-            {canEdit ? <div className="sticky bottom-4 z-20 flex flex-wrap justify-end gap-2 rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)]/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur">
-              <button id="enrichment-save" type="button" disabled={saving || !canEdit} onClick={() => void save("save", false)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Save size={16} />임시 저장</button>
-              <button type="button" disabled={saving || !canEdit} onClick={() => void save("complete", false)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[var(--hb-primary)] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Check size={16} />완료</button>
-              <button id="enrichment-complete-next" type="button" disabled={saving || !canEdit} onClick={() => void save("complete", true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white disabled:opacity-50"><Check size={16} />완료 후 다음 업체</button>
-            </div> : <div className="sticky bottom-4 z-20 flex justify-end rounded-2xl border border-[#E2D3C8] bg-[var(--hb-surface-page)]/95 p-4 shadow-[var(--shadow-raised)]"><Link href="/admin/enrich" className="inline-flex min-h-11 items-center rounded-lg bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white">대기열로 돌아가기</Link></div>}
+            {canEdit ? <div className="sticky bottom-4 z-20 flex flex-wrap justify-end gap-2 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)]/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur">
+              <button id="enrichment-save" type="button" disabled={saving || !canEdit} onClick={() => void save("save", false)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Save size={16} />임시 저장</button>
+              <button type="button" disabled={saving || !canEdit} onClick={() => void save("complete", false)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Check size={16} />완료</button>
+              <button id="enrichment-complete-next" type="button" disabled={saving || !canEdit} onClick={() => void save("complete", true)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white disabled:opacity-50"><Check size={16} />완료 후 다음 업체</button>
+            </div> : <div className="sticky bottom-4 z-20 flex justify-end rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)]/95 p-4 shadow-[var(--shadow-raised)]"><Link href="/admin/enrich" className="inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white">대기열로 돌아가기</Link></div>}
           </section>
         </div>
       </main>

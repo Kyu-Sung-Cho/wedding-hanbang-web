@@ -99,13 +99,13 @@ function ToastItemComponent({ toast }: { toast: ToastItem }) {
 
   return (
     <div
-      className={`flex w-80 items-center gap-3 rounded-2xl border-l-4 bg-white px-4 py-3 shadow-md animate-slide-in-right ${border}`}
+      className={`flex w-80 items-center gap-3 rounded-[6px] border-l-4 bg-white px-4 py-3 shadow-md animate-slide-in-right ${border}`}
     >
       <Icon className={`h-5 w-5 shrink-0 ${iconBg}`} />
       <p className="flex-1 text-sm text-[var(--hb-text-strong)]">{toast.message}</p>
       <button
         onClick={() => removeToast(toast.id)}
-        className="shrink-0 rounded p-0.5 text-[var(--hb-text-muted)] transition-colors hover:text-[#878680]"
+        className="shrink-0 rounded-[6px] p-0.5 text-[var(--hb-text-muted)] transition-colors hover:text-[#878680]"
       >
         <X className="h-4 w-4" />
       </button>

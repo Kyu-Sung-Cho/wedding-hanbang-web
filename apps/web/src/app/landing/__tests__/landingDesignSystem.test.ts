@@ -1070,7 +1070,7 @@ describe("landing design system", () => {
     // DESIGN.md: sm 6, md 8, lg 12, xl 16, 2xl 20, 3xl 28, full.
     // Tailwind v4에는 20·28 스텝이 없어 arbitrary 표기가 유일한 방법이다.
     //
-    // 2026-08-27 노트 개편은 종이 모서리로 `rounded-[3px]`를 11곳(6개 파일)에서
+    // 2026-08-27 노트 개편은 종이 모서리로 `rounded-[6px]`를 11곳(6개 파일)에서
     // 썼다. DESIGN.md Layout 절의 라운드 스케일에는 그 값도, 랜딩 예외도 없었다.
     // **2026-08-28 재실측: 3px 는 컴포넌트 0곳 · globals.css 0곳**(`.landing-note`도
     // 6px 로 정렬됐다). 다시 나타나면 허용 집합에 3을 몰래 넣어 통과시키지 않는다 —

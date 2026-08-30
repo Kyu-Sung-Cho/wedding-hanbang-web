@@ -162,7 +162,7 @@ export default function TermsPage() {
           {businessInfo ? (
             <section>
               <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">운영자 정보</h2>
-              <div className="mt-3 px-4 py-3 bg-white rounded-lg">
+              <div className="mt-3 px-4 py-3 bg-white rounded-[6px]">
                 <ul className="space-y-1 text-[13px] text-charcoal">
                   {businessInfoRows(businessInfo).map(([label, value]) => (
                     <li key={label}>{label}: {value}</li>

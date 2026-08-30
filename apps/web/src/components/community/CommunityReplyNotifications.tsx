@@ -339,7 +339,7 @@ export default function CommunityReplyNotifications({
         <div
           role="dialog"
           aria-label="새 답변 알림"
-          className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-[#EDE4D8] bg-white shadow-[var(--shadow-overlay)]"
+          className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-32px))] flex-col overflow-hidden rounded-[6px] border border-[#EDE4D8] bg-white shadow-[var(--shadow-overlay)]"
         >
           <div className="flex items-center justify-between border-b border-[#F0EFED] px-4 py-3">
             <div>
@@ -352,7 +352,7 @@ export default function CommunityReplyNotifications({
               <button
                 type="button"
                 onClick={() => void markAllRead()}
-                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-medium text-[#6D806E] hover:bg-[var(--hb-surface-hover)]"
+                className="inline-flex min-h-9 items-center gap-1 rounded-[6px] px-2 text-xs font-medium text-[#6D806E] hover:bg-[var(--hb-surface-hover)]"
               >
                 <CheckCheck className="h-3.5 w-3.5" aria-hidden />
                 모두 읽음
@@ -384,7 +384,7 @@ export default function CommunityReplyNotifications({
                     setLoading(true);
                     void refresh();
                   }}
-                  className="mt-3 min-h-10 rounded-lg border border-[#C7D1C2] px-4 text-sm font-medium text-[var(--hb-text-strong)]"
+                  className="mt-3 min-h-10 rounded-[6px] border border-[#C7D1C2] px-4 text-sm font-medium text-[var(--hb-text-strong)]"
                 >
                   {signedOut ? "로그인하기" : "다시 시도"}
                 </button>

@@ -281,7 +281,7 @@ function VendorDemandPanel() {
   }
 
   return (
-    <section className="mb-4 rounded-xl border border-indigo-200 bg-indigo-50/60 p-4">
+    <section className="mb-4 rounded-[6px] border border-indigo-200 bg-indigo-50/60 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-indigo-900">업체 수요 랭킹</h2>
@@ -295,7 +295,7 @@ function VendorDemandPanel() {
           <select
             value={days}
             onChange={(event) => setDays(Number(event.target.value))}
-            className="rounded-lg border border-indigo-200 bg-white px-2 py-2 text-xs"
+            className="rounded-[6px] border border-indigo-200 bg-white px-2 py-2 text-xs"
           >
             <option value={7}>최근 7일</option>
             <option value={30}>최근 30일</option>
@@ -304,7 +304,7 @@ function VendorDemandPanel() {
           <select
             value={category}
             onChange={(event) => setCategory(event.target.value)}
-            className="rounded-lg border border-indigo-200 bg-white px-2 py-2 text-xs"
+            className="rounded-[6px] border border-indigo-200 bg-white px-2 py-2 text-xs"
           >
             <option value="">전체 카테고리</option>
             <option value="studio">스튜디오</option>
@@ -316,7 +316,7 @@ function VendorDemandPanel() {
             type="button"
             onClick={load}
             disabled={loading}
-            className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
+            className="rounded-[6px] bg-indigo-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-50"
           >
             {loading ? "불러오는 중…" : "불러오기"}
           </button>
@@ -325,7 +325,7 @@ function VendorDemandPanel() {
             onClick={aggregateToday}
             disabled={loading}
             title="pg_cron(매일 04:00)이 돌기 전 오늘분을 즉시 롤업"
-            className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
+            className="rounded-[6px] border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
           >
             오늘분 집계
           </button>
@@ -333,14 +333,14 @@ function VendorDemandPanel() {
             type="button"
             onClick={downloadCsv}
             disabled={rows.length === 0}
-            className="rounded-lg border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
+            className="rounded-[6px] border border-indigo-300 bg-white px-3 py-2 text-xs font-medium text-indigo-900 disabled:opacity-40"
           >
             CSV
           </button>
         </div>
       </div>
       {rows.length > 0 ? (
-        <div className="mt-3 max-h-80 overflow-auto rounded-lg border border-indigo-100 bg-white">
+        <div className="mt-3 max-h-80 overflow-auto rounded-[6px] border border-indigo-100 bg-white">
           <table className="w-full text-xs">
             <thead className="sticky top-0 bg-indigo-100/80 text-indigo-900">
               <tr>
@@ -439,7 +439,7 @@ function AutoValidatedApprovalPanel() {
   }
 
   return (
-    <section className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+    <section className="mb-4 rounded-[6px] border border-emerald-200 bg-emerald-50 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold text-emerald-900">자동 검증 통과분 일괄 승인</h2>
@@ -457,7 +457,7 @@ function AutoValidatedApprovalPanel() {
             type="button"
             onClick={loadCount}
             disabled={busy}
-            className="rounded-lg border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 disabled:opacity-50"
+            className="rounded-[6px] border border-emerald-300 bg-white px-3 py-2 text-xs font-medium text-emerald-900 disabled:opacity-50"
           >
             대상 건수 확인
           </button>
@@ -465,7 +465,7 @@ function AutoValidatedApprovalPanel() {
             type="button"
             onClick={execute}
             disabled={busy || !eligibleCount}
-            className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
+            className="rounded-[6px] bg-emerald-600 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
           >
             일괄 승인 실행
           </button>
@@ -553,7 +553,7 @@ function BulkApprovalPanel() {
   return (
     <section
       aria-label="자동 검증 통과분 일괄 승인"
-      className="mb-7 rounded-2xl border border-[#E2D3C8] bg-white p-4 sm:p-5"
+      className="mb-7 rounded-[6px] border border-[#E2D3C8] bg-white p-4 sm:p-5"
     >
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -567,7 +567,7 @@ function BulkApprovalPanel() {
           type="button"
           disabled={loading || executing || blocked}
           onClick={() => void (summary ? execute() : loadCount())}
-          className="min-h-11 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+          className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
         >
           {loading
             ? "승인 가능 건수 확인 중…"
@@ -581,7 +581,7 @@ function BulkApprovalPanel() {
         </button>
       </div>
       {summary ? (
-        <div className={`mt-4 rounded-xl border px-4 py-3 text-sm ${blocked ? "border-[#B89785]/35 bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" : "border-[#C7D1C2] bg-[#F2F7F3] text-[var(--hb-text-strong)]"}`}>
+        <div className={`mt-4 rounded-[6px] border px-4 py-3 text-sm ${blocked ? "border-[#B89785]/35 bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" : "border-[#C7D1C2] bg-[#F2F7F3] text-[var(--hb-text-strong)]"}`}>
           <p className="font-bold">
             이번 승인 배치 {summary.batch_eligible_count ?? "확인 불가"}건
             {summary.has_more ? " · 이후 승인 대상 더 있음" : ""}
@@ -594,15 +594,15 @@ function BulkApprovalPanel() {
                 setSummary(null);
                 void loadCount();
               }}
-              className="mt-3 min-h-10 rounded-lg border border-[#B89785]/50 bg-white px-3 text-xs font-bold"
+              className="mt-3 min-h-10 rounded-[6px] border border-[#B89785]/50 bg-white px-3 text-xs font-bold"
             >
               대상 다시 확인
             </button>
           ) : null}
         </div>
       ) : null}
-      {notice ? <p className="mt-4 rounded-lg bg-[#E8F1EA] px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p> : null}
-      {error ? <p className="mt-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p> : null}
+      {notice ? <p className="mt-4 rounded-[6px] bg-[#E8F1EA] px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p> : null}
+      {error ? <p className="mt-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p> : null}
     </section>
   );
 }
@@ -630,7 +630,7 @@ function SourceLoadError({
               href={`/api/admin/price/${recordId}/source?kind=${kind}&redirect=1&index=${index}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-bold text-[var(--hb-text-strong)]"
+              className="inline-flex min-h-9 items-center rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-xs font-bold text-[var(--hb-text-strong)]"
             >
               원본 {index + 1} · {label}
             </a>
@@ -707,14 +707,14 @@ function ValidationReviewNotice({
             </p>
           </div>
         </div>
-        <code className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-bold ${needsReview ? "bg-white/70" : "bg-white"}`}>
+        <code className={`shrink-0 rounded-[6px] px-2 py-1 text-[11px] font-bold ${needsReview ? "bg-white/70" : "bg-white"}`}>
           needs_review={String(needsReview)}
         </code>
       </div>
       {issueCodes.length > 0 && (
         <ul className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="검증 이슈 목록">
           {issueCodes.map((code) => (
-            <li key={code} className="min-w-0 rounded-lg border border-current/15 bg-white/70 px-3 py-2">
+            <li key={code} className="min-w-0 rounded-[6px] border border-current/15 bg-white/70 px-3 py-2">
               <p className="text-sm font-semibold leading-5">{validationIssueLabel(code)}</p>
               <code className="mt-1 block break-all text-[11px] opacity-75">{code}</code>
             </li>
@@ -899,7 +899,7 @@ function PriceReviewWorkspace() {
           <select
             value={status}
             onChange={(event) => setStatus(event.target.value as PriceStatus)}
-            className="ml-2 min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-3 font-normal"
+            className="ml-2 min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-3 font-normal"
           >
             <option value="pending">검수 대기</option>
             <option value="approved">승인</option>
@@ -909,18 +909,18 @@ function PriceReviewWorkspace() {
         </label>
       </div>
 
-      {notice && <p className="mb-4 rounded-lg bg-[#C7D1C2]/45 px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
-      {error && <p className="mb-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+      {notice && <p className="mb-4 rounded-[6px] bg-[#C7D1C2]/45 px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
+      {error && <p className="mb-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center">
+        <div className="rounded-[6px] border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center">
           <Check className="mx-auto text-[#6D806E]" aria-hidden="true" />
           <p className="mt-3 font-semibold text-[var(--hb-text-strong)]">이 상태의 검수 항목이 없습니다.</p>
           <p className="mt-1 text-sm text-[#6D806E]">새 적재가 끝나면 이곳에 낮은 신뢰도 순으로 표시됩니다.</p>
         </div>
       ) : (
         <div className="grid min-h-[690px] gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
-          <aside className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white" aria-label="가격 검수 항목">
+          <aside className="overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white" aria-label="가격 검수 항목">
             <div className="border-b border-[var(--hb-hairline)] px-4 py-3 text-xs font-semibold text-[#6D806E]">{items.length}개 항목</div>
             <div className="max-h-[740px] overflow-y-auto">
               {items.map((item) => (
@@ -960,7 +960,7 @@ function PriceReviewWorkspace() {
                     type="button"
                     disabled={loadingMore}
                     onClick={() => void load(nextCursor, true)}
-                    className="min-h-10 w-full rounded-lg border border-[#C7D1C2] bg-white px-3 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
+                    className="min-h-10 w-full rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
                   >
                     {loadingMore ? "더 불러오는 중…" : "검수 항목 더 불러오기"}
                   </button>
@@ -973,7 +973,7 @@ function PriceReviewWorkspace() {
             <form
               key={`${selected.id}:${selected.review_version}`}
               onSubmit={(event) => { event.preventDefault(); void submit("save", event.currentTarget); }}
-              className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white"
+              className="overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white"
             >
               <ValidationReviewNotice
                 needsReview={selected.needs_review}
@@ -992,7 +992,7 @@ function PriceReviewWorkspace() {
                       (`admin/page.tsx` 의 `activeTab === "vendors"`, `/api/admin/vendors`).
                       다만 그 화면은 URL 을 읽지 않고 첫 탭("사전등록")에서 시작하므로,
                       어디로 가는지 문구로 알려 준다. */}
-                  <Link href="/admin" className="shrink-0 rounded-lg border border-[#C98E5C] bg-white px-3 py-2 text-xs font-bold text-[#70472D] hover:bg-[#FFF9F1]">
+                  <Link href="/admin" className="shrink-0 rounded-[6px] border border-[#C98E5C] bg-white px-3 py-2 text-xs font-bold text-[#70472D] hover:bg-[#FFF9F1]">
                     관리자 대시보드 · 업체 심사 탭
                   </Link>
                 </div>
@@ -1009,11 +1009,11 @@ function PriceReviewWorkspace() {
                   {sourceFiles.length > 1 && (
                     <div className="mt-3 flex flex-wrap gap-2" aria-label="원본 파일 선택">
                       {sourceFiles.map((file, index) => (
-                        <button key={`${file.label}-${index}`} type="button" onClick={() => setSourceIndex(index)} className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${sourceIndex === index ? "bg-[var(--hb-primary)] text-white" : "border border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}>원본 {index + 1} · {file.label}</button>
+                        <button key={`${file.label}-${index}`} type="button" onClick={() => setSourceIndex(index)} className={`min-h-9 rounded-[6px] px-3 text-xs font-semibold ${sourceIndex === index ? "bg-[var(--hb-primary)] text-white" : "border border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}>원본 {index + 1} · {file.label}</button>
                       ))}
                     </div>
                   )}
-                  <div className="mt-4 min-h-[360px] overflow-hidden rounded-xl border border-[#E2D3C8] bg-white">
+                  <div className="mt-4 min-h-[360px] overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white">
                     {!selected.source_available ? (
                       <div className="grid min-h-[360px] place-items-center p-8 text-center text-sm text-[#8A3030]">보관된 원본 파일이 없습니다. 승인 전에 적재 상태를 확인하세요.</div>
                     ) : sourceError ? (
@@ -1063,7 +1063,7 @@ function PriceReviewWorkspace() {
                           const checked = proposal.status === "approved"
                             || (proposal.status === "pending" && selectedAliasIds.includes(proposal.id));
                           return (
-                            <label key={proposal.id} className={`flex min-h-11 items-center gap-3 rounded-lg border px-3 py-2 text-sm ${locked ? "border-[#E2D3C8] bg-[var(--hb-surface-page)] text-[#6D806E]" : "border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}>
+                            <label key={proposal.id} className={`flex min-h-11 items-center gap-3 rounded-[6px] border px-3 py-2 text-sm ${locked ? "border-[#E2D3C8] bg-[var(--hb-surface-page)] text-[#6D806E]" : "border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}>
                               <input
                                 type="checkbox"
                                 checked={checked}
@@ -1100,13 +1100,13 @@ function PriceReviewWorkspace() {
                           source_quote: null,
                           confidence: null,
                         }])}
-                        className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)]"
+                        className="inline-flex min-h-9 items-center gap-1 rounded-[6px] border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)]"
                       >
                         <Plus size={14} />옵션 추가
                       </button>
                     </div>
                     {optionDrafts.length === 0 ? (
-                      <p className="mt-4 rounded-lg bg-[var(--hb-surface-page)] px-3 py-4 text-center text-xs text-[#6D806E]">추출된 추가금이 없습니다.</p>
+                      <p className="mt-4 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-4 text-center text-xs text-[#6D806E]">추출된 추가금이 없습니다.</p>
                     ) : (
                       <div className="mt-3 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
                         {optionDrafts.map((option, index) => {
@@ -1138,9 +1138,9 @@ function PriceReviewWorkspace() {
                 </section>
               </div>
               <div className="flex flex-wrap justify-end gap-2 border-t border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4">
-                <button type="submit" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Save size={16} />수정 저장</button>
-                <button type="button" disabled={saving} onClick={(event) => void submit("reject", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D95F5F]/40 bg-white px-4 text-sm font-semibold text-[#A23F3F] disabled:opacity-50"><X size={16} />반려</button>
-                <button type="button" disabled={saving || !selected.source_available} onClick={(event) => void submit("approve", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} />{selected.needs_review ? "검증 이슈·근거 확인 후 승인" : "근거 확인 후 승인"}</button>
+                <button type="submit" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Save size={16} />수정 저장</button>
+                <button type="button" disabled={saving} onClick={(event) => void submit("reject", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#D95F5F]/40 bg-white px-4 text-sm font-semibold text-[#A23F3F] disabled:opacity-50"><X size={16} />반려</button>
+                <button type="button" disabled={saving || !selected.source_available} onClick={(event) => void submit("approve", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} />{selected.needs_review ? "검증 이슈·근거 확인 후 승인" : "근거 확인 후 승인"}</button>
               </div>
             </form>
           )}
@@ -1320,20 +1320,20 @@ function AgencyPackageReviewWorkspace() {
         </div>
         <label className="text-sm font-semibold text-[var(--hb-text-strong)]">
           상태
-          <select value={status} onChange={(event) => setStatus(event.target.value as PriceStatus)} className="ml-2 min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-3 font-normal">
+          <select value={status} onChange={(event) => setStatus(event.target.value as PriceStatus)} className="ml-2 min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-3 font-normal">
             <option value="pending">검수 대기</option><option value="approved">승인</option><option value="rejected">반려</option><option value="all">전체</option>
           </select>
         </label>
       </div>
 
-      {notice && <p className="mb-4 rounded-lg bg-[#C7D1C2]/45 px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
-      {error && <p className="mb-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+      {notice && <p className="mb-4 rounded-[6px] bg-[#C7D1C2]/45 px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
+      {error && <p className="mb-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
 
       {items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center"><Check className="mx-auto text-[#6D806E]" /><p className="mt-3 font-semibold text-[var(--hb-text-strong)]">이 상태의 패키지 검수 항목이 없습니다.</p></div>
+        <div className="rounded-[6px] border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center"><Check className="mx-auto text-[#6D806E]" /><p className="mt-3 font-semibold text-[var(--hb-text-strong)]">이 상태의 패키지 검수 항목이 없습니다.</p></div>
       ) : (
         <div className="grid min-h-[690px] gap-5 xl:grid-cols-[330px_minmax(0,1fr)]">
-          <aside className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white" aria-label="패키지 검수 목록">
+          <aside className="overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white" aria-label="패키지 검수 목록">
             <div className="border-b border-[var(--hb-hairline)] px-4 py-3 text-xs font-semibold text-[#6D806E]">{items.length}개 패키지</div>
             <div className="max-h-[740px] overflow-y-auto">
               {items.map((item) => (
@@ -1357,7 +1357,7 @@ function AgencyPackageReviewWorkspace() {
                     type="button"
                     disabled={loadingMore}
                     onClick={() => void load(nextCursor, true)}
-                    className="min-h-10 w-full rounded-lg border border-[#C7D1C2] bg-white px-3 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
+                    className="min-h-10 w-full rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
                   >
                     {loadingMore ? "더 불러오는 중…" : "패키지 더 불러오기"}
                   </button>
@@ -1367,7 +1367,7 @@ function AgencyPackageReviewWorkspace() {
           </aside>
 
           {selected && (
-            <form key={`${selected.id}:${selected.review_version}`} onSubmit={(event) => { event.preventDefault(); void submit("save", event.currentTarget); }} className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white">
+            <form key={`${selected.id}:${selected.review_version}`} onSubmit={(event) => { event.preventDefault(); void submit("save", event.currentTarget); }} className="overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white">
               <ValidationReviewNotice
                 needsReview={selected.needs_review}
                 issueCodes={selected.validation_issue_codes}
@@ -1376,8 +1376,8 @@ function AgencyPackageReviewWorkspace() {
               <div className="grid lg:grid-cols-2">
                 <section className="border-b border-[#E2D3C8] bg-[var(--hb-surface-hover)] p-5 lg:border-b-0 lg:border-r">
                   <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold tracking-wide text-[var(--color-rose-700)]">ORIGINAL EVIDENCE</p><h3 className="mt-1 font-bold text-[var(--hb-text-strong)]">패키지 원본 대조</h3></div>{selected.source_available && <SignedSourceLink priceId={selected.id} kind="agency_package" label="새 탭에서 원본" expectedCount={selected.source_count} />}</div>
-                  {sourceFiles.length > 1 && <div className="mt-3 flex flex-wrap gap-2" aria-label="패키지 원본 파일 선택">{sourceFiles.map((file, index) => <button key={`${file.label}-${index}`} type="button" onClick={() => setSourceIndex(index)} className={`min-h-9 rounded-lg px-3 text-xs font-semibold ${sourceIndex === index ? "bg-[var(--hb-primary)] text-white" : "border border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}>원본 {index + 1} · {file.label}</button>)}</div>}
-                  <div className="mt-4 min-h-[360px] overflow-hidden rounded-xl border border-[#E2D3C8] bg-white">
+                  {sourceFiles.length > 1 && <div className="mt-3 flex flex-wrap gap-2" aria-label="패키지 원본 파일 선택">{sourceFiles.map((file, index) => <button key={`${file.label}-${index}`} type="button" onClick={() => setSourceIndex(index)} className={`min-h-9 rounded-[6px] px-3 text-xs font-semibold ${sourceIndex === index ? "bg-[var(--hb-primary)] text-white" : "border border-[#C7D1C2] bg-white text-[var(--hb-text-strong)]"}`}>원본 {index + 1} · {file.label}</button>)}</div>}
+                  <div className="mt-4 min-h-[360px] overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white">
                     {!selected.source_available ? <div className="grid min-h-[360px] place-items-center p-8 text-center text-sm text-[#8A3030]">보관된 패키지 원본 파일이 없습니다. 승인 전에 적재 상태를 확인하세요.</div>
                       : sourceError ? <SourceLoadError message={sourceError} recordId={selected.id} kind="agency_package" labels={selected.source_file_labels} />
                         : !activeSource ? <div className="grid min-h-[360px] place-items-center text-sm text-[#6D806E]">패키지 원본을 안전하게 여는 중…</div>
@@ -1401,12 +1401,12 @@ function AgencyPackageReviewWorkspace() {
                     <Field label="근거 원문"><textarea name="source_quote" defaultValue={selected.source_quote ?? ""} rows={5} className="admin-input resize-y" /></Field>
                   </div>
                   <div className="mt-5 border-t border-[var(--hb-hairline)] pt-4">
-                    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-[var(--hb-text-strong)]">패키지 구성 옵션</p><p className="mt-1 text-xs text-[#6D806E]">승인할 각 옵션에는 근거 원문이 필요합니다.</p></div><button type="button" onClick={() => setOptionDrafts((current) => [...current, { clientKey: crypto.randomUUID(), name: "", price_min_krw: null, price_max_krw: null, unit: null, condition: null, raw_text: null, source_quote: null }])} className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)]"><Plus size={14} />옵션 추가</button></div>
-                    {optionDrafts.length === 0 ? <p className="mt-4 rounded-lg bg-[var(--hb-surface-page)] px-3 py-4 text-center text-xs text-[#6D806E]">추출된 패키지 옵션이 없습니다.</p> : <div className="mt-3 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">{optionDrafts.map((option, index) => { const updateOption = (patch: Partial<AgencyPackageOptionDraft>) => setOptionDrafts((current) => current.map((item) => item.clientKey === option.clientKey ? { ...item, ...patch } : item)); return <div key={option.clientKey} className="py-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold text-[var(--color-rose-700)]">구성 {index + 1}</p><button type="button" onClick={() => setOptionDrafts((current) => current.filter((item) => item.clientKey !== option.clientKey))} className="inline-flex min-h-8 items-center gap-1 px-2 text-xs font-semibold text-[#A23F3F]"><Trash2 size={13} />삭제</button></div><div className="mt-2 grid gap-3 sm:grid-cols-2"><Field label="옵션명"><input value={option.name} required onChange={(event) => updateOption({ name: event.target.value })} className="admin-input" /></Field><Field label="단위"><input value={option.unit ?? ""} onChange={(event) => updateOption({ unit: event.target.value || null })} className="admin-input" /></Field><Field label="최소 금액"><input type="number" min="0" value={option.price_min_krw ?? ""} onChange={(event) => updateOption({ price_min_krw: event.target.value === "" ? null : Number(event.target.value) })} className="admin-input" /></Field><Field label="최대 금액"><input type="number" min="0" value={option.price_max_krw ?? ""} onChange={(event) => updateOption({ price_max_krw: event.target.value === "" ? null : Number(event.target.value) })} className="admin-input" /></Field><Field label="조건"><input value={option.condition ?? ""} onChange={(event) => updateOption({ condition: event.target.value || null })} className="admin-input" /></Field></div><div className="mt-3 grid gap-3"><Field label="원문 표기"><textarea value={option.raw_text ?? ""} onChange={(event) => updateOption({ raw_text: event.target.value || null })} rows={2} className="admin-input resize-y" /></Field><Field label="옵션 근거 원문"><textarea value={option.source_quote ?? ""} onChange={(event) => updateOption({ source_quote: event.target.value || null })} rows={3} className="admin-input resize-y" /></Field></div></div>; })}</div>}
+                    <div className="flex items-center justify-between gap-3"><div><p className="text-sm font-bold text-[var(--hb-text-strong)]">패키지 구성 옵션</p><p className="mt-1 text-xs text-[#6D806E]">승인할 각 옵션에는 근거 원문이 필요합니다.</p></div><button type="button" onClick={() => setOptionDrafts((current) => [...current, { clientKey: crypto.randomUUID(), name: "", price_min_krw: null, price_max_krw: null, unit: null, condition: null, raw_text: null, source_quote: null }])} className="inline-flex min-h-9 items-center gap-1 rounded-[6px] border border-[#C7D1C2] px-3 text-xs font-semibold text-[var(--hb-text-strong)]"><Plus size={14} />옵션 추가</button></div>
+                    {optionDrafts.length === 0 ? <p className="mt-4 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-4 text-center text-xs text-[#6D806E]">추출된 패키지 옵션이 없습니다.</p> : <div className="mt-3 divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">{optionDrafts.map((option, index) => { const updateOption = (patch: Partial<AgencyPackageOptionDraft>) => setOptionDrafts((current) => current.map((item) => item.clientKey === option.clientKey ? { ...item, ...patch } : item)); return <div key={option.clientKey} className="py-4"><div className="flex items-center justify-between gap-3"><p className="text-xs font-bold text-[var(--color-rose-700)]">구성 {index + 1}</p><button type="button" onClick={() => setOptionDrafts((current) => current.filter((item) => item.clientKey !== option.clientKey))} className="inline-flex min-h-8 items-center gap-1 px-2 text-xs font-semibold text-[#A23F3F]"><Trash2 size={13} />삭제</button></div><div className="mt-2 grid gap-3 sm:grid-cols-2"><Field label="옵션명"><input value={option.name} required onChange={(event) => updateOption({ name: event.target.value })} className="admin-input" /></Field><Field label="단위"><input value={option.unit ?? ""} onChange={(event) => updateOption({ unit: event.target.value || null })} className="admin-input" /></Field><Field label="최소 금액"><input type="number" min="0" value={option.price_min_krw ?? ""} onChange={(event) => updateOption({ price_min_krw: event.target.value === "" ? null : Number(event.target.value) })} className="admin-input" /></Field><Field label="최대 금액"><input type="number" min="0" value={option.price_max_krw ?? ""} onChange={(event) => updateOption({ price_max_krw: event.target.value === "" ? null : Number(event.target.value) })} className="admin-input" /></Field><Field label="조건"><input value={option.condition ?? ""} onChange={(event) => updateOption({ condition: event.target.value || null })} className="admin-input" /></Field></div><div className="mt-3 grid gap-3"><Field label="원문 표기"><textarea value={option.raw_text ?? ""} onChange={(event) => updateOption({ raw_text: event.target.value || null })} rows={2} className="admin-input resize-y" /></Field><Field label="옵션 근거 원문"><textarea value={option.source_quote ?? ""} onChange={(event) => updateOption({ source_quote: event.target.value || null })} rows={3} className="admin-input resize-y" /></Field></div></div>; })}</div>}
                   </div>
                 </section>
               </div>
-              <div className="flex flex-wrap justify-end gap-2 border-t border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4"><button type="submit" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Save size={16} />수정 저장</button><button type="button" disabled={saving} onClick={(event) => void submit("reject", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#D95F5F]/40 bg-white px-4 text-sm font-semibold text-[#A23F3F] disabled:opacity-50"><X size={16} />반려</button><button type="button" disabled={saving || !selected.source_available} onClick={(event) => void submit("approve", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} />{selected.needs_review ? "검증 이슈·근거 확인 후 승인" : "근거 확인 후 승인"}</button></div>
+              <div className="flex flex-wrap justify-end gap-2 border-t border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4"><button type="submit" disabled={saving} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"><Save size={16} />수정 저장</button><button type="button" disabled={saving} onClick={(event) => void submit("reject", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#D95F5F]/40 bg-white px-4 text-sm font-semibold text-[#A23F3F] disabled:opacity-50"><X size={16} />반려</button><button type="button" disabled={saving || !selected.source_available} onClick={(event) => void submit("approve", event.currentTarget.form!)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"><Check size={16} />{selected.needs_review ? "검증 이슈·근거 확인 후 승인" : "근거 확인 후 승인"}</button></div>
             </form>
           )}
         </div>
@@ -1485,7 +1485,7 @@ function SnapshotReadinessPanel() {
   }
 
   return (
-    <section className="mb-7 rounded-2xl border border-[#E2D3C8] bg-white p-4 sm:p-5" aria-label="가격 공개 스냅샷">
+    <section className="mb-7 rounded-[6px] border border-[#E2D3C8] bg-white p-4 sm:p-5" aria-label="가격 공개 스냅샷">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold tracking-wide text-[var(--color-rose-700)]">PUBLICATION SAFETY GATE</p>
@@ -1494,21 +1494,21 @@ function SnapshotReadinessPanel() {
             승인·근거·추가 검토 상태가 모두 준비된 스냅샷만 공개할 수 있습니다. 이전 스냅샷을 다시 승격하면 같은 안전 절차로 롤백됩니다.
           </p>
         </div>
-        <button type="button" onClick={() => void load()} disabled={loading || promoting} className="min-h-9 rounded-lg border border-[#C7D1C2] px-3 text-xs font-bold text-[var(--hb-text-strong)] disabled:opacity-50">
+        <button type="button" onClick={() => void load()} disabled={loading || promoting} className="min-h-9 rounded-[6px] border border-[#C7D1C2] px-3 text-xs font-bold text-[var(--hb-text-strong)] disabled:opacity-50">
           상태 새로고침
         </button>
       </div>
 
-      {notice && <p className="mt-4 rounded-lg bg-[#E8F1EA] px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
-      {error && <p className="mt-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+      {notice && <p className="mt-4 rounded-[6px] bg-[#E8F1EA] px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status">{notice}</p>}
+      {error && <p className="mt-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
       {loading ? (
         <p className="mt-4 text-sm text-[#6D806E]">스냅샷 준비 상태를 계산하는 중…</p>
       ) : snapshots.length === 0 ? (
-        <p className="mt-4 rounded-lg border border-dashed border-[#C7D1C2] px-4 py-5 text-sm text-[#6D806E]">적재된 가격 스냅샷이 없습니다.</p>
+        <p className="mt-4 rounded-[6px] border border-dashed border-[#C7D1C2] px-4 py-5 text-sm text-[#6D806E]">적재된 가격 스냅샷이 없습니다.</p>
       ) : (
         <div className="mt-4 grid gap-3 lg:grid-cols-2">
           {snapshots.map((snapshot) => (
-            <article key={snapshot.id} className={`rounded-xl border p-4 ${snapshot.is_current ? "border-[#6E8D76] bg-[#F2F7F3]" : snapshot.readiness ? "border-[#C7D1C2]" : "border-[#E7C9A9] bg-[#FFF9F1]"}`}>
+            <article key={snapshot.id} className={`rounded-[6px] border p-4 ${snapshot.is_current ? "border-[#6E8D76] bg-[#F2F7F3]" : snapshot.readiness ? "border-[#C7D1C2]" : "border-[#E7C9A9] bg-[#FFF9F1]"}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-bold text-[var(--hb-text-strong)]">{snapshot.period_label}</p>
@@ -1534,7 +1534,7 @@ function SnapshotReadinessPanel() {
                   type="button"
                   disabled={!snapshot.readiness || promoting}
                   onClick={() => setSelectedId(snapshot.id)}
-                  className="mt-4 min-h-10 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  className="mt-4 min-h-10 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   {current ? "승격·롤백 검토" : "최초 공개 검토"}
                 </button>
@@ -1545,14 +1545,14 @@ function SnapshotReadinessPanel() {
       )}
 
       {selected && (
-        <div className="mt-4 rounded-xl border-2 border-[#8F6662] bg-[#FFF9F1] p-4" role="region" aria-label="스냅샷 최종 승격 확인">
+        <div className="mt-4 rounded-[6px] border-2 border-[#8F6662] bg-[#FFF9F1] p-4" role="region" aria-label="스냅샷 최종 승격 확인">
           <p className="font-bold text-[var(--hb-text-strong)]">최종 확인 · {selected.period_label}</p>
           <p className="mt-1 text-sm leading-6 text-[#70472D]">
             현재 공개본 {current?.period_label ?? "없음"}에서 {selected.period_label}(으)로 전환합니다. 준비 상태를 다시 읽은 데이터베이스 RPC가 마지막으로 검증하며, 충돌하거나 미완료 항목이 생기면 승격은 중단됩니다.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={() => setSelectedId(null)} disabled={promoting} className="min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50">취소</button>
-            <button type="button" onClick={() => void promote()} disabled={promoting || !selected.readiness} className="min-h-10 rounded-lg bg-[#8F3F3F] px-4 text-sm font-bold text-white disabled:opacity-50">
+            <button type="button" onClick={() => setSelectedId(null)} disabled={promoting} className="min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50">취소</button>
+            <button type="button" onClick={() => void promote()} disabled={promoting || !selected.readiness} className="min-h-10 rounded-[6px] bg-[#8F3F3F] px-4 text-sm font-bold text-white disabled:opacity-50">
               {promoting ? "승격 검증 중…" : "최종 승격 실행"}
             </button>
           </div>
@@ -1667,7 +1667,7 @@ function DedupeWorkspace() {
         <div
           role="tablist"
           aria-label="중복 판단 대상"
-          className="grid w-full grid-cols-2 rounded-xl border border-[#E2D3C8] bg-white p-1 sm:w-auto"
+          className="grid w-full grid-cols-2 rounded-[6px] border border-[#E2D3C8] bg-white p-1 sm:w-auto"
         >
           {(["vendor", "agency"] as const).map((candidateKind) => (
             <button
@@ -1677,20 +1677,20 @@ function DedupeWorkspace() {
               aria-selected={kind === candidateKind}
               disabled={busyId !== null}
               onClick={() => setKind(candidateKind)}
-              className={`min-h-10 rounded-lg px-4 text-sm font-semibold ${kind === candidateKind ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}
+              className={`min-h-10 rounded-[6px] px-4 text-sm font-semibold ${kind === candidateKind ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}
             >
               {candidateKind === "vendor" ? "업체 후보" : "대행사 후보"}
             </button>
           ))}
         </div>
       </div>
-      {error && <p className="mb-4 rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+      {error && <p className="mb-4 rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
       {loading ? (
         <AdminLoadingState label={`${kind === "vendor" ? "업체" : "대행사"} 중복 후보를 불러오는 중입니다…`} />
       ) : error && candidates.length === 0 ? (
         <AdminErrorState message={error} onRetry={() => void load()} />
       ) : candidates.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center"><CopyCheck className="mx-auto text-[#6D806E]" /><p className="mt-3 font-semibold text-[var(--hb-text-strong)]">판단할 중복 후보가 없습니다.</p></div>
+        <div className="rounded-[6px] border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center"><CopyCheck className="mx-auto text-[#6D806E]" /><p className="mt-3 font-semibold text-[var(--hb-text-strong)]">판단할 중복 후보가 없습니다.</p></div>
       ) : (
         <div className="space-y-4">
           {candidates.map((candidate) => {
@@ -1699,16 +1699,16 @@ function DedupeWorkspace() {
               const right = joinedVendor(candidate.right_vendor);
               if (!left || !right) {
                 return (
-                  <article key={candidate.id} className="rounded-2xl border border-[#E7C9A9] bg-[#FFF6E8] p-5 text-sm text-[#70472D]">
+                  <article key={candidate.id} className="rounded-[6px] border border-[#E7C9A9] bg-[#FFF6E8] p-5 text-sm text-[#70472D]">
                     연결된 업체 정보가 누락된 후보입니다. 병합하지 말고 데이터베이스 관계를 확인해 주세요.
                   </article>
                 );
               }
               return (
-                <article key={candidate.id} className="rounded-2xl border border-[#E2D3C8] bg-white p-4 sm:p-5">
+                <article key={candidate.id} className="rounded-[6px] border border-[#E2D3C8] bg-white p-4 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--hb-hairline)] pb-4">
                     <div><p className="text-xs font-semibold text-[var(--color-rose-700)]">유사도 {candidate.similarity === null ? "미확인" : `${Math.round(candidate.similarity * 100)}%`}</p><p className="mt-1 text-sm text-[#6D806E]">{candidate.reason || "이름·지역 유사 후보"}</p></div>
-                    <button type="button" disabled={busyId !== null} onClick={() => void decide(candidate, "different", null)} className="min-h-10 rounded-lg border border-[#C7D1C2] px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50">다른 업체 · 별도 개체로 기록</button>
+                    <button type="button" disabled={busyId !== null} onClick={() => void decide(candidate, "different", null)} className="min-h-10 rounded-[6px] border border-[#C7D1C2] px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50">다른 업체 · 별도 개체로 기록</button>
                   </div>
                   <div className="grid gap-4 pt-4 md:grid-cols-2">
                     {[left, right].map((vendor, index) => (
@@ -1717,7 +1717,7 @@ function DedupeWorkspace() {
                         <p className="mt-1 break-words text-lg font-bold text-[var(--hb-text-strong)]">{vendor.name}</p>
                         <p className="mt-1 text-sm text-[#6D806E]">{vendor.category} · {vendorRegionLabel(vendor.region_code) || vendor.region_code || "지역 미확인"}</p>
                         {vendor.aliases && vendor.aliases.length > 0 && <p className="mt-2 break-words text-xs text-[#6D806E]">별칭: {vendor.aliases.join(", ")}</p>}
-                        <button type="button" disabled={busyId !== null} onClick={() => void decide(candidate, "same", vendor.id)} className="mt-4 min-h-10 w-full rounded-lg bg-[var(--hb-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto">같은 업체(병합) · {vendor.name} 유지</button>
+                        <button type="button" disabled={busyId !== null} onClick={() => void decide(candidate, "same", vendor.id)} className="mt-4 min-h-10 w-full rounded-[6px] bg-[var(--hb-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 sm:w-auto">같은 업체(병합) · {vendor.name} 유지</button>
                       </div>
                     ))}
                   </div>
@@ -1729,20 +1729,20 @@ function DedupeWorkspace() {
             const right = joinedAgency(candidate.right_agency);
             if (!left || !right) {
               return (
-                <article key={candidate.id} className="rounded-2xl border border-[#E7C9A9] bg-[#FFF6E8] p-5 text-sm text-[#70472D]">
+                <article key={candidate.id} className="rounded-[6px] border border-[#E7C9A9] bg-[#FFF6E8] p-5 text-sm text-[#70472D]">
                   연결된 대행사 정보가 누락된 후보입니다. 병합하지 말고 데이터베이스 관계를 확인해 주세요.
                 </article>
               );
             }
             const sameRegion = Boolean(left.region_code && left.region_code === right.region_code);
             return (
-              <article key={candidate.id} className="rounded-2xl border border-[#E2D3C8] bg-white p-4 sm:p-5">
+              <article key={candidate.id} className="rounded-[6px] border border-[#E2D3C8] bg-white p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--hb-hairline)] pb-4">
                   <div><p className="text-xs font-semibold text-[var(--color-rose-700)]">유사도 {candidate.similarity === null ? "미확인" : `${Math.round(candidate.similarity * 100)}%`}</p><p className="mt-1 text-sm text-[#6D806E]">{candidate.reason || "이름·지역 유사 후보"}</p></div>
-                  <button type="button" disabled={busyId !== null} onClick={() => void decide(candidate, "different", null)} className="min-h-10 rounded-lg border border-[#C7D1C2] px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50">다른 대행사 · 별도 개체로 기록</button>
+                  <button type="button" disabled={busyId !== null} onClick={() => void decide(candidate, "different", null)} className="min-h-10 rounded-[6px] border border-[#C7D1C2] px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50">다른 대행사 · 별도 개체로 기록</button>
                 </div>
                 {!sameRegion && (
-                  <p className="mt-4 rounded-lg border border-[#E7C9A9] bg-[#FFF6E8] px-4 py-3 text-sm leading-6 text-[#70472D]" role="status">
+                  <p className="mt-4 rounded-[6px] border border-[#E7C9A9] bg-[#FFF6E8] px-4 py-3 text-sm leading-6 text-[#70472D]" role="status">
                     두 대행사의 지역이 같다고 확인되지 않아 병합할 수 없습니다. 지역을 먼저 정정하거나 ‘다른 대행사’로 판단해 주세요.
                   </p>
                 )}
@@ -1755,7 +1755,7 @@ function DedupeWorkspace() {
                       {agency.corporate_name && <p className="mt-2 break-words text-xs text-[#6D806E]">법인명: {agency.corporate_name}</p>}
                       {agency.normalized_name && <p className="mt-1 break-words text-xs text-[#6D806E]">정규화명: {agency.normalized_name}</p>}
                       {agency.aliases && agency.aliases.length > 0 && <p className="mt-1 break-words text-xs text-[#6D806E]">별칭: {agency.aliases.join(", ")}</p>}
-                      <button type="button" disabled={busyId !== null || !sameRegion} onClick={() => void decide(candidate, "same", agency.id)} className="mt-4 min-h-10 w-full rounded-lg bg-[var(--hb-primary)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">같은 대행사(병합) · {agency.name} 유지</button>
+                      <button type="button" disabled={busyId !== null || !sameRegion} onClick={() => void decide(candidate, "same", agency.id)} className="mt-4 min-h-10 w-full rounded-[6px] bg-[var(--hb-primary)] px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto">같은 대행사(병합) · {agency.name} 유지</button>
                     </div>
                   ))}
                 </div>
@@ -1779,10 +1779,10 @@ export default function AdminPricePage() {
         <AutoValidatedApprovalPanel />
         <BulkApprovalPanel />
         <SnapshotReadinessPanel />
-        <div className="mb-7 grid w-full grid-cols-3 rounded-xl border border-[#E2D3C8] bg-white p-1 sm:inline-grid sm:w-auto">
-          <button type="button" onClick={() => setView("prices")} className={`min-h-10 whitespace-nowrap rounded-lg px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "prices" ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}>개별 가격</button>
-          <button type="button" onClick={() => setView("packages")} className={`min-h-10 whitespace-nowrap rounded-lg px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "packages" ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}>대행사 패키지</button>
-          <button type="button" onClick={() => setView("dedupe")} className={`min-h-10 whitespace-nowrap rounded-lg px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "dedupe" ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}>중복 판단</button>
+        <div className="mb-7 grid w-full grid-cols-3 rounded-[6px] border border-[#E2D3C8] bg-white p-1 sm:inline-grid sm:w-auto">
+          <button type="button" onClick={() => setView("prices")} className={`min-h-10 whitespace-nowrap rounded-[6px] px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "prices" ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}>개별 가격</button>
+          <button type="button" onClick={() => setView("packages")} className={`min-h-10 whitespace-nowrap rounded-[6px] px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "packages" ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}>대행사 패키지</button>
+          <button type="button" onClick={() => setView("dedupe")} className={`min-h-10 whitespace-nowrap rounded-[6px] px-2 text-xs font-semibold sm:px-4 sm:text-sm ${view === "dedupe" ? "bg-[var(--hb-primary)] text-white" : "text-[#6D806E]"}`}>중복 판단</button>
         </div>
         {view === "prices" ? <PriceReviewWorkspace /> : view === "packages" ? <AgencyPackageReviewWorkspace /> : <DedupeWorkspace />}
       </main>

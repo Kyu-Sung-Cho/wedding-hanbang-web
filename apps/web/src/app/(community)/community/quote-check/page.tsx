@@ -131,7 +131,7 @@ export default function AmoraQuoteCheckPage() {
             커뮤니티로 돌아가기
           </Link>
 
-          <section className="rounded-xl border border-[var(--hb-hairline)] bg-white p-4 sm:p-5 lg:p-6">
+          <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 sm:p-5 lg:p-6">
             <div className="flex flex-col gap-4 border-b border-[#f0efed] pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#dfc9c1] bg-[var(--hb-surface-hover)] px-3 py-1 text-xs font-medium text-[var(--hb-text-strong)]">
@@ -148,7 +148,7 @@ export default function AmoraQuoteCheckPage() {
               </div>
               <Link
                 href={weddingPath("/community/post/write?category=is_normal")}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-[var(--hb-hairline)] px-4 py-2.5 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+                className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] px-4 py-2.5 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
               >
                 <ClipboardCheck className="h-4 w-4" />
                 글쓰기에서 공유하기
@@ -161,7 +161,7 @@ export default function AmoraQuoteCheckPage() {
                 <select
                   value={category}
                   onChange={(event) => resetSelection(event.target.value as AmoraQuoteCategory)}
-                  className="w-full rounded-lg border border-[var(--hb-hairline)] bg-white px-3 py-3 text-sm text-[var(--hb-text-strong)] outline-none transition-colors focus:border-[var(--hb-primary)]"
+                  className="w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 py-3 text-sm text-[var(--hb-text-strong)] outline-none transition-colors focus:border-[var(--hb-primary)]"
                 >
                   {CATEGORY_OPTIONS.map((option) => (
                     <option key={option} value={option}>
@@ -173,7 +173,7 @@ export default function AmoraQuoteCheckPage() {
             </div>
           </section>
 
-          <section className="mt-5 rounded-xl border border-[var(--hb-hairline)] bg-white p-4 sm:p-5 lg:p-6">
+          <section className="mt-5 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 sm:p-5 lg:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">각 항목의 상태</h2>
@@ -192,7 +192,7 @@ export default function AmoraQuoteCheckPage() {
             <ItemGroup title="함께 확인" items={highItems} decisions={itemDecisions} onChange={setItemDecision} />
             <ItemGroup title="해당하면 확인" items={mediumItems} decisions={itemDecisions} onChange={setItemDecision} />
 
-            <div className="mt-5 rounded-lg border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
+            <div className="mt-5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
               <p className="text-sm font-semibold text-[var(--hb-text-strong)]">선택한 내용은 저장하지 않습니다</p>
               <p className="text-xs leading-5 text-[var(--hb-text-body)]">
                 분야와 선택 항목은 이번 결과 계산에만 사용하고 별도 서버 DB,
@@ -204,7 +204,7 @@ export default function AmoraQuoteCheckPage() {
             </div>
 
             {error && (
-              <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-4 rounded-[6px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {error}
               </div>
             )}
@@ -213,7 +213,7 @@ export default function AmoraQuoteCheckPage() {
               type="button"
                onClick={() => submit()}
                disabled={loading}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
               체크리스트 결과 보기
@@ -224,7 +224,7 @@ export default function AmoraQuoteCheckPage() {
         </main>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
-          <section className="rounded-xl border border-[var(--hb-hairline)] bg-white p-5">
+          <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5">
             <h2 className="font-serif-kr text-2xl text-[var(--hb-text-strong)]">이 체크리스트, 솔직히 말하면</h2>
             <div className="mt-4 space-y-3 text-sm leading-6 text-[var(--hb-text-body)]">
               <p>
@@ -277,7 +277,7 @@ function ItemGroup({
                 <div
                   role="group"
                   aria-label={`${item.name} 상태`}
-                  className="grid w-full grid-cols-3 overflow-hidden rounded-lg border border-[var(--hb-hairline)] sm:w-[300px]"
+                  className="grid w-full grid-cols-3 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] sm:w-[300px]"
                 >
                   {ITEM_DECISION_OPTIONS.map((option) => {
                     const active = decision === option.value;
@@ -393,10 +393,10 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
   };
 
   return (
-    <section className={`mt-5 rounded-xl border ${style.border} ${style.bg} p-4 sm:p-5 lg:p-6`}>
+    <section className={`mt-5 rounded-[6px] border ${style.border} ${style.bg} p-4 sm:p-5 lg:p-6`}>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex gap-3">
-          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white ${style.text}`}>
+          <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[6px] bg-white ${style.text}`}>
             <Icon className="h-5 w-5" />
           </div>
           <div>
@@ -421,7 +421,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
             value={formatManwon(result.marketMedianManwon)}
           />
         ) : (
-          <div className="rounded-lg bg-white p-4">
+          <div className="rounded-[6px] bg-white p-4">
             <p className="text-xs font-medium text-[var(--hb-text-muted)]">업체별 최신 공시가</p>
             <Link
               href="/price"
@@ -441,19 +441,19 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       </p>
 
       {result.contractQuestions.length > 0 && (
-      <div className="mt-5 rounded-lg bg-white p-4">
+      <div className="mt-5 rounded-[6px] bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="text-sm font-semibold text-[var(--hb-text-strong)]">계약 전 그대로 보낼 질문</h3>
           <button
             type="button"
             onClick={copyQuestions}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[var(--hb-hairline)] px-3 py-2 text-xs font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+            className="inline-flex items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] px-3 py-2 text-xs font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
           >
             {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "복사됨" : "질문 복사"}
           </button>
         </div>
-        <p className="mt-2 rounded-lg bg-[var(--hb-surface-page)] px-3 py-3 text-sm leading-6 text-[var(--hb-text-body)]">
+        <p className="mt-2 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-3 text-sm leading-6 text-[var(--hb-text-body)]">
           {result.negotiationScript}
         </p>
         <ul className="mt-3 space-y-2">
@@ -467,7 +467,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       </div>
       )}
 
-      <div className="mt-4 rounded-lg bg-white px-4 py-3 text-sm font-medium text-[var(--hb-text-strong)]">
+      <div className="mt-4 rounded-[6px] bg-white px-4 py-3 text-sm font-medium text-[var(--hb-text-strong)]">
         {result.recommendedAction}
       </div>
 
@@ -479,14 +479,14 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={chatHref}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
+          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
         >
           <MessageCircle className="h-4 w-4" />
           아모라에게 이어서 묻기
         </Link>
         <Link
           href={postWriteHref}
-          className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+          className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[#dfc9c1] bg-white px-4 py-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
         >
           <PenLine className="h-4 w-4" />
           커뮤니티에 직접 공유하기
@@ -500,7 +500,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
 
 function ResultMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white px-3 py-3">
+    <div className="rounded-[6px] bg-white px-3 py-3">
       <div className="text-xs text-[var(--hb-text-muted)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--hb-text-strong)]">{value}</div>
     </div>
@@ -509,7 +509,7 @@ function ResultMetric({ label, value }: { label: string; value: string }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-[var(--hb-surface-page)] px-3 py-3">
+    <div className="rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-3">
       <div className="text-xs text-[var(--hb-text-muted)]">{label}</div>
       <div className="mt-1 text-base font-semibold text-[var(--hb-text-strong)]">{value}</div>
     </div>

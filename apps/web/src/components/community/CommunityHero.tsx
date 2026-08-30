@@ -28,7 +28,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
   if (isLoggedIn) return null;
 
   return (
-    <section className="rounded-lg border border-[#e4ded9] bg-[var(--hb-surface-hover)] px-4 py-5 sm:px-6 lg:px-7">
+    <section className="rounded-[6px] border border-[#e4ded9] bg-[var(--hb-surface-hover)] px-4 py-5 sm:px-6 lg:px-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <div className="mb-3 inline-flex max-w-full items-center gap-2 rounded-full border border-[#dfc9c1] bg-white px-3 py-1.5 text-xs font-medium text-[var(--hb-text-strong)]">

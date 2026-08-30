@@ -43,7 +43,7 @@ export function VendorMonogram({
   return (
     <span
       aria-hidden="true"
-      className={`inline-flex shrink-0 select-none items-center justify-center rounded-2xl font-bold ${sizeClass}`}
+      className={`inline-flex shrink-0 select-none items-center justify-center rounded-[6px] font-bold ${sizeClass}`}
       style={{ backgroundColor: color.bg, color: color.fg }}
     >
       {monogramChar(name)}

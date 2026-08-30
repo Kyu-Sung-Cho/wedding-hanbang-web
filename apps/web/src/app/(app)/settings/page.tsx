@@ -589,7 +589,7 @@ export default function SettingsPage() {
       {journeyNotice && (
         <div
           role="status"
-          className="mb-4 rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+          className="mb-4 rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
         >
           {journeyNotice}
         </div>
@@ -597,7 +597,7 @@ export default function SettingsPage() {
       {journeyError && (
         <div
           role="alert"
-          className="mb-4 rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+          className="mb-4 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
         >
           {journeyError}
         </div>
@@ -607,7 +607,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-5 mb-6">
           <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
@@ -625,13 +625,13 @@ export default function SettingsPage() {
                       setNameError("");
                     }}
                     onKeyDown={(e) => e.key === "Enter" && saveName()}
-                    className="px-3 py-2 rounded-lg bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
+                    className="px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -647,7 +647,7 @@ export default function SettingsPage() {
                 )}
                 <button
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
-                  className="tap-area shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
+                  className="tap-area shrink-0 w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
@@ -659,7 +659,7 @@ export default function SettingsPage() {
 
         <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[var(--hb-surface-hover)]">
+          <div className="flex items-center gap-3 p-5 rounded-[6px] bg-[var(--hb-surface-hover)]">
             <Calendar className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">결혼 예정일</p>
@@ -669,13 +669,13 @@ export default function SettingsPage() {
                     type="date"
                     value={dateInput}
                     onChange={(e) => setDateInput(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
+                    className="px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-md bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -684,7 +684,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{dateStr}</p>
                   <button
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
-                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -694,7 +694,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 결혼식장 — 온보딩 값이며 두 사람이 함께 확인하고 수정할 수 있다. */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[var(--hb-surface-hover)]">
+          <div className="flex items-center gap-3 p-5 rounded-[6px] bg-[var(--hb-surface-hover)]">
             <MapPin className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">결혼식장</p>
@@ -706,13 +706,13 @@ export default function SettingsPage() {
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
                     placeholder="예: 결혼식장 이름"
-                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
+                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -721,7 +721,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)] truncate">{venueStr}</p>
                   <button
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
-                    className="tap-area w-6 h-6 shrink-0 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
+                    className="tap-area w-6 h-6 shrink-0 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -731,7 +731,7 @@ export default function SettingsPage() {
           </div>
 
           {/* 설정 예산 */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[var(--hb-surface-hover)]">
+          <div className="flex items-center gap-3 p-5 rounded-[6px] bg-[var(--hb-surface-hover)]">
             <Wallet className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">설정 예산</p>
@@ -743,15 +743,15 @@ export default function SettingsPage() {
                       value={budgetInput}
                       onChange={(e) => setBudgetInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveBudget()}
-                      className="w-[90px] px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
+                      className="w-[90px] px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
                       autoFocus
                     />
                     <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-md bg-white flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -760,7 +760,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{budgetStr}</p>
                   <button
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
-                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -777,10 +777,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.03 }}
-        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[var(--shadow-raised)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -897,10 +897,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Heart className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -909,7 +909,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="bg-[var(--hb-surface-hover)] rounded-xl p-5">
+        <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-5">
           {/* 코드가 보이는 유일한 조건은 `awaiting_partner`다. 연결이 끝나면
               /api/couple/code가 inviteCode: null을 주고 패널도 함께 사라진다 —
               패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
@@ -935,7 +935,7 @@ export default function SettingsPage() {
           )}
 
           {phase === "linked" ? (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
+            <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center">
                 <span className="text-base text-white font-medium">{partnerName?.slice(0, 2) ?? "두 분"}</span>
               </div>
@@ -946,7 +946,7 @@ export default function SettingsPage() {
               <Check className="w-6 h-6 text-[#2E7D5A]" />
             </div>
           ) : phase === "sealed_single" ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <div className="flex items-start gap-3">
                 <span className="w-12 h-12 flex-shrink-0 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
                   <ShieldCheck className="w-6 h-6 text-[var(--hb-accent-hover)]" />
@@ -967,7 +967,7 @@ export default function SettingsPage() {
               </div>
             </div>
           ) : phase === "awaiting_partner" ? (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
+            <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
               <div className="w-12 h-12 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
                 <User className="w-6 h-6 text-[var(--hb-text-muted)]" />
               </div>
@@ -978,18 +978,18 @@ export default function SettingsPage() {
               <ChevronRight className="w-5 h-5 text-[var(--hb-text-muted)]" />
             </div>
           ) : regenerateError ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p role="alert" className="text-sm leading-relaxed text-[#D95F5F]">
                 {regenerateError}
               </p>
             </div>
           ) : connectionLookup === "loading" ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p className="text-base font-medium text-[var(--hb-text-body)]">연결 상태를 불러오는 중이에요</p>
               <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-muted)]">잠시만 기다려 주세요.</p>
             </div>
           ) : connectionLookup === "failed" ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p className="text-base font-medium text-[var(--hb-text-strong)]">연결 상태를 불러오지 못했어요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
                 커플 연결이 잘못된 것은 아니에요. 연결 상태만 못 읽었으니 다시 시도해 주세요.
@@ -1003,7 +1003,7 @@ export default function SettingsPage() {
               </button>
             </div>
           ) : (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p className="text-base font-medium text-[var(--hb-text-strong)]">연결 상태를 확인하지 못했어요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
                 안전을 위해 새 멤버 초대는 잠시 멈췄어요. 화면을 새로고침하거나 고객지원에 문의해 주세요.
@@ -1025,7 +1025,7 @@ export default function SettingsPage() {
                 setResetWeddingError("");
                 setShowResetWeddingModal(true);
               }}
-              className="mt-3 w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
+              className="mt-3 w-full flex items-center justify-between gap-3 rounded-[6px] border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
             >
               <span className="flex min-w-0 items-center gap-3">
                 <span className="w-10 h-10 shrink-0 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
@@ -1046,10 +1046,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[var(--shadow-raised)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Bell className="w-5 h-5 text-white" />
           </div>
           <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">알림 설정</h3>
@@ -1062,7 +1062,7 @@ export default function SettingsPage() {
           ].map((item) => (
             <div
               key={item.key}
-              className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[var(--hb-surface-hover)] transition-colors"
+              className="flex items-center justify-between px-5 py-4 rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               <div>
                 <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{item.label}</p>
@@ -1117,13 +1117,13 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.12 }}
-        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[var(--shadow-raised)]"
+        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
       >
         <Link
           {...weddingLinkProps("/settings/amora-style")}
           className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--hb-primary)] shadow-[var(--shadow-raised)]">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] shadow-[var(--shadow-raised)]">
             <Sparkles className="h-5 w-5 text-white" />
           </span>
           <span className="min-w-0 flex-1">
@@ -1146,13 +1146,13 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.13 }}
-        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[var(--shadow-raised)]"
+        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
       >
         <Link
           {...weddingLinkProps("/settings/amora-memory")}
           className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8F6662]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#8F6662] shadow-[var(--shadow-raised)]">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#8F6662] shadow-[var(--shadow-raised)]">
             <BrainCircuit className="h-5 w-5 text-white" />
           </span>
           <span className="min-w-0 flex-1">
@@ -1173,7 +1173,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.15 }}
-        className="bg-white rounded-xl shadow-[var(--shadow-raised)] overflow-hidden mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden mb-6"
       >
         {[
           { label: "이용약관", href: "/terms" },
@@ -1208,7 +1208,7 @@ export default function SettingsPage() {
       >
         <button
           onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-white text-red-400 text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-[6px] bg-white text-red-400 text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow"
         >
           <LogOut className="w-5 h-5" />
           로그아웃
@@ -1237,7 +1237,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
+              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
                 <RotateCcw className="w-6 h-6 text-[var(--hb-accent-hover)]" />
@@ -1270,7 +1270,7 @@ export default function SettingsPage() {
                   setResetWeddingError("");
                 }}
                 placeholder="초기화합니다"
-                className="w-full px-4 py-3 rounded-xl border border-[#E8DDD3] text-base outline-none focus:border-[#C4967E]"
+                className="w-full px-4 py-3 rounded-[6px] border border-[#E8DDD3] text-base outline-none focus:border-[#C4967E]"
               />
               {resetWeddingError && (
                 <p className="mt-3 text-sm text-red-500">{resetWeddingError}</p>
@@ -1280,7 +1280,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowResetWeddingModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium bg-[#f3e9df] transition-colors"
+                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium bg-[#f3e9df] transition-colors"
                 >
                   취소
                 </button>
@@ -1288,7 +1288,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={handleResetWedding}
                   disabled={resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
-                  className="flex-1 py-3 rounded-xl bg-[var(--hb-primary)] text-white font-medium bg-[var(--hb-text-body)] transition-colors disabled:opacity-40"
+                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-primary)] text-white font-medium bg-[var(--hb-text-body)] transition-colors disabled:opacity-40"
                 >
                   {resettingWedding ? "초기화 중..." : "다시 시작"}
                 </button>
@@ -1312,7 +1312,7 @@ export default function SettingsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
+              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
                 <Trash2 className="w-6 h-6 text-red-400" />
@@ -1328,7 +1328,7 @@ export default function SettingsPage() {
               {deletionIntakeOpen !== true && (
                 <p
                   role="status"
-                  className="mb-5 rounded-xl border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]"
+                  className="mb-5 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]"
                 >
                   {ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE}
                 </p>
@@ -1337,7 +1337,7 @@ export default function SettingsPage() {
               {/* 되돌릴 수 없는 행동 앞에서는 무엇이 지워지고 무엇이 남는지
                   먼저 보여준다. 특히 "파트너 화면에는 남는다"는 사실은
                   사람이 놀라는 자리다. */}
-              <div className="mb-5 rounded-xl bg-[var(--hb-surface-hover)] px-4 py-4">
+              <div className="mb-5 rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-4">
                 <p className="text-[13px] font-medium text-[var(--hb-text-body)] mb-2.5">
                   탈퇴하면 이렇게 돼요
                 </p>
@@ -1374,7 +1374,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-[var(--hb-text-body)] mb-3">탈퇴 사유를 선택해주세요</p>
                 <div className="space-y-2">
                   {DELETE_REASONS.map((r) => (
-                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
+                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-[6px] cursor-pointer transition-colors ${
                       deleteReason === r.value ? "bg-[rgba(54,83,78,0.10)] ring-1 ring-[rgba(54,83,78,0.24)]" : "bg-[var(--hb-surface-hover)] bg-[#f3e9df]"
                     }`}>
                       <input
@@ -1400,7 +1400,7 @@ export default function SettingsPage() {
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="탈퇴합니다"
-                  className="w-full px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[var(--hb-text-muted)]"
+                  className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[var(--hb-text-muted)]"
                 />
               </div>
               </>
@@ -1417,7 +1417,7 @@ export default function SettingsPage() {
                   || (deletionIntakeOpen === true
                     && (deleteConfirmText !== "탈퇴합니다" || !deleteReason))
                 }
-                className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-[6px] text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {deleting
                   ? "요청 중..."
@@ -1433,7 +1433,7 @@ export default function SettingsPage() {
                   setDeleteError("");
                   setDeleteReason("");
                 }}
-                className="w-full py-3 rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] transition-all"
+                className="w-full py-3 rounded-[6px] text-base font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] transition-all"
               >
                 취소
               </button>

@@ -179,7 +179,7 @@ export default function VendorTagPicker({
           {selectedVendors.map((v) => (
             <span
               key={v.id}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-[#F5F2ED] rounded-xl"
+              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-white border border-[#F5F2ED] rounded-[6px]"
             >
               {v.thumbnail_url ? (
                 <Image
@@ -220,13 +220,13 @@ export default function VendorTagPicker({
                 if (results.length > 0) setIsOpen(true);
               }}
               placeholder="업체명 검색 (2글자 이상)"
-              className="w-full pl-10 pr-4 py-2.5 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
+              className="w-full pl-10 pr-4 py-2.5 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-[6px] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
             />
           </div>
 
           {/* 드롭다운 결과 */}
           {isOpen && (
-            <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-[#F5F2ED] rounded-xl shadow-lg">
+            <div className="absolute z-20 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-[#F5F2ED] rounded-[6px] shadow-lg">
               {loading ? (
                 <div className="px-4 py-3 text-sm text-[var(--hb-text-muted)]">
                   검색 중...
@@ -258,10 +258,10 @@ export default function VendorTagPicker({
                           alt=""
                           width={32}
                           height={32}
-                          className="w-8 h-8 rounded-lg object-cover bg-[#F5F2ED]"
+                          className="w-8 h-8 rounded-[6px] object-cover bg-[#F5F2ED]"
                         />
                       ) : (
-                        <div className="w-8 h-8 rounded-lg bg-[#F5F2ED] flex items-center justify-center">
+                        <div className="w-8 h-8 rounded-[6px] bg-[#F5F2ED] flex items-center justify-center">
                           <Store className="w-4 h-4 text-[var(--hb-text-muted)]" />
                         </div>
                       )}

@@ -28,7 +28,7 @@ export default function VendorPriceError({
         <button
           type="button"
           onClick={reset}
-          className="mt-6 min-h-11 rounded-lg bg-[var(--hb-primary)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--hb-primary)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
+          className="mt-6 min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[var(--hb-primary)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
         >
           다시 불러오기
         </button>

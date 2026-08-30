@@ -444,7 +444,7 @@ export default function OnboardingPage() {
         )}
 
         {/* 카드 */}
-        <div className="bg-white/80 backdrop-blur-[20px] rounded-3xl border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
+        <div className="bg-white/80 backdrop-blur-[20px] rounded-[6px] border border-black/[0.04] p-8 shadow-[var(--shadow-raised)]">
           {capabilitiesFailed ? (
             <div className="py-10 text-center" role="alert">
               <p className="text-[15px] text-[var(--hb-text-strong)]">
@@ -456,7 +456,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="mt-5 min-h-11 rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-medium text-white"
+                className="mt-5 min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-medium text-white"
               >
                 다시 시도
               </button>
@@ -582,7 +582,7 @@ export default function OnboardingPage() {
                   }
                   store.prevStep();
                 }}
-                className="px-6 py-3 rounded-2xl text-[14px] font-medium border border-black/[0.08] text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
+                className="px-6 py-3 rounded-[6px] text-[14px] font-medium border border-black/[0.08] text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
               >
                 이전
               </button>
@@ -599,7 +599,7 @@ export default function OnboardingPage() {
                     store.nextStep();
                   }}
                   disabled={!canProceed() || (store.currentStep === 2 && store.coupleAction === "join" && loading)}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-[6px] text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   {store.currentStep === 2 && store.coupleAction === "join"
                     ? loading ? "연결 중..." : "파트너와 연결하기"
@@ -609,7 +609,7 @@ export default function OnboardingPage() {
                 {store.currentStep === 4 && (
                   <button
                     onClick={() => store.nextStep()}
-                    className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
+                    className="w-full py-2.5 rounded-[6px] text-[13px] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
                   >
                     나중에 설정할게요
                   </button>
@@ -620,7 +620,7 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => setStagePhase("detail")}
                   disabled={!canProceed()}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-30 disabled:cursor-not-allowed"
+                  className="w-full py-3 rounded-[6px] text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-30 disabled:cursor-not-allowed"
                 >
                   다음
                 </button>
@@ -630,14 +630,14 @@ export default function OnboardingPage() {
                 <button
                   onClick={() => void handleSubmit()}
                   disabled={loading}
-                  className="w-full py-3 rounded-2xl text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-50"
+                  className="w-full py-3 rounded-[6px] text-[14px] font-medium transition-all bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-50"
                 >
                   {loading ? "저장 중..." : "저장하고 시작하기"}
                 </button>
                 <button
                   onClick={handleSkipChecklist}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-2xl text-[13px] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
+                  className="w-full py-2.5 rounded-[6px] text-[13px] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] hover:bg-black/[0.02] transition-all"
                 >
                   건너뛰고 시작하기
                 </button>
@@ -665,7 +665,7 @@ export default function OnboardingPage() {
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className="w-full max-w-[400px] rounded-3xl bg-white p-8 text-center shadow-[var(--shadow-overlay)]"
+              className="w-full max-w-[400px] rounded-[6px] bg-white p-8 text-center shadow-[var(--shadow-overlay)]"
             >
               <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-2xl">
                 🤝
@@ -698,7 +698,7 @@ export default function OnboardingPage() {
               <button
                 type="button"
                 onClick={continueAfterPendingPlan}
-                className="w-full rounded-2xl bg-[var(--hb-primary)] py-3 text-[14px] font-medium text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
+                className="w-full rounded-[6px] bg-[var(--hb-primary)] py-3 text-[14px] font-medium text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
               >
                 확인하고 계속하기
               </button>
@@ -720,7 +720,7 @@ export default function OnboardingPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-3xl p-6 sm:p-8 shadow-[var(--shadow-overlay)] text-center"
+              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)] text-center"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-rose-500/10 flex items-center justify-center">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#26251F" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -772,7 +772,7 @@ export default function OnboardingPage() {
                         window.location.origin,
                       );
                 }}
-                className="w-full py-3 rounded-2xl text-[14px] font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-black/[0.02] transition-all"
+                className="w-full py-3 rounded-[6px] text-[14px] font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-black/[0.02] transition-all"
               >
                 결혼 준비 계속하기
               </button>

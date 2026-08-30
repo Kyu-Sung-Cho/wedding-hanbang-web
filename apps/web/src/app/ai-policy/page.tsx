@@ -81,7 +81,7 @@ export default function AIPolicyPage() {
         </section>
 
         {/* Section 2 — 관리·감독 담당 */}
-        <section className="mb-10 p-6 max-md:p-5 bg-white rounded-lg border border-[#e5dcdc]">
+        <section className="mb-10 p-6 max-md:p-5 bg-white rounded-[6px] border border-[#e5dcdc]">
           <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
             AI 운영 문의
           </h2>

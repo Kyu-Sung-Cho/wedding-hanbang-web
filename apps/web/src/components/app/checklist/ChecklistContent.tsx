@@ -145,7 +145,7 @@ export default function ChecklistContent() {
               첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
-          <div className="min-w-[240px] rounded-[18px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
+          <div className="min-w-[240px] rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
             <div className="flex items-end justify-between gap-4">
               <span className="text-[13px] font-medium text-[var(--hb-text-body)]">전체 진행률</span>
               <strong className="text-[30px] font-semibold leading-none text-[var(--hb-text-strong)]">{summary.percent}%</strong>
@@ -212,11 +212,11 @@ export default function ChecklistContent() {
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
               return (
-                <li key={template.key} className="rounded-[18px] border border-[#e5dece] bg-white p-4 shadow-[var(--shadow-raised)]">
+                <li key={template.key} className="rounded-[6px] border border-[#e5dece] bg-white p-4 shadow-[var(--shadow-raised)]">
                   <button
                     type="button"
                     onClick={() => selectCategory(template.key)}
-                    className="w-full rounded-[12px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+                    className="w-full rounded-[6px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
                     aria-label={`${template.label} 체크리스트 열기`}
                   >
                     <div className="flex items-start gap-3">
@@ -262,7 +262,7 @@ export default function ChecklistContent() {
             })}
           </ul>
         ) : (
-          <div className="mt-3 rounded-[18px] border border-dashed border-[#dcd4c3] bg-[var(--hb-surface-page)] px-5 py-12 text-center">
+          <div className="mt-3 rounded-[6px] border border-dashed border-[#dcd4c3] bg-[var(--hb-surface-page)] px-5 py-12 text-center">
             <p className="text-[14px] font-medium text-[var(--hb-text-body)]">검색 조건에 맞는 준비 항목이 없어요.</p>
             <button type="button" onClick={() => { setFilter("all"); setQuery(""); }} className="mt-3 text-[13px] font-semibold text-[var(--hb-accent-hover)] underline underline-offset-4">
               전체 목록 보기

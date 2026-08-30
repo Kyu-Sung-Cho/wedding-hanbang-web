@@ -112,7 +112,7 @@ export default function PaymentLedger() {
 
   if (isDemo) {
     return (
-      <section className="rounded-2xl border border-[#E2D3C8] bg-white p-5">
+      <section className="rounded-[6px] border border-[#E2D3C8] bg-white p-5">
         <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">계약·지급 기록</h2>
         <p className="mt-2 text-sm leading-6 text-[#6F6760]">
           체험에서는 계약·지급 기록을 저장하지 않아요. 가입 후 두 사람이 함께
@@ -136,7 +136,7 @@ export default function PaymentLedger() {
 
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-[#E2D3C8] bg-white shadow-[var(--shadow-raised)]"
+      className="overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-white shadow-[var(--shadow-raised)]"
       aria-labelledby="payment-ledger-title"
     >
       <div className="border-b border-[var(--hb-hairline)] p-4 sm:p-5">
@@ -163,7 +163,7 @@ export default function PaymentLedger() {
               setEditing(null);
               setShowCreate(true);
             }}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--hb-primary)]"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--hb-primary)]"
           >
             <Plus className="h-4 w-4" />
             기록 추가
@@ -173,7 +173,7 @@ export default function PaymentLedger() {
         {payments.length > 0 && (
           <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-3">
             {summaryItems.map((item) => (
-              <div key={item.label} className="rounded-xl bg-[var(--hb-surface-page)] px-3.5 py-3">
+              <div key={item.label} className="rounded-[6px] bg-[var(--hb-surface-page)] px-3.5 py-3">
                 <p className="text-xs text-[#80766E]">{item.label}</p>
                 <p className="mt-1 text-base font-semibold tabular-nums text-[var(--hb-text-strong)]">
                   {formatWon(item.value)}
@@ -188,7 +188,7 @@ export default function PaymentLedger() {
         {notice && (
           <p
             role="status"
-            className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-3.5 py-3 text-sm leading-5 text-[#315B49]"
+            className="rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-3.5 py-3 text-sm leading-5 text-[#315B49]"
           >
             {notice}
           </p>
@@ -196,7 +196,7 @@ export default function PaymentLedger() {
         {error && (
           <div
             role="alert"
-            className="flex flex-col gap-3 rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-3.5 py-3 text-sm text-[#8C3E3E] sm:flex-row sm:items-center sm:justify-between"
+            className="flex flex-col gap-3 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-3.5 py-3 text-sm text-[#8C3E3E] sm:flex-row sm:items-center sm:justify-between"
           >
             <span className="flex items-start gap-2 leading-5">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -226,12 +226,12 @@ export default function PaymentLedger() {
         {loading ? (
           <div
             role="status"
-            className="rounded-xl bg-[var(--hb-surface-page)] px-4 py-8 text-center text-sm text-[#80766E]"
+            className="rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-8 text-center text-sm text-[#80766E]"
           >
             계약·지급 기록을 불러오는 중…
           </div>
         ) : payments.length === 0 && !showCreate && !error ? (
-          <div className="rounded-xl border border-dashed border-[#D9CEC1] px-4 py-8 text-center">
+          <div className="rounded-[6px] border border-dashed border-[#D9CEC1] px-4 py-8 text-center">
             <FileText className="mx-auto h-6 w-6 text-[#A77B74]" aria-hidden="true" />
             <p className="mt-3 text-sm font-semibold text-[var(--hb-text-strong)]">
               아직 계약·지급 기록이 없어요
@@ -243,7 +243,7 @@ export default function PaymentLedger() {
             <button
               type="button"
               onClick={() => setShowCreate(true)}
-              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#A77B74] px-4 py-2.5 text-sm font-semibold text-[#8F6662]"
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#A77B74] px-4 py-2.5 text-sm font-semibold text-[#8F6662]"
             >
               <Plus className="h-4 w-4" />
               첫 기록 추가
@@ -311,7 +311,7 @@ export default function PaymentLedger() {
                         setShowCreate(false);
                         setEditing(payment);
                       }}
-                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-[#D9CEC1] px-3 py-2 text-sm font-medium text-[#5E5751] hover:bg-[var(--hb-surface-page)]"
+                      className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-[#D9CEC1] px-3 py-2 text-sm font-medium text-[#5E5751] hover:bg-[var(--hb-surface-page)]"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                       수정

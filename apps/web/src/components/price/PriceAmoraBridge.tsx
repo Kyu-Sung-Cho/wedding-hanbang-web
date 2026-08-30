@@ -9,7 +9,7 @@ export function PriceAmoraBridge() {
   return (
     <section
       aria-label="아모라 체험 안내"
-      className="mt-10 rounded-[24px] border border-[var(--hb-primary)]/15 bg-[var(--hb-primary)]/[0.06] px-5 py-8 text-center sm:px-8"
+      className="mt-10 rounded-[6px] border border-[var(--hb-primary)]/15 bg-[var(--hb-primary)]/[0.06] px-5 py-8 text-center sm:px-8"
     >
       <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
         <MessageCircleHeart aria-hidden="true" className="size-6" />

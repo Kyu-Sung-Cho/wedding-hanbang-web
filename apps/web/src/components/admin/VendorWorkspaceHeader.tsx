@@ -15,7 +15,7 @@ export function VendorWorkspaceHeader({ active }: { active: ActiveWorkspace }) {
     <header className="border-b border-[#E2D3C8] bg-[var(--hb-surface-page)]">
       <div className="mx-auto flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 py-4 lg:px-8">
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-[var(--hb-primary)] text-white">
+          <span className="grid h-10 w-10 place-items-center rounded-[6px] bg-[var(--hb-primary)] text-white">
             <Store aria-hidden="true" size={19} />
           </span>
           <div>
@@ -29,7 +29,7 @@ export function VendorWorkspaceHeader({ active }: { active: ActiveWorkspace }) {
               key={key}
               href={href}
               aria-current={active === key ? "page" : undefined}
-              className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold transition-colors ${
+              className={`inline-flex min-h-10 items-center gap-2 rounded-[6px] px-3.5 text-sm font-semibold transition-colors ${
                 active === key
                   ? "bg-[var(--hb-primary)] text-white"
                   : "text-[var(--hb-text-strong)] hover:bg-[#EFE4D7]"
@@ -41,7 +41,7 @@ export function VendorWorkspaceHeader({ active }: { active: ActiveWorkspace }) {
           ))}
           <Link
             href="/admin"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg px-3.5 text-sm font-semibold text-[#6D806E] hover:bg-[#EFE4D7]"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] px-3.5 text-sm font-semibold text-[#6D806E] hover:bg-[#EFE4D7]"
           >
             <ArrowLeft aria-hidden="true" size={16} />
             전체 관리
@@ -65,13 +65,13 @@ export function AdminLoadingState({ label }: { label: string }) {
 
 export function AdminErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
   return (
-    <div className="mx-auto my-16 max-w-lg rounded-2xl border border-[#D95F5F]/30 bg-white p-7 text-center" role="alert">
+    <div className="mx-auto my-16 max-w-lg rounded-[6px] border border-[#D95F5F]/30 bg-white p-7 text-center" role="alert">
       <p className="font-semibold text-[var(--hb-text-strong)]">데이터를 불러오지 못했습니다</p>
       <p className="mt-2 text-sm leading-6 text-[#6D806E]">{message}</p>
       <button
         type="button"
         onClick={onRetry}
-        className="mt-5 min-h-11 rounded-lg bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
+        className="mt-5 min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white"
       >
         다시 시도
       </button>
@@ -118,7 +118,7 @@ export function SignedSourceLink({
             href={file.signed_url}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
+            className="inline-flex min-h-9 items-center rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
           >
             {files.length > 1 ? `원본 ${index + 1} · ` : ""}{file.label}
           </a>
@@ -132,7 +132,7 @@ export function SignedSourceLink({
       onClick={() => void load()}
       disabled={loading}
       title={error || undefined}
-      className="inline-flex min-h-9 items-center rounded-lg border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
+      className="inline-flex min-h-9 items-center rounded-[6px] border border-[#C7D1C2] bg-white px-3 text-xs font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
     >
       {loading ? "원본 링크 준비 중…" : error ? "원본 다시 열기" : `${label}${expectedCount > 1 ? ` ${expectedCount}개` : ""}`}
     </button>

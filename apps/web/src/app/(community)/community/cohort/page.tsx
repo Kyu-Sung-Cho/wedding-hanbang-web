@@ -24,7 +24,7 @@ type SelectedCohort = {
 function LoadingState() {
   return (
     <div className="min-h-[68vh] bg-[var(--hb-surface-page)] px-4 py-8 sm:px-6 lg:py-12">
-      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
@@ -49,7 +49,7 @@ function LoadingState() {
               { icon: CalendarCheck, label: "같은 분기 커플의 준비 흐름 참고" },
               { icon: ShieldCheck, label: "실명 없이 필요한 정보만 안전하게 공유" },
             ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3 rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 py-3">
+              <div key={item.label} className="flex items-center gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 py-3">
                 <item.icon className="h-4 w-4 text-[var(--hb-text-strong)]" />
                 <span className="text-sm font-semibold text-[var(--hb-text-strong)]">{item.label}</span>
               </div>
@@ -217,7 +217,7 @@ function CohortIndexInner() {
 
   return (
     <div className="min-h-[68vh] bg-[var(--hb-surface-page)] px-4 py-8 sm:px-6 lg:py-12">
-      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
@@ -242,7 +242,7 @@ function CohortIndexInner() {
               { icon: CalendarCheck, label: "같은 분기 커플의 준비 흐름 참고" },
               { icon: ShieldCheck, label: "실명 없이 필요한 정보만 안전하게 공유" },
             ].map((item) => (
-              <div key={item.label} className="flex items-center gap-3 rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 py-3">
+              <div key={item.label} className="flex items-center gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 py-3">
                 <item.icon className="h-4 w-4 text-[var(--hb-text-strong)]" />
                 <span className="text-sm font-semibold text-[var(--hb-text-strong)]">{item.label}</span>
               </div>

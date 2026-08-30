@@ -263,13 +263,13 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-xl shadow-[var(--shadow-overlay)] z-50 max-h-[84dvh] flex flex-col overflow-hidden animate-fade-in"
+        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-[6px] shadow-[var(--shadow-overlay)] z-50 max-h-[84dvh] flex flex-col overflow-hidden animate-fade-in"
       >
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
+              <div className="w-11 h-11 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
                 <Icon className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <div>
@@ -289,7 +289,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               type="button"
               onClick={onClose}
               aria-label={`${template.label} 체크리스트 닫기`}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+              className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -316,7 +316,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             type="button"
             onClick={toggleNotApplicable}
             disabled={saving}
-            className="mt-4 w-full rounded-xl border border-[#EDEAE4] bg-white px-4 py-3 text-left text-sm text-[#5f5a52] transition-colors hover:bg-[#FAF8F5] disabled:opacity-50"
+            className="mt-4 w-full rounded-[6px] border border-[#EDEAE4] bg-white px-4 py-3 text-left text-sm text-[#5f5a52] transition-colors hover:bg-[#FAF8F5] disabled:opacity-50"
           >
             {isNotApplicable ? (
               <>
@@ -351,7 +351,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                 disabled={saving || isNotApplicable}
                 onClick={() => toggleItem(item.id)}
-                className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
+                className="flex w-full items-center gap-3 rounded-[6px] bg-white px-3 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
               >
                 <div className="flex-shrink-0">
                   {item.done ? (
@@ -389,13 +389,13 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           {error && (
             <p
               role="alert"
-              className="mb-3 rounded-lg border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
+              className="mb-3 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
             >
               {error}
             </p>
           )}
           {notice && (
-            <p role="status" className="mb-3 rounded-lg border border-[#d9e2d3] bg-[#f6faf4] px-3 py-2 text-sm leading-5 text-[#506747]">
+            <p role="status" className="mb-3 rounded-[6px] border border-[#d9e2d3] bg-[#f6faf4] px-3 py-2 text-sm leading-5 text-[#506747]">
               {notice}
             </p>
           )}
@@ -408,9 +408,9 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
           <Link
             {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
-            className="mt-3 flex items-center gap-2.5 rounded-xl bg-[var(--hb-surface-hover)] px-3 py-3 transition-colors bg-[#f3e9df] group"
+            className="mt-3 flex items-center gap-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-3 transition-colors bg-[#f3e9df] group"
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)]">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)]">
               <BookOpen className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">

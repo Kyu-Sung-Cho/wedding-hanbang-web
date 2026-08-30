@@ -50,9 +50,9 @@ function SlideWelcome() {
         ].map((item, i) => (
           <div
             key={i}
-            className="flex-1 flex flex-col items-center gap-2 py-5 px-2 rounded-2xl bg-[var(--hb-surface-hover)] border border-[#f6f3f2]"
+            className="flex-1 flex flex-col items-center gap-2 py-5 px-2 rounded-[6px] bg-[var(--hb-surface-hover)] border border-[#f6f3f2]"
           >
-            <div className="w-11 h-11 rounded-xl bg-[var(--hb-primary)] flex items-center justify-center text-white">
+            <div className="w-11 h-11 rounded-[6px] bg-[var(--hb-primary)] flex items-center justify-center text-white">
               {item.icon}
             </div>
             <span className="text-base font-medium text-[var(--hb-text-strong)]">{item.label}</span>
@@ -84,7 +84,7 @@ function SlideDashboard() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* D-day 카드 */}
         <div className="relative">
-          <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 flex items-center justify-between shadow-sm">
+          <div className="rounded-[6px] border border-[#d8bb86]/60 bg-white p-4 flex items-center justify-between shadow-sm">
             <div>
               <p className="text-sm text-[var(--hb-text-body)] mb-0.5">우리의 결혼식</p>
               <p className="text-sm font-semibold text-[var(--hb-text-strong)]">2026. 09. 12 (토)</p>
@@ -104,7 +104,7 @@ function SlideDashboard() {
         </div>
 
         {/* 진행률 카드 */}
-        <div className="relative rounded-2xl bg-white border border-[#f6f3f2] p-4">
+        <div className="relative rounded-[6px] bg-white border border-[#f6f3f2] p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-base font-medium text-[var(--hb-text-strong)]">전체 진행률</span>
             <span className="text-base font-medium text-[var(--hb-text-strong)]">35%</span>
@@ -124,7 +124,7 @@ function SlideDashboard() {
         </div>
 
         {/* 카테고리 상태 */}
-        <div className="rounded-2xl bg-white border border-[#f6f3f2] p-4">
+        <div className="rounded-[6px] bg-white border border-[#f6f3f2] p-4">
           <p className="text-sm text-[var(--hb-text-body)] mb-3">카테고리 현황</p>
           <div className="flex flex-wrap gap-2">
             {[
@@ -146,7 +146,7 @@ function SlideDashboard() {
               >
                 {cat.status === "done" && <Check className="w-3 h-3" />}
                 {cat.status === "progress" && <RefreshCw className="w-3 h-3" />}
-                {cat.status === "todo" && <span className="w-3 h-3 rounded-sm border border-[#B5ADA3]/40" />}
+                {cat.status === "todo" && <span className="w-3 h-3 rounded-[6px] border border-[#B5ADA3]/40" />}
                 {cat.name}
               </span>
             ))}
@@ -172,7 +172,7 @@ function SlideChat() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 유저 메시지 (오른쪽) */}
         <div className="flex justify-end">
-          <div className="max-w-[75%] rounded-2xl rounded-tr-md bg-[var(--hb-primary)] text-white px-4 py-2.5 shadow-sm">
+          <div className="max-w-[75%] rounded-[6px] rounded-tr-md bg-[var(--hb-primary)] text-white px-4 py-2.5 shadow-sm">
             <p className="text-base leading-relaxed">이번 주에 웨딩 사진 촬영 업체와 상담하는데, 무엇을 확인해야 할까?</p>
           </div>
         </div>
@@ -183,14 +183,14 @@ function SlideChat() {
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col gap-2 max-w-[80%]">
-            <div className="rounded-2xl rounded-tl-md bg-[var(--hb-surface-hover)] border border-[#f6f3f2] px-4 py-2.5">
+            <div className="rounded-[6px] rounded-tl-md bg-[var(--hb-surface-hover)] border border-[#f6f3f2] px-4 py-2.5">
               <p className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 상담 전에 예산 범위, 원하는 촬영 분위기, 추가로 궁금한 질문을 먼저 정리해두면 좋아요.
               </p>
             </div>
 
             {/* 현재 연결 가능한 준비 도구 */}
-            <div className="rounded-xl bg-white border border-[#f6f3f2] p-3 shadow-sm">
+            <div className="rounded-[6px] bg-white border border-[#f6f3f2] p-3 shadow-sm">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Check className="w-3.5 h-3.5 text-[var(--hb-success)] shrink-0" />
@@ -249,7 +249,7 @@ function SlideBudget() {
       {/* Mock 예산 UI */}
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 총 예산 카드 */}
-        <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
+        <div className="rounded-[6px] border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-[var(--hb-text-body)]">총 예산</span>
             <span className="text-base font-semibold text-[var(--hb-text-strong)]">3,000만원</span>
@@ -267,7 +267,7 @@ function SlideBudget() {
         </div>
 
         {/* 카테고리 리스트 */}
-        <div className="rounded-2xl bg-white border border-[#f6f3f2] overflow-hidden divide-y divide-[#f6f3f2]">
+        <div className="rounded-[6px] bg-white border border-[#f6f3f2] overflow-hidden divide-y divide-[#f6f3f2]">
           {[
             {
               name: "결혼식장",
@@ -359,7 +359,7 @@ function SlideFeaturePages() {
       </p>
 
       <div className="w-full max-w-[380px] flex flex-col gap-3">
-        <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
+        <div className="rounded-[6px] border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
           <p className="text-sm font-medium text-[var(--hb-text-strong)] mb-2">추천 흐름</p>
           <p className="text-base leading-relaxed text-[var(--hb-text-strong)]">
             아모라에게 결혼 준비를 말하면, 답변에서 나온 금액은 예산에, 해야 할 일과 날짜는 할 일·일정에 이어서 정리할 수 있어요.
@@ -370,8 +370,8 @@ function SlideFeaturePages() {
           {features.map((feature) => {
             const Icon = feature.icon;
             return (
-              <div key={feature.title} className="rounded-2xl border border-[#f6f3f2] bg-white p-4">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
+              <div key={feature.title} className="rounded-[6px] border border-[#f6f3f2] bg-white p-4">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[6px] bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
                   <Icon className="h-5 w-5" />
                 </div>
                 <h3 className="text-base font-medium text-[var(--hb-text-strong)]">{feature.title}</h3>
@@ -381,7 +381,7 @@ function SlideFeaturePages() {
           })}
         </div>
 
-        <div className="rounded-2xl border border-[#f6f3f2] bg-[var(--hb-surface-hover)] px-4 py-3">
+        <div className="rounded-[6px] border border-[#f6f3f2] bg-[var(--hb-surface-hover)] px-4 py-3">
           <p className="text-sm leading-relaxed text-[var(--hb-text-body)]">
             무엇부터 해야 할지 막히면 아모라에게 지금 상황을 말해보세요. 필요한 일과 날짜, 금액을 한곳에서 이어서 정리할 수 있어요.
           </p>
@@ -419,7 +419,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
       {/* CTA 버튼 */}
       <button
         onClick={onStart}
-        className="w-full max-w-[320px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-2xl shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] hover:shadow-[var(--shadow-raised)] transition-all mb-5"
+        className="w-full max-w-[320px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-[6px] shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] hover:shadow-[var(--shadow-raised)] transition-all mb-5"
       >
         시작하기
       </button>
@@ -430,7 +430,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
           type="checkbox"
           checked={neverShow}
           onChange={(e) => onNeverShowChange(e.target.checked)}
-          className="w-4 h-4 rounded border-[#B5ADA3] text-[var(--hb-text-strong)] focus:ring-[var(--hb-primary)]/30 accent-[var(--hb-text-strong)]"
+          className="w-4 h-4 rounded-[6px] border-[#B5ADA3] text-[var(--hb-text-strong)] focus:ring-[var(--hb-primary)]/30 accent-[var(--hb-text-strong)]"
         />
         <span className="text-base text-[var(--hb-text-muted)]">다시 보지 않기</span>
       </label>
@@ -575,7 +575,7 @@ export default function ServiceGuide() {
       }}
     >
       <div
-        className={`relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl transition-all duration-300 ${
+        className={`relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100vh-2rem)] overflow-y-auto bg-white rounded-[6px] shadow-2xl transition-all duration-300 ${
           entered
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-95 translate-y-4"
@@ -647,14 +647,14 @@ export default function ServiceGuide() {
               <button
                 onClick={prev}
                 disabled={current === 0}
-                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
+                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-[6px]"
               >
                 <ChevronLeft className="w-4 h-4" />
                 이전
               </button>
               <button
                 onClick={next}
-                className="flex items-center gap-1 px-6 py-3 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white text-base font-medium rounded-xl transition-colors"
+                className="flex items-center gap-1 px-6 py-3 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white text-base font-medium rounded-[6px] transition-colors"
               >
                 다음
                 <ChevronRight className="w-4 h-4" />

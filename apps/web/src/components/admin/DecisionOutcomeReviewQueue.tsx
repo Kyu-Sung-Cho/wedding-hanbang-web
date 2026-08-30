@@ -433,7 +433,7 @@ export function DecisionOutcomeReviewQueue() {
               void loadQueue();
             }}
             disabled={loading || loadingMore || busyOutcomeId !== null}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <RefreshCcw
               className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -498,7 +498,7 @@ export function DecisionOutcomeReviewQueue() {
             <button
               type="button"
               onClick={() => void loadQueue()}
-              className="mt-5 min-h-11 rounded-xl bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
+              className="mt-5 min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
             >
               다시 불러오기
             </button>
@@ -664,7 +664,7 @@ export function DecisionOutcomeReviewQueue() {
                           disabled={busyOutcomeId !== null}
                           aria-describedby={reasonHelpId}
                           placeholder="예: 원문과 선택 근거, 상업관계 공개 범위를 직접 확인했습니다."
-                          className="mt-2 w-full resize-y rounded-xl border border-[#C7D1C2] bg-white px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-[#9B958B] focus:border-[var(--hb-primary)] focus:ring-2 focus:ring-[var(--hb-primary)]/15 disabled:bg-[#F5F2ED]"
+                          className="mt-2 w-full resize-y rounded-[6px] border border-[#C7D1C2] bg-white px-3 py-2.5 text-sm leading-6 outline-none placeholder:text-[#9B958B] focus:border-[var(--hb-primary)] focus:ring-2 focus:ring-[var(--hb-primary)]/15 disabled:bg-[#F5F2ED]"
                         />
                         <div
                           id={reasonHelpId}
@@ -681,7 +681,7 @@ export function DecisionOutcomeReviewQueue() {
                             type="button"
                             onClick={() => stageReview(item, "reject")}
                             disabled={busyOutcomeId !== null}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#D8A8A0] bg-white px-4 text-sm font-semibold text-[#9A3F35] hover:bg-[#FFF3F0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A63C2C] disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#D8A8A0] bg-white px-4 text-sm font-semibold text-[#9A3F35] hover:bg-[#FFF3F0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#A63C2C] disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <XCircle className="h-4 w-4" aria-hidden="true" />
                             반려 검토
@@ -691,7 +691,7 @@ export function DecisionOutcomeReviewQueue() {
                             onClick={() => stageReview(item, "publish")}
                             disabled={!canPublish || busyOutcomeId !== null}
                             aria-describedby={!canPublish ? publishBlockId : undefined}
-                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
+                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[#29423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-45"
                           >
                             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
                             공개 승인 검토
@@ -730,7 +730,7 @@ export function DecisionOutcomeReviewQueue() {
                               type="button"
                               onClick={() => setConfirmation(null)}
                               disabled={isBusy}
-                              className="min-h-11 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
+                              className="min-h-11 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-50"
                             >
                               취소
                             </button>
@@ -741,8 +741,8 @@ export function DecisionOutcomeReviewQueue() {
                               aria-busy={isBusy}
                               className={
                                 confirmation.decision === "publish"
-                                  ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
-                                  : "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#9A3F35] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                                  ? "inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                                  : "inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[#9A3F35] px-4 text-sm font-semibold text-white disabled:opacity-50"
                               }
                             >
                               {isBusy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
@@ -767,7 +767,7 @@ export function DecisionOutcomeReviewQueue() {
                   type="button"
                   onClick={() => void loadQueue({ append: true, cursor: nextCursor })}
                   disabled={loadingMore || busyOutcomeId !== null}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#C7D1C2] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] disabled:opacity-50"
                 >
                   {loadingMore && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
                   {loadingMore ? "불러오는 중" : "대기 결과 더 불러오기"}

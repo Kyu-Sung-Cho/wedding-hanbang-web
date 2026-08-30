@@ -134,10 +134,10 @@ export default function CommunityAboutPage() {
               return (
                 <div
                   key={feature.title}
-                  className="bg-white rounded-2xl border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[var(--hb-primary)]/30 hover:shadow-sm transition-all"
+                  className="bg-white rounded-[6px] border border-[#f0efed] p-6 sm:p-7 flex gap-4 sm:gap-5 hover:border-[var(--hb-primary)]/30 hover:shadow-sm transition-all"
                 >
                   <div
-                    className={`shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${feature.color} flex items-center justify-center`}
+                    className={`shrink-0 w-12 h-12 rounded-[6px] bg-gradient-to-br ${feature.color} flex items-center justify-center`}
                   >
                     <Icon className={`w-6 h-6 ${feature.iconColor}`} />
                   </div>
@@ -195,7 +195,7 @@ export default function CommunityAboutPage() {
             ].map((rule) => (
               <div
                 key={rule.label}
-                className="bg-white rounded-2xl border border-[#f0efed] p-5 sm:p-6 text-center"
+                className="bg-white rounded-[6px] border border-[#f0efed] p-5 sm:p-6 text-center"
               >
                 <div
                   className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center border"
@@ -214,9 +214,9 @@ export default function CommunityAboutPage() {
             ))}
           </div>
 
-          <div className="bg-gradient-to-br from-[var(--hb-surface-page)] to-white rounded-2xl border border-[#f0efed] p-6 sm:p-8">
+          <div className="bg-gradient-to-br from-[var(--hb-surface-page)] to-white rounded-[6px] border border-[#f0efed] p-6 sm:p-8">
             <div className="flex items-start gap-4">
-              <div className="shrink-0 w-12 h-12 rounded-xl bg-[var(--hb-primary)] flex items-center justify-center">
+              <div className="shrink-0 w-12 h-12 rounded-[6px] bg-[var(--hb-primary)] flex items-center justify-center">
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
@@ -259,7 +259,7 @@ export default function CommunityAboutPage() {
               const Icon = item.icon;
               return (
                 <div key={item.title} className="text-center">
-                  <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
+                  <div className="w-12 h-12 rounded-[6px] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
                     <Icon className="w-6 h-6 text-[#B89785]" />
                   </div>
                   <h3 className="font-serif-kr text-xl text-white mb-2 leading-snug">

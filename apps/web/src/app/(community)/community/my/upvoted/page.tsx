@@ -102,7 +102,7 @@ export default function MyUpvotedPage() {
           <p className="text-[12px] text-[var(--hb-text-muted)] mb-4">마음에 드는 글에 좋아요를 눌러보세요</p>
           <Link
             href={weddingPath()}
-            className="inline-block px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[var(--hb-primary)] hover:bg-[#9A6B62] transition-colors"
+            className="inline-block px-5 py-2.5 rounded-[6px] text-[13px] font-medium text-white bg-[var(--hb-primary)] hover:bg-[#9A6B62] transition-colors"
           >
             커뮤니티 둘러보기
           </Link>

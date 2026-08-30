@@ -22,9 +22,9 @@ export default function Logo({ size = "md", variant = "default", showText = true
   const textColor = variant === "white" ? "var(--hb-on-primary)" : "var(--hb-text-strong)";
 
   const iconWrapperClass = bordered
-    ? "bg-white rounded-lg p-1 border border-[#D4AFA0]"
+    ? "bg-white rounded-[6px] p-1 border border-[#D4AFA0]"
     : variant === "white"
-      ? "bg-white rounded-lg p-0.5"
+      ? "bg-white rounded-[6px] p-0.5"
       : "";
 
   return (

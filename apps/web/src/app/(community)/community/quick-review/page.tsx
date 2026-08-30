@@ -37,7 +37,7 @@ export default function QuickReviewPage() {
   const [showAdModal, setShowAdModal] = useState(false);
 
   const inputCls =
-    "w-full px-4 py-3 border border-[#F0EFED] rounded-xl focus:border-[var(--hb-primary)] focus:outline-none text-base";
+    "w-full px-4 py-3 border border-[#F0EFED] rounded-[6px] focus:border-[var(--hb-primary)] focus:outline-none text-base";
 
   function validate(): string | null {
     if (!vendorName.trim()) return "업체명을 입력해주세요.";
@@ -110,7 +110,7 @@ export default function QuickReviewPage() {
       </p>
 
       {!profile ? (
-        <div className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
+        <div className="mb-6 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
           <p className="text-sm font-semibold text-[var(--hb-text-strong)]">후기를 올리려면 로그인이 필요해요</p>
           <p className="mt-1 text-sm leading-6 text-[var(--hb-text-strong)]/70">
             먼저 로그인해두면 다 쓰고 나서 다시 쓰는 일이 없어요. 닉네임은 익명으로 시작하고, 실명은 공개되지 않아요.
@@ -126,7 +126,7 @@ export default function QuickReviewPage() {
 
       <form
         onSubmit={handleSubmitClick}
-        className="bg-white border border-[#F0EFED] rounded-2xl p-6 sm:p-8 space-y-5"
+        className="bg-white border border-[#F0EFED] rounded-[6px] p-6 sm:p-8 space-y-5"
       >
         <div>
           <label className="block text-sm font-medium text-[var(--hb-text-strong)] mb-2">
@@ -212,7 +212,7 @@ export default function QuickReviewPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-[var(--hb-primary)] text-white rounded-xl py-3 px-6 font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-60"
+          className="w-full bg-[var(--hb-primary)] text-white rounded-[6px] py-3 px-6 font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-60"
         >
           {submitting ? "등록 중..." : "후기 등록"}
         </button>

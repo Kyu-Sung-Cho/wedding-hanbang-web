@@ -31,7 +31,7 @@ export function AuthGateModal({ open, redirectPath, onClose }: AuthGateModalProp
     >
       <div
         ref={dialogRef}
-        className="relative w-full max-w-sm rounded-[24px] bg-[var(--hb-surface-page)] p-6 shadow-2xl sm:p-7"
+        className="relative w-full max-w-sm rounded-[6px] bg-[var(--hb-surface-page)] p-6 shadow-2xl sm:p-7"
         role="dialog"
         aria-modal="true"
         aria-labelledby="price-auth-gate-title"

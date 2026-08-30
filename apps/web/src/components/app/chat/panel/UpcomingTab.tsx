@@ -181,7 +181,7 @@ export default function UpcomingTab() {
                       {formatEventDate(evt.date)}
                     </span>
                     {evt.categoryKey && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-[rgba(54,83,78,0.12)] text-[var(--hb-accent-hover)]">
+                      <span className="text-xs px-1.5 py-0.5 rounded-[6px] bg-[rgba(54,83,78,0.12)] text-[var(--hb-accent-hover)]">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
