@@ -47,7 +47,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
             <div className="text-[10px] text-[var(--hb-text-muted)]">완료</div>
           </div>
           <div className="text-center">
-            <div className="text-[20px] font-bold text-rose-500">{inProgressCount}</div>
+            <div className="text-[20px] font-bold text-[var(--hb-accent-hover)]">{inProgressCount}</div>
             <div className="text-[10px] text-[var(--hb-text-muted)]">준비 중</div>
           </div>
           <div className="text-center">
@@ -63,7 +63,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
               style={{ width: `${(completedCount / items.length) * 100}%` }}
             />
             <div
-              className="bg-rose-500 transition-all"
+              className="bg-[var(--hb-primary)] transition-all"
               style={{ width: `${(inProgressCount / items.length) * 100}%` }}
             />
           </div>
@@ -111,7 +111,7 @@ export default function ProgressChecklist({ items, onStatusChange, onCostChange,
                         ? opt.value === "completed"
                           ? "bg-[#2E7D5A] text-white"
                           : opt.value === "in_progress"
-                            ? "bg-rose-500 text-white"
+                            ? "bg-[var(--hb-primary)] text-white"
                             : "bg-taupe-400 text-white"
                         : "bg-black/[0.04] text-[var(--hb-text-muted)] hover:bg-black/[0.08]"
                     }`}

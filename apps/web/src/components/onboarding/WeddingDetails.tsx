@@ -69,7 +69,7 @@ export default function WeddingDetails({
             }}
             className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
               weddingDateUndecided
-                ? "bg-[#795252] text-white"
+                ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
@@ -98,7 +98,7 @@ export default function WeddingDetails({
             }}
             className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
               sanggyeonryeUndecided
-                ? "bg-[#795252] text-white"
+                ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
@@ -129,7 +129,7 @@ export default function WeddingDetails({
             }}
             className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
               venueUndecided
-                ? "bg-[#795252] text-white"
+                ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
@@ -162,7 +162,7 @@ export default function WeddingDetails({
             onClick={() => onBudgetChange(0)}
             className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
               budget === 0
-                ? "bg-[#795252] text-white"
+                ? "bg-[var(--hb-primary)] text-white"
                 : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >

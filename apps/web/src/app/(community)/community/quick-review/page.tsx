@@ -110,7 +110,7 @@ export default function QuickReviewPage() {
       </p>
 
       {!profile ? (
-        <div className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-5 py-4">
+        <div className="mb-6 rounded-2xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
           <p className="text-sm font-semibold text-[var(--hb-text-strong)]">후기를 올리려면 로그인이 필요해요</p>
           <p className="mt-1 text-sm leading-6 text-[var(--hb-text-strong)]/70">
             먼저 로그인해두면 다 쓰고 나서 다시 쓰는 일이 없어요. 닉네임은 익명으로 시작하고, 실명은 공개되지 않아요.

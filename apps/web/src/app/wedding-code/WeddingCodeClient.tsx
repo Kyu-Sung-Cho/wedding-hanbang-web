@@ -169,7 +169,7 @@ export default function WeddingCodeClient() {
     <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 py-7 sm:py-12">
       <div className="mx-auto w-full max-w-[620px]">
         {/* 헤더 */}
-        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">
+        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]">
           WEDDINGCODE V0.5
         </p>
         <h1 className="mb-6 text-center text-[25px] font-semibold leading-[1.25] text-[var(--hb-text-strong)] sm:text-[30px]">
@@ -196,12 +196,12 @@ export default function WeddingCodeClient() {
         {step === "intro" && (
           <div className={`${card} overflow-hidden`}>
             <div className="p-5 sm:p-8">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">중요하게 보는 것을 정리해요</p>
-              <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[#34445a]">
+              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">중요하게 보는 것을 정리해요</p>
+              <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">
                 {WC_V05_INTRO_BODY}
               </p>
             </div>
-            <div className="grid grid-cols-3 divide-x divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)] bg-[#fffdf7]">
+            <div className="grid grid-cols-3 divide-x divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)] bg-[var(--hb-surface-page)]">
               {INTRO_POINTS.map((point) => (
                 <div key={point.label} className="min-w-0 px-3 py-3 text-center sm:px-5 sm:py-4">
                   <point.icon className="mx-auto h-4 w-4 text-[var(--hb-text-strong)]" />
@@ -213,14 +213,14 @@ export default function WeddingCodeClient() {
               ))}
             </div>
             <div className="p-5 sm:p-8">
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3.5 select-none">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5 select-none">
               <input
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
                 className="mt-0.5 h-4 w-4 accent-[var(--hb-text-strong)]"
               />
-              <span className="text-[13px] font-medium leading-relaxed text-[#34445a]">{WC_CONSENT_LABEL}</span>
+              <span className="text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{WC_CONSENT_LABEL}</span>
             </label>
             <button
               onClick={() => {
@@ -271,7 +271,7 @@ export default function WeddingCodeClient() {
                   className={`rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
                     concerns.includes(c)
                       ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                      : "border-[var(--hb-hairline)] bg-white text-[#34445a] hover:border-[#b68a3a]"
+                      : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[#b68a3a]"
                   }`}
                 >
                   {c}
@@ -284,7 +284,7 @@ export default function WeddingCodeClient() {
                 value={concernOther}
                 onChange={(e) => setConcernOther(e.target.value)}
                 placeholder="기타 고민을 적어주세요"
-                className="mt-3 w-full rounded-xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
+                className="mt-3 w-full rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
               />
             )}
 
@@ -303,7 +303,7 @@ export default function WeddingCodeClient() {
         {step === "questions" && current && (
           <div className={`${card} p-6 sm:p-8`}>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">{current.title}</p>
+              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{current.title}</p>
               <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
                 {qIndex + 1} / {flow.length}
               </p>
@@ -319,11 +319,11 @@ export default function WeddingCodeClient() {
                   className={`flex items-start gap-3 rounded-[14px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
                     answers[current.key] === opt.value
                       ? "border-[var(--hb-primary)] bg-[#EEF4F1] text-[var(--hb-text-strong)]"
-                      : "border-[var(--hb-hairline)] bg-white text-[#34445a] hover:border-[var(--hb-primary)]/50 hover:bg-[#fffdf7]"
+                      : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/50 hover:bg-[var(--hb-surface-page)]"
                   }`}
                 >
                   <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                    answers[current.key] === opt.value ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#d8c9ad] bg-[#fffdf7]"
+                    answers[current.key] === opt.value ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#d8c9ad] bg-[var(--hb-surface-page)]"
                   }`}>
                     {answers[current.key] === opt.value && <Check className="h-3 w-3" />}
                   </span>
@@ -372,7 +372,7 @@ export default function WeddingCodeClient() {
             <h2 className="mb-4 text-[20px] font-semibold text-[var(--hb-text-strong)]">마지막으로, 자유롭게 남겨주세요</h2>
             {WC_FREE_TEXT_ITEMS.map((item) => (
               <div key={item.key} className="mb-4">
-                <p className="mb-1.5 text-[13px] font-semibold text-[#34445a]">
+                <p className="mb-1.5 text-[13px] font-semibold text-[var(--hb-text-body)]">
                   {item.label} <span className="font-medium text-[#9a9188]">(선택)</span>
                 </p>
                 <textarea
@@ -380,7 +380,7 @@ export default function WeddingCodeClient() {
                   onChange={(e) => setFreeText((p) => ({ ...p, [item.key]: e.target.value }))}
                   rows={2}
                   maxLength={1000}
-                  className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-[14px] leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
+                  className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
                 />
               </div>
             ))}
@@ -423,7 +423,7 @@ function ContextSelect({
             className={`inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
               value === opt.value
                 ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                : "border-[var(--hb-hairline)] bg-white text-[#34445a] hover:border-[#b68a3a]"
+                : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[#b68a3a]"
             }`}
           >
             {value === opt.value && <Check className="h-3.5 w-3.5" />}
@@ -453,7 +453,7 @@ function ScaleScreen({
       </p>
       {items.map((item) => (
         <div key={item.key} className="mb-4">
-          <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[#34445a]">{item.label}</p>
+          <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[var(--hb-text-body)]">{item.label}</p>
           <div className="flex gap-1.5">
             {[1, 2, 3, 4, 5].map((n) => (
               <button

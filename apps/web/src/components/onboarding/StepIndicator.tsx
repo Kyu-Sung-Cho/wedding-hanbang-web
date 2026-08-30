@@ -36,9 +36,9 @@ export default function StepIndicator({
           <div
             className={`w-8 h-8 rounded-full flex items-center justify-center text-[13px] font-medium transition-all ${
               currentStep === step.step
-                ? "bg-[#795252] text-white"
+                ? "bg-[var(--hb-primary)] text-white"
                 : currentStep > step.step
-                  ? "bg-rose-500 text-white"
+                  ? "bg-[var(--hb-primary)] text-white"
                   : "bg-black/[0.06] text-[var(--hb-text-muted)]"
             }`}
           >
@@ -53,7 +53,7 @@ export default function StepIndicator({
           {i < steps.length - 1 && (
             <div
               className={`w-8 h-0.5 transition-colors ${
-                currentStep > step.step ? "bg-rose-500" : "bg-black/[0.06]"
+                currentStep > step.step ? "bg-[var(--hb-primary)]" : "bg-black/[0.06]"
               }`}
             />
           )}

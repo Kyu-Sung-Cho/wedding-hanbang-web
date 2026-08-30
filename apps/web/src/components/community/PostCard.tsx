@@ -32,11 +32,11 @@ interface PostCardProps {
 
 // 카테고리별 배지 색상 (soft neutrals + jade accent)
 const CATEGORY_BADGE_BG: Record<string, string> = {
-  is_normal: "bg-[#dee6c4]/30 text-sage-500", // sage (secondary-container)
+  is_normal: "bg-[#dee6c4]/30 text-[var(--hb-success)]", // sage (secondary-container)
   tour_review: "bg-[#dfc9c1]/30 text-[var(--hb-text-strong)]", // warm outline + primary
   tips_v2: "bg-[#635b51]/15 text-[var(--hb-text-body)]", // tertiary
   ama: "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]", // primary
-  free: "bg-[#dee6c4]/30 text-sage-500", // sage
+  free: "bg-[#dee6c4]/30 text-[var(--hb-success)]", // sage
 };
 
 // 비용 포맷 헬퍼
@@ -96,7 +96,7 @@ export default function PostCard({ post }: PostCardProps) {
   const hasImage = !!thumbUrl;
 
   // 카테고리 배지 스타일
-  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-sage-500";
+  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-[var(--hb-success)]";
 
   function showLoginToast() {
     setLoginPrompt(true);

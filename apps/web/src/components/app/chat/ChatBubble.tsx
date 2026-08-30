@@ -510,7 +510,7 @@ function renderAiMarkdown(text: string): React.ReactNode {
     if (numberedMatch) {
       blocks.push(
         <div key={i} className="my-1.5 flex items-start gap-2">
-          <span className="mt-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[#F3E7E1] px-1.5 text-[0.6875rem] font-semibold text-[#795252]">
+          <span className="mt-0.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[#F3E7E1] px-1.5 text-[0.6875rem] font-semibold text-[var(--hb-accent-hover)]">
             {numberedMatch[1]}
           </span>
           <span className="min-w-0 flex-1 leading-relaxed">
@@ -726,13 +726,13 @@ export default function ChatBubble({
 
   // 색은 성별이 아니라 "나 vs 상대" 축으로 가른다. 이전 신부 색(#C4967E)은 흰 글자
   // 대비 2.62:1로 WCAG AA 미달이었다 — 중립화가 접근성 수정을 겸한다.
-  const myBubbleBg = "bg-[#795252]";
-  const partnerBubbleBg = "bg-[#F6F3F2]";
+  const myBubbleBg = "bg-[var(--hb-primary)]";
+  const partnerBubbleBg = "bg-[var(--hb-surface-hover)]";
   const partnerBubbleBorder = "border-[#E8DDD3]";
 
   // 상대 아바타. 아모라 아바타(from-[#C4967E] to-[#C9A96E])와 색이 겹치지 않는다.
   const avatarBg = "bg-gradient-to-br from-[#795252] to-[#946a6a]";
-  const badgeBg = "bg-[#795252]/12 text-[#795252]";
+  const badgeBg = "bg-[#795252]/12 text-[var(--hb-accent-hover)]";
 
   // 사용자 메시지에서 선택 태그 숨김
   const displayContent = stripSelectionTags(content);
@@ -859,8 +859,8 @@ function ClearRequestCard({
     <div className="flex justify-center w-full my-2">
       <div className="w-full max-w-[28rem] rounded-xl border border-[#E8DDD3] bg-gradient-to-br from-[#FAF7F2] to-white shadow-sm px-4 py-3">
         <div className="flex items-start gap-2.5">
-          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#795252]/10">
-            <RefreshCw className="w-3.5 h-3.5 text-[#795252]" />
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[rgba(54,83,78,0.10)]">
+            <RefreshCw className="w-3.5 h-3.5 text-[var(--hb-accent-hover)]" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--hb-text-strong)]">
@@ -887,7 +887,7 @@ function ClearRequestCard({
                   type="button"
                   disabled={pending !== null}
                   onClick={() => handle("accept")}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[#795252] text-white text-xs font-medium hover:bg-[#946a6a] disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-[var(--hb-primary)] text-white text-xs font-medium bg-[var(--hb-text-body)] disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {pending === "accept" ? "처리 중..." : "동의"}

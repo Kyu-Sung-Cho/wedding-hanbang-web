@@ -59,9 +59,9 @@ export default async function CommunityLayout({
   const weddingCourtEnabled = isWeddingCourtEnabled();
 
   return (
-    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fffdf7]">
+    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[var(--hb-surface-page)]">
       <CommunityAuthInitializer />
-      <Suspense fallback={<div className="h-[76px] bg-[#fffdf7]" />}>
+      <Suspense fallback={<div className="h-[76px] bg-[var(--hb-surface-page)]" />}>
         <CommunityNav weddingCourtEnabled={weddingCourtEnabled} />
       </Suspense>
       <ToastContainer />

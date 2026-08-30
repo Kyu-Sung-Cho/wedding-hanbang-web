@@ -124,7 +124,7 @@ export default function CommunityAmoraLauncher() {
               <button
                 type="button"
                 onClick={() => setLoginPromptOpen(false)}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[#071629]"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white text-[var(--hb-text-strong)]"
                 aria-label="닫기"
               >
                 <X className="h-5 w-5" />
@@ -147,7 +147,7 @@ export default function CommunityAmoraLauncher() {
               <button
                 type="button"
                 onClick={() => setLoginPromptOpen(false)}
-                className="inline-flex items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#fff8ec]"
+                className="inline-flex items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
               >
                 계속 둘러보기
               </button>

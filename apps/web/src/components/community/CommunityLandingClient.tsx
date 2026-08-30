@@ -561,7 +561,7 @@ function CommunityLandingViewer({
 
   return (
     <div
-      className="bg-[#fffdf7] pb-16 text-[#061a34] md:pb-0"
+      className="bg-[var(--hb-surface-page)] pb-16 text-[var(--hb-text-strong)] md:pb-0"
       data-community-home-order="search-first"
     >
       {searchHubNode}
@@ -629,12 +629,12 @@ function AmoraBlock() {
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef4f1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
             찾은 답을 내 준비에 반영하기
           </span>
-          <h2 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.25] text-[#071629] md:text-[30px]">
+          <h2 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.25] text-[var(--hb-text-strong)] md:text-[30px]">
             사람의 경험을 찾았다면,
             <br />
             우리 둘의 계획으로 옮기세요
           </h2>
-          <p className="mt-3 max-w-xl text-[13px] font-medium leading-[1.75] text-[#5d6879] md:text-[14px]">
+          <p className="mt-3 max-w-xl text-[13px] font-medium leading-[1.75] text-[var(--hb-text-body)] md:text-[14px]">
             커뮤니티에서 확인한 조건과 다음 행동을 아모라에게 이어서 말해보세요.
             웨딩한방은 결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고, 비슷한
             시기에 준비하는 사람들의 기록을 함께 보며, 확인한 것만 예산·체크리스트·일정에 남기고 바뀐 내용을 서로에게 알리는 서비스예요.
@@ -652,13 +652,13 @@ function AmoraBlock() {
             <Link
               {...weddingLinkProps("/community?feed=all#community-search")}
               onClick={() => captureEvent("community_hero_click", { action: "find_experience" })}
-              className="inline-flex min-h-[50px] w-full items-center justify-center gap-1.5 rounded-[6px] border border-[#d8c7ad] bg-white px-6 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45 sm:w-auto"
+              className="inline-flex min-h-[50px] w-full items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-6 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45 sm:w-auto"
             >
               다른 해결 경험 더 보기
               <Search className="h-4 w-4" />
             </Link>
           </div>
-          <p className="mt-3 text-[11.5px] font-medium leading-[1.6] text-[#7a8290]">
+          <p className="mt-3 text-[11.5px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
             AI의 제안과 사람의 경험은 구분해서 보여주고, 최종 결정은 사용자가 합니다.
           </p>
         </div>
@@ -666,18 +666,18 @@ function AmoraBlock() {
         <article
           id="decision-start"
           data-tutorial-target="community-decision-start"
-          className="border-y border-[#d8c7ad] bg-white/64 py-4 sm:px-5 lg:rounded-[18px] lg:border lg:p-5"
+          className="border-y border-[var(--hb-hairline)] bg-white/64 py-4 sm:px-5 lg:rounded-[18px] lg:border lg:p-5"
           aria-labelledby="decision-start-heading"
         >
           <div>
             <span className="text-[11px] font-semibold text-[var(--color-rose-700)]">경험에서 행동으로</span>
             <h2
               id="decision-start-heading"
-              className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[#071629]"
+              className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[var(--hb-text-strong)]"
             >
               확인한 내용을 어디에 남길까요?
             </h2>
-            <p className="mt-1.5 text-[12px] font-medium leading-[1.6] text-[#7a8290]">
+            <p className="mt-1.5 text-[12px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
               필요한 것 하나만 골라도 내 준비 흐름에 이어집니다.
             </p>
           </div>
@@ -693,11 +693,11 @@ function AmoraBlock() {
               </span>
               <span className="min-w-0">
                   <span className="block text-[13.5px] font-semibold text-[var(--hb-text-strong)]">견적 조건 다시 확인</span>
-                <span className="mt-0.5 block text-[11px] font-medium text-[#7a8290]">
+                <span className="mt-0.5 block text-[11px] font-medium text-[var(--hb-text-body)]">
                     포함·별도·확인 필요 항목 정리하기
                 </span>
               </span>
-              <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="h-4 w-4 text-[var(--hb-accent-hover)] transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               {...weddingLinkProps("/community?search=계약&feed=all#community-feed")}
@@ -709,11 +709,11 @@ function AmoraBlock() {
               </span>
               <span className="min-w-0">
                   <span className="block text-[13.5px] font-semibold text-[var(--hb-text-strong)]">계약 경험 더 찾아보기</span>
-                <span className="mt-0.5 block text-[11px] font-medium text-[#7a8290]">
+                <span className="mt-0.5 block text-[11px] font-medium text-[var(--hb-text-body)]">
                     놓친 조건이 없는지 한 번 더 비교하기
                 </span>
               </span>
-              <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="h-4 w-4 text-[var(--hb-accent-hover)] transition-transform group-hover:translate-x-0.5" />
             </Link>
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
@@ -721,20 +721,20 @@ function AmoraBlock() {
               className="group grid min-h-[68px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 py-3"
               data-tutorial-target="community-write"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f8f0df] text-[#9d6f36]">
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f8f0df] text-[var(--hb-accent-hover)]">
                 <MessageCircle className="h-[18px] w-[18px]" />
               </span>
               <span className="min-w-0">
                   <span className="block text-[13.5px] font-semibold text-[var(--hb-text-strong)]">남은 질문 이어서 묻기</span>
-                <span className="mt-0.5 block text-[11px] font-medium text-[#7a8290]">
+                <span className="mt-0.5 block text-[11px] font-medium text-[var(--hb-text-body)]">
                     검색으로 풀리지 않은 부분만 구체화하기
                 </span>
               </span>
-              <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="h-4 w-4 text-[var(--hb-accent-hover)] transition-transform group-hover:translate-x-0.5" />
             </Link>
           </div>
 
-          <p className="mt-3 text-[11px] font-medium leading-[1.6] text-[#7a8290]">
+          <p className="mt-3 text-[11px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
             공개된 경험은 판단 근거로 참고하고, 우리 상황에 맞는 결정은 둘이 직접 정합니다.
           </p>
         </article>
@@ -771,10 +771,10 @@ function WhatWeDo() {
     <section className={`${shell} py-5 md:py-7`} aria-labelledby="what-we-do-heading">
       <div className="grid gap-4 md:grid-cols-[minmax(220px,0.72fr)_minmax(0,1.28fr)] md:items-start md:gap-8">
         <div>
-          <span className="text-[11px] font-semibold text-[#9d6f36]">대화에서 끝나지 않아요</span>
+          <span className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">대화에서 끝나지 않아요</span>
           <h2
             id="what-we-do-heading"
-            className="mt-1 font-serif-kr text-[21px] font-medium leading-[1.35] text-[#071629]"
+            className="mt-1 font-serif-kr text-[21px] font-medium leading-[1.35] text-[var(--hb-text-strong)]"
           >
             말한 준비가
             <br className="hidden md:block" /> 도구로 이어져요
@@ -796,7 +796,7 @@ function WhatWeDo() {
                 <strong className="mt-1 block text-[13.5px] font-bold text-[var(--hb-text-strong)]">
                   {tool.label}
                 </strong>
-                <span className="mt-1 block text-[12px] font-medium leading-[1.6] text-[#5d6879]">
+                <span className="mt-1 block text-[12px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
                   {tool.body}
                 </span>
                 <span className="mt-2 inline-flex items-center text-[11px] font-semibold text-[var(--hb-text-strong)]">
@@ -811,7 +811,7 @@ function WhatWeDo() {
       <button
         type="button"
         onClick={() => window.dispatchEvent(new CustomEvent(COMMUNITY_TOUR_EVENT))}
-        className="mt-3 inline-flex min-h-9 items-center text-[12px] font-semibold text-[#5d6879] underline underline-offset-4 hover:text-[var(--hb-text-strong)]"
+        className="mt-3 inline-flex min-h-9 items-center text-[12px] font-semibold text-[var(--hb-text-body)] underline underline-offset-4 hover:text-[var(--hb-text-strong)]"
       >
         처음이신가요? 화면 따라 한 바퀴 보기
       </button>
@@ -1002,7 +1002,7 @@ function SearchHub({
         aria-labelledby="community-search-heading"
       >
         <div
-          className="border-b border-[#d8c7ad] pb-3"
+          className="border-b border-[var(--hb-hairline)] pb-3"
           data-tutorial-target="community-categories"
         >
           <div className="flex items-center justify-between gap-3">
@@ -1012,11 +1012,11 @@ function SearchHub({
               </span>
               <h1
                 id="community-search-heading"
-                className="mt-0.5 whitespace-nowrap font-serif-kr !text-[22px] font-medium leading-[1.25] text-[#071629] md:!text-[24px]"
+                className="mt-0.5 whitespace-nowrap font-serif-kr !text-[22px] font-medium leading-[1.25] text-[var(--hb-text-strong)] md:!text-[24px]"
               >
                 결혼 준비 이야기
               </h1>
-              <p className="mt-0.5 hidden text-[11.5px] font-medium text-[#7a8290] sm:block">
+              <p className="mt-0.5 hidden text-[11.5px] font-medium text-[var(--hb-text-body)] sm:block">
                 비슷한 상황을 찾고, 없으면 물어보세요.
               </p>
             </div>
@@ -1038,7 +1038,7 @@ function SearchHub({
                 value={searchDraft}
                 onChange={(event) => onSearchDraftChange(event.target.value)}
                 placeholder="업체명·추가금·계약 고민 검색"
-                className="h-[52px] w-full rounded-full border border-[#d8c7ad] bg-white px-4 pr-14 text-[13px] font-medium text-[#061a34] outline-none placeholder:text-[#a89278] focus:border-[var(--hb-primary)] sm:pr-28"
+                className="h-[52px] w-full rounded-full border border-[var(--hb-hairline)] bg-white px-4 pr-14 text-[13px] font-medium text-[var(--hb-text-strong)] outline-none placeholder:text-[#a89278] focus:border-[var(--hb-primary)] sm:pr-28"
               />
               <button
                 type="submit"
@@ -1088,7 +1088,7 @@ function SearchHub({
                 <button
                   type="button"
                   onClick={onClearTag}
-                  className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-[#fbefd6] px-3 text-[11.5px] font-medium text-[#9d6f36]"
+                  className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3 text-[11.5px] font-medium text-[var(--hb-accent-hover)]"
                 >
                   #{currentTag} 지우기
                 </button>
@@ -1115,7 +1115,7 @@ function SearchHub({
       aria-labelledby="community-search-heading"
     >
       <div
-        className="overflow-hidden rounded-[24px] border border-[#d8c7ad] bg-white px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
+        className="overflow-hidden rounded-[24px] border border-[var(--hb-hairline)] bg-white px-4 py-5 shadow-[var(--shadow-overlay)] md:px-9 md:py-8"
         data-tutorial-target="community-categories"
       >
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-7">
@@ -1123,19 +1123,19 @@ function SearchHub({
           <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--color-rose-700)]">결혼 준비 결정 커뮤니티</span>
           <h1
             id="community-search-heading"
-            className="mt-2 font-serif-kr text-[29px] font-medium leading-[1.24] tracking-[-0.025em] text-[#071629] sm:text-[34px] md:text-[40px]"
+            className="mt-2 font-serif-kr text-[29px] font-medium leading-[1.24] tracking-[-0.025em] text-[var(--hb-text-strong)] sm:text-[34px] md:text-[40px]"
           >
             계약하기 전에,
             <br className="sm:hidden" /> 먼저 겪은 사람에게 확인하세요.
           </h1>
-          <p className="mt-3 max-w-[680px] text-[13px] font-medium leading-[1.7] text-[#5d6879] md:text-[14px]">
+          <p className="mt-3 max-w-[680px] text-[13px] font-medium leading-[1.7] text-[var(--hb-text-body)] md:text-[14px]">
             내 상황과 가까운 해결 경험부터 찾아보세요. 후기만 나열하지 않고 질문,
             사람의 답변, 질문자가 표시한 해결 여부를 한 흐름으로 보여드립니다.
           </p>
         </div>
         <Link
           {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-[#d8c7ad] bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/45"
         >
           내 상황 질문하기
           <PenSquare className="h-3.5 w-3.5" />
@@ -1149,7 +1149,7 @@ function SearchHub({
             value={searchDraft}
             onChange={(event) => onSearchDraftChange(event.target.value)}
             placeholder="예: 촬영 결과물 별도 금액, 계약 취소 때 내는 금액"
-            className="h-[58px] w-full rounded-full border border-[#cbb99d] bg-white px-5 pr-14 text-[14px] font-medium text-[#061a34] shadow-[var(--shadow-raised)] outline-none placeholder:text-[#a89278] focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_3px_rgba(54,83,78,0.1)] sm:pr-40 md:h-[62px] md:px-7 md:text-[15px]"
+            className="h-[58px] w-full rounded-full border border-[#cbb99d] bg-white px-5 pr-14 text-[14px] font-medium text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] outline-none placeholder:text-[#a89278] focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_3px_rgba(54,83,78,0.1)] sm:pr-40 md:h-[62px] md:px-7 md:text-[15px]"
           />
           <button
             type="submit"
@@ -1189,12 +1189,12 @@ function SearchHub({
                 className={`group flex min-h-[64px] min-w-0 flex-col items-center justify-center gap-1 rounded-[14px] border px-2 text-center transition-all sm:px-3 ${
                   active
                     ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
-                    : "border-[var(--hb-hairline)] bg-[#fffdf7] text-[#34445a] hover:border-[#b68a3a] hover:bg-white"
+                    : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] text-[var(--hb-text-body)] hover:border-[#b68a3a] hover:bg-white"
                 }`}
               >
-                <item.icon className={`h-5 w-5 stroke-[1.65] ${active ? "text-white" : "text-[var(--hb-text-strong)] group-hover:text-[#9d6f36]"}`} />
+                <item.icon className={`h-5 w-5 stroke-[1.65] ${active ? "text-white" : "text-[var(--hb-text-strong)] group-hover:text-[var(--hb-accent-hover)]"}`} />
                 <span className="text-[12px] font-semibold leading-tight">{item.label}</span>
-                <span className={`hidden text-[10px] font-medium leading-tight sm:block ${active ? "text-white/72" : "text-[#7a8290]"}`}>
+                <span className={`hidden text-[10px] font-medium leading-tight sm:block ${active ? "text-white/72" : "text-[var(--hb-text-body)]"}`}>
                   {item.helper}
                 </span>
               </Link>
@@ -1203,7 +1203,7 @@ function SearchHub({
         </div>
 
         <div className="flex items-center justify-center border-t border-[var(--hb-hairline)] pt-3 md:justify-between">
-          <p className="hidden text-[12px] font-medium text-[#7a8290] md:block">
+          <p className="hidden text-[12px] font-medium text-[var(--hb-text-body)] md:block">
             게시판 형식보다 지금 해결하려는 문제에 가까운 주제를 골라보세요.
           </p>
           <button
@@ -1245,7 +1245,7 @@ function SearchHub({
               className={`group flex min-h-[58px] items-center gap-2 rounded-[14px] border px-3 text-left transition-all ${
                 active
                   ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
-                  : "border-[var(--hb-hairline)] bg-[#fffdf7] text-[#34445a] hover:border-[var(--hb-primary)]/35 hover:bg-white"
+                  : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/35 hover:bg-white"
               }`}
             >
               <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? "bg-white/16" : "bg-[#eef4f1]"}`}>
@@ -1253,7 +1253,7 @@ function SearchHub({
               </span>
               <span className="min-w-0">
                 <span className="block text-[12px] font-semibold leading-tight">{item.label}</span>
-                <span className={`mt-0.5 block truncate text-[10px] font-medium leading-tight ${active ? "text-white/72" : "text-[#7a8290]"}`}>
+                <span className={`mt-0.5 block truncate text-[10px] font-medium leading-tight ${active ? "text-white/72" : "text-[var(--hb-text-body)]"}`}>
                   {item.helper}
                 </span>
               </span>
@@ -1269,7 +1269,7 @@ function SearchHub({
             <button
               type="button"
               onClick={onClearTag}
-              className="rounded-[6px] border border-[var(--hb-hairline)] bg-[#fbefd6] px-4 py-2 text-[13px] font-medium text-[#9d6f36]"
+              className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-4 py-2 text-[13px] font-medium text-[var(--hb-accent-hover)]"
             >
               #{currentTag} 지우기
             </button>
@@ -1447,14 +1447,14 @@ function LatestPosts({
       >
         <div>
           <h2
-            className={`font-serif-kr font-medium leading-[1.3] text-[#071629] ${
+            className={`font-serif-kr font-medium leading-[1.3] text-[var(--hb-text-strong)] ${
               feedFirst ? "text-[19px] sm:text-[22px]" : "text-[21px] sm:text-[22px]"
             }`}
           >
             {feedTitle}
           </h2>
           <p
-            className={`mt-1 text-[12px] font-medium text-[#7a8290] ${
+            className={`mt-1 text-[12px] font-medium text-[var(--hb-text-body)] ${
               feedFirst ? "hidden sm:block" : ""
             }`}
           >
@@ -1469,7 +1469,7 @@ function LatestPosts({
                 <select
                   value={currentSort}
                   onChange={(event) => onSortChange(event.target.value as PostSort)}
-                  className={`appearance-none rounded-full border border-[var(--hb-hairline)] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a] ${
+                  className={`appearance-none rounded-full border border-[var(--hb-hairline)] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[var(--hb-text-body)] outline-none focus:border-[#b68a3a] ${
                     feedFirst ? "h-11 w-[94px]" : "h-11 w-[100px]"
                   }`}
                 >
@@ -1479,7 +1479,7 @@ function LatestPosts({
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#b68a3a]" />
+                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--hb-accent-hover)]" />
               </label>
               {currentSort === "top" && (
                 <label className="relative">
@@ -1487,7 +1487,7 @@ function LatestPosts({
                   <select
                     value={currentPeriod}
                     onChange={(event) => onPeriodChange(event.target.value as TimePeriod)}
-                    className="h-11 w-[100px] appearance-none rounded-full border border-[var(--hb-hairline)] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[#34445a] outline-none focus:border-[#b68a3a]"
+                    className="h-11 w-[100px] appearance-none rounded-full border border-[var(--hb-hairline)] bg-white px-4 pr-8 font-sans text-[13px] font-semibold leading-none text-[var(--hb-text-body)] outline-none focus:border-[#b68a3a]"
                   >
                     {periodValues.map((period) => (
                       <option key={period} value={period}>
@@ -1495,7 +1495,7 @@ function LatestPosts({
                       </option>
                     ))}
                   </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#b68a3a]" />
+                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--hb-accent-hover)]" />
                 </label>
               )}
             </>
@@ -1503,7 +1503,7 @@ function LatestPosts({
           {isPreviewFeed && posts.length > 0 && (
             <Link
               {...weddingLinkProps(fullFeedHref)}
-              className="inline-flex h-11 w-[100px] items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[#9d6f36]"
+              className="inline-flex h-11 w-[100px] items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 font-sans text-[13px] font-semibold leading-none text-[var(--hb-accent-hover)]"
               aria-label={feedMoreLabel}
             >
               더보기
@@ -1513,7 +1513,7 @@ function LatestPosts({
           {!feedFirst && (
             <Link
               {...weddingLinkProps("/community/post/write?prefill=community_question&category=is_normal")}
-              className="hidden h-11 min-w-[112px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[#061a34] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[var(--shadow-raised)] sm:inline-flex"
+              className="hidden h-11 min-w-[112px] items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[var(--hb-primary)] px-4 font-sans text-[13px] font-semibold leading-none text-white shadow-[var(--shadow-raised)] sm:inline-flex"
               data-tutorial-target="community-write"
             >
               질문하기
@@ -1558,16 +1558,16 @@ function LatestPosts({
       )}
 
       {errorMessage && (
-        <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-sm text-[#34445a] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-5 flex flex-col gap-3 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-sm text-[var(--hb-text-body)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-2">
-            <AlertCircle className="h-4 w-4 shrink-0 text-[#9d6f36]" />
+            <AlertCircle className="h-4 w-4 shrink-0 text-[var(--hb-accent-hover)]" />
             <span className="break-words">{errorMessage}</span>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
               onClick={() => useCommunityStore.getState().fetchPosts(true)}
-              className="inline-flex items-center gap-1.5 rounded-[6px] bg-[#061a34] px-3 py-2 text-xs font-semibold text-white"
+              className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               다시 불러오기
@@ -1575,7 +1575,7 @@ function LatestPosts({
             <button
               type="button"
               onClick={clearError}
-              className="rounded-[6px] px-3 py-2 text-xs font-semibold text-[#7a8290] hover:bg-white"
+              className="rounded-[6px] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] hover:bg-white"
             >
               닫기
             </button>
@@ -1593,11 +1593,11 @@ function LatestPosts({
         // 오류일 때는 빈 상태 카드를 그리지 않는다 — "찾지 못했어요"는 사실 주장이라
         // 못 불러온 것을 없는 것으로 바꿔 말하게 된다. 위의 오류 배너만 남긴다.
         isSearching ? (
-          <div className="rounded-[16px] border border-[#d8c7ad] bg-[#fffdf7] px-5 py-8 text-center sm:px-8">
+          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-8 text-center sm:px-8">
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4f1] text-[var(--hb-text-strong)]">
               <Search className="h-5 w-5" />
             </span>
-            <h3 className="mt-4 font-serif-kr text-[19px] font-medium text-[#071629]">
+            <h3 className="mt-4 font-serif-kr text-[19px] font-medium text-[var(--hb-text-strong)]">
               아직 같은 상황의 공개 경험을 찾지 못했어요
             </h3>
             <p className="mx-auto mt-2 max-w-lg text-[13px] font-medium leading-[1.7] text-[#6f7886]">
@@ -1620,7 +1620,7 @@ function LatestPosts({
                 onClick={() =>
                   captureEvent("community_search_empty_click", { action: "organize_with_amora" })
                 }
-                className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] border border-[#d8c7ad] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] sm:w-auto"
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)] sm:w-auto"
               >
                 아모라와 먼저 정리하기
               </Link>
@@ -1644,7 +1644,7 @@ function LatestPosts({
             <div className="flex justify-center py-5">
               <Link
                 {...weddingLinkProps(fullFeedHref)}
-                className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-6 text-[13px] font-semibold text-[#9d6f36] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
+                className="inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-6 text-[13px] font-semibold text-[var(--hb-accent-hover)] transition-colors hover:border-[#b68a3a] hover:text-[#7f562a]"
                 aria-label={`${feedTitle} 전체 보기`}
               >
                 {feedMoreLabel}
@@ -1708,11 +1708,11 @@ function StatusFeedEmptyState({
           };
 
   return (
-    <section className="rounded-[16px] border border-[#d8c7ad] bg-[#fffdf7] px-5 py-7 sm:px-8 sm:py-9">
+    <section className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-7 sm:px-8 sm:py-9">
       <span className="inline-flex rounded-full bg-[#eef4f1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
         {content.eyebrow}
       </span>
-      <h3 className="mt-3 font-serif-kr text-[20px] font-medium text-[#071629] sm:text-[22px]">
+      <h3 className="mt-3 font-serif-kr text-[20px] font-medium text-[var(--hb-text-strong)] sm:text-[22px]">
         {content.title}
       </h3>
       <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.7] text-[#6f7886]">
@@ -1728,7 +1728,7 @@ function StatusFeedEmptyState({
         </Link>
         <Link
           {...weddingLinkProps(content.secondaryHref)}
-          className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[#d8c7ad] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
+          className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[var(--hb-text-strong)]"
         >
           {content.secondaryLabel}
         </Link>
@@ -1872,15 +1872,15 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
         className="absolute inset-0 z-0 rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]/40"
       />
       {toast && (
-        <span className="pointer-events-none absolute right-0 top-4 z-20 rounded-full bg-[#061a34] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
+        <span className="pointer-events-none absolute right-0 top-4 z-20 rounded-full bg-[var(--hb-primary)] px-3 py-1.5 text-[12px] font-medium text-white shadow-lg">
           {toast}
         </span>
       )}
 
       <div className="pointer-events-none relative z-10 min-w-0">
-        <div className="flex min-w-0 items-start justify-between gap-2 text-[10.5px] font-medium text-[#7a8290]">
+        <div className="flex min-w-0 items-start justify-between gap-2 text-[10.5px] font-medium text-[var(--hb-text-body)]">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            <span className="shrink-0 rounded-md bg-[#f6ead9] px-1.5 py-0.5 text-[10px] font-medium text-[#9d6f36]">
+            <span className="shrink-0 rounded-md bg-[var(--hb-surface-hover)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-accent-hover)]">
               {categoryInfo?.shortLabel ?? "커뮤니티"}
             </span>
             {isQuestionPost && post.is_resolved ? (
@@ -1904,23 +1904,23 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
               />
             )}
             {post.is_weekly_best && (
-              <span className="shrink-0 rounded-md bg-[#061a34] px-1.5 py-0.5 text-[10px] font-medium text-white">
+              <span className="shrink-0 rounded-md bg-[var(--hb-primary)] px-1.5 py-0.5 text-[10px] font-medium text-white">
                 BEST
               </span>
             )}
             {post.poll && (
-              <span className="shrink-0 rounded-md border border-[var(--hb-hairline)] px-1.5 py-0.5 text-[10px] font-medium text-[#7a8290]">
+              <span className="shrink-0 rounded-md border border-[var(--hb-hairline)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--hb-text-body)]">
                 투표
               </span>
             )}
           </div>
           <span suppressHydrationWarning className="shrink-0 pt-0.5">{timeAgo(post.created_at)}</span>
         </div>
-        <h3 className="mt-2 line-clamp-2 break-words font-serif-kr text-[16.5px] font-medium leading-[1.38] text-[#071629] [overflow-wrap:anywhere] sm:text-[17px]">
+        <h3 className="mt-2 line-clamp-2 break-words font-serif-kr text-[16.5px] font-medium leading-[1.38] text-[var(--hb-text-strong)] [overflow-wrap:anywhere] sm:text-[17px]">
           {post.title}
         </h3>
         {contentPreview && (
-          <p className="ugc-text mt-1.5 line-clamp-2 break-words text-[12.5px] font-medium leading-[1.55] text-[#5d6879] [overflow-wrap:anywhere] sm:text-[13px]">
+          <p className="ugc-text mt-1.5 line-clamp-2 break-words text-[12.5px] font-medium leading-[1.55] text-[var(--hb-text-body)] [overflow-wrap:anywhere] sm:text-[13px]">
             {contentPreview}
           </p>
         )}
@@ -1961,7 +1961,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
                 ? "bg-[#A77B74] text-white hover:bg-[#8F6662]"
                 : isQuestionPost && post.is_resolved
                   ? "border border-[var(--hb-primary)]/25 bg-[#eef4f1] text-[var(--hb-text-strong)]"
-                  : "border border-[#d8c7ad] bg-white text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"
+                  : "border border-[var(--hb-hairline)] bg-white text-[var(--hb-text-strong)] hover:border-[var(--hb-primary)]/40"
             }`}
             aria-label={
               isWaitingForAnswer
@@ -1989,7 +1989,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             onClick={handleLike}
             disabled={voting}
             className={`ml-auto inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-full px-2 transition-colors ${
-              isLiked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#5d6879] hover:bg-[#fff8ec]"
+              isLiked ? "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]" : "text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"
             }`}
             aria-label={`도움돼요 ${displayUpvoteCount}개`}
           >
@@ -2001,7 +2001,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
             onClick={handleBookmark}
             disabled={bookmarking}
             className={`hidden min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full transition-colors sm:inline-flex ${
-              bookmarked ? "bg-[#fbefd6] text-[#9d6f36]" : "text-[#5d6879] hover:bg-[#fff8ec]"
+              bookmarked ? "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]" : "text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"
             }`}
             aria-label="북마크"
           >
@@ -2010,7 +2010,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           <button
             type="button"
             onClick={handleShare}
-            className="hidden min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-[#5d6879] transition-colors hover:bg-[#fff8ec] sm:inline-flex"
+            className="hidden min-h-11 min-w-11 shrink-0 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-[var(--hb-surface-hover)] sm:inline-flex"
             aria-label="공유"
           >
             <Share2 className="h-3.5 w-3.5 stroke-[1.7]" />
@@ -2102,17 +2102,17 @@ function BestPostsPanel() {
   return (
     <article className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[#071629]">
+        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
           {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
         </h2>
-        <Link {...weddingLinkProps(moreHref)} className="text-[13px] font-medium text-[#9d6f36]">
+        <Link {...weddingLinkProps(moreHref)} className="text-[13px] font-medium text-[var(--hb-accent-hover)]">
           더보기
         </Link>
       </div>
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="h-7 animate-pulse rounded-md bg-[#f3eadc]" />
+            <div key={index} className="h-7 animate-pulse rounded-md bg-[var(--hb-surface-hover)]" />
           ))}
         </div>
       ) : (
@@ -2123,11 +2123,11 @@ function BestPostsPanel() {
                 {...communityPostLinkProps(post.id)}
                 className="grid grid-cols-[24px_1fr_auto] items-center gap-3 text-[13px] font-medium"
               >
-                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#c9a96e] text-[12px] font-semibold text-white">
+                <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[var(--hb-accent)] text-[12px] font-semibold text-white">
                   {index + 1}
                 </span>
-                <span className="truncate text-[#34445a]">{post.title}</span>
-                <strong className="text-[#071629]">{formatCount(post.upvote_count)}</strong>
+                <span className="truncate text-[var(--hb-text-body)]">{post.title}</span>
+                <strong className="text-[var(--hb-text-strong)]">{formatCount(post.upvote_count)}</strong>
               </Link>
             </li>
           ))}
@@ -2142,14 +2142,14 @@ function BestPostsPanel() {
 
 function AmoraSidebarPanel() {
   return (
-    <article className="overflow-hidden rounded-[18px] border border-[#d8bb86] bg-white p-5 shadow-[var(--shadow-raised)]">
-      <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+    <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
+      <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
         아모라에게 묻기
       </span>
-      <h2 className="mt-3 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
+      <h2 className="mt-3 font-serif-kr text-[22px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
         찾은 답을 준비에 반영하기
       </h2>
-      <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[#5d6879]">
+      <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
         커뮤니티에서 확인한 내용을 아모라와 다시 정리해 예산·할 일·일정으로 이어가세요.
       </p>
       <Link
@@ -2181,13 +2181,13 @@ const MARKET_SNAPSHOT_CATEGORIES: readonly PriceCategory[] = [
 function MarketSnapshotPanel() {
   return (
     <article className="overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white p-5 shadow-[var(--shadow-raised)]">
-      <span className="inline-flex rounded-full bg-[#fbefd6] px-3 py-1 text-[11px] font-semibold text-[#9d6f36]">
+      <span className="inline-flex rounded-full bg-[var(--hb-surface-hover)] px-3 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
         출처·기준 시점 공개
       </span>
-      <h2 className="mt-2 font-serif-kr text-[22px] font-medium leading-[1.35] text-[#071629]">
+      <h2 className="mt-2 font-serif-kr text-[22px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
         업체별 공시가 비교
       </h2>
-      <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#7a8290]">
+      <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">
         코드에 고정된 평균가 대신, 검수·발행된 업체별 기본금과 선택품목을 확인하세요.
       </p>
 
@@ -2198,13 +2198,13 @@ function MarketSnapshotPanel() {
             <Link
               key={category}
               href={`/price/${category}`}
-              className="group flex min-h-12 items-center justify-between rounded-[12px] border border-[var(--hb-hairline)] bg-white/80 px-3 text-[13px] font-semibold text-[#071629] transition-colors hover:bg-[#fff8ec] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+              className="group flex min-h-12 items-center justify-between rounded-[12px] border border-[var(--hb-hairline)] bg-white/80 px-3 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
             >
               <span className="flex items-center gap-2">
-                <Icon className="h-4 w-4 text-[#b68a3a]" />
+                <Icon className="h-4 w-4 text-[var(--hb-accent-hover)]" />
                 {PRICE_CATEGORY_LABELS[category]}
               </span>
-              <ChevronRight className="h-4 w-4 text-[#9d6f36] transition-transform group-hover:translate-x-0.5" />
+              <ChevronRight className="h-4 w-4 text-[var(--hb-accent-hover)] transition-transform group-hover:translate-x-0.5" />
             </Link>
           );
         })}

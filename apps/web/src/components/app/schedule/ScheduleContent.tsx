@@ -582,7 +582,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const imminentPanel =
     imminentCategories.length > 0 ? (
   <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-    <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
+    <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">
       기본 일정 확인
     </h3>
     <ImminentAlerts
@@ -596,7 +596,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const upcomingPanel = (
     <div className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[#071629]">
+        <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">
           다가오는 일정
         </h3>
         <button
@@ -609,23 +609,23 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       </div>
 
       {upcomingEvents.length === 0 ? (
-        <p className="text-[14px] font-medium text-[#5d6879]">예정된 일정이 없어요</p>
+        <p className="text-[14px] font-medium text-[var(--hb-text-body)]">예정된 일정이 없어요</p>
       ) : (
         <div className="space-y-3">
           {upcomingEvents.map((evt) => (
             <div
               key={evt.id}
-              className="group flex items-start gap-3 rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[#fffdf7] p-3 transition-colors hover:bg-white"
+              className="group flex items-start gap-3 rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] p-3 transition-colors hover:bg-white"
             >
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
                 <CalendarDays className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[#071629]">
+                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--hb-text-strong)]">
                   {evt.title}
                 </p>
                 <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                  <p className="text-[12px] font-medium text-[#5d6879]">
+                  <p className="text-[12px] font-medium text-[var(--hb-text-body)]">
                     {formatEventDate(evt.date)}
                   </p>
                   {evt.categoryKey && (
@@ -633,7 +633,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                       {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                     </span>
                   )}
-                  <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                  <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-body)]">
                     {getScheduleEventAssigneeLabel(
                       evt.assignee,
                       assigneeContext,
@@ -641,7 +641,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   </span>
                 </div>
                 {evt.completionCriteria && (
-                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[#5d6879]">
+                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--hb-text-body)]">
                     완료 기준 · {evt.completionCriteria}
                   </p>
                 )}
@@ -668,7 +668,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                       <button
                         type="button"
                         onClick={() => setPendingCancelId(null)}
-                        className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] transition-colors hover:bg-[#EFEBEA]"
+                        className="min-h-11 rounded-lg bg-[var(--hb-surface-hover)] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] transition-colors hover:bg-[#EFEBEA]"
                       >
                         닫기
                       </button>
@@ -679,7 +679,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         type="button"
                         onClick={() => handleEditEvent(evt)}
                         aria-label={`${evt.title} 일정 수정`}
-                        className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#f6f3f2] hover:text-[#795252]"
+                        className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -703,7 +703,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   );
 
   return (
-    <div className={embedded ? "bg-[#fcf9f8]" : ""}>
+    <div className={embedded ? "bg-[var(--hb-surface-hover)]" : ""}>
       <div
         className={
           embedded
@@ -736,10 +736,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               D-DAY
             </p>
-            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
+            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[32px] lg:text-[34px]">
               {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
             </p>
-            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">
+            <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
               {dday === null
                 ? "날짜 미정"
                 : dday > 0
@@ -755,7 +755,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               PROGRESS
             </p>
-            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
+            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[32px] lg:text-[34px]">
               {progressPct}%
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
@@ -764,7 +764,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 style={{ width: `${progressPct}%` }}
               />
             </div>
-            <p className="mt-2 text-[13px] font-medium text-[#5d6879]">
+            <p className="mt-2 text-[13px] font-medium text-[var(--hb-text-body)]">
               {totalDone}/{totalItems} 완료
             </p>
           </div>
@@ -774,13 +774,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
               UPCOMING
             </p>
-            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[#071629] sm:text-[32px] lg:text-[34px]">
+            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[32px] lg:text-[34px]">
               {upcomingEvents.length}
             </p>
-            <p className="mt-3 text-[13px] font-medium text-[#5d6879]">다가오는 일정</p>
+            <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">다가오는 일정</p>
           </div>
         </div>
-        <p className="text-[12px] leading-5 text-[#5d6879]">
+        <p className="text-[12px] leading-5 text-[var(--hb-text-body)]">
           기본 체크리스트와 확인 시점은 시작을 돕는 예시이며, 업체나 가족과 정한 실제
           일정이 우선입니다.
         </p>
@@ -798,8 +798,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   onClick={() => setViewMode("timeline")}
                   className={`inline-flex items-center rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
                     viewMode === "timeline"
-                      ? "bg-white text-[#071629] shadow-sm"
-                      : "text-[#5d6879]"
+                      ? "bg-white text-[var(--hb-text-strong)] shadow-sm"
+                      : "text-[var(--hb-text-body)]"
                   }`}
                 >
                   <List className="mr-1.5 h-4 w-4" />
@@ -809,8 +809,8 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   onClick={() => setViewMode("calendar")}
                   className={`inline-flex items-center rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
                     viewMode === "calendar"
-                      ? "bg-white text-[#071629] shadow-sm"
-                      : "text-[#5d6879]"
+                      ? "bg-white text-[var(--hb-text-strong)] shadow-sm"
+                      : "text-[var(--hb-text-body)]"
                   }`}
                 >
                   <Calendar className="mr-1.5 h-4 w-4" />
@@ -866,7 +866,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               >
                 취소됨
               </h3>
-              <p className="mt-1 text-[13px] leading-5 text-[#5d6879]">
+              <p className="mt-1 text-[13px] leading-5 text-[var(--hb-text-body)]">
                 완전 삭제하지 않고 변경 기록을 보관합니다. 필요하면 예정 상태로 복원 요청할 수 있어요.
               </p>
             </div>
@@ -880,14 +880,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     <p className="truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
                       {event.title}
                     </p>
-                    <p className="mt-1 text-[12px] leading-5 text-[#5d6879]">
+                    <p className="mt-1 text-[12px] leading-5 text-[var(--hb-text-body)]">
                       기존 날짜 {event.date}{event.time ? ` ${event.time}` : ""}
                       {event.cancellation
                         ? ` · 취소 시각 ${event.cancellation.cancelledAt.slice(0, 10)}`
                         : ""}
                     </p>
                     {event.cancellation?.reason && (
-                      <p className="mt-1 text-[12px] leading-5 text-[#5d6879]">
+                      <p className="mt-1 text-[12px] leading-5 text-[var(--hb-text-body)]">
                         사유 · {event.cancellation.reason}
                       </p>
                     )}
@@ -1004,15 +1004,15 @@ export function ChecklistSchedulePrompt({
         className="fixed inset-0 z-50 animate-fade-in bg-[#1A1A1F]/40 backdrop-blur-sm"
       />
       <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[18px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] animate-fade-in">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[#fffdf7] px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-6 py-5">
           <div>
             <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
               체크리스트 일정 연결
             </p>
-            <h3 className="mt-1 font-serif-kr text-[24px] font-medium text-[#071629]">
+            <h3 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">
               {pending.categoryLabel} 날짜도 정할까요?
             </h3>
-            <p className="mt-2 text-[13px] font-medium leading-[1.6] text-[#5d6879]">
+            <p className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
               {pending.itemLabel}
             </p>
           </div>
@@ -1034,7 +1034,7 @@ export function ChecklistSchedulePrompt({
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-[15px] font-medium text-[#071629] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
+              className="w-full rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[15px] font-medium text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
             />
           </div>
           <div>
@@ -1045,7 +1045,7 @@ export function ChecklistSchedulePrompt({
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               rows={4}
-              className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[#071629] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
+              className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
             />
           </div>
           {pending.existingEvent && (
@@ -1063,7 +1063,7 @@ export function ChecklistSchedulePrompt({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-[var(--hb-hairline)] bg-[#fffdf7] px-6 py-4 sm:flex-row sm:justify-between">
+        <div className="flex flex-col-reverse gap-2 border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-6 py-4 sm:flex-row sm:justify-between">
           <button
             type="button"
             onClick={completeOnly}

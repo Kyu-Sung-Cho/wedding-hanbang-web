@@ -625,13 +625,13 @@ export default function SettingsPage() {
                       setNameError("");
                     }}
                     onKeyDown={(e) => e.key === "Enter" && saveName()}
-                    className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
+                    className="px-3 py-2 rounded-lg bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
                     autoFocus
                   />
                   <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[var(--hb-text-body)]">
+                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -641,13 +641,13 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2">
                 <h2 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">{userName}</h2>
                 {userRole && (
-                  <span className="text-sm px-2.5 py-1 rounded-full bg-[#795252]/10 text-[#795252] font-medium">
+                  <span className="text-sm px-2.5 py-1 rounded-full bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)] font-medium">
                     {userRole}
                   </span>
                 )}
                 <button
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
-                  className="tap-area shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+                  className="tap-area shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
@@ -659,8 +659,8 @@ export default function SettingsPage() {
 
         <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
-            <Calendar className="w-6 h-6 text-[#795252] flex-shrink-0" />
+          <div className="flex items-center gap-3 p-5 rounded-xl bg-[var(--hb-surface-hover)]">
+            <Calendar className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">결혼 예정일</p>
               {editingDate ? (
@@ -669,7 +669,7 @@ export default function SettingsPage() {
                     type="date"
                     value={dateInput}
                     onChange={(e) => setDateInput(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#795252]/30"
+                    className="px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus
                   />
                   <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
@@ -684,7 +684,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{dateStr}</p>
                   <button
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
-                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[#795252] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -694,8 +694,8 @@ export default function SettingsPage() {
           </div>
 
           {/* 결혼식장 — 온보딩 값이며 두 사람이 함께 확인하고 수정할 수 있다. */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
-            <MapPin className="w-6 h-6 text-[#795252] flex-shrink-0" />
+          <div className="flex items-center gap-3 p-5 rounded-xl bg-[var(--hb-surface-hover)]">
+            <MapPin className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">결혼식장</p>
               {editingVenue ? (
@@ -706,7 +706,7 @@ export default function SettingsPage() {
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
                     placeholder="예: 결혼식장 이름"
-                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[var(--hb-text-muted)]"
+                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
                     autoFocus
                   />
                   <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
@@ -721,7 +721,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)] truncate">{venueStr}</p>
                   <button
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
-                    className="tap-area w-6 h-6 shrink-0 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[#795252] transition-colors"
+                    className="tap-area w-6 h-6 shrink-0 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -731,8 +731,8 @@ export default function SettingsPage() {
           </div>
 
           {/* 설정 예산 */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
-            <Wallet className="w-6 h-6 text-[#C9A96E] flex-shrink-0" />
+          <div className="flex items-center gap-3 p-5 rounded-xl bg-[var(--hb-surface-hover)]">
+            <Wallet className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-sm text-[var(--hb-text-muted)]">설정 예산</p>
               {editingBudget ? (
@@ -743,7 +743,7 @@ export default function SettingsPage() {
                       value={budgetInput}
                       onChange={(e) => setBudgetInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveBudget()}
-                      className="w-[90px] px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#795252]/30 text-right"
+                      className="w-[90px] px-2.5 py-1.5 rounded-md bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
                       autoFocus
                     />
                     <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
@@ -760,7 +760,7 @@ export default function SettingsPage() {
                   <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{budgetStr}</p>
                   <button
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
-                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[#795252] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -811,8 +811,8 @@ export default function SettingsPage() {
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -834,8 +834,8 @@ export default function SettingsPage() {
                     onClick={() => togglePriority(opt.value)}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -857,8 +857,8 @@ export default function SettingsPage() {
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -880,8 +880,8 @@ export default function SettingsPage() {
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
                     className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -909,7 +909,7 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        <div className="bg-[#F6F3F2] rounded-xl p-5">
+        <div className="bg-[var(--hb-surface-hover)] rounded-xl p-5">
           {/* 코드가 보이는 유일한 조건은 `awaiting_partner`다. 연결이 끝나면
               /api/couple/code가 inviteCode: null을 주고 패널도 함께 사라진다 —
               패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
@@ -926,7 +926,7 @@ export default function SettingsPage() {
               <button
                 onClick={handleRegenerateCode}
                 disabled={regenerating || !coupleConnection.canInvite}
-                className="mt-2 text-sm text-[var(--hb-text-muted)] hover:text-[#795252] transition-colors disabled:opacity-50"
+                className="mt-2 text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors disabled:opacity-50"
               >
                 {regenerating ? "재발급 중..." : "코드 재발급"}
               </button>
@@ -947,8 +947,8 @@ export default function SettingsPage() {
           ) : phase === "sealed_single" ? (
             <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <span className="w-12 h-12 flex-shrink-0 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-[#795252]" />
+                <span className="w-12 h-12 flex-shrink-0 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-[var(--hb-accent-hover)]" />
                 </span>
                 <div>
                   <p className="text-base font-medium text-[var(--hb-text-strong)]">이 커플 연결은 종료됐어요</p>
@@ -958,7 +958,7 @@ export default function SettingsPage() {
                   </p>
                   <a
                     href={`mailto:${CONTACT.email}`}
-                    className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                    className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
                   >
                     고객지원 문의
                   </a>
@@ -967,7 +967,7 @@ export default function SettingsPage() {
             </div>
           ) : phase === "awaiting_partner" ? (
             <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
-              <div className="w-12 h-12 rounded-full bg-[#F6F3F2] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
                 <User className="w-6 h-6 text-[var(--hb-text-muted)]" />
               </div>
               <div className="flex-1">
@@ -996,7 +996,7 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={() => setConnectionRetryNonce((value) => value + 1)}
-                className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
               >
                 다시 시도
               </button>
@@ -1009,7 +1009,7 @@ export default function SettingsPage() {
               </p>
               <a
                 href={`mailto:${CONTACT.email}`}
-                className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
               >
                 고객지원 문의
               </a>
@@ -1027,8 +1027,8 @@ export default function SettingsPage() {
               className="mt-3 w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="w-10 h-10 shrink-0 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                  <RotateCcw className="w-5 h-5 text-[#795252]" />
+                <span className="w-10 h-10 shrink-0 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-[var(--hb-accent-hover)]" />
                 </span>
                 <span>
                   <span className="block text-base font-medium text-[var(--hb-text-strong)]">새 커플로 다시 시작</span>
@@ -1061,7 +1061,7 @@ export default function SettingsPage() {
           ].map((item) => (
             <div
               key={item.key}
-              className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors"
+              className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               <div>
                 <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{item.label}</p>
@@ -1181,7 +1181,7 @@ export default function SettingsPage() {
           <Link
             key={item.label}
             href={item.href}
-            className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
+            className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
           >
             <span className="text-[17px] text-[var(--hb-text-strong)]">{item.label}</span>
             <ChevronRight className="h-5 w-5 text-[var(--hb-text-muted)]" />
@@ -1189,7 +1189,7 @@ export default function SettingsPage() {
         ))}
         <a
           href={`mailto:${CONTACT.email}`}
-          className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
+          className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
         >
           <span>
             <span className="block text-[17px] text-[var(--hb-text-strong)]">고객센터</span>
@@ -1238,8 +1238,8 @@ export default function SettingsPage() {
               transition={{ duration: 0.3 }}
               className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
-              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                <RotateCcw className="w-6 h-6 text-[#795252]" />
+              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-[var(--hb-accent-hover)]" />
               </div>
               <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)] text-center mb-2">
                 새 커플로 다시 시작할까요?
@@ -1252,14 +1252,14 @@ export default function SettingsPage() {
               <p className="text-sm text-[var(--hb-text-muted)] text-center leading-relaxed mb-6">
                 현재 커플 연결과 함께 보던 준비 데이터를 분리하고 온보딩으로 돌아갑니다.
                 <br />
-                <span className="font-semibold text-[#795252]">이 작업은 되돌릴 수 없어요</span>
+                <span className="font-semibold text-[var(--hb-accent-hover)]">이 작업은 되돌릴 수 없어요</span>
                 {" — "}지금 커플로는 다시 연결할 수 없습니다.
                 <br />
                 내 계정과 내가 쓴 대화는 유지돼요.
               </p>
 
               <label className="block text-sm text-[var(--hb-text-body)] mb-2">
-                확인을 위해 <span className="font-semibold text-[#795252]">초기화합니다</span>를 입력해주세요
+                확인을 위해 <span className="font-semibold text-[var(--hb-accent-hover)]">초기화합니다</span>를 입력해주세요
               </label>
               <input
                 type="text"
@@ -1279,7 +1279,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowResetWeddingModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-[#F6F3F2] text-[var(--hb-text-body)] font-medium hover:bg-[#EDE8E5] transition-colors"
+                  className="flex-1 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium bg-[#f3e9df] transition-colors"
                 >
                   취소
                 </button>
@@ -1287,7 +1287,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={handleResetWedding}
                   disabled={resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
-                  className="flex-1 py-3 rounded-xl bg-[#795252] text-white font-medium hover:bg-[#946a6a] transition-colors disabled:opacity-40"
+                  className="flex-1 py-3 rounded-xl bg-[var(--hb-primary)] text-white font-medium bg-[var(--hb-text-body)] transition-colors disabled:opacity-40"
                 >
                   {resettingWedding ? "초기화 중..." : "다시 시작"}
                 </button>
@@ -1336,7 +1336,7 @@ export default function SettingsPage() {
               {/* 되돌릴 수 없는 행동 앞에서는 무엇이 지워지고 무엇이 남는지
                   먼저 보여준다. 특히 "파트너 화면에는 남는다"는 사실은
                   사람이 놀라는 자리다. */}
-              <div className="mb-5 rounded-xl bg-[#F6F3F2] px-4 py-4">
+              <div className="mb-5 rounded-xl bg-[var(--hb-surface-hover)] px-4 py-4">
                 <p className="text-[13px] font-medium text-[var(--hb-text-body)] mb-2.5">
                   탈퇴하면 이렇게 돼요
                 </p>
@@ -1374,7 +1374,7 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   {DELETE_REASONS.map((r) => (
                     <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
-                      deleteReason === r.value ? "bg-[#795252]/5 ring-1 ring-[#795252]/20" : "bg-[#F6F3F2] hover:bg-[#EDE7E5]"
+                      deleteReason === r.value ? "bg-[rgba(54,83,78,0.10)] ring-1 ring-[rgba(54,83,78,0.24)]" : "bg-[var(--hb-surface-hover)] bg-[#f3e9df]"
                     }`}>
                       <input
                         type="radio"
@@ -1382,7 +1382,7 @@ export default function SettingsPage() {
                         value={r.value}
                         checked={deleteReason === r.value}
                         onChange={() => setDeleteReason(r.value)}
-                        className="w-4 h-4 accent-[#795252]"
+                        className="w-4 h-4 accent-[var(--hb-accent)]"
                       />
                       <span className="text-base text-[var(--hb-text-strong)]">{r.label}</span>
                     </label>
@@ -1399,7 +1399,7 @@ export default function SettingsPage() {
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="탈퇴합니다"
-                  className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[var(--hb-text-muted)]"
+                  className="w-full px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[var(--hb-text-muted)]"
                 />
               </div>
               </>
@@ -1432,7 +1432,7 @@ export default function SettingsPage() {
                   setDeleteError("");
                   setDeleteReason("");
                 }}
-                className="w-full py-3 rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[#F6F3F2] transition-all"
+                className="w-full py-3 rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] transition-all"
               >
                 취소
               </button>

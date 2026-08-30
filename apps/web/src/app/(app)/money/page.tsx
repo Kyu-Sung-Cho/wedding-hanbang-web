@@ -179,7 +179,7 @@ export default function MoneyPage() {
             onClick={handleExportCSV}
             disabled={moneyList.length === 0}
             aria-label="축의금 CSV 다운로드"
-            className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:bg-[#F6F3F2] hover:text-[#795252] shadow-[var(--shadow-raised)] disabled:opacity-30 transition-all"
+            className="inline-flex items-center gap-1.5 px-5 py-3 bg-white rounded-xl text-base font-medium text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)] shadow-[var(--shadow-raised)] disabled:opacity-30 transition-all"
           >
             <Download className="w-5 h-5" />
             CSV
@@ -221,7 +221,7 @@ export default function MoneyPage() {
         <div className="bg-white rounded-xl shadow-[var(--shadow-raised)] p-6">
           <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">신랑 / 신부</p>
           <p className="text-sm text-[var(--hb-text-body)] mt-1">신랑 <span className="font-medium text-[var(--hb-text-strong)]">{formatMoney(stats.groomTotal)}</span></p>
-          <p className="text-sm text-[#795252] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
+          <p className="text-sm text-[var(--hb-accent-hover)] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
         </div>
       </div>
 
@@ -232,7 +232,7 @@ export default function MoneyPage() {
             <h2 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">
               {editId ? "축의금 수정" : "축의금 추가"}
             </h2>
-            <button onClick={resetForm} className="text-[var(--hb-text-muted)] hover:text-[#795252]">
+            <button onClick={resetForm} className="text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)]">
               <X className="w-6 h-6" />
             </button>
           </div>
@@ -242,14 +242,14 @@ export default function MoneyPage() {
               value={form.guest_name}
               onChange={(e) => setForm({ ...form, guest_name: e.target.value })}
               placeholder="이름"
-              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
             />
             <input
               type="number"
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
               placeholder="금액"
-              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
             />
             <div className="flex gap-2">
               {(["groom", "bride"] as Side[]).map((s) => (
@@ -257,7 +257,7 @@ export default function MoneyPage() {
                   key={s}
                   onClick={() => setForm({ ...form, side: s })}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    form.side === s ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[var(--hb-text-body)]"
+                    form.side === s ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)]"
                   }`}
                 >
                   {s === "groom" ? "예비 신랑 가족" : "예비 신부 가족"}
@@ -267,7 +267,7 @@ export default function MoneyPage() {
             <select
               value={form.relation}
               onChange={(e) => setForm({ ...form, relation: e.target.value })}
-              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[var(--hb-text-strong)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
             >
               <option value="">관계 선택</option>
               {RELATIONS.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -278,7 +278,7 @@ export default function MoneyPage() {
                   key={m.key}
                   onClick={() => setForm({ ...form, method: m.key })}
                   className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-                    form.method === m.key ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[#F6F3F2] text-[var(--hb-text-body)]"
+                    form.method === m.key ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white" : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)]"
                   }`}
                 >
                   {m.label}
@@ -289,7 +289,7 @@ export default function MoneyPage() {
               type="date"
               value={form.received_at}
               onChange={(e) => setForm({ ...form, received_at: e.target.value })}
-              className="px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[var(--hb-text-strong)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+              className="px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
             />
           </div>
           <input
@@ -297,7 +297,7 @@ export default function MoneyPage() {
             value={form.memo}
             onChange={(e) => setForm({ ...form, memo: e.target.value })}
             placeholder="메모 (선택)"
-            className="w-full mt-3 px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="w-full mt-3 px-4 py-3 rounded-xl bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
           />
           {saveError ? (
             <p role="alert" className="mt-3 rounded-xl bg-[#FCEDEA] px-4 py-3 text-sm leading-6 text-[#8A3D2E]">
@@ -326,7 +326,7 @@ export default function MoneyPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="이름, 관계 검색..."
-            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white shadow-[var(--shadow-raised)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 focus:ring-[#795252]/30"
+            className="w-full pl-10 pr-4 py-3 rounded-xl bg-white shadow-[var(--shadow-raised)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
           />
         </div>
         <div className="flex gap-1">
@@ -337,7 +337,7 @@ export default function MoneyPage() {
               className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                 filterSide === key
                   ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white"
-                  : "bg-white text-[var(--hb-text-body)] hover:text-[#795252]"
+                  : "bg-white text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
               }`}
             >
               {label}
@@ -349,7 +349,7 @@ export default function MoneyPage() {
       {/* 목록 */}
       {moneyLoading ? (
         <div className="flex items-center justify-center py-20">
-          <div className="w-8 h-8 border-2 border-[#795252] border-t-transparent rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-[var(--hb-hairline)] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-xl shadow-[var(--shadow-raised)]">
@@ -367,14 +367,14 @@ export default function MoneyPage() {
             >
               <div
                 className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${
-                  money.side === "groom" ? "bg-[#504444]" : "bg-[#795252]"
+                  money.side === "groom" ? "bg-[#504444]" : "bg-[var(--hb-primary)]"
                 }`}
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-[17px] font-medium text-[var(--hb-text-strong)]">{money.guest_name}</span>
                   {money.relation && (
-                    <span className="text-sm text-[#795252] px-2 py-0.5 bg-[#F6F3F2] rounded">
+                    <span className="text-sm text-[var(--hb-accent-hover)] px-2 py-0.5 bg-[var(--hb-surface-hover)] rounded">
                       {money.relation}
                     </span>
                   )}
@@ -393,7 +393,7 @@ export default function MoneyPage() {
                 <button
                   onClick={() => handleEdit(money)}
                   aria-label={`${money.guest_name} 축의금 수정`}
-                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[#F6F3F2] text-[var(--hb-text-muted)] hover:text-[#795252] transition-colors"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                 >
                   <Edit3 className="w-5 h-5" />
                 </button>
@@ -403,7 +403,7 @@ export default function MoneyPage() {
                       <button
                         onClick={() => { setDeleteConfirm(null); setDeleteError(null); }}
                         aria-label={`${money.guest_name} 축의금 삭제 취소`}
-                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-[#F6F3F2] text-[var(--hb-text-body)] text-sm"
+                        className="w-9 h-9 flex items-center justify-center rounded-lg bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] text-sm"
                       >
                         취소
                       </button>

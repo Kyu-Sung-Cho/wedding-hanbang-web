@@ -83,7 +83,7 @@ export default function CalendarView({
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[#795252] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -92,7 +92,7 @@ export default function CalendarView({
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[#795252] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -132,9 +132,9 @@ export default function CalendarView({
                   : isWedding
                   ? `${WEDDING_DAY_COLOR} text-white font-medium shadow-md`
                   : isSelected
-                  ? "bg-[#795252] text-white font-medium"
+                  ? "bg-[var(--hb-primary)] text-white font-medium"
                   : isToday
-                  ? "ring-2 ring-[#795252] bg-white text-[#795252] font-medium"
+                  ? "ring-2 ring-[#795252] bg-white text-[var(--hb-accent-hover)] font-medium"
                   : dayNum === 0
                   ? "text-red-400 hover:bg-[#FAFAF8]"
                   : dayNum === 6
@@ -184,7 +184,7 @@ export default function CalendarView({
         <div
           className="mt-5 overflow-hidden animate-fade-in"
         >
-          <div className="bg-[#F6F3F2] rounded-xl p-5">
+          <div className="bg-[var(--hb-surface-hover)] rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <p className="font-serif-kr text-[17px] font-normal text-[var(--hb-text-strong)]">
                 {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
@@ -193,7 +193,7 @@ export default function CalendarView({
                 onClick={() =>
                   onAddEvent(format(selectedDate, "yyyy-MM-dd"))
                 }
-                className="flex items-center gap-1.5 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
+                className="flex items-center gap-1.5 text-sm text-[var(--hb-accent-hover)] hover:text-[var(--hb-accent-hover)] transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 일정 추가
@@ -244,14 +244,14 @@ export default function CalendarView({
                             )}
                           </div>
                         </div>
-                        <p className="mt-1.5 text-[12px] font-medium text-[#5d6879]">
+                        <p className="mt-1.5 text-[12px] font-medium text-[var(--hb-text-body)]">
                           담당 · {getScheduleEventAssigneeLabel(
                             evt.assignee,
                             assigneeContext,
                           )}
                         </p>
                         {evt.time && (
-                          <p className="mt-1 text-[12px] font-medium text-[#5d6879]">
+                          <p className="mt-1 text-[12px] font-medium text-[var(--hb-text-body)]">
                             시간 · {evt.time}
                           </p>
                         )}
@@ -267,7 +267,7 @@ export default function CalendarView({
                         )}
                         {shouldShowMemo && (
                           <div className="mt-2 rounded-lg border border-[var(--hb-hairline)]/70 bg-[#fffdf8] px-3 py-2">
-                            <p className="mb-1 text-[11px] font-semibold text-[#795252]">
+                            <p className="mb-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
                               메모
                             </p>
                             <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">

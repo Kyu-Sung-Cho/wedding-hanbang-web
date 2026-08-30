@@ -34,7 +34,7 @@ function SlideWelcome() {
       </div>
 
       {/* 타이틀 — 모바일 사이즈 다운 */}
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center leading-snug mb-2 sm:mb-3">
         결혼 준비,{"\n"}아모라와 처음부터 끝까지.
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5 sm:mb-6">
@@ -50,19 +50,19 @@ function SlideWelcome() {
         ].map((item, i) => (
           <div
             key={i}
-            className="flex-1 flex flex-col items-center gap-2 py-5 px-2 rounded-2xl bg-[#fcf9f8] border border-[#f6f3f2]"
+            className="flex-1 flex flex-col items-center gap-2 py-5 px-2 rounded-2xl bg-[var(--hb-surface-hover)] border border-[#f6f3f2]"
           >
             <div className="w-11 h-11 rounded-xl bg-[var(--hb-primary)] flex items-center justify-center text-white">
               {item.icon}
             </div>
-            <span className="text-base font-medium text-[#1b1c1c]">{item.label}</span>
+            <span className="text-base font-medium text-[var(--hb-text-strong)]">{item.label}</span>
             <span className="text-sm text-[var(--hb-text-muted)]">{item.sub}</span>
           </div>
         ))}
       </div>
 
       {/* 진행 안내선 */}
-      <div className="w-full max-w-[300px] h-[2px] rounded-full overflow-hidden bg-[#f6f3f2]">
+      <div className="w-full max-w-[300px] h-[2px] rounded-full overflow-hidden bg-[var(--hb-surface-hover)]">
         <div className="h-full w-1/2 rounded-full bg-[var(--hb-primary)] animate-guide-shimmer" />
       </div>
     </div>
@@ -73,7 +73,7 @@ function SlideWelcome() {
 function SlideDashboard() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
         대시보드
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-6">
@@ -86,7 +86,7 @@ function SlideDashboard() {
         <div className="relative">
           <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 flex items-center justify-between shadow-sm">
             <div>
-              <p className="text-sm text-[#7a8290] mb-0.5">우리의 결혼식</p>
+              <p className="text-sm text-[var(--hb-text-body)] mb-0.5">우리의 결혼식</p>
               <p className="text-sm font-semibold text-[var(--hb-text-strong)]">2026. 09. 12 (토)</p>
             </div>
             <div className="text-right">
@@ -106,10 +106,10 @@ function SlideDashboard() {
         {/* 진행률 카드 */}
         <div className="relative rounded-2xl bg-white border border-[#f6f3f2] p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-base font-medium text-[#1b1c1c]">전체 진행률</span>
+            <span className="text-base font-medium text-[var(--hb-text-strong)]">전체 진행률</span>
             <span className="text-base font-medium text-[var(--hb-text-strong)]">35%</span>
           </div>
-          <div className="w-full h-2 rounded-full bg-[#f6f3f2] overflow-hidden">
+          <div className="w-full h-2 rounded-full bg-[var(--hb-surface-hover)] overflow-hidden">
             <div
               className="h-full rounded-full bg-[var(--hb-primary)]"
               style={{ width: "35%" }}
@@ -141,7 +141,7 @@ function SlideDashboard() {
                     ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                     : cat.status === "progress"
                     ? "bg-amber-50 text-amber-700 border border-amber-200"
-                    : "bg-[#fcf9f8] text-[var(--hb-text-muted)] border border-[#f6f3f2]"
+                    : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)] border border-[#f6f3f2]"
                 }`}
               >
                 {cat.status === "done" && <Check className="w-3 h-3" />}
@@ -161,7 +161,7 @@ function SlideDashboard() {
 function SlideChat() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
         아모라 — 모든 걸 연결하는 중심
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5">
@@ -183,8 +183,8 @@ function SlideChat() {
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col gap-2 max-w-[80%]">
-            <div className="rounded-2xl rounded-tl-md bg-[#fcf9f8] border border-[#f6f3f2] px-4 py-2.5">
-              <p className="text-base text-[#1b1c1c] leading-relaxed">
+            <div className="rounded-2xl rounded-tl-md bg-[var(--hb-surface-hover)] border border-[#f6f3f2] px-4 py-2.5">
+              <p className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 상담 전에 예산 범위, 원하는 촬영 분위기, 추가로 궁금한 질문을 먼저 정리해두면 좋아요.
               </p>
             </div>
@@ -193,16 +193,16 @@ function SlideChat() {
             <div className="rounded-xl bg-white border border-[#f6f3f2] p-3 shadow-sm">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[var(--hb-text-body)]"><span className="text-[#1b1c1c] font-medium">예산 관리</span>에서 상담 금액 정리</span>
+                  <Check className="w-3.5 h-3.5 text-[var(--hb-success)] shrink-0" />
+                  <span className="text-sm text-[var(--hb-text-body)]"><span className="text-[var(--hb-text-strong)] font-medium">예산 관리</span>에서 상담 금액 정리</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[var(--hb-text-body)]"><span className="text-[#1b1c1c] font-medium">일정 관리</span>에서 상담 일정 확인</span>
+                  <Check className="w-3.5 h-3.5 text-[var(--hb-success)] shrink-0" />
+                  <span className="text-sm text-[var(--hb-text-body)]"><span className="text-[var(--hb-text-strong)] font-medium">일정 관리</span>에서 상담 일정 확인</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Check className="w-3.5 h-3.5 text-sage-500 shrink-0" />
-                  <span className="text-sm text-[var(--hb-text-body)]"><span className="text-[#1b1c1c] font-medium">체크리스트</span>에서 준비 상태 확인</span>
+                  <Check className="w-3.5 h-3.5 text-[var(--hb-success)] shrink-0" />
+                  <span className="text-sm text-[var(--hb-text-body)]"><span className="text-[var(--hb-text-strong)] font-medium">체크리스트</span>에서 준비 상태 확인</span>
                 </div>
               </div>
             </div>
@@ -223,7 +223,7 @@ function SlideChat() {
             ].map((label) => (
               <span
                 key={label}
-                className="inline-flex items-center px-2.5 py-1 rounded-full bg-[#fcf9f8] border border-[#f6f3f2] text-sm text-[var(--hb-text-body)]"
+                className="inline-flex items-center px-2.5 py-1 rounded-full bg-[var(--hb-surface-hover)] border border-[#f6f3f2] text-sm text-[var(--hb-text-body)]"
               >
                 {label}
               </span>
@@ -239,7 +239,7 @@ function SlideChat() {
 function SlideBudget() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
         예산 관리
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-6">
@@ -251,7 +251,7 @@ function SlideBudget() {
         {/* 총 예산 카드 */}
         <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-[#7a8290]">총 예산</span>
+            <span className="text-sm text-[var(--hb-text-body)]">총 예산</span>
             <span className="text-base font-semibold text-[var(--hb-text-strong)]">3,000만원</span>
           </div>
           <div className="w-full h-2.5 rounded-full bg-[#f1eadf] overflow-hidden">
@@ -294,16 +294,16 @@ function SlideBudget() {
             <div key={i} className="px-4 py-3">
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-2">
-                  <span className="text-base font-medium text-[#1b1c1c]">{row.name}</span>
+                  <span className="text-base font-medium text-[var(--hb-text-strong)]">{row.name}</span>
                   <span className={`text-sm font-medium px-1.5 py-0.5 rounded-full ${row.tagColor}`}>
                     {row.tag}
                   </span>
                 </div>
                 <span className="text-sm text-[var(--hb-text-body)]">
-                  <span className="text-[#1b1c1c] font-medium">{row.spent}</span>/{row.total}만원
+                  <span className="text-[var(--hb-text-strong)] font-medium">{row.spent}</span>/{row.total}만원
                 </span>
               </div>
-              <div className="w-full h-1.5 rounded-full bg-[#f6f3f2] overflow-hidden">
+              <div className="w-full h-1.5 rounded-full bg-[var(--hb-surface-hover)] overflow-hidden">
                 <div
                   className="h-full rounded-full bg-[var(--hb-primary)]"
                   style={{ width: `${(row.spent / row.total) * 100}%` }}
@@ -351,7 +351,7 @@ function SlideFeaturePages() {
 
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center mb-2">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
         기능 페이지로 이어가기
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-6">
@@ -361,7 +361,7 @@ function SlideFeaturePages() {
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         <div className="rounded-2xl border border-[#d8bb86]/60 bg-white p-4 shadow-sm">
           <p className="text-sm font-medium text-[var(--hb-text-strong)] mb-2">추천 흐름</p>
-          <p className="text-base leading-relaxed text-[#1b1c1c]">
+          <p className="text-base leading-relaxed text-[var(--hb-text-strong)]">
             아모라에게 결혼 준비를 말하면, 답변에서 나온 금액은 예산에, 해야 할 일과 날짜는 할 일·일정에 이어서 정리할 수 있어요.
           </p>
         </div>
@@ -374,14 +374,14 @@ function SlideFeaturePages() {
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-base font-medium text-[#1b1c1c]">{feature.title}</h3>
+                <h3 className="text-base font-medium text-[var(--hb-text-strong)]">{feature.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-[var(--hb-text-body)]">{feature.desc}</p>
               </div>
             );
           })}
         </div>
 
-        <div className="rounded-2xl border border-[#f6f3f2] bg-[#fcf9f8] px-4 py-3">
+        <div className="rounded-2xl border border-[#f6f3f2] bg-[var(--hb-surface-hover)] px-4 py-3">
           <p className="text-sm leading-relaxed text-[var(--hb-text-body)]">
             무엇부터 해야 할지 막히면 아모라에게 지금 상황을 말해보세요. 필요한 일과 날짜, 금액을 한곳에서 이어서 정리할 수 있어요.
           </p>
@@ -409,7 +409,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         />
       </div>
 
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#1b1c1c] text-center leading-snug mb-2 sm:mb-3">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center leading-snug mb-2 sm:mb-3">
         이제 아모라에게 말해보세요
       </h2>
       <p className="text-sm sm:text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5 sm:mb-6">
@@ -598,7 +598,7 @@ export default function ServiceGuide() {
             <button
               type="button"
               onClick={dismissForNow}
-              className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[var(--hb-text-muted)] hover:text-[#1b1c1c] transition-colors"
+              className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-colors"
             >
               나중에 보기
               <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -608,7 +608,7 @@ export default function ServiceGuide() {
 
         {/* 프로그레스 바 */}
         <div className="px-6 mb-3">
-          <div className="w-full h-[3px] rounded-full bg-[#f6f3f2] overflow-hidden">
+          <div className="w-full h-[3px] rounded-full bg-[var(--hb-surface-hover)] overflow-hidden">
             <div
               className="h-full rounded-full bg-[var(--hb-primary)] transition-all duration-500 ease-out"
               style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
@@ -647,7 +647,7 @@ export default function ServiceGuide() {
               <button
                 onClick={prev}
                 disabled={current === 0}
-                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[#1b1c1c] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
+                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
               >
                 <ChevronLeft className="w-4 h-4" />
                 이전

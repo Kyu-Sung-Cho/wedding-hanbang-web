@@ -44,7 +44,7 @@ export default function AiMessageFooter({
           <span className="text-[var(--hb-text-muted)]">·</span>
           <Link
             href="/ai-policy"
-            className="underline decoration-dotted underline-offset-2 hover:text-[#795252] transition-colors"
+            className="underline decoration-dotted underline-offset-2 hover:text-[var(--hb-accent-hover)] transition-colors"
           >
             AI 정책
           </Link>

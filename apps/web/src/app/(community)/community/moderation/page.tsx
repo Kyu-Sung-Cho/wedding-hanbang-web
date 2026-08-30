@@ -156,7 +156,7 @@ export default function CommunityModerationPage() {
   return (
     <main className="mx-auto min-h-[70vh] w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8">
-        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-rose-600">
+        <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 text-[var(--hb-accent-hover)]">
           <ShieldCheck className="h-5 w-5" aria-hidden="true" />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight text-[var(--hb-text-strong)] sm:text-3xl">
@@ -173,7 +173,7 @@ export default function CommunityModerationPage() {
           className="flex min-h-48 items-center justify-center rounded-2xl border border-black/[0.06] bg-white"
           role="status"
         >
-          <Loader2 className="h-5 w-5 animate-spin text-rose-500" />
+          <Loader2 className="h-5 w-5 animate-spin text-[var(--hb-accent-hover)]" />
           <span className="ml-2 text-sm text-taupe-600">불러오는 중</span>
         </div>
       ) : loadError ? (
@@ -230,7 +230,7 @@ export default function CommunityModerationPage() {
                   <div>
                     <div className="flex items-center gap-2">
                       {!notice.read_at && (
-                        <span className="rounded-full bg-rose-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                        <span className="rounded-full bg-[var(--hb-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
                           새 알림
                         </span>
                       )}

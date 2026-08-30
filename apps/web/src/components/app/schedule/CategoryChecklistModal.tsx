@@ -64,8 +64,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-sage-500",
-  in_progress: "bg-[#795252]",
+  completed: "bg-[var(--hb-success)]",
+  in_progress: "bg-[var(--hb-primary)]",
   not_started: "bg-[#B5ADA3]",
   not_applicable: "bg-[#8b857c]",
 };
@@ -269,8 +269,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         <div className="px-6 pt-6 pb-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#795252]/10 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-[#795252]" />
+              <div className="w-11 h-11 rounded-xl bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <div>
                 <h3 id={titleId} className="text-2xl font-semibold text-[var(--hb-text-strong)]">{template.label}</h3>
@@ -289,7 +289,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               type="button"
               onClick={onClose}
               aria-label={`${template.label} 체크리스트 닫기`}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[#F6F3F2] transition-colors"
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -297,7 +297,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
           {/* 진행률 바 */}
           <div
-            className="w-full h-2 bg-[#F6F3F2] rounded-full overflow-hidden"
+            className="w-full h-2 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden"
             role="progressbar"
             aria-label={`${template.label} 완료율`}
             aria-valuemin={0}
@@ -351,15 +351,15 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                 disabled={saving || isNotApplicable}
                 onClick={() => toggleItem(item.id)}
-                className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
+                className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
               >
                 <div className="flex-shrink-0">
                   {item.done ? (
-                    <div className="w-6 h-6 rounded-full bg-[#795252] flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-[var(--hb-primary)] flex items-center justify-center">
                       <Check className="w-4 h-4 text-white" />
                     </div>
                   ) : (
-                    <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover:border-[#795252] transition-colors" />
+                    <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover:border-[var(--hb-hairline)] transition-colors" />
                   )}
                 </div>
                 {/*
@@ -400,7 +400,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             </p>
           )}
           <div className="flex items-start gap-2.5">
-            <Lightbulb className="w-5 h-5 text-[#C9A96E] flex-shrink-0 mt-0.5" />
+            <Lightbulb className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0 mt-0.5" />
             <p className="text-base text-[var(--hb-text-body)] font-light leading-relaxed">
               {template.tip}
             </p>
@@ -408,7 +408,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
           <Link
             {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
-            className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
+            className="mt-3 flex items-center gap-2.5 rounded-xl bg-[var(--hb-surface-hover)] px-3 py-3 transition-colors bg-[#f3e9df] group"
           >
             <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[var(--hb-primary)]">
               <BookOpen className="h-4 w-4 text-white" />
@@ -421,7 +421,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 {relatedGuide ? "관련 예절 가이드를 읽고 준비 기준 맞추기" : "우리 상황에 맞는 준비 순서 정리하기"}
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[#795252]" />
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[var(--hb-accent-hover)]" />
           </Link>
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>

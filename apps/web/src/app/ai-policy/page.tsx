@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function AIPolicyPage() {
   return (
-    <div className="min-h-screen bg-[#fcf9f8]">
+    <div className="min-h-screen bg-[var(--hb-surface-hover)]">
       <main className="max-w-3xl mx-auto px-6 py-16 max-md:py-10">
         {/* 상단 */}
         <div className="mb-10">
@@ -20,7 +20,7 @@ export default function AIPolicyPage() {
           >
             ← 홈으로
           </Link>
-          <h1 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-3xl max-md:text-2xl text-[#1b1c1c] mb-3 leading-tight">
+          <h1 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-3xl max-md:text-2xl text-[var(--hb-text-strong)] mb-3 leading-tight">
             웨딩한방 AI 정책
           </h1>
           <p className="text-sm text-[var(--hb-text-body)]">
@@ -30,7 +30,7 @@ export default function AIPolicyPage() {
 
         {/* Section 1 — 원칙 */}
         <section className="mb-10">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
             우리의 AI 원칙
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] mb-6 leading-relaxed">
@@ -39,7 +39,7 @@ export default function AIPolicyPage() {
 
           <div className="space-y-7">
             <div>
-              <h3 className="font-medium text-base text-[#1b1c1c] mb-2">1. 투명성</h3>
+              <h3 className="font-medium text-base text-[var(--hb-text-strong)] mb-2">1. 투명성</h3>
               <ul className="list-disc pl-5 text-sm text-[var(--hb-text-body)] space-y-1 leading-relaxed">
                 <li>AI가 생성한 답변임을 명확히 표시합니다.</li>
                 <li>사용 AI 모델을 공개합니다 (OpenAI GPT-5.6 Luna·Terra).</li>
@@ -48,7 +48,7 @@ export default function AIPolicyPage() {
             </div>
 
             <div>
-              <h3 className="font-medium text-base text-[#1b1c1c] mb-2">2. 안전성</h3>
+              <h3 className="font-medium text-base text-[var(--hb-text-strong)] mb-2">2. 안전성</h3>
               <ul className="list-disc pl-5 text-sm text-[var(--hb-text-body)] space-y-1 leading-relaxed">
                 <li>개인정보, 계약, 결제, 안전에 영향을 줄 수 있는 답변을 별도로 점검합니다.</li>
                 <li>예산·할 일·일정 저장과 다른 사람에게 공유하는 동작은 사용자가 실행 전에 확인합니다.</li>
@@ -57,7 +57,7 @@ export default function AIPolicyPage() {
             </div>
 
             <div>
-              <h3 className="font-medium text-base text-[#1b1c1c] mb-2">3. 사용자 권리</h3>
+              <h3 className="font-medium text-base text-[var(--hb-text-strong)] mb-2">3. 사용자 권리</h3>
               <ul className="list-disc pl-5 text-sm text-[var(--hb-text-body)] space-y-1 leading-relaxed">
                 <li>AI 대화 기록을 확인하고, 제공되는 기능으로 대화 목록을 비울 수 있습니다.</li>
                 <li>아모라의 개인 도움 방식을 직접 확인·수정·삭제할 수 있습니다. 이 값은 성격·유형·궁합 판정에 사용하지 않고, 현재 질문에서 직접 요청한 방식이 저장값보다 우선합니다.</li>
@@ -67,7 +67,7 @@ export default function AIPolicyPage() {
             </div>
 
             <div>
-              <h3 className="font-medium text-base text-[#1b1c1c] mb-2">4. 법령·정책 반영</h3>
+              <h3 className="font-medium text-base text-[var(--hb-text-strong)] mb-2">4. 법령·정책 반영</h3>
               <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">
                 「인공지능 발전과 신뢰 기반 조성 등에 관한 기본법」과 개인정보 보호 관계 법령을
                 검토해 운영에 반영합니다. 실제 수집 항목과 보관 범위는{" "}
@@ -82,15 +82,15 @@ export default function AIPolicyPage() {
 
         {/* Section 2 — 관리·감독 담당 */}
         <section className="mb-10 p-6 max-md:p-5 bg-white rounded-lg border border-[#e5dcdc]">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
             AI 운영 문의
           </h2>
           <ul className="text-sm text-[var(--hb-text-body)] space-y-2 leading-relaxed">
             <li>
-              <strong className="text-[#1b1c1c]">담당</strong>: 웨딩한방 AI 운영 담당
+              <strong className="text-[var(--hb-text-strong)]">담당</strong>: 웨딩한방 AI 운영 담당
             </li>
             <li>
-              <strong className="text-[#1b1c1c]">이메일</strong>:{" "}
+              <strong className="text-[var(--hb-text-strong)]">이메일</strong>:{" "}
               <a href={`mailto:${CONTACT.email}`} className="underline hover:text-[var(--hb-primary)] transition-colors">
                 {CONTACT.email}
               </a>
@@ -100,7 +100,7 @@ export default function AIPolicyPage() {
 
         {/* Section 3 — AI의 한계 */}
         <section className="mb-10">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
             AI의 한계
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] mb-4 leading-relaxed">
@@ -117,7 +117,7 @@ export default function AIPolicyPage() {
 
         {/* Section 4 — 문제 신고 */}
         <section className="mb-6">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[#1b1c1c] mb-4">
+          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
             문제 신고
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">

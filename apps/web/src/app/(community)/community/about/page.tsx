@@ -99,7 +99,7 @@ export default function CommunityAboutPage() {
                 title: "동기방에서 함께 준비",
                 desc: "같은 분기에 결혼하는 커플들이 모이는 동기방. 투어 동행자도 찾고, 정보도 나누고.",
                 color: "from-sage-500/15 to-sage-500/5",
-                iconColor: "text-sage-500",
+                iconColor: "text-[var(--hb-success)]",
               },
               {
                 icon: Search,
@@ -120,7 +120,7 @@ export default function CommunityAboutPage() {
                 title: "투표로 좋은 글 추천",
                 desc: "도움이 된 글에 반응하면 다른 예비부부도 더 빨리 찾을 수 있어요.",
                 color: "from-[#A8D8A8]/30 to-[#A8D8A8]/5",
-                iconColor: "text-sage-500",
+                iconColor: "text-[var(--hb-success)]",
               },
               {
                 icon: Sparkles,

@@ -566,7 +566,7 @@ export default function OnboardingPage() {
 
           {/* 에러 */}
           {error && (
-            <p className="text-[12px] text-rose-600 text-center mt-4">{error}</p>
+            <p className="text-[12px] text-[var(--hb-accent-hover)] text-center mt-4">{error}</p>
           )}
 
           {/* 버튼 */}

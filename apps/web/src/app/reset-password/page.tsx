@@ -155,7 +155,7 @@ export default function ResetPasswordPage() {
                무엇이 잘못됐는지 알려주지 않은 채 사람을 붙잡아 뒀다. */
             <div className="text-center py-4">
               <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--hb-accent-hover)]">
                   <circle cx="12" cy="12" r="10" /><path d="M12 8v4" /><path d="M12 16h.01" />
                 </svg>
               </div>
@@ -175,7 +175,7 @@ export default function ResetPasswordPage() {
           ) : !ready ? (
             <div className="text-center py-4">
               <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-rose-500/10 flex items-center justify-center">
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-rose-500 animate-spin">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--hb-accent-hover)] animate-spin">
                   <path d="M12 6v6l4 2" /><circle cx="12" cy="12" r="10" />
                 </svg>
               </div>
@@ -298,7 +298,7 @@ export default function ResetPasswordPage() {
                 </div>
 
                 {error && (
-                  <p className="text-[12px] text-rose-600 px-1">{error}</p>
+                  <p className="text-[12px] text-[var(--hb-accent-hover)] px-1">{error}</p>
                 )}
 
                 <button

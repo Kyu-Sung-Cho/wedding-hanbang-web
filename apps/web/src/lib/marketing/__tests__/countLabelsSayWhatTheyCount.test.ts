@@ -43,7 +43,7 @@ import {
  *
  * ## 숫자를 문자열로 찾지 않는다
  *
- * 처음엔 `text.includes("829")` 로 썼다가 **색상 코드 `text-[#7a8290]` 에 걸렸다**
+ * 처음엔 `text.includes("829")` 로 썼다가 **색상 코드 `text-[var(--hb-text-body)]` 에 걸렸다**
  * (한 파일에서 20건 중 15건이 색상이었다). 숫자는 앞뒤가 숫자가 아닐 때만 그 숫자다.
  *
  * ## 2026-08-28 — 장면 수도 여기서 잰다
@@ -122,7 +122,7 @@ const LANDING_RENDERED = everyLandingComponent()
 
 describe("측정기가 살아 있다", () => {
   it("숫자 검색이 색상 코드에 걸리지 않는다", () => {
-    expect(hasNumber('text-[#7a8290]', 829)).toBe(false);
+    expect(hasNumber('text-[var(--hb-text-body)]', 829)).toBe(false);
     expect(hasNumber("업체 829곳", 829)).toBe(true);
     expect(hasNumber("const N = 406;", 406)).toBe(true);
   });

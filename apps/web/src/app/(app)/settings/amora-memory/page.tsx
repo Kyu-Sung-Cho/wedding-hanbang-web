@@ -356,12 +356,12 @@ export default function AmoraMemorySettingsPage() {
 
       {loading ? (
         <div className="flex min-h-64 items-center justify-center rounded-2xl bg-white">
-          <Loader2 className="h-6 w-6 animate-spin text-[#795252]" />
+          <Loader2 className="h-6 w-6 animate-spin text-[var(--hb-accent-hover)]" />
         </div>
       ) : error && !data ? (
         <div className="rounded-2xl bg-white p-8 text-center shadow-sm">
-          <p className="text-sm text-[#795252]">{error}</p>
-          <button type="button" onClick={() => void load()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#795252] px-4 text-sm font-medium text-white">
+          <p className="text-sm text-[var(--hb-accent-hover)]">{error}</p>
+          <button type="button" onClick={() => void load()} className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--hb-primary)] px-4 text-sm font-medium text-white">
             <RefreshCw className="h-4 w-4" /> 다시 불러오기
           </button>
         </div>
@@ -376,7 +376,7 @@ export default function AmoraMemorySettingsPage() {
             <div className="flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  {activeVisibility === "shared" ? <Users className="h-4 w-4 text-[#795252]" /> : <Eye className="h-4 w-4 text-[#795252]" />}
+                  {activeVisibility === "shared" ? <Users className="h-4 w-4 text-[var(--hb-accent-hover)]" /> : <Eye className="h-4 w-4 text-[var(--hb-accent-hover)]" />}
                   <h2 className="font-medium text-[var(--hb-text-strong)]">
                     {activeVisibility === "shared" ? "내 공유 기억 동의" : "나만 상담 기억"}
                   </h2>
@@ -473,11 +473,11 @@ export default function AmoraMemorySettingsPage() {
                     <article key={memory.id} className="px-5 py-5 sm:px-6">
                       {editing ? (
                         <div className="space-y-3">
-                          <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={60} aria-label="기억 제목" className="min-h-11 w-full rounded-xl bg-[#F6F3F2] px-4 text-sm text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#795252]/30" />
-                          <textarea value={editValue} onChange={(event) => setEditValue(event.target.value)} maxLength={160} rows={3} aria-label="기억 내용" className="w-full resize-none rounded-xl bg-[#F6F3F2] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-[#795252]/30" />
+                          <input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={60} aria-label="기억 제목" className="min-h-11 w-full rounded-xl bg-[var(--hb-surface-hover)] px-4 text-sm text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]" />
+                          <textarea value={editValue} onChange={(event) => setEditValue(event.target.value)} maxLength={160} rows={3} aria-label="기억 내용" className="w-full resize-none rounded-xl bg-[var(--hb-surface-hover)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]" />
                           <div className="flex gap-2">
-                            <button type="button" disabled={busy || !editTitle.trim() || !editValue.trim()} onClick={() => void saveMemory(memory)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#795252] px-4 text-sm font-medium text-white disabled:opacity-40"><Check className="h-4 w-4" /> 저장</button>
-                            <button type="button" onClick={() => setEditingId(null)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[#F6F3F2]"><X className="h-4 w-4" /> 취소</button>
+                            <button type="button" disabled={busy || !editTitle.trim() || !editValue.trim()} onClick={() => void saveMemory(memory)} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 text-sm font-medium text-white disabled:opacity-40"><Check className="h-4 w-4" /> 저장</button>
+                            <button type="button" onClick={() => setEditingId(null)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-4 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)]"><X className="h-4 w-4" /> 취소</button>
                           </div>
                         </div>
                       ) : (
@@ -499,7 +499,7 @@ export default function AmoraMemorySettingsPage() {
                             {memory.reasoning && <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">{memory.reasoning}</p>}
                           </div>
                           <div className="flex flex-shrink-0 gap-1">
-                            <button type="button" onClick={() => startEditing(memory)} aria-label="기억 고치기" className="flex h-11 w-11 items-center justify-center rounded-full text-[#795252] hover:bg-[#F6F3F2]"><Pencil className="h-4 w-4" /></button>
+                            <button type="button" onClick={() => startEditing(memory)} aria-label="기억 고치기" className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-accent-hover)] hover:bg-[var(--hb-surface-hover)]"><Pencil className="h-4 w-4" /></button>
                             <button type="button" disabled={busy} onClick={() => setDeletingId(memory.id)} aria-label="기억 삭제" className="flex h-11 w-11 items-center justify-center rounded-full text-red-500 hover:bg-red-50 disabled:opacity-40"><Trash2 className="h-4 w-4" /></button>
                           </div>
                           </div>

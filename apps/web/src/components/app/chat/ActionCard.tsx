@@ -116,12 +116,12 @@ function getTitle(result: ToolExecutionResult) {
 
 function getAccentColor(toolName: string) {
   if (toolName.includes("amora_action")) {
-    return "border-[#795252]/20 bg-[#795252]/5";
+    return "border-[var(--hb-hairline)] bg-[rgba(54,83,78,0.10)]";
   }
   if (toolName.startsWith("update_") || toolName === "toggle_checklist_item") {
     return "border-[#C4967E]/30 bg-[#C4967E]/5";
   }
-  return "border-[#C9A96E]/30 bg-[#C9A96E]/5";
+  return "border-[var(--hb-accent)] bg-[rgba(54,83,78,0.12)]";
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -509,7 +509,7 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
                 ? "bg-red-50 text-red-600"
                 : action.priority === "low"
                   ? "bg-[#eef2df] text-[#5a6147]"
-                  : "bg-[#f3e7e1] text-[#795252]"
+                  : "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]"
             }`}>
               {getActionPriorityLabel(action.priority)}
             </span>

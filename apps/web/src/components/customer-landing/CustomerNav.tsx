@@ -121,7 +121,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
                 key={link.href}
                 href={link.href}
                 onClick={(e) => handleClick(e, link.href)}
-                className={`relative ${onDark && !(scrolled || menuOpen) ? "text-[var(--hb-on-primary)]" : "text-charcoal"} text-[14px] font-normal tracking-wide no-underline hover:text-[var(--hb-text-strong)] transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full`}
+                className={`relative ${onDark && !(scrolled || menuOpen) ? "text-[var(--hb-on-primary)]" : "text-charcoal"} text-[14px] font-normal tracking-wide no-underline hover:text-[var(--hb-text-strong)] transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-[var(--hb-primary)] after:transition-[width] after:duration-300 hover:after:w-full`}
               >
                 {link.label}
               </a>
@@ -129,7 +129,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
               <a
                 key={link.href}
                 href={link.href}
-                className={`relative ${onDark && !(scrolled || menuOpen) ? "text-[var(--hb-on-primary)]" : "text-charcoal"} text-[14px] font-normal tracking-wide no-underline hover:text-[var(--hb-text-strong)] transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-rose-500 after:transition-[width] after:duration-300 hover:after:w-full`}
+                className={`relative ${onDark && !(scrolled || menuOpen) ? "text-[var(--hb-on-primary)]" : "text-charcoal"} text-[14px] font-normal tracking-wide no-underline hover:text-[var(--hb-text-strong)] transition-colors after:content-[''] after:absolute after:bottom-[-4px] after:left-0 after:w-0 after:h-[1.5px] after:bg-[var(--hb-primary)] after:transition-[width] after:duration-300 hover:after:w-full`}
               >
                 {link.label}
               </a>
@@ -191,7 +191,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
               key={link.href}
               href={link.href}
               onClick={link.scroll ? (e) => handleClick(e, link.href) : () => setMenuOpen(false)}
-              className="flex items-center justify-between py-4 text-[16px] text-[var(--hb-text-strong)] font-medium no-underline border-b border-platinum/40 hover:text-rose-500 transition-colors"
+              className="flex items-center justify-between py-4 text-[16px] text-[var(--hb-text-strong)] font-medium no-underline border-b border-platinum/40 hover:text-[var(--hb-accent-hover)] transition-colors"
             >
               {link.label}
               <svg className="w-4 h-4 text-[var(--hb-text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

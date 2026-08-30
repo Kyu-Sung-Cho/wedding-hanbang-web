@@ -249,7 +249,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
       <article className="min-w-0">
       <header>
         <p className="text-[12.5px] font-semibold tracking-wide text-[#8F5150]">{part.subtitle}</p>
-        <h1 className="mt-1.5 text-[28px] font-semibold leading-snug text-[#1b1c1c] sm:text-[34px]">
+        <h1 className="mt-1.5 text-[28px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-[34px]">
           {part.title}
         </h1>
         <p className="mt-3 text-[14px] leading-[1.8] text-[#3d4a45]">{part.description}</p>
@@ -335,8 +335,8 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         아래에는 나가는 링크가 0개라, 20화면을 내려온 사람이 갈 곳이 없었다.
         옮기면 두 문제가 같이 풀린다.
       */}
-      <div className="mt-5 rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-4 py-4">
-        <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">읽은 뒤 준비하기</p>
+      <div className="mt-5 rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
+        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">읽은 뒤 준비하기</p>
         <p className="mt-1 text-[14px] leading-6 text-[#3d4a45]">
           {checklistLabel
             ? `${checklistLabel} 준비 항목을 열어 실제로 확인하고 저장할 수 있어요.`

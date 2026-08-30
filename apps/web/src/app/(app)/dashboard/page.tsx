@@ -128,13 +128,13 @@ const categories: CategoryMeta[] = [
 const statusMeta: Record<Status, { label: string; tone: string; dot: string }> = {
   not_started: {
     label: PREPARATION_PROGRESS_STATUS_LABELS.not_started,
-    tone: "border-[var(--hb-hairline)] bg-white text-[#5d6879]",
+    tone: "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)]",
     dot: "bg-[#c8bda8]",
   },
   in_progress: {
     label: PREPARATION_PROGRESS_STATUS_LABELS.in_progress,
-    tone: "border-[#dfc88f] bg-[#fff8ec] text-[#9d6f36]",
-    dot: "bg-[#b68a3a]",
+    tone: "border-[#dfc88f] bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]",
+    dot: "bg-[var(--hb-accent)]",
   },
   completed: {
     label: PREPARATION_PROGRESS_STATUS_LABELS.completed,
@@ -382,7 +382,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-5 text-[#061a34]">
+    <div className="space-y-5 text-[var(--hb-text-strong)]">
       {journeyNotice && (
         <div
           role="status"
@@ -464,18 +464,18 @@ export default function DashboardPage() {
         <section className="rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)]">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <p className="text-[15px] font-semibold text-[#071629]">
+              <p className="text-[15px] font-semibold text-[var(--hb-text-strong)]">
                 지금은 혼자 준비해도 괜찮아요
               </p>
-              <p className="mt-1 text-[13px] font-medium text-[#5d6879]">
+              <p className="mt-1 text-[13px] font-medium text-[var(--hb-text-body)]">
                 함께 보고 싶을 때 이 코드를 공유하면 같은 예산과 일정, 할 일을 볼 수 있어요.
               </p>
               {inviteNotice && (
                 <p
                   className={
                     inviteNotice.tone === "active"
-                      ? "mt-1 text-[13px] font-medium text-[#5d6879]"
-                      : "mt-1 text-[13px] font-semibold text-[#9d6f36]"
+                      ? "mt-1 text-[13px] font-medium text-[var(--hb-text-body)]"
+                      : "mt-1 text-[13px] font-semibold text-[var(--hb-accent-hover)]"
                   }
                 >
                   {inviteNotice.message}
@@ -486,13 +486,13 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={copyCode}
-                className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fff8ec] px-5 py-3 text-[14px] font-semibold text-[#9d6f36]"
+                className="inline-flex items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-3 text-[14px] font-semibold text-[var(--hb-accent-hover)]"
               >
                 <span className="font-jakarta tracking-[0.18em]">{inviteCode}</span>
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </button>
             ) : (
-              <p className="text-[13px] font-medium text-[#9d6f36]">
+              <p className="text-[13px] font-medium text-[var(--hb-accent-hover)]">
                 초대 코드를 불러오지 못했어요. 새로고침하면 다시 시도해요.
               </p>
             )}
@@ -505,11 +505,11 @@ export default function DashboardPage() {
       {/* 결혼식 날짜가 없으면 첫 행동 하나를, 있으면 이번 주 내용을 보여준다. */}
       {!journey?.wedding_date ? (
         <section className="rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-5 shadow-[var(--shadow-raised)] md:p-6">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
             시작하기
             <Sparkles className="h-4 w-4" />
           </p>
-          <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.3] text-[#061a34] md:text-[28px]">
+          <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.3] text-[var(--hb-text-strong)] md:text-[28px]">
             결혼식 날짜를 알려주세요
           </h2>
           <p className="mt-2 max-w-[520px] text-[14px] font-medium leading-[1.6] text-[#38475c]">
@@ -542,11 +542,11 @@ export default function DashboardPage() {
 
       <section className="grid gap-4 lg:grid-cols-2" data-tutorial-target="dashboard-hero">
         <div className="flex h-full flex-col rounded-[20px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+          <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
             {companionCopy.loungeLabel}
             <Sparkles className="h-4 w-4" />
           </p>
-          <h1 className="mt-3 font-serif-kr text-[29px] font-medium leading-[1.2] text-[#061a34] md:text-[36px]">
+          <h1 className="mt-3 font-serif-kr text-[29px] font-medium leading-[1.2] text-[var(--hb-text-strong)] md:text-[36px]">
             {companionCopy.statusHeading}
           </h1>
           <p className="mt-2.5 max-w-[520px] text-[14px] font-medium leading-[1.55] text-[#38475c]">
@@ -565,10 +565,10 @@ export default function DashboardPage() {
         >
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
-              <p className="text-[12px] font-semibold text-[#ecd7a4]">아모라 안내</p>
+              <p className="text-[12px] font-semibold text-[#ffffff]">아모라 안내</p>
               <h2 className="mt-1 font-serif-kr text-[23px] font-medium">지금 먼저 볼 것</h2>
             </div>
-            <ShieldCheck className="h-6 w-6 text-[#ecd7a4]" />
+            <ShieldCheck className="h-6 w-6 text-[#ffffff]" />
           </div>
           <Link
             href={amoraPromptHref}
@@ -590,7 +590,7 @@ export default function DashboardPage() {
                     onClick={() => setSelectedCategory(category)}
                     className="min-w-0 rounded-[14px] border border-white/10 bg-white/[0.06] p-3 text-left transition-colors hover:bg-white/[0.1]"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#ecd7a4]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-[#ffffff]">
                       <Icon className="h-[18px] w-[18px]" />
                     </span>
                     <span className="mt-2 block min-w-0">
@@ -604,7 +604,7 @@ export default function DashboardPage() {
               })
             ) : (
               <div className="col-span-3 rounded-[14px] border border-white/10 bg-white/[0.06] p-4">
-                <Check className="h-5 w-5 text-[#ecd7a4]" />
+                <Check className="h-5 w-5 text-[#ffffff]" />
                 <p className="mt-2 text-[14px] font-semibold">주요 준비가 안정적으로 진행 중이에요.</p>
               </div>
             )}
@@ -617,17 +617,17 @@ export default function DashboardPage() {
           <Link
             key={card.label}
             href={card.href}
-            className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[var(--shadow-raised)] transition-colors hover:border-[#d8bb86] sm:p-4"
+            className="group rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-3.5 shadow-[var(--shadow-raised)] transition-colors hover:border-[var(--hb-hairline)] sm:p-4"
           >
             <span className="flex items-center justify-between gap-3">
-              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)] sm:h-9 sm:w-9">
+              <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)] sm:h-9 sm:w-9">
                 <card.icon className="h-4 w-4 stroke-[1.55] sm:h-[18px] sm:w-[18px]" />
               </span>
               <ChevronRight className="h-4 w-4 text-[var(--hb-text-strong)] transition-transform group-hover:translate-x-0.5" />
             </span>
-            <p className="mt-2.5 text-[11px] font-semibold text-[#9d6f36] sm:mt-3">{card.label}</p>
-            <h2 className="mt-1 truncate text-[16px] font-semibold text-[#071629] sm:text-[18px]">{card.value}</h2>
-            <span className="mt-1 block truncate text-[10px] font-medium text-[#5d6879] sm:mt-1.5 sm:text-[11px]">
+            <p className="mt-2.5 text-[11px] font-semibold text-[var(--hb-accent-hover)] sm:mt-3">{card.label}</p>
+            <h2 className="mt-1 truncate text-[16px] font-semibold text-[var(--hb-text-strong)] sm:text-[18px]">{card.value}</h2>
+            <span className="mt-1 block truncate text-[10px] font-medium text-[var(--hb-text-body)] sm:mt-1.5 sm:text-[11px]">
               {card.note}
             </span>
           </Link>
@@ -638,10 +638,10 @@ export default function DashboardPage() {
         <div className="h-full rounded-[18px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-[12px] font-semibold text-[#9d6f36]">진행 현황</p>
-              <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">준비 항목별 상태</h2>
+              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">진행 현황</p>
+              <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">준비 항목별 상태</h2>
             </div>
-            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
               전체 체크리스트
               <ChevronRight className="ml-1 h-4 w-4" />
             </Link>
@@ -657,7 +657,7 @@ export default function DashboardPage() {
                   key={category.key}
                   type="button"
                   onClick={() => setSelectedCategory(category)}
-                  className="group rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-3 text-left transition-colors hover:border-[#d8bb86] hover:bg-white"
+                  className="group rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3 text-left transition-colors hover:border-[var(--hb-hairline)] hover:bg-white"
                 >
                   <span className="flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
@@ -665,13 +665,13 @@ export default function DashboardPage() {
                       </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-start justify-between gap-2">
-                        <span className="text-[14px] font-semibold leading-tight text-[#071629]">{category.label}</span>
+                        <span className="text-[14px] font-semibold leading-tight text-[var(--hb-text-strong)]">{category.label}</span>
                         <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusMeta[status].tone}`}>
                           <span className={`h-1.5 w-1.5 rounded-full ${statusMeta[status].dot}`} />
                           {statusMeta[status].label}
                         </span>
                       </span>
-                      <span className="mt-1 block text-[11px] font-medium text-[#7a8290]">
+                      <span className="mt-1 block text-[11px] font-medium text-[var(--hb-text-body)]">
                         {category.group}
                       </span>
                     </span>
@@ -679,7 +679,7 @@ export default function DashboardPage() {
                   <span className="mt-2.5 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
                     <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${percent}%` }} />
                   </span>
-                  <span className="mt-1.5 flex items-center justify-between text-[11px] font-medium text-[#7a8290]">
+                  <span className="mt-1.5 flex items-center justify-between text-[11px] font-medium text-[var(--hb-text-body)]">
                     <span>체크리스트</span>
                     <span>{counts.done}/{counts.total} 체크</span>
                   </span>
@@ -693,31 +693,31 @@ export default function DashboardPage() {
           <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <p className="text-[12px] font-semibold text-[#9d6f36]">예산</p>
-                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">기록 지출 흐름</h2>
+                <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">예산</p>
+                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">기록 지출 흐름</h2>
               </div>
-              <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)]" aria-label="예산 관리로 이동">
+              <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" aria-label="예산 관리로 이동">
                 <Wallet className="h-4 w-4" />
               </Link>
             </div>
             <div>
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-semibold text-[#7a8290]">기록 지출</p>
-                  <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[#071629]">{formatWon(spentBudget)}</p>
+                  <p className="text-[11px] font-semibold text-[var(--hb-text-body)]">기록 지출</p>
+                  <p className="mt-1 font-serif-kr text-[24px] font-medium leading-none text-[var(--hb-text-strong)]">{formatWon(spentBudget)}</p>
                 </div>
-                <p className="rounded-full bg-[#fff8ec] px-2.5 py-1 text-[12px] font-semibold text-[var(--hb-text-strong)]">
+                <p className="rounded-full bg-[var(--hb-surface-hover)] px-2.5 py-1 text-[12px] font-semibold text-[var(--hb-text-strong)]">
                   {hasTotalBudget ? `${budgetPercent}%` : "계산 전"}
                 </p>
               </div>
               <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
                 <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${budgetBarPercent}%` }} />
               </span>
-              <p className="mt-2 text-[10px] font-medium text-[#7a8290]">
+              <p className="mt-2 text-[10px] font-medium text-[var(--hb-text-body)]">
                 기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
               </p>
             </div>
-            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[#7a8290]">
+            <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[var(--hb-text-body)]">
               <span>
                 {hasTotalBudget ? `총 예산 ${formatWon(totalBudget)}` : "총 예산 미입력"}
               </span>
@@ -731,28 +731,28 @@ export default function DashboardPage() {
           <section className="flex flex-col justify-between rounded-[16px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <p className="text-[12px] font-semibold text-[#9d6f36]">일정</p>
-                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[#071629]">다가오는 일정</h2>
+                <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">일정</p>
+                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">다가오는 일정</h2>
               </div>
-              <Link href={weddingPath("/schedule?new=1")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#fff8ec] text-[var(--hb-text-strong)]" aria-label="일정 추가하기">
+              <Link href={weddingPath("/schedule?new=1")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" aria-label="일정 추가하기">
                 <Bell className="h-4 w-4" />
               </Link>
             </div>
             <div className="space-y-2">
               {upcomingEvents.length > 0 ? (
                 upcomingEvents.slice(0, 2).map((event) => (
-                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[12px] border border-[var(--hb-hairline)] bg-[#fffdf7] px-3.5 py-2.5">
-                    <p className="truncate text-[13px] font-semibold text-[#071629]">{event.title}</p>
-                    <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">{formatDate(event.date)}</p>
+                  <Link key={event.id} href={weddingPath("/schedule")} className="block rounded-[12px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-2.5">
+                    <p className="truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">{event.title}</p>
+                    <p className="mt-0.5 text-[11px] font-medium text-[var(--hb-text-body)]">{formatDate(event.date)}</p>
                   </Link>
                 ))
               ) : (
-                <div className="rounded-[12px] border border-dashed border-[var(--hb-hairline)] bg-[#fffdf7] px-3.5 py-4">
+                <div className="rounded-[12px] border border-dashed border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-4">
                   <div className="flex items-start gap-3">
                     <CalendarCheck className="mt-0.5 h-5 w-5 shrink-0 text-[var(--hb-text-strong)]" />
                     <div>
-                      <p className="text-[13px] font-semibold text-[#071629]">등록된 일정이 없어요.</p>
-                      <p className="mt-0.5 text-[11px] font-medium text-[#7a8290]">첫 상담이나 예약 일정을 추가해보세요.</p>
+                      <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">등록된 일정이 없어요.</p>
+                      <p className="mt-0.5 text-[11px] font-medium text-[var(--hb-text-body)]">첫 상담이나 예약 일정을 추가해보세요.</p>
                     </div>
                   </div>
                 </div>
@@ -773,10 +773,10 @@ export default function DashboardPage() {
           { icon: ClipboardCheck, title: "결정으로 남기기", desc: "예산과 일정, 체크리스트로 바로 옮겨요.", href: "/schedule" },
         ].map((item) => (
           <Link key={item.title} href={weddingPath(item.href)} className="flex gap-4 rounded-[16px] bg-white/78 p-5">
-            <item.icon className="mt-1 h-7 w-7 shrink-0 stroke-[1.55] text-[#b68a3a]" />
+            <item.icon className="mt-1 h-7 w-7 shrink-0 stroke-[1.55] text-[var(--hb-accent-hover)]" />
             <span>
-              <span className="block text-[15px] font-semibold text-[#071629]">{item.title}</span>
-              <span className="mt-2 block text-[12px] font-medium leading-[1.65] text-[#5d6879]">{item.desc}</span>
+              <span className="block text-[15px] font-semibold text-[var(--hb-text-strong)]">{item.title}</span>
+              <span className="mt-2 block text-[12px] font-medium leading-[1.65] text-[var(--hb-text-body)]">{item.desc}</span>
             </span>
           </Link>
         ))}
@@ -798,10 +798,10 @@ export default function DashboardPage() {
 
 function MetricCard({ label, value, note }: { label: string; value: string; note: string }) {
   return (
-    <div className="min-w-0 rounded-[14px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-2.5 sm:p-3.5">
-      <p className="truncate text-[10px] font-semibold text-[#7a8290] sm:text-[11px]">{label}</p>
-      <p className="mt-1.5 truncate font-serif-kr text-[21px] font-medium leading-none text-[#071629] sm:text-[24px]">{value}</p>
-      <p className="mt-1.5 truncate text-[10px] font-medium text-[#5d6879] sm:text-[11px]">{note}</p>
+    <div className="min-w-0 rounded-[14px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-2.5 sm:p-3.5">
+      <p className="truncate text-[10px] font-semibold text-[var(--hb-text-body)] sm:text-[11px]">{label}</p>
+      <p className="mt-1.5 truncate font-serif-kr text-[21px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[24px]">{value}</p>
+      <p className="mt-1.5 truncate text-[10px] font-medium text-[var(--hb-text-body)] sm:text-[11px]">{note}</p>
     </div>
   );
 }
@@ -863,22 +863,22 @@ function CategoryPanel({
     }
   };
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#061a34]/45 px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(54,83,78,0.40)] px-4 pb-4 backdrop-blur-sm md:items-center md:pb-0">
       <section className="w-full max-w-[560px] overflow-hidden rounded-[22px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)]">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[#fff8ec] p-5">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] p-5">
           <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[#b68a3a]">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-accent-hover)]">
               <Icon className="h-6 w-6" />
             </span>
             <div>
-              <p className="text-[12px] font-semibold text-[#9d6f36]">{category.group}</p>
-              <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[#071629]">{category.label}</h2>
+              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">{category.group}</p>
+              <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[var(--hb-text-strong)]">{category.label}</h2>
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white text-[#5d6879]"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)]"
             aria-label="닫기"
           >
             <X className="h-4 w-4" />
@@ -895,8 +895,8 @@ function CategoryPanel({
                 onClick={() => void handleStatusChange(nextStatus)}
                 className={`rounded-[6px] border px-3 py-3 text-[13px] font-semibold ${
                   status === nextStatus
-                    ? "border-[#061a34] bg-[#061a34] text-white"
-                    : "border-[var(--hb-hairline)] bg-white text-[#5d6879]"
+                    ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                    : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)]"
                 } disabled:opacity-50`}
               >
                 {statusMeta[nextStatus].label}
@@ -912,23 +912,23 @@ function CategoryPanel({
             </p>
           )}
 
-          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[#fffdf7] p-5">
-            <p className="mb-3 text-[13px] font-semibold text-[#9d6f36]">먼저 확인할 것</p>
+          <div className="rounded-[16px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-5">
+            <p className="mb-3 text-[13px] font-semibold text-[var(--hb-accent-hover)]">먼저 확인할 것</p>
             <div className="space-y-3">
               {category.tasks.map((task) => (
                 <div key={task} className="flex items-center gap-3">
-                  <Check className="h-4 w-4 text-[#b68a3a]" />
-                  <span className="text-[14px] font-medium text-[#34445a]">{task}</span>
+                  <Check className="h-4 w-4 text-[var(--hb-accent-hover)]" />
+                  <span className="text-[14px] font-medium text-[var(--hb-text-body)]">{task}</span>
                 </div>
               ))}
             </div>
           </div>
 
           <div className="mt-5 flex flex-wrap gap-2">
-            <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-[6px] bg-[#061a34] px-5 py-3 text-[13px] font-semibold text-white">
+            <Link href={weddingPath("/chat")} className="inline-flex flex-1 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-[13px] font-semibold text-white">
               아모라에게 묻기
             </Link>
-            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[13px] font-semibold text-[#9d6f36]">
+            <Link href={weddingPath("/schedule")} className="inline-flex flex-1 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-3 text-[13px] font-semibold text-[var(--hb-accent-hover)]">
               일정에서 보기
             </Link>
           </div>

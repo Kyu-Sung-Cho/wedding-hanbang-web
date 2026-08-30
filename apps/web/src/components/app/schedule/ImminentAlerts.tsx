@@ -46,27 +46,27 @@ const URGENCY_STYLES: Record<string, {
   badgeText: string;
 }> = {
   overdue: {
-    stripBg: "bg-[#795252]",
-    iconBox: "bg-[#795252]/10",
-    iconColor: "text-[#795252]",
-    bar: "bg-[#795252]",
-    badgeBg: "bg-[#795252]",
+    stripBg: "bg-[var(--hb-primary)]",
+    iconBox: "bg-[rgba(54,83,78,0.10)]",
+    iconColor: "text-[var(--hb-accent-hover)]",
+    bar: "bg-[var(--hb-primary)]",
+    badgeBg: "bg-[var(--hb-primary)]",
     badgeText: "text-white",
   },
   urgent: {
-    stripBg: "bg-[#946a6a]",
+    stripBg: "bg-[var(--hb-primary)]",
     iconBox: "bg-[#946a6a]/10",
-    iconColor: "text-[#946a6a]",
-    bar: "bg-[#946a6a]",
-    badgeBg: "bg-[#946a6a]",
+    iconColor: "text-[var(--hb-accent-hover)]",
+    bar: "bg-[var(--hb-primary)]",
+    badgeBg: "bg-[var(--hb-primary)]",
     badgeText: "text-white",
   },
   soon: {
-    stripBg: "bg-[#C9A96E]",
-    iconBox: "bg-[#C9A96E]/10",
-    iconColor: "text-[#C9A96E]",
-    bar: "bg-[#C9A96E]",
-    badgeBg: "bg-[#C9A96E]",
+    stripBg: "bg-[var(--hb-accent)]",
+    iconBox: "bg-[rgba(54,83,78,0.12)]",
+    iconColor: "text-[var(--hb-accent-hover)]",
+    bar: "bg-[var(--hb-accent)]",
+    badgeBg: "bg-[var(--hb-accent)]",
     badgeText: "text-white",
   },
 };
@@ -91,7 +91,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
 
   return (
     <div
-      className="overflow-hidden rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[#fffdf7] animate-fade-in"
+      className="overflow-hidden rounded-[14px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] animate-fade-in"
     >
       {/* 헤더 */}
       <button
@@ -101,10 +101,10 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2.5">
             <Clock className="h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
-            <h3 className="min-w-0 truncate text-[14px] font-semibold text-[#071629]">
+            <h3 className="min-w-0 truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
               날짜를 정할 항목
             </h3>
-            <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">{items.length}건</span>
+            <span className="shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">{items.length}건</span>
           </div>
           {/*
             이 배지가 `지남·급함이 하나라도 있을 때` 안에 중첩돼 있었다. 그래서 마감을
@@ -160,10 +160,10 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
                     {/* 카테고리 정보 */}
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="min-w-0 truncate text-[14px] font-semibold text-[#071629]">
+                        <span className="min-w-0 truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
                           {item.label}
                         </span>
-                        <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">
+                        <span className="shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">
                           {item.doneCount}/{item.totalCount}
                         </span>
                       </div>
@@ -202,7 +202,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
               );
             })}
           </div>
-          <p className="border-t border-[var(--hb-hairline)]/70 px-4 py-3 text-[11px] leading-5 text-[#7a8290]">
+          <p className="border-t border-[var(--hb-hairline)]/70 px-4 py-3 text-[11px] leading-5 text-[var(--hb-text-body)]">
             표시 순서는 기본 일정 기준이며, 업체나 가족과 정한 실제 날짜가 우선입니다.
           </p>
         </div>

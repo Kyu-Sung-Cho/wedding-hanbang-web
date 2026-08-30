@@ -1887,7 +1887,7 @@ type CohortDigest = {
 
 const DIGEST_TOPIC_STYLE: Record<CohortThreadTopic, string> = {
   price: "bg-[#EEF4F1] text-[var(--hb-text-strong)]",
-  review: "bg-[var(--hb-surface-hover)] text-[#795252]",
+  review: "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]",
   concern: "bg-[#fff7e8] text-[#8a6428]",
   chat: "bg-[#f5f2ed] text-[var(--hb-text-body)]",
 };
