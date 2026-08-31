@@ -15,6 +15,7 @@ import {
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
+import { log } from "@/utils/log";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const LEGACY_TYPES = new Set([
@@ -101,7 +102,7 @@ async function writeVendorBatch(request: Request, body: unknown) {
     events.map((event) => ({ ...event, user_id: user?.id ?? null })),
   );
   if (error) {
-    console.error("[vendor events] insert failed", { code: error.code });
+    log.error("[vendor events] insert failed", { code: error.code });
     return NextResponse.json(
       { error: "이벤트를 기록하지 못했습니다." },
       { status: 503 },
@@ -167,7 +168,7 @@ async function writeLegacyEvent(request: Request, body: unknown) {
     session_id: sessionId,
   });
   if (error) {
-    console.error("[legacy events] insert failed", { code: error.code });
+    log.error("[legacy events] insert failed", { code: error.code });
     return NextResponse.json({ error: "이벤트 기록 실패" }, { status: 500 });
   }
   return NextResponse.json({ success: true });
@@ -202,7 +203,7 @@ export async function POST(request: Request) {
       ? await writeVendorBatch(request, body)
       : await writeLegacyEvent(request, body);
   } catch (error) {
-    console.error("[events] unexpected failure", {
+    log.error("[events] unexpected failure", {
       name: error instanceof Error ? error.name : "unknown",
     });
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });

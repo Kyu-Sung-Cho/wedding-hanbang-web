@@ -11,6 +11,7 @@ import {
   isUuid,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { log } from "@/utils/log";
 
 const MAX_BODY_BYTES = 8 * 1024;
 const MONEY_SIDES = ["groom", "bride", "both"] as const;
@@ -134,12 +135,12 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error("[money/:id PATCH] supabase:", error);
+      log.error("[money/:id PATCH] supabase:", error);
       return NextResponse.json({ error: "수정에 실패했습니다." }, { status: 500 });
     }
     return NextResponse.json({ money: data });
   } catch (err) {
-    console.error("[money/:id PATCH]", err);
+    log.error("[money/:id PATCH]", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }
@@ -174,13 +175,13 @@ export async function DELETE(
 
     const { error } = await supabase.from("congratulatory_money").delete().eq("id", id);
     if (error) {
-      console.error("[money/:id DELETE] supabase:", error);
+      log.error("[money/:id DELETE] supabase:", error);
       return NextResponse.json({ error: "삭제에 실패했습니다." }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[money/:id DELETE]", err);
+    log.error("[money/:id DELETE]", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

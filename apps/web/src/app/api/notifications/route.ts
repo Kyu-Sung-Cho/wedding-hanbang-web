@@ -9,6 +9,7 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { log } from "@/utils/log";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const MAX_NOTIFICATION_IDS = 50;
@@ -149,7 +150,10 @@ export async function GET(request: Request) {
       });
 
     return json({ ownerId: user.id, notifications });
-  } catch {
+  } catch (err) {
+    // 이 503 은 예전에 아무 흔적도 남기지 않았다. 알림 목록이 통째로 비어도
+    // 사용자에게만 보이고 우리에게는 안 보인다 — 그래서 여기서 올린다.
+    log.error("[notifications GET] 알림 기록 조회 실패", err);
     return json(
       { error: "알림 기록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 503 },
@@ -191,6 +195,7 @@ export async function POST(request: Request) {
         : await recipientUpdate.in("id", selection.ids);
 
     if (error) {
+      log.error("[notifications POST] 읽음 상태 저장 실패", error);
       return json(
         { error: "알림 읽음 상태를 저장하지 못했습니다. 다시 시도해 주세요." },
         { status: 503 },
@@ -198,7 +203,8 @@ export async function POST(request: Request) {
     }
 
     return json({ ok: true });
-  } catch {
+  } catch (err) {
+    log.error("[notifications POST] 읽음 처리 중 예외", err);
     return json(
       { error: "알림 읽음 상태를 저장하지 못했습니다. 다시 시도해 주세요." },
       { status: 503 },

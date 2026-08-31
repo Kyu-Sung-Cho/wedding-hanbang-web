@@ -4,10 +4,20 @@ const mocks = vi.hoisted(() => ({
   createAdminClient: vi.fn(),
   createClientFromRequest: vi.fn(),
   checkCommunityWriteAccess: vi.fn(async () => ({ allowed: true })),
+  logError: vi.fn(),
 }));
 
 vi.mock("@/utils/trustedMutation", () => ({
   isTrustedMutationRequest: vi.fn(() => true),
+}));
+
+vi.mock("@/utils/log", () => ({
+  log: {
+    error: mocks.logError,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 vi.mock("@/lib/supabase/admin", () => ({
@@ -237,21 +247,20 @@ describe("PATCH /api/community/comments/[id]", () => {
       data: null,
       error: { code: "DB998", message: "secret-comment-content-marker" },
     } as never);
-    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
-
+    // 실패 보고는 이제 `log.error` 를 거쳐 Sentry 로도 나간다. 그러니 "본문이
+    // 새지 않는다"는 계약은 콘솔이 아니라 그 입구에서 확인해야 한다.
     const response = await PATCH(request() as never, {
       params: Promise.resolve({ id: COMMENT_ID }),
     });
 
     expect(response.status).toBe(500);
-    expect(errorLog).toHaveBeenCalledWith("[community.comments.patch]", {
+    expect(mocks.logError).toHaveBeenCalledWith("[community.comments.patch]", {
       category: "database",
       code: "DB998",
     });
-    expect(JSON.stringify(errorLog.mock.calls)).not.toContain(
+    expect(JSON.stringify(mocks.logError.mock.calls)).not.toContain(
       "secret-comment-content-marker",
     );
-    errorLog.mockRestore();
   });
 
   it("rejects a declared comment patch above 8 KiB before the service write", async () => {

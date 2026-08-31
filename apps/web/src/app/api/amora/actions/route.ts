@@ -24,6 +24,7 @@ import {
   isRecord,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ async function getCoupleIdForUser(
     .single();
 
   if (error) {
-    console.error("amora actions profile read failed:", error.message);
+    log.error("amora actions profile read failed:", error.message);
     return { ok: false };
   }
 
@@ -141,7 +142,7 @@ export async function GET(request: Request) {
       });
     }
   } catch (error) {
-    console.error("amora actions get failed:", error);
+    log.error("amora actions get failed:", error);
     return NextResponse.json({ error: "아모라 행동을 불러오지 못했습니다." }, { status: 500 });
   }
 }
@@ -208,7 +209,7 @@ export async function POST(request: Request) {
         { status: 503 }
       );
     }
-    console.error("amora actions create failed:", error);
+    log.error("amora actions create failed:", error);
     return NextResponse.json({ error: "아모라 행동을 저장하지 못했습니다." }, { status: 500 });
   }
 }

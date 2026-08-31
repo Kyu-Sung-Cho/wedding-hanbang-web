@@ -38,6 +38,7 @@ import type {
   PriceData,
   UpdatePostInput,
 } from "@/types/community.types";
+import { log } from "@/utils/log";
 
 const VALID_POST_VISIBILITIES: PostVisibility[] = ["public", "members", "draft"];
 const MAX_POST_PATCH_BODY_BYTES = 512 * 1024;
@@ -143,7 +144,7 @@ function logContentFreeFailure(
     typeof sourceCode === "string" && /^[A-Z0-9_]{1,64}$/u.test(sourceCode)
       ? sourceCode
       : "UNCLASSIFIED";
-  console.error(scope, { category, code });
+  log.error(scope, { category, code });
 }
 const PRIVATE_DETAIL_NO_STORE = "private, no-store, max-age=0";
 const VIEWER_VARY = "Authorization, Cookie";

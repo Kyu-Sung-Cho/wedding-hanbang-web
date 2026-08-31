@@ -48,6 +48,7 @@ import type {
   CreatePollInput,
   PollSummary,
 } from "@/types/community.types";
+import { log } from "@/utils/log";
 
 const POST_SORTS: PostSort[] = [
   "hot",
@@ -118,7 +119,7 @@ async function generateAiPriceComment(priceData: PriceData): Promise<AiComment |
   try {
     return buildSourceBackedPriceComment(priceData);
   } catch (err) {
-    console.error("AI price comment inline error:", err);
+    log.error("AI price comment inline error:", err);
     return null;
   }
 }
@@ -341,7 +342,7 @@ export async function GET(req: NextRequest) {
     const { data: posts, count, error } = await query;
 
     if (error) {
-      console.error("Community posts list error:", error);
+      log.error("Community posts list error:", error);
       return NextResponse.json(
         { error: "게시글을 불러올 수 없습니다." },
         { status: 500 }
@@ -395,7 +396,7 @@ export async function GET(req: NextRequest) {
         .select("id, post_id")
         .in("post_id", postIds);
       if (pollReferencesError) {
-        console.error("Community poll references error:", pollReferencesError);
+        log.error("Community poll references error:", pollReferencesError);
       } else if (polls) {
         const postById = new Map(sortedPosts.map((post) => [post.id, post]));
         const serviceClient = getServiceClient();
@@ -422,7 +423,7 @@ export async function GET(req: NextRequest) {
                 poll.id,
               );
             } catch (error) {
-              console.error("Community poll projection error:", error);
+              log.error("Community poll projection error:", error);
               return null;
             }
           }),
@@ -456,7 +457,7 @@ export async function GET(req: NextRequest) {
 
     return feedResponse({ posts: postsWithVotes, total, hasMore });
   } catch (err) {
-    console.error("Community posts error:", err);
+    log.error("Community posts error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -825,7 +826,7 @@ export async function POST(req: NextRequest) {
       },
     );
     if (atomicError) {
-      console.error("Atomic community post creation failed:", atomicError.code);
+      log.error("Atomic community post creation failed:", atomicError.code);
       return postCommandFailure(atomicError);
     }
     if (!isAtomicPostResult(atomicData, user.id)) {
@@ -845,7 +846,7 @@ export async function POST(req: NextRequest) {
       revalidatePath("/wedding");
       revalidatePath("/community");
     } catch (e) {
-      console.error("[posts.POST] revalidatePath failed (non-fatal):", e);
+      log.error("[posts.POST] revalidatePath failed (non-fatal):", e);
     }
 
     // price_data가 있으면 카테고리 무관 AI 코멘트 생성 — fire-and-forget
@@ -861,7 +862,7 @@ export async function POST(req: NextRequest) {
               .eq("id", post.id);
           }
         } catch (aiErr) {
-          console.error("AI comment generation failed:", aiErr);
+          log.error("AI comment generation failed:", aiErr);
         }
       })();
     }
@@ -871,7 +872,7 @@ export async function POST(req: NextRequest) {
       headers: { "Cache-Control": "private, no-store" },
     });
   } catch (err) {
-    console.error("Create post error:", err);
+    log.error("Create post error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
