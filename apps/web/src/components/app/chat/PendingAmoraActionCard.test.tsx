@@ -370,6 +370,38 @@ describe("pending action message boundary", () => {
     expect(getPendingActionDisabledReason(action, now, true, true)).toBe("busy");
   });
 
+  /**
+   * 방금 성공시킨 카드에 "적용할 수 없어요" 가 붙던 것.
+   *
+   * 카드를 누르면 새 메시지가 생기고, 그 순간 이 카드는 최신이 아니게 되어
+   * `not_latest` 로 잠긴다. 2026-08-31 운영에서 재현했다 — 아모라가 "일정을
+   * 추가했어요" 라고 말한 **바로 옆에** "새 대화가 이어져 이 제안은 적용할 수
+   * 없어요" 가 함께 떠 있었다. 사용자는 성공과 실패를 나란히 보고 실패로 읽는다.
+   *
+   * 적용됨은 만료·최신여부보다 **먼저** 판정해야 한다. 시간이 지나도 이미 적용된
+   * 것은 만료될 것이 없다.
+   */
+  it("이미 적용된 카드는 실패가 아니라 적용됨으로 말한다", () => {
+    const now = action.expiresAt - 1;
+    // 누른 직후: 최신이 아니게 됐지만 실패가 아니다.
+    expect(getPendingActionDisabledReason(action, now, false, false, true)).toBe("applied");
+    // 시간이 지나도 마찬가지다.
+    expect(getPendingActionDisabledReason(action, action.expiresAt, false, false, true))
+      .toBe("applied");
+    // 답변이 흐르는 중이어도 마찬가지다.
+    expect(getPendingActionDisabledReason(action, now, true, true, true)).toBe("applied");
+  });
+
+  it("적용되지 않았으면 예전 판정 그대로다", () => {
+    // 새 갈래가 기존 동작을 덮어쓰지 않는지 본다.
+    const now = action.expiresAt - 1;
+    expect(getPendingActionDisabledReason(action, now, true, false, false)).toBeNull();
+    expect(getPendingActionDisabledReason(action, now, false, false, false)).toBe("not_latest");
+    expect(getPendingActionDisabledReason(action, action.expiresAt, true, false, false))
+      .toBe("expired");
+    expect(getPendingActionDisabledReason(action, now, true, true, false)).toBe("busy");
+  });
+
   // 2026-08-22 운영 실측: 브라우저 시계가 서버보다 1.5초 느렸고, 그동안 갓 나온 카드가
   // "확인 시간이 지났어요"를 띄웠다. 시계가 크게 어긋난 기기라면 그 상태가 풀리지 않아
   // 사용자는 아모라가 제안한 어떤 변경도 확인할 수 없다.

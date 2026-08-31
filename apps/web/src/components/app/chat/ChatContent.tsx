@@ -2649,6 +2649,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               message.visibility === "shared"
               && message.metadata?.target !== "partner"
             ))?.id ?? null;
+          // 이미 적용된 카드를 가려낸다. 서버가 사용자 확인 행에
+          // `confirmed_amora_action_id` 를 남기므로 새로고침해도 유지된다 —
+          // 클라이언트 상태로 들고 있으면 새로고침 한 번에 "적용할 수 없어요" 로
+          // 되돌아간다.
+          //
+          // 이게 없으면 **방금 성공시킨 카드**가 `not_latest` 로 잠긴다. 누르는
+          // 순간 새 메시지가 생겨 그 카드가 최신이 아니게 되기 때문이다.
+          // 2026-08-31 운영에서 재현: 아모라가 "일정을 추가했어요" 라고 말한 바로
+          // 옆에 "새 대화가 이어져 이 제안은 적용할 수 없어요" 가 함께 떠 있었다.
+          const appliedActionIds = new Set(
+            messages
+              .map((message) => message.metadata?.confirmed_amora_action_id)
+              .filter((value): value is string => typeof value === "string"),
+          );
           return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const isPinnedSafetyCard = msg.metadata?.pinned_safety_card === true;
@@ -2709,6 +2723,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   nowMs,
                   msg.id === latestSharedMessageId,
                   isStreaming || isSending,
+                  appliedActionIds.has(pendingAction.actionId),
                 )
               : null;
             const pendingBudgetImpactPreview = pendingAction
