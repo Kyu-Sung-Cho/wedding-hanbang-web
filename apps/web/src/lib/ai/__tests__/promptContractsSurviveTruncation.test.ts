@@ -46,9 +46,17 @@ const CONTRACT_HEADINGS = [
   "## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심",
   "## 대화 규칙",
   "## 커플 갈등 중재",
-  "## 요청 기반 조율 (MEDIATION_REQUEST)",
   "## 이어서 할 수 있는 것 (선택)",
 ] as const;
+
+/**
+ * `## 요청 기반 조율 (MEDIATION_REQUEST)` 은 여기 없다 — **잘려서**가 아니라
+ * `requestKind: "mediation"` 이 아닌 턴에는 아예 안 실리기 때문이다
+ * (`REQUEST_KIND_ONLY_SECTIONS`). 이 파일이 지키는 것은 "자리가 모자라 계약이
+ * 조용히 사라지는 것" 이고, 요청 종류로 가르는 것은 그것과 다른 판정이다.
+ * 그 계약이 자기 턴에서 살아남는지는 `requestKindScopedSections.test.ts` 가 든다.
+ */
+const MEDIATION_TURN_CONTRACT = "## 요청 기반 조율 (MEDIATION_REQUEST)";
 
 /** 운영이 실제로 넘기는 집합 — 쓰기 도구는 `!isMutatingTool` 로 걸러진다. */
 const PRODUCTION_READ_TOOLS = BETA_SAFE_TOOLS
@@ -135,6 +143,23 @@ describe("기억이 가득 차도 계약이 먼저 잘리지 않는다", () => {
   it("기억이 실제로 실렸다 — 이게 아니면 위 단언이 헛초록불이다", () => {
     expect(saturated).toContain("## 사용자가 명시한 맞춤 정보");
     expect(saturated.length).toBeGreaterThan(build(PRODUCTION_READ_TOOLS).length);
+  });
+
+  it("조율 계약은 자기 턴에서는 상한까지 채워도 남는다", () => {
+    // 위 CONTRACT_HEADINGS 에서 뺐으니 여기서 한 번은 실제로 지켜야 한다.
+    const mediation = buildAmoraSystemPrompt(
+      promptContext({
+        amoraProfiles: { shared: SATURATED_PROFILE, private: SATURATED_PROFILE },
+      }),
+      {
+        enabledToolNames: PRODUCTION_READ_TOOLS,
+        requestKind: "mediation",
+        persistenceMode: "durable",
+        maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      } as never,
+    );
+    expect(mediation).toContain(MEDIATION_TURN_CONTRACT);
+    expect(mediation.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
   });
 
   it("잘리는 쪽은 참조표·안내다", () => {
