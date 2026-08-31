@@ -1025,7 +1025,16 @@ export default function BudgetContent({
         )}
 
         {/* 상단 스탯 3개 - Editorial */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+        {/*
+          3단은 `lg`(1024px)부터다. `md`(768px)에서 3단으로 가면 칸이 100px 로 좁아지는데
+          금액은 42px 이라 "8,000" 이 117px 을 먹는다. 상위 규칙이 `overflow-wrap: anywhere`
+          라 넘치는 대신 **숫자 중간에서 줄이 바뀌어** 화면에 "8,00 / 0" 으로 나왔다.
+          운영에서 실측한 값이다 — 768px 에서 칸 100px, 850px 부터 정상.
+
+          1024px 에서는 칸이 185px 이라 "123,456"(178px)까지 한 줄에 들어간다.
+          그 아래에서는 한 단으로 쌓여 칸이 407px 이 되므로 어떤 금액도 안 깨진다.
+        */}
+        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
           {/* Total Budget */}
           <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
             <Sparkles className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
