@@ -196,7 +196,7 @@ export default function WeddingCodeClient() {
         {step === "intro" && (
           <div className={`${card} overflow-hidden`}>
             <div className="p-5 sm:p-8">
-              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">중요하게 보는 것을 정리해요</p>
+              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">중요하게 보는 것을 정리해요</p>
               <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">
                 {WC_V05_INTRO_BODY}
               </p>

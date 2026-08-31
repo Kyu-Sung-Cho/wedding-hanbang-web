@@ -117,7 +117,7 @@ export default function CategoryTabs() {
         </div>
 
         <div className="pt-3">
-          <div className="px-3 py-2 text-xs font-medium text-[var(--hb-text-body)] uppercase tracking-wider">
+          <div className="px-3 py-2 text-xs font-medium text-[var(--hb-text-body)]">
             내 활동
           </div>
           <Link

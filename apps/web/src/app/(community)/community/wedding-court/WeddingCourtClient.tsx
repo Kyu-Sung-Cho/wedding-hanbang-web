@@ -140,7 +140,7 @@ function Perspectives({
 }) {
   return (
     <section className="border-t border-[#e8ded2] pt-5">
-      <p className="text-[12px] font-semibold tracking-[0.12em] text-[var(--color-rose-700)]">
+      <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">
         양쪽에서 보면
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -415,7 +415,7 @@ function WeddingCase({
           <section className="rounded-[6px] border border-[#c7d1c2] bg-[#f2f5ef] px-5 py-5">
             <div className="flex items-center gap-2 text-[var(--hb-text-strong)]">
               <LockKeyhole className="h-4 w-4" aria-hidden />
-              <p className="text-[12px] font-bold tracking-[0.1em]">
+              <p className="text-[12px] font-bold">
                 1심 뒤 공개
               </p>
             </div>
@@ -449,7 +449,7 @@ function WeddingCase({
             <section className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-5 text-white">
               <div className="flex items-center gap-2 text-[#d9e2d6]">
                 <Scale className="h-4 w-4" aria-hidden />
-                <p className="text-[12px] font-bold tracking-[0.1em]">
+                <p className="text-[12px] font-bold">
                   선택 뒤 정리
                 </p>
               </div>

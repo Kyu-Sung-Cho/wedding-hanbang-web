@@ -120,7 +120,7 @@ export function PriceWishlist({ catalog }: { catalog: PriceCatalog }) {
     <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 pb-16 pt-10 text-[var(--hb-text-strong)] sm:px-6 sm:pt-14">
       <div className="mx-auto max-w-4xl">
         <header className="mb-7">
-          <p className="text-xs font-bold tracking-[0.13em] text-[var(--color-rose-700)]">
+          <p className="text-xs font-bold text-[var(--color-rose-700)]">
             한국소비자원 참가격 공시
           </p>
           <div className="mt-2 flex flex-wrap items-end justify-between gap-3">

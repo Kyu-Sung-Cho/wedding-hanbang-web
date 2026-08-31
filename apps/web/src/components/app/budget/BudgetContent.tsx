@@ -477,7 +477,7 @@ function BudgetRow({
 
       {/* 지출 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-lg:w-auto">
-        <span className="text-xs uppercase tracking-widest text-[var(--hb-text-muted)] mb-0.5">기록 지출</span>
+        <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">기록 지출</span>
         <InlineMoneyEdit
           value={spent}
           onSave={(v) => onSpentChange(catKey, v)}
@@ -492,7 +492,7 @@ function BudgetRow({
 
       {/* 예산 (편집 가능) */}
       <div className="flex flex-col items-end flex-shrink-0 max-lg:w-auto">
-        <span className="text-xs uppercase tracking-widest text-[var(--hb-text-muted)] mb-0.5">예산</span>
+        <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">예산</span>
         <InlineMoneyEdit
           value={budget}
           onSave={(v) => onBudgetChange(catKey, v)}
@@ -643,7 +643,7 @@ function BudgetCard({
       <div className="flex items-end gap-3">
         <div className="flex items-end gap-3 min-w-0">
           <div className="flex flex-col items-start">
-            <span className="text-xs uppercase tracking-widest text-[var(--hb-text-muted)] mb-0.5">기록 지출</span>
+            <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">기록 지출</span>
             <InlineMoneyEdit
               value={spent}
               onSave={(v) => onSpentChange(catKey, v)}
@@ -654,7 +654,7 @@ function BudgetCard({
           </div>
           <span className="text-sm text-[var(--hb-text-muted)]/60 pb-2">/</span>
           <div className="flex flex-col items-start">
-            <span className="text-xs uppercase tracking-widest text-[var(--hb-text-muted)] mb-0.5">예산</span>
+            <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">예산</span>
             <InlineMoneyEdit
               value={budget}
               onSave={(v) => onBudgetChange(catKey, v)}
@@ -1277,7 +1277,7 @@ export default function BudgetContent({
                 </div>
               </div>
               <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[var(--hb-accent-hover)] mb-1 font-medium">묶음 예산</p>
+                <p className="text-xs text-[var(--hb-accent-hover)] mb-1 font-medium">묶음 예산</p>
                 <h3 className="h-section">사진 촬영·드레스·헤어·메이크업 묶음</h3>
                 <p className="text-sm text-[var(--hb-text-body)] mt-0.5">웨딩 사진 촬영 · 드레스 · 헤어·메이크업</p>
               </div>
@@ -1498,7 +1498,7 @@ export default function BudgetContent({
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--hb-accent-hover)]">*</span></label>
+                  <label className="text-[11px] text-[var(--hb-text-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--hb-accent-hover)]">*</span></label>
                   {/* 60자는 아모라(add_custom_category)가 거절하는 경계와 같다.
                       화면만 더 길게 받으면 아모라가 이름을 잘라 부르고, 그 잘린
                       이름으로 고치면 같은 항목이 하나 더 생긴다. */}
@@ -1520,7 +1520,7 @@ export default function BudgetContent({
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5 block">예산 (만원)</label>
+                    <label className="text-[11px] text-[var(--hb-text-muted)] mb-1.5 block">예산 (만원)</label>
                     <input
                       type="number"
                       value={newCatBudget}
@@ -1530,7 +1530,7 @@ export default function BudgetContent({
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
+                    <label className="text-[11px] text-[var(--hb-text-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
                     <input
                       type="number"
                       value={newCatSpent}

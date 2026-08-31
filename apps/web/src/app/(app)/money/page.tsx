@@ -214,28 +214,28 @@ export default function MoneyPage() {
       */}
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">총 축의금</p>
+          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">총 축의금</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
             {stats.total.toLocaleString()}
             <span className="text-base text-[var(--hb-text-muted)] ml-1">원</span>
           </p>
         </div>
         <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">총 인원</p>
+          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">총 인원</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
             {stats.count}
             <span className="text-base text-[var(--hb-text-muted)] ml-1">명</span>
           </p>
         </div>
         <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">평균</p>
+          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">평균</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
             {stats.avg.toLocaleString()}
             <span className="text-base text-[var(--hb-text-muted)] ml-1">원</span>
           </p>
         </div>
         <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
-          <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">신랑 / 신부</p>
+          <p className="text-sm text-[var(--hb-text-muted)] font-medium mb-2">신랑 / 신부</p>
           <p className="text-sm text-[var(--hb-text-body)] mt-1">신랑 <span className="font-medium text-[var(--hb-text-strong)]">{formatMoney(stats.groomTotal)}</span></p>
           <p className="text-sm text-[var(--hb-accent-hover)] mt-0.5">신부 <span className="font-medium">{formatMoney(stats.brideTotal)}</span></p>
         </div>

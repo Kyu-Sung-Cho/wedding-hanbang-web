@@ -237,7 +237,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
         <section className="overflow-hidden border-b border-[#e2d9cd]">
           <div className="mx-auto grid w-full max-w-[1320px] gap-12 px-4 py-14 sm:px-6 sm:py-20 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,0.75fr)] lg:items-center lg:px-8 lg:py-24">
             <div>
-              <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">
+              <p className="font-sans text-[12px] font-bold text-[var(--color-rose-700)]">
                 결혼 준비 판단 커뮤니티
               </p>
               <div role="heading" aria-level={1} className="mt-5 max-w-[760px] break-keep font-serif text-[42px] font-medium leading-[1.12] tracking-[-0.04em] text-[var(--hb-text-strong)] sm:text-[58px] lg:text-[68px]">
@@ -273,7 +273,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
 
             <aside className="relative">
               <div className="absolute -left-8 -top-10 hidden h-28 w-28 rounded-full bg-[#eadbd7] blur-3xl lg:block" />
-              <p className="mb-3 font-sans text-[11px] font-bold tracking-[0.14em] text-[var(--color-rose-700)]">
+              <p className="mb-3 font-sans text-[11px] font-bold text-[var(--color-rose-700)]">
                 먼저 읽어볼 결정 기록
               </p>
               <CaseLink
@@ -290,7 +290,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
         <section className="mx-auto w-full max-w-[1320px] px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
-              <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">결정 라이브러리</p>
+              <p className="font-sans text-[11px] font-bold text-[var(--color-rose-700)]">결정 라이브러리</p>
               <h2 className="mt-3 break-keep font-serif">
                 정보가 아니라, 결정까지 읽어요
               </h2>
@@ -317,7 +317,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
         <section className="bg-[var(--hb-primary)] text-white">
           <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8 lg:py-16">
             <div>
-              <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[#d7c1bb]">경험을 내 준비로</p>
+              <p className="font-sans text-[11px] font-bold text-[#d7c1bb]">경험을 내 준비로</p>
               <h2 className="mt-3 max-w-[760px] break-keep font-serif">
                 읽고 끝내지 말고, 우리 커플의 예산·일정·질문으로 정리하세요.
               </h2>
@@ -366,7 +366,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
             </aside>
 
             <div className="order-1 lg:order-2">
-              <p className="font-sans text-[12px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">결정 매거진</p>
+              <p className="font-sans text-[12px] font-bold text-[var(--color-rose-700)]">결정 매거진</p>
               <div role="heading" aria-level={1} className="mt-5 max-w-[970px] break-keep font-serif text-[46px] font-medium leading-[1.08] tracking-[-0.045em] sm:text-[66px] lg:text-[84px]">
                 남의 선택을 구경하지 말고,
                 <br />결정의 이유를 가져가세요.
@@ -396,7 +396,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
 
             <div className="flex flex-col justify-between py-2">
               <div>
-                <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">이 기록에서 가져갈 것</p>
+                <p className="font-sans text-[11px] font-bold text-[var(--color-rose-700)]">이 기록에서 가져갈 것</p>
                 <ol className="mt-6 space-y-6">
                   {[
                     "처음 견적과 실제 결제액을 분리해 보기",

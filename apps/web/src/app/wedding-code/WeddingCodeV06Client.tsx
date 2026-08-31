@@ -185,7 +185,7 @@ export default function WeddingCodeV06Client({
       <Shell>
         <section className={`${surface} overflow-hidden`}>
           <div className="bg-[var(--hb-primary)] px-5 py-8 text-white sm:px-8">
-            <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
+            <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[26px] font-semibold leading-[1.35] sm:text-[30px]">
               {theirs
                 ? "먼저 답한 사람이 링크를 보냈어요"
@@ -473,7 +473,7 @@ ${shareUrl}`
 
         <section className={`${surface} mt-4 overflow-hidden`} data-result="solo">
           <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
-            <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
+            <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
               내가 반복해서 고른 것
             </h1>
@@ -602,7 +602,7 @@ ${shareUrl}`
 
       <section className={`${surface} mt-4 overflow-hidden`} data-result="couple">
         <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
-          <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
+          <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
           {/*
             비교한 장면 수는 열여섯이 아니라 **둘 다 답한 장면 수**다. 한 사람이 열두
             장면을 건너뛰었는데 「열여섯 장면 중 2곳에서 갈렸어요」라고 하면, 비교하지도
@@ -726,7 +726,7 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
   return (
     <section className={`${surface} overflow-hidden`} data-wedding-code={letters.code}>
       <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
-        <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">내 웨딩코드</p>
+        <p className="text-[12px] font-semibold text-[#C7D1C2]">내 웨딩코드</p>
         <p className="mt-3 flex justify-center gap-1.5 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
           {letters.slots.map((slot) => (
             <span
@@ -806,7 +806,7 @@ function WeddingCodePair({
   return (
     <section className={`${surface} overflow-hidden`} data-code-pair="">
       <div className="bg-[var(--hb-primary)] px-5 py-7 text-center text-white sm:px-8">
-        <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">두 사람의 웨딩코드</p>
+        <p className="text-[12px] font-semibold text-[#C7D1C2]">두 사람의 웨딩코드</p>
         <p className="mt-3 text-[30px] font-semibold leading-none tracking-[0.04em] sm:text-[38px]">
           {theirs.code} <span className="text-[var(--hb-success)]">×</span> {mine.code}
         </p>

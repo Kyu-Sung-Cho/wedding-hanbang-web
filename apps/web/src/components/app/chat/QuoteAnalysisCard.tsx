@@ -307,7 +307,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
       <div className="bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] px-6 py-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm text-white/50 font-medium tracking-wider uppercase">견적 체크리스트</p>
+            <p className="text-sm text-white/50 font-medium">견적 체크리스트</p>
             <p className="text-[1.0625rem] text-white font-medium mt-1">
               {vendorName || CATEGORY_LABELS[category] || "묶음"} 견적
             </p>

@@ -114,7 +114,7 @@ export default function BookingsPage() {
           {/* 다가오는 요청 기록 */}
           {upcoming.length > 0 && (
             <div className="mb-8">
-              <h2 className="hb-h-eyebrow mb-3 uppercase text-[var(--hb-text-body)]">다가오는 요청 기록</h2>
+              <h2 className="hb-h-eyebrow mb-3 text-[var(--hb-text-body)]">다가오는 요청 기록</h2>
               <div className="space-y-3">
                 {upcoming.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];
@@ -161,7 +161,7 @@ export default function BookingsPage() {
           {/* 지난·취소 기록 */}
           {past.length > 0 && (
             <div>
-              <h2 className="hb-h-eyebrow mb-3 uppercase text-[var(--hb-text-body)]">지난·취소 기록</h2>
+              <h2 className="hb-h-eyebrow mb-3 text-[var(--hb-text-body)]">지난·취소 기록</h2>
               <div className="space-y-2">
                 {past.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];

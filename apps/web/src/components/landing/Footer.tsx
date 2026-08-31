@@ -45,7 +45,7 @@ export default function Footer() {
 
           {/* 서비스 */}
           <div>
-            <h5 className="text-rose-light text-xs uppercase tracking-[0.15em] mb-5 font-medium">
+            <h5 className="text-rose-light text-xs mb-5 font-medium">
               서비스
             </h5>
             <ul className="space-y-3">
@@ -64,7 +64,7 @@ export default function Footer() {
 
           {/* 정책 */}
           <div>
-            <h5 className="text-rose-light text-xs uppercase tracking-[0.15em] mb-5 font-medium">
+            <h5 className="text-rose-light text-xs mb-5 font-medium">
               정책
             </h5>
             <ul className="space-y-3">
@@ -83,7 +83,7 @@ export default function Footer() {
 
           {/* 연락 */}
           <div>
-            <h5 className="text-rose-light text-xs uppercase tracking-[0.15em] mb-5 font-medium">
+            <h5 className="text-rose-light text-xs mb-5 font-medium">
               연락
             </h5>
             <ul className="space-y-3">

@@ -137,7 +137,7 @@ export default function CustomerNav({ demoMode, onDark }: CustomerNavProps = {})
           )}
           <a
             href={loginHref}
-            className="px-6 py-2.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white rounded-[6px] text-[13px] font-medium tracking-wide no-underline hover:-translate-y-0.5 transition-all shadow-[var(--shadow-raised)]"
+            className="px-6 py-2.5 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white rounded-[6px] text-[13px] font-medium no-underline hover:-translate-y-0.5 transition-all shadow-[var(--shadow-raised)]"
           >
             시작하기
           </a>

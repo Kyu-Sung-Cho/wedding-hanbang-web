@@ -1120,7 +1120,7 @@ function SearchHub({
       >
       <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between md:mb-7">
         <div className="max-w-[760px]">
-          <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--color-rose-700)]">결혼 준비 결정 커뮤니티</span>
+          <span className="text-[11px] font-semibold text-[var(--color-rose-700)]">결혼 준비 결정 커뮤니티</span>
           <h1
             id="community-search-heading"
             className="mt-2 font-serif-kr text-[var(--hb-text-strong)]"
