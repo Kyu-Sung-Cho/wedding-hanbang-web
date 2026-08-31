@@ -24,6 +24,7 @@ import {
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { observeAmoraSafetyRecall } from "@/lib/ai/amoraSafetyRecallProbe";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
+import { log } from "@/utils/log";
 
 const MAX_BODY_BYTES = 8 * 1024;
 // 20,000 Unicode code points can occupy up to 80KiB in UTF-8. Keep bounded
@@ -902,7 +903,7 @@ export async function POST(request: Request) {
       });
     }
 
-    console.error("[chat messages POST] persistence outcome unavailable", {
+    log.error("[chat messages POST] persistence outcome unavailable", {
       insertCode: safeErrorCode(insertError),
       reconcileCode: safeErrorCode(reconcileError),
     });
@@ -916,7 +917,7 @@ export async function POST(request: Request) {
       503,
     );
   } catch (error) {
-    console.error("[chat messages POST] unexpected failure", {
+    log.error("[chat messages POST] unexpected failure", {
       code: safeErrorCode(error),
     });
     return postJson(
@@ -999,7 +1000,7 @@ export async function DELETE(request: Request) {
       if (error) {
         const denied = error.code === "42501";
         if (!denied) {
-          console.error("private chat hard delete RPC failed", {
+          log.error("private chat hard delete RPC failed", {
             code: error.code ?? null,
           });
         }
@@ -1024,7 +1025,7 @@ export async function DELETE(request: Request) {
         || typeof data.cleared_at !== "string"
         || typeof data.deleted_messages !== "number"
       ) {
-        console.error("private chat hard delete RPC returned an invalid result");
+        log.error("private chat hard delete RPC returned an invalid result");
         return NextResponse.json(
           {
             error: "비공개 대화 삭제 결과를 확인하지 못했어요.",
@@ -1089,7 +1090,7 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: "잘못된 mode 값입니다." }, { status: 400 });
     }
   } catch (err) {
-    console.error("메시지 삭제 에러:", err);
+    log.error("메시지 삭제 에러:", err);
     return NextResponse.json(
       { error: "메시지 삭제에 실패했습니다." },
       { status: 500 }

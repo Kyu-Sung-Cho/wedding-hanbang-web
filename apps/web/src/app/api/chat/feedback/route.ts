@@ -2,6 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 
@@ -181,7 +182,7 @@ export async function POST(request: Request) {
       .single();
 
     if (insertError) {
-      console.error("피드백 저장 실패:", insertError.message);
+      log.error("피드백 저장 실패:", insertError.message);
       return NextResponse.json(
         { error: "피드백 저장에 실패했습니다." },
         { status: 500 }
@@ -190,7 +191,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, id: feedback?.id });
   } catch (err) {
-    console.error("피드백 API 에러:", err);
+    log.error("피드백 API 에러:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -219,7 +220,7 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } }
     );
   } catch (err) {
-    console.error("피드백 조회 에러:", err);
+    log.error("피드백 조회 에러:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }

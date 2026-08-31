@@ -180,6 +180,7 @@ import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { createHash, randomUUID } from "node:crypto";
 import { isSupersededDecision } from "@/lib/ai/supersededDecisions";
 import { inspectScheduleEvents } from "@/utils/scheduleEvents";
+import { log } from "@/utils/log";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
 
 // Vercel Pro: 최대 300초 (5분)
@@ -561,7 +562,7 @@ async function autoSaveDissatisfaction(params: {
       if (error) throw error;
     });
   } catch (err) {
-    console.error("자동 불만족 피드백 저장 실패 (무시됨):", err);
+    log.error("자동 불만족 피드백 저장 실패 (무시됨):", err);
   }
 }
 
@@ -873,7 +874,7 @@ export async function POST(request: Request) {
       message,
     });
     if (memoryReconciliation.status === "retry_required") {
-      console.error("[chat] persisted memory enqueue retry required", {
+      log.error("[chat] persisted memory enqueue retry required", {
         requestCorrelationId,
         messageId: message.id,
         visibility,
@@ -890,7 +891,7 @@ export async function POST(request: Request) {
       );
     }
     if (memoryReconciliation.status === "invalid_message_scope") {
-      console.error("[chat] persisted memory message scope mismatch", {
+      log.error("[chat] persisted memory message scope mismatch", {
         requestCorrelationId,
         messageId: message.id,
         visibility,
@@ -1197,7 +1198,7 @@ export async function POST(request: Request) {
         );
       }
     } catch (error) {
-      console.error("[chat] completed-request reconciliation failed", error);
+      log.error("[chat] completed-request reconciliation failed", error);
       const privacyCode = getAmoraPrivacyContextErrorCode(error);
       return NextResponse.json(
         {
@@ -1316,7 +1317,7 @@ export async function POST(request: Request) {
       }
     } catch (error) {
       // 조회 실패로 대화를 막지 않는다. 구제가 없을 뿐 예전 동작 그대로다.
-      console.error("[chat] checklist scope rescue lookup failed", error);
+      log.error("[chat] checklist scope rescue lookup failed", error);
     }
   }
   const effectivePreliminaryScope = checklistScopeRescue ?? preliminaryQuestionScope;
@@ -1597,13 +1598,13 @@ export async function POST(request: Request) {
         attemptCount: claim.attemptCount,
       });
     } catch (error) {
-      console.error("[chat] durable request claim failed", error);
+      log.error("[chat] durable request claim failed", error);
       if (requestClaimAcquired) {
         await failChatRequest({
           ...claimParams,
           failureCode: "CHAT_TURN_JOURNAL_UNAVAILABLE",
         }).catch((claimError) => {
-          console.error("[chat] journal failure marker failed", claimError);
+          log.error("[chat] journal failure marker failed", claimError);
         });
         requestClaimAcquired = false;
         requestClaimAttemptCount = null;
@@ -1622,7 +1623,7 @@ export async function POST(request: Request) {
   const releaseClaimBeforeStream = async (failureCode: string) => {
     if (!requestClaimAcquired) return;
     await failChatRequest({ ...claimParams, failureCode }).catch((error) => {
-      console.error("[chat] pre-stream claim release failed", error);
+      log.error("[chat] pre-stream claim release failed", error);
     });
     requestClaimAcquired = false;
     requestClaimAttemptCount = null;
@@ -1659,7 +1660,7 @@ export async function POST(request: Request) {
       const code =
         getAmoraPrivacyContextErrorCode(error)
         ?? "AMORA_PRIVACY_CONTEXT_UNAVAILABLE";
-      console.error("[chat] privacy context snapshot unavailable", code);
+      log.error("[chat] privacy context snapshot unavailable", code);
       await releaseClaimBeforeStream(code);
       return NextResponse.json(
         {
@@ -1730,7 +1731,7 @@ export async function POST(request: Request) {
         ? activeSegmentResult.data.id
         : null;
       if (activeSegmentResult.error || !isUuid(candidateId)) {
-        console.error("[chat] active conversation segment unavailable", {
+        log.error("[chat] active conversation segment unavailable", {
           providerCode: activeSegmentResult.error?.code ?? null,
           visibility,
         });
@@ -1745,7 +1746,7 @@ export async function POST(request: Request) {
       }
       activeConversationSegmentId = candidateId;
     } catch (error) {
-      console.error("[chat] active conversation segment lookup failed", error);
+      log.error("[chat] active conversation segment lookup failed", error);
       await releaseClaimBeforeStream("CONVERSATION_SEGMENT_UNAVAILABLE");
       return NextResponse.json(
         {
@@ -1940,7 +1941,7 @@ export async function POST(request: Request) {
 
   const journey = journeyResult.data;
   if (!isDemo && journeyResult.error) {
-    console.error("Journey 조회 에러:", journeyResult.error.message);
+    log.error("Journey 조회 에러:", journeyResult.error.message);
     await releaseClaimBeforeStream("WEDDING_CONTEXT_UNAVAILABLE");
     return NextResponse.json(
       {
@@ -1979,7 +1980,7 @@ export async function POST(request: Request) {
       ].find((candidate) => candidate.error)
     : null;
   if (criticalContextFailure) {
-    console.error("[chat] canonical context lookup failed", {
+    log.error("[chat] canonical context lookup failed", {
       code: criticalContextFailure.code,
       providerCode: criticalContextFailure.error?.code ?? null,
     });
@@ -2038,7 +2039,7 @@ export async function POST(request: Request) {
       ) {
         // 여기는 일시 장애다. 잘못 추측하면 중립 사용자에게 성별이 찍히므로
         // 추측하지 않고 멈춘다.
-        console.error("[chat] member model lookup failed", memberModelResult.error);
+        log.error("[chat] member model lookup failed", memberModelResult.error);
         await releaseClaimBeforeStream("AMORA_MEMBER_MODEL_UNAVAILABLE");
         return NextResponse.json(
           {
@@ -2148,7 +2149,7 @@ export async function POST(request: Request) {
       summary.segment_id !== activeConversationSegmentId
       || summary.visibility !== visibility)
   ) {
-    console.error("[chat] memory summary escaped active conversation segment", {
+    log.error("[chat] memory summary escaped active conversation segment", {
       visibility,
     });
     await releaseClaimBeforeStream("CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE");
@@ -2300,7 +2301,7 @@ export async function POST(request: Request) {
   };
 
   if (!isDemo && messagesResult.error) {
-    console.error("Canonical chat history lookup failed:", messagesResult.error.message);
+    log.error("Canonical chat history lookup failed:", messagesResult.error.message);
     await releaseClaimBeforeStream("CHAT_HISTORY_UNAVAILABLE");
     return NextResponse.json(
       { error: "저장된 대화를 확인하지 못했습니다.", code: "CHAT_HISTORY_UNAVAILABLE" },
@@ -2315,7 +2316,7 @@ export async function POST(request: Request) {
       row.segment_id !== activeConversationSegmentId
       || row.visibility !== visibility)
   ) {
-    console.error("[chat] canonical history escaped active conversation segment", {
+    log.error("[chat] canonical history escaped active conversation segment", {
       visibility,
     });
     await releaseClaimBeforeStream("CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE");
@@ -2612,7 +2613,7 @@ export async function POST(request: Request) {
           : "AMORA_SHARED_ACTION_AUTHORIZATION_UNAVAILABLE",
       );
       if (!knownConflict) {
-        console.error(
+        log.error(
           "[amora-shared-action] execution authorization unavailable",
           error?.code ?? "invalid-response",
         );
@@ -4291,13 +4292,13 @@ export async function POST(request: Request) {
             && inputStreamError?.code !== "AMORA_INPUT_TOO_LARGE"
           )
         );
-        console.error("채팅 API 에러:", errMsg);
+        log.error("채팅 API 에러:", errMsg);
         if (requestClaimAcquired) {
           await failChatRequest({
             ...claimParams,
             failureCode: publicErrorCode ?? "CHAT_TURN_FAILED",
           }).catch((claimError) => {
-            console.error("[chat] durable request failure marker failed", claimError);
+            log.error("[chat] durable request failure marker failed", claimError);
           });
           requestClaimAcquired = false;
         }

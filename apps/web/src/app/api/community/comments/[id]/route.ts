@@ -9,6 +9,7 @@ import {
 } from "@/lib/community/publicPersonalInfo";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
+import { log } from "@/utils/log";
 
 const MAX_COMMENT_PATCH_BODY_BYTES = 8 * 1024;
 
@@ -21,7 +22,7 @@ function logContentFreeFailure(
     typeof sourceCode === "string" && /^[A-Z0-9_]{1,64}$/u.test(sourceCode)
       ? sourceCode
       : "UNCLASSIFIED";
-  console.error(scope, { category, code });
+  log.error(scope, { category, code });
 }
 
 function getServiceClient() {

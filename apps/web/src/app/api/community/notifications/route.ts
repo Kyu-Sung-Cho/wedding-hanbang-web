@@ -10,6 +10,7 @@ import {
   readBoundedUtf8Text,
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { log } from "@/utils/log";
 
 const MAX_BODY_BYTES = 4 * 1024;
 const MAX_NOTIFICATION_IDS = 50;
@@ -151,6 +152,7 @@ export async function GET(request: Request) {
       .limit(MAX_NOTIFICATIONS);
 
     if (error) {
+      log.error("[community/notifications GET] 알림 조회 실패", error);
       return json(
         { error: "새 답변 알림을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." },
         { status: 503 },
@@ -188,6 +190,10 @@ export async function GET(request: Request) {
     ]);
 
     if (profileResult.error || postResult.error) {
+      log.error("[community/notifications GET] 알림 본문 조회 실패", {
+        profile: profileResult.error?.code,
+        post: postResult.error?.code,
+      });
       return json(
         { error: "알림 내용을 안전하게 불러오지 못했습니다." },
         { status: 503 },
@@ -250,7 +256,8 @@ export async function GET(request: Request) {
     });
 
     return json({ ownerId: user.id, notifications });
-  } catch {
+  } catch (err) {
+    log.error("[community/notifications GET] 알림 조회 중 예외", err);
     return json(
       { error: "새 답변 알림을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 503 },
@@ -295,13 +302,15 @@ export async function POST(request: Request) {
         : await recipientUpdate.in("id", selection.ids);
 
     if (error) {
+      log.error("[community/notifications POST] 읽음 상태 저장 실패", error);
       return json(
         { error: "알림 읽음 상태를 저장하지 못했습니다." },
         { status: 503 },
       );
     }
     return json({ ok: true, ownerId: user.id });
-  } catch {
+  } catch (err) {
+    log.error("[community/notifications POST] 읽음 처리 중 예외", err);
     return json(
       { error: "알림 읽음 상태를 저장하지 못했습니다." },
       { status: 503 },

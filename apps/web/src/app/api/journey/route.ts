@@ -13,6 +13,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -644,7 +645,7 @@ function serviceErrorResponse(error: unknown) {
   const code = isRecord(error) && typeof error.code === "string"
     ? error.code
     : "unknown";
-  console.error("Couple plan-change RPC failed:", { code });
+  log.error("Couple plan-change RPC failed:", { code });
   return privateResponse(
     {
       error: "변경 요청의 저장 상태를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.",
@@ -842,7 +843,7 @@ export async function PATCH(request: Request) {
       parsed.value.expectedRevision,
     );
     if (!result) {
-      console.error("Couple plan-change RPC returned an invalid result.");
+      log.error("Couple plan-change RPC returned an invalid result.");
       return privateResponse(
         {
           error: "변경 요청의 저장 상태를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.",
@@ -853,7 +854,7 @@ export async function PATCH(request: Request) {
     }
     return submitResponse(result, parsed.value);
   } catch (error) {
-    console.error("Journey plan-change API error:", error);
+    log.error("Journey plan-change API error:", error);
     return privateResponse({ error: "서버 오류" }, 500);
   }
 }

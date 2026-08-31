@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createClientFromRequest: vi.fn(),
   hasSignedDemoSessionFromCookieHeader: vi.fn(),
+  logError: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -10,6 +11,14 @@ vi.mock("@/lib/supabase/server", () => ({
 }));
 vi.mock("@/lib/demoSession", () => ({
   hasSignedDemoSessionFromCookieHeader: mocks.hasSignedDemoSessionFromCookieHeader,
+}));
+vi.mock("@/utils/log", () => ({
+  log: {
+    error: mocks.logError,
+    warn: vi.fn(),
+    info: vi.fn(),
+    debug: vi.fn(),
+  },
 }));
 
 import { GET, POST } from "./route";
@@ -119,6 +128,20 @@ describe("GET /api/notifications", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.hasSignedDemoSessionFromCookieHeader.mockReturnValue(false);
+  });
+
+  it("알림 조회가 통째로 실패하면 조용히 넘어가지 않고 보고한다", async () => {
+    mocks.createClientFromRequest.mockRejectedValue(
+      new Error("session service unavailable"),
+    );
+
+    const response = await GET(
+      new Request("https://hanbang.ai/api/notifications"),
+    );
+
+    expect(response.status).toBe(503);
+    expect(mocks.logError).toHaveBeenCalledTimes(1);
+    expect(mocks.logError.mock.calls[0][0]).toContain("notifications GET");
   });
 
   it("returns unread delivery before a bounded recent read history", async () => {
@@ -387,6 +410,33 @@ describe("POST /api/notifications", () => {
 
     expect(response.status).toBe(403);
     expect(mocks.createClientFromRequest).not.toHaveBeenCalled();
+  });
+
+  // 이 두 경로는 예전에 `catch {}` 로 삼켜져 아무 흔적도 남지 않았다. 사용자만
+  // 실패를 보고 우리는 몰랐다 — 그래서 보고가 나가는지를 못 박는다.
+  it("읽음 저장이 실패하면 조용히 넘어가지 않고 보고한다", async () => {
+    const database = notificationReadClient({
+      error: { code: "42501", message: "permission denied" },
+    });
+    mocks.createClientFromRequest.mockResolvedValue(database.client);
+
+    const response = await POST(postRequest({ ids: [NOTIFICATION_ID] }));
+
+    expect(response.status).toBe(503);
+    expect(mocks.logError).toHaveBeenCalledTimes(1);
+    expect(mocks.logError.mock.calls[0][0]).toContain("notifications POST");
+  });
+
+  it("읽음 처리 중 예외도 보고한다", async () => {
+    mocks.createClientFromRequest.mockRejectedValue(
+      new Error("session service unavailable"),
+    );
+
+    const response = await POST(postRequest({ ids: [NOTIFICATION_ID] }));
+
+    expect(response.status).toBe(503);
+    expect(mocks.logError).toHaveBeenCalledTimes(1);
+    expect(mocks.logError.mock.calls[0][0]).toContain("notifications POST");
   });
 
   it("does not confirm a read when the recipient-scoped write fails", async () => {

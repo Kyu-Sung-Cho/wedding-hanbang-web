@@ -19,6 +19,7 @@ import {
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import type { CommentWithAuthor } from "@/types/community.types";
+import { log } from "@/utils/log";
 
 const MAX_COMMENT_BODY_BYTES = 8 * 1024;
 const PRIVATE_NO_STORE_HEADERS = {
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
       .maybeSingle();
 
     if (postFetchError) {
-      console.error("Comment parent post access check error:", postFetchError);
+      log.error("Comment parent post access check error:", postFetchError);
       return json(
         { error: "게시글 접근 확인에 실패했습니다." },
         { status: 500 }
@@ -81,7 +82,7 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: true });
 
     if (error) {
-      console.error("List comments error:", error);
+      log.error("List comments error:", error);
       return json(
         { error: "댓글을 불러올 수 없습니다." },
         { status: 500 }
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
 
     return json({ comments: tree });
   } catch (err) {
-    console.error("List comments error:", err);
+    log.error("List comments error:", err);
     return json(
       { error: "서버 오류가 발생했습니다." },
       { status: 500 }
@@ -396,7 +397,7 @@ export async function POST(req: NextRequest) {
     );
 
     if (atomicError) {
-      console.error("Atomic community comment creation failed:", atomicError.code);
+      log.error("Atomic community comment creation failed:", atomicError.code);
       return rpcFailure(atomicError);
     }
     if (!isAtomicCommentResult(atomicData, user.id)) {
@@ -411,7 +412,7 @@ export async function POST(req: NextRequest) {
 
     return json(atomicData, { status: 201 });
   } catch (err) {
-    console.error("Create comment error:", err);
+    log.error("Create comment error:", err);
     return json(
       {
         code: "COMMUNITY_COMMENT_SAVE_FAILED",
