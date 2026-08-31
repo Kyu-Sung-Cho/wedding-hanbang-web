@@ -165,7 +165,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             {Object.entries(highGrouped).map(([cat, items]) => (
               <div key={cat} className="border-b border-black/[0.04]">
                 <div className="px-5 pt-3.5 pb-1.5">
-                  <p className="text-sm font-semibold text-[var(--hb-text-muted)] tracking-wider">
+                  <p className="text-sm font-semibold text-[var(--hb-text-muted)]">
                     {ITEM_CATEGORY_LABELS[cat] || cat} ({items.length})
                   </p>
                 </div>

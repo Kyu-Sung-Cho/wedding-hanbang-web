@@ -573,7 +573,7 @@ function CoupleScenarioCard({
     <div className="border-t border-[var(--hb-hairline)] pt-4 first:border-t-0 first:pt-0">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-[11px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{card.categoryKo}</p>
+          <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{card.categoryKo}</p>
           <p className="mt-1 text-[15px] font-semibold leading-snug text-[var(--hb-text-strong)]">{card.titleKo}</p>
         </div>
         <p className="shrink-0 rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
@@ -630,7 +630,7 @@ function CoupleSolutionCard({
   return (
     <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5">
       <div>
-        <p className="text-[11px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{card.categoryKo}</p>
+        <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{card.categoryKo}</p>
         <p className="mt-1 text-[14px] font-semibold leading-snug text-[var(--hb-text-strong)]">{card.titleKo}</p>
       </div>
       <div className="mt-3 grid gap-2.5">
@@ -664,7 +664,7 @@ function CoupleAxisRow({
       emphasis ? "border-[var(--hb-primary)]/25 bg-[#EEF4F1]" : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)]"
     }`}>
       <div>
-        <p className="text-[11px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{label}</p>
+        <p className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">{label}</p>
       </div>
       <p className="mt-1 text-[14px] font-semibold text-[var(--hb-text-strong)]">{axis.labelKo}</p>
       <p className="mt-1 text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{axis.summaryKo}</p>
