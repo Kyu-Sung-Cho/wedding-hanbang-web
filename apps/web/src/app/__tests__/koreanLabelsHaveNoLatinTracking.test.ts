@@ -45,7 +45,8 @@ function isAdmin(file: string): boolean {
  * **분모가 0 이 되어 측정기 자기검증이 무너진다.** className 이 있는 요소를 전부
  * 세고 자간은 그 안에서 찾는다.
  */
-const ELEMENT = /<(\w+)([^>]*?className="([^"]*?)"[^>]*?)>([^<]{0,90})/gs;
+// `s`(dotAll) 플래그는 이 타깃에서 못 쓴다(TS1501). 여기선 `.` 을 안 쓰므로 필요 없다.
+const ELEMENT = /<(\w+)([^>]*?className="([^"]*?)"[^>]*?)>([^<]{0,90})/g;
 
 /** 양수 자간만. 음수(`tracking-[-0.03em]`)는 큰 제목용이라 대상이 아니다. */
 const POSITIVE_TRACKING =
