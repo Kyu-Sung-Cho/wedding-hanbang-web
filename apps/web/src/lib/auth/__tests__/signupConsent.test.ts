@@ -21,17 +21,23 @@ import {
 // 필수 동의를 받아 놓고 서버로는 마케팅 동의만 보냈다. 어느 경로로 가입해도
 // 필수 동의 기록이 남지 않던 상태다. 계약을 한 곳에 두는 이유가 그것이다.
 describe("가입 동의 계약", () => {
-  it("필수는 이용약관과 개인정보 처리방침 둘, 마케팅은 선택이다", () => {
+  it("필수는 이용약관·처리방침·만 14세 확인 셋, 마케팅은 선택이다", () => {
     const required = SIGNUP_CONSENT_ITEMS.filter((item) => item.required);
-    expect(required.map((item) => item.key)).toEqual(["terms", "privacy"]);
+    expect(required.map((item) => item.key)).toEqual(["terms", "privacy", "age14"]);
     expect(SIGNUP_CONSENT_ITEMS.find((item) => item.key === "marketing")?.required)
       .toBe(false);
   });
 
-  it("필수 항목에는 전문으로 가는 링크가 있다", () => {
-    for (const item of SIGNUP_CONSENT_ITEMS.filter((i) => i.required)) {
+  it("문서가 있는 필수 항목에는 전문으로 가는 링크가 있다", () => {
+    // `age14` 는 문서 동의가 아니라 본인 확인이라 전문이 없다. 링크를 만들어
+    // 붙이면 없는 문서를 가리키게 된다.
+    const DOCUMENT_ITEMS = ["terms", "privacy"] as const;
+    for (const item of SIGNUP_CONSENT_ITEMS.filter((i) => DOCUMENT_ITEMS.includes(
+      i.key as (typeof DOCUMENT_ITEMS)[number],
+    ))) {
       expect(item.href, item.key).toBeTruthy();
     }
+    expect(SIGNUP_CONSENT_ITEMS.find((i) => i.key === "age14")?.href).toBeNull();
     expect(SIGNUP_CONSENT_ITEMS.find((i) => i.key === "terms")?.href).toBe("/terms");
     expect(SIGNUP_CONSENT_ITEMS.find((i) => i.key === "privacy")?.href).toBe("/privacy");
   });
@@ -42,12 +48,13 @@ describe("가입 동의 계약", () => {
   });
 
   it("필수 둘만 켜면 마케팅 없이도 가입할 수 있다", () => {
-    const state = { terms: true, privacy: true, marketing: false };
+    const state = { terms: true, privacy: true, age14: true, marketing: false };
     expect(isSignupConsentComplete(state)).toBe(true);
     expect(isSignupConsentAll(state)).toBe(false);
     expect(buildSignupConsentSubmission(state)).toEqual({
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
       marketingAgreed: false,
       consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
     });
@@ -59,13 +66,13 @@ describe("가입 동의 계약", () => {
       "SIGNUP_CONSENT_REQUIRED",
     );
     expect(() =>
-      buildSignupConsentSubmission({ terms: true, privacy: false, marketing: true }),
+      buildSignupConsentSubmission({ terms: true, privacy: false, age14: true, marketing: true }),
     ).toThrow("SIGNUP_CONSENT_REQUIRED");
   });
 
   it("전체 동의는 선택 항목까지 켜고 끈다", () => {
     expect(setAllSignupConsent(true)).toEqual({
-      terms: true, privacy: true, marketing: true,
+      terms: true, privacy: true, age14: true, marketing: true,
     });
     expect(isSignupConsentAll(setAllSignupConsent(true))).toBe(true);
     expect(setAllSignupConsent(false)).toEqual(EMPTY_SIGNUP_CONSENT);
@@ -145,13 +152,14 @@ describe("가입 동의 계약", () => {
   describe("계정에 남기는 기록의 모양", () => {
     it("가입 경로와 소셜 경로가 같은 모양을 남긴다", () => {
       const submission = buildSignupConsentSubmission({
-        terms: true, privacy: true, marketing: true,
+        terms: true, privacy: true, age14: true, marketing: true,
       });
       const record = buildSignupConsentRecord(submission, "2026-08-21T00:00:00.000Z");
 
       expect(record).toEqual({
         terms_agreed: true,
         privacy_agreed: true,
+        age_over_14_confirmed: true,
         marketing_agreed: true,
         consent_policy_version: SIGNUP_CONSENT_POLICY_VERSION,
         consent_agreed_at: "2026-08-21T00:00:00.000Z",
@@ -182,6 +190,7 @@ describe("가입 동의 계약", () => {
       const parsed = parseSignupConsent({
         termsAgreed: true,
         privacyAgreed: true,
+        ageOver14Confirmed: true,
         marketingAgreed: true,
         consentPolicyVersion: "1900-01-01",
       });
@@ -208,6 +217,68 @@ describe("동의를 받기 시작하기 전에 만들어진 계정", () => {
     // 틀린 말이 된다. 반대 방향의 실수는 문구가 덜 친절해질 뿐이다.
     for (const bad of [null, undefined, "", "어제", "not-a-date"]) {
       expect(isPreConsentAccount(bad as string | null | undefined), String(bad)).toBe(false);
+    }
+  });
+});
+
+/**
+ * 만 14세 미만 아동 (2026-08-28 출시 전 감사).
+ *
+ * 방침 전문에 "14세"·"법정대리인"·"아동" 이 한 번도 없었고, 가입 동의 항목도
+ * 이용약관·개인정보·마케팅 셋뿐이라 **만 14세 미만이 가입해도 아무것도 걸러지지
+ * 않았다.** 개인정보보호법 제22조의2는 만 14세 미만 아동의 개인정보를 법정대리인
+ * 동의 없이 처리하지 못하게 하는데, 이 서비스에는 그 절차가 없다.
+ *
+ * 생년월일을 새로 수집하지 않는다 — 거르는 데 필요하지 않은 정보를 더 받는 것은
+ * 최소수집 원칙에 어긋난다. 확인 항목 하나로 처리한다.
+ */
+describe("만 14세 이상 확인", () => {
+  it("필수 항목이다", () => {
+    const item = SIGNUP_CONSENT_ITEMS.find((i) => i.key === "age14");
+    expect(item, "만 14세 확인 항목이 없습니다").toBeTruthy();
+    expect(item?.required, "선택으로 두면 걸러지지 않는다").toBe(true);
+  });
+
+  it("빠지면 가입 요청을 만들지 않는다", () => {
+    expect(() =>
+      buildSignupConsentSubmission({
+        terms: true, privacy: true, age14: false, marketing: false,
+      }),
+    ).toThrow("SIGNUP_CONSENT_REQUIRED");
+  });
+
+  it("서버가 클라이언트 판정을 믿지 않는다", () => {
+    // 확인 없이 온 요청은 계정을 만들지 않는다. 화면만 고치면 앱을 거치지 않는
+    // 요청이 그대로 통과한다.
+    expect(
+      parseSignupConsent({ termsAgreed: true, privacyAgreed: true, marketingAgreed: false }),
+    ).toBeNull();
+    expect(
+      parseSignupConsent({
+        termsAgreed: true, privacyAgreed: true, ageOver14Confirmed: false, marketingAgreed: false,
+      }),
+    ).toBeNull();
+    expect(
+      parseSignupConsent({
+        termsAgreed: true, privacyAgreed: true, ageOver14Confirmed: true, marketingAgreed: false,
+      }),
+    ).not.toBeNull();
+  });
+
+  it("계정 기록에 남는다", () => {
+    const record = buildSignupConsentRecord(
+      buildSignupConsentSubmission({
+        terms: true, privacy: true, age14: true, marketing: false,
+      }),
+      "2026-08-28T00:00:00.000Z",
+    );
+    expect(record.age_over_14_confirmed).toBe(true);
+  });
+
+  it("생년월일을 새로 받지 않는다", () => {
+    // 최소수집. 항목 목록에 연령·생년월일 입력이 생기면 여기서 걸린다.
+    for (const item of SIGNUP_CONSENT_ITEMS) {
+      expect(item.label).not.toMatch(/생년월일|생일|나이를 입력/u);
     }
   });
 });

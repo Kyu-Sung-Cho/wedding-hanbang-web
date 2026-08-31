@@ -59,7 +59,7 @@ function recordingRequests() {
   return { calls, requests };
 }
 
-const FULL_CONSENT = { terms: true, privacy: true, marketing: true };
+const FULL_CONSENT = { terms: true, privacy: true, age14: true, marketing: true };
 
 test("signup cannot reach the public API without a verified Turnstile token", async () => {
   const { calls, requests } = recordingRequests();
@@ -69,7 +69,7 @@ test("signup cannot reach the public API without a verified Turnstile token", as
       email: "sample@example.test",
       password: "Strong1!",
       name: "샘플 사용자",
-      consent: { terms: true, privacy: true, marketing: false },
+      consent: { terms: true, privacy: true, age14: true, marketing: false },
     }, ""),
     /사람인지 확인을 먼저 완료해주세요/,
   );
@@ -99,6 +99,7 @@ test("signup sends the verified token with the existing hardened API payload", a
         name: "샘플 사용자",
         termsAgreed: true,
         privacyAgreed: true,
+        ageOver14Confirmed: true,
         marketingAgreed: true,
         consentPolicyVersion: requests.SIGNUP_CONSENT_POLICY_VERSION,
         turnstileToken: token,
@@ -115,12 +116,14 @@ test("signup carries the required consent even when marketing is declined", asyn
     email: "sample@example.test",
     password: "Strong1!",
     name: "샘플 사용자",
-    consent: { terms: true, privacy: true, marketing: false },
+    consent: { terms: true, privacy: true, age14: true, marketing: false },
   }, token);
 
   const body = JSON.parse(calls[0][1].body);
   assert.equal(body.termsAgreed, true);
   assert.equal(body.privacyAgreed, true);
+  // 만 14세 확인이 빠지면 서버가 계정을 만들지 않는다.
+  assert.equal(body.ageOver14Confirmed, true);
   assert.equal(body.marketingAgreed, false);
   assert.equal(typeof body.consentPolicyVersion, "string");
 });
