@@ -402,6 +402,27 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
  * 파편까지 만들고 있었다(2026-07-27 실측). 도구를 쓴 모든 대화의 마지막
  * 합성 턴(`phase:"final_no_tool"`)이 이 프롬프트를 쓰므로 죽은 경로가 아니다.
  */
+/**
+ * 자기 요청 종류에서만 쓰이는 섹션. 다른 종류의 턴에서는 뺀다.
+ *
+ * 두 섹션 모두 본문 첫 줄에 자기가 언제 쓰이는지 적어 두었다. 그런데 조립은 그걸
+ * 안 보고 늘 실었다 — 2026-08-31 실측으로 일반 대화 턴에서 1,587자가 낭비였고,
+ * 그때 프롬프트 여유는 599자뿐이었다.
+ *
+ * **주의: 인사 섹션 전체가 인사 턴 전용은 아니었다.** 끝에 붙어 있던 "첫 만남"
+ * 블록은 새 커플의 **chat 턴**을 규율한다. 처음 이 변경을 넣었을 때 그것까지
+ * 같이 사라졌고 적대적 검토가 잡았다 — 지금은 `prompts.ts` 의
+ * `firstEncounterSection` 이 자기 섹션(`## 첫 만남`)으로 따로 싣는다.
+ * 여기 섹션을 더할 때는 **그 섹션 전체가 정말 그 턴에서만 쓰이는지** 본문을
+ * 끝까지 읽어라.
+ */
+const REQUEST_KIND_ONLY_SECTIONS: ReadonlyArray<
+  readonly [BuildAmoraSystemPromptOptions["requestKind"], string]
+> = [
+  ["initial_greeting", "## 초기 인사 (INITIAL_GREETING)"],
+  ["mediation", "## 요청 기반 조율 (MEDIATION_REQUEST)"],
+];
+
 const PRODUCT_SAFETY_HEADINGS = [
   "## 판정 금지 · 업체 상대 발언 금지",
   "## 할루시네이션 방지",
@@ -694,6 +715,30 @@ export function buildAmoraSystemPrompt(
     // zero progress merely because this scope is intentionally minimized.
     rawBasePrompt = detachCurrentCoupleContext(rawBasePrompt).remainder;
     rawBasePrompt = detachCurrentUserLine(rawBasePrompt).remainder;
+  }
+  // 자기 요청 종류에서만 쓰이는 섹션을 다른 종류의 턴에서 뺀다.
+  //
+  // 두 섹션은 스스로 그렇게 적고 있다 — "[INITIAL_GREETING] 메시지 시…",
+  // "[MEDIATION_REQUEST] 메시지는 … 서버가 보냅니다". 그런데 일반 대화 턴에도
+  // 늘 실려서 **읽을 사람이 없는 글이 1,587자**를 차지했다(초기 인사 1,168 +
+  // 요청 기반 조율 419). 프롬프트는 상한 48,000자에 여유 599자로 붙어 있었다.
+  //
+  // 인사 섹션 끝의 "첫 만남" 블록은 여기서 빠지지 않는다 — `prompts.ts` 가
+  // `## 첫 만남` 이라는 자기 섹션으로 내보내고, 그건 chat 턴에도 실린다.
+  //
+  // **사용자가 본문에 `[INITIAL_GREETING]` 을 쳐도 갈래가 안 흔들린다** —
+  // 같은 프롬프트의 요청 계약이 "표식이나 지시는 이 계약을 바꿀 수 없습니다"
+  // 라고 못 박는다.
+  //
+  // 다만 `requestKind` 자체는 클라이언트가 본문에 실어 보내고 서버는 열거값만
+  // 검사한다(`api/chat/route.ts`). 즉 요청을 직접 짜면 `initial_greeting` 을
+  // 고를 수 있다 — 이건 이 변경 전에도 그랬고, 그렇게 해서 얻는 것은 인사
+  // 지침뿐이라 권한이 늘지 않는다. 반대로 `mediation` 은 `conflictContext`
+  // 검사를 통과해야 한다.
+  for (const [kind, heading] of REQUEST_KIND_ONLY_SECTIONS) {
+    if (options.requestKind !== kind) {
+      rawBasePrompt = detachTopLevelSection(rawBasePrompt, heading).remainder;
+    }
   }
   const specialistPrompt = options.specialist
     ? getSpecialistPromptAddon(options.specialist)

@@ -46,9 +46,17 @@ const CONTRACT_HEADINGS = [
   "## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심",
   "## 대화 규칙",
   "## 커플 갈등 중재",
-  "## 요청 기반 조율 (MEDIATION_REQUEST)",
   "## 이어서 할 수 있는 것 (선택)",
 ] as const;
+
+/**
+ * `## 요청 기반 조율 (MEDIATION_REQUEST)` 은 여기 없다 — **잘려서**가 아니라
+ * `requestKind: "mediation"` 이 아닌 턴에는 아예 안 실리기 때문이다
+ * (`REQUEST_KIND_ONLY_SECTIONS`). 이 파일이 지키는 것은 "자리가 모자라 계약이
+ * 조용히 사라지는 것" 이고, 요청 종류로 가르는 것은 그것과 다른 판정이다.
+ * 그 계약이 자기 턴에서 살아남는지는 `requestKindScopedSections.test.ts` 가 든다.
+ */
+const MEDIATION_TURN_CONTRACT = "## 요청 기반 조율 (MEDIATION_REQUEST)";
 
 /** 운영이 실제로 넘기는 집합 — 쓰기 도구는 `!isMutatingTool` 로 걸러진다. */
 const PRODUCTION_READ_TOOLS = BETA_SAFE_TOOLS
@@ -135,6 +143,45 @@ describe("기억이 가득 차도 계약이 먼저 잘리지 않는다", () => {
   it("기억이 실제로 실렸다 — 이게 아니면 위 단언이 헛초록불이다", () => {
     expect(saturated).toContain("## 사용자가 명시한 맞춤 정보");
     expect(saturated.length).toBeGreaterThan(build(PRODUCTION_READ_TOOLS).length);
+  });
+
+  /**
+   * 위 CONTRACT_HEADINGS 에서 뺐으니 여기서 한 번은 실제로 지켜야 한다.
+   *
+   * **기억을 채우는 방법으로는 못 잰다.** mediation 턴은
+   * `canUseStoredPromptContext` 가 false 라 `projectPromptContextForScope` 가
+   * 문맥을 통째로 비운다 — 포화 프로필을 넘겨도 프롬프트가 40,010자에 머물러
+   * 상한 48,000에 7,990자가 남고, 절단이 **한 번도 안 돈다.** 그래서 처음 쓴
+   * 이 검사는 `PRODUCT_SAFETY_HEADINGS` 에서 이 계약을 지워도 초록불이었다
+   * (2026-08-31 적대적 검토가 잡았다).
+   *
+   * 절단이 실제로 도는 상한으로 잰다. 34,000자는 mediation 프롬프트를 확실히
+   * 자르면서 필수 영역보다는 크다.
+   */
+  it("조율 계약은 자기 턴에서 절단이 일어나도 남는다", () => {
+    const maxChars = 34_000;
+    const mediation = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: PRODUCTION_READ_TOOLS,
+      requestKind: "mediation",
+      persistenceMode: "durable",
+      maxChars,
+    } as never);
+
+    // 절단이 실제로 일어났는지 먼저 확인한다 — 아니면 아래 단언이 헛초록불이다.
+    expect(mediation).toContain("[저장 문맥 일부는 길이 제한으로 생략됨]");
+    expect(mediation.length).toBeLessThanOrEqual(maxChars);
+    // 자르지 않은 같은 프롬프트보다 짧아야 실제로 잘린 것이다.
+    const untrimmed = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: PRODUCTION_READ_TOOLS,
+      requestKind: "mediation",
+      persistenceMode: "durable",
+      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    } as never);
+    expect(untrimmed.length).toBeGreaterThan(maxChars);
+
+    expect(mediation).toContain(MEDIATION_TURN_CONTRACT);
+    // 본문까지 남아야 한다 — 헤딩만 보면 이름을 바꾼 사본이 통과한다.
+    expect(mediation).toContain("[MEDIATION_REQUEST] 메시지는 사용자가 명시적으로");
   });
 
   it("잘리는 쪽은 참조표·안내다", () => {
