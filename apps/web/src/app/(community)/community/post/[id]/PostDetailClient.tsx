@@ -916,6 +916,7 @@ export default function PostDetailClient({
                         )}
                         <h2
                           id="resolution-control-title"
+                          className="hb-h-sm"
                         >
                           {post.is_resolved
                             ? "이 고민은 해결됨으로 표시했어요"
