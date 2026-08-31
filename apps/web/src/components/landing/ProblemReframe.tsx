@@ -76,7 +76,7 @@ export default function ProblemReframe() {
               className="p-10 md:p-12 lg:p-14 md:first:pl-0 md:last:pr-0"
             >
               {/* 오해 */}
-              <p className="text-[13px] text-[var(--hb-text-muted)] line-through decoration-[var(--hb-text-muted)]/60 mb-4 tracking-wide">
+              <p className="text-[13px] text-[var(--hb-text-muted)] line-through decoration-[var(--hb-text-muted)]/60 mb-4">
                 {card.misconception}
               </p>
 
@@ -91,7 +91,7 @@ export default function ProblemReframe() {
               </p>
 
               {/* 확인 기준 */}
-              <p className="text-[12px] md:text-[13px] tracking-[0.18em] text-[var(--hb-text-muted)] font-medium">
+              <p className="text-[12px] md:text-[13px] text-[var(--hb-text-muted)] font-medium">
                 확인 &nbsp; {card.check}
               </p>
             </motion.article>

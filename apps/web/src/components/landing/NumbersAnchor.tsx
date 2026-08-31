@@ -54,7 +54,7 @@ export default function NumbersAnchor() {
               className="py-14 md:py-16 px-6 md:px-10 md:first:pl-0 md:last:pr-0 flex flex-col"
             >
               {/* 라벨 */}
-              <p className="text-[12px] md:text-[13px] tracking-[0.22em] text-[var(--hb-text-muted)] font-medium mb-6">
+              <p className="text-[12px] md:text-[13px] text-[var(--hb-text-muted)] font-medium mb-6">
                 {card.label}
               </p>
 
@@ -64,7 +64,7 @@ export default function NumbersAnchor() {
               </p>
 
               {/* 확인 기준 */}
-              <p className="mt-12 text-[12px] md:text-[13px] tracking-[0.18em] text-[var(--hb-text-muted)] font-medium pt-5 border-t border-platinum/60">
+              <p className="mt-12 text-[12px] md:text-[13px] text-[var(--hb-text-muted)] font-medium pt-5 border-t border-platinum/60">
                 기준 &nbsp; {card.source}
               </p>
             </motion.div>

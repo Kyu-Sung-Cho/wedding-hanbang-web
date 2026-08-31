@@ -36,7 +36,7 @@ export default function LandingFooter() {
 
           {groups.map((group) => (
             <nav key={group.label} aria-label={group.label}>
-              <p className="text-[12px] font-bold tracking-[0.04em] text-[var(--color-paper-ink-faint)]">
+              <p className="text-[12px] font-bold text-[var(--color-paper-ink-faint)]">
                 {group.label}
               </p>
               <ul className="mt-4 space-y-1">

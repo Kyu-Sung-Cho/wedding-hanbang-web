@@ -19,7 +19,7 @@ export default function SectionLabel({ label, tone = "dark" }: SectionLabelProps
   return (
     <div className="inline-flex items-center gap-4 mb-8">
       <span className={`h-px w-8 ${ruleCls}`} aria-hidden />
-      <span className={`text-[12px] md:text-[13px] tracking-[0.28em] ${labelCls} font-medium`}>
+      <span className={`text-[12px] md:text-[13px] ${labelCls} font-medium`}>
         {label}
       </span>
     </div>

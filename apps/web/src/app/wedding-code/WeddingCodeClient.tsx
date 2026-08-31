@@ -303,7 +303,7 @@ export default function WeddingCodeClient() {
         {step === "questions" && current && (
           <div className={`${card} p-6 sm:p-8`}>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{current.title}</p>
+              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">{current.title}</p>
               <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
                 {qIndex + 1} / {flow.length}
               </p>

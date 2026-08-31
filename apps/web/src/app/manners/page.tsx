@@ -64,7 +64,7 @@ export default function MannersIndexPage() {
 
           return (
             <section key={category.label}>
-              <h2 className="text-[13px] font-semibold tracking-wide text-[#8F5150]">
+              <h2 className="text-[13px] font-semibold text-[#8F5150]">
                 {category.label}
               </h2>
               <ul className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -75,7 +75,7 @@ export default function MannersIndexPage() {
                       prefetch={false}
                       className="block h-full rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
                     >
-                      <p className="text-[11.5px] font-semibold tracking-wide text-[var(--hb-text-muted)]">
+                      <p className="text-[11.5px] font-semibold text-[var(--hb-text-muted)]">
                         {AUDIENCE_LABEL[part.audience]}
                       </p>
                       <p className="mt-1 text-[15.5px] font-semibold leading-snug text-[var(--hb-text-strong)]">

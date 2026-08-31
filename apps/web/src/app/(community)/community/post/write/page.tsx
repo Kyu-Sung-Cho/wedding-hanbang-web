@@ -1096,7 +1096,7 @@ function PostWriteContent() {
                   {/* 본문에 삽입된 이미지 썸네일 — 토큰이 어떤 이미지인지 시각 확인 + 제거. 카드 모드에서는 숨김. */}
                   {!isGuidedQuestionFlow && postMode === "regular" && inlineImages.length > 0 && (
                     <div className="mt-3 p-3 bg-[var(--hb-surface-page)] border border-[#f0eeec] rounded-[6px]">
-                      <p className="text-xs font-medium text-[var(--hb-text-muted)] uppercase tracking-widest mb-2">
+                      <p className="text-xs font-medium text-[var(--hb-text-muted)] uppercase mb-2">
                         본문 안 이미지 {inlineImages.length}장
                       </p>
                       <div className="flex flex-wrap gap-2">

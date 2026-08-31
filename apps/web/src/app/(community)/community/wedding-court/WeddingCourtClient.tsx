@@ -83,7 +83,7 @@ function Distribution({
     <section aria-label={title} className="border-t border-[#e8ded2] pt-5">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[12px] font-semibold tracking-[0.12em] text-[var(--color-rose-700)]">
+          <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">
             {title}
           </p>
           <h3 className="mt-1 text-[var(--hb-text-strong)]">
@@ -199,7 +199,7 @@ function ChoiceGroup({
               }`}
             >
               <span
-                className={`text-[11px] font-bold tracking-[0.12em] ${
+                className={`text-[11px] font-bold ${
                   selected ? "text-white/70" : "text-[var(--color-rose-700)]"
                 }`}
               >
