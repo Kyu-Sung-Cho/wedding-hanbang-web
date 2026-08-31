@@ -119,20 +119,44 @@ function statRowSource(): string {
   return gridLine as string;
 }
 
+/** `grid-cols-3` 를 켜는 변형을 전부 뽑는다. `max-lg:` 와 `lg:` 는 뜻이 반대다. */
+function gridColsThreeVariants(source: string): string[] {
+  return [...source.matchAll(/(?:^|[\s"'`])((?:max-)?(?:sm|md|lg|xl|2xl):|min-\[[^\]]+\]:)?grid-cols-3/g)]
+    .map((m) => m[1] ?? "(무조건)");
+}
+
 describe("예산 통계 카드가 3단이 되는 폭", () => {
-  it("md 가 아니라 lg 부터 3단이다", () => {
+  it("lg 부터만 3단이다", () => {
     const grid = statRowSource();
-    expect(grid, `실제 그리드: ${grid}`).toContain("lg:grid-cols-3");
-    expect(grid, "md 로 되돌리면 768px 에서 금액이 숫자 중간에서 끊긴다")
-      .not.toContain("md:grid-cols-3");
+    const variants = gridColsThreeVariants(grid);
+
+    // ⚠️ 처음엔 `toContain("lg:grid-cols-3")` 로 썼는데 **`max-lg:grid-cols-3` 도
+    // 통과했다.** 그건 정반대 뜻이다 — 1024px **미만**에서 3단이 되어 고친 버그를
+    // 그대로 되살린다. 이 저장소는 `max-lg:` 로 그리드를 뒤집는 관용구를 실제로
+    // 여러 곳에서 쓰고 있어(admin·dashboard·settings) 가상의 위험이 아니다.
+    // 그래서 문자열을 찾지 않고 **변형을 꺼내 정확히 대조**한다.
+    expect(variants, `실제 그리드: ${grid}`).toEqual(["lg:"]);
   });
 
-  it("금액 글자 크기는 그대로 둔다", () => {
+  it("금액 세 장이 모두 같은 크기를 쓴다", () => {
     const file = readFileSync(
       resolve(process.cwd(), "src/components/app/budget/BudgetContent.tsx"),
       "utf8",
     );
+    const NUMBER = "text-[36px] font-medium sm:text-[40px] lg:text-[42px]";
+
     // 고침은 배치였다. 글자를 줄여서 때우면 1024px 이상에서 근거 없이 작아진다.
-    expect(file).toContain("text-[36px] font-medium sm:text-[40px] lg:text-[42px]");
+    //
+    // ⚠️ 처음엔 `toContain(NUMBER)` 하나였는데, 그 문자열이 파일에 **세 번** 나온다
+    // (총예산·기록지출·남은금액). 셋 중 둘만 줄여도 하나가 남아 초록불이었다.
+    // 그래서 개수로 센다.
+    const count = file.split(NUMBER).length - 1;
+    expect(count, "금액 카드는 셋이고 크기가 같아야 한다").toBe(3);
+
+    // 뒤에 덧붙여 무력화하는 길도 막는다 — `... lg:text-[42px] xl:text-[28px]` 같은 것.
+    const stacked = [...file.matchAll(new RegExp(`${NUMBER.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^"]*)`, "g"))]
+      .map((m) => m[1].trim())
+      .filter((rest) => /(?:^|\s)(?:[a-z0-9-]+:)*!?text-\[/.test(rest));
+    expect(stacked, "금액 크기 위에 다른 크기 유틸리티가 얹혀 있다").toEqual([]);
   });
 });
