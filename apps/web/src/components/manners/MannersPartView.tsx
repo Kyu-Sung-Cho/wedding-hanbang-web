@@ -80,7 +80,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
     const tone = BLOCK_TONE[block.kind];
     return (
       <div className={`rounded-[6px] border px-4 py-3 ${tone.box}`}>
-        <p className={`text-[12px] font-semibold tracking-wide ${tone.labelColor}`}>
+        <p className={`text-[12px] font-semibold ${tone.labelColor}`}>
           {block.title ?? tone.label}
         </p>
         <List items={block.items} />
@@ -92,7 +92,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
     // 이 제품의 값은 "예의를 지키세요"가 아니라 실제로 할 수 있는 문장이다.
     return (
       <div className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-3">
-        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-text-strong)]/70">
+        <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]/70">
           {block.title ?? "이렇게 말할 수 있어요"}
         </p>
         <div className="mt-2.5 space-y-3">
