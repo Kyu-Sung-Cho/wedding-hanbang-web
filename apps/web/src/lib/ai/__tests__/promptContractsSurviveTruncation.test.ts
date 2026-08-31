@@ -145,21 +145,43 @@ describe("기억이 가득 차도 계약이 먼저 잘리지 않는다", () => {
     expect(saturated.length).toBeGreaterThan(build(PRODUCTION_READ_TOOLS).length);
   });
 
-  it("조율 계약은 자기 턴에서는 상한까지 채워도 남는다", () => {
-    // 위 CONTRACT_HEADINGS 에서 뺐으니 여기서 한 번은 실제로 지켜야 한다.
-    const mediation = buildAmoraSystemPrompt(
-      promptContext({
-        amoraProfiles: { shared: SATURATED_PROFILE, private: SATURATED_PROFILE },
-      }),
-      {
-        enabledToolNames: PRODUCTION_READ_TOOLS,
-        requestKind: "mediation",
-        persistenceMode: "durable",
-        maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
-      } as never,
-    );
+  /**
+   * 위 CONTRACT_HEADINGS 에서 뺐으니 여기서 한 번은 실제로 지켜야 한다.
+   *
+   * **기억을 채우는 방법으로는 못 잰다.** mediation 턴은
+   * `canUseStoredPromptContext` 가 false 라 `projectPromptContextForScope` 가
+   * 문맥을 통째로 비운다 — 포화 프로필을 넘겨도 프롬프트가 40,010자에 머물러
+   * 상한 48,000에 7,990자가 남고, 절단이 **한 번도 안 돈다.** 그래서 처음 쓴
+   * 이 검사는 `PRODUCT_SAFETY_HEADINGS` 에서 이 계약을 지워도 초록불이었다
+   * (2026-08-31 적대적 검토가 잡았다).
+   *
+   * 절단이 실제로 도는 상한으로 잰다. 34,000자는 mediation 프롬프트를 확실히
+   * 자르면서 필수 영역보다는 크다.
+   */
+  it("조율 계약은 자기 턴에서 절단이 일어나도 남는다", () => {
+    const maxChars = 34_000;
+    const mediation = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: PRODUCTION_READ_TOOLS,
+      requestKind: "mediation",
+      persistenceMode: "durable",
+      maxChars,
+    } as never);
+
+    // 절단이 실제로 일어났는지 먼저 확인한다 — 아니면 아래 단언이 헛초록불이다.
+    expect(mediation).toContain("[저장 문맥 일부는 길이 제한으로 생략됨]");
+    expect(mediation.length).toBeLessThanOrEqual(maxChars);
+    // 자르지 않은 같은 프롬프트보다 짧아야 실제로 잘린 것이다.
+    const untrimmed = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: PRODUCTION_READ_TOOLS,
+      requestKind: "mediation",
+      persistenceMode: "durable",
+      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    } as never);
+    expect(untrimmed.length).toBeGreaterThan(maxChars);
+
     expect(mediation).toContain(MEDIATION_TURN_CONTRACT);
-    expect(mediation.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+    // 본문까지 남아야 한다 — 헤딩만 보면 이름을 바꾼 사본이 통과한다.
+    expect(mediation).toContain("[MEDIATION_REQUEST] 메시지는 사용자가 명시적으로");
   });
 
   it("잘리는 쪽은 참조표·안내다", () => {

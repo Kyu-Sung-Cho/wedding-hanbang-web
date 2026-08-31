@@ -134,13 +134,90 @@ describe("요청 종류로 갈리는 섹션", () => {
    * 이 파일의 목적은 **자리를 비우는 것**이다. 헤딩 유무만 재면 그 목적이
    * 지켜지는지 알 수 없으므로 여유를 직접 센다.
    *
+   * **이 숫자가 재는 것은 "운영 커플의 여유"가 아니다.** 저장 문맥이 쌓인
+   * 커플은 설계상 늘 상한에 붙어 있다 — 기억은 `mandatorySuffix` 로 떼어져
+   * 안 잘리고, `truncateAtLineBoundary` 가 나머지를 상한에 정확히 맞춰 채우기
+   * 때문에 고정부를 3,700자 늘리든 줄이든 "여유"는 29~81 사이에서만 움직인다
+   * (2026-08-31 실측). 즉 문맥이 찬 커플로 재면 영구 빨간불이면서 동시에
+   * 눈먼 가드가 된다.
+   *
+   * 그래서 **문맥이 비어 있는 픽스처**로 잰다. 여유가 실제 숫자인 유일한
+   * 빌드이고, 프롬프트의 **고정부가 커졌는지**를 알려준다. 문맥이 쌓인 커플에게
+   * 고정부가 커진다는 것은 저장 문맥 꼬리가 그만큼 더 잘린다는 뜻이다.
+   *
    * 2026-08-31: 빼기 전 599자 → 뺀 뒤 1,846자(답변 순서 규칙 331자를 넣은 뒤).
    * 1,000자는 그 사이의 바닥이다 — 여기 걸리면 프롬프트에 무엇을 더 넣기 전에
    * 무엇을 뺄지부터 정해야 한다는 신호다.
    */
-  it("운영 대화 턴에 여유가 1,000자 이상 남는다", () => {
+  it("문맥이 비어 있는 커플의 대화 턴에 여유가 1,000자 이상 남는다", () => {
     const headroom = AMORA_SYSTEM_PROMPT_MAX_CHARS - chat.length;
     expect(headroom, `남은 여유: ${headroom}자`).toBeGreaterThanOrEqual(1_000);
+  });
+});
+
+/**
+ * **인사 섹션을 인사 턴에만 싣다가 새 커플의 첫 대화 지침을 같이 잃었다.**
+ *
+ * `## 초기 인사 (INITIAL_GREETING)` 끝에 붙어 있던 "첫 만남 — 첫 3문답 안에
+ * 가치 증명" 블록은 인사 턴이 아니라 **사용자가 처음 친 메시지**(= chat 턴)를
+ * 규율한다("사용자가 이미 견적서나 상담 캡처를 언급했다면", "견적이 아직
+ * 없다고 하면" 은 사용자 발화를 전제한다).
+ *
+ * 게다가 그 대상은 인사 턴을 잘 타지도 않는다 — 첫실행 안내 직후에는
+ * `ChatContent.tsx` 가 보관된 첫마디를 쓰고 `requestInitialGreeting` 을
+ * 건너뛴다. 모바일은 `requestKind` 를 아예 안 보내 모든 턴이 chat 이다.
+ *
+ * 2026-08-31 적대적 검토가 부모 커밋과 대조해 잡았다(부모 47,702자 —
+ * 절단조차 아니었다). 자기 섹션(`## 첫 만남`)으로 떼어내 요청 종류와 무관하게
+ * 싣되, 쌓인 것이 있는 커플에게는 안 싣는다.
+ */
+describe("새 커플의 첫 대화 지침", () => {
+  const NEW_COUPLE = {
+    ...(CTX as object),
+    weddingDate: null,
+    budget: 0,
+    chatSummaries: [],
+    bookings: [],
+    progress: {},
+  } as never;
+
+  const SETTLED = {
+    ...(CTX as object),
+    chatSummaries: [{ summary: "예식장 후보 3곳 비교", createdAt: "2026-08-01" }],
+  } as never;
+
+  function buildFor(ctx: never, requestKind: "chat" | "initial_greeting" | "mediation") {
+    return buildAmoraSystemPrompt(ctx, {
+      enabledToolNames: PRODUCTION_READ_TOOLS,
+      requestKind,
+      persistenceMode: "durable",
+      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    } as never);
+  }
+
+  it.each([
+    "첫 답변부터 카테고리 나열·긴 기능 소개 금지. 질문 2개 이상 금지.",
+    "정보를 캐묻는 온보딩 인터뷰처럼 굴지 마세요",
+    "견적이 아직 없다고 하면 → 단계에 맞는 다음 한 걸음 1개만",
+  ])("새 커플의 chat 턴에 남는다: %s", (sentence) => {
+    expect(buildFor(NEW_COUPLE, "chat")).toContain(sentence);
+  });
+
+  it("인사 턴에도 남는다", () => {
+    expect(buildFor(NEW_COUPLE, "initial_greeting")).toContain("## 첫 만남");
+  });
+
+  it("쌓인 것이 있는 커플의 chat 턴에는 안 실린다", () => {
+    // 이 글의 첫 줄이 이미 그들에게 해당하지 않는다고 적고 있다.
+    expect(buildFor(SETTLED, "chat")).not.toContain("## 첫 만남");
+  });
+
+  it("자기 조건을 스스로 밝힌다", () => {
+    // 이 문장이 없으면 chat 이 아닌 턴(문맥이 통째로 비워짐)에서 오래된 커플에게
+    // "방금 가입한 분" 이라고 단정하게 된다.
+    expect(buildFor(NEW_COUPLE, "chat")).toContain(
+      "날짜 미정 + 예산 미설정 + 진행률 0 + 대화 요약 없음이면 방금 가입한 분입니다",
+    );
   });
 });
 
