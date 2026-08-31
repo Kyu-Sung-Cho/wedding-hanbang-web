@@ -63,7 +63,7 @@ export default function MyToolsWidget({ variant = "sidebar" }: MyToolsWidgetProp
     <div className="mb-6">
       <div className="mb-3 flex items-center gap-2 border-b border-[var(--hb-hairline)] pb-2">
         <BarChart3 className="h-4 w-4 text-[var(--hb-text-strong)]" />
-        <h3 className="font-serif-kr text-[#1C1917]">준비 도구</h3>
+        <h3 className="font-serif-kr text-lg text-[#1C1917]">준비 도구</h3>
       </div>
 
       <div className="space-y-2">

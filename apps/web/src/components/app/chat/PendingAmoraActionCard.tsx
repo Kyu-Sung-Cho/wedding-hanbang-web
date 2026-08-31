@@ -264,7 +264,7 @@ function BudgetImpactDetails({ preview }: { preview: BudgetImpactPreview }) {
 
   return (
     <div className="mt-3 rounded-[6px] border border-[#E5D8CE] bg-white/80 p-3">
-      <h4 className="text-[#2B2525]">변경 영향</h4>
+      <h4 className="text-xs font-semibold text-[#2B2525]">변경 영향</h4>
       {!totalBudgetIsSet && (
         <p className="mt-1 text-[11px] leading-4 text-[#746866]">
           총예산을 아직 정하지 않아 남는 금액은 계산하지 않았어요.
@@ -627,7 +627,7 @@ export default function PendingAmoraActionCard({
           <ShieldCheck className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 id={titleId} className="text-[#2B2525]">
+          <h3 id={titleId} className="text-sm font-semibold text-[#2B2525]">
             {requiresCoupleApproval
               ? "두 분 확인이 필요한 변경이에요"
               : "적용하기 전에 확인해 주세요"}

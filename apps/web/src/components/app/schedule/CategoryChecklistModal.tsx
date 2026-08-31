@@ -273,7 +273,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 <Icon className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <div>
-                <h3 id={titleId} className="text-[var(--hb-text-strong)]">{template.label}</h3>
+                <h3 id={titleId} className="text-2xl font-semibold text-[var(--hb-text-strong)]">{template.label}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}

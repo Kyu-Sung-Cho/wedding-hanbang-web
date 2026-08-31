@@ -1447,9 +1447,7 @@ function LatestPosts({
       >
         <div>
           <h2
-            className={`font-serif-kr text-[var(--hb-text-strong)] ${
- feedFirst ? " " : " "
- }`}
+            className={`font-serif-kr text-[var(--hb-text-strong)] ${ feedFirst ? " " : " " }`}
           >
             {feedTitle}
           </h2>

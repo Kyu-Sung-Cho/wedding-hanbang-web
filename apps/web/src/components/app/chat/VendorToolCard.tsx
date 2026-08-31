@@ -419,7 +419,7 @@ function VendorDetailCard({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FileCheck2 className="h-5 w-5 text-[#52715D]" />
-                <h3 className="text-[#263A2D]">확인된 공시 정보</h3>
+                <h3 className="text-base font-semibold text-[#263A2D]">확인된 공시 정보</h3>
               </div>
               {output.profileLink && (
                 <Link
