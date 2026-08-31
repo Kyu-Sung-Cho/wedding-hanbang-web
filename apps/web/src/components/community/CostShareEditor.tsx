@@ -128,7 +128,7 @@ export default function CostShareEditor({
     <div className="space-y-5">
       {/* 기본 정보 */}
       <div className="bg-white border border-[#F5F2ED] rounded-[6px] p-4 sm:p-5 space-y-4">
-        <h4 className="text-[var(--hb-text-strong)]">
+        <h4 className="text-sm font-medium text-[var(--hb-text-strong)]">
           기본 정보
         </h4>
 
@@ -186,7 +186,7 @@ export default function CostShareEditor({
       {/* 카테고리별 비용 */}
       <div className="bg-white border border-[#F5F2ED] rounded-[6px] p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h4 className="text-[var(--hb-text-strong)]">
+          <h4 className="text-sm font-medium text-[var(--hb-text-strong)]">
             항목별 비용
           </h4>
           <div className="text-xs text-[var(--hb-text-muted)]">
@@ -336,7 +336,7 @@ export default function CostShareEditor({
 
       {/* 소감 */}
       <div className="bg-white border border-[#F5F2ED] rounded-[6px] p-4 sm:p-5 space-y-4">
-        <h4 className="text-[var(--hb-text-strong)]">
+        <h4 className="text-sm font-medium text-[var(--hb-text-strong)]">
           소감 (선택)
         </h4>
 

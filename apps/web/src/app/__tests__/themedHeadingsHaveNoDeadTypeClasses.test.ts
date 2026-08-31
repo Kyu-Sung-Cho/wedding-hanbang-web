@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -13,19 +13,27 @@ import { describe, expect, it } from "vitest";
  *     font-size: clamp(...) !important; line-height: 1.25 !important; font-weight: 500 !important;
  *   }
  *
- * `!important`이고 선택자 특정도도 유틸리티(0,1,0)보다 높다. 그래서 컴포넌트가
- * `text-4xl font-light leading-[1.2] tracking-normal`을 써 두어도 **하나도 안 먹는다.**
- * 2026-08-31에 세어 보니 그런 죽은 클래스가 456개였다. 파일에는 36px 얇게라고 적혀
- * 있는데 화면은 25px 보통 굵기로 나오는 상태가 오래 이어졌고, 그 결과
- * "제목 크기가 50종"이라는 집계도 실제 화면과 무관한 숫자였다.
+ * `!important`이고 선택자 특정도도 유틸리티(0,1,0)보다 높다. 그래서 **이 블록이 걸리는 제목**은
+ * `text-4xl font-light leading-[1.2] tracking-normal`을 써 두어도 하나도 안 먹는다.
+ * 2026-08-31에 그런 죽은 클래스가 416개였다. 파일에는 36px 얇게라고 적혀 있는데 화면은
+ * 25px 보통 굵기로 나오는 상태가 오래 이어졌고, "제목 크기가 50종"이라는 집계도
+ * 실제 화면과 무관한 숫자였다.
  *
- * 소스와 화면이 다르면 **타이포를 고칠 수가 없다.** 파일을 고쳐도 화면이 안 바뀌니
- * 고친 사람은 자기 수정이 반영됐는지 알 수 없고, 다음 사람은 파일을 믿고 또 쓴다.
+ * ## 이 블록이 걸리지 **않는** 곳 — 여기 클래스는 살아 있다
  *
- * ## 이 테스트가 지키는 것
+ * 선택자가 `main h1`이다. `<main>` 밖 제목은 안 덮는다. 그리고 Tailwind v4 preflight가
+ * `h1`~`h6`의 `font-size`/`font-weight`를 `inherit`로 리셋하므로, **`main` 밖에서 크기
+ * 클래스를 지우면 제목이 본문 크기(16px/400)로 내려앉는다.** 눈에 보이는 회귀다.
  *
- * 테마가 걸리는 트리 안의 `<h1>`~`<h6>`이 크기·굵기·행간·자간 유틸리티를 달지 않을 것.
- * 제목 타이포의 출처는 `globals.css` 한 곳이다. 바꾸고 싶으면 거기서 바꾼다.
+ * 2026-08-31에 실제로 그 실수를 했다. 소스에서 `<footer>` 태그 안인지만 봤는데,
+ * 푸터를 그리는 `FooterColumn`이 `</footer>` **뒤에** 정의된 헬퍼 함수라 "푸터 밖"으로
+ * 세어졌다. 같은 이유로 채팅 사이드 패널 전체(`GlobalChatAssistant` → `ChatSidePanel` →
+ * `PendingAmoraActionCard`·`MediationCard`·`ChatBubble`…)와 `TopNav` 아래
+ * `NotificationPanel`·`CategoryChecklistModal`도 놓쳤다. 전부 `<main>`의 **형제**다.
+ *
+ * 그래서 이 테스트는 **파일 이름을 손으로 적지 않는다.** 레이아웃에서 `<main>` 밖 슬롯에
+ * 놓이는 컴포넌트를 뿌리로 잡고 import 그래프의 전이 폐포를 계산한다. 상대 경로 import와
+ * `import()`도 따라간다 — `@/`만 따라갔다가 위의 여덟 개를 통째로 놓쳤다.
  *
  * ## 이 테스트가 지키지 않는 것
  *
@@ -35,108 +43,138 @@ import { describe, expect, it } from "vitest";
  */
 
 const WEB_ROOT = process.cwd();
-const SOURCE_ROOT = path.join(WEB_ROOT, "src");
+const SRC = path.join(WEB_ROOT, "src");
 
-/** 테마 클래스가 붙는 두 레이아웃 아래. 나머지 라우트는 블록이 안 걸리므로 대상이 아니다. */
-const THEMED_ROUTE_DIRS = ["app/(app)/", "app/(community)/"];
+/** 테마 클래스(`hanbang-service-theme` / `hanbang-community-theme`)가 붙는 두 라우트 그룹. */
+const THEMED_ROUTE_DIRS = ["app/(app)", "app/(community)"];
 
 /**
- * 테마 트리 안에 있지만 **테마 밖에서도 렌더되는** 컴포넌트들. 여기 쓰인 크기 클래스는
- * 테마가 안 걸린 화면에서는 실제로 먹으므로 지우면 그 화면이 바뀐다.
- *
- * 목록을 손으로 적지 않고 import 그래프에서 뽑았다 —
- * 테마 밖 라우트가 도달하는 컴포넌트 54개 중 이 트리와 겹치는 것이 아래 9개였다.
+ * 테마가 **안** 붙는 라우트. 여기서도 렌더되는 컴포넌트의 크기 클래스는 그 화면에서
+ * 살아 있으므로 대상에서 뺀다.
  */
-const RENDERED_OUTSIDE_THEME = [
-  "src/components/app/JourneyRealtimeSync.tsx",
-  "src/components/app/Sidebar.tsx",
-  "src/components/app/TopNav.tsx",
-  "src/components/app/chat/ChatSidePanel.tsx",
-  "src/components/community/CommunityAmoraLauncher.tsx",
-  "src/components/community/CommunityAuthInitializer.tsx",
-  "src/components/community/CommunityNav.tsx",
-  "src/components/community/StartHereClient.tsx",
-  "src/components/community/Toast.tsx",
+const UNTHEMED_ROUTE_DIRS = [
+  "app/(admin)", "app/(auth)", "app/landing", "app/price", "app/manners", "app/about",
+  "app/start-here", "app/demo", "app/invite", "app/today", "app/vendors", "app/wedding-code",
+  "app/quote", "app/consent", "app/ai-policy", "app/wedding",
 ];
 
 /**
- * 블록의 선택자는 `main h1`이다 — **`main` 밖 제목은 안 덮는다.**
- * 푸터의 `<h3>`는 운영에서 14px/600으로 나온다(실측). 그래서 랜드마크 안은 세지 않는다.
+ * 두 레이아웃에서 `<main>` **밖**에 놓이는 슬롯. 여기서 시작해 import 를 전이적으로 따라간
+ * 것이 전부 "블록이 안 걸리는" 파일이다.
+ *
+ *   app/(community)/layout.tsx     : `<main>{children}</main>` 앞뒤의 Nav·Toast·Footer·Launcher
+ *   app/(app)/AppClientLayout.tsx  : Sidebar·TopNav·banner·AiNoticeFooter·GlobalChatAssistant
  */
-const LANDMARK = /<(\/?)(footer|header|nav|aside)\b/gi;
-const HEADING = /<h[1-6]\b/gi;
-const CLASS_NAME = /className=(?:"([^"]*)"|\{`([^`]*)`\})/g;
+const OUTSIDE_MAIN_SLOTS = [
+  "app/(community)/layout.tsx",
+  "app/(app)/AppClientLayout.tsx",
+  "components/app/Sidebar.tsx",
+  "components/app/TopNav.tsx",
+  "components/app/chat/ChatSidePanel.tsx",
+  "components/common/AiNoticeFooter.tsx",
+  "components/community/CommunityAuthInitializer.tsx",
+  "components/community/CommunityNav.tsx",
+  "components/community/Toast.tsx",
+  "components/community/CommunityAmoraLauncher.tsx",
+];
+
+const ROUTE_FILES = new Set([
+  "page.tsx", "layout.tsx", "template.tsx", "loading.tsx", "error.tsx", "not-found.tsx", "default.tsx",
+]);
+
+/** `@/`·상대 경로·`import()` 를 전부 잡는다. `@/` 만 보면 사이드 패널 자식들을 통째로 놓친다. */
+const IMPORT_SPEC = /(?:from\s*|import\s*\(\s*)"([^"]+)"/g;
 
 /**
  * 블록이 덮는 네 가지 — font-size · font-weight · line-height · letter-spacing.
  *
- * 정규식 **리터럴**로 쓴다. 같은 저장소에서 `new RegExp(\`...\`)`로 쓴 가드가
- * 템플릿 리터럴에 이스케이프를 먹혀 죽은 채로 통과한 적이 있다.
+ * 정규식 **리터럴**로 쓴다. 같은 저장소에서 템플릿 리터럴로 만든 가드가 이스케이프를
+ * 먹혀 죽은 채로 통과한 적이 있다.
  *
- * `font-serif-kr` · `font-display`는 블록이 **겨냥하는 선택자**라서 대상이 아니다.
- * `text-[var(--hb-...)]` · `text-center` 같은 색·정렬도 아니다 — 단위가 붙은 것만 크기다.
+ * `font-serif-kr`·`font-display`는 블록이 **겨냥하는 선택자**라 대상이 아니고,
+ * `text-[var(--hb-...)]`·`text-center` 같은 색·정렬도 아니다 — 단위가 붙은 것만 크기다.
  */
 const DEAD_TYPE_CLASS =
   /(?<![\w:./-])(?:[a-z0-9-]+:)*(?:text-(?:xs|sm|base|lg|xl|[2-9]xl|\[[^\]]*(?:px|rem|em)\])|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)|tracking-(?:tighter|tight|normal|wide|wider|widest|\[[^\]]*\])|leading-(?:none|tight|snug|normal|relaxed|loose|\[[^\]]*\]|\d+))(?![\w./-])/g;
+
+const LANDMARK = /<(\/?)(footer|header|nav|aside)\b/gi;
+const HEADING = /<h[1-6]\b/gi;
+const CLASS_NAME = /className=(?:"([^"]*)"|\{`([^`]*)`\})/g;
 
 function toPosix(p: string): string {
   return p.split(path.sep).join("/");
 }
 
-function collectSourceFiles(dir: string, out: string[] = []): string[] {
+function resolveSpec(spec: string, from: string): string | null {
+  let base: string;
+  if (spec.startsWith("@/")) base = path.join(SRC, spec.slice(2));
+  else if (spec.startsWith(".")) base = path.resolve(path.dirname(from), spec);
+  else return null;
+  for (const suffix of [".tsx", ".ts", "/index.tsx", "/index.ts"]) {
+    const full = base + suffix;
+    if (existsSync(full) && statSync(full).isFile()) return toPosix(full);
+  }
+  return null;
+}
+
+function closure(roots: string[]): Set<string> {
+  const seen = new Set<string>();
+  const queue = [...roots];
+  while (queue.length) {
+    const file = queue.pop()!;
+    if (seen.has(file) || !existsSync(file) || !statSync(file).isFile()) continue;
+    seen.add(file);
+    for (const m of readFileSync(file, "utf8").matchAll(IMPORT_SPEC)) {
+      const dep = resolveSpec(m[1], file);
+      if (dep && !seen.has(dep)) queue.push(dep);
+    }
+  }
+  return seen;
+}
+
+function routeEntries(dir: string, out: string[] = []): string[] {
+  if (!existsSync(dir)) return out;
   for (const name of readdirSync(dir)) {
     if (name === "node_modules") continue;
     const full = path.join(dir, name);
-    if (statSync(full).isDirectory()) collectSourceFiles(full, out);
-    else if (/\.tsx$/.test(name) && !/\.test\.tsx$/.test(name)) out.push(full);
+    if (statSync(full).isDirectory()) routeEntries(full, out);
+    else if (ROUTE_FILES.has(name)) out.push(toPosix(full));
   }
   return out;
 }
 
-/** 테마 트리 안에서 import 되는 컴포넌트 디렉터리를 읽어낸다(하드코딩하면 낡는다). */
-function themeReachableComponentDirs(files: string[]): Set<string> {
-  const dirs = new Set<string>();
-  for (const file of files) {
-    const rel = toPosix(path.relative(WEB_ROOT, file));
-    if (!THEMED_ROUTE_DIRS.some((d) => rel.startsWith(`src/${d}`))) continue;
-    for (const m of readFileSync(file, "utf8").matchAll(/from "@\/components\/([a-zA-Z-]+)\//g)) {
-      dirs.add(m[1]);
-    }
-  }
-  return dirs;
-}
-
-const sourceFiles = collectSourceFiles(SOURCE_ROOT).filter((f) => !toPosix(f).includes("/__tests__/"));
-const reachableDirs = themeReachableComponentDirs(sourceFiles);
-
-/**
- * `createPortal(x, document.body)`로 그리는 컴포넌트는 DOM 상 **`main` 밖**이다.
- * 이름을 목록에 박는 대신 호출을 본다 — 새 오버레이가 생겨도 자동으로 걸러진다.
- *
- * 실제로 `components/ui/SpotlightTutorial.tsx`가 그렇다. 튜토리얼 오버레이의 `<h3>`는
- * `text-lg leading-snug`이 **살아 있고**, 지우면 화면이 바뀐다.
- */
+/** `createPortal(x, document.body)` 로 그리면 DOM 상 `main` 밖이다. 호출을 보고 거른다. */
 function portalsToBody(text: string): boolean {
   return text.includes("createPortal") && /createPortal\([\s\S]{0,200}?document\.body/.test(text);
 }
 
-function isThemed(file: string): boolean {
-  const rel = toPosix(path.relative(WEB_ROOT, file));
-  if (RENDERED_OUTSIDE_THEME.includes(rel)) return false;
-  if (portalsToBody(readFileSync(file, "utf8"))) return false;
-  if (THEMED_ROUTE_DIRS.some((d) => rel.startsWith(`src/${d}`))) return true;
-  const m = rel.match(/^src\/components\/([a-zA-Z-]+)\//);
-  return Boolean(m && reachableDirs.has(m[1]));
+function targetFiles(): string[] {
+  const themed = THEMED_ROUTE_DIRS.flatMap((d) => routeEntries(path.join(SRC, d)));
+  const unthemed = [
+    ...UNTHEMED_ROUTE_DIRS.flatMap((d) => routeEntries(path.join(SRC, d))),
+    ...["app/layout.tsx", "app/page.tsx", "app/error.tsx", "app/not-found.tsx", "app/loading.tsx"]
+      .map((f) => toPosix(path.join(SRC, f)))
+      .filter((f) => existsSync(f)),
+  ];
+  const inside = closure(themed);
+  const outside = closure(OUTSIDE_MAIN_SLOTS.map((f) => toPosix(path.join(SRC, f))));
+  const unthemedClosure = closure(unthemed);
+
+  return [...inside]
+    .filter((f) => f.endsWith(".tsx") && !f.endsWith(".test.tsx") && !f.includes("/__tests__/"))
+    .filter((f) => !outside.has(f) && !unthemedClosure.has(f))
+    .filter((f) => !portalsToBody(readFileSync(f, "utf8")))
+    .sort();
 }
 
-type Finding = { file: string; heading: string; dead: string[] };
+type Finding = { file: string; tag: string; dead: string[] };
 
-/** `main` 안 제목의 className 을 모아 죽은 클래스를 찾는다. */
-function scan(): { findings: Finding[]; headings: number } {
+function scan(): { findings: Finding[]; headings: number; files: number } {
+  const files = targetFiles();
   const findings: Finding[] = [];
   let headings = 0;
 
-  for (const file of sourceFiles.filter(isThemed)) {
+  for (const file of files) {
     const text = readFileSync(file, "utf8");
     const events: Array<[number, number]> = [];
     for (const m of text.matchAll(LANDMARK)) events.push([m.index, m[1] ? -1 : 1]);
@@ -154,23 +192,24 @@ function scan(): { findings: Finding[]; headings: number } {
       if (!m || m.index > at + 3000) continue;
       if (text.slice(at, m.index).includes(">")) continue; // 이 태그의 className 이 아니다
 
-      const value = m[1] ?? m[2] ?? "";
-      const dead = value.match(DEAD_TYPE_CLASS);
+      const dead = (m[1] ?? m[2] ?? "").match(DEAD_TYPE_CLASS);
       if (dead) {
-        findings.push({ file: toPosix(path.relative(WEB_ROOT, file)), heading: text.slice(at, at + 3), dead });
+        findings.push({ file: toPosix(path.relative(WEB_ROOT, file)), tag: text.slice(at, at + 3), dead });
       }
     }
   }
-  return { findings, headings };
+  return { findings, headings, files: files.length };
 }
 
 describe("테마 안 제목 타이포", () => {
   it("측정기가 살아 있다", () => {
-    const { headings } = scan();
+    const { headings, files } = scan();
 
     // 스캔이 비면 "죽은 클래스 0개"가 되어 **무조건 통과**한다. 이 저장소에서 그런 식으로
-    // 초록불을 낸 가드가 여러 번 있었다. 그래서 세 가지를 함께 확인한다.
-    expect(headings, "테마 트리에서 제목을 못 찾았다 — 스캔 경로나 랜드마크 판정이 깨졌다")
+    // 초록불을 낸 가드가 여러 번 있었다. 그래서 넷을 함께 확인한다.
+    expect(files, "대상 파일을 못 찾았다 — 라우트 스캔이나 import 해석이 깨졌다")
+      .toBeGreaterThan(60);
+    expect(headings, "대상에서 제목을 못 찾았다 — 랜드마크 판정이 깨졌다")
       .toBeGreaterThan(120);
 
     const sample = "font-serif-kr text-2xl font-semibold tracking-tight leading-snug";
@@ -181,10 +220,30 @@ describe("테마 안 제목 타이포", () => {
     expect(keep.match(DEAD_TYPE_CLASS), "정규식이 지우면 안 되는 클래스를 잡는다").toBeNull();
   });
 
+  it("main 밖 컴포넌트를 대상에서 제외한다", () => {
+    const files = new Set(targetFiles().map((f) => toPosix(path.relative(WEB_ROOT, f))));
+
+    // 2026-08-31에 실제로 회귀를 만들 뻔한 아홉 개. 폐포 계산이 얕아지면(예: `@/` import만
+    // 따라가면) 이것들이 다시 대상에 들어오고, 지우는 순간 제목이 16px/400으로 내려앉는다.
+    for (const rel of [
+      "src/app/(community)/layout.tsx",
+      "src/components/app/chat/PendingAmoraActionCard.tsx",
+      "src/components/app/chat/MediationCard.tsx",
+      "src/components/app/chat/ChatBubble.tsx",
+      "src/components/app/chat/MediationConsentDialog.tsx",
+      "src/components/app/chat/AmoraPersonalizationPrompt.tsx",
+      "src/components/app/chat/VendorToolCard.tsx",
+      "src/components/app/NotificationPanel.tsx",
+      "src/components/app/schedule/CategoryChecklistModal.tsx",
+    ]) {
+      expect(files.has(rel), `${rel} 는 main 밖에서 렌더된다 — 대상에 들어오면 안 된다`).toBe(false);
+    }
+  });
+
   it("크기·굵기·행간·자간 클래스를 달지 않는다", () => {
     const { findings } = scan();
 
-    const lines = findings.map((f) => `${f.file} ${f.heading}> ${f.dead.join(" ")}`);
+    const lines = findings.map((f) => `${f.file} ${f.tag}> ${f.dead.join(" ")}`);
     expect(
       lines,
       `테마 안 제목 ${findings.length}곳이 화면에 안 먹는 타이포 클래스를 달고 있습니다. `

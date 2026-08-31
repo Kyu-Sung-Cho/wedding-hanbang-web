@@ -29,7 +29,7 @@ export function AmoraQuickStart({
         <div>
           <h2
             id="amora-quick-start-title"
-            className="text-[var(--hb-text-strong)]"
+            className="text-base font-semibold text-[var(--hb-text-strong)]"
           >
             지금 어떤 도움부터 받을까요?
           </h2>
@@ -90,7 +90,7 @@ export function AmoraPersonalizationConfirmation({
         <div className="min-w-0">
           <h2
             id="amora-personalization-confirm-title"
-            className="text-[var(--hb-text-strong)]"
+            className="text-sm font-semibold leading-relaxed text-[var(--hb-text-strong)]"
           >
             {option.confirmation}
           </h2>
