@@ -3,9 +3,9 @@ import CustomerNav from "@/components/customer-landing/CustomerNav";
 import Footer from "@/components/landing/Footer";
 
 export const metadata = {
-  title: "아모라 기능 미리보기 | 웨딩한방",
+  title: "아모라가 하는 일과 하지 않는 일 | 웨딩한방",
   description:
-    "개발·검증 중인 아모라의 상담, 확인 후 반영, 커플 공유 흐름을 투명하게 미리 봅니다.",
+    "아모라의 상담, 확인 후 반영, 커플 공유가 어떤 원칙으로 도는지 먼저 보여드립니다.",
   robots: { index: false, follow: false },
 };
 
@@ -43,15 +43,15 @@ export default function DemoPage() {
       <section className="px-5 pb-16 pt-32 sm:px-8 sm:pt-40">
         <div className="mx-auto max-w-5xl">
           <p className="mb-5 inline-flex min-h-11 items-center rounded-full border border-gold/40 bg-white px-4 text-sm font-medium text-charcoal">
-            기능 미리보기 · 현재 개발·검증 중
+            아모라 동작 원칙
           </p>
           <h1 className="max-w-3xl font-serif-kr text-[clamp(38px,7vw,68px)] font-light leading-[1.18]">
             아모라가 무엇을 하고,
             <br />무엇을 하지 않는지 먼저 보여드릴게요.
           </h1>
           <p className="mt-7 max-w-2xl text-base leading-8 text-charcoal">
-            아래 내용은 출시를 약속하는 실사용 통계나 고객 후기가 아니라 제품 동작 원칙을 설명하는 프리뷰입니다.
-            실제 제공 범위와 요금은 정식 안내에서 다시 확인해 주세요.
+            아래는 실사용 통계나 고객 후기가 아니라 아모라가 지키는 동작 원칙입니다.
+            이용 방법과 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요.
           </p>
         </div>
       </section>
@@ -72,7 +72,7 @@ export default function DemoPage() {
           <div className="mt-10 rounded-[6px] bg-[var(--hb-primary)] px-7 py-9 text-white sm:flex sm:items-center sm:justify-between sm:px-10">
             <div>
               <h2 className="font-serif-kr text-2xl">현재 서비스 화면을 둘러보실래요?</h2>
-              <p className="mt-2 text-sm leading-6 text-white/70">새 기능은 운영 검증 결과에 따라 순차적으로 열립니다.</p>
+              <p className="mt-2 text-sm leading-6 text-white/70">로그인 없이 공시 가격과 커뮤니티 글을 바로 볼 수 있어요.</p>
             </div>
             <div className="mt-6 flex flex-wrap gap-3 sm:mt-0">
               <Link href="/wedding" className="inline-flex min-h-12 items-center justify-center rounded-[6px] bg-white px-6 text-sm font-semibold text-[var(--hb-text-strong)]">

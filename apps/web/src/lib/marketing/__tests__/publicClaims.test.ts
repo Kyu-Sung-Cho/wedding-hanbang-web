@@ -192,7 +192,14 @@ describe("public marketing claim boundary", () => {
     // 원문 검사는 통과하지만 방문자는 아무 고지도 못 본다.
     const demo = rendered("src/app/demo/page.tsx");
 
-    expect(demo).toContain("현재 개발·검증 중");
+    // 2026-08-31: 출시일에 "현재 개발·검증 중" 이라고 말하는 페이지를 /price·예절
+    // 내비가 가리키고 있었다. 파운더가 8-29 에 없애기로 한 "아직 정식이 아니다" 틀과
+    // 같은 것이라 걷어냈다(`no-beta-framing-on-screen` 의 금지 목록에는 이 표현이
+    // 없어 가드가 못 잡았고, 오히려 이 단언이 그 문구를 고정하고 있었다).
+    //
+    // 남겨야 하는 것은 **틀이 아니라 사실**이다 — 가격은 아직 정해지지 않았다.
+    expect(demo).not.toContain("개발·검증 중");
+    expect(demo).toContain("이용 방법과 비용은 아직 정해지지 않았고");
     expect(demo).toContain("실사용 통계나 고객 후기가 아니라");
     expect(demo).toContain("robots: { index: false, follow: false }");
     expect(source("src/app/demo/page.tsx")).not.toContain("CustomerTestimonials");

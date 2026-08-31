@@ -23,7 +23,7 @@ export default function TermsPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-[var(--hb-text-strong)] mb-2">서비스 이용약관</h1>
-        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 8월 28일</p>
+        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 8월 31일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
