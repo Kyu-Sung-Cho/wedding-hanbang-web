@@ -21,7 +21,7 @@
  *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 22일
  *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 8월 22일
  */
-export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-22";
+export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-28";
 
 /**
  * 가입 화면에서 **동의를 받기 시작한** 시각.
@@ -50,7 +50,7 @@ export function isPreConsentAccount(createdAt: string | null | undefined): boole
   return created < Date.parse(SIGNUP_CONSENT_INTRODUCED_AT);
 }
 
-export type SignupConsentKey = "terms" | "privacy" | "marketing";
+export type SignupConsentKey = "terms" | "privacy" | "marketing" | "age14";
 
 export type SignupConsentItem = Readonly<{
   key: SignupConsentKey;
@@ -63,6 +63,12 @@ export type SignupConsentItem = Readonly<{
 export const SIGNUP_CONSENT_ITEMS: readonly SignupConsentItem[] = [
   { key: "terms", required: true, label: "이용약관 동의", href: "/terms" },
   { key: "privacy", required: true, label: "개인정보 처리방침 동의", href: "/privacy" },
+  {
+    key: "age14",
+    required: true,
+    label: "만 14세 이상입니다",
+    href: null,
+  },
   { key: "marketing", required: false, label: "마케팅 정보 수신 동의", href: null },
 ];
 
@@ -71,6 +77,7 @@ export type SignupConsentState = Readonly<Record<SignupConsentKey, boolean>>;
 export const EMPTY_SIGNUP_CONSENT: SignupConsentState = {
   terms: false,
   privacy: false,
+  age14: false,
   marketing: false,
 };
 
@@ -87,12 +94,15 @@ export function isSignupConsentAll(state: SignupConsentState): boolean {
 }
 
 export function setAllSignupConsent(value: boolean): SignupConsentState {
-  return { terms: value, privacy: value, marketing: value };
+  return { terms: value, privacy: value, age14: value, marketing: value };
 }
 
 export type SignupConsentSubmission = Readonly<{
   termsAgreed: true;
   privacyAgreed: true;
+  /** 만 14세 이상 확인. 개인정보보호법 제22조의2 — 만 14세 미만은 법정대리인
+   *  동의가 있어야 하는데 이 서비스에는 그 절차가 없다. 그래서 받지 않는다. */
+  ageOver14Confirmed: true;
   marketingAgreed: boolean;
   consentPolicyVersion: string;
 }>;
@@ -112,6 +122,7 @@ export function buildSignupConsentSubmission(
   return {
     termsAgreed: true,
     privacyAgreed: true,
+    ageOver14Confirmed: true,
     marketingAgreed: state.marketing === true,
     consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
   };
@@ -121,6 +132,7 @@ export function buildSignupConsentSubmission(
 export type SignupConsentRecord = Readonly<{
   terms_agreed: true;
   privacy_agreed: true;
+  age_over_14_confirmed: true;
   marketing_agreed: boolean;
   consent_policy_version: string;
   consent_agreed_at: string;
@@ -133,6 +145,7 @@ export function buildSignupConsentRecord(
   return {
     terms_agreed: true,
     privacy_agreed: true,
+    age_over_14_confirmed: true,
     marketing_agreed: submission.marketingAgreed,
     consent_policy_version: submission.consentPolicyVersion,
     consent_agreed_at: agreedAtIso,
@@ -169,9 +182,11 @@ export function parseSignupConsent(body: unknown): SignupConsentSubmission | nul
   if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
   const record = body as Record<string, unknown>;
   if (record.termsAgreed !== true || record.privacyAgreed !== true) return null;
+  if (record.ageOver14Confirmed !== true) return null;
   return {
     termsAgreed: true,
     privacyAgreed: true,
+    ageOver14Confirmed: true,
     marketingAgreed: record.marketingAgreed === true,
     // 클라이언트가 보낸 판 번호는 신뢰하지 않는다. 서버가 아는 현재 판을 남긴다.
     consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,

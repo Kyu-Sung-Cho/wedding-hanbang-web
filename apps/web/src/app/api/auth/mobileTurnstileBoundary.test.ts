@@ -98,6 +98,7 @@ describe("mobile Turnstile boundary", () => {
       // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
     }));
 
     expect(response.status).toBe(400);
@@ -160,6 +161,7 @@ describe("mobile Turnstile boundary", () => {
       // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
       turnstileToken: "proof",
     }));
 
@@ -179,6 +181,7 @@ describe("mobile Turnstile boundary", () => {
       // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
       turnstileToken: "proof",
       redirect: "/wedding/chat",
     }));
@@ -199,6 +202,7 @@ describe("mobile Turnstile boundary", () => {
       // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
       turnstileToken: "proof",
       redirect: "https://attacker.example/steal",
     }));
@@ -226,6 +230,7 @@ describe("mobile Turnstile boundary", () => {
       // 지키려는 것은 Turnstile·레이트리밋 경계이므로 동의는 채워 넣는다.
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
       turnstileToken: "proof",
     }));
     const body = await response.json();

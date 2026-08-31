@@ -216,7 +216,7 @@ describe("login return journey", () => {
 
     // 필수 동의 없이는 가입이 시작되지 않는다(가입 동의 테스트가 따로 고정한다).
     // 동의 항목은 진짜 체크박스다 — 버튼이 아니다.
-    for (const key of ["terms", "privacy"]) {
+    for (const key of ["terms", "privacy", "age14"]) {
       const box = container.querySelector<HTMLInputElement>(`#signup-consent-${key}`);
       await act(async () => {
         box?.click();
@@ -235,6 +235,7 @@ describe("login return journey", () => {
       redirect: START_HERE_REDIRECT,
       termsAgreed: true,
       privacyAgreed: true,
+      ageOver14Confirmed: true,
       marketingAgreed: false,
     });
     expect(container.textContent).toContain("같은 브라우저에서 인증하면 아모라 화면으로 이어져요");
