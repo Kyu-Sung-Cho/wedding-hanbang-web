@@ -195,8 +195,24 @@ export default function MoneyPage() {
         </div>
       </div>
 
-      {/* 통계 카드 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      {/*
+        카드 넷을 한 줄에 놓지 않는다. 이 페이지는 `max-w-[800px]` 안이라 4단이면
+        칸이 59~143px 인데, 축의금은 **원 단위 원본**이라(예산 카드가 만원으로
+        나누는 것과 다르다) 금액이 길다. 전역 `overflow-wrap: anywhere` 때문에
+        넘치는 대신 **숫자 중간에서 줄이 바뀐다** — "1,250,000" 이 세 줄로 쪼개져
+        다른 금액으로 읽힌다.
+
+        2026-08-31 운영 CSS 로 폭을 사다리로 재서 얻은 값(숫자가 차지하는 줄 수):
+
+          뷰포트   현재 4단        2단
+          768     3줄 (칸 59px)   1줄 (칸 178px)
+          1024    2줄 (칸 123px)  1줄 (칸 306px)
+          1440    2줄 (칸 143px)  1줄 (칸 346px)
+
+        1024px 에서는 10만원조차 두 줄로 쪼개졌다 — 평균 카드는 거의 늘 깨진다.
+        모바일은 원래 2단이고 글자도 22px 로 줄어 영향이 없다.
+      */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
         <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6">
           <p className="text-sm text-[var(--hb-text-muted)] font-medium uppercase tracking-[0.12em] mb-2">총 축의금</p>
           <p className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] leading-tight">
