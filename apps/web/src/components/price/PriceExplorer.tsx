@@ -678,7 +678,7 @@ export function PriceExplorer({
         <div className="mx-auto max-w-6xl">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-bold tracking-[0.13em] text-[var(--color-rose-700)]">
+              <p className="text-xs font-bold text-[var(--color-rose-700)]">
                 {preview ? "관리자 검수용 자동 추출 데이터" : "한국소비자원 참가격 공시"}
               </p>
               <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-normal text-[var(--hb-text-strong)] sm:text-4xl">

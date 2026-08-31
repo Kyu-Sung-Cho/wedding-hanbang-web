@@ -888,13 +888,26 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0 !important;
 }
 
-/* 절 위에 얹는 눈썹. `uppercase` 는 블록이 안 건드리므로 유틸리티로 그대로 둔다. */
+/*
+ * 절 위에 얹는 눈썹.
+ *
+ * ⚠️ 처음에는 `letter-spacing: 0.14em` 을 함께 줬다. 자간을 벌리는 것은 라틴 대문자
+ * 관용이고, 이 단을 쓰는 두 곳은 **둘 다 한글 라벨**이다("다가오는 요청 기록",
+ * "지난·취소 기록"). 한글은 자간을 벌리면 음절 덩어리가 흩어져 읽기 나빠진다.
+ *
+ * 같은 날 오후에 세운 규칙("한글 텍스트에는 양수 자간을 쓰지 않는다")이 JSX 만
+ * 훑어서 이 값을 못 봤다 — 몇 시간 전 내가 바로 그 자간을 JSX 에서 CSS 로 옮겨 둔
+ * 참이었다. 적대적 검토가 잡았다.
+ *
+ * 라틴 대문자 눈썹이 생기면 그때 별도 단을 만든다. 이 단에 자간을 되살리지 마라 —
+ * 쓰는 곳이 한글인 한 읽기만 나빠진다.
+ */
 .hanbang-service-theme main :is(h1, h2, h3, h4, h5, h6)[class~="hb-h-eyebrow"],
 .hanbang-community-theme main :is(h1, h2, h3, h4, h5, h6)[class~="hb-h-eyebrow"] {
   font-size: 0.75rem !important;
   line-height: 1.4 !important;
   font-weight: 600 !important;
-  letter-spacing: 0.14em !important;
+  letter-spacing: 0 !important;
 }
 
 :where(.hanbang-service-theme, .hanbang-community-theme) :where(main) [class~="font-light"] {
