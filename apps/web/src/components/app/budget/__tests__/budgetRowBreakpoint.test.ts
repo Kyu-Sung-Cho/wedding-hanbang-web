@@ -85,3 +85,54 @@ describe("예산 카테고리 행의 접히는 폭", () => {
     expect(source).toContain("flex-1 min-w-0");
   });
 });
+
+/**
+ * 위 카테고리 행과 **같은 실수가 통계 카드 줄에서 한 번 더** 일어났다.
+ *
+ * 총예산·기록지출·남은금액 카드 셋은 `md`(768px)부터 3단이었는데, 그 폭에서 칸이
+ * 100px 로 좁아진다. 금액은 42px 이라 "8,000" 하나가 117px 을 먹고, 상위 규칙이
+ * `overflow-wrap: anywhere` 라 넘치는 대신 **숫자 중간에서 줄이 바뀐다.**
+ * 화면에는 "8,00 / 0" 으로 나왔다 — 다른 금액으로 읽힌다.
+ *
+ * 2026-08-31 운영에서 폭을 사다리로 재서 확인했다.
+ *
+ *   1280 → 칸 270px, "123,456"(178px)까지 한 줄
+ *   1024 → 칸 185px, "123,456"까지 한 줄
+ *    850 → 칸 117px, "8,000"(117px)이 딱 맞아 아슬아슬
+ *    768 → 칸 100px, **깨짐**
+ *   768 미만 → 한 단이라 칸 407px, 안전
+ *
+ * 그래서 3단은 `lg` 부터다. 어떤 고정 글자 크기로도 100px 칸에 여섯 자리를 넣을 수
+ * 없다(28px 로 줄여야 "10,000" 이 겨우 들어간다) — 크기가 아니라 배치 문제였다.
+ */
+function statRowSource(): string {
+  const file = readFileSync(
+    resolve(process.cwd(), "src/components/app/budget/BudgetContent.tsx"),
+    "utf8",
+  );
+  const lines = file.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.includes("TOTAL BUDGET"));
+  expect(start, "통계 카드 줄을 찾지 못했다").toBeGreaterThan(-1);
+  // 카드 셋을 감싼 그리드는 이 줄보다 위에 있다.
+  const gridLine = lines.slice(0, start).reverse().find((line) => line.includes("grid-cols-1"));
+  expect(gridLine, "통계 카드를 감싼 그리드를 찾지 못했다").toBeTruthy();
+  return gridLine as string;
+}
+
+describe("예산 통계 카드가 3단이 되는 폭", () => {
+  it("md 가 아니라 lg 부터 3단이다", () => {
+    const grid = statRowSource();
+    expect(grid, `실제 그리드: ${grid}`).toContain("lg:grid-cols-3");
+    expect(grid, "md 로 되돌리면 768px 에서 금액이 숫자 중간에서 끊긴다")
+      .not.toContain("md:grid-cols-3");
+  });
+
+  it("금액 글자 크기는 그대로 둔다", () => {
+    const file = readFileSync(
+      resolve(process.cwd(), "src/components/app/budget/BudgetContent.tsx"),
+      "utf8",
+    );
+    // 고침은 배치였다. 글자를 줄여서 때우면 1024px 이상에서 근거 없이 작아진다.
+    expect(file).toContain("text-[36px] font-medium sm:text-[40px] lg:text-[42px]");
+  });
+});
