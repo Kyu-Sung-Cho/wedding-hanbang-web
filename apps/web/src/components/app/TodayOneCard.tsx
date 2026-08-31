@@ -283,7 +283,7 @@ export default function TodayOneCard() {
             <RotateCcw className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="today-one-error-title" className="text-[var(--hb-text-strong)]">
+            <h2 id="today-one-error-title" className="hb-h-sm text-[var(--hb-text-strong)]">
               오늘의 한 가지를 다시 확인해 주세요
             </h2>
             <p role="alert" className="mt-1 text-sm leading-6 text-[#6D5F58]">

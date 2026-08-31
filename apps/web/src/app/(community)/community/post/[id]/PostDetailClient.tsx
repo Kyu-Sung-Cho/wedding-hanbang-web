@@ -1350,7 +1350,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                         </span>
                         <span suppressHydrationWarning className="truncate">{timeAgo(item.created_at)}</span>
                       </div>
-                      <h3 className="line-clamp-2 break-words text-[var(--hb-text-strong)]">
+                      <h3 className="hb-h-sm line-clamp-2 break-words text-[var(--hb-text-strong)]">
                         {item.title}
                       </h3>
                       <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[var(--hb-text-body)]">

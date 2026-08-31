@@ -102,7 +102,13 @@ const IMPORT_SPEC = /(?:from\s*|import\s*\(\s*)"([^"]+)"/g;
  * 먹혀 죽은 채로 통과한 적이 있다.
  *
  * `font-serif-kr`·`font-display`는 블록이 **겨냥하는 선택자**라 대상이 아니고,
- * `text-[var(--hb-...)]`·`text-center` 같은 색·정렬도 아니다 — 단위가 붙은 것만 크기다.
+ * CSS 변수를 담은 색 유틸리티나 `text-center` 같은 정렬도 아니다 — 단위가 붙은 것만
+ * 크기다.
+ *
+ * ⚠️ 이 주석에 **클래스처럼 보이는 문자열을 쓰지 마라.** Tailwind v4 는 소스를 훑어
+ * 클래스를 만들기 때문에, 여기 적은 예시가 그대로 CSS 가 된다. 실제로 대괄호 안에
+ * 줄임표를 넣은 예시 하나가 파싱 불가능한 규칙을 만들어 **개발 서버를 죽였다**
+ * (2026-08-31, 운영 빌드는 통과해서 배포 뒤에야 드러났다).
  *
  * **`!` 가 앞에 붙은 유틸리티(`!text-[22px]`·`md:!text-[24px]`)는 대상이 아니다.**
  * 캐스케이드는 특정도보다 레이어를 먼저 보고, `!important` 선언에서는 레이어 순서가
@@ -261,6 +267,34 @@ describe("테마 안 제목 타이포", () => {
     ]) {
       expect(files.has(rel), `${rel} 는 main 밖에서 렌더된다 — 대상에 들어오면 안 된다`).toBe(false);
     }
+  });
+
+  it("작은 제목 단에 크기 유틸리티를 얹지 않는다", () => {
+    // `hb-h-sm`·`hb-h-eyebrow` 는 크기를 정하는 클래스다. 거기에 유틸리티를 얹으면
+    // 둘 중 무엇이 이기는지가 자리마다 갈린다 — 보통 유틸리티는 지고(레이어 안),
+    // `!` 유틸리티는 이긴다. DESIGN.md 2026-08-27 규칙("크기를 정하는 CSS 클래스에는
+    // 유틸리티 크기를 얹지 않는다")을 제목에도 적용한다.
+    const STEP = /(?<![\w-])hb-h-(sm|eyebrow)(?![\w-])/;
+    const ANY_TYPE = /(?:[a-z0-9-]+:)*!?(?:text-(?:xs|sm|base|lg|xl|[2-9]xl|\[[^\]]*(?:px|rem|em)\])|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)|tracking-\S+|leading-\S+)/g;
+
+    const offenders: string[] = [];
+    let checked = 0;
+    for (const file of targetFiles()) {
+      const text = readFileSync(file, "utf8");
+      for (const m of text.matchAll(CLASS_NAME)) {
+        const value = m[1] ?? m[2] ?? "";
+        if (!STEP.test(value)) continue;
+        checked += 1;
+        const stacked = value.match(ANY_TYPE);
+        if (stacked) {
+          offenders.push(`${toPosix(path.relative(WEB_ROOT, file))} — ${stacked.join(" ")}`);
+        }
+      }
+    }
+
+    expect(checked, "hb-h-sm / hb-h-eyebrow 를 하나도 못 찾았다 — 스캔이 깨졌다")
+      .toBeGreaterThan(8);
+    expect(offenders, "작은 제목 단 위에 크기 유틸리티가 얹혀 있습니다").toEqual([]);
   });
 
   it("크기·굵기·행간·자간 클래스를 달지 않는다", () => {
