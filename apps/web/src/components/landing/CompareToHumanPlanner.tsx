@@ -46,10 +46,10 @@ export default function CompareToHumanPlanner() {
           {/* 헤더 라벨 — 데스크톱 */}
           <div className="hidden md:grid md:grid-cols-[240px_1fr_1fr] gap-10 py-7 border-b border-platinum/60">
             <span />
-            <span className="text-[12px] md:text-[13px] tracking-[0.22em] text-[var(--hb-text-muted)] font-medium">
+            <span className="text-[12px] md:text-[13px] text-[var(--hb-text-muted)] font-medium">
               사람 플래너
             </span>
-            <span className="text-[12px] md:text-[13px] tracking-[0.22em] text-[var(--color-rose-700)] font-medium">
+            <span className="text-[12px] md:text-[13px] text-[var(--color-rose-700)] font-medium">
               아모라
             </span>
           </div>
@@ -94,13 +94,13 @@ export default function CompareToHumanPlanner() {
                 </p>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-[11px] tracking-[0.2em] text-[var(--hb-text-muted)] mb-2 font-medium">
+                    <p className="text-[11px] text-[var(--hb-text-muted)] mb-2 font-medium">
                       사람 플래너
                     </p>
                     <p className="text-[14px] text-charcoal font-light leading-relaxed">{row.human}</p>
                   </div>
                   <div>
-                    <p className="text-[11px] tracking-[0.2em] text-[var(--color-rose-700)] mb-2 font-medium">
+                    <p className="text-[11px] text-[var(--color-rose-700)] mb-2 font-medium">
                       아모라
                     </p>
                     <p className="text-[14px] text-[var(--color-rose-700)] font-medium leading-relaxed">{row.amora}</p>

@@ -87,7 +87,7 @@ export default function SuggestionButtons({
       {/* 라벨 — 시각적 구분 강화 */}
       <div className="flex items-center gap-1.5 px-1 mb-2">
         <Sparkles className="w-3.5 h-3.5 text-[var(--hb-accent-hover)]" />
-        <span className="text-xs uppercase tracking-widest text-[var(--hb-text-muted)] font-medium">
+        <span className="text-xs text-[var(--hb-text-muted)] font-medium">
           추천 대화
         </span>
       </div>

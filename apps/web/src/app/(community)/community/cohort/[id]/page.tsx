@@ -1077,7 +1077,7 @@ function renderMessageContent(text: string): React.ReactNode {
         >
           <FileText className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0" />
           <span className="flex flex-col min-w-0">
-            <span className="text-[11px] text-[var(--hb-text-body)] uppercase tracking-widest font-medium">커뮤니티 글</span>
+            <span className="text-[11px] text-[var(--hb-text-body)] font-medium">커뮤니티 글</span>
             <span className="font-serif-kr text-base text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] line-clamp-1">
               {postTitle}
             </span>
@@ -1962,7 +1962,7 @@ function CohortDigestCard({
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-text-strong)]">
+          <p className="mb-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
             오늘/이번주 흐름
           </p>
           <h3 className="font-serif-kr text-[var(--hb-text-strong)]">동기방 요약</h3>

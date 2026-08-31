@@ -142,7 +142,7 @@ export default function TodayClient({
     <Shell>
       <section className={`${surface} overflow-hidden`}>
         <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
-          <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">
+          <p className="text-[12px] font-semibold text-[#C7D1C2]">
             오늘 한 마디
           </p>
           <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">

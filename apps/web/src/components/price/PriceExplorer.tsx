@@ -910,7 +910,7 @@ export function PriceExplorer({
             <section aria-label="최근 저장 조합" className="mt-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-[#F5ECE4] px-4 py-4 text-[var(--hb-text-strong)]">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-[11px] font-bold tracking-[0.1em] text-[var(--color-rose-700)]">최근 저장 조합</p>
+                  <p className="text-[11px] font-bold text-[var(--color-rose-700)]">최근 저장 조합</p>
                   <p className="mt-1 truncate text-sm font-bold">{latestSavedCombo.name}</p>
                   <p className="mt-1 text-xs leading-5 text-[var(--hb-text-muted)]">현재 공개 중인 업체와 가격이 일치하는 항목만 안전하게 불러옵니다.</p>
                 </div>

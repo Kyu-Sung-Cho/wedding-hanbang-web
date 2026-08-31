@@ -183,7 +183,7 @@ export default function StartHereClient() {
         <div className="mx-auto w-full max-w-[1240px] px-5 pb-10 pt-8 sm:px-8 sm:pb-12 sm:pt-11 lg:px-10 lg:pb-14">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)] lg:items-end lg:gap-16">
             <div className="max-w-[650px]">
-              <p className="text-[12px] font-semibold tracking-[0.08em] text-[#E2D3C8]">
+              <p className="text-[12px] font-semibold text-[#E2D3C8]">
                 날짜 입력은 로그인 없이 · 날짜는 서버로 보내지 않아요
               </p>
               <h1

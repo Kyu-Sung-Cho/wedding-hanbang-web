@@ -108,7 +108,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold tracking-[0.12em] text-[var(--color-rose-700)]">조합에 담기</p>
+            <p className="text-xs font-bold text-[var(--color-rose-700)]">조합에 담기</p>
             <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-normal text-[var(--hb-text-strong)]">{vendor.name}</h2>
           </div>
           <button type="button" onClick={onClose} aria-label="닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-[var(--hb-text-strong)] hover:bg-white">

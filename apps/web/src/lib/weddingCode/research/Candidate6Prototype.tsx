@@ -319,7 +319,7 @@ export function Candidate6Prototype({
             */}
             <p
               data-screen-identity=""
-              className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]"
+              className="text-[12px] font-semibold text-[#C7D1C2]"
             >
               오늘 한 마디 · 로컬 연구 미리보기
             </p>

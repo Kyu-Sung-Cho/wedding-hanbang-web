@@ -79,7 +79,7 @@ export default async function WeddingCodeMeaningPage({
       <div className="mx-auto w-full max-w-[560px]">
         <section className={`${surface} overflow-hidden`} data-code-meaning={upper}>
           <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
-            <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
+            <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
               {upper}
             </h1>

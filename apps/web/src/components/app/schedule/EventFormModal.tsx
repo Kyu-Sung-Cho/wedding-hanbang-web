@@ -339,7 +339,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-title"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               제목 <span className="text-[var(--hb-accent-hover)]">*</span>
             </label>
@@ -359,7 +359,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-date"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               날짜 <span className="text-[var(--hb-accent-hover)]">*</span>
             </label>
@@ -377,7 +377,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-time"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               시간
             </label>
@@ -399,7 +399,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-memo"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               메모
             </label>
@@ -419,7 +419,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-category"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               관련 카테고리
             </label>
@@ -441,7 +441,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-assignee"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               담당
             </label>
@@ -480,7 +480,7 @@ export default function EventFormModal({
             <div>
               <label
                 htmlFor="schedule-external-assignee"
-                className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+                className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
               >
                 외부 담당 역할
               </label>
@@ -500,7 +500,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-completion-criteria"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               완료 기준
             </label>
@@ -519,7 +519,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-status"
-              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
+              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
             >
               진행 상태
             </label>

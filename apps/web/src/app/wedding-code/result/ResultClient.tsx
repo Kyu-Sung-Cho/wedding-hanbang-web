@@ -270,7 +270,7 @@ export default function WeddingCodeResultClient() {
         <section className={`${card} mt-7 overflow-hidden`}>
           <div className="flex items-start justify-between gap-4 p-5 sm:p-6">
             <div>
-              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">결과 요약</p>
+              <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">결과 요약</p>
               <p className="mt-2 text-[17px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
                 {strongestAxis?.summaryKo ?? report.subtitleKo}
               </p>
@@ -326,7 +326,7 @@ export default function WeddingCodeResultClient() {
         </section>
 
         <section className={`${card} mt-5 p-5 sm:p-6`}>
-          <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">오늘 대화해볼 것</p>
+          <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">오늘 대화해볼 것</p>
           <div className="mt-3 flex flex-col gap-2.5">
             {report.talkStarters.map((text) => (
               <p key={text} className="rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-3 text-[13px] font-medium leading-relaxed text-[var(--hb-text-strong)]">
@@ -337,7 +337,7 @@ export default function WeddingCodeResultClient() {
         </section>
 
         <section className={`${card} mt-5 p-5 sm:p-6`}>
-          <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">다음 행동 카드</p>
+          <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">다음 행동 카드</p>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {report.actionCards.map((action) => (
               <div key={action.id} className="rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-4">
@@ -477,7 +477,7 @@ function CoupleReportSection({
   if (state.kind === "waiting" || state.kind === "idle") {
     return (
       <section className={`${card} mt-5 p-5 sm:p-6`}>
-        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">커플 비교</p>
+        <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">커플 비교</p>
         <p className="mt-2 text-[17px] font-semibold text-[var(--hb-text-strong)]">
           {state.kind === "waiting" ? state.payload.messageKo : "아직 상대 응답을 기다리고 있어요."}
         </p>
@@ -494,7 +494,7 @@ function CoupleReportSection({
   if (state.kind === "incompatible" || state.kind === "error") {
     return (
       <section className={`${card} mt-5 p-5 sm:p-6`}>
-        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">커플 비교</p>
+        <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">커플 비교</p>
         <p className="mt-2 text-[17px] font-semibold text-[var(--hb-text-strong)]">
           {state.kind === "incompatible" ? state.payload.messageKo : state.messageKo}
         </p>
@@ -512,7 +512,7 @@ function CoupleReportSection({
 
   return (
     <section className={`${card} mt-5 p-5 sm:p-6`}>
-      <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">커플 비교</p>
+      <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">커플 비교</p>
       <div className="mt-2">
         <h2 className="text-[20px] font-semibold leading-[1.35] text-[var(--hb-text-strong)]">{report.titleKo}</h2>
         <p className="mt-1.5 text-[13px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">
@@ -535,7 +535,7 @@ function CoupleReportSection({
 
       {report.scenarioCards.length > 0 && (
         <div className="mt-5 border-t border-[var(--hb-hairline)] pt-5">
-          <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">실제 장면별 솔루션</p>
+          <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">실제 장면별 솔루션</p>
           <div className="mt-3 grid gap-4">
             {report.scenarioCards.map((card) => (
               <CoupleScenarioCard key={card.id} card={card} />
@@ -546,7 +546,7 @@ function CoupleReportSection({
 
       {report.solutionCards.length > 0 && (
         <div className="mt-5 border-t border-[var(--hb-hairline)] pt-5">
-          <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">축별 맞춰볼 방법</p>
+          <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">축별 맞춰볼 방법</p>
           <div className="mt-3 grid gap-3">
             {report.solutionCards.map((card) => (
               <CoupleSolutionCard key={card.id} card={card} />

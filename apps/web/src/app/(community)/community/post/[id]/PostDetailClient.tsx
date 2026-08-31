@@ -150,7 +150,7 @@ function DecisionRecordOverview({
     >
       <div className="grid md:grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] md:divide-x md:divide-[#e6ded2]">
         <div className={`border-b px-4 py-4 md:border-b-0 ${status.tone}`}>
-          <p className="text-[10px] font-bold tracking-[0.14em] opacity-70">진행 상태</p>
+          <p className="text-[10px] font-bold opacity-70">진행 상태</p>
           <div className="mt-1.5 flex items-start gap-2.5">
             {post.is_resolved && !post.under_review ? (
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
@@ -165,7 +165,7 @@ function DecisionRecordOverview({
         </div>
 
         <div className="px-4 py-4">
-          <p className="text-[10px] font-bold tracking-[0.14em] text-[#8b8175]">기록 확인</p>
+          <p className="text-[10px] font-bold text-[#8b8175]">기록 확인</p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <ContentOriginBadge origin={post.content_origin} size="md" />
             <AdDisclosureBadge

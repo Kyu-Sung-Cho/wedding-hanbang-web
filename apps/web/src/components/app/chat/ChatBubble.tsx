@@ -760,7 +760,7 @@ export default function ChatBubble({
           {isPrivateMsg && !isPartnerMsg && (
             <div className="flex items-center gap-1.5 mr-1">
               <Lock className="w-3.5 h-3.5 text-[#5a6147]" />
-              <span className="text-xs text-[#5a6147] font-medium tracking-wide">나만 보기</span>
+              <span className="text-xs text-[#5a6147] font-medium">나만 보기</span>
             </div>
           )}
           {/* 첨부 파일 (이미지 + PDF) */}

@@ -231,7 +231,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         className="sticky top-0 z-20 -mx-4 border-b border-[var(--hb-primary)]/10 bg-[#fffdf8]/95 px-4 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:top-[92px] lg:z-auto lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
         aria-label="이 글의 목차"
       >
-        <p className="hidden text-[12px] font-semibold tracking-[0.12em] text-[#8F5150] lg:block">이 글에서 바로 찾기</p>
+        <p className="hidden text-[12px] font-semibold text-[#8F5150] lg:block">이 글에서 바로 찾기</p>
         <nav className="flex gap-2 overflow-x-auto pb-1 lg:mt-3 lg:flex-col lg:overflow-visible lg:pb-2">
           {part.sections.map((section, index) => (
             <a
@@ -281,7 +281,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             className="mt-5 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/60 px-4 py-3.5"
             aria-label="이 글의 차례"
           >
-            <p className="text-[12px] font-semibold tracking-wide text-[#8F5150]">
+            <p className="text-[12px] font-semibold text-[#8F5150]">
               이 글에서 찾는 것부터 보세요
             </p>
             <ol className="mt-2.5 space-y-2">
@@ -336,7 +336,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         옮기면 두 문제가 같이 풀린다.
       */}
       <div className="mt-5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
-        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">읽은 뒤 준비하기</p>
+        <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">읽은 뒤 준비하기</p>
         <p className="mt-1 text-[14px] leading-6 text-[#3d4a45]">
           {checklistLabel
             ? `${checklistLabel} 준비 항목을 열어 실제로 확인하고 저장할 수 있어요.`

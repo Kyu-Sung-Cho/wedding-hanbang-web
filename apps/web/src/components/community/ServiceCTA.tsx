@@ -141,7 +141,7 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
   return (
     <section className="overflow-hidden rounded-[6px] border border-[#c7d1c2] bg-[#f4f6f1]" aria-labelledby="community-next-action-heading">
       <div className="px-4 py-4 sm:px-5 sm:py-5">
-        <p className="text-[10px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">답을 찾은 다음</p>
+        <p className="text-[10px] font-bold text-[var(--color-rose-700)]">답을 찾은 다음</p>
         <h2 id="community-next-action-heading" className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">
           사람의 답변을 내 준비로 옮기기
         </h2>

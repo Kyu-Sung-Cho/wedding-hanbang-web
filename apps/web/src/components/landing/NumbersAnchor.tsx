@@ -81,7 +81,7 @@ export default function NumbersAnchor() {
         >
           <Link
             href={weddingPath("/market-prices")}
-            className="group inline-flex items-center gap-2 text-[14px] text-[var(--hb-text-strong)] font-medium border-b border-[var(--hb-primary)] pb-2 tracking-[0.02em] hover:text-[var(--color-rose-700)] hover:border-rose-500 transition-colors"
+            className="group inline-flex items-center gap-2 text-[14px] text-[var(--hb-text-strong)] font-medium border-b border-[var(--hb-primary)] pb-2 hover:text-[var(--color-rose-700)] hover:border-rose-500 transition-colors"
           >
             지역별 · 항목별 공시가 보기
             <ArrowUpRight className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
