@@ -18,7 +18,12 @@ import type {
   PendingAmoraAction,
 } from "@/types/database.types";
 
-export type PendingActionDisabledReason = "busy" | "expired" | "not_latest" | null;
+export type PendingActionDisabledReason =
+  | "busy"
+  | "expired"
+  | "not_latest"
+  | "applied"
+  | null;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
 
@@ -159,7 +164,20 @@ export function getPendingActionDisabledReason(
   nowMs: number,
   isLatest: boolean,
   busy: boolean,
+  /**
+   * 이 카드가 이미 적용됐는가. 서버가 사용자 확인 행에 남긴
+   * `confirmed_amora_action_id` 로 판정한다.
+   *
+   * **이것이 다른 어떤 이유보다 먼저다.** 카드를 누르면 새 메시지가 생기고, 그
+   * 순간 이 카드는 `not_latest` 가 된다 — 방금 성공시킨 카드에 "새 대화가 이어져
+   * 이 제안은 적용할 수 없어요" 가 붙는다(2026-08-31 운영에서 재현). 사용자는
+   * 성공 문장과 실패 문장을 나란히 보고 실패했다고 읽는다.
+   *
+   * 시간이 지나 만료돼도 마찬가지다. 이미 적용된 것은 만료될 것이 없다.
+   */
+  applied = false,
 ): PendingActionDisabledReason {
+  if (applied) return "applied";
   if (isPendingAmoraActionExpired(action, nowMs)) return "expired";
   if (!isLatest) return "not_latest";
   if (busy) return "busy";
@@ -170,6 +188,7 @@ const DISABLED_COPY: Record<Exclude<PendingActionDisabledReason, null>, string> 
   busy: "현재 답변이 끝나면 다시 확인할 수 있어요.",
   expired: "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요.",
   not_latest: "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요.",
+  applied: "이 제안은 적용됐어요.",
 };
 
 interface PendingAmoraActionCardProps {
