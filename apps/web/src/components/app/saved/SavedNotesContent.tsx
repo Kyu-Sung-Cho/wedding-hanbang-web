@@ -115,7 +115,7 @@ export default function SavedNotesContent() {
           <Bookmark aria-hidden="true" className="h-4 w-4" />
           저장한 이야기
         </p>
-        <h1 className="mt-2 text-2xl font-bold text-[var(--hb-text-strong)] sm:text-3xl">
+        <h1 className="mt-2 text-[var(--hb-text-strong)]">
           다시 볼 것만 모아뒀어요
         </h1>
         <p className="mt-2 text-base leading-7 text-[var(--hb-text-muted)]">

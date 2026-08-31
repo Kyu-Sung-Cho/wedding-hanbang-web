@@ -355,7 +355,7 @@ function WeddingCase({
             {stageLabel(weddingCase.stage)}
           </span>
         </div>
-        <h2 className="mt-4 text-[24px] font-extrabold leading-tight sm:text-[28px]">
+        <h2 className="mt-4">
           {weddingCase.title}
         </h2>
         <p className="mt-2 text-[16px] font-semibold leading-7 text-white/92">
@@ -658,7 +658,7 @@ export default function WeddingCourtClient() {
               TODAY&apos;S WEDDING CHOICE
             </p>
           </div>
-          <h1 className="mt-3 text-[30px] font-extrabold tracking-[-0.03em] text-[var(--hb-text-strong)] sm:text-[38px]">
+          <h1 className="mt-3 text-[var(--hb-text-strong)]">
             오늘의 웨딩 선택 법정
           </h1>
           <p className="mt-3 max-w-[650px] text-[14px] leading-7 text-[#52635e] sm:text-[15px]">

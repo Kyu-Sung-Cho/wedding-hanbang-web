@@ -485,7 +485,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
                 </span>
                 <span className="font-sans text-[10px] text-white/50">약 1분</span>
               </div>
-              <h2 className="mt-7 break-keep font-serif text-[29px] font-medium leading-[1.35]">
+              <h2 className="mt-7 break-keep font-serif">
                 검색해도 답이 없으면,
                 <br />내 상황으로 질문하세요.
               </h2>
@@ -550,7 +550,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
 
             <aside className="rounded-[6px] bg-[#edf1ec] p-6 sm:p-8 lg:self-start">
               <HeartHandshake className="h-7 w-7 text-[#8F6662]" />
-              <h3 className="mt-5 break-keep font-serif text-[26px] font-medium leading-9">당신의 경험이 가장 필요한 질문만 보여드릴게요.</h3>
+              <h3 className="mt-5 break-keep font-serif">당신의 경험이 가장 필요한 질문만 보여드릴게요.</h3>
               <p className="mt-4 font-sans text-[13px] leading-6 text-[#65716c]">
                 예식 지역과 준비 단계를 선택하면, 답할 수 있는 질문을 우선 연결하는 구조예요.
               </p>

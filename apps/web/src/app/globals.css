@@ -937,11 +937,18 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 
   /*
    * 아래 6개는 이 파일 위쪽에서 @layer 밖에 선언돼 있다. cascade layer 규칙상
-   * layer 밖 선언은 layer 안 선언을 항상 이기므로, Tailwind가 @layer utilities에
-   * 넣는 `motion-reduce:animate-none` 유틸리티가 이들을 덮지 못한다. 실제로
-   * prefers-reduced-motion: reduce 에서도 animation-name이 그대로 남는 것을
-   * 브라우저에서 확인했다(2026-08-05). 여기서 같은 unlayered 위치로 끈다.
+   * layer 밖의 **일반 선언**은 layer 안 일반 선언을 이기므로, Tailwind가
+   * @layer utilities에 넣는 `motion-reduce:animate-none` 유틸리티가 이들을 덮지
+   * 못한다. 실제로 prefers-reduced-motion: reduce 에서도 animation-name이 그대로
+   * 남는 것을 브라우저에서 확인했다(2026-08-05). 여기서 같은 unlayered 위치로 끈다.
    * guide-pulse·guide-shimmer는 infinite라 특히 중요하다.
+   *
+   * ⚠️ `!important` 에서는 **레이어 순서가 뒤집힌다.** layer 안의 !important 선언이
+   * layer 밖 !important 를 이긴다. 그래서 이 파일의 제목 블록(!important, layer 밖)은
+   * Tailwind 의 `!text-[22px]` 같은 **! 유틸리티에는 진다** — 운영에서
+   * `/wedding?feed=all` 의 `#community-search-heading` 이 24px 로 나오는 이유다
+   * (2026-08-31 실측). 위 문단을 "항상 이긴다"로 읽고 ! 유틸리티를 지웠다가
+   * 24px 제목을 30px 로 만들 뻔했다.
    */
   .animate-fade-in,
   .animate-slide-in-right,

@@ -159,7 +159,7 @@ export default function CommunityModerationPage() {
         <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-[6px] bg-rose-50 text-[var(--hb-accent-hover)]">
           <ShieldCheck className="h-5 w-5" aria-hidden="true" />
         </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--hb-text-strong)] sm:text-3xl">
+        <h1 className="text-[var(--hb-text-strong)]">
           운영 알림과 이의제기
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-taupe-600">

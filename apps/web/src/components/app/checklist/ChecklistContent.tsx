@@ -138,7 +138,7 @@ export default function ChecklistContent() {
         <p className="text-[12px] font-semibold tracking-[0.14em] text-[var(--hb-accent-hover)]">WEDDING CHECKLIST</p>
         <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <h1 className="text-[30px] font-semibold leading-tight text-[var(--hb-text-strong)] sm:text-[36px]">
+            <h1 className="text-[var(--hb-text-strong)]">
               웨딩 체크리스트
             </h1>
             <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[var(--hb-text-body)] sm:text-[15px]">
