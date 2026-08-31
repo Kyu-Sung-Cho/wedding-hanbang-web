@@ -394,7 +394,7 @@ describe("computePreparationPriorities", () => {
     // 이 단언은 원래 "준비 3가지 카드를 그리는가"였다. 그 카드는 2026-08-29 개편으로
     // 없어졌지만 **단언은 남긴다** — 같은 컴포넌트가 지금은 옮겨 온 고지 세 줄을 진다:
     //
-    //   cards[0].note "로그인 없이 넣은 견적은 저장하지 않아요"  ← 옛 privateLane.note
+    //   cards[0].note "로그인 없이 선택한 내용은 저장하지 않아요"  ← 옛 privateLane.note
     //   cards[1].note "점수도 궁합도 매기지 않아요"              ← 옛 scenes.note
     //   cards[2].note "2025년 11월 공시 기준 …"                  ← 가격 출처·기준일
     //

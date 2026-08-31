@@ -16,8 +16,15 @@ describe("vendor admin-preview onboarding boundary", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    // 동의 기록이 있는 계정이 기본값이다. 없으면 미들웨어가 동의 화면으로
+    // 돌려세우는 것이 맞는 동작이라(2026-08-28), 그것은 아래 별도 테스트에서 본다.
     mocks.getUser.mockReset().mockResolvedValue({
-      data: { user: { id: "signed-in-user" } },
+      data: {
+        user: {
+          id: "signed-in-user",
+          user_metadata: { terms_agreed: true, privacy_agreed: true },
+        },
+      },
     });
     mocks.createServerClient.mockReset().mockReturnValue({
       auth: { getUser: mocks.getUser },
@@ -218,5 +225,58 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
 
     expect(response.status).toBe(307);
     expect(response.cookies.get("sb-access-token")?.value).toBe("refreshed");
+  });
+});
+
+/**
+ * 동의 관문이 온보딩보다 먼저 온다 (2026-08-28).
+ *
+ * 소셜 로그인은 Supabase 가 계정을 직접 만들어 동의 기록이 없다. 그 계정이 다시
+ * 들어오면 미들웨어가 온보딩으로 먼저 돌려세웠는데, 온보딩은 `(auth)` 그룹이라
+ * 동의 관문 셋 모두의 바깥이다. 그래서 온보딩을 다 채우고 저장에서 400 을 맞은 뒤
+ * **갈 곳이 없었다.**
+ */
+describe("동의 기록이 없는 계정", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    mocks.getUser.mockReset().mockResolvedValue({
+      data: { user: { id: "social-user", user_metadata: {} } },
+    });
+    mocks.createServerClient.mockReset().mockReturnValue({
+      auth: { getUser: mocks.getUser },
+    });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    "/wedding/onboarding",
+    "/wedding/lounge",
+    "/wedding/chat",
+  ])("%s 에서 동의 화면으로 보낸다", async (path) => {
+    const response = await updateSession(new NextRequest(`https://hanbang.ai${path}`));
+    const location = response.headers.get("location");
+    expect(location, "동의 화면으로 보내지 않았습니다").toContain("/consent");
+  });
+
+  it("가려던 곳을 redirect 로 넘긴다", async () => {
+    // 동의를 마친 사람은 처음 가려던 화면으로 돌아가야 한다.
+    const response = await updateSession(
+      new NextRequest("https://hanbang.ai/wedding/chat"),
+    );
+    expect(response.headers.get("location")).toContain(
+      `redirect=${encodeURIComponent("/wedding/chat")}`,
+    );
+  });
+
+  it("한쪽만 동의한 기록은 동의로 치지 않는다", async () => {
+    mocks.getUser.mockResolvedValueOnce({
+      data: { user: { id: "half", user_metadata: { terms_agreed: true } } },
+    });
+    const response = await updateSession(
+      new NextRequest("https://hanbang.ai/wedding/lounge"),
+    );
+    expect(response.headers.get("location")).toContain("/consent");
   });
 });

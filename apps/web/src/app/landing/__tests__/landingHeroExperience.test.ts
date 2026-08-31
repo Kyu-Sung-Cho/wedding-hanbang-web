@@ -408,7 +408,7 @@ describe("landing hero product experience contract", () => {
     // 계산에만 쓰고 서버로 보내지 않아요" 가 지키던 것이다 — **도구만 옮기고 고지를
     // 두고 오면 안 된다.** 지금은 카드마다 자기 몫을 진다.
     expect(availableNowCatalogue, "견적 저장 고지가 사라졌다").toContain(
-      "로그인 없이 넣은 견적은 저장하지 않아요",
+      "로그인 없이 선택한 내용은 저장하지 않아요",
     );
     expect(availableNowCatalogue, "기기 안 계산 고지가 사라졌다").toContain(
       "답은 기기 안에서 계산해요",

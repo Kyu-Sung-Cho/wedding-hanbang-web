@@ -230,7 +230,7 @@ export const landingContent = {
           + "업체에 그대로 물어볼 질문을 만들어드려요.",
         note:
           "분야별 9~12개 확인 항목 · 값이 적정한지는 판정하지 않아요 · "
-          + "로그인 없이 넣은 견적은 저장하지 않아요",
+          + "로그인 없이 선택한 내용은 저장하지 않아요",
         href: "/wedding/community/quote-check",
       },
       {

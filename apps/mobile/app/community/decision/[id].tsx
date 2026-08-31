@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
   ActivityIndicator,
   Alert,
@@ -1144,9 +1145,10 @@ export default function DecisionThreadDetailScreen() {
       return receipt;
     } catch (error) {
       if (await isViewerCurrent(ownerId, generation)) {
-        setMutationError(error instanceof Error && error.message !== "Failed to fetch"
-          ? error.message
-          : "네트워크 응답을 받지 못했어요. 같은 행동으로 다시 확인해 주세요.");
+        setMutationError(toKoreanErrorMessage(
+          error,
+          "네트워크 응답을 받지 못했어요. 같은 행동으로 다시 확인해 주세요.",
+        ));
       }
       return null;
     } finally {
@@ -1534,9 +1536,10 @@ export default function DecisionThreadDetailScreen() {
       });
     } catch (error) {
       if (await isViewerCurrent(ownerId, generation)) {
-        setMutationError(error instanceof Error && error.message !== "Failed to fetch"
-          ? error.message
-          : "네트워크 응답을 받지 못했어요. 새 명령을 만들지 않고 같은 요청으로 다시 확인해 주세요.");
+        setMutationError(toKoreanErrorMessage(
+          error,
+          "네트워크 응답을 받지 못했어요. 새 명령을 만들지 않고 같은 요청으로 다시 확인해 주세요.",
+        ));
       }
     } finally {
       if (mutationSequenceRef.current === sequence) {

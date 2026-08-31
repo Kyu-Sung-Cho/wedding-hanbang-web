@@ -362,9 +362,9 @@ describe("landing two-sided trust contract", () => {
     );
     expect(confirmCopy).toContain("실제 이용 현황이 아니에요.");
 
-    // 개인정보 — 로그인 없이 넣은 견적은 남기지 않는다(옛 `privateLane.note`).
+    // 개인정보 — 로그인 없이 선택한 내용은 남기지 않는다(옛 `privateLane.note`).
     const availableNowCopy = contentBlock("availableNow", "confirm");
-    expect(availableNowCopy).toContain("로그인 없이 넣은 견적은 저장하지 않아요");
+    expect(availableNowCopy).toContain("로그인 없이 선택한 내용은 저장하지 않아요");
 
     // 궁합·점수 금지(CLAUDE.md: WeddingCode 는 검증된 궁합 검사가 아니다).
     // 옛 `scenes.note` 가 스무 장면 카드의 작은 글씨로 내려왔다.

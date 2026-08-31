@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { toKoreanErrorMessage } from "@/lib/errorCopy";
 import {
   ActivityIndicator,
   Alert,
@@ -473,10 +474,12 @@ export default function DecisionThreadWriteScreen() {
       });
     } catch (error) {
       if (await isOwnerCurrent(submission.ownerId, sequence)) {
-        const message = error instanceof Error && error.message !== "Failed to fetch"
-          ? error.message
-          : "네트워크 응답을 받지 못했어요. 같은 요청으로 게시 상태를 다시 확인해 주세요.";
-        setRequestError(message);
+        // RN 의 fetch 실패는 "Network request failed" 라 브라우저 문구와
+        // 비교하면 절대 걸리지 않고 영어 원문이 화면에 남는다.
+        setRequestError(toKoreanErrorMessage(
+          error,
+          "네트워크 응답을 받지 못했어요. 같은 요청으로 게시 상태를 다시 확인해 주세요.",
+        ));
       }
     } finally {
       if (requestSequenceRef.current === sequence) setSubmitting(false);
@@ -567,9 +570,10 @@ export default function DecisionThreadWriteScreen() {
       ]);
     } catch (error) {
       if (await isOwnerCurrent(ownerId, sequence)) {
-        setRequestError(error instanceof Error && error.message !== "Failed to fetch"
-          ? error.message
-          : "네트워크 응답을 받지 못했어요. 같은 철회 요청으로 다시 확인해 주세요.");
+        setRequestError(toKoreanErrorMessage(
+          error,
+          "네트워크 응답을 받지 못했어요. 같은 철회 요청으로 다시 확인해 주세요.",
+        ));
       }
     } finally {
       if (requestSequenceRef.current === sequence) setWithdrawSubmitting(false);

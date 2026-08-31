@@ -3,8 +3,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
-} from "react-native";
+  KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking } from "react-native";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
@@ -69,6 +69,14 @@ import {
 import { PlaceCards } from "@/components/chat/PlaceCards";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
+
+// 사이트 주소는 헬퍼로 짓는다. 운영에서 EXPO_PUBLIC_SITE_URL 이 없거나 안전하지
+// 않으면 이 헬퍼가 던진다 — 하드코딩하면 그 보호가 사라진다.
+const amoraSiteOrigin = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const AI_POLICY_URL = buildMobileSiteUrl("/ai-policy", amoraSiteOrigin);
 
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
@@ -508,6 +516,14 @@ type ChatStreamUpdateCallback = (
   toolResults: ToolExecutionResult[],
   metadata: ChatMessageMetadata | null,
 ) => void;
+
+/**
+ * 이 앱이 카드로 그릴 수 있는 도구.
+ *
+ * 지금은 장소 검색 하나뿐이다(`PlaceCards`). 카드를 새로 만들면 여기에 더한다 —
+ * 더하지 않으면 서버가 계속 글로 답하게 두므로 사용자는 답을 받는다.
+ */
+const MOBILE_RENDERED_TOOLS = ["search_nearby_places"] as const;
 
 class ChatTransportError extends Error {
   constructor(
@@ -1331,6 +1347,16 @@ function streamChatWithXhr(
     xhr.open("POST", `${API_BASE}/api/chat`, true);
     xhr.setRequestHeader("Content-Type", "application/json");
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    // 이 앱이 실제로 카드로 그릴 수 있는 도구를 알린다.
+    //
+    // 서버는 도구 결과 뒤에 "이 결과는 카드로 자동 표시되니 텍스트로 나열하지
+    // 마세요" 라는 지시를 붙이는데, 그 판정이 클라이언트를 구분하지 않았다.
+    // 모바일에는 견적·계약 확인·하객 보증 카드가 없어서, 모델은 답을 글로도
+    // 쓰지 않고 카드도 안 나와 **화면에 아무것도 남지 않았다.**
+    xhr.setRequestHeader(
+      "x-hanbang-rendered-tools",
+      MOBILE_RENDERED_TOOLS.join(","),
+    );
     xhr.timeout = CHAT_REQUEST_TIMEOUT_MS;
     xhr.onprogress = consumeAvailableText;
     xhr.onload = () => {
@@ -1641,8 +1667,12 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
       return "무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
+    case "COST_GUARD_COUPLE_DAILY":
+      return "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_GLOBAL_BUDGET":
-      return "오늘 아모라의 안전 한도에 도달했어요. 잠시 후 다시 시도해 주세요.";
+      // "안전 한도" 는 우리 내부 용어이고, 카운터는 한국 시간 자정에 풀리므로
+      // "잠시 후" 는 사용자를 헛되이 다시 누르게 만든다. 서버가 이미 고친 문구다.
+      return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_UNAVAILABLE":
       return "아모라 사용량을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
     default:
@@ -1653,6 +1683,7 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
   // 왜 막혔는지 서버가 코드로 밝힌 경우에는 그것부터 전한다.
   if (error instanceof ChatTransportError) {
+    // 서버 문장이 정본이다. 표는 서버가 문장을 못 준 경우의 폴백일 뿐이다.
     const reason = getServerCodeFailureMessage(error.serverCode);
     if (reason) return reason;
   }
@@ -3885,6 +3916,30 @@ export default function ChatScreen() {
         {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
       </View>
 
+      {/*
+        아모라 답변이 AI 생성물임을 화면에서 항상 확인할 수 있게 한다.
+
+        모바일에는 이 표시가 **한 곳도 없었다**(2026-08-28 감사). 그런데 약관과
+        AI 정책은 표시가 포함된다고 대외에 공표하고 있었고, 웹은
+        `ChatContent` 헤더에 같은 배지를 늘 그린다. 주 제품인 앱에서만 사용자가
+        그 표시를 한 번도 못 보고, AI 정책으로 갈 경로도 앱 안에 없었다.
+
+        문구는 웹과 같은 것을 쓴다 — 두 화면이 같은 사실을 다르게 말하면 안 된다.
+      */}
+      <View style={st.aiNotice}>
+        <View style={st.aiDot} />
+        <Text style={st.aiNoticeStrong}>AI 생성 답변</Text>
+        <Text style={st.aiNoticeText}>· 계약·가격·중요 일정은 원문을 다시 확인해 주세요</Text>
+        <Pressable
+          onPress={() => { void Linking.openURL(AI_POLICY_URL); }}
+          accessibilityRole="link"
+          accessibilityLabel="AI 정책 열기"
+          hitSlop={8}
+        >
+          <Text style={st.aiNoticeLink}>AI 정책</Text>
+        </Pressable>
+      </View>
+
       <View style={st.scopeSection} accessibilityLabel="상담 공개 범위">
         <View style={st.scopeRow}>
           <Pressable
@@ -4088,6 +4143,24 @@ const st = StyleSheet.create({
   headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   headerSub: { fontSize: 11, color: colors.textTertiary },
+  aiNotice: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingTop: 6,
+    backgroundColor: colors.surface,
+  },
+  aiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.rose[500] },
+  aiNoticeStrong: { fontSize: 11, fontWeight: "600", color: colors.rose[500] },
+  aiNoticeText: { fontSize: 11, color: colors.textTertiary },
+  aiNoticeLink: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: colors.textTertiary,
+    textDecorationLine: "underline",
+  },
   scopeSection: { paddingHorizontal: 12, paddingTop: 8, paddingBottom: 6, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border },
   scopeRow: { flexDirection: "row", gap: 4, padding: 4, borderRadius: 14, backgroundColor: colors.ivory.warm },
   scopeBtn: { flex: 1, minHeight: 44, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, borderRadius: 10 },

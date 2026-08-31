@@ -15,6 +15,7 @@ import {
   Modal,
   Platform,
 } from "react-native";
+import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
@@ -1095,6 +1096,23 @@ export default function SettingsScreen() {
             right={<ExternalLink size={16} color={colors.taupe[400]} />}
           />
 
+          <View style={styles.divider} />
+
+          {/*
+            AI 정책으로 가는 길이 앱 안에 하나도 없었다(2026-08-28 감사). 약관과
+            AI 정책 문서는 아모라 답변에 AI 표시가 포함된다고 공표하는데, 앱에는
+            그 표시도 이 링크도 없었다. 채팅 화면 상단 고지와 짝이 되는 자리다.
+
+            주소는 헬퍼로 짓는다 — 운영에서 EXPO_PUBLIC_SITE_URL 이 없거나 안전하지
+            않으면 던진다. 위 두 행은 이 헬퍼가 생기기 전에 쓰여 하드코딩돼 있다.
+          */}
+          <ActionRow
+            title="AI 정책"
+            description="아모라가 무엇을 하고 무엇을 하지 않는지"
+            onPress={() => { void Linking.openURL(AI_POLICY_URL); }}
+            right={<ExternalLink size={16} color={colors.taupe[400]} />}
+          />
+
           {/* 오픈소스 라이선스 행은 제거했다 — 대상 페이지(hanbang.ai)가 없어
               외부 브라우저로 404를 열고 있었고, 404는 저작자 표시를 제공하지 않는다.
               스토어 제출 전에 실제 고지 화면을 만들어 다시 넣어야 한다. */}
@@ -1232,6 +1250,12 @@ export default function SettingsScreen() {
     </SafeAreaView>
   );
 }
+
+const settingsSiteOrigin = resolveMobileSiteOrigin(
+  process.env.EXPO_PUBLIC_SITE_URL,
+  { isDevelopment: __DEV__ },
+);
+const AI_POLICY_URL = buildMobileSiteUrl("/ai-policy", settingsSiteOrigin);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },

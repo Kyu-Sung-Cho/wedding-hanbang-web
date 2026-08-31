@@ -647,7 +647,7 @@ describe("landing product outcome evidence", () => {
     const quoteCheck = nowCard("/wedding/community/quote-check");
     expect(quoteCheck, "견적 점검 카드가 사라졌다").toBeDefined();
     expect(quoteCheck?.note, "비로그인 견적을 저장하지 않는다는 고지가 사라졌다").toContain(
-      "로그인 없이 넣은 견적은 저장하지 않아요",
+      "로그인 없이 선택한 내용은 저장하지 않아요",
     );
     expect(quoteCheck?.note, "적정성을 판정하지 않는다는 계약이 사라졌다").toContain(
       "값이 적정한지는 판정하지 않아요",

@@ -55,7 +55,7 @@ const ROLES: Role[] = [
     title: "비슷한 후기 찾아보기",
     body: (
       <>
-        같은 지역, 비슷한 예산의 사례를
+        비슷한 시기에 준비하는 사람들의 기록을
         <span className="text-[var(--hb-text-strong)]"> 커뮤니티에서 함께</span> 확인합니다.
       </>
     ),

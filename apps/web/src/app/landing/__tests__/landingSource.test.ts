@@ -161,7 +161,7 @@ describe("실제 랜딩 소스", () => {
       // AI 고지 (`noSide.note` · `notForVendors.aiNotice` → `boundaries.items[2]`)
       "AI가 만든 답변임을 표시해요",
       // 개인정보·저장 고지 (`privateLane.note` → `availableNow.cards[0].note`)
-      "로그인 없이 넣은 견적은 저장하지 않아요",
+      "로그인 없이 선택한 내용은 저장하지 않아요",
       // 업체 편 아님 (`notForVendors` → `boundaries.items[0]`)
       "업체에 점수·등급·순위를 매기지 않아요",
       // 가격 출처·기준일 (→ `footer.notice`)

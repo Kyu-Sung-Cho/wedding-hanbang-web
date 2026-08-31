@@ -60,6 +60,9 @@ function formatManwon(value: number) {
   return `${Math.round(value).toLocaleString()}만원`;
 }
 
+/** 원인을 추측하지 않고, 다시 해보면 되는지만 알려준다. */
+const QUOTE_CHECK_ERROR = "결과를 가져오지 못했어요. 잠시 후 다시 시도해 주세요.";
+
 export default function AmoraQuoteCheckPage() {
   const [category, setCategory] = useState<AmoraQuoteCategory>("studio");
   const [itemDecisions, setItemDecisions] = useState<Record<string, ItemDecision>>({});
@@ -109,11 +112,22 @@ export default function AmoraQuoteCheckPage() {
           notNeededItemIds,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "결과를 가져오지 못했습니다.");
+      // 상태를 먼저 보고, 본문 파싱 실패는 삼킨다. 예전에는 `json()` 이
+      // `res.ok` 보다 먼저라 서버가 HTML 오류 페이지를 주면 SyntaxError 의
+      // 영어 원문("Unexpected token '<' …")이 그대로 화면에 떴다.
+      const data = await res.json().catch(() => null) as
+        | { error?: string; analysis?: unknown }
+        | null;
+      if (!res.ok || !data?.analysis) {
+        // 서버가 우리말로 준 사유만 쓴다. 없으면 우리 문장을 쓴다.
+        setError(typeof data?.error === "string" ? data.error : QUOTE_CHECK_ERROR);
+        return;
+      }
       setResult(data.analysis as AmoraQuoteCheckResult);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "결과를 가져오지 못했습니다.");
+    } catch {
+      // 네트워크가 끊기면 브라우저가 "Failed to fetch" 를 던진다. 한국어
+      // 서비스에서 영어 원문을 보여주지 않는다.
+      setError(QUOTE_CHECK_ERROR);
     } finally {
       setLoading(false);
     }

@@ -10,7 +10,7 @@ import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import SignupConsent from "@/components/auth/SignupConsent";
-import { authErrorMessage } from "@/lib/auth/authErrorMessages";
+import { AUTH_ERROR_FALLBACK, authErrorMessage } from "@/lib/auth/authErrorMessages";
 import {
   hasAnyWebOAuthProvider,
   isWebOAuthProviderEnabled,
@@ -277,7 +277,9 @@ export default function LoginPage() {
           } else if (signInError.message === "Email not confirmed") {
             setError("이메일 인증이 완료되지 않았습니다. 메일함을 확인해주세요.");
           } else {
-            setError(signInError.message);
+            // 원문을 그대로 올리면 한국어 서비스에서 영어 문장을 보게 된다.
+            // 아는 경우는 위에서 옮겼고, 나머지는 폴백만 보여주고 원문은 버린다.
+            setError(AUTH_ERROR_FALLBACK);
           }
         } else {
           const { data: { user: loggedInUser } } = await supabase.auth.getUser();
@@ -314,7 +316,10 @@ export default function LoginPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error("Auth error:", msg);
-      setError(`오류: ${msg}`);
+      // 연결이 끊기면 브라우저가 "Failed to fetch"(Safari 는 "Load failed")를
+      // 던진다. 그대로 붙이면 지하철·엘리베이터에서 로그인한 사람이 영어 문장을
+      // 보고 자기 계정 문제로 오해한다. 원문은 위 콘솔에만 남긴다.
+      setError(AUTH_ERROR_FALLBACK);
     } finally {
       setLoading(null);
     }

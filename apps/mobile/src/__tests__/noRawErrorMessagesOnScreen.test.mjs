@@ -25,9 +25,24 @@ import { fileURLToPath, URL } from "node:url";
 
 const appRoot = fileURLToPath(new URL("../../", import.meta.url));
 
-/** 잡은 오류의 message 를 그대로 사용자 문구로 쓰는 모양. */
+/**
+ * 잡은 오류의 message 를 그대로 사용자 문구로 쓰는 모양.
+ *
+ * `&&` 로 조건이 끼면 못 잡는 구멍이 있었다(2026-08-28). 커뮤니티 다섯 곳이
+ * `error instanceof Error && error.message !== "Failed to fetch" ? error.message`
+ * 모양이라 이 가드를 그대로 통과했고, 영어 원문이 화면에 남았다.
+ */
 const RAW_MESSAGE_RE =
-  /\b(?:err|error|e)\s+instanceof\s+Error\s*\?\s*(?:err|error|e)\.message/u;
+  /\b(?:err|error|e)\s+instanceof\s+Error\s*(?:&&[^?\n]*)?\?\s*(?:err|error|e)\.message/u;
+
+/**
+ * 브라우저 fetch 의 실패 문구로 분기하는 모양.
+ *
+ * React Native 는 "Network request failed" 를 던지므로 이 비교는 **모바일에서
+ * 절대 참이 되지 않는다.** 막으려던 영어가 그대로 통과한다. 저장소가 그 사실을
+ * 이미 두 곳에 적어 두었다(`errorCopy.ts`, `onboarding/index.tsx`).
+ */
+const BROWSER_FETCH_MESSAGE_RE = /["']Failed to fetch["']/u;
 
 function sourceFiles(dir) {
   const found = [];
@@ -49,7 +64,7 @@ test("잡은 오류의 원문을 화면 문구로 쓰지 않는다", () => {
   for (const file of [...sourceFiles(join(appRoot, "app")), ...sourceFiles(join(appRoot, "src"))]) {
     const text = readFileSync(file, "utf8");
     text.split("\n").forEach((line, index) => {
-      if (RAW_MESSAGE_RE.test(line)) {
+      if (RAW_MESSAGE_RE.test(line) || BROWSER_FETCH_MESSAGE_RE.test(line)) {
         offenders.push(`${file.slice(appRoot.length).replace(/\\/gu, "/")}:${index + 1}`);
       }
     });

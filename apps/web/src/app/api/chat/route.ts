@@ -3803,12 +3803,33 @@ export async function POST(request: Request) {
           // tool use 감지 → 스트리밍된 텍스트 클리어 후 도구 실행
           sendSensitiveToolEvent({ type: "text_clear" });
 
-          // UI 카드로 자동 렌더링되는 도구 목록
-          const UI_RENDERED_TOOLS = new Set([
+          // UI 카드로 자동 렌더링되는 도구 목록.
+          //
+          // 이 판정이 클라이언트를 구분하지 않아서, 카드가 없는 앱에서도 모델에게
+          // "텍스트로 나열하지 마세요" 라고 지시했다. 모바일에는 견적·계약 확인·
+          // 하객 보증 카드가 없으므로 모델은 1~2문장만 남기고, 정작 누락 항목·확인
+          // 질문·계산 결과는 **어디에도 나타나지 않았다.**
+          //
+          // 클라이언트가 자기가 그릴 수 있는 목록을 보내면 그것만 카드로 친다.
+          // 헤더가 없으면(웹) 지금까지처럼 전부 카드로 본다.
+          const WEB_RENDERED_TOOLS = [
             "search_vendors", "recommend_vendors", "get_vendor_detail",
             "get_available_slots", "create_booking", "cancel_booking", "search_nearby_places",
             "analyze_quote", "analyze_contract_readiness", "simulate_guest_guarantee",
-          ]);
+          ] as const;
+          const declaredRenderedTools = request.headers
+            .get("x-hanbang-rendered-tools")
+            ?.split(",")
+            .map((name) => name.trim())
+            // 클라이언트가 모르는 이름을 보내도 목록이 넓어지지 않는다.
+            .filter((name): name is (typeof WEB_RENDERED_TOOLS)[number] =>
+              (WEB_RENDERED_TOOLS as readonly string[]).includes(name),
+            );
+          const UI_RENDERED_TOOLS = new Set<string>(
+            declaredRenderedTools && declaredRenderedTools.length > 0
+              ? declaredRenderedTools
+              : WEB_RENDERED_TOOLS,
+          );
 
           const toolResultInputs: ChatInputItem[] = [];
           const rejectToolCall = (
