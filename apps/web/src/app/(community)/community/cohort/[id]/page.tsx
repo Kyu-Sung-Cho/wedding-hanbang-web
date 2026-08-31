@@ -212,8 +212,8 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 
   if (!authChecked) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fbf8f2] px-4 text-sm font-medium text-[#928980]">
-        <div className="rounded-full border border-[#e5d8ca] bg-white px-5 py-3 shadow-[0_10px_28px_rgba(50,36,17,0.06)]">
+      <div className="flex min-h-screen items-center justify-center bg-[var(--hb-surface-page)] px-4 text-sm font-medium text-[var(--hb-text-muted)]">
+        <div className="rounded-full border border-[var(--hb-hairline)] bg-white px-5 py-3 shadow-[var(--shadow-raised)]">
           <LoaderText />
         </div>
       </div>
@@ -225,15 +225,15 @@ function CohortPageInner({ roomId }: { roomId: string }) {
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] text-[#263832]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]">
       <div className="mx-auto w-[calc(100%_-_32px)] max-w-[1240px] py-5 sm:w-[calc(100%_-_48px)] sm:py-7">
         <RoomHeader room={room} />
 
         <div className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_280px] lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px] xl:gap-5">
           <main className="min-w-0">
-            <section className="overflow-hidden rounded-[22px] border border-[#e5d8ca] bg-white/88 shadow-[0_16px_38px_rgba(50,36,17,0.055)]">
-              <div className="border-b border-[#e5d8ca] bg-white/70 px-3 py-3 sm:px-4">
-                <div className="grid grid-cols-3 gap-2 rounded-full bg-[#f6efe5] p-1">
+            <section className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 shadow-[var(--shadow-overlay)]">
+              <div className="border-b border-[var(--hb-hairline)] bg-white/70 px-3 py-3 sm:px-4">
+                <div className="grid grid-cols-3 gap-2 rounded-full bg-[var(--hb-surface-hover)] p-1">
                   <TabButton
                     active={tab === "chat"}
                     onClick={() => setTab("chat")}
@@ -285,7 +285,7 @@ function CohortPageInner({ roomId }: { roomId: string }) {
 function LoaderText() {
   return (
     <>
-      <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-[#e5d8ca] border-t-[#36534E] align-[-3px]" />
+      <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-[var(--hb-hairline)] border-t-[var(--hb-primary)] align-[-3px]" />
       동기방 입장 상태를 확인하고 있어요...
     </>
   );
@@ -294,36 +294,36 @@ function LoaderText() {
 function CohortLoginRequired({ roomId }: { roomId: string }) {
   const redirect = weddingPath(`/community/cohort/${roomId}`);
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#fffdf8_0%,#fbf8f2_48%,#f6efe5_100%)] px-4 py-10 sm:px-6">
-      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[24px] border border-[#e5d8ca] bg-white shadow-[0_18px_48px_rgba(50,36,17,0.065)] md:grid-cols-[1.05fr_0.95fr]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 py-10 sm:px-6">
+      <section className="mx-auto grid max-w-[1080px] overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] md:grid-cols-[1.05fr_0.95fr]">
         <div className="relative min-h-[280px] bg-[url('/images/amora-hero-bouquet-custom.webp')] bg-cover bg-[position:center_45%] md:order-2">
           <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,253,248,0.04)_0%,rgba(255,253,248,0.78)_100%)] md:bg-[linear-gradient(90deg,rgba(255,253,248,0.72)_0%,rgba(255,253,248,0.05)_100%)]" />
         </div>
         <div className="p-6 sm:p-8 lg:p-10">
-          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#EEF4F1] px-3 py-1.5 text-xs font-semibold text-[#36534E]">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-[#EEF4F1] px-3 py-1.5 text-xs font-semibold text-[var(--hb-text-strong)]">
             <LockKeyhole className="h-4 w-4" />
             로그인 필요
           </div>
-          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[#263832] sm:text-[38px]">
+          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[var(--hb-text-strong)] sm:text-[38px]">
             동기방은 로그인 후
             <br />
             입장할 수 있어요
           </h1>
-          <p className="mt-4 text-[14px] font-medium leading-[1.8] text-[#635b51] sm:text-[15px]">
+          <p className="mt-4 text-[14px] font-medium leading-[1.8] text-[var(--hb-text-body)] sm:text-[15px]">
             같은 시기 예비부부의 가격, 후기, 계약 이야기가 오가는 공간이라 회원에게만 열어두고 있어요.
             로그인하면 내 예정일 기준 방으로 바로 연결됩니다.
           </p>
           <div className="mt-6 flex flex-wrap gap-2.5">
             <Link
               href={`/login?redirect=${encodeURIComponent(redirect)}`}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)]"
             >
               로그인하고 입장
               <ArrowRight className="h-4 w-4" />
             </Link>
             <Link
               href={weddingPath()}
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#e5d8ca] bg-white px-5 text-sm font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
+              className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
             >
               커뮤니티로 돌아가기
             </Link>
@@ -343,23 +343,23 @@ function RoomHeader({ room }: { room: CohortRoom | null }) {
   ];
 
   return (
-    <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 px-5 py-4 shadow-[0_12px_30px_rgba(50,36,17,0.045)] sm:px-6">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 px-5 py-4 shadow-[var(--shadow-raised)] sm:px-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[#36534E]">Cohort Lounge</p>
-          <h1 className="truncate font-serif-kr text-[26px] font-medium leading-[1.25] text-[#263832] sm:text-[30px]">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hb-text-strong)]">Cohort Lounge</p>
+          <h1 className="truncate font-serif-kr text-[26px] font-medium leading-[1.25] text-[var(--hb-text-strong)] sm:text-[30px]">
             {getRoomTitle(room)}
           </h1>
-          <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[#635b51]">
+          <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
             같은 시기 예비부부와 실제 견적·고민·후기를 바로 나눠요.
           </p>
         </div>
 
-        <div className="grid min-w-0 grid-cols-3 overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] lg:w-[520px]">
+        <div className="grid min-w-0 grid-cols-3 overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] lg:w-[520px]">
           {stats.map((stat, index) => (
-            <div key={stat.label} className={`min-w-0 px-3 py-3 ${index > 0 ? "border-l border-[#e5d8ca]" : ""}`}>
-              <div className="truncate text-[11px] font-semibold text-[#928980]">{stat.label}</div>
-              <div className="mt-1 truncate text-[14px] font-bold text-[#263832]">{stat.value}</div>
+            <div key={stat.label} className={`min-w-0 px-3 py-3 ${index > 0 ? "border-l border-[var(--hb-hairline)]" : ""}`}>
+              <div className="truncate text-[11px] font-semibold text-[var(--hb-text-muted)]">{stat.label}</div>
+              <div className="mt-1 truncate text-[14px] font-bold text-[var(--hb-text-strong)]">{stat.value}</div>
             </div>
           ))}
         </div>
@@ -381,14 +381,14 @@ function CohortSidePanel({
 }) {
   return (
     <aside className="grid gap-4 md:sticky md:top-20 md:max-h-[calc(100dvh-245px)] md:self-start md:overflow-y-auto md:pb-1 md:pr-1">
-      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <CohortDigestCard roomId={roomId} onTabChange={onTabChange} onFocusMessage={onFocusMessage} />
       </section>
 
-      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">오늘 이렇게 써보세요</h2>
-          <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[#36534E]">
+          <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">오늘 이렇게 써보세요</h2>
+          <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
             {getRoomPeriod(room)}
           </span>
         </div>
@@ -402,17 +402,17 @@ function CohortSidePanel({
               key={item.label}
               type="button"
               onClick={() => onTabChange(item.tab)}
-              className="group rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] p-4 text-left transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]"
+              className="group rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4 text-left transition-colors hover:border-[var(--hb-primary)]/35 hover:bg-[var(--hb-surface-hover)]"
             >
               <div className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[#36534E]">
+                <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[var(--hb-text-strong)]">
                   <CheckCircle2 className="h-4 w-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[14px] font-semibold leading-snug text-[#263832] group-hover:text-[#36534E]">
+                  <span className="block text-[14px] font-semibold leading-snug text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)]">
                     {item.label}
                   </span>
-                  <span className="mt-1 block text-[12px] font-medium leading-[1.55] text-[#635b51]">
+                  <span className="mt-1 block text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">
                     {item.desc}
                   </span>
                 </span>
@@ -422,15 +422,15 @@ function CohortSidePanel({
         </div>
       </section>
 
-      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <CohortMemberPreview roomId={roomId} memberCount={room?.member_count ?? 0} />
       </section>
 
-      <section className="rounded-[22px] border border-[#e5d8ca] bg-white/88 p-5 shadow-[0_12px_30px_rgba(50,36,17,0.045)]">
+      <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <CohortPopularPosts roomId={roomId} />
       </section>
 
-      <section className="rounded-[22px] bg-[#36534E] p-5 text-white shadow-[0_16px_34px_rgba(54,83,78,0.2)]">
+      <section className="rounded-[6px] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)]">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
           <h2 className="font-serif-kr text-[21px] font-medium">동기방 약속</h2>
@@ -442,7 +442,7 @@ function CohortSidePanel({
         </ul>
         <Link
           href={weddingPath("/chat")}
-          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-4 text-[13px] font-semibold text-[#36534E]"
+          className="mt-5 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[6px] bg-white px-4 text-[13px] font-semibold text-[var(--hb-text-strong)]"
         >
           아모라에게 먼저 물어보기
           <ArrowRight className="h-4 w-4" />
@@ -470,10 +470,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-full px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
+      className={`flex min-h-10 items-center justify-center gap-1.5 rounded-[6px] px-2 text-[13px] font-semibold transition-colors sm:text-sm ${
         active
-          ? "bg-[#36534E] text-white shadow-[0_8px_18px_rgba(54,83,78,0.14)]"
-          : "text-[#635b51] hover:bg-white hover:text-[#36534E]"
+          ? "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
+          : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
       }`}
     >
       {icon}
@@ -870,10 +870,10 @@ function ChatTab({
       {/* 메시지 목록 */}
       <div
         ref={messagesContainerRef}
-        className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-[20px] border border-[#e5d8ca] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5"
+        className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] sm:p-5"
       >
         {messages.length === 0 ? (
-          <div className="flex h-full min-h-full items-center justify-center rounded-[18px] bg-[#fbf8f2] text-center text-sm font-medium leading-6 text-[#635b51]">
+          <div className="flex h-full min-h-full items-center justify-center rounded-[6px] bg-[var(--hb-surface-page)] text-center text-sm font-medium leading-6 text-[var(--hb-text-body)]">
             아직 메시지가 없어요.
             <br />
             첫 질문이나 오늘의 준비 상황을 남겨보세요.
@@ -896,16 +896,16 @@ function ChatTab({
       </div>
 
       {/* 입력 */}
-      <div className="mt-4 shrink-0 rounded-[20px] border border-[#e5d8ca] bg-white p-3.5 sm:p-4">
+      <div className="mt-4 shrink-0 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-3.5 sm:p-4">
         <div className="mb-3 -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible sm:pb-0">
           <button
             type="button"
             onClick={() => setThread("")}
             title="주제를 직접 고르지 않으면 메시지 내용으로 자동 분류돼요."
-            className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+            className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-[6px] text-xs sm:text-sm font-medium transition-colors ${
               thread === ""
-                ? "bg-[#36534E] text-white"
-                : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
+                ? "bg-[var(--hb-primary)] text-white"
+                : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#e5d8ca]"
             }`}
           >
             자동 분류
@@ -916,10 +916,10 @@ function ChatTab({
               type="button"
               onClick={() => setThread(thread === t.key ? "" : (t.key as CohortThreadTopic))}
               title={`${t.label}: ${t.helper}`}
-              className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap flex-shrink-0 px-3 py-1.5 rounded-[6px] text-xs sm:text-sm font-medium transition-colors ${
                 thread === t.key
-                  ? "bg-[#36534E] text-white"
-                  : "bg-[#f6efe5] text-[#635b51] hover:bg-[#e5d8ca]"
+                  ? "bg-[var(--hb-primary)] text-white"
+                  : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#e5d8ca]"
               }`}
             >
               {t.label}
@@ -929,18 +929,18 @@ function ChatTab({
         <div className="flex flex-col gap-2.5 sm:flex-row">
           <div className="relative flex-1 min-w-0 w-full">
             {mentionOpen && filteredMembers.length > 0 && (
-              <div className="absolute bottom-full mb-2 left-0 w-60 max-h-60 overflow-y-auto bg-white rounded-xl shadow-lg border border-[#e5d8ca] z-20">
+              <div className="absolute bottom-full mb-2 left-0 w-60 max-h-60 overflow-y-auto bg-white rounded-[6px] shadow-lg border border-[var(--hb-hairline)] z-20">
                 {filteredMembers.slice(0, 5).map((m) => (
                   <button
                     key={m.user_id}
                     type="button"
                     onClick={() => selectMention(m)}
-                    className="w-full text-left px-3 py-2 hover:bg-[#f6efe5] flex items-center gap-2 text-sm"
+                    className="w-full text-left px-3 py-2 hover:bg-[var(--hb-surface-hover)] flex items-center gap-2 text-sm"
                   >
-                    <div className="w-6 h-6 rounded-full bg-[#36534E] flex items-center justify-center text-white text-[10px]">
+                    <div className="w-6 h-6 rounded-full bg-[var(--hb-primary)] flex items-center justify-center text-white text-[10px]">
                       {m.nickname[0]}
                     </div>
-                    <span className="text-[#263832]">{m.nickname}</span>
+                    <span className="text-[var(--hb-text-strong)]">{m.nickname}</span>
                   </button>
                 ))}
               </div>
@@ -956,7 +956,7 @@ function ChatTab({
               }}
               placeholder="메시지 입력... (@멘션 가능)"
               rows={3}
-              className="h-[82px] max-h-[82px] min-h-[82px] w-full resize-none overflow-y-auto rounded-[16px] border border-transparent bg-[#f6efe5] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[#263832] outline-none transition-colors [field-sizing:fixed] placeholder:text-[#B5ADA3] focus:border-[#36534E] focus:ring-2 focus:ring-[#36534E]/20 sm:text-sm"
+              className="h-[82px] max-h-[82px] min-h-[82px] w-full resize-none overflow-y-auto rounded-[6px] border border-transparent bg-[var(--hb-surface-hover)] px-4 py-3.5 text-[0.9375rem] leading-relaxed text-[var(--hb-text-strong)] outline-none transition-colors [field-sizing:fixed] placeholder:text-[var(--hb-text-muted)] focus:border-[var(--hb-primary)] focus:ring-2 focus:ring-[var(--hb-primary)]/20 sm:text-sm"
             />
           </div>
           {MEDIA_PUBLISHING_UI_ENABLED && (
@@ -975,7 +975,7 @@ function ChatTab({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex flex-1 items-center justify-center rounded-[16px] bg-[#f6efe5] px-3 py-3 text-[#635b51] transition-colors hover:bg-[#e5d8ca] disabled:opacity-50 sm:flex-none sm:py-0"
+              className="flex flex-1 items-center justify-center rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-3 text-[var(--hb-text-body)] transition-colors hover:bg-[#e5d8ca] disabled:opacity-50 sm:flex-none sm:py-0"
               title="이미지 첨부"
             >
               <Paperclip className="h-4 w-4" />
@@ -984,7 +984,7 @@ function ChatTab({
             <button
               type="button"
               onClick={() => setPickerOpen(true)}
-              className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[16px] bg-[#f6efe5] px-3 py-3 text-xs font-medium text-[#635b51] transition-colors hover:bg-[#e5d8ca] sm:flex-none sm:py-0 sm:text-sm"
+              className="flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-3 text-xs font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#e5d8ca] sm:flex-none sm:py-0 sm:text-sm"
               title="커뮤니티 글 공유"
             >
               <Link2 className="h-4 w-4" />
@@ -994,7 +994,7 @@ function ChatTab({
               type="button"
               onClick={handleSend}
               disabled={!input.trim()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-[16px] bg-[#36534E] px-4 py-3 text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] transition-all hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] disabled:opacity-50 sm:flex-none sm:py-0"
+              className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-white shadow-[var(--shadow-raised)] transition-all hover:shadow-[var(--shadow-raised)] disabled:opacity-50 sm:flex-none sm:py-0"
             >
               <Send className="h-4 w-4" />
               <span className="sm:hidden text-sm font-medium">전송</span>
@@ -1029,16 +1029,16 @@ function FilterPill({
       onClick={onClick}
       title={helper}
       aria-label={helper ? `${label}: ${helper}` : label}
-      className={`group whitespace-nowrap flex-shrink-0 rounded-full border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
+      className={`group whitespace-nowrap flex-shrink-0 rounded-[6px] border px-3.5 py-1.5 text-xs sm:text-sm font-medium transition-all ${
         active
-          ? "bg-[#36534E] text-white border-[#36534E]"
-          : "bg-white text-[#635b51] border-[#e5d8ca] hover:bg-[#f6efe5]"
+          ? "bg-[var(--hb-primary)] text-white border-[var(--hb-primary)]"
+          : "bg-white text-[var(--hb-text-body)] border-[var(--hb-hairline)] hover:bg-[var(--hb-surface-hover)]"
       }`}
     >
       <span>{label}</span>
       {helper && label !== "전체" && (
         <span className={`ml-1 hidden text-[11px] font-medium sm:inline ${
-          active ? "text-white/78" : "text-[#928980] group-hover:text-[#635b51]"
+          active ? "text-white/78" : "text-[var(--hb-text-muted)] group-hover:text-[var(--hb-text-body)]"
         }`}>
           {helper}
         </span>
@@ -1073,16 +1073,16 @@ function renderMessageContent(text: string): React.ReactNode {
           href={communityPostPath(postId)}
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[#e5d8ca] rounded-lg hover:border-[#36534E]/40 hover:bg-[#f6efe5] transition-colors group max-w-full"
+          className="inline-flex items-center gap-2.5 my-1 px-3.5 py-2.5 bg-white border border-[var(--hb-hairline)] rounded-[6px] hover:border-[var(--hb-primary)]/40 hover:bg-[var(--hb-surface-hover)] transition-colors group max-w-full"
         >
-          <FileText className="w-4 h-4 text-[#36534E] shrink-0" />
+          <FileText className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0" />
           <span className="flex flex-col min-w-0">
-            <span className="text-[11px] text-[#635b51] uppercase tracking-widest font-medium">커뮤니티 글</span>
-            <span className="font-serif-kr text-base text-[#263832] group-hover:text-[#36534E] line-clamp-1">
+            <span className="text-[11px] text-[var(--hb-text-body)] uppercase tracking-widest font-medium">커뮤니티 글</span>
+            <span className="font-serif-kr text-base text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] line-clamp-1">
               {postTitle}
             </span>
           </span>
-          <ExternalLink className="w-3.5 h-3.5 text-[#B5ADA3] group-hover:text-[#36534E] shrink-0 ml-1" />
+          <ExternalLink className="w-3.5 h-3.5 text-[var(--hb-text-muted)] group-hover:text-[var(--hb-text-strong)] shrink-0 ml-1" />
         </Link>
       );
     } else if (token.startsWith("[img:")) {
@@ -1093,7 +1093,7 @@ function renderMessageContent(text: string): React.ReactNode {
           key={`i${match.index}`}
           src={url}
           alt=""
-          className="my-1 max-h-80 rounded-lg"
+          className="my-1 max-h-80 rounded-[6px]"
         />
       );
     } else if (token.startsWith("@[")) {
@@ -1103,7 +1103,7 @@ function renderMessageContent(text: string): React.ReactNode {
       parts.push(
         <span
           key={`m${match.index}`}
-          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-[#36534E]/10 text-[#36534E] font-medium"
+          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[6px] bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)] font-medium"
         >
           @{nickname}
         </span>
@@ -1138,7 +1138,7 @@ function MessageBubble({
   return (
     <div
       id={`cohort-message-${message.id}`}
-      className={`scroll-mt-24 rounded-[18px] p-1 transition-all duration-300 ${
+      className={`scroll-mt-24 rounded-[6px] p-1 transition-all duration-300 ${
         highlighted ? "bg-[#fff4d8] shadow-[0_0_0_2px_rgba(181,131,66,0.24)]" : "bg-transparent"
       }`}
     >
@@ -1150,7 +1150,7 @@ function MessageBubble({
       }`}
       >
       {!isMine && (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-xs font-medium text-white">
           {message.author?.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -1165,15 +1165,15 @@ function MessageBubble({
       )}
       <div className={`min-w-0 ${isMine ? "max-w-[86%] text-right sm:max-w-[76%]" : "flex-1"}`}>
         <div className={`flex items-center gap-1.5 flex-wrap ${isMine ? "justify-end" : "justify-start"}`}>
-          {!isMine && <span className="text-sm font-medium text-[#263832]">{nickname}</span>}
-          <span className="text-xs text-[#928980]">
+          {!isMine && <span className="text-sm font-medium text-[var(--hb-text-strong)]">{nickname}</span>}
+          <span className="text-xs text-[var(--hb-text-muted)]">
             {relativeTime(message.created_at)}
           </span>
           {!isMine && onReport && (
             <button
               type="button"
               onClick={() => onReport(message.author_id, nickname)}
-              className="rounded-full px-2 py-0.5 text-[11px] font-medium text-[#928980] transition-colors hover:bg-[#f6efe5] hover:text-[#36534E]"
+              className="rounded-[6px] px-2 py-0.5 text-[11px] font-medium text-[var(--hb-text-muted)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
               title="이 멤버 신고"
             >
               신고
@@ -1181,10 +1181,10 @@ function MessageBubble({
           )}
         </div>
         <div
-          className={`mt-1 inline-block max-w-full whitespace-pre-wrap rounded-[16px] px-3.5 py-2.5 text-left text-sm leading-relaxed ${
+          className={`mt-1 inline-block max-w-full whitespace-pre-wrap rounded-[6px] px-3.5 py-2.5 text-left text-sm leading-relaxed ${
             isMine
-              ? "bg-[#EEF4F1] text-[#263832]"
-              : "bg-[#fbf8f2] text-[#263832]"
+              ? "bg-[#EEF4F1] text-[var(--hb-text-strong)]"
+              : "bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]"
           }`}
         >
           {renderMessageContent(message.content)}
@@ -1241,25 +1241,25 @@ function PostPickerModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-xl max-h-[80dvh] flex flex-col shadow-2xl"
+        className="bg-white rounded-[6px] w-full max-w-xl max-h-[80dvh] flex flex-col shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 border-b border-[#e5d8ca]">
-          <h3 className="font-serif-kr text-2xl text-[#263832] mb-4">글 공유하기</h3>
+        <div className="p-6 border-b border-[var(--hb-hairline)]">
+          <h3 className="font-serif-kr text-2xl text-[var(--hb-text-strong)] mb-4">글 공유하기</h3>
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="제목으로 검색하거나 인기글에서 선택"
-            className="w-full px-4 py-3 bg-[#f6efe5] rounded-xl text-base outline-none focus:ring-2 focus:ring-[#36534E]/30"
+            className="w-full px-4 py-3 bg-[var(--hb-surface-hover)] rounded-[6px] text-base outline-none focus:ring-2 focus:ring-[var(--hb-primary)]/30"
             autoFocus
           />
         </div>
         <div className="flex-1 overflow-y-auto p-4">
           {loading ? (
-            <div className="text-center text-[#635b51] py-8">불러오는 중...</div>
+            <div className="text-center text-[var(--hb-text-body)] py-8">불러오는 중...</div>
           ) : posts.length === 0 ? (
-            <div className="text-center text-[#635b51] py-8">결과가 없어요</div>
+            <div className="text-center text-[var(--hb-text-body)] py-8">결과가 없어요</div>
           ) : (
             <div className="space-y-2">
               {posts.map((p) => (
@@ -1269,12 +1269,12 @@ function PostPickerModal({
                     onSelect({ id: p.id, title: p.title });
                     onClose();
                   }}
-                  className="w-full text-left p-4 rounded-xl hover:bg-[#f6efe5] transition-colors group"
+                  className="w-full text-left p-4 rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors group"
                 >
-                  <div className="font-serif-kr text-lg text-[#263832] group-hover:text-[#36534E] line-clamp-1">
+                  <div className="font-serif-kr text-lg text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] line-clamp-1">
                     {p.title}
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-sm text-[#635b51]">
+                  <div className="flex items-center gap-3 mt-1 text-sm text-[var(--hb-text-body)]">
                     {p.category && <span>{p.category}</span>}
                     {p.category && <span>·</span>}
                     <span>💬 {p.comment_count ?? 0}</span>
@@ -1339,10 +1339,10 @@ function InfoTab({
 
   return (
     <div>
-      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
+      <div className="mb-4 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기방 익명 등록 금액</h2>
-          <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+          <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">동기방 익명 등록 금액</h2>
+          <p className="mt-1 text-[13px] font-medium leading-6 text-[var(--hb-text-body)]">
             견적서나 계약서의 기본금·추가금·조건을 만원 단위로 등록하면,
             업체명은 숨기고 5명 이상 쌓인 항목의 산술 평균과 표본 수만 보여줘요. 시장 전체의 시세는 아니에요.
           </p>
@@ -1356,7 +1356,7 @@ function InfoTab({
             }
             setModalOpen(true);
           }}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E] sm:mt-0 sm:w-auto"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           내 견적/계약 등록
@@ -1369,14 +1369,14 @@ function InfoTab({
           { step: "2", title: "기본금·추가금 입력", desc: "계약금이 아니라 총 견적 기준으로 만원 단위만 적어요." },
           { step: "3", title: "5명 이상이면 등록 평균 공개", desc: "개별 견적이 드러나지 않도록 표본 수와 산술 평균만 보여요." },
         ].map((item) => (
-          <div key={item.step} className="rounded-[16px] border border-[#e5d8ca] bg-white px-4 py-3">
+          <div key={item.step} className="rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-3">
             <div className="flex items-start gap-3">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[12px] font-bold text-[#36534E]">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#EEF4F1] text-[12px] font-bold text-[var(--hb-text-strong)]">
                 {item.step}
               </span>
               <div className="min-w-0">
-                <p className="text-[13px] font-semibold text-[#263832]">{item.title}</p>
-                <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#635b51]">{item.desc}</p>
+                <p className="text-[13px] font-semibold text-[var(--hb-text-strong)]">{item.title}</p>
+                <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">{item.desc}</p>
               </div>
             </div>
           </div>
@@ -1392,29 +1392,29 @@ function InfoTab({
           return (
             <div
               key={cat.key}
-              className="rounded-[18px] border border-[#e5d8ca] bg-white p-4 transition-colors hover:border-[#36534E]/30 sm:p-5"
+              className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 transition-colors hover:border-[var(--hb-primary)]/30 sm:p-5"
             >
               <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
-                <h3 className="font-serif-kr text-xl font-medium text-[#263832] sm:text-2xl">
+                <h3 className="font-serif-kr text-xl font-medium text-[var(--hb-text-strong)] sm:text-2xl">
                   {cat.label}
                 </h3>
-                <span className="rounded-full bg-[#fbf8f2] px-3 py-1 text-xs font-semibold text-[#928980] sm:text-sm">
+                <span className="rounded-full bg-[var(--hb-surface-page)] px-3 py-1 text-xs font-semibold text-[var(--hb-text-muted)] sm:text-sm">
                   {sample}명 등록
                 </span>
               </div>
               {enough && stat ? (
                 <div>
-                  <p className="text-xs sm:text-sm text-[#635b51]">
+                  <p className="text-xs sm:text-sm text-[var(--hb-text-body)]">
                     우리 동기 등록 평균 {cat.label} 기본금
                   </p>
-                  <p className="mt-1.5 font-serif-kr text-2xl sm:text-3xl font-light text-[#263832] break-words">
+                  <p className="mt-1.5 font-serif-kr text-2xl sm:text-3xl font-light text-[var(--hb-text-strong)] break-words">
                     {stat.avg_base_price.toLocaleString()}만원
-                    <span className="ml-2 text-xs sm:text-sm font-sans text-[#928980] font-normal">
+                    <span className="ml-2 text-xs sm:text-sm font-sans text-[var(--hb-text-muted)] font-normal">
                       ({sample}명)
                     </span>
                   </p>
                   {stat.avg_extra_price > 0 && (
-                    <p className="mt-1.5 text-xs sm:text-sm text-[#635b51]">
+                    <p className="mt-1.5 text-xs sm:text-sm text-[var(--hb-text-body)]">
                       추가금 평균 {stat.avg_extra_price.toLocaleString()}만원
                     </p>
                   )}
@@ -1423,7 +1423,7 @@ function InfoTab({
                 <div>
                   <div className="mb-2 flex items-start gap-2">
                     <Sparkles className="h-4 w-4 text-[#B89785] shrink-0 mt-0.5" />
-                    <p className="text-xs sm:text-sm text-[#635b51] leading-relaxed">
+                    <p className="text-xs sm:text-sm text-[var(--hb-text-body)] leading-relaxed">
                       아직 5명 이상 등록되지 않았어요. 데이터가 더 쌓이기 전에는 비교값을 만들지 않아요.
                     </p>
                   </div>
@@ -1435,7 +1435,7 @@ function InfoTab({
       </div>
 
       {contracts.length > 0 && (
-        <div className="mt-4 text-xs text-[#928980] text-center">
+        <div className="mt-4 text-xs text-[var(--hb-text-muted)] text-center">
           동기방 내 총 {contracts.length}건의 계약 정보
         </div>
       )}
@@ -1508,11 +1508,11 @@ function ContractModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded-2xl border border-[#F0EFED] bg-white p-5">
-        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
+      <div className="w-full max-w-md rounded-[6px] border border-[#F0EFED] bg-white p-5">
+        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">
           내 견적·계약 정보 등록
         </h3>
-        <p className="mb-4 text-[12px] font-medium leading-5 text-[#635b51]">
+        <p className="mb-4 text-[12px] font-medium leading-5 text-[var(--hb-text-body)]">
           업체명은 다른 사람에게 보이지 않고, 평균 통계 계산에만 사용돼요.
         </p>
 
@@ -1523,7 +1523,7 @@ function ContractModal({
               value={vendorName}
               onChange={(e) => setVendorName(e.target.value)}
               placeholder="예) XX스튜디오"
-              className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+              className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[var(--hb-primary)]"
             />
           </div>
 
@@ -1534,7 +1534,7 @@ function ContractModal({
               onChange={(e) =>
                 setCategory(e.target.value as CohortContractCategory)
               }
-              className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+              className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[var(--hb-primary)]"
             >
               {CONTRACT_ITEMS.map((c) => (
                 <option key={c.key} value={c.key}>
@@ -1553,7 +1553,7 @@ function ContractModal({
                 type="number"
                 value={basePrice}
                 onChange={(e) => setBasePrice(e.target.value)}
-                className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+                className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[var(--hb-primary)]"
               />
             </div>
             <div>
@@ -1564,7 +1564,7 @@ function ContractModal({
                 type="number"
                 value={extraPrice}
                 onChange={(e) => setExtraPrice(e.target.value)}
-                className="w-full rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+                className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[var(--hb-primary)]"
               />
             </div>
           </div>
@@ -1576,7 +1576,7 @@ function ContractModal({
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
               placeholder="예) 원본 포함, 헬퍼비 별도"
-              className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+              className="w-full resize-none rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[var(--hb-primary)]"
             />
           </div>
         </div>
@@ -1585,7 +1585,7 @@ function ContractModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
+            className="flex-1 rounded-[6px] border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
           >
             취소
           </button>
@@ -1593,7 +1593,7 @@ function ContractModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-[#36534E] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#2B423E] disabled:opacity-60"
+            className="flex-1 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[var(--hb-primary-hover)] disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>
@@ -1649,17 +1649,17 @@ function TimelineTab({
 
   return (
     <div>
-      <div className="mb-4 rounded-[18px] border border-[#e5d8ca] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
+      <div className="mb-4 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[#263832]">준비 기록</h2>
-          <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+          <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">준비 기록</h2>
+          <p className="mt-1 text-[13px] font-medium leading-6 text-[var(--hb-text-body)]">
             계약·투어·예약처럼 완료한 일을 남기면, 같은 시기 커플들의 준비 흐름을 참고할 수 있어요.
           </p>
         </div>
         <button
           type="button"
           onClick={openModal}
-          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(54,83,78,0.18)] transition-colors hover:bg-[#2B423E] sm:mt-0 sm:w-auto"
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] sm:mt-0 sm:w-auto"
         >
           <Plus className="h-4 w-4" />
           기록 추가
@@ -1667,18 +1667,18 @@ function TimelineTab({
       </div>
 
       {events.length === 0 ? (
-        <div className="rounded-[18px] border border-[#e5d8ca] bg-white p-8 text-center">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF4F1] text-[#36534E]">
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-8 text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#EEF4F1] text-[var(--hb-text-strong)]">
             <Calendar className="h-5 w-5" />
           </div>
-          <p className="mt-4 text-sm font-semibold text-[#263832]">아직 준비 기록이 없어요.</p>
-          <p className="mt-1 text-[13px] font-medium leading-6 text-[#635b51]">
+          <p className="mt-4 text-sm font-semibold text-[var(--hb-text-strong)]">아직 준비 기록이 없어요.</p>
+          <p className="mt-1 text-[13px] font-medium leading-6 text-[var(--hb-text-body)]">
             첫 계약, 투어 완료, 예약 완료를 남기면 이 방의 준비 흐름이 만들어져요.
           </p>
           <button
             type="button"
             onClick={openModal}
-            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-[#e5d8ca] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
+            className="mt-5 inline-flex min-h-10 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
           >
             <Plus className="h-4 w-4" />
             첫 기록 남기기
@@ -1693,9 +1693,9 @@ function TimelineTab({
             return (
               <div
                 key={ev.id}
-                className="flex items-start gap-3 rounded-[18px] border border-[#e5d8ca] bg-white p-4 sm:p-5"
+                className="flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 sm:p-5"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-xs font-medium text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-xs font-medium text-white">
                   {ev.user?.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -1708,15 +1708,15 @@ function TimelineTab({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[#263832] leading-relaxed">
+                  <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed">
                     {nickname}님이{" "}
-                    <span className="font-medium text-[#36534E]">{label}</span>
+                    <span className="font-medium text-[var(--hb-text-strong)]">{label}</span>
                     을 남겼어요.
                   </p>
                   {ev.description && (
-                    <p className="mt-1 text-xs sm:text-sm text-[#635b51]">{ev.description}</p>
+                    <p className="mt-1 text-xs sm:text-sm text-[var(--hb-text-body)]">{ev.description}</p>
                   )}
-                  <p className="mt-1.5 text-xs text-[#928980]">
+                  <p className="mt-1.5 text-xs text-[var(--hb-text-muted)]">
                     {relativeTime(ev.created_at)}
                   </p>
                 </div>
@@ -1785,11 +1785,11 @@ function TimelineEventModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-2xl border border-[#F0EFED] bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.16)]">
-        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[#263832]">
+      <div className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[6px] border border-[#F0EFED] bg-white p-5 shadow-[var(--shadow-overlay)]">
+        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">
           준비 기록 추가
         </h3>
-        <p className="mb-4 text-[12px] font-medium leading-5 text-[#635b51]">
+        <p className="mb-4 text-[12px] font-medium leading-5 text-[var(--hb-text-body)]">
           완료한 일을 짧게 남기면 동기들이 준비 순서를 참고할 수 있어요.
         </p>
 
@@ -1799,14 +1799,14 @@ function TimelineEventModal({
               key={item.key}
               type="button"
               onClick={() => setEventType(item.key)}
-              className={`rounded-[14px] border px-3 py-3 text-left transition-colors ${
+              className={`rounded-[6px] border px-3 py-3 text-left transition-colors ${
                 eventType === item.key
-                  ? "border-[#36534E] bg-[#EEF4F1] text-[#263832]"
-                  : "border-[#e5d8ca] bg-[#fffdf8] text-[#635b51] hover:border-[#36534E]/35"
+                  ? "border-[var(--hb-primary)] bg-[#EEF4F1] text-[var(--hb-text-strong)]"
+                  : "border-[var(--hb-hairline)] bg-[#fffdf8] text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/35"
               }`}
             >
               <span className="block text-[13px] font-semibold">{item.label}</span>
-              <span className="mt-1 block text-[11px] font-medium leading-[1.5] text-[#635b51]">
+              <span className="mt-1 block text-[11px] font-medium leading-[1.5] text-[var(--hb-text-body)]">
                 {item.helper}
               </span>
             </button>
@@ -1820,7 +1820,7 @@ function TimelineEventModal({
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
             placeholder="예) 오늘 B드레스샵 계약 완료, 원본 포함 조건으로 확정"
-            className="w-full resize-none rounded-xl border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[#36534E]"
+            className="w-full resize-none rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2 text-sm outline-none focus:border-[var(--hb-primary)]"
           />
         </div>
 
@@ -1828,7 +1828,7 @@ function TimelineEventModal({
           <button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-xl border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
+            className="flex-1 rounded-[6px] border border-[#F0EFED] bg-white px-4 py-2.5 text-sm text-[#878680]"
           >
             취소
           </button>
@@ -1836,7 +1836,7 @@ function TimelineEventModal({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-[#36534E] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[#2B423E] disabled:opacity-60"
+            className="flex-1 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm text-white transition-colors hover:bg-[var(--hb-primary-hover)] disabled:opacity-60"
           >
             {saving ? "저장 중..." : "저장"}
           </button>
@@ -1886,16 +1886,16 @@ type CohortDigest = {
 };
 
 const DIGEST_TOPIC_STYLE: Record<CohortThreadTopic, string> = {
-  price: "bg-[#EEF4F1] text-[#36534E]",
-  review: "bg-[#f6efe5] text-[#795252]",
+  price: "bg-[#EEF4F1] text-[var(--hb-text-strong)]",
+  review: "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]",
   concern: "bg-[#fff7e8] text-[#8a6428]",
-  chat: "bg-[#f5f2ed] text-[#635b51]",
+  chat: "bg-[#f5f2ed] text-[var(--hb-text-body)]",
 };
 
 type CohortDigestSubtopic = NonNullable<CohortDigest["subtopics"]>[number];
 
 const DIGEST_SUBTOPIC_DOT: Record<CohortDigestSubtopic["group"], string> = {
-  price: "bg-[#36534E]",
+  price: "bg-[var(--hb-primary)]",
   vendor: "bg-[#9d6b62]",
   schedule: "bg-[#6b8a78]",
   relationship: "bg-[#b28342]",
@@ -1962,25 +1962,25 @@ function CohortDigestCard({
     <div>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#36534E]">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-text-strong)]">
             오늘/이번주 흐름
           </p>
-          <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기방 요약</h3>
-          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#928980]">
+          <h3 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">동기방 요약</h3>
+          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-muted)]">
             전체 흐름을 먼저 잡고, 대표 이야기만 눌러서 바로 이어서 봐요.
           </p>
         </div>
         <button
           type="button"
           onClick={() => loadDigest(true)}
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#e5d8ca] bg-[#fffdf8] text-[#36534E] transition-colors hover:border-[#36534E]/35"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-[#fffdf8] text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
           aria-label="동기방 요약 새로고침"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
         </button>
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-1 rounded-full bg-[#f6efe5] p-1">
+      <div className="mb-4 grid grid-cols-2 gap-1 rounded-full bg-[var(--hb-surface-hover)] p-1">
         {[
           { key: "today" as const, label: "오늘" },
           { key: "week" as const, label: "이번주" },
@@ -1989,10 +1989,10 @@ function CohortDigestCard({
             key={item.key}
             type="button"
             onClick={() => setPeriod(item.key)}
-            className={`min-h-9 rounded-full text-[12px] font-semibold transition-colors ${
+            className={`min-h-9 rounded-[6px] text-[12px] font-semibold transition-colors ${
               period === item.key
-                ? "bg-white text-[#36534E] shadow-[0_6px_16px_rgba(50,36,17,0.08)]"
-                : "text-[#635b51] hover:text-[#36534E]"
+                ? "bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]"
+                : "text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)]"
             }`}
           >
             {item.label}
@@ -2002,41 +2002,41 @@ function CohortDigestCard({
 
       {loading && !digest ? (
         <div className="space-y-2">
-          <div className="h-4 w-4/5 animate-pulse rounded-full bg-[#f6efe5]" />
-          <div className="h-4 w-2/3 animate-pulse rounded-full bg-[#f6efe5]" />
-          <div className="h-20 animate-pulse rounded-[16px] bg-[#fbf8f2]" />
+          <div className="h-4 w-4/5 animate-pulse rounded-full bg-[var(--hb-surface-hover)]" />
+          <div className="h-4 w-2/3 animate-pulse rounded-full bg-[var(--hb-surface-hover)]" />
+          <div className="h-20 animate-pulse rounded-[6px] bg-[var(--hb-surface-page)]" />
         </div>
       ) : error && !digest ? (
-        <div className="rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] px-4 py-5 text-center">
-          <p className="text-sm font-semibold text-[#263832]">요약을 잠시 불러오지 못했어요.</p>
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] px-4 py-5 text-center">
+          <p className="text-sm font-semibold text-[var(--hb-text-strong)]">요약을 잠시 불러오지 못했어요.</p>
           <button
             type="button"
             onClick={() => loadDigest()}
-            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-full border border-[#e5d8ca] px-4 text-[12px] font-semibold text-[#36534E]"
+            className="mt-3 inline-flex min-h-9 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] px-4 text-[12px] font-semibold text-[var(--hb-text-strong)]"
           >
             다시 시도
           </button>
         </div>
       ) : digest?.empty ? (
-        <div className="rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] p-4">
-          <p className="text-sm font-semibold text-[#263832]">{digest.lead}</p>
-          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[#635b51]">
+        <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4">
+          <p className="text-sm font-semibold text-[var(--hb-text-strong)]">{digest.lead}</p>
+          <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">
             견적, 투어 후기, 오늘 한 준비를 하나만 남겨도 다음 사람이 따라오기 쉬워져요.
           </p>
           <button
             type="button"
             onClick={() => onTabChange("chat")}
-            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-full bg-[#36534E] px-4 text-[12px] font-semibold text-white"
+            className="mt-4 inline-flex min-h-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-[12px] font-semibold text-white"
           >
             첫 대화 남기기
           </button>
         </div>
       ) : digest ? (
         <div className="space-y-4">
-          <div className="rounded-[16px] border border-[#e5d8ca] bg-[#fffdf8] p-4">
+          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4">
             <div className="flex items-start justify-between gap-3">
-              <p className="text-sm font-semibold leading-[1.6] text-[#263832]">{digest.lead}</p>
-              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
+              <p className="text-sm font-semibold leading-[1.6] text-[var(--hb-text-strong)]">{digest.lead}</p>
+              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
                 {digest.messageCount}개
               </span>
             </div>
@@ -2059,11 +2059,11 @@ function CohortDigestCard({
 
             {highlights.length > 0 && (
               <div className="mt-3 border-t border-[#efe5d9] pt-3">
-                <p className="mb-2 text-[12px] font-semibold text-[#36534E]">핵심 포인트</p>
+                <p className="mb-2 text-[12px] font-semibold text-[var(--hb-text-strong)]">핵심 포인트</p>
                 <ul className="space-y-1.5">
                   {highlights.slice(0, 3).map((highlight) => (
-                    <li key={highlight} className="flex gap-2 text-[12px] font-medium leading-[1.55] text-[#635b51]">
-                      <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-[#36534E]" />
+                    <li key={highlight} className="flex gap-2 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">
+                      <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--hb-primary)]" />
                       <span>{highlight}</span>
                     </li>
                   ))}
@@ -2075,12 +2075,12 @@ function CohortDigestCard({
           {visibleSubtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[13px] font-semibold text-[#263832]">대표 이야기</h4>
-                <span className="text-[11px] font-medium text-[#928980]">
+                <h4 className="text-[13px] font-semibold text-[var(--hb-text-strong)]">대표 이야기</h4>
+                <span className="text-[11px] font-medium text-[var(--hb-text-muted)]">
                   {showAllSubtopics ? `전체 ${subtopics.length}개` : "상위 3개"}
                 </span>
               </div>
-              <ul className="overflow-hidden rounded-[16px] border border-[#e5d8ca] bg-white">
+              <ul className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white">
                 {visibleSubtopics.map((item) => {
                   const title = item.title ?? item.label;
                   const canFocus = Boolean(item.primaryMessageId);
@@ -2098,24 +2098,24 @@ function CohortDigestCard({
                           onTabChange("chat");
                           onFocusMessage(item.primaryMessageId);
                         }}
-                        className="group flex w-full items-start gap-2.5 px-3.5 py-3 text-left transition-colors enabled:hover:bg-[#fbf8f2] disabled:cursor-default"
+                        className="group flex w-full items-start gap-2.5 px-3.5 py-3 text-left transition-colors enabled:hover:bg-[var(--hb-surface-page)] disabled:cursor-default"
                       >
                         <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${DIGEST_SUBTOPIC_DOT[item.group]}`} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
-                            <strong className="line-clamp-2 text-[13px] font-semibold leading-snug text-[#263832]">
+                            <strong className="line-clamp-2 text-[13px] font-semibold leading-snug text-[var(--hb-text-strong)]">
                               {title}
                             </strong>
                             <div className="flex shrink-0 items-center gap-1">
-                              <span className="rounded-full bg-[#f6efe5] px-2 py-0.5 text-[10px] font-semibold text-[#36534E]">
+                              <span className="rounded-full bg-[var(--hb-surface-hover)] px-2 py-0.5 text-[10px] font-semibold text-[var(--hb-text-strong)]">
                                 {item.participantCount ?? 1}명 · {item.count}회
                               </span>
                               {canFocus && (
-                                <ArrowRight className="h-3.5 w-3.5 text-[#b5ada3] transition-colors group-hover:text-[#36534E]" />
+                                <ArrowRight className="h-3.5 w-3.5 text-[var(--hb-text-muted)] transition-colors group-hover:text-[var(--hb-text-strong)]" />
                               )}
                             </div>
                           </div>
-                          <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[#928980]">
+                          <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[var(--hb-text-muted)]">
                             {item.label}
                           </p>
                         </div>
@@ -2128,7 +2128,7 @@ function CohortDigestCard({
                     <button
                       type="button"
                       onClick={() => setShowAllSubtopics((value) => !value)}
-                      className="flex min-h-10 w-full items-center justify-center gap-1.5 px-3 text-[12px] font-semibold text-[#36534E] transition-colors hover:bg-[#fbf8f2]"
+                      className="flex min-h-10 w-full items-center justify-center gap-1.5 px-3 text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-page)]"
                       aria-expanded={showAllSubtopics}
                     >
                       {showAllSubtopics ? (
@@ -2153,14 +2153,14 @@ function CohortDigestCard({
             <button
               type="button"
               onClick={() => onTabChange("chat")}
-              className="inline-flex min-h-9 items-center justify-center rounded-full border border-[#e5d8ca] bg-white text-[12px] font-semibold text-[#36534E] transition-colors hover:border-[#36534E]/35"
+              className="inline-flex min-h-9 items-center justify-center rounded-[6px] border border-[var(--hb-hairline)] bg-white text-[12px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[var(--hb-primary)]/35"
             >
               대화 보기
             </button>
             <button
               type="button"
               onClick={() => onTabChange("info")}
-              className="inline-flex min-h-9 items-center justify-center rounded-full bg-[#36534E] text-[12px] font-semibold text-white"
+              className="inline-flex min-h-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-[12px] font-semibold text-white"
             >
               등록 금액
             </button>
@@ -2186,30 +2186,30 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">동기들이 많이 본 글</h3>
-        <Link href={weddingPath("/community?sort=hot")} className="text-[12px] font-semibold text-[#36534E]">
+        <h3 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">동기들이 많이 본 글</h3>
+        <Link href={weddingPath("/community?sort=hot")} className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
           더보기
         </Link>
       </div>
       {posts.length === 0 ? (
-        <p className="rounded-[14px] bg-[#fbf8f2] px-4 py-5 text-center text-sm font-medium text-[#635b51]">
+        <p className="rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-5 text-center text-sm font-medium text-[var(--hb-text-body)]">
           아직 인기글이 없어요
         </p>
       ) : (
         <ul className="space-y-3.5">
           {posts.slice(0, 5).map((p, i) => (
             <li key={p.id} className="group">
-              <Link href={communityPostPath(p.id)} className="flex items-start gap-3 rounded-[14px] border border-[#e5d8ca] bg-[#fffdf8] p-3 transition-colors hover:border-[#36534E]/35 hover:bg-[#f6efe5]">
-                <span className={`mt-0.5 shrink-0 font-serif-kr text-xl italic leading-none text-[#36534E] ${
+              <Link href={communityPostPath(p.id)} className="flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-3 transition-colors hover:border-[var(--hb-primary)]/35 hover:bg-[var(--hb-surface-hover)]">
+                <span className={`mt-0.5 shrink-0 font-serif-kr text-xl italic leading-none text-[var(--hb-text-strong)] ${
                   i === 0 ? "" : i === 1 ? "opacity-75" : i === 2 ? "opacity-55" : "opacity-35"
                 }`}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm text-[#263832] group-hover:text-[#36534E] transition-colors line-clamp-2 leading-snug">
+                  <h4 className="text-sm text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2 leading-snug">
                     {p.title}
                   </h4>
-                  <p className="text-xs text-[#928980] mt-1">
+                  <p className="text-xs text-[var(--hb-text-muted)] mt-1">
                     ▲ {p.upvote_count} &middot; 💬 {p.comment_count}
                   </p>
                 </div>
@@ -2226,10 +2226,10 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
 // 오른쪽 사이드바: 멤버 프리뷰
 // ────────────────────────────────────────
 const MEMBER_GRADIENTS = [
-  "from-[#36534E] to-[#2B423E]",
-  "from-[#4E6A62] to-[#36534E]",
-  "from-[#6D806E] to-[#36534E]",
-  "from-[#9A8F72] to-[#36534E]",
+  "from-[var(--hb-primary)] to-[var(--hb-primary-hover)]",
+  "from-[#4E6A62] to-[var(--hb-primary)]",
+  "from-[#6D806E] to-[var(--hb-primary)]",
+  "from-[#9A8F72] to-[var(--hb-primary)]",
 ];
 
 function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCount: number }) {
@@ -2261,10 +2261,10 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
     <div>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="font-serif-kr text-[22px] font-medium text-[#263832]">함께 준비 중</h3>
-          <p className="mt-1 text-[12px] font-medium text-[#928980]">최근 입장한 동기들</p>
+          <h3 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">함께 준비 중</h3>
+          <p className="mt-1 text-[12px] font-medium text-[var(--hb-text-muted)]">최근 입장한 동기들</p>
         </div>
-        <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-xs font-semibold text-[#36534E]">{memberCount}명</span>
+        <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-xs font-semibold text-[var(--hb-text-strong)]">{memberCount}명</span>
       </div>
       <div className="flex flex-wrap gap-2">
         {members.slice(0, 8).map((m) => {
@@ -2283,20 +2283,20 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
                   m.nickname[0]
                 )}
               </div>
-              <span className="text-[10px] text-[#635b51] truncate w-full text-center">
+              <span className="text-[10px] text-[var(--hb-text-body)] truncate w-full text-center">
                 {m.nickname}
               </span>
             </div>
           );
         })}
         {members.length === 0 && (
-          <div className="w-full rounded-[14px] bg-[#fbf8f2] px-4 py-5 text-center text-sm font-medium text-[#635b51]">
+          <div className="w-full rounded-[6px] bg-[var(--hb-surface-page)] px-4 py-5 text-center text-sm font-medium text-[var(--hb-text-body)]">
             멤버 정보를 불러오는 중이에요.
           </div>
         )}
         {memberCount > 8 && (
           <div className="flex flex-col items-center gap-1 w-12">
-            <div className="w-9 h-9 rounded-full bg-[#f6efe5] flex items-center justify-center text-xs text-[#635b51] font-medium">
+            <div className="w-9 h-9 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center text-xs text-[var(--hb-text-body)] font-medium">
               +{memberCount - 8}
             </div>
           </div>

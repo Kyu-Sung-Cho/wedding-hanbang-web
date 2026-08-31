@@ -962,7 +962,7 @@ export async function POST(request: Request) {
     const admin = getAdmin();
     await ensureProfileExists(admin, user);
 
-    const rpcResponse = neutralPreparationSpace
+    let rpcResponse = neutralPreparationSpace
       ? coupleAction === "create"
         ? await supabase.rpc("create_neutral_preparation_space_for_current_user", {})
         : await joinNeutralPreparationSpaceThroughServerRpc(admin, {
@@ -975,6 +975,50 @@ export async function POST(request: Request) {
             p_invite_code: normalizedInviteCode,
             p_role: role!,
           });
+    // 새 방식 화면으로 **옛 방식 공간**에 들어온 경우 옛 경로로 되부른다.
+    //
+    // ## 무엇이 막혀 있었나 (2026-08-31 운영 실측)
+    //
+    // `join_neutral_preparation_space_server` 는 대상 공간이 `member_model_version
+    // <> 2` 이면 `LEGACY_PREPARATION_SPACE` 로 거절한다. 그런데 운영의 커플 57쌍 중
+    // **55쌍이 model 1** 이고 그중 **17쌍이 "혼자 + 초대 열림"** 이었다 — 8월 하순
+    // 전에 시작한 사람은 배우자를 연결할 방법이 아예 없었다.
+    //
+    // 거절 문구는 "코드를 만든 분에게 새 코드를 요청해 주세요" 인데 **새 코드를
+    // 받아도 같은 공간이라 똑같이 거절된다.** 그리고 그 거절은 시도 기록을 남기기
+    // 전에 일어나 DB 에 흔적조차 없었다 — 사용자에게는 아무 일도 안 일어나는 것으로
+    // 보였다.
+    //
+    // ## 왜 역할을 묻지 않고 두 번 시도하나
+    //
+    // 옛 공간은 자리가 둘이고, 초대가 열려 있다는 것은 한 자리가 비었다는 뜻이다.
+    // 신랑이 차 있으면 들어오는 사람은 신부다 — 고를 것이 없으므로 새 방식 화면이
+    // 역할을 묻지 않는 것과 어긋나지 않는다.
+    //
+    // 어느 자리가 비었는지는 **RPC 만 안다.** `couples` 를 여기서 직접 읽는 길도
+    // 있지만 그건 이 라우트의 DB 접근 경계를 고정한 검사가 막는다(그 경계가 생긴
+    // 이유는 `coupleConnectionSettings.test.ts` 에 적혀 있다). 그래서 신부로 한 번,
+    // 안 되면 신랑으로 한 번 부른다. 실패한 시도는 아무것도 바꾸지 않고, 한도는
+    // 10분에 10번이라 두 번 써도 넉넉하다.
+    let legacyFallbackRole: "bride" | "groom" | null = null;
+    if (neutralPreparationSpace && coupleAction === "join" && !rpcResponse.error) {
+      // 오류 코드는 정본 파서로 읽는다. 여기서 직접 꺼내면 그쪽의 레거시 문구
+      // 매핑(`LEGACY_ERROR_CODES`)과 어긋날 수 있다.
+      const neutralAttempt = parseNeutralMembershipRpcResponse(rpcResponse.data, coupleAction);
+      if (!neutralAttempt.ok && neutralAttempt.errorCode === "LEGACY_PREPARATION_SPACE") {
+        for (const candidate of ["bride", "groom"] as const) {
+          // 사용자 세션으로 부른다 — `join_couple` 은 `auth.uid()` 를 본다.
+          const retry = await supabase.rpc("join_couple", {
+            p_invite_code: normalizedInviteCode,
+            p_role: candidate,
+          });
+          rpcResponse = retry;
+          legacyFallbackRole = candidate;
+          if (retry.error) break;
+          if (parseMembershipRpcResponse(retry.data, candidate, coupleAction).ok) break;
+        }
+      }
+    }
 
     if (rpcResponse.error) {
       console.error(`[onboarding ${coupleAction}] membership RPC failed`, rpcResponse.error);
@@ -997,9 +1041,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const membership = neutralPreparationSpace
-      ? parseNeutralMembershipRpcResponse(rpcResponse.data, coupleAction)
-      : parseMembershipRpcResponse(rpcResponse.data, role!, coupleAction);
+    const membership = legacyFallbackRole
+      ? parseMembershipRpcResponse(rpcResponse.data, legacyFallbackRole, coupleAction)
+      : neutralPreparationSpace
+        ? parseNeutralMembershipRpcResponse(rpcResponse.data, coupleAction)
+        : parseMembershipRpcResponse(rpcResponse.data, role!, coupleAction);
     if (!membership.ok) {
       console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
       return privateResponse({ error: membership.message }, membership.status);

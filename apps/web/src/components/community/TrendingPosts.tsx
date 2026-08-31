@@ -76,16 +76,16 @@ export default function TrendingPosts() {
   if (loading) {
     return (
       <div>
-        <h3 className="font-serif-kr text-lg text-[#263832] mb-3 border-b border-[#e5d8ca] pb-2">
+        <h3 className="font-serif-kr text-lg text-[var(--hb-text-strong)] mb-3 border-b border-[var(--hb-hairline)] pb-2">
           이번 주 인기글
         </h3>
         <ul className="space-y-4">
           {Array.from({ length: 5 }).map((_, i) => (
             <li key={i} className="flex items-start space-x-3">
-              <div className="w-6 h-5 bg-[#f0eded] rounded animate-pulse shrink-0" />
+              <div className="w-6 h-5 bg-[#f0eded] rounded-[6px] animate-pulse shrink-0" />
               <div className="flex-1 space-y-1.5">
-                <div className="h-4 bg-[#f0eded] rounded animate-pulse" />
-                <div className="h-3 w-12 bg-[#f0eded] rounded animate-pulse" />
+                <div className="h-4 bg-[#f0eded] rounded-[6px] animate-pulse" />
+                <div className="h-3 w-12 bg-[#f0eded] rounded-[6px] animate-pulse" />
               </div>
             </li>
           ))}
@@ -98,7 +98,7 @@ export default function TrendingPosts() {
 
   return (
     <div>
-      <h3 className="font-serif-kr text-lg text-[#263832] mb-3 border-b border-[#e5d8ca] pb-2">
+      <h3 className="font-serif-kr text-lg text-[var(--hb-text-strong)] mb-3 border-b border-[var(--hb-hairline)] pb-2">
         이번 주 인기글
       </h3>
       <ul className="space-y-4">
@@ -106,7 +106,7 @@ export default function TrendingPosts() {
           <li key={p.id} className="group cursor-pointer">
             <Link href={communityPostPath(p.id)} className="flex items-start space-x-3">
               <span
-                className={`text-[#36534E] font-serif-kr italic text-xl leading-none mt-0.5 ${
+                className={`text-[var(--hb-text-strong)] font-serif-kr italic text-xl leading-none mt-0.5 ${
                   i === 0
                     ? ""
                     : i === 1
@@ -119,10 +119,10 @@ export default function TrendingPosts() {
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div>
-                <h4 className="text-sm text-[#263832] group-hover:text-[#36534E] transition-colors line-clamp-2 leading-snug">
+                <h4 className="text-sm text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2 leading-snug">
                   {p.title}
                 </h4>
-                <p className="text-xs text-[#635b51] mt-1">답변 {p.comment_count}개</p>
+                <p className="text-xs text-[var(--hb-text-body)] mt-1">답변 {p.comment_count}개</p>
               </div>
             </Link>
           </li>

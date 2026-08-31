@@ -41,7 +41,7 @@ export default function ChecklistItemText({
           id={idPrefix ? `${idPrefix}-note` : undefined}
           // 색은 테마 토큰에 매핑된 값을 쓴다. 생 hex를 쓰면 globals.css의 서비스 테마가
           // 덮어주지 못해 이 줄만 테마를 안 따라간다.
-          className={`mt-1 block text-[#928980] ${compact ? "text-[13px] leading-[1.5]" : "text-[15px] leading-[1.55]"}`}
+          className={`mt-1 block text-[var(--hb-text-muted)] ${compact ? "text-[13px] leading-[1.5]" : "text-[15px] leading-[1.55]"}`}
         >
           {item.note}
         </span>

@@ -13,6 +13,24 @@ import { isWeddingCourtEnabled } from "@/lib/features/weddingLaunchFlags";
 import { WEDDING_BASE_PATH, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * 로그인한 사람인지 **요청마다** 봐야 하므로 정적으로 미리 만들 수 없다.
+ *
+ * 이 선언이 없으면 Next 가 이 라우트를 프리렌더하려 든다. 그때
+ * `createClient()` 안의 `cookies()` 가 "이 라우트는 동적" 신호를 던지는데,
+ * 그 함수의 `catch {}` 가 그것을 삼키고 익명 클라이언트로 넘어간다
+ * (`lib/supabase/server.ts`). Supabase 환경변수가 있는 곳(운영·로컬)에서는
+ * 조용히 통과하지만 **없는 곳(Vercel Preview)에서는 빌드가 통째로 죽는다.**
+ *
+ *     Error occurred prerendering page "/community/budget"
+ *     Error: Your project's URL and Key are required to create a Supabase client!
+ *
+ * 2026-08-28 13:13 부터 프리뷰가 전부 이렇게 실패했고, 운영은 값이 있어서
+ * 멀쩡해 보였다. 같은 그룹의 `community/page.tsx` 와 `post/[id]/page.tsx` 는
+ * 이미 이 선언을 갖고 있다.
+ */
+export const dynamic = "force-dynamic";
+
 export default async function CommunityLayout({
   children,
 }: {
@@ -41,9 +59,9 @@ export default async function CommunityLayout({
   const weddingCourtEnabled = isWeddingCourtEnabled();
 
   return (
-    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[#fffdf7]">
+    <div className="hanbang-community-theme flex min-h-screen flex-col bg-[var(--hb-surface-page)]">
       <CommunityAuthInitializer />
-      <Suspense fallback={<div className="h-[76px] bg-[#fffdf7]" />}>
+      <Suspense fallback={<div className="h-[76px] bg-[var(--hb-surface-page)]" />}>
         <CommunityNav weddingCourtEnabled={weddingCourtEnabled} />
       </Suspense>
       <ToastContainer />
@@ -66,7 +84,7 @@ function FooterBrand() {
 
 function CommunityFooter() {
   return (
-    <footer className="bg-[linear-gradient(135deg,#183832_0%,#2f5f55_58%,#12302b_100%)] text-white">
+    <footer className="bg-[var(--hb-primary)] text-white">
       <div className="mx-auto grid w-full max-w-[1320px] gap-9 px-4 py-8 sm:px-6 md:grid-cols-[1.2fr_0.78fr_0.78fr_0.86fr_0.9fr_1.35fr] lg:px-8">
         <div>
           <FooterBrand />
@@ -119,7 +137,7 @@ function CommunityFooter() {
           </div>
         </div>
 
-        <div className="rounded-[18px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+        <div className="rounded-[6px] border border-white/16 bg-white/[0.055] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
           <div className="mb-3 flex items-center gap-2">
             <ShieldCheck className="h-5 w-5 text-[#d8c79a]" />
             <h3 className="text-[14px] font-semibold text-white">안전한 AI 안내</h3>
@@ -129,7 +147,7 @@ function CommunityFooter() {
           </p>
           <Link
             {...weddingLinkProps("/lounge")}
-            className="mt-4 inline-flex min-h-11 items-center rounded-full border border-[#d8c79a]/70 px-4 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
+            className="mt-4 inline-flex min-h-11 items-center rounded-[6px] border border-[#d8c79a]/70 px-4 text-[12px] font-semibold text-[#f2e8c8] transition-colors hover:bg-white/10"
           >
             웨딩 라운지로 이동
             <Mail className="ml-2 h-3.5 w-3.5" />

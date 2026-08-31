@@ -23,15 +23,15 @@ const focusRing =
 // 첫 가치 확인에만 집중하도록 커뮤니티 내비게이션과 플로팅 런처가 없는 독립 공개 화면을 쓴다.
 export default function StartHerePage() {
   return (
-    <div className="min-h-screen bg-[#FBF8F2] text-[#243832]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]">
       <a
         href="#start-here-main"
-        className="sr-only z-[100] bg-white px-4 py-3 font-semibold text-[#243832] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
+        className="sr-only z-[100] bg-white px-4 py-3 font-semibold text-[var(--hb-text-strong)] focus:not-sr-only focus:fixed focus:left-4 focus:top-4"
       >
         본문으로 바로가기
       </a>
 
-      <header className="sticky top-0 z-50 border-b border-[#243832]/10 bg-[#FBF8F2]/96 pt-[env(safe-area-inset-top)] backdrop-blur">
+      <header className="sticky top-0 z-50 border-b border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)]/96 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-[1240px] items-center justify-between gap-5 px-5 sm:h-16 sm:px-8 lg:px-10">
           <Link
             href="/landing"
@@ -42,13 +42,13 @@ export default function StartHerePage() {
           <nav className="flex items-center gap-2 sm:gap-5" aria-label="첫 준비 보조 메뉴">
             <Link
               href="/landing"
-              className={`hidden min-h-11 items-center text-[13px] font-semibold text-[#4E6A62] transition-colors hover:text-[#8F6662] sm:inline-flex ${focusRing}`}
+              className={`hidden min-h-11 items-center text-[13px] font-semibold text-[var(--hb-text-body)] transition-colors hover:text-[var(--color-rose-700)] sm:inline-flex ${focusRing}`}
             >
               서비스 소개
             </Link>
             <Link
               href="/login"
-              className={`inline-flex min-h-11 items-center rounded-full border border-[#243832]/16 px-4 text-[13px] font-semibold text-[#243832] transition-colors hover:border-[#8F6662] hover:text-[#8F6662] ${focusRing}`}
+              className={`inline-flex min-h-11 items-center rounded-[6px] border border-[var(--hb-primary)]/16 px-4 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F6662] hover:text-[var(--color-rose-700)] ${focusRing}`}
             >
               로그인
             </Link>
@@ -60,13 +60,13 @@ export default function StartHerePage() {
         <StartHereClient />
       </main>
 
-      <footer className="border-t border-[#243832]/10 bg-white">
-        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 py-8 text-[12px] leading-6 text-[#4E6A62] sm:px-8 md:flex-row md:items-center md:justify-between lg:px-10">
+      <footer className="border-t border-[var(--hb-primary)]/10 bg-white">
+        <div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 py-8 text-[12px] leading-6 text-[var(--hb-text-body)] sm:px-8 md:flex-row md:items-center md:justify-between lg:px-10">
           <p>
             © 2026 Wedding Hanbang · 문의{" "}
             <a
               href={`mailto:${CONTACT.email}`}
-              className={`inline-flex min-h-11 items-center font-semibold underline decoration-[#243832]/20 underline-offset-4 hover:text-[#8F6662] ${focusRing}`}
+              className={`inline-flex min-h-11 items-center font-semibold underline decoration-[var(--hb-text-strong)]/20 underline-offset-4 hover:text-[#8F6662] ${focusRing}`}
             >
               {CONTACT.email}
             </a>
@@ -80,7 +80,7 @@ export default function StartHerePage() {
               <Link
                 key={href}
                 href={href}
-                className={`inline-flex min-h-11 min-w-11 items-center justify-center font-semibold underline decoration-[#243832]/20 underline-offset-4 hover:text-[#8F6662] ${focusRing}`}
+                className={`inline-flex min-h-11 min-w-11 items-center justify-center font-semibold underline decoration-[var(--hb-text-strong)]/20 underline-offset-4 hover:text-[#8F6662] ${focusRing}`}
               >
                 {label}
               </Link>

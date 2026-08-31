@@ -72,13 +72,13 @@ export default async function WeddingCodeMeaningPage({
 
   const letters = parseWeddingCodeString(value)!;
   const upper = value.toUpperCase();
-  const surface = "rounded-[20px] border border-[#EFE4D7] bg-white";
+  const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 
   return (
-    <main className="min-h-dvh bg-[#FBF8F2] px-4 py-6 sm:px-6 sm:py-10">
+    <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-[560px]">
         <section className={`${surface} overflow-hidden`} data-code-meaning={upper}>
-          <div className="bg-[#243832] px-5 py-8 text-center text-white sm:px-8">
+          <div className="bg-[var(--hb-primary)] px-5 py-8 text-center text-white sm:px-8">
             <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[44px] font-semibold leading-none tracking-[0.04em] sm:text-[56px]">
               {upper}
@@ -89,22 +89,22 @@ export default async function WeddingCodeMeaningPage({
             </p>
           </div>
 
-          <div className="divide-y divide-[#EFE4D7]">
+          <div className="divide-y divide-[var(--hb-hairline)]">
             {letters.map((letter) => (
               <div key={letter.axis} data-meaning-axis={letter.axis} className="flex gap-4 px-5 py-5 sm:px-8">
                 <span
                   aria-hidden="true"
-                  className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F7F1E8] text-[18px] font-semibold text-[#243832]"
+                  className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[18px] font-semibold text-[var(--hb-text-strong)]"
                 >
                   {letter.letter}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-[#6D806E]">{letter.axisLabel}</p>
-                  <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[#243832]">
+                  <p className="text-[12px] font-semibold text-[var(--hb-success)]">{letter.axisLabel}</p>
+                  <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                     {letter.meaning}
                   </p>
-                  <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[#8F6662]">
-                    이 자리의 다른 쪽은 <b className="font-semibold text-[#36534E]">{letter.opposite}</b> —{" "}
+                  <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
+                    이 자리의 다른 쪽은 <b className="font-semibold text-[var(--hb-text-strong)]">{letter.opposite}</b> —{" "}
                     {letter.oppositeMeaning}
                   </p>
                 </div>
@@ -112,9 +112,9 @@ export default async function WeddingCodeMeaningPage({
             ))}
           </div>
 
-          <div className="border-t border-[#EFE4D7] bg-[#FBF8F2] px-5 py-5 sm:px-8">
-            <p className="text-[13px] font-medium leading-[1.7] text-[#36534E]">
-              같은 글자라도 <b className="font-semibold text-[#243832]">어느 장면에서 그렇게
+          <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
+            <p className="text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+              같은 글자라도 <b className="font-semibold text-[var(--hb-text-strong)]">어느 장면에서 그렇게
               골랐는지는 사람마다 달라요.</b> 그건 코드에 들어 있지 않아서, 직접 답해야 볼 수
               있어요.
             </p>
@@ -123,11 +123,11 @@ export default async function WeddingCodeMeaningPage({
 
         <Link
           href="/wedding-code"
-          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#36534E] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[#243832]"
+          className="mt-5 flex min-h-[48px] w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
         >
           내 웨딩코드 받아보기
         </Link>
-        <p className="mt-3 text-center text-[13px] font-medium text-[#8F6662]">
+        <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
           {SCENE_COUNT} 문항 · 로그인 없이
         </p>
       </div>

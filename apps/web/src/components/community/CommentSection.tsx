@@ -194,10 +194,10 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     <div className="scroll-mt-24">
       {/* 댓글 수 헤더 */}
       <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-base font-medium text-[#1A1A1F]">
+        <h3 className="text-base font-medium text-[var(--hb-text-strong)]">
           답변{" "}
           {commentCount > 0 && (
-            <span className="text-[#B5ADA3]">{commentCount}</span>
+            <span className="text-[var(--hb-text-muted)]">{commentCount}</span>
           )}
         </h3>
       </div>
@@ -205,12 +205,12 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       {blockNotice ? (
         <div
           role="status"
-          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-[#d8d1cc] bg-[#FBF8F2] px-3 py-2.5 text-xs leading-relaxed text-[#635b51]"
+          className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-[6px] border border-[#d8d1cc] bg-[var(--hb-surface-page)] px-3 py-2.5 text-xs leading-relaxed text-[var(--hb-text-body)]"
         >
           <span>차단한 회원의 답변을 이 화면에서도 숨겼어요.</span>
           <Link
             href={weddingPath("/community/my/blocks")}
-            className="font-semibold text-[#36534E] hover:underline"
+            className="font-semibold text-[var(--hb-text-strong)] hover:underline"
           >
             차단 관리
           </Link>
@@ -236,28 +236,28 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             placeholder="직접 겪은 범위와 질문자가 다음에 확인할 행동을 적어주세요."
             rows={3}
             maxLength={2000}
-            className="ugc-text w-full px-3 py-2 text-sm text-[#1A1A1F] bg-white border border-[#F0EFED] rounded-xl resize-none focus:outline-none focus:border-[#36534E] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[#B5ADA3]"
+            className="ugc-text w-full px-3 py-2 text-sm text-[var(--hb-text-strong)] bg-white border border-[#F0EFED] rounded-[6px] resize-none focus:outline-none focus:border-[var(--hb-primary)] focus:shadow-[0_0_0_2px_rgba(54,83,78,0.1)] transition-all duration-200 placeholder:text-[var(--hb-text-muted)]"
           />
           <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-[#B5ADA3]">
+            <span className="text-xs text-[var(--hb-text-muted)]">
               {newComment.length}/2000
             </span>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={!newComment.trim() || submitting}
-              className="px-4 py-2 text-base font-semibold text-white bg-[#36534E] hover:bg-[#2B423E] rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-4 py-2 text-base font-semibold text-white bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] rounded-[6px] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? "등록 중..." : "답변 등록"}
             </button>
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-[#8F6662]">
+          <p className="mt-2 text-[11px] leading-relaxed text-[var(--color-rose-700)]">
             전화번호·이메일·주소·계좌번호·서명·QR코드는 답변에 적지 마세요.
           </p>
           {submitError && (
             <p
               role="alert"
-              className="mt-2 rounded-lg bg-[#FBF8F2] px-3 py-2 text-xs leading-relaxed text-[#8F6662]"
+              className="mt-2 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-2 text-xs leading-relaxed text-[var(--color-rose-700)]"
             >
               {submitError}
             </p>
@@ -265,12 +265,12 @@ export default function CommentSection({ postId }: CommentSectionProps) {
         </div>
       ) : (
         <div className="mb-4 relative">
-          <div className="px-4 py-4 text-center bg-[#FAFAF8] border border-[#F0EFED] rounded-xl">
-            <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[#B5ADA3]" />
+          <div className="px-4 py-4 text-center bg-[#FAFAF8] border border-[#F0EFED] rounded-[6px]">
+            <MessageCircle className="w-6 h-6 mx-auto mb-2 text-[var(--hb-text-muted)]" />
             <p className="text-base text-[#878680]">
               <Link
                 href={loginHref}
-                className="text-[#36534E] font-semibold hover:underline"
+                className="text-[var(--hb-text-strong)] font-semibold hover:underline"
               >
                 로그인
               </Link>
@@ -287,8 +287,8 @@ export default function CommentSection({ postId }: CommentSectionProps) {
             <div key={i} className="animate-pulse flex gap-2">
               <div className="w-7 h-7 bg-[#F0EFED] rounded-full shrink-0" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-24 bg-[#F0EFED] rounded-lg" />
-                <div className="h-4 w-3/4 bg-[#F0EFED] rounded-lg" />
+                <div className="h-3 w-24 bg-[#F0EFED] rounded-[6px]" />
+                <div className="h-4 w-3/4 bg-[#F0EFED] rounded-[6px]" />
               </div>
             </div>
           ))}
@@ -296,19 +296,19 @@ export default function CommentSection({ postId }: CommentSectionProps) {
       ) : treeComments.length === 0 && errorMessage ? (
         // 못 불러온 것을 "아직 없다"고 말하면 사용자가 같은 질문을 다시 올린다.
         <div className="text-center py-8">
-          <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#B5ADA3]" />
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[var(--hb-text-muted)]" />
           <p className="text-base text-[#878680]">답변을 불러오지 못했어요.</p>
           <button
             type="button"
             onClick={() => fetchComments(postId)}
-            className="mt-3 inline-flex min-h-9 items-center rounded-full border border-[#F0EFED] px-4 text-sm font-semibold text-[#1A1A1F]"
+            className="mt-3 inline-flex min-h-9 items-center rounded-[6px] border border-[#F0EFED] px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
           >
             다시 불러오기
           </button>
         </div>
       ) : treeComments.length === 0 ? (
         <div className="text-center py-8">
-          <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[#B5ADA3]" />
+          <MessageCircle className="w-8 h-8 mx-auto mb-2 text-[var(--hb-text-muted)]" />
           <p className="text-base text-[#878680]">
             아직 답변이 없습니다. 첫 경험을 나눠주세요.
           </p>

@@ -105,7 +105,7 @@ export default async function CommunityFeedPage({
   ]);
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#fffdf7]" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[var(--hb-surface-page)]" />}>
       <CommunityLandingClient
         initialFeed={initialFeed}
         initialQuery={initialQuery}

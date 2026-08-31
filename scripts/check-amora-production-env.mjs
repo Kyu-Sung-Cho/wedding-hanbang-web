@@ -68,8 +68,28 @@ const checks = {
     isPositiveInteger(env.AMORA_GLOBAL_DAILY_MESSAGE_CAP),
   globalCostCapConfigured:
     isPositiveNumber(env.AMORA_GLOBAL_DAILY_COST_CAP_USD),
-  auxiliaryMemoryDisabledForExpandDeploy:
-    env.AMORA_AUXILIARY_MEMORY_ENABLED === "false",
+  // 보조 기억("조건 저장")은 이제 켤 수 있다. 다만 상태를 명시해야 배포된다
+  // (`proactiveChatStateExplicit`·AI 로그 파기와 같은 방식 — 의식적 설정 강제).
+  //
+  // 열기 전에 확인한 것(2026-08-30):
+  //
+  //  - **길이 예산.** 기억 블록이 필수 영역에 들어가 최대 +16,617자를 밀어 넣는데,
+  //    읽기 도구셋 기준 여유가 599자뿐이라 계약 섹션부터 조용히 사라졌다(헤딩 21→8,
+  //    계약 2/11). `PRODUCT_SAFETY_HEADINGS` 에 계약 아홉을 넣어 11/11 로 만들고
+  //    `promptContractsSurviveTruncation.test.ts` 로 고정했다. 이게 켜기의 전제였다.
+  //  - **동의 관문.** 플래그를 켜도 커플별 동의 없이는 잡이 cancelled 된다. 공유
+  //    기억은 두 사람, 개인 기억은 한 사람. 즉 플래그만으로는 아무 커플의 기억도
+  //    저장되지 않는다.
+  //  - **최초 활성화의 파괴적 동작.** 그 범위의 자동 기억·대화 요약·프로필을
+  //    되돌릴 수 없게 지운다. 웹·모바일 모두 켜기 직전에 삭제량을 숫자로 보여주고
+  //    확인을 받는다(운영 실측: 대상 커플 5쌍, 최대 기억 99 + 요약 1).
+  //
+  // 켠 뒤에 다듬을 것으로 남긴 것: 기억 **한 건** 삭제는 그 사실이 적힌 대화 요약을
+  // 지우지 않는다(전체 삭제 `clear_amora_memory_scope` 는 지운다). 범위 요약을 한
+  // 건 때문에 통째로 지우면 무관한 내용까지 파괴되므로 자명한 정답이 아니다.
+  auxiliaryMemoryStateExplicit:
+    env.AMORA_AUXILIARY_MEMORY_ENABLED === "true"
+    || env.AMORA_AUXILIARY_MEMORY_ENABLED === "false",
   careOutboundDisabledForExpandDeploy:
     env.AMORA_CARE_OUTBOUND_ENABLED === "false",
   // 인앱 선제 케어(채팅 진입 시 모멘트 발화)는 이메일 아웃바운드와 분리된

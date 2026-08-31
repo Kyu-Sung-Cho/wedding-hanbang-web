@@ -2014,7 +2014,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       <div
         className={`${embedded ? "h-full" : "h-[calc(100dvh-144px)]"} flex items-center justify-center bg-[#FAFAF8]`}
       >
-        <Loader2 className="w-7 h-7 text-[#795252] animate-spin" />
+        <Loader2 className="w-7 h-7 text-[var(--hb-accent-hover)] animate-spin" />
       </div>
     );
   }
@@ -2025,20 +2025,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       <div
         className={`${embedded ? "h-full" : "h-[calc(100dvh-144px)]"} max-w-[800px] mx-auto flex items-center justify-center bg-[#FAFAF8] px-4`}
       >
-        <div className="text-center bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 sm:p-10 max-w-md w-full">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-[#C4967E]/15 to-[#C9A96E]/15 mb-4">
-            <Sparkles className="w-7 h-7 text-[#795252]" />
+        <div className="text-center bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 sm:p-10 max-w-md w-full">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-[6px] bg-gradient-to-br from-[#C4967E]/15 to-[#C9A96E]/15 mb-4">
+            <Sparkles className="w-7 h-7 text-[var(--hb-accent-hover)]" />
           </div>
-          <h3 className="font-serif-kr text-xl sm:text-2xl text-[#1A1A1F] font-light mb-2">
+          <h3 className="font-serif-kr text-xl sm:text-2xl text-[var(--hb-text-strong)] font-light mb-2">
             아모라 상담 시작 전 한 단계만
           </h3>
-          <p className="text-sm sm:text-base text-[#504444] leading-relaxed mb-6">
+          <p className="text-sm sm:text-base text-[var(--hb-text-body)] leading-relaxed mb-6">
             결혼식 정보를 한 번만 입력하시면, 아모라가 맞춤 상담을 시작합니다.
             (1분 정도 소요)
           </p>
           <a
             href={weddingPath("/onboarding")}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-[6px] text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-colors"
           >
             <Sparkles className="w-4 h-4" />
             온보딩 시작하기
@@ -2052,8 +2052,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const getFileIcon = (mediaType: string) => {
     if (mediaType.includes("word") || mediaType === "application/msword") return <FileText className="w-7 h-7 text-[#4285F4]" />;
     if (mediaType.includes("spreadsheet") || mediaType.includes("ms-excel")) return <FileSpreadsheet className="w-7 h-7 text-[#34A853]" />;
-    if (mediaType === "application/pdf") return <FileText className="w-7 h-7 text-[#795252]" />;
-    return <FileText className="w-7 h-7 text-[#504444]" />;
+    if (mediaType === "application/pdf") return <FileText className="w-7 h-7 text-[var(--hb-accent-hover)]" />;
+    return <FileText className="w-7 h-7 text-[var(--hb-text-body)]" />;
   };
 
   return (
@@ -2065,11 +2065,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     >
       {/* 드래그 오버레이 */}
       {isDragging && (
-        <div className="fixed inset-0 z-50 bg-[#795252]/10 border-2 border-dashed border-[#795252] flex items-center justify-center pointer-events-none">
-          <div className="bg-white rounded-xl px-8 py-6 shadow-[0_20px_60px_rgba(0,0,0,0.15)] text-center">
-            <Paperclip className="w-12 h-12 text-[#795252] mx-auto mb-3" />
-            <p className="text-lg font-medium text-[#1A1A1F]">파일을 여기에 놓으세요</p>
-            <p className="text-sm text-[#504444] mt-1">이미지, PDF, Word</p>
+        <div className="fixed inset-0 z-50 bg-[rgba(54,83,78,0.10)] border-2 border-dashed border-[var(--hb-hairline)] flex items-center justify-center pointer-events-none">
+          <div className="bg-white rounded-[6px] px-8 py-6 shadow-[var(--shadow-overlay)] text-center">
+            <Paperclip className="w-12 h-12 text-[var(--hb-accent-hover)] mx-auto mb-3" />
+            <p className="text-lg font-medium text-[var(--hb-text-strong)]">파일을 여기에 놓으세요</p>
+            <p className="text-sm text-[var(--hb-text-body)] mt-1">이미지, PDF, Word</p>
           </div>
         </div>
       )}
@@ -2093,7 +2093,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           >
             <div
               ref={activeDialogRef}
-              className="w-full max-w-[36rem] rounded-2xl bg-white shadow-2xl"
+              className="w-full max-w-[36rem] rounded-[6px] bg-white shadow-2xl"
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
@@ -2102,13 +2102,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             >
               <div className="flex items-start justify-between gap-3 border-b border-[#F0EFED] px-5 py-4">
                 <div>
-                  <p className="text-xs font-semibold tracking-[0.18em] text-[#795252]">COMMUNITY</p>
-                  <h3 id="community-draft-dialog-title" className="mt-1 font-serif-kr text-xl text-[#1A1A1F]">이 내용으로 커뮤니티에 물어볼게요</h3>
+                  <p className="text-xs font-semibold tracking-[0.18em] text-[var(--hb-accent-hover)]">COMMUNITY</p>
+                  <h3 id="community-draft-dialog-title" className="mt-1 font-serif-kr text-xl text-[var(--hb-text-strong)]">이 내용으로 커뮤니티에 물어볼게요</h3>
                 </div>
                 <button
                   type="button"
                   onClick={() => setCommunityDraft(null)}
-                  className="flex h-11 w-11 items-center justify-center rounded-full text-[#928980] hover:bg-[#F6F3F2] hover:text-[#1A1A1F] transition-colors"
+                  className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)] transition-colors"
                   aria-label="닫기"
                   data-modal-initial-focus
                 >
@@ -2118,11 +2118,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
               {communityDraft.postedPostId ? (
                 <div className="px-5 py-6">
-                  <div className="flex items-start gap-3 rounded-xl border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
+                  <div className="flex items-start gap-3 rounded-[6px] border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
                     <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#2E7D5A]" />
                     <div>
-                      <p className="text-sm font-semibold text-[#1A1A1F]">커뮤니티에 올라갔어요</p>
-                      <p className="mt-1 text-sm leading-relaxed text-[#504444]">
+                      <p className="text-sm font-semibold text-[var(--hb-text-strong)]">커뮤니티에 올라갔어요</p>
+                      <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                         다른 예비부부들이 댓글로 의견을 남길 수 있습니다.
                       </p>
                     </div>
@@ -2131,14 +2131,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     <button
                       type="button"
                       onClick={() => setCommunityDraft(null)}
-                      className="rounded-xl border border-[#E8DDD3] px-4 py-2 text-sm font-medium text-[#504444] hover:bg-[#FAF7F2] transition-colors"
+                      className="rounded-[6px] border border-[#E8DDD3] px-4 py-2 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[#FAF7F2] transition-colors"
                     >
                       닫기
                     </button>
                     {postedHref && (
                       <a
                         href={postedHref}
-                        className="inline-flex items-center gap-2 rounded-xl bg-[#2F5F51] px-4 py-2 text-sm font-semibold text-white hover:bg-[#264f43] transition-colors"
+                        className="inline-flex items-center gap-2 rounded-[6px] bg-[#2F5F51] px-4 py-2 text-sm font-semibold text-white hover:bg-[#264f43] transition-colors"
                       >
                         글 보러가기
                         <ExternalLink className="h-4 w-4" />
@@ -2148,7 +2148,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 </div>
               ) : (
                 <div className="max-h-[72dvh] overflow-y-auto px-5 py-4">
-                  <div className="rounded-xl border border-[#F0E6D8] bg-[#FFF9EB] px-4 py-3">
+                  <div className="rounded-[6px] border border-[#F0E6D8] bg-[#FFF9EB] px-4 py-3">
                     <p className="text-sm leading-relaxed text-[#6E5732]">
                       커뮤니티에 공개되는 글입니다. 이름과 생년월일, 연락처, 정확한
                       주소, 건강·임신·성생활·민감한 가족관계, 계약·예약번호가
@@ -2158,7 +2158,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   </div>
 
                   {communityDraft.privacyMode === "redacted_private" && (
-                    <div className="mt-3 rounded-xl border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
+                    <div className="mt-3 rounded-[6px] border border-[#D8E8DF] bg-[#F2FAF5] px-4 py-3">
                       <p className="text-sm leading-relaxed text-[#2F5F51]">
                         비공개 상담에서 만든 익명화 초안입니다. 아모라 답변 원문은 넣지 않았고, 공개 가능한 상황 설명만 남겼어요. 그래도 올리기 전에 개인적인 표현이 남아있는지 한 번만 확인해주세요.
                       </p>
@@ -2166,7 +2166,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   )}
 
                   {sensitiveLabels.length > 0 && (
-                    <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#F2D3C7] bg-[#FFF4EF] px-4 py-3">
+                    <div className="mt-3 flex items-start gap-2 rounded-[6px] border border-[#F2D3C7] bg-[#FFF4EF] px-4 py-3">
                       <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#B25A3C]" />
                       <p className="text-sm leading-relaxed text-[#8A4A35]">
                         {sensitiveLabels.join(", ")} 표현이 보입니다. 해당 부분을 지우면 바로 게시할 수 있어요.
@@ -2174,7 +2174,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     </div>
                   )}
 
-                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-xl bg-[#F6F3F2] p-1">
+                  <div className="mt-4 grid grid-cols-2 gap-2 rounded-[6px] bg-[var(--hb-surface-hover)] p-1">
                     {[
                       { key: "free" as CommunityCategory, label: "자유게시판" },
                       { key: "tips_v2" as CommunityCategory, label: "정보/체크" },
@@ -2186,10 +2186,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                           setCommunityPostError(null);
                           setCommunityDraft((draft) => draft ? { ...draft, category: item.key } : draft);
                         }}
-                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                        className={`rounded-[6px] px-3 py-2 text-sm font-medium transition-colors ${
                           communityDraft.category === item.key
-                            ? "bg-white text-[#795252] shadow-sm"
-                            : "text-[#928980] hover:text-[#504444]"
+                            ? "bg-white text-[var(--hb-accent-hover)] shadow-sm"
+                            : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                         }`}
                       >
                         {item.label}
@@ -2198,19 +2198,19 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   </div>
 
                   <label className="mt-4 block">
-                    <span className="mb-1.5 block text-sm font-medium text-[#504444]">제목</span>
+                    <span className="mb-1.5 block text-sm font-medium text-[var(--hb-text-body)]">제목</span>
                     <input
                       value={communityDraft.title}
                       onChange={(e) => {
                         setCommunityPostError(null);
                         setCommunityDraft((draft) => draft ? { ...draft, title: e.target.value.slice(0, 200) } : draft);
                       }}
-                      className="w-full rounded-xl border border-[#E8DDD3] bg-white px-3 py-2.5 text-base text-[#1A1A1F] outline-none focus:border-[#C4967E]"
+                      className="w-full rounded-[6px] border border-[#E8DDD3] bg-white px-3 py-2.5 text-base text-[var(--hb-text-strong)] outline-none focus:border-[#C4967E]"
                     />
                   </label>
 
                   <label className="mt-4 block">
-                    <span className="mb-1.5 block text-sm font-medium text-[#504444]">본문</span>
+                    <span className="mb-1.5 block text-sm font-medium text-[var(--hb-text-body)]">본문</span>
                     <textarea
                       value={communityDraft.content}
                       onChange={(e) => {
@@ -2218,12 +2218,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                         setCommunityDraft((draft) => draft ? { ...draft, content: e.target.value.slice(0, 50000) } : draft);
                       }}
                       rows={11}
-                      className="w-full resize-none rounded-xl border border-[#E8DDD3] bg-white px-3 py-2.5 text-base leading-relaxed text-[#1A1A1F] outline-none focus:border-[#C4967E]"
+                      className="w-full resize-none rounded-[6px] border border-[#E8DDD3] bg-white px-3 py-2.5 text-base leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[#C4967E]"
                     />
                   </label>
 
                   {communityPostError && (
-                    <p className="mt-3 rounded-xl bg-[#FFF4EF] px-3 py-2 text-sm text-[#8A4A35]">
+                    <p className="mt-3 rounded-[6px] bg-[#FFF4EF] px-3 py-2 text-sm text-[#8A4A35]">
                       {communityPostError}
                     </p>
                   )}
@@ -2232,7 +2232,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     <button
                       type="button"
                       onClick={() => setCommunityDraft(null)}
-                      className="rounded-xl border border-[#E8DDD3] px-4 py-2.5 text-sm font-medium text-[#504444] hover:bg-[#FAF7F2] transition-colors"
+                      className="rounded-[6px] border border-[#E8DDD3] px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] hover:bg-[#FAF7F2] transition-colors"
                     >
                       취소
                     </button>
@@ -2240,7 +2240,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       type="button"
                       onClick={submitCommunityDraft}
                       disabled={!canPost}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#2F5F51] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#264f43] disabled:cursor-not-allowed disabled:bg-[#A8B6AD] transition-colors"
+                      className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[#2F5F51] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#264f43] disabled:cursor-not-allowed disabled:bg-[#A8B6AD] transition-colors"
                     >
                       {communityPosting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                       이대로 게시
@@ -2268,7 +2268,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
         {/* 탭 — 좌측 차지 (메인 동작) */}
         <div
-          className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[#F6F3F2] rounded-xl shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
+          className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[var(--hb-surface-hover)] rounded-[6px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
           role="group"
           aria-label="대화 공개 범위"
         >
@@ -2277,16 +2277,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => handleScopeChange("shared")}
             disabled={isStreaming || isSending}
             aria-pressed={activeTab === "shared"}
-            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "shared"
-                ? "bg-white text-[#795252] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                : "text-[#928980] hover:text-[#504444]"
+                ? "bg-white text-[var(--hb-accent-hover)] shadow-[var(--shadow-raised)]"
+                : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
           >
             <Sparkles className="w-4 h-4" />
             함께 대화
             {sharedMessageCount > 0 && (
-              <span className="text-xs text-[#B5ADA3] hidden sm:inline">({sharedMessageCount})</span>
+              <span className="text-xs text-[var(--hb-text-muted)] hidden sm:inline">({sharedMessageCount})</span>
             )}
           </button>
           <button
@@ -2294,10 +2294,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => handleScopeChange("private")}
             disabled={isDemo || isStreaming || isSending || !myPrivateVisibility}
             aria-pressed={activeTab === "private"}
-            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "private"
-                ? "bg-white text-[#5a6147] shadow-[0_2px_8px_rgba(0,0,0,0.06)]"
-                : "text-[#928980] hover:text-[#504444]"
+                ? "bg-white text-[#5a6147] shadow-[var(--shadow-raised)]"
+                : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
             title={
               isDemo
@@ -2308,9 +2308,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             <Lock className="w-4 h-4" />
             나만 (상담)
             {isDemo ? (
-              <span className="hidden text-xs text-[#928980] sm:inline">(계정)</span>
+              <span className="hidden text-xs text-[var(--hb-text-muted)] sm:inline">(계정)</span>
             ) : privateMessageCount > 0 ? (
-              <span className="text-xs text-[#B5ADA3] hidden sm:inline">({privateMessageCount})</span>
+              <span className="text-xs text-[var(--hb-text-muted)] hidden sm:inline">({privateMessageCount})</span>
             ) : null}
           </button>
         </div>
@@ -2319,7 +2319,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="flex items-center gap-0.5 shrink-0">
           <a
             href="/ai-policy"
-            className="flex items-center justify-center h-9 px-2 rounded-lg text-[0.6875rem] font-medium text-[#928980] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+            className="flex items-center justify-center h-9 px-2 rounded-[6px] text-[0.6875rem] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
             aria-label="AI 정책"
             title="AI 정책"
           >
@@ -2332,10 +2332,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 return !v;
               });
             }}
-            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-lg transition-colors ${
+            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-[6px] transition-colors ${
               searchOpen
-                ? "text-[#795252] bg-[#795252]/10"
-                : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
+                ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
+                : "text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df]"
             }`}
             aria-label="대화 검색"
             title="대화 검색"
@@ -2344,10 +2344,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </button>
           <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-lg transition-colors ${
+            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-[6px] transition-colors ${
               infoPanelOpen
-                ? "text-[#795252] bg-[#795252]/10"
-                : "text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5"
+                ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
+                : "text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df]"
             }`}
             aria-label="정보 패널"
             title="정보 패널"
@@ -2357,7 +2357,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           {messages.length > 0 && (
             <button
               onClick={openNewChatModal}
-              className="flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-lg text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+              className="flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-[6px] text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
               aria-label="대화 화면 정리"
               title="대화 화면 정리"
             >
@@ -2370,7 +2370,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         role="status"
         aria-live="polite"
         className={`mx-auto -mt-1 mb-1 w-full max-w-[70rem] px-3 text-[0.6875rem] leading-relaxed ${
-          activeTab === "private" ? "text-[#5a6147]" : "text-[#795252]"
+          activeTab === "private" ? "text-[#5a6147]" : "text-[var(--hb-accent-hover)]"
         }`}
       >
         {isDemo
@@ -2386,16 +2386,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 아모라 답변이 AI 생성임을 화면에서도 항상 확인할 수 있게 한 번 표시한다. */}
       <div className="mx-auto mb-1 flex w-full max-w-[70rem] flex-wrap items-center gap-x-2 gap-y-1 px-3 text-[0.6875rem] leading-5 text-[#5F5A55]">
-        <span className="inline-flex min-h-6 items-center gap-1 font-semibold text-[#795252]">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#795252]" aria-hidden="true" />
+        <span className="inline-flex min-h-6 items-center gap-1 font-semibold text-[var(--hb-accent-hover)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-[var(--hb-primary)]" aria-hidden="true" />
           AI 생성 답변
         </span>
-        <span aria-hidden="true" className="text-[#928980]">·</span>
+        <span aria-hidden="true" className="text-[var(--hb-text-muted)]">·</span>
         <span>계약·가격·중요 일정은 원문을 다시 확인해 주세요</span>
-        <span aria-hidden="true" className="text-[#928980]">·</span>
+        <span aria-hidden="true" className="text-[var(--hb-text-muted)]">·</span>
         <a
           href="/ai-policy"
-          className="inline-flex min-h-6 items-center font-semibold underline decoration-dotted underline-offset-2 transition-colors hover:text-[#795252]"
+          className="inline-flex min-h-6 items-center font-semibold underline decoration-dotted underline-offset-2 transition-colors hover:text-[var(--hb-accent-hover)]"
         >
           AI 정책
         </a>
@@ -2403,21 +2403,21 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 검색 바 — 헤더 아래 토글 */}
       {searchOpen && (
-        <div className="mx-2 mb-2 flex items-center gap-2 px-3 py-2 bg-white border border-[#F0EFED] rounded-xl shadow-[0_4px_14px_rgba(0,0,0,0.04)]">
-          <Search className="w-4 h-4 text-[#B5ADA3] shrink-0" />
+        <div className="mx-2 mb-2 flex items-center gap-2 px-3 py-2 bg-white border border-[#F0EFED] rounded-[6px] shadow-[var(--shadow-raised)]">
+          <Search className="w-4 h-4 text-[var(--hb-text-muted)] shrink-0" />
           <input
             type="text"
             autoFocus
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="대화 내용 검색..."
-            className="flex-1 min-w-0 text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none"
+            className="flex-1 min-w-0 text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none"
           />
           {searchQuery && (
             <button
               type="button"
               onClick={() => setSearchQuery("")}
-              className="text-[#B5ADA3] hover:text-[#1A1A1F]"
+              className="text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)]"
               aria-label="검색어 지우기"
             >
               <X className="w-4 h-4" />
@@ -2428,13 +2428,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 새 채팅 안내 배너 (대화가 길어졌을 때) */}
       {showNewChatBanner && !isStreaming && (
-        <div className="mx-2 mb-2 p-3.5 rounded-xl bg-[#795252]/5 flex items-center justify-between shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
-          <p className="text-sm text-[#795252]">
+        <div className="mx-2 mb-2 p-3.5 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-between shadow-[var(--shadow-raised)]">
+          <p className="text-sm text-[var(--hb-accent-hover)]">
             대화가 길어졌어요. 이전 메시지를 화면에서 정리해도 원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
           </p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
-            <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-lg bg-white text-[#504444] hover:bg-[#F6F3F2] shadow-sm">괜찮아요</button>
-            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-lg bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">화면 정리</button>
+            <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] shadow-sm">괜찮아요</button>
+            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">화면 정리</button>
           </div>
         </div>
       )}
@@ -2447,7 +2447,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         >
           <div
             ref={activeDialogRef}
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            className="bg-white rounded-[6px] shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2457,29 +2457,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1a: 함께 대화 — 옵션 선택 */}
             {clearStep === "shared_choose" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">함께 대화 화면 정리</h3>
-                <p className="text-sm text-[#504444] leading-relaxed mb-5">
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">함께 대화 화면 정리</h3>
+                <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
                   화면에 보이는 이전 대화를 정리할 방법을 골라주세요. 원문 데이터와
                   아모라가 참고하는 기존 맥락은 그대로 유지돼요.
                   <br />
-                  <span className="text-[#928980] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
+                  <span className="text-[var(--hb-text-muted)] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
                 </p>
                 <div className="space-y-2">
                   <button
                     onClick={() => performClear("view_reset_shared")}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-[6px] border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
                   >
                     <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
-                    <div className="text-[12px] text-[#504444]">
+                    <div className="text-[12px] text-[var(--hb-text-body)]">
                       상대방 화면은 그대로 두고, 내 화면에서만 이전 메시지를 정리해요.
                     </div>
                   </button>
                   <button
                     onClick={() => setClearStep("shared_confirm_both")}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-[#E8DDD3] bg-[#FAF7F2]/50 hover:bg-[#FAF7F2] transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-[6px] border border-[#E8DDD3] bg-[#FAF7F2]/50 hover:bg-[#FAF7F2] transition-colors"
                   >
-                    <div className="text-[14.5px] font-medium text-[#795252] mb-1">둘의 화면 함께 정리 (상대방 동의 필요)</div>
-                    <div className="text-[12px] text-[#504444]">
+                    <div className="text-[14.5px] font-medium text-[var(--hb-accent-hover)] mb-1">둘의 화면 함께 정리 (상대방 동의 필요)</div>
+                    <div className="text-[12px] text-[var(--hb-text-body)]">
                       상대방에게 동의 요청을 보내요. 상대방이 [동의] 누르면 양쪽 화면이
                       함께 정리돼요. <strong>원문과 아모라의 기존 맥락은 유지</strong>돼요.
                     </div>
@@ -2489,7 +2489,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <button
                     onClick={() => setClearStep("closed")}
                     autoFocus
-                    className="min-h-11 px-4 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] bg-[#f3e9df]"
                     data-modal-initial-focus
                   >
                     취소
@@ -2501,12 +2501,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1b: 함께 대화 둘 다 — 동의 요청 확인 */}
             {clearStep === "shared_confirm_both" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">둘의 화면 정리 동의를 요청할게요</h3>
-                <p className="text-sm text-[#504444] leading-relaxed mb-5">
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">둘의 화면 정리 동의를 요청할게요</h3>
+                <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
                   채팅에 동의 카드가 올라가고 상대방이 [동의] 누르면 양쪽 화면이
                   정리됩니다. 거절되면 그대로 유지돼요.
                   <br />
-                  <span className="text-[#928980] text-[12.5px]">
+                  <span className="text-[var(--hb-text-muted)] text-[12.5px]">
                     원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
                   </span>
                 </p>
@@ -2514,7 +2514,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <button
                     onClick={() => setClearStep("shared_choose")}
                     autoFocus
-                    className="min-h-11 px-4 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] bg-[#f3e9df]"
                     data-modal-initial-focus
                   >
                     돌아가기
@@ -2528,7 +2528,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       }
                       setClearStep("closed");
                     }}
-                    className="min-h-11 px-4 text-sm rounded-lg bg-[#795252] text-white hover:bg-[#946a6a]"
+                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-primary)] text-white bg-[var(--hb-text-body)]"
                   >
                     동의 요청 보내기
                   </button>
@@ -2539,32 +2539,32 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 2: 나만 (상담) — 단순 확인 */}
             {clearStep === "private_confirm" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[#1A1A1F] mb-2">비공개 상담 화면 정리</h3>
-                <p className="text-sm text-[#504444] leading-relaxed mb-5">
+                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">비공개 상담 화면 정리</h3>
+                <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
                   화면만 정리할지, 비공개 대화·기억까지 삭제할지 선택해주세요.
                   <br />
-                  <span className="text-[#928980] text-[12.5px]">
+                  <span className="text-[var(--hb-text-muted)] text-[12.5px]">
                     상대방의 비공개 상담에는 영향이 없어요.
                   </span>
                 </p>
                 <div className="space-y-2">
                   <button
                     onClick={() => performClear("view_reset_private")}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-[6px] border border-[#5a6147]/30 bg-[#5a6147]/5 hover:bg-[#5a6147]/10 transition-colors"
                   >
                     <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
-                    <div className="text-[12px] text-[#504444]">
+                    <div className="text-[12px] text-[var(--hb-text-body)]">
                       원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
                     </div>
                   </button>
                   <button
                     onClick={() => performClear("delete_private")}
-                    className="w-full text-left px-4 py-3 rounded-xl border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
+                    className="w-full text-left px-4 py-3 rounded-[6px] border border-red-300 bg-red-50/50 hover:bg-red-50 transition-colors"
                   >
                     <div className="text-[14.5px] font-medium text-red-600 mb-1">
                       비공개 대화·아모라 기억 삭제
                     </div>
-                    <div className="text-[12px] leading-relaxed text-[#504444]">
+                    <div className="text-[12px] leading-relaxed text-[var(--hb-text-body)]">
                       이 대화와 아모라가 만든 요약·기억을 삭제하고 비공개 기억
                       사용을 꺼요. 별도 저장 메모·법적/보안 로그·백업은 각 보관
                       정책에 따라 처리돼요.
@@ -2575,7 +2575,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <button
                     onClick={() => setClearStep("closed")}
                     autoFocus
-                    className="min-h-11 px-4 text-sm rounded-lg bg-[#F6F3F2] text-[#504444] hover:bg-[#EDE8E5]"
+                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] bg-[#f3e9df]"
                     data-modal-initial-focus
                   >
                     취소
@@ -2593,7 +2593,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <div className="w-full max-w-[70rem] mx-auto px-2 sm:px-3 space-y-4">
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
-          <div className="mb-2 px-3 py-2.5 rounded-lg bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
+          <div className="mb-2 px-3 py-2.5 rounded-[6px] bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">
             <Lock className="w-3.5 h-3.5 flex-shrink-0 mt-[2px]" />
             <span>
               비공개 상담 — 이 탭의 대화는 <strong>서비스에 저장되지만 상대방에게는 보이지 않아요</strong>. 아모라와 1:1로 이야기할 수 있어요.
@@ -2626,8 +2626,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
           if (q && filteredMessages.length === 0) {
             return (
-              <div className="text-center py-12 text-[#928980] text-sm">
-                <Search className="w-8 h-8 text-[#B5ADA3]/40 mx-auto mb-2" />
+              <div className="text-center py-12 text-[var(--hb-text-muted)] text-sm">
+                <Search className="w-8 h-8 text-[var(--hb-text-muted)]/40 mx-auto mb-2" />
                 &ldquo;{searchQuery}&rdquo;에 해당하는 메시지가 없어요
               </div>
             );
@@ -2649,6 +2649,20 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               message.visibility === "shared"
               && message.metadata?.target !== "partner"
             ))?.id ?? null;
+          // 이미 적용된 카드를 가려낸다. 서버가 사용자 확인 행에
+          // `confirmed_amora_action_id` 를 남기므로 새로고침해도 유지된다 —
+          // 클라이언트 상태로 들고 있으면 새로고침 한 번에 "적용할 수 없어요" 로
+          // 되돌아간다.
+          //
+          // 이게 없으면 **방금 성공시킨 카드**가 `not_latest` 로 잠긴다. 누르는
+          // 순간 새 메시지가 생겨 그 카드가 최신이 아니게 되기 때문이다.
+          // 2026-08-31 운영에서 재현: 아모라가 "일정을 추가했어요" 라고 말한 바로
+          // 옆에 "새 대화가 이어져 이 제안은 적용할 수 없어요" 가 함께 떠 있었다.
+          const appliedActionIds = new Set(
+            messages
+              .map((message) => message.metadata?.confirmed_amora_action_id)
+              .filter((value): value is string => typeof value === "string"),
+          );
           return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const isPinnedSafetyCard = msg.metadata?.pinned_safety_card === true;
@@ -2709,6 +2723,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   nowMs,
                   msg.id === latestSharedMessageId,
                   isStreaming || isSending,
+                  appliedActionIds.has(pendingAction.actionId),
                 )
               : null;
             const pendingBudgetImpactPreview = pendingAction
@@ -2736,13 +2751,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       <Sparkles aria-hidden="true" className="h-4 w-4 text-white sm:h-5 sm:w-5" />
                     </div>
                     <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                      <span className="text-base font-medium text-[#928980]">아모라</span>
+                      <span className="text-base font-medium text-[var(--hb-text-muted)]">아모라</span>
                       <div
                         data-amora-safety-card="true"
                         role="alert"
                         aria-live="assertive"
                         aria-label="긴급 안전 안내"
-                        className="rounded-2xl border border-danger-500/30 bg-danger-500/[0.04] px-4 py-4 shadow-sm"
+                        className="rounded-[6px] border border-danger-500/30 bg-danger-500/[0.04] px-4 py-4 shadow-sm"
                       >
                         <div className="flex items-start gap-3">
                           {/* 경고 삼각형이 아니라 방패다. 색(danger)은 그대로 두어
@@ -2753,7 +2768,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                           />
                           <div className="min-w-0">
                             <p className="text-sm font-semibold text-danger-700">긴급 안전 안내</p>
-                            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[#263832]">
+                            <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--hb-text-strong)]">
                               {msg.content}
                             </p>
                           </div>
@@ -2792,7 +2807,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                       type="button"
                       onClick={() => openCommunityDraft(msg, previousHumanMessage)}
                       aria-label={displayCommunityAskCue.ariaLabel}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-[#D8C7BB] bg-white/80 px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
+                      className="inline-flex items-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white/80 px-3 py-1.5 text-sm font-medium text-[#2F5F51] shadow-sm hover:border-[#2F5F51]/40 hover:bg-[#F6FAF7] transition-colors"
                     >
                       <MessageCircle className="h-4 w-4" />
                       {displayCommunityAskCue.label}
@@ -2855,8 +2870,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white shadow-sm">
                 <User className="w-4 h-4" />
               </div>
-              <div className="bg-white border border-black/[0.06] rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
-                <span className="text-[13px] text-[#928980]">{label} 입력 중</span>
+              <div className="bg-white border border-black/[0.06] rounded-[6px] rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
+                <span className="text-[13px] text-[var(--hb-text-muted)]">{label} 입력 중</span>
                 <span className="flex items-center gap-0.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" />
                   <span className="w-1.5 h-1.5 rounded-full bg-[#B5ADA3] animate-pulse" style={{ animationDelay: "150ms" }} />
@@ -2883,7 +2898,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         <button
           type="button"
           onClick={jumpToBottom}
-          className="absolute bottom-[140px] right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[#795252] shadow-[0_8px_24px_rgba(0,0,0,0.12)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-colors"
+          className="absolute bottom-[140px] right-4 sm:right-6 z-20 w-11 h-11 rounded-full bg-white text-[var(--hb-accent-hover)] shadow-[var(--shadow-raised)] border border-[#E8DDD3] hover:bg-[#FAF8F5] flex items-center justify-center transition-colors"
           aria-label="최신 메시지로"
           title="최신 메시지로"
         >
@@ -2893,15 +2908,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
       {/* 쿼터 소진 예고 — 갑작스런 차단(429) 대신 미리 안내 */}
       {transientArtifactsVisible && quotaRemaining !== null && !isStreaming && (
-        <div className="mx-2 mt-2 flex items-center justify-between rounded-xl bg-[#f6efe5] p-3 shadow-[0_4px_20px_rgba(0,0,0,0.03)]">
+        <div className="mx-2 mt-2 flex items-center justify-between rounded-[6px] bg-[var(--hb-surface-hover)] p-3 shadow-[var(--shadow-raised)]">
           <p className="text-[13px] font-medium text-[#6d625a]">
             {quotaRemaining > 0
-              ? `베타 무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
-              : "베타 무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
+              ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
+              : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
           </p>
           <button
             onClick={() => useChatStore.setState({ quotaRemaining: null })}
-            className="ml-2 flex-shrink-0 text-[#b5ada3] hover:text-[#6d625a]"
+            className="ml-2 flex-shrink-0 text-[var(--hb-text-muted)] hover:text-[#6d625a]"
             aria-label="안내 닫기"
           >
             <X className="w-4 h-4" />
@@ -2912,7 +2927,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 에러 메시지 */}
       {transientArtifactsVisible && error && !isStreaming && (
         <div
-          className={`mx-2 mt-2 rounded-xl border p-3.5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] ${
+          className={`mx-2 mt-2 rounded-[6px] border p-3.5 shadow-[var(--shadow-raised)] ${
             isRecoveryNotice
               ? "border-[#B9DAD5] bg-[#F0F8F6]"
               : "border-red-100 bg-red-50"
@@ -2939,7 +2954,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 type="button"
                 onClick={() => void retryFailedMessage()}
                 disabled={isStreaming || isRetrying}
-                className={`min-h-9 rounded-lg px-3.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                className={`min-h-9 rounded-[6px] px-3.5 text-xs font-semibold text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                   isRecoveryNotice
                     ? "bg-[#2F766F] hover:bg-[#245B56]"
                     : "bg-red-600 hover:bg-red-700"
@@ -2962,7 +2977,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               type="button"
               onClick={dismissFailedMessageRetry}
               disabled={isStreaming || isRetrying}
-              className={`min-h-9 rounded-lg border bg-white px-3.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              className={`min-h-9 rounded-[6px] border bg-white px-3.5 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 isRecoveryNotice
                   ? "border-[#B9DAD5] text-[#356B66] hover:bg-[#E4F3F0]"
                   : "border-red-200 text-red-700 hover:bg-red-100"
@@ -2982,7 +2997,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         >
           <div
             ref={activeDialogRef}
-            className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6"
+            className="bg-white rounded-[6px] shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2990,14 +3005,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             tabIndex={-1}
           >
             <div className="flex items-start gap-3 mb-4">
-              <div className="shrink-0 w-10 h-10 rounded-xl bg-[#C9A96E]/15 flex items-center justify-center text-[#C9A96E]">
+              <div className="shrink-0 w-10 h-10 rounded-[6px] bg-[rgba(54,83,78,0.12)] flex items-center justify-center text-[var(--hb-accent-hover)]">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 id="pending-send-dialog-title" className="font-serif-kr text-lg sm:text-xl text-[#1A1A1F] font-light mb-1.5 leading-snug">
+                <h3 id="pending-send-dialog-title" className="font-serif-kr text-lg sm:text-xl text-[var(--hb-text-strong)] font-light mb-1.5 leading-snug">
                   잠시 기다리시겠어요?
                 </h3>
-                <p className="text-sm text-[#504444] leading-relaxed">
+                <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">
                   {partnerTypingActive
                     ? `${partner?.name ?? "상대방"}이 지금 입력하고 있어요. 같이 보내면 진행 중인 흐름이 꼬일 수 있어요.`
                     : "아모라가 방금 보낸 메시지에 답변하고 있어요. 지금 새 메시지를 보내면 진행 중인 답변이 중단될 수 있어요."}
@@ -3008,7 +3023,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               <button
                 type="button"
                 onClick={() => setPendingSend(null)}
-                className="min-h-11 flex-1 px-4 rounded-xl text-sm font-medium text-[#1A1A1F] bg-[#F6F3F2] hover:bg-[#EDE8E5] transition-colors"
+                className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-[var(--hb-text-strong)] bg-[var(--hb-surface-hover)] bg-[#f3e9df] transition-colors"
                 data-modal-initial-focus
               >
                 기다릴게요
@@ -3021,7 +3036,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   setPendingSend(null);
                   void handleSend(t, target);
                 }}
-                className="min-h-11 flex-1 px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
+                className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
               >
                 그래도 보내기
               </button>
@@ -3033,12 +3048,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {/* 갈등 중재 제안 배너 */}
       {showMediationBanner && !isStreaming && (
         <div className="px-2 pt-2">
-          <div className="relative bg-white rounded-xl px-5 py-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+          <div className="relative bg-white rounded-[6px] px-5 py-4 shadow-[var(--shadow-raised)]">
             <button
               onClick={() => {
                 setMediationDismissed(true);
               }}
-              className="absolute top-2.5 right-2.5 tap-area shrink-0 w-6 h-6 rounded-full text-[#B5ADA3] hover:text-[#504444] flex items-center justify-center"
+              className="absolute top-2.5 right-2.5 tap-area shrink-0 w-6 h-6 rounded-full text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] flex items-center justify-center"
             >
               <X className="w-4 h-4" />
             </button>
@@ -3047,19 +3062,19 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 <Sparkles className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-base text-[#1A1A1F] leading-relaxed font-medium">
+                <p className="text-base text-[var(--hb-text-strong)] leading-relaxed font-medium">
                   {selfReportedConflictOffer
                     ? "혼자 마음에 담아두고 계신 것 같아요"
                     : "두 분 사이에 의견 차이가 있는 것 같아요"}
                 </p>
-                <p className="text-sm text-[#504444] leading-relaxed mt-1">
+                <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mt-1">
                   {selfReportedConflictOffer
                     ? "원하시면 아모라가 두 분이 함께 볼 수 있게 정리해 드릴게요"
                     : "아모라가 중립적으로 의견 조율을 도와드릴게요"}
                 </p>
                 <button
                   onClick={openMediationConsent}
-                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)] transition-colors"
+                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-[6px] text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
                   아모라에게 도움 요청하기
@@ -3098,12 +3113,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   <img
                     src={att.previewUrl}
                     alt={att.fileName}
-                    className="w-20 h-20 rounded-lg object-cover shadow-sm"
+                    className="w-20 h-20 rounded-[6px] object-cover shadow-sm"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-lg bg-[#F6F3F2] flex flex-col items-center justify-center gap-1 px-1 shadow-sm">
+                  <div className="w-20 h-20 rounded-[6px] bg-[var(--hb-surface-hover)] flex flex-col items-center justify-center gap-1 px-1 shadow-sm">
                     {getFileIcon(att.mediaType)}
-                    <span className="text-[9px] text-[#504444] truncate max-w-[72px] text-center leading-tight">
+                    <span className="text-[9px] text-[var(--hb-text-body)] truncate max-w-[72px] text-center leading-tight">
                       {att.fileName}
                     </span>
                   </div>
@@ -3133,10 +3148,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               onClick={() => handleMessageTargetChange("ai")}
               disabled={isStreaming || isSending}
               aria-pressed={messageTarget === "ai"}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "ai"
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[0_4px_14px_rgba(121,82,82,0.2)]"
-                  : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#795252]"
+                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[var(--shadow-raised)]"
+                  : "bg-white text-[var(--hb-text-body)] shadow-[var(--shadow-raised)] hover:text-[var(--hb-accent-hover)]"
               }`}
             >
               <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
@@ -3147,10 +3162,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               onClick={() => handleMessageTargetChange("partner")}
               disabled={isStreaming || isSending}
               aria-pressed={messageTarget === "partner"}
-              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
+              className={`flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "partner"
-                  ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[0_4px_14px_rgba(217,156,156,0.25)]"
-                  : "bg-white text-[#504444] shadow-[0_4px_14px_rgba(0,0,0,0.04)] hover:text-[#D99C9C]"
+                  ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] text-white shadow-[var(--shadow-raised)]"
+                  : "bg-white text-[var(--hb-text-body)] shadow-[var(--shadow-raised)] hover:text-[#D99C9C]"
               }`}
             >
               <Heart className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
@@ -3159,7 +3174,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        <div className={`bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
+        <div className={`bg-white rounded-[6px] shadow-[var(--shadow-raised)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"
             : isPrivate
@@ -3182,7 +3197,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => fileInputRef.current?.click()}
             disabled={isStreaming || isSending || attachments.length >= MAX_ATTACHMENTS}
             aria-label="파일 첨부"
-            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl text-[#B5ADA3] transition-colors hover:bg-[#795252]/5 hover:text-[#795252] disabled:cursor-not-allowed disabled:opacity-30"
+            className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-[var(--hb-text-muted)] transition-colors bg-[#f3e9df] hover:text-[var(--hb-accent-hover)] disabled:cursor-not-allowed disabled:opacity-30"
             title={
               messageTarget === "partner"
                 ? "사진 첨부 (PDF·Word 문서는 아모라에게만 가능)"
@@ -3243,7 +3258,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   : "결혼 준비에서 궁금한 점을 물어보세요…"
             }
             disabled={isStreaming || isSending}
-            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[#1A1A1F] placeholder:text-[#B5ADA3] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[10rem] overflow-y-auto"
+            className="flex-1 min-w-0 px-1 sm:px-2 py-2.5 sm:py-3 text-[0.9375rem] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] bg-transparent outline-none disabled:opacity-50 resize-none leading-6 max-h-[10rem] overflow-y-auto"
           />
           <button
             type="button"
@@ -3264,10 +3279,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             }
             className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
               messageTarget === "partner"
-                ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[0_4px_14px_rgba(217,156,156,0.25)] hover:shadow-[0_6px_20px_rgba(217,156,156,0.3)]"
+                ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
                 : isPrivate
-                  ? "bg-gradient-to-br from-[#5a6147] to-[#6e7755] shadow-[0_4px_14px_rgba(90,97,71,0.25)] hover:shadow-[0_6px_20px_rgba(90,97,71,0.3)]"
-                  : "bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[0_4px_14px_rgba(121,82,82,0.2)] hover:shadow-[0_6px_20px_rgba(121,82,82,0.25)]"
+                  ? "bg-gradient-to-br from-[#5a6147] to-[#6e7755] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
+                  : "bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
             }`}
           >
             {messageTarget === "partner"

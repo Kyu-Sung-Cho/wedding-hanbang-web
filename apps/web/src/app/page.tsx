@@ -2,18 +2,25 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * 로그인 여부로 갈라지므로 요청마다 판정한다 — 정적으로 미리 만들 수 없다.
+ * 자세한 이유는 `(community)/layout.tsx` 의 같은 선언 주석에 적었다.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   // 이 폴백과 실제 착지 랜딩의 제목이 갈리면 유입 경로마다 다른 제목이 보인다.
   // `src/app/landing/page.tsx`의 title과 **글자까지 같아야** 한다.
   // `components/community/__tests__/landingFunnelInstrumentation.test.ts`(정본)와
   // `app/landing/__tests__/landingTitleParity.test.ts`가 함께 검사한다.
-  title: "웨딩한방 | 결혼 준비, 둘이 어디서 갈리는지부터",
+  title: "웨딩한방 | 결혼 준비 노트, 같이 정리해요",
   // 2026-08-27: 이전 설명은 "예산·일정·**업체 준비**는 AI 아모라가 같이 잡습니다" 였다.
   // 업체 준비는 우리가 하지 않는다 — 업체를 찾아주지도 예약을 잡지도 않는다.
   // 라이브 메타 설명이 제품 계약과 어긋나 있었다.
   description:
-    "결혼 준비에서 싸우는 건 가격 때문이 아니라 둘의 기준이 다른 걸 몰라서예요. "
-    + "스무 장면에 각자 답하면 어디서 갈렸는지 나란히 볼 수 있어요. 가입 없이 지금 열려 있어요.",
+    "어디에 뭘 적어뒀는지 헷갈릴 때가 있잖아요. 결혼 준비의 고민을 아모라와 이야기하고, "
+    + "확인한 것만 예산·할 일·일정에 남고, 바뀌면 파트너에게 알림이 가요. "
+    + "비슷한 시기에 결혼하는 사람들의 기록도 함께 봐요.",
 };
 
 /**

@@ -46,7 +46,7 @@ export default function AdDisclosureBadge({
         {opt.label}
       </span>
       {adDisclosure === "sponsored" && sponsorshipDetail && (
-        <span className="max-w-full break-words text-[11px] font-medium leading-[1.45] text-[#8F6662]">
+        <span className="max-w-full break-words text-[11px] font-medium leading-[1.45] text-[var(--color-rose-700)]">
           받은 혜택: {sponsorshipDetail}
         </span>
       )}

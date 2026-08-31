@@ -139,10 +139,10 @@ export default function ServiceCTA({ category, postTitle, postId, postContent, p
   }
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[#c7d1c2] bg-[#f4f6f1]" aria-labelledby="community-next-action-heading">
+    <section className="overflow-hidden rounded-[6px] border border-[#c7d1c2] bg-[#f4f6f1]" aria-labelledby="community-next-action-heading">
       <div className="px-4 py-4 sm:px-5 sm:py-5">
-        <p className="text-[10px] font-bold tracking-[0.16em] text-[#8F6662]">답을 찾은 다음</p>
-        <h2 id="community-next-action-heading" className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[#243832] sm:text-[22px]">
+        <p className="text-[10px] font-bold tracking-[0.16em] text-[var(--color-rose-700)]">답을 찾은 다음</p>
+        <h2 id="community-next-action-heading" className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[var(--hb-text-strong)] sm:text-[22px]">
           사람의 답변을 내 준비로 옮기기
         </h2>
         <p className="mt-1.5 max-w-[620px] text-[12px] font-medium leading-[1.65] text-[#667268]">
@@ -191,27 +191,27 @@ function ServiceAction({
       href={href}
       className={`group flex min-h-[118px] items-start gap-3 px-4 py-4 transition-colors sm:px-5 ${
         primary
-          ? "bg-[#36534E] text-white hover:bg-[#2d4642]"
-          : "bg-white text-[#243832] hover:bg-[#fbf8f2]"
+          ? "bg-[var(--hb-primary)] text-white hover:bg-[#2d4642]"
+          : "bg-white text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-page)]"
       }`}
     >
       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors ${
         primary
           ? "border-white/20 bg-white/10 text-white"
-          : "border-[#d8dfd4] bg-[#eef4f1] text-[#36534E]"
+          : "border-[#d8dfd4] bg-[#eef4f1] text-[var(--hb-text-strong)]"
       }`}>
         <Icon className="h-4 w-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className={`mb-1 block text-[10px] font-bold tracking-[0.04em] ${primary ? "text-white/65" : "text-[#8b8175]"}`}>{label}</span>
-        <span className={`block text-[13px] font-bold leading-[1.45] ${primary ? "text-white" : "text-[#243832]"}`}>
+        <span className={`block text-[13px] font-bold leading-[1.45] ${primary ? "text-white" : "text-[var(--hb-text-strong)]"}`}>
           {title}
         </span>
         <span className={`mt-1 block text-[11px] font-medium leading-[1.55] ${primary ? "text-white/72" : "text-[#6f786f]"}`}>
           {subtext}
         </span>
       </span>
-      <ArrowRight className={`mt-1 h-4 w-4 shrink-0 transition-all group-hover:translate-x-0.5 ${primary ? "text-white/70" : "text-[#8b8175] group-hover:text-[#36534E]"}`} />
+      <ArrowRight className={`mt-1 h-4 w-4 shrink-0 transition-all group-hover:translate-x-0.5 ${primary ? "text-white/70" : "text-[#8b8175] group-hover:text-[var(--hb-text-strong)]"}`} />
     </Link>
   );
 }

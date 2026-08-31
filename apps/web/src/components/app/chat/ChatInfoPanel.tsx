@@ -47,10 +47,10 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
           >
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.04]">
-              <h3 className="text-lg font-medium text-noir-800">결혼 준비 현황</h3>
+              <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-50 hover:text-noir-800 transition-colors"
+                className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -64,8 +64,8 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
-                      ? "text-rose-500"
-                      : "text-taupe-400 hover:text-taupe-500"
+                      ? "text-[var(--hb-accent-hover)]"
+                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -73,7 +73,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   {activeTab === tab.key && (
                     <motion.div
                       layoutId="panel-tab-indicator"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-rose-500 rounded-full"
+                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--hb-primary)] rounded-full"
                     />
                   )}
                 </button>
@@ -94,7 +94,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
             animate={{ y: 0 }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 h-[85vh] bg-white rounded-t-2xl shadow-[0_-8px_40px_rgba(0,0,0,0.08)] z-50 flex flex-col md:hidden"
+            className="fixed inset-x-0 bottom-0 h-[85vh] bg-white rounded-t-2xl shadow-[var(--shadow-raised)] z-50 flex flex-col md:hidden"
           >
             {/* 핸들 바 */}
             <div className="flex justify-center pt-2 pb-1">
@@ -103,10 +103,10 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
 
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04]">
-              <h3 className="text-lg font-medium text-noir-800">결혼 준비 현황</h3>
+              <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
-                className="w-9 h-9 rounded-lg flex items-center justify-center text-taupe-400 hover:bg-ivory-50 hover:text-noir-800 transition-colors"
+                className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -120,8 +120,8 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   onClick={() => setActiveTab(tab.key)}
                   className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
                     activeTab === tab.key
-                      ? "text-rose-500"
-                      : "text-taupe-400 hover:text-taupe-500"
+                      ? "text-[var(--hb-accent-hover)]"
+                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -129,7 +129,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
                   {activeTab === tab.key && (
                     <motion.div
                       layoutId="panel-tab-indicator-mobile"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-rose-500 rounded-full"
+                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--hb-primary)] rounded-full"
                     />
                   )}
                 </button>

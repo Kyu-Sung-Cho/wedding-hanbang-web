@@ -113,7 +113,7 @@ describe("pricePolicyBadgeClass", () => {
     expect(pricePolicyBadgeClass("penalty")).toContain("danger");
     expect(pricePolicyBadgeClass("refund")).toContain("sage");
     expect(pricePolicyBadgeClass("change")).toContain("gold");
-    expect(pricePolicyBadgeClass("other")).toContain("ivory");
+    expect(pricePolicyBadgeClass("other")).toContain("--hb-surface-hover");
     expect([
       pricePolicyBadgeClass("refund"),
       pricePolicyBadgeClass("change"),

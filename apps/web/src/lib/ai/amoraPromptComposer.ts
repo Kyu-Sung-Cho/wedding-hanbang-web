@@ -140,6 +140,37 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
+  // 팀 테스트(2026-08-29 리포트)에서 나온 것들.
+  //
+  // **자리가 얼마 없다.** 이 네 줄이 338자이고, 그 뒤 남는 여유는 결혼일이 있고
+  // 시작점을 묻는 턴에서 157자다(main 495자). 문맥이 많은 커플은 이미 상한에
+  // 붙어 있으므로 여기 한 줄을 더하면 그만큼 저장 문맥 꼬리가 잘린다.
+  // 더하기 전에 `AMORA_SYSTEM_PROMPT_MAX_CHARS` 기준으로 실제로 재라.
+  //
+  // 조회 도구가 있을 때만
+  // 싣는다 — 프롬프트가 이미 상한(48,000자)에 붙어 있어 늘 실으면 저장 문맥
+  // 꼬리가 잘린다.
+  //
+  // 1) 큰 방향전환: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용하고
+  //    기존 기준을 통째로 폐기했다. 작은 변경(날짜 한 달, 하객 ±10%)까지 되묻게
+  //    하면 성가시므로 **크기**를 조건에 적는다.
+  // 2) 그때 앞서 정한 것 중 무엇이 살아 있는지 말하지 않아 사용자가 계획 상태를
+  //    잃었다.
+  // 3) "예산 감이 아예 없다"에 되묻기만 했다. `get_market_price` 가 켜져 있는데도
+  //    프롬프트 어디에도 그 도구를 쓸 이유가 적혀 있지 않았다(전체 검색 0건).
+  if (has("get_wedding_info", "get_budget_summary")) {
+    lines.push(
+      "- 예식 형태·하객 규모가 절반 이하로 바뀌면 다시 짜기 전에 이유를 한 번만 확인하고, 앞서 정한 것 중 무엇이 남고 무엇을 다시 정할지 알려주세요. 날짜 한 달 이동 정도는 그냥 반영합니다.",
+      "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요.",
+    );
+  }
+
+  if (enabled.has("get_market_price")) {
+    lines.push(
+      "- 금액 감이 없다면 `get_market_price` 로 범위를 확인해 기준 시점·출처와 함께 말하고, 도구 없이 평균가를 지어내지 마세요.",
+    );
+  }
+
   // 쓰기 도구 이름으로 걸면 **절대 참이 되지 않는다** — 쓰기 도구는
   // `availableTools = runnableTools.filter((t) => !isMutatingTool(t.name))` 에서
   // 걸러져 enabledToolNames 에 들어오지 않는다(모델은 별도 계약으로 안다).
@@ -151,6 +182,24 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     lines.push(
       "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 날짜가 모호하면 저장 전에 한 번 확인하세요.",
       "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
+    );
+  }
+
+  // 팀 테스트에서 일정 세 개를 넣는 데 세 턴이 걸렸다:
+  //
+  //     Turn 14  세 개를 일정에 추가해줘        -> "각각의 실행 날짜가 필요해요"
+  //     Turn 15  8월 26일, 27일, 29일          -> "각 일정의 유형이 필요해요"
+  //     Turn 16  두 사람의 약속으로 등록해줘     -> 그러고도 반영 안 됨
+  //
+  // `add_schedule_event` 의 필수 필드는 `date` 와 `title` 뿐이고 `schedule_scope`
+  // 는 선택이다. 모호하면 shared_commitment 로 두라는 줄이 이미 위에 있는데도
+  // 모델이 물었으므로, 나눠 묻지 말라고 분명히 적는다.
+  //
+  // 조건에 `add_schedule_event` 를 쓰면 절대 참이 되지 않는다 — 쓰기 도구는
+  // `!isMutatingTool` 로 걸러져 이 목록에 안 들어온다. 같은 주제의 조회 도구로 건다.
+  if (has("get_schedule_events", "get_schedule_summary")) {
+    lines.push(
+      "- 일정 추가에 모르는 것이 여러 개면 한 번에 모아 물으세요. 날짜→유형→재확인으로 나누지 마세요. 성격이 모호하면 묻지 말고 shared_commitment로 둡니다.",
     );
   }
 
@@ -356,7 +405,75 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
 const PRODUCT_SAFETY_HEADINGS = [
   "## 판정 금지 · 업체 상대 발언 금지",
   "## 할루시네이션 방지",
+  // 아래 일곱은 2026-08-30 에 더했다. 절단은 `truncateAtLineBoundary` 가 **꼬리부터
+  // 통째로** 자르는데, 계약 섹션이 전부 문서 뒤쪽에 몰려 있어서 자리가 모자라면
+  // 정확히 이것들부터 사라진다. 실측(읽기 도구셋, 기억 0):
+  //
+  //     앞쪽 4개(대화 원칙·커플 상황·준비 항목·사고방식)  26,862자
+  //     계약 9개는 31,996자 지점부터 끝까지               합계 6,620자
+  //     전체 47,401자 / 상한 48,000 → 여유 599자
+  //
+  // 즉 기억 블록이든 도구 계약이든 조금만 늘면 계약부터 조용히 빠진다. 실제로
+  // 기억을 가득 채우면 21개 헤딩 중 14개가 사라졌고 그 안에 아래가 전부 있었다.
+  // 자리가 없을 때 잘려야 하는 것은 계약이 아니라 참조표(`## 준비 항목에서 확인할 것`)다
+  // — 그쪽은 "여기 없는 항목의 확인 포인트를 지어내지 말고 무엇을 물어보면 되는지만
+  // 제안하라"고 프롬프트가 이미 적어 두어 없어도 안전하게 물러선다.
+  "## 공시 가격 사용 규칙",
+  "## 견적의 포함·불포함 확인 원칙",
+  "## 업체·계약 상담 안전 원칙",
+  "## 업체 추천·예약은 지금 제공하지 않습니다",
+  "## 출처 표기 (Source Citation) — 사용자 신뢰의 핵심",
+  // 메시지 타겟 판별("절대 혼동 금지")이 여기 있다. 잘리면 아모라가 커플끼리 하는
+  // 대화에 끼어든다.
+  "## 대화 규칙",
+  // 중재 두 섹션은 **안전 갈래 턴이 아닐 때만** 여기 남는다 —
+  // `mediationHeadingsFor` 를 보라.
+  "## 커플 갈등 중재",
+  "## 요청 기반 조율 (MEDIATION_REQUEST)",
+  // `[suggestions]` 출력 계약. 잘리면 추천 칩이 한 개도 안 나간다.
+  "## 이어서 할 수 있는 것 (선택)",
 ] as const;
+
+/**
+ * 안전 갈래 턴에서 프롬프트 밖으로 **의도적으로** 빼는 섹션.
+ *
+ * 예전에는 절단이 우연히 지워 주기를 기대했다 — 중재 절충 문장이 문서 뒤쪽이라
+ * 30,000자에서 먼저 사라졌다. 그런데 **운영 상한은 48,000자**라 가벼운 문맥에서는
+ * 그 절단이 아예 일어나지 않았고, 즉 그 방어는 문맥이 무거운 커플에게만 걸렸다.
+ * 우연에 기대는 대신 판정으로 뺀다 — `highRiskReason === "safety"` 와 W5 가
+ * 그 갈래다.
+ *
+ * 본문 섹션 자체도 `**먼저: 안전 신호가 보이면 중재하지 마세요.**` 로 시작하고
+ * 범위 지시문이 `절충안·합의안·역할 분담을 제안하지 말고` 를 따로 싣는다. 이건
+ * 그 둘에 더하는 세 번째 겹이고, 앞의 둘을 대체하지 않는다.
+ */
+const MEDIATION_HEADINGS = [
+  "## 커플 갈등 중재",
+  "## 요청 기반 조율 (MEDIATION_REQUEST)",
+] as const;
+
+function isSafetyScopedTurn(
+  questionScope: AmoraQuestionScopeClassification | undefined,
+): boolean {
+  if (questionScope === undefined) return false;
+  return (
+    questionScope.scope === "W5_safety_override"
+    || (
+      questionScope.scope === "W2_high_risk_adjacent"
+      && questionScope.highRiskReason === "safety"
+    )
+  );
+}
+
+/** 이 턴에서 보호할 헤딩. 안전 갈래면 중재 두 섹션은 보호가 아니라 제거 대상이다. */
+function protectedHeadingsFor(
+  questionScope: AmoraQuestionScopeClassification | undefined,
+): readonly string[] {
+  if (!isSafetyScopedTurn(questionScope)) return PRODUCT_SAFETY_HEADINGS;
+  return PRODUCT_SAFETY_HEADINGS.filter(
+    (heading) => !MEDIATION_HEADINGS.includes(heading as typeof MEDIATION_HEADINGS[number]),
+  );
+}
 
 /** 보호 섹션의 [시작, 끝) 구간. 문서 순서대로 정렬해 돌려준다. */
 function productSafetyRanges(prompt: string): Array<readonly [number, number]> {
@@ -677,8 +794,15 @@ export function buildAmoraSystemPrompt(
   // 같은 목록(PRODUCT_SAFETY_HEADINGS)을 써서 두 보호가 어긋나지 않게 한다 —
   // 예전에는 판정 금지만 여기 있어서 할루시네이션 방지는 절단에 노출돼 있었다.
   let safetyRemainder = detachedToolContract.remainder;
+  // 안전 갈래 턴에서는 중재 지침을 **떼어내 버린다.** 보호 목록에서 빠지는 것만으로는
+  // 부족하다 — 그러면 절단 구간으로 돌아가 자리가 남는 한 그대로 실린다.
+  if (isSafetyScopedTurn(options.questionScope)) {
+    for (const heading of MEDIATION_HEADINGS) {
+      safetyRemainder = detachTopLevelSection(safetyRemainder, heading).remainder;
+    }
+  }
   const detachedSafetySections: string[] = [];
-  for (const heading of PRODUCT_SAFETY_HEADINGS) {
+  for (const heading of protectedHeadingsFor(options.questionScope)) {
     const detached = detachTopLevelSection(safetyRemainder, heading);
     safetyRemainder = detached.remainder;
     if (detached.section) detachedSafetySections.push(detached.section);

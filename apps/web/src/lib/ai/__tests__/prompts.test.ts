@@ -369,14 +369,19 @@ describe("getWeddingPlannerSystemPrompt", () => {
       { ...baseContext, bookings: [] },
       { requestKind: "chat", persistenceMode: "durable", enabledToolNames: ["update_budget"] },
     );
-    // 전체의 절반만 허용해 절단을 강제한다.
+    // 1만 자를 깎아 절단을 강제한다.
+    //
+    // 예전에는 `full.length / 2` 였는데 2026-08-30 에 계약 아홉을 절단 면제로
+    // 옮기면서(`PRODUCT_SAFETY_HEADINGS`) 필수 영역이 커져 절반이 그 아래로
+    // 내려갔다 — `maxChars must be an integer large enough…` 로 던진다.
+    // 검사의 뜻("절단이 실제로 일어나도 판정 금지가 남는가")은 그대로다.
     const truncated = buildAmoraSystemPrompt(
       { ...baseContext, bookings: [] },
       {
         requestKind: "chat",
         persistenceMode: "durable",
         enabledToolNames: ["update_budget"],
-        maxChars: Math.floor(full.length / 2),
+        maxChars: full.length - 10_000,
       },
     );
 
@@ -673,7 +678,11 @@ describe("getWeddingPlannerSystemPrompt", () => {
   });
 
   it("preserves mandatory current context and tool contracts before truncating the static playbook", () => {
-    const maxChars = 14_000;
+    // 14,000 이었는데 2026-08-30 에 계약 아홉을 절단 면제로 옮기면서
+    // (`PRODUCT_SAFETY_HEADINGS`) 필수 영역이 그보다 커졌다. 26,000 은 운영
+    // 상한(48,000)의 절반이라 아래 `[저장 문맥 일부는 길이 제한으로 생략됨]` 과
+    // `## 예절 가이드` 부재가 그대로 성립한다 — 검사의 뜻은 바뀌지 않았다.
+    const maxChars = 26_000;
     const prompt = buildAmoraSystemPrompt(
       {
         ...baseContext,

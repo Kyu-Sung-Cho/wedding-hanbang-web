@@ -58,7 +58,7 @@ export default function ChecklistItemSource({
   return (
     <Link
       {...weddingLinkProps(source.href)}
-      className={`${indentClassName} mb-1 inline-flex w-fit items-center gap-1 rounded text-[13px] leading-[1.5] text-[#7A6A57] underline decoration-[#D9CBB4] underline-offset-4 hover:text-[#5A4D3E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50`}
+      className={`${indentClassName} mb-1 inline-flex w-fit items-center gap-1 rounded-[6px] text-[13px] leading-[1.5] text-[#7A6A57] underline decoration-[#D9CBB4] underline-offset-4 hover:text-[#5A4D3E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50`}
     >
       {sameAsCategoryCard
         ? `근거 · ${withoutSectionNumber(source.heading)}`

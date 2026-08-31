@@ -64,8 +64,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-sage-500",
-  in_progress: "bg-[#795252]",
+  completed: "bg-[var(--hb-success)]",
+  in_progress: "bg-[var(--hb-primary)]",
   not_started: "bg-[#B5ADA3]",
   not_applicable: "bg-[#8b857c]",
 };
@@ -263,22 +263,22 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-xl shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 max-h-[84dvh] flex flex-col overflow-hidden animate-fade-in"
+        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-[6px] shadow-[var(--shadow-overlay)] z-50 max-h-[84dvh] flex flex-col overflow-hidden animate-fade-in"
       >
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#795252]/10 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-[#795252]" />
+              <div className="w-11 h-11 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
+                <Icon className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <div>
-                <h3 id={titleId} className="text-2xl font-semibold text-[#1A1A1F]">{template.label}</h3>
+                <h3 id={titleId} className="text-2xl font-semibold text-[var(--hb-text-strong)]">{template.label}</h3>
                 <div className="flex items-center gap-2 mt-1">
                   <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
-                  <span className="text-sm text-[#B5ADA3]">
+                  <span className="text-sm text-[var(--hb-text-muted)]">
                     {isNotApplicable ? "진행률에서 제외됨" : `${done}/${total} 완료`}
                   </span>
                 </div>
@@ -289,7 +289,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               type="button"
               onClick={onClose}
               aria-label={`${template.label} 체크리스트 닫기`}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#F6F3F2] transition-colors"
+              className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -297,7 +297,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
           {/* 진행률 바 */}
           <div
-            className="w-full h-2 bg-[#F6F3F2] rounded-full overflow-hidden"
+            className="w-full h-2 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden"
             role="progressbar"
             aria-label={`${template.label} 완료율`}
             aria-valuemin={0}
@@ -309,25 +309,25 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               style={{ width: `${percent}%` }}
             />
           </div>
-          <p className="text-sm text-[#B5ADA3] mt-1.5 text-right">{percent}% 달성</p>
+          <p className="text-sm text-[var(--hb-text-muted)] mt-1.5 text-right">{percent}% 달성</p>
 
           {/* 가족·지역마다 하는 항목이 달라서, 안 하는 건 안 한다고 말할 수 있어야 한다. */}
           <button
             type="button"
             onClick={toggleNotApplicable}
             disabled={saving}
-            className="mt-4 w-full rounded-xl border border-[#EDEAE4] bg-white px-4 py-3 text-left text-sm text-[#5f5a52] transition-colors hover:bg-[#FAF8F5] disabled:opacity-50"
+            className="mt-4 w-full rounded-[6px] border border-[#EDEAE4] bg-white px-4 py-3 text-left text-sm text-[#5f5a52] transition-colors hover:bg-[#FAF8F5] disabled:opacity-50"
           >
             {isNotApplicable ? (
               <>
-                <span className="font-medium text-[#1A1A1F]">다시 준비 목록에 넣기</span>
+                <span className="font-medium text-[var(--hb-text-strong)]">다시 준비 목록에 넣기</span>
                 <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
                   지금은 진행률과 마감 알림에서 빠져 있어요.
                 </span>
               </>
             ) : (
               <>
-                <span className="font-medium text-[#1A1A1F]">우리는 이건 안 해요</span>
+                <span className="font-medium text-[var(--hb-text-strong)]">우리는 이건 안 해요</span>
                 <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
                   진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
                 </span>
@@ -351,15 +351,15 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                 disabled={saving || isNotApplicable}
                 onClick={() => toggleItem(item.id)}
-                className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-3 text-left transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
+                className="flex w-full items-center gap-3 rounded-[6px] bg-white px-3 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
               >
                 <div className="flex-shrink-0">
                   {item.done ? (
-                    <div className="w-6 h-6 rounded-full bg-[#795252] flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-[var(--hb-primary)] flex items-center justify-center">
                       <Check className="w-4 h-4 text-white" />
                     </div>
                   ) : (
-                    <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover:border-[#795252] transition-colors" />
+                    <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover:border-[var(--hb-hairline)] transition-colors" />
                   )}
                 </div>
                 {/*
@@ -374,7 +374,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   item={item}
                   idPrefix={`${titleId}-${item.id}`}
                   labelClassName={`text-[17px] leading-snug ${
-                    item.done ? "text-[#B5ADA3] line-through" : "text-[#504444]"
+                    item.done ? "text-[var(--hb-text-muted)] line-through" : "text-[var(--hb-text-body)]"
                   }`}
                 />
               </button>
@@ -389,39 +389,39 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
           {error && (
             <p
               role="alert"
-              className="mb-3 rounded-lg border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
+              className="mb-3 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
             >
               {error}
             </p>
           )}
           {notice && (
-            <p role="status" className="mb-3 rounded-lg border border-[#d9e2d3] bg-[#f6faf4] px-3 py-2 text-sm leading-5 text-[#506747]">
+            <p role="status" className="mb-3 rounded-[6px] border border-[#d9e2d3] bg-[#f6faf4] px-3 py-2 text-sm leading-5 text-[#506747]">
               {notice}
             </p>
           )}
           <div className="flex items-start gap-2.5">
-            <Lightbulb className="w-5 h-5 text-[#C9A96E] flex-shrink-0 mt-0.5" />
-            <p className="text-base text-[#504444] font-light leading-relaxed">
+            <Lightbulb className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0 mt-0.5" />
+            <p className="text-base text-[var(--hb-text-body)] font-light leading-relaxed">
               {template.tip}
             </p>
           </div>
 
           <Link
             {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
-            className="mt-3 flex items-center gap-2.5 rounded-xl bg-[#F6F3F2] px-3 py-3 transition-colors hover:bg-[#795252]/5 group"
+            className="mt-3 flex items-center gap-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-3 transition-colors bg-[#f3e9df] group"
           >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-[#36534E]">
+            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)]">
               <BookOpen className="h-4 w-4 text-white" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-[#1A1A1F]">
+              <p className="truncate text-base font-semibold text-[var(--hb-text-strong)]">
                 {relatedGuide ? relatedGuide.title : "아모라에게 물어보기"}
               </p>
-              <p className="text-sm text-[#B5ADA3]">
+              <p className="text-sm text-[var(--hb-text-muted)]">
                 {relatedGuide ? "관련 예절 가이드를 읽고 준비 기준 맞추기" : "우리 상황에 맞는 준비 순서 정리하기"}
               </p>
             </div>
-            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[#B5ADA3] transition-colors group-hover:text-[#795252]" />
+            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[var(--hb-accent-hover)]" />
           </Link>
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>

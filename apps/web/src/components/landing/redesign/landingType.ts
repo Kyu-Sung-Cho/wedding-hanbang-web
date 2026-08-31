@@ -100,7 +100,7 @@ export const sectionLedeCompact = "text-[14px] leading-[1.7] sm:text-[16px]";
  * 지면이면 4, 문단 안 인라인이면 없음. 그 규칙만 지킨다.
  */
 export const secondaryLink =
-  "inline-flex min-h-11 items-center text-[14px] font-semibold text-noir-800 underline decoration-noir-800/30 underline-offset-4 transition-colors duration-200 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600";
+  "inline-flex min-h-11 items-center text-[14px] font-semibold text-noir-800 underline decoration-noir-800/30 underline-offset-4 transition-colors duration-200 hover:text-[var(--hb-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-600";
 /** 어두운 배경 위의 같은 링크. */
 export const secondaryLinkOnDark =
   "inline-flex min-h-11 items-center text-[14px] font-semibold text-gold-light underline decoration-gold-light/40 underline-offset-4 transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-light";
@@ -137,7 +137,11 @@ export const sectionRhythmCompact = "py-12 sm:py-14 lg:py-16";
  *
  * 같은 "아모라와 시작하기"가 헤더 `rounded-full`/14px/44px, 히어로
  * `rounded-xl`(12px)/14px/48px, 마무리 `rounded-[16px]`/15px/56px로 세 가지
- * 실루엣이었다. 하나의 행동은 하나의 물체로 읽혀야 한다. 모양과 전이는 고정하고
+ * 실루엣이었다. 하나의 행동은 하나의 물체로 읽혀야 한다.
+ *
+ * ⚠️ 2026-08-30: 모서리는 이제 정본 시안(docs/landing/NotebookBest.html)을 따른다 —
+ * 컨트롤 6px · 면 3px 둘뿐이다. 위 문장의 12px·16px 은 **그때 있었던 값**의 기록이지
+ * 지금 규격이 아니다. 모양과 전이는 고정하고
  * 크기만 위치에 따라 고른다. 15px는 타입 스케일 밖이라 14/16으로 정렬한다.
  *
  * `translate`를 전이 목록에 넣는 이유: Tailwind v4의 `-translate-y-*`는
@@ -148,7 +152,7 @@ export const sectionRhythmCompact = "py-12 sm:py-14 lg:py-16";
 /* 정렬(`justify-*`)과 포커스 링 색은 배치마다 달라야 하므로 여기 넣지 않는다.
  * 어두운 히어로와 밝은 마무리 섹션은 링 색·offset이 서로 달라야 보인다. */
 const primaryActionBase =
-  "group inline-flex items-center gap-3 rounded-full bg-rose-600 font-semibold text-white transition-[background-color,translate] duration-200 motion-safe:hover:-translate-y-0.5 hover:bg-rose-700 active:translate-y-0 active:bg-rose-700 focus-visible:outline-none focus-visible:ring-2";
+  "group inline-flex items-center gap-3 rounded-full bg-[var(--hb-primary)] font-semibold text-white transition-[background-color,translate] duration-200 motion-safe:hover:-translate-y-0.5 hover:bg-rose-700 active:translate-y-0 active:bg-rose-700 focus-visible:outline-none focus-visible:ring-2";
 
 /** 헤더처럼 좁은 자리. */
 export const primaryActionSm = `${primaryActionBase} min-h-11 px-4 text-[14px] sm:px-5`;

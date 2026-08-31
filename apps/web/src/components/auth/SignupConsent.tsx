@@ -53,9 +53,9 @@ function CheckBox({
       />
       <span
         aria-hidden="true"
-        className={`${box} rounded-md border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[#36534E] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
+        className={`${box} rounded-[6px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--hb-primary)] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
           checked
-            ? "border-[#36534E] bg-[#36534E] text-white"
+            ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
             : "border-black/[0.14] bg-white text-transparent"
         }`}
       >
@@ -84,7 +84,7 @@ export default function SignupConsent({
   };
 
   return (
-    <div className="rounded-2xl border border-black/[0.06] bg-white px-4 py-3.5">
+    <div className="rounded-[6px] border border-black/[0.06] bg-white px-4 py-3.5">
       <div className="flex w-full items-center gap-2.5">
         <CheckBox
           id="signup-consent-all"
@@ -97,7 +97,7 @@ export default function SignupConsent({
         <label
           id="signup-consent-all-label"
           htmlFor="signup-consent-all"
-          className="cursor-pointer text-[14px] font-medium text-[#263832]"
+          className="cursor-pointer text-[14px] font-medium text-[var(--hb-text-strong)]"
         >
           전체 동의
         </label>
@@ -119,13 +119,13 @@ export default function SignupConsent({
             <label
               id={`signup-consent-${item.key}-label`}
               htmlFor={`signup-consent-${item.key}`}
-              className="flex-1 cursor-pointer text-[13px] text-[#4E6A62]"
+              className="flex-1 cursor-pointer text-[13px] text-[var(--hb-text-body)]"
             >
               <span
                 className={
                   item.required
-                    ? "font-medium text-[#36534E]"
-                    : "text-[#928980]"
+                    ? "font-medium text-[var(--hb-text-strong)]"
+                    : "text-[var(--hb-text-muted)]"
                 }
               >
                 {item.required ? "[필수]" : "[선택]"}
@@ -137,7 +137,7 @@ export default function SignupConsent({
                 href={item.href}
                 target="_blank"
                 rel="noreferrer"
-                className="shrink-0 text-[12px] text-[#928980] underline underline-offset-2 hover:text-[#36534E]"
+                className="shrink-0 text-[12px] text-[var(--hb-text-muted)] underline underline-offset-2 hover:text-[var(--hb-text-strong)]"
               >
                 보기
               </Link>

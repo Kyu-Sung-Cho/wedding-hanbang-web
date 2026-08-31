@@ -24,7 +24,7 @@ export default function Avatar({
   if (avatarUrl && !isEmoji(avatarUrl) && (avatarUrl.startsWith("http") || avatarUrl.startsWith("/"))) {
     return (
       <div
-        className={`overflow-hidden rounded-full bg-[#f6efe5] ${className}`}
+        className={`overflow-hidden rounded-full bg-[var(--hb-surface-hover)] ${className}`}
         style={{ width: size, height: size }}
       >
         <Image
@@ -41,7 +41,7 @@ export default function Avatar({
   if (avatarUrl && isEmoji(avatarUrl)) {
     return (
       <div
-        className={`flex items-center justify-center rounded-full bg-gradient-to-br from-[#f6efe5] to-[#e5d8ca] ${className}`}
+        className={`flex items-center justify-center rounded-full bg-gradient-to-br from-[var(--hb-surface-hover)] to-[#e5d8ca] ${className}`}
         style={{ width: size, height: size, fontSize: size * 0.5 }}
       >
         {avatarUrl}
@@ -53,7 +53,7 @@ export default function Avatar({
 
   return (
     <div
-      className={`overflow-hidden rounded-full bg-[#f6efe5] ${className}`}
+      className={`overflow-hidden rounded-full bg-[var(--hb-surface-hover)] ${className}`}
       style={{ width: size, height: size }}
     >
       <svg

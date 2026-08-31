@@ -91,7 +91,7 @@ export default function MediationConsentDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
-        className="relative w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl"
+        className="relative w-full max-w-md rounded-[6px] bg-white p-5 shadow-2xl"
       >
         <button
           type="button"
@@ -103,10 +103,10 @@ export default function MediationConsentDialog({
         </button>
 
         <div className="pr-9">
-          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#F3E9E4] text-[#795252]">
+          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#F3E9E4] text-[var(--hb-accent-hover)]">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
           </div>
-          <h2 id={titleId} className="text-lg font-semibold text-[#1A1A1F]">
+          <h2 id={titleId} className="text-lg font-semibold text-[var(--hb-text-strong)]">
             아모라에게 조율 초안을 요청할까요?
           </h2>
           <p
@@ -132,7 +132,7 @@ export default function MediationConsentDialog({
             maxLength={MAX_MEDIATION_SUMMARY_CHARS}
             onChange={(event) => setSummary(event.target.value)}
             placeholder="예: 결혼식장 예산 상한선을 두고 의견이 달라요."
-            className="mt-2 min-h-28 w-full resize-y rounded-xl border border-[#D8CEC6] bg-white px-3.5 py-3 text-sm leading-relaxed text-[#1A1A1F] outline-none placeholder:text-[#A49B95] focus:border-[#795252] focus:ring-2 focus:ring-[#795252]/15"
+            className="mt-2 min-h-28 w-full resize-y rounded-[6px] border border-[#D8CEC6] bg-white px-3.5 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)] outline-none placeholder:text-[#A49B95] border-[var(--hb-accent)] focus:ring-2 focus:ring-[#795252]/15"
           />
           <div className="mt-1.5 flex items-start justify-between gap-3">
             <p className="text-xs leading-relaxed text-[#746A63]">
@@ -147,14 +147,14 @@ export default function MediationConsentDialog({
             <button
               type="button"
               onClick={onCancel}
-              className="min-h-11 flex-1 rounded-xl border border-[#D8CEC6] bg-white px-4 text-sm font-medium text-[#514A45] hover:bg-[#F8F5F3]"
+              className="min-h-11 flex-1 rounded-[6px] border border-[#D8CEC6] bg-white px-4 text-sm font-medium text-[#514A45] hover:bg-[#F8F5F3]"
             >
               취소
             </button>
             <button
               type="submit"
               disabled={!canSubmit}
-              className="min-h-11 flex-[1.4] rounded-xl bg-[#795252] px-4 text-sm font-medium text-white hover:bg-[#8D6262] disabled:cursor-not-allowed disabled:opacity-45"
+              className="min-h-11 flex-[1.4] rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-medium text-white hover:bg-[#8D6262] disabled:cursor-not-allowed disabled:opacity-45"
             >
               이 요약으로 초안 요청
             </button>

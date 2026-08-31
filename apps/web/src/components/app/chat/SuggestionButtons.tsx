@@ -86,8 +86,8 @@ export default function SuggestionButtons({
     <div className="relative">
       {/* 라벨 — 시각적 구분 강화 */}
       <div className="flex items-center gap-1.5 px-1 mb-2">
-        <Sparkles className="w-3.5 h-3.5 text-[#C9A96E]" />
-        <span className="text-xs uppercase tracking-widest text-[#928980] font-medium">
+        <Sparkles className="w-3.5 h-3.5 text-[var(--hb-accent-hover)]" />
+        <span className="text-xs uppercase tracking-widest text-[var(--hb-text-muted)] font-medium">
           추천 대화
         </span>
       </div>
@@ -126,8 +126,8 @@ export default function SuggestionButtons({
               onSelect(suggestion);
             }}
             disabled={disabled}
-            className="flex-shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-full
-              bg-white border border-black/[0.06] text-[#504444]
+            className="flex-shrink-0 px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-base font-medium rounded-[6px]
+              bg-white border border-black/[0.06] text-[var(--hb-text-body)]
               hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
               active:scale-95
               disabled:opacity-40 disabled:cursor-not-allowed

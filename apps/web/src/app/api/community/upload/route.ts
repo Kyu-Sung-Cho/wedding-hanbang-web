@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
   if (!isCommunityMediaPublishingEnabled()) {
     return json(
       {
-        error: "통제 베타에서는 커뮤니티 이미지 업로드를 아직 사용할 수 없어요.",
+        error: "지금은 커뮤니티 이미지 업로드를 사용할 수 없어요.",
         code: COMMUNITY_MEDIA_DISABLED_CODE,
       },
       503,

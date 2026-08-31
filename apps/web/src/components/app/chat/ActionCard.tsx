@@ -116,12 +116,12 @@ function getTitle(result: ToolExecutionResult) {
 
 function getAccentColor(toolName: string) {
   if (toolName.includes("amora_action")) {
-    return "border-[#795252]/20 bg-[#795252]/5";
+    return "border-[var(--hb-hairline)] bg-[rgba(54,83,78,0.10)]";
   }
   if (toolName.startsWith("update_") || toolName === "toggle_checklist_item") {
     return "border-[#C4967E]/30 bg-[#C4967E]/5";
   }
-  return "border-[#C9A96E]/30 bg-[#C9A96E]/5";
+  return "border-[var(--hb-accent)] bg-[rgba(54,83,78,0.12)]";
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -214,24 +214,24 @@ function BudgetMiniCard() {
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06]">
       <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm text-[#928980]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
+        <span className="text-sm text-[var(--hb-text-muted)]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
         <span className={`text-sm font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
       </div>
-      <p className="mt-2 text-[11px] leading-4 text-[#928980]">
+      <p className="mt-2 text-[11px] leading-4 text-[var(--hb-text-muted)]">
         기록 지출은 결제 완료 여부와 별도예요.
       </p>
       <div className="space-y-1.5">
         {items.map((cat) => (
           <div key={cat.key} className="flex items-center gap-2 text-sm">
-            <span className="text-[#928980] w-[64px] flex-shrink-0 truncate">{cat.label}</span>
+            <span className="text-[var(--hb-text-muted)] w-[64px] flex-shrink-0 truncate">{cat.label}</span>
             <div className="flex-1 h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${cat.pct !== null && cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
                 style={{ width: `${cat.pct === null ? 0 : Math.min(cat.pct, 100)}%` }}
               />
             </div>
-            <span className="w-[64px] flex-shrink-0 text-right text-[#1A1A1F]">{formatWon(cat.spent)}</span>
-            <span className={`w-[44px] text-right flex-shrink-0 font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[#928980]"}`}>
+            <span className="w-[64px] flex-shrink-0 text-right text-[var(--hb-text-strong)]">{formatWon(cat.spent)}</span>
+            <span className={`w-[44px] text-right flex-shrink-0 font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[var(--hb-text-muted)]"}`}>
               {cat.pct !== null ? `${cat.pct}%` : cat.budget === 0 ? "0원" : "미입력"}
             </span>
           </div>
@@ -260,17 +260,17 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
         aria-label="총 예산 변경 결과"
         className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
       >
-        <span className="text-sm text-[#928980]">총 예산</span>
+        <span className="text-sm text-[var(--hb-text-muted)]">총 예산</span>
         <div className="flex items-center gap-2 text-right tabular-nums">
           {previousBudget !== null && previousBudget !== nextBudget && (
             <>
-              <span className="text-xs text-[#B5ADA3] line-through">
+              <span className="text-xs text-[var(--hb-text-muted)] line-through">
                 {formatWon(previousBudget)}
               </span>
-              <span aria-hidden="true" className="text-xs text-[#B5ADA3]">→</span>
+              <span aria-hidden="true" className="text-xs text-[var(--hb-text-muted)]">→</span>
             </>
           )}
-          <strong className="text-sm font-semibold text-[#36534E]">
+          <strong className="text-sm font-semibold text-[var(--hb-text-strong)]">
             {formatWon(nextBudget)}
           </strong>
         </div>
@@ -314,20 +314,20 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
       className="mt-3 border-t border-black/[0.06] pt-3"
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="text-sm font-medium text-[#504444]">{categoryLabel}</span>
+        <span className="text-sm font-medium text-[var(--hb-text-body)]">{categoryLabel}</span>
         <div className="space-y-1 text-right tabular-nums">
           {changedBudget !== null && (
             <div className="flex items-center justify-end gap-2">
-              <span className="text-xs text-[#928980]">변경된 예산</span>
-              <strong className="text-sm font-semibold text-[#36534E]">
+              <span className="text-xs text-[var(--hb-text-muted)]">변경된 예산</span>
+              <strong className="text-sm font-semibold text-[var(--hb-text-strong)]">
                 {formatWon(changedBudget)}
               </strong>
             </div>
           )}
           {changedSpent !== null && (
             <div className="flex items-center justify-end gap-2">
-              <span className="text-xs text-[#928980]">변경된 기록 지출</span>
-              <strong className="text-sm font-semibold text-[#36534E]">
+              <span className="text-xs text-[var(--hb-text-muted)]">변경된 기록 지출</span>
+              <strong className="text-sm font-semibold text-[var(--hb-text-strong)]">
                 {formatWon(changedSpent)}
               </strong>
             </div>
@@ -382,17 +382,17 @@ function BudgetPlanMiniCard({ result }: { result: ToolExecutionResult }) {
     >
       {totalBudget !== null && (
         <div className="mb-2 flex items-center justify-between gap-3">
-          <span className="text-sm text-[#928980]">적용된 총 예산</span>
+          <span className="text-sm text-[var(--hb-text-muted)]">적용된 총 예산</span>
           <div className="flex items-center gap-2 text-right tabular-nums">
             {previousBudget !== null && previousBudget !== totalBudget && (
               <>
-                <span className="text-xs text-[#B5ADA3] line-through">
+                <span className="text-xs text-[var(--hb-text-muted)] line-through">
                   {formatWon(previousBudget)}
                 </span>
-                <span aria-hidden="true" className="text-xs text-[#B5ADA3]">→</span>
+                <span aria-hidden="true" className="text-xs text-[var(--hb-text-muted)]">→</span>
               </>
             )}
-            <strong className="text-sm font-semibold text-[#36534E]">
+            <strong className="text-sm font-semibold text-[var(--hb-text-strong)]">
               {formatWon(totalBudget)}
             </strong>
           </div>
@@ -405,10 +405,10 @@ function BudgetPlanMiniCard({ result }: { result: ToolExecutionResult }) {
               key={allocation.category}
               className="flex items-center justify-between gap-3 text-sm"
             >
-              <span className="truncate text-[#504444]">
+              <span className="truncate text-[var(--hb-text-body)]">
                 {CATEGORY_LABELS[allocation.category] ?? allocation.category}
               </span>
-              <span className="shrink-0 font-medium tabular-nums text-[#36534E]">
+              <span className="shrink-0 font-medium tabular-nums text-[var(--hb-text-strong)]">
                 {formatWon(allocation.budget)}
               </span>
             </div>
@@ -443,9 +443,9 @@ function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
         aria-label={`${categoryLabel} 상태 변경 결과`}
         className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
       >
-        <span className="text-sm font-medium text-[#504444]">{categoryLabel}</span>
+        <span className="text-sm font-medium text-[var(--hb-text-body)]">{categoryLabel}</span>
         <div className="flex items-center gap-2 text-right">
-          <span className="text-xs text-[#928980]">변경된 상태</span>
+          <span className="text-xs text-[var(--hb-text-muted)]">변경된 상태</span>
           <strong className="rounded-full bg-[#2E7D5A]/10 px-2 py-0.5 text-sm font-semibold text-[#2E7D5A]">
             {statusLabel}
           </strong>
@@ -469,13 +469,13 @@ function ScheduleChangeMiniCard({ result }: { result: ToolExecutionResult }) {
         className="mt-3 flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3"
       >
         <div className="min-w-0">
-          <p className="text-xs text-[#928980]">{categoryLabel}</p>
-          <p className="truncate text-sm font-medium text-[#504444]">{itemLabel}</p>
+          <p className="text-xs text-[var(--hb-text-muted)]">{categoryLabel}</p>
+          <p className="truncate text-sm font-medium text-[var(--hb-text-body)]">{itemLabel}</p>
         </div>
         <strong className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-semibold ${
           done
             ? "bg-[#2E7D5A]/10 text-[#2E7D5A]"
-            : "bg-black/[0.04] text-[#928980]"
+            : "bg-black/[0.04] text-[var(--hb-text-muted)]"
         }`}>
           {done ? "완료" : "미완료"}
         </strong>
@@ -496,12 +496,12 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
   return (
     <div className="mt-2.5 pt-2.5 border-t border-black/[0.06] space-y-1.5">
       {actions.map((action) => (
-        <div key={action.id} className="rounded-lg bg-white/70 border border-black/[0.04] p-2.5">
+        <div key={action.id} className="rounded-[6px] bg-white/70 border border-black/[0.04] p-2.5">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="text-xs font-semibold text-[#1A1A1F] leading-snug">{action.title}</p>
+              <p className="text-xs font-semibold text-[var(--hb-text-strong)] leading-snug">{action.title}</p>
               {action.description && (
-                <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-[#504444]">{action.description}</p>
+                <p className="mt-0.5 text-[0.6875rem] leading-relaxed text-[var(--hb-text-body)]">{action.description}</p>
               )}
             </div>
             <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[0.625rem] font-semibold ${
@@ -509,12 +509,12 @@ function ActionItemsMiniCard({ result }: { result: ToolExecutionResult }) {
                 ? "bg-red-50 text-red-600"
                 : action.priority === "low"
                   ? "bg-[#eef2df] text-[#5a6147]"
-                  : "bg-[#f3e7e1] text-[#795252]"
+                  : "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]"
             }`}>
               {getActionPriorityLabel(action.priority)}
             </span>
           </div>
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[0.625rem] text-[#928980]">
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[0.625rem] text-[var(--hb-text-muted)]">
             <span>{getActionStatusLabel(action.status)}</span>
             {action.dueDate && <span>· {action.dueDate}까지</span>}
           </div>
@@ -584,23 +584,23 @@ function ScheduleMiniCard() {
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06] space-y-2">
       {saveNotice && (
-        <p role="status" className="rounded-lg bg-[#F2F8F5] px-3 py-2 text-xs text-[#315B49]">
+        <p role="status" className="rounded-[6px] bg-[#F2F8F5] px-3 py-2 text-xs text-[#315B49]">
           {saveNotice}
         </p>
       )}
       {saveError && (
-        <p role="alert" className="rounded-lg bg-[#FFF7F7] px-3 py-2 text-xs text-[#8A3535]">
+        <p role="alert" className="rounded-[6px] bg-[#FFF7F7] px-3 py-2 text-xs text-[#8A3535]">
           {saveError}
         </p>
       )}
       {items.map((cat) => (
         <div key={cat.key}>
           <div className="flex items-center gap-2 text-sm mb-1">
-            <span className="text-[#928980] flex-shrink-0">{cat.label}</span>
+            <span className="text-[var(--hb-text-muted)] flex-shrink-0">{cat.label}</span>
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
               cat.status === "completed" ? "bg-[#2E7D5A]/10 text-[#2E7D5A]" :
               cat.status === "in_progress" ? "bg-[#C4967E]/10 text-[#C4967E]" :
-              "bg-black/[0.04] text-[#928980]"
+              "bg-black/[0.04] text-[var(--hb-text-muted)]"
             }`}>
               {cat.done}/{cat.total}
             </span>
@@ -612,7 +612,7 @@ function ScheduleMiniCard() {
               key={item.id}
               disabled={Boolean(savingItemId)}
               onClick={() => void handleToggle(cat.key, item.id)}
-              className="flex w-full items-center gap-2 rounded py-1 pl-2 text-left hover:bg-black/[0.02] disabled:cursor-wait disabled:opacity-60"
+              className="flex w-full items-center gap-2 rounded-[6px] py-1 pl-2 text-left hover:bg-black/[0.02] disabled:cursor-wait disabled:opacity-60"
             >
               <div className="flex-shrink-0">
                 {item.done ? (
@@ -623,7 +623,7 @@ function ScheduleMiniCard() {
                   <div className="w-4 h-4 rounded-full border border-[#B5ADA3]" />
                 )}
               </div>
-              <span className={`text-sm ${item.done ? "text-[#B5ADA3] line-through" : "text-[#1A1A1F]"}`}>
+              <span className={`text-sm ${item.done ? "text-[var(--hb-text-muted)] line-through" : "text-[var(--hb-text-strong)]"}`}>
                 {item.label}
               </span>
             </button>
@@ -671,13 +671,13 @@ export default function ActionCard({ result }: ActionCardProps) {
   return (
     <div className="flex justify-start ml-11 my-1.5">
       <div
-        className={`rounded-xl border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
+        className={`rounded-[6px] border ${accentColor} px-4 py-3 max-w-[24rem] w-full shadow-sm`}
       >
         <div className="flex items-center gap-1.5 mb-1.5">
           <span className={isLegacyScheduleDelete ? "text-[#B89785]" : "text-[#C4967E]"}>
             {icon}
           </span>
-          <span className="text-sm font-semibold text-[#1A1A1F]">{title}</span>
+          <span className="text-sm font-semibold text-[var(--hb-text-strong)]">{title}</span>
           {isLegacyScheduleDelete ? (
             <Info className="w-4 h-4 text-[#B89785] ml-auto" />
           ) : result.success ? (
@@ -686,7 +686,7 @@ export default function ActionCard({ result }: ActionCardProps) {
             <XCircle className="w-4 h-4 text-red-400 ml-auto" />
           )}
         </div>
-        <p className="whitespace-pre-line break-words text-xs leading-relaxed text-[#928980]">
+        <p className="whitespace-pre-line break-words text-xs leading-relaxed text-[var(--hb-text-muted)]">
           {msg}
         </p>
 

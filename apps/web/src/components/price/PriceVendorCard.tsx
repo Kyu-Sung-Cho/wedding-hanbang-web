@@ -228,7 +228,7 @@ export function PriceVendorCard({
   return (
     <article
       ref={cardRef}
-      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[22px] border border-[#243832]/12 bg-white [overflow-wrap:anywhere] shadow-[0_12px_34px_rgba(36,56,50,0.055)]"
+      className="flex min-w-0 max-w-full flex-col overflow-hidden rounded-[6px] border border-[var(--hb-primary)]/12 bg-white [overflow-wrap:anywhere] shadow-[var(--shadow-raised)]"
     >
       <div
         data-card-header="true"
@@ -246,7 +246,7 @@ export function PriceVendorCard({
                 surface: "price_list",
                 context: { category: vendor.category },
               })}
-              className="line-clamp-2 min-h-12 max-h-12 min-w-0 rounded-sm text-xl font-bold leading-6 tracking-normal text-[#243832] [overflow-wrap:anywhere] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+              className="line-clamp-2 min-h-12 max-h-12 min-w-0 rounded-[6px] text-xl font-bold leading-6 tracking-normal text-[var(--hb-text-strong)] [overflow-wrap:anywhere] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
             >
               {vendor.name}
             </Link>
@@ -261,14 +261,14 @@ export function PriceVendorCard({
             >
               <span
                 aria-hidden="true"
-                className="inline-flex min-w-0 max-w-full truncate rounded-full bg-[#36534E]/8 px-2 py-1 text-[11px] font-bold text-[#36534E]/85"
+                className="inline-flex min-w-0 max-w-full truncate rounded-full bg-[var(--hb-primary)]/8 px-2 py-1 text-[11px] font-bold text-[var(--hb-text-strong)]/85"
               >
                 {primaryRegionLabel}
               </span>
               {hiddenRegionCount > 0 ? (
                 <span
                   aria-hidden="true"
-                  className="inline-flex shrink-0 rounded-full bg-[#F5ECE4] px-2 py-1 text-[11px] font-bold text-[#8F6662]"
+                  className="inline-flex shrink-0 rounded-full bg-[#F5ECE4] px-2 py-1 text-[11px] font-bold text-[var(--color-rose-700)]"
                 >
                   외 {hiddenRegionCount}곳
                 </span>
@@ -279,7 +279,7 @@ export function PriceVendorCard({
               title={vendor.aliases.length > 0
                 ? `다른 표기 · ${vendor.aliases.join(", ")}`
                 : undefined}
-              className="mt-1 min-h-4 truncate text-xs text-[#243832]/70"
+              className="mt-1 min-h-4 truncate text-xs text-[var(--hb-text-strong)]/70"
             >
               {vendor.aliases.length > 0
                 ? `다른 표기 · ${vendor.aliases.join(", ")}`
@@ -289,7 +289,7 @@ export function PriceVendorCard({
                 못하므로 그 사실을 적는다 — 실측상 이런 카드의 가격 범위는 서로 다른
                 지점 가격을 한 줄로 합친 값이다. 판정이 아니라 관찰이다. */}
             {hasUnverifiedBranch(vendor.category, vendor.name) ? (
-              <p className="mt-1 text-xs text-[#243832]/55">
+              <p className="mt-1 text-xs text-[var(--hb-text-muted)]">
                 지점이 여러 곳이에요 — 공시에 지점이 안 적혀 있어 어느 지점 가격인지 확인되지 않았어요.
               </p>
             ) : null}
@@ -302,7 +302,7 @@ export function PriceVendorCard({
             disabled={wishlistBusy}
             aria-busy={wishlistBusy}
             aria-label={isWishlisted ? `${vendor.name} 찜 해제` : `${vendor.name} 찜하기`}
-            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[#243832]/12 bg-[#FBF8F2] text-[#8F6662] hover:bg-[#F5ECE4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785] disabled:cursor-wait disabled:opacity-55"
+            className="flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--hb-primary)]/12 bg-[var(--hb-surface-page)] text-[#8F6662] hover:bg-[#F5ECE4] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785] disabled:cursor-wait disabled:opacity-55"
           >
             <Heart aria-hidden="true" className="size-5" fill={isWishlisted ? "currentColor" : "none"} />
           </button>
@@ -312,16 +312,16 @@ export function PriceVendorCard({
       <div
         role="group"
         aria-label={`${vendor.name} 공시 가격 요약`}
-        className="h-28 overflow-hidden border-y border-[#243832]/10 bg-[#FBF8F2]/70 px-4 py-4 sm:px-6"
+        className="h-28 overflow-hidden border-y border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)]/70 px-4 py-4 sm:px-6"
       >
-        <p className="text-xs font-semibold text-[#243832]/75">공시 가격</p>
+        <p className="text-xs font-semibold text-[var(--hb-text-strong)]/75">공시 가격</p>
         <div className="mt-1 flex flex-wrap items-end justify-between gap-x-3 gap-y-1">
-          <p className="whitespace-nowrap text-xl font-bold tabular-nums tracking-normal text-[#243832]">
+          <p className="whitespace-nowrap text-xl font-bold tabular-nums tracking-normal text-[var(--hb-text-strong)]">
             {summaryPrice}
           </p>
           <p
             title={disclosureSourceSummary}
-            className="max-w-full truncate whitespace-nowrap text-xs font-semibold leading-5 text-[#243832]/75"
+            className="max-w-full truncate whitespace-nowrap text-xs font-semibold leading-5 text-[var(--hb-text-strong)]/75"
           >
             {disclosureSourceSummary}
           </p>
@@ -329,49 +329,49 @@ export function PriceVendorCard({
       </div>
 
       {displayedAgencies.length > 0 || directOffers.length > 0 ? (
-        <details data-price-breakdown="true" className="group border-b border-[#243832]/10">
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold text-[#243832] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B89785] sm:px-6">
+        <details data-price-breakdown="true" className="group border-b border-[var(--hb-primary)]/10">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B89785] sm:px-6">
             <span>가격 항목 {displayedOffers.length}개 보기</span>
             <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
           </summary>
-          <div className="bg-[#FBF8F2]/70">
+          <div className="bg-[var(--hb-surface-page)]/70">
             {displayedAgencies.length > 0 ? (
               <div role="region" aria-label={`${vendor.name} 대행사별 공시가`}>
                 {/* 같은 샵인데 대행사마다 가격이 다르다는 사실은 요약 범위에서 먼저
                     보여주고, 긴 구성 원문은 사용자가 펼쳤을 때만 세로 목록으로 연다. */}
                 {showAgencySpread ? (
-                  <p className="border-y border-[#243832]/10 px-4 py-3 text-sm font-bold text-[#243832] sm:px-6">
+                  <p className="border-y border-[var(--hb-primary)]/10 px-4 py-3 text-sm font-bold text-[var(--hb-text-strong)] sm:px-6">
                     {agencyPriceSummary}
-                    <span className="ml-2 text-xs font-semibold text-[#243832]/60">
+                    <span className="ml-2 text-xs font-semibold text-[var(--hb-text-muted)]">
                       대행사 {displayedAgencies.length}곳 · 경로에 따라 다름
                     </span>
                   </p>
                 ) : null}
-                <ul className="divide-y divide-[#243832]/10">
+                <ul className="divide-y divide-[var(--hb-primary)]/10">
                   {visibleAgencies.map((agency) => {
                     const agencyOffers = offersByAgency.get(agency.id) ?? [];
                     return (
                       <li key={agency.id} className="px-4 py-3 sm:px-6">
-                        <p className="text-xs font-semibold text-[#243832]/75">{agency.name}</p>
+                        <p className="text-xs font-semibold text-[var(--hb-text-strong)]/75">{agency.name}</p>
                         {agencyOffers.length > 0 ? (
                           <div className="mt-1 space-y-1.5">
                             {agencyOffers.map((offer) => (
                               <div key={offer.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                                 {offer.itemName && offer.itemName !== vendor.name ? (
-                                  <p className="min-w-0 text-xs font-semibold leading-5 text-[#243832]/75">
+                                  <p className="min-w-0 text-xs font-semibold leading-5 text-[var(--hb-text-strong)]/75">
                                     {offer.itemName}
                                   </p>
                                 ) : <span />}
-                                <p className="text-lg font-bold tabular-nums text-[#243832]">
+                                <p className="text-lg font-bold tabular-nums text-[var(--hb-text-strong)]">
                                   {offerPriceLabel(offer)}
                                 </p>
                                 {offer.priceNote ? (
-                                  <p className="w-full text-xs leading-5 text-[#243832]/60">{offer.priceNote}</p>
+                                  <p className="w-full text-xs leading-5 text-[var(--hb-text-muted)]">{offer.priceNote}</p>
                                 ) : null}
                               </div>
                             ))}
                           </div>
-                        ) : <p className="mt-1 text-lg font-bold text-[#243832]">—</p>}
+                        ) : <p className="mt-1 text-lg font-bold text-[var(--hb-text-strong)]">—</p>}
                       </li>
                     );
                   })}
@@ -381,7 +381,7 @@ export function PriceVendorCard({
                     type="button"
                     onClick={() => setShowAllAgencies((open) => !open)}
                     aria-expanded={showAllAgencies}
-                    className="flex min-h-11 w-full items-center justify-center gap-1.5 border-t border-[#243832]/10 px-4 text-sm font-semibold text-[#36534E] hover:bg-[#F5ECE4] sm:px-6"
+                    className="flex min-h-11 w-full items-center justify-center gap-1.5 border-t border-[var(--hb-primary)]/10 px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4] sm:px-6"
                   >
                     {showAllAgencies ? "대행사 접기" : `대행사 ${hiddenAgencyCount}곳 더 보기`}
                     <ChevronDown
@@ -394,29 +394,29 @@ export function PriceVendorCard({
             ) : null}
 
             {directOffers.length > 0 ? (
-              <div className={`grid sm:grid-cols-2 ${displayedAgencies.length > 0 ? "border-t border-[#243832]/10" : ""}`}>
+              <div className={`grid sm:grid-cols-2 ${displayedAgencies.length > 0 ? "border-t border-[var(--hb-primary)]/10" : ""}`}>
                 {directOffers.map((offer) => (
-                  <div key={offer.id} className="min-w-0 border-b border-[#243832]/10 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-6">
+                  <div key={offer.id} className="min-w-0 border-b border-[var(--hb-primary)]/10 px-4 py-4 last:border-b-0 sm:border-b-0 sm:border-r sm:last:border-r-0 sm:px-6">
                     {/* 이 행은 대행사 오퍼가 아니다(agencyId 없음). 실측상 전부
                         예식장 공시에서 온 패키지 구성이고, 기준이 달라 위 대행사
                         가격과 나란히 두면 없는 가격이 만들어진다. 앱이 아는 사실은
                         "대행사를 거치지 않았다"까지이므로 딱 거기까지만 적는다. */}
-                    <p className="text-xs font-semibold text-[#243832]/75">대행사를 거치지 않은 공시</p>
+                    <p className="text-xs font-semibold text-[var(--hb-text-strong)]/75">대행사를 거치지 않은 공시</p>
                     {displayedAgencies.length > 0 ? (
-                      <p className="mt-1 text-xs leading-5 text-[#243832]/55">
+                      <p className="mt-1 text-xs leading-5 text-[var(--hb-text-muted)]">
                         위 대행사 가격과 기준이 달라요. 그대로 비교하지 마세요.
                       </p>
                     ) : null}
                     {offer.itemName && offer.itemName !== vendor.name ? (
-                      <p className="mt-1 text-xs font-semibold leading-5 text-[#243832]/75">
+                      <p className="mt-1 text-xs font-semibold leading-5 text-[var(--hb-text-strong)]/75">
                         {offer.itemName}
                       </p>
                     ) : null}
-                    <p className="mt-1 text-lg font-bold tabular-nums text-[#243832]">
+                    <p className="mt-1 text-lg font-bold tabular-nums text-[var(--hb-text-strong)]">
                       {offerPriceLabel(offer)}
                     </p>
                     {offer.priceNote ? (
-                      <p className="mt-1.5 text-xs leading-5 text-[#243832]/60">{offer.priceNote}</p>
+                      <p className="mt-1.5 text-xs leading-5 text-[var(--hb-text-muted)]">{offer.priceNote}</p>
                     ) : null}
                   </div>
                 ))}
@@ -429,7 +429,7 @@ export function PriceVendorCard({
       {optionCount > 0 ? (
         <details
           data-add-on-breakdown="true"
-          className="group border-b border-[#243832]/10"
+          className="group border-b border-[var(--hb-primary)]/10"
           onToggle={(event) => {
             if (!event.currentTarget.open) return;
             loadLazyOptions();
@@ -442,20 +442,20 @@ export function PriceVendorCard({
             }
           }}
         >
-          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold text-[#243832] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B89785] sm:px-6">
+          <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 text-sm font-semibold text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B89785] sm:px-6">
             <span>추가금 {optionCount}개</span>
             <ChevronDown aria-hidden="true" className="size-4 transition-transform group-open:rotate-180" />
           </summary>
           <div className="space-y-4 bg-[#F5ECE4]/45 px-4 py-4 sm:px-6">
             {needsLazyLoad && lazyStatus !== "ready" ? (
-              <p className="flex items-center gap-2 text-sm text-[#243832]/70">
+              <p className="flex items-center gap-2 text-sm text-[var(--hb-text-strong)]/70">
                 {lazyStatus === "error" ? (
                   <>
                     추가금을 불러오지 못했어요.
                     <button
                       type="button"
                       onClick={loadLazyOptions}
-                      className="font-semibold text-[#36534E] underline underline-offset-2"
+                      className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-2"
                     >
                       다시 시도
                     </button>
@@ -471,18 +471,18 @@ export function PriceVendorCard({
             {displayedOffers.flatMap((offer) => optionsForOffer(offer).map((option) => (
               <div key={`${offer.id}:${option.id}`} className="text-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-[#243832]">{option.name}</span>
-                  <span className="font-semibold tabular-nums text-[#243832]">
+                  <span className="font-semibold text-[var(--hb-text-strong)]">{option.name}</span>
+                  <span className="font-semibold tabular-nums text-[var(--hb-text-strong)]">
                     {krwRangeLabel(option.minimumKrw, option.maximumKrw)}
                   </span>
                 </div>
                 {option.condition || option.unit ? (
-                  <p className="mt-1 text-xs leading-5 text-[#243832]/75">
+                  <p className="mt-1 text-xs leading-5 text-[var(--hb-text-strong)]/75">
                     {[option.unit, option.condition].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
                 {option.rawText ? (
-                  <p className="mt-1 text-xs leading-5 text-[#243832]/75">
+                  <p className="mt-1 text-xs leading-5 text-[var(--hb-text-strong)]/75">
                     공시 원문 · {option.rawText}
                   </p>
                 ) : null}
@@ -496,15 +496,15 @@ export function PriceVendorCard({
           </div>
         </details>
       ) : (
-        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-[#243832]/10 px-4 py-2 sm:px-6">
-          <span className="text-sm font-semibold text-[#243832]/70">추가금 공시 항목 없음</span>
-          <span className="text-[11px] font-medium text-[#8F6662]">추가금이 없다는 뜻은 아니에요</span>
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-[var(--hb-primary)]/10 px-4 py-2 sm:px-6">
+          <span className="text-sm font-semibold text-[var(--hb-text-strong)]/70">추가금 공시 항목 없음</span>
+          <span className="text-[11px] font-medium text-[var(--color-rose-700)]">추가금이 없다는 뜻은 아니에요</span>
         </div>
       )}
 
       {vendor.policies ? (
         vendor.policies.length > 0 ? (
-          <details className="group border-b border-[#243832]/10">
+          <details className="group border-b border-[var(--hb-primary)]/10">
           <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#B89785] sm:px-6">
             <span className="flex flex-wrap gap-1.5">
               {[...new Set(vendor.policies.map(({ type }) => type))].map((type) => (
@@ -516,18 +516,18 @@ export function PriceVendorCard({
                 </span>
               ))}
             </span>
-            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-[#243832] transition-transform group-open:rotate-180" />
+            <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-[var(--hb-text-strong)] transition-transform group-open:rotate-180" />
           </summary>
-          <div className="space-y-3 bg-[#FBF8F2]/70 px-4 py-4 sm:px-6">
+          <div className="space-y-3 bg-[var(--hb-surface-page)]/70 px-4 py-4 sm:px-6">
             {vendor.policies.map((policy) => {
               const content = policy.summary ?? policy.content;
               const previewContent = content.length > 300 ? `${content.slice(0, 300)}…` : content;
               return (
                 <div key={policy.id} className="text-sm">
-                  <p className="font-semibold text-[#243832]">
+                  <p className="font-semibold text-[var(--hb-text-strong)]">
                     {policy.title ?? pricePolicyLabel(policy.type)}
                   </p>
-                  <p className="mt-1 whitespace-pre-line leading-6 text-[#243832]/70">
+                  <p className="mt-1 whitespace-pre-line leading-6 text-[var(--hb-text-strong)]/70">
                     {previewContent}
                   </p>
                 </div>
@@ -536,9 +536,9 @@ export function PriceVendorCard({
           </div>
           </details>
         ) : (
-          <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-[#243832]/10 px-4 py-2 sm:px-6">
-            <span className="text-sm font-semibold text-[#243832]/70">계약 조건 공시 항목 없음</span>
-            <span className="text-[11px] font-medium text-[#8F6662]">조건이 없다는 뜻은 아니에요</span>
+          <div className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-0.5 border-b border-[var(--hb-primary)]/10 px-4 py-2 sm:px-6">
+            <span className="text-sm font-semibold text-[var(--hb-text-strong)]/70">계약 조건 공시 항목 없음</span>
+            <span className="text-[11px] font-medium text-[var(--color-rose-700)]">조건이 없다는 뜻은 아니에요</span>
           </div>
         )
       ) : null}
@@ -553,7 +553,7 @@ export function PriceVendorCard({
             surface: "price_list",
             context: { category: vendor.category },
           })}
-          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border border-[#243832]/18 px-4 text-sm font-semibold text-[#243832] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+          className="inline-flex min-h-11 flex-1 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/18 px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]/55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
         >
           상세 보기
         </Link>
@@ -561,7 +561,7 @@ export function PriceVendorCard({
           <button
             type="button"
             onClick={() => onOpenCombo(vendor)}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-full bg-[#36534E] px-4 text-sm font-semibold text-white hover:bg-[#2B423E] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
           >
             + 조합에 담기
           </button>

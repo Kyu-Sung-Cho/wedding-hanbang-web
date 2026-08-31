@@ -13,7 +13,7 @@ import CollapsibleSection from "./CollapsibleSection";
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
   overdue: { badge: "bg-[#9A6B62] text-white", text: "text-[#9A6B62]" },
   urgent: { badge: "bg-[#C4967E] text-white", text: "text-[#C4967E]" },
-  soon: { badge: "bg-[#C9A96E] text-white", text: "text-[#C9A96E]" },
+  soon: { badge: "bg-[var(--hb-accent)] text-white", text: "text-[var(--hb-accent-hover)]" },
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -98,10 +98,10 @@ export default function UpcomingTab() {
                   <Clock className={`w-5 h-5 flex-shrink-0 ${colors.text}`} />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-base text-noir-800 font-medium truncate">
+                      <span className="text-base text-[var(--hb-text-strong)] font-medium truncate">
                         {item.label}
                       </span>
-                      <span className="text-sm text-taupe-400">
+                      <span className="text-sm text-[var(--hb-text-muted)]">
                         {item.doneCount}/{item.totalCount}
                       </span>
                     </div>
@@ -116,7 +116,7 @@ export default function UpcomingTab() {
             })}
           </div>
         ) : (
-          <p className="text-sm text-taupe-400 py-2 text-center">
+          <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">
             {weddingDate
               ? "임박한 항목이 없습니다"
               // 어디서 설정하는지 안 알려주면 시키기만 하고 길은 안 낸 것이다.
@@ -140,7 +140,7 @@ export default function UpcomingTab() {
               >
                 <CheckCircle2 className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-base text-noir-800 font-medium truncate block">
+                  <span className="text-base text-[var(--hb-text-strong)] font-medium truncate block">
                     {item.label}
                   </span>
                 </div>
@@ -151,7 +151,7 @@ export default function UpcomingTab() {
             ))}
           </div>
         ) : (
-          <p className="text-sm text-taupe-400 py-2 text-center">
+          <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">
             아직 완료된 임박 항목이 없습니다
           </p>
         )}
@@ -170,31 +170,31 @@ export default function UpcomingTab() {
                 key={evt.id}
                 className="flex items-center gap-3 py-2"
               >
-                <CalendarDays className="w-5 h-5 text-[#C9A96E] flex-shrink-0" />
+                <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <span className="text-base text-noir-800 font-medium truncate block">
+                  <span className="text-base text-[var(--hb-text-strong)] font-medium truncate block">
                     {evt.title}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
-                    <Clock className="w-3.5 h-3.5 text-taupe-400" />
-                    <span className="text-sm text-taupe-400">
+                    <Clock className="w-3.5 h-3.5 text-[var(--hb-text-muted)]" />
+                    <span className="text-sm text-[var(--hb-text-muted)]">
                       {formatEventDate(evt.date)}
                     </span>
                     {evt.categoryKey && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-[#C9A96E]/10 text-[#C9A96E]">
+                      <span className="text-xs px-1.5 py-0.5 rounded-[6px] bg-[rgba(54,83,78,0.12)] text-[var(--hb-accent-hover)]">
                         {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                       </span>
                     )}
                   </div>
                 </div>
-                <span className="text-sm text-taupe-400 flex-shrink-0">
+                <span className="text-sm text-[var(--hb-text-muted)] flex-shrink-0">
                   {now ? getDaysUntil(evt.date, now) : ""}
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-taupe-400 py-2 text-center">
+          <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">
             예정된 일정이 없습니다
           </p>
         )}

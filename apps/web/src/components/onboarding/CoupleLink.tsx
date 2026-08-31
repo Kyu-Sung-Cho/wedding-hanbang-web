@@ -45,10 +45,10 @@ export default function CoupleLink({
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
+        <h2 className="text-[22px] font-semibold text-[var(--hb-text-strong)] mb-2">
           커플 연동
         </h2>
-        <p className="text-[14px] text-taupe-400">
+        <p className="text-[14px] text-[var(--hb-text-muted)]">
           파트너와 함께 결혼 준비를 관리하세요
         </p>
       </div>
@@ -57,21 +57,21 @@ export default function CoupleLink({
         {/* 새로 시작하기 */}
         <button
           onClick={() => onSelectAction("create")}
-          className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
+          className={`w-full p-5 rounded-[6px] border-2 text-left transition-all ${
             coupleAction === "create"
               ? "border-rose-500 bg-rose-500/5"
               : "border-black/[0.06] bg-white hover:border-black/[0.12]"
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-noir-800 text-white flex items-center justify-center text-[18px]">
+            <div className="w-10 h-10 rounded-full bg-[var(--hb-primary)] text-white flex items-center justify-center text-[18px]">
               +
             </div>
             <div>
-              <div className="text-[15px] font-semibold text-noir-800">
+              <div className="text-[15px] font-semibold text-[var(--hb-text-strong)]">
                 새로 시작하기
               </div>
-              <div className="text-[12px] text-taupe-400">
+              <div className="text-[12px] text-[var(--hb-text-muted)]">
                 초대 코드를 받아 파트너에게 공유하세요
               </div>
             </div>
@@ -81,24 +81,24 @@ export default function CoupleLink({
         {/* 파트너 코드 입력 */}
         <button
           onClick={() => onSelectAction("join")}
-          className={`w-full p-5 rounded-2xl border-2 text-left transition-all ${
+          className={`w-full p-5 rounded-[6px] border-2 text-left transition-all ${
             coupleAction === "join"
               ? "border-rose-500 bg-rose-500/5"
               : "border-black/[0.06] bg-white hover:border-black/[0.12]"
           }`}
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-rose-500 text-white flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-[var(--hb-primary)] text-white flex items-center justify-center">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                 <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
               </svg>
             </div>
             <div>
-              <div className="text-[15px] font-semibold text-noir-800">
+              <div className="text-[15px] font-semibold text-[var(--hb-text-strong)]">
                 파트너 코드 입력
               </div>
-              <div className="text-[12px] text-taupe-400">
+              <div className="text-[12px] text-[var(--hb-text-muted)]">
                 파트너에게 받은 초대 코드를 입력하세요
               </div>
             </div>
@@ -116,20 +116,20 @@ export default function CoupleLink({
             onBlur={() => partnerCode && validateCode(partnerCode)}
             placeholder={COUPLE_INVITE_CODE_PLACEHOLDER}
             maxLength={COUPLE_INVITE_CODE_MAX_LENGTH}
-            className="w-full px-5 py-3.5 rounded-2xl border border-black/[0.06] bg-white text-[16px] text-noir-800 text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 placeholder:tracking-[0.2em]"
+            className="w-full px-5 py-3.5 rounded-[6px] border border-black/[0.06] bg-white text-[16px] text-[var(--hb-text-strong)] text-center tracking-[0.2em] font-mono outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] placeholder:tracking-[0.2em]"
           />
           {prefilledNotice && !codeError && (
-            <p className="text-[12px] text-taupe-400 text-center">{prefilledNotice}</p>
+            <p className="text-[12px] text-[var(--hb-text-muted)] text-center">{prefilledNotice}</p>
           )}
           {codeError && (
-            <p className="text-[12px] text-rose-600 text-center">{codeError}</p>
+            <p className="text-[12px] text-[var(--hb-accent-hover)] text-center">{codeError}</p>
           )}
         </div>
       )}
 
       {coupleAction === "create" && (
-        <div className="bg-ivory-100 rounded-2xl p-4 text-center">
-          <p className="text-[13px] text-taupe-500">
+        <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-4 text-center">
+          <p className="text-[13px] text-[var(--hb-text-body)]">
             온보딩 완료 후 초대 코드가 생성됩니다.
             <br />
             코드를 파트너에게 공유하면 연동됩니다.

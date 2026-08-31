@@ -113,48 +113,48 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
     : RELATIONSHIP_LABELS[item.outcome.commercialRelationship];
 
   return (
-    <li className="border-t border-ivory-200 first:border-t-0">
+    <li className="border-t border-[var(--hb-hairline)] first:border-t-0">
       <Link
         {...communityPostLinkProps(item.postId)}
         aria-label={`${item.title} 결정 질문 보기`}
-        className="group block px-4 py-4 transition-colors hover:bg-ivory-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-noir-800 sm:px-5"
+        className="group block px-4 py-4 transition-colors hover:bg-[var(--hb-surface-page)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)] sm:px-5"
       >
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-semibold">
-          <span className="text-noir-800">회원이 직접 작성</span>
-          <span aria-hidden className="text-taupe-400">·</span>
-          <span className="text-taupe-500">{item.author.nickname}</span>
+          <span className="text-[var(--hb-text-strong)]">회원이 직접 작성</span>
+          <span aria-hidden className="text-[var(--hb-text-muted)]">·</span>
+          <span className="text-[var(--hb-text-body)]">{item.author.nickname}</span>
           {item.author.badge && (
-            <span className="rounded-full bg-ivory-100 px-2 py-0.5 text-taupe-500">
+            <span className="rounded-full bg-[var(--hb-surface-hover)] px-2 py-0.5 text-[var(--hb-text-body)]">
               {item.author.badge}
             </span>
           )}
           {item.viewer.isAuthor && (
-            <span className="rounded-full bg-rose-pale px-2 py-0.5 text-rose-600">
+            <span className="rounded-full bg-rose-pale px-2 py-0.5 text-[var(--hb-accent-hover)]">
               내 질문
             </span>
           )}
-          <span className="ml-auto rounded-full bg-sage-pale/55 px-2.5 py-1 text-noir-800">
+          <span className="ml-auto rounded-full bg-sage-pale/55 px-2.5 py-1 text-[var(--hb-text-strong)]">
             {STATE_LABELS[item.state]}
           </span>
         </div>
 
         <div className="mt-2 flex flex-wrap gap-1.5" aria-label="질문의 조건">
-          <span className="rounded-full border border-ivory-200 bg-white px-2.5 py-1 text-[11px] font-medium text-taupe-500">
+          <span className="rounded-full border border-[var(--hb-hairline)] bg-white px-2.5 py-1 text-[11px] font-medium text-[var(--hb-text-body)]">
             {EXPERIENCE_LABELS[item.experienceScope]}
           </span>
-          <span className="rounded-full border border-ivory-200 bg-white px-2.5 py-1 text-[11px] font-medium text-taupe-500">
+          <span className="rounded-full border border-[var(--hb-hairline)] bg-white px-2.5 py-1 text-[11px] font-medium text-[var(--hb-text-body)]">
             {STAGE_LABELS[item.preparationStage]}
           </span>
-          <span className="rounded-full border border-ivory-200 bg-white px-2.5 py-1 text-[11px] font-medium text-taupe-500">
+          <span className="rounded-full border border-[var(--hb-hairline)] bg-white px-2.5 py-1 text-[11px] font-medium text-[var(--hb-text-body)]">
             {CONTRACT_PHASE_LABELS[item.contractPhase]}
           </span>
           {item.coarseRegion && (
-            <span className="rounded-full border border-ivory-200 bg-white px-2.5 py-1 text-[11px] font-medium text-taupe-500">
+            <span className="rounded-full border border-[var(--hb-hairline)] bg-white px-2.5 py-1 text-[11px] font-medium text-[var(--hb-text-body)]">
               {item.coarseRegion}
             </span>
           )}
           {relationship && (
-            <span className="rounded-full border border-gold-light bg-ivory-warm px-2.5 py-1 text-[11px] font-semibold text-rose-600">
+            <span className="rounded-full border border-gold-light bg-[var(--hb-surface-hover)] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
               관계 공개 · {relationship}
             </span>
           )}
@@ -162,56 +162,56 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
 
         <div className="mt-3 flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h3 className="text-[16px] font-semibold leading-[1.45] text-noir-900 sm:text-[17px]">
+            <h3 className="text-[16px] font-semibold leading-[1.45] text-[var(--hb-text-strong)] sm:text-[17px]">
               {item.title}
             </h3>
-            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-[1.65] text-taupe-500">
+            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
               {item.content}
             </p>
-            <p className="mt-2 text-[12px] font-semibold leading-[1.55] text-noir-800">
+            <p className="mt-2 text-[12px] font-semibold leading-[1.55] text-[var(--hb-text-strong)]">
               궁금한 점 · {item.desiredAnswer}
             </p>
             {relationship && item.sponsorshipDetail && (
-              <p className="mt-1 line-clamp-1 text-[11px] leading-[1.55] text-rose-600">
+              <p className="mt-1 line-clamp-1 text-[11px] leading-[1.55] text-[var(--hb-accent-hover)]">
                 관계 설명 · {item.sponsorshipDetail}
               </p>
             )}
           </div>
           <ChevronRight
             aria-hidden
-            className="mt-1 h-4 w-4 shrink-0 text-taupe-400 transition-transform group-hover:translate-x-0.5"
+            className="mt-1 h-4 w-4 shrink-0 text-[var(--hb-text-muted)] transition-transform group-hover:translate-x-0.5"
           />
         </div>
 
         {item.outcome && (
-          <div className="mt-3 border-l-2 border-sage-500 bg-ivory-50 px-3 py-2.5">
-            <p className="text-[11px] font-semibold text-sage-500">
+          <div className="mt-3 border-l-2 border-sage-500 bg-[var(--hb-surface-page)] px-3 py-2.5">
+            <p className="text-[11px] font-semibold text-[var(--hb-success)]">
               작성자가 돌아와 남긴 결과
             </p>
             {outcomeRelationship && (
-              <p className="mt-1 text-[11px] font-semibold leading-[1.55] text-rose-600">
+              <p className="mt-1 text-[11px] font-semibold leading-[1.55] text-[var(--hb-accent-hover)]">
                 결과 관계 공개 · {outcomeRelationship}
               </p>
             )}
-            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-[1.55] text-noir-900">
+            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
               {item.outcome.resultSummary}
             </p>
-            <p className="mt-1 line-clamp-1 text-[11px] text-taupe-500">
+            <p className="mt-1 line-clamp-1 text-[11px] text-[var(--hb-text-body)]">
               적용 조건 · {item.outcome.applicableConditions}
             </p>
             {outcomeRelationship && item.outcome.sponsorshipDetail && (
-              <p className="mt-1 line-clamp-2 text-[11px] leading-[1.55] text-rose-600">
+              <p className="mt-1 line-clamp-2 text-[11px] leading-[1.55] text-[var(--hb-accent-hover)]">
                 결과 관계 설명 · {item.outcome.sponsorshipDetail}
               </p>
             )}
           </div>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-ivory-100 pt-2.5 text-[11px] font-medium text-taupe-500">
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-ivory-100 pt-2.5 text-[11px] font-medium text-[var(--hb-text-body)]">
           <span>경험 답변 {item.qualifiedPeerAnswerCount}개</span>
           <span>전문 답변 {item.qualifiedProfessionalAnswerCount}개</span>
           {item.viewer.canAnswer && (
-            <span className="font-semibold text-rose-600">내 경험을 나눌 수 있어요</span>
+            <span className="font-semibold text-[var(--hb-accent-hover)]">내 경험을 나눌 수 있어요</span>
           )}
         </div>
       </Link>
@@ -397,19 +397,19 @@ export default function CommunityDecisionDiscovery({
       aria-labelledby="community-decision-discovery-title"
       data-community-decision-discovery
     >
-      <div className="overflow-hidden rounded-[16px] border border-ivory-200 bg-white/90 shadow-[0_8px_24px_rgba(36,56,50,0.045)]">
+      <div className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
         <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-end sm:justify-between sm:px-5">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold tracking-[0.04em] text-rose-600">
+            <p className="text-[11px] font-semibold tracking-[0.04em] text-[var(--hb-accent-hover)]">
               사람의 실제 경험
             </p>
             <h2
               id="community-decision-discovery-title"
-              className="mt-0.5 text-[19px] font-semibold leading-[1.35] text-noir-900 sm:text-[21px]"
+              className="mt-0.5 text-[19px] font-semibold leading-[1.35] text-[var(--hb-text-strong)] sm:text-[21px]"
             >
               계약·추가금 결정 질문
             </h2>
-            <p className="mt-1 hidden text-[12px] font-medium text-taupe-500 sm:block">
+            <p className="mt-1 hidden text-[12px] font-medium text-[var(--hb-text-body)] sm:block">
               상황과 조건, 답변 상태를 먼저 보고 필요한 경험을 확인하세요.
             </p>
           </div>
@@ -417,7 +417,7 @@ export default function CommunityDecisionDiscovery({
           <div
             role="group"
             aria-label="결정 질문 보기"
-            className="flex w-full rounded-full bg-ivory-100 p-1 sm:w-auto"
+            className="flex w-full rounded-full bg-[var(--hb-surface-hover)] p-1 sm:w-auto"
           >
             {MODE_OPTIONS.map((option) => {
               const selected = activeMode === option.mode;
@@ -427,10 +427,10 @@ export default function CommunityDecisionDiscovery({
                   type="button"
                   aria-pressed={selected}
                   onClick={() => setActiveMode(option.mode)}
-                  className={`min-h-9 flex-1 rounded-full px-3 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-noir-800 focus-visible:ring-offset-1 sm:flex-none ${
+                  className={`min-h-9 flex-1 rounded-[6px] px-3 text-[12px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-1 sm:flex-none ${
                     selected
-                      ? "bg-noir-800 text-white shadow-sm"
-                      : "text-taupe-500 hover:bg-white hover:text-noir-900"
+                      ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                      : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-text-strong)]"
                   }`}
                 >
                   {option.label}
@@ -443,7 +443,7 @@ export default function CommunityDecisionDiscovery({
         {summary && (
           <p
             role="status"
-            className="overflow-x-auto whitespace-nowrap border-t border-ivory-100 bg-ivory-50 px-4 py-2 text-[11px] font-semibold text-noir-800 sm:px-5"
+            className="overflow-x-auto whitespace-nowrap border-t border-ivory-100 bg-[var(--hb-surface-page)] px-4 py-2 text-[11px] font-semibold text-[var(--hb-text-strong)] sm:px-5"
           >
             내 결정함 · {summary}
           </p>
@@ -457,26 +457,26 @@ export default function CommunityDecisionDiscovery({
           {currentViewState.status === "loading" ? (
             <div className="flex items-center gap-3 border-t border-ivory-100 px-4 py-3 sm:px-5">
               <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-sage-pale" aria-hidden />
-              <span className="text-[12px] font-medium text-taupe-500">
+              <span className="text-[12px] font-medium text-[var(--hb-text-body)]">
                 결정 질문을 불러오는 중이에요.
               </span>
             </div>
           ) : currentViewState.status === "error" ? (
             <div className="flex min-h-12 items-center justify-between gap-3 border-t border-ivory-100 px-4 py-2 sm:px-5">
-              <p className="text-[12px] font-medium text-taupe-500">
+              <p className="text-[12px] font-medium text-[var(--hb-text-body)]">
                 이 목록을 불러오지 못했어요. 아래 최신 글은 계속 볼 수 있어요.
               </p>
               <button
                 type="button"
                 onClick={() => setRetryVersion((current) => current + 1)}
-                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full px-3 text-[12px] font-semibold text-noir-800 hover:bg-ivory-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-noir-800"
+                className="inline-flex min-h-9 shrink-0 items-center gap-1 rounded-[6px] px-3 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
               >
                 <RefreshCw className="h-3.5 w-3.5" aria-hidden />
                 다시 불러오기
               </button>
             </div>
           ) : items.length === 0 ? (
-            <p className="border-t border-ivory-100 px-4 py-3 text-[12px] font-medium text-taupe-500 sm:px-5">
+            <p className="border-t border-ivory-100 px-4 py-3 text-[12px] font-medium text-[var(--hb-text-body)] sm:px-5">
               {emptyMessage(activeMode)}
             </p>
           ) : (

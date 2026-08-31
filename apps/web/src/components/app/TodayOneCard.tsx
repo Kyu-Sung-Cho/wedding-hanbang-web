@@ -275,15 +275,15 @@ export default function TodayOneCard() {
   if (view.kind === "error" || view.kind === "stale") {
     return (
       <section
-        className="rounded-2xl border border-[#E2D3C8] bg-white px-5 py-4 shadow-[0_12px_32px_rgba(54,83,78,0.06)]"
+        className="rounded-[6px] border border-[#E2D3C8] bg-white px-5 py-4 shadow-[var(--shadow-raised)]"
         aria-labelledby="today-one-error-title"
       >
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F7F1E8] text-[#8F6662]">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[#8F6662]">
             <RotateCcw className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="today-one-error-title" className="text-sm font-semibold text-[#243832]">
+            <h2 id="today-one-error-title" className="text-sm font-semibold text-[var(--hb-text-strong)]">
               오늘의 한 가지를 다시 확인해 주세요
             </h2>
             <p role="alert" className="mt-1 text-sm leading-6 text-[#6D5F58]">
@@ -292,7 +292,7 @@ export default function TodayOneCard() {
             <button
               type="button"
               onClick={() => void load(true)}
-              className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E]"
+              className="mt-3 inline-flex min-h-10 items-center justify-center rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)]"
             >
               다시 불러오기
             </button>
@@ -304,17 +304,17 @@ export default function TodayOneCard() {
   if (view.kind === "empty" || view.kind === "paused") {
     return (
       <section
-        className="rounded-2xl border border-[#E2D3C8] bg-[#FBF8F2] px-5 py-4"
+        className="rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-5 py-4"
         aria-label="아모라 오늘의 한 가지 상태"
       >
         <div className="flex items-center gap-3">
           {view.kind === "paused" ? (
             <Clock3 className="h-5 w-5 shrink-0 text-[#8F6662]" aria-hidden="true" />
           ) : (
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-[#6D806E]" aria-hidden="true" />
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-[var(--hb-success)]" aria-hidden="true" />
           )}
           <div>
-            <p className="text-sm font-semibold text-[#243832]">아모라 오늘의 한 가지</p>
+            <p className="text-sm font-semibold text-[var(--hb-text-strong)]">아모라 오늘의 한 가지</p>
             <p role="status" className="mt-0.5 text-sm text-[#6D5F58]">{view.message}</p>
           </div>
         </div>
@@ -329,10 +329,10 @@ export default function TodayOneCard() {
   const actions = new Set(card.choices.map((choice) => choice.action));
   return (
     <section
-      className="overflow-hidden rounded-2xl border border-[#C7D1C2] bg-white shadow-[0_16px_42px_rgba(54,83,78,0.09)]"
+      className="overflow-hidden rounded-[6px] border border-[#C7D1C2] bg-white shadow-[var(--shadow-overlay)]"
       aria-labelledby="today-one-title"
     >
-      <div className="bg-[#36534E] px-5 py-5 text-white md:px-6">
+      <div className="bg-[var(--hb-primary)] px-5 py-5 text-white md:px-6">
         <div className="flex items-center justify-between gap-4">
           <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#F7F1E8]">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -350,7 +350,7 @@ export default function TodayOneCard() {
       </div>
 
       <div className="space-y-5 px-5 py-5 md:px-6">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6D806E]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--hb-success)]">
           <time dateTime={view.result.claimedForDate}>
             {formatYmd(view.result.claimedForDate)} 기준
           </time>
@@ -360,13 +360,13 @@ export default function TodayOneCard() {
         </div>
 
         <div>
-          <p className="text-xs font-semibold text-[#8F6662]">
+          <p className="text-xs font-semibold text-[var(--color-rose-700)]">
             현재 저장된 {recordLabel}에서 확인됨
           </p>
           <ul className="mt-2 space-y-1.5">
             {card.confirmed.map((item) => (
-              <li key={item} className="flex items-start gap-2 text-sm leading-6 text-[#243832]">
-                <ConfirmedIcon className="mt-1 h-4 w-4 shrink-0 text-[#6D806E]" aria-hidden="true" />
+              <li key={item} className="flex items-start gap-2 text-sm leading-6 text-[var(--hb-text-strong)]">
+                <ConfirmedIcon className="mt-1 h-4 w-4 shrink-0 text-[var(--hb-success)]" aria-hidden="true" />
                 <span>{item}</span>
               </li>
             ))}
@@ -374,15 +374,15 @@ export default function TodayOneCard() {
         </div>
 
         {card.unknown.length > 0 && (
-          <div className="border-t border-[#EFE4D7] pt-4">
-            <p className="text-xs font-semibold text-[#8F6662]">아직 확인되지 않은 점</p>
+          <div className="border-t border-[var(--hb-hairline)] pt-4">
+            <p className="text-xs font-semibold text-[var(--color-rose-700)]">아직 확인되지 않은 점</p>
             <ul className="mt-2 space-y-1 text-sm leading-6 text-[#6D5F58]">
               {card.unknown.map((item) => <li key={item}>· {item}</li>)}
             </ul>
           </div>
         )}
 
-        <p className="rounded-xl bg-[#F7F1E8] px-4 py-3 text-xs leading-5 text-[#36534E]">
+        <p className="rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3 text-xs leading-5 text-[var(--hb-text-strong)]">
           {card.impact}
         </p>
 
@@ -392,7 +392,7 @@ export default function TodayOneCard() {
           </p>
         )}
         {pendingAction && (
-          <p role="status" className="text-xs text-[#6D806E]" aria-live="polite">
+          <p role="status" className="text-xs text-[var(--hb-success)]" aria-live="polite">
             선택을 확인하고 있어요. 응답이 확인되기 전에는 카드를 바꾸지 않아요.
           </p>
         )}
@@ -403,7 +403,7 @@ export default function TodayOneCard() {
               type="button"
               disabled={pendingAction !== null}
               onClick={() => void actOnCard("open_source")}
-              className="inline-flex min-h-11 items-center justify-center rounded-full bg-[#8F6662] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#7F5956] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] disabled:cursor-wait disabled:opacity-60"
+              className="inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[#8F6662] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#7F5956] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
             >
               {card.nextAction.label}
             </button>
@@ -415,7 +415,7 @@ export default function TodayOneCard() {
                 type="button"
                 disabled={pendingAction !== null}
                 onClick={() => void actOnCard(action)}
-                className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#E2D3C8] bg-white px-4 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#36534E] disabled:cursor-wait disabled:opacity-60"
+                className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[#E2D3C8] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] disabled:cursor-wait disabled:opacity-60"
               >
                 {ACTION_LABELS[action]}
               </button>

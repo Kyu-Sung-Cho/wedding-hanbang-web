@@ -320,7 +320,7 @@ export default async function VendorPricePage({
   });
 
   return (
-    <div className="min-h-screen bg-[#FBF8F2] text-[#243832] [overflow-wrap:anywhere]">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)] [overflow-wrap:anywhere]">
       {structuredData.map((data, index) => (
         <script
           key={index}
@@ -333,14 +333,14 @@ export default async function VendorPricePage({
         <Link
           href={`/price/${profile.vendor.category}${regionQuery}`}
           prefetch={false}
-          className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#36534E] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#36534E]"
+          className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-text-strong)] hover:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--hb-primary)]"
         >
           <ArrowLeft aria-hidden="true" className="size-4" />
           {categoryLabel} 목록으로 돌아가기
         </Link>
 
-        <header className="mt-8 border-b border-[#243832]/15 pb-8">
-          <div className="flex flex-wrap items-center gap-2 text-sm text-[#36534E]/85">
+        <header className="mt-8 border-b border-[var(--hb-primary)]/15 pb-8">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[var(--hb-text-strong)]/85">
             <span>{CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category}</span>
             {/* 같은 샵을 여러 지역 대행사가 취급하면 지역도 여러 개다(목록 카드와 같은 기준). */}
             {visibleRegionCodes.map((regionCode) => (
@@ -357,25 +357,25 @@ export default async function VendorPricePage({
             </h1>
           </div>
           {profile.vendor.aliases.length > 0 ? (
-            <p className="mt-2 text-sm text-[#36534E]/85">
+            <p className="mt-2 text-sm text-[var(--hb-text-strong)]/85">
               다른 표기 · {profile.vendor.aliases.join(" · ")}
             </p>
           ) : null}
           {/* 업체명 괄호에서 뗀 법인명. 공시 의무 주체라 정보 가치가 있어 버리지
               않고 여기로 옮긴다 — 이름에 그대로 두면 검색으로 못 찾는다. */}
           {profile.vendor.disclosureEntity ? (
-            <p className="mt-2 text-sm text-[#36534E]/65">
+            <p className="mt-2 text-sm text-[var(--hb-text-strong)]/65">
               공시주체 {profile.vendor.disclosureEntity}
             </p>
           ) : null}
           <div className="mt-5 flex flex-wrap gap-2">
             {profile.prices.length > 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#36534E] px-3 py-1.5 text-xs font-semibold text-white">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--hb-primary)] px-3 py-1.5 text-xs font-semibold text-white">
                 <FileCheck2 aria-hidden="true" className="size-3.5" />
                 공시 근거 확인
               </span>
             ) : (
-              <span className="inline-flex items-center rounded-full bg-[#EFE4D7] px-3 py-1.5 text-xs font-semibold text-[#36534E]">
+              <span className="inline-flex items-center rounded-full bg-[#EFE4D7] px-3 py-1.5 text-xs font-semibold text-[var(--hb-text-strong)]">
                 공시 검수 중
               </span>
             )}
@@ -396,14 +396,14 @@ export default async function VendorPricePage({
         <section aria-labelledby="official-price-heading" className="py-8 sm:py-10">
           <div className="flex items-end justify-between gap-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8F6662]">Official disclosure</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--color-rose-700)]">Official disclosure</p>
               <h2 id="official-price-heading" className="mt-2 text-2xl font-bold">공시 가격</h2>
             </div>
-            <span className="text-xs text-[#36534E]/65">승인된 공시만 표시</span>
+            <span className="text-xs text-[var(--hb-text-muted)]">승인된 공시만 표시</span>
           </div>
 
           {activeRegionCode ? (
-            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#36534E]/15 bg-white px-4 py-3 text-sm">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 py-3 text-sm">
               <p className="font-semibold">
                 현재 {REGION_LABELS[activeRegionCode]} 공시 가격만 표시하고 있어요.
               </p>
@@ -417,37 +417,37 @@ export default async function VendorPricePage({
           ) : null}
 
           {currentPrices.length === 0 ? (
-            <div className="mt-6 border-y border-[#243832]/12 py-10 text-center">
+            <div className="mt-6 border-y border-[var(--hb-primary)]/12 py-10 text-center">
               <p className="font-semibold">아직 승인된 공시 가격이 없어요.</p>
-              <p className="mt-2 text-sm text-[#36534E]/70">검수가 끝난 가격부터 차례로 공개합니다.</p>
+              <p className="mt-2 text-sm text-[var(--hb-text-strong)]/70">검수가 끝난 가격부터 차례로 공개합니다.</p>
             </div>
           ) : (
-            <div className="mt-6 divide-y divide-[#243832]/12 border-y border-[#243832]/12">
+            <div className="mt-6 divide-y divide-[var(--hb-primary)]/12 border-y border-[var(--hb-primary)]/12">
               {currentPrices.map((price) => (
                 <article key={price.id} className="py-6 first:pt-5 last:pb-5">
                   <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
                     <div>
-                      <p className="text-xs font-medium text-[#36534E]/65">
+                      <p className="text-xs font-medium text-[var(--hb-text-muted)]">
                         {disclosureRoundLabel()}
                         {price.agency?.name ? ` · ${price.agency.name}` : " · 대행사를 거치지 않은 공시"}
                       </p>
                       <h3 className="mt-1 text-lg font-bold">{price.item_name}</h3>
-                      {price.base_spec ? <p className="mt-1 text-sm text-[#36534E]/85">{price.base_spec}</p> : null}
+                      {price.base_spec ? <p className="mt-1 text-sm text-[var(--hb-text-strong)]/85">{price.base_spec}</p> : null}
                     </div>
                     <p className="shrink-0 text-lg font-bold tabular-nums">
                       {krwRangeLabel(price.price_min_krw, price.price_max_krw)}
                     </p>
                   </div>
                   {[price.vat_note, price.price_note].filter(Boolean).length > 0 ? (
-                    <p className="mt-3 text-sm text-[#36534E]/85">
+                    <p className="mt-3 text-sm text-[var(--hb-text-strong)]/85">
                       {[price.vat_note, price.price_note].filter(Boolean).join(" · ")}
                     </p>
                   ) : null}
 
                   {price.options.length > 0 ? (
-                    <div className="mt-5 bg-[#F7F1E8] px-4 py-3 sm:px-5">
-                      <p className="text-xs font-bold text-[#36534E]">추가 옵션</p>
-                      <ul className="mt-2 divide-y divide-[#243832]/10">
+                    <div className="mt-5 bg-[var(--hb-surface-hover)] px-4 py-3 sm:px-5">
+                      <p className="text-xs font-bold text-[var(--hb-text-strong)]">추가 옵션</p>
+                      <ul className="mt-2 divide-y divide-[var(--hb-primary)]/10">
                         {price.options.map((option) => (
                           <li key={option.id} className="flex flex-col justify-between gap-1 py-2.5 text-sm sm:flex-row sm:gap-4">
                             <span className="min-w-0">
@@ -457,7 +457,7 @@ export default async function VendorPricePage({
                               ) : null}
                               {option.unit ? ` · ${option.unit}` : ""}
                               {option.condition ? ` · ${option.condition}` : ""}
-                              <span className="mt-1 block text-xs leading-5 text-[#36534E]/70">
+                              <span className="mt-1 block text-xs leading-5 text-[var(--hb-text-strong)]/70">
                                 공시 원문 · {option.raw_text}
                               </span>
                             </span>
@@ -469,10 +469,10 @@ export default async function VendorPricePage({
                   ) : null}
 
                   <details className="mt-4 group">
-                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[#8F6662] marker:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]">
+                    <summary className="inline-flex min-h-11 cursor-pointer items-center text-sm font-semibold text-[#8F6662] marker:text-[#8F6662] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]">
                       가격 근거 보기
                     </summary>
-                    <p className="mt-3 border-l-2 border-[#B89785] pl-4 text-sm leading-6 text-[#36534E]/80">
+                    <p className="mt-3 border-l-2 border-[#B89785] pl-4 text-sm leading-6 text-[var(--hb-text-strong)]/80">
                       {displaySourceLabel(price.source)}
                     </p>
                   </details>
@@ -483,12 +483,12 @@ export default async function VendorPricePage({
         </section>
 
         {historyPeriods.length >= 2 ? (
-          <section aria-labelledby="price-history-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
+          <section aria-labelledby="price-history-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
             <h2 id="price-history-heading" className="text-2xl font-bold">공시가 히스토리</h2>
-            <p className="mt-2 text-sm text-[#36534E]/70">발행된 기준 시점별 가격 변화를 확인하세요.</p>
-            <div className="mt-5 overflow-x-auto rounded-xl border border-[#243832]/12 bg-white">
+            <p className="mt-2 text-sm text-[var(--hb-text-strong)]/70">발행된 기준 시점별 가격 변화를 확인하세요.</p>
+            <div className="mt-5 overflow-x-auto rounded-[6px] border border-[var(--hb-primary)]/12 bg-white">
               <table className="w-full min-w-[560px] text-left text-sm">
-                <thead className="bg-[#F5ECE4] text-xs text-[#36534E]/85">
+                <thead className="bg-[#F5ECE4] text-xs text-[var(--hb-text-strong)]/85">
                   <tr>
                     <th className="px-4 py-3 font-bold">공시 시점</th>
                     <th className="px-4 py-3 font-bold">대행사</th>
@@ -496,12 +496,12 @@ export default async function VendorPricePage({
                     <th className="px-4 py-3 text-right font-bold">가격</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#243832]/10">
+                <tbody className="divide-y divide-[var(--hb-primary)]/10">
                   {visiblePrices.map((price) => (
                     <tr key={`history-${price.id}`}>
                       <td className="px-4 py-3 font-medium">{disclosureRoundLabel()}</td>
-                      <td className="px-4 py-3 text-[#36534E]/85">{price.agency?.name ?? "업체 직접"}</td>
-                      <td className="px-4 py-3 text-[#36534E]/85">{price.item_name}</td>
+                      <td className="px-4 py-3 text-[var(--hb-text-strong)]/85">{price.agency?.name ?? "업체 직접"}</td>
+                      <td className="px-4 py-3 text-[var(--hb-text-strong)]/85">{price.item_name}</td>
                       <td className="px-4 py-3 text-right font-bold tabular-nums">{krwRangeLabel(price.price_min_krw, price.price_max_krw)}</td>
                     </tr>
                   ))}
@@ -512,12 +512,12 @@ export default async function VendorPricePage({
         ) : null}
 
         {attributes.length > 0 ? (
-          <section aria-labelledby="attribute-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
+          <section aria-labelledby="attribute-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
             <h2 id="attribute-heading" className="text-2xl font-bold">확인된 업체 조건</h2>
             <dl className="mt-5 grid gap-x-8 sm:grid-cols-2">
               {attributes.map((attribute) => (
-                <div key={attribute.key} className="flex justify-between gap-4 border-b border-[#243832]/10 py-3 text-sm">
-                  <dt className="text-[#36534E]/70">{attribute.label}</dt>
+                <div key={attribute.key} className="flex justify-between gap-4 border-b border-[var(--hb-primary)]/10 py-3 text-sm">
+                  <dt className="text-[var(--hb-text-strong)]/70">{attribute.label}</dt>
                   <dd className="text-right font-semibold">{attribute.value}</dd>
                 </div>
               ))}
@@ -526,9 +526,9 @@ export default async function VendorPricePage({
         ) : null}
 
         {policies.length > 0 ? (
-          <section aria-labelledby="policy-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
+          <section aria-labelledby="policy-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
             <h2 id="policy-heading" className="text-2xl font-bold">계약 전 확인 · 위약금과 환불</h2>
-            <p className="mt-2 text-sm leading-6 text-[#36534E]/85">
+            <p className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]/85">
               업체가 공시한 원문 그대로예요. 웨딩한방이 요약하거나 해석하지 않았고,
               계약 시점·조건에 따라 달라질 수 있으니 계약서에 같은 내용이 적혀 있는지 꼭 확인하세요.
             </p>
@@ -538,24 +538,24 @@ export default async function VendorPricePage({
                 20%와 100%로 갈리는 경우까지 있었다. 왜 여러 장인지 모르면 그냥
                 스크롤로 지나친다. */}
             {policyAgencyCount >= 2 ? (
-              <p className="mt-3 rounded-xl bg-[#FDE5E2] px-4 py-3 text-sm font-semibold leading-6 text-[#8F5150]">
+              <p className="mt-3 rounded-[6px] bg-[#FDE5E2] px-4 py-3 text-sm font-semibold leading-6 text-[#8F5150]">
                 이 업체는 대행사 {policyAgencyCount}곳이 서로 다른 문구로 공시했어요.
                 계약할 대행사의 조건을 직접 비교해 보세요.
               </p>
             ) : null}
             <ul className="mt-5 space-y-3">
               {policies.map((policy) => (
-                <li key={policy.id} className="rounded-2xl border border-[#8F6662]/25 bg-[#FBF8F2] px-5 py-4">
+                <li key={policy.id} className="rounded-[6px] border border-[#8F6662]/25 bg-[var(--hb-surface-page)] px-5 py-4">
                   <p className="text-xs font-bold text-[#8F5150]">
                     {policySectionLabel(policy.semanticType)}
                     {policy.sourceAgency ? (
-                      <span className="ml-2 font-semibold text-[#36534E]/60">{policy.sourceAgency} 공시</span>
+                      <span className="ml-2 font-semibold text-[var(--hb-text-strong)]/60">{policy.sourceAgency} 공시</span>
                     ) : null}
                   </p>
                   {policy.title ? (
-                    <p className="mt-1 text-sm font-bold text-[#243832]">{policy.title}</p>
+                    <p className="mt-1 text-sm font-bold text-[var(--hb-text-strong)]">{policy.title}</p>
                   ) : null}
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#243832]/85">
+                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--hb-text-strong)]/85">
                     {policy.contentVerbatim}
                   </p>
                 </li>
@@ -564,19 +564,19 @@ export default async function VendorPricePage({
           </section>
         ) : null}
 
-        <section aria-labelledby="price-faq-heading" className="border-t border-[#243832]/15 py-8 sm:py-10">
+        <section aria-labelledby="price-faq-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
           <h2 id="price-faq-heading" className="text-2xl font-bold">공시 가격 FAQ</h2>
           <dl className="mt-5 space-y-5">
             {PRICE_DISCLOSURE_FAQ_MAIN_ENTITY.map(({ name, acceptedAnswer }) => (
-              <div key={name} className="rounded-2xl border border-[#243832]/10 bg-white px-5 py-4">
-                <dt className="font-bold text-[#243832]">{name}</dt>
-                <dd className="mt-2 text-sm leading-6 text-[#36534E]/80">{acceptedAnswer.text}</dd>
+              <div key={name} className="rounded-[6px] border border-[var(--hb-primary)]/10 bg-white px-5 py-4">
+                <dt className="font-bold text-[var(--hb-text-strong)]">{name}</dt>
+                <dd className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]/80">{acceptedAnswer.text}</dd>
               </div>
             ))}
           </dl>
         </section>
 
-        <section aria-labelledby="link-heading" className="border-t border-[#243832]/15 py-8">
+        <section aria-labelledby="link-heading" className="border-t border-[var(--hb-primary)]/15 py-8">
           <h2 id="link-heading" className="text-lg font-bold">
             {externalLinks.length > 0 ? "업체 공식 링크" : "업체 더 찾아보기"}
           </h2>
@@ -587,7 +587,7 @@ export default async function VendorPricePage({
                 href={href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#36534E]/25 px-4 py-2 text-sm font-semibold hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+                className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/25 px-4 py-2 text-sm font-semibold hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
               >
                 {label}<ExternalLink aria-hidden="true" className="size-4" />
               </a>
@@ -596,19 +596,19 @@ export default async function VendorPricePage({
               href={naverSearchHref}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-dashed border-[#36534E]/35 px-4 py-2 text-sm font-semibold text-[#36534E]/85 hover:bg-[#F7F1E8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#36534E]"
+              className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-dashed border-[var(--hb-primary)]/35 px-4 py-2 text-sm font-semibold text-[var(--hb-text-strong)]/85 hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]"
             >
               네이버 지도에서 검색<ExternalLink aria-hidden="true" className="size-4" />
             </a>
           </div>
           {externalLinks.length === 0 ? (
-            <p className="mt-3 text-xs leading-5 text-[#36534E]/60">
+            <p className="mt-3 text-xs leading-5 text-[var(--hb-text-muted)]">
               아직 확인된 공식 링크가 등록되지 않았어요. 위 버튼은 업체명으로 바로 검색해 드리는 링크예요.
             </p>
           ) : null}
         </section>
 
-        <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[#243832]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[#36534E] shadow-[0_-8px_24px_rgba(36,56,50,0.08)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
+        <aside className="sticky bottom-0 z-20 -mx-5 border-t border-[var(--hb-primary)]/15 bg-[#F5ECE4]/95 px-5 py-4 text-sm leading-6 text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] backdrop-blur sm:static sm:mx-0 sm:bg-transparent sm:px-0 sm:py-7 sm:shadow-none">
           <p>가격 출처: 한국소비자원 참가격 · {disclosureRoundLabel()} 공시 기준</p>
           <p>본 정보는 공시 기준이며 실제 계약 조건·시점에 따라 달라질 수 있습니다. 계약 전 업체에 직접 확인하세요.</p>
         </aside>

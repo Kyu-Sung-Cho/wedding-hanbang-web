@@ -39,8 +39,8 @@ function sectionLabel(heading: string): string {
 const BLOCK_TONE = {
   tip: {
     label: "이렇게 하면 편해요",
-    box: "border-[#36534e]/25 bg-[#36534e]/[0.05]",
-    labelColor: "text-[#36534e]",
+    box: "border-[var(--hb-primary)]/25 bg-[var(--hb-primary)]/[0.05]",
+    labelColor: "text-[var(--hb-text-strong)]",
   },
   warning: {
     label: "이건 조심하세요",
@@ -70,7 +70,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
   if (block.kind === "checklist") {
     return (
       <div>
-        {block.title ? <h4 className="text-[14px] font-semibold text-[#243832]">{block.title}</h4> : null}
+        {block.title ? <h4 className="text-[14px] font-semibold text-[var(--hb-text-strong)]">{block.title}</h4> : null}
         <List items={block.items} />
       </div>
     );
@@ -79,7 +79,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
   if (block.kind === "tip" || block.kind === "warning") {
     const tone = BLOCK_TONE[block.kind];
     return (
-      <div className={`rounded-xl border px-4 py-3 ${tone.box}`}>
+      <div className={`rounded-[6px] border px-4 py-3 ${tone.box}`}>
         <p className={`text-[12px] font-semibold tracking-wide ${tone.labelColor}`}>
           {block.title ?? tone.label}
         </p>
@@ -91,20 +91,20 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
   if (block.kind === "dialogue") {
     // 이 제품의 값은 "예의를 지키세요"가 아니라 실제로 할 수 있는 문장이다.
     return (
-      <div className="rounded-xl border border-[#243832]/12 bg-white/70 px-4 py-3">
-        <p className="text-[12px] font-semibold tracking-wide text-[#243832]/70">
+      <div className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-3">
+        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-text-strong)]/70">
           {block.title ?? "이렇게 말할 수 있어요"}
         </p>
         <div className="mt-2.5 space-y-3">
           {block.lines.map((line) => (
             <div key={line.say}>
-              <p className="text-[14px] leading-[1.7] text-[#243832]">
+              <p className="text-[14px] leading-[1.7] text-[var(--hb-text-strong)]">
                 <span aria-hidden className="mr-1.5 text-[#8F5150]">“</span>
                 {line.say}
                 <span aria-hidden className="ml-1 text-[#8F5150]">”</span>
               </p>
               {line.note ? (
-                <p className="mt-1 text-[12.5px] leading-[1.6] text-[#3d4a45]/75">{line.note}</p>
+                <p className="mt-1 text-[12.5px] leading-[1.6] text-[var(--hb-text-muted)]">{line.note}</p>
               ) : null}
             </div>
           ))}
@@ -119,12 +119,12 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
     .filter((source): source is MannersSource => Boolean(source));
 
   return (
-    <figure className="rounded-xl border border-[#243832]/12 bg-white/70">
-      <figcaption className="border-b border-[#243832]/10 px-4 py-3">
+    <figure className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70">
+      <figcaption className="border-b border-[var(--hb-primary)]/10 px-4 py-3">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-          <p className="text-[14px] font-semibold text-[#243832]">{block.title}</p>
+          <p className="text-[14px] font-semibold text-[var(--hb-text-strong)]">{block.title}</p>
           {/* 시점을 제목 옆에 붙인다 — 표만 캡처해 옮겨도 기준 시점이 함께 간다. */}
-          <span className="rounded-full bg-[#243832]/[0.06] px-2 py-0.5 text-[11.5px] font-medium text-[#3d4a45]">
+          <span className="rounded-full bg-[var(--hb-primary)]/[0.06] px-2 py-0.5 text-[11.5px] font-medium text-[#3d4a45]">
             {block.asOf}
           </span>
         </div>
@@ -139,7 +139,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
             공개된 1차 자료를 아직 찾지 못했어요. 주변에서 흔히 말하는 범위로만 참고해 주세요.
           </p>
         ) : citedSources.length > 0 ? (
-          <p className="mt-2 text-[12px] leading-5 text-[#3d4a45]/75">
+          <p className="mt-2 text-[12px] leading-5 text-[var(--hb-text-muted)]">
             근거 · {citedSources.map((source, index) => (
               <span key={source.url}>
                 {index > 0 ? ", " : ""}
@@ -154,9 +154,9 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
       <div className="hidden sm:block">
         <table className="w-full border-collapse text-left">
           <thead>
-            <tr className="border-b border-[#243832]/10">
+            <tr className="border-b border-[var(--hb-primary)]/10">
               {block.columns.map((column) => (
-                <th key={column} scope="col" className="px-4 py-2.5 text-[12.5px] font-semibold text-[#243832]/75">
+                <th key={column} scope="col" className="px-4 py-2.5 text-[12.5px] font-semibold text-[var(--hb-text-strong)]/75">
                   {column}
                 </th>
               ))}
@@ -164,12 +164,12 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
           </thead>
           <tbody>
             {block.rows.map((row) => (
-              <tr key={row.join("|")} className="border-b border-[#243832]/6 last:border-0">
+              <tr key={row.join("|")} className="border-b border-[var(--hb-primary)]/6 last:border-0">
                 {row.map((cell, index) => (
                   <td
                     key={`${row.join("|")}-${index}`}
                     className={`px-4 py-2.5 text-[13.5px] leading-[1.6] ${
-                      index === 0 ? "font-medium text-[#243832]" : "text-[#3d4a45]"
+                      index === 0 ? "font-medium text-[var(--hb-text-strong)]" : "text-[#3d4a45]"
                     }`}
                   >
                     {cell}
@@ -180,7 +180,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
           </tbody>
         </table>
       </div>
-      <div className="divide-y divide-[#243832]/10 sm:hidden">
+      <div className="divide-y divide-[var(--hb-primary)]/10 sm:hidden">
         {block.rows.map((row) => (
           <dl key={row.join("|")} className="px-4 py-3.5">
             {row.map((cell, index) => (
@@ -188,11 +188,11 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
                 {index === 0 ? (
                   <>
                     <dt className="sr-only">{block.columns[index]}</dt>
-                    <dd className="text-[14px] font-semibold leading-6 text-[#243832]">{cell}</dd>
+                    <dd className="text-[14px] font-semibold leading-6 text-[var(--hb-text-strong)]">{cell}</dd>
                   </>
                 ) : (
                   <>
-                    <dt className="text-[11.5px] font-semibold leading-5 text-[#243832]/60">{block.columns[index]}</dt>
+                    <dt className="text-[11.5px] font-semibold leading-5 text-[var(--hb-text-muted)]">{block.columns[index]}</dt>
                     <dd className="text-[13px] leading-5 text-[#3d4a45]">{cell}</dd>
                   </>
                 )}
@@ -228,7 +228,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         `top-0` 이 안전하다.
       */}
       <aside
-        className="sticky top-0 z-20 -mx-4 border-b border-[#243832]/10 bg-[#fffdf8]/95 px-4 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:top-[92px] lg:z-auto lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
+        className="sticky top-0 z-20 -mx-4 border-b border-[var(--hb-primary)]/10 bg-[#fffdf8]/95 px-4 py-2 backdrop-blur-sm sm:-mx-6 sm:px-6 lg:top-[92px] lg:z-auto lg:mx-0 lg:border-0 lg:bg-transparent lg:px-0 lg:py-0 lg:backdrop-blur-none"
         aria-label="이 글의 목차"
       >
         <p className="hidden text-[12px] font-semibold tracking-[0.12em] text-[#8F5150] lg:block">이 글에서 바로 찾기</p>
@@ -237,7 +237,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             <a
               key={section.heading}
               href={`#section-${index + 1}`}
-              className="shrink-0 rounded-full border border-[#243832]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-none lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
+              className="shrink-0 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-3 py-2 text-[12.5px] font-medium text-[#3d4a45] hover:border-[#8F5150]/40 hover:text-[#8F5150] lg:rounded-[6px] lg:border-0 lg:border-l lg:bg-transparent lg:px-3 lg:py-1.5"
             >
               <span aria-hidden className="mr-1.5 text-[#8F5150]/70">{index + 1}</span>
               {sectionLabel(section.heading)}
@@ -249,12 +249,12 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
       <article className="min-w-0">
       <header>
         <p className="text-[12.5px] font-semibold tracking-wide text-[#8F5150]">{part.subtitle}</p>
-        <h1 className="mt-1.5 text-[28px] font-semibold leading-snug text-[#1b1c1c] sm:text-[34px]">
+        <h1 className="mt-1.5 text-[28px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-[34px]">
           {part.title}
         </h1>
         <p className="mt-3 text-[14px] leading-[1.8] text-[#3d4a45]">{part.description}</p>
         {/* 삭제 사유였던 "가족·지역마다 답이 다르다"에 대한 답이다. 접거나 흐리지 않는다. */}
-        <p className="mt-4 rounded-xl border border-[#243832]/12 bg-[#243832]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
+        <p className="mt-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
           {part.caveat}
         </p>
         <div className="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-[#3d4a45]">
@@ -278,7 +278,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         */}
         {part.sections.length >= 4 ? (
           <nav
-            className="mt-5 rounded-[16px] border border-[#243832]/12 bg-white/60 px-4 py-3.5"
+            className="mt-5 rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/60 px-4 py-3.5"
             aria-label="이 글의 차례"
           >
             <p className="text-[12px] font-semibold tracking-wide text-[#8F5150]">
@@ -294,7 +294,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                     <span aria-hidden className="w-4 shrink-0 text-right text-[#8F5150]/70">
                       {index + 1}
                     </span>
-                    <span className="underline decoration-[#243832]/15 underline-offset-4">
+                    <span className="underline decoration-[var(--hb-text-strong)]/15 underline-offset-4">
                       {sectionLabel(section.heading)}
                     </span>
                   </a>
@@ -305,14 +305,14 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         ) : null}
       </header>
 
-      <div className="mt-8 divide-y divide-[#243832]/12">
+      <div className="mt-8 divide-y divide-[var(--hb-primary)]/12">
         {part.sections.map((section, index) => (
           <section
             key={section.heading}
             id={`section-${index + 1}`}
             className="scroll-mt-28 py-7 first:pt-0"
           >
-            <h2 className="text-[20px] font-semibold leading-snug text-[#243832]">
+            <h2 className="text-[20px] font-semibold leading-snug text-[var(--hb-text-strong)]">
               <span aria-hidden className="mr-2 text-[#8F5150]/70">
                 {index + 1}/{part.sections.length}
               </span>
@@ -335,8 +335,8 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         아래에는 나가는 링크가 0개라, 20화면을 내려온 사람이 갈 곳이 없었다.
         옮기면 두 문제가 같이 풀린다.
       */}
-      <div className="mt-5 rounded-[16px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-4">
-        <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">읽은 뒤 준비하기</p>
+      <div className="mt-5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-4">
+        <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">읽은 뒤 준비하기</p>
         <p className="mt-1 text-[14px] leading-6 text-[#3d4a45]">
           {checklistLabel
             ? `${checklistLabel} 준비 항목을 열어 실제로 확인하고 저장할 수 있어요.`
@@ -348,14 +348,14 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               ? `/checklist?category=${encodeURIComponent(primaryCategory)}`
               : `/chat?${new URLSearchParams({ prefill: `${part.title} 내용을 우리 상황에 맞게 정리해줘` })}`,
           )}
-          className="mt-3 inline-flex rounded-full bg-[#36534e] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+          className="mt-3 inline-flex rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
         >
           {checklistLabel ? `${checklistLabel} 체크리스트 열기` : "아모라에게 물어보기"}
         </Link>
       </div>
 
-      <footer className="mt-10 border-t border-[#243832]/12 pt-5">
-        <h2 className="text-[13px] font-semibold text-[#243832]">어디서 확인한 내용인가요</h2>
+      <footer className="mt-10 border-t border-[var(--hb-primary)]/12 pt-5">
+        <h2 className="text-[13px] font-semibold text-[var(--hb-text-strong)]">어디서 확인한 내용인가요</h2>
         {part.sources.length === 0 ? (
           <p className="mt-2 text-[13px] leading-[1.7] text-[#3d4a45]">
             이 페이지에는 공개된 1차 자료로 확인한 수치가 아직 없어요. 금액이나 법적 절차는
@@ -379,7 +379,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                   {" · "}
                   {source.checkedAt} 확인
                 </span>
-                <p className="mt-0.5 text-[12px] leading-5 text-[#3d4a45]/70">
+                <p className="mt-0.5 text-[12px] leading-5 text-[var(--hb-text-muted)]">
                   뒷받침하는 내용 · {source.supports}
                 </p>
               </li>

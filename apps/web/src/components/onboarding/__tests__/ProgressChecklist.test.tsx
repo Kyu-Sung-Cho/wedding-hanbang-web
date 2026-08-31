@@ -14,10 +14,14 @@ import {
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
 
+// ⚠️ 행을 `div.rounded-xl.border` 로 찾고 있었다. **모서리는 스타일이지 표식이 아니다** —
+// 2026-08-30 모서리를 시안에 맞추자 이 선택자가 아무것도 못 찾아 `rows[index]` 가
+// undefined 로 터졌다. 검사하려던 것은 상태 어휘인데 스타일 바뀜에 깨진 것이다.
+// 컴포넌트에 `data-checklist-row` 를 두고 그것으로 찾는다.
 function rowButtons(container: HTMLElement, key: string): HTMLButtonElement[] {
-  const index = PROGRESS_CHECKLIST_ITEMS.findIndex((item) => item.key === key);
-  const rows = container.querySelectorAll<HTMLElement>("div.rounded-xl.border");
-  return Array.from(rows[index].querySelectorAll("button"));
+  const row = container.querySelector<HTMLElement>(`[data-checklist-row="${key}"]`);
+  if (!row) throw new Error(`체크리스트 행을 못 찾았다: ${key}`);
+  return Array.from(row.querySelectorAll("button"));
 }
 
 describe("ProgressChecklist 상태 어휘", () => {

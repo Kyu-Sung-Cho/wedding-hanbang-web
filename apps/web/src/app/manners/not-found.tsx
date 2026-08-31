@@ -15,7 +15,7 @@ export default function MannersNotFound() {
   return (
     <div className="mx-auto w-full max-w-[760px] px-4 py-14 sm:px-6">
       <p className="text-[13px] font-semibold text-[#8F5150]">404</p>
-      <h1 className="mt-2 font-serif-kr text-[26px] font-normal leading-snug text-[#1b1c1c]">
+      <h1 className="mt-2 font-serif-kr text-[26px] font-normal leading-snug text-[var(--hb-text-strong)]">
         찾는 예절 안내가 없어요
       </h1>
       <p className="mt-3 text-[14px] leading-[1.8] text-[#3d4a45]">
@@ -25,7 +25,7 @@ export default function MannersNotFound() {
       <Link
         href="/wedding/manners"
         prefetch={false}
-        className="mt-6 inline-flex rounded-full border border-[#243832]/15 bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[#243832] transition-colors hover:border-[#8F5150]/45"
+        className="mt-6 inline-flex rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-5 py-2.5 text-[13.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:border-[#8F5150]/45"
       >
         예절 안내 전체 보기
       </Link>

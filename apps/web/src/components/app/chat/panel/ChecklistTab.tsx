@@ -25,7 +25,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-[#2E7D5A]",
-  in_progress: "bg-rose-500",
+  in_progress: "bg-[var(--hb-primary)]",
   not_started: "bg-taupe-400",
   not_applicable: "bg-[#8b857c]",
 };
@@ -89,7 +89,7 @@ export default function ChecklistTab() {
       <div key={cat.key}>
         <button
           onClick={() => toggleExpand(cat.key)}
-          className={`w-full flex items-center gap-3 py-2 hover:bg-ivory-50 rounded-lg transition-colors ${dimmed ? "opacity-60" : ""}`}
+          className={`w-full flex items-center gap-3 py-2 hover:bg-[var(--hb-surface-page)] rounded-[6px] transition-colors ${dimmed ? "opacity-60" : ""}`}
         >
           {/* 펼침 화살표 */}
           <motion.div
@@ -97,21 +97,21 @@ export default function ChecklistTab() {
             transition={{ duration: 0.15 }}
             className="flex-shrink-0"
           >
-            <ChevronRight className="w-4 h-4 text-taupe-400" />
+            <ChevronRight className="w-4 h-4 text-[var(--hb-text-muted)]" />
           </motion.div>
 
-          <div className="w-8 h-8 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
-            <IconComp className={`w-4 h-4 ${cat.status === "completed" ? "text-[#2E7D5A]" : "text-taupe-500"}`} />
+          <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
+            <IconComp className={`w-4 h-4 ${cat.status === "completed" ? "text-[#2E7D5A]" : "text-[var(--hb-text-body)]"}`} />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <span className="text-base text-noir-800 truncate text-left">{cat.label}</span>
-              <span className="text-sm text-taupe-400 ml-1">{cat.done}/{cat.total}</span>
+              <span className="text-base text-[var(--hb-text-strong)] truncate text-left">{cat.label}</span>
+              <span className="text-sm text-[var(--hb-text-muted)] ml-1">{cat.done}/{cat.total}</span>
             </div>
             {cat.status !== "completed" && (
-              <div className="h-1.5 bg-ivory-warm rounded-full overflow-hidden mt-1.5">
+              <div className="h-1.5 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden mt-1.5">
                 <div
-                  className="h-full bg-rose-500 rounded-full"
+                  className="h-full bg-[var(--hb-primary)] rounded-full"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -139,15 +139,15 @@ export default function ChecklistTab() {
                       {item.done ? (
                         <CheckCircle2 className="w-5 h-5 text-[#2E7D5A] flex-shrink-0" />
                       ) : (
-                        <Circle className="w-5 h-5 text-taupe-400 flex-shrink-0" />
+                        <Circle className="w-5 h-5 text-[var(--hb-text-muted)] flex-shrink-0" />
                       )}
                       <ChecklistItemText
                         item={item}
                         compact
                         labelClassName={`text-sm leading-tight ${
                           item.done
-                            ? "text-taupe-400 line-through"
-                            : "text-noir-800"
+                            ? "text-[var(--hb-text-muted)] line-through"
+                            : "text-[var(--hb-text-strong)]"
                         }`}
                       />
                     </div>
@@ -167,16 +167,16 @@ export default function ChecklistTab() {
       {/* 전체 진행률 */}
       <div className="px-4 py-3.5 border-b border-black/[0.04]">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-taupe-400">전체 진행률</span>
-          <span className="text-base font-medium text-noir-800">{overallPercent}%</span>
+          <span className="text-sm text-[var(--hb-text-muted)]">전체 진행률</span>
+          <span className="text-base font-medium text-[var(--hb-text-strong)]">{overallPercent}%</span>
         </div>
-        <div className="h-2.5 bg-ivory-warm rounded-full overflow-hidden">
+        <div className="h-2.5 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all"
             style={{ width: `${overallPercent}%` }}
           />
         </div>
-        <p className="text-xs text-taupe-400 mt-1.5 text-right">
+        <p className="text-xs text-[var(--hb-text-muted)] mt-1.5 text-right">
           {totalDone}/{totalItems} 항목 완료
         </p>
       </div>
@@ -186,7 +186,7 @@ export default function ChecklistTab() {
         <div className="flex flex-col gap-1">
           {incomplete.map((cat) => renderCategoryRow(cat))}
           {incomplete.length === 0 && (
-            <p className="text-sm text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
+            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">모든 항목이 완료되었습니다</p>
           )}
         </div>
       </CollapsibleSection>
@@ -196,7 +196,7 @@ export default function ChecklistTab() {
         <div className="flex flex-col gap-1">
           {completed.map((cat) => renderCategoryRow(cat, true))}
           {completed.length === 0 && (
-            <p className="text-sm text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
+            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">아직 완료된 항목이 없습니다</p>
           )}
         </div>
       </CollapsibleSection>

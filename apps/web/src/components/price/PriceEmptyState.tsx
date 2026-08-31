@@ -36,14 +36,14 @@ export function PriceEmptyState({
     : [];
 
   return (
-    <section className="rounded-[24px] border border-[#243832]/12 bg-white px-5 py-10 text-center shadow-[0_12px_34px_rgba(36,56,50,0.06)] sm:px-8">
+    <section className="rounded-[6px] border border-[var(--hb-primary)]/12 bg-white px-5 py-10 text-center shadow-[var(--shadow-raised)] sm:px-8">
       <span className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#F5ECE4] text-[#8F6662]">
         <FileHeart aria-hidden="true" className="size-6" />
       </span>
-      <h2 className="mt-5 text-xl font-bold tracking-normal text-[#243832]">
+      <h2 className="mt-5 text-xl font-bold tracking-normal text-[var(--hb-text-strong)]">
         {heading}
       </h2>
-      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[#243832]/70">
+      <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-[var(--hb-text-strong)]/70">
         {description}
       </p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
@@ -51,7 +51,7 @@ export function PriceEmptyState({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[#2B423E] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           >
             필터 초기화
           </button>
@@ -62,7 +62,7 @@ export function PriceEmptyState({
             href={surface === "app"
               ? `/wedding/vendors?category=${value}${preview ? "&preview=1" : ""}`
               : `/price/${value}`}
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-[#243832]/15 bg-white px-4 py-2.5 text-sm font-semibold text-[#243832]/80 hover:bg-[#F5ECE4]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 items-center justify-center rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 py-2.5 text-sm font-semibold text-[var(--hb-text-strong)]/80 hover:bg-[#F5ECE4]/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
           >
             {PRICE_CATEGORY_LABELS[value]} 공시 보기
           </Link>
@@ -70,7 +70,7 @@ export function PriceEmptyState({
       </div>
       <Link
         href="/wedding/community/quote-check"
-        className="mt-5 inline-flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-semibold text-[#8F6662] underline-offset-4 hover:underline"
+        className="mt-5 inline-flex min-h-11 items-center justify-center gap-1 px-2 text-xs font-semibold text-[var(--color-rose-700)] underline-offset-4 hover:underline"
       >
         받은 견적 공유하고 다른 커플 돕기
         <ArrowRight aria-hidden="true" className="size-3.5" />

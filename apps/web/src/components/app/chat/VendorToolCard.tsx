@@ -112,7 +112,7 @@ function VendorRecommendCards({
   if (vendors.length === 0 && isOfficial) {
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="max-w-[440px] rounded-xl border border-[#DDE8E1] bg-[#F8FBF9] px-5 py-4 shadow-sm">
+        <div className="max-w-[440px] rounded-[6px] border border-[#DDE8E1] bg-[#F8FBF9] px-5 py-4 shadow-sm">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E4EFE8]">
               <FileCheck2 className="h-5 w-5 text-[#52715D]" />
@@ -133,7 +133,7 @@ function VendorRecommendCards({
   if (vendors.length === 0) {
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="rounded-xl border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
+        <div className="rounded-[6px] border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
               <Sparkles className="w-5 h-5 text-[#C4967E]" />
@@ -157,7 +157,7 @@ function VendorRecommendCards({
         {vendors.map((v) => (
           <div
             key={v.id}
-            className="rounded-xl border border-black/[0.06] bg-white px-5 py-4 shadow-sm"
+            className="rounded-[6px] border border-black/[0.06] bg-white px-5 py-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
@@ -167,7 +167,7 @@ function VendorRecommendCards({
                 <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
                   {hasRating(v.rating, v.reviewCount) && (
                     <>
-                      <Star className="h-4 w-4 fill-[#C9A96E] text-[var(--hb-primary)]" />
+                      <Star className="h-4 w-4 fill-[var(--hb-accent)] text-[var(--hb-primary)]" />
                       <span className="text-sm text-[var(--hb-text-muted)]">{v.rating} ({v.reviewCount})</span>
                     </>
                   )}
@@ -235,7 +235,7 @@ function VendorRecommendCards({
                 <>
                   <Link
                     href={v.link}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#52715D] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#405D4A]"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[#52715D] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#405D4A]"
                   >
                     <FileCheck2 className="h-4 w-4" />
                     공시 가격·근거 보기
@@ -245,7 +245,7 @@ function VendorRecommendCards({
                       type="button"
                       onClick={() => onSend(`${v.name} 추천 이유와 확인할 점을 더 알려줘 [vendor:${v.id}]`)}
                       disabled={disabled}
-                      className="flex h-10 items-center justify-center rounded-lg border border-[#DDE8E1] px-3 text-sm text-[#52715D] transition-colors hover:bg-[#F1F7F3] disabled:cursor-not-allowed disabled:opacity-40"
+                      className="flex h-10 items-center justify-center rounded-[6px] border border-[#DDE8E1] px-3 text-sm text-[#52715D] transition-colors hover:bg-[#F1F7F3] disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       더 물어보기
                     </button>
@@ -256,14 +256,14 @@ function VendorRecommendCards({
                   <button
                     onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
                     disabled={disabled}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#946a6a] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors bg-[var(--hb-text-body)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Package className="h-4 w-4" />
                     상품·스태프 보기
                   </button>
                   <Link
                     href={v.link}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg border border-black/[0.06] text-[var(--hb-text-muted)] transition-colors hover:border-[#C4967E]/30 hover:text-[#C4967E]"
+                    className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-black/[0.06] text-[var(--hb-text-muted)] transition-colors hover:border-[#C4967E]/30 hover:text-[#C4967E]"
                   >
                     <ChevronRight className="h-5 w-5" />
                   </Link>
@@ -273,7 +273,7 @@ function VendorRecommendCards({
           </div>
         ))}
         {isOfficial && (output.coverageNote || output.disclaimer) && (
-          <div className="rounded-xl border border-[#E3E9E5] bg-[#FAFCFA] px-4 py-3 text-xs leading-relaxed text-[#68726C]">
+          <div className="rounded-[6px] border border-[#E3E9E5] bg-[#FAFCFA] px-4 py-3 text-xs leading-relaxed text-[#68726C]">
             {output.coverageNote && <p>{output.coverageNote}</p>}
             {output.disclaimer && <p className={output.coverageNote ? "mt-1" : undefined}>{output.disclaimer}</p>}
           </div>
@@ -403,7 +403,7 @@ function VendorDetailCard({
 
   return (
     <div className="flex justify-start ml-14 my-2">
-      <div className="rounded-xl border border-black/[0.06] bg-white shadow-sm w-full max-w-[460px] overflow-hidden">
+      <div className="rounded-[6px] border border-black/[0.06] bg-white shadow-sm w-full max-w-[460px] overflow-hidden">
         {/* 헤더 */}
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <p className="text-lg font-semibold text-[var(--hb-text-strong)]">{output.vendorName}</p>
@@ -448,7 +448,7 @@ function VendorDetailCard({
             )}
             <div className="mt-3 space-y-2.5">
               {officialPrices.slice(0, 3).map((price) => (
-                <article key={price.id} className="rounded-lg border border-[#E3E9E5] bg-white px-3.5 py-3">
+                <article key={price.id} className="rounded-[6px] border border-[#E3E9E5] bg-white px-3.5 py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="text-sm font-semibold text-[#263A2D]">{price.item_name}</p>
                     <p className="text-sm font-semibold text-[#52715D]">
@@ -484,7 +484,7 @@ function VendorDetailCard({
           </div>
 
           {isOfficial && output.bookingData?.notice && (
-            <p className="mb-3 rounded-lg bg-[#FFF8F1] px-3 py-2 text-xs leading-relaxed text-[#7A6656]">
+            <p className="mb-3 rounded-[6px] bg-[#FFF8F1] px-3 py-2 text-xs leading-relaxed text-[#7A6656]">
               {output.bookingData.notice}
             </p>
           )}
@@ -502,7 +502,7 @@ function VendorDetailCard({
                     key={p.id}
                     onClick={() => handleProductSelect(p.id)}
                     disabled={disabled || confirmed}
-                    className={`w-full text-left px-4 py-3 rounded-lg border transition-colors
+                    className={`w-full text-left px-4 py-3 rounded-[6px] border transition-colors
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5"
                         : "border-black/[0.06] hover:border-[#C4967E]/30 bg-white"
@@ -511,11 +511,11 @@ function VendorDetailCard({
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className={`text-base font-medium ${isSelected ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
+                          <p className={`text-base font-medium ${isSelected ? "text-[#C4967E]" : "text-[var(--hb-text-strong)]"}`}>
                             {p.name}
                           </p>
                           {p.isPopular && (
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-[#C9A96E]/10 text-[var(--hb-primary)] font-medium">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-[rgba(54,83,78,0.12)] text-[var(--hb-primary)] font-medium">
                               인기
                             </span>
                           )}
@@ -556,7 +556,7 @@ function VendorDetailCard({
                         {p.includes.slice(0, 5).map((inc, i) => (
                           <span
                             key={i}
-                            className="text-xs px-2 py-0.5 rounded bg-[#FAF7F2] text-[var(--hb-text-muted)]"
+                            className="text-xs px-2 py-0.5 rounded-[6px] bg-[#FAF7F2] text-[var(--hb-text-muted)]"
                           >
                             {inc}
                           </span>
@@ -586,7 +586,7 @@ function VendorDetailCard({
                     key={s.id}
                     onClick={() => setSelectedStaff(isSelected ? null : s.id)}
                     disabled={disabled || confirmed}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium border transition-colors
                       ${isSelected
                         ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
                         : "border-black/[0.06] text-[var(--hb-text-muted)] hover:border-[#C4967E]/30"
@@ -600,7 +600,7 @@ function VendorDetailCard({
               <button
                 onClick={() => setSelectedStaff(null)}
                 disabled={disabled || confirmed}
-                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors
+                className={`px-4 py-2 rounded-[6px] text-sm font-medium border transition-colors
                   ${selectedStaff === null
                     ? "border-[#C4967E] bg-[#C4967E]/5 text-[#C4967E]"
                     : "border-black/[0.06] text-[var(--hb-text-muted)] hover:border-[#C4967E]/30"
@@ -618,9 +618,9 @@ function VendorDetailCard({
             <button
               onClick={() => handleConfirm(selectedProduct!, selectedStaff)}
               disabled={disabled || !selectedProduct || confirmed}
-              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-[6px]
                 bg-[var(--hb-primary)] text-white text-base font-medium
-                hover:bg-[#946a6a] active:scale-[0.98]
+                bg-[var(--hb-text-body)] active:scale-[0.98]
                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Calendar className="w-5 h-5" />
@@ -702,7 +702,7 @@ function TimeslotPicker({
   if (slots.length === 0) {
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="rounded-xl border border-black/[0.06] bg-white px-5 py-4 shadow-sm max-w-[440px]">
+        <div className="rounded-[6px] border border-black/[0.06] bg-white px-5 py-4 shadow-sm max-w-[440px]">
           <div className="flex items-center gap-2">
             <Calendar className="w-5 h-5 text-[var(--hb-text-muted)]" />
             <p className="text-base text-[var(--hb-text-muted)]">
@@ -721,7 +721,7 @@ function TimeslotPicker({
 
   return (
     <div className="flex justify-start ml-14 my-2">
-      <div className="rounded-xl border border-black/[0.06] bg-white shadow-sm w-full max-w-[460px] overflow-hidden">
+      <div className="rounded-[6px] border border-black/[0.06] bg-white shadow-sm w-full max-w-[460px] overflow-hidden">
         {/* 헤더 */}
         <div className="px-5 py-4 bg-gradient-to-r from-[#FAF7F2] to-[#F5F0E8] border-b border-black/[0.04]">
           <div className="flex items-center gap-2">
@@ -734,7 +734,7 @@ function TimeslotPicker({
             {" · 실제 가능 여부와 최종 확정은 업체 확인이 필요해요"}
           </p>
           {usingFallback && (
-            <p className="mt-2 text-xs text-[#9A6B62] bg-[#C4967E]/10 rounded px-2 py-1.5 inline-block">
+            <p className="mt-2 text-xs text-[#9A6B62] bg-[#C4967E]/10 rounded-[6px] px-2 py-1.5 inline-block">
               💡 {filterLabel}에는 등록 후보가 없어 인접한 시기의 참고 후보를 보여드려요
             </p>
           )}
@@ -752,7 +752,7 @@ function TimeslotPicker({
 
             return (
               <div key={date}>
-                <p className={`text-base font-medium mb-2 ${isWeekend ? "text-[#C4967E]" : "text-[#1A1A1F]"}`}>
+                <p className={`text-base font-medium mb-2 ${isWeekend ? "text-[#C4967E]" : "text-[var(--hb-text-strong)]"}`}>
                   {month}/{day} ({dayLabel})
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -761,7 +761,7 @@ function TimeslotPicker({
                       key={`${slot.date}-${slot.time}`}
                       onClick={() => handleSelect(slot)}
                       disabled={disabled}
-                      className="px-4 py-2 rounded-lg border border-black/[0.06] text-sm
+                      className="px-4 py-2 rounded-[6px] border border-black/[0.06] text-sm
                         text-[var(--hb-text-strong)] hover:border-[#C4967E] hover:text-[#C4967E] hover:bg-[#C4967E]/5
                         active:scale-[0.95] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
@@ -803,7 +803,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
   if (!result.success) {
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm max-w-[440px]">
+        <div className="rounded-[6px] border border-red-200 bg-red-50 px-5 py-4 shadow-sm max-w-[440px]">
           <p className="text-base text-red-600">{result.displayMessage}</p>
         </div>
       </div>
@@ -825,7 +825,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
 
   return (
     <div className="flex justify-start ml-11 my-1.5">
-      <div className={`rounded-xl border shadow-sm w-full max-w-[24rem] overflow-hidden ${
+      <div className={`rounded-[6px] border shadow-sm w-full max-w-[24rem] overflow-hidden ${
         cancelled ? "border-gray-200 bg-gray-50" : "border-emerald-200 bg-gradient-to-r from-emerald-50 to-white"
       }`}>
         {/* 헤더 */}
@@ -849,7 +849,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
 
         {/* 상세 */}
         <div className="px-4 pb-3">
-          <div className="rounded-lg bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
+          <div className="rounded-[6px] bg-white border border-black/[0.04] px-3 py-2.5 flex flex-col gap-1.5">
             <div className="flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-[#C4967E]" />
               <span className="text-xs text-[var(--hb-text-muted)]">업체</span>
@@ -892,7 +892,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
           </p>
 
           {output.projectionStatus === "pending_retry" && (
-            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <div className="mt-2 rounded-[6px] border border-amber-200 bg-amber-50 px-3 py-2">
               <p className="text-xs font-semibold text-amber-800">일정 반영 중</p>
               <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
                 아모라 안 요청 기록은 저장됐어요. 자동으로 다시 반영하니 같은 기록을 다시 만들 필요는 없어요.
@@ -900,7 +900,7 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
             </div>
           )}
           {output.projectionStatus === "failed" && (
-            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+            <div className="mt-2 rounded-[6px] border border-red-200 bg-red-50 px-3 py-2">
               <p className="text-xs font-semibold text-red-700">일정 반영 확인 필요</p>
               <p className="mt-0.5 text-xs leading-relaxed text-red-600">
                 아모라 안 요청 기록은 저장됐어요. 같은 기록을 다시 만들지 말고 고객지원에 알려주세요.
@@ -912,21 +912,21 @@ function BookingConfirmCard({ result, onSend, disabled }: { result: ToolExecutio
           {!cancelled && (
             <div className="mt-2">
               {showCancelConfirm ? (
-                <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+                <div className="flex items-center justify-between bg-red-50 rounded-[6px] px-3 py-2">
                   <p className="text-xs text-red-600">
                     아모라 안 기록만 취소로 표시할까요? 업체 취소는 별도예요.
                   </p>
                   <div className="flex gap-1.5">
                     <button
                       onClick={() => setShowCancelConfirm(false)}
-                      className="px-2.5 py-1 text-xs rounded-md bg-white border border-black/[0.06] text-[var(--hb-text-muted)]"
+                      className="px-2.5 py-1 text-xs rounded-[6px] bg-white border border-black/[0.06] text-[var(--hb-text-muted)]"
                     >
                       아니요
                     </button>
                     <button
                       onClick={handleCancel}
                       disabled={disabled}
-                      className="px-2.5 py-1 text-xs rounded-md bg-red-500 text-white disabled:opacity-40"
+                      className="px-2.5 py-1 text-xs rounded-[6px] bg-red-500 text-white disabled:opacity-40"
                     >
                       기록 취소 표시
                     </button>
@@ -975,7 +975,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
   if (!result.success) {
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm max-w-[440px]">
+        <div className="rounded-[6px] border border-red-200 bg-red-50 px-5 py-4 shadow-sm max-w-[440px]">
           <p className="text-base text-red-600">{result.displayMessage}</p>
         </div>
       </div>
@@ -991,7 +991,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
 
   return (
     <div className="flex justify-start ml-14 my-2">
-      <div className="rounded-xl border border-gray-200 bg-gradient-to-r from-gray-50 to-white shadow-sm w-full max-w-[440px] overflow-hidden">
+      <div className="rounded-[6px] border border-gray-200 bg-gradient-to-r from-gray-50 to-white shadow-sm w-full max-w-[440px] overflow-hidden">
         <div className="px-5 pt-4 pb-2.5 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-gray-400 flex items-center justify-center">
             <X className="w-5 h-5 text-white" />
@@ -1001,7 +1001,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
           </div>
         </div>
         <div className="px-5 pb-4">
-          <div className="rounded-lg bg-white border border-black/[0.04] px-4 py-3 flex flex-col gap-2">
+          <div className="rounded-[6px] bg-white border border-black/[0.04] px-4 py-3 flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[var(--hb-text-muted)]" />
               <span className="text-sm text-[var(--hb-text-muted)]">업체</span>
@@ -1020,7 +1020,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
               <span className="text-sm font-medium text-[var(--hb-text-muted)] ml-auto line-through">{dateLabel} {output.time}</span>
             </div>
           </div>
-          <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="mt-2 rounded-[6px] border border-slate-200 bg-slate-50 px-3 py-2">
             {output.completedSchedulePreserved && (
               <p className="text-xs leading-relaxed text-slate-700">
                 연결 일정은 이미 완료 기록이라 취소로 바꾸지 않고 보존했어요.
@@ -1047,7 +1047,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
             </p>
           </div>
           {output.projectionStatus === "pending_retry" && (
-            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+            <div className="mt-2 rounded-[6px] border border-amber-200 bg-amber-50 px-3 py-2">
               <p className="text-xs font-semibold text-amber-800">일정 취소 상태 반영 중</p>
               <p className="mt-0.5 text-xs leading-relaxed text-amber-700">
                 아모라 안 취소 표시는 저장됐어요. 자동으로 다시 반영하니 같은 취소 표시를 다시 보낼 필요는 없어요.
@@ -1055,7 +1055,7 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
             </div>
           )}
           {output.projectionStatus === "failed" && (
-            <div className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+            <div className="mt-2 rounded-[6px] border border-red-200 bg-red-50 px-3 py-2">
               <p className="text-xs font-semibold text-red-700">일정 취소 상태 확인 필요</p>
               <p className="mt-0.5 text-xs leading-relaxed text-red-600">
                 아모라 안 취소 표시는 저장됐어요. 같은 취소 표시를 다시 보내지 말고 고객지원에 알려주세요.
@@ -1116,7 +1116,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
     const primaryUrl = handoffSearchUrl ?? handoffMapsUrl!;
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="w-full max-w-[440px] overflow-hidden rounded-xl border border-[#DCE8DA] bg-white shadow-sm">
+        <div className="w-full max-w-[440px] overflow-hidden rounded-[6px] border border-[#DCE8DA] bg-white shadow-sm">
           <a
             href={primaryUrl}
             target="_blank"
@@ -1164,7 +1164,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       <div className="flex justify-start ml-14 my-2">
         <div
           role="alert"
-          className="w-full max-w-[440px] rounded-xl border border-red-200 bg-red-50 px-5 py-4 shadow-sm"
+          className="w-full max-w-[440px] rounded-[6px] border border-red-200 bg-red-50 px-5 py-4 shadow-sm"
         >
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100">
@@ -1186,7 +1186,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
   if (places.length === 0) {
     return (
       <div className="flex justify-start ml-14 my-2">
-        <div className="rounded-xl border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
+        <div className="rounded-[6px] border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
               <MapPin className="w-5 h-5 text-[#C4967E]" />
@@ -1227,7 +1227,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
         {places.map((p, idx) => (
           <div
             key={p.id}
-            className="rounded-xl border border-black/[0.06] bg-white shadow-sm hover:shadow-md hover:border-[#C4967E]/20 transition-colors overflow-hidden"
+            className="rounded-[6px] border border-black/[0.06] bg-white shadow-sm hover:shadow-md hover:border-[#C4967E]/20 transition-colors overflow-hidden"
           >
             {/* 메인 컨텐츠 — 하단 지도/블로그 링크와 분리된 단일 검색 링크 */}
             <a
@@ -1235,12 +1235,12 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               target="_blank"
               rel="noopener noreferrer"
               aria-label={`${p.name} 네이버에서 리뷰·별점 보기`}
-              className="block px-5 pt-4 pb-3.5 outline-none transition-colors hover:bg-[#FBF8F2] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A77B74]"
+              className="block px-5 pt-4 pb-3.5 outline-none transition-colors hover:bg-[var(--hb-surface-page)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#A77B74]"
             >
               <div className="flex items-start gap-3">
                 {/* 네이버 이미지 검색 대표 사진 + 순위 */}
-                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-black/[0.05] bg-[#FAF7F2] sm:h-24 sm:w-24">
-                  <span className="absolute left-1.5 top-1.5 z-10 flex h-7 min-w-7 items-center justify-center rounded-md border border-black/[0.05] bg-white/95 px-1 text-sm font-semibold text-[#C4967E] shadow-sm">
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[6px] border border-black/[0.05] bg-[#FAF7F2] sm:h-24 sm:w-24">
+                  <span className="absolute left-1.5 top-1.5 z-10 flex h-7 min-w-7 items-center justify-center rounded-[6px] border border-black/[0.05] bg-white/95 px-1 text-sm font-semibold text-[#C4967E] shadow-sm">
                     {idx + 1}
                   </span>
                   {p.imageUrl && !failedImageIds.has(p.id) ? (
@@ -1283,7 +1283,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                     <p className="min-w-0 truncate text-lg font-semibold text-[var(--hb-text-strong)]">
                       {p.name}
                     </p>
-                    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-[#A77B74] sm:text-xs">
+                    <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-[11px] font-semibold text-[var(--color-rose-700)] sm:text-xs">
                       리뷰·별점 보기
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
                     </span>

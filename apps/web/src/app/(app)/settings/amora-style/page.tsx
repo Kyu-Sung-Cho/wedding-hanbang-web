@@ -256,30 +256,30 @@ export default function AmoraStyleSettingsPage() {
         <Link
           {...weddingLinkProps("/settings")}
           aria-label="설정으로 돌아가기"
-          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[#243832] shadow-sm transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662]"
+          className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-sm transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662]"
         >
           <ArrowLeft className="h-5 w-5" />
         </Link>
         <div className="min-w-0">
-          <p className="text-xs font-semibold tracking-[0.16em] text-[#8F6662]">
+          <p className="text-xs font-semibold tracking-[0.16em] text-[var(--color-rose-700)]">
             MY AMORA
           </p>
-          <h1 className="text-2xl font-semibold text-[#243832] sm:text-3xl">
+          <h1 className="text-2xl font-semibold text-[var(--hb-text-strong)] sm:text-3xl">
             아모라 도움 방식
           </h1>
         </div>
       </div>
 
-      <section className="mb-5 rounded-2xl bg-gradient-to-br from-[#FBF8F2] to-[#F7F1E8] p-5 ring-1 ring-[#E2D3C8] sm:p-6">
+      <section className="mb-5 rounded-[6px] bg-gradient-to-br from-[var(--hb-surface-page)] to-[var(--hb-surface-hover)] p-5 ring-1 ring-[#E2D3C8] sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#36534E] text-white">
+          <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white">
             <SlidersHorizontal className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-[#243832]">
+            <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
               편한 말투와 도움 순서를 직접 골라요
             </h2>
-            <p className="mt-1 text-sm font-light leading-relaxed text-[#36534E]">
+            <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-strong)]">
               설정은 나에게만 보관됩니다. 답변 표현과 제안 순서에만 사용하며
               예산·일정·담당자는 확인 없이 바꾸지 않아요.
             </p>
@@ -288,24 +288,24 @@ export default function AmoraStyleSettingsPage() {
       </section>
 
       {isDemo ? (
-        <section className="rounded-2xl border border-[#E2D3C8] bg-white p-6 text-sm text-[#36534E]">
+        <section className="rounded-[6px] border border-[#E2D3C8] bg-white p-6 text-sm text-[var(--hb-text-strong)]">
           체험에서는 개인 설정을 저장하지 않아요. 가입 후 내 아모라에 맞출 수
           있어요.
         </section>
       ) : personalization.status === "loading" ? (
-        <div className="flex min-h-48 items-center justify-center text-[#6D806E]">
+        <div className="flex min-h-48 items-center justify-center text-[var(--hb-success)]">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           도움 방식을 불러오는 중...
         </div>
       ) : personalization.status === "error" ? (
-        <section className="rounded-2xl border border-[#E2D3C8] bg-white p-6">
+        <section className="rounded-[6px] border border-[#E2D3C8] bg-white p-6">
           <p role="alert" className="text-sm text-[#A04A4A]">
             {personalization.error ?? "도움 방식을 불러오지 못했어요."}
           </p>
           <button
             type="button"
             onClick={() => void personalization.load()}
-            className="mt-4 min-h-11 rounded-xl bg-[#36534E] px-4 text-sm font-semibold text-white"
+            className="mt-4 min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
           >
             다시 불러오기
           </button>
@@ -316,12 +316,12 @@ export default function AmoraStyleSettingsPage() {
             {SECTIONS.map((section) => (
               <section
                 key={section.key}
-                className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.04)] sm:p-6"
+                className="rounded-[6px] bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6"
               >
-                <h2 className="text-base font-semibold text-[#243832]">
+                <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
                   {section.title}
                 </h2>
-                <p className="mt-1 text-sm leading-relaxed text-[#6D806E]">
+                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-success)]">
                   {section.description}
                 </p>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -347,19 +347,19 @@ export default function AmoraStyleSettingsPage() {
                             ),
                           });
                         }}
-                        className={`min-h-16 rounded-xl border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] disabled:opacity-50 ${
+                        className={`min-h-16 rounded-[6px] border px-4 py-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] disabled:opacity-50 ${
                           selected
                             ? "border-[#6D806E] bg-[#F1F5EF]"
-                            : "border-[#E2D3C8] bg-white hover:bg-[#FBF8F2]"
+                            : "border-[#E2D3C8] bg-white hover:bg-[var(--hb-surface-page)]"
                         }`}
                       >
-                        <span className="flex items-center gap-1.5 text-sm font-semibold text-[#243832]">
+                        <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                           {selected && (
-                            <Check className="h-4 w-4 text-[#6D806E]" />
+                            <Check className="h-4 w-4 text-[var(--hb-success)]" />
                           )}
                           {choice.label}
                         </span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-[#6D806E]">
+                        <span className="mt-0.5 block text-xs leading-relaxed text-[var(--hb-success)]">
                           {choice.description}
                         </span>
                       </button>
@@ -370,16 +370,16 @@ export default function AmoraStyleSettingsPage() {
             ))}
           </div>
 
-          <section className="sticky bottom-4 mt-5 rounded-2xl border border-[#E2D3C8] bg-white/95 p-4 shadow-[0_12px_35px_rgba(36,56,50,0.12)] backdrop-blur sm:p-5">
+          <section className="sticky bottom-4 mt-5 rounded-[6px] border border-[#E2D3C8] bg-white/95 p-4 shadow-[var(--shadow-raised)] backdrop-blur sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <p className="flex items-center gap-1.5 text-sm font-semibold text-[#243832]">
-                  <ShieldCheck className="h-4 w-4 text-[#6D806E]" />
+                <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
+                  <ShieldCheck className="h-4 w-4 text-[var(--hb-success)]" />
                   {personalization.profile
                     ? `내 설정 · ${updatedAt ?? "직접 확인됨"}`
                     : "아직 저장한 도움 방식이 없어요"}
                 </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-[#6D806E]">
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-success)]">
                   현재 질문이 저장값과 다르면 방금 한 말이 우선해요.
                 </p>
               </div>
@@ -387,7 +387,7 @@ export default function AmoraStyleSettingsPage() {
                 type="button"
                 disabled={!dirty || personalization.saving}
                 onClick={() => void save()}
-                className="min-h-11 rounded-xl bg-[#36534E] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#243832] disabled:cursor-not-allowed disabled:opacity-40"
+                className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {personalization.saving ? "저장 중..." : "변경 저장"}
               </button>
@@ -396,7 +396,7 @@ export default function AmoraStyleSettingsPage() {
               <p
                 role={personalization.error ? "alert" : "status"}
                 className={`mt-3 text-sm ${
-                  personalization.error ? "text-[#A04A4A]" : "text-[#6D806E]"
+                  personalization.error ? "text-[#A04A4A]" : "text-[var(--hb-success)]"
                 }`}
               >
                 {personalization.error ?? notice}
@@ -405,7 +405,7 @@ export default function AmoraStyleSettingsPage() {
           </section>
 
           {personalization.profile && (
-            <section className="mt-6 rounded-2xl border border-[#E2D3C8] bg-[#FBF8F2] p-5">
+            <section className="mt-6 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-5">
               {!confirmReset ? (
                 <button
                   type="button"
@@ -417,7 +417,7 @@ export default function AmoraStyleSettingsPage() {
                 </button>
               ) : (
                 <div>
-                  <p className="text-sm leading-relaxed text-[#36534E]">
+                  <p className="text-sm leading-relaxed text-[var(--hb-text-strong)]">
                     저장한 값만 삭제하고 대화·예산·일정은 그대로 유지해요.
                   </p>
                   <div className="mt-3 flex gap-2">
@@ -425,7 +425,7 @@ export default function AmoraStyleSettingsPage() {
                       type="button"
                       disabled={personalization.saving}
                       onClick={() => void reset()}
-                      className="min-h-11 rounded-xl bg-[#8F6662] px-4 text-sm font-semibold text-white disabled:opacity-50"
+                      className="min-h-11 rounded-[6px] bg-[#8F6662] px-4 text-sm font-semibold text-white disabled:opacity-50"
                     >
                       모두 지우기
                     </button>
@@ -433,7 +433,7 @@ export default function AmoraStyleSettingsPage() {
                       type="button"
                       disabled={personalization.saving}
                       onClick={() => setConfirmReset(false)}
-                      className="min-h-11 rounded-xl border border-[#E2D3C8] bg-white px-4 text-sm font-medium text-[#36534E]"
+                      className="min-h-11 rounded-[6px] border border-[#E2D3C8] bg-white px-4 text-sm font-medium text-[var(--hb-text-strong)]"
                     >
                       취소
                     </button>

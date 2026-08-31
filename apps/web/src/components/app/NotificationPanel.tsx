@@ -17,12 +17,12 @@ import { useAuthStore } from "@/stores/authStore";
 const PRIORITY_STYLES: Record<string, { icon: React.ElementType; accent: string; bg: string }> = {
   high: { icon: AlertTriangle, accent: "text-red-500", bg: "bg-red-50" },
   medium: { icon: Bell, accent: "text-[#C4967E]", bg: "bg-[#C4967E]/5" },
-  low: { icon: Info, accent: "text-[#928980]", bg: "bg-[#FAF8F5]" },
+  low: { icon: Info, accent: "text-[var(--hb-text-muted)]", bg: "bg-[#FAF8F5]" },
 };
 const PARTNER_STYLE = {
   icon: Users,
-  accent: "text-[#36534E]",
-  bg: "bg-[#36534E]/8",
+  accent: "text-[var(--hb-text-strong)]",
+  bg: "bg-[var(--hb-primary)]/8",
 };
 
 function formatNotificationTime(value: string | undefined) {
@@ -143,17 +143,17 @@ export default function NotificationPanel({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: -10, scale: 0.97 }}
         transition={{ duration: 0.2 }}
-        className="absolute right-0 top-full mt-2 w-[360px] max-h-[480px] bg-white rounded-2xl border border-black/[0.06] shadow-xl z-50 overflow-hidden flex flex-col max-md:w-[calc(100vw-32px)] max-md:right-[-8px]"
+        className="absolute right-0 top-full mt-2 w-[360px] max-h-[480px] bg-white rounded-[6px] border border-black/[0.06] shadow-xl z-50 overflow-hidden flex flex-col max-md:w-[calc(100vw-32px)] max-md:right-[-8px]"
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[15px] font-medium text-[#1A1A1F]">알림</h3>
+          <h3 className="text-[15px] font-medium text-[var(--hb-text-strong)]">알림</h3>
           <div className="flex items-center gap-2">
             {notifications.length > 0 && (
               <button
                 type="button"
                 onClick={onDismissAll}
-                className="text-[11px] text-[#928980] hover:text-[#C4967E] transition-colors"
+                className="text-[11px] text-[var(--hb-text-muted)] hover:text-[#C4967E] transition-colors"
               >
                 모두 읽음
               </button>
@@ -162,7 +162,7 @@ export default function NotificationPanel({
               type="button"
               onClick={onClose}
               aria-label="알림 닫기"
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-[#FAF8F5] transition-colors"
+              className="w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[#FAF8F5] transition-colors"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -176,10 +176,10 @@ export default function NotificationPanel({
               <div className="w-12 h-12 rounded-full bg-[#2E7D5A]/10 flex items-center justify-center mb-3">
                 <Check className="w-6 h-6 text-[#2E7D5A]" />
               </div>
-              <p className="text-[14px] text-[#928980] font-medium">
+              <p className="text-[14px] text-[var(--hb-text-muted)] font-medium">
                 모든 알림을 확인했습니다
               </p>
-              <p className="text-[12px] text-[#B5ADA3] mt-1">
+              <p className="text-[12px] text-[var(--hb-text-muted)] mt-1">
                 새로운 알림이 오면 여기에 표시됩니다
               </p>
             </div>
@@ -216,26 +216,26 @@ export default function NotificationPanel({
                     >
                       <div className="flex items-start gap-3">
                         <div
-                          className={`w-8 h-8 rounded-lg ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}
+                          className={`w-8 h-8 rounded-[6px] ${style.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}
                         >
                           <Icon className={`w-4 h-4 ${style.accent}`} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <p className="text-[13px] font-medium text-[#1A1A1F]">
+                            <p className="text-[13px] font-medium text-[var(--hb-text-strong)]">
                               {n.title}
                             </p>
                             {n.isNew && (
                               <div className="w-1.5 h-1.5 rounded-full bg-[#C4967E] flex-shrink-0" />
                             )}
                           </div>
-                          <p className="text-[12px] text-[#928980] font-light mt-0.5 leading-relaxed">
+                          <p className="text-[12px] text-[var(--hb-text-muted)] font-light mt-0.5 leading-relaxed">
                             {n.message}
                           </p>
                           {createdAt && n.createdAt && (
                             <time
                               dateTime={n.createdAt}
-                              className="block text-[10px] text-[#B5ADA3] mt-1"
+                              className="block text-[10px] text-[var(--hb-text-muted)] mt-1"
                             >
                               {createdAt}
                             </time>
@@ -247,7 +247,7 @@ export default function NotificationPanel({
                                   type="button"
                                   disabled={Boolean(resolvingId)}
                                   onClick={() => void resolvePlanChange(n, "accept")}
-                                  className="inline-flex items-center gap-1 rounded-md bg-[#36534E] px-2.5 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
+                                  className="inline-flex items-center gap-1 rounded-[6px] bg-[var(--hb-primary)] px-2.5 py-1.5 text-[11px] font-medium text-white disabled:opacity-50"
                                 >
                                   {isResolving && (
                                     <Loader2 className="h-3 w-3 animate-spin" />
@@ -258,7 +258,7 @@ export default function NotificationPanel({
                                   type="button"
                                   disabled={Boolean(resolvingId)}
                                   onClick={() => void resolvePlanChange(n, "reject")}
-                                  className="rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[#795252] disabled:opacity-50"
+                                  className="rounded-[6px] border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
                                 >
                                   이번 요청 거절
                                 </button>
@@ -269,7 +269,7 @@ export default function NotificationPanel({
                                 type="button"
                                 disabled={Boolean(resolvingId)}
                                 onClick={() => void resolvePlanChange(n, "cancel")}
-                                className="inline-flex items-center gap-1 rounded-md border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[#795252] disabled:opacity-50"
+                                className="inline-flex items-center gap-1 rounded-[6px] border border-[#D8C7BB] px-2.5 py-1.5 text-[11px] text-[var(--hb-accent-hover)] disabled:opacity-50"
                               >
                                 {isResolving && (
                                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -290,7 +290,7 @@ export default function NotificationPanel({
                               <button
                                 type="button"
                                 onClick={() => onOpen(n)}
-                                className="text-[11px] text-[#36534E] hover:underline"
+                                className="text-[11px] text-[var(--hb-text-strong)] hover:underline"
                               >
                                 {isPlanApproval || isPlanPending
                                   ? "변경 내용 확인"
@@ -302,7 +302,7 @@ export default function NotificationPanel({
                                 type="button"
                                 onClick={() => onDismiss(n.id)}
                                 aria-label={`${n.title} 읽음으로 표시`}
-                                className="text-[11px] text-[#B5ADA3] hover:text-[#928980]"
+                                className="text-[11px] text-[var(--hb-text-muted)] hover:text-[var(--hb-text-muted)]"
                               >
                                 읽음
                               </button>

@@ -202,6 +202,39 @@ test("the expand deployment keeps conversation-segment reads disabled", () => {
   }
 });
 
+test("the production deployment requires an explicit auxiliary-memory state", () => {
+  // 이 게이트에는 **이 플래그를 지키는 검사가 하나도 없었다.** 2026-08-30 에
+  // 확인했다 — `auxiliaryMemoryDisabledForExpandDeploy` 를 통째로 지우거나
+  // `true,` 로 바꿔도 node 18/18 · vitest 14/14 가 그대로 초록이었다. 같은 파일의
+  // conversation-segment · TodayOne · AI 로그는 전용 검사가 있는데 보조 기억만
+  // 없어서, 실수로 느슨해져도 아무도 잡지 못하는 상태였다.
+  //
+  // 이제 "false 여야 한다"가 아니라 "명시해야 한다"이므로, 지켜야 할 것은
+  // **미설정·오타를 막는 것**이다. 값을 안 정한 채 배포되면 런타임이 조용히
+  // 꺼진 쪽으로 가고, 켠 줄 알았던 사람이 그것을 모른다.
+  for (const unsafe of ["", "TRUE", "True", "1", "yes", "off"]) {
+    const result = runChecker(validEnv({
+      AMORA_AUXILIARY_MEMORY_ENABLED: unsafe,
+    }));
+    assert.equal(result.status, 1);
+    assert.deepEqual(
+      JSON.parse(result.stdout).failed,
+      ["auxiliaryMemoryStateExplicit"],
+    );
+  }
+});
+
+test("the production deployment accepts auxiliary memory on or off", () => {
+  // 켤 수 있다는 것이 이 변경의 요지다. 두 값 모두 통과해야 한다.
+  for (const explicit of ["true", "false"]) {
+    const result = runChecker(validEnv({
+      AMORA_AUXILIARY_MEMORY_ENABLED: explicit,
+    }));
+    assert.equal(result.status, 0, `${explicit} 에서 실패: ${result.stdout}`);
+    assert.deepEqual(JSON.parse(result.stdout).failed, []);
+  }
+});
+
 test("the expand deployment keeps TodayOne disabled", () => {
   for (const unsafe of ["", "true", "FALSE"]) {
     const result = runChecker(validEnv({

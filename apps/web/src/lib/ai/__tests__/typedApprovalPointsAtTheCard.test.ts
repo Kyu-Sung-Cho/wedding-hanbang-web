@@ -118,17 +118,22 @@ describe("말로 한 승인", () => {
 
   it("계약문은 절단되지 않는 자리에 있다", () => {
     // 프롬프트가 상한에 걸려 잘려도 이 규칙은 남아야 한다.
+    //
+    // 상한이 20,000 이었는데 2026-08-30 에 계약 아홉을 절단 면제로 옮기면서
+    // (`PRODUCT_SAFETY_HEADINGS`) 필수 영역이 그보다 커졌다 — 그 값으로는
+    // `maxChars must be an integer large enough…` 로 던진다. 30,000 은 운영
+    // 상한(48,000)보다 한참 낮아 절단이 확실히 일어나고, 검사의 뜻은 그대로다.
     const card = issueRealCard(now);
     const trimmed = buildAmoraSystemPrompt(baseContext, {
       requestKind: "chat",
       persistenceMode: "durable",
       enabledToolNames: READ_ONLY_BETA_TOOLS,
       awaitingCardConfirmation: card.confirmation,
-      maxChars: 20_000,
+      maxChars: 30_000,
     });
-    expect(trimmed.length).toBeLessThanOrEqual(20_000);
+    expect(trimmed.length).toBeLessThanOrEqual(30_000);
     // 실제로 잘린 프롬프트여야 검사에 뜻이 있다.
-    expect(trimmed.length).toBeGreaterThan(15_000);
+    expect(trimmed.length).toBeGreaterThan(25_000);
     expect(trimmed).toContain("[화면에 대기 중인 변경 카드]");
     expect(trimmed).toContain("이대로 적용");
   });

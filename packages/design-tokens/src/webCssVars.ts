@@ -139,25 +139,44 @@ export const WEB_THEME_COLOR_VARS: readonly WebCssColorVar[] = [
 export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   {
     name: "primary",
-    value: colors.noir[800],
-    section: "역할 — 누를 수 있는 것 (기본값은 제품 정체인 유칼립투스)",
+    value: colors.paper.ink,
+    section: "역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크)",
   },
-  { name: "primary-hover", value: colors.noir.pressed },
-  { name: "on-primary", value: colors.surface },
+  { name: "primary-hover", value: colors.paper.inkPressed },
+  { name: "on-primary", value: colors.paper.card },
 
-  { name: "focus-ring", value: colors.noir[800], section: "역할 — 초점" },
+  // 초점 링은 파란 펜이다. 잉크와 같은 색으로 두면 어두운 버튼 위에서 링이 사라진다.
+  { name: "focus-ring", value: colors.paper.pen, section: "역할 — 초점" },
 
   {
     name: "surface-raised",
-    value: colors.surface,
+    value: colors.paper.card,
     section: "역할 — 표면과 경계",
   },
-  { name: "surface-hover", value: colors.ivory.warm },
-  { name: "hairline", value: colors.border },
+  { name: "surface-hover", value: colors.paper.tint },
+  { name: "hairline", value: colors.paper.edge },
 
-  { name: "text-strong", value: colors.textPrimary, section: "역할 — 글자" },
-  { name: "text-body", value: colors.textSecondary },
-  { name: "text-muted", value: colors.textTertiary },
+  { name: "text-strong", value: colors.paper.ink, section: "역할 — 글자" },
+  { name: "text-body", value: colors.paper.inkSoft },
+  { name: "text-muted", value: colors.paper.inkFaint },
+
+  // 아래 넷은 2026-08-28에 `:root` 로 올라왔다.
+  //
+  // 그전에는 테마 블록(`.hanbang-service-theme` 등)에만 있어서, **공개 화면에서는
+  // 그 이름을 쓸 수 없었다** — `bg-[var(--hb-ivory)]` 가 로그인 후에는 종이색이고
+  // 로그인 전에는 정의되지 않은 값이라 투명해진다. 색 리터럴을 역할 이름으로
+  // 바꾸는 작업을 하려면 **같은 이름이 어디서나 통해야** 한다.
+  //
+  // 테마 블록의 짝(`ivory`·`ivory-warm`·`gold`·`success`)은 그대로 둔다 —
+  // 브리지 규칙 65개가 그 이름을 참조하고, 브리지를 걷어낼 때 함께 사라진다.
+  {
+    name: "surface-page",
+    value: colors.paper.sheet,
+    section: "역할 — 어디서나 통하는 표면·강조 (테마 밖에서도 정의된다)",
+  },
+  { name: "accent", value: colors.paper.pen },
+  { name: "accent-hover", value: colors.paper.penDeep },
+  { name: "success", value: colors.sage.deep },
 ];
 
 /** `#RRGGBB`를 `rgba(r, g, b, a)`로. 알파가 붙은 브리지 값을 토큰에서 만들기 위한 것. */
@@ -186,18 +205,30 @@ function hexToRgba(hex: string, alpha: number): string {
  * 브리지를 걷어낼 때 함께 사라질 이름이다.
  */
 export const WEB_THEME_ROLE_VARS: readonly WebCssColorVar[] = [
-  { name: "navy", value: colors.noir[800] },
-  { name: "navy-soft", value: colors.noir.pressed },
-  { name: "gold", value: colors.noir[800] },
-  { name: "gold-deep", value: colors.noir[800] },
-  { name: "gold-light", value: hexToRgba(colors.noir[800], 0.22) },
-  { name: "ivory", value: colors.ivory[50] },
-  { name: "ivory-warm", value: colors.ivory.warm },
-  { name: "line", value: colors.border },
-  { name: "muted", value: colors.textTertiary },
-  { name: "text", value: colors.textPrimary },
-  { name: "body", value: colors.textSecondary },
-  { name: "success", value: colors.noir[800] },
+  // 2026-08-28: 값이 유칼립투스에서 **종이**로 옮겨졌다. 위 `WEB_SEMANTIC_ROLE_VARS`
+  // 와 반드시 같은 언어여야 한다 — 한쪽만 옮기면 Button 만 바뀌고 브리지가 덮는
+  // 제품 표면은 그대로 남는다. 정확히 그 사고가 2026-08-21에 있었고, 그때 가드 3개가
+  // 전부 초록이었다(이 파일 위 주석).
+  //
+  // 이름(`navy`·`gold`)은 이미 오래전부터 거짓이지만 브리지 규칙 65개가 그 이름을
+  // 참조하므로 지금 바꾸지 않는다 — 브리지를 걷어낼 때 함께 사라질 이름이다.
+  { name: "navy", value: colors.paper.ink },
+  { name: "navy-soft", value: colors.paper.inkSoft },
+  // 강조는 파란 펜이 진다. 잉크로 두면 링크·강조가 본문과 구분되지 않는다.
+  { name: "gold", value: colors.paper.pen },
+  { name: "gold-deep", value: colors.paper.penDeep },
+  { name: "gold-light", value: hexToRgba(colors.paper.pen, 0.16) },
+  { name: "ivory", value: colors.paper.sheet },
+  { name: "ivory-warm", value: colors.paper.tint },
+  { name: "line", value: colors.paper.edge },
+  { name: "muted", value: colors.paper.inkFaint },
+  { name: "text", value: colors.paper.ink },
+  { name: "body", value: colors.paper.inkSoft },
+  // ⚠️ success 는 **종이로 칠하지 않는다.** 뜻을 지는 색이라 바탕과 같아지면
+  // "성공"이 본문과 구별되지 않는다. 지금까지 유칼립투스(=본문색)여서 이미 그
+  // 상태였고, DESIGN.md 가 배정한 sage 계열로 되돌린다. 단 `sage[500]`(#6D806E)은
+  // 흰 카드에서 4.23:1 이라 본문 글자에 못 쓴다 — 어두운 단계 `sage.deep` 을 쓴다.
+  { name: "success", value: colors.sage.deep },
 ];
 
 /**

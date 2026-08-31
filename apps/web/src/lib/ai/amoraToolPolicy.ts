@@ -58,12 +58,17 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   "update_venue",
 ]);
 
-const BUDGET_INTENT = /예산|비용|금액|가격|견적|시세|돈|식대|지출|썼|결제|배분|다시\s*(?:짜|나눠|나누)|budget|price|quote/i;
+// `대관료` 가 빠져 있었다. 운영 발화 `대관료는 보통 얼마야?` 는 범위는 W0 인데
+// 이 어휘에 안 걸려 **시세 조회 도구가 안 붙었다** — 도구가 있는데 한 번도
+// 안 쓰이는 자리다. `얼마` 도 함께 넣는다: 이 목록은 범위 판정이 아니라
+// **도구 선택**이라 틀려도 읽기 도구 하나가 더 붙을 뿐이고, 범위 관문이
+// 이미 앞에서 결혼 대화인지 가른 뒤다.
+const BUDGET_INTENT = /예산|비용|금액|가격|견적|시세|돈|식대|대관료|지출|썼|결제|배분|얼마|다시\s*(?:짜|나눠|나누)|budget|price|quote/i;
 const SCHEDULE_INTENT = /일정|스케줄|날짜|예정일|결혼식|예식|본식|웨딩|체크리스트|할\s*일|준비\s*목록|촬영|투어|피팅|상담|미팅|schedule|date|task/i;
 /** "3월 15일", "27년 9월 12일", "담주 금요일" 처럼 날짜만으로 말한 일정. */
 const DATE_LIKE =
   /\d{1,2}\s*월\s*\d{1,2}\s*일|\d{2,4}\s*년\s*\d{1,2}\s*월|(?:이번|다음|담)\s*주\s*(?:월|화|수|목|금|토|일)?요?일?/;
-const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|vendor|venue|booking/i;
+const VENDOR_INTENT = /업체|웨딩홀|예식장|결혼식장|식장|스튜디오|드레스|(?:혼주\s*)?메이크업|스드메|플래너|웨딩\s*(?:촬영|사진)|본식|결혼\s*준비|예약|대관|vendor|venue|booking/i;
 const CONTRACT_INTENT = /계약|계약서|약관|위약|환불|취소\s*수수료|contract|clause|refund/i;
 /**
  * 견적을 봐 달라는 말.

@@ -331,7 +331,7 @@ export default function CommunityOperationsPage() {
       <main className="flex min-h-screen items-center justify-center bg-[#F8F5EF] px-4">
         <div className="text-center">
           <Loader2
-            className="mx-auto mb-3 h-8 w-8 animate-spin text-[#36534E]"
+            className="mx-auto mb-3 h-8 w-8 animate-spin text-[var(--hb-text-strong)]"
             aria-hidden="true"
           />
           <p className="text-sm text-[#6F6A62]">
@@ -351,7 +351,7 @@ export default function CommunityOperationsPage() {
           <div>
             <Link
               href="/admin"
-              className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[#36534E] hover:underline"
+              className="mb-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-[var(--hb-text-strong)] hover:underline"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               관리자 대시보드
@@ -372,7 +372,7 @@ export default function CommunityOperationsPage() {
               id="health-window"
               value={windowDays}
               onChange={(event) => setWindowDays(Number(event.target.value))}
-              className="min-h-11 rounded-xl border border-[#D8D1C5] bg-white px-3 text-sm text-[#252824]"
+              className="min-h-11 rounded-[6px] border border-[#D8D1C5] bg-white px-3 text-sm text-[#252824]"
             >
               <option value={7}>최근 7일</option>
               <option value={30}>최근 30일</option>
@@ -382,7 +382,7 @@ export default function CommunityOperationsPage() {
               type="button"
               onClick={() => void loadOperations(windowDays)}
               disabled={loading}
-              className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] hover:bg-[#F3F7F2] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] hover:bg-[#F3F7F2] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <RefreshCcw
                 className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
@@ -396,7 +396,7 @@ export default function CommunityOperationsPage() {
         {error && (
           <div
             role="alert"
-            className="mb-5 rounded-2xl border border-[#E9B9AD] bg-[#FFF3F0] px-4 py-3 text-sm leading-6 text-[#8B3326]"
+            className="mb-5 rounded-[6px] border border-[#E9B9AD] bg-[#FFF3F0] px-4 py-3 text-sm leading-6 text-[#8B3326]"
           >
             {error}
           </div>
@@ -404,16 +404,16 @@ export default function CommunityOperationsPage() {
         {success && (
           <div
             role="status"
-            className="mb-5 rounded-2xl border border-[#BCD4C4] bg-[#F0F8F2] px-4 py-3 text-sm leading-6 text-[#27583A]"
+            className="mb-5 rounded-[6px] border border-[#BCD4C4] bg-[#F0F8F2] px-4 py-3 text-sm leading-6 text-[#27583A]"
           >
             {success}
           </div>
         )}
 
         {loading && !health ? (
-          <section className="rounded-3xl border border-black/5 bg-white p-10 text-center">
+          <section className="rounded-[6px] border border-black/5 bg-white p-10 text-center">
             <Loader2
-              className="mx-auto mb-3 h-7 w-7 animate-spin text-[#36534E]"
+              className="mx-auto mb-3 h-7 w-7 animate-spin text-[var(--hb-text-strong)]"
               aria-hidden="true"
             />
             <p className="text-sm text-[#6F6A62]">운영 상태를 측정 중입니다.</p>
@@ -421,7 +421,7 @@ export default function CommunityOperationsPage() {
         ) : health ? (
           <>
             <section
-              className={`mb-6 rounded-3xl border p-5 sm:p-7 ${
+              className={`mb-6 rounded-[6px] border p-5 sm:p-7 ${
                 releaseReady
                   ? "border-[#BCD4C4] bg-[#F0F8F2]"
                   : "border-[#E6C4A7] bg-[#FFF7ED]"
@@ -469,7 +469,7 @@ export default function CommunityOperationsPage() {
                 {releaseChecks.map((check) => (
                   <div
                     key={check.label}
-                    className="rounded-2xl border border-black/5 bg-white/80 p-4"
+                    className="rounded-[6px] border border-black/5 bg-white/80 p-4"
                   >
                     <div className="flex items-start gap-2">
                       {check.passed ? (
@@ -532,7 +532,7 @@ export default function CommunityOperationsPage() {
             </section>
 
             <section
-              className="mb-6 rounded-3xl border border-black/5 bg-white p-5 sm:p-7"
+              className="mb-6 rounded-[6px] border border-black/5 bg-white p-5 sm:p-7"
               aria-labelledby="origin-summary-heading"
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -581,7 +581,7 @@ export default function CommunityOperationsPage() {
             </section>
 
             <section
-              className="rounded-3xl border border-black/5 bg-white p-5 sm:p-7"
+              className="rounded-[6px] border border-black/5 bg-white p-5 sm:p-7"
               aria-labelledby="provenance-queue-heading"
             >
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
@@ -606,7 +606,7 @@ export default function CommunityOperationsPage() {
               </div>
 
               {items.length === 0 ? (
-                <div className="mt-6 rounded-2xl border border-dashed border-[#C9D5C8] bg-[#F7FBF7] p-8 text-center">
+                <div className="mt-6 rounded-[6px] border border-dashed border-[#C9D5C8] bg-[#F7FBF7] p-8 text-center">
                   <CheckCircle2
                     className="mx-auto mb-3 h-7 w-7 text-[#2F6E47]"
                     aria-hidden="true"
@@ -626,7 +626,7 @@ export default function CommunityOperationsPage() {
                     return (
                       <article
                         key={`${item.target_type}-${item.id}`}
-                        className="rounded-2xl border border-[#E7E1D8] p-4 sm:p-5"
+                        className="rounded-[6px] border border-[#E7E1D8] p-4 sm:p-5"
                       >
                         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                           <div className="min-w-0 flex-1">
@@ -654,7 +654,7 @@ export default function CommunityOperationsPage() {
                               href={`/wedding/community/post/${item.post_id}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[#36534E] hover:underline"
+                              className="mt-3 inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)] hover:underline"
                             >
                               공개 화면 확인
                               <ExternalLink
@@ -681,7 +681,7 @@ export default function CommunityOperationsPage() {
                                       .value as DraftClassification["origin"],
                                   })
                                 }
-                                className="min-h-11 w-full rounded-xl border border-[#D8D1C5] bg-white px-3 text-sm text-[#252824]"
+                                className="min-h-11 w-full rounded-[6px] border border-[#D8D1C5] bg-white px-3 text-sm text-[#252824]"
                               >
                                 {ORIGIN_OPTIONS.map((option) => (
                                   <option
@@ -711,14 +711,14 @@ export default function CommunityOperationsPage() {
                                 rows={3}
                                 maxLength={2000}
                                 placeholder="예: 운영팀 계정 기록과 원문 작성 이력을 확인함"
-                                className="w-full resize-y rounded-xl border border-[#D8D1C5] bg-white px-3 py-2.5 text-sm leading-6 text-[#252824] placeholder:text-[#9B958B]"
+                                className="w-full resize-y rounded-[6px] border border-[#D8D1C5] bg-white px-3 py-2.5 text-sm leading-6 text-[#252824] placeholder:text-[#9B958B]"
                               />
                             </div>
                             <button
                               type="button"
                               onClick={() => void saveClassification(item)}
                               disabled={savingId !== null}
-                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#36534E] px-4 text-sm font-semibold text-white hover:bg-[#29423E] disabled:cursor-not-allowed disabled:opacity-60"
+                              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[#29423E] disabled:cursor-not-allowed disabled:opacity-60"
                             >
                               {savingId === item.id ? (
                                 <Loader2
@@ -757,7 +757,7 @@ function MetricCard({
   note: string;
 }) {
   return (
-    <div className="rounded-2xl border border-black/5 bg-white p-5">
+    <div className="rounded-[6px] border border-black/5 bg-white p-5">
       <div className="flex items-center gap-2 text-xs font-semibold text-[#6F6A62]">
         <Icon className="h-4 w-4 text-[#607D70]" aria-hidden="true" />
         {label}

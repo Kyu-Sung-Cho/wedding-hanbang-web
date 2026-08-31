@@ -48,13 +48,13 @@ export default function TagInput({ tags, onChange, max = 10 }: TagInputProps) {
         {tags.map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-[#928980] bg-[#FAF8F5] border border-[#F5F2ED] rounded-full"
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-sm text-[var(--hb-text-muted)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-full"
           >
             #{tag}
             <button
               type="button"
               onClick={() => removeTag(tag)}
-              className="p-0.5 hover:text-[#36534E] transition-colors"
+              className="p-0.5 hover:text-[var(--hb-text-strong)] transition-colors"
               aria-label={`${tag} 태그 삭제`}
             >
               <X className="w-3 h-3" />
@@ -72,20 +72,20 @@ export default function TagInput({ tags, onChange, max = 10 }: TagInputProps) {
             onKeyDown={handleKeyDown}
             placeholder="태그 입력 후 Enter"
             maxLength={20}
-            className="flex-1 px-4 py-2.5 text-sm text-[#1A1A1F] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl placeholder:text-[#B5ADA3] focus:outline-none focus:border-[#36534E] focus:ring-1 focus:ring-[#36534E]/30 transition-colors"
+            className="flex-1 px-4 py-2.5 text-sm text-[var(--hb-text-strong)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-[6px] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:border-[var(--hb-primary)] focus:ring-1 focus:ring-[var(--hb-primary)]/30 transition-colors"
           />
           <button
             type="button"
             onClick={addTag}
             disabled={!input.trim()}
-            className="px-4 py-2.5 text-sm font-medium text-[#928980] bg-[#FAF8F5] border border-[#F5F2ED] rounded-xl hover:bg-[#F5F2ED] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2.5 text-sm font-medium text-[var(--hb-text-muted)] bg-[#FAF8F5] border border-[#F5F2ED] rounded-[6px] hover:bg-[#F5F2ED] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             추가
           </button>
         </div>
       )}
 
-      <p className="text-xs text-[#B5ADA3]">
+      <p className="text-xs text-[var(--hb-text-muted)]">
         {tags.length}/{max}개 (최대 20자)
       </p>
     </div>

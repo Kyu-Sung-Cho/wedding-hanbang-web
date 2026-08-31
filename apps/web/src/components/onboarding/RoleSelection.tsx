@@ -33,13 +33,13 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
       <div className="text-center">
         <h2
           id="couple-role-heading"
-          className="text-[22px] font-semibold text-noir-800 mb-2"
+          className="text-[22px] font-semibold text-[var(--hb-text-strong)] mb-2"
         >
           어떤 역할이신가요?
         </h2>
         <div
           id="couple-role-support-note"
-          className="space-y-1 text-[13px] leading-relaxed text-taupe-400"
+          className="space-y-1 text-[13px] leading-relaxed text-[var(--hb-text-muted)]"
         >
           <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.current}</p>
           <p>{BETA_COUPLE_ROLE_SUPPORT_COPY.planned}</p>
@@ -53,17 +53,17 @@ export default function RoleSelection({ selected, onSelect }: RoleSelectionProps
             type="button"
             onClick={() => onSelect(role.value)}
             aria-pressed={selected === role.value}
-            className={`p-6 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-center ${
+            className={`p-6 rounded-[6px] border-2 transition-all hover:-translate-y-0.5 text-center ${
               selected === role.value
-                ? "border-rose-500 bg-rose-500/5 shadow-[0_4px_16px_rgba(121,82,82,0.15)]"
+                ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                 : "border-black/[0.06] bg-white hover:border-black/[0.12]"
             }`}
           >
             <div className="text-[48px] mb-3">{role.emoji}</div>
-            <div className="text-[18px] font-semibold text-noir-800 mb-1">
+            <div className="text-[18px] font-semibold text-[var(--hb-text-strong)] mb-1">
               {role.label}
             </div>
-            <div className="text-[12px] text-taupe-400">{role.desc}</div>
+            <div className="text-[12px] text-[var(--hb-text-muted)]">{role.desc}</div>
           </button>
         ))}
       </div>

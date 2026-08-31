@@ -32,11 +32,11 @@ const WC_V05_INTRO_BODY = `결혼 준비를 하다 보면 예산, 취향, 가족
 
 웨딩코드는 16개의 실제 상황에서 내가 중요하게 보는 것을 정리하고, 상대와 더 편하게 이야기할 지점을 보여주는 참고 도구예요. 사람을 평가하거나 두 사람의 앞날을 단정하지 않습니다.`;
 
-const card = "rounded-[18px] border border-[#eadfc9] bg-white/90 shadow-[0_10px_30px_rgba(8,22,38,0.05)]";
+const card = "rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]";
 const primaryBtn =
-  "inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[#36534E] px-7 text-[14px] font-semibold text-white shadow-[0_12px_26px_rgba(54,83,78,0.2)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
+  "inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-7 text-[14px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] disabled:opacity-40 disabled:cursor-not-allowed";
 const ghostBtn =
-  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-[#eadfc9] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
+  "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec]";
 
 const INTRO_POINTS = [
   { icon: Clock3, label: "3분", body: "16개 장면" },
@@ -166,13 +166,13 @@ export default function WeddingCodeClient() {
   const answeredCount = flow.filter((q) => answers[q.key]).length;
 
   return (
-    <div className="min-h-screen bg-[#fbf8f2] px-4 py-7 sm:py-12">
+    <div className="min-h-screen bg-[var(--hb-surface-page)] px-4 py-7 sm:py-12">
       <div className="mx-auto w-full max-w-[620px]">
         {/* 헤더 */}
-        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">
+        <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]">
           WEDDINGCODE V0.5
         </p>
-        <h1 className="mb-6 text-center text-[25px] font-semibold leading-[1.25] text-[#263832] sm:text-[30px]">
+        <h1 className="mb-6 text-center text-[25px] font-semibold leading-[1.25] text-[var(--hb-text-strong)] sm:text-[30px]">
           {WC_V05_INTRO_TITLE}
         </h1>
 
@@ -181,7 +181,7 @@ export default function WeddingCodeClient() {
           <div className="mb-5">
             <div className="h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
               <div
-                className="h-full rounded-full bg-[#36534E] transition-all duration-300"
+                className="h-full rounded-full bg-[var(--hb-primary)] transition-all duration-300"
                 style={{ width: `${Math.round((answeredCount / flow.length) * 100)}%` }}
               />
             </div>
@@ -196,31 +196,31 @@ export default function WeddingCodeClient() {
         {step === "intro" && (
           <div className={`${card} overflow-hidden`}>
             <div className="p-5 sm:p-8">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">중요하게 보는 것을 정리해요</p>
-              <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[#34445a]">
+              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">중요하게 보는 것을 정리해요</p>
+              <p className="mt-3 whitespace-pre-line text-[14px] font-medium leading-[1.75] text-[var(--hb-text-body)]">
                 {WC_V05_INTRO_BODY}
               </p>
             </div>
-            <div className="grid grid-cols-3 divide-x divide-[#eadfc9] border-y border-[#eadfc9] bg-[#fffdf7]">
+            <div className="grid grid-cols-3 divide-x divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)] bg-[var(--hb-surface-page)]">
               {INTRO_POINTS.map((point) => (
                 <div key={point.label} className="min-w-0 px-3 py-3 text-center sm:px-5 sm:py-4">
-                  <point.icon className="mx-auto h-4 w-4 text-[#36534E]" />
+                  <point.icon className="mx-auto h-4 w-4 text-[var(--hb-text-strong)]" />
                   <div>
-                    <p className="mt-1.5 text-[12px] font-semibold text-[#263832]">{point.label}</p>
+                    <p className="mt-1.5 text-[12px] font-semibold text-[var(--hb-text-strong)]">{point.label}</p>
                     <p className="mt-0.5 truncate text-[11px] font-medium leading-relaxed text-[#6d625a]">{point.body}</p>
                   </div>
                 </div>
               ))}
             </div>
             <div className="p-5 sm:p-8">
-            <label className="flex cursor-pointer items-start gap-2.5 rounded-[14px] border border-[#eadfc9] bg-[#fffdf7] px-4 py-3.5 select-none">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3.5 select-none">
               <input
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 h-4 w-4 accent-[#36534E]"
+                className="mt-0.5 h-4 w-4 accent-[var(--hb-text-strong)]"
               />
-              <span className="text-[13px] font-medium leading-relaxed text-[#34445a]">{WC_CONSENT_LABEL}</span>
+              <span className="text-[13px] font-medium leading-relaxed text-[var(--hb-text-body)]">{WC_CONSENT_LABEL}</span>
             </label>
             <button
               onClick={() => {
@@ -241,16 +241,16 @@ export default function WeddingCodeClient() {
         {/* ── 참여자 컨텍스트 ── */}
         {step === "context" && (
           <div className={`${card} p-6 sm:p-8`}>
-            <div className="mb-6 rounded-[14px] bg-[#EEF4F1] px-4 py-3">
+            <div className="mb-6 rounded-[6px] bg-[#EEF4F1] px-4 py-3">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[12px] font-semibold text-[#36534E]">기본 상황 {contextAnswerCount} / 4</p>
+                <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">기본 상황 {contextAnswerCount} / 4</p>
                 <p className="text-[11px] font-semibold text-[#6d625a]">
                   {contextComplete ? "질문으로 넘어갈 수 있어요" : `${contextMissingCount}개 더 선택`}
                 </p>
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white">
                 <div
-                  className="h-full rounded-full bg-[#36534E] transition-all"
+                  className="h-full rounded-full bg-[var(--hb-primary)] transition-all"
                   style={{ width: `${(contextAnswerCount / 4) * 100}%` }}
                 />
               </div>
@@ -260,7 +260,7 @@ export default function WeddingCodeClient() {
             <ContextSelect label="업체 견적을 받아본 적이 있나요?" options={WC_QUOTE_STATUSES} value={quoteStatus} onChange={setQuoteStatus} />
             <ContextSelect label="부모님 또는 가족이 결혼 준비 결정에 어느 정도 관여하고 있나요?" options={WC_PARENT_INVOLVEMENTS} value={parentInvolvement} onChange={setParentInvolvement} />
 
-            <p className="mb-2 mt-6 text-[14px] font-semibold text-[#263832]">
+            <p className="mb-2 mt-6 text-[14px] font-semibold text-[var(--hb-text-strong)]">
               지금 가장 큰 결혼 준비 고민은 무엇인가요? <span className="font-medium text-[#9a9188]">(복수 선택)</span>
             </p>
             <div className="flex flex-wrap gap-2">
@@ -268,10 +268,10 @@ export default function WeddingCodeClient() {
                 <button
                   key={c}
                   onClick={() => toggleConcern(c)}
-                  className={`rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                  className={`rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
                     concerns.includes(c)
-                      ? "border-[#36534E] bg-[#36534E] text-white"
-                      : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#b68a3a]"
+                      ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                      : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[#b68a3a]"
                   }`}
                 >
                   {c}
@@ -284,7 +284,7 @@ export default function WeddingCodeClient() {
                 value={concernOther}
                 onChange={(e) => setConcernOther(e.target.value)}
                 placeholder="기타 고민을 적어주세요"
-                className="mt-3 w-full rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-[14px] text-[#263832] outline-none focus:border-[#36534E]"
+                className="mt-3 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
               />
             )}
 
@@ -303,12 +303,12 @@ export default function WeddingCodeClient() {
         {step === "questions" && current && (
           <div className={`${card} p-6 sm:p-8`}>
             <div className="mb-3 flex items-center justify-between gap-3">
-              <p className="text-[12px] font-semibold tracking-wide text-[#9d6f36]">{current.title}</p>
-              <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[#36534E]">
+              <p className="text-[12px] font-semibold tracking-wide text-[var(--hb-accent-hover)]">{current.title}</p>
+              <p className="rounded-full bg-[#EEF4F1] px-2.5 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
                 {qIndex + 1} / {flow.length}
               </p>
             </div>
-            <p className="text-[19px] font-semibold leading-[1.5] text-[#263832] sm:text-[21px]">
+            <p className="text-[19px] font-semibold leading-[1.5] text-[var(--hb-text-strong)] sm:text-[21px]">
               {current.question}
             </p>
             <div className="mt-5 flex flex-col gap-2.5">
@@ -316,14 +316,14 @@ export default function WeddingCodeClient() {
                 <button
                   key={opt.value}
                   onClick={() => selectOption(current, opt.value)}
-                  className={`flex items-start gap-3 rounded-[14px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
+                  className={`flex items-start gap-3 rounded-[6px] border px-4 py-3.5 text-left text-[14px] font-medium leading-[1.6] transition-colors ${
                     answers[current.key] === opt.value
-                      ? "border-[#36534E] bg-[#EEF4F1] text-[#263832]"
-                      : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#36534E]/50 hover:bg-[#fffdf7]"
+                      ? "border-[var(--hb-primary)] bg-[#EEF4F1] text-[var(--hb-text-strong)]"
+                      : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[var(--hb-primary)]/50 hover:bg-[var(--hb-surface-page)]"
                   }`}
                 >
                   <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                    answers[current.key] === opt.value ? "border-[#36534E] bg-[#36534E] text-white" : "border-[#d8c9ad] bg-[#fffdf7]"
+                    answers[current.key] === opt.value ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#d8c9ad] bg-[var(--hb-surface-page)]"
                   }`}>
                     {answers[current.key] === opt.value && <Check className="h-3 w-3" />}
                   </span>
@@ -369,10 +369,10 @@ export default function WeddingCodeClient() {
         {/* ── 자유 텍스트 + 제출 ── */}
         {step === "freetext" && (
           <div className={`${card} p-6 sm:p-8`}>
-            <h2 className="mb-4 text-[20px] font-semibold text-[#263832]">마지막으로, 자유롭게 남겨주세요</h2>
+            <h2 className="mb-4 text-[20px] font-semibold text-[var(--hb-text-strong)]">마지막으로, 자유롭게 남겨주세요</h2>
             {WC_FREE_TEXT_ITEMS.map((item) => (
               <div key={item.key} className="mb-4">
-                <p className="mb-1.5 text-[13px] font-semibold text-[#34445a]">
+                <p className="mb-1.5 text-[13px] font-semibold text-[var(--hb-text-body)]">
                   {item.label} <span className="font-medium text-[#9a9188]">(선택)</span>
                 </p>
                 <textarea
@@ -380,7 +380,7 @@ export default function WeddingCodeClient() {
                   onChange={(e) => setFreeText((p) => ({ ...p, [item.key]: e.target.value }))}
                   rows={2}
                   maxLength={1000}
-                  className="w-full resize-none rounded-xl border border-[#eadfc9] bg-[#fffdf7] px-4 py-3 text-[14px] leading-relaxed text-[#263832] outline-none focus:border-[#36534E]"
+                  className="w-full resize-none rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] leading-relaxed text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
                 />
               </div>
             ))}
@@ -413,17 +413,17 @@ function ContextSelect({
 }) {
   return (
     <div className="mb-5">
-      <p className="mb-2 text-[14px] font-semibold text-[#263832]">{label}</p>
+      <p className="mb-2 text-[14px] font-semibold text-[var(--hb-text-strong)]">{label}</p>
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => (
           <button
             key={opt.value}
             onClick={() => onChange(opt.value)}
             aria-pressed={value === opt.value}
-            className={`inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+            className={`inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border px-3.5 py-2 text-[13px] font-medium transition-colors ${
               value === opt.value
-                ? "border-[#36534E] bg-[#36534E] text-white"
-                : "border-[#eadfc9] bg-white text-[#34445a] hover:border-[#b68a3a]"
+                ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)] hover:border-[#b68a3a]"
             }`}
           >
             {value === opt.value && <Check className="h-3.5 w-3.5" />}
@@ -447,23 +447,23 @@ function ScaleScreen({
 }) {
   return (
     <div className={`${card} p-6 sm:p-8`}>
-      <h2 className="mb-1 text-[20px] font-semibold text-[#263832]">{title}</h2>
+      <h2 className="mb-1 text-[20px] font-semibold text-[var(--hb-text-strong)]">{title}</h2>
       <p className="mb-5 text-[12px] font-medium text-[#9a9188]">
         1 = {WC_SCALE_LABELS[0]} · 5 = {WC_SCALE_LABELS[4]} (선택 사항)
       </p>
       {items.map((item) => (
         <div key={item.key} className="mb-4">
-          <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[#34445a]">{item.label}</p>
+          <p className="mb-2 text-[13px] font-semibold leading-relaxed text-[var(--hb-text-body)]">{item.label}</p>
           <div className="flex gap-1.5">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
                 onClick={() => onChange(item.key, n)}
                 aria-label={`${item.label} — ${n}점 (${WC_SCALE_LABELS[n - 1]})`}
-                className={`h-10 flex-1 rounded-[10px] border text-[14px] font-semibold transition-colors ${
+                className={`h-10 flex-1 rounded-[6px] border text-[14px] font-semibold transition-colors ${
                   values[item.key] === n
-                    ? "border-[#36534E] bg-[#36534E] text-white"
-                    : "border-[#eadfc9] bg-white text-[#6d625a] hover:border-[#36534E]/50"
+                    ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                    : "border-[var(--hb-hairline)] bg-white text-[#6d625a] hover:border-[var(--hb-primary)]/50"
                 }`}
               >
                 {n}

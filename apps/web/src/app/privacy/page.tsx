@@ -11,10 +11,10 @@ export default function PrivacyPage() {
   const operatorName = businessInfo?.companyName ?? "웨딩한방 운영자";
 
   return (
-    <div className="min-h-screen bg-ivory-50">
+    <div className="min-h-screen bg-[var(--hb-surface-page)]">
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-black/[0.04]">
         <div className="max-w-[800px] mx-auto px-6 h-16 flex items-center">
-          <Link href="/landing" className="flex items-center gap-2 text-[13px] text-taupe-500 hover:text-rose-500 transition-colors">
+          <Link href="/landing" className="flex items-center gap-2 text-[13px] text-[var(--hb-text-body)] hover:text-[var(--color-rose-700)] transition-colors">
             <ArrowLeft className="w-4 h-4" />
             홈으로
           </Link>
@@ -22,8 +22,8 @@ export default function PrivacyPage() {
       </nav>
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
-        <h1 className="font-serif-kr text-[28px] font-light text-noir-800 mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-taupe-400 mb-10">최종 수정일: 2026년 8월 28일</p>
+        <h1 className="font-serif-kr text-[28px] font-light text-[var(--hb-text-strong)] mb-2">개인정보 처리방침</h1>
+        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 8월 28일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -31,11 +31,11 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제1조 (개인정보의 수집 항목 및 수집 방법)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제1조 (개인정보의 수집 항목 및 수집 방법)</h2>
             <p>운영자는 회원이 사용하는 기능에 따라 다음 정보를 처리합니다. 사용하지 않은 기능의 입력값은 받지 않습니다.</p>
             <div className="mt-3 space-y-3">
               <div>
-                <h3 className="text-[14px] font-medium text-noir-800 mb-1">계정 생성·로그인</h3>
+                <h3 className="text-[14px] font-medium text-[var(--hb-text-strong)] mb-1">계정 생성·로그인</h3>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>이메일 주소 또는 카카오·구글·Apple 계정 식별자</li>
                   <li>이름 또는 닉네임</li>
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
                 </ul>
               </div>
               <div>
-                <h3 className="text-[14px] font-medium text-noir-800 mb-1">회원이 기능을 사용할 때 입력하는 정보</h3>
+                <h3 className="text-[14px] font-medium text-[var(--hb-text-strong)] mb-1">회원이 기능을 사용할 때 입력하는 정보</h3>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>결혼 준비 역할, 함께 준비할 사람의 연결 정보, 결혼 예정일, 결혼식장, 총 예산, 준비 상태와 선호</li>
                   <li>회원이 직접 고른 아모라 도움 방식(추천·비교 순서, 설명 분량, 힘들 때의 도움 순서, 준비·가족 의견을 정리하는 방식)</li>
@@ -54,7 +54,7 @@ export default function PrivacyPage() {
                 </ul>
               </div>
               <div>
-                <h3 className="text-[14px] font-medium text-noir-800 mb-1">서비스 이용 중 자동으로 생기는 정보</h3>
+                <h3 className="text-[14px] font-medium text-[var(--hb-text-strong)] mb-1">서비스 이용 중 자동으로 생기는 정보</h3>
                 <ul className="list-disc pl-5 space-y-1">
                   <li>접속 로그, IP 주소, 브라우저·OS 정보, 페이지 조회 기록</li>
                   <li>오류 기록과 보안 기록</li>
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
             않은 정보를 더 받는 것은 최소수집 원칙에 어긋난다.
           */}
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제1조의2 (만 14세 미만 아동의 개인정보)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제1조의2 (만 14세 미만 아동의 개인정보)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>웨딩한방은 만 14세 이상만 이용할 수 있습니다. 회원은 가입할 때 만 14세 이상임을 확인하며, 그 확인 여부와 시각을 계정에 기록합니다.</li>
               <li>운영자는 만 14세 미만 아동의 개인정보를 수집하지 않습니다. 「개인정보 보호법」 제22조의2가 요구하는 법정대리인 동의 절차를 제공하지 않기 때문입니다.</li>
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제2조 (개인정보의 이용 목적)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제2조 (개인정보의 이용 목적)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원 식별, 로그인, 계정 관리와 부정 이용 방지</li>
               <li>아모라 대화와 회원이 승인한 예산·할 일·일정 반영</li>
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제3조 (개인정보의 보유 및 이용기간)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제3조 (개인정보의 보유 및 이용기간)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>계정과 결혼 준비 정보는 회원 탈퇴 또는 해당 처리 목적이 끝날 때까지 보관합니다. 탈퇴가 접수되면 커뮤니티 새 파일 업로드를 막고, 임시 파일 접근 링크의 만료와 파일 소유권 및 삭제 대상을 확인한 뒤 더 이상 필요하지 않은 개인정보를 지체 없이 파기합니다. 다른 법령에 따라 별도 보관해야 하는 정보는 전용 보관 경계가 검증된 뒤 적용 범위와 기간을 고지하고 다른 개인정보와 분리하여 보관합니다. 이 경계가 준비되지 않은 상태에서는 해당 보관 의무를 만드는 거래 기능을 운영하지 않습니다.
                 <ul className="list-disc pl-5 mt-2 space-y-1">
@@ -113,7 +113,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제4조 (개인정보의 제3자 제공)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제4조 (개인정보의 제3자 제공)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>운영자는 회원의 동의 없이 개인정보를 다른 사업자에게 판매하거나 제공하지 않습니다.</li>
               <li>함께 준비할 사람과 연결하면 예산·할 일·일정 등 공유 영역의 정보가 연결된 회원에게 보입니다. 개인 대화나 개인 설정처럼 비공개로 표시된 정보는 공유하지 않습니다.</li>
@@ -123,14 +123,14 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제5조 (개인정보의 처리위탁)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제5조 (개인정보의 처리위탁)</h2>
             <p>운영자는 실제로 해당 기능을 켠 경우 다음 사업자에게 개인정보 처리를 맡길 수 있습니다.</p>
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-[13px] border-collapse">
                 <thead>
                   <tr className="border-b border-black/[0.06]">
-                    <th className="py-2 text-left font-medium text-noir-800">수탁 업체</th>
-                    <th className="py-2 text-left font-medium text-noir-800">위탁 업무</th>
+                    <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">수탁 업체</th>
+                    <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">위탁 업무</th>
                   </tr>
                 </thead>
                 <tbody className="text-charcoal">
@@ -174,7 +174,7 @@ export default function PrivacyPage() {
               없어 지어내지 않았고, 그 항목만 별도로 남겨 두었다.
             */}
             <div className="mt-4">
-              <h3 className="text-[14px] font-medium text-noir-800 mb-2">국외 이전에 관한 고지</h3>
+              <h3 className="text-[14px] font-medium text-[var(--hb-text-strong)] mb-2">국외 이전에 관한 고지</h3>
               <p className="text-[13px] text-charcoal">
                 위 수탁 업체는 국외에 서버를 두고 있어, 서비스를 이용하시면 개인정보가 국외로 이전됩니다. 이전은 회원이 서비스를 이용하는 시점에 암호화된 통신(HTTPS)으로 자동으로 이루어지며, 별도의 저장 매체를 통한 이전은 없습니다.
               </p>
@@ -182,9 +182,9 @@ export default function PrivacyPage() {
                 <table className="w-full text-[13px] border-collapse">
                   <thead>
                     <tr className="border-b border-black/[0.06]">
-                      <th className="py-2 text-left font-medium text-noir-800">이전받는 자</th>
-                      <th className="py-2 text-left font-medium text-noir-800">이전되는 국가</th>
-                      <th className="py-2 text-left font-medium text-noir-800">이전 항목</th>
+                      <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전받는 자</th>
+                      <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전되는 국가</th>
+                      <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전 항목</th>
                     </tr>
                   </thead>
                   <tbody className="text-charcoal">
@@ -224,24 +224,24 @@ export default function PrivacyPage() {
               <ul className="mt-3 list-disc pl-5 space-y-1 text-[13px] text-charcoal">
                 <li>이전 목적은 위 위탁 업무와 같습니다.</li>
                 <li>보유·이용 기간은 위탁 계약이 끝나거나 제3조의 보유 기간이 지날 때까지이며, 그 이후에는 파기합니다.</li>
-                <li>이전받는 자의 개인정보 보호 담당 연락처는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 요청하시면 안내해 드립니다.</li>
+                <li>이전받는 자의 개인정보 보호 담당 연락처는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 요청하시면 안내해 드립니다.</li>
                 <li>국외 이전을 원하지 않으시면 서비스 이용을 중단하고 고객센터로 계정 삭제를 요청하실 수 있습니다. 다만 위 수탁 업무 없이는 서비스의 핵심 기능을 제공할 수 없어, 일부 기능만 선택적으로 제외할 수는 없습니다.</li>
               </ul>
             </div>
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제6조 (정보주체의 권리)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제6조 (정보주체의 권리)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
-              <li>이용 내역은 설정 페이지에서 확인할 수 있습니다. 탈퇴는 현재 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다. 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 접수 전에 안내해 드립니다.</li>
+              <li>이용 내역은 설정 페이지에서 확인할 수 있습니다. 탈퇴는 현재 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다. 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 접수 전에 안내해 드립니다.</li>
               <li>연결된 파트너와 함께 만든 준비 기록과 대화는 두 사람의 정보가 섞여 있어 남은 파트너의 화면에 유지되고, 탈퇴한 회원의 식별 정보만 제거됩니다. 등록한 업체가 있으면 해당 업체를 먼저 정리해야 탈퇴가 완료됩니다.</li>
-              <li>그 밖의 요청은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-rose-500 underline">{CONTACT.email}</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
+              <li>그 밖의 요청은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제7조 (개인정보의 안전성 확보 조치)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제7조 (개인정보의 안전성 확보 조치)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>이메일 가입 비밀번호는 인증 서비스에서 안전한 방식으로 처리하며, 웨딩한방 일반 데이터베이스에는 원문을 저장하지 않습니다.</li>
               <li>전송 구간은 TLS/HTTPS로 암호화합니다.</li>
@@ -251,7 +251,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제8조 (쿠키 및 추적기술)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제8조 (쿠키 및 추적기술)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>운영자는 로그인 유지와 보안 등 서비스에 필요한 쿠키를 사용합니다.</li>
               <li>이용 통계 기능이 설정된 경우에는 자동 화면 수집과 세션 녹화를 끄고, 정해진 화면 이동·기능 사용 이벤트만 수집합니다. 웨딩코드 답변 화면과 내부 연구 화면에서는 이용 통계를 실행하지 않습니다.</li>
@@ -260,18 +260,18 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제9조 (개인정보 보호책임자)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제9조 (개인정보 보호책임자)</h2>
             <p>개인정보 관련 문의와 권리 행사는 아래 연락처로 접수할 수 있습니다.</p>
-            <div className="mt-3 px-4 py-3 bg-white rounded-lg">
+            <div className="mt-3 px-4 py-3 bg-white rounded-[6px]">
               <ul className="space-y-1 text-[13px] text-charcoal">
                 <li>담당: 웨딩한방 개인정보 보호 담당</li>
-                <li>이메일: <a href={`mailto:${CONTACT.email}`} className="text-rose-500">{CONTACT.email}</a></li>
+                <li>이메일: <a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)]">{CONTACT.email}</a></li>
               </ul>
             </div>
           </section>
 
           <section>
-            <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">제10조 (개인정보 처리방침의 변경)</h2>
+            <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제10조 (개인정보 처리방침의 변경)</h2>
             <p>본 방침이 바뀌면 적용일과 변경 이유를 서비스 안에서 미리 알립니다. 회원의 권리에 중요한 영향을 주는 변경은 필요한 경우 별도 동의를 받습니다.</p>
           </section>
 
@@ -279,8 +279,8 @@ export default function PrivacyPage() {
               없는 정보를 자리표시자로 띄우면 그게 곧 허위 표시다. */}
           {businessInfo ? (
             <section>
-              <h2 className="font-serif-kr text-[18px] font-medium text-noir-800 mb-3">사업자 정보</h2>
-              <div className="mt-3 px-4 py-3 bg-white rounded-lg">
+              <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">사업자 정보</h2>
+              <div className="mt-3 px-4 py-3 bg-white rounded-[6px]">
                 <ul className="space-y-1 text-[13px] text-charcoal">
                   {businessInfoRows(businessInfo).map(([label, value]) => (
                     <li key={label}>{label}: {value}</li>
@@ -291,7 +291,7 @@ export default function PrivacyPage() {
           ) : null}
 
           <section className="pt-4 border-t border-black/[0.06]">
-            <p className="text-[13px] text-taupe-400">부칙: 본 방침은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제1조 동의 기록 항목, 제6조 탈퇴 처리 범위)은 같은 날부터 적용합니다.</p>
+            <p className="text-[13px] text-[var(--hb-text-muted)]">부칙: 본 방침은 2026년 7월 30일부터 시행합니다. 2026년 8월 21일 개정분(제1조 동의 기록 항목, 제6조 탈퇴 처리 범위)은 같은 날부터 적용합니다.</p>
           </section>
         </div>
       </div>

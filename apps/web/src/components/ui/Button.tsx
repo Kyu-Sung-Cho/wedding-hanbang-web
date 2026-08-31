@@ -58,10 +58,19 @@ const VARIANT: Record<Variant, string> = {
 };
 
 /** 높이는 실측된 지배값을 따른다 — md=44px가 161개로 가장 많고 전역 규칙과도 같다. */
+// 반경은 정본 시안을 따른다 — `docs/landing/NotebookBest.html:47,54` 의 `.btn`·`.btn-line`
+// 이 둘 다 `border-radius: 6px` 다. 시안 전체에서 pill 은 **버튼에 한 번도 안 쓰인다**
+// (999px 은 손그림 동그라미 주석 `.circle` 하나뿐).
+//
+// ⚠️ 여기 `rounded-full` 이 있었다. 아래 ICON_SIZE 의 원형은 그대로 둔다 — 아이콘
+// 버튼은 시안의 `.circle` 과 같은 계열이고, 아바타·배지와 함께 원형이 정본이다.
+//
+// 높이는 시안의 54px 이 아니라 44px 를 지킨다. `globals.css` 의 44px 탭 규칙이
+// 레이어 밖이라 `min-h-*` 를 이기고, 그 규칙이 접근성 계약(2.5.8)을 지고 있다.
 const SIZE: Record<Size, string> = {
-  sm: "min-h-10 rounded-full px-4 text-[13px]",
-  md: "min-h-11 rounded-full px-5 text-[14px]",
-  lg: "min-h-12 rounded-full px-6 text-[15px]",
+  sm: "min-h-10 rounded-[6px] px-4 text-[13px]",
+  md: "min-h-11 rounded-[6px] px-5 text-[14px]",
+  lg: "min-h-12 rounded-[6px] px-6 text-[15px]",
 };
 
 const ICON_SIZE: Record<Size, string> = {

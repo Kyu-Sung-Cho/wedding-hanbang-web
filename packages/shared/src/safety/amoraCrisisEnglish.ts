@@ -195,9 +195,18 @@ const THIRD_PARTY_SELF_HARM: readonly RegExp[] = [
 ];
 
 const INTERPERSONAL_DANGER: readonly RegExp[] = [
+  // `groom`·`bride` 가 빠져 있었다. 결혼 준비 앱인데 **가장 먼저 나올 상대**다.
+  // 2026-08-29 에 범위 어휘에만 이 낱말들을 넣었다가 되돌린 적이 있다:
+  //
+  //     my husband hits me  -> W5 안전       (husband 는 여기 있다)
+  //     my groom hits me    -> W0 + 기억 ON  (groom 은 여기 없었다)
+  //
+  // 19문장 중 16건이 그렇게 뒤집혔다. 학대 서술이 결혼 준비 대화가 되고
+  // 두 사람이 함께 보는 장기 기억에 적재된다. **범위 어휘를 넓히기 전에
+  // 여기부터 넓혀야 한다.**
   // 진행형(`choking`·`hitting`)과 발로 차는 것이 빠져 있었다. "He is choking me
   // right now" 는 가장 급한 문장인데 `chok(?:es|ed)` 로는 안 걸렸다.
-  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?))\b[^.!?]{0,45}\b(?:hits?|hit|hitting|beats?|beat|beating|punch(?:es|ed|ing)?|slaps?|slapped|slapping|shoves?|shoved|shoving|kick(?:s|ed|ing)?|chok(?:es|ed|ing)|strangl(?:es|ed|ing)|drag(?:s|ged|ging)?)\s+me\b/i,
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?|groom|bride|groomsman|bridesmaid|maid\s+of\s+honor))\b[^.!?]{0,45}\b(?:hits?|hit|hitting|beats?|beat|beating|punch(?:es|ed|ing)?|slaps?|slapped|slapping|shoves?|shoved|shoving|kick(?:s|ed|ing)?|chok(?:es|ed|ing)|strangl(?:es|ed|ing)|drag(?:s|ged|ging)?)\s+me\b/i,
   /\bbeat\s+the\s+(?:hell|crap|shit)\s+out\s+of\s+me\b/i,
   // 능동형만 있어서 "I was raped last night" 이 안 걸렸다.
   /\b(?:rap(?:e|ed|ing))\s+me\b/i,
@@ -222,10 +231,10 @@ const INTERPERSONAL_DANGER: readonly RegExp[] = [
    *
    * 셋 다 결혼 준비에서 매일 나올 말이다.
    */
-  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?))\b[^.!?]{0,20}\block(?:s|ed)\s+me\s+in(?:side)?\b/i,
-  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?))\b[^.!?]{0,20}(?:won'?t|wouldn'?t|doesn'?t|does\s+not)\s+let\s+me\s+(?:leave|go\s+out|see\s+(?:my|anyone))\b/i,
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?|groom|bride|groomsman|bridesmaid|maid\s+of\s+honor))\b[^.!?]{0,20}\block(?:s|ed)\s+me\s+in(?:side)?\b/i,
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?|groom|bride|groomsman|bridesmaid|maid\s+of\s+honor))\b[^.!?]{0,20}(?:won'?t|wouldn'?t|doesn'?t|does\s+not)\s+let\s+me\s+(?:leave|go\s+out|see\s+(?:my|anyone))\b/i,
   /\b(?:afraid|scared|terrified)\s+(?:that\s+)?(?:he|she|they)\s+(?:will|'ll|might|is\s+going\s+to|would)\s+(?:hurt|kill|hit|attack)\s+(?:me|us)\b/i,
-  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse))\s+(?:is|'s|was|has\s+been)\s+(?:(?:physically|emotionally|verbally|sexually|financially)\s+(?:and\s+)?)*abusive\b/i,
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|groom|bride|groomsman|bridesmaid))\s+(?:is|'s|was|has\s+been)\s+(?:(?:physically|emotionally|verbally|sexually|financially)\s+(?:and\s+)?)*abusive\b/i,
   /\bdomestic\s+(?:violence|abuse)\b/i,
 ];
 

@@ -83,16 +83,16 @@ export default function CalendarView({
       <div className="flex items-center justify-between mb-6">
         <button
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h3 className="font-serif-kr text-[20px] font-light text-[#1A1A1F]">
+        <h3 className="font-serif-kr text-[20px] font-light text-[var(--hb-text-strong)]">
           {format(currentMonth, "yyyy년 M월", { locale: ko })}
         </h3>
         <button
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-xl bg-[#F6F3F2] flex items-center justify-center text-[#504444] hover:bg-[#795252] hover:text-white transition-colors"
+          className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
@@ -104,7 +104,7 @@ export default function CalendarView({
           <div
             key={day}
             className={`text-center text-sm uppercase tracking-widest font-medium py-1.5 ${
-              day === "일" ? "text-red-400" : day === "토" ? "text-blue-400" : "text-[#B5ADA3]"
+              day === "일" ? "text-red-400" : day === "토" ? "text-blue-400" : "text-[var(--hb-text-muted)]"
             }`}
           >
             {day}
@@ -126,20 +126,20 @@ export default function CalendarView({
             <button
               key={day.toISOString()}
               onClick={() => setSelectedDate(isSelected ? null : day)}
-              className={`relative aspect-square rounded-xl flex flex-col items-center justify-center gap-0.5 text-[15px] transition-all ${
+              className={`relative aspect-square rounded-[6px] flex flex-col items-center justify-center gap-0.5 text-[15px] transition-all ${
                 !inMonth
-                  ? "text-[#B5ADA3]/40"
+                  ? "text-[var(--hb-text-muted)]/40"
                   : isWedding
                   ? `${WEDDING_DAY_COLOR} text-white font-medium shadow-md`
                   : isSelected
-                  ? "bg-[#795252] text-white font-medium"
+                  ? "bg-[var(--hb-primary)] text-white font-medium"
                   : isToday
-                  ? "ring-2 ring-[#795252] bg-white text-[#795252] font-medium"
+                  ? "ring-2 ring-[#795252] bg-white text-[var(--hb-accent-hover)] font-medium"
                   : dayNum === 0
                   ? "text-red-400 hover:bg-[#FAFAF8]"
                   : dayNum === 6
                   ? "text-blue-400 hover:bg-[#FAFAF8]"
-                  : "text-[#1A1A1F] hover:bg-[#FAFAF8]"
+                  : "text-[var(--hb-text-strong)] hover:bg-[#FAFAF8]"
               }`}
             >
               <span className={isToday || isWedding || isSelected ? "font-serif-kr" : "font-serif-kr font-light"}>
@@ -171,11 +171,11 @@ export default function CalendarView({
       <div className="flex items-center gap-4 mt-5 px-2 flex-wrap">
         <div className="flex items-center gap-1.5">
           <div className={`w-3 h-3 rounded-full ${WEDDING_DAY_COLOR}`} />
-          <span className="text-sm text-[#635b51]">결혼식</span>
+          <span className="text-sm text-[var(--hb-text-body)]">결혼식</span>
         </div>
         <div className="flex items-center gap-1.5">
           <div className={`w-3 h-3 rounded-full ${PERSONAL_EVENT_COLOR}`} />
-          <span className="text-sm text-[#635b51]">등록 일정</span>
+          <span className="text-sm text-[var(--hb-text-body)]">등록 일정</span>
         </div>
       </div>
 
@@ -184,16 +184,16 @@ export default function CalendarView({
         <div
           className="mt-5 overflow-hidden animate-fade-in"
         >
-          <div className="bg-[#F6F3F2] rounded-xl p-5">
+          <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-5">
             <div className="flex items-center justify-between mb-4">
-              <p className="font-serif-kr text-[17px] font-normal text-[#1A1A1F]">
+              <p className="font-serif-kr text-[17px] font-normal text-[var(--hb-text-strong)]">
                 {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
               </p>
               <button
                 onClick={() =>
                   onAddEvent(format(selectedDate, "yyyy-MM-dd"))
                 }
-                className="flex items-center gap-1.5 text-sm text-[#795252] hover:text-[#946a6a] transition-colors"
+                className="flex items-center gap-1.5 text-sm text-[var(--hb-accent-hover)] hover:text-[var(--hb-accent-hover)] transition-colors"
               >
                 <Plus className="w-4 h-4" />
                 일정 추가
@@ -212,7 +212,7 @@ export default function CalendarView({
                   <button
                     key={evt.id}
                     onClick={() => onEditEvent(evt)}
-                    className="w-full rounded-xl bg-white p-3.5 text-left transition-shadow hover:shadow-[0_4px_16px_rgb(0,0,0,0.04)]"
+                    className="w-full rounded-[6px] bg-white p-3.5 text-left transition-shadow hover:shadow-[var(--shadow-raised)]"
                   >
                     <div className="flex items-start gap-3">
                       <div className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
@@ -221,8 +221,8 @@ export default function CalendarView({
                           <p
                             className={`font-serif-kr text-base font-normal ${
                               isCompleted
-                                ? "text-[#6D806E] line-through"
-                                : "text-[#1A1A1F]"
+                                ? "text-[var(--hb-success)] line-through"
+                                : "text-[var(--hb-text-strong)]"
                             }`}
                           >
                             {evt.title}
@@ -244,19 +244,19 @@ export default function CalendarView({
                             )}
                           </div>
                         </div>
-                        <p className="mt-1.5 text-[12px] font-medium text-[#5d6879]">
+                        <p className="mt-1.5 text-[12px] font-medium text-[var(--hb-text-body)]">
                           담당 · {getScheduleEventAssigneeLabel(
                             evt.assignee,
                             assigneeContext,
                           )}
                         </p>
                         {evt.time && (
-                          <p className="mt-1 text-[12px] font-medium text-[#5d6879]">
+                          <p className="mt-1 text-[12px] font-medium text-[var(--hb-text-body)]">
                             시간 · {evt.time}
                           </p>
                         )}
                         {evt.completionCriteria && (
-                          <div className="mt-2 rounded-lg border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
+                          <div className="mt-2 rounded-[6px] border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
                             <p className="mb-1 text-[11px] font-semibold text-[#4F6451]">
                               완료 기준
                             </p>
@@ -266,11 +266,11 @@ export default function CalendarView({
                           </div>
                         )}
                         {shouldShowMemo && (
-                          <div className="mt-2 rounded-lg border border-[#eadfc9]/70 bg-[#fffdf8] px-3 py-2">
-                            <p className="mb-1 text-[11px] font-semibold text-[#795252]">
+                          <div className="mt-2 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[#fffdf8] px-3 py-2">
+                            <p className="mb-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
                               메모
                             </p>
-                            <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[#635b51]">
+                            <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
                               {memoText}
                             </p>
                           </div>
@@ -283,7 +283,7 @@ export default function CalendarView({
 
               {/* 빈 날짜 */}
               {selectedEvents.length === 0 && (
-                <p className="text-base text-[#B5ADA3] text-center py-4">
+                <p className="text-base text-[var(--hb-text-muted)] text-center py-4">
                   이 날짜에 등록된 일정이 없습니다
                 </p>
               )}
@@ -299,10 +299,10 @@ export default function CalendarView({
           없어진다. 문구는 이미 있던 것을 그대로 쓴다. */}
       {(!weddingDate || activeEvents.length === 0) && (
         <div className="mt-6 text-center py-8">
-          <p className="text-[17px] text-[#504444]">
+          <p className="text-[17px] text-[var(--hb-text-body)]">
             날짜를 정한 일정만 캘린더에 표시됩니다
           </p>
-          <p className="text-base text-[#B5ADA3] mt-1">
+          <p className="text-base text-[var(--hb-text-muted)] mt-1">
             위의 일정 추가 버튼으로 실제 날짜를 등록해 주세요
           </p>
         </div>

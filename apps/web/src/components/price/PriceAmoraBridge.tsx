@@ -20,29 +20,29 @@ export function PriceAmoraBridge() {
   return (
     <section
       aria-label="아모라 안내"
-      className="mt-10 rounded-[24px] border border-[#36534E]/15 bg-[#36534E]/[0.06] px-5 py-8 text-center sm:px-8"
+      className="mt-10 rounded-[6px] border border-[var(--hb-primary)]/15 bg-[var(--hb-primary)]/[0.06] px-5 py-8 text-center sm:px-8"
     >
-      <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[#36534E] shadow-[0_8px_20px_rgba(36,56,50,0.12)]">
+      <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
         <MessageCircleHeart aria-hidden="true" className="size-6" />
       </span>
-      <h2 className="mt-4 text-lg font-bold tracking-normal text-[#243832]">
+      <h2 className="mt-4 text-lg font-bold tracking-normal text-[var(--hb-text-strong)]">
         가격은 확인했는데, 뭐부터 해야 할지 막막하다면
       </h2>
       {demoOpen ? (
         <>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#243832]/70">
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--hb-text-strong)]/70">
             로그인 전에는 아모라 체험을 바로 열 수 있어요.
             화면의 이름·예산은 샘플이고 체험 대화와 변경은 계정 기록에 남지 않아요.
             이미 로그인했다면 계정 채팅에서 이어져요.
           </p>
           <StartDemoButton
             label="아모라에게 물어보기"
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[#2B423E] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           />
         </>
       ) : (
         <>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#243832]/70">
+          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[var(--hb-text-strong)]/70">
             아모라와 이야기하려면 로그인이 필요해요.
             계정을 만들면 지금 본 가격을 기준으로 무엇부터 정할지 함께 정리하고,
             확인한 것만 예산·할 일·일정에 남겨요.
@@ -50,14 +50,14 @@ export function PriceAmoraBridge() {
           <Link
             href="/login?mode=signup"
             prefetch={false}
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-[#36534E] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(36,56,50,0.16)] hover:bg-[#2B423E] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           >
             아모라와 시작하기
           </Link>
         </>
       )}
       <p className="mt-3 text-[13px]">
-        <Link href="/demo" prefetch={false} className="font-semibold text-[#36534E] underline underline-offset-4">
+        <Link href="/demo" prefetch={false} className="font-semibold text-[var(--hb-text-strong)] underline underline-offset-4">
           아모라가 무엇을 하고 무엇을 하지 않는지 먼저 보기
         </Link>
       </p>

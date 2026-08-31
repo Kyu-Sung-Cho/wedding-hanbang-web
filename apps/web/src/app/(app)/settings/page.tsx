@@ -187,7 +187,13 @@ export default function SettingsPage() {
     };
 
     if (!couple) {
+      // **판정을 끝냈다고 표시한다.** 예전에는 여기서 그냥 나가서
+      // `connectionLookup` 이 첫 값인 "loading" 으로 남았고, 준비 공간이 없는
+      // 계정은 이 카드가 **영원히 "연결 상태를 불러오는 중이에요"** 였다
+      // (2026-08-31 파운더가 실제로 그 화면을 봤다). 불러올 것이 없는 것이지
+      // 불러오는 중이 아니다.
       setCoupleConnection(resolveCoupleConnectionState(null, context));
+      setConnectionLookup("ready");
       return;
     }
 
@@ -584,12 +590,12 @@ export default function SettingsPage() {
   return (
     <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
       {/* 페이지 제목 */}
-      <h1 className="font-serif-kr text-4xl font-light text-[#1A1A1F] mb-6 animate-fade-in">설정</h1>
+      <h1 className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] mb-6 animate-fade-in">설정</h1>
 
       {journeyNotice && (
         <div
           role="status"
-          className="mb-4 rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+          className="mb-4 rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
         >
           {journeyNotice}
         </div>
@@ -597,7 +603,7 @@ export default function SettingsPage() {
       {journeyError && (
         <div
           role="alert"
-          className="mb-4 rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+          className="mb-4 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
         >
           {journeyError}
         </div>
@@ -607,10 +613,10 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-5 mb-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[0_8px_24px_rgba(121,82,82,0.2)]">
+          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <span className="font-display text-3xl text-white font-light">{initials}</span>
           </div>
           <div className="flex-1">
@@ -625,13 +631,13 @@ export default function SettingsPage() {
                       setNameError("");
                     }}
                     onKeyDown={(e) => e.key === "Enter" && saveName()}
-                    className="px-3 py-2 rounded-lg bg-[#F6F3F2] text-lg text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 w-[170px]"
+                    className="px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-lg text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] w-[170px]"
                     autoFocus
                   />
-                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveName} disabled={saving} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-5 h-5" />
                   </button>
-                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-lg bg-[#F6F3F2] flex items-center justify-center text-[#504444]">
+                  <button onClick={() => { setEditingName(false); setNameError(""); }} className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-5 h-5" />
                   </button>
                 </div>
@@ -639,52 +645,52 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h2 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">{userName}</h2>
+                <h2 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">{userName}</h2>
                 {userRole && (
-                  <span className="text-sm px-2.5 py-1 rounded-full bg-[#795252]/10 text-[#795252] font-medium">
+                  <span className="text-sm px-2.5 py-1 rounded-full bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)] font-medium">
                     {userRole}
                   </span>
                 )}
                 <button
                   onClick={() => { setNameInput(userName); setNameError(""); setEditingName(true); }}
-                  className="tap-area shrink-0 w-7 h-7 rounded-md flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] hover:bg-[#795252]/5 transition-colors"
+                  className="tap-area shrink-0 w-7 h-7 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
                 >
                   <Pencil className="w-4 h-4" />
                 </button>
               </div>
             )}
-            <p className="text-base text-[#504444] font-light mt-1">{userEmail}</p>
+            <p className="text-base text-[var(--hb-text-body)] font-light mt-1">{userEmail}</p>
           </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
-            <Calendar className="w-6 h-6 text-[#795252] flex-shrink-0" />
+          <div className="flex items-center gap-3 p-5 rounded-[6px] bg-[var(--hb-surface-hover)]">
+            <Calendar className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#B5ADA3]">결혼 예정일</p>
+              <p className="text-sm text-[var(--hb-text-muted)]">결혼 예정일</p>
               {editingDate ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
                     type="date"
                     value={dateInput}
                     onChange={(e) => setDateInput(e.target.value)}
-                    className="px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30"
+                    className="px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus
                   />
-                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveDate} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button onClick={() => setEditingDate(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[17px] font-medium text-[#1A1A1F]">{dateStr}</p>
+                  <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{dateStr}</p>
                   <button
                     onClick={() => { setDateInput(journey?.wedding_date ?? ""); setEditingDate(true); }}
-                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -694,10 +700,10 @@ export default function SettingsPage() {
           </div>
 
           {/* 결혼식장 — 온보딩 값이며 두 사람이 함께 확인하고 수정할 수 있다. */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
-            <MapPin className="w-6 h-6 text-[#795252] flex-shrink-0" />
+          <div className="flex items-center gap-3 p-5 rounded-[6px] bg-[var(--hb-surface-hover)]">
+            <MapPin className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#B5ADA3]">결혼식장</p>
+              <p className="text-sm text-[var(--hb-text-muted)]">결혼식장</p>
               {editingVenue ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <input
@@ -706,22 +712,22 @@ export default function SettingsPage() {
                     onChange={(e) => setVenueInput(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && saveVenue()}
                     placeholder="예: 결혼식장 이름"
-                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 placeholder:text-[#B5ADA3]"
+                    className="min-w-0 flex-1 px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] placeholder:text-[var(--hb-text-muted)]"
                     autoFocus
                   />
-                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveVenue} disabled={saving} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button onClick={() => setEditingVenue(false)} className="tap-area w-7 h-7 shrink-0 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[17px] font-medium text-[#1A1A1F] truncate">{venueStr}</p>
+                  <p className="text-[17px] font-medium text-[var(--hb-text-strong)] truncate">{venueStr}</p>
                   <button
                     onClick={() => { setVenueInput(venue ?? ""); setEditingVenue(true); }}
-                    className="tap-area w-6 h-6 shrink-0 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                    className="tap-area w-6 h-6 shrink-0 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -731,10 +737,10 @@ export default function SettingsPage() {
           </div>
 
           {/* 설정 예산 */}
-          <div className="flex items-center gap-3 p-5 rounded-xl bg-[#F6F3F2]">
-            <Wallet className="w-6 h-6 text-[#C9A96E] flex-shrink-0" />
+          <div className="flex items-center gap-3 p-5 rounded-[6px] bg-[var(--hb-surface-hover)]">
+            <Wallet className="w-6 h-6 text-[var(--hb-accent-hover)] flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-[#B5ADA3]">설정 예산</p>
+              <p className="text-sm text-[var(--hb-text-muted)]">설정 예산</p>
               {editingBudget ? (
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="flex items-center">
@@ -743,24 +749,24 @@ export default function SettingsPage() {
                       value={budgetInput}
                       onChange={(e) => setBudgetInput(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && saveBudget()}
-                      className="w-[90px] px-2.5 py-1.5 rounded-md bg-white text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-[#795252]/30 text-right"
+                      className="w-[90px] px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)] text-right"
                       autoFocus
                     />
-                    <span className="text-sm text-[#B5ADA3] ml-1">만원</span>
+                    <span className="text-sm text-[var(--hb-text-muted)] ml-1">만원</span>
                   </div>
-                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-md bg-[#2E7D5A] flex items-center justify-center text-white">
+                  <button onClick={saveBudget} disabled={saving} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-[#2E7D5A] flex items-center justify-center text-white">
                     <Save className="w-4 h-4" />
                   </button>
-                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-md bg-white flex items-center justify-center text-[#504444]">
+                  <button onClick={() => setEditingBudget(false)} className="tap-area shrink-0 w-7 h-7 rounded-[6px] bg-white flex items-center justify-center text-[var(--hb-text-body)]">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
               ) : (
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[17px] font-medium text-[#1A1A1F]">{budgetStr}</p>
+                  <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{budgetStr}</p>
                   <button
                     onClick={() => { setBudgetInput(String(totalBudget / 10000)); setEditingBudget(true); }}
-                    className="tap-area shrink-0 w-6 h-6 rounded flex items-center justify-center text-[#B5ADA3] hover:text-[#795252] transition-colors"
+                    className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors"
                   >
                     <Pencil className="w-3.5 h-3.5" />
                   </button>
@@ -777,17 +783,17 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.03 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[0_4px_14px_rgba(196,150,126,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#C4967E] to-[#9A6B62] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">웨딩 스타일</h3>
-            <p className="text-base text-[#504444] font-light">
+            <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">웨딩 스타일</h3>
+            <p className="text-base text-[var(--hb-text-body)] font-light">
               아모라가 추천·예산 짤 때 쓰는 취향 정보예요
-              <span className="ml-2 text-sm text-[#B5ADA3]">
+              <span className="ml-2 text-sm text-[var(--hb-text-muted)]">
                 {isDemo
                   ? "체험에서는 저장되지 않아요"
                   : preferenceSaving
@@ -801,7 +807,7 @@ export default function SettingsPage() {
         <div className="space-y-6">
           {/* 스타일 */}
           <div>
-            <p className="text-sm text-[#B5ADA3] mb-2">스타일</p>
+            <p className="text-sm text-[var(--hb-text-muted)] mb-2">스타일</p>
             <div className="flex flex-wrap gap-2">
               {STYLE_OPTIONS.map((opt) => {
                 const selected = draftPrefs.weddingStyle === opt.value;
@@ -809,10 +815,10 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ weddingStyle: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -824,7 +830,7 @@ export default function SettingsPage() {
 
           {/* 우선순위 (다중 선택) */}
           <div>
-            <p className="text-sm text-[#B5ADA3] mb-2">우선순위 <span className="text-[#B5ADA3]/70">(여러 개 선택)</span></p>
+            <p className="text-sm text-[var(--hb-text-muted)] mb-2">우선순위 <span className="text-[var(--hb-text-muted)]/70">(여러 개 선택)</span></p>
             <div className="flex flex-wrap gap-2">
               {PRIORITY_OPTIONS.map((opt) => {
                 const selected = (draftPrefs.priorities ?? []).includes(opt.value);
@@ -832,10 +838,10 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => togglePriority(opt.value)}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -847,7 +853,7 @@ export default function SettingsPage() {
 
           {/* 예산 성향 */}
           <div>
-            <p className="text-sm text-[#B5ADA3] mb-2">예산 성향</p>
+            <p className="text-sm text-[var(--hb-text-muted)] mb-2">예산 성향</p>
             <div className="flex flex-wrap gap-2">
               {BUDGET_TENDENCY_OPTIONS.map((opt) => {
                 const selected = draftPrefs.budgetTendency === opt.value;
@@ -855,10 +861,10 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ budgetTendency: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -870,7 +876,7 @@ export default function SettingsPage() {
 
           {/* 하객 규모 */}
           <div>
-            <p className="text-sm text-[#B5ADA3] mb-2">하객 규모</p>
+            <p className="text-sm text-[var(--hb-text-muted)] mb-2">하객 규모</p>
             <div className="flex flex-wrap gap-2">
               {GUEST_COUNT_OPTIONS.map((opt) => {
                 const selected = draftPrefs.guestCount === opt.value;
@@ -878,10 +884,10 @@ export default function SettingsPage() {
                   <button
                     key={opt.value}
                     onClick={() => updatePreferences({ guestCount: selected ? null : opt.value })}
-                    className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    className={`px-4 py-2 rounded-[6px] text-sm font-medium transition-all ${
                       selected
-                        ? "bg-[#795252] text-white shadow-sm"
-                        : "bg-[#F6F3F2] text-[#504444] hover:bg-[#EFEAE6]"
+                        ? "bg-[var(--hb-primary)] text-white shadow-sm"
+                        : "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] hover:bg-[#EFEAE6]"
                     }`}
                   >
                     {opt.label}
@@ -897,19 +903,19 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.05 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[0_4px_14px_rgba(121,82,82,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Heart className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">커플 연결</h3>
-            <p className="text-base text-[#504444] font-light">파트너와 함께 준비 현황을 공유하세요</p>
+            <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">커플 연결</h3>
+            <p className="text-base text-[var(--hb-text-body)] font-light">파트너와 함께 준비 현황을 공유하세요</p>
           </div>
         </div>
 
-        <div className="bg-[#F6F3F2] rounded-xl p-5">
+        <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-5">
           {/* 코드가 보이는 유일한 조건은 `awaiting_partner`다. 연결이 끝나면
               /api/couple/code가 inviteCode: null을 주고 패널도 함께 사라진다 —
               패널 자체도 코드가 없으면 아무것도 그리지 않는다(이중 잠금). */}
@@ -922,11 +928,12 @@ export default function SettingsPage() {
                 code={coupleCode}
                 variant="settings"
                 notice={inviteWindowNotice}
+                partnerJoinPurgeTotal={coupleConnection.partnerJoinPurgeTotal}
               />
               <button
                 onClick={handleRegenerateCode}
                 disabled={regenerating || !coupleConnection.canInvite}
-                className="mt-2 text-sm text-[#B5ADA3] hover:text-[#795252] transition-colors disabled:opacity-50"
+                className="mt-2 text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] transition-colors disabled:opacity-50"
               >
                 {regenerating ? "재발급 중..." : "코드 재발급"}
               </button>
@@ -934,31 +941,31 @@ export default function SettingsPage() {
           )}
 
           {phase === "linked" ? (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
+            <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
               <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center">
                 <span className="text-base text-white font-medium">{partnerName?.slice(0, 2) ?? "두 분"}</span>
               </div>
               <div className="flex-1">
-                <p className="text-base text-[#1A1A1F] font-medium">{partnerName ?? "파트너"}</p>
+                <p className="text-base text-[var(--hb-text-strong)] font-medium">{partnerName ?? "파트너"}</p>
                 <p className="text-sm text-[#2E7D5A]">{partnerRole ? `${partnerRole} · ` : ""}연동 완료</p>
               </div>
               <Check className="w-6 h-6 text-[#2E7D5A]" />
             </div>
           ) : phase === "sealed_single" ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <span className="w-12 h-12 flex-shrink-0 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-[#795252]" />
+                <span className="w-12 h-12 flex-shrink-0 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-[var(--hb-accent-hover)]" />
                 </span>
                 <div>
-                  <p className="text-base font-medium text-[#1A1A1F]">이 커플 연결은 종료됐어요</p>
+                  <p className="text-base font-medium text-[var(--hb-text-strong)]">이 커플 연결은 종료됐어요</p>
                   <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
                     연결 기록을 보호하기 위해 새 멤버를 이 커플에 초대할 수 없어요.
                     아래에서 새 커플로 다시 시작하거나 문제가 있으면 고객지원에 문의해 주세요.
                   </p>
                   <a
                     href={`mailto:${CONTACT.email}`}
-                    className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                    className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
                   >
                     고객지원 문의
                   </a>
@@ -966,50 +973,66 @@ export default function SettingsPage() {
               </div>
             </div>
           ) : phase === "awaiting_partner" ? (
-            <div className="flex items-center gap-3 p-4 rounded-lg bg-white shadow-sm">
-              <div className="w-12 h-12 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                <User className="w-6 h-6 text-[#B5ADA3]" />
+            <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
+              <div className="w-12 h-12 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                <User className="w-6 h-6 text-[var(--hb-text-muted)]" />
               </div>
               <div className="flex-1">
-                <p className="text-base text-[#504444] font-medium">파트너 초대 대기</p>
-                <p className="text-sm text-[#928980]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
+                <p className="text-base text-[var(--hb-text-body)] font-medium">파트너 초대 대기</p>
+                <p className="text-sm text-[var(--hb-text-muted)]">위의 코드·링크·QR 중 편한 것으로 보내주세요</p>
               </div>
-              <ChevronRight className="w-5 h-5 text-[#B5ADA3]" />
+              <ChevronRight className="w-5 h-5 text-[var(--hb-text-muted)]" />
             </div>
           ) : regenerateError ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
               <p role="alert" className="text-sm leading-relaxed text-[#D95F5F]">
                 {regenerateError}
               </p>
             </div>
+          ) : !couple ? (
+            /* 준비 공간이 없는 계정. 초대 코드는 공간이 있어야 생기므로 여기서
+               보여줄 코드가 없다 — 그 사실과 갈 곳을 같이 말한다. */
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[var(--hb-text-strong)]">아직 준비 공간이 없어요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
+                초대 코드는 준비 공간을 만든 뒤에 생겨요. 상대에게 받은 코드가 있다면
+                시작 화면에서 그 코드로 함께 시작할 수 있어요.
+              </p>
+              <Link
+                href="/onboarding"
+                className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
+              >
+                시작 화면으로 가기
+              </Link>
+            </div>
           ) : connectionLookup === "loading" ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
-              <p className="text-base font-medium text-[#504444]">연결 상태를 불러오는 중이에요</p>
-              <p className="mt-1 text-sm leading-relaxed text-[#928980]">잠시만 기다려 주세요.</p>
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[var(--hb-text-body)]">연결 상태를 불러오는 중이에요</p>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-muted)]">잠시만 기다려 주세요.</p>
             </div>
           ) : connectionLookup === "failed" ? (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
-              <p className="text-base font-medium text-[#1A1A1F]">연결 상태를 불러오지 못했어요</p>
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[var(--hb-text-strong)]">연결 상태를 불러오지 못했어요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
                 커플 연결이 잘못된 것은 아니에요. 연결 상태만 못 읽었으니 다시 시도해 주세요.
               </p>
               <button
                 type="button"
                 onClick={() => setConnectionRetryNonce((value) => value + 1)}
-                className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
               >
                 다시 시도
               </button>
             </div>
           ) : (
-            <div className="rounded-lg border border-[#E8DDD3] bg-white p-4 shadow-sm">
-              <p className="text-base font-medium text-[#1A1A1F]">연결 상태를 확인하지 못했어요</p>
+            <div className="rounded-[6px] border border-[#E8DDD3] bg-white p-4 shadow-sm">
+              <p className="text-base font-medium text-[var(--hb-text-strong)]">연결 상태를 확인하지 못했어요</p>
               <p className="mt-1 text-sm leading-relaxed text-[#746A63]">
                 안전을 위해 새 멤버 초대는 잠시 멈췄어요. 화면을 새로고침하거나 고객지원에 문의해 주세요.
               </p>
               <a
                 href={`mailto:${CONTACT.email}`}
-                className="mt-2 inline-flex text-sm font-medium text-[#795252] underline underline-offset-4"
+                className="mt-2 inline-flex text-sm font-medium text-[var(--hb-accent-hover)] underline underline-offset-4"
               >
                 고객지원 문의
               </a>
@@ -1024,18 +1047,18 @@ export default function SettingsPage() {
                 setResetWeddingError("");
                 setShowResetWeddingModal(true);
               }}
-              className="mt-3 w-full flex items-center justify-between gap-3 rounded-lg border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
+              className="mt-3 w-full flex items-center justify-between gap-3 rounded-[6px] border border-[#E8DDD3] bg-white px-4 py-3 text-left shadow-sm hover:border-[#C4967E]/50 transition-colors"
             >
               <span className="flex min-w-0 items-center gap-3">
-                <span className="w-10 h-10 shrink-0 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                  <RotateCcw className="w-5 h-5 text-[#795252]" />
+                <span className="w-10 h-10 shrink-0 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                  <RotateCcw className="w-5 h-5 text-[var(--hb-accent-hover)]" />
                 </span>
                 <span>
-                  <span className="block text-base font-medium text-[#1A1A1F]">새 커플로 다시 시작</span>
-                  <span className="block text-sm text-[#928980]">현재 커플 연결을 끊고 온보딩으로 돌아갑니다.</span>
+                  <span className="block text-base font-medium text-[var(--hb-text-strong)]">새 커플로 다시 시작</span>
+                  <span className="block text-sm text-[var(--hb-text-muted)]">현재 커플 연결을 끊고 온보딩으로 돌아갑니다.</span>
                 </span>
               </span>
-              <ChevronRight className="w-5 h-5 text-[#B5ADA3] flex-shrink-0" />
+              <ChevronRight className="w-5 h-5 text-[var(--hb-text-muted)] flex-shrink-0" />
             </button>
           )}
         </div>
@@ -1045,13 +1068,13 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
       >
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[0_4px_14px_rgba(46,125,90,0.2)]">
+          <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Bell className="w-5 h-5 text-white" />
           </div>
-          <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F]">알림 설정</h3>
+          <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">알림 설정</h3>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -1061,11 +1084,11 @@ export default function SettingsPage() {
           ].map((item) => (
             <div
               key={item.key}
-              className="flex items-center justify-between px-5 py-4 rounded-xl hover:bg-[#F6F3F2] transition-colors"
+              className="flex items-center justify-between px-5 py-4 rounded-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               <div>
-                <p className="text-[17px] font-medium text-[#1A1A1F]">{item.label}</p>
-                <p className="text-sm text-[#B5ADA3] font-light">{item.desc}</p>
+                <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">{item.label}</p>
+                <p className="text-sm text-[var(--hb-text-muted)] font-light">{item.desc}</p>
               </div>
               <button
                 type="button"
@@ -1091,8 +1114,8 @@ export default function SettingsPage() {
 
         {hasLegacyCareConsent && (
           <div className="mt-5 border-t border-[#E8E0D8] px-5 pt-5">
-            <p className="text-[17px] font-medium text-[#1A1A1F]">이전 이메일 수신 동의</p>
-            <p className="mt-1 text-sm font-light leading-relaxed text-[#928980]">
+            <p className="text-[17px] font-medium text-[var(--hb-text-strong)]">이전 이메일 수신 동의</p>
+            <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-muted)]">
               예전에 동의한 아모라 이메일 수신을 여기에서 해제할 수 있어요.
             </p>
             <button
@@ -1116,24 +1139,24 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.12 }}
-        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
       >
         <Link
           {...weddingLinkProps("/settings/amora-style")}
-          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#36534E]"
+          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#36534E] shadow-[0_4px_14px_rgba(54,83,78,0.2)]">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] shadow-[var(--shadow-raised)]">
             <Sparkles className="h-5 w-5 text-white" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[17px] font-medium text-[#243832]">
+            <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">
               아모라 도움 방식
             </span>
-            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-success)]">
               추천·비교·공감·실행 중 내가 편한 순서를 직접 정해요
             </span>
           </span>
-          <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
+          <span className="hidden items-center gap-1 text-xs font-medium text-[var(--hb-success)] sm:flex">
             <ShieldCheck className="h-4 w-4" />
             나만 적용
           </span>
@@ -1145,22 +1168,22 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.13 }}
-        className="mb-6 overflow-hidden rounded-xl bg-white shadow-[0_8px_30px_rgb(0,0,0,0.04)]"
+        className="mb-6 overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]"
       >
         <Link
           {...weddingLinkProps("/settings/amora-memory")}
-          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[#F7F1E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8F6662]"
+          className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#8F6662]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[#8F6662] shadow-[0_4px_14px_rgba(143,102,98,0.2)]">
+          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#8F6662] shadow-[var(--shadow-raised)]">
             <BrainCircuit className="h-5 w-5 text-white" />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-[17px] font-medium text-[#243832]">아모라가 기억하는 것</span>
-            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
+            <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">아모라가 기억하는 것</span>
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-success)]">
               아모라가 무엇을 기억하는지 보고, 잘못 이해한 내용은 고치거나 지울 수 있어요
             </span>
           </span>
-          <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
+          <span className="hidden items-center gap-1 text-xs font-medium text-[var(--hb-success)] sm:flex">
             <ShieldCheck className="h-4 w-4" />
             내 통제
           </span>
@@ -1172,7 +1195,7 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5, delay: 0.15 }}
-        className="bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden mb-6"
       >
         {[
           { label: "이용약관", href: "/terms" },
@@ -1181,21 +1204,21 @@ export default function SettingsPage() {
           <Link
             key={item.label}
             href={item.href}
-            className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
+            className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
           >
-            <span className="text-[17px] text-[#1A1A1F]">{item.label}</span>
-            <ChevronRight className="h-5 w-5 text-[#B5ADA3]" />
+            <span className="text-[17px] text-[var(--hb-text-strong)]">{item.label}</span>
+            <ChevronRight className="h-5 w-5 text-[var(--hb-text-muted)]" />
           </Link>
         ))}
         <a
           href={`mailto:${CONTACT.email}`}
-          className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[#F6F3F2] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
+          className="flex w-full items-center justify-between px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#795252]/40"
         >
           <span>
-            <span className="block text-[17px] text-[#1A1A1F]">고객센터</span>
-            <span className="mt-0.5 block text-sm text-[#928980]">{CONTACT.email}</span>
+            <span className="block text-[17px] text-[var(--hb-text-strong)]">고객센터</span>
+            <span className="mt-0.5 block text-sm text-[var(--hb-text-muted)]">{CONTACT.email}</span>
           </span>
-          <ChevronRight className="h-5 w-5 text-[#B5ADA3]" />
+          <ChevronRight className="h-5 w-5 text-[var(--hb-text-muted)]" />
         </a>
       </motion.div>
 
@@ -1207,7 +1230,7 @@ export default function SettingsPage() {
       >
         <button
           onClick={signOut}
-          className="w-full flex items-center justify-center gap-2 py-4 rounded-xl bg-white text-red-400 text-base font-medium shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgb(0,0,0,0.08)] transition-shadow"
+          className="w-full flex items-center justify-center gap-2 py-4 rounded-[6px] bg-white text-red-400 text-base font-medium shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow"
         >
           <LogOut className="w-5 h-5" />
           로그아웃
@@ -1215,7 +1238,7 @@ export default function SettingsPage() {
 
         <button
           onClick={() => setShowDeleteModal(true)}
-          className="w-full flex items-center justify-center gap-2 py-3.5 text-[#B5ADA3] text-base font-light hover:text-red-400 transition-colors"
+          className="w-full flex items-center justify-center gap-2 py-3.5 text-[var(--hb-text-muted)] text-base font-light hover:text-red-400 transition-colors"
         >
           <Trash2 className="w-4 h-4" />
           계정 탈퇴
@@ -1236,12 +1259,12 @@ export default function SettingsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[420px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
-              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[#F6F3F2] flex items-center justify-center">
-                <RotateCcw className="w-6 h-6 text-[#795252]" />
+              <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
+                <RotateCcw className="w-6 h-6 text-[var(--hb-accent-hover)]" />
               </div>
-              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
+              <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)] text-center mb-2">
                 새 커플로 다시 시작할까요?
               </h3>
               {/* 되돌릴 수 없는 행동이다. 예전 문구는 "새 파트너 코드로 다시 연결할 수
@@ -1249,17 +1272,17 @@ export default function SettingsPage() {
                   트리거가 재삽입을 영구 차단하므로 **지금 이 사람에게는 다시 돌아올 수
                   없다.** 모바일이 이미 정직하게 말한다 —
                   `apps/mobile/app/settings/index.tsx` 의 "이 작업은 되돌릴 수 없어요". */}
-              <p className="text-sm text-[#928980] text-center leading-relaxed mb-6">
+              <p className="text-sm text-[var(--hb-text-muted)] text-center leading-relaxed mb-6">
                 현재 커플 연결과 함께 보던 준비 데이터를 분리하고 온보딩으로 돌아갑니다.
                 <br />
-                <span className="font-semibold text-[#795252]">이 작업은 되돌릴 수 없어요</span>
+                <span className="font-semibold text-[var(--hb-accent-hover)]">이 작업은 되돌릴 수 없어요</span>
                 {" — "}지금 커플로는 다시 연결할 수 없습니다.
                 <br />
                 내 계정과 내가 쓴 대화는 유지돼요.
               </p>
 
-              <label className="block text-sm text-[#504444] mb-2">
-                확인을 위해 <span className="font-semibold text-[#795252]">초기화합니다</span>를 입력해주세요
+              <label className="block text-sm text-[var(--hb-text-body)] mb-2">
+                확인을 위해 <span className="font-semibold text-[var(--hb-accent-hover)]">초기화합니다</span>를 입력해주세요
               </label>
               <input
                 type="text"
@@ -1269,7 +1292,7 @@ export default function SettingsPage() {
                   setResetWeddingError("");
                 }}
                 placeholder="초기화합니다"
-                className="w-full px-4 py-3 rounded-xl border border-[#E8DDD3] text-base outline-none focus:border-[#C4967E]"
+                className="w-full px-4 py-3 rounded-[6px] border border-[#E8DDD3] text-base outline-none focus:border-[#C4967E]"
               />
               {resetWeddingError && (
                 <p className="mt-3 text-sm text-red-500">{resetWeddingError}</p>
@@ -1279,7 +1302,7 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowResetWeddingModal(false)}
-                  className="flex-1 py-3 rounded-xl bg-[#F6F3F2] text-[#504444] font-medium hover:bg-[#EDE8E5] transition-colors"
+                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)] font-medium bg-[#f3e9df] transition-colors"
                 >
                   취소
                 </button>
@@ -1287,7 +1310,7 @@ export default function SettingsPage() {
                   type="button"
                   onClick={handleResetWedding}
                   disabled={resetWeddingConfirmText !== "초기화합니다" || resettingWedding}
-                  className="flex-1 py-3 rounded-xl bg-[#795252] text-white font-medium hover:bg-[#946a6a] transition-colors disabled:opacity-40"
+                  className="flex-1 py-3 rounded-[6px] bg-[var(--hb-primary)] text-white font-medium bg-[var(--hb-text-body)] transition-colors disabled:opacity-40"
                 >
                   {resettingWedding ? "초기화 중..." : "다시 시작"}
                 </button>
@@ -1311,23 +1334,23 @@ export default function SettingsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.3 }}
-              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-xl p-6 sm:p-8 shadow-[0_20px_60px_rgba(0,0,0,0.15)]"
+              className="w-full max-w-[400px] max-h-[calc(100dvh-3rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] p-6 sm:p-8 shadow-[var(--shadow-overlay)]"
             >
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-red-50 flex items-center justify-center">
                 <Trash2 className="w-6 h-6 text-red-400" />
               </div>
 
-              <h3 className="font-serif-kr text-2xl font-light text-[#1A1A1F] text-center mb-2">
+              <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)] text-center mb-2">
                 정말 탈퇴하시겠어요?
               </h3>
-              <p className="text-sm text-[#B5ADA3] text-center leading-relaxed mb-5">
+              <p className="text-sm text-[var(--hb-text-muted)] text-center leading-relaxed mb-5">
                 계정과 직접 소유한 데이터 삭제를 요청합니다.
               </p>
 
               {deletionIntakeOpen !== true && (
                 <p
                   role="status"
-                  className="mb-5 rounded-xl border border-[#E2D3C8] bg-[#FBF8F2] px-4 py-3 text-sm leading-relaxed text-[#36534E]"
+                  className="mb-5 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]"
                 >
                   {ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE}
                 </p>
@@ -1336,8 +1359,8 @@ export default function SettingsPage() {
               {/* 되돌릴 수 없는 행동 앞에서는 무엇이 지워지고 무엇이 남는지
                   먼저 보여준다. 특히 "파트너 화면에는 남는다"는 사실은
                   사람이 놀라는 자리다. */}
-              <div className="mb-5 rounded-xl bg-[#F6F3F2] px-4 py-4">
-                <p className="text-[13px] font-medium text-[#504444] mb-2.5">
+              <div className="mb-5 rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-4">
+                <p className="text-[13px] font-medium text-[var(--hb-text-body)] mb-2.5">
                   탈퇴하면 이렇게 돼요
                 </p>
                 <ul className="space-y-2">
@@ -1345,14 +1368,14 @@ export default function SettingsPage() {
                     <li
                       key={fact.key}
                       className={`text-[12px] leading-[1.6] ${
-                        fact.emphasis ? "font-medium text-[#504444]" : "text-[#928980]"
+                        fact.emphasis ? "font-medium text-[var(--hb-text-body)]" : "text-[var(--hb-text-muted)]"
                       }`}
                     >
                       {fact.text}
                     </li>
                   ))}
                 </ul>
-                <p className="mt-3 text-[11px] text-[#928980]">
+                <p className="mt-3 text-[11px] text-[var(--hb-text-muted)]">
                   자세한 내용은{" "}
                   <a href="/privacy" target="_blank" rel="noreferrer" className="underline">
                     개인정보 처리방침
@@ -1370,11 +1393,11 @@ export default function SettingsPage() {
 
               {/* 탈퇴 사유 */}
               <div className="mb-5">
-                <p className="text-sm text-[#504444] mb-3">탈퇴 사유를 선택해주세요</p>
+                <p className="text-sm text-[var(--hb-text-body)] mb-3">탈퇴 사유를 선택해주세요</p>
                 <div className="space-y-2">
                   {DELETE_REASONS.map((r) => (
-                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-xl cursor-pointer transition-colors ${
-                      deleteReason === r.value ? "bg-[#795252]/5 ring-1 ring-[#795252]/20" : "bg-[#F6F3F2] hover:bg-[#EDE7E5]"
+                    <label key={r.value} className={`flex items-center gap-2.5 px-3 py-3 rounded-[6px] cursor-pointer transition-colors ${
+                      deleteReason === r.value ? "bg-[rgba(54,83,78,0.10)] ring-1 ring-[rgba(54,83,78,0.24)]" : "bg-[var(--hb-surface-hover)] bg-[#f3e9df]"
                     }`}>
                       <input
                         type="radio"
@@ -1382,16 +1405,16 @@ export default function SettingsPage() {
                         value={r.value}
                         checked={deleteReason === r.value}
                         onChange={() => setDeleteReason(r.value)}
-                        className="w-4 h-4 accent-[#795252]"
+                        className="w-4 h-4 accent-[var(--hb-accent)]"
                       />
-                      <span className="text-base text-[#1A1A1F]">{r.label}</span>
+                      <span className="text-base text-[var(--hb-text-strong)]">{r.label}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               <div className="mb-5">
-                <p className="text-sm text-[#504444] mb-2">
+                <p className="text-sm text-[var(--hb-text-body)] mb-2">
                   확인을 위해 <span className="font-semibold text-red-400">탈퇴합니다</span>를 입력해주세요
                 </p>
                 <input
@@ -1399,7 +1422,7 @@ export default function SettingsPage() {
                   value={deleteConfirmText}
                   onChange={(e) => setDeleteConfirmText(e.target.value)}
                   placeholder="탈퇴합니다"
-                  className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[#B5ADA3]"
+                  className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 focus:ring-red-400/40 transition-all placeholder:text-[var(--hb-text-muted)]"
                 />
               </div>
               </>
@@ -1416,7 +1439,7 @@ export default function SettingsPage() {
                   || (deletionIntakeOpen === true
                     && (deleteConfirmText !== "탈퇴합니다" || !deleteReason))
                 }
-                className="w-full py-3 rounded-xl text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
+                className="w-full py-3 rounded-[6px] text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
                 {deleting
                   ? "요청 중..."
@@ -1432,7 +1455,7 @@ export default function SettingsPage() {
                   setDeleteError("");
                   setDeleteReason("");
                 }}
-                className="w-full py-3 rounded-xl text-base font-medium text-[#504444] hover:text-[#1A1A1F] hover:bg-[#F6F3F2] transition-all"
+                className="w-full py-3 rounded-[6px] text-base font-medium text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] transition-all"
               >
                 취소
               </button>

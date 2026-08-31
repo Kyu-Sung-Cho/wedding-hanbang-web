@@ -32,11 +32,11 @@ interface PostCardProps {
 
 // 카테고리별 배지 색상 (soft neutrals + jade accent)
 const CATEGORY_BADGE_BG: Record<string, string> = {
-  is_normal: "bg-[#dee6c4]/30 text-sage-500", // sage (secondary-container)
-  tour_review: "bg-[#dfc9c1]/30 text-[#36534E]", // warm outline + primary
-  tips_v2: "bg-[#635b51]/15 text-[#635b51]", // tertiary
-  ama: "bg-[#36534E]/10 text-[#36534E]", // primary
-  free: "bg-[#dee6c4]/30 text-sage-500", // sage
+  is_normal: "bg-[#dee6c4]/30 text-[var(--hb-success)]", // sage (secondary-container)
+  tour_review: "bg-[#dfc9c1]/30 text-[var(--hb-text-strong)]", // warm outline + primary
+  tips_v2: "bg-[#635b51]/15 text-[var(--hb-text-body)]", // tertiary
+  ama: "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]", // primary
+  free: "bg-[#dee6c4]/30 text-[var(--hb-success)]", // sage
 };
 
 // 비용 포맷 헬퍼
@@ -96,7 +96,7 @@ export default function PostCard({ post }: PostCardProps) {
   const hasImage = !!thumbUrl;
 
   // 카테고리 배지 스타일
-  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-sage-500";
+  const categoryBadgeStyle = CATEGORY_BADGE_BG[post.category] || "bg-[#dee6c4]/30 text-[var(--hb-success)]";
 
   function showLoginToast() {
     setLoginPrompt(true);
@@ -184,7 +184,7 @@ export default function PostCard({ post }: PostCardProps) {
   }
 
   return (
-    <article className="relative rounded-lg border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[0_8px_24px_rgba(80,68,68,0.05)] sm:p-5">
+    <article className="relative rounded-[6px] border border-[#ece7e3] bg-white p-4 transition-all duration-300 hover:border-[#d8d1cc] hover:shadow-[var(--shadow-raised)] sm:p-5">
       {/* 인라인 토스트 */}
       {(shareToast || loginPrompt || actionToast) && (
         <div
@@ -210,11 +210,11 @@ export default function PostCard({ post }: PostCardProps) {
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2 sm:space-x-3 flex-wrap">
                 {categoryInfo && (
-                  <span className={`text-xs sm:text-sm font-medium px-2.5 py-1 rounded ${categoryBadgeStyle}`}>
+                  <span className={`text-xs sm:text-sm font-medium px-2.5 py-1 rounded-[6px] ${categoryBadgeStyle}`}>
                     {categoryInfo.shortLabel}
                   </span>
                 )}
-                <span suppressHydrationWarning className="text-xs sm:text-sm text-[#635b51]">{timeAgo(post.created_at)}</span>
+                <span suppressHydrationWarning className="text-xs sm:text-sm text-[var(--hb-text-body)]">{timeAgo(post.created_at)}</span>
 
                 {(post.ad_disclosure === "sponsored" || post.ad_disclosure === "ad") && (
                   <AdDisclosureBadge
@@ -227,14 +227,14 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={communityPostPath(post.id)} className="group block">
-              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[#263832] mb-2.5 hover:text-[#36534E] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[var(--hb-text-strong)] mb-2.5 hover:text-[var(--hb-text-strong)] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
                 {post.is_pinned && (
-                  <span className="inline-flex items-center gap-1 text-[#36534E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[var(--hb-text-strong)] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN
                   </span>
                 )}
                 {post.is_weekly_best && (
-                  <span className="text-[#635b51] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
+                  <span className="text-[var(--hb-text-body)] text-xs font-medium mr-2 align-middle tracking-wider uppercase">
                     Best
                   </span>
                 )}
@@ -243,16 +243,16 @@ export default function PostCard({ post }: PostCardProps) {
             </Link>
 
             {contentPreview && (
-              <p className="ugc-text text-[#635b51] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
+              <p className="ugc-text text-[var(--hb-text-body)] text-sm leading-relaxed line-clamp-2 mb-3.5">{contentPreview}</p>
             )}
 
             {/* 비용 데이터 + 폴 배지 */}
             {(post.cost_data || post.poll) && (
               <div className="flex flex-wrap items-center gap-2 mb-4">
                 {post.cost_data && (
-                  <div className="bg-[#f6efe5] rounded-lg px-3 py-1.5 inline-block">
-                    <span className="text-xs text-[#635b51]">비용: </span>
-                    <span className="text-sm font-medium text-[#263832]">{formatPrice(post.cost_data.totalCost)}만원</span>
+                  <div className="bg-[var(--hb-surface-hover)] rounded-[6px] px-3 py-1.5 inline-block">
+                    <span className="text-xs text-[var(--hb-text-body)]">비용: </span>
+                    <span className="text-sm font-medium text-[var(--hb-text-strong)]">{formatPrice(post.cost_data.totalCost)}만원</span>
                   </div>
                 )}
                 {post.poll && (() => {
@@ -262,10 +262,10 @@ export default function PostCard({ post }: PostCardProps) {
                   return (
                     <Link
                       href={communityPostPath(post.id)}
-                      className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
+                      className={`inline-flex items-center gap-2 max-w-full px-3 py-1.5 text-xs font-medium border rounded-[6px] transition-colors ${
                         isClosed
-                          ? "text-[#928980] bg-[#f6efe5] border-[#e5d8ca] hover:bg-white"
-                          : "text-[#36534E] bg-[#fbf8f2] border-[#f0eeec] hover:border-[#36534E] hover:bg-white"
+                          ? "text-[var(--hb-text-muted)] bg-[var(--hb-surface-hover)] border-[var(--hb-hairline)] hover:bg-white"
+                          : "text-[var(--hb-text-strong)] bg-[var(--hb-surface-page)] border-[#f0eeec] hover:border-[var(--hb-primary)] hover:bg-white"
                       }`}
                       title={post.poll.question}
                     >
@@ -273,14 +273,14 @@ export default function PostCard({ post }: PostCardProps) {
                       <span className="truncate max-w-[180px] sm:max-w-[220px]">
                         {post.poll.question}
                       </span>
-                      <span className="shrink-0 text-[#B5ADA3]">·</span>
+                      <span className="shrink-0 text-[var(--hb-text-muted)]">·</span>
                       <span className="shrink-0 tabular-nums">
                         {post.poll.total_voters === null
                           ? "참여 후 공개"
                           : `${post.poll.total_voters.toLocaleString()}명`}
                       </span>
                       {isClosed && (
-                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#e5d8ca] text-[#635b51]">
+                        <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-[#e5d8ca] text-[var(--hb-text-body)]">
                           마감
                         </span>
                       )}
@@ -307,13 +307,13 @@ export default function PostCard({ post }: PostCardProps) {
                   size={34}
                 />
               </Link>
-              <span className="text-sm text-[#635b51] truncate max-w-[140px] sm:max-w-none">
+              <span className="text-sm text-[var(--hb-text-body)] truncate max-w-[140px] sm:max-w-none">
                 {author.nickname}
               </span>
               <ContentOriginBadge origin={post.content_origin} />
             </div>
 
-            <div className="flex items-center gap-2.5 sm:gap-3 text-[#635b51] flex-shrink-0 ml-auto">
+            <div className="flex items-center gap-2.5 sm:gap-3 text-[var(--hb-text-body)] flex-shrink-0 ml-auto">
               {/* 좋아요 */}
               <button
                 type="button"
@@ -339,7 +339,7 @@ export default function PostCard({ post }: PostCardProps) {
               {/* 댓글 */}
               <Link
                 href={communityPostPath(post.id, "comments")}
-                className="flex items-center gap-1 hover:text-[#36534E] group"
+                className="flex items-center gap-1 hover:text-[var(--hb-text-strong)] group"
               >
                 <MessageCircle className="w-5 h-5 opacity-60 group-hover:opacity-100" />
                 <span className="text-sm">
@@ -347,7 +347,7 @@ export default function PostCard({ post }: PostCardProps) {
                 </span>
               </Link>
 
-              <span className="flex items-center gap-1 text-[#635b51]">
+              <span className="flex items-center gap-1 text-[var(--hb-text-body)]">
                 <Eye className="w-5 h-5 opacity-60" />
                 <span className="text-sm">{post.view_count ?? 0}</span>
               </span>
@@ -358,7 +358,7 @@ export default function PostCard({ post }: PostCardProps) {
                 onClick={handleBookmark}
                 disabled={bookmarking}
                 className={`flex items-center group disabled:opacity-60 ${
-                  bookmarked ? "text-[#36534E]" : "hover:text-[#36534E]"
+                  bookmarked ? "text-[var(--hb-text-strong)]" : "hover:text-[var(--hb-text-strong)]"
                 }`}
                 aria-label="저장"
                 title="저장"
@@ -373,7 +373,7 @@ export default function PostCard({ post }: PostCardProps) {
               <button
                 type="button"
                 onClick={handleShare}
-                className="flex items-center hover:text-[#36534E] group"
+                className="flex items-center hover:text-[var(--hb-text-strong)] group"
                 aria-label="공유"
                 title="공유"
               >
@@ -387,7 +387,7 @@ export default function PostCard({ post }: PostCardProps) {
         {(hasImage || (hasSlides && isVideoSlide && !slideThumb)) && (
           <Link
             href={communityPostPath(post.id)}
-            className="relative h-24 w-28 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
+            className="relative h-24 w-28 rounded-[6px] overflow-hidden shrink-0 bg-[#1A1A1F] sm:h-28 sm:w-28 xl:w-32 xl:h-32"
           >
             {thumbUrl ? (
               <Image

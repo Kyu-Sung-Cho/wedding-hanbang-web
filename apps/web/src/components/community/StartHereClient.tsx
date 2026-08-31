@@ -178,8 +178,8 @@ export default function StartHereClient() {
   };
 
   return (
-    <div className="bg-[#FBF8F2] text-[#243832]">
-      <section className="bg-[#243832] text-white" aria-labelledby="start-here-title">
+    <div className="bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)]">
+      <section className="bg-[var(--hb-primary)] text-white" aria-labelledby="start-here-title">
         <div className="mx-auto w-full max-w-[1240px] px-5 pb-10 pt-8 sm:px-8 sm:pb-12 sm:pt-11 lg:px-10 lg:pb-14">
           <div className="grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(520px,1.05fr)] lg:items-end lg:gap-16">
             <div className="max-w-[650px]">
@@ -231,25 +231,25 @@ export default function StartHereClient() {
 
       <div className="mx-auto w-full max-w-[1240px] px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(340px,0.78fr)_minmax(0,1.22fr)] lg:gap-10">
-          <section className="bg-white px-5 py-6 shadow-[0_20px_55px_rgba(36,56,50,0.08)] sm:px-7 sm:py-8" aria-labelledby="start-date-title">
-            <p className="text-[12px] font-semibold text-[#8F6662]">01 · 예식 예정일</p>
-            <h2 id="start-date-title" className="mt-2 text-[25px] font-semibold tracking-[-0.035em] text-[#243832]">
+          <section className="bg-white px-5 py-6 shadow-[var(--shadow-overlay)] sm:px-7 sm:py-8" aria-labelledby="start-date-title">
+            <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">01 · 예식 예정일</p>
+            <h2 id="start-date-title" className="mt-2 text-[25px] font-semibold tracking-[-0.035em] text-[var(--hb-text-strong)]">
               날짜를 알려주세요.
             </h2>
-            <p className="mt-2 text-[15px] leading-7 text-[#4E6A62]">
+            <p className="mt-2 text-[15px] leading-7 text-[var(--hb-text-body)]">
               날짜는 지금 볼 순서를 계산하는 데만 사용하고, 서버로 보내지 않아요.
             </p>
 
             <label className="mt-6 block">
-              <span className="text-[14px] font-semibold text-[#243832]">예식 예정일</span>
-              <span className="mt-2 flex min-h-14 items-center gap-3 rounded-[14px] border border-[#243832]/14 bg-[#FBF8F2] px-4 transition-colors focus-within:border-[#36534E]/55 focus-within:ring-2 focus-within:ring-[#36534E]/10">
+              <span className="text-[14px] font-semibold text-[var(--hb-text-strong)]">예식 예정일</span>
+              <span className="mt-2 flex min-h-14 items-center gap-3 rounded-[6px] border border-[var(--hb-primary)]/14 bg-[var(--hb-surface-page)] px-4 transition-colors focus-within:border-[var(--hb-primary)]/55 focus-within:ring-2 focus-within:ring-[var(--hb-primary)]/10">
                 <CalendarDays aria-hidden="true" className="h-5 w-5 shrink-0 text-[#8F6662]" />
                 <input
                   id="wedding-date"
                   type="date"
                   value={dateText}
                   onChange={(event) => handleDateChange(event.target.value)}
-                  className="min-h-14 min-w-0 flex-1 bg-transparent text-[16px] text-[#243832] outline-none"
+                  className="min-h-14 min-w-0 flex-1 bg-transparent text-[16px] text-[var(--hb-text-strong)] outline-none"
                 />
               </span>
             </label>
@@ -260,20 +260,20 @@ export default function StartHereClient() {
               * 날짜가 없는 사람에게 갈 곳을 주는 것이 이 줄의 존재 이유이므로,
               * 체험이 없으면 가입으로 잇는다.
               */}
-            <div className="mt-3 text-[13px] leading-6 text-[#4E6A62]">
+            <div className="mt-3 text-[13px] leading-6 text-[var(--hb-text-body)]">
               <span>아직 날짜가 없나요?</span>{" "}
               {isPublicDemoTrialEnabled() ? (
                 <StartDemoButton
                   label="날짜 없이 기준부터 물어보기"
                   prefill={undatedAmoraPrefill}
                   analyticsSource="start_here_without_date"
-                  className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662] disabled:opacity-60"
+                  className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[var(--hb-text-strong)] underline decoration-[var(--hb-text-strong)]/30 underline-offset-4 transition-colors hover:text-[#8F6662] disabled:opacity-60"
                 />
               ) : (
                 <Link
                   href={buildStartHereSignupHref()}
                   onClick={rememberSignupHandoff}
-                  className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 transition-colors hover:text-[#8F6662]"
+                  className="inline-flex min-h-11 items-center gap-1.5 font-semibold text-[var(--hb-text-strong)] underline decoration-[var(--hb-text-strong)]/30 underline-offset-4 transition-colors hover:text-[#8F6662]"
                 >
                   날짜 없이 기준부터 시작하기
                 </Link>
@@ -281,7 +281,7 @@ export default function StartHereClient() {
             </div>
 
             <fieldset className="mt-6">
-              <legend className="text-[14px] font-semibold text-[#243832]">어떤 준비에 가까운가요?</legend>
+              <legend className="text-[14px] font-semibold text-[var(--hb-text-strong)]">어떤 준비에 가까운가요?</legend>
               <div className="mt-3 flex flex-wrap gap-2">
                 {([
                   ["standard", "항목을 넓게 볼게요"],
@@ -292,10 +292,10 @@ export default function StartHereClient() {
                     type="button"
                     onClick={() => applyPreset(value)}
                     aria-pressed={preset === value}
-                    className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[14px] font-semibold transition-colors ${
+                    className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                       preset === value
-                        ? "border-[#36534E] bg-[#36534E] text-white"
-                        : "border-[#243832]/15 bg-white text-[#243832] hover:bg-[#F5ECE4]"
+                        ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                        : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
                     }`}
                   >
                     {preset === value ? <Check className="mr-1.5 h-4 w-4" aria-hidden="true" /> : null}
@@ -305,7 +305,7 @@ export default function StartHereClient() {
               </div>
             </fieldset>
 
-            <p className="mt-6 flex gap-2 border-t border-[#243832]/10 pt-5 text-[13px] leading-6 text-[#4E6A62]">
+            <p className="mt-6 flex gap-2 border-t border-[var(--hb-primary)]/10 pt-5 text-[13px] leading-6 text-[var(--hb-text-body)]">
               <LockKeyhole className="mt-1 h-4 w-4 shrink-0 text-[#8F6662]" aria-hidden="true" />
               아모라로 이어가면 날짜와 첫 질문을 이 브라우저에 임시로 넘겨요. 30분 안에 같은 브라우저의 이 가입 흐름을 마칠 때만 초안으로 불러오며, 직접 질문을 보내기 전까지 AI는 호출하지 않아요.
             </p>
@@ -313,7 +313,7 @@ export default function StartHereClient() {
             {dday !== null && dday >= 0 ? (
               <a
                 href="#start-result-panel"
-                className="mt-5 inline-flex min-h-11 items-center gap-2 font-semibold text-[#36534E] underline decoration-[#36534E]/30 underline-offset-4 lg:hidden"
+                className="mt-5 inline-flex min-h-11 items-center gap-2 font-semibold text-[var(--hb-text-strong)] underline decoration-[var(--hb-text-strong)]/30 underline-offset-4 lg:hidden"
               >
                 업데이트된 내 준비 순서 보기
                 <ArrowRight className="h-4 w-4 rotate-90" aria-hidden="true" />
@@ -323,32 +323,32 @@ export default function StartHereClient() {
 
           <section
             id="start-result-panel"
-            className="scroll-mt-16 min-h-[470px] border border-[#243832]/12 bg-white px-5 py-6 sm:scroll-mt-20 sm:px-7 sm:py-8"
+            className="scroll-mt-16 min-h-[470px] border border-[var(--hb-primary)]/12 bg-white px-5 py-6 sm:scroll-mt-20 sm:px-7 sm:py-8"
             aria-labelledby="start-result-title"
             aria-live="polite"
           >
-            <p className="text-[12px] font-semibold text-[#8F6662]">02 · 지금 볼 세 가지</p>
+            <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">02 · 지금 볼 세 가지</p>
 
             {dday === null ? (
               <div className="flex min-h-[380px] flex-col justify-between">
                 <div>
-                  <h2 id="start-result-title" className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[#243832] sm:text-[32px]">
+                  <h2 id="start-result-title" className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[var(--hb-text-strong)] sm:text-[32px]">
                     날짜를 고르면,
                     <span className="block text-[#8F6662]">지금 볼 세 가지가 나와요.</span>
                   </h2>
-                  <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[#4E6A62]">
+                  <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[var(--hb-text-body)]">
                     전체 목록을 한꺼번에 주지 않고, 지금 확인하기 좋은 항목부터 보여드려요.
                   </p>
                 </div>
-                <ol className="mt-8 border-y border-[#243832]/12">
+                <ol className="mt-8 border-y border-[var(--hb-primary)]/12">
                   {[
                     "지금 먼저 확인할 준비 항목",
                     "각 항목에서 바로 시작할 첫걸음",
                     "아모라에게 이어서 물어볼 첫 질문",
                   ].map((item, index) => (
-                    <li key={item} className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 border-b border-[#243832]/10 py-4 last:border-b-0">
-                      <span className="text-[12px] font-semibold text-[#8F6662]">0{index + 1}</span>
-                      <span className="text-[15px] font-semibold text-[#243832]">{item}</span>
+                    <li key={item} className="grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-3 border-b border-[var(--hb-primary)]/10 py-4 last:border-b-0">
+                      <span className="text-[12px] font-semibold text-[var(--color-rose-700)]">0{index + 1}</span>
+                      <span className="text-[15px] font-semibold text-[var(--hb-text-strong)]">{item}</span>
                     </li>
                   ))}
                 </ol>
@@ -357,24 +357,24 @@ export default function StartHereClient() {
 
             {activeNow.length > 0 ? (
               <div>
-                <h2 id="start-result-title" className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[#243832] sm:text-[32px]">
+                <h2 id="start-result-title" className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[var(--hb-text-strong)] sm:text-[32px]">
                   예식까지 {dday}일,
                   <span className="block text-[#8F6662]">먼저 이 세 가지를 봐요.</span>
                 </h2>
-                <p className="mt-3 text-[14px] leading-6 text-[#4E6A62]">
+                <p className="mt-3 text-[14px] leading-6 text-[var(--hb-text-body)]">
                   {visiblePriorities.some((category) => !category.started)
                     ? "지금 시작할 항목 다음에, 곧 확인할 항목 하나를 미리 보여드려요. 실제 계약서와 업체·가족과 정한 날짜가 항상 우선이에요."
                     : "기본 확인 순서예요. 실제 계약서와 업체·가족과 정한 날짜가 항상 우선이에요."}
                 </p>
 
-                <ol className="mt-6 border-y border-[#243832]/12">
+                <ol className="mt-6 border-y border-[var(--hb-primary)]/12">
                   {visiblePriorities.map((category, index) => (
-                    <li key={category.key} className="grid gap-3 border-b border-[#243832]/10 py-5 last:border-b-0 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:gap-4">
-                      <span className="text-[12px] font-semibold text-[#8F6662]">0{index + 1}</span>
+                    <li key={category.key} className="grid gap-3 border-b border-[var(--hb-primary)]/10 py-5 last:border-b-0 sm:grid-cols-[2.25rem_minmax(0,1fr)] sm:gap-4">
+                      <span className="text-[12px] font-semibold text-[var(--color-rose-700)]">0{index + 1}</span>
                       <div>
                         <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                          <h3 className="text-[18px] font-semibold text-[#243832]">{category.label}</h3>
-                          <span className="text-[13px] font-semibold leading-5 text-[#8F6662]">
+                          <h3 className="text-[18px] font-semibold text-[var(--hb-text-strong)]">{category.label}</h3>
+                          <span className="text-[13px] font-semibold leading-5 text-[var(--color-rose-700)]">
                             {!category.started
                               ? `다음 기본 확인 시작까지 ${category.daysUntilStart}일 · 지금은 기준만 미리 맞춰봐도 돼요`
                               : category.daysUntilDeadline < 0
@@ -384,14 +384,14 @@ export default function StartHereClient() {
                         </div>
                         <ul className="mt-3 grid gap-2 sm:grid-cols-3">
                           {category.firstSteps.map((step) => (
-                            <li key={step} className="flex gap-2 text-[14px] leading-6 text-[#4E6A62]">
+                            <li key={step} className="flex gap-2 text-[14px] leading-6 text-[var(--hb-text-body)]">
                               <span aria-hidden="true" className="mt-2.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#B89785]" />
                               {step}
                             </li>
                           ))}
                         </ul>
                         {category.tip ? (
-                          <p className="mt-3 bg-[#FBF8F2] px-4 py-3 text-[13px] leading-6 text-[#4E6A62]">
+                          <p className="mt-3 bg-[var(--hb-surface-page)] px-4 py-3 text-[13px] leading-6 text-[var(--hb-text-body)]">
                             {category.tip}
                           </p>
                         ) : null}
@@ -400,7 +400,7 @@ export default function StartHereClient() {
                   ))}
                 </ol>
 
-                <div className="mt-7 bg-[#36534E] px-5 py-6 text-white sm:px-6">
+                <div className="mt-7 bg-[var(--hb-primary)] px-5 py-6 text-white sm:px-6">
                   <p className="text-[12px] font-semibold text-[#E2D3C8]">03 · 첫 질문으로 이어가기</p>
                   <h3 className="mt-2 text-[20px] font-semibold">이제 아모라에게 한 가지만 물어보세요.</h3>
                   {/* 체험이 닫히면 "로그인 없이 여는 체험" 이라는 설명이 사실이 아니게 된다. */}
@@ -414,12 +414,12 @@ export default function StartHereClient() {
                       label="이 날짜로 아모라에게 물어보기"
                       prefill={amoraPrefill}
                       analyticsSource="start_here_priorities"
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-white px-5 text-[14px] font-semibold text-[#243832] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
                     />
                     <Link
                       href={buildStartHereSignupHref()}
                       onClick={rememberSignupHandoff}
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
+                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-white/30 px-5 text-[14px] font-semibold text-white transition-colors hover:bg-white/10"
                     >
                       계정 만들고 계속 관리하기
                       <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -431,17 +431,17 @@ export default function StartHereClient() {
 
             {dday !== null && dday < 0 ? (
               <div className="flex min-h-[380px] flex-col justify-center">
-                <p className="text-[12px] font-semibold text-[#8F6662]">날짜를 다시 확인해 주세요</p>
-                <h2 id="start-result-title" className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[#243832] sm:text-[32px]">
+                <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">날짜를 다시 확인해 주세요</p>
+                <h2 id="start-result-title" className="mt-2 text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[var(--hb-text-strong)] sm:text-[32px]">
                   이미 지난 날짜예요.
                 </h2>
-                <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[#4E6A62]">
+                <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[var(--hb-text-body)]">
                   결혼식을 마치셨다면 축하드려요. 입력 실수였다면 다른 예정일을 선택해 새 순서를 확인할 수 있어요.
                 </p>
                 <button
                   type="button"
                   onClick={resetPastDate}
-                  className="mt-6 inline-flex min-h-12 w-fit items-center justify-center rounded-[14px] bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#243832]"
+                  className="mt-6 inline-flex min-h-12 w-fit items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
                 >
                   다른 날짜 선택하기
                 </button>
@@ -450,21 +450,21 @@ export default function StartHereClient() {
 
             {dday !== null && dday >= 0 && activeNow.length === 0 ? (
               <div>
-                <h2 id="start-result-title" className="text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[#243832] sm:text-[32px]">
+                <h2 id="start-result-title" className="text-[27px] font-semibold leading-[1.2] tracking-[-0.04em] text-[var(--hb-text-strong)] sm:text-[32px]">
                   예식까지 {dday}일,
                   <span className="block text-[#8F6662]">지금은 기준부터.</span>
                 </h2>
-                <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[#4E6A62]">
+                <p className="mt-3 max-w-[34rem] text-[15px] leading-7 text-[var(--hb-text-body)]">
                   아직 예약을 서두르기보다, 두 사람이 편안한 기준 세 가지를 먼저 이야기해 볼 수 있어요.
                 </p>
 
-                <ol className="mt-6 border-y border-[#243832]/12">
+                <ol className="mt-6 border-y border-[var(--hb-primary)]/12">
                   {EARLY_STARTING_POINTS.map((point, index) => (
-                    <li key={point.title} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-[#243832]/10 py-4 last:border-b-0">
-                      <span className="text-[12px] font-semibold text-[#8F6662]">0{index + 1}</span>
+                    <li key={point.title} className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-3 border-b border-[var(--hb-primary)]/10 py-4 last:border-b-0">
+                      <span className="text-[12px] font-semibold text-[var(--color-rose-700)]">0{index + 1}</span>
                       <div>
-                        <h3 className="text-[16px] font-semibold text-[#243832]">{point.title}</h3>
-                        <p className="mt-1 text-[14px] leading-6 text-[#4E6A62]">{point.body}</p>
+                        <h3 className="text-[16px] font-semibold text-[var(--hb-text-strong)]">{point.title}</h3>
+                        <p className="mt-1 text-[14px] leading-6 text-[var(--hb-text-body)]">{point.body}</p>
                       </div>
                     </li>
                   ))}
@@ -475,12 +475,12 @@ export default function StartHereClient() {
                     label="이 세 가지를 아모라와 정하기"
                     prefill={amoraPrefill}
                     analyticsSource="start_here_early"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#243832] disabled:opacity-60"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:opacity-60"
                   />
                   <Link
                     href={buildStartHereSignupHref()}
                     onClick={rememberSignupHandoff}
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[14px] border border-[#36534E]/20 px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#EDF2EA]"
+                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#EDF2EA]"
                   >
                     계정 만들고 천천히 관리하기
                     <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -491,14 +491,14 @@ export default function StartHereClient() {
           </section>
         </div>
 
-        <section className="mt-14 border-t border-[#243832]/14 pt-10 sm:mt-20 sm:pt-12" aria-labelledby="start-customize-title">
+        <section className="mt-14 border-t border-[var(--hb-primary)]/14 pt-10 sm:mt-20 sm:pt-12" aria-labelledby="start-customize-title">
           <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr] lg:gap-16">
             <div>
-              <p className="text-[12px] font-semibold text-[#8F6662]">내 상황에 맞추기</p>
-              <h2 id="start-customize-title" className="mt-2 text-[25px] font-semibold tracking-[-0.035em] text-[#243832]">
+              <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">내 상황에 맞추기</p>
+              <h2 id="start-customize-title" className="mt-2 text-[25px] font-semibold tracking-[-0.035em] text-[var(--hb-text-strong)]">
                 우리는 안 하는 것도 있어요.
               </h2>
-              <p className="mt-2 text-[15px] leading-7 text-[#4E6A62]">
+              <p className="mt-2 text-[15px] leading-7 text-[var(--hb-text-body)]">
                 가족·지역마다 하는 항목이 달라요. 안 하는 건 빼고 봐도 괜찮아요.
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -510,10 +510,10 @@ export default function StartHereClient() {
                       type="button"
                       onClick={() => toggleSkip(category.key)}
                       aria-pressed={off}
-                      className={`inline-flex min-h-11 items-center rounded-full border px-4 text-[14px] font-semibold transition-colors ${
+                      className={`inline-flex min-h-11 items-center rounded-[6px] border px-4 text-[14px] font-semibold transition-colors ${
                         off
-                          ? "border-[#243832]/12 bg-[#f0ece6] text-[#716c65] line-through"
-                          : "border-[#243832]/15 bg-white text-[#243832] hover:bg-[#F5ECE4]"
+                          ? "border-[var(--hb-primary)]/12 bg-[#f0ece6] text-[#716c65] line-through"
+                          : "border-[var(--hb-primary)]/15 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"
                       }`}
                     >
                       {category.label}
@@ -523,24 +523,24 @@ export default function StartHereClient() {
               </div>
             </div>
 
-            <details className="border-y border-[#243832]/14 py-5">
-              <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-5 text-[18px] font-semibold text-[#243832]">
+            <details className="border-y border-[var(--hb-primary)]/14 py-5">
+              <summary className="flex min-h-11 cursor-pointer items-center justify-between gap-5 text-[18px] font-semibold text-[var(--hb-text-strong)]">
                 전체 준비 순서 한눈에
-                <span className="text-[13px] font-semibold text-[#8F6662]">펼쳐보기</span>
+                <span className="text-[13px] font-semibold text-[var(--color-rose-700)]">펼쳐보기</span>
               </summary>
-              <p className="mt-3 text-[14px] leading-6 text-[#4E6A62]">
+              <p className="mt-3 text-[14px] leading-6 text-[var(--hb-text-body)]">
                 기본 확인 시점이 이른 순서예요. 실제 계약서와 업체·가족과 정한 날짜가 우선이며,
                 아래 순서는 빠뜨리기 쉬운 항목을 살펴보는 참고용이에요.
               </p>
               <ol className="mt-5 grid gap-x-8 gap-y-4 sm:grid-cols-2">
                 {overview.map((category) => (
-                  <li key={category.key} className="border-t border-[#243832]/10 pt-4">
+                  <li key={category.key} className="border-t border-[var(--hb-primary)]/10 pt-4">
                     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                      <span className="text-[14px] font-semibold text-[#243832]">{category.label}</span>
-                      <span className="text-[13px] font-semibold text-[#8F6662]">{category.window}</span>
+                      <span className="text-[14px] font-semibold text-[var(--hb-text-strong)]">{category.label}</span>
+                      <span className="text-[13px] font-semibold text-[var(--color-rose-700)]">{category.window}</span>
                     </div>
                     {category.firstStep ? (
-                      <p className="mt-1 text-[13px] leading-6 text-[#4E6A62]">첫 걸음 · {category.firstStep}</p>
+                      <p className="mt-1 text-[13px] leading-6 text-[var(--hb-text-body)]">첫 걸음 · {category.firstStep}</p>
                     ) : null}
                   </li>
                 ))}

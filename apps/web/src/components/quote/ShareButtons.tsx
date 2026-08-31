@@ -44,7 +44,7 @@ export default function ShareButtons({ shareUrl, shareTitle, shareText }: ShareB
         <button
           type="button"
           onClick={handleNativeShare}
-          className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#795252] bg-white px-4 py-3 text-sm font-medium text-[#795252] transition-colors hover:bg-[#fffdfb]"
+          className="flex flex-1 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-3 text-sm font-medium text-[var(--hb-accent-hover)] transition-colors hover:bg-[#fffdfb]"
         >
           <Share2 className="h-4 w-4" />
           카톡·메시지로 공유
@@ -53,7 +53,7 @@ export default function ShareButtons({ shareUrl, shareTitle, shareText }: ShareB
       <button
         type="button"
         onClick={handleCopy}
-        className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#e4e2e1] bg-white px-4 py-3 text-sm font-medium text-[#1b1c1c] transition-colors hover:bg-[#f6f3f2]"
+        className="flex flex-1 items-center justify-center gap-2 rounded-[6px] border border-[#e4e2e1] bg-white px-4 py-3 text-sm font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
       >
         {copied ? (
           <>

@@ -26,11 +26,11 @@ export default function PreparationStageSelect({
       <div className="text-center">
         <h2
           id="preparation-stage-heading"
-          className="text-[22px] font-semibold text-noir-800 mb-2"
+          className="text-[22px] font-semibold text-[var(--hb-text-strong)] mb-2"
         >
           지금 어디까지 오셨나요?
         </h2>
-        <p className="text-[14px] text-taupe-400">
+        <p className="text-[14px] text-[var(--hb-text-muted)]">
           가장 가까운 하나만 골라주세요
         </p>
       </div>
@@ -42,23 +42,23 @@ export default function PreparationStageSelect({
             type="button"
             onClick={() => onSelect(option.value)}
             aria-pressed={selected === option.value}
-            className={`w-full px-5 py-4 rounded-2xl border-2 transition-all hover:-translate-y-0.5 text-left ${
+            className={`w-full px-5 py-4 rounded-[6px] border-2 transition-all hover:-translate-y-0.5 text-left ${
               selected === option.value
-                ? "border-rose-500 bg-rose-500/5 shadow-[0_4px_16px_rgba(121,82,82,0.15)]"
+                ? "border-rose-500 bg-rose-500/5 shadow-[var(--shadow-raised)]"
                 : "border-black/[0.06] bg-white hover:border-black/[0.12]"
             }`}
           >
-            <div className="text-[15px] font-semibold text-noir-800">
+            <div className="text-[15px] font-semibold text-[var(--hb-text-strong)]">
               {option.label}
             </div>
-            <div className="text-[12px] text-taupe-400 mt-1">{option.hint}</div>
+            <div className="text-[12px] text-[var(--hb-text-muted)] mt-1">{option.hint}</div>
           </button>
         ))}
       </div>
 
       {/* 확인되지 않은 기능("나중에 어디서 바꿀 수 있다")을 약속하지 않는다.
           지금 화면에서 사실인 것만 적는다. */}
-      <p className="text-[12px] text-taupe-400 text-center leading-relaxed">
+      <p className="text-[12px] text-[var(--hb-text-muted)] text-center leading-relaxed">
         정확하지 않아도 괜찮아요. 다음 화면에서 항목별로 확인할 수 있어요
       </p>
     </section>

@@ -273,18 +273,18 @@ export default function EventFormModal({
           role="dialog"
           aria-modal="true"
           aria-labelledby="cancelled-event-edit-title"
-          className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-2xl bg-white p-6 shadow-[0_20px_60px_rgb(0,0,0,0.15)]"
+          className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-[6px] bg-white p-6 shadow-[var(--shadow-overlay)]"
         >
-          <h3 id="cancelled-event-edit-title" className="text-xl font-semibold text-[#243832]">
+          <h3 id="cancelled-event-edit-title" className="text-xl font-semibold text-[var(--hb-text-strong)]">
             취소된 일정은 바로 수정할 수 없어요
           </h3>
-          <p className="mt-3 text-sm leading-6 text-[#5d6879]">
+          <p className="mt-3 text-sm leading-6 text-[var(--hb-text-body)]">
             일정 화면의 취소됨 구역에서 먼저 복원 요청한 뒤 수정해 주세요.
           </p>
           <button
             type="button"
             onClick={onClose}
-            className="mt-5 min-h-11 w-full rounded-xl bg-[#36534E] px-4 py-2.5 text-sm font-semibold text-white"
+            className="mt-5 min-h-11 w-full rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-semibold text-white"
           >
             확인
           </button>
@@ -305,18 +305,18 @@ export default function EventFormModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="schedule-event-form-title"
-        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden rounded-xl bg-white shadow-[0_20px_60px_rgb(0,0,0,0.15)] z-50 animate-fade-in"
+        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-overlay)] z-50 animate-fade-in"
       >
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-[#795252]/10 flex items-center justify-center">
-                <CalendarDays className="w-5 h-5 text-[#795252]" />
+              <div className="w-11 h-11 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
+                <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <h3
                 id="schedule-event-form-title"
-                className="font-serif-kr text-2xl font-light text-[#1A1A1F]"
+                className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]"
               >
                 {mode === "edit" ? "일정 수정" : "일정 추가"}
               </h3>
@@ -326,7 +326,7 @@ export default function EventFormModal({
               type="button"
               aria-label="일정 창 닫기"
               disabled={saving || cancelling}
-              className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] transition-colors hover:bg-[#F6F3F2]"
+              className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)]"
             >
               <X className="w-4 h-4" />
             </button>
@@ -339,9 +339,9 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-title"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
-              제목 <span className="text-[#795252]">*</span>
+              제목 <span className="text-[var(--hb-accent-hover)]">*</span>
             </label>
             <input
               id="schedule-title"
@@ -351,7 +351,7 @@ export default function EventFormModal({
               onChange={(e) => setTitle(e.target.value)}
               maxLength={SCHEDULE_EVENT_STRING_LIMITS.title}
               placeholder="예: 드레스 입어보기, 친구들에게 초대장 전달"
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
             />
           </div>
 
@@ -359,9 +359,9 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-date"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
-              날짜 <span className="text-[#795252]">*</span>
+              날짜 <span className="text-[var(--hb-accent-hover)]">*</span>
             </label>
             <input
               id="schedule-date"
@@ -369,7 +369,7 @@ export default function EventFormModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
             />
           </div>
 
@@ -377,7 +377,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-time"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
               시간
             </label>
@@ -388,7 +388,7 @@ export default function EventFormModal({
               value={time}
               onChange={(e) => setTime(e.target.value)}
               step={60}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
             />
             <p className="mt-1.5 text-xs leading-5 text-[#7a746e]">
               선택 사항이며 입력한 현지 시각 그대로 표시해요.
@@ -399,7 +399,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-memo"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
               메모
             </label>
@@ -411,7 +411,7 @@ export default function EventFormModal({
               maxLength={SCHEDULE_EVENT_STRING_LIMITS.memo}
               placeholder="예: 강남 드레스샵 오후 2시, 참석자 지은/수현"
               rows={2}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all resize-none"
             />
           </div>
 
@@ -419,7 +419,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-category"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
               관련 카테고리
             </label>
@@ -428,7 +428,7 @@ export default function EventFormModal({
               name="schedule-category"
               value={categoryKey}
               onChange={(e) => setCategoryKey(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
             >
               {CATEGORY_OPTIONS.map((opt) => (
                 <option key={opt.key} value={opt.key}>
@@ -441,7 +441,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-assignee"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
               담당
             </label>
@@ -453,7 +453,7 @@ export default function EventFormModal({
                 setAssigneeSelection(e.target.value);
                 setError("");
               }}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
             >
               <option value="unassigned">담당 미정</option>
               {memberOptions.map((option) => (
@@ -480,7 +480,7 @@ export default function EventFormModal({
             <div>
               <label
                 htmlFor="schedule-external-assignee"
-                className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+                className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
               >
                 외부 담당 역할
               </label>
@@ -492,7 +492,7 @@ export default function EventFormModal({
                 onChange={(e) => setExternalAssigneeLabel(e.target.value)}
                 maxLength={SCHEDULE_EVENT_STRING_LIMITS.externalAssigneeLabel}
                 placeholder="예: 가족, 웨딩 플래너"
-                className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+                className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
               />
             </div>
           )}
@@ -500,7 +500,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-completion-criteria"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
               완료 기준
             </label>
@@ -512,14 +512,14 @@ export default function EventFormModal({
               maxLength={SCHEDULE_EVENT_STRING_LIMITS.completionCriteria}
               placeholder="예: 계약서를 확인하고 예약금 입금까지"
               rows={2}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] placeholder:text-[#B5ADA3] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all resize-none"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all resize-none"
             />
           </div>
 
           <div>
             <label
               htmlFor="schedule-status"
-              className="block text-sm uppercase tracking-widest text-[#B5ADA3] mb-1.5"
+              className="block text-sm uppercase tracking-widest text-[var(--hb-text-muted)] mb-1.5"
             >
               진행 상태
             </label>
@@ -528,7 +528,7 @@ export default function EventFormModal({
               name="schedule-status"
               value={status}
               onChange={(e) => setStatus(e.target.value as ScheduleEventStatus)}
-              className="w-full px-4 py-3 rounded-xl bg-[#F6F3F2] text-base text-[#1A1A1F] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#795252]/30 transition-all"
+              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
             >
               <option value="planned">예정</option>
               <option value="completed">완료</option>
@@ -538,7 +538,7 @@ export default function EventFormModal({
           {error && (
             <p
               role="alert"
-              className="rounded-lg border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
+              className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
             >
               {error}
             </p>
@@ -550,14 +550,14 @@ export default function EventFormModal({
           {mode === "edit" && onCancel ? (
             confirmingCancel ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-[#36534E]">
+                <span className="text-sm font-medium text-[var(--hb-text-strong)]">
                   일정 취소 요청
                 </span>
                 <button
                   onClick={handleCancel}
                   type="button"
                   disabled={cancelling || saving}
-                  className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:opacity-50"
+                  className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:opacity-50"
                 >
                   {cancelling ? "요청 중..." : "취소 요청 보내기"}
                 </button>
@@ -565,7 +565,7 @@ export default function EventFormModal({
                   onClick={() => setConfirmingCancel(false)}
                   type="button"
                   disabled={cancelling || saving}
-                  className="min-h-11 rounded-lg px-3 py-2 text-sm text-[#504444] hover:bg-[#F6F3F2] disabled:opacity-50"
+                  className="min-h-11 rounded-[6px] px-3 py-2 text-sm text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
                 >
                   닫기
                 </button>
@@ -575,7 +575,7 @@ export default function EventFormModal({
                 onClick={() => setConfirmingCancel(true)}
                 type="button"
                 disabled={cancelling || saving}
-                className="flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-[#36534E] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
+                className="flex min-h-11 items-center gap-1.5 rounded-[6px] px-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
               >
                 <Ban className="h-4 w-4" />
                 일정 취소 요청
@@ -589,7 +589,7 @@ export default function EventFormModal({
               onClick={onClose}
               type="button"
               disabled={saving || cancelling}
-              className="min-h-11 px-4 py-2.5 rounded-xl text-base text-[#504444] hover:bg-[#F6F3F2] transition-colors"
+              className="min-h-11 px-4 py-2.5 rounded-[6px] text-base text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] transition-colors"
             >
               취소
             </button>
@@ -597,7 +597,7 @@ export default function EventFormModal({
               onClick={handleSubmit}
               type="button"
               disabled={saving || cancelling || !title.trim() || !date}
-              className="min-h-11 px-5 py-2.5 rounded-xl text-base font-medium text-white bg-[#795252] hover:bg-[#946a6a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[0_4px_16px_rgb(121,82,82,0.2)]"
+              className="min-h-11 px-5 py-2.5 rounded-[6px] text-base font-medium text-white bg-[var(--hb-primary)] bg-[var(--hb-text-body)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[var(--shadow-raised)]"
             >
               {saving
                 ? "저장 중..."

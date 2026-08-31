@@ -134,21 +134,21 @@ export default function ChecklistContent() {
 
   return (
     <main className="mx-auto w-full max-w-[1120px] px-4 py-7 sm:px-6 sm:py-10">
-      <header className="border-b border-[#eadfc9] pb-7">
-        <p className="text-[12px] font-semibold tracking-[0.14em] text-[#9d6f36]">WEDDING CHECKLIST</p>
+      <header className="border-b border-[var(--hb-hairline)] pb-7">
+        <p className="text-[12px] font-semibold tracking-[0.14em] text-[var(--hb-accent-hover)]">WEDDING CHECKLIST</p>
         <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <h1 className="text-[30px] font-semibold leading-tight text-[#071629] sm:text-[36px]">
+            <h1 className="text-[30px] font-semibold leading-tight text-[var(--hb-text-strong)] sm:text-[36px]">
               웨딩 체크리스트
             </h1>
-            <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[#5d6879] sm:text-[15px]">
+            <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[var(--hb-text-body)] sm:text-[15px]">
               첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
-          <div className="min-w-[240px] rounded-[18px] border border-[#eadfc9] bg-[#fffdf7] px-5 py-4">
+          <div className="min-w-[240px] rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
             <div className="flex items-end justify-between gap-4">
-              <span className="text-[13px] font-medium text-[#5d6879]">전체 진행률</span>
-              <strong className="text-[30px] font-semibold leading-none text-[#36534e]">{summary.percent}%</strong>
+              <span className="text-[13px] font-medium text-[var(--hb-text-body)]">전체 진행률</span>
+              <strong className="text-[30px] font-semibold leading-none text-[var(--hb-text-strong)]">{summary.percent}%</strong>
             </div>
             <div
               className="mt-3 h-2 overflow-hidden rounded-full bg-[#efe9dc]"
@@ -158,9 +158,9 @@ export default function ChecklistContent() {
               aria-valuemax={100}
               aria-valuenow={summary.percent}
             >
-              <div className="h-full rounded-full bg-[#36534e] transition-[width]" style={{ width: `${summary.percent}%` }} />
+              <div className="h-full rounded-full bg-[var(--hb-primary)] transition-[width]" style={{ width: `${summary.percent}%` }} />
             </div>
-            <p className="mt-2 text-[12px] text-[#7a8290]">
+            <p className="mt-2 text-[12px] text-[var(--hb-text-body)]">
               {summary.done}개 완료 · {remaining}개 남음
               {summary.skippedCategories > 0 ? ` · ${summary.skippedCategories}개 분야 제외` : ""}
             </p>
@@ -171,13 +171,13 @@ export default function ChecklistContent() {
       <section aria-label="체크리스트 찾기" className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <label className="relative block w-full sm:max-w-[380px]">
           <span className="sr-only">체크리스트 검색</span>
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#7a8290]" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--hb-text-body)]" />
           <input
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="예: 상견례, 취소, 보증금"
-            className="h-11 w-full rounded-full border border-[#dcd4c3] bg-white pl-11 pr-4 text-[14px] text-[#071629] outline-none transition focus:border-[#9d6f36] focus:ring-2 focus:ring-[#c9a96e]/20"
+            className="h-11 w-full rounded-full border border-[#dcd4c3] bg-white pl-11 pr-4 text-[14px] text-[var(--hb-text-strong)] outline-none transition focus:border-[#9d6f36] focus:ring-2 focus:ring-[#c9a96e]/20"
           />
         </label>
         <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="상태 필터">
@@ -187,10 +187,10 @@ export default function ChecklistContent() {
               type="button"
               aria-pressed={filter === item.value}
               onClick={() => setFilter(item.value)}
-              className={`shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition ${
+              className={`shrink-0 rounded-[6px] border px-4 py-2 text-[13px] font-semibold transition ${
                 filter === item.value
-                  ? "border-[#36534e] bg-[#36534e] text-white"
-                  : "border-[#dcd4c3] bg-white text-[#5d6879] hover:border-[#9d6f36]"
+                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                  : "border-[#dcd4c3] bg-white text-[var(--hb-text-body)] hover:border-[#9d6f36]"
               }`}
             >
               {item.label}
@@ -201,8 +201,8 @@ export default function ChecklistContent() {
 
       <section className="mt-6" aria-labelledby="all-checklist-heading">
         <div className="flex items-center justify-between">
-          <h2 id="all-checklist-heading" className="text-[19px] font-semibold text-[#071629]">전체 준비</h2>
-          <span className="text-[13px] text-[#7a8290]">{categories.length}개 분야</span>
+          <h2 id="all-checklist-heading" className="text-[19px] font-semibold text-[var(--hb-text-strong)]">전체 준비</h2>
+          <span className="text-[13px] text-[var(--hb-text-body)]">{categories.length}개 분야</span>
         </div>
 
         {categories.length > 0 ? (
@@ -212,11 +212,11 @@ export default function ChecklistContent() {
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
               return (
-                <li key={template.key} className="rounded-[18px] border border-[#e5dece] bg-white p-4 shadow-[0_8px_24px_rgba(6,26,52,0.035)]">
+                <li key={template.key} className="rounded-[6px] border border-[#e5dece] bg-white p-4 shadow-[var(--shadow-raised)]">
                   <button
                     type="button"
                     onClick={() => selectCategory(template.key)}
-                    className="w-full rounded-[12px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+                    className="w-full rounded-[6px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
                     aria-label={`${template.label} 체크리스트 열기`}
                   >
                     <div className="flex items-start gap-3">
@@ -225,16 +225,16 @@ export default function ChecklistContent() {
                           ? "bg-[#edf4eb] text-[#607044]"
                           : status === "not_applicable"
                             ? "bg-[#f1efeb] text-[#8b857c]"
-                            : "bg-[#fff8ec] text-[#9d6f36]"
+                            : "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]"
                       }`}>
                         {status === "completed" ? <CheckCircle2 className="h-5 w-5" /> : status === "not_applicable" ? <Ban className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-3">
-                          <strong className="text-[16px] font-semibold text-[#071629]">{template.label}</strong>
+                          <strong className="text-[16px] font-semibold text-[var(--hb-text-strong)]">{template.label}</strong>
                           <ChevronRight className="h-4 w-4 shrink-0 text-[#a59d91]" />
                         </span>
-                        <span className="mt-1 block text-[13px] leading-5 text-[#5d6879]">
+                        <span className="mt-1 block text-[13px] leading-5 text-[var(--hb-text-body)]">
                           {status === "not_applicable"
                             ? "진행률과 알림에서 제외됨"
                             : declared
@@ -245,7 +245,7 @@ export default function ChecklistContent() {
                     </div>
                     {status !== "not_applicable" && (
                       <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#f0ece4]">
-                        <span className="block h-full rounded-full bg-[#36534e]" style={{ width: `${percent}%` }} />
+                        <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${percent}%` }} />
                       </span>
                     )}
                   </button>
@@ -262,9 +262,9 @@ export default function ChecklistContent() {
             })}
           </ul>
         ) : (
-          <div className="mt-3 rounded-[18px] border border-dashed border-[#dcd4c3] bg-[#fffdf7] px-5 py-12 text-center">
-            <p className="text-[14px] font-medium text-[#5d6879]">검색 조건에 맞는 준비 항목이 없어요.</p>
-            <button type="button" onClick={() => { setFilter("all"); setQuery(""); }} className="mt-3 text-[13px] font-semibold text-[#9d6f36] underline underline-offset-4">
+          <div className="mt-3 rounded-[6px] border border-dashed border-[#dcd4c3] bg-[var(--hb-surface-page)] px-5 py-12 text-center">
+            <p className="text-[14px] font-medium text-[var(--hb-text-body)]">검색 조건에 맞는 준비 항목이 없어요.</p>
+            <button type="button" onClick={() => { setFilter("all"); setQuery(""); }} className="mt-3 text-[13px] font-semibold text-[var(--hb-accent-hover)] underline underline-offset-4">
               전체 목록 보기
             </button>
           </div>

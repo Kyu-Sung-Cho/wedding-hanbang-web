@@ -22,12 +22,12 @@ const CONTENT_ORIGIN_PRESENTATION: Record<
     label: "일반 회원 · 경험 미인증",
     description:
       "일반 회원이 작성했으며 결혼 준비 경험이나 내용의 사실 여부를 별도로 인증하지 않았어요.",
-    className: "border-[#d9d4ce] bg-[#faf9f7] text-[#635b51]",
+    className: "border-[#d9d4ce] bg-[#faf9f7] text-[var(--hb-text-body)]",
   },
   operator: {
     label: "웨딩한방 운영팀",
     description: "웨딩한방 운영팀 계정이 직접 작성한 내용이에요.",
-    className: "border-[#b8cbc5] bg-[#eef4f1] text-[#36534E]",
+    className: "border-[#b8cbc5] bg-[#eef4f1] text-[var(--hb-text-strong)]",
   },
   ai: {
     label: "AI 생성",
@@ -39,7 +39,7 @@ const CONTENT_ORIGIN_PRESENTATION: Record<
     label: "업계 종사자",
     description:
       "웨딩 업계 종사자 계정이 작성했어요. 소속이나 이해관계는 글의 광고·협찬 표시도 함께 확인해 주세요.",
-    className: "border-[#d8c7ad] bg-[#fff8ec] text-[#8a642f]",
+    className: "border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] text-[#8a642f]",
   },
   legacy_unverified: {
     label: "출처 확인 전",

@@ -68,23 +68,23 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
   }, [weddingDate, totalBudget, progress, actions]);
 
   return (
-    <section className="rounded-[20px] border border-[#eadfc9] bg-white/90 p-4 shadow-[0_14px_36px_rgba(8,22,38,0.045)] md:p-5">
+    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="flex items-start justify-between gap-3">
-        <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[#eadfc9] bg-[#fff8ec] px-3.5 py-1.5 text-[12px] font-semibold text-[#9d6f36]">
+        <p className="inline-flex w-fit items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
           이번 주 한 장
           <CalendarHeart className="h-4 w-4" />
         </p>
       </div>
 
       {/* 아모라 한 줄 브리핑 — 저장된 정보의 범위를 숨기지 않는다. */}
-      <div className="mt-3 flex items-start gap-2.5 rounded-[14px] bg-[#f6f9f6] px-4 py-3">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#36534E]" />
-        <p className="text-[14px] font-medium leading-[1.55] text-[#263832]">
+      <div className="mt-3 flex items-start gap-2.5 rounded-[6px] bg-[#f6f9f6] px-4 py-3">
+        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
+        <p className="text-[14px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
           {data.brief}
           {data.briefHref && (
             <Link
               {...weddingLinkProps(data.briefHref)}
-              className="ml-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[#36534E] underline-offset-2 hover:underline"
+              className="ml-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--hb-text-strong)] underline-offset-2 hover:underline"
             >
               보러 가기
               <ArrowRight className="h-3.5 w-3.5" />
@@ -95,8 +95,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
       <div className="mt-4 grid gap-3 md:grid-cols-3">
         {/* 곧 확인할 분야 */}
-        <div className="rounded-[14px] border border-[#f0e9da] p-3.5">
-          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+        <div className="rounded-[6px] border border-[#f0e9da] p-3.5">
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
             <ListChecks className="h-3.5 w-3.5" />
             곧 확인할 분야
           </p>
@@ -106,7 +106,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
                 <li key={category.key}>
                   <Link
                     {...weddingLinkProps("/schedule")}
-                    className="group flex items-center justify-between gap-2 text-[13px] font-medium text-[#263832]"
+                    className="group flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--hb-text-strong)]"
                   >
                     <span className="truncate">{category.label}</span>
                     <span
@@ -114,8 +114,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
                         category.urgency === "overdue"
                           ? "text-[#c2410c]"
                           : category.urgency === "urgent"
-                            ? "text-[#9d6f36]"
-                            : "text-[#928980]"
+                            ? "text-[var(--hb-accent-hover)]"
+                            : "text-[var(--hb-text-muted)]"
                       }`}
                     >
                       {category.deadlineDaysLeft < 0
@@ -127,7 +127,7 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
               ))}
             </ul>
           ) : (
-            <p className="text-[13px] font-medium leading-[1.5] text-[#928980]">
+            <p className="text-[13px] font-medium leading-[1.5] text-[var(--hb-text-muted)]">
               {weddingDate
                 ? "현재 저장된 일정 기준으로 곧 확인할 항목은 없어요. 등록하지 않은 일정은 포함되지 않아요."
                 : "결혼식 날짜를 입력하면 곧 확인할 분야를 골라드려요."}
@@ -142,16 +142,16 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
         {data.mannersPart ? (
           <Link
             {...weddingLinkProps(data.mannersPart.href)}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+            className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
               <BookOpen className="h-3.5 w-3.5" />
               알아둘 예절
             </p>
-            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+            <p className="text-[13px] font-semibold text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)]">
               {data.mannersPart.title}
             </p>
-            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[var(--hb-text-muted)]">
               {data.mannersPart.subtitle}
             </p>
           </Link>
@@ -160,16 +160,16 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
              일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */
           <Link
             {...weddingLinkProps("/chat")}
-            className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+            className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
           >
-            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+            <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
               <BookOpen className="h-3.5 w-3.5" />
               가족 이야기
             </p>
-            <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+            <p className="text-[13px] font-semibold text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)]">
               정답보다 두 사람의 기준부터
             </p>
-            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+            <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[var(--hb-text-muted)]">
               두 가족에게 드릴 선물·서로 부를 호칭·방문 순서가 부담되면 아모라에게 상황을 말해보세요.
             </p>
           </Link>
@@ -177,16 +177,16 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
         <Link
           {...weddingLinkProps("/community/quote-check")}
-          className="group rounded-[14px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+          className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
         >
-          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#5d6879]">
+          <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
             <AlertTriangle className="h-3.5 w-3.5" />
             계약 전 확인
           </p>
-          <p className="text-[13px] font-semibold text-[#263832] group-hover:text-[#36534E]">
+          <p className="text-[13px] font-semibold text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)]">
             포함·불포함 항목을 서면으로
           </p>
-          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[#928980]">
+          <p className="mt-1 line-clamp-2 text-[12px] font-medium leading-[1.5] text-[var(--hb-text-muted)]">
             견적서에 없는 항목은 비용과 상한을 업체에 확인해요.
           </p>
         </Link>
@@ -194,18 +194,18 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
       {/* 아모라가 기억하는 다음 행동 — 채팅 밖 첫 노출 */}
       {data.openActions.length > 0 && (
-        <div className="mt-3 rounded-[14px] border border-[#f0e9da] bg-[#fffdf7] p-3.5">
-          <p className="mb-2 text-[12px] font-semibold text-[#5d6879]">아모라가 기억하는 다음 행동</p>
+        <div className="mt-3 rounded-[6px] border border-[#f0e9da] bg-[var(--hb-surface-page)] p-3.5">
+          <p className="mb-2 text-[12px] font-semibold text-[var(--hb-text-body)]">아모라가 기억하는 다음 행동</p>
           <ul className="space-y-1.5">
             {data.openActions.map((action) => (
               <li key={action.id}>
                 <Link
                   {...weddingLinkProps(action.href ? action.href.replace(/^\/wedding/, "") : "/chat")}
-                  className="flex items-center justify-between gap-2 text-[13px] font-medium text-[#263832] hover:text-[#36534E]"
+                  className="flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--hb-text-strong)] hover:text-[var(--hb-text-strong)]"
                 >
                   <span className="truncate">{action.title}</span>
                   {action.dueDate && (
-                    <span className="shrink-0 text-[11px] font-semibold text-[#928980]">{action.dueDate}</span>
+                    <span className="shrink-0 text-[11px] font-semibold text-[var(--hb-text-muted)]">{action.dueDate}</span>
                   )}
                 </Link>
               </li>

@@ -184,14 +184,14 @@ export default function MyPostsPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
-        <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-ivory-100 transition-colors">
-          <ArrowLeft className="w-4 h-4 text-noir-800" />
+        <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-[var(--hb-surface-hover)] transition-colors">
+          <ArrowLeft className="w-4 h-4 text-[var(--hb-text-strong)]" />
         </Link>
-        <h1 className="font-serif-kr text-[20px] text-noir-800">내 글</h1>
+        <h1 className="font-serif-kr text-[20px] text-[var(--hb-text-strong)]">내 글</h1>
       </div>
 
       {profile && (
-        <section className="mb-6 rounded-2xl border border-[#e5d8ca] bg-white px-5 py-4 shadow-[0_8px_22px_rgba(8,22,38,0.035)]">
+        <section className="mb-6 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-5 py-4 shadow-[var(--shadow-raised)]">
           <div className="flex items-start gap-4">
             <Avatar
               nickname={nicknameInput || profile.nickname}
@@ -207,7 +207,7 @@ export default function MyPostsPage() {
                     value={nicknameInput}
                     onChange={(event) => setNicknameInput(event.target.value)}
                     maxLength={20}
-                    className="h-10 w-full rounded-xl border border-[#e5d8ca] bg-[#fbf8f2] px-3 text-sm font-medium text-[#263832] outline-none focus:border-[#36534E]"
+                    className="h-10 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3 text-sm font-medium text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)]"
                     placeholder="커뮤니티 닉네임"
                   />
                   <div className="flex flex-wrap gap-2">
@@ -218,8 +218,8 @@ export default function MyPostsPage() {
                         onClick={() => setAvatarInput(avatar)}
                         className={`flex h-9 w-9 items-center justify-center rounded-full border text-lg transition-colors ${
                           avatarInput === avatar
-                            ? "border-[#36534E] bg-[#36534E] text-white"
-                            : "border-[#e5d8ca] bg-[#fbf8f2] hover:border-[#36534E]"
+                            ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+                            : "border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] hover:border-[var(--hb-primary)]"
                         }`}
                         aria-label={`${avatar} 아바타 선택`}
                       >
@@ -232,7 +232,7 @@ export default function MyPostsPage() {
                       type="button"
                       onClick={saveProfile}
                       disabled={profileSaving}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full bg-[#36534E] px-4 text-xs font-semibold text-white disabled:opacity-60"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-4 text-xs font-semibold text-white disabled:opacity-60"
                     >
                       {profileSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                       저장
@@ -245,7 +245,7 @@ export default function MyPostsPage() {
                         setAvatarInput(profile.avatar_url);
                         setProfileMessage(null);
                       }}
-                      className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#e5d8ca] bg-white px-4 text-xs font-semibold text-[#7d7166]"
+                      className="inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 text-xs font-semibold text-[var(--hb-text-muted)]"
                     >
                       <X className="h-3.5 w-3.5" />
                       취소
@@ -256,12 +256,12 @@ export default function MyPostsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-base font-semibold text-[#263832]">{profile.nickname}</p>
-                      <span className="rounded-full bg-[#f6efe5] px-2 py-0.5 text-[11px] font-medium text-[#36534E]">
+                      <p className="text-base font-semibold text-[var(--hb-text-strong)]">{profile.nickname}</p>
+                      <span className="rounded-full bg-[var(--hb-surface-hover)] px-2 py-0.5 text-[11px] font-medium text-[var(--hb-text-strong)]">
                         {rankLabels[profile.rank] ?? "회원"}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs font-medium text-[#928980]">커뮤니티에 표시되는 프로필입니다.</p>
+                    <p className="mt-1 text-xs font-medium text-[var(--hb-text-muted)]">커뮤니티에 표시되는 프로필입니다.</p>
                   </div>
                   <button
                     type="button"
@@ -270,14 +270,14 @@ export default function MyPostsPage() {
                       setAvatarInput(profile.avatar_url);
                       setEditingProfile(true);
                     }}
-                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-full border border-[#e5d8ca] bg-white px-4 text-xs font-semibold text-[#36534E]"
+                    className="ml-auto inline-flex min-h-9 items-center gap-1.5 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 text-xs font-semibold text-[var(--hb-text-strong)]"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                     프로필 수정
                   </button>
                 </div>
               )}
-              {profileMessage && <p className="mt-3 text-xs font-medium text-[#36534E]">{profileMessage}</p>}
+              {profileMessage && <p className="mt-3 text-xs font-medium text-[var(--hb-text-strong)]">{profileMessage}</p>}
             </div>
           </div>
         </section>
@@ -292,8 +292,8 @@ export default function MyPostsPage() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`px-4 py-2 rounded-xl text-[13px] font-medium transition-colors ${
-              tab === t.key ? "bg-[#36534E] text-white" : "bg-white border border-black/[0.06] text-[#928980] hover:bg-ivory-100"
+            className={`px-4 py-2 rounded-[6px] text-[13px] font-medium transition-colors ${
+              tab === t.key ? "bg-[var(--hb-primary)] text-white" : "bg-white border border-black/[0.06] text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)]"
             }`}
           >
             {t.label} {t.count > 0 && <span className="ml-1 opacity-60">{t.count}</span>}
@@ -303,15 +303,15 @@ export default function MyPostsPage() {
 
       {loading ? (
         <div className="py-16 flex justify-center">
-          <Loader2 className="w-6 h-6 text-[#B5ADA3] animate-spin" />
+          <Loader2 className="w-6 h-6 text-[var(--hb-text-muted)] animate-spin" />
         </div>
       ) : displayed.length === 0 ? (
         <div className="py-16 text-center">
-          <FileText className="w-10 h-10 text-[#B5ADA3]/40 mx-auto mb-3" />
-          <p className="text-[14px] text-[#928980]">
+          <FileText className="w-10 h-10 text-[var(--hb-text-muted)]/40 mx-auto mb-3" />
+          <p className="text-[14px] text-[var(--hb-text-muted)]">
             {tab === "published" ? "아직 작성한 글이 없습니다" : "임시저장된 글이 없습니다"}
           </p>
-          <Link href={weddingPath("/community/post/write")} className="inline-block mt-4 px-5 py-2.5 rounded-xl text-[13px] font-medium text-white bg-[#36534E] hover:bg-[#9A6B62] transition-colors">
+          <Link href={weddingPath("/community/post/write")} className="inline-block mt-4 px-5 py-2.5 rounded-[6px] text-[13px] font-medium text-white bg-[var(--hb-primary)] hover:bg-[#9A6B62] transition-colors">
             글쓰기
           </Link>
         </div>
@@ -322,7 +322,7 @@ export default function MyPostsPage() {
             const isResolutionPost =
               post.category === "is_normal" || post.category === "ama";
             return (
-              <div key={post.id} className="bg-white rounded-2xl border border-black/[0.04] px-5 py-4 hover:shadow-sm transition-shadow">
+              <div key={post.id} className="bg-white rounded-[6px] border border-black/[0.04] px-5 py-4 hover:shadow-sm transition-shadow">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
@@ -340,8 +340,8 @@ export default function MyPostsPage() {
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                             post.is_resolved
-                              ? "bg-[#C7D1C2]/45 text-[#36534E]"
-                              : "bg-[#F6EFE5] text-[#8F6662]"
+                              ? "bg-[#C7D1C2]/45 text-[var(--hb-text-strong)]"
+                              : "bg-[var(--hb-surface-hover)] text-[var(--color-rose-700)]"
                           }`}
                         >
                           {post.is_resolved && (
@@ -351,16 +351,16 @@ export default function MyPostsPage() {
                         </span>
                       )}
                     </div>
-                    <Link href={communityPostPath(post.id)} className="text-[14px] font-medium text-noir-800 hover:underline line-clamp-1">
+                    <Link href={communityPostPath(post.id)} className="text-[14px] font-medium text-[var(--hb-text-strong)] hover:underline line-clamp-1">
                       {post.title}
                     </Link>
-                    <div className="flex items-center gap-3 mt-2 text-[11px] text-[#B5ADA3]">
+                    <div className="flex items-center gap-3 mt-2 text-[11px] text-[var(--hb-text-muted)]">
                       <span suppressHydrationWarning>{timeAgo(post.created_at)}</span>
                       <span className="flex items-center gap-0.5"><Eye className="w-3 h-3" /> {post.view_count}</span>
                       <span>좋아요 {post.upvote_count}</span>
                       <Link
                         href={communityPostPath(post.id, "comments")}
-                        className="inline-flex items-center gap-0.5 text-[#635b51] hover:text-[#36534E] hover:underline"
+                        className="inline-flex items-center gap-0.5 text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] hover:underline"
                       >
                         <MessageCircle className="h-3 w-3" />
                         답변 {post.comment_count}
@@ -370,13 +370,13 @@ export default function MyPostsPage() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <Link
                       href={weddingPath(`/community/post/write?edit=${post.id}`)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-ivory-100 transition-colors"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                     >
                       <Pencil className="w-3.5 h-3.5" />
                     </Link>
                     <button
                       onClick={() => handleDelete(post.id)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#B5ADA3] hover:bg-red-50 hover:text-red-400 transition-colors"
+                      className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-red-50 hover:text-red-400 transition-colors"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>

@@ -30,13 +30,13 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
 
   return (
     <div
-      className="bg-[#FAF8F5] rounded-2xl p-5 border-l-4"
+      className="bg-[#FAF8F5] rounded-[6px] p-5 border-l-4"
       style={{ borderLeftColor: "#36534E" }}
     >
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={16} className="text-[#36534E]" />
+        <Sparkles size={16} className="text-[var(--hb-text-strong)]" />
         <span
-          className="text-sm font-medium text-[#1A1A1F]"
+          className="text-sm font-medium text-[var(--hb-text-strong)]"
           style={{ fontFamily: "'Paperlogy', sans-serif" }}
         >
           아모라 AI 코멘트
@@ -51,10 +51,10 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
           {comparisonMeta}
         </span>
       </div>
-      <p className="text-[15px] text-[#1A1A1F] leading-relaxed mb-3">
+      <p className="text-[15px] text-[var(--hb-text-strong)] leading-relaxed mb-3">
         {aiComment.text}
       </p>
-      <p className="text-xs text-[#B5ADA3]">{aiComment.reference}</p>
+      <p className="text-xs text-[var(--hb-text-muted)]">{aiComment.reference}</p>
     </div>
   );
 }

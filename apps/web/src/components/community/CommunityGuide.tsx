@@ -42,10 +42,10 @@ function SlideEmpathy() {
             className={`flex ${bubble.align === "right" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`px-4 py-3 rounded-2xl text-base leading-relaxed max-w-[280px] ${
+              className={`px-4 py-3 rounded-[6px] text-base leading-relaxed max-w-[280px] ${
                 bubble.align === "right"
-                  ? "bg-[#36534E]/10 text-[#263832] rounded-br-md"
-                  : "bg-[#fbf8f2] text-[#263832] rounded-bl-md border border-[#f6efe5]"
+                  ? "bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)] rounded-br-md"
+                  : "bg-[var(--hb-surface-page)] text-[var(--hb-text-strong)] rounded-bl-md border border-[#f6efe5]"
               }`}
             >
               {bubble.text}
@@ -54,10 +54,10 @@ function SlideEmpathy() {
         ))}
       </div>
 
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#263832] mb-2 sm:mb-3 leading-snug">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] mb-2 sm:mb-3 leading-snug">
         혼자 고민하지 마세요
       </h2>
-      <p className="text-sm sm:text-base text-[#635b51] font-light leading-relaxed max-w-[340px]">
+      <p className="text-sm sm:text-base text-[var(--hb-text-body)] font-light leading-relaxed max-w-[340px]">
         같은 고민을 했던 선배 신부·신랑들이
         <br />
         솔직한 경험을 나누는 공간이에요
@@ -75,87 +75,87 @@ function SlideRealReview() {
       {/* 시나리오 상황 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Search className="w-5 h-5 text-[#36534E]" />
-          <span className="text-base text-[#36534E] font-medium">
+          <Search className="w-5 h-5 text-[var(--hb-text-strong)]" />
+          <span className="text-base text-[var(--hb-text-strong)] font-medium">
             상황: 사진 촬영 업체를 알아보는 중
           </span>
         </div>
       </div>
 
       {/* Mock 포스트 카드 — 실제 후기처럼 */}
-      <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
+      <div className="w-full max-w-[380px] rounded-[6px] bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#A8D8A8] to-sage-500 flex items-center justify-center">
             <span className="text-base">🌿</span>
           </div>
             <div className="flex flex-col items-start">
               <div className="flex items-center gap-1.5">
-                <span className="text-base text-[#263832] font-medium">가을의신부</span>
+                <span className="text-base text-[var(--hb-text-strong)] font-medium">가을의신부</span>
               </div>
-            <span className="text-sm text-[#B5ADA3] font-light">어제 · 후기</span>
+            <span className="text-sm text-[var(--hb-text-muted)] font-light">어제 · 후기</span>
           </div>
         </div>
         <div className="px-4 pb-2">
-          <div className="text-[17px] text-[#263832] font-semibold mb-1 text-left">
+          <div className="text-[17px] text-[var(--hb-text-strong)] font-semibold mb-1 text-left">
             샘플 게시글 · 스튜디오 조건 비교 💍
           </div>
-          <p className="text-base text-[#635b51] font-light leading-relaxed text-left">
+          <p className="text-base text-[var(--hb-text-body)] font-light leading-relaxed text-left">
             같은 상품 이름이어도 받는 전체 사진 수와 보정해 주는 사진 수가 달랐어요.
             받은 견적의 기준일과 따로 내는 금액을 함께 비교해볼게요.
           </p>
         </div>
         {/* 샘플 조건 비교 테이블 */}
         <div className="px-4 pb-3">
-          <div className="bg-[#fbf8f2] rounded-xl p-3 border border-[#f6efe5]">
+          <div className="bg-[var(--hb-surface-page)] rounded-[6px] p-3 border border-[#f6efe5]">
             <div className="grid grid-cols-3 gap-2 text-center">
               <div>
-                <div className="text-sm text-[#B5ADA3] mb-1">샘플 A</div>
-                <div className="text-base font-semibold text-[#263832]">총액 확인</div>
+                <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 A</div>
+                <div className="text-base font-semibold text-[var(--hb-text-strong)]">총액 확인</div>
                 <div className="text-sm text-red-500">별도 확인</div>
               </div>
               <div>
-                <div className="text-sm text-[#B5ADA3] mb-1">샘플 B</div>
-                <div className="text-base font-semibold text-sage-500">구성 공개</div>
-                <div className="text-sm text-sage-500">원문 확인</div>
+                <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 B</div>
+                <div className="text-base font-semibold text-[var(--hb-success)]">구성 공개</div>
+                <div className="text-sm text-[var(--hb-success)]">원문 확인</div>
               </div>
               <div>
-                <div className="text-sm text-[#B5ADA3] mb-1">샘플 C</div>
-                <div className="text-base font-semibold text-[#263832]">기준일 확인</div>
-                <div className="text-sm text-[#B5ADA3]">서면 확인</div>
+                <div className="text-sm text-[var(--hb-text-muted)] mb-1">샘플 C</div>
+                <div className="text-base font-semibold text-[var(--hb-text-strong)]">기준일 확인</div>
+                <div className="text-sm text-[var(--hb-text-muted)]">서면 확인</div>
               </div>
             </div>
           </div>
         </div>
         {/* 이미지 */}
         <div className="px-4 pb-3 flex gap-2">
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#36534E]/15 to-[#36534E]/5 border border-[#36534E]/10 flex items-center justify-center">
-            <Camera className="w-4 h-4 text-[#36534E]/40" />
+          <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/15 to-[var(--hb-primary)]/5 border border-[var(--hb-primary)]/10 flex items-center justify-center">
+            <Camera className="w-4 h-4 text-[var(--hb-text-strong)]/40" />
           </div>
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-[#B89785]/15 to-[#2B423E]/5 border border-[#B89785]/10 flex items-center justify-center">
+          <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-[#B89785]/15 to-[var(--hb-primary-hover)]/5 border border-[#B89785]/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-[#B89785]/40" />
           </div>
-          <div className="flex-1 h-[48px] rounded-lg bg-gradient-to-br from-sage-500/15 to-sage-500/5 border border-sage-500/10 flex items-center justify-center">
+          <div className="flex-1 h-[48px] rounded-[6px] bg-gradient-to-br from-sage-500/15 to-sage-500/5 border border-sage-500/10 flex items-center justify-center">
             <Camera className="w-4 h-4 text-sage-500/40" />
           </div>
         </div>
         <div className="px-4 py-2.5 border-t border-[#f6efe5] flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-1 text-sage-500">
+            <div className="flex items-center gap-1 text-[var(--hb-success)]">
               <ChevronUp className="w-5 h-5" />
               <span className="text-base font-semibold">공감</span>
-              <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
+              <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />
             </div>
-            <div className="flex items-center gap-1 text-[#B5ADA3]">
+            <div className="flex items-center gap-1 text-[var(--hb-text-muted)]">
               <MessageCircle className="w-4 h-4" />
               <span className="text-sm">답변</span>
             </div>
           </div>
-          <Bookmark className="w-4 h-4 text-[#B5ADA3]" />
+          <Bookmark className="w-4 h-4 text-[var(--hb-text-muted)]" />
         </div>
       </div>
 
-      <p className="text-base text-[#635b51] font-light text-center">
-        <span className="text-[#36534E] font-medium">가격, 사진, 솔직한 평가</span>까지
+      <p className="text-base text-[var(--hb-text-body)] font-light text-center">
+        <span className="text-[var(--hb-text-strong)] font-medium">가격, 사진, 솔직한 평가</span>까지
         <br />
         회원이 공유한 후기와 질문을 비교하세요
       </p>
@@ -172,31 +172,31 @@ function SlideCohort() {
       {/* 시나리오 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Users className="w-5 h-5 text-[#36534E]" />
-          <span className="text-base text-[#36534E] font-medium">
+          <Users className="w-5 h-5 text-[var(--hb-text-strong)]" />
+          <span className="text-base text-[var(--hb-text-strong)] font-medium">
             상황: 주변에 결혼 준비하는 친구가 없을 때
           </span>
         </div>
       </div>
 
       {/* 동기방 카드 */}
-      <div className="w-full max-w-[380px] rounded-2xl border border-[#d8bb86]/60 bg-[linear-gradient(135deg,#fffdf8_0%,#ffffff_55%,#eef4eb_100%)] p-4 mb-4 shadow-sm">
+      <div className="w-full max-w-[380px] rounded-[6px] border border-[#d8bb86]/60 bg-white p-4 mb-4 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <div className="text-[17px] text-[#263832] font-semibold">샘플 동기방</div>
-            <div className="text-sm text-[#7a8290] font-light mt-0.5">비슷한 시기 결혼 예정 커플</div>
+            <div className="text-[17px] text-[var(--hb-text-strong)] font-semibold">샘플 동기방</div>
+            <div className="text-sm text-[var(--hb-text-body)] font-light mt-0.5">비슷한 시기 결혼 예정 커플</div>
           </div>
-          <div className="px-2.5 py-1 rounded-full bg-[#36534E]/10 text-sm text-[#36534E] font-medium">
+          <div className="px-2.5 py-1 rounded-full bg-[var(--hb-primary)]/10 text-sm text-[var(--hb-text-strong)] font-medium">
             예시 화면
           </div>
         </div>
         <div className="flex items-center mb-3">
           {[
-            "from-[#36534E] to-[#2B423E]",
+            "from-[var(--hb-primary)] to-[var(--hb-primary-hover)]",
             "from-[#A8D8A8] to-sage-500",
             "from-[#7EB8D8] to-[#5A9CC0]",
             "from-[#B89785] to-[#DCC9A0]",
-            "from-[#D88B8B] to-[#2B423E]",
+            "from-[#D88B8B] to-[var(--hb-primary-hover)]",
           ].map((grad, i) => (
             <div
               key={i}
@@ -204,7 +204,7 @@ function SlideCohort() {
               style={{ zIndex: 5 - i }}
             />
           ))}
-          <span className="text-sm text-[#7a8290] ml-2">예시 멤버</span>
+          <span className="text-sm text-[var(--hb-text-body)] ml-2">예시 멤버</span>
         </div>
       </div>
 
@@ -213,9 +213,9 @@ function SlideCohort() {
         <div className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#7EB8D8] to-[#5A9CC0] shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">행복한예비맘</div>
-            <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
-              <span className="text-base text-[#263832] leading-relaxed">
+            <div className="text-sm text-[var(--hb-text-muted)] mb-0.5">행복한예비맘</div>
+            <div className="bg-[var(--hb-surface-page)] rounded-[6px] rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
+              <span className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 사진 촬영 견적마다 받는 사진 수와 보정해 주는 사진 수가 달라서 비교하기 어렵네요.
               </span>
             </div>
@@ -224,20 +224,20 @@ function SlideCohort() {
         <div className="flex items-start gap-2">
           <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#B89785] to-[#DCC9A0] shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">민트초코신부</div>
-            <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
-              <span className="text-base text-[#263832] leading-relaxed">
+            <div className="text-sm text-[var(--hb-text-muted)] mb-0.5">민트초코신부</div>
+            <div className="bg-[var(--hb-surface-page)] rounded-[6px] rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
+              <span className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 저는 같은 구성표로 맞춰봤어요. 별도 항목과 기준일도 함께 확인해보세요.
               </span>
             </div>
           </div>
         </div>
         <div className="flex items-start gap-2">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[#2B423E] shrink-0 mt-0.5" />
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#D88B8B] to-[var(--hb-primary-hover)] shrink-0 mt-0.5" />
           <div>
-            <div className="text-sm text-[#B5ADA3] mb-0.5">달빛웨딩</div>
-            <div className="bg-[#fbf8f2] rounded-2xl rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
-              <span className="text-base text-[#263832] leading-relaxed">
+            <div className="text-sm text-[var(--hb-text-muted)] mb-0.5">달빛웨딩</div>
+            <div className="bg-[var(--hb-surface-page)] rounded-[6px] rounded-tl-md px-3.5 py-2.5 max-w-[280px] border border-[#f6efe5]">
+              <span className="text-base text-[var(--hb-text-strong)] leading-relaxed">
                 저도 거기 상담 받았어요. 자세한 후기 글로 올려드릴게요 ✍️
               </span>
             </div>
@@ -245,8 +245,8 @@ function SlideCohort() {
         </div>
       </div>
 
-      <p className="text-base text-[#635b51] font-light text-center">
-        <span className="text-[#36534E] font-medium">같은 시기에 결혼하는 동기들</span>과
+      <p className="text-base text-[var(--hb-text-body)] font-light text-center">
+        <span className="text-[var(--hb-text-strong)] font-medium">같은 시기에 결혼하는 동기들</span>과
         <br />
         정보도 나누고, 응원도 하고
       </p>
@@ -263,39 +263,39 @@ function SlideAmora() {
       {/* 시나리오 라벨 */}
       <div className="w-full max-w-[380px] mb-4">
         <div className="flex items-center gap-2 mb-3 px-1">
-          <Sparkles className="w-5 h-5 text-[#36534E]" />
-          <span className="text-base text-[#36534E] font-medium">
+          <Sparkles className="w-5 h-5 text-[var(--hb-text-strong)]" />
+          <span className="text-base text-[var(--hb-text-strong)] font-medium">
             커뮤니티에서 찾고, 라운지에서 정리해요
           </span>
         </div>
       </div>
 
       {/* 현재 제공되는 라운지 기능만 안내 */}
-      <div className="w-full max-w-[380px] rounded-2xl bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
+      <div className="w-full max-w-[380px] rounded-[6px] bg-white border border-[#f6efe5] shadow-sm overflow-hidden mb-4">
         <div className="px-4 pt-3.5 pb-2 flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-full bg-[#36534E] flex items-center justify-center">
+          <div className="w-9 h-9 rounded-full bg-[var(--hb-primary)] flex items-center justify-center">
             <Sparkles className="w-4 h-4 text-white" />
           </div>
           <div className="flex flex-col items-start">
-            <span className="text-base text-[#263832] font-medium">웨딩 라운지로 이어가기</span>
-            <span className="text-sm text-[#B5ADA3] font-light">지금 쓸 수 있는 준비 도구</span>
+            <span className="text-base text-[var(--hb-text-strong)] font-medium">웨딩 라운지로 이어가기</span>
+            <span className="text-sm text-[var(--hb-text-muted)] font-light">지금 쓸 수 있는 준비 도구</span>
           </div>
         </div>
         <div className="px-4 pb-3">
-          <div className="bg-[#fbf8f2] border border-[#f6efe5] rounded-xl p-3 mb-2 flex items-start gap-2">
-            <MessageCircle className="w-4 h-4 text-[#36534E] shrink-0 mt-0.5" />
+          <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-[6px] p-3 mb-2 flex items-start gap-2">
+            <MessageCircle className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0 mt-0.5" />
             <div className="text-left">
-              <div className="text-sm text-[#263832] font-semibold mb-0.5">아모라 상담</div>
-              <div className="text-sm text-[#635b51] leading-relaxed">
+              <div className="text-sm text-[var(--hb-text-strong)] font-semibold mb-0.5">아모라 상담</div>
+              <div className="text-sm text-[var(--hb-text-body)] leading-relaxed">
                 커뮤니티에서 본 고민을 우리 상황에 맞게 다시 물어볼 수 있어요.
               </div>
             </div>
           </div>
-          <div className="bg-[#fbf8f2] border border-[#f6efe5] rounded-xl p-3 flex items-start gap-2">
-            <Check className="w-4 h-4 text-[#36534E] shrink-0 mt-0.5" />
+          <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-[6px] p-3 flex items-start gap-2">
+            <Check className="w-4 h-4 text-[var(--hb-text-strong)] shrink-0 mt-0.5" />
             <div className="text-left">
-              <div className="text-sm text-[#263832] font-semibold mb-0.5">예산·일정·체크리스트</div>
-              <div className="text-sm text-[#635b51] leading-relaxed">
+              <div className="text-sm text-[var(--hb-text-strong)] font-semibold mb-0.5">예산·일정·체크리스트</div>
+              <div className="text-sm text-[var(--hb-text-body)] leading-relaxed">
                 확인한 금액, 상담 일정, 준비 상태를 라운지에서 직접 정리하세요.
               </div>
             </div>
@@ -305,7 +305,7 @@ function SlideAmora() {
 
       {/* 현재 연결되는 기능들 */}
       <div className="w-full max-w-[380px] mb-4">
-        <p className="text-sm text-[#928980] mb-2 text-left">커뮤니티와 라운지가 이어지는 방법</p>
+        <p className="text-sm text-[var(--hb-text-muted)] mb-2 text-left">커뮤니티와 라운지가 이어지는 방법</p>
         <div className="flex flex-wrap gap-1.5">
           {[
             { icon: Search, label: "후기 검색" },
@@ -317,19 +317,19 @@ function SlideAmora() {
           ].map((chip) => (
             <span
               key={chip.label}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[#fbf8f2] border border-[#f6efe5] text-sm text-[#635b51]"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-[var(--hb-surface-page)] border border-[#f6efe5] text-sm text-[var(--hb-text-body)]"
             >
-              <chip.icon className="w-3.5 h-3.5 text-[#36534E]" />
+              <chip.icon className="w-3.5 h-3.5 text-[var(--hb-text-strong)]" />
               {chip.label}
             </span>
           ))}
         </div>
       </div>
 
-      <p className="text-base text-[#635b51] font-light text-center">
+      <p className="text-base text-[var(--hb-text-body)] font-light text-center">
         후기는 커뮤니티에서 보고,
         <br />
-        우리 준비는 <span className="text-[#36534E] font-medium">라운지에서 차분하게 정리</span>하세요
+        우리 준비는 <span className="text-[var(--hb-text-strong)] font-medium">라운지에서 차분하게 정리</span>하세요
       </p>
     </div>
   );
@@ -341,19 +341,19 @@ function SlideAmora() {
 function SlideHowToUse() {
   return (
     <div className="flex flex-col items-center px-6">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#263832] mb-4 sm:mb-6 leading-snug">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] mb-4 sm:mb-6 leading-snug">
         이렇게 활용하세요
       </h2>
 
       <div className="w-full max-w-[380px] flex flex-col gap-3">
         {/* 1. 검색 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#36534E]/20 to-[#36534E]/5 flex items-center justify-center shrink-0">
-            <Search className="w-5 h-5 text-[#36534E]" />
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/20 to-[var(--hb-primary)]/5 flex items-center justify-center shrink-0">
+            <Search className="w-5 h-5 text-[var(--hb-text-strong)]" />
           </div>
           <div className="text-left">
-            <div className="text-base text-[#263832] font-semibold mb-1">검색으로 빠르게</div>
-            <div className="text-sm text-[#635b51] font-light leading-relaxed">
+            <div className="text-base text-[var(--hb-text-strong)] font-semibold mb-1">검색으로 빠르게</div>
+            <div className="text-sm text-[var(--hb-text-body)] font-light leading-relaxed">
               &quot;강남 사진 촬영&quot; &quot;받는 사진 수&quot;처럼 검색하면
               <br />관련 후기를 찾을 수 있어요
             </div>
@@ -361,39 +361,39 @@ function SlideHowToUse() {
         </div>
 
         {/* 2. 투표 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-sage-500/20 to-sage-500/5 flex items-center justify-center shrink-0">
-            <TrendingUp className="w-5 h-5 text-sage-500" />
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-sage-500/20 to-sage-500/5 flex items-center justify-center shrink-0">
+            <TrendingUp className="w-5 h-5 text-[var(--hb-success)]" />
           </div>
           <div className="text-left">
-            <div className="text-base text-[#263832] font-semibold mb-1">좋은 글은 투표로</div>
-            <div className="text-sm text-[#635b51] font-light leading-relaxed">
+            <div className="text-base text-[var(--hb-text-strong)] font-semibold mb-1">좋은 글은 투표로</div>
+            <div className="text-sm text-[var(--hb-text-body)] font-light leading-relaxed">
               도움 된 글에 ▲ 투표하면 다른 예비부부도 찾기 쉬워져요
             </div>
           </div>
         </div>
 
         {/* 3. 북마크 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#B89785]/20 to-[#2B423E]/5 flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[#B89785]/20 to-[var(--hb-primary-hover)]/5 flex items-center justify-center shrink-0">
             <Star className="w-5 h-5 text-[#B89785]" />
           </div>
           <div className="text-left">
-            <div className="text-base text-[#263832] font-semibold mb-1">나중에 볼 글은 저장</div>
-            <div className="text-sm text-[#635b51] font-light leading-relaxed">
+            <div className="text-base text-[var(--hb-text-strong)] font-semibold mb-1">나중에 볼 글은 저장</div>
+            <div className="text-sm text-[var(--hb-text-body)] font-light leading-relaxed">
               ★ 북마크하면 &quot;내 저장 글&quot;에서 언제든 다시 볼 수 있어요
             </div>
           </div>
         </div>
 
         {/* 4. 글쓰기 */}
-        <div className="flex items-start gap-3 p-4 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#263832]/20 to-[#263832]/5 flex items-center justify-center shrink-0">
-            <PenSquare className="w-5 h-5 text-[#263832]" />
+        <div className="flex items-start gap-3 p-4 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
+          <div className="w-11 h-11 rounded-[6px] bg-gradient-to-br from-[var(--hb-primary)]/20 to-[var(--hb-primary)]/5 flex items-center justify-center shrink-0">
+            <PenSquare className="w-5 h-5 text-[var(--hb-text-strong)]" />
           </div>
           <div className="text-left">
-            <div className="text-base text-[#263832] font-semibold mb-1">내 경험도 나눠주세요</div>
-            <div className="text-sm text-[#635b51] font-light leading-relaxed">
+            <div className="text-base text-[var(--hb-text-strong)] font-semibold mb-1">내 경험도 나눠주세요</div>
+            <div className="text-sm text-[var(--hb-text-body)] font-light leading-relaxed">
               사진과 함께 후기를 올리면 다른 커플에게 큰 도움이 돼요
             </div>
           </div>
@@ -425,11 +425,11 @@ function SlideStart({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col items-center text-center px-6">
-      <div className="w-16 h-16 rounded-2xl bg-[#36534E] flex items-center justify-center mb-5">
+      <div className="w-16 h-16 rounded-[6px] bg-[var(--hb-primary)] flex items-center justify-center mb-5">
         <Shield className="w-8 h-8 text-white" />
       </div>
 
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[#263832] mb-4 sm:mb-5 leading-snug">
+      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] mb-4 sm:mb-5 leading-snug">
         우리의 약속
       </h2>
 
@@ -460,7 +460,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             desc: "업체 광고임을 글에 표시",
           },
         ].map((rule, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-xl bg-[#fbf8f2] border border-[#f6efe5]">
+          <div key={i} className="flex items-center gap-3 px-4 py-3 rounded-[6px] bg-[var(--hb-surface-page)] border border-[#f6efe5]">
             <div
               className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 border"
               style={{ backgroundColor: rule.bg, borderColor: rule.border, color: rule.color }}
@@ -468,25 +468,25 @@ function SlideStart({ onClose }: { onClose: () => void }) {
             >
               <rule.Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
             </div>
-            <span className="text-base text-[#263832] font-semibold min-w-[40px]">{rule.label}</span>
-            <span className="text-sm text-[#635b51] font-light">— {rule.desc}</span>
+            <span className="text-base text-[var(--hb-text-strong)] font-semibold min-w-[40px]">{rule.label}</span>
+            <span className="text-sm text-[var(--hb-text-body)] font-light">— {rule.desc}</span>
           </div>
         ))}
       </div>
 
-      <p className="text-base text-[#635b51] font-light mb-6 leading-relaxed">
+      <p className="text-base text-[var(--hb-text-body)] font-light mb-6 leading-relaxed">
         서로의 경험이 누군가의 큰 도움이 됩니다
       </p>
 
       <button
         onClick={handleStart}
-        className="w-full max-w-[340px] py-3.5 bg-[#36534E] text-white text-base font-medium rounded-2xl shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all mb-3"
+        className="w-full max-w-[340px] py-3.5 bg-[var(--hb-primary)] text-white text-base font-medium rounded-[6px] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all mb-3"
       >
         커뮤니티 둘러보기
       </button>
       <button
         onClick={handleNeverShow}
-        className="text-base text-[#B5ADA3] hover:text-[#635b51] transition-colors underline underline-offset-2"
+        className="text-base text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] transition-colors underline underline-offset-2"
       >
         다시 보지 않기
       </button>
@@ -569,23 +569,23 @@ export default function CommunityGuide() {
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) close(); }}
     >
-      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-3xl shadow-2xl">
+      <div className="relative w-full max-w-[560px] mx-4 my-4 sm:my-0 max-h-[calc(100dvh-2rem)] overflow-y-auto bg-white rounded-[6px] shadow-2xl">
         {/* 상단 진행 바 */}
-        <div className="h-1 bg-[#f6efe5]">
+        <div className="h-1 bg-[var(--hb-surface-hover)]">
           <div
-            className="h-full bg-[#36534E] transition-all duration-500 rounded-full"
+            className="h-full bg-[var(--hb-primary)] transition-all duration-500 rounded-full"
             style={{ width: `${((current + 1) / TOTAL_SLIDES) * 100}%` }}
           />
         </div>
 
         {/* 헤더 — 모바일 컴팩트 + no-min-tap 으로 텍스트 버튼 부피 회피 */}
         <div className="flex items-center justify-between px-4 sm:px-6 pt-3 sm:pt-4 pb-1 sm:pb-2">
-          <span className="text-xs sm:text-sm text-[#B5ADA3] font-medium tabular-nums">
+          <span className="text-xs sm:text-sm text-[var(--hb-text-muted)] font-medium tabular-nums">
             {current + 1}/{TOTAL_SLIDES}
           </span>
           <button
             onClick={close}
-            className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[#B5ADA3] hover:text-[#263832] transition-colors"
+            className="no-min-tap flex items-center gap-1 text-xs sm:text-sm text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] transition-colors"
           >
             건너뛰기
             <X className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -616,14 +616,14 @@ export default function CommunityGuide() {
               <button
                 onClick={prev}
                 disabled={current === 0}
-                className="flex items-center gap-1 px-4 py-3 text-base text-[#635b51] hover:text-[#263832] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-xl"
+                className="flex items-center gap-1 px-4 py-3 text-base text-[var(--hb-text-body)] hover:text-[var(--hb-text-strong)] disabled:opacity-0 disabled:pointer-events-none transition-all rounded-[6px]"
               >
                 <ChevronLeft className="w-4 h-4" />
                 이전
               </button>
               <button
                 onClick={next}
-                className="flex items-center gap-1 px-6 py-3 bg-[#36534E] hover:bg-[#2B423E] text-white text-base font-medium rounded-xl transition-colors"
+                className="flex items-center gap-1 px-6 py-3 bg-[var(--hb-primary)] hover:bg-[var(--hb-primary-hover)] text-white text-base font-medium rounded-[6px] transition-colors"
               >
                 다음
                 <ChevronRight className="w-4 h-4" />
@@ -639,7 +639,7 @@ export default function CommunityGuide() {
                 key={i}
                 onClick={() => goTo(i, i > current ? "next" : "prev")}
                 className={`no-min-tap w-1.5 h-1.5 rounded-full transition-colors duration-300 ${
-                  i === current ? "bg-[#36534E]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
+                  i === current ? "bg-[var(--hb-primary)]" : "bg-[#B5ADA3]/35 hover:bg-[#B5ADA3]/60"
                 }`}
                 aria-label={`슬라이드 ${i + 1}`}
               />

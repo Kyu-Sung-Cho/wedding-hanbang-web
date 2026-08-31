@@ -40,10 +40,10 @@ export default function WeddingDetails({
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-[22px] font-semibold text-noir-800 mb-2">
+        <h2 className="text-[22px] font-semibold text-[var(--hb-text-strong)] mb-2">
           웨딩 정보
         </h2>
-        <p className="text-[14px] text-taupe-400">
+        <p className="text-[14px] text-[var(--hb-text-muted)]">
           {isPartnerData
             ? "파트너가 설정한 정보입니다. 수정할 수 있어요."
             : "아직 정하지 않은 항목은 '미정'을 선택하세요"}
@@ -52,7 +52,7 @@ export default function WeddingDetails({
 
       {/* 결혼 날짜 */}
       <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">결혼 예정일</label>
+        <label className="text-[14px] font-medium text-[var(--hb-text-strong)]">결혼 예정일</label>
         <div className="flex gap-2">
           <input
             type="date"
@@ -60,17 +60,17 @@ export default function WeddingDetails({
             onChange={(e) => onDateChange(e.target.value || null)}
             disabled={weddingDateUndecided}
             min={ymdInKst()}
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
           />
           <button
             onClick={() => {
               onDateUndecidedChange(!weddingDateUndecided);
               if (!weddingDateUndecided) onDateChange(null);
             }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               weddingDateUndecided
-                ? "bg-[#795252] text-white"
-                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+                ? "bg-[var(--hb-primary)] text-white"
+                : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
             미정
@@ -80,7 +80,7 @@ export default function WeddingDetails({
 
       {/* 두 가족이 처음 만나는 날짜 */}
       <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">
+        <label className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           양쪽 부모님이 처음 함께 만나는 날짜
         </label>
         <div className="flex gap-2">
@@ -89,30 +89,30 @@ export default function WeddingDetails({
             value={sanggyeonryeDate ?? ""}
             onChange={(e) => onSanggyeonryeDateChange(e.target.value || null)}
             disabled={sanggyeonryeUndecided}
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors disabled:opacity-40"
           />
           <button
             onClick={() => {
               onSanggyeonryeUndecidedChange(!sanggyeonryeUndecided);
               if (!sanggyeonryeUndecided) onSanggyeonryeDateChange(null);
             }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               sanggyeonryeUndecided
-                ? "bg-[#795252] text-white"
-                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+                ? "bg-[var(--hb-primary)] text-white"
+                : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
             미정
           </button>
         </div>
-        <p className="text-[12px] text-taupe-400 leading-relaxed">
+        <p className="text-[12px] text-[var(--hb-text-muted)] leading-relaxed">
           날짜를 입력하면 준비 일정에 반영돼요. 알림은 기능 제공 상태와 수신 설정에 따라 별도로 안내합니다.
         </p>
       </div>
 
       {/* 결혼식장 */}
       <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">결혼식장</label>
+        <label className="text-[14px] font-medium text-[var(--hb-text-strong)]">결혼식장</label>
         <div className="flex gap-2">
           <input
             type="text"
@@ -120,17 +120,17 @@ export default function WeddingDetails({
             onChange={(e) => onVenueChange(e.target.value || null)}
             disabled={venueUndecided}
             placeholder="예: 샘플 결혼식장, 샘플 호텔"
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400 disabled:opacity-40"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)] disabled:opacity-40"
           />
           <button
             onClick={() => {
               onVenueUndecidedChange(!venueUndecided);
               if (!venueUndecided) onVenueChange(null);
             }}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               venueUndecided
-                ? "bg-[#795252] text-white"
-                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+                ? "bg-[var(--hb-primary)] text-white"
+                : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
             미정
@@ -140,7 +140,7 @@ export default function WeddingDetails({
 
       {/* 예산 */}
       <div className="space-y-2">
-        <label className="text-[14px] font-medium text-noir-800">
+        <label className="text-[14px] font-medium text-[var(--hb-text-strong)]">
           결혼 준비에 쓸 총 예산
         </label>
         <div className="flex items-center gap-2">
@@ -154,22 +154,22 @@ export default function WeddingDetails({
             }}
             placeholder="직접 입력"
             aria-label="총 예산 금액"
-            className="flex-1 px-4 py-3 rounded-xl border border-black/[0.06] bg-white text-[14px] text-noir-800 outline-none focus:border-rose-500 transition-colors placeholder:text-taupe-400"
+            className="flex-1 px-4 py-3 rounded-[6px] border border-black/[0.06] bg-white text-[14px] text-[var(--hb-text-strong)] outline-none focus:border-rose-500 transition-colors placeholder:text-[var(--hb-text-muted)]"
           />
-          <span className="text-[13px] text-taupe-500 whitespace-nowrap">만원</span>
+          <span className="text-[13px] text-[var(--hb-text-body)] whitespace-nowrap">만원</span>
           <button
             type="button"
             onClick={() => onBudgetChange(0)}
-            className={`px-4 py-3 rounded-xl text-[13px] font-medium transition-all ${
+            className={`px-4 py-3 rounded-[6px] text-[13px] font-medium transition-all ${
               budget === 0
-                ? "bg-[#795252] text-white"
-                : "bg-black/[0.04] text-taupe-500 hover:bg-black/[0.08]"
+                ? "bg-[var(--hb-primary)] text-white"
+                : "bg-black/[0.04] text-[var(--hb-text-body)] hover:bg-black/[0.08]"
             }`}
           >
             아직 미정
           </button>
         </div>
-        <p className="text-[12px] text-taupe-400 leading-relaxed">
+        <p className="text-[12px] text-[var(--hb-text-muted)] leading-relaxed">
           정한 금액이 있을 때만 입력하세요. 비워 두면 아모라가 금액을 대신 정하지 않습니다.
         </p>
       </div>

@@ -31,7 +31,7 @@ export default async function ReceivedCardPage({
   const card = findCard(c ?? "");
 
   return (
-    <main className="min-h-dvh bg-[#FBF8F2] px-4 py-6 sm:px-6 sm:py-10">
+    <main className="min-h-dvh bg-[var(--hb-surface-page)] px-4 py-6 sm:px-6 sm:py-10">
       <div className="mx-auto w-full max-w-[560px]">
         {card ? (
           <>
@@ -39,8 +39,8 @@ export default async function ReceivedCardPage({
               이 카드는 **보낸 사람이 듣고 싶은 질문**이다. 「누군가」·「그쪽」처럼 거리를 두는
               말을 쓰면 약혼자 사이에 오는 카드의 온도가 아니게 된다.
             */}
-            <p className="mx-auto max-w-[340px] text-[14px] font-medium leading-[1.7] text-[#36534E]">
-              오늘 이 말을 <b className="font-semibold text-[#243832]">먼저 물어봐 주면</b>{" "}
+            <p className="mx-auto max-w-[340px] text-[14px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
+              오늘 이 말을 <b className="font-semibold text-[var(--hb-text-strong)]">먼저 물어봐 주면</b>{" "}
               좋겠대요.
               <br />
               늘 결혼 얘기를 먼저 꺼내던 쪽이 보낸 한 장이에요.
@@ -49,29 +49,29 @@ export default async function ReceivedCardPage({
               <CardFace card={card} />
             </div>
             <div className="mx-auto mt-6 w-full max-w-[340px]">
-              <p className="text-[13px] font-medium leading-[1.7] text-[#8F6662]">
+              <p className="text-[13px] font-medium leading-[1.7] text-[var(--color-rose-700)]">
                 답을 보내는 곳은 없어요. 읽고 그대로 물어보면 돼요.
               </p>
               <Link
                 href="/today"
-                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-full border border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[#36534E] transition-colors hover:bg-[#F7F1E8]"
+                className="mt-5 inline-flex min-h-[48px] w-full items-center justify-center rounded-[6px] border border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
               >
                 나도 한 장 골라보기
               </Link>
             </div>
           </>
         ) : (
-          <div className="mx-auto max-w-[340px] rounded-[20px] border border-[#EFE4D7] bg-white px-6 py-8">
-            <h1 className="text-[20px] font-semibold leading-[1.4] text-[#243832]">
+          <div className="mx-auto max-w-[340px] rounded-[6px] border border-[var(--hb-hairline)] bg-white px-6 py-8">
+            <h1 className="text-[20px] font-semibold leading-[1.4] text-[var(--hb-text-strong)]">
               카드를 찾지 못했어요
             </h1>
-            <p className="mt-3 text-[14px] font-medium leading-[1.7] text-[#36534E]">
+            <p className="mt-3 text-[14px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
               링크가 잘린 것 같아요. 보낸 사람에게 다시 받아보시거나, 직접 한 장 골라보셔도
               괜찮아요.
             </p>
             <Link
               href="/today"
-              className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-full bg-[#36534E] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[#243832]"
+              className="mt-6 inline-flex min-h-[48px] w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-6 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)]"
             >
               한 장 골라보기
             </Link>

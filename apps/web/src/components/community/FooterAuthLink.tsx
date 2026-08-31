@@ -18,14 +18,14 @@ export default function FooterAuthLink() {
 
   if (profile) {
     return (
-      <Link href={weddingPath("/settings")} className="hover:text-[#1A1A1F] transition-colors">
+      <Link href={weddingPath("/settings")} className="hover:text-[var(--hb-text-strong)] transition-colors">
         설정
       </Link>
     );
   }
 
   return (
-    <Link href="/login" className="hover:text-[#1A1A1F] transition-colors">
+    <Link href="/login" className="hover:text-[var(--hb-text-strong)] transition-colors">
       로그인
     </Link>
   );

@@ -71,14 +71,62 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
 
     // 역할 변수도 같은 사각지대에 있었다 — 생성기가 토큰을 안 읽고 상수를 뱉어도
     // 위 두 테스트는 통과한다. Button이 실제로 쓰는 값들을 여기서 못 박는다.
-    expect(current).toContain(`--hb-primary: ${colors.noir[800]};`);
-    expect(current).toContain(`--hb-primary-hover: ${colors.noir.pressed};`);
-    expect(current).toContain(`--hb-hairline: ${colors.border};`);
-    expect(current).toContain(`--hb-text-muted: ${colors.textTertiary};`);
+    //
+    // 2026-08-28: 역할이 유칼립투스에서 **종이**로 옮겨졌다(파운더 결정 — 랜딩의
+    // 표면 언어를 제품 전체로). 지키는 계약은 그대로다: 값이 아니라 **토큰 경로**를
+    // 박으므로, 생성기가 상수를 뱉기 시작하면 여전히 여기서 걸린다.
+    expect(current).toContain(`--hb-primary: ${colors.paper.ink};`);
+    expect(current).toContain(`--hb-primary-hover: ${colors.paper.inkPressed};`);
+    expect(current).toContain(`--hb-hairline: ${colors.paper.edge};`);
+    expect(current).toContain(`--hb-text-muted: ${colors.paper.inkFaint};`);
 
     // 브리지 규칙이 참조하는 테마 블록 값도 같은 토큰에서 나와야 한다.
-    expect(current).toContain(`--hb-navy: ${colors.noir[800]};`);
-    expect(current).toContain(`--hb-line: ${colors.border};`);
+    expect(current).toContain(`--hb-navy: ${colors.paper.ink};`);
+    expect(current).toContain(`--hb-line: ${colors.paper.edge};`);
+  });
+
+  it("`:root`와 테마 블록이 같은 표면 언어를 쓴다", () => {
+    // 2026-08-21 사고의 **다른 절반**이다. 그때 고친 것은 "테마 블록도 토큰에서
+    // 생성한다"였는데, 두 목록이 각각 토큰에서 생성되면서도 **서로 다른 토큰을**
+    // 가리키면 색은 여전히 둘로 갈린다. 위 테스트는 그것을 못 잡는다 — 둘 다
+    // "토큰에서 나온" 값이기 때문이다.
+    //
+    // 뜻이 겹치는 역할끼리 값이 같은지 본다. 이름이 다른 이유는 브리지 규칙 65개가
+    // 옛 이름(`navy`·`gold`)을 참조하기 때문이고, 브리지를 걷어낼 때 함께 사라진다.
+    const current = readFileSync(GLOBALS, "utf8");
+
+    const region = (name: string): string => {
+      const start = current.indexOf(`@generated:design-tokens ${name} start`);
+      const end = current.indexOf(`@generated:design-tokens ${name} end`, start);
+      expect(start, `${name} 구간을 찾지 못했습니다`).toBeGreaterThan(-1);
+      expect(end, `${name} 구간의 끝을 찾지 못했습니다`).toBeGreaterThan(start);
+      return current.slice(start, end);
+    };
+
+    const valueOf = (block: string, name: string): string => {
+      const found = new RegExp(`--hb-${name}:\\s*([^;]+);`, "u").exec(block);
+      expect(found, `--hb-${name} 를 찾지 못했습니다`).toBeTruthy();
+      return (found?.[1] ?? "").trim();
+    };
+
+    const roles = region("roles");
+    for (const theme of ["service-theme", "community-theme"]) {
+      const block = region(theme);
+      // [ :root 이름, 테마 블록 이름 ] — 같은 뜻을 지는 짝
+      for (const [rootName, themeName] of [
+        ["text-strong", "text"],
+        ["text-body", "body"],
+        ["text-muted", "muted"],
+        ["hairline", "line"],
+        ["surface-hover", "ivory-warm"],
+      ]) {
+        expect(
+          valueOf(block, themeName),
+          `${theme} 의 --hb-${themeName} 가 :root 의 --hb-${rootName} 와 다릅니다 — `
+            + "같은 뜻인데 색이 갈리면 화면이 두 언어로 나뉩니다.",
+        ).toBe(valueOf(roles, rootName));
+      }
+    }
   });
 
   it("`--hb-*`가 관리 구간 밖에서 손으로 정의되지 않는다", () => {

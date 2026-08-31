@@ -4,8 +4,8 @@ import { priceDisclosureLines } from "@/lib/price/period";
 export function PriceDisclosureFooter() {
   const [source, disclaimer] = priceDisclosureLines();
   return (
-    <footer className="border-t border-[#243832]/15 bg-[#F5ECE4]/55 px-4 py-5 text-[12px] leading-5 text-[#243832]/75 sm:px-6">
-      <p className="font-semibold text-[#243832]">{source}</p>
+    <footer className="border-t border-[var(--hb-primary)]/15 bg-[#F5ECE4]/55 px-4 py-5 text-[12px] leading-5 text-[var(--hb-text-strong)]/75 sm:px-6">
+      <p className="font-semibold text-[var(--hb-text-strong)]">{source}</p>
       <p className="mt-1">{disclaimer}</p>
     </footer>
   );

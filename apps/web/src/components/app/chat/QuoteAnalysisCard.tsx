@@ -35,8 +35,8 @@ const ITEM_CATEGORY_LABELS: Record<string, string> = {
 };
 
 const SEVERITY_STYLES = {
-  critical: { bg: "bg-[#F3F7F1]", border: "border-[#C7D1C2]", text: "text-[#36534E]", badge: "bg-[#E8EFE5] text-[#36534E]", label: "먼저" },
-  high: { bg: "bg-[#FBF8F2]", border: "border-[#E2D3C8]", text: "text-[#635B51]", badge: "bg-[#F7F1E8] text-[#635B51]", label: "함께" },
+  critical: { bg: "bg-[#F3F7F1]", border: "border-[#C7D1C2]", text: "text-[var(--hb-text-strong)]", badge: "bg-[#E8EFE5] text-[var(--hb-text-strong)]", label: "먼저" },
+  high: { bg: "bg-[var(--hb-surface-page)]", border: "border-[#E2D3C8]", text: "text-[var(--hb-text-body)]", badge: "bg-[var(--hb-surface-hover)] text-[var(--hb-text-body)]", label: "함께" },
   medium: { bg: "bg-slate-50", border: "border-slate-200", text: "text-slate-600", badge: "bg-slate-100 text-slate-600", label: "해당 시" },
 };
 
@@ -118,11 +118,11 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
   const answeredCount = Object.values(itemStates).filter((s) => s !== "unknown").length;
 
   return (
-    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="w-full max-w-[440px] rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 */}
       <div className="bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-6 py-5">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-[6px] bg-white/20 flex items-center justify-center">
             <Search className="w-6 h-6 text-white" />
           </div>
           <div>
@@ -151,7 +151,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
               <div className="border-b border-black/[0.04]">
                 <div className="px-5 pt-3.5 pb-1.5 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600" />
-                  <p className="text-sm font-semibold text-[#36534E]">
+                  <p className="text-sm font-semibold text-[var(--hb-text-strong)]">
                     먼저 확인 ({criticalItems.length})
                   </p>
                 </div>
@@ -165,7 +165,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             {Object.entries(highGrouped).map(([cat, items]) => (
               <div key={cat} className="border-b border-black/[0.04]">
                 <div className="px-5 pt-3.5 pb-1.5">
-                  <p className="text-sm font-semibold text-[#928980] tracking-wider">
+                  <p className="text-sm font-semibold text-[var(--hb-text-muted)] tracking-wider">
                     {ITEM_CATEGORY_LABELS[cat] || cat} ({items.length})
                   </p>
                 </div>
@@ -182,10 +182,10 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
                   onClick={() => setShowMore(!showMore)}
                   className="w-full px-5 py-3 flex items-center justify-between hover:bg-slate-50/50 transition-colors"
                 >
-                  <span className="text-sm text-[#928980]">
+                  <span className="text-sm text-[var(--hb-text-muted)]">
                     선택 항목 {mediumItems.length}개 {showMore ? "접기" : "더보기"}
                   </span>
-                  {showMore ? <ChevronUp className="w-5 h-5 text-[#B5ADA3]" /> : <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />}
+                  {showMore ? <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" /> : <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />}
                 </button>
                 {showMore && mediumItems.map((item) => (
                   <ChecklistItemRow key={item.id} item={item} state={itemStates[item.id]} onChange={setItemState} />
@@ -197,10 +197,10 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
           {/* 제출 버튼 */}
           <div className="px-5 py-3.5 border-t border-black/[0.06] bg-slate-50/30">
             <div className="flex items-center justify-between mb-3">
-              <span className="text-sm text-[#928980]">
+              <span className="text-sm text-[var(--hb-text-muted)]">
                 {answeredCount}/{checklistItems.length}개 상태 변경
               </span>
-              <div className="flex items-center gap-3 text-xs text-[#B5ADA3]">
+              <div className="flex items-center gap-3 text-xs text-[var(--hb-text-muted)]">
                 <span className="flex items-center gap-1"><Check className="w-4 h-4 text-emerald-600" />포함</span>
                 <span className="flex items-center gap-1"><Minus className="w-4 h-4 text-[#8F6662]" />이용 안 함</span>
                 <span className="flex items-center gap-1"><HelpCircle className="w-4 h-4 text-slate-500" />확인 필요</span>
@@ -209,7 +209,7 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
             <button
               onClick={handleSubmit}
               disabled={disabled}
-              className="w-full py-3.5 rounded-xl text-base font-semibold text-white bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-[6px] text-base font-semibold text-white bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] hover:shadow-md transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               확인 질문 정리하기
             </button>
@@ -217,11 +217,11 @@ function ChecklistMode({ data, onSend, disabled }: { data: Record<string, unknow
         </>
       ) : (
         <div className="px-5 py-7 text-center">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-xl bg-emerald-50 flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto mb-3 rounded-[6px] bg-emerald-50 flex items-center justify-center">
             <CheckCircle2 className="w-6 h-6 text-emerald-600" />
           </div>
-          <p className="text-base text-[#1A1A1F] font-medium">상태를 정리했어요</p>
-          <p className="text-sm text-[#928980] mt-1">확인 질문을 준비하고 있어요...</p>
+          <p className="text-base text-[var(--hb-text-strong)] font-medium">상태를 정리했어요</p>
+          <p className="text-sm text-[var(--hb-text-muted)] mt-1">확인 질문을 준비하고 있어요...</p>
         </div>
       )}
     </div>
@@ -242,15 +242,15 @@ function ChecklistItemRow({
   return (
     <div className="px-5 py-3">
       <div className="flex min-w-0 items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${severity.badge}`}>
+          <span className={`text-xs px-2 py-0.5 rounded-[6px] font-medium ${severity.badge}`}>
             {severity.label}
           </span>
-          <span className="text-sm text-[#1A1A1F]">{item.name}</span>
+          <span className="text-sm text-[var(--hb-text-strong)]">{item.name}</span>
       </div>
       <div
         role="group"
         aria-label={`${item.name} 상태`}
-        className="mt-2 grid grid-cols-3 overflow-hidden rounded-lg border border-black/[0.08]"
+        className="mt-2 grid grid-cols-3 overflow-hidden rounded-[6px] border border-black/[0.08]"
       >
         {([
           { value: "included", label: "포함", icon: Check },
@@ -267,8 +267,8 @@ function ChecklistItemRow({
               onClick={() => onChange(item.id, option.value)}
               className={`flex min-h-10 items-center justify-center gap-1 border-r border-black/[0.08] px-1 text-xs last:border-r-0 ${
                 active
-                  ? "bg-[#36534E] font-medium text-white"
-                  : "bg-white text-[#635B51] hover:bg-[#FBF8F2]"
+                  ? "bg-[var(--hb-primary)] font-medium text-white"
+                  : "bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-page)]"
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -302,7 +302,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
   };
 
   return (
-    <div className="w-full max-w-[440px] rounded-2xl border border-black/[0.06] bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
+    <div className="w-full max-w-[440px] rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)] overflow-hidden">
       {/* 헤더 — 판정(점수·등급) 없이 아직 확인하지 않은 항목 수만 */}
       <div className="bg-gradient-to-r from-[#1A1A1F] to-[#2a2a32] px-6 py-5">
         <div className="flex items-center justify-between">
@@ -312,7 +312,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
               {vendorName || CATEGORY_LABELS[category] || "묶음"} 견적
             </p>
           </div>
-          <div className="rounded-2xl bg-white/10 px-3 py-2 text-center">
+          <div className="rounded-[6px] bg-white/10 px-3 py-2 text-center">
             <p className="text-xl font-bold text-white">{missingItems.length}</p>
             <p className="text-xs text-white/60 -mt-0.5">확인 필요</p>
           </div>
@@ -322,16 +322,16 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
       {/* 핵심 수치 — 전부 사실 */}
       <div className="grid grid-cols-3 divide-x divide-black/[0.06] border-b border-black/[0.06]">
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">견적가</p>
-          <p className="text-lg font-semibold text-[#1A1A1F] mt-1">{quotePrice}만</p>
+          <p className="text-sm text-[var(--hb-text-muted)]">견적가</p>
+          <p className="text-lg font-semibold text-[var(--hb-text-strong)] mt-1">{quotePrice}만</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">업체 공시가</p>
-          <p className="text-sm font-semibold text-[#1A1A1F] mt-1">별도 확인</p>
+          <p className="text-sm text-[var(--hb-text-muted)]">업체 공시가</p>
+          <p className="text-sm font-semibold text-[var(--hb-text-strong)] mt-1">별도 확인</p>
         </div>
         <div className="px-3 py-3.5 text-center">
-          <p className="text-sm text-[#B5ADA3]">먼저 확인</p>
-          <p className={`text-lg font-semibold mt-1 ${missingCritical.length > 0 ? "text-amber-700" : "text-[#1A1A1F]"}`}>
+          <p className="text-sm text-[var(--hb-text-muted)]">먼저 확인</p>
+          <p className={`text-lg font-semibold mt-1 ${missingCritical.length > 0 ? "text-amber-700" : "text-[var(--hb-text-strong)]"}`}>
             {missingCritical.length}개
           </p>
         </div>
@@ -339,7 +339,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
 
       {/* 가격 참고 — 과거 고정 평균가가 저장된 채팅에서도 수치를 재노출하지 않는다. */}
       <div className="px-5 py-3.5 border-b border-black/[0.06]">
-        <p className="text-sm text-[#1A1A1F]">
+        <p className="text-sm text-[var(--hb-text-strong)]">
           최신 업체별 공시가는 ‘업체 공시가’에서 출처와 기준 시점을 확인해 주세요.
         </p>
       </div>
@@ -352,12 +352,12 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
         >
           <div className="flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 text-amber-500" />
-            <span className="text-base font-semibold text-[#1A1A1F]">아직 확인하지 않은 항목 {missingItems.length}개</span>
+            <span className="text-base font-semibold text-[var(--hb-text-strong)]">아직 확인하지 않은 항목 {missingItems.length}개</span>
             {missingCritical.length > 0 && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-[#E8EFE5] text-[#36534E]">먼저 {missingCritical.length}</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-[#E8EFE5] text-[var(--hb-text-strong)]">먼저 {missingCritical.length}</span>
             )}
           </div>
-          {expandedSection === "missing" ? <ChevronUp className="w-5 h-5 text-[#B5ADA3]" /> : <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />}
+          {expandedSection === "missing" ? <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" /> : <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />}
         </button>
 
         {expandedSection === "missing" && (
@@ -369,7 +369,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
             ].map(({ label, items }) =>
               items.length > 0 ? (
                 <div key={label}>
-                  <p className="text-xs text-[#928980] font-medium mb-1.5">{label}</p>
+                  <p className="text-xs text-[var(--hb-text-muted)] font-medium mb-1.5">{label}</p>
                   {items.map((item) => (
                     <MissingItemRow key={item.name} item={item} style={SEVERITY_STYLES[item.severity]} />
                   ))}
@@ -389,15 +389,15 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
           >
             <div className="flex items-center gap-2">
               <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-              <span className="text-base font-semibold text-[#1A1A1F]">포함 확인된 항목 {includedItems.length}개</span>
+              <span className="text-base font-semibold text-[var(--hb-text-strong)]">포함 확인된 항목 {includedItems.length}개</span>
             </div>
-            {expandedSection === "included" ? <ChevronUp className="w-5 h-5 text-[#B5ADA3]" /> : <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />}
+            {expandedSection === "included" ? <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" /> : <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />}
           </button>
           {expandedSection === "included" && (
             <div className="px-5 pb-3.5">
               <div className="flex flex-wrap gap-2">
                 {includedItems.map((item) => (
-                  <span key={item.name} className="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                  <span key={item.name} className="inline-flex items-center gap-1 text-sm px-2.5 py-1 rounded-[6px] bg-emerald-50 text-emerald-700 border border-emerald-200/60">
                     <CheckCircle2 className="w-4 h-4" />{item.name}
                   </span>
                 ))}
@@ -415,13 +415,13 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
           >
             <div className="flex items-center gap-2">
               <Minus className="w-5 h-5 text-[#8F6662]" />
-              <span className="text-base font-semibold text-[#1A1A1F]">
+              <span className="text-base font-semibold text-[var(--hb-text-strong)]">
                 이용 안 함 {notNeededItems.length}개
               </span>
             </div>
             {expandedSection === "not-needed"
-              ? <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
-              : <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />}
+              ? <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" />
+              : <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />}
           </button>
           {expandedSection === "not-needed" && (
             <div className="px-5 pb-3.5">
@@ -429,7 +429,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
                 {notNeededItems.map((item) => (
                   <span
                     key={item.name}
-                    className="inline-flex items-center gap-1 rounded-lg border border-[#e5d8ca] bg-[#fbf8f2] px-2.5 py-1 text-sm text-[#635B51]"
+                    className="inline-flex items-center gap-1 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-2.5 py-1 text-sm text-[var(--hb-text-body)]"
                   >
                     <Minus className="w-4 h-4" />
                     {item.name}
@@ -443,7 +443,7 @@ function AnalysisMode({ data }: { data: Record<string, unknown> }) {
 
       {/* 하단 */}
       <div className="px-5 py-3.5 bg-slate-50/50">
-        <p className="text-xs text-[#B5ADA3] leading-relaxed">{statsNote}</p>
+        <p className="text-xs text-[var(--hb-text-muted)] leading-relaxed">{statsNote}</p>
         <div className="flex items-center gap-1.5 mt-2">
           <Shield className="w-4 h-4 text-[#C4967E]" />
           <p className="text-xs text-[#C4967E] font-medium">원하는 항목만 포함 여부와 별도 금액을 서면으로 확인하세요</p>
@@ -458,19 +458,19 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <div className={`rounded-xl border ${style.border} ${style.bg} mb-2 overflow-hidden`}>
+    <div className={`rounded-[6px] border ${style.border} ${style.bg} mb-2 overflow-hidden`}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full px-3.5 py-2.5 flex items-center justify-between text-left"
       >
         <div className="flex items-center gap-2 min-w-0">
-          <span className={`text-xs px-2 py-0.5 rounded-md font-medium flex-shrink-0 ${style.badge}`}>{style.label}</span>
-          <span className="text-sm text-[#1A1A1F] truncate">
+          <span className={`text-xs px-2 py-0.5 rounded-[6px] font-medium flex-shrink-0 ${style.badge}`}>{style.label}</span>
+          <span className="text-sm text-[var(--hb-text-strong)] truncate">
             {ITEM_CATEGORY_LABELS[item.category] ? `[${ITEM_CATEGORY_LABELS[item.category]}] ` : ""}{item.name}
           </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          {expanded ? <ChevronUp className="w-4 h-4 text-[#B5ADA3]" /> : <ChevronDown className="w-4 h-4 text-[#B5ADA3]" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-[var(--hb-text-muted)]" /> : <ChevronDown className="w-4 h-4 text-[var(--hb-text-muted)]" />}
         </div>
       </button>
 
@@ -478,15 +478,15 @@ function MissingItemRow({ item, style }: { item: MissingItem; style: typeof SEVE
         <div className="px-3.5 pb-3 space-y-2 border-t border-black/[0.04]">
           <div className="flex items-start gap-2 mt-2.5">
             <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-[#928980] leading-relaxed">{item.disguise}</p>
+            <p className="text-xs text-[var(--hb-text-muted)] leading-relaxed">{item.disguise}</p>
           </div>
           <div className="flex items-start gap-2">
             <HelpCircle className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-[#1A1A1F] leading-relaxed">{item.reason}</p>
+            <p className="text-xs text-[var(--hb-text-strong)] leading-relaxed">{item.reason}</p>
           </div>
-          <div className="bg-white rounded-lg px-3 py-2.5 border border-black/[0.04]">
+          <div className="bg-white rounded-[6px] px-3 py-2.5 border border-black/[0.04]">
             <p className="text-xs text-[#C4967E] font-medium mb-1">계약 전 확인 질문</p>
-            <p className="text-sm text-[#1A1A1F] leading-relaxed">&ldquo;{item.checkQuestion}&rdquo;</p>
+            <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed">&ldquo;{item.checkQuestion}&rdquo;</p>
           </div>
         </div>
       )}

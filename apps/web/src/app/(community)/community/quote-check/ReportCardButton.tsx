@@ -82,7 +82,7 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
         type="button"
         onClick={saveReport}
         disabled={saving}
-        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#9d6f36] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#86602f] disabled:opacity-60"
+        className="inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[#9d6f36] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#86602f] disabled:opacity-60"
       >
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
         리포트 이미지로 저장·공유
@@ -101,7 +101,7 @@ export default function ReportCardButton({ result }: { result: AmoraQuoteCheckRe
           <img
             src={overlay.dataUrl}
             alt="견적 체크 리포트"
-            className="max-h-[70vh] w-auto rounded-[12px] shadow-2xl"
+            className="max-h-[70vh] w-auto rounded-[6px] shadow-2xl"
           />
           <p className="mt-4 text-center text-[14px] font-semibold leading-relaxed text-white">
             이미지를 길게 눌러 &lsquo;사진 앱에 저장&rsquo;을 선택하세요

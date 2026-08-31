@@ -22,7 +22,7 @@ export default function AiMessageFooter({
   return (
     <div
       className={`inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] leading-tight ${
-        isHigh ? "text-[#9A6B62]" : "text-[#504444]/60"
+        isHigh ? "text-[#9A6B62]" : "text-[var(--hb-text-body)]/60"
       } ${className}`}
     >
       <span className="inline-flex items-center gap-1">
@@ -33,18 +33,18 @@ export default function AiMessageFooter({
         />
         AI 생성
       </span>
-      <span className="text-[#B5ADA3]">·</span>
+      <span className="text-[var(--hb-text-muted)]">·</span>
       <span>출처: 공정위 표준계약서 · 소비자원 참가격</span>
-      <span className="text-[#B5ADA3]">·</span>
+      <span className="text-[var(--hb-text-muted)]">·</span>
       <span className={isHigh ? "font-medium" : ""}>
         {isHigh ? "전문가 검토 강력 권장" : "전문가 검토 권장"}
       </span>
       {showPolicyLink && (
         <>
-          <span className="text-[#B5ADA3]">·</span>
+          <span className="text-[var(--hb-text-muted)]">·</span>
           <Link
             href="/ai-policy"
-            className="underline decoration-dotted underline-offset-2 hover:text-[#795252] transition-colors"
+            className="underline decoration-dotted underline-offset-2 hover:text-[var(--hb-accent-hover)] transition-colors"
           >
             AI 정책
           </Link>

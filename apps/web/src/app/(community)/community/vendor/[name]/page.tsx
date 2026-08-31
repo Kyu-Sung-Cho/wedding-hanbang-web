@@ -85,7 +85,7 @@ export default function VendorDetailPage() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-center text-[#B5ADA3]">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 text-center text-[var(--hb-text-muted)]">
         불러오는 중...
       </div>
     );
@@ -101,7 +101,7 @@ export default function VendorDetailPage() {
       <header className="mb-8">
         <div className="flex items-start gap-4 sm:gap-6">
           {vendor?.thumbnail_url ? (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl overflow-hidden bg-[#F0EFED] shrink-0">
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-[6px] overflow-hidden bg-[#F0EFED] shrink-0">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={vendor.thumbnail_url}
@@ -110,13 +110,13 @@ export default function VendorDetailPage() {
               />
             </div>
           ) : (
-            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-[#fbf8f2] to-[#f0efed] flex items-center justify-center shrink-0">
-              <Tag className="w-8 h-8 text-[#B5ADA3]" />
+            <div className="w-20 h-20 sm:w-28 sm:h-28 rounded-[6px] bg-gradient-to-br from-[var(--hb-surface-page)] to-[#f0efed] flex items-center justify-center shrink-0">
+              <Tag className="w-8 h-8 text-[var(--hb-text-muted)]" />
             </div>
           )}
           <div className="flex-1 min-w-0">
             <h1
-              className="font-serif text-2xl sm:text-3xl font-medium text-[#1A1A1F] mb-2 leading-tight"
+              className="font-serif text-2xl sm:text-3xl font-medium text-[var(--hb-text-strong)] mb-2 leading-tight"
               style={{ fontFamily: "'Paperlogy', sans-serif" }}
             >
               {decodedName}
@@ -139,14 +139,14 @@ export default function VendorDetailPage() {
                     <Star className="w-3.5 h-3.5 fill-[#B89785]" />
                     {vendor.rating.toFixed(1)}
                     {vendor.review_count != null && (
-                      <span className="text-[#B5ADA3]">({vendor.review_count})</span>
+                      <span className="text-[var(--hb-text-muted)]">({vendor.review_count})</span>
                     )}
                   </span>
                 </>
               )}
             </div>
             {vendor?.description && (
-              <p className="mt-2.5 text-sm text-[#635b51] leading-relaxed line-clamp-2">
+              <p className="mt-2.5 text-sm text-[var(--hb-text-body)] leading-relaxed line-clamp-2">
                 {vendor.description}
               </p>
             )}
@@ -155,7 +155,7 @@ export default function VendorDetailPage() {
       </header>
 
       {/* ─── 커뮤니티 통계 ─── */}
-      <section className="bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <section className="bg-white border border-[#F0EFED] rounded-[6px] p-5 sm:p-6 mb-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Stat
           icon={<MessageSquare className="w-3.5 h-3.5" />}
           label="언급수"
@@ -181,11 +181,11 @@ export default function VendorDetailPage() {
         />
       </section>
 
-      <section className="mb-6 border-y border-[#F0EFED] bg-[#fbf8f2] px-5 py-5 sm:px-6">
-        <h2 className="text-base font-semibold text-[#1A1A1F]">
+      <section className="mb-6 border-y border-[#F0EFED] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-6">
+        <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
           이 업체 정보를 확인할 때
         </h2>
-        <p className="mt-2 text-sm leading-relaxed text-[#635b51]">
+        <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
           웨딩한방에서는 이 업체의 예약 가능 시간이나 예약 완료 여부를 제공하지
           않습니다. 공개된 가격·조건은 원문에서 다시 확인하고, 직접 받은 견적은
           항목별로 정리해 보세요.
@@ -193,14 +193,14 @@ export default function VendorDetailPage() {
         <div className="mt-4 flex flex-wrap gap-2">
           <Link
             href="/price"
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#36534E]/20 bg-white px-4 text-sm font-semibold text-[#36534E]"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] border border-[var(--hb-primary)]/20 bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
           >
             공개 가격 보기
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
             href={weddingPath("/community/quote-check")}
-            className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#36534E] px-4 text-sm font-semibold text-white"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white"
           >
             <FileSearch className="h-4 w-4" />
             받은 견적 확인하기
@@ -210,13 +210,13 @@ export default function VendorDetailPage() {
 
       {/* ─── 관련 게시글 ─── */}
       <section className="mt-10">
-        <h2 className="font-serif text-xl font-medium text-[#1A1A1F] mb-4">
+        <h2 className="font-serif text-xl font-medium text-[var(--hb-text-strong)] mb-4">
           관련 게시글{" "}
-          {posts.length > 0 && <span className="text-[#36534E]">{posts.length}</span>}
+          {posts.length > 0 && <span className="text-[var(--hb-text-strong)]">{posts.length}</span>}
         </h2>
 
         {posts.length === 0 ? (
-          <div className="bg-white border border-[#F0EFED] rounded-2xl p-10 text-center text-[#B5ADA3]">
+          <div className="bg-white border border-[#F0EFED] rounded-[6px] p-10 text-center text-[var(--hb-text-muted)]">
             아직 관련 게시글이 없어요.
           </div>
         ) : (
@@ -231,10 +231,10 @@ export default function VendorDetailPage() {
                 <Link
                   key={post.id}
                   href={communityPostPath(post.id)}
-                  className="block bg-white border border-[#F0EFED] rounded-2xl p-5 sm:p-6 hover:border-[#36534E] transition"
+                  className="block bg-white border border-[#F0EFED] rounded-[6px] p-5 sm:p-6 hover:border-[var(--hb-primary)] transition"
                 >
-                  <div className="flex items-center gap-2 text-sm text-[#B5ADA3] mb-2">
-                    <span className="text-[#36534E] font-medium">
+                  <div className="flex items-center gap-2 text-sm text-[var(--hb-text-muted)] mb-2">
+                    <span className="text-[var(--hb-text-strong)] font-medium">
                       {post.author?.nickname ?? "익명"}
                     </span>
                     <span>·</span>
@@ -249,7 +249,7 @@ export default function VendorDetailPage() {
                       </>
                     )}
                   </div>
-                  <h3 className="text-lg font-medium text-[#1A1A1F] mb-1">{post.title}</h3>
+                  <h3 className="text-lg font-medium text-[var(--hb-text-strong)] mb-1">{post.title}</h3>
                   {preview && (
                     <p className="text-sm text-[#878680] line-clamp-2">{preview}</p>
                   )}
@@ -278,7 +278,7 @@ function Stat({
 }) {
   return (
     <div>
-      <div className="flex items-center gap-1.5 text-xs text-[#B5ADA3] mb-1.5">
+      <div className="flex items-center gap-1.5 text-xs text-[var(--hb-text-muted)] mb-1.5">
         {icon}
         {label}
       </div>
@@ -291,7 +291,7 @@ function Stat({
           <Star className="w-4 h-4 inline-block ml-1 -mt-1" fill={accent} stroke={accent} />
         )}
       </p>
-      {sub && <p className="text-xs text-[#B5ADA3] mt-1">{sub}</p>}
+      {sub && <p className="text-xs text-[var(--hb-text-muted)] mt-1">{sub}</p>}
     </div>
   );
 }

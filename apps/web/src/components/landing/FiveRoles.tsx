@@ -16,7 +16,7 @@ const ROLES: Role[] = [
     body: (
       <>
         금액만 보지 않고
-        <span className="text-noir-800"> 포함 여부와 별도 금액을 확인할 항목</span>을 먼저 정리합니다.
+        <span className="text-[var(--hb-text-strong)]"> 포함 여부와 별도 금액을 확인할 항목</span>을 먼저 정리합니다.
       </>
     ),
   },
@@ -26,7 +26,7 @@ const ROLES: Role[] = [
     body: (
       <>
         애매한 답변을 그대로 넘기지 않도록
-        <span className="text-noir-800"> 다시 물어볼 문장</span>을 정리합니다.
+        <span className="text-[var(--hb-text-strong)]"> 다시 물어볼 문장</span>을 정리합니다.
       </>
     ),
   },
@@ -36,7 +36,7 @@ const ROLES: Role[] = [
     body: (
       <>
         확인한 견적과 별도 금액을
-        <span className="text-noir-800"> 내 예산표에 이어서</span> 관리합니다.
+        <span className="text-[var(--hb-text-strong)]"> 내 예산표에 이어서</span> 관리합니다.
       </>
     ),
   },
@@ -46,7 +46,7 @@ const ROLES: Role[] = [
     body: (
       <>
         계약 전 질문과 마감일을
-        <span className="text-noir-800"> 다음 할 일</span>로 남겨둡니다.
+        <span className="text-[var(--hb-text-strong)]"> 다음 할 일</span>로 남겨둡니다.
       </>
     ),
   },
@@ -56,7 +56,7 @@ const ROLES: Role[] = [
     body: (
       <>
         비슷한 시기에 준비하는 사람들의 기록을
-        <span className="text-noir-800"> 커뮤니티에서 함께</span> 확인합니다.
+        <span className="text-[var(--hb-text-strong)]"> 커뮤니티에서 함께</span> 확인합니다.
       </>
     ),
   },
@@ -64,7 +64,7 @@ const ROLES: Role[] = [
 
 export default function FiveRoles() {
   return (
-    <section id="features" className="py-[clamp(96px,14vw,180px)] px-[clamp(20px,5vw,60px)] bg-ivory-warm">
+    <section id="features" className="py-[clamp(96px,14vw,180px)] px-[clamp(20px,5vw,60px)] bg-[var(--hb-surface-hover)]">
       <div className="max-w-[1240px] mx-auto">
         {/* 섹션 헤더 */}
         <motion.div
@@ -75,10 +75,10 @@ export default function FiveRoles() {
           className="mb-20 md:mb-24 max-w-3xl"
         >
           <SectionLabel label="준비 도구" />
-          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-noir-800 leading-[1.2] tracking-normal mb-5">
+          <h2 className="font-serif-kr text-[clamp(32px,5vw,56px)] font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal mb-5">
             견적에서 일정까지,
             <br />
-            <em className="not-italic text-rose-500">준비 흐름이 끊기지 않게.</em>
+            <em className="not-italic text-[var(--hb-accent-hover)]">준비 흐름이 끊기지 않게.</em>
           </h2>
           <p className="text-charcoal text-[15px] md:text-base leading-[1.9] font-light">
             아모라는 커뮤니티에서 확인한 내용을 내 웨딩 라운지의 다음 행동으로 이어줍니다.
@@ -97,17 +97,17 @@ export default function FiveRoles() {
               className="group grid grid-cols-[56px_1fr] md:grid-cols-[96px_220px_1fr] gap-x-6 md:gap-x-12 gap-y-3 py-10 md:py-12 items-baseline hover:bg-white/50 transition-colors"
             >
               {/* 넘버 */}
-              <span className="font-display text-2xl md:text-[28px] text-rose-500 font-light tracking-tight">
+              <span className="font-display text-2xl md:text-[28px] text-[var(--hb-accent-hover)] font-light tracking-tight">
                 {role.number}
               </span>
 
               {/* 제목 */}
-              <h3 className="font-serif-kr text-[20px] md:text-[24px] text-noir-800 font-medium tracking-normal">
+              <h3 className="font-serif-kr text-[20px] md:text-[24px] text-[var(--hb-text-strong)] font-medium tracking-normal">
                 {role.title}
               </h3>
 
               {/* 설명 */}
-              <p className="text-taupe-500 text-[15px] md:text-base leading-[1.85] font-light col-span-2 md:col-span-1 md:max-w-lg">
+              <p className="text-[var(--hb-text-body)] text-[15px] md:text-base leading-[1.85] font-light col-span-2 md:col-span-1 md:max-w-lg">
                 {role.body}
               </p>
             </motion.article>

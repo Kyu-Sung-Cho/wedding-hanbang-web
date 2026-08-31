@@ -34,19 +34,19 @@ export default function DailyAmoraFocusBridge({
   return (
     <section
       aria-labelledby="daily-amora-focus-title"
-      className="rounded-[20px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[0_10px_28px_rgba(54,83,78,0.06)] sm:p-5"
+      className="rounded-[6px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#36534E] text-white">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[12px] font-semibold text-[#8F6662]">
+          <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">
             오늘 하나, 아모라와 정리
           </p>
           <h2
             id="daily-amora-focus-title"
-            className="mt-1 text-[17px] font-semibold leading-snug text-[#243832]"
+            className="mt-1 text-[17px] font-semibold leading-snug text-[var(--hb-text-strong)]"
           >
             {focusTitle
               ? focusTitle
@@ -69,12 +69,12 @@ export default function DailyAmoraFocusBridge({
             mode: partnerLinked ? "couple" : "solo",
           })
         }
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[#36534E] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[#2B423E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
       >
         {partnerLinked ? "오늘 할 일 같이 나누기" : "오늘 한 가지 시작하기"}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Link>
-      <p className="mt-2 text-[11px] leading-relaxed text-[#6D806E]">
+      <p className="mt-2 text-[11px] leading-relaxed text-[var(--hb-success)]">
         {partnerLinked
           ? "두 사람이 함께 보는 대화로 열려요. 개인적인 고민은 채팅의 ‘나만 상담’에서 이야기할 수 있어요."
           : "함께 준비하는 대화로 남아, 파트너가 나중에 합류하면 같이 볼 수 있어요. 개인적인 고민은 채팅의 ‘나만 상담’을 이용해 주세요."}

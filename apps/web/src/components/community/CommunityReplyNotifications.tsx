@@ -325,7 +325,7 @@ export default function CommunityReplyNotifications({
         }
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#6D806E] transition-colors hover:bg-[#F7F1E8] hover:text-[#36534E]"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-success)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
       >
         <Bell className="h-5 w-5" aria-hidden />
         {unreadCount > 0 && (
@@ -339,12 +339,12 @@ export default function CommunityReplyNotifications({
         <div
           role="dialog"
           aria-label="새 답변 알림"
-          className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl border border-[#EDE4D8] bg-white shadow-[0_18px_48px_rgba(36,56,50,0.16)]"
+          className="absolute right-0 top-full z-50 mt-2 flex max-h-[min(460px,70vh)] w-[min(360px,calc(100vw-32px))] flex-col overflow-hidden rounded-[6px] border border-[#EDE4D8] bg-white shadow-[var(--shadow-overlay)]"
         >
           <div className="flex items-center justify-between border-b border-[#F0EFED] px-4 py-3">
             <div>
-              <p className="text-sm font-semibold text-[#243832]">새 답변</p>
-              <p className="mt-0.5 text-[11px] text-[#928980]">
+              <p className="text-sm font-semibold text-[var(--hb-text-strong)]">새 답변</p>
+              <p className="mt-0.5 text-[11px] text-[var(--hb-text-muted)]">
                 내 고민과 답변에 이어진 이야기를 확인하세요.
               </p>
             </div>
@@ -352,7 +352,7 @@ export default function CommunityReplyNotifications({
               <button
                 type="button"
                 onClick={() => void markAllRead()}
-                className="inline-flex min-h-9 items-center gap-1 rounded-lg px-2 text-xs font-medium text-[#6D806E] hover:bg-[#F7F1E8]"
+                className="inline-flex min-h-9 items-center gap-1 rounded-[6px] px-2 text-xs font-medium text-[var(--hb-success)] hover:bg-[var(--hb-surface-hover)]"
               >
                 <CheckCheck className="h-3.5 w-3.5" aria-hidden />
                 모두 읽음
@@ -362,14 +362,14 @@ export default function CommunityReplyNotifications({
 
           <div className="overflow-y-auto">
             {loading ? (
-              <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-[#928980]">
+              <div className="flex items-center justify-center gap-2 px-5 py-10 text-sm text-[var(--hb-text-muted)]">
                 <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden />
                 불러오는 중
               </div>
             ) : error && notifications.length === 0 ? (
               <div className="px-5 py-8 text-center">
                 {/* 로그인 안내는 오류색으로 쓰지 않는다 — 고장이 아니다. */}
-                <p className={`text-sm ${signedOut ? "text-[#504444]" : "text-[#8F6662]"}`}>{error}</p>
+                <p className={`text-sm ${signedOut ? "text-[var(--hb-text-body)]" : "text-[#8F6662]"}`}>{error}</p>
                 {/* 버튼을 두 개로 나누지 않는다 — 손으로 만든 버튼은 늘리지 않기로
                     했고(`rawButtonRatchet.test.ts`), 같은 자리에 같은 모양으로 서는
                     버튼이라 하나면 된다. 로그인 안 한 경우엔 다시 눌러도 영원히 같은
@@ -384,17 +384,17 @@ export default function CommunityReplyNotifications({
                     setLoading(true);
                     void refresh();
                   }}
-                  className="mt-3 min-h-10 rounded-lg border border-[#C7D1C2] px-4 text-sm font-medium text-[#36534E]"
+                  className="mt-3 min-h-10 rounded-[6px] border border-[#C7D1C2] px-4 text-sm font-medium text-[var(--hb-text-strong)]"
                 >
                   {signedOut ? "로그인하기" : "다시 시도"}
                 </button>
               </div>
             ) : notifications.length === 0 ? (
               <div className="px-5 py-10 text-center">
-                <p className="text-sm font-medium text-[#36534E]">
+                <p className="text-sm font-medium text-[var(--hb-text-strong)]">
                   아직 새 답변이 없어요
                 </p>
-                <p className="mt-1 text-xs leading-relaxed text-[#928980]">
+                <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">
                   누군가 내 고민이나 답변에 이어 쓰면 여기에 알려드려요.
                 </p>
               </div>
@@ -408,7 +408,7 @@ export default function CommunityReplyNotifications({
                     <button
                       type="button"
                       onClick={() => void openNotification(notification)}
-                      className="flex min-h-[76px] w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[#FBF8F2]"
+                      className="flex min-h-[76px] w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--hb-surface-page)]"
                     >
                       <span
                         className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
@@ -419,7 +419,7 @@ export default function CommunityReplyNotifications({
                         aria-hidden
                       />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-medium leading-snug text-[#243832]">
+                        <span className="block text-sm font-medium leading-snug text-[var(--hb-text-strong)]">
                           {notification.title}
                         </span>
                         <span className="mt-1 block truncate text-xs text-[#746C65]">
@@ -441,7 +441,7 @@ export default function CommunityReplyNotifications({
           {error && notifications.length > 0 && (
             <p
               role="status"
-              className="border-t border-[#F0EFED] bg-[#FBF8F2] px-4 py-2 text-xs text-[#8F6662]"
+              className="border-t border-[#F0EFED] bg-[var(--hb-surface-page)] px-4 py-2 text-xs text-[var(--color-rose-700)]"
             >
               {error}
             </p>

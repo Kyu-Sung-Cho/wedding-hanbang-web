@@ -2,52 +2,52 @@ import { landingContent } from "./landingContent";
 import { NoteCard, Section, bodyText, noteText, ruled } from "./notebook";
 
 /**
- * ③ 같은 얘기를 두 번 하지 않아도 된다.
+ * "우리 둘한테 뭐가 달라지냐면" — **커플이 함께 쓰는 대화**를 보여 준다.
  *
- * 이 제품의 제일 큰 차별점이고, **1:1 챗봇이 구조적으로 못 하는 자리**다.
- * 근거: `api/chat/route.ts:1889-1905` 가 `.eq("couple_id", dataCoupleId)` 로 읽고
- * sender_id 필터가 없다. 상대에게 직접 보낸 줄만 provider 입력에서 뺀다.
+ * ## 이게 제품 계약의 한가운데다
  *
- * 말로 설명하면 안 와닿아서 **시간이 지나는 장면**으로 보여준다. 화요일 밤 한 사람이
- * 남긴 말이 수요일 아침 다른 사람 화면에 있는 것 — 그게 전부다.
+ * CLAUDE.md: "결혼 준비의 고민을 아모라와 처음부터 끝까지 이야기하고". 그 "이야기"는
+ * 한 사람의 것이 아니라 두 사람의 것이다. 2026-08-29 개편에서 이 섹션을 없앴더니
+ * 랜딩이 **혼자 쓰는 도구**처럼 읽혔다 — 같은 날 파운더 지적으로 되살렸다.
+ *
+ * ## 대화 세 줄은 샘플이고, 그걸 카드 안에서 말한다
+ *
+ * 이름·금액은 지어낸 것이다. 고지를 카드 **안에** 둔다 — 바깥 작은 글씨로 빼면
+ * 카드만 캡처해 공유했을 때 그 사실이 떨어져 나간다.
+ *
+ * ## 순서를 바꾸지 마라
+ *
+ * 바로 다음에 `PrivateLaneSection`("그럼 내가 쓴 게 다 가나요?")이 와야 한다.
+ * 여기서 "두 사람 대화가 한 덩어리"라고 말한 직후에 사람들이 곧바로 하는 걱정이
+ * 그것이고, 받아 주지 않으면 이 섹션이 불안으로 끝난다.
  */
 export default function OneRoomSection() {
   const { oneRoom } = landingContent;
 
   return (
-    <Section id="oneroom" eyebrow={oneRoom.eyebrow} title={oneRoom.title} tinted>
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1fr)] lg:items-center">
+    <Section id="oneroom" eyebrow={oneRoom.eyebrow} title={oneRoom.title}>
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
         <div>
           <p className={bodyText}>{oneRoom.body}</p>
-          <p className={`mt-5 ${noteText}`}>{oneRoom.note}</p>
+          <p className={`mt-6 ${noteText}`}>{oneRoom.turnsLead}</p>
         </div>
 
-        <NoteCard tilt={0.6}>
-          <ol className="space-y-6">
-            <li>
-              {/* 손글씨(Gaegu)에 가운뎃점 U+00B7 글리프가 없다 — 쓰면 그 글자만
-                  다른 서체로 그려진다. `scripts/subset-gaegu.py` 가 경고로 알려준다. */}
-              <p className="landing-hand text-[14px] text-[var(--color-paper-pen)]">화요일 밤, 신부</p>
-              <p className={`mt-1 ${ruled} text-[var(--color-paper-ink)]`}>
-                예식장 견적이 800 더 나왔어. 오늘은 얘기 못 하겠다.
-              </p>
-            </li>
-            <li>
-              <p className="landing-hand text-[14px] text-[var(--color-paper-pen)]">수요일 아침, 신랑</p>
-              <p className={`mt-1 ${ruled} text-[var(--color-paper-ink)]`}>
-                어제 그거 봤어. 어디를 줄이면 될까?
-              </p>
-            </li>
-            <li className="border-t border-[var(--color-paper-divider)] pt-5">
-              <p className="landing-hand text-[14px] text-[var(--color-paper-ink-faint)]">아모라</p>
-              <p className={`mt-1 ${ruled}`}>
-                두 분이 어제 남긴 견적부터 같이 볼게요. 800을 어디서 메울지는
-                두 분이 정하시면 돼요.
-              </p>
-            </li>
-          </ol>
-          <p className="mt-6 border-t border-[var(--color-paper-divider)] pt-4 text-[12px] leading-[1.7] text-[var(--color-paper-ink-faint)]">
-            이름·금액은 기능을 보여주기 위한 샘플이고 실제 이용 현황이 아니에요.
+        <NoteCard tilt={0.5}>
+          <ul className="space-y-5">
+            {oneRoom.turns.map((turn) => (
+              <li key={turn.who}>
+                <p className="landing-hand text-[14px] text-[var(--color-paper-ink-faint)]">
+                  {turn.who}
+                </p>
+                <p className={`mt-1 ${ruled} text-[var(--color-paper-ink)]`}>
+                  {turn.say}
+                </p>
+              </li>
+            ))}
+          </ul>
+          {/* 샘플이라는 고지는 **카드 안**에 둔다 — 카드만 캡처돼 돌아다녀도 붙어 간다. */}
+          <p className="mt-6 text-[14px] leading-[1.7] text-[var(--color-paper-ink-faint)]">
+            {oneRoom.note}
           </p>
         </NoteCard>
       </div>

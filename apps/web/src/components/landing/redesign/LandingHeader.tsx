@@ -45,17 +45,20 @@ export default function LandingHeader() {
               넓은 화면에는 메뉴가 없으므로 여기서 내놓는다 — 없으면 데스크톱에서만
               가입 경로가 사라진다. */}
           <Link
-            href={headerAuth.signUp.href}
+            href={headerAuth.logIn.href}
             className={`hidden min-h-11 items-center px-3 text-[14px] font-medium text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-ink)] motion-reduce:transition-none lg:inline-flex ${focusRing}`}
           >
-            {headerAuth.signUp.label}
+            {headerAuth.logIn.label}
           </Link>
+          {/* 2026-08-28: 정본 시안(`docs/landing/NotebookBest.html`)의 헤더는
+              오른쪽 끝 버튼이 "시작하기" 다. 그전에는 "스무 장면 답해보기" 가 하드코딩돼
+              있었는데, 시안에 없는 행동이고 카피 정본을 읽지도 않았다. */}
           <TrackedLandingLink
-            href="/wedding-code"
+            href={headerAuth.signUp.href}
             source="landing_header"
-            className={`hidden min-h-10 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-5 text-[14px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black motion-reduce:transition-none sm:inline-flex ${focusRing}`}
+            className={`hidden min-h-11 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-5 text-[14px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black motion-reduce:transition-none sm:inline-flex ${focusRing}`}
           >
-            스무 장면 답해보기
+            {headerAuth.signUp.label}
           </TrackedLandingLink>
           <MobileLandingMenu items={headerNav} />
         </div>

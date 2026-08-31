@@ -148,7 +148,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
   return (
     <section
       aria-label="요청자 요약 기반 조율 초안"
-      className="mt-3 overflow-hidden rounded-2xl border border-[#E2D3C8] bg-[#FFFDF9]"
+      className="mt-3 overflow-hidden rounded-[6px] border border-[#E2D3C8] bg-[#FFFDF9]"
     >
       <div className="border-b border-[#EEE6DF] px-4 py-3.5">
         <p className="text-xs leading-relaxed text-[#6D625B]">
@@ -185,7 +185,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
               <button
                 type="button"
                 onClick={() => void refreshAcceptance()}
-                className="mt-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-[#566A61] ring-1 ring-[#C9D2CC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#566A61]"
+                className="mt-2 inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] px-4 text-sm font-medium text-[#566A61] ring-1 ring-[#C9D2CC] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#566A61]"
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 다시 확인
@@ -198,7 +198,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
             </p>
           ) : acceptance?.accepted ? (
             <div>
-              <p className="flex min-h-12 items-center gap-2 text-sm font-medium text-[#795252]">
+              <p className="flex min-h-12 items-center gap-2 text-sm font-medium text-[var(--hb-accent-hover)]">
                 <Users className="h-4 w-4" aria-hidden="true" />
                 내가 확인했어요 · 상대방 확인을 기다리고 있어요
               </p>
@@ -206,7 +206,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
                 type="button"
                 disabled={saving !== null}
                 onClick={() => void updateAcceptance("DELETE")}
-                className="mt-1 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-[#6D625B] ring-1 ring-[#D8CEC6] hover:bg-[#F8F4F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] disabled:opacity-50"
+                className="mt-1 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] px-4 text-sm font-medium text-[#6D625B] ring-1 ring-[#D8CEC6] hover:bg-[#F8F4F1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] disabled:opacity-50"
               >
                 {saving === "revoke"
                   ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -217,7 +217,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
                 type="button"
                 disabled={saving !== null || loading}
                 onClick={() => void refreshAcceptance()}
-                className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg px-4 text-sm font-medium text-[#566A61] ring-1 ring-[#C9D2CC] hover:bg-[#F4F7F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#566A61] disabled:opacity-50"
+                className="mt-2 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] px-4 text-sm font-medium text-[#566A61] ring-1 ring-[#C9D2CC] hover:bg-[#F4F7F5] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#566A61] disabled:opacity-50"
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 확인 상태 새로고침
@@ -233,7 +233,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
               type="button"
               disabled={saving !== null}
               onClick={() => void updateAcceptance("POST")}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#795252] px-4 text-sm font-medium text-white transition-colors hover:bg-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] focus-visible:ring-offset-2 disabled:opacity-50"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-medium text-white transition-colors hover:bg-[#8F6662] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#795252] focus-visible:ring-offset-2 disabled:opacity-50"
             >
               {saving === "accept"
                 ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -243,7 +243,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
           )}
 
           {acceptance && !acceptance.completed && acceptance.partnerLinked !== false && (
-            <p className="mt-2 text-center text-xs text-[#6D806E]">
+            <p className="mt-2 text-center text-xs text-[var(--hb-success)]">
               {acceptance.acceptedCount}/{acceptance.requiredCount}명 확인 · 두 분 모두 확인해야 공동 결정으로 저장돼요
             </p>
           )}

@@ -75,30 +75,30 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[#eadfc9]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
+      <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
         <div className="flex items-center gap-4">
           <button
             type="button"
             onClick={onMenuToggle}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-[#eadfc9] text-[#071629] md:hidden"
+            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] md:hidden"
             aria-label="메뉴 열기"
           >
             <Menu className="h-5 w-5" />
           </button>
           <Link
             {...weddingLinkProps()}
-            className="block rounded-[10px] outline-none transition-colors hover:text-[#9d6f36] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+            className="block rounded-[6px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
             aria-label="웨딩한방 홈으로 이동"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#9d6f36]">Wedding Hanbang</p>
-            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[#071629]">{title}</h1>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]">Wedding Hanbang</p>
+            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">{title}</h1>
           </Link>
         </div>
 
         <div className="flex items-center gap-2">
           <nav
             aria-label="주요 기능 바로가기"
-            className="mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[#071629] lg:flex"
+            className="mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] lg:flex"
           >
             {quickLinks.map((item, index) => {
               const isActive = isWeddingPathActive(pathname, item.legacyPath);
@@ -107,8 +107,8 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
                   {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
                   <Link
                     {...item.linkProps}
-                    className={`transition-colors hover:text-[#b68a3a] ${
-                      isActive ? "text-[#9d6f36]" : "text-[#071629]"
+                    className={`transition-colors hover:text-[var(--hb-accent-hover)] ${
+                      isActive ? "text-[var(--hb-accent-hover)]" : "text-[var(--hb-text-strong)]"
                     }`}
                   >
                     {item.label}
@@ -118,9 +118,9 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 rounded-full border border-[#eadfc9] bg-white px-4 py-2 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-[#b68a3a]" />
-            <span className="text-[13px] font-semibold text-[#071629]">
+          <div className="hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex">
+            <span className="h-2 w-2 rounded-full bg-[var(--hb-accent)]" />
+            <span className="text-[13px] font-semibold text-[var(--hb-text-strong)]">
               {dday === null ? "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
             </span>
           </div>
@@ -128,7 +128,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
           <button
             type="button"
             onClick={() => router.push(weddingPath("/community?feed=all#community-feed"))}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]"
             aria-label="커뮤니티 검색"
             title="커뮤니티 검색"
           >
@@ -139,12 +139,12 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             <button
               type="button"
               onClick={() => setShowNotifications((value) => !value)}
-              className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#34445a] transition-colors hover:bg-white hover:text-[#9d6f36]"
+              className="relative flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]"
               aria-label="알림"
             >
               <Bell className="h-5 w-5" />
               {newCount > 0 && (
-                <span className="absolute right-1.5 top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#061a34] px-1 text-[10px] font-semibold text-white">
+                <span className="absolute right-1.5 top-1.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--hb-primary)] px-1 text-[10px] font-semibold text-white">
                   {newCount > 9 ? "9+" : newCount}
                 </span>
               )}

@@ -93,14 +93,14 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
 
   return (
     <div
-      className="fixed inset-0 z-[110] flex items-end justify-center bg-[#2B423E]/50 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
+      className="fixed inset-0 z-[110] flex items-end justify-center bg-[var(--hb-primary-hover)]/50 p-0 backdrop-blur-[2px] sm:items-center sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
         ref={dialogRef}
-        className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-[#FBF8F2] p-5 shadow-2xl sm:rounded-[28px] sm:p-7"
+        className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-[28px] bg-[var(--hb-surface-page)] p-5 shadow-2xl sm:rounded-[6px] sm:p-7"
         role="dialog"
         aria-modal="true"
         aria-labelledby="combo-add-title"
@@ -108,36 +108,36 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
       >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-bold tracking-[0.12em] text-[#8F6662]">조합에 담기</p>
-            <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-normal text-[#243832]">{vendor.name}</h2>
+            <p className="text-xs font-bold tracking-[0.12em] text-[var(--color-rose-700)]">조합에 담기</p>
+            <h2 id="combo-add-title" className="mt-1 text-2xl font-bold tracking-normal text-[var(--hb-text-strong)]">{vendor.name}</h2>
           </div>
-          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-[#243832] hover:bg-white">
+          <button type="button" onClick={onClose} aria-label="닫기" className="grid size-11 shrink-0 place-items-center rounded-full text-[var(--hb-text-strong)] hover:bg-white">
             <X aria-hidden="true" className="size-5" />
           </button>
         </div>
 
         <fieldset className="mt-6 space-y-2">
-          <legend className="text-sm font-bold text-[#243832]">공시 가격 선택</legend>
+          <legend className="text-sm font-bold text-[var(--hb-text-strong)]">공시 가격 선택</legend>
           {vendor.offers.map((candidate) => (
-            <label key={candidate.id} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 ${offerId === candidate.id ? "border-[#8F6662] bg-white" : "border-[#243832]/12 bg-white/55"}`}>
+            <label key={candidate.id} className={`flex cursor-pointer items-start gap-3 rounded-[6px] border p-4 ${offerId === candidate.id ? "border-[#8F6662] bg-white" : "border-[var(--hb-primary)]/12 bg-white/55"}`}>
               <input type="radio" name="offer" value={candidate.id} checked={offerId === candidate.id} onChange={() => {
                 setOfferId(candidate.id);
                 setSelectedOptionIds(new Set());
-              }} className="mt-1 accent-[#243832]" />
+              }} className="mt-1 accent-[var(--hb-text-strong)]" />
               <span className="min-w-0 flex-1">
                 <span className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-semibold text-[#243832]">{candidate.agencyName}</span>
-                  <span className="font-bold tabular-nums text-[#243832]">{krwRangeLabel(candidate.minimumKrw, candidate.maximumKrw)}</span>
+                  <span className="font-semibold text-[var(--hb-text-strong)]">{candidate.agencyName}</span>
+                  <span className="font-bold tabular-nums text-[var(--hb-text-strong)]">{krwRangeLabel(candidate.minimumKrw, candidate.maximumKrw)}</span>
                 </span>
-                {candidate.baseSpec ? <span className="mt-1 block text-xs leading-5 text-[#243832]/75">{candidate.baseSpec}</span> : null}
+                {candidate.baseSpec ? <span className="mt-1 block text-xs leading-5 text-[var(--hb-text-strong)]/75">{candidate.baseSpec}</span> : null}
               </span>
             </label>
           ))}
         </fieldset>
 
-        <label className="mt-5 block text-sm font-bold text-[#243832]">
+        <label className="mt-5 block text-sm font-bold text-[var(--hb-text-strong)]">
           내가 받은 기본 견적이 있다면
-          <span className="mt-2 flex min-h-12 items-center rounded-xl border border-[#243832]/15 bg-white px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
+          <span className="mt-2 flex min-h-12 items-center rounded-[6px] border border-[var(--hb-primary)]/15 bg-white px-4 focus-within:ring-2 focus-within:ring-[#B89785]">
             <input
               value={customManwon}
               onChange={(event) => setCustomManwon(event.target.value)}
@@ -148,7 +148,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
               aria-describedby={customInputError ? "combo-custom-quote-error" : undefined}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
-            <span className="text-sm text-[#243832]/60">만원</span>
+            <span className="text-sm text-[var(--hb-text-strong)]/60">만원</span>
           </span>
           {customInputError ? (
             <span id="combo-custom-quote-error" role="alert" className="mt-2 block text-xs font-medium text-[#A13D3D]">
@@ -159,9 +159,9 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
 
         {offer && offer.options.length > 0 ? (
           <fieldset className="mt-5 space-y-2">
-            <legend className="text-sm font-bold text-[#243832]">추가 옵션</legend>
+            <legend className="text-sm font-bold text-[var(--hb-text-strong)]">추가 옵션</legend>
             {offer.options.map((option) => (
-              <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-xl bg-white px-4 py-3">
+              <label key={option.id} className="flex cursor-pointer items-start gap-3 rounded-[6px] bg-white px-4 py-3">
                 <input
                   type="checkbox"
                   checked={selectedOptionIds.has(option.id)}
@@ -171,10 +171,10 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
                     else next.add(option.id);
                     return next;
                   })}
-                  className="mt-1 accent-[#243832]"
+                  className="mt-1 accent-[var(--hb-text-strong)]"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap justify-between gap-2 text-sm font-semibold text-[#243832]">
+                  <span className="flex flex-wrap justify-between gap-2 text-sm font-semibold text-[var(--hb-text-strong)]">
                     <span>{option.name}</span>
                     <span
                       className="inline-flex items-center gap-1 tabular-nums"
@@ -185,11 +185,11 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
                     </span>
                   </span>
                   {option.condition || option.unit ? (
-                    <span className="mt-1 block text-xs leading-5 text-[#243832]/60">
+                    <span className="mt-1 block text-xs leading-5 text-[var(--hb-text-muted)]">
                       {[option.unit, option.condition].filter(Boolean).join(" · ")}
                     </span>
                   ) : null}
-                  <span className="mt-1 block text-xs leading-5 text-[#243832]/60">
+                  <span className="mt-1 block text-xs leading-5 text-[var(--hb-text-muted)]">
                     공시 원문 · {option.rawText}
                   </span>
                 </span>
@@ -198,14 +198,14 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
           </fieldset>
         ) : null}
 
-        <div className="sticky bottom-0 -mx-5 mt-6 border-t border-[#243832]/10 bg-[#FBF8F2]/95 px-5 pb-[max(0px,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-7 sm:px-7">
+        <div className="sticky bottom-0 -mx-5 mt-6 border-t border-[var(--hb-primary)]/10 bg-[var(--hb-surface-page)]/95 px-5 pb-[max(0px,env(safe-area-inset-bottom))] pt-4 backdrop-blur sm:-mx-7 sm:px-7">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm font-semibold text-[#243832]/75">
+            <span className="text-sm font-semibold text-[var(--hb-text-strong)]/75">
               {validCustomKrw === null ? "기본·옵션 공시가 합계" : "입력 견적·옵션 공시가 합계"}
             </span>
-            <strong className="text-xl tabular-nums text-[#243832]">{krwRangeLabel(totalMinimumKrw, totalMaximumKrw)}</strong>
+            <strong className="text-xl tabular-nums text-[var(--hb-text-strong)]">{krwRangeLabel(totalMinimumKrw, totalMaximumKrw)}</strong>
           </div>
-          <button type="button" onClick={add} disabled={customInputError || !offer || (offer.minimumKrw === null && validCustomKrw === null)} className="mt-3 min-h-12 w-full rounded-full bg-[#36534E] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={add} disabled={customInputError || !offer || (offer.minimumKrw === null && validCustomKrw === null)} className="mt-3 min-h-12 w-full rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">
             이 가격으로 담기
           </button>
         </div>

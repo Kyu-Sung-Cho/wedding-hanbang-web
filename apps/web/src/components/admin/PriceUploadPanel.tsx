@@ -136,16 +136,16 @@ function serverErrorMessage(body: unknown): string {
 
 function SummaryMetric({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg border border-[#E2D3C8] bg-white px-3 py-2">
-      <span className="text-xs text-[#6D806E]">{label}</span>
-      <strong className="ml-1 text-sm text-[#243832]">{value}</strong>
+    <div className="rounded-[6px] border border-[#E2D3C8] bg-white px-3 py-2">
+      <span className="text-xs text-[var(--hb-success)]">{label}</span>
+      <strong className="ml-1 text-sm text-[var(--hb-text-strong)]">{value}</strong>
     </div>
   );
 }
 
 const tableClassName = "w-full min-w-[540px] border-collapse text-left text-sm";
-const headingCellClassName = "border-b border-[#E2D3C8] bg-[#FBF8F2] px-3 py-2 text-xs font-bold text-[#6D806E]";
-const bodyCellClassName = "border-b border-[#EFE4D7] px-3 py-2 align-top text-[#36534E]";
+const headingCellClassName = "border-b border-[#E2D3C8] bg-[var(--hb-surface-page)] px-3 py-2 text-xs font-bold text-[var(--hb-success)]";
+const bodyCellClassName = "border-b border-[var(--hb-hairline)] px-3 py-2 align-top text-[var(--hb-text-strong)]";
 export function PriceUploadPanel() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [rawJson, setRawJson] = useState("");
@@ -234,25 +234,25 @@ export function PriceUploadPanel() {
   }
 
   return (
-    <section className="mb-7 rounded-2xl border border-[#E2D3C8] bg-white p-4 sm:p-5" aria-labelledby="price-upload-title">
+    <section className="mb-7 rounded-[6px] border border-[#E2D3C8] bg-white p-4 sm:p-5" aria-labelledby="price-upload-title">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-bold tracking-wide text-[#8F6662]">MANUAL DISCLOSURE INGEST</p>
-          <h2 id="price-upload-title" className="mt-1 text-lg font-bold text-[#243832]">공시 JSON 적재</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#6D806E]">
+          <p className="text-xs font-bold tracking-wide text-[var(--color-rose-700)]">MANUAL DISCLOSURE INGEST</p>
+          <h2 id="price-upload-title" className="mt-1 text-lg font-bold text-[var(--hb-text-strong)]">공시 JSON 적재</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--hb-success)]">
             검수할 공시 JSON 파일을 선택하세요. JSON 파일만 가능하며 파일 크기는 2MiB 이하여야 합니다.
           </p>
         </div>
         <a
           href="/api/admin/price/export"
           download="wedding-hanbang-current-prices.json"
-          className="inline-flex min-h-10 items-center rounded-lg border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E]"
+          className="inline-flex min-h-10 items-center rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)]"
         >
           현재 발행 데이터 JSON 내려받기
         </a>
       </div>
-      <div className="mt-5 rounded-xl border border-dashed border-[#C7D1C2] bg-[#FBF8F2] p-4">
-        <label htmlFor="price-upload-file" className="block text-sm font-bold text-[#36534E]">공시 JSON 파일</label>
+      <div className="mt-5 rounded-[6px] border border-dashed border-[#C7D1C2] bg-[var(--hb-surface-page)] p-4">
+        <label htmlFor="price-upload-file" className="block text-sm font-bold text-[var(--hb-text-strong)]">공시 JSON 파일</label>
         <input
           ref={fileInputRef}
           id="price-upload-file"
@@ -261,26 +261,26 @@ export function PriceUploadPanel() {
           disabled={uploading}
           onChange={(event) => void selectFile(event.currentTarget.files?.[0])}
           aria-describedby="price-upload-help"
-          className="mt-2 block w-full text-sm text-[#36534E] file:mr-3 file:min-h-10 file:rounded-lg file:border-0 file:bg-[#36534E] file:px-4 file:font-semibold file:text-white"
+          className="mt-2 block w-full text-sm text-[var(--hb-text-strong)] file:mr-3 file:min-h-10 file:rounded-[6px] file:border-0 file:bg-[var(--hb-primary)] file:px-4 file:font-semibold file:text-white"
         />
-        <p id="price-upload-help" className="mt-2 text-xs leading-5 text-[#6D806E]">
+        <p id="price-upload-help" className="mt-2 text-xs leading-5 text-[var(--hb-success)]">
           파일은 브라우저에서 먼저 형식과 2MiB 제한을 확인한 뒤 서버의 전체 스키마 검증을 거칩니다.
         </p>
-        {error && <p className="mt-3 whitespace-pre-line rounded-lg bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
-        {validating && <p className="mt-3 text-sm text-[#6D806E]" role="status" aria-live="polite">JSON 파일을 확인하는 중…</p>}
+        {error && <p className="mt-3 whitespace-pre-line rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
+        {validating && <p className="mt-3 text-sm text-[var(--hb-success)]" role="status" aria-live="polite">JSON 파일을 확인하는 중…</p>}
         {selectedFile && !validating && (
-          <p className="mt-3 text-sm text-[#36534E]">
+          <p className="mt-3 text-sm text-[var(--hb-text-strong)]">
             선택됨 · <strong>{selectedFile.name}</strong> · {(selectedFile.size / 1024).toFixed(1)}KiB
           </p>
         )}
-        {uploading && <p className="mt-3 text-sm font-semibold text-[#36534E]" role="status" aria-live="polite">서버에서 매칭하고 검수 대기 데이터로 적재하는 중…</p>}
+        {uploading && <p className="mt-3 text-sm font-semibold text-[var(--hb-text-strong)]" role="status" aria-live="polite">서버에서 매칭하고 검수 대기 데이터로 적재하는 중…</p>}
         <div className="mt-4 flex flex-wrap gap-2">
           <button
             type="button"
             disabled={!selectedFile || !rawJson || validating || uploading}
             onClick={() => void upload()}
             aria-busy={uploading}
-            className="min-h-10 rounded-lg bg-[#36534E] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+            className="min-h-10 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {uploading ? "업로드 중…" : error && selectedFile ? "다시 시도" : "JSON 업로드"}
           </button>
@@ -289,7 +289,7 @@ export function PriceUploadPanel() {
               type="button"
               disabled={uploading}
               onClick={reset}
-              className="min-h-10 rounded-lg border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[#36534E] disabled:opacity-40"
+              className="min-h-10 rounded-[6px] border border-[#C7D1C2] bg-white px-4 text-sm font-semibold text-[var(--hb-text-strong)] disabled:opacity-40"
             >
               초기화
             </button>
@@ -298,8 +298,8 @@ export function PriceUploadPanel() {
       </div>
 
       {report && (
-        <div className="mt-5 rounded-xl border border-[#C7D1C2] bg-[#F2F7F3] p-4">
-          <p className="font-bold text-[#243832]" role="status" aria-live="polite">
+        <div className="mt-5 rounded-[6px] border border-[#C7D1C2] bg-[#F2F7F3] p-4">
+          <p className="font-bold text-[var(--hb-text-strong)]" role="status" aria-live="polite">
             적재가 끝났습니다. 아래 결과를 확인한 뒤 검수·중복 판단·스냅샷 승격을 진행하세요.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -311,9 +311,9 @@ export function PriceUploadPanel() {
           </div>
 
           {report.details.auto_matched.length > 0 && (
-            <div className="mt-5 overflow-x-auto rounded-lg border border-[#E2D3C8] bg-white">
+            <div className="mt-5 overflow-x-auto rounded-[6px] border border-[#E2D3C8] bg-white">
               <table className={tableClassName}>
-                <caption className="px-3 py-2 text-left text-sm font-bold text-[#36534E]">자동 매칭</caption>
+                <caption className="px-3 py-2 text-left text-sm font-bold text-[var(--hb-text-strong)]">자동 매칭</caption>
                 <thead><tr><th className={headingCellClassName}>입력 행</th><th className={headingCellClassName}>매칭 업체</th><th className={headingCellClassName}>업체 ID</th></tr></thead>
                 <tbody>{report.details.auto_matched.map((row) => <tr key={`${row.entry_index}-${row.vendor_id}`}><td className={bodyCellClassName}>{row.entry_index + 1}</td><td className={bodyCellClassName}>{row.vendor_name}</td><td className={`${bodyCellClassName} font-mono text-xs`}>{row.vendor_id}</td></tr>)}</tbody>
               </table>
@@ -321,9 +321,9 @@ export function PriceUploadPanel() {
           )}
 
           {report.details.newly_created.length > 0 && (
-            <div className="mt-5 overflow-x-auto rounded-lg border border-[#E2D3C8] bg-white">
+            <div className="mt-5 overflow-x-auto rounded-[6px] border border-[#E2D3C8] bg-white">
               <table className={tableClassName}>
-                <caption className="px-3 py-2 text-left text-sm font-bold text-[#36534E]">신규 draft 업체</caption>
+                <caption className="px-3 py-2 text-left text-sm font-bold text-[var(--hb-text-strong)]">신규 draft 업체</caption>
                 <thead><tr><th className={headingCellClassName}>입력 행</th><th className={headingCellClassName}>신규 업체</th><th className={headingCellClassName}>업체 ID</th></tr></thead>
                 <tbody>{report.details.newly_created.map((row) => <tr key={`${row.entry_index}-${row.vendor_id}`}><td className={bodyCellClassName}>{row.entry_index + 1}</td><td className={bodyCellClassName}>{row.vendor_name}</td><td className={`${bodyCellClassName} font-mono text-xs`}>{row.vendor_id}</td></tr>)}</tbody>
               </table>
@@ -331,7 +331,7 @@ export function PriceUploadPanel() {
           )}
 
           {report.details.errors.length > 0 && (
-            <div className="mt-5 overflow-x-auto rounded-lg border border-[#D95F5F]/40 bg-white">
+            <div className="mt-5 overflow-x-auto rounded-[6px] border border-[#D95F5F]/40 bg-white">
               <table className={tableClassName}>
                 <caption className="px-3 py-2 text-left text-sm font-bold text-[#8A3030]">오류 · 적재하지 않음</caption>
                 <thead><tr><th className={headingCellClassName}>입력 행</th><th className={headingCellClassName}>업체</th><th className={headingCellClassName}>오류</th></tr></thead>

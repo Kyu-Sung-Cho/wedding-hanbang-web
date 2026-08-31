@@ -66,17 +66,17 @@ export default function CohortCard({
   // 아직 배정 안된 상태 → CTA 카드
   if (!room) {
     return (
-      <div className="rounded-xl border border-[#F0EFED] bg-white p-5">
+      <div className="rounded-[6px] border border-[#F0EFED] bg-white p-5">
         <div className="mb-3 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[#36534E]" />
-          <h3 className="font-serif text-base text-[#1A1A1F]">
+          <Sparkles className="h-4 w-4 text-[var(--hb-text-strong)]" />
+          <h3 className="font-serif text-base text-[var(--hb-text-strong)]">
             대략 언제쯤 결혼하시나요?
           </h3>
         </div>
         <p className="mb-2 text-xs leading-relaxed text-[#878680]">
           같은 분기에 결혼하는 동기들과 실시간으로 정보·가격·고민을 나눠보세요.
         </p>
-        <p className="mb-4 text-[11px] leading-relaxed text-[#36534E]">
+        <p className="mb-4 text-[11px] leading-relaxed text-[var(--hb-text-strong)]">
           결혼식 날짜가 아직 정확하지 않아도 분기만 골라 참여할 수 있어요. 분기는 나중에 바꿀 수 있습니다.
         </p>
 
@@ -84,7 +84,7 @@ export default function CohortCard({
           <select
             value={year}
             onChange={(e) => setYear(Number(e.target.value))}
-            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#36534E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[0, 1, 2].map((offset) => {
               const y = (now?.getFullYear() ?? year) + offset;
@@ -98,7 +98,7 @@ export default function CohortCard({
           <select
             value={quarter}
             onChange={(e) => setQuarter(Number(e.target.value))}
-            className="w-full rounded-lg border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[#1A1A1F] outline-none focus:border-[#36534E] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
+            className="w-full rounded-[6px] border border-[#F0EFED] bg-[#FAFAF8] px-3 py-2.5 text-sm text-[var(--hb-text-strong)] outline-none focus:border-[var(--hb-primary)] appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%23B5ADA3%22%20stroke-width%3D%222%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E')] bg-no-repeat bg-[right_12px_center]"
           >
             {[
               { v: 1, label: "1분기" },
@@ -117,7 +117,7 @@ export default function CohortCard({
           type="button"
           onClick={handleAssign}
           disabled={loading}
-          className="w-full rounded-lg bg-[#36534E] px-4 py-3 text-sm font-medium text-white shadow-[0_4px_14px_0_rgba(6,26,52,0.2)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.23)] transition-all disabled:opacity-60"
+          className="w-full rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-sm font-medium text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-all disabled:opacity-60"
         >
           {loading ? "배정 중..." : "동기방 입장하기"}
         </button>
@@ -133,12 +133,12 @@ export default function CohortCard({
     <button
       type="button"
       onClick={onClick}
-      className="group w-full rounded-xl border border-[#F0EFED] bg-[#36534E] p-5 text-left transition-all hover:border-[#36534E]/40 shadow-[0_4px_14px_0_rgba(6,26,52,0.15)] hover:shadow-[0_6px_20px_rgba(6,26,52,0.2)]"
+      className="group w-full rounded-[6px] border border-[#F0EFED] bg-[var(--hb-primary)] p-5 text-left transition-all hover:border-[var(--hb-primary)]/40 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-serif text-base text-white">{room.name}</h3>
-          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[#B5ADA3]">
+          <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--hb-text-muted)]">
             <Users className="h-3.5 w-3.5" />
             <span>{room.member_count}명 참여</span>
           </div>
@@ -154,7 +154,7 @@ export default function CohortCard({
             return (
               <div
                 key={m.id}
-                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[#36534E] bg-[#36534E] text-xs font-medium text-white"
+                className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--hb-primary)] bg-[var(--hb-primary)] text-xs font-medium text-white"
               >
                 {m.profile?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -191,7 +191,7 @@ export default function CohortCard({
 
       {/* 최근 메시지 */}
       {lastMessagePreview && (
-        <p className="truncate text-sm text-[#B5ADA3]">
+        <p className="truncate text-sm text-[var(--hb-text-muted)]">
           최근: {lastMessagePreview}
         </p>
       )}

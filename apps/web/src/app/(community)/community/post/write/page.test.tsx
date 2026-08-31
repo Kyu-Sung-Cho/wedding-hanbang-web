@@ -110,7 +110,7 @@ describe("community write login return", () => {
       "건강·임신·성생활·민감한 가족관계, 계약·예약번호는 지워 주세요",
     );
     expect(container.textContent).toContain(
-      "현재 통제 베타에서는 사진 없이 텍스트로만 질문할 수 있어요",
+      "지금은 사진 없이 텍스트로만 질문할 수 있어요",
     );
     expect(container.textContent).not.toContain("사진 속 글자는 자동으로 가려지지 않아요");
 
@@ -279,7 +279,7 @@ describe("community write login return", () => {
 
     expect(
       container.querySelector("textarea")?.getAttribute("placeholder"),
-    ).toContain("통제 베타에서는 텍스트 게시물만 작성할 수 있어요");
+    ).toContain("지금은 텍스트 게시물만 작성할 수 있어요");
     expect(container.textContent).not.toContain("카드 게시물 (옆으로 넘기기)");
     expect(container.textContent).not.toContain("본문에 이미지/GIF 삽입");
     expect(container.textContent).not.toContain("images");

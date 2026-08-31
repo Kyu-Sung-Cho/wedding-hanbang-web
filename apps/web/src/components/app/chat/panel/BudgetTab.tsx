@@ -20,7 +20,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
 
 const STATUS_COLORS: Record<string, string> = {
   completed: "bg-[#2E7D5A]",
-  in_progress: "bg-rose-500",
+  in_progress: "bg-[var(--hb-primary)]",
   not_started: "bg-taupe-400",
   not_applicable: "bg-[#8b857c]",
 };
@@ -73,18 +73,18 @@ export default function BudgetTab() {
       {/* 총 예산 카드 */}
       <div className="px-4 py-3.5 border-b border-black/[0.04]">
         <div className="flex items-center justify-between">
-          <span className="text-sm text-taupe-400">총 예산</span>
-          <span className="text-lg font-medium text-noir-800">
+          <span className="text-sm text-[var(--hb-text-muted)]">총 예산</span>
+          <span className="text-lg font-medium text-[var(--hb-text-strong)]">
             {totalBudget > 0 ? formatWon(totalBudget) : "미설정"}
           </span>
         </div>
         {totalBudget > 0 && (
           <div className="mt-2.5">
             <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="text-taupe-400">지출</span>
-              <span className="text-rose-500">{formatWon(totalSpent)}</span>
+              <span className="text-[var(--hb-text-muted)]">지출</span>
+              <span className="text-[var(--hb-accent-hover)]">{formatWon(totalSpent)}</span>
             </div>
-            <div className="h-2.5 bg-ivory-warm rounded-full overflow-hidden">
+            <div className="h-2.5 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-rose-500 to-gold rounded-full transition-all"
                 style={{ width: `${Math.min(100, totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0)}%` }}
@@ -101,14 +101,14 @@ export default function BudgetTab() {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
             return (
               <div key={cat.key} className="flex items-center gap-3 py-2">
-                <div className="w-8 h-8 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
-                  <IconComp className="w-4 h-4 text-taupe-500" />
+                <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
+                  <IconComp className="w-4 h-4 text-[var(--hb-text-body)]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-base text-noir-800 truncate block">{cat.label}</span>
+                  <span className="text-base text-[var(--hb-text-strong)] truncate block">{cat.label}</span>
                 </div>
                 {cat.budget > 0 && (
-                  <span className="text-sm text-taupe-400 flex-shrink-0">{formatWon(cat.budget)}</span>
+                  <span className="text-sm text-[var(--hb-text-muted)] flex-shrink-0">{formatWon(cat.budget)}</span>
                 )}
                 <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
                   {STATUS_LABELS[cat.status]}
@@ -117,7 +117,7 @@ export default function BudgetTab() {
             );
           })}
           {incomplete.length === 0 && (
-            <p className="text-sm text-taupe-400 py-2 text-center">모든 항목이 완료되었습니다</p>
+            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">모든 항목이 완료되었습니다</p>
           )}
         </div>
       </CollapsibleSection>
@@ -129,14 +129,14 @@ export default function BudgetTab() {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
             return (
               <div key={cat.key} className="flex items-center gap-3 py-2 opacity-60">
-                <div className="w-8 h-8 rounded-md bg-ivory-warm flex items-center justify-center flex-shrink-0">
+                <div className="w-8 h-8 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center flex-shrink-0">
                   <IconComp className="w-4 h-4 text-[#2E7D5A]" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-base text-noir-800 truncate block">{cat.label}</span>
+                  <span className="text-base text-[var(--hb-text-strong)] truncate block">{cat.label}</span>
                 </div>
                 {cat.spent > 0 && (
-                  <span className="text-sm text-taupe-400 flex-shrink-0">{formatWon(cat.spent)}</span>
+                  <span className="text-sm text-[var(--hb-text-muted)] flex-shrink-0">{formatWon(cat.spent)}</span>
                 )}
                 <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 bg-[#2E7D5A]">
                   완료
@@ -145,7 +145,7 @@ export default function BudgetTab() {
             );
           })}
           {completed.length === 0 && (
-            <p className="text-sm text-taupe-400 py-2 text-center">아직 완료된 항목이 없습니다</p>
+            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">아직 완료된 항목이 없습니다</p>
           )}
         </div>
       </CollapsibleSection>

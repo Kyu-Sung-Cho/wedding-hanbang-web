@@ -1664,7 +1664,7 @@ function getAmoraSharedActionFailureMessage(
 function getServerCodeFailureMessage(serverCode: string | null): string | null {
   switch (serverCode) {
     case "COST_GUARD_COUPLE_QUOTA":
-      return "베타 기간에 드리는 무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
+      return "무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
     case "COST_GUARD_GLOBAL_DAILY":
       return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_COUPLE_DAILY":
@@ -1672,7 +1672,7 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
     case "COST_GUARD_GLOBAL_BUDGET":
       // "안전 한도" 는 우리 내부 용어이고, 카운터는 한국 시간 자정에 풀리므로
       // "잠시 후" 는 사용자를 헛되이 다시 누르게 만든다. 서버가 이미 고친 문구다.
-      return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요. (베타 기간 한도)";
+      return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_UNAVAILABLE":
       return "아모라 사용량을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.";
     default:
@@ -4035,8 +4035,8 @@ export default function ChatScreen() {
           <View style={st.quotaBar} accessibilityLiveRegion="polite">
             <Text style={st.quotaText}>
               {quotaRemaining > 0
-                ? `베타 무료 상담이 ${quotaRemaining}회 남았어요.`
-                : "베타 무료 상담을 모두 사용했어요."}
+                ? `무료 상담이 ${quotaRemaining}회 남았어요.`
+                : "무료 상담을 모두 사용했어요."}
             </Text>
             <Pressable
               style={({ pressed }) => [st.quotaDismiss, pressed && { opacity: 0.62 }]}

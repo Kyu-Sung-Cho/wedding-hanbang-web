@@ -49,8 +49,8 @@ const ICON_MAP: Record<string, React.ElementType> = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-sage-500",
-  in_progress: "bg-[#795252]",
+  completed: "bg-[var(--hb-success)]",
+  in_progress: "bg-[var(--hb-primary)]",
   not_started: "bg-[#B5ADA3]",
   not_applicable: "bg-[#8b857c]",
 };
@@ -198,20 +198,20 @@ export default function TimelineView({
 
   return (
     <>
-      <p className="mb-3 rounded-[12px] border border-[#eadfc9]/70 bg-[#fffdf7] px-4 py-3 text-[12px] leading-5 text-[#626b69]">
+      <p className="mb-3 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] px-4 py-3 text-[12px] leading-5 text-[#626b69]">
         D-day 구간은 준비 순서를 정리하기 위한 기본 제안입니다. 실제 계약서와 업체·가족과 정한 날짜를
         먼저 따르세요.
       </p>
       {operationError && (
         <p
           role="alert"
-          className="mb-3 rounded-[12px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[12px] leading-5 text-[#8C3E3E]"
+          className="mb-3 rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[12px] leading-5 text-[#8C3E3E]"
         >
           {operationError}
         </p>
       )}
       <div className="relative">
-        <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-[#795252] max-md:left-[15px]" />
+        <div className="absolute left-[19px] top-0 bottom-0 w-[2px] bg-[var(--hb-primary)] max-md:left-[15px]" />
 
       {phases.map((phase, pi) => {
         const isPhaseExpanded = expandedPhase === pi;
@@ -238,15 +238,15 @@ export default function TimelineView({
             <div
               className={`absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] ${
                 allPhaseDone
-                  ? "border-sage-500 bg-sage-500"
+                  ? "border-sage-500 bg-[var(--hb-success)]"
                   : phaseStats.done > 0
-                  ? "border-[#795252] bg-white"
+                  ? "border-[var(--hb-hairline)] bg-white"
                   : "border-[#B5ADA3] bg-white"
                 } max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]`}
             />
 
             {/* 페이즈 카드 */}
-            <div className="w-full overflow-hidden rounded-[14px] border border-[#eadfc9]/70 bg-white shadow-[0_6px_18px_rgba(8,22,38,0.03)] transition-shadow hover:shadow-[0_8px_24px_rgba(8,22,38,0.055)]">
+            <div className="w-full overflow-hidden rounded-[6px] border border-[var(--hb-hairline)]/70 bg-white shadow-[var(--shadow-raised)] transition-shadow hover:shadow-[var(--shadow-raised)]">
               {/* 페이즈 헤더 */}
               <button
                 type="button"
@@ -257,24 +257,24 @@ export default function TimelineView({
                 className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left sm:px-5"
               >
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-                  <span className="shrink-0 rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[#36534E]">
+                  <span className="shrink-0 rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[var(--hb-text-strong)]">
                     {phase.dday}
                   </span>
-                  <span className="min-w-0 text-[15px] font-semibold text-[#071629] sm:text-[16px]">
+                  <span className="min-w-0 text-[15px] font-semibold text-[var(--hb-text-strong)] sm:text-[16px]">
                     {phase.label}
                   </span>
-                  <span className="shrink-0 text-[12px] font-medium text-[#7a8290]">
+                  <span className="shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">
                     기본 제안 · {phase.period}
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-[12px] font-medium text-[#7a8290]">
+                  <span className="text-[12px] font-medium text-[var(--hb-text-body)]">
                     {phaseStats.done}/{phaseStats.total}
                   </span>
                   {isPhaseExpanded ? (
-                    <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
+                    <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" />
                   ) : (
-                    <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
+                    <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />
                   )}
                 </div>
               </button>
@@ -306,15 +306,15 @@ export default function TimelineView({
                                 isCatExpanded ? null : cat.key
                               )
                             }
-                            className="flex w-full items-center gap-3 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-[#FAFAF8] sm:px-3"
+                            className="flex w-full items-center gap-3 rounded-[6px] px-2 py-2.5 text-left transition-colors hover:bg-[#FAFAF8] sm:px-3"
                           >
-                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[12px] bg-[#f7f3ec]">
-                              <Icon className="h-4 w-4 text-[#36534E]" />
+                            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#f7f3ec]">
+                              <Icon className="h-4 w-4 text-[var(--hb-text-strong)]" />
                             </div>
 
                             <div className="flex-1 min-w-0 text-left">
                               <div className="mb-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                                <span className="min-w-0 text-[14px] font-semibold text-[#071629]">
+                                <span className="min-w-0 text-[14px] font-semibold text-[var(--hb-text-strong)]">
                                   {cat.label}
                                 </span>
                                 <span
@@ -327,7 +327,7 @@ export default function TimelineView({
                                     : `${STATUS_LABELS[data.status]}으로 입력`}
                                 </span>
                                 {scheduledEvent && (
-                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[#36534E]/10 px-2 py-0.5 text-[11px] font-semibold text-[#36534E]">
+                                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--hb-primary)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-strong)]">
                                     <CalendarDays className="h-3 w-3" />
                                     {getScheduleEventStatus(scheduledEvent) === "completed"
                                       ? "완료"
@@ -335,7 +335,7 @@ export default function TimelineView({
                                   </span>
                                 )}
                                 {scheduledEvent && (
-                                  <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                                  <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-body)]">
                                     {getScheduleEventAssigneeLabel(
                                       scheduledEvent.assignee,
                                       assigneeContext,
@@ -347,16 +347,16 @@ export default function TimelineView({
                                 <div className="flex items-center gap-2">
                                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#efe6d7]">
                                     <div
-                                      className="h-full rounded-full bg-[#36534E] transition-all duration-500"
+                                      className="h-full rounded-full bg-[var(--hb-primary)] transition-all duration-500"
                                       style={{ width: `${percent}%` }}
                                     />
                                   </div>
-                                  <span className="flex-shrink-0 text-[12px] font-medium text-[#7a8290]">
+                                  <span className="flex-shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">
                                     {data.done}/{data.total}
                                   </span>
                                 </div>
                               ) : (
-                                <span className="text-[12px] font-medium text-[#7a8290]">
+                                <span className="text-[12px] font-medium text-[var(--hb-text-body)]">
                                   세부 항목 확인 전
                                 </span>
                               )}
@@ -364,9 +364,9 @@ export default function TimelineView({
 
                             <div className="flex-shrink-0">
                               {isCatExpanded ? (
-                                <ChevronUp className="w-5 h-5 text-[#B5ADA3]" />
+                                <ChevronUp className="w-5 h-5 text-[var(--hb-text-muted)]" />
                               ) : (
-                                <ChevronDown className="w-5 h-5 text-[#B5ADA3]" />
+                                <ChevronDown className="w-5 h-5 text-[var(--hb-text-muted)]" />
                               )}
                             </div>
                           </button>
@@ -376,9 +376,9 @@ export default function TimelineView({
                             <div
                               className="overflow-hidden"
                             >
-                              <div className="mb-2 ml-10 mr-1 mt-1 border-l-2 border-[#36534E]/15 pl-3 sm:ml-12">
+                              <div className="mb-2 ml-10 mr-1 mt-1 border-l-2 border-[var(--hb-primary)]/15 pl-3 sm:ml-12">
                                 {scheduledEvent?.completionCriteria && (
-                                  <p className="mb-2 rounded-lg bg-[#f7faf6] px-3 py-2 text-[12px] font-medium leading-5 text-[#526056]">
+                                  <p className="mb-2 rounded-[6px] bg-[#f7faf6] px-3 py-2 text-[12px] font-medium leading-5 text-[#526056]">
                                     완료 기준 · {scheduledEvent.completionCriteria}
                                   </p>
                                 )}
@@ -398,7 +398,7 @@ export default function TimelineView({
                                     onClick={() =>
                                       handleToggle(cat.key, item)
                                     }
-                                    className={`-mx-2 flex w-full items-start gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-[#FAFAF8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed ${
+                                    className={`-mx-2 flex w-full items-start gap-2.5 rounded-[6px] px-2 py-2 text-left transition-colors hover:bg-[#FAFAF8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed ${
                                       togglingItem === item.id
                                         ? "opacity-50 pointer-events-none"
                                         : data.excluded
@@ -408,11 +408,11 @@ export default function TimelineView({
                                   >
                                     <div className="flex-shrink-0">
                                       {item.done ? (
-                                        <div className="flex h-5 w-5 rounded-full bg-[#36534E] items-center justify-center">
+                                        <div className="flex h-5 w-5 rounded-full bg-[var(--hb-primary)] items-center justify-center">
                                           <Check className="w-4 h-4 text-white" />
                                         </div>
                                       ) : (
-                                        <div className="h-5 w-5 rounded-full border-2 border-[#B5ADA3] transition-colors hover:border-[#36534E]" />
+                                        <div className="h-5 w-5 rounded-full border-2 border-[#B5ADA3] transition-colors hover:border-[var(--hb-primary)]" />
                                       )}
                                     </div>
                                     <ChecklistItemText
@@ -421,8 +421,8 @@ export default function TimelineView({
                                       compact
                                       labelClassName={`text-[14px] leading-snug ${
                                         item.done
-                                          ? "text-[#B5ADA3] line-through"
-                                          : "text-[#504444]"
+                                          ? "text-[var(--hb-text-muted)] line-through"
+                                          : "text-[var(--hb-text-body)]"
                                       }`}
                                     />
                                   </button>
@@ -452,18 +452,18 @@ export default function TimelineView({
           <div
             className="relative pl-12 mb-4 max-md:pl-10 animate-fade-in"
           >
-            <div className="absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] border-[#C9A96E] bg-white max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]" />
-            <div className="w-full bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] overflow-hidden">
+            <div className="absolute left-[12px] top-[22px] w-[16px] h-[16px] rounded-full border-[3px] border-[var(--hb-accent)] bg-white max-md:left-[8px] max-md:w-[14px] max-md:h-[14px]" />
+            <div className="w-full bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden">
               <div className="flex items-center justify-between px-6 py-5">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-[#C9A96E] bg-[#C9A96E]/10 px-2.5 py-1 rounded-full font-medium">내 일정</span>
-                  <span className="font-serif-kr text-[18px] font-light text-[#1A1A1F]">직접 추가한 일정</span>
-                  <span className="text-sm text-[#B5ADA3]">{uncategorized.length}건</span>
+                  <span className="text-sm text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.12)] px-2.5 py-1 rounded-full font-medium">내 일정</span>
+                  <span className="font-serif-kr text-[18px] font-light text-[var(--hb-text-strong)]">직접 추가한 일정</span>
+                  <span className="text-sm text-[var(--hb-text-muted)]">{uncategorized.length}건</span>
                 </div>
                 {onAddEvent && (
                   <button
                     onClick={onAddEvent}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-[#795252] bg-[#795252]/5 hover:bg-[#795252]/10 transition-colors"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-[6px] text-sm font-medium text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)] bg-[#f3e9df] transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     일정 추가
@@ -473,34 +473,34 @@ export default function TimelineView({
               {uncategorized.length > 0 && (
                 <div className="border-t border-[#F6F3F2] px-4 pb-4">
                   {uncategorized.map(evt => (
-                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2.5 rounded-lg hover:bg-[#FAFAF8] group">
-                      <div className="w-10 h-10 rounded-xl bg-[#C9A96E]/10 flex items-center justify-center flex-shrink-0">
-                        <CalendarDays className="w-5 h-5 text-[#C9A96E]" />
+                    <div key={evt.id} className="flex items-center gap-3 mt-3 px-3 py-2.5 rounded-[6px] hover:bg-[#FAFAF8] group">
+                      <div className="w-10 h-10 rounded-[6px] bg-[rgba(54,83,78,0.12)] flex items-center justify-center flex-shrink-0">
+                        <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)]" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-1.5">
                           <p
                             className={`font-serif-kr text-base font-normal ${
                               getScheduleEventStatus(evt) === "completed"
-                                ? "text-[#6D806E] line-through"
-                                : "text-[#1A1A1F]"
+                                ? "text-[var(--hb-success)] line-through"
+                                : "text-[var(--hb-text-strong)]"
                             }`}
                           >
                             {evt.title}
                           </p>
-                          <span className="rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                          <span className="rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-body)]">
                             {getScheduleEventStatus(evt) === "completed"
                               ? "완료"
                               : "예정"}
                           </span>
-                          <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[#5d6879]">
+                          <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-body)]">
                             {getScheduleEventAssigneeLabel(
                               evt.assignee,
                               assigneeContext,
                             )}
                           </span>
                         </div>
-                        <p className="text-sm text-[#7a8290]">
+                        <p className="text-sm text-[var(--hb-text-body)]">
                           {evt.date}
                           {evt.time ? ` · ${evt.time}` : ""}
                           {sanitizeUserFacingScheduleMemo(evt.memo)
@@ -521,7 +521,7 @@ export default function TimelineView({
                               type="button"
                               onClick={() => void confirmCancelEvent(evt.id)}
                               disabled={Boolean(cancellingEventId)}
-                              className="min-h-11 rounded-lg bg-[#36534E] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2d4642] disabled:opacity-50"
+                              className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white hover:bg-[#2d4642] disabled:opacity-50"
                             >
                               {cancellingEventId === evt.id ? "요청 중..." : "취소 요청 보내기"}
                             </button>
@@ -529,7 +529,7 @@ export default function TimelineView({
                               type="button"
                               onClick={() => setPendingCancelEventId(null)}
                               disabled={Boolean(cancellingEventId)}
-                              className="min-h-11 rounded-lg bg-[#f6f3f2] px-3 py-2 text-xs font-semibold text-[#504444] hover:bg-[#EFEBEA] disabled:opacity-50"
+                              className="min-h-11 rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] hover:bg-[#EFEBEA] disabled:opacity-50"
                             >
                               닫기
                             </button>
@@ -541,7 +541,7 @@ export default function TimelineView({
                                 type="button"
                                 aria-label={`${evt.title} 일정 수정`}
                                 onClick={() => onEditEvent(evt)}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] hover:bg-[#f6f3f2] hover:text-[#795252]"
+                                className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
                               >
                                 <Pencil className="w-4 h-4" />
                               </button>
@@ -551,7 +551,7 @@ export default function TimelineView({
                                 type="button"
                                 aria-label={`${evt.title} 일정 취소 요청`}
                                 onClick={() => setPendingCancelEventId(evt.id)}
-                                className="flex h-11 w-11 items-center justify-center rounded-lg text-[#8f857b] hover:bg-[#f7f3ec] hover:text-[#36534E]"
+                                className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] hover:bg-[#f7f3ec] hover:text-[var(--hb-text-strong)]"
                               >
                                 <Ban className="h-4 w-4" />
                               </button>

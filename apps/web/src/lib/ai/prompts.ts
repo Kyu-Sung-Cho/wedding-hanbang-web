@@ -323,9 +323,23 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   const neutralMembers = context.neutralMemberPresentation === true;
   const partnerDirected = partnerDirectedPrefixes(neutralMembers).join(" / ");
   const amoraDirectedExample = amoraDirectedExamplePrefix(neutralMembers);
+  // 날짜가 미정이면 **연도를 지어내지 말라고 함께 적는다.**
+  //
+  // 2026-08-24 팀 테스트: 사용자가 "내년 가을쯤"이라고 말했고 아모라도 그 턴에서는
+  // "2027년 9~11월"이라고 맞게 받았다. 그런데 열일곱 턴 뒤 "9월보다 10월이 더 좋아"
+  // 라는 말에 **"예식장에 문의할 때는 2026년 10월 후보 날짜를 전달하세요"** 라고
+  // 답했다. 사용자는 예식 연도가 1년 틀린 채로 업체에 문의하게 된다.
+  //
+  // 원인은 저장할 자리가 없다는 것이다. `update_wedding_date` 는 `YYYY-MM-DD` 를
+  // 강제해서 "2027년 가을" 같은 대략의 시기를 넣을 수 없고, 그래서 그 조건은 대화문
+  // 에만 남았다가 길이 제한에 밀려 사라졌다. 그 뒤 모델은 "10월"을 **가장 가까운
+  // 10월**로 읽었다.
+  //
+  // 시기를 저장하는 자리를 만드는 것은 스키마 변경이라 여기서 하지 않는다. 대신
+  // **모르면 단정하지 않게** 한다 — 틀린 연도를 말하는 것보다 되묻는 편이 낫다.
   const dateInfo = context.weddingDate
     ? `결혼 예정일: ${promptData(context.weddingDate, 40)}`
-    : "결혼 날짜: 아직 미정";
+    : "결혼 날짜: 아직 미정 (사용자가 직접 말한 연도만 쓰고, 월·계절만 들었을 때 연도를 스스로 정하지 마세요)";
 
   // 예식이 연기되거나 취소된 사람에게 남은 날짜를 세어 보여주지 않는다.
   // 상태를 바꾸는 것은 언제나 사용자이고, 아모라가 추측해서 바꾸지 않는다.
