@@ -221,7 +221,7 @@ export default function CalendarView({
                           <p
                             className={`font-serif-kr text-base font-normal ${
                               isCompleted
-                                ? "text-[#6D806E] line-through"
+                                ? "text-[var(--hb-success)] line-through"
                                 : "text-[var(--hb-text-strong)]"
                             }`}
                           >

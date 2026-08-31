@@ -505,7 +505,7 @@ export function DecisionOutcomeReviewQueue() {
           </section>
         ) : items.length === 0 ? (
           <section className="border border-dashed border-[#C7D1C2] bg-white px-6 py-16 text-center">
-            <FileCheck2 className="mx-auto h-8 w-8 text-[#6D806E]" aria-hidden="true" />
+            <FileCheck2 className="mx-auto h-8 w-8 text-[var(--hb-success)]" aria-hidden="true" />
             <h2 className="mt-3 text-lg font-semibold">현재 공개 검수 대기 결과가 없습니다.</h2>
             <p className="mt-2 text-sm leading-6 text-[#6F6A62]">
               새 공개 요청이 들어오면 원문과 근거를 확인한 뒤 이곳에서 처리할 수 있습니다.

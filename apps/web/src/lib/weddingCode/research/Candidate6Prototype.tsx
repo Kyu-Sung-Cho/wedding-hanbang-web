@@ -475,7 +475,7 @@ export function Candidate6Prototype({
                 {currentItem.prompt}
               </h1>
               <div className="mt-3 flex gap-3 rounded-[6px] border border-[#C7D1C2] bg-[#F7F1E8] px-3 py-2.5 sm:px-4 sm:py-3.5">
-                <ShieldCheck aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[#6D806E]" />
+                <ShieldCheck aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[var(--hb-success)]" />
                 <p className="text-[13px] font-medium leading-[1.55] text-[#36534E] sm:text-[14px] sm:leading-[1.65]">
                   <span className="font-semibold">이 장면의 약속:</span> {currentItem.premise}
                 </p>

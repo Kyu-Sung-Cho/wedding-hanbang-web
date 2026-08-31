@@ -33,7 +33,7 @@ export function AmoraQuickStart({
           >
             지금 어떤 도움부터 받을까요?
           </h2>
-          <p className="mt-1 text-sm leading-relaxed text-[#6D806E]">
+          <p className="mt-1 text-sm leading-relaxed text-[var(--hb-success)]">
             하나만 고르면 아모라가 설명보다 실제 도움을 먼저 보여드려요.
           </p>
         </div>
@@ -51,7 +51,7 @@ export function AmoraQuickStart({
             <span className="block text-sm font-semibold text-[var(--hb-text-strong)]">
               {option.label}
             </span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-[#6D806E]">
+            <span className="mt-0.5 block text-xs leading-relaxed text-[var(--hb-success)]">
               {option.description}
             </span>
           </button>
@@ -86,7 +86,7 @@ export function AmoraPersonalizationConfirmation({
       className="ml-11 mt-2 max-w-[53.75rem] border-l-2 border-[#C7D1C2] py-1 pl-4 sm:ml-14"
     >
       <div className="flex items-start gap-2">
-        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#6D806E]" />
+        <Check className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--hb-success)]" />
         <div className="min-w-0">
           <h2
             id="amora-personalization-confirm-title"
@@ -94,7 +94,7 @@ export function AmoraPersonalizationConfirmation({
           >
             {option.confirmation}
           </h2>
-          <p className="mt-1 text-xs leading-relaxed text-[#6D806E]">
+          <p className="mt-1 text-xs leading-relaxed text-[var(--hb-success)]">
             지금 고른 문장과 답변은 함께 대화에 보여요. 저장하면 내 아모라의
             답변 방식에만 사용하고, 설정값 자체는 상대방과 공유하지 않아요.
           </p>

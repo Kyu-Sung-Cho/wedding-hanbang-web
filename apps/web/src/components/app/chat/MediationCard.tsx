@@ -243,7 +243,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
           )}
 
           {acceptance && !acceptance.completed && acceptance.partnerLinked !== false && (
-            <p className="mt-2 text-center text-xs text-[#6D806E]">
+            <p className="mt-2 text-center text-xs text-[var(--hb-success)]">
               {acceptance.acceptedCount}/{acceptance.requiredCount}명 확인 · 두 분 모두 확인해야 공동 결정으로 저장돼요
             </p>
           )}

@@ -137,14 +137,14 @@ function serverErrorMessage(body: unknown): string {
 function SummaryMetric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-[6px] border border-[#E2D3C8] bg-white px-3 py-2">
-      <span className="text-xs text-[#6D806E]">{label}</span>
+      <span className="text-xs text-[var(--hb-success)]">{label}</span>
       <strong className="ml-1 text-sm text-[var(--hb-text-strong)]">{value}</strong>
     </div>
   );
 }
 
 const tableClassName = "w-full min-w-[540px] border-collapse text-left text-sm";
-const headingCellClassName = "border-b border-[#E2D3C8] bg-[var(--hb-surface-page)] px-3 py-2 text-xs font-bold text-[#6D806E]";
+const headingCellClassName = "border-b border-[#E2D3C8] bg-[var(--hb-surface-page)] px-3 py-2 text-xs font-bold text-[var(--hb-success)]";
 const bodyCellClassName = "border-b border-[var(--hb-hairline)] px-3 py-2 align-top text-[var(--hb-text-strong)]";
 export function PriceUploadPanel() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -239,7 +239,7 @@ export function PriceUploadPanel() {
         <div>
           <p className="text-xs font-bold tracking-wide text-[var(--color-rose-700)]">MANUAL DISCLOSURE INGEST</p>
           <h2 id="price-upload-title" className="mt-1 text-lg font-bold text-[var(--hb-text-strong)]">공시 JSON 적재</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-6 text-[#6D806E]">
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-[var(--hb-success)]">
             검수할 공시 JSON 파일을 선택하세요. JSON 파일만 가능하며 파일 크기는 2MiB 이하여야 합니다.
           </p>
         </div>
@@ -263,11 +263,11 @@ export function PriceUploadPanel() {
           aria-describedby="price-upload-help"
           className="mt-2 block w-full text-sm text-[var(--hb-text-strong)] file:mr-3 file:min-h-10 file:rounded-[6px] file:border-0 file:bg-[var(--hb-primary)] file:px-4 file:font-semibold file:text-white"
         />
-        <p id="price-upload-help" className="mt-2 text-xs leading-5 text-[#6D806E]">
+        <p id="price-upload-help" className="mt-2 text-xs leading-5 text-[var(--hb-success)]">
           파일은 브라우저에서 먼저 형식과 2MiB 제한을 확인한 뒤 서버의 전체 스키마 검증을 거칩니다.
         </p>
         {error && <p className="mt-3 whitespace-pre-line rounded-[6px] bg-[#D95F5F]/10 px-4 py-3 text-sm text-[#8A3030]" role="alert">{error}</p>}
-        {validating && <p className="mt-3 text-sm text-[#6D806E]" role="status" aria-live="polite">JSON 파일을 확인하는 중…</p>}
+        {validating && <p className="mt-3 text-sm text-[var(--hb-success)]" role="status" aria-live="polite">JSON 파일을 확인하는 중…</p>}
         {selectedFile && !validating && (
           <p className="mt-3 text-sm text-[var(--hb-text-strong)]">
             선택됨 · <strong>{selectedFile.name}</strong> · {(selectedFile.size / 1024).toFixed(1)}KiB

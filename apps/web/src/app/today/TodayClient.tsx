@@ -294,7 +294,7 @@ export function CardFace({ card }: { card: TodayCard }) {
 
       {card.check ? (
         <div className="mt-4 rounded-[6px] bg-[var(--hb-surface-hover)] px-4 py-3">
-          <p className="text-[12px] font-semibold text-[#6D806E]">계약 전 확인할 것</p>
+          <p className="text-[12px] font-semibold text-[var(--hb-success)]">계약 전 확인할 것</p>
           <p className="mt-1 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-strong)]">
             {card.check}
           </p>

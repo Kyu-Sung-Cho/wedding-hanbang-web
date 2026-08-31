@@ -74,7 +74,7 @@ export default function DailyAmoraFocusBridge({
         {partnerLinked ? "오늘 할 일 같이 나누기" : "오늘 한 가지 시작하기"}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Link>
-      <p className="mt-2 text-[11px] leading-relaxed text-[#6D806E]">
+      <p className="mt-2 text-[11px] leading-relaxed text-[var(--hb-success)]">
         {partnerLinked
           ? "두 사람이 함께 보는 대화로 열려요. 개인적인 고민은 채팅의 ‘나만 상담’에서 이야기할 수 있어요."
           : "함께 준비하는 대화로 남아, 파트너가 나중에 합류하면 같이 볼 수 있어요. 개인적인 고민은 채팅의 ‘나만 상담’을 이용해 주세요."}

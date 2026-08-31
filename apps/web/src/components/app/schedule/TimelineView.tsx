@@ -482,7 +482,7 @@ export default function TimelineView({
                           <p
                             className={`font-serif-kr text-base font-normal ${
                               getScheduleEventStatus(evt) === "completed"
-                                ? "text-[#6D806E] line-through"
+                                ? "text-[var(--hb-success)] line-through"
                                 : "text-[var(--hb-text-strong)]"
                             }`}
                           >

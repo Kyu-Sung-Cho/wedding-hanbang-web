@@ -610,7 +610,7 @@ export default function PostDetailClient({
                   </span>
                 )}
                 {post.is_resolved && (
-                  <span className="inline-flex items-center gap-1 text-[#6D806E] mr-2 text-sm font-medium align-middle">
+                  <span className="inline-flex items-center gap-1 text-[var(--hb-success)] mr-2 text-sm font-medium align-middle">
                     <CheckCircle2 className="w-4 h-4" />
                     해결됨
                   </span>

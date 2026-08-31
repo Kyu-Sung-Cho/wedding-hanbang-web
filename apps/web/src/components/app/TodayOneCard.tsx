@@ -311,7 +311,7 @@ export default function TodayOneCard() {
           {view.kind === "paused" ? (
             <Clock3 className="h-5 w-5 shrink-0 text-[#8F6662]" aria-hidden="true" />
           ) : (
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-[#6D806E]" aria-hidden="true" />
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-[var(--hb-success)]" aria-hidden="true" />
           )}
           <div>
             <p className="text-sm font-semibold text-[var(--hb-text-strong)]">아모라 오늘의 한 가지</p>
@@ -350,7 +350,7 @@ export default function TodayOneCard() {
       </div>
 
       <div className="space-y-5 px-5 py-5 md:px-6">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[#6D806E]">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--hb-success)]">
           <time dateTime={view.result.claimedForDate}>
             {formatYmd(view.result.claimedForDate)} 기준
           </time>
@@ -366,7 +366,7 @@ export default function TodayOneCard() {
           <ul className="mt-2 space-y-1.5">
             {card.confirmed.map((item) => (
               <li key={item} className="flex items-start gap-2 text-sm leading-6 text-[var(--hb-text-strong)]">
-                <ConfirmedIcon className="mt-1 h-4 w-4 shrink-0 text-[#6D806E]" aria-hidden="true" />
+                <ConfirmedIcon className="mt-1 h-4 w-4 shrink-0 text-[var(--hb-success)]" aria-hidden="true" />
                 <span>{item}</span>
               </li>
             ))}
@@ -392,7 +392,7 @@ export default function TodayOneCard() {
           </p>
         )}
         {pendingAction && (
-          <p role="status" className="text-xs text-[#6D806E]" aria-live="polite">
+          <p role="status" className="text-xs text-[var(--hb-success)]" aria-live="polite">
             선택을 확인하고 있어요. 응답이 확인되기 전에는 카드를 바꾸지 않아요.
           </p>
         )}

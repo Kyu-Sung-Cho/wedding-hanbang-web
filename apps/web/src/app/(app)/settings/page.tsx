@@ -1152,11 +1152,11 @@ export default function SettingsPage() {
             <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">
               아모라 도움 방식
             </span>
-            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-success)]">
               추천·비교·공감·실행 중 내가 편한 순서를 직접 정해요
             </span>
           </span>
-          <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
+          <span className="hidden items-center gap-1 text-xs font-medium text-[var(--hb-success)] sm:flex">
             <ShieldCheck className="h-4 w-4" />
             나만 적용
           </span>
@@ -1179,11 +1179,11 @@ export default function SettingsPage() {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">아모라가 기억하는 것</span>
-            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[#6D806E]">
+            <span className="mt-0.5 block text-sm font-light leading-relaxed text-[var(--hb-success)]">
               아모라가 무엇을 기억하는지 보고, 잘못 이해한 내용은 고치거나 지울 수 있어요
             </span>
           </span>
-          <span className="hidden items-center gap-1 text-xs font-medium text-[#6D806E] sm:flex">
+          <span className="hidden items-center gap-1 text-xs font-medium text-[var(--hb-success)] sm:flex">
             <ShieldCheck className="h-4 w-4" />
             내 통제
           </span>

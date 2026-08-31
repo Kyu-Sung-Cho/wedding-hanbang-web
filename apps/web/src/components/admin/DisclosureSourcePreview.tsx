@@ -66,7 +66,7 @@ export function DisclosureSourcePreview({
       <div>
         <FileSearch className="mx-auto text-[var(--hb-text-strong)]" aria-hidden="true" />
         <p className="mt-3 font-semibold text-[var(--hb-text-strong)]">{source.label}</p>
-        <p className="mt-2 text-sm leading-6 text-[#6D806E]">
+        <p className="mt-2 text-sm leading-6 text-[var(--hb-success)]">
           이 형식의 파생 텍스트가 없습니다. 원본 파일을 직접 확인해 주세요.
         </p>
         <a
