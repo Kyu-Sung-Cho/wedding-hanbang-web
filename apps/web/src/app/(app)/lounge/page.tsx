@@ -592,7 +592,7 @@ export default function LoungePage() {
               </p>
               <h2
                 id="joined-plan-title"
-                className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[var(--hb-text-strong)] md:text-[30px]"
+                className="mt-1 font-serif-kr text-[var(--hb-text-strong)]"
               >
                 이제 이 계획을 함께 봐요
               </h2>
@@ -653,7 +653,7 @@ export default function LoungePage() {
                 <Sparkles className="h-4 w-4" />
                 {companionCopy.loungeLabel}
               </p>
-              <h1 className="mt-4 font-serif-kr text-[32px] font-medium leading-[1.18] text-[var(--hb-text-strong)] md:text-[42px]">
+              <h1 className="mt-4 font-serif-kr text-[var(--hb-text-strong)]">
                 {companionCopy.statusHeading}
               </h1>
               <p className="mt-2 max-w-[560px] text-[14px] font-medium leading-[1.7] text-[#38475c]">
@@ -707,7 +707,7 @@ export default function LoungePage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <p className="text-[12px] font-semibold text-[#ffffff]">아모라 브리핑</p>
-              <h2 className="mt-1 font-serif-kr text-[27px] font-medium leading-tight">지금 먼저 볼 것</h2>
+              <h2 className="mt-1 font-serif-kr">지금 먼저 볼 것</h2>
             </div>
             <ShieldCheck className="h-6 w-6 text-[#ffffff]" />
           </div>
@@ -753,7 +753,7 @@ export default function LoungePage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">준비 흐름</p>
-              <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">놓치기 쉬운 항목</h2>
+              <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">놓치기 쉬운 항목</h2>
             </div>
             <Link
               {...weddingLinkProps("/schedule")}
@@ -1025,7 +1025,7 @@ function BudgetPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">예산</p>
-          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">기록 지출 현황</h2>
+          <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">기록 지출 현황</h2>
         </div>
         <span className="rounded-full bg-[var(--hb-surface-hover)] px-3 py-1 text-[12px] font-semibold text-[var(--hb-text-strong)]">{tone}</span>
       </div>
@@ -1066,7 +1066,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">일정</p>
-          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">다가오는 예약</h2>
+          <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">다가오는 예약</h2>
         </div>
         <CalendarCheck className="h-5 w-5 text-[var(--hb-text-strong)]" />
       </div>
@@ -1098,7 +1098,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">커뮤니티 참고글</p>
-          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">저장해둔 판단 재료</h2>
+          <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">저장해둔 판단 재료</h2>
         </div>
         <Bookmark className="h-5 w-5 text-[var(--hb-text-strong)]" />
       </div>
@@ -1139,7 +1139,7 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">동기방</p>
-          <h2 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">같은 시기 흐름</h2>
+          <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">같은 시기 흐름</h2>
         </div>
         <Users className="h-5 w-5 text-[var(--hb-text-strong)]" />
       </div>

@@ -69,7 +69,7 @@ export default function CohortCard({
       <div className="rounded-[6px] border border-[#F0EFED] bg-white p-5">
         <div className="mb-3 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-[var(--hb-text-strong)]" />
-          <h3 className="font-serif text-base text-[var(--hb-text-strong)]">
+          <h3 className="font-serif text-[var(--hb-text-strong)]">
             대략 언제쯤 결혼하시나요?
           </h3>
         </div>
@@ -137,7 +137,7 @@ export default function CohortCard({
     >
       <div className="mb-3 flex items-start justify-between">
         <div className="flex-1">
-          <h3 className="font-serif text-base text-white">{room.name}</h3>
+          <h3 className="font-serif text-white">{room.name}</h3>
           <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--hb-text-muted)]">
             <Users className="h-3.5 w-3.5" />
             <span>{room.member_count}명 참여</span>

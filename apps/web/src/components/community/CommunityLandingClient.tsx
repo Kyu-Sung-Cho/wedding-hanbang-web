@@ -629,7 +629,7 @@ function AmoraBlock() {
           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#eef4f1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
             찾은 답을 내 준비에 반영하기
           </span>
-          <h2 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.25] text-[var(--hb-text-strong)] md:text-[30px]">
+          <h2 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
             사람의 경험을 찾았다면,
             <br />
             우리 둘의 계획으로 옮기세요
@@ -673,7 +673,7 @@ function AmoraBlock() {
             <span className="text-[11px] font-semibold text-[var(--color-rose-700)]">경험에서 행동으로</span>
             <h2
               id="decision-start-heading"
-              className="mt-1 font-serif-kr text-[20px] font-medium leading-[1.35] text-[var(--hb-text-strong)]"
+              className="mt-1 font-serif-kr text-[var(--hb-text-strong)]"
             >
               확인한 내용을 어디에 남길까요?
             </h2>
@@ -774,7 +774,7 @@ function WhatWeDo() {
           <span className="text-[11px] font-semibold text-[var(--hb-accent-hover)]">대화에서 끝나지 않아요</span>
           <h2
             id="what-we-do-heading"
-            className="mt-1 font-serif-kr text-[21px] font-medium leading-[1.35] text-[var(--hb-text-strong)]"
+            className="mt-1 font-serif-kr text-[var(--hb-text-strong)]"
           >
             말한 준비가
             <br className="hidden md:block" /> 도구로 이어져요
@@ -851,7 +851,7 @@ function DisclosureHero({ spread }: { spread?: AgencySpreadSummary }) {
               한국소비자원 참가격 · {disclosureRoundLabel()} 공시
             </span>
 
-            <h2 className="mt-3 font-serif-kr text-[28px] font-medium leading-[1.28] text-white md:text-[36px]">
+            <h2 className="mt-3 font-serif-kr text-white">
               같은 업체인데,
               <br />
               대행사마다 가격이 다릅니다
@@ -1012,7 +1012,7 @@ function SearchHub({
               </span>
               <h1
                 id="community-search-heading"
-                className="mt-0.5 whitespace-nowrap font-serif-kr !text-[22px] font-medium leading-[1.25] text-[var(--hb-text-strong)] md:!text-[24px]"
+                className="mt-0.5 whitespace-nowrap font-serif-kr ! text-[var(--hb-text-strong)] md:!"
               >
                 결혼 준비 이야기
               </h1>
@@ -1123,7 +1123,7 @@ function SearchHub({
           <span className="text-[11px] font-semibold tracking-[0.08em] text-[var(--color-rose-700)]">결혼 준비 결정 커뮤니티</span>
           <h1
             id="community-search-heading"
-            className="mt-2 font-serif-kr text-[29px] font-medium leading-[1.24] tracking-[-0.025em] text-[var(--hb-text-strong)] sm:text-[34px] md:text-[40px]"
+            className="mt-2 font-serif-kr text-[var(--hb-text-strong)]"
           >
             계약하기 전에,
             <br className="sm:hidden" /> 먼저 겪은 사람에게 확인하세요.
@@ -1447,9 +1447,9 @@ function LatestPosts({
       >
         <div>
           <h2
-            className={`font-serif-kr font-medium leading-[1.3] text-[var(--hb-text-strong)] ${
-              feedFirst ? "text-[19px] sm:text-[22px]" : "text-[21px] sm:text-[22px]"
-            }`}
+            className={`font-serif-kr text-[var(--hb-text-strong)] ${
+ feedFirst ? " " : " "
+ }`}
           >
             {feedTitle}
           </h2>
@@ -1597,7 +1597,7 @@ function LatestPosts({
             <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4f1] text-[var(--hb-text-strong)]">
               <Search className="h-5 w-5" />
             </span>
-            <h3 className="mt-4 font-serif-kr text-[19px] font-medium text-[var(--hb-text-strong)]">
+            <h3 className="mt-4 font-serif-kr text-[var(--hb-text-strong)]">
               아직 같은 상황의 공개 경험을 찾지 못했어요
             </h3>
             <p className="mx-auto mt-2 max-w-lg text-[13px] font-medium leading-[1.7] text-[#6f7886]">
@@ -1712,7 +1712,7 @@ function StatusFeedEmptyState({
       <span className="inline-flex rounded-full bg-[#eef4f1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
         {content.eyebrow}
       </span>
-      <h3 className="mt-3 font-serif-kr text-[20px] font-medium text-[var(--hb-text-strong)] sm:text-[22px]">
+      <h3 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
         {content.title}
       </h3>
       <p className="mt-2 max-w-xl text-[13px] font-medium leading-[1.7] text-[#6f7886]">
@@ -1916,7 +1916,7 @@ function CommunityPostRow({ post, priority }: { post: PostWithAuthor; priority?:
           </div>
           <span suppressHydrationWarning className="shrink-0 pt-0.5">{timeAgo(post.created_at)}</span>
         </div>
-        <h3 className="mt-2 line-clamp-2 break-words font-serif-kr text-[16.5px] font-medium leading-[1.38] text-[var(--hb-text-strong)] [overflow-wrap:anywhere] sm:text-[17px]">
+        <h3 className="mt-2 line-clamp-2 break-words font-serif-kr text-[var(--hb-text-strong)] [overflow-wrap:anywhere]">
           {post.title}
         </h3>
         {contentPreview && (
@@ -2102,7 +2102,7 @@ function BestPostsPanel() {
   return (
     <article className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-6 shadow-[var(--shadow-raised)]">
       <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
+        <h2 className="font-serif-kr text-[var(--hb-text-strong)]">
           {title} <Flame className="inline h-5 w-5 fill-[#f26a3d] text-[#f26a3d]" />
         </h2>
         <Link {...weddingLinkProps(moreHref)} className="text-[13px] font-medium text-[var(--hb-accent-hover)]">
@@ -2146,7 +2146,7 @@ function AmoraSidebarPanel() {
       <span className="inline-flex rounded-full bg-white/78 px-3 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
         아모라에게 묻기
       </span>
-      <h2 className="mt-3 font-serif-kr text-[22px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
+      <h2 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
         찾은 답을 준비에 반영하기
       </h2>
       <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
@@ -2184,7 +2184,7 @@ function MarketSnapshotPanel() {
       <span className="inline-flex rounded-full bg-[var(--hb-surface-hover)] px-3 py-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
         출처·기준 시점 공개
       </span>
-      <h2 className="mt-2 font-serif-kr text-[22px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">
+      <h2 className="mt-2 font-serif-kr text-[var(--hb-text-strong)]">
         업체별 공시가 비교
       </h2>
       <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-body)]">
@@ -2296,7 +2296,7 @@ function CohortPreviewPanel() {
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h2 className="font-serif-kr text-[24px] font-medium leading-[1.35] text-[var(--hb-text-strong)]">동기방 함께 준비해요.</h2>
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)]">동기방 함께 준비해요.</h2>
           <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
             비슷한 시기에 결혼을 준비하는 분들과 질문과 후기를 나눠요.
           </p>

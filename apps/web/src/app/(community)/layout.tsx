@@ -164,7 +164,7 @@ function CommunityFooter() {
 function FooterColumn({ title, items }: { title: string; items: Array<{ label: string; href: string }> }) {
   return (
     <div>
-      <h3 className="mb-3 text-[14px] font-semibold text-white">{title}</h3>
+      <h3 className="mb-3 text-white">{title}</h3>
       <div className="flex flex-col gap-2">
         {items.map((item) => {
           const linkProps = item.href === WEDDING_BASE_PATH || item.href.startsWith(`${WEDDING_BASE_PATH}/`)

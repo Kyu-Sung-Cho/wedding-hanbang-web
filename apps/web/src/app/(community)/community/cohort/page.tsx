@@ -34,7 +34,7 @@ function LoadingState() {
             <Users className="h-4 w-4" />
             Wedding Cohort Lounge
           </div>
-          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[var(--hb-text-strong)] sm:text-[38px]">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             같은 시기 예비부부와
             <br />
             함께 준비하는 방
@@ -227,7 +227,7 @@ function CohortIndexInner() {
             <Users className="h-4 w-4" />
             {selectedLabel ?? "Wedding Cohort Lounge"}
           </div>
-          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[var(--hb-text-strong)] sm:text-[38px]">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             같은 시기 예비부부와
             <br />
             함께 준비하는 방

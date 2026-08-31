@@ -220,7 +220,7 @@ export default function PollEditor({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <BarChart3 className="w-5 h-5 text-[var(--hb-text-strong)]" />
-          <h3 className="text-base font-medium text-[var(--hb-text-strong)]">투표</h3>
+          <h3 className="text-[var(--hb-text-strong)]">투표</h3>
         </div>
         <button
           type="button"

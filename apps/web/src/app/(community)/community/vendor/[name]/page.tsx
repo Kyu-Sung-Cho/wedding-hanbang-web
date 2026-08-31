@@ -182,7 +182,7 @@ export default function VendorDetailPage() {
       </section>
 
       <section className="mb-6 border-y border-[#F0EFED] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-6">
-        <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
+        <h2 className="text-[var(--hb-text-strong)]">
           이 업체 정보를 확인할 때
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
@@ -210,7 +210,7 @@ export default function VendorDetailPage() {
 
       {/* ─── 관련 게시글 ─── */}
       <section className="mt-10">
-        <h2 className="font-serif text-xl font-medium text-[var(--hb-text-strong)] mb-4">
+        <h2 className="font-serif text-[var(--hb-text-strong)] mb-4">
           관련 게시글{" "}
           {posts.length > 0 && <span className="text-[var(--hb-text-strong)]">{posts.length}</span>}
         </h2>
@@ -249,7 +249,7 @@ export default function VendorDetailPage() {
                       </>
                     )}
                   </div>
-                  <h3 className="text-lg font-medium text-[var(--hb-text-strong)] mb-1">{post.title}</h3>
+                  <h3 className="text-[var(--hb-text-strong)] mb-1">{post.title}</h3>
                   {preview && (
                     <p className="text-sm text-[#878680] line-clamp-2">{preview}</p>
                   )}

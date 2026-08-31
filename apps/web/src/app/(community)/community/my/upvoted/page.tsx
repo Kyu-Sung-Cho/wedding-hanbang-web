@@ -80,7 +80,7 @@ export default function MyUpvotedPage() {
         </Link>
         <div className="flex items-center gap-2">
           <ThumbsUp className="w-5 h-5 text-[#2E7D5A]" />
-          <h1 className="font-serif-kr text-[20px] text-[var(--hb-text-strong)]">좋아요한 글</h1>
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">좋아요한 글</h1>
           {!loading && total > 0 && (
             <span className="ml-1 px-2 py-0.5 rounded-full bg-[#2E7D5A]/10 text-[#2E7D5A] text-[12px] font-medium">
               {total}

@@ -163,7 +163,7 @@ export default function MediationCard({ block, messageId }: { block: MediationBl
           <div key={section.key} className="px-4 py-3.5">
             <div className="flex items-center gap-2 text-[#566A61]">
               <section.Icon className="h-4 w-4" aria-hidden="true" />
-              <h3 className="text-xs font-semibold">{section.title}</h3>
+              <h3>{section.title}</h3>
             </div>
             <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-[#2B2A29]">
               {section.text}

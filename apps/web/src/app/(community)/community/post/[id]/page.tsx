@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 function PostDetailNotice({ title, body }: { title: string; body: string }) {
   return (
     <div className="mx-auto w-full max-w-[760px] px-4 py-14 sm:px-6">
-      <h1 className="font-serif-kr text-[26px] font-normal leading-snug text-[var(--hb-text-strong)]">
+      <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
         {title}
       </h1>
       <p className="mt-3 text-[14px] leading-[1.8] text-[var(--hb-text-body)]">{body}</p>

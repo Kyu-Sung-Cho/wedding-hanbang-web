@@ -54,7 +54,7 @@ function SlideEmpathy() {
         ))}
       </div>
 
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] mb-2 sm:mb-3 leading-snug">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-2 sm:mb-3">
         혼자 고민하지 마세요
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] font-light leading-relaxed max-w-[340px]">
@@ -341,7 +341,7 @@ function SlideAmora() {
 function SlideHowToUse() {
   return (
     <div className="flex flex-col items-center px-6">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] mb-4 sm:mb-6 leading-snug">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-4 sm:mb-6">
         이렇게 활용하세요
       </h2>
 
@@ -429,7 +429,7 @@ function SlideStart({ onClose }: { onClose: () => void }) {
         <Shield className="w-8 h-8 text-white" />
       </div>
 
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] mb-4 sm:mb-5 leading-snug">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-4 sm:mb-5">
         우리의 약속
       </h2>
 

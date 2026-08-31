@@ -87,7 +87,7 @@ export default function CalendarView({
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h3 className="font-serif-kr text-[20px] font-light text-[var(--hb-text-strong)]">
+        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
           {format(currentMonth, "yyyy년 M월", { locale: ko })}
         </h3>
         <button

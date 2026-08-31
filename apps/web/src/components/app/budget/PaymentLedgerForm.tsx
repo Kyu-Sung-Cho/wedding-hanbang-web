@@ -210,7 +210,7 @@ export default function PaymentLedgerForm({
     >
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-base font-semibold text-[var(--hb-text-strong)]">
+          <h3 className="text-[var(--hb-text-strong)]">
             {entry ? "계약·지급 기록 수정" : "계약·지급 기록 추가"}
           </h3>
           <p className="mt-1 text-xs leading-5 text-[#6F6760]">

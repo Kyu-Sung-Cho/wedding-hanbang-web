@@ -305,7 +305,7 @@ export default function AmoraMemorySettingsPage() {
         </Link>
         <div className="min-w-0">
           <p className="text-xs font-semibold tracking-[0.16em] text-[var(--color-rose-700)]">AMORA MEMORY</p>
-          <h1 className="text-2xl font-semibold text-[var(--hb-text-strong)] sm:text-3xl">아모라가 기억하는 것</h1>
+          <h1 className="text-[var(--hb-text-strong)]">아모라가 기억하는 것</h1>
         </div>
       </div>
 
@@ -315,7 +315,7 @@ export default function AmoraMemorySettingsPage() {
             <BrainCircuit className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">기억의 주인은 두 분이에요</h2>
+            <h2 className="text-[var(--hb-text-strong)]">기억의 주인은 두 분이에요</h2>
             <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-strong)]">
               켜 두면 대화에서 직접 확정한 선택과 취향을 정리해 다음 상담에 활용해요. 틀린 내용은 고치고, 원치 않는 기억은 언제든 지울 수 있어요.
             </p>
@@ -377,7 +377,7 @@ export default function AmoraMemorySettingsPage() {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   {activeVisibility === "shared" ? <Users className="h-4 w-4 text-[var(--hb-accent-hover)]" /> : <Eye className="h-4 w-4 text-[var(--hb-accent-hover)]" />}
-                  <h2 className="font-medium text-[var(--hb-text-strong)]">
+                  <h2 className="text-[var(--hb-text-strong)]">
                     {activeVisibility === "shared" ? "내 공유 기억 동의" : "나만 상담 기억"}
                   </h2>
                 </div>
@@ -427,7 +427,7 @@ export default function AmoraMemorySettingsPage() {
             <section className="mb-5 rounded-[6px] border border-[#E8DDD3] bg-[#fffdfb] p-5 sm:p-6">
               <div className="mb-3 flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-[#2E7D5A]" />
-                <h2 className="font-medium text-[var(--hb-text-strong)]">상담할 때 참고하는 맥락</h2>
+                <h2 className="text-[var(--hb-text-strong)]">상담할 때 참고하는 맥락</h2>
               </div>
               <ul className="space-y-2">
                 {profileLines.map((line, index) => <li key={`${line}-${index}`} className="text-sm leading-relaxed text-[var(--hb-text-body)]">• {line}</li>)}
@@ -438,7 +438,7 @@ export default function AmoraMemorySettingsPage() {
           <section className="overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-raised)]">
             <div className="flex items-center justify-between gap-3 border-b border-[#F0ECE9] px-5 py-4 sm:px-6">
               <div>
-                <h2 className="font-medium text-[var(--hb-text-strong)]">정리된 기억 {memories.length}개</h2>
+                <h2 className="text-[var(--hb-text-strong)]">정리된 기억 {memories.length}개</h2>
                 <p className="mt-0.5 text-xs text-[var(--hb-success)]">직접 고친 기억은 아모라가 자동으로 덮어쓰지 않아요</p>
               </div>
               {setting && !confirmClear && (
@@ -494,7 +494,7 @@ export default function AmoraMemorySettingsPage() {
                               )}
                               <span className="text-xs text-[#B89785]">{formatDate(memory.updatedAt)}</span>
                             </div>
-                            <h3 className="mt-2 text-sm font-semibold text-[var(--hb-text-strong)]">{memory.title ?? "기억"}</h3>
+                            <h3 className="mt-2 text-[var(--hb-text-strong)]">{memory.title ?? "기억"}</h3>
                             <p className="mt-1 break-words text-sm leading-relaxed text-[var(--hb-text-body)]">{valueToText(memory.value)}</p>
                             {memory.reasoning && <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">{memory.reasoning}</p>}
                           </div>

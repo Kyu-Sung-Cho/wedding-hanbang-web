@@ -76,7 +76,7 @@ export default function TrendingPosts() {
   if (loading) {
     return (
       <div>
-        <h3 className="font-serif-kr text-lg text-[var(--hb-text-strong)] mb-3 border-b border-[var(--hb-hairline)] pb-2">
+        <h3 className="font-serif-kr text-[var(--hb-text-strong)] mb-3 border-b border-[var(--hb-hairline)] pb-2">
           이번 주 인기글
         </h3>
         <ul className="space-y-4">
@@ -98,7 +98,7 @@ export default function TrendingPosts() {
 
   return (
     <div>
-      <h3 className="font-serif-kr text-lg text-[var(--hb-text-strong)] mb-3 border-b border-[var(--hb-hairline)] pb-2">
+      <h3 className="font-serif-kr text-[var(--hb-text-strong)] mb-3 border-b border-[var(--hb-hairline)] pb-2">
         이번 주 인기글
       </h3>
       <ul className="space-y-4">
@@ -119,7 +119,7 @@ export default function TrendingPosts() {
                 {String(i + 1).padStart(2, "0")}
               </span>
               <div>
-                <h4 className="text-sm text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2 leading-snug">
+                <h4 className="text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2">
                   {p.title}
                 </h4>
                 <p className="text-xs text-[var(--hb-text-body)] mt-1">답변 {p.comment_count}개</p>

@@ -102,7 +102,7 @@ export default function CostShareDisplay({ data }: CostShareDisplayProps) {
       {/* 카테고리별 내역 */}
       {data.categories.length > 0 && (
         <div className="p-4 sm:p-5">
-          <h4 className="text-sm font-medium text-[var(--hb-text-strong)] mb-3">
+          <h4 className="text-[var(--hb-text-strong)] mb-3">
             항목별 비용
           </h4>
           <div className="space-y-3">

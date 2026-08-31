@@ -582,7 +582,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const imminentPanel =
     imminentCategories.length > 0 ? (
   <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-    <h3 className="mb-3 font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">
+    <h3 className="mb-3 font-serif-kr text-[var(--hb-text-strong)]">
       기본 일정 확인
     </h3>
     <ImminentAlerts
@@ -596,7 +596,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   const upcomingPanel = (
     <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">
+        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
           다가오는 일정
         </h3>
         <button
@@ -862,7 +862,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             <div className="mb-3">
               <h3
                 id="cancelled-schedule-heading"
-                className="text-[18px] font-semibold text-[var(--hb-text-strong)]"
+                className="text-[var(--hb-text-strong)]"
               >
                 취소됨
               </h3>
@@ -1009,7 +1009,7 @@ export function ChecklistSchedulePrompt({
             <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
               체크리스트 일정 연결
             </p>
-            <h3 className="mt-1 font-serif-kr text-[24px] font-medium text-[var(--hb-text-strong)]">
+            <h3 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">
               {pending.categoryLabel} 날짜도 정할까요?
             </h3>
             <p className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">

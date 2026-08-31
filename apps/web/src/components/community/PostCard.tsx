@@ -227,7 +227,7 @@ export default function PostCard({ post }: PostCardProps) {
             </div>
 
             <Link href={communityPostPath(post.id)} className="group block">
-              <h4 className="text-[17px] sm:text-lg font-serif-kr text-[var(--hb-text-strong)] mb-2.5 hover:text-[var(--hb-text-strong)] cursor-pointer transition-colors leading-snug line-clamp-2 break-words">
+              <h4 className="font-serif-kr text-[var(--hb-text-strong)] mb-2.5 hover:text-[var(--hb-text-strong)] cursor-pointer transition-colors line-clamp-2 break-words">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[var(--hb-text-strong)] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-3.5 h-3.5" /> PIN

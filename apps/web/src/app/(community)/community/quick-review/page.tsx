@@ -100,7 +100,7 @@ export default function QuickReviewPage() {
   return (
     <div className="max-w-xl mx-auto px-4 sm:px-6 py-10">
       <h1
-        className="font-serif text-3xl font-medium text-[var(--hb-text-strong)] mb-2"
+        className="font-serif text-[var(--hb-text-strong)] mb-2"
         style={{ fontFamily: "'Paperlogy', sans-serif" }}
       >
         15초 후기

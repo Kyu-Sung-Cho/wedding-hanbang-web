@@ -597,7 +597,7 @@ export default function PostDetailClient({
               </div>
 
               {/* 제목 */}
-              <h1 className="text-[23px] sm:text-[26px] font-medium text-[var(--hb-text-strong)] leading-snug mb-3">
+              <h1 className="text-[var(--hb-text-strong)] mb-3">
                 {post.is_pinned && (
                   <span className="inline-flex items-center gap-1 text-[var(--hb-text-strong)] mr-2 text-sm font-medium align-middle">
                     <Pin className="w-4 h-4" />
@@ -916,7 +916,6 @@ export default function PostDetailClient({
                         )}
                         <h2
                           id="resolution-control-title"
-                          className="text-sm font-semibold"
                         >
                           {post.is_resolved
                             ? "이 고민은 해결됨으로 표시했어요"
@@ -1127,7 +1126,7 @@ export default function PostDetailClient({
                 <>
                   {/* 헤더 */}
                   <div className="flex items-center justify-between px-5 py-4 border-b border-[#F0EFED]">
-                    <h3 className="text-base font-medium text-[var(--hb-text-strong)]">
+                    <h3 className="text-[var(--hb-text-strong)]">
                       게시글 신고
                     </h3>
                     <button
@@ -1238,7 +1237,7 @@ export default function PostDetailClient({
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-50 flex items-center justify-center">
                   <Flag className="w-5 h-5 text-red-500" />
                 </div>
-                <h3 className="text-base font-medium text-[var(--hb-text-strong)]">
+                <h3 className="text-[var(--hb-text-strong)]">
                   게시글을 삭제하시겠습니까?
                 </h3>
                 <p className="mt-1 text-sm text-[#878680]">

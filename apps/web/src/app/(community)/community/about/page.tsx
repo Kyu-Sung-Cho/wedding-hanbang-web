@@ -31,7 +31,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[var(--hb-text-strong)] mb-5 font-medium uppercase">
             Wedding Hanbang Guide
           </p>
-          <h1 className="font-serif-kr text-4xl sm:text-5xl md:text-6xl font-light text-[var(--hb-text-strong)] leading-[1.2] tracking-normal mb-6">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)] mb-6">
             혼자 고민하지 마세요.
             <br />
             <em className="not-italic text-[var(--hb-text-strong)]">함께 준비해요.</em>
@@ -50,7 +50,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[var(--hb-text-muted)] mb-3 font-medium uppercase">
             Why we exist
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-8 leading-snug">
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-8">
             왜 만들었나요?
           </h2>
 
@@ -81,7 +81,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[var(--hb-text-muted)] mb-3 font-medium uppercase text-center">
             What you can do
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-12 leading-snug text-center">
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-12 text-center">
             여기서 할 수 있는 것
           </h2>
 
@@ -142,7 +142,7 @@ export default function CommunityAboutPage() {
                     <Icon className={`w-6 h-6 ${feature.iconColor}`} />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-[var(--hb-text-strong)] mb-1.5 leading-snug">
+                    <h3 className="text-[var(--hb-text-strong)] mb-1.5">
                       {feature.title}
                     </h3>
                     <p className="text-sm sm:text-base text-[var(--hb-text-body)] font-light leading-relaxed">
@@ -162,7 +162,7 @@ export default function CommunityAboutPage() {
           <p className="text-xs tracking-[0.3em] text-[var(--hb-text-muted)] mb-3 font-medium uppercase text-center">
             Our promise
           </p>
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-10 leading-snug text-center">
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-10 text-center">
             우리의 약속
           </h2>
 
@@ -220,7 +220,7 @@ export default function CommunityAboutPage() {
                 <Shield className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">
+                <h3 className="text-[var(--hb-text-strong)] mb-2">
                   광고와 추천은 분명히 구분합니다
                 </h3>
                 <p className="text-sm sm:text-base text-[var(--hb-text-body)] font-light leading-relaxed">
@@ -262,7 +262,7 @@ export default function CommunityAboutPage() {
                   <div className="w-12 h-12 rounded-[6px] bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4">
                     <Icon className="w-6 h-6 text-[#B89785]" />
                   </div>
-                  <h3 className="font-serif-kr text-xl text-white mb-2 leading-snug">
+                  <h3 className="font-serif-kr text-white mb-2">
                     {item.title}
                   </h3>
                   <p className="text-sm text-white/60 font-light leading-relaxed">
@@ -279,7 +279,7 @@ export default function CommunityAboutPage() {
       <section className="px-4 sm:px-6 md:px-10 py-16 sm:py-20">
         <div className="max-w-2xl mx-auto text-center">
           <Star className="w-8 h-8 text-[#B89785] mx-auto mb-5" />
-          <h2 className="font-serif-kr text-3xl sm:text-4xl font-normal text-[var(--hb-text-strong)] mb-4 leading-snug">
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)] mb-4">
             지금 시작해보세요
           </h2>
           <p className="text-base sm:text-lg text-[var(--hb-text-body)] font-light leading-relaxed mb-8 max-w-xl mx-auto">

@@ -843,7 +843,7 @@ function PostWriteContent() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="font-serif-kr text-2xl sm:text-[28px] font-light text-[var(--hb-text-strong)]">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             {isEditMode ? "글 수정" : isGuidedQuestionFlow ? "내 상황 질문하기" : "글쓰기"}
           </h1>
           <div className="ml-auto flex items-center gap-2">

@@ -162,7 +162,7 @@ function DecisionItem({ item }: { item: CommunityDecisionFeedItem }) {
 
         <div className="mt-3 flex items-start gap-3">
           <div className="min-w-0 flex-1">
-            <h3 className="text-[16px] font-semibold leading-[1.45] text-[var(--hb-text-strong)] sm:text-[17px]">
+            <h3 className="text-[var(--hb-text-strong)]">
               {item.title}
             </h3>
             <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
@@ -405,7 +405,7 @@ export default function CommunityDecisionDiscovery({
             </p>
             <h2
               id="community-decision-discovery-title"
-              className="mt-0.5 text-[19px] font-semibold leading-[1.35] text-[var(--hb-text-strong)] sm:text-[21px]"
+              className="mt-0.5 text-[var(--hb-text-strong)]"
             >
               계약·추가금 결정 질문
             </h2>

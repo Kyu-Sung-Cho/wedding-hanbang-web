@@ -2029,7 +2029,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-[6px] bg-gradient-to-br from-[#C4967E]/15 to-[#C9A96E]/15 mb-4">
             <Sparkles className="w-7 h-7 text-[var(--hb-accent-hover)]" />
           </div>
-          <h3 className="font-serif-kr text-xl sm:text-2xl text-[var(--hb-text-strong)] font-light mb-2">
+          <h3 className="font-serif-kr text-[var(--hb-text-strong)] mb-2">
             아모라 상담 시작 전 한 단계만
           </h3>
           <p className="text-sm sm:text-base text-[var(--hb-text-body)] leading-relaxed mb-6">
@@ -2103,7 +2103,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               <div className="flex items-start justify-between gap-3 border-b border-[#F0EFED] px-5 py-4">
                 <div>
                   <p className="text-xs font-semibold tracking-[0.18em] text-[var(--hb-accent-hover)]">COMMUNITY</p>
-                  <h3 id="community-draft-dialog-title" className="mt-1 font-serif-kr text-xl text-[var(--hb-text-strong)]">이 내용으로 커뮤니티에 물어볼게요</h3>
+                  <h3 id="community-draft-dialog-title" className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">이 내용으로 커뮤니티에 물어볼게요</h3>
                 </div>
                 <button
                   type="button"
@@ -2457,7 +2457,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1a: 함께 대화 — 옵션 선택 */}
             {clearStep === "shared_choose" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">함께 대화 화면 정리</h3>
+                <h3 id="new-chat-dialog-title" className="text-[var(--hb-text-strong)] mb-2">함께 대화 화면 정리</h3>
                 <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
                   화면에 보이는 이전 대화를 정리할 방법을 골라주세요. 원문 데이터와
                   아모라가 참고하는 기존 맥락은 그대로 유지돼요.
@@ -2501,7 +2501,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 1b: 함께 대화 둘 다 — 동의 요청 확인 */}
             {clearStep === "shared_confirm_both" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">둘의 화면 정리 동의를 요청할게요</h3>
+                <h3 id="new-chat-dialog-title" className="text-[var(--hb-text-strong)] mb-2">둘의 화면 정리 동의를 요청할게요</h3>
                 <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
                   채팅에 동의 카드가 올라가고 상대방이 [동의] 누르면 양쪽 화면이
                   정리됩니다. 거절되면 그대로 유지돼요.
@@ -2539,7 +2539,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             {/* Step 2: 나만 (상담) — 단순 확인 */}
             {clearStep === "private_confirm" && (
               <>
-                <h3 id="new-chat-dialog-title" className="text-lg font-semibold text-[var(--hb-text-strong)] mb-2">비공개 상담 화면 정리</h3>
+                <h3 id="new-chat-dialog-title" className="text-[var(--hb-text-strong)] mb-2">비공개 상담 화면 정리</h3>
                 <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
                   화면만 정리할지, 비공개 대화·기억까지 삭제할지 선택해주세요.
                   <br />
@@ -3009,7 +3009,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 <Sparkles className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 id="pending-send-dialog-title" className="font-serif-kr text-lg sm:text-xl text-[var(--hb-text-strong)] font-light mb-1.5 leading-snug">
+                <h3 id="pending-send-dialog-title" className="font-serif-kr text-[var(--hb-text-strong)] mb-1.5">
                   잠시 기다리시겠어요?
                 </h3>
                 <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">

@@ -635,7 +635,7 @@ export default function CommentItem({
                 </div>
                 <h2
                   id={`comment-report-title-${comment.id}`}
-                  className="mt-3 text-base font-semibold text-[var(--hb-text-strong)]"
+                  className="mt-3 text-[var(--hb-text-strong)]"
                 >
                   신고를 접수했어요
                 </h2>
@@ -657,7 +657,7 @@ export default function CommentItem({
                   <div>
                     <h2
                       id={`comment-report-title-${comment.id}`}
-                      className="text-base font-semibold text-[var(--hb-text-strong)]"
+                      className="text-[var(--hb-text-strong)]"
                     >
                       {isReply ? "답글" : "답변"} 신고
                     </h2>

@@ -264,7 +264,7 @@ export default function AmoraStyleSettingsPage() {
           <p className="text-xs font-semibold tracking-[0.16em] text-[var(--color-rose-700)]">
             MY AMORA
           </p>
-          <h1 className="text-2xl font-semibold text-[var(--hb-text-strong)] sm:text-3xl">
+          <h1 className="text-[var(--hb-text-strong)]">
             아모라 도움 방식
           </h1>
         </div>
@@ -276,7 +276,7 @@ export default function AmoraStyleSettingsPage() {
             <SlidersHorizontal className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
+            <h2 className="text-[var(--hb-text-strong)]">
               편한 말투와 도움 순서를 직접 골라요
             </h2>
             <p className="mt-1 text-sm font-light leading-relaxed text-[var(--hb-text-strong)]">
@@ -318,7 +318,7 @@ export default function AmoraStyleSettingsPage() {
                 key={section.key}
                 className="rounded-[6px] bg-white p-5 shadow-[var(--shadow-raised)] sm:p-6"
               >
-                <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
+                <h2 className="text-[var(--hb-text-strong)]">
                   {section.title}
                 </h2>
                 <p className="mt-1 text-sm leading-relaxed text-[var(--hb-success)]">

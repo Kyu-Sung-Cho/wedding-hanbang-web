@@ -194,7 +194,7 @@ export default function CommentSection({ postId }: CommentSectionProps) {
     <div className="scroll-mt-24">
       {/* 댓글 수 헤더 */}
       <div className="flex items-center gap-2 mb-4">
-        <h3 className="text-base font-medium text-[var(--hb-text-strong)]">
+        <h3 className="text-[var(--hb-text-strong)]">
           답변{" "}
           {commentCount > 0 && (
             <span className="text-[var(--hb-text-muted)]">{commentCount}</span>

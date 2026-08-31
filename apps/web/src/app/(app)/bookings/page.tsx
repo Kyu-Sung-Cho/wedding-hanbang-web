@@ -89,7 +89,7 @@ export default function BookingsPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
           WEDDING HANBANG
         </p>
-        <h1 className="mt-1 font-serif-kr text-[26px] font-medium leading-tight text-[var(--hb-text-strong)] sm:text-[30px]">예약 요청 기록</h1>
+        <h1 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">예약 요청 기록</h1>
         <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
           아모라 안에 남긴 방문·상담 후보 기록이에요. 업체 전달·확정·취소와 환불은 업체에 별도로 확인해 주세요.
         </p>
@@ -114,7 +114,7 @@ export default function BookingsPage() {
           {/* 다가오는 요청 기록 */}
           {upcoming.length > 0 && (
             <div className="mb-8">
-              <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--hb-text-body)]">다가오는 요청 기록</h2>
+              <h2 className="mb-3 uppercase text-[var(--hb-text-body)]">다가오는 요청 기록</h2>
               <div className="space-y-3">
                 {upcoming.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];
@@ -125,7 +125,7 @@ export default function BookingsPage() {
                         <div className="flex items-center gap-4">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1.5">
-                              <h3 className="font-serif-kr text-[18px] font-medium leading-snug text-[var(--hb-text-strong)] truncate">
+                              <h3 className="font-serif-kr text-[var(--hb-text-strong)] truncate">
                                 {booking.vendorName}
                               </h3>
                               <span className={`px-2.5 py-0.5 rounded-full text-sm font-medium ${statusConfig?.color ?? ""}`}>
@@ -161,7 +161,7 @@ export default function BookingsPage() {
           {/* 지난·취소 기록 */}
           {past.length > 0 && (
             <div>
-              <h2 className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-[var(--hb-text-body)]">지난·취소 기록</h2>
+              <h2 className="mb-3 uppercase text-[var(--hb-text-body)]">지난·취소 기록</h2>
               <div className="space-y-2">
                 {past.map((booking) => {
                   const statusConfig = STATUS_LABELS[booking.status];
