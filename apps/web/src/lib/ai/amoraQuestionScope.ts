@@ -148,6 +148,42 @@ const HIGH_RISK_DOMAIN_CONCRETE_PATTERN =
 // 그건 어휘가 아니라 **틀 재설계**(행위자 결속)이고 파운더 판단 사안이다.
 const HIGH_RISK_SAFETY_PATTERN =
   /가정\s*폭력|데이트\s*폭력|폭력|폭행|성추행|강간|신체적\s*위협|강압적(?:인|으로)?\s*통제|감금|스토킹|손찌검|(?:저|제|나|내)(?:를|을|한테|에게)\s*[^.!?\n]{0,10}?(?:때린|때렸|때려|때리는|때리려|때립|밀쳐|밀치|밀쳤|밀었)|(?:때린|때렸|때려)\s*(?:적|뒤|이후|후)|때리려고\s*(?:손|팔)|주먹질|목(?:을|를)?\s*(?:조른|졸랐)|물건(?:을|를)?\s*(?:던지|던졌|집어\s*던)|(?:저|제|나|내)(?:를|을|한테|에게)\s*[^.!?\n]{0,12}?(?:협박|위협)|못\s*나가게\s*.{0,8}가(?:둬|뒀|둔|두)|때리는\s*(?:남자친구|남친|여자친구|여친|신랑|신부|남편|아내|배우자|예비\s*신랑|예비\s*신부|사람)/iu;
+/**
+ * 목적어를 생략한 협박 고백.
+ *
+ * `HIGH_RISK_SAFETY_PATTERN` 은 협박·위협에 `저를/나를` 목적어를 요구한다. 그런데
+ * **한국어는 그 목적어를 일상적으로 생략한다.** 2026-08-31 운영 배포 직후 실측:
+ * `협박당하고 있어요` · `남편이 협박해요` · `시댁에서 협박해요` 같은 첫 고백
+ * 여덟 중 일곱이 `shared` 로 저장됐다 — **협박하는 배우자가 읽는 레인**이다.
+ * 목적어를 붙여 쓴 한 문장만 보호받았다.
+ *
+ * 그렇다고 맨 `협박` 을 목록에 넣으면 반대로 샌다. `amoraSafetyLaunchCorpus` 의
+ * "절대 잡으면 안 된다" 12문장이 그때 전부 걸렸다.
+ *
+ * 두 무리를 가르는 것은 **낱말이 아니라 문장 구조**였다. 걸리면 안 되는 쪽은
+ * 11/12 가 `~다고 협박`(요구를 전하는 전언)이고 나머지 하나는 업체 상대 분쟁이다.
+ * 고백하는 쪽은 그런 틀 없이 맨 협박을 쓴다. 그래서 신호는 맨 협박으로 잡고
+ * 그 두 틀에서만 무른다.
+ *
+ * `위협` 은 **넣지 않았다.** 어떤 배포본에도 맨 `위협` 이 있던 적이 없고, 넣으면
+ * `예산 초과가 제일 큰 위협이에요` 같은 평범한 문장이 안전 갈래로 간다.
+ */
+const BARE_THREAT_DISCLOSURE_PATTERN = /협박/u;
+/**
+ * 위 신호를 무르는 자리. 무르는 것이 곧 "안전하다"는 판정은 아니다 — 신체 위험
+ * 서술(죽인다고·때린다고 등)은 `HIGH_RISK_SAFETY_CONCRETE_PATTERN` 이 이 앞에서
+ * 이미 잡는다.
+ */
+const BARE_THREAT_VETO_PATTERN =
+  /(?:다|라)고\s*(?:하\S{0,4})?\s*협박|업체|웨딩홀|예식장|스튜디오|스드메|드레스\s*샵|플래너|소송|위약금|환불|계약금/u;
+/**
+ * 무름을 다시 무르는 자리. 전언 틀(`~다고 협박`)이라도 **전해진 내용이 신체
+ * 위험**이면 안전 신호다. 이게 없으면 `남편이 때린다고 협박해요` 가 전언이라는
+ * 이유로 공유 레인에 남는다(실측으로 잡았다).
+ */
+const REPORTED_VIOLENCE_PATTERN =
+  /때린|때리|때려|때릴|죽인|죽이|죽여|칼|흉기|목(?:을|를)?\s*조|가둔|가둬|가둘|감금|폭행|패겠|팬다|던진|던질/u;
+
 const HIGH_RISK_SAFETY_CONCRETE_PATTERN =
   /(?:돈|카드|통장|계좌).{0,16}(?:못\s*쓰|통제|감시|검사)|(?:폰|휴대폰|연락|위치).{0,24}(?:검사|추적|통제|감시)|(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)(?:에게|한테|가|이|은|는)?\s*.{0,40}(?:맞았|때렸|때릴|때릴까|죽(?:인|이겠)다고|죽여\s*버린다고|죽여\s*버리겠다고|(?:방|집|차)(?:에|에서)?\s*.{0,12}가둬)|동의\s*없이\s*.{0,24}(?:옷(?:을|를)?\s*벗(?:기|겼)|성관계|성적\s*행위)|동의\s*없이\s*.{0,24}관계(?:를|을)?\s*강요/iu;
 const HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN =
@@ -355,7 +391,14 @@ export function classifyAmoraQuestionScope({
   const safetyHighRisk =
     HIGH_RISK_SAFETY_PATTERN.test(normalizedText)
     || HIGH_RISK_SAFETY_CONCRETE_PATTERN.test(normalizedText)
-    || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText);
+    || HIGH_RISK_HYPOTHETICAL_SAFETY_PATTERN.test(normalizedText)
+    || (
+      BARE_THREAT_DISCLOSURE_PATTERN.test(normalizedText)
+      && (
+        !BARE_THREAT_VETO_PATTERN.test(normalizedText)
+        || REPORTED_VIOLENCE_PATTERN.test(normalizedText)
+      )
+    );
   const domainHighRisk =
     HIGH_RISK_DOMAIN_PATTERN.test(normalizedText)
     || HIGH_RISK_DOMAIN_CONCRETE_PATTERN.test(normalizedText);
