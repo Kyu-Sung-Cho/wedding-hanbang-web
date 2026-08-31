@@ -859,6 +859,44 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   font-weight: 500 !important;
 }
 
+/*
+ * 작은 제목 두 단.
+ *
+ * 위 네 단(h1 / h2 / h3 / h4~h6)은 **페이지와 절의 제목** 크기다. 그런데 제목 태그는
+ * 카드 제목·목록 행 제목·절 눈썹에도 쓰이고, 그 자리에 17~20px 은 크다. 예를 들어
+ * `ImminentAlerts` 의 행 제목은 12px 개수 배지와 나란히 놓이고, `bookings` 의
+ * "다가오는 요청 기록" 은 목록 위에 얹는 눈썹이다.
+ *
+ * 그 자리들이 원하던 값은 소스에 이미 적혀 있었다 — `text-[12px] tracking-[0.14em]`,
+ * `text-sm font-semibold` 같은 것들. 위 블록이 !important 로 덮어 안 먹었을 뿐이고,
+ * 2026-08-31 에 그 죽은 클래스를 걷어내면서 의도가 드러났다.
+ *
+ * 자리마다 유틸리티를 다시 얹으면 같은 문제가 되풀이되므로 **이름 붙인 단**으로 준다.
+ * 두 단뿐인 것은 의도다 — 실제로 쓰이던 값 11곳이 12·13·14px 셋으로 모이고,
+ * 시안(`docs/landing/NotebookBest.html`)의 작은 구간도 12~15px 이다.
+ *
+ * 특정도: `.theme main :is(h1..h6)[class~="…"]` 은 (0,2,2) 라 위 블록 (0,1,2) 를
+ * 이긴다. 둘 다 레이어 밖 !important 라 특정도가 결론을 낸다.
+ * ⚠️ `!` 유틸리티(`!text-[13px]`)는 레이어 안 !important 라 이 단도 이긴다 —
+ * 이 단을 쓰는 자리에 크기 유틸리티를 얹지 마라(DESIGN.md 2026-08-27 규칙).
+ */
+.hanbang-service-theme main :is(h1, h2, h3, h4, h5, h6)[class~="hb-h-sm"],
+.hanbang-community-theme main :is(h1, h2, h3, h4, h5, h6)[class~="hb-h-sm"] {
+  font-size: 0.875rem !important;
+  line-height: 1.45 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
+/* 절 위에 얹는 눈썹. `uppercase` 는 블록이 안 건드리므로 유틸리티로 그대로 둔다. */
+.hanbang-service-theme main :is(h1, h2, h3, h4, h5, h6)[class~="hb-h-eyebrow"],
+.hanbang-community-theme main :is(h1, h2, h3, h4, h5, h6)[class~="hb-h-eyebrow"] {
+  font-size: 0.75rem !important;
+  line-height: 1.4 !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.14em !important;
+}
+
 :where(.hanbang-service-theme, .hanbang-community-theme) :where(main) [class~="font-light"] {
   font-weight: 400 !important;
 }:where(.hanbang-service-theme, .hanbang-community-theme) [class~="to-[#C9A96E]"] {

@@ -264,7 +264,7 @@ function ItemGroup({
 
   return (
     <div className="mt-4">
-      <h3 className="mb-2 text-[var(--hb-text-strong)]">{title}</h3>
+      <h3 className="hb-h-sm mb-2 text-[var(--hb-text-strong)]">{title}</h3>
       <div className="divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
         {items.map((item) => {
           const decision = decisions[item.id] ?? "unknown";
@@ -443,7 +443,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       {result.contractQuestions.length > 0 && (
       <div className="mt-5 rounded-[6px] bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-[var(--hb-text-strong)]">계약 전 그대로 보낼 질문</h3>
+          <h3 className="hb-h-sm text-[var(--hb-text-strong)]">계약 전 그대로 보낼 질문</h3>
           <button
             type="button"
             onClick={copyQuestions}

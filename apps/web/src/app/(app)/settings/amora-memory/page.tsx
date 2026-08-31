@@ -494,7 +494,7 @@ export default function AmoraMemorySettingsPage() {
                               )}
                               <span className="text-xs text-[#B89785]">{formatDate(memory.updatedAt)}</span>
                             </div>
-                            <h3 className="mt-2 text-[var(--hb-text-strong)]">{memory.title ?? "기억"}</h3>
+                            <h3 className="hb-h-sm mt-2 text-[var(--hb-text-strong)]">{memory.title ?? "기억"}</h3>
                             <p className="mt-1 break-words text-sm leading-relaxed text-[var(--hb-text-body)]">{valueToText(memory.value)}</p>
                             {memory.reasoning && <p className="mt-1 text-xs leading-relaxed text-[var(--hb-text-muted)]">{memory.reasoning}</p>}
                           </div>

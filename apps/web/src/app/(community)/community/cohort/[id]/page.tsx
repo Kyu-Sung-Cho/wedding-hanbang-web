@@ -2075,7 +2075,7 @@ function CohortDigestCard({
           {visibleSubtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[var(--hb-text-strong)]">대표 이야기</h4>
+                <h4 className="hb-h-sm text-[var(--hb-text-strong)]">대표 이야기</h4>
                 <span className="text-[11px] font-medium text-[var(--hb-text-muted)]">
                   {showAllSubtopics ? `전체 ${subtopics.length}개` : "상위 3개"}
                 </span>
@@ -2206,7 +2206,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2">
+                  <h4 className="hb-h-sm text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2">
                     {p.title}
                   </h4>
                   <p className="text-xs text-[var(--hb-text-muted)] mt-1">
