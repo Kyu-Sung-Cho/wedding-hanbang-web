@@ -51,6 +51,13 @@ const THEMED_ROUTE_DIRS = ["app/(app)", "app/(community)"];
 /**
  * 테마가 **안** 붙는 라우트. 여기서도 렌더되는 컴포넌트의 크기 클래스는 그 화면에서
  * 살아 있으므로 대상에서 뺀다.
+ *
+ * `app/vendors` 는 갈래가 둘이다. `app/vendors/page.tsx` 는 `AuthenticatedAppShell` 을
+ * 거쳐 **테마 셸 안**으로 들어가고(그래서 `AppClientLayout` 이 `/wedding/vendors` 를
+ * 특별 취급한다), `app/vendors/[id]/page.tsx` 는 셸 없이 자기 `<main>` 만 그린다.
+ * 뒤엣것 때문에 목록에 남긴다 — 앞엣것을 테마 밖으로 세는 것은 **안전한 방향의 오류**다
+ * (대상이 좁아질 뿐 회귀를 만들지 않는다). 실제 영향도 0으로 쟀다: 빼면 대상이
+ * 102 → 104 로 늘지만 늘어나는 두 파일에 제목이 하나도 없다.
  */
 const UNTHEMED_ROUTE_DIRS = [
   "app/(admin)", "app/(auth)", "app/landing", "app/price", "app/manners", "app/about",
@@ -68,6 +75,9 @@ const UNTHEMED_ROUTE_DIRS = [
 const OUTSIDE_MAIN_SLOTS = [
   "app/(community)/layout.tsx",
   "app/(app)/AppClientLayout.tsx",
+  // `banner` prop 으로 `<main>` **앞**에 놓인다(AuthenticatedAppShell.tsx:31).
+  // 오늘은 제목이 0개라 무해하지만, 슬롯의 성격은 지금 적어 둔다.
+  "app/(app)/DemoModeBanner.tsx",
   "components/app/Sidebar.tsx",
   "components/app/TopNav.tsx",
   "components/app/chat/ChatSidePanel.tsx",
