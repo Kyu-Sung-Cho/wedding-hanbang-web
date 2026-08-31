@@ -1304,7 +1304,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
         <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-serif-kr text-[20px] font-medium text-[var(--hb-text-strong)]">
+              <h2 className="font-serif-kr text-[var(--hb-text-strong)]">
                 많이 본 글
               </h2>
               <p className="mt-0.5 text-[12px] font-medium text-[var(--hb-text-body)]">
@@ -1350,7 +1350,7 @@ function RelatedPostsSidebar({ posts }: { posts: PostWithAuthor[] }) {
                         </span>
                         <span suppressHydrationWarning className="truncate">{timeAgo(item.created_at)}</span>
                       </div>
-                      <h3 className="line-clamp-2 break-words text-[13px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
+                      <h3 className="line-clamp-2 break-words text-[var(--hb-text-strong)]">
                         {item.title}
                       </h3>
                       <p className="mt-1 line-clamp-1 text-[11px] font-medium text-[var(--hb-text-body)]">

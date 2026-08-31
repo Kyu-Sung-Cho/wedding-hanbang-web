@@ -387,7 +387,7 @@ function CohortSidePanel({
 
       <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/88 p-5 shadow-[var(--shadow-raised)]">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">오늘 이렇게 써보세요</h2>
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)]">오늘 이렇게 써보세요</h2>
           <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-[11px] font-semibold text-[var(--hb-text-strong)]">
             {getRoomPeriod(room)}
           </span>
@@ -433,7 +433,7 @@ function CohortSidePanel({
       <section className="rounded-[6px] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)]">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
-          <h2 className="font-serif-kr text-[21px] font-medium">동기방 약속</h2>
+          <h2 className="font-serif-kr">동기방 약속</h2>
         </div>
         <ul className="mt-4 space-y-2 text-[12px] font-medium leading-[1.6] text-white/78">
           <li>실명, 연락처, 계좌번호는 공개하지 않기</li>

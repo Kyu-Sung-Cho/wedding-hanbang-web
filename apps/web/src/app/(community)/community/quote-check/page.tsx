@@ -225,7 +225,7 @@ export default function AmoraQuoteCheckPage() {
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
           <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5">
-            <h2 className="font-serif-kr text-2xl text-[var(--hb-text-strong)]">이 체크리스트, 솔직히 말하면</h2>
+            <h2 className="font-serif-kr text-[var(--hb-text-strong)]">이 체크리스트, 솔직히 말하면</h2>
             <div className="mt-4 space-y-3 text-sm leading-6 text-[var(--hb-text-body)]">
               <p>
                 견적이 좋다·나쁘다를 평가하는 도구가 아닙니다. 견적서에 포함 여부와 별도 금액을 적어둘 항목을 보여주는 체크리스트예요.

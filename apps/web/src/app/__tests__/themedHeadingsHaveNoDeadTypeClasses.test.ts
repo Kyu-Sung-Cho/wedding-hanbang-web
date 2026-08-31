@@ -93,11 +93,19 @@ const IMPORT_SPEC = /(?:from\s*|import\s*\(\s*)"([^"]+)"/g;
  *
  * `font-serif-kr`·`font-display`는 블록이 **겨냥하는 선택자**라 대상이 아니고,
  * `text-[var(--hb-...)]`·`text-center` 같은 색·정렬도 아니다 — 단위가 붙은 것만 크기다.
+ *
+ * **`!` 가 앞에 붙은 유틸리티(`!text-[22px]`·`md:!text-[24px]`)는 대상이 아니다.**
+ * 캐스케이드는 특정도보다 레이어를 먼저 보고, `!important` 선언에서는 레이어 순서가
+ * **뒤집힌다** — `@layer utilities` 안의 `!important` 가 레이어 **밖**의 `!important`
+ * 를 이긴다. 블록은 레이어 밖이므로 이 유틸리티에는 진다.
+ *
+ * 추측이 아니라 실측이다. 운영 `/wedding?feed=all` 의 `#community-search-heading` 은
+ * 1584px 뷰포트에서 **24px** 로 나온다 — 블록의 clamp(최대 30px)가 아니라
+ * `md:!text-[24px]` 값이다. 그것을 지웠다가 되돌렸다.
  */
 const DEAD_TYPE_CLASS =
-  /(?<![\w:./-])(?:[a-z0-9-]+:)*(?:text-(?:xs|sm|base|lg|xl|[2-9]xl|\[[^\]]*(?:px|rem|em)\])|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)|tracking-(?:tighter|tight|normal|wide|wider|widest|\[[^\]]*\])|leading-(?:none|tight|snug|normal|relaxed|loose|\[[^\]]*\]|\d+))(?![\w./-])/g;
+  /(?<![\w:./!-])(?:[a-z0-9-]+:)*(?:text-(?:xs|sm|base|lg|xl|[2-9]xl|\[[^\]]*(?:px|rem|em)\])|font-(?:thin|extralight|light|normal|medium|semibold|bold|extrabold|black)|tracking-(?:tighter|tight|normal|wide|wider|widest|\[[^\]]*\])|leading-(?:none|tight|snug|normal|relaxed|loose|\[[^\]]*\]|\d+))(?![\w./-])/g;
 
-const LANDMARK = /<(\/?)(footer|header|nav|aside)\b/gi;
 const HEADING = /<h[1-6]\b/gi;
 const CLASS_NAME = /className=(?:"([^"]*)"|\{`([^`]*)`\})/g;
 
@@ -176,23 +184,22 @@ function scan(): { findings: Finding[]; headings: number; files: number } {
 
   for (const file of files) {
     const text = readFileSync(file, "utf8");
-    const events: Array<[number, number]> = [];
-    for (const m of text.matchAll(LANDMARK)) events.push([m.index, m[1] ? -1 : 1]);
-    for (const m of text.matchAll(HEADING)) events.push([m.index, 0]);
-    events.sort((a, b) => a[0] - b[0]);
 
-    let depth = 0;
-    for (const [at, kind] of events) {
-      if (kind !== 0) { depth += kind; continue; }
-      if (depth > 0) continue; // 푸터·헤더 안 — 블록이 안 덮는다
+    // 소스에서 `<footer>`·`<header>` 안인지는 보지 않는다. 대상 파일은 정의상 전부
+    // 레이아웃의 `<main>` 안에 놓이므로, 그 안의 `<header>`(페이지 자기 히어로)도
+    // `main h1` 후손 선택자에 걸린다. 처음엔 랜드마크 안을 건너뛰었는데 그것이
+    // moderation·vendor/[name]·ChecklistContent 의 제목을 근거 없이 빼고 있었다.
+    // `main` 밖에 진짜로 놓이는 푸터·내비는 **파일 단위 폐포**가 이미 걷어낸다.
+    for (const m of text.matchAll(HEADING)) {
+      const at = m.index;
       headings += 1;
 
       CLASS_NAME.lastIndex = at;
-      const m = CLASS_NAME.exec(text);
-      if (!m || m.index > at + 3000) continue;
-      if (text.slice(at, m.index).includes(">")) continue; // 이 태그의 className 이 아니다
+      const cm = CLASS_NAME.exec(text);
+      if (!cm || cm.index > at + 3000) continue;
+      if (text.slice(at, cm.index).includes(">")) continue; // 이 태그의 className 이 아니다
 
-      const dead = (m[1] ?? m[2] ?? "").match(DEAD_TYPE_CLASS);
+      const dead = (cm[1] ?? cm[2] ?? "").match(DEAD_TYPE_CLASS);
       if (dead) {
         findings.push({ file: toPosix(path.relative(WEB_ROOT, file)), tag: text.slice(at, at + 3), dead });
       }
@@ -218,6 +225,12 @@ describe("테마 안 제목 타이포", () => {
 
     const keep = "font-serif-kr font-display text-center text-[var(--hb-text-strong)]";
     expect(keep.match(DEAD_TYPE_CLASS), "정규식이 지우면 안 되는 클래스를 잡는다").toBeNull();
+
+    // `!` 유틸리티는 레이어 안 !important 라 블록을 **이긴다** — 지우면 화면이 바뀐다.
+    // 실제로 한 번 지워서 24px 제목을 30px 로 만들 뻔했고, 게다가 `!text-[22px]` 에서
+    // `text-[22px]` 만 떼어내 `!` 와 `md:!` 라는 쓰레기 토큰을 남겼다.
+    const important = "mt-0.5 font-serif-kr !text-[22px] md:!text-[24px]";
+    expect(important.match(DEAD_TYPE_CLASS), "정규식이 ! 유틸리티를 건드린다").toBeNull();
   });
 
   it("main 밖 컴포넌트를 대상에서 제외한다", () => {

@@ -116,7 +116,7 @@ export default function VendorDetailPage() {
           )}
           <div className="flex-1 min-w-0">
             <h1
-              className="font-serif text-2xl sm:text-3xl font-medium text-[var(--hb-text-strong)] mb-2 leading-tight"
+              className="font-serif text-[var(--hb-text-strong)] mb-2"
               style={{ fontFamily: "'Paperlogy', sans-serif" }}
             >
               {decodedName}

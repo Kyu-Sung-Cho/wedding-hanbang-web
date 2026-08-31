@@ -1012,7 +1012,7 @@ function SearchHub({
               </span>
               <h1
                 id="community-search-heading"
-                className="mt-0.5 whitespace-nowrap font-serif-kr ! text-[var(--hb-text-strong)] md:!"
+                className="mt-0.5 whitespace-nowrap font-serif-kr !text-[22px] text-[var(--hb-text-strong)] md:!text-[24px]"
               >
                 결혼 준비 이야기
               </h1>
