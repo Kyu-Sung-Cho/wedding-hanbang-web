@@ -129,6 +129,11 @@ describe("영어 — 반드시 잡아야 한다", () => {
     "he threatened me with a knife",
     "my partner locked me in the room",
     "he threatened to kill me",
+    // ⚠️ 이 커밋이 관용구 `beat me at/to/by/in` 을 `beats`·`beating` 까지 넓히면서
+    // **이 문장을 통째로 지웠다.** 관용구 제거가 양성 판정보다 먼저 돌기 때문에
+    // 판정이 0이 되고, 폭력 고백이 배우자가 읽는 공유 레인에 원문으로 남는다.
+    "He beats me in the face when he drinks",
+    "he beats me in the head when we argue",
   ])("%s", (text) => {
     expect(safetyNetEngages(text), "영어 위기가 그냥 지나갔다").toBe(true);
   });
@@ -143,6 +148,14 @@ describe("영어 — 절대 잡으면 안 된다", () => {
     "The caterer hits me up every week about the headcount",
     "Can you help me pick a first dance song",
     "We are choosing between two venues in Seoul",
+    // ⚠️ 아래 셋은 이 커밋이 **새로 만든** 오탐이다. 한국어 쪽은 같은 커밋에서
+    // "웨딩홀이 위약금 물린다고 협박하는데" 를 음성으로 넣어 막았는데, 영어 갈래엔
+    // 비신체 목적어 제외도 수동태 관용구도 없었다. 계약 분쟁 질문에 112/119 안내가
+    // 나가고 사용자가 쓴 글은 저장되지 않는다.
+    "They keep threatening me with a cancellation fee if we change the date",
+    "My husband keeps threatening me with divorce over the guest list",
+    "I am being hit up by every vendor since the wedding expo",
+    "I am being hit with a huge cancellation fee",
   ])("%s", (text) => {
     expect(safetyNetEngages(text), "평범한 영어 문장을 안전 경로로 보냈다").toBe(false);
   });

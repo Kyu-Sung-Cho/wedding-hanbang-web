@@ -96,7 +96,12 @@ const BENIGN_WEDDING_IDIOMS: readonly RegExp[] = [
    */
   /\bhit\s+me\s+with\s+(?:a|an|the|another)?\s*(?:huge|big|massive|hefty|surprise|unexpected|another|\d+)?\s*(?:quote|bill|invoice|fee|charge|estimate|price|number|news|question|update|idea|request|surcharge|guests?|people|changes?|demands?)\b/gi,
   /\b(?:that|this|it|the\s+news|news|the\s+cost|reality)\s+hit\s+me\s+hard\b/gi,
-  /\bbeat(?:s|ing)?\s+me\s+(?:at|to|by|in)\b/gi,
+  // ⚠️ `in` 은 "beat me in chess" 를 위한 것인데, 이 커밋이 `beats`·`beating` 까지
+  // 넓히면서 **"He beats me in the face when he drinks" 를 통째로 지웠다.** 관용구
+  // 제거가 양성 판정보다 먼저 돌기 때문에, 진짜 폭력 서술이 아무 판정 없이 배우자가
+  // 읽는 공유 레인으로 간다. 2026-08-31 에 base/head 를 나란히 돌려 재현했다.
+  // 신체 부위가 뒤따르면 관용구가 아니다.
+  /\bbeat(?:s|ing)?\s+me\s+(?:at|to|by|in)\b(?!\s+(?:the\s+)?(?:face|head|stomach|ribs?|back|arms?|legs?|jaw|mouth|eyes?|neck|chest))/gi,
   /\bhits?\s+the\s+(?:gym|road|floor|bar|slopes|books|hay)\b/gi,
   /\bslapped\s+me\s+on\s+the\s+back\b/gi,
   /\bdomestic\s+(?:violence|abuse)\s+(?:awareness|charity|charities|organi[sz]ation|nonprofit|shelter|hotline|helpline|campaign|fundraiser|foundation|month|prevention|survivors?)\b/gi,
@@ -211,7 +216,14 @@ const INTERPERSONAL_DANGER: readonly RegExp[] = [
   // 능동형만 있어서 "I was raped last night" 이 안 걸렸다.
   /\b(?:rap(?:e|ed|ing))\s+me\b/i,
   /\bi\s+(?:was|got)\s+(?:rap(?:ed)|sexually\s+assaulted|assaulted|attacked|beaten|strangled)\b/i,
-  /\bi\s+(?:am|'m|was|have\s+been)\s+being\s+(?:(?:physically|emotionally|verbally|sexually)\s+)*(?:abused|assaulted|beaten|hurt|hit)\b/i,
+  // `hit` 뒤의 `up`·`with`·`on` 은 폭력이 아니다 — "I am being hit up by every vendor
+  // since the wedding expo" 와 "I am being hit with a huge cancellation fee" 가
+  // 응급으로 확정됐다. 같은 파일이 능동형 "hit me up"·"slapped me with a fee" 는
+  // 이미 관용구로 빼 두었는데 수동태만 빠져 있었다.
+  //
+  // 맨 `hurt` 도 뺐다 — "I am being hurt by how my mother in law talks about the
+  // dress" 가 걸린다. 신체 위해는 abused·assaulted·beaten·hit 이 이미 덮는다.
+  /\bi\s+(?:am|'m|was|have\s+been)\s+being\s+(?:(?:physically|emotionally|verbally|sexually)\s+)*(?:abused|assaulted|beaten|hit(?!\s+(?:up|with|on)))\b/i,
   /\b(?:sexually\s+)?assault(?:ed)?\s+me\b/i,
   /\bforced\s+me\s+to\s+have\s+sex\b/i,
   /\bthreaten(?:ed|s)?\s+to\s+kill\s+(?:me|us)\b/i,
@@ -219,7 +231,12 @@ const INTERPERSONAL_DANGER: readonly RegExp[] = [
   /\b(?:he|she|they)\s+(?:said|told\s+me)\b[^.!?]{0,30}\b(?:would|will|'ll|'d|is\s+going\s+to|gonna)\s+(?:kill|hurt|beat)\s+(?:me|us)\b/i,
   /\b(?:he|she|they)(?:'s|\s+is|\s+was)\s+going\s+to\s+(?:kill|hurt|beat|attack)\s+(?:me|us)\b/i,
   /\bthreaten(?:ed|s)?\s+me\s+with\s+(?:a\s+)?(?:knife|gun|weapon|bat|scissors)\b/i,
-  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse))\s+(?:keeps?|kept|is|'s|was|has\s+been)\s+threaten(?:ing|ed|s)?\s+(?:me|us)\b/i,
+  // 한국어 갈래는 이 커밋에서 비신체 목적어(이혼·파혼·취소·소송·위약금·계약)를
+  // 제외했는데 영어 갈래엔 그 대응물이 없어, "They keep threatening me with a
+  // cancellation fee if we change the date" 가 응급 위기가 됐다 — 계약 분쟁 질문에
+  // 112/119 안내가 나가고 답은 저장되지 않는다. 흉기(knife·gun)는 위 갈래가 따로
+  // 잡으므로 여기서 빼도 재현은 그대로다.
+  /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse))\s+(?:keeps?|kept|is|'s|was|has\s+been)\s+threaten(?:ing|ed|s)?\s+(?:me|us)\b(?!\s+with\s+[^.!?]{0,30}?\b(?:fee|charge|penalty|deposit|refund|lawsuit|suit|court|legal|divorce|contract|cancellation|review|report)\b)/i,
   /\b(?:pulled|held)\s+a\s+(?:knife|gun)\s+on\s+me\b/i,
   /**
    * **주어를 사람으로 못박는다.** 원래는 주어를 안 봐서 업체가 주어인 평범한
