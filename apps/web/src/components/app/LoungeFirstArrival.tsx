@@ -194,7 +194,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           확인했어요
         </p>
-        <h2 className="mt-4 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">
+        <h2 className="mt-4 font-serif-kr text-[var(--hb-text-strong)]">
           말씀해주신 내용이에요
         </h2>
         <dl className="mt-4 grid gap-2.5 sm:grid-cols-3">
@@ -215,7 +215,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
       {/* 화면에서 가장 큰 요소. 다음에 할 수 있는 일은 하나만 크게 세운다. */}
       <div className="rounded-[6px] border border-[#29433e] bg-[var(--hb-primary)] p-5 text-white shadow-[var(--shadow-overlay)] md:p-6">
         <p className="text-[12px] font-semibold text-[#ffffff]">다음 걸음 하나</p>
-        <h2 className="mt-1.5 font-serif-kr text-[27px] font-medium leading-tight md:text-[30px]">
+        <h2 className="mt-1.5 font-serif-kr">
           {view.nextStep.title}
         </h2>
         <p className="mt-2.5 max-w-[560px] text-[14px] font-medium leading-[1.7] text-white/80">
@@ -237,7 +237,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
               <Users className="h-5 w-5" aria-hidden="true" />
             </span>
             <div className="min-w-0">
-              <h3 className="text-[15px] font-semibold text-[var(--hb-text-strong)]">{view.invite.title}</h3>
+              <h3 className="text-[var(--hb-text-strong)]">{view.invite.title}</h3>
               <p className="mt-1.5 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-body)]">
                 {view.invite.body}
               </p>

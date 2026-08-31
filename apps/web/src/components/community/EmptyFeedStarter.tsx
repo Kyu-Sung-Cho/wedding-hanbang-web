@@ -67,7 +67,7 @@ export default function EmptyFeedStarter({
               <MessageSquarePlus className="h-3.5 w-3.5" />
               실제 사례 대기중
             </div>
-            <h3 className="font-serif-kr text-xl font-medium text-[var(--hb-text-strong)] sm:text-2xl">
+            <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
               {title}
             </h3>
             <p className="mt-1.5 text-sm font-medium leading-relaxed text-[var(--hb-text-body)]">

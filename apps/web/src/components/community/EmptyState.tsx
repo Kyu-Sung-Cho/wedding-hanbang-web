@@ -22,7 +22,7 @@ export default function EmptyState({
         {icon ?? <MessageSquare className="w-12 h-12" />}
       </div>
 
-      <h3 className="text-lg font-medium text-[var(--hb-text-strong)] mb-2">
+      <h3 className="text-[var(--hb-text-strong)] mb-2">
         {message}
       </h3>
       {description && (

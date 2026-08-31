@@ -138,7 +138,7 @@ export default function AmoraQuoteCheckPage() {
                   <ClipboardCheck className="h-3.5 w-3.5" />
                   계약 전 체크리스트
                 </div>
-                <h1 className="font-serif-kr text-3xl text-[var(--hb-text-strong)] sm:text-4xl">
+                <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
                   견적서에서 더 확인할 내용을 찾아드려요
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--hb-text-body)] sm:text-base">
@@ -176,7 +176,7 @@ export default function AmoraQuoteCheckPage() {
           <section className="mt-5 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 sm:p-5 lg:p-6">
             <div className="mb-4 flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">각 항목의 상태</h2>
+                <h2 className="text-[var(--hb-text-strong)]">각 항목의 상태</h2>
                 <p className="mt-1 text-sm text-[var(--hb-text-muted)]">
                   견적서에 포함이라고 적혀 있으면 ‘포함’, 이용하지 않을 항목은 ‘이용 안 함’,
                   그 외에는 ‘확인 필요’를 선택해 주세요. 아무것도 고르지 않은 항목도
@@ -264,7 +264,7 @@ function ItemGroup({
 
   return (
     <div className="mt-4">
-      <h3 className="mb-2 text-sm font-semibold text-[var(--hb-text-strong)]">{title}</h3>
+      <h3 className="mb-2 text-[var(--hb-text-strong)]">{title}</h3>
       <div className="divide-y divide-[var(--hb-hairline)] border-y border-[var(--hb-hairline)]">
         {items.map((item) => {
           const decision = decisions[item.id] ?? "unknown";
@@ -400,7 +400,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
             <Icon className="h-5 w-5" />
           </div>
           <div>
-            <h2 className={`text-xl font-semibold ${style.text}`}>{result.summaryTitle}</h2>
+            <h2 className={`${style.text}`}>{result.summaryTitle}</h2>
             <p className="mt-2 text-sm leading-6 text-[var(--hb-text-body)]">{result.summaryText}</p>
             <p className="mt-2 text-xs leading-5 text-[var(--hb-text-muted)]">
               ‘확인 필요’로 남긴 항목만 정리했어요. ‘이용 안 함’으로 고른 항목은 제외했습니다.
@@ -443,7 +443,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       {result.contractQuestions.length > 0 && (
       <div className="mt-5 rounded-[6px] bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="text-sm font-semibold text-[var(--hb-text-strong)]">계약 전 그대로 보낼 질문</h3>
+          <h3 className="text-[var(--hb-text-strong)]">계약 전 그대로 보낼 질문</h3>
           <button
             type="button"
             onClick={copyQuestions}

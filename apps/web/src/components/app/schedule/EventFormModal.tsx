@@ -275,7 +275,7 @@ export default function EventFormModal({
           aria-labelledby="cancelled-event-edit-title"
           className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-[6px] bg-white p-6 shadow-[var(--shadow-overlay)]"
         >
-          <h3 id="cancelled-event-edit-title" className="text-xl font-semibold text-[var(--hb-text-strong)]">
+          <h3 id="cancelled-event-edit-title" className="text-[var(--hb-text-strong)]">
             취소된 일정은 바로 수정할 수 없어요
           </h3>
           <p className="mt-3 text-sm leading-6 text-[var(--hb-text-body)]">
@@ -316,7 +316,7 @@ export default function EventFormModal({
               </div>
               <h3
                 id="schedule-event-form-title"
-                className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]"
+                className="font-serif-kr text-[var(--hb-text-strong)]"
               >
                 {mode === "edit" ? "일정 수정" : "일정 추가"}
               </h3>

@@ -1164,7 +1164,7 @@ export default function BudgetContent({
             role="status"
             className="rounded-[6px] border border-[#D8C7BB] bg-[#FFF9F2] px-4 py-4 text-sm text-[var(--hb-text-body)]"
           >
-            <h3 className="font-semibold text-[#2B2525]">용도 미확인 이전 금액</h3>
+            <h3 className="text-[#2B2525]">용도 미확인 이전 금액</h3>
             <p className="mt-1 leading-6">
               이전 버전 값은 배정 예산인지 실제 기록인지 확인할 수 없어 예산·기록 지출 합계에서 제외했어요.
               아래 금액을 확인한 뒤 해당 항목에서 맞는 칸에 다시 입력해 주세요.
@@ -1190,7 +1190,7 @@ export default function BudgetContent({
               <Users className="h-5 w-5 text-[var(--hb-text-strong)]" />
               <div>
                 <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">PAYER SUMMARY</p>
-                <h3 className="font-serif-kr text-[22px] font-medium leading-tight text-[var(--hb-text-strong)]">분담 현황</h3>
+                <h3 className="font-serif-kr text-[var(--hb-text-strong)]">분담 현황</h3>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
@@ -1433,7 +1433,7 @@ export default function BudgetContent({
               <p className="text-xs tracking-widest uppercase text-[var(--hb-accent-hover)] mb-3 font-medium">
                 AI 예산 분석
               </p>
-              <h3 className="font-serif-kr text-2xl sm:text-3xl text-white mb-3 font-light break-words">
+              <h3 className="font-serif-kr text-white mb-3 break-words">
                 어디를 먼저 확인할까요?
               </h3>
               <p className="text-base text-white/70 mb-6 max-w-md">
@@ -1478,7 +1478,7 @@ export default function BudgetContent({
             <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
             <div className="relative bg-white rounded-[6px] w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">새 항목 추가</h3>
+                <h3 className="font-serif-kr text-[var(--hb-text-strong)]">새 항목 추가</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
                   className="tap-area shrink-0 w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
@@ -1568,7 +1568,7 @@ export default function BudgetContent({
                     <AlertTriangle className="w-5 h-5 text-red-400" />
                   </div>
                   <div>
-                    <h3 className="font-serif-kr text-[17px] font-light text-[var(--hb-text-strong)]">
+                    <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
                       {isFixed ? "항목 관리" : "항목 삭제"}
                     </h3>
                     <p className="text-[12px] text-[var(--hb-text-muted)] mt-0.5">

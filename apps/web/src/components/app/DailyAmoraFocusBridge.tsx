@@ -46,7 +46,7 @@ export default function DailyAmoraFocusBridge({
           </p>
           <h2
             id="daily-amora-focus-title"
-            className="mt-1 text-[17px] font-semibold leading-snug text-[var(--hb-text-strong)]"
+            className="mt-1 text-[var(--hb-text-strong)]"
           >
             {focusTitle
               ? focusTitle

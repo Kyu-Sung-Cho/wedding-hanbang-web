@@ -47,7 +47,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
           >
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.04]">
-              <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
+              <h3 className="text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
                 className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
@@ -103,7 +103,7 @@ export default function ChatInfoPanel({ isOpen, onClose }: Props) {
 
             {/* 헤더 */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04]">
-              <h3 className="text-lg font-medium text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
+              <h3 className="text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
               <button
                 onClick={onClose}
                 className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"

@@ -34,7 +34,7 @@ function SlideWelcome() {
       </div>
 
       {/* 타이틀 — 모바일 사이즈 다운 */}
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center leading-snug mb-2 sm:mb-3">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2 sm:mb-3">
         결혼 준비,{"\n"}아모라와 처음부터 끝까지.
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5 sm:mb-6">
@@ -73,7 +73,7 @@ function SlideWelcome() {
 function SlideDashboard() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
         대시보드
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-6">
@@ -161,7 +161,7 @@ function SlideDashboard() {
 function SlideChat() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
         아모라 — 모든 걸 연결하는 중심
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5">
@@ -239,7 +239,7 @@ function SlideChat() {
 function SlideBudget() {
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
         예산 관리
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-6">
@@ -351,7 +351,7 @@ function SlideFeaturePages() {
 
   return (
     <div className="flex flex-col items-center px-6 pt-2 pb-2">
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center mb-2">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
         기능 페이지로 이어가기
       </h2>
       <p className="text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-6">
@@ -374,7 +374,7 @@ function SlideFeaturePages() {
                 <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-[6px] bg-[var(--hb-primary)]/10 text-[var(--hb-text-strong)]">
                   <Icon className="h-5 w-5" />
                 </div>
-                <h3 className="text-base font-medium text-[var(--hb-text-strong)]">{feature.title}</h3>
+                <h3 className="text-[var(--hb-text-strong)]">{feature.title}</h3>
                 <p className="mt-1.5 text-sm leading-relaxed text-[var(--hb-text-body)]">{feature.desc}</p>
               </div>
             );
@@ -409,7 +409,7 @@ function SlideStart({ onStart, neverShow, onNeverShowChange }: {
         />
       </div>
 
-      <h2 className="font-serif-kr text-xl sm:text-3xl font-normal text-[var(--hb-text-strong)] text-center leading-snug mb-2 sm:mb-3">
+      <h2 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2 sm:mb-3">
         이제 아모라에게 말해보세요
       </h2>
       <p className="text-sm sm:text-sm sm:text-base text-[var(--hb-text-body)] text-center mb-5 sm:mb-6">

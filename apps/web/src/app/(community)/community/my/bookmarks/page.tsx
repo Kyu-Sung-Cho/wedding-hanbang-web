@@ -70,7 +70,7 @@ export default function MyBookmarksPage() {
         <Link href={weddingPath()} className="w-8 h-8 rounded-full bg-white border border-black/[0.06] flex items-center justify-center hover:bg-[var(--hb-surface-hover)] transition-colors">
           <ArrowLeft className="w-4 h-4 text-[var(--hb-text-strong)]" />
         </Link>
-        <h1 className="font-serif-kr text-[20px] text-[var(--hb-text-strong)]">북마크</h1>
+        <h1 className="font-serif-kr text-[var(--hb-text-strong)]">북마크</h1>
       </div>
 
       {loading ? (

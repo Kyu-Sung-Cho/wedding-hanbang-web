@@ -147,7 +147,7 @@ export default function NotificationPanel({
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-black/[0.04]">
-          <h3 className="text-[15px] font-medium text-[var(--hb-text-strong)]">알림</h3>
+          <h3 className="text-[var(--hb-text-strong)]">알림</h3>
           <div className="flex items-center gap-2">
             {notifications.length > 0 && (
               <button

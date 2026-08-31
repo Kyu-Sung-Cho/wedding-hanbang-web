@@ -113,7 +113,7 @@ export default function PaymentLedger() {
   if (isDemo) {
     return (
       <section className="rounded-[6px] border border-[#E2D3C8] bg-white p-5">
-        <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">계약·지급 기록</h2>
+        <h2 className="text-[var(--hb-text-strong)]">계약·지급 기록</h2>
         <p className="mt-2 text-sm leading-6 text-[#6F6760]">
           체험에서는 계약·지급 기록을 저장하지 않아요. 가입 후 두 사람이 함께
           계약 총액, 지급액과 잔금일을 기록할 수 있습니다.
@@ -146,7 +146,7 @@ export default function PaymentLedger() {
               <WalletCards className="h-5 w-5 text-[var(--hb-text-strong)]" aria-hidden="true" />
               <h2
                 id="payment-ledger-title"
-                className="text-lg font-semibold text-[var(--hb-text-strong)]"
+                className="text-[var(--hb-text-strong)]"
               >
                 계약·지급 기록
               </h2>
@@ -271,7 +271,7 @@ export default function PaymentLedger() {
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="font-semibold text-[var(--hb-text-strong)]">
+                        <h3 className="text-[var(--hb-text-strong)]">
                           {payment.itemName}
                         </h3>
                         <span className="rounded-full bg-[var(--hb-surface-hover)] px-2.5 py-1 text-[11px] font-medium text-[#6F6760]">

@@ -304,7 +304,7 @@ function CohortLoginRequired({ roomId }: { roomId: string }) {
             <LockKeyhole className="h-4 w-4" />
             로그인 필요
           </div>
-          <h1 className="font-serif-kr text-[30px] font-medium leading-[1.25] text-[var(--hb-text-strong)] sm:text-[38px]">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             동기방은 로그인 후
             <br />
             입장할 수 있어요
@@ -347,7 +347,7 @@ function RoomHeader({ room }: { room: CohortRoom | null }) {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0">
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--hb-text-strong)]">Cohort Lounge</p>
-          <h1 className="truncate font-serif-kr text-[26px] font-medium leading-[1.25] text-[var(--hb-text-strong)] sm:text-[30px]">
+          <h1 className="truncate font-serif-kr text-[var(--hb-text-strong)]">
             {getRoomTitle(room)}
           </h1>
           <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
@@ -1245,7 +1245,7 @@ function PostPickerModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 border-b border-[var(--hb-hairline)]">
-          <h3 className="font-serif-kr text-2xl text-[var(--hb-text-strong)] mb-4">글 공유하기</h3>
+          <h3 className="font-serif-kr text-[var(--hb-text-strong)] mb-4">글 공유하기</h3>
           <input
             type="text"
             value={query}
@@ -1341,7 +1341,7 @@ function InfoTab({
     <div>
       <div className="mb-4 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">동기방 익명 등록 금액</h2>
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)]">동기방 익명 등록 금액</h2>
           <p className="mt-1 text-[13px] font-medium leading-6 text-[var(--hb-text-body)]">
             견적서나 계약서의 기본금·추가금·조건을 만원 단위로 등록하면,
             업체명은 숨기고 5명 이상 쌓인 항목의 산술 평균과 표본 수만 보여줘요. 시장 전체의 시세는 아니에요.
@@ -1395,7 +1395,7 @@ function InfoTab({
               className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 transition-colors hover:border-[var(--hb-primary)]/30 sm:p-5"
             >
               <div className="mb-3 flex items-center justify-between gap-3 flex-wrap">
-                <h3 className="font-serif-kr text-xl font-medium text-[var(--hb-text-strong)] sm:text-2xl">
+                <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
                   {cat.label}
                 </h3>
                 <span className="rounded-full bg-[var(--hb-surface-page)] px-3 py-1 text-xs font-semibold text-[var(--hb-text-muted)] sm:text-sm">
@@ -1509,7 +1509,7 @@ function ContractModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-md rounded-[6px] border border-[#F0EFED] bg-white p-5">
-        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">
+        <h3 className="mb-1 font-serif-kr text-[var(--hb-text-strong)]">
           내 견적·계약 정보 등록
         </h3>
         <p className="mb-4 text-[12px] font-medium leading-5 text-[var(--hb-text-body)]">
@@ -1651,7 +1651,7 @@ function TimelineTab({
     <div>
       <div className="mb-4 rounded-[6px] border border-[var(--hb-hairline)] bg-[#fffdf8] p-4 sm:flex sm:items-start sm:justify-between sm:gap-4">
         <div>
-          <h2 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">준비 기록</h2>
+          <h2 className="font-serif-kr text-[var(--hb-text-strong)]">준비 기록</h2>
           <p className="mt-1 text-[13px] font-medium leading-6 text-[var(--hb-text-body)]">
             계약·투어·예약처럼 완료한 일을 남기면, 같은 시기 커플들의 준비 흐름을 참고할 수 있어요.
           </p>
@@ -1786,7 +1786,7 @@ function TimelineEventModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain rounded-[6px] border border-[#F0EFED] bg-white p-5 shadow-[var(--shadow-overlay)]">
-        <h3 className="mb-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">
+        <h3 className="mb-1 font-serif-kr text-[var(--hb-text-strong)]">
           준비 기록 추가
         </h3>
         <p className="mb-4 text-[12px] font-medium leading-5 text-[var(--hb-text-body)]">
@@ -1965,7 +1965,7 @@ function CohortDigestCard({
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-text-strong)]">
             오늘/이번주 흐름
           </p>
-          <h3 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">동기방 요약</h3>
+          <h3 className="font-serif-kr text-[var(--hb-text-strong)]">동기방 요약</h3>
           <p className="mt-1 text-[12px] font-medium leading-[1.55] text-[var(--hb-text-muted)]">
             전체 흐름을 먼저 잡고, 대표 이야기만 눌러서 바로 이어서 봐요.
           </p>
@@ -2075,7 +2075,7 @@ function CohortDigestCard({
           {visibleSubtopics.length > 0 && (
             <div>
               <div className="mb-2 flex items-center justify-between gap-2">
-                <h4 className="text-[13px] font-semibold text-[var(--hb-text-strong)]">대표 이야기</h4>
+                <h4 className="text-[var(--hb-text-strong)]">대표 이야기</h4>
                 <span className="text-[11px] font-medium text-[var(--hb-text-muted)]">
                   {showAllSubtopics ? `전체 ${subtopics.length}개` : "상위 3개"}
                 </span>
@@ -2186,7 +2186,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">동기들이 많이 본 글</h3>
+        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">동기들이 많이 본 글</h3>
         <Link href={weddingPath("/community?sort=hot")} className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
           더보기
         </Link>
@@ -2206,7 +2206,7 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
                   {String(i + 1).padStart(2, "0")}
                 </span>
                 <div className="flex-1 min-w-0">
-                  <h4 className="text-sm text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2 leading-snug">
+                  <h4 className="text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)] transition-colors line-clamp-2">
                     {p.title}
                   </h4>
                   <p className="text-xs text-[var(--hb-text-muted)] mt-1">
@@ -2261,7 +2261,7 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
     <div>
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">함께 준비 중</h3>
+          <h3 className="font-serif-kr text-[var(--hb-text-strong)]">함께 준비 중</h3>
           <p className="mt-1 text-[12px] font-medium text-[var(--hb-text-muted)]">최근 입장한 동기들</p>
         </div>
         <span className="rounded-full bg-[#EEF4F1] px-3 py-1 text-xs font-semibold text-[var(--hb-text-strong)]">{memberCount}명</span>

@@ -171,7 +171,7 @@ export default function MoneyPage() {
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] tracking-tight">축의금 관리</h1>
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">축의금 관리</h1>
           <p className="text-base text-[var(--hb-text-muted)] mt-2 font-light">축의금 내역을 기록하고 관리하세요</p>
         </div>
         <div className="flex gap-2">
@@ -229,7 +229,7 @@ export default function MoneyPage() {
       {showForm && (
         <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">
+            <h2 className="font-serif-kr text-[var(--hb-text-strong)]">
               {editId ? "축의금 수정" : "축의금 추가"}
             </h2>
             <button onClick={resetForm} className="text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)]">

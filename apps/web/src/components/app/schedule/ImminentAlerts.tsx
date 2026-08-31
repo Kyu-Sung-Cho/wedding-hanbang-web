@@ -101,7 +101,7 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2.5">
             <Clock className="h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
-            <h3 className="min-w-0 truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
+            <h3 className="min-w-0 truncate text-[var(--hb-text-strong)]">
               날짜를 정할 항목
             </h3>
             <span className="shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">{items.length}건</span>

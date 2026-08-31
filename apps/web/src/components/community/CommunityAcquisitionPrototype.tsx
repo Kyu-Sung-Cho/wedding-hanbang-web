@@ -291,7 +291,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
           <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
             <div>
               <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">결정 라이브러리</p>
-              <h2 className="mt-3 break-keep font-serif text-[32px] font-medium tracking-[-0.03em] sm:text-[42px]">
+              <h2 className="mt-3 break-keep font-serif">
                 정보가 아니라, 결정까지 읽어요
               </h2>
             </div>
@@ -318,7 +318,7 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
           <div className="mx-auto grid w-full max-w-[1320px] gap-8 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8 lg:py-16">
             <div>
               <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[#d7c1bb]">경험을 내 준비로</p>
-              <h2 className="mt-3 max-w-[760px] break-keep font-serif text-[30px] font-medium leading-[1.3] sm:text-[40px]">
+              <h2 className="mt-3 max-w-[760px] break-keep font-serif">
                 읽고 끝내지 말고, 우리 커플의 예산·일정·질문으로 정리하세요.
               </h2>
               <p className="mt-3 font-sans text-[14px] leading-7 text-white/70">
@@ -425,7 +425,7 @@ function StoriesVariant({ cases }: { cases: DecisionCase[] }) {
         <section className="border-y border-[#d8cec1] bg-[var(--hb-surface-page)]">
           <div className="mx-auto w-full max-w-[1320px] px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
             <div className="flex items-center justify-between gap-4">
-              <h2 className="font-serif text-[30px] font-medium sm:text-[40px]">같은 순간을 지난 사람들</h2>
+              <h2 className="font-serif">같은 순간을 지난 사람들</h2>
               <BookOpenText className="h-7 w-7 text-[#8F6662]" />
             </div>
             <div className="mt-8 divide-y divide-[#d8cec1] border-y border-[#d8cec1]">
@@ -510,7 +510,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
               <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
                 <div>
                   <p className="font-sans text-[11px] font-bold tracking-[0.15em] text-[var(--color-rose-700)]">ANSWER NEEDED</p>
-                  <h2 className="mt-3 font-serif text-[32px] font-medium sm:text-[42px]">지금 답이 필요한 질문</h2>
+                  <h2 className="mt-3 font-serif">지금 답이 필요한 질문</h2>
                 </div>
                 <Link
                   {...weddingLinkProps("/community?feed=all&sort=unanswered#community-feed")}
@@ -574,7 +574,7 @@ function ClinicVariant({ cases }: { cases: DecisionCase[] }) {
             ].map(([number, title, body]) => (
               <div key={number} className="border-l border-[#d8cec1] px-5 py-2">
                 <span className="font-serif text-[18px] text-[#8F6662]">{number}</span>
-                <h3 className="mt-4 font-serif text-[23px] font-medium">{title}</h3>
+                <h3 className="mt-4 font-serif">{title}</h3>
                 <p className="mt-2 break-keep font-sans text-[13px] leading-6 text-[#69746f]">{body}</p>
               </div>
             ))}

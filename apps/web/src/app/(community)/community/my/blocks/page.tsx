@@ -119,7 +119,7 @@ export default function BlockedUsersPage() {
           <ArrowLeft className="h-4 w-4 text-[var(--hb-text-strong)]" />
         </Link>
         <div>
-          <h1 className="font-serif-kr text-[20px] text-[var(--hb-text-strong)]">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             차단 관리
           </h1>
           <p className="mt-1 text-xs leading-relaxed text-[#878680]">

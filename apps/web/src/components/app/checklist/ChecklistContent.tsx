@@ -201,7 +201,7 @@ export default function ChecklistContent() {
 
       <section className="mt-6" aria-labelledby="all-checklist-heading">
         <div className="flex items-center justify-between">
-          <h2 id="all-checklist-heading" className="text-[19px] font-semibold text-[var(--hb-text-strong)]">전체 준비</h2>
+          <h2 id="all-checklist-heading" className="text-[var(--hb-text-strong)]">전체 준비</h2>
           <span className="text-[13px] text-[var(--hb-text-body)]">{categories.length}개 분야</span>
         </div>
 

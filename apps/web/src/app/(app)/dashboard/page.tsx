@@ -415,7 +415,7 @@ export default function DashboardPage() {
               </p>
               <h2
                 id="joined-plan-title"
-                className="mt-1 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]"
+                className="mt-1 font-serif-kr text-[var(--hb-text-strong)]"
               >
                 이제 이 계획을 함께 봐요
               </h2>
@@ -509,7 +509,7 @@ export default function DashboardPage() {
             시작하기
             <Sparkles className="h-4 w-4" />
           </p>
-          <h2 className="mt-3 font-serif-kr text-[24px] font-medium leading-[1.3] text-[var(--hb-text-strong)] md:text-[28px]">
+          <h2 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
             결혼식 날짜를 알려주세요
           </h2>
           <p className="mt-2 max-w-[520px] text-[14px] font-medium leading-[1.6] text-[#38475c]">
@@ -546,7 +546,7 @@ export default function DashboardPage() {
             {companionCopy.loungeLabel}
             <Sparkles className="h-4 w-4" />
           </p>
-          <h1 className="mt-3 font-serif-kr text-[29px] font-medium leading-[1.2] text-[var(--hb-text-strong)] md:text-[36px]">
+          <h1 className="mt-3 font-serif-kr text-[var(--hb-text-strong)]">
             {companionCopy.statusHeading}
           </h1>
           <p className="mt-2.5 max-w-[520px] text-[14px] font-medium leading-[1.55] text-[#38475c]">
@@ -566,7 +566,7 @@ export default function DashboardPage() {
           <div className="mb-3 flex items-start justify-between gap-4">
             <div>
               <p className="text-[12px] font-semibold text-[#ffffff]">아모라 안내</p>
-              <h2 className="mt-1 font-serif-kr text-[23px] font-medium">지금 먼저 볼 것</h2>
+              <h2 className="mt-1 font-serif-kr">지금 먼저 볼 것</h2>
             </div>
             <ShieldCheck className="h-6 w-6 text-[#ffffff]" />
           </div>
@@ -626,7 +626,7 @@ export default function DashboardPage() {
               <ChevronRight className="h-4 w-4 text-[var(--hb-text-strong)] transition-transform group-hover:translate-x-0.5" />
             </span>
             <p className="mt-2.5 text-[11px] font-semibold text-[var(--hb-accent-hover)] sm:mt-3">{card.label}</p>
-            <h2 className="mt-1 truncate text-[16px] font-semibold text-[var(--hb-text-strong)] sm:text-[18px]">{card.value}</h2>
+            <h2 className="mt-1 truncate text-[var(--hb-text-strong)]">{card.value}</h2>
             <span className="mt-1 block truncate text-[10px] font-medium text-[var(--hb-text-body)] sm:mt-1.5 sm:text-[11px]">
               {card.note}
             </span>
@@ -639,7 +639,7 @@ export default function DashboardPage() {
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">진행 현황</p>
-              <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">준비 항목별 상태</h2>
+              <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">준비 항목별 상태</h2>
             </div>
             <Link href={weddingPath("/checklist")} className="inline-flex items-center rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
               전체 체크리스트
@@ -694,7 +694,7 @@ export default function DashboardPage() {
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">예산</p>
-                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">기록 지출 흐름</h2>
+                <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">기록 지출 흐름</h2>
               </div>
               <Link href={weddingPath("/budget")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" aria-label="예산 관리로 이동">
                 <Wallet className="h-4 w-4" />
@@ -732,7 +732,7 @@ export default function DashboardPage() {
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">일정</p>
-                <h2 className="mt-1 font-serif-kr text-[22px] font-medium text-[var(--hb-text-strong)]">다가오는 일정</h2>
+                <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">다가오는 일정</h2>
               </div>
               <Link href={weddingPath("/schedule?new=1")} className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]" aria-label="일정 추가하기">
                 <Bell className="h-4 w-4" />
@@ -872,7 +872,7 @@ function CategoryPanel({
             </span>
             <div>
               <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">{category.group}</p>
-              <h2 className="mt-1 font-serif-kr text-[26px] font-medium text-[var(--hb-text-strong)]">{category.label}</h2>
+              <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">{category.label}</h2>
             </div>
           </div>
           <button

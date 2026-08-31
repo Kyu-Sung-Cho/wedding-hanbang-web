@@ -101,7 +101,7 @@ export default function BlockUserButton({
               <div>
                 <h2
                   id={`block-user-title-${userId}`}
-                  className="text-base font-semibold text-[var(--hb-text-strong)]"
+                  className="text-[var(--hb-text-strong)]"
                 >
                   {completed ? "차단했어요" : `${nickname}님을 차단할까요?`}
                 </h2>

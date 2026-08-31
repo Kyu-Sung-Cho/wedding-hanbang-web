@@ -283,7 +283,7 @@ export default function TodayOneCard() {
             <RotateCcw className="h-5 w-5" aria-hidden="true" />
           </span>
           <div className="min-w-0 flex-1">
-            <h2 id="today-one-error-title" className="text-sm font-semibold text-[var(--hb-text-strong)]">
+            <h2 id="today-one-error-title" className="text-[var(--hb-text-strong)]">
               오늘의 한 가지를 다시 확인해 주세요
             </h2>
             <p role="alert" className="mt-1 text-sm leading-6 text-[#6D5F58]">
@@ -343,7 +343,7 @@ export default function TodayOneCard() {
             외부 알림 아님
           </span>
         </div>
-        <h2 id="today-one-title" className="mt-3 text-xl font-semibold leading-8">
+        <h2 id="today-one-title" className="mt-3">
           왜 지금 보여드리나요
         </h2>
         <p className="mt-1.5 text-[15px] leading-7 text-[#FBF8F2]">{card.whyNow}</p>

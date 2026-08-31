@@ -36,7 +36,7 @@ export default function CommunityHero({ postCount = 0, topVendor }: CommunityHer
             <span className="truncate">예비부부 커뮤니티</span>
           </div>
 
-          <h1 className="font-serif-kr text-[27px] leading-tight text-[var(--hb-text-strong)] sm:text-[34px] lg:text-[40px]">
+          <h1 className="font-serif-kr text-[var(--hb-text-strong)]">
             견적·후기·질문,
             <br className="hidden sm:block" /> 여기서 같이 확인해요.
           </h1>

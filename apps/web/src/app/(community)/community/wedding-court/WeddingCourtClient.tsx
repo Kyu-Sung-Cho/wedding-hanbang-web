@@ -86,7 +86,7 @@ function Distribution({
           <p className="text-[12px] font-semibold tracking-[0.12em] text-[var(--color-rose-700)]">
             {title}
           </p>
-          <h3 className="mt-1 text-[18px] font-bold text-[var(--hb-text-strong)]">
+          <h3 className="mt-1 text-[var(--hb-text-strong)]">
             현재 {distribution.totalVotes.toLocaleString("ko-KR")}명의 선택 분포
           </h3>
         </div>
@@ -419,7 +419,7 @@ function WeddingCase({
                 1심 뒤 공개
               </p>
             </div>
-            <h3 className="mt-3 text-[17px] font-extrabold text-[var(--hb-text-strong)]">
+            <h3 className="mt-3 text-[var(--hb-text-strong)]">
               {weddingCase.newEvidence.title}
             </h3>
             <p className="mt-2 text-[14px] leading-7 text-[#52635e]">
@@ -688,7 +688,7 @@ export default function WeddingCourtClient() {
         ) : loginRequired ? (
           <div className="rounded-[6px] border border-[#e2d3c8] bg-white px-6 py-12 text-center shadow-[var(--shadow-overlay)]">
             <LockKeyhole className="mx-auto h-7 w-7 text-[#8f6662]" aria-hidden />
-            <h2 className="mt-4 text-[21px] font-extrabold text-[var(--hb-text-strong)]">
+            <h2 className="mt-4 text-[var(--hb-text-strong)]">
               로그인하고 내 선택을 남겨보세요
             </h2>
             <p className="mx-auto mt-2 max-w-[430px] text-[13px] leading-6 text-[#66756f]">

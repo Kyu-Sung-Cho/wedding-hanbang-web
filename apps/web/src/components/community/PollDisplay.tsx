@@ -146,7 +146,7 @@ export default function PollDisplay({
           <BarChart3 className="w-5 h-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <h3 className="text-base font-semibold text-[var(--hb-text-strong)] leading-snug break-words">
+          <h3 className="text-[var(--hb-text-strong)] break-words">
             {poll.question}
           </h3>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--hb-text-muted)]">

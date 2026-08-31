@@ -20,7 +20,7 @@ export default function CommunityConfigurationUnavailable({
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[var(--hb-surface-hover)] text-[var(--hb-text-strong)]">
           <CloudOff className="h-6 w-6" aria-hidden="true" />
         </div>
-        <h1 className="mt-5 text-2xl font-semibold leading-snug text-[var(--hb-text-strong)]">
+        <h1 className="mt-5 text-[var(--hb-text-strong)]">
           서비스 연결이 잠시 원활하지 않아요
         </h1>
         <p className="mx-auto mt-4 max-w-lg text-base font-medium leading-relaxed text-[var(--hb-text-strong)]">

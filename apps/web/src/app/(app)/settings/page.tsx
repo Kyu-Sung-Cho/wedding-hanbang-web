@@ -590,7 +590,7 @@ export default function SettingsPage() {
   return (
     <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
       {/* 페이지 제목 */}
-      <h1 className="font-serif-kr text-4xl font-light text-[var(--hb-text-strong)] mb-6 animate-fade-in">설정</h1>
+      <h1 className="font-serif-kr text-[var(--hb-text-strong)] mb-6 animate-fade-in">설정</h1>
 
       {journeyNotice && (
         <div
@@ -645,7 +645,7 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h2 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">{userName}</h2>
+                <h2 className="font-serif-kr text-[var(--hb-text-strong)]">{userName}</h2>
                 {userRole && (
                   <span className="text-sm px-2.5 py-1 rounded-full bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)] font-medium">
                     {userRole}
@@ -790,7 +790,7 @@ export default function SettingsPage() {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">웨딩 스타일</h3>
+            <h3 className="font-serif-kr text-[var(--hb-text-strong)]">웨딩 스타일</h3>
             <p className="text-base text-[var(--hb-text-body)] font-light">
               아모라가 추천·예산 짤 때 쓰는 취향 정보예요
               <span className="ml-2 text-sm text-[var(--hb-text-muted)]">
@@ -910,7 +910,7 @@ export default function SettingsPage() {
             <Heart className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">커플 연결</h3>
+            <h3 className="font-serif-kr text-[var(--hb-text-strong)]">커플 연결</h3>
             <p className="text-base text-[var(--hb-text-body)] font-light">파트너와 함께 준비 현황을 공유하세요</p>
           </div>
         </div>
@@ -1074,7 +1074,7 @@ export default function SettingsPage() {
           <div className="w-11 h-11 shrink-0 rounded-[6px] bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center shadow-[var(--shadow-raised)]">
             <Bell className="w-5 h-5 text-white" />
           </div>
-          <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)]">알림 설정</h3>
+          <h3 className="font-serif-kr text-[var(--hb-text-strong)]">알림 설정</h3>
         </div>
 
         <div className="flex flex-col gap-1">
@@ -1264,7 +1264,7 @@ export default function SettingsPage() {
               <div className="w-14 h-14 mx-auto mb-5 rounded-full bg-[var(--hb-surface-hover)] flex items-center justify-center">
                 <RotateCcw className="w-6 h-6 text-[var(--hb-accent-hover)]" />
               </div>
-              <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)] text-center mb-2">
+              <h3 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
                 새 커플로 다시 시작할까요?
               </h3>
               {/* 되돌릴 수 없는 행동이다. 예전 문구는 "새 파트너 코드로 다시 연결할 수
@@ -1340,7 +1340,7 @@ export default function SettingsPage() {
                 <Trash2 className="w-6 h-6 text-red-400" />
               </div>
 
-              <h3 className="font-serif-kr text-2xl font-light text-[var(--hb-text-strong)] text-center mb-2">
+              <h3 className="font-serif-kr text-[var(--hb-text-strong)] text-center mb-2">
                 정말 탈퇴하시겠어요?
               </h3>
               <p className="text-sm text-[var(--hb-text-muted)] text-center leading-relaxed mb-5">

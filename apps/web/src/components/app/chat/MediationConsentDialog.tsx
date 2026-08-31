@@ -106,7 +106,7 @@ export default function MediationConsentDialog({
           <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-[#F3E9E4] text-[var(--hb-accent-hover)]">
             <Sparkles className="h-4 w-4" aria-hidden="true" />
           </div>
-          <h2 id={titleId} className="text-lg font-semibold text-[var(--hb-text-strong)]">
+          <h2 id={titleId} className="text-[var(--hb-text-strong)]">
             아모라에게 조율 초안을 요청할까요?
           </h2>
           <p
