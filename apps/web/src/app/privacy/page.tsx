@@ -23,7 +23,7 @@ export default function PrivacyPage() {
 
       <div className="max-w-[800px] mx-auto px-6 py-16 max-md:px-5 max-md:py-10">
         <h1 className="font-serif-kr text-[28px] font-light text-[var(--hb-text-strong)] mb-2">개인정보 처리방침</h1>
-        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 8월 28일</p>
+        <p className="text-[13px] text-[var(--hb-text-muted)] mb-10">최종 수정일: 2026년 8월 31일</p>
 
         <div className="prose prose-sm max-w-none text-[14px] text-charcoal leading-[1.9] font-light space-y-8">
           <section>
@@ -125,6 +125,45 @@ export default function PrivacyPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제5조 (개인정보의 처리위탁)</h2>
             <p>운영자는 실제로 해당 기능을 켠 경우 다음 사업자에게 개인정보 처리를 맡길 수 있습니다.</p>
+            {/*
+              2026-08-31: 두 표 어디에도 **Cloudflare 가 없었다.** 그런데 이용자의
+              요청은 이미 두 경로로 Cloudflare 를 지나간다. 운영에서 직접 재서
+              확인한 것만 적는다.
+
+              (1) 2026-08-31 https://hanbang.ai/privacy 응답 헤더의 CSP 에
+                  `https://challenges.cloudflare.com` 가 script-src·connect-src·
+                  frame-src 세 곳에 있다. 가입·비밀번호 찾기 화면의 봇 확인
+                  위젯(`components/auth/TurnstileWidget.tsx`)이 그 호스트에서
+                  스크립트를 내려받고, 서버 검증(`lib/turnstile.ts`)은 siteverify
+                  에 `remoteip` 로 이용자 IP 를 함께 보낸다
+                  (`api/auth/signup`·`api/auth/forgot-password` 가 호출자다).
+              (2) 2026-08-31 운영 Supabase 엔드포인트
+                  (slrtobkksjmxgzatjyqb.supabase.co)의 응답 헤더가
+                  `Server: cloudflare` · `CF-RAY: …-ICN` 이고, `Domain=supabase.co`
+                  로 봇 차단 쿠키 `__cf_bm` 을 심는다. 로그인·대화·예산 등 모든
+                  DB/인증 요청이 그 앞단을 지난다는 뜻이다.
+
+              반대편 실측도 같이 남긴다 — 같은 날 운영 가입 화면에는 봇 확인 위젯이
+              **렌더되지 않았다**(사이트 키 미설정, 브라우저 요청 0건). 그래서 (1)은
+              오늘 도는 기능이 아니라 키가 설정되는 순간 도는 배선이고, (2)는 오늘
+              이미 일어나는 이전이다. 제5조 첫 문장이 "실제로 해당 기능을 켠 경우"로
+              시작하므로 두 경우를 한 줄로 적을 수 있다.
+
+              엣지 노드가 국내(인천)로 잡혔더라도 수탁사 자체는 미국 법인이므로
+              국외 이전으로 고지한다.
+
+              남은 것 1 — 수탁사들의 개인정보 보호 담당 연락처는 저장소·운영 어디에도
+              근거가 없어 지어내지 않았다. 아래 목록의 "고객센터로 요청하시면 안내"
+              문구를 그대로 두고, 연락처를 확보하면 표에 직접 적는다.
+
+              남은 것 2 — 위 "최종 수정일"과 부칙은 이 변경에 맞춰 올리지 않았다.
+              `lib/auth/__tests__/signupConsent.test.ts` 가 이 날짜를
+              `SIGNUP_CONSENT_POLICY_VERSION`(packages/shared) 및 이용약관의 최종
+              수정일과 **한 값으로 묶어** 두었기 때문이다. 셋을 함께 올리면 기존
+              회원의 동의 기록이 새 판을 가리키게 되므로 파운더 결정이 필요하다.
+              날짜를 올릴 때 같이 손대야 하는 곳: privacy/page.tsx 최종 수정일·부칙,
+              terms/page.tsx 최종 수정일, packages/shared 의 동의 판 상수.
+            */}
             <div className="mt-3 overflow-x-auto">
               <table className="w-full text-[13px] border-collapse">
                 <thead>
@@ -141,6 +180,10 @@ export default function PrivacyPage() {
                   <tr className="border-b border-black/[0.04]">
                     <td className="py-2">Vercel Inc.</td>
                     <td className="py-2">웹 호스팅 및 배포</td>
+                  </tr>
+                  <tr className="border-b border-black/[0.04]">
+                    <td className="py-2">Cloudflare, Inc.</td>
+                    <td className="py-2">데이터베이스·인증 요청 구간의 네트워크 보안과 전송(미국 소재)</td>
                   </tr>
                   <tr className="border-b border-black/[0.04]">
                     <td className="py-2">OpenAI</td>
@@ -197,6 +240,11 @@ export default function PrivacyPage() {
                       <td className="py-2 align-top">Vercel Inc.</td>
                       <td className="py-2 align-top">미국</td>
                       <td className="py-2 align-top">접속 로그, IP 주소, 브라우저·OS 정보</td>
+                    </tr>
+                    <tr className="border-b border-black/[0.04]">
+                      <td className="py-2 align-top">Cloudflare, Inc.</td>
+                      <td className="py-2 align-top">미국(사업자 소재지). 요청은 이용자와 가까운 전 세계 엣지 노드에서 처리됩니다</td>
+                      <td className="py-2 align-top">IP 주소, 브라우저·기기 신호(User-Agent 등 요청 헤더), 요청한 주소, 봇 차단 쿠키(__cf_bm)</td>
                     </tr>
                     <tr className="border-b border-black/[0.04]">
                       <td className="py-2 align-top">OpenAI</td>
