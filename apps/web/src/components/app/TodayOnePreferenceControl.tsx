@@ -230,7 +230,7 @@ export default function TodayOnePreferenceControl() {
                 {preference.enabled ? (paused ? "일시정지 중" : "사용 중") : "기본 꺼짐"}
               </span>
             </div>
-            <p className="mt-1 text-sm font-light leading-6 text-[#6D806E]">
+            <p className="mt-1 text-sm font-light leading-6 text-[var(--hb-success)]">
               일정·예산에서 지금 확인할 한 가지를 대시보드 안에서만 보여줘요. 푸시·문자·이메일을 보내지 않아요.
             </p>
           </div>
@@ -287,7 +287,7 @@ export default function TodayOnePreferenceControl() {
       )}
 
       {saving && (
-        <p role="status" className="mt-2 pl-[52px] text-xs text-[#6D806E]">
+        <p role="status" className="mt-2 pl-[52px] text-xs text-[var(--hb-success)]">
           서버에서 설정을 확인하고 있어요. 확인 전에는 표시를 바꾸지 않아요.
         </p>
       )}

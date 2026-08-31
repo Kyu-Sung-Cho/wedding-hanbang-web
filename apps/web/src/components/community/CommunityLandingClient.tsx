@@ -2133,7 +2133,7 @@ function BestPostsPanel() {
           ))}
         </ol>
       )}
-      <p className="mt-5 border-t border-[var(--hb-hairline)] pt-4 text-center text-[12px] font-medium text-[#9aa2af]">
+      <p className="mt-5 border-t border-[var(--hb-hairline)] pt-4 text-center text-[12px] font-medium text-[var(--hb-text-muted)]">
         최근 7일 도움돼요 반응을 기준으로 보여드려요.
       </p>
     </article>

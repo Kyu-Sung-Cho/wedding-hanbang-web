@@ -90,7 +90,7 @@ function Distribution({
             현재 {distribution.totalVotes.toLocaleString("ko-KR")}명의 선택 분포
           </h3>
         </div>
-        <Users className="h-5 w-5 shrink-0 text-[#6d806e]" aria-hidden />
+        <Users className="h-5 w-5 shrink-0 text-[var(--hb-success)]" aria-hidden />
       </div>
 
       <div className="mt-5 space-y-4">
@@ -374,7 +374,7 @@ function WeddingCase({
                 key={fact}
                 className="flex gap-3 text-[13px] leading-6 text-[var(--hb-text-strong)]"
               >
-                <Check className="mt-1 h-4 w-4 shrink-0 text-[#6d806e]" aria-hidden />
+                <Check className="mt-1 h-4 w-4 shrink-0 text-[var(--hb-success)]" aria-hidden />
                 <span>{fact}</span>
               </li>
             ))}
@@ -678,7 +678,7 @@ export default function WeddingCourtClient() {
             className="rounded-[6px] border border-[#e2d3c8] bg-white px-6 py-16 text-center"
           >
             <RefreshCw
-              className="mx-auto h-6 w-6 animate-spin text-[#6d806e]"
+              className="mx-auto h-6 w-6 animate-spin text-[var(--hb-success)]"
               aria-hidden
             />
             <p className="mt-4 text-[14px] font-semibold text-[#52635e]">

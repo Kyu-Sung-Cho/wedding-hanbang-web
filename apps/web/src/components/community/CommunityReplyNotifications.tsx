@@ -325,7 +325,7 @@ export default function CommunityReplyNotifications({
         }
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="relative flex h-11 w-11 items-center justify-center rounded-full text-[#6D806E] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-success)] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-text-strong)]"
       >
         <Bell className="h-5 w-5" aria-hidden />
         {unreadCount > 0 && (
@@ -352,7 +352,7 @@ export default function CommunityReplyNotifications({
               <button
                 type="button"
                 onClick={() => void markAllRead()}
-                className="inline-flex min-h-9 items-center gap-1 rounded-[6px] px-2 text-xs font-medium text-[#6D806E] hover:bg-[var(--hb-surface-hover)]"
+                className="inline-flex min-h-9 items-center gap-1 rounded-[6px] px-2 text-xs font-medium text-[var(--hb-success)] hover:bg-[var(--hb-surface-hover)]"
               >
                 <CheckCheck className="h-3.5 w-3.5" aria-hidden />
                 모두 읽음

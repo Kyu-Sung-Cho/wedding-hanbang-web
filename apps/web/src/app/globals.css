@@ -539,6 +539,17 @@ body {
   .text-5xl, .sm\:text-5xl, .md\:text-5xl, .lg\:text-5xl { font-size: 1.5rem !important; }
   .text-4xl, .sm\:text-4xl, .md\:text-4xl, .lg\:text-4xl { font-size: 1.375rem !important; }
   .text-3xl, .sm\:text-3xl, .md\:text-3xl { font-size: 1.25rem !important; }
+  /* ⚠️ 여기서 사다리가 끊겨 있었다. `text-3xl` 은 20px 로 줄면서 `text-2xl` 은
+     24px 그대로여서, 361~640px 구간에서 **페이지 제목이 소제목보다 작았다.**
+     2026-08-31 운영 실측(375px, `/price/vendor/[slug]`): H1 "벨린" 20px 대
+     H2 "공시 가격"·"확인된 업체 조건" 24px. 공시가 업체 페이지 1,053장이 그랬다.
+     (`≤360px` 블록에는 `text-2xl` 이 있어서 아주 좁은 폭에서만 우연히 맞았다.)
+
+     한 칸만 채우면 다음 칸이 또 역전되므로 아래 세 칸을 함께 넣는다 —
+     2xl 18 > xl 17 > lg 16. 어느 것도 본문 하한 16px 아래로 내려가지 않는다. */
+  .text-2xl, .sm\:text-2xl, .md\:text-2xl { font-size: 1.125rem !important; }
+  .text-xl, .sm\:text-xl, .md\:text-xl { font-size: 1.0625rem !important; }
+  .text-lg, .sm\:text-lg, .md\:text-lg { font-size: 1rem !important; }
 }
 
 /* (4) 초소형 (≤ 360px) — 폴더블·작은 안드로이드 */

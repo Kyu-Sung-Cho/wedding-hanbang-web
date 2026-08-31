@@ -439,7 +439,7 @@ export default function AmoraMemorySettingsPage() {
             <div className="flex items-center justify-between gap-3 border-b border-[#F0ECE9] px-5 py-4 sm:px-6">
               <div>
                 <h2 className="font-medium text-[var(--hb-text-strong)]">정리된 기억 {memories.length}개</h2>
-                <p className="mt-0.5 text-xs text-[#6D806E]">직접 고친 기억은 아모라가 자동으로 덮어쓰지 않아요</p>
+                <p className="mt-0.5 text-xs text-[var(--hb-success)]">직접 고친 기억은 아모라가 자동으로 덮어쓰지 않아요</p>
               </div>
               {setting && !confirmClear && (
                 <button type="button" onClick={() => setConfirmClear(true)} className="min-h-11 rounded-[6px] px-3 text-sm font-medium text-red-600 hover:bg-red-50">기억 초기화</button>
@@ -487,7 +487,7 @@ export default function AmoraMemorySettingsPage() {
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="rounded-full bg-[var(--hb-surface-hover)] px-2.5 py-1 text-xs font-medium text-[var(--color-rose-700)]">{KIND_LABELS[memory.kind] ?? "대화 기억"}</span>
                               {memory.userCorrected && (
-                                <span className="inline-flex items-center gap-1 text-xs font-medium text-[#6D806E]">
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-[var(--hb-success)]">
                                   <Check className="h-3 w-3" />
                                   {activeVisibility === "shared" ? "한 사람이 직접 고침 · 공동 확인 아님" : "내가 직접 고침"}
                                 </span>

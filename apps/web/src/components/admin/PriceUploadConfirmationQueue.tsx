@@ -200,7 +200,7 @@ export function PriceUploadConfirmationQueue({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold text-[#70472D]">확인이 필요한 업체 연결</h3>
-          <p className="mt-1 text-xs leading-5 text-[#6D806E]">
+          <p className="mt-1 text-xs leading-5 text-[var(--hb-success)]">
             후보를 선택하면 별칭을 보존하고 해당 가격을 검수 대기 상태로 원자적으로 적재합니다.
           </p>
         </div>
@@ -246,7 +246,7 @@ export function PriceUploadConfirmationQueue({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <strong className="text-sm text-[var(--hb-text-strong)]">{candidate.vendorName}</strong>
-                          <p className="mt-1 text-xs text-[#6D806E]">
+                          <p className="mt-1 text-xs text-[var(--hb-success)]">
                             유사도 {Math.round(candidate.similarity * 100)}%
                             {candidate.vendorSlug ? ` · ${candidate.vendorSlug}` : ""}
                           </p>
@@ -257,7 +257,7 @@ export function PriceUploadConfirmationQueue({
                               : ""}
                             {candidate.regionCode ? ` · ${candidate.regionCode}` : ""}
                           </p>
-                          <p className="mt-1 text-xs leading-5 text-[#6D806E]">
+                          <p className="mt-1 text-xs leading-5 text-[var(--hb-success)]">
                             {candidate.aliases.length > 0
                               ? `등록된 별칭: ${candidate.aliases.join(", ")}`
                               : "등록된 별칭 없음"}

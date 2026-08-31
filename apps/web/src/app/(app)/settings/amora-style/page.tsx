@@ -293,7 +293,7 @@ export default function AmoraStyleSettingsPage() {
           있어요.
         </section>
       ) : personalization.status === "loading" ? (
-        <div className="flex min-h-48 items-center justify-center text-[#6D806E]">
+        <div className="flex min-h-48 items-center justify-center text-[var(--hb-success)]">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           도움 방식을 불러오는 중...
         </div>
@@ -321,7 +321,7 @@ export default function AmoraStyleSettingsPage() {
                 <h2 className="text-base font-semibold text-[var(--hb-text-strong)]">
                   {section.title}
                 </h2>
-                <p className="mt-1 text-sm leading-relaxed text-[#6D806E]">
+                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-success)]">
                   {section.description}
                 </p>
                 <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -355,11 +355,11 @@ export default function AmoraStyleSettingsPage() {
                       >
                         <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
                           {selected && (
-                            <Check className="h-4 w-4 text-[#6D806E]" />
+                            <Check className="h-4 w-4 text-[var(--hb-success)]" />
                           )}
                           {choice.label}
                         </span>
-                        <span className="mt-0.5 block text-xs leading-relaxed text-[#6D806E]">
+                        <span className="mt-0.5 block text-xs leading-relaxed text-[var(--hb-success)]">
                           {choice.description}
                         </span>
                       </button>
@@ -374,12 +374,12 @@ export default function AmoraStyleSettingsPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
-                  <ShieldCheck className="h-4 w-4 text-[#6D806E]" />
+                  <ShieldCheck className="h-4 w-4 text-[var(--hb-success)]" />
                   {personalization.profile
                     ? `내 설정 · ${updatedAt ?? "직접 확인됨"}`
                     : "아직 저장한 도움 방식이 없어요"}
                 </p>
-                <p className="mt-0.5 text-xs leading-relaxed text-[#6D806E]">
+                <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-success)]">
                   현재 질문이 저장값과 다르면 방금 한 말이 우선해요.
                 </p>
               </div>
@@ -396,7 +396,7 @@ export default function AmoraStyleSettingsPage() {
               <p
                 role={personalization.error ? "alert" : "status"}
                 className={`mt-3 text-sm ${
-                  personalization.error ? "text-[#A04A4A]" : "text-[#6D806E]"
+                  personalization.error ? "text-[#A04A4A]" : "text-[var(--hb-success)]"
                 }`}
               >
                 {personalization.error ?? notice}

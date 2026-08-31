@@ -99,7 +99,7 @@ export default async function WeddingCodeMeaningPage({
                   {letter.letter}
                 </span>
                 <div className="min-w-0">
-                  <p className="text-[12px] font-semibold text-[#6D806E]">{letter.axisLabel}</p>
+                  <p className="text-[12px] font-semibold text-[var(--hb-success)]">{letter.axisLabel}</p>
                   <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
                     {letter.meaning}
                   </p>

@@ -41,7 +41,7 @@ export function VendorWorkspaceHeader({ active }: { active: ActiveWorkspace }) {
           ))}
           <Link
             href="/admin"
-            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] px-3.5 text-sm font-semibold text-[#6D806E] hover:bg-[#EFE4D7]"
+            className="inline-flex min-h-10 items-center gap-2 rounded-[6px] px-3.5 text-sm font-semibold text-[var(--hb-success)] hover:bg-[#EFE4D7]"
           >
             <ArrowLeft aria-hidden="true" size={16} />
             전체 관리
@@ -57,7 +57,7 @@ export function AdminLoadingState({ label }: { label: string }) {
     <div className="grid min-h-[360px] place-items-center" role="status">
       <div className="text-center">
         <span className="mx-auto mb-3 block h-8 w-8 animate-spin rounded-full border-2 border-[#C7D1C2] border-t-[var(--hb-primary)]" />
-        <p className="text-sm text-[#6D806E]">{label}</p>
+        <p className="text-sm text-[var(--hb-success)]">{label}</p>
       </div>
     </div>
   );
@@ -67,7 +67,7 @@ export function AdminErrorState({ message, onRetry }: { message: string; onRetry
   return (
     <div className="mx-auto my-16 max-w-lg rounded-[6px] border border-[#D95F5F]/30 bg-white p-7 text-center" role="alert">
       <p className="font-semibold text-[var(--hb-text-strong)]">데이터를 불러오지 못했습니다</p>
-      <p className="mt-2 text-sm leading-6 text-[#6D806E]">{message}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--hb-success)]">{message}</p>
       <button
         type="button"
         onClick={onRetry}

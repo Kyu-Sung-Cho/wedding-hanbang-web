@@ -214,7 +214,7 @@ export default function WeddingCodeV06Client({
               "공유 링크에는 답을 나타내는 코드가 들어가므로 함께 볼 사람에게만 보내요.",
             ].map((line) => (
               <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
-                <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[#6D806E]" />
+                <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-success)]" />
                 {line}
               </p>
             ))}
@@ -504,7 +504,7 @@ ${shareUrl}`
               if (reading.answered === 0) {
                 return (
                   <article key={reading.axis} data-self-axis={reading.axis} data-skipped="" className="px-5 py-5 sm:px-8">
-                    <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
+                    <p className="text-[12px] font-semibold tracking-[0.02em] text-[var(--hb-success)]">
                       {reading.axisLabel}
                     </p>
                     <p className="mt-2 text-[14px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
@@ -515,7 +515,7 @@ ${shareUrl}`
               }
               return (
                 <article key={reading.axis} data-self-axis={reading.axis} className="px-5 py-6 sm:px-8">
-                  <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
+                  <p className="text-[12px] font-semibold tracking-[0.02em] text-[var(--hb-success)]">
                     {reading.axisLabel}
                   </p>
                   <h2 className="mt-2 text-[18px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
@@ -642,7 +642,7 @@ ${shareUrl}`
               return (
                 <article key={gap.key} data-gap={gap.key} className="px-5 py-6 sm:px-8">
                   {/* 주제 이름이지 유형 이름이 아니다 — 「…형이에요」로 읽히면 안 된다. */}
-                  <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
+                  <p className="text-[12px] font-semibold tracking-[0.02em] text-[var(--hb-success)]">
                     {described.headline}
                   </p>
                   <p className="mt-2 text-[13px] font-medium leading-[1.5] text-[var(--color-rose-700)]">
@@ -737,7 +737,7 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
                 slot.firmness === "narrow"
                   ? "text-[#C7D1C2]"
                   : slot.firmness === "unset"
-                    ? "text-[#6D806E]"
+                    ? "text-[var(--hb-success)]"
                     : "text-white"
               }
             >
@@ -764,7 +764,7 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
               {slot.letter}
             </span>
             <div className="min-w-0">
-              <p className="text-[12px] font-semibold text-[#6D806E]">
+              <p className="text-[12px] font-semibold text-[var(--hb-success)]">
                 {slot.axisLabel} · {WEDDING_CODE_FIRMNESS_LABEL[slot.firmness]}
               </p>
               <p className="mt-1 text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
@@ -808,7 +808,7 @@ function WeddingCodePair({
       <div className="bg-[var(--hb-primary)] px-5 py-7 text-center text-white sm:px-8">
         <p className="text-[12px] font-semibold tracking-[0.16em] text-[#C7D1C2]">두 사람의 웨딩코드</p>
         <p className="mt-3 text-[30px] font-semibold leading-none tracking-[0.04em] sm:text-[38px]">
-          {theirs.code} <span className="text-[#6D806E]">×</span> {mine.code}
+          {theirs.code} <span className="text-[var(--hb-success)]">×</span> {mine.code}
         </p>
         <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#C7D1C2]">
           {different.length > 0
@@ -1064,7 +1064,7 @@ function SelfProfilePair({
           return (
             <div key={firstReading.axis} data-pair-axis={firstReading.axis} className="px-5 py-5 sm:px-8">
               <div className="flex items-center gap-2">
-                <p className="text-[12px] font-semibold tracking-[0.02em] text-[#6D806E]">
+                <p className="text-[12px] font-semibold tracking-[0.02em] text-[var(--hb-success)]">
                   {firstReading.axisLabel}
                 </p>
                 {combined ? (
