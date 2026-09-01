@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/nextjs";
+
 /**
  * 안전망이 무엇을 놓치는지 **세기만** 한다. 동작은 바꾸지 않는다.
  *
@@ -165,6 +167,50 @@ export function observeAmoraSafetyRecall(
       categories,
       textLength: text.length,
     });
+    reportSafetyRecallMiss(categories, text.length);
   }
   return observation;
+}
+
+/**
+ * 놓친 것을 **사람에게 보낸다.**
+ *
+ * ## 왜 필요한가
+ *
+ * 이 장부는 2026-08-26 에 "사용자가 늘었을 때 판단할 근거" 로 만들어졌는데,
+ * 2026-09-01 에 세어 보니 **그 기록을 읽는 곳이 저장소에 하나도 없었다.**
+ * `console.warn` 한 줄이 Vercel 런타임 로그에 남고 끝이었다 — Sentry 는
+ * console 을 잡지 않고(`captureConsoleIntegration` 참조 0건), 조회하는 스크립트도
+ * 크론도 없었다.
+ *
+ * 같은 날 우리가 안전망 구멍을 하나 찾았는데(`자해했어요` 가 배우자에게 보이는
+ * 레인에 저장됐다), 찾은 방법은 사람이 운영 대화를 손으로 읽은 것이었다.
+ * 어휘 목록으로 만든 그물은 **다음 구멍이 무엇인지 원리적으로 알 수 없으므로**,
+ * 뚫렸다는 사실이라도 사람에게 닿아야 한다.
+ *
+ * ## 무엇을 보내나 — 상황 이름과 길이뿐
+ *
+ * `tags` 로만 보낸다. 스크러버(`sanitizeSentryEvent`)는 `extra` 를 통째로 버리고
+ * `message` 는 URL·이메일·전화 패턴만 지우므로 **한국어 문장은 하나도 안 걸린다.**
+ * 그래서 사용자가 쓴 글은 어느 자리에도 싣지 않는다. 상황 이름은 `WIDE_NET` 의
+ * 고정 문자열이고 사용자 입력이 아니다.
+ *
+ * ## 실패해도 사용자 요청을 죽이지 않는다
+ *
+ * 이 함수는 메시지 전송 경로 한가운데(`/api/chat/messages`)에서 돈다. 관측 때문에
+ * 사람의 메시지가 안 보내지면 그건 더 나쁜 교환이다. 그래서 감싼다 — 다만
+ * **삼키는 대상은 Sentry 전송 실패뿐**이고, 배선이 없어지면 아래 테스트가 빨개진다.
+ */
+function reportSafetyRecallMiss(categories: readonly string[], textLength: number): void {
+  try {
+    Sentry.captureMessage("[safety-recall] narrow net missed", {
+      level: "warning",
+      tags: {
+        safety_recall_categories: categories.join(","),
+        safety_recall_text_length: String(textLength),
+      },
+    });
+  } catch {
+    // 관측이 제품을 막지 않는다.
+  }
 }

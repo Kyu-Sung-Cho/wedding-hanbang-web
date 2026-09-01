@@ -1,4 +1,9 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const captureMessage = vi.fn();
+vi.mock("@sentry/nextjs", () => ({
+  captureMessage: (...args: unknown[]) => captureMessage(...args),
+}));
 
 import {
   classifyAmoraSafetyRecallCategories,
@@ -108,6 +113,63 @@ describe("원문을 남기지 않는다", () => {
  * 2026-09-01 감사가 심은 변형(첫 매치에서 루프 중단)이 초록불로 통과했다.
  * 그 변형이 설치되면 아래가 한 개만 세어져 빨개진다.
  */
+/**
+ * 이 장부가 **사람에게 닿는지**.
+ *
+ * 2026-09-01 에 세어 보니 이 기록을 읽는 곳이 저장소에 하나도 없었다 —
+ * `console.warn` 이 Vercel 런타임 로그에 남고 끝이었고, Sentry 는 console 을
+ * 잡지 않으며 조회 스크립트도 크론도 없었다. 같은 날 안전망 구멍 하나를
+ * 사람이 손으로 대화를 읽다가 찾았다. 어휘 그물은 다음 구멍을 원리적으로
+ * 알 수 없으니, 뚫렸다는 사실이라도 닿아야 한다.
+ */
+describe("놓친 것이 사람에게 닿는다", () => {
+  beforeEach(() => {
+    captureMessage.mockClear();
+  });
+
+  it("좁은 그물이 놓치면 Sentry 로 보낸다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    observeAmoraSafetyRecall("그 사람 몰래 짐 싸서 나가려고 해요", false);
+
+    expect(captureMessage).toHaveBeenCalledTimes(1);
+    const [message, options] = captureMessage.mock.calls[0] as [string, Record<string, unknown>];
+    expect(message).toContain("safety-recall");
+    expect((options as { level?: string }).level).toBe("warning");
+    expect((options as { tags?: Record<string, string> }).tags).toEqual({
+      safety_recall_categories: "escape_planning",
+      safety_recall_text_length: "20",
+    });
+  });
+
+  it("좁은 그물이 이미 잡았으면 보내지 않는다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    observeAmoraSafetyRecall("남편이 저를 밀쳤어요", true);
+    expect(captureMessage).not.toHaveBeenCalled();
+  });
+
+  it("보내는 것에 사용자가 쓴 문장이 들어가지 않는다", () => {
+    // 스크러버(`sanitizeSentryEvent`)는 `extra` 를 통째로 버리지만 `message` 는
+    // URL·이메일·전화 패턴만 지운다 — **한국어 문장은 하나도 안 걸린다.**
+    // 그래서 여기서 못 박는다: 어느 자리에도 원문이 없어야 한다.
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const secret = "그 사람 몰래 짐 싸서 나가려고 해요";
+    observeAmoraSafetyRecall(secret, false);
+
+    const sent = JSON.stringify(captureMessage.mock.calls);
+    expect(sent).not.toContain(secret);
+    expect(sent).not.toContain("몰래");
+    expect(sent).not.toContain("나가려고");
+    expect(sent).toContain("escape_planning");
+  });
+
+  it("Sentry 가 던져도 사용자 요청을 죽이지 않는다", () => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    captureMessage.mockImplementationOnce(() => { throw new Error("sentry down"); });
+    expect(() => observeAmoraSafetyRecall("그 사람 몰래 짐 싸서 나가려고 해요", false))
+      .not.toThrow();
+  });
+});
+
 describe("겹치는 상황을 전부 센다", () => {
   it("한 문장이 두 상황에 걸리면 둘 다 기록한다", () => {
     const categories = classifyAmoraSafetyRecallCategories(
