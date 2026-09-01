@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import type { SpecialistType } from "@/types/moat.types";
 import {
   AMORA_DEMO_TURN_GUARD,
@@ -623,8 +624,48 @@ function finalTurnGuardForTools(
 
 const TRUNCATION_MARKER = "\n[저장 문맥 일부는 길이 제한으로 생략됨]\n";
 
-function truncateAtLineBoundary(value: string, maxChars: number): string {
+/**
+ * 프롬프트가 상한에 닿았다는 것을 **사람에게 알린다.**
+ *
+ * 절단 자체는 설계된 동작이고 이 함수는 그것을 막지 않는다. 문제는 **조용하다**는
+ * 것이었다 — 잘린 사실이 프롬프트 안 표식으로만 남고 아무 데도 보고되지 않았다.
+ *
+ * 2026-09-01 실측으로 여유가 사실상 없다는 것이 확인됐다(상한 48,000자):
+ *
+ *     빈 커플 · 도구 0개        42,150자   87.8%
+ *     빈 커플 · 전체 도구       47,795자   99.6%   남은 자리 205자
+ *     데이터 든 커플 · 전체 도구 47,990자  100.0%   남은 자리  10자
+ *
+ * 즉 커플이 결정을 몇 개만 더 쌓으면 넘친다. 넘치면 꼬리부터 잘리는데, 꼬리에는
+ * 저장된 예산·일정·결정 히스토리가 있다. 안전·카드 계약은
+ * `PRODUCT_SAFETY_HEADINGS` 로 필수 영역에 옮겨져 살아남지만, **아모라가 커플에
+ * 대해 아는 것**은 그 보호를 못 받는다.
+ *
+ * 원문은 싣지 않는다. 얼마나 넘쳤는지와 어느 갈래인지만 `tags` 로 보낸다 —
+ * 스크러버가 `extra` 를 버리고 `message` 의 한국어는 안 지우기 때문이다.
+ */
+function reportPromptTruncation(kind: string, requested: number, budget: number): void {
+  try {
+    Sentry.captureMessage("[amora-prompt] system prompt truncated", {
+      level: "warning",
+      tags: {
+        amora_prompt_truncated: kind,
+        amora_prompt_overflow_chars: String(requested - budget),
+        amora_prompt_budget_chars: String(budget),
+      },
+    });
+  } catch {
+    // 관측이 답변을 막지 않는다.
+  }
+}
+
+function truncateAtLineBoundary(
+  value: string,
+  maxChars: number,
+  kind = "unknown",
+): string {
   if (value.length <= maxChars) return value;
+  reportPromptTruncation(kind, value.length, maxChars);
   if (maxChars <= TRUNCATION_MARKER.length) return "";
   const contentBudget = Math.max(0, maxChars - TRUNCATION_MARKER.length);
   const lastNewline = value.lastIndexOf("\n", contentBudget);
@@ -884,9 +925,9 @@ export function buildAmoraSystemPrompt(
     return `${optionalBase}${specialistPrompt}${mandatorySuffix}`;
   }
   if (specialistPrompt.length >= optionalBudget) {
-    return `${truncateAtLineBoundary(specialistPrompt, optionalBudget)}${mandatorySuffix}`;
+    return `${truncateAtLineBoundary(specialistPrompt, optionalBudget, "specialist")}${mandatorySuffix}`;
   }
   const baseBudget = optionalBudget - specialistPrompt.length;
-  const boundedBase = truncateAtLineBoundary(optionalBase, baseBudget);
+  const boundedBase = truncateAtLineBoundary(optionalBase, baseBudget, "stored_context");
   return `${boundedBase}${specialistPrompt}${mandatorySuffix}`;
 }
