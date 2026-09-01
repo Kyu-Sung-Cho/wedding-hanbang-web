@@ -307,15 +307,55 @@ export type WeddingPlannerPromptContext = {
  * 아니라 제품 지식이다. `note`는 저장되지 않으므로(저장 직전에 떼어 낸다) 사용자 행에서는
  * 읽을 수 없고 여기서만 온다.
  */
-const CHECKLIST_CHECK_POINTS = CATEGORY_CHECKLISTS
-  .map((category) => {
-    const withNotes = category.items.filter((item) => item.note);
-    if (withNotes.length === 0) return null;
-    const lines = withNotes.map((item) => `  · ${item.label} → ${item.note}`).join("\n");
-    return [`- ${category.label}`, lines].join("\n");
-  })
-  .filter((line): line is string => line !== null)
-  .join("\n");
+/**
+ * 확인 포인트를 **이 커플에게 가까운 순서로** 싫는다.
+ *
+ * 전부 실으면 9,162자로 상한 48,000자의 19% 를 한 섹션이 가져간다.
+ * 2026-09-02 실측 — 남는 자리가 사실상 없었다:
+ *
+ *     빈 커플 + 도구 0개          42,150자   87.8%
+ *     빈 커플 + 전체 도구         47,795자   99.6%   남은 자리 205자
+ *     데이터 든 커플 + 전체 도구   47,990자  100.0%   남은 자리  10자
+ *
+ * 넘치면 **꼬리부터** 잘리는데 꼬리에는 이 커플의 예산·일정·결정 히스토리가
+ * 있다. 사용자에게는 "왜 내 예산을 모르지?" 로 보인다. 카테고리 20여 개의 일반
+ * 지식과 이 커플이 직접 정한 것 중 무엇을 잃는 편이 나은지는 분명하다.
+ *
+ * 순서는 (1) 이미 손대고 있는 카테고리, (2) 템플릿의 기본 확인 순서다.
+ * 잘린 카테고리는 섹션 아래 규칙이 이미 다룬다 — 없는 항목의 포인트를
+ * 지어내지 말고 무엇을 물어보면 되는지만 제안하라고 적혀 있다.
+ */
+const CHECKLIST_CHECK_POINTS_MAX_CHARS = 3_000;
+
+function buildChecklistCheckPoints(progress: Record<string, unknown>): string {
+  const rendered = CATEGORY_CHECKLISTS
+    .map((category) => {
+      const withNotes = category.items.filter((item) => item.note);
+      if (withNotes.length === 0) return null;
+      const lines = withNotes.map((item) => `  · ${item.label} → ${item.note}`).join("\n");
+      const value = progress?.[category.key];
+      return {
+        active: value !== undefined && value !== null,
+        text: [`- ${category.label}`, lines].join("\n"),
+      };
+    })
+    .filter((entry): entry is { active: boolean; text: string } => entry !== null);
+
+  const ordered = [
+    ...rendered.filter((entry) => entry.active),
+    ...rendered.filter((entry) => !entry.active),
+  ];
+
+  const picked: string[] = [];
+  let used = 0;
+  for (const entry of ordered) {
+    const cost = entry.text.length + 1;
+    if (used + cost > CHECKLIST_CHECK_POINTS_MAX_CHARS && picked.length > 0) break;
+    picked.push(entry.text);
+    used += cost;
+  }
+  return picked.join("\n");
+}
 
 export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptContext) {
   // 접두어는 런타임(chat/route.ts)과 같은 헬퍼에서 나온다. 두 곳이 각자
@@ -582,7 +622,8 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     .join("\n");
 
   // 항목마다 놓치기 쉬운 것 — 사용자 진행 상태와 무관한 제품 지식이라 항상 같다.
-  const checkPointsSection = CHECKLIST_CHECK_POINTS
+  const checklistCheckPoints = buildChecklistCheckPoints(context.progress);
+  const checkPointsSection = checklistCheckPoints
     ? `
 
 ## 준비 항목에서 확인할 것
@@ -591,7 +632,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
 **이 문장을 근거로** 답하세요. 화면에서 사용자가 보는 문장과 같은 것이라, 여기서 답하면
 앱과 대화가 같은 말을 하게 됩니다.
 
-${CHECKLIST_CHECK_POINTS}
+${checklistCheckPoints}
 
 - 여기 없는 항목의 확인 포인트를 지어내지 마세요. 대신 무엇을 물어보면 되는지만 제안하세요.
 - 이건 흔한 관행 안내이지 계약 판정이 아닙니다. 조항이 유리한지 불리한지, 정상인지 아닌지

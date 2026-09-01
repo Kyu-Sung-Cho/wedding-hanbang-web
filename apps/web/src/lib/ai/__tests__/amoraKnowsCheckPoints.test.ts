@@ -36,11 +36,46 @@ describe("아모라가 준비 항목의 확인 포인트를 안다", () => {
     expect(notedItems.length).toBeGreaterThan(0);
   });
 
-  it("모든 안내 문장이 프롬프트에 그대로 들어간다", () => {
-    const missing = notedItems
-      .filter(({ item }) => !prompt.includes(item.note!))
-      .map(({ category, item }) => `${category.key}/${item.id}`);
-    expect(missing, "프롬프트에 빠진 안내").toEqual([]);
+  /**
+   * 2026-09-02 — **전부 싣는 것에서 예산 안에서 싣는 것으로** 바꿨다.
+   *
+   * 전부 실으면 9,162자로 상한 48,000자의 19% 를 한 섹션이 가져갔고, 실측 결과
+   * 데이터가 든 커플은 프롬프트가 100.0%(남은 자리 10자)였다. 넘치면 꼬리부터
+   * 잘리는데 꼬리에는 이 커플의 예산·일정·결정 히스토리가 있다.
+   *
+   * 그래서 이 검사가 지키는 것을 바꿨다. "모든 문장이 있다" 가 아니라
+   * **"이 커플이 손대고 있는 것은 반드시 있고, 전체는 예산 안이다"** 이다.
+   * 경로가 통째로 끊기면 여전히 빨개진다 — 그것이 원래 이 파일의 이유다.
+   */
+  it("경로가 살아 있다 — 확인 포인트가 실제로 프롬프트에 들어간다", () => {
+    const present = notedItems.filter(({ item }) => prompt.includes(item.note!));
+    expect(present.length).toBeGreaterThan(0);
+  });
+
+  it("이 커플이 손대고 있는 분야의 안내는 빠지지 않는다", () => {
+    // 진행 중인 카테고리 셋을 골라 그 안내가 전부 실리는지 본다.
+    const active = CATEGORY_CHECKLISTS
+      .filter((category) => category.items.some((item) => item.note))
+      .slice(-3); // 템플릿 순서상 뒤쪽 = 예산이 없으면 먼저 잘리는 쪽
+    const activePrompt = getWeddingPlannerSystemPrompt({
+      ...baseContext,
+      progress: Object.fromEntries(active.map((c) => [c.key, { completed: 1 }])),
+    } as never);
+
+    const missing = active.flatMap((category) =>
+      category.items
+        .filter((item) => item.note && !activePrompt.includes(item.note))
+        .map((item) => `${category.key}/${item.id}`),
+    );
+    expect(missing, "진행 중인 분야의 안내가 빠졌다").toEqual([]);
+  });
+
+  it("전체는 예산 안에 머문다 — 커플 문맥을 밀어내지 않는다", () => {
+    const section = prompt.split("## 준비 항목에서 확인할 것")[1] ?? "";
+    const body = section.split("- 여기 없는 항목의")[0] ?? "";
+    expect(body.length).toBeGreaterThan(0);
+    // 여유를 조금 둔다. 정확한 상수는 구현이 정하고, 여기서는 자릿수를 지킨다.
+    expect(body.length).toBeLessThan(4_000);
   });
 
   it("어느 분야의 안내인지 알 수 있다", () => {
