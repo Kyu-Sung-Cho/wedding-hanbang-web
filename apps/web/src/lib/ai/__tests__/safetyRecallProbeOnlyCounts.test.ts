@@ -81,6 +81,42 @@ describe("원문을 남기지 않는다", () => {
     // 남는 것은 상황 이름과 길이뿐이다.
     expect(logged).toContain("escape_planning");
   });
+
+  /**
+   * 위 검사는 **금지 문자열 세 개만** 본다. 2026-09-01 적대적 감사가 그 틈으로
+   * 들어왔다 — 로그에 `raw: text.slice(9)` 를 더해 원문 20자 중 11자를 그대로
+   * 실었는데도 위 검사가 초록불이었다(금지한 `몰래`·`짐`·전문 셋을 피해 갔다).
+   *
+   * 그래서 **금지 목록이 아니라 허용 목록으로** 묻는다. 무엇이 없어야 하는지가
+   * 아니라 무엇만 있어도 되는지를 고정한다.
+   */
+  it("로그 payload 에는 상황 이름과 길이 말고 아무것도 없다", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    observeAmoraSafetyRecall("그 사람 몰래 짐 싸서 나가려고 해요", false);
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    const payload = warn.mock.calls[0][1] as Record<string, unknown>;
+    expect(Object.keys(payload).sort()).toEqual(["categories", "textLength"]);
+    expect(payload.textLength).toBe("그 사람 몰래 짐 싸서 나가려고 해요".length);
+  });
+});
+
+/**
+ * 한 발화가 두 상황에 걸리면 **둘 다** 세야 한다. 장부의 쓸모가 거기 있다 —
+ * 어떤 상황이 겹쳐 오는지가 나중 판단의 근거다.
+ *
+ * 2026-09-01 감사가 심은 변형(첫 매치에서 루프 중단)이 초록불로 통과했다.
+ * 그 변형이 설치되면 아래가 한 개만 세어져 빨개진다.
+ */
+describe("겹치는 상황을 전부 센다", () => {
+  it("한 문장이 두 상황에 걸리면 둘 다 기록한다", () => {
+    const categories = classifyAmoraSafetyRecallCategories(
+      "그 사람 몰래 짐 싸서 나가려고 해요. 집에 들어가는 게 무서워요.",
+    );
+    expect(categories).toContain("escape_planning");
+    expect(categories).toContain("fear");
+    expect(categories.length).toBeGreaterThanOrEqual(2);
+  });
 });
 
 /**
@@ -113,6 +149,64 @@ describe("돌려 말한 자살사고를 센다", () => {
 
   it("옛 어휘가 세던 것을 계속 센다 — 넓히면서 잃은 것이 없다", () => {
     for (const text of ["그냥 없어지고 싶다", "다 사라지고 싶어", "이제 살기 싫다", "버티기 힘들어요"]) {
+      expect(classifyAmoraSafetyRecallCategories(text)).toContain("self_harm");
+    }
+  });
+});
+
+/**
+ * 2026-09-01 적대적 감사가 잡은 세 부류. 셋 다 처음 만들 때 내 반례가 **그 경로를
+ * 한 번도 안 밟아서** 초록불이었다. 여기 고정해 다시 못 들어오게 한다.
+ */
+describe("이중부정은 진짜 신호다 — 부정문 방어에 걸리면 안 된다", () => {
+  it.each([
+    "없어지고 싶지 않은 날이 하루도 없어",
+    "사라지고 싶지 않다고 하면 거짓말이야",
+    "사라지고 싶지 않은 척하는 것도 지쳤어",
+    "없어지고 싶지 않다는 말이 안 나와",
+  ])("'%s'", (text) => {
+    expect(classifyAmoraSafetyRecallCategories(text)).toContain("self_harm");
+  });
+
+  it("그래도 '포기하고 싶지 않은' 은 세지 않는다 — 운영에 실제로 있던 문장이다", () => {
+    expect(
+      classifyAmoraSafetyRecallCategories("내가 절대 포기하고 싶지 않은 한 가지는 예식 순서야"),
+    ).not.toContain("self_harm");
+  });
+});
+
+describe("'살다' 는 이 제품에서 대개 거주다", () => {
+  it.each([
+    "신혼집에서 둘이 잘 살 자신이 없어",
+    "이 동네에 계속 살 이유가 없어",
+    "시부모님이랑 합가해서 살 자신이 없어요",
+    "전세로 2년 더 살 이유가 없는 것 같아",
+    "그 집에서 30년 살 자신은 없지",
+  ])("'%s' 는 세지 않는다", (text) => {
+    expect(classifyAmoraSafetyRecallCategories(text)).not.toContain("self_harm");
+  });
+
+  it("그래도 '살아갈 자신이 없어' 는 센다", () => {
+    expect(classifyAmoraSafetyRecallCategories("살아갈 자신이 없어")).toContain("self_harm");
+  });
+});
+
+describe("'일어나다' 는 사건이 발생한다는 뜻이기도 하다", () => {
+  it.each([
+    "본식 때 아무 일도 안 일어나도록 미리 점검하자",
+    "예식 중에 사고가 안 일어나도 안심이 안 돼",
+    "하객 동선에 혼잡이 안 일어나도록 안내를 세우자",
+    "지연이 안 일어나도 30분 여유는 두자",
+  ])("'%s' 는 세지 않는다", (text) => {
+    expect(classifyAmoraSafetyRecallCategories(text)).not.toContain("self_harm");
+  });
+
+  it("잠 문맥이 있으면 센다", () => {
+    for (const text of [
+      "아침에 안 일어나도 괜찮을 것 같아",
+      "요즘은 그냥 자다가 안 일어났으면 싶어",
+      "이대로 잠들면 안 깨어났으면 좋겠어",
+    ]) {
       expect(classifyAmoraSafetyRecallCategories(text)).toContain("self_harm");
     }
   });
