@@ -37,6 +37,60 @@ function noticedDaysFromPrivacy(): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** 크론이 관리자 접속기록 파기에 넘기는 보관 기간에서 일수를 꺼낸다. */
+function adminRetentionDaysFromCron(): number | null {
+  const source = read(RETENTION_CRON);
+  const match = source.match(/purge_admin_access_log[\s\S]{0,120}?p_retention:\s*"(\d+)\s*days"/);
+  return match ? Number(match[1]) : null;
+}
+
+/** 처방침이 관리자 접속기록에 대해 말하는 기간을 일수로 꺼낸다. */
+function noticedAdminRetentionDays(): number | null {
+  const source = read(PRIVACY);
+  const year = source.match(/(\d+)년간\s*보관/);
+  if (year) return Number(year[1]) * 365;
+  const day = source.match(/관리자[\s\S]{0,200}?(\d+)일간\s*보관/);
+  return day ? Number(day[1]) : null;
+}
+
+describe("관리자 접속기록 — 말한 기간 = 실제로 지우는 기간", () => {
+  it("크론이 관리자 접속기록을 실제로 지운다", () => {
+    // 처방침이 기간을 약속하는데 지우는 코드가 없으면 그 약속은 거짓이 된다.
+    expect(read(RETENTION_CRON)).toContain("purge_admin_access_log");
+    expect(adminRetentionDaysFromCron()).toBeGreaterThan(0);
+  });
+
+  it("두 값이 같다", () => {
+    expect(noticedAdminRetentionDays()).toBe(adminRetentionDaysFromCron());
+  });
+
+  it("관리자 인증이 실제로 기록을 남긴다", () => {
+    // 파기만 있고 기록이 없으면 지울 것이 없다 — 처방침은 없는 기록을 약속하게 된다.
+    // 변형 검사에서 `recordAdminAccess` 호출을 지웠을 때 아무도 못 잡아서 넣었다.
+    const adminAuth = read("src/lib/utils/adminAuth.ts");
+    expect(adminAuth).toContain("admin_access_log");
+
+    // 권한이 있다고 판정하는 갈래 안에서 불려야 한다. 함수만 정의돼 있고
+    // 아무도 안 부르면 기록은 한 줄도 안 남는다.
+    const authorizedBranch = adminAuth.match(
+      /is_admin === true\)\s*\{[\s\S]*?return \{ authorized: true/,
+    )?.[0] ?? "";
+    expect(authorizedBranch).not.toBe("");
+    expect(authorizedBranch).toContain("recordAdminAccess(");
+  });
+
+  it("기록에 조회 내용이나 검색어를 담지 않는다고 약속하고, 코드가 그렇게 한다", () => {
+    const privacy = read(PRIVACY);
+    expect(privacy).toMatch(/조회한 회원 정보의 내용이나 검색어를 담지 않습니다/);
+
+    // 약속한 대로 `pathname` 만 쓰고 질의문자열은 버려야 한다.
+    const adminAuth = read("src/lib/utils/adminAuth.ts");
+    expect(adminAuth).toContain("new URL(request.url).pathname");
+    expect(adminAuth).not.toMatch(/\.search\b/);
+    expect(adminAuth).not.toContain("request.json()");
+  });
+});
+
 describe("처방침의 파기 주기 = 실제로 도는 주기", () => {
   it("크론에서 보관 기간을 읽어낼 수 있다", () => {
     // 이 검사가 먼저 깨지면 아래 대조는 아무것도 못 지킨다.

@@ -46,10 +46,28 @@ describe("legal pages reflect the current product", () => {
     expect(terms).not.toContain("홍보, 개선의 목적으로 해당 콘텐츠를 무상");
   });
 
-  it("does not pretend unverified retention is complete", () => {
-    expect(privacy).toContain("출시 전에 확정하여 고지");
+  // ⚠️ 여기 있던 단언은 `expect(privacy).toContain("출시 전에 확정하여 고지")` 였다.
+  // 미확정 기간을 확정된 것처럼 적지 못하게 붙잡아 둔 것인데, 2026-09-01 에
+  // **미확정 상태 자체가 해소됐다** — 관리자 접속기록을 실제로 남기고 1년 뒤
+  // 파기하도록 만들었고(`admin_access_log` + `purge_admin_access_log`), AI 비용·
+  // 오류 기록의 90일 파기는 원래 돌고 있었다(운영 1,073행이 이미 마스킹돼 있었다).
+  //
+  // 그런데 그 문장을 계속 고정하면 **하고 있는 일을 안 한다고 적어 두라는 뜻**이
+  // 된다. 그래서 문장이 아니라 **약속과 구현이 어긋나는지**를 본다. 기간을 적는
+  // 자리와 실제 파기 주기가 같은지는 `app/privacy/__tests__/
+  // retentionNoticeMatchesCode.test.ts` 가 코드에서 값을 읽어 대조한다.
+  it("구현이 없는 보관기간을 적어 두지 않는다", () => {
     expect(privacy).toContain("질문·답변·첨부 파일·도구 입력값 원문을 복제하지 않습니다");
     expect(privacy).not.toContain("웹사이트 방문 기록: <strong>3개월</strong>");
+
+    // 기간을 말하는 두 항목은 각각 실제로 도는 파기 작업이 뒤를 받쳐야 한다.
+    const retentionCron = source("src/app/api/cron/ai-log-retention/route.ts");
+    if (/90일이\s*지나면\s*자동으로\s*제거/.test(privacy)) {
+      expect(retentionCron).toContain("redact_old_ai_interactions");
+    }
+    if (/1년간\s*보관/.test(privacy)) {
+      expect(retentionCron).toContain("purge_admin_access_log");
+    }
   });
 
   // ⚠️ 여기 있던 단언은 `expect(privacy).toContain("별도 국외 이전 고지가 완료되기
