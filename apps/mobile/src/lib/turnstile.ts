@@ -58,6 +58,31 @@ export function hasValidTurnstileSiteKey(value: unknown): value is string {
   return typeof value === "string" && TURNSTILE_SITE_KEY_PATTERN.test(value);
 }
 
+/**
+ * 이 빌드에서 사람인지 확인 토큰을 **요구해야 하는가.**
+ *
+ * 서버(`apps/web/src/lib/turnstile.ts`)와 같은 규칙이다:
+ *
+ *     사이트 키 발급됨   ->  토큰을 요구한다
+ *     사이트 키 미발급   ->  요구하지 않는다 (IP·이메일 속도 제한이 방어)
+ *
+ * ## 왜 맞췄나
+ *
+ * 앱만 더 엄격했다. 키가 미발급이면 서버는 가입을 통과시키는데(주석에
+ * "키 미발급 상태로 릴리스돼 가입이 통째로 막혔던 운영 사고" 가 적혀 있다)
+ * 앱은 "안전 확인을 준비하지 못했어요" 를 띄우고 웹으로 넘겼다. 2026-09-01
+ * 확인 결과 운영 웹에도 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`·`TURNSTILE_SECRET_KEY`
+ * 가 없어 웹 가입은 그냥 되고 있었다.
+ *
+ * 그 상태에서 앱만 막는 것은 **봇을 막지 못한다** — 봇은 웹으로 가면 된다.
+ * 막히는 것은 앱을 쓰는 진짜 사용자뿐이었다. 그래서 규칙을 서버에 맞춘다.
+ *
+ * 키가 발급되는 순간 앱도 다시 토큰을 요구한다. 이 함수가 그 스위치다.
+ */
+export function turnstileTokenIsRequired(siteKey: unknown): boolean {
+  return hasValidTurnstileSiteKey(siteKey);
+}
+
 export function buildTurnstileHtml(siteKey: string, action: string): string | null {
   if (!hasValidTurnstileSiteKey(siteKey) || !TURNSTILE_ACTION_PATTERN.test(action)) {
     return null;

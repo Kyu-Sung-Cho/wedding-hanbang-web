@@ -13,9 +13,8 @@ import { colors } from "@hanbang/design-tokens";
 import TurnstileModal from "@/components/auth/TurnstileModal";
 import { requestMobileSignup } from "@/lib/mobileAuthRequests";
 import {
-  getTurnstileWebFallbackUrl,
-  hasValidTurnstileSiteKey,
   isValidTurnstileToken,
+  turnstileTokenIsRequired,
 } from "@/lib/turnstile";
 
 // Android LayoutAnimation 활성화
@@ -25,11 +24,8 @@ if (Platform.OS === "android" && UIManager.setLayoutAnimationEnabledExperimental
 
 const SITE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const TURNSTILE_SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
-const TURNSTILE_CONFIGURED = hasValidTurnstileSiteKey(TURNSTILE_SITE_KEY);
-const SIGNUP_WEB_URL = getTurnstileWebFallbackUrl(
-  "signup",
-  process.env.EXPO_PUBLIC_SITE_URL,
-);
+// 서버와 같은 규칙. 사이트 키가 발급돼 있을 때만 토큰을 요구한다.
+const TURNSTILE_REQUIRED = turnstileTokenIsRequired(TURNSTILE_SITE_KEY);
 
 // 이메일 유효성 검사
 function isValidEmail(email: string): boolean {
@@ -140,22 +136,10 @@ export default function SignupScreen() {
     }
 
     turnstileTokenRef.current = "";
-    if (!TURNSTILE_CONFIGURED) {
-      Alert.alert(
-        "안전 확인을 준비하지 못했어요",
-        "앱의 사람인지 확인 설정이 아직 완료되지 않았어요. 웹에서 안전하게 가입을 계속할 수 있어요.",
-        [
-          { text: "나중에", style: "cancel" },
-          {
-            text: "웹에서 계속",
-            onPress: () => {
-              void Linking.openURL(SIGNUP_WEB_URL).catch(() => {
-                Alert.alert("오류", "웹 가입 화면을 열지 못했어요. 잠시 후 다시 시도해주세요.");
-              });
-            },
-          },
-        ],
-      );
+    if (!TURNSTILE_REQUIRED) {
+      // 서버와 같은 규칙. 사이트 키가 미발급이면 서버도 토큰을 보지 않으므로
+      // 앱만 막을 이유가 없다 — 그때 막히는 것은 봇이 아니라 진짜 사용자다.
+      void performSignup("");
       return;
     }
 
@@ -169,7 +153,13 @@ export default function SignupScreen() {
       Alert.alert("안전 확인 실패", "사람인지 확인을 다시 완료해주세요.");
       return;
     }
+    await performSignup(turnstileToken);
+  }
 
+  // 토큰 유무와 무관한 실제 가입 요청. 사이트 키가 발급돼 있으면 위에서 검증한
+  // 토큰이 들어오고, 미발급이면 빈 값으로 들어온다 — 서버도 그 경우 토큰을
+  // 보지 않고 IP·이메일 속도 제한으로만 방어한다.
+  async function performSignup(turnstileToken: string) {
     turnstileTokenRef.current = turnstileToken;
     setTurnstileVisible(false);
     setLoading(true);

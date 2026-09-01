@@ -34,13 +34,24 @@ test("the native Turnstile modal has accessible retry/cancel states and a truste
   assert.match(source, /minHeight:\s*48/);
 });
 
+/**
+ * 2026-09-02 — 규칙을 서버에 맞췄다.
+ *
+ * 예전 계약은 "사이트 키가 미발급이면 앱은 가입을 진행하지 말고 웹으로 넘긴다"
+ * 였다. 그런데 운영 확인 결과 웹에도 키가 없어 **서버는 토큰을 보지 않고 IP·
+ * 이메일 속도 제한으로만 방어하며 가입을 통과시키고 있었다**(주석에 "키 미발급
+ * 상태로 릴리스돼 가입이 통째로 막혔던 운영 사고" 기록이 있다). 그 상태에서 앱만
+ * 막는 것은 봇을 막지 못한다 — 봇은 웹으로 가면 된다. 막히는 것은 앱 사용자뿐이다.
+ *
+ * **지켜야 할 것은 그대로다:** 사이트 키가 발급돼 있으면 검증된 토큰 없이 API 를
+ * 부르지 않는다. 아래 검사가 그것을 본다. 바뀐 것은 미발급일 때의 행동뿐이다.
+ */
 test("signup obtains one verified token before the API and clears it after use", () => {
   const source = readFileSync(signupPath, "utf8");
 
   assert.doesNotMatch(source, /publicApiFetch/);
   assert.match(source, /EXPO_PUBLIC_TURNSTILE_SITE_KEY/);
-  assert.match(source, /hasValidTurnstileSiteKey\(TURNSTILE_SITE_KEY\)/);
-  assert.match(source, /getTurnstileWebFallbackUrl\(\s*"signup",\s*process\.env\.EXPO_PUBLIC_SITE_URL/);
+  assert.match(source, /turnstileTokenIsRequired\(TURNSTILE_SITE_KEY\)/);
   assert.match(source, /async function submitSignupWithTurnstile\(turnstileToken: string\)/);
   assert.match(source, /isValidTurnstileToken\(turnstileToken\)/);
   assert.match(source, /turnstileTokenRef\.current = turnstileToken/);
@@ -48,7 +59,6 @@ test("signup obtains one verified token before the API and clears it after use",
   assert.match(source, /finally \{[\s\S]*turnstileTokenRef\.current = ""/);
   assert.match(source, /<TurnstileModal[\s\S]*action="signup"/);
   assert.match(source, /onVerify=\{submitSignupWithTurnstile\}/);
-  assert.match(source, /Linking\.openURL\(SIGNUP_WEB_URL\)/);
 
   const handleStart = source.indexOf("async function handleSignup");
   const submitStart = source.indexOf("async function submitSignupWithTurnstile");
@@ -63,8 +73,7 @@ test("password reset obtains one verified token before the API and clears it aft
 
   assert.doesNotMatch(source, /publicApiFetch/);
   assert.match(source, /EXPO_PUBLIC_TURNSTILE_SITE_KEY/);
-  assert.match(source, /hasValidTurnstileSiteKey\(TURNSTILE_SITE_KEY\)/);
-  assert.match(source, /getTurnstileWebFallbackUrl\(\s*"forgot",\s*process\.env\.EXPO_PUBLIC_SITE_URL/);
+  assert.match(source, /turnstileTokenIsRequired\(TURNSTILE_SITE_KEY\)/);
   assert.match(source, /async function submitResetWithTurnstile\(turnstileToken: string\)/);
   assert.match(source, /isValidTurnstileToken\(turnstileToken\)/);
   assert.match(source, /turnstileTokenRef\.current = turnstileToken/);
@@ -72,7 +81,6 @@ test("password reset obtains one verified token before the API and clears it aft
   assert.match(source, /finally \{[\s\S]*turnstileTokenRef\.current = ""/);
   assert.match(source, /<TurnstileModal[\s\S]*action="forgot"/);
   assert.match(source, /onVerify=\{submitResetWithTurnstile\}/);
-  assert.match(source, /Linking\.openURL\(FORGOT_WEB_URL\)/);
 
   const handleStart = source.indexOf("async function handleReset");
   const submitStart = source.indexOf("async function submitResetWithTurnstile");
