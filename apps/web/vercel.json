@@ -1,5 +1,31 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "regions": ["bom1"]
+  "regions": ["bom1"],
+  "crons": [
+    {
+      "path": "/api/cron/amora-memory",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/care-moments",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/booking-projections",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/community-upload-cleanup",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/account-deletion",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/ai-log-retention",
+      "schedule": "30 18 * * *"
+    }
+  ]
 }
