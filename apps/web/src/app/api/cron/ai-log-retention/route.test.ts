@@ -74,9 +74,19 @@ describe("GET /api/cron/ai-log-retention", () => {
     expect(mocks.createAdminClient).not.toHaveBeenCalled();
   });
 
-  it("calls the exact 90-day service RPC once only when explicitly enabled", async () => {
+  // 2026-09-02 — 이 작업이 파기 **두 가지**를 한다.
+  //
+  // 관리자 접속기록 파기를 새 크론으로 만들지 않고 여기 얹었다. 같은 날
+  // `apps/web/vercel.json` 에서 스케줄 6개가 통째로 사라져 탈퇴 처리와 로그
+  // 파기가 멈춘 일이 있었고, 파기끼리는 한 작업에 두는 편이 잃기 어렵다.
+  //
+  // 그래서 "한 번만" 이 아니라 **각각 정확히 한 번씩** 을 고정한다. 기간도 함께
+  // 본다 — 개인정보 처리방침이 두 기간을 사용자에게 약속하고 있다(90일 · 1년).
+  it("사용 설정이 켜졌을 때만, 두 파기 RPC 를 각각 한 번씩 정확한 기간으로 부른다", async () => {
     vi.stubEnv("AI_LOG_RETENTION_CRON_ENABLED", "true");
-    const rpc = vi.fn().mockResolvedValue({ data: 7, error: null });
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: 2, error: null });
     mocks.createAdminClient.mockReturnValue({ rpc });
 
     const response = await GET(request());
@@ -87,12 +97,31 @@ describe("GET /api/cron/ai-log-retention", () => {
       enabled: true,
       status: "completed",
       redacted: 7,
+      purgedAdminAccess: 2,
     });
     expect(mocks.createAdminClient).toHaveBeenCalledTimes(1);
-    expect(rpc).toHaveBeenCalledTimes(1);
-    expect(rpc).toHaveBeenCalledWith("redact_old_ai_interactions", {
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc).toHaveBeenNthCalledWith(1, "redact_old_ai_interactions", {
       p_retention: "90 days",
     });
+    expect(rpc).toHaveBeenNthCalledWith(2, "purge_admin_access_log", {
+      p_retention: "365 days",
+    });
+  });
+
+  it("관리자 기록 파기가 실패하면 500 이지만 앞선 파기 결과는 잃지 않는다", async () => {
+    vi.stubEnv("AI_LOG_RETENTION_CRON_ENABLED", "true");
+    const rpc = vi.fn()
+      .mockResolvedValueOnce({ data: 7, error: null })
+      .mockResolvedValueOnce({ data: null, error: { message: "boom" } });
+    mocks.createAdminClient.mockReturnValue({ rpc });
+
+    const response = await GET(request());
+    const body = await response.json();
+
+    expect(response.status).toBe(500);
+    expect(body.redacted).toBe(7);
+    expect(JSON.stringify(body)).not.toContain("boom");
   });
 
   it("contains service-client and RPC exceptions without exposing secrets or database details", async () => {

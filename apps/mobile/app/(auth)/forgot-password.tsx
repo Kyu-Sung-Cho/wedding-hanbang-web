@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import {
   View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
   ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated, Linking,
+  Animated,
 } from "react-native";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,17 +13,13 @@ import { colors } from "@hanbang/design-tokens";
 import TurnstileModal from "@/components/auth/TurnstileModal";
 import { requestMobilePasswordReset } from "@/lib/mobileAuthRequests";
 import {
-  getTurnstileWebFallbackUrl,
-  hasValidTurnstileSiteKey,
   isValidTurnstileToken,
+  turnstileTokenIsRequired,
 } from "@/lib/turnstile";
 
 const TURNSTILE_SITE_KEY = process.env.EXPO_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
-const TURNSTILE_CONFIGURED = hasValidTurnstileSiteKey(TURNSTILE_SITE_KEY);
-const FORGOT_WEB_URL = getTurnstileWebFallbackUrl(
-  "forgot",
-  process.env.EXPO_PUBLIC_SITE_URL,
-);
+// 서버와 같은 규칙. 사이트 키가 발급돼 있을 때만 토큰을 요구한다.
+const TURNSTILE_REQUIRED = turnstileTokenIsRequired(TURNSTILE_SITE_KEY);
 
 // 이메일 유효성 검사
 function isValidEmail(email: string): boolean {
@@ -127,22 +123,9 @@ export default function ForgotPasswordScreen() {
     }
 
     turnstileTokenRef.current = "";
-    if (!TURNSTILE_CONFIGURED) {
-      Alert.alert(
-        "안전 확인을 준비하지 못했어요",
-        "앱의 사람인지 확인 설정이 아직 완료되지 않았어요. 웹에서 안전하게 비밀번호 찾기를 계속할 수 있어요.",
-        [
-          { text: "나중에", style: "cancel" },
-          {
-            text: "웹에서 계속",
-            onPress: () => {
-              void Linking.openURL(FORGOT_WEB_URL).catch(() => {
-                Alert.alert("오류", "웹 비밀번호 찾기 화면을 열지 못했어요. 잠시 후 다시 시도해주세요.");
-              });
-            },
-          },
-        ],
-      );
+    if (!TURNSTILE_REQUIRED) {
+      // 서버와 같은 규칙 — 미발급이면 서버도 토큰을 보지 않는다.
+      void performPasswordReset("");
       return;
     }
 
@@ -156,7 +139,11 @@ export default function ForgotPasswordScreen() {
       Alert.alert("안전 확인 실패", "사람인지 확인을 다시 완료해주세요.");
       return;
     }
+    await performPasswordReset(turnstileToken);
+  }
 
+  // 토큰 유무와 무관한 실제 재설정 요청.
+  async function performPasswordReset(turnstileToken: string) {
     turnstileTokenRef.current = turnstileToken;
     setTurnstileVisible(false);
     setLoading(true);

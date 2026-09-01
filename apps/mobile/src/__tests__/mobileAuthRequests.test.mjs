@@ -29,7 +29,7 @@ function declarationsOf(path) {
     .join("\n");
 }
 
-function loadRequests(publicApiFetch, isValidTurnstileToken) {
+function loadRequests(publicApiFetch, isValidTurnstileToken, turnstileTokenIsRequired) {
   const declarations = [declarationsOf(consentPath), declarationsOf(sourcePath)].join("\n");
   const compiled = ts.transpileModule(declarations, {
     compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022 },
@@ -37,6 +37,7 @@ function loadRequests(publicApiFetch, isValidTurnstileToken) {
   return new Function(
     "publicApiFetch",
     "isValidTurnstileToken",
+    "turnstileTokenIsRequired",
     `${compiled.outputText}\nreturn {
       requestMobileSignup,
       requestMobilePasswordReset: typeof requestMobilePasswordReset === "function"
@@ -44,10 +45,12 @@ function loadRequests(publicApiFetch, isValidTurnstileToken) {
         : undefined,
       SIGNUP_CONSENT_POLICY_VERSION,
     };`,
-  )(publicApiFetch, isValidTurnstileToken);
+  )(publicApiFetch, isValidTurnstileToken, turnstileTokenIsRequired);
 }
 
-function recordingRequests() {
+// 기본은 **발급된 상태**다. 사이트 키가 있으면 토큰을 반드시 요구한다는 것이
+// 이 파일이 지키는 계약이고, 그것은 2026-09-02 변경 뒤에도 그대로다.
+function recordingRequests(turnstileProvisioned = true) {
   const calls = [];
   const requests = loadRequests(
     async (...args) => {
@@ -55,6 +58,7 @@ function recordingRequests() {
       return { ok: true };
     },
     (token) => typeof token === "string" && token.startsWith("valid."),
+    () => turnstileProvisioned,
   );
   return { calls, requests };
 }
@@ -173,4 +177,54 @@ test("password reset is gated by and forwards a verified Turnstile token", async
       }),
     },
   ]]);
+});
+
+// 2026-09-02 — 서버와 같은 규칙으로 맞췄다.
+//
+// 사이트 키가 미발급이면 서버는 토큰을 보지 않고 IP·이메일 속도 제한으로만
+// 방어하며 가입을 통과시킨다. 그런데 앱만 "안전 확인을 준비하지 못했어요" 로
+// 막고 웹으로 넘기고 있었다. 그 상태에서 앱만 엄격한 것은 봇을 막지 못한다 —
+// 봇은 웹으로 가면 된다. 막히는 것은 앱을 쓰는 진짜 사용자뿐이었다.
+//
+// **발급되면 다시 엄격해진다.** 위의 두 거부 검사가 그것을 지킨다.
+test("사이트 키가 미발급이면 토큰 없이도 가입 요청이 서버까지 간다", async () => {
+  const { calls, requests } = recordingRequests(false);
+
+  const res = await requests.requestMobileSignup({
+    email: "sample@example.test",
+    password: "Strong1!",
+    name: "샘플 사용자",
+    consent: FULL_CONSENT,
+  }, "");
+
+  assert.equal(res.ok, true);
+  assert.equal(calls.length, 1, "요청이 서버까지 가야 한다");
+  const body = JSON.parse(calls[0][1].body);
+  assert.equal(body.turnstileToken, undefined, "만들 수 없는 토큰을 지어내 보내지 않는다");
+  assert.equal(body.email, "sample@example.test");
+});
+
+test("사이트 키가 미발급이면 비밀번호 찾기도 토큰 없이 간다", async () => {
+  const { calls, requests } = recordingRequests(false);
+
+  const res = await requests.requestMobilePasswordReset("sample@example.test", null);
+
+  assert.equal(res.ok, true);
+  assert.equal(calls.length, 1);
+  assert.equal(JSON.parse(calls[0][1].body).turnstileToken, undefined);
+});
+
+test("발급된 상태에서는 여전히 토큰 없이 서버에 닿지 못한다", async () => {
+  const { calls, requests } = recordingRequests(true);
+
+  await assert.rejects(
+    () => requests.requestMobileSignup({
+      email: "sample@example.test",
+      password: "Strong1!",
+      name: "샘플 사용자",
+      consent: FULL_CONSENT,
+    }, ""),
+    /사람인지 확인을 먼저 완료해주세요/,
+  );
+  assert.deepEqual(calls, []);
 });
