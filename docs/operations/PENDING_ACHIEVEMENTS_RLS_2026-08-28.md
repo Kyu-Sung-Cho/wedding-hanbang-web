@@ -1,7 +1,64 @@
-# 뱃지 기록이 익명에게 열려 있다 — 적용 대기 (2026-08-28)
+# 뱃지 기록이 익명에게 열려 있다 — 운영 적용 완료 (2026-08-28 발견 / 2026-09-01 적용)
 
-> **상태: 미적용.** 마이그레이션을 저장소에 넣지 않았다. 이유는 아래 "왜 아직
-> 안 넣었나" 에 있다. 파운더 결정이 필요하다.
+> **상태: 운영에 적용됨. 저장소에는 아직 미반영(드리프트 있음).**
+>
+> 2026-09-01 파운더 지시("응 그것도 고쳐줘")로 운영 DB 에 직접 적용했다. 아래 "왜
+> 아직 안 넣었나" 의 이유는 그대로 유효해서 **마이그레이션 파일은 넣지 않았다** —
+> 즉 지금 운영과 저장소가 어긋나 있고, 다음 릴리스에서 아래 "적용 절차" 대로
+> 정식화해야 한다. 어긋남을 알려주는 자동 장치는 없으므로 이 문단이 유일한 기록이다.
+
+## 2026-09-01 적용 기록
+
+같은 날 **두 번째 구멍**이 함께 발견돼 같이 막았다 — `community_weekly_leaderboard(INT)`
+가 `SECURITY DEFINER` 인데 `anon` 에 EXECUTE 가 열려 있었다. 이 함수는 공개 프로필
+뷰(`community_public_profiles`)를 거치지 않으므로, 글을 한 번도 안 쓴 사람의
+닉네임까지 주간 목록으로 나갈 수 있었다. 앱 호출자·화면은 0건이다.
+
+적용 전 실측(운영, 공개 anon 키):
+
+```
+GET  /rest/v1/community_achievements?select=*     -> 200, content-range: 0-11/12
+POST /rest/v1/rpc/community_weekly_leaderboard    -> 200, []      (실행됨)
+```
+
+적용 후 같은 요청:
+
+```
+GET  /rest/v1/community_achievements?select=*     -> 200, content-range: */0, 본문 []
+POST /rest/v1/rpc/community_weekly_leaderboard    -> 401, 42501 permission denied
+```
+
+절차: 스테이징(`rgxdizztidbgwnsbadml`)에서 먼저 리허설해 정책 qual 이
+`(user_id = auth.uid())` 로, EXECUTE 가 `postgres,service_role` 로 바뀌는 것을 확인한
+뒤 운영에 적용했다. 앱 코드에서 `community_achievements`·`community_weekly_leaderboard`·
+`community_unlock_achievement`·`community_award_xp` 참조가 **0파일**이고 리더보드
+화면도 없어 잃는 화면이 없다는 것을 먼저 확인했다.
+
+### 적용한 SQL
+
+```sql
+DROP POLICY IF EXISTS "ach_select" ON public.community_achievements;
+CREATE POLICY "ach_select" ON public.community_achievements
+  FOR SELECT USING (user_id = auth.uid());
+
+REVOKE ALL ON FUNCTION public.community_weekly_leaderboard(INT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.community_weekly_leaderboard(INT) FROM anon;
+REVOKE ALL ON FUNCTION public.community_weekly_leaderboard(INT) FROM authenticated;
+GRANT EXECUTE ON FUNCTION public.community_weekly_leaderboard(INT) TO service_role;
+```
+
+### 되돌리기
+
+```sql
+DROP POLICY IF EXISTS "ach_select" ON public.community_achievements;
+CREATE POLICY "ach_select" ON public.community_achievements
+  FOR SELECT USING (true);
+GRANT EXECUTE ON FUNCTION public.community_weekly_leaderboard(INT) TO anon;
+GRANT EXECUTE ON FUNCTION public.community_weekly_leaderboard(INT) TO authenticated;
+```
+
+적용 전 상태는 `ach_select` = `true`, EXECUTE = `anon,authenticated,postgres,service_role`
+이었다. 되돌리면 그 상태로 돌아간다.
 
 ## 운영 실측 (2026-08-28, 읽기 전용, 공개 anon 키)
 
