@@ -35,7 +35,10 @@ import {
   ymdInKst,
 } from "@/lib/utils/kstDate";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
-import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import {
+  formatWeddingBudgetCeiling,
+  isValidWeddingWonAmount,
+} from "@/lib/weddingBudget";
 const MAX_VENUE_CHARS = 200;
 const MAX_ACTION_TITLE_CHARS = 120;
 const MAX_ACTION_DESCRIPTION_CHARS = 500;
@@ -1638,7 +1641,7 @@ export function buildAmoraAtomicToolOperation(
         toolInput,
         toolOutput: { error: "invalid_budget_amount" },
         success: false,
-        displayMessage: "총예산은 0원 이상 1조원 이하의 원 단위 정수여야 해요.",
+        displayMessage: `총예산은 0원 이상 ${formatWeddingBudgetCeiling()} 이하의 원 단위 정수여야 해요.`,
       },
     };
   }

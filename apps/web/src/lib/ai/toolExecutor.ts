@@ -75,6 +75,7 @@ import {
 } from "@/lib/ai/amoraAtomicToolOperation";
 import {
   MAX_WEDDING_BUDGET_WON,
+  formatWeddingBudgetCeiling,
   isValidWeddingWonAmount,
 } from "@/lib/weddingBudget";
 
@@ -612,7 +613,7 @@ async function executeUpdateBudget(
       toolInput: input,
       toolOutput: { error: "invalid_budget_amount" },
       success: false,
-      displayMessage: "총예산은 0원 이상 1조원 이하의 원 단위 정수여야 합니다.",
+      displayMessage: `총예산은 0원 이상 ${formatWeddingBudgetCeiling()} 이하의 원 단위 정수여야 합니다.`,
     };
   }
   const oldBudget = ctx.weddingContext.budget;
