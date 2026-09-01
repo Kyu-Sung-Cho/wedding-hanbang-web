@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import { z } from "zod";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -34,7 +35,8 @@ export async function POST(
       );
     }
     return NextResponse.json({ assigned: true });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/enrich/[id]/assign", err);
     return NextResponse.json(
       { error: "담당 배정에 실패했습니다. 다시 시도해 주세요." },
       { status: 500 },

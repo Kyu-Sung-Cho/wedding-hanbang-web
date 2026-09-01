@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import {
   AvailabilityInputError,
   AvailabilityVendorNotFoundError,
@@ -33,6 +34,7 @@ export async function GET(
       { headers: NO_STORE_HEADERS },
     );
   } catch (error) {
+    log.error("api/vendors/[id]/availability", error);
     if (error instanceof AvailabilityInputError) {
       return NextResponse.json(
         { error: "조회 날짜 범위를 확인해주세요.", code: "INVALID_AVAILABILITY_RANGE" },

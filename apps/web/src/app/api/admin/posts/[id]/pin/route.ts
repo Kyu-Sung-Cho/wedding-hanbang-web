@@ -1,4 +1,5 @@
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { log } from "@/utils/log";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -62,6 +63,7 @@ export async function PATCH(
 
     return NextResponse.json({ post });
   } catch (err) {
+    log.error("api/admin/posts/[id]/pin", err);
     console.error("Pin toggle error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

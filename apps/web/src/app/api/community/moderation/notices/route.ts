@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 
@@ -125,6 +126,7 @@ export async function GET(request: NextRequest) {
       })),
     });
   } catch (error) {
+    log.error("api/community/moderation/notices", error);
     console.error("[community moderation notices] unexpected:", error);
     return NextResponse.json(
       {

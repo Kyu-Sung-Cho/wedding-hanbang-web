@@ -363,7 +363,8 @@ async function getPostResponse(
       user_bookmarked: userBookmarked,
       poll: pollData,
     });
-  } catch {
+  } catch (err) {
+    log.error("api/community/posts/[id]", err);
     logContentFreeFailure(
       "[community.posts.get]",
       "unexpected",
@@ -810,7 +811,8 @@ export async function PATCH(
     }
 
     return NextResponse.json({ post: updatedPost });
-  } catch {
+  } catch (err) {
+    log.error("api/community/posts/[id]", err);
     logContentFreeFailure(
       "[community.posts.patch]",
       "unexpected",
@@ -930,7 +932,8 @@ export async function DELETE(
     return NextResponse.json(atomicData, {
       headers: { "Cache-Control": "private, no-store" },
     });
-  } catch {
+  } catch (err) {
+    log.error("api/community/posts/[id]", err);
     logContentFreeFailure(
       "[community.posts.delete]",
       "unexpected",

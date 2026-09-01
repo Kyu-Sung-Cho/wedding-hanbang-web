@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { Resend } from "resend";
 import { buildSignupConsentRecord, parseSignupConsent } from "@hanbang/shared";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -330,6 +331,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
   } catch (err) {
+    log.error("api/auth/signup", err);
     console.error("Signup API error:", err);
     return NextResponse.json(
       { error: "회원가입 처리 중 오류가 발생했습니다." },

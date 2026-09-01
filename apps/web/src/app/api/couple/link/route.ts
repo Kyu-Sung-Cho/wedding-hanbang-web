@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import {
   parseMembershipRpcResponse,
@@ -90,6 +91,7 @@ export async function POST(request: Request) {
       idempotent: membership.idempotent,
     });
   } catch (error) {
+    log.error("api/couple/link", error);
     console.error("[couple link] unexpected error", error);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요." },

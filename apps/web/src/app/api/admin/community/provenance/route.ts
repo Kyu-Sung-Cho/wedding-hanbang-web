@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { isUuid } from "@/utils/requestValidation";
@@ -180,6 +181,7 @@ export async function GET(request: NextRequest) {
       limit,
     });
   } catch (error) {
+    log.error("api/admin/community/provenance", error);
     console.error("[admin community provenance] list failed:", error);
     return NextResponse.json(
       {
@@ -280,6 +282,7 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ ok: true, result: data });
   } catch (error) {
+    log.error("api/admin/community/provenance", error);
     console.error("[admin community provenance] unexpected:", error);
     return NextResponse.json(
       {

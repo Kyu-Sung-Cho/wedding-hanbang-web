@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -112,7 +113,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(response, { headers: NO_STORE_HEADERS });
-  } catch {
+  } catch (err) {
+    log.error("api/internal/vendors/recommend", err);
     return NextResponse.json(
       { error: "Vendor recommendation unavailable" },
       { status: 500, headers: NO_STORE_HEADERS },

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 
 export async function GET(request: Request) {
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ admins: result });
   } catch (err) {
+    log.error("api/admin/admins", err);
     console.error("Admin admins list error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

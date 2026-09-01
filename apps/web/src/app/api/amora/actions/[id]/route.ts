@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -168,6 +169,7 @@ export async function PATCH(
 
     return NextResponse.json({ action });
   } catch (error) {
+    log.error("api/amora/actions/[id]", error);
     console.error("amora action update failed:", error);
     return NextResponse.json({ error: "아모라 행동을 수정하지 못했습니다." }, { status: 500 });
   }

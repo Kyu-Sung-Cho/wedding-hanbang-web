@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { optionFromRow, type PublicOptionRow } from "@/lib/price/publicListData";
 import { createPublicClient } from "@/lib/supabase/public";
@@ -45,7 +46,8 @@ export async function GET(request: Request) {
       // 발행 주기가 분기 단위라 CDN에 하루 캐시해도 안전하다.
       { headers: { "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800" } },
     );
-  } catch {
+  } catch (err) {
+    log.error("api/price/vendor-options", err);
     return NextResponse.json({ error: "옵션을 불러오지 못했습니다." }, { status: 503 });
   }
 }

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
@@ -237,6 +238,7 @@ export async function GET(request: Request) {
       { headers: PRIVATE_NO_STORE_HEADERS },
     );
   } catch (err) {
+    log.error("api/auth/me", err);
     console.error("Auth me 에러:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

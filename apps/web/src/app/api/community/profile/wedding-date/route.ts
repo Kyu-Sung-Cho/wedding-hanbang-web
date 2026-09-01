@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
       month: normalizedMonth,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
+    log.error("api/community/profile/wedding-date", err);
     console.error("wedding-date POST error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
 import { communityReadablePostOrFilter } from "@/lib/community/publicPostRules";
@@ -86,6 +87,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ posts: sortedPosts, total, hasMore });
   } catch (err) {
+    log.error("api/community/posts/voted", err);
     console.error("Voted posts error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

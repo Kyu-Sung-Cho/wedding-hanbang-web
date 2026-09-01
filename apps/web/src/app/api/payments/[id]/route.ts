@@ -12,6 +12,7 @@ import {
   readPaymentJson,
   resolvePaymentScope,
 } from "../paymentRouteSupport";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 
@@ -126,6 +127,7 @@ export async function PATCH(
     }
     return paymentJson({ payment });
   } catch (error) {
+    log.error("api/payments/[id]", error);
     console.error("[payments] unexpected update failure", {
       name: error instanceof Error ? error.name : "unknown",
     });

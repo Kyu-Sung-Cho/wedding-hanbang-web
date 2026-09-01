@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import {
@@ -479,6 +480,7 @@ export async function GET(req: NextRequest) {
         quarantinedDeliveries: quarantined.deliveries ?? 0,
       });
     } catch (error) {
+      log.error("api/cron/care-moments", error);
       console.error("[care-cron] kill-switch quarantine failed", error instanceof Error ? error.message : "unknown");
       return NextResponse.json(
         { error: "care queue quarantine failed" },
@@ -501,6 +503,7 @@ export async function GET(req: NextRequest) {
     const stats = await runCareCron({ admin, resend, now: new Date() });
     return NextResponse.json({ ok: true, enabled: true, ...stats });
   } catch (error) {
+    log.error("api/cron/care-moments", error);
     console.error("[care-cron] durable queue run failed", error instanceof Error ? error.message : "unknown");
     return NextResponse.json({ error: "care queue run failed" }, { status: 500 });
   }

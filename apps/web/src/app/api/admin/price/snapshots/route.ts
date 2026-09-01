@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import {
   summarizeSnapshotReadiness,
   type SnapshotEvidenceRow,
@@ -357,6 +358,7 @@ export async function GET(request: Request) {
       })),
     });
   } catch (error) {
+    log.error("api/admin/price/snapshots", error);
     if (error instanceof SnapshotReadError && error.code === "safe_limit") {
       return NextResponse.json(
         {

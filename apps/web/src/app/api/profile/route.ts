@@ -1,4 +1,5 @@
 import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import {
@@ -317,6 +318,7 @@ export async function PATCH(request: Request) {
       careAvailability,
     });
   } catch (err) {
+    log.error("api/profile", err);
     console.error("Profile API error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

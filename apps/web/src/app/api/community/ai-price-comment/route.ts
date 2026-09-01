@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import type { PriceData } from "@/types/community.types";
 import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { createClientFromRequest } from "@/lib/supabase/server";
@@ -55,6 +56,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ aiComment });
   } catch (err) {
+    log.error("api/community/ai-price-comment", err);
     console.error("AI price comment error:", err);
     void logAIInteraction({
       interactionType: "community_amora_comment",

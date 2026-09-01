@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { isUuid } from "@/utils/requestValidation";
@@ -68,6 +69,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    log.error("api/community/moderation/notices/[id]", error);
     console.error("[community moderation notice read] unexpected:", error);
     return NextResponse.json(
       {

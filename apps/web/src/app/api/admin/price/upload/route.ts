@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { parsePriceUpload, processPriceUpload } from "@/lib/admin/priceUpload";
 import { persistAdminJsonEvidence } from "@/lib/admin/priceUploadEvidence";
@@ -97,7 +98,8 @@ export async function POST(request: Request) {
       objectKey: evidence.objectKey,
     });
     return NextResponse.json(report, { headers: PRIVATE_HEADERS });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price/upload", err);
     return NextResponse.json(
       { error: "Price upload unavailable" },
       { status: 500, headers: PRIVATE_HEADERS },

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 
@@ -352,6 +353,7 @@ export async function PATCH(
       { headers: NO_STORE_HEADERS },
     );
   } catch (error) {
+    log.error("api/admin/reports/[id]", error);
     console.error("[admin reports] unexpected:", error);
     return NextResponse.json(
       {

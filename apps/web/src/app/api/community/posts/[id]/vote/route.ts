@@ -1,4 +1,5 @@
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
@@ -98,6 +99,7 @@ export async function POST(
       downvote_count: Math.max(0, counts?.downvote_count ?? 0),
     });
   } catch (err) {
+    log.error("api/community/posts/[id]/vote", err);
     console.error("Vote post error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

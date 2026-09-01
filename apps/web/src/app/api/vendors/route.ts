@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
 import { PUBLIC_VENDOR_COLUMNS, PUBLIC_VENDOR_PRODUCT_COLUMNS } from "@/lib/vendors/publicFields";
@@ -112,6 +113,7 @@ export async function GET(req: Request) {
       limit,
     });
   } catch (err) {
+    log.error("api/vendors", err);
     console.error("Vendors list error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

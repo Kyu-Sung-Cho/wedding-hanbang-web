@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import { z } from "zod";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -123,7 +124,8 @@ export async function PATCH(
       );
     }
     return NextResponse.json({ decided: true, kind, decision });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price/dedupe/[id]", err);
     return NextResponse.json(
       { error: "중복 결정을 저장하지 못했습니다. 다시 시도해 주세요." },
       { status: 500 },

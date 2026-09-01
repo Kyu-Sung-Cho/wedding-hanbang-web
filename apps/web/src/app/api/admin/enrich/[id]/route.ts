@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import { z } from "zod";
 import {
   buildVendorSearchLinks,
@@ -151,7 +152,8 @@ export async function GET(
         : {},
       search_links: buildVendorSearchLinks(name, region),
     });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/enrich/[id]", err);
     return NextResponse.json(
       { error: "업체 보강 정보를 불러오지 못했습니다." },
       { status: 500 },
@@ -233,7 +235,8 @@ export async function PATCH(
       saved: true,
       completed: parsed.data.action === "complete",
     });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/enrich/[id]", err);
     return NextResponse.json(
       { error: "업체 정보를 저장하지 못했습니다. 다시 시도해 주세요." },
       { status: 500 },

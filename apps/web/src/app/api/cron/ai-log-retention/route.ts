@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -76,7 +77,8 @@ export async function GET(request: Request) {
       },
       { headers: NO_STORE_HEADERS },
     );
-  } catch {
+  } catch (err) {
+    log.error("api/cron/ai-log-retention", err);
     return NextResponse.json(
       { error: "AI log retention failed" },
       { status: 500, headers: NO_STORE_HEADERS },

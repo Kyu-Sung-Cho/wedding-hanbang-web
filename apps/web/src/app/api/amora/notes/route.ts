@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { evaluateSavedNoteSource } from "@/lib/amora/savedNoteSource";
 
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
@@ -148,6 +149,7 @@ export async function GET(req: NextRequest) {
     }));
     return mobileBridgeJson({ notes }, { headers: RESPONSE_HEADERS });
   } catch (error) {
+    log.error("api/amora/notes", error);
     console.error("[amora notes] list failed:", error);
     return mobileBridgeJson(
       { error: "서버 오류" },
@@ -264,6 +266,7 @@ export async function POST(req: Request) {
       { headers: RESPONSE_HEADERS },
     );
   } catch (error) {
+    log.error("api/amora/notes", error);
     console.error("[amora notes] save failed:", error);
     return mobileBridgeJson(
       { error: "서버 오류" },
@@ -321,6 +324,7 @@ export async function PATCH(req: Request) {
     }
     return mobileBridgeJson({ updated: true }, { headers: RESPONSE_HEADERS });
   } catch (error) {
+    log.error("api/amora/notes", error);
     console.error("[amora notes] memo failed:", error);
     return mobileBridgeJson(
       { error: "서버 오류" },
@@ -369,6 +373,7 @@ export async function DELETE(req: Request) {
     // 이미 없어도 원하는 상태이므로 성공으로 답한다(재시도 안전).
     return mobileBridgeJson({ deleted: true }, { headers: RESPONSE_HEADERS });
   } catch (error) {
+    log.error("api/amora/notes", error);
     console.error("[amora notes] delete failed:", error);
     return mobileBridgeJson(
       { error: "서버 오류" },

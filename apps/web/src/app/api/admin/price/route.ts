@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import {
   finalizeReviewPage,
   parseReviewPageRequest,
@@ -205,7 +206,8 @@ export async function GET(request: Request) {
       next_cursor: page.nextCursor,
       filters: { kind, status: reviewStatus, limit: pageRequest.limit },
     });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price", err);
     return NextResponse.json(
       { error: kind === "agency_package"
         ? "대행사 패키지 검수 대기열을 불러오지 못했습니다."

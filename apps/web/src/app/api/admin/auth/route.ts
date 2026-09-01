@@ -1,4 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
@@ -81,7 +82,8 @@ export async function GET(req: Request) {
       isAdmin: profile?.is_admin === true,
       email: user.email,
     });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/auth", err);
     return NextResponse.json({ isAdmin: false, error: "서버 오류" }, { status: 500 });
   }
 }
@@ -334,7 +336,8 @@ export async function POST(req: Request) {
       { error: "관리자 권한이 없는 계정입니다. 기존 관리자에게 권한을 요청하세요." },
       { status: 403 }
     );
-  } catch {
+  } catch (err) {
+    log.error("api/admin/auth", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
 }

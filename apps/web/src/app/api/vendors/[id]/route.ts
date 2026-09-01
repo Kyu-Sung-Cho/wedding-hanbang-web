@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { vendorRowToVendor, productRowToProduct, vendorToPublicVendor } from "@/lib/utils/vendorMapper";
@@ -67,7 +68,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         from: nextWeekDates[0].date,
         to: nextWeekDates[nextWeekDates.length - 1].date,
       });
-    } catch {
+    } catch (err) {
+      log.error("api/vendors/[id]", err);
       console.error("[vendor-detail] booking availability unavailable");
       return NextResponse.json(
         {
@@ -143,6 +145,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       isFavorite,
     });
   } catch (err) {
+    log.error("api/vendors/[id]", err);
     console.error("Vendor detail error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

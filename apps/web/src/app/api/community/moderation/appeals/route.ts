@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -147,6 +148,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ appeal: data }, { status: 201 });
   } catch (error) {
+    log.error("api/community/moderation/appeals", error);
     console.error("[community moderation appeal] unexpected:", error);
     return NextResponse.json(
       {

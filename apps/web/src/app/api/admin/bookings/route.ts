@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 
 export async function GET(request: Request) {
@@ -70,6 +71,7 @@ export async function GET(request: Request) {
       stats: { total, pending, confirmed, completed, cancelled },
     });
   } catch (err) {
+    log.error("api/admin/bookings", err);
     console.error("Admin bookings error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 
 function getServiceClient() {
@@ -31,6 +32,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tags: data ?? [] });
   } catch (err) {
+    log.error("api/community/vendor-tags", err);
     console.error("Vendor tags error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

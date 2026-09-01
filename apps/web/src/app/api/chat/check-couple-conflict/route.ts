@@ -20,6 +20,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -183,7 +184,8 @@ export async function POST(req: NextRequest) {
         "shared",
         supabase,
       );
-    } catch {
+    } catch (err) {
+      log.error("api/chat/check-couple-conflict", err);
       return NextResponse.json(
         { triggered: false, reason: "privacy_context_unavailable" },
         {

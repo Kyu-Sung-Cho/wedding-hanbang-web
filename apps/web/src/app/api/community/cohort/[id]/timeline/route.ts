@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
 import type { CohortEventType } from "@/types/community.types";
@@ -90,6 +91,7 @@ export async function GET(
 
     return NextResponse.json({ events: eventsWithUser });
   } catch (err) {
+    log.error("api/community/cohort/[id]/timeline", err);
     console.error("Events GET error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
@@ -168,6 +170,7 @@ export async function POST(
 
     return NextResponse.json({ event: data }, { status: 201 });
   } catch (err) {
+    log.error("api/community/cohort/[id]/timeline", err);
     console.error("Event POST error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

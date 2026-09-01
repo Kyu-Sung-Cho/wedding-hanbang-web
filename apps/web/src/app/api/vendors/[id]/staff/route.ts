@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import {
   bookingCountAt,
   buildKstDateWindow,
@@ -53,7 +54,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
         from: nextWeekDates[0].date,
         to: nextWeekDates[nextWeekDates.length - 1].date,
       });
-    } catch {
+    } catch (err) {
+      log.error("api/vendors/[id]/staff", err);
       console.error("[vendor-staff] booking availability unavailable");
       return NextResponse.json(
         {
@@ -92,6 +94,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json({ staff: result });
   } catch (err) {
+    log.error("api/vendors/[id]/staff", err);
     console.error("Vendor staff GET error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

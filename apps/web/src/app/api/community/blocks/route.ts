@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
@@ -119,7 +120,8 @@ export async function GET(request: NextRequest) {
         profile: profileById.get(row.blocked_user_id) ?? null,
       })),
     });
-  } catch {
+  } catch (err) {
+    log.error("api/community/blocks", err);
     console.error("[community blocks] list unexpected", {
       category: "unexpected",
     });
@@ -247,7 +249,8 @@ export async function POST(request: NextRequest) {
       blocked: data.blocked,
       changed: data.changed,
     });
-  } catch {
+  } catch (err) {
+    log.error("api/community/blocks", err);
     console.error("[community blocks] set unexpected", {
       category: "unexpected",
     });

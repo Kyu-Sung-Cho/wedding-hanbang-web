@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
@@ -301,6 +302,7 @@ export async function POST(req: NextRequest) {
       },
     }, { status: 201 });
   } catch (err) {
+    log.error("api/community/ai-comment", err);
     if (err instanceof CommunityAiCommentUnavailableError) {
       return NextResponse.json(
         {

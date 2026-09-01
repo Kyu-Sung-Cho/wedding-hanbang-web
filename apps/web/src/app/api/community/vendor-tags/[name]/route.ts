@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
@@ -267,6 +268,7 @@ export async function GET(
       },
     );
   } catch (err) {
+    log.error("api/community/vendor-tags/[name]", err);
     console.error("Vendor tag detail error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

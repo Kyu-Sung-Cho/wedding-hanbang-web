@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -115,6 +116,7 @@ export async function GET(req: NextRequest) {
       { headers: PRIVATE_NO_STORE },
     );
   } catch (err) {
+    log.error("api/community/profile", err);
     console.error("Get community profile error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
@@ -202,6 +204,7 @@ export async function POST(req: NextRequest) {
       { status: 201 },
     );
   } catch (error) {
+    log.error("api/community/profile", error);
     console.error("Create community profile error:", error);
     return NextResponse.json(
       { error: "프로필 생성 중 오류가 발생했습니다." },
@@ -308,6 +311,7 @@ export async function PATCH(req: NextRequest) {
 
     return NextResponse.json({ profile: updatedProfile });
   } catch (err) {
+    log.error("api/community/profile", err);
     console.error("Update nickname error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
