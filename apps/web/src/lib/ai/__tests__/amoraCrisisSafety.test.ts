@@ -792,6 +792,59 @@ describe("assessAmoraSafetyText", () => {
   });
 });
 
+/**
+ * 이미 벌어진 자해를 **과거형으로** 말하는 경우.
+ *
+ * 2026-09-01 운영 실측: `자해했어요` 한 줄이 범위 밖으로 판정돼 **배우자가 읽는
+ * 공유 레인에 그대로 저장**됐다(2026-08-27, visibility=shared). 어휘에
+ * `자해(?:하|할|하고 싶)` 만 있어서 앞으로의 의도만 잡고, 한국어에서 더 흔한
+ * 과거형 서술을 통째로 놓쳤다.
+ *
+ * 자기 몸을 다치게 했다고 처음 말한 사람이 그 말이 상대에게 보이는지 고를
+ * 기회를 못 가졌다. 그래서 이건 기억 설정 문제가 아니라 신변 문제다.
+ */
+describe("이미 벌어진 자해를 과거형으로 말할 때", () => {
+  it.each([
+    "자해했어요",
+    "자해했어",
+    "어제 자해했어요",
+    "며칠 전에 자해했어",
+    "결혼 준비가 너무 힘들어서 자해했어요",
+    "자해해 버렸어요",
+  ])("'%s' 를 위기로 본다", (text) => {
+    expect(classifyAmoraCrisis(text)).toEqual({ kind: "self_harm" });
+  });
+
+  it.each([
+    // 부정문. 넓히면서 이것까지 끌고 오면 안 된다.
+    "자해하지 않았어요",
+    "자해한 적 없어요",
+    "자해하고 싶지 않아요",
+    // 부분 일치 함정. `혼자해도` 는 `자해` 를 담고 있지만 뒤에 `도` 가 온다.
+    // `혼자했어` 는 `자했` 이라 애초에 `자해` 가 아니다.
+    "혼자해도 될까요?",
+    "혼자해결했어요",
+    "혼자했어요",
+    "이 정도는 혼자해도 괜찮아요",
+    "청첩장은 혼자해도 돼",
+  ])("'%s' 는 위기가 아니다", (text) => {
+    expect(classifyAmoraCrisis(text)).toBeNull();
+  });
+
+  it("공유 레인으로 보내려 해도 비공개로 돌린다", () => {
+    // 이 검사가 이 변경의 **이유**다. 위 분류가 맞아도 여기서 안 돌면
+    // 사용자가 쓴 문장은 여전히 배우자에게 보인다.
+    const result = planAmoraCrisisDelivery({
+      userText: "자해했어요",
+      requestedVisibility: "shared",
+      target: "ai",
+      senderRole: "bride",
+    });
+    expect(result.classification).toEqual({ kind: "self_harm" });
+    expect(result.effectiveVisibility).not.toBe("shared");
+  });
+});
+
 describe("classifyAmoraCrisis", () => {
   it.each([
     "나 죽...고 싶어",
