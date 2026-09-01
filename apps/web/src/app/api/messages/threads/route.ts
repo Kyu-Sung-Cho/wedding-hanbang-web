@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loadOwnedVendorWithServiceRole } from "@/lib/vendors/serverOwnership";
 import { NextRequest, NextResponse } from "next/server";
@@ -118,6 +119,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ threads, isVendor: !!myVendor });
   } catch (err) {
+    log.error("api/messages/threads", err);
     console.error("Message threads error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

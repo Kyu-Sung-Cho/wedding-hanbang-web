@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import {
   attributeCategoryToDb,
   normalizeVendorCategory,
@@ -203,6 +204,7 @@ export async function GET(request: Request) {
       filters: { category, status, region: region || null, mine },
     });
   } catch (caught) {
+    log.error("api/admin/enrich", caught);
     if (caught instanceof EnrichmentQueueCapacityError) {
       return NextResponse.json(
         {

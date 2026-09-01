@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { bookingRowToBooking } from "@/lib/utils/vendorMapper";
@@ -73,6 +74,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ bookings });
   } catch (err) {
+    log.error("api/bookings/mine", err);
     console.error("My bookings error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

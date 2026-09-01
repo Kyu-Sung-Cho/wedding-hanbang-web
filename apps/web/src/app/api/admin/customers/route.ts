@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { todayYmdInKst } from "@hanbang/shared/utils";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 
@@ -71,6 +72,7 @@ export async function GET(request: Request) {
       stats: { total, onboarded, coupled, todayCount },
     });
   } catch (err) {
+    log.error("api/admin/customers", err);
     console.error("Admin customers error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

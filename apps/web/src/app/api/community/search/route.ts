@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { fallbackCommunityAuthor, getCommunityAuthorMap } from "@/lib/community/authorProfiles";
@@ -210,6 +211,7 @@ export async function GET(req: NextRequest) {
       hasMore: offset + limit < total,
     });
   } catch (err) {
+    log.error("api/community/search", err);
     console.error("Community search error:", err);
     return json(
       { error: "서버 오류가 발생했습니다." },

@@ -1,4 +1,5 @@
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
+import { log } from "@/utils/log";
 import { NextResponse } from "next/server";
 
 interface CommunityPostInsightRow {
@@ -293,6 +294,7 @@ export async function GET(req: Request) {
       topSavedCommunityPosts,
     });
   } catch (err) {
+    log.error("api/admin/insights", err);
     console.error("Admin insights error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

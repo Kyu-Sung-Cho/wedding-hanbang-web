@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { z } from "zod";
 
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -42,7 +43,8 @@ export async function GET(
       );
     }
     return NextResponse.json(profile, { headers: NO_STORE_HEADERS });
-  } catch {
+  } catch (err) {
+    log.error("api/internal/vendors/[id]/profile", err);
     return NextResponse.json(
       { error: "Vendor profile unavailable" },
       { status: 500, headers: NO_STORE_HEADERS },

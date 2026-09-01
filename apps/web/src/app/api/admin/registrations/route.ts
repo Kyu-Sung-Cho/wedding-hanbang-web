@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 
 export async function GET(request: NextRequest) {
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
       dailyCounts,
     });
   } catch (err) {
+    log.error("api/admin/registrations", err);
     console.error("[admin/registrations] unexpected:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

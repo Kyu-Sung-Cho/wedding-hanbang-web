@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 
 const KINDS = new Set(["vendor", "agency"]);
@@ -69,7 +70,8 @@ export async function GET(request: Request) {
       })),
       filters: { kind, status },
     });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price/dedupe", err);
     return NextResponse.json(
       { error: "중복 후보를 불러오지 못했습니다." },
       { status: 500 },

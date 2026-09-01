@@ -13,6 +13,7 @@ import {
   readPaymentJson,
   resolvePaymentScope,
 } from "./paymentRouteSupport";
+import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
 
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
 
     return paymentJson({ payments });
   } catch (error) {
+    log.error("api/payments", error);
     console.error("[payments] unexpected list failure", {
       name: error instanceof Error ? error.name : "unknown",
     });
@@ -171,6 +173,7 @@ export async function POST(request: Request) {
     }
     return paymentJson({ payment }, { status: 201 });
   } catch (error) {
+    log.error("api/payments", error);
     console.error("[payments] unexpected create failure", {
       name: error instanceof Error ? error.name : "unknown",
     });

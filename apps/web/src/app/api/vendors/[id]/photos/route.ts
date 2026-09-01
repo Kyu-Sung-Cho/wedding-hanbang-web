@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -84,6 +85,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ liked: true });
     }
   } catch (err) {
+    log.error("api/vendors/[id]/photos", err);
     console.error("Photo like toggle error:", err);
     return NextResponse.json({ error: "서버 오류" }, { status: 500 });
   }

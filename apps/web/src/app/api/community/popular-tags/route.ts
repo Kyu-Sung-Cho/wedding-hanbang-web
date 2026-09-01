@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 
 const PRIVATE_NO_STORE = "private, no-store, max-age=0";
@@ -59,6 +60,7 @@ export async function GET(req: NextRequest) {
       { headers: responseHeaders }
     );
   } catch (err) {
+    log.error("api/community/popular-tags", err);
     console.error("Popular tags error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

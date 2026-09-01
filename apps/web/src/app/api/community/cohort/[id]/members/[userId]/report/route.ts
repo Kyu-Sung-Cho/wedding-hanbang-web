@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
@@ -113,6 +114,7 @@ export async function POST(
       reviewRequired: (count ?? 1) >= 5,
     });
   } catch (err) {
+    log.error("api/community/cohort/[id]/members/[userId]/report", err);
     console.error("[cohort member report] unexpected:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

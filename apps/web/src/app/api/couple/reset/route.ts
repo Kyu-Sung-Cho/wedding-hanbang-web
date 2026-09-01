@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isBodyTooLarge } from "@/utils/requestValidation";
@@ -56,6 +57,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    log.error("api/couple/reset", err);
     console.error("[couple/reset] error:", err);
     return NextResponse.json({ error: "초기화에 실패했습니다." }, { status: 500 });
   }

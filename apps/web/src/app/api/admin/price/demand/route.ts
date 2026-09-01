@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import { getServiceClient, verifyAdmin } from "@/lib/utils/adminAuth";
 import { readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -108,7 +109,8 @@ export async function GET(request: Request) {
       .slice(0, 100);
 
     return NextResponse.json({ days, category, rows: result });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price/demand", err);
     return NextResponse.json({ error: "수요 데이터를 불러오지 못했습니다." }, { status: 503 });
   }
 }
@@ -145,7 +147,8 @@ export async function POST(request: Request) {
     );
     if (error) throw new Error(error.message);
     return NextResponse.json({ aggregated_vendors: data ?? 0, day: input.day ?? "KST 어제" });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price/demand", err);
     return NextResponse.json({ error: "집계 실행에 실패했습니다." }, { status: 503 });
   }
 }

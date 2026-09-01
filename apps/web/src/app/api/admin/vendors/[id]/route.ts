@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { sendVendorApprovalEmail, sendVendorRejectionEmail } from "@/lib/resend";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -60,6 +61,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const actionLabel = action === "approve" ? "승인" : action === "revoke" ? "승인 취소" : "반려";
     return NextResponse.json({ vendor, message: `업체가 ${actionLabel}되었습니다.` });
   } catch (err) {
+    log.error("api/admin/vendors/[id]", err);
     console.error("Admin vendor action error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

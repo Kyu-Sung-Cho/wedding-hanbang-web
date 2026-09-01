@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { sanitizeText } from "@/utils/sanitize";
@@ -156,6 +157,7 @@ export async function POST(
 
     return NextResponse.json({ success: true });
   } catch (err) {
+    log.error("api/community/posts/[id]/report", err);
     console.error("Report post error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

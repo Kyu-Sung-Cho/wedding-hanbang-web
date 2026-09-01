@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
@@ -147,6 +148,7 @@ export async function POST(req: Request) {
       flexible: useFlexibleCohort,
     }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (err) {
+    log.error("api/community/cohort/auto-assign", err);
     console.error("[auto-assign] unexpected:", err);
     return NextResponse.json(
       { room_id: null, reason: "server_error" },

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import {
   buildSignupConsentRecord,
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true }, { headers: NO_STORE_HEADERS });
   } catch (err) {
+    log.error("api/auth/consent", err);
     console.error("[auth/consent] 예외", {
       message: err instanceof Error ? err.message : "unknown",
     });

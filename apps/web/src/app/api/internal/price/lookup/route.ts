@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { z } from "zod";
 
 import { lookupPublishedVendorPrices } from "@/lib/admin/priceUploadLookup";
@@ -60,7 +61,8 @@ export async function GET(request: Request) {
       console.warn("[internal price lookup] analytics event unavailable");
     }
     return NextResponse.json(result, { headers: NO_STORE_HEADERS });
-  } catch {
+  } catch (err) {
+    log.error("api/internal/price/lookup", err);
     return NextResponse.json(
       { error: "Price lookup unavailable" },
       { status: 500, headers: NO_STORE_HEADERS },

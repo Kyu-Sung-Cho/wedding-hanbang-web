@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
@@ -371,6 +372,7 @@ export async function POST(
       { status: 201 },
     );
   } catch (error) {
+    log.error("api/community/comments/[id]/report", error);
     console.error("[community comment report] unexpected error:", error);
     return NextResponse.json(
       {

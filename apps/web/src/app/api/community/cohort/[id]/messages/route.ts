@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
@@ -116,6 +117,7 @@ export async function GET(
 
     return NextResponse.json({ messages: messagesWithAuthor });
   } catch (err) {
+    log.error("api/community/cohort/[id]/messages", err);
     console.error("Messages GET error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
@@ -291,6 +293,7 @@ export async function POST(
       },
     );
   } catch (err) {
+    log.error("api/community/cohort/[id]/messages", err);
     console.error("Message POST error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

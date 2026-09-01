@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { messageRowToMessage } from "@/lib/utils/vendorMapper";
@@ -85,6 +86,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ messages });
   } catch (err) {
+    log.error("api/messages", err);
     console.error("Messages GET error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
@@ -159,6 +161,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ message: messageRowToMessage(message) });
   } catch (err) {
+    log.error("api/messages", err);
     console.error("Message send error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

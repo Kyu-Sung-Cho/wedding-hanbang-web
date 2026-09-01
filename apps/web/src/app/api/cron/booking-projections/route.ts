@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainBookingProjectionJobs } from "@/lib/bookings/projectionOutbox";
 import { isRecord } from "@/utils/requestValidation";
@@ -60,6 +61,7 @@ export async function GET(req: NextRequest) {
       },
     );
   } catch (error) {
+    log.error("api/cron/booking-projections", error);
     console.error(
       "[booking-projections] durable queue run failed",
       error instanceof Error ? error.message : "unknown",

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -104,6 +105,7 @@ export async function GET(
       posts: posts ?? [],
     });
   } catch (err) {
+    log.error("api/community/profiles/[userId]", err);
     console.error("[community/profile public] unexpected:", err);
     return json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
 import { recordDecision } from "@/lib/memory/record-decision";
@@ -187,6 +188,7 @@ export async function POST(req: Request) {
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {
+    log.error("api/favorites", err);
     console.error("Favorite add error:", err);
     return mobileBridgeJson(
       { error: "서버 오류" },
@@ -254,6 +256,7 @@ export async function DELETE(req: Request) {
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {
+    log.error("api/favorites", err);
     console.error("Favorite remove error:", err);
     return mobileBridgeJson(
       { error: "서버 오류" },
@@ -311,6 +314,7 @@ export async function GET(req: NextRequest) {
       { headers: MUTATION_RESPONSE_HEADERS },
     );
   } catch (err) {
+    log.error("api/favorites", err);
     console.error("Favorites list error:", err);
     return mobileBridgeJson(
       { error: "서버 오류" },

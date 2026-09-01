@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { log } from "@/utils/log";
 
 import {
   COMBO_CATEGORIES,
@@ -213,7 +214,8 @@ export async function POST(request: Request) {
   let admin: ReturnType<typeof createAdminClient>;
   try {
     admin = createAdminClient();
-  } catch {
+  } catch (err) {
+    log.error("api/price/combos", err);
     return mobileBridgeJson(
       { error: "조합 저장 경로를 안전하게 확인하지 못했습니다. 잠시 후 다시 시도해 주세요." },
       { status: 503 },

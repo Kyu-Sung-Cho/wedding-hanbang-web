@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -205,6 +206,7 @@ export async function POST(request: Request) {
       idempotent: resolution.idempotent === true,
     });
   } catch (error) {
+    log.error("api/chat/clear-request", error);
     console.error(
       "[clear-request] unexpected failure",
       error instanceof Error ? error.name : "unknown"

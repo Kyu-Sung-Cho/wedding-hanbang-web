@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { isUuid } from "@/utils/requestValidation";
@@ -103,6 +104,7 @@ export async function GET(
 
     return json({ members });
   } catch (error) {
+    log.error("api/community/cohort/[id]/members", error);
     console.error("Cohort members GET error:", error);
     return json(
       { error: "동기방 멤버를 불러오지 못했어요." },

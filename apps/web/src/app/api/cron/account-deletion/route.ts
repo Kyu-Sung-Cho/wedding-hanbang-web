@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import { processAccountDeletionJob } from "@/lib/accountDeletion/communityStorageSaga";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -58,7 +59,8 @@ export async function GET(request: Request) {
   let admin: ReturnType<typeof createAdminClient>;
   try {
     admin = createAdminClient();
-  } catch {
+  } catch (err) {
+    log.error("api/cron/account-deletion", err);
     return NextResponse.json(
       { error: "account deletion worker unavailable" },
       { status: 503, headers: NO_STORE_HEADERS },
@@ -76,7 +78,8 @@ export async function GET(request: Request) {
       .or(`status.neq.inventory_ready,ready_after.lte.${new Date().toISOString()}`)
       .order("updated_at", { ascending: true })
       .limit(JOB_LIMIT);
-  } catch {
+  } catch (err) {
+    log.error("api/cron/account-deletion", err);
     return NextResponse.json(
       { error: "durable deletion inventory unavailable" },
       { status: 503, headers: NO_STORE_HEADERS },

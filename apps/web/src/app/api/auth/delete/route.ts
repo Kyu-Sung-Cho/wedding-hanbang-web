@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 
 import {
   AccountDeletionStorageError,
@@ -119,6 +120,7 @@ export async function DELETE(request: Request) {
       { status: 202, headers: NO_STORE_HEADERS },
     );
   } catch (error) {
+    log.error("api/auth/delete", error);
     console.error("[auth/delete] durable deletion request failed", {
       code: error instanceof AccountDeletionStorageError
         ? error.code

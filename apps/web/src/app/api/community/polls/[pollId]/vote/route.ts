@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { canReadCommunityPost } from "@/lib/community/publicPostRules";
@@ -151,6 +152,7 @@ async function getPollResponse(
 
     return NextResponse.json({ poll });
   } catch (err) {
+    log.error("api/community/polls/[pollId]/vote", err);
     console.error("[poll.GET] error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
@@ -408,6 +410,7 @@ export async function POST(
     return pollVoteReceiptResponse(rpcRaw as SetPollVoteResult | null, pollId)
       ?? pollReceiptUnavailable();
   } catch (err) {
+    log.error("api/community/polls/[pollId]/vote", err);
     console.error("[poll.POST] error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

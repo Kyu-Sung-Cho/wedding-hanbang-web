@@ -1,4 +1,5 @@
 import { AdminNextResponse as NextResponse } from "@/lib/admin/privateResponse";
+import { log } from "@/utils/log";
 import { z } from "zod";
 import {
   AGENCY_PACKAGE_EDITABLE_COLUMNS,
@@ -272,7 +273,8 @@ export async function PATCH(
         );
       }
       return NextResponse.json({ package: safeAgencyPackageResponse(saved as PriceRow) });
-    } catch {
+    } catch (err) {
+      log.error("api/admin/price/[id]", err);
       return NextResponse.json(
         { error: "패키지 검수 내용을 저장하지 못했습니다. 다시 시도해 주세요." },
         { status: 500 },
@@ -378,7 +380,8 @@ export async function PATCH(
     }
 
     return NextResponse.json({ price: safePriceResponse(saved as PriceRow) });
-  } catch {
+  } catch (err) {
+    log.error("api/admin/price/[id]", err);
     return NextResponse.json(
       { error: "검수 내용을 저장하지 못했습니다. 다시 시도해 주세요." },
       { status: 500 },

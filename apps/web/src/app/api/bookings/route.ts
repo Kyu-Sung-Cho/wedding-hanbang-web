@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
@@ -273,6 +274,7 @@ export async function POST(req: Request) {
       message,
     }, { status: fullyApplied ? 200 : 202 });
   } catch (err) {
+    log.error("api/bookings", err);
     console.error("Booking create error:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }

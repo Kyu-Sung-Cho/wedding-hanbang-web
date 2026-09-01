@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -203,6 +204,7 @@ export async function GET(req: NextRequest) {
       },
     );
   } catch (error) {
+    log.error("api/cron/community-upload-cleanup", error);
     console.error(
       "[community upload cleanup] durable cleanup failed",
       error instanceof Error ? error.message : "unknown",

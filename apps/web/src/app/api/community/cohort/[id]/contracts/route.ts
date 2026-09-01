@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextRequest, NextResponse } from "next/server";
 import { checkCommunityWriteAccess } from "@/lib/community/writeAccess";
@@ -97,6 +98,7 @@ export async function GET(
       stats,
     });
   } catch (err) {
+    log.error("api/community/cohort/[id]/contracts", err);
     console.error("Contracts GET error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
@@ -186,6 +188,7 @@ export async function POST(
 
     return NextResponse.json({ contract: data }, { status: 201 });
   } catch (err) {
+    log.error("api/community/cohort/[id]/contracts", err);
     console.error("Contract POST error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

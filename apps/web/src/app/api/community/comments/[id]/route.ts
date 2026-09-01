@@ -207,7 +207,8 @@ export async function PATCH(
     }
 
     return NextResponse.json({ comment: updatedComment });
-  } catch {
+  } catch (err) {
+    log.error("api/community/comments/[id]", err);
     logContentFreeFailure(
       "[community.comments.patch]",
       "unexpected",
@@ -333,7 +334,8 @@ export async function DELETE(
       comment_id: result.comment_id,
       post_comment_count: result.post_comment_count,
     });
-  } catch {
+  } catch (err) {
+    log.error("api/community/comments/[id]", err);
     logContentFreeFailure(
       "[community.comments.delete]",
       "unexpected",

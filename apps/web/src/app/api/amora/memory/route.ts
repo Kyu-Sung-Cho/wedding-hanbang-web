@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
@@ -253,6 +254,7 @@ export async function GET(request: Request) {
       { headers: { "Cache-Control": "private, no-store" } },
     );
   } catch (error) {
+    log.error("api/amora/memory", error);
     console.error("[amora-memory-api] GET failed", error);
     return NextResponse.json({ error: "서버 오류가 발생했어요." }, { status: 500 });
   }
@@ -409,6 +411,7 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json({ error: "지원하지 않는 작업이에요." }, { status: 400 });
   } catch (error) {
+    log.error("api/amora/memory", error);
     console.error("[amora-memory-api] PATCH failed", error);
     return NextResponse.json({ error: "기억 설정을 바꾸지 못했어요." }, { status: 500 });
   }

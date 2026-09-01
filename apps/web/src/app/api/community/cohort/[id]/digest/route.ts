@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { log } from "@/utils/log";
 import { NextRequest, NextResponse } from "next/server";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
 import type { CohortThreadTopic } from "@/types/community.types";
@@ -719,6 +720,7 @@ export async function GET(
       },
     });
   } catch (err) {
+    log.error("api/community/cohort/[id]/digest", err);
     console.error("Cohort digest error:", err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },

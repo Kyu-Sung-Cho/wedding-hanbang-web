@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { log } from "@/utils/log";
 import { verifyAdmin, getServiceClient } from "@/lib/utils/adminAuth";
 import { cohortRoomName } from "@/utils/quarter";
 
@@ -196,6 +197,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ reports: enriched, counts });
   } catch (err) {
+    log.error("api/admin/reports", err);
     console.error("[admin/reports] unexpected:", err);
     return NextResponse.json({ error: "서버 오류가 발생했습니다." }, { status: 500 });
   }
