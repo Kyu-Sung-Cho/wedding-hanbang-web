@@ -1,5 +1,10 @@
+import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
+
+// 남은 기간의 단위는 값에서 나온다. 예전에는 남은 날짜 수를 그대로 붙여
+// 예식이 먼 커플에게 「기본 확인 시점까지 255일 남았어요」 처럼 감이 안 오는
+// 문장이 나갔고, 날짜 수 옆에 월 단위가 붙는 조합도 막을 수 없었다.
 function pluralDay(days) {
-  return `${Math.abs(days)}일`;
+  return formatKoreanDayCount(days);
 }
 
 export const HOME_SERVICES = Object.freeze([

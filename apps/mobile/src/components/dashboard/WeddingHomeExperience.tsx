@@ -21,6 +21,7 @@ import {
   WalletCards,
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
+import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
 import {
   HOME_SERVICES,
   buildDashboardFocus,
@@ -474,10 +475,10 @@ export default function WeddingHomeExperience({
                       <Text style={styles.simpleTitle}>{task.categoryLabel}</Text>
                       <Text style={styles.simpleDescription}>
                         {task.remainingDays < 0
-                          ? `기본 확인 시점에서 ${Math.abs(task.remainingDays)}일 지남`
+                          ? `기본 확인 시점에서 ${formatKoreanDayCount(task.remainingDays)} 지남`
                           : task.remainingDays === 0
                             ? "오늘이 기본 확인 시점"
-                            : `기본 확인 시점까지 ${task.remainingDays}일`}
+                            : `기본 확인 시점까지 ${formatKoreanDayCount(task.remainingDays)}`}
                       </Text>
                     </View>
                     <ArrowRight size={16} color={colors.textTertiary} />

@@ -15,7 +15,9 @@ import { colors } from "@hanbang/design-tokens";
 import {
   sanitizeUserFacingScheduleMemo,
   daysUntilWedding,
+  repairMojibake,
 } from "@hanbang/shared";
+import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
 import {
   calculatePlanningChecklistStatus,
   mergePlanningChecklist,
@@ -156,9 +158,12 @@ function getUpcomingDays(n: number): string[] {
   return upcomingYmdInKst(n);
 }
 
+// 달력 날짜에서 바로 뽑는다. `new Date(ymd + "T00:00:00")` 은 기기 시간대의
+// 자정이라 해외에 있을 때 같은 일정이 라운지와 하루 다르게 보였다.
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr ?? "");
+  if (!match) return dateStr;
+  return `${Number(match[2])}/${Number(match[3])}`;
 }
 
 // 예식일은 사용자가 고른 **한국 날짜**다. 기기 시간대로 오늘을 읽으면
@@ -247,7 +252,9 @@ function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
     ...(event as unknown as ScheduleEvent),
     id: event.id,
     date: event.date,
-    title: event.title,
+    // 예전에 잘못 읽혀 저장된 한글을 되돌린다. 바이트 왕복으로 검증된 경우에만
+    // 바뀌므로 멀쩡한 제목은 그대로 통과한다(웹은 `scheduleEvents.ts` 가 같은 일을 한다).
+    title: repairMojibake(event.title),
     memo: sanitizeUserFacingScheduleMemo(event.memo),
   };
 }
@@ -1025,10 +1032,10 @@ export default function ScheduleScreen() {
         daysUntilDeadline === null
           ? "결혼식 날짜를 넣으면 기본 확인 순서를 정리해요"
           : daysUntilDeadline < 0
-            ? `기본 확인 시점에서 ${Math.abs(daysUntilDeadline)}일 지났어요`
+            ? `기본 확인 시점에서 ${formatKoreanDayCount(daysUntilDeadline)} 지났어요`
             : daysUntilDeadline === 0
               ? "오늘이 기본 확인 시점이에요"
-              : `기본 확인 시점까지 ${daysUntilDeadline}일`;
+              : `기본 확인 시점까지 ${formatKoreanDayCount(daysUntilDeadline)}`;
 
       return [{
         categoryKey: template.key,
