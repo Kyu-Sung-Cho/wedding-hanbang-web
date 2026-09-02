@@ -25,6 +25,7 @@ new Function("exports", "module", "require", compiled.outputText)(
 );
 const {
   repairMojibake,
+  repairMojibakeDeep,
   hasIrrecoverableTextCorruption,
   isUnreadableText,
   recoverUserText,
@@ -134,6 +135,75 @@ test("recoverUserText 는 되살림 여부와 읽을 수 없음을 함께 돌려
     repaired: false,
     unreadable: true,
   });
+});
+
+test("중첩된 값 안의 문자열도 되돌린다", () => {
+  // 채팅 한 줄의 실제 모양. 화면에 나가는 글이 `content` 하나가 아니다.
+  const metadata = {
+    toolResults: [
+      { toolName: "add_schedule_event", displayMessage: misreadAsLatin1("일정을 넣었어요") },
+    ],
+    pending_amora_action: { confirmation: misreadAsLatin1("예산에 반영할까요?") },
+    mediation: { empathy: misreadAsLatin1("두 분 다 지치셨네요"), schemaVersion: 2 },
+    imagePaths: ["couple/2026/09/a1b2.png"],
+  };
+
+  const repaired = repairMojibakeDeep(metadata);
+  assert.equal(repaired.toolResults[0].displayMessage, "일정을 넣었어요");
+  assert.equal(repaired.pending_amora_action.confirmation, "예산에 반영할까요?");
+  assert.equal(repaired.mediation.empathy, "두 분 다 지치셨네요");
+
+  // 기계가 쓴 값은 손대지 않는다.
+  assert.equal(repaired.toolResults[0].toolName, "add_schedule_event");
+  assert.equal(repaired.mediation.schemaVersion, 2);
+  assert.deepEqual(repaired.imagePaths, ["couple/2026/09/a1b2.png"]);
+});
+
+test("바뀐 것이 없으면 받은 참조를 그대로 돌려준다", () => {
+  // React 가 같은 객체를 다시 그리지 않으려면 이 성질이 필요하다.
+  const intact = { mediation: { empathy: "두 분 다 지치셨네요" }, count: 3 };
+  assert.equal(repairMojibakeDeep(intact), intact);
+
+  const list = [{ displayMessage: "일정을 넣었어요" }];
+  assert.equal(repairMojibakeDeep(list), list);
+});
+
+test("깊게 중첩된 값이 화면 그리기를 멈춰 세우지 않는다", () => {
+  // 상한에 닿으면 그 아래는 손대지 않고 그대로 돌려준다 — 값을 버리지 않는다.
+  let deep = { text: misreadAsLatin1("맨 아래") };
+  for (let level = 0; level < 40; level += 1) deep = { nested: deep };
+
+  const repaired = repairMojibakeDeep(deep);
+  let cursor = repaired;
+  while (cursor.nested) cursor = cursor.nested;
+  assert.equal(typeof cursor.text, "string");
+  assert.ok(cursor.text.length > 0, "상한에 닿았다고 값을 잃으면 안 된다");
+});
+
+test("평범한 객체가 아닌 것은 열지 않는다", () => {
+  const when = new Date("2026-09-02T00:00:00.000Z");
+  const payload = { when, title: misreadAsLatin1("드레스") };
+  const repaired = repairMojibakeDeep(payload);
+  assert.equal(repaired.when, when);
+  assert.equal(repaired.title, "드레스");
+});
+
+test("문자열이 아닌 것을 넣어도 그대로 나온다", () => {
+  for (const value of [null, undefined, 42, true]) {
+    assert.equal(repairMojibakeDeep(value), value);
+  }
+});
+
+test("ASCII 뿐인 문자열은 되돌리기 계산을 아예 하지 않는다", () => {
+  // 채팅 기록은 문자열이 수천 개다. 되돌릴 여지가 없는 값이 바이트 변환과 UTF-8
+  // 디코딩을 전부 지나면 기록을 여는 것이 느려진다.
+  const ascii = "couple/2026/09/a1b2c3d4.png";
+  assert.equal(repairMojibake(ascii), ascii);
+
+  const started = process.hrtime.bigint();
+  for (let index = 0; index < 20_000; index += 1) repairMojibake(ascii);
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsedMs < 500, `ASCII 2만 건에 ${elapsedMs.toFixed(0)}ms 걸렸습니다`);
 });
 
 test("되돌리기가 깨진 UTF-8 바이트열을 조용히 통과시키지 않는다", () => {

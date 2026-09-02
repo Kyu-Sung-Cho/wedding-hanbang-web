@@ -188,9 +188,30 @@ const MAX_REPAIR_PASSES = 3;
  * 되살릴 수 있으면 되살린 문자열을, 아니면 받은 문자열을 그대로 돌려준다.
  * 문자열이 아니면 빈 문자열을 돌려준다 — 부르는 쪽이 타입을 또 확인하지 않게.
  */
+/**
+ * 되돌릴 여지가 있는 글자가 하나라도 있는가.
+ *
+ * 잘못 읽힌 문자열에는 **반드시** 0x80~0xFF 자리의 글자나 CP1252 전용 글자가
+ * 있다(UTF-8 의 뒷바이트가 그렇게 보인다). 그런 글자가 하나도 없는 문자열은
+ * ASCII 뿐이므로 되돌릴 것이 없다.
+ *
+ * 이 검사가 있어야 채팅 기록처럼 **문자열이 수천 개인 곳**에서 정규식 한 번으로
+ * 대부분이 빠져나간다. 없으면 멀쩡한 ASCII 문자열마다 바이트 변환과 UTF-8
+ * 디코딩을 전부 돌게 된다.
+ */
+function couldBeMisread(value: string): boolean {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0x80 && code <= 0xff) return true;
+    if (code > 0xff && CP1252_HIGH_TO_BYTE.has(code)) return true;
+  }
+  return false;
+}
+
 export function repairMojibake(value: unknown): string {
   if (typeof value !== "string" || value.length === 0) return "";
   if (containsHangul(value)) return value;
+  if (!couldBeMisread(value)) return value;
 
   let current = value;
   let bestWithHangul: string | null = null;
@@ -237,6 +258,76 @@ export function isUnreadableText(value: unknown): boolean {
   return !/[\p{L}\p{N}]/u.test(value.replace(/[?\ufffd]/gu, ""));
 }
 
+/**
+ * 중첩된 값 안의 문자열을 전부 되돌린다.
+ *
+ * ## 왜 필요한가
+ *
+ * 채팅 한 줄이 화면에 그려질 때 나가는 글은 `content` 하나가 아니다. 도구 카드
+ * 문구(`metadata.toolResults[].displayMessage`), 승인 카드 문구
+ * (`metadata.pending_amora_action.confirmation`), 중재 카드의 네 문단이 모두
+ * `metadata` 안에 저장돼 있고, 각각 다른 컴포넌트가 그린다. 필드 목록을 손으로
+ * 들고 다니면 새 카드가 생길 때마다 그 목록이 낡는다.
+ *
+ * ## 왜 아무 문자열이나 훑어도 안전한가
+ *
+ * `repairMojibake` 는 **바이트 왕복이 정확히 맞고 결과에 한글이 나올 때만** 값을
+ * 바꾼다. ID·경로·URL 처럼 ASCII 뿐인 값은 `couldBeMisread` 에서 바로 빠져나가고,
+ * 한글이 이미 있는 값도 첫 줄에서 빠져나간다. 그래서 훑는 범위가 넓어도 바뀌는
+ * 것은 실제로 잘못 읽힌 문자열뿐이다.
+ *
+ * ## 경계
+ *
+ * 깊이와 노드 수에 상한을 둔다. `metadata` 는 사용자가 만든 JSONB 를 품을 수
+ * 있어서, 상한이 없으면 깊게 중첩된 한 줄이 화면 그리기를 멈춰 세울 수 있다.
+ * 상한에 닿으면 **그 아래는 손대지 않고 그대로 돌려준다** — 예산을 다 쓴 것이
+ * 값을 버릴 이유는 아니다.
+ *
+ * 바뀐 것이 없으면 **받은 참조를 그대로** 돌려준다. React 가 같은 객체를 다시
+ * 그리지 않게 하려면 이 성질이 필요하다.
+ */
+const MAX_DEEP_REPAIR_DEPTH = 8;
+const MAX_DEEP_REPAIR_NODES = 500;
+
+function repairDeep(value: unknown, depth: number, budget: { left: number }): unknown {
+  if (depth > MAX_DEEP_REPAIR_DEPTH || budget.left <= 0) return value;
+  budget.left -= 1;
+
+  if (typeof value === "string") {
+    const repaired = repairMojibake(value);
+    return repaired === value ? value : repaired;
+  }
+
+  if (Array.isArray(value)) {
+    let changed = false;
+    const next = value.map((item) => {
+      const repaired = repairDeep(item, depth + 1, budget);
+      if (repaired !== item) changed = true;
+      return repaired;
+    });
+    return changed ? next : value;
+  }
+
+  // 평범한 객체만 연다. Date·Map 같은 것은 그대로 둔다 — 이 함수가 아는 모양이
+  // 아니고, 열어 보려다 원본을 망가뜨릴 이유가 없다.
+  if (value !== null && typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+    let changed = false;
+    const next: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value)) {
+      const repaired = repairDeep(item, depth + 1, budget);
+      if (repaired !== item) changed = true;
+      next[key] = repaired;
+    }
+    return changed ? next : value;
+  }
+
+  return value;
+}
+
+export function repairMojibakeDeep<T>(value: T): T {
+  return repairDeep(value, 0, { left: MAX_DEEP_REPAIR_NODES }) as T;
+}
+
 export interface RecoveredText {
   /** 화면에 쓸 문자열. 되살렸으면 되살린 값이다. */
   text: string;
@@ -260,4 +351,16 @@ export function recoverUserText(value: unknown): RecoveredText {
     repaired: text !== original,
     unreadable: isUnreadableText(text),
   };
+}
+
+/**
+ * 짧은 라벨 자리에 쓰는 지름길.
+ *
+ * 되살릴 수 있으면 되살린 글을, 읽을 글자가 하나도 안 남았으면 부르는 쪽이 준
+ * 문구를 돌려준다. **제목·이름처럼 짧은 라벨에만 쓴다.** 대화 본문처럼 긴 기록은
+ * 일부가 깨졌다고 통째로 안내문으로 바꾸면 남아 있는 정보까지 사라진다.
+ */
+export function readableTextOr(value: unknown, fallback: string): string {
+  const recovered = recoverUserText(value);
+  return recovered.unreadable ? fallback : recovered.text;
 }
