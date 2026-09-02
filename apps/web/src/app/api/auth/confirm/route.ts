@@ -18,6 +18,7 @@ import {
   getPostLoginRedirectPath,
 } from "@/lib/auth/safeRedirect";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { withoutCorruptAuthCookies } from "@/lib/supabase/authCookieRepair";
 
 /** 비밀번호를 새로 정하러 가는 자리. 세션이 선 뒤에 열린다. */
 const RESET_PASSWORD_PATH = "/reset-password";
@@ -95,7 +96,11 @@ export async function GET(request: Request) {
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            // 망가진 세션 쿠키를 그대로 넘기면 세션을 만지는 첫 호출이 던진다.
+            // 여기서 던지면 메일 인증 링크를 누른 사람이 인증 대신 오류를 받는다 —
+            // 새 세션을 세우려고 온 자리에서 **예전** 쿠키 때문에 막히는 셈이다.
+            // 이유는 @/lib/supabase/authCookieRepair 에 있다.
+            return withoutCorruptAuthCookies(cookieStore.getAll());
           },
           setAll(cookiesToSet) {
             try {

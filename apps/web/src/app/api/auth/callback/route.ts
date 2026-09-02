@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { withoutCorruptAuthCookies } from "@/lib/supabase/authCookieRepair";
 import { resolvePostAuthLanding } from "@/lib/auth/postAuthLanding";
 import {
   getOptionalSameOriginRedirectPath,
@@ -52,7 +53,10 @@ export async function GET(request: Request) {
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            // 소셜 로그인이 돌아오는 자리다. 예전 세션 쿠키가 망가져 있으면
+            // 코드 교환 전에 던져서, 로그인하려고 온 사람이 오류로 떨어진다.
+            // 이유는 @/lib/supabase/authCookieRepair 에 있다.
+            return withoutCorruptAuthCookies(cookieStore.getAll());
           },
           setAll(cookiesToSet) {
             try {
