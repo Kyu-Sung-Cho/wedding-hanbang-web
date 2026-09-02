@@ -22,6 +22,16 @@ import test from "node:test";
 const ROOT = fileURLToPath(new URL("../..", import.meta.url));
 
 /** 종료 코드를 **잃지 않고** 실행한다. 파이프를 쓰면 그 코드가 사라진다. */
+/**
+ * 프로브 실행은 **격리된 영수증**에 쓴다.
+ *
+ * 이 파일은 `prove-guard` 를 시험하려고 일부러 안 잡히는 변형을 돌린다. 그
+ * 결과가 정본 영수증(`.verification/guard-proofs.json`)을 덮어쓰면, 관문이
+ * "이 검사는 못 잡는 변형이 있다" 며 엉뚱한 이유로 막는다. 2026-09-02 에 실제로
+ * 그렇게 막혔다.
+ */
+const PROBE_RECEIPT = join(ROOT, ".verification", "probe-receipt.json");
+
 function runScript(script, args) {
   try {
     const stdout = execFileSync("node", [join(ROOT, "scripts", script), ...args], {
@@ -49,6 +59,7 @@ test("prove-guard: 아무것도 안 고치는 변형을 거절한다", () => {
   // no-op 을 통과시키면 "가드가 잡았다" 가 아니라 "테스트가 그냥 돌았다" 를
   // 잡았다고 읽는다. 2026-09-02 에 실제로 당한 함정이다.
   const r = runScript("prove-guard.mjs", [
+    "--receipt", PROBE_RECEIPT,
     "--test", "scripts/tests/verification-gates-hold.test.mjs",
     "--target", "VERIFICATION.md",
     "--find", "이_문자열은_이_저장소에_없다_2026",
@@ -68,6 +79,7 @@ test("prove-guard: 대상 파일을 반드시 되돌린다", () => {
     // 일부러 실패하는 조합: 대상은 바뀌지만 테스트는 그 파일을 안 보므로
     // "못 잡았다" 로 끝난다. 그래도 원복은 되어야 한다.
     runScript("prove-guard.mjs", [
+      "--receipt", PROBE_RECEIPT,
       "--test", "scripts/tests/verification-gates-hold.test.mjs",
       "--target", target,
       "--find", "KEEP_ME",

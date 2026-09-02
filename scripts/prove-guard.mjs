@@ -45,7 +45,14 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const RECEIPT_DIR = join(ROOT, ".verification");
-const RECEIPT = join(RECEIPT_DIR, "guard-proofs.json");
+/**
+ * 영수증 경로. `--receipt` 로 바꿀 수 있다.
+ *
+ * 왜 바꿀 수 있어야 하나: 이 스크립트를 **시험하는** 테스트가 자기 안에서 이걸
+ * 부르면, 일부러 안 잡히게 만든 시험 결과가 정본 영수증을 덮어써 관문이 엉뚱한
+ * 이유로 막힌다. 2026-09-02 에 실제로 그렇게 막혔다.
+ */
+const DEFAULT_RECEIPT = join(RECEIPT_DIR, "guard-proofs.json");
 
 const md5 = (p) => createHash("md5").update(readFileSync(p)).digest("hex");
 const abs = (p) => (isAbsolute(p) ? p : join(ROOT, p));
@@ -114,6 +121,7 @@ function loadCases(args) {
 }
 
 const args = parseArgs(process.argv.slice(2));
+const RECEIPT = typeof args.receipt === "string" ? abs(args.receipt) : DEFAULT_RECEIPT;
 if (!args.test) die("--test <테스트 파일> 이 필요하다.");
 const testPath = args.test;
 if (!existsSync(abs(testPath))) die(`테스트 파일이 없다: ${testPath}`);

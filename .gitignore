@@ -116,3 +116,5 @@ design-canvas/
 .verification/
 .scope-delta-head.json
 .scope-delta-base.json
+
+.verification/probe-receipt.json

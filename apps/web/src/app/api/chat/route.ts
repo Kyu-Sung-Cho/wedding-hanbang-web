@@ -1814,6 +1814,7 @@ export async function POST(request: Request) {
     messagesResult,
     profileNodesResult,
     personalizationResult,
+    boundedContinuityRowsResult,
   ] = await Promise.all([
     // 1. 웨딩 저니
     skipsIrrelevantProviderContextReads
@@ -1874,7 +1875,22 @@ export async function POST(request: Request) {
         conversationSegmentReadEnabled || shouldLoadBoundedContinuity
         ? "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at"
         : "id, sender_id, sender_type, role, content, metadata, visibility, created_at";
-      if (shouldLoadBoundedContinuity) {
+      // **되묻기 답인 턴에서는 넓은 창을 쓴다.**
+      //
+      // 2026-09-02 회귀 복구. 이 갈래가 `shouldLoadBoundedContinuity` 만 보고
+      // 3행 질의로 갈아치우고 있었고, 그 3행이 `canonicalRows` 를 거쳐
+      // `resolveAmoraWeddingClarificationContinuity` 로 그대로 흘러갔다.
+      // 그 함수는 홉을 올릴 때 `index < 2` 면 즉시 `null` 을 돌려주므로
+      // (`amoraClarificationContinuity.ts`), 행이 3개면 **2홉이 물리적으로
+      // 불가능**하다. `MAX_CLARIFICATION_HOPS = 3` 은 운영에서 한 번도 쓰인 적이
+      // 없었다. 위 1350행 주석은 "평소의 전체 문맥 질의를 그대로 쓴다" 고
+      // 적혀 있었는데 코드가 그 반대였다.
+      //
+      // 연결 문맥(bounded continuity)이 쓰는 3행은 아래 별도 원소로 따로 받는다.
+      // **넓은 결과를 잘라서 주면 안 된다** — 넓은 질의는 `.or(metadata->>target…)`
+      // 로 partner 행을 DB 에서 빼므로, 그 마지막 3행을 주면 원래 끊겨야 할
+      // 대화가 인접해 보인다(바로 아래 주석이 못 박은 계약).
+      if (shouldLoadBoundedContinuity && !isClarificationAnswerShaped) {
         // Read exactly the current row and its two direct predecessors. Do not
         // hide partner-target rows here: their presence must break continuity,
         // never make non-adjacent messages look adjacent after filtering.
@@ -1937,6 +1953,25 @@ export async function POST(request: Request) {
           )
           .eq("owner_user_id", actorId)
           .maybeSingle(),
+    // 8. 연결 문맥(bounded continuity) 전용 3행.
+    //
+    // 위 5번이 되묻기 답인 턴에서 넓은 창을 쓰게 되면서, 연결 문맥이 요구하는
+    // "현재 행과 직전 두 행" 을 여기서 따로 받는다. `buildAmoraBoundedContinuity`
+    // 는 행이 정확히 3개가 아니면 **예외 없이 조용히 `null`** 을 돌려주므로,
+    // 넓은 결과를 잘라 넘기면 그 레인이 소리 없이 꺼진다. 같은 이유로 여기서도
+    // partner 행을 숨기지 않는다 — 그 존재는 연속성을 끊어야지, 걸러낸 뒤에
+    // 인접해 보이게 만들면 안 된다.
+    shouldLoadBoundedContinuity && isClarificationAnswerShaped
+      ? supabase
+          .from("chat_messages")
+          .select("id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at")
+          .eq("couple_id", dataCoupleId)
+          .eq("visibility", visibility)
+          .eq("segment_id", boundedContinuitySegmentId)
+          .order("created_at", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(3)
+      : Promise.resolve({ data: null, error: null }),
   ]);
 
   const journey = journeyResult.data;
@@ -2310,6 +2345,18 @@ export async function POST(request: Request) {
   }
 
   const canonicalContextRows = (messagesResult.data ?? []) as unknown as CanonicalChatRow[];
+  /**
+   * 연결 문맥이 볼 행. **넓은 창을 잘라 쓰지 않는다.**
+   *
+   * 되묻기 답인 턴에서는 위 5번이 넓은 창을 읽으므로, 연결 문맥이 요구하는
+   * "정확히 3행" 을 8번에서 따로 받아 여기서 고른다. `buildAmoraBoundedContinuity`
+   * 는 3행이 아니면 예외 없이 조용히 `null` 이라, 잘라 넘기면 그 레인이 소리 없이
+   * 꺼진다. 그리고 넓은 질의는 partner 행을 DB 에서 빼므로, 그 꼬리 3행은
+   * "끊겨야 할 대화가 인접해 보이는" 바로 그 결과를 만든다.
+   */
+  const boundedContinuityRows = boundedContinuityRowsResult?.data
+    ? (boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])
+    : canonicalContextRows;
   if (
     conversationSegmentReadEnabled
     && canonicalContextRows.some((row) =>
@@ -2673,6 +2720,26 @@ export async function POST(request: Request) {
           currentUserText: lastUserText,
         })
       : null;
+  /**
+   * **어떤 턴도 오늘보다 나빠지지 않는다.**
+   *
+   * 위에서 넓은 창으로 구제를 시도했는데 실패하면, 오늘 운영이 쓰던 것과 **완전히
+   * 같은 3행 입력**으로 한 번 더 부른다. 창을 넓히는 것은 "얼마나 거슬러
+   * 올라가느냐" 만 바꾸므로 이론상 넓은 쪽이 항상 같거나 낫지만, 이론이 틀렸을
+   * 때 사용자가 대가를 치르지 않게 하는 것이 이 폴백이다. 홉마다 여덟 가드를
+   * 다시 지나는 것은 두 경로 모두 같다.
+   */
+  const weddingClarificationContinuityWithFallback =
+    weddingClarificationContinuity
+    ?? (boundedContinuityRowsResult?.data && typeof bodyUserMessageId === "string"
+      ? resolveAmoraWeddingClarificationContinuity({
+          rawOldestFirstRows: [...(boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])]
+            .reverse(),
+          requesterUserId: actorId,
+          currentUserMessageId: bodyUserMessageId,
+          currentUserText: lastUserText,
+        })
+      : null);
   // 답이 **이미 W0인데** 도구 의도만 없는 턴. 범위는 멀쩡하니 구제할 것이 없고,
   // 도구 선택기만 어휘를 못 찾아 0개가 된다.
   //
@@ -2684,7 +2751,7 @@ export async function POST(request: Request) {
   // 같은 행 가드·홉 가드를 그대로 지나며, 넘겨주는 것은 도구 선택용 의도뿐이다.
   // 범위·장기 기억·저장 문맥 권한은 아래 판정들이 그대로 정한다.
   const toolIntentContinuity =
-    !weddingClarificationContinuity
+    !weddingClarificationContinuityWithFallback
     && !isDemo
     && requestKind === "chat"
     && isDurableUserMessageBound
@@ -2714,7 +2781,7 @@ export async function POST(request: Request) {
     requestKind,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
     hasWeddingClarificationContinuity:
-      Boolean(weddingClarificationContinuity) || firstHelloAnswered,
+      Boolean(weddingClarificationContinuityWithFallback) || firstHelloAnswered,
   });
   // 예비 판정에서 이미 구제된 턴은 최종 판정도 같아야 한다. 여기서 다시
   // W4 로 떨어지면 자료만 읽고 도구는 닫히는 어긋난 상태가 된다.
@@ -2732,7 +2799,7 @@ export async function POST(request: Request) {
     !isDemo
     && requestKind === "chat"
     && isDurableUserMessageBound
-    && !weddingClarificationContinuity
+    && !weddingClarificationContinuityWithFallback
     // 되묻기 연속성만이 아니라 **범위가 W0/W1 로 살아난 모든 경우**를 빼야 한다.
     // 체크리스트 구제(`shouldRescueChecklistScope`)도 W0 을 만드는데 여기서
     // 빠져 있었다. 그때 `linked_context_only`(도구 금지) 라벨과 되살아난 도구가
@@ -2751,7 +2818,7 @@ export async function POST(request: Request) {
     && shouldLoadBoundedContinuity
       ? buildAmoraBoundedContinuity({
           newestFirstRows: selectAmoraTrustedHistoryRows({
-            oldestFirstRows: [...canonicalContextRows].reverse(),
+            oldestFirstRows: [...boundedContinuityRows].reverse(),
             currentUserMessageId: bodyUserMessageId,
             visibility,
           }).reverse(),
@@ -2906,7 +2973,7 @@ export async function POST(request: Request) {
     isRecord(journey) ? journey.progress : undefined,
   );
   const carriedToolIntent =
-    weddingClarificationContinuity ?? toolIntentContinuity;
+    weddingClarificationContinuityWithFallback ?? toolIntentContinuity;
   const toolIntentText = carriedToolIntent
     ? `${carriedToolIntent.priorUserText}\n${lastUserText}`
     : lastUserText;

@@ -60,7 +60,11 @@ function usage(msg) {
   process.exit(2);
 }
 
-const [baseRef, corpusPath] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+// `--out <파일>` 은 증거를 JSON 으로 남긴다. verify-change 의 --safety-delta 가 이것을 받는다.
+const outIdx = argv.indexOf("--out");
+const outPath = outIdx >= 0 ? argv[outIdx + 1] : null;
+const [baseRef, corpusPath] = argv.filter((a, i) => i !== outIdx && i !== outIdx + 1);
 if (!baseRef || !corpusPath) usage("인자가 부족하다.");
 if (!existsSync(corpusPath)) usage(`코퍼스 파일이 없다: ${corpusPath}`);
 
@@ -135,6 +139,8 @@ copyFileSync(ABS_TARGET, BACKUP);
 
 let head;
 let base;
+/** 판정기가 base 와 바이트 단위로 같은가. 같으면 분류 결과가 바뀔 수 없다. */
+let classifierIdentical = false;
 try {
   console.log(`현재(HEAD) 측정 중 …`);
   head = runOnce(OUT_HEAD);
@@ -149,10 +155,16 @@ try {
   writeFileSync(ABS_TARGET, baseSource, "utf8");
 
   // **변형이 실제로 일어났는지 먼저 확인한다.** no-op 이면 아래 숫자는 무의미하다.
+  //
+  // 다만 "같다" 는 것 자체가 증거다. 판정기를 안 건드렸다는 뜻이므로 분류 결과가
+  // 바뀔 수 없다 — 주장이 아니라 해시로 증명된다. 그때는 오류가 아니라 그 사실을
+  // 기록하고 HEAD 절대값만 남긴다.
   if (md5(ABS_TARGET) === beforeHash) {
-    throw new Error(`${baseRef} 판본이 현재와 같다 — 비교할 것이 없다.`);
+    classifierIdentical = true;
+    base = head;
+  } else {
+    base = runOnce(OUT_BASE);
   }
-  base = runOnce(OUT_BASE);
 } finally {
   copyFileSync(BACKUP, ABS_TARGET);
   unlinkSync(BACKUP);
@@ -206,6 +218,57 @@ const regressed =
   falsePos(head) > falsePos(base)
   || missed(head) > missed(base)
   || noTools(head) > noTools(base);
+
+// ── 안전 파일 전체의 동일성 기록 ────────────────────────────────────
+//
+// 이 도구가 바꿔 재는 것은 판정기 한 파일이다. 그런데 안전은 그 파일 하나에만
+// 있지 않으므로, 나머지 안전 파일이 base 와 같은지 **해시로** 함께 남긴다.
+// 다른 파일이 바뀌었으면 그 파일에 맞는 증거를 따로 대야 한다 — 이 숫자는 그
+// 파일에 대해 아무것도 말하지 않는다. 그걸 안 적으면 "안전 델타 통과" 가
+// 실제보다 넓은 것을 증명한 것처럼 읽힌다.
+const SAFETY_FILES = [
+  "apps/web/src/lib/ai/amoraQuestionScope.ts",
+  "apps/web/src/lib/ai/amoraClarificationContinuity.ts",
+  "apps/web/src/lib/ai/amoraBoundedContinuity.ts",
+  "packages/shared/src/safety/amoraCrisisSafety.ts",
+  "packages/shared/src/safety/amoraCrisisClassifier.ts",
+];
+const fileState = {};
+for (const f of SAFETY_FILES) {
+  const absFile = join(ROOT, f);
+  if (!existsSync(absFile)) { fileState[f] = "없음"; continue; }
+  let baseSrc = null;
+  try { baseSrc = git(["show", `${baseRef}:${f}`], { maxBuffer: 32 * 1024 * 1024 }); } catch { /* base 에 없는 새 파일 */ }
+  const hash = (v) => createHash("md5").update(v, "utf8").digest("hex");
+  fileState[f] = baseSrc === null
+    ? "base 에 없음"
+    : hash(baseSrc) === hash(readFileSync(absFile, "utf8")) ? "동일" : "변경됨";
+}
+
+console.log(`\n=== 안전 파일 (${baseRef} 대비) ===`);
+for (const [f, st] of Object.entries(fileState)) {
+  console.log(`  ${st === "동일" ? " " : "*"} ${st.padEnd(10)} ${f}`);
+}
+if (classifierIdentical) {
+  console.log(`\n판정기가 base 와 **동일**하다 — 분류 결과는 바뀔 수 없다(해시로 증명).`);
+  console.log(`  위 숫자는 델타가 아니라 HEAD 절대값이다.`);
+}
+console.log(`  "변경됨" 인 파일은 이 숫자가 다루지 않는다. 그 파일에 맞는 증거를 따로 댈 것.`);
+
+if (outPath) {
+  writeFileSync(outPath, `${JSON.stringify({
+    measuredAt: new Date().toISOString(),
+    base: baseRef,
+    classifierIdentical,
+    safetyFiles: fileState,
+    corpusSize: head.length,
+    head: { falsePositives: falsePos(head), missed: missed(head), noTools: noTools(head) },
+    baseline: { falsePositives: falsePos(base), missed: missed(base), noTools: noTools(base) },
+    changedVerdicts: changed.length,
+    regressed,
+  }, null, 2)}\n`, "utf8");
+  console.log(`  증거: ${outPath}`);
+}
 
 console.log(`\n판정: ${regressed ? "회귀 있음 — 넣지 말 것" : "회귀 없음"}`);
 process.exit(regressed ? 1 : 0);
