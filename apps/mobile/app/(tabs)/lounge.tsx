@@ -12,7 +12,7 @@ import {
   isOnlyStageSuggestion,
   PREPARATION_STAGE_PROGRESS_KEY,
   PREPARATION_STAGE_VALUES,
-  repairMojibake,
+  readableTextOr,
   resolvePlanningChecklistStatus,
   shouldShowFirstRunTutorial,
   WEDDING_STYLE_OPTIONS,
@@ -559,9 +559,9 @@ export default function DashboardScreen() {
       const todayTasks = events
         .filter((event) => isActiveScheduleEvent(event) && event.date === todayKey)
         .map((event) => ({
-          // 예전에 잘못 읽혀 저장된 한글을 되돌린다. 바이트 왕복으로 검증된
-          // 경우에만 바뀌므로 멀쩡한 제목은 그대로 통과한다.
-          title: repairMojibake(event.title),
+          // 되살릴 수 있으면 되돌리고, 읽을 글자가 하나도 안 남았으면 잔해를
+          // 사용자가 쓴 제목인 척 그리지 않는다(일정 화면과 같은 문구).
+          title: readableTextOr(event.title, "제목을 읽지 못한 일정"),
           categoryKey: event.categoryKey ?? "",
         }));
       const weddingDate = journey.wedding_date ?? null;

@@ -4,7 +4,11 @@ import { useState, useEffect, useMemo } from "react";
 import { CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
-import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import {
+  getEvents,
+  getScheduleEventStatus,
+  scheduleEventDisplayTitle,
+} from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { kstMidnightFromYmd, shortKoreanDateFromYmd, ymdInKst } from "@/lib/utils/kstDate";
@@ -174,7 +178,7 @@ export default function UpcomingTab() {
                 <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-base text-[var(--hb-text-strong)] font-medium truncate block">
-                    {evt.title}
+                    {scheduleEventDisplayTitle(evt)}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
                     <Clock className="w-3.5 h-3.5 text-[var(--hb-text-muted)]" />

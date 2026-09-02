@@ -58,6 +58,68 @@ describe("저장된 한글이 라운지까지 살아서 도착한다", () => {
     expect(event.title).toBe("드레스 매장 방문");
   });
 
+  /**
+   * 깨진 글자에는 0x80~0x9F 자리(= C1 제어문자)가 거의 반드시 들어간다. 취소
+   * 사유·완료 기준·외부 담당자 이름은 `hasUnsafeDisplayCharacter` 를 지나므로,
+   * 되돌리기가 검증 **뒤**에 있으면 그 일정은 통째로 탈락해 화면에서 사라진다.
+   * 되돌리기가 검증 앞에 있으면 되살아난다.
+   */
+  it("취소 사유가 깨진 일정이 목록에서 사라지지 않고 되살아난다", () => {
+    const cancelledAt = "2026-09-01T00:00:00.000Z";
+    const broken = misreadAsLatin1("매장 사정으로 미룸");
+    expect(/[\p{Cc}]/u.test(broken), "재료에 C1 제어문자가 없어 검사가 무의미하다").toBe(true);
+
+    const events = getEvents({
+      __events: [{
+        ...eventJson("드레스 매장 방문"),
+        updatedAt: cancelledAt,
+        status: "cancelled",
+        cancellation: {
+          cancelledAt,
+          cancelledByProfileId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+          reason: broken,
+        },
+      }],
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].cancellation?.reason).toBe("매장 사정으로 미룸");
+  });
+
+  it("외부 담당자 이름이 깨진 일정도 되살아난다", () => {
+    const events = getEvents({
+      __events: [{
+        ...eventJson("드레스 매장 방문"),
+        assignee: { kind: "external", label: misreadAsLatin1("김실장") },
+      }],
+    });
+
+    expect(events).toHaveLength(1);
+    const { assignee } = events[0];
+    expect(assignee?.kind === "external" && assignee.label).toBe("김실장");
+  });
+
+  it("완료 기준이 깨진 일정도 되살아난다", () => {
+    const events = getEvents({
+      __events: [{
+        ...eventJson("드레스 매장 방문"),
+        completionCriteria: misreadAsLatin1("계약서 사본을 받으면 완료"),
+      }],
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].completionCriteria).toBe("계약서 사본을 받으면 완료");
+  });
+
+  it("되돌려도 검증을 통과하지 못하는 값은 여전히 탈락한다", () => {
+    // 되돌리기가 검증을 느슨하게 만들면 안 된다. 진짜 제어문자가 든 값은
+    // 되돌릴 수 없으므로 그대로 걸러진다.
+    const events = getEvents({
+      __events: [{ ...eventJson("드레스 매장 방문"), completionCriteria: "계약서\u0007확인" }],
+    });
+    expect(events).toHaveLength(0);
+  });
+
   it("아모라 기록 제목이 되돌아온다", () => {
     const action = normalizeAmoraAction({
       id: "act_1",
@@ -102,12 +164,35 @@ describe("라운지는 잔해를 제목인 척 그리지 않는다", () => {
     "utf8",
   );
 
-  it("제목을 그리는 자리가 displayTitle 을 지난다", () => {
-    expect(LOUNGE).toContain("function displayTitle(");
+  it("라운지가 제목을 날것으로 그리지 않는다", () => {
     // 다가오는 일정 패널과 아모라 기록·일정 우선순위 카드 셋.
     expect(LOUNGE).not.toContain("{event.title}");
     expect(LOUNGE).not.toContain("title: action.title,");
     expect(LOUNGE).not.toContain("title: events[0].title,");
-    expect([...LOUNGE.matchAll(/displayTitle\(/gu)].length).toBeGreaterThanOrEqual(4);
+    expect(LOUNGE).toContain("scheduleEventDisplayTitle(");
+    expect(LOUNGE).toContain("displayTitle(action.title");
+  });
+
+  it("일정 화면도 같은 문구로 물러난다", () => {
+    // 라운지만 정직하면 사용자는 같은 일정을 두 화면에서 다르게 본다.
+    for (const file of [
+      "src/components/app/schedule/ScheduleContent.tsx",
+      "src/components/app/schedule/TimelineView.tsx",
+      "src/components/app/schedule/CalendarView.tsx",
+      "src/components/app/chat/panel/UpcomingTab.tsx",
+    ]) {
+      const source = readFileSync(resolve(process.cwd(), file), "utf8");
+      expect(source, `${file} 이 제목을 날것으로 그린다`).not.toMatch(/\{evt\.title\}|\{event\.title\}/u);
+      expect(source, `${file} 이 표시 헬퍼를 안 쓴다`).toContain("scheduleEventDisplayTitle(");
+    }
+  });
+
+  it("수정 창은 저장된 원래 값을 연다", () => {
+    // 안내문이 입력칸에 미리 들어가면 사용자가 그것을 저장해 버린다.
+    const schedule = readFileSync(
+      resolve(process.cwd(), "src/components/app/schedule/ScheduleContent.tsx"),
+      "utf8",
+    );
+    expect(schedule).not.toContain("title: scheduleEventDisplayTitle(");
   });
 });

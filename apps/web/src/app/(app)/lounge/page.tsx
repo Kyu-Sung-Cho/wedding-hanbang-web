@@ -59,12 +59,16 @@ import {
   getProgressSummary,
   getStatus,
 } from "@/app/(app)/lounge/progressSummary";
-import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import {
+  getEvents,
+  getScheduleEventStatus,
+  scheduleEventDisplayTitle,
+} from "@/utils/scheduleEvents";
 import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
-import { PREPARATION_PROGRESS_STATUS_LABELS, recoverUserText } from "@hanbang/shared";
+import { PREPARATION_PROGRESS_STATUS_LABELS, readableTextOr } from "@hanbang/shared";
 
 type Status = ProgressItem["status"];
 
@@ -171,13 +175,10 @@ function formatFullDate(value: string | null | undefined) {
  * 깨진 채 저장된 글은 되돌리고, 되돌릴 수 없으면 제목인 척하지 않는다.
  *
  * `?? ???` 를 사용자가 쓴 제목 자리에 그리는 것은 화면이 사실이 아닌 말을 하는
- * 것이다. 읽을 글자가 하나도 안 남은 경우에만 물러나므로(`isUnreadableText`),
- * `D-DAY??` 같은 진짜 제목은 그대로 나온다.
+ * 것이다. 읽을 글자가 하나도 안 남은 경우에만 물러나므로 `D-DAY??` 같은 진짜
+ * 제목은 그대로 나온다.
  */
-function displayTitle(value: string, fallback: string) {
-  const recovered = recoverUserText(value);
-  return recovered.unreadable ? fallback : recovered.text;
-}
+const displayTitle = readableTextOr;
 
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
@@ -246,7 +247,7 @@ function buildPriorities(plan: ReturnType<typeof buildAmoraLifecyclePlan>, actio
     ? {
         id: `event_${events[0].id}`,
         eyebrow: "다가오는 일정",
-        title: displayTitle(events[0].title, "제목을 읽지 못한 일정"),
+        title: scheduleEventDisplayTitle(events[0]),
         body: `${formatDate(events[0].date)}에 예정되어 있어요. 메모와 준비물을 한 번 확인해두세요.`,
         href: weddingPath("/schedule"),
         cta: "일정 보기",
@@ -1087,7 +1088,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">
-                  {displayTitle(event.title, "제목을 읽지 못한 일정")}
+                  {scheduleEventDisplayTitle(event)}
                 </span>
                 <span className="mt-0.5 block text-[11px] font-medium text-[var(--hb-text-body)]">{formatDate(event.date)}</span>
               </span>

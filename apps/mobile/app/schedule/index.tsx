@@ -15,7 +15,8 @@ import { colors } from "@hanbang/design-tokens";
 import {
   sanitizeUserFacingScheduleMemo,
   daysUntilWedding,
-  repairMojibake,
+  readableTextOr,
+  repairMojibakeDeep,
 } from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
@@ -219,7 +220,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
+/** 되살릴 수 없는 제목 자리에 들어가는 말. 웹의 `scheduleEvents.ts` 와 같은 문구다. */
+const UNREADABLE_EVENT_TITLE = "제목을 읽지 못한 일정";
+
+/**
+ * 화면에 그릴 일정 제목. 저장값은 바꾸지 않는다 — 수정 창은 저장된 원래 값을
+ * 열어야 사용자가 그 자리에서 다시 적을 수 있다.
+ */
+function displayEventTitle(event: ScheduleEvent): string {
+  return readableTextOr(event.title, UNREADABLE_EVENT_TITLE);
+}
+
+function normalizeScheduleEvent(input: unknown): ScheduleEvent | null {
+  // 예전에 잘못 읽혀 저장된 한글을 **검증보다 먼저** 되돌린다. 깨진 글자에는
+  // C1 제어문자가 거의 반드시 들어가서, 뒤에서 고치면 이미 탈락한 일정은 못
+  // 고친다(웹의 `scheduleEvents.ts` 에 같은 이유를 적어 뒀다).
+  const event = repairMojibakeDeep(input);
   if (
     !isRecord(event)
     || typeof event.id !== "string"
@@ -251,9 +267,7 @@ function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
     ...(event as unknown as ScheduleEvent),
     id: event.id,
     date: event.date,
-    // 예전에 잘못 읽혀 저장된 한글을 되돌린다. 바이트 왕복으로 검증된 경우에만
-    // 바뀌므로 멀쩡한 제목은 그대로 통과한다(웹은 `scheduleEvents.ts` 가 같은 일을 한다).
-    title: repairMojibake(event.title),
+    title: event.title,
     memo: sanitizeUserFacingScheduleMemo(event.memo),
   };
 }
@@ -1881,7 +1895,7 @@ export default function ScheduleScreen() {
                   <Text style={styles.eventDateDay}>{getDayLabel(evt.date)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.eventTitle}>{evt.title}</Text>
+                  <Text style={styles.eventTitle}>{displayEventTitle(evt)}</Text>
                   <View style={styles.eventMeta}>
                     {evt.time ? (
                       <View style={styles.eventMetaRow}>
@@ -1999,7 +2013,7 @@ export default function ScheduleScreen() {
                 onPress={() => openEditEventModal(evt.id)}
               >
                 <Text style={styles.allEventDate}>{formatDate(evt.date)}</Text>
-                <Text style={styles.allEventTitle}>{evt.title}</Text>
+                <Text style={styles.allEventTitle}>{displayEventTitle(evt)}</Text>
                 {evt.time ? <Text style={styles.allEventTime}>{evt.time}</Text> : null}
               </Pressable>
             ))}
@@ -2015,7 +2029,7 @@ export default function ScheduleScreen() {
             {cancelledEvents.map((evt) => (
               <View key={`cancelled-${evt.id}`} style={styles.cancelledRow}>
                 <View style={styles.cancelledInfo}>
-                  <Text style={styles.cancelledEventTitle}>{evt.title}</Text>
+                  <Text style={styles.cancelledEventTitle}>{displayEventTitle(evt)}</Text>
                   <Text style={styles.cancelledMeta}>
                     기존 날짜 {evt.date}{evt.time ? ` ${evt.time}` : ""}
                   </Text>
@@ -2030,7 +2044,7 @@ export default function ScheduleScreen() {
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${evt.title} 일정 복원 요청`}
+                  accessibilityLabel={`${displayEventTitle(evt)} 일정 복원 요청`}
                   disabled={saving}
                   onPress={() => requestEventRestore(evt.id)}
                   style={({ pressed }) => [
