@@ -41,8 +41,31 @@ import { ymdInKst } from "@/lib/utils/kstDate";
 /** 하루를 밀리초로. */
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * ## 읽을 수 없는 값에 던지지 않는다 (2026-09-02)
+ *
+ * 이 함수는 커뮤니티 client component 여섯 곳에서 그려지고, 그 컴포넌트들은
+ * 하이드레이션 뒤 **브라우저에서 다시** 그려진다. 그래서 여기서 던지면 API 가 200 을
+ * 줬는데도 루트 경계가 「화면을 불러오지 못했어요」로 바뀐다. 글 하나, 댓글 하나의
+ * 시각이 이상하면 목록 전체가 사라진다.
+ *
+ * 실측한 두 갈래:
+ *
+ *     timeAgo("not-a-date")  → RangeError: Invalid time value   (아래 Intl 포맷터)
+ *     timeAgo(null)          → "1970.01.01"                      (null → 0 으로 강제됨)
+ *
+ * 앞은 화면을 내리고, 뒤는 **없는 사실을 적는다.** 둘 다 틀렸다. 모르는 시각은
+ * 비워 둔다 — 부르는 쪽은 전부 `<span>` 안이라 빈 문자열이면 그 자리만 사라진다.
+ *
+ * `created_at`·`updated_at` 은 스키마에서 nullable 이고(`20260325000000_community.sql`),
+ * 클라이언트가 만든 낙관적 객체에는 아예 없을 수도 있다.
+ */
 export function timeAgo(dateString: string, now: Date = new Date()): string {
+  if (typeof dateString !== "string" || dateString.trim() === "") return "";
+
   const date = new Date(dateString);
+  if (Number.isNaN(date.getTime())) return "";
+
   const diffMs = now.getTime() - date.getTime();
   const diffSeconds = Math.floor(diffMs / 1000);
   const diffMinutes = Math.floor(diffSeconds / 60);

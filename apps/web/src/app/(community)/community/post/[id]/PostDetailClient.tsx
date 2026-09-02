@@ -66,7 +66,11 @@ const REPORT_REASONS = [
   { value: "other", label: "기타" },
 ] as const;
 
-function stripHtmlPreview(value: string, maxLength = 72) {
+// 곁가지 카드("많이 본 글")의 본문이 비어 있다고 상세 화면이 사라지면 안 된다.
+// `content` 는 DB 에서 NOT NULL 이지만 이 목록은 API 응답을 그대로 받으므로,
+// 그 계약이 한 번이라도 어긋나면 여기서 페이지가 죽는다.
+function stripHtmlPreview(value: string | null | undefined, maxLength = 72) {
+  if (typeof value !== "string") return "";
   return value
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
@@ -82,11 +86,16 @@ function getPostThumbnail(
     return firstSlide.thumbnail_url || (firstSlide.type === "image" ? firstSlide.url : null);
   }
   if (post.images?.[0]) return post.images[0];
+  if (typeof post.content !== "string") return null;
   const match = post.content.match(/<img\s+[^>]*src=["']([^"']+)["']/i);
   return match ? match[1] : null;
 }
 
-function formatRecordDate(value: string): string {
+// 이미 "모르면 그렇게 말한다" 는 fallback 이 있었는데, 그 앞의 `.slice` 가 null·
+// undefined 에 먼저 던졌다. 이 컴포넌트는 브라우저에서 다시 그려지므로 그 예외는
+// 화면 전체를 「화면을 불러오지 못했어요」로 바꾼다 — `updated_at` 하나 때문에.
+function formatRecordDate(value: string | null | undefined): string {
+  if (typeof value !== "string") return "날짜 확인 필요";
   const [year, month, day] = value.slice(0, 10).split("-");
   if (!year || !month || !day) return "날짜 확인 필요";
   return `${year}.${month}.${day}`;
