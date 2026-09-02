@@ -2,6 +2,11 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
 
+import {
+  corruptAuthCookieNames,
+  withoutCorruptAuthCookies,
+} from "./authCookieRepair";
+
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
   "/lounge", "/dashboard", "/chat", "/budget", "/checklist", "/schedule", "/settings", "/bookings",
@@ -88,7 +93,7 @@ async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
       {
         cookies: {
           getAll() {
-            return request.cookies.getAll();
+            return withoutCorruptAuthCookies(request.cookies.getAll());
           },
           setAll(cookiesToSet) {
             // 토큰이 갱신됐다면 그 쿠키를 리다이렉트 응답에 실어 보내야 한다.
@@ -122,7 +127,11 @@ async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
-export async function updateSession(request: NextRequest) {
+/**
+ * 세션 판정과 관문. 아래 `updateSession` 이 이 함수를 감싸서, 여기서 무엇이
+ * 터지든 bare 500 이 밖으로 나가지 않게 한다.
+ */
+async function resolveSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
 
@@ -161,7 +170,7 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          return withoutCorruptAuthCookies(request.cookies.getAll());
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
@@ -229,4 +238,46 @@ export async function updateSession(request: NextRequest) {
   }
 
   return finalResponse;
+}
+
+/** 세션을 확인하지 못했을 때 보낼 곳. 어느 쪽이든 500 은 아니다. */
+function gateForUnverifiedSession(request: NextRequest): NextResponse {
+  const protectedType = isProtectedPath(request.nextUrl.pathname);
+  if (protectedType === "customer") {
+    return NextResponse.redirect(buildCustomerGateRedirect(request, "/login"));
+  }
+  if (protectedType === "admin") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/admin/login";
+    return NextResponse.redirect(url);
+  }
+  // 보호 경로가 아니면 막을 이유가 없다. 세션이 없는 화면으로 그냥 보여준다.
+  return NextResponse.next({ request });
+}
+
+export async function updateSession(request: NextRequest) {
+  // 읽을 수 없는 세션 쿠키는 위 클라이언트들이 이미 못 본 척한다. 그런데 못 본 척만
+  // 하면 **다음 요청도 같은 쿠키를 들고 온다.** 지워 줘야 그 사람이 빠져나온다.
+  const corruptCookies = corruptAuthCookieNames(request.cookies.getAll());
+
+  let response: NextResponse;
+  try {
+    response = await resolveSession(request);
+  } catch (error) {
+    // 여기가 운영에서 bare 500 이 나던 자리다. 프록시는 React 에러 경계 밖이라,
+    // 여기서 던지면 사용자는 복구할 수 있는 화면이 아니라 "Internal Server Error"
+    // 한 줄을 본다. 세션을 확인하지 못한 것은 관문으로 돌려세울 이유일 뿐이다.
+    //
+    // Sentry 를 미들웨어 번들로 끌어오지 않는다. 이 파일은 프록시 진입점이 쓰는
+    // 자리이고, Vercel 런타임 로그가 이 저장소의 1차 조사 자료다.
+    console.error("[proxy] session lookup failed:", error);
+    response = gateForUnverifiedSession(request);
+  }
+
+  for (const name of corruptCookies) {
+    console.error(`[proxy] dropping unreadable auth cookie: ${name}`);
+    response.cookies.set(name, "", { path: "/", maxAge: 0 });
+  }
+
+  return response;
 }

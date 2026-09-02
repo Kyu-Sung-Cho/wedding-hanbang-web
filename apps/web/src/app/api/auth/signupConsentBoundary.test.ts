@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // 서버 동의 관문을 **실행해서** 확인한다.
 //
@@ -64,6 +64,9 @@ function signupRequest(body: unknown) {
 describe("가입 동의 서버 관문 (실행)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 발송 자격이 없는 배포는 계정을 만들기 전에 되돌아간다. 이 파일이 보는 것은
+    // 그 관문이 아니라 동의 관문이므로 자격은 채워 둔다.
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
     mocks.verifyTurnstile.mockResolvedValue({ ok: true, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.generateLink.mockResolvedValue({
@@ -74,6 +77,10 @@ describe("가입 동의 서버 관문 (실행)", () => {
       auth: { admin: { generateLink: mocks.generateLink } },
     });
     mocks.send.mockResolvedValue({ data: { id: "mail-id" }, error: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   const MISSING = [

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 
 const supabaseMocks = vi.hoisted(() => ({
   signOut: vi.fn(),
@@ -43,8 +43,24 @@ function resetStore() {
     isLoading: false,
     isInitialized: false,
     isDemo: false,
+    initError: null,
   });
   useCommunityStore.getState().reset();
+}
+
+/**
+ * 응답이 영영 오지 않는 요청. 실제 fetch 처럼 abort 신호를 지킨다 —
+ * 신호를 무시하는 mock 으로는 상한이 걸렸는지 아닌지를 구분할 수 없다.
+ */
+function stalledFetch() {
+  return (_url: string, init?: { signal?: AbortSignal }) =>
+    new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => {
+        const aborted = new Error("The operation was aborted.");
+        aborted.name = "AbortError";
+        reject(aborted);
+      });
+    });
 }
 
 describe("useAuthStore", () => {
@@ -82,6 +98,100 @@ describe("useAuthStore", () => {
       useAuthStore.setState({ isInitialized: true });
       await useAuthStore.getState().initialize();
       expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    // 앱 셸은 이 호출이 끝날 때까지 화면 전체를 "웨딩 라운지를 불러오는 중..." 으로
+    // 덮는다. 상한이 없으면 그 화면에도 끝이 없다.
+    describe("응답이 오지 않을 때", () => {
+      afterEach(() => {
+        vi.useRealTimers();
+      });
+
+      it("기다리는 동안에는 로딩을 유지한다", async () => {
+        vi.useFakeTimers();
+        mockFetch.mockImplementation(stalledFetch());
+
+        void useAuthStore.getState().initialize();
+        await vi.advanceTimersByTimeAsync(14_000);
+
+        expect(useAuthStore.getState().isLoading).toBe(true);
+        expect(useAuthStore.getState().initError).toBeNull();
+      });
+
+      it("상한을 넘기면 멈추고 실패를 남긴다", async () => {
+        vi.useFakeTimers();
+        mockFetch.mockImplementation(stalledFetch());
+
+        const pending = useAuthStore.getState().initialize();
+        await vi.advanceTimersByTimeAsync(15_000);
+        await pending;
+
+        const state = useAuthStore.getState();
+        expect(state.initError).toBe("timeout");
+        // 화면이 다음 상태로 넘어갈 수 있어야 한다. 여기서 로딩이 남으면
+        // 그것이 곧 끝나지 않는 스피너다.
+        expect(state.isLoading).toBe(false);
+      });
+
+      it("네트워크가 끊긴 것과 시간 초과를 구분한다", async () => {
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+
+        await useAuthStore.getState().initialize();
+
+        expect(useAuthStore.getState().initError).toBe("network");
+      });
+
+      it("서버 오류는 로그아웃이 아니다", async () => {
+        // `/api/auth/me` 가 5xx 를 준 것은 "로그인하지 않았다"가 아니라 "확인하지
+        // 못했다"다. 로그아웃으로 처리하면 서버가 방금 세션을 확인해 들여보낸
+        // 사람에게 손님 화면을 보여준다 — 준비한 내용이 사라진 것처럼 보인다.
+        mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+        await useAuthStore.getState().initialize();
+
+        expect(useAuthStore.getState().initError).toBe("network");
+        expect(useAuthStore.getState().isLoading).toBe(false);
+      });
+
+      it("로그인하지 않은 사람은 실패가 아니다", async () => {
+        // 401 은 답이 오지 않은 게 아니라 답이 온 것이다. 여기에 실패 화면을
+        // 띄우면 손님으로 둘러보려던 사람이 오류를 만난다.
+        mockFetch.mockResolvedValue({ ok: false, status: 401 });
+
+        await useAuthStore.getState().initialize();
+
+        expect(useAuthStore.getState().initError).toBeNull();
+        expect(useAuthStore.getState().isInitialized).toBe(true);
+      });
+
+      it("실패 화면에서 누른 다시 시도는 화면을 다시 막는다", async () => {
+        useAuthStore.setState({ isInitialized: true, initError: "timeout" });
+        let release: ((value: unknown) => void) | undefined;
+        mockFetch.mockImplementation(
+          () => new Promise((resolve) => { release = resolve; }),
+        );
+
+        const pending = useAuthStore.getState().initialize({ force: true });
+        await Promise.resolve();
+
+        // 누른 것이 반응해야 한다. 실패 문구가 그대로 있으면 눌리지 않은 것처럼 보인다.
+        expect(useAuthStore.getState().isLoading).toBe(true);
+        expect(useAuthStore.getState().initError).toBeNull();
+
+        release?.({ ok: false, status: 401 });
+        await pending;
+      });
+
+      it("창 포커스마다 도는 배경 갱신은 화면을 막지 않는다", async () => {
+        useAuthStore.setState({ isInitialized: true, initError: null });
+        mockFetch.mockImplementation(() => new Promise(() => {}));
+
+        void useAuthStore.getState().initialize({ force: true });
+        await Promise.resolve();
+
+        // 탭을 옮길 때마다 앱 전체가 스피너로 덮이면 안 된다.
+        expect(useAuthStore.getState().isLoading).toBe(false);
+      });
     });
 
     it("populates user/profile/couple/journey on successful /api/auth/me", async () => {

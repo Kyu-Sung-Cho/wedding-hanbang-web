@@ -134,21 +134,38 @@ export async function GET(request: Request) {
     let journey = null;
 
     if (profile.couple_id) {
-      // 커플 정보
-      const { data: coupleData, error: coupleErr } = await supabase
-        .from("couples")
-        .select(COUPLE_AUTH_COLUMNS)
-        .eq("id", profile.couple_id)
-        .single();
+      const coupleId = profile.couple_id;
+
+      // 세 조회는 서로의 결과를 쓰지 않는다 — 전부 couple_id 하나만 있으면 된다.
+      // 차례로 기다리면 왕복 세 번이 그대로 앱 셸의 대기 시간이 된다. 이 응답이
+      // 늦는 동안 화면 전체가 "웨딩 라운지를 불러오는 중..." 으로 덮여 있으므로,
+      // 여기서 줄인 왕복은 그대로 사람이 기다리지 않는 시간이 된다.
+      //
+      // 파트너 조회만 뒤에 남는다. 누가 상대인지는 커플 행을 읽어야 알 수 있다.
+      const [coupleResult, memberModelResult, journeyResult] = await Promise.all([
+        supabase
+          .from("couples")
+          .select(COUPLE_AUTH_COLUMNS)
+          .eq("id", coupleId)
+          .single(),
+        supabase
+          .from("couples")
+          .select(COUPLE_MEMBER_MODEL_COLUMN)
+          .eq("id", coupleId)
+          .maybeSingle(),
+        supabase
+          .from("wedding_journeys")
+          .select(JOURNEY_AUTH_COLUMNS)
+          .eq("couple_id", coupleId)
+          .single(),
+      ]);
+
+      const { data: coupleData, error: coupleErr } = coupleResult;
 
       if (coupleErr) _debug.coupleSelectError = coupleErr.message;
 
       if (coupleData) {
-        const { data: memberModelData } = await supabase
-          .from("couples")
-          .select(COUPLE_MEMBER_MODEL_COLUMN)
-          .eq("id", profile.couple_id)
-          .maybeSingle();
+        const memberModelData = memberModelResult.data;
         const memberModelVersion =
           memberModelData !== null
           && typeof memberModelData === "object"
@@ -176,12 +193,8 @@ export async function GET(request: Request) {
         }
       }
 
-      // 웨딩 여정 조회
-      const { data: journeyData, error: journeyErr } = await supabase
-        .from("wedding_journeys")
-        .select(JOURNEY_AUTH_COLUMNS)
-        .eq("couple_id", profile.couple_id)
-        .single();
+      // 웨딩 여정 (위에서 커플 조회와 함께 이미 다녀왔다)
+      const { data: journeyData, error: journeyErr } = journeyResult;
 
       if (journeyErr) _debug.journeySelectError = journeyErr.message;
 

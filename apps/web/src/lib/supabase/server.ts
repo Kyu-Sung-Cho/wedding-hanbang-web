@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 
 import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
+import { withoutCorruptAuthCookies } from "./authCookieRepair";
 
 function createAnonymousClient() {
   return createServerClient(
@@ -25,7 +26,9 @@ export async function createClient() {
       {
         cookies: {
           getAll() {
-            return cookieStore.getAll();
+            // 디코딩되지 않는 세션 쿠키를 그대로 넘기면 `getUser()` 가 던진다.
+            // 이유는 @/lib/supabase/authCookieRepair 에 있다.
+            return withoutCorruptAuthCookies(cookieStore.getAll());
           },
           setAll(cookiesToSet) {
             try {

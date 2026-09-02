@@ -131,6 +131,59 @@ function isTransientAuthFetchError(err: unknown) {
 
 let journeyWriteSequence = 0;
 let authInitializeSequence = 0;
+
+/**
+ * `/api/auth/me` 를 기다려 주는 한계.
+ *
+ * ## 왜 상한이 필요한가
+ *
+ * 앱 셸(`AppClientLayout`)은 이 요청이 끝날 때까지 화면 전체를 "웨딩 라운지를
+ * 불러오는 중..." 으로 덮는다. 그런데 이 fetch 에는 상한이 없어서, 요청이 멈춰
+ * 있으면 스피너도 영원히 멈춰 있었다. 사용자가 할 수 있는 일은 새로고침뿐이고,
+ * 새로고침은 같은 자리로 돌아온다.
+ *
+ * ## 왜 15초인가
+ *
+ * 정상 응답은 이보다 한 자릿수 빠르다. 이 값은 "느린 응답을 자르는 선"이 아니라
+ * "응답이 오지 않는다고 판정하는 선"이다. 여기서 끊고 다시 시도를 내미는 편이,
+ * 끝나지 않을 수도 있는 것을 계속 기다리는 것보다 낫다.
+ */
+const AUTH_ME_TIMEOUT_MS = 15_000;
+
+/** 첫 로딩이 실패한 이유. 화면이 무한 스피너 대신 복구 수단을 내밀 수 있게 한다. */
+export type AuthInitError = "timeout" | "network";
+
+class AuthInitTimeoutError extends Error {
+  constructor() {
+    super("auth initialize timed out");
+    this.name = "AuthInitTimeoutError";
+  }
+}
+
+/**
+ * 상한이 걸린 `/api/auth/me` 호출.
+ *
+ * `AbortSignal.timeout` 을 쓰지 않는 이유는 시간 초과와 그 밖의 네트워크 실패를
+ * 갈라서 서로 다른 문장을 보여 주기 위해서다 — 둘 다 `AbortError` 로 도착하면
+ * 무엇이 일어났는지 화면이 말할 수 없다.
+ */
+async function fetchAuthMe(): Promise<Response> {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, AUTH_ME_TIMEOUT_MS);
+
+  try {
+    return await fetch("/api/auth/me", { signal: controller.signal });
+  } catch (err) {
+    if (timedOut) throw new AuthInitTimeoutError();
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 const PLAN_CHANGE_REQUEST_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -162,6 +215,13 @@ interface AuthState {
   isLoading: boolean;
   isInitialized: boolean;
   isDemo: boolean;
+  /**
+   * 첫 로딩이 왜 실패했는가. `null` 이면 실패를 모르는 상태다.
+   *
+   * 401(로그인 안 됨)은 여기 오지 않는다 — 그건 실패가 아니라 답이다. 응답 자체가
+   * 오지 않은 경우만 담는다.
+   */
+  initError: AuthInitError | null;
 
   initialize: (options?: { force?: boolean; initialDemo?: boolean }) => Promise<void>;
   updateJourney: (
@@ -193,6 +253,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isLoading: false,
   isInitialized: false,
   isDemo: false,
+  initError: null,
 
   initialize: async (options) => {
     if (get().isInitialized && !options?.force) return;
@@ -212,15 +273,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isDemo: true,
         isLoading: false,
         isInitialized: true,
+        initError: null,
       });
       return;
     }
 
-    if (!options?.force) set({ isLoading: true });
+    // 화면을 막을지 말지.
+    //
+    // 평소의 `force` 는 창 포커스마다 도는 배경 갱신이라 화면을 건드리면 안 된다 —
+    // 탭을 옮길 때마다 앱 전체가 스피너로 덮인다. 하지만 실패 화면에서 누른
+    // "다시 시도" 도 `force` 다. 그 경우에는 다시 막아야 누른 것이 반응한다.
+    const recoveringFromInitError = get().initError !== null;
+    set(
+      !options?.force || recoveringFromInitError
+        ? { isLoading: true, initError: null }
+        : { initError: null },
+    );
 
     try {
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
-      const res = await fetch("/api/auth/me");
+      const res = await fetchAuthMe();
 
       if (res.ok) {
         const data = await res.json();
@@ -261,6 +333,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (initializeSequence !== authInitializeSequence) return;
+
+      // 5xx 는 "로그인하지 않았다"가 아니라 "확인하지 못했다"다.
+      //
+      // 이것을 로그아웃으로 처리하면, 서버가 방금 세션을 확인해 들여보낸 사람에게
+      // 손님 화면을 보여주게 된다 — 준비한 내용이 다 사라진 것처럼 보인다.
+      // 응답이 아예 안 온 경우(아래 catch)와 같은 취급을 한다.
+      if (res.status >= 500 && !isDemoMode()) {
+        set({ isLoading: false, isInitialized: true, initError: "network" });
+        return;
+      }
+
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
         journeyWriteSequence += 1;
@@ -308,11 +391,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           isDemo: true,
           isLoading: false,
           isInitialized: true,
+          initError: null,
         });
         return;
       }
 
-      set({ isLoading: false, isInitialized: true });
+      // 응답이 오지 않았다. 여기서 조용히 "로그인 안 된 상태"로 넘어가면, 서버가
+      // 방금 세션을 확인해 들여보낸 사람에게 빈 화면을 보여 주게 된다. 무엇이
+      // 실패했는지 남겨서 화면이 다시 시도를 내밀 수 있게 한다.
+      set({
+        isLoading: false,
+        isInitialized: true,
+        initError: err instanceof AuthInitTimeoutError ? "timeout" : "network",
+      });
     }
   },
 
@@ -590,6 +681,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isLoading: false,
       isInitialized: false,
       isDemo: false,
+      initError: null,
     });
   },
 }));
