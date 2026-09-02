@@ -13,7 +13,17 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
-const AUTH_TOKEN_COOKIE = /(?:^|;\s*)sb-[^=]*auth-token(?:\.\d+)?=/u;
+/**
+ * 값이 **비어 있지 않은** 인증 쿠키만 자격 증명으로 센다.
+ *
+ * 빈 값은 자격 증명이 아니라 그 반대다 — 로그아웃과 상한 쿠키 정리가 모두
+ * `sb-<ref>-auth-token=; Max-Age=0` 을 내려보내고, 그 응답을 만든 요청의
+ * downstream 은 그 빈 쿠키를 그대로 본다. 이름만 세면 그 사람은 "자격 증명을
+ * 제시했는데 확인에 실패한 사용자" 로 읽혀서, 공개 글이 본문 없이 빈 껍데기로
+ * 내려간다(2026-09-02 로컬 실측: 상한 쿠키 정리 직후 상세 페이지가 스켈레톤만
+ * 그렸다). 쿠키 이름에는 `;`·공백·`=` 이 올 수 없으므로 이름 쪽도 함께 좁힌다.
+ */
+const AUTH_TOKEN_COOKIE = /(?:^|;\s*)sb-[^=;\s]*auth-token(?:\.\d+)?=[^;\s]/u;
 
 /**
  * 서버 컴포넌트에는 Request가 없다. 그쪽에서는 `headers()`로 얻은 cookie 문자열을
