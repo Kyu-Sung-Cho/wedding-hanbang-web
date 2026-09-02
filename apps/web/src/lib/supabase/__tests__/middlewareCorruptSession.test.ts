@@ -58,6 +58,16 @@ describe("망가진 세션 쿠키를 들고 보호 경로에 들어올 때", () 
       "쪼개진 쿠키의 두 번째 조각이 깨졌다",
       `${KEY}.0=base64-eyJhY2Nlc3NfdG9rZW4iOiJhYWFh; ${KEY}.1=!!!broken!!!`,
     ],
+    // 아래 셋은 2026-09-02 QA 재검증에서 운영 500 을 추가로 낸 모양이다.
+    ["퍼센트 인코딩된 값", `${KEY}=base64-%7B%22a%22%3A1%7D`],
+    [
+      "단독 continuation 바이트",
+      `${KEY}=base64-${Buffer.from([0x80]).toString("base64url")}`,
+    ],
+    [
+      "쪼개진 것과 안 쪼개진 것이 함께",
+      `${KEY}=base64-!!!broken!!!; ${KEY}.0=base64-eyJhIjoxfQ`,
+    ],
   ] as const;
 
   for (const [label, cookie] of CORRUPT) {

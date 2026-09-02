@@ -53,6 +53,18 @@ describe("세션 쿠키를 읽을 수 있는가", () => {
     expect(isReadableAuthCookieValue(`base64-${invalidUtf8}`)).toBe(false);
   });
 
+  // 아래 둘은 2026-09-02 QA 재검증에서 운영 500 을 추가로 낸 모양이다. 처음 찾은
+  // 세 모양만 막고 끝냈다면 실제 프로필이 들고 있던 쿠키가 그대로 남았을 수 있다.
+  it("퍼센트 인코딩된 값은 읽을 수 없다", () => {
+    // 쿠키가 한 번 더 인코딩돼 저장되면 이 모양이 된다. `%` 는 base64url 알파벳이 아니다.
+    expect(isReadableAuthCookieValue("base64-%7B%22a%22%3A1%7D")).toBe(false);
+  });
+
+  it("단독 continuation 바이트는 읽을 수 없다", () => {
+    const loneContinuation = Buffer.from([0x80]).toString("base64url");
+    expect(isReadableAuthCookieValue(`base64-${loneContinuation}`)).toBe(false);
+  });
+
   it("접두사만 있는 값은 빈 문자열로 읽힌다", () => {
     expect(isReadableAuthCookieValue("base64-")).toBe(true);
   });
@@ -140,6 +152,17 @@ describe("지워야 할 쿠키 고르기", () => {
       "demo_mode",
       "sb-abcdefghijklmnopqrst-auth-token-code-verifier",
     ]);
+  });
+
+  it("쪼개진 것과 안 쪼개진 것이 함께 오면 안 쪼개진 쪽이 값이다", () => {
+    // 라이브러리는 쪼개지지 않은 쿠키가 있으면 그것 하나만 본다. 그쪽이 망가졌으면
+    // 조각이 온전해도 읽지 못한다 — 운영에서 이 모양도 500 이었다.
+    const whole = base64Session();
+    const cookies = [
+      { name: KEY, value: "base64-!!!broken!!!" },
+      { name: `${KEY}.0`, value: whole },
+    ];
+    expect(corruptAuthCookieNames(cookies).sort()).toEqual([KEY, `${KEY}.0`]);
   });
 
   it("조각 번호가 끊긴 뒤의 조각은 값에 들어가지 않는다", () => {
