@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
+import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 
 /**
  * 「체크」라고 적힌 버튼이 체크리스트로 가는지 본다.
@@ -91,6 +92,36 @@ describe("체크리스트 CTA 는 체크리스트로 간다", () => {
     }
   });
 
+  /**
+   * 목적지 문자열이 맞아도 **실제로 열리는 주소**가 틀리면 소용이 없다. 분야를
+   * 붙인 주소가 어떤 링크 속성으로 풀리는지 값으로 확인한다.
+   */
+  it("분야를 붙인 주소가 실제 링크 속성으로 바르게 풀린다", () => {
+    const props = weddingLinkProps("/checklist?category=venue");
+    expect(props.href).toBe("/checklist?category=venue");
+    expect(props.as).toBe("/wedding/checklist?category=venue");
+    expect(weddingPath("/checklist?category=venue")).toBe("/wedding/checklist?category=venue");
+  });
+
+  /**
+   * 이름에 물음표·앰퍼샌드가 들어갈 수 있는 분야는 없지만, 붙이는 쪽이
+   * `encodeURIComponent` 를 쓰는지는 계약이다 — 안 쓰면 나중에 키가 바뀔 때
+   * 조용히 깨진다.
+   */
+  it("분야 키를 그대로 이어붙이지 않는다", () => {
+    const row = categoryRowSource();
+    expect(row).toContain("encodeURIComponent(");
+  });
+
+  /**
+   * 체크리스트 화면이 그 질의를 실제로 읽는가. 목적지만 맞고 화면이 안 읽으면
+   * 사용자는 도착만 하고 누른 분야는 안 열린다.
+   */
+  it("체크리스트 화면이 category 질의를 읽는다", () => {
+    const content = read("src/components/app/checklist/ChecklistContent.tsx");
+    expect(content).toContain('searchParams.get("category")');
+  });
+
   it("분야 키가 체크리스트 화면이 아는 값이다", () => {
     // 목적지가 체크리스트여도 `?category=` 값이 화면의 분야 키와 다르면
     // 도착해서 아무것도 안 열린다.
@@ -120,5 +151,45 @@ describe("라운지 아래 세 칸의 마지막은 남기는 곳으로 간다", 
     expect(start, "「라운지에 남김」 칸을 못 찾았다").toBeGreaterThan(-1);
     const block = LOUNGE.slice(start, start + 300);
     expect(block).toContain('weddingPath("/checklist")');
+  });
+});
+
+/**
+ * 반대 방향도 본다.
+ *
+ * 「체크로 가야 할 것을 일정으로 보내지 않는가」만 보면, 지나쳐서 **일정으로 가야
+ * 할 것까지 체크리스트로 돌리는** 반대 실수를 못 잡는다. 라운지에 남아 있는
+ * 일정 링크가 실제로 일정 성격인지 확인한다.
+ */
+describe("일정으로 가야 할 것은 그대로 일정으로 간다", () => {
+  it("남아 있는 일정 링크가 모두 일정 성격이다", () => {
+    // 다가오는 일정 우선순위 카드와 「다가오는 예약」 패널의 줄.
+    const eventPriority = LOUNGE.slice(
+      LOUNGE.indexOf('eyebrow: "다가오는 일정"'),
+      LOUNGE.indexOf('tone: "steady" as const'),
+    );
+    expect(eventPriority).toContain('weddingPath("/schedule")');
+    expect(eventPriority).toContain('cta: "일정 보기"');
+
+    const panel = LOUNGE.slice(LOUNGE.indexOf("function UpcomingEventsPanel("));
+    expect(panel).toContain('weddingLinkProps("/schedule")');
+  });
+
+  it("식 후 남은 일 정리와 준비 일정 바로가기는 일정으로 간다", () => {
+    const plan = buildAmoraLifecyclePlan({
+      // 예식이 지난 커플이어야 식 후 가드레일이 나온다.
+      weddingDate: new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10),
+      totalBudget: 50_000_000,
+      progress: {},
+    });
+
+    const aftercare = plan.guardrails.find((item) => item.id === "aftercare_tasks");
+    expect(aftercare, "식 후 가드레일이 안 나왔다 — 검사가 무의미해진다").toBeTruthy();
+    expect(aftercare?.href).toContain("/schedule");
+    expect(aftercare?.cta).toBe("남은 일 정리");
+
+    const scheduleShortcut = plan.quickActions.find((item) => item.id === "schedule");
+    expect(scheduleShortcut?.href).toContain("/schedule");
+    expect(scheduleShortcut?.label).toBe("준비 일정");
   });
 });
