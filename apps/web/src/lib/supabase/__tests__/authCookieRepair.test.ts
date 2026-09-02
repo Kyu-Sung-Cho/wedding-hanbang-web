@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { stringFromBase64URL } from "@supabase/ssr";
 
 import {
+  cookieHeaderHasReadableAuthCookie,
   corruptAuthCookieNames,
   isReadableAuthCookieValue,
+  parseCookieHeader,
   withoutCorruptAuthCookies,
 } from "../authCookieRepair";
 
@@ -173,5 +175,85 @@ describe("지워야 할 쿠키 고르기", () => {
     ];
     // `.0` 이 없으므로 라이브러리는 아무것도 읽지 못한다 — 지울 것도 없다.
     expect(corruptAuthCookieNames(cookies)).toEqual([]);
+  });
+});
+
+/**
+ * 공개 조회들은 "자격을 내놓았는데 확인에 실패한" 요청을 fail-closed 로 막는다.
+ * 그 판정이 쿠키의 **존재**만 보고 있어서, 망가진 쿠키를 든 사람은 공개 목록조차
+ * 503 을 받았다 — 2026-09-02 CTO 독립 검증 실측:
+ *
+ *     GET /api/community/posts        200 → 503
+ *     GET /api/auth/me?guest_probe=1  200 → 500
+ *
+ * 우리가 이미 무시하기로 한 값을 "자격을 내놓았다"고 세면 안 된다.
+ */
+describe("쓸 수 있는 세션 쿠키를 내놓았는가", () => {
+  it("쿠키가 없으면 자격이 없다", () => {
+    expect(cookieHeaderHasReadableAuthCookie(null)).toBe(false);
+    expect(cookieHeaderHasReadableAuthCookie("")).toBe(false);
+    expect(cookieHeaderHasReadableAuthCookie("onboarding_complete=true")).toBe(false);
+  });
+
+  it("정상 세션 쿠키는 자격이다", () => {
+    expect(cookieHeaderHasReadableAuthCookie(`${KEY}=${base64Session()}`)).toBe(true);
+  });
+
+  it("접두사 없는 값도 자격으로 센다", () => {
+    // 디코딩을 거치지 않으므로 던지지 않는다. 세션이 아닐 수는 있어도, 그 판정은
+    // 라이브러리가 한다 — 여기서 미리 손님으로 만들면 로그인한 사람이 손님이 된다.
+    expect(cookieHeaderHasReadableAuthCookie(`${KEY}=whatever`)).toBe(true);
+  });
+
+  const UNREADABLE = [
+    ["알파벳 밖 문자", `${KEY}=base64-!!!broken!!!`],
+    ["UTF-8 아닌 바이트", `${KEY}=base64-${Buffer.from([0xff, 0xfe, 0xfd]).toString("base64url")}`],
+    ["퍼센트 인코딩", `${KEY}=base64-%7B%22a%22%3A1%7D`],
+  ] as const;
+
+  for (const [label, header] of UNREADABLE) {
+    it(`${label} 은 자격이 아니다 — 손님과 같게 대한다`, () => {
+      expect(cookieHeaderHasReadableAuthCookie(header)).toBe(false);
+      expect(cookieHeaderHasReadableAuthCookie(`${header}; onboarding_complete=true`)).toBe(false);
+    });
+  }
+
+  it("조각 하나가 깨지면 그 세션은 자격이 아니다", () => {
+    const whole = base64Session();
+    const header = `${KEY}.0=${whole.slice(0, 30)}; ${KEY}.1=!!!broken!!!`;
+    expect(cookieHeaderHasReadableAuthCookie(header)).toBe(false);
+  });
+
+  it("망가진 세션 옆에 온전한 세션이 있으면 자격이다", () => {
+    // 다른 프로젝트 ref 의 쿠키가 함께 남아 있을 수 있다. 하나라도 읽히면
+    // 그 사람은 자격을 내놓은 것이다.
+    const header = `${KEY}=base64-!!!broken!!!; sb-otherprojectrefxyz-auth-token=${base64Session()}`;
+    expect(cookieHeaderHasReadableAuthCookie(header)).toBe(true);
+  });
+});
+
+describe("Cookie 헤더 가르기", () => {
+  it("이름과 값을 가르고 퍼센트 인코딩을 푼다", () => {
+    // 프레임워크가 쿠키를 읽을 때 하는 일과 같아야, 여기서 "읽을 수 있다"고 본
+    // 값이 실제로 읽히는 값과 같다.
+    expect(parseCookieHeader("a=1; b=%7B%22x%22%3A2%7D")).toEqual([
+      { name: "a", value: "1" },
+      { name: "b", value: '{"x":2}' },
+    ]);
+  });
+
+  it("값에 = 가 들어 있어도 자르지 않는다", () => {
+    expect(parseCookieHeader("t=abc=def=")).toEqual([{ name: "t", value: "abc=def=" }]);
+  });
+
+  it("깨진 퍼센트 시퀀스는 원문을 그대로 둔다", () => {
+    expect(parseCookieHeader("t=%E0%A4%A")).toEqual([{ name: "t", value: "%E0%A4%A" }]);
+  });
+
+  it("빈 값과 이름 없는 조각을 버리지 않거나 터지지 않는다", () => {
+    expect(parseCookieHeader("a=; ; =x; b=2")).toEqual([
+      { name: "a", value: "" },
+      { name: "b", value: "2" },
+    ]);
   });
 });

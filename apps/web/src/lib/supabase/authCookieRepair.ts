@@ -137,3 +137,52 @@ export function withoutCorruptAuthCookies<T extends ReadableCookie>(
   if (corrupt.size === 0) return [...cookies];
   return cookies.filter(({ name }) => !corrupt.has(name));
 }
+
+/**
+ * `Cookie` 헤더 문자열을 이름·값으로 가른다.
+ *
+ * 값은 `decodeURIComponent` 를 거친다 — 프레임워크가 쿠키를 읽을 때 하는 일과
+ * 같아야, 여기서 "읽을 수 있다"고 본 값이 실제로 읽히는 값과 같다. 깨진 퍼센트
+ * 시퀀스는 디코딩이 실패하므로 원문을 그대로 쓴다(그 값은 어차피 읽을 수 없다).
+ */
+export function parseCookieHeader(
+  header: string | null | undefined,
+): ReadableCookie[] {
+  if (!header) return [];
+  const cookies: ReadableCookie[] = [];
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator === -1) continue;
+    const name = part.slice(0, separator).trim();
+    if (name === "") continue;
+    const raw = part.slice(separator + 1).trim();
+    let value = raw;
+    try {
+      value = decodeURIComponent(raw);
+    } catch {
+      // 깨진 퍼센트 시퀀스. 원문을 그대로 둔다.
+    }
+    cookies.push({ name, value });
+  }
+  return cookies;
+}
+
+/**
+ * 이 요청이 **쓸 수 있는** 세션 쿠키를 내놓았는가.
+ *
+ * 공개 조회들은 "자격을 내놓았는데 확인에 실패한" 요청을 fail-closed 로 막는다
+ * (비공개 글이 신원 미확인 요청에 새면 안 된다). 그 판정이 쿠키의 **존재**만
+ * 보고 있어서, 망가진 쿠키를 든 사람은 공개 목록조차 503 을 받았다 —
+ * 2026-09-02 실측: `/api/community/posts` 가 200 에서 503 으로 떨어졌다.
+ *
+ * 디코딩되지 않는 쿠키는 자격이 아니다. 손님과 똑같이 대한다.
+ */
+export function cookieHeaderHasReadableAuthCookie(
+  header: string | null | undefined,
+): boolean {
+  const cookies = parseCookieHeader(header);
+  const authCookies = cookies.filter(({ name }) => authTokenKeyOf(name) !== null);
+  if (authCookies.length === 0) return false;
+  return withoutCorruptAuthCookies(cookies)
+    .some(({ name }) => authTokenKeyOf(name) !== null);
+}

@@ -1,4 +1,5 @@
 import { sanitizeText } from "@/utils/sanitize";
+import { cookieHeaderHasReadableAuthCookie } from "@/lib/supabase/authCookieRepair";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -13,16 +14,20 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
-const AUTH_TOKEN_COOKIE = /(?:^|;\s*)sb-[^=]*auth-token(?:\.\d+)?=/u;
-
 /**
  * 서버 컴포넌트에는 Request가 없다. 그쪽에서는 `headers()`로 얻은 cookie 문자열을
  * 그대로 넘겨 같은 기준을 쓴다.
+ *
+ * **디코딩되지 않는 세션 쿠키는 자격으로 세지 않는다.** 예전에는 쿠키의 존재만
+ * 봤는데, 그러면 망가진 쿠키를 든 사람이 공개 조회에서도 fail-closed 에 걸려
+ * 503 을 받았다(2026-09-02 실측: `/api/community/posts` 200 → 503). 우리가 이미
+ * 무시하기로 한 값을 "자격을 내놓았다"고 세면 안 된다 — 판정 기준은
+ * @/lib/supabase/authCookieRepair 가 들고 있다.
  */
 export function cookieHeaderHasAuthCredential(
   cookieHeader: string | null | undefined,
 ): boolean {
-  return AUTH_TOKEN_COOKIE.test(cookieHeader ?? "");
+  return cookieHeaderHasReadableAuthCookie(cookieHeader);
 }
 
 /**
