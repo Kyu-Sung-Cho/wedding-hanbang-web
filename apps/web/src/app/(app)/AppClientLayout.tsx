@@ -210,7 +210,7 @@ export default function AppClientLayout({
   const searchParams = useSearchParams();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
-  const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
+  const { initialize, isInitialized, isLoading, isDemo, initError } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
   const vendorAdminPreview = (
@@ -225,6 +225,35 @@ export default function AppClientLayout({
   useEffect(() => {
     if (!isInitialized) void initialize({ initialDemo });
   }, [initialize, initialDemo, isInitialized]);
+
+  // 실패는 로딩보다 먼저 본다.
+  //
+  // 응답이 오지 않은 채로 그냥 통과시키면, 서버가 방금 세션을 확인해 들여보낸
+  // 사람에게 "로그인 안 된 것 같은" 빈 화면을 보여 주게 된다. 스피너로 되돌려도
+  // 안 된다 — 그게 끝나지 않는 "불러오는 중"이었다. 여기서 멈추고 다시 시도를 준다.
+  if (initError && !isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[var(--hb-surface-page)] p-6">
+        <div className="max-w-[22rem] text-center">
+          <p className="mb-2 text-[15px] font-medium text-[var(--hb-text-strong)]">
+            {initError === "timeout"
+              ? "불러오는 데 시간이 너무 오래 걸려요"
+              : "웨딩 라운지를 불러오지 못했어요"}
+          </p>
+          <p className="mb-5 text-[13px] leading-[1.7] text-[var(--hb-text-muted)]">
+            준비하신 내용은 그대로 있어요. 잠시 뒤에 다시 시도해 주세요.
+          </p>
+          <button
+            type="button"
+            onClick={() => void initialize({ force: true })}
+            className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-[13px] font-medium text-white transition-transform hover:-translate-y-0.5"
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!isInitialized || isLoading) {
     return (

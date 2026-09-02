@@ -18,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   searchParams: new URLSearchParams(),
   isDemo: true,
   isInitialized: true,
-  initializeCalls: [] as Array<{ initialDemo?: boolean } | undefined>,
+  isLoading: false,
+  initError: null as "timeout" | "network" | null,
+  initializeCalls: [] as Array<{ initialDemo?: boolean; force?: boolean } | undefined>,
   authSyncCalls: [] as boolean[],
   pageViewCalls: [] as boolean[],
   profile: null as { id?: string; role?: string | null } | null,
@@ -81,11 +83,12 @@ vi.mock("@/hooks/useAuthSessionSync", () => ({
 
 vi.mock("@/stores/authStore", () => ({
   useAuthStore: () => ({
-    initialize: (options?: { initialDemo?: boolean }) => {
+    initialize: (options?: { initialDemo?: boolean; force?: boolean }) => {
       mocks.initializeCalls.push(options);
     },
     isInitialized: mocks.isInitialized,
-    isLoading: false,
+    isLoading: mocks.isLoading,
+    initError: mocks.initError,
     isDemo: mocks.isDemo,
     profile: mocks.profile,
     journey: mocks.journey,
@@ -102,6 +105,8 @@ describe("AppClientLayout global Amora panel", () => {
     mocks.searchParams = new URLSearchParams();
     mocks.isDemo = true;
     mocks.isInitialized = true;
+    mocks.isLoading = false;
+    mocks.initError = null;
     mocks.initializeCalls.length = 0;
     mocks.authSyncCalls.length = 0;
     mocks.pageViewCalls.length = 0;
@@ -145,6 +150,65 @@ describe("AppClientLayout global Amora panel", () => {
 
     expect(mocks.initializeCalls).toEqual([{ initialDemo: true }]);
     expect(mocks.authSyncCalls).toEqual([false]);
+  });
+
+  /**
+   * 딥링크로 `/wedding/*` 를 처음 열 때 이 화면이 유일한 관문이다. 여기가 끝나지
+   * 않으면 그 밑의 route loading.tsx 도 Suspense fallback 도 그려지지 않는다 —
+   * 사람은 "웨딩 라운지를 불러오는 중..." 만 20~50초 보다가, 때로는 영영 본다.
+   */
+  describe("불러오지 못했을 때", () => {
+    function loadingText() {
+      return container.textContent?.includes("웨딩 라운지를 불러오는 중");
+    }
+    function retryButton() {
+      return [...container.querySelectorAll("button")]
+        .find((button) => button.textContent?.trim() === "다시 시도");
+    }
+
+    it("끝나지 않는 스피너 대신 다시 시도를 준다", async () => {
+      mocks.isDemo = false;
+      mocks.initError = "timeout";
+      await renderLayout();
+
+      expect(loadingText()).toBe(false);
+      expect(container.textContent).toContain("시간이 너무 오래 걸려요");
+      expect(retryButton()).toBeDefined();
+    });
+
+    it("응답이 왔다는 듯 빈 화면으로 넘기지 않는다", async () => {
+      // 서버 레이아웃이 방금 세션을 확인해 들여보낸 사람이다. 여기서 그냥
+      // 통과시키면 로그인해 있는데 로그아웃한 것 같은 화면을 만난다.
+      mocks.isDemo = false;
+      mocks.initError = "network";
+      await renderLayout();
+
+      expect(container.textContent).toContain("불러오지 못했어요");
+      expect(container.querySelector("aside")).toBeNull();
+      expect(container.textContent).not.toContain("page content");
+    });
+
+    it("다시 시도는 서버에 다시 물어본다", async () => {
+      mocks.isDemo = false;
+      mocks.initError = "timeout";
+      await renderLayout();
+      mocks.initializeCalls.length = 0;
+
+      await act(async () => retryButton()?.click());
+
+      // force 가 없으면 isInitialized 가 true 라 initialize 가 그대로 되돌아온다.
+      expect(mocks.initializeCalls).toEqual([{ force: true }]);
+    });
+
+    it("다시 시도하는 동안에는 실패 문구 대신 로딩을 보여준다", async () => {
+      mocks.isDemo = false;
+      mocks.initError = "timeout";
+      mocks.isLoading = true;
+      await renderLayout();
+
+      expect(loadingText()).toBe(true);
+      expect(container.textContent).not.toContain("시간이 너무 오래 걸려요");
+    });
   });
 
   it("unmounts and resets the global panel when navigation enters the full chat page", async () => {
