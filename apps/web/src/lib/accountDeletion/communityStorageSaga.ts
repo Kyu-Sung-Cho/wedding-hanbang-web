@@ -1,5 +1,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { sendAccountDeletionNotice } from "@/lib/accountDeletion/deletionNotice";
+
+/**
+ * 이 오류가 **"그 객체가 정말 없다"** 인가.
+ *
+ * `api/chat/messages/route.ts` 의 같은 이름 술어와 판정이 같아야 한다 — 한쪽만
+ * 고치면 두 경로가 다른 결론을 낸다. storage-js 는 부재를 `statusCode: "404"`
+ * 로 알려 주고, 그 밖의 실패(권한·네트워크·버킷 없음)는 다른 값을 준다.
+ *
+ * **"모르겠다"를 "없다"로 읽지 않는다.** 없다고 잘못 읽으면 안 지워진 파일을
+ * 지워졌다고 기록하고 탈퇴를 완료 처리한다 — 되돌릴 수 없는 거짓말이다.
+ */
+export function isMissingStorageObject(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const record = error as Record<string, unknown>;
+  const status = String(record.statusCode ?? record.status ?? "");
+  const detail = `${String(record.error ?? "")} ${String(record.message ?? "")}`
+    .toLowerCase();
+  return status === "404" || detail.includes("not found");
+}
+
 export const COMMUNITY_DELETION_BUCKETS = [
   "community-media-staging",
   "community-images",
@@ -17,7 +38,11 @@ export type CommunityDeletionSource =
   | "session_staging"
   | "session_final"
   | "legacy_prefix"
-  | "quarantine";
+  | "quarantine"
+  // 자기가 올린 채팅 사진. **DB 가 증명한 것만** 이 값을 갖는다 —
+  // `chat_photo_belongs_to_user` 가 `chat_messages` 행으로 판정하고,
+  // 매니페스트 검증기가 같은 트랜잭션에서 다시 확인한다.
+  | "chat_message";
 
 export interface CommunityDeletionSession {
   id: string;
@@ -284,6 +309,59 @@ async function listDurableSessions(
   return sessions;
 }
 
+/**
+ * 이 사람이 **올린** 채팅 사진 경로 목록.
+ *
+ * 서버가 쓴 `chat_messages` 행에서만 모은다. 경로는 근거가 아니다 — Storage RLS
+ * 가 경로의 첫 칸(커플)만 검사하므로 두 번째 칸은 배우자도 쓸 수 있다.
+ *
+ * 여기서 나온 목록은 **주장**일 뿐이고, 매니페스트 검증기가 같은 판정을 DB 에서
+ * 다시 한다(`chat_photo_belongs_to_user`). 앱이 잘못되어도 남의 사진은 삭제
+ * 대상이 되지 않는다.
+ *
+ * 자료가 이상하면 **던진다** — 조용히 빈 목록을 돌려주면 자기 사진이 격리로
+ * 남아 탈퇴가 멈추는데, 왜 멈췄는지 아무도 모른다.
+ */
+async function listOwnChatPhotoPaths(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<Set<string>> {
+  const proven = new Set<string>();
+  const PAGE = 500;
+  for (let from = 0; ; from += PAGE) {
+    if (proven.size > INVENTORY_MAX_OBJECTS) {
+      throw new AccountDeletionStorageError("chat_proof_inventory_limit_exceeded");
+    }
+    const { data, error } = await admin
+      .from("chat_messages")
+      .select("couple_id, metadata")
+      .eq("sender_id", userId)
+      .not("metadata->imagePaths", "is", null)
+      .range(from, from + PAGE - 1);
+    if (error) {
+      throw new AccountDeletionStorageError("chat_proof_inventory_unavailable");
+    }
+    const rows = data ?? [];
+    for (const row of rows) {
+      const metadata = row?.metadata;
+      if (metadata === null || typeof metadata !== "object") continue;
+      const paths = (metadata as Record<string, unknown>).imagePaths;
+      if (!Array.isArray(paths)) continue;
+      for (const value of paths) {
+        if (typeof value !== "string") {
+          throw new AccountDeletionStorageError("chat_proof_inventory_malformed");
+        }
+        // 커플이 맞는 것만 센다. DB 판정과 같은 조건이어야 두 층이 어긋나지 않는다.
+        if (typeof row.couple_id === "string" && value.startsWith(`${row.couple_id}/`)) {
+          proven.add(value);
+        }
+      }
+    }
+    if (rows.length < PAGE) break;
+  }
+  return proven;
+}
+
 async function inventoryChatImageQuarantine(
   admin: SupabaseClient,
   userId: string,
@@ -292,6 +370,7 @@ async function inventoryChatImageQuarantine(
   if (!UUID_RE.test(userId) || !Number.isFinite(now)) {
     throw new AccountDeletionStorageError("inventory_input_invalid");
   }
+  const provenChatPaths = await listOwnChatPhotoPaths(admin, userId);
   const storage = admin.storage.from("chat-image");
   const coupleIds: string[] = [];
   const seenCouples = new Set<string>();
@@ -339,6 +418,7 @@ async function inventoryChatImageQuarantine(
 
   const entries: CommunityDeletionManifestEntry[] = [];
   const seenPaths = new Set<string>();
+
   for (const coupleId of coupleIds) {
     const prefix = `${coupleId}/${userId}`;
     for (let offset = 0; ; offset += INVENTORY_PAGE_SIZE) {
@@ -364,7 +444,15 @@ async function inventoryChatImageQuarantine(
         entries.push({
           bucket: "chat-image",
           path,
-          source: "quarantine",
+          // **증명이 있으면 삭제 대상, 없으면 예전 그대로 격리.**
+          //
+          // 예전에는 전부 격리라 사진을 한 번이라도 올린 계정은 탈퇴가
+          // `manual_review` 에 갇혔고, 그것을 푸는 앱 경로가 0건이었다.
+          // 화면은 "내가 올린 사진·첨부 파일은 삭제돼요" 라고 약속하고 있었다.
+          //
+          // 증명은 경로가 아니라 `chat_messages` 행이다 — Storage RLS 가
+          // 경로의 첫 칸만 보므로 두 번째 칸은 배우자도 쓸 수 있다.
+          source: provenChatPaths.has(path) ? "chat_message" : "quarantine",
           not_before: new Date(now).toISOString(),
         });
         objectCount += 1;
@@ -372,6 +460,51 @@ async function inventoryChatImageQuarantine(
       if (data.length < limit) break;
     }
   }
+
+  // **옛 2단 경로(`<커플>/<파일>`)도 본다.**
+  //
+  // 2026-09-02 운영 실측: chat-image 객체 6개가 전부 2단이고 그중 5개는 살아
+  // 있는 대화에 지금 보인다. 3단만 훑으면 이 사진들은 인벤토리에 아예 안 잡혀
+  // **주인이 탈퇴해도 그대로 남는데 우리는 "지웠다"고 말하게 된다.**
+  //
+  // 2단에는 경로에 사용자가 없으므로 여기서 소유를 판정하지 않는다 — 증명된
+  // 것(`provenChatPaths`)만 삭제 대상이 되고 나머지는 격리로 남아 사람이 본다.
+  // 그 판정은 원래도 경로가 아니라 `chat_messages` 행이 한다.
+  for (const coupleId of coupleIds) {
+    for (let offset = 0; ; offset += INVENTORY_PAGE_SIZE) {
+      // **상한에서 조용히 멈추지 않는다.** 그냥 break 하면 남은 사진을 말없이
+      // 건너뛰고, 탈퇴가 완료되면서 "지웠다"고 말하게 된다 — 이 수정이 없애려는
+      // 바로 그 침묵이다. 3단 루프와 같은 방식으로 실패로 닫는다.
+      if (objectCount >= INVENTORY_MAX_OBJECTS) {
+        const overflow = await listPage(coupleId, 1, offset);
+        if (overflow.some((item) => item && typeof item.name === "string"
+            && item.id !== null && CHAT_IMAGE_FILE_RE.test(item.name))) {
+          throw new AccountDeletionStorageError("chat_image_object_limit_exceeded");
+        }
+        break;
+      }
+      const limit = Math.min(INVENTORY_PAGE_SIZE, INVENTORY_MAX_OBJECTS - objectCount);
+      const data = await listPage(coupleId, limit, offset);
+      for (const item of data) {
+        // 폴더(3단 경로의 사용자 칸)는 여기서 건너뛴다 — 아래 루프가 본다.
+        if (!item || typeof item.name !== "string") continue;
+        if (item.id === null) continue;
+        if (!CHAT_IMAGE_FILE_RE.test(item.name)) continue;
+        const legacyPath = `${coupleId}/${item.name}`;
+        if (seenPaths.has(legacyPath)) continue;
+        seenPaths.add(legacyPath);
+        entries.push({
+          bucket: "chat-image",
+          path: legacyPath,
+          source: provenChatPaths.has(legacyPath) ? "chat_message" : "quarantine",
+          not_before: new Date(now).toISOString(),
+        });
+        objectCount += 1;
+      }
+      if (data.length < limit) break;
+    }
+  }
+
   return entries;
 }
 
@@ -649,7 +782,8 @@ async function deleteManifestRows(
   const totalPending = rows.filter((row) => row.cleaned_at === null).length;
   let processed = 0;
   const removeAndCheckpoint = async (
-    bucket: CommunityDeletionBucket,
+    // 사진 버킷도 지운다 — 매니페스트에 `chat_message` 행이 들어오기 때문이다.
+    bucket: AccountDeletionBucket,
     batch: AccountDeletionManifestRow[],
   ) => {
     const paths = batch.map((row) => row.path);
@@ -657,13 +791,34 @@ async function deleteManifestRows(
     // have removed the object. Exact absence checks below are the boundary.
     await admin.storage.from(bucket).remove(paths);
     for (const row of batch) {
-      const { data: exists, error: existsError } = await admin.storage
+      // **`exists()` 는 정상적인 "없음"에도 오류를 함께 준다.**
+      //
+      // 스테이징 실측(2026-09-02, storage-js 2.103.0):
+      //
+      //     있을 때  exists → { data: true,  error: null }
+      //     없을 때  exists → { data: false, error: { status: 400, "Bad Request" } }
+      //     없을 때  info   → { data: null,  error: { statusCode: "404", "Object not found" } }
+      //
+      // 예전 코드는 `if (existsError) throw` 였다. 그래서 **객체를 지운 직후
+      // 부재를 확인할 때마다** `storage_absence_check_unavailable` 을 던졌고,
+      // 그 코드는 `MANUAL_REVIEW_CODES` 에 없어 재시도로 돌아갔다. 결과:
+      // **파일이 하나라도 있는 계정은 탈퇴가 절대 끝나지 않고**, 크론이 5분마다
+      // 영원히 재시도한다. 커뮤니티 이미지든 채팅 사진이든 같다.
+      //
+      // 저장소에 이미 옳은 술어가 있다(`api/chat/messages/route.ts` 의
+      // `isMissingStorageObject`) — 404 를 "정말 없다" 로, 나머지 오류를
+      // "모르겠다" 로 가른다. 같은 판정을 여기서도 쓴다.
+      //
+      // 이 버그를 테스트가 못 잡은 이유: mock 이 `exists` 를
+      // `{ data: false, error: null }` 로 흉내냈다. **운영이 만드는 입력과
+      // 달랐다.**
+      const { data: info, error: infoError } = await admin.storage
         .from(bucket)
-        .exists(row.path);
-      if (existsError || typeof exists !== "boolean") {
+        .info(row.path);
+      if (infoError && !isMissingStorageObject(infoError)) {
         throw new AccountDeletionStorageError("storage_absence_check_unavailable");
       }
-      if (exists) {
+      if (!infoError && info) {
         throw new AccountDeletionStorageError("storage_delete_unconfirmed");
       }
       const { data: checkpointed, error: checkpointError } = await admin.rpc(
@@ -681,7 +836,12 @@ async function deleteManifestRows(
       processed += 1;
     }
   };
-  for (const bucket of COMMUNITY_DELETION_BUCKETS) {
+  // **사진 버킷도 돈다.** 매니페스트에 `chat_message` 행이 들어오는데 이 루프가
+  // 커뮤니티 버킷만 돌면, 그 행이 `cleaned_at IS NULL` 로 남아
+  // `prepare_account_deletion_auth_delete` 에 걸려 영원히 대기한다.
+  // 격리(`quarantine`)로 남은 사진은 애초에 `manual_review` 로 빠지므로
+  // 여기까지 오지 않는다.
+  for (const bucket of ACCOUNT_DELETION_BUCKETS) {
     const pending = rows.filter((row) =>
       row.bucket === bucket && row.cleaned_at === null
     ).slice(0, Math.max(0, MAX_DELETIONS_PER_RUN - processed));
@@ -849,6 +1009,29 @@ export async function processAccountDeletionJob(
       throw new AccountDeletionStorageError("auth_lookup_invalid");
     }
     if (!authLookup.error && authLookup.data.user) {
+      // **주소를 아는 유일한 순간이 여기다.**
+      //
+      // 가입 이메일은 `auth.users` 에만 있고 바로 다음 줄에서 사라진다. 법이
+      // 요구하는 결과 통지(개인정보 보호법 제36조 2항 · 시행령 제43조 3항)를
+      // 보내려면 지금 옮겨 놓아야 한다. 보관은 통지가 나가면 즉시 끝나고,
+      // "보냈는데 주소가 남는" 상태는 DB CHECK 가 금지한다.
+      //
+      // 실패해도 삭제를 막지 않는다 — 통지 실패로 삭제가 멈추면 사용자는
+      // 지워지지도 않고 연락도 못 받는다. 둘 다 잃는 쪽이 더 나쁘다.
+      const email = authLookup.data.user.email;
+      if (typeof email === "string" && email.length > 0) {
+        await admin
+          .rpc("pin_account_deletion_notice_email", {
+            p_job_id: job.id,
+            p_claim_token: claimToken,
+            p_email: email,
+          })
+          .then(
+            () => undefined,
+            () => undefined,
+          );
+      }
+
       const { error: deleteError } = await admin.auth.admin.deleteUser(job.user_id);
       if (deleteError && !isAuthUserMissing(deleteError)) {
         throw new AccountDeletionStorageError("auth_delete_failed");
@@ -862,6 +1045,12 @@ export async function processAccountDeletionJob(
     if (finalizeError || finalized !== true) {
       throw new AccountDeletionStorageError("finalize_checkpoint_failed");
     }
+
+    // **삭제가 끝난 뒤에 알린다.** 순서가 반대면 "지웠다" 고 말해 놓고 실패할 수
+    // 있다. 통지 실패는 삭제를 되돌리지 않고, 다음 크론이 최대 3회까지 다시
+    // 시도한 뒤 주소를 버린다.
+    await sendAccountDeletionNotice(admin, job.id);
+
     return { status: "completed" };
   } catch (error) {
     const code = error instanceof AccountDeletionStorageError

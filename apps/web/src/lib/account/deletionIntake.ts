@@ -72,6 +72,6 @@ export function isAccountDeletionIntakeOpenOnServer(): boolean {
  */
 export function accountDeletionIntakeSentence(supportEmail: string): string {
   return isAccountDeletionIntakeOpenOnServer()
-    ? "탈퇴는 설정 페이지에서 직접 신청할 수 있습니다. 신청하면 곧바로 삭제 절차가 시작되고, 확인이 필요한 파일이 있으면 운영자가 검토한 뒤 이어서 처리합니다."
+    ? "탈퇴는 설정 페이지에서 직접 신청할 수 있습니다. 신청하면 곧바로 삭제 절차가 시작되고, 확인이 필요한 파일이 있으면 운영자가 검토한 뒤 이어서 처리합니다. 처리가 끝나면 가입하신 이메일로 결과를 알려 드리며, 그 안내를 보내기 위해 삭제 직전에 이메일 주소만 잠시 보관했다가 발송 즉시 지웁니다."
     : `탈퇴는 현재 고객센터(${supportEmail})로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.`;
 }
