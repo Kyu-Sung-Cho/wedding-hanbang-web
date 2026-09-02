@@ -1,3 +1,4 @@
+import { stringToBase64URL } from "@supabase/ssr";
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -6,7 +7,10 @@ const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
 }));
 
-vi.mock("@supabase/ssr", () => ({
+// `createServerClient` 만 갈아끼운다. base64url 헬퍼는 진짜를 써야 한다 —
+// 상한 쿠키 판정이 라이브러리와 어긋나면 테스트가 통과해도 운영은 500 이 난다.
+vi.mock("@supabase/ssr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@supabase/ssr")>()),
   createServerClient: mocks.createServerClient,
 }));
 
@@ -278,5 +282,125 @@ describe("동의 기록이 없는 계정", () => {
       new NextRequest("https://hanbang.ai/wedding/lounge"),
     );
     expect(response.headers.get("location")).toContain("/consent");
+  });
+});
+
+/**
+ * 상한 인증 쿠키 하나가 사이트 전체를 세우던 회귀 (2026-09-02 운영 실측).
+ *
+ * `sb-<ref>-auth-token=base64-garbage` 한 줄이면 `/wedding` 도 `/wedding/community/
+ * post/<uuid>` 도 「화면을 불러오지 못했어요」가 되고, `/api/community/posts*` 는
+ * 500 을 냈다. 쿠키 없이 부르면 200 이라 curl 로만 보면 서버는 멀쩡해 보였다.
+ * 원인과 실측은 `lib/supabase/authCookies.ts` 에 있다.
+ */
+describe("읽을 수 없는 인증 쿠키", () => {
+  const AUTH_TOKEN = "sb-slrtobkksjmxgzatjyqb-auth-token";
+
+  function requestWithBrokenCookie(path: string): NextRequest {
+    const request = new NextRequest(`https://hanbang.ai${path}`);
+    request.cookies.set(AUTH_TOKEN, "base64-garbage");
+    return request;
+  }
+
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    mocks.getUser.mockReset().mockResolvedValue({ data: { user: null } });
+    mocks.createServerClient.mockReset().mockReturnValue({
+      auth: { getUser: mocks.getUser },
+    });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("공개 경로를 그대로 통과시킨다", async () => {
+    const response = await updateSession(requestWithBrokenCookie("/wedding"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+  });
+
+  it("응답에서 그 쿠키를 만료시킨다", async () => {
+    // 지우지 않으면 브라우저가 다음 요청에도 같은 쿠키를 보내고,
+    // 화면의 "다시 시도하기" 는 영원히 같은 결과를 낸다.
+    const response = await updateSession(requestWithBrokenCookie("/wedding"));
+    const cleared = response.cookies.get(AUTH_TOKEN);
+
+    expect(cleared?.value).toBe("");
+    expect(cleared?.maxAge).toBe(0);
+  });
+
+  it("이번 요청의 downstream 에도 그 쿠키를 넘기지 않는다", async () => {
+    // RSC 와 route handler 는 미들웨어가 넘긴 요청 쿠키를 그대로 읽는다.
+    // 여기서 떼어내지 않으면 이번 요청이 그대로 500 이 된다.
+    const request = requestWithBrokenCookie("/wedding");
+
+    await updateSession(request);
+
+    expect(request.cookies.get(AUTH_TOKEN)).toBeUndefined();
+  });
+
+  it("Supabase 클라이언트에 그 쿠키를 보여주지 않는다", async () => {
+    let seenCookieNames: string[] = [];
+    mocks.createServerClient.mockImplementationOnce((_url, _key, options) => ({
+      auth: {
+        getUser: async () => {
+          seenCookieNames = options.cookies
+            .getAll()
+            .map(({ name }: { name: string }) => name);
+          return { data: { user: null } };
+        },
+      },
+    }));
+
+    await updateSession(requestWithBrokenCookie("/wedding/lounge"));
+
+    expect(seenCookieNames).not.toContain(AUTH_TOKEN);
+  });
+
+  it("보호 경로는 500 이 아니라 로그인으로 보낸다", async () => {
+    const response = await updateSession(
+      requestWithBrokenCookie("/wedding/lounge"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?redirect=%2Fwedding%2Flounge",
+    );
+  });
+
+  it("살아 있는 세션 쿠키는 만료시키지 않는다", async () => {
+    const request = new NextRequest("https://hanbang.ai/wedding");
+    request.cookies.set(AUTH_TOKEN, `base64-${stringToBase64URL('{"a":1}')}`);
+
+    const response = await updateSession(request);
+
+    expect(response.cookies.get(AUTH_TOKEN)).toBeUndefined();
+    expect(request.cookies.get(AUTH_TOKEN)?.value).toBeTruthy();
+  });
+});
+
+describe("세션 조회 자체가 던질 때", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    mocks.getUser.mockReset().mockRejectedValue(new Error("auth read failed"));
+    mocks.createServerClient.mockReset().mockReturnValue({
+      auth: { getUser: mocks.getUser },
+    });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("보호 경로가 제목 없는 500 문서가 되지 않는다", async () => {
+    // 던지게 두면 사용자는 로그인할 곳조차 못 찾는다.
+    const response = await updateSession(
+      new NextRequest("https://hanbang.ai/wedding/lounge"),
+    );
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/login?redirect=%2Fwedding%2Flounge",
+    );
   });
 });

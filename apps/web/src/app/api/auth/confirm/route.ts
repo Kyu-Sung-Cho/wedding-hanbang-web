@@ -18,6 +18,7 @@ import {
   getPostLoginRedirectPath,
 } from "@/lib/auth/safeRedirect";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { withoutUnreadableSupabaseCookies } from "@/lib/supabase/authCookies";
 
 /** 비밀번호를 새로 정하러 가는 자리. 세션이 선 뒤에 열린다. */
 const RESET_PASSWORD_PATH = "/reset-password";
@@ -94,8 +95,9 @@ export async function GET(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
+          // 상한 쿠키가 남아 있어도 메일 확인은 되어야 한다 — callback 과 같은 이유.
           getAll() {
-            return cookieStore.getAll();
+            return withoutUnreadableSupabaseCookies(cookieStore.getAll());
           },
           setAll(cookiesToSet) {
             try {

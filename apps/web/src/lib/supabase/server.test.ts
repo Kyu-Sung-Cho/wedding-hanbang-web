@@ -5,7 +5,9 @@ const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
 }));
 
-vi.mock("@supabase/ssr", () => ({
+// base64url 헬퍼는 진짜를 쓴다 — 상한 쿠키 판정이 라이브러리와 갈리면 안 된다.
+vi.mock("@supabase/ssr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@supabase/ssr")>()),
   createServerClient: mocks.createServerClient,
 }));
 
@@ -78,5 +80,30 @@ describe("createClientFromRequest authorization precedence", () => {
     const options = mocks.createServerClient.mock.calls[0][2];
     expect(options.global).toBeUndefined();
     expect(options.cookies.getAll()).toEqual(cookieRows);
+  });
+
+  /**
+   * 상한 인증 쿠키를 그대로 넘기면 `auth.getUser()` 가 던지고, 그 예외가 RSC 밖으로
+   * 나가 화면 전체가 「화면을 불러오지 못했어요」가 된다 (2026-09-02 운영 실측).
+   * 자세한 내용은 `lib/supabase/authCookies.ts`.
+   */
+  it("디코딩되지 않는 인증 쿠키는 Supabase 에 넘기지 않는다", async () => {
+    const cookieStore = {
+      getAll: vi.fn(() => [
+        { name: "sb-slrtobkksjmxgzatjyqb-auth-token", value: "base64-garbage" },
+        { name: "onboarding_complete", value: "true" },
+      ]),
+      set: vi.fn(),
+    };
+    mocks.cookies.mockResolvedValue(cookieStore);
+
+    await createClientFromRequest(
+      new Request("https://hanbang.example/api/community/posts"),
+    );
+
+    const options = mocks.createServerClient.mock.calls[0][2];
+    expect(options.cookies.getAll()).toEqual([
+      { name: "onboarding_complete", value: "true" },
+    ]);
   });
 });

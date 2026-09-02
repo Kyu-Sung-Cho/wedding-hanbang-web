@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { clearDemoCookies } from "@/lib/demoSession";
+import { withoutUnreadableSupabaseCookies } from "@/lib/supabase/authCookies";
 import { resolvePostAuthLanding } from "@/lib/auth/postAuthLanding";
 import {
   getOptionalSameOriginRedirectPath,
@@ -51,8 +52,10 @@ export async function GET(request: Request) {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
+          // 상한 쿠키가 남아 있어도 새 로그인은 되어야 한다. 그대로 넘기면 세션 교환
+          // 자체가 던져서 사용자가 스스로 회복할 수 없다.
           getAll() {
-            return cookieStore.getAll();
+            return withoutUnreadableSupabaseCookies(cookieStore.getAll());
           },
           setAll(cookiesToSet) {
             try {

@@ -2,6 +2,11 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
 
+import {
+  unreadableSupabaseCookieNames,
+  withoutUnreadableSupabaseCookies,
+} from "@/lib/supabase/authCookies";
+
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
   "/lounge", "/dashboard", "/chat", "/budget", "/checklist", "/schedule", "/settings", "/bookings",
@@ -88,7 +93,7 @@ async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
       {
         cookies: {
           getAll() {
-            return request.cookies.getAll();
+            return withoutUnreadableSupabaseCookies(request.cookies.getAll());
           },
           setAll(cookiesToSet) {
             // 토큰이 갱신됐다면 그 쿠키를 리다이렉트 응답에 실어 보내야 한다.
@@ -122,7 +127,35 @@ async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+/**
+ * 상한 인증 쿠키를 요청에서 **먼저** 떼어낸다.
+ *
+ * 아래 `routeSession` 과 그 뒤의 RSC·route handler 는 모두 같은 요청 쿠키를 본다.
+ * 여기서 떼어내지 않으면 이번 요청이 그대로 500 이 되고, 응답에서 지우지 않으면
+ * 브라우저가 다음 요청에도 같은 쿠키를 실어 보내 "다시 시도하기"가 낫지 않는다.
+ * 왜 상하는지와 실측은 `lib/supabase/authCookies.ts` 에 있다.
+ *
+ * 돌려주는 이름들은 만료시켜야 할 쿠키다.
+ */
+function purgeUnreadableAuthCookies(request: NextRequest): string[] {
+  const unreadable = unreadableSupabaseCookieNames(request.cookies.getAll());
+  for (const name of unreadable) request.cookies.delete(name);
+  return [...unreadable];
+}
+
 export async function updateSession(request: NextRequest) {
+  const purgedCookieNames = purgeUnreadableAuthCookies(request);
+  const response = await routeSession(request);
+
+  // 어느 출구로 나가든 상한 쿠키는 함께 지운다. 지우지 않으면 방문자는 로그인도
+  // 로그아웃도 아닌 상태에 갇힌다.
+  for (const name of purgedCookieNames) {
+    response.cookies.set(name, "", { path: "/", maxAge: 0 });
+  }
+  return response;
+}
+
+async function routeSession(request: NextRequest) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
 
@@ -161,7 +194,7 @@ export async function updateSession(request: NextRequest) {
     {
       cookies: {
         getAll() {
-          return request.cookies.getAll();
+          return withoutUnreadableSupabaseCookies(request.cookies.getAll());
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) =>
@@ -176,9 +209,16 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 세션을 못 물어보는 상황은 "인증 실패"로 닫는다. 여기서 던지게 두면 보호 경로가
+  // 제목도 본문도 없는 500 문서가 된다 — 사용자는 로그인할 곳조차 못 찾는다.
+  let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
+  try {
+    ({
+      data: { user },
+    } = await supabase.auth.getUser());
+  } catch {
+    user = null;
+  }
 
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {

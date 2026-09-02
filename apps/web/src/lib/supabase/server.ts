@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 
+import { withoutUnreadableSupabaseCookies } from "@/lib/supabase/authCookies";
 import { parseAuthorizationHeader } from "@/utils/bearerAuthorization";
 
 function createAnonymousClient() {
@@ -24,8 +25,10 @@ export async function createClient() {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       {
         cookies: {
+          // 상한 인증 쿠키를 그대로 넘기면 `auth.getUser()` 가 던지고 RSC 전체가
+          // 실패 경계로 바뀐다 — `lib/supabase/authCookies.ts` 참고.
           getAll() {
-            return cookieStore.getAll();
+            return withoutUnreadableSupabaseCookies(cookieStore.getAll());
           },
           setAll(cookiesToSet) {
             try {
