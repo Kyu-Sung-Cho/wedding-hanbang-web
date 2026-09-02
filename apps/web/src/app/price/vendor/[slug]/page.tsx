@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink, FileCheck2 } from "lucide-react";
 import { cache } from "react";
 
+import { PriceVendorPolicySection } from "@/components/price/PriceVendorPolicySection";
 import { VendorAvatar } from "@/components/price/VendorAvatar";
 import VendorDetailActions from "@/components/vendor-price/VendorDetailActions";
 import { krwRangeLabel } from "@/lib/format/krw";
@@ -77,18 +78,6 @@ const loadProfile = cache((slug: string) =>
 const loadPolicies = cache((vendorIdKey: string) =>
   loadPublicVendorPolicies(createPublicClient(), vendorIdKey.split(","))
 );
-
-// 원문 그대로 보여주되 종류만 라벨링한다 — 요약·해석은 판정이 되므로 하지 않는다.
-const POLICY_SECTION_LABELS: Record<string, string> = {
-  penalty: "위약금",
-  refund: "환불",
-  refund_policy: "환불",
-  change: "일정 변경",
-};
-
-function policySectionLabel(semanticType: string): string {
-  return POLICY_SECTION_LABELS[semanticType] ?? "기타 계약 조건";
-}
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
   if (isPreviewStubMode()) return [];
@@ -304,10 +293,6 @@ export default async function VendorPricePage({
   // 위약금·환불은 계약 직전에 가장 알고 싶은 정보다. 뷰가 아직 없으면 로더가
   // 빈 배열을 돌려주므로 페이지는 그대로 뜬다.
   const policies = await loadPolicies(profile.identity.vendorIds.join(","));
-  // 같은 문구는 로더가 이미 합친다 — 남은 공시의 대행사 수가 곧 "서로 다른 문구"의 수다.
-  const policyAgencyCount = new Set(
-    policies.flatMap((policy) => (policy.sourceAgency ? [policy.sourceAgency] : [])),
-  ).size;
   const categoryLabel = CATEGORY_LABELS[profile.vendor.category] ?? profile.vendor.category;
   const regionQuery = activeRegionCode
     ? `?region=${encodeURIComponent(activeRegionCode)}`
@@ -525,44 +510,9 @@ export default async function VendorPricePage({
           </section>
         ) : null}
 
-        {policies.length > 0 ? (
-          <section aria-labelledby="policy-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
-            <h2 id="policy-heading" className="text-2xl font-bold">계약 전 확인 · 위약금과 환불</h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]/85">
-              업체가 공시한 원문 그대로예요. 웨딩한방이 요약하거나 해석하지 않았고,
-              계약 시점·조건에 따라 달라질 수 있으니 계약서에 같은 내용이 적혀 있는지 꼭 확인하세요.
-            </p>
-            {/* 문구가 같은 공시는 이미 하나로 합쳐 보여준다. 그래서 여러 장이 남았다는
-                건 곧 대행사마다 문구가 다르다는 사실이다 — 해석이 아니라 관찰이다.
-                실측(2026-07-26)에서 같은 샵인데 대행사에 따라 60일 전 위약금이
-                20%와 100%로 갈리는 경우까지 있었다. 왜 여러 장인지 모르면 그냥
-                스크롤로 지나친다. */}
-            {policyAgencyCount >= 2 ? (
-              <p className="mt-3 rounded-[6px] bg-[#FDE5E2] px-4 py-3 text-sm font-semibold leading-6 text-[#8F5150]">
-                이 업체는 대행사 {policyAgencyCount}곳이 서로 다른 문구로 공시했어요.
-                계약할 대행사의 조건을 직접 비교해 보세요.
-              </p>
-            ) : null}
-            <ul className="mt-5 space-y-3">
-              {policies.map((policy) => (
-                <li key={policy.id} className="rounded-[6px] border border-[#8F6662]/25 bg-[var(--hb-surface-page)] px-5 py-4">
-                  <p className="text-xs font-bold text-[#8F5150]">
-                    {policySectionLabel(policy.semanticType)}
-                    {policy.sourceAgency ? (
-                      <span className="ml-2 font-semibold text-[var(--hb-text-strong)]/60">{policy.sourceAgency} 공시</span>
-                    ) : null}
-                  </p>
-                  {policy.title ? (
-                    <p className="mt-1 text-sm font-bold text-[var(--hb-text-strong)]">{policy.title}</p>
-                  ) : null}
-                  <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[var(--hb-text-strong)]/85">
-                    {policy.contentVerbatim}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
+        {/* 원문이 없어도 렌더한다 — 조용한 빈자리는 "공시가 없다"와 "고장났다"를
+            구분할 수 없게 만든다. 판단은 컴포넌트가 갖는다. */}
+        <PriceVendorPolicySection policies={policies} categoryLabel={categoryLabel} />
 
         <section aria-labelledby="price-faq-heading" className="border-t border-[var(--hb-primary)]/15 py-8 sm:py-10">
           <h2 id="price-faq-heading" className="text-2xl font-bold">공시 가격 FAQ</h2>
