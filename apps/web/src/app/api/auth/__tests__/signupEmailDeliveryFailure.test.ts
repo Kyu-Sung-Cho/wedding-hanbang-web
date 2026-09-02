@@ -104,12 +104,16 @@ describe("인증 메일이 나가지 못했을 때", () => {
   });
 
   /**
-   * 환경변수에 값을 붙여 넣을 때 끝에 줄바꿈이 따라오는 것은 아주 흔하다. 그런데
-   * SDK 는 값이 있기만 하면 검사하지 않고 `Bearer <값>` 을 만들어 보내고, 제공자는
-   * "API key is invalid" 로 거절한다. 그 한 글자 때문에 가입이 전부 막힌다.
+   * SDK 는 값이 있기만 하면 검사하지 않고 `Bearer <값>` 을 만든다. 어떤 지저분함이
+   * 실제로 요청을 망가뜨리는지는 관측해서 확인했다 —
+   * `lib/email/__tests__/apiKeyReachesProvider.test.ts` 가 그 표를 들고 있다.
+   *
+   * 요약: **앞쪽** 공백과 값 안쪽의 이물질이 위험하고, 뒤쪽 공백·줄바꿈은 Node 의
+   * `Headers` 가 이미 지워 주므로 무해하다. 그래서 다듬는 것은 앞쪽 사고를 고치는
+   * 일이고, 안쪽 이물질은 보내기 전에 막아야 하는 일이다.
    */
   describe("자격 문자열이 지저분할 때", () => {
-    it("앞뒤 공백과 줄바꿈은 없애고 보낸다", async () => {
+    it("앞뒤 공백을 없애고 보낸다", async () => {
       vi.stubEnv("RESEND_API_KEY", "  re_real_key\n");
 
       const response = await signup(signupRequest());

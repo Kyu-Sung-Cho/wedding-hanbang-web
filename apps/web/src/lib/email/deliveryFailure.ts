@@ -105,21 +105,31 @@ const FAILURES: Record<EmailDeliveryFailureKind, EmailDeliveryFailure> = {
  *
  * ## 왜 다듬어서 쓰는가
  *
- * SDK 를 직접 실행해 확인한 것(2026-09-02, resend 6.10.0):
+ * SDK 는 값을 **검사하지도 다듬지도 않는다.** 직접 실행해 확인했다
+ * (2026-09-02, resend 6.10.0):
  *
- *     new Resend(undefined) → throws "Missing API key..."
- *     new Resend("")        → throws
- *     new Resend("   ")     → **던지지 않는다.** key="   " 그대로 들고 간다
+ *     new Resend(undefined)   → throws "Missing API key..."
+ *     new Resend("")          → throws
+ *     new Resend("   ")       → **던지지 않는다.** key="   " 를 그대로 들고 간다
  *     new Resend("not-a-key") → 던지지 않는다
  *
- * 즉 값이 있기만 하면 SDK 는 그대로 `Authorization: Bearer <값>` 을 만든다. 값에
- * 줄바꿈이나 공백이 섞여 있으면 제공자는 "API key is invalid" 로 거절하고, 가입은
- * 원인 모를 502 로 끝난다. 환경변수에 값을 붙여 넣을 때 끝에 줄바꿈이 따라오는
- * 것은 아주 흔한 일이고, 그 한 글자 때문에 가입이 전부 막힌다.
+ * 값이 있기만 하면 그대로 `Authorization: Bearer <값>` 이 된다. 그런데 그 뒤에
+ * Node 의 `Headers` 가 한 번 더 손을 대므로, 어떤 지저분함이 실제로 요청을 망가뜨리는지
+ * 는 직관과 다르다. 로컬 서버로 **제공자가 받는 헤더를 직접 관측**한 결과
+ * (`__tests__/apiKeyReachesProvider.test.ts` 가 이 표를 고정한다):
  *
- * 그래서 앞뒤 공백은 **여기서 없앤다.** 유효한 키에 앞뒤 공백이 의미를 갖는
- * 경우는 없으므로 이 정리는 무엇도 깨뜨리지 않고, 흔한 설정 실수 하나를 실제로
- * 고친다.
+ *     "re_x"        → "Bearer re_x"     그대로
+ *     "re_x\n"      → "Bearer re_x"     Node 가 뒤쪽 공백을 지운다 — 무해하다
+ *     "re_x\r\n"    → "Bearer re_x"     무해하다
+ *     "re_x "       → "Bearer re_x"     무해하다
+ *     "  re_x"      → "Bearer   re_x"   **망가진다** (가운데 공백이 남는다)
+ *     "re_ x"       → "Bearer re_ x"    **망가진다**
+ *     "\"re_x\""    → "Bearer \"re_x\"" **망가진다**
+ *     "re_\nx"      → Headers.append 가 **던진다**
+ *
+ * 즉 위험한 것은 **앞쪽** 공백과 값 안쪽의 이물질이다. 뒤쪽 공백은 이미 무해하다.
+ * 그래서 이 함수는 앞뒤를 다듬어 **앞쪽 공백 사고를 실제로 고치고**, 안쪽 이물질은
+ * 아래 `isUnusableApiKey` 가 보내기 전에 잡는다.
  */
 export function readEmailDeliveryApiKey(): string | null {
   const raw = process.env.RESEND_API_KEY;
@@ -133,7 +143,9 @@ export function readEmailDeliveryApiKey(): string | null {
  *
  * 앞뒤를 정리한 **뒤에도** 공백·제어문자가 남아 있거나 따옴표로 싸여 있으면 그것은
  * 설정이 상한 것이다 — 어떤 형식의 API 키도 그런 문자를 품지 않는다. 그대로 보내면
- * 제공자가 거절하고, 그 전에 이미 계정이 만들어져 있다.
+ * 제공자가 거절하고(`"Bearer re_ x"`), 줄바꿈이면 `Headers.append` 가 던져 사용자에게
+ * "회원가입 처리 중 오류"라는 엉뚱한 500 이 간다. 어느 쪽이든 그 전에 이미 계정이
+ * 만들어져 있다 — 인증할 수단이 없는 계정만 남는다.
  *
  * **접두사(`re_`)로는 판정하지 않는다.** 제공자가 키 형식을 바꾸면 이 검사가 유효한
  * 키를 막아 가입을 통째로 세우게 된다 — 고치려던 것보다 큰 사고를 우리가 만드는 셈이다.
