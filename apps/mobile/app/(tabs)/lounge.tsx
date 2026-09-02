@@ -12,6 +12,7 @@ import {
   isOnlyStageSuggestion,
   PREPARATION_STAGE_PROGRESS_KEY,
   PREPARATION_STAGE_VALUES,
+  repairMojibake,
   resolvePlanningChecklistStatus,
   shouldShowFirstRunTutorial,
   WEDDING_STYLE_OPTIONS,
@@ -558,7 +559,9 @@ export default function DashboardScreen() {
       const todayTasks = events
         .filter((event) => isActiveScheduleEvent(event) && event.date === todayKey)
         .map((event) => ({
-          title: event.title,
+          // 예전에 잘못 읽혀 저장된 한글을 되돌린다. 바이트 왕복으로 검증된
+          // 경우에만 바뀌므로 멀쩡한 제목은 그대로 통과한다.
+          title: repairMojibake(event.title),
           categoryKey: event.categoryKey ?? "",
         }));
       const weddingDate = journey.wedding_date ?? null;

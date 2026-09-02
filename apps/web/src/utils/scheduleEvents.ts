@@ -4,6 +4,8 @@ import type {
   ScheduleEventCancellation,
   ScheduleEventStatus,
 } from "@/types/database.types";
+import { repairMojibake } from "@hanbang/shared";
+
 export { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 
 const EVENTS_KEY = "__events";
@@ -313,6 +315,35 @@ export type ScheduleEventInspection = {
   truncatedCount: number;
 };
 
+/** 되돌리기를 통과시키는 사용자 글. 나머지 필드는 기계가 쓴 값이라 손대지 않는다. */
+const REPAIRABLE_EVENT_TEXT_FIELDS = ["title", "memo", "completionCriteria"] as const;
+
+/**
+ * 예전에 잘못 읽혀 저장된 한글을 화면에 나가기 전에 되돌린다.
+ *
+ * 여기(읽는 자리)에 두는 이유가 있다. 라운지·일정·채팅 옆판이 모두 이 함수를
+ * 거쳐 일정을 꺼내므로, 한 곳만 고치면 세 화면이 같이 고쳐진다. 그리고 되돌리기가
+ * **바이트 왕복으로 검증된 경우에만** 일어나므로 멀쩡한 제목은 그대로 통과한다.
+ *
+ * 이 함수는 저장을 하지 않는다. 다만 이 목록을 그대로 다시 저장하는 경로
+ * (`getEventsForMutation` → `saveProgress`)를 지나면 되돌린 값이 함께 저장돼
+ * 그 행은 다음부터 깨끗해진다.
+ */
+function repairScheduleEventText(event: ScheduleEvent): ScheduleEvent {
+  let repaired: ScheduleEvent | null = null;
+
+  for (const field of REPAIRABLE_EVENT_TEXT_FIELDS) {
+    const current = event[field];
+    if (typeof current !== "string" || current.length === 0) continue;
+    const next = repairMojibake(current);
+    if (next === current) continue;
+    repaired = repaired ?? { ...event };
+    repaired[field] = next;
+  }
+
+  return repaired ?? event;
+}
+
 export function inspectScheduleEvents(
   progress: Record<string, unknown>,
 ): ScheduleEventInspection {
@@ -328,7 +359,9 @@ export function inspectScheduleEvents(
   const bounded = raw.slice(0, MAX_SCHEDULE_EVENTS);
   const events = bounded.filter(isScheduleEvent);
   return {
-    events,
+    // 되돌리기는 검증 **뒤**에 온다. 되돌린 글자는 언제나 원본보다 짧으므로
+    // (라틴 세 글자 → 한글 한 글자) 길이 제한을 새로 넘길 수 없다.
+    events: events.map(repairScheduleEventText),
     malformedContainer: false,
     rejectedCount: bounded.length - events.length,
     truncatedCount: Math.max(0, raw.length - MAX_SCHEDULE_EVENTS),
