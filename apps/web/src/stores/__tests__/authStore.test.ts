@@ -141,6 +141,18 @@ describe("useAuthStore", () => {
         expect(useAuthStore.getState().initError).toBe("network");
       });
 
+      it("서버 오류는 로그아웃이 아니다", async () => {
+        // `/api/auth/me` 가 5xx 를 준 것은 "로그인하지 않았다"가 아니라 "확인하지
+        // 못했다"다. 로그아웃으로 처리하면 서버가 방금 세션을 확인해 들여보낸
+        // 사람에게 손님 화면을 보여준다 — 준비한 내용이 사라진 것처럼 보인다.
+        mockFetch.mockResolvedValue({ ok: false, status: 500 });
+
+        await useAuthStore.getState().initialize();
+
+        expect(useAuthStore.getState().initError).toBe("network");
+        expect(useAuthStore.getState().isLoading).toBe(false);
+      });
+
       it("로그인하지 않은 사람은 실패가 아니다", async () => {
         // 401 은 답이 오지 않은 게 아니라 답이 온 것이다. 여기에 실패 화면을
         // 띄우면 손님으로 둘러보려던 사람이 오류를 만난다.
