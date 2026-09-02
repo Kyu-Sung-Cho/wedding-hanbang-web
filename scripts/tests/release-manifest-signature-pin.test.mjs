@@ -44,7 +44,12 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 이 값을 바꾸는 커밋은 반드시 Vercel 서명 교체와 짝이다. 짝 없이 바꾸면 그 순간부터
  * 프로덕션 배포가 전부 막히고, 사이트는 직전 빌드를 계속 서비스해서 멀쩡해 보인다.
  *
- * 마지막 확인: 2026-08-27 (마이그레이션 101건).
+ * 마지막 확인: 2026-09-02 (마이그레이션 102건).
+ *
+ * 2026-09-02: `20260902090000_hall_document_penalty_reaches_the_public_view.sql` 을
+ * 등록하면서 바뀌었다. **Vercel Production 의
+ * `VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION` 을 아래 값으로 바꾸기 전까지
+ * 프로덕션 배포가 전부 막힌다** — 이 커밋만 되돌리면 나머지 변경은 그대로 배포된다.
  *
  * 2026-08-27: `20260827090000_move_card_can_name_what_it_moves.sql` 을 등록하면서
  * 바뀌었다. Vercel Production 의 `VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION` 도
@@ -61,7 +66,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 펜스는 next build 앞에서 정확히 일치할 때만 통과하기 때문이다.
  */
 const EXPECTED_SIGNATURE =
-  "2a507463c0b36b40849c95f8119c92aee9d9d6cb2fed5916a9e8672ebaac56fe";
+  "0a83e25cb34b3d60be424ca298ac6644bb28b41cf7bbba76504a05c1c6a9eff8";
 
 test("측정기가 살아 있다", () => {
   const actual = expectedProductionAuthorizationSha256(repoRoot);

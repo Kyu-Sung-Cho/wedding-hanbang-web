@@ -412,6 +412,10 @@
     {
       "file": "20260827090000_move_card_can_name_what_it_moves.sql",
       "sha256": "574a238ecd0b26ba0c736ca78b9dc2961e6fa3cc1fc871dbadafc1809e507acd"
+    },
+    {
+      "file": "20260902090000_hall_document_penalty_reaches_the_public_view.sql",
+      "sha256": "f88ea90388220687f5faa1a661d295360b95bf7635144c2a91506a1a9d64afdc"
     }
   ],
   "deploymentEvidence": {
