@@ -333,6 +333,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       if (initializeSequence !== authInitializeSequence) return;
+
+      // 5xx 는 "로그인하지 않았다"가 아니라 "확인하지 못했다"다.
+      //
+      // 이것을 로그아웃으로 처리하면, 서버가 방금 세션을 확인해 들여보낸 사람에게
+      // 손님 화면을 보여주게 된다 — 준비한 내용이 다 사라진 것처럼 보인다.
+      // 응답이 아예 안 온 경우(아래 catch)와 같은 취급을 한다.
+      if (res.status >= 500 && !isDemoMode()) {
+        set({ isLoading: false, isInitialized: true, initError: "network" });
+        return;
+      }
+
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
         journeyWriteSequence += 1;
