@@ -70,3 +70,32 @@ export function formatRoomLabel(year: number, month: number): string {
   if (isFlexibleCohort(year, month)) return FLEX_COHORT_SHORT_LABEL;
   return formatYearQuarter(year, monthToQuarter(month));
 }
+
+/**
+ * 오늘부터 앞으로 오는 분기 넷의 이름.
+ *
+ * 2026-09-02 실측 — 랜딩이 `["2026년 1분기 …", … "2026년 4분기 …"]` 를 고정
+ * 배열로 내걸고 있었다. 9월에 처음 온 사람이 **이미 끝난 결혼식의 방 이름** 둘을
+ * 읽고, 정작 자기가 갈 2027년 방은 목록에 없었다. 시간이 갈수록 더 틀려지는데
+ * 알려 주는 것이 없었다.
+ *
+ * 현재 분기를 포함해서 세는 이유: 9월에 준비를 시작하는 사람도 그해 3분기에
+ * 결혼할 수 있다. 지나간 분기만 빼면 된다.
+ */
+export function upcomingWeddingQuarterLabels(
+  now: Date = new Date(),
+  count = 4,
+): string[] {
+  const { year, quarter } = dateToYearQuarter(now);
+  const months: Record<1 | 2 | 3 | 4, string> = {
+    1: "1~3월", 2: "4~6월", 3: "7~9월", 4: "10~12월",
+  };
+  const out: string[] = [];
+  let y = year;
+  let q = quarter;
+  for (let i = 0; i < count; i += 1) {
+    out.push(`${y}년 ${q}분기 (${months[q]})`);
+    if (q === 4) { q = 1; y += 1; } else { q = (q + 1) as 1 | 2 | 3 | 4; }
+  }
+  return out;
+}
