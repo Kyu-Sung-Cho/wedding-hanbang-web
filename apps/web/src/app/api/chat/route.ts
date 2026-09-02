@@ -46,7 +46,7 @@ import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
 import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGate";
 import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { logAIInteractionAfterResponse, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import {
   extractMediation,
   mediationBlockToOrdinaryText,
@@ -3766,7 +3766,7 @@ export async function POST(request: Request) {
             }
 
             // D1: 성공 turn 로깅 (fire-and-forget)
-            if (!isDemo) void logAIInteraction({
+            if (!isDemo) logAIInteractionAfterResponse({
               userId: actorId,
               coupleId,
               interactionType: "chat_turn",
@@ -4233,7 +4233,7 @@ export async function POST(request: Request) {
         }
 
         // D1: MAX_TOOL_ROUNDS 초과 후 성공 turn 로깅 (fire-and-forget)
-        if (!isDemo) void logAIInteraction({
+        if (!isDemo) logAIInteractionAfterResponse({
           userId: actorId,
           coupleId,
           interactionType: "chat_turn",
@@ -4332,7 +4332,7 @@ export async function POST(request: Request) {
         });
 
         // D1: 실패 turn 로깅 (fire-and-forget)
-        if (!isDemo) void logAIInteraction({
+        if (!isDemo) logAIInteractionAfterResponse({
           userId: actorId,
           coupleId,
           interactionType: "chat_turn",
