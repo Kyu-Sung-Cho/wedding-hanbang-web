@@ -1,4 +1,7 @@
-import { hasAmoraExplanatoryContinuityCue } from "@/lib/ai/amoraBoundedContinuity";
+import {
+  hasAmoraExplanatoryContinuityCue,
+  hasAmoraOtherDomainTopicSignal,
+} from "@/lib/ai/amoraBoundedContinuity";
 import {
   classifyAmoraQuestionScope,
   hasAmoraSafetySignal,
@@ -353,6 +356,17 @@ export function resolveAmoraWeddingClarificationContinuity<
       break;
     }
     if (hop >= MAX_CLARIFICATION_HOPS) return null;
+    // **2홉부터는 화제가 바뀌면 멈춘다.**
+    //
+    // 2026-09-02 에 읽기 창을 3행에서 넓은 창으로 되돌리면서 함께 얹는다. 그
+    // 복구로 2·3홉이 운영에서 처음 돌기 시작하는데, 멀리 거슬러 올라갈수록
+    // "아직 그 주제에 답하는 중" 이라는 주장이 약해지기 때문이다.
+    //
+    // **1홉은 오늘과 완전히 같다.** 여기는 이미 한 홉을 지나 두 홉째로 올라가려는
+    // 자리이므로, 오늘 이어지던 것이 이 줄 때문에 끊기는 일은 없다. 새 어휘를
+    // 만들지 않고 이미 배포된 `OTHER_DOMAIN_TOPIC_PATTERN` 을 그대로 쓴다 —
+    // 새 목록을 만들면 그 목록이 또 썩는다.
+    if (hasAmoraOtherDomainTopicSignal(currentUserText)) return null;
     // 한 쌍 더 위로. 이 답변(`priorUser`)도 되묻기의 답이었는지 확인한다.
     const index = rawOldestFirstRows.indexOf(priorUser);
     if (index < 2) return null;

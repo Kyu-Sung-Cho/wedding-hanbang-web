@@ -46,6 +46,8 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  *
  * 마지막 확인: 2026-08-27 (마이그레이션 101건).
  *
+ * 2026-09-02: `20260902120000_leaving_does_not_erase_the_partner_memory.sql` 을
+ * 등록하면서 다시 바뀌었다(한 사람이 떠나도 배우자 기억이 남게 하는 트리거).
  * 2026-08-27: `20260827090000_move_card_can_name_what_it_moves.sql` 을 등록하면서
  * 바뀌었다. Vercel Production 의 `VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION` 도
  * 같은 값으로 함께 바꿨다.
@@ -61,7 +63,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 펜스는 next build 앞에서 정확히 일치할 때만 통과하기 때문이다.
  */
 const EXPECTED_SIGNATURE =
-  "2a507463c0b36b40849c95f8119c92aee9d9d6cb2fed5916a9e8672ebaac56fe";
+  "bb87d15732233baa330aedd85e8329d2c4247c96af7ef94289512e5a004200e2";
 
 test("측정기가 살아 있다", () => {
   const actual = expectedProductionAuthorizationSha256(repoRoot);

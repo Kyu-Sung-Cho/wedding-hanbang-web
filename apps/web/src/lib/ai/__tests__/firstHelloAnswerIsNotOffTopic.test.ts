@@ -127,11 +127,15 @@ describe("라우트가 첫마디 구제를 실제로 넘긴다", () => {
   });
 
   it("범위 판정이 그 플래그를 읽는다", () => {
-    const consumed = source
-      .replace(/\s+/g, " ")
-      .includes(
-        "hasWeddingClarificationContinuity: Boolean(weddingClarificationContinuity) || firstHelloAnswered",
-      );
-    expect(consumed).toBe(true);
+    // 지키려는 계약: `hasWeddingClarificationContinuity` 는 되묻기 연속성 값
+    // **또는** 첫마디 플래그에서 온다. 어느 쪽도 빠지면 안 된다.
+    //
+    // 2026-09-02: 읽기 창 복구로 그 값이 폴백을 포함하게 되면서 변수 이름이
+    // `…WithFallback` 이 됐고, 문자열 완전일치라 계약이 그대로인데 빨간불이 났다.
+    // 그래서 **이름의 앞부분**만 묶는다 — 무관한 값으로 갈아치우는 것은 여전히
+    // 잡고, 같은 값의 이름이 길어지는 것은 안 잡는다.
+    expect(source.replace(/\s+/g, " ")).toMatch(
+      /hasWeddingClarificationContinuity: Boolean\(weddingClarificationContinuity\w*\) \|\| firstHelloAnswered/,
+    );
   });
 });

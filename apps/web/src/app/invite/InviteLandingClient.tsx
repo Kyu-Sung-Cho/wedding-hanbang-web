@@ -13,6 +13,19 @@ import { rememberPendingCoupleInviteCode } from "@/lib/couples/pendingInvite";
 const ONBOARDING_PATH = "/wedding/onboarding";
 
 /**
+ * 모바일 앱을 **오늘 설치할 수 있는가.**
+ *
+ * 기본값은 꺼짐이다. 2026-09-02 실측 — Play 404 · App Store 검색 0건 ·
+ * iOS 빌드 이력 0건. 없는 앱으로 보내는 버튼은 초대받은 사람이 **처음 보는
+ * 화면**에서 막다른 길을 만든다.
+ *
+ * 앱이 스토어에 올라가는 날 `NEXT_PUBLIC_MOBILE_APP_AVAILABLE=true` 하나로
+ * 버튼과 안내 문장이 함께 돌아온다. `NEXT_PUBLIC_` 값은 빌드 시점에 박히므로
+ * env 만 바꾸지 말고 **재배포**해야 한다.
+ */
+const MOBILE_APP_AVAILABLE = process.env.NEXT_PUBLIC_MOBILE_APP_AVAILABLE === "true";
+
+/**
  * 주소창의 `#` 뒤에서 코드를 읽어 보여준다. 서버는 이 값을 모른다.
  *
  * 세 갈래를 준비한다:
@@ -157,7 +170,16 @@ export default function InviteLandingClient() {
           >
             웹에서 계속하기
           </Button>
-          {appLink ? (
+          {/* 2026-09-02: 앱이 **두 스토어 어디에도 없다**(Play 404 · App Store
+              0건 · iOS 빌드 이력 0건). 위 주석이 2026-08-24 에 바로 그 이유로
+              기본 버튼을 웹으로 바꿨는데, 보조 버튼과 아래 문장은 남아 있었다.
+              그래서 초대받은 사람이 iOS 에서는 "주소가 유효하지 않습니다",
+              안드로이드에서는 무반응을 계속 받고 있었다.
+
+              코드를 지우지 않고 플래그 뒤로 옮긴다 — 앱을 내는 날 env 하나로
+              돌아온다. 딥링크를 만드는 `buildCoupleInviteAppLink` 도 그대로 둔다
+              (모바일 앱 자신이 쓴다). */}
+          {appLink && MOBILE_APP_AVAILABLE ? (
             <Button variant="secondary" fullWidth href={appLink}>
               앱에서 열기
             </Button>
@@ -165,8 +187,9 @@ export default function InviteLandingClient() {
         </div>
 
         <p className="mt-5 text-[12px] leading-5 text-[#8b857c]">
-          웹에서 바로 시작할 수 있어요. 앱을 이미 쓰고 계시면 &lsquo;앱에서
-          열기&rsquo;로 같은 계정에서 이어집니다.
+          {appLink && MOBILE_APP_AVAILABLE
+            ? "웹에서 바로 시작할 수 있어요. 앱을 이미 쓰고 계시면 ‘앱에서 열기’로 같은 계정에서 이어집니다."
+            : "웹에서 바로 시작할 수 있어요."}
         </p>
       </div>
     </main>

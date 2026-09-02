@@ -412,6 +412,10 @@
     {
       "file": "20260827090000_move_card_can_name_what_it_moves.sql",
       "sha256": "574a238ecd0b26ba0c736ca78b9dc2961e6fa3cc1fc871dbadafc1809e507acd"
+    },
+    {
+      "file": "20260902120000_leaving_does_not_erase_the_partner_memory.sql",
+      "sha256": "a769396d614c4fc1bb31e97c289fac7afea0dfa259f18bd64293a75cc9f0223e"
     }
   ],
   "deploymentEvidence": {

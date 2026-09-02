@@ -1,3 +1,5 @@
+import { upcomingWeddingQuarterLabels } from "@/utils/quarter";
+
 /**
  * 랜딩 카피 정본.
  *
@@ -230,7 +232,12 @@ export const landingContent = {
     body:
       "결혼식 분기별로 동기방이 나뉘어 있어요. "
       + "견적·계약처럼 검색으로는 잘 안 나오는 이야기부터 모으고 있어요.",
-    cohorts: ["2026년 1분기 (1~3월)", "2026년 2분기 (4~6월)", "2026년 3분기 (7~9월)", "2026년 4분기 (10~12월)"],
+    // **읽을 때 계산한다.** 고정 배열이던 시절, 9월에 온 사람이 이미 끝난
+    // 결혼식의 방 이름 둘을 읽고 정작 자기가 갈 방은 못 봤다(2026-09-02 실측).
+    // 게터라 `community.cohorts` 라는 모양은 그대로다.
+    get cohorts(): string[] {
+      return upcomingWeddingQuarterLabels();
+    },
     topicsLead: "이런 이야기를 모으고 있어요",
     topics: ["견적·계약", "업체 경험", "준비 노하우", "선배에게 묻기", "가족·관계"],
     note: "로그인 없이 읽을 수 있어요. 글을 쓰려면 계정이 필요해요.",

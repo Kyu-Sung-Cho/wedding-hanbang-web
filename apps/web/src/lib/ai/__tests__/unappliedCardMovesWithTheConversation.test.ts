@@ -110,9 +110,13 @@ describe("라우트가 실제로 옮긴다", () => {
   });
 
   it("새 표식이 없을 때 대기 중인 카드를 붙인다", () => {
+    // 2026-09-02: 이월에 **끝**을 넣었다(범위 W0/W1 + 연속 2턴). 운영에서 카드
+    // 하나가 무관한 답변 8개를 43분간 따라다녔기 때문이다. 이월 자체는 그대로
+    // 살아 있어야 하므로 여기서 계속 고정하되, 관문이 붙은 형태를 받는다.
+    // 관문의 내용은 `scripts/tests/pending-card-carry-has-limits.test.mjs` 가 본다.
     const collapsed = source.replace(/\s+/g, " ");
     expect(collapsed).toContain(
-      ": awaitingPendingCard ? { pending_amora_action: awaitingPendingCard,",
+      ": awaitingPendingCard && shouldCarryPendingCard ? { pending_amora_action: awaitingPendingCard,",
     );
   });
 
