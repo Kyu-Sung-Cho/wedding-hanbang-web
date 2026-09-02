@@ -1,3 +1,5 @@
+import { repairMojibake } from "@hanbang/shared";
+
 import type {
   AmoraActionPriority,
   AmoraActionSource,
@@ -36,6 +38,12 @@ function isAction(value: unknown): value is AmoraActionItem {
 export function normalizeAmoraAction(item: AmoraActionItem): AmoraActionItem {
   return {
     ...item,
+    // `amora_actions` 표와 legacy `progress.__amora_actions` 가 모두 이 함수를
+    // 지나므로 두 출처가 같이 고쳐진다. 바이트 왕복으로 검증된 경우에만 바뀐다.
+    title: repairMojibake(item.title),
+    ...(typeof item.description === "string"
+      ? { description: repairMojibake(item.description) }
+      : {}),
     priority: item.priority ?? "medium",
     status: item.status ?? "open",
     source: item.source ?? "chat",

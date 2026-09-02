@@ -14,6 +14,7 @@ import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
 } from "@hanbang/shared";
+import { repairMojibake, repairMojibakeDeep } from "@hanbang/shared";
 import {
   createEmptyAmoraChatLaneRecord,
   resolveAmoraChatLane,
@@ -674,14 +675,15 @@ function chatMessageFromRealtimeRow(value: unknown): ChatMessage | null {
     || !visibility
   ) return null;
 
-  const metadata = asChatMessageMetadata(row.metadata);
+  // 기록 적재와 실시간 수신이 모두 이 함수를 지난다(웹은 `dbRowToMessage`).
+  const metadata = repairMojibakeDeep(asChatMessageMetadata(row.metadata));
   return {
     id: row.id,
     couple_id: row.couple_id,
     sender_id: row.sender_id,
     role: row.role as ChatMessage["role"],
     sender_type: row.sender_type as ChatMessage["sender_type"],
-    content: row.content,
+    content: repairMojibake(row.content),
     metadata,
     created_at: row.created_at,
     visibility,

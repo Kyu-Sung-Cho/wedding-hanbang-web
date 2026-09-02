@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { repairMojibake } from "@hanbang/shared";
 import { log } from "@/utils/log";
 import { evaluateSavedNoteSource } from "@/lib/amora/savedNoteSource";
 
@@ -142,8 +143,8 @@ export async function GET(req: NextRequest) {
     const notes = ((data ?? []) as SavedNoteRow[]).map((row) => ({
       id: row.id,
       messageId: row.message_id,
-      content: row.content,
-      memo: row.memo,
+      content: repairMojibake(row.content),
+      memo: row.memo === null ? null : repairMojibake(row.memo),
       savedByMe: row.saved_by === user.id,
       createdAt: row.created_at,
     }));

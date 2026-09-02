@@ -16,6 +16,7 @@ import {
   sanitizeUserFacingScheduleMemo,
   daysUntilWedding,
   readableTextOr,
+  repairMojibakeDeep,
 } from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
@@ -230,7 +231,9 @@ function displayEventTitle(event: ScheduleEvent): string {
   return readableTextOr(event.title, UNREADABLE_EVENT_TITLE);
 }
 
-function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
+function normalizeScheduleEvent(input: unknown): ScheduleEvent | null {
+  // 검증보다 먼저 되돌린다 — 웹 `scheduleEvents.ts` 에 같은 이유를 적어 뒀다.
+  const event = repairMojibakeDeep(input);
   if (
     !isRecord(event)
     || typeof event.id !== "string"

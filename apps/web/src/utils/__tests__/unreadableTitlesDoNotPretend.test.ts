@@ -3,7 +3,9 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { isUnreadableText, readableTextOr } from "@hanbang/shared";
+import { diagnoseStoredText, isUnreadableText, readableTextOr } from "@hanbang/shared";
+import { getEvents } from "@/utils/scheduleEvents";
+import { normalizeAmoraAction } from "@/lib/amora/actions";
 import { UNREADABLE_EVENT_TITLE, scheduleEventDisplayTitle } from "@/utils/scheduleEvents";
 import type { ScheduleEvent } from "@/types/database.types";
 
@@ -108,5 +110,80 @@ describe("대화 말풍선은 안내문으로 바꿔치지 않는다", () => {
     expect(store).not.toContain("읽지 못한");
     expect(store).not.toContain("isUnreadableText");
     expect(store).not.toContain("readableTextOr");
+  });
+});
+
+/** UTF-8 바이트를 Latin-1 로 잘못 읽었을 때 실제로 나오는 문자열. */
+function misreadAsLatin1(text: string): string {
+  let out = "";
+  for (const byte of Buffer.from(text, "utf8")) out += String.fromCharCode(byte);
+  return out;
+}
+
+/**
+ * 되돌릴 수 있는 종류는 읽는 자리에서 되돌아온다.
+ *
+ * QA 가 지목한 두 화면(일정·채팅 기록)이 지나는 길목이 유지되는지 본다. 되돌리기
+ * 자체의 정확성은 `packages/shared` 의 표적 검사가 든다.
+ */
+describe("되돌릴 수 있는 글은 읽는 자리에서 되돌아온다", () => {
+  it("일정 제목이 되돌아오고, 깨진 필드 때문에 일정이 사라지지 않는다", () => {
+    const cancelledAt = "2026-09-01T00:00:00.000Z";
+    const events = getEvents({
+      __events: [{
+        id: "evt_1",
+        date: "2026-10-05",
+        title: misreadAsLatin1("드레스 매장 방문"),
+        createdAt: "2026-09-01T00:00:00.000Z",
+        updatedAt: cancelledAt,
+        status: "cancelled",
+        cancellation: {
+          cancelledAt,
+          cancelledByProfileId: "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+          // 깨진 글자에는 C1 제어문자가 들어간다. 되돌리기가 검증 뒤에 있으면
+          // 이 일정은 통째로 탈락해 화면에서 사라진다.
+          reason: misreadAsLatin1("매장 사정으로 미룸"),
+        },
+      }],
+    });
+
+    expect(events).toHaveLength(1);
+    expect(events[0].title).toBe("드레스 매장 방문");
+    expect(events[0].cancellation?.reason).toBe("매장 사정으로 미룸");
+  });
+
+  it("아모라 기록 제목이 되돌아온다", () => {
+    const action = normalizeAmoraAction({
+      id: "act_1",
+      title: misreadAsLatin1("청첩장 문구 정하기"),
+      priority: "medium",
+      status: "open",
+      source: "chat",
+      createdAt: "2026-09-01T00:00:00.000Z",
+      updatedAt: "2026-09-01T00:00:00.000Z",
+    });
+    expect(action.title).toBe("청첩장 문구 정하기");
+  });
+
+  it("채팅 기록을 읽는 자리가 되돌리기를 지난다", () => {
+    const store = readFileSync(resolve(process.cwd(), "src/stores/chatStore.ts"), "utf8");
+    const start = store.indexOf("function dbRowToMessage(");
+    const body = store.slice(start, store.indexOf("\nexport function ", start));
+    expect(body).toContain("repairMojibake(row.content)");
+    expect(body).toContain("repairMojibakeDeep(");
+  });
+
+  it("멀쩡한 글은 한 글자도 바뀌지 않는다", () => {
+    expect(diagnoseStoredText("드레스 매장 방문").kind).toBe("clean");
+    const [event] = getEvents({
+      __events: [{
+        id: "evt_2",
+        date: "2026-10-05",
+        title: "드레스 매장 방문",
+        createdAt: "2026-09-01T00:00:00.000Z",
+        updatedAt: "2026-09-01T00:00:00.000Z",
+      }],
+    });
+    expect(event.title).toBe("드레스 매장 방문");
   });
 });

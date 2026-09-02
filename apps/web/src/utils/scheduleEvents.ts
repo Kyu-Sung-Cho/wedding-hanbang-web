@@ -4,7 +4,7 @@ import type {
   ScheduleEventCancellation,
   ScheduleEventStatus,
 } from "@/types/database.types";
-import { readableTextOr } from "@hanbang/shared";
+import { readableTextOr, repairMojibakeDeep } from "@hanbang/shared";
 
 export { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 
@@ -333,6 +333,21 @@ export type ScheduleEventInspection = {
   truncatedCount: number;
 };
 
+/**
+ * 예전에 잘못 읽혀 저장된 한글을 **검증보다 먼저** 되돌린다.
+ *
+ * 검증 뒤에 두면 고칠 수 있는 것을 못 고친다. 잘못 읽힌 한글에는 0x80~0x9F 자리
+ * 글자가 거의 반드시 들어가고 그 자리는 C1 제어문자다. 취소 사유·완료 기준·외부
+ * 담당자 이름은 `hasUnsafeDisplayCharacter` 를 지나므로, 그 셋 중 하나가 깨져
+ * 있으면 **그 일정 전체가 검증에서 탈락해 화면에서 사라진다.**
+ *
+ * 먼저 되돌리면 그 일정이 되살아나고 검증은 되돌린 값에 대해 그대로 돈다.
+ * 되돌리기는 바이트 왕복이 정확히 맞고 결과에 한글이 나올 때만 값을 바꾸므로
+ * 검증이 느슨해지지 않는다. 되돌린 글자는 언제나 원본보다 짧아서(라틴 세 글자 →
+ * 한글 한 글자) 길이 제한을 새로 넘길 수도 없다.
+ *
+ * 기계가 쓴 값(ID·날짜·분야 키)은 전부 ASCII 라 되돌리기가 손대지 않는다.
+ */
 export function inspectScheduleEvents(
   progress: Record<string, unknown>,
 ): ScheduleEventInspection {
@@ -345,7 +360,7 @@ export function inspectScheduleEvents(
   }
   // `progress` is user-controlled JSONB. Bound work before validation so a
   // malformed or enormous array cannot crash or monopolize a cron/API worker.
-  const bounded = raw.slice(0, MAX_SCHEDULE_EVENTS);
+  const bounded = raw.slice(0, MAX_SCHEDULE_EVENTS).map(repairMojibakeDeep);
   const events = bounded.filter(isScheduleEvent);
   return {
     events,
