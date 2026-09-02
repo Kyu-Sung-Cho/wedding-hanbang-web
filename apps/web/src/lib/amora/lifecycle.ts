@@ -3,6 +3,7 @@ import { objectParticle } from "@/lib/ai/tools/toolTypes";
 import { kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { weddingPath } from "@/lib/weddingPaths";
 import { getChecklistCounts, mergeChecklist, summarizePlanningChecklist } from "@/utils/checklist";
+import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
 import type { ProgressItem } from "@/types/database.types";
 
 export type AmoraLifecycleStage =
@@ -240,18 +241,24 @@ function makeCategoryGuardrail(
   severity: AmoraGuardrailSeverity
 ): AmoraGuardrail {
   const isOverdue = daysUntilDeadline < 0;
+  // 버튼이 「체크리스트」라고 적혀 있으면 체크리스트로 가야 한다. 예전에는 같은
+  // 버튼이 일정 화면을 열어서, 항목을 체크하러 누른 사람이 달력을 만났다.
+  const href = weddingPath(`/checklist?category=${encodeURIComponent(key)}`);
+  // 남은 기간의 단위는 값에서 나온다(`formatKoreanDayCount`) — 날짜 수를 그대로
+  // 두고 단위만 바꾸는 조합(「255월」)이 만들어질 수 없게.
+  const remaining = formatKoreanDayCount(daysUntilDeadline);
   return {
     id: `category_${key}_${severity}`,
     title: `${label}${objectParticle(label)} 놓치지 않게 볼게요`,
     body: isOverdue
-      ? `기본 일정의 확인 시점보다 ${Math.abs(daysUntilDeadline)}일 지났어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`
-      : `기본 일정의 확인 시점까지 ${daysUntilDeadline}일 남았어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`,
-    href: weddingPath("/schedule"),
+      ? `기본 일정의 확인 시점보다 ${remaining} 지났어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`
+      : `기본 일정의 확인 시점까지 ${remaining} 남았어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`,
+    href,
     cta: "체크리스트",
     severity,
     iconKey: "schedule",
     categoryKey: key,
-    dueLabel: isOverdue ? `${Math.abs(daysUntilDeadline)}일 지남` : `${daysUntilDeadline}일 남음`,
+    dueLabel: isOverdue ? `${remaining} 지남` : `${remaining} 남음`,
   };
 }
 

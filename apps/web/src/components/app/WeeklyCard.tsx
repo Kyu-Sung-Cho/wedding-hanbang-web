@@ -9,6 +9,7 @@ import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
 import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
+import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
 import type { ProgressItem } from "@/types/database.types";
 
 /**
@@ -104,8 +105,10 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             <ul className="space-y-1.5">
               {data.imminent.map((category) => (
                 <li key={category.key}>
+                  {/* 「곧 확인할 분야」는 체크리스트 분야다. 눌러서 도착하는 곳도
+                      체크리스트여야 한다 — 예전에는 일정 화면으로 보냈다. */}
                   <Link
-                    {...weddingLinkProps("/schedule")}
+                    {...weddingLinkProps(`/checklist?category=${encodeURIComponent(category.key)}`)}
                     className="group flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--hb-text-strong)]"
                   >
                     <span className="truncate">{category.label}</span>
@@ -119,8 +122,8 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
                       }`}
                     >
                       {category.deadlineDaysLeft < 0
-                        ? `기본 확인 시점에서 ${Math.abs(category.deadlineDaysLeft)}일 지남`
-                        : `기본 확인 시점까지 ${category.deadlineDaysLeft}일`}
+                        ? `기본 확인 시점에서 ${formatKoreanDayCount(category.deadlineDaysLeft)} 지남`
+                        : `기본 확인 시점까지 ${formatKoreanDayCount(category.deadlineDaysLeft)}`}
                     </span>
                   </Link>
                 </li>

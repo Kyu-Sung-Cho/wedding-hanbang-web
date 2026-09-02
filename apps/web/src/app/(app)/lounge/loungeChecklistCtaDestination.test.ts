@@ -1,0 +1,124 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { describe, expect, it } from "vitest";
+
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
+
+/**
+ * 「체크」라고 적힌 버튼이 체크리스트로 가는지 본다.
+ *
+ * ## 무엇이 틀려 있었나
+ *
+ * 라운지의 「놓치기 쉬운 항목」은 체크리스트 분야를 진행률(`3/9 체크`)과 함께
+ * 보여주는 구역인데, 머리의 「전체 체크」도 각 분야 줄도 전부 **일정 화면**을
+ * 열었다. 항목을 체크하러 누른 사람이 달력을 만난다. 주차 카드의 「곧 확인할
+ * 분야」와 아모라 가드레일도 같았고, 가드레일은 버튼에 「체크리스트」라고
+ * 적어 두고도 일정으로 보냈다.
+ *
+ * ## 왜 소스를 읽어서 검사하는가
+ *
+ * 목적지는 JSX 안의 `weddingLinkProps(...)` 인자라서 렌더링 없이는 값으로 꺼낼
+ * 수 없고, 이 페이지 전체를 렌더링하려면 스토어·네트워크·튜토리얼까지 세워야
+ * 한다. 여기서 지키려는 것은 그리기가 아니라 **한 줄의 목적지**이므로 그 줄을
+ * 직접 본다. 대신 「검사가 실제로 무언가를 보고 있는지」를 먼저 확인한다.
+ */
+
+function read(relativePath: string): string {
+  return readFileSync(resolve(process.cwd(), relativePath), "utf8");
+}
+
+const LOUNGE = read("src/app/(app)/lounge/page.tsx");
+const WEEKLY_CARD = read("src/components/app/WeeklyCard.tsx");
+
+/** 「놓치기 쉬운 항목」 구역 — 머리의 전체 보기 링크와 분야 줄이 여기 있다. */
+function loungeToolsSection(): string {
+  const start = LOUNGE.indexOf('data-tutorial-target="lounge-tools"');
+  expect(start, "「놓치기 쉬운 항목」 구역을 못 찾았다").toBeGreaterThan(-1);
+  return LOUNGE.slice(start, LOUNGE.indexOf("</section>", start));
+}
+
+function categoryRowSource(): string {
+  const start = LOUNGE.indexOf("function CategoryRow(");
+  expect(start, "CategoryRow 를 못 찾았다").toBeGreaterThan(-1);
+  return LOUNGE.slice(start, LOUNGE.indexOf("\nfunction ", start + 1));
+}
+
+describe("체크리스트 CTA 는 체크리스트로 간다", () => {
+  it("「전체 체크」가 일정이 아니라 체크리스트를 연다", () => {
+    const section = loungeToolsSection();
+    expect(section).toContain("전체 체크");
+    expect(section).toContain('weddingLinkProps("/checklist")');
+  });
+
+  it("분야 줄이 그 분야의 체크리스트를 연다", () => {
+    const row = categoryRowSource();
+    // 진행률을 보여주는 줄이라는 것을 함께 못박는다. 이 줄이 사라지면 위 검사가
+    // 엉뚱한 곳을 보고 있다는 뜻이다.
+    expect(row).toContain("체크");
+    expect(row).toContain("/checklist?category=");
+    expect(row).not.toContain('weddingLinkProps("/schedule")');
+  });
+
+  it("주차 카드의 「곧 확인할 분야」도 체크리스트를 연다", () => {
+    // 파일 머리 주석에도 같은 말이 있으므로 **그리는 자리**를 짚는다.
+    const start = WEEKLY_CARD.indexOf("data.imminent.map(");
+    expect(start, "「곧 확인할 분야」를 그리는 자리를 못 찾았다").toBeGreaterThan(-1);
+    const block = WEEKLY_CARD.slice(start, WEEKLY_CARD.indexOf("</ul>", start));
+    expect(block).toContain("/checklist?category=");
+    expect(block).not.toContain('weddingLinkProps("/schedule")');
+  });
+
+  it("「체크리스트」라고 적힌 아모라 가드레일이 체크리스트로 간다", () => {
+    const plan = buildAmoraLifecyclePlan({
+      // 분야 가드레일이 실제로 만들어지는 구간. 예식이 가까워야 기본 확인
+      // 시점을 지난 분야가 생긴다.
+      weddingDate: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+      totalBudget: 50_000_000,
+      progress: {},
+    });
+
+    const checklistGuardrails = plan.guardrails.filter((item) => item.cta === "체크리스트");
+    expect(
+      checklistGuardrails.length,
+      "「체크리스트」 가드레일이 하나도 안 나왔다 — 검사가 무의미해진다",
+    ).toBeGreaterThan(0);
+
+    for (const guardrail of checklistGuardrails) {
+      expect(guardrail.href).toContain("/checklist");
+      expect(guardrail.href).not.toContain("/schedule");
+    }
+  });
+
+  it("분야 키가 체크리스트 화면이 아는 값이다", () => {
+    // 목적지가 체크리스트여도 `?category=` 값이 화면의 분야 키와 다르면
+    // 도착해서 아무것도 안 열린다.
+    const plan = buildAmoraLifecyclePlan({
+      weddingDate: new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10),
+      totalBudget: 50_000_000,
+      progress: {},
+    });
+    const knownKeys = new Set(CATEGORY_CHECKLISTS.map((category) => category.key));
+
+    for (const guardrail of plan.guardrails) {
+      const category = /\/checklist\?category=([^&"]+)/.exec(guardrail.href)?.[1];
+      if (!category) continue;
+      expect(knownKeys.has(decodeURIComponent(category))).toBe(true);
+    }
+  });
+});
+
+/**
+ * 라운지 아래쪽 세 칸(커뮤니티 → 아모라 → 라운지에 남김)의 마지막 칸도 체크
+ * 아이콘(`ListChecks`)을 달고 일정 화면을 열고 있었다. 아이콘·문구·목적지가
+ * 같은 것을 가리키게 한다.
+ */
+describe("라운지 아래 세 칸의 마지막은 남기는 곳으로 간다", () => {
+  it("「라운지에 남김」이 체크리스트를 연다", () => {
+    const start = LOUNGE.indexOf('title: "라운지에 남김"');
+    expect(start, "「라운지에 남김」 칸을 못 찾았다").toBeGreaterThan(-1);
+    const block = LOUNGE.slice(start, start + 300);
+    expect(block).toContain('weddingPath("/checklist")');
+  });
+});
