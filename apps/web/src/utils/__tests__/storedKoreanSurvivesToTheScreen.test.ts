@@ -7,12 +7,14 @@ import { normalizeAmoraAction } from "@/lib/amora/actions";
 import { getEvents } from "@/utils/scheduleEvents";
 
 /**
- * 저장된 한글이 라운지까지 살아서 도착하는가.
+ * 저장된 한글이 화면까지 살아서 도착하는가.
  *
  * ## 무엇이 보였나
  *
- * 라운지의 다가오는 일정 제목과 아모라 기록 제목이 `?? ???` 로 나왔다. 새로
- * 저장한 한글은 멀쩡했으므로 깨진 것은 읽는 방법이거나 이미 저장된 값이다.
+ * 일정 제목과 아모라 기록 제목이 `?? ???` 로 나왔다. 새로 저장한 한글은
+ * 멀쩡했으므로 깨진 것은 읽는 방법이거나 이미 저장된 값이다. 2026-09-02 QA
+ * 재검은 그것이 **한 계정의 일정 화면과 채팅 기록**에 남아 있다고 좁혀 줬다 —
+ * 라운지가 깨끗했던 이유는 다가오는 일정 서너 개만 보여주기 때문이다.
  *
  * 되돌리기는 **읽는 자리 한 곳씩**에 뒀다 — 일정은 `inspectScheduleEvents`,
  * 아모라 기록은 `normalizeAmoraAction`. 두 함수는 라운지·일정 화면·채팅 옆판·
@@ -37,7 +39,7 @@ function eventJson(title: string) {
   };
 }
 
-describe("저장된 한글이 라운지까지 살아서 도착한다", () => {
+describe("저장된 한글이 화면까지 살아서 도착한다", () => {
   it("일정 제목이 되돌아온다", () => {
     const broken = misreadAsLatin1("드레스 매장 방문");
     expect(broken, "테스트 재료가 실제로 깨지지 않았습니다").not.toBe("드레스 매장 방문");
