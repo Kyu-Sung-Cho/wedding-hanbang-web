@@ -4,7 +4,7 @@ import type {
   ScheduleEventCancellation,
   ScheduleEventStatus,
 } from "@/types/database.types";
-import { readableTextOr, repairMojibakeDeep } from "@hanbang/shared";
+import { readableTextOr } from "@hanbang/shared";
 
 export { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 
@@ -333,37 +333,6 @@ export type ScheduleEventInspection = {
   truncatedCount: number;
 };
 
-/**
- * 예전에 잘못 읽혀 저장된 한글을 **검증보다 먼저** 되돌린다.
- *
- * ## 왜 검증 앞인가
- *
- * 처음에는 검증 뒤에 뒀다. 그런데 잘못 읽힌 한글에는 0x80~0x9F 자리 글자가 거의
- * 반드시 들어간다(UTF-8 뒷바이트가 그렇게 보인다). 그 자리는 C1 제어문자이고,
- * `hasUnsafeDisplayCharacter` 가 그것을 막는다. 즉 취소 사유·완료 기준·외부
- * 담당자 이름이 깨져 있으면 **그 일정 전체가 검증에서 탈락해 화면에서 사라진다.**
- * 검증 뒤에서 고치면 이미 사라진 것은 못 고친다.
- *
- * 먼저 되돌리면 그 일정이 되살아나고, 검증은 되돌린 값에 대해 그대로 돈다.
- * 되돌리기는 바이트 왕복이 정확히 맞고 결과에 한글이 나올 때만 값을 바꾸므로
- * 검증이 느슨해지지 않는다. 되돌린 글자는 언제나 원본보다 짧아서(라틴 세 글자 →
- * 한글 한 글자) 길이 제한을 새로 넘길 수도 없다.
- *
- * ## 왜 필드를 손으로 고르지 않나
- *
- * 제목·메모만 고르면 같은 줄의 취소 사유와 담당자 이름이 깨진 채 남는다. 목록을
- * 들고 다니면 새 필드가 생길 때마다 낡는다. 기계가 쓴 값(ID·날짜·분야 키)은
- * 전부 ASCII 라 되돌리기가 손대지 않으므로 그냥 전부 훑는다.
- *
- * ## 저장은 하지 않는다
- *
- * 다만 이 목록을 그대로 다시 저장하는 경로(`getEventsForMutation` →
- * `saveProgress`)를 지나면 되돌린 값이 함께 저장돼 그 행은 다음부터 깨끗해진다.
- */
-function repairStoredScheduleEvent(raw: unknown): unknown {
-  return repairMojibakeDeep(raw);
-}
-
 export function inspectScheduleEvents(
   progress: Record<string, unknown>,
 ): ScheduleEventInspection {
@@ -376,7 +345,7 @@ export function inspectScheduleEvents(
   }
   // `progress` is user-controlled JSONB. Bound work before validation so a
   // malformed or enormous array cannot crash or monopolize a cron/API worker.
-  const bounded = raw.slice(0, MAX_SCHEDULE_EVENTS).map(repairStoredScheduleEvent);
+  const bounded = raw.slice(0, MAX_SCHEDULE_EVENTS);
   const events = bounded.filter(isScheduleEvent);
   return {
     events,

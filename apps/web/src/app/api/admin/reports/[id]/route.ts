@@ -145,7 +145,7 @@ function atomicReportError(
   if (error?.code === "55000" || error?.code === "23505") {
     return NextResponse.json(
       {
-        error: "?좉퀬 ?곹깭媛 ?대? 蹂寃쎈릺?덇굅??媛숈? ?ㅺ? ?ㅻⅨ ?붿껌???ъ슜?섏뿀?듬땲??",
+        error: "신고 상태가 이미 바뀌었거나 같은 신고를 다른 요청이 함께 처리했습니다.",
         code: "COMMUNITY_REPORT_REVIEW_CONFLICT",
       },
       { status: 409, headers: NO_STORE_HEADERS },

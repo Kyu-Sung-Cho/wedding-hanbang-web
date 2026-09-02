@@ -1,5 +1,3 @@
-import { repairMojibake } from "@hanbang/shared";
-
 import type {
   AmoraActionPriority,
   AmoraActionSource,
@@ -38,13 +36,6 @@ function isAction(value: unknown): value is AmoraActionItem {
 export function normalizeAmoraAction(item: AmoraActionItem): AmoraActionItem {
   return {
     ...item,
-    // 예전에 잘못 읽혀 저장된 한글을 되돌린다. `amora_actions` 표와 legacy
-    // `progress.__amora_actions` 가 모두 이 함수를 지나므로 두 출처가 같이 고쳐진다.
-    // 바이트 왕복으로 검증된 경우에만 바뀌므로 멀쩡한 제목은 그대로 통과한다.
-    title: repairMojibake(item.title),
-    ...(typeof item.description === "string"
-      ? { description: repairMojibake(item.description) }
-      : {}),
     priority: item.priority ?? "medium",
     status: item.status ?? "open",
     source: item.source ?? "chat",

@@ -51,31 +51,7 @@ const renderedToolsDeclaration = (
 ).replace(" as const", "");
 assert.notEqual(renderedToolsDeclaration, "", "missing MOBILE_RENDERED_TOOLS");
 
-// `chat.tsx` 는 되돌리기를 `@hanbang/shared` 에서 가져온다. 이 하네스는 함수
-// 선언만 잘라 내 `new Function` 으로 세우므로 import 는 따라오지 않는다.
-// **가짜로 흉내 내지 않고 진짜 구현을 주입한다** — 흉내를 내면 기록을 읽는 길이
-// 되돌리기를 지나는지 이 검사가 더 이상 말해 주지 못한다.
-const textRepairPath = fileURLToPath(
-  new URL("../../../../packages/shared/src/utils/textEncodingRepair.ts", import.meta.url),
-);
-const textRepairModule = { exports: {} };
-new Function("exports", "module", "require", ts.transpileModule(
-  readFileSync(textRepairPath, "utf8"),
-  { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } },
-).outputText)(textRepairModule.exports, textRepairModule, () => {
-  throw new Error("unexpected dependency");
-});
-const { repairMojibake, repairMojibakeDeep } = textRepairModule.exports;
-assert.equal(typeof repairMojibake, "function", "되돌리기 구현을 못 불러왔습니다");
-assert.equal(typeof repairMojibakeDeep, "function", "되돌리기 구현을 못 불러왔습니다");
-
-/** 잘라 낸 선언들을 세울 때 공유 의존성을 함께 넘긴다. */
-function buildScope(body) {
-  return new Function("repairMojibake", "repairMojibakeDeep", body)
-    .bind(null, repairMojibake, repairMojibakeDeep);
-}
-
-const loadParser = buildScope(
+const loadParser = new Function(
   `const API_BASE = "https://hanbang.ai";\nconst CHAT_REQUEST_TIMEOUT_MS = 180000;\n${renderedToolsDeclaration}\n${compiled.outputText}\nreturn { ChatTransportError, createChatStreamParser, applyChatStreamUpdate, mergeRealtimeMessage, reconcileChatStreamUpdate, streamChatWithXhr };`,
 );
 const {
@@ -124,8 +100,8 @@ function loadAiMessageIngestContract() {
       target: ts.ScriptTarget.ES2022,
     },
   });
-  return buildScope(
-    `${transpiled.outputText}\nreturn { AiMessageIngestError, chatMessageFromRealtimeRow, parseAiMessageIngestResult, parseRetryAfterMs, getAiMessageIngestFailureMessage, getEphemeralSafetyPersistencePresentation };`,
+  return new Function(
+    `${transpiled.outputText}\nreturn { AiMessageIngestError, parseAiMessageIngestResult, parseRetryAfterMs, getAiMessageIngestFailureMessage, getEphemeralSafetyPersistencePresentation };`,
   )();
 }
 
@@ -2565,62 +2541,3 @@ test("mobile presents recovered crisis guidance as a dedicated accessible safety
   assert.match(renderMessage, /st\.safetyCardText/);
 });
 
-/**
- * 저장된 대화가 화면에 한글로 도착하는가.
- *
- * 2026-09-02 QA 재검: 라운지는 대체로 깨끗한데 **채팅 기록**에 깨진 글자가 남아
- * 있었다. 기록을 읽어 오는 길(최초 적재·실시간 수신)이 전부 이 함수를 지난다.
- */
-test("저장된 대화가 화면에 한글로 도착한다", () => {
-  const { chatMessageFromRealtimeRow } = loadAiMessageIngestContract();
-
-  /** UTF-8 바이트를 Latin-1 로 잘못 읽었을 때 실제로 나오는 문자열. */
-  const misread = (text) => {
-    let out = "";
-    for (const byte of Buffer.from(text, "utf8")) out += String.fromCharCode(byte);
-    return out;
-  };
-
-  const row = {
-    id: "11111111-1111-4111-8111-111111111111",
-    couple_id: "22222222-2222-4222-8222-222222222222",
-    sender_id: null,
-    role: "assistant",
-    sender_type: "ai",
-    content: misread("드레스 매장은 세 곳 정도 보시는 분이 많아요"),
-    metadata: {
-      toolResults: [{
-        toolName: "add_schedule_event",
-        success: true,
-        displayMessage: misread("일정을 넣었어요"),
-      }],
-    },
-    created_at: "2026-09-01T00:00:00.000Z",
-    visibility: "shared",
-  };
-
-  assert.notEqual(row.content, "드레스 매장은 세 곳 정도 보시는 분이 많아요");
-
-  const message = chatMessageFromRealtimeRow(row);
-  assert.equal(message.content, "드레스 매장은 세 곳 정도 보시는 분이 많아요");
-  assert.equal(message.metadata.toolResults[0].displayMessage, "일정을 넣었어요");
-  // 기계가 쓴 값은 손대지 않는다.
-  assert.equal(message.metadata.toolResults[0].toolName, "add_schedule_event");
-});
-
-test("멀쩡한 대화는 한 글자도 바뀌지 않는다", () => {
-  const { chatMessageFromRealtimeRow } = loadAiMessageIngestContract();
-  const content = "드레스 매장은 세 곳 정도 보시는 분이 많아요";
-  const message = chatMessageFromRealtimeRow({
-    id: "11111111-1111-4111-8111-111111111111",
-    couple_id: "22222222-2222-4222-8222-222222222222",
-    sender_id: null,
-    role: "assistant",
-    sender_type: "ai",
-    content,
-    metadata: null,
-    created_at: "2026-09-01T00:00:00.000Z",
-    visibility: "shared",
-  });
-  assert.equal(message.content, content);
-});

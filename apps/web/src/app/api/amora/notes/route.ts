@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { repairMojibake } from "@hanbang/shared";
 import { log } from "@/utils/log";
 import { evaluateSavedNoteSource } from "@/lib/amora/savedNoteSource";
 
@@ -140,13 +139,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // 저장한 내용은 그때의 대화 본문을 그대로 떠 온 것이다. 대화 쪽이 잘못 읽혀
-    // 저장돼 있었다면 여기에도 같은 글자가 남아 있으므로 같이 되돌린다.
     const notes = ((data ?? []) as SavedNoteRow[]).map((row) => ({
       id: row.id,
       messageId: row.message_id,
-      content: repairMojibake(row.content),
-      memo: row.memo === null ? null : repairMojibake(row.memo),
+      content: row.content,
+      memo: row.memo,
       savedByMe: row.saved_by === user.id,
       createdAt: row.created_at,
     }));

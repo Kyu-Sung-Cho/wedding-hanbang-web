@@ -14,7 +14,6 @@ import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
 } from "@hanbang/shared";
-import { repairMojibake, repairMojibakeDeep } from "@hanbang/shared";
 import {
   createEmptyAmoraChatLaneRecord,
   resolveAmoraChatLane,
@@ -675,17 +674,14 @@ function chatMessageFromRealtimeRow(value: unknown): ChatMessage | null {
     || !visibility
   ) return null;
 
-  // 저장된 대화가 예전에 잘못 읽혀 들어간 경우가 있어서 여기서 되돌린다.
-  // 기록 적재와 실시간 수신이 모두 이 함수를 지난다. `metadata` 까지 훑는 이유는
-  // 도구·승인·중재 카드 문구가 거기 있고 각각 다른 컴포넌트가 그리기 때문이다.
-  const metadata = repairMojibakeDeep(asChatMessageMetadata(row.metadata));
+  const metadata = asChatMessageMetadata(row.metadata);
   return {
     id: row.id,
     couple_id: row.couple_id,
     sender_id: row.sender_id,
     role: row.role as ChatMessage["role"],
     sender_type: row.sender_type as ChatMessage["sender_type"],
-    content: repairMojibake(row.content),
+    content: row.content,
     metadata,
     created_at: row.created_at,
     visibility,

@@ -545,7 +545,7 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
 
     const response = await POST(postRequest({
       coupleId: COUPLE_ID,
-      content: "泥⑤?瑜??뺥솗???뺤씤?댁쨾",
+      content: "첨부를 정확히 확인해줘",
       clientRequestId: REQUEST_ID,
       requestedVisibility: "shared",
       providerAttachmentCount: 1,

@@ -4,5 +4,5 @@ export * from "./mobileOAuth";
 export * from "./scheduleMemo";
 export * from "./planningChecklist";
 export * from "./kstDay";
-export * from "./textEncodingRepair";
+export * from "./unreadableText";
 export * from "./publicPostPrivacy";
