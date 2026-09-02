@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   serverUserId: null as string | null,
   serverAuthError: null as { message: string } | null,
   viewerPostVisible: true,
+  viewerPostError: null as { code?: string; message: string } | null,
   cookieHeader: { value: null as string | null },
 }));
 
@@ -57,8 +58,11 @@ vi.mock("@/lib/supabase/server", () => ({
         select: vi.fn(),
         eq: vi.fn(),
         maybeSingle: vi.fn(async () => ({
-          data: mocks.viewerPostVisible ? { id: "post-1" } : null,
-          error: null,
+          data:
+            mocks.viewerPostError || !mocks.viewerPostVisible
+              ? null
+              : { id: "post-1" },
+          error: mocks.viewerPostError,
         })),
       };
       query.select.mockReturnValue(query);
@@ -299,6 +303,7 @@ describe("public post server rendering", () => {
     mocks.serverUserId = null;
     mocks.serverAuthError = null;
     mocks.viewerPostVisible = true;
+    mocks.viewerPostError = null;
     mocks.cookieHeader.value = null;
   });
 
@@ -452,14 +457,46 @@ describe("public post server rendering", () => {
     expect(mocks.getPublicCommunityPostDetail).toHaveBeenCalledWith("post-1");
   });
 
-  it("does not use the anonymous detail loader while authentication is uncertain", async () => {
-    mocks.cookieHeader.value = "sb-slrtobkksjmxgzatjyqb-auth-token=broken";
+  /**
+   * 세션을 확인하지 못한 방문자에게도 **공개 글은 공개 글대로** 보여준다.
+   *
+   * ## 전에는 반대였고, 그것이 출시를 막은 화면이었다
+   *
+   * 여기 있던 검사는 "확인이 불확실하면 익명 로더를 쓰지 않는다" 를 요구했다.
+   * 그래서 만료·폐기된 세션 쿠키를 든 사람은 `initialPost={null}` 인 클라이언트
+   * 껍데기를 받았고, 그 껍데기를 채워야 할 `/api/community/posts/<id>` 는 **같은
+   * 이유로** 503 을 냈다. 스피너가 끝나지 않고, 오류 문구조차 없다.
+   *
+   * 2026-09-02 운영 실측(형식은 정상이고 Supabase 가 거절하는 세션 쿠키):
+   *
+   *     /wedding/community/post/<uuid>  → 200, 본문 0자, aria-busy 스피너만
+   *     /api/community/posts/<uuid>     → 503
+   *     보이는 글자 354자 = 내비와 푸터뿐
+   *
+   * ## 왜 이제 보여줘도 되는가 — 이 payload 에는 뷰어가 없다
+   *
+   * `getPublicCommunityPostDetail` 은 `visibility=public`·`under_review=false` 만
+   * 읽고 `user_vote`·`user_bookmarked` 를 null 로, `verification_doc_url` 을 null 로
+   * 고정한다. **로그아웃 방문자가 받는 바이트와 같다.**
+   *
+   * 그 바이트는 이미 인터넷 전체에 열려 있다 — 2026-09-02 실측: 세션 없이 anon 키만
+   * 으로 PostgREST 가 같은 행을 200 으로 내주고, 쿠키 없는 브라우저는 본문을 받는다.
+   *
+   * 차단(`community_viewer_can_see`)은 이 판단과 층이 다르다. 그 함수는 뷰어 id 와
+   * 상대 id 를 **둘 다** 요구하고 하나라도 null 이면 예외를 던진다(마이그레이션
+   * `20260804180000`). 즉 누구인지 모르는 방문자에게는 **정의되지 않는** 제품 기능이지
+   * 공개 글에 걸린 기밀 경계가 아니다. 차단당한 사람도 시크릿 창이면 같은 글을 읽는다.
+   *
+   * 신원이 **확인된** 뷰어에게 차단이 그대로 적용되는 것은 아래 두 검사가 계속 잰다.
+   */
+  it("세션을 확인하지 못해도 공개 글은 본문까지 내려준다", async () => {
+    mocks.cookieHeader.value = "sb-slrtobkksjmxgzatjyqb-auth-token=stale-session";
     mocks.serverAuthError = { message: "auth unavailable" };
     mocks.post = null;
     mocks.getPublicCommunityPostDetail.mockResolvedValue(
       question({
-        title: "uncertain viewer must not receive anonymous detail",
-        content: "uncertain viewer body",
+        title: "확인 못 한 방문자도 공개 글을 읽는다",
+        content: "공개 본문",
       }),
     );
 
@@ -468,10 +505,72 @@ describe("public post server rendering", () => {
     });
     const html = renderToStaticMarkup(element);
 
-    expect(html).not.toContain(
-      "uncertain viewer must not receive anonymous detail",
+    expect(html).toContain("확인 못 한 방문자도 공개 글을 읽는다");
+    expect(html).toContain("공개 본문");
+    // 뷰어 클라이언트가 아니라 **공개 로더**를 탄다 — 그래야 members·검토중 글이
+    // 섞이지 않는다.
+    expect(mocks.getPublicCommunityPostDetail).toHaveBeenCalledWith("post-1");
+  });
+
+  it("세션을 확인하지 못한 방문자에게도 없는 글은 없다고 말한다", async () => {
+    mocks.cookieHeader.value = "sb-slrtobkksjmxgzatjyqb-auth-token=stale-session";
+    mocks.serverAuthError = { message: "auth unavailable" };
+    mocks.getPublicCommunityPostDetail.mockResolvedValue(null);
+
+    const html = renderToStaticMarkup(
+      await PostDetailPage({ params: Promise.resolve({ id: "missing" }) }),
     );
-    expect(html).not.toContain("uncertain viewer body");
-    expect(mocks.getPublicCommunityPostDetail).not.toHaveBeenCalled();
+
+    expect(html).toContain("글을 찾을 수 없어요");
+  });
+});
+
+/**
+ * 로그인한 사람에게도 "왜 못 보여주는지" 를 사실대로 말한다.
+ *
+ * 이 갈래는 `visiblePostError || !visiblePost` 를 한 덩어리로 묶어 **무엇이든**
+ * 「글을 찾을 수 없어요」로 답했다. 그래서 DB 가 잠깐 흔들린 것도 "없는 글" 이 됐고,
+ * 사용자에게는 되돌릴 방법이 없는 최종 답처럼 보였다.
+ */
+describe("로그인한 뷰어의 실패 구분", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.userId = null;
+    mocks.post = null;
+    mocks.cookieHeader.value = null;
+    mocks.serverAuthError = null;
+    mocks.viewerPostVisible = true;
+    mocks.serverUserId = "20000000-0000-4000-8000-000000000002";
+    mocks.viewerPostError = null;
+  });
+
+  it("일시적인 읽기 실패를 '없는 글' 이라고 하지 않는다", async () => {
+    mocks.viewerPostError = { code: "57014", message: "canceling statement" };
+
+    const html = renderToStaticMarkup(
+      await PostDetailPage({ params: Promise.resolve({ id: "post-1" }) }),
+    );
+
+    expect(html).toContain("글을 불러오지 못했어요");
+    expect(html).not.toContain("글을 찾을 수 없어요");
+    // 내부 오류 원문은 화면에 쓰지 않는다.
+    expect(html).not.toContain("canceling statement");
+    expect(html).not.toContain("57014");
+  });
+
+  it("UUID 가 아닌 주소에는 '잠시 뒤 다시' 가 아니라 '없는 글' 이라고 말한다", async () => {
+    // 22P02 는 비교 자체가 불가능하다는 뜻이라 다시 시도해도 영원히 같다.
+    // 로그아웃 경로와 같은 답을 줘야 두 화면이 갈리지 않는다.
+    mocks.viewerPostError = {
+      code: "22P02",
+      message: 'invalid input syntax for type uuid: "1"',
+    };
+
+    const html = renderToStaticMarkup(
+      await PostDetailPage({ params: Promise.resolve({ id: "1" }) }),
+    );
+
+    expect(html).toContain("글을 찾을 수 없어요");
+    expect(html).not.toContain("글을 불러오지 못했어요");
   });
 });

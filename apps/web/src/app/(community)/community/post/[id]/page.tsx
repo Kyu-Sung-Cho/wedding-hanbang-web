@@ -1,9 +1,8 @@
 import Link from "next/link";
-import { headers } from "next/headers";
 import PostDetailClient from "./PostDetailClient";
+import { isMalformedPostIdError } from "@/lib/community/postIdErrors";
 import { getPublicCommunityPostDetail } from "@/lib/community/publicPostDetail";
 import { createClient } from "@/lib/supabase/server";
-import { cookieHeaderHasAuthCredential } from "@/utils/requestValidation";
 import { weddingPath } from "@/lib/weddingPaths";
 
 export const dynamic = "force-dynamic";
@@ -63,20 +62,7 @@ export default async function PostDetailPage({
   const viewerClient = await createClient();
   const {
     data: { user },
-    error: viewerError,
   } = await viewerClient.auth.getUser();
-
-  // 로그아웃 방문자에게 getUser()는 늘 "세션 없음" 오류다. 그것까지 확인 실패로
-  // 읽으면 아래 공개 상세 로더가 익명 방문자에게 단 한 번도 실행되지 않아 서버가
-  // 본문 없는 빈 화면을 내려준다 — 링크 미리보기와 크롤러에는 제목조차 없다.
-  // 자격 증명을 실제로 제시한 요청만 확인 실패로 다룬다.
-  const presentedCredential = cookieHeaderHasAuthCredential(
-    (await headers()).get("cookie"),
-  );
-
-  if (viewerError && presentedCredential) {
-    return <PostDetailClient postId={id} initialPost={null} />;
-  }
 
   if (user) {
     const { data: visiblePost, error: visiblePostError } = await viewerClient
@@ -86,16 +72,42 @@ export default async function PostDetailPage({
       .eq("under_review", false)
       .maybeSingle();
 
-    if (visiblePostError || !visiblePost) {
+    // 읽기가 실패한 것과 글이 없는 것은 다른 사실이다. 한 덩어리로 묶어 「찾을 수
+    // 없어요」라고 하면, 잠깐 흔들린 DB 때문에 멀쩡한 글이 영구히 없어진 것처럼 보인다.
+    // 단 22P02(주소가 UUID 가 아님)는 다시 시도해도 같으므로 "없는 글"이 맞다 —
+    // 로그아웃 경로의 로더도 같은 판정을 쓴다.
+    if (visiblePostError && !isMalformedPostIdError(visiblePostError)) {
+      return <PostDetailNotice {...UNAVAILABLE} />;
+    }
+
+    if (!visiblePost) {
       return <PostDetailNotice {...MISSING} />;
     }
 
     return <PostDetailClient postId={id} initialPost={null} />;
   }
 
-  // 로더는 두 가지로 실패한다: 행이 없으면 `null`, 읽기 자체가 실패하면 **throw**
-  // (예: 주소에 UUID 가 아닌 값 → Postgres 오류). 던지면 위 주석의 빈 화면이 되므로
-  // 여기서 받아서 값으로 바꾼다.
+  // 여기부터는 **로그인 상태가 아닌 모든 방문자**가 같은 길을 간다 — 확인된
+  // 로그아웃 방문자든, 만료·폐기된 세션 쿠키라 확인에 실패한 방문자든.
+  //
+  // ⚠️ 예전에는 후자를 따로 떼어 `initialPost={null}` 인 껍데기를 돌려줬다. 그런데
+  // 그 껍데기를 채워야 할 `/api/community/posts/<id>` 는 **같은 이유로** 503 을 내서,
+  // 스피너가 끝나지 않고 오류 문구조차 없었다. 2026-09-02 운영 실측(형식은 정상이고
+  // Supabase 가 거절하는 세션 쿠키): 상세 페이지 200 인데 보이는 글자 354자 —
+  // 내비와 푸터뿐이었다. 커뮤니티 피드는 그 글을 목록에 걸어 두고 있었다.
+  //
+  // 이 로더가 돌려주는 것은 **로그아웃 방문자가 받는 바이트와 같다** —
+  // `visibility=public`·`under_review=false` 만 읽고 `user_vote`·`user_bookmarked`·
+  // `verification_doc_url` 은 고정으로 비운다. 그 바이트는 이미 인터넷 전체에 열려
+  // 있으므로(세션 없이 anon 키만으로 같은 행을 읽는다) 신원을 모르는 방문자에게
+  // 내주어도 새는 것이 없다.
+  //
+  // 차단은 층이 다르다. `community_viewer_can_see` 는 뷰어 id 와 상대 id 를 둘 다
+  // 요구하고 하나라도 null 이면 예외를 던진다 — 신원을 모르는 방문자에게는 정의되지
+  // 않는다. 신원이 **확인된** 뷰어에게는 위 갈래가 그대로 적용한다.
+  //
+  // 로더는 두 가지로 실패한다: 행이 없으면 `null`, 읽기 자체가 실패하면 **throw**.
+  // 던지면 스트리밍 뒤라 대체 화면을 못 그리므로 여기서 받아서 값으로 바꾼다.
   const initialPost = await getPublicCommunityPostDetail(id).catch(() => "unavailable" as const);
 
   if (initialPost === "unavailable") {

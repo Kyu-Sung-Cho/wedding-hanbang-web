@@ -2,6 +2,7 @@ import { z } from "zod";
 import { COMMUNITY_POST_PUBLIC_SELECT } from "@/lib/community/postSelect";
 import { PUBLIC_COMMUNITY_POST_QUERY_FILTERS } from "@/lib/community/publicPostRules";
 import { getCommunityPollActorProjection } from "@/lib/community/pollProjection";
+import { isMalformedPostIdError } from "@/lib/community/postIdErrors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createPublicClient } from "@/lib/supabase/public";
 import type {
@@ -173,15 +174,6 @@ function unavailable(detail?: unknown): Error {
   return new Error("COMMUNITY_PUBLIC_POST_DETAIL_UNAVAILABLE");
 }
 
-/**
- * Postgres `invalid_text_representation`. 주소의 id 가 UUID 가 아니면 여기로 온다.
- *
- * 이것을 읽기 실패로 다루면 화면이 「글을 불러오지 못했어요 · 잠시 뒤 다시 시도해
- * 주세요」를 띄우는데, 그 주소는 다시 시도해도 영원히 같다. 없는 글이라고 말하는
- * 편이 사실이다.
- */
-const INVALID_TEXT_REPRESENTATION = "22P02";
-
 function fallbackAuthor(authorId: string): PublicCommunityAuthor {
   return {
     user_id: authorId,
@@ -214,8 +206,10 @@ export async function getPublicCommunityPostDetail(
     .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
     .maybeSingle();
 
+  // 주소의 id 가 UUID 가 아니면 행이 없는 것과 같은 답이다. 로그인 뷰어 쪽
+  // (`post/[id]/page.tsx`) 도 같은 판정을 써서 두 화면이 갈리지 않게 한다.
   if (postError) {
-    if (postError.code === INVALID_TEXT_REPRESENTATION) return null;
+    if (isMalformedPostIdError(postError)) return null;
     throw unavailable(postError);
   }
   if (!rawPost) return null;
