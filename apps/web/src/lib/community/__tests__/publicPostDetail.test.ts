@@ -260,4 +260,19 @@ describe("getPublicCommunityPostDetail", () => {
       "COMMUNITY_PUBLIC_POST_DETAIL_UNAVAILABLE",
     );
   });
+
+  it("주소의 id 가 UUID 가 아니면 '없는 글' 로 답한다", async () => {
+    // Postgres 는 22P02(invalid_text_representation) 를 낸다. 이것을 읽기 실패로
+    // 다루면 화면이 「잠시 뒤 다시 시도해 주세요」를 띄우는데, `/…/post/1` 은 다시
+    // 시도해도 영원히 같다. 2026-09-02 로컬 실측에서 실제로 그 문구가 나왔다.
+    mocks.postsQuery.maybeSingle.mockResolvedValue({
+      data: null,
+      error: {
+        code: "22P02",
+        message: 'invalid input syntax for type uuid: "1"',
+      },
+    });
+
+    await expect(getPublicCommunityPostDetail("1")).resolves.toBeNull();
+  });
 });
