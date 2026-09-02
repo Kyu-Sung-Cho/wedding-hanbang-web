@@ -32,7 +32,6 @@ import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
 import { shortKoreanDateFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
-import { formatKoreanRelativeDays } from "@hanbang/shared/korean-duration";
 import type {
   ChecklistItem,
   ScheduleEvent,
@@ -555,13 +554,13 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
   // 예식일과 같은 이유로 새벽에 하루가 어긋났다. `new Date(ymd + "T00:00:00")` 는
   // **브라우저 시간대**의 자정이라 KST 기기에서는 맞지만, 서버 렌더나 다른 시간대
   // 기기에서는 어긋난다. 예식일 쪽과 같은 도우미를 쓴다.
-  //
-  // 단위는 값에서 나온다(`formatKoreanRelativeDays`). 예전에는 남은 날짜 수를
-  // 그대로 붙여 「255일 후」 같은, 사람이 감을 못 잡는 라벨이 나갔다.
   function getDaysUntil(dateString: string): string {
     const diff = daysUntilWedding(dateString);
     if (diff === null) return "";
-    return formatKoreanRelativeDays(diff);
+    if (diff === 0) return "오늘";
+    if (diff === 1) return "내일";
+    if (diff < 0) return `${Math.abs(diff)}일 전`;
+    return `${diff}일 후`;
   }
 
   const progressPct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;

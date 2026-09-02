@@ -17,7 +17,6 @@ import {
   daysUntilWedding,
   repairMojibake,
 } from "@hanbang/shared";
-import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
 import {
   calculatePlanningChecklistStatus,
   mergePlanningChecklist,
@@ -1032,10 +1031,10 @@ export default function ScheduleScreen() {
         daysUntilDeadline === null
           ? "결혼식 날짜를 넣으면 기본 확인 순서를 정리해요"
           : daysUntilDeadline < 0
-            ? `기본 확인 시점에서 ${formatKoreanDayCount(daysUntilDeadline)} 지났어요`
+            ? `기본 확인 시점에서 ${Math.abs(daysUntilDeadline)}일 지났어요`
             : daysUntilDeadline === 0
               ? "오늘이 기본 확인 시점이에요"
-              : `기본 확인 시점까지 ${formatKoreanDayCount(daysUntilDeadline)}`;
+              : `기본 확인 시점까지 ${daysUntilDeadline}일`;
 
       return [{
         categoryKey: template.key,

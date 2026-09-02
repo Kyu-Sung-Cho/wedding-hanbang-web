@@ -65,7 +65,6 @@ import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 import { PREPARATION_PROGRESS_STATUS_LABELS, recoverUserText } from "@hanbang/shared";
-import { formatKoreanDayCount } from "@hanbang/shared/korean-duration";
 
 type Status = ProgressItem["status"];
 
@@ -972,14 +971,12 @@ function CategoryRow({
 }: {
   item: ReturnType<typeof getActiveCategories>[number];
 }) {
-  // 단위는 값에서 나온다(`formatKoreanDayCount`). 예식이 멀면 「255일」 대신
-  // 「약 9개월」 이 나오고, 날짜 수 옆에 월 단위가 붙는 조합은 생기지 않는다.
   const deadline =
     item.daysUntilDeadline === null
       ? "기본 확인 순서"
       : item.daysUntilDeadline < 0
-        ? `기본 확인 시점에서 ${formatKoreanDayCount(item.daysUntilDeadline)} 지남`
-        : `기본 확인 시점까지 ${formatKoreanDayCount(item.daysUntilDeadline)}`;
+        ? `기본 확인 시점에서 ${Math.abs(item.daysUntilDeadline)}일 지남`
+        : `기본 확인 시점까지 ${item.daysUntilDeadline}일`;
 
   return (
     // 체크 진행률을 보여주는 줄이므로 목적지는 체크리스트다. 분야를 함께 넘겨

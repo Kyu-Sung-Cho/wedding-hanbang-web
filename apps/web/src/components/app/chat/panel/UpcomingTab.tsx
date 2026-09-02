@@ -8,10 +8,6 @@ import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { kstMidnightFromYmd, shortKoreanDateFromYmd, ymdInKst } from "@/lib/utils/kstDate";
-import {
-  formatKoreanDayCount,
-  formatKoreanRelativeDays,
-} from "@hanbang/shared/korean-duration";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -31,13 +27,16 @@ function formatEventDate(dateStr: string): string {
 
 // 같은 파일의 목록 필터는 이미 KST 문자열 비교를 쓴다(:73). 이 라벨만 벽시계
 // 시각을 빼고 있어서, 한국 새벽에는 목록에 남은 오늘 일정이 「1일 전」을 달았다.
-// 두 계산을 같은 KST 기준으로 맞추고, 단위는 값에서 나오게 한다.
+// 두 계산을 같은 KST 기준으로 맞춘다.
 function getDaysUntil(dateStr: string, now: Date): string {
   const diff = Math.round(
     (kstMidnightFromYmd(dateStr).getTime() - kstMidnightFromYmd(ymdInKst(now)).getTime())
       / (1000 * 60 * 60 * 24),
   );
-  return formatKoreanRelativeDays(diff);
+  if (diff === 0) return "오늘";
+  if (diff === 1) return "내일";
+  if (diff < 0) return `${Math.abs(diff)}일 전`;
+  return `${diff}일 후`;
 }
 
 export default function UpcomingTab() {
@@ -110,7 +109,7 @@ export default function UpcomingTab() {
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${colors.badge}`}>
                     {item.deadlineDaysLeft <= 0
-                      ? `기본 확인 시점에서 ${formatKoreanDayCount(item.deadlineDaysLeft)} 지남`
+                      ? `기본 확인 시점에서 ${Math.abs(item.deadlineDaysLeft)}일 지남`
                       : `D-${item.deadlineDaysLeft}`}
                   </span>
                 </div>
