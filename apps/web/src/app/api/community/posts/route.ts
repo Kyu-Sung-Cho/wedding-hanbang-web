@@ -1,4 +1,5 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { readViewer } from "@/lib/supabase/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -128,6 +129,25 @@ function getServiceClient() {
   return createAdminClient();
 }
 
+/**
+ * 실패를 **콘텐츠 없이** 남긴다. 상세 라우트와 같은 형식이다.
+ *
+ * PostgREST 오류 원문에는 조회에 쓰인 값이 그대로 인용된다(태그·검색어·id). 그것을
+ * 그대로 로거에 넘기면 사용자가 친 문자열이 Sentry 이벤트가 된다. 어디서 어떤 종류로
+ * 실패했는지만 남긴다.
+ */
+function logContentFreeFailure(
+  scope: string,
+  category: "database" | "cache" | "unexpected",
+  sourceCode: unknown,
+) {
+  const code =
+    typeof sourceCode === "string" && /^[A-Z0-9_]{1,64}$/u.test(sourceCode)
+      ? sourceCode
+      : "UNCLASSIFIED";
+  log.error(scope, { category, code });
+}
+
 function cleanOptionalText(value: unknown, maxLength: number): string | undefined {
   if (typeof value !== "string") return undefined;
   const cleaned = sanitizeText(value).slice(0, maxLength);
@@ -178,10 +198,8 @@ export async function GET(req: NextRequest) {
     const offset = (page - 1) * limit;
 
     // 현재 사용자 확인 (선택적)
-    const {
-      data: { user },
-      error: viewerError,
-    } = await supabase.auth.getUser();
+    // `readViewer` 는 던지지 않는다 — 이유는 `lib/supabase/viewer.ts` 참고.
+    const { user, error: viewerError } = await readViewer(supabase);
 
     if (viewerError && hasPresentedAuthCredential(req)) {
       return NextResponse.json(
@@ -342,10 +360,13 @@ export async function GET(req: NextRequest) {
     const { data: posts, count, error } = await query;
 
     if (error) {
-      log.error("Community posts list error:", error);
+      log.error("[community.posts.list] feed query failed", {
+        category: "database",
+        code: typeof error.code === "string" ? error.code : "UNCLASSIFIED",
+      });
       return NextResponse.json(
         { error: "게시글을 불러올 수 없습니다." },
-        { status: 500 }
+        { status: 500, headers: { "Cache-Control": "no-store" } },
       );
     }
 
@@ -388,59 +409,81 @@ export async function GET(req: NextRequest) {
     const authorMap = await getCommunityAuthorMap(supabase, authorIds);
 
     // 폴 summary 조회 (목록 카드 배지용)
+    //
+    // ⚠️ 이 블록은 통째로 감싸 둔다. 여기서 던지면 **배지 하나 때문에 피드 전체가
+    // 500** 이 된다. 특히 `getServiceClient()` 는 서비스 키·목적지 고정이 어긋나면
+    // 생성 자체가 던지는데, 그 실패의 대가가 "카드에 투표 배지가 없다" 여야지
+    // "커뮤니티가 열리지 않는다" 일 수는 없다.
     let pollSummaryMap: Record<string, PollSummary> = {};
     if (sortedPosts.length > 0) {
-      const postIds = sortedPosts.map((p) => p.id);
-      const { data: polls, error: pollReferencesError } = await supabase
-        .from("community_polls")
-        .select("id, post_id")
-        .in("post_id", postIds);
-      if (pollReferencesError) {
-        log.error("Community poll references error:", pollReferencesError);
-      } else if (polls) {
-        const postById = new Map(sortedPosts.map((post) => [post.id, post]));
-        const serviceClient = getServiceClient();
-        const projections = await Promise.all(
-          polls.map(async (poll) => {
-            const parentPost = postById.get(poll.post_id);
-            if (!parentPost) return null;
+      try {
+        const postIds = sortedPosts.map((p) => p.id);
+        const { data: polls, error: pollReferencesError } = await supabase
+          .from("community_polls")
+          .select("id, post_id")
+          .in("post_id", postIds);
+        if (pollReferencesError) {
+          logContentFreeFailure(
+            "[community.posts.pollReferences]",
+            "database",
+            pollReferencesError.code,
+          );
+        } else if (polls) {
+          const postById = new Map(sortedPosts.map((post) => [post.id, post]));
+          const serviceClient = getServiceClient();
+          const projections = await Promise.all(
+            polls.map(async (poll) => {
+              const parentPost = postById.get(poll.post_id);
+              if (!parentPost) return null;
 
-            if (user && parentPost.author_id !== user.id) {
-              const { data: viewerCanSee, error: viewerControlError } = await serviceClient.rpc(
-                "community_viewer_can_see" as never,
+              if (user && parentPost.author_id !== user.id) {
+                const { data: viewerCanSee, error: viewerControlError } = await serviceClient.rpc(
+                  "community_viewer_can_see" as never,
+                  {
+                    p_viewer_user_id: user.id,
+                    p_other_user_id: parentPost.author_id,
+                  } as never,
+                ) as { data: unknown; error: unknown };
+                if (viewerControlError || viewerCanSee !== true) return null;
+              }
+
+              try {
+                return await getCommunityPollActorProjection(
+                  serviceClient,
+                  user?.id ?? null,
+                  poll.id,
+                );
+              } catch (error) {
+                logContentFreeFailure(
+                  "[community.posts.pollProjection]",
+                  "database",
+                  (error as { code?: string })?.code,
+                );
+                return null;
+              }
+            }),
+          );
+          pollSummaryMap = Object.fromEntries(
+            projections
+              .filter((poll): poll is NonNullable<typeof poll> => poll !== null)
+              .map((poll) => [
+                poll.post_id,
                 {
-                  p_viewer_user_id: user.id,
-                  p_other_user_id: parentPost.author_id,
-                } as never,
-              ) as { data: unknown; error: unknown };
-              if (viewerControlError || viewerCanSee !== true) return null;
-            }
-
-            try {
-              return await getCommunityPollActorProjection(
-                serviceClient,
-                user?.id ?? null,
-                poll.id,
-              );
-            } catch (error) {
-              log.error("Community poll projection error:", error);
-              return null;
-            }
-          }),
+                  id: poll.id,
+                  question: poll.question,
+                  total_voters: poll.total_voters,
+                  closes_at: poll.closes_at,
+                } satisfies PollSummary,
+              ]),
+          );
+        }
+      } catch (error) {
+        logContentFreeFailure(
+          "[community.posts.pollSummary]",
+          "unexpected",
+          (error as { code?: string })?.code,
         );
-        pollSummaryMap = Object.fromEntries(
-          projections
-            .filter((poll): poll is NonNullable<typeof poll> => poll !== null)
-            .map((poll) => [
-              poll.post_id,
-              {
-                id: poll.id,
-                question: poll.question,
-                total_voters: poll.total_voters,
-                closes_at: poll.closes_at,
-              } satisfies PollSummary,
-            ]),
-        );
+        pollSummaryMap = {};
       }
     }
 
@@ -457,10 +500,16 @@ export async function GET(req: NextRequest) {
 
     return feedResponse({ posts: postsWithVotes, total, hasMore });
   } catch (err) {
-    log.error("Community posts error:", err);
+    // 여기까지 온 예외는 위 갈래들이 못 받은 것이다. 원문은 서버 콘솔에만 남기고
+    // (Vercel 런타임 로그가 1차 자료다) Sentry 로는 분류만 올린다.
+    log.error("[community.posts.list] unhandled failure", {
+      category: "unexpected",
+      code: "UNHANDLED_EXCEPTION",
+    });
+    if (process.env.NODE_ENV !== "production") console.error(err);
     return NextResponse.json(
       { error: "서버 오류가 발생했습니다." },
-      { status: 500 }
+      { status: 500, headers: { "Cache-Control": "no-store" } },
     );
   }
 }

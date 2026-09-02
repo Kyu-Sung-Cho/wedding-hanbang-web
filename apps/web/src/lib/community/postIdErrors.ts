@@ -21,3 +21,22 @@ export function isMalformedPostIdError(error: unknown): boolean {
     && (error as { code?: unknown }).code === INVALID_TEXT_REPRESENTATION
   );
 }
+
+/**
+ * `community_posts.id` 가 될 수 있는 모양인가.
+ *
+ * 오류를 **받은 뒤에** 판정하면, 그 오류가 나기까지 지나온 인증·서비스 클라이언트
+ * 단계 중 하나가 먼저 던질 수 있다. 그러면 없는 글 주소가 404 가 아니라 500 이 된다 —
+ * 2026-09-02 운영 실측에서 `/api/community/posts/1` 이 실제로 그랬다.
+ *
+ * 그래서 **아무것도 하기 전에** 모양부터 본다. 이 모양이 아니면 어떤 행과도 비교될 수
+ * 없으므로 누구에게도 없는 글이다.
+ *
+ * 버전·variant 비트는 보지 않는다. 여기서 그것까지 요구하면 uuid 생성 방식이 바뀌는
+ * 날 **살아 있는 글이 404** 가 된다 — 이 검사가 막으려는 것보다 나쁜 사고다.
+ */
+const CANONICAL_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+export function couldBePostId(value: unknown): value is string {
+  return typeof value === "string" && CANONICAL_UUID.test(value);
+}

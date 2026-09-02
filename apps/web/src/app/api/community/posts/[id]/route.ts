@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
+import { readViewer } from "@/lib/supabase/viewer";
+import { couldBePostId } from "@/lib/community/postIdErrors";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
@@ -203,12 +205,27 @@ function communityMediaPublishingDisabledResponse() {
 }
 
 async function isAdmin(userId: string): Promise<boolean> {
-  const { data } = await getServiceClient()
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", userId)
-    .single();
-  return data?.is_admin === true;
+  try {
+    const { data } = await getServiceClient()
+      .from("profiles")
+      .select("is_admin")
+      .eq("id", userId)
+      .single();
+    return data?.is_admin === true;
+  } catch (error) {
+    // 관리자 조회가 실패하면 **관리자가 아닌 것으로** 본다. 권한을 더 주는 쪽이
+    // 아니라 덜 주는 쪽이라 안전하고, 여기서 던지면 글 하나를 못 읽는 게 아니라
+    // 라우트 전체가 500 이 된다.
+    log.error("[community.posts.isAdmin] admin lookup unavailable", {
+      code: "ADMIN_LOOKUP_UNAVAILABLE",
+    });
+    logContentFreeFailure(
+      "[community.posts.isAdmin]",
+      "unexpected",
+      (error as { code?: string })?.code,
+    );
+    return false;
+  }
 }
 
 // 게시글 상세 조회
@@ -218,12 +235,21 @@ async function getPostResponse(
 ) {
   try {
     const { id } = await params;
+
+    // 인증도 DB 도 건드리기 **전에** 주소부터 본다. 이 모양이 아니면 어떤 행과도
+    // 비교될 수 없으므로 누구에게도 없는 글이고, 아래 단계 중 무엇이 실패하든
+    // 답은 404 여야 한다. 뒤에 두면 그 단계들이 먼저 던져 500 이 된다
+    // (2026-09-02 운영 실측: `/api/community/posts/1` 이 500 이었다).
+    if (!couldBePostId(id)) {
+      return NextResponse.json(
+        { error: "게시글을 찾을 수 없습니다." },
+        { status: 404 },
+      );
+    }
+
     const supabase = await createClientFromRequest(req);
 
-    const {
-      data: { user },
-      error: viewerError,
-    } = await supabase.auth.getUser();
+    const { user, error: viewerError } = await readViewer(supabase);
 
     // 로그아웃 방문자에게는 getUser()가 항상 에러다. 자격 증명을 실제로 제시한
     // 요청만 503으로 닫는다 — 목록 라우트와 같은 기준. 그러지 않으면 공개 글
@@ -267,13 +293,24 @@ async function getPostResponse(
 
     // 벤더 태그 상세 정보
     if (user && post.author_id !== user.id) {
-      const { data: viewerCanSee, error: viewerControlError } = await getServiceClient().rpc(
-        "community_viewer_can_see" as never,
-        {
-          p_viewer_user_id: user.id,
-          p_other_user_id: post.author_id,
-        } as never,
-      ) as { data: unknown; error: unknown };
+      let viewerCanSee: unknown;
+      let viewerControlError: unknown;
+      try {
+        ({ data: viewerCanSee, error: viewerControlError } = await getServiceClient().rpc(
+          "community_viewer_can_see" as never,
+          {
+            p_viewer_user_id: user.id,
+            p_other_user_id: post.author_id,
+          } as never,
+        ) as { data: unknown; error: unknown });
+      } catch (error) {
+        // 차단 경계는 **닫는 쪽으로** 실패해야 한다. 던지게 두면 500 이 되어
+        // 실패 이유가 사용자에게도 우리에게도 남지 않는다.
+        log.error("[community.posts.viewerControl] block check unavailable", {
+          code: "VIEWER_CONTROL_UNAVAILABLE",
+        });
+        viewerControlError = error;
+      }
       if (viewerControlError || typeof viewerCanSee !== "boolean") {
         return NextResponse.json(
           { error: "게시글 접근 권한을 확인하지 못했습니다." },
@@ -296,19 +333,28 @@ async function getPostResponse(
       rating: number | null;
     }> = [];
     if (post.vendor_tags && post.vendor_tags.length > 0) {
-      const { data: vendors } = await getServiceClient()
-        .from("vendors")
-        .select("id, name, category, thumbnail_url, rating")
-        .in("id", post.vendor_tags)
-        .eq("status", "approved");
+      // 업체 칩은 글의 곁가지다. 못 가져오면 칩만 빠지고 본문은 그대로 나간다.
+      try {
+        const { data: vendors } = await getServiceClient()
+          .from("vendors")
+          .select("id, name, category, thumbnail_url, rating")
+          .in("id", post.vendor_tags)
+          .eq("status", "approved");
 
-      vendorDetails = (vendors ?? []).map((v) => ({
-        id: v.id,
-        business_name: v.name,
-        category: v.category,
-        thumbnail_url: v.thumbnail_url ?? null,
-        rating: v.rating ?? null,
-      }));
+        vendorDetails = (vendors ?? []).map((v) => ({
+          id: v.id,
+          business_name: v.name,
+          category: v.category,
+          thumbnail_url: v.thumbnail_url ?? null,
+          rating: v.rating ?? null,
+        }));
+      } catch (error) {
+        logContentFreeFailure(
+          "[community.posts.vendorTags]",
+          "unexpected",
+          (error as { code?: string })?.code,
+        );
+      }
     }
 
     // 인증 사용자: 투표 + 북마크 상태
@@ -339,20 +385,33 @@ async function getPostResponse(
     const authorMap = await getCommunityAuthorMap(supabase, [post.author_id]);
 
     // 폴 + 옵션 + 사용자 투표 상태
+    //
+    // ⚠️ 여기 `if (pollError) throw pollError;` 였다. 투표가 붙어 있지도 않은 글이
+    // 투표 테이블 조회 실패 하나로 통째로 500 이 됐다. 투표는 글의 곁가지이므로
+    // 못 가져오면 그것만 빠지고 본문은 그대로 나간다.
     let pollData: PollWithOptions | null = null;
-    const { data: pollRow, error: pollError } = await supabase
-      .from("community_polls")
-      .select("id, post_id")
-      .eq("post_id", id)
-      .maybeSingle();
+    try {
+      const { data: pollRow, error: pollError } = await supabase
+        .from("community_polls")
+        .select("id, post_id")
+        .eq("post_id", id)
+        .maybeSingle();
 
-    if (pollError) throw pollError;
-    if (pollRow) {
-      pollData = await getCommunityPollActorProjection(
-        getServiceClient(),
-        user?.id ?? null,
-        pollRow.id,
+      if (pollError) throw pollError;
+      if (pollRow) {
+        pollData = await getCommunityPollActorProjection(
+          getServiceClient(),
+          user?.id ?? null,
+          pollRow.id,
+        );
+      }
+    } catch (error) {
+      logContentFreeFailure(
+        "[community.posts.poll]",
+        "database",
+        (error as { code?: string })?.code,
       );
+      pollData = null;
     }
 
     return NextResponse.json({

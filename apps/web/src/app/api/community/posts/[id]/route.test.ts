@@ -275,6 +275,127 @@ describe("community post resolution state", () => {
     });
   });
 
+  /**
+   * 없는 글 주소는 **무엇이 고장 나 있어도** 404 다.
+   *
+   * 2026-09-02 운영 실측: 상한 인증 쿠키를 든 브라우저에서
+   * `/api/community/posts/1` 이 404 가 아니라 `500 {"error":"서버 오류가
+   * 발생했습니다."}` 였다. id 판정보다 **먼저** 있는 단계(세션 읽기)가 던졌기
+   * 때문이다. 원인 하나를 고치는 것과 별개로, 그 앞 단계는 앞으로도 던질 수 있다.
+   */
+  it("세션 읽기가 던져도 UUID 가 아닌 주소는 404 다", async () => {
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => {
+          throw new Error("Invalid UTF-8 sequence");
+        }),
+      },
+      from: vi.fn(() => {
+        throw new Error("없는 주소로 DB 를 건드리면 안 된다");
+      }),
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/community/posts/1", {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+      }) as never,
+      { params: Promise.resolve({ id: "1" }) },
+    );
+
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      error: "게시글을 찾을 수 없습니다.",
+    });
+  });
+
+  it("세션 읽기가 던져도 500 이 아니라 확인 실패(503)로 닫는다", async () => {
+    // 주소는 멀쩡한데 세션을 못 읽는 경우다. 자격 증명을 제시했으므로 fail-closed
+    // 지만, 그 답은 "서버 오류" 가 아니라 "확인하지 못했다" 여야 한다.
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => {
+          throw new Error("Invalid UTF-8 sequence");
+        }),
+      },
+      from: vi.fn(() => ({
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            single: vi.fn(async () => ({ data: null, error: { code: "PGRST116" } })),
+          })),
+        })),
+      })),
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/community/posts/${POST_ID}`, {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+      }) as never,
+      { params: Promise.resolve({ id: POST_ID }) },
+    );
+
+    expect(response.status).toBe(503);
+  });
+
+  /**
+   * 투표는 글의 곁가지다. 예전에는 `if (pollError) throw pollError;` 라서, 투표가
+   * 붙어 있지도 않은 글이 투표 테이블 조회 실패 하나로 통째로 500 이 됐다.
+   */
+  it("투표 조회가 실패해도 글 본문은 그대로 내려준다", async () => {
+    mocks.getCommunityAuthorMap.mockResolvedValue({});
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { name: "AuthSessionMissingError", message: "Auth session missing!" },
+        })),
+      },
+      from: vi.fn((table: string) => {
+        if (table === "community_polls") {
+          return {
+            select: vi.fn(() => ({
+              eq: vi.fn(() => ({
+                maybeSingle: vi.fn(async () => ({
+                  data: null,
+                  error: { code: "57014", message: "canceling statement" },
+                })),
+              })),
+            })),
+          };
+        }
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              single: vi.fn(async () => ({
+                data: {
+                  id: POST_ID,
+                  author_id: AUTHOR_ID,
+                  visibility: "public",
+                  under_review: false,
+                  title: "투표가 없어도 읽히는 글",
+                  content: "본문",
+                  vendor_tags: [],
+                },
+                error: null,
+              })),
+            })),
+          })),
+        };
+      }),
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/community/posts/${POST_ID}`) as never,
+      { params: Promise.resolve({ id: POST_ID }) },
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      id: POST_ID,
+      title: "투표가 없어도 읽히는 글",
+      poll: null,
+    });
+  });
+
   it("loads poll counters only through the actor projection after the viewer boundary", async () => {
     const viewerRpc = vi.fn(() => {
       throw new Error("viewer-scoped client must not expose the block oracle");

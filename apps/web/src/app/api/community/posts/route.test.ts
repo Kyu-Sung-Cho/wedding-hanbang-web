@@ -128,6 +128,87 @@ describe("GET /api/community/posts answer-state filters", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store, max-age=0");
   });
 
+  /**
+   * 배지 하나가 커뮤니티 전체를 닫지 못하게 한다.
+   *
+   * poll summary 는 카드에 붙는 곁가지인데, 그 블록의 `getServiceClient()` 가
+   * 감싸이지 않은 채 있었다. 서비스 키·목적지 고정이 어긋나면 생성 자체가 던지고,
+   * 그 예외가 라우트 맨 바깥까지 올라가 **피드 전체가 500** 이 됐다.
+   */
+  it("서비스 클라이언트가 죽어도 피드는 글을 돌려준다", async () => {
+    const query = createPostsQuery([
+      {
+        id: "22222222-2222-4222-8222-222222222222",
+        author_id: "11111111-1111-4111-8111-111111111111",
+        created_at: "2026-07-30T00:00:00.000Z",
+        upvote_count: 0,
+        comment_count: 0,
+      },
+    ]);
+    mocks.createAdminClient.mockImplementation(() => {
+      throw new Error("Supabase project destination is not explicitly pinned.");
+    });
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { name: "AuthSessionMissingError" },
+        })),
+      },
+      from: vi.fn(() => query),
+    });
+
+    const response = await GET(request("new"));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.posts).toHaveLength(1);
+    // 배지만 빠진다.
+    expect(body.posts[0].poll).toBeNull();
+  });
+
+  /**
+   * 2026-09-02 운영 실측: 상한 인증 쿠키를 든 브라우저에 목록이 500 이었다.
+   * 세션 읽기가 던져서 라우트 맨 바깥 `catch` 가 받았기 때문이다. 그 자리는
+   * 앞으로도 던질 수 있으므로, 던져도 **분류된 응답**이 나가야 한다.
+   */
+  it("세션 읽기가 던져도 500 이 아니라 확인 실패(503)로 닫는다", async () => {
+    const query = createPostsQuery();
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => {
+          throw new Error("Invalid UTF-8 sequence");
+        }),
+      },
+      from: vi.fn(() => query),
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/community/posts?sort=new", {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(query.select).not.toHaveBeenCalled();
+  });
+
+  it("세션 읽기가 던져도 자격 증명을 안 낸 방문자에게는 공개 목록을 준다", async () => {
+    const query = createPostsQuery();
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => {
+          throw new Error("Invalid UTF-8 sequence");
+        }),
+      },
+      from: vi.fn(() => query),
+    });
+
+    const response = await GET(request("new"));
+
+    expect(response.status).toBe(200);
+  });
+
   it("fails closed when a presented session cannot be verified", async () => {
     const query = createPostsQuery();
     mocks.createClientFromRequest.mockResolvedValue({
