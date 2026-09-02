@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   generateLink: vi.fn(),
   send: vi.fn(),
   logError: vi.fn(),
+  constructedWithKey: [] as string[],
 }));
 
 vi.mock("@/lib/turnstile", () => ({
@@ -40,9 +41,13 @@ vi.mock("@/utils/log", () => ({
 vi.mock("resend", () => ({
   Resend: class {
     constructor(key?: string) {
-      // 실제 SDK 와 같은 자리에서 같은 방식으로 던진다. 키 없이 만들면 생성자가
-      // 실패하고, 그 시점은 이미 계정을 만든 뒤라는 것이 문제의 절반이었다.
+      // 실제 SDK 를 실행해 확인한 동작을 그대로 흉내낸다(resend 6.10.0):
+      //   new Resend(undefined) → throws
+      //   new Resend("")        → throws
+      //   new Resend("   ")     → 던지지 않고 그 값을 그대로 들고 간다
+      // 그 마지막 줄이 운영 502 의 후보였다 — 값이 있으면 SDK 는 검사하지 않는다.
       if (!key) throw new Error("Missing API key.");
+      mocks.constructedWithKey.push(key);
     }
     emails = { send: mocks.send };
   },
@@ -80,6 +85,7 @@ function makeEmailAlreadyRegistered() {
 describe("인증 메일이 나가지 못했을 때", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.constructedWithKey.length = 0;
     vi.stubEnv("RESEND_API_KEY", "re_test_key");
     mocks.verifyTurnstile.mockResolvedValue({ ok: true, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
@@ -95,6 +101,65 @@ describe("인증 메일이 나가지 못했을 때", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  /**
+   * 환경변수에 값을 붙여 넣을 때 끝에 줄바꿈이 따라오는 것은 아주 흔하다. 그런데
+   * SDK 는 값이 있기만 하면 검사하지 않고 `Bearer <값>` 을 만들어 보내고, 제공자는
+   * "API key is invalid" 로 거절한다. 그 한 글자 때문에 가입이 전부 막힌다.
+   */
+  describe("자격 문자열이 지저분할 때", () => {
+    it("앞뒤 공백과 줄바꿈은 없애고 보낸다", async () => {
+      vi.stubEnv("RESEND_API_KEY", "  re_real_key\n");
+
+      const response = await signup(signupRequest());
+
+      expect(response.status).toBe(200);
+      // 다듬지 않으면 제공자가 이 값을 거절하고 가입이 502 로 끝난다.
+      expect(mocks.constructedWithKey).toEqual(["re_real_key"]);
+    });
+
+    it("공백만 있는 값은 자격이 없는 것으로 본다", async () => {
+      // SDK 는 "   " 를 받아도 던지지 않는다. 그래서 우리가 먼저 봐야 한다.
+      vi.stubEnv("RESEND_API_KEY", "   ");
+
+      const response = await signup(signupRequest());
+      const payload = await response.json();
+
+      expect(response.status).toBe(503);
+      expect(payload.code).toBe("EMAIL_DELIVERY_UNCONFIGURED");
+      expect(mocks.generateLink).not.toHaveBeenCalled();
+    });
+
+    const UNUSABLE = [
+      ["가운데에 줄바꿈이 있다", "re_abc\ndef"],
+      ["가운데에 공백이 있다", "re_abc def"],
+      ["따옴표로 싸여 있다", '"re_abc"'],
+      ["작은따옴표로 싸여 있다", "'re_abc'"],
+    ] as const;
+
+    for (const [label, value] of UNUSABLE) {
+      it(`${label} → 계정을 만들기 전에 되돌아간다`, async () => {
+        vi.stubEnv("RESEND_API_KEY", value);
+
+        const response = await signup(signupRequest());
+        const payload = await response.json();
+
+        expect(response.status).toBe(503);
+        expect(payload.code).toBe("EMAIL_DELIVERY_CREDENTIAL");
+        // 어떤 형식의 키도 이런 문자를 품지 않는다. 보내 봐야 거절되고,
+        // 그 전에 인증할 수 없는 계정만 남는다.
+        expect(mocks.generateLink).not.toHaveBeenCalled();
+      });
+    }
+
+    it("낯선 접두사만으로는 막지 않는다", async () => {
+      // 제공자가 키 형식을 바꾸면 그 검사가 유효한 키를 막아 가입을 통째로 세운다 —
+      // 고치려던 것보다 큰 사고를 우리가 만드는 셈이다.
+      vi.stubEnv("RESEND_API_KEY", "rsnd_v2_abcdefghijklmnop");
+
+      expect((await signup(signupRequest())).status).toBe(200);
+    });
   });
 
   describe("발송 자격이 없는 배포", () => {
@@ -193,6 +258,20 @@ describe("인증 메일이 나가지 못했을 때", () => {
       {
         label: "제공자가 흔들렸다",
         error: { name: "internal_server_error", statusCode: 500, message: "Something went wrong" },
+        code: "EMAIL_DELIVERY_PROVIDER_ERROR",
+        status: 502,
+        kind: "provider",
+      },
+      {
+        // SDK 소스에서 그대로 가져온 문장이다(resend 6.10.0 `fetchRequest` 의
+        // 바깥 catch). 네트워크가 끊기면 SDK 는 던지지 않고 이 모양으로 **반환**
+        // 하므로, 이것도 502 로 도착한다. 다시 시도해 볼 만한 쪽이어야 한다.
+        label: "요청이 제공자에 닿지 못했다",
+        error: {
+          name: "application_error",
+          statusCode: null,
+          message: "Unable to fetch data. The request could not be resolved.",
+        },
         code: "EMAIL_DELIVERY_PROVIDER_ERROR",
         status: 502,
         kind: "provider",

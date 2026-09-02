@@ -101,17 +101,60 @@ const FAILURES: Record<EmailDeliveryFailureKind, EmailDeliveryFailure> = {
 };
 
 /**
- * 이 배포가 메일을 보낼 자격을 갖고 있는가.
+ * 실제로 제공자에 보낼 자격 문자열.
  *
- * 키가 없으면 `new Resend(undefined)` 가 **생성자에서** 던진다. 가입 라우트에서는
- * 그 시점이 이미 계정을 만든 뒤라, 사용자는 "회원가입 처리 중 오류"를 보고
- * 인증할 수 없는 계정만 남았다. 그래서 아무것도 만들기 전에 먼저 확인한다.
+ * ## 왜 다듬어서 쓰는가
+ *
+ * SDK 를 직접 실행해 확인한 것(2026-09-02, resend 6.10.0):
+ *
+ *     new Resend(undefined) → throws "Missing API key..."
+ *     new Resend("")        → throws
+ *     new Resend("   ")     → **던지지 않는다.** key="   " 그대로 들고 간다
+ *     new Resend("not-a-key") → 던지지 않는다
+ *
+ * 즉 값이 있기만 하면 SDK 는 그대로 `Authorization: Bearer <값>` 을 만든다. 값에
+ * 줄바꿈이나 공백이 섞여 있으면 제공자는 "API key is invalid" 로 거절하고, 가입은
+ * 원인 모를 502 로 끝난다. 환경변수에 값을 붙여 넣을 때 끝에 줄바꿈이 따라오는
+ * 것은 아주 흔한 일이고, 그 한 글자 때문에 가입이 전부 막힌다.
+ *
+ * 그래서 앞뒤 공백은 **여기서 없앤다.** 유효한 키에 앞뒤 공백이 의미를 갖는
+ * 경우는 없으므로 이 정리는 무엇도 깨뜨리지 않고, 흔한 설정 실수 하나를 실제로
+ * 고친다.
+ */
+export function readEmailDeliveryApiKey(): string | null {
+  const raw = process.env.RESEND_API_KEY;
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  return trimmed === "" ? null : trimmed;
+}
+
+/**
+ * 다듬어도 자격으로 쓸 수 없는 값인가.
+ *
+ * 앞뒤를 정리한 **뒤에도** 공백·제어문자가 남아 있거나 따옴표로 싸여 있으면 그것은
+ * 설정이 상한 것이다 — 어떤 형식의 API 키도 그런 문자를 품지 않는다. 그대로 보내면
+ * 제공자가 거절하고, 그 전에 이미 계정이 만들어져 있다.
+ *
+ * **접두사(`re_`)로는 판정하지 않는다.** 제공자가 키 형식을 바꾸면 이 검사가 유효한
+ * 키를 막아 가입을 통째로 세우게 된다 — 고치려던 것보다 큰 사고를 우리가 만드는 셈이다.
+ * 그래서 "무엇이어도 될 수 없는 것"만 막는다.
+ */
+function isUnusableApiKey(key: string): boolean {
+  return /[\s\u0000-\u001f\u007f]/u.test(key)
+    || /^["'].*["']$/u.test(key);
+}
+
+/**
+ * 이 배포가 메일을 보낼 자격을 갖고 있는가. 아무것도 만들기 전에 본다.
+ *
+ * 키가 아예 없으면 `new Resend(undefined)` 가 **생성자에서** 던지는데, 가입
+ * 라우트에서는 그 시점이 이미 계정을 만든 뒤다. 사용자는 "회원가입 처리 중 오류"를
+ * 보고 인증할 수 없는 계정만 남았다.
  */
 export function findEmailDeliveryConfigFailure(): EmailDeliveryFailure | null {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (typeof apiKey !== "string" || apiKey.trim() === "") {
-    return FAILURES.unconfigured;
-  }
+  const apiKey = readEmailDeliveryApiKey();
+  if (apiKey === null) return FAILURES.unconfigured;
+  if (isUnusableApiKey(apiKey)) return FAILURES.credential;
   return null;
 }
 

@@ -15,6 +15,7 @@ import {
   emailDeliveryLogLine,
   emailDeliveryMissingReceiptFailure,
   findEmailDeliveryConfigFailure,
+  readEmailDeliveryApiKey,
   redactProviderDetail,
   type EmailDeliveryFailure,
 } from "@/lib/email/deliveryFailure";
@@ -92,7 +93,7 @@ async function sendExistingAccountNotice({
             </a>
           </div>`;
 
-    const sendResult = await new Resend(process.env.RESEND_API_KEY).emails.send({
+    const sendResult = await new Resend(readEmailDeliveryApiKey() ?? undefined).emails.send({
       from: ACCOUNT_EMAIL_SENDER,
       to: email,
       subject: "웨딩한방 — 이미 가입된 계정이 있어요",
@@ -327,7 +328,9 @@ export async function POST(request: Request) {
       type: "signup",
       redirectPath: safeRedirect,
     });
-    const resend = new Resend(process.env.RESEND_API_KEY);
+    // 다듬은 값을 쓴다. 환경변수 끝의 줄바꿈 한 글자가 발송을 전부 막던 것을
+    // 여기서 흡수한다(@/lib/email/deliveryFailure 의 readEmailDeliveryApiKey).
+    const resend = new Resend(readEmailDeliveryApiKey() ?? undefined);
     const safeName = escapeHtml(name);
 
     // Resend는 발송 실패를 예외가 아니라 반환값으로 준다. 결과를 버리면
