@@ -47,6 +47,7 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { repairMojibake, repairMojibakeDeep } from "@hanbang/shared";
 import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { MUTATING_TOOL_NAMES } from "@/lib/ai/mutationTools";
 import { useAuthStore } from "./authStore";
@@ -749,12 +750,20 @@ async function parseSSEStream(
 }
 
 // DB row → 내부 ChatMessage 변환 (sender_type → sender_role)
+//
+// 저장된 대화가 예전에 잘못 읽혀 들어간 경우가 있어서, 여기서 되돌린다. 기록을
+// 읽어 오는 세 길(최초 적재·폴링·실시간)이 전부 이 함수를 지나므로 한 곳이면 된다.
+//
+// `metadata` 까지 훑는 이유: 화면에 나가는 글은 `content` 하나가 아니다. 도구 카드
+// 문구, 승인 카드 문구, 중재 카드의 네 문단이 모두 `metadata` 안에 있고 각각 다른
+// 컴포넌트가 그린다. 되돌리기는 바이트 왕복이 맞을 때만 값을 바꾸므로 ID·경로처럼
+// ASCII 뿐인 값은 그대로 지나간다.
 function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
   const rawVisibility = row.visibility;
   const visibility: ChatMessage["visibility"] =
     rawVisibility === "bride_private" || rawVisibility === "groom_private" ? rawVisibility : "shared";
   const rawMetadata = (row.metadata as ChatMessageMetadata) ?? null;
-  const metadata = rawMetadata ? { ...rawMetadata } : null;
+  const metadata = rawMetadata ? repairMojibakeDeep({ ...rawMetadata }) : null;
   if (metadata?.toolResults) {
     const persistableResults = getPersistableToolResults(metadata.toolResults);
     if (persistableResults.length > 0) metadata.toolResults = persistableResults;
@@ -765,7 +774,7 @@ function dbRowToMessage(row: Record<string, unknown>): ChatMessage {
     couple_id: row.couple_id as string,
     sender_id: (row.sender_id as string) ?? null,
     sender_role: (row.sender_type as MessageSenderRole) ?? (row.sender_role as MessageSenderRole) ?? "ai",
-    content: row.content as string,
+    content: repairMojibake(row.content),
     metadata,
     visibility,
     created_at: row.created_at as string,
