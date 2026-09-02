@@ -18,6 +18,7 @@ import {
   redactProviderDetail,
   type EmailDeliveryFailure,
 } from "@/lib/email/deliveryFailure";
+import { ACCOUNT_EMAIL_SENDER } from "@/lib/email/sender";
 import { buildEmailConfirmUrl } from "@/lib/auth/emailConfirmLink";
 import { getRequestedAuthRedirectPath } from "@/lib/auth/safeRedirect";
 import {
@@ -92,7 +93,7 @@ async function sendExistingAccountNotice({
           </div>`;
 
     const sendResult = await new Resend(process.env.RESEND_API_KEY).emails.send({
-      from: "웨딩한방 <noreply@hanbang.ai>",
+      from: ACCOUNT_EMAIL_SENDER,
       to: email,
       subject: "웨딩한방 — 이미 가입된 계정이 있어요",
       html: `
@@ -333,7 +334,7 @@ export async function POST(request: Request) {
     // 메일이 안 갔는데도 "인증 이메일을 발송했습니다"라고 답하게 되고,
     // 사용자는 오지 않는 메일을 기다린다.
     const sendResult = await resend.emails.send({
-      from: "웨딩한방 <noreply@hanbang.ai>",
+      from: ACCOUNT_EMAIL_SENDER,
       to: email,
       subject: "웨딩한방 이메일 인증을 완료해주세요",
       html: `

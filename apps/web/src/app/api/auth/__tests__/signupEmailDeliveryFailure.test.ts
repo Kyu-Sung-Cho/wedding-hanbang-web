@@ -145,8 +145,25 @@ describe("인증 메일이 나가지 못했을 때", () => {
         kind: "sender_domain",
       },
       {
-        label: "키가 거절됐다",
-        error: { name: "invalid_api_key", statusCode: 401, message: "API key is invalid" },
+        // 2026-09-02 Resend API 실측 응답. 이름이 `invalid_api_key` 가 아니라
+        // `validation_error` 로 오고, 상태 코드도 부르는 자리마다 401/400 으로
+        // 갈린다. 그래서 판정이 상태 코드만 보면 안 된다.
+        label: "키가 거절됐다 (401 validation_error)",
+        error: { name: "validation_error", statusCode: 401, message: "API key is invalid" },
+        code: "EMAIL_DELIVERY_CREDENTIAL",
+        status: 503,
+        kind: "credential",
+      },
+      {
+        label: "키가 거절됐다 (400 validation_error)",
+        error: { name: "validation_error", statusCode: 400, message: "API key is invalid" },
+        code: "EMAIL_DELIVERY_CREDENTIAL",
+        status: 503,
+        kind: "credential",
+      },
+      {
+        label: "키가 없다고 제공자가 답했다",
+        error: { name: "missing_api_key", statusCode: 401, message: "Missing API Key" },
         code: "EMAIL_DELIVERY_CREDENTIAL",
         status: 503,
         kind: "credential",
@@ -199,7 +216,7 @@ describe("인증 메일이 나가지 못했을 때", () => {
     it("설정이 원인이면 다시 시도하라고 말하지 않고, 잠깐이면 말한다", async () => {
       mocks.send.mockResolvedValue({
         data: null,
-        error: { name: "invalid_api_key", statusCode: 401, message: "API key is invalid" },
+        error: { name: "validation_error", statusCode: 400, message: "API key is invalid" },
       });
       const config = await (await signup(signupRequest())).json();
       expect(config.error).not.toContain("잠시 후 다시 시도");
