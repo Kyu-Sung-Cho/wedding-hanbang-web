@@ -8,6 +8,7 @@
 1. `START_HERE.md`
 2. `PRINCIPLES.md`
 3. `AGENTS.md`
+3.5. `VERIFICATION.md` — 무엇을 끝내든 마지막에 통과해야 하는 관문
 4. `docs/README.md`
 5. `docs/PRODUCT_CONTRACT_PARTNER_2026-08-08.md`
    - `docs/MVP_PRODUCT_DIRECTION_2026-07-30.md`를 승계한 현재 제품 계약 정본
@@ -142,6 +143,16 @@
 
 - dirty worktree의 다른 사람 변경을 되돌리지 않는다.
 - 입력은 경계에서 검증하고 내부 오류·비밀값·개인정보를 응답이나 로그에 노출하지 않는다.
+- **"완료했다"고 말하기 전에 `node scripts/verify-change.mjs` 가 종료 코드 0을 내야
+  한다.** 기준과 그것이 존재하는 이유는 `VERIFICATION.md` 에 있다. 요지 셋:
+  검증 범위를 사람이 고르지 않고 diff 가 정한다, 새로 만든 검사는
+  `scripts/prove-guard.mjs` 로 **위반을 심어 빨간불을 본 뒤에만** 통과로 친다,
+  안전·개인정보 파일을 건드리면 `scripts/scope-delta.mjs` 로 **이전 판본과 나란히
+  잰 결과** 없이는 통과하지 못한다.
+  - 2026-09-02 하루에 같은 병으로 네 번 틀려서 만들었다. "타입 검사 통과" 라고
+    보고했는데 다른 테스트 133개가 깨져 있었고(범위를 내가 골랐다), "오탐 0" 이
+    이전 대비 +12 였고(내 반례가 한 구조만 겨냥했다), 원장 누락 1건이 27건이었다
+    (근사 조인이 뭉갰다). **틀린 측정은 조용하다.**
 - 변경 영역의 표적 테스트와 타입 검사를 먼저 실행한다.
 - 공유 전 저장소 루트에서 `corepack pnpm qa:local`을 실행한다.
 - 운영 DB는 일반 `supabase db push`, `--include-all`, 임의 SQL write로 바꾸지 않는다.
