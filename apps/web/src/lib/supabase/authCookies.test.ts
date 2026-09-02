@@ -2,6 +2,7 @@ import { stringFromBase64URL, stringToBase64URL } from "@supabase/ssr";
 import { describe, expect, it } from "vitest";
 
 import {
+  hasUsableSupabaseAuthCredential,
   isReadableSupabaseCookieValue,
   unreadableSupabaseCookieNames,
   withoutUnreadableSupabaseCookies,
@@ -133,5 +134,76 @@ describe("withoutUnreadableSupabaseCookies", () => {
         `${AUTH_TOKEN}.0`,
       ]);
     });
+  });
+});
+
+/**
+ * 공개 읽기 라우트가 "확인 실패(503)" 와 "로그아웃 방문자(200)" 를 가르는 판정이다.
+ *
+ * 미들웨어가 이미 상한 쿠키를 떼어 내지만 라우트가 그 사실에 **의존하면 안 된다.**
+ * 프록시 matcher 가 바뀌거나 라우트가 다른 경로로 불리면 같은 요청이 다시 503 이 된다.
+ */
+describe("hasUsableSupabaseAuthCredential", () => {
+  function req(headers: Record<string, string>): Request {
+    return new Request("https://hanbang.ai/api/community/posts", { headers });
+  }
+
+  it("Authorization 헤더는 형식이 틀려도 '제시함' 이다", () => {
+    // 호출자가 의도한 신원이다. 조용히 익명으로 떨어뜨리지 않는다.
+    expect(hasUsableSupabaseAuthCredential(req({ authorization: "Bearer x" }))).toBe(true);
+    expect(hasUsableSupabaseAuthCredential(req({ authorization: "Basic x" }))).toBe(true);
+  });
+
+  it("살아 있는 세션 쿠키는 '제시함' 이다", () => {
+    expect(
+      hasUsableSupabaseAuthCredential(req({ cookie: `${AUTH_TOKEN}=${HEALTHY_SESSION}` })),
+    ).toBe(true);
+  });
+
+  it("형식은 멀쩡한 만료 세션도 '제시함' 이다", () => {
+    // 이것까지 익명으로 떨어뜨리면 진짜 확인 실패를 조용히 삼킨다.
+    const expired = sessionCookieValue({ access_token: "x", expires_at: 0 });
+    expect(hasUsableSupabaseAuthCredential(req({ cookie: `${AUTH_TOKEN}=${expired}` }))).toBe(true);
+  });
+
+  it("디코딩되지 않는 쿠키는 자격 증명이 아니다", () => {
+    // 어떤 세션도 될 수 없는 값이다. 이것 때문에 공개 글이 503 이 되면 안 된다.
+    for (const broken of ["base64-garbage", "base64-!!!!"]) {
+      expect(
+        hasUsableSupabaseAuthCredential(req({ cookie: `a=1; ${AUTH_TOKEN}=${broken}; b=2` })),
+        broken,
+      ).toBe(false);
+    }
+  });
+
+  it("빈 인증 쿠키는 자격 증명이 아니다", () => {
+    expect(hasUsableSupabaseAuthCredential(req({ cookie: `${AUTH_TOKEN}=` }))).toBe(false);
+  });
+
+  it("인증 쿠키가 없으면 자격 증명이 아니다", () => {
+    expect(hasUsableSupabaseAuthCredential(req({ cookie: "a=1; b=2" }))).toBe(false);
+    expect(hasUsableSupabaseAuthCredential(req({}))).toBe(false);
+  });
+
+  it("PKCE code verifier 만으로는 세션을 제시한 것이 아니다", () => {
+    expect(
+      hasUsableSupabaseAuthCredential(req({ cookie: `${AUTH_TOKEN}-code-verifier=plain` })),
+    ).toBe(false);
+  });
+
+  it("청크가 이어 붙어 디코딩되면 '제시함' 이다", () => {
+    const cut = HEALTHY_SESSION.length - 3;
+    const header = `${AUTH_TOKEN}.0=${HEALTHY_SESSION.slice(0, cut)}; ${AUTH_TOKEN}.1=${HEALTHY_SESSION.slice(cut)}`;
+    expect(hasUsableSupabaseAuthCredential(req({ cookie: header }))).toBe(true);
+  });
+
+  it("청크를 이어 붙여도 디코딩이 안 되면 자격 증명이 아니다", () => {
+    const header = `${AUTH_TOKEN}.0=base64-garba; ${AUTH_TOKEN}.1=ge`;
+    expect(hasUsableSupabaseAuthCredential(req({ cookie: header }))).toBe(false);
+  });
+
+  it("퍼센트 인코딩된 값도 디코딩해서 본다", () => {
+    const encoded = encodeURIComponent(HEALTHY_SESSION);
+    expect(hasUsableSupabaseAuthCredential(req({ cookie: `${AUTH_TOKEN}=${encoded}` }))).toBe(true);
   });
 });

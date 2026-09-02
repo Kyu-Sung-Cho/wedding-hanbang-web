@@ -1,5 +1,6 @@
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { readViewer } from "@/lib/supabase/viewer";
+import { hasUsableSupabaseAuthCredential } from "@/lib/supabase/authCookies";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -33,7 +34,6 @@ import {
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
-  hasPresentedAuthCredential,
   isRecord,
   isUuid,
 } from "@/utils/requestValidation";
@@ -201,7 +201,11 @@ export async function GET(req: NextRequest) {
     // `readViewer` 는 던지지 않는다 — 이유는 `lib/supabase/viewer.ts` 참고.
     const { user, error: viewerError } = await readViewer(supabase);
 
-    if (viewerError && hasPresentedAuthCredential(req)) {
+    // 디코딩조차 되지 않는 쿠키는 어떤 세션도 될 수 없으므로 **로그아웃 방문자로**
+    // 본다. 미들웨어가 이미 그런 쿠키를 떼어 내지만 여기서 그 사실에 의존하지 않는다
+    // — 이유는 `lib/supabase/authCookies.ts` 의 `hasUsableSupabaseAuthCredential`.
+    // 형식이 멀쩡한데 확인만 안 되는 세션은 그대로 fail-closed 다.
+    if (viewerError && hasUsableSupabaseAuthCredential(req)) {
       return NextResponse.json(
         { error: "게시글 접근 권한을 확인하지 못했습니다." },
         {

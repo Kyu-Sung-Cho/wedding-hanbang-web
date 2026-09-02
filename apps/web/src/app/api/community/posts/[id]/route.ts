@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { readViewer } from "@/lib/supabase/viewer";
+import { hasUsableSupabaseAuthCredential } from "@/lib/supabase/authCookies";
 import { couldBePostId } from "@/lib/community/postIdErrors";
 import { NextRequest, NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
@@ -28,7 +29,6 @@ import {
 } from "@/lib/community/mediaPublishingGate";
 import { sanitizeHtml, sanitizeText } from "@/utils/sanitize";
 import {
-  hasPresentedAuthCredential,
   isRecord,
   isUuid,
   readBoundedUtf8Text,
@@ -254,7 +254,10 @@ async function getPostResponse(
     // 로그아웃 방문자에게는 getUser()가 항상 에러다. 자격 증명을 실제로 제시한
     // 요청만 503으로 닫는다 — 목록 라우트와 같은 기준. 그러지 않으면 공개 글
     // 상세가 비로그인 사용자 전원에게 503이 된다.
-    if (viewerError && hasPresentedAuthCredential(req)) {
+    // 디코딩조차 되지 않는 쿠키는 어떤 세션도 될 수 없으므로 **로그아웃 방문자로**
+    // 본다 — 공개 글은 그 상태에서도 읽혀야 한다. 형식이 멀쩡한데 확인만 안 되는
+    // 세션은 그대로 fail-closed 다. `lib/supabase/authCookies.ts` 참고.
+    if (viewerError && hasUsableSupabaseAuthCredential(req)) {
       return NextResponse.json(
         { error: "게시글 접근 권한을 확인하지 못했습니다." },
         { status: 503 },

@@ -120,3 +120,66 @@ export function withoutUnreadableSupabaseCookies<T extends CookieLike>(
   if (unreadable.size === 0) return [...cookies];
   return cookies.filter((cookie) => !unreadable.has(cookie.name));
 }
+
+/** `sb-<ref>-auth-token` 과 그 청크. `-code-verifier` 는 세션이 아니므로 뺀다. */
+const AUTH_TOKEN_COOKIE_NAME = /^sb-[^=;\s]*auth-token(?:\.\d+)?$/u;
+
+function parseCookieHeader(header: string | null | undefined): CookieLike[] {
+  if (!header) return [];
+
+  const cookies: CookieLike[] = [];
+  for (const pair of header.split(";")) {
+    const separator = pair.indexOf("=");
+    if (separator <= 0) continue;
+
+    const name = pair.slice(0, separator).trim();
+    if (!name) continue;
+
+    const raw = pair.slice(separator + 1).trim();
+    let value = raw;
+    try {
+      value = decodeURIComponent(raw);
+    } catch {
+      // 퍼센트 인코딩이 깨진 값은 원문 그대로 본다. 어차피 아래에서 걸러진다.
+    }
+    cookies.push({ name, value });
+  }
+  return cookies;
+}
+
+/**
+ * 이 요청이 **쓸 수 있는** 인증 자격 증명을 제시했는가.
+ *
+ * 공개 읽기 라우트는 "자격 증명을 냈는데 확인에 실패한 요청" 만 503 으로 닫는다.
+ * 그 판정을 쿠키 **이름**만으로 하면, 디코딩조차 되지 않는 쿠키를 든 브라우저가
+ * 공개 글에서 503 을 받는다 — 그 쿠키는 어떤 세션도 될 수 없는데도.
+ *
+ * 미들웨어가 이미 그런 쿠키를 떼어 내지만(`purgeUnreadableAuthCookies`), 라우트가
+ * 그 사실에 **의존해서는 안 된다.** 프록시 matcher 가 바뀌거나 라우트가 다른 경로로
+ * 불리면 같은 요청이 다시 503 이 된다. 그래서 라우트 쪽에서도 같은 기준을 본다.
+ *
+ * 판정 기준은 세 가지다.
+ *
+ *   - Authorization 헤더가 있으면 **제시한 것이다** — 형식이 틀렸어도 조용히 익명으로
+ *     떨어뜨리지 않는다. 그건 호출자가 의도한 신원이다.
+ *   - 인증 쿠키 값이 비어 있으면 자격 증명이 아니다(로그아웃·정리 직후가 그 모양이다).
+ *   - 이어 붙여도 디코딩이 안 되면 자격 증명이 아니다. **살아 있는 세션은 반드시
+ *     디코딩되므로** 로그인 상태를 잃지 않는다.
+ *
+ * 만료·폐기된 세션처럼 **형식은 멀쩡한** 쿠키는 여전히 "제시함" 이다. 그것까지 익명으로
+ * 떨어뜨리면 진짜 확인 실패를 조용히 삼키게 된다.
+ */
+export function hasUsableSupabaseAuthCredential(request: Request): boolean {
+  if (request.headers.has("authorization")) return true;
+
+  const cookies = parseCookieHeader(request.headers.get("cookie"));
+  if (cookies.length === 0) return false;
+
+  const unreadable = unreadableSupabaseCookieNames(cookies);
+  return cookies.some(
+    (cookie) =>
+      AUTH_TOKEN_COOKIE_NAME.test(cookie.name)
+      && cookie.value !== ""
+      && !unreadable.has(cookie.name),
+  );
+}

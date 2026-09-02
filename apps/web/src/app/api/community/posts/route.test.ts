@@ -173,6 +173,8 @@ describe("GET /api/community/posts answer-state filters", () => {
    * 앞으로도 던질 수 있으므로, 던져도 **분류된 응답**이 나가야 한다.
    */
   it("세션 읽기가 던져도 500 이 아니라 확인 실패(503)로 닫는다", async () => {
+    // 쿠키는 **읽히는** 값이다 — 즉 진짜 세션을 제시한 요청이다. 그 상태에서 세션
+    // 읽기가 던지면 확인 실패로 닫는 것이 맞다. 던지는 것 자체가 500 이 되면 안 된다.
     const query = createPostsQuery();
     mocks.createClientFromRequest.mockResolvedValue({
       auth: {
@@ -185,7 +187,7 @@ describe("GET /api/community/posts answer-state filters", () => {
 
     const response = await GET(
       new NextRequest("http://localhost/api/community/posts?sort=new", {
-        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-eyJhIjoxfQ" },
       }),
     );
 
@@ -207,6 +209,58 @@ describe("GET /api/community/posts answer-state filters", () => {
     const response = await GET(request("new"));
 
     expect(response.status).toBe(200);
+  });
+
+  /**
+   * 디코딩조차 되지 않는 쿠키를 든 브라우저는 **로그아웃 방문자**다.
+   *
+   * 미들웨어가 이미 그 쿠키를 떼어 내지만, 라우트가 그 사실에 의존하면 프록시
+   * matcher 가 바뀌거나 라우트가 다른 경로로 불릴 때 같은 요청이 다시 503 이 된다.
+   * 그래서 **미들웨어를 거치지 않고** 핸들러를 직접 불러서 잰다.
+   */
+  it("상한 쿠키는 미들웨어 없이도 공개 목록을 받는다", async () => {
+    const query = createPostsQuery();
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { name: "AuthSessionMissingError" },
+        })),
+      },
+      from: vi.fn(() => query),
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/community/posts?sort=new", {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(query.select).toHaveBeenCalled();
+  });
+
+  it("형식이 멀쩡한 세션은 확인 실패면 그대로 닫는다", async () => {
+    // 이것까지 익명으로 떨어뜨리면 진짜 확인 실패를 조용히 삼킨다.
+    const query = createPostsQuery();
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: {
+        getUser: vi.fn(async () => ({
+          data: { user: null },
+          error: { name: "AuthApiError", message: "Refresh token is not valid" },
+        })),
+      },
+      from: vi.fn(() => query),
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/community/posts?sort=new", {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-eyJhIjoxfQ" },
+      }),
+    );
+
+    expect(response.status).toBe(503);
+    expect(query.select).not.toHaveBeenCalled();
   });
 
   it("fails closed when a presented session cannot be verified", async () => {

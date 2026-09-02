@@ -276,6 +276,38 @@ describe("community post resolution state", () => {
   });
 
   /**
+   * 디코딩조차 되지 않는 쿠키를 든 브라우저는 로그아웃 방문자다. 미들웨어가 이미
+   * 떼어 내지만 라우트가 그 사실에 의존하면 안 되므로, **미들웨어를 거치지 않고**
+   * 핸들러를 직접 불러서 잰다.
+   */
+  it("상한 쿠키는 미들웨어 없이도 503 이 아니다", async () => {
+    mocks.createClientFromRequest.mockResolvedValue(missingSessionClient());
+
+    const response = await GET(
+      new Request(`http://localhost/api/community/posts/${POST_ID}`, {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+      }) as never,
+      { params: Promise.resolve({ id: POST_ID }) },
+    );
+
+    // 이 목 클라이언트는 글이 없다고 답하므로 404 다. 중요한 것은 503 이 아니라는 것.
+    expect(response.status).toBe(404);
+  });
+
+  it("상한 쿠키를 들고 잘못된 id 로 와도 404 다", async () => {
+    mocks.createClientFromRequest.mockResolvedValue(missingSessionClient());
+
+    const response = await GET(
+      new Request("http://localhost/api/community/posts/1", {
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+      }) as never,
+      { params: Promise.resolve({ id: "1" }) },
+    );
+
+    expect(response.status).toBe(404);
+  });
+
+  /**
    * 없는 글 주소는 **무엇이 고장 나 있어도** 404 다.
    *
    * 2026-09-02 운영 실측: 상한 인증 쿠키를 든 브라우저에서
@@ -309,8 +341,9 @@ describe("community post resolution state", () => {
   });
 
   it("세션 읽기가 던져도 500 이 아니라 확인 실패(503)로 닫는다", async () => {
-    // 주소는 멀쩡한데 세션을 못 읽는 경우다. 자격 증명을 제시했으므로 fail-closed
-    // 지만, 그 답은 "서버 오류" 가 아니라 "확인하지 못했다" 여야 한다.
+    // 쿠키는 **읽히는** 값이다 — 즉 진짜 세션을 제시한 요청이다. 자격 증명을
+    // 제시했으므로 fail-closed 지만, 그 답은 "서버 오류" 가 아니라 "확인하지 못했다"
+    // 여야 한다.
     mocks.createClientFromRequest.mockResolvedValue({
       auth: {
         getUser: vi.fn(async () => {
@@ -328,7 +361,7 @@ describe("community post resolution state", () => {
 
     const response = await GET(
       new Request(`http://localhost/api/community/posts/${POST_ID}`, {
-        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-garbage" },
+        headers: { cookie: "sb-slrtobkksjmxgzatjyqb-auth-token=base64-eyJhIjoxfQ" },
       }) as never,
       { params: Promise.resolve({ id: POST_ID }) },
     );
