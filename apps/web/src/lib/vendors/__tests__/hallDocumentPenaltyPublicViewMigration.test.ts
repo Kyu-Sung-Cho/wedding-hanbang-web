@@ -90,7 +90,21 @@ async function baseline() {
       source_file_ids text[] NOT NULL DEFAULT '{}'::text[],
       source_object_keys text[] NOT NULL DEFAULT '{}'::text[],
       source_quote text NOT NULL,
-      confidence numeric
+      confidence numeric,
+      -- 실제 테이블(20260720120000:229-277) CHECK 중 이 뷰가 의존하는 부분만
+      -- 옮겨 온다. 예식장 위약금이 vendor_policy 로 적재될 수 없는 것이 아니라,
+      -- **document_section 으로 적재되면 업체·가격 참조가 NULL 로 강제된다**는
+      -- 것이 이 결함의 기계적 원인이다.
+      CONSTRAINT disclosure_semantic_subject_contract CHECK (
+        (record_kind = 'vendor_policy' AND partner_vendor_id IS NOT NULL)
+        OR (
+          record_kind = 'document_section'
+          AND partner_vendor_id IS NULL
+          AND official_price_id IS NULL
+          AND vendor_category IS NULL
+          AND source_agency IS NULL
+        )
+      )
     );
 
     INSERT INTO public.price_snapshots (id, period_label, published, published_at, is_current)
@@ -219,6 +233,42 @@ describe("예식장 공시 문서의 위약금이 공개 뷰에 도달한다", (
     await db.close();
   });
 
+  it("예식장 위약금은 업체·가격에 묶인 채로는 적재될 수 없다 — 그게 기계적 원인이다", async () => {
+    // 옛 뷰가 예식장을 막은 조건은 세 개였다: record_kind='vendor_policy',
+    // partner_vendor_id IS NOT NULL, official_prices inner join.
+    // 그런데 예식장 위약금이 도착하는 record_kind 에서는 테이블 CHECK 가 뒤의
+    // 두 값을 NULL 로 **강제**한다. 즉 세 조건이 서로 독립이 아니라 한 몸이고,
+    // 어떤 신뢰도·검수 상태로도 우회할 수 없었다.
+    //
+    // 이 사실이 변이 테스트에서 "A: record_kind 제거"가 살아남은 이유이기도 하다 —
+    // 그 조건은 이중 방어이고, 실제 차단은 NULL 강제가 한다.
+    const db = await baseline();
+    await insertApprovedHallPrice(db, {
+      id: "9a000000-0000-4000-8000-000000000091",
+      vendorId: HALL_VENDOR_ID,
+      objectKey: HALL_OBJECT,
+    });
+
+    await expect(db.exec(`
+      INSERT INTO public.disclosure_semantic_staging (
+        snapshot_id, unit_id, record_kind, semantic_type, subject_kind,
+        subject_name, subject_normalized_name, vendor_category, region_code,
+        title, content_verbatim, summary, partner_vendor_id, official_price_id,
+        source_agency, partner_link_status, source_file_ids, source_object_keys,
+        source_quote, confidence
+      ) VALUES (
+        '${SNAPSHOT_ID}', repeat('a', 64), 'document_section', 'penalty', 'vendor',
+        '라비돌', '라비돌', 'hall', 'seoul_gangnam3',
+        '위약금 기준', '예식 30일 전 총 비용의 10% 위약금', '요약',
+        '${HALL_VENDOR_ID}', '9a000000-0000-4000-8000-000000000091',
+        NULL, 'price_row_staged',
+        ARRAY[repeat('b', 64)]::text[], ARRAY['${HALL_OBJECT}']::text[],
+        'line:12: 예식 30일 전', 0.95
+      );
+    `)).rejects.toThrow(/disclosure_semantic_subject_contract/);
+    await db.close();
+  });
+
   it("같은 문서의 승인된 예식장 가격 행에 귀속해 위약금·환불 원문을 공개한다", async () => {
     const db = await baseline();
     await insertApprovedHallPrice(db, {
@@ -304,6 +354,131 @@ describe("예식장 공시 문서의 위약금이 공개 뷰에 도달한다", (
       content_verbatim: "촬영 30일 전 취소 시 상품가의 100%",
       policy_scope: "vendor",
     }]);
+    await db.close();
+  });
+
+  it("업체 행에 붙은 규정도 신뢰도가 낮으면 공개하지 않는다", async () => {
+    // 변이 테스트에서 branch A 의 confidence 게이트를 지워도 아무 검사가 깨지지
+    // 않았다. 이 마이그레이션이 branch A 를 다시 쓰므로, 옛 뷰가 갖고 있던
+    // 게이트를 여기서 못박는다 — 없으면 스드메 저신뢰 원문 64행이 조용히
+    // 공개로 넘어와도 알 수 없다.
+    const db = await baseline();
+    const priceId = "9a000000-0000-4000-8000-000000000251";
+    await db.exec(`
+      INSERT INTO public.official_prices (
+        id, snapshot_id, vendor_id, agency_id, category, item_name,
+        review_status, needs_review, source_object_keys
+      ) VALUES (
+        '${priceId}', '${SNAPSHOT_ID}', '${STUDIO_VENDOR_ID}', '${AGENCY_ID}',
+        'studio', '기본 패키지', 'approved', false, ARRAY['${AGENCY_OBJECT}']::text[]
+      );
+      INSERT INTO public.disclosure_semantic_staging (
+        snapshot_id, unit_id, record_kind, semantic_type, subject_kind,
+        subject_name, subject_normalized_name, vendor_category, region_code,
+        title, content_verbatim, summary, partner_vendor_id, official_price_id,
+        source_agency, partner_link_status, source_file_ids, source_object_keys,
+        source_quote, confidence
+      ) VALUES (
+        '${SNAPSHOT_ID}', repeat('9', 64), 'vendor_policy', 'penalty', 'vendor',
+        '가스튜디오', '가스튜디오', 'studio', 'seoul_gangnam3',
+        NULL, '읽기 어려운 원문에서 뽑은 위약금', NULL,
+        '${STUDIO_VENDOR_ID}', '${priceId}',
+        '{"name": "가대행사"}'::jsonb, 'price_row_staged',
+        ARRAY[repeat('8', 64)]::text[], ARRAY['${AGENCY_OBJECT}']::text[],
+        '스튜디오!G31: 읽기 어려운 원문', 0.45
+      );
+    `);
+    await db.exec(migration);
+
+    expect(await publishedPolicies(db)).toEqual([]);
+    await db.close();
+  });
+
+  it("정책이 다른 업체의 가격 행에 딸려 오면 공개하지 않는다", async () => {
+    // 옛 뷰의 "정책이 엉뚱한 업체에 붙는 사고를 막는다" 조건
+    // (price.vendor_id = semantic.partner_vendor_id). 변이 테스트에서 이 줄을
+    // 지워도 아무 검사가 깨지지 않았다 — 남의 위약금을 이 업체 것으로 보여주는
+    // 사고는 이 제품에서 가장 비싼 오답이므로 여기서 못박는다.
+    const db = await baseline();
+    const hallPriceId = "9a000000-0000-4000-8000-000000000261";
+    await insertApprovedHallPrice(db, {
+      id: hallPriceId,
+      vendorId: HALL_VENDOR_ID,
+      objectKey: HALL_OBJECT,
+    });
+    await db.exec(`
+      INSERT INTO public.disclosure_semantic_staging (
+        snapshot_id, unit_id, record_kind, semantic_type, subject_kind,
+        subject_name, subject_normalized_name, vendor_category, region_code,
+        title, content_verbatim, summary, partner_vendor_id, official_price_id,
+        source_agency, partner_link_status, source_file_ids, source_object_keys,
+        source_quote, confidence
+      ) VALUES (
+        '${SNAPSHOT_ID}', repeat('7', 64), 'vendor_policy', 'penalty', 'vendor',
+        '가스튜디오', '가스튜디오', 'studio', 'seoul_gangnam3',
+        NULL, '남의 가격 행에 딸려 온 위약금', NULL,
+        '${STUDIO_VENDOR_ID}', '${hallPriceId}',
+        '{"name": "가대행사"}'::jsonb, 'price_row_staged',
+        ARRAY[repeat('6', 64)]::text[], ARRAY['${AGENCY_OBJECT}']::text[],
+        '스튜디오!G31: 남의 가격 행', 0.95
+      );
+    `);
+    await db.exec(migration);
+
+    expect(await publishedPolicies(db)).toEqual([]);
+    await db.close();
+  });
+
+  it("승인되지 않은 업체는 두 경로 모두 위약금을 공개하지 않는다", async () => {
+    // 가격 뷰와 같은 업체 게이트다. 가격은 안 보이는데 그 업체 위약금만
+    // 보이는 상태가 생기면 안 된다. 두 branch 를 한 케이스에서 함께 잠근다 —
+    // 변이 테스트에서 양쪽 다 지워도 아무 검사가 깨지지 않았다.
+    const db = await baseline();
+    const pendingStudioId = "9a000000-0000-4000-8000-000000000281";
+    const pendingStudioPriceId = "9a000000-0000-4000-8000-000000000282";
+    await db.exec(`
+      INSERT INTO public.vendors (id, slug, name, category, region_code, status)
+      VALUES ('${pendingStudioId}', 'studio-ingest-eeeeeeeeeeeeeeee', '검수 중 스튜디오', 'studio', 'seoul_gangnam3', 'pending');
+      INSERT INTO public.official_prices (
+        id, snapshot_id, vendor_id, agency_id, category, item_name,
+        review_status, needs_review, source_object_keys
+      ) VALUES (
+        '${pendingStudioPriceId}', '${SNAPSHOT_ID}', '${pendingStudioId}', '${AGENCY_ID}',
+        'studio', '기본 패키지', 'approved', false, ARRAY['${AGENCY_OBJECT}']::text[]
+      );
+      INSERT INTO public.disclosure_semantic_staging (
+        snapshot_id, unit_id, record_kind, semantic_type, subject_kind,
+        subject_name, subject_normalized_name, vendor_category, region_code,
+        title, content_verbatim, summary, partner_vendor_id, official_price_id,
+        source_agency, partner_link_status, source_file_ids, source_object_keys,
+        source_quote, confidence
+      ) VALUES (
+        '${SNAPSHOT_ID}', repeat('5', 64), 'vendor_policy', 'penalty', 'vendor',
+        '검수 중 스튜디오', '검수중스튜디오', 'studio', 'seoul_gangnam3',
+        NULL, '검수 전 업체의 위약금', NULL,
+        '${pendingStudioId}', '${pendingStudioPriceId}',
+        '{"name": "가대행사"}'::jsonb, 'price_row_staged',
+        ARRAY[repeat('4', 64)]::text[], ARRAY['${AGENCY_OBJECT}']::text[],
+        '스튜디오!G31: 검수 전 업체', 0.95
+      );
+    `);
+    const pendingHallId = "9a000000-0000-4000-8000-000000000271";
+    await db.exec(`
+      INSERT INTO public.vendors (id, slug, name, category, region_code, status)
+      VALUES ('${pendingHallId}', 'venue-ingest-dddddddddddddddd', '검수 중 예식장', 'venue', 'seoul_gangnam3', 'pending');
+    `);
+    await insertApprovedHallPrice(db, {
+      id: "9a000000-0000-4000-8000-000000000272",
+      vendorId: pendingHallId,
+      objectKey: HALL_OBJECT,
+    });
+    await insertHallDocumentSection(db, {
+      objectKey: HALL_OBJECT,
+      content: "예식 30일 전 총 비용의 10% 위약금",
+    });
+    await db.exec(migration);
+
+    expect(await publishedPolicies(db)).toEqual([]);
     await db.close();
   });
 
@@ -466,6 +641,120 @@ describe("예식장 공시 문서의 위약금이 공개 뷰에 도달한다", (
     const rows = await publishedPolicies(db);
     expect(rows.map(({ vendor_slug }) => vendor_slug))
       .toEqual(["venue-ingest-cccccccccccccccc"]);
+    await db.close();
+  });
+
+  it("섹션과 가격 행이 같은 원본 객체를 공유하지 않으면 닫힌다", async () => {
+    // 알려진 한계를 고정해 둔다. 귀속 근거가 "같은 원본 파일"이므로, 한 단위의
+    // 섹션이 가격 행과 다른 파일(예: 이미지 첨부)에서 나왔으면 이 예식장은
+    // 계속 빈 상태로 남는다. 틀린 업체에 붙이는 것보다 안 보이는 쪽을 택한 결과다.
+    const db = await baseline();
+    await insertApprovedHallPrice(db, {
+      id: "9a000000-0000-4000-8000-000000001101",
+      vendorId: HALL_VENDOR_ID,
+      objectKey: HALL_OBJECT,
+    });
+    await insertHallDocumentSection(db, {
+      objectKey: "raw/hall/rabidol-scan-page2.png",
+      content: "예식 30일 전 총 비용의 10% 위약금",
+    });
+    await db.exec(migration);
+
+    expect(await publishedPolicies(db)).toEqual([]);
+    await db.close();
+  });
+
+  it("한 업체가 두 경로의 규정을 모두 가지면 둘 다 나오고 섞이지 않는다", async () => {
+    // 예식장이 대행사 문서의 제휴 업체 행으로도 등장할 수 있다
+    // (partner_vendors[].category 에 'hall' 이 있다). 그때 union 두 갈래가
+    // 같은 행을 두 번 내거나 scope 를 잘못 붙이지 않는지 본다.
+    const db = await baseline();
+    const hallPriceId = "9a000000-0000-4000-8000-000000001201";
+    const agencyPriceId = "9a000000-0000-4000-8000-000000001202";
+    await insertApprovedHallPrice(db, {
+      id: hallPriceId,
+      vendorId: HALL_VENDOR_ID,
+      objectKey: HALL_OBJECT,
+    });
+    await insertHallDocumentSection(db, {
+      objectKey: HALL_OBJECT,
+      content: "예식 30일 전 총 비용의 10% 위약금",
+    });
+    await db.exec(`
+      INSERT INTO public.official_prices (
+        id, snapshot_id, vendor_id, agency_id, category, item_name,
+        review_status, needs_review, source_object_keys
+      ) VALUES (
+        '${agencyPriceId}', '${SNAPSHOT_ID}', '${HALL_VENDOR_ID}', '${AGENCY_ID}',
+        'hall', '대행사 취급 예식장', 'approved', false, ARRAY['${AGENCY_OBJECT}']::text[]
+      );
+      INSERT INTO public.disclosure_semantic_staging (
+        snapshot_id, unit_id, record_kind, semantic_type, subject_kind,
+        subject_name, subject_normalized_name, vendor_category, region_code,
+        title, content_verbatim, summary, partner_vendor_id, official_price_id,
+        source_agency, partner_link_status, source_file_ids, source_object_keys,
+        source_quote, confidence
+      ) VALUES (
+        '${SNAPSHOT_ID}', repeat('e', 64), 'vendor_policy', 'penalty', 'vendor',
+        '(주)라비돌', '라비돌', 'hall', 'seoul_gangnam3',
+        NULL, '대행사 경로 취소 시 계약금 전액 위약금', NULL,
+        '${HALL_VENDOR_ID}', '${agencyPriceId}',
+        '{"name": "가대행사"}'::jsonb, 'price_row_staged',
+        ARRAY[repeat('f', 64)]::text[], ARRAY['${AGENCY_OBJECT}']::text[],
+        '예식장!B4: 대행사 경로 취소 시 계약금 전액 위약금', 0.95
+      );
+    `);
+    await db.exec(migration);
+
+    const rows = await publishedPolicies(db);
+    expect(rows).toEqual([
+      {
+        vendor_slug: "venue-ingest-bbbbbbbbbbbbbbbb",
+        semantic_type: "penalty",
+        vendor_category: "hall",
+        source_agency: null,
+        content_verbatim: "예식 30일 전 총 비용의 10% 위약금",
+        policy_scope: "hall_document",
+      },
+      {
+        vendor_slug: "venue-ingest-bbbbbbbbbbbbbbbb",
+        semantic_type: "penalty",
+        vendor_category: "hall",
+        source_agency: "가대행사",
+        content_verbatim: "대행사 경로 취소 시 계약금 전액 위약금",
+        policy_scope: "vendor",
+      },
+    ]);
+    await db.close();
+  });
+
+  it("한 섹션이 두 업체에 붙는 행은 어떤 경우에도 나오지 않는다", async () => {
+    // 뷰 전체에 걸린 불변식이다. id 는 semantic 행의 PK 이므로 한 id 가 두
+    // vendor_id 로 나오면 그건 곧 남의 위약금을 이 업체 것으로 보여준 것이다.
+    const db = await baseline();
+    await insertApprovedHallPrice(db, {
+      id: "9a000000-0000-4000-8000-000000001301",
+      vendorId: HALL_VENDOR_ID,
+      objectKey: HALL_OBJECT,
+    });
+    await insertApprovedHallPrice(db, {
+      id: "9a000000-0000-4000-8000-000000001302",
+      vendorId: HALL_VENDOR_ID,
+      objectKey: HALL_OBJECT,
+      itemName: "식대",
+    });
+    await insertHallDocumentSection(db, {
+      objectKey: HALL_OBJECT,
+      content: "예식 30일 전 총 비용의 10% 위약금",
+    });
+    await db.exec(migration);
+
+    const leak = await db.query<{ id: string; vendors: number }>(`
+      SELECT id, count(DISTINCT vendor_id)::int AS vendors
+      FROM public.v_public_vendor_policies
+      GROUP BY id HAVING count(DISTINCT vendor_id) > 1
+    `);
+    expect(leak.rows).toEqual([]);
     await db.close();
   });
 

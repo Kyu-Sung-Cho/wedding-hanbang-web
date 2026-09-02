@@ -21,9 +21,11 @@ export function policySectionLabel(semanticType: string): string {
  * 스튜디오도 같은 상태였다. 공시를 보여주는 제품에서 조용한 빈자리는
  * 없는 것보다 나쁘다.
  *
- * 빈 상태 문구는 "위약금이 없다"고 말하지 않는다. 우리가 아는 것은 "이 경로의
- * 공시 원문에서 찾지 못했다"까지이고, 예식장 위약금은 소비자분쟁해결기준상
- * 통상 존재한다. 없다고 단정하면 계약 판단을 그르치는 거짓말이 된다.
+ * 빈 상태 문구는 목록 카드가 이미 쓰는 집안 형식을 그대로 따른다
+ * (PriceVendorCard: "추가금 공시 항목 없음" + "추가금이 없다는 뜻은 아니에요").
+ * 없음의 주어는 **공시 항목**이고, 그 다음 줄이 업체의 실제 계약과 혼동되지
+ * 않게 못박는다 — 예식장 위약금은 소비자분쟁해결기준상 통상 존재하므로
+ * "위약금 없음"으로 읽히면 계약 판단을 그르치는 거짓 진술이 된다.
  */
 export function PriceVendorPolicySection({
   policies,
@@ -89,13 +91,17 @@ export function PriceVendorPolicySection({
         </>
       ) : (
         <div className="mt-5 rounded-[6px] border border-dashed border-[#8F6662]/35 bg-[var(--hb-surface-page)] px-5 py-4">
-          <p className="text-sm font-bold text-[var(--hb-text-strong)]">
-            이 경로 공시에는 위약금·환불 원문이 없어요
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-0.5">
+            <span className="text-sm font-bold text-[var(--hb-text-strong)]">
+              이 경로 위약금·환불 공시 항목 없음
+            </span>
+            <span className="text-[11px] font-medium text-[var(--color-rose-700)]">
+              위약금이 없다는 뜻은 아니에요
+            </span>
           </p>
           <p className="mt-2 text-sm leading-6 text-[var(--hb-text-strong)]/85">
-            위약금이 없다는 뜻이 아니에요. 이 {categoryLabel}의 공시 문서에서 위약금·환불
-            규정을 확인하지 못했다는 뜻이에요. 계약 전에 업체에 직접 묻고 계약서 조항을
-            확인하세요.
+            이 {categoryLabel}의 공시 문서에서 위약금·환불 규정을 확인하지 못했어요.
+            계약 전에 업체에 직접 묻고 계약서 조항에서 확인하세요.
           </p>
         </div>
       )}
