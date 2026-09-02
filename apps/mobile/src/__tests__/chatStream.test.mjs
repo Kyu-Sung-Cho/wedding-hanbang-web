@@ -2540,3 +2540,4 @@ test("mobile presents recovered crisis guidance as a dedicated accessible safety
   assert.match(renderMessage, /st\.safetyCard/);
   assert.match(renderMessage, /st\.safetyCardText/);
 });
+

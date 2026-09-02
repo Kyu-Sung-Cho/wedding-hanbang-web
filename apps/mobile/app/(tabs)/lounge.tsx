@@ -12,6 +12,7 @@ import {
   isOnlyStageSuggestion,
   PREPARATION_STAGE_PROGRESS_KEY,
   PREPARATION_STAGE_VALUES,
+  readableTextOr,
   resolvePlanningChecklistStatus,
   shouldShowFirstRunTutorial,
   WEDDING_STYLE_OPTIONS,
@@ -558,7 +559,9 @@ export default function DashboardScreen() {
       const todayTasks = events
         .filter((event) => isActiveScheduleEvent(event) && event.date === todayKey)
         .map((event) => ({
-          title: event.title,
+          // 되살릴 수 있으면 되돌리고, 읽을 글자가 하나도 안 남았으면 잔해를
+          // 사용자가 쓴 제목인 척 그리지 않는다(일정 화면과 같은 문구).
+          title: readableTextOr(event.title, "제목을 읽지 못한 일정"),
           categoryKey: event.categoryKey ?? "",
         }));
       const weddingDate = journey.wedding_date ?? null;

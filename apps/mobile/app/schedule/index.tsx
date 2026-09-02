@@ -15,6 +15,7 @@ import { colors } from "@hanbang/design-tokens";
 import {
   sanitizeUserFacingScheduleMemo,
   daysUntilWedding,
+  readableTextOr,
 } from "@hanbang/shared";
 import {
   calculatePlanningChecklistStatus,
@@ -156,9 +157,12 @@ function getUpcomingDays(n: number): string[] {
   return upcomingYmdInKst(n);
 }
 
+// 달력 날짜에서 바로 뽑는다. `new Date(ymd + "T00:00:00")` 은 기기 시간대의
+// 자정이라 해외에 있을 때 같은 일정이 라운지와 하루 다르게 보였다.
 function formatDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return `${d.getMonth() + 1}/${d.getDate()}`;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr ?? "");
+  if (!match) return dateStr;
+  return `${Number(match[2])}/${Number(match[3])}`;
 }
 
 // 예식일은 사용자가 고른 **한국 날짜**다. 기기 시간대로 오늘을 읽으면
@@ -213,6 +217,17 @@ function createEventId(): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** 되살릴 수 없는 제목 자리에 들어가는 말. 웹의 `scheduleEvents.ts` 와 같은 문구다. */
+const UNREADABLE_EVENT_TITLE = "제목을 읽지 못한 일정";
+
+/**
+ * 화면에 그릴 일정 제목. 저장값은 바꾸지 않는다 — 수정 창은 저장된 원래 값을
+ * 열어야 사용자가 그 자리에서 다시 적을 수 있다.
+ */
+function displayEventTitle(event: ScheduleEvent): string {
+  return readableTextOr(event.title, UNREADABLE_EVENT_TITLE);
 }
 
 function normalizeScheduleEvent(event: unknown): ScheduleEvent | null {
@@ -1875,7 +1890,7 @@ export default function ScheduleScreen() {
                   <Text style={styles.eventDateDay}>{getDayLabel(evt.date)}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.eventTitle}>{evt.title}</Text>
+                  <Text style={styles.eventTitle}>{displayEventTitle(evt)}</Text>
                   <View style={styles.eventMeta}>
                     {evt.time ? (
                       <View style={styles.eventMetaRow}>
@@ -1993,7 +2008,7 @@ export default function ScheduleScreen() {
                 onPress={() => openEditEventModal(evt.id)}
               >
                 <Text style={styles.allEventDate}>{formatDate(evt.date)}</Text>
-                <Text style={styles.allEventTitle}>{evt.title}</Text>
+                <Text style={styles.allEventTitle}>{displayEventTitle(evt)}</Text>
                 {evt.time ? <Text style={styles.allEventTime}>{evt.time}</Text> : null}
               </Pressable>
             ))}
@@ -2009,7 +2024,7 @@ export default function ScheduleScreen() {
             {cancelledEvents.map((evt) => (
               <View key={`cancelled-${evt.id}`} style={styles.cancelledRow}>
                 <View style={styles.cancelledInfo}>
-                  <Text style={styles.cancelledEventTitle}>{evt.title}</Text>
+                  <Text style={styles.cancelledEventTitle}>{displayEventTitle(evt)}</Text>
                   <Text style={styles.cancelledMeta}>
                     기존 날짜 {evt.date}{evt.time ? ` ${evt.time}` : ""}
                   </Text>
@@ -2024,7 +2039,7 @@ export default function ScheduleScreen() {
                 </View>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel={`${evt.title} 일정 복원 요청`}
+                  accessibilityLabel={`${displayEventTitle(evt)} 일정 복원 요청`}
                   disabled={saving}
                   onPress={() => requestEventRestore(evt.id)}
                   style={({ pressed }) => [

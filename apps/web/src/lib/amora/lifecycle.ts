@@ -240,13 +240,16 @@ function makeCategoryGuardrail(
   severity: AmoraGuardrailSeverity
 ): AmoraGuardrail {
   const isOverdue = daysUntilDeadline < 0;
+  // 버튼이 「체크리스트」라고 적혀 있으면 체크리스트로 가야 한다. 예전에는 같은
+  // 버튼이 일정 화면을 열어서, 항목을 체크하러 누른 사람이 달력을 만났다.
+  const href = weddingPath(`/checklist?category=${encodeURIComponent(key)}`);
   return {
     id: `category_${key}_${severity}`,
     title: `${label}${objectParticle(label)} 놓치지 않게 볼게요`,
     body: isOverdue
       ? `기본 일정의 확인 시점보다 ${Math.abs(daysUntilDeadline)}일 지났어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`
       : `기본 일정의 확인 시점까지 ${daysUntilDeadline}일 남았어요. 업체나 가족과 정한 실제 날짜가 있다면 그 날짜가 우선이에요.`,
-    href: weddingPath("/schedule"),
+    href,
     cta: "체크리스트",
     severity,
     iconKey: "schedule",

@@ -4,6 +4,8 @@ import type {
   ScheduleEventCancellation,
   ScheduleEventStatus,
 } from "@/types/database.types";
+import { readableTextOr } from "@hanbang/shared";
+
 export { sanitizeUserFacingScheduleMemo } from "@hanbang/shared";
 
 const EVENTS_KEY = "__events";
@@ -258,6 +260,24 @@ function isScheduleEvent(value: unknown): value is ScheduleEvent {
 
 export function getScheduleEventStatus(event: ScheduleEvent): ScheduleEventStatus {
   return event.status ?? "planned";
+}
+
+/** 되살릴 수 없는 제목 자리에 들어가는 말. 화면마다 다르게 적지 않는다. */
+export const UNREADABLE_EVENT_TITLE = "제목을 읽지 못한 일정";
+
+/**
+ * 화면에 그릴 일정 제목.
+ *
+ * 저장된 값이 이미 원문을 잃은 잔해(`?? ???`)면 그것을 사용자가 쓴 제목인 척
+ * 그리지 않는다. 읽을 글자가 하나도 안 남았을 때만 물러나므로 `드레스 ?? 방문`
+ * 처럼 절반이라도 읽히는 제목은 그대로 나온다.
+ *
+ * **저장값은 바꾸지 않는다.** 수정 창은 저장된 원래 값을 그대로 열어야 사용자가
+ * 그 자리에서 다시 적을 수 있다 — 안내문이 입력칸에 미리 들어가면 그것을 저장해
+ * 버린다.
+ */
+export function scheduleEventDisplayTitle(event: ScheduleEvent): string {
+  return readableTextOr(event.title, UNREADABLE_EVENT_TITLE);
 }
 
 export type ScheduleEventAssigneeContext = {

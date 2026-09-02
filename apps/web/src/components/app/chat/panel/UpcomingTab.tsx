@@ -4,10 +4,14 @@ import { useState, useEffect, useMemo } from "react";
 import { CalendarDays, CheckCircle2, Clock } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { getImminentCategories, getCompletedImminentCategories } from "@/utils/imminentChecklist";
-import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import {
+  getEvents,
+  getScheduleEventStatus,
+  scheduleEventDisplayTitle,
+} from "@/utils/scheduleEvents";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import { ymdInKst } from "@/lib/utils/kstDate";
+import { kstMidnightFromYmd, shortKoreanDateFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import CollapsibleSection from "./CollapsibleSection";
 
 const URGENCY_COLORS: Record<string, { badge: string; text: string }> = {
@@ -22,15 +26,16 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 function formatEventDate(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
-  return `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
+  return shortKoreanDateFromYmd(dateStr) ?? dateStr;
 }
 
+// 같은 파일의 목록 필터는 이미 KST 문자열 비교를 쓴다(:73). 이 라벨만 벽시계
+// 시각을 빼고 있어서, 한국 새벽에는 목록에 남은 오늘 일정이 「1일 전」을 달았다.
+// 두 계산을 같은 KST 기준으로 맞춘다.
 function getDaysUntil(dateStr: string, now: Date): string {
-  const diff = Math.ceil(
-    (new Date(dateStr + "T00:00:00").getTime() - now.getTime()) /
-      (1000 * 60 * 60 * 24)
+  const diff = Math.round(
+    (kstMidnightFromYmd(dateStr).getTime() - kstMidnightFromYmd(ymdInKst(now)).getTime())
+      / (1000 * 60 * 60 * 24),
   );
   if (diff === 0) return "오늘";
   if (diff === 1) return "내일";
@@ -173,7 +178,7 @@ export default function UpcomingTab() {
                 <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <span className="text-base text-[var(--hb-text-strong)] font-medium truncate block">
-                    {evt.title}
+                    {scheduleEventDisplayTitle(evt)}
                   </span>
                   <div className="flex items-center gap-2 mt-1">
                     <Clock className="w-3.5 h-3.5 text-[var(--hb-text-muted)]" />

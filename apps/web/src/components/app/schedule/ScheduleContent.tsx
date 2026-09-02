@@ -16,6 +16,7 @@ import {
   getScheduleEventStatus,
   inspectScheduleEvents,
   sanitizeUserFacingScheduleMemo,
+  scheduleEventDisplayTitle,
   restoreEvent,
   updateEvent,
   upsertCategoryEvent,
@@ -30,7 +31,7 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
 import { weddingPath } from "@/lib/weddingPaths";
-import { ymdInKst } from "@/lib/utils/kstDate";
+import { shortKoreanDateFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
 import type {
   ChecklistItem,
@@ -543,11 +544,10 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     [blockUnsafeEventMutation, journey, progress, saveJourney],
   );
 
-  // 날짜 포맷
+  // 날짜 포맷 — 달력 날짜에서 바로 뽑는다. `new Date(ymd + "T00:00:00")` 은
+  // 브라우저 시간대의 자정이라 서버 렌더와 다른 시간대 기기에서 하루가 어긋났다.
   function formatEventDate(dateString: string): string {
-    const d = new Date(dateString + "T00:00:00");
-    const weekdays = ["일", "월", "화", "수", "목", "금", "토"];
-    return `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
+    return shortKoreanDateFromYmd(dateString) ?? dateString;
   }
 
   // D-day
@@ -622,7 +622,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               </div>
               <div className="flex-1 min-w-0">
                 <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--hb-text-strong)]">
-                  {evt.title}
+                  {scheduleEventDisplayTitle(evt)}
                 </p>
                 <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
                   <p className="text-[12px] font-medium text-[var(--hb-text-body)]">
@@ -678,7 +678,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                       <button
                         type="button"
                         onClick={() => handleEditEvent(evt)}
-                        aria-label={`${evt.title} 일정 수정`}
+                        aria-label={`${scheduleEventDisplayTitle(evt)} 일정 수정`}
                         className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
                       >
                         <Pencil className="h-4 w-4" />
@@ -686,7 +686,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                       <button
                         type="button"
                         onClick={() => setPendingCancelId(evt.id)}
-                        aria-label={`${evt.title} 일정 취소 요청`}
+                        aria-label={`${scheduleEventDisplayTitle(evt)} 일정 취소 요청`}
                         className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[var(--hb-text-strong)]"
                       >
                         <Ban className="h-4 w-4" />
@@ -878,7 +878,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
-                      {event.title}
+                      {scheduleEventDisplayTitle(event)}
                     </p>
                     <p className="mt-1 text-[12px] leading-5 text-[var(--hb-text-body)]">
                       기존 날짜 {event.date}{event.time ? ` ${event.time}` : ""}

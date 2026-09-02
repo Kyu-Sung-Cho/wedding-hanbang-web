@@ -5,7 +5,25 @@ import {
   getEvents,
   getScheduleEventStatus,
 } from "@/utils/scheduleEvents";
+import { kstDateFromValue, kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+/**
+ * 마감까지 남은 날 = (예식일 − 기준 일수) − 오늘. 전부 **KST 달력 날짜**로 센다.
+ *
+ * 예전에는 예식일을 `new Date("YYYY-MM-DD")`(UTC 자정)로 읽고 오늘은
+ * `setHours(0,0,0,0)`(로컬 자정)로 잡아 두 기준을 섞었다. 같은 라운지 화면의
+ * `lifecycle.getDday` 는 이미 KST 로 세고 있어서, 한국 새벽에는 두 위젯이 같은
+ * 분야를 하루 다르게 말했다.
+ */
+function daysUntilCategoryDeadline(weddingDate: Date, ddayDeadline: number): number {
+  const deadlineMs = kstMidnightFromYmd(ymdInKst(weddingDate)).getTime()
+    - ddayDeadline * DAY_MS;
+  const todayMs = kstMidnightFromYmd(ymdInKst()).getTime();
+  return Math.round((deadlineMs - todayMs) / DAY_MS);
+}
 
 export interface ImminentCategory {
   key: string;
@@ -31,11 +49,6 @@ export function getImminentCategories(
 ): ImminentCategory[] {
   if (!weddingDate) return [];
 
-  const now = new Date();
-  // 남은 일수는 "날짜 차이"여야 한다. 벽시계 시각으로 빼면 오전 시간대에만
-  // 하루가 더 붙어, 같은 화면의 다른 위젯(lifecycle.ts)과 하루씩 어긋났다.
-  const todayMidnight = new Date(now);
-  todayMidnight.setHours(0, 0, 0, 0);
   const result: ImminentCategory[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
@@ -48,14 +61,8 @@ export function getImminentCategories(
 
     const scheduledEvent = findCategoryScheduleEvent(events, cat.key, cat.label);
 
-    // 마감일 = 결혼일 - ddayDeadline일
-    const deadlineDate = new Date(weddingDate);
-    deadlineDate.setDate(deadlineDate.getDate() - cat.ddayDeadline);
-    deadlineDate.setHours(0, 0, 0, 0);
-
-    const daysLeft = Math.round(
-      (deadlineDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    // 마감일 = 결혼일 - ddayDeadline일 (KST 달력 기준)
+    const daysLeft = daysUntilCategoryDeadline(weddingDate, cat.ddayDeadline);
 
     // 60일 이내만 표시
     if (daysLeft > 60) continue;
@@ -108,8 +115,9 @@ export function getWeeklyImminentCategories(
   progress: Record<string, ProgressItem>,
   weddingDate: string | null | undefined,
 ): ImminentCategory[] {
-  const parsed = weddingDate ? new Date(weddingDate) : null;
-  const validWedding = parsed && !Number.isNaN(parsed.getTime()) ? parsed : null;
+  // `new Date("YYYY-MM-DD")` 는 UTC 자정이다. 예식일은 사용자가 고른 한국
+  // 날짜이므로 KST 로 읽는다 — 그러지 않으면 이 목록만 하루 어긋난다.
+  const validWedding = kstDateFromValue(weddingDate);
   const events = getEvents(progress as Record<string, unknown>).filter(
     (event) => getScheduleEventStatus(event) !== "cancelled",
   );
@@ -129,11 +137,6 @@ export function getCompletedImminentCategories(
 ): ImminentCategory[] {
   if (!weddingDate) return [];
 
-  const now = new Date();
-  // 남은 일수는 "날짜 차이"여야 한다. 벽시계 시각으로 빼면 오전 시간대에만
-  // 하루가 더 붙어, 같은 화면의 다른 위젯(lifecycle.ts)과 하루씩 어긋났다.
-  const todayMidnight = new Date(now);
-  todayMidnight.setHours(0, 0, 0, 0);
   const result: ImminentCategory[] = [];
 
   for (const cat of CATEGORY_CHECKLISTS) {
@@ -143,13 +146,7 @@ export function getCompletedImminentCategories(
     const status: ProgressItem["status"] = resolveStatus(cat.items, item);
     if (status !== "completed") continue;
 
-    const deadlineDate = new Date(weddingDate);
-    deadlineDate.setDate(deadlineDate.getDate() - cat.ddayDeadline);
-    deadlineDate.setHours(0, 0, 0, 0);
-
-    const daysLeft = Math.round(
-      (deadlineDate.getTime() - todayMidnight.getTime()) / (1000 * 60 * 60 * 24)
-    );
+    const daysLeft = daysUntilCategoryDeadline(weddingDate, cat.ddayDeadline);
 
     if (daysLeft > 60) continue;
 

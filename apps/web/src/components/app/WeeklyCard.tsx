@@ -104,8 +104,10 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
             <ul className="space-y-1.5">
               {data.imminent.map((category) => (
                 <li key={category.key}>
+                  {/* 「곧 확인할 분야」는 체크리스트 분야다. 눌러서 도착하는 곳도
+                      체크리스트여야 한다 — 예전에는 일정 화면으로 보냈다. */}
                   <Link
-                    {...weddingLinkProps("/schedule")}
+                    {...weddingLinkProps(`/checklist?category=${encodeURIComponent(category.key)}`)}
                     className="group flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--hb-text-strong)]"
                   >
                     <span className="truncate">{category.label}</span>

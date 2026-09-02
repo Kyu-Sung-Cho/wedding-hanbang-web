@@ -45,6 +45,11 @@ import {
 import { buildAmoraLifecyclePlan, type AmoraGuardrailSeverity } from "@/lib/amora/lifecycle";
 import { getAmoraActions, mergeAmoraActions, type AmoraActionItem, type AmoraActionStatus } from "@/lib/amora/actions";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
+import {
+  koreanFullDateInKst,
+  koreanMonthDayInKst,
+  ymdInKst,
+} from "@/lib/utils/kstDate";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
@@ -54,12 +59,16 @@ import {
   getProgressSummary,
   getStatus,
 } from "@/app/(app)/lounge/progressSummary";
-import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import {
+  getEvents,
+  getScheduleEventStatus,
+  scheduleEventDisplayTitle,
+} from "@/utils/scheduleEvents";
 import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
-import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
+import { PREPARATION_PROGRESS_STATUS_LABELS, readableTextOr } from "@hanbang/shared";
 
 type Status = ProgressItem["status"];
 
@@ -152,23 +161,24 @@ function formatWon(amount: number) {
   return `${Math.round(amount / 10000).toLocaleString("ko-KR")}만원`;
 }
 
+// 저장된 날짜는 사용자가 고른 **한국 날짜**다. 실행 환경의 시간대로 그리면
+// 같은 일정이 라운지와 일정 화면에서 하루 다르게 보인다(`kstDate.ts` 머리말).
 function formatDate(value: string | null | undefined) {
-  if (!value) return "날짜 미정";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "날짜 미정";
-  return date.toLocaleDateString("ko-KR", { month: "long", day: "numeric", weekday: "short" });
+  return koreanMonthDayInKst(value) ?? "날짜 미정";
 }
 
 function formatFullDate(value: string | null | undefined) {
-  if (!value) return "날짜 미정";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "날짜 미정";
-  return date.toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  return koreanFullDateInKst(value) ?? "날짜 미정";
 }
+
+/**
+ * 깨진 채 저장된 글은 되돌리고, 되돌릴 수 없으면 제목인 척하지 않는다.
+ *
+ * `?? ???` 를 사용자가 쓴 제목 자리에 그리는 것은 화면이 사실이 아닌 말을 하는
+ * 것이다. 읽을 글자가 하나도 안 남은 경우에만 물러나므로 `D-DAY??` 같은 진짜
+ * 제목은 그대로 나온다.
+ */
+const displayTitle = readableTextOr;
 
 function getSpent(progress: Record<string, ProgressItem>) {
   return Object.entries(progress).reduce((sum, [key, item]) => {
@@ -189,15 +199,12 @@ function getDdayLabel(dday: number | null) {
 }
 
 export function getUpcomingEvents(progress: Record<string, ProgressItem>): ScheduleEvent[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // 일정 화면과 **같은 방식**으로 오늘을 정한다(`ScheduleContent`도 KST 문자열
+  // 비교를 쓴다). 예전에는 여기만 로컬 자정과 UTC 자정을 섞어 비교해서, 한국
+  // 새벽에 오늘 일정이 목록에서 사라지거나 지난 일정이 남았다.
+  const today = ymdInKst();
   return getEvents(progress as Record<string, unknown>)
-    .filter((event) => {
-      const date = new Date(event.date);
-      return getScheduleEventStatus(event) === "planned"
-        && !Number.isNaN(date.getTime())
-        && date >= today;
-    })
+    .filter((event) => getScheduleEventStatus(event) === "planned" && event.date >= today)
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 4);
 }
@@ -215,7 +222,7 @@ function actionToPriority(action: AmoraActionItem): LoungePriority {
   return {
     id: action.id,
     eyebrow: action.dueDate ? `아모라 기억 · ${action.dueDate}` : "아모라 기억",
-    title: action.title,
+    title: displayTitle(action.title, "제목을 읽지 못한 기록"),
     body: action.description ?? "채팅에서 남겨둔 다음 행동이에요.",
     href: normalizeHref(action.href),
     cta: "열기",
@@ -240,7 +247,7 @@ function buildPriorities(plan: ReturnType<typeof buildAmoraLifecyclePlan>, actio
     ? {
         id: `event_${events[0].id}`,
         eyebrow: "다가오는 일정",
-        title: events[0].title,
+        title: scheduleEventDisplayTitle(events[0]),
         body: `${formatDate(events[0].date)}에 예정되어 있어요. 메모와 준비물을 한 번 확인해두세요.`,
         href: weddingPath("/schedule"),
         cta: "일정 보기",
@@ -755,8 +762,10 @@ export default function LoungePage() {
               <p className="text-[12px] font-semibold text-[var(--hb-accent-hover)]">준비 흐름</p>
               <h2 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">놓치기 쉬운 항목</h2>
             </div>
+            {/* 이 구역은 체크리스트 분야다. 「전체 체크」는 체크리스트로 간다 —
+                예전에는 일정 화면으로 보내서, 체크하러 누른 사람이 달력을 만났다. */}
             <Link
-              {...weddingLinkProps("/schedule")}
+              {...weddingLinkProps("/checklist")}
               className="inline-flex items-center gap-1 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2 text-[12px] font-semibold text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
             >
               전체 체크
@@ -806,8 +815,8 @@ export default function LoungePage() {
           {
             icon: ListChecks,
             title: "라운지에 남김",
-            body: "일정, 예산, 체크리스트, 다음 행동으로 관리합니다.",
-            href: weddingPath("/schedule"),
+            body: "확인한 것을 체크리스트에 남기고 예산·일정으로 이어갑니다.",
+            href: weddingPath("/checklist"),
           },
         ].map((item) => (
           <Link key={item.title} {...weddingLinkProps(item.href)} className="group flex gap-4 rounded-[6px] bg-white/80 p-4 hover:bg-white">
@@ -971,8 +980,10 @@ function CategoryRow({
         : `기본 확인 시점까지 ${item.daysUntilDeadline}일`;
 
   return (
+    // 체크 진행률을 보여주는 줄이므로 목적지는 체크리스트다. 분야를 함께 넘겨
+    // 도착하자마자 그 분야가 열린다(`ChecklistContent` 의 `?category=` 계약).
     <Link
-      {...weddingLinkProps("/schedule")}
+      {...weddingLinkProps(`/checklist?category=${encodeURIComponent(item.category.key)}`)}
       className="group rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] p-3.5 hover:border-[var(--hb-hairline)] hover:bg-white"
     >
       <div className="flex items-start justify-between gap-3">
@@ -1076,7 +1087,9 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
             <Link key={event.id} {...weddingLinkProps("/schedule")} className="flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-3.5 py-3 hover:bg-white">
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
               <span className="min-w-0">
-                <span className="block truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">{event.title}</span>
+                <span className="block truncate text-[13px] font-semibold text-[var(--hb-text-strong)]">
+                  {scheduleEventDisplayTitle(event)}
+                </span>
                 <span className="mt-0.5 block text-[11px] font-medium text-[var(--hb-text-body)]">{formatDate(event.date)}</span>
               </span>
             </Link>

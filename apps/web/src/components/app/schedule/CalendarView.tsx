@@ -21,6 +21,7 @@ import {
   getScheduleEventAssigneeLabel,
   getScheduleEventStatus,
   sanitizeUserFacingScheduleMemo,
+  scheduleEventDisplayTitle,
   type ScheduleEventAssigneeContext,
 } from "@/utils/scheduleEvents";
 
@@ -225,7 +226,7 @@ export default function CalendarView({
                                 : "text-[var(--hb-text-strong)]"
                             }`}
                           >
-                            {evt.title}
+                            {scheduleEventDisplayTitle(evt)}
                           </p>
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <span

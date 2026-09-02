@@ -28,6 +28,7 @@ import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource"
 import {
   findCategoryScheduleEvent,
   getScheduleEventAssigneeLabel,
+  scheduleEventDisplayTitle,
   getScheduleEventStatus,
   sanitizeUserFacingScheduleMemo,
   type ScheduleEventAssigneeContext,
@@ -486,7 +487,7 @@ export default function TimelineView({
                                 : "text-[var(--hb-text-strong)]"
                             }`}
                           >
-                            {evt.title}
+                            {scheduleEventDisplayTitle(evt)}
                           </p>
                           <span className="rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-body)]">
                             {getScheduleEventStatus(evt) === "completed"
@@ -539,7 +540,7 @@ export default function TimelineView({
                             {onEditEvent && (
                               <button
                                 type="button"
-                                aria-label={`${evt.title} 일정 수정`}
+                                aria-label={`${scheduleEventDisplayTitle(evt)} 일정 수정`}
                                 onClick={() => onEditEvent(evt)}
                                 className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
                               >
@@ -549,7 +550,7 @@ export default function TimelineView({
                             {onCancelEvent && (
                               <button
                                 type="button"
-                                aria-label={`${evt.title} 일정 취소 요청`}
+                                aria-label={`${scheduleEventDisplayTitle(evt)} 일정 취소 요청`}
                                 onClick={() => setPendingCancelEventId(evt.id)}
                                 className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] hover:bg-[#f7f3ec] hover:text-[var(--hb-text-strong)]"
                               >
