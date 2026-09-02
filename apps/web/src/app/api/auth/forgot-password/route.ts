@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { Resend } from "resend";
+import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  classifyEmailDeliveryFailure,
+  emailDeliveryLogLine,
+  emailDeliveryMissingReceiptFailure,
+  findEmailDeliveryConfigFailure,
+  redactProviderDetail,
+} from "@/lib/email/deliveryFailure";
 import {
   checkRateLimitPersistent,
   getClientIp,
@@ -100,6 +108,15 @@ export async function POST(request: Request) {
       tokenHash: data.properties.hashed_token,
       type: "recovery",
     });
+    // 키가 없으면 생성자가 던지고 바깥 catch 가 success 로 덮어, 재설정 메일이
+    // 한 통도 못 나가는 배포에서도 아무 흔적이 남지 않았다. 응답은 그대로 두되
+    // 사실은 남긴다.
+    const configFailure = findEmailDeliveryConfigFailure();
+    if (configFailure) {
+      log.error(emailDeliveryLogLine("api/auth/forgot-password", configFailure));
+      return NextResponse.json({ success: true });
+    }
+
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     // 여기서는 계정 존재 여부가 새지 않도록 응답을 바꾸지 않는다. 다만 발송
@@ -142,7 +159,16 @@ export async function POST(request: Request) {
     });
 
     if (sendResult.error || !sendResult.data?.id) {
-      console.error("Password reset email send failed:", sendResult.error);
+      // 응답은 계속 success 다(계정 존재가 새면 안 된다). 다만 예전에는 실패가
+      // 서버 콘솔 한 줄로만 남아 Sentry 에 오르지 않았고, "메일이 안 와요" 문의를
+      // 무엇과도 맞춰 볼 수 없었다. 원인 분류만 남긴다 — 주소는 남기지 않는다.
+      const failure = sendResult.error
+        ? classifyEmailDeliveryFailure(sendResult.error)
+        : emailDeliveryMissingReceiptFailure();
+      log.error(
+        emailDeliveryLogLine("api/auth/forgot-password", failure, sendResult.error),
+        redactProviderDetail(sendResult.error),
+      );
     }
 
     return NextResponse.json({ success: true });

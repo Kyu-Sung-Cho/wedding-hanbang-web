@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   verifyTurnstile: vi.fn(),
@@ -77,6 +77,9 @@ function rawMobileRequest(path: string, body: string) {
 describe("mobile Turnstile boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // 발송 자격이 없는 배포는 계정을 만들기 전에 되돌아간다. 이 파일이 지키려는
+    // 것은 그 관문이 아니라 Turnstile·레이트리밋 경계이므로 자격은 채워 둔다.
+    vi.stubEnv("RESEND_API_KEY", "re_test_key");
     mocks.verifyTurnstile.mockResolvedValue({ ok: false, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.generateLink.mockResolvedValue({
@@ -87,6 +90,10 @@ describe("mobile Turnstile boundary", () => {
       auth: { admin: { generateLink: mocks.generateLink } },
     });
     mocks.send.mockResolvedValue({ data: { id: "mail-id" }, error: null });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("does not let a spoofed mobile header bypass signup verification", async () => {

@@ -10,6 +10,14 @@ import {
   rateLimitSubjectKey,
 } from "@/utils/rateLimit";
 import { verifyTurnstile, normalizeEmailForRateLimit } from "@/lib/turnstile";
+import {
+  classifyEmailDeliveryFailure,
+  emailDeliveryLogLine,
+  emailDeliveryMissingReceiptFailure,
+  findEmailDeliveryConfigFailure,
+  redactProviderDetail,
+  type EmailDeliveryFailure,
+} from "@/lib/email/deliveryFailure";
 import { buildEmailConfirmUrl } from "@/lib/auth/emailConfirmLink";
 import { getRequestedAuthRedirectPath } from "@/lib/auth/safeRedirect";
 import {
@@ -28,9 +36,14 @@ function getAdminSupabase() {
 /**
  * 이미 계정이 있는 주소로 가입을 시도했을 때, 계정 주인에게 길을 알려준다.
  *
- * 밖에서 보는 응답은 신규 가입과 완전히 같아야 하므로(계정 존재 여부가 새면 안 된다)
- * 이 함수는 무엇이 실패하든 조용히 끝난다. 실패를 호출부로 올리면 응답 모양이나
- * 응답 시간이 달라져 그 자체가 신호가 된다.
+ * 밖에서 보는 응답은 신규 가입과 완전히 같아야 한다 — 계정 존재 여부가 새면 안 된다.
+ * 그래서 링크를 못 만들었거나 예상 못 한 예외가 났으면 조용히 끝낸다.
+ *
+ * **발송 실패만은 올린다.** 예전에는 그것까지 삼켜서, 제공자가 죽어 있는 동안
+ * 신규 주소는 502 를 받고 기존 주소는 "인증 이메일을 발송했습니다"를 받았다.
+ * 그 차이 자체가 계정 존재 여부를 알려 주는 신호였고, 동시에 아무것도 오지 않을
+ * 사람에게 왔다고 말하는 거짓말이었다. 지금은 두 경로가 같은 실패 객체를 돌려주므로
+ * 응답이 갈라지지 않는다 — 판정이 제공자 오류만 보고 계정은 보지 않기 때문이다.
  *
  * 링크는 비밀번호 재설정 링크다. 비밀번호를 잊어 다시 가입한 경우가 가장 흔하고,
  * 그 링크 하나로 계정을 되찾을 수 있기 때문이다.
@@ -45,10 +58,8 @@ async function sendExistingAccountNotice({
   name: string;
   siteUrl: string;
   supabase: ReturnType<typeof getAdminSupabase>;
-}): Promise<void> {
+}): Promise<EmailDeliveryFailure | null> {
   try {
-    if (!process.env.RESEND_API_KEY) return;
-
     const { data, error } = await supabase.auth.admin.generateLink({
       type: "recovery",
       email,
@@ -80,7 +91,7 @@ async function sendExistingAccountNotice({
             </a>
           </div>`;
 
-    await new Resend(process.env.RESEND_API_KEY).emails.send({
+    const sendResult = await new Resend(process.env.RESEND_API_KEY).emails.send({
       from: "웨딩한방 <noreply@hanbang.ai>",
       to: email,
       subject: "웨딩한방 — 이미 가입된 계정이 있어요",
@@ -107,9 +118,24 @@ async function sendExistingAccountNotice({
         </div>
       `,
     });
+
+    if (sendResult.error || !sendResult.data?.id) {
+      const failure = sendResult.error
+        ? classifyEmailDeliveryFailure(sendResult.error)
+        : emailDeliveryMissingReceiptFailure();
+      log.error(
+        emailDeliveryLogLine("api/auth/signup#existing", failure, sendResult.error),
+        redactProviderDetail(sendResult.error),
+      );
+      return failure;
+    }
+
+    return null;
   } catch (sendError) {
-    // 응답은 어떤 경우에도 동일해야 한다.
+    // 발송 실패가 아닌 사고(링크 생성·SDK 구성 등)는 여기서 끝낸다. 여기서 응답을
+    // 바꾸면 계정이 있는 주소만 다르게 답하게 된다.
     console.error("existing account notice failed:", sendError);
+    return null;
   }
 }
 
@@ -212,6 +238,21 @@ export async function POST(request: Request) {
     );
     if (emailLimited) return emailLimited;
 
+    // 계정을 만들기 **전에** 메일을 보낼 수 있는 배포인지 본다.
+    //
+    // 키가 없으면 `new Resend(undefined)` 가 생성자에서 던지는데, 그 자리는 이미
+    // generateLink 가 계정을 만든 뒤다. 그러면 사용자는 "회원가입 처리 중 오류"라는
+    // 엉뚱한 문장을 보고, 인증할 수단이 없는 계정만 남는다. 순서를 바꾸면 그 계정이
+    // 아예 생기지 않는다.
+    const configFailure = findEmailDeliveryConfigFailure();
+    if (configFailure) {
+      log.error(emailDeliveryLogLine("api/auth/signup", configFailure));
+      return NextResponse.json(
+        { error: configFailure.message, code: configFailure.code },
+        { status: configFailure.status },
+      );
+    }
+
     const supabase = getAdminSupabase();
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://hanbang.ai";
     // 사용자가 보낸 값이다. 메일에 싣기 전에 같은 출처·허용 경로인지 거른다.
@@ -251,7 +292,18 @@ export async function POST(request: Request) {
         //
         // 그래서 응답은 그대로 두고 계정 주인에게 실제로 길을 보낸다. 이 경로가
         // 곧 재발송 경로이기도 하다 — 같은 주소로 다시 가입을 시도하면 메일이 온다.
-        await sendExistingAccountNotice({ email, name, siteUrl, supabase });
+        const noticeFailure = await sendExistingAccountNotice({
+          email,
+          name,
+          siteUrl,
+          supabase,
+        });
+        if (noticeFailure) {
+          return NextResponse.json(
+            { error: noticeFailure.message, code: noticeFailure.code },
+            { status: noticeFailure.status },
+          );
+        }
         return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
       }
       console.error("generateLink error:", error);
@@ -319,13 +371,18 @@ export async function POST(request: Request) {
     });
 
     if (sendResult.error || !sendResult.data?.id) {
-      console.error("Signup verification email send failed:", sendResult.error);
+      // 무엇이 실패했는지에 따라 사용자가 할 수 있는 일이 다르다. 설정이 원인인데
+      // "잠시 후 다시 시도해 주세요"라고 답하면, 그 사람은 될 리 없는 일을 반복한다.
+      const failure = sendResult.error
+        ? classifyEmailDeliveryFailure(sendResult.error)
+        : emailDeliveryMissingReceiptFailure();
+      log.error(
+        emailDeliveryLogLine("api/auth/signup", failure, sendResult.error),
+        redactProviderDetail(sendResult.error),
+      );
       return NextResponse.json(
-        {
-          error:
-            "인증 메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.",
-        },
-        { status: 502 },
+        { error: failure.message, code: failure.code },
+        { status: failure.status },
       );
     }
 

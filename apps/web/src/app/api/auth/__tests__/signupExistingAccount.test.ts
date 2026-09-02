@@ -63,11 +63,22 @@ describe("계정이 있는지 밖에서 알 수 없어야 한다", () => {
   });
 
   it("메일 발송이 실패해도 응답이 달라지지 않는다", () => {
-    // 실패를 호출부로 올리면 응답 모양이나 시간이 달라져 그 자체가 신호가 된다.
+    // 예전에는 이 함수가 **발송 실패까지** 삼켰다. 그 결과 제공자가 죽어 있는 동안
+    // 신규 주소는 502 를 받고 이미 있는 주소는 "인증 이메일을 발송했습니다"를 받았다.
+    // 응답을 같게 만들려던 장치가 정확히 응답을 갈라 놓았고, 동시에 아무것도 오지
+    // 않을 사람에게 왔다고 말했다.
+    //
+    // 지금은 두 갈래가 같은 판정기(classifyEmailDeliveryFailure)를 거쳐 같은 응답을
+    // 낸다 — 판정이 제공자 오류만 보고 계정은 보지 않기 때문이다. 발송이 아닌
+    // 사고(링크 생성·구성 오류)는 그대로 삼킨다.
     expect(source).toMatch(
       /async function sendExistingAccountNotice[\s\S]*?try\s*\{[\s\S]*?\}\s*catch/u,
     );
-    expect(source).toMatch(/sendExistingAccountNotice[\s\S]*?Promise<void>/u);
+    expect(source).toMatch(
+      /sendExistingAccountNotice[\s\S]*?Promise<EmailDeliveryFailure \| null>/u,
+    );
+    // 두 갈래가 정말 같은 응답을 내는지는 실행해서 본다:
+    // src/app/api/auth/__tests__/signupEmailDeliveryFailure.test.ts
   });
 });
 
