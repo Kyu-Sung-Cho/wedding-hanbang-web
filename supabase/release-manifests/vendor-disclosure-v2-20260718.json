@@ -416,6 +416,18 @@
     {
       "file": "20260902120000_leaving_does_not_erase_the_partner_memory.sql",
       "sha256": "a769396d614c4fc1bb31e97c289fac7afea0dfa259f18bd64293a75cc9f0223e"
+    },
+    {
+      "file": "20260902130000_deletion_ledger_can_actually_be_written.sql",
+      "sha256": "137ea9d3fdf02fdc1e425dc984cdac5f3f27b5fc0e16005d6cdb9e8ed21de155"
+    },
+    {
+      "file": "20260902140000_deletion_result_is_actually_told.sql",
+      "sha256": "8951e8e82ce0aadec0f87493198e1d9cefd39ae3f95d183a6077b913d76aa95b"
+    },
+    {
+      "file": "20260902150000_own_chat_photos_are_deletable.sql",
+      "sha256": "eef58021a4cceb3add21581f4f6c81a7ff93ecfe626ffd8caef16c11667e249a"
     }
   ],
   "deploymentEvidence": {

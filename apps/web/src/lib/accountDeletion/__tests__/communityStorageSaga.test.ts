@@ -150,7 +150,11 @@ describe("community account-deletion Storage manifest", () => {
       statusText: "OK",
     }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    // 채팅 사진 증명 조회(`listOwnChatPhotoPaths`)가 `.eq().not().range()` 를 탄다.
+    // 이 갈래가 없으면 인벤토리가 조회 단계에서 죽는다 — 증명이 없다는 뜻이
+    // 아니라 아예 못 물어본 것이다.
+    const notFn = vi.fn(() => ({ range: vi.fn(async () => ({ data: [], error: null })) }));
+    const eq = vi.fn(() => ({ order, not: notFn }));
     const select = vi.fn(() => ({ eq }));
     const admin = {
       storage: { from: storageFrom },
@@ -201,7 +205,11 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    // 채팅 사진 증명 조회(`listOwnChatPhotoPaths`)가 `.eq().not().range()` 를 탄다.
+    // 이 갈래가 없으면 인벤토리가 조회 단계에서 죽는다 — 증명이 없다는 뜻이
+    // 아니라 아예 못 물어본 것이다.
+    const notFn = vi.fn(() => ({ range: vi.fn(async () => ({ data: [], error: null })) }));
+    const eq = vi.fn(() => ({ order, not: notFn }));
     const select = vi.fn(() => ({ eq }));
     const admin = {
       storage: { from: storageFrom },
@@ -238,7 +246,11 @@ describe("community account-deletion Storage manifest", () => {
       }));
       const range = vi.fn(async () => ({ data: [], error: null }));
       const order = vi.fn(() => ({ range }));
-      const eq = vi.fn(() => ({ order }));
+      // 채팅 사진 증명 조회(`listOwnChatPhotoPaths`)가 `.eq().not().range()` 를 탄다.
+    // 이 갈래가 없으면 인벤토리가 조회 단계에서 죽는다 — 증명이 없다는 뜻이
+    // 아니라 아예 못 물어본 것이다.
+    const notFn = vi.fn(() => ({ range: vi.fn(async () => ({ data: [], error: null })) }));
+    const eq = vi.fn(() => ({ order, not: notFn }));
       const select = vi.fn(() => ({ eq }));
       return inventoryCommunityDeletionMedia({
         storage: { from: storageFrom },
@@ -279,7 +291,11 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    // 채팅 사진 증명 조회(`listOwnChatPhotoPaths`)가 `.eq().not().range()` 를 탄다.
+    // 이 갈래가 없으면 인벤토리가 조회 단계에서 죽는다 — 증명이 없다는 뜻이
+    // 아니라 아예 못 물어본 것이다.
+    const notFn = vi.fn(() => ({ range: vi.fn(async () => ({ data: [], error: null })) }));
+    const eq = vi.fn(() => ({ order, not: notFn }));
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
@@ -309,7 +325,11 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    // 채팅 사진 증명 조회(`listOwnChatPhotoPaths`)가 `.eq().not().range()` 를 탄다.
+    // 이 갈래가 없으면 인벤토리가 조회 단계에서 죽는다 — 증명이 없다는 뜻이
+    // 아니라 아예 못 물어본 것이다.
+    const notFn = vi.fn(() => ({ range: vi.fn(async () => ({ data: [], error: null })) }));
+    const eq = vi.fn(() => ({ order, not: notFn }));
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
@@ -338,7 +358,11 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    // 채팅 사진 증명 조회(`listOwnChatPhotoPaths`)가 `.eq().not().range()` 를 탄다.
+    // 이 갈래가 없으면 인벤토리가 조회 단계에서 죽는다 — 증명이 없다는 뜻이
+    // 아니라 아예 못 물어본 것이다.
+    const notFn = vi.fn(() => ({ range: vi.fn(async () => ({ data: [], error: null })) }));
+    const eq = vi.fn(() => ({ order, not: notFn }));
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({

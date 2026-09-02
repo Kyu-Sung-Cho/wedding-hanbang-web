@@ -26,7 +26,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -121,6 +121,37 @@ if (process.env.HANBANG_VERIFY_RUNNING === "1") {
   process.exit(2);
 }
 process.env.HANBANG_VERIFY_RUNNING = "1";
+
+// **같은 기계에서 두 번 동시에 돌면 서로의 결과를 덮어쓴다.**
+//
+// 2026-09-02 에 실제로 그랬다 — 앞선 실행이 아직 도는 중에 다음 실행을 걸었고,
+// 둘이 같은 로그·영수증 파일을 써서 **어느 쪽 결과인지 알 수 없게** 됐다.
+// 하나는 릴리스 핀이 어긋난 상태였고 다른 하나는 고친 뒤였는데, 둘 다 통과처럼
+// 보였다. 틀린 측정은 조용하다.
+//
+// 그래서 잠금 파일을 둔다. 죽은 잠금(프로세스가 사라진 경우)은 스스로 걷는다.
+const LOCK = join(OUT_DIR, "run.lock");
+mkdirSync(OUT_DIR, { recursive: true });
+if (existsSync(LOCK)) {
+  const holder = Number(readFileSync(LOCK, "utf8").trim());
+  let alive = false;
+  try { process.kill(holder, 0); alive = true; } catch { alive = false; }
+  if (alive) {
+    console.error(
+      `[verify] 다른 검증(pid ${holder})이 돌고 있다. 끝난 뒤에 다시 실행할 것.`
+      + `
+  같이 돌리면 로그와 영수증이 섞여 어느 결과인지 알 수 없다.`,
+    );
+    process.exit(2);
+  }
+}
+writeFileSync(LOCK, String(process.pid), "utf8");
+const releaseLock = () => {
+  try { if (existsSync(LOCK) && readFileSync(LOCK, "utf8").trim() === String(process.pid)) unlinkSync(LOCK); }
+  catch { /* 정리 실패가 판정을 바꾸지는 않는다 */ }
+};
+process.on("exit", releaseLock);
+process.on("SIGINT", () => { releaseLock(); process.exit(130); });
 
 mkdirSync(LOG_DIR, { recursive: true });
 

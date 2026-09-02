@@ -64,6 +64,14 @@ function harness(options: {
         || name === "mark_account_deletion_manual_review") {
       return { data: true, error: null };
     }
+    // 삭제 결과 통지(개인정보 보호법 제36조 2항)가 쓰는 둘. 여기 없으면 mock 이
+    // 던지고, 그 예외가 **완료된 삭제를 retry 로** 되돌린다.
+    if (name === "pin_account_deletion_notice_email") {
+      return { data: true, error: null };
+    }
+    if (name === "record_account_deletion_notice") {
+      return { data: "sent", error: null };
+    }
     throw new Error(`unexpected RPC: ${name}`);
   });
   const range = vi.fn(async (from: number) => ({
@@ -74,7 +82,26 @@ function harness(options: {
   orderedQuery.order.mockReturnValue(orderedQuery);
   const eq = vi.fn(() => orderedQuery);
   const select = vi.fn(() => ({ eq }));
+  // 삭제 결과 통지(개인정보 보호법 제36조 2항)가 `finalize` 뒤에 job 행을 읽는다.
+  // 이 갈래가 없으면 통지 조회가 죽고, 그 실패가 **완료된 삭제를 retry 로**
+  // 되돌린다 — 배선하면서 실제로 그렇게 만들었고 이 테스트가 잡았다.
+  const noticeMaybeSingle = vi.fn(async () => ({
+    data: { notice_email: null, notice_sent_at: null },
+    error: null,
+  }));
   const from = vi.fn((table: string) => {
+    // 채팅 사진 소유 증명 조회. 이 테스트들은 사진이 없는 계정을 다루므로
+    // 빈 목록이 옳다 — 있으면 증명된 것만 삭제 대상이 된다.
+    if (table === "chat_messages") {
+      return {
+        select: () => ({
+          eq: () => ({ not: () => ({ range: async () => ({ data: [], error: null }) }) }),
+        }),
+      };
+    }
+    if (table === "account_deletion_jobs") {
+      return { select: () => ({ eq: () => ({ maybeSingle: noticeMaybeSingle }) }) };
+    }
     if (table !== "account_deletion_media_manifest") {
       throw new Error(`unexpected table: ${table}`);
     }
@@ -84,9 +111,20 @@ function harness(options: {
     sequence.push("storage.remove");
     return { data: [], error: null };
   });
-  const exists = vi.fn(async () => {
-    sequence.push("storage.exists");
-    return { data: options.objectStillExists ?? false, error: null };
+  // **운영이 주는 응답 모양 그대로.**
+  //
+  // 예전에는 `exists` 를 `{ data: false, error: null }` 로 흉내냈다. 실제
+  // storage-js 는 부재일 때 `{ data: false, error: { status: 400 } }` 를 주므로,
+  // 이 mock 때문에 "파일이 하나라도 있는 계정은 탈퇴가 끝나지 않는" 버그가
+  // 테스트를 통과했다(2026-09-02 스테이징 실측으로 발견).
+  //
+  // 프로덕션 코드는 이제 `info()` 를 쓴다 — 부재는 `statusCode: "404"` 로
+  // 확정적으로 구분된다.
+  const info = vi.fn(async () => {
+    sequence.push("storage.info");
+    return options.objectStillExists
+      ? { data: { name: "obj", size: 1, contentType: "image/png" }, error: null }
+      : { data: null, error: { statusCode: "404", message: "Object not found" } };
   });
   const list = vi.fn(async (): Promise<{
     data: Array<{ name: string; id?: string | null }>;
@@ -95,7 +133,7 @@ function harness(options: {
     sequence.push("storage.list");
     return { data: [], error: null };
   });
-  const storageFrom = vi.fn(() => ({ remove, exists, list }));
+  const storageFrom = vi.fn(() => ({ remove, info, list }));
   const getUserById = vi.fn(async () => {
     sequence.push("auth.getUserById");
     return options.authMissing
@@ -116,7 +154,7 @@ function harness(options: {
     sequence,
     rpc,
     remove,
-    exists,
+    info,
     list,
     deleteUser,
   };
@@ -130,11 +168,11 @@ describe("account deletion Storage worker", () => {
 
     expect(result).toEqual({ status: "completed" });
     expect(test.remove).toHaveBeenCalledWith([LEGACY_PATH]);
-    expect(test.exists).toHaveBeenCalledWith(LEGACY_PATH);
+    expect(test.info).toHaveBeenCalledWith(LEGACY_PATH);
     expect(test.sequence).toEqual([
       "claim_account_deletion_job",
       "storage.remove",
-      "storage.exists",
+      "storage.info",
       "checkpoint_account_deletion_media",
       "storage.list",
       "storage.list",
@@ -193,7 +231,7 @@ describe("account deletion Storage worker", () => {
 
     expect(result).toEqual({ status: "manual_review" });
     expect(test.remove).not.toHaveBeenCalled();
-    expect(test.exists).not.toHaveBeenCalled();
+    expect(test.info).not.toHaveBeenCalled();
     expect(test.deleteUser).not.toHaveBeenCalled();
     expect(test.rpc).toHaveBeenCalledWith(
       "mark_account_deletion_manual_review",
@@ -249,7 +287,7 @@ describe("account deletion Storage worker", () => {
 
     expect(result).toEqual({ status: "pending" });
     expect(test.remove).toHaveBeenCalledWith([LEGACY_PATH]);
-    expect(test.exists).toHaveBeenCalledWith(LEGACY_PATH);
+    expect(test.info).toHaveBeenCalledWith(LEGACY_PATH);
     expect(test.rpc).toHaveBeenCalledWith(
       "checkpoint_account_deletion_media",
       expect.objectContaining({ p_path: LEGACY_PATH }),
@@ -311,10 +349,23 @@ describe("account deletion Storage worker", () => {
       }
       throw new Error(`unexpected RPC: ${name}`);
     });
+    // **운영이 실제로 돌려주는 모양.**
+    //
+    // 루트를 훑으면 커플 폴더가, 커플을 훑으면 사용자 폴더(`id: null`)가,
+    // 사용자 칸을 훑어야 비로소 파일이 나온다. 예전 mock 은 접두어를 안 가리고
+    // 어디서나 같은 파일을 돌려줘서, 옛 2단 경로 훑기를 더하자 같은 파일이
+    // 두 번 잡혔다 — 운영에서는 일어나지 않는 일이다.
     const chatList = vi.fn(async (prefix: string) => {
       if (prefix === "") {
         return {
           data: [{ name: "77777777-7777-4777-8777-777777777777", id: null }],
+          error: null,
+        };
+      }
+      if (prefix === "77777777-7777-4777-8777-777777777777") {
+        // 커플 폴더 아래에는 사용자 폴더만 있다(옛 2단 파일 없음).
+        return {
+          data: [{ name: "11111111-1111-4111-8111-111111111111", id: null }],
           error: null,
         };
       }
@@ -347,6 +398,15 @@ describe("account deletion Storage worker", () => {
           const vendorEq = vi.fn(() => ({ limit }));
           const vendorSelect = vi.fn(() => ({ eq: vendorEq }));
           return { select: vendorSelect };
+        }
+        // 소유 증명 조회. 여기서 **빈 목록**이라는 것이 이 테스트의 핵심이다 —
+        // 증명이 없는 사진은 예전 그대로 격리로 남고 manual_review 로 가야 한다.
+        if (table === "chat_messages") {
+          return {
+            select: () => ({
+              eq: () => ({ not: () => ({ range: async () => ({ data: [], error: null }) }) }),
+            }),
+          };
         }
         return { select };
       }),
