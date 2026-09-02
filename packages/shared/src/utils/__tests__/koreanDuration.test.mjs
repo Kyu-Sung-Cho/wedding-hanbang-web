@@ -20,7 +20,13 @@ test("60일 미만은 날짜 수 그대로", () => {
 test("60일부터는 개월로 바꾸고 숫자도 함께 바뀐다", () => {
   assert.equal(formatKoreanDayCount(60), "약 2개월");
   assert.equal(formatKoreanDayCount(255), "약 9개월");
-  assert.equal(formatKoreanDayCount(364), "약 12개월");
+  assert.equal(formatKoreanDayCount(300), "약 10개월");
+});
+
+test("12개월로 반올림되는 구간은 한 해라고 말한다", () => {
+  // 「약 12개월」 과 바로 다음 값 「약 1년」 이 나란히 나오면 다른 크기로 읽힌다.
+  assert.equal(formatKoreanDayCount(345), "약 1년");
+  assert.equal(formatKoreanDayCount(364), "약 1년");
 });
 
 test("1년을 넘으면 연도를 앞에 세운다", () => {

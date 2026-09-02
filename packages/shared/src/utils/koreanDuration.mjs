@@ -63,7 +63,11 @@ export function formatKoreanDayCount(days) {
   if (magnitude < DAYS_SHOWN_AS_DAYS) return `${magnitude}일`;
 
   if (magnitude < DAYS_PER_YEAR) {
-    return `약 ${Math.round(magnitude / DAYS_PER_MONTH)}개월`;
+    const months = Math.round(magnitude / DAYS_PER_MONTH);
+    // 12개월로 반올림되는 구간(약 345일부터)은 「약 1년」 이라고 말한다.
+    // 「약 12개월」 과 바로 다음 값 「약 1년」 이 나란히 나오면 읽는 사람이
+    // 둘을 다른 크기로 읽는다.
+    return months >= 12 ? "약 1년" : `약 ${months}개월`;
   }
 
   const years = Math.floor(magnitude / DAYS_PER_YEAR);
