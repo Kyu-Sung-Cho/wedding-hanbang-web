@@ -1,6 +1,10 @@
-"use client";
-
+// 서버 컴포넌트다. **클라이언트로 만들면 안 된다** — 탈퇴 접수 문장이
+// `ACCOUNT_DELETION_INTAKE_ENABLED` 를 서버에서 읽어 정해지는데, 브라우저
+// 번들에서는 그 값이 undefined 라 **법적 고지가 조용히 틀린 문장이 된다**
+// (2026-09-02 에 실제로 그렇게 만들 뻔했고 테스트가 잡았다).
+// 이 파일은 클라이언트 훅·이벤트를 하나도 쓰지 않는다.
 import Link from "next/link";
+import { accountDeletionIntakeSentence } from "@/lib/account/deletionIntake";
 import { CONTACT } from "@/lib/constants/contact";
 import { ArrowLeft } from "lucide-react";
 
@@ -140,7 +144,9 @@ export default function TermsPage() {
           <section>
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제10조 (회원 탈퇴 및 자격 상실)</h2>
             <ol className="list-decimal pl-5 space-y-2">
-              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. 현재는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.</li>
+              {/* 처리방침 제6조와 **같은 문장**을 쓴다. 두 화면이 각자 문장을 가지면
+                  한쪽만 고쳐지고 다른 쪽이 남는다. */}
+              <li>회원은 언제든지 탈퇴를 신청할 수 있습니다. {accountDeletionIntakeSentence(CONTACT.email)}</li>
               <li>탈퇴 신청이 접수되면 커뮤니티 새 파일 업로드가 제한되고 계정 삭제 절차가 시작됩니다. 임시 파일 접근 링크가 만료되고 파일 소유권과 삭제 대상을 확인한 뒤, 더 이상 필요하지 않은 개인정보를 지체 없이 파기합니다. 처리 범위와 기간은 개인정보 처리방침을 따릅니다.</li>
               <li>계정 삭제는 되돌릴 수 없습니다. 같은 이메일로 다시 가입하더라도 이전 기록은 복구되지 않습니다.</li>
               <li>연결된 파트너가 있는 경우, 두 사람이 함께 만든 준비 기록과 주고받은 대화는 남은 파트너의 화면에 그대로 유지되고 탈퇴한 회원의 식별 정보만 제거됩니다. 남은 파트너도 자신의 기록에 대해 같은 권리를 가집니다.</li>

@@ -48,3 +48,30 @@ export function parseAccountDeletionIntakeCapability(value: unknown): boolean {
  */
 export const ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE =
   "지금은 설정에서 바로 탈퇴 접수가 되지 않아요. 아래에서 요청 방법을 안내해 드릴게요." as const;
+
+/**
+ * **서버 렌더링 화면(처리방침·약관)이 쓰는 같은 판정.**
+ *
+ * 2026-09-02: 자동 접수를 켜는 순간 처리방침 제6조와 약관 제10조의 "현재는
+ * 고객센터로 접수받고 있으며" 가 **거짓 문장이 된다.** 그 두 문장을 손으로
+ * 고치면 다음에 플래그가 움직일 때 또 어긋나고, 어긋난 쪽이 법적 고지라 대가가
+ * 크다. 그래서 문구를 플래그와 같은 곳에서 낸다.
+ *
+ * 서버 컴포넌트에서만 부를 것 — 이 값은 브라우저 번들에 실리면 안 된다.
+ * (클라이언트는 위 `parseAccountDeletionIntakeCapability` 로 `/api/auth/me` 를 읽는다.)
+ */
+export function isAccountDeletionIntakeOpenOnServer(): boolean {
+  return process.env.ACCOUNT_DELETION_INTAKE_ENABLED === "true";
+}
+
+/**
+ * 탈퇴 접수 경로를 설명하는 **한 문장**. 처리방침과 약관이 같은 문장을 쓴다.
+ *
+ * 두 화면이 각자 문장을 갖고 있으면 한쪽만 고쳐지고 다른 쪽이 남는다 — 이
+ * 저장소에서 여러 번 그랬다. 사실이 하나면 문장도 하나여야 한다.
+ */
+export function accountDeletionIntakeSentence(supportEmail: string): string {
+  return isAccountDeletionIntakeOpenOnServer()
+    ? "탈퇴는 설정 페이지에서 직접 신청할 수 있습니다. 신청하면 곧바로 삭제 절차가 시작되고, 확인이 필요한 파일이 있으면 운영자가 검토한 뒤 이어서 처리합니다."
+    : `탈퇴는 현재 고객센터(${supportEmail})로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다.`;
+}

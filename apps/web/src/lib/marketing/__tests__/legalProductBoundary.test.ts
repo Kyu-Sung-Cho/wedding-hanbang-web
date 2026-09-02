@@ -93,15 +93,20 @@ describe("legal pages reflect the current product", () => {
     // 접수 스위치가 꺼져 있으면 앱은 "support@hanbang.ai 로 요청해 주세요"라고
     // 답한다(api/auth/delete/route.ts). 문서만 "설정 페이지에서"라고 말하면
     // 사용자는 없는 버튼을 찾아다닌다.
-    const intakeOpen = process.env.ACCOUNT_DELETION_INTAKE_ENABLED === "true";
-    if (intakeOpen) return;
-
+    // 2026-09-02: 문장을 문서에 박아 두면 플래그가 움직일 때 **법적 고지가
+    // 조용히 거짓이 된다.** 그래서 두 문서가 앱과 **같은 원천**에서 문장을
+    // 받도록 바꿨다(`accountDeletionIntakeSentence`). 여기서 고정하는 것은
+    // 이제 문장이 아니라 **그 배선**이다 — 문서가 자기 문장을 다시 갖게 되면
+    // 여기가 빨개진다.
     for (const doc of [terms, privacy]) {
-      expect(doc).not.toContain("설정 페이지에서 탈퇴");
-      expect(doc).not.toContain("설정 페이지에서 탈퇴를 신청");
+      expect(doc).toContain("accountDeletionIntakeSentence(CONTACT.email)");
+      // 서버에서 렌더돼야 그 값이 실제 플래그를 본다. 클라이언트로 되돌리면
+      // 브라우저에서 undefined 가 되어 항상 "닫힘" 문장이 나간다.
+      expect(doc).not.toContain('"use client"');
     }
-    expect(terms).toContain("고객센터");
-    expect(privacy).toContain("탈퇴는 현재 고객센터");
+    // 문서가 두 상태의 문장을 **직접** 들고 있으면 안 된다.
+    expect(privacy).not.toContain("탈퇴는 현재 고객센터");
+    expect(terms).not.toContain("현재는 고객센터");
   });
 
   it("keeps the obsolete contact-collecting research survey closed", () => {

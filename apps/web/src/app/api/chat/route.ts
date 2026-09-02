@@ -2328,6 +2328,8 @@ export async function POST(request: Request) {
       // 아직 안 누른 카드를 새 답변으로 옮길 때 **원래 값 그대로** 들고 간다.
       pending_amora_action_journey_revision?: unknown;
       pending_amora_action_impact_preview?: unknown;
+      /** 이 카드가 원본 턴 이후 몇 번 옮겨졌는가. 없으면 0(원본 턴). */
+      pending_amora_action_carry_count?: unknown;
       in_reply_to_user_message_id?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
@@ -2776,6 +2778,25 @@ export async function POST(request: Request) {
     && isRecord(previousCanonicalRow?.metadata)
       ? previousCanonicalRow.metadata.pending_amora_action_impact_preview ?? null
       : null;
+  /**
+   * **카드는 몇 턴까지 따라다니는가.**
+   *
+   * 2026-09-02 운영 실측 — 안 누른 카드 하나가 **무관한 답변 8개를 43분간**
+   * 따라다녔다. 이월에는 상한도 범위 관문도 없었다.
+   *
+   * 이월 자체는 옳다(화면이 최신 메시지의 카드만 누를 수 있게 하므로, 옮기지
+   * 않으면 아모라가 "이대로 적용을 누르세요" 라고 하는데 버튼은 잠겨 있다).
+   * 다만 **끝이 있어야 한다** — 사용자가 두 번 다른 이야기를 했으면 그 제안은
+   * 그 대화의 것이 아니다. 원본 메시지에는 그대로 남으니 사라지는 것이 아니라
+   * 따라다니기를 멈출 뿐이다.
+   */
+  const MAX_PENDING_CARD_CARRIES = 2;
+  const previousPendingCardCarries =
+    isRecord(previousCanonicalRow?.metadata)
+    && typeof previousCanonicalRow.metadata.pending_amora_action_carry_count === "number"
+      ? previousCanonicalRow.metadata.pending_amora_action_carry_count
+      : 0;
+  const nextPendingCardCarries = previousPendingCardCarries + 1;
   const classifiedQuestionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
@@ -2791,6 +2812,24 @@ export async function POST(request: Request) {
     && classifiedQuestionScope.scope === "W4_out_of_scope"
       ? checklistScopeRescue
       : classifiedQuestionScope;
+  /**
+   * 안 누른 카드를 이 턴으로 **옮겨도 되는가.**
+   *
+   * 두 가지를 본다.
+   *
+   * 1. **범위** — 결혼 이야기(W0/W1)일 때만 옮긴다. 안전(W2·W5)·위로(W3)·
+   *    범위 밖(W4) 턴에 결혼 카드가 붙으면, 사용자가 힘든 이야기를 하는 화면에
+   *    "예산 5,500만원으로 바꿀까요?" 가 따라온다. 판정을 읽기만 하고 **느슨하게
+   *    만들지 않는다** — 여기서 하는 일은 닫는 쪽뿐이다.
+   * 2. **횟수** — 연속 2턴까지. 사용자가 두 번 다른 이야기를 했으면 그 제안은
+   *    이 대화의 것이 아니다.
+   *
+   * 어느 쪽으로 멈추든 카드가 사라지지는 않는다. 원본 메시지에는 그대로 남는다.
+   */
+  const shouldCarryPendingCard =
+    (questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent")
+    && nextPendingCardCarries <= MAX_PENDING_CARD_CARRIES;
   // 한 문장이 두 연속성에 모두 걸릴 수 있다("네", "그렇게 해줘"). 그때는 되묻기
   // 연속성이 이긴다 — 범위가 W0이면 provider 입력은 이미 신뢰 이력 전체를 쓰므로
   // 여기서 만든 3턴 묶음은 쓰이지도 않고, 남겨두면 `linked_context_only`(도구 금지)
@@ -3499,9 +3538,18 @@ export async function POST(request: Request) {
               // 입력**을 최신 답변으로 옮기기만 한다. 실행은 여전히 서버가 발급한
               // id 를 받아야 하고, 저니 리비전도 원래 값을 그대로 들고 간다 —
               // 그 사이 계획이 바뀌었으면 적용은 정상적으로 거부된다.
-              : awaitingPendingCard
+              //
+              // **끝이 있어야 한다(2026-09-02).** 이월에 상한도 범위 관문도
+              // 없어서, 안 누른 카드 하나가 무관한 답변 8개를 43분간 따라다닌
+              // 일이 운영에 있었다. 그리고 안전·위로 대화 턴에까지 결혼 카드가
+              // 붙었다 — 그 자리에 있어서는 안 되는 것이다.
+              //
+              // 멈춘다고 카드가 사라지지는 않는다. **원본 메시지에는 그대로
+              // 남아 있고**, 따라다니기만 그친다.
+              : awaitingPendingCard && shouldCarryPendingCard
                 ? {
                     pending_amora_action: awaitingPendingCard,
+                    pending_amora_action_carry_count: nextPendingCardCarries,
                     ...(carriedPendingActionRevision !== null
                       ? {
                           pending_amora_action_journey_revision:

@@ -1,6 +1,10 @@
-"use client";
-
+// 서버 컴포넌트다. **클라이언트로 만들면 안 된다** — 탈퇴 접수 문장이
+// `ACCOUNT_DELETION_INTAKE_ENABLED` 를 서버에서 읽어 정해지는데, 브라우저
+// 번들에서는 그 값이 undefined 라 **법적 고지가 조용히 틀린 문장이 된다**
+// (2026-09-02 에 실제로 그렇게 만들 뻔했고 테스트가 잡았다).
+// 이 파일은 클라이언트 훅·이벤트를 하나도 쓰지 않는다.
 import Link from "next/link";
+import { accountDeletionIntakeSentence } from "@/lib/account/deletionIntake";
 import { CONTACT } from "@/lib/constants/contact";
 
 import { businessInfoRows, readBusinessInfo } from "@/lib/legal/businessInfo";
@@ -229,6 +233,7 @@ export default function PrivacyPage() {
                       <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전받는 자</th>
                       <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전되는 국가</th>
                       <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전 항목</th>
+                      <th className="py-2 text-left font-medium text-[var(--hb-text-strong)]">이전받는 자의 연락처</th>
                     </tr>
                   </thead>
                   <tbody className="text-charcoal">
@@ -236,36 +241,43 @@ export default function PrivacyPage() {
                       <td className="py-2 align-top">Supabase, Inc.</td>
                       <td className="py-2 align-top">인도(데이터베이스 리전), 미국(사업자 소재지)</td>
                       <td className="py-2 align-top">제1조의 모든 항목 — 계정 식별자, 회원이 입력한 결혼 준비 정보, 아모라 대화와 첨부 파일, 커뮤니티 게시물</td>
+                      <td className="py-2 align-top"><a href="mailto:privacy@supabase.com" className="text-[var(--hb-accent-hover)] underline">privacy@supabase.com</a></td>
                     </tr>
                     <tr className="border-b border-black/[0.04]">
                       <td className="py-2 align-top">Vercel Inc.</td>
                       <td className="py-2 align-top">미국</td>
                       <td className="py-2 align-top">접속 로그, IP 주소, 브라우저·OS 정보</td>
+                      <td className="py-2 align-top"><a href="mailto:privacy@vercel.com" className="text-[var(--hb-accent-hover)] underline">privacy@vercel.com</a></td>
                     </tr>
                     <tr className="border-b border-black/[0.04]">
                       <td className="py-2 align-top">Cloudflare, Inc.</td>
                       <td className="py-2 align-top">미국(사업자 소재지). 요청은 이용자와 가까운 전 세계 엣지 노드에서 처리됩니다</td>
                       <td className="py-2 align-top">IP 주소, 브라우저·기기 신호(User-Agent 등 요청 헤더), 요청한 주소, 봇 차단 쿠키(__cf_bm)</td>
+                      <td className="py-2 align-top"><a href="mailto:dpo@cloudflare.com" className="text-[var(--hb-accent-hover)] underline">dpo@cloudflare.com</a></td>
                     </tr>
                     <tr className="border-b border-black/[0.04]">
                       <td className="py-2 align-top">OpenAI</td>
                       <td className="py-2 align-top">미국</td>
                       <td className="py-2 align-top">아모라에게 보낸 질문과 첨부 파일, 답변 생성에 필요한 대화 문맥</td>
+                      <td className="py-2 align-top"><a href="mailto:dsar@openai.com" className="text-[var(--hb-accent-hover)] underline">dsar@openai.com</a></td>
                     </tr>
                     <tr className="border-b border-black/[0.04]">
                       <td className="py-2 align-top">Resend, Inc.</td>
                       <td className="py-2 align-top">미국</td>
                       <td className="py-2 align-top">이메일 주소</td>
+                      <td className="py-2 align-top"><a href="mailto:support@resend.com" className="text-[var(--hb-accent-hover)] underline">support@resend.com</a></td>
                     </tr>
                     <tr className="border-b border-black/[0.04]">
                       <td className="py-2 align-top">PostHog, Inc.</td>
                       <td className="py-2 align-top">미국</td>
                       <td className="py-2 align-top">접속 기록, 페이지 조회 기록, 이용 통계</td>
+                      <td className="py-2 align-top"><a href="mailto:privacy@posthog.com" className="text-[var(--hb-accent-hover)] underline">privacy@posthog.com</a></td>
                     </tr>
                     <tr>
                       <td className="py-2 align-top">Functional Software, Inc. (Sentry)</td>
                       <td className="py-2 align-top">미국</td>
                       <td className="py-2 align-top">오류 기록과 보안 기록</td>
+                      <td className="py-2 align-top"><a href="mailto:compliance@sentry.io" className="text-[var(--hb-accent-hover)] underline">compliance@sentry.io</a></td>
                     </tr>
                   </tbody>
                 </table>
@@ -273,7 +285,7 @@ export default function PrivacyPage() {
               <ul className="mt-3 list-disc pl-5 space-y-1 text-[13px] text-charcoal">
                 <li>이전 목적은 위 위탁 업무와 같습니다.</li>
                 <li>보유·이용 기간은 위탁 계약이 끝나거나 제3조의 보유 기간이 지날 때까지이며, 그 이후에는 파기합니다.</li>
-                <li>이전받는 자의 개인정보 보호 담당 연락처는 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 요청하시면 안내해 드립니다.</li>
+                <li>위 연락처는 각 사가 공개한 개인정보 처리방침에서 확인한 개인정보 담당 창구입니다(2026년 9월 2일 확인). 연락이 닿지 않거나 안내가 필요하시면 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 알려 주세요.</li>
                 <li>국외 이전을 원하지 않으시면 서비스 이용을 중단하고 고객센터로 계정 삭제를 요청하실 수 있습니다. 다만 위 수탁 업무 없이는 서비스의 핵심 기능을 제공할 수 없어, 일부 기능만 선택적으로 제외할 수는 없습니다.</li>
               </ul>
             </div>
@@ -283,7 +295,9 @@ export default function PrivacyPage() {
             <h2 className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)] mb-3">제6조 (정보주체의 권리)</h2>
             <ol className="list-decimal pl-5 space-y-2">
               <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
-              <li>이용 내역은 설정 페이지에서 확인할 수 있습니다. 탈퇴는 현재 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수받고 있으며, 운영자가 본인 확인 후 처리합니다. 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 접수 전에 안내해 드립니다.</li>
+              {/* 접수 경로는 **플래그와 같은 곳**에서 읽는다. 여기에 문장을 박아 두면
+                  플래그가 움직일 때 법적 고지가 조용히 거짓이 된다(2026-09-02). */}
+              <li>이용 내역은 설정 페이지에서 확인할 수 있습니다. {accountDeletionIntakeSentence(CONTACT.email)} 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 진행 전에 미리 안내해 드립니다.</li>
               <li>연결된 파트너와 함께 만든 준비 기록과 대화는 두 사람의 정보가 섞여 있어 남은 파트너의 화면에 유지되고, 탈퇴한 회원의 식별 정보만 제거됩니다. 등록한 업체가 있으면 해당 업체를 먼저 정리해야 탈퇴가 완료됩니다.</li>
               <li>그 밖의 요청은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>

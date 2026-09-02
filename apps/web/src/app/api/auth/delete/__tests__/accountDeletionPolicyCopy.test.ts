@@ -92,18 +92,14 @@ describe("탈퇴 정책이 화면과 문서에서 같은 말을 한다", () => {
   it("문서가 앱이 실제로 여는 탈퇴 창구를 가리킨다", () => {
     const privacy = source("src/app/privacy/page.tsx");
     const terms = source("src/app/terms/page.tsx");
-    const intakeOpen = process.env.ACCOUNT_DELETION_INTAKE_ENABLED === "true";
-
-    if (intakeOpen) {
-      expect(privacy).toContain("설정 페이지");
-      expect(terms).toContain("설정 페이지");
-      return;
+    // 2026-09-02: 양방향으로 보던 것을 **한 방향으로 줄였다.** 두 문서가 이제
+    // 앱과 같은 함수(`accountDeletionIntakeSentence`)에서 문장을 받으므로,
+    // "문서가 앱과 다른 말을 하는" 상태 자체가 만들어질 수 없다. 여기서는
+    // 그 배선이 살아 있는지만 본다 — 배선이 끊기면 위 계약이 사라진다.
+    for (const doc of [privacy, terms]) {
+      expect(doc).toContain("accountDeletionIntakeSentence(CONTACT.email)");
+      expect(doc).not.toContain('"use client"');
     }
-
-    // 접수가 닫혀 있는 동안 문서가 설정 페이지를 가리키면, 사용자는 눌러도
-    // 503 이 나오는 버튼을 찾아다니게 된다.
-    expect(privacy).not.toContain("설정 페이지에서 직접 처리할 수 있습니다");
-    expect(terms).not.toContain("설정 페이지에서 탈퇴를 신청할 수 있습니다");
     for (const doc of [privacy, terms]) {
       // 이 검사는 **파일 원문**을 읽으므로 상수가 풀린 값을 볼 수 없다. 주소를 축자로
       // 찾으면 두 화면이 상수를 쓰도록 고친 순간 이 검사가 실패한다 — 실제로 그랬다.
@@ -111,8 +107,9 @@ describe("탈퇴 정책이 화면과 문서에서 같은 말을 한다", () => {
       // 떠도는 주소가 없다는 것은 `contactAddressIsSingleSourced` 가 따로 지킨다.
       expect(doc).toContain("CONTACT.email");
     }
-    expect(privacy).toContain("탈퇴는 현재 고객센터");
-    expect(terms).toContain("현재는 고객센터");
+    // 두 상태의 문장 자체가 참인지는 `lib/account/__tests__/deletionIntakeSentence`
+    // 가 본다. 여기서 문장을 다시 고정하면 스위치를 켤 때 또 빨개진다 —
+    // 그게 이 자리가 2026-09-02 에 실제로 겪은 일이다.
   });
 
   it("정책 목록이 스위치에 따라 거짓이 되는 문장을 담지 않는다", () => {
