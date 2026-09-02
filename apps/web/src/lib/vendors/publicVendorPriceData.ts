@@ -469,9 +469,21 @@ export async function loadPublicVendorPriceProfile(
   );
 }
 
+/**
+ * 원문이 어디에 붙어 있던 규정인지.
+ *
+ * `vendor`는 공시 문서 안의 그 업체 행에 붙은 규정(스드메 대행사 문서),
+ * `hall_document`는 예식장이 자기 문서로 공시한 문서 공통 규정이다. 예식장
+ * 문서는 문서 하나가 곧 한 예식장이라 공통 규정이 그 예식장의 규정이지만,
+ * 화면이 출처를 사실대로 말할 수 있어야 하므로 구분해서 들고 온다.
+ * 품질 등급이 아니다.
+ */
+export type PublicVendorPolicyScope = "vendor" | "hall_document";
+
 export type PublicVendorPolicy = {
   id: string;
   semanticType: string;
+  scope: PublicVendorPolicyScope;
   title: string | null;
   contentVerbatim: string;
   sourceAgency: string | null;
@@ -490,6 +502,41 @@ const POLICY_TYPE_RANK: Record<string, number> = {
 
 function policyTypeRank(semanticType: string): number {
   return POLICY_TYPE_RANK[semanticType] ?? 3;
+}
+
+/**
+ * 뷰가 policy_scope를 갖기 전·후 두 응답이 함께 흐르는 자리. 있으면 읽고 없으면
+ * 업체 규정으로 본다 — 예전 뷰에는 예식장 문서 규정이 애초에 들어오지 않았다.
+ */
+type PolicyProjection = {
+  id: unknown;
+  semantic_type: unknown;
+  title: unknown;
+  content_verbatim: unknown;
+  source_agency: unknown;
+  policy_scope?: unknown;
+};
+
+function policyFromRow(
+  row: PolicyProjection,
+  seen: Set<string>,
+): PublicVendorPolicy[] {
+  const content = typeof row.content_verbatim === "string" ? row.content_verbatim.trim() : "";
+  if (!content || typeof row.id !== "string") return [];
+  const semanticType = typeof row.semantic_type === "string" ? row.semantic_type : "other";
+  const fingerprint = `${semanticType}|${content.replace(/\s+/g, " ")}`;
+  if (seen.has(fingerprint)) return [];
+  seen.add(fingerprint);
+  return [{
+    id: row.id,
+    semanticType,
+    scope: row.policy_scope === "hall_document" ? "hall_document" : "vendor",
+    title: typeof row.title === "string" && row.title.trim() ? row.title.trim() : null,
+    contentVerbatim: content,
+    sourceAgency: typeof row.source_agency === "string" && row.source_agency.trim()
+      ? row.source_agency.trim()
+      : null,
+  }];
 }
 
 /**
@@ -519,13 +566,33 @@ export async function loadPublicVendorPolicies(
   const ids = [...new Set(vendorIds.filter((id) => typeof id === "string" && id.length > 0))];
   if (ids.length === 0) return [];
   try {
-    const { data, error } = await client
+    // policy_scope는 20260902090000이 추가한 열이다. 아직 적용되지 않은 DB에서는
+    // 이 select가 42703으로 거절되므로 옛 열 집합으로 한 번 더 물어본다 — 열 하나
+    // 때문에 스드메 위약금까지 사라지면 이 변경이 고치려던 사고를 배포 순서 때문에
+    // 그대로 재현한다.
+    //
+    // 실패를 기억해 두지 않는 것은 의도한 선택이다. 캐시해 두면 마이그레이션이
+    // 적용된 뒤에도 옛 경로에 머물러 예식장 위약금이 조용히 안 보이게 된다 —
+    // 왕복 한 번을 아끼려고 이 결함을 다시 만들지 않는다.
+    //
+    // 열 목록을 변수로 빼지 않는 이유: PostgREST 타입은 리터럴 select만 행 모양으로
+    // 풀어 주고, 변수를 넘기면 행 전체가 GenericStringError로 무너진다.
+    const scoped = await client
       .from("v_public_vendor_policies")
-      .select("id, semantic_type, title, content_verbatim, source_agency")
+      .select("id, semantic_type, title, content_verbatim, source_agency, policy_scope")
       .in("vendor_id", ids)
       .order("semantic_type", { ascending: true })
       .order("id", { ascending: true })
       .limit(POLICY_CAP);
+    const { data, error } = scoped.error
+      ? await client
+        .from("v_public_vendor_policies")
+        .select("id, semantic_type, title, content_verbatim, source_agency")
+        .in("vendor_id", ids)
+        .order("semantic_type", { ascending: true })
+        .order("id", { ascending: true })
+        .limit(POLICY_CAP)
+      : scoped;
     if (error || !Array.isArray(data)) {
       // 페이지는 `policies.length > 0`일 때만 섹션을 렌더한다. 즉 뷰가 드롭되거나
       // GRANT가 회수되면 위약금 831건이 **아무 에러 없이** 화면에서 사라진다.
@@ -537,23 +604,7 @@ export async function loadPublicVendorPolicies(
     // 대행사가 여러 곳이면 같은 약관이 그대로 반복된다. 화면에서는 같은 문장을
     // 두 번 읽게 하지 않는다(공백 차이만 다른 것도 같은 문장으로 본다).
     const seen = new Set<string>();
-    const policies = data.flatMap((row) => {
-      const content = typeof row.content_verbatim === "string" ? row.content_verbatim.trim() : "";
-      if (!content || typeof row.id !== "string") return [];
-      const semanticType = typeof row.semantic_type === "string" ? row.semantic_type : "other";
-      const fingerprint = `${semanticType}|${content.replace(/\s+/g, " ")}`;
-      if (seen.has(fingerprint)) return [];
-      seen.add(fingerprint);
-      return [{
-        id: row.id,
-        semanticType,
-        title: typeof row.title === "string" && row.title.trim() ? row.title.trim() : null,
-        contentVerbatim: content,
-        sourceAgency: typeof row.source_agency === "string" && row.source_agency.trim()
-          ? row.source_agency.trim()
-          : null,
-      }];
-    });
+    const policies = data.flatMap((row: PolicyProjection) => policyFromRow(row, seen));
     return policies.sort((left, right) =>
       policyTypeRank(left.semanticType) - policyTypeRank(right.semanticType)
       || left.id.localeCompare(right.id));

@@ -10,6 +10,9 @@ import {
 
 function fakeSupabase(
   fixtures: Record<string, Array<Record<string, unknown>>>,
+  // 아직 마이그레이션이 적용되지 않은 DB를 흉내낸다: 없는 열을 고르면 PostgREST가
+  // 42703으로 거절하고 data는 오지 않는다.
+  options: { rejectSelectMatching?: RegExp } = {},
 ) {
   const calls: Array<{
     table: string;
@@ -31,9 +34,11 @@ function fakeSupabase(
       };
       calls.push(call);
       let rows = [...(fixtures[table] ?? [])];
+      let rejected = false;
       const query: Record<string, unknown> = {};
       query.select = (columns: string) => {
         call.selects.push(columns);
+        if (options.rejectSelectMatching?.test(columns)) rejected = true;
         return query;
       };
       query.eq = (column: string, value: unknown) => {
@@ -60,12 +65,14 @@ function fakeSupabase(
         call.orders.push(column);
         return query;
       };
+      const rejection = { data: null, error: { code: "42703", message: "column does not exist" } };
       query.range = (from: number, to: number) => {
         call.ranges.push([from, to]);
+        if (rejected) return Promise.resolve(rejection);
         return Promise.resolve({ data: rows.slice(from, to + 1), error: null });
       };
       query.limit = (count: number) =>
-        Promise.resolve({ data: rows.slice(0, count), error: null });
+        Promise.resolve(rejected ? rejection : { data: rows.slice(0, count), error: null });
       query.maybeSingle = () => Promise.resolve({ data: rows[0] ?? null, error: null });
       return query;
     },
@@ -542,6 +549,7 @@ describe("loadPublicVendorPolicies", () => {
     content: string,
     sourceAgency: string | null = null,
     vendorId = "vendor-1",
+    policyScope = "vendor",
   ) => ({
     id,
     vendor_id: vendorId,
@@ -549,6 +557,7 @@ describe("loadPublicVendorPolicies", () => {
     title: null,
     content_verbatim: content,
     source_agency: sourceAgency,
+    policy_scope: policyScope,
   });
 
   it("puts penalties first and drops text repeated across agencies", async () => {
@@ -572,5 +581,43 @@ describe("loadPublicVendorPolicies", () => {
     const { client } = fakeSupabase({});
     await expect(loadPublicVendorPolicies(client, ["vendor-1"])).resolves.toEqual([]);
     await expect(loadPublicVendorPolicies(client, [])).resolves.toEqual([]);
+  });
+
+  it("marks a hall's document-wide rule so the screen can name its real source", async () => {
+    const { client } = fakeSupabase({
+      v_public_vendor_policies: [
+        policyRow("h-1", "penalty", "예식 30일 전 총 비용의 10% 위약금", null, "vendor-1", "hall_document"),
+      ],
+    });
+
+    await expect(loadPublicVendorPolicies(client, ["vendor-1"])).resolves.toEqual([{
+      id: "h-1",
+      semanticType: "penalty",
+      scope: "hall_document",
+      title: null,
+      contentVerbatim: "예식 30일 전 총 비용의 10% 위약금",
+      sourceAgency: null,
+    }]);
+  });
+
+  it("still reads policies from a view that predates the policy_scope column", async () => {
+    // 열 하나가 없다고 스드메 위약금까지 사라지면, 이 PR이 고치려던 사고를
+    // 배포 순서 때문에 그대로 재현한다.
+    const { client, calls } = fakeSupabase({
+      v_public_vendor_policies: [
+        policyRow("p-1", "penalty", "촬영일 30일 전 상품가의 100%", "가대행사"),
+      ],
+    }, { rejectSelectMatching: /policy_scope/ });
+
+    await expect(loadPublicVendorPolicies(client, ["vendor-1"])).resolves.toEqual([{
+      id: "p-1",
+      semanticType: "penalty",
+      scope: "vendor",
+      title: null,
+      contentVerbatim: "촬영일 30일 전 상품가의 100%",
+      sourceAgency: "가대행사",
+    }]);
+    expect(calls.map(({ selects }) => selects.some((columns) => columns.includes("policy_scope"))))
+      .toEqual([true, false]);
   });
 });
