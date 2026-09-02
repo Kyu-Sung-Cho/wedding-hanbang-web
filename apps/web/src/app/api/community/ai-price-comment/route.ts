@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { log } from "@/utils/log";
 import type { PriceData } from "@/types/community.types";
-import { logAIInteraction, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
+import { logAIInteractionAfterResponse, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { buildSourceBackedPriceComment } from "@/lib/community/priceComment";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     const model = "deterministic-price-benchmark-v1";
     const aiComment = buildSourceBackedPriceComment(priceData);
 
-    void logAIInteraction({
+    logAIInteractionAfterResponse({
       userId: loggingUserId,
       interactionType: "community_amora_comment",
       specialistType: "budget_optimizer",
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     log.error("api/community/ai-price-comment", err);
     console.error("AI price comment error:", err);
-    void logAIInteraction({
+    logAIInteractionAfterResponse({
       interactionType: "community_amora_comment",
       success: false,
       errorMessage: err instanceof Error ? err.message : String(err),

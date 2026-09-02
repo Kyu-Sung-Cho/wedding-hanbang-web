@@ -525,6 +525,13 @@ vi.mock("@/lib/ai/stage-router", () => ({
 }));
 vi.mock("@/lib/compliance/ai-log", () => ({
   logAIInteraction: mocks.log,
+  // 라우트는 `after()` 로 감싸는 쪽을 부른다. 여기서는 같은 mock 으로 받아
+  // 아래 원장 단언들이 그대로 성립하게 한다.
+  //
+  // **이 별칭 때문에 감싸개 자체는 이 파일에서 한 번도 실행되지 않는다.**
+  // 그쪽은 `lib/compliance/__tests__/aiLogAfterResponse.test.ts` 가 실제
+  // 구현으로 시험한다 — after() 가 도는 경우와 던지는 경우 둘 다.
+  logAIInteractionAfterResponse: mocks.log,
   startLatencyClock: vi.fn(() => 0),
   elapsedMs: vi.fn(() => 1),
 }));

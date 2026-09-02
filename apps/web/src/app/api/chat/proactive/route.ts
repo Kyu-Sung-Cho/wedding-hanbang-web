@@ -356,10 +356,27 @@ async function handleProactiveRequest(req: NextRequest) {
     }
 
     if (persistenceError || duplicateWithoutMessage || typeof insertedMessageId !== "string") {
-      log.error("[chat/proactive] lifecycle persistence failed", persistenceError);
       const failureCode = persistenceError || duplicateWithoutMessage
         ? "PERSISTENCE_FAILED"
         : "CONSENT_REQUIRED";
+      // **동의하지 않은 사용자는 오류가 아니다.**
+      //
+      // 2026-09-02 운영 Sentry: 이 경보가 6건 쌓여 있었는데, 세 갈래(진짜 DB 오류 ·
+      // 중복인데 원본을 못 찾음 · 메시지 id 없음)를 한 제목으로 묶어 두어 어느
+      // 것인지 알 수 없었다. 그런데 셋째 갈래는 바로 아래에서 `CONSENT_REQUIRED`
+      // 로 분기해 **200 으로 정상 종료**한다 — 선제 메시지에 동의하지 않은
+      // 사람에게는 안 보내는 것이 옳은 동작이다. 그것을 오류로 올리면 진짜
+      // 오류가 잡음에 묻힌다.
+      //
+      // 그래서 진짜 실패일 때만 올리고, 어느 갈래인지 제목에 담는다.
+      if (failureCode === "PERSISTENCE_FAILED") {
+        log.error(
+          persistenceError
+            ? "[chat/proactive] lifecycle persistence failed (db)"
+            : "[chat/proactive] lifecycle persistence failed (duplicate without row)",
+          persistenceError ?? new Error("proactive_duplicate_without_row"),
+        );
+      }
       await failChatRequest({ ...claimParams, failureCode }, admin)
         .catch((error) => log.error("[chat/proactive] claim failure marker failed", error));
       if (!persistenceError && !duplicateWithoutMessage) {

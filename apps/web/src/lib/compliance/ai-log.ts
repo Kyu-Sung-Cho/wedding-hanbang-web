@@ -12,6 +12,8 @@
 //   - 중단된 공급자 요청은 0원이 아닌 usage_status=unknown으로 구분
 // =============================================
 
+import { after } from "next/server";
+
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { InteractionType, SpecialistType } from "@/types/moat.types";
 import { log } from "@/utils/log";
@@ -276,8 +278,17 @@ export async function logAIInteraction(
     });
 
     if (error) {
+      // **왜 실패했는지를 제목에 담는다.**
+      //
+      // 2026-09-02 운영: 이 경보가 Sentry 에 32건 쌓여 있는데 원인을 알 수 없었다.
+      // 개인정보 때문에 DB 오류 문구를 뺐는데, 그 결과 "실패했다"만 남고
+      // "왜"가 사라졌다. 알림이 있으나 마나였다.
+      //
+      // Postgres 오류 **코드**는 개인정보가 아니다(`23503` 외래키, `23514` CHECK,
+      // `42703` 없는 컬럼 …). 반면 `message`·`details` 는 위반한 값을 그대로
+      // 인용하므로(`Key (couple_id)=(…) is not present`) 담지 않는다.
       log.error(
-        "[ai-log] INSERT failed; provider ledger row may be missing",
+        `[ai-log] INSERT failed (${pgErrorCode(error)}); provider ledger row may be missing`,
         new Error("ai_interactions_log_insert_failed"),
       );
       return false;
@@ -290,6 +301,71 @@ export async function logAIInteraction(
     );
     return false;
   }
+}
+
+
+/**
+ * **응답을 보낸 뒤에 원장을 쓴다 — 단, 플랫폼이 함수를 얼리지 않게 하고서.**
+ *
+ * 2026-09-02 원인 조사: `void logAIInteraction(...)` 로 부르면 삽입 요청이 아직
+ * 날아가는 중에 라우트가 응답을 돌려준다. Vercel 은 응답이 끝나면 함수를
+ * 얼리거나 끝내므로, 그 fetch 는 응답을 받지 못하고 끊긴다.
+ *
+ * 이것이 관측된 숫자와 맞는 유일한 설명이다 — Sentry 경보 32건인데 실제로
+ * 원장이 빠진 턴은 507건 중 **1건**뿐이었다. 요청은 대개 DB 에 닿아 저장까지
+ * 끝났고, 우리만 결과를 못 받은 것이다. DB 쪽 원인은 전부 배제했다:
+ * `interaction_type`·`specialist_type` 은 TS 타입이 DB CHECK 목록의 부분집합이고,
+ * 영수증 CHECK 는 이 삽입기가 `amora_request_key` 를 쓰지 않아 무효이며,
+ * NOT NULL 컬럼엔 기본값이 있고, 외래키 대상은 30일간 결손 0건이었다.
+ *
+ * `after` 는 응답이 끝난 뒤 콜백을 돌리되 **플랫폼에 아직 끝나지 않았다고
+ * 알린다**(내부적으로 `waitUntil`). 사용자 응답은 여전히 기다리지 않는다.
+ *
+ * 크론·스크립트처럼 요청 수명주기 밖에서 부르면 `after` 가 던지므로, 그때는
+ * 원래대로 그냥 부른다 — 그 경로엔 얼어붙을 응답 자체가 없다.
+ */
+let reportedAfterUnavailable = false;
+
+export function logAIInteractionAfterResponse(params: AIInteractionLogInput): void {
+  // **콜백이 아니라 이미 시작한 프로미스를 넘긴다. 이 순서가 전부다.**
+  //
+  // `after(() => ...)` 로 콜백을 넘기면 Next 는 그것을 큐에 넣고 응답이 닫힐 때
+  // (`res.on("close")`) 깨운다. 그런데 사용자가 스트림 도중 탭을 닫으면 res 가
+  // **먼저** 닫히고, 이미 닫힌 res 에 등록한 리스너는 영원히 안 불린다.
+  // `after` 는 그때 던지지도 않는다 — 던지는 조건은 요청 문맥 없음과 waitUntil
+  // 없음 둘뿐이다. 그래서 콜백은 실행 0회, 예외 0회, 경보 0회로 조용히 사라진다.
+  // 실패 턴 원장이 가장 필요한 순간(중단된 대화)에 가장 확실히 없어진다.
+  //
+  // 프로미스를 넘기면 Next 가 isThenable 갈래로 받아 onClose 큐를 아예 안 탄다.
+  // 게다가 쓰기는 이 줄에서 벌써 시작됐으므로, `after` 를 못 쓰는 환경에서도
+  // 옛 `void` 와 최소한 같다. 정상 종료·중단 양쪽에서 기록되는 것을 Next
+  // 16.2.11 실물로 재현해 확인했다(2026-09-02).
+  const pending = logAIInteraction(params);
+  try {
+    after(pending);
+  } catch {
+    // 여기서 다시 부르면 원장에 같은 행이 두 번 들어간다 — 쓰기는 위에서
+    // 이미 시작됐다. 알리기만 한다. 프로세스당 한 번이면 Sentry 가 묶어 센다.
+    if (!reportedAfterUnavailable) {
+      reportedAfterUnavailable = true;
+      log.error(
+        "[ai-log] after() unavailable; ledger write can be cut off by the response",
+        new Error("ai_log_after_unavailable"),
+      );
+    }
+  }
+  void pending;
+}
+
+/**
+ * Postgres 오류 코드만 꺼낸다. 코드는 다섯 자리 영숫자이고 값을 담지 않는다.
+ * 모양이 다르면 아무것도 돌려주지 않는다 — 모르는 것을 지어내지 않는다.
+ */
+function pgErrorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code;
+  return typeof code === "string" && /^[0-9A-Za-z]{5}$/.test(code)
+    ? `code=${code}`
+    : "code=unknown";
 }
 
 // -------------------------------------------
