@@ -127,11 +127,17 @@ async function redirectAppDoor(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+type RefreshedCookie = { name: string; value: string; options?: CookieOptions };
+
 /**
  * 세션 판정과 관문. 아래 `updateSession` 이 이 함수를 감싸서, 여기서 무엇이
- * 터지든 bare 500 이 밖으로 나가지 않게 한다.
+ * 터지든 bare 500 이 밖으로 나가지 않게 하고, 갱신된 세션 쿠키를 어떤 응답에도
+ * 빠뜨리지 않고 실어 보낸다.
+ *
+ * `refreshed` 로 받는 이유는 이 함수가 **여러 갈래로 응답을 만들기** 때문이다.
+ * 갱신 쿠키는 `setAll` 이 만드는데 그 시점에는 어느 갈래로 나갈지 아직 모른다.
  */
-async function resolveSession(request: NextRequest) {
+async function resolveSession(request: NextRequest, refreshed: RefreshedCookie[]) {
   const supabaseResponse = NextResponse.next({ request });
   const pathname = request.nextUrl.pathname;
 
@@ -177,9 +183,12 @@ async function resolveSession(request: NextRequest) {
             request.cookies.set(name, value)
           );
           finalResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            finalResponse.cookies.set(name, value, options)
-          );
+          cookiesToSet.forEach(({ name, value, options }) => {
+            finalResponse.cookies.set(name, value, options);
+            // 아래 관문들은 `finalResponse` 가 아니라 **새 리다이렉트**를 돌려준다.
+            // 그쪽으로 나가면 이 쿠키가 사라지므로 따로 들고 있는다.
+            refreshed.push({ name, value, options });
+          });
         },
       },
     }
@@ -259,10 +268,11 @@ export async function updateSession(request: NextRequest) {
   // 읽을 수 없는 세션 쿠키는 위 클라이언트들이 이미 못 본 척한다. 그런데 못 본 척만
   // 하면 **다음 요청도 같은 쿠키를 들고 온다.** 지워 줘야 그 사람이 빠져나온다.
   const corruptCookies = corruptAuthCookieNames(request.cookies.getAll());
+  const refreshed: RefreshedCookie[] = [];
 
   let response: NextResponse;
   try {
-    response = await resolveSession(request);
+    response = await resolveSession(request, refreshed);
   } catch (error) {
     // 여기가 운영에서 bare 500 이 나던 자리다. 프록시는 React 에러 경계 밖이라,
     // 여기서 던지면 사용자는 복구할 수 있는 화면이 아니라 "Internal Server Error"
@@ -274,7 +284,26 @@ export async function updateSession(request: NextRequest) {
     response = gateForUnverifiedSession(request);
   }
 
+  // 갱신된 세션 쿠키는 **어떤 응답에도** 실어 보낸다.
+  //
+  // Supabase 의 refresh token 은 회전한다. `getUser()` 가 갱신을 일으키면 예전
+  // 토큰은 그 자리에서 소비되는데, 관문이 리다이렉트로 나가면서 새 쿠키를 흘리면
+  // 브라우저는 **이미 소비된 토큰**을 계속 들고 있게 된다. 다음 요청은 로그아웃으로
+  // 도착하고, 클라이언트가 또 갱신을 시도한다 — 서버와 클라이언트가 서로 다른
+  // 세션을 같은 쿠키 이름에 번갈아 쓰는 상태가 되고, 조각이 섞이면 그 쿠키는
+  // 디코딩되지 않는다(위 corruptCookies 가 지우는 바로 그 상태다).
+  //
+  // 같은 파일의 `redirectAppDoor` 는 처음부터 이 일을 하고 있었다. 관문 쪽만
+  // 빠져 있었다.
+  const refreshedNames = new Set(refreshed.map(({ name }) => name));
+  for (const { name, value, options } of refreshed) {
+    if (response.cookies.get(name)) continue;
+    response.cookies.set(name, value, options);
+  }
+
   for (const name of corruptCookies) {
+    // 방금 새 값을 실어 보낸 쿠키를 다시 지우면 갱신을 스스로 무효로 만든다.
+    if (refreshedNames.has(name)) continue;
     console.error(`[proxy] dropping unreadable auth cookie: ${name}`);
     response.cookies.set(name, "", { path: "/", maxAge: 0 });
   }
