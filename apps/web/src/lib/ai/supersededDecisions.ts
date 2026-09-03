@@ -204,7 +204,7 @@ function recencyGroupKey(decision: DecisionForRecencyCheck): string {
   const shape = isRecord(decision.chosenValue)
     ? Object.keys(decision.chosenValue).sort().join(",")
     : "";
-  return [decision.visibility, decision.category, shape].join(" ");
+  return [decision.visibility, decision.category, shape].join("\u0000");
 }
 
 /**
