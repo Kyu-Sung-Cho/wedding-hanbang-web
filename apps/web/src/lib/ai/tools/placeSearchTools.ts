@@ -9,6 +9,12 @@ import {
 const WEDDING_VENDOR_QUERY_PATTERN =
   /웨딩\s*(?:홀|스튜디오|드레스|메이크업|플래너|업체|촬영|사진)|결혼\s*(?:식장|준비\s*업체)|예식\s*(?:장|업체)|웨딩홀|스드메|스튜디오|드레스|(?:혼주\s*)?메이크업|본식(?:\s*(?:스냅|영상))?/i;
 
+// 2026-09-03 스테이징 실측: "대전이나 청주 식당 예식" 에 `청주성모병원장례식장`(장례>장례식장)이,
+// "대전이나 청주 연회장" 에 아파트 관리사무소 방면 표지(도로시설>방면정보)가 카드로 나왔다.
+// 결혼 준비 장소 검색에서 이 업종은 어떤 검색어에서도 후보가 아니다. 업종 문자열은 네이버 것이지만
+// 모델에게는 가지 않고(카드 전용) 여기서는 첫 분류만 본다 — 음식점·카페·숙박 같은 정상 업종은 건드리지 않는다.
+const EXCLUDED_PLACE_CATEGORY_PATTERN = /^\s*(?:장례|도로시설)/;
+
 type NaverSearchKind = "local" | "image";
 
 interface NaverSearchConfig {
@@ -410,7 +416,7 @@ function buildPlacesFromItems(
     stripHtmlTags(stringField(item, "title")),
     stringField(item, "category"),
     stripHtmlTags(stringField(item, "description")),
-  ].join(" ")));
+  ].join(" ")) && !EXCLUDED_PLACE_CATEGORY_PATTERN.test(stringField(item, "category")));
 
   return generalPlaceItems.map((item, idx) => {
     const name = stripHtmlTags(stringField(item, "title"));
