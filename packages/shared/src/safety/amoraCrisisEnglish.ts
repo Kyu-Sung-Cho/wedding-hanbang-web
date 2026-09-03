@@ -174,6 +174,10 @@ const FIRST_PERSON_SELF_HARM: readonly RegExp[] = [
   /\bkill(?:ing)?\s+myself\b/i,
   /\bhang(?:ing)?\s+myself\b/i,
   /\bend(?:ing)?\s+(?:my\s+life|it\s+all)\b/i,
+  // `end it` 은 파혼을 뜻하기도 한다. 그래서 **결혼식 전/후를 시점으로 말하거나**
+  // 더는 못 하겠다는 말이 앞에 올 때만 센다. 실측 문장이 전부 그 형태였다.
+  /\b(?:want|wanna)\s+to\s+end\s+it\b[^.!?]{0,60}\b(?:before|after|right\s+after)\b/i,
+  /\b(?:cannot|can'?t|couldn'?t)\s+do\s+this\s+anymore\b[^.!?]{0,40}\bend\s+it\b/i,
   /\b(?:commit(?:ting)?\s+)?suicide\b/i,
   /\bsuicidal\b/i,
   // `wanna`·`gonna` 는 위기 고백에서 가장 흔한 축약이다("i just wanna die").
@@ -196,7 +200,11 @@ const FIRST_PERSON_SELF_HARM: readonly RegExp[] = [
 const THIRD_PARTY_SELF_HARM: readonly RegExp[] = [
   // `husband`·`wife` 가 빠져 있었다 — 결혼 준비 앱에서 가장 먼저 나올 상대다.
   /\b(?:my|a|his|her|their)\s+(?:friend|sister|brother|mom|mother|dad|father|cousin|coworker|husband|wife|fianc(?:é|e|ée|ee)|partner|bridesmaid|groomsman)\b[^.!?]{0,50}\b(?:wants?\s+to\s+die|kill(?:ing)?\s+(?:her|him|them)self|hang(?:ing)?\s+(?:her|him|them)self|suicidal|suicide|self[\s-]?harm)/i,
-  /\b(?:she|he|they)\s+(?:said|told\s+me|texted|keeps\s+saying)\b[^.!?]{0,50}\b(?:wants?\s+to\s+die|kill(?:ing)?\s+(?:her|him|them)self|end\s+(?:her|his|their)\s+life|suicidal)/i,
+  /\b(?:she|he|they)\s+(?:said|says|told\s+me|texted|keeps\s+saying|threatened)\b[^.!?]{0,50}\b(?:wants?\s+to\s+die|kill(?:ing)?\s+(?:her|him|them)self|end\s+(?:her|his|their)\s+life|suicidal)/i,
+  // 주어가 대명사가 아니면(`My fiance said he will …`) 위 갈래가 못 잡았다.
+  // 위협·조건(`if I leave him`)이 붙는 형태가 실제로 가장 흔하다.
+  /\b(?:my|his|her|their)\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|brother|sister|mom|mother|dad|father|friend)\b[^.!?]{0,60}\b(?:will|would|is\s+going\s+to|gonna|threatened\s+to|says?\s+(?:he|she|they)\s+will)\b[^.!?]{0,30}\b(?:end\s+(?:his|her|their)\s+life|kill\s+(?:him|her|them)self|hurt\s+(?:him|her|them)self)\b/i,
+  /\b(?:my|his|her|their)\s+(?:brother|sister|mom|mother|dad|father|husband|wife|fianc(?:é|e|ée|ee)|friend)\b[^.!?]{0,50}\b(?:took|swallowed)\s+(?:a\s+)?(?:whole\s+)?(?:bottle|handful|bunch)\s+of\s+\w*\s?(?:pills|tablets|sleeping\s+pills|meds)/i,
 ];
 
 const INTERPERSONAL_DANGER: readonly RegExp[] = [
@@ -213,6 +221,12 @@ const INTERPERSONAL_DANGER: readonly RegExp[] = [
   // right now" 는 가장 급한 문장인데 `chok(?:es|ed)` 로는 안 걸렸다.
   /\b(?:he|she|they|my\s+(?:husband|wife|fianc(?:é|e|ée|ee)|partner|boyfriend|girlfriend|spouse|in[\s-]?laws?|groom|bride|groomsman|bridesmaid|maid\s+of\s+honor))\b[^.!?]{0,45}\b(?:hits?|hit|hitting|beats?|beat|beating|punch(?:es|ed|ing)?|slaps?|slapped|slapping|shoves?|shoved|shoving|kick(?:s|ed|ing)?|chok(?:es|ed|ing)|strangl(?:es|ed|ing)|drag(?:s|ged|ging)?)\s+me\b/i,
   /\bbeat\s+the\s+(?:hell|crap|shit)\s+out\s+of\s+me\b/i,
+  // 실측에서 새던 셋 — 목을 잡는 것, 방에 가두는 것, 흉기를 들고 찾아오는 것.
+  /\bgrabbed\s+(?:me\s+by\s+the\s+)?(?:my\s+)?(?:throat|neck)\b/i,
+  // `The deposit locks me in for the September date` 는 계약 관용구다.
+  // 기존 테스트가 이걸 잡았다 — 그래서 **장소**를 요구한다.
+  /\block(?:ed|s|ing)?\s+me\s+(?:in|inside)\s+(?:the|a|my|her|his)\s+(?:room|house|home|bathroom|apartment|closet|bedroom|car)\b/i,
+  /\bcame\s+(?:to|over\s+to)\s+my\s+(?:place|house|home|apartment)\b[^.!?]{0,40}\bwith\s+a\s+(?:knife|gun|bat|hammer)\b/i,
   // 능동형만 있어서 "I was raped last night" 이 안 걸렸다.
   /\b(?:rap(?:e|ed|ing))\s+me\b/i,
   /\bi\s+(?:was|got)\s+(?:rap(?:ed)|sexually\s+assaulted|assaulted|attacked|beaten|strangled)\b/i,
@@ -289,6 +303,24 @@ const NONE: EnglishCrisisSignals = {
  * 696건 중 2건인 제품에서 혼용 위기 발화의 빈도는 그보다 낮고, 반대편 비용
  * (평범한 한국어 대화가 위기로 끊기고 비공개 레인에 잠기는 것)은 매일 발생한다.
  */
+/**
+ * 한국어 문장에 섞인 영어를 볼 때 쓰는 **좁은** 목록.
+ *
+ * 관용 용법이 없는 1인칭 구절만 담는다. `suicide`·`suicidal`·`dying to` 는
+ * 곡명·관용구로 훨씬 자주 나오므로 넣지 않는다.
+ */
+export const MIXED_LANGUAGE_SELF_HARM: readonly RegExp[] = [
+  /\bkill(?:ing)?\s+myself\b/i,
+  /\bhang(?:ing)?\s+myself\b/i,
+  /\b(?:i\s+)?(?:want|wanna)\s+to\s+die\b/i,
+  /\bend(?:ing)?\s+my\s+life\b/i,
+  /\bcut(?:ting)?\s+my\s+wrists?\b/i,
+];
+/**
+ * 한국어 문장이 영어를 **인용**하는 자리. 제목·가사·목록이면 화자의 상태가 아니다.
+ */
+export const KOREAN_QUOTATION_CONTEXT =
+  /제목|곡명|노래|플레이리스트|가사|영화|드라마|앨범|밴드|가수|문구|표현|번역|목록에서|후보곡/;
 const HANGUL = /[ᄀ-ᇿ㄰-㆏ꥠ-꥿가-퟿]/;
 const HAS_LATIN_WORDS = /[A-Za-z]{3,}/;
 

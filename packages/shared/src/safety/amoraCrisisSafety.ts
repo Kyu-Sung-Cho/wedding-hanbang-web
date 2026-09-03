@@ -1,4 +1,10 @@
-import { assessEnglishCrisisSignals } from "./amoraCrisisEnglish";
+import {
+  assessEnglishCrisisSignals,
+  KOREAN_QUOTATION_CONTEXT,
+  MIXED_LANGUAGE_SELF_HARM,
+} from "./amoraCrisisEnglish";
+/** 한글 음절. 혼용 판정을 **한글이 있을 때로** 한정하는 데 쓴다. */
+const KOREAN_SYLLABLE_PATTERN = /[가-힣]/;
 import {
   assessAmoraSafetyText,
   normalizeAmoraSafetyText,
@@ -373,6 +379,24 @@ export function classifyAmoraCrisis(
   // 아래 `!englishFound` 는 **오늘은 한 번도 걸리지 않는 방어선이다.** 한국어 판정이
   // 영어 문장을 `no_safety_signal` 로 단정하게 되는 날을 위한 것이고, 변형 검사에서
   // 이 조건을 지워도 아무 검사도 깨지지 않는다는 것을 확인했다.
+  // **한국어 문장에 섞인 영어.**
+  //
+  // `결혼식 전에 kill myself 할 거예요 농담 아니에요` 는 한국어 정규식이 모르고,
+  // 영어 갈래는 한글을 보면 통째로 꺼진다 — 그건 이 저장소의 계약이고
+  // `englishBranchCannotTouchKorean.test.ts` 가 지킨다(내가 그 관문을 열었다가
+  // 그 테스트에 잡혔다). 두 언어 **사이**에 구멍이 있었다.
+  //
+  // 그래서 영어 갈래는 그대로 두고 여기서 **아주 좁게** 본다: 관용 용법이 없는
+  // 1인칭 구절만, 그리고 제목·가사 인용이면 보지 않는다. 맨 `suicide`·
+  // `suicidal` 은 넣지 않았다 — 한국어 대화에 섞이는 가장 흔한 자리가 곡명이다.
+  const mixedLanguageSelfHarm =
+    // **한글이 있을 때만** 본다. 순수 영어는 영어 갈래가 관용구까지 걸러 가며
+    // 판정한다 — 여기서 가로채면 `I want to die my hair` 가 위기가 되고
+    // 영어 안내도 못 나간다(기존 테스트 다섯이 그것을 잡았다).
+    KOREAN_SYLLABLE_PATTERN.test(text)
+    && !KOREAN_QUOTATION_CONTEXT.test(text)
+    && MIXED_LANGUAGE_SELF_HARM.some((pattern) => pattern.test(text));
+  if (mixedLanguageSelfHarm) return { kind: "self_harm" };
   const english = assessEnglishCrisisSignals(text);
   const englishFound =
     english.selfHarm || english.thirdPartySelfHarm || english.interpersonalDanger;

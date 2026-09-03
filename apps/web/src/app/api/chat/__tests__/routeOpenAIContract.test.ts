@@ -1553,7 +1553,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     "가족을 못 만나게 해요",
     "화나면 물건을 던지고 저를 때린 적도 있어요",
     "손찌검을 한 적이 있어요",
-    "저를 밀쳐서 넘어진 적 있어요",
+    // 2026-09-03: "저를 밀쳐서 넘어진 적 있어요" 를 여기서 뺐다. **위기 판정이
+    // 이제 잡기 때문**이고, 그래서 422(사전점검 필요) 가 아니라 200 에 112·119
+    // 안내가 나간다 — 저장·모델 호출이 막히는 것은 똑같고 사용자가 받는 것이
+    // 더 낫다. 아래 별도 테스트가 그 경로를 확인한다.
     "한 번 때린 뒤로는 안 그런다고 하는데요",
     "목을 조른 적도 있어요",
     "화나면 물건을 집어 던져요",
@@ -1578,6 +1581,28 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(mocks.providerLedger).not.toHaveBeenCalled();
     },
   );
+
+  // 위 목록에서 옮겨 온 문장. 위기 판정에 걸리므로 중재에서도 즉시 안내가 나가고
+  // 저장·모델 호출은 막힌다 — 422 보다 강한 결과다.
+  it("gives immediate safety guidance for a mediation that the crisis classifier now catches", async () => {
+    const sentinel = "MEDIATION_PUSH_SENTINEL";
+    const response = await POST(request({
+      requestKind: "mediation",
+      userMessageId: undefined,
+      conflictContext: `저를 밀쳐서 넘어진 적 있어요 ${sentinel}`,
+    }));
+
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain("경찰 112");
+    expect(body).toContain("소방 119");
+    expect(body).not.toContain(sentinel);
+    // 422 갈래가 지키던 것을 그대로 지킨다.
+    expect(mocks.persist).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+  });
 
   it.each([
     ["too short", "네"],

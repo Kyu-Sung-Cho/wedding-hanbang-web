@@ -79,12 +79,56 @@ export function normalizeAmoraSafetyText(value: string): string {
     .trim();
 }
 
+// 한국 결혼 갈등의 중심 인물인 **시댁·처가가 통째로 빠져 있었다.**
+// `시어머니가 칼을 들고 저희 신혼집까지 찾아왔어요` 가 아무 데도 안 걸렸다.
+// 뺀 판본으로 같은 코퍼스를 재서 확인했다 — 이 목록에서 시댁을 빼면 흉기
+// 문장 둘을 잃는다(`otherInterpersonalDanger` 가 이 목록을 앞에 요구한다).
 const PARTNER_PATTERN =
-  /(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)/;
+  /(?:예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|시어머니|시아버지|시부모|시댁|예비\s*시댁|장모|장인|형부|상대)/;
 const KNOWN_OTHER_PATTERN =
-  /(?:친구|지인|동생|형|누나|언니|오빠|엄마|아빠|부모님|예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)/;
+  /(?:친구|지인|동생|형|누나|언니|오빠|엄마|아빠|부모님|시어머니|시아버지|시부모|시댁|예비\s*시댁|장모|장인|형부|처가|제부|올케|처제|매형|동서|예비\s*신랑|예비\s*신부|남친|여친|파트너|상대방|그\s*사람|배우자|남편|아내|남자친구|여자친구|신랑|신부|상대)/;
 const REPORTER_TARGET_PATTERN = /(?:나|저|날|절)(?:를)?/;
+// 1인칭 주어(느슨한 쪽). 경계가 없어서 `나`가 `나오`·`나중`의 첫 음절에도 걸린다.
+//
+// **그 느슨함을 통째로 없애면 진짜 자해 진술을 잃는다.** 실제로 그렇게 해 봤다:
+// 한국어는 조사를 겹쳐 쓰고(한테+도, 에게+는, 는+요) 1인칭에 `저희`도 쓰는데,
+// 조사 한 칸만 허용하는 경계 패턴이 "나한테도 자해 충동이 와요"와
+// "저희도 목숨을 끊는 얘기를 했어요"를 놓쳤다. 갭을 겨냥하지 않은 자연 코퍼스
+// 50문장에서 45 → 40. 게다가 잃은 문장은 파트너 레인에서 `bride_private` →
+// `shared` 로 돌아가 **자해 고백이 배우자에게 보이게** 됐다.
+//
+// 그래서 여기는 원형 그대로 두고, 경계는 아래 `BOUNDED_REPORTER_ACTOR_PATTERN` 이
+// **관용으로도 쓰이는 약한 동사에만** 건다(`reporterSelfHarm` 참고).
 const REPORTER_ACTOR_PATTERN = /(?:나|난|나는|내가|나도|저|전|저는|제가|저도)/;
+// 경계를 요구하는 1인칭 주어. `죽겠`처럼 **관용으로도 쓰이는** 동사에만 쓴다.
+//
+// `죽겠다`는 한국어에서 가장 흔한 강조 표현이라, 경계 없는 주어와 묶이면
+// "드레스 나오는 날만 기다려서 설레 죽겠어"·"저녁 메뉴 고르다 배고파 죽겠어"·
+// "전화가 계속 와서 정신없어 죽겠어"가 전부 자해 위기가 된다. 겨냥해 만든
+// 평범한 문장 20개가 20개 모두 걸렸다.
+//
+// 그 오탐의 대가는 경고 한 줄이 아니다 — `planAmoraCrisisDelivery`가
+// `local_safety_hold`를 내면 원문이 DB에 저장되지 않고 작성창도 복구 없이 비워져
+// **사용자가 쓴 글이 사라진다.**
+//
+// 낱말을 하나씩 제외하지 않는다 — `나`로 시작하는 한국어 낱말에는 끝이 없다.
+// 대신 조사를 달거나 경계에서 끝나야 한다는 형태 규칙을 쓴다. 같은 파일의
+// `EXPLICIT_REPORTER_ACTOR_PATTERN`이 이미 쓰던 방식이다.
+// 경계는 **앞뒤 양쪽에** 필요하다.
+//
+// 뒤만 막았을 때 `문제가`·`숙제가` 안의 `제가` 가 주어로 읽혀 "문제가 나서 죽겠어"
+// 가 자해 위기가 됐다. 앞쪽 `(?<![가-힣])` 가 그것을 막는다.
+//
+// 조사는 겹쳐 쓴다(나+한테+도). 한 칸만 허용했더니 "나한테도 자해 충동이 와요"
+// 를 놓쳤으므로 반복을 허용한다.
+//
+// `요` 는 **다른 조사 뒤에만** 붙인다. "나는요" 는 나+는+요 지만 "나요" 는 동사
+// 나다의 활용이라, 맨 대명사 뒤의 `요` 를 허용하면 "화가 나요 진짜 죽겠어" 가
+// 자해 위기가 된다. `로`·`서` 는 아예 넣지 않는다 — "나로 인해 늦어져서 미안해
+// 죽겠어", "문제가 나서 죽겠어" 가 오탐이 된다. 조사 목록은 넓힐수록 평범한
+// 문장을 끌어온다.
+const BOUNDED_REPORTER_ACTOR_PATTERN =
+  /(?<![가-힣])(?:(?:나|저)(?:(?:는|은|도|만|까지|조차|한테|에게|께|보다|부터|마저|랑|와|과|처럼|의|를|을|야)+요?)?|난|전|(?:내|제)(?:가|게|한테))(?![가-힣])/;
 const EXPLICIT_REPORTER_ACTOR_PATTERN =
   /(?:^|[\s,.;!?])(?:나는|내가|나도|난|나|저는|제가|저도|전|저)(?=$|[\s,.;!?])/;
 const EXPLICIT_KNOWN_OTHER_ACTOR_PATTERN = new RegExp(
@@ -92,7 +136,7 @@ const EXPLICIT_KNOWN_OTHER_ACTOR_PATTERN = new RegExp(
 );
 const HISTORICAL_MARKER_PATTERN = /(?:예전에|과거에|작년에|몇\s*년\s*전|오래전에|그때)/;
 const VIOLENCE_CUE_PATTERN =
-  /(?:죽이겠|죽인다고|죽여\s*버리|때리|맞았|폭력|폭행|칼로?\s*협박|협박|위협|감금|가둬|성폭행|성폭력|성추행|강간|동의\s*없이|목을?\s*조르)/;
+  /(?:죽이겠|죽인다고|죽여\s*버리|때리|때려|때렸|때린|팼|패고|맞았|맞고|폭력|폭행|칼로?\s*협박|협박|위협|감금|가둬|성폭행|성폭력|성추행|강간|동의\s*없이|목을?\s*조르)/;
 const RESUMED_CURRENT_VIOLENCE_PATTERN =
   /(?:하지만|그런데|근데|지만).{0,24}(?:지금|현재|방금|오늘).{0,32}(?:또\s*)?(?:때리|때려|맞고|폭행|협박|위협|감금|가둬|죽이|성폭행|성폭력|성추행|강간|목을?\s*조르)/;
 const HYPOTHETICAL_SAFETY_PATTERN =
@@ -100,9 +144,65 @@ const HYPOTHETICAL_SAFETY_PATTERN =
 const BENIGN_DELIVERY_TRACKING_PATTERN =
   /(?:배송|택배)\s*기사.{0,40}(?:내\s*)?위치(?:를|을)?\s*추적.{0,40}(?:집|문)\s*앞.{0,24}기다리/;
 const BENIGN_CAKE_KNIFE_PATTERN =
-  /(?:(?:케이크|케익).{0,28}(?:칼|나이프)|(?:칼|나이프).{0,28}(?:케이크|케익)).{0,40}(?:사진|커팅|자르|촬영)/;
+  /(?:(?:케이크|케익).{0,28}(?:칼|나이프)|(?:칼|나이프).{0,28}(?:케이크|케익)).{0,40}(?:사진|커팅|자르|촬영)|(?:케이크|케익|커팅)\s*(?:칼|나이프)/;
 const BENIGN_IDIOM_PATTERN =
   /(?:드레스\s*투어|결혼\s*준비|예식\s*준비|친구가\s*웃겨|웃겨서|너무\s*(?:힘들|피곤|바빠)).{0,40}(?:죽을\s*것\s*같|죽겠)/;
+/**
+ * `<원인 서술어> 죽겠` 은 관용구다.
+ *
+ * `BENIGN_IDIOM_PATTERN` 은 **문장 어딘가에** 여섯 구절이 있는지 물어서, 그 구절이
+ * 없는 관용구를 못 거른다. 실제로 `나 다리 아파 죽겠어`·`엄마가 무릎 아파 죽겠대`
+ * 가 자해 위기로 확정됐다. 여기서는 **`죽겠` 바로 앞에 무엇이 오는가** 를 본다 —
+ * 관용구는 원인 서술어가 붙고(`아파 죽겠`), 자해 진술은 안 붙는다(`나 죽겠어`).
+ *
+ * ## 목록이 좁은 것은 의도다
+ *
+ * 이 목록이 좁으면 오탐이 남는다(지금과 같다). 넓으면 **진짜 자해 진술을 놓친다.**
+ * 두 대가가 같지 않으므로 좁은 쪽으로 틀렸다. `무서워` 를 넣지 않은 것도 같은
+ * 이유다 — 무섭다는 말은 관용구이기도 하고 진짜 공포이기도 하다.
+ *
+ * ## 이것만으로는 부족해서 관문이 하나 더 있다
+ *
+ * `본식 준비가 힘들어 죽겠고 진짜로 죽어버리고 싶어요` 는 관용구 모양(`힘들어
+ * 죽겠`)이면서 진짜 자해 진술이다. 그래서 같은 문장에
+ * `SELF_HARM_ELSEWHERE_PATTERN` 이 있으면 이 무름을 **적용하지 않는다.**
+ * 관용구 판정은 그 문장에 다른 자해 신호가 없을 때만 쓴다.
+ */
+const IDIOMATIC_INTENSIFIER_BEFORE_DEATH_PATTERN =
+  /(?:아파|아프|배고파|배고프|더워|추워|피곤해|졸려|바빠|귀찮아|답답해|막막해|민망해|궁금해|복잡해|애매해|짜증나|정신없어|미안해|부러워|설레|웃겨|떨려|빠져|힘들어|힘드)\s*죽겠/;
+/**
+ * 같은 문장 안의 **다른** 자해 신호. 위 관용구 무름을 되무르는 자리다.
+ *
+ * `죽겠` 갈래를 무르더라도 이 신호가 있으면 그 문장은 여전히 자해 진술이다.
+ * 목록은 관용 용법이 없는 표현만 담는다 — `죽고 싶`, `죽어 버리`, `유서`,
+ * `손목을 긋` 은 강조로 쓰이지 않는다.
+ */
+const SELF_HARM_ELSEWHERE_PATTERN =
+  /(?:죽\s*고\s*싶|죽어\s*버리|죽을\s*(?:래|거|생각|결심|방법)|죽어야\s*(?:겠|끝|하)|자살|자해|목숨을?\s*끊|유서|손목(?:을|를)?\s*(?:긋|그어|그었|그은)|목(?:을|를)?\s*(?:매|맬|맸)|(?:물|강물|바다|한강|저수지)(?:에|로)?\s*빠져\s*죽|번개탄|연탄|옥상|난간|뛰어내리|한강\s*다리|그만\s*살고\s*싶|사라지고\s*싶)/;
+/**
+ * 경험 자체를 부정하는 형태. `죽고 싶다는 생각은 해본 적 없어` 는 고백이 아니다.
+ *
+ * 기존 `negatedReporterSelfHarm` 은 1인칭 주어를 요구하는데, 이 형태는 주어를
+ * 생략한다(`결혼 준비가 힘들긴 해도 죽고 싶다는 생각은 해본 적 없어`).
+ */
+const DENIED_IDEATION_EXPERIENCE_PATTERN =
+  /(?:죽\s*고\s*싶|자살|자해|그만\s*살고\s*싶|사라지고\s*싶|나쁜\s*생각|극단적(?:인)?\s*(?:생각|마음|선택))[^.!?\n]{0,24}(?:해\s*본\s*적(?:이)?\s*없|한\s*적(?:이)?\s*없|전혀\s*(?:안|없)|조금도\s*없|은\s*아니)/;
+/** 위 부정을 잴 때 "자해 진술이 있는 절" 로 셀 표현. */
+const IDEATION_CUE_PATTERN =
+  /(?:죽\s*고\s*싶|자살|자해|그만\s*살고\s*싶|사라지고\s*싶|나쁜\s*생각|극단적(?:인)?\s*(?:생각|마음|선택))/;
+/**
+ * 약이 **떨어졌다**는 뜻의 `다 먹었다`.
+ *
+ * 과다복용 패턴이 `약 + (다|전부|모두) + 먹` 을 받는데, 한국어에서 그 형태는
+ * "남은 것을 다 먹었다(= 떨어졌다)" 로도 쓰인다. 실측에서 `진통제 다 먹었는데도
+ * 드레스 투어는 다녀왔어` 가 자살 시도로 확정됐다.
+ *
+ * 양보 어미(`는데도`·`지만`)나 증상이 계속된다는 서술이 뒤따르면 소진이다 —
+ * 과다복용을 말하는 사람은 그렇게 잇지 않는다. **수량이 있는 형태**
+ * (`한 통`, `스무 알`)는 여기 걸리지 않으므로 그대로 시도로 남는다.
+ */
+const MEDICINE_EXHAUSTED_PATTERN =
+  /(?:약|알약|진통제|감기약|영양제|비타민|타이레놀)(?:을|를)?\s*(?:다|전부|모두)\s*먹었(?:는데도|지만|는데\s*[^.!?\n]{0,20}(?:안|아직|계속|그대로|여전히))/;
 const FICTION_NEWS_CONTEXT_PATTERN =
   /(?:(?:영화|소설|드라마|게임|뉴스|기사).{0,100}(?:장면|대사|사건|보도|읽었|분석|검토|주인공|등장인물)|(?:영화|소설|드라마)(?:에서|속에서).{0,80}(?:죽\s*고\s*싶|죽이겠|자살|자해|폭행|협박|위협))/;
 const META_CONTEXT_PATTERN =
@@ -111,7 +211,130 @@ const FICTIONAL_GAME_CONTEXT_PATTERN = /게임(?:에서|중에|속에서)/;
 const CURRENT_DISCLOSURE_OVERRIDE_PATTERN =
   /(?:(?:아니라|그런데|근데|하지만).{0,40}(?:나|저|남편|아내|배우자|남친|여친|신랑|신부|상대).{0,40}(?:진짜|지금|현재|오늘|방금).{0,40}(?:죽\s*고\s*싶|자살|자해|때리|맞고|협박|위협|칼|흉기)|(?:오늘|지금|현재|방금).{0,50}(?:때리|맞고|폭행|협박|위협|죽\s*고\s*싶|자살|자해|칼|흉기))/;
 const CONCRETE_SELF_HARM_ATTEMPT_PATTERN =
-  /(?:(?:졸피뎀|수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:(?:[1-9]\d+)\s*(?:알|개)|한\s*(?:통|병)|여러\s*알|전부|모두|다|몽땅|너무\s*많이|많이|과다|과량|한꺼번에|왕창|잔뜩|한\s*(?:움큼|줌))(?:을|를)?\s*(?:먹|삼키|삼켰|복용)|(?:옥상|난간|다리|베란다|한강).{0,36}(?:뛰어내리|몸을?\s*던지)(?:려고|려는|려|겠|ㄹ)|(?:뛰어내리|몸을?\s*던지)(?:려고|려는|려).{0,36}(?:옥상|난간|다리|베란다|한강)|(?:농약|락스|표백제|세제|부동액)(?:을|를)?\s*(?:마시|마셨|먹|삼키)|(?:번개탄|연탄)(?:을|를)?\s*(?:피우|피웠|피워|점화|켜))/;
+  /(?:(?:졸피뎀|수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*(?:(?:[1-9]\d+)\s*(?:알|개)|한\s*(?:통|병)|여러\s*알|전부|모두|다|몽땅|너무\s*많이|많이|과다|과량|한꺼번에|왕창|잔뜩|한\s*(?:움큼|줌))(?:을|를)?\s*(?:먹|삼키|삼켰|복용|드시|드셨|드시고)|(?:옥상|난간|다리|베란다|한강).{0,36}(?:뛰어내리|몸을?\s*던지)(?:려고|려는|려|겠|ㄹ)|(?:뛰어내리|몸을?\s*던지)(?:려고|려는|려).{0,36}(?:옥상|난간|다리|베란다|한강)|(?:농약|락스|표백제|세제|부동액)(?:을|를)?\s*(?:마시|마셨|먹|삼키)|(?:번개탄|연탄)(?:을|를)?\s*(?:피우|피웠|피워|점화|켜)|(?:졸피뎀|수면제|진통제|타이레놀|아세트아미노펜|약|알약)(?:을|를)?\s*한\s*(?:통|병)(?:을|를)?\s*(?:다|전부|모두|몽땅)?\s*(?:먹었|삼켰|복용했|드시고|드셨)|(?:약|영양제|감기약|진통제)(?:이랑|랑|과|까지)[^.!?\n]{0,16}다\s*먹었[^.!?\n]{0,24}(?:어지러|토했|쓰러|의식|깨어나))/;
+/**
+ * **자해 수단을 준비했거나 방법을 찾고 있다.**
+ *
+ * 2026-09-03 실측: 이 부류가 안전망을 통째로 지나쳤다 — `목을 맬 끈을 찾고
+ * 있었어요`·`매일 죽는 방법만 검색해요`·`진통제 스무 알을 세어 놨어`·
+ * `수면제 한 통 사 왔는데`. 의도를 말하지 않고 준비만 말하는 형태라 기존
+ * `죽고 싶` 계열 어디에도 안 걸린다.
+ *
+ * 낱말 하나로는 잡지 않는다 — `끈`·`알`·`통`·`칼` 은 결혼 준비에서 평범하게
+ * 쓰인다. **수단 + 준비 동사**가 함께 있을 때만 센다.
+ */
+/**
+ * 화자가 **스스로 농담이라고 밝힌** 문장. `더는 못 살겠다고 신랑한테 농담했어`.
+ *
+ * 이 목록은 좁게 둔다 — 진짜 위기를 농담으로 포장하는 경우가 있으므로, 같은
+ * 문장에 다른 위기 신호가 있으면 아래에서 이 무름을 쓰지 않는다.
+ */
+/**
+ * **몸에 남은 피해.** 폭력을 말하지 않아도 결과가 말한다.
+ *
+ * `갈비뼈에 금이 갔어`·`입술이 터졌어요`·`온몸에 멍이 들었어요`.
+ * 결과만으로는 사고일 수도 있으므로 아래 `PHYSICAL_ASSAULT_PATTERN` 이
+ * **가해 행위와 함께** 있을 때만 쓴다.
+ */
+const BODILY_INJURY_RESULT_PATTERN =
+  /(?:갈비뼈|코뼈|손목|팔|다리|이빨)(?:에|이|가)?\s*(?:금\s*(?:이|에)?\s*(?:가|갔|간)|부러|골절)|멍이\s*들|입술이\s*터|이마가\s*찢|피가\s*나|응급실(?:에|을)?\s*(?:실려|다녀|갔)/;
+/**
+ * **사람을 때린 서술.**
+ *
+ * 기존 패턴은 배우자 호칭 + `때리` 처럼 넓게 잡거나, 반대로 `저를` 목적어를
+ * 직접 요구해서 그 사이 형태를 전부 놓쳤다 — `주먹을 휘둘러 입술이 터졌어요`,
+ * `머리를 벽에 박았어요`, `밀쳐서 계단에서 굴렀어요`, `머리채를 잡고 끌고`.
+ *
+ * 평범한 문장과 가르는 것은 **사람이 대상이라는 표시**다. 축가 연습하다 휘두른
+ * 주먹은 마이크를 치고, 아이들이 민 것은 카트를 굴린다. 그래서 각 갈래가
+ * 사람 목적어나 신체 부위, 또는 피해 결과를 함께 요구한다.
+ */
+const PHYSICAL_ASSAULT_PATTERN =
+  /주먹(?:을|를)?\s*휘둘(?:러|렀|렀어|리)\s*.{0,16}(?:저|제|나|내|날|절|얼굴|입술|머리|배|몸|맞)|(?:저|제|나|내|날|절)(?:를|을|한테|에게)\s*.{0,16}주먹(?:을|를)?\s*휘둘|(?:저|제|나|내|날|절)(?:의|를|을)?\s*(?:머리|얼굴|배|몸|팔|다리|목)(?:를|을)?\s*.{0,10}(?:때렸|때리|치셨|쳤|박았|비틀|졸랐|잡고\s*끌)|머리채(?:를|을)?\s*(?:잡|잡고|잡아|끌)|(?:같이\s*죽자|죽자)고\s*.{0,10}목(?:을|를)?\s*잡|(?:남편|신랑|아내|신부|남친|여친|배우자|예비\s*신랑|예비\s*신부|시어머니|시아버지|시댁|장모|장인|형부|저(?:를|한테)|나(?:를|한테)|절|날)[^.!?\n]{0,20}밀쳐(?:서|져)?\s*.{0,14}(?:계단|바닥|넘어|굴렀|다쳤)|던진\s*.{0,10}(?:컵|그릇|물건|리모컨).{0,12}(?:맞|찢|터|다쳤)|맞아서\s*.{0,16}(?:응급실|갈비뼈|멍|피)/;
+/**
+ * **가둠·이동 통제.** `저를 못 나가게 현관문을 잠가버렸어요`.
+ *
+ * `못 나가게` 자체는 강아지 안전문·하객 동선에도 쓰인다. 그래서 **사람이
+ * 대상**이거나 **화자가 당했다는 표시**를 함께 요구한다.
+ */
+const CONFINEMENT_PATTERN =
+  /(?:저|제|나|내|날|절)(?:를|을)?\s*(?:못\s*(?:나가게|나오게|도망가게)|가둬|가뒀|감금)|못\s*(?:나가게|나오게|도망가게|가게)\s*.{0,20}(?:잠가|잠갔|잠그|뺏겼|뺏어|묶|막아)|(?:휴대폰|핸드폰|폰|신발|차\s*키)(?:이랑|과|을|를)?\s*.{0,10}뺏(?:겼|어\s*갔|아\s*갔)/;
+/**
+ * **성적 강요.** 기존 패턴은 `동의 없이` 라는 말을 요구해서, 실제로 쓰이는
+ * `싫다는데도 계속 관계를 강요해서 무서워요` 를 전부 놓쳤다.
+ *
+ * `관계를 강요` 는 업체와의 독점 계약에도 쓰이므로 **사람 행위자**나 **거절
+ * 표시**를 함께 요구하고, 부정문(`강요하시진 않았어`)은 제외한다.
+ */
+const SEXUAL_COERCION_PATTERN =
+  /(?:싫다(?:는데도|고\s*(?:해도|했는데도|하는데도))|거절(?:했는데도|하는데도|하면)|원치\s*않는데)[^.!?\n]{0,28}(?:관계|잠자리|스킨십|몸)(?:를|을)?\s*(?:강요|요구|만지)|(?:남편|신랑|예비\s*신랑|남친|남자친구|배우자|여친)(?:이|가)[^.!?\n]{0,28}(?:관계|잠자리)(?:를|을)?\s*강요(?!하지\s*않|하시진\s*않|한\s*적\s*없)|억지로\s*몸(?:을|를)?\s*만지/;
+/**
+ * **신변을 정리하고 자기를 지운다.**
+ *
+ * `통장 넘겼어`·`정리 다 됐어` 만으로는 절대 세지 않는다 — 축의금 장부 정리와
+ * 구별되지 않는다(반례 코퍼스에 그대로 있다). 갈리는 것은 **자기가 이제 필요
+ * 없다는 말**이다: `나는 이제 필요 없어`, `내 몫은 필요 없어`, `내가 없어도`.
+ *
+ * 보험 수령인 변경은 그 자체로 드물고 결혼 준비 대화에서 다른 뜻이 없다.
+ */
+const AFFAIRS_IN_ORDER_PATTERN =
+  /(?:넘겼|넘기고|돌려놨|정리|바꿔놨|맡겼)[^.!?\n]{0,30}(?:나는|저는|내|제)\s*(?:이제\s*)?(?:필요\s*없|몫은\s*필요\s*없)|내가\s*없어도[^.!?\n]{0,24}(?:진행|해\s*줘|하라고|하래)|보험금\s*수령인(?:을|를)?\s*[^.!?\n]{0,16}(?:바꿔|변경|바꾸)/;
+const SELF_DECLARED_JOKE_PATTERN =
+  /농담(?:이|으로|삼아|했|이라고|이야|입니다)|장난(?:으로|이야|삼아|이라고)|우스개|웃자고/;
+const SELF_HARM_MEANS_PATTERN =
+  /(?:목(?:을|를)?\s*(?:맬|매려|매기)\s*(?:끈|줄|밧줄|생각|결심)|(?:끈|밧줄)(?:을|를)?\s*.{0,8}목(?:을|를)?\s*(?:매|맬))|죽는\s*(?:방법|법)(?:만|을|를|이나)?\s*(?:검색|찾|알아보|뒤져)|(?:자살|자해)\s*(?:방법|사이트|카페)|(?:난간|베란다|옥상|창문)(?:을|를)?\s*넘(?:으려|어가려|을|어서려)|(?:수면제|졸피뎀|신경안정제|항우울제)\s*한\s*(?:통|병)(?:을|를)?\s*(?:사|샀|사\s*왔|구했|모았)|(?:[1-9]\d*|열|열다섯|스무|스물|서른|마흔)\s*알(?:을|를)?\s*(?:세어|세고|셌|모아|모았|따로\s*빼|손에\s*쥐)|(?:칼|흉기)(?:을|를)?\s*들고\s*.{0,14}(?:앉아\s*있|앉아서|한참)|(?:수면제|졸피뎀|진통제|약)\s*한\s*(?:통|병)\s*.{0,10}(?:놓고|앞에\s*두고)/;
+/**
+ * **이미 자해한 흔적.** 과거형이지만 지금 안전하다는 뜻이 아니다.
+ *
+ * `손목 그은 자국이 남았어요`·`손목 자국 볼까 봐 긴팔만 입고 다녀` 가 그냥
+ * 지나갔다. `손목` 만으로는 안 센다(시계·팔찌) — **긋는 행위나 자국**이 붙어야 한다.
+ */
+const SELF_HARM_SCAR_PATTERN =
+  /손목(?:을|를|에|의)?\s*.{0,10}(?:그은|그었|그어|긋|자해)|손목\s*자국.{0,20}(?:볼까\s*봐|보일까|들킬까|가리|가려|숨기|긴팔|소매)|(?:그은|그었)\s*자국/;
+/**
+ * **위험한 장소에 지금 가 있다.** 가장 급한 형태인데 하나도 안 걸렸다.
+ *
+ * `아파트 옥상에 올라와 있어`·`한강 다리 난간 앞에 한참 서 있었어`.
+ * 장소 낱말만으로는 절대 안 센다 — 옥상 정원 예식장, 한강 뷰 신혼집이 평범한
+ * 결혼 준비 대화다. **거기 있다는 서술**(올라와/서 있/앉아 있)이 붙어야 한다.
+ */
+const SELF_HARM_LOCATION_PRESENCE_PATTERN =
+  /(?:옥상|한강\s*다리|고가|육교)(?:에|앞에|위에|끝에)?\s*.{0,12}(?:올라와\s*있|올라가\s*있|올라가\s*계|올라왔|서\s*있었|서\s*있어|앉아\s*있|있다(?:고|는)|걸어가는\s*중)|난간(?:에|위에)\s*.{0,10}(?:걸터앉|손\s*올려|올라)/;
+/**
+ * **죽음을 직접 말하지 않는 자해 의사.**
+ *
+ * `죽어야 끝나겠다`·`죽는 것 말고 답이 없어요`·`영영 가고 싶어`·
+ * `이 세상에서 그만 내려가고 싶어`·`눈 안 떠졌으면`.
+ *
+ * `끝내고 싶어`·`그만하고 싶어`처럼 **결혼 준비 대화에서 평범하게 쓰이는 말은
+ * 여기 넣지 않았다.** "예단 얘기 이제 그만하고 싶어"가 위기가 되면 안 된다.
+ * 그 부류는 아래 `TERMINAL_DESPAIR_PATTERN` 이 **두 신호가 함께 있을 때만** 센다.
+ */
+/**
+ * `없어지고 싶다`·`사라지고 싶다` 는 **창피함**을 뜻하기도 한다.
+ *
+ * 반례 코퍼스에 그 용법이 그대로 있다 — `상견례 때 너무 민망해서 그냥 없어지고
+ * 싶었어`, `청첩장 오타 난 거 보고 창피해서 사라지고 싶었어`.
+ * 그래서 **부끄러움 표시가 같은 문장에 있으면 세지 않는다.**
+ */
+const EMBARRASSMENT_CONTEXT_PATTERN =
+  /민망|창피|부끄|쪽팔|오타|사진에서|못\s*나왔/;
+const VANISHING_WISH_PATTERN =
+  /(?:없어지고|사라지고|지워지고)\s*싶|(?:내가|제가)?\s*(?:먼저\s*)?없어질\s*것\s*같/;
+const EUPHEMISTIC_SELF_HARM_IDEATION_PATTERN =
+  /죽어야\s*.{0,8}(?:끝나|끝날|끝난다)|죽을\s*결심|죽는\s*(?:것|거)\s*말고\s*.{0,8}(?:답|방법|수)(?:이|가)?\s*없|(?:영영|아주)\s*(?:가고|떠나고|사라지고|없어지고)\s*싶|(?:이|이제)?\s*세상(?:에서|을)?\s*(?:그만\s*)?(?:내려가고|떠나고|없어지고)\s*싶|(?:내일|아침에|다시(?:는)?|영영|그냥)[^.!?\n]{0,12}눈(?:을|이)?\s*(?:안|못)\s*(?:떠졌으면|뜨면\s*좋겠|떴으면)|아무도\s*없는\s*곳으로\s*(?:영영|그냥)?\s*가고\s*싶|(?:보험금|사망\s*보험)(?:이)?\s*(?:낫|나을)|마지막\s*편지(?:를|을)?\s*(?:써\s*놨|써\s*뒀|남겨|남기|두고|써서\s*.{0,10}(?:서랍|넣어)|다\s*썼)|유서/;
+/**
+ * **끝내겠다는 말은 두 신호가 함께 있을 때만 센다.**
+ *
+ * `끝내고 싶어`·`못 버티겠어`·`못 살겠어`는 결혼 준비 대화에서 그 자체로는
+ * 평범한 좌절이다("이 준비 다 끝내고 싶다"). 그래서 **절망 표지**(더는·더 이상·
+ * 오늘 밤·그냥 여기서·진짜로)와 **끝냄 표현**이 같은 문장에 있을 때만 센다.
+ *
+ * 이 조건을 걸지 않고 낱말만 넣었더니 평범한 문장이 무더기로 걸렸다 —
+ * 그래서 조건을 남긴다.
+ */
+const TERMINAL_DESPAIR_PATTERN =
+  /(?:더는|더\s*이상)\s*못\s*(?:살겠|버티|버틸|하겠)|(?:오늘\s*밤|이제\s*그만|그냥\s*여기서|여기서\s*그냥)\s*.{0,10}끝내(?:려|고\s*싶|자|겠)|못\s*(?:살|버틸)\s*것\s*같(?:아|은데|아요).{0,20}(?:그만|끝|사라|없어)|(?:그만|끝)내고\s*싶.{0,16}(?:진짜|정말|더는)|(?:진짜|정말|더는).{0,16}(?:그만|끝)내고\s*싶/;
 const ATTEMPT_NEGATION_PATTERN =
   /(?:먹|삼키|삼켰|복용|마시|마셨|피우|피웠|피워|점화|켜|뛰어내리|몸을?\s*던지).{0,60}(?:지\s*않|은\s*(?:건|것은)\s*아니|려는\s*(?:건|것은)\s*아니|려고.{0,40}(?:한|있는)\s*(?:건|것은)\s*아니)/;
 const ATTEMPT_HYPOTHETICAL_PATTERN =
@@ -126,7 +349,7 @@ const ELIDED_INGESTION_CONTINUATION_PATTERN = new RegExp(
   `^(?:나는|내가|나도|저는|제가|저도|${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도))\\s*(?:먹었(?:어|어요|다)?|먹지\\s*않았(?:어|어요|다)?|삼켰(?:어|어요|다)?|삼키지\\s*않았(?:어|어요|다)?|복용했(?:어|어요|다)?|복용하지\\s*않았(?:어|어요|다)?)[.!?]?$`,
 );
 const INDEPENDENT_IMMEDIATE_SAFETY_CUE_PATTERN =
-  /(?:죽\s*고\s*싶|자살|자해|목숨을?\s*끊|칼|흉기|때리|맞고|폭행|협박|위협|감금|가둬|성폭행|성폭력|성추행|강간|목을?\s*조르|수면제|졸피뎀|농약|락스|표백제|번개탄|연탄)/;
+  /(?:죽\s*고\s*싶|자살|자해|목숨을?\s*끊|칼|흉기|때리|때려|때렸|때린|맞고|맞았|폭행|협박|위협|감금|가둬|성폭행|성폭력|성추행|강간|목을?\s*조르|수면제|졸피뎀|농약|락스|표백제|번개탄|연탄)/;
 const UNAMBIGUOUS_SELF_HARM_IDEATION_PATTERN =
   /(?:(?:더는\s*)?못\s*살겠(?:어|다|어요)?|차라리\s*죽는\s*게\s*나아|이제\s*그만\s*살래)(?=$|[.!?])/;
 
@@ -182,6 +405,32 @@ function lastPatternIndex(pattern: RegExp, value: string): number {
     lastIndex = match.index;
   }
   return lastIndex;
+}
+
+/**
+ * 자해 진술이 **모두** 부정된 문장인가.
+ *
+ * 문장 전체에 부정이 하나라도 있으면 무르는 방식은 위험하다 — `죽고 싶다는 생각은
+ * 해본 적 없어. 근데 어제 자해했어` 가 통째로 지워진다. 그래서 **자해 표현이 든
+ * 절을 모두 세고, 그 절이 전부 부정형일 때만** 무른다.
+ */
+function everyIdeationClauseIsDenied(text: string): boolean {
+  const withIdeation = splitAmoraSafetyClauses(text).filter((clause) =>
+    IDEATION_CUE_PATTERN.test(clause),
+  );
+  if (withIdeation.length === 0) return false;
+  if (!withIdeation.every((clause) => DENIED_IDEATION_EXPERIENCE_PATTERN.test(clause))) {
+    return false;
+  }
+  // 부정되지 않은 **다른 절**에 자해 신호가 남아 있으면 무르지 않는다.
+  // `자해한 적 없어요 그런데 오늘 손목을 그었어요` 가 통째로 지워지던 자리다.
+  return splitAmoraSafetyClauses(text)
+    .filter((clause) => !IDEATION_CUE_PATTERN.test(clause))
+    .every(
+      (clause) =>
+        !SELF_HARM_ELSEWHERE_PATTERN.test(clause)
+        && !CONCRETE_SELF_HARM_ATTEMPT_PATTERN.test(clause),
+    );
 }
 
 function inferConcreteAttemptActor(clause: string): AmoraSafetyActor {
@@ -342,12 +591,60 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   const clauses = splitAmoraSafetyClauses(text);
   const hasIndependentCurrentDisclosure =
     hasIndependentCurrentDisclosureClause(text);
+  // 약이 떨어졌다는 뜻의 `다 먹었다`. **최상위에서만** 판정한다 —
+  // 이 함수는 아래에서 절마다 자기를 다시 부르는데, 절 분리기가 `먹었` 과
+  // `는데도` 사이를 자르므로(`(?<=[았었였했겠])는데` 가 경계) 절 안에서는 양보
+  // 어미가 이미 사라지고 없다. 그래서 절 단위로 물으면 영원히 걸리지 않는다.
+  if (
+    MEDICINE_EXHAUSTED_PATTERN.test(text)
+    && !SELF_HARM_ELSEWHERE_PATTERN.test(text)
+    && !VIOLENCE_CUE_PATTERN.test(text)
+    // `감기약 다 먹었는데도 안 나아 그리고 수면제 한 통 먹었어` 를 지우면 안 된다.
+    // 소진 문구 하나 때문에 같은 메시지의 진짜 시도까지 무르는 자리다.
+    && !hasIndependentImmediateSafetyClause(text)
+  ) {
+    return {
+      resolution: "no_safety_signal",
+      kind: null,
+      responseDirection: null,
+      events: [],
+    };
+  }
+  // 자해 표현이 든 절이 **전부** 부정형이면 고백이 아니다.
+  //
+  // 이 무름은 아래 관용구 관문 **밖에** 있어야 한다. 그 관문은
+  // `!hasIndependentImmediateSafetyClause(text)` 를 요구하는데 `죽 고 싶` 자체가
+  // 그 독립 단서라, 안에 두면 이 형태는 절대 무를 수 없다.
+  //
+  // 폭력·시도 단서가 있으면 무르지 않는다 — 자해를 부정하면서 폭력을 말하는
+  // 문장까지 지워지면 안 된다.
+  if (
+    everyIdeationClauseIsDenied(text)
+    && !VIOLENCE_CUE_PATTERN.test(text)
+    && !CONCRETE_SELF_HARM_ATTEMPT_PATTERN.test(text)
+  ) {
+    return {
+      resolution: "no_safety_signal",
+      kind: null,
+      responseDirection: null,
+      events: [],
+    };
+  }
   if (
     (
       BENIGN_DELIVERY_TRACKING_PATTERN.test(text)
       || BENIGN_CAKE_KNIFE_PATTERN.test(text)
       || BENIGN_IDIOM_PATTERN.test(text)
+      // `<원인 서술어> 죽겠` 은 관용구다. 단 같은 문장에 다른 자해 신호가 있으면
+      // 관용구 판정을 쓰지 않는다 — `힘들어 죽겠고 진짜로 죽어버리고 싶어요` 는
+      // 관용구 모양이면서 진짜 고백이다.
+      || (
+        IDIOMATIC_INTENSIFIER_BEFORE_DEATH_PATTERN.test(text)
+        && !SELF_HARM_ELSEWHERE_PATTERN.test(text)
+      )
     )
+    // 폭력·흉기 같은 독립 단서가 있으면 무르지 않는다. `남편이 때려서 아파
+    // 죽겠어` 가 관용구로 지워지면 안 된다.
     && !hasIndependentImmediateSafetyClause(text)
   ) {
     return {
@@ -445,11 +742,46 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
     `${PARTNER_PATTERN.source}(?:가|이|는|은)?\\s*.{0,28}(?:자기(?:가|는|도)?|본인(?:이|은|도)?)\\s*죽겠(?:다고|대).{0,12}(?:한|말한)\\s*(?:게|건|것은)\\s*아니라.{0,24}${REPORTER_TARGET_PATTERN.source}\\s*.{0,12}(?:죽이겠다고|죽인다고)`,
   );
   const knownOtherSelfHarm = new RegExp(
-    `${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도)?\\s*.{0,48}(?:죽\\s*고\\s*싶다고|죽겠다고|죽겠대|자살(?:하겠다고|하려고)|자해(?:하겠다고|하려고)|그만\\s*살고\\s*싶다고|사라지고\\s*싶다고)`,
+    `${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도)?\\s*.{0,48}(?:죽\\s*고\\s*싶다고|죽겠다고|죽겠대|자살(?:하겠다고|하려고)|자해(?:하겠다고|하려고)|그만\\s*살고\\s*싶다고|사라지고\\s*싶다고|없어지고\\s*싶다고|없어지고\\s*싶다|죽을\\s*거라고)`,
   );
+  // 동사를 세기로 가른다.
+  //
+  // 강한 쪽(`자살`·`자해`·`목숨을 끊`·`죽고 싶`·`사라지고 싶`)은 한국어에 관용
+  // 용법이 없어서 주어를 느슨하게 잡아도 평범한 문장을 끌어오지 않는다.
+  // 약한 쪽(`죽겠`·`죽을 래/거`)은 강조 표현으로 훨씬 자주 쓰이므로 **경계를
+  // 요구하는 주어**만 인정한다.
+  //
+  // 이 구분이 없으면 둘 중 하나를 반드시 잃는다. 경계를 통째로 씌웠더니
+  // "나한테도 자해 충동이 와요"(조사 겹침)·"저희도 목숨을 끊는 얘기를 했어요"를
+  // 놓쳤고, 경계를 아예 안 씌웠더니 "설레 죽겠어"가 자해 위기가 됐다.
   const reporterSelfHarm = new RegExp(
-    `(?:${REPORTER_ACTOR_PATTERN.source}\\s*.{0,32}(?:죽\\s*고\\s*싶|죽겠|죽을\\s*(?:래|거)|자살|자해|목숨을?\\s*끊|그만\\s*살고\\s*싶|사라지고\\s*싶)|${UNAMBIGUOUS_SELF_HARM_IDEATION_PATTERN.source})`,
+    `(?:${REPORTER_ACTOR_PATTERN.source}\\s*.{0,32}(?:죽\\s*고\\s*싶|자살|자해|목숨을?\\s*끊|그만\\s*살고\\s*싶|사라지고\\s*싶)|${BOUNDED_REPORTER_ACTOR_PATTERN.source}\\s*.{0,32}(?:죽겠|죽을\\s*(?:래|거))|${UNAMBIGUOUS_SELF_HARM_IDEATION_PATTERN.source}`
+    // 아래 다섯은 **1인칭 주어를 요구하지 않는다.** 한국어는 주어를 생략하고,
+    // 실측한 미탐 50건이 대부분 주어 없이 쓰였다(`매일 죽는 방법만 검색해요`).
+    // 대신 각 패턴이 스스로 좁다 — 수단·흔적·장소·완곡 표현이 결혼 준비 어휘와
+    // 겹치지 않도록 동사나 상태 서술을 함께 요구한다.
+    + `|${SELF_HARM_MEANS_PATTERN.source}`
+    + `|${SELF_HARM_SCAR_PATTERN.source}`
+    + `|${SELF_HARM_LOCATION_PRESENCE_PATTERN.source}`
+    + `|${EUPHEMISTIC_SELF_HARM_IDEATION_PATTERN.source}`
+    + `|${TERMINAL_DESPAIR_PATTERN.source}`
+    + `|${AFFAIRS_IN_ORDER_PATTERN.source})`,
   );
+  // `없어지고 싶다` 는 창피함을 뜻하기도 한다. 부끄러움 표시가 없을 때만 센다.
+  const vanishingWish =
+    VANISHING_WISH_PATTERN.test(text)
+    && !EMBARRASSMENT_CONTEXT_PATTERN.test(text)
+    // `차라리 사라지고 싶은 건 아니야` 는 부정이다. 기존 테스트가 잡았다.
+    && !/(?:없어지고|사라지고|지워지고)\s*싶(?:은|다는)?\s*(?:건|것은|게)\s*아니/.test(text)
+    && !/(?:없어지고|사라지고|지워지고)\s*싶지\s*(?:는\s*)?않/.test(text);
+  // 화자가 스스로 농담이라고 밝혔고 **다른 위기 신호가 없으면** 무른다.
+  // 진짜 위기를 농담으로 포장하는 경우가 있으므로 조건을 건다.
+  const declaredJokeOnly =
+    SELF_DECLARED_JOKE_PATTERN.test(text)
+    && !SELF_HARM_ELSEWHERE_PATTERN.test(text)
+    && !SELF_HARM_MEANS_PATTERN.test(text)
+    && !CONCRETE_SELF_HARM_ATTEMPT_PATTERN.test(text)
+    && !VIOLENCE_CUE_PATTERN.test(text);
   const negatedReporterSelfHarm = new RegExp(
     `${REPORTER_ACTOR_PATTERN.source}\\s*.{0,28}(?:죽\\s*고\\s*싶지\\s*않|죽\\s*고\\s*싶은\\s*(?:건|것은)\\s*아니|자살(?:하고)?\\s*싶지\\s*않|자해(?:하고)?\\s*싶지\\s*않|자살하지\\s*않|자해하지\\s*않)`,
   );
@@ -495,6 +827,16 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   const otherInterpersonalDanger = new RegExp(
     `${PARTNER_PATTERN.source}(?:가|이|는|은)?\\s*.{0,48}(?:(?:칼|흉기).{0,24}(?:협박|위협|들고)|(?:때리|폭행|감금|가둬|가뒀|가둔|가두|폭력(?:을|를)?\\s*(?:쓰|썼|행사|휘두))|(?:휴대폰|전화기).{0,20}뺏.{0,24}(?:집|방|차).{0,12}(?:가둬|가뒀|가둔)|(?:집|문)\\s*앞.{0,28}기다리.{0,28}(?:계속\\s*)?(?:따라오|따라와|쫓아오)|차로.{0,20}${REPORTER_TARGET_PATTERN.source}\\s*.{0,12}들이받(?:으려|으려고|을\\s*거))`,
   );
+  // 가해자 호칭을 앞에 두지 않는 서술. 각 패턴이 스스로 사람 목적어나 피해를
+  // 요구하므로, 호칭이 없어도 평범한 문장을 끌어오지 않는다.
+  const standaloneInterpersonalDanger =
+    PHYSICAL_ASSAULT_PATTERN.test(text)
+    || CONFINEMENT_PATTERN.test(text)
+    || SEXUAL_COERCION_PATTERN.test(text)
+    // 폭력 동사와 몸에 남은 피해가 함께 있으면 사고가 아니다.
+    || (VIOLENCE_CUE_PATTERN.test(text) && BODILY_INJURY_RESULT_PATTERN.test(text))
+    // 화자를 죽이겠다는 말은 호칭이 없어도 위기다.
+    || /(?:저|나|날|절)(?:를|을)?\s*.{0,12}죽(?:여\s*버리|이)겠다고/.test(text);
   // 화자를 향한 협박이라도 목적어가 이혼·위약금 같은 비신체 사안이면 응급이 아니다.
   const reporterThreatIsPhysical =
     threatAtReporter.test(text) && !nonPhysicalThreatObject.test(text);
@@ -512,7 +854,10 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
       (clause) =>
         CONCRETE_SELF_HARM_ATTEMPT_PATTERN.test(clause)
         && !ATTEMPT_NEGATION_PATTERN.test(clause)
-        && !ATTEMPT_HYPOTHETICAL_PATTERN.test(clause),
+        && !ATTEMPT_HYPOTHETICAL_PATTERN.test(clause)
+        // 가정형은 절이 갈리면 무름이 닿지 않는다(`먹으면` 과 뒤 절이 분리).
+        // 원문에도 물어야 `한꺼번에 다 먹으면 큰일 나겠지` 가 시도로 안 센다.
+        && !ATTEMPT_HYPOTHETICAL_PATTERN.test(text),
     )
     .map((clause) => ({
       actor: inferConcreteAttemptActor(clause),
@@ -857,8 +1202,9 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   }
 
   if (
-    (otherInterpersonalDanger.test(text) || currentReporterTargetDanger.test(text))
+    ((otherInterpersonalDanger.test(text) || standaloneInterpersonalDanger) || currentReporterTargetDanger.test(text))
     && reporterSelfHarm.test(text)
+    && !declaredJokeOnly
   ) {
     return {
       resolution: "immediate_crisis",
@@ -892,6 +1238,7 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
     && !knownOtherReportsReporterSelfHarm.test(text)
     && knownOtherSelfHarm.test(text)
     && reporterSelfHarm.test(text)
+    && !declaredJokeOnly
   ) {
     return {
       resolution: "immediate_crisis",
@@ -988,8 +1335,16 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
     };
   }
 
+  // 주어 없는 신호(수단·흔적·장소)는 **누가** 위험한지를 말하지 않는다.
+  // 앞에 제3자 호칭이 있고 1인칭 표지가 없으면 그 사람 이야기다 —
+  // `친구가 손목을 그었어요` 가 화자의 자해로 판정되면 안 된다.
+  const knownOtherSubjectlessSelfHarm =
+    new RegExp(
+      `${KNOWN_OTHER_PATTERN.source}(?:가|이|는|은|도)?\\s*[^.!?\\n]{0,40}(?:${SELF_HARM_SCAR_PATTERN.source}|${SELF_HARM_MEANS_PATTERN.source}|${SELF_HARM_LOCATION_PRESENCE_PATTERN.source})`,
+    ).test(text)
+    && !EXPLICIT_REPORTER_ACTOR_PATTERN.test(text);
   if (
-    knownOtherSelfHarm.test(text)
+    (knownOtherSelfHarm.test(text) || knownOtherSubjectlessSelfHarm)
     && !knownOtherReportsReporterSelfHarm.test(text)
   ) {
     return {
@@ -1011,7 +1366,7 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   }
 
   if (
-    otherInterpersonalDanger.test(text)
+    (otherInterpersonalDanger.test(text) || standaloneInterpersonalDanger)
     || reporterThreatIsPhysical
     || currentReporterTargetDanger.test(text)
   ) {
@@ -1033,7 +1388,7 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
     };
   }
 
-  if (reporterSelfHarm.test(text)) {
+  if ((reporterSelfHarm.test(text) || vanishingWish) && !declaredJokeOnly) {
     return {
       resolution: "immediate_crisis",
       kind: "self_harm",

@@ -34,7 +34,10 @@ const MISSED_BY_NARROW_NET = [
   "친구 만나는 걸 못 하게 해요",
   "헤어지자고 하면 가만 안 둔다고 했어요",
   "어제 팔을 세게 잡아서 멍이 들었어요",
-  "머리채를 잡혔어요",
+  // 2026-09-03: "머리채를 잡혔어요" 를 뺐다. **좁은 그물이 이제 잡는다** —
+  // 미탐 135건을 메우면서 `머리채(를) 잡` 이 폭력 패턴에 들어갔다.
+  // 이 목록은 "아직 못 잡는 것" 의 장부이므로, 잡히게 된 문장은 여기 있으면
+  // 안 된다. 남은 여덟은 여전히 못 잡는다.
   "싫다고 했는데 계속했어요",
   "집에 들어가는 게 무서워요",
 ];
@@ -306,17 +309,28 @@ describe("넓혀도 동작은 그대로다", () => {
   // 열둘 중 하나는 예외다 — "다 던져버리고 나도 같이 사라지고 싶어" 는 문장 안에
   // 의지형(`사라지고 싶`)을 그대로 담고 있어서 좁은 그물이 원래부터 잡는다. 나머지
   // 열하나가 이 장부를 넓힌 이유다.
-  const ALREADY_CAUGHT_BY_NARROW = "다 던져버리고 나도 같이 사라지고 싶어";
+  // 2026-09-03: 하나이던 것이 둘이 됐다. "이 세상에서 조용히 지워지고 싶어" 를
+  // 좁은 그물이 이제 잡는다 — 미탐 135건을 메우면서 `지워지고 싶` 이 들어갔고,
+  // 창피함 문맥(민망·창피·사진)에서는 무르도록 함께 넣었다.
+  //
+  // 위 주석이 말하는 "별도의 결정" 이 그것이다. 조용히 바뀐 것이 아니라
+  // 같은 코퍼스로 base 와 나란히 재서 오탐이 늘지 않는 것을 확인하고 넣었다.
+  const ALREADY_CAUGHT_BY_NARROW = [
+    "다 던져버리고 나도 같이 사라지고 싶어",
+    "이 세상에서 조용히 지워지고 싶어",
+  ];
 
-  it.each(PASSIVE_IDEATION.filter((t) => t !== ALREADY_CAUGHT_BY_NARROW))(
+  it.each(PASSIVE_IDEATION.filter((t) => !ALREADY_CAUGHT_BY_NARROW.includes(t)))(
     "'%s' 는 좁은 그물이 여전히 못 잡는다 — 넓힌 것은 장부뿐이다",
     (text) => {
       expect(hasAmoraSafetySignal(text, "chat")).toBe(false);
     },
   );
 
-  it("좁은 그물이 원래 잡던 것은 그대로 잡는다", () => {
-    expect(hasAmoraSafetySignal(ALREADY_CAUGHT_BY_NARROW, "chat")).toBe(true);
+  it("좁은 그물이 잡는 것은 그대로 잡는다", () => {
+    for (const text of ALREADY_CAUGHT_BY_NARROW) {
+      expect(hasAmoraSafetySignal(text, "chat"), text).toBe(true);
+    }
   });
 });
 
