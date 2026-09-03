@@ -24,7 +24,10 @@ export type LandingCtaSource =
   // 운영 랜딩(`hanbang.ai/landing` 의 `#scenes`)에는 계속 있었고, 파운더가 운영과
   // 비슷해야 한다고 지적해 장면 카드를 되살렸다. 이 자리를 지우면 스무 장면으로
   // 가는 클릭이 어디서도 세어지지 않는다.
-  | "landing_scenes_cta"
+  // 2026-09-03: 장면 섹션 자체는 시안에서 없어졌지만 **스무 장면으로 가는 버튼은
+  // 남았다** — ④ "편을 들지 않아요" 섹션의 버튼("둘이 갈리는 장면 먼저 해보기")이
+  // 그 자리를 이어받는다. 이름을 그대로 두면 어디서 눌렸는지가 거짓이 되므로 바꾼다.
+  | "landing_noside_scenes"
   | "landing_community_cta"
   | "landing_now_card"
   | "landing_closing_primary"

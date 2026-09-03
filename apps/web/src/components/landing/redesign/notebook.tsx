@@ -112,6 +112,22 @@ export const bodyText =
 export const noteText = "text-[14px] leading-[1.75] text-[var(--color-paper-ink-faint)]";
 
 /**
+ * 섹션 눈썹 — **한 격식.**
+ *
+ * 2026-09-03 시안은 섹션마다 갈려 있던 눈썹을 하나로 모았다. 이전에는 두 격식이었다:
+ * `<Section>` 은 노란 테이프 이름표, 자기 `<section>` 을 여는 섹션은 손글씨 19px.
+ * 시안은 전부 **12px 굵은 산세리프, 흐린 로즈브라운**이다.
+ *
+ * 색은 시안 픽셀 실측(#896765)과 같은 기존 토큰 `--color-rose-600`(#8F6662)이다 —
+ * 새 색을 만들지 않았다. 자간은 0이다: 한글에 라틴 자간을 주면 글자가 흩어진다
+ * (`koreanLabelsHaveNoLatinTracking.test.ts`).
+ *
+ * 테이프 이름표는 히어로 한 장에만 남는다. 페이지에 이름표가 여럿이면 무엇이 제목인지
+ * 흐려진다 — 그래서 시안이 하나로 줄인 것이다.
+ */
+export const eyebrowText = "text-[12px] font-semibold text-[var(--color-rose-600)]";
+
+/**
  * 같은 문체, 잉크 위에 얹는 색. 끝 다크 밴드의 작은 글씨(고지·단서)가 쓴다.
  *
  * 작은 글씨는 이 랜딩에서 **고지가 사는 자리**다. 지면이 하나 늘었다고 그 문체가

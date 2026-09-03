@@ -32,12 +32,14 @@ import { landingContent } from "@/components/landing/redesign/landingContent";
  */
 
 const COMMUNITY_TEXT = [
-  landingContent.community.eyebrow,
+  // 2026-09-03 시안으로 커뮤니티가 흰 카드 한 장이 됐다. 눈썹과 주제 목록
+  // (`eyebrow`·`topicsLead`·`topics`)이 없어지고 제목·본문·고지·링크만 남는다.
+  // **읽는 자리가 줄었지 검사가 느슨해진 것이 아니다** — 남은 것이 화면 카피 전부다.
   landingContent.community.title,
   landingContent.community.body,
-  landingContent.community.topicsLead,
   landingContent.community.note,
   landingContent.community.cta.label,
+  landingContent.community.cohortTag,
 ].join("\n");
 
 /** 사람이 거기 있다고 단정하는 표현. */
@@ -65,7 +67,10 @@ describe("랜딩 커뮤니티 절은 사람 수를 약속하지 않는다", () =
     // 사실인 것까지 지워 버리면 이 절이 아무 정보도 없는 껍데기가 된다.
     expect(COMMUNITY_TEXT).toContain("동기방");
     expect(COMMUNITY_TEXT).toContain("로그인 없이 읽을 수 있어요");
-    expect(landingContent.community.topics.length).toBeGreaterThanOrEqual(3);
+    // 주제 목록(`topics`)이 시안에서 없어졌다. 그 자리를 **분기방 목록**이 대신한다 —
+    // 무엇을 모으는지는 본문 한 줄이 말하고, 화면이 보여 주는 것은 갈 수 있는 방들이다.
+    expect(landingContent.community.cohorts.length, "분기방이 하나도 없다")
+      .toBeGreaterThanOrEqual(3);
   });
 
   /**

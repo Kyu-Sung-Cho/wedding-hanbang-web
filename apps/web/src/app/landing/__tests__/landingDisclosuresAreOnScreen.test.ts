@@ -60,19 +60,21 @@ import {
 
 /** `landingContent` 안의 블록 순서. `contentBlock` 이 블록을 잘라낼 경계로 쓴다. */
 const NEXT_BLOCK: Readonly<Record<string, string | undefined>> = {
-  hero: "amoraNote",
   // ⚠️ 2026-08-29: 여기가 `amoraNote: "community"` 였다. 그 사이에 섹션 넷이
   // 복원되면서 `amoraNote` 조각이 563자 → 2,732자로 **다섯 배 넓어졌고**, 그 안의
   // 검사가 이웃 블록의 문장으로 대신 답해졌다("샘플"은 oneRoom.note 가, "AI는
   // 틀리거나 놓칠 수 있어요"는 noSide.note 가). 블록을 추가하면 이 표도 함께 옮겨라.
-  amoraNote: "scenes",
-  scenes: "noSide",
-  noSide: "oneRoom",
-  oneRoom: "privateLane",
-  privateLane: "community",
-  community: "availableNow",
-  availableNow: "confirm",
-  confirm: "boundaries",
+  //
+  // 2026-09-03 시안으로 블록이 다시 갈렸다(scenes·oneRoom·privateLane 삭제,
+  // blockedReasons·photoBand 신설). 순서는 `landingContent.ts` 의 실제 순서다.
+  hero: "blockedReasons",
+  blockedReasons: "amoraNote",
+  amoraNote: "noSide",
+  noSide: "confirm",
+  confirm: "availableNow",
+  availableNow: "community",
+  community: "photoBand",
+  photoBand: "boundaries",
   boundaries: "closing",
   closing: "footer",
   // 마지막 블록. 경계를 주지 않으면 파일 끝까지 본다.
@@ -130,39 +132,40 @@ const DISCLOSURES: ReadonlyArray<{
     // 나간다(`AmoraNoteSection.tsx` 머리말).
     phrases: ["AI 생성", "샘플", "저장되지 않아요", "AI는 틀리거나 놓칠 수 있어요"],
   },
-  // ⚠️ 아래 넷은 2026-08-29에 **되살린 섹션의 고지**다. 섹션이 없어졌을 때 이 표에서
-  // 함께 빠졌는데, 섹션만 돌아오고 표가 안 돌아오면 그 문장들은 아무 검사도 안 받는다.
-  // 실제로 확인했다 — `scenes.note` 를 "각자 답한 것을 나란히 놓아드려요." 로 바꿔도
-  // 랜딩 테스트 208개가 전부 초록이었다. 다른 검사들은 **키가 그려지는가**만 보고
-  // 문장은 안 본다.
-  {
-    key: "scenes.note",
-    owner: "ScenesSection.tsx",
-    why:
-      "CLAUDE.md 가 금지하는 궁합 점수·성격 판정을 하지 않는다는 고지. "
-      + "공유 링크에 고른 답이 담긴다는 것도 여기서 말한다",
-    phrases: ["궁합 점수를 매기지 않아요", "고른 답을 그대로", "공유 링크"],
-  },
+  // ⚠️ 2026-08-29에 되살린 섹션들의 고지가 여기 넷 있었다. 섹션이 없어졌을 때 이
+  // 표에서 함께 빠졌는데, 섹션만 돌아오고 표가 안 돌아오면 그 문장들은 아무 검사도
+  // 안 받았다. 실제로 확인했다 — `scenes.note` 를 다른 문장으로 바꿔도 랜딩 테스트
+  // 208개가 전부 초록이었다. 다른 검사들은 **키가 그려지는가**만 보고 문장은 안 본다.
+  //
+  // ## 2026-09-03 — 섹션 셋이 없어지고 고지는 **자리를 옮겼다**
+  //
+  // 시안에 `ScenesSection`·`OneRoomSection`·`PrivateLaneSection` 이 없다. 셋을 지우되
+  // 고지는 하나도 버리지 않았다. 어디로 갔는지 아래에 이름으로 적는다 — 이 표가
+  // 비면 그 문장들이 다시 무방비가 된다.
+  //
+  //   scenes.note      → availableNow 카드 03 의 note (ITEM_DISCLOSURES)
+  //   oneRoom.note     → amoraNote.note 가 이미 같은 뜻을 진다(샘플 표식)
+  //   privateLane.note → amoraNote.privacyNote (아래)
   {
     key: "noSide.note",
     owner: "NoSideSection.tsx",
-    why: "아모라를 처음 소개하는 자리의 AI 기본법 고지",
-    phrases: ["AI가 만든 내용이에요", "AI는 틀리거나 놓칠 수 있어요"],
+    why:
+      "아모라가 말하는 카드의 AI 기본법 고지 + 지어낸 커플 대화가 실제 이용 현황처럼 "
+      + "읽히지 않게 하는 샘플 표식(없어진 `oneRoom.note` 의 몫)",
+    phrases: [
+      "AI가 만든 내용이에요",
+      "AI는 틀리거나 놓칠 수 있어요",
+      "기능을 보여주기 위한 샘플",
+      "실제 이용 현황이 아니에요",
+    ],
   },
   {
-    key: "oneRoom.note",
-    owner: "OneRoomSection.tsx",
+    key: "amoraNote.privacyNote",
+    owner: "AmoraNoteSection.tsx",
     why:
-      "지어낸 커플 대화(견적 금액 포함)가 실제 이용 현황처럼 읽히지 않게 하는 "
-      + "샘플 표식. 이 표식이 없으면 staged 대화가 진짜가 된다",
-    phrases: ["기능을 보여주기 위한 샘플", "실제 이용 현황이 아니에요"],
-  },
-  {
-    key: "privateLane.note",
-    owner: "PrivateLaneSection.tsx",
-    why:
-      "대화가 서비스에서 처리·저장될 수 있다는 개인정보 고지. "
-      + "'나만 보는 자리' 를 파는 섹션이라 저장 사실을 같은 자리에서 말해야 한다",
+      "대화가 서비스에서 처리·저장될 수 있다는 개인정보 고지. 없어진 "
+      + "`privateLane.note` 를 **글자 그대로** 이어받았다 — '나만 보는 자리' 를 파는 "
+      + "카드 바로 아래라 저장 사실을 같은 자리에서 말한다",
     phrases: ["처리·저장될 수 있어요", "연결된 배우자 화면에는 표시하지 않아요"],
   },
   {

@@ -1,90 +1,115 @@
 import { landingContent } from "./landingContent";
-import { NoteCard, Section, bodyText, noteText, ruled } from "./notebook";
+import { band, bodyText, eyebrowText, noteText, sectionTitle, shell } from "./notebook";
 
 /**
- * ⑤ 확인한 것만 남는다.
+ * ⑤ 대화로 끝나지 않게 — 정한 것이 **어디로 가는지.**
  *
- * ## 글자 그대로 있어야 하는 두 조각
+ * 2026-09-03 시안: 도구 카드 셋(예산·할 일·일정) + 넓은 확인 카드 한 장.
  *
- * `publicClaims.test.ts` 의 "keeps the AI, sample, and storage disclosures on the
- * screen" 이 문자열로 대조한다. 줄 번호는 금방 썩으니 테스트 이름으로 가리킨다.
+ * ## 확인 카드가 제품 계약을 진다
  *
- *   `landingContent.confirm.body` 안에 → "확인한 것만 준비 기록에 반영"
- *   이 파일이 그리는 문장에    → "확인을 누르기 전까지 예산 화면은 그대로예요."
+ * 아모라가 이해한 것을 **먼저 보여주고**, 사람이 누르기 전에는 아무것도 바뀌지 않는다.
+ * 그래서 카드 안에 세 가지가 함께 있어야 한다: 무엇으로 이해했는지(칩+문장),
+ * 무엇을 고를 수 있는지(버튼 셋), 그리고 **아직 아무 일도 안 일어났다는 사실**.
  *
- * ⚠️ 2026-08-29까지 이 자리에 **지금 어디에도 없는 두 문장**이 적혀 있었고,
- * "글자 그대로 있어야 한다"고 지시하고 있었다:
+ * ## 버튼 셋은 그림이다
  *
- *   "한 번에 한 가지 변경을 제안하고, 확인한 변경만 준비 기록에 반영해요"
- *   "확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요"
+ * 이 화면에서 누를 수 있는 것은 아무것도 없다(계정이 있어야 아모라를 쓴다). 그래서
+ * `aria-hidden` 으로 묶는다 — 안 그러면 스크린리더가 진짜 승인 버튼으로 읽어
+ * "여기서 저장했다"고 오해하게 만든다.
  *
- * 둘 다 옛 카피다. 되살리면 **오히려 테스트가 깨진다** — 앞엣것은 2026-08-28에
- * "확인한 변경만" → "확인한 것만" 으로 다듬어졌고(`publicClaims.test.ts` 가 새 문구를
- * 고정한다), 뒤엣것은 "확인 버튼을 누르기 전까지" 라서 네 검사가 요구하는
- * "확인을 누르기 전까지" 를 포함하지 못한다. 인용한 줄 번호(104-110)도 틀렸다 —
- * 거기는 타입 선언이다. 머리말을 계약서로 읽고 폐기된 문구를 되살리는 사고가
- * 이 저장소에서 이미 났었다.
- *
- * ## 두 사람 승인은 없어졌다
- *
- * 2026-08-23 파운더 결정으로 두 번째 사람의 승인이 사라졌다. 한 사람이 확인하면
- * 바로 반영되고 상대에게 알림이 간다. **"두 분이 각각 확인해야 반영돼요" 는 이제
- * 거짓이다** — 옛 카피에서 옮겨 적지 마라.
- * 없어진 것은 두 번째 승인이지 확인 자체가 아니다.
+ * 샘플 표식(`sampleNote`)은 카드 **안**에 둔다. 바깥으로 빼면 카드만 캡처해 공유했을 때
+ * 그 사실이 떨어져 나간다.
  */
 export default function ConfirmSection() {
   const { confirm } = landingContent;
 
   return (
-    <Section id="confirm" eyebrow={confirm.eyebrow} title={confirm.title} tinted>
-      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center">
-        <div>
-          <p className={bodyText}>{confirm.body}</p>
-          <p className={`mt-5 ${bodyText}`}>{confirm.body2}</p>
-          <p className={`mt-6 ${noteText}`}>{confirm.note}</p>
-        </div>
+    <section id="confirm" className={band} aria-labelledby="confirm-title">
+      <div className={shell}>
+        <p className="mb-5">
+          <span className={eyebrowText}>
+            {confirm.eyebrow}
+          </span>
+        </p>
 
-        <NoteCard tilt={-0.7}>
-          <p className="landing-hand text-[14px] text-[var(--color-paper-ink-faint)]">
-            {confirm.sample.saidLabel}
-          </p>
-          <p className={`mt-1 ${ruled} text-[var(--color-paper-ink)]`}>
-            {confirm.sample.said}
+        <h2 id="confirm-title" className={sectionTitle}>
+          {confirm.title}
+        </h2>
+
+        <p className={`mt-7 max-w-[52ch] ${bodyText}`}>{confirm.lede}</p>
+
+        <ul className="mt-10 grid gap-5 md:grid-cols-3">
+          {confirm.tools.map((tool) => (
+            <li
+              key={tool.title}
+              className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-6"
+            >
+              <p className="text-[18px] font-semibold text-[var(--color-paper-ink)]">
+                {tool.title}
+              </p>
+              <p className={`mt-2 ${noteText}`}>{tool.body}</p>
+            </li>
+          ))}
+        </ul>
+
+        <div className="mt-6 rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-7 shadow-raised sm:px-8">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-semibold text-[var(--color-paper-ink-faint)]">
+            <span className="flex items-center gap-2">
+              <span aria-hidden>☆</span>
+              <span>{confirm.sample.cardTitle}</span>
+            </span>
+            {/* 아직 아무 일도 일어나지 않았다는 표시. 시안에는 없지만 이 카드가
+                이미 저장된 화면으로 읽히면 안 되기 때문에 넣는다. */}
+            <span className="font-medium text-[var(--color-paper-ink-faint)]">
+              {confirm.sample.saidLabel} · {confirm.sample.state}
+            </span>
           </p>
 
-          <div className="mt-6 rounded-[6px] border border-dashed border-[var(--color-paper-edge)] bg-[var(--color-paper-sheet)] px-5 py-5">
-            <p className="landing-hand text-[14px] text-[var(--color-paper-mark)]">
-              {confirm.sample.proposeLabel}
-            </p>
-            <p className={`mt-1 font-medium ${ruled} text-[var(--color-paper-ink)]`}>
-              {confirm.sample.proposeLead}
-              <span className="landing-circle font-medium">{confirm.sample.proposeMark}</span>
-              {confirm.sample.proposeTail}
-            </p>
-            {/* 진짜 버튼이 아니다. 눌리지 않는 그림이라는 걸 보조기기에도 알려야 한다. */}
-            <div className="mt-4 flex gap-2" aria-hidden="true">
-              <span className="inline-flex min-h-9 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-4 text-[14px] font-semibold text-[var(--color-paper-card)]">
-                {confirm.sample.confirm}
-              </span>
-              <span className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--color-paper-edge)] px-4 text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
-                {confirm.sample.later}
-              </span>
-            </div>
+          <ul className="mt-5">
+            {confirm.sample.rows.map((row, index) => (
+              <li
+                key={row.text}
+                className={
+                  index === 0
+                    ? "flex items-center gap-4 py-3"
+                    : "flex items-center gap-4 border-t border-[var(--color-paper-divider)] py-3"
+                }
+              >
+                <span className="inline-flex min-w-[52px] justify-center rounded-full bg-[var(--color-paper-tint)] px-3 py-1 text-[12px] font-semibold text-[var(--color-paper-ink-faint)]">
+                  {row.chip}
+                </span>
+                <span className="text-[16px] leading-[1.6] text-[var(--color-paper-ink)]">
+                  {row.text}
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {/* 진짜 버튼이 아니다. 눌리지 않는 그림이라는 걸 보조기기에도 알려야 한다. */}
+          <div className="mt-5 flex flex-wrap gap-2" aria-hidden="true">
+            <span className="inline-flex min-h-9 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-4 text-[14px] font-semibold text-[var(--color-paper-card)]">
+              {confirm.sample.confirm}
+            </span>
+            <span className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--color-paper-edge)] px-4 text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
+              {confirm.sample.edit}
+            </span>
+            <span className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--color-paper-edge)] px-4 text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
+              {confirm.sample.later}
+            </span>
           </div>
 
-          <p className="mt-5 text-[14px] leading-[1.7] text-[var(--color-paper-ink-faint)]">
-            확인을 누르기 전까지 예산 화면은 그대로예요.
+          <p className="mt-5 text-[16px] font-medium leading-[1.7] text-[var(--color-paper-ink)]">
+            {confirm.sample.contract}
           </p>
-          {/* 이름·금액이 샘플이라는 고지. **카드 안에** 둔다 — 바깥으로 빼면 카드만
-              캡처해 공유했을 때 그 사실이 떨어져 나간다.
+          <p className={`mt-2 ${noteText}`}>확인을 누르기 전까지 예산 화면은 그대로예요.</p>
+          <p className={`mt-2 ${noteText}`}>{confirm.sampleNote}</p>
+        </div>
 
-              2026-08-29 까지 이 줄이 카피(`confirm.sampleNote`)에만 있고 그리는 자리가
-              없었다. 정본 시안에는 카드 아래에 있는 문장이다. 테스트가 잡아 줬다. */}
-          <p className="mt-2 text-[14px] leading-[1.7] text-[var(--color-paper-ink-faint)]">
-            {confirm.sampleNote}
-          </p>
-        </NoteCard>
+        <p className={`mt-8 max-w-[60ch] ${noteText}`}>{confirm.body}</p>
+        <p className={`mt-2 max-w-[60ch] ${noteText}`}>{confirm.body2}</p>
+        <p className={`mt-2 max-w-[60ch] ${noteText}`}>{confirm.note}</p>
       </div>
-    </Section>
+    </section>
   );
 }

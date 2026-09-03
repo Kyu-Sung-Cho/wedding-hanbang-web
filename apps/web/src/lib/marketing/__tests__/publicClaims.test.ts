@@ -275,7 +275,9 @@ describe("public marketing claim boundary", () => {
     );
     // 샘플 제안이 "아직 반영 전"이라고 카드 안에서 말한다. 이 라벨이 없으면 샘플
     // 카드가 이미 일어난 일처럼 읽힌다.
-    expect(landingContent.confirm.sample.proposeLabel, "미반영 라벨이 샘플에서 사라졌다").toContain(
+    // 2026-09-03 시안으로 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌면서
+    // 라벨 이름이 `proposeLabel` → `state` 가 됐다. **지키는 것은 그대로다.**
+    expect(landingContent.confirm.sample.state, "미반영 라벨이 샘플에서 사라졌다").toContain(
       "아직 반영 전",
     );
 
@@ -331,7 +333,8 @@ describe("public marketing claim boundary", () => {
     // 전용 섹션을 다시 찾으면 안 된다 — 고지는 카드의 작은 글씨가 진다.
 
     // WeddingCode는 검증된 궁합 검사가 아니다(CLAUDE.md). 이 한 줄이 그 계약이다.
-    const weddingCode = cardTitled("둘이 어디서 갈리는지");
+    // 2026-09-03 시안으로 카드 제목이 짧아졌다("둘이 어디서 갈리는지 보기" → "둘이 갈리는 장면 보기").
+    const weddingCode = cardTitled("둘이 갈리는 장면");
     expect(weddingCode.note, "점수·궁합 금지 고지가 웨딩코드 카드에 없다").toContain(
       "점수도 궁합도 매기지 않아요",
     );
@@ -344,7 +347,7 @@ describe("public marketing claim boundary", () => {
     );
 
     // 가격은 한국소비자원 참가격이다. 출처와 기준일을 안 적으면 우리가 잰 값처럼 읽힌다.
-    const price = cardTitled("공시 가격과 위약금");
+    const price = cardTitled("공시 가격·위약금");
     expect(price.body, "가격 출처가 공시가 카드에 없다").toContain("한국소비자원");
     expect(price.note, "공시 기준일이 공시가 카드에 없다").toContain("공시 기준");
     expect(price.note, "적정성 판정 안 한다는 고지가 공시가 카드에 없다").toContain(

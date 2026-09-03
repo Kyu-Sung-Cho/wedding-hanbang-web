@@ -400,13 +400,20 @@ describe("landing design system", () => {
     // 실측(2026-08-29): 진짜 잉크 버튼 3개(헤더 시작하기 · 히어로 · 마무리),
     // 진짜 테두리 버튼 3개(히어로 · 커뮤니티 · 마무리), 그림 버튼 2개(확인 섹션).
     // 정규식이 낡아 0개를 세고 통과하는 것을 막는다.
-    expect(real.ink.length, "기본 행동 버튼을 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(3);
+    // 2026-09-03: 셋에서 둘로 줄었다(헤더 · 히어로). 마무리 버튼은 어두운 띠 위라
+    // 색이 뒤집혔다 — 잉크 바탕에 잉크 버튼은 보이지 않는다. 같은 물체이고 **지면이
+    // 다를 뿐**이며, 아래 실루엣 검사가 둘을 같은 모양으로 계속 묶는다.
+    expect(real.ink.length, "기본 행동 버튼을 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(2);
     // 2026-09-03: 셋에서 둘로 줄었다. 마무리의 테두리 버튼이 시안대로 **글자 링크**가
     // 됐다 — 어두운 띠 위에서 버튼 둘을 나란히 두면 무엇을 먼저 눌러야 할지가 흐려진다.
     // 하한은 "정규식이 낡아 0개를 세고 통과하는 것"을 막는 장치이고, 실제 개수를 못
     // 박는 것은 아래 실루엣 단언이다.
     expect(real.outline.length, "보조 버튼을 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(2);
-    expect(drawn.length, "확인 섹션의 그림 버튼 둘을 못 찾았다 — aria-hidden 이 사라졌나").toBe(2);
+    // 2026-09-03: 둘에서 넷으로. 확인 카드의 버튼이 둘("확인"·"나중에")에서
+    // 셋("맞아요"·"수정하기"·"지금은 저장 안 함")이 됐고, 아모라 카드에 고르는 칩
+    // 둘이 새로 생겼다. **전부 눌리지 않는 그림이라 `aria-hidden` 이어야 한다** —
+    // 개수를 못 박아 두면 그림이 하나 늘 때마다 사람이 그 사실을 본다.
+    expect(drawn.length, "그림 버튼 개수가 바뀌었다 — aria-hidden 이 사라졌나").toBe(4);
 
     /** [모서리, 웨이트, 글자색] — 자리마다 달라도 되는 크기는 일부러 안 본다. */
     const silhouette = (c: string) => [
@@ -481,9 +488,10 @@ describe("landing design system", () => {
       const shared = /<Section[\s>]/u.test(src) || importedSymbols(src).has("band");
       if (!shared) withoutBand.push(file);
     }
-    expect(withoutBand, "본문 섹션이 <Section> 도 band 도 없이 자기 리듬을 정했다").toEqual([
-      HERO_TAIL,
-    ]);
+    // 2026-09-03: 예외가 없어졌다. 히어로 꼬리(아모라 노트 카드)가 시안에서 **자기
+    // 섹션**이 되면서 공유 리듬을 받는다. **비어 있는 것이 맞는 상태다** — 여기에
+    // 이름을 더하는 것이 곧 "리듬을 하나 더 만든다"는 결정이다.
+    expect(withoutBand, "본문 섹션이 <Section> 도 band 도 없이 자기 리듬을 정했다").toEqual([]);
 
     // 세로 리듬 인구조사.
     //
@@ -525,9 +533,10 @@ describe("landing design system", () => {
       ],
       // 히어로는 부케 자리 때문에 위아래가 비대칭이다. 값은 고정하되 대칭은 요구하지 않는다.
       "TransformationHero.tsx": ["pb-16", "sm:pt-14"],
-      // 히어로 꼬리(아모라 노트 카드). 위 여백이 아예 없다 — 히어로에 붙기 때문이다.
-      // 아래 여백만 다음 섹션과의 간격을 만든다.
-      "AmoraNoteSection.tsx": ["pb-16", "sm:pb-24"],
+      // 2026-09-03: 아모라 카드가 자기 섹션이 되면서 공유 리듬(`band`)으로 들어왔다 —
+      // 여기서 이름이 빠진 것은 **단계가 하나 줄었다**는 뜻이다.
+      // 사진 자리는 안쪽 점선 상자의 여백이다(섹션 리듬이 아니라 상자 안쪽).
+      "PhotoBandSection.tsx": ["py-12"],
       // 푸터는 섹션이 아니라 페이지를 닫는 띠다.
       "LandingFooter.tsx": ["py-14"],
     });
@@ -543,11 +552,18 @@ describe("landing design system", () => {
       .map(([name]) => name)
       .sort();
     expect(rawSections, "새 섹션이 <Section>을 지나지 않고 자기 <section>을 열었다").toEqual([
+      // 2026-09-03: 일곱에서 열하나로. 시안이 섹션마다 2단 배치·전면 띠·흰 카드처럼
+      // `<Section>` 한 모양으로는 못 그리는 구조를 요구한다. **리듬은 그대로다** —
+      // 넷 다 `band` 를 얹고, 위 `withoutBand` 가 그것을 매번 확인한다.
       "AmoraNoteSection.tsx",
       "AvailableNowSection.tsx",
+      "BlockedReasonsSection.tsx",
       "BoundariesSection.tsx",
       "ClosingAction.tsx",
       "CommunitySection.tsx",
+      "ConfirmSection.tsx",
+      "NoSideSection.tsx",
+      "PhotoBandSection.tsx",
       "TransformationHero.tsx",
       "notebook.tsx",
     ]);
@@ -624,16 +640,11 @@ describe("landing design system", () => {
         [...handOff.entries()].map(([px, f]) => [px, [...new Set(f)].sort()]),
       ),
       "손글씨 크기가 늘었다 — Gaegu 는 광학 보정을 받지만 값은 이 목록이 정본이다",
-    ).toEqual({
-      // 아모라 카드에 파란 펜으로 적은 질문. 카드에서 가장 먼저 읽히는 한 줄이다.
-      // 카드에서 가장 먼저 읽히는 손글씨 한 줄. 아모라 카드의 질문과 장면 카드의
-      // 상황이 같은 역할이라 같은 크기를 쓴다(2026-08-29 장면 카드 복원).
-      "22px": ["AmoraNoteSection.tsx", "ScenesSection.tsx"],
-      // 자기 <section> 을 여는 섹션 셋의 eyebrow. 아래 eyebrow 단언이 같은 셋을 본다.
-      // 2026-09-03: 경계 섹션이 빠졌다. 시안의 다크 밴드는 제목부터 시작하고 eyebrow 가
-      // 없다 — 어두운 띠가 이미 "여기부터 다른 이야기"를 말한다.
-      "19px": ["AvailableNowSection.tsx", "CommunitySection.tsx"],
-    });
+    // 2026-09-03: **비었다.** 시안이 섹션 눈썹을 전부 한 격식(12px 산세리프 로즈)으로
+    // 모으면서, 손글씨가 크기를 정하는 자리가 컴포넌트에서 사라졌다. 남은 손글씨는
+    // globals.css 가 크기를 쥔 것들뿐이다(`.landing-tape` 16px · `.landing-hand` 상속).
+    // 값이 다시 생기면 그건 "컴포넌트가 손글씨 크기를 스스로 정하기 시작했다"는 뜻이다.
+    ).toEqual({});
   });
 
   it("actually uses the weight axis instead of leaning on size alone", () => {
@@ -666,7 +677,10 @@ describe("landing design system", () => {
     expect(
       count("landing-hand"),
       "손글씨(700)가 사라지면 굵은 채널이 푸터 라벨 하나로 줄어든다",
-    ).toBeGreaterThanOrEqual(8);
+    // 2026-09-03: 여덟에서 여섯으로 줄었다. 섹션 눈썹 넷이 손글씨를 놓고 12px 산세리프
+    // 한 격식으로 모였기 때문이다(시안). 굵은 채널은 사라지지 않았다 — `eyebrowText` 의
+    // `font-semibold` 가 그 자리를 이어받고, 바로 아래 두 단언이 그것을 센다.
+    ).toBeGreaterThanOrEqual(5);
     expect(count("font-medium")).toBeGreaterThanOrEqual(3);
     expect(count("font-semibold")).toBeGreaterThanOrEqual(3);
   });
@@ -702,37 +716,36 @@ describe("landing design system", () => {
       "notebook.tsx",
     ]);
 
-    // 자기 <section> 을 여는 섹션의 eyebrow 는 손글씨 한 줄이다. 여기가 갈리면
-    // 옛 랜딩처럼 eyebrow 여덟 개가 여덟 격식이 된다. 색만 빼고 하나여야 한다.
-    const freehand = surfaces.flatMap(([file, src]) =>
-      styleLiterals(src)
-        .filter((c: string) => hasUtility(c, "landing-hand") && /text-\[19px\]/u.test(c))
-        .map((c: string) => [file, c] as const),
-    );
-    // 2026-09-03: 셋에서 둘로 줄었다(경계 섹션의 eyebrow 가 시안대로 없어졌다).
-    // 하한은 표기가 낡아 0개를 세는 것을 막는 장치이고, **실제 자리**는 바로 아래
-    // 색 지도가 파일 이름으로 못 박는다.
-    expect(freehand.length, "손글씨 eyebrow 를 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(2);
-    const freehandShapes = new Set(
-      freehand.map(([, c]) => c.replace(/text-\[var\(--color-paper-[a-z-]+\)\]/gu, "").trim()),
-    );
-    expect([...freehandShapes], "손글씨 eyebrow 가 두 격식으로 갈렸다").toHaveLength(1);
+    // ## 2026-09-03 — 눈썹이 **한 격식**이 됐다
+    //
+    // 옛 구조는 둘이었다: `<Section>` 은 노란 테이프 이름표, 자기 `<section>` 을 여는
+    // 섹션은 손글씨 19px. 시안이 전부 **12px 굵은 산세리프, 흐린 로즈브라운**으로
+    // 모았고, 공용 상수 `eyebrowText` 하나가 그것을 쥔다.
+    //
+    // 그래서 검사도 바뀐다 — "손글씨 실루엣이 하나인가" 에서 **"눈썹을 그리는 자리가
+    // 전부 그 상수를 쓰는가"** 로. 값을 손으로 다시 적는 순간 여기가 운다.
+    expect(notebook, "공용 눈썹 상수가 없다").toContain("export const eyebrowText");
+    const eyebrowRecipe = /"text-\[12px\] font-semibold text-\[var\(--color-rose-600\)\]"/u;
+    expect(notebook, "눈썹 레시피가 바뀌었다 — 값을 옮기면 이 검사도 옮겨라")
+      .toMatch(eyebrowRecipe);
 
-    // 색은 뜻을 진다 — 빨간 펜은 "이건 안 해요" 한 섹션뿐이다. 장식이 아니라 표시다.
-    const eyebrowInk = new Map<string, string[]>();
-    for (const [file, c] of freehand) {
-      const ink = /text-\[var\(--color-paper-([a-z-]+)\)\]/u.exec(c)?.[1] ?? "(색 없음)";
-      eyebrowInk.set(ink, [...(eyebrowInk.get(ink) ?? []), file].sort());
+    // 눈썹 카피(`*.eyebrow`)를 그리는 파일은 전부 그 상수를 쓴다.
+    const eyebrowOwners = surfaces
+      .filter(([, src]) => /\.eyebrow\}/u.test(src))
+      .map(([name, src]) => [name, src] as const);
+    expect(eyebrowOwners.length, "눈썹을 그리는 파일을 하나도 못 찾았다 — 표기가 바뀌었다")
+      .toBeGreaterThanOrEqual(4);
+    const handRolled = eyebrowOwners
+      .filter(([, src]) => !src.includes("eyebrowText"))
+      .map(([name]) => name);
+    expect(handRolled, "눈썹을 공용 상수 없이 손으로 그린 파일").toEqual([]);
+
+    // 값을 상수 밖에서 다시 적는 것도 막는다 — 상수를 import 해 놓고 옆에 같은 값을
+    // 인라인으로 적으면 위 검사는 통과하지만 격식이 둘로 갈린다.
+    for (const [name, src] of surfaces) {
+      if (name === "notebook.tsx") continue;
+      expect(src, `${name} 이 눈썹 값을 손으로 다시 적었다`).not.toMatch(eyebrowRecipe);
     }
-    expect(
-      Object.fromEntries(eyebrowInk),
-      "eyebrow 색이 뜻 없이 갈렸다 — 빨간 펜(mark)은 경계 섹션 하나가 쓴다",
-    // 2026-09-03: 빨간 펜을 쓰던 경계 섹션의 eyebrow 가 없어졌다. 색이 필요 없어진
-    // 것이 아니라 **자리가 없어졌다** — 다크 밴드는 제목부터 시작한다. 그리고 어두운
-    // 바탕에서 `mark`(#B8452F)는 2.9:1 이라 19px 글자에 쓸 수도 없다.
-    ).toEqual({
-      pen: ["AvailableNowSection.tsx", "CommunitySection.tsx"],
-    });
 
     // 2026-08-28: 옛 판은 `source.includes("bodyText")` 였다. 그래서 **import 만
     // 지우고 사용을 남겨도** 통과했고(컴파일은 깨지는데 테스트는 초록),
@@ -764,7 +777,14 @@ describe("landing design system", () => {
       //   히어로 꼬리(아모라 노트)  히어로에 붙은 카드라 자기 이름표가 없다.
       //   경계(다크 밴드 위쪽)      2026-09-03 시안에 eyebrow 가 없다. 어두운 띠가
       //                            이미 "여기부터 다른 이야기"를 말한다.
-      const NO_EYEBROW = new Set([HERO_TAIL, "BoundariesSection.tsx"]);
+      // 2026-09-03: 히어로 꼬리가 자기 눈썹을 갖게 됐다(시안의 "막막한 그대로 말해도
+      // 돼요"). 눈썹이 없는 자리는 둘 — 어두운 띠의 경계 섹션과, 카드가 스스로 경계를
+      // 만드는 커뮤니티 섹션이다.
+      const NO_EYEBROW = new Set([
+        "BoundariesSection.tsx",
+        "CommunitySection.tsx",
+        "PhotoBandSection.tsx",
+      ]);
       if (!NO_EYEBROW.has(file)) {
         expect(body.includes(".eyebrow"), `${file}이 카피의 eyebrow를 그리지 않는다`).toBe(true);
       } else {
@@ -942,7 +962,13 @@ describe("landing design system", () => {
     // 실루엣이 **하나**인 것이 맞는 상태다. 갈래를 늘리려면 왜 같은 역할이 다른 물체인지
     // 여기에 적어라.
     ).toEqual({
-      "font-medium min-h-11": ["BoundariesSection.tsx", "ClosingAction.tsx"],
+      // 2026-09-03: 커뮤니티 카드의 "커뮤니티 둘러보기" 가 이 레시피로 들어왔다.
+      // 실루엣이 **하나**인 것은 그대로다 — 지면(종이/잉크)만 다르고 물체는 같다.
+      "font-medium min-h-11": [
+        "BoundariesSection.tsx",
+        "ClosingAction.tsx",
+        "CommunitySection.tsx",
+      ],
     });
   });
 
@@ -1165,7 +1191,7 @@ describe("landing design system", () => {
     }
 
     // 공시 가격 카드가 진 고지 — 출처와 기준일, 그리고 "판정하지 않는다".
-    const priceCard = contentBlock("availableNow", "confirm");
+    const priceCard = contentBlock("availableNow", "community");
     for (const phrase of [
       "한국소비자원", // 출처
       "2025년 11월 공시 기준", // 기준일

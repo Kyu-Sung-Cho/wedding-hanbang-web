@@ -1,77 +1,101 @@
 import { landingContent } from "./landingContent";
-import { noteText, shell } from "./notebook";
+import { band, bodyText, eyebrowText, noteText, sectionTitle, shell } from "./notebook";
 
 /**
- * 아모라가 무엇을 하는지 **한 장면으로** 보여 준다.
+ * ③ 막막한 그대로 말해도 돼요 — 아모라가 **처음 말하는 자리**.
  *
- * 정본 시안 `docs/landing/NotebookBest.html` 의 첫 섹션 아래쪽 카드다.
- * 설명하는 문장 대신 실제 대화 한 토막을 노트에 적어 둔 모양으로 보여 준다 —
- * "아모라는 대화를 정리하는 AI" 라는 말보다 이 카드 하나가 빠르다.
+ * 2026-09-03 시안: 왼쪽에 카피와 자리(레인) 카드 둘, 오른쪽에 대화 카드 한 장.
+ * 없어진 두 섹션의 몫이 여기로 들어왔다 — `PrivateLaneSection`(함께 보는 자리 /
+ * 나만 보는 자리)과 `OneRoomSection`(앞 대화를 기억한다는 캡션).
  *
- * ## 왜 히어로 바로 아래인가
+ * ## 고지가 카드 **안**에 있어야 하는 이유
  *
- * 시안에서 이 카드는 히어로와 **같은 섹션 안**에 있다. 첫 화면을 스크롤하면
- * 바로 이어지는 자리다. 제품을 설명하기 전에 먼저 보여 준다.
+ * `amoraNote.note` 는 AI 기본법 고지 + 샘플 표시 + 저장 안 함을 함께 진다. 이 카드는
+ * 캡처돼 돌아다니기 쉬운 모양이고, 라벨을 카드 바깥 작은 글씨로 빼면 그 순간
+ * **연출된 대화가 진짜 대화로 읽힌다.** 그래서 대화 카드 마지막 자식으로 둔다.
  *
- * ## 샘플이라고 카드 안에서 밝힌다
- *
- * 지금 이 화면에서 아모라에게 실제로 물어볼 수는 없다 — 비로그인 체험이
- * 2026-08-27에 닫혔다(`lib/demoTrial.ts`). 그래서 날짜와 답변이 기능을 보여주기
- * 위한 샘플이라는 것을 **카드 안에서** 말한다. 바깥 작은 글씨로 빼면 카드만 캡처됐을 때
- * 그 사실이 떨어져 나간다.
+ * `privacyNote`(대화 저장·배우자 비노출)는 없어진 `privateLane.note` 가 지던 고지다.
+ * 자리 카드 바로 아래에 둔다 — 그 고지가 설명하는 것이 두 자리의 차이이기 때문이다.
  */
 export default function AmoraNoteSection() {
   const { amoraNote } = landingContent;
 
   return (
-    <section className="pb-16 sm:pb-24" aria-labelledby="amora-note-title">
-      <div className={shell}>
-        {/* 제목은 화면에 안 나간다 — 이 카드는 히어로의 이어지는 장면이고,
-            섹션 랜드마크에는 이름이 있어야 한다. */}
-        <h2 id="amora-note-title" className="sr-only">
-          아모라가 답하는 모습
-        </h2>
-
-        <div className="landing-note px-6 py-8 sm:px-10 sm:py-10">
-          {/* ⚠️ 여기 `landing-pen`(파란 펜 밑줄)이 있었다. 이 랜딩에서 밑줄은
-              **"누를 수 있다"** 는 뜻인데(globals.css 의 `border-bottom`), 이 줄은
-              링크가 아니다. 정본 시안의 같은 문장(NotebookBest.html:1348)도
-              `<p class="hand" style="…color:#35638A">` 로 **밑줄이 없다** — 파란
-              손글씨는 색과 서체가 이미 지고 있다. `inline-block` 은 밑줄 폭을
-              글자에 맞추려던 것이라 함께 뺐다(시안도 블록 `<p>` 다). */}
-          <p className="landing-hand mb-6 text-[22px] text-[var(--color-paper-pen)]">
-            {amoraNote.ask}
+    <section id="amora" className={band} aria-labelledby="amora-title">
+      <div className={`${shell} grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] lg:gap-14`}>
+        <div>
+          <p className="mb-5">
+            <span className={eyebrowText}>
+              {amoraNote.eyebrow}
+            </span>
           </p>
 
-          <p className="text-[16px] leading-8 text-[var(--color-paper-ink-soft)]">
-            {amoraNote.answerLead}{" "}
-            <span className="landing-circle font-medium">{amoraNote.answerMark}</span>
-            {amoraNote.answerTail}
-          </p>
+          <h2 id="amora-title" className={sectionTitle}>
+            {amoraNote.title.split("\n").map((line) => (
+              <span key={line} className="block">
+                {line}
+              </span>
+            ))}
+          </h2>
 
-          <p className="mt-6 text-[16px] leading-8 text-[var(--color-paper-ink-soft)]">
-            {amoraNote.checklistLead}
-          </p>
+          <p className={`mt-7 max-w-[46ch] ${bodyText}`}>{amoraNote.body}</p>
 
-          <ul className="mt-2">
-            {amoraNote.checklist.map((item) => (
+          <ul className="mt-9 grid gap-4 sm:grid-cols-2">
+            {amoraNote.lanes.map((lane) => (
               <li
-                key={item}
-                className="flex items-start gap-3 text-[16px] leading-8 text-[var(--color-paper-ink-soft)]"
+                key={lane.name}
+                // 시안은 "나만 보는" 쪽만 점선으로 그린다 — 선의 모양이 곧
+                // "이건 닫혀 있다"는 뜻이다. 색이 아니라 형태로 말한다.
+                className={`rounded-[12px] px-5 py-5 ${
+                  lane.shared
+                    ? "border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)]"
+                    : "border border-dashed border-[var(--color-paper-outline)]"
+                }`}
               >
-                {/* 빨간 펜 체크. 장식이라 보조기기에서 숨긴다. */}
-                <span
-                  aria-hidden
-                  className="mt-[6px] shrink-0 text-[14px] text-[var(--color-paper-mark)]"
-                >
-                  ✓
-                </span>
-                <span>{item}</span>
+                <p className="text-[16px] font-semibold text-[var(--color-paper-ink)]">
+                  {lane.name}
+                </p>
+                <p className={`mt-2 ${noteText}`}>{lane.detail}</p>
               </li>
             ))}
           </ul>
 
-          <p className={`mt-8 ${noteText}`}>{amoraNote.note}</p>
+          <p className={`mt-5 ${noteText}`}>{amoraNote.laneNote}</p>
+          <p className={`mt-2 ${noteText}`}>{amoraNote.privacyNote}</p>
+        </div>
+
+        <div className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-7 shadow-raised sm:px-7">
+          <p className="text-[12px] font-medium text-[var(--color-paper-ink-faint)]">
+            {amoraNote.chat.meLabel}
+          </p>
+          <p className="mt-2 rounded-[12px] bg-[var(--color-paper-tint)] px-5 py-4 text-[16px] leading-[1.7] text-[var(--color-paper-ink)]">
+            {amoraNote.chat.me}
+          </p>
+
+          <p className="mt-5 flex items-center gap-2 text-[12px] font-medium text-[var(--color-paper-ink-faint)]">
+            <span aria-hidden>☆</span>
+            <span>{amoraNote.chat.amoraLabel}</span>
+          </p>
+          <p className="mt-2 rounded-[12px] bg-[var(--color-paper-rule)] px-5 py-4 text-[16px] leading-[1.7] text-[var(--color-paper-ink)]">
+            {amoraNote.chat.amora}
+          </p>
+
+          {/* 칩은 **그림이다.** 누를 수 있는 것처럼 보이지만 이 화면에서는 아무 일도
+              일어나지 않는다(비로그인 아모라 체험이 닫혀 있다). 보조기기가 진짜
+              버튼으로 읽지 않도록 aria-hidden 으로 묶는다. */}
+          <div aria-hidden className="mt-5 flex flex-wrap gap-3">
+            {amoraNote.chat.chips.map((chip) => (
+              <span
+                key={chip}
+                className="inline-flex items-center rounded-[6px] border border-[var(--color-paper-outline)] px-4 py-2 text-[14px] font-semibold text-[var(--color-paper-ink)]"
+              >
+                {chip}
+              </span>
+            ))}
+          </div>
+
+          <p className={`mt-5 ${noteText}`}>{amoraNote.chat.caption}</p>
+          <p className={`mt-4 ${noteText}`}>{amoraNote.note}</p>
         </div>
       </div>
     </section>

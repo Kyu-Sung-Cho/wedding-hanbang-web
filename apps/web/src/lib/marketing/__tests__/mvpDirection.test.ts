@@ -124,10 +124,10 @@ describe("web MVP product direction", () => {
     expect(heroBlock, "첫 화면이 아모라를 AI라고 말하지 않는다")
       .toContain("대화를 정리하는 AI");
     // 그리고 아모라가 **처음 말하는 자리**에서 AI라는 것을 밝힌다(뒤쪽 몫).
-    expect(contentBlock("amoraNote", "scenes"), "AI 고지가 아모라 소개 자리에 없다")
+    expect(contentBlock("amoraNote", "noSide"), "AI 고지가 아모라 소개 자리에 없다")
       .toContain("아모라 답변은 AI가 만든 내용이에요");
     // 도구 세 이름은 "확인한 것만 남는다"를 말하는 자리에서 불린다.
-    expect(contentBlock("confirm", "boundaries")).toContain("예산·할 일·일정");
+    expect(contentBlock("confirm", "availableNow")).toContain("예산·할 일·일정");
 
     // 히어로가 카피를 자기 안에 하드코딩하지 않고 정본에서 읽는다.
     expect(hero).toContain("const { hero } = landingContent;");
@@ -203,9 +203,16 @@ describe("web MVP product direction", () => {
     // 규칙 자체는 그대로다: ③이 "두 사람 대화가 한 덩어리"라고 말한 직후에 사람들은
     // "그럼 내가 쓴 게 다 가나"를 걱정하고, ④(나만 보는 자리)가 그 걱정을 받지 않으면
     // ③이 불안으로 끝난다.
-    expect(at("OneRoomSection"), "한 방 섹션이 렌더되지 않는다").toBeGreaterThanOrEqual(0);
-    expect(at("PrivateLaneSection"), "나만 보는 자리가 한 방 설명 바로 뒤가 아니다")
-      .toBe(at("OneRoomSection") + 1);
+    //
+    // 2026-09-03: 두 섹션이 시안에서 없어졌다. **규칙의 대상이 옮겨 갔지 규칙이 사라진
+    // 것이 아니다** — 둘의 내용이 ③ 아모라 섹션 한 곳으로 합쳐졌다("함께 보는 대화" /
+    // "나만 보는 상담" 두 카드 + 저장 고지). 걱정과 대답이 **같은 화면 안**에 있어
+    // 사이에 아무것도 끼울 수 없는 상태가 된 것이다.
+    const amoraSection = rendered("src/components/landing/redesign/AmoraNoteSection.tsx");
+    expect(amoraSection, "함께 보는 자리와 나만 보는 자리가 같은 화면에 없다")
+      .toContain("amoraNote.lanes.map");
+    expect(contentBlock("amoraNote", "noSide"), "나만 보는 자리의 저장 고지가 사라졌다")
+      .toContain("연결된 배우자 화면에는 표시하지 않아요");
 
     expect(community).toContain('data-community-home-order="search-first"');
     expect(searchHubRender).toBeGreaterThanOrEqual(0);
@@ -249,10 +256,14 @@ describe("web MVP product direction", () => {
     const sectionIds = landingSectionIds();
     // 2026-08-29 개편으로 항목이 셋으로 줄고 이름도 바뀌었다(#scenes·#noside·
     // #confirm·#now -> #community·#now·#trust). 성격은 그대로 — 본문 이야기 앵커다.
+    // 2026-09-03 시안으로 넷이 됐다(아모라·둘의 준비·무료 도구·커뮤니티).
+    // "하지 않는 것"(#trust)은 내비에서 빠졌다 — 다크 밴드가 페이지 끝에서 스스로
+    // 보이므로 내비까지 자리를 쓰지 않는다.
     for (const [label, href] of [
+      ["아모라", "#amora"],
+      ["둘의 준비", "#confirm"],
+      ["무료 도구", "#now"],
       ["커뮤니티", "#community"],
-      ["지금 되는 것", "#now"],
-      ["하지 않는 것", "#trust"],
     ]) {
       expect(landingNav).toContain(`label: "${label}", href: "${href}"`);
       // 개편 전에는 본문에 없는 앵커를 가리키는 항목이 실제로 있었다(눌러도 아무

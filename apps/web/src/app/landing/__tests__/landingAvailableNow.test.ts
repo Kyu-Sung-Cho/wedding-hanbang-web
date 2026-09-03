@@ -58,7 +58,7 @@ const tracker = rendered("src/components/landing/redesign/TrackedLandingLink.tsx
  * 무의미해졌다(그때는 반대로 파일 끝까지 넓어져 푸터의 `mailto:` 가 이 섹션의
  * 링크로 세어졌다).
  */
-const availableNowBlock = contentBlock("availableNow", "confirm");
+const availableNowBlock = contentBlock("availableNow", "community");
 
 /** 카드 배열의 시작·끝. 카드와 그 바깥(이끄는 문장·꼬리 문장)을 갈라 본다. */
 const CARDS_OPEN = "cards: [";
