@@ -2,8 +2,9 @@ import {
   getAmoraPendingActionTtlMs,
   parseBudgetImpactPreview,
   type BudgetImpactPreview,
+  // 2026-09-03: utils 하위 경로 대신 루트에서 — 모바일 테스트 하네스가 "@hanbang/shared" 만 이어 준다
+  todayYmdInKst,
 } from "@hanbang/shared";
-import { todayYmdInKst } from "@hanbang/shared/utils";
 
 export {
   COUPLE_APPROVAL_PENDING_ACTION_TTL_MS,
