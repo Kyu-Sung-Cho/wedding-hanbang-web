@@ -234,11 +234,19 @@ if (touched.web) {
   // **전체를 돈다.** 바뀐 파일 근처만 고르면 오늘 같은 일이 또 난다.
   results.testWeb = run("test-web", "npx", ["vitest", "run"], join(ROOT, "apps", "web"));
 }
+// **각 패키지의 자기 `test` 스크립트를 부른다.**
+//
+// 여기는 `npx vitest run` 이 박혀 있었는데 `apps/mobile` 과 `packages/shared` 는
+// 둘 다 vitest 를 쓰지 않는다(`node --test`). 그래서 그 두 폴더를 건드리는 변경은
+// **코드와 무관하게 항상 실패**했고, 관문이 통과할 수 없으니 아무도 통과시키지
+// 못했다. 2026-09-03 감사에서 확인하고, 안전 파일 수정이 여기 막혀서 고친다.
+//
+// 러너 이름을 여기 다시 적지 않는다 — 적는 순간 같은 어긋남이 다시 생긴다.
 if (touched.mobile) {
-  results.testMobile = run("test-mobile", "npx", ["vitest", "run"], join(ROOT, "apps", "mobile"));
+  results.testMobile = run("test-mobile", "npx", ["pnpm", "--filter", "./apps/mobile", "test"], ROOT);
 }
 if (touched.shared) {
-  results.testShared = run("test-shared", "npx", ["vitest", "run"], join(ROOT, "packages", "shared"));
+  results.testShared = run("test-shared", "npx", ["pnpm", "--filter", "./packages/shared", "test"], ROOT);
 }
 results.testRepo = run("test-repo", "npx", ["pnpm", "test:repo"], ROOT);
 

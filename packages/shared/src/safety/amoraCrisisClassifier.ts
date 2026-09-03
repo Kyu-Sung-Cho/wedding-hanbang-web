@@ -143,6 +143,62 @@ const BENIGN_CAKE_KNIFE_PATTERN =
   /(?:(?:케이크|케익).{0,28}(?:칼|나이프)|(?:칼|나이프).{0,28}(?:케이크|케익)).{0,40}(?:사진|커팅|자르|촬영)/;
 const BENIGN_IDIOM_PATTERN =
   /(?:드레스\s*투어|결혼\s*준비|예식\s*준비|친구가\s*웃겨|웃겨서|너무\s*(?:힘들|피곤|바빠)).{0,40}(?:죽을\s*것\s*같|죽겠)/;
+/**
+ * `<원인 서술어> 죽겠` 은 관용구다.
+ *
+ * `BENIGN_IDIOM_PATTERN` 은 **문장 어딘가에** 여섯 구절이 있는지 물어서, 그 구절이
+ * 없는 관용구를 못 거른다. 실제로 `나 다리 아파 죽겠어`·`엄마가 무릎 아파 죽겠대`
+ * 가 자해 위기로 확정됐다. 여기서는 **`죽겠` 바로 앞에 무엇이 오는가** 를 본다 —
+ * 관용구는 원인 서술어가 붙고(`아파 죽겠`), 자해 진술은 안 붙는다(`나 죽겠어`).
+ *
+ * ## 목록이 좁은 것은 의도다
+ *
+ * 이 목록이 좁으면 오탐이 남는다(지금과 같다). 넓으면 **진짜 자해 진술을 놓친다.**
+ * 두 대가가 같지 않으므로 좁은 쪽으로 틀렸다. `무서워` 를 넣지 않은 것도 같은
+ * 이유다 — 무섭다는 말은 관용구이기도 하고 진짜 공포이기도 하다.
+ *
+ * ## 이것만으로는 부족해서 관문이 하나 더 있다
+ *
+ * `본식 준비가 힘들어 죽겠고 진짜로 죽어버리고 싶어요` 는 관용구 모양(`힘들어
+ * 죽겠`)이면서 진짜 자해 진술이다. 그래서 같은 문장에
+ * `SELF_HARM_ELSEWHERE_PATTERN` 이 있으면 이 무름을 **적용하지 않는다.**
+ * 관용구 판정은 그 문장에 다른 자해 신호가 없을 때만 쓴다.
+ */
+const IDIOMATIC_INTENSIFIER_BEFORE_DEATH_PATTERN =
+  /(?:아파|아프|배고파|배고프|더워|추워|피곤해|졸려|바빠|귀찮아|답답해|막막해|민망해|궁금해|복잡해|애매해|짜증나|정신없어|미안해|부러워|설레|웃겨|떨려|빠져|힘들어|힘드)\s*죽겠/;
+/**
+ * 같은 문장 안의 **다른** 자해 신호. 위 관용구 무름을 되무르는 자리다.
+ *
+ * `죽겠` 갈래를 무르더라도 이 신호가 있으면 그 문장은 여전히 자해 진술이다.
+ * 목록은 관용 용법이 없는 표현만 담는다 — `죽고 싶`, `죽어 버리`, `유서`,
+ * `손목을 긋` 은 강조로 쓰이지 않는다.
+ */
+const SELF_HARM_ELSEWHERE_PATTERN =
+  /(?:죽\s*고\s*싶|죽어\s*버리|죽을\s*(?:래|거|생각|결심|방법)|죽어야\s*(?:겠|끝|하)|자살|자해|목숨을?\s*끊|유서|손목(?:을|를)?\s*(?:긋|그어|그었|그은)|목(?:을|를)?\s*(?:매|맬|맸)|번개탄|연탄|옥상|난간|뛰어내리|한강\s*다리|그만\s*살고\s*싶|사라지고\s*싶)/;
+/**
+ * 경험 자체를 부정하는 형태. `죽고 싶다는 생각은 해본 적 없어` 는 고백이 아니다.
+ *
+ * 기존 `negatedReporterSelfHarm` 은 1인칭 주어를 요구하는데, 이 형태는 주어를
+ * 생략한다(`결혼 준비가 힘들긴 해도 죽고 싶다는 생각은 해본 적 없어`).
+ */
+const DENIED_IDEATION_EXPERIENCE_PATTERN =
+  /(?:죽\s*고\s*싶|자살|자해|그만\s*살고\s*싶|사라지고\s*싶|나쁜\s*생각|극단적(?:인)?\s*(?:생각|마음|선택))[^.!?\n]{0,24}(?:해\s*본\s*적(?:이)?\s*없|한\s*적(?:이)?\s*없|전혀\s*(?:안|없)|조금도\s*없|은\s*아니)/;
+/** 위 부정을 잴 때 "자해 진술이 있는 절" 로 셀 표현. */
+const IDEATION_CUE_PATTERN =
+  /(?:죽\s*고\s*싶|자살|자해|그만\s*살고\s*싶|사라지고\s*싶|나쁜\s*생각|극단적(?:인)?\s*(?:생각|마음|선택))/;
+/**
+ * 약이 **떨어졌다**는 뜻의 `다 먹었다`.
+ *
+ * 과다복용 패턴이 `약 + (다|전부|모두) + 먹` 을 받는데, 한국어에서 그 형태는
+ * "남은 것을 다 먹었다(= 떨어졌다)" 로도 쓰인다. 실측에서 `진통제 다 먹었는데도
+ * 드레스 투어는 다녀왔어` 가 자살 시도로 확정됐다.
+ *
+ * 양보 어미(`는데도`·`지만`)나 증상이 계속된다는 서술이 뒤따르면 소진이다 —
+ * 과다복용을 말하는 사람은 그렇게 잇지 않는다. **수량이 있는 형태**
+ * (`한 통`, `스무 알`)는 여기 걸리지 않으므로 그대로 시도로 남는다.
+ */
+const MEDICINE_EXHAUSTED_PATTERN =
+  /(?:약|알약|진통제|감기약|영양제|비타민|타이레놀)(?:을|를)?\s*(?:다|전부|모두)\s*먹었(?:는데도|지만|는데\s*[^.!?\n]{0,20}(?:안|아직|계속|그대로|여전히))/;
 const FICTION_NEWS_CONTEXT_PATTERN =
   /(?:(?:영화|소설|드라마|게임|뉴스|기사).{0,100}(?:장면|대사|사건|보도|읽었|분석|검토|주인공|등장인물)|(?:영화|소설|드라마)(?:에서|속에서).{0,80}(?:죽\s*고\s*싶|죽이겠|자살|자해|폭행|협박|위협))/;
 const META_CONTEXT_PATTERN =
@@ -222,6 +278,32 @@ function lastPatternIndex(pattern: RegExp, value: string): number {
     lastIndex = match.index;
   }
   return lastIndex;
+}
+
+/**
+ * 자해 진술이 **모두** 부정된 문장인가.
+ *
+ * 문장 전체에 부정이 하나라도 있으면 무르는 방식은 위험하다 — `죽고 싶다는 생각은
+ * 해본 적 없어. 근데 어제 자해했어` 가 통째로 지워진다. 그래서 **자해 표현이 든
+ * 절을 모두 세고, 그 절이 전부 부정형일 때만** 무른다.
+ */
+function everyIdeationClauseIsDenied(text: string): boolean {
+  const withIdeation = splitAmoraSafetyClauses(text).filter((clause) =>
+    IDEATION_CUE_PATTERN.test(clause),
+  );
+  if (withIdeation.length === 0) return false;
+  if (!withIdeation.every((clause) => DENIED_IDEATION_EXPERIENCE_PATTERN.test(clause))) {
+    return false;
+  }
+  // 부정되지 않은 **다른 절**에 자해 신호가 남아 있으면 무르지 않는다.
+  // `자해한 적 없어요 그런데 오늘 손목을 그었어요` 가 통째로 지워지던 자리다.
+  return splitAmoraSafetyClauses(text)
+    .filter((clause) => !IDEATION_CUE_PATTERN.test(clause))
+    .every(
+      (clause) =>
+        !SELF_HARM_ELSEWHERE_PATTERN.test(clause)
+        && !CONCRETE_SELF_HARM_ATTEMPT_PATTERN.test(clause),
+    );
 }
 
 function inferConcreteAttemptActor(clause: string): AmoraSafetyActor {
@@ -382,12 +464,60 @@ export function assessAmoraSafetyText(value: string): AmoraSafetyAssessment {
   const clauses = splitAmoraSafetyClauses(text);
   const hasIndependentCurrentDisclosure =
     hasIndependentCurrentDisclosureClause(text);
+  // 약이 떨어졌다는 뜻의 `다 먹었다`. **최상위에서만** 판정한다 —
+  // 이 함수는 아래에서 절마다 자기를 다시 부르는데, 절 분리기가 `먹었` 과
+  // `는데도` 사이를 자르므로(`(?<=[았었였했겠])는데` 가 경계) 절 안에서는 양보
+  // 어미가 이미 사라지고 없다. 그래서 절 단위로 물으면 영원히 걸리지 않는다.
+  if (
+    MEDICINE_EXHAUSTED_PATTERN.test(text)
+    && !SELF_HARM_ELSEWHERE_PATTERN.test(text)
+    && !VIOLENCE_CUE_PATTERN.test(text)
+    // `감기약 다 먹었는데도 안 나아 그리고 수면제 한 통 먹었어` 를 지우면 안 된다.
+    // 소진 문구 하나 때문에 같은 메시지의 진짜 시도까지 무르는 자리다.
+    && !hasIndependentImmediateSafetyClause(text)
+  ) {
+    return {
+      resolution: "no_safety_signal",
+      kind: null,
+      responseDirection: null,
+      events: [],
+    };
+  }
+  // 자해 표현이 든 절이 **전부** 부정형이면 고백이 아니다.
+  //
+  // 이 무름은 아래 관용구 관문 **밖에** 있어야 한다. 그 관문은
+  // `!hasIndependentImmediateSafetyClause(text)` 를 요구하는데 `죽 고 싶` 자체가
+  // 그 독립 단서라, 안에 두면 이 형태는 절대 무를 수 없다.
+  //
+  // 폭력·시도 단서가 있으면 무르지 않는다 — 자해를 부정하면서 폭력을 말하는
+  // 문장까지 지워지면 안 된다.
+  if (
+    everyIdeationClauseIsDenied(text)
+    && !VIOLENCE_CUE_PATTERN.test(text)
+    && !CONCRETE_SELF_HARM_ATTEMPT_PATTERN.test(text)
+  ) {
+    return {
+      resolution: "no_safety_signal",
+      kind: null,
+      responseDirection: null,
+      events: [],
+    };
+  }
   if (
     (
       BENIGN_DELIVERY_TRACKING_PATTERN.test(text)
       || BENIGN_CAKE_KNIFE_PATTERN.test(text)
       || BENIGN_IDIOM_PATTERN.test(text)
+      // `<원인 서술어> 죽겠` 은 관용구다. 단 같은 문장에 다른 자해 신호가 있으면
+      // 관용구 판정을 쓰지 않는다 — `힘들어 죽겠고 진짜로 죽어버리고 싶어요` 는
+      // 관용구 모양이면서 진짜 고백이다.
+      || (
+        IDIOMATIC_INTENSIFIER_BEFORE_DEATH_PATTERN.test(text)
+        && !SELF_HARM_ELSEWHERE_PATTERN.test(text)
+      )
     )
+    // 폭력·흉기 같은 독립 단서가 있으면 무르지 않는다. `남편이 때려서 아파
+    // 죽겠어` 가 관용구로 지워지면 안 된다.
     && !hasIndependentImmediateSafetyClause(text)
   ) {
     return {
