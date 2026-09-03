@@ -60,7 +60,45 @@ test("place search result keeps the fields and Naver destinations used by mobile
     searchUrl: "https://search.naver.com/search.naver?query=한방정식",
     mapsUrl: "https://map.naver.com/p/search/한방정식",
     blogSearchUrl: "https://search.naver.com/search.naver?where=blog&query=한방정식",
+    regionLabel: null,
   });
+});
+
+// 2026-09-03 — 카드가 광고·제휴인지, 언제 조회한 것인지 말하지 않았다. 조회 시각은
+// 실행기가 넣은 우리 값이고, 지역 딱지는 두 지역을 함께 찾았을 때만 붙는다.
+test("place cards carry the KST search time and the region label the server attached", () => {
+  const model = getPlaceCardsModel({
+    toolName: "search_nearby_places",
+    toolInput: { query: "대전이나 청주 한정식" },
+    toolOutput: {
+      query: "대전이나 청주 한정식",
+      // 2026-09-03 20:20 KST
+      searchedAt: "2026-09-03T11:20:00.000Z",
+      places: [
+        { id: "naver-r0-0", name: "대전한상", address: "대전 서구 둔산로 1", category: "한정식", regionLabel: "대전" },
+        { id: "naver-r1-0", name: "청주한상", address: "청주 흥덕구 대농로 1", category: "한정식", regionLabel: "청주" },
+      ],
+    },
+    success: true,
+    displayMessage: "2곳을 찾았어요.",
+  });
+
+  assert.equal(model.state, "places");
+  assert.equal(model.searchedAtLabel, "20:20");
+  assert.deepEqual(model.places.map((place) => place.regionLabel), ["대전", "청주"]);
+
+  const withoutTime = getPlaceCardsModel({
+    toolName: "search_nearby_places",
+    toolInput: { query: "대전 한정식" },
+    toolOutput: {
+      query: "대전 한정식",
+      places: [{ id: "naver-0", name: "대전한상", address: "대전 서구 둔산로 1", category: "한정식" }],
+    },
+    success: true,
+    displayMessage: "1곳을 찾았어요.",
+  });
+  assert.equal(withoutTime.searchedAtLabel, null);
+  assert.equal(withoutTime.places[0].regionLabel, null);
 });
 
 test("failed place search exposes displayMessage and invalid external URLs are discarded", () => {
@@ -181,6 +219,10 @@ test("mobile place cards expose accessible Naver links and a broken-image fallba
   // 말한다(2026-08-23 파운더 결정).
   assert.ok(component.includes("눌러서 네이버에서 리뷰·별점 보기"));
   assert.ok(component.includes("리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요"));
+  // 광고·제휴가 아니라는 사실과 조회 시각은 웹 카드와 같은 문장으로 나간다 —
+  // 한쪽만 고치면 표면이 갈린다(2026-09-03).
+  assert.ok(component.includes("네이버 지역검색 일반 결과예요(광고·제휴 아님)"));
+  assert.ok(component.includes("조회 시각은 ${model.searchedAtLabel} 입니다"));
   for (const dead of ["블로그 검색 {", "블로그 언급", "룸 언급 있음", "blogSnippet", "priceRange"]) {
     assert.ok(!component.includes(dead), `카드에 남아 있으면 안 되는 표시: ${dead}`);
   }

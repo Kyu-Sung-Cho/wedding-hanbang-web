@@ -87,13 +87,19 @@ describe("측정기가 살아 있다", () => {
     const prompt = deliveredPrompt();
     // 이 헤딩들은 `prompts.ts` 원본에는 있지만 모델이 받는 것에는 없어야 한다.
     expect(prompt, "삭제 구간이 살아 있다 — 전제가 바뀌었으니 이 파일을 다시 보라")
-      .not.toContain("## 도구 사용 핵심 규칙");
+      .not.toContain("### apply_budget_plan 호출 조건");
+    expect(prompt).not.toContain("## 도구 사용 핵심 규칙");
     expect(prompt).not.toContain("## 모멘트 일정 캡처");
   });
 
   it("원본에는 그 헤딩이 있다 — 삭제가 일어난다는 증거", () => {
+    // 2026-09-03 파수꾼을 옮겼다. `## 모멘트 일정 캡처`가 든 구간은 매 턴 통째로
+    // 삭제돼 모델에게 한 번도 가지 않았고, 원본에 남겨 두면 grep이 "살아 있다"고
+    // 답해서 `prompts.ts`에서 지웠다. 원본에 없는 문자열은 삭제가 돌든 말든 이
+    // 증거가 되지 못하므로, **아직 원본에 있으면서 매 턴 삭제되는** 다른 구간을
+    // 쓴다(`removeLegacyOperationalInstructions`의 첫 번째 삭제 구간).
     const source = readFileSync(join(REPO_ROOT, "apps", "web", "src", "lib", "ai", "prompts.ts"), "utf8");
-    expect(source).toContain("## 모멘트 일정 캡처");
+    expect(source).toContain("### apply_budget_plan 호출 조건");
   });
 });
 

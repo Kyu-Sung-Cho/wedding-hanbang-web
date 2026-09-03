@@ -194,7 +194,19 @@ describe("getWeddingPlannerSystemPrompt", () => {
       expect(prompt).not.toContain(prohibited);
     }
 
-    expect(prompt).toContain("사용자가 정한 시나리오 값만 사용");
+    // 2026-09-03 원본이 아니라 **합성된 프롬프트**에 묻는다. 옛 문장
+    // ("사용자가 정한 시나리오 값만 사용")은 매 턴 통째로 삭제되는 구간에 있어
+    // 모델에게 한 번도 가지 않았다. 같은 계약은 도구 갈래가 지고 있다.
+    const guestGuaranteePrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["simulate_guest_guarantee"],
+      } as never,
+    );
+    expect(guestGuaranteePrompt).toContain("사용자가 정한 불참률 시나리오만 사용");
+    expect(guestGuaranteePrompt).toContain("불참률 기본값을 만들지 말고");
     expect(prompt).toContain("출처가 있어도 현재 커플의 지역·날짜·구성과 맞는지는 별도 확인");
   });
 
@@ -338,7 +350,9 @@ describe("getWeddingPlannerSystemPrompt", () => {
 
     expect(prompt).not.toContain("그날 3일 전부터 제가 먼저 챙길게요");
     expect(prompt).not.toContain("pastDecisions / preferences / wedding_journeys.venue 에서 끌어오기");
-    expect(prompt).toContain("별도 확인을 받은 뒤");
+    // 2026-09-03 원본을 보던 단언("별도 확인을 받은 뒤")을 뺐다 — 그 문장은 매 턴
+    // 통째로 삭제되는 구간에 있어 모델에게 간 적이 없다. 같은 계약을 지는 것은
+    // 바로 아래 합성 프롬프트 단언이다.
     expect(scopedPrompt).toContain("명시적으로 저장을 확인한 뒤");
     expect(scopedPrompt).not.toContain("3일 전 챙김");
   });
@@ -1338,7 +1352,10 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
   const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
 
   it("견적 판정 금지 지시가 존재한다 (판정 금지 제품 원칙)", () => {
-    expect(prompt).toContain("견적의 좋고 나쁨을 판정하지 마세요");
+    // 2026-09-03 같은 규칙의 **살아 있는** 사본으로 옮겼다. 옛 문자열은 매 턴
+    // 삭제되는 구간에 있었고, 지금 이 문장은 `## 판정 금지 · 업체 상대 발언 금지`
+    // — 절단에서도 보호되는 섹션 — 안에 있다.
+    expect(prompt).toContain("견적·가격의 좋고 나쁨을 판정하지 마세요");
   });
 
   it("업체 상대 권고·단정 금지 지시가 존재한다 (6/12 법적 수정)", () => {

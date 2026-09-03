@@ -1069,6 +1069,26 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
 
 // ── E. 네이버 지역 검색 장소 카드 ──
 
+/**
+ * 조회 시각을 KST 시:분으로 적는다. (2026-09-03)
+ *
+ * 기본 시간대를 쓰면 서버·기기 시간대를 타서 한국 새벽에 엉뚱한 시각이 뜬다.
+ * `hourCycle: "h23"` 은 자정을 `24:00` 이 아니라 `00:00` 으로 쓰기 위한 것이다.
+ */
+const PLACE_SEARCHED_AT_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function placeSearchedAtLabel(searchedAt: unknown): string | null {
+  if (typeof searchedAt !== "string" || !searchedAt) return null;
+  const parsed = new Date(searchedAt);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return PLACE_SEARCHED_AT_FORMATTER.format(parsed);
+}
+
 function PlaceCards({ result }: { result: ToolExecutionResult }) {
   const output = result.toolOutput as {
     places?: {
@@ -1086,8 +1106,10 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       imageUrl: string | null;
       imageSourceUrl: string | null;
       searchUrl: string;
+      regionLabel?: string | null;
     }[];
     query?: string;
+    searchedAt?: string;
     providerUnavailable?: boolean;
     handoff?: {
       searchUrl?: string;
@@ -1204,6 +1226,8 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
     );
   }
 
+  const searchedAtLabel = placeSearchedAtLabel(output.searchedAt);
+
   // 음식 종류별 이모지
   const cuisineEmoji: Record<string, string> = {
     "한식": "🍚", "양식": "🍝", "일식": "🍣", "중식": "🥟",
@@ -1288,8 +1312,13 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                     </span>
                   </div>
 
-                  {/* 태그 줄: 음식종류 + 세부카테고리 */}
+                  {/* 태그 줄: 지역(두 지역을 함께 찾았을 때만) + 음식종류 + 세부카테고리 */}
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    {p.regionLabel && (
+                      <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#5a6147]/10 text-[#5a6147] font-medium">
+                        {p.regionLabel}
+                      </span>
+                    )}
                     {p.cuisineType && (
                       <span className="text-sm px-2.5 py-0.5 rounded-full bg-[#1A1A1F]/[0.06] text-[var(--hb-text-strong)] font-medium">
                         {cuisineEmoji[p.cuisineType] || "🍴"} {p.cuisineType}
@@ -1359,7 +1388,14 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               {p.imageUrl && (
                 <span className="shrink-0 font-medium text-[#7A6F66]">사진 출처: 네이버 이미지 검색</span>
               )}
-              <span>장소 정보는 네이버 지역 검색 결과예요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.</span>
+              {/* 광고·제휴인지 묻는 질문에 화면이 답한다(2026-09-03). 우리는 네이버
+                  일반 지역검색만 부르므로 이건 우리가 단언할 수 있는 사실이다.
+                  조회 시각은 실행기가 넣은 `searchedAt` — 없으면 그 문장만 뺀다. */}
+              <span>
+                {searchedAtLabel
+                  ? `네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이고, 조회 시각은 ${searchedAtLabel} 입니다. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.`
+                  : "네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이에요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다."}
+              </span>
             </div>
           </div>
         ))}

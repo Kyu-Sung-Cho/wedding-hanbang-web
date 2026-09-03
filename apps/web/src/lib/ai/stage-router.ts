@@ -58,6 +58,39 @@ const STAGE_DEFAULT_SPECIALIST: Record<StageTag, SpecialistType> = {
 // "시댁/처가" 메시지가 정착 단계라면 sangkyeonrye 대신 settlement_companion
 const OVERLAP_KEYWORDS = /시댁|처가|시가댁/;
 
+// 1. 명확한 키워드 우선 매칭 (budget → others 순서)
+const SPECIALIST_PRIORITY_ORDER: RoutableSpecialistType[] = [
+  "budget_optimizer",
+  "ceremony_coordinator",
+  "settlement_companion",
+  "sangkyeonrye_advisor",
+];
+
+function matchSpecialistKeywords(msg: string): SpecialistType[] {
+  const matched: SpecialistType[] = [];
+  for (const specialist of SPECIALIST_PRIORITY_ORDER) {
+    if (SPECIALIST_KEYWORDS[specialist].test(msg)) {
+      matched.push(specialist);
+    }
+  }
+  return matched;
+}
+
+/**
+ * 이 문장이 **키워드로** 전문분야에 걸렸는가.
+ *
+ * 2026-09-03: `routeSpecialist` 는 키워드가 하나도 안 맞으면 단계 기본값
+ * (preparation_1 → budget_optimizer 등)을 돌려준다. 그 기본값을 "서버가 전문
+ * 경로로 보냈다"로 읽는 쪽이 있어서, 아무 키워드도 없는 상담성 질문에도 확인
+ * 카드 관문이 꺼졌다. 기본값으로 떨어진 턴을 구별할 수 있게 매칭 여부를 따로
+ * 알려준다 — 라우팅 결과 자체는 바꾸지 않는다.
+ */
+export function matchedSpecialistByKeyword(userMessage: string): boolean {
+  const msg = (userMessage ?? "").trim();
+  if (!msg) return false;
+  return matchSpecialistKeywords(msg).length > 0;
+}
+
 export function routeSpecialist(
   userMessage: string,
   stage: StageTag
@@ -65,20 +98,7 @@ export function routeSpecialist(
   const msg = (userMessage ?? "").trim();
   if (!msg) return STAGE_DEFAULT_SPECIALIST[stage] ?? "general";
 
-  // 1. 명확한 키워드 우선 매칭 (budget → others 순서)
-  const priorityOrder: RoutableSpecialistType[] = [
-    "budget_optimizer",
-    "ceremony_coordinator",
-    "settlement_companion",
-    "sangkyeonrye_advisor",
-  ];
-
-  const matched: SpecialistType[] = [];
-  for (const specialist of priorityOrder) {
-    if (SPECIALIST_KEYWORDS[specialist].test(msg)) {
-      matched.push(specialist);
-    }
-  }
+  const matched = matchSpecialistKeywords(msg);
 
   if (matched.length === 0) {
     return STAGE_DEFAULT_SPECIALIST[stage] ?? "general";
@@ -90,7 +110,7 @@ export function routeSpecialist(
     return "settlement_companion";
   }
 
-  // 3. 첫 매치 승리 (priorityOrder 순서)
+  // 3. 첫 매치 승리 (SPECIALIST_PRIORITY_ORDER 순서)
   return matched[0];
 }
 

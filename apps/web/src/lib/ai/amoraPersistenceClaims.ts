@@ -7,6 +7,47 @@ import { screenAmoraTrustClaims } from "./amoraTrustClaims";
 const AFFIRMATIVE_PERSISTENCE_CLAIM_RE =
   /(?:(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용|처리|입력)(?:해\s*(?:두었|뒀|놓았|놨|드렸)|하였|했|됐|되었|\s*완료(?:했|됐))|(?:넣어|적어|써|바꿔|올려)\s*(?:두었|뒀|놓았|놨|드렸)|(?:넣었|적었|썼|바꿨|올렸)|완료(?:하였|했|됐|되었))(?:어요|습니다|어|다)?/u;
 
+/**
+ * 위 완료형 매치 **바로 뒤**에 오는, 주장을 취소하는 어미.
+ *
+ * 2026-09-03 실측 오탐. "예식 월만 6월에서 5월로 바꿀게, 영향만 짧게" 처럼 **영향만
+ * 물어본 턴**에서 아모라가 이렇게 답한다:
+ *
+ *     "5월로 변경했을 때 달라지는 항목은 없어요."
+ *     "예식 월을 5월로 바꿨을 때 영향은 크지 않아요."
+ *
+ * 둘 다 가정이지 저장 주장이 아닌데, `변경했`·`바꿨` 만 보고 저장 주장으로 잡혔다.
+ * 그 결과는 문장 하나가 지워지는 정도가 아니다 — 답변이 통째로 사라지고 그 자리에
+ * "실제 실행 결과가 확인되지 않아 이 변경은 아직 반영되지 않았어요" 가 나갔다.
+ * 사용자는 **요청하지도 않은 변경**의 실패를 통보받는다.
+ *
+ * 예외는 **매치 지점에 붙여서만** 판정한다. 문장 어딘가에 "없어요" 가 있으면
+ * 봐준다는 식으로 만들면 "예산은 5,000만원으로 반영했고 더 남은 건 없어요" 같은
+ * 진짜 주장이 그대로 빠져나간다. 그리고 한 문장에 매치가 여럿이면 **하나라도
+ * 단정형이면 주장으로 친다**(아래 `hasAssertivePersistenceClaim`).
+ */
+const NON_ASSERTIVE_CLAIM_CONTINUATION_RE =
+  /^(?:을\s*때|다면|더라면|으?면|을\s*경우|다고\s*가정|다\s*치면|는지|은지)/u;
+
+const AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE = new RegExp(
+  AFFIRMATIVE_PERSISTENCE_CLAIM_RE.source,
+  "gu",
+);
+
+/**
+ * 이 문장에 **단정형** 저장 주장이 하나라도 있는가.
+ *
+ * 완료형 어휘가 보였다는 것만으로는 부족하다. 가정절("변경했을 때")과 단정
+ * ("변경했어요")은 같은 어휘로 시작하고 뒤에서 갈린다.
+ */
+function hasAssertivePersistenceClaim(segment: string): boolean {
+  for (const match of segment.matchAll(AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE)) {
+    const rest = segment.slice((match.index ?? 0) + match[0].length);
+    if (!NON_ASSERTIVE_CLAIM_CONTINUATION_RE.test(rest)) return true;
+  }
+  return false;
+}
+
 const AFFIRMATIVE_PERSISTENCE_STATE_RE =
   /(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용)(?:\s*완료(?:예요|입니다)|(?:되어|돼)\s*있(?:어요|습니다|다))/u;
 
@@ -15,6 +56,29 @@ const ENGLISH_AFFIRMATIVE_PERSISTENCE_WORD_RE =
 
 const ENGLISH_DIRECT_NEGATION_BEFORE_CLAIM_RE =
   /(?:\b(?:not|never)\s+(?:\w+\s+){0,3}|\b(?:isn't|wasn't|hasn't|haven't|cannot|can't)\s+(?:been\s+)?(?:\w+\s+){0,2})$/iu;
+
+/**
+ * 미래형 저장 약속 — "등록할게요" / "저장해 드릴게요" / "반영하겠습니다".
+ *
+ * 2026-09-03: 위 완료형 갈래는 이것을 하나도 못 잡는다. 워크트리에서 실제로
+ * `composeAmoraPersistenceTerminal` 을 태워 보니 "예식장을 그랜드호텔로
+ * 등록할게요."·"예산 5000만원으로 저장할게요."·"일정에 반영해 드릴게요."·"게스트
+ * 명단에 추가하겠습니다." 가 전부 removedClaimCount=0 으로 원문 그대로 나갔다.
+ * 사용자는 반영된 줄 알고 다음 턴으로 넘어가고, 아무것도 저장되지 않는다.
+ *
+ * 오탐을 줄이려고 두 가지로 좁혔다.
+ *  - **저장 동사만**: 등록·저장·추가·반영·적용·입력. 그래서 "예식장에 문의할게요"·
+ *    "확인해 드릴게요"·"알아볼게요" 처럼 저장이 아닌 약속은 그대로 남는다.
+ *  - **주체가 아모라인 어미만**: 할게요/하겠습니다/해 드릴게요/해 둘게요/해 놓을게요.
+ *    "언제 할지 알려주시면 등록할 수 있어요"·"직접 등록할 때는" 처럼 사용자 행동을
+ *    말하는 형태는 걸리지 않는다.
+ *
+ * 이 갈래는 **이번 턴에 mutation 영수증도 확인 카드도 없을 때만** 켠다. 카드가 난
+ * 턴의 본문은 이미 서버 확인문으로 통째로 대체돼 있어서(amoraPendingAction 의
+ * `cleanText: marker.confirmation`) 검사하면 서버 문구를 훼손할 뿐이다.
+ */
+const FUTURE_PERSISTENCE_PROMISE_RE =
+  /(?:등록|저장|추가|반영|적용|입력)(?:할게요?|할께요?|하겠습니다|하겠어요|해\s*드릴게요?|해\s*드리겠습니다|해\s*둘게요?|해\s*놓을게요?|해\s*놓겠습니다)/u;
 
 const AFFIRMATIVE_MEMORY_CLAIM_RE =
   /(?:기억(?:해\s*(?:둘게|드릴게|놓을게|두겠|드리겠|놓겠)|하고\s*있을게|하고있을게|할게|하겠)(?:요|습니다)?|잊지\s*않(?:을게|겠)(?:요|습니다)?)/u;
@@ -25,7 +89,9 @@ const ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE =
 const NON_SUCCESS_CONTEXT_RE =
   /(?:라고|이라는|라는)\s*(?:말|표현|문구)|(?:예시|가정|만약|말하면\s*안|하지\s*마)/u;
 
-const SERVER_OWNED_UNVERIFIED_NOTICE =
+// 2026-09-03: `isAmoraFailedProposalNotice`(amoraPendingAction.ts)가 이 문장을
+// 이력 필터에 쓴다. 서버가 이 안내를 붙인 턴은 카드를 못 낸 턴이기 때문이다.
+export const SERVER_OWNED_UNVERIFIED_NOTICE =
   "실제 실행 결과가 확인되지 않아 이 변경은 아직 반영되지 않았어요. 변경할 내용을 확인한 뒤 다시 요청해주세요.";
 
 const SERVER_OWNED_PENDING_NOTICE =
@@ -53,7 +119,32 @@ export type AmoraPersistenceTerminalResult =
  * Mutation receipts are server-owned, so provider prose is discarded whenever
  * at least one mutating tool was executed, including failed executions.
  */
-export function composeAmoraPersistenceTerminal({
+export function composeAmoraPersistenceTerminal(
+  input: Parameters<typeof composeTerminalCandidate>[0],
+): AmoraPersistenceTerminalResult {
+  const composed = composeTerminalCandidate(input);
+  if (composed.text.trim()) return composed;
+  // 2026-09-03: **빈 본문은 턴 전체를 죽인다.**
+  //
+  // 운영 원장 2026-08-24 14:48:41 'post_provider_payload_invalid' → 14:48:45
+  // 'CHAT_TURN_FAILED'(3.7초, budget_optimizer). 종단 검증
+  // (`amoraProviderCallLedger`)이 `!input.content.trim()` 으로 거절하고, 사용자는
+  // 원인과 무관한 "이 요청은 같은 식별자로 다시 이어갈 수 없어요" 를 받는다 —
+  // 재시도 버튼도 없다.
+  //
+  // 빈 문자열은 아래에서 만들어진다. 신뢰 스크린이 모든 문장을 지우면 text=""
+  // 인데 removedClaimCount 는 0 이라 안내가 안 붙고, 문장 전부가 저장 주장인
+  // 답변에서 안내가 억제돼도 "" 가 된다. 걸러낸 내용은 그대로 버리므로(필터는
+  // 조금도 약해지지 않는다) 서버 소유 문장 하나만 반드시 남긴다.
+  return {
+    ...composed,
+    text: SERVER_OWNED_UNVERIFIED_NOTICE,
+    corrected: true,
+    source: "server_correction",
+  };
+}
+
+function composeTerminalCandidate({
   text,
   toolResults,
   hasPendingAction,
@@ -111,7 +202,12 @@ export function composeAmoraPersistenceTerminal({
   // 대한 판정을 먼저 걷어낸다. 저장 주장 검사와 같은 문장 단위를 쓴다.
   const trustScreened = screenAmoraTrustClaims(text);
   const trustCorrected = trustScreened.removedCount > 0;
-  const sanitized = removeUnverifiedPersistenceClaims(trustScreened.text);
+  // 미래형 저장 약속은 **이번 턴에 아무것도 저장되지 않았을 때만** 지운다
+  // (2026-09-03). 영수증이 있는 턴은 위에서 이미 반환됐고, 카드가 난 턴의 본문은
+  // 서버가 만든 확인문이라 검사하면 서버 문구를 훼손한다.
+  const sanitized = removeUnverifiedPersistenceClaims(trustScreened.text, {
+    includeFuturePromise: !hasPendingAction,
+  });
 
   if (persistenceMode === "demo") {
     const demoGuard = guardDemoPersistenceDisclosure(
@@ -157,7 +253,12 @@ export function composeAmoraPersistenceTerminal({
 
   // 요청하지 않은 변경의 실패를 알릴 이유가 없다. 거짓 주장은 이미 지웠으므로
   // 사용자가 잘못 믿을 것도 남아 있지 않다.
-  const notice = !hasPendingAction && !userRequestedChange
+  // 2026-09-03: 미래형 약속을 지운 턴은 예외다. "등록할게요" 는 정의상 사용자가
+  // 변경을 부탁했다는 뜻이고, 그 문장만 지우고 아무 말도 안 하면 사용자는 아모라가
+  // 딴소리를 했다고 읽는다 — 무엇이 반영되지 않았는지 알 방법이 없다.
+  const notice = !hasPendingAction
+    && !userRequestedChange
+    && sanitized.removedFuturePromiseCount === 0
     ? null
     : hasPendingAction
       ? SERVER_OWNED_PENDING_NOTICE
@@ -172,7 +273,7 @@ export function composeAmoraPersistenceTerminal({
 }
 
 function containsUnverifiedSuccessClaim(segment: string): boolean {
-  const containsKoreanAffirmativeClaim = AFFIRMATIVE_PERSISTENCE_CLAIM_RE.test(segment)
+  const containsKoreanAffirmativeClaim = hasAssertivePersistenceClaim(segment)
     || AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment)
     || AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment)
     || ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment);
@@ -192,13 +293,17 @@ function containsUnverifiedSuccessClaim(segment: string): boolean {
   return false;
 }
 
-function removeUnverifiedPersistenceClaims(text: string): {
+function removeUnverifiedPersistenceClaims(
+  text: string,
+  options: { includeFuturePromise?: boolean } = {},
+): {
   text: string;
   removedClaimCount: number;
+  removedFuturePromiseCount: number;
 } {
   const normalizedText = text.trim();
   if (!normalizedText) {
-    return { text: "", removedClaimCount: 0 };
+    return { text: "", removedClaimCount: 0, removedFuturePromiseCount: 0 };
   }
 
   const segments = normalizedText
@@ -207,10 +312,17 @@ function removeUnverifiedPersistenceClaims(text: string): {
     .filter(Boolean);
   const kept: string[] = [];
   let removedClaimCount = 0;
+  let removedFuturePromiseCount = 0;
 
   for (const segment of segments) {
     if (containsUnverifiedSuccessClaim(segment)) {
       removedClaimCount += 1;
+    } else if (
+      options.includeFuturePromise === true
+      && containsFuturePersistencePromise(segment)
+    ) {
+      removedClaimCount += 1;
+      removedFuturePromiseCount += 1;
     } else {
       kept.push(segment);
     }
@@ -221,7 +333,19 @@ function removeUnverifiedPersistenceClaims(text: string): {
       ? normalizedText
       : repairSplitEmphasis(dropDanglingConnective(kept.join("\n\n"))),
     removedClaimCount,
+    removedFuturePromiseCount,
   };
+}
+
+/**
+ * 아직 일어나지 않은 저장을 약속하는 문장인가.
+ *
+ * 완료형 검사와 같은 `NON_SUCCESS_CONTEXT_RE` 를 태워 예시·인용은 남긴다
+ * ("'등록할게요' 라는 말은 하지 않아요" 같은 자기 규칙 설명).
+ */
+function containsFuturePersistencePromise(segment: string): boolean {
+  return FUTURE_PERSISTENCE_PROMISE_RE.test(segment)
+    && !NON_SUCCESS_CONTEXT_RE.test(segment);
 }
 
 /**

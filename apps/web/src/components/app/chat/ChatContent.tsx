@@ -29,9 +29,13 @@ import {
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraBudgetImpactPreview,
-  getPendingActionDisabledReason,
   isPendingAmoraActionExpired,
 } from "@/components/app/chat/PendingAmoraActionCard";
+import {
+  buildAmoraActionConfirmationOutcomes,
+  getAmoraPendingActionApplicationState,
+  resolveAmoraPendingActionDisabledReason,
+} from "@/components/app/chat/amoraPendingActionApplication";
 import {
   chatAttachmentKey,
   CHAT_ATTACHMENT_MAX_COUNT,
@@ -59,6 +63,7 @@ import {
   useChatComposerAutoResize,
 } from "./useChatComposerAutoResize";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import type { AmoraFirstHello } from "@hanbang/shared";
 import { consumePendingAmoraFirstHello } from "@/lib/amora/pendingFirstHello";
 import { isAmoraCommunityBridgeSafetyScoped } from "@/lib/chat/amoraCommunitySafety";
@@ -1482,6 +1487,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         requestedVisibility,
         target: sendTarget,
         senderRole,
+        // 2026-09-03: 스토어(`chatStore.sendMessage`)와 서버가 이미 이 신호로
+        // 레인을 정하는데 화면만 안 넘겨서, 폭력·강압 서술이 나만 보기 레인으로
+        // 옮겨진 것을 화면이 몰랐다. 그 결과 함께 대화 탭에 내 말풍선도 아모라
+        // 답도 오류도 안 뜨고 입력창만 비었다. 안전 판정을 바꾸는 것이 아니라
+        // 화면을 이미 내려진 판정에 맞추는 것이다.
+        externalSafetySignal: hasAmoraSafetySignal(content ?? "", "chat"),
       });
       const visibility = crisisPreflight.effectiveVisibility;
       const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
@@ -1521,6 +1532,31 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           return;
         }
       }
+
+      /**
+       * 안전 홀드로 멈춘 글을 작성창에 되돌린다.
+       *
+       * 2026-09-03: 홀드는 원문을 어디에도 저장하지 않는 계약이라(그건 그대로 둔다)
+       * 전송 직전에 비운 작성창을 아무도 되돌리지 않았다. 오탐으로 걸린 사람은
+       * 방금 친 문장을 통째로 다시 타이핑해야 했다. 형제 갈래(persistence_unknown ·
+       * not_persisted · catch)는 모두 `restoreComposer` 를 부른다.
+       *
+       * 되돌리는 곳은 보낸 레인이 아니라 `private_ai` 다 — 같은 갈래가 곧바로
+       * '나만 (상담)' 으로 옮겨 가므로, 보낸 레인에 넣으면 사용자가 보지 않는
+       * 작성창에 글이 들어간다. 첨부는 이미 폐기했으니 텍스트만 되돌린다.
+       */
+      const restoreHeldComposerText = () => {
+        if (!usesComposer || !submittedInput) return;
+        if (composerEpochRef.current !== submittedEpoch) return;
+        setComposerDrafts((currentDrafts) => {
+          const currentDraft = currentDrafts.private_ai;
+          if (currentDraft.input) return currentDrafts;
+          return {
+            ...currentDrafts,
+            private_ai: { ...currentDraft, input: submittedInput },
+          };
+        });
+      };
 
       const restoreComposer = (clientRequestId: string | null) => {
         if (
@@ -1595,7 +1631,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             venue: journey?.venue ?? null,
             progress: journey?.progress ?? {},
           },
-          images: canTransmitAttachments && currentAttachments.length > 0
+          // 2026-09-03: 비공개 안전 레인에서도 첨부 목록은 그대로 넘긴다. 스토어가
+          // 이 갈래에서 첨부를 통째로 버리므로 실제 전송·업로드는 0건이고, 대신
+          // 안내 카드가 "첨부 파일은 안전을 위해 전송하지 않았어요" 를 붙일 수 있다.
+          // 안 넘기면 사진이 아무 말 없이 사라진다.
+          images: (canTransmitAttachments || isPrivateSafetyRoute)
+            && currentAttachments.length > 0
             ? currentAttachments
             : undefined,
           target: sendTarget,
@@ -1611,6 +1652,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           setActiveTab("private");
           setMessageTarget("ai");
           setDraftRetryClientRequestId(submittedLane, null);
+          restoreHeldComposerText();
           currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
           return;
         }
@@ -2658,11 +2700,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           // 순간 새 메시지가 생겨 그 카드가 최신이 아니게 되기 때문이다.
           // 2026-08-31 운영에서 재현: 아모라가 "일정을 추가했어요" 라고 말한 바로
           // 옆에 "새 대화가 이어져 이 제안은 적용할 수 없어요" 가 함께 떠 있었다.
-          const appliedActionIds = new Set(
-            messages
-              .map((message) => message.metadata?.confirmed_amora_action_id)
-              .filter((value): value is string => typeof value === "string"),
-          );
+          // 2026-09-03 정정: 확인 행이 있다는 것만으로 "적용됐어요" 라고 잠그면,
+          // 서버가 거절했거나 도구가 실패를 보고한 경우에도 성공이라고 말한다
+          // (그 표식은 도구가 돌기 전에 찍힌다). 반영 성공 증거로 바꾼다 —
+          // 판정은 사이드 패널과 같은 헬퍼가 한다.
+          const actionConfirmationOutcomes =
+            buildAmoraActionConfirmationOutcomes(messages);
           return filteredMessages.map((msg, index) => {
             const isCurrentUser = msg.sender_id === profile?.id;
             const isPinnedSafetyCard = msg.metadata?.pinned_safety_card === true;
@@ -2718,13 +2761,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   }
               : null;
             const pendingActionDisabledReason = pendingAction
-              ? getPendingActionDisabledReason(
-                  pendingAction,
+              ? resolveAmoraPendingActionDisabledReason({
+                  action: pendingAction,
                   nowMs,
-                  msg.id === latestSharedMessageId,
-                  isStreaming || isSending,
-                  appliedActionIds.has(pendingAction.actionId),
-                )
+                  isLatest: msg.id === latestSharedMessageId,
+                  busy: isStreaming || isSending,
+                  applicationState: getAmoraPendingActionApplicationState(
+                    pendingAction,
+                    actionConfirmationOutcomes,
+                  ),
+                })
               : null;
             const pendingBudgetImpactPreview = pendingAction
               ? getPendingAmoraBudgetImpactPreview(msg, pendingAction)

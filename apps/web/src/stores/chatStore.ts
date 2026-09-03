@@ -1325,6 +1325,24 @@ function isDefinitiveChatIngestRejection(status: number): boolean {
   return status >= 400 && status < 500 && status !== 408 && status !== 429;
 }
 
+/**
+ * 같은 요청을 다시 보낼 수 있는 일시적 상태 코드인가.
+ *
+ * 2026-09-03: `/api/chat` 의 `!res.ok` 는 **항상 스트림 시작 전 실패**다(스트림이
+ * 시작된 뒤의 오류는 200 + SSE `error` 로 나간다). 그 구간의 5xx 는 서버가
+ * `releaseClaimBeforeStream` 으로 클레임까지 풀어 두므로 같은 idempotency key 로
+ * 다시 보내도 유료 생성 경계를 두 번 넘지 않는다. 그런데 그 응답들이
+ * `retryable`/`retryPolicy` 를 싣지 않아 화면이 "입력이나 첨부파일을 확인해주세요"
+ * 로 사용자를 탓하며 재시도 버튼을 지웠다 — 서버가 본문에 "같은 요청으로 다시
+ * 시도해주세요"라고 쓴 504 에서조차 그랬다.
+ *
+ * 서버가 명시한 판정(`retryable`/`retryPolicy`)이 있으면 그것이 먼저다. 이 함수는
+ * 아무 판정도 실려 오지 않았을 때만 쓰인다.
+ */
+function isTransientChatHttpStatus(status: number): boolean {
+  return status >= 500 || status === 408 || status === 429;
+}
+
 function withRetryAvailability(
   request: FailedChatRequest,
   retryable: boolean,
@@ -1395,7 +1413,11 @@ async function executeChatProviderRequest(
         || parsed.code === "PREVIEW_STUB_API_DISABLED";
       const retryable = previewStubDisabled
         ? false
-        : isRetryableChatHttpError(parsed);
+        : isRetryableChatHttpError(parsed)
+          // 서버가 아무 재시도 판정도 싣지 않은 일시적 상태 코드만 여기서 구제한다.
+          || (parsed.retryable === null
+            && parsed.retryPolicy === null
+            && isTransientChatHttpStatus(res.status));
       const fallbackMessage = previewStubDisabled
         ? "현재 미리보기에서는 AI 답변을 생성하지 않아요. 입력한 내용은 계정의 준비 기록에 남지 않았어요."
         : res.status === 429
@@ -1675,7 +1697,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       ) {
         boundedRows.push(latestPrivateCanonicalData);
       }
-      const allMessages = boundedRows
+      const canonicalMessages = boundedRows
         .reverse()
         .map((m) => dbRowToMessage(m as Record<string, unknown>))
         .filter(canCurrentUserSeeMessage)
@@ -1689,6 +1711,21 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             - new Date(right.created_at).getTime();
           return byCreatedAt || left.id.localeCompare(right.id);
         });
+      // 2026-09-03: 안전 홀드·비공개 전환 안내 카드는 원문을 저장하지 않는 계약이라
+      // DB 에 없는 로컬 전용 행이다. 그런데 이 목록을 DB 결과로 통째로 덮어써서,
+      // 다른 화면에 갔다 돌아오거나 사이드패널을 닫았다 열면 112·119 안내까지
+      // 사라졌다. 계약(비저장)은 그대로 두고 화면에서만 이어 붙인다 — 같은 커플이고
+      // 본인 초기화 시점 이후인 카드만.
+      const retainedLocalSafetyCards = currentState.messages.filter((message) => (
+        message.metadata?.pinned_safety_card === true
+        && message.metadata?.persistence_status === "ephemeral_local_only"
+        && message.couple_id === coupleId
+        && isAfterClearedAt(message, sharedClearedAt, privateClearedAt)
+        && !canonicalMessages.some((row) => row.id === message.id)
+      ));
+      const allMessages = retainedLocalSafetyCards.length > 0
+        ? [...canonicalMessages, ...retainedLocalSafetyCards].sort(compareChatMessageOrder)
+        : canonicalMessages;
 
       // cleared_at 도 store 에 저장 — pollNewMessages 가 활용
       const existingFailedRequest = get().failedRequest;

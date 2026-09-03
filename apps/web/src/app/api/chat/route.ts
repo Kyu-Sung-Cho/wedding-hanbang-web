@@ -11,6 +11,7 @@ import {
   buildMultimodalContent,
   buildToolResultInput,
   chatWithToolsStream,
+  normalizeOpenAIProviderError,
 } from "@/lib/ai/openai";
 import type { ChatInputItem, ImageAttachment } from "@/lib/ai/openai";
 import type { ChatWithToolsResult } from "@/lib/ai/openai";
@@ -40,12 +41,20 @@ import {
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
-import { stripAmoraSpamTail } from "@/lib/ai/amoraSpamTail";
+import {
+  applyAmoraOutputHygiene,
+  ensureNonEmptyTerminalText,
+  type AmoraOutputHygieneAction,
+} from "@/lib/ai/amoraOutputHygiene";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
 import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGate";
-import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
+import {
+  determineStage,
+  matchedSpecialistByKeyword,
+  routeSpecialist,
+} from "@/lib/ai/stage-router";
 import { logAIInteractionAfterResponse, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import {
   extractMediation,
@@ -189,7 +198,29 @@ export const maxDuration = 300;
 const MAX_EXTRACTED_TEXT_CHARS = 80_000;
 const MAX_DOCX_EXTRACTED_TEXT_CHARS = 200_000;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
-const MAX_CONTEXT_MESSAGES = 40;
+/**
+ * canonical `chat_messages` 창 크기(행 수).
+ *
+ * 2026-09-03: 40 → 120. 40행은 사용자·아모라를 합친 수라 약 20턴이고, 22턴 전에
+ * 만든 예산 배분표를 아모라가 "대화에 남아 있지 않다"고 답했다(2차 감사 Turn 29).
+ * provider 입력의 실제 경계는 행 수가 아니라 문자 상한
+ * (`AMORA_MAX_CONVERSATION_CHARS` 32,000, 아래 `takeRecentAmoraConversation`)과
+ * exact-token 상한이 지고 있으므로 행 수를 올려도 입력 상한은 그대로다.
+ * 안전 필터(`selectAmoraTrustedHistoryRows`)는 행마다 그대로 돈다. 다만 그 필터가
+ * 통과시키는 범위는 2026-09-03 부터 W0·W1·**W4** 다 — 같은 대화의 사실이 그 문장에
+ * 결혼 낱말이 없다는 이유만으로 이력에서 영구히 지워지던 결함을 고치면서 바뀌었다
+ * (근거는 `amoraTrustedHistory.ts` 의 `isTrustedHistoryScope`). 안전 축인 W2·W3·W5
+ * 행은 창이 넓어져도 한 건도 들어오지 않는다.
+ */
+const MAX_CONTEXT_MESSAGES = 120;
+/**
+ * 클라이언트가 한 요청에 실어 보낼 수 있는 메시지 수.
+ *
+ * 예전에는 `MAX_CONTEXT_MESSAGES` 를 그대로 썼다. 창을 넓히면서 분리했다 —
+ * 서버가 DB 에서 더 읽는 것과 클라이언트가 더 보내도 되는 것은 다른 문제이고,
+ * 입력 경계는 넓힐 이유가 없다(클라이언트 이력은 prompt source 로 쓰이지 않는다).
+ */
+const MAX_CLIENT_REQUEST_MESSAGES = 40;
 const MAX_MESSAGE_CHARS = 20_000;
 const PENDING_ACTION_TOOLS = BETA_SAFE_TOOLS.filter((tool) => isMutatingTool(tool.name));
 const MAX_TOTAL_MESSAGE_CHARS = 200_000;
@@ -437,6 +468,89 @@ async function readFirstRunTutorialCompletedAt(
   }
 }
 
+type ChatViewClearedAt = {
+  shared: string | null;
+  private: string | null;
+};
+
+const NO_CHAT_VIEW_CLEARED_AT: ChatViewClearedAt = { shared: null, private: null };
+
+/**
+ * 화면 정리(view reset) 커서. **프로필 select 와 합치지 않는다.**
+ *
+ * 2026-09-03. '화면 정리'와 '함께 새로 시작하기'는 `profiles` 의 timestamp 한 칸만
+ * 올리고 `chat_messages` 는 한 행도 지우지 않는다
+ * (`api/chat/messages/route.ts` view_reset_*, `atomic_chat_clear_request`).
+ * 화면은 그 커서로 걸러 0건이 되는데(`stores/chatStore.ts` `isAfterClearedAt`)
+ * 서버 프롬프트 질의에는 커서 조건이 하나도 없어서, 사용자가 대화를 지웠다고
+ * 믿은 뒤에도 아모라는 직전 대화를 그대로 읽고 답했다(2차 감사 Critical 1).
+ *
+ * `readChatActorProfile` 의 select 에 얹지 않는 이유는 바로 위 문단과 같다 —
+ * 컬럼이 없는 배포에서 select 전체가 42703 으로 죽으면 채팅이 통째로 멈춘다.
+ * 여기서 따로 읽고, 실패하면 커서 없음(= 오늘과 동일한 동작)으로 닫는다.
+ */
+async function readChatViewClearedAt(actorId: string): Promise<ChatViewClearedAt> {
+  try {
+    const { data, error } = await getServiceClient()
+      .from("profiles")
+      .select("shared_chat_cleared_at, private_chat_cleared_at")
+      .eq("id", actorId)
+      .single();
+    if (error || !data) return NO_CHAT_VIEW_CLEARED_AT;
+    const row = data as {
+      shared_chat_cleared_at?: unknown;
+      private_chat_cleared_at?: unknown;
+    };
+    const normalize = (value: unknown): string | null =>
+      typeof value === "string"
+        && value.length > 0
+        && Number.isFinite(Date.parse(value))
+        ? value
+        : null;
+    return {
+      shared: normalize(row.shared_chat_cleared_at),
+      private: normalize(row.private_chat_cleared_at),
+    };
+  } catch {
+    return NO_CHAT_VIEW_CLEARED_AT;
+  }
+}
+
+/**
+ * 이 행이 화면에 남아 있는가. 화면과 **같은 비교**를 쓴다 —
+ * `stores/chatStore.ts` 의 `isAfterClearedAt` 는 `>` 이지 `>=` 가 아니다.
+ * 커서가 없으면 참(오늘과 동일).
+ */
+function isAfterChatViewClear(
+  createdAt: unknown,
+  rowVisibility: unknown,
+  cleared: ChatViewClearedAt,
+): boolean {
+  const cursor = rowVisibility === "shared" ? cleared.shared : cleared.private;
+  if (!cursor) return true;
+  if (typeof createdAt !== "string") return true;
+  const rowTime = Date.parse(createdAt);
+  const cursorTime = Date.parse(cursor);
+  if (!Number.isFinite(rowTime) || !Number.isFinite(cursorTime)) return true;
+  return rowTime > cursorTime;
+}
+
+/**
+ * 한 질의가 두 레인(shared + 본인 private)을 함께 읽을 때 DB 에 걸 바닥.
+ *
+ * 레인마다 커서가 다르므로 DB 에서는 **더 이른 쪽**까지만 좁히고, 정확한 레인별
+ * 판정은 위 `isAfterChatViewClear` 가 행 단위로 한 번 더 한다. 한쪽이라도 커서가
+ * 없으면 그 레인은 통째로 살아 있어야 하므로 바닥을 두지 않는다.
+ */
+function chatViewClearedFloor(cursors: ReadonlyArray<string | null>): string | null {
+  let floor: string | null = null;
+  for (const cursor of cursors) {
+    if (!cursor) return null;
+    if (floor === null || Date.parse(cursor) < Date.parse(floor)) floor = cursor;
+  }
+  return floor;
+}
+
 async function readChatActorProfile(actorId: string): Promise<ChatActorProfile | null> {
   const client = getServiceClient();
   const withStatus = await client
@@ -521,7 +635,7 @@ function isValidChatMessages(value: unknown): value is Array<{
   content: string;
   id?: string;
 }> {
-  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CONTEXT_MESSAGES) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > MAX_CLIENT_REQUEST_MESSAGES) {
     return false;
   }
   let totalChars = 0;
@@ -857,8 +971,11 @@ export async function POST(request: Request) {
       : requestKind === "chat" && typeof bodyUserMessageId === "string"
         ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
       : rawClientRequestId;
+  // 2026-09-03: 인사 요청키가 사용자 id 하나로 영구 고정돼 있어, 커플이 바뀐
+  // 사용자는 예약 RPC 가 옛 커플과 다르다며 거절(invalid_args)해 첫 인사가
+  // 영원히 실패했다. 비용 원장이 실제로 비교하는 커플 값을 키에 함께 넣는다.
   const clientRequestId = requestKind === "initial_greeting"
-    ? `greeting:${actorId}`
+    ? `greeting:${actorId}:${dataCoupleId}`
     : `chat:${actorId}:${durableClientRequestUuid}`;
   const requestCorrelationId = createHash("sha256")
     .update(clientRequestId)
@@ -1347,6 +1464,13 @@ export async function POST(request: Request) {
     : null;
   let shouldLoadBoundedContinuity = false;
   let boundedContinuitySegmentId: string | null = null;
+  // 2026-09-03: 화면 정리 커서를 여기서 미리 띄워 둔다. 아래 저장 문맥 병렬 읽기의
+  // 질의를 **만들 때** 값이 필요하므로 그 Promise.all 안에 넣을 수 없고, 그렇다고
+  // 직렬 왕복을 하나 더 붙이면 모든 턴이 그만큼 느려진다. 체험(demo)에는 프로필이
+  // 없으므로 조회하지 않는다.
+  const chatViewClearedAtPromise: Promise<ChatViewClearedAt> = isDemo
+    ? Promise.resolve(NO_CHAT_VIEW_CLEARED_AT)
+    : readChatViewClearedAt(actorId);
   // 되묻기 직후일 수 있는 턴에서는 저장된 결혼 문맥 읽기를 건너뛰지 않는다.
   // 건너뛰면 연속성이 성립해도 저니·프로필·결정 이력이 비어 있어 도구가 되살아난
   // 자리에서 아무것도 답하지 못한다. 연속성이 성립하지 않으면 범위는 그대로 W4라
@@ -1614,12 +1738,19 @@ export async function POST(request: Request) {
         {
           error: "대화를 안전하게 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
           code: privacyCode ?? "CHAT_REQUEST_CLAIM_FAILED",
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
   }
 
+  // 2026-09-03: 스트림 시작 전 실패는 여기서 클레임을 풀고 도구·저장 부작용이
+  // 아직 하나도 없으므로 같은 requestKey 재시도가 실제로 진행 가능하다. 그런데
+  // 그 지점의 503/504 본문이 retryable/retryPolicy 를 안 실어, 클라이언트가
+  // 전부 "영구 실패"로 읽고 재시도 버튼을 지웠다(서버 문구는 다시 시도하라고
+  // 적혀 있는데). 스트림 이전 실패 응답에 같은 파일의 기존 규약대로 same_request 를 싣는다.
   const releaseClaimBeforeStream = async (failureCode: string) => {
     if (!requestClaimAcquired) return;
     await failChatRequest({ ...claimParams, failureCode }).catch((error) => {
@@ -1667,6 +1798,8 @@ export async function POST(request: Request) {
           error:
             "개인정보 설정을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
           code,
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
@@ -1740,6 +1873,8 @@ export async function POST(request: Request) {
           {
             error: "현재 대화 구간을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
             code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+            retryable: true,
+            retryPolicy: "same_request",
           },
           { status: 503, headers: { "Cache-Control": "no-store" } },
         );
@@ -1752,6 +1887,8 @@ export async function POST(request: Request) {
         {
           error: "현재 대화 구간을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
           code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
@@ -1806,6 +1943,82 @@ export async function POST(request: Request) {
     }
   }
 
+  // 2026-09-03: 화면 정리 커서. 아래 질의들이 "화면에 남아 있는 범위"만 읽도록
+  // 좁히는 데만 쓴다 — 커서가 없으면(대부분) 조건이 붙지 않아 오늘과 동일하다.
+  const chatViewClearedAt = await chatViewClearedAtPromise;
+  const messagesClearedFloor = chatViewClearedFloor(
+    visibility === "shared"
+      ? [chatViewClearedAt.shared]
+      : [chatViewClearedAt.shared, chatViewClearedAt.private],
+  );
+  const summariesClearedFloor = chatViewClearedFloor(
+    enabledMemoryVisibilities.map((candidate) => (
+      candidate === "shared" ? chatViewClearedAt.shared : chatViewClearedAt.private
+    )),
+  );
+  const boundedContinuityClearedFloor = chatViewClearedFloor([
+    visibility === "shared" ? chatViewClearedAt.shared : chatViewClearedAt.private,
+  ]);
+
+  /**
+   * canonical 대화 창 질의. **아래 5번(평소 문맥)과 9번(W4 이력)이 같은 창을 쓴다.**
+   *
+   * 2026-09-03: 두 벌로 적어 두면 상대 메시지 제외·세그먼트·화면 정리 커서 중 하나가
+   * 갈라져도 아무도 못 알아챈다. 한 곳에서 만들고 두 곳이 부른다.
+   */
+  const canonicalMessageWindowColumns: string =
+    conversationSegmentReadEnabled || shouldLoadBoundedContinuity
+      ? "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at"
+      : "id, sender_id, sender_type, role, content, metadata, visibility, created_at";
+  const buildCanonicalMessageWindowQuery = () => {
+    let q = supabase
+      .from("chat_messages")
+      .select(canonicalMessageWindowColumns)
+      .eq("couple_id", dataCoupleId)
+      // 상대에게 직접 보낸 메시지는 커플이 공유해서 보는 데이터여도
+      // Amora/OpenAI 입력은 아니다. DB에서 먼저 제외하고 아래에서 한 번 더
+      // 걸러 PostgREST 필터 회귀가 생겨도 provider 경계를 넘지 않게 한다.
+      .or("metadata->>target.is.null,metadata->>target.neq.partner")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(MAX_CONTEXT_MESSAGES);
+    if (conversationSegmentReadEnabled) {
+      q = q.eq("segment_id", activeConversationSegmentId);
+    }
+    // 화면 정리 이전 행은 사용자 화면에 없다. private 턴은 두 레인을 함께 읽으므로
+    // DB 에는 더 이른 커서까지만 걸고, 레인별 정확한 판정은 아래에서 행마다 한다.
+    if (messagesClearedFloor) q = q.gt("created_at", messagesClearedFloor);
+    return visibility === "shared"
+      ? q.eq("visibility", "shared")
+      : q.in("visibility", ["shared", visibility]);
+  };
+  /**
+   * **W4 턴에도 이력을 싣기 위한 별도 읽기.**
+   *
+   * 2026-09-03 스테이징 실측: "앞에서 만든 배분표 그대로 실제 예산에 반영해줘" 가
+   * 그 문장에 결혼 낱말이 없어 `W4_out_of_scope` 로 분류되자, 라우트가 대화 읽기를
+   * 통째로 건너뛰어 provider 가 **그 한 문장만** 받았다. 표가 DB 에 멀쩡히 있는데
+   * 아모라는 "대화에 보이지 않아요" 라고 답했다.
+   *
+   * 여기서 읽는 것은 **이력뿐이다.** 저장 문맥(저니·프로필·요약·결정·개인화·장기
+   * 기억)의 skip 은 위 `skipsIrrelevantProviderContextReads` 그대로 두었고, 이 행들은
+   * `selectAmoraTrustedHistoryRows`(안전 스크린 + W2·W3·W5 배제 + 쌍 증명)를 지난 뒤
+   * `providerMessages` 에만 쓰인다. `canonicalRows` 는 손대지 않는다 — 그쪽을 넓히면
+   * 카드 이월·되묻기 연속성·최신 행 관문까지 같이 움직인다.
+   *
+   * 연결 문맥(bounded continuity)이 도는 턴은 제외한다. 그 레인은 자기 3행 계약과
+   * `linked_context_only` 라벨을 함께 쓰므로, 같은 턴에 넓은 이력을 얹으면 프롬프트가
+   * 스스로와 어긋난다.
+   */
+  const shouldLoadW4TrustedHistory =
+    !isDemo
+    && requestKind === "chat"
+    && skipsIrrelevantProviderContextReads
+    && !shouldLoadBoundedContinuity
+    && typeof bodyUserMessageId === "string"
+    && trustedCanonicalScopeUserRow !== null
+    && effectivePreliminaryScope?.scope === "W4_out_of_scope";
+
   const [
     journeyResult,
     profilesResult,
@@ -1815,6 +2028,7 @@ export async function POST(request: Request) {
     profileNodesResult,
     personalizationResult,
     boundedContinuityRowsResult,
+    w4TrustedHistoryRowsResult,
   ] = await Promise.all([
     // 1. 웨딩 저니
     skipsIrrelevantProviderContextReads
@@ -1846,6 +2060,8 @@ export async function POST(request: Request) {
       if (conversationSegmentReadEnabled) {
         q = q.eq("segment_id", activeConversationSegmentId);
       }
+      // 화면 정리 이전 요약은 지워진 대화를 요약한 것이다. 커서가 없으면 조건 없음.
+      if (summariesClearedFloor) q = q.gt("created_at", summariesClearedFloor);
       return enabledMemoryVisibilities.length === 1
         ? q.eq("visibility", enabledMemoryVisibilities[0])
         : q.in("visibility", enabledMemoryVisibilities);
@@ -1871,10 +2087,6 @@ export async function POST(request: Request) {
           error: null,
         })
       : (() => {
-      const messageContextColumns: string =
-        conversationSegmentReadEnabled || shouldLoadBoundedContinuity
-        ? "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at"
-        : "id, sender_id, sender_type, role, content, metadata, visibility, created_at";
       // **되묻기 답인 턴에서는 넓은 창을 쓴다.**
       //
       // 2026-09-02 회귀 복구. 이 갈래가 `shouldLoadBoundedContinuity` 만 보고
@@ -1894,33 +2106,23 @@ export async function POST(request: Request) {
         // Read exactly the current row and its two direct predecessors. Do not
         // hide partner-target rows here: their presence must break continuity,
         // never make non-adjacent messages look adjacent after filtering.
-        return supabase
+        const boundedQuery = supabase
           .from("chat_messages")
-          .select(messageContextColumns)
+          .select(canonicalMessageWindowColumns)
           .eq("couple_id", dataCoupleId)
           .eq("visibility", visibility)
           .eq("segment_id", boundedContinuitySegmentId)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(3);
+        // 화면 정리 이전 행이 앞자리를 채우면 3행이 안 되고, 그러면
+        // `buildAmoraBoundedContinuity` 가 null 을 내 연결 문맥이 꺼진다 —
+        // 지운 대화와 이어붙는 것보다 그편이 맞다.
+        return boundedContinuityClearedFloor
+          ? boundedQuery.gt("created_at", boundedContinuityClearedFloor)
+          : boundedQuery;
       }
-      let q = supabase
-        .from("chat_messages")
-        .select(messageContextColumns)
-        .eq("couple_id", dataCoupleId)
-        // 상대에게 직접 보낸 메시지는 커플이 공유해서 보는 데이터여도
-        // Amora/OpenAI 입력은 아니다. DB에서 먼저 제외하고 아래에서 한 번 더
-        // 걸러 PostgREST 필터 회귀가 생겨도 provider 경계를 넘지 않게 한다.
-        .or("metadata->>target.is.null,metadata->>target.neq.partner")
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .limit(MAX_CONTEXT_MESSAGES);
-      if (conversationSegmentReadEnabled) {
-        q = q.eq("segment_id", activeConversationSegmentId);
-      }
-      return visibility === "shared"
-        ? q.eq("visibility", "shared")
-        : q.in("visibility", ["shared", visibility]);
+      return buildCanonicalMessageWindowQuery();
         })(),
     // 6. 검증된 V2 기억 노드에서 요청별 맞춤 정보를 결정론적으로 투영한다.
     // 최근 결정 50개와 분리해 오래된 active 근거도 누락하지 않는다.
@@ -1962,15 +2164,30 @@ export async function POST(request: Request) {
     // partner 행을 숨기지 않는다 — 그 존재는 연속성을 끊어야지, 걸러낸 뒤에
     // 인접해 보이게 만들면 안 된다.
     shouldLoadBoundedContinuity && isClarificationAnswerShaped
-      ? supabase
-          .from("chat_messages")
-          .select("id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at")
-          .eq("couple_id", dataCoupleId)
-          .eq("visibility", visibility)
-          .eq("segment_id", boundedContinuitySegmentId)
-          .order("created_at", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(3)
+      ? (() => {
+          const boundedQuery = supabase
+            .from("chat_messages")
+            .select("id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at")
+            .eq("couple_id", dataCoupleId)
+            .eq("visibility", visibility)
+            .eq("segment_id", boundedContinuitySegmentId)
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .limit(3);
+          // 5번의 3행 갈래와 같은 이유로 화면 정리 커서를 건다.
+          return boundedContinuityClearedFloor
+            ? boundedQuery.gt("created_at", boundedContinuityClearedFloor)
+            : boundedQuery;
+        })()
+      : Promise.resolve({ data: null, error: null }),
+    // 9. W4(결혼 밖) 턴 이력 전용 창.
+    //
+    // 위 5번은 이 턴에서 현재 행 하나만 돌려준다(저장 문맥 skip). 그런데 "이 대화에
+    // 아까 그게 있었나" 는 저장 문맥이 아니라 **이력**의 문제다. 같은 창을 한 번 더
+    // 읽어 `providerMessages` 에만 쓰고, `canonicalRows` 는 건드리지 않는다.
+    // 실패하면 data 가 null 로 남아 오늘과 똑같이 현재 발화 하나만 간다.
+    shouldLoadW4TrustedHistory
+      ? buildCanonicalMessageWindowQuery()
       : Promise.resolve({ data: null, error: null }),
   ]);
 
@@ -1982,6 +2199,8 @@ export async function POST(request: Request) {
       {
         error: "저장된 웨딩 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
         code: "WEDDING_CONTEXT_UNAVAILABLE",
+        retryable: true,
+        retryPolicy: "same_request",
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
@@ -2024,6 +2243,8 @@ export async function POST(request: Request) {
       {
         error: criticalContextFailure.message,
         code: criticalContextFailure.code,
+        retryable: true,
+        retryPolicy: "same_request",
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
@@ -2080,6 +2301,8 @@ export async function POST(request: Request) {
           {
             error: "현재 준비 공간의 구성 방식을 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
             code: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+            retryable: true,
+            retryPolicy: "same_request",
           },
           { status: 503, headers: { "Cache-Control": "no-store" } },
         );
@@ -2169,7 +2392,7 @@ export async function POST(request: Request) {
   } = resolvedWeddingContext;
 
   // 대화 요약은 visibility별 RLS 정책을 통해 shared/bride/groom 범위가 분리된다.
-  const summariesData = (summariesResult.data ?? []) as unknown as Array<{
+  const summariesData = ((summariesResult.data ?? []) as unknown as Array<{
     summary: string;
     summary_type: string | null;
     visibility: "shared" | "bride_private" | "groom_private";
@@ -2177,7 +2400,13 @@ export async function POST(request: Request) {
     created_at: string;
     message_count: number | null;
     to_message_id: string | null;
-  }>;
+  }>).filter((summary) => isAfterChatViewClear(
+    // 2026-09-03: DB 에는 두 레인 중 더 이른 커서만 걸 수 있으므로 레인별 정확한
+    // 판정을 여기서 한 번 더 한다. 커서가 없으면 전부 통과(오늘과 동일).
+    summary.created_at,
+    summary.visibility,
+    chatViewClearedAt,
+  ));
   if (
     conversationSegmentReadEnabled
     && summariesData.some((summary) =>
@@ -2341,12 +2570,21 @@ export async function POST(request: Request) {
     log.error("Canonical chat history lookup failed:", messagesResult.error.message);
     await releaseClaimBeforeStream("CHAT_HISTORY_UNAVAILABLE");
     return NextResponse.json(
-      { error: "저장된 대화를 확인하지 못했습니다.", code: "CHAT_HISTORY_UNAVAILABLE" },
+      {
+        error: "저장된 대화를 확인하지 못했습니다.",
+        code: "CHAT_HISTORY_UNAVAILABLE",
+        retryable: true,
+        retryPolicy: "same_request",
+      },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
 
-  const canonicalContextRows = (messagesResult.data ?? []) as unknown as CanonicalChatRow[];
+  // 2026-09-03: 화면 정리 이전 행은 사용자 화면에 없다. DB 에는 두 레인 중 더 이른
+  // 커서까지만 걸 수 있으므로(private 턴은 shared + 본인 private 를 함께 읽는다)
+  // 레인별 정확한 판정을 여기서 한 번 더 한다. 커서가 없으면 전부 통과 = 오늘과 동일.
+  const canonicalContextRows = ((messagesResult.data ?? []) as unknown as CanonicalChatRow[])
+    .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt));
   /**
    * 연결 문맥이 볼 행. **넓은 창을 잘라 쓰지 않는다.**
    *
@@ -2358,7 +2596,19 @@ export async function POST(request: Request) {
    */
   const boundedContinuityRows = boundedContinuityRowsResult?.data
     ? (boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])
+        .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt))
     : canonicalContextRows;
+  /**
+   * W4 턴 이력 전용 행(9번). 오래된 것부터 정렬해 두고, `canonicalRows` 와 같은
+   * 두 겹 — 상대 대상 제외 + 화면 정리 커서 — 을 그대로 태운다. 읽지 않았거나
+   * 실패했으면 null 이고, 그때 provider 입력은 오늘과 같다. (2026-09-03)
+   */
+  const w4TrustedHistoryContextRows = w4TrustedHistoryRowsResult?.data
+    ? (w4TrustedHistoryRowsResult.data as unknown as CanonicalChatRow[])
+        .filter((row) => row.metadata?.target !== "partner")
+        .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt))
+        .reverse()
+    : null;
   if (
     conversationSegmentReadEnabled
     && canonicalContextRows.some((row) =>
@@ -2982,6 +3232,12 @@ export async function POST(request: Request) {
   const specialistType = allowsStoredProviderContext && stageTag !== null
     ? routeSpecialist(lastUserText, stageTag)
     : "general" as const;
+  // 2026-09-03: 위 라우팅이 키워드로 고른 것인지, 단계 기본값으로 떨어진 것인지는
+  // 여기서만 알 수 있다. 확인 카드 관문(제안 도구)이 그 둘을 구별해야 한다.
+  const specialistMatchedByKeyword =
+    allowsStoredProviderContext && stageTag !== null
+      ? matchedSpecialistByKeyword(lastUserText)
+      : false;
 
   // Private 모드 안내 (한 사람이 단독으로 아모라에게 털어놓는 채팅)
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
@@ -3083,6 +3339,7 @@ export async function POST(request: Request) {
             availableTools: PENDING_ACTION_TOOLS,
             userText: toolIntentText,
             specialistType,
+            specialistMatchedByKeyword,
             attachmentKind,
             checklistLabels: coupleChecklistLabels,
           }).filter(
@@ -3165,10 +3422,42 @@ export async function POST(request: Request) {
         .map(toCanonicalMessage)
         .filter((message): message is NonNullable<typeof message> => message !== null)
     : typedMessages;
+  /**
+   * **W4 턴의 이력.** 저장 문맥과 갈라서 이력만 싣는다.
+   *
+   * `allowsStoredProviderContext`(W0/W1)는 한 글자도 건드리지 않았다 — 커플 프로필·
+   * 예산·결정·요약·장기 기억과 도구는 여전히 그 관문 뒤에 있다. 여기서 더하는 것은
+   * **같은 커플·같은 레인에서 사용자 본인이 한 발화와 그에 묶인 아모라 답**뿐이고,
+   * 그 목록은 `selectAmoraTrustedHistoryRows` 가 안전 스크린(자해·폭력 신호)과
+   * 범위 판정(W2·W3·W5 배제)을 행마다 다시 돌린 결과다.
+   *
+   * 이력이 한 줄도 안 남으면 null 로 두어 오늘과 **완전히 같은 입력**(현재 발화
+   * 하나)을 쓴다. 라벨이 붙은 한 줄로 바꿔치우지 않는다.
+   */
+  const w4TrustedProviderMessages =
+    !isDemo
+    && requestKind === "chat"
+    && !allowsStoredProviderContext
+    && questionScope.scope === "W4_out_of_scope"
+    && isDurableUserMessageBound
+    && typeof bodyUserMessageId === "string"
+      ? (() => {
+          const historyMessages = selectAmoraTrustedHistoryRows({
+            oldestFirstRows: w4TrustedHistoryContextRows ?? canonicalRows,
+            currentUserMessageId: bodyUserMessageId,
+            visibility,
+          })
+            .map(toCanonicalMessage)
+            .filter((message): message is NonNullable<typeof message> => message !== null);
+          return historyMessages.length > 1 ? historyMessages : null;
+        })()
+      : null;
   const providerMessages = allowsStoredProviderContext
     ? takeRecentAmoraConversation(trustedStoredProviderMessages)
     : boundedContinuity?.messages
-      ?? [{ role: "user" as const, content: lastUserText }];
+      ?? (w4TrustedProviderMessages !== null
+        ? takeRecentAmoraConversation(w4TrustedProviderMessages)
+        : [{ role: "user" as const, content: lastUserText }]);
   const boundedTextAttachments = allowsCurrentAttachmentContext
     ? boundAmoraTextAttachments(textAttachments)
     : "";
@@ -3249,6 +3538,8 @@ export async function POST(request: Request) {
       {
         error: "응답 준비 시간이 초과됐어요. 같은 요청으로 다시 시도해주세요.",
         code: "CHAT_REQUEST_DEADLINE_EXCEEDED",
+        retryable: true,
+        retryPolicy: "same_request",
       },
       { status: 504, headers: { "Cache-Control": "no-store" } },
     );
@@ -3460,9 +3751,16 @@ export async function POST(request: Request) {
           // 그러면 답변 끝에 [suggestions]·[pending_action] 블록이 붙는 턴에서는
           // 스팸이 문자열 끝이 아니라 그 블록 앞에 있어 통째로 놓친다 —
           // 하필 예산·일정 저장 제안 턴이 그 모양이고, 사고가 난 턴도 예산이었다.
+          //
+          // 2026-09-03: 같은 자리에서 위생 계층을 하나 더 돌린다. 스팸 어휘 차단은
+          // 차단 목록이라 목록 밖은 전부 지나갔고, 그 구멍으로 벵골 문자 조각
+          // (`মাস행사`)이 운영 답변에 그대로 나갔다(2차 감사 Minor 2).
+          const outputHygiene = requiresW4AttachmentReuploadGuidance
+            ? { text: "", actions: [] as AmoraOutputHygieneAction[] }
+            : applyAmoraOutputHygiene(providerCleanText, { userText: lastUserText });
           const cleanText = requiresW4AttachmentReuploadGuidance
             ? "지금 요청만으로는 이 파일이 결혼 준비와 어떤 관련이 있는지 확인할 수 없어요. 결혼 준비 관련 파일이라면 관련성을 한 줄로 알려주시고, 파일을 다시 첨부해 주세요."
-            : stripAmoraSpamTail(providerCleanText);
+            : outputHygiene.text;
           const persistenceClaimGuard = composeAmoraPersistenceTerminal({
             text: cleanText,
             toolResults,
@@ -3480,11 +3778,24 @@ export async function POST(request: Request) {
               pendingExtraction.hadPendingActionTag
               && pendingExtraction.pendingAction === null,
           });
-          const persistenceSafeText = persistenceClaimGuard.text;
+          // 2026-09-03 이중 안전망. 여기가 비면 원장에도 스트리밍에도 아무 글자가
+          // 안 나가 사용자는 침묵만 본다(8/24 '같은 식별자로 다시 이어갈 수 없어요'
+          // 하드 실패의 원인 후보). 빈 문자열을 만들지 않게 하는 근본 수정은
+          // `composeAmoraPersistenceTerminal` 쪽에 따로 있고, 이것은 그 뒤의 그물이다.
+          // 원장 검증은 그대로 — 대체한 뒤의 문자열이 그대로 원장으로 간다.
+          const persistenceSafeText = ensureNonEmptyTerminalText(
+            persistenceClaimGuard.text,
+          );
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             toolsUsed,
             senderName: safeSenderName,
+            ...(outputHygiene.actions.length > 0
+              ? { output_hygiene: outputHygiene.actions }
+              : {}),
+            ...(persistenceSafeText !== persistenceClaimGuard.text
+              ? { terminal_text_empty_fallback: true }
+              : {}),
             question_scope: questionScope.scope,
             memory_eligible: questionScope.allowsLongTermMemory,
             memory_enqueue_requested: memoryEnqueueRequested,
@@ -4408,6 +4719,16 @@ export async function POST(request: Request) {
             && inputStreamError?.code !== "AMORA_INPUT_TOO_LARGE"
           )
         );
+        // 2026-09-03: 생성이 시작된 뒤 실패하면 exactRetryAllowed 가 항상 false 라
+        // 원인과 무관하게 "같은 식별자로 다시 이어갈 수 없어요"만 나갔다. 재시도
+        // 허용 판정은 그대로 두고 문구만 원인별로 가른다. 프로바이더 오류는
+        // normalizeOpenAIProviderError 가 메시지를 정규화해 timeout/abort 문자열이
+        // 남지 않으므로, 취소 신호와 정규화된 category 로 판별한다.
+        const providerErrorCategory = normalizeOpenAIProviderError(err).category;
+        const endedByDeadlineOrAbort =
+          deadlineAbortController.signal.aborted
+          || providerErrorCategory === "timeout"
+          || providerErrorCategory === "aborted";
         log.error("채팅 API 에러:", errMsg);
         if (requestClaimAcquired) {
           await failChatRequest({
@@ -4433,6 +4754,8 @@ export async function POST(request: Request) {
                 ? inputStreamError.message
                 : privacyContextErrorCode
                   ? "개인정보 설정이 변경되었거나 안전하게 확인되지 않았어요. 최신 설정에서 새 메시지로 다시 보내주세요."
+                  : endedByDeadlineOrAbort
+                    ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
                   : "이 요청은 같은 식별자로 다시 이어갈 수 없어요. 새 메시지로 다시 보내주세요."
             : durableErrorCode
             ? "답변 저장을 완료하지 못했어요. 같은 요청으로 다시 시도해주세요."

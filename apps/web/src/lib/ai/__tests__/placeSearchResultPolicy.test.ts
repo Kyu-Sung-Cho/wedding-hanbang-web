@@ -112,10 +112,61 @@ describe("place search result policy", () => {
 
   it("sends only a fixed render status to the model", () => {
     const safeOutput = getModelSafeToolOutput(placeResult);
-    expect(safeOutput).toEqual({ success: true, status: "rendered_in_client" });
+    expect(safeOutput).toEqual({ success: true, status: "rendered_in_client", resultCount: 1 });
     expect(JSON.stringify(safeOutput)).not.toContain("외부 입력");
     expect(JSON.stringify(safeOutput)).not.toContain("강남");
     expect(JSON.stringify(safeOutput)).not.toContain("http");
+  });
+
+  // 2026-09-03: 모델이 자기 검색 결과를 한 글자도 못 봐서 "몇 곳 찾았어?" 에 화면을
+  // 보라고 되돌리고, 0곳인데 "카드에서 확인해 주세요" 라고 말했다. 우리가 만든 값
+  // 셋만 넘긴다 — 제공자 텍스트는 그대로 막는다.
+  it("우리가 만든 값(개수·보정한 질의·조회 시각)만 넘기고 제공자 텍스트는 계속 막는다", () => {
+    const emptyOutput = getModelSafeToolOutput({
+      ...placeResult,
+      toolOutput: {
+        places: [],
+        query: "청주 한정식",
+        resultCount: 0,
+        effectiveQuery: "청주 한정식",
+        searchedAt: "2026-09-03T11:20:00.000Z",
+        provider: "api_hub",
+      },
+    });
+    expect(emptyOutput).toEqual({
+      success: true,
+      status: "rendered_in_client",
+      resultCount: 0,
+      effectiveQuery: "청주 한정식",
+      searchedAt: "2026-09-03T11:20:00.000Z",
+    });
+
+    const richOutput = getModelSafeToolOutput({
+      ...placeResult,
+      toolOutput: {
+        places: [
+          { name: "외부 입력", address: "서울", imageUrl: "https://example.com/a.jpg" },
+          { name: "외부 입력 2", address: "서울", description: "제공자 설명" },
+        ],
+        query: "강남 상견례 식당",
+        resultCount: 2,
+        effectiveQuery: "강남 상견례 한정식",
+        searchedAt: "2026-09-03T11:20:00.000Z",
+        provider: "api_hub",
+      },
+    });
+    expect(richOutput).toEqual({
+      success: true,
+      status: "rendered_in_client",
+      resultCount: 2,
+      effectiveQuery: "강남 상견례 한정식",
+      searchedAt: "2026-09-03T11:20:00.000Z",
+    });
+    const serialized = JSON.stringify(richOutput);
+    expect(serialized).not.toContain("외부 입력");
+    expect(serialized).not.toContain("제공자 설명");
+    expect(serialized).not.toContain("http");
+    expect(serialized).not.toContain("api_hub");
   });
 
   it("detects the result that must lock later tool rounds", () => {
@@ -163,5 +214,32 @@ describe("place search result policy", () => {
       expect(serialized).not.toContain("evt_booking_");
       expect(serialized).not.toContain('"confirmed":true');
     }
+  });
+
+  // 2026-09-03 스테이징: 같은 문장 2회 중 2회차만 toolOutput.resultCount=0 인데 places 는 5곳이었다.
+  // 그 값의 출처는 변형 증명이 서빙 중인 트리를 잠깐 고친 측정 오염이었지만, **모델이 화면과 다른
+  // 개수를 말할 수 있다**는 것 자체가 계약의 구멍이다. 카드가 그리는 배열과 모델이 듣는 개수는 하나여야 한다.
+  it("카드가 그리는 배열과 모델이 듣는 개수가 갈리지 않는다", () => {
+    const divergent = getModelSafeToolOutput({
+      ...placeResult,
+      toolOutput: {
+        places: [
+          { name: "라마다대전 에이치가든", address: "대전 유성구 계룡로 127", categoryFull: "음식점>뷔페" },
+          { name: "정순란출장부페 지점", address: "청주 상당구 무농정로31번길 8-2", categoryFull: "음식점>뷔페" },
+          { name: "크리스탈컨벤션뷔페", address: "대전 서구 둔산대로117번길 127", categoryFull: "음식점>뷔페" },
+          { name: "송금화출장뷔페", address: "청주 상당구 신송효촌길 120", categoryFull: "음식점>뷔페" },
+          { name: "빌라드파티앤", address: "대전 유성구 대덕대로837번길 31", categoryFull: "서비스,산업>장소대여" },
+        ],
+        query: "대전이나 청주 예식 뷔페",
+        resultCount: 0, // 실행기가 개수를 따로 실어 보내도
+        effectiveQuery: "대전 예식 뷔페, 청주 예식 뷔페",
+        searchedAt: "2026-09-03T10:26:49.652Z",
+        provider: "api_hub",
+      },
+    });
+    expect(divergent.resultCount).toBe(5); // 사용자가 5장을 보는 동안 0곳이라 말하지 않는다
+    const serialized = JSON.stringify(divergent);
+    expect(serialized).not.toContain("라마다"); // 제공자 텍스트 경계는 그대로
+    expect(serialized).not.toContain("api_hub");
   });
 });

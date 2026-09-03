@@ -74,7 +74,9 @@ describe("한 번에 두 가지를 부탁하면 빠져나갈 방법을 알려준
   it("같은 요청을 다시 보내라고 하지 않는다 — 그건 무한 고리다", () => {
     const result = extract(`${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
     expect(result.cleanText).not.toContain("같은 요청을 한 번만 다시");
-    expect(result.cleanText).toContain("하나씩");
+    // 2026-09-03: 문구가 "하나씩" 에서 "먼저 … 한 가지만" 으로 바뀌었다.
+    // 계약은 낱말이 아니라 **한 번에 한 건씩 말하라고 안내하는가** 이다.
+    expect(result.cleanText).toContain("한 가지만");
   });
 
   it("표식이 하나면 그대로 카드가 나온다", () => {

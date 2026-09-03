@@ -17,13 +17,41 @@ export interface PlaceCardModel {
   searchUrl: string | null;
   mapsUrl: string | null;
   blogSearchUrl: string | null;
+  /** 두 지역을 한 번에 찾았을 때 이 후보가 나온 지역. 보통은 null. (2026-09-03) */
+  regionLabel: string | null;
 }
 
 export type PlaceCardsModel =
   | { state: "error"; message: string }
   | { state: "handoff"; message: string; query: string | null; searchUrl: string | null; mapsUrl: string | null }
   | { state: "empty"; message: string; query: string | null }
-  | { state: "places"; places: PlaceCardModel[]; query: string | null };
+  | {
+      state: "places";
+      places: PlaceCardModel[];
+      query: string | null;
+      /** 조회 시각(KST 시:분). 실행기가 시각을 안 줬으면 null. (2026-09-03) */
+      searchedAtLabel: string | null;
+    };
+
+/**
+ * 조회 시각을 KST 시:분으로 적는다. (2026-09-03)
+ *
+ * 기기 시간대를 그대로 쓰면 해외에서 열었을 때 다른 시각이 뜬다.
+ * `hourCycle: "h23"` 은 자정을 `24:00` 이 아니라 `00:00` 으로 쓰기 위한 것이다.
+ */
+const SEARCHED_AT_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
+  timeZone: "Asia/Seoul",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+export function formatPlaceSearchedAtLabel(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return SEARCHED_AT_FORMATTER.format(parsed);
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
@@ -90,6 +118,7 @@ export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsMod
         ?? safeProviderUrl(value.link, "naver.com"),
       mapsUrl,
       blogSearchUrl: safeProviderUrl(value.blogSearchUrl, "naver.com"),
+      regionLabel: asString(value.regionLabel),
     }];
   });
 
@@ -102,5 +131,10 @@ export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsMod
     };
   }
 
-  return { state: "places", places, query };
+  return {
+    state: "places",
+    places,
+    query,
+    searchedAtLabel: formatPlaceSearchedAtLabel(output.searchedAt),
+  };
 }

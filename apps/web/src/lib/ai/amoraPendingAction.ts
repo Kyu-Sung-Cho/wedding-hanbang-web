@@ -1,5 +1,6 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
+import { SERVER_OWNED_UNVERIFIED_NOTICE } from "@/lib/ai/amoraPersistenceClaims";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
@@ -446,7 +447,26 @@ const CANONICAL_CONFIRMATION_OPENING = "다음 변경을 적용할까요?";
  *
  * 그래서 빠져나갈 방법을 알려준다.
  */
+/**
+ * 2026-09-03: 문구를 **다음 행동을 지목하는** 형태로 바꾼다.
+ *
+ * 옛 문구는 "하나씩 말씀해 주시면" 이라고만 해서, 남은 요청이 어떻게 되는지를
+ * 말하지 않았다. 사용자는 나머지를 잃었다고 읽고 대화를 처음부터 다시 쓴다.
+ * 같은 날 `buildAmoraPendingActionPrompt` 에도 같은 순서(첫 건만 표식, 나머지는
+ * 본문에 적고 이어서 제안)를 적어 모델이 애초에 표식을 하나만 내게 했다.
+ * 서버의 1표식 원칙 자체는 그대로다.
+ */
 const MULTI_ACTION_REPLACEMENT =
+  "한 번에 여러 가지를 바꾸는 건 아직 어려워요. 먼저 바꾸고 싶은 것 한 가지만 말씀해 주시면 바로 확인 카드로 만들어 드리고, 나머지는 이어서 도와드릴게요.";
+
+/**
+ * 문구를 바꾸기 전(2026-09-03 이전)에 대화 이력에 쌓인 같은 성격의 안내.
+ *
+ * `isAmoraFailedProposalNotice` 는 **저장된 지난 턴**에도 걸린다. 상수만 바꾸면
+ * 이미 DB 에 있는 옛 안내가 걸러지지 않고 프로바이더 이력으로 되돌아간다 —
+ * 그러면 이 파일이 막으려던 모양 학습이 그대로 살아난다.
+ */
+const LEGACY_MULTI_ACTION_REPLACEMENT =
   "한 번에 두 가지를 바꾸는 건 아직 어려워요. 하나씩 말씀해 주시면 바로 확인 카드로 만들어 드릴게요.";
 
 const FORGED_CONFIRMATION_REPLACEMENT =
@@ -599,6 +619,48 @@ const PENDING_ACTION_ANY_TAG_RE = new RegExp(
   `\\[\\s*\\/?\\s*pending_action\\s*\\]`,
   "i",
 );
+/**
+ * **표식을 틀리게 쓴 토큰은 지운다.**
+ *
+ * 2026-09-03 실측: 모델이 `[pending_action]{…}[/pending_action]` 대신
+ * `[ pending_action 필요 ]` 라고 썼다. 위 추출기도 바로 위 잔여 제거기도 정확한
+ * 모양만 보므로 카드가 0개가 되고, **그 내부 표식이 화면에 그대로 나갔다** —
+ * 608행 주석이 예고한 실패가 다른 어형으로 다시 일어났다.
+ *
+ * 넓히는 것은 **지우는 쪽뿐이다.** 대괄호 한 쌍 안에 `pending_action`(대소문자·
+ * 공백·밑줄/하이픈 변형)이 들어 있으면 지운다. 유효 페이로드 추출 규칙
+ * (`PENDING_ACTION_PAIR_RE`)은 한 글자도 넓히지 않았다 — 근사 JSON 을 카드로
+ * 만들면 사용자가 확인한 적 없는 변경이 확인 버튼을 얻는다.
+ *
+ * 정상 본문의 대괄호(`[참고]`, 마크다운 링크, `[etiquette:4]`)는 이 낱말을 담지
+ * 않으므로 건드리지 않는다. `[^\[\]]*` 라 매치는 대괄호 한 쌍 안에 갇힌다.
+ */
+const PENDING_ACTION_MALFORMED_TAG_RE =
+  /[ \t]*\[[^\[\]]*pending[\s_-]*action[^\[\]]*\][ \t]*/giu;
+
+function stripMalformedPendingActionTags(text: string): {
+  text: string;
+  removedAny: boolean;
+} {
+  let removedAny = false;
+  const stripped = text.replace(
+    PENDING_ACTION_MALFORMED_TAG_RE,
+    (match: string, offset: number, whole: string) => {
+      removedAny = true;
+      // 앞뒤 공백 정리. 줄 끝·줄 시작에 붙어 있으면 통째로 없애고, 문장 가운데면
+      // 앞뒤 낱말이 붙지 않게 한 칸만 남긴다.
+      const before = whole.slice(0, offset);
+      const after = whole.slice(offset + match.length);
+      return before.length === 0
+        || before.endsWith("\n")
+        || after.length === 0
+        || after.startsWith("\n")
+        ? ""
+        : " ";
+    },
+  );
+  return { text: stripped, removedAny };
+}
 
 function cleanPendingActionTags(text: string): {
   cleanText: string;
@@ -617,10 +679,15 @@ function cleanPendingActionTags(text: string): {
   const withoutDanglingTag = danglingTagIndex === -1
     ? withoutCompleteTags
     : withoutCompleteTags.slice(0, danglingTagIndex);
+  // 정확한 표식을 다 걷어낸 뒤 남은 것은 **틀리게 쓴 표식뿐이다.** 그것도 지운다.
+  const malformed = stripMalformedPendingActionTags(withoutDanglingTag);
   return {
-    cleanText: withoutDanglingTag.replace(/\n{3,}/g, "\n\n").trim(),
+    cleanText: malformed.text.replace(/\n{3,}/g, "\n\n").trim(),
     payloads,
-    hadPendingActionTag: payloads.length > 0 || danglingTagIndex !== -1,
+    // 틀리게 썼어도 모델이 변경을 의도했다는 뜻이다. 카드가 못 나온 사실을
+    // 사용자에게 알리는 경로(`droppedPendingActionTag`)가 이 값을 본다.
+    hadPendingActionTag:
+      payloads.length > 0 || danglingTagIndex !== -1 || malformed.removedAny,
   };
 }
 
@@ -763,7 +830,13 @@ export function isAmoraFailedProposalNotice(content: unknown): boolean {
   // 안 나오고 "확인해 주시면 적용할게요" 같은 누를 것 없는 말만 하게 된다
   // (2026-08-24 감사). 위조 확인문만 거르던 것을 둘 다 거른다.
   return content.includes(FORGED_CONFIRMATION_REPLACEMENT)
-    || content.includes(MULTI_ACTION_REPLACEMENT);
+    || content.includes(MULTI_ACTION_REPLACEMENT)
+    || content.includes(LEGACY_MULTI_ACTION_REPLACEMENT)
+    // 2026-09-03: 서버가 붙이는 "반영되지 않았어요" 안내도 카드를 못 낸 턴의
+    // 표시다. 표식을 냈다가 버려진 턴과 거짓 저장 주장을 지운 턴이 여기 해당한다.
+    // 그 턴이 이력에 남으면 모델은 "약속만 하고 표식은 없는 아모라 턴"을 배운다 —
+    // 위 실측이 말하는 3연속 0/10 이 정확히 그 모양이다.
+    || content.includes(SERVER_OWNED_UNVERIFIED_NOTICE);
 }
 
 export function buildAmoraHistoryContent(
@@ -952,6 +1025,7 @@ export function buildAmoraPendingActionPrompt(
   return [
     "[서버 발급 후속 확인 계약]",
     "- 사용자의 확인이 필요한 변경을 제안하거나 적용 여부를 물을 때는, 그 답변 안에 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 사용자가 확인해도 실행할 방법이 없습니다.",
+    "- 요청이 여러 건이면 첫 번째 건만 표식으로 내고, 나머지는 본문에 순서대로 적은 뒤 이 확인이 끝나면 이어서 제안하겠다고 말하세요. 표식이 둘 이상이면 서버가 모두 버려 카드가 하나도 나가지 않습니다.",
     "- 제안 가능한 변경 도구와 input 필드 (`*`는 필수). **아래에 없는 이름을 쓰면 표식이 통째로 버려지고 사용자는 확인 버튼을 받지 못합니다. 값을 넣을 자리가 없으면 지어내지 말고 memo 같은 선언된 필드에 넣거나 생략하세요.**",
     ...supportedTools.map(
       (tool) => `  · ${tool.name}: ${describeToolInputFields(tool)}`,

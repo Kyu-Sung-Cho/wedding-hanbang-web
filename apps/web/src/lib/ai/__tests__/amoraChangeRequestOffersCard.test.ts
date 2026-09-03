@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { selectAmoraPendingProposalTools } from "@/lib/ai/amoraToolPolicy";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import {
+  matchedSpecialistByKeyword,
+  routeSpecialist,
+} from "@/lib/ai/stage-router";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import type { StageTag } from "@/types/moat.types";
 
 /**
  * 자연스러운 한국어 변경 요청에 확인 카드를 낼 수 있는가.
@@ -108,5 +113,50 @@ describe("가정 질문과 전문 경로", () => {
 describe("카테고리 한 단어로는 열리지 않는다", () => {
   it.each(["드레스", "한복", "신혼여행", "부케"])("%s", (userText) => {
     expect(offeredFor(userText)).toEqual([]);
+  });
+});
+
+/**
+ * 2026-09-03: `routeSpecialist` 는 키워드가 하나도 안 맞으면 단계 기본값
+ * (preparation_1 → budget_optimizer)을 준다. 그 기본값까지 "전문 경로로 보냈다"로
+ * 읽혀, 아무것도 안 정한 상담성 질문에서도 관문 둘(`NON_EXECUTABLE_RESTORE`,
+ * `isUnsettledValue`)이 꺼졌다 — 예식일 D-180 안쪽 계정에서 "…좋을까" 한 마디에
+ * 예산·일정 도구가 11개 열렸다.
+ *
+ * 위 테스트들처럼 `specialistType` 을 손으로 넣으면 이 갈래를 못 겨냥한다.
+ * 여기서는 라우터를 실제로 태워 운영과 같은 입력을 만든다.
+ */
+describe("단계 기본 전문분야는 전문 경로가 아니다", () => {
+  function offeredAsRouted(userText: string, stage: StageTag): string[] {
+    return selectAmoraPendingProposalTools({
+      availableTools: PENDING_ACTION_TOOLS,
+      userText,
+      specialistType: routeSpecialist(userText, stage),
+      specialistMatchedByKeyword: matchedSpecialistByKeyword(userText),
+      attachmentKind: "none",
+    }).map((tool) => tool.name);
+  }
+
+  it.each([
+    ["드레스 투어 언제 하는 게 좋을까", "preparation_1"],
+    ["청첩장 어떤 게 좋을까", "execution_2"],
+  ] as const)("키워드 없이 기본값으로 떨어진 상담 질문에는 카드를 안 낸다: %s", (userText, stage) => {
+    // 라우터는 여전히 단계 기본값(배분·일정 전문분야)을 준다. 바뀐 것은 그것을
+    // "보냈다"로 세지 않는 것뿐이다.
+    expect(matchedSpecialistByKeyword(userText)).toBe(false);
+    expect(routeSpecialist(userText, stage)).not.toBe("general");
+    expect(offeredAsRouted(userText, stage)).toEqual([]);
+  });
+
+  it("같은 단계에서 값을 정하는 요청은 그대로 카드를 낸다", () => {
+    expect(matchedSpecialistByKeyword("드레스 투어 10월 12일로 잡아줘")).toBe(false);
+    expect(offeredAsRouted("드레스 투어 10월 12일로 잡아줘", "preparation_1").length)
+      .toBeGreaterThan(0);
+  });
+
+  it("키워드로 배분 경로에 걸린 문장은 예외가 그대로 유지된다", () => {
+    expect(matchedSpecialistByKeyword("예산을 어떻게 나누면 좋을까?")).toBe(true);
+    expect(offeredAsRouted("예산을 어떻게 나누면 좋을까?", "preparation_1"))
+      .toContain("apply_budget_plan");
   });
 });

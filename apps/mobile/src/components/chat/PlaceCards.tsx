@@ -137,7 +137,10 @@ function PlaceCard({ place, index }: { place: PlaceCardModel; index: number }) {
         <View style={styles.placeDetails}>
           <Text style={styles.placeName} numberOfLines={2}>{place.name}</Text>
           <View style={styles.categoryPill}>
-            <Text style={styles.categoryText} numberOfLines={1}>{place.category}</Text>
+            <Text style={styles.categoryText} numberOfLines={1}>
+              {/* 두 지역을 함께 찾았을 때만 지역이 앞에 붙는다(2026-09-03). */}
+              {place.regionLabel ? `${place.regionLabel} · ${place.category}` : place.category}
+            </Text>
           </View>
           <View style={styles.addressRow}>
             <MapPin size={14} color={colors.textTertiary} />
@@ -257,8 +260,12 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
       {model.places.map((place, index) => (
         <PlaceCard key={place.id} place={place} index={index} />
       ))}
+      {/* 광고·제휴인지 묻는 질문에 화면이 답한다(2026-09-03). 웹 카드와 같은 문장을
+          쓴다 — 한쪽만 고치면 표면이 갈린다. 조회 시각이 없으면 그 문장만 뺀다. */}
       <Text style={styles.providerNote}>
-        장소 정보는 네이버 지역 검색, 사진은 네이버 이미지 검색 결과예요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
+        {model.searchedAtLabel
+          ? `네이버 지역검색 일반 결과예요(광고·제휴 아님). 사진은 네이버 이미지 검색 결과예요. 정렬은 네이버 기준이고, 조회 시각은 ${model.searchedAtLabel} 입니다. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.`
+          : "네이버 지역검색 일반 결과예요(광고·제휴 아님). 사진은 네이버 이미지 검색 결과예요. 정렬은 네이버 기준이에요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다."}
       </Text>
     </View>
   );

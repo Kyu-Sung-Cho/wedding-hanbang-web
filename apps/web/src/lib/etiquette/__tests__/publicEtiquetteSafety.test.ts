@@ -133,7 +133,10 @@ describe("예절 안내는 한 벌이다", () => {
 
   it("프롬프트 번호표가 코퍼스와 맞는다", () => {
     const prompt = source("src/lib/ai/prompts.ts");
-    const table = prompt.slice(prompt.indexOf("**번호표:**"));
+    // 2026-09-03: 번호표가 태그 지시와 **같은 줄**로 합쳐졌다(절단기가 줄 단위라 둘이 함께
+    // 남거나 함께 빠지게). 그래서 표 뒤에 '비슷한 항목 구분' 블록(`1:첫인사` 같은 설명)이
+    // 따라오고, 파일 끝까지 세면 그 설명의 번호까지 섞인다. 표는 한 줄이므로 그 줄만 센다.
+    const table = prompt.slice(prompt.indexOf("**번호표:**")).split("\n")[0];
     const promptNumbers = [...table.matchAll(/(\d+):/g)].map((match) => Number(match[1]));
 
     expect(promptNumbers.length).toBe(25);
