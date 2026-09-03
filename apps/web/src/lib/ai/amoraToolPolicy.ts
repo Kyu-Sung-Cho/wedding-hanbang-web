@@ -33,8 +33,9 @@ const SCHEDULE_WRITE_TOOLS = [
 const VENDOR_READ_TOOLS = [
   "get_market_price",
 ] as const;
-const CONTRACT_READ_TOOLS = [
-  "analyze_contract_readiness",
+// 계약 개입 금지(2026-08-18) 이후 남은 것은 "받은 견적서를 같이 본다"뿐이다.
+// 계약서 해석·위험 판정은 제거했고, 견적 확인은 판정 없이 확인 질문만 만든다.
+const DOCUMENT_ATTACHMENT_READ_TOOLS = [
   "analyze_quote",
   "get_market_price",
 ] as const;
@@ -52,7 +53,7 @@ export const AMORA_TOOL_POLICY_NAMES: ReadonlySet<string> = new Set([
   ...SCHEDULE_READ_TOOLS,
   ...SCHEDULE_WRITE_TOOLS,
   ...VENDOR_READ_TOOLS,
-  ...CONTRACT_READ_TOOLS,
+  ...DOCUMENT_ATTACHMENT_READ_TOOLS,
   ...ACTION_READ_TOOLS,
   ...ACTION_WRITE_TOOLS,
   "update_venue",
@@ -548,9 +549,9 @@ export function selectAmoraTools({
   const hasScheduleIntent = SCHEDULE_INTENT.test(userText)
     || specialistType === "ceremony_coordinator";
   const hasVendorIntent = VENDOR_INTENT.test(userText);
-  const hasContractIntent = CONTRACT_INTENT.test(userText)
-    || specialistType === "contract_reviewer"
-    || attachmentKind === "document";
+  // 문서를 올렸다는 사실만으로 계약 검토로 넘어가지 않는다. 견적서를 같이
+  // 보는 경로만 남긴다 — 첨부가 없으면 견적 의도로만 열린다.
+  const hasDocumentAttachment = attachmentKind === "document";
   const hasActionIntent = ACTION_INTENT.test(userText);
   // 견적서는 보통 **사진**으로 온다. 계약 의도는 `document` 만 보므로 사진을 올리면
   // 견적 체크가 안 열렸다.
@@ -561,7 +562,7 @@ export function selectAmoraTools({
   if (hasBudgetIntent) addAll(selected, BUDGET_READ_TOOLS);
   if (hasScheduleIntent) addAll(selected, SCHEDULE_READ_TOOLS);
   if (hasVendorIntent) addAll(selected, VENDOR_READ_TOOLS);
-  if (hasContractIntent) addAll(selected, CONTRACT_READ_TOOLS);
+  if (hasDocumentAttachment) addAll(selected, DOCUMENT_ATTACHMENT_READ_TOOLS);
   if (hasActionIntent) addAll(selected, ACTION_READ_TOOLS);
   if (hasQuoteIntent) selected.add("analyze_quote");
   // Each mutation family requires current-turn, domain-specific language.
