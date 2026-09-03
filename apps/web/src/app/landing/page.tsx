@@ -10,9 +10,8 @@ import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
 import BoundariesSection from "@/components/landing/redesign/BoundariesSection";
 import CommunitySection from "@/components/landing/redesign/CommunitySection";
 import NoSideSection from "@/components/landing/redesign/NoSideSection";
-import OneRoomSection from "@/components/landing/redesign/OneRoomSection";
-import PrivateLaneSection from "@/components/landing/redesign/PrivateLaneSection";
-import ScenesSection from "@/components/landing/redesign/ScenesSection";
+import BlockedReasonsSection from "@/components/landing/redesign/BlockedReasonsSection";
+import PhotoBandSection from "@/components/landing/redesign/PhotoBandSection";
 import TransformationHero from "@/components/landing/redesign/TransformationHero";
 
 export const revalidate = 86_400;
@@ -71,21 +70,38 @@ export function generateMetadata(): Metadata {
 }
 
 /**
- * 랜딩 — 결혼 준비 노트.
+ * 랜딩 — 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`).
  *
- * ## 섹션 순서 = 제품 계약의 축 순서
+ * ## 섹션 순서 = 처음 온 사람이 던지는 질문의 순서
  *
- *   히어로     우리 둘이 뭘 원하는지부터 (2026-09-03 시안)
- *   ①  아모라   대화 한 토막을 노트에 적어 보여 준다      ← 제품의 중심
- *   ②  확인     확인한 것만 예산·할 일·일정에 남는다      ← 그 대화가 어디로 가나
- *   ③  커뮤니티 같은 분기에 결혼하는 사람들의 기록        ← 계약의 둘째 축
- *   ④  지금 되는 것  견적·스무장면·공시가·예절            ← 로그인 없이 만질 것
- *   ⑤  경계     하지 않는 것 넷                           ← 업체 편이 아니라는 증거
- *   마무리     첫 화면과 같은 행동을 부른다
+ *   히어로      우리 둘이 뭘 원하는지부터
+ *   ② 막히는 이유   "왜 자꾸 막히지?"        ← 문제를 커플의 말로 인용
+ *   ③ 아모라        "그래서 뭘 해주는데?"    ← 설명 대신 대화 한 장면
+ *   ④ 편 안 듦      "한쪽 편들면 어떡해?"
+ *   ⑤ 확인          "내 계획을 마음대로 바꾸나?"
+ *   ⑥ 무료 도구     "가입 전에 뭘 해볼 수 있어?"
+ *   ⑦ 커뮤니티      "우리 같은 사람들은 뭘 하지?"  ← 제품 계약 둘째 축
+ *   ⑧ 사진 자리     (출시 전 실제 사진으로 교체)
+ *   ⑨ 경계          "이거 광고 아닌가요?"    ┐ 한 덩어리 어두운 띠
+ *   ⑩ 마무리        첫 화면과 같은 행동      ┘
  *
- * ①②③ 이 CLAUDE.md 제품 계약의 세 축이고 ④ 는 부가 도구다. 공시 가격·위약금은
- * 한때 ③ 자리에 전용 섹션으로 있었는데, 파운더가 "메인 기능을 소개해야지" 로
- * 바로잡아 ④ 안의 카드 한 장으로 내렸다.
+ * ## 2026-09-03 개편에서 없어진 섹션 셋 — **내용은 없어지지 않았다**
+ *
+ * 시안에 `ScenesSection`·`OneRoomSection`·`PrivateLaneSection` 이 없다. 셋 다 지웠지만
+ * 그 몫은 새 섹션이 나눠 받았다. 되살리기 전에 여기를 먼저 읽어라:
+ *
+ *   스무 장면(scenes)      → ⑥ 카드 "둘이 갈리는 장면 보기" + ④ 버튼
+ *   한 덩어리 대화(oneRoom) → ③ 대화 카드 캡션("앞에서 말한 시기랑 예산을 기억해뒀다가…")
+ *   나만 보는 자리(privateLane) → ③ 자리 카드 둘 + `amoraNote.privacyNote`
+ *
+ * 셋이 지고 있던 **고지도 함께 옮겼다**(공유 링크 고지·대화 저장 고지·샘플 표식).
+ * 고지가 어디로 갔는지는 `landingDisclosuresAreOnScreen.test.ts` 가 이름으로 못 박는다.
+ *
+ * ## 인접 규칙
+ *
+ * ③ → ④ → ⑤ 는 붙어 있어야 한다. 아모라가 답하는 장면을 보면 곧바로 "한쪽 편들면?"과
+ * "내 계획을 바꾸나?"가 떠오르고, 다음 섹션이 그 걱정을 받지 않으면 앞 섹션이
+ * 불안으로 끝난다.
  */
 export default function LandingPage() {
   return (
@@ -110,45 +126,17 @@ export default function LandingPage() {
       <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
-        {/* 순서는 **방문자가 하는 질문의 순서**다.
-            운영 랜딩(`hanbang.ai/landing`)이 이 구조였고, 2026-08-29 시안 개편에서
-            섹션 넷(`scenes`·`noside`·`oneroom`·`private`)을 잃으면서 본문이 운영의
-            58%(2,144자 / 3,700자)로 줄었다. 파운더가 "운영과 비슷해야 한다"고
-            지적해 되살렸다. 각 섹션의 눈썹이 **실제로 하는 질문**인 이유가 이것이다.
-
-            보여준다 → 반론에 답한다 → 걱정에 답한다 → 무엇이 남는지 → 어디서 찾는지
-
-            ① 히어로            무엇인지
-            ② 아모라 노트       아모라가 답하는 모습 (설명 대신 장면)
-            ③ 확인한 것만       "그럼 아모라가 내 계획을 바꾸나?"   ← ② 직후여야 한다
-            ④ 장면 하나         스무 장면이 어떻게 생겼는지
-            ⑤ 편을 안 든다      "ChatGPT 로 되잖아요?"
-            ⑥ 한 덩어리 대화    "우리 둘한테 뭐가 달라지냐면"
-            ⑦ 나만 보는 자리    "그럼 내가 쓴 게 다 가나요?"       ← ⑥ 직후여야 한다
-            ⑧ 커뮤니티          비슷한 시기 사람들의 기록 (제품 계약 둘째 축)
-            ⑨ 지금 되는 것      가입 없이 오늘 할 수 있는 것
-            ⑩ 안 하는 것        "이거 광고 아닌가요?"
-            ⑪ 마무리
-
-            ⚠️ **인접 규칙이 둘 있고 둘 다 같은 이유다** — 어떤 섹션은 읽고 나면
-            곧바로 걱정이 생기고, 다음 섹션이 그 걱정을 받지 않으면 앞 섹션이
-            불안으로 끝난다.
-              ② → ③  아모라가 답하는 걸 보면 "내 예산을 마음대로 바꾸나"를 걱정한다
-              ⑥ → ⑦  "두 사람 대화가 한 덩어리"를 읽으면 "내가 쓴 게 다 가나"를 걱정한다
-            사이에 다른 섹션을 끼우지 마라. `landingFirstVisitClarity.test.ts` 와
-            `mvpDirection.test.ts` 가 각각 하나씩 고정한다.
-
-            공시 가격·위약금은 **부가 기능이라 ⑨ 안의 카드 한 장**이다. 한때 전용
-            섹션으로 앞세웠는데, 파운더가 "메인 기능을 소개해야지" 로 바로잡았다. */}
+        {/* 순서·인접 규칙은 이 파일 머리말에 있다. 섹션을 끼우거나 옮기기 전에 읽어라 —
+            `landingFirstVisitClarity.test.ts` 와 `landingOutcomeEvidence.test.ts` 가
+            **이 목록을 통째로** 고정한다(부분집합이 아니라 완전 일치). */}
         <TransformationHero />
+        <BlockedReasonsSection />
         <AmoraNoteSection />
-        <ConfirmSection />
-        <ScenesSection />
         <NoSideSection />
-        <OneRoomSection />
-        <PrivateLaneSection />
-        <CommunitySection />
+        <ConfirmSection />
         <AvailableNowSection />
+        <CommunitySection />
+        <PhotoBandSection />
         <BoundariesSection />
         <ClosingAction />
       </main>

@@ -217,17 +217,16 @@ function headlineOf(file: string): Headline {
  * 블록이 파일 끝까지 넓어진다.
  */
 const CONTENT_ORDER = [
+  // **정본 파일의 실제 순서**여야 한다(다음 블록 이름으로 경계를 자르기 때문이다).
+  // 2026-09-03 시안으로 순서와 구성이 함께 바뀌었다.
   "hero",
+  "blockedReasons",
   "amoraNote",
-  // 2026-08-29 복원 — 운영 랜딩에 있던 넷. 이 목록은 **정본 파일의 실제 순서**여야
-  // 한다(다음 블록 이름으로 경계를 자르기 때문이다). 블록을 옮기면 여기도 옮겨라.
-  "scenes",
   "noSide",
-  "oneRoom",
-  "privateLane",
-  "community",
-  "availableNow",
   "confirm",
+  "availableNow",
+  "community",
+  "photoBand",
   "boundaries",
   "closing",
   "footer",
@@ -328,17 +327,20 @@ function canonicalTitleRefs(file: string, section: string): readonly string[] {
  * 같게 적는다 — 아래 "짝 목록에 있다" 케이스가 그 목록을 전수로 대조한다.
  */
 const PAIRS: ReadonlyArray<readonly [string, string]> = [
-  ["ConfirmSection", "confirm"],
-  // 2026-08-29 복원. 운영 랜딩(`hanbang.ai/landing`)에 있던 넷을 시안 개편에서
-  // 잃었다가 파운더 지적으로 되살렸다 — 각각 정본 블록과 짝을 이룬다.
-  ["ScenesSection", "scenes"],
+  // 2026-09-03 시안으로 섹션이 갈렸다. `ScenesSection`·`OneRoomSection`·
+  // `PrivateLaneSection` 은 시안에 없어 지웠고, 그 내용은 ③ 아모라와 ⑥ 무료 도구가
+  // 나눠 받았다(`app/landing/page.tsx` 머리말에 어디로 갔는지 적혀 있다).
+  // `BlockedReasonsSection` 이 새로 생겼다.
+  ["BlockedReasonsSection", "blockedReasons"],
+  ["AmoraNoteSection", "amoraNote"],
   ["NoSideSection", "noSide"],
-  ["OneRoomSection", "oneRoom"],
-  ["PrivateLaneSection", "privateLane"],
-  ["CommunitySection", "community"],
+  ["ConfirmSection", "confirm"],
   ["AvailableNowSection", "availableNow"],
+  ["CommunitySection", "community"],
   ["BoundariesSection", "boundaries"],
   ["ClosingAction", "closing"],
+  // 화면에 h2 가 있고 정본에 title 이 있다 — 자리 설명이지만 대조는 똑같이 한다.
+  ["PhotoBandSection", "photoBand"],
 ];
 
 /** h1 을 그리는 섹션 — 아래 마지막 케이스가 따로 대조한다. */
@@ -356,7 +358,10 @@ const HERO_FILE = "TransformationHero";
  * (3) h2 가 정말로 sr-only 인지.
  */
 const TITLELESS: ReadonlyArray<readonly [string, string]> = [
-  ["AmoraNoteSection", "amoraNote"],
+  // 2026-09-03: `AmoraNoteSection` 이 여기서 나갔다. 시안이 그 섹션에 보이는 제목을
+  // 주었기 때문이다("지금 뭐가 제일 막막한지, / 거기서부터 시작해요.") — 이제 PAIRS 다.
+  //
+  // **비어 있는 것이 맞는 상태다.** 랜딩의 모든 섹션이 화면에 제목을 갖는다.
 ];
 
 /** 화면 헤드라인 ↔ 정본 대조. PAIRS 와 히어로가 같은 기계를 쓴다. */

@@ -309,7 +309,7 @@ describe("landing two-sided trust contract", () => {
     // 아모라를 소개하는 자리에는 AI 고지가 붙는다(AI 기본법 — 사람인 것처럼 소개하지
     // 않는다). 자리는 셋이다 — 아모라가 처음 말하는 노트 카드, 경계 섹션의 세 번째
     // 항목, 그리고 푸터 고지 끝줄. 한계("틀리거나 놓칠 수 있다")도 같이 적는다.
-    const amoraNoteCopy = contentBlock("amoraNote", "scenes");
+    const amoraNoteCopy = contentBlock("amoraNote", "noSide");
     const boundariesCopy = contentBlock("boundaries", "closing");
     const footerCopy = contentBlock("footer", "headerNav");
     expect(amoraNoteCopy).toContain("AI 생성 답변");
@@ -329,7 +329,7 @@ describe("landing two-sided trust contract", () => {
 
     // 결정은 두 사람이 하고 아모라는 정리만 한다 — 옛 `noSide` 의 "한쪽 손을 들지
     // 않아요."가 경계 섹션 제목으로 합쳐졌다.
-    const confirmCopy = contentBlock("confirm", "boundaries");
+    const confirmCopy = contentBlock("confirm", "availableNow");
     // 2026-09-03 시안이 같은 뜻을 두 줄로 풀어 썼다("결정은 둘이. 아모라는 정리." →
     // "결정은 둘이 합니다. / 아모라는 그 앞까지만 도와요.").
     expect(boundariesCopy).toContain("결정은 둘이 합니다.");
@@ -370,7 +370,7 @@ describe("landing two-sided trust contract", () => {
     expect(confirmCopy).toContain("실제 이용 현황이 아니에요.");
 
     // 개인정보 — 로그인 없이 선택한 내용은 남기지 않는다(옛 `privateLane.note`).
-    const availableNowCopy = contentBlock("availableNow", "confirm");
+    const availableNowCopy = contentBlock("availableNow", "community");
     expect(availableNowCopy).toContain("로그인 없이 선택한 내용은 저장하지 않아요");
 
     // 궁합·점수 금지(CLAUDE.md: WeddingCode 는 검증된 궁합 검사가 아니다).
@@ -402,7 +402,7 @@ describe("landing two-sided trust contract", () => {
     // 커뮤니티는 읽는 것만 로그인 없이 열린다 — 글쓰기는 계정이 필요하다고 먼저 말한다.
     // (옛 `notDoing` 의 "AI가 단 답변은 사람 답변과 구분해서 보여줘요" 는 커뮤니티
     //  **안쪽** 화면의 계약이라 랜딩 카피에서 빠졌다. 랜딩은 이제 커뮤니티를 소개만 한다.)
-    const communityCopy = contentBlock("community", "availableNow");
+    const communityCopy = contentBlock("community", "photoBand");
     expect(communityCopy).toContain("로그인 없이 읽을 수 있어요. 글을 쓰려면 계정이 필요해요.");
     expectWired("community.note");
     expect(communitySection, "커뮤니티 섹션이 카피 제목을 안 읽는다")
@@ -410,9 +410,11 @@ describe("landing two-sided trust contract", () => {
 
     // 반영 전에 무엇이 반영될지 먼저 보여준다 — 옛 "준비 기록에 반영할 변경을 먼저
     // 보여줘요"가 확인 카드의 라벨로 바뀌었다.
-    expect(confirmCopy).toContain("아모라의 제안 · 아직 반영 전");
-    expectWired("confirm.sample.proposeLabel");
-    expectWired("confirm.sample.proposeMark");
+    // 2026-09-03: 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌면서 라벨도 바뀌었다.
+    // 지키는 것은 같다 — 눌리기 전에는 아무 일도 안 일어났다고 카드가 스스로 말한다.
+    expect(confirmCopy).toContain("아직 반영 전");
+    expectWired("confirm.sample.state");
+    expectWired("confirm.sample.contract");
     expect(content).not.toContain("무엇을 저장하고 공유할지 먼저 보여줘요");
   });
 
@@ -438,7 +440,7 @@ describe("landing two-sided trust contract", () => {
     ).not.toMatch(VENDOR_COUNT);
     // 오늘 랜딩이 실제로 드는 수치와 그 근거. 위 대조는 "수치가 있으면 근거도 있다" 라서
     // 수치를 통째로 지우면 조용히 통과한다 — 공시 카드가 기준 시점을 들고 있는지 못 박는다.
-    expect(contentBlock("availableNow", "confirm")).toContain("2025년 11월 공시 기준");
+    expect(contentBlock("availableNow", "community")).toContain("2025년 11월 공시 기준");
   });
 
   it("keeps the editorial journey and navigation anchors in sync", () => {
@@ -599,7 +601,7 @@ describe("landing two-sided trust contract", () => {
   });
 
   it("keeps the disclosure source, paid-ranking promise, and limits visible", () => {
-    const availableNowCopy = contentBlock("availableNow", "confirm");
+    const availableNowCopy = contentBlock("availableNow", "community");
     const boundariesCopy = contentBlock("boundaries", "closing");
     const footerCopy = contentBlock("footer", "headerNav");
 
@@ -718,13 +720,14 @@ describe("landing two-sided trust contract", () => {
     // 옛 카피는 "첫 준비 순서 / 아모라와 대화할 때 / 계정으로 계속 관리" 세 단계로
     // 시작 조건을 적었고, 그다음 판은 "가입 안 해도 되는 것들" 목록이 그 자리를 졌다.
     // 지키는 것은 세 판에서 같다 — **누르기 전에 조건을 안다.**
-    const availableNowCopy = contentBlock("availableNow", "confirm");
+    const availableNowCopy = contentBlock("availableNow", "community");
     const closingCopy = contentBlock("closing", "footer");
-    const confirmCopy = contentBlock("confirm", "boundaries");
+    const confirmCopy = contentBlock("confirm", "availableNow");
     const footerCopy = contentBlock("footer", "headerNav");
 
-    expect(availableNowCopy).toContain("가입 안 해도 되는 것들");
-    expect(availableNowCopy).toContain("지금 바로 써볼 수 있어요");
+    // 2026-09-03 시안 문장으로 바뀌었다. 뜻은 같다 — 가입 전에 열려 있는 것들.
+    expect(availableNowCopy).toContain("가입 전에 그냥 써보세요");
+    expect(availableNowCopy).toContain("쓸 만한 건 로그인 없이 열어뒀어요.");
     expect(availableNowCopy).toContain("도 로그인 없이 열려 있어요.");
     expectWired("availableNow.eyebrow");
     expectWired("availableNow.title");
@@ -735,7 +738,9 @@ describe("landing two-sided trust contract", () => {
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
     // 섹션의 눈썹("계정을 만들면")과 본문이 그 일을 한다.
-    expect(confirmCopy).toContain("계정을 만들면");
+    // 2026-09-03: 눈썹이 "계정을 만들면" → "대화로 끝나지 않게" 로 바뀌었다. 계정 이야기를
+    // 꺼내는 자리는 그대로 이 섹션이고, 그 말은 고지 문장이 진다.
+    expect(confirmCopy).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
     expect(confirmCopy).toContain("예산·할 일·일정");
     expect(closingCopy).toContain("예산·할 일·일정을 남기려면 계정이 필요해요.");
     expectWired("closing.note");

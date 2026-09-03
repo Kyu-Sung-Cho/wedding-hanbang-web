@@ -109,10 +109,10 @@ const contentProse = prose(rendered(CONTENT_PATH));
  * 경계를 못 찾으면 `contentBlock` 이 던진다(조용히 넓어지지 않는다).
  */
 const block = {
-  amoraNote: prose(contentBlock("amoraNote", "scenes")),
-  community: prose(contentBlock("community", "availableNow")),
-  availableNow: prose(contentBlock("availableNow", "confirm")),
-  confirm: prose(contentBlock("confirm", "boundaries")),
+  amoraNote: prose(contentBlock("amoraNote", "noSide")),
+  community: prose(contentBlock("community", "photoBand")),
+  availableNow: prose(contentBlock("availableNow", "community")),
+  confirm: prose(contentBlock("confirm", "availableNow")),
   boundaries: prose(contentBlock("boundaries", "closing")),
   closing: prose(contentBlock("closing", "footer")),
   footer: prose(contentBlock("footer", "headerNav")),
@@ -275,18 +275,23 @@ describe("landing product outcome evidence", () => {
     );
     expect(block.confirm).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
 
-    // 반영될 값이 화면에 그대로 보인다.
-    expect(block.confirm).toContain("총예산 3,000만원");
+    // 반영될 것이 화면에 그대로 보인다. 2026-09-03 시안으로 카드가 "제안 한 건(금액)"
+    // 에서 **"아모라가 이렇게 이해했어요" 세 줄**로 바뀌었다 — 값이 아니라 상태(확정·
+    // 미정·다음)를 보여 준다. 지키는 것은 같다: 무엇이 반영될지가 눌리기 전에 보인다.
+    expect(block.confirm).toContain("사진은 꼭 남긴다");
+    expect(block.confirm).toContain("아직 반영 전");
 
     // "아직 반영 전"이라는 말과 [확인]·[나중에] 두 버튼이 함께 있어야, 확인 전에는
     // 아무 일도 일어나지 않는다는 약속이 글이 아니라 그림으로도 보인다. 옛
     // `PreparationResult`의 "제안마다 따로 확인"이 여기로 옮겨 왔다.
     // (2026-08-29: 시안이 쉼표를 가운뎃점으로 바꿨다. 표기가 아니라 뜻을 재도록
     //  "아모라의 제안"과 "아직 반영 전"을 따로 묻는다.)
-    expect(block.confirm).toContain("아모라의 제안");
+    expect(block.confirm).toContain("아모라가 이렇게 이해했어요");
     expect(block.confirm).toContain("아직 반영 전");
-    expect(block.confirm).toContain('confirm: "확인"');
-    expect(block.confirm).toContain('later: "나중에"');
+    // 2026-09-03 시안이 버튼을 둘에서 셋으로 바꿨다("맞아요"·"수정하기"·"지금은 저장 안 함").
+    // 고를 수 있는 길이 늘어난 것이고, **아무것도 안 하는 길**이 여전히 있다는 것이 계약이다.
+    expect(block.confirm).toContain('confirm: "맞아요"');
+    expect(block.confirm).toContain('later: "지금은 저장 안 함"');
     // 옛 카피의 "확인 버튼을 누르기 전까지 예산·할 일·일정에 반영되지 않아요" 는
     // 컴포넌트가 직접 든 이 한 줄로 옮겨졌다. 카드 **안에** 있어야 그림과 붙는다.
     expect(componentSource("ConfirmSection.tsx")).toContain(
@@ -300,17 +305,23 @@ describe("landing product outcome evidence", () => {
       "confirm.body",
       "confirm.body2",
       "confirm.note",
+      // 2026-09-03 시안으로 카드가 "제안 한 건(금액)" 에서 **"이해한 것 세 줄"** 로
+      // 바뀌었다. 키 이름이 갈렸지 그리는 자리가 준 것이 아니다 — 아래 열이 새 이름이고,
+      // `rows` 는 배열이라 `.map` 으로 확인한다(바로 아래).
       "confirm.sample.saidLabel",
-      "confirm.sample.said",
-      "confirm.sample.proposeLabel",
-      "confirm.sample.proposeLead",
-      "confirm.sample.proposeMark",
-      "confirm.sample.proposeTail",
+      "confirm.sample.state",
+      "confirm.sample.cardTitle",
+      "confirm.sample.contract",
       "confirm.sample.confirm",
+      "confirm.sample.edit",
       "confirm.sample.later",
     ]) {
       expectRendersCopy("ConfirmSection.tsx", expression);
     }
+    expect(componentSource("ConfirmSection.tsx"), "이해한 것 세 줄을 정본 배열에서 돌지 않는다")
+      .toContain("confirm.sample.rows.map(");
+    expect(componentSource("ConfirmSection.tsx"), "도구 카드 셋을 정본 배열에서 돌지 않는다")
+      .toContain("confirm.tools.map(");
 
     // 이 카드는 **지어낸 금액**("우리 총예산은 3,000만 원으로 정했어" · "총예산 3,000만원")을
     // 보여 준다. 실제 이용 현황으로 읽히면 안 되고, 그래서 카피에 `sampleNote` 가 있다.
@@ -371,8 +382,9 @@ describe("landing product outcome evidence", () => {
     );
 
     expectRendersCopy("AmoraNoteSection.tsx", "amoraNote.note");
-    expectRendersCopy("AmoraNoteSection.tsx", "amoraNote.ask");
-    expectRendersCopy("AmoraNoteSection.tsx", "amoraNote.answerMark");
+    // 2026-09-03: 노트 한 장이 대화 카드가 됐다 — 물음과 답의 키 이름이 바뀌었다.
+    expectRendersCopy("AmoraNoteSection.tsx", "amoraNote.chat.me");
+    expectRendersCopy("AmoraNoteSection.tsx", "amoraNote.chat.amora");
   });
 
   it("keeps the vendor-neutral boundaries and the AI label the product is required to show", () => {
@@ -428,18 +440,18 @@ describe("landing product outcome evidence", () => {
     // `landing.indexOf("<X />")` 로 묻던 시절에는 주석으로 꺼 놓은 섹션이 렌더된
     // 것으로 잡혔다. `renderedSections()` 는 주석을 벗기고 <main> 안만 센다.
     const order = [
+      // 2026-09-03 시안으로 목록이 갈렸다. `ScenesSection`·`OneRoomSection`·
+      // `PrivateLaneSection` 이 없어지고 `BlockedReasonsSection`·`PhotoBandSection` 이
+      // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
+      // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
+      "BlockedReasonsSection",
       "AmoraNoteSection",
-      "ConfirmSection",
-      // 2026-08-29 복원 — 운영 랜딩(`hanbang.ai/landing`)에 있던 넷을 시안 개편에서
-      // 잃었다가 파운더 지적으로 되살렸다. 각 섹션의 눈썹이 방문자가 실제로 하는
-      // 질문이고, 그래서 순서가 곧 **반론 처리 순서**다.
-      "ScenesSection",
       "NoSideSection",
-      "OneRoomSection",
-      "PrivateLaneSection",
-      "CommunitySection",
+      "ConfirmSection",
       "AvailableNowSection",
+      "CommunitySection",
+      "PhotoBandSection",
       "BoundariesSection",
       "ClosingAction",
     ];
@@ -475,10 +487,13 @@ describe("landing product outcome evidence", () => {
     // ② 부가 도구(⑤)가 제품 계약의 축(아모라·확인·커뮤니티)보다 앞서면 안 된다.
     //    2026-08-28에 실제로 공시 위약금 비교가 메인 자리를 차지했고 파운더가
     //    "메인 기능을 소개해야지" 로 바로잡았다.
+    // 2026-09-03: 시안이 무료 도구를 커뮤니티 **앞**에 둔다. 막으려던 것은 부가 도구가
+    // **제품의 중심**(아모라·확인)보다 앞서는 것이었고 — 2026-08-28에 실제로 그랬다 —
+    // 그건 그대로 막는다. 커뮤니티와의 앞뒤는 그 사고와 무관하다.
     expect(
       sections.indexOf("AvailableNowSection"),
-      "부가 도구가 제품 계약의 축(커뮤니티)보다 앞으로 갔다 — 2026-08-28에 실제로 그랬다",
-    ).toBeGreaterThan(sections.indexOf("CommunitySection"));
+      "부가 도구가 제품 계약의 축(확인)보다 앞으로 갔다 — 2026-08-28에 실제로 그랬다",
+    ).toBeGreaterThan(sections.indexOf("ConfirmSection"));
   });
 
   it("keeps every header anchor pointing at a section the page actually renders", () => {
@@ -580,10 +595,8 @@ describe("landing product outcome evidence", () => {
       landingContent.community.cohorts.length,
       "분기 목록이 비었다 — 동기방이 말뿐이 된다",
     ).toBeGreaterThanOrEqual(4);
-    expect(
-      landingContent.community.topics.length,
-      "오가는 이야기 목록이 비었다",
-    ).toBeGreaterThanOrEqual(3);
+    // 2026-09-03: 주제 목록(`topics`)이 시안에서 없어지고 그 자리를 분기방 목록이
+    // 대신한다. 무엇이 오가는지는 본문 한 줄이 말한다(바로 위 단언).
 
     // 커뮤니티로 가는 길. 라벨과 목적지 둘 다 정본에서 온다.
     // 커뮤니티 홈의 정본 경로는 `/wedding` 이다 — `next.config.ts` 의 리라이트가
@@ -601,14 +614,13 @@ describe("landing product outcome evidence", () => {
     for (const expression of [
       "community.body",
       "community.note",
-      "community.topicsLead",
       "community.cta.label",
+      "community.cohortTag",
     ]) {
       expectRendersCopy("CommunitySection.tsx", expression);
     }
     const section = componentSource("CommunitySection.tsx");
     expect(section, "분기 목록을 정본 배열에서 돌지 않는다").toContain("community.cohorts.map(");
-    expect(section, "이야기 목록을 정본 배열에서 돌지 않는다").toContain("community.topics.map(");
     expect(section, "커뮤니티 링크가 정본 href 를 쓰지 않는다").toContain(
       "href={community.cta.href}",
     );

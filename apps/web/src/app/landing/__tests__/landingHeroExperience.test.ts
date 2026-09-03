@@ -684,7 +684,7 @@ describe("landing hero product experience contract", () => {
      *   - ConfirmSection 이 sampleNote 를 그리기 시작하면 → 이 배열을 비워라(실패한다)
      *   - 다른 고지가 새로 화면에서 떨어지면            → 여기서 잡힌다(실패한다)
      *
-     * 같은 뜻의 샘플 표시는 `amoraNote.note` 와 `confirm.sample.proposeLabel` 이
+     * 같은 뜻의 샘플 표시는 `amoraNote.note` 와 `confirm.sample.state` 이
      * 화면에서 지고 있다(위 "shows one concrete proposal" 케이스가 검사한다).
      */
     // 2026-08-29: `confirm.sampleNote` 가 여기 있었다. 이 검사가 "카피에만 있고 화면엔
@@ -1051,12 +1051,17 @@ describe("landing hero product experience contract", () => {
     // 2026-08-29 정본 시안에서는 `AmoraNoteSection`(아모라가 적어 준 노트 한 장)이다.
     // 시안에서는 아예 히어로와 **같은 섹션 안**에 있던 카드다.
     // 주석으로 꺼 놓은 섹션은 세지 않는다. 렌더되는 순서만 본다.
+    //
+    // 2026-09-03 시안이 사이에 **한 칸**을 넣었다 — "결혼 준비가 자꾸 막히는 이유"
+    // (커플의 말 세 마디). 증거가 멀어진 것이 아니라 **증거가 무엇에 대한 답인지**를
+    // 먼저 세운 것이다: 문제(둘의 기준이 없다) → 그 자리에서 아모라가 하는 일.
+    // 한 칸만 허용한다 — 이름으로 못 박아 두 칸이 되면 여기가 운다.
     const heroAt = sectionIndex("TransformationHero");
     expect(sectionIndex("AmoraNoteSection")).toBeGreaterThan(heroAt);
     expect(
-      renderedSectionNames[heroAt + 1],
+      [renderedSectionNames[heroAt + 1], renderedSectionNames[heroAt + 2]],
       "히어로와 증거 사이에 다른 섹션이 끼면 증거가 첫 화면에서 멀어진다",
-    ).toBe("AmoraNoteSection");
+    ).toEqual(["BlockedReasonsSection", "AmoraNoteSection"]);
   });
 
   it("shows the two-person evidence on mobile, because the H1 promises it", () => {
@@ -1094,7 +1099,9 @@ describe("landing hero product experience contract", () => {
     ]) {
       expect(confirmCopy, `두 사람 장면에서 ${line}이 빠졌다`).toContain(line);
     }
-    expectVisible("ConfirmSection.tsx", confirmSection, "confirm.sample.said");
+    // 2026-09-03: 카드가 "둘이 말한 것 한 줄 + 제안 한 건" 에서 "이해한 것 세 줄" 로
+    // 바뀌었다. 두 사람이 말한 것에서 나왔다는 표시는 `saidLabel` 이 잇는다.
+    expectVisible("ConfirmSection.tsx", confirmSection, "confirm.sample.saidLabel");
     expectVisible("ConfirmSection.tsx", confirmSection, "confirm.body2");
 
     // 첫 화면 바로 다음 증거는 아모라가 실제로 답하는 모습 그대로다.
@@ -1103,10 +1110,13 @@ describe("landing hero product experience contract", () => {
     // **문장을 옮겨 적지 않는다.** 여기 적었던 문장은 라이브 문항이 아니라
     // 지어낸 것이었고, 그래서 랜딩이 틀린 견본을 보여 주는데도 통과했다.
     // 그래서 문장이 아니라 **모양**만 본다(질문 한 줄 · 동그라미 쳐지는 답 한 조각).
+    //
+    // 2026-09-03 시안으로 그 장면이 **노트 한 장에서 대화 카드**로 바뀌었다. 모양만
+    // 보는 것은 그대로다 — 사람이 한 말 한 줄과 아모라가 답한 한 줄.
     const amoraCopy = block("amoraNote");
-    expect(amoraCopy).toMatch(/ask:\s*"[^"]{10,}"/u);
-    expect(amoraCopy).toMatch(/answerMark:\s*"[^"]{10,}"/u);
-    for (const marker of ["amoraNote.ask", "amoraNote.answerMark"]) {
+    expect(amoraCopy).toMatch(/me:\s*"[^"]{10,}"/u);
+    expect(amoraCopy).toMatch(/amora:\s*"[^"]{10,}"/u);
+    for (const marker of ["amoraNote.chat.me", "amoraNote.chat.amora"]) {
       expect(amoraNoteSection).toContain(marker);
       expectVisible("AmoraNoteSection.tsx", amoraNoteSection, marker);
     }

@@ -88,7 +88,7 @@ const CONFIRM = "src/components/landing/redesign/ConfirmSection.tsx";
  * 그게 이번에 메운 구멍의 정체다.
  */
 function availableNowCards(): string {
-  const block = contentBlock("availableNow", "confirm");
+  const block = contentBlock("availableNow", "community");
   const marker = "cards: [";
   const at = block.indexOf(marker);
   if (at < 0) {
@@ -232,8 +232,8 @@ function landingSurfaces(): ReadonlyArray<readonly [string, string]> {
 describe("landing first visit clarity", () => {
   it("states what the product does and connects the first action to Amora", () => {
     const heroBlock = contentBlock("hero", "amoraNote");
-    const amoraBlock = contentBlock("amoraNote", "scenes");
-    const confirmBlock = contentBlock("confirm", "boundaries");
+    const amoraBlock = contentBlock("amoraNote", "noSide");
+    const confirmBlock = contentBlock("confirm", "availableNow");
     const nowCards = availableNowCards();
     const hero = rendered(HERO);
     const amora = rendered(AMORA_NOTE);
@@ -323,13 +323,16 @@ describe("landing first visit clarity", () => {
     expect(hero, "히어로가 이름표를 그리지 않는다").toContain("{hero.tape}");
     expect(sections, "아모라를 보여주는 섹션이 렌더되지 않는다").toContain("AmoraNoteSection");
     expect(sections, "확인 계약 섹션이 렌더되지 않는다").toContain("ConfirmSection");
-    // 계정을 요구하는 섹션(`confirm` — eyebrow 가 "계정을 만들면")보다 아모라가 먼저다.
+    // 계정을 요구하는 섹션(`confirm`)보다 아모라가 먼저다.
     expect(
       sections.indexOf("AmoraNoteSection"),
       "계정을 요구하는 섹션보다 아모라 소개가 먼저여야 한다",
     ).toBeLessThan(sections.indexOf("ConfirmSection"));
+    // 2026-09-03: 시안이 눈썹을 "계정을 만들면" → "대화로 끝나지 않게" 로 바꿨다.
+    // **계정 이야기를 꺼내는 자리는 그대로 확인 섹션**이고, 그 말은 눈썹이 아니라
+    // 고지 문장이 진다. 눈썹 글자에 묶지 말고 그 사실로 잰다.
     expect(confirmBlock, "계정을 요구하는 자리가 확인 섹션이 아니게 됐다")
-      .toContain("계정을 만들면");
+      .toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
 
     // 샘플·저장 고지. 옛 `privateLane.note` 가 지고 있었고, 그 섹션이 없어지면서
     // **아모라가 처음 말하는 카드 안으로** 옮겨왔다. 바깥 작은 글씨로 빼면 카드만
@@ -349,8 +352,12 @@ describe("landing first visit clarity", () => {
       .toContain("예산·할 일·일정 중 한 번에 한 가지 변경을 제안하고");
     expect(confirmBlock, "확인한 것만 반영된다는 계약이 사라졌다")
       .toContain("눌러서 확인한 것만 준비 기록에 반영해요");
+    // 2026-09-03 시안으로 카드가 "제안 한 건" 에서 "이해한 것 세 줄" 로 바뀌었다.
+    // 지키는 것은 같다 — **누가 내놓은 것인지**와 **아직 아무 일도 안 일어났다**는 것.
     expect(confirmBlock, "제안하는 쪽이 아모라라는 것이 화면에서 사라졌다")
-      .toContain("아모라의 제안 · 아직 반영 전");
+      .toContain("아모라가 이렇게 이해했어요");
+    expect(confirmBlock, "아직 반영 전이라는 것이 화면에서 사라졌다")
+      .toContain("아직 반영 전");
     // 베타는 없어졌지만 이 고지는 **사실이라 남는다**(CLAUDE.md 2026-08-29).
     // 틀을 걷어내면서 같이 지워지기 가장 쉬운 문장이라 따로 못 박는다.
     expect(confirmBlock, "비용·결제 고지가 베타 틀과 함께 지워졌다")
@@ -360,7 +367,7 @@ describe("landing first visit clarity", () => {
     // 정본에 남아 있어도 그리지 않으면 화면에는 없다.
     expect(confirm, "확인 섹션이 confirm.body 를 그리지 않는다").toContain("{confirm.body}");
     expect(confirm, "‘아직 반영 전’ 라벨을 그리는 자리가 없다")
-      .toContain("{confirm.sample.proposeLabel}");
+      .toContain("{confirm.sample.state}");
 
     // 히어로 안에서 약속(H1)이 설명(본문)보다 먼저 온다. H1 문장 자체는 여기 옮겨 적지
     // 않는다 — `landingHeadlineParity.test.ts` 가 정본과 글자까지 대조한다. 여기서
@@ -452,7 +459,7 @@ describe("landing first visit clarity", () => {
   });
 
   it("shows the scene a first visitor recognises before asking for an account", () => {
-    const amoraBlock = contentBlock("amoraNote", "scenes");
+    const amoraBlock = contentBlock("amoraNote", "noSide");
     const amora = rendered(AMORA_NOTE);
 
     // 2026-08-27 개편 전에는 이 케이스가 ProblemMirrorSection → PreparationResult 순서를
@@ -479,10 +486,23 @@ describe("landing first visit clarity", () => {
     // 아모라 카드가 다시 불안으로 끝난다 — page.tsx 주석이 못 박은 순서다.
     expect(sections, "아모라 카드 섹션이 렌더되지 않는다").toContain("AmoraNoteSection");
     expect(sections, "확인 계약 섹션이 렌더되지 않는다").toContain("ConfirmSection");
+    //
+    // 2026-09-03: 시안이 아모라와 확인 **사이**에 "편을 들지 않아요"를 끼웠다. 규칙이
+    // 느슨해진 게 아니라 **걱정이 둘**이라는 것이 드러난 것이다 — 아모라가 답하는 걸
+    // 보면 "한쪽 편들면 어떡해"와 "내 계획을 마음대로 바꾸나"가 함께 떠오르고, 시안은
+    // 그 둘을 차례로 받는다. 그래서 "바로 뒤"를 **"이 셋이 끊기지 않고 이어진다"**로
+    // 옮긴다. 사이에 다른 섹션이 끼면 여전히 운다.
+    expect(sections, "편을 들지 않는다는 섹션이 렌더되지 않는다").toContain("NoSideSection");
     expect(
-      sections.indexOf("ConfirmSection"),
-      "확인 계약이 아모라 카드 바로 뒤가 아니다 — 아모라 카드가 불안으로 끝난다",
-    ).toBe(sections.indexOf("AmoraNoteSection") + 1);
+      [
+        sections.indexOf("NoSideSection"),
+        sections.indexOf("ConfirmSection"),
+      ],
+      "아모라 → 편 안 듦 → 확인 이 끊겼다 — 아모라 카드가 불안으로 끝난다",
+    ).toEqual([
+      sections.indexOf("AmoraNoteSection") + 1,
+      sections.indexOf("AmoraNoteSection") + 2,
+    ]);
 
     // 알아볼 장면이 계정 요구보다 먼저다 — 옛 "문제를 비춘 뒤에 결과" 규칙이 서 있던
     // 자리다. 지금 그 장면은 아모라가 실제로 답하는 노트 카드다.
@@ -496,18 +516,18 @@ describe("landing first visit clarity", () => {
     // 부가 기능이라 전용 섹션이 아니라 `availableNow` 카드 한 장이다).
     // 목록을 통째로 대조하므로 끼워 넣기·빼기·자리 바꾸기가 전부 여기서 걸린다.
     expect(sections).toEqual([
+      // 2026-09-03 시안으로 목록이 갈렸다. `ScenesSection`·`OneRoomSection`·
+      // `PrivateLaneSection` 이 없어지고 `BlockedReasonsSection`·`PhotoBandSection` 이
+      // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
+      // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
+      "BlockedReasonsSection",
       "AmoraNoteSection",
-      "ConfirmSection",
-      // 2026-08-29 복원 — 운영 랜딩(`hanbang.ai/landing`)에 있던 넷을 시안 개편에서
-      // 잃었다가 파운더 지적으로 되살렸다. 각 섹션의 눈썹이 방문자가 실제로 하는
-      // 질문이고, 그래서 순서가 곧 **반론 처리 순서**다.
-      "ScenesSection",
       "NoSideSection",
-      "OneRoomSection",
-      "PrivateLaneSection",
-      "CommunitySection",
+      "ConfirmSection",
       "AvailableNowSection",
+      "CommunitySection",
+      "PhotoBandSection",
       "BoundariesSection",
       "ClosingAction",
     ]);
@@ -520,13 +540,16 @@ describe("landing first visit clarity", () => {
     // 실패했다). 샘플이 실제와 같은지는 `landingSampleMatchesLive.test.ts` 가 본다.
     // 여기서는 **자리가 비지 않았나**만 본다: 물음이 있고, 답이 있고, 그 답이 막연한
     // 위로가 아니라 지금 할 일 목록으로 이어지는가.
+    //
+    // 2026-09-03: 노트 한 장이 **대화 카드**로 바뀌었다. 자리는 그대로 셋이다 —
+    // 사람이 한 말, 아모라가 한 답, 그리고 그 답이 이어지는 다음 걸음(고를 수 있는 칩).
     expect(amoraBlock, "처음 온 사람이 자기 얘기로 읽을 물음이 없다")
-      .toMatch(/ask:\s*"[^"]{8,}"/u);
-    expect(amoraBlock, "그 물음에 대한 답이 없다").toMatch(/answerMark:\s*"[^"]{8,}"/u);
-    expect(amoraBlock, "답이 지금 할 일로 이어지지 않는다").toMatch(/checklist:\s*\[/u);
-    expect(amora, "아모라 카드가 물음을 그리지 않는다").toContain("{amoraNote.ask}");
-    expect(amora, "아모라 카드가 답을 그리지 않는다").toContain("{amoraNote.answerMark}");
-    expect(amora, "아모라 카드가 할 일 목록을 그리지 않는다").toContain("amoraNote.checklist.map");
+      .toMatch(/me:\s*"[^"]{8,}"/u);
+    expect(amoraBlock, "그 물음에 대한 답이 없다").toMatch(/amora:\s*"[^"]{8,}"/u);
+    expect(amoraBlock, "답이 다음 걸음으로 이어지지 않는다").toMatch(/chips:\s*\[/u);
+    expect(amora, "아모라 카드가 물음을 그리지 않는다").toContain("{amoraNote.chat.me}");
+    expect(amora, "아모라 카드가 답을 그리지 않는다").toContain("{amoraNote.chat.amora}");
+    expect(amora, "아모라 카드가 다음 걸음을 그리지 않는다").toContain("amoraNote.chat.chips.map");
   });
 });
 

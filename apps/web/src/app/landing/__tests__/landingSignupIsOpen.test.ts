@@ -157,7 +157,7 @@ describe("가입은 열려 있고, 랜딩이 그렇게 말한다", () => {
     // 그 고지는 `confirm` 블록(계정을 만들면 무엇이 되는지 말하는 자리)에 있고,
     // ConfirmSection 이 실제로 그 값을 렌더해야 화면에 나간다. 카피에만 있고 아무도
     // 안 읽으면 사용자는 고지를 못 본다.
-    expect(contentBlock("confirm", "boundaries"), "비용 고지가 confirm 블록을 떠났다")
+    expect(contentBlock("confirm", "availableNow"), "비용 고지가 confirm 블록을 떠났다")
       .toContain("이용 방법과 비용은 아직 정해지지 않았");
     expect(rendered(CONFIRM_PATH), "확인 섹션이 비용 고지를 렌더하지 않는다")
       .toContain("confirm.note");

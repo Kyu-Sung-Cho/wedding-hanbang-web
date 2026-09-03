@@ -255,15 +255,14 @@ describe("장면 수는 도착 화면이 묻는 문항 수다", () => {
     // 실패 방식이다. 그래서 자리를 손으로 적지 않고 **`장면` 이라고 말하는 블록을
     // 전부 찾아** 하나하나 라이브 라벨과 대조한다. 카피가 옮겨 다녀도 따라간다.
     const BLOCKS = [
-      ["hero", "amoraNote"],
-      ["amoraNote", "scenes"],
-      ["scenes", "noSide"],
-      ["noSide", "oneRoom"],
-      ["oneRoom", "privateLane"],
-      ["privateLane", "community"],
-      ["community", "availableNow"],
-      ["availableNow", "confirm"],
-      ["confirm", "boundaries"],
+      ["hero", "blockedReasons"],
+      ["blockedReasons", "amoraNote"],
+      ["amoraNote", "noSide"],
+      ["noSide", "confirm"],
+      ["confirm", "availableNow"],
+      ["availableNow", "community"],
+      ["community", "photoBand"],
+      ["photoBand", "boundaries"],
       ["boundaries", "closing"],
       ["closing", "footer"],
       ["footer", "headerNav"],
@@ -271,7 +270,14 @@ describe("장면 수는 도착 화면이 묻는 문항 수다", () => {
 
     const speaking = BLOCKS
       .map(([from, to]) => [from, contentBlock(from, to)] as const)
-      .filter(([, text]) => text.includes("장면"));
+      // ⚠️ 2026-09-03 이전에는 `text.includes("장면")` 이었다. 시안이 ④ 섹션에
+      // "둘이 갈리는 장면 먼저 해보기" 라는 **수 없는** 버튼을 들여오면서, 수를 아예
+      // 말하지 않는 블록까지 "스무 장면" 을 요구하게 됐다.
+      //
+      // 이 검사가 막는 것은 **틀린 수**이지 수를 안 말하는 것이 아니다. 그래서 대상을
+      // "수를 말하는 블록" 으로 좁힌다 — 숫자든 한글 수사든, `장면` 앞에 수가 붙은 자리.
+      // 아래 하한이 그 자리가 0개로 줄지 않는지 계속 본다.
+      .filter(([, text]) => /(?:[0-9]+|한|두|세|네|다섯|열|스무|스물|서른)\s*장면/u.test(text));
 
     expect(
       speaking.map(([name]) => name),

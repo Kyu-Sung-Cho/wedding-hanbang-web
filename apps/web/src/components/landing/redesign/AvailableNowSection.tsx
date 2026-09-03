@@ -3,7 +3,7 @@ import Link from "next/link";
 import TrackedLandingLink from "./TrackedLandingLink";
 
 import { landingContent } from "./landingContent";
-import { band, noteText, sectionTitle, shell } from "./notebook";
+import { band, eyebrowText, noteText, sectionTitle, shell } from "./notebook";
 
 /**
  * 로그인 없이 지금 되는 것 네 가지.
@@ -37,21 +37,24 @@ export default function AvailableNowSection() {
       aria-labelledby="now-title"
     >
       <div className={shell}>
-        <p className="mb-4">
-          <span className="landing-hand text-[19px] text-[var(--color-paper-pen)]">
-            {availableNow.eyebrow}
-          </span>
+        {/* 시안은 이 섹션만 가운데 정렬이다 — 나머지는 전부 왼쪽. "여기서부터는
+            지금 바로 만질 수 있는 것" 이라는 신호를 정렬로 준다. */}
+        <p className="mb-5 text-center">
+          <span className={eyebrowText}>{availableNow.eyebrow}</span>
         </p>
 
-        <h2 id="now-title" className={sectionTitle}>
+        <h2 id="now-title" className={`${sectionTitle} text-center`}>
           {availableNow.title}
         </h2>
 
-        {/* ⚠️ 여기 `lg:grid-cols-3` 이 있었다. 카드는 **넷**이라 lg 에서 네 번째가
-            혼자 줄을 찼다. 2열로 두면 2×2 로 떨어진다. `lg:grid-cols-4` 는 쓰지
-            마라 — shell 폭(max-w 1080 · px-8)에서 카드당 약 236px 이라 각 카드의
-            `note` 고지문이 6~8줄로 늘어진다. 그 고지문은 장식이 아니라 계약이다. */}
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:gap-6">
+        {/* ⚠️ 한때 `lg:grid-cols-3` 이었다(카드는 넷이라 네 번째가 혼자 줄을 찼다).
+            그 뒤 2열로 두고 "`lg:grid-cols-4` 는 쓰지 마라 — 카드당 236px 이라 `note`
+            고지문이 6~8줄로 늘어진다" 고 적어 두었다.
+            2026-09-03: 시안이 4단이고, 같은 날 공용 폭이 1080 → 1240px 으로 넓어져
+            카드당 약 280px 이 됐다. 그래서 4단으로 간다. **고지문은 그대로 남는다** —
+            시안 카드에는 없지만 넷 다 등록된 고지라 지울 수 없다(`landingDisclosuresAreOnScreen`).
+            좁아지는 만큼 고지가 길어지는 것은 알고 받아들인 대가다. */}
+        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
           {availableNow.cards.map((card) => (
             <TrackedLandingLink
               key={card.no}
@@ -72,7 +75,7 @@ export default function AvailableNowSection() {
           ))}
         </div>
 
-        <p className={`mt-8 ${noteText}`}>
+        <p className={`mt-8 text-center ${noteText}`}>
           {availableNow.footLead}
           {availableNow.footLinks.map((link, index) => (
             <span key={link.href}>
