@@ -215,4 +215,31 @@ describe("place search result policy", () => {
       expect(serialized).not.toContain('"confirmed":true');
     }
   });
+
+  // 2026-09-03 스테이징: 같은 문장 2회 중 2회차만 toolOutput.resultCount=0 인데 places 는 5곳이었다.
+  // 그 값의 출처는 변형 증명이 서빙 중인 트리를 잠깐 고친 측정 오염이었지만, **모델이 화면과 다른
+  // 개수를 말할 수 있다**는 것 자체가 계약의 구멍이다. 카드가 그리는 배열과 모델이 듣는 개수는 하나여야 한다.
+  it("카드가 그리는 배열과 모델이 듣는 개수가 갈리지 않는다", () => {
+    const divergent = getModelSafeToolOutput({
+      ...placeResult,
+      toolOutput: {
+        places: [
+          { name: "라마다대전 에이치가든", address: "대전 유성구 계룡로 127", categoryFull: "음식점>뷔페" },
+          { name: "정순란출장부페 지점", address: "청주 상당구 무농정로31번길 8-2", categoryFull: "음식점>뷔페" },
+          { name: "크리스탈컨벤션뷔페", address: "대전 서구 둔산대로117번길 127", categoryFull: "음식점>뷔페" },
+          { name: "송금화출장뷔페", address: "청주 상당구 신송효촌길 120", categoryFull: "음식점>뷔페" },
+          { name: "빌라드파티앤", address: "대전 유성구 대덕대로837번길 31", categoryFull: "서비스,산업>장소대여" },
+        ],
+        query: "대전이나 청주 예식 뷔페",
+        resultCount: 0, // 실행기가 개수를 따로 실어 보내도
+        effectiveQuery: "대전 예식 뷔페, 청주 예식 뷔페",
+        searchedAt: "2026-09-03T10:26:49.652Z",
+        provider: "api_hub",
+      },
+    });
+    expect(divergent.resultCount).toBe(5); // 사용자가 5장을 보는 동안 0곳이라 말하지 않는다
+    const serialized = JSON.stringify(divergent);
+    expect(serialized).not.toContain("라마다"); // 제공자 텍스트 경계는 그대로
+    expect(serialized).not.toContain("api_hub");
+  });
 });

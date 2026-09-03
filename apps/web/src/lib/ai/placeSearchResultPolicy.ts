@@ -203,9 +203,11 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
   if (result.toolName !== EPHEMERAL_PLACE_SEARCH_TOOL) return result.toolOutput;
   const output = result.toolOutput;
   const places = Array.isArray(output.places) ? output.places : [];
-  const resultCount = typeof output.resultCount === "number" && Number.isFinite(output.resultCount)
-    ? output.resultCount
-    : places.length;
+  // 2026-09-03: 카드는 `places` 로 그린다. 모델이 듣는 개수도 **같은 배열**에서 센다 —
+  // 둘이 갈리면 사용자는 카드 5장을 보면서 "후보가 확인되지 않았어요" 를 함께 읽는다.
+  // (스테이징에서 그 조합을 한 번 봤다. 출처는 변형 증명이 서빙 중인 트리를 잠깐 고친
+  // 측정 오염이었지만, 실행기가 따로 실어 보내는 개수를 믿는 계약 자체가 구멍이었다.)
+  const resultCount = places.length;
   return {
     success: result.success,
     status: result.success ? "rendered_in_client" : "unavailable",
