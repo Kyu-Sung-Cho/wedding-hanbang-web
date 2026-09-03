@@ -217,7 +217,12 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 그래서 같은 주제의 **조회 도구**로 건다.
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 날짜가 모호하면 저장 전에 한 번 확인하세요.",
+      // 2026-09-04: 뒤에 붙어 있던 "날짜가 모호하면 저장 전에 한 번 확인하세요" 를 뺐다.
+      // 앞 문장이 이미 연도 없는 날짜를 어떻게 읽을지 정해 주는데, 뒷문장이 그 해석을
+      // 다시 "모호한 것" 으로 만들어 되묻기로 끌고 갔다(스테이징: "9월 10일…" 세 건
+      // 일괄 요청에 표식 0개, 본문은 "먼저 9월 10일 일정부터 등록할까요?"). 값이 정말
+      // 모호할 때 되묻는 규칙은 [서버 발급 후속 확인 계약]에 그대로 있다.
+      "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요.",
       "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
     );
   }
@@ -236,7 +241,12 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // `!isMutatingTool` 로 걸러져 이 목록에 안 들어온다. 같은 주제의 조회 도구로 건다.
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      "- 일정 추가에 모르는 것이 여러 개면 한 번에 모아 물으세요. 날짜→유형→재확인으로 나누지 마세요. 성격이 모호하면 묻지 말고 shared_commitment로 둡니다.",
+      // 2026-09-04: "모르는 것이 여러 개면" 이 **건수가 여러 개면** 으로 읽혔다.
+      // 스테이징 실측 — 날짜·제목이 다 적힌 세 건 요청에 표식이 하나도 안 나오고
+      // "먼저 9월 10일 일정부터 등록할까요?" 로 끝났다. 되묻기는 **값이 없을 때만**
+      // 이라는 것과, 값이 다 있으면 첫 건 표식을 이번 답변에 내라는 것을 함께 적는다
+      // ([서버 발급 후속 확인 계약]의 여러 건 규칙과 같은 순서다).
+      "- 일정 추가에 빠진 값이 여러 개면 한 번에 모아 물으세요. 날짜→유형→재확인으로 나누지 마세요. 성격이 모호하면 묻지 말고 shared_commitment로 둡니다. 날짜와 제목이 있으면 건수가 많아도 묻지 말고 첫 건 표식을 이번 답변에 내세요.",
     );
   }
 
@@ -895,6 +905,12 @@ export function buildAmoraSystemPrompt(
   //
   // 버튼 문구는 지어내지 않고 화면이 실제로 쓰는 것을 그대로 쓴다
   // (`PendingAmoraActionCard`: "이대로 적용").
+  //
+  // 2026-09-04 스테이징 실측: X1 카드가 안 눌린 채 화면에 남은 상태에서
+  // **다른 할 일** 두 건을 부탁했는데(X2·X3) 모델이 새 표식을 하나도 안 내고
+  // X1 의 actionId 를 그대로 다시 가리켰다. 옛 문구("같은 변경의 표식을 다시 내지
+  // 마세요")를 **다른 변경에까지** 적용한 것이다. 그래서 "같은 변경"이 무엇인지를
+  // 명시하고(같은 도구·같은 대상), 다른 요청에는 새 표식을 내라고 둘로 나누어 적는다.
   const awaitingCardContract = options.awaitingCardConfirmation
     ? `
 
@@ -902,7 +918,8 @@ export function buildAmoraSystemPrompt(
 - 직전 답변의 변경 카드가 아직 적용되지 않은 채 화면에 떠 있습니다: ${options.awaitingCardConfirmation}
 - 사용자가 동의를 표해도 그 말만으로는 반영되지 않습니다. 화면의 **이대로 적용** 버튼을 눌러야 반영됩니다.
 - 반영했다고, 진행하겠다고 말하지 마세요. 무엇을 말하는지 모르겠다고도 하지 마세요 — 무엇을 기다리는지 위에 적혀 있습니다.
-- 같은 변경의 표식을 다시 내지 마세요. 사용자가 값을 바꾸고 싶어 할 때만 새 표식을 내세요.`
+- 다시 내지 말아야 할 것은 **같은 변경**(같은 도구·같은 대상)뿐입니다. 다른 할 일·다른 일정·다른 항목을 부탁받으면 이번 답변에 새 표식을 내세요 — 화면의 카드는 그대로 남고, 새 카드는 따로 나갑니다.
+- 같은 변경이라도 사용자가 값을 바꾸고 싶어 하면 새 표식을 내세요.`
     : "";
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,

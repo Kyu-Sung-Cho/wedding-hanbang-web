@@ -197,11 +197,22 @@ describe("Amora pending actions", () => {
   it.each([
     '[pending_action]{"tool":"update_budget","input":{}}[/pending_action]',
     '[pending_action]{"tool":"delete_everything","input":{}}[/pending_action]',
-    '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000,"extra":true}}[/pending_action]',
   ])("strips but never stores an invalid marker: %s", (marker) => {
     const result = extract(`총예산을 3,000만 원으로 바꿀까요?\n${marker}`);
     expect(result.cleanText).toBe("총예산을 3,000만 원으로 바꿀까요?");
     expect(result.pendingAction).toBeNull();
+  });
+
+  it("선언 안 된 키는 그 키만 버리고 필수값이 멀쩡하면 카드가 난다", () => {
+    // 2026-09-04 이전에는 `extra` 하나에 표식이 통째로 버려졌다. 그 규칙이
+    // 스테이징 X7 을 만들었다 — 모델이 표식을 냈는데 카드가 없었다.
+    const result = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000,"extra":true}}[/pending_action]',
+    );
+
+    expect(result.pendingAction?.input).toEqual({ total_budget: 30_000_000 });
+    // 버린 키는 확인문에도 없다 — 카드는 저장될 것만 말한다.
+    expect(result.cleanText).not.toContain("extra");
   });
 
   it.each(["\u0085", "\u061c", "\u200b", "\u200c", "\u200d", "\u200e", "\u200f", "\u202e", "\u2066"])(
@@ -288,11 +299,39 @@ describe("Amora pending actions", () => {
     expect(result.pendingAction).toBeNull();
   });
 
-  it("rejects multiple markers instead of choosing one", () => {
+  // 2026-09-04: 여기는 "표식이 둘이면 둘 다 버린다" 를 고정하고 있었다. 똑같은
+  // 표식을 두 번 쓴 것은 요청이 둘인 것이 아니라 모델이 제 말을 반복한 것인데,
+  // 그때도 카드가 0개가 됐다 — 사용자는 한 가지만 부탁하고 아무것도 못 받았다.
+  it("issues one card when the same marker is repeated", () => {
     const marker = '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]';
     const multiple = extract(`총예산을 3,000만 원으로 바꿀까요?\n${marker}\n${marker}`);
+    expect(multiple.pendingAction?.tool).toBe("update_budget");
+    expect(multiple.cleanText).toContain("총 예산: 3,000만 원");
+    // 요청은 하나였으므로 "나머지" 안내를 붙이지 않는다.
+    expect(multiple.cleanText).not.toContain("나머지");
+  });
+
+  it("keeps the first valid marker and says what happens to the rest", () => {
+    // 서로 다른 두 건. 예전에는 둘 다 버려 카드가 0개였다 — 라이브에서 일정 3건을
+    // 한 번에 부탁한 턴이 정확히 그 모양이었다.
+    const budget = '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]';
+    const venue = '[pending_action]{"tool":"update_venue","input":{"venue":"그랜드힐"}}[/pending_action]';
+    const multiple = extract(`알겠어요.\n${budget}\n${venue}`);
+
+    expect(multiple.pendingAction?.tool).toBe("update_budget");
+    // 카드가 되는 것은 첫 건 하나뿐이다. 두 번째 표식은 실행 경로에 남지 않는다.
+    expect(multiple.pendingAction?.input).toEqual({ total_budget: 30_000_000 });
+    expect(multiple.cleanText).toContain("총 예산: 3,000만 원");
+    expect(multiple.cleanText).toContain("나머지 1건은 이 확인이 끝나면 이어서 제안할게요.");
+  });
+
+  it("still refuses when none of several markers can be validated", () => {
+    const brokenBudget = '[pending_action]{"tool":"update_budget","input":{"total_budget":"삼천만"}}[/pending_action]';
+    const brokenVenue = '[pending_action]{"tool":"update_venue","input":{"venue_name":"그랜드힐"}}[/pending_action]';
+    const multiple = extract(`알겠어요.\n${brokenBudget}\n${brokenVenue}`);
+
     expect(multiple.pendingAction).toBeNull();
-    expect(multiple.cleanText).toBe("총예산을 3,000만 원으로 바꿀까요?");
+    expect(multiple.cleanText).toContain("먼저 바꾸고 싶은 것 한 가지만");
   });
 
   it("resolves only the exact unexpired server-issued action id", () => {
@@ -388,6 +427,58 @@ describe("Amora pending actions", () => {
     expect(prompt).toContain("[pending_action]");
     expect(prompt).toContain("정확한 action_id");
     expect(prompt).not.toContain('"confirmation"');
+  });
+
+  // 2026-09-04 스테이징: 날짜·제목이 다 적힌 일정 3건 요청에 표식이 0개였다.
+  // 행동 카드는 도구를 지목한 계약 줄을 넣고 나서 카드가 나오기 시작했는데,
+  // 일정에는 그 줄이 없었다 — 이름이 나오는 곳이 필드 목록 한 줄뿐이었다.
+  it("tells the model to issue an add_schedule_event marker in this same reply", () => {
+    const prompt = buildAmoraPendingActionPrompt(
+      tools.filter((tool) => tool.name === "add_schedule_event"),
+    );
+    expect(prompt).toContain("일정 등록 요청에는 `add_schedule_event` 표식을 이번 답변에 내세요");
+    // 연도를 확인받으려고 표식을 미루는 모양이 실측됐다.
+    expect(prompt).toContain("연도가 없으면 가장 가까운 미래로 넣습니다");
+    expect(prompt).toContain("여러 건이면 첫 건만 냅니다");
+  });
+
+  // 2026-09-04 라이브 4/4: 값(날짜·제목)이 다 적혀 있는데도 표식이 0개였고 답변은
+  // "먼저 9월 10일 일정부터 등록할까요?" 뿐이었다. 위 줄은 "표식을 내세요" 라고만
+  // 하고, 형식 줄은 값이 비어 있는 자리표시자였다 — 모델이 **채워진 것을** 본 적이
+  // 없었다. 자리는 같은 계약문에서 만들었으므로(아래 대조군과 길이 핀 참고) 이
+  // 줄이 사라지면 그 상쇄도 함께 무너진다.
+  it("shows one filled marker the model can copy, values swapped", () => {
+    const prompt = buildAmoraPendingActionPrompt(
+      tools.filter((tool) => tool.name === "add_schedule_event"),
+    );
+    expect(prompt).toContain("이 모양 그대로, 값만 바꿔");
+    // 자리표시자가 아니라 **실제로 통과하는 값**이어야 한다. 예시를 그대로 낸
+    // 답변이 카드가 되는지로 판정한다 — 문자열 비교로는 오타를 못 잡는다.
+    const open = "[pending_action]";
+    const close = "[/pending_action]";
+    const from = prompt.indexOf(open);
+    const to = prompt.indexOf(close, from);
+    const example = from === -1 || to === -1
+      ? null
+      : prompt.slice(from, to + close.length);
+    expect(example, "채워진 표식 예시가 계약문에 없다").toBeTruthy();
+    expect(example).toContain("add_schedule_event");
+    const parsed = extractAmoraPendingAction({
+      text: ["등록해 드릴게요.", example].join(String.fromCharCode(10)),
+      allowedTools: tools,
+      now: NOW,
+      createActionId: () => ACTION_ID,
+    });
+    expect(parsed.pendingAction?.tool).toBe("add_schedule_event");
+    expect(parsed.pendingAction?.input).toMatchObject({ title: expect.any(String) });
+  });
+
+  it("does not carry the schedule bullet when that tool is not proposable", () => {
+    // 대조군. 없으면 위 검사는 "문자열이 어딘가 있다"는 말밖에 안 된다.
+    const prompt = buildAmoraPendingActionPrompt(
+      tools.filter((tool) => tool.name === "update_budget"),
+    );
+    expect(prompt).not.toContain("add_schedule_event");
   });
 
   // 같은 확정 발화도 첫 턴이면 표식을 내고, 앞 턴에서 다른 도구가 빈 결과를

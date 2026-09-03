@@ -120,6 +120,24 @@ describe("라우트가 실제로 옮긴다", () => {
     );
   });
 
+  it("이월된 카드가 어느 답변에서 나왔는지를 함께 들고 간다", () => {
+    // 2026-09-04 관측용. 이월된 카드는 원본 문장과 떨어져 뜨는데, 옮겨진 행만으로는
+    // 그 카드가 어느 대화에서 나온 것인지 되짚을 수가 없었다. **정책은 그대로다** —
+    // 이월 여부·횟수·범위 관문은 위 검사들이 보는 그 조건이 정한다.
+    const collapsed = source.replace(/\s+/g, " ");
+    expect(collapsed).toContain("carriedPendingActionOriginMessageId");
+    expect(collapsed).toContain(
+      "pending_amora_action_carry_origin_message_id: carriedPendingActionOriginMessageId,",
+    );
+    // 이미 값이 있으면 물려받는다 — 두 번째 이월에서 원본이 직전 행으로 바뀌면
+    // 가리키는 곳이 매번 달라진다.
+    // 줄바꿈 위치에 흔들리지 않게 공백을 통째로 지우고 본다.
+    const dense = source.replace(/\s+/g, "");
+    expect(dense).toContain(
+      "previousCanonicalRow.metadata.pending_amora_action_carry_origin_message_id===\"string\"?previousCanonicalRow.metadata.pending_amora_action_carry_origin_message_id:previousCanonicalRow?.id??null",
+    );
+  });
+
   it("저니 리비전을 새로 계산하지 않고 원래 값을 들고 간다", () => {
     // 새로 계산하면 그 사이 바뀐 계획 위에 옛 카드가 적용될 수 있다.
     const collapsed = source.replace(/\s+/g, " ");

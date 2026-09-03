@@ -128,14 +128,65 @@ describe("여러 건 요청 계약이 합성된 프롬프트에 있다", () => {
 });
 
 describe("표식이 둘 이상이면 서버가 남기는 말", () => {
-  it("다음에 무엇을 하면 되는지 지목한다", () => {
+  // 2026-09-04: 첫 건을 살린다. `SCHEDULE_TAG` 는 선언되지 않은 키(`event_date`)를
+  // 써서 검증을 통과하지 못하므로, 통과한 첫 표식인 예산 건이 카드가 된다.
+  it("통과한 첫 표식은 카드로 내고 나머지가 어떻게 되는지 말한다", () => {
     const result = extract(`알겠어요.\n${BUDGET_TAG}\n${SCHEDULE_TAG}`);
+
+    expect(result.pendingAction?.tool).toBe("update_budget");
+    expect(result.hadPendingActionTag).toBe(true);
+    expect(result.cleanText).toContain("총 예산: 6,000만 원");
+    // 나머지가 조용히 사라지면 사용자는 둘 다 된 줄 안다. 서버가 직접 말한다.
+    expect(result.cleanText).toContain("나머지 1건은 이 확인이 끝나면 이어서 제안할게요.");
+    // 카드가 나간 턴은 실패 안내가 아니다 — 이력에서 빼면 안 된다.
+    expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(false);
+  });
+
+  it("통과한 표식이 하나도 없으면 다음에 무엇을 하면 되는지 지목한다", () => {
+    const brokenSchedule = SCHEDULE_TAG;
+    const brokenBudget =
+      '[pending_action]{"tool":"update_budget","input":{"budget_total":60000000}}'
+      + "[/pending_action]";
+    const result = extract(`알겠어요.\n${brokenBudget}\n${brokenSchedule}`);
 
     expect(result.pendingAction).toBeNull();
     expect(result.hadPendingActionTag).toBe(true);
     // "하나씩 말씀해 주시면" 만으로는 나머지 요청이 어떻게 되는지 알 수 없다.
     expect(result.cleanText).toContain("먼저 바꾸고 싶은 것 한 가지만");
     expect(result.cleanText).toContain("나머지는 이어서 도와드릴게요");
+  });
+
+  it("일정 3건이면 첫 건 카드와 나머지 2건 안내가 함께 나간다", () => {
+    // 라이브에서 사용자가 실제로 한 요청이다 — 날짜·제목이 다 적힌 세 건.
+    // 그때는 카드가 0개였다(모델이 표식을 아예 안 냈고, 냈어도 서버가 다 버렸다).
+    const event = (date: string, title: string) =>
+      `[pending_action]{"tool":"add_schedule_event","input":{"date":"${date}",`
+      + `"title":"${title}"}}[/pending_action]`;
+    const result = extract([
+      "세 개 모두 등록할게요.",
+      event("2026-09-10", "신혼집 지역 정하기"),
+      event("2026-09-11", "예식장 견적 문의"),
+      event("2026-09-12", "사진 예산 합의"),
+    ].join("\n"));
+
+    expect(result.pendingAction?.tool).toBe("add_schedule_event");
+    expect(result.pendingAction?.input).toEqual({
+      date: "2026-09-10",
+      title: "신혼집 지역 정하기",
+    });
+    expect(result.cleanText).toContain("- 제목: \"신혼집 지역 정하기\"");
+    expect(result.cleanText).toContain("나머지 2건은 이 확인이 끝나면 이어서 제안할게요.");
+    // 두 번째·세 번째 일정은 카드가 되지 않는다 — 확인 대상은 언제나 하나다.
+    expect(result.cleanText).not.toContain("예식장 견적 문의");
+    expect(result.cleanText).not.toContain("사진 예산 합의");
+  });
+
+  it("표식이 하나도 없으면 본문을 건드리지 않는다", () => {
+    const result = extract("예식장 후보 세 곳을 비교해 볼까요?");
+
+    expect(result.pendingAction).toBeNull();
+    expect(result.hadPendingActionTag).toBe(false);
+    expect(result.cleanText).toBe("예식장 후보 세 곳을 비교해 볼까요?");
   });
 
   it("표식이 하나면 서버 확인문이 그대로 나간다", () => {
@@ -153,12 +204,19 @@ describe("표식이 둘 이상이면 서버가 남기는 말", () => {
 
     expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(false);
     expect(result.cleanText).not.toContain("먼저 바꾸고 싶은 것 한 가지만");
+    // 2026-09-04: 그때도 카드는 나가야 한다. 예전에는 여기서 카드가 0개였다.
+    expect(result.pendingAction?.tool).toBe("update_budget");
+    expect(result.cleanText).not.toContain("나머지");
   });
 });
 
 describe("카드를 못 낸 턴은 프로바이더 이력에서 뺀다", () => {
   it("바뀐 여러 건 안내를 거른다", () => {
-    const notice = extract(`${BUDGET_TAG}\n${SCHEDULE_TAG}`).cleanText;
+    // 통과한 표식이 하나도 없는 턴만 이 안내가 된다(2026-09-04 이후).
+    const brokenBudget =
+      '[pending_action]{"tool":"update_budget","input":{"budget_total":60000000}}'
+      + "[/pending_action]";
+    const notice = extract(`${brokenBudget}\n${SCHEDULE_TAG}`).cleanText;
 
     expect(isAmoraFailedProposalNotice(notice)).toBe(true);
   });

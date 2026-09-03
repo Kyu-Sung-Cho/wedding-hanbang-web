@@ -140,6 +140,38 @@ export function getPendingAmoraAction(message: ChatMessage): PendingAmoraAction 
   return value as unknown as PendingAmoraAction;
 }
 
+/**
+ * **이월된 카드에 붙는 머리 라벨** (2026-09-04).
+ *
+ * 확인하지 않은 카드는 다음 답변으로 따라간다(`route.ts` 의 캐리포워드). 그래서
+ * "9월 10일 일정을 등록할까요?" 라는 **새 문장 아래에 직전 턴의 다른 카드**가
+ * 붙어 있을 수 있다 — 사용자는 방금 읽은 문장이 곧 이 버튼이라고 읽고 누른다.
+ *
+ * 라벨은 그 오해를 끊는다. 이월 자체는 그대로 둔다(파운더 결정) — 무엇이
+ * 바뀌는지를 눈에 먼저 두고, 이것이 **이 턴의 문장이 아니라는 것**만 말한다.
+ *
+ * 같은 문구를 앱도 쓴다(`apps/mobile/src/lib/pendingAmoraAction.ts`).
+ */
+export const CARRIED_PENDING_ACTION_LABEL = "이전 제안 · 아직 확인하지 않았어요";
+
+/**
+ * 이 카드가 원본 턴 이후 몇 번 옮겨졌는가. 없으면 0(이 답변에서 처음 나온 카드).
+ *
+ * **서버가 찍은 값으로만 정한다.** 화면이 "직전 턴에도 같은 actionId 가 있었나"
+ * 로 추측하면, 화면에 없는 행(정리·필터로 걸러진 행) 때문에 같은 카드가 기기마다
+ * 다르게 보인다. 값이 없거나 형태가 다르면 **이월이 아닌 쪽**으로 틀린다.
+ */
+export function getPendingAmoraActionCarryCount(message: ChatMessage): number {
+  if (message.sender_role !== "ai" || message.visibility !== "shared") return 0;
+  // metadata 는 신뢰 경계다. 계약 타입을 넓히는 대신 읽는 쪽에서 검증한다.
+  const value = (message.metadata as
+    | { pending_amora_action_carry_count?: unknown }
+    | null
+    | undefined)?.pending_amora_action_carry_count;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return 0;
+  return value;
+}
+
 export function getPendingAmoraBudgetImpactPreview(
   message: ChatMessage,
   action: PendingAmoraAction,
@@ -235,6 +267,12 @@ interface PendingAmoraActionCardProps {
    * 처음 써 보는 사람은 대개 아직 혼자다.
    */
   partnerLinked?: boolean;
+  /**
+   * 이 카드가 원본 턴 이후 몇 번 옮겨졌는가(`getPendingAmoraActionCarryCount`).
+   * 1 이상이면 **이 답변에서 처음 나온 카드가 아니다** — 라벨과 모양으로 가른다.
+   * 기본값 0 은 안전한 쪽이 아니라 **오늘까지의 모양**이다.
+   */
+  carryCount?: number;
   onApply: (actionId: string) => void;
   onDismiss: () => void;
 }
@@ -365,6 +403,7 @@ export default function PendingAmoraActionCard({
   // 기본값은 false 다. 호출부가 빠뜨리면 **덜 약속하는** 쪽으로 틀린다 —
   // 없는 사람에게 알림이 간다고 말하는 것보다 낫다.
   partnerLinked = false,
+  carryCount = 0,
   onApply,
   onDismiss,
 }: PendingAmoraActionCardProps) {
@@ -393,6 +432,14 @@ export default function PendingAmoraActionCard({
   const statusId = `pending-amora-action-${action.actionId}-status`;
   const pastDateId = `pending-amora-action-${action.actionId}-past-date`;
   const approvalStatusId = `pending-amora-action-${action.actionId}-approval`;
+  // 이월된 카드인가. 서버 metadata 값만 본다 — 화면은 추측하지 않는다.
+  const isCarriedForward = Number.isSafeInteger(carryCount) && carryCount >= 1;
+  // 이월이면 접근성 이름을 라벨부터 읽게 한다 — 화면을 못 보는 사용자도
+  // "지금 문장의 카드가 아니다" 를 버튼보다 먼저 듣는다.
+  const carryLabelId = `pending-amora-action-${action.actionId}-carry`;
+  const purposeCopy = requiresCoupleApproval
+    ? "두 분 확인이 필요한 변경이에요"
+    : "적용하기 전에 확인해 주세요";
 
   const sharedActionUrl =
     `/api/amora/shared-actions/${encodeURIComponent(action.actionId)}`;
@@ -654,26 +701,57 @@ export default function PendingAmoraActionCard({
 
   return (
     <section
-      aria-labelledby={titleId}
+      data-pending-action-carried={isCarriedForward ? "true" : "false"}
+      aria-labelledby={isCarriedForward ? `${carryLabelId} ${titleId}` : titleId}
       aria-describedby={`${detailId}${
         showsPastDateNotice ? ` ${pastDateId}` : ""
       }${disabledReason ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
       }`}
-      className="ml-11 mt-2 max-w-[94%] rounded-[6px] border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem]"
+      className={`ml-11 mt-2 max-w-[94%] rounded-[6px] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem] ${
+        isCarriedForward
+          ? "border border-dashed border-[#B99A7E] bg-[#FBF5EE]"
+          : "border border-[#D8C7BB] bg-[#FFFCF8]"
+      }`}
     >
       <div className="flex items-start gap-2.5">
         <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-[#F2E8DE] text-[var(--hb-accent-hover)]" aria-hidden="true">
           <ShieldCheck className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
-          <h3 id={titleId} className="text-sm font-semibold text-[#2B2525]">
-            {requiresCoupleApproval
-              ? "두 분 확인이 필요한 변경이에요"
-              : "적용하기 전에 확인해 주세요"}
+          {/*
+            이월된 카드는 **무엇을 바꾸는지가 먼저**다(2026-09-04). 이 자리의 제목은
+            원래 "적용하기 전에 확인해 주세요" 라는 일반 문장이었는데, 새 답변 문장
+            바로 아래에 그 문장이 붙으면 사용자는 방금 읽은 내용을 확인하는 것으로
+            읽는다. 그래서 이월일 때만 서버가 발급한 확인문(canonical)을 제목 자리에
+            그대로 올리고, 일반 문장은 아래 줄로 내린다. 확인 버튼 문구는 그대로다.
+          */}
+          {isCarriedForward && (
+            <p
+              id={carryLabelId}
+              className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-[#B99A7E] bg-[#F2E8DE] px-2.5 py-1 text-xs font-semibold text-[#795252]"
+            >
+              <RotateCcw className="h-3.5 w-3.5 flex-none" aria-hidden="true" />
+              {CARRIED_PENDING_ACTION_LABEL}
+            </p>
+          )}
+          <h3
+            id={titleId}
+            className={`text-sm font-semibold text-[#2B2525]${
+              isCarriedForward ? " whitespace-pre-wrap break-words leading-6" : ""
+            }`}
+          >
+            {isCarriedForward ? action.confirmation : purposeCopy}
           </h3>
-          <p id={detailId} className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--hb-text-body)]">
-            {action.confirmation}
+          <p
+            id={detailId}
+            className={
+              isCarriedForward
+                ? "mt-1 text-xs leading-5 text-[var(--hb-text-muted)]"
+                : "mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-[var(--hb-text-body)]"
+            }
+          >
+            {isCarriedForward ? purposeCopy : action.confirmation}
           </p>
         </div>
       </div>

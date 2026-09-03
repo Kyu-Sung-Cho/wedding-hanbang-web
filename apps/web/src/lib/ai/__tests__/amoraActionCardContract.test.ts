@@ -302,30 +302,37 @@ describe("표식이 버려지는 경로", () => {
     expect(terminal.text).toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
   });
 
-  it("한글 라벨을 넣은 category_key — 카드도 본문도 사라진다", () => {
-    // 현재 동작을 그대로 고정한다. 이것이 `category_key` 설명에
-    // "한글 라벨은 넣지 마세요" 가 있어야 하는 이유다.
+  it("한글 라벨을 넣은 category_key — 카드는 나가고 값만 '일반'이 된다", () => {
+    // 2026-09-04 전까지 이 입력은 **카드도 본문도 통째로 사라졌다**(여기서 그
+    // 동작을 고정하고 있었다). 선택 필드 하나 때문에 사용자가 아무것도 못 받는
+    // 것은 라이브에서 실제로 일어났다. 이제 그 필드만 기본값으로 보정하고,
+    // 보정한 값은 사용자가 누르기 전에 카드에서 읽는다.
     const result = extract(
       "[pending_action]{\"tool\":\"add_amora_action\",\"input\":{\"title\":\"청첩장 주문\",\"category_key\":\"종이·모바일 초대장\"}}[/pending_action]",
     );
-    expect(result.pendingAction).toBeNull();
-    expect(result.hadPendingActionTag).toBe(true);
-    expect(result.cleanText).toBe("");
+    expect(result.pendingAction?.input).toEqual({
+      title: "청첩장 주문",
+      category_key: "general",
+    });
+    expect(result.cleanText).toContain("- 관련 카테고리: 일반");
 
-    // 같은 요청에 키 값을 쓰면 카드가 난다 — 막는 것은 라벨이지 필드가 아니다.
+    // 같은 요청에 키 값을 쓰면 그 카테고리가 그대로 남는다 — 보정은 목록 밖
+    // 값에만 일어난다.
     const ok = extract(
       "[pending_action]{\"tool\":\"add_amora_action\",\"input\":{\"title\":\"청첩장 주문\",\"category_key\":\"invitation\"}}[/pending_action]",
     );
-    expect(ok.pendingAction?.tool).toBe("add_amora_action");
+    expect(ok.pendingAction?.input).toMatchObject({ category_key: "invitation" });
   });
 
-  it("허용 경로 밖의 href — 표식이 통째로 버려진다", () => {
+  it("허용 경로 밖의 href — 그 필드만 빠지고 카드는 나간다", () => {
     // 2026-09-03 이전에는 `/wedding/actions` 같은 없는 경로가 그대로 통과해
-    // **404 링크가 붙은 카드**가 나갔다. 이제 스키마 enum 이 거른다.
+    // **404 링크가 붙은 카드**가 나갔다. 그 뒤로는 표식이 통째로 버려졌는데,
+    // 그건 사용자에게 아무것도 안 주는 쪽이었다. 이제 경로만 빼고 서버가
+    // `defaultActionHref` 로 화면을 고른다 — 404 도 없고 빈손도 아니다.
     const invented = extract(
       "[pending_action]{\"tool\":\"add_amora_action\",\"input\":{\"title\":\"청첩장 주문\",\"href\":\"/wedding/actions\"}}[/pending_action]",
     );
-    expect(invented.pendingAction).toBeNull();
+    expect(invented.pendingAction?.input).toEqual({ title: "청첩장 주문" });
 
     const allowed = extract(
       "[pending_action]{\"tool\":\"add_amora_action\",\"input\":{\"title\":\"청첩장 주문\",\"href\":\"/wedding/schedule\"}}[/pending_action]",

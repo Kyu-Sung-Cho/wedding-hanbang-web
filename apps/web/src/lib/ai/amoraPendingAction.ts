@@ -5,6 +5,7 @@ import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import { ymdInKst } from "@/lib/utils/kstDate";
 
 const MAX_PENDING_ACTION_JSON_CHARS = 4_000;
 const MAX_CANONICAL_CONFIRMATION_CHARS = 2_000;
@@ -207,33 +208,287 @@ function getValidator(tool: AiToolDefinition): ValidateFunction | null {
   return validator;
 }
 
-function hasOnlyDeclaredTopLevelKeys(
+function declaredProperties(tool: AiToolDefinition): Record<string, unknown> {
+  return isRecord(tool.input_schema.properties) ? tool.input_schema.properties : {};
+}
+
+function isDeclaredField(tool: AiToolDefinition, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(declaredProperties(tool), key);
+}
+
+/**
+ * 모델이 자주 쓰는 **다른 이름**을 선언된 이름으로 되돌린다. (2026-09-04)
+ *
+ * 예전 `hasOnlyDeclaredTopLevelKeys` 는 선언 안 된 키가 하나라도 있으면 표식을 통째로
+ * 버렸다. 그 결과가 스테이징 X7 이다 — 모델이 표식을 냈는데(`pending_action_dropped`)
+ * 사용자에게는 카드가 없었다. 버려진 것 중 상당수는 뜻이 분명한 **다른 이름**이다:
+ * 마감일을 `deadline`·`due`·(행동 카드에서) `date` 로, 카테고리를 `category` 로,
+ * 제목을 `name` 으로 쓴 것.
+ *
+ * 세 가지 조건을 모두 만족할 때만 이름을 바꾼다. 조건이 없으면 뜻이 뒤집힌다 —
+ * 예를 들어 `update_category_budget` 의 `category` 는 그 도구가 **선언한** 필드라
+ * `category_key` 로 바꾸면 예산 카테고리가 사라진다.
+ *
+ *  1. 이 도구가 그 별칭 이름을 선언하지 않았을 것
+ *  2. 이 도구가 대상 이름을 선언했을 것
+ *  3. 대상 이름이 입력에 아직 없을 것 (있으면 모델이 쓴 값을 덮지 않는다)
+ *
+ * 바뀐 이름은 확인 카드 본문에 그대로 보이므로, 잘못 읽었으면 사용자가 거절할 수
+ * 있다. 값 자체는 손대지 않는다.
+ */
+const COMMON_FIELD_ALIASES: Readonly<Record<string, string>> = {
+  deadline: "due_date",
+  due: "due_date",
+  category: "category_key",
+  name: "title",
+};
+
+/**
+ * 도구별 별칭. `date` 는 `add_schedule_event` 의 **필수 필드**라 전역으로 두면
+ * 일정 날짜가 마감일로 옮겨간다. 행동 카드에만 준다.
+ */
+const TOOL_FIELD_ALIASES: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  add_amora_action: { date: "due_date" },
+};
+
+function renameAliasFields(
+  input: Record<string, unknown>,
+  tool: AiToolDefinition,
+): Record<string, unknown> {
+  const aliases = { ...COMMON_FIELD_ALIASES, ...(TOOL_FIELD_ALIASES[tool.name] ?? {}) };
+  let renamed: Record<string, unknown> | null = null;
+  for (const [alias, target] of Object.entries(aliases)) {
+    const current = renamed ?? input;
+    if (!Object.prototype.hasOwnProperty.call(current, alias)) continue;
+    if (isDeclaredField(tool, alias)) continue;
+    if (!isDeclaredField(tool, target)) continue;
+    if (Object.prototype.hasOwnProperty.call(current, target)) continue;
+    renamed = renamed ?? { ...input };
+    renamed[target] = renamed[alias];
+    delete renamed[alias];
+  }
+  return renamed ?? input;
+}
+
+/**
+ * 선언 안 된 최상위 키는 **그 키만** 버린다. (2026-09-04)
+ *
+ * 예전에는 표식 전체를 버렸다. 그 판단의 근거는 "지어낸 키가 실행 경로로 들어가면
+ * 안 된다" 였는데, 키를 버리면 그 걱정은 그대로 없어진다 — 실행기는 남은 필드만
+ * 본다. 반대로 표식을 통째로 버리면 사용자는 카드를 아예 못 받는다.
+ *
+ * 확인 카드 본문(`formatCanonicalConfirmation`)은 **선언된 필드만** 적으므로,
+ * 버린 키는 원래도 사용자에게 보이지 않았다. 즉 이 변경으로 카드가 실제보다 많이
+ * 약속하게 되지 않는다.
+ */
+function dropUndeclaredTopLevelKeys(
+  input: Record<string, unknown>,
+  tool: AiToolDefinition,
+): { input: Record<string, unknown>; droppedKeys: string[] } {
+  const droppedKeys = Object.keys(input).filter((key) => !isDeclaredField(tool, key));
+  if (droppedKeys.length === 0) return { input, droppedKeys };
+  const kept: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!droppedKeys.includes(key)) kept[key] = value;
+  }
+  return { input: kept, droppedKeys };
+}
+
+/**
+ * 필수 필드만으로는 **아무것도 바꾸지 못하는** 도구들. 하나 이상이 남아야 카드다.
+ *
+ * 목록은 실행기(`amoraAtomicToolOperation.ts`)의 거절 조건에서 그대로 가져왔다.
+ * 예: `update_category_budget` 의 required 는 `category` 하나뿐이라, 금액을
+ * `amount` 라고 쓴 표식에서 그 키만 버리면 스키마는 통과하지만 사용자가 확인을
+ * 누르는 순간 `invalid_category_budget` 로 거절된다. **카드를 눌렀는데 아무것도
+ * 저장되지 않는 것은 카드가 안 나오는 것보다 나쁘다**(226행 주석과 같은 이유).
+ *
+ * 이 검사는 **키를 실제로 버렸을 때만** 돈다. 아무것도 안 버린 입력은 예전과 한
+ * 글자도 다르게 판정되지 않는다 — 관대해진 경로에만 값이 있는 검사다.
+ */
+const EFFECTIVE_CHANGE_FIELDS: Readonly<Record<string, readonly string[]>> = {
+  update_category_budget: ["budget", "spent"],
+  update_schedule_event: ["date", "time", "title", "memo"],
+  update_amora_action: ["title", "description", "due_date", "priority", "status", "href"],
+};
+
+function carriesEffectiveChange(
   input: Record<string, unknown>,
   tool: AiToolDefinition,
 ): boolean {
+  const fields = EFFECTIVE_CHANGE_FIELDS[tool.name];
+  if (!fields) return true;
+  return fields.some((field) => Object.prototype.hasOwnProperty.call(input, field));
+}
+
+/**
+ * **선택 필드 하나가 틀렸다고 표식을 통째로 버리지 않는다.** (2026-09-04)
+ *
+ * 스테이징 실측: `add_amora_action` 할 일 요청 3턴 중 1턴이 `pending_action_dropped`
+ * 였다. 같은 날 검증기에 후보 입력을 넣어 확인한 결과, 필수값(`title`)은 멀쩡한데
+ * **선택 필드 하나** 때문에 표식 전체가 사라지는 경우가 넷이었다:
+ *
+ *     category_key: "한복"(한글 라벨)   카드 없음
+ *     priority: "긴급"                  카드 없음
+ *     source: "대화"                    카드 없음
+ *     href: "/wedding/actions"          카드 없음
+ *
+ * 그리고 다섯째는 더 나빴다 — `due_date: "9월 25일"` 은 스키마에 pattern 이 없어
+ * **검증을 통과하고 카드까지 나가지만**, 사용자가 확인을 누르면 실행기가
+ * `invalid_action_due_date` 로 거절한다(amoraAtomicToolOperation.ts). 카드를 눌렀는데
+ * 아무것도 저장되지 않는 것은 카드가 안 나오는 것보다 나쁘다.
+ *
+ * 그래서 선택 필드만 보정한다. 보정한 값은 **확인 카드 본문에 그대로 보이고**
+ * 사용자가 확인하기 전까지는 아무것도 실행되지 않으므로, 틀린 보정은 사용자가
+ * 거절할 수 있다. 필수 필드는 손대지 않는다 — 없거나 틀리면 지금처럼 버린다.
+ */
+const LENIENT_OPTIONAL_FIELD_FALLBACKS: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  // 카테고리를 못 고른 것은 "일반"이라고 말할 수 있다. 중요도 기본값은 실행기의
+  // 기본값(`priority ?? "medium"`)과 같은 값이라 카드 표시와 저장이 어긋나지 않는다.
+  add_amora_action: { category_key: "general", priority: "medium" },
+  add_schedule_event: { category_key: "general" },
+};
+
+const subSchemaValidators = new WeakMap<object, ValidateFunction | null>();
+
+/** 이 필드 하나가 자기 스키마를 통과하는가. 컴파일할 수 없으면 손대지 않는다. */
+function matchesFieldSchema(schema: Record<string, unknown>, value: unknown): boolean {
+  let validator = subSchemaValidators.get(schema);
+  if (validator === undefined) {
+    try {
+      validator = ajv.compile(schema);
+    } catch {
+      validator = null;
+    }
+    subSchemaValidators.set(schema, validator);
+  }
+  return validator === null ? true : validator(value) === true;
+}
+
+const LOOSE_DATE_WITH_YEAR_RE =
+  /^(\d{4})\s*[-.\/년]\s*(\d{1,2})\s*[-.\/월]\s*(\d{1,2})\s*일?$/u;
+const LOOSE_DATE_WITHOUT_YEAR_RE = /^(\d{1,2})\s*[-.\/월]\s*(\d{1,2})\s*일?$/u;
+
+function toIsoDate(year: number, month: number, day: number): string | null {
+  if (year < 1900 || year > 2999) return null;
+  const iso = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  // 달력에 없는 날짜(2027-02-31)는 여기서 걸린다.
+  return formatKoreanDate(iso) === null ? null : iso;
+}
+
+/**
+ * 느슨하게 쓴 날짜를 `YYYY-MM-DD` 로 되돌린다. 되돌릴 수 없으면 null.
+ *
+ * 연도가 없으면 **오늘(KST) 이후 가장 가까운 미래**로 읽는다 — 합성 프롬프트가
+ * 모델에게 시키는 해석과 같은 규칙이다("연도가 없으면 가장 가까운 미래 날짜").
+ */
+function repairLooseDate(value: string, now: number): string | null {
+  const trimmed = value.trim();
+  const withYear = LOOSE_DATE_WITH_YEAR_RE.exec(trimmed);
+  if (withYear) {
+    return toIsoDate(Number(withYear[1]), Number(withYear[2]), Number(withYear[3]));
+  }
+  const withoutYear = LOOSE_DATE_WITHOUT_YEAR_RE.exec(trimmed);
+  if (!withoutYear) return null;
+  const today = ymdInKst(new Date(now));
+  const thisYear = Number(today.slice(0, 4));
+  const month = Number(withoutYear[1]);
+  const day = Number(withoutYear[2]);
+  const thisYearIso = toIsoDate(thisYear, month, day);
+  if (thisYearIso !== null && thisYearIso >= today) return thisYearIso;
+  return toIsoDate(thisYear + 1, month, day);
+}
+
+/**
+ * 선택 필드만 보정한 입력. 바꿀 것이 없으면 받은 객체를 그대로 돌려준다.
+ *
+ * 보정은 **없애거나 이미 선언된 값으로 바꾸는 것뿐**이다 — 새 필드를 만들지 않고
+ * 필수 필드는 건드리지 않으므로, 보정된 입력은 원래 입력보다 더 많은 것을 바꾸지
+ * 않는다. 저장된 입력도 보정 후 값이라, 다시 검증할 때(`resolveAmoraPendingAction`)
+ * 같은 값이 그대로 통과한다.
+ */
+function coerceLenientOptionalFields(
+  input: Record<string, unknown>,
+  tool: AiToolDefinition,
+  now: number,
+): Record<string, unknown> {
+  const fallbacks = LENIENT_OPTIONAL_FIELD_FALLBACKS[tool.name];
+  if (!fallbacks) return input;
   const properties = isRecord(tool.input_schema.properties)
     ? tool.input_schema.properties
     : {};
-  return Object.keys(input).every((key) => Object.prototype.hasOwnProperty.call(properties, key));
+  const required = new Set(
+    Array.isArray(tool.input_schema.required)
+      ? (tool.input_schema.required as unknown[]).filter(
+          (name): name is string => typeof name === "string",
+        )
+      : [],
+  );
+
+  let coerced: Record<string, unknown> | null = null;
+  const change = (key: string, value: unknown) => {
+    coerced = coerced ?? { ...input };
+    if (value === undefined) delete coerced[key];
+    else coerced[key] = value;
+  };
+
+  for (const [key, value] of Object.entries(input)) {
+    if (required.has(key)) continue;
+    const schema = properties[key];
+    if (!isRecord(schema)) continue;
+    // 날짜 필드는 스키마에 pattern 이 없어도 `YYYY-MM-DD` 여야 한다 — 실행기가
+    // 그 모양만 받는다. 되돌릴 수 있으면 되돌리고, 없으면 뺀다.
+    if (DATE_FIELDS.has(key)) {
+      if (typeof value === "string" && formatKoreanDate(value.trim()) !== null) {
+        if (value !== value.trim()) change(key, value.trim());
+        continue;
+      }
+      const repaired = typeof value === "string" ? repairLooseDate(value, now) : null;
+      change(key, repaired !== null && matchesFieldSchema(schema, repaired) ? repaired : undefined);
+      continue;
+    }
+    if (matchesFieldSchema(schema, value)) continue;
+    const fallback = fallbacks[key];
+    change(
+      key,
+      fallback !== undefined && matchesFieldSchema(schema, fallback) ? fallback : undefined,
+    );
+  }
+  return coerced ?? input;
 }
 
 function validateMarker(
   value: unknown,
   tools: readonly AiToolDefinition[],
+  now: number,
 ): PendingActionMarker | null {
   if (!isRecord(value)) return null;
   if (typeof value.tool !== "string" || !isRecord(value.input)) return null;
   if (!isSafeJsonValue(value.input)) return null;
 
   const tool = tools.find((candidate) => candidate.name === value.tool);
-  if (!tool || !hasOnlyDeclaredTopLevelKeys(value.input, tool)) return null;
+  if (!tool) return null;
+  // 순서가 중요하다. 흔한 별칭을 먼저 되돌리고(`deadline` → `due_date`), 그러고도
+  // 남은 선언 밖 키만 버린 뒤, 선택 필드를 보정하고, 마지막에 스키마로 검증한다.
+  // 예전에는 선언 밖 키 검사가 맨 앞에 있어서 뜻이 분명한 별칭 하나에 표식이
+  // 통째로 사라졌다. 필수 필드가 없거나 틀리면 아래 스키마 검증이 지금처럼 버린다.
+  const renamed = renameAliasFields(value.input, tool);
+  const pruned = dropUndeclaredTopLevelKeys(renamed, tool);
+  if (pruned.droppedKeys.length > 0 && !carriesEffectiveChange(pruned.input, tool)) {
+    return null;
+  }
+  const input = coerceLenientOptionalFields(pruned.input, tool, now);
   const validator = getValidator(tool);
-  if (!validator || validator(value.input) !== true) return null;
+  if (!validator || validator(input) !== true) return null;
 
-  const confirmation = formatCanonicalConfirmation(tool, value.input);
+  const confirmation = formatCanonicalConfirmation(tool, input);
   if (!confirmation) return null;
 
-  return { tool: value.tool, input: value.input, confirmation };
+  return { tool: value.tool, input, confirmation };
 }
 
 function formatNumber(value: number): string {
@@ -466,6 +721,17 @@ const MULTI_ACTION_REPLACEMENT =
  * 이미 DB 에 있는 옛 안내가 걸러지지 않고 프로바이더 이력으로 되돌아간다 —
  * 그러면 이 파일이 막으려던 모양 학습이 그대로 살아난다.
  */
+/**
+ * 첫 건을 카드로 냈을 때 **나머지가 어떻게 되는지** 알리는 서버 소유 한 줄.
+ *
+ * 모델이 쓴 본문은 표식이 있으면 서버 확인문으로 통째로 갈아치워지므로, 이 말을
+ * 서버가 하지 않으면 사용자는 나머지 요청이 사라진 줄 안다. 계약문이 모델에게
+ * 시키는 말("이 확인이 끝나면 이어서 제안")과 같은 순서를 그대로 적는다.
+ */
+function buildRemainingProposalNotice(count: number): string {
+  return `나머지 ${count}건은 이 확인이 끝나면 이어서 제안할게요.`;
+}
+
 const LEGACY_MULTI_ACTION_REPLACEMENT =
   "한 번에 두 가지를 바꾸는 건 아직 어려워요. 하나씩 말씀해 주시면 바로 확인 카드로 만들어 드릴게요.";
 
@@ -662,7 +928,113 @@ function stripMalformedPendingActionTags(text: string): {
   return { text: stripped, removedAny };
 }
 
-function cleanPendingActionTags(text: string): {
+/**
+ * **대괄호 표식 없이 원시 JSON 페이로드만 나간 경우.** (2026-09-04)
+ *
+ * 스테이징 X3 실측: 모델이 답변 끝에 표식을 빼고
+ * `{"tool":"add_amora_action","input":{…}}` 만 적었다. 위의 제거기들은 전부
+ * 대괄호를 보므로 아무것도 못 잡았고, **내부 계약 모양이 사용자 화면에 그대로
+ * 나갔다.** 카드도 없었다.
+ *
+ * 넓히는 것은 **지우는 쪽뿐이다.** 여기서 카드를 만들지는 않는다 — 그러면
+ * 표식 규칙이 사실상 사라지고, 사용자가 붙여 넣은 JSON 이 카드가 될 수 있다.
+ *
+ * 오탐을 막으려고 네 가지를 모두 요구한다.
+ *  1. 중괄호가 **균형 잡힌** 하나의 JSON 객체로 파싱될 것(문자열 안의 괄호와
+ *     이스케이프를 세면서 끝을 찾는다). 정규식으로 여는 괄호부터 마지막 닫는
+ *     괄호까지 잡으면 문장 속 중괄호가 함께 걸린다.
+ *  2. 최상위 키가 `tool` 과 `input` **둘뿐**일 것. 사용자가 붙여 넣은 견적 JSON 은
+ *     다른 키를 갖는다.
+ *  3. `tool` 이 **이번 턴에 허용된 도구 이름**일 것. 모르는 이름은 우리 계약이 아니다.
+ *  4. `input` 이 객체일 것.
+ */
+const UNTAGGED_PENDING_ACTION_START_RE = /\{\s*"(?:tool|input)"\s*:/gu;
+
+/** `start` 의 여는 중괄호부터 짝이 맞는 닫는 중괄호 다음 자리. 못 찾으면 null. */
+function findBalancedJsonObjectEnd(text: string, start: number): number | null {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  const limit = Math.min(text.length, start + MAX_PENDING_ACTION_JSON_CHARS);
+  for (let index = start; index < limit; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') { inString = true; continue; }
+    if (char === "{") { depth += 1; continue; }
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return index + 1;
+      if (depth < 0) return null;
+    }
+  }
+  return null;
+}
+
+function isUntaggedPendingActionPayload(
+  slice: string,
+  allowedToolNames: ReadonlySet<string>,
+): boolean {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(slice);
+  } catch {
+    return false;
+  }
+  if (!isRecord(parsed)) return false;
+  if (Object.keys(parsed).some((key) => key !== "tool" && key !== "input")) return false;
+  return typeof parsed.tool === "string"
+    && allowedToolNames.has(parsed.tool)
+    && isRecord(parsed.input);
+}
+
+function stripUntaggedPendingActionPayloads(
+  text: string,
+  allowedToolNames: ReadonlySet<string>,
+): { text: string; removedAny: boolean } {
+  if (allowedToolNames.size === 0 || !text.includes('"tool"')) {
+    return { text, removedAny: false };
+  }
+  let kept = "";
+  let cursor = 0;
+  let removedAny = false;
+  UNTAGGED_PENDING_ACTION_START_RE.lastIndex = 0;
+  for (
+    let match = UNTAGGED_PENDING_ACTION_START_RE.exec(text);
+    match !== null;
+    match = UNTAGGED_PENDING_ACTION_START_RE.exec(text)
+  ) {
+    const start = match.index;
+    if (start < cursor) continue;
+    const end = findBalancedJsonObjectEnd(text, start);
+    if (end === null) continue;
+    if (!isUntaggedPendingActionPayload(text.slice(start, end), allowedToolNames)) continue;
+    // 같은 줄에 붙은 앞뒤 공백까지 걷어낸다. 남기면 빈 줄에 공백만 뜬다.
+    let from = start;
+    while (from > 0 && (text[from - 1] === " " || text[from - 1] === "\t")) from -= 1;
+    let to = end;
+    while (to < text.length && (text[to] === " " || text[to] === "\t")) to += 1;
+    // 줄 끝·줄 시작에 붙어 있으면 통째로 없애고, 문장 가운데면 앞뒤 낱말이
+    // 붙지 않게 한 칸만 남긴다(`stripMalformedPendingActionTags` 와 같은 규칙).
+    const atLineStart = from === 0 || text[from - 1] === "\n";
+    const atLineEnd = to === text.length || text[to] === "\n";
+    kept += text.slice(cursor, from) + (atLineStart || atLineEnd ? "" : " ");
+    removedAny = true;
+    cursor = to;
+    UNTAGGED_PENDING_ACTION_START_RE.lastIndex = to;
+  }
+  if (!removedAny) return { text, removedAny: false };
+  return { text: kept + text.slice(cursor), removedAny: true };
+}
+
+function cleanPendingActionTags(
+  text: string,
+  allowedToolNames: ReadonlySet<string>,
+): {
   cleanText: string;
   payloads: string[];
   hadPendingActionTag: boolean;
@@ -681,13 +1053,29 @@ function cleanPendingActionTags(text: string): {
     : withoutCompleteTags.slice(0, danglingTagIndex);
   // 정확한 표식을 다 걷어낸 뒤 남은 것은 **틀리게 쓴 표식뿐이다.** 그것도 지운다.
   const malformed = stripMalformedPendingActionTags(withoutDanglingTag);
+  // 이력에만 붙이는 내부 표시를 **모델이 베껴 답변에 썼다**(2026-09-04 스테이징에서
+  // 두 턴). 사용자 화면에 "[미확인 제안 — 저장된 값 아님]" 이 그대로 나갔다 —
+  // 무슨 말인지 알 수 없는 데다, 카드도 없는 턴이라 누를 것도 없었다.
+  // 이력에 되붙이는 쪽(`buildAmoraHistoryContent`)은 그대로 두고 여기서만 지운다.
+  const withoutHistoryNote = malformed.text
+    .split(UNCONFIRMED_PROPOSAL_HISTORY_NOTE)
+    .join("");
+  // 대괄호를 아예 안 쓴 원시 페이로드도 지운다. 지우면 카드 없는 턴이 되므로
+  // 아래 `hadPendingActionTag` 를 함께 켜서 안내가 붙게 한다.
+  const untagged = stripUntaggedPendingActionPayloads(
+    withoutHistoryNote,
+    allowedToolNames,
+  );
   return {
-    cleanText: malformed.text.replace(/\n{3,}/g, "\n\n").trim(),
+    cleanText: untagged.text.replace(/\n{3,}/g, "\n\n").trim(),
     payloads,
     // 틀리게 썼어도 모델이 변경을 의도했다는 뜻이다. 카드가 못 나온 사실을
     // 사용자에게 알리는 경로(`droppedPendingActionTag`)가 이 값을 본다.
     hadPendingActionTag:
-      payloads.length > 0 || danglingTagIndex !== -1 || malformed.removedAny,
+      payloads.length > 0
+      || danglingTagIndex !== -1
+      || malformed.removedAny
+      || untagged.removedAny,
   };
 }
 
@@ -702,34 +1090,52 @@ export function extractAmoraPendingAction({
   hadPendingActionTag: boolean;
 } {
   const { cleanText: strippedText, payloads, hadPendingActionTag } =
-    cleanPendingActionTags(text);
+    cleanPendingActionTags(
+      text,
+      new Set(allowedTools.map((tool) => tool.name)),
+    );
   // 카드가 안 나오는 모든 경로에서 **가짜 확인문을 먼저 걷어낸다.** 라우트가 따로
   // 부르게 만들면 언젠가 빠뜨린다 — 이 저장소는 그 방식으로 여러 번 당했다.
   const cleanText = stripForgedConfirmation(strippedText);
-  // **서로 다른** 변경을 둘 이상 낸 경우만 이 안내를 쓴다. 똑같은 표식을 두 번
-  // 쓴 것은 모델이 제 말을 반복한 것이고, 사용자에게 "하나씩 말해달라" 고 하면
-  // 엉뚱한 말이 된다 — 사용자는 하나만 부탁했으니까.
-  if (new Set(payloads).size > 1) {
-    // 하나만 적용하지 않는다 — 나머지가 조용히 사라지면 사용자는 둘 다 된 줄 안다.
-    return {
-      cleanText: MULTI_ACTION_REPLACEMENT,
-      pendingAction: null,
-      hadPendingActionTag,
-    };
-  }
-  if (payloads.length !== 1 || payloads[0].length > MAX_PENDING_ACTION_JSON_CHARS) {
+  // **서로 다른** 표식만 센다. 똑같은 표식을 두 번 쓴 것은 모델이 제 말을 반복한
+  // 것이고, 사용자에게 "하나씩 말해달라" 고 하면 엉뚱한 말이 된다 — 사용자는
+  // 하나만 부탁했으니까. (그동안은 그 경우에도 카드가 통째로 사라졌다.)
+  const distinctPayloads = [...new Set(payloads)].filter(
+    (payload) => payload.length <= MAX_PENDING_ACTION_JSON_CHARS,
+  );
+  if (distinctPayloads.length === 0) {
     return { cleanText, pendingAction: null, hadPendingActionTag };
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(payloads[0]);
-  } catch {
-    return { cleanText, pendingAction: null, hadPendingActionTag };
+  // 2026-09-04: 표식이 둘 이상이면 **전부** 버리던 것을 첫 건만 살리는 것으로 바꾼다.
+  //
+  // 전부 버리는 쪽을 골랐던 이유는 "나머지가 조용히 사라지면 사용자는 둘 다 된 줄
+  // 안다" 였다. 그 걱정은 안내로 없앨 수 있고(아래 `buildRemainingProposalNotice`),
+  // 카드를 0개로 만드는 손해는 없앨 수 없다 — 실제로 사용자는 세 건을 부탁하고
+  // 아무것도 못 받았다. 확인 없이는 무엇도 실행되지 않으므로 첫 건 카드는 안전하다.
+  let marker: PendingActionMarker | null = null;
+  for (const payload of distinctPayloads) {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(payload);
+    } catch {
+      continue;
+    }
+    const candidate = validateMarker(parsed, allowedTools, now);
+    if (candidate) {
+      marker = candidate;
+      break;
+    }
   }
-  const marker = validateMarker(parsed, allowedTools);
+  const remainingProposalCount = distinctPayloads.length - 1;
   if (!marker) {
-    return { cleanText, pendingAction: null, hadPendingActionTag };
+    // 통과한 표식이 하나도 없다. 여러 건이었다면 다음에 무엇을 하면 되는지
+    // 지목하는 안내를 남긴다(그러지 않으면 사용자는 무엇을 잃었는지 모른다).
+    return {
+      cleanText: remainingProposalCount > 0 ? MULTI_ACTION_REPLACEMENT : cleanText,
+      pendingAction: null,
+      hadPendingActionTag,
+    };
   }
 
   const actionId = createActionId();
@@ -738,7 +1144,12 @@ export function extractAmoraPendingAction({
   }
   const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
   return {
-    cleanText: marker.confirmation,
+    cleanText: remainingProposalCount > 0
+      ? [
+          marker.confirmation,
+          buildRemainingProposalNotice(remainingProposalCount),
+        ].join("\n\n")
+      : marker.confirmation,
     hadPendingActionTag,
     pendingAction: {
       version: 2,
@@ -919,7 +1330,7 @@ export function resolveAmoraPendingAction({
   const marker = validateMarker({
     tool: value.tool,
     input: value.input,
-  }, allowedTools);
+  }, allowedTools, now);
   if (!marker || value.confirmation !== marker.confirmation) return null;
   const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
   if (
@@ -1005,10 +1416,11 @@ function foldRepeatedDescription(
 /**
  * 계약문에 넣을 한 도구의 입력 필드 설명.
  *
- * 이름을 안 알려주면 모델이 지어낸다. 그리고 지어낸 키가 하나라도 있으면
- * `hasOnlyDeclaredTopLevelKeys`가 표식을 통째로 버리는데 그건 조용하다 —
- * 2026-08-22 스테이징 실측에서 표식 10개가 전부 이렇게 사라졌다
- * (`start_time`·`end_time`·`location`, 그리고 `budget` 대신 `amount`).
+ * 이름을 안 알려주면 모델이 지어낸다. 2026-08-22 스테이징 실측에서 표식 10개가
+ * 전부 지어낸 키 때문에 사라졌다(`start_time`·`end_time`·`location`, 그리고
+ * `budget` 대신 `amount`). 2026-09-04 부터 서버는 지어낸 키를 **그 키만** 버리므로
+ * 표식이 통째로 사라지지는 않는다(`dropUndeclaredTopLevelKeys`). 그래도 지어낸
+ * 자리에 담긴 값은 사라지니, 이름을 정확히 알려주는 것이 여전히 첫 방어다.
  * 값이 정해진 필드는 값 목록까지 준다. 같은 함정이 enum 에서 반복되기 때문이다.
  * (예외: 설명이 이미 `키=풀이` 로 모든 값을 적고 있으면 목록을 두 번 적지 않는다.)
  */
@@ -1120,6 +1532,11 @@ export function buildAmoraPendingActionPrompt(
   const declaresMemoField = supportedTools.some((tool) =>
     isRecord(tool.input_schema.properties)
     && Object.keys(tool.input_schema.properties).includes("memo"));
+  // 채워진 예시가 실린 턴에서는 형식 줄의 빈 자리표시자가 같은 말을 두 번 한다.
+  // 프롬프트는 상한(48,000자)에 붙어 있어 그 중복이 곧 저장 문맥 꼬리를 밀어낸다.
+  const markerShapeExample = supports("add_schedule_event")
+    ? "표식 안은 **JSON** — 위 예시 모양 그대로."
+    : "표식 형식: 대괄호 안은 **JSON**: [pending_action]{\"tool\":\"위 목록의 도구명\",\"input\":{\"필드명\":\"값\"}}[/pending_action].";
   return [
     "[서버 발급 후속 확인 계약]",
     "- 사용자의 확인이 필요한 변경을 제안하거나 적용 여부를 물을 때는, 그 답변 안에 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 사용자가 확인해도 실행할 방법이 없습니다.",
@@ -1150,8 +1567,31 @@ export function buildAmoraPendingActionPrompt(
     // 배운 적이 없다(스테이징 행동 카드 0건). 일정·예산에는 그런 문장이 있다.
     // 필수 필드가 `title` 하나라는 것도 여기서 못 박는다 — 선택 필드 6개를 앞에 두고
     // 모델이 "무엇으로 채울지 모르겠으니 되묻자" 로 도망쳤다.
+    //
+    // 2026-09-04 이 줄을 줄였다. "확실할 때만 넣고 아니면 빼세요" 는 선택 필드 하나가
+    // 카드를 통째로 날리던 시절의 경고인데, 이제 서버가 그 필드만 보정한다
+    // (`coerceLenientOptionalFields`). 같은 자리를 일정 줄에 내준다.
     ...(supports("add_amora_action") ? [
-      "- 할 일·투두·챙길 것을 추가해 달라는 요청에는 `add_amora_action` 표식을 이번 답변에 내세요. 필요한 값은 `title` 하나입니다 — 마감일·카테고리·중요도는 확실할 때만 넣고, 확실하지 않으면 빼세요. 마감일을 함께 말했으면 `due_date` 에 넣어 같은 답변에 표식을 내세요 — 마감일이 있다고 되묻지 않습니다.",
+      "- 할 일·투두·챙길 것을 추가해 달라는 요청에는 `add_amora_action` 표식을 이번 답변에 내세요. 필요한 값은 `title` 하나이고, 마감일을 함께 말했으면 `due_date` 에 넣습니다. 마감일·카테고리가 있다고 되묻지 마세요.",
+    ] : []),
+    // 2026-09-04 스테이징 실측: 날짜·제목이 다 적힌 일정 3건 요청에 표식이 **0개**
+    // 나왔다. 답변은 "세 일정 모두 2026년 날짜로 확인했어요 … 우선 9월 10일 일정을
+    // 등록할까요?" — 값을 다 알아냈으면서 물어보기만 했다. 같은 날 도구 지시 쪽에
+    // "값이 다 있으면 첫 건 표식" 을 적었는데도 그랬다.
+    //
+    // 행동 카드는 같은 문제를 **도구를 지목한 계약 줄**로 풀었고(2026-09-03) 그 뒤
+    // 카드가 나오기 시작했다. 일정에는 그 줄이 없었다 — 이름이 나오는 곳은 위
+    // 필드 목록 한 줄뿐이었다. 연도 해석까지 여기서 못 박는다: 모델이 연도를
+    // 확인받으려고 표식을 미루는 것이 관측된 모양이다.
+    // 2026-09-04 라이브 4/4: 값이 다 적힌 일괄 요청에도 표식이 0개였고, 답변은
+    // "먼저 9월 10일 일정부터 등록할까요?" 였다. 위 줄("표식을 내세요")만으로는
+    // 모델이 **무엇을 적어야 하는지** 본 적이 없다 — 이름과 필드는 서로 다른 줄에
+    // 흩어져 있고, 아래 형식 줄은 값이 비어 있는 자리표시자였다. 채워진 것을 하나
+    // 보여준다. 자리는 같은 계약문에서 만든다: 이 줄이 `date`·`title` 을 눈으로
+    // 보여주므로 위 줄의 필드 나열과 아래 형식 줄의 빈 자리표시자를 걷어낸다.
+    ...(supports("add_schedule_event") ? [
+      "- 일정 등록 요청에는 `add_schedule_event` 표식을 이번 답변에 내세요. 연도가 없으면 가장 가까운 미래로 넣습니다. 여러 건이면 첫 건만 냅니다.",
+      "- 표식은 이 모양 그대로, 값만 바꿔 쓰세요: [pending_action]{\"tool\":\"add_schedule_event\",\"input\":{\"date\":\"2026-09-10\",\"title\":\"신혼집 지역 정하기\"}}[/pending_action]",
     ] : []),
     // 같은 공백이 `log_wedding_event` 에도 있었다. 다만 이 도구는 8종 준비 일정
     // 전용이라, 범위를 함께 못 박지 않으면 일반 일정까지 이쪽으로 끌어온다
@@ -1164,11 +1604,15 @@ export function buildAmoraPendingActionPrompt(
     // 옛 줄은 `{...}` 라는 자리표시자 한 줄뿐이라 "여기에 필요한 말을 적어라" 로 읽혔다.
     // 바로 아래 [mediation] 규칙("마커 안은 평문 문장만")이 위치상 이 표식에도
     // 읽히던 것까지 여기서 끊는다.
-    "- 표식 형식: 대괄호 안은 **JSON**: [pending_action]{\"tool\":\"위 목록의 도구명\",\"input\":{\"필드명\":\"값\"}}[/pending_action]. `[ pending_action 필요 ]`처럼 우리말로 쓰면 서버가 지워 카드가 안 나갑니다. \"마커 안은 평문만\"은 [mediation] 규칙.",
+    `- ${markerShapeExample} \`[ pending_action 필요 ]\`처럼 우리말로 쓰면 서버가 지워 카드가 안 나갑니다. "마커 안은 평문만"은 [mediation] 규칙.`,
     "- 모든 입력값이 확정됐을 때만 표식을 쓰세요. 값이 아직 모호하면 표식 없이 값부터 확인하세요. 보이는 확인 문장은 서버가 검증된 tool/input으로 직접 만듭니다.",
     // 윗줄의 "모호하면 되물어라" 를 모델이 **선택 필드까지** 적용했다. 필수 1개·선택
     // 6개인 도구에서는 그게 곧 영원한 되묻기다.
-    "- 선택 필드를 무엇으로 채울지 망설임은 '모호한 값'이 아닙니다 — 필수 필드(`*`)가 사용자 말에 있으면 표식을 내고 확실하지 않은 것은 빼세요.",
+    // 2026-09-04: 꼬리("확실하지 않은 것은 빼세요")를 뗐다. 선택 필드가 목록 밖
+    // 값이거나 날짜 모양이 아니면 이제 서버가 그 필드만 보정하거나 뺀다
+    // (`coerceLenientOptionalFields`) — 모델에게 시킬 이유가 없는 말이 됐다.
+    // 되묻기로 도망가지 말라는 앞부분은 그대로 둔다.
+    "- 선택 필드를 무엇으로 채울지 망설임은 '모호한 값'이 아닙니다 — 필수 필드(`*`)가 사용자 말에 있으면 표식을 내세요.",
     // 표식 없이 값만 나열하고 "등록할까요?" 로 끝난 답변이 라이브에서 반복됐다.
     // 사용자 화면에는 누를 것이 없다.
     "- 값을 목록으로 적고 \"등록할까요?\"·\"저장할까요?\"라고만 묻는 답변엔 누를 것이 없습니다. 그 목록은 서버가 표식으로 만드니 같은 답변에 표식을 내세요.",

@@ -48,8 +48,10 @@ import {
 } from "@/lib/amoraChatEntry";
 import { createChatSessionGenerationGuard } from "@/lib/chatSessionGeneration";
 import {
+  CARRIED_PENDING_ACTION_LABEL,
   getAmoraActionApprovalPolicy,
   getPendingAmoraAction,
+  getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   getSharedActionApprovalPresentation,
@@ -3697,6 +3699,11 @@ export default function ChatScreen() {
     const pendingActionIsPastDated = pendingAction
       ? isPendingActionPastDated(pendingAction, nowMs)
       : false;
+    // 직전 턴에서 옮겨져 온 카드인가 (2026-09-04). 서버 metadata 값만 본다 —
+    // 화면이 직전 행을 뒤져 추측하지 않는다. 웹과 같은 판정을 쓴다.
+    const pendingActionIsCarriedForward = pendingAction
+      ? getPendingAmoraActionCarryCount(item) >= 1
+      : false;
     const approvalPolicy = pendingAction
       ? getAmoraActionApprovalPolicy(pendingAction.tool, pendingAction.input)
       : "blocked";
@@ -3821,18 +3828,43 @@ export default function ChatScreen() {
             />
           )}
           {pendingAction && (
-            <View style={st.pendingActionCard}>
+            <View style={[st.pendingActionCard, pendingActionIsCarriedForward && st.pendingActionCarriedCard]}>
               <View style={st.pendingActionHeading}>
                 <View style={st.pendingActionIcon} accessibilityElementsHidden>
                   <ShieldCheck size={18} color="#795252" />
                 </View>
                 <View style={st.pendingActionCopy}>
+                  {/* 이월된 카드는 **무엇을 바꾸는지가 먼저**다(2026-09-04). 새 답변
+                      문장 바로 아래에 "적용하기 전에 확인해 주세요" 가 붙으면 사용자는
+                      방금 읽은 내용을 확인하는 것으로 읽는다. 이월일 때만 서버가 발급한
+                      확인문을 라벨 아래 제목 자리에 그대로 올리고 일반 문장을 내린다.
+                      확인 버튼 문구는 그대로다. 웹 카드와 같은 순서다. */}
+                  {pendingActionIsCarriedForward && (
+                    <View style={st.pendingActionCarryBadge}>
+                      <Text style={st.pendingActionCarryBadgeText}>
+                        {CARRIED_PENDING_ACTION_LABEL}
+                      </Text>
+                    </View>
+                  )}
                   <Text style={st.pendingActionTitle}>
-                    {requiresCoupleApproval
-                      ? "두 분 확인이 필요한 변경이에요"
-                      : "적용하기 전에 확인해 주세요"}
+                    {pendingActionIsCarriedForward
+                      ? pendingAction.confirmation
+                      : requiresCoupleApproval
+                        ? "두 분 확인이 필요한 변경이에요"
+                        : "적용하기 전에 확인해 주세요"}
                   </Text>
-                  <Text style={st.pendingActionConfirmation}>{pendingAction.confirmation}</Text>
+                  <Text
+                    style={[
+                      st.pendingActionConfirmation,
+                      pendingActionIsCarriedForward && st.pendingActionCarriedPurpose,
+                    ]}
+                  >
+                    {pendingActionIsCarriedForward
+                      ? requiresCoupleApproval
+                        ? "두 분 확인이 필요한 변경이에요"
+                        : "적용하기 전에 확인해 주세요"
+                      : pendingAction.confirmation}
+                  </Text>
                 </View>
               </View>
               {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
@@ -4249,6 +4281,11 @@ const st = StyleSheet.create({
   pendingActionCopy: { flex: 1 },
   pendingActionTitle: { fontSize: 14, fontWeight: "700", color: colors.noir[800] },
   pendingActionConfirmation: { marginTop: 4, fontSize: 14, lineHeight: 21, color: colors.noir.soft },
+  // 이월된 카드 (2026-09-04) — 테두리를 점선으로, 바탕을 한 톤 낮춰 원본 턴 카드와 가른다.
+  pendingActionCarriedCard: { borderStyle: "dashed", borderColor: "#B99A7E", backgroundColor: "#FBF5EE" },
+  pendingActionCarryBadge: { alignSelf: "flex-start", marginBottom: 6, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999, borderWidth: 1, borderColor: "#B99A7E", backgroundColor: "#F2E8DE" },
+  pendingActionCarryBadgeText: { fontSize: 12, lineHeight: 17, fontWeight: "700", color: "#795252" },
+  pendingActionCarriedPurpose: { fontSize: 12, lineHeight: 18, color: "#795252" },
   pendingActionStatus: { marginTop: 10, fontSize: 12, lineHeight: 18, color: "#795252" },
   pendingActionApprovalStatus: { marginTop: 10, flexDirection: "row", alignItems: "flex-start", gap: 8, paddingHorizontal: 10, paddingVertical: 9, borderRadius: 12, backgroundColor: "#F2F7F4" },
   pendingActionApprovalError: { backgroundColor: "#FFF2EF" },

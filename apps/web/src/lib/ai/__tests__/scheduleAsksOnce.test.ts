@@ -50,7 +50,10 @@ const compose = (enabledToolNames: string[]) =>
     persistenceMode: "durable",
   });
 
-const RULE = "모르는 것이 여러 개면 한 번에 모아 물으세요";
+// 2026-09-04: "모르는 것이 여러 개면" 을 "빠진 값이 여러 개면" 으로 바꿨다.
+// 모델이 앞 문구를 **건수가 여러 개면** 으로 읽어, 날짜·제목이 다 적힌 세 건
+// 요청에 표식을 하나도 내지 않았다(스테이징 실측).
+const RULE = "빠진 값이 여러 개면 한 번에 모아 물으세요";
 
 describe("일정은 한 번에 묻는다", () => {
   it("운영 도구 집합이면 규칙이 모델에게 간다", () => {
@@ -60,6 +63,20 @@ describe("일정은 한 번에 묻는다", () => {
   it("날짜만 묻고 이름을 또 묻지 말라고 분명히 쓴다", () => {
     // 문구가 남아 있어도 뒷문장이 사라지면 규칙이 반쪽이 된다.
     expect(compose(PRODUCTION_ENABLED_TOOL_NAMES)).toContain("날짜→유형→재확인으로 나누지 마세요");
+  });
+
+  it("값이 다 있으면 되묻지 말고 첫 건 표식을 내라고 쓴다", () => {
+    // 되묻기 규칙만 있으면 모델은 건수가 여러 개일 때도 되묻는다. 실제로 그랬다.
+    expect(compose(PRODUCTION_ENABLED_TOOL_NAMES))
+      .toContain("날짜와 제목이 있으면 건수가 많아도 묻지 말고 첫 건 표식을 이번 답변에 내세요");
+  });
+
+  it("연도 없는 날짜를 다시 모호하다고 부르지 않는다", () => {
+    // 앞 문장이 "연도가 없으면 가장 가까운 미래" 라고 정해 주는데, 뒤에 붙어 있던
+    // "날짜가 모호하면 저장 전에 한 번 확인하세요" 가 그것을 되묻기로 되돌렸다.
+    const prompt = compose(PRODUCTION_ENABLED_TOOL_NAMES);
+    expect(prompt).toContain("연도가 없으면 가장 가까운 미래 날짜를 사용하세요");
+    expect(prompt).not.toContain("날짜가 모호하면 저장 전에 한 번 확인하세요");
   });
 
   it("일정 도구가 없으면 싣지 않는다", () => {

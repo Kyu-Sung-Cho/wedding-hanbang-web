@@ -59,9 +59,16 @@ describe("측정기가 살아 있다", () => {
     expect(result.pendingAction?.tool).toBe("update_schedule_event");
   });
 
-  it("선언 안 된 키는 표식을 통째로 버린다 — 이 관문이 살아 있어야 한다", () => {
+  it("선언 안 된 키는 그 키만 버린다 — 이 관문이 살아 있어야 한다", () => {
+    // 2026-09-04 이전에는 표식이 **통째로** 버려졌다. 그 규칙이 스테이징 X7 을
+    // 만들었다(모델은 표식을 냈는데 사용자에게는 카드가 없었다). 지금은 키만
+    // 버린다 — 지키는 것은 그대로다: 지어낸 값은 카드에도 실행 경로에도 없다.
     const result = extract(marker({ event_id: "evt_1", date: "2026-09-05", vendor_name: "소네" }));
-    expect(result.pendingAction, "선언 안 된 키가 통과했다").toBeNull();
+    expect(result.pendingAction?.input, "선언 안 된 키가 통과했다").toEqual({
+      event_id: "evt_1",
+      date: "2026-09-05",
+    });
+    expect(result.cleanText).not.toContain("소네");
   });
 });
 

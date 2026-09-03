@@ -76,6 +76,7 @@ const {
   getAmoraActionApprovalPolicy,
   getAmoraPendingActionTtlMs,
   getPendingAmoraAction,
+  getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   isPendingAmoraActionExpired,
@@ -556,4 +557,69 @@ test("mobile renders truthful couple progress and bound budget impact copy", () 
     chatSource,
     /기록 지출은 사용자가 명시적으로 입력한 금액이며, 결제 증거나 결제 완료를 뜻하지 않아요\./,
   );
+});
+
+/**
+ * 이월된 카드는 이월됐다고 말한다 (2026-09-04).
+ *
+ * 확인하지 않은 카드는 다음 답변으로 따라간다. 그래서 새 문장 아래에 직전 턴의 다른
+ * 카드가 붙는 일이 생기고, 사용자는 방금 읽은 문장이 곧 이 버튼이라고 읽고 누른다.
+ * 판정은 **서버 metadata 값**으로만 한다 — 화면이 직전 행을 뒤져 추측하지 않는다.
+ */
+const carryCases = [
+  { name: "값이 없으면 0", metadata: { pending_amora_action: action }, expected: 0 },
+  { name: "1이면 1", metadata: { pending_amora_action: action, pending_amora_action_carry_count: 1 }, expected: 1 },
+  { name: "2면 2", metadata: { pending_amora_action: action, pending_amora_action_carry_count: 2 }, expected: 2 },
+  { name: "0은 원본 턴", metadata: { pending_amora_action: action, pending_amora_action_carry_count: 0 }, expected: 0 },
+  { name: "문자열은 안 믿는다", metadata: { pending_amora_action_carry_count: "2" }, expected: 0 },
+  { name: "소수는 안 믿는다", metadata: { pending_amora_action_carry_count: 1.5 }, expected: 0 },
+  { name: "음수는 안 믿는다", metadata: { pending_amora_action_carry_count: -1 }, expected: 0 },
+];
+
+test("이월 횟수는 서버가 찍은 값으로만 정한다", () => {
+  for (const { name, metadata, expected } of carryCases) {
+    assert.equal(
+      getPendingAmoraActionCarryCount({ sender_type: "ai", visibility: "shared", metadata }),
+      expected,
+      name,
+    );
+  }
+
+  // 사람이 쓴 행·비공개 행·metadata 없는 행에서는 읽지 않는다.
+  assert.equal(
+    getPendingAmoraActionCarryCount({
+      sender_type: "bride",
+      visibility: "shared",
+      metadata: { pending_amora_action_carry_count: 2 },
+    }),
+    0,
+  );
+  assert.equal(
+    getPendingAmoraActionCarryCount({
+      sender_type: "ai",
+      visibility: "bride_private",
+      metadata: { pending_amora_action_carry_count: 2 },
+    }),
+    0,
+  );
+  assert.equal(
+    getPendingAmoraActionCarryCount({ sender_type: "ai", visibility: "shared", metadata: null }),
+    0,
+  );
+});
+
+test("모바일 카드가 이월 라벨을 그리고 확인문을 제목 자리에 올린다", () => {
+  // 판정을 서버 값에서만 가져온다 — 직전 행을 뒤지지 않는다.
+  assert.match(chatSource, /getPendingAmoraActionCarryCount\(item\) >= 1/);
+  // 라벨과 모양이 함께 붙는다.
+  assert.match(chatSource, /\{CARRIED_PENDING_ACTION_LABEL\}/);
+  assert.match(chatSource, /pendingActionIsCarriedForward && st\.pendingActionCarriedCard/);
+  assert.match(chatSource, /pendingActionCarriedCard: \{[^}]*borderStyle: "dashed"/);
+  // 이월이면 확인문이 제목 자리에 온다(무엇을 바꾸는지가 먼저).
+  assert.match(
+    chatSource,
+    /pendingActionIsCarriedForward\s*\?\s*pendingAction\.confirmation/,
+  );
+  // 확인 버튼 문구는 그대로다.
+  assert.match(chatSource, /: "확인한 내용을 이대로 적용"/);
 });

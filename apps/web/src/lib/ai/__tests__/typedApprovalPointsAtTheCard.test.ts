@@ -116,6 +116,49 @@ describe("말로 한 승인", () => {
     expect(promptWith()).not.toContain("[화면에 대기 중인 변경 카드]");
   });
 
+  /**
+   * **다른 할 일에는 새 표식을 내라고 말한다.** (2026-09-04)
+   *
+   * 스테이징 실측: X1 의 카드가 안 눌린 채 화면에 남은 상태에서 **다른 할 일**
+   * 두 건을 부탁했는데(X2·X3) 모델이 새 표식을 하나도 안 내고 X1 의 actionId 를
+   * 그대로 다시 가리켰다. 옛 문구("같은 변경의 표식을 다시 내지 마세요")를 다른
+   * 변경에까지 적용한 것이다.
+   *
+   * 대기 카드는 사용자가 안 누른 채로도 오래 남는다. 그동안 다른 요청을 전부
+   * 거절하면 카드 하나가 대화를 잠근다.
+   */
+  it("대기 카드가 있으면 '다른 요청에는 새 표식' 이 실린다", () => {
+    const prompt = promptWith(issueRealCard(now).confirmation);
+
+    // 무엇이 "같은 변경"인지 못 박는다 — 이 괄호가 없으면 모델이 넓게 읽는다.
+    expect(prompt).toContain("**같은 변경**(같은 도구·같은 대상)");
+    expect(prompt).toContain("다른 할 일·다른 일정·다른 항목");
+    expect(prompt).toContain("새 표식을 내세요");
+    // 값을 바꾸고 싶어 할 때의 예외는 그대로 남는다.
+    expect(prompt).toContain("사용자가 값을 바꾸고 싶어 하면 새 표식을 내세요");
+    // 넓게 읽히던 옛 문장은 사라졌다.
+    expect(prompt).not.toContain("같은 변경의 표식을 다시 내지 마세요");
+  });
+
+  it("카드가 없으면 그 문장도 실리지 않는다", () => {
+    const prompt = promptWith();
+    expect(prompt).not.toContain("다른 할 일·다른 일정·다른 항목");
+    expect(prompt).not.toContain("**같은 변경**(같은 도구·같은 대상)");
+  });
+
+  it("계약문이 늘어난 만큼만 프롬프트가 길어진다", () => {
+    // 합성 프롬프트는 운영 상한(48,000자)에 붙어 있다. 이 계약문이 커지면 그만큼
+    // 저장 문맥 꼬리가 조용히 잘린다. 늘어난 길이를 숫자로 남겨 둔다.
+    const withCard = promptWith(issueRealCard(now).confirmation);
+    const withoutCard = promptWith();
+    const delta = withCard.length - withoutCard.length;
+
+    // 2026-09-04 실측: 이 카드 확인문에서 계약문 전체가 390자, 그중 이번에 고친
+    // 두 줄이 160자다(옛 한 줄은 54자 — 106자 늘었다). 상한 48,000 대비 0.2%.
+    expect(delta).toBeGreaterThan(0);
+    expect(delta).toBeLessThan(600);
+  });
+
   it("계약문은 절단되지 않는 자리에 있다", () => {
     // 프롬프트가 상한에 걸려 잘려도 이 규칙은 남아야 한다.
     //
