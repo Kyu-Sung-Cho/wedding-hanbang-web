@@ -222,7 +222,9 @@ export function rankPlacesByQueryKind<T extends { category?: string | null; cate
   places: T[],
   query: string,
 ): T[] {
-  const kinds = ["한정식", "한식", "일식", "중식", "양식", "이탈리안", "뷔페", "카페", "베이커리", "코스요리"];
+  // 2026-09-03: 예식·상견례 장소로 쓰는 "연회장"을 종류로 인정한다 — 없으면 "대전 연회장"
+  // 같은 검색어에서 종류가 없는 것으로 보여 앞뒤 보정이 헛돈다.
+  const kinds = ["한정식", "한식", "일식", "중식", "양식", "이탈리안", "뷔페", "연회장", "카페", "베이커리", "코스요리"];
   // "한식" 은 "한정식" 의 부분문자열이 아니다(한-정-식). 그래서 상위 갈래를 따로 적는다 —
   // 한정식집을 찾는 사람에게 한식집은 후보지만 주꾸미집보다는 뒤다.
   const broader: Readonly<Record<string, readonly string[]>> = {
