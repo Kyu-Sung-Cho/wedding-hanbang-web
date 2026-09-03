@@ -12,6 +12,7 @@ import {
   type BudgetImpactPreview,
   type BudgetImpactWarning,
 } from "@hanbang/shared";
+import { todayYmdInKst } from "@hanbang/shared/utils";
 import { formatWon } from "@/lib/formatWon";
 import type {
   ChatMessage,
@@ -26,6 +27,35 @@ export type PendingActionDisabledReason =
   | null;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+const SCHEDULE_DATE_TOOLS = new Set(["add_schedule_event", "update_schedule_event"]);
+const SCHEDULE_YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 이 카드가 지난 날짜를 저장하려 하는가 (2026-09-03).
+ *
+ * 연도를 말하지 않은 날짜가 지난 해로 해석돼 저장되거나, 사용자가 지난 날짜를 그대로
+ * 말해도 카드가 아무 말도 하지 않아 "지난 일정"이 조용히 들어갔다. 지난 일을 기록하려는
+ * 요청도 정당하므로 **버튼을 막지 않는다** — 한 줄만 덧붙여 연도를 다시 보게 한다.
+ *
+ * 오늘은 `todayYmdInKst` 로만 정한다. UTC 로 자르면 한국 새벽 0~9시에 오늘이 어제가
+ * 되어, KST 자정 직후에 잡는 "오늘" 일정이 지난 날짜로 잡힌다.
+ *
+ * 같은 판정이 앱에도 있다(`apps/mobile/src/lib/pendingAmoraAction.ts`). 한쪽만 고치면
+ * 두 화면이 같은 카드에 다른 말을 한다 — 두 구현을 같이 재는 검사가 붙어 있다.
+ */
+export function isPendingActionPastDated(
+  action: { tool: string; input: Record<string, unknown> },
+  nowMs: number,
+): boolean {
+  if (!SCHEDULE_DATE_TOOLS.has(action.tool)) return false;
+  if (!Number.isFinite(nowMs) || nowMs <= 0) return false;
+  const date = action.input.date;
+  if (typeof date !== "string" || !SCHEDULE_YMD_PATTERN.test(date)) return false;
+  return date < todayYmdInKst(nowMs);
+}
+
+export const PAST_SCHEDULE_DATE_NOTICE =
+  "지난 날짜예요 · 연도가 맞는지 확인해 주세요. 이대로 적용하면 지난 일정으로 저장돼요.";
 
 type SharedActionApprovalStatus = {
   approvalMode: "couple";
@@ -350,10 +380,18 @@ export default function PendingAmoraActionCard({
   );
   const [approvalMutation, setApprovalMutation] =
     useState<"confirm" | "withdraw" | null>(null);
+  // 이 카드는 만료 판정과 달리 부모에게서 시계를 받지 않는다. 서버 렌더에서 읽으면
+  // 하이드레이션이 어긋나므로, 시계를 읽기 전(0)에는 아무 말도 하지 않는다.
+  const [clockMs, setClockMs] = useState(0);
+  useEffect(() => {
+    setClockMs(Date.now());
+  }, []);
+  const showsPastDateNotice = isPendingActionPastDated(action, clockMs);
   const isSavingApproval = approvalMutation !== null;
   const titleId = `pending-amora-action-${action.actionId}-title`;
   const detailId = `pending-amora-action-${action.actionId}-detail`;
   const statusId = `pending-amora-action-${action.actionId}-status`;
+  const pastDateId = `pending-amora-action-${action.actionId}-past-date`;
   const approvalStatusId = `pending-amora-action-${action.actionId}-approval`;
 
   const sharedActionUrl =
@@ -617,7 +655,9 @@ export default function PendingAmoraActionCard({
   return (
     <section
       aria-labelledby={titleId}
-      aria-describedby={`${detailId}${disabledReason ? ` ${statusId}` : ""}${
+      aria-describedby={`${detailId}${
+        showsPastDateNotice ? ` ${pastDateId}` : ""
+      }${disabledReason ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
       }`}
       className="ml-11 mt-2 max-w-[94%] rounded-[6px] border border-[#D8C7BB] bg-[#FFFCF8] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem]"
@@ -639,6 +679,16 @@ export default function PendingAmoraActionCard({
       </div>
 
       {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
+
+      {showsPastDateNotice && (
+        <p
+          id={pastDateId}
+          role="status"
+          className="mt-3 rounded-[6px] bg-[#FFF2EF] px-3 py-2.5 text-xs leading-5 text-[#8A3D31]"
+        >
+          {PAST_SCHEDULE_DATE_NOTICE}
+        </p>
+      )}
 
       {disabledReason && (
         <p id={statusId} role="status" className="mt-3 text-xs leading-5 text-[var(--hb-accent-hover)]">

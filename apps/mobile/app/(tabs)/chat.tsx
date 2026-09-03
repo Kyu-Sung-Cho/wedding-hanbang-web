@@ -53,8 +53,10 @@ import {
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
   getSharedActionApprovalPresentation,
+  isPendingActionPastDated,
   parseSharedActionApplicationClaim,
   parseSharedActionApprovalStatus,
+  PAST_SCHEDULE_DATE_NOTICE,
   type PendingActionDisabledReason,
   type SharedActionApplicationClaim,
   type SharedActionApprovalStatus,
@@ -3675,6 +3677,11 @@ export default function ChatScreen() {
           streaming,
         )
       : null;
+    // 지난 날짜를 저장하려는 카드인가 (2026-09-03). 막지 않고 한 줄만 덧붙인다 —
+    // 웹 카드와 같은 판정을 쓴다(`isPendingActionPastDated`).
+    const pendingActionIsPastDated = pendingAction
+      ? isPendingActionPastDated(pendingAction, nowMs)
+      : false;
     const approvalPolicy = pendingAction
       ? getAmoraActionApprovalPolicy(pendingAction.tool, pendingAction.input)
       : "blocked";
@@ -3814,6 +3821,16 @@ export default function ChatScreen() {
                 </View>
               </View>
               {impactPreview && <BudgetImpactDetails preview={impactPreview} />}
+              {pendingActionIsPastDated && (
+                <View
+                  style={[st.pendingActionApprovalStatus, st.pendingActionApprovalError]}
+                  accessibilityLiveRegion="polite"
+                >
+                  <Text style={[st.pendingActionApprovalText, st.pendingActionApprovalErrorText]}>
+                    {PAST_SCHEDULE_DATE_NOTICE}
+                  </Text>
+                </View>
+              )}
               {pendingActionDisabledReason && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
                   {pendingActionDisabledReason === "expired"

@@ -660,6 +660,54 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     ? messages.filter((m) => m.visibility === myPrivateVisibility).length
     : 0;
 
+  /**
+   * 이 탭의 대화가 장기 기억으로 정리되는지 — 채팅에서 알 수 있게 한다.
+   *
+   * 2026-09-03 (1차 UX 5): 기억을 켜고 끄는 곳은 `설정 > 아모라가 기억하는 것`
+   * 하나뿐인데, 정작 말을 하는 채팅에는 그 상태가 어디에도 없었다. 켜진 줄 알고
+   * 말한 사람과 꺼진 줄 알고 말한 사람이 똑같은 화면을 본다.
+   *
+   * 설정 화면이 이미 쓰는 GET `/api/amora/memory` 의 `settings[].enabled` 를 그대로
+   * 읽기만 한다 — 켜고 끄는 판정도, 저장 경로도 여기서 건드리지 않는다. 못 읽으면
+   * 아무 말도 하지 않는다: 틀린 상태를 말하느니 침묵이 낫다.
+   */
+  const [memoryEnabledByVisibility, setMemoryEnabledByVisibility] =
+    useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    if (isDemo || !coupleId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/amora/memory", { cache: "no-store" });
+        if (!response.ok) return;
+        const payload = await response.json() as {
+          settings?: { visibility?: unknown; enabled?: unknown }[];
+        };
+        if (cancelled || !Array.isArray(payload?.settings)) return;
+        const next: Record<string, boolean> = {};
+        for (const setting of payload.settings) {
+          if (typeof setting?.visibility === "string" && typeof setting?.enabled === "boolean") {
+            next[setting.visibility] = setting.enabled;
+          }
+        }
+        setMemoryEnabledByVisibility(next);
+      } catch {
+        // 못 읽으면 상태 줄을 그리지 않는다.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [coupleId, isDemo]);
+
+  // 탭마다 기억 범위가 다르다 — 함께 대화는 공유 기억, 나만 상담은 내 비공개 기억.
+  const activeMemoryEnabled = (() => {
+    if (!memoryEnabledByVisibility) return null;
+    const visibility = isPrivate ? myPrivateVisibility : "shared";
+    if (!visibility) return null;
+    const enabled = memoryEnabledByVisibility[visibility];
+    return typeof enabled === "boolean" ? enabled : null;
+  })();
+
   useEffect(() => {
     if (composerIdentityRef.current === composerIdentity) return;
     composerIdentityRef.current = composerIdentity;
@@ -2633,6 +2681,28 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           안쪽 reading column wrapper 에서 메시지가 가운데 reading 폭으로 정렬. */}
       <div ref={messagesContainerRef} className="flex-1 overflow-y-auto py-4">
         <div className="w-full max-w-[70rem] mx-auto px-2 sm:px-3 space-y-4">
+        {/* 기억 상태 한 줄 — 못 읽었으면(activeMemoryEnabled === null) 아무 말도 하지 않는다 */}
+        {activeMemoryEnabled !== null && (
+          <div
+            data-testid="amora-memory-status"
+            className="mb-2 px-3 py-2 rounded-[6px] bg-[var(--hb-surface-hover)] text-[12.5px] leading-relaxed text-[var(--hb-text-muted)]"
+          >
+            {activeMemoryEnabled ? (
+              <span>이 탭의 대화는 장기 기억으로 정리돼요</span>
+            ) : (
+              <span>
+                지금은 장기 기억을 저장하지 않아요{" · "}
+                <a
+                  href={weddingPath("/settings/amora-memory")}
+                  className="underline text-[var(--hb-accent-hover)]"
+                >
+                  설정에서 켜기
+                </a>
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Private 탭 안내 (탭 들어가면 항상 보임) */}
         {activeTab === "private" && (
           <div className="mb-2 px-3 py-2.5 rounded-[6px] bg-[#5a6147]/8 border border-[#5a6147]/20 flex items-start gap-2 text-[12.5px] text-[#5a6147] leading-relaxed">

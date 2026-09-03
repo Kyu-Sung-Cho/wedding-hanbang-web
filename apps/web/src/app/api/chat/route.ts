@@ -3796,6 +3796,14 @@ export async function POST(request: Request) {
             ...(persistenceSafeText !== persistenceClaimGuard.text
               ? { terminal_text_empty_fallback: true }
               : {}),
+            // 2026-09-03 관측용. 모델이 표식을 냈는데 검증에서 버려진 턴을 원장에서
+            // 셀 수 있어야 한다 — 카드 0건의 원인이 도구 선택인지 표식 형식인지
+            // 지금은 사후에 가릴 방법이 없다. 정책은 그대로다(같은 조건으로
+            // `droppedPendingActionTag` 가 이미 안내 문구를 붙인다).
+            ...(pendingExtraction.hadPendingActionTag
+              && pendingExtraction.pendingAction === null
+              ? { pending_action_dropped: true }
+              : {}),
             question_scope: questionScope.scope,
             memory_eligible: questionScope.allowsLongTermMemory,
             memory_enqueue_requested: memoryEnqueueRequested,
