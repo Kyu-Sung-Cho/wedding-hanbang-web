@@ -240,17 +240,19 @@ describe("landing first visit clarity", () => {
     const confirm = rendered(CONFIRM);
     const sections = renderedSections();
 
-    // 무엇을 하는 제품인지 한 문장으로 말한다. 2026-08-27 개편 전에는 H1
-    // "둘이 말하면, 결혼 준비가 정리돼요."가 그 자리였고, 2026-08-29 정본 시안 개편
-    // 뒤에는 히어로 본문이 "어디에 뭘 적어뒀는지도 헷갈릴 때가 있잖아요" 로 잇는다.
+    // 무엇을 하는 제품인지 한 문장으로 말한다. 후크는 세 번 바뀌었다 —
+    // "둘이 말하면, 결혼 준비가 정리돼요."(~2026-08-27) → "어디에 뭘 적어뒀는지도
+    // 헷갈릴 때가 있잖아요"(정본 시안, ~2026-09-03) → 지금의 "예산, 하객, 부모님 의견."
+    // 지키는 것은 바뀌지 않았다: **아픈 자리를 먼저 말하고, 같은 문장에서 우리가
+    // 무엇을 하는지 잇는다.**
     // **히어로 블록 안에서** 찾는다 — 파일 전체로 물으면 이 문장을 footer.tagline 으로
     // 옮겨도 통과한다(2026-08-28 변형으로 확인).
     expect(heroBlock, "결혼 준비의 아픈 자리를 말하는 문장이 히어로에 없다")
-      .toContain("어디에 뭘 적어뒀는지도 헷갈릴 때가 있잖아요.");
+      .toContain("예산, 하객, 부모님 의견.");
     // 아픔만 말하고 끝내지 않는다 — 우리가 무엇을 대신 해주는지가 같은 문장 안에 있어야
     // 한다. 앞 절만 남기면 "정리 안 되죠?" 라고 묻고 마는 화면이 된다.
     expect(heroBlock, "우리가 무엇을 해주는지가 히어로에서 사라졌다")
-      .toContain("가격과 조건은 저희가 원문 그대로 펼쳐 둘 테니, 두 분은 정하는 것만 하세요.");
+      .toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요.");
     // 카피에 남아 있어도 그리는 자리가 없으면 화면은 빈다.
     expect(hero, "히어로가 hero.body 를 그리지 않는다 — 카피만 남고 화면은 빈다")
       .toContain("{hero.body}");
@@ -286,16 +288,27 @@ describe("landing first visit clarity", () => {
     //
     // 예전에는 히어로 블록에 `href: "/wedding-code"` 가 **있기만** 하면 통과해서
     // primary 와 secondary 를 통째로 맞바꿔도 초록불이었다. 이름으로 짚어 읽는다.
+    //
+    // ## 2026-09-03: "둘 다" 에서 "적어도 하나" 로
+    //
+    // 시안 원본(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)의 첫 버튼은 "아모라와 준비
+    // 시작하기"(가입)이고, 버튼 밑에 "결제 없이 계정 생성"이라고 적혀 있다 — 첫 행동을
+    // 가입으로 두는 것이 시안의 결정이다. 그래서 첫 버튼은 더 이상 계정 없이 열리지
+    // 않는다.
+    //
+    // 막으려던 해악은 "처음 온 사람이 첫 화면에서 **아무 데도** 못 간다"이고, 그건 문이
+    // 하나라도 열려 있으면 일어나지 않는다(시안의 둘째 버튼 "먼저 둘의 차이 보기" 가
+    // 그 문이다). 그래서 계약을 그 해악에 맞춰 좁힌다 — 둘 다 잠기면 여전히 운다.
     const openWithoutAccount = loginFreeHrefs();
     expect(openWithoutAccount.length, "로그인 없이 되는 것 목록을 못 읽었다").toBeGreaterThan(2);
+    const heroDoors = [
+      linkHref(heroBlock, "primary"),
+      linkHref(heroBlock, "secondary"),
+    ];
     expect(
-      openWithoutAccount,
-      "히어로의 첫 버튼이 로그인 없이 열리는 곳으로 가지 않는다 — 처음 온 사람이 바로 막힌다",
-    ).toContain(linkHref(heroBlock, "primary"));
-    expect(
-      openWithoutAccount,
-      "히어로의 둘째 버튼도 계정을 요구한다 — 첫 화면의 행동 둘이 모두 막힌다",
-    ).toContain(linkHref(heroBlock, "secondary"));
+      heroDoors.filter((href: string) => openWithoutAccount.includes(href)),
+      "첫 화면의 두 버튼이 모두 계정을 요구한다 — 처음 온 사람이 바로 막힌다",
+    ).not.toHaveLength(0);
     expect(hero.indexOf("{hero.primary.label}"), "히어로가 primary 버튼을 그리지 않는다")
       .toBeGreaterThan(-1);
     expect(

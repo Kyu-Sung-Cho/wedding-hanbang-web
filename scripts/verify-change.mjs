@@ -234,11 +234,16 @@ if (touched.web) {
   // **전체를 돈다.** 바뀐 파일 근처만 고르면 오늘 같은 일이 또 난다.
   results.testWeb = run("test-web", "npx", ["vitest", "run"], join(ROOT, "apps", "web"));
 }
+// ⚠️ 모바일·shared 는 vitest 를 쓰지 않는다 — `node --test` 다(각 package.json 의
+// `test` 스크립트). `npx vitest run` 을 그대로 걸어 두었더니 두 관문이 **"vitest 를 찾을
+// 수 없다"로 항상 실패**했고, 그 실패가 코드 실패처럼 보고됐다(2026-09-03 발견, 이 줄이
+// 들어온 이래 계속 그랬다). 게이트가 거짓으로 빨간불을 내면 사람이 게이트를 무시하게 된다.
+// 여기서 명령을 다시 적지 말고 **각 패키지의 `test` 스크립트**를 부른다.
 if (touched.mobile) {
-  results.testMobile = run("test-mobile", "npx", ["vitest", "run"], join(ROOT, "apps", "mobile"));
+  results.testMobile = run("test-mobile", "npx", ["pnpm", "run", "test"], join(ROOT, "apps", "mobile"));
 }
 if (touched.shared) {
-  results.testShared = run("test-shared", "npx", ["vitest", "run"], join(ROOT, "packages", "shared"));
+  results.testShared = run("test-shared", "npx", ["pnpm", "run", "test"], join(ROOT, "packages", "shared"));
 }
 results.testRepo = run("test-repo", "npx", ["pnpm", "test:repo"], ROOT);
 

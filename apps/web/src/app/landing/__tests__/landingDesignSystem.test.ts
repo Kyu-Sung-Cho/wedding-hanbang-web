@@ -401,7 +401,11 @@ describe("landing design system", () => {
     // 진짜 테두리 버튼 3개(히어로 · 커뮤니티 · 마무리), 그림 버튼 2개(확인 섹션).
     // 정규식이 낡아 0개를 세고 통과하는 것을 막는다.
     expect(real.ink.length, "기본 행동 버튼을 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(3);
-    expect(real.outline.length, "보조 버튼을 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(3);
+    // 2026-09-03: 셋에서 둘로 줄었다. 마무리의 테두리 버튼이 시안대로 **글자 링크**가
+    // 됐다 — 어두운 띠 위에서 버튼 둘을 나란히 두면 무엇을 먼저 눌러야 할지가 흐려진다.
+    // 하한은 "정규식이 낡아 0개를 세고 통과하는 것"을 막는 장치이고, 실제 개수를 못
+    // 박는 것은 아래 실루엣 단언이다.
+    expect(real.outline.length, "보조 버튼을 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(2);
     expect(drawn.length, "확인 섹션의 그림 버튼 둘을 못 찾았다 — aria-hidden 이 사라졌나").toBe(2);
 
     /** [모서리, 웨이트, 글자색] — 자리마다 달라도 되는 크기는 일부러 안 본다. */
@@ -508,7 +512,17 @@ describe("landing design system", () => {
       // 공유 한 단계. 본문 섹션 넷과 마무리가 전부 이걸 지난다.
       // 2026-08-29: 마무리가 자기 단계(py-20 / sm:py-28)를 버리고 band 로 들어왔다 —
       // 단계가 둘에서 **하나로 줄었다**. 되돌아가면 여기가 운다.
-      "notebook.tsx": ["py-14", "sm:py-[76px]"],
+      // 2026-09-03: 같은 한 걸음을 **위아래로 나눠 쓰는** 변형 둘이 늘었다
+      // (`bandTop`/`bandBottom`). 끝 다크 밴드의 두 섹션이 사이에 152px 을 두지 않고
+      // 한 덩어리로 이어지게 하려는 것이고, **값은 늘지 않았다** — 76px 그대로다.
+      "notebook.tsx": [
+        "pb-14",
+        "pt-14",
+        "py-14",
+        "sm:pb-[76px]",
+        "sm:pt-[76px]",
+        "sm:py-[76px]",
+      ],
       // 히어로는 부케 자리 때문에 위아래가 비대칭이다. 값은 고정하되 대칭은 요구하지 않는다.
       "TransformationHero.tsx": ["pb-16", "sm:pt-14"],
       // 히어로 꼬리(아모라 노트 카드). 위 여백이 아예 없다 — 히어로에 붙기 때문이다.
@@ -616,7 +630,9 @@ describe("landing design system", () => {
       // 상황이 같은 역할이라 같은 크기를 쓴다(2026-08-29 장면 카드 복원).
       "22px": ["AmoraNoteSection.tsx", "ScenesSection.tsx"],
       // 자기 <section> 을 여는 섹션 셋의 eyebrow. 아래 eyebrow 단언이 같은 셋을 본다.
-      "19px": ["AvailableNowSection.tsx", "BoundariesSection.tsx", "CommunitySection.tsx"],
+      // 2026-09-03: 경계 섹션이 빠졌다. 시안의 다크 밴드는 제목부터 시작하고 eyebrow 가
+      // 없다 — 어두운 띠가 이미 "여기부터 다른 이야기"를 말한다.
+      "19px": ["AvailableNowSection.tsx", "CommunitySection.tsx"],
     });
   });
 
@@ -693,7 +709,10 @@ describe("landing design system", () => {
         .filter((c: string) => hasUtility(c, "landing-hand") && /text-\[19px\]/u.test(c))
         .map((c: string) => [file, c] as const),
     );
-    expect(freehand.length, "손글씨 eyebrow 를 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(3);
+    // 2026-09-03: 셋에서 둘로 줄었다(경계 섹션의 eyebrow 가 시안대로 없어졌다).
+    // 하한은 표기가 낡아 0개를 세는 것을 막는 장치이고, **실제 자리**는 바로 아래
+    // 색 지도가 파일 이름으로 못 박는다.
+    expect(freehand.length, "손글씨 eyebrow 를 못 찾았다 — 표기가 바뀌었다").toBeGreaterThanOrEqual(2);
     const freehandShapes = new Set(
       freehand.map(([, c]) => c.replace(/text-\[var\(--color-paper-[a-z-]+\)\]/gu, "").trim()),
     );
@@ -708,9 +727,11 @@ describe("landing design system", () => {
     expect(
       Object.fromEntries(eyebrowInk),
       "eyebrow 색이 뜻 없이 갈렸다 — 빨간 펜(mark)은 경계 섹션 하나가 쓴다",
+    // 2026-09-03: 빨간 펜을 쓰던 경계 섹션의 eyebrow 가 없어졌다. 색이 필요 없어진
+    // 것이 아니라 **자리가 없어졌다** — 다크 밴드는 제목부터 시작한다. 그리고 어두운
+    // 바탕에서 `mark`(#B8452F)는 2.9:1 이라 19px 글자에 쓸 수도 없다.
     ).toEqual({
       pen: ["AvailableNowSection.tsx", "CommunitySection.tsx"],
-      mark: ["BoundariesSection.tsx"],
     });
 
     // 2026-08-28: 옛 판은 `source.includes("bodyText")` 였다. 그래서 **import 만
@@ -728,12 +749,26 @@ describe("landing design system", () => {
       const imported = importedSymbols(src);
       const body = bodyOf(src);
 
-      expect(imported.has("noteText"), `${file}이 notebook에서 noteText를 받아오지 않는다`).toBe(true);
-      expect(body.includes("noteText"), `${file}이 noteText를 import만 하고 쓰지 않는다`).toBe(true);
+      // 2026-09-03: 지면이 하나 늘어(끝 다크 밴드) 같은 문체의 잉크 위 짝이 생겼다.
+      // 둘은 크기·행간이 같고 색만 다르다 — `noteTextOnInk` 도 같은 문체로 친다.
+      const noteStyle = ["noteText", "noteTextOnInk"].filter((sym: string) => imported.has(sym));
+      expect(noteStyle, `${file}이 notebook에서 작은 글씨 문체를 받아오지 않는다`).not.toHaveLength(0);
+      expect(
+        noteStyle.some((sym: string) => body.includes(sym)),
+        `${file}이 작은 글씨 문체를 import만 하고 쓰지 않는다`,
+      ).toBe(true);
 
-      // eyebrow 는 카피 정본이 갖고 있고 섹션이 그린다. 히어로 꼬리만 예외다.
-      if (file !== HERO_TAIL) {
+      // eyebrow 는 카피 정본이 갖고 있고 섹션이 그린다. 예외를 **이름으로** 적는다 —
+      // 조건으로 적으면 조용히 넓어진다.
+      //
+      //   히어로 꼬리(아모라 노트)  히어로에 붙은 카드라 자기 이름표가 없다.
+      //   경계(다크 밴드 위쪽)      2026-09-03 시안에 eyebrow 가 없다. 어두운 띠가
+      //                            이미 "여기부터 다른 이야기"를 말한다.
+      const NO_EYEBROW = new Set([HERO_TAIL, "BoundariesSection.tsx"]);
+      if (!NO_EYEBROW.has(file)) {
         expect(body.includes(".eyebrow"), `${file}이 카피의 eyebrow를 그리지 않는다`).toBe(true);
+      } else {
+        expect(body, `${file}이 예외 목록에 있는데 eyebrow 를 그린다`).not.toContain(".eyebrow");
       }
 
       // 보이는 h2 는 공유 스케일을 쓴다. 랜드마크 이름용 sr-only h2 는 표시 타입이 아니다.
@@ -751,7 +786,9 @@ describe("landing design system", () => {
       .map(([n]) => n)
       .sort();
     expect(clampOwners, "흐르는 타입은 notebook 의 공유 스케일 · H1 · 마무리 한 줄만 정한다").toEqual([
-      "ClosingAction.tsx",
+      // 2026-09-03: 마무리가 빠졌다. 시안의 마무리 제목이 손글씨 한 줄에서 **본문 서체
+      // 두 줄**로 바뀌면서 자기 clamp 를 버리고 공유 `sectionTitleOnInk` 를 쓴다 —
+      // 소유자가 셋에서 둘로 **줄었다**.
       "TransformationHero.tsx",
       "notebook.tsx",
     ]);
@@ -760,16 +797,21 @@ describe("landing design system", () => {
     // H1 보다 커진 것이었다(1280px 에서 H1 68px < 마무리 h2 73.6px). **최대값끼리**
     // 재서 그 역전을 직접 막는다. 2026-08-29 에 마무리가 자기 clamp 를 갖게 됐으니
     // 그 자리도 같이 잰다.
+    //
+    // 2026-09-03: 마무리가 자기 clamp 를 버리고 `sectionTitleOnInk` 를 쓴다. 그래서
+    // "마무리 ≤ 섹션 제목" 은 잴 것이 없어졌다 — **같은 곡선이라 구조적으로 참**이다.
+    // 대신 그 사실을 여기서 못 박는다(마무리가 다시 자기 크기를 정하면 위 소유자
+    // 목록이 먼저 운다).
     const heroMax = clampMaxRem(sourceOf("TransformationHero.tsx"));
     const sectionMax = clampMaxRem(notebook);
-    const closingMax = clampMaxRem(sourceOf("ClosingAction.tsx"));
     expect(heroMax, "히어로 H1 의 clamp 최대값을 못 읽었다").not.toBeNull();
     expect(sectionMax, "sectionTitle 의 clamp 최대값을 못 읽었다").not.toBeNull();
-    expect(closingMax, "마무리 한 줄의 clamp 최대값을 못 읽었다").not.toBeNull();
     expect(sectionMax as number, "h2 가 H1 보다 커지면 위계가 뒤집힌다")
       .toBeLessThan(heroMax as number);
-    expect(closingMax as number, "마무리 한 줄이 섹션 제목보다 커지면 안 된다")
-      .toBeLessThanOrEqual(sectionMax as number);
+    expect(
+      sourceOf("ClosingAction.tsx"),
+      "마무리가 공유 제목 곡선을 쓰지 않는다",
+    ).toContain("sectionTitleOnInk");
 
     // 12px 라벨은 4.5:1이 필요하다. 옛 eyebrow(rose-600 on ivory-blush)가 4.13:1로
     // 미달해서 rose-700으로 올렸던 자리다. 지면이 테이프로 바뀌었으니 대비는 처음부터
@@ -835,7 +877,10 @@ describe("landing design system", () => {
       }
 
       for (const [, attrs] of src.matchAll(PEN_LINK)) {
-        if (!/landing-pen/u.test(attrs)) continue;
+        // 2026-09-03: 표식이 둘이 됐다. 종이 위에서는 파란 펜 밑줄(`landing-pen`),
+        // 잉크 위에서는 보통 밑줄(`underline`)이다 — 펜 파랑(#35638A)은 잉크 바탕에서
+        // 1.9:1 이라 아예 안 보인다. **표식은 여전히 "밑줄"** 이고, 지면이 늘어난 것이다.
+        if (!/landing-pen|(?<![\w-])underline(?![\w-])/u.test(attrs)) continue;
         if (inSentence.has(attrs)) continue;
         const found = inlineClass(attrs);
         if (found) links.push([file, found[1]] as const);
@@ -855,14 +900,16 @@ describe("landing design system", () => {
     // 나머지를 가린다** — 실제로 그것 때문에 새로 심은 위반이 안 보였다(2026-08-28).
     const offenders: string[] = [];
     for (const [file, c] of links) {
-      const missing = [
-        "landing-pen", // 홀로 서는 링크는 밑줄을 갖는다
-        // 2026-08-29: 레시피가 `text-[15px]` 였다. 15px 은 DESIGN.md 스케일 밖이라
-        // 바로 위 타입 검사가 같은 값을 "빚"으로 부르고 있었다 — 가드 둘이 서로 다른
-        // 값을 요구하면 어느 쪽을 맞춰도 다른 쪽이 깨진다. 스케일에 있는 16px 로 통일.
-        "text-[16px]",
-        "text-[var(--color-paper-ink)]",
-      ].filter((token: string) => !c.includes(token));
+      // 지면마다 레시피가 하나씩이다. 어느 지면인지는 **색**이 말한다.
+      //
+      // 2026-08-29: 레시피가 `text-[15px]` 였다. 15px 은 DESIGN.md 스케일 밖이라
+      // 바로 위 타입 검사가 같은 값을 "빚"으로 부르고 있었다 — 가드 둘이 서로 다른
+      // 값을 요구하면 어느 쪽을 맞춰도 다른 쪽이 깨진다. 스케일에 있는 값으로 통일.
+      const onInk = c.includes("--color-paper-on-ink");
+      const missing = (onInk
+        ? ["underline", "text-[14px]", "text-[var(--color-paper-on-ink-faint)]"]
+        : ["landing-pen", "text-[16px]", "text-[var(--color-paper-ink)]"]
+      ).filter((token: string) => !c.includes(token));
       if (missing.length > 0) offenders.push(`${file}: ${missing.join(", ")} 없음`);
     }
     expect(offenders, "홀로 서는 링크를 레시피 없이 새로 조립했다").toEqual([]);
@@ -1044,6 +1091,12 @@ describe("landing design system", () => {
       "[var(--color-paper-outline)]",
       "[var(--color-paper-ink)]",
       "[var(--color-paper-pen)]",
+      // 2026-09-03: 어두운 띠 안의 구분선. 위 다섯은 전부 종이 위에서 보이라고 고른
+      // 값이라 잉크 바탕에서는 하나도 안 보인다. 목록이 늘어난 것이 아니라 **지면이
+      // 하나 늘었고** 그 지면의 구분선이 하나 생긴 것이다.
+      //
+      //   onInkRule  잉크 위의 목록·섹션 구분선
+      "[var(--color-paper-on-ink-rule)]",
     ]);
     // 색 자리만 본다. `border-l-2`·`border-t`처럼 변·굵기를 정하는 유틸리티는
     // 색이 아니므로 팔레트 이름을 세 글자 이상으로 요구해 걸러 낸다(`l-2`가
