@@ -132,7 +132,7 @@ describe("VendorToolCard place search results", () => {
     expect(container.textContent).not.toContain("룸 언급 있음");
     expect(container.textContent).not.toMatch(/블로그 (?:검색|후기) ?[\d,]+/u);
 
-    expect(container.textContent).toContain("장소 정보는 네이버 지역 검색 결과예요");
+    expect(container.textContent).toContain("네이버 지역검색 일반 결과예요(광고·제휴 아님)");
     expect(container.textContent).toContain("리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요");
 
     const actionLinks = Array.from(container.querySelectorAll<HTMLAnchorElement>("a"));
@@ -198,5 +198,96 @@ describe("VendorToolCard place search results", () => {
 
     expect(container.querySelector('img[alt="한방정식 검색 사진"]')).toBeNull();
     expect(container.querySelector('[aria-label="한방정식 사진을 불러오지 못했어요"]')).not.toBeNull();
+  });
+
+  // 2026-09-03 — "이거 광고야?" 에 화면이 답하지 못했다. 우리는 네이버 일반 지역검색만
+  // 부르므로 광고·제휴가 아니라는 것은 우리가 단언할 수 있는 사실이고, 조회 시각은
+  // 실행기가 넣은 우리 값이다.
+  function placeWith(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "naver-0",
+      name: "한방정식",
+      address: "대전 서구 둔산로 1",
+      category: "한정식",
+      categoryFull: "음식점>한식>한정식",
+      cuisineType: "한식",
+      description: "상견례 장소",
+      telephone: null,
+      mapsUrl: "https://map.naver.com/p/search/x",
+      blogSearchUrl: "https://search.naver.com/search.naver?where=blog&query=x",
+      link: null,
+      imageUrl: null,
+      imageSourceUrl: null,
+      searchUrl: "https://search.naver.com/search.naver?query=x",
+      ...overrides,
+    };
+  }
+
+  it("광고·제휴가 아니라는 것과 조회 시각(KST)을 카드가 말한다", async () => {
+    await act(async () => {
+      root.render(
+        <VendorToolCard
+          result={placeResult({
+            toolOutput: {
+              query: "대전 한정식",
+              // 2026-09-03 20:20 KST
+              searchedAt: "2026-09-03T11:20:00.000Z",
+              places: [placeWith()],
+            },
+          })}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain(
+      "네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이고, 조회 시각은 20:20 입니다.",
+    );
+  });
+
+  it("조회 시각이 없으면 시각 문장만 빼고 광고 아님은 그대로 말한다", async () => {
+    await act(async () => {
+      root.render(
+        <VendorToolCard
+          result={placeResult({
+            toolOutput: { query: "대전 한정식", places: [placeWith()] },
+          })}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain(
+      "네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이에요.",
+    );
+    expect(container.textContent).not.toContain("조회 시각은");
+  });
+
+  it("두 지역을 함께 찾았으면 카드마다 어느 지역인지 보여준다", async () => {
+    await act(async () => {
+      root.render(
+        <VendorToolCard
+          result={placeResult({
+            toolOutput: {
+              query: "대전이나 청주 한정식",
+              searchedAt: "2026-09-03T11:20:00.000Z",
+              places: [
+                placeWith({ id: "naver-r0-0", regionLabel: "대전" }),
+                placeWith({
+                  id: "naver-r1-0",
+                  name: "청주한상",
+                  address: "청주 흥덕구 대농로 1",
+                  regionLabel: "청주",
+                }),
+              ],
+            },
+          })}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("대전");
+    expect(container.textContent).toContain("청주한상");
+    const regionChips = Array.from(container.querySelectorAll("span"))
+      .filter((node) => node.textContent === "청주");
+    expect(regionChips.length).toBe(1);
   });
 });

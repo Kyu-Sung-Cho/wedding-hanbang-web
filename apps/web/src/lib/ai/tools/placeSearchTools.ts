@@ -35,6 +35,9 @@ interface PlaceSearchResult {
   link: string | null;
   mapx: string | null;
   mapy: string | null;
+  // 두 지역을 한 번에 물었을 때 이 후보가 어느 지역 검색에서 나왔는지. (2026-09-03)
+  // 한 지역만 검색한 보통의 경우에는 null 이다.
+  regionLabel: string | null;
 }
 
 class NaverSearchError extends Error {
@@ -287,6 +290,70 @@ export function fillPlaceKindForFamilyMeeting(query: string): string | null {
   return `${query} 한정식`;
 }
 
+/**
+ * 검색어에 지역이 둘이면 지역별로 가른다. (2026-09-03)
+ *
+ * "대전이나 청주 한정식" 을 물으면 지금까지 앞 지역 하나만 검색됐다 — 도구 스키마가
+ * 지역 하나를 전제하고, 장소 검색이 한 번 돌면 그 턴의 도구가 잠기므로(route.ts)
+ * 모델이 이어서 두 번째 지역을 찾을 방법이 코드상 없었다. 그래서 **서버가** 나눠
+ * 부른다. 도구 잠금 계약은 그대로 둔다.
+ *
+ * **"또는" 뜻의 이음말만 본다.** `와/과/랑` 같은 "그리고" 이음말은
+ * "부모님과 상견례 한정식" 처럼 지역이 아닌 말에 훨씬 자주 붙는다 — 그걸 지역으로
+ * 읽으면 엉뚱한 검색어 두 개가 나간다. `이나/나` 는 앞말에 **붙어 있을 때만** 본다
+ * ("부모님 나들이 카페" 가 갈라지지 않게).
+ */
+const PLACE_REGION_ATTACHED_RE = /^([가-힣]{2,8}?)(?:이나|나)\s+([가-힣]{2,8})\s+(.+)$/u;
+const PLACE_REGION_STANDALONE_RE = /^([가-힣]{2,8})\s*(?:또는|아니면|[,/])\s*([가-힣]{2,8})\s+(.+)$/u;
+/** 이음말 앞뒤에 오지만 지역이 아닌 말. 여기 걸리면 나누지 않는다. */
+const NON_REGION_TOKENS = new Set([
+  "상견례", "부모님", "양가", "신랑", "신부", "친구", "가족", "우리", "저희",
+  "근처", "주변", "여기", "저기", "어디", "나들이",
+]);
+
+export interface PlaceQueryRegionSplit {
+  regions: [string, string];
+  /** 지역을 뺀 나머지(장소 종류). */
+  rest: string;
+}
+
+export function splitPlaceQueryByRegion(query: string): PlaceQueryRegionSplit | null {
+  const trimmed = query.trim();
+  const match = PLACE_REGION_ATTACHED_RE.exec(trimmed) ?? PLACE_REGION_STANDALONE_RE.exec(trimmed);
+  if (!match) return null;
+  const [, first, second, rest] = match;
+  const restText = rest.trim();
+  if (!restText) return null;
+  if (first === second) return null;
+  for (const token of [first, second]) {
+    if (NON_REGION_TOKENS.has(token)) return null;
+    if (PLACE_KINDS.some((kind) => token.includes(kind))) return null;
+  }
+  return { regions: [first, second], rest: restText };
+}
+
+/**
+ * 지역별 결과를 번갈아 섞는다. 한 지역이 5곳을 채워 다른 지역이 한 장도 못 나오는
+ * 것을 막는다(그게 이 결함의 증상이었다). 같은 가게는 이름+주소로 한 번만 남긴다.
+ */
+function mergeRegionPlaces(groups: PlaceSearchResult[][], limit: number): PlaceSearchResult[] {
+  const seen = new Set<string>();
+  const merged: PlaceSearchResult[] = [];
+  const longest = groups.reduce((max, group) => Math.max(max, group.length), 0);
+  for (let index = 0; index < longest && merged.length < limit; index += 1) {
+    for (const group of groups) {
+      if (merged.length >= limit) break;
+      const place = group[index];
+      if (!place) continue;
+      const key = `${normalizePlaceIdentity(place.name)}|${normalizePlaceIdentity(place.address)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(place);
+    }
+  }
+  return merged;
+}
+
 function buildNaverHandoff(query: string): { searchUrl: string; mapsUrl: string } {
   return {
     searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(query)}`,
@@ -328,15 +395,65 @@ async function fetchNaverSearch(
   return response.json();
 }
 
+/**
+ * 네이버 지역 결과를 카드가 쓰는 모양으로 옮긴다. 지역을 나눠 두 번 부를 때
+ * 같은 자리를 두 벌 만들어야 해서 함수로 뺐다(2026-09-03) — `idPrefix` 가 없으면
+ * 두 지역의 첫 후보가 같은 id 를 갖는다.
+ */
+function buildPlacesFromItems(
+  items: Record<string, unknown>[],
+  options: { idPrefix: string; regionLabel: string | null },
+): PlaceSearchResult[] {
+  const generalPlaceItems = items.filter((item) => !WEDDING_VENDOR_QUERY_PATTERN.test([
+    stripHtmlTags(stringField(item, "title")),
+    stringField(item, "category"),
+    stripHtmlTags(stringField(item, "description")),
+  ].join(" ")));
+
+  return generalPlaceItems.map((item, idx) => {
+    const name = stripHtmlTags(stringField(item, "title"));
+    const roadAddress = stringField(item, "roadAddress");
+    const address = roadAddress || stringField(item, "address");
+    const category = parseCategory(stringField(item, "category"));
+    const description = stripHtmlTags(stringField(item, "description"));
+    const searchTerm = placeLinkQuery(name, address);
+
+    return {
+      id: `${options.idPrefix}${idx}`,
+      name,
+      address,
+      category: category.sub || category.main,
+      categoryFull: category.full,
+      cuisineType: category.main,
+      description: description || null,
+      telephone: stringField(item, "telephone") || null,
+      searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(searchTerm)}`,
+      mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(searchTerm)}`,
+      blogSearchUrl: `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(`${searchTerm} 후기`)}`,
+      imageUrl: null,
+      imageSourceUrl: null,
+      imageTitle: null,
+      link: safeHttpsUrl(item.link),
+      mapx: stringField(item, "mapx") || null,
+      mapy: stringField(item, "mapy") || null,
+      regionLabel: options.regionLabel,
+    };
+  });
+}
+
 export async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
   const query = typeof input.query === "string" ? input.query.trim() : "";
+  // 모델이 자기 검색을 한 글자도 못 보던 문제(2026-09-03). 제공자 텍스트는 그대로
+  // 막아 두고, **우리가 만든 값**(개수·보정한 질의·조회 시각)만 결과에 함께 싣는다.
+  // `placeSearchResultPolicy.getModelSafeToolOutput` 이 이 세 칸만 모델에 넘긴다.
+  const searchedAt = new Date().toISOString();
   if (!query) {
     return {
       toolName: "search_nearby_places",
       toolInput: input,
-      toolOutput: { places: [], query, error: "invalid_query" },
+      toolOutput: { places: [], query, error: "invalid_query", resultCount: 0, searchedAt },
       success: false,
       displayMessage: "검색할 지역과 장소를 알려주세요.",
     };
@@ -350,6 +467,8 @@ export async function executeSearchNearbyPlaces(
         places: [],
         query,
         reason: "wedding_vendor_query_blocked",
+        resultCount: 0,
+        searchedAt,
       },
       success: false,
       displayMessage: "웨딩 업체 검색은 검수된 공시가 탐색을 이용해주세요.",
@@ -367,6 +486,8 @@ export async function executeSearchNearbyPlaces(
         error: "naver_api_not_configured",
         providerUnavailable: true,
         handoff: buildNaverHandoff(query),
+        resultCount: 0,
+        searchedAt,
       },
       success: false,
       // 사용자에게 우리 설정 사정을 말하지 않는다. 정상 경로에서는 라우트가
@@ -377,6 +498,64 @@ export async function executeSearchNearbyPlaces(
   }
 
   try {
+    // 지역이 둘이면 지역별로 한 번씩 부른다(2026-09-03). 재시도·기준점 조회는 하지
+    // 않으므로 네이버 지역 검색 호출은 한 지역 갈래(첫 시도 + 재시도)와 같은 최대 2회다.
+    const regionSplit = splitPlaceQueryByRegion(query);
+    if (regionSplit) {
+      const regionQueries = regionSplit.regions.map((region) => {
+        const regionQuery = `${region} ${regionSplit.rest}`;
+        return { region, query: fillPlaceKindForFamilyMeeting(regionQuery) ?? regionQuery };
+      });
+      const regionData = await Promise.all(
+        regionQueries.map((entry) =>
+          fetchNaverSearch(
+            config,
+            "local",
+            { query: entry.query, display: "5", start: "1", sort: "comment" },
+            5000,
+          )
+        )
+      );
+      const effectiveQuery = regionQueries.map((entry) => entry.query).join(", ");
+      const groups = regionData.map((data, index) => rankPlacesByQueryKind(
+        buildPlacesFromItems(recordItems(data).slice(0, 5), {
+          idPrefix: `naver-r${index}-`,
+          regionLabel: regionQueries[index].region,
+        }),
+        regionQueries[index].query,
+      ));
+      const merged = mergeRegionPlaces(groups, 5);
+      if (merged.length === 0) {
+        return {
+          toolName: "search_nearby_places",
+          toolInput: input,
+          toolOutput: {
+            places: [],
+            query,
+            provider: config.provider,
+            providerUnavailable: false,
+            partial: false,
+            warnings: [],
+            resultCount: 0,
+            effectiveQuery,
+            searchedAt,
+          },
+          success: true,
+          displayMessage: `'${query}' 검색 결과가 없습니다. 다른 검색어를 시도해보세요.`,
+        };
+      }
+      return await buildPlaceSearchSuccess(config, {
+        input,
+        query,
+        effectiveQuery,
+        searchedAt,
+        basePlaces: merged,
+        // 지역별로 이미 종류 순서를 맞춘 뒤 번갈아 섞었다. 여기서 다시 세우면
+        // 한 지역이 통째로 뒤로 밀려 이 수정이 없앤 문제가 되돌아온다.
+        rankByKind: false,
+      });
+    }
+
     // 검색어에 "강남역" 같은 기준점이 있으면 그 좌표를 따로 한 번 찾는다. 두 요청은
     // 서로를 기다릴 이유가 없으므로 나란히 보낸다. 기준점 조회가 실패해도 검색은
     // 그대로 진행된다(`.catch(() => null)`).
@@ -425,6 +604,8 @@ export async function executeSearchNearbyPlaces(
       );
       items = recordItems(retryData).slice(0, 5);
     }
+    // 실제로 네이버에 보낸 검색어. 서버가 종류를 채우거나 줄였으면 그 값이다.
+    const effectiveQuery = shortened ?? searchQuery;
 
     if (items.length === 0) {
       return {
@@ -435,45 +616,18 @@ export async function executeSearchNearbyPlaces(
           query,
           provider: config.provider,
           providerUnavailable: false,
+          resultCount: 0,
+          effectiveQuery,
+          searchedAt,
         },
         success: true,
         displayMessage: `'${query}' 검색 결과가 없습니다. 다른 검색어를 시도해보세요.`,
       };
     }
 
-    const generalPlaceItems = items.filter((item) => !WEDDING_VENDOR_QUERY_PATTERN.test([
-      stripHtmlTags(stringField(item, "title")),
-      stringField(item, "category"),
-      stripHtmlTags(stringField(item, "description")),
-    ].join(" ")));
-
-    const basePlaces: PlaceSearchResult[] = generalPlaceItems.map((item, idx) => {
-      const name = stripHtmlTags(stringField(item, "title"));
-      const roadAddress = stringField(item, "roadAddress");
-      const address = roadAddress || stringField(item, "address");
-      const category = parseCategory(stringField(item, "category"));
-      const description = stripHtmlTags(stringField(item, "description"));
-      const searchTerm = placeLinkQuery(name, address);
-
-      return {
-        id: `naver-${idx}`,
-        name,
-        address,
-        category: category.sub || category.main,
-        categoryFull: category.full,
-        cuisineType: category.main,
-        description: description || null,
-        telephone: stringField(item, "telephone") || null,
-        searchUrl: `https://search.naver.com/search.naver?query=${encodeURIComponent(searchTerm)}`,
-        mapsUrl: `https://map.naver.com/p/search/${encodeURIComponent(searchTerm)}`,
-        blogSearchUrl: `https://search.naver.com/search.naver?where=blog&query=${encodeURIComponent(`${searchTerm} 후기`)}`,
-        imageUrl: null,
-        imageSourceUrl: null,
-        imageTitle: null,
-        link: safeHttpsUrl(item.link),
-        mapx: stringField(item, "mapx") || null,
-        mapy: stringField(item, "mapy") || null,
-      };
+    const basePlaces: PlaceSearchResult[] = buildPlacesFromItems(items, {
+      idPrefix: "naver-",
+      regionLabel: null,
     });
 
     // 기준점에서 가까운 순으로 다시 세우고 5개로 줄인다. 기준점을 못 구했거나 좌표를
@@ -505,66 +659,23 @@ export async function executeSearchNearbyPlaces(
           providerUnavailable: false,
           partial: false,
           warnings: [],
+          resultCount: 0,
+          effectiveQuery,
+          searchedAt,
         },
         success: true,
         displayMessage: `'${query}'에서 일반 장소 검색 결과를 찾지 못했습니다.`,
       };
     }
 
-    const imageResults = await Promise.allSettled(
-      basePlaces.map((place) => {
-        const placeQuery = [place.name, place.address].filter(Boolean).join(" ");
-        return fetchNaverSearch(
-          config,
-          "image",
-          { query: placeQuery, display: "3", start: "1", sort: "sim", filter: "large" },
-          3000
-        );
-      })
-    );
-
-    const warnings = new Set<string>();
-    const places = basePlaces.map((place, idx) => {
-      const imageResult = imageResults[idx];
-      const nextPlace = { ...place };
-
-      if (imageResult.status === "fulfilled") {
-        const imageItems = recordItems(imageResult.value);
-        const selectedImage = imageItems.find((imageItem) =>
-          imageMatchesPlace(place.name, imageItem)
-          && Boolean(safePstaticImageUrl(imageItem.thumbnail))
-        );
-        if (selectedImage) {
-          nextPlace.imageUrl = safePstaticImageUrl(selectedImage.thumbnail);
-          nextPlace.imageTitle = stripHtmlTags(stringField(selectedImage, "title")) || null;
-        } else if (imageItems.length > 0) {
-          warnings.add("image_identity_unverified");
-        }
-      } else {
-        warnings.add("image_enrichment_failed");
-      }
-
-      return nextPlace;
+    return await buildPlaceSearchSuccess(config, {
+      input,
+      query,
+      effectiveQuery,
+      searchedAt,
+      basePlaces,
+      rankByKind: true,
     });
-
-    const warningList = [...warnings];
-    const partialMessage = warningList.length > 0
-      ? " 일부 사진 정보는 불러오지 못했습니다."
-      : "";
-    return {
-      toolName: "search_nearby_places",
-      toolInput: input,
-      toolOutput: {
-        places: rankPlacesByQueryKind(places, query),
-        query,
-        provider: config.provider,
-        providerUnavailable: false,
-        partial: warningList.length > 0,
-        warnings: warningList,
-      },
-      success: true,
-      displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.${partialMessage}`,
-    };
   } catch (error) {
     const status = error instanceof NaverSearchError ? error.status : null;
     const errorCode = error instanceof NaverSearchError
@@ -582,9 +693,87 @@ export async function executeSearchNearbyPlaces(
         providerUnavailable: true,
         handoff: buildNaverHandoff(query),
         status,
+        resultCount: 0,
+        searchedAt,
       },
       success: false,
       displayMessage: "네이버 장소 검색을 완료하지 못했습니다. 잠시 후 다시 시도해주세요.",
     };
   }
+}
+
+/**
+ * 사진을 붙이고 결과를 확정한다. 한 지역 갈래와 두 지역 갈래가 같은 자리를
+ * 쓰도록 뺐다(2026-09-03).
+ */
+async function buildPlaceSearchSuccess(
+  config: NaverSearchConfig,
+  args: {
+    input: Record<string, unknown>;
+    query: string;
+    effectiveQuery: string;
+    searchedAt: string;
+    basePlaces: PlaceSearchResult[];
+    rankByKind: boolean;
+  },
+): Promise<ToolExecutionResult> {
+  const { input, query, effectiveQuery, searchedAt, basePlaces } = args;
+  const imageResults = await Promise.allSettled(
+    basePlaces.map((place) => {
+      const placeQuery = [place.name, place.address].filter(Boolean).join(" ");
+      return fetchNaverSearch(
+        config,
+        "image",
+        { query: placeQuery, display: "3", start: "1", sort: "sim", filter: "large" },
+        3000
+      );
+    })
+  );
+
+  const warnings = new Set<string>();
+  const places = basePlaces.map((place, idx) => {
+    const imageResult = imageResults[idx];
+    const nextPlace = { ...place };
+
+    if (imageResult.status === "fulfilled") {
+      const imageItems = recordItems(imageResult.value);
+      const selectedImage = imageItems.find((imageItem) =>
+        imageMatchesPlace(place.name, imageItem)
+        && Boolean(safePstaticImageUrl(imageItem.thumbnail))
+      );
+      if (selectedImage) {
+        nextPlace.imageUrl = safePstaticImageUrl(selectedImage.thumbnail);
+        nextPlace.imageTitle = stripHtmlTags(stringField(selectedImage, "title")) || null;
+      } else if (imageItems.length > 0) {
+        warnings.add("image_identity_unverified");
+      }
+    } else {
+      warnings.add("image_enrichment_failed");
+    }
+
+    return nextPlace;
+  });
+
+  const warningList = [...warnings];
+  const partialMessage = warningList.length > 0
+    ? " 일부 사진 정보는 불러오지 못했습니다."
+    : "";
+  const orderedPlaces = args.rankByKind ? rankPlacesByQueryKind(places, query) : places;
+  return {
+    toolName: "search_nearby_places",
+    toolInput: input,
+    toolOutput: {
+      places: orderedPlaces,
+      query,
+      provider: config.provider,
+      providerUnavailable: false,
+      partial: warningList.length > 0,
+      warnings: warningList,
+      resultCount: orderedPlaces.length,
+      effectiveQuery,
+      searchedAt,
+    },
+    success: true,
+    displayMessage: `'${query}' 검색 결과 ${places.length}곳을 찾았습니다.${partialMessage}`,
+  };
 }

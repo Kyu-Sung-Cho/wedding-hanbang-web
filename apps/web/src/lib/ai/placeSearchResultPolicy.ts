@@ -181,6 +181,17 @@ export function getPersistableToolResults(
 /**
  * Search output is untrusted third-party content rendered directly by clients.
  * The model receives only a fixed status marker, never provider content.
+ *
+ * 2026-09-03 — 여기에 **우리가 만든 값**만 셋 더한다. 그 전까지 모델은 자기 검색
+ * 결과를 한 글자도 못 봐서 "몇 곳 찾았어?" 에 화면을 보라고 되돌렸고, 결과가 0곳인데
+ * "카드에서 확인해 주세요" 라고 말했다.
+ *
+ * - `resultCount` : 우리가 센 카드 개수 (0곳과 5곳을 구분하게)
+ * - `effectiveQuery` : 서버가 실제로 네이버에 보낸 질의 (모델이 준 말 + 우리 보정)
+ * - `searchedAt` : 우리 시계의 조회 시각
+ *
+ * 업체명·주소·설명·URL 같은 **제공자 텍스트는 계속 넣지 않는다** — 인젝션 경계는
+ * 그대로다. 그래서 위 세 칸은 `toolOutput` 에서 형이 맞을 때만 옮겨 담는다.
  */
 export function getModelSafeToolOutput(result: ToolExecutionResult): Record<string, unknown> {
   if (PRIVATE_SCHEDULE_MUTATION_TOOLS.has(result.toolName)) {
@@ -190,9 +201,21 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
     return privacySafeBookingCancellationOutput(result);
   }
   if (result.toolName !== EPHEMERAL_PLACE_SEARCH_TOOL) return result.toolOutput;
+  const output = result.toolOutput;
+  const places = Array.isArray(output.places) ? output.places : [];
+  const resultCount = typeof output.resultCount === "number" && Number.isFinite(output.resultCount)
+    ? output.resultCount
+    : places.length;
   return {
     success: result.success,
     status: result.success ? "rendered_in_client" : "unavailable",
+    resultCount,
+    ...(typeof output.effectiveQuery === "string" && output.effectiveQuery
+      ? { effectiveQuery: output.effectiveQuery }
+      : {}),
+    ...(typeof output.searchedAt === "string" && output.searchedAt
+      ? { searchedAt: output.searchedAt }
+      : {}),
   };
 }
 

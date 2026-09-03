@@ -85,6 +85,17 @@ function weddingDateInDays(days: number): string {
 const NEAR = weddingDateInDays(45);
 const FAR = weddingDateInDays(450);
 
+/** 시작점 섹션만 잘라낸다. 프롬프트 전체에 물으면 다른 자리의 같은 낱말이 대신 답한다. */
+function startingPointSection(prompt: string): string {
+  const headings = ["## 지금 확인할 준비 3가지", "## 아직 이르면 먼저 맞출 기준 3가지"];
+  const start = headings
+    .map((heading) => prompt.indexOf(heading))
+    .find((index) => index !== -1);
+  if (start === undefined) return "";
+  const end = prompt.indexOf("\n## ", start + 3);
+  return end === -1 ? prompt.slice(start) : prompt.slice(start, end);
+}
+
 describe("측정기가 살아 있다", () => {
   it("두 날짜가 실제로 서로 다른 분기를 탄다 — 아니면 아래 검사가 한쪽만 본다", () => {
     const near = computePreparationPriorities(daysUntilWedding(NEAR, Date.now()));
@@ -105,8 +116,43 @@ describe("시작점을 묻는 답이 프롬프트에 실린다", () => {
     }
   });
 
-  it("결혼일이 없으면 아무것도 싣지 않는다", () => {
+  /**
+   * 2026-09-03 (1차 Major 7 의 남은 절반). 여기 있던 검사는 **결함을 고정하고 있었다** —
+   * "결혼일이 없으면 아무것도 싣지 않는다". 8/24 테스트 커플이 정확히 그 상태였고
+   * ("정확한 날짜는 아직 없어"), 그 턴에 아모라는 일반론 한 줄과 질문 하나로 답했다.
+   * 운영 `wedding_journeys` 52건 중 8건이 `wedding_date` NULL 이다.
+   *
+   * 이제는 화면(`/start-here`)이 같은 구간에서 쓰는 `EARLY_STARTING_POINTS` 를 싣는다.
+   * 새 문구를 짓지 않으므로 대화와 화면이 어긋나지 않는다.
+   */
+  it("결혼일이 없으면 화면과 같은 기준 3가지를 싣는다", () => {
     const prompt = promptFor(null);
+    expect(prompt, "날짜로 계산한 순서를 날짜 없이 말하면 안 된다")
+      .not.toContain("## 지금 확인할 준비 3가지");
+    expect(prompt, "시작점을 물었는데 실을 것이 없다 — 8/24 와 같은 일반론이 나온다")
+      .toContain("## 아직 이르면 먼저 맞출 기준 3가지");
+    for (const point of EARLY_STARTING_POINTS) {
+      expect(prompt, `"${point.title}" 이 없다 — 화면과 다른 것을 말한다`)
+        .toContain(point.title);
+      expect(prompt, `"${point.title}" 의 설명이 화면과 다르다`).toContain(point.body);
+    }
+  });
+
+  it("결혼일이 없을 때만 순서가 잠정이라고 먼저 말한다", () => {
+    // 날짜가 생기면 이 세 가지 대신 결혼일로 계산한 순서를 쓴다. 그 단서가 없으면
+    // 사용자는 이것을 확정된 준비 순서로 읽는다. 날짜가 있는 턴에는 붙지 않는다 —
+    // 같은 섹션·같은 구간(activeNow 0)인데 날짜 유무만 다른 두 입력으로 대조한다.
+    const undated = startingPointSection(promptFor(null));
+    const dated = startingPointSection(promptFor(FAR));
+    expect(undated).toContain("결혼일이 정해지면");
+    expect(undated).toContain("순서가 바뀝니다");
+    expect(dated, "날짜를 아는 커플에게 '결혼일이 정해지면' 은 틀린 말이다")
+      .not.toContain("결혼일이 정해지면");
+  });
+
+  it("이미 지난 결혼일에는 여전히 싣지 않는다", () => {
+    // 끝난 결혼식에 "지금 알아볼 것" 도 "아직 이르면" 도 둘 다 틀린 안내다.
+    const prompt = promptFor(weddingDateInDays(-30));
     expect(prompt).not.toContain("## 지금 확인할 준비 3가지");
     expect(prompt).not.toContain("## 아직 이르면 먼저 맞출 기준 3가지");
   });
@@ -199,6 +245,13 @@ describe("묻지 않은 턴에는 한 글자도 싣지 않는다", () => {
   it("플래그가 없으면 섹션이 없다", () => {
     const prompt = promptFor(NEAR, false);
     expect(prompt).not.toContain("## 지금 확인할 준비 3가지");
+    expect(prompt).not.toContain("## 아직 이르면 먼저 맞출 기준 3가지");
+  });
+
+  it("결혼일이 없어도 묻지 않은 턴에는 싣지 않는다", () => {
+    // 2026-09-03 에 날짜 없는 갈래를 열었다. 그 갈래도 **묻는 턴에만** 실려야 한다 —
+    // 매 턴 실으면 저장 문맥 꼬리가 그만큼 더 잘린다.
+    const prompt = promptFor(null, false);
     expect(prompt).not.toContain("## 아직 이르면 먼저 맞출 기준 3가지");
   });
 

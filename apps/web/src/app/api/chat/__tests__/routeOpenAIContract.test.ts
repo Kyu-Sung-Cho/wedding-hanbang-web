@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
+import { AMORA_EMPTY_TERMINAL_FALLBACK_TEXT } from "@/lib/ai/amoraOutputHygiene";
 import {
   matchedSpecialistByKeyword,
   routeSpecialist,
@@ -216,8 +217,15 @@ const mocks = vi.hoisted(() => {
     chatHistoryEq: vi.fn(),
     chatHistorySelect: vi.fn(),
     chatHistoryLimit: vi.fn(),
+    chatHistoryGt: vi.fn(),
     summaryEq: vi.fn(),
     summarySelect: vi.fn(),
+    summaryGt: vi.fn(),
+    // 화면 정리(view reset) 커서. 기본은 커서 없음 = 오늘과 동일한 동작.
+    chatViewClearedAt: {
+      shared: null as string | null,
+      private: null as string | null,
+    },
     segmentEq: vi.fn(),
     profileProjectionRows: [] as Array<Record<string, unknown>>,
     profileProjectionError: null as { code: string } | null,
@@ -287,6 +295,7 @@ function queryResult(data: unknown, hooks: {
   onSelect?: (value: string) => unknown;
   onSelectError?: (value: string) => unknown;
   onLimit?: (value: number) => void;
+  onGt?: (column: string, value: unknown) => void;
   filterEqColumns?: readonly string[];
 } = {}) {
   const result: { data: unknown; error: unknown } = { data, error: null };
@@ -296,6 +305,12 @@ function queryResult(data: unknown, hooks: {
   }
   query.limit = vi.fn((value: number) => {
     hooks.onLimit?.(value);
+    return query;
+  });
+  // `.gt` 는 화면 정리 커서가 쓴다. 실제 필터링은 하지 않는다 — 라우트가 행마다
+  // 다시 거르는지(레인별 판정)를 그대로 보기 위해서다.
+  query.gt = vi.fn((column: string, value: unknown) => {
+    hooks.onGt?.(column, value);
     return query;
   });
   query.eq = vi.fn((column: string, value: unknown) => {
@@ -379,6 +394,7 @@ vi.mock("@/lib/supabase/server", () => ({
           onEq: mocks.chatHistoryEq,
           onSelect: mocks.chatHistorySelect,
           onLimit: mocks.chatHistoryLimit,
+          onGt: mocks.chatHistoryGt,
           filterEqColumns: ["id"],
         });
       }
@@ -396,6 +412,7 @@ vi.mock("@/lib/supabase/server", () => ({
         return queryResult(mocks.summaryRows, {
           onEq: mocks.summaryEq,
           onSelect: mocks.summarySelect,
+          onGt: mocks.summaryGt,
           onSelectError: () => mocks.summariesError,
         });
       }
@@ -442,6 +459,8 @@ vi.mock("@/lib/supabase/admin", () => ({
           role: mocks.userProfile.role,
           is_admin: mocks.userProfile.is_admin,
           name: "테스트 고객",
+          shared_chat_cleared_at: mocks.chatViewClearedAt.shared,
+          private_chat_cleared_at: mocks.chatViewClearedAt.private,
         });
       }
       return queryResult([]);
@@ -971,6 +990,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       status: "active",
     };
     mocks.activeSegmentError = null;
+    mocks.chatViewClearedAt = { shared: null, private: null };
     mocks.summaryRows.splice(0);
     mocks.decisionRows.splice(0);
     mocks.journeyRow = {
@@ -4272,12 +4292,26 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
   it.each([
-    ["W2_high_risk_adjacent", "그거 법적으로 판단해줘"],
-    ["W4_out_of_scope", "그걸로 삼성전자 주식 사줘"],
-  ])("never launders current %s authority through an exact prior wedding exchange", async (
+    {
+      expectedScope: "W2_high_risk_adjacent",
+      currentText: "그거 법적으로 판단해줘",
+      // 안전 축은 그대로다 — 권한도 이력도 붙지 않는다.
+      carriesTrustedHistory: false,
+    },
+    {
+      // 2026-09-03: W4 는 **이력만** 받는다. 권한(도구·저장 문맥·장기 기억)은
+      // 여전히 0 이고, 그것이 이 테스트가 지키는 계약이다. 이력을 막던 예전
+      // 규칙 때문에 "앞에서 만든 배분표 그대로 반영해줘" 가 자기 대화를 한 줄도
+      // 못 본 채 답했다(스테이징 실측).
+      expectedScope: "W4_out_of_scope",
+      currentText: "그걸로 삼성전자 주식 사줘",
+      carriesTrustedHistory: true,
+    },
+  ])("never launders current $expectedScope authority through an exact prior wedding exchange", async ({
     expectedScope,
     currentText,
-  ) => {
+    carriesTrustedHistory,
+  }) => {
     const priorText = "웨딩 스튜디오 두 곳을 비교해줘";
     const priorId = "30000000-0000-4000-8000-000000000010";
     const segmentId = "60000000-0000-4000-8000-000000000001";
@@ -4333,14 +4367,158 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const providerArgs = mocks.provider.mock.calls[0]?.[0];
     expect(providerArgs?.systemPrompt).toContain(`question_scope: ${expectedScope}`);
     expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
-    expect(providerArgs?.input).toEqual([
-      { role: "user", content: currentText },
-    ]);
-    expect(JSON.stringify(providerArgs)).not.toContain("PRIOR_ASSISTANT_MUST_NOT_CROSS_SCOPE");
+    if (carriesTrustedHistory) {
+      // 이력은 실린다. **권한은 아니다** — 아래 도구·기억·도구실행 단언이 그것을 든다.
+      expect(providerArgs?.input).toEqual([
+        { role: "user", content: `[신부] ${priorText}` },
+        { role: "assistant", content: "PRIOR_ASSISTANT_MUST_NOT_CROSS_SCOPE" },
+        { role: "user", content: `[신부] ${currentText}` },
+      ]);
+    } else {
+      expect(providerArgs?.input).toEqual([
+        { role: "user", content: currentText },
+      ]);
+      expect(JSON.stringify(providerArgs))
+        .not.toContain("PRIOR_ASSISTANT_MUST_NOT_CROSS_SCOPE");
+    }
     expect(providerArgs?.tools).toEqual([]);
     expect(mocks.requestFrom).not.toHaveBeenCalledWith("conversation_segments");
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
     expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 2026-09-03 스테이징 실측 회귀. "앞에서 만든 배분표 그대로 실제 예산에 반영해줘"
+   * 가 그 문장에 결혼 낱말이 없어 `W4_out_of_scope` 로 분류되자 provider 가 **그 한
+   * 문장만** 받았고, 표가 DB 에 있는데도 아모라가 "대화에 보이지 않아요" 라고 답했다.
+   *
+   * 현재 발화는 그 문장 대신 **의문형**을 쓴다. 보고된 문장은 되묻기 답 모양
+   * (`isAmoraClarificationAnswerShaped`)이라 바로 앞 턴이 결혼 대화면 기존 구제가
+   * W0 으로 올려 버려, 정작 이력 결함을 재지 못한다. 표가 몇 턴 앞에 있어 그 구제가
+   * 닿지 않을 때가 보고된 실패이고, 의문형이 그 상태를 결정적으로 만든다.
+   *
+   * 여기서 잠그는 것은 두 가지다 — W4 턴이 **이력은 받고**, **저장 문맥과 도구는 못
+   * 받는다**. 둘 중 하나만 있는 초록불은 이 결함을 다시 통과시킨다.
+   */
+  const W4_HISTORY_FIXTURE_PRIOR_ID = "30000000-0000-4000-8000-000000000010";
+  const W4_HISTORY_PRIOR_TEXT = "예식장 대관료랑 식대 배분표를 만들어줘 W4_PRIOR_USER_KEPT";
+  const W4_HISTORY_ASSISTANT_TEXT = "배분표를 이렇게 정리했어요. W4_PRIOR_ASSISTANT_KEPT";
+
+  function setTrustedPriorWeddingExchange(currentText: string) {
+    setSensitiveStoredProviderContext(currentText);
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: currentText,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000010",
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: W4_HISTORY_ASSISTANT_TEXT,
+        metadata: {
+          in_reply_to_user_message_id: W4_HISTORY_FIXTURE_PRIOR_ID,
+          question_scope: "W0_wedding_core",
+        },
+        visibility: "shared",
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: W4_HISTORY_FIXTURE_PRIOR_ID,
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: W4_HISTORY_PRIOR_TEXT,
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+  }
+
+  const STORED_COUPLE_CONTEXT_SENTINELS = [
+    "PRIVATE_VENUE_SENTINEL",
+    "PRIVATE_BRIDE_SENTINEL",
+    "PRIVATE_GROOM_SENTINEL",
+    "PRIVATE_PROGRESS_SENTINEL",
+    "PRIVATE_SCHEDULE_SENTINEL",
+    "PRIVATE_PREFERENCE_SENTINEL",
+    "PRIVATE_SUMMARY_SENTINEL",
+    "PRIVATE_DECISION_SENTINEL",
+    "PRIVATE_CONFLICT_SENTINEL",
+    "PRIVATE_PROFILE_SENTINEL",
+    // 저장된 총예산 44,444,444
+    "44444444",
+  ];
+
+  it("carries the trusted history into a W4 turn while stored couple context and tools stay closed", async () => {
+    const currentText = "앞에서 만든 배분표에 있던 금액 그대로 가도 될까?";
+    setTrustedPriorWeddingExchange(currentText);
+    providerAfterPreGeneration(providerResult({
+      fullText: "앞에서 정리한 배분표를 다시 짚어볼게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("question_scope: W4_out_of_scope");
+    // 이력은 실린다.
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: `[신부] ${W4_HISTORY_PRIOR_TEXT}` },
+      { role: "assistant", content: W4_HISTORY_ASSISTANT_TEXT },
+      { role: "user", content: `[신부] ${currentText}` },
+    ]);
+    // 저장 문맥과 도구는 그대로 닫혀 있다.
+    expect(providerArgs?.tools).toEqual([]);
+    const envelope = JSON.stringify({
+      systemPrompt: providerArgs?.systemPrompt,
+      input: providerArgs?.input,
+    });
+    for (const sentinel of STORED_COUPLE_CONTEXT_SENTINELS) {
+      expect(envelope).not.toContain(sentinel);
+    }
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("keeps a W2 safety turn on the current message even when the same trusted history exists", async () => {
+    // 대조군. 같은 이력·같은 커플인데 현재 턴이 안전 축이면 아무것도 붙지 않는다.
+    const currentText = "예식장 계약이 법적으로 무효인지 판정해줘";
+    setTrustedPriorWeddingExchange(currentText);
+    providerAfterPreGeneration(providerResult({
+      fullText: "지금 요청에 맞는 안전한 범위에서 답할게요.",
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt)
+      .toContain("question_scope: W2_high_risk_adjacent");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: currentText },
+    ]);
+    const envelope = JSON.stringify({
+      systemPrompt: providerArgs?.systemPrompt,
+      input: providerArgs?.input,
+    });
+    expect(envelope).not.toContain("W4_PRIOR_USER_KEPT");
+    expect(envelope).not.toContain("W4_PRIOR_ASSISTANT_KEPT");
+    expect(providerArgs?.tools).toEqual([]);
   });
 
   it("keeps an ambiguous explanation current-only when the assistant reply link is missing", async () => {
@@ -8326,5 +8504,303 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       memory_eligible: true,
       memory_enqueue_requested: false,
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // 2026-09-03 T1. 화면 정리 누출 · 대화 창 크기 · 답변 위생 · 빈 본문 그물.
+  // ---------------------------------------------------------------------------
+
+  /**
+   * 신뢰 이력에 실제로 들어가는 한 쌍을 만든다.
+   *
+   * `selectAmoraTrustedHistoryRows` 는 (사용자 행, 그 행에 답한 서버 작성 assistant
+   * 행) 쌍만 통과시킨다. 아무 행이나 심으면 창 크기·커서와 무관하게 어차피
+   * 빠지므로 "안 실렸다"가 아무것도 증명하지 못한다.
+   *
+   * `mocks.canonicalRows` 는 DB와 같은 **최신 우선** 순서다(라우트가 뒤집는다).
+   * 그래서 오래된 쌍일수록 배열 뒤에 붙인다.
+   */
+  function pushTrustedHistoryPair(options: {
+    index: number;
+    userText: string;
+    assistantText: string;
+    createdAt: string;
+    visibility?: "shared" | "bride_private" | "groom_private";
+  }): void {
+    const suffix = String(options.index).padStart(4, "0");
+    const userId = `30000000-0000-4000-8000-0000000${suffix}`;
+    const visibility = options.visibility ?? "shared";
+    // 최신 우선 배열이므로 assistant(뒤에 일어난 일)를 먼저 넣는다.
+    mocks.canonicalRows.push({
+      id: `20000000-0000-4000-8000-0000000${suffix}`,
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: options.assistantText,
+      metadata: {
+        in_reply_to_user_message_id: userId,
+        question_scope: "W0_wedding_core",
+        memory_eligible: true,
+      },
+      visibility,
+      created_at: options.createdAt,
+    });
+    mocks.canonicalRows.push({
+      id: userId,
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: options.userText,
+      metadata: null,
+      visibility,
+      created_at: options.createdAt,
+    });
+  }
+
+  it("still prompts from a stored exchange when no view-reset cursor exists", async () => {
+    pushTrustedHistoryPair({
+      index: 900,
+      userText: "결혼식 하객은 40명 정도 가족식으로 하려고 해요 BEFORE_VIEW_RESET",
+      assistantText: "가족식 규모로 준비를 정리해볼게요.",
+      createdAt: "2026-07-14T00:00:00.000Z",
+    });
+    providerAfterPreGeneration(providerResult({
+      fullText: "네, 이어서 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    // 대조군: 커서가 없으면 그 쌍은 오늘처럼 프롬프트에 실린다.
+    expect(mocks.chatHistoryGt).not.toHaveBeenCalled();
+    expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input))
+      .toContain("BEFORE_VIEW_RESET");
+  });
+
+  it("never prompts from rows the shared view-reset cursor already cleared", async () => {
+    mocks.chatViewClearedAt = {
+      shared: "2026-07-14T12:00:00.000Z",
+      private: null,
+    };
+    pushTrustedHistoryPair({
+      index: 900,
+      userText: "결혼식 하객은 40명 정도 가족식으로 하려고 해요 BEFORE_VIEW_RESET",
+      assistantText: "가족식 규모로 준비를 정리해볼게요.",
+      createdAt: "2026-07-14T00:00:00.000Z",
+    });
+    providerAfterPreGeneration(providerResult({
+      fullText: "네, 이어서 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    // DB에서 먼저 좁히고,
+    expect(mocks.chatHistoryGt).toHaveBeenCalledWith(
+      "created_at",
+      "2026-07-14T12:00:00.000Z",
+    );
+    // PostgREST 필터가 회귀해도 provider 경계는 넘지 않는다.
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).not.toContain("BEFORE_VIEW_RESET");
+    expect(providerInput).toContain("CANONICAL_DB_USER");
+  });
+
+  it("keeps the private lane when only the shared view-reset cursor moved", async () => {
+    // 화면에서도 그렇다 — `chatStore` 의 `isAfterClearedAt` 는 shared 행에만 shared
+    // 커서를, 본인 private 행에만 private 커서를 적용한다. 서버도 같아야 한다.
+    mocks.chatViewClearedAt = {
+      shared: "2026-07-14T12:00:00.000Z",
+      private: null,
+    };
+    const currentText = "개인 방에서 결혼 준비 예산을 이어서 정리해줘";
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length, {
+      id: "30000000-0000-4000-8000-000000000001",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: currentText,
+      metadata: { client_request_id: REQUEST_ID },
+      visibility: "bride_private",
+      created_at: "2026-07-15T00:00:00.000Z",
+    });
+    pushTrustedHistoryPair({
+      index: 901,
+      userText: "혼자 보는 방에서 결혼 준비 예산을 정리하고 싶어요 PRIVATE_LANE_KEPT",
+      assistantText: "개인 방에서 예산을 정리해볼게요.",
+      createdAt: "2026-07-14T00:00:00.000Z",
+      visibility: "bride_private",
+    });
+    providerAfterPreGeneration(providerResult({
+      fullText: "네, 개인 방에서 이어가요.",
+    }));
+
+    const response = await POST(request({
+      visibility: "bride_private",
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+    expect(response.status).toBe(200);
+
+    expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input))
+      .toContain("PRIVATE_LANE_KEPT");
+  });
+
+  it("drops memory summaries written before the view-reset cursor", async () => {
+    mocks.memoryEnablement.shared = true;
+    mocks.chatViewClearedAt = {
+      shared: "2026-07-14T12:00:00.000Z",
+      private: null,
+    };
+    mocks.summaryRows.splice(0, mocks.summaryRows.length,
+      {
+        summary: "CLEARED_SUMMARY 예단·폐백을 정리했다",
+        summary_type: "factual",
+        visibility: "shared",
+        created_at: "2026-07-14T00:00:00.000Z",
+        message_count: 10,
+        to_message_id: null,
+      },
+      {
+        summary: "KEPT_SUMMARY 새 대화에서 예산을 정리했다",
+        summary_type: "factual",
+        visibility: "shared",
+        created_at: "2026-07-14T23:00:00.000Z",
+        message_count: 4,
+        to_message_id: null,
+      },
+    );
+    providerAfterPreGeneration(providerResult({
+      fullText: "네, 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.summaryGt).toHaveBeenCalledWith(
+      "created_at",
+      "2026-07-14T12:00:00.000Z",
+    );
+    const systemPrompt = String(mocks.provider.mock.calls[0]?.[0]?.systemPrompt);
+    expect(systemPrompt).not.toContain("CLEARED_SUMMARY");
+    expect(systemPrompt).toContain("KEPT_SUMMARY");
+  });
+
+  it("reads a 120-row canonical window so a 22-turn-old table is still in reach", async () => {
+    providerAfterPreGeneration(providerResult({
+      fullText: "네, 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    // 40행은 사용자·아모라를 합친 수라 약 20턴이었고, 22턴 전 표가 창 밖이었다.
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(120);
+  });
+
+  it("adds no W2/W3/W5 row to the prompt when the window widens to 120", async () => {
+    // 넓힌 창 안에 안전 판정 대상 행을 섞어 둔다. 창이 넓어져도 행마다 도는
+    // 안전 필터가 그대로여서 한 건도 더 들어오면 안 된다.
+    for (let index = 0; index < 24; index += 1) {
+      pushTrustedHistoryPair({
+        index: 800 + index,
+        userText: `결혼 준비 예산을 정리하고 싶어요 SAFE_ROW_${index}`,
+        assistantText: `예산을 함께 정리해볼게요 ${index}.`,
+        createdAt: `2026-07-1${(index % 4) + 1}T0${index % 10}:00:00.000Z`,
+      });
+    }
+    mocks.canonicalRows.push({
+      id: "20000000-0000-4000-8000-000000000700",
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content: "그 이야기는 함께 살펴볼게요.",
+      metadata: {
+        in_reply_to_user_message_id: "30000000-0000-4000-8000-000000000700",
+        question_scope: "W0_wedding_core",
+        memory_eligible: true,
+      },
+      visibility: "shared",
+      created_at: "2026-07-10T00:00:30.000Z",
+    });
+    mocks.canonicalRows.push({
+      id: "30000000-0000-4000-8000-000000000700",
+      sender_id: "00000000-0000-4000-8000-000000000001",
+      sender_type: "bride",
+      role: "user",
+      content: "남편이 어제 나를 밀쳐서 넘어졌어 UNSAFE_ROW_SENTINEL",
+      metadata: null,
+      visibility: "shared",
+      created_at: "2026-07-10T00:00:00.000Z",
+    });
+    providerAfterPreGeneration(providerResult({
+      fullText: "네, 정리해볼게요.",
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).toContain("SAFE_ROW_0");
+    expect(providerInput).not.toContain("UNSAFE_ROW_SENTINEL");
+  });
+
+  it("scrubs a broken foreign-script fragment out of the answer it persists", async () => {
+    providerAfterPreGeneration(providerResult({
+      // 2026-09-03 2차 감사 Turn 20 실제 답변 형태.
+      fullText: "মাস행사 일정만으로는 날짜를 확정하기 어려워요.",
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.atomicResponses[0]?.content)
+      .toBe("행사 일정만으로는 날짜를 확정하기 어려워요.");
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      output_hygiene: [
+        {
+          kind: "foreign_run_removed",
+          runs: 1,
+          removedChars: 3,
+          blocks: ["Bengali"],
+        },
+      ],
+    });
+  });
+
+  it("leaves a clean Korean answer byte-identical", async () => {
+    const clean = "예식장 대관료는 지역마다 달라요 ㅋㅋ 예산은 3,000만 원으로 잡아볼까요?";
+    providerAfterPreGeneration(providerResult({ fullText: clean }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.atomicResponses[0]?.content).toBe(clean);
+    expect(mocks.atomicResponses[0]?.metadata)
+      .not.toHaveProperty("output_hygiene");
+  });
+
+  it("never hands an empty terminal body to the durable ledger", async () => {
+    // 빈 본문이 원장으로 가면 사용자는 침묵만 본다. 오늘은 앞단
+    // (`composeAmoraPersistenceTerminal`)이 먼저 서버 문장을 채우고,
+    // `ensureNonEmptyTerminalText` 가 그 뒤에 서는 두 번째 그물이다.
+    // 여기서 잠그는 것은 **원장이 받는 본문이 절대 비지 않는다**는 사실이다.
+    providerAfterPreGeneration(providerResult({ fullText: "" }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const persistedContent = mocks.atomicResponses[0]?.content;
+    expect(typeof persistedContent).toBe("string");
+    expect(String(persistedContent).trim().length).toBeGreaterThan(0);
+    expect(persistedContent).toBe(AMORA_EMPTY_TERMINAL_FALLBACK_TEXT);
   });
 });

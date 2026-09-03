@@ -112,10 +112,61 @@ describe("place search result policy", () => {
 
   it("sends only a fixed render status to the model", () => {
     const safeOutput = getModelSafeToolOutput(placeResult);
-    expect(safeOutput).toEqual({ success: true, status: "rendered_in_client" });
+    expect(safeOutput).toEqual({ success: true, status: "rendered_in_client", resultCount: 1 });
     expect(JSON.stringify(safeOutput)).not.toContain("외부 입력");
     expect(JSON.stringify(safeOutput)).not.toContain("강남");
     expect(JSON.stringify(safeOutput)).not.toContain("http");
+  });
+
+  // 2026-09-03: 모델이 자기 검색 결과를 한 글자도 못 봐서 "몇 곳 찾았어?" 에 화면을
+  // 보라고 되돌리고, 0곳인데 "카드에서 확인해 주세요" 라고 말했다. 우리가 만든 값
+  // 셋만 넘긴다 — 제공자 텍스트는 그대로 막는다.
+  it("우리가 만든 값(개수·보정한 질의·조회 시각)만 넘기고 제공자 텍스트는 계속 막는다", () => {
+    const emptyOutput = getModelSafeToolOutput({
+      ...placeResult,
+      toolOutput: {
+        places: [],
+        query: "청주 한정식",
+        resultCount: 0,
+        effectiveQuery: "청주 한정식",
+        searchedAt: "2026-09-03T11:20:00.000Z",
+        provider: "api_hub",
+      },
+    });
+    expect(emptyOutput).toEqual({
+      success: true,
+      status: "rendered_in_client",
+      resultCount: 0,
+      effectiveQuery: "청주 한정식",
+      searchedAt: "2026-09-03T11:20:00.000Z",
+    });
+
+    const richOutput = getModelSafeToolOutput({
+      ...placeResult,
+      toolOutput: {
+        places: [
+          { name: "외부 입력", address: "서울", imageUrl: "https://example.com/a.jpg" },
+          { name: "외부 입력 2", address: "서울", description: "제공자 설명" },
+        ],
+        query: "강남 상견례 식당",
+        resultCount: 2,
+        effectiveQuery: "강남 상견례 한정식",
+        searchedAt: "2026-09-03T11:20:00.000Z",
+        provider: "api_hub",
+      },
+    });
+    expect(richOutput).toEqual({
+      success: true,
+      status: "rendered_in_client",
+      resultCount: 2,
+      effectiveQuery: "강남 상견례 한정식",
+      searchedAt: "2026-09-03T11:20:00.000Z",
+    });
+    const serialized = JSON.stringify(richOutput);
+    expect(serialized).not.toContain("외부 입력");
+    expect(serialized).not.toContain("제공자 설명");
+    expect(serialized).not.toContain("http");
+    expect(serialized).not.toContain("api_hub");
   });
 
   it("detects the result that must lock later tool rounds", () => {
