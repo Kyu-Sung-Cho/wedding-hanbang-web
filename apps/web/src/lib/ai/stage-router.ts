@@ -7,7 +7,7 @@
 // 순수 함수 — 클라이언트/서버 공용
 // =============================================
 
-import type { StageTag, SpecialistType } from "@/types/moat.types";
+import type { StageTag, SpecialistType, RoutableSpecialistType } from "@/types/moat.types";
 
 // -------------------------------------------
 // Stage 계산
@@ -38,9 +38,7 @@ export function determineStage(
 // -------------------------------------------
 
 // 키워드 테이블 — 각 패턴은 OR로 연결
-const SPECIALIST_KEYWORDS: Record<Exclude<SpecialistType, "general">, RegExp> = {
-  // contract_reviewer를 budget_optimizer보다 먼저 체크해야 "계약금" 같은 금액 용어가 contract로 가지 않음
-  contract_reviewer: /계약서|계약|위약|환불|취소|약관|조항|분쟁|손해배상|추가금/,
+const SPECIALIST_KEYWORDS: Record<RoutableSpecialistType, RegExp> = {
   sangkyeonrye_advisor: /상견례|양가|시댁|처가|어른|예법|상차림|부모님|예단|예물/,
   budget_optimizer: /예산|돈|가격|비용|얼마|만원|결제|견적|시세|할인|패키지|스드메|세일/,
   ceremony_coordinator: /본식|예식|당일|리허설|포토그래퍼|주례|축가|식순|하객|답례품|부케|폐백|사회자/,
@@ -67,10 +65,8 @@ export function routeSpecialist(
   const msg = (userMessage ?? "").trim();
   if (!msg) return STAGE_DEFAULT_SPECIALIST[stage] ?? "general";
 
-  // 1. 명확한 키워드 우선 매칭 (contract → budget → others 순서)
-  //    contract를 budget보다 먼저: "계약금" 이 금액 용어로 오분류되지 않도록
-  const priorityOrder: Array<Exclude<SpecialistType, "general">> = [
-    "contract_reviewer",
+  // 1. 명확한 키워드 우선 매칭 (budget → others 순서)
+  const priorityOrder: RoutableSpecialistType[] = [
     "budget_optimizer",
     "ceremony_coordinator",
     "settlement_companion",
@@ -102,20 +98,15 @@ export function routeSpecialist(
 // Specialist 프롬프트 보강
 // -------------------------------------------
 
-const SPECIALIST_PROMPT_ADDONS: Record<SpecialistType, string> = {
+// 은퇴한 전문분야(contract_reviewer)는 애드온을 갖지 않는다. 과거 행을 읽을 때만
+// 값이 나타날 수 있고, 조회는 ?? ""로 빈 문자열이 된다.
+const SPECIALIST_PROMPT_ADDONS: Partial<Record<SpecialistType, string>> = {
   sangkyeonrye_advisor: `
 
 [전문분야 — 부모님 첫 만남과 가족 조율]
 - 가족·지역·문화마다 방식이 다르므로 호칭, 방문 순서, 선물, 비용 부담을 보편 규칙처럼 말하지 마세요.
 - 두 사람과 각 부모님이 실제로 원하는 것, 원하지 않는 것, 이미 합의한 것을 구분해 한 번에 하나씩 확인하세요.
 - 가족 선물의 종류나 금액을 만들지 말고, 서로의 기대와 감당 가능한 범위를 직접 말할 수 있게 도우세요.`,
-
-  contract_reviewer: `
-
-[전문분야 — 계약서 검토]
-- 사용자가 제공한 계약서·견적서 문구와 현재 도구 결과만 근거로, 적힌 내용·적히지 않은 내용·업체에 물을 질문을 구분하세요.
-- 환불액, 취소할 때 내는 금액, 손해배상액, 계약 효력은 문서의 실제 조항이나 최신 공식 원문 없이 계산하거나 단정하지 마세요.
-- 법률 자문이나 위법 판정을 하지 말고, 해석이 필요한 조항은 업체의 서면 답변과 필요한 경우 전문가 확인을 안내하세요.`,
 
   budget_optimizer: `
 

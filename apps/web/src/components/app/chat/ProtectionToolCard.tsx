@@ -4,21 +4,17 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
-  AlertTriangle,
   CalendarClock,
-  CheckCircle2,
   Clipboard,
   ClipboardCheck,
-  FileCheck2,
   MessageSquareText,
-  ShieldCheck,
   TrendingDown,
   Users,
   Utensils,
 } from "lucide-react";
 
+// 계약 점검 카드는 2026-08-18 계약 개입 금지 결정으로 제거했다.
 export const PROTECTION_TOOL_NAMES = new Set([
-  "analyze_contract_readiness",
   "simulate_guest_guarantee",
 ]);
 
@@ -86,177 +82,10 @@ function CopyButton({ text }: { text: string }) {
 }
 
 export default function ProtectionToolCard({ result }: ProtectionToolCardProps) {
-  if (result.toolName === "analyze_contract_readiness") {
-    return <ContractReadinessCard result={result} />;
-  }
   if (result.toolName === "simulate_guest_guarantee") {
     return <GuestGuaranteeCard result={result} />;
   }
   return null;
-}
-
-function ContractReadinessCard({ result }: { result: ToolExecutionResult }) {
-  const data = result.toolOutput as {
-    categoryLabel?: string;
-    vendorName?: string | null;
-    riskLevel?: RiskLevel;
-    riskLabel?: string;
-    summaryTitle?: string;
-    summaryText?: string;
-    blockers?: Array<{ id: string; label: string; reason: string; question: string; severity: string }>;
-    warnings?: Array<{ id: string; label: string; reason: string; question: string; severity: string }>;
-    confirmed?: Array<{ id: string; label: string }>;
-    vendorQuestions?: string[];
-    evidenceToSave?: string[];
-    clausesToRequest?: string[];
-    messageToVendor?: string;
-    sourceNote?: string;
-    disclaimer?: string;
-  };
-  const risk = getRiskStyle(data.riskLevel);
-  const blockers = data.blockers ?? [];
-  const warnings = data.warnings ?? [];
-  const confirmed = data.confirmed ?? [];
-  const questions = data.vendorQuestions ?? [];
-  const evidence = data.evidenceToSave ?? [];
-  const title = data.summaryTitle ?? "계약 전 확인 결과";
-  const target = data.vendorName || data.categoryLabel || "계약";
-
-  return (
-    <div className="flex justify-start ml-11 my-2">
-      <div className="w-full max-w-[460px] overflow-hidden rounded-[6px] border border-black/[0.06] bg-white shadow-[var(--shadow-raised)]">
-        <div className="bg-[#1A1A1F] px-5 py-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <p className="text-xs font-semibold tracking-[0.16em] text-white/50">CONTRACT SHIELD</p>
-              <p className="mt-1 text-lg font-semibold leading-snug text-white">{target}</p>
-            </div>
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[6px] bg-white/10">
-              <ShieldCheck className="h-6 w-6 text-white" />
-            </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 divide-x divide-black/[0.06] border-b border-black/[0.06]">
-          <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[var(--hb-text-muted)]">문서 확인 상태</p>
-            <p className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${risk.bg} ${risk.text}`}>
-              {data.riskLabel ?? "확인 필요 항목 있음"}
-            </p>
-          </div>
-          <div className="px-3 py-3 text-center">
-            <p className="text-xs text-[var(--hb-text-muted)]">필수 미확인</p>
-            <p className="mt-1 text-lg font-semibold text-[var(--hb-text-strong)]">{blockers.length}개</p>
-          </div>
-        </div>
-
-        <div className="px-5 py-4">
-          <div className={`rounded-[6px] border px-4 py-3 ${risk.bg} ${risk.border}`}>
-            <div className="flex items-start gap-2">
-              <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${risk.dot}`} />
-              <div>
-                <p className={`text-sm font-semibold ${risk.text}`}>{title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">{data.summaryText}</p>
-              </div>
-            </div>
-          </div>
-
-          {blockers.length > 0 && (
-            <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
-                <AlertTriangle className="h-4 w-4 text-red-500" />
-                계약 전 먼저 막을 것
-              </div>
-              <div className="space-y-2">
-                {blockers.slice(0, 4).map((item) => (
-                  <div key={item.id} className="rounded-[6px] border border-red-100 bg-red-50/50 px-3 py-2.5">
-                    <p className="text-sm font-semibold text-red-700">{item.label}</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--hb-text-body)]">{item.reason}</p>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {warnings.length > 0 && (
-            <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
-                <FileCheck2 className="h-4 w-4 text-amber-600" />
-                추가로 확인하면 좋은 것
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {warnings.slice(0, 6).map((item) => (
-                  <span key={item.id} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                    {item.label}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {confirmed.length > 0 && (
-            <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                확인된 항목
-              </div>
-              <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-                {confirmed.slice(0, 6).map((item) => (
-                  <div key={item.id} className="rounded-[6px] bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
-                    {item.label}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {questions.length > 0 && (
-            <section className="mt-4">
-              <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-[var(--hb-text-strong)]">
-                <MessageSquareText className="h-4 w-4 text-[#2F5F51]" />
-                업체에 바로 물어볼 문장
-              </div>
-              <ol className="space-y-1.5">
-                {questions.slice(0, 5).map((question, index) => (
-                  <li key={`${question}-${index}`} className="flex gap-2 text-sm leading-relaxed text-[var(--hb-text-body)]">
-                    <span className="font-semibold text-[#2F5F51]">{index + 1}.</span>
-                    <span>{question}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          )}
-
-          {evidence.length > 0 && (
-            <section className="mt-4 rounded-[6px] border border-[#EFE5DA] bg-[#FAF8F5] px-3 py-3">
-              <p className="mb-2 text-sm font-semibold text-[var(--hb-text-strong)]">저장할 증빙</p>
-              <div className="flex flex-wrap gap-1.5">
-                {evidence.map((item) => (
-                  <span key={item} className="rounded-full bg-white px-2.5 py-1 text-xs text-[var(--hb-text-body)] shadow-sm">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {data.messageToVendor && (
-            <section className="mt-4 rounded-[6px] border border-[#D8C7BB] bg-white px-3 py-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-[var(--hb-text-strong)]">복사해서 보낼 확인 문구</p>
-                <CopyButton text={data.messageToVendor} />
-              </div>
-              <p className="whitespace-pre-line text-xs leading-relaxed text-[var(--hb-text-body)]">{data.messageToVendor}</p>
-            </section>
-          )}
-
-          <p className="mt-3 text-[0.6875rem] leading-relaxed text-[var(--hb-text-muted)]">
-            {data.sourceNote} {data.disclaimer}
-          </p>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {

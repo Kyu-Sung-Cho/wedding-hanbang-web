@@ -138,7 +138,6 @@ describe("getWeddingPlannerSystemPrompt", () => {
   it("keeps every specialist inside the same evidence and plain-language boundary", () => {
     const specialistAddons = [
       getSpecialistPromptAddon("sangkyeonrye_advisor"),
-      getSpecialistPromptAddon("contract_reviewer"),
       getSpecialistPromptAddon("budget_optimizer"),
       getSpecialistPromptAddon("ceremony_coordinator"),
       getSpecialistPromptAddon("settlement_companion"),
@@ -154,9 +153,12 @@ describe("getWeddingPlannerSystemPrompt", () => {
       expect(specialistAddons).not.toContain(unsafeLegacyInstruction);
     }
 
-    expect(specialistAddons).toContain("최신 공식 원문 없이 계산하거나 단정하지 마세요");
     expect(specialistAddons).toContain("사용자가 입력하지 않은 카테고리 금액");
     expect(specialistAddons).toContain("보편 규칙처럼 말하지 마세요");
+
+    // 계약 개입 금지(2026-08-18): 계약서 검토 전문분야는 은퇴했고 애드온이 없다.
+    expect(getSpecialistPromptAddon("contract_reviewer")).toBe("");
+    expect(specialistAddons).not.toContain("[전문분야 — 계약서 검토]");
   });
 
   it("never injects unverified fraud, legal, discount, or hidden-cost estimates", () => {
