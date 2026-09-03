@@ -11,6 +11,7 @@ import { BookOpen, ImageOff, MapPin, Phone, Search } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
   getPlaceCardsModel,
+  withRoParticle,
   type PlaceCardModel,
   type PlaceSearchToolResult,
 } from "./placeCardsModel";
@@ -215,6 +216,35 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
           />
         ) : null}
         <Text style={styles.trademarkNote}>네이버™는 NAVER®의 등록상표입니다.</Text>
+      </View>
+    );
+  }
+
+  if (model.state === "placeholder") {
+    return (
+      <View style={styles.notice} accessibilityLiveRegion="polite">
+        <MapPin size={20} color={colors.rose[500]} />
+        <View style={styles.noticeCopy}>
+          <Text style={styles.noticeTitle}>
+            {model.searchedAtLabel ? `${model.searchedAtLabel}에 ` : ""}
+            ‘{model.query}’{withRoParticle(model.query)} {model.resultCount}곳을 찾았어요
+          </Text>
+          <Text style={styles.noticeText}>
+            검색 결과 카드는 저장하지 않아서 다시 열면 사라져요. 다시 검색할까요?
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (model.state === "notice") {
+    return (
+      <View style={styles.notice} accessibilityLiveRegion="polite">
+        <MapPin size={20} color={colors.rose[500]} />
+        <View style={styles.noticeCopy}>
+          <Text style={styles.noticeTitle}>{model.title}</Text>
+          <Text style={styles.noticeText}>{model.message}</Text>
+        </View>
       </View>
     );
   }

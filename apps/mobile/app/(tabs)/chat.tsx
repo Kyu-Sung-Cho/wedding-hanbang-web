@@ -881,13 +881,22 @@ function mergeToolResults(
   return merged;
 }
 
+/** 저장된 장소 검색 결과에는 제공자 텍스트가 없고 이 표만 붙는다. (2026-09-03) */
+function isPlaceSearchPlaceholder(result: ToolExecutionResult): boolean {
+  return result.toolName === "search_nearby_places"
+    && result.toolOutput.displayOnlyPlaceholder === true;
+}
+
 function asChatMessageMetadata(value: unknown): ChatMessageMetadata | null {
   if (!isRecord(value)) return null;
   const toolResults = Array.isArray(value.toolResults)
     ? value.toolResults
       .map(asToolExecutionResult)
       .filter((result): result is ToolExecutionResult =>
-        result !== null && result.toolName !== "search_nearby_places"
+        // 네이버 항목이 실린 결과는 예전처럼 받지 않는다. 우리 값만 남은 자리표시는
+        // 받아서 다시 열었을 때 카드 자리를 그린다(2026-09-03).
+        result !== null
+        && (result.toolName !== "search_nearby_places" || isPlaceSearchPlaceholder(result))
       )
     : undefined;
   return {
@@ -3648,9 +3657,15 @@ export default function ChatScreen() {
     // userRole이 아직 null이면 isMe가 false로 떨어져 내 메시지도 왼쪽으로 온다.
     // 그 상태에서 상대 이름을 붙이면 오귀속이므로 sender_id로 한 겹 더 막는다.
     const isSelfMessage = Boolean(userId) && item.sender_id === userId;
-    const placeResults = (item.metadata?.toolResults ?? []).filter(
+    const allPlaceResults = (item.metadata?.toolResults ?? []).filter(
       (result) => result.toolName === "search_nearby_places",
     );
+    // 방금 받은 결과와 저장된 자리표시가 같은 메시지에 함께 있을 수 있다.
+    // 그때는 실제 결과만 그린다 — 둘 다 그리면 카드가 두 벌 나온다.
+    const livePlaceResults = allPlaceResults.filter(
+      (result) => !isPlaceSearchPlaceholder(result),
+    );
+    const placeResults = livePlaceResults.length > 0 ? livePlaceResults : allPlaceResults;
     const hasPlaceResults = placeResults.length > 0;
     const isThinking = isAi && item.id.startsWith("temp_") && !item.content && !hasPlaceResults && streaming;
     // 근거 표식은 아모라만 붙인다. 사용자가 대괄호를 직접 쓴 것을 지우면 안 되므로

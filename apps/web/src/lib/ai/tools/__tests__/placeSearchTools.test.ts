@@ -108,7 +108,8 @@ describe("placeSearchTools", () => {
         reason: "wedding_vendor_query_blocked",
       },
       success: false,
-      displayMessage: "웨딩 업체 검색은 검수된 공시가 탐색을 이용해주세요.",
+      // 2026-09-03: 실패가 아니라 안내다. 카드도 빨간 경고가 아니라 중립 안내로 그린다.
+      displayMessage: "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요.",
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
@@ -174,8 +175,16 @@ describe("placeSearchTools", () => {
     expect(decodeURIComponent(String(output.places[0].mapsUrl)))
       .toContain("한방정식 강남구");
 
-    // 지역 1 + 이미지 1. 블로그는 부르지 않는다(아래 별도 테스트).
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // 지역 1 + 보충 1 + 이미지 1. 필터를 지난 곳이 3곳 미만이면 종류를 일반화한
+    // 질의로 한 번 더 찾는다(2026-09-03). 블로그는 부르지 않는다(아래 별도 테스트).
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(
+      fetchMock.mock.calls
+        .map(([input]) => new URL(String(input)))
+        .filter((url) => url.pathname.endsWith("/local"))
+        .map((url) => url.searchParams.get("query")),
+    // 상견례 질의라 서버가 종류(한정식)를 채운 뒤, 보충에서는 `상견례` 를 뺀다.
+    ).toEqual(["강남 상견례 식당 한정식", "강남 식당 한정식"]);
     for (const [input, init] of fetchMock.mock.calls) {
       expect(new URL(String(input)).origin).toBe("https://naverapihub.apigw.ntruss.com");
       expect(init?.headers).toEqual({
@@ -264,9 +273,11 @@ describe("placeSearchTools", () => {
 
     expect(result.success).toBe(true);
     expect(output.places).toEqual([expect.objectContaining({ name: "샘플 한정식" })]);
-    // 지역 1 + 기준점 1 + 이미지 1. 검색어에 "강남역"이 있으면 그 좌표를 한 번 찾아
-    // 가까운 순으로 세운다(2026-08-24). 기준점이 없는 검색어에서는 이 호출이 없다.
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    // 지역 1 + 기준점 1 + 보충 1 + 이미지 1. 검색어에 "강남역"이 있으면 그 좌표를
+    // 한 번 찾아 가까운 순으로 세운다(2026-08-24). 기준점이 없는 검색어에서는 이
+    // 호출이 없다. 웨딩 업체가 걸러져 1곳만 남았으므로 보충 검색이 한 번 더 돈다
+    // (2026-09-03) — 지역 검색 자체는 첫 시도 + 보충으로 최대 2회다.
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("returns an empty general-place result when every local item is a wedding vendor", async () => {
@@ -299,7 +310,9 @@ describe("placeSearchTools", () => {
       },
       displayMessage: `'${query}'에서 일반 장소 검색 결과를 찾지 못했습니다.`,
     });
-    expect(fetchMock).toHaveBeenCalledTimes(2);  // 지역 1 + 기준점 1(검색어에 "강남역")
+    // 지역 1 + 기준점 1(검색어에 "강남역") + 보충 1. 필터가 전부 걷어내 0곳이 됐으므로
+    // 보충 검색이 한 번 돈다(2026-09-03). 보충 결과도 같은 웨딩 업체라 0곳 그대로다.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   it("does not fall back to the legacy Developers API", async () => {

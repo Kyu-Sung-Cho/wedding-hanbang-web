@@ -161,12 +161,67 @@ export function getClientSafeToolInput(
       : input;
 }
 
-/** NAVER Search results are display-only and must never enter chat storage. */
+/**
+ * 자리표시 카드인지. 저장된 장소 검색 결과에는 제공자 텍스트가 없고 이 표가 붙는다.
+ */
+export function isPlaceSearchPlaceholder(result: ToolExecutionResult): boolean {
+  return result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL
+    && result.toolOutput.displayOnlyPlaceholder === true;
+}
+
+/**
+ * 저장할 장소 검색 결과. 제공자 텍스트는 **한 글자도** 넘기지 않는다. (2026-09-03)
+ *
+ * 새로고침하면 장소 카드가 통째로 사라지던 문제 때문에 만들었다 — 예전에는 이
+ * 도구의 결과를 통째로 뺐고, 그래서 다시 열면 아모라의 글만 남았다. 이제
+ * **우리가 만든 값만**(질의·조회 시각·개수) 남겨 카드 자리에 자리표시 카드를 그린다.
+ * 업체명·주소·설명·URL·사진은 예전과 똑같이 저장하지 않는다.
+ *
+ * 남길 것이 없는 경우(실패·웨딩업체 차단·0곳)는 예전처럼 통째로 뺀다.
+ * 저장된 값에 다시 적용해도 같은 값이 나온다(자리표시 → 자리표시).
+ */
+function placeSearchPlaceholderResult(
+  result: ToolExecutionResult,
+): ToolExecutionResult | null {
+  if (!result.success) return null;
+  const output = result.toolOutput;
+  const query = typeof output.query === "string" ? output.query.trim() : "";
+  if (!query) return null;
+  const places = Array.isArray(output.places) ? output.places : [];
+  const resultCount =
+    typeof output.resultCount === "number" && Number.isFinite(output.resultCount)
+      ? output.resultCount
+      : places.length;
+  if (resultCount <= 0) return null;
+  return {
+    toolName: result.toolName,
+    toolInput: {},
+    toolOutput: {
+      places: [],
+      query,
+      resultCount,
+      ...(typeof output.searchedAt === "string" && output.searchedAt
+        ? { searchedAt: output.searchedAt }
+        : {}),
+      displayOnlyPlaceholder: true,
+    },
+    success: true,
+    displayMessage: "",
+  };
+}
+
+/** NAVER Search content is display-only and must never enter chat storage. */
 export function getPersistableToolResults(
   results: ToolExecutionResult[]
 ): ToolExecutionResult[] {
   return results
-    .filter((result) => result.toolName !== EPHEMERAL_PLACE_SEARCH_TOOL)
+    .flatMap((result) => {
+      if (result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL) {
+        const placeholder = placeSearchPlaceholderResult(result);
+        return placeholder ? [placeholder] : [];
+      }
+      return [result];
+    })
     .map((result) => {
       if (PRIVATE_SCHEDULE_MUTATION_TOOLS.has(result.toolName)) {
         return privacySafePersistedScheduleResult(result);

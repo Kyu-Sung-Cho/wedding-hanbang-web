@@ -23,6 +23,17 @@ export interface PlaceCardModel {
 
 export type PlaceCardsModel =
   | { state: "error"; message: string }
+  /** 웨딩 업체 질의라 여기서 찾지 않는 경우. 실패가 아니라 안내다. (2026-09-03) */
+  | { state: "notice"; title: string; message: string }
+  /**
+   * 다시 열었을 때. 네이버 항목은 저장하지 않으므로 우리 값만 남는다. (2026-09-03)
+   */
+  | {
+      state: "placeholder";
+      query: string;
+      resultCount: number;
+      searchedAtLabel: string | null;
+    }
   | { state: "handoff"; message: string; query: string | null; searchUrl: string | null; mapsUrl: string | null }
   | { state: "empty"; message: string; query: string | null }
   | {
@@ -75,9 +86,43 @@ function safeProviderUrl(value: unknown, domain: "naver.com" | "pstatic.net"): s
   }
 }
 
+/**
+ * 받침에 맞는 조사. '대전 식당'으로 / '강남 카페'로. (2026-09-03)
+ * 한글 음절이 아니면 '로' 로 둔다 — 웹 카드와 같은 규칙이다.
+ */
+export function withRoParticle(word: string): string {
+  const last = word.trim().slice(-1);
+  if (!last) return "로";
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return "로";
+  const jongseong = (code - 0xac00) % 28;
+  return jongseong === 0 || jongseong === 8 ? "로" : "으로";
+}
+
 export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsModel {
   const output = isRecord(result.toolOutput) ? result.toolOutput : {};
   const query = asString(output.query) ?? asString(result.toolInput.query);
+
+  // 저장된 결과에는 제공자 텍스트가 없고 질의·시각·개수만 있다. 그대로 두면
+  // "검색된 장소가 없어요" 로 그려져 결과가 0곳이었던 것처럼 보인다.
+  if (output.displayOnlyPlaceholder === true) {
+    return {
+      state: "placeholder",
+      query: query ?? "",
+      resultCount: typeof output.resultCount === "number" ? output.resultCount : 0,
+      searchedAtLabel: formatPlaceSearchedAtLabel(output.searchedAt),
+    };
+  }
+
+  // 웨딩 업체 질의 차단은 안내다. 빨간 오류 카드로 그리지 않는다.
+  if (output.reason === "wedding_vendor_query_blocked") {
+    return {
+      state: "notice",
+      title: "예식장·웨딩홀은 업체 탐색에서 볼 수 있어요",
+      message: asString(result.displayMessage)
+        ?? "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요.",
+    };
+  }
   const handoff = isRecord(output.handoff) ? output.handoff : {};
   const handoffSearchUrl = safeProviderUrl(handoff.searchUrl, "naver.com");
   const handoffMapsUrl = safeProviderUrl(handoff.mapsUrl, "naver.com");

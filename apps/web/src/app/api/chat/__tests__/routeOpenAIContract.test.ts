@@ -2007,10 +2007,23 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       });
 
       expect(mocks.persist).not.toHaveBeenCalled();
+      // 2026-09-03: 저장되는 것은 **우리 값만** 남은 자리표시다(질의·조회 시각·개수).
+      // 예전에는 통째로 빠져 새로고침하면 카드가 전부 사라졌다. 네이버 텍스트가
+      // 한 글자도 없다는 것은 바로 아래 세 줄이 계속 든다.
       expect(mocks.atomicResponses).toEqual([
         expect.objectContaining({
           metadata: expect.objectContaining({
-            toolResults: [],
+            toolResults: [
+              expect.objectContaining({
+                toolName: "search_nearby_places",
+                toolInput: {},
+                toolOutput: expect.objectContaining({
+                  places: [],
+                  query: "강남 상견례 식당",
+                  displayOnlyPlaceholder: true,
+                }),
+              }),
+            ],
             toolsUsed: expect.arrayContaining(["search_nearby_places"]),
           }),
         }),

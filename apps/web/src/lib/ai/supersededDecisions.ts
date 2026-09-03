@@ -163,3 +163,82 @@ export function dropSupersededDecisions<T extends DecisionForSupersessionCheck>(
 ): T[] {
   return decisions.filter((decision) => !isSupersededDecision(decision, current));
 }
+
+/**
+ * 2026-09-03: 대조할 진실값이 아예 없는 category.
+ *
+ * `wedding_journeys` 에는 하객 수·예식 형태·시기에 해당하는 열이 없다. 그래서 위
+ * `isSupersededDecision` 은 이 category 들을 **영원히 판정하지 못하고**, 방향을
+ * 바꿔도 옛 영수증이 계속 "아직 유효한 것"으로 회상된다(운영 decision_nodes 실측:
+ * timeline 50행·guestcount 4행·style 1행이 전부 `superseded_at` NULL 로 살아
+ * 있고, 한 커플은 timeline 만 37행이었다).
+ *
+ * 대조값이 없으니 판정 대신 **시간**으로 가른다 — 같은 주제의 마지막 말만 남긴다.
+ */
+const CATEGORIES_WITHOUT_CURRENT_TRUTH: ReadonlySet<string> = new Set([
+  "guestcount",
+  "style",
+  "timeline",
+]);
+
+export interface DecisionForRecencyCheck {
+  readonly category: string;
+  /** `decision_nodes.visibility`. 공유 결정과 개인 결정을 섞어 지우지 않는다. */
+  readonly visibility: string;
+  /** `decision_nodes.created_at` (ISO). 읽을 수 없으면 판단하지 않는다. */
+  readonly createdAt: string;
+  readonly chosenValue: Record<string, unknown> | null;
+}
+
+/**
+ * 같은 category 안에서도 **다른 주제**인 영수증이 있다. 온보딩은 `timeline` 로
+ * 결혼식 날짜(`{wedding_date}`)와 상견례 일정(`{sanggyeonrye_date}`)을 각각
+ * 남긴다(apps/web/src/app/api/onboarding/route.ts). category 하나로만 묶으면
+ * 상견례 일정을 적었다는 이유로 결혼식 날짜 영수증이 사라진다.
+ *
+ * 그래서 `chosen_value` 의 **키 모양**까지 묶음 열쇠에 넣는다. 대화에서 추출된
+ * 결정은 전부 `{value}` 한 모양이므로(apps/web/src/lib/ai/extract-decision.ts),
+ * "하객 180명 → 40명" 같은 방향 전환은 그대로 한 묶음이 된다.
+ */
+function recencyGroupKey(decision: DecisionForRecencyCheck): string {
+  const shape = isRecord(decision.chosenValue)
+    ? Object.keys(decision.chosenValue).sort().join(",")
+    : "";
+  return [decision.visibility, decision.category, shape].join(" ");
+}
+
+/**
+ * 대조할 진실값이 없는 category 는 (visibility, category, 값 모양) 안에서
+ * **가장 최근 1건만** 남긴다.
+ *
+ * DB 는 건드리지 않는다 — 이 파일 머리의 계약 그대로, 영수증은 감사 기록으로
+ * 남고 아모라에게 현재처럼 보여주지 않을 뿐이다. 날짜를 읽을 수 없는 행은
+ * 판단하지 않고 남긴다(사용자가 한 결정을 지우는 쪽이 더 나쁘다).
+ */
+export function dropOutdatedTruthlessDecisions<T extends DecisionForRecencyCheck>(
+  decisions: readonly T[],
+): T[] {
+  const isGrouped = (decision: DecisionForRecencyCheck): boolean =>
+    CATEGORIES_WITHOUT_CURRENT_TRUTH.has(decision.category)
+    && Number.isFinite(Date.parse(decision.createdAt));
+
+  const newestIndexByKey = new Map<string, number>();
+  decisions.forEach((decision, index) => {
+    if (!isGrouped(decision)) return;
+    const key = recencyGroupKey(decision);
+    const bestIndex = newestIndexByKey.get(key);
+    if (bestIndex === undefined) {
+      newestIndexByKey.set(key, index);
+      return;
+    }
+    // 같은 시각이면 먼저 온 것을 남긴다 — 읽기 질의가 최신순이라 그것이 최신이다.
+    if (Date.parse(decision.createdAt) > Date.parse(decisions[bestIndex].createdAt)) {
+      newestIndexByKey.set(key, index);
+    }
+  });
+
+  return decisions.filter((decision, index) => {
+    if (!isGrouped(decision)) return true;
+    return newestIndexByKey.get(recencyGroupKey(decision)) === index;
+  });
+}

@@ -16,7 +16,7 @@ const compiled = ts.transpileModule(sourceText, {
 });
 const module = { exports: {} };
 new Function("module", "exports", compiled.outputText)(module, module.exports);
-const { getPlaceCardsModel } = module.exports;
+const { getPlaceCardsModel, withRoParticle } = module.exports;
 
 test("place search result keeps the fields and Naver destinations used by mobile cards", () => {
   const model = getPlaceCardsModel({
@@ -226,4 +226,71 @@ test("mobile place cards expose accessible Naver links and a broken-image fallba
   for (const dead of ["블로그 검색 {", "블로그 언급", "룸 언급 있음", "blogSnippet", "priceRange"]) {
     assert.ok(!component.includes(dead), `카드에 남아 있으면 안 되는 표시: ${dead}`);
   }
+});
+
+// 2026-09-03 감사 — 새로고침하면 카드가 통째로 사라졌다. 네이버 항목은 여전히
+// 저장하지 않고, 우리 값만(질의·조회 시각·개수) 저장해 자리표시 카드를 그린다.
+test("saved place search results become a placeholder card, not an empty search", () => {
+  const model = getPlaceCardsModel({
+    toolName: "search_nearby_places",
+    toolInput: {},
+    toolOutput: {
+      places: [],
+      query: "대전 식당 예식",
+      resultCount: 4,
+      // 2026-09-03 10:20 KST
+      searchedAt: "2026-09-03T01:20:00.000Z",
+      displayOnlyPlaceholder: true,
+    },
+    success: true,
+    displayMessage: "",
+  });
+
+  assert.deepEqual(model, {
+    state: "placeholder",
+    query: "대전 식당 예식",
+    resultCount: 4,
+    searchedAtLabel: "10:20",
+  });
+});
+
+test("wedding venue queries render as a neutral notice, not an error card", () => {
+  const model = getPlaceCardsModel({
+    toolName: "search_nearby_places",
+    toolInput: { query: "대전 웨딩홀" },
+    toolOutput: {
+      places: [],
+      query: "대전 웨딩홀",
+      reason: "wedding_vendor_query_blocked",
+      resultCount: 0,
+    },
+    success: false,
+    displayMessage: "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요.",
+  });
+
+  assert.deepEqual(model, {
+    state: "notice",
+    title: "예식장·웨딩홀은 업체 탐색에서 볼 수 있어요",
+    message: "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요.",
+  });
+});
+
+test("the restore card picks the particle the way the web card does", () => {
+  assert.equal(withRoParticle("대전 식당 예식"), "으로");
+  assert.equal(withRoParticle("대전 카페"), "로");
+  // 받침이 ㄹ 이면 '로'. "서울"로.
+  assert.equal(withRoParticle("서울"), "로");
+  assert.equal(withRoParticle(""), "로");
+});
+
+test("mobile place cards draw the placeholder and the neutral notice", () => {
+  const componentPath = fileURLToPath(
+    new URL("../components/chat/PlaceCards.tsx", import.meta.url),
+  );
+  const component = readFileSync(componentPath, "utf8");
+
+  assert.ok(component.includes('model.state === "placeholder"'));
+  assert.ok(component.includes('model.state === "notice"'));
+  assert.ok(component.includes("검색 결과 카드는 저장하지 않아서 다시 열면 사라져요"));
+  assert.ok(component.includes("withRoParticle(model.query)"));
 });
