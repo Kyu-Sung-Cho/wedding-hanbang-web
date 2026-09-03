@@ -13,6 +13,11 @@ const budgetImpactPath = fileURLToPath(new URL(
   "../../../../packages/shared/src/contracts/budgetImpactPreview.ts",
   import.meta.url,
 ));
+// 2026-09-03: 지난 날짜 판정이 shared 의 todayYmdInKst 를 쓴다 — 루트 "@hanbang/shared" 로 이어 준다
+const kstDayPath = fileURLToPath(new URL(
+  "../../../../packages/shared/src/utils/kstDay.ts",
+  import.meta.url,
+));
 const actionApprovalPath = fileURLToPath(new URL(
   "../../../../packages/shared/src/contracts/amoraActionApproval.ts",
   import.meta.url,
@@ -42,6 +47,7 @@ const sharedScheduleModule = compileCommonJs(
 const sharedModule = {
   ...sharedScheduleModule,
   ...compileCommonJs(readFileSync(budgetImpactPath, "utf8")),
+  ...compileCommonJs(readFileSync(kstDayPath, "utf8")),
   ...compileCommonJs(
     readFileSync(actionApprovalPath, "utf8"),
     (specifier) => {
