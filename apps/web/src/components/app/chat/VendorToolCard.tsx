@@ -1082,6 +1082,19 @@ const PLACE_SEARCHED_AT_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   hourCycle: "h23",
 });
 
+/**
+ * 받침에 맞는 조사. '대전 식당'으로 / '강남 카페'로. (2026-09-03)
+ * 한글 음절이 아니면 '로' 로 둔다 — 숫자·영문 뒤에서는 어느 쪽도 완전하지 않다.
+ */
+function withRoParticle(word: string): string {
+  const last = word.trim().slice(-1);
+  if (!last) return "로";
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return "로";
+  const jongseong = (code - 0xac00) % 28;
+  return jongseong === 0 || jongseong === 8 ? "로" : "으로";
+}
+
 export function placeSearchedAtLabel(searchedAt: unknown): string | null {
   if (typeof searchedAt !== "string" || !searchedAt) return null;
   const parsed = new Date(searchedAt);
@@ -1111,6 +1124,10 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
     query?: string;
     searchedAt?: string;
     providerUnavailable?: boolean;
+    // 저장된 결과에는 제공자 텍스트가 없고 우리 값만 남는다(2026-09-03).
+    displayOnlyPlaceholder?: boolean;
+    resultCount?: number;
+    reason?: string;
     handoff?: {
       searchUrl?: string;
       mapsUrl?: string;
@@ -1130,6 +1147,65 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
       return null;
     }
   };
+
+  // 다시 열었을 때. 네이버 항목은 저장하지 않으므로 카드 자리에 우리 값만 적는다
+  // (2026-09-03 — 예전에는 새로고침하면 카드가 통째로 사라졌다).
+  if (output.displayOnlyPlaceholder) {
+    const restoredQuery = output.query ?? "";
+    const restoredCount = typeof output.resultCount === "number" ? output.resultCount : 0;
+    const restoredAt = placeSearchedAtLabel(output.searchedAt);
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div
+          role="note"
+          className="rounded-[6px] border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
+              <MapPin className="w-5 h-5 text-[#C4967E]" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-[var(--hb-text-strong)]">
+                {restoredAt ? `${restoredAt}에 ` : ""}
+                &apos;{restoredQuery}&apos;{withRoParticle(restoredQuery)} {restoredCount}곳을 찾았어요
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
+                검색 결과 카드는 저장하지 않아서 다시 열면 사라져요. 다시 검색할까요?
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 웨딩 업체 질의는 여기서 검색하지 않는다. 그건 실패가 아니라 안내이므로
+  // 빨간 경고가 아니라 중립 카드로 그린다(2026-09-03 감사). 차단 자체는 그대로다.
+  if (output.reason === "wedding_vendor_query_blocked") {
+    return (
+      <div className="flex justify-start ml-14 my-2">
+        <div
+          role="note"
+          className="rounded-[6px] border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
+              <MapPin className="w-5 h-5 text-[#C4967E]" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-base font-semibold text-[var(--hb-text-strong)]">
+                예식장·웨딩홀은 업체 탐색에서 볼 수 있어요
+              </p>
+              <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
+                {result.displayMessage
+                  || "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요."}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handoffSearchUrl = safeNaverUrl(output.handoff?.searchUrl);
   const handoffMapsUrl = safeNaverUrl(output.handoff?.mapsUrl);

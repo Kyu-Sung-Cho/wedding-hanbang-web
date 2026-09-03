@@ -187,7 +187,10 @@ import {
 } from "@/utils/requestValidation";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { createHash, randomUUID } from "node:crypto";
-import { isSupersededDecision } from "@/lib/ai/supersededDecisions";
+import {
+  dropOutdatedTruthlessDecisions,
+  isSupersededDecision,
+} from "@/lib/ai/supersededDecisions";
 import { inspectScheduleEvents } from "@/utils/scheduleEvents";
 import { log } from "@/utils/log";
 // mammoth는 필요할 때만 동적 import (Vercel 호환성)
@@ -2072,7 +2075,9 @@ export async function POST(request: Request) {
     skipsIrrelevantProviderContextReads
       ? Promise.resolve({ data: [], error: null })
       : supabase.from("decision_nodes")
-          .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata")
+          // source_actor_role: 누가 말한 값인지. 없으면 프롬프트가 라벨을 붙이지
+          // 않는다 — 공동 전제를 한쪽 사람의 주장으로 귀속하던 자리(2026-09-03).
+          .select("category, decision_type, title, chosen_value, reasoning, confidence, stage_tag, source, visibility, created_at, memory_key, superseded_at, metadata, source_actor_role")
           .eq("couple_id", dataCoupleId)
           .order("created_at", { ascending: false })
           .limit(50),
@@ -2452,6 +2457,7 @@ export async function POST(request: Request) {
     memory_key: string | null;
     superseded_at: string | null;
     metadata: Record<string, unknown> | null;
+    source_actor_role: "bride" | "groom" | null;
   }>;
   const isAutomaticMemory = (decision: typeof rawDecisions[number]) =>
     decision.memory_key !== null || typeof decision.metadata?.extracted_by === "string";
@@ -2488,10 +2494,17 @@ export async function POST(request: Request) {
       ? journey.total_budget
       : null,
   };
-  const liveDecisions = decisionsData.filter((d) => !isSupersededDecision(
-    { category: d.category, title: d.title, chosenValue: d.chosen_value },
-    currentJourneyFacts,
-  ));
+  // 하객 수·예식 형태·시기는 여정에 대조할 값이 없어 위 판정이 영원히 닿지 않는다.
+  // 그 세 category 만 (visibility, category, 값 모양) 안에서 최신 1건을 남긴다.
+  // 방향을 바꾼 뒤 옛 하객 수·시기가 "아직 유효한 것"으로 회상되던 자리다(2026-09-03).
+  const liveDecisions = dropOutdatedTruthlessDecisions(
+    decisionsData
+      .filter((d) => !isSupersededDecision(
+        { category: d.category, title: d.title, chosenValue: d.chosen_value },
+        currentJourneyFacts,
+      ))
+      .map((d) => ({ ...d, createdAt: d.created_at, chosenValue: d.chosen_value })),
+  );
 
   const pastDecisions = liveDecisions.map((d) => ({
     category: d.category,
@@ -2502,6 +2515,10 @@ export async function POST(request: Request) {
     confidence: d.confidence ?? 0.5,
     source: d.source,
     createdAt: d.created_at,
+    // 기록된 것만 넘긴다. 지어내면 이번 오류(공동 전제를 한쪽 값으로 귀속)를 반복한다.
+    sourceActorRole: d.source_actor_role === "bride" || d.source_actor_role === "groom"
+      ? d.source_actor_role
+      : null,
     vendorDeliveryStatus: typeof d.chosen_value?.vendor_delivery_status === "string"
       ? d.chosen_value.vendor_delivery_status
       : typeof d.metadata?.vendor_delivery_status === "string"

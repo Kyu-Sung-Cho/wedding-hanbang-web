@@ -106,8 +106,59 @@ const bookingCancellationResult: ToolExecutionResult = {
 };
 
 describe("place search result policy", () => {
-  it("keeps NAVER results out of persisted chat metadata", () => {
-    expect(getPersistableToolResults([placeResult, budgetResult])).toEqual([budgetResult]);
+  // 2026-09-03: 예전에는 장소 검색 결과를 통째로 빼서, 새로고침하면 카드가 전부
+  // 사라졌다. 이제 **우리 값만**(질의·조회 시각·개수) 남긴다 — 제공자 텍스트는
+  // 예전과 똑같이 한 글자도 저장하지 않는다.
+  it("keeps NAVER content out of persisted chat metadata but leaves our own values", () => {
+    const persisted = getPersistableToolResults([placeResult, budgetResult]);
+
+    expect(persisted).toHaveLength(2);
+    expect(persisted[1]).toEqual(budgetResult);
+    expect(persisted[0]).toEqual({
+      toolName: "search_nearby_places",
+      toolInput: {},
+      toolOutput: {
+        places: [],
+        query: "강남 상견례 식당",
+        resultCount: 1,
+        displayOnlyPlaceholder: true,
+      },
+      success: true,
+      displayMessage: "",
+    });
+
+    const serialized = JSON.stringify(persisted[0]);
+    expect(serialized).not.toContain("외부 입력");
+    expect(serialized).not.toContain("서울");
+    expect(serialized).not.toContain("http");
+  });
+
+  it("다시 적용해도 자리표시는 자리표시 그대로다", () => {
+    const once = getPersistableToolResults([placeResult]);
+    expect(getPersistableToolResults(once)).toEqual(once);
+  });
+
+  it("남길 것이 없는 장소 검색 결과는 예전처럼 통째로 뺀다", () => {
+    const blocked: ToolExecutionResult = {
+      toolName: "search_nearby_places",
+      toolInput: { query: "강남 웨딩홀" },
+      toolOutput: {
+        places: [],
+        query: "강남 웨딩홀",
+        reason: "wedding_vendor_query_blocked",
+        resultCount: 0,
+      },
+      success: false,
+      displayMessage: "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요.",
+    };
+    const emptySuccess: ToolExecutionResult = {
+      ...placeResult,
+      toolOutput: { places: [], query: "청주 한정식", resultCount: 0 },
+      displayMessage: "'청주 한정식' 검색 결과가 없습니다.",
+    };
+
+    expect(getPersistableToolResults([blocked, emptySuccess, budgetResult]))
+      .toEqual([budgetResult]);
   });
 
   it("sends only a fixed render status to the model", () => {

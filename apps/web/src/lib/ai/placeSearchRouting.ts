@@ -138,12 +138,43 @@ export function getAvailableChatTools(options: {
   return tools.filter((tool) => !isMutatingTool(tool.name));
 }
 
+/**
+ * 사용자가 **안을 이미 늘어놓고** 고르라고 하는 꼴.
+ *
+ * 2026-09-03 실측(2차 Turn 24): "식당 예식, 일반 컨벤션 예식, 제주 가족식 세 안 중
+ * … 1순위로 골라줘" 에 강제 호출이 걸렸다(`식당` + `골라 줘` + `제주`). 모델은 답을
+ * 쓰기 전에 네이버 검색을 부르고, 그 질의에 예식장류가 들어가 차단되면 화면에는
+ * 빨간 "장소 검색을 완료하지 못했어요" 카드가 먼저 뜬다. 사용자가 원한 것은 검색이
+ * 아니라 판단이었다.
+ *
+ * **도구는 그대로 준다** — 빼면 "그런 기능 없어요" 회귀가 난다(2026-08-23). 강제만
+ * 풀어 모델이 부를지 스스로 정하게 한다.
+ *
+ * 맨 `골라 줘`·`정해 줘` 는 여기 넣지 않는다. "제주 식당 골라줘" 는 안이 없는 진짜
+ * 검색 요청이고, 그것까지 풀면 원래 되던 문장의 강제가 사라진다. 가르는 것은
+ * **늘어놓은 안이 있는가**(…중) 와 **순위를 매겨 달라는가**(1순위) 다.
+ */
+const CHOICE_AMONG_OPTIONS_RE =
+  /(?:[2-9]|둘|두|셋|세|넷|네|여러|몇)\s*(?:안|가지|개|곳|것|군데|개소)?\s*중|중에서?\s*(?:하나|한\s*(?:개|곳|군데))|[1-9]\s*순위|순위\s*(?:를|로)?\s*(?:매겨|정해)/i;
+
+/** 검색이 아니라 판단·선택을 요구하는 발화인가. */
+export function isChoiceAmongOptionsRequest(userText: string): boolean {
+  const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  return CHOICE_AMONG_OPTIONS_RE.test(normalized);
+}
+
 export function getPlaceSearchToolChoice(options: {
   userText: string;
   round: number;
   tools: AiToolDefinition[];
 }): { type: "function"; name: typeof PLACE_SEARCH_TOOL_NAME } | undefined {
   if (options.round !== 0 || !isExplicitPlaceSearchIntent(options.userText)) {
+    return undefined;
+  }
+  // 선택·판단 요구에는 강제하지 않는다. 도구 목록은 건드리지 않으므로
+  // `isPlaceSearchCandidate` 로 열린 제공(route.ts `offersPlaceSearch`)은 그대로다.
+  if (isChoiceAmongOptionsRequest(options.userText)) {
     return undefined;
   }
   if (!options.tools.some((tool) => tool.name === PLACE_SEARCH_TOOL_NAME)) {

@@ -181,6 +181,60 @@ export function placeLinkQuery(name: string, address: string): string {
     : trimmedName;
 }
 
+/**
+ * 결과가 적을 때 **한 번만** 더 찾을 보충 질의. (2026-09-03 감사)
+ *
+ * "3곳 알려줘" 인데 카드가 2장만 나왔다. 네이버가 5건을 줘도 예식장·웨딩홀로
+ * 분류된 항목을 `buildPlacesFromItems` 가 빼기 때문에, 예식 관련 낱말이 섞인
+ * 질의일수록 카드가 줄었다. 그래서 **행사 낱말과 꾸밈말을 뺀** 같은 지역 질의로
+ * 한 번 더 찾아 합친다.
+ *
+ * 종류가 남지 않으면 `식당` 을 붙인다 — 지역만 남은 질의는 네이버가 관공서·도로까지
+ * 준다. 지역이 사라지는 질의(남은 것이 종류 하나뿐)는 전국 검색이 되므로 하지 않는다.
+ */
+const PLACE_QUERY_EVENT_TOKEN =
+  /^(?:예식|예식장|웨딩|웨딩홀|결혼|결혼식|상견례|피로연|본식|폐백|하객|대관|예약)$/u;
+const PLACE_GENERAL_KIND_RE =
+  /(?:식당|맛집|음식점|레스토랑|한정식|한식|일식|중식|양식|이탈리안|뷔페|연회장|카페|베이커리|코스요리)/u;
+
+export function generalizePlaceQuery(query: string): string | null {
+  const trimmed = query.trim();
+  if (!trimmed) return null;
+  const kept = trimmed
+    .split(/\s+/u)
+    .filter(Boolean)
+    .filter((token) => !PLACE_QUERY_EVENT_TOKEN.test(token) && !PLACE_QUERY_FILLER.test(token));
+  if (kept.length === 0) return null;
+  if (kept.length === 1 && PLACE_GENERAL_KIND_RE.test(kept[0])) return null;
+  const base = kept.join(" ");
+  const generalized = PLACE_GENERAL_KIND_RE.test(base) ? base : `${base} 식당`;
+  if (generalized === trimmed) return null;
+  // 일반화한 질의가 도로 웨딩 업체 질의가 되면 하지 않는다(차단 계약은 그대로).
+  if (WEDDING_VENDOR_QUERY_PATTERN.test(generalized)) return null;
+  return generalized;
+}
+
+/** 보충 검색을 켜는 문턱. 이 수보다 적게 남았을 때만 한 번 더 찾는다. */
+const PLACE_SUPPLEMENT_MIN_RESULTS = 3;
+
+/** 이름+주소가 같은 자리는 한 번만 남기고 뒤에 이어 붙인다. */
+function appendUniquePlaces(
+  base: PlaceSearchResult[],
+  extra: PlaceSearchResult[],
+  limit: number,
+): void {
+  const seen = new Set(
+    base.map((place) => `${normalizePlaceIdentity(place.name)}|${normalizePlaceIdentity(place.address)}`),
+  );
+  for (const place of extra) {
+    if (base.length >= limit) return;
+    const key = `${normalizePlaceIdentity(place.name)}|${normalizePlaceIdentity(place.address)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    base.push(place);
+  }
+}
+
 export function shortenPlaceQuery(query: string): string | null {
   const tokens = query.trim().split(/\s+/u).filter(Boolean);
   if (tokens.length <= PLACE_QUERY_MAX_TOKENS) return null;
@@ -479,7 +533,9 @@ export async function executeSearchNearbyPlaces(
         searchedAt,
       },
       success: false,
-      displayMessage: "웨딩 업체 검색은 검수된 공시가 탐색을 이용해주세요.",
+      // 2026-09-03: 차단 자체는 그대로 두고 말만 바꾼다. 예전 문구("검수된 공시가
+      // 탐색을 이용해주세요")는 실패처럼 읽혀 카드가 빨간 경고로 떴다.
+      displayMessage: "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요.",
     };
   }
 
@@ -638,6 +694,40 @@ export async function executeSearchNearbyPlaces(
       regionLabel: null,
     });
 
+    // 필터를 지나고 남은 것이 3곳 미만이면 종류를 일반화해 **한 번만** 더 찾는다.
+    // 줄인 재시도(`shortened`)를 이미 썼으면 하지 않는다 — 지역 검색 호출은 어느
+    // 갈래에서도 최대 2회다(한 지역: 첫 시도 + [줄인 재시도 | 보충 검색] 중 하나,
+    // 두 지역: 지역당 1회씩 2회). 기준점 조회 1회와 사진 조회는 여기 셈과 별개로
+    // 예전과 같다. 웨딩업체 차단은 이 지점에 닿지 않는다(위에서 이미 돌아갔다).
+    let supplementQuery: string | null = null;
+    if (shortened === null && basePlaces.length < PLACE_SUPPLEMENT_MIN_RESULTS) {
+      const generalized = generalizePlaceQuery(searchQuery);
+      if (generalized) {
+        const supplementData = await fetchNaverSearch(
+          config,
+          "local",
+          { query: generalized, display: "5", start: "1", sort: "comment" },
+          5000,
+        ).catch(() => null);
+        // 보충이 실패해도 처음 찾은 곳은 그대로 보여준다.
+        if (supplementData) {
+          supplementQuery = generalized;
+          appendUniquePlaces(
+            basePlaces,
+            buildPlacesFromItems(recordItems(supplementData).slice(0, 5), {
+              idPrefix: "naver-g-",
+              regionLabel: null,
+            }),
+            5,
+          );
+        }
+      }
+    }
+    // 실제로 네이버에 보낸 검색어를 모두 적는다(모델이 듣는 값도 이것이다).
+    const searchedQuery = supplementQuery
+      ? `${effectiveQuery}, ${supplementQuery}`
+      : effectiveQuery;
+
     // 기준점에서 가까운 순으로 다시 세우고 5개로 줄인다. 기준점을 못 구했거나 좌표를
     // 확신할 수 없으면 `rankPlacesByDistance` 가 순서를 손대지 않으므로, 그때의 결과는
     // 리뷰 많은 순 — 오늘과 같다.
@@ -668,7 +758,7 @@ export async function executeSearchNearbyPlaces(
           partial: false,
           warnings: [],
           resultCount: 0,
-          effectiveQuery,
+          effectiveQuery: searchedQuery,
           searchedAt,
         },
         success: true,
@@ -679,7 +769,7 @@ export async function executeSearchNearbyPlaces(
     return await buildPlaceSearchSuccess(config, {
       input,
       query,
-      effectiveQuery,
+      effectiveQuery: searchedQuery,
       searchedAt,
       basePlaces,
       rankByKind: true,

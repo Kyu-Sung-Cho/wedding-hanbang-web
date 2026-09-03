@@ -263,9 +263,22 @@ function projectionField(node: ValidProjectionNode): ProjectionField | null {
   return null;
 }
 
-function actorLabel(
+/**
+ * 발화자 라벨을 만드는 유일한 곳.
+ *
+ * 2026-09-03: 결정 히스토리(`prompts.ts` 의 pastDecisions 포매터)도 같은 값을
+ * 찍어야 해서 내보낸다. 문자열을 두 곳에 두면 중립 준비 공간에서 갈라진다 —
+ * `speakerLabels.ts` 머리에 적힌 사고와 같은 종류다.
+ */
+export type AmoraActorLabelContext = {
+  neutralMemberPresentation?: boolean;
+  viewerUserId?: string | null;
+  memberIds?: Partial<Record<AmoraMemoryActorRole, string | null>>;
+};
+
+export function amoraActorLabel(
   actor: AmoraMemoryActorRole,
-  context: AmoraProfileProjectionContext,
+  context: AmoraActorLabelContext,
 ): string {
   if (context.neutralMemberPresentation !== true) {
     return actor === "bride" ? "신부" : "신랑";
@@ -274,7 +287,7 @@ function actorLabel(
   // 위해서다. 그래서 "중립"으로 뭉개지 않고 관점으로 가른다.
   const viewerId = context.viewerUserId ?? null;
   if (viewerId !== null) {
-    const actorId = context.memberIds[actor];
+    const actorId = context.memberIds?.[actor] ?? null;
     if (actorId !== null) {
       return actorId === viewerId ? "본인" : "상대";
     }
@@ -288,7 +301,7 @@ function contributionText(
   node: ValidProjectionNode,
   context: AmoraProfileProjectionContext,
 ): string {
-  return `${actorLabel(node.sourceActorRole, context)} 명시 · ${node.memoryKey} = ${node.value}`;
+  return `${amoraActorLabel(node.sourceActorRole, context)} 명시 · ${node.memoryKey} = ${node.value}`;
 }
 
 function projectVisibility(

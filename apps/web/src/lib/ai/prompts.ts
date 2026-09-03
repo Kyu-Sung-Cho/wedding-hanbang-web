@@ -34,7 +34,10 @@ import {
   OFF_PEAK_WEDDING_MONTHS_LABEL,
   PEAK_WEDDING_MONTHS_LABEL,
 } from "@/constants/weddingSeasonality";
-import { AMORA_PROFILE_FIELD_MAX_CHARS } from "@/lib/ai/amoraProfileProjection";
+import {
+  amoraActorLabel,
+  AMORA_PROFILE_FIELD_MAX_CHARS,
+} from "@/lib/ai/amoraProfileProjection";
 import {
   BUDGET_SCOPE_LABELS,
   normalizeBudgetScope,
@@ -290,6 +293,14 @@ export type WeddingPlannerPromptContext = {
     confidence: number;
     source: string;
     createdAt: string;
+    /**
+     * `decision_nodes.source_actor_role`. 누가 말한 값인지 기록돼 있을 때만 채운다.
+     *
+     * 2026-09-03: 이 값이 없어서 중재 답변이 커플의 공동 전제를 한쪽 사람의
+     * 주장으로 귀속했다. 없으면 **지어내지 않는다** — 아래 활용 원칙이 "표시 없는
+     * 항목은 누구의 값으로도 단정하지 말라"고 못 박는다.
+     */
+    sourceActorRole?: "bride" | "groom" | null;
     vendorDeliveryStatus?: string | null;
     vendorConfirmationStatus?: string | null;
     internalRequestStatus?: string | null;
@@ -1107,6 +1118,18 @@ ${profileBlocks.join("\n\n")}
     const recentDecided = recent.filter((d) => d.decisionType === "decided" || d.decisionType === "booked");
     const recentConsidering = recent.filter((d) => d.decisionType === "considering" || d.decisionType === "exploring");
 
+    // 2026-09-03: 누가 말한 값인지 함께 싣는다. 라벨 문자열은
+    // `amoraProfileProjection` 과 **같은 함수**로 만든다 — 두 곳에 문자열을 따로
+    // 두면 중립 준비 공간에서 갈라진다. 기록이 없으면 아무 라벨도 붙이지 않는다.
+    const actorLabelContext = {
+      neutralMemberPresentation: context.neutralMemberPresentation === true,
+    };
+    const actorPrefix = (d: typeof context.pastDecisions[number]): string => {
+      const role = d.sourceActorRole;
+      if (role !== "bride" && role !== "groom") return "";
+      return `[${amoraActorLabel(role, actorLabelContext)}] `;
+    };
+
     const formatDetailed = (d: typeof context.pastDecisions[number]): string => {
       const dateStr = ymdInKst(new Date(d.createdAt));
       const categoryLabel = CATEGORY_LABELS[d.category] ?? promptData(d.category, 80);
@@ -1122,7 +1145,7 @@ ${profileBlocks.join("\n\n")}
         d.completionEvidence ? `완료 근거=${promptData(d.completionEvidence, 40)}` : null,
       ].filter((part): part is string => part !== null);
       const truthText = truthParts.length > 0 ? ` | 진실 상태 ${truthParts.join(", ")}` : "";
-      return `  - [${categoryLabel}]${sourceTag} 제목 ${promptData(d.title, 300)}${valueText}${reasonText}${truthText} (${dateStr})`;
+      return `  - ${actorPrefix(d)}[${categoryLabel}]${sourceTag} 제목 ${promptData(d.title, 300)}${valueText}${reasonText}${truthText} (${dateStr})`;
     };
 
     // 오래된 결정: 압축 (날짜 + 카테고리 + 제목만, reasoning 생략)
@@ -1133,7 +1156,7 @@ ${profileBlocks.join("\n\n")}
       const truthText = d.vendorDeliveryStatus || d.vendorConfirmationStatus
         ? ` | 업체 전달=${promptData(d.vendorDeliveryStatus ?? "unknown", 40)}, 업체 확인=${promptData(d.vendorConfirmationStatus ?? "unknown", 40)}`
         : "";
-      return `  - [${categoryLabel}] 제목 ${promptData(d.title, 300)}${valueText}${truthText} (${dateStr})`;
+      return `  - ${actorPrefix(d)}[${categoryLabel}] 제목 ${promptData(d.title, 300)}${valueText}${truthText} (${dateStr})`;
     };
 
     const sections: string[] = [];
@@ -1147,7 +1170,7 @@ ${profileBlocks.join("\n\n")}
     if (preferences.length > 0) {
       const formatPref = (d: typeof context.pastDecisions[number]): string => {
         const valueText = d.value ? `값 ${promptData(d.value, 500)}` : "값 미기록";
-        return `  - ${valueText} | 배경 ${promptData(d.reasoning, 800)}`;
+        return `  - ${actorPrefix(d)}${valueText} | 배경 ${promptData(d.reasoning, 800)}`;
       };
       sections.push(
         `**🪞 드러난 가치관 (top ${preferences.length}, 추천 시 가중치 높게):**\n${preferences.map(formatPref).join("\n")}`
@@ -1179,6 +1202,7 @@ ${sections.join("\n\n")}
 3. **맥락 이어가기**: 사용자가 짧게 말하면 과거 맥락을 단정하지 말고 짧게 확인. "1500만원 얘기 이어가는 걸까요?"
 4. **번복 금지**: 결정한 것을 다시 권유하지 마세요. "스튜디오 결정하셨잖아요"라고 말로 지적 X — 자연스럽게 그 결정에 맞춰 답변만.
 5. **리셋 시그널**: 사용자가 "다시 정할래", "생각이 바뀌었어" 명시하면 그때만 이전 결정 재검토.
+6. **발화자 귀속**: 앞에 [${amoraActorLabel("bride", actorLabelContext)}]/[${amoraActorLabel("groom", actorLabelContext)}] 표시가 붙은 항목만 그 사람이 말한 값입니다. 표시가 없으면 출처가 기록되지 않은 것이니 두 사람 중 누구의 가치나 주장으로도 단정하지 마세요.
 
 **회상 톤 — 결정 나이(age)에 따라 강도 조절:**
 - **최근 7일 이내** 결정 → 직접 인용 OK. "지난주 스페인 정하신 거..." 정도 단정적 톤.
