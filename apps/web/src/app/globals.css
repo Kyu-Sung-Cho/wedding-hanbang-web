@@ -208,6 +208,15 @@
   --color-paper-ink: #26251F;
   --color-paper-ink-soft: #4A483F;
   --color-paper-ink-faint: #605E54;
+  /* 잉크 위에 얹는 글자 — 랜딩 끝 다크 밴드(경계 + 마무리)가 쓴다.
+     2026-09-03 시안 픽셀 실측: 제목 #FFFFFB · 항목 본문 #D7D4CD · 작은 글씨 #89897F.
+     작은 글씨는 실측값 그대로 쓰면 잉크 위에서 4.4:1 이라 3단계만 한 칸 올렸다
+     (#96938B = 5.2:1). 셋 다 --color-paper-ink 바탕에서 WCAG AA 를 넘는다. */
+  --color-paper-on-ink: #FDFCF7;
+  --color-paper-on-ink-soft: #D7D4CD;
+  --color-paper-on-ink-faint: #96938B;
+  /* 어두운 바탕의 구분선. 대비 기준이 아니라 '보이되 튀지 않는' 값이다. */
+  --color-paper-on-ink-rule: #4A483F;
   --color-paper-pen: #35638A;
   --color-paper-pen-deep: #24465F;
   --color-paper-mark: #B8452F;

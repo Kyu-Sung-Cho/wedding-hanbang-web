@@ -54,6 +54,10 @@
     divider `#DDD8C9`. `tint` is one step deeper than `sheet` and alternates section grounds —
     without it the "tinted" sections repaint the page colour and the section boundary vanishes.
   - Ink: `#26251F`, soft `#4A483F`, faint `#605E54`
+  - On ink (잉크 **위에** 얹는 것 — 랜딩 끝 다크 밴드): text `#FDFCF7`, soft `#D7D4CD`,
+    faint `#96938B`, rule `#4A483F`. 2026-09-03 시안 픽셀 실측값이고, faint 만 한 칸
+    올렸다 — 실측 `#89897F` 는 `ink` 바탕에서 4.4:1 로 AA 미달, `#96938B` 는 5.2:1.
+    rule 은 어두운 바탕의 구분선이라 대비 기준이 아니라 **보이되 튀지 않는** 값이다.
   - Pens: blue `#35638A` (links, handwritten emphasis), hover `#24465F`, red circle `#B8452F`,
     tape `#F6E7A8` on `#6C5410`, outline-button border `#8F8A7A`
     - ⚠️ outline-button border 는 **장식이 아니라 컨트롤의 경계**다. 테두리 버튼은 이 선
