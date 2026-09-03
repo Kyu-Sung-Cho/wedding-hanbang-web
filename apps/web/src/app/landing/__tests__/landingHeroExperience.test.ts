@@ -62,6 +62,17 @@ function redesign(fileName: string): string {
 }
 
 const hero = redesign("TransformationHero.tsx");
+
+/**
+ * 첫 화면에서 금지되는 **도구 이름**들. 목록이지 정규식 하나가 아닌 이유는
+ * "몇 개나 늘어놓았는지"를 세야 하기 때문이다(아래 케이스 참조).
+ */
+const TOOL_NAMES = ["예산", "할 일", "일정", "체크리스트"] as const;
+
+/** 주어진 글에 등장하는 도구 이름들(중복 없이, 목록 순서대로). */
+function toolNamesIn(text: string): string[] {
+  return TOOL_NAMES.filter((name: string) => text.includes(name));
+}
 /**
  * 타입 스케일 정본이 옮겨졌다.
  *
@@ -330,7 +341,11 @@ describe("landing hero product experience contract", () => {
     //
     // **블록 안에서** 찾는다. 파일 전체 toContain 이던 시절에는 이 문장을
     // `footer.tagline` 으로 옮겨도 통과했다 — 첫 화면이 제품을 설명하지 않는데도.
-    expect(heroCopy).toContain("가격과 조건은 저희가 원문 그대로 펼쳐 둘 테니");
+    //
+    // 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)으로 본문이 바뀌었다.
+    // 옛 문장은 우리가 무엇을 **펼쳐 주는지**(공시 원문)를 말했고, 새 문장은 우리가
+    // 무엇을 **같이 정하는지**를 말한다. 계약은 그대로다 — 첫 화면이 제품을 설명한다.
+    expect(heroCopy).toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요");
 
     // 산출물을 **개수가 아니라 이름으로** 말한다. 이전 문구는 "세 가지"라고만 해서
     // 그 셋이 무엇인지 랜딩 어디에도 없었다. 스무 장면은 2026-08-29 개편에서
@@ -363,16 +378,36 @@ describe("landing hero product experience contract", () => {
     for (const tool of ["예산", "할 일", "일정", "제안", "반영"]) {
       expect(confirmCopy, `확인 섹션이 ${tool}을 말하지 않는다`).toContain(tool);
     }
-    expect(heroCopy, "첫 화면에 도구 이름을 늘어놓지 않는다").not.toMatch(/예산|할 일|체크리스트/u);
-    expect(hero, "첫 화면에 도구 이름을 늘어놓지 않는다").not.toMatch(/예산|할 일|체크리스트/u);
+    //
+    // ## 왜 "하나도 쓰지 마라"가 아니라 "늘어놓지 마라"인가
+    //
+    // 2026-09-03 시안의 본문은 "**예산**, 하객, 부모님 의견. 둘이 갈리는 것부터…"다.
+    // 여기서 `예산` 은 도구 이름이 아니라 **둘이 갈리는 화제**의 첫 번째다 — 하객·부모님
+    // 의견과 나란히 놓여 있고, 셋 중 둘은 제품에 도구가 없다. 낱말 하나로는 그 절이
+    // 도구 소개인지 장면 묘사인지 가를 수 없다(이 저장소가 여러 번 겪은 함정).
+    //
+    // 그래서 계약 문장 그대로 잰다 — **늘어놓았는가**. 옛 히어로가 실제로 한 일은
+    // 예산·할 일·일정·변경 제안·반영을 한 줄에 죽 세운 것이었고, 그건 둘 이상이다.
+    // 하나는 통과, 둘부터 실패. 아래 "도구 이름을 늘어놓으면 잡는다" 케이스가 옛 히어로
+    // 문장을 그대로 넣어 이 규칙이 살아 있는지 확인한다.
+    for (const [where, text] of [["카피", heroCopy], ["컴포넌트", hero]] as const) {
+      const listed = toolNamesIn(text);
+      expect(
+        listed.length,
+        `첫 화면(${where})에 도구 이름을 늘어놓았다: ${listed.join("·")}`,
+      ).toBeLessThanOrEqual(1);
+    }
 
     // 행동을 부르는 문장은 설명 뒤에 오고, 첫 화면과 마무리가 **같은 행동**을 부른다.
     // 다른 걸 부르면 페이지 전체가 무엇을 시키려는 건지 흐려진다.
     //
-    // 2026-08-29: 1차 CTA 가 `/wedding-code` → `/price` 로 바뀌었다. 시안의 첫 버튼
-    // "가입 없이 물어보기" 는 비로그인 아모라 체험이 닫혀 못 쓰고, 시안이 이미 갖고
-    // 있던 둘째 버튼을 첫째로 올린 것이다. **둘이 같아야 한다**는 계약은 그대로다.
-    const primaryCta = 'primary: { label: "공시 가격부터 보기", href: "/price" }';
+    // 2026-08-29: 1차 CTA 가 `/wedding-code` → `/price` 로 바뀌었다.
+    // 2026-09-03: 시안 원본(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)을 다시 열어 보니
+    // 시안의 첫 버튼은 "아모라와 준비 시작하기"(가입)였다 — 앞 줄에 적힌 "가입 없이
+    // 물어보기" 는 **내가 시안을 잘못 읽은 것**이고, 시안은 버튼 밑에 "결제 없이 계정
+    // 생성" 이라고 적어 첫 행동이 가입임을 분명히 한다. **둘이 같아야 한다**는 계약은
+    // 그대로다.
+    const primaryCta = 'primary: { label: "아모라와 준비 시작하기", href: "/login?mode=signup" }';
     expect(heroCopy).toContain(primaryCta);
     expect(block("closing")).toContain(primaryCta);
 
@@ -387,13 +422,19 @@ describe("landing hero product experience contract", () => {
     // 로그인 없이 밟을 수 있는 첫 걸음. 이 자리는 날짜 폼(/start-here) → 스무 장면
     // (/wedding-code) → 공시 가격(/price) 으로 옮겨 다녔다. 셋 다 supabase 0 · fetch 0
     // 이라 **로그인 없이 끝까지 만져진다**는 점이 같고, 그것이 계약이다.
-    // 히어로는 지금 그런 문 둘을 나란히 낸다.
-    expect(heroCopy).toContain('href: "/price"');
+    //
+    // 2026-09-03 시안은 첫 버튼을 가입("아모라와 준비 시작하기")으로 세운다. 그래서
+    // 히어로가 내는 **문 둘 중 하나**가 계정을 요구하게 됐다. 계약을 "둘 다 열려 있다"
+    // 에서 "**적어도 하나는 계정 없이 열려 있다**" 로 좁힌다 — 지키려는 해악("처음 온
+    // 사람이 첫 화면에서 아무 데도 못 간다")은 문이 하나라도 열려 있으면 일어나지 않고,
+    // 둘 다 닫히면 운다 — 그 판정은 `landingFirstVisitClarity.test.ts` 가 진다
+    // (거기서 두 버튼을 "로그인 없이 되는 것" 목록과 맞대본다).
     expect(heroCopy).toContain('href: "/wedding-code"');
     expect(hero).toContain("hero.primary.href");
 
-    // 가입이 필요 없다는 것을 CTA 옆에서 말한다.
-    // (옛 폼의 "없어도 시작 가능" · 옛 히어로의 "가입도 로그인도 필요 없어요")
+    // 첫 화면의 조건을 CTA 옆에서 말한다. 시안 문장("결제 없이 계정 생성")이 첫 버튼의
+    // 조건을 지고, 뒤 문장이 로그인 없이 열린 쪽의 조건을 진다.
+    expect(heroCopy).toContain("결제 없이 계정 생성");
     expect(heroCopy).toContain("로그인·결제 없이 열려요");
 
     // **뒤에 붙여 뒤집는 것**도 막는다. 계약 문장을 그대로 두고 그 뒤에
@@ -691,7 +732,9 @@ describe("landing hero product experience contract", () => {
     const confirmCopy = block("confirm");
 
     // 첫 문단은 "무엇이 문제고 우리가 무엇을 하는지"만 말한다.
-    expect(heroCopy).toContain("어디에 뭘 적어뒀는지도 헷갈릴 때가 있잖아요");
+    // 2026-09-03 시안: 문제는 "기록이 흩어진 것"에서 "둘의 답이 갈리는 것"으로 옮겼다.
+    // 갈리는 것 셋을 먼저 이름으로 대고(예산·하객·부모님 의견) 그것부터 정한다고 말한다.
+    expect(heroCopy).toContain("예산, 하객, 부모님 의견");
     expect(heroCopy, "산출물을 개수로만 말하면 안 된다").not.toMatch(/(?:세|3|셋)\s*가지/u);
 
     // ## 베타는 개념 자체가 없어졌다 — 그래서 요구가 아니라 금지로 뒤집는다
@@ -792,9 +835,22 @@ describe("landing hero product experience contract", () => {
       // 2026-08-29 정본 시안: 테이프 이름표(p > span) → H1(줄마다 span) → 본문 p →
       // 버튼 줄 div → 1차 CTA. 옛 판의 `<br>` 두 개는 없어졌다 — 제목 줄바꿈을
       // `title.split("\n")` 이 span 으로 그린다.
+      //
+      // 2026-09-03: H1 안 span 이 하나에서 셋으로 늘었다. 시안이 둘째 줄의
+      // `우리 둘이` 만 로즈로 칠해서, 줄마다 "강조 없음 / 강조 있음" 두 갈래를
+      // 그리기 때문이다(강조 갈래가 바깥 span + 안쪽 강조 span 둘).
+      // **셋 다 인라인이라 세로 높이를 늘리지 않는다** — 이 검사가 지키려는
+      // "CTA 가 첫 화면 밖으로 밀리는가" 는 그대로다.
+      //
+      // 2026-09-03: 맨 앞에 `div` 가 하나 늘었다. 시안이 히어로 오른쪽에 앱 화면
+      // 미리보기를 되돌려 놔서 글 쪽이 한 단으로 묶였다. **좁은 화면에서는 그 div 가
+      // 폭 전체를 쓰는 블록 하나**라 세로로 아무것도 더하지 않는다.
+      "div",
       "p",
       "span",
       "h1",
+      "span",
+      "span",
       "span",
       "p",
       "div",
@@ -876,7 +932,12 @@ describe("landing hero product experience contract", () => {
 
     // 한글 헤드라인 고아 글자 방지. keep-all은 어절 단위로만 끊고, 마지막 줄에
     // 한 어절만 남는 것("… 해야 할 / 일.")은 text-balance가 막는다.
-    expect(notebook).toMatch(/export const sectionTitle\s*=[\s\S]*?text-balance/u);
+    // 2026-09-03: 곡선이 `sectionTitleShape` 로 빠지고 `sectionTitle`·`sectionTitleOnInk`
+    // 가 그것을 나눠 갖는다(다크 밴드가 색만 다른 제목을 쓴다). 그래서 둘 다 본다 —
+    // 곡선에 text-balance 가 있고, 제목 상수가 **그 곡선에서** 만들어지는지.
+    expect(notebook).toMatch(/const sectionTitleShape\s*=[\s\S]*?text-balance/u);
+    expect(notebook).toMatch(/export const sectionTitle\s*=\s*`\$\{sectionTitleShape\}/u);
+    expect(notebook).toMatch(/export const sectionTitleOnInk\s*=\s*`\$\{sectionTitleShape\}/u);
     expect(hero).toMatch(/<h1[^>]*text-balance/u);
   });
 
@@ -952,19 +1013,39 @@ describe("landing hero product experience contract", () => {
     // 새 히어로는 어느 폭에서도 한 단이고, 결과(아모라가 적어 준 노트)는 컬럼이
     // 아니라 **바로 다음 섹션**이다. 지켜야 할 것은 같다: 첫 화면 다음에 곧바로
     // 증거가 온다.
-    expect(hero, "히어로는 어느 폭에서도 한 단이다").not.toMatch(/\bgrid\b/u);
+    // ## 2026-09-03: "어느 폭에서도 한 단" → "**좁은 화면에서** 한 단"
+    //
+    // 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)이 히어로 오른쪽에 앱 화면
+    // 미리보기를 되돌려 놨다. 그래서 넓은 화면은 다시 2단이다.
+    //
+    // 막으려던 해악은 폭이 아니라 **첫 행동이 아래로 밀리는 것**이었다("작은 화면에서
+    // 결과를 먼저"). 그건 좁은 화면에서만 일어나므로, 계약을 거기에 맞춘다:
+    // 본문을 감싼 조상은 **접두사 없는**(=모든 폭에 걸리는) 단 나누기를 쓸 수 없다.
+    // `lg:grid-cols-…` 는 통과하고 `grid-cols-2` 는 잡힌다.
+    //
+    // 그리고 미리보기는 소스에서 본문 **뒤**에 온다 — 좁은 화면의 쌓이는 순서가 곧
+    // 소스 순서라, 이것이 "첫 행동이 먼저"를 지키는 실제 장치다.
+    expect(
+      hero.indexOf("hero.note"),
+      "미리보기가 첫 행동보다 앞에 온다 — 좁은 화면에서 CTA 가 밀린다",
+    ).toBeLessThan(hero.indexOf("<AppPreviewCard"));
 
     // `grid` 하나만 막던 시절에는 `lg:flex lg:flex-row` 로 단을 나누면 통과했다.
-    // 본문(H1·설명)을 감싼 **조상** 중 어느 것도 단을 나누지 않아야 한다.
+    // 본문(H1·설명)을 감싼 **조상** 중 어느 것도 좁은 화면에서 단을 나누지 않아야 한다.
     // CTA 줄의 `sm:flex-row`(버튼 두 개를 옆으로)는 조상이 아니라서 여기 안 걸린다.
+    const UNPREFIXED_COLUMNS = /(?:^|\s)(?:grid-cols-|flex-row|columns-)/u;
     for (const marker of ["hero.body", "<h1"]) {
       for (const tag of renderChain(hero, marker)) {
         expect(
           classNameOf(tag),
-          `히어로 본문을 <${tag.name}> 이 여러 단으로 나눈다`,
-        ).not.toMatch(/(?:^|\s)(?:[\w[\]@&().#%/*+~:-]+:)?(?:grid|flex-row|columns-\w+)(?=\s|$)/u);
+          `히어로 본문을 <${tag.name}> 이 좁은 화면에서도 여러 단으로 나눈다`,
+        ).not.toMatch(UNPREFIXED_COLUMNS);
       }
     }
+    // 자기검증: 접두사 없는 값은 잡고, 접두사 붙은 값은 통과시킨다.
+    expect("mt-4 grid-cols-2 gap-3").toMatch(UNPREFIXED_COLUMNS);
+    expect("grid items-center lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]")
+      .not.toMatch(UNPREFIXED_COLUMNS);
 
     // 증거가 첫 화면 바로 다음이다. 옛 판은 `ScenesSection`(장면 문항)이 그 자리였고,
     // 2026-08-29 정본 시안에서는 `AmoraNoteSection`(아모라가 적어 준 노트 한 장)이다.
@@ -1029,6 +1110,22 @@ describe("landing hero product experience contract", () => {
       expect(amoraNoteSection).toContain(marker);
       expectVisible("AmoraNoteSection.tsx", amoraNoteSection, marker);
     }
+  });
+
+  it("도구 이름을 늘어놓으면 잡는다 — 하나만 통과시키는 규칙이 살아 있다", () => {
+    // 위 케이스는 "둘부터 실패"로 느슨해졌다. 느슨해진 규칙이 **여전히 원래 잡던 것을
+    // 잡는지** 여기서 확인한다 — 안 그러면 조용히 아무것도 안 막는 검사가 된다.
+    //
+    // 2026-08-29 전 히어로가 실제로 첫 화면에 늘어놓던 문장이다.
+    const oldLineup = "예산, 할 일, 일정을 한곳에서 보고 변경 제안을 준비에 반영해요";
+    expect(toolNamesIn(oldLineup).length, "옛 히어로 문장을 통과시킨다")
+      .toBeGreaterThan(1);
+
+    // 지금 카피는 `예산` 하나뿐이고, 그건 도구가 아니라 갈리는 화제의 첫 번째다.
+    expect(toolNamesIn(block("hero"))).toEqual(["예산"]);
+
+    // 그리고 목록이 비면 규칙 자체가 사라진다 — 이름을 지워도 초록이 되지 않게.
+    expect(TOOL_NAMES.length, "도구 이름 목록이 비었다").toBeGreaterThan(2);
   });
 
   it("keeps the source helper in charge — no private comment stripper comes back", () => {

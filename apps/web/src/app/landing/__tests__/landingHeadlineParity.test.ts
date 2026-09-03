@@ -97,7 +97,13 @@ function sectionTitleProp(file: string): string {
  * 둔갑한다 — 2026-08-29에 실제로 커뮤니티·히어로 제목이 그렇게 읽혔다.
  */
 function readable(raw: string): string {
-  let out = raw.replace(/<[^>]*>/gu, ""); // 태그 제거
+  // 태그 제거.
+  //
+  // ⚠️ `<[^>]*>` 였다. 그러면 **비교 연산자의 `<`** 가 태그 여는 괄호로 읽혀서, 거기서
+  // 다음 `>` 까지(즉 진짜 여는 태그의 끝까지)를 통째로 지운다. 2026-09-03 히어로가
+  // `if (at < 0)` 를 갖게 되자 H1 이 `')}'` 로 읽혔고, 카피가 정본과 같은데도 실패했다.
+  // JSX 여는·닫는 태그는 `<` 다음이 글자거나 `/` 이고, 프래그먼트는 `<>`/`</>` 뿐이다.
+  let out = raw.replace(/<\/?[A-Za-z][^>]*>|<\/?>/gu, "");
   for (;;) {
     const next = out.replace(/\{[^{}]*\}/gu, ""); // JSX 표현식 제거
     if (next === out) break;
@@ -133,7 +139,17 @@ function sourceStringToText(raw: string): string {
  * 태그를 먼저 지운다. 안 지우면 `<span key={line}>` 같은 프로프가 섞여 들어온다.
  */
 function titleRefsIn(raw: string): string[] {
-  const withoutTags = raw.replace(/<[^>]*>/gu, "");
+  // 태그를 지우되 **태그 안의 `{표현식}` 은 남긴다.**
+  //
+  // 2026-09-03: 경계·마무리가 `<TitleLines value={boundaries.title} />` 로 제목을
+  // 그리게 됐는데, 태그를 통째로 지우니 참조까지 사라져 "아무 title 상수도 그리지
+  // 않는다" 가 됐다 — 화면은 멀쩡히 정본을 그리는데도. 문자열 속성(`alt="…"`)은
+  // 표현식이 아니라 그대로 빠지므로, 이 파일이 막던 "참조를 alt 에만 남기는 우회"는
+  // 여전히 막힌다.
+  const withoutTags = raw.replace(
+    /<\/?[A-Za-z][^>]*>|<\/?>/gu,
+    (tag: string) => [...tag.matchAll(/\{([^{}]*)\}/gu)].map((m) => m[1]).join(" "),
+  );
   return [
     ...withoutTags.matchAll(/[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*\.title\b/gu),
   ].map((match: RegExpMatchArray) => match[0]);
