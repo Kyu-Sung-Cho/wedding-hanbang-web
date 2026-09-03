@@ -945,6 +945,64 @@ export function resolveAmoraPendingAction({
 }
 
 /**
+ * 이 길이 이상 겹치는 꼬리만 두 번째부터 앞자리를 가리킨다.
+ *
+ * 가리키는 문장 자체가 40자 남짓이라 짧은 겹침까지 접으면 오히려 길어진다.
+ */
+const SHARED_FIELD_DESCRIPTION_MIN_CHARS = 80;
+
+/** 두 문자열이 뒤에서부터 몇 글자나 같은가. */
+function commonSuffixLength(left: string, right: string): number {
+  let length = 0;
+  while (
+    length < left.length
+    && length < right.length
+    && left[left.length - 1 - length] === right[right.length - 1 - length]
+  ) {
+    length += 1;
+  }
+  return length;
+}
+
+type SharedDescriptionState = {
+  anchors: { description: string; label: string }[];
+};
+
+/**
+ * 앞서 통째로 실린 설명과 **꼬리가 같으면** 그 자리를 가리킨다.
+ *
+ * 처음엔 문자열이 정확히 같을 때만 접었는데 **한 건도 접히지 않았다.**
+ * 카테고리 20개 풀이를 공유하는 세 설명이 앞머리만 서로 달랐기 때문이다
+ * ("변경할 카테고리. …" / "카테고리. …" / "관련 카테고리 (선택). … general=일반, …").
+ * 꼬리 기준으로 바꾸니 실제로 접힌다 — 이 함수가 헛도는지는 합성 길이 테스트가 잰다.
+ *
+ * 자르는 자리는 **공백 다음**으로 맞춘다. 겹치는 꼬리가 낱말 가운데서 시작하면
+ * 앞머리에 조각난 낱말이 남기 때문이다.
+ */
+function foldRepeatedDescription(
+  description: string,
+  label: string,
+  state: SharedDescriptionState,
+): string {
+  if (description.length < SHARED_FIELD_DESCRIPTION_MIN_CHARS) return description;
+  for (const anchor of state.anchors) {
+    let start = description.length
+      - commonSuffixLength(description, anchor.description);
+    if (start > 0 && description[start - 1] !== " ") {
+      const boundary = description.indexOf(" ", start);
+      if (boundary === -1) continue;
+      start = boundary + 1;
+    }
+    if (description.length - start < SHARED_FIELD_DESCRIPTION_MIN_CHARS) continue;
+    const folded = `${description.slice(0, start)}(${anchor.label})`;
+    if (folded.length >= description.length) continue;
+    return folded;
+  }
+  state.anchors.push({ description, label });
+  return description;
+}
+
+/**
  * 계약문에 넣을 한 도구의 입력 필드 설명.
  *
  * 이름을 안 알려주면 모델이 지어낸다. 그리고 지어낸 키가 하나라도 있으면
@@ -952,8 +1010,12 @@ export function resolveAmoraPendingAction({
  * 2026-08-22 스테이징 실측에서 표식 10개가 전부 이렇게 사라졌다
  * (`start_time`·`end_time`·`location`, 그리고 `budget` 대신 `amount`).
  * 값이 정해진 필드는 값 목록까지 준다. 같은 함정이 enum 에서 반복되기 때문이다.
+ * (예외: 설명이 이미 `키=풀이` 로 모든 값을 적고 있으면 목록을 두 번 적지 않는다.)
  */
-function describeToolInputFields(tool: AiToolDefinition): string {
+function describeToolInputFields(
+  tool: AiToolDefinition,
+  sharedDescriptions?: SharedDescriptionState,
+): string {
   const properties = isRecord(tool.input_schema.properties)
     ? tool.input_schema.properties
     : {};
@@ -977,10 +1039,27 @@ function describeToolInputFields(tool: AiToolDefinition): string {
     const description = typeof schema.description === "string"
       ? schema.description.replace(/\s+/gu, " ").trim()
       : "";
-    const base = enumValues.length > 0
+    // 2026-09-03 카테고리 20개 풀이(352자)가 update_task_status·add_schedule_event·
+    // toggle_checklist_item 에서 세 번 실려 700자를 먹었다. 합성 프롬프트는
+    // 상한(48,000자)에 이미 붙어 있어서, 그 700자만큼이 저장 문맥 꼬리에서 조용히
+    // 잘려 나간다. 두 번째부터는 처음 실린 자리를 가리킨다.
+    const shownDescription = sharedDescriptions
+      ? foldRepeatedDescription(
+          description,
+          `위 ${tool.name}의 ${name} 설명과 같음`,
+          sharedDescriptions,
+        )
+      : description;
+    // 설명이 enum 값을 **하나도 빠짐없이** `키=풀이` 로 적고 있으면 값 목록을 따로
+    // 붙일 이유가 없다(같은 20개를 두 번 적는 셈이다). 접힌 설명은 값이 앞자리에만
+    // 있으므로 목록을 그대로 둔다 — 접힌 자리에서 값을 못 찾게 하지 않는다.
+    const enumValuesSpelledOut = enumValues.length > 0
+      && shownDescription === description
+      && enumValues.every((value) => description.includes(`${String(value)}=`));
+    const base = enumValues.length > 0 && !enumValuesSpelledOut
       ? `${type}: ${enumValues.map(String).join("|")}`
       : type;
-    const detail = description ? `${base} — ${description}` : base;
+    const detail = shownDescription ? `${base} — ${shownDescription}` : base;
     return `${name}${required.has(name) ? "*" : ""}(${detail})`;
   });
   return fields.length > 0 ? fields.join(", ") : "(입력 없음)";
@@ -1019,17 +1098,38 @@ export function describeUnconfirmedAmoraPendingAction({
   });
 }
 
+/** `_id`로 끝나는 입력 필드를 가진 도구인가. */
+function declaresIdField(tool: AiToolDefinition): boolean {
+  const properties = isRecord(tool.input_schema.properties)
+    ? tool.input_schema.properties
+    : {};
+  return Object.keys(properties).some((name) => name.endsWith("_id"));
+}
+
 export function buildAmoraPendingActionPrompt(
   supportedTools: readonly AiToolDefinition[],
 ): string {
+  // 같은 설명을 두 번째부터 접으려면 도구 줄을 **먼저** 만들어야 한다 — 처음 실린
+  // 자리가 기준이 된다. 순서는 supportedTools 그대로라 같은 입력에 같은 결과다.
+  const sharedDescriptions: SharedDescriptionState = { anchors: [] };
+  const toolLines = supportedTools.map(
+    (tool) => `  · ${tool.name}: ${describeToolInputFields(tool, sharedDescriptions)}`,
+  );
+  const supports = (name: string): boolean =>
+    supportedTools.some((tool) => tool.name === name);
+  const declaresMemoField = supportedTools.some((tool) =>
+    isRecord(tool.input_schema.properties)
+    && Object.keys(tool.input_schema.properties).includes("memo"));
   return [
     "[서버 발급 후속 확인 계약]",
     "- 사용자의 확인이 필요한 변경을 제안하거나 적용 여부를 물을 때는, 그 답변 안에 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 사용자가 확인해도 실행할 방법이 없습니다.",
-    "- 요청이 여러 건이면 첫 번째 건만 표식으로 내고, 나머지는 본문에 순서대로 적은 뒤 이 확인이 끝나면 이어서 제안하겠다고 말하세요. 표식이 둘 이상이면 서버가 모두 버려 카드가 하나도 나가지 않습니다.",
-    "- 제안 가능한 변경 도구와 input 필드 (`*`는 필수). **아래에 없는 이름을 쓰면 표식이 통째로 버려지고 사용자는 확인 버튼을 받지 못합니다. 값을 넣을 자리가 없으면 지어내지 말고 memo 같은 선언된 필드에 넣거나 생략하세요.**",
-    ...supportedTools.map(
-      (tool) => `  · ${tool.name}: ${describeToolInputFields(tool)}`,
-    ),
+    // 2026-09-03: 옛 문장은 "첫 번째 건만 표식으로 내고" 였다. 모델이 그걸
+    // **능력 부정**으로 옮겨 적었다 — 일정 3건을 한 번에 부탁하면 "한 번에 하나만
+    // 등록할 수 있어요" 라고 답하고 표식을 아예 안 냈다(스테이징 일괄 등록 카드 0건).
+    // 하나만 내라는 것은 표식 형식 제약이지 제품의 한계가 아니다.
+    "- 요청이 여러 건이면 **첫 번째 건의 표식은 이번 답변에 반드시 내고**, 나머지는 본문에 순서대로 적은 뒤 이 확인이 끝나면 이어서 제안하겠다고 말하세요. 표식이 둘 이상이면 서버가 모두 버려 카드가 하나도 나가지 않습니다. 이건 형식 규칙이지 제품의 한계가 아니니 \"한 번에 하나만 등록할 수 있어요\"처럼 말하지 마세요.",
+    `- 제안 가능한 변경 도구와 input 필드 (\`*\`는 필수). **아래에 없는 이름을 쓰면 표식이 통째로 버려지고 사용자는 확인 버튼을 받지 못합니다. 값을 넣을 자리가 없으면 지어내지 말고 ${declaresMemoField ? "memo 같은 " : ""}선언된 필드에 넣거나 생략하세요.**`,
+    ...toolLines,
     // 필드 이름만 알려주고 이 줄을 빼면, 예전엔 다른 지어낸 키에 걸려 버려지던
     // 표식이 이제는 스키마를 통과해 **지어낸 id로 카드가 나간다.** 그래서 출처를
     // 못 박는다.
@@ -1039,9 +1139,39 @@ export function buildAmoraPendingActionPrompt(
     // 낡은 채로 두었더니 아모라가 **정확한 항목 이름을 듣고도** "항목 ID를 알 수
     // 없다"며 사용자에게 화면에서 ID를 읽어오라고 되물었다. 사용자는 그런 걸
     // 모른다. 되묻기를 없애는 것이 아니라, 되물을 이유가 없을 때 되묻지 않게 한다.
-    "- `_id`로 끝나는 필드는 **위 문맥에 적힌 값만** 쓰세요. 일정 id는 `### 등록된 일정`의 각 줄 앞(`evt_…=`)에, 체크리스트 항목 id는 카테고리 줄의 `⬜`·`✅` 바로 뒤(`invitation_02=`)에 있습니다. 문맥에 그 항목이 있으면 되묻지 말고 그 id로 표식을 내세요. 문맥에 없는 항목이면 지어내지 말고 표식 없이 어느 항목인지 되물으세요.",
-    "- 표식 형식: [pending_action]{\"tool\":\"도구명\",\"input\":{...}}[/pending_action]",
+    // 2026-09-03: `_id` 필드가 하나도 없는 턴(예산 도구만 열린 턴)에도 이 200자가
+    // 실렸다. 가리킬 대상이 없는 지시라 지면만 먹는다 — 프롬프트가 상한에 붙어
+    // 있는 동안에는 그 자리가 저장 문맥 꼬리를 밀어낸다.
+    ...(supportedTools.some(declaresIdField) ? [
+      "- `_id`로 끝나는 필드는 **위 문맥에 적힌 값만** 쓰세요. 일정 id는 `### 등록된 일정`의 각 줄 앞(`evt_…=`)에, 체크리스트 항목 id는 카테고리 줄의 `⬜`·`✅` 바로 뒤(`invitation_02=`)에 있습니다. 문맥에 그 항목이 있으면 되묻지 말고 그 id로 표식을 내세요. 문맥에 없는 항목이면 지어내지 말고 표식 없이 어느 항목인지 되물으세요.",
+    ] : []),
+    // 2026-09-03: 행동 카드는 **도구를 부르며 시키는 문장이 계약문 어디에도 없었다.**
+    // 이름이 나오는 곳은 위 필드 목록 줄 하나뿐이라, 모델은 그 도구가 언제 쓰이는지
+    // 배운 적이 없다(스테이징 행동 카드 0건). 일정·예산에는 그런 문장이 있다.
+    // 필수 필드가 `title` 하나라는 것도 여기서 못 박는다 — 선택 필드 6개를 앞에 두고
+    // 모델이 "무엇으로 채울지 모르겠으니 되묻자" 로 도망쳤다.
+    ...(supports("add_amora_action") ? [
+      "- 할 일·투두·챙길 것을 추가해 달라는 요청에는 `add_amora_action` 표식을 이번 답변에 내세요. 필요한 값은 `title` 하나입니다 — 마감일·카테고리·중요도는 확실할 때만 넣고, 확실하지 않으면 빼세요.",
+    ] : []),
+    // 같은 공백이 `log_wedding_event` 에도 있었다. 다만 이 도구는 8종 준비 일정
+    // 전용이라, 범위를 함께 못 박지 않으면 일반 일정까지 이쪽으로 끌어온다
+    // (단건 일정 카드는 지금 잘 나가는 경로다 — 건드리지 않는다).
+    ...(supports("log_wedding_event") ? [
+      "- `log_wedding_event`는 위 `moment_type` 8종에 해당하는 준비 일정에만 쓰세요. 종류와 날짜가 정해졌으면 이번 답변에 표식을 내고, 8종에 없는 일정이면 이 도구를 쓰지 마세요.",
+    ] : []),
+    // 2026-09-03 라이브 실측: 모델이 `[ pending_action 필요 ]` 라고 우리말 자리표시자를
+    // 냈고 잔여 제거기가 그것을 지웠다 — 사용자에게는 카드도 본문도 없는 턴이 됐다.
+    // 옛 줄은 `{...}` 라는 자리표시자 한 줄뿐이라 "여기에 필요한 말을 적어라" 로 읽혔다.
+    // 바로 아래 [mediation] 규칙("마커 안은 평문 문장만")이 위치상 이 표식에도
+    // 읽히던 것까지 여기서 끊는다.
+    "- 표식 형식: 대괄호 안은 **JSON**: [pending_action]{\"tool\":\"위 목록의 도구명\",\"input\":{\"필드명\":\"값\"}}[/pending_action]. `[ pending_action 필요 ]`처럼 우리말로 쓰면 서버가 지워 카드가 안 나갑니다. \"마커 안은 평문만\"은 [mediation] 규칙.",
     "- 모든 입력값이 확정됐을 때만 표식을 쓰세요. 값이 아직 모호하면 표식 없이 값부터 확인하세요. 보이는 확인 문장은 서버가 검증된 tool/input으로 직접 만듭니다.",
+    // 윗줄의 "모호하면 되물어라" 를 모델이 **선택 필드까지** 적용했다. 필수 1개·선택
+    // 6개인 도구에서는 그게 곧 영원한 되묻기다.
+    "- 선택 필드를 무엇으로 채울지 망설임은 '모호한 값'이 아닙니다 — 필수 필드(`*`)가 사용자 말에 있으면 표식을 내고 확실하지 않은 것은 빼세요.",
+    // 표식 없이 값만 나열하고 "등록할까요?" 로 끝난 답변이 라이브에서 반복됐다.
+    // 사용자 화면에는 누를 것이 없다.
+    "- 값을 목록으로 적고 \"등록할까요?\"·\"저장할까요?\"라고만 묻는 답변엔 누를 것이 없습니다. 그 목록은 서버가 표식으로 만드니 같은 답변에 표식을 내세요.",
     "- 표식은 서버가 제거·검증하며, 사용자가 서버가 발급한 정확한 action_id를 바로 다음 공유 요청으로 확인한 경우에만 실행됩니다.",
     // 이 계약이 붙은 턴은 제안이 실제로 가능한 턴이다. 그런데 직전 턴에서
     // 도구가 빈 결과를 냈거나 이미 표식을 한 번 낸 뒤면, 모델이 "도구가 없다"·

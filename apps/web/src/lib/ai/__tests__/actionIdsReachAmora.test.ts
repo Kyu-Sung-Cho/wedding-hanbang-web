@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { buildAmoraPendingActionPrompt } from "../amoraPendingAction";
+import { isMutatingTool } from "../mutationTools";
+import { BETA_SAFE_TOOLS } from "../tools";
 import { resolveAmoraWeddingContext } from "../amoraWeddingContext";
 import { getWeddingPlannerSystemPrompt } from "../prompts";
 
@@ -63,7 +65,14 @@ describe("일정 id가 프롬프트에 실린다", () => {
 describe("후속 확인 계약이 id의 출처를 알려준다", () => {
   // 계약문이 "식별자는 문맥에 없다"고 말하면, 문맥에 실어도 아모라는 되묻는다.
   // 2026-08-23 라이브에서 정확히 그렇게 됐다.
-  const contract = buildAmoraPendingActionPrompt([]);
+  //
+  // 2026-09-03: 입력을 빈 배열에서 **운영이 실제로 넘기는 목록**으로 바꿨다.
+  // `_id` 안내는 그 필드를 가진 도구가 있을 때만 실리는데(없으면 가리킬 대상이
+  // 없는 지시다), 빈 배열은 운영에서 나오지 않는 입력이다 — 라우트는 제안 도구가
+  // 0개면 계약문을 아예 붙이지 않는다(route.ts `pendingOfferEnabled`).
+  const contract = buildAmoraPendingActionPrompt(
+    BETA_SAFE_TOOLS.filter((tool) => isMutatingTool(tool.name)),
+  );
 
   it("일정과 체크리스트 두 출처를 모두 짚는다", () => {
     expect(contract).toContain("등록된 일정");

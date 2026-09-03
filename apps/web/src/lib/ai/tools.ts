@@ -542,7 +542,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
       properties: {
         title: {
           type: "string",
-          description: "행동 카드 제목. 30자 이내 권장. 예: '스튜디오 원본 USB 포함 여부 확인'",
+          description: "행동 카드 제목. 사용자가 말한 할 일을 그대로 제목으로. 제목만 있으면 카드를 낼 수 있습니다. 30자 이내 권장. 예: '스튜디오 원본 USB 포함 여부 확인'",
         },
         description: {
           type: "string",
@@ -555,7 +555,10 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         category_key: {
           type: "string",
           enum: SCHEDULE_CATEGORY_KEYS,
-          description: "관련 카테고리. 불명확하면 general",
+          // 2026-09-03 검증기 실측: `category_key: "종이·모바일 초대장"` 처럼 한글
+          // 라벨을 넣으면 스키마 enum 에서 걸려 **표식이 통째로 버려지고 본문까지
+          // 빈 문자열이 된다.** 사용자는 아무 말도 못 받는다.
+          description: "관련 카테고리. 위 키 값을 그대로 쓰고 한글 라벨은 넣지 마세요. 불명확하면 general",
         },
         priority: {
           type: "string",
@@ -572,7 +575,19 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           // 예시는 defaultActionHref·prompts.ts의 안내와 같은 경로만 둔다.
           // 없는 경로를 예시로 주면 모델이 그대로 복사해 404 카드를 만든다
           // (가족 조율 페이지 제거 후 /wedding/etiquette가 그렇게 남아 있었다).
-          description: "관련 페이지 경로. 예: /wedding/community/quote-check, /wedding/schedule, /wedding/budget",
+          //
+          // 2026-09-03: 예시만으로는 부족했다 — 라이브에서 `/wedding/actions` 라는
+          // 없는 경로가 그대로 통과해 404 링크가 붙은 카드가 나갔다. 실행기 검증은
+          // `startsWith("/")` 와 길이뿐이라 여기서 막는 수밖에 없다. enum 이면
+          // 표식 검증기(ajv)가 지어낸 경로를 거른다. 다만 **거르면 카드가 통째로
+          // 사라지므로**, 애매하면 넣지 말라고 함께 적는다 — 생략하면 서버가
+          // `defaultActionHref` 로 알맞은 화면을 고른다.
+          enum: [
+            "/wedding/community/quote-check",
+            "/wedding/schedule",
+            "/wedding/budget",
+          ],
+          description: "관련 페이지 경로. 이 셋 중 하나만 쓰고, 확실하지 않으면 생략하세요(서버가 알맞은 화면으로 연결합니다).",
         },
       },
       required: ["title"],

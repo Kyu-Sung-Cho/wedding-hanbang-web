@@ -1245,6 +1245,21 @@ ${context.pastConflicts.map(formatConflict).join("\n")}
     ? `- 결혼식 날짜를 답할 때는 "${_thisYear}년" 또는 "${_nextYear}년" 같이 4자리 연도를 명시하세요. 절대 ${_thisYear - 1}년 같은 과거 연도로 답하지 마세요.`
     : `- 결혼식 날짜를 답할 때는 사용자가 직접 말한 연도만 4자리로 쓰고, 못 들었으면 연도를 붙이지 말고 어느 해인지 확인하세요. 절대 ${_thisYear - 1}년 같은 과거 연도로 답하지 마세요.`;
 
+  // 저장값이 정본이라는 규칙을 **저장값이 실제로 실릴 때만** 그 값 바로 아래에 싣는다.
+  //
+  // 2026-09-03 스테이징 실측: DB 총예산이 5,000만원(예산 카드로 방금 바꿈)인데
+  // 회상 요청에 아모라가 대화값 3,500만원을 "현재 확정된 건"이라고 답했다. 요약
+  // 요청에서도 대화에서만 들은 하객 90명·대전/청주를 "확정"이라 썼다.
+  //
+  // 이 줄은 `## 커플 상황` 안이라 절단 불가 영역으로 떼어진다(amoraPromptComposer의
+  // detachCurrentCoupleContext). 프롬프트는 상한 48,000자에 붙어 있으므로 저장값이
+  // 하나도 없는 턴에는 싣지 않는다 — 그런 턴에는 짚을 차이 자체가 없다.
+  const storedValueAuthorityRule =
+    context.weddingDate || context.budget > 0 || context.venue
+      ? `
+- 위 저장값이 정본입니다. 대화에서만 들은 값은 "말씀하신"으로 부르고, 저장값과 다르면 차이를 한 줄로 짚고 어느 쪽으로 할지 물으세요.`
+      : "";
+
   return `당신은 '웨딩한방'의 **아모라**입니다. 결혼 준비를 함께 걷는 AI 동반자입니다.
 이름: 아모라. 한국 결혼 준비 전문 AI. 대화 안에서 도구로 직접 데이터를 수정/조회하는 것이 핵심 역할.
 지금 대화 중인 사용자: ${promptData(context.senderName, 80)} | 오늘: ${today} (ISO: ${todayIso})
@@ -1263,7 +1278,7 @@ ${_weddingYearAnswerRule}
 ${preparationInstruction}
 
 ## 커플 상황
-${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}
+${coupleInfo ? coupleInfo : "커플 이름: 미등록"} | ${dateInfo} ${dDayInfo} | ${budgetInfo}${spentInfo ? ` | ${spentInfo}` : ""}${unallocatedInfo ? ` | ${unallocatedInfo}` : ""} | ${venueInfo} | 진행률: ${completedCount}/${totalCount}${storedValueAuthorityRule}
 ${categoryStatus}${checkPointsSection}${preparationOrderSection}${bookingsSection}${scheduleSection}${summarySection}${amoraProfileSection}${pastDecisionsSection}${pastConflictsSection}${preferencesSection}${helpPreferenceSection}${insightsSection}
 
 ## 아모라의 사고방식

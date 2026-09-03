@@ -3,6 +3,7 @@ import {
   parseBudgetImpactPreview,
   type BudgetImpactPreview,
 } from "@hanbang/shared";
+import { todayYmdInKst } from "@hanbang/shared/utils";
 
 export {
   COUPLE_APPROVAL_PENDING_ACTION_TTL_MS,
@@ -55,6 +56,36 @@ export interface SharedActionApprovalPresentation {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SHA256_HEX_PATTERN = /^[a-f0-9]{64}$/;
+const SCHEDULE_DATE_TOOLS = new Set(["add_schedule_event", "update_schedule_event"]);
+const SCHEDULE_YMD_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 이 카드가 지난 날짜를 저장하려 하는가 (2026-09-03).
+ *
+ * 연도를 말하지 않은 날짜가 지난 해로 해석돼 저장되거나, 사용자가 지난 날짜를 그대로
+ * 말해도 카드가 아무 말도 하지 않아 "지난 일정"이 조용히 들어갔다. 지난 일을 기록하려는
+ * 요청도 정당하므로 **버튼을 막지 않는다** — 한 줄만 덧붙여 연도를 다시 보게 한다.
+ *
+ * 오늘은 `todayYmdInKst` 로만 정한다. UTC 로 자르면 한국 새벽 0~9시에 오늘이 어제가
+ * 되어, KST 자정 직후에 잡는 "오늘" 일정이 지난 날짜로 잡힌다.
+ *
+ * 웹에도 같은 판정이 있다(`apps/web/src/components/app/chat/PendingAmoraActionCard.tsx`).
+ * 한쪽만 고치면 두 화면이 같은 카드에 다른 말을 한다 — 두 구현을 같은 입력으로 나란히
+ * 재는 검사가 붙어 있다.
+ */
+export function isPendingActionPastDated(
+  action: { tool: string; input: Record<string, unknown> },
+  nowMs: number,
+): boolean {
+  if (!SCHEDULE_DATE_TOOLS.has(action.tool)) return false;
+  if (!Number.isFinite(nowMs) || nowMs <= 0) return false;
+  const date = action.input.date;
+  if (typeof date !== "string" || !SCHEDULE_YMD_PATTERN.test(date)) return false;
+  return date < todayYmdInKst(nowMs);
+}
+
+export const PAST_SCHEDULE_DATE_NOTICE =
+  "지난 날짜예요 · 연도가 맞는지 확인해 주세요. 이대로 적용하면 지난 일정으로 저장돼요.";
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }

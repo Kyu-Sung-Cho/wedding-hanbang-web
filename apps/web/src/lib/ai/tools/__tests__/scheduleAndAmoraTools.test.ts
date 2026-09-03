@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ToolExecutionContext } from "../toolTypes";
@@ -10,6 +10,7 @@ import {
   executeLogWeddingEvent,
   executeToggleChecklistItem,
   executeUpdateScheduleEvent,
+  isPastScheduleDate,
 } from "../scheduleTools";
 import {
   executeGetAmoraActions,
@@ -470,5 +471,91 @@ describe("amoraActionTools", () => {
     expect(ctx.weddingContext.progress).toMatchObject({
       __amora_actions: [expect.objectContaining({ id: "act_1", status: "done" })],
     });
+  });
+});
+
+/**
+ * 지난 날짜 일정 (2026-09-03).
+ *
+ * 연도 없는 날짜가 지난 해로 해석돼 저장되거나, 사용자가 "2026년 8월 26일" 처럼 지난
+ * 날짜를 그대로 말해도 어디서도 알려주지 않았다. **막지 않고 표시한다** — 지난 일을
+ * 기록하려는 요청도 정당해서, 거부하면 그 사람까지 막힌다.
+ */
+describe("지난 날짜 일정 표시", () => {
+  // 2026-09-03 14:00 KST (UTC 로도 같은 날).
+  const KST_AFTERNOON = Date.parse("2026-09-03T05:00:00.000Z");
+  // 2026-09-04 00:00 KST — UTC 로는 아직 2026-09-03 이다.
+  const JUST_AFTER_KST_MIDNIGHT = Date.parse("2026-09-03T15:00:00.000Z");
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    ["2026-09-02", KST_AFTERNOON, true],
+    ["2026-09-03", KST_AFTERNOON, false],
+    ["2026-09-04", KST_AFTERNOON, false],
+    // 한국 자정을 넘겼으니 9-03 은 어제다. UTC 로 잘랐다면 오늘이라 놓쳤을 자리.
+    ["2026-09-03", JUST_AFTER_KST_MIDNIGHT, true],
+    // 그리고 자정 직후의 오늘은 지난 날짜가 아니다.
+    ["2026-09-04", JUST_AFTER_KST_MIDNIGHT, false],
+  ] as const)("%s @ %d → %s", (date, nowMs, expected) => {
+    expect(isPastScheduleDate(date, nowMs)).toBe(expected);
+  });
+
+  it.each([undefined, null, 20260826, "26-08-26", "2026-8-26", ""])(
+    "날짜 모양이 아니면 판정하지 않는다: %s",
+    (date) => {
+      expect(isPastScheduleDate(date, KST_AFTERNOON)).toBe(false);
+    },
+  );
+
+  it("같은 payload 라도 오늘 이전이면 실행 결과에 표식이 붙고, 이후면 안 붙는다", async () => {
+    const input = { date: "2026-08-26", title: "상견례" };
+
+    vi.useFakeTimers();
+    vi.setSystemTime(KST_AFTERNOON);
+    mockAdminClient({});
+    const past = await executeAddScheduleEvent(input, createContext({}));
+
+    // 저장은 그대로 성공한다 — 표시만 한다.
+    expect(past.success).toBe(true);
+    expect(past.toolOutput).toMatchObject({ past_date: true });
+
+    // 같은 날짜인데 시계가 그 전이면 지난 날짜가 아니다.
+    vi.setSystemTime(Date.parse("2026-08-01T05:00:00.000Z"));
+    mockAdminClient({});
+    const future = await executeAddScheduleEvent(input, createContext({}));
+
+    expect(future.success).toBe(true);
+    expect(future.toolOutput).not.toHaveProperty("past_date");
+  });
+
+  it("일정 날짜를 지난 날짜로 바꿀 때도 실행 결과가 그렇게 말한다", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(KST_AFTERNOON);
+    const existing = { ...scheduleEvent(1), date: "2027-04-30" };
+
+    mockAdminClient({});
+    const past = await executeUpdateScheduleEvent(
+      { event_id: existing.id, date: "2026-08-26" },
+      createContext({ __events: [existing] }),
+    );
+
+    expect(past.success).toBe(true);
+    expect(past.toolOutput).toMatchObject({ past_date: true });
+
+    mockAdminClient({});
+    const ahead = await executeUpdateScheduleEvent(
+      { event_id: existing.id, date: "2026-09-26" },
+      createContext({ __events: [existing] }),
+    );
+
+    expect(ahead.success).toBe(true);
+    expect(ahead.toolOutput).not.toHaveProperty("past_date");
   });
 });

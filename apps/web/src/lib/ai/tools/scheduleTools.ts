@@ -1,5 +1,5 @@
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
-import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
+import { stripPlanningChecklistNotes, todayYmdInKst } from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { mergeChecklist, calculateStatus, resolveStatusByKey } from "@/utils/checklist";
@@ -24,6 +24,28 @@ import { patchJourneyProgress, saveProgress } from "@/lib/ai/tools/progressTools
 import { type ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
 const PROFILE_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SCHEDULE_YMD_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * 저장하려는 날짜가 한국 기준 오늘보다 이전인가 (2026-09-03).
+ *
+ * 연도를 말하지 않은 날짜가 지난 해로 해석돼 저장되거나, 사용자가 "2026년 8월 26일"
+ * 처럼 지난 날짜를 그대로 말해도 어디서도 알려주지 않아 "지난 일정"이 조용히 들어갔다.
+ *
+ * **막지 않는다.** 지난 일을 기록하려는 요청도 정당하다 — 거부하면 그 사람까지 막는다.
+ * 대신 확인 카드와 실행 결과에 표시만 해서 연도를 다시 볼 수 있게 한다.
+ *
+ * 비교는 `todayYmdInKst` 하나로만 한다. UTC 로 자르면 한국 새벽 0~9시에 오늘이
+ * 어제가 되어, KST 자정 직후에 저장하는 "오늘" 일정이 지난 날짜로 잡힌다.
+ * YYYY-MM-DD 는 사전순 비교가 곧 날짜 비교다.
+ */
+export function isPastScheduleDate(
+  date: unknown,
+  nowMs: number = Date.now(),
+): boolean {
+  if (typeof date !== "string" || !SCHEDULE_YMD_RE.test(date)) return false;
+  return date < todayYmdInKst(nowMs);
+}
 
 export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecutionResult {
   const progress = ctx.weddingContext.progress;
@@ -137,7 +159,8 @@ export async function executeAddScheduleEvent(
 
   return {
     toolName: "add_schedule_event", toolInput: input,
-    toolOutput: { event },
+    // 지난 날짜일 때만 표식을 싣는다 — 늘 실으면 도구 출력이 길어져 프롬프트를 먹는다.
+    toolOutput: isPastScheduleDate(date) ? { event, past_date: true } : { event },
     success: true,
     displayMessage: `${date}${time ? ` ${time}` : ""}에 "${title}" 일정이 추가되었습니다.`,
   };
@@ -211,7 +234,9 @@ export async function executeUpdateScheduleEvent(
 
   return {
     toolName: "update_schedule_event", toolInput: input,
-    toolOutput: { event: updated, previous_event: existing, updates },
+    toolOutput: isPastScheduleDate(updated.date)
+      ? { event: updated, previous_event: existing, updates, past_date: true }
+      : { event: updated, previous_event: existing, updates },
     success: true,
     displayMessage: `"${updated.title}" 일정이 수정되었습니다.`,
   };
