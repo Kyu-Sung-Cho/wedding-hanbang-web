@@ -14,11 +14,20 @@ export type StageTag =
 // chat_messages.specialist_type / ai_interactions_log.specialist_type
 export type SpecialistType =
   | "sangkyeonrye_advisor"    // 상견례/양가/예법
-  | "contract_reviewer"       // 계약서/약관/분쟁
+  // RETIRED 2026-08-18 — 계약 개입 금지. 신규 턴에서는 절대 생성되지 않으며,
+  // 과거 chat_messages/ai_interactions_log 행을 읽기 위해서만 유니온에 남긴다.
+  // 라우팅 대상은 RoutableSpecialistType을 쓸 것.
+  | "contract_reviewer"
   | "budget_optimizer"        // 예산/견적/시세
   | "ceremony_coordinator"    // 본식/식순/하객
   | "settlement_companion"    // 혼인신고/신혼/사후
   | "general";                 // 분류 불가 or 시스템 메시지
+
+/** 오늘 라우팅이 실제로 만들어낼 수 있는 전문분야. 은퇴한 값은 포함하지 않는다. */
+export type RoutableSpecialistType = Exclude<
+  SpecialistType,
+  "general" | "contract_reviewer"
+>;
 
 // ai_interactions_log.interaction_type
 export type InteractionType =

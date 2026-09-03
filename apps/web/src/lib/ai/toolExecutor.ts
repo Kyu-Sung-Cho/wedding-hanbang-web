@@ -5,7 +5,6 @@ import { resolveStatusByKey } from "@/utils/checklist";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
-  executeAnalyzeContractReadiness,
   executeSimulateGuestGuarantee,
 } from "@/lib/ai/tools/riskSupportTools";
 import {
@@ -583,8 +582,6 @@ async function executeToolOnce(
         return await executeCancelBooking(toolInput, context);
       case "get_market_price":
         return await executeGetMarketPrice(toolInput, getAdminClient());
-      case "analyze_contract_readiness":
-        return executeAnalyzeContractReadiness(toolInput);
       case "simulate_guest_guarantee":
         return executeSimulateGuestGuarantee(toolInput);
       case "search_nearby_places":

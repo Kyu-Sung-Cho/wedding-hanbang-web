@@ -113,7 +113,6 @@ export function chooseAmoraChatModelRole(input: {
   userText: string;
   correctionCount: number;
 }): AmoraModelRole {
-  if (input.specialistType === "contract_reviewer") return "primary";
   if (input.correctionCount >= 2) return "primary";
   if (classifyAmoraCrisis(input.userText)) return "primary";
   const normalizedUserText = normalizeAmoraSafetyText(input.userText);

@@ -6507,18 +6507,21 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(envelope).not.toContain(sentinel);
     }
     expect(mocks.providerLedger).toHaveBeenCalledWith(
-      expect.objectContaining({
-        specialistType: "contract_reviewer",
-        stageTag: null,
-      }),
+      expect.objectContaining({ stageTag: null }),
       expect.any(Function),
       expect.any(Object),
     );
     expect(mocks.atomicFinalizations[0]).toMatchObject({
-      message: {
-        specialistType: "contract_reviewer",
-        stageTag: null,
-      },
+      message: { stageTag: null },
+    });
+    // 계약 개입 금지(2026-08-18): 첨부가 계약 검토 전문분야를 만들지 않는다.
+    expect(mocks.providerLedger).not.toHaveBeenCalledWith(
+      expect.objectContaining({ specialistType: "contract_reviewer" }),
+      expect.any(Function),
+      expect.any(Object),
+    );
+    expect(mocks.atomicFinalizations[0]).not.toMatchObject({
+      message: { specialistType: "contract_reviewer" },
     });
   });
 
@@ -6553,8 +6556,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(JSON.stringify(mocks.buildMultimodal.mock.calls)).not.toContain("quote.pdf");
     const toolNames = mocks.provider.mock.calls[0]?.[0]?.tools
       .map((tool: { name: string }) => tool.name);
+    // 견적서를 같이 보는 경로는 유지된다.
     expect(toolNames).toContain("analyze_quote");
-    expect(mocks.providerLedger).toHaveBeenCalledWith(
+    // 계약 개입 금지(2026-08-18): 계약 검토 도구·전문분야는 도달할 수 없다.
+    expect(toolNames).not.toContain("analyze_contract_readiness");
+    expect(mocks.providerLedger).not.toHaveBeenCalledWith(
       expect.objectContaining({ specialistType: "contract_reviewer" }),
       expect.any(Function),
       expect.any(Object),
