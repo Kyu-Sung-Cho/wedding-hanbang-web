@@ -198,7 +198,9 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
     [checklist, saving, progress, categoryKey, existing, updateJourney]
   );
 
-  const isNotApplicable = existing?.status === "not_applicable";
+  // 저장된 값이 없으면 템플릿의 시작 상태를 쓴다. 함·폐백처럼 안 하는 집이 더 많은
+  // 분야는 "안 해요"에서 시작하고, 되돌린 순간부터는 저장된 값이 이긴다.
+  const isNotApplicable = (existing?.status ?? template?.defaultStatus) === "not_applicable";
 
   // 우리 결혼에는 해당 없는 항목(함·폐백·예단 등)을 끄고 켠다.
   // 끄면 진행률 분모와 마감 알림에서 빠져 "영구 미완료"로 남지 않는다.
@@ -405,6 +407,19 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               {template.tip}
             </p>
           </div>
+
+          {/*
+            안 하는 것을 항목으로 만들면 체크할 수 있는 일이 되고 진행률 분모에도 들어간다.
+            그래서 행이 아니라 분야 맨 아래 안내다 — 위 `tip`과 같은 자리, 같은 활자다.
+          */}
+          {template.notDoing && (
+            <div className="mt-3 rounded-xl border border-[#EDEAE4] bg-[#FAF8F5] px-4 py-3">
+              <p className="text-sm font-medium text-[#1A1A1F]">{template.notDoing.title}</p>
+              <p className="mt-0.5 text-[13px] leading-5 text-[#8b857c]">
+                {template.notDoing.body}
+              </p>
+            </div>
+          )}
 
           <Link
             {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}

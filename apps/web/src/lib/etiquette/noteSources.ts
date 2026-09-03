@@ -49,8 +49,6 @@ const NOTE_SOURCES: Readonly<Record<string, { part: string; heading: string }>> 
   pyebaek_03: { part: "traditional-greetings", heading: "준비물 — 음식과 의상" },
   greeting_04: { part: "first-family-visit", heading: "선물 — 무엇을 얼마나" },
   meeting_02: { part: "family-meeting", heading: "장소와 일정 정하기" },
-  meeting_05: { part: "planning-conflicts", heading: "양가 어른의 의견이 들어올 때" },
-  meeting_06: { part: "planning-conflicts", heading: "부딪힐 때 도움이 되는 다섯 가지" },
   dress_07: { part: "wedding-day", heading: "두 사람 — 식 전 준비" },
   dress_08: { part: "wedding-day", heading: "두 사람 — 식 전 준비" },
   shoes_01: { part: "wedding-day", heading: "두 사람 — 식 전 준비" },

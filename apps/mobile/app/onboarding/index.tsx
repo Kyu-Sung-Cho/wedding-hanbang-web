@@ -50,6 +50,7 @@ import {
 } from "@/lib/onboardingDraft";
 import PreparationProgressList, {
   createPreparationStatuses,
+  withoutDefaultPreparationStatuses,
 } from "@/components/onboarding/PreparationProgressList";
 import InviteCodeCard from "@/components/invite/InviteCodeCard";
 import { toKoreanErrorMessage } from "@/lib/errorCopy";
@@ -584,7 +585,11 @@ export default function OnboardingScreen() {
           budgetTendency,
           guestCount,
         },
-        categoryStatuses: saveCategories ? categoryStatuses : null,
+        // 시작 상태와 같은 값은 빼고 보낸다. 기본값이 분야마다 달라서
+        // `not_started` 하나만 거르면 "안 해요"로 시작하는 분야가 파트너 쪽 선택을 덮는다.
+        categoryStatuses: saveCategories
+          ? withoutDefaultPreparationStatuses(categoryStatuses)
+          : null,
       });
 
       const res = await apiFetch("/api/onboarding", {

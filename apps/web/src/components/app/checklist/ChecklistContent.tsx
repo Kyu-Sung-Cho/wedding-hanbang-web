@@ -111,7 +111,7 @@ export default function ChecklistContent() {
       const saved = progress[template.key];
       // 저장값을 그대로 쓰면 항목이 늘었을 때 `11/12개 완료 · 완료`가 된다 — 개수는
       // 병합본에서 세는데 상태만 낡은 값이기 때문이다. 항목 기록이 있으면 파생한다.
-      const status = resolveStatus(template.items, saved);
+      const status = resolveStatus(template.items, saved, template.defaultStatus);
       // 항목 기록 없이 분야만 완료로 표시된 경우다. 개수를 나란히 쓰면
       // `0/9개 완료 · 완료` 가 되어 고장난 것처럼 읽힌다.
       const declared = isStatusDeclared(saved);
@@ -119,12 +119,15 @@ export default function ChecklistContent() {
       const counts = getChecklistCounts(checklist);
       const aliases = CATEGORY_SEARCH_ALIASES[template.key]?.join(" ") ?? "";
       const guide = mannersPartForCategory(template.key);
+      // 안 하기로 한 분야에 "예절 가이드 보기"를 남겨 두면 진행률에서는 뺐다면서 화면에는
+      // 계속 읽을거리를 내미는 셈이다. 카드를 열면 모달 안에 그대로 있다.
+      const cardGuide = status === "not_applicable" ? null : guide;
       // 이 카드가 여는 예절 편의 제목도 검색 대상이다. 없을 때는 "이바지"처럼
       // 항목 라벨에 없는 말을 별칭에 억지로 박아야 했고, 그러다 엉뚱한 분야로
       // 보냈다 — 「이바지·답례품 예절」을 여는 것은 예단이 아니라 선물 분야다.
       const searchable = `${template.label} ${aliases} ${guide?.title ?? ""} ${template.tip} ${checklist.map((item) => `${item.label} ${item.note ?? ""}`).join(" ")}`
         .toLocaleLowerCase("ko-KR");
-      return { template, status, counts, declared, guide, searchable };
+      return { template, status, counts, declared, guide: cardGuide, searchable };
     }).filter(({ status, searchable }) =>
       matchesFilter(status, filter) && (!normalizedQuery || searchable.includes(normalizedQuery)),
     );

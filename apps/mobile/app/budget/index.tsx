@@ -56,9 +56,10 @@ const HIDDEN_COSTS: Record<string, { warning: string; guidance: string }> = {
 
 // 금액은 사용자가 입력하거나 계약·예약 결과로 확인된 값만 사용한다.
 const BUDGET_CATEGORY_KEYS: PlanningCategoryKey[] = [
-  "greeting", "meeting", "venue", "studio", "dress", "makeup", "snap", "ring", "yedan",
+  "greeting", "meeting", "address", "venue", "studio", "dress", "makeup", "snap", "ring", "yedan",
   "hanbok", "shoes", "bouquet", "honeymoon", "houseware", "housing",
-  "invitation", "gift", "mc", "ham", "pyebaek", "registration", "reserve",
+  "invitation", "gift", "mc", "ham", "pyebaek", "registration",
+  "ibaji", "housewarming", "reserve",
 ];
 
 const BUDGET_CATEGORIES = BUDGET_CATEGORY_KEYS.map((key) => ({

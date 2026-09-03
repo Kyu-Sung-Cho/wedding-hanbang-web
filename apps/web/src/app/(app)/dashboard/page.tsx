@@ -159,7 +159,7 @@ function getStatus(progress: Record<string, ProgressItem>, key: string): Status 
       ? status
       : "not_started";
   }
-  return resolveStatus(template.items, saved);
+  return resolveStatus(template.items, saved, template.defaultStatus);
 }
 
 function getChecklistProgress(progress: Record<string, ProgressItem>, key: string) {

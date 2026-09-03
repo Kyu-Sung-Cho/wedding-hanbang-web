@@ -17,6 +17,7 @@ import { MANNERS_PARTS } from "./data";
 const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   greeting: "first-family-visit",
   meeting: "family-meeting",
+  address: "family-address",
   venue: "wedding-day",
   studio: "photo-manners",
   dress: "wedding-day",
@@ -36,6 +37,8 @@ const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
   ham: "gifts-and-traditions",
   pyebaek: "traditional-greetings",
   registration: "marriage-registration",
+  ibaji: "return-gift",
+  housewarming: "housewarming",
 };
 
 export const MAPPED_MANNERS_CATEGORY_KEYS = Object.keys(CATEGORY_MANNERS_SLUG);

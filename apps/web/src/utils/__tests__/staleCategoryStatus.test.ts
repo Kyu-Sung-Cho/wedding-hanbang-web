@@ -33,15 +33,28 @@ describe("낡은 분야 상태", () => {
     return items.slice(0, -1).map((item) => ({ id: item.id, label: item.label, done: true }));
   }
 
+  /**
+   * 항목이 하나뿐인 분야는 이 흉내를 낼 수 없다. 마지막 하나를 자르면 빈 배열이 되고,
+   * 빈 배열은 "항목을 아직 안 봤다"는 **분야 단위 선언**과 구별되지 않는다 — 그때
+   * `resolvePlanningChecklistStatus`는 일부러 저장된 선언을 그대로 둔다(바로 아래 검사).
+   * 그래서 표본에서 뺀다.
+   */
+  const CUTTABLE = CATEGORY_CHECKLISTS.filter((category) => category.items.length >= 2);
+
   it("판별식이 실제로 무언가를 고른다", () => {
     // 잘라낼 항목이 없으면 아래 검사는 늘 통과한다. 먼저 표본이 있는지 본다.
-    const cuttable = CATEGORY_CHECKLISTS.filter((category) => category.items.length >= 2);
-    expect(cuttable.length).toBe(CATEGORY_CHECKLISTS.length);
-    expect(cuttable.length).toBeGreaterThan(15);
+    // 빠지는 분야를 이름으로 못 박아, 표본이 조용히 줄어드는 것과 한 항목짜리 분야가
+    // 새로 생기는 것을 가른다.
+    const singleItem = CATEGORY_CHECKLISTS
+      .filter((category) => category.items.length < 2)
+      .map((category) => category.key);
+    expect(singleItem).toEqual(["address", "ibaji", "housewarming"]);
+    expect(CUTTABLE.length).toBe(CATEGORY_CHECKLISTS.length - singleItem.length);
+    expect(CUTTABLE.length).toBeGreaterThan(15);
   });
 
   it("항목이 늘면 저장된 완료는 진행 중으로 되살아난다 — 분야 전부", () => {
-    const stillSaysCompleted = CATEGORY_CHECKLISTS.filter((category) => {
+    const stillSaysCompleted = CUTTABLE.filter((category) => {
       const saved = {
         status: "completed" as const,
         checklist: savedBeforeLastItemWasAdded(category.items),

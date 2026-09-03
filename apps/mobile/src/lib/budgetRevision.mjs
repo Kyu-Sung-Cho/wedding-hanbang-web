@@ -10,9 +10,10 @@ const MAX_JSON_ARRAY_LENGTH = 1_000;
 const MAX_JSON_STRING_LENGTH = 10_000;
 const FORBIDDEN_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 const BUDGET_CATEGORY_KEYS = new Set([
-  "greeting", "meeting", "venue", "studio", "dress", "makeup", "snap", "ring", "yedan",
+  "greeting", "meeting", "address", "venue", "studio", "dress", "makeup", "snap", "ring", "yedan",
   "hanbok", "shoes", "bouquet", "honeymoon", "houseware", "housing",
-  "invitation", "gift", "mc", "ham", "pyebaek", "registration", "reserve",
+  "invitation", "gift", "mc", "ham", "pyebaek", "registration",
+  "ibaji", "housewarming", "reserve",
 ]);
 const CUSTOM_BUDGET_CATEGORY_KEY = /^custom_[a-z0-9_-]{1,64}$/i;
 const PAYER_TYPES = new Set([

@@ -33,7 +33,13 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
  * `toolSchemaMatchesDatabase.test.ts`가 이 목록을 마이그레이션 원문에서 뽑은 것과
  * 대조한다. DB가 새 분야를 받게 되는 순간 그 검사가 실패하고, 그때 이 제약을 지우면 된다.
  */
-const CATEGORIES_THE_DATABASE_CANNOT_ACCEPT = new Set(["greeting", "registration"]);
+const CATEGORIES_THE_DATABASE_CANNOT_ACCEPT = new Set([
+  "greeting",
+  "registration",
+  "address",
+  "ibaji",
+  "housewarming",
+]);
 
 export const CHECKLIST_CATEGORY_KEYS = CATEGORY_CHECKLISTS
   .map(({ key }) => key)
