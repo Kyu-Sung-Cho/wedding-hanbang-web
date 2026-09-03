@@ -341,9 +341,19 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     );
   }
 
-  if (has("add_amora_action", "get_amora_actions", "update_amora_action")) {
+  // 조건에서 쓰기 도구 두 이름을 뺐다 — `!isMutatingTool` 로 걸러져 enabled 에
+  // 절대 들어오지 않으므로 이 갈래를 켜는 것은 처음부터 `get_amora_actions`
+  // 하나뿐이었다(합성 결과는 그대로다).
+  //
+  // 2026-09-03 둘째 문장을 바꿨다. `update_amora_action` 은 승인 정책상 blocked 라
+  // 확인 카드가 되는 경로가 0개인데(route.ts 가 blocked 도구를 제안 목록에서
+  // 뺀다), 옛 문장은 "기존 카드를 바꾸려면 action_id 를 확인하세요" 라고 시켜
+  // **이어서 할 수 있는 일이 없는 조회**로 대화를 끝냈다. 승인 정책은 감사 경로
+  // 판정이라 손대지 않고, 어디서 바꿀 수 있는지 알려주는 문장으로 바꾼다
+  // (예산 항목 삭제 안내와 같은 형태). 완료·숨김 버튼은 라운지에 있다.
+  if (enabled.has("get_amora_actions")) {
     lines.push(
-      "- 행동 카드는 사용자가 직접 실행할 한 가지 행동에만 사용하세요. 기존 카드를 바꾸려면 먼저 활성 조회 도구로 정확한 action_id를 확인하세요.",
+      "- 행동 카드는 사용자가 직접 실행할 한 가지 행동에만 사용하세요. 이미 저장된 카드의 상태는 지금 도구로 바꿀 수 없습니다. 못 한다고만 말하고 끝내지 말고, 라운지 '지금 먼저 볼 것'의 완료·숨김 버튼으로 직접 처리할 수 있다고 같은 답에서 알려주세요.",
     );
   }
 
@@ -403,6 +413,13 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   if (enabled.has("analyze_quote")) {
     lines.push(
       "- `analyze_quote`는 먼저 included_items=[]로 체크리스트를 만들고, 사용자가 확인한 항목만 두 번째 분석에 넣으세요. 포함 항목을 추측하지 마세요.",
+      // 2026-09-03 `prompts.ts` 의 죽은 구간에서 옮겨온 한 줄. 그 구간은
+      // `removeLegacyOperationalInstructions` 가 매 턴 통째로 지워서 모델에게 한
+      // 번도 가지 않았고, 이 규칙만 다른 대체가 없었다(도구 스키마·다른 계약문에
+      // 같은 뜻의 문장이 없다). `analyze_quote` 는 표식 경로가 아니라 인라인 읽기
+      // 도구라 본문이 서버 확인문으로 갈리지 않는다 — 카드와 같은 목록이 본문에
+      // 그대로 남는다.
+      "- 체크리스트·분석 카드가 자동으로 렌더링되므로 같은 항목 목록·가격표를 본문 텍스트에 다시 나열하지 마세요.",
     );
   }
 

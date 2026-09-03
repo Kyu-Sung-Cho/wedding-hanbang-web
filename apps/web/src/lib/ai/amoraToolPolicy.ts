@@ -449,6 +449,17 @@ export interface SelectAmoraToolsInput {
    * 존재하지 않는 항목에는 절대 안 열린다.
    */
   checklistLabels?: readonly string[];
+  /**
+   * 라우터가 **키워드로 실제 매칭해서** 이 전문분야를 골랐는가.
+   *
+   * 2026-09-03: `routeSpecialist` 는 키워드가 하나도 안 맞으면 단계 기본값
+   * (preparation_1 → budget_optimizer)을 준다. 아래 관문 해제는 "서버가 배분·일정
+   * 전문 경로로 **보냈을 때**"를 뜻하는데, 기본값까지 그렇게 읽혀 아무 키워드도
+   * 없는 상담성 질문에서도 관문 둘이 꺼졌다. 서버만 이 구별을 알 수 있으므로
+   * 라우팅한 쪽이 함께 넘긴다. 안 넘기면(단위 테스트처럼 specialistType 을 직접
+   * 지정하는 호출) 기존 계약대로 전문 경로로 본다.
+   */
+  specialistMatchedByKeyword?: boolean;
 }
 
 function addAll(target: Set<string>, names: readonly string[]): void {
@@ -465,6 +476,7 @@ export function selectAmoraPendingProposalTools({
   userText,
   specialistType,
   checklistLabels,
+  specialistMatchedByKeyword,
 }: SelectAmoraToolsInput): AiToolDefinition[] {
   const selected = new Set<string>();
   // 남의 이야기와 가정에는 카드를 내지 않는다. `selectAmoraTools` 는 이 가드를
@@ -480,9 +492,11 @@ export function selectAmoraPendingProposalTools({
   // 값이 덜 정해진 말은 보통 카드를 안 내지만, 서버가 배분·일정 전문 경로로 보낸
   // 턴에서는 그것이 **정상이고 방아쇠**다. `NON_EXECUTABLE_RESTORE` 도 같은 성격이라
   // (`좋을까|어떨|추천해`) 함께 예외를 받는다 — 남 이야기 쪽은 위 가드가 이미 잡는다.
+  // 단계 기본값으로 떨어진 턴은 "보낸" 것이 아니다 — 그때는 관문을 그대로 둔다.
   const routedToPlanningSpecialist =
-    specialistType === "budget_optimizer"
-    || specialistType === "ceremony_coordinator";
+    (specialistMatchedByKeyword ?? true)
+    && (specialistType === "budget_optimizer"
+      || specialistType === "ceremony_coordinator");
   if (!routedToPlanningSpecialist) {
     if (NON_EXECUTABLE_RESTORE.test(userText)) return [];
     if (isUnsettledValue(userText)) return [];

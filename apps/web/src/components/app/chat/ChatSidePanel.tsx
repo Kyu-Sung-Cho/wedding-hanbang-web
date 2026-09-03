@@ -27,9 +27,13 @@ import {
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraBudgetImpactPreview,
-  getPendingActionDisabledReason,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
+import {
+  buildAmoraActionConfirmationOutcomes,
+  getAmoraPendingActionApplicationState,
+  resolveAmoraPendingActionDisabledReason,
+} from "./amoraPendingActionApplication";
 import {
   chatAttachmentKey,
   CHAT_ATTACHMENT_MAX_COUNT,
@@ -44,6 +48,7 @@ import type { AmoraQuickStartOption } from "@/lib/amora/personalization";
 import { shouldOfferMediation } from "@/lib/chat/mediationOffer";
 import { deduplicateToolResults } from "./toolResultDeduplication";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 
 const MAX_ATTACHMENTS = CHAT_ATTACHMENT_MAX_COUNT;
 
@@ -732,6 +737,9 @@ export default function ChatSidePanel({
         requestedVisibility: activeVisibility,
         target: submittedTarget,
         senderRole,
+        // 2026-09-03: 전체화면 채팅과 같은 이유. 스토어·서버가 이미 이 신호로
+        // 레인을 정하므로 화면도 같은 값을 봐야 탭 전환과 첨부 안내가 맞는다.
+        externalSafetySignal: hasAmoraSafetySignal(content ?? "", "chat"),
       });
       const effectiveVisibility = crisisPreflight.effectiveVisibility;
       const isLocalSafetyHold = crisisPreflight.disposition === "local_safety_hold";
@@ -782,6 +790,27 @@ export default function ChatSidePanel({
         currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       }
 
+      /**
+       * 안전 홀드로 멈춘 글을 작성창에 되돌린다.
+       *
+       * 2026-09-03: 홀드는 원문을 저장하지 않는 계약이라(그대로 둔다) 전송 직전에
+       * 비운 작성창을 아무도 되돌리지 않아, 오탐으로 걸린 사람이 방금 친 문장을
+       * 통째로 다시 타이핑해야 했다. 같은 갈래가 곧바로 '나만 (상담)' 으로 옮겨
+       * 가므로 되돌리는 곳도 `private_ai` 레인이다. 첨부는 이미 폐기했다.
+       */
+      const restoreHeldComposerText = () => {
+        if (!usesComposer || !submittedInput) return;
+        if (composerSessionGenerationRef.current !== submittedSessionGeneration) return;
+        setComposerDrafts((currentDrafts) => {
+          const currentDraft = currentDrafts.private_ai;
+          if (currentDraft.input) return currentDrafts;
+          return {
+            ...currentDrafts,
+            private_ai: { ...currentDraft, input: submittedInput },
+          };
+        });
+      };
+
       const restoreComposer = () => {
         if (
           isPrivateSafetyRoute
@@ -825,7 +854,11 @@ export default function ChatSidePanel({
             venue: journey?.venue ?? null,
             progress: journey?.progress ?? {},
           },
-          images: canTransmitAttachments && currentAttachments.length > 0
+          // 2026-09-03: 전체화면 채팅과 같은 이유 — 비공개 안전 레인에서도 목록만
+          // 넘겨 안내 카드가 첨부를 보내지 않았다고 말할 수 있게 한다. 스토어가
+          // 이 갈래의 첨부를 통째로 버리므로 실제 전송·업로드는 0건이다.
+          images: (canTransmitAttachments || isPrivateSafetyRoute)
+            && currentAttachments.length > 0
             ? currentAttachments
             : undefined,
           target: submittedTarget,
@@ -842,6 +875,7 @@ export default function ChatSidePanel({
           setActiveScope("private");
           setMessageTarget("ai");
           setDraftRetryClientRequestId(submittedLane, null);
+          restoreHeldComposerText();
           currentAttachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
           return;
         }
@@ -1421,6 +1455,13 @@ export default function ChatSidePanel({
                     message.visibility === "shared"
                     && message.metadata?.target !== "partner"
                   ))?.id ?? null;
+                // 2026-09-03: 이 표면은 적용 여부를 아예 판정하지 않아, 정상 반영된
+                // 직후에도 "새 대화가 이어져 이 제안은 적용할 수 없어요" 를 띄웠다
+                // (전체화면 채팅에서 8-31 에 고친 회귀가 여기엔 오지 않았다).
+                // 두 표면이 같은 헬퍼로 같은 결론을 내도록 한다. `scopedMessages` 가
+                // 아니라 `messages` 전체를 넣는다 — 최신 판정도 그렇다.
+                const actionConfirmationOutcomes =
+                  buildAmoraActionConfirmationOutcomes(messages);
                 return scopedMessages.map((msg) => {
                   const isCurrentUser = msg.sender_id === profile?.id;
                   const hasToolResults =
@@ -1433,12 +1474,16 @@ export default function ChatSidePanel({
                     ? pendingActionCandidate
                     : null;
                   const pendingActionDisabledReason = pendingAction
-                    ? getPendingActionDisabledReason(
-                        pendingAction,
+                    ? resolveAmoraPendingActionDisabledReason({
+                        action: pendingAction,
                         nowMs,
-                        msg.id === latestSharedAmoraMessageId,
-                        isStreaming || isSending,
-                      )
+                        isLatest: msg.id === latestSharedAmoraMessageId,
+                        busy: isStreaming || isSending,
+                        applicationState: getAmoraPendingActionApplicationState(
+                          pendingAction,
+                          actionConfirmationOutcomes,
+                        ),
+                      })
                     : null;
                   const pendingBudgetImpactPreview = pendingAction
                     ? getPendingAmoraBudgetImpactPreview(msg, pendingAction)

@@ -11,6 +11,7 @@ import {
   buildMultimodalContent,
   buildToolResultInput,
   chatWithToolsStream,
+  normalizeOpenAIProviderError,
 } from "@/lib/ai/openai";
 import type { ChatInputItem, ImageAttachment } from "@/lib/ai/openai";
 import type { ChatWithToolsResult } from "@/lib/ai/openai";
@@ -45,7 +46,11 @@ import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
 import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGate";
-import { determineStage, routeSpecialist } from "@/lib/ai/stage-router";
+import {
+  determineStage,
+  matchedSpecialistByKeyword,
+  routeSpecialist,
+} from "@/lib/ai/stage-router";
 import { logAIInteractionAfterResponse, startLatencyClock, elapsedMs } from "@/lib/compliance/ai-log";
 import {
   extractMediation,
@@ -857,8 +862,11 @@ export async function POST(request: Request) {
       : requestKind === "chat" && typeof bodyUserMessageId === "string"
         ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
       : rawClientRequestId;
+  // 2026-09-03: 인사 요청키가 사용자 id 하나로 영구 고정돼 있어, 커플이 바뀐
+  // 사용자는 예약 RPC 가 옛 커플과 다르다며 거절(invalid_args)해 첫 인사가
+  // 영원히 실패했다. 비용 원장이 실제로 비교하는 커플 값을 키에 함께 넣는다.
   const clientRequestId = requestKind === "initial_greeting"
-    ? `greeting:${actorId}`
+    ? `greeting:${actorId}:${dataCoupleId}`
     : `chat:${actorId}:${durableClientRequestUuid}`;
   const requestCorrelationId = createHash("sha256")
     .update(clientRequestId)
@@ -1614,12 +1622,19 @@ export async function POST(request: Request) {
         {
           error: "대화를 안전하게 시작하지 못했습니다. 잠시 후 다시 시도해주세요.",
           code: privacyCode ?? "CHAT_REQUEST_CLAIM_FAILED",
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
     }
   }
 
+  // 2026-09-03: 스트림 시작 전 실패는 여기서 클레임을 풀고 도구·저장 부작용이
+  // 아직 하나도 없으므로 같은 requestKey 재시도가 실제로 진행 가능하다. 그런데
+  // 그 지점의 503/504 본문이 retryable/retryPolicy 를 안 실어, 클라이언트가
+  // 전부 "영구 실패"로 읽고 재시도 버튼을 지웠다(서버 문구는 다시 시도하라고
+  // 적혀 있는데). 스트림 이전 실패 응답에 같은 파일의 기존 규약대로 same_request 를 싣는다.
   const releaseClaimBeforeStream = async (failureCode: string) => {
     if (!requestClaimAcquired) return;
     await failChatRequest({ ...claimParams, failureCode }).catch((error) => {
@@ -1667,6 +1682,8 @@ export async function POST(request: Request) {
           error:
             "개인정보 설정을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
           code,
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
@@ -1740,6 +1757,8 @@ export async function POST(request: Request) {
           {
             error: "현재 대화 구간을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
             code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+            retryable: true,
+            retryPolicy: "same_request",
           },
           { status: 503, headers: { "Cache-Control": "no-store" } },
         );
@@ -1752,6 +1771,8 @@ export async function POST(request: Request) {
         {
           error: "현재 대화 구간을 안전하게 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
           code: "CONVERSATION_SEGMENT_UNAVAILABLE",
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 503, headers: { "Cache-Control": "no-store" } },
       );
@@ -1982,6 +2003,8 @@ export async function POST(request: Request) {
       {
         error: "저장된 웨딩 정보를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
         code: "WEDDING_CONTEXT_UNAVAILABLE",
+        retryable: true,
+        retryPolicy: "same_request",
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
@@ -2024,6 +2047,8 @@ export async function POST(request: Request) {
       {
         error: criticalContextFailure.message,
         code: criticalContextFailure.code,
+        retryable: true,
+        retryPolicy: "same_request",
       },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
@@ -2080,6 +2105,8 @@ export async function POST(request: Request) {
           {
             error: "현재 준비 공간의 구성 방식을 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
             code: "AMORA_MEMBER_MODEL_UNAVAILABLE",
+            retryable: true,
+            retryPolicy: "same_request",
           },
           { status: 503, headers: { "Cache-Control": "no-store" } },
         );
@@ -2341,7 +2368,12 @@ export async function POST(request: Request) {
     log.error("Canonical chat history lookup failed:", messagesResult.error.message);
     await releaseClaimBeforeStream("CHAT_HISTORY_UNAVAILABLE");
     return NextResponse.json(
-      { error: "저장된 대화를 확인하지 못했습니다.", code: "CHAT_HISTORY_UNAVAILABLE" },
+      {
+        error: "저장된 대화를 확인하지 못했습니다.",
+        code: "CHAT_HISTORY_UNAVAILABLE",
+        retryable: true,
+        retryPolicy: "same_request",
+      },
       { status: 503, headers: { "Cache-Control": "no-store" } },
     );
   }
@@ -2982,6 +3014,12 @@ export async function POST(request: Request) {
   const specialistType = allowsStoredProviderContext && stageTag !== null
     ? routeSpecialist(lastUserText, stageTag)
     : "general" as const;
+  // 2026-09-03: 위 라우팅이 키워드로 고른 것인지, 단계 기본값으로 떨어진 것인지는
+  // 여기서만 알 수 있다. 확인 카드 관문(제안 도구)이 그 둘을 구별해야 한다.
+  const specialistMatchedByKeyword =
+    allowsStoredProviderContext && stageTag !== null
+      ? matchedSpecialistByKeyword(lastUserText)
+      : false;
 
   // Private 모드 안내 (한 사람이 단독으로 아모라에게 털어놓는 채팅)
   const privacyPrefix = visibility === "bride_private" || visibility === "groom_private"
@@ -3083,6 +3121,7 @@ export async function POST(request: Request) {
             availableTools: PENDING_ACTION_TOOLS,
             userText: toolIntentText,
             specialistType,
+            specialistMatchedByKeyword,
             attachmentKind,
             checklistLabels: coupleChecklistLabels,
           }).filter(
@@ -3249,6 +3288,8 @@ export async function POST(request: Request) {
       {
         error: "응답 준비 시간이 초과됐어요. 같은 요청으로 다시 시도해주세요.",
         code: "CHAT_REQUEST_DEADLINE_EXCEEDED",
+        retryable: true,
+        retryPolicy: "same_request",
       },
       { status: 504, headers: { "Cache-Control": "no-store" } },
     );
@@ -4408,6 +4449,16 @@ export async function POST(request: Request) {
             && inputStreamError?.code !== "AMORA_INPUT_TOO_LARGE"
           )
         );
+        // 2026-09-03: 생성이 시작된 뒤 실패하면 exactRetryAllowed 가 항상 false 라
+        // 원인과 무관하게 "같은 식별자로 다시 이어갈 수 없어요"만 나갔다. 재시도
+        // 허용 판정은 그대로 두고 문구만 원인별로 가른다. 프로바이더 오류는
+        // normalizeOpenAIProviderError 가 메시지를 정규화해 timeout/abort 문자열이
+        // 남지 않으므로, 취소 신호와 정규화된 category 로 판별한다.
+        const providerErrorCategory = normalizeOpenAIProviderError(err).category;
+        const endedByDeadlineOrAbort =
+          deadlineAbortController.signal.aborted
+          || providerErrorCategory === "timeout"
+          || providerErrorCategory === "aborted";
         log.error("채팅 API 에러:", errMsg);
         if (requestClaimAcquired) {
           await failChatRequest({
@@ -4433,6 +4484,8 @@ export async function POST(request: Request) {
                 ? inputStreamError.message
                 : privacyContextErrorCode
                   ? "개인정보 설정이 변경되었거나 안전하게 확인되지 않았어요. 최신 설정에서 새 메시지로 다시 보내주세요."
+                  : endedByDeadlineOrAbort
+                    ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
                   : "이 요청은 같은 식별자로 다시 이어갈 수 없어요. 새 메시지로 다시 보내주세요."
             : durableErrorCode
             ? "답변 저장을 완료하지 못했어요. 같은 요청으로 다시 시도해주세요."

@@ -2,6 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
+import {
+  matchedSpecialistByKeyword,
+  routeSpecialist,
+} from "@/lib/ai/stage-router";
 
 type PrivacySnapshotFixture = {
   version: 2;
@@ -475,11 +479,17 @@ vi.mock("@/lib/ai/chatRequestClaim", () => ({
   failChatRequest: mocks.failClaim,
 }));
 
-vi.mock("@/lib/ai/openai", () => ({
-  chatWithToolsStream: mocks.provider,
-  buildToolResultInput: mocks.buildToolResult,
-  buildMultimodalContent: mocks.buildMultimodal,
-}));
+vi.mock("@/lib/ai/openai", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/openai")>();
+  return {
+    chatWithToolsStream: mocks.provider,
+    buildToolResultInput: mocks.buildToolResult,
+    buildMultimodalContent: mocks.buildMultimodal,
+    // 2026-09-03: 실패 원인 문구는 정규화된 category 로 갈린다. 여기서만
+    // 가짜를 쓰면 그 갈래가 시험되지 않으므로 실제 구현을 그대로 쓴다.
+    normalizeOpenAIProviderError: actual.normalizeOpenAIProviderError,
+  };
+});
 
 vi.mock("@/lib/ai/modelConfig", () => ({
   chooseAmoraChatModelRole: mocks.chooseModelRole,
@@ -521,6 +531,8 @@ vi.mock("@/lib/ai/dissatisfaction", () => ({ detectDissatisfaction: vi.fn(() => 
 vi.mock("@/lib/ai/stage-router", () => ({
   determineStage: vi.fn(() => "planning_0"),
   routeSpecialist: vi.fn(() => "general"),
+  // 2026-09-03: 라우팅 mock 이 늘 "general" 이므로 키워드 매칭도 없음으로 둔다.
+  matchedSpecialistByKeyword: vi.fn(() => false),
   getSpecialistPromptAddon: vi.fn(() => ""),
 }));
 vi.mock("@/lib/compliance/ai-log", () => ({
@@ -3164,6 +3176,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       userMessageId: "30000000-0000-4000-8000-000000000001",
       visibility: "shared",
     }));
+  });
+
+
+  // 2026-09-03: 인사 요청키가 사용자 id 하나로 영구 고정돼 있어서, 커플이 바뀐
+  // 사용자는 예약 RPC 가 옛 커플과 다르다며 거절해 첫 인사가 영원히 실패했다.
+  // 인사 키는 커플을 함께 담고, 일반 턴 키와는 여전히 갈린다.
+  it.each([
+    ["initial_greeting", `greeting:00000000-0000-4000-8000-000000000001:${COUPLE_ID}`],
+    ["chat", `chat:00000000-0000-4000-8000-000000000001`],
+  ] as const)("scopes the %s request key to this couple", async (requestKind, expectedPrefix) => {
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "안녕하세요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request(
+      requestKind === "initial_greeting"
+        ? { requestKind, userMessageId: undefined }
+        : {},
+    ));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const requestKey = String(mocks.claim.mock.calls[0]?.[0]?.requestKey);
+    expect(requestKey.startsWith(expectedPrefix)).toBe(true);
+    if (requestKind === "initial_greeting") {
+      expect(requestKey).toBe(expectedPrefix);
+    }
   });
 
   it.each([
@@ -6675,6 +6715,81 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     errorSpy.mockRestore();
   });
 
+
+  // 2026-09-03: 생성이 시작된 뒤 실패하면 재시도 허용 판정이 늘 false 라, 원인이
+  // 무엇이든 "같은 식별자로 다시 이어갈 수 없어요" 한 문장만 나갔다. 재시도 규약은
+  // 그대로 두고 원인이 시간 초과·중단일 때만 그 사실을 먼저 말한다.
+  it.each([
+    [
+      "a provider timeout",
+      () => Object.assign(new Error("[openai] provider request failed"), {
+        name: "TimeoutError",
+      }),
+      "응답 시간이 초과되었습니다. 다시 시도해주세요.",
+      "이 요청은 같은 식별자로 다시 이어갈 수 없어요. 새 메시지로 다시 보내주세요.",
+    ],
+    [
+      "a provider transport failure",
+      () => new Error("[openai] provider request failed"),
+      "이 요청은 같은 식별자로 다시 이어갈 수 없어요. 새 메시지로 다시 보내주세요.",
+      "응답 시간이 초과되었습니다. 다시 시도해주세요.",
+    ],
+  ] as const)(
+    "explains %s with its own cause after generation started",
+    async (_label, makeError, expectedMessage, unexpectedMessage) => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      mocks.provider.mockImplementationOnce(async (options: {
+        beforeGeneration?: () => Promise<void>;
+      }) => {
+        await options.beforeGeneration?.();
+        throw makeError();
+      });
+
+      const response = await POST(request());
+      const body = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(body).toContain('"type":"error"');
+      // 재시도 허용 판정은 이 수정의 대상이 아니다 — 유료 경계를 넘었으므로 그대로 new_message.
+      expect(body).toContain('"retryPolicy":"new_message"');
+      expect(body).toContain(expectedMessage);
+      expect(body).not.toContain(unexpectedMessage);
+      errorSpy.mockRestore();
+    },
+  );
+
+
+  // 2026-09-03: 단계 기본 전문분야로 떨어진 턴에서 확인 카드 관문이 살아 있으려면
+  // 라우트가 "키워드로 매칭한 것인가"를 정책에 넘겨야 한다. 정책만 시험하면 이
+  // 배선이 빠져도 초록불이라, 같은 문장을 두 라우팅으로 태워 결과를 대조한다.
+  it.each([
+    ["a stage default", false, false],
+    ["a keyword match", true, true],
+  ] as const)(
+    "hands %s to the pending-offer gate",
+    async (_label, matchedByKeyword, expectsOffer) => {
+      vi.mocked(routeSpecialist).mockReturnValueOnce("budget_optimizer");
+      vi.mocked(matchedSpecialistByKeyword).mockReturnValueOnce(matchedByKeyword);
+      mocks.canonicalRows[0] = {
+        ...mocks.canonicalRows[0],
+        content: "드레스 투어 언제 하는 게 좋을까",
+      };
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: "언제가 좋을지 같이 볼게요.",
+        usage: { input_tokens: 10, output_tokens: 3 },
+      }));
+
+      const response = await POST(request({
+        messages: [{ role: "user", content: "드레스 투어 언제 하는 게 좋을까" }],
+      }));
+      expect(response.status).toBe(200);
+      await response.text();
+
+      const systemPrompt = String(mocks.provider.mock.calls[0]?.[0]?.systemPrompt);
+      expect(systemPrompt.includes("[서버 발급 후속 확인 계약]")).toBe(expectsOffer);
+    },
+  );
+
   it("ignores authenticated client wedding context and safely handles malformed nested fields", async () => {
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "서버 정보를 기준으로 답했어요.",
@@ -6732,6 +6847,69 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       errorSpy.mockRestore();
     },
   );
+
+
+  // 2026-09-03: 스트림 이전 실패는 클레임을 풀고 부작용 이전이라 같은 requestKey
+  // 재시도가 실제로 가능한데, 본문이 그 규약을 안 실어 클라이언트가 "영구 실패"로
+  // 읽고 재시도 버튼을 지웠다. 서버 문구("잠시 후 다시 시도")와 화면이 갈렸다.
+  it.each([
+    [
+      "the active conversation segment is unreadable",
+      () => {
+        vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
+        mocks.activeSegment = null;
+      },
+      "CONVERSATION_SEGMENT_UNAVAILABLE",
+    ],
+    [
+      "canonical wedding context is unavailable",
+      () => {
+        mocks.journeyError = { code: "PGRST500", message: "database unavailable" };
+      },
+      "WEDDING_CONTEXT_UNAVAILABLE",
+    ],
+    [
+      "canonical decisions are unavailable",
+      () => {
+        mocks.decisionsError = { code: "PGRST500", message: "database unavailable" };
+      },
+      "DECISIONS_CONTEXT_UNAVAILABLE",
+    ],
+  ] as const)(
+    "offers a same-request retry when %s before the stream starts",
+    async (_label, arrange, expectedCode) => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      arrange();
+
+      const response = await POST(request());
+
+      await expect(response.json()).resolves.toMatchObject({
+        code: expectedCode,
+        retryable: true,
+        retryPolicy: "same_request",
+      });
+      // 재시도를 권하려면 클레임이 실제로 풀려 있어야 한다.
+      expect(mocks.failClaim).toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+      errorSpy.mockRestore();
+    },
+  );
+
+  // 대조군: 세그먼트 불일치는 일시 장애가 아니라 결정적 일관성 검사라 같은 요청을
+  // 다시 보내도 같은 결과다. 위 규약을 여기까지 넓히면 무한 재시도가 되므로
+  // 일부러 남겨 둔다(어떻게 안내할지는 파운더 결정 대기).
+  it("does not offer a same-request retry for a deterministic segment mismatch", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
+    mocks.activeSegment = { id: "60000000-0000-4000-8000-000000000001" };
+
+    const response = await POST(request());
+    const body = await response.json();
+
+    expect(body).toMatchObject({ code: "CONVERSATION_SEGMENT_CONTEXT_UNAVAILABLE" });
+    expect(body.retryPolicy).toBeUndefined();
+    errorSpy.mockRestore();
+  });
 
   it("fails closed on a consented memory-summary outage instead of pretending there is no history", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);

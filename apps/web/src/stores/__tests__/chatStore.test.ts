@@ -476,7 +476,7 @@ describe("confirmed Amora action recovery", () => {
       /\.or\("metadata->>target\.is\.null,metadata->>target\.neq\.partner"\)\s*\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(1\)\s*\.maybeSingle\(\)/,
     );
     expect(chatStoreSource).toMatch(
-      /const allMessages = boundedRows\s*\.reverse\(\)/,
+      /const canonicalMessages = boundedRows\s*\.reverse\(\)/,
     );
     expect(chatStoreSource).toContain("latestPrivateCanonicalData");
     expect(chatStoreSource).toContain('.eq("visibility", ownPrivateVisibility)');
@@ -1733,6 +1733,107 @@ describe("chat lifecycle isolation", () => {
     });
   });
 
+  // 2026-09-03: 안전 홀드 안내 카드는 원문을 저장하지 않는 계약이라 DB 에 없다.
+  // 그런데 loadMessages 가 목록을 DB 결과로 통째로 덮어써서, 다른 화면에 갔다
+  // 돌아오면 112·119 안내까지 사라졌다. 같은 입력(같은 카드)을 두 조건으로 넣어
+  // 남는 경우와 지워지는 경우가 갈리는지로 잰다.
+  it.each([
+    ["before the user's own reset", false, true],
+    ["after the user's own reset", true, false],
+  ])("keeps a local safety guidance card across a history reload %s", async (
+    _label,
+    clearedAfterCard,
+    expectedToSurvive,
+  ) => {
+    // 시계는 실행 시각을 쓴다. 다른 테스트가 남긴 초기화 커서(localStorage 포함)가
+    // 과거에 있어도 이 카드가 그 뒤라는 것이 확실해야 두 갈래가 갈린다.
+    const cardCreatedAt = new Date().toISOString();
+    const sharedClearedAt = clearedAfterCard
+      ? new Date(Date.now() + 60_000).toISOString()
+      : null;
+    const safetyCardId = `amora-crisis-preflight:${TEST_COUPLE_UUID}:${TEST_CLIENT_REQUEST_UUID}`;
+    useChatStore.setState({
+      messages: [{
+        id: safetyCardId,
+        couple_id: TEST_COUPLE_UUID,
+        sender_id: null,
+        sender_role: "ai",
+        content: "안전을 위해 이 내용은 상대방에게 공유하거나 저장하지 않았어요.",
+        metadata: {
+          pinned_safety_card: true,
+          persistence_status: "ephemeral_local_only",
+          memory_eligible: false,
+        },
+        visibility: "shared",
+        created_at: cardCreatedAt,
+      }],
+    });
+    const immediate = <T,>(value: T) => createDeferredQuery(Promise.resolve(value));
+    let chatQueryCount = 0;
+    mockFrom.mockImplementation((table?: string): Record<string, unknown> => {
+      if (table === "my_profile_chat_state") {
+        return immediate({
+          data: {
+            shared_chat_cleared_at: sharedClearedAt,
+            private_chat_cleared_at: null,
+          },
+          error: null,
+        });
+      }
+      if (table === "chat_messages") {
+        chatQueryCount += 1;
+        if (chatQueryCount === 2) return immediate({ data: [], error: null });
+        return immediate({ data: null, error: null });
+      }
+      return defaultChatMessagesTable;
+    });
+
+    await useChatStore.getState().loadMessages(TEST_COUPLE_UUID);
+
+    expect(useChatStore.getState().messages.some(
+      (message) => message.id === safetyCardId,
+    )).toBe(expectedToSurvive);
+  });
+
+  it("does not keep another couple's local safety card on reload", async () => {
+    const foreignCardId = "amora-crisis-preflight:20000000-0000-4000-8000-000000000099:x";
+    useChatStore.setState({
+      messages: [{
+        id: foreignCardId,
+        couple_id: "20000000-0000-4000-8000-000000000099",
+        sender_id: null,
+        sender_role: "ai",
+        content: "다른 커플의 안내 카드",
+        metadata: {
+          pinned_safety_card: true,
+          persistence_status: "ephemeral_local_only",
+        },
+        visibility: "shared",
+        created_at: new Date().toISOString(),
+      }],
+    });
+    const immediate = <T,>(value: T) => createDeferredQuery(Promise.resolve(value));
+    let chatQueryCount = 0;
+    mockFrom.mockImplementation((table?: string): Record<string, unknown> => {
+      if (table === "my_profile_chat_state") {
+        return immediate({
+          data: { shared_chat_cleared_at: null, private_chat_cleared_at: null },
+          error: null,
+        });
+      }
+      if (table === "chat_messages") {
+        chatQueryCount += 1;
+        if (chatQueryCount === 2) return immediate({ data: [], error: null });
+        return immediate({ data: null, error: null });
+      }
+      return defaultChatMessagesTable;
+    });
+
+    await useChatStore.getState().loadMessages(TEST_COUPLE_UUID);
+
+    expect(useChatStore.getState().messages).toEqual([]);
+  });
+
   it("removes an interrupted-turn recovery when a newer canonical realtime turn arrives", () => {
     const userMessageId = "70000000-0000-4000-8000-000000000015";
     useChatStore.setState({
@@ -2371,7 +2472,12 @@ describe("Amora crisis reload recovery", () => {
       'const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route"',
     );
     expect(contentSend).toContain('setActiveTab("private")');
-    expect(contentSend).toContain("images: canTransmitAttachments");
+    // 비공개 안전 레인에서도 첨부 "목록"은 넘어간다 — 스토어가 그 갈래의 첨부를
+    // 통째로 버리므로 전송은 0건이고, 안내 카드만 첨부를 보내지 않았다고 말할 수
+    // 있게 된다. 목록조차 안 넘기면 사진이 아무 말 없이 사라진다.
+    expect(contentSend).toContain(
+      "images: (canTransmitAttachments || isPrivateSafetyRoute)",
+    );
     expect(panelSend).toContain(
       'const isPrivateSafetyRoute = crisisPreflight.disposition === "private_safety_route"',
     );
@@ -4534,14 +4640,51 @@ describe("useChatStore failed provider retry", () => {
     }));
   });
 
+  // 2026-09-03: 여기가 뒤집혔다. `!res.ok` 는 항상 스트림 시작 전 실패이고 서버가
+  // 클레임까지 풀어 두므로, 재시도 판정이 실려 오지 않은 일시적 상태 코드는 같은
+  // 요청을 다시 보낼 수 있다. 전에는 이 경우를 "입력을 확인하라" 로 닫아, 서버가
+  // 본문에 "같은 요청으로 다시 시도해주세요" 라고 쓴 504 에서도 버튼이 사라졌다.
   it.each([
-    ["legacy", JSON.stringify({ code: "LEGACY_HTTP_503" })],
+    ["legacy", JSON.stringify({ code: "LEGACY_HTTP_503" }), 503],
+    ["malformed", "not-json", 503],
+    ["gateway", "<html>Bad Gateway</html>", 502],
+    ["timeout", "", 504],
+    ["request timeout", "", 408],
+  ])("offers the same request again for a %s transient HTTP terminal", async (
+    _label,
+    body,
+    status,
+  ) => {
+    mockFetch.mockResolvedValue(new Response(body, { status }));
+
+    await useChatStore.getState().sendMessage({
+      content: "일시적 실패면 같은 요청으로 다시 보내게 해 줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    const firstBody = (mockFetch.mock.calls[0][1] as RequestInit).body;
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: true,
+      requestBody: firstBody,
+      unavailableReason: null,
+    }));
+    expect(useChatStore.getState().error).toContain("잠시 후 다시 시도");
+    expect(useChatStore.getState().error).not.toContain("첨부파일을 확인");
+  });
+
+  it.each([
+    ["legacy", JSON.stringify({ code: "LEGACY_HTTP_422" })],
     ["malformed", "not-json"],
-  ])("fails closed for a %s HTTP terminal without an explicit replay contract", async (
+  ])("fails closed for a %s permanent HTTP terminal without an explicit replay contract", async (
     _label,
     body,
   ) => {
-    mockFetch.mockResolvedValue(new Response(body, { status: 503 }));
+    mockFetch.mockResolvedValue(new Response(body, { status: 422 }));
 
     await useChatStore.getState().sendMessage({
       content: "재시도 계약이 없으면 새 메시지로 안내해 줘",
@@ -4556,6 +4699,34 @@ describe("useChatStore failed provider retry", () => {
     expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
       canRetry: false,
       content: "",
+      requestBody: "",
+      unavailableReason: expect.stringContaining("새 메시지"),
+    }));
+  });
+
+  it("still fails closed when a 5xx explicitly says a new message is required", async () => {
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({
+      error: "개인정보 설정이 바뀌어 같은 요청을 다시 보낼 수 없어요.",
+      code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+      retryable: false,
+      retryPolicy: "new_message",
+    }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "서버가 명시한 판정이 상태 코드보다 앞서야 해",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
       requestBody: "",
       unavailableReason: expect.stringContaining("새 메시지"),
     }));

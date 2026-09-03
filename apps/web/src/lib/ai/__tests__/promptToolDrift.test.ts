@@ -109,12 +109,14 @@ describe("프롬프트와 도구 목록이 어긋나지 않는다", () => {
     // 대고 하면 언제나 통과한다 — 실제로 그렇게 통과했고, 그 고지는 운영에 한 번도
     // 들어가지 않았다.
     //
-    // "## 아모라 행동 카드"는 removeLegacyOperationalInstructions가 지우는 구간
-    // 한가운데에 있다. 이게 남아 있다면 삭제가 안 돈 것이고, 그러면 이 파일의 나머지
-    // 단언은 운영과 무관한 문자열을 보고 있는 것이다.
+    // 예전에는 "## 아모라 행동 카드"를 파수꾼으로 썼는데, 2026-09-03 에 그 구간을
+    // `prompts.ts`에서 물리적으로 지웠다. 원본에 없는 문자열은 삭제가 돌든 말든
+    // 통과하므로 파수꾼이 되지 못한다. 그래서 **아직 원본에 남아 있으면서 매 턴
+    // 삭제되는** 구간으로 옮긴다 — removeLegacyOperationalInstructions의 첫 번째
+    // 삭제 구간이다.
     for (const { label, text } of prompts()) {
       expect(text, `${label}: 삭제가 실행되지 않았다 — enabledToolNames를 넘기고 있는지 확인하라`)
-        .not.toContain("## 아모라 행동 카드");
+        .not.toContain("### apply_budget_plan 호출 조건");
     }
   });
 
