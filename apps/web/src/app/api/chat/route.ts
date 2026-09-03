@@ -2576,6 +2576,8 @@ export async function POST(request: Request) {
       pending_amora_action_impact_preview?: unknown;
       /** 이 카드가 원본 턴 이후 몇 번 옮겨졌는가. 없으면 0(원본 턴). */
       pending_amora_action_carry_count?: unknown;
+      /** 이 카드가 처음 나온 답변 행 id. 관측용이며 정책을 바꾸지 않는다. */
+      pending_amora_action_carry_origin_message_id?: unknown;
       in_reply_to_user_message_id?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
@@ -3064,6 +3066,24 @@ export async function POST(request: Request) {
       ? previousCanonicalRow.metadata.pending_amora_action_carry_count
       : 0;
   const nextPendingCardCarries = previousPendingCardCarries + 1;
+  /**
+   * 이 카드가 **처음 나온 답변**이 어느 행인가 (2026-09-04, 관측용).
+   *
+   * 이월된 카드는 원본 문장과 떨어져 뜬다. 그런데 옮겨진 행만 보면 그 카드가 어느
+   * 대화에서 나온 것인지 되짚을 수가 없어, 운영에서 "문장과 다른 것이 저장됐다"는
+   * 신고가 들어와도 원본 턴을 찾을 방법이 없었다.
+   *
+   * 이미 값이 있으면 그대로 물려받는다 — 두 번째 이월에서 원본이 직전 행으로
+   * 바뀌면 가리키는 곳이 매번 달라진다. **판정에는 쓰지 않는다**: 이월 여부·횟수·
+   * 범위 관문은 위에서 정한 그대로다.
+   */
+  const carriedPendingActionOriginMessageId = awaitingPendingCard === null
+    ? null
+    : isRecord(previousCanonicalRow?.metadata)
+      && typeof previousCanonicalRow.metadata
+        .pending_amora_action_carry_origin_message_id === "string"
+      ? previousCanonicalRow.metadata.pending_amora_action_carry_origin_message_id
+      : previousCanonicalRow?.id ?? null;
   const classifiedQuestionScope = classifyAmoraQuestionScope({
     userText: lastUserText,
     requestKind,
@@ -3887,6 +3907,12 @@ export async function POST(request: Request) {
                 ? {
                     pending_amora_action: awaitingPendingCard,
                     pending_amora_action_carry_count: nextPendingCardCarries,
+                    ...(carriedPendingActionOriginMessageId !== null
+                      ? {
+                          pending_amora_action_carry_origin_message_id:
+                            carriedPendingActionOriginMessageId,
+                        }
+                      : {}),
                     ...(carriedPendingActionRevision !== null
                       ? {
                           pending_amora_action_journey_revision:

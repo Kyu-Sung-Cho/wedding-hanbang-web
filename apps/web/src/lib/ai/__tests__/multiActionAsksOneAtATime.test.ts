@@ -9,16 +9,16 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 /**
  * "예산 6천으로 올리고 드레스 투어도 다음 주 토요일로 잡아줘" 는 흔한 요청이다.
  *
- * 계약은 표식을 **정확히 하나**로 못 박고, 둘이면 서버가 둘 다 버린다. 그 자체는
- * 옳다 — 하나만 골라 적용하면 나머지가 조용히 사라져 사용자는 둘 다 된 줄 안다.
+ * 계약은 표식을 **정확히 하나**로 못 박는다. 예전에는 둘이면 서버가 둘 다 버렸다 —
+ * "하나만 골라 적용하면 나머지가 조용히 사라져 사용자는 둘 다 된 줄 안다" 는 이유였다.
  *
- * 문제는 그때 남기던 말이었다.
+ * 2026-09-04 그 균형을 바꿨다. 조용히 사라지는 것은 **서버가 직접 말해서** 없앨 수
+ * 있지만, 카드가 0개가 되는 손해는 없앨 수 없다(라이브에서 사용자가 일정 세 건을
+ * 부탁하고 아무것도 못 받았다). 이제 통과한 첫 표식은 카드가 되고, 나머지가 몇 건
+ * 남았는지는 서버 소유 문장이 알린다. 확인 없이는 무엇도 실행되지 않는다.
  *
- *     "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시
- *      보내주시겠어요?"
- *
- * 같은 요청을 다시 보내면 표식이 또 둘이 나온다. **무한 고리다**
- * (2026-08-24 감사). 이제 빠져나갈 방법을 알려준다.
+ * 통과한 표식이 하나도 없을 때 남기는 말은 그대로다. 그때 "같은 요청을 다시
+ * 보내주세요" 라고 하면 표식이 또 둘 나오는 **무한 고리**가 된다(2026-08-24 감사).
  */
 
 const TOOLS: AiToolDefinition[] = [
@@ -58,21 +58,31 @@ const BUDGET_MARKER =
 const SCHEDULE_MARKER =
   '[pending_action]{"tool":"add_schedule_event","input":{"date":"2026-09-05","title":"드레스 투어"}}[/pending_action]';
 
-describe("한 번에 두 가지를 부탁하면 빠져나갈 방법을 알려준다", () => {
-  it("표식이 둘이면 카드를 내지 않는다", () => {
+/** 어떤 도구에도 없는 필드 이름이라 검증을 통과하지 못한다. */
+const BROKEN_MARKER =
+  '[pending_action]{"tool":"update_budget","input":{"budget_total":60000000}}[/pending_action]';
+const BROKEN_SCHEDULE_MARKER =
+  '[pending_action]{"tool":"add_schedule_event","input":{"event_date":"2026-09-05"}}[/pending_action]';
+
+describe("한 번에 두 가지를 부탁하면 첫 건을 내고 나머지를 말해준다", () => {
+  it("표식이 둘이면 첫 건이 카드가 된다", () => {
     const result = extract(`알겠어요.\n${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
-    expect(result.pendingAction).toBeNull();
+    expect(result.pendingAction?.tool).toBe("update_budget");
+    expect(result.pendingAction?.input).toEqual({ total_budget: 60_000_000 });
   });
 
-  it("하나만 몰래 적용하지 않는다", () => {
-    // 나머지가 조용히 사라지면 사용자는 둘 다 된 줄 안다.
+  it("나머지를 조용히 버리지 않는다 — 몇 건이 남았는지 말한다", () => {
+    // 나머지가 말없이 사라지면 사용자는 둘 다 된 줄 안다.
     const result = extract(`${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
-    expect(result.pendingAction).toBeNull();
-    expect(result.cleanText).not.toContain("6,000");
+    expect(result.cleanText).toContain("6,000");
+    expect(result.cleanText).toContain("나머지 1건은 이 확인이 끝나면 이어서 제안할게요.");
+    // 두 번째 건은 카드가 아니다 — 확인 대상은 언제나 하나다.
+    expect(result.cleanText).not.toContain("드레스 투어");
   });
 
-  it("같은 요청을 다시 보내라고 하지 않는다 — 그건 무한 고리다", () => {
-    const result = extract(`${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
+  it("통과한 표식이 없을 때도 같은 요청을 다시 보내라고 하지 않는다 — 그건 무한 고리다", () => {
+    const result = extract(`${BROKEN_MARKER}\n${BROKEN_SCHEDULE_MARKER}`);
+    expect(result.pendingAction).toBeNull();
     expect(result.cleanText).not.toContain("같은 요청을 한 번만 다시");
     // 2026-09-03: 문구가 "하나씩" 에서 "먼저 … 한 가지만" 으로 바뀌었다.
     // 계약은 낱말이 아니라 **한 번에 한 건씩 말하라고 안내하는가** 이다.
@@ -98,9 +108,17 @@ describe("이 안내는 프로바이더 이력에 남기지 않는다", () => {
   // 하나씩 나눠 말해도 카드가 점점 안 나오고 "확인해 주시면 적용할게요" 같은
   // 누를 것 없는 말만 하게 된다(2026-08-24 감사).
   it("두 가지 안내 턴은 걸러진다", () => {
+    // 통과한 표식이 하나도 없는 턴만 이 안내가 된다(2026-09-04 이후).
+    const result = extract(`${BROKEN_MARKER}
+${BROKEN_SCHEDULE_MARKER}`);
+    expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(true);
+  });
+
+  it("첫 건 카드가 나간 턴은 걸러지지 않는다", () => {
+    // 카드가 붙은 턴을 이력에서 빼면 모델은 자기가 성공한 모양을 못 배운다.
     const result = extract(`${BUDGET_MARKER}
 ${SCHEDULE_MARKER}`);
-    expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(true);
+    expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(false);
   });
 
   it("평범한 답변은 걸러지지 않는다", () => {

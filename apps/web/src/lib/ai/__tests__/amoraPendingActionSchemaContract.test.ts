@@ -12,7 +12,7 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
  * 2026-08-22 스테이징 실측: 아모라 12턴 · 확인 카드 0건 · 저장 0건.
  *
  * 원인은 모델이 표식을 안 내는 것이 아니었다. **정확히 내는데 서버가 버렸다.**
- * `validateMarker`의 `hasOnlyDeclaredTopLevelKeys`가 스키마에 선언되지 않은
+ * `validateMarker`가 스키마에 선언되지 않은
  * 최상위 키를 하나라도 발견하면 표식 전체를 `null`로 만든다. 조용히.
  *
  * 그런데 계약문은 **도구 이름만** 알려줬다. 변경 도구는 provider `tools` 배열에서도
@@ -187,39 +187,53 @@ describe("계약문이 알려준 이름만으로 만든 표식은 서버를 통�
   });
 });
 
-describe("검증은 느슨해지지 않았다", () => {
-  // 계약문을 고친 것이지 관문을 연 것이 아니다. 2026-08-22 에 실제로 관측된
-  // 페이로드 그대로 — 지어낸 키가 있으면 여전히 카드가 나오면 안 된다.
-  const observed: Array<{ label: string; tool: string; input: Record<string, unknown> }> = [
-    {
-      label: "일정: start_time·end_time·location 을 지어냈다",
-      tool: "add_schedule_event",
-      input: {
-        title: "웨딩 사진 촬영",
-        date: "2026-12-05",
-        start_time: "15:00",
-        end_time: "17:00",
-        location: "압구정 A스튜디오",
-      },
-    },
-    {
-      label: "예산: budget 대신 amount 를 썼다",
-      tool: "update_category_budget",
-      input: { category: "studio", amount: 3_000_000 },
-    },
-  ];
-
-  it.each(observed.map((o) => [o.label, o] as const))("%s", (_label, sample) => {
-    const tool = MUTATING_TOOLS.find((candidate) => candidate.name === sample.tool)!;
+describe("지어낸 키는 실행 경로에 닿지 않는다", () => {
+  // 2026-08-22 에 실제로 관측된 페이로드 그대로.
+  //
+  // 2026-09-04 이전에는 지어낸 키 하나에 **표식이 통째로** 버려졌다. 그 규칙이
+  // 스테이징 X7 을 만들었다 — 모델이 표식을 냈는데 사용자에게는 카드가 없었다.
+  // 지금은 그 키만 버린다. 지키는 것은 그대로다: **지어낸 값은 실행 경로에 없다.**
+  function extractMarker(toolName: string, input: Record<string, unknown>) {
+    const tool = MUTATING_TOOLS.find((candidate) => candidate.name === toolName)!;
     const text = `저장할까요?\n[pending_action]${JSON.stringify({
-      tool: sample.tool,
-      input: sample.input,
+      tool: toolName,
+      input,
     })}[/pending_action]`;
-    const result = extractAmoraPendingAction({
+    return extractAmoraPendingAction({
       text,
       allowedTools: [tool],
       now: Date.now(),
       createActionId: randomUUID,
+    });
+  }
+
+  it("일정: start_time·end_time·location 은 버리고 남은 값으로 카드를 낸다", () => {
+    const result = extractMarker("add_schedule_event", {
+      title: "웨딩 사진 촬영",
+      date: "2026-12-05",
+      start_time: "15:00",
+      end_time: "17:00",
+      location: "압구정 A스튜디오",
+    });
+
+    // 필수값(date·title)이 멀쩡하므로 카드는 나간다.
+    expect(result.pendingAction?.input).toEqual({
+      title: "웨딩 사진 촬영",
+      date: "2026-12-05",
+    });
+    // 지어낸 값은 카드 본문에도, 저장될 입력에도 없다. 사용자는 저장될 것만 읽는다.
+    for (const invented of ["15:00", "17:00", "압구정"]) {
+      expect(result.cleanText).not.toContain(invented);
+    }
+  });
+
+  it("예산: budget 대신 amount 를 쓰면 여전히 카드가 나오지 않는다", () => {
+    // `update_category_budget` 의 required 는 `category` 하나뿐이라 `amount` 만
+    // 버리면 스키마는 통과한다. 그런데 그렇게 나간 카드는 눌러도 실행기가
+    // `invalid_category_budget` 으로 거절한다 — 그래서 카드를 내지 않는다.
+    const result = extractMarker("update_category_budget", {
+      category: "studio",
+      amount: 3_000_000,
     });
     expect(result.pendingAction).toBeNull();
   });

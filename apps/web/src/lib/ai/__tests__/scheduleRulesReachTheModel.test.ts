@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { addDaysUtc, todayKstMidnight, ymdInKst } from "@/lib/utils/kstDate";
 
 /**
  * 일정 규칙을 `prompts.ts` 에 썼는데 **모델에게 가지 않았다.**
@@ -44,6 +45,9 @@ const PRODUCTION_ENABLED_TOOL_NAMES = BETA_SAFE_TOOLS
   .filter((tool) => !isMutatingTool(tool.name))
   .map((tool) => tool.name);
 
+/** 오늘(KST) 이후여야 `### 등록된 일정` 에 `event_id` 와 함께 실린다. */
+const UPCOMING_EVENT_DATE = ymdInKst(addDaysUtc(todayKstMidnight(), 30));
+
 function deliveredPrompt(): string {
   return buildAmoraSystemPrompt(
     {
@@ -58,7 +62,11 @@ function deliveredPrompt(): string {
       scheduleEvents: [
         {
           id: "evt_abc123",
-          date: "2026-09-03",
+          // 2026-09-04: 고정 날짜("2026-09-03")를 쓰고 있었는데, 그날이 지나자
+          // 이 일정이 **지난 일정**이 되어 블록에서 `event_id` 가 빠졌다
+          // (프롬프트는 다가오는 일정에만 id 를 싣는다). 코드는 그대로인데 달력이
+          // 검사를 빨갛게 만든 것이라, 오늘 기준 미래로 계산한다.
+          date: UPCOMING_EVENT_DATE,
           title: "웨딩 사진 촬영",
           categoryKey: "studio",
           memo: null,

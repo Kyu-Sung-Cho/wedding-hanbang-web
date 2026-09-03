@@ -220,6 +220,34 @@ export function getPendingAmoraAction(
   return value as unknown as PendingAmoraAction;
 }
 
+/**
+ * **이월된 카드에 붙는 머리 라벨** (2026-09-04).
+ *
+ * 확인하지 않은 카드는 다음 답변으로 따라간다(웹 `route.ts` 의 캐리포워드). 그래서
+ * 새 문장 아래에 직전 턴의 다른 카드가 붙어 있을 수 있고, 사용자는 방금 읽은 문장이
+ * 곧 이 버튼이라고 읽고 누른다. 이월 자체는 그대로 두고 라벨로만 가른다.
+ *
+ * 웹도 같은 문구를 쓴다(`apps/web/src/components/app/chat/PendingAmoraActionCard.tsx`).
+ */
+export const CARRIED_PENDING_ACTION_LABEL = "이전 제안 · 아직 확인하지 않았어요";
+
+/**
+ * 이 카드가 원본 턴 이후 몇 번 옮겨졌는가. 없으면 0(이 답변에서 처음 나온 카드).
+ *
+ * **서버가 찍은 값으로만 정한다.** 화면이 직전 행을 뒤져 추측하면 걸러진 행 때문에
+ * 같은 카드가 기기마다 다르게 보인다. 값이 없거나 형태가 다르면 이월이 아닌 쪽으로
+ * 틀린다. 웹과 **같은 입력에 같은 값**을 내야 한다 — 두 구현을 나란히 재는 검사가 있다.
+ */
+export function getPendingAmoraActionCarryCount(
+  message: PendingActionMessageBoundary,
+): number {
+  if (message.sender_type !== "ai" || message.visibility !== "shared") return 0;
+  if (!isPlainRecord(message.metadata)) return 0;
+  const value = message.metadata.pending_amora_action_carry_count;
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return 0;
+  return value;
+}
+
 export function getPendingAmoraBudgetImpactPreview(
   message: PendingActionMessageBoundary,
   action: PendingAmoraAction,

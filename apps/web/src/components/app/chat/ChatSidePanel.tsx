@@ -26,6 +26,7 @@ import {
 } from "./amoraPersonalizationFlow";
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
+  getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
@@ -1488,6 +1489,10 @@ export default function ChatSidePanel({
                   const pendingBudgetImpactPreview = pendingAction
                     ? getPendingAmoraBudgetImpactPreview(msg, pendingAction)
                     : null;
+                  // 이 카드가 몇 번 옮겨져 왔는가 — 서버 metadata 값만 쓴다(2026-09-04).
+                  const pendingActionCarryCount = pendingAction
+                    ? getPendingAmoraActionCarryCount(msg)
+                    : 0;
 
                   return (
                     <div key={msg.id} className="animate-fade-in">
@@ -1509,6 +1514,7 @@ export default function ChatSidePanel({
                           disabledReason={pendingActionDisabledReason}
                           isApplying={applyingPendingActionId === pendingAction.actionId}
                           partnerLinked={Boolean(partner)}
+                          carryCount={pendingActionCarryCount}
                           onApply={(pendingActionId) => void applyPendingAmoraAction(pendingActionId)}
                           onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                         />

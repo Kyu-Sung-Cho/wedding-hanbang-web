@@ -558,7 +558,11 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           // 2026-09-03 검증기 실측: `category_key: "종이·모바일 초대장"` 처럼 한글
           // 라벨을 넣으면 스키마 enum 에서 걸려 **표식이 통째로 버려지고 본문까지
           // 빈 문자열이 된다.** 사용자는 아무 말도 못 받는다.
-          description: "관련 카테고리. 위 키 값을 그대로 쓰고 한글 라벨은 넣지 마세요. 불명확하면 general",
+          //
+          // 2026-09-04: 이제 서버가 목록 밖 값을 `general` 로 보정하므로 카드는
+          // 나간다(`coerceLenientOptionalFields`). 설명은 그만큼 짧게 둔다 —
+          // 계약문에는 공짜 자리가 없다.
+          description: "관련 카테고리. 위 키 값만 쓰고 불명확하면 general",
         },
         priority: {
           type: "string",
@@ -568,7 +572,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         source: {
           type: "string",
           enum: ["chat", "quote", "schedule", "budget", "guardrail", "manual"],
-          description: "행동이 생긴 맥락. 견적 분석이면 quote, 일정이면 schedule, 예산이면 budget, 일반 대화면 chat",
+          description: "행동이 생긴 맥락. 애매하면 chat",
         },
         href: {
           type: "string",
@@ -587,7 +591,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
             "/wedding/schedule",
             "/wedding/budget",
           ],
-          description: "관련 페이지 경로. 이 셋 중 하나만 쓰고, 확실하지 않으면 생략하세요(서버가 알맞은 화면으로 연결합니다).",
+          description: "관련 페이지 경로. 이 셋 중 하나만 쓰고 아니면 생략하세요.",
         },
       },
       required: ["title"],

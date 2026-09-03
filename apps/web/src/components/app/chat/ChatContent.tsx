@@ -28,6 +28,7 @@ import {
 } from "@/components/app/chat/amoraPersonalizationFlow";
 import PendingAmoraActionCard, {
   getPendingAmoraAction,
+  getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
   isPendingAmoraActionExpired,
 } from "@/components/app/chat/PendingAmoraActionCard";
@@ -2845,6 +2846,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const pendingBudgetImpactPreview = pendingAction
               ? getPendingAmoraBudgetImpactPreview(msg, pendingAction)
               : null;
+            // 이 카드가 몇 번 옮겨져 왔는가 — 서버 metadata 값만 쓴다(2026-09-04).
+            const pendingActionCarryCount = pendingAction
+              ? getPendingAmoraActionCarryCount(msg)
+              : 0;
 
             return (
               <div
@@ -2913,6 +2918,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     disabledReason={pendingActionDisabledReason}
                     isApplying={applyingPendingActionId === pendingAction.actionId}
                     partnerLinked={Boolean(partner)}
+                    carryCount={pendingActionCarryCount}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
                     onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                   />
