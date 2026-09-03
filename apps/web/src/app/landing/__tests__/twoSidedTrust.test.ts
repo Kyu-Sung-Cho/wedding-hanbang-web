@@ -288,10 +288,14 @@ describe("landing two-sided trust contract", () => {
     // (도구 낱말 비율 자체는 `landingHeroExperience.test.ts` 가 진다.)
     // 파일 전체가 아니라 `hero` 블록에서 찾는다. 전체를 보던 동안 이 문장들을
     // `footer.tagline` 으로 옮겨도 통과했다(2026-08-27 변형).
+    //
+    // 2026-09-03 시안으로 후크가 한 번 더 옮겨 갔다("결혼 준비 노트, 같이 정리해요" →
+    // "결혼 준비, 뭐부터 할지보다 우리 둘이 뭘 원하는지부터"). 문장은 바뀌어도 여기서
+    // 재는 것은 같다: 첫 화면이 **둘 사이에서 벌어지는 장면**을 말하는가.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("결혼 준비 노트,");
-    expect(heroCopy).toContain("같이 정리해요.");
-    expect(heroCopy).toContain("어디에 뭘 적어뒀는지도 헷갈릴 때가 있잖아요.");
+    expect(heroCopy).toContain("우리 둘이 뭘 원하는지부터.");
+    expect(heroCopy).toContain("예산, 하객, 부모님 의견.");
+    expect(heroCopy).toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요.");
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
@@ -326,7 +330,10 @@ describe("landing two-sided trust contract", () => {
     // 결정은 두 사람이 하고 아모라는 정리만 한다 — 옛 `noSide` 의 "한쪽 손을 들지
     // 않아요."가 경계 섹션 제목으로 합쳐졌다.
     const confirmCopy = contentBlock("confirm", "boundaries");
-    expect(boundariesCopy).toContain("결정은 둘이. 아모라는 정리.");
+    // 2026-09-03 시안이 같은 뜻을 두 줄로 풀어 썼다("결정은 둘이. 아모라는 정리." →
+    // "결정은 둘이 합니다. / 아모라는 그 앞까지만 도와요.").
+    expect(boundariesCopy).toContain("결정은 둘이 합니다.");
+    expect(boundariesCopy).toContain("아모라는 그 앞까지만 도와요.");
     expectWired("boundaries.title");
     expect(confirmCopy).toContain("확인한 것만 남아요.");
     expect(confirmCopy).toContain("한 번에 한 가지 변경을 제안하고");

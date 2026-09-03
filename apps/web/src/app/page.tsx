@@ -13,12 +13,12 @@ export const metadata = {
   // `src/app/landing/page.tsx`의 title과 **글자까지 같아야** 한다.
   // `components/community/__tests__/landingFunnelInstrumentation.test.ts`(정본)와
   // `app/landing/__tests__/landingTitleParity.test.ts`가 함께 검사한다.
-  title: "웨딩한방 | 결혼 준비 노트, 같이 정리해요",
+  title: "웨딩한방 | 둘이 하는 결혼 준비, 아모라와",
   // 2026-08-27: 이전 설명은 "예산·일정·**업체 준비**는 AI 아모라가 같이 잡습니다" 였다.
   // 업체 준비는 우리가 하지 않는다 — 업체를 찾아주지도 예약을 잡지도 않는다.
   // 라이브 메타 설명이 제품 계약과 어긋나 있었다.
   description:
-    "어디에 뭘 적어뒀는지 헷갈릴 때가 있잖아요. 결혼 준비의 고민을 아모라와 이야기하고, "
+    "예산, 하객, 부모님 의견. 둘이 갈리는 것부터 아모라와 하나씩 정해요. "
     + "확인한 것만 예산·할 일·일정에 남고, 바뀌면 파트너에게 알림이 가요. "
     + "비슷한 시기에 결혼하는 사람들의 기록도 함께 봐요.",
 };

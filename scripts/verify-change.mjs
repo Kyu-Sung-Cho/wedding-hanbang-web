@@ -234,19 +234,16 @@ if (touched.web) {
   // **전체를 돈다.** 바뀐 파일 근처만 고르면 오늘 같은 일이 또 난다.
   results.testWeb = run("test-web", "npx", ["vitest", "run"], join(ROOT, "apps", "web"));
 }
-// **각 패키지의 자기 `test` 스크립트를 부른다.**
-//
-// 여기는 `npx vitest run` 이 박혀 있었는데 `apps/mobile` 과 `packages/shared` 는
-// 둘 다 vitest 를 쓰지 않는다(`node --test`). 그래서 그 두 폴더를 건드리는 변경은
-// **코드와 무관하게 항상 실패**했고, 관문이 통과할 수 없으니 아무도 통과시키지
-// 못했다. 2026-09-03 감사에서 확인하고, 안전 파일 수정이 여기 막혀서 고친다.
-//
-// 러너 이름을 여기 다시 적지 않는다 — 적는 순간 같은 어긋남이 다시 생긴다.
+// ⚠️ 모바일·shared 는 vitest 를 쓰지 않는다 — `node --test` 다(각 package.json 의
+// `test` 스크립트). `npx vitest run` 을 그대로 걸어 두었더니 두 관문이 **"vitest 를 찾을
+// 수 없다"로 항상 실패**했고, 그 실패가 코드 실패처럼 보고됐다(2026-09-03 발견, 이 줄이
+// 들어온 이래 계속 그랬다). 게이트가 거짓으로 빨간불을 내면 사람이 게이트를 무시하게 된다.
+// 여기서 명령을 다시 적지 말고 **각 패키지의 `test` 스크립트**를 부른다.
 if (touched.mobile) {
-  results.testMobile = run("test-mobile", "npx", ["pnpm", "--filter", "./apps/mobile", "test"], ROOT);
+  results.testMobile = run("test-mobile", "npx", ["pnpm", "run", "test"], join(ROOT, "apps", "mobile"));
 }
 if (touched.shared) {
-  results.testShared = run("test-shared", "npx", ["pnpm", "--filter", "./packages/shared", "test"], ROOT);
+  results.testShared = run("test-shared", "npx", ["pnpm", "run", "test"], join(ROOT, "packages", "shared"));
 }
 results.testRepo = run("test-repo", "npx", ["pnpm", "test:repo"], ROOT);
 
