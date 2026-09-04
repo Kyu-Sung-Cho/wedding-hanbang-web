@@ -450,8 +450,10 @@ function BudgetRow({
         </div>
       </div>
 
-      {/* 진행 바 + 퍼센트 */}
-      <div className="flex-1 min-w-0 max-lg:order-last max-lg:w-full">
+      {/* 진행 바 + 퍼센트. 2026-09-04 375px 실측: flex-1(basis 0%) 이 max-lg:w-full 을 이겨
+          금액 컬럼이 남긴 11px 에 끼어 '예산 입력 전' 이 한 글자씩 세로로 쌓였다.
+          모바일에서는 basis 를 100% 로 못 박아 제 줄을 갖게 한다. */}
+      <div className="lg:flex-1 min-w-0 max-lg:order-last max-lg:basis-full max-lg:flex-none">
         {budget > 0 ? (
           <div className="flex items-center gap-2">
             <div className="flex-1 h-2 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden">
@@ -1006,6 +1008,25 @@ export default function BudgetContent({
       if (KNOWN_KEYS.has(key)) {
         const hiddenList: string[] = (progress as Record<string, unknown>).__hidden as string[] ?? [];
         next.__hidden = [...hiddenList, key];
+      }
+      // 2026-09-04 실측: 커스텀 항목(체크리스트 없음)을 통째로 지우면 서버가 금액 변경과
+      // 준비 현황 변경이 섞였다며 400(PLAN_CHANGE_MIXED_DELTA_UNSUPPORTED)을 돌려줘
+      // 모달이 안 닫히고 항목이 남았다. 고정 카테고리 숨김·체크리스트 있는 항목은 통과한다.
+      // 그래서 금액이 실린 커스텀 키는 **금액을 먼저 비우고**(1단계), 그 다음 키를 지운다(2단계).
+      // 서버가 "공동 결정"으로 세는 필드는 budget·spent·cost 만이 아니라 payer·responsibility·
+      // assigned_to 까지다(couple_plan_change_exact_high_summary). 하나라도 남기면 2단계가 또 400.
+      const moneyLike = item as unknown as (Record<string, unknown> | undefined);
+      const hasMoney = moneyLike !== undefined
+        && ["budget", "spent", "cost", "payer", "responsibility", "assigned_to"]
+          .some((field) => moneyLike[field] !== undefined && moneyLike[field] !== null);
+      if (!KNOWN_KEYS.has(key) && !hasChecklist && hasMoney && item) {
+        const emptied: Record<string, unknown> = { ...progress };
+        const keep: Record<string, unknown> = { ...(item as unknown as Record<string, unknown>) };
+        for (const field of ["budget", "spent", "cost", "payer", "responsibility", "assigned_to"]) {
+          delete keep[field];
+        }
+        emptied[key] = keep;
+        await saveJourney({ progress: emptied as unknown as Record<string, ProgressItem> });
       }
       await saveJourney({ progress: next as unknown as Record<string, ProgressItem> });
       setDeletingKey(null);

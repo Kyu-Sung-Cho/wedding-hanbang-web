@@ -315,6 +315,16 @@ function deriveSurface(
   return "/dashboard";
 }
 
+/** 한국 시간 기준 오늘(YYYY-MM-DD). toISOString() 은 UTC 라 새벽 0~9시에 하루가 어긋난다. */
+function todayInSeoul(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 function parsePatchBody(body: unknown): ParsePatchResult {
   if (
     !isRecord(body)
@@ -351,6 +361,14 @@ function parsePatchBody(body: unknown): ParsePatchResult {
       return {
         ok: false,
         error: "결혼 예정일은 YYYY-MM-DD 형식의 실제 날짜여야 합니다.",
+      };
+    }
+    // 2026-09-04 실측: 2020-01-01 이 그대로 저장돼 일정 화면이 "D-DAY +2438일 지남" 을
+    // 그렸다. 결혼 준비 앱에서 지난 날짜는 오타다. 오늘(KST)은 허용한다.
+    if (parsedDate !== null && parsedDate < todayInSeoul()) {
+      return {
+        ok: false,
+        error: "결혼 예정일이 이미 지난 날짜예요. 오늘 이후 날짜로 입력해 주세요.",
       };
     }
     changes.wedding_date = parsedDate;

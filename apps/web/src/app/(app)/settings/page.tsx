@@ -674,6 +674,7 @@ export default function SettingsPage() {
                   <input
                     type="date"
                     value={dateInput}
+                    min={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(new Date())}
                     onChange={(e) => setDateInput(e.target.value)}
                     className="px-2.5 py-1.5 rounded-[6px] bg-white text-base text-[var(--hb-text-strong)] outline-none focus:ring-2 ring-[rgba(54,83,78,0.30)]"
                     autoFocus

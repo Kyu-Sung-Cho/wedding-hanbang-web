@@ -44,6 +44,24 @@ describe("첫 도착 화면은 라운지가 비어 있을 때만 나온다", () 
     expect(buildLoungeFirstArrival(makeInput())).not.toBeNull();
   });
 
+  // 2026-09-04 실측: 사진 600만원·드레스 300만원을 배정한 커플에게 "지금은 비어 있어요" 가
+  // 떴다 — 아래 예산 위젯이 "남은 예산 5,000만원" 을 그리면서. 배정액은 사람이 만든 데이터다.
+  it("카테고리에 예산을 배정했으면 비어 있다고 말하지 않는다", () => {
+    expect(
+      buildLoungeFirstArrival(makeInput({
+        totalBudget: 50_000_000,
+        progress: progressOf({ studio: { budget: 6_000_000 }, dress: { budget: 3_000_000 } }),
+      })),
+    ).toBeNull();
+    expect(
+      buildLoungeFirstArrival(makeInput({ progress: progressOf({ studio: { spent: 100_000 } }) })),
+    ).toBeNull();
+  });
+
+  it("총예산만 적은 상태는 여전히 첫 도착 화면이다(되읽어 줄 대상)", () => {
+    expect(buildLoungeFirstArrival(makeInput({ totalBudget: 50_000_000 }))).not.toBeNull();
+  });
+
   it("온보딩을 마치지 않았으면 되읽을 것이 없으므로 나오지 않는다", () => {
     expect(
       buildLoungeFirstArrival(makeInput({ onboardingCompleted: false })),
