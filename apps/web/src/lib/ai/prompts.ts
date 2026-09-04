@@ -643,7 +643,15 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     ? `  - 직접 추가한 항목 ${hiddenCustomCount}개가 더 있음 — 전체는 예산 화면에서 확인`
     : "";
 
-  const categoryStatus = [fixedCategoryStatus, customCategoryStatus, customOverflowNote]
+  // 2026-09-04: 아모라는 이 두 항목의 상태를 **보지만**(위 목록에 실린다) 어떤 쓰기 도구
+  // enum 에도 그 키가 없어 바꾸지 못한다(`tools.ts` 의 CATEGORIES_THE_DATABASE_CANNOT_ACCEPT).
+  // 이유를 설명할 문장이 없어 되묻거나 조용히 넘어갔다. 화이트리스트 확장은 마이그레이션이라
+  // 여기서는 사실만 알린다 — 예산 항목 삭제 안내와 같은 모양이다.
+  const chatImmutableCategoriesNote = ["registration", "greeting"]
+    .some((key) => key in CATEGORY_LABELS && !hiddenCategoryKeys.has(key))
+    ? "  - 「혼인신고와 주소·보험 신고」「배우자 부모님께 첫인사」 두 항목은 대화로 상태를 바꿀 수 없습니다. 사용자가 완료했다고 말하면 축하하고, 준비 체크리스트 화면에서 직접 체크하면 된다고 알려주세요."
+    : "";
+  const categoryStatus = [fixedCategoryStatus, customCategoryStatus, customOverflowNote, chatImmutableCategoriesNote]
     .filter((section) => section.length > 0)
     .join("\n");
 

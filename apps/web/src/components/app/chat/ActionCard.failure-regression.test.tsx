@@ -149,7 +149,9 @@ describe("ActionCard actionable failures", () => {
     expect(container.textContent).not.toContain(internalId);
   });
 
-  it("keeps a silent internal failure hidden", async () => {
+  // 2026-09-04: 설명 없는 실패를 숨기면 사용자는 아모라의 산문만 보고 저장된 줄 안다.
+  // 이제 한 장은 남긴다 — 내부 식별자 없는 일반 문구로.
+  it("shows a silent internal failure as a generic failure card", async () => {
     await act(async () => {
       root.render(
         <ActionCard
@@ -164,6 +166,7 @@ describe("ActionCard actionable failures", () => {
       );
     });
 
-    expect(container.textContent).toBe("");
+    expect(container.textContent).toContain("요청한 항목을 찾지 못했어요");
+    expect(container.textContent).not.toContain("missing-event");
   });
 });

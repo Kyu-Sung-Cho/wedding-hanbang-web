@@ -156,7 +156,32 @@ interface ExtractPendingActionInput {
   allowedTools: readonly AiToolDefinition[];
   now: number;
   createActionId: () => string;
+  /**
+   * 커플의 저장된 일정 id. 주어지면 일정을 **가리키는** 제안(변경·취소·복원)은 이 안의
+   * id 만 카드가 된다.
+   *
+   * 2026-09-04 스테이징 실측: 드레스 입어보기 일정을 카드로 제안만 해 두고(확인 안 함) 다음
+   * 턴에 "10월 3일 오후 2시에 투어 일정 넣어줘" 라고 하자 모델이 `update_schedule_event`
+   * 에 `evt_dress_tour_20261003` 이라는 **지어낸 id** 를 넣어 카드를 냈다. 누르면 실행기가
+   * "수정할 일정을 찾지 못했어요" 로 끝난다 — 사용자는 두 번 확인하고 두 번 실패한다.
+   */
+  knownScheduleEventIds?: ReadonlySet<string>;
 }
+
+/** 저장된 일정을 가리켜야 하는 도구. `add_schedule_event` 는 새 일정이라 해당 없음. */
+const SCHEDULE_TARGET_TOOLS: ReadonlySet<string> = new Set([
+  "update_schedule_event",
+  "cancel_schedule_event",
+  "restore_schedule_event",
+]);
+
+/**
+ * 지어낸 일정 id 로 온 제안을 버릴 때 남기는 말. 일반 폐기 안내("같은 요청을 한 번만
+ * 다시 보내주시겠어요?")를 쓰면 같은 요청이 같은 이유로 또 버려진다 — 이 경우는 다시
+ * 보내는 게 아니라 **새 일정으로** 말해야 풀린다.
+ */
+export const UNKNOWN_SCHEDULE_EVENT_NOTICE =
+  "말씀하신 일정이 저장된 일정 목록에 없어요. 확인 카드로 제안만 되고 아직 확인하지 않은 일정은 저장되지 않은 거예요. 새 일정으로 넣으려면 날짜와 제목을 함께 다시 말해 주세요.";
 
 interface ResolvePendingActionInput {
   value: unknown;
@@ -482,6 +507,18 @@ function validateMarker(
     return null;
   }
   const input = coerceLenientOptionalFields(pruned.input, tool, now);
+  // 2026-09-04 스테이징 실측: "어머님 한복 맞추기" 할 일에 모델이 enum 셋 중
+  // `/wedding/community/quote-check` 를 골라 카드에 "연결 화면: …quote-check" 가 찍혔다.
+  // 카테고리를 알면 실행기의 `defaultActionHref` 가 더 정확하니 카드 단계에서 링크를
+  // 비워 둔다 — 카드에도 안 보이고, 적용 때 서버 기본값이 들어간다.
+  if (
+    tool.name === "add_amora_action"
+    && typeof input.category_key === "string"
+    && input.category_key.length > 0
+    && "href" in input
+  ) {
+    delete input.href;
+  }
   const validator = getValidator(tool);
   if (!validator || validator(input) !== true) return null;
 
@@ -1084,10 +1121,13 @@ export function extractAmoraPendingAction({
   allowedTools,
   now,
   createActionId,
+  knownScheduleEventIds,
 }: ExtractPendingActionInput): {
   cleanText: string;
   pendingAction: StoredAmoraPendingAction | null;
   hadPendingActionTag: boolean;
+  /** 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다. */
+  dropReason?: "unknown_schedule_event";
 } {
   const { cleanText: strippedText, payloads, hadPendingActionTag } =
     cleanPendingActionTags(
@@ -1136,6 +1176,20 @@ export function extractAmoraPendingAction({
       pendingAction: null,
       hadPendingActionTag,
     };
+  }
+
+  if (knownScheduleEventIds && SCHEDULE_TARGET_TOOLS.has(marker.tool)) {
+    const eventId = marker.input.event_id;
+    if (typeof eventId !== "string" || !knownScheduleEventIds.has(eventId)) {
+      return {
+        cleanText: [cleanText.trim(), UNKNOWN_SCHEDULE_EVENT_NOTICE]
+          .filter((part) => part.length > 0)
+          .join("\n\n"),
+        pendingAction: null,
+        hadPendingActionTag,
+        dropReason: "unknown_schedule_event",
+      };
+    }
   }
 
   const actionId = createActionId();

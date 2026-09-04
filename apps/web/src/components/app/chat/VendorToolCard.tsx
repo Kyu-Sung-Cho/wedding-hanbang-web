@@ -1200,6 +1200,13 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                 {result.displayMessage
                   || "예식장·웨딩홀은 여기서 검색하지 않고 업체 탐색에서 볼 수 있어요."}
               </p>
+              {/* 2026-09-04: 갈 곳을 말해 놓고 길은 안 내줬다. 차단은 그대로다. */}
+              <Link
+                href="/vendors"
+                className="mt-2 inline-flex min-h-9 items-center rounded-[6px] bg-[#C4967E]/15 px-3 text-sm font-semibold text-[#8B5E48] hover:bg-[#C4967E]/25"
+              >
+                업체 탐색 열기
+              </Link>
             </div>
           </div>
         </div>

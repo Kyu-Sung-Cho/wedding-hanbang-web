@@ -4,6 +4,7 @@ import {
   buildAmoraQuestionScopeInstruction,
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
+  AMORA_CONTEXT_FREE_READ_TOOL_NAMES,
 } from "@/lib/ai/amoraQuestionScope";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { selectAmoraPendingProposalTools } from "@/lib/ai/amoraToolPolicy";
@@ -215,7 +216,18 @@ describe("Amora question-scope ceiling", () => {
 
       expect(classification.scope).toBe("W4_out_of_scope");
       expect(classification.allowsLongTermMemory).toBe(false);
-      expect(filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)).toEqual([]);
+      // 2026-09-04: 낮은 확신의 W4 는 커플 문맥 없는 조회 도구(장소 검색·시세)만
+      // 남긴다. 높은 확신(회사·이사·식당 예약처럼 결혼 밖이 분명한 것)은 여전히 0개.
+      const remaining = filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)
+        .map((tool) => tool.name);
+      if (classification.confidence === "high") {
+        expect(remaining, userText).toEqual([]);
+      } else {
+        expect(
+          remaining.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)),
+          userText,
+        ).toEqual([]);
+      }
     }
   });
 
@@ -471,7 +483,13 @@ describe("Amora question-scope ceiling", () => {
       needsClarification: true,
       allowsLongTermMemory: false,
     });
-    expect(filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)).toEqual([]);
+    // 커플 데이터를 읽거나 바꾸는 도구는 한 개도 남지 않는다. 2026-09-04 부터
+    // 검색어·항목만 보내는 조회 도구 둘(장소 검색·시세)은 이 턴에도 열린다.
+    const remaining = filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)
+      .map((tool) => tool.name);
+    expect(remaining.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)))
+      .toEqual([]);
+    expect(remaining).toContain("search_nearby_places");
   });
 
   it("never inherits W0 authority from conversational confirmation prose", () => {

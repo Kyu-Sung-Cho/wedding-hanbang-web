@@ -22,6 +22,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
+  AMORA_CONTEXT_FREE_READ_TOOL_NAMES,
 } from "@/lib/ai/amoraQuestionScope";
 import { selectAmoraTools } from "@/lib/ai/amoraToolPolicy";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
@@ -62,14 +63,30 @@ describe("대관료·시세 질문에 조회 도구가 붙는다", () => {
     }
   });
 
-  it("범위 밖 발화에는 붙지 않는다", () => {
+  it("결혼 밖이 분명한 발화(높은 확신 W4)에는 붙지 않는다", () => {
     // 도구 선택 어휘를 넓혀도 범위 관문이 앞에서 막는다.
     for (const userText of [
-      "노트북 얼마야?",
-      "오늘 날씨 어때?",
       "주식 지금 얼마야?",
+      "파이썬으로 가격 비교 코드 짜줘",
     ]) {
       expect(hasPriceTool(userText), userText).toBe(false);
+    }
+  });
+
+  it("낮은 확신의 범위 밖 발화에는 시세 조회만 남고 커플 데이터 도구는 안 붙는다", () => {
+    // 2026-09-04: 시세 조회는 커플 저장 정보를 읽지 않는다(카테고리·지역만 보낸다).
+    // 그래서 "노트북 얼마야?" 같은 모호한 발화에도 열릴 수 있지만, 예산 요약·보증
+    // 인원 계산처럼 커플 데이터를 읽는 도구는 여전히 0개다.
+    for (const userText of ["노트북 얼마야?", "오늘 날씨 어때?"]) {
+      const classification = classifyAmoraQuestionScope({ userText });
+      expect(classification.scope, userText).toBe("W4_out_of_scope");
+      const selected = selectAmoraTools({
+        availableTools: AVAILABLE, userText, specialistType: "general",
+      } as never) as { name: string }[];
+      const remaining = (filterAmoraToolsByQuestionScope(selected as never, classification) as { name: string }[])
+        .map((tool) => tool.name);
+      expect(remaining.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)), userText)
+        .toEqual([]);
     }
   });
 });

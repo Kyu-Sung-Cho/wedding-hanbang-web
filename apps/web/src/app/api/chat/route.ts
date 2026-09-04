@@ -2781,8 +2781,13 @@ export async function POST(request: Request) {
       await releaseClaimBeforeStream("USER_MESSAGE_NOT_PERSISTED");
       return NextResponse.json(
         {
-          error: "보낸 메시지 저장을 아직 확인하지 못했습니다. 잠시 후 다시 시도해주세요.",
+          error: "보낸 메시지 저장을 아직 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
           code: "USER_MESSAGE_NOT_PERSISTED",
+          // 2026-09-04: Retry-After 를 실어 보내면서 재시도 판정은 안 실어, 화면이
+          // 409 를 영구 실패로 읽고 버튼을 지웠다. 클레임은 위에서 풀었고 같은
+          // 키라 두 번 생성되지 않는다.
+          retryable: true,
+          retryPolicy: "same_request",
         },
         { status: 409, headers: { "Cache-Control": "no-store", "Retry-After": "1" } },
       );
@@ -3741,6 +3746,12 @@ export async function POST(request: Request) {
             allowedTools: pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
+            // 일정을 가리키는 제안은 저장된 일정 id 만 카드가 된다(지어낸 id 차단).
+            knownScheduleEventIds: new Set(
+              (scheduleEvents as ReadonlyArray<{ id?: unknown }>)
+                .map((event) => event.id)
+                .filter((id): id is string => typeof id === "string" && id.length > 0),
+            ),
           });
           if (
             pendingExtraction.pendingAction
@@ -3811,9 +3822,12 @@ export async function POST(request: Request) {
             // 모델이 표식을 냈는데 검증에서 버려졌으면 카드가 안 나온다.
             // 본문이 중립적으로 쓰여 있으면 지울 거짓 주장도 없어 **아무 말도
             // 안 나가고** 사용자는 아무것도 저장되지 않는다.
+            // 지어낸 일정 id 로 버린 경우는 전용 안내가 이미 본문에 있다 — 일반
+            // "다시 보내주세요" 안내를 덧붙이면 같은 요청이 같은 이유로 또 버려진다.
             droppedPendingActionTag:
               pendingExtraction.hadPendingActionTag
-              && pendingExtraction.pendingAction === null,
+              && pendingExtraction.pendingAction === null
+              && pendingExtraction.dropReason === undefined,
           });
           // 2026-09-03 이중 안전망. 여기가 비면 원장에도 스트리밍에도 아무 글자가
           // 안 나가 사용자는 침묵만 본다(8/24 '같은 식별자로 다시 이어갈 수 없어요'
@@ -3839,7 +3853,12 @@ export async function POST(request: Request) {
             // `droppedPendingActionTag` 가 이미 안내 문구를 붙인다).
             ...(pendingExtraction.hadPendingActionTag
               && pendingExtraction.pendingAction === null
-              ? { pending_action_dropped: true }
+              ? {
+                  pending_action_dropped: true,
+                  ...(pendingExtraction.dropReason
+                    ? { pending_action_drop_reason: pendingExtraction.dropReason }
+                    : {}),
+                }
               : {}),
             question_scope: questionScope.scope,
             memory_eligible: questionScope.allowsLongTermMemory,

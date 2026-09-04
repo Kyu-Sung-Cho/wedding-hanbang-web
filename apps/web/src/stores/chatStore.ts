@@ -987,8 +987,11 @@ type ChatStoreSet = (
 
 const ATTACHMENT_RETRY_UNAVAILABLE =
   "첨부 원본을 안전하게 다시 사용할 수 없어 자동 재시도할 수 없어요. 파일을 다시 첨부해 새 메시지로 보내주세요.";
+// 2026-09-04: 이 부제는 안전 라우팅·확인 만료·재생 불일치처럼 사용자 입력과 무관한
+// 실패에도 붙는다. "입력이나 첨부파일을 확인하라"는 원인을 사용자에게 돌리는 말이라
+// 뺐다. 첨부 원인은 위 ATTACHMENT_RETRY_UNAVAILABLE 이 따로 말한다.
 const PERMANENT_REQUEST_RETRY_UNAVAILABLE =
-  "같은 요청을 다시 보내도 해결되지 않아요. 입력이나 첨부파일을 확인한 뒤 새 메시지로 보내주세요.";
+  "이 요청은 다시 보내도 같은 결과예요. 새 메시지로 이어가 주세요.";
 const EXPLICIT_ACTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function compareChatMessageOrder(left: ChatMessage, right: ChatMessage): number {
@@ -1423,8 +1426,8 @@ async function executeChatProviderRequest(
         : res.status === 429
         ? "지금은 잠시 쉬어가고 있어요. 잠시 후 다시 시도해주세요."
         : retryable
-          ? "AI 응답을 받지 못했습니다. 잠시 후 다시 시도해주세요."
-          : "요청 내용을 처리할 수 없어요. 입력이나 첨부파일을 확인해주세요.";
+          ? "아모라의 답변을 받지 못했어요. 잠시 후 다시 시도해 주세요."
+          : "이 요청은 지금 처리할 수 없어요. 새 메시지로 다시 보내주세요.";
       throw new ChatProviderRequestError(
         isUserFacingChatHttpMessage(parsed.message) ? parsed.message : fallbackMessage,
         retryable,
@@ -1490,22 +1493,32 @@ async function executeChatProviderRequest(
     // 저장하지 않으면 사라지므로, 그 경우에만 텍스트 없이도 저장한다.
     if (!gotDone || (!fullContent.trim() && ephemeralPlaceResults.length === 0)) {
       const terminalStreamError = terminalStream.error;
+      // 2026-09-04: 비용·횟수 상한(COST_GUARD_*)은 서버가 원장 때문에 같은 키 재시도를
+      // 허용하지만, 자정까지는 눌러도 같은 결과다. 문구는 "내일 다시"인데 그 아래
+      // 빨간 "다시 시도" 버튼이 있었다. 버튼만 감춘다 — 저장된 질문은 내일 "답변
+      // 이어받기" 경로로 이어진다. UNAVAILABLE(확인 실패)은 진짜 일시 오류라 그대로.
+      const isCapExhausted =
+        typeof terminalStreamError?.code === "string"
+        && terminalStreamError.code.startsWith("COST_GUARD_")
+        && terminalStreamError.code !== "COST_GUARD_UNAVAILABLE";
       const retryable = terminalStreamError
-        ? terminalStreamError.retryPolicy === "same_request"
-          ? true
-          : terminalStreamError.retryPolicy === "new_message"
-            ? false
-            : terminalStreamError.retryable === true
+        ? isCapExhausted
+          ? false
+          : terminalStreamError.retryPolicy === "same_request"
+            ? true
+            : terminalStreamError.retryPolicy === "new_message"
+              ? false
+              : terminalStreamError.retryable === true
         : true;
       set({
         failedRequest: terminalStreamError
           ? withRetryAvailability(
               request,
               retryable,
-              retryable ? null : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
+              retryable || isCapExhausted ? null : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
             )
           : request,
-        error: get().error ?? "AI 응답이 중단되었습니다. 다시 시도해주세요.",
+        error: get().error ?? "답변이 중간에 끊겼어요. 다시 시도해 주세요.",
         streamingContent: "",
       });
       return;
@@ -1563,7 +1576,7 @@ async function executeChatProviderRequest(
         ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
         : requestError
           ? requestError.message
-          : "AI 응답을 받지 못했습니다.",
+          : "아모라의 답변을 받지 못했어요. 다시 시도해 주세요.",
       streamingContent: "",
     });
   } finally {
@@ -1750,7 +1763,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     } catch (err) {
       if (!isChatLifecycleBindingCurrent(lifecycleBinding)) return;
       logChatDiagnostic("채팅 불러오기 실패", err);
-      set({ error: "채팅을 불러오지 못했습니다." });
+      set({ error: "대화를 불러오지 못했어요. 화면을 새로 열면 다시 불러와요." });
     } finally {
       if (isChatLifecycleBindingCurrent(lifecycleBinding)) {
         set({ isLoading: false, initialLoadDone: true });
@@ -2707,7 +2720,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
       // 스트림이 done 없이 끊긴 경우 에러 표시
       if (!gotDone && !fullContent && !get().error) {
-        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
+        set({ error: "답변이 중간에 끊겼어요. 다시 시도해 주세요." });
       }
 
       if (fullContent) {
@@ -2723,7 +2736,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       set({
         error: isAbort
           ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
-          : "AI 연결에 실패했습니다. 새로고침 해주세요.",
+          : "아모라를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
       });
     } finally {
       clearTimeout(fetchTimeout);
@@ -2902,7 +2915,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       if (!isCurrentLifecycle()) return "sent";
 
       if (!gotDone && !fullContent && !get().error) {
-        set({ error: "AI 응답이 중단되었습니다. 다시 시도해주세요." });
+        set({ error: "답변이 중간에 끊겼어요. 다시 시도해 주세요." });
       }
 
       if (fullContent) {
@@ -2922,7 +2935,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
           ? "응답 시간이 초과되었습니다. 다시 시도해주세요."
           : isServerRejection
             ? err.message
-            : "AI 연결에 실패했습니다. 새로고침 해주세요.",
+            : "아모라를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.",
       });
     } finally {
       clearTimeout(fetchTimeout);

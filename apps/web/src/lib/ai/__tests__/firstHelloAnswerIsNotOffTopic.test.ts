@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
+  AMORA_CONTEXT_FREE_READ_TOOL_NAMES,
 } from "@/lib/ai/amoraQuestionScope";
 import { isAmoraClarificationAnswerShaped } from "@/lib/ai/amoraClarificationContinuity";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
@@ -81,8 +82,16 @@ describe("첫마디에 대한 답", () => {
         hasWeddingClarificationContinuity: true,
       }),
     );
-    expect(closed.length).toBe(0);
-    expect(opened.length).toBeGreaterThan(0);
+    // 2026-09-04: 닫힌 턴에도 커플 문맥 없는 조회 도구(장소 검색·시세)는 남는다.
+    // 구제가 되찾는 것은 **커플 데이터를 읽는 도구**다 — 그것만 잰다.
+    const closedCoupleTools = closed.filter(
+      (tool) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(tool.name),
+    );
+    const openedCoupleTools = opened.filter(
+      (tool) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(tool.name),
+    );
+    expect(closedCoupleTools.length).toBe(0);
+    expect(openedCoupleTools.length).toBeGreaterThan(0);
   });
 
   it("구제는 첫마디에만 붙는다 — 아무 W4 발화나 열리지 않는다", () => {

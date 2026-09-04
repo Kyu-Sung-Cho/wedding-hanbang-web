@@ -722,7 +722,7 @@ export default function ChatBubble({
   // 고른 적이 없을 수 있고, 골랐더라도 자기 대화에 성별이 붙기를 요청한 적은 없다.
   // sender_id가 null인 과거 메시지에 현재 파트너 이름을 붙이면 오귀속이므로,
   // 이름은 호출부에서 sender_id를 대조해 넘겨준 경우에만 쓴다.
-  const senderLabel = senderName ?? (message.sender_id ? "파트너" : "이전 참여자");
+  const senderLabel = senderName ?? (message.sender_id ? "상대방" : "이전 참여자");
 
   // 색은 성별이 아니라 "나 vs 상대" 축으로 가른다. 이전 신부 색(#C4967E)은 흰 글자
   // 대비 2.62:1로 WCAG AA 미달이었다 — 중립화가 접근성 수정을 겸한다.
@@ -867,8 +867,8 @@ function ClearRequestCard({
               {isAccepted
                 ? "함께 새로 시작했어요"
                 : isDeclined
-                  ? "함께 새로시작 요청이 거절됐어요"
-                  : "함께 대화 새로시작 제안"}
+                  ? "함께 새로 시작 요청이 거절됐어요"
+                  : "함께 대화 새로 시작 제안"}
             </p>
             {/* 2026-09-03: "데이터는 보존돼 있어요" 는 맞지만 무엇이 남는지를 말하지
                 않아, 서버 기록과 아모라의 기억까지 지워진 것으로 읽혔다. 이 요청이
