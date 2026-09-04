@@ -87,7 +87,11 @@ function serialize(parts) {
     }
     out += "    sections: [\n";
     for (const section of part.sections) {
-      out += `      {\n        heading: ${j(section.heading)},\n        blocks: [\n`;
+      // 절의 선택 필드(`role`)도 함께 내보낸다. 블록은 통째로 직렬화되지만 절은
+      // 필드를 하나씩 적으므로, 여기 안 적으면 parts.json 에만 있고 화면에는 없다.
+      out += `      {\n        heading: ${j(section.heading)},\n`;
+      if (section.role) out += `        role: ${j(section.role)},\n`;
+      out += "        blocks: [\n";
       for (const block of section.blocks) out += `          ${j(block)},\n`;
       out += "        ],\n      },\n";
     }

@@ -46,8 +46,30 @@ export type MannersDialogueLine = {
   note?: string;
 };
 
+/** 타임라인 한 칸. 표의 첫 열을 줄여 온 것이고, 없는 숫자를 만들지 않는다. */
+export type MannersTimelineNode = {
+  /** 언제. 「전날 밤」·「20~30분 전」처럼 짧게. */
+  at: string;
+  /** 그때 무엇을 하나. 열두 자 안쪽. */
+  label: string;
+};
+
 export type MannersBlock =
-  | { kind: "paragraph"; text: string }
+  | {
+      kind: "paragraph";
+      text: string;
+      /**
+       * 법령·판례를 인용하는 문단.
+       *
+       * 시안은 이런 문단을 본문과 다른 상자(`law-box`)로 그리고 **절 카드 맨 아래**로
+       * 내린다 — 근거는 읽고 나서 확인하는 것이지 먼저 읽는 것이 아니다. 그래서
+       * 이 표식이 붙은 문단은 절 머리의 강조 줄(TL;DR)로 뽑히지 않는다.
+       *
+       * 정규식으로 자동 판정하지 않는다. 같은 법령 문자열이 목록 항목 안에 서른 건
+       * 더 있어서, 낱말로 고르면 목록이 통째로 상자가 된다.
+       */
+      law?: true;
+    }
   | { kind: "checklist"; title?: string; items: string[] }
   | { kind: "tip"; title?: string; items: string[] }
   | { kind: "warning"; title?: string; items: string[] }
@@ -83,11 +105,33 @@ export type MannersBlock =
       sourceRefs?: number[];
       /** 출처를 찾지 못한 표. 화면이 그렇게 알리고, 계약 테스트가 개수를 감시한다. */
       unsourced?: boolean;
+      /**
+       * 두 갈래 비교표. 「무난한 쪽 / 다시 생각할 쪽」처럼 열이 갈리는 표에만.
+       *
+       * 색으로도 갈라 준다(sage = 무난, rose = 재고). **색만으로 말하지 않는다** —
+       * 머리글이 이미 어느 쪽인지 글자로 말하고 있다(WCAG 1.4.1).
+       */
+      variant?: "compare";
+      /**
+       * 시간 순서 요약.
+       *
+       * 표를 **대체하지 않는다.** 표에는 기준 시점·한계·출처 계약이 붙어 있어 통째로
+       * 바꿀 수 없다. 요약을 위에 얹고 표는 접어 둔다.
+       */
+      timeline?: MannersTimelineNode[];
     };
 
 export type MannersSection = {
   heading: string;
   blocks: MannersBlock[];
+  /**
+   * 이 절을 누가 읽는가. 있으면 화면이 역할 탭을 그린다.
+   *
+   * 「공통」은 어느 탭에서도 보인다. 지금은 본식 당일 한 편에만 있다 — 절 제목의
+   * 접두를 정규식으로 읽으면 열세 편이 걸리는데 대부분 역할이 아니라 주제·시기·
+   * 소유 대상이라 오작동한다(`예물 — 두 사람이 오래 쓸 것`).
+   */
+  role?: string;
 };
 
 /** 이 파트를 읽는 사람. 1단계는 하객·지인 성격의 파트부터 낸다. */

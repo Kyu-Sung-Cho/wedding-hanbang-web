@@ -120,6 +120,46 @@ function SubHeading({ children }: { children: string }) {
 
 function Block({ block, sources }: { block: MannersBlock; sources: MannersSource[] }) {
   if (block.kind === "paragraph") {
+    if (block.law) {
+      /*
+        법령·판례 인용. 시안은 이것을 본문과 다른 상자(`law-box`)로 그리고 「법적 근거
+        자세히 보기」 뒤에 접어 둔다 — 근거는 읽고 나서 확인하는 것이지 먼저 읽는 것이
+        아니다. 혼인신고 편의 한 문단은 629자라 펼쳐 두면 절이 그 문단 하나가 된다.
+
+        `<details>` 로 접는다. 이 화면은 클라이언트 JS 가 0이고, `<button>` 으로 만들면
+        768px 이하에서 전역 CSS 의 44px 최소 탭 규칙이 알약을 정사각형으로 만든다.
+      */
+      return (
+        <details className="mt-4">
+          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[12.5px] font-semibold text-[var(--hb-accent)]">
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="h-3.5 w-3.5 shrink-0 fill-none stroke-current stroke-[1.7]"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+            법적 근거 자세히 보기
+          </summary>
+          <div className="mt-2.5 flex gap-3 rounded-[12px] bg-[var(--color-surface-low)] px-[18px] py-[15px]">
+            <svg
+              aria-hidden
+              viewBox="0 0 24 24"
+              className="mt-0.5 h-4 w-4 shrink-0 fill-none stroke-[var(--hb-accent)] stroke-[1.7]"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M4 5h16M4 12h16M4 19h10" />
+            </svg>
+            <p className="text-[12.5px] leading-[1.65] text-[var(--color-paper-ink-soft)]">
+              {block.text}
+            </p>
+          </div>
+        </details>
+      );
+    }
     return (
       <p className="text-[13.5px] leading-[1.7] text-[var(--color-paper-ink-soft)]">{block.text}</p>
     );
@@ -183,9 +223,42 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
   const refs = (block.sourceRefs ?? [])
     .map((index) => sources[index - 1])
     .filter((source): source is MannersSource => Boolean(source));
+  const compare = block.variant === "compare";
 
   return (
     <figure className="m-0">
+      {/*
+        시간 순서 요약. 표를 **대체하지 않는다** — 표에는 기준 시점·한계·출처 계약이
+        붙어 있어 통째로 바꿀 수 없다. 요약을 위에 얹고 표는 접어 둔다.
+
+        말은 표의 첫 열에서 줄여 온 것이다. 없는 숫자를 만들지 않았다
+        (「예식 두세 시간 전」을 「-3h」로 바꾸면 정밀도를 지어내는 것이다).
+      */}
+      {block.timeline ? (
+        <div className="mb-4 -mx-1 overflow-x-auto pb-1">
+          <div className="relative flex min-w-max items-start pt-2.5">
+            <span
+              aria-hidden
+              className="absolute left-[22px] right-[22px] top-6 h-0.5"
+              style={{ backgroundColor: HAIRLINE }}
+            />
+            {block.timeline.map((node) => (
+              <div key={node.at} className="relative w-[104px] shrink-0 px-1 text-center">
+                <span
+                  aria-hidden
+                  className="mx-auto mb-2.5 block h-3.5 w-3.5 rounded-full border-[2.5px] border-[var(--color-rose-500)] bg-white"
+                />
+                <span className="mb-[3px] block text-[11.5px]" style={{ color: INK_MUTED }}>
+                  {node.at}
+                </span>
+                <span className="block text-[12.5px] font-semibold leading-[1.4] text-[var(--color-paper-ink)]">
+                  {node.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
       <div className="mb-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
         <p className="text-[13px] font-bold text-[var(--color-rose-600)]">{block.title}</p>
         {/*
@@ -225,12 +298,25 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
                     className={`px-3 py-[11px] align-top ${
                       index === 0
                         ? "whitespace-nowrap text-[12.5px] font-medium text-[var(--color-paper-ink)]"
-                        : index === row.length - 1 && row.length >= 3
-                          ? "text-[11.5px] leading-[1.5]"
-                          : "text-[12.5px] leading-[1.6] text-[var(--color-paper-ink-soft)]"
+                        : compare
+                          ? "text-[12.5px] leading-[1.6]"
+                          : index === row.length - 1 && row.length >= 3
+                            ? "text-[11.5px] leading-[1.5]"
+                            : "text-[12.5px] leading-[1.6] text-[var(--color-paper-ink-soft)]"
                     }`}
                     style={
-                      index === row.length - 1 && row.length >= 3 ? { color: INK_MUTED } : undefined
+                      /*
+                        두 갈래 표는 **글자색**으로 갈린다(시안 `td.ok` / `td.no`) —
+                        무난한 쪽은 세이지, 다시 생각할 쪽은 진한 로즈. 색만으로 말하지
+                        않는다: 머리글이 이미 어느 쪽인지 글자로 말한다.
+                      */
+                      compare && index === 1
+                        ? { color: "var(--color-sage-500)" }
+                        : compare && index === 2
+                          ? { color: "var(--color-rose-600)" }
+                          : index === row.length - 1 && row.length >= 3
+                            ? { color: INK_MUTED }
+                            : undefined
                     }
                   >
                     {cell}
@@ -324,6 +410,24 @@ const AUDIENCE_BADGE = {
   couple: { label: "준비하는 두 분께", className: "bg-[var(--color-paper-ink)] text-white" },
 } as const;
 
+/**
+ * 역할 탭. 절에 `role` 이 하나라도 있는 편에서만 그린다(지금은 본식 당일 한 편).
+ *
+ * 값은 자료의 한국어 그대로 쓰고, id 에는 영문 키를 쓴다 — CSS 선택자에 한국어를
+ * 넣으면 이스케이프가 필요하고, 이 저장소는 이스케이프에서 여러 번 데였다.
+ */
+const ROLE_TABS = [
+  // `caption` 을 따로 적는다. 「신랑·신부」+「이 볼 항목」처럼 조사를 붙여 만들면
+  // 받침에 따라 틀린다 — 실제로 「신랑·신부이 볼 항목」이 화면에 나갔다.
+  { key: "all", label: "전체", match: null, caption: "전체" },
+  { key: "couple", label: "신랑·신부", match: "두 사람", caption: "신랑·신부가 볼 항목" },
+  { key: "elders", label: "양가 어른", match: "양가 어른", caption: "양가 어른이 볼 항목" },
+  { key: "guest", label: "하객", match: "하객", caption: "하객이 볼 항목" },
+] as const;
+
+/** 「공통」 절은 어느 탭에서도 보인다. */
+const SHARED_ROLE = "공통";
+
 /** 편 순서. 목차(`MANNERS_CATEGORIES`)에 적힌 순서가 읽는 순서다. */
 function neighbourParts(slug: string) {
   const order = MANNERS_CATEGORIES.flatMap((category) => category.slugs);
@@ -351,6 +455,19 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
   const readingMinutes = readingMinutesOf(part.sections);
   const audience = AUDIENCE_BADGE[part.audience];
   const { previous, next } = neighbourParts(part.slug);
+  /**
+   * 역할 탭을 그릴지. 절에 `role` 이 하나라도 있으면 그린다.
+   *
+   * 지금은 본식 당일 한 편뿐이다. 절 제목의 접두를 정규식으로 읽으면 열세 편이
+   * 걸리는데 대부분 역할이 아니라 주제·시기·소유 대상이라 오작동한다.
+   */
+  const hasRoles = part.sections.some((section) => section.role);
+  const roleId = (key: string) => `${part.slug}-role-${key}`;
+  const countFor = (match: string | null) =>
+    part.sections.filter(
+      (section) => !match || section.role === match || section.role === SHARED_ROLE,
+    ).length;
+
   const shownSources = part.sources.slice(0, SOURCES_SHOWN);
   const hiddenSources = part.sources.slice(SOURCES_SHOWN);
 
@@ -432,7 +549,64 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
           </p>
         </header>
 
-        <div className="mt-6 space-y-[12px] sm:space-y-[18px]">
+        {/*
+          역할 탭. 숨긴 라디오와 CSS 형제 선택자로만 움직인다 — 이 화면은 클라이언트
+          JS 가 0이고 정적으로 미리 만들어진다(`globals.css` 의 「예절 안내 — 역할 탭」).
+        */}
+        <div className={hasRoles ? "manners-roles" : undefined}>
+          {hasRoles
+            ? ROLE_TABS.map((tab) => (
+                <input
+                  key={tab.key}
+                  type="radio"
+                  name={`${part.slug}-role`}
+                  id={roleId(tab.key)}
+                  value={tab.key}
+                  defaultChecked={tab.key === "all"}
+                />
+              ))
+            : null}
+
+          {hasRoles ? (
+            <div className="manners-role-tabs mb-5 flex flex-wrap gap-2" role="group" aria-label="역할 고르기">
+              {ROLE_TABS.map((tab) => (
+                <label
+                  key={tab.key}
+                  htmlFor={roleId(tab.key)}
+                  className="rounded-full border bg-white px-[18px] py-[9px] text-[13.5px] text-[var(--color-paper-ink-soft)]"
+                  style={{ borderColor: HAIRLINE }}
+                >
+                  {tab.label}
+                </label>
+              ))}
+            </div>
+          ) : null}
+
+          {hasRoles ? (
+            <div className="manners-role-dots mb-6">
+              {ROLE_TABS.map((tab) => (
+                <div
+                  key={tab.key}
+                  className="manners-dots items-center gap-1.5"
+                  data-for={tab.key}
+                >
+                  {Array.from({ length: countFor(tab.match) }, (_, index) => (
+                    <span
+                      key={index}
+                      aria-hidden
+                      className="h-[5px] w-[26px] rounded-full"
+                      style={{ backgroundColor: index === 0 ? "var(--color-rose-500)" : HAIRLINE }}
+                    />
+                  ))}
+                  <span className="ml-2 whitespace-nowrap text-[12px]" style={{ color: INK_MUTED }}>
+                    {countFor(tab.match)}개 절 · {tab.caption}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+        <div className="manners-sections mt-6 space-y-[12px] sm:space-y-[18px]">
           {/* 「정답이 아니라 관행」 고지. 시안 `.notice` — 테두리 있는 따뜻한 상자. */}
           <div
             className="flex gap-3 rounded-[12px] bg-[var(--color-ivory-warm)] p-3.5 sm:rounded-[14px] sm:px-[18px] sm:py-4"
@@ -459,13 +633,20 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               문단 하나뿐인 절에서 그것을 강조 줄로 올리면 본문이 통째로 사라진다.
             */
             const [head, ...rest] = section.blocks;
-            const lead = head?.kind === "paragraph" && rest.length > 0 ? head : undefined;
+            /*
+              법령 문단은 강조 줄로 뽑지 않는다. 시안은 그것을 카드 **맨 아래** 접힌
+              상자로 두는데, 걸린 일곱 문단이 전부 절의 첫 블록이라 그냥 두면 TL;DR
+              자리를 차지한다 — 그러면 절의 첫 화면이 법조문으로 시작한다.
+            */
+            const lead =
+              head?.kind === "paragraph" && !head.law && rest.length > 0 ? head : undefined;
             const body = lead ? rest : section.blocks;
 
             return (
               <section
                 key={section.heading}
                 id={`section-${index + 1}`}
+                data-role={section.role}
                 className="scroll-mt-28 rounded-[16px] bg-white px-[18px] py-5 sm:rounded-[18px] sm:px-7 sm:py-[26px]"
                 style={{ border: `1px solid ${HAIRLINE}` }}
               >
@@ -502,6 +683,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               </section>
             );
           })}
+        </div>
         </div>
 
         {/*
