@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  summarizeCardOnlyToolResults,
   AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS,
   AMORA_W3_PRIOR_USER_MAX_CHARS,
   buildAmoraBoundedContinuity,
@@ -313,5 +314,44 @@ describe("Amora bounded W3 continuity", () => {
       newestFirstRows: candidate,
       currentUserText: "아까 말한 거 다시 설명해줘",
     })).toBeNull();
+  });
+});
+
+describe("카드로만 보여준 도구 결과를 연결 문맥에 한 줄로 되살린다 (2026-09-04)", () => {
+  it("장소 검색은 검색어·건수·출처만 말하고 이름은 지어내지 않는다", () => {
+    const line = summarizeCardOnlyToolResults([
+      { success: true, toolName: "search_nearby_places", toolInput: {},
+        toolOutput: { query: "부산 해운대 한정식", places: [], resultCount: 5, displayOnlyPlaceholder: true }, displayMessage: "" },
+    ]);
+    expect(line).toContain("부산 해운대 한정식");
+    expect(line).toContain("5곳");
+    expect(line).toContain("광고·제휴 아님");
+  });
+
+  it("실패한 결과·모르는 도구·비배열은 아무것도 만들지 않는다", () => {
+    expect(summarizeCardOnlyToolResults(null)).toBeNull();
+    expect(summarizeCardOnlyToolResults([{ success: false, toolName: "search_nearby_places", toolOutput: { query: "x", resultCount: 3 } }])).toBeNull();
+    expect(summarizeCardOnlyToolResults([{ success: true, toolName: "get_budget_summary", toolOutput: {} }])).toBeNull();
+  });
+
+  it("직전 답변에 검색 카드가 있었으면 연결 문맥의 assistant 메시지 끝에 요약이 붙는다", () => {
+    const current = "방금 찾은 곳들 광고야 일반 검색이야? 수용 인원은 확인된 거야?";
+    const withSearch = rows().map((row) => row.id === ASSISTANT_ID
+      ? { ...row, content: "부산 해운대 근처 한정식집 후보를 찾아봤어요. 상견례 전에는 룸·주차를 직접 확인해 주세요.",
+          metadata: { in_reply_to_user_message_id: PRIOR_ID,
+            toolResults: [{ success: true, toolName: "search_nearby_places", toolOutput: { query: "부산 해운대 한정식", resultCount: 5 } }] } }
+      : row.id === PRIOR_ID
+        ? { ...row, content: "부산 해운대 근처에서 상견례 할 한정식집 3곳 찾아줘" }
+        : { ...row, content: current });
+    const result = buildAmoraBoundedContinuity({
+      newestFirstRows: withSearch, currentMessageId: CURRENT_ID, currentUserText: current,
+      requesterUserId: USER_ID, visibility: "shared", segmentId: SEGMENT_ID,
+    });
+    expect(result).not.toBeNull();
+    const assistant = result?.messages.find((m) => m.role === "assistant");
+    expect(assistant?.content).toContain("찾아봤어요");
+    expect(assistant?.content).toContain("[카드 요약]");
+    expect(assistant?.content).toContain("5곳");
+    expect(result?.capabilities).toBe("none");
   });
 });

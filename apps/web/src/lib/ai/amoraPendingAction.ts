@@ -1128,6 +1128,13 @@ export function extractAmoraPendingAction({
   hadPendingActionTag: boolean;
   /** 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다. */
   dropReason?: "unknown_schedule_event";
+  /**
+   * 검증에서 버려진 표식의 원문 머리(진단용). 2026-09-04 실측: "2027년 3월 10일 드레스
+   * 투어 일정 추가해줘" 가 2/2 로 카드 없이 끝났는데(본문은 카드 흉내), 서버에 원문이
+   * 안 남아 어느 필드가 틀렸는지 알 길이 없었다. 라우트가 서버 로그에만 남긴다 —
+   * DB 메타데이터에는 넣지 않는다.
+   */
+  droppedPayloadHeads?: string[];
 } {
   const { cleanText: strippedText, payloads, hadPendingActionTag } =
     cleanPendingActionTags(
@@ -1143,6 +1150,9 @@ export function extractAmoraPendingAction({
   const distinctPayloads = [...new Set(payloads)].filter(
     (payload) => payload.length <= MAX_PENDING_ACTION_JSON_CHARS,
   );
+  const droppedPayloadHeads = distinctPayloads
+    .slice(0, 2)
+    .map((payload) => Array.from(payload).slice(0, 400).join(""));
   if (distinctPayloads.length === 0) {
     return { cleanText, pendingAction: null, hadPendingActionTag };
   }
@@ -1175,6 +1185,7 @@ export function extractAmoraPendingAction({
       cleanText: remainingProposalCount > 0 ? MULTI_ACTION_REPLACEMENT : cleanText,
       pendingAction: null,
       hadPendingActionTag,
+      droppedPayloadHeads,
     };
   }
 
