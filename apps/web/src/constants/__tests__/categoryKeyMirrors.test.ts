@@ -106,15 +106,31 @@ describe("분야 키를 옮겨 적은 곳", () => {
    * "그릴 편이 없다"는 다르므로, 새 분야가 편 없이 들어오면 여기서 말한다.
    *
    * 이 파일은 키를 `키:` 꼴로 적어 위 훑기(`"키"`)에 안 걸린다. 그래서 따로 본다.
+   *
+   * ⚠️ 2026-09-04: **보는 파일이 바뀌었다.** 지도가
+   * `apps/web/src/lib/manners/categoryMap.ts` 에 손으로 적혀 있었는데, 모바일 체크리스트도
+   * 같은 「…예절 보기」 버튼을 그려야 해서 `packages/shared` 로 올렸다(모바일은 웹 파일을
+   * 못 읽는다). 웹은 이제 그것을 불러 `Object.fromEntries` 로 slug 만 꺼내 쓴다.
+   *
+   * 그래서 웹 파일에는 `키: "값"` 줄이 더 이상 없다. 옛 경로를 그대로 두면 지도가
+   * 멀쩡한데도 **21개 분야가 전부 빠졌다**고 말한다(실제로 그랬다).
    */
   it("예절 편 지도가 모든 분야를 안다", () => {
     const source = readFileSync(
-      resolve(repoRoot, "apps/web/src/lib/manners/categoryMap.ts"),
+      resolve(repoRoot, "packages/shared/src/constants/mannersGuideMap.ts"),
       "utf8",
     );
+    // 지도 블록만 본다. 파일 위쪽 `MannersGuideTarget` 의 `slug:`·`title:` 도 두 칸
+    // 들여쓰기라, 파일 전체를 훑으면 그 둘이 분야 이름으로 세어진다.
+    const block = source
+      .split("MANNERS_GUIDE_BY_CATEGORY: Readonly<Record<string, MannersGuideTarget>> = {")[1]
+      ?.split("\n};")[0];
+    expect(block, "지도 블록을 못 찾았다 — 이 검사가 아무것도 안 재고 있다").toBeTruthy();
+
     const mapped = new Set(
-      Array.from(source.matchAll(/^\s{2}([a-z][a-z0-9_]*):\s*"/gm), (m) => m[1]),
+      Array.from(block!.matchAll(/^\s{2}([a-z][a-z0-9_]*):\s*\{/gm), (m) => m[1]),
     );
+    expect(mapped.size, "지도에서 분야를 하나도 못 읽었다").toBeGreaterThan(15);
     const missing = checklistKeys.filter((key) => !mapped.has(key));
     expect(missing, `예절 편이 이어지지 않은 분야: ${missing.join(", ")}`).toEqual([]);
   });

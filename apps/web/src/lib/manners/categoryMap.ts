@@ -1,3 +1,5 @@
+import { MANNERS_GUIDE_BY_CATEGORY } from "@hanbang/shared/constants";
+
 import { MANNERS_PARTS } from "./data";
 
 /**
@@ -14,29 +16,24 @@ import { MANNERS_PARTS } from "./data";
  * 여전히 없는 파트를 억지로 이어 붙이지는 않는다. 매핑이 없으면 `null`을 돌려주고
  * 호출부가 카드를 안 그린다 — 죽은 링크보다 낫다.
  */
-const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = {
-  greeting: "first-family-visit",
-  meeting: "family-meeting",
-  venue: "wedding-day",
-  studio: "photo-manners",
-  dress: "wedding-day",
-  makeup: "wedding-day",
-  ring: "gifts-and-traditions",
-  hanbok: "traditional-greetings",
-  yedan: "gifts-and-traditions",
-  honeymoon: "post-honeymoon-thanks",
-  houseware: "shared-home-items",
-  housing: "home-conversation",
-  invitation: "invitation-sending",
-  snap: "photo-manners",
-  shoes: "wedding-day",
-  bouquet: "wedding-day",
-  gift: "return-gift",
-  mc: "congratulatory-speech",
-  ham: "gifts-and-traditions",
-  pyebaek: "traditional-greetings",
-  registration: "marriage-registration",
-};
+/**
+ * 지도의 정본은 **shared 다.**
+ *
+ * 2026-09-04 까지 이 목록이 여기 손으로 적혀 있었다. 그런데 모바일 체크리스트도
+ * 같은 버튼(「…예절 보기」)을 그려야 했고, 모바일은 이 파일을 못 읽는다(예절 본문이
+ * 웹 전용이라 번들에 넣을 수 없다). 사본을 하나 더 만드는 대신 **지도를 shared 로
+ * 올리고 여기서 slug 만 꺼내 쓴다** — 두 벌을 두면 반드시 한쪽이 낡는다.
+ *
+ * 편의 **내용**은 여전히 웹의 `data.ts` 가 정본이다. shared 가 아는 것은 어느 편으로
+ * 가는가와 그 편의 제목뿐이고, 그 제목이 `data.ts` 와 어긋나지 않는지는
+ * `scripts/tests/manners-guide-map-matches-parts.test.mjs` 가 지킨다.
+ */
+const CATEGORY_MANNERS_SLUG: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(MANNERS_GUIDE_BY_CATEGORY).map(([categoryKey, target]) => [
+    categoryKey,
+    target.slug,
+  ]),
+);
 
 export const MAPPED_MANNERS_CATEGORY_KEYS = Object.keys(CATEGORY_MANNERS_SLUG);
 
