@@ -29,6 +29,9 @@ import {
 import { listBudgetCategories } from "@/lib/budgetCategoryRegistry.mjs";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
 import ErrorRetry from "@/components/ErrorRetry";
+import BudgetShareChart from "@/components/budget/BudgetShareChart";
+import BudgetSideSplit from "@/components/budget/BudgetSideSplit";
+import { foldPayerSides } from "@hanbang/shared/budget-share";
 
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
@@ -518,11 +521,34 @@ export default function BudgetScreen() {
   );
 
   const totalSpent = budgetCategories.reduce((s, c) => s + getCatSpent(c.key), 0);
+
+  /**
+   * 양측 분담 — `payer` 네 값을 세 기둥으로 접는다. 웹 예산 화면과 **같은 함수**를
+   * 부르므로 두 앱이 같은 커플에게 다른 기둥을 말할 수 없다.
+   */
+  const payerSides = foldPayerSides(payerSummary);
   const remaining = totalBudget - totalSpent;
   const spentPct = totalBudget > 0 ? Math.min(100, Math.round((totalSpent / totalBudget) * 100)) : 0;
   const allocatedBudget = budgetCategories.reduce((sum, category) => {
     return sum + getCatBudget(category.key);
   }, 0);
+
+  /**
+   * 항목별 비중에 넘길 조각들.
+   *
+   * **여기서 progress 를 다시 읽지 않는다.** 이 화면의 합계를 만든 것과 같은
+   * `getCatSpent`/`getCatBudget` 과 같은 목록(`budgetCategories`)을 쓴다. 따로 세면
+   * 도넛 총액과 위 카드 총액이 갈린다.
+   *
+   * 기록 지출이 아직 0이면 배정 예산으로 그린다 — 첫날에도 "어디에 얼마를 잡았나" 는
+   * 답할 수 있어야 한다.
+   */
+  const shareBasis: "spent" | "budget" = totalSpent > 0 ? "spent" : "budget";
+  const shareSlices = budgetCategories.map((category) => ({
+    key: category.key,
+    label: category.label,
+    amount: shareBasis === "spent" ? getCatSpent(category.key) : getCatBudget(category.key),
+  }));
   const legacyReviewItems = Object.entries(progress).flatMap(([key, item]) => {
     if (!Object.prototype.hasOwnProperty.call(item, "cost")) return [];
     const category = budgetCategories.find((candidate) => candidate.key === key);
@@ -1051,10 +1077,21 @@ export default function BudgetScreen() {
           직접 입력하거나 계약 금액으로 확인된 예산만 합산해요. 기록 지출은 결제 완료 여부와 별도예요.
         </Text>
 
+        {/* 항목별 비중. 위 카드가 "얼마" 를 답하고 이 도넛이 "어디에" 를 답한다.
+            조각이 하나도 없으면 컴포넌트가 스스로 null 을 낸다. */}
+        <BudgetShareChart slices={shareSlices} basis={shareBasis} />
+
         {/* 분담 현황 */}
         {totalSpent > 0 && (
           <View style={s.payerSection}>
             <Text style={s.payerTitle}>분담 현황</Text>
+            {/* 양측을 먼저 보여주고 네 칸으로 편다. 네 칸만 있으면 "우리 쪽이 얼마" 를
+                눈으로 더해야 나오는데, 그게 이 화면에서 제일 자주 묻는 질문이다. */}
+            <BudgetSideSplit
+              brideSide={payerSides.brideSide}
+              groomSide={payerSides.groomSide}
+              shared={payerSides.shared}
+            />
             <View style={s.payerGrid}>
               {PAYER_OPTIONS.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;

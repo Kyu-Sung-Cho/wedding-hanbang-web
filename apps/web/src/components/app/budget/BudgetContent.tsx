@@ -45,6 +45,7 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 import Link from "next/link";
 import PaymentLedger from "./PaymentLedger";
 import BudgetShareChart from "./BudgetShareChart";
+import { foldPayerSides } from "./shareMath";
 import BudgetSideSplit from "./BudgetSideSplit";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -852,12 +853,13 @@ export default function BudgetContent({
   );
 
   /**
-   * 양측 분담 — 네 값을 세 기둥으로 접는다. 접는 규칙과 왜 새 `payer` 값을 만들지
-   * 않았는지는 `BudgetSideSplit.tsx` 머리말에 있다.
+   * 양측 분담 — 네 값을 세 기둥으로 접는다.
+   *
+   * 접는 일은 `@hanbang/shared/budget-share` 가 한다. 모바일 예산 화면이 같은 함수를
+   * 부르므로 두 앱이 같은 커플에게 다른 기둥을 말할 수 없다. 규칙과 왜 새 `payer`
+   * 값을 만들지 않았는지는 그 파일 머리말에 있다.
    */
-  const brideSideSpent = payerSummary.bride_parents ?? 0;
-  const groomSideSpent = payerSummary.groom_parents ?? 0;
-  const sharedSpent = (payerSummary.couple ?? 0) + (payerSummary.both_parents ?? 0);
+  const payerSides = foldPayerSides(payerSummary);
 
   /**
    * 항목별 비중에 넘길 조각들.
@@ -1240,9 +1242,9 @@ export default function BudgetContent({
             {/* 양측을 먼저 보여주고 네 칸으로 편다. 네 칸만 있으면 "우리 쪽이 얼마"를
                 눈으로 더해야 나오는데, 그게 이 화면에서 제일 자주 묻는 질문이다. */}
             <BudgetSideSplit
-              brideSide={brideSideSpent}
-              groomSide={groomSideSpent}
-              shared={sharedSpent}
+              brideSide={payerSides.brideSide}
+              groomSide={payerSides.groomSide}
+              shared={payerSides.shared}
             />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {PAYER_OPTIONS.map((opt) => {
