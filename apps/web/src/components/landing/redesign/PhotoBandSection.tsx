@@ -17,6 +17,8 @@ import { band, noteText, shell } from "./notebook";
  */
 export default function PhotoBandSection() {
   const { photoBand } = landingContent;
+  // 사진이 들어오기 전에는 제작 안내문을 방문자에게 내보내지 않는다(landingContent 주석).
+  if (!photoBand.visible) return null;
 
   return (
     // 랜드마크에는 이름이 있어야 한다 — 이름 없는 <section> 이 여럿이면 스크린리더

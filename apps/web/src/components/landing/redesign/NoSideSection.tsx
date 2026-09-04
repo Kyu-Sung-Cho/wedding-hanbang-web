@@ -53,18 +53,20 @@ export default function NoSideSection() {
             </TrackedLandingLink>
           </p>
 
-          {/* 사진 자리. 지금은 사진이 없으니 무엇을 넣어야 하는지 화면이 스스로 말한다.
-              출시 전에 실제 사진으로 바꾼다. */}
-          <div className="mt-9 rounded-[12px] border border-dashed border-[var(--color-paper-outline)] px-6 py-10 text-center">
-            <p className="text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
-              {noSide.photo.title}
-            </p>
-            {noSide.photo.captions.map((caption) => (
-              <p key={caption} className={`mt-2 ${noteText}`}>
-                {caption}
+          {/* 사진 자리. 사진이 들어오기 전에는 제작 안내문을 방문자에게 내보내지 않는다
+              (landingContent.noSide.photo.visible). 출시 전에 실제 사진으로 바꾼다. */}
+          {noSide.photo.visible ? (
+            <div className="mt-9 rounded-[12px] border border-dashed border-[var(--color-paper-outline)] px-6 py-10 text-center">
+              <p className="text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
+                {noSide.photo.title}
               </p>
-            ))}
-          </div>
+              {noSide.photo.captions.map((caption) => (
+                <p key={caption} className={`mt-2 ${noteText}`}>
+                  {caption}
+                </p>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-7 shadow-raised sm:px-7">

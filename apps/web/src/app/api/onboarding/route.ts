@@ -18,6 +18,7 @@ import {
   type CoupleRole,
   type MembershipAction,
 } from "@/lib/couples/membershipRpc";
+import { inviteRoleMismatchForJoin } from "@/lib/couples/inviteRoleHint";
 import { recordDecision } from "@/lib/memory/record-decision";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
@@ -961,6 +962,26 @@ export async function POST(request: Request) {
 
     const admin = getAdmin();
     await ensureProfileExists(admin, user);
+
+    // 2026-09-04 실측: 신부가 만든 유효한 코드에 신랑이 역할만 '신부'로 고르면 DB 는
+    // INVALID_INVITE_CODE(같은 역할은 못 들어감)를 돌려주고, 화면은 "초대 코드가 올바르지
+    // 않습니다" 라고 해서 사용자가 코드 오타를 의심하며 재시도 한도(10회/10분)만 태웠다.
+    // 코드로 커플을 먼저 찾아, 고른 역할의 자리가 **다른 사람**으로 이미 차 있고 반대
+    // 자리가 비어 있으면 기존 ROLE_MISMATCH 문구로 안내한다. 중립 공간(역할 없음)과
+    // 본인 재합류(멱등)는 건드리지 않는다. 그 밖의 판정은 그대로 DB 가 한다.
+    if (
+      !neutralPreparationSpace && coupleAction === "join" && normalizedInviteCode && role
+      && await inviteRoleMismatchForJoin(admin as unknown as Parameters<typeof inviteRoleMismatchForJoin>[0], {
+        inviteCode: normalizedInviteCode,
+        role,
+        actorUserId: user.id,
+      })
+    ) {
+      return privateResponse(
+        { error: "파트너가 만든 커플과 반대 역할을 선택해 주세요.", code: "ROLE_MISMATCH" },
+        409,
+      );
+    }
 
     let rpcResponse = neutralPreparationSpace
       ? coupleAction === "create"

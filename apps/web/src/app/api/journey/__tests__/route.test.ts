@@ -711,6 +711,8 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     ["a fractional budget", { expected_revision: 7, total_budget: 1.5 }],
     ["an impossible date", { expected_revision: 7, wedding_date: "2027-02-29" }],
     ["a year-zero date", { expected_revision: 7, wedding_date: "0000-01-01" }],
+    // 2026-09-04 실측: 2020-01-01 이 그대로 저장돼 일정 화면이 "+2438일 지남" 을 그렸다.
+    ["a past date", { expected_revision: 7, wedding_date: "2020-01-01" }],
     ["an overlong venue", { expected_revision: 7, venue: "가".repeat(121) }],
     ["a bidi venue", { expected_revision: 7, venue: "정상\u202e000000001원" }],
     ["an invisible progress label", {

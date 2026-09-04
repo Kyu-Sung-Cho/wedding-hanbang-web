@@ -84,6 +84,15 @@ describe("예산 카테고리 행의 접히는 폭", () => {
     // 어떤 폭에서도 넘친다.
     expect(source).toContain("flex-1 min-w-0");
   });
+
+  it("모바일에서는 진행바 칸이 제 줄을 갖는다 (2026-09-04 375px 실측)", () => {
+    const source = categoryRowSource();
+    // flex-1(basis 0%) 은 max-lg:flex-wrap 행 안에서 max-lg:w-full 을 이겨, 금액 컬럼이
+    // 남긴 11px 에 끼어 "예산 입력 전" 이 한 글자씩 세로로 쌓였다. 모바일 basis 는 100%.
+    expect(source).toContain("max-lg:basis-full");
+    expect(source).toContain("max-lg:flex-none");
+    expect(source).not.toContain("max-lg:order-last max-lg:w-full");
+  });
 });
 
 /**

@@ -104,6 +104,19 @@ function readRecordedCategoryStatuses(
   return recorded;
 }
 
+/** 카테고리 하나라도 예산(또는 지출)이 0보다 크면 사람이 만든 데이터다. */
+function hasAnyCategoryBudget(progress: Record<string, ProgressItem>): boolean {
+  for (const [key, item] of Object.entries(progress)) {
+    if (key.startsWith("__")) continue;
+    const budget = Number((item as { budget?: unknown })?.budget ?? 0);
+    const spent = Number((item as { spent?: unknown })?.spent ?? 0);
+    if ((Number.isFinite(budget) && budget > 0) || (Number.isFinite(spent) && spent > 0)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export interface LoungeFirstArrivalInput {
   /** 온보딩을 마치지 않았으면 되읽을 것 자체가 없다. */
   onboardingCompleted: boolean;
@@ -160,9 +173,15 @@ export function buildLoungeFirstArrival(
     Object.keys(recordedCategories).length === 0
     || isOnlyStageSuggestion(recordedCategories, preparationStage);
 
+  // 2026-09-04 실측: 총예산 5,000만원·사진 600만원·드레스 300만원을 배정한 커플에게
+  // "예산·체크리스트·일정은 두 분이 확인한 것만 쌓여요. 그래서 지금은 비어 있어요" 가
+  // 떴다 — 바로 아래 예산 위젯은 "남은 예산 5,000만원" 을 그리면서. 카테고리에 금액을
+  // 배정한 것은 사람이 만든 데이터다(온보딩 제안값에는 금액이 없다). 총예산만 있는
+  // 경우는 위 주석대로 되읽어 줄 대상이라 여기 넣지 않는다.
   const stillEmpty =
     input.checkedItemCount <= 0
     && nothingRecordedYet
+    && !hasAnyCategoryBudget(input.progress)
     && input.spentBudget <= 0
     && getEvents(input.progress as Record<string, unknown>).length === 0;
 
