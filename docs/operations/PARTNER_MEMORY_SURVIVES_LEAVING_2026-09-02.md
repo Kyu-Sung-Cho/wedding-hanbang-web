@@ -119,7 +119,7 @@ END $function$;
 ## 적용 상태
 
 - 스테이징(`rgxdizztidbgwnsbadml`): **적용 · 리허설 통과**
-- 운영(`slrtobkksjmxgzatjyqb`): 미적용 — 탈퇴 접수를 켜는 릴리스에서 함께 적용한다
+- 운영(`slrtobkksjmxgzatjyqb`): **2026-09-04 09:40 KST 적용**(파운더 지시 "마이그레이션 적용해"). Management API 로 이 파일을 그대로 실행 → 두 함수 `pg_get_functiondef` md5 가 스테이징과 동일 (`reset_amora_memory_after_membership_change` 7a463a8a…, `reset_amora_mediation_after_membership_change` 5caec58a…) → `supabase_migrations.schema_migrations` 에 20260902120000 행 기록. 적용 직전 운영 정의는 `audit-2026-09-03/amora-launch/rollback-20260902120000-prod.sql`(저장소 밖) 에 있다. 스테이징에 같은 파일을 한 번 더 실행해 멱등을 확인한 뒤 적용했다.
 
 ## 함께 봐야 할 것
 
