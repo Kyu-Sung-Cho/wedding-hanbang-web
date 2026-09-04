@@ -44,6 +44,8 @@ import type {
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import Link from "next/link";
 import PaymentLedger from "./PaymentLedger";
+import BudgetShareChart from "./BudgetShareChart";
+import BudgetSideSplit from "./BudgetSideSplit";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
@@ -849,6 +851,34 @@ export default function BudgetContent({
     {} as Record<PayerType, number>
   );
 
+  /**
+   * 양측 분담 — 네 값을 세 기둥으로 접는다. 접는 규칙과 왜 새 `payer` 값을 만들지
+   * 않았는지는 `BudgetSideSplit.tsx` 머리말에 있다.
+   */
+  const brideSideSpent = payerSummary.bride_parents ?? 0;
+  const groomSideSpent = payerSummary.groom_parents ?? 0;
+  const sharedSpent = (payerSummary.couple ?? 0) + (payerSummary.both_parents ?? 0);
+
+  /**
+   * 항목별 비중에 넘길 조각들.
+   *
+   * **여기서 progress 를 다시 읽지 않는다.** 이 화면의 합계를 만든 것과 같은
+   * `getCategorySpent`/`getCategoryBudget` 과 같은 목록(`visibleFixed` + 커스텀)을
+   * 쓴다. 따로 세면 도넛의 총액과 위 카드의 총액이 갈리는데, 그 사고는
+   * `lib/budgetTotals.ts` 머리말에 기록돼 있다(2026-08-24).
+   *
+   * 기록 지출이 아직 0이면 배정 예산으로 그린다 — 첫날에도 "어디에 얼마를 잡았나"는
+   * 답할 수 있어야 한다.
+   */
+  const shareBasis: "spent" | "budget" = totalSpent > 0 ? "spent" : "budget";
+  const shareSlices = [...visibleFixed, ...customCategories].map((category) => ({
+    key: category.key,
+    label: category.label,
+    amount: shareBasis === "spent"
+      ? getCategorySpent(category.key)
+      : getCategoryBudget(category.key),
+  }));
+
   // 포함·별도 확인 항목이 있는 카테고리 중 지출이 시작된 것들 — 안내 카드 표시용
   const hiddenCostWarnings = Object.keys(HIDDEN_COSTS).filter(
     (k) => !hiddenKeys.has(k) && getCategorySpent(k) > 0
@@ -1190,6 +1220,11 @@ export default function BudgetContent({
           </section>
         )}
 
+        {/* 항목별 비중. 세 요약 카드가 "얼마"를 답하고 이 도넛이 "어디에"를 답한다 —
+            그래서 카드 바로 다음이고 분담 현황보다 앞이다. 조각이 하나도 없으면
+            컴포넌트가 스스로 null 을 낸다. */}
+        <BudgetShareChart slices={shareSlices} basis={shareBasis} />
+
         {paymentLedgerEnabled && <PaymentLedger />}
 
         {/* 분담 현황 (Editorial Style) */}
@@ -1202,6 +1237,13 @@ export default function BudgetContent({
                 <h3 className="font-serif-kr text-[var(--hb-text-strong)]">분담 현황</h3>
               </div>
             </div>
+            {/* 양측을 먼저 보여주고 네 칸으로 편다. 네 칸만 있으면 "우리 쪽이 얼마"를
+                눈으로 더해야 나오는데, 그게 이 화면에서 제일 자주 묻는 질문이다. */}
+            <BudgetSideSplit
+              brideSide={brideSideSpent}
+              groomSide={groomSideSpent}
+              shared={sharedSpent}
+            />
             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
               {PAYER_OPTIONS.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;
