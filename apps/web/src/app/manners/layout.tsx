@@ -22,8 +22,8 @@ const POLICY_LINKS = [
 
 export default function MannersLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#fffdf8]">
-      <header className="border-b border-[var(--hb-primary)]/10 bg-[#fffdf8]">
+    <div className="flex min-h-screen flex-col bg-[#FBF8F2]">
+      <header className="border-b border-[var(--hb-primary)]/10 bg-[#FBF8F2]">
         <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
           <Link
             {...weddingLinkProps()}
@@ -48,7 +48,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
 
       <main className="flex-1">{children}</main>
 
-      <footer className="border-t border-[var(--hb-primary)]/10 bg-[#fffdf8]">
+      <footer className="border-t border-[var(--hb-primary)]/10 bg-[#FBF8F2]">
         <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
           <p className="text-[13px] font-medium text-[var(--hb-text-strong)]/70">
             결혼 준비, 아모라와 처음부터 끝까지.

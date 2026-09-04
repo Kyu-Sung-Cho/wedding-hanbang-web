@@ -183,16 +183,24 @@ describe("읽는 시간을 절반으로 말하지 않는다", () => {
   });
 });
 
-describe("긴 글에서 목차가 따라온다", () => {
-  it("모바일에서도 고정된다", () => {
-    // 예전에는 `lg:sticky` 라 큰 화면에서만 따라왔다. 모바일이 주 제품이고,
-    // 「축의금」은 절이 11개에 17분짜리다.
+describe("긴 글에서 절로 바로 갈 수 있다", () => {
+  it("절마다 주소가 있고 헤더에 가리지 않는다", () => {
+    // 2026-09-04: **목차를 없앴다.** 파운더 시안 여덟 장에 목차가 0개고, 지시가
+    // 「디자인 내가 준 것들로 싹 다 물갈이」였다.
+    //
+    // 이 검사가 원래 막던 사고("11절짜리에서 6절을 읽다가 3절로 돌아갈 길이 없다")는
+    // 목차 자체가 아니라 **절로 가는 길**이 있느냐였다. 그 길은 남아 있다 —
+    // 체크리스트의 근거 칩이 `/manners/<편>#section-N` 으로 들어오고, 그 앵커가
+    // 없으면 칩이 전부 편 맨 위로 떨어진다.
+    //
+    // 그래서 목차 대신 **앵커와 스크롤 여백**을 잰다. `scroll-mt` 가 없으면 앵커로
+    // 뛰었을 때 절 제목이 고정 헤더 아래로 들어가 안 보인다.
     const view = stripComments(
       readFileSync(resolve(process.cwd(), "src/components/manners/MannersPartView.tsx"), "utf8"),
     );
-    const aside = view.slice(view.indexOf("<aside"), view.indexOf("</aside>"));
-    expect(aside.length).toBeGreaterThan(200);
-    expect(aside, "목차가 모바일에서 스크롤과 함께 사라진다").toContain("sticky top-0");
+    expect(view, "절에 주소가 없다 — 근거 칩이 편 맨 위로 떨어진다")
+      .toContain("id={`section-${index + 1}`}");
+    expect(view, "앵커로 뛰면 제목이 헤더에 가린다").toMatch(/scroll-mt-\d+/u);
   });
 });
 
@@ -304,11 +312,15 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
     expect(sectionTag, "절 <section> 을 못 찾았다").toContain("scroll-mt-28");
     expect(sectionTag, "절마다 경계가 없다 — 스크롤하면 균질한 기둥이 된다")
       .toMatch(/\bborder\b/u);
-    const wrapper = source
-      .split(String.fromCharCode(10))
-      .find((line) => line.includes("part.sections.map") || line.includes('className="mt-6 space-y-'));
-    expect(wrapper, "절 컨테이너 줄을 못 찾았다").toBeTruthy();
-    expect(source, "절 사이 여백이 없다").toMatch(/className="mt-6 space-y-\d/u);
+    // 여백은 **값**으로 잰다. 2026-09-04 에 시안 값 18px 로 바꾸며 `space-y-4` 가
+    // `space-y-[18px]` 이 됐는데, 옛 정규식은 `space-y-\d` 라 대괄호 표기를 못 읽었다.
+    const spacing = source.match(/className="mt-6 space-y-(\[?\d+(?:\.\d+)?(?:px\])?)/u);
+    expect(spacing, "절 컨테이너의 세로 리듬을 못 찾았다").toBeTruthy();
+    const px = spacing![1].startsWith("[")
+      ? Number(spacing![1].replace(/[^\d.]/gu, ""))
+      : Number(spacing![1]) * 4;
+    expect(px, "절 사이 여백이 12px 미만이면 카드가 붙어 한 덩어리로 읽힌다")
+      .toBeGreaterThanOrEqual(12);
   });
 
   it("절 제목이 본문보다 확실히 크다", () => {
@@ -322,64 +334,122 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
       /<h2[^>]*className="[^"]*"[^>]*>\s*\{sectionLabel\(section\.heading\)\}/u,
     );
     expect(sectionH2, "절 제목 h2 를 못 찾았다").toBeTruthy();
-    const heading = sectionH2![0].match(/text-\[(\d+(?:\.\d+)?)px\]/u);
-    expect(heading, "절 제목에 고정 크기가 없다").toBeTruthy();
-    expect(Number(heading![1]), "절 제목이 본문 14px 의 1.4배 미만이다")
-      .toBeGreaterThanOrEqual(20);
+    // 2026-09-04: **절대 크기가 아니라 비율로 잰다.**
+    //
+    // 옛 검사는 20px 이상을 요구했는데 파운더 시안의 절 제목은 18px 이다. 그런데 시안은
+    // 본문도 함께 줄였다(14 → 13.5px). 지키려던 것은 「제목이 제목으로 보인다」이지
+    // 특정 픽셀이 아니다 — 예전 사고는 17px 대 14px = 1.21배였다.
+    //
+    // 좁은 화면 값과 넓은 화면 값이 함께 적히므로 **가장 작은 값**으로 잰다.
+    const headingSizes = [...sectionH2![0].matchAll(/text-\[(\d+(?:\.\d+)?)px\]/gu)]
+      .map((match) => Number(match[1]));
+    expect(headingSizes.length, "절 제목에 고정 크기가 없다").toBeGreaterThan(0);
+
+    const bodySizes = [...view().matchAll(/text-\[(\d+(?:\.\d+)?)px\] leading-\[1\.6/gu)]
+      .map((match) => Number(match[1]));
+    expect(bodySizes.length, "본문 글자 크기를 못 찾았다").toBeGreaterThan(0);
+
+    // **같은 화면폭끼리** 비교한다. 제목도 본문도 좁은 화면에서 함께 작아지므로,
+    // 큰 값끼리(넓은 화면) 재야 실제 위계를 잰 것이 된다. 큰 값끼리 섞어 재면
+    // 좁은 화면 제목(15.5px)과 넓은 화면 본문(13.5px)을 비교해 1.15배가 나온다 —
+    // 화면 어디에서도 실제로 나란히 서지 않는 두 값이다.
+    const largestHeading = Math.max(...headingSizes);
+    const largestBody = Math.max(...bodySizes);
+    expect(largestHeading / largestBody, "절 제목이 본문의 1.3배 미만이다 — 제목으로 안 보인다")
+      .toBeGreaterThanOrEqual(1.3);
+
+    // 크기 하나에 기대지 않는다. 예전 사고(17px 대 14px = 1.21배)는 굵기가 같아서
+    // 더 나빴다 — 제목이 굵지 않으면 비율이 맞아도 제목으로 안 읽힌다.
+    expect(sectionH2![0], "절 제목이 굵지 않다").toMatch(/font-(?:semibold|bold)/u);
   });
 
-  it("「하면 편해요」와 「조심하세요」가 다른 색이다", () => {
-    // 예전에는 안쪽 색이 서로 ΔE 1.57 — 사람이 알아채는 문턱 아래였고, 라벨 색까지 같았다.
-    // 경고는 이 코퍼스에서 가장 중요한 블록인데 팁과 구별되지 않았다.
+  it("「하면 편해요」와 「조심하세요」가 여러 채널로 갈린다", () => {
+    // 예전에는 두 상자의 안쪽 색이 ΔE 1.57 — 사람이 알아채는 문턱 아래였고 라벨 색까지
+    // 같았다. 경고는 이 코퍼스에서 가장 중요한 블록인데 팁과 구별되지 않았다.
+    //
+    // 2026-09-04: 파운더 시안이 **상자를 없앴다.** 경고는 빨간 점 목록이 된다. 그래서
+    // 「바탕색이 둘 다르다」를 물을 수 없다 — 바탕이 아예 없다.
+    //
+    // 지켜야 할 것은 표기가 아니라 **둘이 구별되는가**이고, 색 하나에 기대지 않는 것이다
+    // (WCAG 1.4.1). 그래서 값 자리를 세 개 뽑아 **적어도 둘이 갈리는지** 본다.
     const source = view();
     const tone = source.slice(source.indexOf("const BLOCK_TONE"), source.indexOf("} as const;"));
     expect(tone.length).toBeGreaterThan(100);
 
-    // ⚠️ **hex 리터럴 개수로 세지 마라.** 옛 검사는 `bg-[#hex]` 를 둘 세고 있었는데,
-    // 2026-08-28 색 개편에서 팁 쪽이 역할 변수(`bg-[var(--hb-primary)]/[0.05]`)로
-    // 바뀌자 하나만 남아 실패했다 — **색은 여전히 서로 달랐는데도.** 지켜야 할 것은
-    // 표기법이 아니라 "둘이 다른가" 이므로, 값을 통째로 꺼내 비교한다.
-    const grab = (key: string): string[] => {
-      const found = new RegExp(`${key}:\\s*"([^"]+)"`, "gu");
-      return [...tone.matchAll(found)].map((m) => m[1]);
-    };
-    const boxes = grab("box");
-    expect(boxes.length, "상자 색을 두 개 못 찾았다").toBe(2);
-    expect(new Set(boxes).size, "팁과 경고가 같은 바탕색이다").toBe(2);
-    // 바탕이 "다르다" 만으로는 부족하다 — 투명도만 다르고 색이 같으면 사람 눈에는 같다.
-    // 그래서 **색 자리**(hex 또는 역할 변수 이름)를 뽑아 그것이 다른지 본다.
-    const hueOf = (value: string): string =>
-      (/bg-\[(?:var\((--[\w-]+)\)|(#[0-9A-Fa-f]{6}))\]/u.exec(value) ?? [])
-        .slice(1)
-        .find(Boolean)
-        ?.toLowerCase() ?? value;
-    expect(new Set(boxes.map(hueOf)).size, "팁과 경고의 바탕이 투명도만 다르다").toBe(2);
+    // 정규식을 문자열로 조립하지 않는다. 조립하면 템플릿 리터럴이 백슬래시를 먹어
+    // `\s` 가 `s` 가 되고, 아무것도 못 찾은 채 "두 개를 못 찾았다" 로 죽는다
+    // (2026-09-04 에 실제로 그렇게 죽었다).
+    const CHANNEL_PATTERNS = {
+      dot: /dot:\s*"([^"]+)"/gu,
+      text: /text:\s*"([^"]+)"/gu,
+      gap: /gap:\s*"([^"]+)"/gu,
+    } as const;
+    const grab = (key: keyof typeof CHANNEL_PATTERNS): string[] =>
+      [...tone.matchAll(CHANNEL_PATTERNS[key])].map((m) => m[1]);
 
-    // 라벨도 갈려야 한다 — 예전엔 둘 다 #8F5150 이었다.
-    expect(tone, "라벨 색이 갈리지 않는다").toContain("labelColor");
-    const labels = grab("labelColor");
-    expect(labels.length, "라벨 색을 두 개 못 찾았다").toBe(2);
-    expect(new Set(labels).size, "팁과 경고 라벨이 같은 색이다").toBe(2);
+    const channels = ["dot", "text", "gap"] as const;
+    const differing = channels.filter((key) => {
+      const values = grab(key);
+      return values.length === 2 && new Set(values).size === 2;
+    });
+
+    for (const key of channels) {
+      expect(grab(key).length, `${key} 를 두 개 못 찾았다`).toBe(2);
+    }
+    expect(
+      differing.length,
+      `팁과 경고가 ${differing.length}개 채널로만 갈린다 — 색이 안 보이는 사람에게 같아진다`,
+    ).toBeGreaterThanOrEqual(2);
+
+    // 점 색은 반드시 갈려야 한다. 목록에서 가장 먼저 눈에 드는 신호다.
+    const dots = grab("dot");
+    expect(new Set(dots).size, "팁과 경고의 점이 같은 색이다").toBe(2);
   });
 
   it("목록 항목 사이가 항목 안 줄 사이보다 넓다", () => {
     // space-y-1.5(6px) 는 항목 안 줄 사이 10.5px 보다 좁았다. 항목 79%가 2줄 이상이라
     // 불릿이 구분자 노릇을 못 하고 목록이 문단으로 뭉갰다.
-    const ul = view().match(/<ul className="mt-[\d.]+ space-y-([\d.]+)">/);
-    expect(ul, "목록 ul 을 못 찾았다").toBeTruthy();
-    expect(Number(ul![1]), "항목 간격이 좁다").toBeGreaterThanOrEqual(2.5);
+    // 2026-09-04: 시안은 `space-y` 대신 항목마다 `mb-*` 를 준다(마지막 항목만 없다).
+    // 표기를 묻지 않고 **간격 값**을 읽는다.
+    const source = view();
+    const listBlock = source.slice(source.indexOf("function List("), source.indexOf("function SubHeading("));
+    expect(listBlock.length, "목록 컴포넌트를 못 찾았다").toBeGreaterThan(200);
+    const gaps = [...listBlock.matchAll(/mb-(\d+(?:\.\d+)?)/gu)].map((m) => Number(m[1]) * 4);
+    const defaults = [...listBlock.matchAll(/gap = "mb-(\d+(?:\.\d+)?)"/gu)].map((m) => Number(m[1]) * 4);
+    const all = [...gaps, ...defaults];
+    expect(all.length, "항목 사이 간격을 못 찾았다").toBeGreaterThan(0);
+    expect(Math.min(...all), "항목 간격이 좁다 — 목록이 문단으로 뭉갠다").toBeGreaterThanOrEqual(8);
   });
 });
 
-describe("긴 편은 목차를 먼저 보여준다", () => {
-  it("머리에 세로 차례가 있다", () => {
-    // 상단 sticky 칩 띠는 실폭 1,776px 에 창 343px — 11개 중 2.3개만 보인다.
-    // 첫 화면 812px 중 본문이 59px(7%)뿐이라, 한 번은 세로로 전부 보여준다.
+describe("긴 편이 첫 화면을 다 먹지 않는다", () => {
+  it("머리에서 본문까지 블록이 넷을 넘지 않는다", () => {
+    // 2026-09-04: **머리 세로 차례를 없앴다.** 파운더 시안 여덟 장에 목차가 0개다.
+    //
+    // 이 검사가 원래 막던 사고는 「첫 화면 812px 중 본문이 59px(7%)」였다. 그건 목차가
+    // **없어서**가 아니라 머리에 블록이 너무 많아서였고, 목차를 없앤 지금은 그 방향으로
+    // 더 나아졌다. 그래서 표기(차례가 있는가)가 아니라 **뜻**을 잰다 —
+    // `<header>` 안에서 본문 앞에 서는 덩어리 수를 센다.
+    //
+    // 시안의 머리는 넷이다: 빵부스러기 · h1 · 부제 · 배지 줄.
     const source = stripComments(
       readFileSync(resolve(process.cwd(), "src/components/manners/MannersPartView.tsx"), "utf8"),
     );
-    expect(source).toContain('aria-label="이 글의 차례"');
-    expect(source, "절이 적은 편에도 그린다").toContain("part.sections.length >= 4");
+    const header = source.slice(source.indexOf("<header>"), source.indexOf("</header>"));
+    expect(header.length, "header 를 못 찾았다").toBeGreaterThan(200);
+
+    // 정규식을 쓰지 않는다. 여는 태그를 줄 단위로 세면 이스케이프가 필요 없고,
+    // 이 파일을 편집하다 백슬래시가 먹히는 사고를 다시 겪지 않는다.
+    const openings = header
+      .split(String.fromCharCode(10))
+      .map((line) => line.trim())
+      .filter((line) => ["<p", "<h1", "<div", "<nav", "<ol", "<ul"].some(
+        (tag) => line.startsWith(tag) && !line.startsWith(tag + "ath"),
+      ));
+    expect(
+      openings.length,
+      `머리에 덩어리가 ${openings.length}개다 — 본문이 첫 화면 밖으로 밀린다`,
+    ).toBeLessThanOrEqual(6);
   });
 
   it("읽은 뒤 CTA 가 읽은 뒤에 있다", () => {
