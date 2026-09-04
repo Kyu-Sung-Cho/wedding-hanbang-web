@@ -3212,13 +3212,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
 
-  // 2026-09-03: 인사 요청키가 사용자 id 하나로 영구 고정돼 있어서, 커플이 바뀐
-  // 사용자는 예약 RPC 가 옛 커플과 다르다며 거절해 첫 인사가 영원히 실패했다.
-  // 인사 키는 커플을 함께 담고, 일반 턴 키와는 여전히 갈린다.
+  // 2026-09-04 브라우저 실측: #303 이 인사 키에 커플 id 를 붙였는데(위 주석의 의도),
+  // 운영·스테이징의 `claim_amora_chat_request` 는 인사 키를 `greeting:<user>` **정확 일치**
+  // 로만 받아 모든 새 커플의 첫 인사가 22023 으로 실패했다. 이 테스트는 클레임을 목으로
+  // 두어 그 거절을 못 봤다. 커플 구분은 클레임 표의 PK `(couple_id, request_key)` 가 이미
+  // 한다 — 키에 커플을 넣지 않는다. DB 규약대로 되돌리고, 그 규약을 못 박는다.
   it.each([
-    ["initial_greeting", `greeting:00000000-0000-4000-8000-000000000001:${COUPLE_ID}`],
+    ["initial_greeting", `greeting:00000000-0000-4000-8000-000000000001`],
     ["chat", `chat:00000000-0000-4000-8000-000000000001`],
-  ] as const)("scopes the %s request key to this couple", async (requestKind, expectedPrefix) => {
+  ] as const)("scopes the %s request key to the DB claim contract", async (requestKind, expectedPrefix) => {
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "안녕하세요.",
       usage: { input_tokens: 10, output_tokens: 3 },
@@ -3235,8 +3237,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const requestKey = String(mocks.claim.mock.calls[0]?.[0]?.requestKey);
     expect(requestKey.startsWith(expectedPrefix)).toBe(true);
     if (requestKind === "initial_greeting") {
+      // 정확히 이 모양이어야 한다 — 커플 id 를 붙이면 DB 가 거부한다.
       expect(requestKey).toBe(expectedPrefix);
+      expect(requestKey).not.toContain(COUPLE_ID);
     }
+    // 커플은 키가 아니라 별도 파라미터로 클레임에 들어간다.
+    expect(mocks.claim.mock.calls[0]?.[0]?.coupleId).toBe(COUPLE_ID);
   });
 
   it.each([

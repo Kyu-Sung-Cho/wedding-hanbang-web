@@ -979,8 +979,13 @@ export async function POST(request: Request) {
   // 2026-09-03: 인사 요청키가 사용자 id 하나로 영구 고정돼 있어, 커플이 바뀐
   // 사용자는 예약 RPC 가 옛 커플과 다르다며 거절(invalid_args)해 첫 인사가
   // 영원히 실패했다. 비용 원장이 실제로 비교하는 커플 값을 키에 함께 넣는다.
+  // 2026-09-04 브라우저 실측(새 커플 첫 화면): 인사 요청키에 커플 id 를 붙인 #303 이후
+  // 운영·스테이징의 `claim_amora_chat_request` 가 `greeting:<user_id>` 정확히 그 모양만
+  // 받아 **모든 새 커플의 첫 인사가 22023 으로 실패**했다(화면: "아모라를 불러오지 못했어요").
+  // 클레임 표의 키는 (couple_id, request_key) 라 커플 범위는 이미 잡혀 있다. DB 규약대로
+  // 되돌린다. 초기화 뒤 옛 인사가 재생되는 문제는 DB 마이그레이션이 필요한 별개 결정.
   const clientRequestId = requestKind === "initial_greeting"
-    ? `greeting:${actorId}:${dataCoupleId}`
+    ? `greeting:${actorId}`
     : `chat:${actorId}:${durableClientRequestUuid}`;
   const requestCorrelationId = createHash("sha256")
     .update(clientRequestId)
