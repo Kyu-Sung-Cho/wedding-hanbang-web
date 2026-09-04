@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import type { ChecklistItem } from "@/types/database.types";
 
 /**
@@ -16,6 +18,7 @@ export default function ChecklistItemText({
   idPrefix,
   labelClassName,
   compact = false,
+  labelSuffix,
 }: {
   item: ChecklistItem;
   /**
@@ -30,12 +33,33 @@ export default function ChecklistItemText({
   labelClassName: string;
   /** 좁은 자리(시간축·패널)에서는 note를 한 단계 작게. */
   compact?: boolean;
+  /**
+   * label 바로 옆에 붙는 작은 표시(「필수」·「해당 시」·「다음 할 일」).
+   *
+   * 안 주면 마크업이 **예전 그대로**다. 표시를 쓰는 화면은 준비 목록 모달 하나인데,
+   * 그 하나 때문에 시간축·패널의 줄 모양이 바뀌면 안 된다. 그래서 표시가 있을 때만
+   * 가로 상자로 감싼다.
+   *
+   * label 자체는 한 번만 정의한다 — 두 갈래에 각각 적으면 id·클래스가 조용히 갈린다.
+   */
+  labelSuffix?: ReactNode;
 }) {
+  const label = (
+    <span id={idPrefix ? `${idPrefix}-label` : undefined} className={`block ${labelClassName}`}>
+      {item.label}
+    </span>
+  );
+
   return (
     <span className="min-w-0 flex-1">
-      <span id={idPrefix ? `${idPrefix}-label` : undefined} className={`block ${labelClassName}`}>
-        {item.label}
-      </span>
+      {labelSuffix ? (
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          {label}
+          {labelSuffix}
+        </span>
+      ) : (
+        label
+      )}
       {item.note && (
         <span
           id={idPrefix ? `${idPrefix}-note` : undefined}
