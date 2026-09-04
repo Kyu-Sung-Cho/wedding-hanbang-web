@@ -16,24 +16,47 @@ const source = (relative) =>
 
 const schedule = source("app/schedule/index.tsx");
 
+/**
+ * 2026-09-04: 항목을 그리는 자리가 **옮겨갔다.**
+ *
+ * 그전에는 분야 카드가 그 자리에서 펼쳐졌고(아코디언) 마크업이 `app/schedule/index.tsx`
+ * 안에 있었다. 시안대로 시트로 바꾸면서 항목 렌더가 이 컴포넌트로 나왔다.
+ *
+ * 그래서 이 검사도 **그리는 곳**을 본다. 화면 파일만 계속 보면, 안내를 잘 그리고
+ * 있는데도 빨간불이 난다(실제로 그랬다). 반대로 여기서 검사를 지워 버리면 안내가
+ * 사라져도 아무도 모른다 — 그것이 이 파일이 처음 생긴 이유다.
+ *
+ * 화면이 이 시트를 실제로 띄우는지도 함께 확인한다. 컴포넌트만 있고 아무도 안 쓰면
+ * 안내는 여전히 화면에 없다.
+ */
+const sheet = source("src/components/checklist/CategoryChecklistSheet.tsx");
+
 test("항목 타입을 복사하지 않고 공유 템플릿의 것을 쓴다", () => {
-  assert.doesNotMatch(
-    schedule,
-    /interface ChecklistItem\s*\{/,
-    "로컬 사본을 다시 만들면 공유 쪽 변경을 또 놓친다",
-  );
+  for (const [name, code] of [["schedule", schedule], ["sheet", sheet]]) {
+    assert.doesNotMatch(
+      code,
+      /interface ChecklistItem\s*\{/,
+      `${name}: 로컬 사본을 다시 만들면 공유 쪽 변경을 또 놓친다`,
+    );
+  }
   assert.match(schedule, /type ChecklistItem/, "공유 타입을 가져와야 한다");
+  assert.match(sheet, /type ChecklistItem/, "시트도 공유 타입을 써야 한다");
+});
+
+test("화면이 항목 시트를 실제로 띄운다", () => {
+  assert.match(schedule, /CategoryChecklistSheet/, "시트를 부르는 곳이 없다");
+  assert.match(schedule, /<CategoryChecklistSheet/, "시트를 마운트하지 않는다");
 });
 
 test("안내를 항목 아래에 그린다", () => {
-  assert.match(schedule, /item\.note \?/, "안내가 있을 때만 그려야 한다");
-  assert.match(schedule, /styles\.itemNote/, "안내 전용 스타일이 있어야 한다");
+  assert.match(sheet, /item\.note \?/, "안내가 있을 때만 그려야 한다");
+  assert.match(sheet, /s\.itemNote/, "안내 전용 스타일이 있어야 한다");
 });
 
 test("안내를 이름이 아니라 힌트로 읽힌다", () => {
   // 이름에 붙이면 스크린 리더가 항목마다 두 문장을 이어 읽는다.
-  assert.match(schedule, /accessibilityHint=\{item\.note\}/);
-  assert.match(schedule, /accessibilityLabel=\{item\.label\}/);
+  assert.match(sheet, /accessibilityHint=\{item\.note\}/);
+  assert.match(sheet, /accessibilityLabel=\{item\.label\}/);
 });
 
 test("안내가 붙어도 저장에는 실리지 않는다", () => {

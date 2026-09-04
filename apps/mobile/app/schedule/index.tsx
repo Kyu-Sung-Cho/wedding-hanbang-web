@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, usePathname } from "expo-router";
 import {
-  ChevronDown, ChevronUp, CheckCircle2, Circle,
+  ChevronRight, CheckCircle2, Circle,
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
@@ -50,6 +50,15 @@ import {
   type ScheduleSessionToken,
 } from "@/lib/scheduleSessionFence.mjs";
 import { CATEGORY_CHECKLISTS, type ChecklistItem } from "@/constants/checklists";
+import { CHECKLIST_MAP } from "@hanbang/shared/constants";
+import CategoryChecklistSheet from "@/components/checklist/CategoryChecklistSheet";
+
+/**
+ * 예절 편은 웹에만 있고 모바일은 웹뷰로 연다. 주소 만드는 방식을
+ * `app/etiquette/index.tsx` 와 같게 둔다 — 두 곳이 갈리면 한쪽만 404 를 연다.
+ * `/manners` 가 아니라 `/wedding/manners` 다. 앞의 것은 307 로 한 번 튄다.
+ */
+const SITE_URL = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 import {
   AppHeader,
   AppText,
@@ -1540,8 +1549,19 @@ export default function ScheduleScreen() {
     );
   }
 
+  /**
+   * 분야 카드를 누르면 시트가 올라온다.
+   *
+   * 2026-09-04 이전에는 카드가 그 자리에서 펼쳐졌다(`LayoutAnimation` 으로). 시안이
+   * 시트로 바꿨고, 여는 움직임은 `Modal` 의 `animationType="slide"` 가 맡는다 —
+   * 여기서 레이아웃을 따로 애니메이션하면 뒤의 목록이 한 번 더 들썩인다.
+   */
+  /** 시트가 그리는 분야. `expandedKey` 가 비었거나 그 분야가 없으면 undefined. */
+  const sheetCategory = expandedKey
+    ? categories.find((category) => category.key === expandedKey)
+    : undefined;
+
   function handleExpandToggle(key: string) {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     setExpandedKey(expandedKey === key ? null : key);
   }
 
@@ -1899,7 +1919,6 @@ export default function ScheduleScreen() {
         {(
           categories.map((cat) => {
             const stats = getCategoryStats(cat.key);
-            const expanded = expandedKey === cat.key;
 
             return (
               <View key={cat.key} style={styles.catCard}>
@@ -1907,8 +1926,7 @@ export default function ScheduleScreen() {
                   style={styles.catHeader}
                   onPress={() => handleExpandToggle(cat.key)}
                   accessibilityRole="button"
-                  accessibilityLabel={`${cat.label} 체크리스트`}
-                  accessibilityState={{ expanded }}
+                  accessibilityLabel={`${cat.label} 체크리스트 열기`}
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
@@ -1916,10 +1934,7 @@ export default function ScheduleScreen() {
                   </View>
                   <View style={styles.catRight}>
                     <Text style={styles.catPercent}>{stats.skipped ? "제외" : `${stats.percent}%`}</Text>
-                    {expanded
-                      ? <ChevronUp size={20} color={colors.textTertiary} />
-                      : <ChevronDown size={20} color={colors.textTertiary} />
-                    }
+                    <ChevronRight size={20} color={colors.textTertiary} />
                   </View>
                 </Pressable>
 
@@ -1929,51 +1944,6 @@ export default function ScheduleScreen() {
                   </View>
                 )}
 
-                {expanded && (
-                  <View style={styles.itemList}>
-                    <Pressable
-                      style={styles.itemRow}
-                      onPress={() => void toggleCategoryApplicability(cat.key)}
-                      accessibilityRole="button"
-                      accessibilityLabel={stats.skipped ? `${cat.label} 다시 준비 목록에 넣기` : `${cat.label} 준비 목록에서 제외하기`}
-                    >
-                      <Ban size={22} color={colors.textTertiary} />
-                      <Text style={styles.itemLabel}>
-                        {stats.skipped ? "다시 준비 목록에 넣기" : "우리는 이건 안 해요"}
-                      </Text>
-                    </Pressable>
-                    {cat.items.map((item) => (
-                      <Pressable
-                        key={item.id}
-                        style={({ pressed }) => [
-                          styles.itemRow,
-                          pressed && { transform: [{ scale: 0.98 }] },
-                        ]}
-                        onPress={() => toggleItem(cat.key, item.id, item.done)}
-                        disabled={stats.skipped}
-                        accessibilityRole="checkbox"
-                        accessibilityLabel={item.label}
-                        // 안내는 이름이 아니라 힌트로 읽힌다. 이름에 붙이면 항목마다
-                        // 두 문장을 이어 읽는다(웹의 aria-describedby와 같은 취지).
-                        accessibilityHint={item.note}
-                        accessibilityState={{ checked: item.done, disabled: stats.skipped }}
-                      >
-                        {item.done
-                          ? <CheckCircle2 size={22} color={colors.rose[500]} />
-                          : <Circle size={22} color={colors.taupe[400]} />
-                        }
-                        <View style={styles.itemTextColumn}>
-                          <Text style={[styles.itemLabel, item.done && styles.itemDone]}>
-                            {item.label}
-                          </Text>
-                          {item.note ? (
-                            <Text style={styles.itemNote}>{item.note}</Text>
-                          ) : null}
-                        </View>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
               </View>
             );
           })
@@ -2043,6 +2013,33 @@ export default function ScheduleScreen() {
       </ScrollView>
 
       {/* 일정 추가/수정 모달 */}
+      {/*
+        분야 체크리스트 시트. 목록은 뒤에 그대로 남고 시트가 그 위로 올라온다.
+
+        `sheetCategory` 가 없으면 아무것도 그리지 않는다 — 분야가 지워졌거나 아직 안
+        불러온 사이에 빈 시트가 뜨는 것을 막는다.
+      */}
+      {sheetCategory ? (
+        <CategoryChecklistSheet
+          visible
+          categoryKey={sheetCategory.key}
+          label={sheetCategory.label}
+          items={sheetCategory.items}
+          tip={CHECKLIST_MAP[sheetCategory.key]?.tip ?? ""}
+          stats={getCategoryStats(sheetCategory.key)}
+          onClose={() => setExpandedKey(null)}
+          onToggleItem={(itemId, currentDone) =>
+            void toggleItem(sheetCategory.key, itemId, currentDone)
+          }
+          onToggleApplicability={() => void toggleCategoryApplicability(sheetCategory.key)}
+          onOpenGuide={(slug) =>
+            router.push(
+              `/webview?url=${encodeURIComponent(`${SITE_URL}/wedding/manners/${slug}`)}`,
+            )
+          }
+        />
+      ) : null}
+
       <Modal
         visible={modalVisible}
         animationType="slide"
@@ -2490,20 +2487,8 @@ const styles = StyleSheet.create({
   },
   catBarFill: { height: "100%", backgroundColor: colors.rose[500], borderRadius: 999 },
 
-  itemList: { marginTop: 16, gap: 14 },
-  itemRow: {
-    flexDirection: "row",
-    // 안내가 붙으면 두 줄이 되므로 아이콘을 첫 줄에 맞춘다.
-    alignItems: "flex-start",
-    gap: 12,
-    minHeight: 44,
-    paddingVertical: 6,
-  },
-  itemTextColumn: { flex: 1 },
-  itemLabel: { fontSize: 14, color: colors.noir[800] },
-  itemDone: { textDecorationLine: "line-through", color: colors.textTertiary },
-  // 할 일 밑에 붙는 "놓치기 쉬운 것" 한 줄. label보다 한 단계 흐리게.
-  itemNote: { marginTop: 3, fontSize: 13, lineHeight: 19, color: colors.textTertiary },
+  // 항목 줄의 스타일은 `src/components/checklist/CategoryChecklistSheet.tsx` 로 옮겼다.
+  // 2026-09-04 에 분야를 펼치는 방식이 시트로 바뀌면서 그리는 자리가 그쪽이 됐다.
 
   // 전체 일정 목록
   allEventsSection: { marginTop: 8 },
