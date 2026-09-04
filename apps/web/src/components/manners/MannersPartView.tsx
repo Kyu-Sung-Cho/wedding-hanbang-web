@@ -419,6 +419,17 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               </span>
             )}
           </div>
+          {/*
+            이 글이 **무엇을 다루는지** 한 줄. 시안의 `.excerpt-note` 와 같은 자리·같은
+            모양(배지 줄 아래 12px 흐린 글씨)이다.
+
+            2026-09-04 에 부제를 `description` 에서 `subtitle` 로 바꾸면서 이 문장이
+            화면에서 통째로 사라졌었다. 검색으로 들어온 사람에게는 이 한 줄이 「이 글을
+            읽어야 하나」를 가르는 유일한 문장이라 되살린다.
+          */}
+          <p className="text-[12px] leading-[1.6]" style={{ color: INK_MUTED }}>
+            {part.description}
+          </p>
         </header>
 
         <div className="mt-6 space-y-[12px] sm:space-y-[18px]">
@@ -515,6 +526,12 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               </svg>
               어디서 확인한 내용인가요
             </h2>
+            {/*
+              각주 한 줄은 「이름 · 확인일」과 「덮는 범위 · 뒷받침 내용」이다.
+              `scope` 는 이 출처가 무엇을 덮는가다(예: 2025년 4월 전국 14개 지역 370곳
+              조사 결과). 없으면 출처를 실제보다 넓게 읽는다 — 2026-09-04 에 시안을
+              옮기며 잠깐 빠졌던 것을 되살렸다.
+            */}
             <ul className="m-0 mt-3 list-none p-0">
               {shownSources.map((source) => (
                 <li key={source.url} className="mb-3 last:mb-0">
@@ -531,7 +548,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                     {source.checkedAt} 확인
                   </span>
                   <p className="mt-1 text-[12px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                    {source.supports}
+                    {source.scope} · {source.supports}
                   </p>
                 </li>
               ))}
@@ -564,7 +581,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                         {source.checkedAt} 확인
                       </span>
                       <p className="mt-1 text-[12px] leading-[1.6]" style={{ color: INK_MUTED }}>
-                        {source.supports}
+                        {source.scope} · {source.supports}
                       </p>
                     </li>
                   ))}
