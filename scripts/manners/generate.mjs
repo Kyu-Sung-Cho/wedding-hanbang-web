@@ -7,16 +7,30 @@
 //    전체 필드 치환이 문단 앞부분을 통째로 날렸다. 그래서 이 스크립트는 **직렬화만** 한다 —
 //    내용 수정 로직을 여기에 넣지 마라. 수정은 parts.json에서 하고 diff로 확인한다.
 //
-// 사용: node scripts/manners/generate.mjs [--check]
-//   --check  파일을 쓰지 않고 현재 data.ts와 다른지만 알려준다(CI용).
+// 사용: node scripts/manners/generate.mjs [--check] [--source <parts.json>] [--target <data.ts>]
+//   --check   파일을 쓰지 않고 현재 data.ts와 다른지만 알려준다(CI용).
+//   --source  읽을 parts.json. 기본은 이 폴더의 것.
+//   --target  쓰거나 비교할 data.ts. 기본은 apps/web 의 것.
+//
+// 경로를 밖에서 받는 이유는 **검사가 공유 파일을 안 건드리게** 하기 위해서다.
+// 2026-09-04: `--check` 가 어긋남을 잡는지 증명하려고 검사가 진짜 `data.ts`(633KB)를
+// 덮어썼다 되돌리고 있었는데, `node --test` 는 파일을 병렬로 돌린다. 같은 순간 그 파일을
+// 읽던 다른 검사가 **쓰는 중간을 봤고**(편 제목을 25개 중 14개만 읽었다) 엉뚱한 곳에서
+// 빨간불이 났다. 이제 그 검사는 임시 사본을 가리킨다.
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..");
-const SOURCE = path.join(here, "parts.json");
-const TARGET = path.join(repoRoot, "apps", "web", "src", "lib", "manners", "data.ts");
+function argValue(name) {
+  const at = process.argv.indexOf(name);
+  return at >= 0 ? process.argv[at + 1] : undefined;
+}
+
+const SOURCE = argValue("--source") ?? path.join(here, "parts.json");
+const TARGET = argValue("--target")
+  ?? path.join(repoRoot, "apps", "web", "src", "lib", "manners", "data.ts");
 
 // 카테고리 = 화면의 묶음이자 파트 출력 순서. slug는 parts.json에 실재해야 한다.
 //

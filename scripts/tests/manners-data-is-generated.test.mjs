@@ -20,18 +20,23 @@
 
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const GENERATOR = resolve(repoRoot, "scripts/manners/generate.mjs");
 const DATA = resolve(repoRoot, "apps/web/src/lib/manners/data.ts");
+const SOURCE = resolve(repoRoot, "scripts/manners/parts.json");
 
-function runCheck() {
+/** `--check` 를 돌린다. 경로를 주면 그쪽을, 안 주면 저장소의 진짜 파일을 본다. */
+function runCheck(paths) {
+  const args = [GENERATOR, "--check"];
+  if (paths) args.push("--source", paths.source, "--target", paths.target);
   try {
-    return { code: 0, out: execFileSync(process.execPath, [GENERATOR, "--check"], { encoding: "utf8" }) };
+    return { code: 0, out: execFileSync(process.execPath, args, { encoding: "utf8" }) };
   } catch (error) {
     return { code: error.status ?? 1, out: `${error.stdout ?? ""}${error.stderr ?? ""}` };
   }
@@ -48,14 +53,31 @@ test("측정기가 살아 있다", () => {
 test("--check 가 실제로 어긋남을 잡는다", () => {
   // 통과만 확인하면 `--check` 가 무조건 0을 돌려줘도 초록불이다. 이 저장소는 그렇게
   // 재현율 0%짜리 가드를 초록불로 넘긴 적이 있다. 어긋난 상태를 만들어 실패를 본다.
-  const original = readFileSync(DATA, "utf8");
+  //
+  // ⚠️ **진짜 `data.ts` 를 건드리지 않는다.** 예전에는 그 파일(633KB)을 덮어썼다
+  // 되돌렸는데, `node --test` 는 파일을 병렬로 돌린다. 같은 순간 그 파일을 읽던 다른
+  // 검사가 쓰는 중간을 봤고 — 편 제목을 25개 중 14개만 읽었다 — 엉뚱한 곳에서
+  // 빨간불이 났다(2026-09-04). 이제 임시 폴더에 사본을 만들어 거기서 어긋냄을 만든다.
+  const dir = mkdtempSync(join(tmpdir(), "manners-drift-"));
   try {
-    writeFileSync(DATA, `${original}\n// drift\n`, "utf8");
-    assert.notEqual(runCheck().code, 0, "data.ts 를 고쳤는데 --check 가 통과했다");
+    const source = join(dir, "parts.json");
+    const target = join(dir, "data.ts");
+    copyFileSync(SOURCE, source);
+    writeFileSync(target, `${readFileSync(DATA, "utf8")}\n// drift\n`, "utf8");
+
+    assert.notEqual(
+      runCheck({ source, target }).code,
+      0,
+      "data.ts 를 고쳤는데 --check 가 통과했다",
+    );
+
+    // 멀쩡한 사본이면 통과하는 것도 확인한다 — 그래야 위 실패가 「경로가 틀려서」가
+    // 아니라 「어긋남을 봤기 때문」임이 증명된다.
+    copyFileSync(DATA, target);
+    assert.equal(runCheck({ source, target }).code, 0, "멀쩡한 사본인데 --check 가 실패했다");
   } finally {
-    writeFileSync(DATA, original, "utf8");
+    rmSync(dir, { recursive: true, force: true });
   }
-  assert.equal(readFileSync(DATA, "utf8"), original, "복원에 실패했다");
 });
 
 test("data.ts 가 parts.json 과 일치한다", () => {
