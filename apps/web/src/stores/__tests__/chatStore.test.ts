@@ -4284,6 +4284,40 @@ describe("useChatStore failed provider retry", () => {
     }));
   });
 
+  it("hides the futile retry and the 'send a new message' subtitle when a cap arrives over HTTP", async () => {
+    // 2026-09-04 브라우저 실측: 커플 하루 상한이 스트림 전 HTTP 로 왔고, 서버는 원장 때문에
+    // same_request 재시도를 허용한다. 화면은 "내일 다시" 라고 말하면서 밑에 "다시 보내도 같은
+    // 결과예요. 새 메시지로 이어가 주세요" 부제를 붙였다 — 다음 행동은 새 메시지가 아니라 내일이다.
+    mockFetch.mockResolvedValue(new Response(JSON.stringify({
+      error: "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.",
+      code: "COST_GUARD_COUPLE_DAILY",
+      retryable: true,
+      retryPolicy: "same_request",
+    }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    }));
+
+    await useChatStore.getState().sendMessage({
+      content: "우리 예산 현황 알려줘",
+      senderId: "user-1",
+      senderRole: "bride",
+      coupleId: "couple-1",
+      senderName: "테스터",
+      weddingContext: {} as WeddingContext,
+      visibility: "shared",
+    });
+
+    expect(useChatStore.getState().error).toBe(
+      "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.",
+    );
+    expect(useChatStore.getState().failedRequest).toEqual(expect.objectContaining({
+      canRetry: false,
+      // 빈 문자열 = 부제 없음. 일반 부제("새 메시지로 이어가 주세요")가 붙으면 안 된다.
+      unavailableReason: "",
+    }));
+  });
+
   it("turns the preview-stub API code into a truthful consumer message without a dead retry", async () => {
     mockFetch.mockResolvedValue(new Response(JSON.stringify({
       error: "preview_stub_api_disabled",

@@ -48,7 +48,9 @@ import {
 } from "@/lib/ai/amoraOutputHygiene";
 import { extractSuggestions } from "@/lib/ai/chatSuggestions";
 import { detectDissatisfaction } from "@/lib/ai/dissatisfaction";
-import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
+import { composeAmoraPersistenceTerminal,
+  isExplicitAmoraChangeRequest,
+} from "@/lib/ai/amoraPersistenceClaims";
 import { createAmoraProviderPreviewGate } from "@/lib/ai/amoraProviderPreviewGate";
 import {
   determineStage,
@@ -3818,7 +3820,8 @@ export async function POST(request: Request) {
             // 이번 턴에 제안 도구가 하나도 안 열렸다면 사용자는 변경을 요청한 것이
             // 아니다. 그때 "다시 요청해주세요" 안내를 붙이면 요청하지도 않은
             // 변경의 실패를 사과받는 셈이 된다.
-            userRequestedChange: pendingOfferEnabled,
+            // 도구가 열린 것과 사용자가 변경을 요청한 것은 다르다(amoraPersistenceClaims 주석).
+            userRequestedChange: pendingOfferEnabled && isExplicitAmoraChangeRequest(lastUserText),
             // 모델이 표식을 냈는데 검증에서 버려졌으면 카드가 안 나온다.
             // 본문이 중립적으로 쓰여 있으면 지울 거짓 주장도 없어 **아무 말도
             // 안 나가고** 사용자는 아무것도 저장되지 않는다.

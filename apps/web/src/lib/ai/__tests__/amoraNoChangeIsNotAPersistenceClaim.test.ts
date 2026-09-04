@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SERVER_OWNED_UNVERIFIED_NOTICE,
   composeAmoraPersistenceTerminal,
+  isExplicitAmoraChangeRequest,
 } from "@/lib/ai/amoraPersistenceClaims";
 
 /**
@@ -96,5 +97,44 @@ describe("가정·무변경 서술은 저장 주장이 아니다", () => {
       const second = terminal(text);
       expect(second).toEqual(first);
     }
+  });
+});
+
+describe("변경을 요청한 문장만 요청으로 센다 (2026-09-04 팀원 2차 대본 재실행)", () => {
+  it("사실을 말한 문장은 요청이 아니다 — 도구가 열렸어도 '반영되지 않았어요' 를 붙이지 않는다", () => {
+    for (const text of [
+      "시기는 2028년 5월이나 6월쯤. 날짜는 아직.",
+      "지역은 대전 아니면 청주. 하객은 90명 안팎으로 보고 있어.",
+      "친구는 스드메에 600만원 썼대",
+      "우리 예산은 대충 4천 정도야",
+    ]) {
+      expect(isExplicitAmoraChangeRequest(text), text).toBe(false);
+    }
+  });
+
+  it("추가·등록·바꿔·반영·저장 같은 요청 동사가 있으면 요청이다", () => {
+    for (const text of [
+      "10월 3일에 드레스 투어 일정 넣어줘",
+      "우리 총 예산 4000만원으로 잡아줘",
+      "예식장 예산을 1500만원에서 1800만원으로 바꿔줘",
+      "앞에서 만든 배분표 그대로 예산에 반영해줘",
+      "할 일에 '양가 어머님 한복 맞추기' 추가해줘",
+      "그 일정 취소해줘",
+    ]) {
+      expect(isExplicitAmoraChangeRequest(text), text).toBe(true);
+    }
+  });
+
+  it("요청이 아닌 턴에는 안내가 안 붙고, 요청한 턴에는 붙는다", () => {
+    const neutral = "다음은 예상 하객 수를 대략 잡는 단계예요. 양쪽 합쳐 몇 명 정도로 생각하세요?";
+    const notRequested = composeAmoraPersistenceTerminal({
+      text: neutral,
+      toolResults: [],
+      hasPendingAction: false,
+      persistenceMode: "durable",
+      userRequestedChange: false,
+    });
+    expect(notRequested.text).not.toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
+    expect(notRequested.text).toBe(neutral);
   });
 });

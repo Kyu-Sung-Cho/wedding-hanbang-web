@@ -1414,7 +1414,14 @@ async function executeChatProviderRequest(
       });
       const previewStubDisabled = parsed.message === "preview_stub_api_disabled"
         || parsed.code === "PREVIEW_STUB_API_DISABLED";
-      const retryable = previewStubDisabled
+      // 2026-09-04 브라우저 실측: 상한(COST_GUARD_*)이 스트림 전 HTTP 로 올 때도 있다. 그때
+      // "다시 보내도 같은 결과예요. 새 메시지로 이어가 주세요" 부제가 붙었다 — 다음 행동은
+      // 새 메시지가 아니라 **내일**이다. 스트림 경로(아래 isCapExhausted)와 같게 맞춘다.
+      const isCapExhaustedHttp =
+        typeof parsed.code === "string"
+        && parsed.code.startsWith("COST_GUARD_")
+        && parsed.code !== "COST_GUARD_UNAVAILABLE";
+      const retryable = previewStubDisabled || isCapExhaustedHttp
         ? false
         : isRetryableChatHttpError(parsed)
           // 서버가 아무 재시도 판정도 싣지 않은 일시적 상태 코드만 여기서 구제한다.
@@ -1433,9 +1440,12 @@ async function executeChatProviderRequest(
         retryable,
         retryable
           ? null
-          : previewStubDisabled
-            ? "현재 미리보기에서는 같은 요청을 재시도할 수 없어요."
-            : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
+          // 빈 문자열 = "부제 없음". null 은 withRetryAvailability 가 일반 부제로 바꾼다.
+          : isCapExhaustedHttp
+            ? ""
+            : previewStubDisabled
+              ? "현재 미리보기에서는 같은 요청을 재시도할 수 없어요."
+              : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
       );
     }
 
@@ -1515,7 +1525,8 @@ async function executeChatProviderRequest(
           ? withRetryAvailability(
               request,
               retryable,
-              retryable || isCapExhausted ? null : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
+              // 빈 문자열 = "부제 없음"(null 은 헬퍼가 일반 부제로 바꾼다).
+              retryable ? null : isCapExhausted ? "" : PERMANENT_REQUEST_RETRY_UNAVAILABLE,
             )
           : request,
         error: get().error ?? "답변이 중간에 끊겼어요. 다시 시도해 주세요.",
