@@ -335,7 +335,7 @@ const NON_WEDDING_DOMAIN_HINT_PATTERN =
 // 2026-09-04: `리허설`·`피팅` 을 정본 일정 낱말에 넣으면서 "회사 워크숍 리허설 시간
 // 바꿔줘" 가 정본 분기(W0)로 올라갔다 — 이 방어가 그 둘을 몰랐기 때문이다. 같이 넣는다.
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
-  /(?:회사|업무|직장|프로젝트|식당|레스토랑|맛집|병원|미용실|공연|콘서트|발표).{0,12}(?:예산|일정|스케줄|예약|리허설|피팅|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
+  /(?:회사|업무|직장|부서|프로젝트|식당|레스토랑|맛집|병원|미용실|공연|콘서트|발표).{0,12}(?:예산|배분\s*(?:표|안)|일정|스케줄|예약|리허설|피팅|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
 const HONEYMOON_PATTERN = /신혼\s*여행|허니문/iu;
 const CANONICAL_TOTAL_BUDGET_ACTION_PATTERN =
@@ -353,6 +353,13 @@ const CANONICAL_BUDGET_AMOUNT_STATEMENT_PATTERN =
   /(?:^|\s)(?:우리\s*)?예산(?:을|은|이|도)?(?:\s*상한)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|억(?:\s*원)?|천\s*만\s*원?|만\s*원|천|원)/iu;
 const CANONICAL_NATURAL_BUDGET_READ_PATTERN =
   /(?:남은\s*)?예산(?:을|은|이|도)?\s*.{0,12}(?:얼마|보여|알려|현황|확인|조회)/iu;
+// 2026-09-04 22턴 회상 실측: "앞에서 만든 3500만원 배분표 그대로 실제 예산에 반영해줘" 가
+// W4 로 떨어져 도구 0개였다(`예산` 홀로는 어휘가 아니고, 금액이 `예산` 바로 뒤에 없다).
+// 배분표·예산안을 **예산에 반영·적용·저장**하라는 말은 이 제품의 예산 객체에 대한 쓰기
+// 요청이라 정본 예산 동작과 같은 자리에 둔다. 회사·부서 예산은
+// `EXPLICIT_NON_WEDDING_STATE_PATTERN` 이 먼저 잡는다.
+const CANONICAL_BUDGET_PLAN_APPLY_PATTERN =
+  /(?:배분\s*(?:표|안)|예산\s*(?:표|안)).{0,24}(?:반영|적용|저장|확정)/iu;
 // 2026-09-04: `리허설`·`피팅`은 이 제품에서 일정 그 자체다("리허설 시간 10시로 바꿔줘").
 // 일정 낱말 없이 날짜·동사만 있는 문장이 W4 로 떨어져 표식이 폐기되던 것을 닫는다.
 const CANONICAL_SCHEDULE_STATE_PATTERN = /일정|스케줄|리허설|피팅/iu;
@@ -593,6 +600,7 @@ export function classifyAmoraQuestionScope({
     || CANONICAL_NATURAL_BUDGET_ACTION_PATTERN.test(normalizedText)
     || CANONICAL_BUDGET_AMOUNT_STATEMENT_PATTERN.test(normalizedText)
     || CANONICAL_NATURAL_BUDGET_READ_PATTERN.test(normalizedText)
+    || CANONICAL_BUDGET_PLAN_APPLY_PATTERN.test(normalizedText)
     || CANONICAL_SCHEDULE_READ_PATTERN.test(normalizedText)
     || CANONICAL_ANAPHORIC_SCHEDULE_MUTATION_PATTERN.test(normalizedText)
     || CANONICAL_TASK_STATE_PATTERN.test(normalizedText)
