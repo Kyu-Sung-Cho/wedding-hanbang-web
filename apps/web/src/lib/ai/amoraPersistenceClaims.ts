@@ -119,6 +119,26 @@ export type AmoraPersistenceTerminalResult =
  * Mutation receipts are server-owned, so provider prose is discarded whenever
  * at least one mutating tool was executed, including failed executions.
  */
+/**
+ * 사용자가 이번 턴에 변경을 **요청**했는가 — 제안 도구가 열렸다는 것과 다르다.
+ *
+ * 2026-09-04 팀원 2차 대본 재실행: "시기는 2028년 5월이나 6월쯤. 날짜는 아직." 은
+ * 사실을 말한 것인데(변경 요청 아님) 도구 선택기가 결혼일 도구를 열어 `userRequestedChange`
+ * 가 참이 됐고, 모델이 카드를 안 내자 "실제 실행 결과가 확인되지 않아 이 변경은 아직
+ * 반영되지 않았어요" 가 붙었다. 요청하지 않은 변경의 실패를 사과받는 셈 — 2026-08-22
+ * 와 같은 병(위 주석)이 "도구가 열렸다" 를 요청으로 읽어서 다시 났다.
+ *
+ * 그래서 안내는 **요청 동사가 있는 문장**에만 붙인다. 목록에 없는 요청 모양이면 안내가
+ * 빠질 뿐(예전 동작), 없는 요청에 사과하지는 않는다.
+ */
+const EXPLICIT_CHANGE_REQUEST_PATTERN =
+  /추가|등록|넣어|넣자|넣을|잡아|잡자|바꿔|바꾸|변경|수정|고쳐|취소|삭제|지워|옮겨|미뤄|당겨|적용|저장|반영|설정|정해\s*줘|정해\s*주|맞춰\s*줘|만들어\s*줘|올려|내려|줄여|늘려|완료\s*(?:처리|했|해)|체크\s*(?:해|처리)|기록\s*(?:해|남겨)/u;
+
+export function isExplicitAmoraChangeRequest(userText: string): boolean {
+  if (typeof userText !== "string") return false;
+  return EXPLICIT_CHANGE_REQUEST_PATTERN.test(userText.normalize("NFKC"));
+}
+
 export function composeAmoraPersistenceTerminal(
   input: Parameters<typeof composeTerminalCandidate>[0],
 ): AmoraPersistenceTerminalResult {
