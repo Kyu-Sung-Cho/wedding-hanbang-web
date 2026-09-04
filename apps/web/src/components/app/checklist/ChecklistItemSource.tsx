@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { BookOpen, ChevronRight } from "lucide-react";
 
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { noteSourceLink } from "@/lib/etiquette/noteSources";
@@ -39,14 +39,14 @@ import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 function withoutSectionNumber(heading: string): string {
   return heading.replace(/^\d+\.\s*/, "");
 }
-export default function ChecklistItemSource({
-  itemId,
-  indentClassName = "ml-9",
-}: {
-  itemId: string;
-  /** 체크 아이콘 너비만큼 안쪽으로 — 화면마다 아이콘 크기가 달라 밖에서 받는다. */
-  indentClassName?: string;
-}) {
+/**
+ * 이 항목의 근거가 화면에 어떤 글자로 나오는가. 없으면 null.
+ *
+ * 부르는 쪽이 **그리기 전에** 같은 글자가 겹치는지 셀 수 있어야 해서 따로 뺐다.
+ * 렌더 중에 그릇을 채워 가며 거르면 안 된다 — React 컴파일러가 그 그릇을 캐시해
+ * 두 번째 렌더부터 전부 걸러 버린다(2026-09-04에 실제로 근거 칩이 전멸했다).
+ */
+export function checklistSourceLabel(itemId: string): string | null {
   const source = noteSourceLink(itemId);
   if (!source) return null;
 
@@ -55,14 +55,48 @@ export default function ChecklistItemSource({
   const categoryPart = mannersPartForCategory(categoryKey)?.slug;
   const sameAsCategoryCard = source.href.startsWith(`/manners/${categoryPart}#`);
 
+  return sameAsCategoryCard
+    ? `근거 · ${withoutSectionNumber(source.heading)}`
+    : `근거 · ${source.partTitle}`;
+}
+
+export default function ChecklistItemSource({
+  itemId,
+  indentClassName = "ml-9",
+  variant = "link",
+}: {
+  itemId: string;
+  /** 체크 아이콘 너비만큼 안쪽으로 — 화면마다 아이콘 크기가 달라 밖에서 받는다. */
+  indentClassName?: string;
+  /**
+   * `chip` 은 2026-09-03 시안의 알약이다(연한 베이지 바탕 + 파란 글자 + 책 아이콘).
+   * `link` 는 시간축·아모라 패널이 쓰던 밑줄 글자 — 그 두 자리는 줄이 빽빽해서
+   * 알약이 들어가면 행 높이가 흔들린다. 기본값을 바꾸지 마라.
+   */
+  variant?: "link" | "chip";
+}) {
+  const source = noteSourceLink(itemId);
+  const label = checklistSourceLabel(itemId);
+  if (!source || !label) return null;
+
+  if (variant === "chip") {
+    return (
+      <Link
+        {...weddingLinkProps(source.href)}
+        className={`${indentClassName} mt-2 mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--color-ivory-warm)] px-[11px] py-[5px] text-[11.5px] leading-[1.5] text-[var(--hb-accent)] transition-colors hover:bg-[var(--color-surface-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]/50`}
+      >
+        <BookOpen className="h-[13px] w-[13px] flex-shrink-0" aria-hidden="true" />
+        {label}
+      </Link>
+    );
+  }
+
   return (
     <Link
       {...weddingLinkProps(source.href)}
       className={`${indentClassName} mb-1 inline-flex w-fit items-center gap-1 rounded-[6px] text-[13px] leading-[1.5] text-[#7A6A57] underline decoration-[#D9CBB4] underline-offset-4 hover:text-[#5A4D3E] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50`}
     >
-      {sameAsCategoryCard
-        ? `근거 · ${withoutSectionNumber(source.heading)}`
-        : `근거 · ${source.partTitle}`}
+      {label}
       <ChevronRight className="h-3.5 w-3.5" />
     </Link>
   );

@@ -185,7 +185,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "venue_04",
         label: "하객 식사 메뉴와 1인당 금액 확인",
         done: false,
-        note: "주류와 음료, 아이 식사가 식대에 포함인지 별도인지 항목으로 나눠 받아보세요.",
+        note: "주류와 음료, 아이 식사가 식대에 포함인지 별도인지 항목으로 나눠 받아두세요.",
       },
       { id: "venue_05", label: "결혼식 시간대 정하기", done: false },
       {
@@ -618,7 +618,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "housing_06",
         label: "집 수리·벽지·바닥 공사가 필요한지 결정",
         done: false,
-        note: "빌린 집이라면 손댄 곳을 나갈 때 되돌려 놓아야 하는지, 그 비용은 누가 내는지 시작 전에 집주인에게 확인하세요.",
+        note: "빌린 집이라면 손댄 곳을 나갈 때 되돌려 놓아야 하는지, 비용은 누가 내는지 시작 전에 집주인에게 확인하세요.",
       },
       {
         id: "housing_07",

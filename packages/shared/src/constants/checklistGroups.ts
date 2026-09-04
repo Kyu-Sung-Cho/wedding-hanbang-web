@@ -22,7 +22,7 @@
  *
  * ## 표시(태그)는 아끼는 것이 기본이다
  *
- * 172개 중 16개에만 붙는다. `필수` 는 사용자에게 사실을 주장하는 것이라 틀리면
+ * 172개 중 25개에만 붙는다. `필수` 는 사용자에게 사실을 주장하는 것이라 틀리면
  * 사고다. 시안이 직접 표시한 네 분야(결혼식장·신혼집·혼인신고)와, 그와 성격이
  * 같다고 판정된 것만 남겼다. 확신이 없으면 붙이지 않는다 — 나머지 17개 분야에
  * 태그가 거의 없는 것은 빠뜨린 것이 아니라 그렇게 정한 것이다.
@@ -54,8 +54,8 @@ export const CHECKLIST_GROUPS: Record<string, readonly ChecklistGroup[]> = {
   ],
   venue: [
     { title: "01 · 예약 전에", itemIds: ["venue_01", "venue_02", "venue_03", "venue_05"] },
-    { title: "02 · 계약할 때 — 서면으로 받아두기", itemIds: ["venue_04", "venue_09", "venue_06", "venue_07"] },
-    { title: "03 · 계약 후", itemIds: ["venue_08"] },
+    { title: "02 · 계약할 때 — 서면으로 받아두기", itemIds: ["venue_04", "venue_09", "venue_06"] },
+    { title: "03 · 계약 후", itemIds: ["venue_07", "venue_08"] },
   ],
   studio: [
     { title: "01 · 알아보기", itemIds: ["studio_01", "studio_02", "studio_03"] },
@@ -153,23 +153,50 @@ export const CHECKLIST_GROUPS: Record<string, readonly ChecklistGroup[]> = {
 
 /**
  * 표시가 붙는 항목. 여기 없는 항목에는 아무것도 안 붙는다(그게 기본값이다).
+ *
+ * ## 규칙은 파운더 설계 문서가 정했다
+ *
+ * 「태그는 문구에서 그대로 읽어요. `(필요한 경우)`·`(해당하는 경우)` 가 붙은 항목은
+ * **해당 시**, 계약금·법정 서류처럼 건너뛰면 안 되는 항목은 **필수**, 그 외에는
+ * 태그를 달지 않습니다.」 (`설계 패턴에 대해 써놓은 문서.html` 01절)
+ *
+ * 그래서 이 목록은 판단이 아니라 **읽기**다.
+ *
+ * - `해당 시` 12개 = 라벨 끝에 조건 표현이 붙은 항목 **전부**. 하나라도 빼면 규칙이
+ *   아니라 취향이 된다. 라벨을 고치면 여기도 같이 고쳐야 한다.
+ * - `필수` 13개 = 계약금·잔금을 실제로 내는 항목과 법이 요구하는 절차. 「중요해
+ *   보인다」는 필수가 아니다 — 그렇게 늘리기 시작하면 절반에 붙고 아무것도
+ *   강조하지 못한다.
+ *
+ * ⚠️ 첫인사 시안(`ChecklistGreeting.dc.html`)은 `greeting_04` 에 접미사를 남기고
+ * 표시를 안 달았는데, 혼인신고 시안은 접미사를 떼고 표시를 달았다. **문서의 규칙을
+ * 따랐다**(둘 다 표시). 시안 둘이 서로 다를 때 규칙을 적어 둔 쪽이 정본이다.
  */
 export const CHECKLIST_ITEM_TAGS: Record<string, ChecklistItemTag> = {
   venue_04: "필수",
   venue_09: "필수",
   venue_06: "필수",
   venue_07: "필수",
-  honeymoon_09: "해당 시",
-  honeymoon_07: "해당 시",
+  studio_06: "필수",
+  ring_06: "필수",
+  snap_05: "필수",
   housing_10: "필수",
   housing_05: "필수",
   housing_11: "필수",
-  mc_02: "해당 시",
-  registration_02: "해당 시",
   registration_05: "필수",
-  registration_07: "해당 시",
   registration_08: "필수",
   registration_09: "필수",
+  greeting_04: "해당 시",
+  studio_11: "해당 시",
+  dress_09: "해당 시",
+  ring_07: "해당 시",
+  hanbok_08: "해당 시",
+  honeymoon_09: "해당 시",
+  honeymoon_07: "해당 시",
+  snap_03: "해당 시",
+  shoes_05: "해당 시",
+  registration_02: "해당 시",
+  registration_07: "해당 시",
   registration_10: "해당 시",
 };
 

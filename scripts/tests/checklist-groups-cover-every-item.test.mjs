@@ -121,6 +121,38 @@ test("표시가 붙은 항목은 모두 실재하고, 표시는 두 가지뿐이
   assert.deepEqual(badTags, [], `모르는 표시: ${badTags.join(", ")}`);
 });
 
+test("조건 표현이 붙은 항목은 빠짐없이 「해당 시」다", () => {
+  // 파운더 설계 문서의 규칙: 「`(필요한 경우)`·`(해당하는 경우)` 가 붙은 항목은 해당 시」.
+  //
+  // 이건 판단이 아니라 **읽기**라서 기계가 셀 수 있다. 라벨에 조건을 새로 붙이거나
+  // 떼면 표시도 따라와야 하는데, 두 파일이 떨어져 있어 한쪽만 고치는 일이 생긴다.
+  // 그러면 접미사는 있는데 표시가 없거나(라벨에 조건이 노출된 채 남는다), 표시는
+  // 있는데 접미사가 없어(화면에서 조건이 두 번 사라진다) 어긋난다.
+  const source = readFileSync(
+    `${ROOT}packages/shared/src/constants/weddingPlanning.ts`,
+    "utf8",
+  );
+  const block = source
+    .split("export const CATEGORY_CHECKLISTS")[1]
+    .split("\n];")[0];
+  const labelled = [...block.matchAll(/id:\s*"([a-z_0-9]+)",\s*\n?\s*label:\s*"([^"]+)"/g)];
+  assert.ok(labelled.length > 150, `라벨을 ${labelled.length}개만 읽었다`);
+
+  const conditional = labelled
+    .filter(([, , label]) => /\((?:해당하는|필요한)\s*경우\)\s*$/.test(label))
+    .map(([, id]) => id);
+  assert.ok(conditional.length > 5, `조건 항목을 ${conditional.length}개만 읽었다`);
+
+  const tagged = new Map(readTaggedIds().map(({ id, tag }) => [id, tag]));
+  const missing = conditional.filter((id) => tagged.get(id) !== "해당 시");
+  assert.deepEqual(missing, [], `조건 표현이 있는데 「해당 시」가 없다: ${missing.join(", ")}`);
+
+  const extra = [...tagged]
+    .filter(([id, tag]) => tag === "해당 시" && !conditional.includes(id))
+    .map(([id]) => id);
+  assert.deepEqual(extra, [], `조건 표현이 없는데 「해당 시」가 붙었다: ${extra.join(", ")}`);
+});
+
 test("「필수」는 아끼는 것이 기본이다", () => {
   // 표시는 사용자에게 사실을 주장한다. 절반에 붙으면 아무것도 강조하지 않는 것과 같고,
   // 틀린 「필수」는 거짓말이다. 늘리려면 근거를 들고 이 숫자를 함께 올려라.
