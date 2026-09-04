@@ -17,7 +17,8 @@
     "./amora-crisis-recovery": "./src/safety/amoraCrisisRecovery.ts",
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
     "./community-notification": "./src/contracts/communityNotification.mjs",
-    "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs"
+    "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
+    "./budget-share": "./src/contracts/budgetShare.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
