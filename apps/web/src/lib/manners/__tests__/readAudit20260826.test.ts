@@ -291,17 +291,39 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
     // **어느 divide-y 인지 지목한다.** 첫 판은 문자열만 물었는데, 모바일 표 행의
     // `divide-y divide-[#243832]/10` 이 대신 답해서 절 구분선을 지워도 통과했다
     // (변형 시험이 잡음). 절을 감싸는 그 한 줄을 정확히 집는다.
-    const container = view()
+    //
+    // 2026-09-03: 절이 **카드**가 됐다(시안). 구분선 대신 카드마다 테두리가 있고
+    // 사이에 여백이 있다 — 지키려던 것("스크롤하면 균질한 기둥으로 지나간다")은 더
+    // 강하게 지켜진다. 그래서 표기가 아니라 **뜻**을 잰다: 절을 그리는 `<section>` 이
+    // 자기 테두리를 갖고, 그것들을 감싼 줄이 사이 여백을 준다.
+    const source = view();
+    const sectionTag = source.slice(
+      source.indexOf("<section", source.indexOf("part.sections.map")),
+      source.indexOf(">", source.indexOf("scroll-mt-28")) + 1,
+    );
+    expect(sectionTag, "절 <section> 을 못 찾았다").toContain("scroll-mt-28");
+    expect(sectionTag, "절마다 경계가 없다 — 스크롤하면 균질한 기둥이 된다")
+      .toMatch(/\bborder\b/u);
+    const wrapper = source
       .split(String.fromCharCode(10))
-      .find((line) => line.includes('<div className="mt-8'));
-    expect(container, "절 컨테이너 줄을 못 찾았다").toBeTruthy();
-    expect(container, "절과 절 사이에 구분선이 없다").toContain("divide-y");
+      .find((line) => line.includes("part.sections.map") || line.includes('className="mt-6 space-y-'));
+    expect(wrapper, "절 컨테이너 줄을 못 찾았다").toBeTruthy();
+    expect(source, "절 사이 여백이 없다").toMatch(/className="mt-6 space-y-\d/u);
   });
 
   it("절 제목이 본문보다 확실히 크다", () => {
     // 17px 대 14px = 1.21배였다. 제목이 제목으로 안 보였다.
-    const heading = view().match(/<h2 className="text-\[(\d+)px\] font-semibold leading-snug/);
-    expect(heading, "절 제목 h2 를 못 찾았다").toBeTruthy();
+    //
+    // ⚠️ 클래스 **순서**에 묶지 마라. 첫 판은 `<h2 className="text-[Npx] font-semibold` 로
+    // 물었는데, 2026-09-03 에 카드 배치를 넣으며 `min-w-0 flex-1` 이 앞에 붙자 정규식이
+    // 못 읽어 "h2 를 못 찾았다" 로 죽었다 — 크기는 멀쩡했는데도. 절 제목 h2 를 먼저
+    // 집고, 그 안에서 크기를 읽는다.
+    const sectionH2 = view().match(
+      /<h2[^>]*className="[^"]*"[^>]*>\s*\{sectionLabel\(section\.heading\)\}/u,
+    );
+    expect(sectionH2, "절 제목 h2 를 못 찾았다").toBeTruthy();
+    const heading = sectionH2![0].match(/text-\[(\d+(?:\.\d+)?)px\]/u);
+    expect(heading, "절 제목에 고정 크기가 없다").toBeTruthy();
     expect(Number(heading![1]), "절 제목이 본문 14px 의 1.4배 미만이다")
       .toBeGreaterThanOrEqual(20);
   });
