@@ -2266,7 +2266,9 @@ test("mobile crisis preflight holds every target locally before persistence or t
   assert.match(holdBranch, /setTarget\("ai"\)/);
   assert.match(
     holdBranch,
-    /current\[activeLane\]\.trim\(\) === text[\s\S]*updateAmoraChatLaneRecord\(current, activeLane, ""\)/,
+    // 2026-09-04: 보류된 원문은 지우지 않고 나만 상담 칸으로 옮긴다(웹과 같은 행동).
+    // 옮기는 헬퍼가 그 칸을 먼저 비우는지까지 아래에서 함께 잰다.
+    /current\[activeLane\]\.trim\(\) === text[\s\S]*moveHeldDraftToPrivateLane\(current, activeLane, text\)/,
   );
   assert.match(holdBranch, /return;/);
   assert.doesNotMatch(
@@ -2308,6 +2310,10 @@ test("mobile routes non-immediate shared AI safety text through the private lane
   assert.match(sendHandler, /setActiveScope\("private"\)/);
   assert.match(sendHandler, /setTarget\("ai"\)/);
   assert.match(sendHandler, /sourceLane: activeLane/);
+  assert.match(
+    sourceText,
+    /function moveHeldDraftToPrivateLane\([\s\S]*?updateAmoraChatLaneRecord\(current, lane, ""\)[\s\S]*?cleared\.private_ai\.trim\(\)\.length > 0\) return cleared;[\s\S]*?updateAmoraChatLaneRecord\(cleared, "private_ai", text\)/,
+  );
   assert.match(sendHandler, /requestedVisibility: activeVisibility/);
   assert.match(sendHandler, /visibility: effectiveVisibility/);
   assert.doesNotMatch(

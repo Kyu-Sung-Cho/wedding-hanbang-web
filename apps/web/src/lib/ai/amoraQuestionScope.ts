@@ -236,8 +236,22 @@ const SOCIAL_CARE_PATTERN =
  * 애매하지 않은 결혼 명사만 남겼다. 낱말을 더할 때는 그 낱말 하나가 결혼 준비를
  * 가리키는지만 보라. "이 앱에서는 보통 결혼 뜻이다" 는 근거가 아니다.
  */
+// 2026-09-04 소비자 실측(새 스테이징 커플, 자연 발화 40문장 중 16문장이 W4)에서
+// 더한 것. 규칙은 그대로다 — **낱말 하나가 결혼 준비를 가리키는 명사**만, 맨 마지막
+// 자리에, 장기 기억 OFF, 결혼 밖 힌트 이중 제외. 일반 표현("일주일 남았", "빠뜨린 거",
+// "밥값")은 넣지 않았다. 이유는 위 주석의 실측 그대로다.
+//
+//   양가        "다음 주 토요일에 양가 부모님 처음 뵙는데 한정식집 찾아줘" → 도구 0·"검색 못 해요"
+//   계약금·잔금 "그럼 계약금은 보통 얼마 걸어?" · "잔금이 생각보다 커서 놀랐어"
+//   리허설      "11월 20일에 잡아둔 리허설 시간을 오전 10시로 바꿔줘" → 표식 폐기 → 같은 요청
+//              다시 보내라는 안내 → 다시 보내도 같은 결과(고리)
+//   사회 봐     "사회 봐주는 친구한테 얼마 챙겨줘야 해?"
+//   신고        "구청 가서 신고하는 거 기한 있어?" · "신고하러 가려는데 증인은 꼭 같이 가야 해?"
+//
+// `양가감정`(심리 용어)·`양가적`은 제외한다. `사회`는 단독으로는 society 라 동사와 묶는다.
+// `신고`는 혼인신고의 생략형이라 관공서·증인과 묶는다(범죄 신고는 W2 안전 축이 먼저 받는다).
 const LATE_WEDDING_PREP_SIGNAL_PATTERN =
-  /대관료|예산\s*(?:항목|표)/u;
+  /대관료|예산\s*(?:항목|표)|양가(?!\s*감정|적|죽)|계약금|위약금|잔금|중도금|헬퍼비|리허설|사회\s*(?:봐|보는|본|맡|부탁|사례|수고비)|(?:구청|주민\s*센터|동사무소|시청|읍사무소|면사무소).{0,10}신고|신고.{0,40}증인|증인.{0,40}신고/u;
 /**
  * `LATE_WEDDING_PREP_SIGNAL_PATTERN` 전용 제외 목록. **기존
  * `NON_WEDDING_DOMAIN_HINT_PATTERN` 을 넓히지 않는다** — 그 목록은 위쪽
@@ -248,7 +262,7 @@ const LATE_WEDDING_PREP_SIGNAL_PATTERN =
  * "이민 비자 예산 항목 정리해줘" 처럼 결혼 밖 화제에 붙는 경우를 여기서 막는다.
  */
 const LATE_NON_WEDDING_TOPIC_PATTERN =
-  /매매|상속|장례|제사|부동산|반려\s*(?:동물|견|묘)|강아지|고양이|자녀|아이\s*(?:교육|학원)|학원|입시|수능|이혼|별거|양육|종교|교회|성당|절에|이민|비자|장사|가게|자영업|농사|보험|대출|재테크|투자|이사|청약/iu;
+  /매매|상속|장례|공연|콘서트|뮤지컬|연극|오디션|발표회|제사|부동산|반려\s*(?:동물|견|묘)|강아지|고양이|자녀|아이\s*(?:교육|학원)|학원|입시|수능|이혼|별거|양육|종교|교회|성당|절에|이민|비자|장사|가게|자영업|농사|보험|대출|재테크|투자|이사|청약/iu;
 const WEDDING_ADJACENT_PATTERN =
   /신혼\s*(?:집|이사|생활)|부부\s*재정|공동\s*재정|가사\s*분담|가족\s*대화|부모님과\s*(?:대화|관계)/iu;
 // 결혼 준비를 가리키는 낱말. 여기 없으면 아래 어느 분기에도 안 걸려 **W4(범위 밖)**
@@ -318,8 +332,10 @@ const AMBIGUOUS_WEDDING_PREP_SIGNAL_PATTERN =
   /견적|추가금|뭐\s*부터|무엇\s*부터|어디\s*서?\s*부터|뭐\s*먼저|늦었|늦은\s*(?:거|건|걸|편)|디데이|d-\s*\d+|호칭|(?:사진|스냅|촬영|앨범)\s*원본|원본\s*(?:사진|파일)|예산(?:을|이|은|도)?\s*.{0,8}(?:초과|넘었|모자라|부족|줄여|아껴|늘려|올려)/iu;
 const NON_WEDDING_DOMAIN_HINT_PATTERN =
   /회사|업무|직장|출근|퇴사|이직|취업|면접|프로젝트|시험|자격증|숙제|과제|이사|입주|전세|월세|창업|개업|다이어트|운동|여행|유학|군대|병원|수술|인테리어|리모델링|공사|자동차|차량/iu;
+// 2026-09-04: `리허설`·`피팅` 을 정본 일정 낱말에 넣으면서 "회사 워크숍 리허설 시간
+// 바꿔줘" 가 정본 분기(W0)로 올라갔다 — 이 방어가 그 둘을 몰랐기 때문이다. 같이 넣는다.
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
-  /(?:회사|업무|직장|프로젝트|식당|레스토랑|맛집|병원|미용실).{0,12}(?:예산|일정|스케줄|예약|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
+  /(?:회사|업무|직장|프로젝트|식당|레스토랑|맛집|병원|미용실|공연|콘서트|발표).{0,12}(?:예산|일정|스케줄|예약|리허설|피팅|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
 const HONEYMOON_PATTERN = /신혼\s*여행|허니문/iu;
 const CANONICAL_TOTAL_BUDGET_ACTION_PATTERN =
@@ -337,7 +353,9 @@ const CANONICAL_BUDGET_AMOUNT_STATEMENT_PATTERN =
   /(?:^|\s)(?:우리\s*)?예산(?:을|은|이|도)?(?:\s*상한)?\s*\d[\d,]*(?:\.\d+)?\s*(?:%|억(?:\s*원)?|천\s*만\s*원?|만\s*원|천|원)/iu;
 const CANONICAL_NATURAL_BUDGET_READ_PATTERN =
   /(?:남은\s*)?예산(?:을|은|이|도)?\s*.{0,12}(?:얼마|보여|알려|현황|확인|조회)/iu;
-const CANONICAL_SCHEDULE_STATE_PATTERN = /일정|스케줄/iu;
+// 2026-09-04: `리허설`·`피팅`은 이 제품에서 일정 그 자체다("리허설 시간 10시로 바꿔줘").
+// 일정 낱말 없이 날짜·동사만 있는 문장이 W4 로 떨어져 표식이 폐기되던 것을 닫는다.
+const CANONICAL_SCHEDULE_STATE_PATTERN = /일정|스케줄|리허설|피팅/iu;
 // `넣어`는 **아모라가 스스로 가르치는 동사**다. `amoraVoice.ts:51`이
 // "8월 10일처럼 날짜만 알려주시면 바로 넣을게요"라고 말해 놓고, 사용자가 그대로
 // "8월 10일 일정에 넣어줘"라고 답하면 이 목록에 없어서 W4로 떨어져 도구가 0개가
@@ -356,8 +374,11 @@ const CANONICAL_SCHEDULE_MUTATION_PATTERN =
   /추가|등록|잡아|변경|바꾸|바꿔|옮겨|수정|취소|삭제|미뤄|당겨|넣어|넣자|넣을/iu;
 const CANONICAL_DATE_OR_TIME_PATTERN =
   /\d{4}\s*년|\d{1,2}\s*월\s*\d{1,2}\s*일|\d{1,2}[./-]\d{1,2}|오늘|내일|모레|이번\s*주|다음\s*주|다다음\s*주|(?:월|화|수|목|금|토|일)요일|오전|오후|\d{1,2}\s*시/iu;
+// 2026-09-04: "우리 다음 일정 뭐야?" 가 동사 목록에 없어 W4 였다. 저장을 시켜 놓고
+// 가장 짧은 말로는 못 꺼내는 모양이라 조회 동사만 넓힌다. 명사 요구와
+// `EXPLICIT_NON_WEDDING_STATE_PATTERN`(회사·업무 일정)의 방어는 그대로다.
 const CANONICAL_SCHEDULE_READ_PATTERN =
-  /(?:(?:다가오는|내|우리)\s*)?(?:결혼\s*)?(?:일정|스케줄).{0,12}(?:보여|알려|확인|조회|현황)/iu;
+  /(?:(?:다가오는|내|우리)\s*)?(?:결혼\s*)?(?:일정|스케줄).{0,12}(?:보여|알려|확인|조회|현황|뭐야|뭐지|뭐가|뭐\s*있|언제야|언제지|있어|있나|남았)/iu;
 const CANONICAL_ANAPHORIC_SCHEDULE_MUTATION_PATTERN =
   /그\s*(?:일정|스케줄).{0,12}(?:변경|바꾸|바꿔|옮겨|수정|취소|삭제|미뤄|당겨)/iu;
 const CANONICAL_TASK_STATE_PATTERN =
@@ -367,6 +388,26 @@ const WEDDING_CONTEXT_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
   "get_budget_summary",
   "get_schedule_summary",
   "get_amora_actions",
+]);
+
+/**
+ * 커플의 저장 정보를 **읽지 않는** 조회 도구. provider 로 나가는 것은 검색어와
+ * 항목뿐이다(장소 검색은 네이버 질의, 시세 조회는 공시 자료의 카테고리·지역).
+ *
+ * 2026-09-04: 범위 밖(W4, 낮은 확신) 턴에도 이 둘은 연다. 새 스테이징 커플로 잰
+ * 소비자 발화 40문장 중 16문장이 W4 였고, 그중 "양가 부모님 처음 뵙는데 강남 쪽
+ * 조용한 한정식집 좀 찾아줘" 는 장소 검색 후보로 잡혀 놓고(`isPlaceSearchCandidate`)
+ * W4 필터가 도구를 지워 아모라가 "식당을 직접 검색할 수는 없어요" 라고 답했다 —
+ * 있는 기능을 없다고 말한 것이다.
+ *
+ * W4 가 도구를 닫는 이유는 **커플 문맥 유출**이었다(`amoraPromptComposer.ts` 의
+ * 저장 문맥 게이트). 이 둘은 커플 문맥을 만지지 않으므로 그 이유가 닿지 않는다.
+ * 변경 도구·커플 데이터 읽기 도구는 그대로 닫힌다. 높은 확신의 W4(코드 대행·투자·
+ * 명시적 결혼 밖 상태)는 여전히 0개다.
+ */
+export const AMORA_CONTEXT_FREE_READ_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "search_nearby_places",
+  "get_market_price",
 ]);
 
 export function classifyAmoraQuestionScope({
@@ -660,6 +701,13 @@ export function filterAmoraToolsByQuestionScope<T extends AiToolDefinition>(
   if (classification.scope === "W1_wedding_adjacent") {
     return tools.filter((tool) => WEDDING_CONTEXT_READ_TOOL_NAMES.has(tool.name));
   }
+  if (
+    classification.scope === "W4_out_of_scope"
+    && classification.confidence === "low"
+    && classification.needsClarification
+  ) {
+    return tools.filter((tool) => AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(tool.name));
+  }
   return classification.scope === "W3_social_care"
     || classification.scope === "W2_high_risk_adjacent"
     || classification.scope === "W4_out_of_scope"
@@ -674,8 +722,20 @@ const OFF_DOMAIN_REFUSAL_LINE =
 
 export function buildAmoraQuestionScopeInstruction(
   classification: AmoraQuestionScopeClassification,
-  options: { linkedContextOnly?: boolean } = {},
+  options: {
+    linkedContextOnly?: boolean;
+    /** 이 턴에 실제로 열린 도구 중 커플 문맥 없는 조회 도구. W4 문구에만 쓰인다. */
+    contextFreeToolNames?: readonly string[];
+  } = {},
 ): string {
+  const contextFreeToolNames = (options.contextFreeToolNames ?? []).filter((name) =>
+    AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name),
+  );
+  // 도구가 실제로 열렸을 때만 "써도 된다"고 말한다. 안 열린 턴에 이 줄이 가면
+  // 모델이 없는 도구를 부르거나, 있다고 말해 놓고 못 쓴다.
+  const contextFreeToolLine = contextFreeToolNames.length > 0
+    ? `- 이 턴에 열린 조회 도구(${contextFreeToolNames.join(", ")})는 커플의 저장 정보 없이 검색어·항목만 보내는 도구라 써도 됩니다. 장소 검색·시세 조회를 "할 수 없다"거나 "기능이 없다"고 말하지 마세요. 그 밖의 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요.`
+    : null;
   const commonLines = [
     "[서버 확정 질문 범위 계약]",
     `- question_scope: ${classification.scope}`,
@@ -749,7 +809,9 @@ export function buildAmoraQuestionScopeInstruction(
           // 위의 "넓히지 마세요" 보다 우선한다고 분명히 적는다.
           "- 다만 감정·안전·곤란함이 담긴 말이면 직전 대화와 이어지지 않아 보여도 그것부터 짧게 알아주세요. 이 원칙이 위의 범위 제한보다 우선합니다. 사용자에게 결혼 준비와의 관련성을 증명하라고 요구하지 마세요.",
           OFF_DOMAIN_REFUSAL_LINE,
-          "- 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요. 동의 표현도 실행 확인으로 취급하지 마세요.",
+          contextFreeToolLine
+            ? `${contextFreeToolLine} 동의 표현도 실행 확인으로 취급하지 마세요.`
+            : "- 도구 실행·상태 변경·변경 제안·장기 기억 저장은 하지 마세요. 동의 표현도 실행 확인으로 취급하지 마세요.",
         ]
       : classification.needsClarification
         ? [
@@ -773,7 +835,7 @@ export function buildAmoraQuestionScopeInstruction(
             OFF_DOMAIN_REFUSAL_LINE,
             "- 다만 청첩장 문구, 감사 인사, 업체·가족에게 보낼 문장처럼 결혼 준비의 글쓰기는 그대로 도와드리세요. 위 금지는 결혼 준비 밖의 일에만 해당합니다.",
             "- 다만 확인되지 않은 결혼 준비 사실을 단정하거나 실행을 시작하지 말고, 저장된 예산·일정·진행 상황을 아는 것처럼 말하지 마세요.",
-            "- 도구 실행과 장기 기억 저장은 하지 마세요.",
+            contextFreeToolLine ?? "- 도구 실행과 장기 기억 저장은 하지 마세요.",
           ]
         : [
             "- 아모라는 결혼 준비를 돕는 서비스라는 범위를 짧고 자연스럽게 알리세요. 범위 밖 과업을 실질적으로 수행하지 말고, 가능하면 사용자의 목적을 결혼 준비 관점으로 바꿔 도울 수 있는 한 가지 방향만 제시하세요.",

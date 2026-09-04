@@ -172,7 +172,9 @@ export function getPlaceCardsModel(result: PlaceSearchToolResult): PlaceCardsMod
       state: "empty",
       query,
       message: asString(result.displayMessage)
-        ?? (query ? `'${query}' 검색 결과를 찾지 못했어요.` : "장소 검색 결과를 찾지 못했어요."),
+        ?? (query
+          ? `'${query}' 검색 결과를 찾지 못했어요. 다른 키워드나 조금 더 넓은 지역으로 말해 주시면 다시 찾아볼게요.`
+          : "장소 검색 결과를 찾지 못했어요. 지역과 종류를 함께 말해 주시면 다시 찾아볼게요."),
     };
   }
 

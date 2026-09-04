@@ -143,8 +143,10 @@ export function isPlaceSearchConfigured(): boolean {
  * 줄일 것이 없으면 `null` 을 돌려 재시도하지 않는다 — 같은 검색어를 두 번 보내
  * 같은 빈 결과를 받을 이유가 없다.
  */
+// 2026-09-04: "삼성동 어른 카페" 가 그대로 네이버로 가서 0건이었다(`어른` 은 가게 이름이
+// 아니다). 동행·분위기 수식어는 검색어에서 빼고, 필요하면 답변에서 조건으로 말한다.
 const PLACE_QUERY_FILLER =
-  /^(?:근처|주변|가까운|인근|하기|좋은|괜찮은|괜찮는|만한|추천|추천해줘|조용한|분위기|있는|없는|잘하는|유명한|맛있는|예쁜|양쪽|우리|저희|같이|함께|모임|자리|장소|곳|데|를|을|좀)$/u;
+  /^(?:근처|주변|가까운|인근|하기|좋은|괜찮은|괜찮는|괜찮을|만한|갈만한|갈|추천|추천해줘|조용한|조용히|분위기|있는|없는|잘하는|유명한|맛있는|예쁜|양쪽|우리|저희|같이|함께|모임|자리|장소|곳|데|를|을|좀|어른|어른들|어르신|어르신들|부모님|부모님들|어머님|아버님|가족|가족들|양가|모시고|모실|모시기|편한|편안한|고급|고급스러운|깔끔한|넓은|한적한|아늑한|프라이빗|프라이빗한|룸|개별룸)$/u;
 const PLACE_QUERY_MAX_TOKENS = 3;
 
 /**
@@ -669,7 +671,30 @@ export async function executeSearchNearbyPlaces(
       items = recordItems(retryData).slice(0, 5);
     }
     // 실제로 네이버에 보낸 검색어. 서버가 종류를 채우거나 줄였으면 그 값이다.
-    const effectiveQuery = shortened ?? searchQuery;
+    let effectiveQuery = shortened ?? searchQuery;
+
+    // 2026-09-04 스테이징 실측: "삼성동 어른 카페" 가 0건으로 끝났다. 보충 검색은
+    // 1~2건일 때만 돌았고 0건은 여기서 바로 "결과 없음" 이었다. 수식어를 걷은 질의
+    // (`generalizePlaceQuery`)가 다르면 한 번만 더 찾는다 — 웨딩 업체 질의로 되돌아가는
+    // 일반화는 그 함수가 이미 막는다.
+    if (items.length === 0) {
+      const generalized = generalizePlaceQuery(searchQuery);
+      if (generalized && generalized !== effectiveQuery) {
+        const generalizedData = await fetchNaverSearch(
+          config,
+          "local",
+          { query: generalized, display: "5", start: "1", sort: "comment" },
+          5000,
+        ).catch(() => null);
+        const generalizedItems = generalizedData
+          ? recordItems(generalizedData).slice(0, 5)
+          : [];
+        if (generalizedItems.length > 0) {
+          items = generalizedItems;
+          effectiveQuery = generalized;
+        }
+      }
+    }
 
     if (items.length === 0) {
       return {

@@ -704,7 +704,7 @@ describe("ChatSidePanel attachment sending", () => {
   });
 
   it("offers an explicit provider-only retry and a close action", async () => {
-    mocks.chatState.error = "AI 응답을 받지 못했습니다.";
+    mocks.chatState.error = "아모라의 답변을 받지 못했어요. 다시 시도해 주세요.";
     mocks.chatState.failedRequest = {
       canRetry: true,
       unavailableReason: null,

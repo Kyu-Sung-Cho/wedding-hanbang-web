@@ -1677,9 +1677,9 @@ function getAmoraSharedActionFailureMessage(
 function getServerCodeFailureMessage(serverCode: string | null): string | null {
   switch (serverCode) {
     case "COST_GUARD_COUPLE_QUOTA":
-      return "무료 상담을 모두 사용했어요. 추가 이용 방법은 아직 정해지지 않았어요.";
+      return "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요. 추가 이용 방법은 정해지면 알려드릴게요.";
     case "COST_GUARD_GLOBAL_DAILY":
-      return "오늘은 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
+      return "오늘 아모라 상담이 많아 잠시 쉬어가고 있어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_COUPLE_DAILY":
       return "오늘 이 대화에서 쓸 수 있는 상담 횟수를 다 썼어요. 내일 다시 이어서 도와드릴게요.";
     case "COST_GUARD_GLOBAL_BUDGET":
@@ -1696,7 +1696,7 @@ function getServerCodeFailureMessage(serverCode: string | null): string | null {
 function getAiFailureMessage(error: unknown, timedOut: boolean): string {
   // 왜 막혔는지 서버가 코드로 밝힌 경우에는 그것부터 전한다.
   if (error instanceof ChatTransportError) {
-    // 서버 문장이 정본이다. 표는 서버가 문장을 못 준 경우의 폴백일 뿐이다.
+    // 코드 표가 정본이고 서버 문장은 그리지 않는다(위 주석). 표에 없는 코드만 아래로 간다.
     const reason = getServerCodeFailureMessage(error.serverCode);
     if (reason) return reason;
   }
@@ -1711,9 +1711,36 @@ function getAiFailureMessage(error: unknown, timedOut: boolean): string {
   return "답변을 가져오지 못했어요. 입력한 질문은 저장되어 있으니 다시 시도해 주세요.";
 }
 
+/**
+ * 안전 보류로 보내지 못한 원문을 **나만 상담** 입력칸으로 옮긴다.
+ *
+ * 웹(`ChatContent.tsx` 의 restoreHeldComposerText)과 같은 행동. 서버에는 아무것도
+ * 남지 않는다 — 로컬 입력칸 사이를 옮길 뿐이다. 이미 나만 상담 칸에 글이 있으면
+ * 덮어쓰지 않고, 보류가 그 칸에서 났으면 그대로 비운다(같은 말이 되돌아오면 또
+ * 막힌다).
+ */
+function moveHeldDraftToPrivateLane(
+  current: AmoraChatLaneRecord<string>,
+  lane: AmoraChatLane,
+  text: string,
+): AmoraChatLaneRecord<string> {
+  const cleared = updateAmoraChatLaneRecord(current, lane, "");
+  if (lane === "private_ai" || cleared.private_ai.trim().length > 0) return cleared;
+  return updateAmoraChatLaneRecord(cleared, "private_ai", text);
+}
+
 function canRetrySameChatRequest(error: unknown, timedOut = false): boolean {
   if (timedOut) return true;
   if (!(error instanceof ChatTransportError)) return false;
+  // 2026-09-04: 상한(COST_GUARD_*)은 서버가 같은 키 재시도를 허용해도 자정까지는
+  // 눌러도 같다. "내일 다시" 문구 아래 "다시 받기" 버튼을 두지 않는다.
+  if (
+    typeof error.serverCode === "string"
+    && error.serverCode.startsWith("COST_GUARD_")
+    && error.serverCode !== "COST_GUARD_UNAVAILABLE"
+  ) {
+    return false;
+  }
   if (error.retryable !== null) return error.retryable;
   // No terminal server decision exists for transport loss, so replaying the
   // same idempotency key remains the only safe retry. Legacy terminal/HTTP
@@ -2758,9 +2785,12 @@ export default function ChatScreen() {
           ? previous
           : [...previous, safetyCard]
         );
+        // 2026-09-04: 웹은 보류된 원문을 나만 상담 입력칸으로 옮겨 준다. 여기서는
+        // 지우기만 해서, 힘든 이야기를 꺼낸 사람이 같은 말을 다시 쳐야 했다.
+        // 저장은 여전히 안 한다 — 로컬 입력칸 사이를 옮길 뿐이다.
         setInputByLane((current) => (
           current[lane].trim() === draft.text
-            ? updateAmoraChatLaneRecord(current, lane, "")
+            ? moveHeldDraftToPrivateLane(current, lane, draft.text)
             : current
         ));
         setLaneFailure(lane, null);
@@ -3052,7 +3082,7 @@ export default function ChatScreen() {
           );
           setInputByLane((current) => (
             current[draft.sourceLane].trim() === draft.text
-              ? updateAmoraChatLaneRecord(current, draft.sourceLane, "")
+              ? moveHeldDraftToPrivateLane(current, draft.sourceLane, draft.text)
               : current
           ));
           setQuotaRemaining(null);
@@ -3318,7 +3348,7 @@ export default function ChatScreen() {
       );
       setInputByLane((current) => (
         current[activeLane].trim() === text
-          ? updateAmoraChatLaneRecord(current, activeLane, "")
+          ? moveHeldDraftToPrivateLane(current, activeLane, text)
           : current
       ));
       setLaneFailure(activeLane, null);

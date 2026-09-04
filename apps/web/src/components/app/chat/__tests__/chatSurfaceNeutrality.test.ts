@@ -67,6 +67,7 @@ describe("채팅 표면 중립성", () => {
     const source = readFileSync(join(CHAT_ROOT, "ChatBubble.tsx"), "utf8");
     // 폴백까지 중립이어야 한다. sender_id가 없는 과거 메시지에 현재 파트너
     // 이름을 붙이면 오귀속이므로 별도 문구를 쓴다.
-    expect(source).toContain('senderName ?? (message.sender_id ? "파트너" : "이전 참여자")');
+    // 2026-09-04: 이 표면의 상대 호칭은 "상대방"이다(ChatSidePanel·chatStore·route 와 같음).
+    expect(source).toContain('senderName ?? (message.sender_id ? "상대방" : "이전 참여자")');
   });
 });

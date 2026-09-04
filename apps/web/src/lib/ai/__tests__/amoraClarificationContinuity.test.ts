@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
+  AMORA_CONTEXT_FREE_READ_TOOL_NAMES,
 } from "@/lib/ai/amoraQuestionScope";
 import {
   AMORA_CLARIFICATION_ANSWER_MAX_CHARS,
@@ -616,12 +617,18 @@ describe("되묻기 고리에서 빠져나올 수 있다", () => {
     expect(continuity?.priorUserText).toBe("스튜디오 예산 300만원으로 잡아줘");
   });
 
-  it("연속성 없이는 같은 발화가 도구 0개로 떨어진다(고리 재현)", () => {
+  it("연속성 없이는 같은 발화가 실행 도구 0개로 떨어진다(고리 재현)", () => {
+    // 2026-09-04: 범위 밖(낮은 확신) 턴에도 커플 문맥을 읽지 않는 조회 도구
+    // (장소 검색·시세)는 열린다. 고리를 만들던 것은 **제안·실행 도구**가 0개인
+    // 것이므로 그 계약만 그대로 잰다.
     for (const currentText of ["응 넣어줘", "네", "사진 촬영만"]) {
       const classification = classifyAmoraQuestionScope({ userText: currentText });
       expect(classification.scope, currentText).toBe("W4_out_of_scope");
+      const remaining = filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification)
+        .map((tool) => tool.name);
       expect(
-        filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification),
+        remaining.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)),
+        currentText,
       ).toEqual([]);
     }
   });

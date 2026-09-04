@@ -1112,6 +1112,13 @@ function buildAddActionOperation(
     );
   }
   let href = defaultActionHref(categoryKey, source);
+  // 2026-09-04 스테이징 실측: "양가 어머님 한복 맞추기" 할 일에 모델이 enum 셋 중
+  // `/wedding/community/quote-check` 를 골라 붙였다(한복과 견적 점검은 무관). enum 은
+  // 지어낸 경로를 막을 뿐 **알맞은** 경로를 고르지는 못한다. 카테고리를 알면 서버
+  // 기본값이 더 정확하니 그쪽을 쓰고, 카테고리가 없을 때만 모델의 선택을 받는다.
+  if (toolInput.href !== undefined && categoryKey !== null && toolInput.href !== href) {
+    delete toolInput.href;
+  }
   if (toolInput.href !== undefined) {
     if (
       typeof toolInput.href !== "string"

@@ -46,6 +46,7 @@ import {
 } from "@/lib/chat/attachments";
 import { weddingPath } from "@/lib/weddingPaths";
 import { AMORA_DEMO_SUGGESTIONS, AMORA_DEMO_WELCOME } from "@/lib/chat/amoraDemoCopy";
+import { AMORA_STARTER_PROMPTS } from "@/lib/chat/amoraStarterPrompts";
 import {
   consumeDemoAmoraPrefill,
   forgetDemoAmoraPrefill,
@@ -1071,6 +1072,25 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       },
     });
   }, [coupleId, profile, journey, initialLoadDone, messages.length, isStreaming, requestInitialGreeting, isDemo, firstHello, firstHelloChecked]);
+
+  // 2026-09-04: 첫 인사가 실패하면 `greetingRequested` 가 잠긴 채 "새로고침" 말고는
+  // 길이 없었다 — 새 커플의 첫 화면이 막다른 길이었다. 같은 인자로 한 번 더 부른다.
+  const retryInitialGreeting = useCallback(() => {
+    if (!coupleId || !profile || isDemo || isStreaming) return;
+    useChatStore.setState({ error: null });
+    greetingRequested.current = true;
+    requestInitialGreeting({
+      coupleId,
+      senderRole: profile.role ?? "bride",
+      senderName: profile.name ?? "사용자",
+      weddingContext: {
+        weddingDate: journey?.wedding_date ?? null,
+        budget: journey?.total_budget ?? 0,
+        venue: journey?.venue ?? null,
+        progress: journey?.progress ?? {},
+      },
+    });
+  }, [coupleId, isDemo, isStreaming, journey, profile, requestInitialGreeting]);
 
   // 자동 스크롤 정책 — 페이지 전체는 절대 안 건드림, 메시지 컨테이너만 움직임.
   // 이전 사고: scrollIntoView()가 부모 체인 모두 끌고 내려가서 페이지까지 같이 움직임.
@@ -3095,6 +3115,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     : "다시 시도"}
               </button>
             )}
+            {!failedRequest && !isDemo && coupleId && profile && messages.length === 0 && (
+              <button
+                type="button"
+                onClick={retryInitialGreeting}
+                disabled={isStreaming}
+                className="min-h-9 rounded-[6px] bg-red-600 px-3.5 text-xs font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                다시 시도
+              </button>
+            )}
             <button
               type="button"
               onClick={dismissFailedMessageRetry}
@@ -3204,6 +3234,31 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 시작 칩 — 첫 화면(사용자 메시지 0개)에만. 모바일과 같은 세 문장. */}
+      {!isDemo &&
+        initialLoadDone &&
+        Boolean(coupleId) &&
+        Boolean(profile) &&
+        activeTab === "shared" &&
+        messageTarget === "ai" &&
+        transientArtifactsVisible &&
+        suggestions.length === 0 &&
+        !isStreaming &&
+        !showAmoraQuickStart &&
+        !showPersonalizationConfirmation &&
+        !messages.some((m) => m.sender_role !== "ai") && (
+        <div
+          className="px-2 pt-2 pb-4 sm:pb-5 border-t border-[#F0EFED]/60 mt-2"
+          data-testid="amora-starter-prompts"
+        >
+          <SuggestionButtons
+            suggestions={[...AMORA_STARTER_PROMPTS]}
+            onSelect={sendToAmora}
+            disabled={isStreaming || isSending}
+          />
         </div>
       )}
 

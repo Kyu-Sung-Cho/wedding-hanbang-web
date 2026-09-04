@@ -640,13 +640,18 @@ export default function ActionCard({ result }: ActionCardProps) {
 
   // 사용자에게 설명할 메시지가 없는 내부 실패만 카드를 그리지 않는다.
   // 이전 사고: DB 부족 등으로 AI가 같은 tool 을 6번 호출해 모두 실패하면
-  // 빨간 X 카드가 6개 줄줄이 나와 "AI 웨딩플래너인데 깨진 화면"으로 보였음.
+  // 빨간 X 카드가 6개 줄줄이 나와 "결혼 준비 동반자인데 깨진 화면"으로 보였음.
   // 동일 결과 반복은 ChatSidePanel에서 내용 기준으로 한 번만 표시한다.
   const isLegacyScheduleDelete = result.toolName === "delete_schedule_event";
-  const msg = isLegacyScheduleDelete
+  const rawMsg = isLegacyScheduleDelete
     ? "과거 일정 삭제 처리 기록입니다. 현재 일정 상태를 다시 확인해 주세요. 일정 삭제는 지원하지 않아요. 새 변경은 일정 목록에서 취소나 복원을 다시 선택해 주세요."
     : getUserFacingDisplayMessage(result);
-  if (!result.success && msg === "") return null;
+  // 2026-09-04: 설명 없는 실패를 아예 안 그리면 사용자는 아모라의 산문만 보고
+  // 저장이 된 줄 안다. 같은 실패의 반복은 ChatSidePanel 이 내용 기준으로 접으니
+  // 여기서는 한 장은 남긴다 — 무엇이 안 됐는지는 몰라도 "안 됐다"는 보여야 한다.
+  const msg = !result.success && rawMsg === ""
+    ? GENERIC_INTERNAL_ID_FAILURE_COPY
+    : rawMsg;
 
   const icon = getIcon(result.toolName);
   const title = getTitle(result);

@@ -1031,7 +1031,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "analyze_quote",
     description:
-      "사진 촬영·드레스·메이크업 견적의 항목 상태를 정리합니다. 1단계에서는 included_items와 not_needed_items를 빈 배열로 호출해 체크리스트를 보여주세요. [quote_analysis] 결과가 온 2단계에서만 사용자가 고른 두 배열을 전달하고 checklist_confirmed=true로 호출하세요. 항목을 추측하지 마세요.",
+      "사진 촬영·드레스·메이크업 견적의 항목 상태를 정리합니다. 이 도구가 아는 것은 그 네 묶음뿐이라 결혼식장·한복·반지처럼 다른 견적은 여기서 볼 수 없습니다 — 그럴 때는 항목별 금액과 포함 범위를 서면으로 받아 두라고 안내하세요. 1단계에서는 included_items와 not_needed_items를 빈 배열로 호출해 체크리스트를 보여주세요. [quote_analysis] 결과가 온 2단계에서만 사용자가 고른 두 배열을 전달하고 checklist_confirmed=true로 호출하세요. 항목을 추측하지 마세요.",
     input_schema: {
       type: "object" as const,
       properties: {
