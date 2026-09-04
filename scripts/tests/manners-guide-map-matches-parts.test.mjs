@@ -93,6 +93,42 @@ test("shared 가 가리키는 편이 실재한다", () => {
   assert.deepEqual(ghosts, [], `없는 편을 가리킨다 — ${ghosts.join(", ")}`);
 });
 
+test("근거 표의 절 제목과 번호가 편 내용과 맞다", () => {
+  // `checklistNoteSources.ts` 는 항목 → 절을 잇고 **절 번호까지** 들고 있다.
+  // 번호가 필요한 이유는 모바일 때문이다 — 웹뷰 주소 `#section-N` 을 만들려면
+  // 편 안에서 그 절이 몇 번째인지 알아야 하는데, 그 순서는 웹 전용 `data.ts` 에만 있다.
+  //
+  // **사본이라 반드시 낡는다.** 절을 하나 끼워 넣으면 그 뒤 번호가 전부 밀리고,
+  // 칩을 눌러도 엉뚱한 절이 열린다. 화면에는 아무 오류도 안 뜬다.
+  const source = read("packages/shared/src/constants/checklistNoteSources.ts");
+  const block = source
+    .split("CHECKLIST_NOTE_SOURCES: Readonly<Record<string, ChecklistNoteSource>> = {")[1]
+    .split("\n};")[0];
+  const rows = [...block.matchAll(
+    /(\w+):\s*\{\s*part:\s*"([a-z0-9-]+)",\s*heading:\s*"([^"]+)",\s*sectionIndex:\s*(\d+)\s*\}/g,
+  )].map(([, id, part, heading, index]) => ({ id, part, heading, index: Number(index) }));
+  assert.ok(rows.length > 40, `근거를 ${rows.length}건만 읽었다`);
+
+  // 편 내용에서 절 제목 순서를 다시 센다.
+  const data = read("apps/web/src/lib/manners/data.ts");
+  const headingsByPart = new Map();
+  const slugMatches = [...data.matchAll(/\n    slug:\s*"([a-z0-9-]+)",/g)];
+  assert.ok(slugMatches.length > 20, `편을 ${slugMatches.length}개만 읽었다`);
+  slugMatches.forEach((match, order) => {
+    const next = slugMatches[order + 1];
+    const segment = data.slice(match.index, next ? next.index : undefined);
+    headingsByPart.set(
+      match[1],
+      [...segment.matchAll(/heading:\s*"([^"]+)"/g)].map((m) => m[1]),
+    );
+  });
+
+  const wrong = rows
+    .filter((row) => headingsByPart.get(row.part)?.[row.index - 1] !== row.heading)
+    .map((row) => `${row.id}: ${row.part}#${row.index} 는 "${headingsByPart.get(row.part)?.[row.index - 1]}" 인데 표는 "${row.heading}"`);
+  assert.deepEqual(wrong, [], `절 번호가 어긋났다 — ${wrong.join(" / ")}`);
+});
+
 test("체크리스트 분야가 모두 지도에 있다", () => {
   // 지도에 없는 분야는 시트 바닥의 「…예절 보기」 버튼이 아예 안 그려진다.
   // 조용히 사라지므로 분야를 추가할 때 눈치채기 어렵다.

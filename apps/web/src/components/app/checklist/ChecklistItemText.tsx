@@ -19,6 +19,8 @@ export default function ChecklistItemText({
   labelClassName,
   compact = false,
   labelSuffix,
+  noteClassName,
+  hideNoteWhenDone = false,
 }: {
   item: ChecklistItem;
   /**
@@ -33,6 +35,24 @@ export default function ChecklistItemText({
   labelClassName: string;
   /** 좁은 자리(시간축·패널)에서는 note를 한 단계 작게. */
   compact?: boolean;
+  /**
+   * note 의 크기·행간·최대폭을 부르는 쪽이 정한다.
+   *
+   * 2026-09-03 시안의 준비 목록 모달은 `.item-desc` 를 12.5px/1.6/최대 560px 로 그린다.
+   * `compact` 는 13px 이라 시안과 다르고, 이 컴포넌트는 시간축·아모라 패널도 쓰므로
+   * 기본값을 바꿀 수 없다. 그래서 그 화면만 값을 넘긴다.
+   */
+  noteClassName?: string;
+  /**
+   * 끝난 항목에서 note 를 감춘다.
+   *
+   * 시안의 완료 행은 전부 한 줄이다(네 시안에서 note 가 있는 완료 6행 모두 설명이
+   * 없다). 목록이 길어질수록 끝난 것이 화면을 더 먹는 것을 막는다.
+   *
+   * **기본값은 감추지 않는 것이다.** 시간축·패널에서는 체크를 되돌릴지 판단할 때
+   * 그 한 줄이 필요하다 — 2026-08-19 에 그 이유로 넣은 자리다.
+   */
+  hideNoteWhenDone?: boolean;
   /**
    * label 바로 옆에 붙는 작은 표시(「필수」·「해당 시」·「다음 할 일」).
    *
@@ -60,12 +80,15 @@ export default function ChecklistItemText({
       ) : (
         label
       )}
-      {item.note && (
+      {item.note && !(hideNoteWhenDone && item.done) && (
         <span
           id={idPrefix ? `${idPrefix}-note` : undefined}
           // 색은 테마 토큰에 매핑된 값을 쓴다. 생 hex를 쓰면 globals.css의 서비스 테마가
           // 덮어주지 못해 이 줄만 테마를 안 따라간다.
-          className={`mt-1 block text-[var(--hb-text-muted)] ${compact ? "text-[13px] leading-[1.5]" : "text-[15px] leading-[1.55]"}`}
+          className={
+            noteClassName
+              ?? `mt-1 block text-[var(--hb-text-muted)] ${compact ? "text-[13px] leading-[1.5]" : "text-[15px] leading-[1.55]"}`
+          }
         >
           {item.note}
         </span>

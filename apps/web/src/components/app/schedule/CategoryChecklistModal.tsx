@@ -1,34 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useId, useRef } from "react";
-import {
-  FileText,
-  X,
-  Check,
-  Circle,
-  Lightbulb,
-  Building2,
-  Camera,
-  Shirt,
-  Palette,
-  Gem,
-  Flower2,
-  Plane,
-  Home,
-  Mail,
-  Gift,
-  Users,
-  Video,
-  Package,
-  Sparkles,
-  Flower,
-  Heart,
-  Mic,
-  Box,
-  Key,
-  BookOpen,
-  ChevronRight,
-} from "lucide-react";
+import { X, Check, Sparkle, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import {
@@ -42,44 +15,22 @@ import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
-import ChecklistItemSource from "@/components/app/checklist/ChecklistItemSource";
+import ChecklistItemSource, { checklistSourceLabel } from "@/components/app/checklist/ChecklistItemSource";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
-const ICON_MAP: Record<string, React.ElementType> = {
-  FileText,
-  Building2,
-  Camera,
-  Shirt,
-  Palette,
-  Gem,
-  Flower2,
-  Plane,
-  Home,
-  Mail,
-  Gift,
-  Users,
-  Video,
-  Package,
-  Sparkles,
-  Flower,
-  Heart,
-  Mic,
-  Box,
-  Key,
-};
+// ⚠️ 분야 아이콘 표를 2026-09-04에 지웠다. 시안 여덟 장의 모달 제목은 **글자뿐**이고,
+// 아이콘 18px + 간격 8px 이 긴 분야 이름(「혼인신고와 주소·보험 신고」)의 자리를 먹었다.
+// 분야 아이콘은 목록 화면(`ChecklistContent`)이 계속 쓴다.
 
-const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-[var(--hb-success)]",
-  in_progress: "bg-[var(--hb-primary)]",
-  not_started: "bg-[#B5ADA3]",
-  not_applicable: "bg-[#8b857c]",
-};
+// ⚠️ 상태별 칩 색 표를 2026-09-04에 지웠다. 시안 네 장이 상태와 무관하게
+// **같은 베이지 칩**을 쓴다 — 상태는 글자로만 말한다. 색을 되살리면 머리에
+// 장미(고리)·초록(완료)·검정(진행 중)이 한꺼번에 서서 고리가 안 읽힌다.
 
 const STATUS_LABELS: Record<string, string> = {
   completed: "완료",
-  in_progress: "진행중",
-  not_started: "시작전",
+  in_progress: "진행 중",
+  not_started: "시작 전",
   not_applicable: "해당 없음",
 };
 
@@ -95,13 +46,14 @@ const STATUS_LABELS: Record<string, string> = {
  * 여기서 조건을 만들어 더 붙이지 마라.
  */
 function ItemTag({ kind }: { kind: ChecklistItemTag | "다음 할 일" }) {
-  const style = kind === "다음 할 일"
-    ? "bg-[var(--color-rose-500)] text-white"
-    : kind === "필수"
-      ? "bg-[var(--color-rose-pale)] text-[var(--color-rose-600)]"
-      : "bg-[var(--color-surface-low)] text-[var(--hb-text-muted)]";
+  // 시안의 `.must-tag` 는 「필수」와 「다음 할 일」이 같은 모양이고(연한 장미 바탕 +
+  // 진한 장미 글자), 「해당 시」만 베이지다. 진행 상태를 채운 색으로 뒤집었더니
+  // 목록에서 그 한 줄만 튀어 시안과 다르게 보였다.
+  const style = kind === "해당 시"
+    ? "bg-[var(--color-surface-low)] text-[var(--hb-text-body)]"
+    : "bg-[var(--color-rose-pale)] text-[var(--color-rose-600)]";
   return (
-    <span className={`flex-shrink-0 rounded-full px-2 py-[2px] text-[10px] font-bold ${style}`}>
+    <span className={`flex-shrink-0 rounded-full px-[7px] py-[2px] text-[10px] font-bold ${style}`}>
       {kind}
     </span>
   );
@@ -270,7 +222,6 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
   if (!template || !isOpen) return null;
 
-  const Icon = ICON_MAP[template.icon] ?? Circle;
   const { done, total } = getChecklistCounts(checklist);
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
   const status = calculateStatus(checklist);
@@ -294,6 +245,29 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
    * 분야를 껐으면 아무것도 가리키지 않는다 — 진행률에서 뺀 분야에 다음 할 일이
    * 있다고 말하는 것은 앞뒤가 안 맞는다.
    */
+  /**
+   * 근거 칩을 그릴 항목 id.
+   *
+   * 같은 편을 가리키는 항목이 여럿이면 화면에 똑같은 줄이 여러 번 선다 — 결혼식장이
+   * 셋이었고 시안은 한 번만 그린다. 자료(`noteSources`)를 지우면 그 항목의 근거가
+   * 없어지므로 **자료는 두고 표시만** 첫 항목 하나로 줄인다.
+   *
+   * 그리면서 걸러내지 않고 **미리 계산한다.** 렌더 중에 그릇을 채우면 React 컴파일러가
+   * 그 그릇을 캐시해 두 번째 렌더부터 전부 걸러 버린다(2026-09-04에 칩이 전멸했다).
+   */
+  const sourceChipItemIds = new Set<string>();
+  {
+    const seen = new Set<string>();
+    for (const group of groups) {
+      for (const item of group.items) {
+        const label = checklistSourceLabel(item.id);
+        if (!label || seen.has(label)) continue;
+        seen.add(label);
+        sourceChipItemIds.add(item.id);
+      }
+    }
+  }
+
   const nextItemId = isNotApplicable
     ? undefined
     : groups.flatMap((group) => group.items).find((item) => !item.done)?.id;
@@ -304,7 +278,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       <div
         onClick={onClose}
         aria-hidden="true"
-        className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
+        className="fixed inset-0 z-50 bg-[rgba(38,37,31,0.55)] animate-fade-in"
       />
 
       {/* 모달 */}
@@ -313,10 +287,10 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-4 top-[8%] max-w-[520px] mx-auto bg-white rounded-[6px] shadow-[var(--shadow-overlay)] z-50 max-h-[84dvh] flex flex-col overflow-hidden animate-fade-in"
+        className="fixed inset-x-4 top-1/2 z-50 mx-auto flex max-h-[84dvh] -translate-y-1/2 flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.35)] animate-fade-in sm:max-w-[860px]"
       >
         {/* 헤더 */}
-        <div className="px-6 pt-6 pb-5">
+        <div className="border-b border-[#E5DDC9] px-7 pt-6 pb-[18px]">
           <div className="flex items-center justify-between mb-4">
             <div className="flex min-w-0 items-center gap-4">
               {/*
@@ -351,12 +325,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 </span>
               </div>
               <div className="min-w-0">
-                <h3 id={titleId} className="flex items-center gap-2 text-[19px] font-semibold text-[var(--hb-text-strong)]">
-                  <Icon className="h-[18px] w-[18px] flex-shrink-0 text-[var(--hb-text-muted)]" aria-hidden="true" />
-                  <span className="min-w-0 truncate">{template.label}</span>
+                <h3 id={titleId} className="truncate text-[19px] font-semibold text-[var(--hb-text-strong)]">
+                  {template.label}
                 </h3>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--hb-text-muted)]">
-                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold text-white ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
+                  <span className="rounded-full bg-[var(--color-surface-low)] px-[9px] py-[3px] text-[11px] font-semibold text-[var(--hb-text-body)]">
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
                   <span>
@@ -370,43 +343,21 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               type="button"
               onClick={onClose}
               aria-label={`${template.label} 체크리스트 닫기`}
-              className="w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+              className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-low)] text-[var(--hb-text-muted)] transition-colors hover:bg-[#E5DDC9]"
             >
-              <X className="w-4 h-4" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          {/* 가족·지역마다 하는 항목이 달라서, 안 하는 건 안 한다고 말할 수 있어야 한다. */}
-          <button
-            type="button"
-            onClick={toggleNotApplicable}
-            disabled={saving}
-            className="mt-4 w-full rounded-[6px] border border-[#EDEAE4] bg-white px-4 py-3 text-left text-sm text-[#5f5a52] transition-colors hover:bg-[#FAF8F5] disabled:opacity-50"
-          >
-            {isNotApplicable ? (
-              <>
-                <span className="font-medium text-[var(--hb-text-strong)]">다시 준비 목록에 넣기</span>
-                <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
-                  지금은 진행률과 마감 알림에서 빠져 있어요.
-                </span>
-              </>
-            ) : (
-              <>
-                <span className="font-medium text-[var(--hb-text-strong)]">우리는 이건 안 해요</span>
-                <span className="mt-0.5 block text-[13px] leading-5 text-[#8b857c]">
-                  진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
-                </span>
-              </>
-            )}
-          </button>
+
         </div>
 
         {/* 체크리스트 */}
-        <div className="flex-1 overflow-y-auto bg-white px-6 py-2">
+        <div className="flex-1 overflow-y-auto bg-white px-7 pt-1.5 pb-5">
           {groups.map((group) => {
             const groupDone = group.items.filter((item) => item.done).length;
             return (
-              <section key={group.title || "all"} className="mt-4 first:mt-2">
+              <section key={group.title || "all"} className="mt-[18px]">
                 {/*
                   단계 머리. 「01 · 예약 전에」와 그 단계의 개수만 있다.
 
@@ -443,7 +394,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                       className={`flex flex-col ${
                         index === group.items.length - 1
                           ? ""
-                          : "border-b border-[var(--hb-hairline)]"
+                          : "border-b border-[#E5DDC9]"
                       }`}
                     >
                       <button
@@ -454,7 +405,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                         aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
                         disabled={saving || isNotApplicable}
                         onClick={() => toggleItem(item.id)}
-                        className="group flex w-full items-start gap-3 rounded-[6px] px-1 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55"
+                        className="group flex w-full items-start gap-3 rounded-[6px] px-1 pt-3 pb-2 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55"
                       >
                         {/*
                           동그라미 셋이 서로 다른 말을 한다 — 끝난 것(초록·체크),
@@ -462,17 +413,17 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                           가운데 것이 없으면 스무 줄이 전부 똑같아 보여 어디부터
                           손대야 할지가 화면에 없다.
                         */}
-                        <span className="mt-0.5 flex-shrink-0">
+                        <span className="mt-px flex-shrink-0">
                           {item.done ? (
                             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-sage-500)]">
-                              <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                              <Check className="h-3 w-3 text-white" strokeWidth={1.7} />
                             </span>
                           ) : (
                             <span
                               className={`block h-5 w-5 rounded-full border-[1.8px] transition-colors ${
                                 isNext
                                   ? "border-[var(--color-rose-500)] bg-[var(--color-rose-pale)]"
-                                  : "border-[var(--hb-hairline)] group-hover:border-[var(--hb-text-muted)]"
+                                  : "border-[#E5DDC9] group-hover:border-[var(--hb-text-muted)]"
                               }`}
                             />
                           )}
@@ -488,29 +439,71 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                         <ChecklistItemText
                           item={shown}
                           idPrefix={`${titleId}-${item.id}`}
-                          labelClassName={`text-[15px] leading-snug ${
+                          labelClassName={`text-[14px] font-medium leading-snug ${
                             item.done
-                              ? "text-[var(--hb-text-muted)] line-through decoration-[var(--hb-hairline)]"
+                              ? "text-[var(--hb-text-muted)] line-through decoration-[#E5DDC9]"
                               : isNext
                                 ? "font-semibold text-[var(--hb-text-strong)]"
-                                : "text-[var(--hb-text-body)]"
+                                : "text-[var(--hb-text-strong)]"
                           }`}
                           labelSuffix={
                             isNext ? <ItemTag kind="다음 할 일" /> : tag ? <ItemTag kind={tag} /> : undefined
                           }
+                          // 시안 `.item-desc` — 12.5px / 행간 1.6 / 위 6px / 최대 560px.
+                          noteClassName="mt-1.5 block max-w-[560px] text-[12.5px] leading-[1.6] text-[#8A876F]"
+                          hideNoteWhenDone
                         />
                       </button>
-                      <ChecklistItemSource itemId={item.id} indentClassName="ml-8" />
+                      {sourceChipItemIds.has(item.id) ? (
+                        <ChecklistItemSource
+                          itemId={item.id}
+                          variant="chip"
+                          indentClassName="ml-9"
+                        />
+                      ) : null}
                     </div>
                   );
                 })}
               </section>
             );
           })}
+
+          {/*
+            「우리는 이건 안 해요」.
+
+            2026-09-04에 머리에서 **목록 맨 끝으로 내렸다.** 시안 여덟 장 어디에도 이
+            줄이 없는데, 머리에 있으면 84px 을 먹어 첫 화면에서 「01 · …」 단계 머리가
+            밀려났다. 기능은 지울 수 없다 — 함·폐백·예단처럼 우리 결혼에서 안 하는
+            분야를 못 끄면 진행률 분모와 마감 알림에 영구 미완료로 남는다.
+
+            자리를 옮겼을 뿐이라 하는 일과 문구는 그대로다.
+          */}
+          <button
+            type="button"
+            onClick={toggleNotApplicable}
+            disabled={saving}
+            className="mt-6 w-full rounded-[11px] border border-[#E5DDC9] bg-white px-4 py-3 text-left text-[12.5px] text-[var(--hb-text-body)] transition-colors hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
+          >
+            {isNotApplicable ? (
+              <>
+                <span className="font-semibold text-[var(--hb-text-strong)]">다시 준비 목록에 넣기</span>
+                <span className="mt-0.5 block leading-[1.6] text-[#8A876F]">
+                  지금은 진행률과 마감 알림에서 빠져 있어요.
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold text-[var(--hb-text-strong)]">우리는 이건 안 해요</span>
+                <span className="mt-0.5 block leading-[1.6] text-[#8A876F]">
+                  진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
+                </span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* 팁 */}
-        <div className="px-6 py-4 bg-white border-t border-[#F6F3F2]">
+        <div className="border-t border-[#E5DDC9] bg-[var(--color-ivory-warm)] px-7 py-4">
           {error && (
             <p
               role="alert"
@@ -531,17 +524,17 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             링크의 부제 두 줄을 뺐다 — 제목이 「첫인사 예절 보기」처럼 이미 무엇을 여는지
             말하고 있어서, 그 아래 설명은 같은 말을 길게 반복하는 자리였다.
           */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-start gap-2.5 text-[12.5px] leading-[1.6] text-[var(--hb-text-body)]">
-              <Lightbulb className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" />
+              <Sparkle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" strokeWidth={1.7} />
               <span>{template.tip}</span>
             </p>
 
             <Link
               {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
-              className="group flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+              className="flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
             >
-              <BookOpen className="h-[15px] w-[15px] flex-shrink-0 text-[var(--hb-text-muted)]" aria-hidden="true" />
+              <BookOpen className="h-[15px] w-[15px] flex-shrink-0" aria-hidden="true" />
               {/*
                 시안의 버튼 글자는 「첫인사 예절 보기」·「본식 당일 예절 보기」처럼
                 편 제목 뒤에 `보기` 가 붙는다. 편 제목 25개를 대조해 보니 네 시안이
@@ -550,10 +543,9 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 폴백(`아모라에게 물어보기`)에는 안 붙인다 — 이미 `보기` 로 끝나서
                 「…물어보기 보기」 가 된다.
               */}
-              <span className="truncate">
+              <span className="whitespace-nowrap">
                 {relatedGuide ? `${relatedGuide.title} 보기` : "아모라에게 물어보기"}
               </span>
-              <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[var(--hb-accent-hover)]" />
             </Link>
           </div>
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>

@@ -32,10 +32,11 @@ import {
   Pressable,
   StyleSheet,
 } from "react-native";
-import { CheckCircle2, Circle, Ban, Lightbulb, BookOpen, ChevronRight } from "lucide-react-native";
+import { Check, Ban, Sparkle, BookOpen } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {
   checklistItemTag,
+  checklistNoteSourceChip,
   groupChecklistItems,
   labelWithoutConditionSuffix,
   mannersGuideForCategory,
@@ -63,6 +64,7 @@ export default function CategoryChecklistSheet({
   onToggleItem,
   onToggleApplicability,
   onOpenGuide,
+  onOpenSource,
 }: {
   visible: boolean;
   categoryKey: string;
@@ -75,6 +77,8 @@ export default function CategoryChecklistSheet({
   onToggleApplicability: () => void;
   /** 예절 편 웹뷰를 여는 일은 화면이 한다 — 이 컴포넌트는 주소를 모른다. */
   onOpenGuide: (slug: string) => void;
+  /** 근거 칩이 여는 곳. `/manners/<slug>#section-N` 꼴의 경로를 받는다. */
+  onOpenSource: (path: string) => void;
 }) {
   const groups = useMemo(
     () => groupChecklistItems(categoryKey, items),
@@ -94,6 +98,27 @@ export default function CategoryChecklistSheet({
     : groups.flatMap((group) => group.items).find((item) => !item.done)?.id;
 
   const guide = mannersGuideForCategory(categoryKey);
+
+  /**
+   * 근거 칩을 그릴 항목 id. 같은 편을 가리키는 항목이 여럿이면 똑같은 줄이 여러 번
+   * 서는데 시안은 한 번만 그린다. 자료는 그대로 두고 **표시만** 첫 항목 하나로 줄인다.
+   *
+   * 그리면서 거르지 않고 미리 센다 — 렌더 중에 그릇을 채우면 두 번째 렌더부터
+   * 전부 걸러진다(웹에서 실제로 칩이 전멸했다).
+   */
+  const chipItemIds = useMemo(() => {
+    const seen = new Set<string>();
+    const ids = new Set<string>();
+    for (const group of groups) {
+      for (const item of group.items) {
+        const chip = checklistNoteSourceChip(item.id, guide?.slug);
+        if (!chip || seen.has(chip.label)) continue;
+        seen.add(chip.label);
+        ids.add(item.id);
+      }
+    }
+    return ids;
+  }, [groups, guide?.slug]);
 
   return (
     <Modal
@@ -134,17 +159,7 @@ export default function CategoryChecklistSheet({
         </View>
 
         <ScrollView style={s.body} contentContainerStyle={s.bodyContent}>
-          <Pressable
-            style={s.skipRow}
-            onPress={onToggleApplicability}
-            accessibilityRole="button"
-            accessibilityLabel={stats.skipped ? `${label} 다시 준비 목록에 넣기` : `${label} 준비 목록에서 제외하기`}
-          >
-            <Ban size={18} color={colors.textTertiary} />
-            <Text style={s.skipText}>
-              {stats.skipped ? "다시 준비 목록에 넣기" : "우리는 이건 안 해요"}
-            </Text>
-          </Pressable>
+
 
           {groups.map((group) => {
             const groupDone = group.items.filter((item) => item.done).length;
@@ -166,13 +181,21 @@ export default function CategoryChecklistSheet({
                     ? labelWithoutConditionSuffix(item.label)
                     : item.label;
 
+                  const chip = chipItemIds.has(item.id)
+                    ? checklistNoteSourceChip(item.id, guide?.slug)
+                    : undefined;
+
                   return (
-                    <Pressable
+                    // 근거 칩은 항목 버튼 **밖 형제**다. 이름을 가진 `Pressable` 안에
+                    // 또 `Pressable` 을 넣으면 스크린리더가 안쪽을 못 누른다
+                    // (`screenReaderCanReach.test.mjs` 가 잡는다). 웹 모달도 같은 이유로
+                    // 링크를 체크박스 밖에 둔다.
+                    <View
                       key={item.id}
-                      style={[
-                        s.itemRow,
-                        index === group.items.length - 1 ? s.itemRowLast : null,
-                      ]}
+                      style={index === group.items.length - 1 ? s.itemRowLast : s.itemBlock}
+                    >
+                    <Pressable
+                      style={s.itemRow}
                       onPress={() => onToggleItem(item.id, item.done)}
                       disabled={stats.skipped}
                       accessibilityRole="checkbox"
@@ -187,13 +210,18 @@ export default function CategoryChecklistSheet({
                         아직인 것. 가운데 것이 없으면 열 줄이 전부 똑같아 보여
                         어디부터 손대야 할지가 화면에 없다.
                       */}
+                      {/*
+                        시안의 동그라미는 **채워진 원반 + 흰 체크**다. lucide 의
+                        `CheckCircle2` 는 고리가 끊겨 있고 체크가 밖으로 나와 다른
+                        모양이 된다. 그래서 View 로 직접 그린다 — 지름도 정확히 22px 이
+                        되고, 「다음 할 일」의 연한 장미 채움도 여기서만 줄 수 있다.
+                      */}
                       {item.done ? (
-                        <CheckCircle2 size={22} color={colors.sage[500]} />
+                        <View style={[s.mark, s.markDone]}>
+                          <Check size={13} color="#FFFFFF" strokeWidth={2.4} />
+                        </View>
                       ) : (
-                        <Circle
-                          size={22}
-                          color={isNext ? colors.rose[500] : colors.taupe[400]}
-                        />
+                        <View style={[s.mark, isNext ? s.markNext : s.markTodo]} />
                       )}
                       <View style={s.itemTextColumn}>
                         <View style={s.itemTopRow}>
@@ -215,18 +243,48 @@ export default function CategoryChecklistSheet({
                         {item.note ? (
                           <Text style={s.itemNote}>{item.note}</Text>
                         ) : null}
+
                       </View>
                     </Pressable>
+                    {chip ? (
+                      <Pressable
+                        style={s.sourceChip}
+                        onPress={() => onOpenSource(chip.path)}
+                        accessibilityRole="link"
+                        accessibilityLabel={chip.label}
+                      >
+                        <BookOpen size={12} color={colors.paper.pen} />
+                        <Text style={s.sourceChipText}>{chip.label}</Text>
+                      </Pressable>
+                    ) : null}
+                    </View>
                   );
                 })}
               </View>
             );
           })}
+
+          {/*
+            「우리는 이건 안 해요」 — 시안 여덟 장에 없는 줄이라 **맨 끝으로** 내렸다.
+            본문 첫 줄에 있으면 시트를 열었을 때 「01 · …」 그룹이 54px 밀린다.
+            기능은 지울 수 없다(안 하는 분야를 못 끄면 진행률에 영구 미완료로 남는다).
+          */}
+          <Pressable
+            style={s.skipRow}
+            onPress={onToggleApplicability}
+            accessibilityRole="button"
+            accessibilityLabel={stats.skipped ? `${label} 다시 준비 목록에 넣기` : `${label} 준비 목록에서 제외하기`}
+          >
+            <Ban size={18} color={colors.textTertiary} />
+            <Text style={s.skipText}>
+              {stats.skipped ? "다시 준비 목록에 넣기" : "우리는 이건 안 해요"}
+            </Text>
+          </Pressable>
         </ScrollView>
 
         <View style={s.foot}>
           <View style={s.tipRow}>
-            <Lightbulb size={15} color={colors.gold.DEFAULT} />
+            <Sparkle size={15} color={colors.gold.DEFAULT} strokeWidth={1.7} />
             <Text style={s.tipText}>{tip}</Text>
           </View>
           {guide ? (
@@ -236,9 +294,8 @@ export default function CategoryChecklistSheet({
               accessibilityRole="link"
               accessibilityLabel={`${guide.title} 보기`}
             >
-              <BookOpen size={15} color={colors.textTertiary} />
+              <BookOpen size={15} color={colors.paper.ink} />
               <Text style={s.guideText}>{guide.title} 보기</Text>
-              <ChevronRight size={16} color={colors.textTertiary} />
             </Pressable>
           ) : null}
         </View>
@@ -258,6 +315,12 @@ const s = StyleSheet.create({
     backgroundColor: colors.surface,
     borderTopLeftRadius: 22,
     borderTopRightRadius: 22,
+    // 시안의 위쪽 그림자 — 시트가 목록 위에 떠 있다는 신호다.
+    shadowColor: "rgba(38,37,31,0.22)",
+    shadowOffset: { width: 0, height: -14 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 12,
   },
   handle: {
     width: 38,
@@ -279,13 +342,13 @@ const s = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   headText: { flex: 1, minWidth: 0 },
-  title: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  title: { fontSize: 17, lineHeight: 22, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.ink },
   metaRow: { flexDirection: "row", alignItems: "center", gap: 7, marginTop: 3 },
   statusChip: {
     fontSize: 10.5,
     fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.textSecondary,
-    backgroundColor: colors.ivory[200],
+    color: colors.paper.inkSoft,
+    backgroundColor: colors.surfaceLow,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 100,
@@ -294,14 +357,14 @@ const s = StyleSheet.create({
   meta: { fontSize: 11.5, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
 
   body: { flex: 1 },
-  bodyContent: { paddingHorizontal: 20, paddingBottom: 20 },
+  bodyContent: { paddingHorizontal: 20, paddingTop: 4, paddingBottom: 20 },
 
   skipRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
     minHeight: 44,
-    marginTop: 10,
+    marginTop: 24,
     paddingHorizontal: 12,
     borderWidth: 1,
     borderColor: colors.border,
@@ -316,29 +379,63 @@ const s = StyleSheet.create({
     justifyContent: "space-between",
     paddingVertical: 5,
   },
-  groupTitle: { fontSize: 11.5, fontFamily: "NotoSansKR_600SemiBold", color: colors.rose[600] },
+  groupTitle: { fontSize: 11.5, fontFamily: "NotoSansKR_700Bold", color: colors.rose[600] },
   groupCount: { fontSize: 11, fontFamily: "NotoSansKR_400Regular", color: colors.textTertiary },
 
+  itemBlock: { borderBottomWidth: 1, borderBottomColor: "#E5DDC9" },
+  itemRowLast: { borderBottomWidth: 0 },
   itemRow: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: 11,
+    paddingHorizontal: 2,
     paddingVertical: 13,
     minHeight: 44,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
   },
-  itemRowLast: { borderBottomWidth: 0 },
+  mark: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    marginTop: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  markDone: { backgroundColor: colors.sage[500] },
+  markNext: { borderWidth: 1.8, borderColor: colors.rose[500], backgroundColor: colors.rose.pale },
+  markTodo: { borderWidth: 1.8, borderColor: "#E5DDC9" },
   itemTextColumn: { flex: 1, minWidth: 0 },
   itemTopRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7 },
   itemLabel: {
     fontSize: 14,
     lineHeight: 20,
-    fontFamily: "NotoSansKR_400Regular",
-    color: colors.noir[800],
+    fontFamily: "NotoSansKR_500Medium",
+    color: colors.paper.ink,
   },
   itemNext: { fontFamily: "NotoSansKR_600SemiBold" },
-  itemDone: { color: colors.textTertiary, textDecorationLine: "line-through" },
+  itemDone: {
+    color: colors.textTertiary,
+    textDecorationLine: "line-through",
+    // iOS 만 이 색을 쓴다. 안드로이드는 글자색으로 긋는다 — RN 의 한계다.
+    textDecorationColor: "#E5DDC9",
+  },
+  sourceChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    marginLeft: 33,
+    marginTop: -4,
+    marginBottom: 12,
+    minHeight: 38,
+    paddingHorizontal: 13,
+    borderRadius: 100,
+    backgroundColor: colors.ivory.warm,
+  },
+  sourceChipText: {
+    fontSize: 11.5,
+    fontFamily: "NotoSansKR_400Regular",
+    color: colors.paper.pen,
+  },
   itemNote: {
     marginTop: 6,
     fontSize: 12.5,
@@ -361,7 +458,7 @@ const s = StyleSheet.create({
     fontSize: 12,
     lineHeight: 19,
     fontFamily: "NotoSansKR_400Regular",
-    color: colors.textSecondary,
+    color: colors.paper.inkSoft,
   },
   guide: {
     flexDirection: "row",
@@ -374,5 +471,5 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surface,
   },
-  guideText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
+  guideText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.paper.ink },
 });
