@@ -567,7 +567,9 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         priority: {
           type: "string",
           enum: ["high", "medium", "low"],
-          description: "중요도. 계약/마감/추가금 위험은 high, 일반 확인은 medium, 참고는 low",
+          // 2026-09-04: "계약 위험" 은 등급 판정 도구가 사라진 뒤에도 남아 있던 말이다.
+          // 카드의 빨간 "중요" 배지가 계약 등급처럼 읽혔다.
+          description: "중요도. 마감이 가깝거나 놓치면 비용이 드는 것은 high, 일반 확인은 medium, 참고는 low",
         },
         source: {
           type: "string",
