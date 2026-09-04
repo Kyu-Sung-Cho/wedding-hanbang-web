@@ -282,3 +282,28 @@ describe("할 일 카드의 링크 (2026-09-04 스테이징 Q16)", () => {
     expect(result.pendingAction?.input.href).toBe("/wedding/community/quote-check");
   });
 });
+
+describe("배분표를 예산에 반영하라는 말 (2026-09-04 22턴 회상 실측, 팀원 8/24 대본)", () => {
+  it("정본 예산 쓰기로 W0 이고 apply_budget_plan 이 붙는다", () => {
+    for (const userText of [
+      "앞에서 만든 3500만원 배분표 그대로 실제 예산에 반영해줘",
+      "아까 짜준 예산안 그대로 적용해줘",
+      "그 배분안 예산에 저장해줘",
+    ]) {
+      const classification = classifyAmoraQuestionScope({ userText });
+      expect(classification.scope, userText).toBe("W0_wedding_core");
+      const selected = selectAmoraTools({
+        availableTools: BETA_SAFE_TOOLS,
+        userText,
+        specialistType: "general",
+      } as never) as { name: string }[];
+      expect(selected.map((tool) => tool.name), userText).toContain("apply_budget_plan");
+    }
+  });
+
+  it("회사·부서 예산안은 여전히 결혼 밖", () => {
+    for (const userText of ["회사 예산안 그대로 반영해줘", "부서 배분표 적용해줘", "프로젝트 예산표 저장해줘"]) {
+      expect(classifyAmoraQuestionScope({ userText }).scope, userText).not.toBe("W0_wedding_core");
+    }
+  });
+});
