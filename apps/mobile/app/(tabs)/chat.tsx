@@ -71,6 +71,11 @@ import {
   type ChatScope,
 } from "@/lib/chatPrivacyScope";
 import { PlaceCards } from "@/components/chat/PlaceCards";
+import { ToolResultCard } from "@/components/chat/ToolResultCard";
+import {
+  dedupeToolResultCards,
+  getToolResultCardModel,
+} from "@/components/chat/toolResultCardModel";
 import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 
@@ -524,10 +529,29 @@ type ChatStreamUpdateCallback = (
 /**
  * 이 앱이 카드로 그릴 수 있는 도구.
  *
- * 지금은 장소 검색 하나뿐이다(`PlaceCards`). 카드를 새로 만들면 여기에 더한다 —
- * 더하지 않으면 서버가 계속 글로 답하게 두므로 사용자는 답을 받는다.
+ * 장소 검색(`PlaceCards`)과, 2026-09-04 부터 예산·일정·체크리스트·할 일 변경의 결과
+ * (`ToolResultCard`). 카드를 새로 만들면 여기에 더한다 — 더하지 않으면 서버가 계속
+ * 글로 답하게 두므로 사용자는 답을 받는다.
  */
-const MOBILE_RENDERED_TOOLS = ["search_nearby_places"] as const;
+// 펼침(spread) 없이 이름을 그대로 적는다 — chatStream.test.mjs 가 이 줄을 소스에서 리터럴로
+// 뽑아 평가한다. 모델(`TOOL_RESULT_CARD_TOOLS`)과 같은지는 toolResultCard.test.mjs 가 잰다.
+const MOBILE_RENDERED_TOOLS = [
+  "search_nearby_places",
+  "update_budget",
+  "update_category_budget",
+  "add_custom_category",
+  "apply_budget_plan",
+  "update_wedding_date",
+  "update_venue",
+  "update_task_status",
+  "toggle_checklist_item",
+  "add_schedule_event",
+  "update_schedule_event",
+  "cancel_schedule_event",
+  "restore_schedule_event",
+  "add_amora_action",
+  "log_wedding_event",
+] as const;
 
 class ChatTransportError extends Error {
   constructor(
@@ -3699,6 +3723,32 @@ export default function ChatScreen() {
     );
     const placeResults = livePlaceResults.length > 0 ? livePlaceResults : allPlaceResults;
     const hasPlaceResults = placeResults.length > 0;
+    // 2026-09-04: 반영 결과 영수증. 카드로 못 그리는 도구는 모델이 null 을 주고,
+    // 같은 실패가 여러 번 온 턴은 한 장으로 접는다.
+    // 그리는 도구를 이름으로 걸러낸다(renderedToolsAreDeclared.test.mjs 가 선언 목록과 대조).
+    const toolResultCards = isAi
+      ? dedupeToolResultCards(
+          (item.metadata?.toolResults ?? [])
+            .filter((result) => (
+              result.toolName === "update_budget"
+              || result.toolName === "update_category_budget"
+              || result.toolName === "add_custom_category"
+              || result.toolName === "apply_budget_plan"
+              || result.toolName === "update_wedding_date"
+              || result.toolName === "update_venue"
+              || result.toolName === "update_task_status"
+              || result.toolName === "toggle_checklist_item"
+              || result.toolName === "add_schedule_event"
+              || result.toolName === "update_schedule_event"
+              || result.toolName === "cancel_schedule_event"
+              || result.toolName === "restore_schedule_event"
+              || result.toolName === "add_amora_action"
+              || result.toolName === "log_wedding_event"
+            ))
+            .map((result) => getToolResultCardModel(result))
+            .filter((model): model is NonNullable<typeof model> => model !== null),
+        )
+      : [];
     const isThinking = isAi && item.id.startsWith("temp_") && !item.content && !hasPlaceResults && streaming;
     // 근거 표식은 아모라만 붙인다. 사용자가 대괄호를 직접 쓴 것을 지우면 안 되므로
     // 사람이 쓴 메시지는 손대지 않는다.
@@ -3849,6 +3899,9 @@ export default function ChatScreen() {
           )}
           {placeResults.map((result, index) => (
             <PlaceCards key={`${result.toolName}-${index}`} result={result} />
+          ))}
+          {toolResultCards.map((model, index) => (
+            <ToolResultCard key={`${model.toolName}-${index}`} model={model} />
           ))}
           {mediationBlock && (
             <AmoraMediationCard
