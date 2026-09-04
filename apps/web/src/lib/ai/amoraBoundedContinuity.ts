@@ -100,10 +100,56 @@ export type AmoraBoundedContinuityRow = {
   metadata: {
     target?: string;
     in_reply_to_user_message_id?: unknown;
+    /** 라우트가 저장하는 도구 결과(장소 검색은 이름 없이 검색어·건수만 남는다). */
+    toolResults?: unknown;
   } | null;
   visibility: "shared" | "bride_private" | "groom_private";
   segment_id?: string | null;
 };
+
+/**
+ * 직전 답변이 **카드로만** 보여준 것을 한 줄로 되살린다.
+ *
+ * 2026-09-04 실측(팀원 2차 T9 재현): "부산 해운대 상견례 한정식 3곳 찾아줘" → 카드 5장.
+ * 다음 턴 "방금 찾은 곳들 광고야 일반 검색이야?" 는 결혼 낱말이 없어 연결 문맥으로
+ * 갔는데, 연결 문맥은 직전 답변의 **산문만** 싣고 장소는 카드(도구 결과)에만 있어서
+ * 모델이 "방금 답변에는 실제 검색 결과가 제시되지 않았어요… 찾은 것처럼 말한 점이
+ * 잘못됐어요" 라고 **자기가 한 검색을 부인**했다. 사용자 눈앞에 카드 5장이 있는데.
+ *
+ * 그래서 저장된 도구 결과 가운데 검색·시세처럼 카드로만 보인 것을 한 줄 요약으로
+ * 산문 뒤에 붙인다. 장소 이름은 저장되지 않으니(placeholder) 검색어·건수·출처만
+ * 말한다 — 지어낼 것이 없다. 도구 권한(capabilities)은 여전히 none 이다.
+ */
+const CARD_ONLY_TOOL_SUMMARY_MAX_CHARS = 240;
+
+export function summarizeCardOnlyToolResults(toolResults: unknown): string | null {
+  if (!Array.isArray(toolResults)) return null;
+  const lines: string[] = [];
+  for (const entry of toolResults) {
+    if (!entry || typeof entry !== "object") continue;
+    const row = entry as { toolName?: unknown; success?: unknown; toolOutput?: unknown };
+    if (row.success !== true || typeof row.toolName !== "string") continue;
+    const out = (row.toolOutput && typeof row.toolOutput === "object")
+      ? row.toolOutput as Record<string, unknown>
+      : {};
+    if (row.toolName === "search_nearby_places") {
+      const query = typeof out.query === "string" ? out.query.trim() : "";
+      const count = typeof out.resultCount === "number" ? out.resultCount : null;
+      if (!query || count === null) continue;
+      lines.push(
+        `직전 답변에서 '${query}' 로 네이버 지역검색 ${count}곳을 카드로 보여줬어요`
+        + "(일반 검색 결과, 광고·제휴 아님; 수용 인원·가격은 카드에 없어 업체 확인 필요;"
+        + " 카드는 저장되지 않아 이름은 다시 검색해야 해요).",
+      );
+    } else if (row.toolName === "get_market_price") {
+      lines.push("직전 답변에서 공시 시세(한국소비자원 참가격)를 카드로 보여줬어요.");
+    }
+  }
+  if (lines.length === 0) return null;
+  return Array.from(`[카드 요약] ${lines.join(" ")}`)
+    .slice(0, CARD_ONLY_TOOL_SUMMARY_MAX_CHARS)
+    .join("");
+}
 
 export type AmoraBoundedContinuityMessage = {
   role: "user" | "assistant";
@@ -295,10 +341,11 @@ export function buildAmoraBoundedContinuity(
       },
       {
         role: "assistant",
-        content: boundFromStart(
-          assistant.content,
-          AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS,
-        ),
+        content: [
+          boundFromStart(assistant.content, AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS),
+          summarizeCardOnlyToolResults(assistant.metadata?.toolResults),
+        ].filter((part): part is string => typeof part === "string" && part.length > 0)
+          .join("\n\n"),
       },
       { role: "user", content: current.content },
     ],

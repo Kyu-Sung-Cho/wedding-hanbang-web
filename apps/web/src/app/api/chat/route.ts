@@ -3842,6 +3842,20 @@ export async function POST(request: Request) {
           // 하드 실패의 원인 후보). 빈 문자열을 만들지 않게 하는 근본 수정은
           // `composeAmoraPersistenceTerminal` 쪽에 따로 있고, 이것은 그 뒤의 그물이다.
           // 원장 검증은 그대로 — 대체한 뒤의 문자열이 그대로 원장으로 간다.
+          if (
+            pendingExtraction.hadPendingActionTag
+            && pendingExtraction.pendingAction === null
+            && pendingExtraction.dropReason === undefined
+          ) {
+            // 진단만(서버 로그). 표식은 모델 출력이고 사용자 문장은 이미 본인 요청으로 DB 에 있다.
+            console.warn("[chat] pending action tag dropped", {
+              coupleId,
+              offeredTools: pendingOfferEnabled
+                ? pendingProposalTools.map((tool) => tool.name)
+                : [],
+              payloadHeads: pendingExtraction.droppedPayloadHeads ?? [],
+            });
+          }
           const persistenceSafeText = ensureNonEmptyTerminalText(
             persistenceClaimGuard.text,
           );
