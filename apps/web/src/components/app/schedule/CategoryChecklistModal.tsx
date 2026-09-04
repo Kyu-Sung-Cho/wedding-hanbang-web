@@ -31,6 +31,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { CHECKLIST_MAP } from "@/constants/checklists";
+import {
+  checklistItemTag,
+  groupChecklistItems,
+  labelWithoutConditionSuffix,
+  type ChecklistItemTag,
+} from "@hanbang/shared/constants";
 import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -76,6 +82,30 @@ const STATUS_LABELS: Record<string, string> = {
   not_started: "시작전",
   not_applicable: "해당 없음",
 };
+
+/**
+ * 항목 옆에 붙는 작은 표시. 세 가지뿐이고 **서로 달라 보여야 한다.**
+ *
+ * 시안은 셋에 같은 CSS 클래스(`must-tag`)를 썼지만 뜻은 갈린다 — 「다음 할 일」은
+ * 진행 상태고 나머지 둘은 항목의 성격이다. 그래서 진행 상태만 채운 장미색으로
+ * 두고, 성격 표시 둘은 연한 바탕에 글자색으로 구분한다.
+ *
+ * ⚠️ 「필수」는 사용자에게 **사실을 주장한다.** 붙는 자리는 데이터
+ * (`checklistGroups.ts` 의 `CHECKLIST_ITEM_TAGS`)가 정하고 172개 중 10개뿐이다.
+ * 여기서 조건을 만들어 더 붙이지 마라.
+ */
+function ItemTag({ kind }: { kind: ChecklistItemTag | "다음 할 일" }) {
+  const style = kind === "다음 할 일"
+    ? "bg-[var(--color-rose-500)] text-white"
+    : kind === "필수"
+      ? "bg-[var(--color-rose-pale)] text-[var(--color-rose-600)]"
+      : "bg-[var(--color-surface-low)] text-[var(--hb-text-muted)]";
+  return (
+    <span className={`flex-shrink-0 rounded-full px-2 py-[2px] text-[10px] font-bold ${style}`}>
+      {kind}
+    </span>
+  );
+}
 
 interface Props {
   categoryKey: string;
@@ -248,6 +278,26 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   // 이 폴백으로 19개 카테고리가 전부 안내를 갖게 됐다(이전에는 10개).
   const relatedGuide = guideLinkForCategory(categoryKey);
 
+  /**
+   * 항목을 단계로 묶는다. 묶는 규칙과 왜 정본 배열 순서와 다를 수 있는지는
+   * `packages/shared/src/constants/checklistGroups.ts` 머리말에 있다.
+   */
+  const groups = groupChecklistItems(categoryKey, checklist);
+
+  /**
+   * 「다음 할 일」이 붙는 항목 — **단계 순서로** 처음 만나는 미완료 항목 하나.
+   *
+   * `checklist` 배열이 아니라 `groups` 를 훑는 이유는 결혼식장 때문이다. 그 분야는
+   * 단계 순서와 배열 순서가 달라서, 배열에서 먼저 나오는 항목이 화면에서는 아래에
+   * 있을 수 있다. 그러면 표식이 목록 중간에 뜬금없이 앉는다.
+   *
+   * 분야를 껐으면 아무것도 가리키지 않는다 — 진행률에서 뺀 분야에 다음 할 일이
+   * 있다고 말하는 것은 앞뒤가 안 맞는다.
+   */
+  const nextItemId = isNotApplicable
+    ? undefined
+    : groups.flatMap((group) => group.items).find((item) => !item.done)?.id;
+
   return (
     <>
       {/* 오버레이 */}
@@ -268,18 +318,49 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         {/* 헤더 */}
         <div className="px-6 pt-6 pb-5">
           <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
-                <Icon className="w-5 h-5 text-[var(--hb-accent-hover)]" />
+            <div className="flex min-w-0 items-center gap-4">
+              {/*
+                진행률 고리. 예전에는 제목 아래 가로 막대와 「N% 달성」 한 줄이었는데,
+                시안은 그 둘을 제목 **왼쪽 고리 하나**로 합쳤다 — 머리에서 세로 두 줄이
+                줄어 항목이 그만큼 먼저 보인다.
+
+                고리는 `conic-gradient` 한 겹이다. 채운 각도는 360 × 비율이고, 가운데
+                흰 원이 도넛 구멍을 만든다. 분야를 껐으면(`not_applicable`) 비율을
+                0으로 그린다 — 진행률에서 빠져 있다는 말과 고리가 어긋나면 안 된다.
+
+                `role="progressbar"` 는 막대에서 여기로 **옮겨온 것**이다. 지우면
+                `CategoryChecklistModal.a11y.test.ts` 가 잡는다.
+              */}
+              <div
+                role="progressbar"
+                aria-label={`${template.label} 완료율`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={isNotApplicable ? 0 : percent}
+                className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-full"
+                style={{
+                  background: `conic-gradient(var(--color-rose-500) 0deg ${
+                    (isNotApplicable ? 0 : percent) * 3.6
+                  }deg, var(--color-surface-low) ${
+                    (isNotApplicable ? 0 : percent) * 3.6
+                  }deg 360deg)`,
+                }}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[12px] font-bold text-[var(--hb-text-strong)] tabular-nums">
+                  {isNotApplicable ? "—" : `${percent}%`}
+                </span>
               </div>
-              <div>
-                <h3 id={titleId} className="text-2xl font-semibold text-[var(--hb-text-strong)]">{template.label}</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className={`text-sm px-2 py-0.5 rounded-full text-white font-medium ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
+              <div className="min-w-0">
+                <h3 id={titleId} className="flex items-center gap-2 text-[19px] font-semibold text-[var(--hb-text-strong)]">
+                  <Icon className="h-[18px] w-[18px] flex-shrink-0 text-[var(--hb-text-muted)]" aria-hidden="true" />
+                  <span className="min-w-0 truncate">{template.label}</span>
+                </h3>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--hb-text-muted)]">
+                  <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold text-white ${STATUS_COLORS[isNotApplicable ? "not_applicable" : status]}`}>
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
-                  <span className="text-sm text-[var(--hb-text-muted)]">
-                    {isNotApplicable ? "진행률에서 제외됨" : `${done}/${total} 완료`}
+                  <span>
+                    {isNotApplicable ? "진행률에서 제외됨" : `${done}/${total} 완료 · ${percent}%`}
                   </span>
                 </div>
               </div>
@@ -294,22 +375,6 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               <X className="w-4 h-4" />
             </button>
           </div>
-
-          {/* 진행률 바 */}
-          <div
-            className="w-full h-2 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden"
-            role="progressbar"
-            aria-label={`${template.label} 완료율`}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={isNotApplicable ? 0 : percent}
-          >
-            <div
-              className="h-full bg-gradient-to-r from-[#795252] to-[#946a6a] rounded-full transition-all duration-500"
-              style={{ width: `${percent}%` }}
-            />
-          </div>
-          <p className="text-sm text-[var(--hb-text-muted)] mt-1.5 text-right">{percent}% 달성</p>
 
           {/* 가족·지역마다 하는 항목이 달라서, 안 하는 건 안 한다고 말할 수 있어야 한다. */}
           <button
@@ -337,51 +402,111 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         </div>
 
         {/* 체크리스트 */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#FAFAF8]">
-          <div className="flex flex-col gap-1">
-            {checklist.map((item) => (
-              // 근거 링크는 체크박스 **밖**에 둔다. 버튼 안에 링크를 넣으면 잘못된
-              // 마크업이고, 누를 때 무엇이 실행될지도 애매해진다.
-              <div key={item.id} className="flex flex-col">
-              <button
-                type="button"
-                role="checkbox"
-                aria-checked={item.done}
-                aria-labelledby={`${titleId}-${item.id}-label`}
-                aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
-                disabled={saving || isNotApplicable}
-                onClick={() => toggleItem(item.id)}
-                className="flex w-full items-center gap-3 rounded-[6px] bg-white px-3 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55 group"
-              >
-                <div className="flex-shrink-0">
-                  {item.done ? (
-                    <div className="w-6 h-6 rounded-full bg-[var(--hb-primary)] flex items-center justify-center">
-                      <Check className="w-4 h-4 text-white" />
-                    </div>
-                  ) : (
-                    <div className="w-6 h-6 rounded-full border-2 border-[#B5ADA3] group-hover:border-[var(--hb-hairline)] transition-colors" />
-                  )}
-                </div>
+        <div className="flex-1 overflow-y-auto bg-white px-6 py-2">
+          {groups.map((group) => {
+            const groupDone = group.items.filter((item) => item.done).length;
+            return (
+              <section key={group.title || "all"} className="mt-4 first:mt-2">
                 {/*
-                  항목이 무엇을 할지(label)와 그 일에서 놓치기 쉬운 것(note)을 함께 보인다.
-                  note가 없는 항목이 대부분이라 있을 때만 그린다 — 빈 줄을 만들지 않는다.
-                  완료한 항목에서도 note는 지우지 않는다. 체크를 되돌릴지 판단할 때 필요하다.
+                  단계 머리. 「01 · 예약 전에」와 그 단계의 개수만 있다.
 
-                  note를 체크박스 이름에 섞으면 스크린 리더가 항목마다 두 문장을 읽는다.
-                  이름은 label로 못박고 note는 설명(aria-describedby)으로 넘긴다.
+                  이름이 빈 분야는 머리를 아예 안 그린다 — `groupChecklistItems` 가
+                  단계 정의가 없을 때 이름 없는 한 덩어리를 돌려준다. 그때 빈 줄이
+                  생기면 그 분야만 위가 벌어진 것처럼 보인다.
                 */}
-                <ChecklistItemText
-                  item={item}
-                  idPrefix={`${titleId}-${item.id}`}
-                  labelClassName={`text-[17px] leading-snug ${
-                    item.done ? "text-[var(--hb-text-muted)] line-through" : "text-[var(--hb-text-body)]"
-                  }`}
-                />
-              </button>
-              <ChecklistItemSource itemId={item.id} />
-              </div>
-            ))}
-          </div>
+                {group.title ? (
+                  <div className="flex items-center justify-between py-1.5">
+                    <h4 className="text-[12.5px] font-bold tracking-[0.02em] text-[var(--color-rose-600)]">
+                      {group.title}
+                    </h4>
+                    <span className="text-[11.5px] text-[var(--hb-text-muted)] tabular-nums">
+                      {groupDone}/{group.items.length}
+                    </span>
+                  </div>
+                ) : null}
+
+                {group.items.map((item, index) => {
+                  const tag = checklistItemTag(item.id);
+                  const isNext = item.id === nextItemId;
+                  // 「해당 시」 표시가 붙는 항목은 라벨 끝의 `(해당하는 경우)` 를 뗀다.
+                  // 표시가 그 말을 대신하므로 두면 같은 말이 두 번 보인다. **표시할
+                  // 때만** 자르고 정본 라벨은 건드리지 않는다.
+                  const shown = tag === "해당 시"
+                    ? { ...item, label: labelWithoutConditionSuffix(item.label) }
+                    : item;
+
+                  return (
+                    // 근거 링크는 체크박스 **밖**에 둔다. 버튼 안에 링크를 넣으면 잘못된
+                    // 마크업이고, 누를 때 무엇이 실행될지도 애매해진다.
+                    <div
+                      key={item.id}
+                      className={`flex flex-col ${
+                        index === group.items.length - 1
+                          ? ""
+                          : "border-b border-[var(--hb-hairline)]"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={item.done}
+                        aria-labelledby={`${titleId}-${item.id}-label`}
+                        aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
+                        disabled={saving || isNotApplicable}
+                        onClick={() => toggleItem(item.id)}
+                        className="group flex w-full items-start gap-3 rounded-[6px] px-1 py-3 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55"
+                      >
+                        {/*
+                          동그라미 셋이 서로 다른 말을 한다 — 끝난 것(초록·체크),
+                          다음에 할 것(장미 테두리·연한 바탕), 아직인 것(가는 테두리).
+                          가운데 것이 없으면 스무 줄이 전부 똑같아 보여 어디부터
+                          손대야 할지가 화면에 없다.
+                        */}
+                        <span className="mt-0.5 flex-shrink-0">
+                          {item.done ? (
+                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-sage-500)]">
+                              <Check className="h-3 w-3 text-white" strokeWidth={3} />
+                            </span>
+                          ) : (
+                            <span
+                              className={`block h-5 w-5 rounded-full border-[1.8px] transition-colors ${
+                                isNext
+                                  ? "border-[var(--color-rose-500)] bg-[var(--color-rose-pale)]"
+                                  : "border-[var(--hb-hairline)] group-hover:border-[var(--hb-text-muted)]"
+                              }`}
+                            />
+                          )}
+                        </span>
+                        {/*
+                          항목이 무엇을 할지(label)와 그 일에서 놓치기 쉬운 것(note)을 함께 보인다.
+                          note가 없는 항목이 대부분이라 있을 때만 그린다 — 빈 줄을 만들지 않는다.
+                          완료한 항목에서도 note는 지우지 않는다. 체크를 되돌릴지 판단할 때 필요하다.
+
+                          note를 체크박스 이름에 섞으면 스크린 리더가 항목마다 두 문장을 읽는다.
+                          이름은 label로 못박고 note는 설명(aria-describedby)으로 넘긴다.
+                        */}
+                        <ChecklistItemText
+                          item={shown}
+                          idPrefix={`${titleId}-${item.id}`}
+                          labelClassName={`text-[15px] leading-snug ${
+                            item.done
+                              ? "text-[var(--hb-text-muted)] line-through decoration-[var(--hb-hairline)]"
+                              : isNext
+                                ? "font-semibold text-[var(--hb-text-strong)]"
+                                : "text-[var(--hb-text-body)]"
+                          }`}
+                          labelSuffix={
+                            isNext ? <ItemTag kind="다음 할 일" /> : tag ? <ItemTag kind={tag} /> : undefined
+                          }
+                        />
+                      </button>
+                      <ChecklistItemSource itemId={item.id} indentClassName="ml-8" />
+                    </div>
+                  );
+                })}
+              </section>
+            );
+          })}
         </div>
 
         {/* 팁 */}
@@ -399,30 +524,38 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
               {notice}
             </p>
           )}
-          <div className="flex items-start gap-2.5">
-            <Lightbulb className="w-5 h-5 text-[var(--hb-accent-hover)] flex-shrink-0 mt-0.5" />
-            <p className="text-base text-[var(--hb-text-body)] font-light leading-relaxed">
-              {template.tip}
-            </p>
-          </div>
+          {/*
+            팁과 예절 링크가 나란히 선다. 예전에는 세로로 쌓여 바닥이 화면의 3분의 1을
+            먹었고, 그만큼 항목이 밀려 스크롤이 늘었다. 좁은 화면에서는 다시 쌓인다.
 
-          <Link
-            {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
-            className="mt-3 flex items-center gap-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-3 transition-colors bg-[#f3e9df] group"
-          >
-            <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)]">
-              <BookOpen className="h-4 w-4 text-white" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-base font-semibold text-[var(--hb-text-strong)]">
-                {relatedGuide ? relatedGuide.title : "아모라에게 물어보기"}
-              </p>
-              <p className="text-sm text-[var(--hb-text-muted)]">
-                {relatedGuide ? "관련 예절 가이드를 읽고 준비 기준 맞추기" : "우리 상황에 맞는 준비 순서 정리하기"}
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[var(--hb-accent-hover)]" />
-          </Link>
+            링크의 부제 두 줄을 뺐다 — 제목이 「첫인사 예절 보기」처럼 이미 무엇을 여는지
+            말하고 있어서, 그 아래 설명은 같은 말을 길게 반복하는 자리였다.
+          */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <p className="flex items-start gap-2.5 text-[12.5px] leading-[1.6] text-[var(--hb-text-body)]">
+              <Lightbulb className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" />
+              <span>{template.tip}</span>
+            </p>
+
+            <Link
+              {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
+              className="group flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[var(--hb-hairline)] bg-white px-3.5 py-2.5 text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+            >
+              <BookOpen className="h-[15px] w-[15px] flex-shrink-0 text-[var(--hb-text-muted)]" aria-hidden="true" />
+              {/*
+                시안의 버튼 글자는 「첫인사 예절 보기」·「본식 당일 예절 보기」처럼
+                편 제목 뒤에 `보기` 가 붙는다. 편 제목 25개를 대조해 보니 네 시안이
+                가리키는 편의 제목 + ` 보기` 가 시안 문구와 글자까지 같다.
+
+                폴백(`아모라에게 물어보기`)에는 안 붙인다 — 이미 `보기` 로 끝나서
+                「…물어보기 보기」 가 된다.
+              */}
+              <span className="truncate">
+                {relatedGuide ? `${relatedGuide.title} 보기` : "아모라에게 물어보기"}
+              </span>
+              <ChevronRight className="h-4 w-4 flex-shrink-0 text-[var(--hb-text-muted)] transition-colors group-hover:text-[var(--hb-accent-hover)]" />
+            </Link>
+          </div>
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>
       </div>
