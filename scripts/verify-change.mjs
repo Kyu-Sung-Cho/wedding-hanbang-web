@@ -229,8 +229,19 @@ if (newTests.length) {
 
 // ── 4) 관문 실행 — 범위는 위에서 기계적으로 정해졌다 ────────────────
 console.log(`\n[verify] 관문 실행`);
+// ⚠️ lint 도 관문이다.
+//
+// 2026-09-04 에 이 게이트가 "통과 — 이제 완료라고 말해도 된다" 를 냈는데
+// `git push` 가 막혔다. pre-push 훅은 turbo 로 `typecheck lint test` 를 도는데
+// 여기에는 lint 가 아예 없었다. 실제로 막은 것은 `react-hooks/immutability`
+// (렌더 중 바깥 변수 재할당) — 타입도 테스트도 잡지 못하는 종류다.
+//
+// **이 파일이 pre-push 보다 느슨하면 "통과" 가 거짓말이 된다.** 사람은 이 판정을
+// 보고 완료라고 말하는데 push 가 안 된다. `lint` 스크립트가 있는 패키지는
+// `apps/web` 과 `apps/mobile` 둘뿐이라 그 둘만 건다(`packages/*` 에는 없다).
 if (touched.web) {
   results.typecheckWeb = run("typecheck-web", "npx", ["tsc", "--noEmit", "-p", "apps/web/tsconfig.json"], ROOT);
+  results.lintWeb = run("lint-web", "npx", ["pnpm", "run", "lint"], join(ROOT, "apps", "web"));
   // **전체를 돈다.** 바뀐 파일 근처만 고르면 오늘 같은 일이 또 난다.
   results.testWeb = run("test-web", "npx", ["vitest", "run"], join(ROOT, "apps", "web"));
 }
@@ -240,6 +251,7 @@ if (touched.web) {
 // 들어온 이래 계속 그랬다). 게이트가 거짓으로 빨간불을 내면 사람이 게이트를 무시하게 된다.
 // 여기서 명령을 다시 적지 말고 **각 패키지의 `test` 스크립트**를 부른다.
 if (touched.mobile) {
+  results.lintMobile = run("lint-mobile", "npx", ["pnpm", "run", "lint"], join(ROOT, "apps", "mobile"));
   results.testMobile = run("test-mobile", "npx", ["pnpm", "run", "test"], join(ROOT, "apps", "mobile"));
 }
 if (touched.shared) {
