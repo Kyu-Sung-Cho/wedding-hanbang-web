@@ -1102,3 +1102,77 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .landing-gyp .ln   { stroke: var(--color-paper-gyp); stroke-width: 0.82; fill: none; }
 .landing-gyp .bud  { fill: rgba(251, 248, 242, 0.95); stroke: var(--color-paper-gyp); stroke-width: 0.82; }
 .landing-stem .ln  { stroke: var(--color-paper-stem); stroke-width: 1.02; fill: none; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * 예절 안내 — 역할 탭
+ *
+ * 2026-09-04 파운더 시안(`MannersAfter.dc.html`)의 `role-tabs` 다. 본식 당일 편은
+ * 13분짜리인데 하객이 볼 절은 넷뿐이라, 자기 몫만 골라 볼 길이 필요하다.
+ *
+ * ## 왜 CSS 로만 만드나
+ *
+ * 이 화면은 **서버 전용이고 클라이언트 JS 가 0이다**(`app/manners/layout.tsx`).
+ * `generateStaticParams` 로 미리 만들어 두는 정적 페이지이기도 해서 `?role=` 쿼리를
+ * 쓰면 라우트가 동적이 된다. 숨긴 라디오 + 형제 선택자면 둘 다 지킨다.
+ *
+ * 라디오는 **화면 밖으로 밀지 않는다**(`sr-only` 대신 `opacity:0` + 절대 배치).
+ * 화면 밖으로 밀면 탭을 고를 때 브라우저가 그리로 스크롤해 본문이 튄다.
+ *
+ * 「공통」 절은 어느 탭에서도 보인다.
+ * ───────────────────────────────────────────────────────────────────────── */
+.manners-roles input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.manners-roles label {
+  cursor: pointer;
+}
+
+/* 고른 탭만 채워진다. 시안 `.role-tab.on` */
+.manners-roles input[value="couple"]:checked ~ .manners-role-tabs label[for$="couple"],
+.manners-roles input[value="elders"]:checked ~ .manners-role-tabs label[for$="elders"],
+.manners-roles input[value="guest"]:checked ~ .manners-role-tabs label[for$="guest"],
+.manners-roles input[value="all"]:checked ~ .manners-role-tabs label[for$="all"] {
+  background: var(--color-paper-ink);
+  color: #fff;
+  border-color: var(--color-paper-ink);
+  font-weight: 600;
+}
+
+/* 고른 역할과 「공통」만 남긴다. */
+.manners-roles input[value="couple"]:checked ~ .manners-sections [data-role="양가 어른"],
+.manners-roles input[value="couple"]:checked ~ .manners-sections [data-role="하객"],
+.manners-roles input[value="elders"]:checked ~ .manners-sections [data-role="두 사람"],
+.manners-roles input[value="elders"]:checked ~ .manners-sections [data-role="하객"],
+.manners-roles input[value="guest"]:checked ~ .manners-sections [data-role="두 사람"],
+.manners-roles input[value="guest"]:checked ~ .manners-sections [data-role="양가 어른"] {
+  display: none;
+}
+
+/* 진행 점도 고른 역할의 것만 보인다. */
+.manners-roles .manners-dots > span { display: none; }
+.manners-roles input[value="all"]:checked ~ .manners-role-dots .manners-dots[data-for="all"] > span,
+.manners-roles input[value="couple"]:checked ~ .manners-role-dots .manners-dots[data-for="couple"] > span,
+.manners-roles input[value="elders"]:checked ~ .manners-role-dots .manners-dots[data-for="elders"] > span,
+.manners-roles input[value="guest"]:checked ~ .manners-role-dots .manners-dots[data-for="guest"] > span {
+  display: block;
+}
+
+.manners-roles .manners-dots { display: none; }
+.manners-roles input[value="all"]:checked ~ .manners-role-dots .manners-dots[data-for="all"],
+.manners-roles input[value="couple"]:checked ~ .manners-role-dots .manners-dots[data-for="couple"],
+.manners-roles input[value="elders"]:checked ~ .manners-role-dots .manners-dots[data-for="elders"],
+.manners-roles input[value="guest"]:checked ~ .manners-role-dots .manners-dots[data-for="guest"] {
+  display: flex;
+}
+
+/* 키보드로 탭을 옮길 때 무엇이 잡혔는지 보인다. */
+.manners-roles input[type="radio"]:focus-visible ~ .manners-role-tabs label[for$="all"],
+.manners-roles input[type="radio"]:focus-visible + .manners-role-tabs label {
+  outline: 2px solid var(--hb-focus-ring);
+  outline-offset: 2px;
+}

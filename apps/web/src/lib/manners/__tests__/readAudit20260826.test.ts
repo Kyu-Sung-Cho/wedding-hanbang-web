@@ -314,7 +314,16 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
       .toMatch(/\bborder\b/u);
     // 여백은 **값**으로 잰다. 2026-09-04 에 시안 값 18px 로 바꾸며 `space-y-4` 가
     // `space-y-[18px]` 이 됐는데, 옛 정규식은 `space-y-\d` 라 대괄호 표기를 못 읽었다.
-    const spacing = source.match(/className="mt-6 space-y-(\[?\d+(?:\.\d+)?(?:px\])?)/u);
+    //
+    // ⚠️ 클래스 **순서**에 묶지 마라. `className="mt-6 space-y-…"` 로 물었더니
+    // 역할 탭을 넣으며 `manners-sections` 가 앞에 붙는 순간 못 읽었다 — 여백은
+    // 멀쩡했는데도(2026-09-04, 이 파일에서 두 번째로 같은 실수다).
+    // 절을 감싼 줄을 먼저 집고, 그 안에서 값을 읽는다.
+    const wrapperLine = source
+      .split(String.fromCharCode(10))
+      .find((line) => line.includes("space-y-") && line.includes("mt-6"));
+    expect(wrapperLine, "절 컨테이너 줄을 못 찾았다").toBeTruthy();
+    const spacing = wrapperLine!.match(/space-y-(\[?\d+(?:\.\d+)?(?:px\])?)/u);
     expect(spacing, "절 컨테이너의 세로 리듬을 못 찾았다").toBeTruthy();
     const px = spacing![1].startsWith("[")
       ? Number(spacing![1].replace(/[^\d.]/gu, ""))
