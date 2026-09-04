@@ -8,7 +8,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, usePathname } from "expo-router";
 import {
-  ChevronRight, CheckCircle2, Circle,
+  CheckCircle2, Circle,
   Plus, X, CalendarDays, Clock, Ban, RotateCcw, AlertTriangle,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
@@ -1930,19 +1930,17 @@ export default function ScheduleScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catStat}>{stats.skipped ? "해당 없음 · 진행률에서 제외" : `${stats.done}/${stats.total} 완료`}</Text>
+                    <Text style={styles.catStat}>
+                      {stats.skipped
+                        ? "해당 없음 · 진행률에서 제외"
+                        : `${stats.done}/${stats.total} 완료 · ${
+                            stats.done === 0 ? "시작 전" : stats.done >= stats.total ? "완료" : "진행 중"
+                          }`}
+                    </Text>
                   </View>
-                  <View style={styles.catRight}>
-                    <Text style={styles.catPercent}>{stats.skipped ? "제외" : `${stats.percent}%`}</Text>
-                    <ChevronRight size={20} color={colors.textTertiary} />
-                  </View>
+
                 </Pressable>
 
-                {!stats.skipped && (
-                  <View style={styles.catBar}>
-                    <View style={[styles.catBarFill, { width: `${stats.percent}%` }]} />
-                  </View>
-                )}
 
               </View>
             );
@@ -2035,6 +2033,13 @@ export default function ScheduleScreen() {
           onOpenGuide={(slug) =>
             router.push(
               `/webview?url=${encodeURIComponent(`${SITE_URL}/wedding/manners/${slug}`)}`,
+            )
+          }
+          // 근거 칩이 주는 경로는 이미 `/manners/<slug>#section-N` 이라 앞에
+          // `/wedding` 만 붙인다. `/manners` 로 바로 가면 307 로 한 번 튄다.
+          onOpenSource={(path) =>
+            router.push(
+              `/webview?url=${encodeURIComponent(`${SITE_URL}/wedding${path}`)}`,
             )
           }
         />
@@ -2451,41 +2456,34 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 16, fontWeight: "600", color: colors.noir[800], marginBottom: 8 },
   emptyHint: { fontSize: 13, color: colors.textTertiary },
 
+  /**
+   * 분야 카드 — 시안(`ChecklistMobile.dc.html` 의 `.b-card`)은 **이름과 한 줄**뿐이다.
+   *
+   * 2026-09-04에 퍼센트 숫자·오른쪽 화살표·진행 막대 셋을 뺐다. 셋 다 이미 부제가
+   * 말하는 것(「3/9 완료 · 진행 중」)을 다른 모양으로 한 번 더 말하고 있었고,
+   * 카드가 두 배 높아 한 화면에 들어오는 분야 수가 줄었다.
+   *
+   * 그림자도 뺐다 — 시안 카드는 테두리 한 줄로 선다.
+   */
   catCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,
     borderWidth: 1,
-    borderRadius: 20,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 12,
-    elevation: 2,
+    borderRadius: 13,
+    padding: 15,
   },
   catHeader: { flexDirection: "row", alignItems: "center", minHeight: 44 },
   catLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: colors.noir[800],
-    fontFamily: "NotoSerifKR_500Medium",
+    fontSize: 14,
+    color: colors.paper.ink,
+    fontFamily: "NotoSansKR_600SemiBold",
   },
-  catStat: { fontSize: 12, color: colors.textTertiary, marginTop: 2 },
-  catRight: { flexDirection: "row", alignItems: "center", gap: 8 },
-  catPercent: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: colors.rose[500],
-    fontFamily: "CormorantGaramond_600SemiBold",
+  catStat: {
+    fontSize: 11.5,
+    color: colors.textTertiary,
+    marginTop: 5,
+    fontFamily: "NotoSansKR_400Regular",
   },
-  catBar: {
-    height: 4,
-    backgroundColor: colors.ivory[200],
-    borderRadius: 999,
-    marginTop: 12,
-    overflow: "hidden",
-  },
-  catBarFill: { height: "100%", backgroundColor: colors.rose[500], borderRadius: 999 },
 
   // 항목 줄의 스타일은 `src/components/checklist/CategoryChecklistSheet.tsx` 로 옮겼다.
   // 2026-09-04 에 분야를 펼치는 방식이 시트로 바뀌면서 그리는 자리가 그쪽이 됐다.

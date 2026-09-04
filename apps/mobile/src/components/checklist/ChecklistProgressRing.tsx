@@ -13,9 +13,9 @@ import { View, Text, StyleSheet } from "react-native";
 import Svg, { Circle, G } from "react-native-svg";
 import { colors } from "@hanbang/design-tokens";
 
-const SIZE = 52;
-const RADIUS = 21;
-const STROKE = 6;
+const SIZE = 46;
+const RADIUS = 20.5;
+const STROKE = 5;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 export default function ChecklistProgressRing({
@@ -48,7 +48,7 @@ export default function ChecklistProgressRing({
             cy={SIZE / 2}
             r={RADIUS}
             fill="none"
-            stroke={colors.ivory[200]}
+            stroke={colors.surfaceLow}
             strokeWidth={STROKE}
           />
           {filled > 0 ? (
@@ -59,7 +59,6 @@ export default function ChecklistProgressRing({
               fill="none"
               stroke={colors.rose[500]}
               strokeWidth={STROKE}
-              strokeLinecap="round"
               strokeDasharray={`${filled} ${CIRCUMFERENCE - filled}`}
             />
           ) : null}
@@ -74,8 +73,8 @@ const s = StyleSheet.create({
   wrap: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "center" },
   center: {
     position: "absolute",
-    fontSize: 12,
-    fontFamily: "NotoSansKR_600SemiBold",
-    color: colors.noir[800],
+    fontSize: 11,
+    fontFamily: "NotoSansKR_700Bold",
+    color: colors.paper.ink,
   },
 });

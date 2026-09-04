@@ -17,12 +17,10 @@ import { colors } from "@hanbang/design-tokens";
 import type { ChecklistItemTag as TagKind } from "@hanbang/shared/constants";
 
 export default function ChecklistItemTag({ kind }: { kind: TagKind | "다음 할 일" }) {
-  const tone = kind === "다음 할 일"
-    ? s.next
-    : kind === "필수"
-      ? s.required
-      : s.conditional;
-  const text = kind === "다음 할 일" ? s.nextText : kind === "필수" ? s.requiredText : s.conditionalText;
+  // 시안의 `.must` 는 「필수」와 「다음 할 일」이 같은 모양이다(연한 장미 바탕 +
+  // 진한 장미 글자). 「해당 시」만 베이지다.
+  const tone = kind === "해당 시" ? s.conditional : s.required;
+  const text = kind === "해당 시" ? s.conditionalText : s.requiredText;
   return <Text style={[s.base, tone, text]}>{kind}</Text>;
 }
 
@@ -31,14 +29,12 @@ const s = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 100,
-    fontSize: 10,
-    fontFamily: "NotoSansKR_600SemiBold",
+    fontSize: 9.5,
+    fontFamily: "NotoSansKR_700Bold",
     overflow: "hidden",
   },
-  next: { backgroundColor: colors.rose[500] },
-  nextText: { color: "#FFFFFF" },
   required: { backgroundColor: colors.rose.pale },
   requiredText: { color: colors.rose[600] },
-  conditional: { backgroundColor: colors.ivory[200] },
+  conditional: { backgroundColor: colors.surfaceLow },
   conditionalText: { color: colors.textTertiary },
 });
