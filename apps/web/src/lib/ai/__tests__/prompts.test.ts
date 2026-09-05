@@ -1417,3 +1417,20 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
     expect(prompt).toContain("확인하지 않은 ‘보통’, ‘대부분’, ‘필수’");
   });
 });
+
+describe("예산 프로토콜은 한 건 금액 요청에 발동하지 않는다 (2026-09-06 페르소나 실측)", () => {
+  it("총예산 0원 + 항목 예산 첫 설정을 발동 조건에서 뺐고, 한 건 요청은 표식으로 내라고 적는다", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+    expect(prompt).not.toContain("총 예산 0원이고 사용자가 카테고리 예산을 처음 설정");
+    expect(prompt).toContain("발동하지 않는 경우");
+    expect(prompt).toContain("'update_category_budget' 표식");
+    expect(prompt).toContain("'update_budget' 표식을 먼저");
+  });
+
+  it("혼인신고·첫인사 항목의 대화 불변은 체크리스트 완료 상태에 한정한다", () => {
+    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+    expect(prompt).toContain("체크리스트 완료 상태**만 대화로 바꿀 수 없습니다");
+    expect(prompt).toContain("일정 표식을 내세요");
+    expect(prompt).not.toContain("두 항목은 대화로 상태를 바꿀 수 없습니다");
+  });
+});
