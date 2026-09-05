@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  SERVER_OWNED_EMPTY_ANSWER_NOTICE,
   SERVER_OWNED_UNVERIFIED_NOTICE,
   composeAmoraPersistenceTerminal,
   isExplicitAmoraChangeRequest,
@@ -136,5 +137,52 @@ describe("변경을 요청한 문장만 요청으로 센다 (2026-09-04 팀원 2
     });
     expect(notRequested.text).not.toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
     expect(notRequested.text).toBe(neutral);
+  });
+});
+
+describe("읽기 턴과 되묻기 턴은 저장 안내를 받지 않는다 (2026-09-05 페르소나 실측)", () => {
+  const readReceipt = { toolName: "get_budget_summary", toolInput: {}, toolOutput: { categories: { dress: { allocated: 4500000 } } }, success: true, displayMessage: "" };
+
+  it("읽기 도구가 성공한 턴의 상태 서술('…으로 설정되어 있어요')은 지우지 않는다", () => {
+    const text = "드레스·예식 정장 예산은 현재 450만 원으로 설정되어 있어요.";
+    const result = composeAmoraPersistenceTerminal({
+      text, toolResults: [readReceipt as never], hasPendingAction: false,
+      persistenceMode: "durable", userRequestedChange: false,
+    });
+    expect(result.text).toBe(text);
+    expect(result.text).not.toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
+  });
+
+  it("읽기 영수증이 없으면 같은 문장은 여전히 검증되지 않은 주장으로 지운다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "드레스 예산은 450만 원으로 설정되어 있어요.", toolResults: [], hasPendingAction: false,
+      persistenceMode: "durable", userRequestedChange: false,
+    });
+    expect(result.text).not.toContain("450만 원으로 설정되어 있어요");
+  });
+
+  it("변경 요청 턴에서는 읽기 영수증이 있어도 실행 주장('변경했어요')은 지운다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "드레스 예산을 450만 원으로 변경했어요.", toolResults: [readReceipt as never], hasPendingAction: false,
+      persistenceMode: "durable", userRequestedChange: true,
+    });
+    expect(result.text).not.toContain("변경했어요");
+  });
+
+  it("되묻기로 끝난 답(물음표)에는 '다시 요청해주세요' 안내를 붙이지 않는다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "등록할게요. “다음 달 15일”은 2026년 10월 15일로 이해하면 될까요?",
+      toolResults: [], hasPendingAction: false, persistenceMode: "durable", userRequestedChange: true, droppedPendingActionTag: true,
+    });
+    expect(result.text).toContain("이해하면 될까요?");
+    expect(result.text).not.toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
+  });
+
+  it("변경을 요청하지 않은 턴의 빈 본문은 '반영되지 않았어요'가 아니라 중립 문장으로 남긴다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "예산이 저장되어 있어요.", toolResults: [], hasPendingAction: false,
+      persistenceMode: "durable", userRequestedChange: false,
+    });
+    expect(result.text).toBe(SERVER_OWNED_EMPTY_ANSWER_NOTICE);
   });
 });
