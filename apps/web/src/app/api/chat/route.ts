@@ -3854,6 +3854,8 @@ export async function POST(request: Request) {
                 ? pendingProposalTools.map((tool) => tool.name)
                 : [],
               payloadHeads: pendingExtraction.droppedPayloadHeads ?? [],
+              shapes: pendingExtraction.droppedShapes ?? [],
+              tailHead: pendingExtraction.droppedTailHead ?? null,
             });
           }
           const persistenceSafeText = ensureNonEmptyTerminalText(

@@ -564,3 +564,30 @@ describe("닫는 표식을 잊은 카드도 살린다 (2026-09-05 페르소나 �
     expect(result.hadPendingActionTag).toBe(true);
   });
 });
+
+describe("표식이 버려진 모양을 진단으로 남긴다 (2026-09-06 스테이징 rf1 R9)", () => {
+  it("여는 표식 뒤에 JSON 이 없으면 모양과 그 뒤 머리를 돌려준다", () => {
+    const result = extract("총예산을 잡을게요. [pending_action] 필요한 값을 확인해 주세요.");
+    expect(result.pendingAction).toBeNull();
+    expect(result.hadPendingActionTag).toBe(true);
+    expect(result.droppedShapes).toContain("open_tag_without_json");
+    expect(result.droppedTailHead).toBe("필요한 값을 확인해 주세요.");
+    expect(result.cleanText).toBe("총예산을 잡을게요.");
+  });
+
+  it("대괄호 없는 원시 페이로드는 untagged_payload 로 센다", () => {
+    const result = extract(
+      '저장할게요. {"tool":"update_budget","input":{"total_budget":30000000}}',
+    );
+    expect(result.pendingAction).toBeNull();
+    expect(result.droppedShapes).toContain("untagged_payload");
+  });
+
+  it("정상 표식에는 진단이 붙지 않는다", () => {
+    const result = extract(
+      '[pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}[/pending_action]',
+    );
+    expect(result.pendingAction?.tool).toBe("update_budget");
+    expect(result.droppedShapes).toBeUndefined();
+  });
+});

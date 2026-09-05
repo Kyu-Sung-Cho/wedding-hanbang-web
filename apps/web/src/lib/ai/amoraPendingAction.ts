@@ -1103,8 +1103,17 @@ function cleanPendingActionTags(
   cleanText: string;
   payloads: string[];
   hadPendingActionTag: boolean;
+  /** 카드가 못 나온 모양(진단용, 서버 로그에만). */
+  dropShapes: string[];
+  /** 여는 표식 뒤에 JSON 이 없었을 때 그 뒤 80자(진단용, 서버 로그에만). */
+  droppedTailHead: string | null;
 } {
   const payloads: string[] = [];
+  // 2026-09-06: 스테이징 rf1 R9·페르소나 p3 T13·p6 T12·p7 T11 이 전부 payloadHeads: []
+  // 로 떨어졌다 — 표식은 있었는데 **어떤 모양이었는지** 로그에 없어 고칠 수 없었다.
+  // 모양(열림만·닫힘만·틀린 표식·원시 JSON)과 열린 표식 뒤 머리 80자를 남긴다.
+  const dropShapes: string[] = [];
+  let droppedTailHead: string | null = null;
   const withoutCompleteTags = text.replace(
     PENDING_ACTION_PAIR_RE,
     (_match, payload: string) => {
@@ -1124,6 +1133,12 @@ function cleanPendingActionTags(
       const afterTag = tail.replace(new RegExp(`^${PENDING_ACTION_OPEN_TAG}`, "i"), "");
       const salvaged = extractLeadingBalancedJsonObject(afterTag);
       if (salvaged !== null) payloads.push(salvaged);
+      else {
+        dropShapes.push("open_tag_without_json");
+        droppedTailHead = Array.from(afterTag.trim()).slice(0, 80).join("");
+      }
+    } else {
+      dropShapes.push("close_tag_only");
     }
   }
   const withoutDanglingTag = danglingTagIndex === -1
@@ -1144,9 +1159,13 @@ function cleanPendingActionTags(
     withoutHistoryNote,
     allowedToolNames,
   );
+  if (malformed.removedAny) dropShapes.push("malformed_tag");
+  if (untagged.removedAny) dropShapes.push("untagged_payload");
   return {
     cleanText: untagged.text.replace(/\n{3,}/g, "\n\n").trim(),
     payloads,
+    dropShapes,
+    droppedTailHead,
     // 틀리게 썼어도 모델이 변경을 의도했다는 뜻이다. 카드가 못 나온 사실을
     // 사용자에게 알리는 경로(`droppedPendingActionTag`)가 이 값을 본다.
     hadPendingActionTag:
@@ -1176,9 +1195,14 @@ export function extractAmoraPendingAction({
    * DB 메타데이터에는 넣지 않는다.
    */
   droppedPayloadHeads?: string[];
+  /** 카드가 못 나온 모양(진단용, 서버 로그에만). 카드가 나간 턴에는 없다. */
+  droppedShapes?: string[];
+  /** 여는 표식 뒤에 JSON 이 없었을 때 그 뒤 80자(진단용, 서버 로그에만). */
+  droppedTailHead?: string | null;
 } {
-  const { cleanText: strippedText, payloads, hadPendingActionTag } =
-    cleanPendingActionTags(
+  const {
+    cleanText: strippedText, payloads, hadPendingActionTag, dropShapes, droppedTailHead,
+  } = cleanPendingActionTags(
       text,
       new Set(allowedTools.map((tool) => tool.name)),
     );
@@ -1195,7 +1219,13 @@ export function extractAmoraPendingAction({
     .slice(0, 2)
     .map((payload) => Array.from(payload).slice(0, 400).join(""));
   if (distinctPayloads.length === 0) {
-    return { cleanText, pendingAction: null, hadPendingActionTag };
+    return {
+      cleanText,
+      pendingAction: null,
+      hadPendingActionTag,
+      droppedShapes: dropShapes,
+      droppedTailHead,
+    };
   }
 
   // 2026-09-04: 표식이 둘 이상이면 **전부** 버리던 것을 첫 건만 살리는 것으로 바꾼다.
@@ -1227,6 +1257,7 @@ export function extractAmoraPendingAction({
       pendingAction: null,
       hadPendingActionTag,
       droppedPayloadHeads,
+      droppedShapes: [...dropShapes, "payload_rejected"],
     };
   }
 

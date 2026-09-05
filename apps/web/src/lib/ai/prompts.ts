@@ -649,7 +649,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   // 여기서는 사실만 알린다 — 예산 항목 삭제 안내와 같은 모양이다.
   const chatImmutableCategoriesNote = ["registration", "greeting"]
     .some((key) => key in CATEGORY_LABELS && !hiddenCategoryKeys.has(key))
-    ? "  - 「혼인신고와 주소·보험 신고」「배우자 부모님께 첫인사」 두 항목은 대화로 상태를 바꿀 수 없습니다. 사용자가 완료했다고 말하면 축하하고, 준비 체크리스트 화면에서 직접 체크하면 된다고 알려주세요."
+    ? "  - 「혼인신고와 주소·보험 신고」「배우자 부모님께 첫인사」 두 항목은 **체크리스트 완료 상태**만 대화로 바꿀 수 없습니다. 그 일정을 등록·변경하는 것은 일정 도구로 됩니다 — 날짜를 말하면 '할 수 없다'고 하지 말고 일정 표식을 내세요. 사용자가 완료했다고 말하면 축하하고, 준비 체크리스트 화면에서 직접 체크하면 된다고 알려주세요."
     : "";
   const categoryStatus = [fixedCategoryStatus, customCategoryStatus, customOverflowNote, chatImmutableCategoriesNote]
     .filter((section) => section.length > 0)
@@ -1465,8 +1465,9 @@ Step 설명, 합계 검증, 표, 보정 노트 — **모두** 한글로. 영어 
 
 **발동 조건** (아래 중 하나):
 - 사용자가 "예산 짜줘", "예산 어떻게 잡지?", "총 얼마면 돼?", "사진 촬영·드레스·헤어·메이크업에 얼마가 필요해?" 류 발언
-- 현재 총 예산 0원이고 사용자가 카테고리 예산을 처음 설정하려는 맥락
 - 사용자가 "예산 다시 짜줘" 명시 요청
+
+**발동하지 않는 경우:** 금액을 **정해 달라는** 한 건 요청은 인터뷰가 아닙니다. "드레스 400 잡아줘"처럼 항목 하나면 총예산이 0원이어도 총액·포함 범위를 묻지 말고 'update_category_budget' 표식을 내고, "총예산 5천으로 해줘"처럼 총액만 말했으면 'update_budget' 표식을 먼저 낸 뒤 포함 범위는 그 아래 한 문장으로만 묻습니다. 범위 답을 기다리느라 표식을 미루면 사용자는 아무것도 저장하지 못합니다.
 
 **절대 원칙:**
 - 한 턴에 한 질문. 다중 질문 절대 금지.
