@@ -139,11 +139,28 @@ export function isExplicitAmoraChangeRequest(userText: string): boolean {
   return EXPLICIT_CHANGE_REQUEST_PATTERN.test(userText.normalize("NFKC"));
 }
 
+export const SERVER_OWNED_EMPTY_ANSWER_NOTICE =
+  "지금은 답을 만들지 못했어요. 한 번 더 물어봐 주세요.";
+
 export function composeAmoraPersistenceTerminal(
   input: Parameters<typeof composeTerminalCandidate>[0],
 ): AmoraPersistenceTerminalResult {
   const composed = composeTerminalCandidate(input);
   if (composed.text.trim()) return composed;
+  // 2026-09-05: 변경을 요청하지도, 표식을 내지도 않은 턴(읽기·상담)에서 본문이 비면
+  // "이 변경은 아직 반영되지 않았어요" 는 거짓 안내다. 그런 턴은 중립 문장으로 남긴다.
+  if (
+    input.userRequestedChange !== true
+    && input.droppedPendingActionTag !== true
+    && !input.hasPendingAction
+  ) {
+    return {
+      ...composed,
+      text: SERVER_OWNED_EMPTY_ANSWER_NOTICE,
+      corrected: true,
+      source: "server_correction",
+    };
+  }
   // 2026-09-03: **빈 본문은 턴 전체를 죽인다.**
   //
   // 운영 원장 2026-08-24 14:48:41 'post_provider_payload_invalid' → 14:48:45
@@ -225,8 +242,19 @@ function composeTerminalCandidate({
   // 미래형 저장 약속은 **이번 턴에 아무것도 저장되지 않았을 때만** 지운다
   // (2026-09-03). 영수증이 있는 턴은 위에서 이미 반환됐고, 카드가 난 턴의 본문은
   // 서버가 만든 확인문이라 검사하면 서버 문구를 훼손한다.
+  // 2026-09-05 페르소나 실측(p2 T7, 새 커플 재현 7/8): "드레스 예산이 지금 얼마로 되어
+  // 있는지 알려 주세요" 에 get_budget_summary 가 성공했는데, 모델 답 "…450만 원으로
+  // 설정되어 있어요" 가 상태 서술 정규식에 걸려 지워지고 본문이 비어 "변경이 반영되지
+  // 않았어요" 만 나갔다 — DB 에는 450만 원이 있었으니 안내 자체가 거짓이었다.
+  // 같은 턴에 **성공한 읽기 도구 영수증**이 있고 사용자가 변경을 요청한 것도 아니면
+  // 상태 서술은 그 영수증이 검증한 것이다. 실행 주장("변경했어요")은 여전히 지운다.
+  const verifiedByRead = !hasPendingAction
+    && !userRequestedChange
+    && toolResults.some((result) =>
+      result.success === true && !isMutatingTool(result.toolName));
   const sanitized = removeUnverifiedPersistenceClaims(trustScreened.text, {
     includeFuturePromise: !hasPendingAction,
+    keepStateDescriptions: verifiedByRead,
   });
 
   if (persistenceMode === "demo") {
@@ -251,9 +279,14 @@ function composeTerminalCandidate({
     };
   }
 
+  // 2026-09-05 페르소나 실측(p7 T12, p4 S4, p5 T3·T4): 모델이 "…으로 이해하면 될까요?" 처럼
+  // **되묻고** 끝난 턴에 "변경할 내용을 확인한 뒤 다시 요청해주세요" 가 붙어, 질문과 안내가
+  // 서로 다른 다음 행동을 요구했다. 되묻기 자체가 다음 단계다 — 카드가 살아 있는 턴만 빼고
+  // 안내를 붙이지 않는다.
+  const endsWithQuestion = /[?？]\s*$/u.test(sanitized.text.trim());
   if (sanitized.removedClaimCount === 0) {
     // 지울 거짓 주장이 없어도, 표식이 버려졌으면 그 사실은 알려야 한다.
-    if (droppedPendingActionTag) {
+    if (droppedPendingActionTag && !endsWithQuestion) {
       return {
         text: [sanitized.text, SERVER_OWNED_UNVERIFIED_NOTICE]
           .filter(Boolean)
@@ -276,9 +309,11 @@ function composeTerminalCandidate({
   // 2026-09-03: 미래형 약속을 지운 턴은 예외다. "등록할게요" 는 정의상 사용자가
   // 변경을 부탁했다는 뜻이고, 그 문장만 지우고 아무 말도 안 하면 사용자는 아모라가
   // 딴소리를 했다고 읽는다 — 무엇이 반영되지 않았는지 알 방법이 없다.
-  const notice = !hasPendingAction
+  const notice = (
+    !hasPendingAction
     && !userRequestedChange
     && sanitized.removedFuturePromiseCount === 0
+  ) || (!hasPendingAction && endsWithQuestion)
     ? null
     : hasPendingAction
       ? SERVER_OWNED_PENDING_NOTICE
@@ -292,9 +327,12 @@ function composeTerminalCandidate({
   };
 }
 
-function containsUnverifiedSuccessClaim(segment: string): boolean {
+function containsUnverifiedSuccessClaim(
+  segment: string,
+  keepStateDescriptions = false,
+): boolean {
   const containsKoreanAffirmativeClaim = hasAssertivePersistenceClaim(segment)
-    || AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment)
+    || (!keepStateDescriptions && AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment))
     || AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment)
     || ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment);
   if (containsKoreanAffirmativeClaim && !NON_SUCCESS_CONTEXT_RE.test(segment)) {
@@ -315,7 +353,7 @@ function containsUnverifiedSuccessClaim(segment: string): boolean {
 
 function removeUnverifiedPersistenceClaims(
   text: string,
-  options: { includeFuturePromise?: boolean } = {},
+  options: { includeFuturePromise?: boolean; keepStateDescriptions?: boolean } = {},
 ): {
   text: string;
   removedClaimCount: number;
@@ -335,7 +373,7 @@ function removeUnverifiedPersistenceClaims(
   let removedFuturePromiseCount = 0;
 
   for (const segment of segments) {
-    if (containsUnverifiedSuccessClaim(segment)) {
+    if (containsUnverifiedSuccessClaim(segment, options.keepStateDescriptions === true)) {
       removedClaimCount += 1;
     } else if (
       options.includeFuturePromise === true

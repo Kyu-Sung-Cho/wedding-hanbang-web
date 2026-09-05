@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { objectParticle } from "@/lib/korean/particles";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import {
   mergePlanningChecklist,
@@ -1152,7 +1153,8 @@ function buildAddActionOperation(
       toolInput,
       toolOutput: { action },
       success: true,
-      displayMessage: `"${title}"을 아모라 행동 카드로 저장했어요.`,
+      // 2026-09-05: "…기"을" 조사 오류 + 내부 용어("아모라 행동 카드") 노출 — 사용자 말로.
+      displayMessage: `"${title}"${objectParticle(title)} 할 일로 저장했어요.`,
     },
   };
 }

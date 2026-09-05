@@ -547,3 +547,20 @@ describe("checklist confirmation names the item", () => {
     }
   });
 });
+
+describe("닫는 표식을 잊은 카드도 살린다 (2026-09-05 페르소나 실측)", () => {
+  it("여는 표식 뒤에 괄호가 맞는 JSON 이 있으면 payload 로 받는다", () => {
+    const result = extract(
+      '드레스 피팅을 넣을게요. [pending_action]{"tool":"update_budget","input":{"total_budget":30000000}}',
+    );
+    expect(result.pendingAction?.tool).toBe("update_budget");
+    expect(result.cleanText).not.toContain("pending_action");
+    expect(result.cleanText).not.toContain("total_budget");
+  });
+
+  it("JSON 이 중간에서 끊기면 살리지 않고 표식이 버려진 것으로 센다", () => {
+    const result = extract('[pending_action]{"tool":"update_budget","input":{"total_budget":3000');
+    expect(result.pendingAction).toBeNull();
+    expect(result.hadPendingActionTag).toBe(true);
+  });
+});

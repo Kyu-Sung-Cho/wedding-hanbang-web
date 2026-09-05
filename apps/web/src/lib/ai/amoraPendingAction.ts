@@ -941,6 +941,34 @@ const PENDING_ACTION_ANY_TAG_RE = new RegExp(
 const PENDING_ACTION_MALFORMED_TAG_RE =
   /[ \t]*\[[^\[\]]*pending[\s_-]*action[^\[\]]*\][ \t]*/giu;
 
+/**
+ * 문자열 머리에서 괄호가 맞는 JSON 객체 하나를 잘라낸다(문자열 안의 괄호는 무시).
+ * 닫는 표식이 없는 카드를 살릴 때만 쓴다. 객체가 끝나기 전에 문자열이 끝나면 null.
+ */
+function extractLeadingBalancedJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1 || text.slice(0, start).trim().length > 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length && index - start <= MAX_PENDING_ACTION_JSON_CHARS; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === "{") depth += 1;
+    else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
 function stripMalformedPendingActionTags(text: string): {
   text: string;
   removedAny: boolean;
@@ -1085,6 +1113,19 @@ function cleanPendingActionTags(
     },
   );
   const danglingTagIndex = withoutCompleteTags.search(PENDING_ACTION_ANY_TAG_RE);
+  // 2026-09-05 페르소나 실측(p3 T13, p7 T11, p6 T12, p4 F3): 모델이 여는 표식과 JSON 은
+  // 썼는데 닫는 표식을 안 쓰거나 출력이 거기서 끝나 payload 가 0개로 잡혔다 — 카드는
+  // 사라지고 "다시 요청해주세요" 만 남았다. 여는 표식 뒤에 **괄호가 맞는 JSON 객체**가
+  // 통째로 있으면 그것을 payload 로 받는다. 검증은 아래 validateMarker 가 똑같이 한다.
+  if (danglingTagIndex !== -1) {
+    const tail = withoutCompleteTags.slice(danglingTagIndex);
+    const isOpenTag = new RegExp(`^${PENDING_ACTION_OPEN_TAG}`, "i").test(tail);
+    if (isOpenTag) {
+      const afterTag = tail.replace(new RegExp(`^${PENDING_ACTION_OPEN_TAG}`, "i"), "");
+      const salvaged = extractLeadingBalancedJsonObject(afterTag);
+      if (salvaged !== null) payloads.push(salvaged);
+    }
+  }
   const withoutDanglingTag = danglingTagIndex === -1
     ? withoutCompleteTags
     : withoutCompleteTags.slice(0, danglingTagIndex);

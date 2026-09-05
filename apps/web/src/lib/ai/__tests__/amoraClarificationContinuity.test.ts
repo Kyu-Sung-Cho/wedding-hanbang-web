@@ -633,3 +633,74 @@ describe("되묻기 고리에서 빠져나올 수 있다", () => {
     }
   });
 });
+
+describe("카드를 확인한 직후의 짧은 수정도 실을 잇는다 (2026-09-05 페르소나 실측)", () => {
+  const CONFIRM_ID = "44444444-4444-4444-8444-444444444444";
+  const RECEIPT_ID = "55555555-5555-4555-8555-555555555555";
+
+  function rowsAfterConfirmedCard(currentText: string): Row[] {
+    const base = buildRows({
+      priorUserText: "사진 700만원 잡아줘",
+      assistantText: "다음 변경을 적용할까요?\n- 카테고리: 웨딩 사진 촬영\n- 예산: 700만 원",
+      assistantPendingAction: { tool: "update_category_budget", input: { category: "studio", budget: 7000000 } },
+      currentText,
+    });
+    const [priorUser, cardTurn] = base;
+    const current = base[2];
+    return [
+      priorUser,
+      cardTurn,
+      {
+        id: CONFIRM_ID,
+        sender_id: USER_ID,
+        sender_type: "bride",
+        role: "user",
+        content: "좋아요. 제안한 변경을 적용해 주세요.",
+        metadata: null,
+        visibility: "shared",
+      },
+      {
+        id: RECEIPT_ID,
+        sender_id: null,
+        sender_type: "ai",
+        role: "assistant",
+        content: "웨딩 사진 촬영 예산 정보를 변경했어요.",
+        metadata: {
+          in_reply_to_user_message_id: CONFIRM_ID,
+          question_scope: "W4_out_of_scope",
+          memory_eligible: false,
+          toolsUsed: ["update_category_budget"],
+        },
+        visibility: "shared",
+      },
+      current,
+    ];
+  }
+
+  it.each(["500으로 해줘", "아 몰라 그냥 600으로 해", "550으로 올려줘"])(
+    "확인 쌍을 건너뛰고 요청↔카드 쌍을 닻으로 삼는다: %s",
+    (currentText) => {
+      const result = resolveAmoraWeddingClarificationContinuity({
+        rawOldestFirstRows: rowsAfterConfirmedCard(currentText),
+        requesterUserId: USER_ID,
+        currentUserMessageId: CURRENT_ID,
+        currentUserText: currentText,
+      });
+      expect(result).not.toBeNull();
+      expect(result?.priorUserText).toBe("사진 700만원 잡아줘");
+    },
+  );
+
+  it("확인 쌍이 아닌(사용자가 직접 쓴) 문장은 여전히 되묻기 쌍 규칙을 탄다", () => {
+    const rows = rowsAfterConfirmedCard("500으로 해줘");
+    rows[2] = { ...rows[2], content: "응 그렇게 해" };
+    const result = resolveAmoraWeddingClarificationContinuity({
+      rawOldestFirstRows: rows,
+      requesterUserId: USER_ID,
+      currentUserMessageId: CURRENT_ID,
+      currentUserText: "500으로 해줘",
+    });
+    // 직전 쌍(응 그렇게 해 ↔ W4 영수증)은 W0 닻이 아니고 확인 쌍도 아니다 → 기존 규칙대로 null.
+    expect(result).toBeNull();
+  });
+});

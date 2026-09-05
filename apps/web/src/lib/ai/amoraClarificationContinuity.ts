@@ -123,6 +123,9 @@ function isBareAffirmation(text: string): boolean {
  * 길이·물음표·설명형 단서 — 세 가지는 답이 어느 범위로 떨어지든 똑같이
  * 물어야 한다. 범위 조건만 호출자마다 다르다.
  */
+/** "500으로", "27일로", "600만원으로 해" — 숫자 뒤에 으로/로 가 붙은 수정 모양. */
+const AMOUNT_EDIT_SHAPE_RE = /\d[\d,.]*\s*(?:만\s*원|만원|만|원|명|일|시)?\s*(?:으로|로)(?=\s|$|[가-힣])/u;
+
 function hasClarificationAnswerShape(text: string): boolean {
   if (typeof text !== "string") return false;
   const normalized = text.normalize("NFKC").trim();
@@ -136,7 +139,11 @@ function hasClarificationAnswerShape(text: string): boolean {
   // 답이 아니라 새 질문이고, 그런 발화에까지 저장된 커플 문맥을 미리 읽어두면
   // "현재 입력만으로 답하는 범위는 저장 문맥을 읽지 않는다"는 기존 경계가
   // 무너진다. 물음표는 어휘 목록이 아니라 문장 부호라 어형 변화를 타지 않는다.
-  if (QUESTION_MARK_PATTERN.test(normalized)) return false;
+  // 2026-09-05: "너무 많나? 500으로" 처럼 혼잣말 물음 뒤에 **금액·날짜 수정**이 붙은 문장은
+  // 되묻기의 답이다. 물음표만 보고 내치지 않는다 — 수정 모양(숫자+으로/로)이 있으면 통과.
+  if (QUESTION_MARK_PATTERN.test(normalized) && !AMOUNT_EDIT_SHAPE_RE.test(normalized)) {
+    return false;
+  }
   // 설명·지목·선택형 되짚기는 이미 bounded continuity의 context-only 계약이
   // 맡는다. 한 문장을 두 계약이 다투게 두지 않는다.
   return !hasAmoraExplanatoryContinuityCue(normalized);
@@ -220,6 +227,40 @@ export type ResolveAmoraWeddingClarificationContinuityInput<
  * 두 번 연속되면 두 번째 답은 이어지지 않는다. 의도한 경계다 — 한 번의 W0
  * 발화가 이후 임의 길이의 무신호 대화에 권한을 빌려주지 않는다.
  */
+/** 카드 확인 버튼이 보내는 고정 문장(웹 ChatContent/ChatSidePanel·모바일 chat.tsx 동일). */
+const CARD_CONFIRMATION_MESSAGE_RE =
+  /^\s*좋아요[.!]?\s*제안한\s*변경을\s*적용해\s*주세요[.!]?\s*$/u;
+
+/**
+ * [확인 메시지 ↔ 실행 영수증] 쌍인가. 사용자 문장이 카드 확인 고정 문장이고, 같은
+ * 사람이 같은 공개 범위에서 보냈고, 아모라 쪽이 그 메시지에 답한 행이면 확인 쌍이다.
+ * 영수증 본문 모양(도구 성공 문구)은 서버가 만드는 것이라 여기서 따로 검사하지 않는다.
+ */
+function isConfirmationPair<T extends AmoraClarificationContinuityRow>(
+  amora: T,
+  confirmer: T,
+  requesterUserId: string,
+  visibility: T["visibility"],
+): boolean {
+  if (
+    confirmer.role !== "user"
+    || confirmer.sender_type === "ai"
+    || confirmer.sender_id !== requesterUserId
+    || typeof confirmer.content !== "string"
+    || !CARD_CONFIRMATION_MESSAGE_RE.test(confirmer.content.normalize("NFKC"))
+    || confirmer.visibility !== visibility
+  ) {
+    return false;
+  }
+  const metadata = isRecord(amora.metadata) ? amora.metadata : null;
+  return amora.role === "assistant"
+    && amora.sender_type === "ai"
+    && amora.sender_id === null
+    && amora.visibility === visibility
+    && metadata !== null
+    && metadata.in_reply_to_user_message_id === confirmer.id;
+}
+
 export function resolveAmoraWeddingClarificationContinuity<
   T extends AmoraClarificationContinuityRow,
 >({
@@ -345,12 +386,37 @@ export function resolveAmoraWeddingClarificationContinuity<
   // 매 홉에서 위 가드를 전부 다시 확인하고, 하나라도 어긋나면 거기서 멈춘다.
   let answerer: T = current;
   let hop = 1;
+  // 2026-09-05 페르소나 실측(p7 T8·T9, p4 "그거 목요일로", p6): 카드를 **확인한 직후**의
+  // 짧은 수정("500으로 해줘", "아 몰라 그냥 600으로 해")이 전부 범위 밖으로 떨어져 카드 없이
+  // 끝났다. 직전 쌍이 [확인 메시지 "좋아요. 제안한 변경을 적용해 주세요." ↔ 실행 영수증]
+  // 이라 되묻기 쌍이 아니었기 때문이다. 확인 쌍은 대화의 실이 아니라 버튼 한 번이다 —
+  // 건너뛰고 그 앞의 진짜 쌍(요청 ↔ 카드)을 닻으로 본다. 홉 한도는 그대로 센다.
+  let skippedConfirmationPairs = 0;
   for (;;) {
     if (!assistant || !priorUser) return null;
     if (typeof assistant.id !== "string" || typeof priorUser.id !== "string") return null;
-    if (!isValidClarificationPair(assistant, priorUser, answerer)) return null;
     if (
-      classifyAmoraQuestionScope({ userText: priorUser.content as string }).scope
+      skippedConfirmationPairs < 2
+      && isConfirmationPair(assistant, priorUser, requesterUserId, answerer.visibility)
+    ) {
+      const index = rawOldestFirstRows.indexOf(priorUser);
+      if (index < 2) return null;
+      assistant = rawOldestFirstRows[index - 1];
+      priorUser = rawOldestFirstRows[index - 2];
+      skippedConfirmationPairs += 1;
+      continue;
+    }
+    if (!isValidClarificationPair(assistant, priorUser, answerer)) return null;
+    // 닻 판정: 요청 문장 자체가 W0 이거나, 그 턴에서 아모라가 **카드를 냈다**(라우트가
+    // 문맥까지 보고 W0 행동 턴으로 처리한 흔적). 2026-09-05: "사진은 700 잡아줘" 는 낱말만
+    // 보면 범위 밖이지만 그 턴에 카드가 났고 확인까지 됐다 — 그 뒤의 "500으로 해줘" 가
+    // 닻을 못 찾아 실을 놓쳤다.
+    const anchorMetadata = isRecord(assistant.metadata) ? assistant.metadata : null;
+    const anchorIssuedCard = anchorMetadata !== null
+      && anchorMetadata.pending_amora_action !== undefined;
+    if (
+      anchorIssuedCard
+      || classifyAmoraQuestionScope({ userText: priorUser.content as string }).scope
         === "W0_wedding_core"
     ) {
       break;
