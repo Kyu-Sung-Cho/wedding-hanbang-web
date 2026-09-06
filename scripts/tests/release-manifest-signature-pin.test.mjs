@@ -45,7 +45,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 프로덕션 배포가 전부 막히고, 사이트는 직전 빌드를 계속 서비스해서 멀쩡해 보인다.
  *
  * 2026-09-07 로컬 수정안: 인기 정렬·대화 초기화·수동 할 일 권한·노트 원문·예산 배분 RPC·
- * 본인 저장 취소·개인 할 일의 기대값이다.
+ * 본인 저장 취소·개인 할 일·중재 응답의 기대값이다.
  * 운영 환경변수는 아직 교체하지 않았다. 이 브랜치를 배포하기 전에 DB 적용 검증과
  * Vercel 서명 교체가 필요하며, 현재 deployment_blocked 상태를 유지한다.
  *
@@ -66,7 +66,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 펜스는 next build 앞에서 정확히 일치할 때만 통과하기 때문이다.
  */
 const EXPECTED_SIGNATURE =
-  "25ad394ad8f1ddade0bf6c417773d1c463e9b7f2eb6a087af02079d64f645196";
+  "e7f898a9671d4be1cd775a2963dc76e1040660d9fb215bc3f3609aff48977ec2";
 
 test("측정기가 살아 있다", () => {
   const actual = expectedProductionAuthorizationSha256(repoRoot);

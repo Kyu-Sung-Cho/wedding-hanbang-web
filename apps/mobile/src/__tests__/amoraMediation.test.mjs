@@ -408,8 +408,8 @@ const actor='11111111-1111-4111-8111-111111111111', partner='22222222-2222-4222-
 const mediationRevision={messageId:'44444444-4444-4444-8444-444444444444',...EXPECTED_REVISION};
 const responseRow=(choice='ok',patch={})=>({userId:actor,choice,condition:choice==='conditional'?'조건 확인 뒤':null,revision:1,updatedAt:'2026-09-07T00:00:00Z',...patch});
 const responseState=(mine=null,theirs=null,patch={})=>({actorId:actor,proposalVersion:EXPECTED_REVISION.expectedProposalVersion,rosterFingerprint:EXPECTED_REVISION.expectedRosterFingerprint,accepted:mine?.choice==='ok',acceptedCount:[mine,theirs].filter(r=>r?.choice==='ok').length,requiredCount:2,completed:false,partnerLinked:true,myResponse:mine,myResponseRevision:mine?.revision??0,responses:[mine,theirs].filter(Boolean),...patch});
-const reply=(body,status=200)=>new Response(JSON.stringify(body),{status});
-const settle=()=>new Promise(done=>setTimeout(done,0));
+const reply=(body,status=200)=>new globalThis.Response(JSON.stringify(body),{status});
+const settle=()=>new Promise(done=>globalThis.setTimeout(done,0));
 function responseHarness(replies){
  const calls=[],navigation=[],slots=[];let index=0,tree;
  const session=responsesContract.createMediationResponseSession({revision:mediationRevision,readScope:async()=>({ownerId:actor,coupleId:couple}),request:async(scope,path,options)=>{calls.push({scope,path,options});const next=replies.shift();if(next instanceof Error)throw next;return next;}});
