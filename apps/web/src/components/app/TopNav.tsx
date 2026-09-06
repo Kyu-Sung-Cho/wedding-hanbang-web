@@ -7,6 +7,7 @@ import { AnimatePresence } from "framer-motion";
 import { Bell, Menu, Search } from "lucide-react";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import NotificationPanel from "@/components/app/NotificationPanel";
+import AmoraWorkspaceNav from "@/components/app/amora/AmoraWorkspaceNav";
 import { useNotifications, useNotificationPrefs } from "@/hooks/useNotifications";
 import { isWeddingPathActive, stripWeddingBasePath, weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
@@ -20,6 +21,7 @@ const pageTitles: Record<string, string> = {
   "/checklist": "웨딩 체크리스트",
   "/schedule": "일정",
   "/favorites": "즐겨찾기",
+  "/saved": "저장한 이야기",
   "/settings": "설정",
   "/money": "축의금 관리",
 };
@@ -44,12 +46,16 @@ function getPageTitle(pathname: string) {
 
 interface TopNavProps {
   onMenuToggle: () => void;
+  amoraWorkspace?: boolean;
+  planningWorkspace?: boolean;
 }
 
-export default function TopNav({ onMenuToggle }: TopNavProps) {
+export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningWorkspace = false }: TopNavProps) {
+  const htmlDesign = amoraWorkspace || planningWorkspace;
   const pathname = usePathname();
   const router = useRouter();
-  const title = getPageTitle(stripWeddingBasePath(pathname));
+  const appPathname = stripWeddingBasePath(pathname);
+  const title = appPathname === "/chat/board" ? "준비 보드" : appPathname === "/chat/missions" ? "아모라 · 오늘의 미션" : getPageTitle(appPathname);
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -75,12 +81,12 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5">
-        <div className="flex items-center gap-4">
+      <header className={htmlDesign ? "sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] md:h-[102px] md:bg-white md:px-9" : "sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5"}>
+        <div className={htmlDesign ? "flex min-w-0 items-center gap-1" : "flex items-center gap-4"}>
           <button
             type="button"
             onClick={onMenuToggle}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] md:hidden"
+            className={htmlDesign ? "flex size-11 shrink-0 items-center justify-center rounded-lg text-[var(--amora-soft)] md:hidden" : "flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] md:hidden"}
             aria-label="메뉴 열기"
           >
             <Menu className="h-5 w-5" />
@@ -90,15 +96,16 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             className="block rounded-[6px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
             aria-label="웨딩한방 홈으로 이동"
           >
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]">Wedding Hanbang</p>
-            <h1 className="mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">{title}</h1>
+            <p className={htmlDesign ? "mb-1 hidden text-[11px] tracking-[0.08em] text-[var(--amora-muted)] md:block" : "text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]"}>Wedding Hanbang</p>
+            <h1 className={htmlDesign ? "text-[16px] font-semibold leading-tight text-[var(--amora-ink)] md:text-[19px]" : "mt-0.5 font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]"}>{title}</h1>
           </Link>
         </div>
 
         <div className="flex items-center gap-2">
+          {amoraWorkspace && appPathname !== "/chat" && <div className="hidden xl:block"><AmoraWorkspaceNav /></div>}
           <nav
             aria-label="주요 기능 바로가기"
-            className="mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] lg:flex"
+            className={htmlDesign ? "hidden" : "mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] lg:flex"}
           >
             {quickLinks.map((item, index) => {
               const isActive = isWeddingPathActive(pathname, item.legacyPath);
@@ -118,7 +125,7 @@ export default function TopNav({ onMenuToggle }: TopNavProps) {
             })}
           </nav>
 
-          <div className="hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex">
+          <div className={htmlDesign ? "hidden items-center gap-2 rounded-full bg-[var(--amora-low)] px-[13px] py-[7px] xl:flex" : "hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex"}>
             <span className="h-2 w-2 rounded-full bg-[var(--hb-accent)]" />
             <span className="text-[13px] font-semibold text-[var(--hb-text-strong)]">
               {dday === null ? "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}

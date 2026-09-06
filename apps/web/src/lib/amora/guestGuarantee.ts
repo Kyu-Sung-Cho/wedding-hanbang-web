@@ -70,7 +70,7 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function roundManwon(value: number): number {
-  return Math.round(value * 10) / 10;
+  return Math.round(value * 10000) / 10000;
 }
 
 function toScenario(
@@ -145,12 +145,18 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
 
   if (missingFields.length > 0) {
     const labels = missingFields.map((field) => FIELD_LABELS[field]).join(", ");
+    const referenceMealTotal = estimatedGuests !== null && mealPriceManwon !== null
+      ? roundManwon(estimatedGuests * mealPriceManwon)
+      : null;
+    const referenceText = referenceMealTotal !== null
+      ? `입력한 예상 하객 ${estimatedGuests}명 × 한 사람당 ${mealPriceManwon}만원 = ${referenceMealTotal.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}만원입니다. 보증 인원·불참률을 적용하지 않은 단순 곱셈으로, 최종 정산액이 아닙니다.`
+      : null;
     return {
       mode: "input_needed",
       riskLevel: "medium",
       riskLabel: RISK_LABELS.medium,
-      summaryTitle: "식사비 계산에 필요한 값이 부족해요",
-      summaryText: `${labels}을 알려주시면 입력한 불참률에 따른 단순 계산값을 보여드릴 수 있어요.`,
+      summaryTitle: referenceText ? "입력한 인원으로 계산한 식사비예요" : "식사비 계산에 필요한 값이 부족해요",
+      summaryText: referenceText ?? `${labels}을 알려주시면 입력한 값으로 식사비를 계산할 수 있어요.`,
       venueName,
       estimatedGuests,
       confirmedRsvpGuests,
@@ -164,7 +170,12 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
       emptySeatLossManwon: null,
       scenarios: [],
       missingFields,
-      recommendation: "예상 하객 수, 계약상 최소 결제 식사 인원, 한 사람당 식사비, 직접 정한 계산용 불참률을 알려주세요.",
+      recommendation: [
+        missingFields.filter(field => field !== "noShowRatePercent").length > 0
+          ? `${missingFields.filter(field => field !== "noShowRatePercent").map(field => FIELD_LABELS[field]).join(", ")}만 추가로 확인해 주세요.`
+          : "입력한 인원과 식사비는 유지합니다.",
+        noShowRatePercent === null ? "불참률별 비교가 필요할 때만 직접 정한 비율을 알려주세요. 모르는 비율은 임의로 정하지 않습니다." : "",
+      ].filter(Boolean).join(" "),
       vendorQuestions: [
         "최종 인원 통보 마감일은 언제인가요?",
         "계약상 최소 결제 식사 인원을 줄일 수 있는 마지막 날짜가 있나요?",
@@ -178,7 +189,7 @@ export function simulateGuestGuarantee(input: GuestGuaranteeInput): GuestGuarant
   const baseGuests = confirmedRsvpGuests && confirmedRsvpGuests > estimatedGuests!
     ? confirmedRsvpGuests
     : estimatedGuests!;
-  const expectedAttendanceGuests = Math.max(1, Math.round(baseGuests * (1 - noShowRatePercent! / 100)));
+  const expectedAttendanceGuests = Math.max(0, Math.round(baseGuests * (1 - noShowRatePercent! / 100)));
   const payableGuests = Math.max(expectedAttendanceGuests, guaranteedGuests!);
   const expectedMealTotalManwon = roundManwon(payableGuests * mealPriceManwon!);
   const emptySeats = Math.max(0, guaranteedGuests! - expectedAttendanceGuests);

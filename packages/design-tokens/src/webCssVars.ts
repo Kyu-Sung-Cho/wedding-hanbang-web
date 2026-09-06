@@ -231,19 +231,46 @@ export const WEB_THEME_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "success", value: colors.sage.deep },
 ];
 
-/**
- * 관리 구간의 표시. 스크립트와 테스트가 같은 문자열을 본다.
- *
- * `root`/`theme`은 `:root`와 `@theme inline`의 브랜드 색이고(키 집합이 다르다, 위 참고),
- * `roles`는 `:root`의 역할 변수, `service-theme`/`community-theme`은 두 테마 블록 안의
- * 역할 변수다.
- */
+/** 아모라·체크리스트·예절 HTML 화면의 기존 색을 그대로 생성한다. */
+export const WEB_HTML_WORKSPACE_COLOR_VARS: readonly WebCssColorVar[] = [
+  { name: "bg", value: colors.ivory[50] },
+  { name: "warm", value: colors.ivory.warm },
+  { name: "surface", value: colors.surface },
+  { name: "low", value: colors.surfaceLow },
+  { name: "ink", value: colors.paper.ink },
+  { name: "soft", value: colors.paper.inkSoft },
+  { name: "muted", value: colors.paper.inkFaint },
+  { name: "line", value: colors.htmlWorkspace.line },
+  { name: "accent", value: colors.paper.pen },
+  { name: "rose", value: colors.rose[500] },
+  { name: "rose-deep", value: colors.rose[700] },
+  { name: "rose-pale", value: colors.rose.pale },
+  { name: "sage", value: colors.sage[500] },
+  { name: "sage-pale", value: colors.htmlWorkspace.sagePale },
+  { name: "danger", value: colors.danger },
+];
+
+// 공용 컴포넌트가 승인된 HTML 팔레트를 상속하도록 역할 연결도 생성한다.
+export const WEB_HTML_WORKSPACE_ROLE_VARS: readonly WebCssColorVar[] = [
+  { name: "surface-page", value: "var(--amora-bg)" },
+  { name: "surface-card", value: "var(--amora-surface)" },
+  { name: "surface-hover", value: "var(--amora-warm)" },
+  { name: "hairline", value: "var(--amora-line)" },
+  { name: "primary", value: "var(--amora-ink)" },
+  { name: "text-strong", value: "var(--amora-ink)" },
+  { name: "text-body", value: "var(--amora-soft)" },
+  { name: "text-muted", value: "var(--amora-muted)" },
+];
+
+/** 색과 역할 연결을 생성하는 구간. 스크립트와 검사가 같은 이름을 쓴다. */
 export type WebCssRegion =
   | "root"
   | "theme"
   | "roles"
   | "service-theme"
-  | "community-theme";
+  | "community-theme"
+  | "html-workspace"
+  | "html-workspace-roles";
 
 export function webCssManagedStart(region: WebCssRegion): string {
   return "/* @generated:design-tokens " + region

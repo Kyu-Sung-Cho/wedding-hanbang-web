@@ -28,7 +28,7 @@ import type { AmoraFirstHello } from "@hanbang/shared";
 
 /** 저장소 키. 값 모양이 바뀌면 뒤 숫자를 올린다. */
 export const PENDING_AMORA_FIRST_HELLO_KEY =
-  "@hanbang/amora_first_hello_pending.v1";
+  "@hanbang/amora_first_hello_pending.v2";
 
 /**
  * 이 인사를 유효하게 보는 기간.
@@ -57,9 +57,10 @@ export interface AmoraFirstHelloStorage {
 export interface AmoraFirstHelloOptions {
   storage?: AmoraFirstHelloStorage | null;
   now?: number;
+  owner?: { userId: string; coupleId: string | null } | null;
 }
 
-let pendingInMemory: PendingAmoraFirstHello | null = null;
+const pendingInMemory = new Map<string, PendingAmoraFirstHello>();
 /**
  * 이미 대화 화면에 건네준 첫마디.
  *
@@ -67,12 +68,21 @@ let pendingInMemory: PendingAmoraFirstHello | null = null;
  * 통째로 버리면, 대화를 열었다가 잠깐 라운지로 갔다 온 사람에게서 인사가 사라진다.
  * 그래서 저장소에서는 지우고 이번 실행 동안만 여기 남긴다.
  */
-let deliveredInMemory: AmoraFirstHello | null = null;
+const deliveredInMemory = new Map<string, PendingAmoraFirstHello>();
+
+export function amoraFirstHelloStorageKey(owner: AmoraFirstHelloOptions["owner"]): string | null {
+  if (!owner || !owner.userId || (owner.coupleId !== null && !owner.coupleId)) return null;
+  return `${PENDING_AMORA_FIRST_HELLO_KEY}:${encodeURIComponent(owner.userId)}:${owner.coupleId === null ? "solo" : encodeURIComponent(owner.coupleId)}`;
+}
+
+function isCurrentRecord(record: PendingAmoraFirstHello, now: number): boolean {
+  return Number.isFinite(now) && now >= record.savedAt && now - record.savedAt <= PENDING_AMORA_FIRST_HELLO_TTL_MS;
+}
 
 /** 테스트가 실행 간 상태를 격리할 때 쓴다. */
 export function resetAmoraFirstHelloMemory(): void {
-  pendingInMemory = null;
-  deliveredInMemory = null;
+  pendingInMemory.clear();
+  deliveredInMemory.clear();
 }
 
 function toText(value: unknown, maxLength: number): string | null {
@@ -138,6 +148,8 @@ export async function rememberPendingAmoraFirstHello(
   options: AmoraFirstHelloOptions = {},
 ): Promise<PendingAmoraFirstHello | null> {
   const { storage = null, now = Date.now() } = options;
+  const key = amoraFirstHelloStorageKey(options.owner);
+  if (!key || !Number.isFinite(now)) return null;
   const preview = toText(hello?.preview, MAX_PREVIEW_LENGTH);
   const body = toText(hello?.body, MAX_BODY_LENGTH);
   if (!preview || !body) return null;
@@ -148,12 +160,13 @@ export async function rememberPendingAmoraFirstHello(
     savedAt: now,
     bubbleDismissed: false,
   };
-  pendingInMemory = record;
+  pendingInMemory.set(key, record);
+  deliveredInMemory.delete(key);
 
   if (storage) {
     try {
       await storage.setItem(
-        PENDING_AMORA_FIRST_HELLO_KEY,
+        key,
         serializePendingAmoraFirstHello(record),
       );
     } catch {
@@ -168,14 +181,18 @@ export async function peekPendingAmoraFirstHello(
   options: AmoraFirstHelloOptions = {},
 ): Promise<PendingAmoraFirstHello | null> {
   const { storage = null, now = Date.now() } = options;
-  if (pendingInMemory) return pendingInMemory;
+  const key = amoraFirstHelloStorageKey(options.owner);
+  if (!key) return null;
+  const cached = pendingInMemory.get(key);
+  if (cached && isCurrentRecord(cached, now)) return cached;
+  pendingInMemory.delete(key);
   if (!storage) return null;
   try {
     const record = parsePendingAmoraFirstHello(
-      await storage.getItem(PENDING_AMORA_FIRST_HELLO_KEY),
+      await storage.getItem(key),
       now,
     );
-    pendingInMemory = record;
+    if (record) pendingInMemory.set(key, record);
     return record;
   } catch {
     return null;
@@ -186,16 +203,18 @@ export async function peekPendingAmoraFirstHello(
 export async function dismissAmoraFirstHelloBubble(
   options: AmoraFirstHelloOptions = {},
 ): Promise<void> {
-  const { storage = null, now = Date.now() } = options;
-  const current = await peekPendingAmoraFirstHello({ storage, now });
+  const { storage = null } = options;
+  const key = amoraFirstHelloStorageKey(options.owner);
+  if (!key) return;
+  const current = await peekPendingAmoraFirstHello(options);
   if (!current) return;
 
   const dismissed: PendingAmoraFirstHello = { ...current, bubbleDismissed: true };
-  pendingInMemory = dismissed;
+  pendingInMemory.set(key, dismissed);
   if (!storage) return;
   try {
     await storage.setItem(
-      PENDING_AMORA_FIRST_HELLO_KEY,
+      key,
       serializePendingAmoraFirstHello(dismissed),
     );
   } catch {
@@ -209,24 +228,33 @@ export async function dismissAmoraFirstHelloBubble(
 export async function consumePendingAmoraFirstHello(
   options: AmoraFirstHelloOptions = {},
 ): Promise<AmoraFirstHello | null> {
-  const { storage = null, now = Date.now() } = options;
-  const record = await peekPendingAmoraFirstHello({ storage, now });
-  pendingInMemory = null;
+  const { storage = null } = options;
+  const key = amoraFirstHelloStorageKey(options.owner);
+  if (!key) return null;
+  const record = await peekPendingAmoraFirstHello(options);
+  pendingInMemory.delete(key);
 
   if (storage) {
     try {
-      await storage.removeItem(PENDING_AMORA_FIRST_HELLO_KEY);
+      await storage.removeItem(key);
     } catch {
       // 지우기 실패는 만료가 대신 처리한다.
     }
   }
 
   if (!record) return null;
-  deliveredInMemory = { preview: record.preview, body: record.body };
-  return deliveredInMemory;
+  deliveredInMemory.set(key, record);
+  return { preview: record.preview, body: record.body };
 }
 
 /** 이번 실행에서 이미 건네준 첫마디. 대화 화면이 다시 열렸을 때 쓴다. */
-export function getDeliveredAmoraFirstHello(): AmoraFirstHello | null {
-  return deliveredInMemory;
+export function getDeliveredAmoraFirstHello(options: AmoraFirstHelloOptions = {}): AmoraFirstHello | null {
+  const key = amoraFirstHelloStorageKey(options.owner);
+  const record = key ? deliveredInMemory.get(key) : null;
+  if (!key || !record) return null;
+  if (!isCurrentRecord(record, options.now ?? Date.now())) {
+    deliveredInMemory.delete(key);
+    return null;
+  }
+  return { preview: record.preview, body: record.body };
 }

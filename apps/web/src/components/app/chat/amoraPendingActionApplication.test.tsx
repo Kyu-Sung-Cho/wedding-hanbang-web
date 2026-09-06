@@ -258,7 +258,7 @@ describe("both web chat surfaces describe an applied proposal the same way", () 
       await Promise.resolve();
     });
     const applyButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="확인한 내용을 이대로 적용"]',
+      'button[aria-label="변경 내용 확인하기"]',
     );
     expect(applyButton).not.toBeNull();
     const text = container.textContent ?? "";

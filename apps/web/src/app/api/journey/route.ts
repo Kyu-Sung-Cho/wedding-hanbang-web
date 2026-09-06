@@ -72,6 +72,7 @@ const SCHEDULE_PROGRESS_FIELDS = new Set([
 ]);
 const PATCH_KEYS = new Set([
   "expected_revision",
+  "expected_couple_id",
   "wedding_date",
   "total_budget",
   "venue",
@@ -101,6 +102,7 @@ type PlanChangeResult = {
 
 type ParsedPatch = {
   expectedRevision: number;
+  expectedCoupleId: string;
   changes: Record<string, unknown>;
   summary: string;
   surface: "/schedule" | "/budget" | "/dashboard";
@@ -344,6 +346,11 @@ function parsePatchBody(body: unknown): ParsePatchResult {
     return { ok: false, error: "변경 기준 버전이 올바르지 않습니다." };
   }
 
+  if (!isUuid(body.expected_couple_id)) {
+    return { ok: false, error: "변경 기준 커플 정보를 확인하지 못했어요. 최신 화면을 다시 불러와 주세요." };
+  }
+  const expectedCoupleId = body.expected_couple_id.toLowerCase();
+
   const changes: Record<string, unknown> = {};
   if (hasOwn(body, "wedding_date")) {
     const parsedDate = cleanOptionalIsoDate(body.wedding_date);
@@ -480,6 +487,7 @@ function parsePatchBody(body: unknown): ParsePatchResult {
     ok: true,
     value: {
       expectedRevision,
+      expectedCoupleId,
       changes,
       summary,
       surface: deriveSurface(changes),
@@ -773,6 +781,15 @@ export async function PATCH(request: Request) {
       return privateResponse({ error: "커플 정보를 확인하지 못했어요." }, 503);
     }
     if (
+      !isRecord(profile) || typeof profile.couple_id !== "string" ||
+      profile.couple_id.toLowerCase() !== parsed.value.expectedCoupleId
+    ) {
+      return privateResponse({
+        error: "커플 연결 상태가 바뀌었어요. 최신 화면을 다시 불러와 주세요.",
+        code: "PLAN_CHANGE_IDENTITY_CHANGED",
+      }, 409);
+    }
+    if (
       !isRecord(profile)
       || typeof profile.couple_id !== "string"
       || !isUuid(profile.couple_id)
@@ -780,7 +797,8 @@ export async function PATCH(request: Request) {
       return privateResponse({ error: "커플 연결이 필요합니다." }, 403);
     }
 
-    const coupleId = profile.couple_id;
+    // 확인 뒤 연결이 바뀌어도 RPC가 폼의 원래 커플 멤버십을 검증하도록 고정한다.
+    const coupleId = parsed.value.expectedCoupleId;
     let rpcChanges = parsed.value.changes;
     if (hasOwn(rpcChanges, "progress")) {
       const nextProgress = rpcChanges.progress;

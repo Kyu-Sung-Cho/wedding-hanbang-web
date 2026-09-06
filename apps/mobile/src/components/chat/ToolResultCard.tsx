@@ -1,7 +1,8 @@
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
 import { CheckCircle2, XCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import type { ToolResultCardModel } from "./toolResultCardModel";
+import { getToolResultDestination, type ToolResultCardModel } from "./toolResultCardModel";
 
 /**
  * 아모라가 반영한 변경의 영수증. 한 줄 제목 + 결과 문장.
@@ -11,6 +12,7 @@ import type { ToolResultCardModel } from "./toolResultCardModel";
  */
 export function ToolResultCard({ model }: { model: ToolResultCardModel }) {
   const failed = model.tone === "failure";
+  const destination = getToolResultDestination(model.toolName);
   return (
     <View
       style={[styles.card, failed && styles.cardFailed]}
@@ -29,6 +31,10 @@ export function ToolResultCard({ model }: { model: ToolResultCardModel }) {
         </Text>
       </View>
       <Text style={styles.message}>{model.message}</Text>
+      {destination ? <Pressable accessibilityRole="button" accessibilityLabel={destination.label}
+        onPress={() => router.push(destination.pathname)} style={styles.destination}>
+        <Text style={styles.destinationText}>{destination.label}</Text>
+      </Pressable> : null}
     </View>
   );
 }
@@ -53,4 +59,6 @@ const styles = StyleSheet.create({
   status: { marginLeft: "auto", fontSize: 12, fontWeight: "600", color: "#2F766F" },
   statusFailed: { color: "#B04A3B" },
   message: { marginTop: 6, fontSize: 13, lineHeight: 19, color: colors.noir.soft },
+  destination: { minHeight: 44, justifyContent: "center", alignSelf: "flex-start", marginTop: 4 },
+  destinationText: { fontSize: 13, fontWeight: "600", color: colors.rose[600] },
 });

@@ -16,6 +16,8 @@ type AccessibleModalOptions = {
   onClose(): void;
   closeOnEscape?: boolean;
   initialFocusSelector?: string;
+  /** 부모 모달이 이미 잠근 스크롤은 부모가 복원한다. */
+  respectExistingScrollLock?: boolean;
 };
 
 export function useAccessibleModal<T extends HTMLElement = HTMLDivElement>({
@@ -23,6 +25,7 @@ export function useAccessibleModal<T extends HTMLElement = HTMLDivElement>({
   onClose,
   closeOnEscape = true,
   initialFocusSelector,
+  respectExistingScrollLock = false,
 }: AccessibleModalOptions): RefObject<T | null> {
   const dialogRef = useRef<T>(null);
   const onCloseRef = useRef(onClose);
@@ -39,7 +42,8 @@ export function useAccessibleModal<T extends HTMLElement = HTMLDivElement>({
       ? document.activeElement
       : null;
     const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    const ownsScrollLock = !respectExistingScrollLock || previousOverflow !== "hidden";
+    if (ownsScrollLock) document.body.style.overflow = "hidden";
 
     const initialControl = (initialFocusSelector
       ? dialog?.querySelector<HTMLElement>(initialFocusSelector)
@@ -83,10 +87,10 @@ export function useAccessibleModal<T extends HTMLElement = HTMLDivElement>({
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
+      if (ownsScrollLock) document.body.style.overflow = previousOverflow;
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
-  }, [closeOnEscape, initialFocusSelector, open]);
+  }, [closeOnEscape, initialFocusSelector, open, respectExistingScrollLock]);
 
   return dialogRef;
 }

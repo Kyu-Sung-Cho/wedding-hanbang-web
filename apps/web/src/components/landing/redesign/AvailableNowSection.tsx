@@ -3,86 +3,99 @@ import Link from "next/link";
 import TrackedLandingLink from "./TrackedLandingLink";
 
 import { landingContent } from "./landingContent";
-import { band, eyebrowText, noteText, sectionTitle, shell } from "./notebook";
+import { band, eyebrowText, noteText, sectionTitle, shell, TitleLines } from "./notebook";
 
-/**
- * 로그인 없이 지금 되는 것 네 가지.
- *
- * 정본 시안 `docs/landing/NotebookBest.html` 의 `#now` 섹션이다.
- * 카드마다 테이프에 번호(01~04)를 붙여 순서가 아니라 **목록**임을 보인다.
- *
- * ⚠️ 시안의 `#now` 는 `.g3` 에 카드 셋이었고 주석도 "세 가지" 였다. 공시 가격이
- * 전용 섹션에서 이 안의 카드로 내려오며(파운더 결정) **넷**이 됐는데 수량 서술만
- * 셋으로 남아 있었다. 그래서 그리드도 시안의 3열이 아니라 2열이다.
- *
- * ## 카드 아래 작은 글씨가 본문이다
- *
- * 네 카드의 `note` 는 장식이 아니라 **계약**이다. 특히 02 의 "점수도 궁합도 매기지
- * 않아요" 는 CLAUDE.md 가 요구하는 고지다(WeddingCode 는 검증된 궁합 검사가 아니다).
- * 지우면 화면이 금지된 약속을 하게 된다.
- *
- * ## 여기 있는 것만 적는다
- *
- * 시안은 카드 아래에 "아모라 대화도 로그인 없이 열려 있어요" 라고 적었다. 비로그인
- * 아모라 체험은 2026-08-27에 닫혔으므로 그 줄에서 아모라를 뺐다. 남은 둘 — 공시
- * 가격·위약금 원문과 커뮤니티 — 은 오늘 실제로 로그인 없이 열린다.
- */
+/** 링크 목적을 보여 주는 장식 그림. 카드 순서를 바꿔도 목적과 그림이 함께 움직인다. */
+function ToolIllustration({ href }: { href: string }) {
+  return (
+    <svg aria-hidden="true" focusable="false" viewBox="0 0 90 64" fill="none" className="h-auto w-full">
+      {href === "/wedding/community/quote-check" ? (
+        <>
+          <rect x="10" y="6" width="46" height="52" rx="4" fill="var(--color-paper-card)" stroke="var(--color-paper-edge)" strokeWidth="1.3" />
+          <path d="M20 20h26M20 29h26M20 38h14" stroke="var(--color-paper-divider)" strokeWidth="1.8" strokeLinecap="round" />
+          <circle cx="58" cy="43" r="13" fill="var(--color-ivory-50)" stroke="var(--color-rose-500)" strokeWidth="1.6" />
+          <path d="m67.5 52.5 8.5 8.5" stroke="var(--color-rose-500)" strokeWidth="1.8" strokeLinecap="round" />
+          <path d="m53 43 3.5 3.5L64 39" stroke="var(--color-rose-500)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+        </>
+      ) : href === "/wedding-code" ? (
+        <>
+          <circle cx="34" cy="34" r="19" fill="var(--color-rose-pale)" stroke="var(--color-rose-light)" strokeWidth="1.4" />
+          <circle cx="56" cy="34" r="19" stroke="var(--color-sage-500)" strokeWidth="1.4" />
+          <path d="M45 20a19 19 0 0 0 0 28" stroke="var(--color-rose-500)" strokeWidth="1.4" strokeDasharray="3 3" />
+        </>
+      ) : href === "/price" ? (
+        <>
+          <path d="M12 30 34 8h26a5 5 0 0 1 5 5v26a5 5 0 0 1-5 5H34L12 22Z" fill="var(--color-paper-card)" stroke="var(--color-paper-edge)" strokeWidth="1.3" />
+          <circle cx="54" cy="20" r="4" fill="var(--color-rose-pale)" stroke="var(--color-rose-light)" strokeWidth="1.3" />
+          <path d="M30 52h44M38 58h28" stroke="var(--color-paper-divider)" strokeWidth="1.6" strokeLinecap="round" />
+        </>
+      ) : (
+        <>
+          <rect x="14" y="12" width="58" height="40" rx="4" fill="var(--color-paper-card)" stroke="var(--color-paper-edge)" strokeWidth="1.3" />
+          <path d="m14 16 29 20 29-20" stroke="var(--color-paper-edge)" strokeWidth="1.3" strokeLinejoin="round" />
+          <g transform="translate(43 33) scale(.62)">
+            {[0, 72, 144, 216, 288].map((rotation) => (
+              <ellipse key={rotation} cx="0" cy="-10" rx="5.4" ry="9" transform={`rotate(${rotation})`} fill="var(--color-rose-pale)" stroke="var(--color-rose-light)" strokeWidth="1.6" />
+            ))}
+            <circle r="3.4" fill="var(--color-rose-light)" stroke="var(--color-rose-500)" strokeWidth="1.6" />
+          </g>
+        </>
+      )}
+    </svg>
+  );
+}
+
+/** 기능별 한계와 개인정보 고지는 카드 안에 남겨 링크와 함께 읽히게 한다. */
 export default function AvailableNowSection() {
   const { availableNow } = landingContent;
 
   return (
     <section
       id="now"
-      className={`${band} bg-[var(--color-paper-tint)]`}
+      className={`${band} border-t border-[var(--color-paper-edge)] bg-[var(--color-ivory-warm)] !pb-0`}
       aria-labelledby="now-title"
     >
       <div className={shell}>
-        {/* 시안은 이 섹션만 가운데 정렬이다 — 나머지는 전부 왼쪽. "여기서부터는
-            지금 바로 만질 수 있는 것" 이라는 신호를 정렬로 준다. */}
-        <p className="mb-5 text-center">
+        <p className="mb-[10px] lg:mb-3 lg:text-center">
           <span className={eyebrowText}>{availableNow.eyebrow}</span>
         </p>
 
-        <h2 id="now-title" className={`${sectionTitle} text-center`}>
-          {availableNow.title}
+        <h2 id="now-title" className={`${sectionTitle} lg:text-center`}>
+          <TitleLines value={availableNow.title} mobileLastWord />
         </h2>
 
-        {/* ⚠️ 한때 `lg:grid-cols-3` 이었다(카드는 넷이라 네 번째가 혼자 줄을 찼다).
-            그 뒤 2열로 두고 "`lg:grid-cols-4` 는 쓰지 마라 — 카드당 236px 이라 `note`
-            고지문이 6~8줄로 늘어진다" 고 적어 두었다.
-            2026-09-03: 시안이 4단이고, 같은 날 공용 폭이 1080 → 1240px 으로 넓어져
-            카드당 약 280px 이 됐다. 그래서 4단으로 간다. **고지문은 그대로 남는다** —
-            시안 카드에는 없지만 넷 다 등록된 고지라 지울 수 없다(`landingDisclosuresAreOnScreen`).
-            좁아지는 만큼 고지가 길어지는 것은 알고 받아들인 대가다. */}
-        <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+        <div className="mt-[22px] grid gap-[10px] lg:mt-[46px] lg:grid-cols-4 lg:gap-[18px]">
           {availableNow.cards.map((card) => (
             <TrackedLandingLink
               key={card.no}
               source="landing_now_card"
               href={card.href}
-              className="landing-note block px-6 py-7 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+              className="flex min-h-11 items-center gap-[14px] rounded-[14px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-[18px] py-4 transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:block lg:rounded-[16px] lg:px-[22px] lg:py-[26px]"
             >
-              <span className="landing-tape landing-hand mb-5 inline-block">{card.no}</span>
-              <span className="block text-[18px] font-semibold text-[var(--color-paper-ink)]">
-                {card.title}
+              <span className="block w-16 shrink-0 lg:mb-4 lg:w-[90px]">
+                <ToolIllustration href={card.href} />
               </span>
-              {/* 줄 간격 32px — 카드 줄무늬 위에 글이 얹히게. */}
-              <span className="mt-3 block text-[16px] leading-8 text-[var(--color-paper-ink-soft)]">
-                {card.body}
+              <span className="min-w-0">
+                <span className="block text-[14.5px] font-semibold leading-[1.45] text-[var(--color-paper-ink)] lg:text-[15.5px]">
+                  {card.title}
+                </span>
+                <span className="mt-[5px] block text-[12.5px] leading-[1.65] text-[var(--color-paper-ink-soft)] lg:mt-2 lg:text-[13px]">
+                  {card.body}
+                </span>
+                <span className={`mt-[10px] block lg:mt-4 ${noteText}`}>{card.note}</span>
               </span>
-              <span className={`mt-5 block ${noteText}`}>{card.note}</span>
             </TrackedLandingLink>
           ))}
         </div>
 
-        <p className={`mt-8 text-center ${noteText}`}>
+        <p className={`mt-4 lg:mt-[22px] ${noteText}`}>
           {availableNow.footLead}
           {availableNow.footLinks.map((link, index) => (
             <span key={link.href}>
               {index > 0 ? "과 " : ""}
               <Link
                 href={link.href}
-                className="landing-pen font-medium text-[var(--color-paper-ink)]"
+                className="landing-pen font-medium text-[var(--color-paper-ink)] focus-visible:rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2"
               >
                 {link.label}
               </Link>

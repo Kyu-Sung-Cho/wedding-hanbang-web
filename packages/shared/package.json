@@ -18,7 +18,8 @@
     "./mediation-provenance": "./src/contracts/mediationProvenance.mjs",
     "./community-notification": "./src/contracts/communityNotification.mjs",
     "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
-    "./budget-share": "./src/contracts/budgetShare.mjs"
+    "./budget-share": "./src/contracts/budgetShare.mjs",
+    "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

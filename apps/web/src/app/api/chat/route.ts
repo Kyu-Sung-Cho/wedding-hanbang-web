@@ -2,7 +2,7 @@ import { asksWhereToStart } from "@/lib/marketing/preparationPriorities";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildFirstHelloContextTurn } from "@/lib/ai/firstHelloContext";
-import { normalizePreparationStatus } from "@hanbang/shared";
+import { compareChatTimestamps, normalizePreparationStatus } from "@hanbang/shared";
 import {
   PARTNER_TARGET_SUFFIX,
   speakerLabelFor,
@@ -130,6 +130,7 @@ import {
   resolveAmoraWeddingClarificationContinuity,
 } from "@/lib/ai/amoraClarificationContinuity";
 import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
+import { appendAmoraToolResultHistory, appendAmoraBoundedToolResultHistory } from "@/lib/ai/amoraToolResultHistory";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
@@ -176,6 +177,7 @@ import {
   reconcileChatRequest,
 } from "@/lib/ai/chatRequestClaim";
 import { NextResponse } from "next/server";
+import { buildAmoraInitialGreetingRequestKey } from "@/lib/ai/amoraInitialGreetingKey";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import {
@@ -476,48 +478,56 @@ async function readFirstRunTutorialCompletedAt(
 type ChatViewClearedAt = {
   shared: string | null;
   private: string | null;
+  privacyEpoch: number | null;
 };
 
-const NO_CHAT_VIEW_CLEARED_AT: ChatViewClearedAt = { shared: null, private: null };
+const NO_CHAT_VIEW_CLEARED_AT: ChatViewClearedAt = { shared: null, private: null, privacyEpoch: null };
+
+function chatViewBoundaryUnavailableResponse() {
+  return NextResponse.json(
+    {
+      error: "대화 정리 범위를 안전하게 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+      code: "CHAT_VIEW_BOUNDARY_UNAVAILABLE",
+      retryable: true,
+      retryPolicy: "same_request",
+    },
+    { status: 503, headers: { "Cache-Control": "no-store" } },
+  );
+}
 
 /**
- * 화면 정리(view reset) 커서. **프로필 select 와 합치지 않는다.**
- *
- * 2026-09-03. '화면 정리'와 '함께 새로 시작하기'는 `profiles` 의 timestamp 한 칸만
- * 올리고 `chat_messages` 는 한 행도 지우지 않는다
- * (`api/chat/messages/route.ts` view_reset_*, `atomic_chat_clear_request`).
- * 화면은 그 커서로 걸러 0건이 되는데(`stores/chatStore.ts` `isAfterClearedAt`)
- * 서버 프롬프트 질의에는 커서 조건이 하나도 없어서, 사용자가 대화를 지웠다고
- * 믿은 뒤에도 아모라는 직전 대화를 그대로 읽고 답했다(2차 감사 Critical 1).
- *
- * `readChatActorProfile` 의 select 에 얹지 않는 이유는 바로 위 문단과 같다 —
- * 컬럼이 없는 배포에서 select 전체가 42703 으로 죽으면 채팅이 통째로 멈춘다.
- * 여기서 따로 읽고, 실패하면 커서 없음(= 오늘과 동일한 동작)으로 닫는다.
+ * 화면 정리는 원문을 삭제하지 않고 프로필 커서와 privacy epoch를 갱신한다.
+ * 본인 권한으로 두 값을 한 snapshot에서 읽어 숨긴 원문이 프롬프트로 복귀하거나
+ * 초기화 전 문맥으로 시작한 요청이 새 epoch를 사용하는 일을 막는다.
+ * 확인된 null 커서와 조회 실패를 구분하고, 확인할 수 없는 경계는 재시도 오류로 닫는다.
  */
-async function readChatViewClearedAt(actorId: string): Promise<ChatViewClearedAt> {
+async function readChatViewClearedAt(
+  supabase: Awaited<ReturnType<typeof createClientFromRequest>>,
+  coupleId: string,
+  visibility: "shared" | "bride_private" | "groom_private",
+): Promise<ChatViewClearedAt | null> {
   try {
-    const { data, error } = await getServiceClient()
-      .from("profiles")
-      .select("shared_chat_cleared_at, private_chat_cleared_at")
-      .eq("id", actorId)
-      .single();
-    if (error || !data) return NO_CHAT_VIEW_CLEARED_AT;
-    const row = data as {
-      shared_chat_cleared_at?: unknown;
-      private_chat_cleared_at?: unknown;
-    };
-    const normalize = (value: unknown): string | null =>
-      typeof value === "string"
+    // 같은 DB snapshot에서 읽어야 이전 커서와 초기화 후 epoch가 섞이지 않는다.
+    const { data, error } = await supabase.rpc("get_own_amora_chat_view_snapshot", {
+      p_couple_id: coupleId,
+      p_visibility: visibility,
+    });
+    if (error || !isRecord(data) || data.version !== 1
+      || !Number.isSafeInteger(data.privacyEpoch) || Number(data.privacyEpoch) < 1) return null;
+    const normalize = (value: unknown): string | null | undefined => {
+      if (value === null) return null;
+      return typeof value === "string"
         && value.length > 0
         && Number.isFinite(Date.parse(value))
         ? value
-        : null;
-    return {
-      shared: normalize(row.shared_chat_cleared_at),
-      private: normalize(row.private_chat_cleared_at),
+        : undefined;
     };
+    const shared = normalize(data.shared);
+    const privateCursor = normalize(data.private);
+    if (shared === undefined || privateCursor === undefined) return null;
+    return { shared, private: privateCursor, privacyEpoch: Number(data.privacyEpoch) };
   } catch {
-    return NO_CHAT_VIEW_CLEARED_AT;
+    return null;
   }
 }
 
@@ -534,10 +544,9 @@ function isAfterChatViewClear(
   const cursor = rowVisibility === "shared" ? cleared.shared : cleared.private;
   if (!cursor) return true;
   if (typeof createdAt !== "string") return true;
-  const rowTime = Date.parse(createdAt);
-  const cursorTime = Date.parse(cursor);
-  if (!Number.isFinite(rowTime) || !Number.isFinite(cursorTime)) return true;
-  return rowTime > cursorTime;
+  const comparison = compareChatTimestamps(createdAt, cursor);
+  if (comparison === null) return true;
+  return comparison === 1;
 }
 
 /**
@@ -551,7 +560,7 @@ function chatViewClearedFloor(cursors: ReadonlyArray<string | null>): string | n
   let floor: string | null = null;
   for (const cursor of cursors) {
     if (!cursor) return null;
-    if (floor === null || Date.parse(cursor) < Date.parse(floor)) floor = cursor;
+    if (floor === null || compareChatTimestamps(cursor, floor) === -1) floor = cursor;
   }
   return floor;
 }
@@ -976,16 +985,22 @@ export async function POST(request: Request) {
       : requestKind === "chat" && typeof bodyUserMessageId === "string"
         ? deriveBoundRequestId(rawClientRequestId, bodyUserMessageId)
       : rawClientRequestId;
-  // 2026-09-03: 인사 요청키가 사용자 id 하나로 영구 고정돼 있어, 커플이 바뀐
-  // 사용자는 예약 RPC 가 옛 커플과 다르다며 거절(invalid_args)해 첫 인사가
-  // 영원히 실패했다. 비용 원장이 실제로 비교하는 커플 값을 키에 함께 넣는다.
-  // 2026-09-04 브라우저 실측(새 커플 첫 화면): 인사 요청키에 커플 id 를 붙인 #303 이후
-  // 운영·스테이징의 `claim_amora_chat_request` 가 `greeting:<user_id>` 정확히 그 모양만
-  // 받아 **모든 새 커플의 첫 인사가 22023 으로 실패**했다(화면: "아모라를 불러오지 못했어요").
-  // 클레임 표의 키는 (couple_id, request_key) 라 커플 범위는 이미 잡혀 있다. DB 규약대로
-  // 되돌린다. 초기화 뒤 옛 인사가 재생되는 문제는 DB 마이그레이션이 필요한 별개 결정.
+  // 인사 replay는 일반 문맥 조회보다 먼저 온다. 그 전에 서버 커서를 읽어
+  // 정리 전 인사를 찾지 않도록 한다. 새 공간은 기존 greeting 키를 유지하고,
+  // 정리한 공간은 기존 RPC가 허용하는 별도 lifecycle 키로 한 번만 인사한다.
+  const greetingChatViewClearedAt = requestKind === "initial_greeting" && !isDemo
+    ? await readChatViewClearedAt(supabase, dataCoupleId, visibility)
+    : NO_CHAT_VIEW_CLEARED_AT;
+  if (!greetingChatViewClearedAt) return chatViewBoundaryUnavailableResponse();
   const clientRequestId = requestKind === "initial_greeting"
-    ? `greeting:${actorId}`
+    ? buildAmoraInitialGreetingRequestKey({
+        actorId,
+        coupleId,
+        visibility,
+        resetAt: visibility === "shared"
+          ? greetingChatViewClearedAt.shared
+          : greetingChatViewClearedAt.private,
+      })
     : `chat:${actorId}:${durableClientRequestUuid}`;
   const requestCorrelationId = createHash("sha256")
     .update(clientRequestId)
@@ -994,6 +1009,21 @@ export async function POST(request: Request) {
     message: PersistedAiMessage,
     expectedReplayPrivacyEpoch: number,
   ): Promise<Response> => {
+    // 같은 요청 재전송도 화면 정리 이후 숨겨진 답변을 되살리면 안 된다.
+    // 초기 문맥 조회를 건너뛰는 replay 경로이므로 여기서 별도로 확인한다.
+    const replayViewClearedAt = await readChatViewClearedAt(supabase, dataCoupleId, visibility);
+    if (!replayViewClearedAt) return chatViewBoundaryUnavailableResponse();
+    if (!isAfterChatViewClear(message.createdAt, message.visibility, replayViewClearedAt)) {
+      return NextResponse.json(
+        {
+          error: "정리한 대화의 답변은 다시 불러오지 않아요. 새 메시지로 시작해주세요.",
+          code: "CHAT_REPLAY_CLEARED",
+          retryable: false,
+          retryPolicy: "new_message",
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
     const memoryReconciliation = await reconcilePersistedAmoraMemoryEnqueue({
       coupleId,
       userId: actorId,
@@ -1478,9 +1508,11 @@ export async function POST(request: Request) {
   // 질의를 **만들 때** 값이 필요하므로 그 Promise.all 안에 넣을 수 없고, 그렇다고
   // 직렬 왕복을 하나 더 붙이면 모든 턴이 그만큼 느려진다. 체험(demo)에는 프로필이
   // 없으므로 조회하지 않는다.
-  const chatViewClearedAtPromise: Promise<ChatViewClearedAt> = isDemo
+  const chatViewClearedAtPromise: Promise<ChatViewClearedAt | null> = isDemo
     ? Promise.resolve(NO_CHAT_VIEW_CLEARED_AT)
-    : readChatViewClearedAt(actorId);
+    : requestKind === "initial_greeting"
+      ? Promise.resolve(greetingChatViewClearedAt)
+      : readChatViewClearedAt(supabase, dataCoupleId, visibility);
   // 되묻기 직후일 수 있는 턴에서는 저장된 결혼 문맥 읽기를 건너뛰지 않는다.
   // 건너뛰면 연속성이 성립해도 저니·프로필·결정 이력이 비어 있어 도구가 되살아난
   // 자리에서 아무것도 답하지 못한다. 연속성이 성립하지 않으면 범위는 그대로 W4라
@@ -1956,6 +1988,22 @@ export async function POST(request: Request) {
   // 2026-09-03: 화면 정리 커서. 아래 질의들이 "화면에 남아 있는 범위"만 읽도록
   // 좁히는 데만 쓴다 — 커서가 없으면(대부분) 조건이 붙지 않아 오늘과 동일하다.
   const chatViewClearedAt = await chatViewClearedAtPromise;
+  if (!chatViewClearedAt) {
+    await releaseClaimBeforeStream("CHAT_VIEW_BOUNDARY_UNAVAILABLE");
+    return chatViewBoundaryUnavailableResponse();
+  }
+  if (!isDemo && chatViewClearedAt.privacyEpoch !== initialPrivacyEpoch) {
+    await releaseClaimBeforeStream("AMORA_PRIVACY_CONTEXT_CHANGED");
+    return NextResponse.json(
+      {
+        error: "대화 정리 또는 개인정보 설정이 바뀌었어요. 다시 시도해주세요.",
+        code: "AMORA_PRIVACY_CONTEXT_CHANGED",
+        retryable: true,
+        retryPolicy: "same_request",
+      },
+      { status: 503, headers: { "Cache-Control": "no-store" } },
+    );
+  }
   const messagesClearedFloor = chatViewClearedFloor(
     visibility === "shared"
       ? [chatViewClearedAt.shared]
@@ -2586,6 +2634,7 @@ export async function POST(request: Request) {
       /** 이 카드가 처음 나온 답변 행 id. 관측용이며 정책을 바꾸지 않는다. */
       pending_amora_action_carry_origin_message_id?: unknown;
       in_reply_to_user_message_id?: unknown;
+      toolResults?: unknown;
     } | null;
     visibility: "shared" | "bride_private" | "groom_private";
     segment_id?: string | null;
@@ -2709,9 +2758,9 @@ export async function POST(request: Request) {
       // 약속을 걷어낸다. 이력은 모델에게 "아모라 턴은 이렇게 생겼다"를 가르친다.
       return {
         role: "assistant" as const,
-        content: buildAmoraHistoryContent(
-          row.content,
-          row.metadata?.pending_amora_action,
+        content: appendAmoraToolResultHistory(
+          buildAmoraHistoryContent(row.content, row.metadata?.pending_amora_action),
+          row.metadata?.toolResults,
         ),
         id: row.id,
       };
@@ -3154,18 +3203,22 @@ export async function POST(request: Request) {
     && questionScope.scope !== "W1_wedding_adjacent"
     && typeof bodyUserMessageId === "string"
     && shouldLoadBoundedContinuity
-      ? buildAmoraBoundedContinuity({
-          newestFirstRows: selectAmoraTrustedHistoryRows({
+      ? (() => {
+          const trustedRows = selectAmoraTrustedHistoryRows({
             oldestFirstRows: [...boundedContinuityRows].reverse(),
             currentUserMessageId: bodyUserMessageId,
             visibility,
-          }).reverse(),
-          currentMessageId: bodyUserMessageId,
-          currentUserText: lastUserText,
-          requesterUserId: actorId,
-          visibility,
-          segmentId: boundedContinuitySegmentId as string,
-        })
+          }).reverse();
+          const continuity = buildAmoraBoundedContinuity({
+            newestFirstRows: trustedRows,
+            currentMessageId: bodyUserMessageId,
+            currentUserText: lastUserText,
+            requesterUserId: actorId,
+            visibility,
+            segmentId: boundedContinuitySegmentId as string,
+          });
+          return appendAmoraBoundedToolResultHistory(continuity, trustedRows[1]?.metadata?.toolResults);
+        })()
       : null;
   const memoryEnqueueRequested =
     questionScope.allowsLongTermMemory
@@ -3178,9 +3231,8 @@ export async function POST(request: Request) {
       || questionScope.scope === "W1_wedding_adjacent"
     );
   const assertStoredContextTerminalReleasePrivacyEpochCurrent = async () => {
-    // Current-input-only scopes never loaded stored couple context, so they do
-    // not need another database read at the terminal display boundary.
-    if (isDemo || !allowsStoredProviderContext) return;
+    // 인사와 W4도 화면 정리로 무효화된다. 저장 이후 표시 직전까지 같은 경계를 쓴다.
+    if (isDemo) return;
     if (initialPrivacyEpoch === null) {
       throw new AmoraPrivacyContextError("AMORA_PRIVACY_CONTEXT_UNAVAILABLE");
     }
@@ -3560,7 +3612,7 @@ export async function POST(request: Request) {
     || boundedContinuity !== null
     // Replies built from stored couple context stay hidden until the database
     // atomically validates the exact privacy epoch and commits the message.
-    || allowsStoredProviderContext
+    || !isDemo
     // Demo has no durable write boundary. Buffer every demo chat response so
     // an unexpected completion claim can never flash before terminal scrubbing.
     || (isDemo && requestKind === "chat");
@@ -3649,7 +3701,7 @@ export async function POST(request: Request) {
           // 클라이언트 연결 끊김
         }
       };
-      const buffersSensitiveToolEvents = !isDemo && allowsStoredProviderContext;
+      const buffersSensitiveToolEvents = !isDemo;
       const bufferedSensitiveToolEvents: Array<Record<string, unknown>> = [];
       let sensitiveToolEventsReleased = !buffersSensitiveToolEvents;
       const sendSensitiveToolEvent = (event: Record<string, unknown>) => {
@@ -3847,15 +3899,14 @@ export async function POST(request: Request) {
             && pendingExtraction.pendingAction === null
             && pendingExtraction.dropReason === undefined
           ) {
-            // 진단만(서버 로그). 표식은 모델 출력이고 사용자 문장은 이미 본인 요청으로 DB 에 있다.
+            // 모델 출력도 비공개 내용을 포함할 수 있다. 원문과 커플 ID 대신
+            // 요청 해시·서버 도구 이름·파서가 정한 고정 실패 모양만 남긴다.
             console.warn("[chat] pending action tag dropped", {
-              coupleId,
+              requestCorrelationId,
               offeredTools: pendingOfferEnabled
                 ? pendingProposalTools.map((tool) => tool.name)
                 : [],
-              payloadHeads: pendingExtraction.droppedPayloadHeads ?? [],
               shapes: pendingExtraction.droppedShapes ?? [],
-              tailHead: pendingExtraction.droppedTailHead ?? null,
             });
           }
           const persistenceSafeText = ensureNonEmptyTerminalText(

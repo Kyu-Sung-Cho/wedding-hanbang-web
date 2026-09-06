@@ -38,6 +38,10 @@ const mocks = vi.hoisted(() => {
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: vi.fn(async () => ({
+    rpc: vi.fn(async (name: string) => {
+      if (name !== "get_own_amora_chat_view_snapshot") throw new Error("Unexpected authenticated RPC");
+      return { data: { version: 1, privacyEpoch: 7, shared: null, private: null }, error: null };
+    }),
     auth: {
       getUser: vi.fn(async () => ({
         data: { user: { id: "00000000-0000-4000-8000-000000000001" } },

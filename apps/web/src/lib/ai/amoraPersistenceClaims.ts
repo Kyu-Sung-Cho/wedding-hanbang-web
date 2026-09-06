@@ -3,6 +3,7 @@ import type { ToolExecutionResult } from "@/types/database.types";
 import { guardDemoPersistenceDisclosure } from "./amoraDemoPersistence";
 import { isMutatingTool } from "./mutationTools";
 import { screenAmoraTrustClaims } from "./amoraTrustClaims";
+import { splitAmoraClaimSegments } from "./amoraClaimSegments";
 
 const AFFIRMATIVE_PERSISTENCE_CLAIM_RE =
   /(?:(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용|처리|입력)(?:해\s*(?:두었|뒀|놓았|놨|드렸)|하였|했|됐|되었|\s*완료(?:했|됐))|(?:넣어|적어|써|바꿔|올려)\s*(?:두었|뒀|놓았|놨|드렸)|(?:넣었|적었|썼|바꿨|올렸)|완료(?:하였|했|됐|되었))(?:어요|습니다|어|다)?/u;
@@ -364,15 +365,12 @@ function removeUnverifiedPersistenceClaims(
     return { text: "", removedClaimCount: 0, removedFuturePromiseCount: 0 };
   }
 
-  const segments = normalizedText
-    .split(/(?<=[.!?。！？])\s*|\n+/u)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
+  const segments = splitAmoraClaimSegments(normalizedText);
   const kept: string[] = [];
   let removedClaimCount = 0;
   let removedFuturePromiseCount = 0;
 
-  for (const segment of segments) {
+  for (const { claim: segment, source } of segments) {
     if (containsUnverifiedSuccessClaim(segment, options.keepStateDescriptions === true)) {
       removedClaimCount += 1;
     } else if (
@@ -382,14 +380,14 @@ function removeUnverifiedPersistenceClaims(
       removedClaimCount += 1;
       removedFuturePromiseCount += 1;
     } else {
-      kept.push(segment);
+      kept.push(source);
     }
   }
 
   return {
     text: removedClaimCount === 0
       ? normalizedText
-      : repairSplitEmphasis(dropDanglingConnective(kept.join("\n\n"))),
+      : repairSplitEmphasis(dropDanglingConnective(kept.join("").trim())),
     removedClaimCount,
     removedFuturePromiseCount,
   };

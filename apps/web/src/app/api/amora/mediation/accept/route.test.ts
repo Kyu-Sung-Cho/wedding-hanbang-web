@@ -48,6 +48,66 @@ describe("GET /api/amora/mediation/accept", () => {
     vi.clearAllMocks();
   });
 
+  it.each(["GET", "POST", "DELETE"] as const)(
+    "reports a retryable database failure without claiming missing permission or proposal on %s",
+    async (method) => {
+      const currentRoster = fingerprint(USER_ID, PARTNER_ID);
+      const fields = {
+        messageId: MESSAGE_ID,
+        expectedProposalVersion: CURRENT_VERSION,
+        expectedRosterFingerprint: currentRoster,
+      };
+      for (const failedTable of ["profiles", "chat_messages"]) {
+        vi.mocked(createClientFromRequest).mockResolvedValue({
+          auth: { getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })) },
+          from: vi.fn((table: string) => query(table === failedTable
+            ? { data: null, error: { code: "08006", message: "SYNTHETIC_PRIVATE_DATABASE_DETAIL" } }
+            : { data: { couple_id: COUPLE_ID }, error: null })),
+        } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
+        const request = new Request(
+          "http://localhost/api/amora/mediation/accept"
+            + (method === "GET" ? `?${new URLSearchParams(fields)}` : ""),
+          method === "GET" ? undefined : {
+            method,
+            headers: { "Content-Type": "application/json", Origin: "http://localhost" },
+            body: JSON.stringify(fields),
+          },
+        );
+
+        const response = await ({ GET, POST, DELETE }[method])(request);
+
+        expect(response.status, failedTable).toBe(503);
+        const payload = await response.json();
+        expect(payload.error).toContain("다시 시도");
+        expect(JSON.stringify(payload)).not.toContain("SYNTHETIC_PRIVATE_DATABASE_DETAIL");
+        expect(createAdminClient).not.toHaveBeenCalled();
+      }
+    },
+  );
+
+  it.each(["profiles", "chat_messages"])(
+    "keeps a successful empty %s lookup distinct from database failure",
+    async (emptyTable) => {
+      const currentRoster = fingerprint(USER_ID, PARTNER_ID);
+      vi.mocked(createClientFromRequest).mockResolvedValue({
+        auth: { getUser: vi.fn(async () => ({ data: { user: { id: USER_ID } } })) },
+        from: vi.fn((table: string) => query({
+          data: table === emptyTable ? null : { couple_id: COUPLE_ID },
+          error: null,
+        })),
+      } as unknown as Awaited<ReturnType<typeof createClientFromRequest>>);
+
+      const response = await GET(new Request(
+        `http://localhost/api/amora/mediation/accept?messageId=${MESSAGE_ID}`
+          + `&expectedProposalVersion=${CURRENT_VERSION}`
+          + `&expectedRosterFingerprint=${currentRoster}`,
+      ));
+
+      expect(response.status).toBe(emptyTable === "profiles" ? 403 : 404);
+      expect(createAdminClient).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(["POST", "DELETE"] as const)(
     "rejects a cross-site %s before parsing or authentication",
     async (method) => {

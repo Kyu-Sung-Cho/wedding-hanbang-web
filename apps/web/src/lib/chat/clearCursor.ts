@@ -1,3 +1,5 @@
+import { compareChatTimestamps } from "@hanbang/shared";
+
 /**
  * Resolve an accepted shared-chat clear cursor without ever moving an already
  * applied cursor backwards. The RPC-authored value is canonical; the request
@@ -22,7 +24,7 @@ export function resolveMonotonicSharedClearCursor(input: {
 
   if (
     Number.isFinite(currentTimestamp) &&
-    (!Number.isFinite(candidateTimestamp) || currentTimestamp > candidateTimestamp)
+    (!Number.isFinite(candidateTimestamp) || compareChatTimestamps(input.currentClearedAt!, candidate) === 1)
   ) {
     return input.currentClearedAt!;
   }

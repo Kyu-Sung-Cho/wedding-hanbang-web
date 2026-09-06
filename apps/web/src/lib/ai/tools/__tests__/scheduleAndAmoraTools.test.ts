@@ -24,6 +24,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 type QueryResult = {
   data?: unknown;
   error?: unknown;
+  count?: number;
 };
 
 type TableHandler = {
@@ -40,8 +41,10 @@ class FakeQuery {
 
   select() { return this; }
   eq() { return this; }
+  in() { return this; }
   order() { return this; }
   limit() { return this; }
+  range() { return this; }
 
   update(payload: unknown) {
     this.operation = "update";
@@ -64,7 +67,8 @@ class FakeQuery {
     const result = this.operation === "update"
       ? this.handler.updateResult
       : this.handler.awaitResult;
-    return Promise.resolve(result ?? { data: [], error: null }).then(onfulfilled, onrejected);
+    const response = result ?? { data: [], error: null };
+    return Promise.resolve({ count: Array.isArray(response.data) ? response.data.length : 0, ...response }).then(onfulfilled, onrejected);
   }
 }
 
@@ -408,6 +412,58 @@ describe("amoraActionTools", () => {
     vi.clearAllMocks();
   });
 
+  it("does not report an empty successful list when the action store read fails", async () => {
+    mockAdminClient({
+      amora_actions: [{ awaitResult: { data: null, error: { code: "57014", message: "query timed out" } } }],
+    });
+    const result = await executeGetAmoraActions({ status: "open" }, createContext({}));
+    expect(result.success).toBe(false);
+    expect(result.toolOutput).not.toHaveProperty("count");
+    expect(result.displayMessage).not.toContain("없습니다");
+  });
+
+  it("updates an older open card even when 81 newer completed cards exist", async () => {
+    const target = {
+      id: "act_old", couple_id: "couple-1", title: "Old unfinished card", status: "open",
+      priority: "medium", source: "chat", created_at: "2026-01-01", updated_at: "2026-01-01",
+    };
+    mockAdminClient({
+      amora_actions: [
+        {
+          awaitResult: { data: Array.from({ length: 81 }, (_, index) => ({ ...target, id: `act_new_${index}`, status: "done" })), error: null },
+          maybeSingleResult: { data: target, error: null },
+        },
+        { updateResult: { data: { ...target, status: "done" }, error: null } },
+      ],
+    });
+    const result = await executeUpdateAmoraAction({ action_id: "act_old", status: "done" }, createContext({}));
+    expect(result).toMatchObject({ success: true, toolOutput: { action: { id: "act_old", status: "done" } } });
+  });
+
+  it("does not fall back to a stale legacy card when the canonical lookup fails", async () => {
+    mockAdminClient({
+      amora_actions: [{ maybeSingleResult: { data: null, error: { code: "42501" } } }],
+    });
+    const ctx = createContext({ __amora_actions: [{ id: "act_1", title: "Old copy", status: "open" }] });
+    const result = await executeUpdateAmoraAction({ action_id: "act_1", status: "done" }, ctx);
+    expect(result).toMatchObject({ success: false, toolOutput: { error: "action_read_failed" } });
+    expect(ctx.weddingContext.progress).toMatchObject({ __amora_actions: [{ status: "open" }] });
+  });
+
+  it("does not resurrect a canonical card deleted between lookup and update", async () => {
+    const target = { id: "act_1", title: "Existing card", status: "open", priority: "medium", source: "chat" };
+    mockAdminClient({
+      amora_actions: [
+        { maybeSingleResult: { data: target, error: null } },
+        { updateResult: { data: null, error: null } },
+      ],
+    });
+    const ctx = createContext({ __amora_actions: [target] });
+    const result = await executeUpdateAmoraAction({ action_id: "act_1", status: "done" }, ctx);
+    expect(result.success).toBe(false);
+    expect(ctx.weddingContext.progress).toMatchObject({ __amora_actions: [{ status: "open" }] });
+  });
+
   it("reads legacy mirrored actions when action storage has no rows", async () => {
     mockAdminClient({
       amora_actions: [{ awaitResult: { data: [], error: null } }],
@@ -440,7 +496,7 @@ describe("amoraActionTools", () => {
   it("updates legacy actions when storage is unavailable", async () => {
     mockAdminClient({
       amora_actions: [
-        { awaitResult: { data: [], error: null } },
+        { maybeSingleResult: { data: null, error: { code: "42P01", message: "relation missing" } } },
         { updateResult: { error: { code: "42P01", message: "relation missing" } } },
       ],
     });

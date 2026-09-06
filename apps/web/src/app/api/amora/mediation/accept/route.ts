@@ -72,8 +72,11 @@ async function context(request: Request, messageId: string): Promise<MediationCo
   const supabase = await createClientFromRequest(request);
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 }) };
-  const { data: profile } = await supabase
-    .from("profiles").select("couple_id").eq("id", user.id).single();
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles").select("couple_id").eq("id", user.id).maybeSingle();
+  if (profileError) {
+    return { error: NextResponse.json({ error: "커플 연결 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 }) };
+  }
   if (!profile?.couple_id) return { error: NextResponse.json({ error: "커플 연결이 필요합니다." }, { status: 403 }) };
   const { data: message, error } = await supabase
     .from("chat_messages")
@@ -81,12 +84,15 @@ async function context(request: Request, messageId: string): Promise<MediationCo
     .eq("id", messageId)
     .eq("couple_id", profile.couple_id)
     .maybeSingle();
+  if (error) {
+    return { error: NextResponse.json({ error: "선택안을 불러오지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 }) };
+  }
   const rawMediation = (message?.metadata as {
     mediation?: Record<string, unknown>;
   } | null)?.mediation;
   const mediation = readUserRequestedMediationV2(rawMediation);
   if (
-    error || !message || message.sender_type !== "ai" || message.role !== "assistant"
+    !message || message.sender_type !== "ai" || message.role !== "assistant"
     || message.visibility !== "shared" || !mediation
   ) {
     return { error: NextResponse.json({ error: "중재안을 찾을 수 없습니다." }, { status: 404 }) };

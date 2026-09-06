@@ -331,9 +331,11 @@ export async function GET(req: NextRequest) {
       }
       query = query.order("upvote_count", { ascending: false });
     } else {
-      // hot: 인기 정렬 - Supabase에서 복합 정렬이 어려우므로 클라이언트 정렬 or RPC 사용
-      // 기본적으로 upvote_count로 정렬 후 클라이언트에서 재정렬
-      query = query.order("upvote_count", { ascending: false });
+      // 인기 점수를 전체 결과에 적용한 뒤 페이지를 자른다. 동점도 순서를 고정한다.
+      query = query
+        .order("hot_rank", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
     }
 
     // 페이지네이션
@@ -349,22 +351,7 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // hot 정렬의 경우 스코어 기반 재정렬
-    let sortedPosts = posts ?? [];
-    if (sort === "hot") {
-      const now = Date.now();
-      sortedPosts = [...sortedPosts].sort((a, b) => {
-        const ageA =
-          (now - new Date(a.created_at).getTime()) / (1000 * 60 * 60);
-        const ageB =
-          (now - new Date(b.created_at).getTime()) / (1000 * 60 * 60);
-        const scoreA =
-          a.upvote_count * 2 + a.comment_count * 3 - ageA * 0.5;
-        const scoreB =
-          b.upvote_count * 2 + b.comment_count * 3 - ageB * 0.5;
-        return scoreB - scoreA;
-      });
-    }
+    const sortedPosts = posts ?? [];
 
     // 인증 사용자의 투표 상태 조회
     let userVotesMap: Record<string, number> = {};

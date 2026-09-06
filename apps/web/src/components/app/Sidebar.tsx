@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpen,
+  Bookmark,
   CalendarCheck,
   ClipboardCheck,
   LayoutDashboard,
@@ -28,6 +29,7 @@ type SidebarMenuItem = {
 
 const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/chat", icon: MessageCircle, label: "아모라", tutorialTarget: "service-nav-amora" },
+  { legacyPath: "/saved", icon: Bookmark, label: "저장함" },
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정" },
@@ -42,9 +44,12 @@ const menuItems: SidebarMenuItem[] = [
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
+  amoraWorkspace?: boolean;
+  planningWorkspace?: boolean;
 }
 
-export default function Sidebar({ isOpen, onClose }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, planningWorkspace = false }: SidebarProps) {
+  const htmlDesign = amoraWorkspace || planningWorkspace;
   const pathname = usePathname();
   const currentPath = stripWeddingBasePath(pathname);
   const { profile, journey, signOut } = useAuthStore();
@@ -63,13 +68,13 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       {isOpen && <div className="fixed inset-0 z-40 bg-[rgba(54,83,78,0.40)] backdrop-blur-sm md:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-screen w-[16rem] flex-col border-r border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[var(--shadow-raised)] transition-transform duration-300 ${
-          isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        className={`fixed left-0 top-0 z-50 flex h-[100dvh] flex-col border-r transition-transform duration-300 ${htmlDesign ? "w-[220px] border-[var(--amora-line)] bg-white pt-[22px]" : "w-[16rem] border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[var(--shadow-raised)]"} ${
+          isOpen ? "visible translate-x-0" : "invisible -translate-x-full md:visible md:translate-x-0"
         }`}
       >
-        <div className="flex h-[72px] items-center justify-between px-5">
+        <div className={htmlDesign ? "flex min-h-[54px] items-start justify-between px-6 pt-[6px]" : "flex h-[72px] items-center justify-between px-5"}>
           <Link {...weddingLinkProps()} className="inline-flex items-center whitespace-nowrap" aria-label="웨딩한방 홈으로 이동">
-            <Logo size="md" />
+            {htmlDesign ? <span className="amora-display flex items-center gap-2 text-[17px] text-[var(--amora-ink)]"><span aria-hidden className="flex size-[26px] items-center justify-center rounded-[7px] bg-[var(--amora-ink)] font-sans text-[13px] font-bold text-white">H</span>웨딩한방</span> : <Logo size="md" />}
           </Link>
           <button
             type="button"
@@ -81,7 +86,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
           </button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-3">
+        <nav aria-label="서비스 메뉴" className={htmlDesign ? "flex-1 overflow-y-auto px-[14px]" : "flex-1 overflow-y-auto px-3 py-3"}>
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
               const isActive = currentPath === item.legacyPath
@@ -92,9 +97,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
                   {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
-                  className={`flex items-center gap-3 rounded-[6px] px-4 py-3 text-[14px] font-semibold transition-colors ${
+                  className={`flex items-center transition-colors ${htmlDesign ? "min-h-11 gap-[11px] rounded-[9px] px-3 py-[10px] text-[14.5px]" : "gap-3 rounded-[6px] px-4 py-3 text-[14px] font-semibold"} ${
                     isActive
-                      ? "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
+                      ? htmlDesign ? "bg-[var(--amora-ink)] font-semibold text-white" : "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
                       : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-accent-hover)]"
                   }`}
                 >

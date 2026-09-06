@@ -24,7 +24,7 @@ export default function BlockedReasonsSection() {
       aria-labelledby="reasons-title"
     >
       <div className={shell}>
-        <p className="mb-5">
+        <p className="mb-[10px] lg:mb-3">
           <span className={eyebrowText}>
             {blockedReasons.eyebrow}
           </span>
@@ -38,21 +38,21 @@ export default function BlockedReasonsSection() {
           ))}
         </h2>
 
-        <ul className="mt-11 grid gap-5 md:grid-cols-3">
+        <ul className="mt-6 grid gap-[10px] lg:mt-[46px] lg:grid-cols-3 lg:gap-5">
           {blockedReasons.quotes.map((quote) => (
             <li
               key={quote}
-              className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-7 py-8"
+              className="rounded-[14px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-5 lg:rounded-[16px] lg:px-7 lg:py-[30px]"
             >
               {/* 여는 따옴표는 장식이 아니라 "이건 우리가 아니라 커플이 한 말" 이라는
                   표시다. 그래서 로즈로 칠하고 본문과 분리해 둔다. */}
-              <p aria-hidden className="text-[20px] leading-none text-[var(--color-rose-500)]">
+              <p aria-hidden className="landing-display text-[26px] leading-none text-[var(--color-rose-light)] lg:text-[34px]">
                 “
               </p>
-              <p className={`mt-5 ${quoteText} text-[var(--color-paper-ink)]`}>
+              <p className={`mt-2 lg:mt-[10px] ${quoteText} text-[var(--color-paper-ink)]`}>
                 {quote.split("\n").map((line) => (
-                  <span key={line} className="block">
-                    {line}
+                  <span key={line} className="lg:block">
+                    {line}{" "}
                   </span>
                 ))}
               </p>
@@ -60,7 +60,7 @@ export default function BlockedReasonsSection() {
           ))}
         </ul>
 
-        <p className={`mt-9 ${noteText}`}>
+        <p className={`mt-5 max-w-[660px] lg:mt-[34px] ${noteText}`}>
           {blockedReasons.noteLead}
           <strong className="font-semibold text-[var(--color-paper-ink-soft)]">
             {blockedReasons.noteMark}

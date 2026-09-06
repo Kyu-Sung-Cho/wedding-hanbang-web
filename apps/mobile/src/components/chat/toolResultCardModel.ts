@@ -46,6 +46,28 @@ const TITLES: Record<string, string> = {
 /** 이 앱이 카드로 그리는 도구. 장소 검색은 `PlaceCards` 가 따로 그린다. */
 export const TOOL_RESULT_CARD_TOOLS: readonly string[] = Object.keys(TITLES);
 
+type ToolResultDestination = {
+  pathname: "/budget" | "/schedule" | "/checklist" | "/settings" | "/amora-preparation";
+  label: string;
+};
+
+/** 목적지는 앱이 소유한다. 서버 문구나 임의 href를 네이티브 경로로 실행하지 않는다. */
+export function getToolResultDestination(toolName: string): ToolResultDestination | null {
+  switch (toolName) {
+    case "update_budget": case "update_category_budget": case "add_custom_category": case "apply_budget_plan":
+      return { pathname: "/budget", label: "예산 확인하기" };
+    case "add_schedule_event": case "update_schedule_event": case "cancel_schedule_event": case "restore_schedule_event": case "log_wedding_event":
+      return { pathname: "/schedule", label: "일정 확인하기" };
+    case "update_task_status": case "toggle_checklist_item": case "update_venue":
+      return { pathname: "/checklist", label: "체크리스트 확인하기" };
+    case "update_wedding_date":
+      return { pathname: "/settings", label: "결혼 정보 확인하기" };
+    case "add_amora_action":
+      return { pathname: "/amora-preparation", label: "준비 기록 보기" };
+    default: return null;
+  }
+}
+
 const INTERNAL_ID_FAILURE_COPY: Record<string, string> = {
   update_schedule_event:
     "수정할 일정을 찾지 못했어요. 일정 목록을 새로 불러온 뒤 다시 선택해 주세요.",

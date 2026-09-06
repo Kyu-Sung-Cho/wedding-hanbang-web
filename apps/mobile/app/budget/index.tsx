@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import {
   View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
   RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
-  Animated,
+  Animated, AppState,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
@@ -31,7 +31,7 @@ import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/Ap
 import ErrorRetry from "@/components/ErrorRetry";
 import BudgetShareChart from "@/components/budget/BudgetShareChart";
 import BudgetSideSplit from "@/components/budget/BudgetSideSplit";
-import { foldPayerSides } from "@hanbang/shared/budget-share";
+import { foldPayerSides, formatWonExact as formatWon } from "@hanbang/shared/budget-share";
 
 // 분담 타입 (웹과 동일)
 type PayerType = "couple" | "bride_parents" | "groom_parents" | "both_parents";
@@ -141,13 +141,6 @@ function mutationErrorMessage(error: unknown, fallback: string): string {
   return error.message;
 }
 
-function formatWon(n: number): string {
-  if (n >= 100000000) return `${(n / 100000000).toFixed(1)}억`;
-  if (n >= 10000) return `${Math.round(n / 10000).toLocaleString()}만원`;
-  if (n > 0) return `${n.toLocaleString()}원`;
-  return "—";
-}
-
 function normalizeLegacyCostForReview(cost: unknown): number | null {
   if (!Number.isSafeInteger(cost) || (cost as number) <= 0) return null;
   const normalized = (cost as number) < 100_000
@@ -160,7 +153,8 @@ function normalizeLegacyCostForReview(cost: unknown): number | null {
 
 export default function BudgetScreen() {
   const [totalBudget, setTotalBudget] = useState(0);
-  const [progress, setProgress] = useState<Record<string, ProgressItem>>({});
+  const [rawProgress, setProgress] = useState<Record<string, unknown>>({});
+  const progress = toBudgetProgress(rawProgress);
   const [coupleId, setCoupleId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -203,7 +197,7 @@ export default function BudgetScreen() {
   const commitSnapshotToView = useCallback((snapshot: BudgetIdentityToken) => {
     setCoupleId(snapshot.coupleId);
     setTotalBudget(snapshot.totalBudget);
-    setProgress(toBudgetProgress(snapshot.progress));
+    setProgress(snapshot.progress);
 
     const pending = pendingApprovalRef.current;
     if (pending && !isPendingBudgetApprovalBoundToIdentity(pending, snapshot)) {
@@ -423,7 +417,16 @@ export default function BudgetScreen() {
   useFocusEffect(
     useCallback(() => {
       void loadData();
+      let appState = AppState.currentState;
+      const subscription = AppState.addEventListener("change", (nextState) => {
+        const previousState = appState;
+        appState = nextState;
+        if (nextState === "active" && previousState !== "active") {
+          void loadData();
+        }
+      });
       return () => {
+        subscription.remove();
         loadSequenceRef.current += 1;
       };
     }, [loadData])
@@ -461,24 +464,26 @@ export default function BudgetScreen() {
   useEffect(() => {
     if (!coupleId) return;
 
+    let active = true;
+    const reload = () => { if (active) void loadData(); };
     const channel = supabase.channel(`budget:${coupleId}`)
       .on("postgres_changes", {
         event: "UPDATE",
         schema: "public",
         table: "wedding_journeys",
         filter: `couple_id=eq.${coupleId}`,
-      }, () => {
-        void loadData();
-      })
-      .subscribe();
+      }, reload)
+      .subscribe((status) => {
+        // 연결이 끊긴 동안 빠진 변경은 이벤트 재전송에 의존하지 않고 다시 읽는다.
+        if (status === "SUBSCRIBED") reload();
+      });
 
     channelRef.current = channel;
 
     return () => {
-      if (channelRef.current) {
-        supabase.removeChannel(channelRef.current);
-        channelRef.current = null;
-      }
+      active = false;
+      supabase.removeChannel(channel);
+      if (channelRef.current === channel) channelRef.current = null;
     };
   }, [coupleId, loadData]);
 
@@ -506,7 +511,7 @@ export default function BudgetScreen() {
 
   const budgetCategories = listBudgetCategories({
     fixedCategories: BUDGET_CATEGORIES,
-    progress,
+    progress: rawProgress,
   });
 
   // 분담별 지출 합계
@@ -679,7 +684,7 @@ export default function BudgetScreen() {
       "/api/journey",
       {
         method: "PATCH",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, expected_couple_id: token.coupleId }),
       },
     );
     const payload: unknown = await response.json().catch(() => null);
@@ -845,8 +850,8 @@ export default function BudgetScreen() {
       coupleId: identity.coupleId,
       stateRevision: identity.stateRevision,
     };
-    setBudgetInput(getCatBudget(key) > 0 ? String(Math.round(getCatBudget(key) / 10000)) : "");
-    setSpentInput(getCatSpent(key) > 0 ? String(Math.round(getCatSpent(key) / 10000)) : "");
+    setBudgetInput(getCatBudget(key) > 0 ? String(getCatBudget(key) / 10000) : "");
+    setSpentInput(getCatSpent(key) > 0 ? String(getCatSpent(key) / 10000) : "");
     setPayerInput(getCatPayer(key));
     setEditingKey(key);
   }
@@ -859,7 +864,7 @@ export default function BudgetScreen() {
       coupleId: identity.coupleId,
       stateRevision: identity.stateRevision,
     };
-    setTotalInput(totalBudget > 0 ? String(Math.round(totalBudget / 10000)) : "");
+    setTotalInput(totalBudget > 0 ? String(totalBudget / 10000) : "");
     setEditingTotal(true);
   }
 
@@ -970,7 +975,7 @@ export default function BudgetScreen() {
           </View>
           {editingTotal ? (
             <View style={s.editRow}>
-              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="number-pad" autoFocus editable={!savingTotal} maxLength={6} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="decimal-pad" autoFocus editable={!savingTotal} maxLength={11} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
               <Text style={s.totalUnit}>만원</Text>
               <Pressable onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 변경 요청" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
                 {savingTotal
@@ -1163,9 +1168,9 @@ export default function BudgetScreen() {
             <View style={s.modalHandle} />
             <View style={s.modalHead}><Text style={s.modalTitle}>{budgetCategories.find((category) => category.key === editingKey)?.label ?? ""} 수정</Text><Pressable onPress={closeCategoryEditor} disabled={saving} accessibilityRole="button" accessibilityLabel="카테고리 예산 편집 닫기"><X size={24} color={colors.textTertiary} /></Pressable></View>
             <Text style={s.fLabel}>예산 (만원)</Text>
-            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="number-pad" editable={!saving} maxLength={6} accessibilityLabel="카테고리 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <TextInput style={s.fInput} value={budgetInput} onChangeText={setBudgetInput} keyboardType="decimal-pad" editable={!saving} maxLength={11} accessibilityLabel="카테고리 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>기록 지출 (만원 · 결제 확인과 별도)</Text>
-            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="number-pad" editable={!saving} maxLength={6} accessibilityLabel="카테고리 기록 지출 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+            <TextInput style={s.fInput} value={spentInput} onChangeText={setSpentInput} keyboardType="decimal-pad" editable={!saving} maxLength={11} accessibilityLabel="카테고리 기록 지출 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
             <Text style={s.fLabel}>분담</Text>
             <View style={s.payerRow}>
               {PAYER_OPTIONS.map((opt) => (

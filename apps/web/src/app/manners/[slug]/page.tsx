@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import MannersPartView from "@/components/manners/MannersPartView";
@@ -35,18 +34,5 @@ export default async function MannersPartPage({ params }: { params: Promise<Para
   const part = findPart(slug);
   if (!part) notFound();
 
-  return (
-    <>
-      <nav aria-label="이동 경로" className="mx-auto w-full max-w-[760px] px-4 pt-6 sm:px-6">
-        <Link
-          href="/wedding/manners"
-          prefetch={false}
-          className="text-[13px] font-medium text-[#8F5150] underline underline-offset-2"
-        >
-          결혼 예절 안내
-        </Link>
-      </nav>
-      <MannersPartView part={part} />
-    </>
-  );
+  return <MannersPartView part={part} />;
 }

@@ -176,6 +176,20 @@ export function parseManwonInput(value) {
   return won;
 }
 
+// 편집창은 저장된 1원까지 되돌릴 수 있어야 한다. 소수 곱셈 대신 원 단위 정수로 합친다.
+export function parseBudgetEditorManwonInput(value) {
+  if (typeof value !== "string" || !/^\d+(?:\.\d{1,4})?$/.test(value)) {
+    throw new Error("INVALID_MANWON_AMOUNT");
+  }
+  const [whole, fraction = ""] = value.split(".");
+  const manwon = Number(whole);
+  const won = manwon * 10_000 + Number(fraction.padEnd(4, "0"));
+  if (!Number.isSafeInteger(manwon) || !isValidWonAmount(won)) {
+    throw new Error("INVALID_MANWON_AMOUNT");
+  }
+  return won;
+}
+
 function assertWritableSnapshot(snapshot) {
   if (
     !isRecord(snapshot)
@@ -197,13 +211,13 @@ export function buildTotalBudgetMutation(snapshot, totalInput) {
   assertWritableSnapshot(snapshot);
   return {
     expected_revision: snapshot.stateRevision,
-    total_budget: parseManwonInput(totalInput),
+    total_budget: parseBudgetEditorManwonInput(totalInput),
   };
 }
 
 function optionalManwonInput(value) {
   if (value === "") return undefined;
-  return parseManwonInput(value);
+  return parseBudgetEditorManwonInput(value);
 }
 
 export function buildCategoryBudgetMutation(snapshot, input) {

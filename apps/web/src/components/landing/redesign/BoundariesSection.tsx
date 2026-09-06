@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LandingBloom } from "./LandingBloom";
 
 import { landingContent } from "./landingContent";
 import { band, noteTextOnInk, sectionTitleOnInk, shell, TitleLines } from "./notebook";
@@ -35,13 +36,14 @@ export default function BoundariesSection() {
   return (
     <section
       id="trust"
-      className={`${band} bg-[var(--color-paper-ink)]`}
+      className={`${band} relative overflow-hidden bg-[var(--color-paper-ink)] !pb-8 lg:!pb-[52px]`}
       aria-labelledby="trust-title"
     >
-      <div className={shell}>
+      <LandingBloom variant="right" className="absolute -right-10 -top-[30px] w-[250px] opacity-[0.16] lg:w-[400px]" />
+      <div className={`${shell} relative`}>
         <div className="grid gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:gap-16">
           <div>
-            <h2 id="trust-title" className={sectionTitleOnInk}>
+            <h2 id="trust-title" className={`${sectionTitleOnInk} lg:!text-[31px]`}>
               <TitleLines value={boundaries.title} />
             </h2>
           </div>

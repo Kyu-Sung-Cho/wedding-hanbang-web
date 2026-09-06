@@ -197,12 +197,7 @@ describe("audited OpenAI Responses", () => {
     }));
   });
 
-  // 사전 토큰 계산은 과대 입력을 미리 걸러내는 선택적 가드레일이다. 그 측정이
-  // 불가능해졌다고 대화를 죽이면 가드레일 하나가 서비스 전체를 멈춘다 —
-  // 2026-07-25 운영에서 실제로 count 호출이 계속 실패하며 "안녕" 한 마디까지
-  // 전부 AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다. 과대 입력은 제공자가 스스로
-  // 거부하고 그 경로는 아래 "blocks an oversized counted input" 테스트가 지킨다.
-  it("proceeds with generation when the input pre-count is unavailable", async () => {
+  it("records a pre-count outage without starting paid generation", async () => {
     const count = vi.fn().mockReturnValue({
       withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count network"), {
         request_id: "req_count_failed",
@@ -212,7 +207,7 @@ describe("audited OpenAI Responses", () => {
     const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
     const beforeGeneration = vi.fn();
 
-    const result = await createOpenAIResponseWithAudit({
+    await expect(createOpenAIResponseWithAudit({
       modelRole: "fast",
       instructions: "system",
       input: "input",
@@ -221,20 +216,37 @@ describe("audited OpenAI Responses", () => {
       beforeGeneration,
       client,
       audit: { interactionType: "chat_turn" },
-    });
+    })).rejects.toMatchObject({ requestStage: "input_count" });
 
-    expect(result.text).toBe("안녕하세요");
-    expect(beforeGeneration).toHaveBeenCalledTimes(1);
-    expect(create).toHaveBeenCalledTimes(1);
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
-      success: true,
+      success: false,
       metadata: expect.objectContaining({
-        provider_attempted: true,
-        // 가드레일이 꺼진 채 나간 턴이라는 사실은 원장에 남아야 한다.
-        input_count_unavailable: "transport",
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        provider_request_stage: "input_count",
       }),
     }));
   });
+
+  it.each([-1, NaN, Infinity, 2.5, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects invalid input count %s and audits no paid attempt", async (inputTokens) => {
+      const { client, create } = fakeClient(response(), inputTokens);
+      const beforeGeneration = vi.fn();
+      await expect(createOpenAIResponseWithAudit({
+        modelRole: "fast", instructions: "system", input: "input",
+        maxInputTokens: 64_000, maxOutputTokens: 100, beforeGeneration, client,
+        audit: { interactionType: "chat_turn" },
+      })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "invalid_input_token_count" });
+      expect(beforeGeneration).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
+      expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+        success: false,
+        metadata: expect.objectContaining({ provider_attempted: false, unknown_paid_attempt: false }),
+      }));
+    },
+  );
 
   it("does not start generation when the final reservation hook rejects", async () => {
     const { client, create } = fakeClient(response());

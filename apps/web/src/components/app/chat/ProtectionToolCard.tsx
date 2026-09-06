@@ -46,9 +46,10 @@ interface ProtectionToolCardProps {
 }
 
 function formatManwon(value: unknown): string {
+  if (typeof value !== "number") return "-";
   const amount = Number(value);
   if (!Number.isFinite(amount)) return "-";
-  return `${amount.toLocaleString()}만원`;
+  return `${amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}만원`;
 }
 
 function getRiskStyle(value: unknown) {
@@ -156,7 +157,7 @@ function GuestGuaranteeCard({ result }: { result: ToolExecutionResult }) {
 
           {isInputNeeded ? (
             <div className="mt-4 rounded-[6px] border border-[#EFE5DA] bg-[#FAF8F5] px-4 py-3">
-              <p className="text-sm font-semibold text-[var(--hb-text-strong)]">한 번에 필요한 정보</p>
+              <p className="text-sm font-semibold text-[var(--hb-text-strong)]">추가로 확인할 것</p>
               <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">{data.recommendation}</p>
             </div>
           ) : (

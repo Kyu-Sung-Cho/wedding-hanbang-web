@@ -33,6 +33,7 @@ const SURFACES: Record<string, { role: Role; why: string }> = {
   "src/utils/checklist.ts": { role: "counts", why: "병합·집계 함수 자체" },
   "src/utils/imminentChecklist.ts": { role: "counts", why: "임박 분야 계산" },
   "src/lib/amora/lifecycle.ts": { role: "counts", why: "아모라 선톡 판단용 집계" },
+  "src/lib/amora/missions.ts": { role: "counts", why: "오늘의 미션 진행 집계와 상세 체크리스트로 연결할 추천 선택 — 화면이나 저장 경로가 아니다" },
 
   "src/components/app/schedule/ScheduleContent.tsx": { role: "writes", why: "저장 경로 — 그리지 않는다" },
   "src/lib/ai/amoraAtomicToolOperation.ts": { role: "writes", why: "아모라 원자 실행 저장 경로" },

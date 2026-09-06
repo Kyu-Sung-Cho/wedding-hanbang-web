@@ -19,6 +19,7 @@ const functionNames = new Set([
   "asToolExecutionResult",
   "mergeToolResults",
   "asChatMessageMetadata",
+  "isPlaceSearchPlaceholder",
   "asChatStreamEvent",
   "applyChatEvent",
   "cleanAiText",
@@ -52,9 +53,10 @@ const renderedToolsDeclaration = (
 assert.notEqual(renderedToolsDeclaration, "", "missing MOBILE_RENDERED_TOOLS");
 
 const loadParser = new Function(
-  `const API_BASE = "https://hanbang.ai";\nconst CHAT_REQUEST_TIMEOUT_MS = 180000;\n${renderedToolsDeclaration}\n${compiled.outputText}\nreturn { ChatTransportError, createChatStreamParser, applyChatStreamUpdate, mergeRealtimeMessage, reconcileChatStreamUpdate, streamChatWithXhr };`,
+  `const API_BASE = "https://hanbang.ai";\nconst CHAT_REQUEST_TIMEOUT_MS = 180000;\n${renderedToolsDeclaration}\n${compiled.outputText}\nreturn { asChatMessageMetadata, ChatTransportError, createChatStreamParser, applyChatStreamUpdate, mergeRealtimeMessage, reconcileChatStreamUpdate, streamChatWithXhr };`,
 );
 const {
+  asChatMessageMetadata,
   ChatTransportError,
   createChatStreamParser,
   applyChatStreamUpdate,
@@ -62,6 +64,17 @@ const {
   reconcileChatStreamUpdate,
   streamChatWithXhr,
 } = loadParser();
+
+test("stored malformed tool results cannot crash the native chat renderer or become a success receipt", () => {
+  for (const toolResults of [{ toolName: "update_budget", success: true }, "broken", 1, null]) {
+    const metadata = asChatMessageMetadata({ toolResults, in_reply_to_user_message_id: "question" });
+    assert.deepEqual((metadata.toolResults ?? []).filter(result => result.toolName === "update_budget"), []);
+    assert.equal(metadata.in_reply_to_user_message_id, "question");
+  }
+  const metadata = asChatMessageMetadata({ toolResults: [null, { toolName: "update_budget", success: "true" }, { toolName: "update_budget", success: true, displayMessage: 123 }] });
+  assert.equal(metadata.toolResults.length, 1);
+  assert.equal(metadata.toolResults[0].displayMessage, "");
+});
 
 function sourceBetween(startMarker, endMarker) {
   const start = sourceText.indexOf(startMarker);

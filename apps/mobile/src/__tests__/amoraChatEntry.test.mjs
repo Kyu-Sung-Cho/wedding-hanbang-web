@@ -186,3 +186,30 @@ test("the entry adds no new dependency", () => {
   assert.equal(specifiers.length, 0);
   assert.ok(declared.has("expo-router"));
 });
+
+test("the actual entry effect waits until the session reset finishes and preserves an existing draft", () => {
+  const tree = ts.createSourceFile("chat.tsx", chatSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let effect;
+  const visit = node => {
+    if (ts.isCallExpression(node) && node.expression.getText(tree) === "useEffect" && node.arguments[0]?.getText(tree).includes("entryPrefillAppliedRef.current")) effect = node.arguments[0].getText(tree);
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  assert.ok(effect);
+  const compiledEffect = ts.transpileModule(`const run = ${effect};`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  for (const existingDraft of ["", "이미 쓰고 있던 질문"]) {
+    const state = { shared_ai: existingDraft, private_ai: "나만의 초안", shared_partner: "" };
+    const bindings = { initialLoaded: false, userId: null, coupleId: null, chatLoadError: null,
+      entryParam: "lounge_fab", entryPrefillAppliedRef: { current: false }, getAmoraChatEntryPrefill: entry.getAmoraChatEntryPrefill,
+      updateAmoraChatLaneRecord: (current, lane, value) => ({ ...current, [lane]: value }),
+      setInputByLane: update => Object.assign(state, update(state)),
+    };
+    const run = new Function("bindings", `with (bindings) { ${compiledEffect} return run; }`)(bindings);
+    run();
+    assert.equal(bindings.entryPrefillAppliedRef.current, false, "do not consume the entry before the loader clears screen state");
+    bindings.initialLoaded = true; bindings.userId = "viewer"; bindings.coupleId = "couple";
+    run();
+    assert.equal(state.shared_ai, existingDraft || entry.getAmoraChatEntryPrefill("lounge_fab"));
+    assert.equal(state.private_ai, "나만의 초안");
+  }
+});

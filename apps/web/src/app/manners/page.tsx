@@ -4,6 +4,7 @@ import Link from "next/link";
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import MannersMobileHeader from "@/components/manners/MannersMobileHeader";
 
 export const metadata: Metadata = {
   title: "결혼 예절 안내 — 웨딩한방",
@@ -25,19 +26,21 @@ export default function MannersIndexPage() {
   const bySlug = new Map(MANNERS_PARTS.map((part) => [part.slug, part]));
 
   return (
-    <div className="mx-auto w-full max-w-[900px] px-4 py-9 sm:px-6 sm:py-12">
+    <>
+    <MannersMobileHeader index />
+    <div className="mx-auto w-full max-w-[1220px] px-[18px] pb-14 pt-[22px] md:px-9 xl:px-16 xl:pt-[30px]">
       <header>
-        <p className="text-[12px] font-semibold tracking-[0.14em] text-[#8F5150]">WEDDING MANNERS GUIDE</p>
-        <h1 className="mt-2 text-[30px] font-semibold leading-snug text-[var(--hb-text-strong)] sm:text-[36px]">
+        <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">준비 순서대로 읽는 {MANNERS_PARTS.length}편의 안내</p>
+        <h1 className="planning-display mt-2 text-[26px] leading-[1.35] text-[var(--amora-ink)] sm:text-[32px]">
           결혼 예절 가이드
         </h1>
-        <p className="mt-3 max-w-[620px] text-[14.5px] leading-[1.85] text-[#3d4a45]">
+        <p className="mt-3 max-w-[760px] text-[13px] leading-[1.7] text-[var(--amora-soft)] sm:text-[14px]">
           첫인사와 상견례부터 축의금·본식 당일, 결혼 뒤 첫 명절과 호칭까지 준비 순서대로
           정리했어요. 여기서는 읽고 이해하고, 실제 준비는 웨딩 체크리스트에서 따로 관리합니다.
         </p>
         <Link
           {...weddingLinkProps("/checklist")}
-          className="mt-5 inline-flex rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[#2b4541]"
+          className="mt-4 inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-ink)] px-4 py-2.5 text-[13px] font-semibold text-white"
         >
           웨딩 체크리스트 열기
         </Link>
@@ -48,14 +51,14 @@ export default function MannersIndexPage() {
           사유가 정확히 "수치에 출처 0건"이었으므로, 문구를 실제 상태에 맞춘다.
           각 편 상단과 표마다 출처 유무가 다시 표시되므로 여기서는 갈린다는 사실만 말한다.
         */}
-        <p className="mt-4 rounded-[6px] border border-[var(--hb-primary)]/12 bg-[var(--hb-primary)]/[0.035] px-4 py-3 text-[13px] leading-[1.7] text-[#3d4a45]">
+        <p className="mt-[18px] rounded-[12px] border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)] sm:rounded-[14px] sm:px-[18px] sm:py-4 sm:text-[13px]">
           여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다릅니다. 공개된
           자료로 확인한 편에는 어디서 확인했는지와 확인한 날짜를 적어 뒀고, 아직 확인하지
           못한 편에는 각 글 위에 그렇게 표시해 뒀어요.
         </p>
       </header>
 
-      <div className="mt-10 space-y-9">
+      <div className="mt-7 space-y-7 sm:mt-8 sm:space-y-8">
         {MANNERS_CATEGORIES.map((category) => {
           const parts = category.slugs
             .map((slug) => bySlug.get(slug))
@@ -64,7 +67,7 @@ export default function MannersIndexPage() {
 
           return (
             <section key={category.label}>
-              <h2 className="text-[13px] font-semibold text-[#8F5150]">
+              <h2 className="text-[13px] font-semibold text-[var(--amora-rose-deep)]">
                 {category.label}
               </h2>
               <ul className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -73,15 +76,15 @@ export default function MannersIndexPage() {
                     <Link
                       href={`/wedding/manners/${part.slug}`}
                       prefetch={false}
-                      className="block h-full rounded-[6px] border border-[var(--hb-primary)]/12 bg-white/70 px-4 py-4 transition-colors hover:border-[#8F5150]/40"
+                      className="block h-full rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] py-5 transition-colors hover:border-[var(--amora-rose)] sm:rounded-[18px] sm:px-6 sm:py-6"
                     >
                       <p className="text-[11.5px] font-semibold text-[var(--hb-text-muted)]">
                         {AUDIENCE_LABEL[part.audience]}
                       </p>
-                      <p className="mt-1 text-[15.5px] font-semibold leading-snug text-[var(--hb-text-strong)]">
+                      <h3 className="mt-1 text-[15.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[18px]">
                         {part.title}
-                      </p>
-                      <p className="mt-1.5 text-[13px] leading-[1.65] text-[#3d4a45]/85">
+                      </h3>
+                      <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--amora-soft)]">
                         {part.subtitle}
                       </p>
                       {/*
@@ -101,12 +104,13 @@ export default function MannersIndexPage() {
         })}
       </div>
 
-      <p className="mt-12 text-[13px] leading-[1.75] text-[#3d4a45]/80">
+      <p className="mt-9 text-[13px] leading-[1.75] text-[var(--amora-muted)]">
         우리 상황에서는 어떻게 적용할지 막히면, 가족 구성과 고민을 아모라에게 그대로 말해 보세요.{" "}
-        <Link {...weddingLinkProps("/chat")} className="font-medium text-[#8F5150] underline underline-offset-2">
+        <Link {...weddingLinkProps("/chat")} className="font-medium text-[var(--amora-accent)] underline underline-offset-2">
           아모라에게 물어보기
         </Link>
       </p>
     </div>
+    </>
   );
 }

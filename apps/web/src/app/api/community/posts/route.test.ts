@@ -110,6 +110,24 @@ describe("GET /api/community/posts answer-state filters", () => {
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
   });
 
+  it("orders the full hot feed in the database before taking a page", async () => {
+    const query = createPostsQuery();
+    mocks.createClientFromRequest.mockResolvedValue({
+      auth: { getUser: vi.fn(async () => ({ data: { user: null } })) },
+      from: vi.fn(() => query),
+    });
+    const response = await GET(request("hot"));
+    expect(response.status).toBe(200);
+    expect(query.order.mock.calls).toEqual([
+      ["hot_rank", { ascending: false }],
+      ["created_at", { ascending: false }],
+      ["id", { ascending: false }],
+    ]);
+    expect(query.order.mock.invocationCallOrder.at(-1))
+      .toBeLessThan(query.range.mock.invocationCallOrder[0]);
+    expect(query.eq).toHaveBeenCalledWith("ad_disclosure", "general");
+  });
+
   it("treats Supabase's missing-session result as a real guest public read", async () => {
     const query = createPostsQuery();
     mocks.createClientFromRequest.mockResolvedValue({

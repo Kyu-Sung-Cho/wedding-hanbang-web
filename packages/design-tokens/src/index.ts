@@ -8,6 +8,8 @@ export {
   WEB_THEME_COLOR_VARS,
   WEB_SEMANTIC_ROLE_VARS,
   WEB_THEME_ROLE_VARS,
+  WEB_HTML_WORKSPACE_COLOR_VARS,
+  WEB_HTML_WORKSPACE_ROLE_VARS,
   webCssManagedStart,
   webCssManagedEnd,
   renderWebCssColorVars,

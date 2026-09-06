@@ -29,7 +29,7 @@ const REQUEST_ID = "30000000-0000-4000-8000-000000000001";
 const REQUEST_KEY = `chat:${USER_ID}:${REQUEST_ID}`;
 const EXPECTED_WEDDING_DATE = "2099-05-01";
 
-async function createDatabase() {
+async function createDatabase(withCurrentBudgetPlan = false) {
   const db = await PGlite.create();
   await db.exec(`
     CREATE ROLE anon NOLOGIN;
@@ -155,6 +155,16 @@ async function createDatabase() {
   await db.exec(costBudget);
   await db.exec(crashRecovery);
   await db.exec(mutationCoverage);
+  if (withCurrentBudgetPlan) {
+    await db.exec(migration("20260824150000_amora_custom_category_label_match.sql"));
+    const next = migration("20260906130734_amora_budget_plan_preserves_existing_allocations.sql");
+    if (next.trim()) await db.exec(next);
+    await db.exec("ALTER TABLE public.amora_tool_executions ADD COLUMN pending_action_journey_revision bigint");
+    const wrapper = migration("20260730102000_amora_shared_action_approval_and_notifications.sql")
+      .match(/CREATE FUNCTION public\.apply_amora_atomic_tool_execution\([\s\S]*?\$function\$;/u)?.[0];
+    if (!wrapper) throw new Error("Current public atomic wrapper missing");
+    await db.exec(wrapper.replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION"));
+  }
   await db.exec("SET ROLE service_role");
   await db.query("SELECT set_config('request.jwt.claim.role', 'service_role', false)");
   return db;
@@ -197,6 +207,161 @@ async function apply(
 }
 
 describe("Amora atomic mutation coverage migration", () => {
+  function durableBudgetResult(result: ReturnType<typeof buildAmoraAtomicToolOperation>["result"]) {
+    return { toolName: result.toolName, toolOutput: result.toolOutput, success: result.success, displayMessage: result.displayMessage };
+  }
+  async function buildCurrentPlan(db: PGlite, input: Record<string, unknown>) {
+    const row = (await db.query<{progress: ToolExecutionContext["weddingContext"]["progress"]; total_budget: number}>("SELECT progress,total_budget FROM wedding_journeys")).rows[0];
+    const ctx: ToolExecutionContext = {
+      coupleId: COUPLE_ID, requestKey: REQUEST_KEY, requestAttemptCount: 1, providerCallIndex: 1,
+      weddingContext: { weddingDate: EXPECTED_WEDDING_DATE, budget: Number(row.total_budget), venue: null, progress: row.progress },
+    };
+    const identity = getAmoraToolOperationIdentity("apply_budget_plan", input);
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", input, ctx, identity.operationKey);
+    await insertExecution(db, "apply_budget_plan", identity.operationKey, identity.inputDigest);
+    return { operation, identity };
+  }
+
+  it.each([
+    { extras: { ring: {category: "ring", status: "completed", budget: 5_000_000, spent: 4_000_000}, custom_ride: {category: "custom_ride", label: "합성 이동", status: "not_started", budget: 1_000_000} }, total: 50_000_000, allocations: [{category: "venue", budget: 20_000_000}], reserve: 24_000_000 },
+    { extras: { reserve: {category: "reserve", status: "in_progress", budget: 30_000_000, spent: 1_000_000} }, total: 50_000_000, allocations: [{category: "venue", budget: 50_000_000}], reserve: 0 },
+    { extras: {}, total: 30_000_000, allocations: [{category: "reserve", budget: 5_000_000}], reserve: 20_000_000 },
+  ])("commits only the actual unassigned remainder while preserving omitted fields (%j)", async ({extras,total,allocations,reserve}) => {
+    const db = await createDatabase(true);
+    try {
+      await db.query("UPDATE wedding_journeys SET progress = progress || $1::jsonb",[JSON.stringify(extras)]);
+      const input = {total_budget: total, allocations};
+      const {operation, identity} = await buildCurrentPlan(db, input);
+      const receipt = durableBudgetResult(operation.result);
+      const result = await apply(db, identity.operationKey, identity.inputDigest, input, operation.domainMutation, receipt);
+      expect(result.rows[0].result.success).toBe(true);
+      const row = (await db.query<{progress: Record<string,Record<string,unknown>>; total_budget: number}>("SELECT progress,total_budget FROM wedding_journeys")).rows[0];
+      expect(Number(row.total_budget)).toBe(total);
+      expect(row.progress.reserve.budget).toBe(reserve);
+      expect(Object.values(row.progress).reduce((sum,value) => sum + Number(value.budget ?? 0),0)).toBe(total);
+      for (const [key,value] of Object.entries(extras)) {
+        expect(row.progress[key]).toMatchObject(key === "reserve" ? {...value, budget: reserve} : value);
+      }
+      expect(row.progress.partner_note).toEqual({kept:true});
+      const replay = await apply(db, identity.operationKey, identity.inputDigest, input, operation.domainMutation, receipt);
+      expect(replay.rows).toEqual(result.rows);
+    } finally { await db.close(); }
+  });
+
+  it("rejects an old or forged plan that omits existing budgets without changing the domain", async () => {
+    const db = await createDatabase(true);
+    try {
+      await db.query("UPDATE wedding_journeys SET progress = progress || $1::jsonb", [JSON.stringify({ring:{category:"ring",status:"not_started",budget:5_000_000}})]);
+      const before = (await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      const input = {total_budget: 50_000_000, allocations:[{category:"venue",budget:20_000_000}]};
+      const {operation,identity} = await buildCurrentPlan(db,input);
+      const oldMutation = structuredClone(operation.domainMutation);
+      delete oldMutation.expectedNonReserveBudgets;
+      const entries = oldMutation.entries as Array<{key:string;value:{budget:number}}>;
+      entries.find(entry=>entry.key === "reserve")!.value.budget = 30_000_000;
+      const receipt = durableBudgetResult(structuredClone(operation.result));
+      receipt.toolOutput.remainder_to_reserve = 30_000_000;
+      (receipt.toolOutput.allocations as Array<{category:string;budget:number}>).find(entry=>entry.category === "reserve")!.budget = 30_000_000;
+      await expect(apply(db,identity.operationKey,identity.inputDigest,input,oldMutation,receipt)).rejects.toMatchObject({code:"22023"});
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally { await db.close(); }
+  });
+
+  it("detects a retained-budget change between preview and commit instead of recalculating a different approval", async () => {
+    const db = await createDatabase(true);
+    try {
+      await db.query("UPDATE wedding_journeys SET progress = progress || $1::jsonb",[JSON.stringify({custom_ride:{category:"custom_ride",status:"not_started",budget:1_000_000}})]);
+      const input = {total_budget:50_000_000,allocations:[{category:"venue",budget:20_000_000}]};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      await db.exec("UPDATE wedding_journeys SET progress = jsonb_set(progress,'{custom_ride,budget}','2000000')");
+      const before=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      const receipt = durableBudgetResult(operation.result);
+      const result=await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt);
+      expect(result.rows[0].result).toMatchObject({success:false,toolOutput:{error:"domain_state_changed"}});
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally { await db.close(); }
+  });
+
+  it.each([
+    "UPDATE wedding_journeys SET total_budget = 60000000",
+    "UPDATE wedding_journeys SET progress = jsonb_set(progress,'{venue,budget}','15000000')",
+    "UPDATE wedding_journeys SET progress = progress || '{\"__hidden\":[\"venue\"]}'::jsonb",
+  ])("keeps a stale budget-plan approval from changing newer total, entries, or visibility (%s)", async (concurrentWrite) => {
+    const db = await createDatabase(true);
+    try {
+      const input = {total_budget:50_000_000,allocations:[{category:"venue",budget:20_000_000}]};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      await db.exec(concurrentWrite);
+      const before=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      const receipt = durableBudgetResult(operation.result);
+      const result=await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt);
+      expect(result.rows[0].result).toMatchObject({success:false,toolOutput:{error:"domain_state_changed"}});
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally { await db.close(); }
+  });
+
+  it("preserves concurrent non-budget custom fields and hidden fixed amounts without counting them", async () => {
+    const db=await createDatabase(true);
+    try {
+      await db.query("UPDATE wedding_journeys SET progress = progress || $1::jsonb",[JSON.stringify({
+        __hidden:["studio"], studio:{category:"studio",status:"completed",budget:9_000_000,spent:8_000_000},
+        custom_ride:{category:"custom_ride",label:"합성 이동",status:"in_progress",budget:1_000_000,spent:300_000},
+      })]);
+      const input={total_budget:30_000_000,allocations:[{category:"venue",budget:20_000_000}]};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      await db.exec("UPDATE wedding_journeys SET progress = jsonb_set(progress,'{custom_ride,spent}','500000')");
+      const receipt = durableBudgetResult(operation.result);
+      expect((await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt)).rows[0].result.success).toBe(true);
+      const row=(await db.query<{progress:Record<string,unknown>}>("SELECT progress FROM wedding_journeys")).rows[0].progress;
+      expect(row).toMatchObject({reserve:{budget:9_000_000},studio:{budget:9_000_000,spent:8_000_000},custom_ride:{budget:1_000_000,spent:500_000},__hidden:["studio"]});
+    } finally {await db.close();}
+  });
+
+  it.each([
+    [{category:"venue",budget:48_000_000}],
+    [{category:"venue",budget:40_000_000},{category:"reserve",budget:8_000_000}],
+  ].map(allocations=>({allocations})))("refuses the entire over-total plan while keeping existing expenses (%j)",async ({allocations})=>{
+    const db=await createDatabase(true);
+    try {
+      await db.query("UPDATE wedding_journeys SET progress = progress || $1::jsonb",[JSON.stringify({ring:{category:"ring",status:"completed",budget:5_000_000,spent:4_000_000}})]);
+      const before=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      const input={total_budget:50_000_000,allocations};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      const receipt = durableBudgetResult(operation.result);
+      expect(operation.result.success).toBe(false);
+      expect((await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt)).rows[0].result.success).toBe(false);
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally {await db.close();}
+  });
+
+  it("keeps an old exact plan compatible when it has no remaining reserve to clear",async()=>{
+    const db=await createDatabase(true);
+    try {
+      const input={total_budget:50_000_000,allocations:[{category:"venue",budget:50_000_000}]};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      delete operation.domainMutation.expectedNonReserveBudgets;
+      operation.domainMutation.entries=(operation.domainMutation.entries as Array<{key:string}>).filter(entry=>entry.key !== "reserve");
+      operation.result.toolOutput.allocations=[{category:"venue",budget:50_000_000}];
+      operation.result.toolOutput.applied_count=1;
+      const receipt = durableBudgetResult(operation.result);
+      expect((await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt)).rows[0].result.success).toBe(true);
+      const row=(await db.query<{progress:Record<string,unknown>}>("SELECT progress FROM wedding_journeys")).rows[0].progress;
+      expect(row).toMatchObject({venue:{budget:50_000_000},partner_note:{kept:true}});
+      expect(row).not.toHaveProperty("reserve");
+    } finally {await db.close();}
+  });
+
+  it("does not expose the new pure budget helper or private dispatcher to application roles",async()=>{
+    const db=await createDatabase(true);
+    try {
+      for (const role of ["anon","authenticated","service_role"]) {
+        const result=await db.query<{helper:boolean;dispatcher:boolean}>(`SELECT
+          has_function_privilege($1,'public.amora_budget_plan_non_reserve_budgets(jsonb)','EXECUTE') AS helper,
+          has_function_privilege($1,'public.apply_amora_atomic_tool_execution_pre_shared_revision(uuid,text,text,integer,text,jsonb,jsonb,jsonb)','EXECUTE') AS dispatcher`,[role]);
+        expect(result.rows[0]).toEqual({helper:false,dispatcher:false});
+      }
+    } finally {await db.close();}
+  });
   it("keeps the v1 dispatcher private and the exact public signature service-only", () => {
     expect(mutationCoverage).toContain("RENAME TO apply_amora_atomic_tool_execution_v1");
     expect(mutationCoverage).toMatch(/REVOKE ALL ON FUNCTION public\.apply_amora_atomic_tool_execution_v1[\s\S]*service_role/);

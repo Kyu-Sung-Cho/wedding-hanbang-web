@@ -573,24 +573,49 @@ function buildBudgetPlanOperation(
       "같은 예산 카테고리가 두 번 들어가 있어 적용하지 않았어요.",
     );
   }
-  const allocated = normalizedAllocations.reduce((sum, item) => sum + item.budget, 0);
-  if (allocated > totalBudget) {
+  const progress = context.weddingContext.progress as Record<string, unknown>;
+  const hiddenKeys = new Set(
+    Array.isArray(progress.__hidden)
+      ? progress.__hidden.filter((key): key is string => typeof key === "string")
+      : [],
+  );
+  // 이번에 말하지 않은 기존 배정도 그대로 남는다. 그 금액을 뺀 잔액만
+  // 예비비에 넣어야 전체 배정이 총액을 넘지 않는다. cost/spent는 배정이 아니다.
+  const expectedNonReserveBudgets: Record<string, number> = {};
+  for (const [key, value] of Object.entries(progress)) {
+    if (key === "reserve" || key.startsWith("__") || !isRecord(value)
+      || (Object.hasOwn(CATEGORY_LABELS, key) && hiddenKeys.has(key))) continue;
+    if (value.budget === undefined) continue;
+    if (!isValidWonAmount(value.budget)) {
+      return noOpFailure("apply_budget_plan", toolInput, "progress_state_invalid",
+        "기존 항목의 예산 금액을 먼저 확인해 주세요. 예산안은 변경하지 않았어요.");
+    }
+    expectedNonReserveBudgets[key] = value.budget;
+  }
+  const proposedNonReserveBudgets = { ...expectedNonReserveBudgets };
+  for (const allocation of normalizedAllocations) {
+    if (allocation.category !== "reserve") proposedNonReserveBudgets[allocation.category] = allocation.budget;
+  }
+  const allocated = Object.values(proposedNonReserveBudgets).reduce((sum, budget) => sum + budget, 0);
+  const requestedReserve = normalizedAllocations.find((item) => item.category === "reserve");
+  const reserveBudget = totalBudget - allocated;
+  if (!Number.isSafeInteger(allocated) || allocated > totalBudget
+    || (requestedReserve && requestedReserve.budget > reserveBudget)) {
     return noOpFailure(
       "apply_budget_plan",
       toolInput,
       "budget_allocations_exceed_total",
-      "카테고리 배분 합계가 총예산을 넘어서 적용하지 않았어요.",
+      "기존에 남겨 둘 항목과 이번 배분의 합계가 총예산을 넘어서 적용하지 않았어요. 항목 금액이나 총예산을 다시 확인해 주세요.",
     );
   }
-  const remainder = totalBudget - allocated;
+  const remainder = reserveBudget - (requestedReserve?.budget ?? 0);
   const finalAllocations = normalizedAllocations.map((item) => ({ ...item }));
-  if (remainder > 0) {
-    const reserve = finalAllocations.find((item) => item.category === "reserve");
-    if (reserve) reserve.budget += remainder;
-    else finalAllocations.push({ category: "reserve", budget: remainder });
+  if (requestedReserve) {
+    finalAllocations.find((item) => item.category === "reserve")!.budget = reserveBudget;
+  } else if (reserveBudget > 0 || !hiddenKeys.has("reserve")) {
+    // 잔액이 0이 되어도 이전 예비비가 그대로 남지 않도록 명시한다.
+    finalAllocations.push({ category: "reserve", budget: reserveBudget });
   }
-
-  const progress = context.weddingContext.progress as Record<string, unknown>;
 
   // 사용자가 예산 화면에서 지운 항목에는 배분하지 않는다.
   //
@@ -598,13 +623,6 @@ function buildBudgetPlanOperation(
   // 그대로 두면 아모라는 "배분했어요" 라고 말하는데 예산 화면에는 그 항목이
   // 없어서 합계도 안 맞는다 — 사용자에게는 거짓말로 보인다.
   // 남는 돈이 자동으로 가는 예비비도 지워져 있을 수 있어 같이 본다.
-  const hiddenKeys = new Set(
-    Array.isArray(progress.__hidden)
-      ? (progress.__hidden as unknown[]).filter(
-          (key): key is string => typeof key === "string",
-        )
-      : [],
-  );
   const hiddenTargets = finalAllocations
     .filter((item) => hiddenKeys.has(item.category))
     .map((item) => CATEGORY_LABELS[item.category] ?? item.category);
@@ -673,6 +691,7 @@ function buildBudgetPlanOperation(
       kind: "journey_budget_plan_cas",
       expectedBudget: context.weddingContext.budget,
       valueBudget: totalBudget,
+      expectedNonReserveBudgets,
       entries,
     },
     result: {

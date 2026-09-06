@@ -579,8 +579,8 @@ export async function chatWithToolsStream(options: {
     });
   }
   let inputCountRequestId: string | null | undefined;
-  // 사전 토큰 계산을 건너뛴 턴 — 호출부가 원장에 남길 수 있게 반환한다.
-  let inputCountUnavailableReason: string | null = null;
+  // 기존 감사 결과 형식 호환용. 측정 없이 성공하는 요청은 더 이상 없다.
+  const inputCountUnavailableReason: string | null = null;
 
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
     throw new Error("[ai-config] maxInputTokens must be a positive integer");
@@ -638,19 +638,10 @@ export async function chatWithToolsStream(options: {
     const staged = markOpenAIRequestStage(error, "input_count", {
       model: modelConfig.model,
     });
-    // 측정에 성공했고 그 값이 한도를 넘은 경우만 막는다.
-    if (error instanceof OpenAIInputTokenLimitError) throw staged;
-    // 측정 자체가 실패한 것은 사전 점검의 실패지 대화의 실패가 아니다.
-    // 여기서 던지면 선택적 가드레일 하나가 채팅 전체를 멈춘다 — 2026-07-25
-    // 운영에서 실제로 이 경로가 계속 실패하며 "안녕" 한 마디까지 죽었다.
-    // 과대 입력은 제공자가 스스로 거부하고 그 경로는 아래에서 처리된다.
-    inputCountUnavailableReason =
-      staged instanceof OpenAIProviderError
-        ? staged.providerCode ?? staged.category ?? "unknown"
-        : "unknown";
-    console.warn(
-      `[amora] streaming input pre-count unavailable (${inputCountUnavailableReason}) — proceeding without it`,
-    );
+    // 비용 예약은 앱의 입력 상한을 전제로 한다. 제공자의 더 큰 context
+    // 한도는 이 상한을 보장하지 않으므로, 측정 장애에도 생성 전에 종료한다.
+    // 재시도 가능한 input_count 오류로 전달하고 유료 예약/생성은 하지 않는다.
+    throw staged;
   }
 
   const requestBody: ResponseCreateParamsStreaming = {

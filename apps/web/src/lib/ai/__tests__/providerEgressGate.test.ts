@@ -423,7 +423,7 @@ describe("provider all-egress gate (P0-5)", () => {
       expect(create).not.toHaveBeenCalled();
     });
 
-    it("still proceeds when the input pre-count is unavailable after the egress gate passes", async () => {
+    it("blocks an uncounted paid request even after the privacy egress gate passes", async () => {
       const countError = Object.assign(new Error("count service unavailable"), {
         status: 503,
         requestID: "req_egress_count_503",
@@ -433,17 +433,16 @@ describe("provider all-egress gate (P0-5)", () => {
       const beforeProviderEgress = vi.fn();
       const beforeGeneration = vi.fn();
 
-      const result = await chatWithToolsStream({
+      await expect(chatWithToolsStream({
         tools: [],
         beforeProviderEgress,
         beforeGeneration,
         client,
-      });
+      })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "server_error" });
 
       expect(beforeProviderEgress).toHaveBeenCalledTimes(1);
-      expect(beforeGeneration).toHaveBeenCalledTimes(1);
-      expect(create).toHaveBeenCalledTimes(1);
-      expect(result.inputCountUnavailableReason).toBe("server_error");
+      expect(beforeGeneration).not.toHaveBeenCalled();
+      expect(create).not.toHaveBeenCalled();
     });
 
     it("still blocks generation when the quota gate fails after the egress gate passes", async () => {

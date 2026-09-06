@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { compareChatTimestamps } from "@hanbang/shared";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
@@ -29,6 +30,7 @@ const typingStates = new Map<
   { state: "start" | "stop"; timer: ReturnType<typeof setTimeout> | null }
 >();
 let chatLifecycleEpoch = 0;
+let chatViewEpoch = 0;
 import type {
   ChatMessage,
   MessageSenderRole,
@@ -67,6 +69,19 @@ type ActiveProviderRequest = {
 };
 
 const activeProviderRequests = new Set<ActiveProviderRequest>();
+
+// 화면 정리는 진행 중인 작업만 무효화한다. Realtime 구독의 계정 경계는 유지한다.
+function captureChatViewGuard(binding: ChatLifecycleBinding): () => boolean {
+  const viewEpoch = chatViewEpoch;
+  return () => viewEpoch === chatViewEpoch && isChatLifecycleBindingCurrent(binding);
+}
+
+function invalidateChatView(coupleId: string) {
+  chatViewEpoch += 1;
+  for (const request of activeProviderRequests) {
+    if (request.lifecycleBinding.coupleId === coupleId) request.controller.abort();
+  }
+}
 
 function invalidateChatLifecycle() {
   chatLifecycleEpoch += 1;
@@ -155,7 +170,7 @@ function latestIso(...values: Array<string | null | undefined>): string | null {
   const valid = values.filter((v): v is string => typeof v === "string" && v.length > 0);
   if (valid.length === 0) return null;
   return valid.reduce((latest, value) =>
-    new Date(value).getTime() > new Date(latest).getTime() ? value : latest
+    compareChatTimestamps(value, latest) === 1 ? value : latest
   );
 }
 
@@ -206,12 +221,46 @@ function isAfterClearedAt(
   privateClearedAt: string | null
 ): boolean {
   if (message.visibility === "shared" && sharedClearedAt) {
-    return new Date(message.created_at) > new Date(sharedClearedAt);
+    return compareChatTimestamps(message.created_at, sharedClearedAt) === 1;
   }
   if (isCurrentUserPrivateMessage(message) && privateClearedAt) {
-    return new Date(message.created_at) > new Date(privateClearedAt);
+    return compareChatTimestamps(message.created_at, privateClearedAt) === 1;
   }
   return true;
+}
+
+function applyAcceptedSharedClear(
+  state: ChatStoreState,
+  coupleId: string,
+  rpcClearedAt: string | null | undefined,
+  requestCreatedAt: string,
+): Partial<ChatStoreState> {
+  const clearedAt = resolveMonotonicSharedClearCursor({
+    currentClearedAt: latestIso(state.sharedClearedAt, readLocalClearedAt(coupleId, "shared")),
+    rpcClearedAt,
+    requestCreatedAt,
+  });
+  if (!Number.isFinite(Date.parse(clearedAt))) return {};
+  const advancesView = !state.sharedClearedAt || compareChatTimestamps(clearedAt, state.sharedClearedAt) === 1;
+  if (advancesView) invalidateChatView(coupleId);
+  writeLocalClearedAt(coupleId, "shared", clearedAt);
+  // 함께 정리는 요청 시점부터의 카드와 대화를 보존한다. 늦은 응답은
+  // 이미 적용한 본인 정리 또는 다른 탭의 더 최신 커서를 되돌리지 않는다.
+  const messages = state.messages.filter((message) => message.visibility !== "shared"
+    || (compareChatTimestamps(message.created_at, clearedAt) ?? -1) >= 0);
+  const failedSource = state.messages.find((message) => message.id === state.failedRequest?.userMessageId);
+  const clearsFailedRequest = state.failedRequest?.coupleId === coupleId
+    && state.failedRequest.visibility === "shared"
+    && (failedSource ? !messages.includes(failedSource) : advancesView);
+  return {
+    messages,
+    sharedClearedAt: clearedAt,
+    ...(clearsFailedRequest ? { failedRequest: null, error: null, artifactVisibility: null } : {}),
+    ...(advancesView ? {
+      isStreaming: false, isSending: false, isRetrying: false,
+      streamingContent: "", streamingToolResults: [], suggestions: [],
+    } : {}),
+  };
 }
 
 /** 다른 사람(상대방 또는 AI)이 진행 중인 활동을 인지하기 위한 Presence 정보 */
@@ -389,11 +438,13 @@ export function syncToolResult(result: ToolExecutionResult) {
       break;
     }
     case "apply_budget_plan": {
-      // 예산 인터뷰 결과 일괄 반영 — total_budget + 모든 allocations 의 budget 필드 갱신.
-      // 서버 executor 는 잔여분을 reserve 로 자동 보강하므로 input.allocations 외에 reserve 도
-      // 별도로 검사. toolOutput.remainder_to_reserve 가 있으면 reserve 카테고리에 추가 가산.
+      // 서버가 확정한 배분에는 기존 항목을 뺀 잔여금과 예비비 0원도 포함된다.
+      // 과거 서버의 영수증에 배분 배열이 없을 때만 입력과 잔여금으로 동기화한다.
       const totalBudget = result.toolOutput.total_budget as number | undefined;
-      const allocations = (result.toolInput.allocations ?? []) as Array<{
+      const hasCanonicalAllocations = Array.isArray(result.toolOutput.allocations);
+      const allocations = (hasCanonicalAllocations
+        ? result.toolOutput.allocations
+        : result.toolInput.allocations ?? []) as Array<{
         category: string;
         budget: number;
       }>;
@@ -412,7 +463,7 @@ export function syncToolResult(result: ToolExecutionResult) {
         };
       }
       // 잔여분이 reserve 로 자동 추가됐다면 그것도 반영
-      if (remainder > 0) {
+      if (!hasCanonicalAllocations && remainder > 0) {
         const reserveExisting = (nextProgress.reserve ?? {
           category: "reserve",
           status: "not_started",
@@ -995,7 +1046,7 @@ const PERMANENT_REQUEST_RETRY_UNAVAILABLE =
 const EXPLICIT_ACTION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function compareChatMessageOrder(left: ChatMessage, right: ChatMessage): number {
-  const byCreatedAt = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+  const byCreatedAt = compareChatTimestamps(left.created_at, right.created_at) ?? 0;
   return byCreatedAt || left.id.localeCompare(right.id);
 }
 
@@ -1377,7 +1428,7 @@ async function executeChatProviderRequest(
   retrying: boolean,
   lifecycleBinding: ChatLifecycleBinding,
 ): Promise<void> {
-  const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
+  const isCurrentLifecycle = captureChatViewGuard(lifecycleBinding);
   if (!isCurrentLifecycle() || get().isStreaming) return;
 
   set({
@@ -1485,6 +1536,16 @@ async function executeChatProviderRequest(
         if (!isCurrentLifecycle()) return;
         fullContent = content;
         finalMetadata = metadata;
+        // 저장된 답변을 재생하는 재시도는 tool_result 없이 done 영수증만 온다.
+        // 과거 입력을 다시 적용하지 않고 최신 원장을 한 번 읽어 동기화한다.
+        if (Array.isArray(metadata?.toolResults) && metadata.toolResults.some((result) => (
+          result !== null
+          && typeof result === "object"
+          && result.success === true
+          && PROGRESS_AFFECTING_TOOLS.has(result.toolName)
+        ))) {
+          progressTouched = true;
+        }
         gotDone = true;
       },
       onError: (streamError) => {
@@ -1565,8 +1626,13 @@ async function executeChatProviderRequest(
 
     if (progressTouched) {
       const authState = useAuthStore.getState();
-      await authState.refreshJourney(authState.user?.id);
+      const refreshed = await authState.refreshJourney(authState.user?.id).catch(() => false);
       if (!isCurrentLifecycle()) return;
+      if (refreshed === false) {
+        set((state) => ({
+          error: state.error ?? "변경 결과는 받았지만 최신 준비 정보를 불러오지 못했어요. 예산·체크리스트 화면을 새로고침해 주세요.",
+        }));
+      }
     }
 
     // 저장까지 성공했을 때만 재시도 상태를 지운다. 서버가 보낸 안내(예: 일부 저장
@@ -1731,8 +1797,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         })
         .sort((left, right) => {
           const byCreatedAt =
-            new Date(left.created_at).getTime()
-            - new Date(right.created_at).getTime();
+            compareChatTimestamps(left.created_at, right.created_at) ?? 0;
           return byCreatedAt || left.id.localeCompare(right.id);
         });
       // 2026-09-03: 안전 홀드·비공개 전환 안내 카드는 원문을 저장하지 않는 계약이라
@@ -1798,13 +1863,22 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
     try {
       const supabase = createClient();
-      const { data, error } = await supabase
+      let query = supabase
         .from("chat_messages")
         .select("*")
         .eq("couple_id", coupleId)
-        .gt("created_at", since)
-        .order("created_at", { ascending: true })
-        .limit(50);
+        .gt("created_at", since);
+      // 숨긴 과거 50개가 빈 화면의 매 polling을 차지하지 않게 DB에서 먼저 제외한다.
+      if (state.sharedClearedAt && state.privateClearedAt) {
+        query = query.or(
+          `and(visibility.eq.shared,created_at.gt.${state.sharedClearedAt}),and(visibility.neq.shared,created_at.gt.${state.privateClearedAt})`,
+        );
+      } else if (state.sharedClearedAt) {
+        query = query.or(`visibility.neq.shared,created_at.gt.${state.sharedClearedAt}`);
+      } else if (state.privateClearedAt) {
+        query = query.or(`visibility.eq.shared,created_at.gt.${state.privateClearedAt}`);
+      }
+      const { data, error } = await query.order("created_at", { ascending: true }).limit(50);
 
       if (!isChatLifecycleBindingCurrent(lifecycleBinding)) return;
       if (error || !data?.length) return;
@@ -1820,10 +1894,10 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         const toAdd = fetched.filter((m) => {
           if (existing.has(m.id)) return false;
           if (m.visibility === "shared" && s.sharedClearedAt) {
-            if (new Date(m.created_at) <= new Date(s.sharedClearedAt)) return false;
+            if (compareChatTimestamps(m.created_at, s.sharedClearedAt) !== 1) return false;
           }
           if (isCurrentUserPrivateMessage(m) && s.privateClearedAt) {
-            if (new Date(m.created_at) <= new Date(s.privateClearedAt)) return false;
+            if (compareChatTimestamps(m.created_at, s.privateClearedAt) !== 1) return false;
           }
           return true;
         });
@@ -1884,7 +1958,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     ) {
       return { userMessage: "not_persisted", reason: "validation" };
     }
-    const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
+    const isCurrentLifecycle = captureChatViewGuard(lifecycleBinding);
     const requestedVisibility = visibility ?? "shared";
     const crisisPreflight = senderRole === "bride" || senderRole === "groom"
       ? planAmoraCrisisDelivery({
@@ -2479,7 +2553,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         const nextMessage = dbRowToMessage(inserted);
         return {
           messages: [...state.messages, nextMessage].sort(
-            (left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime(),
+            (left, right) => compareChatTimestamps(left.created_at, right.created_at) ?? 0,
           ),
           artifactVisibility: serverVisibility,
         };
@@ -2650,7 +2724,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     if (get().isStreaming || get().isSending) return;
     const lifecycleBinding = captureChatLifecycleBinding(coupleId);
     if (!lifecycleBinding || lifecycleBinding.role !== senderRole) return;
-    const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
+    const isCurrentLifecycle = captureChatViewGuard(lifecycleBinding);
 
     set({
       isStreaming: true,
@@ -2767,7 +2841,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     }
     const lifecycleBinding = captureChatLifecycleBinding(coupleId);
     if (!lifecycleBinding || lifecycleBinding.role !== senderRole) return "sent";
-    const isCurrentLifecycle = () => isChatLifecycleBindingCurrent(lifecycleBinding);
+    const isCurrentLifecycle = captureChatViewGuard(lifecycleBinding);
 
     const requesterSummary = conflictContext.trim().slice(0, 600);
     if (requesterSummary.length < 4) {
@@ -2960,6 +3034,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 대화 초기화
   clearMessages: async (coupleId, mode) => {
+    const lifecycleBinding = captureChatLifecycleBinding(coupleId);
     const isDemo = document.cookie.includes("demo_mode=true");
     // 서버 응답에서 받은 clearedAt 사용 — DB·클라이언트 동기화
     let serverClearedAt: string | null = null;
@@ -2970,6 +3045,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         body: JSON.stringify({ coupleId, mode }),
       });
       const data = await res.json().catch(() => ({}));
+      if (lifecycleBinding && !isChatLifecycleBindingCurrent(lifecycleBinding)) return;
       if (!res.ok) {
         const message = typeof data?.error === "string" ? data.error : "채팅 정리에 실패했습니다.";
         set({ error: message });
@@ -2977,35 +3053,49 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       }
       serverClearedAt = typeof data?.clearedAt === "string" ? data.clearedAt : null;
     }
-    const nowIso = serverClearedAt ?? new Date().toISOString();
-    if (mode === "view_reset_shared" || mode === "delete_shared") {
-      writeLocalClearedAt(coupleId, "shared", nowIso);
-    }
-    if (mode === "view_reset_private" || mode === "delete_private") {
-      writeLocalClearedAt(coupleId, "private", nowIso);
-    }
+    const clearsShared = mode === "view_reset_shared" || mode === "delete_shared";
+    const clearsPrivate = mode === "view_reset_private" || mode === "delete_private";
+    const scope: ClearScope = clearsShared ? "shared" : "private";
+    const appliedCursor = clearsShared ? get().sharedClearedAt : get().privateClearedAt;
+    const currentCursor = latestIso(
+      appliedCursor,
+      readLocalClearedAt(coupleId, scope),
+    );
+    const receivedCursor = serverClearedAt ?? new Date().toISOString();
+    const nowIso = latestIso(currentCursor, receivedCursor)!;
+    // 다른 탭의 localStorage 커서는 아직 이 탭에 적용되지 않았을 수 있다.
+    const advancesView = !appliedCursor || compareChatTimestamps(nowIso, appliedCursor) === 1;
+    // 연속 초기화의 HTTP 응답이 뒤집혀도 새 화면과 그 뒤 시작한 요청을 건드리지 않는다.
+    if (advancesView) invalidateChatView(coupleId);
+    writeLocalClearedAt(coupleId, scope, nowIso);
 
     // 로컬 state 업데이트 — 영향받는 메시지 제거 + cleared_at 갱신
     // (pollNewMessages 가 cleared_at 이후 메시지만 추가하도록 보장)
     set((s) => {
-      const clearsShared = mode === "view_reset_shared" || mode === "delete_shared";
-      const clearsPrivate = mode === "view_reset_private" || mode === "delete_private";
-      const filtered = s.messages.filter((m) => {
-        if (clearsShared) {
-          return m.visibility !== "shared";
-        }
-        if (clearsPrivate) {
-          return !isCurrentUserPrivateMessage(m);
-        }
-        return true;
-      });
+      const filtered = s.messages.filter((m) => isAfterClearedAt(
+        m, clearsShared ? nowIso : null, clearsPrivate ? nowIso : null,
+      ));
+      const failedSource = s.messages.find((message) => message.id === s.failedRequest?.userMessageId);
       const clearsFailedRequest = s.failedRequest?.coupleId === coupleId
         && (
           (clearsShared && s.failedRequest.visibility === "shared")
           || (clearsPrivate && s.failedRequest.visibility !== "shared")
-        );
+        )
+        && (failedSource ? !filtered.includes(failedSource) : advancesView);
+      if (!advancesView) {
+        return {
+          messages: filtered,
+          ...(clearsShared ? { sharedClearedAt: nowIso } : { privateClearedAt: nowIso }),
+          ...(clearsFailedRequest ? { failedRequest: null, error: null, artifactVisibility: null } : {}),
+        };
+      }
       const next: Partial<ChatStoreState> = {
         messages: filtered,
+        isStreaming: false,
+        isSending: false,
+        isRetrying: false,
+        streamingContent: "",
+        streamingToolResults: [],
         suggestions: [],
         artifactVisibility: s.failedRequest?.coupleId === coupleId && !clearsFailedRequest
           ? s.failedRequest.visibility
@@ -3042,6 +3132,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   // 받은 요청에 동의/거절
   respondToClearRequest: async (messageId: string, action: "accept" | "decline") => {
+    const lifecycleBinding = captureActiveChatLifecycleBinding();
+    if (!lifecycleBinding) return { ok: false, error: "커플 연결 상태를 확인해주세요." };
     try {
       const res = await fetch("/api/chat/clear-request", {
         method: "POST",
@@ -3049,21 +3141,17 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         body: JSON.stringify({ action, messageId }),
       });
       const data = await res.json().catch(() => ({}));
+      if (!isChatLifecycleBindingCurrent(lifecycleBinding)) {
+        return { ok: false, error: "커플 연결 상태가 바뀌었어요. 최신 화면을 다시 불러와 주세요." };
+      }
       if (!res.ok) return { ok: false, error: data?.error ?? "응답 실패" };
 
       // accept 의 경우 양쪽 cleared_at 이 갱신됨 — 본인 store 도 즉시 반영
-      if (action === "accept" && typeof data?.clearedAt === "string") {
-        const activeCoupleId = useAuthStore.getState().couple?.id;
-        if (activeCoupleId) writeLocalClearedAt(activeCoupleId, "shared", data.clearedAt);
-        set((s) => {
-          // cleared_at 이전 shared 메시지 제거 (clear-request 메시지 자체는
-          // 동일 created_at 이라 살아남음 — 카드 상태 업데이트로 표시).
-          const filtered = s.messages.filter((m) => {
-            if (m.visibility !== "shared") return true;
-            return new Date(m.created_at) >= new Date(data.clearedAt);
-          });
-          return { messages: filtered, sharedClearedAt: data.clearedAt };
-        });
+      if (action === "accept") {
+        if (typeof data?.clearedAt !== "string" || !Number.isFinite(Date.parse(data.clearedAt))) {
+          return { ok: false, error: "대화 정리 시점을 확인하지 못했어요. 다시 시도해주세요." };
+        }
+        set((state) => applyAcceptedSharedClear(state, lifecycleBinding.coupleId, data.clearedAt, data.clearedAt));
       }
       return { ok: true };
     } catch (err) {
@@ -3128,14 +3216,14 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
               if (
                 newMsg.visibility === "shared" &&
                 s.sharedClearedAt &&
-                new Date(newMsg.created_at) <= new Date(s.sharedClearedAt)
+                compareChatTimestamps(newMsg.created_at, s.sharedClearedAt) !== 1
               ) {
                 return s;
               }
               if (
                 isCurrentUserPrivateMessage(newMsg) &&
                 s.privateClearedAt &&
-                new Date(newMsg.created_at) <= new Date(s.privateClearedAt)
+                compareChatTimestamps(newMsg.created_at, s.privateClearedAt) !== 1
               ) {
                 return s;
               }
@@ -3205,17 +3293,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
               // 이미 본인 store 에서 갱신했음. 여기서는 요청자 측만 처리.
               const cr = updated.metadata?.clearRequest;
               if (cr?.status === "accepted") {
-                const clearedAt = resolveMonotonicSharedClearCursor({
-                  currentClearedAt: s.sharedClearedAt,
-                  rpcClearedAt: cr.clearedAt,
-                  requestCreatedAt: updated.created_at,
-                });
-                writeLocalClearedAt(coupleId, "shared", clearedAt);
-                const filtered = nextMessages.filter((m) => {
-                  if (m.visibility !== "shared") return true;
-                  return new Date(m.created_at) >= new Date(clearedAt);
-                });
-                return { messages: filtered, sharedClearedAt: clearedAt };
+                return applyAcceptedSharedClear({ ...s, messages: nextMessages }, coupleId, cr.clearedAt, updated.created_at);
               }
               return {
                 messages: reconcileAmoraCrisisRecoveryMessages(

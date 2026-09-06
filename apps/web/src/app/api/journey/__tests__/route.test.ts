@@ -79,6 +79,7 @@ function request(
     total_budget: 40_000_000,
   },
   headers: Record<string, string> = {},
+  includeExpectedCouple = true,
 ) {
   return new Request("http://localhost/api/journey", {
     method: "PATCH",
@@ -87,7 +88,9 @@ function request(
       "sec-fetch-site": "same-origin",
       ...headers,
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(includeExpectedCouple && typeof body === "object" && body !== null && !Array.isArray(body)
+      ? { expected_couple_id: COUPLE_ID, ...body }
+      : body),
   });
 }
 
@@ -145,6 +148,79 @@ describe("/api/journey PATCH couple plan-change contract", () => {
       p_summary: "총예산: 40000000원",
     });
     expect(mocks.adminFrom).not.toHaveBeenCalled();
+  });
+
+  it("rejects a form from a previous couple before submitting any plan change", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      expected_couple_id: "55555555-5555-4555-8555-555555555555",
+      venue: "이전 커플에서 편집한 예식장",
+    }));
+
+    expect(response.status).toBe(409);
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    await expect(response.json()).resolves.toMatchObject({ code: "PLAN_CHANGE_IDENTITY_CHANGED" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("rejects a legacy form with no couple binding even when the newly connected couple has the same revision", async () => {
+    const newCoupleId = "55555555-5555-4555-8555-555555555555";
+    mocks.profile = { couple_id: newCoupleId };
+    mocks.currentJourney = { progress: {}, state_revision: 7 };
+    const writes: unknown[] = [];
+    mocks.rpc.mockImplementation(async (_name: string, args: unknown) => {
+      writes.push(args);
+      return { data: { requestId: REQUEST_ID, status: "applied", requiredCount: 1, acceptedCount: 1, journey: { ...journey(), couple_id: newCoupleId } }, error: null };
+    });
+    const response = await PATCH(request({ expected_revision: 7, venue: "이전 커플의 초안" }, {}, false));
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining("커플") });
+    expect(writes).toEqual([]);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+
+  it("keeps the caller's expected couple fixed through the canonical RPC", async () => {
+    const response = await PATCH(request({
+      expected_revision: 7,
+      expected_couple_id: COUPLE_ID,
+      venue: "새 예식장",
+    }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("submit_couple_plan_change", expect.objectContaining({
+      p_couple_id: COUPLE_ID,
+      p_actor_user_id: USER_ID,
+      p_expected_revision: 7,
+      p_changes: { venue: "새 예식장" },
+    }));
+  });
+
+  it("rejects a detached couple even when the old revision happens to match", async () => {
+    mocks.profile = { couple_id: null };
+    const response = await PATCH(request({ expected_revision: 7, expected_couple_id: COUPLE_ID, venue: "새 예식장" }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "PLAN_CHANGE_IDENTITY_CHANGED" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([null, "", "not-a-uuid", 17, {}, []])("rejects a malformed expected couple: %j", async (expectedCoupleId) => {
+    const response = await PATCH(request({ expected_revision: 7, expected_couple_id: expectedCoupleId, venue: "새 예식장" }));
+    expect(response.status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("does not treat a profile lookup failure as an identity match", async () => {
+    mocks.profileError = { code: "unavailable" };
+    const response = await PATCH(request({ expected_revision: 7, expected_couple_id: COUPLE_ID, venue: "새 예식장" }));
+    expect(response.status).toBe(503);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a revision race after the settings client checks its field baseline", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: "COUPLE_PLAN_CHANGE_STALE" } });
+    const response = await PATCH(request({ expected_revision: 7, expected_couple_id: COUPLE_ID, venue: "새 예식장" }));
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ code: "PLAN_CHANGE_CONFLICT" });
   });
 
   it("returns 202 with a server-derived summary and no optimistic journey for partner approval", async () => {
@@ -657,7 +733,8 @@ describe("/api/journey PATCH couple plan-change contract", () => {
     mocks.authFrom.mockImplementation(() => queryResult(mocks.profile));
     vi.mocked(checkRateLimitPersistent).mockResolvedValue(null);
     const unlinked = await PATCH(request());
-    expect(unlinked.status).toBe(403);
+    expect(unlinked.status).toBe(409);
+    await expect(unlinked.json()).resolves.toMatchObject({ code: "PLAN_CHANGE_IDENTITY_CHANGED" });
     expect(createAdminClient).not.toHaveBeenCalled();
   });
 

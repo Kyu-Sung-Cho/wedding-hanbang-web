@@ -46,6 +46,18 @@ const compose = (enabledToolNames: string[]) =>
   });
 
 const delivered = compose(PRODUCTION_ENABLED_TOOL_NAMES);
+it("일반 대화 조율에서도 두 사람의 이유와 조건의 귀속을 유지하도록 전달한다", () => {
+  const line = delivered.split("\n").find(candidate => candidate.includes("말한 사람별로 유지")) ?? "";
+  expect(line).toContain("말·이유·조건");
+  expect(line).toContain("서로 바꾸거나 합의로 묶지");
+  expect(line).toContain("감정·의도는 단정하지");
+});
+it("개인 상담 답변은 실제 개인 저장 버튼으로 안내하고 대화만으로 저장됐다고 하지 않는다", () => {
+  const line = delivered.split("\n").find(candidate => candidate.includes("개인 할 일로 저장")) ?? "";
+  expect(line).toContain("제목·내용·마감일을 확인");
+  expect(line).toContain("나만 볼 할 일");
+  expect(line).toContain("버튼의 저장 결과 없이 저장됐다고 말하지");
+});
 const without = (...drop: string[]) =>
   compose(PRODUCTION_ENABLED_TOOL_NAMES.filter((name) => !drop.includes(name)));
 
@@ -59,15 +71,23 @@ const without = (...drop: string[]) =>
 function pivotRuleLine(prompt: string): string {
   const line = prompt
     .split("\n")
-    .find((candidate) => candidate.includes("절반 이하로 바뀌면"));
+    .find((candidate) => candidate.includes("하객 규모") && candidate.includes("이유는 한 번만"));
   return line ?? "";
 }
 
 describe("큰 방향전환은 이유를 한 번 확인한다", () => {
   // Turn 17: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용했다.
   it("크기 조건과 함께 실린다", () => {
-    expect(delivered).toContain("절반 이하로 바뀌면");
+    expect(pivotRuleLine(delivered)).toContain("절반 이하");
     expect(pivotRuleLine(delivered)).toContain("이유는 한 번만");
+  });
+
+  it("가족식에서 큰 예식으로 확대할 때도 이유 확인과 계획 정리를 전달한다", () => {
+    const line = pivotRuleLine(delivered);
+    expect(line).toContain("2배 이상");
+    expect(line).toContain("예식 형태·지역 전환");
+    expect(line).toContain("유지할 것과 다시 정할 것을");
+    expect(line).toContain("한 답변에 둘 다");
   });
 
   /**
@@ -88,11 +108,11 @@ describe("큰 방향전환은 이유를 한 번 확인한다", () => {
 
   it("작은 변경까지 되묻게 하지는 않는다", () => {
     // 이 단서가 빠지면 날짜 한 달 옮기는 것도 되묻는다.
-    expect(pivotRuleLine(delivered)).toContain("날짜 한 달 이동쯤은 그냥 반영");
+    expect(pivotRuleLine(delivered)).toContain("날짜 한 달 이동은 반영하세요");
   });
 
   it("결혼 조회 도구가 없으면 싣지 않는다", () => {
-    expect(without("get_wedding_info", "get_budget_summary")).not.toContain("절반 이하로 바뀌면");
+    expect(pivotRuleLine(without("get_wedding_info", "get_budget_summary"))).toBe("");
   });
 
   /**
@@ -122,7 +142,7 @@ describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
   it("남는 쪽과 다시 정할 쪽을 한 답변에 둘 다 말하게 한다", () => {
     const line = pivotRuleLine(delivered);
     expect(line, "그대로 가는 쪽을 말하라는 지시가 없다 — 사용자는 계획 상태를 잃는다")
-      .toContain("그대로 갈 것과 다시 정할 것을");
+      .toContain("유지할 것과 다시 정할 것을");
     expect(line, "한쪽만 말해도 지킨 것이 된다 — 실제로 두 번 다 절반만 나왔다")
       .toContain("한 답변에 둘 다");
   });
@@ -133,7 +153,7 @@ describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
 
   it("결혼 조회 도구가 없으면 싣지 않는다", () => {
     expect(without("get_wedding_info", "get_budget_summary"))
-      .not.toContain("그대로 갈 것과 다시 정할 것을");
+      .not.toContain("유지할 것과 다시 정할 것을");
   });
 });
 

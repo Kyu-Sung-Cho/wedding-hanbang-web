@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { URL } from "node:url";
+import ts from "typescript";
+import { buildScheduleProgressPatch } from "../lib/scheduleMutation.mjs";
 
 const scheduleSource = readFileSync(
   new URL("../../app/schedule/index.tsx", import.meta.url),
@@ -15,6 +17,32 @@ const apiSource = readFileSync(
   new URL("../lib/api.ts", import.meta.url),
   "utf8",
 );
+
+test("every actual checklist and schedule PATCH remains bound to the original couple after membership changes", async () => {
+  const sourceFile = ts.createSourceFile("schedule.tsx", scheduleSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const calls = [];
+  function visit(node) {
+    if (ts.isCallExpression(node) && node.expression.getText(sourceFile) === "apiFetchForExpectedUser"
+      && node.arguments[1]?.getText(sourceFile) === '"/api/journey"') calls.push(node.getText(sourceFile));
+    ts.forEachChild(node, visit);
+  }
+  visit(sourceFile); assert.equal(calls.length, 3, "covers the common schedule writer and both checklist writers");
+  const owner = "same-user", oldCouple = "old-couple", serverCouple = "new-couple";
+  let writes = 0;
+  for (const expression of calls) {
+    let submitted;
+    const send = async (userId, _path, options) => {
+      assert.equal(userId, owner); submitted = JSON.parse(options.body);
+      if (!submitted.expected_couple_id || submitted.expected_couple_id === serverCouple) writes++;
+      return { ok: false, status: 409 };
+    };
+    const execute = new Function("apiFetchForExpectedUser", "sessionToken", "snapshot", "currentProgress", "categoryKey", "nextCategory", "expectedUserId", "expectedRevision", "updatedEvents", "expectedCoupleId", "buildScheduleProgressPatch", `return ${expression};`);
+    await execute(send, { ownerId: owner, coupleId: oldCouple }, { stateRevision: 7 }, { venue: { checklist: [] } }, "venue", { checklist: [] }, owner, 7, [{ id: "evt-test", title: "합성 일정", date: "2027-01-01" }], oldCouple, buildScheduleProgressPatch);
+    assert.equal(submitted.expected_revision, 7);
+    assert.equal(submitted.expected_couple_id, oldCouple, "equal revisions in a different couple cannot authorize the request");
+  }
+  assert.equal(writes, 0);
+});
 
 test("mobile schedule writes use the server CAS revision contract", () => {
   assert.match(scheduleSource, /\.select\(["']progress, state_revision["']\)/);

@@ -81,14 +81,30 @@ export async function GET(req: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    // search_vector를 사용한 전문 검색
+    // simple 전문 검색은 한국어 조사를 분리하지 않아 "스드메"로 "스드메는"을
+    // 찾지 못한다. 한국어는 DB 부분 검색으로 필터링한 뒤 페이지를 자른다.
     let query = supabase
       .from("community_posts")
-      .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" })
-      .textSearch("search_vector", q, {
+      .select(COMMUNITY_POST_PUBLIC_SELECT, { count: "exact" });
+    if (/[가-힣ㄱ-ㅎㅏ-ㅣ]/u.test(q)) {
+      const safeTerm = cleanPostgrestSearchTerm(q, 100);
+      if (!safeTerm) return json({ error: "검색어를 입력해주세요." }, { status: 400 });
+      // 여러 검색어는 제목·본문 어느 쪽에 있든 모두 포함해야 한다.
+      // 연속 문구로 묶으면 "스드메 추천"이 "스드메 비용 추천"을 놓친다.
+      const clauses = safeTerm.split(/\s+/u).map((term) => {
+        const escaped = escapePostgrestLikePattern(term);
+        return `title.ilike.%${escaped}%,content.ilike.%${escaped}%`;
+      });
+      query = query.or(clauses.length === 1
+        ? clauses[0]
+        : `and(${clauses.map((clause) => `or(${clause})`).join(",")})`);
+    } else {
+      query = query.textSearch("search_vector", q, {
         type: "plain",
         config: "simple",
-      })
+      });
+    }
+    query = query
       .eq("visibility", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.visibility)
       .eq("under_review", PUBLIC_COMMUNITY_POST_QUERY_FILTERS.underReview)
       .eq("ad_disclosure", "general")

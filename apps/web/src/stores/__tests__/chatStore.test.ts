@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
@@ -66,6 +66,7 @@ const mockAuthGetUser = vi.fn(async () => ({
   data: { user: { id: TEST_USER_UUID } },
 }));
 let mockRealtimeInsertHandler: ((payload: { new: Record<string, unknown> }) => void) | null = null;
+let mockRealtimeUpdateHandler: ((payload: { new: Record<string, unknown> }) => void) | null = null;
 const mockRealtimeChannel: Record<string, unknown> = {};
 mockRealtimeChannel.on = vi.fn((
   event: string,
@@ -74,6 +75,9 @@ mockRealtimeChannel.on = vi.fn((
 ) => {
   if (event === "postgres_changes" && filter.event === "INSERT") {
     mockRealtimeInsertHandler = callback;
+  }
+  if (event === "postgres_changes" && filter.event === "UPDATE") {
+    mockRealtimeUpdateHandler = callback;
   }
   return mockRealtimeChannel;
 });
@@ -125,6 +129,37 @@ const TEST_CLIENT_REQUEST_UUID = "30000000-0000-4000-8000-000000000001";
 const TEST_CONFIRMED_ACTION_UUID = "40000000-0000-4000-8000-000000000001";
 
 describe("booking projection local sync", () => {
+  it("uses canonical budget-plan allocations including zero reserve without adding the remainder twice", () => {
+    useAuthStore.setState({ journey: {
+      total_budget: 30_000_000,
+      progress: {
+        venue: { category: "venue", status: "completed", budget: 12_000_000, spent: 2_000_000 },
+        ring: { category: "ring", status: "in_progress", budget: 3_000_000 },
+        reserve: { category: "reserve", status: "not_started", budget: 8_000_000 },
+      },
+    } as never });
+    syncToolResult({
+      toolName: "apply_budget_plan",
+      toolInput: { allocations: [{ category: "venue", budget: 27_000_000 }] },
+      toolOutput: { total_budget: 30_000_000, allocations: [{ category: "venue", budget: 27_000_000 }, { category: "reserve", budget: 0 }], remainder_to_reserve: 0 },
+      success: true,
+      displayMessage: "",
+    });
+    expect(useAuthStore.getState().journey?.progress).toMatchObject({
+      venue: { budget: 27_000_000, spent: 2_000_000, status: "completed" },
+      ring: { budget: 3_000_000 },
+      reserve: { budget: 0 },
+    });
+    syncToolResult({
+      toolName: "apply_budget_plan",
+      toolInput: { allocations: [{ category: "venue", budget: 20_000_000 }, { category: "reserve", budget: 1_000_000 }] },
+      toolOutput: { total_budget: 30_000_000, allocations: [{ category: "venue", budget: 20_000_000 }, { category: "reserve", budget: 7_000_000 }], remainder_to_reserve: 6_000_000 },
+      success: true,
+      displayMessage: "",
+    });
+    expect(useAuthStore.getState().journey?.progress.reserve.budget).toBe(7_000_000);
+  });
+
   it("keeps recorded spend and soft-cancels the stable event", () => {
     const bookingId = "60000000-0000-4000-8000-000000000001";
     const eventId = `evt_booking_${bookingId}`;
@@ -702,6 +737,7 @@ describe("unanswered Amora turn recovery", () => {
 describe("chat lifecycle isolation", () => {
   beforeEach(() => {
     useChatStore.getState().reset();
+    window.localStorage.clear();
     mockFrom.mockReset();
     mockFrom.mockImplementation((table?: string): Record<string, unknown> => {
       void table;
@@ -710,6 +746,7 @@ describe("chat lifecycle isolation", () => {
     mockAuthGetUser.mockReset();
     mockAuthGetUser.mockResolvedValue({ data: { user: { id: TEST_USER_UUID } } });
     mockRealtimeInsertHandler = null;
+    mockRealtimeUpdateHandler = null;
     mockChannel.mockClear();
     mockRemoveChannel.mockClear();
     mockIngestFetch.mockReset();
@@ -722,6 +759,165 @@ describe("chat lifecycle isolation", () => {
         role: "bride",
         couple_id: TEST_COUPLE_UUID,
       } as never,
+    });
+  });
+
+  describe("durable budget receipt replay", () => {
+    const originalRefresh = useAuthStore.getState().refreshJourney;
+    const refreshJourney = vi.fn(async () => true);
+    const approvedResult = {
+      toolName: "update_budget",
+      toolInput: { total_budget: 40_000_000 },
+      toolOutput: { total_budget: 40_000_000 },
+      success: true,
+      displayMessage: "총예산을 변경했어요.",
+    };
+    const send = () => useChatStore.getState().sendMessage({
+      content: "승인한 예산 변경을 적용해 주세요.",
+      senderId: TEST_USER_UUID,
+      senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID,
+      senderName: "첫 사용자",
+      weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+      confirmedActionId: TEST_CONFIRMED_ACTION_UUID,
+    });
+    const response = (results: unknown[], streamedResults: unknown[] = []) => new Response(
+      [...streamedResults.map((result) => ({ type: "tool_result", result })), {
+        type: "done",
+        fullContent: "예산 변경 결과를 다시 불러왔어요.",
+        metadata: {
+          serverMessageId: "ai-budget-replay",
+          replayed: true,
+          toolResults: results,
+        },
+      }].map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+      { status: 200, headers: { "Content-Type": "text/event-stream" } },
+    );
+
+    beforeEach(() => {
+      document.cookie = "demo_mode=; Max-Age=0; path=/";
+      mockFetch.mockReset();
+      refreshJourney.mockReset().mockResolvedValue(true);
+      useAuthStore.setState({
+        isDemo: false,
+        user: { id: TEST_USER_UUID },
+        refreshJourney,
+        journey: {
+          id: "journey-budget-replay",
+          couple_id: TEST_COUPLE_UUID,
+          total_budget: 50_000_000,
+          progress: { venue: { category: "venue", status: "completed", budget: 12_000_000 } },
+        },
+      } as never);
+    });
+    afterEach(() => {
+      useAuthStore.setState({ refreshJourney: originalRefresh });
+      vi.clearAllMocks();
+    });
+
+    it.each(["update_budget", "update_category_budget", "apply_budget_plan", "add_custom_category"])(
+      "refreshes the latest journey for a done-only %s receipt after an interrupted response",
+      async (toolName) => {
+        mockFetch.mockResolvedValueOnce(new Response("", { status: 200 }));
+        await send();
+        expect(useChatStore.getState().failedRequest?.confirmedActionId).toBe(TEST_CONFIRMED_ACTION_UUID);
+        const localUpdate = vi.spyOn(useAuthStore.getState(), "updateJourneyLocal");
+        mockFetch.mockResolvedValueOnce(response([{ ...approvedResult, toolName }]));
+        refreshJourney.mockImplementationOnce(async () => {
+          useAuthStore.setState({ journey: { ...useAuthStore.getState().journey!, total_budget: 60_000_000 } });
+          return true;
+        });
+        try {
+          await useChatStore.getState().retryFailedMessage();
+          expect(refreshJourney).toHaveBeenCalledExactlyOnceWith(TEST_USER_UUID);
+          expect(useAuthStore.getState().journey?.total_budget).toBe(60_000_000);
+          // A historical receipt must not overwrite a newer budget with its old input.
+          expect(localUpdate).not.toHaveBeenCalled();
+          expect(useChatStore.getState().failedRequest).toBeNull();
+          expect(mockIngestFetch).toHaveBeenCalledTimes(1);
+          expect(JSON.parse(mockFetch.mock.calls[1][1].body).clientRequestId).toBe(TEST_CLIENT_REQUEST_UUID);
+        } finally {
+          localUpdate.mockRestore();
+        }
+      },
+    );
+
+    it("does not apply a tool result twice when done also carries the receipt", async () => {
+      const localUpdate = vi.spyOn(useAuthStore.getState(), "updateJourneyLocal");
+      mockFetch.mockResolvedValueOnce(response([approvedResult], [approvedResult]));
+      try {
+        await send();
+        expect(localUpdate).toHaveBeenCalledTimes(1);
+        expect(refreshJourney).toHaveBeenCalledTimes(1);
+        expect(useChatStore.getState().messages.find((m) => m.id === "ai-budget-replay")?.metadata?.toolResults)
+          .toEqual([approvedResult]);
+      } finally {
+        localUpdate.mockRestore();
+      }
+    });
+
+    it.each([
+      ["failed mutation", [{ ...approvedResult, success: false }]],
+      ["read-only result", [{ ...approvedResult, toolName: "get_budget_summary" }]],
+      ["missing success", [{ toolName: "update_budget" }]],
+      ["malformed receipt", [null, "update_budget"]],
+    ])("does not refresh or mutate for %s", async (_label, results) => {
+      const journey = useAuthStore.getState().journey;
+      mockFetch.mockResolvedValueOnce(response(results));
+      await send();
+      expect(refreshJourney).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().journey).toBe(journey);
+    });
+
+    it("keeps a partial failure receipt intact while refreshing successful changes once", async () => {
+      const results = [approvedResult, { ...approvedResult, toolName: "add_custom_category", success: false }];
+      mockFetch.mockResolvedValueOnce(response(results));
+      await send();
+      expect(refreshJourney).toHaveBeenCalledTimes(1);
+      expect(useChatStore.getState().messages.find((m) => m.id === "ai-budget-replay")?.metadata?.toolResults)
+        .toEqual(results);
+    });
+
+    it.each(["unavailable", "thrown"])("reports a %s journey read without marking the committed action for execution again", async (failure) => {
+      const journey = useAuthStore.getState().journey;
+      mockFetch.mockResolvedValueOnce(response([approvedResult]));
+      if (failure === "thrown") refreshJourney.mockRejectedValueOnce(new Error("offline"));
+      else refreshJourney.mockResolvedValueOnce(false);
+      await send();
+      expect(refreshJourney).toHaveBeenCalledTimes(1);
+      expect(useAuthStore.getState().journey).toBe(journey);
+      expect(useChatStore.getState().error).toContain("최신 준비 정보를 불러오지 못했어요");
+      expect(useChatStore.getState().failedRequest).toBeNull();
+      expect(useChatStore.getState().messages.some((m) => m.id === "ai-budget-replay")).toBe(true);
+    });
+
+    it("ignores a done-only receipt that arrives after the couple changed", async () => {
+      const delayed = createDeferredResult<Response>();
+      mockFetch.mockReturnValueOnce(delayed.promise);
+      const sending = send();
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      useAuthStore.setState({ profile: { ...useAuthStore.getState().profile!, couple_id: "other-couple" } });
+      const journey = useAuthStore.getState().journey;
+      delayed.resolve(response([approvedResult]));
+      await sending;
+      expect(refreshJourney).not.toHaveBeenCalled();
+      expect(useAuthStore.getState().journey).toBe(journey);
+      expect(useChatStore.getState().messages.some((m) => m.id === "ai-budget-replay")).toBe(false);
+    });
+
+    it("does not change a new session's notice or retry after a replay refresh settles", async () => {
+      const delayed = createDeferredResult<boolean>();
+      refreshJourney.mockReturnValueOnce(delayed.promise);
+      mockFetch.mockResolvedValueOnce(response([approvedResult]));
+      const sending = send();
+      await vi.waitFor(() => expect(refreshJourney).toHaveBeenCalledTimes(1));
+      useAuthStore.setState({ profile: { ...useAuthStore.getState().profile!, id: TEST_OTHER_USER_UUID } });
+      useChatStore.setState({ error: "새 계정 안내", failedRequest: { clientRequestId: "new-request" } as never });
+      delayed.resolve(false);
+      await sending;
+      expect(useChatStore.getState().error).toBe("새 계정 안내");
+      expect(useChatStore.getState().failedRequest?.clientRequestId).toBe("new-request");
     });
   });
 
@@ -1555,6 +1751,292 @@ describe("chat lifecycle isolation", () => {
       isRetrying: true,
       streamingContent: "새 세션 응답",
     });
+  });
+
+  it("aborts the old view and ignores late SSE after a successful reset while keeping Realtime alive", async () => {
+    const delayedProvider = createDeferredResult<Response>();
+    mockIngestFetch.mockReset();
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({ content: "SYNTHETIC_OLD_QUESTION" })));
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    document.cookie = "demo_mode=; Max-Age=0; path=/";
+    const unsubscribe = useChatStore.getState().subscribeToMessages(TEST_COUPLE_UUID);
+    const sending = useChatStore.getState().sendMessage({
+      content: "SYNTHETIC_OLD_QUESTION", senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "합성 사용자", weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const signal = (mockFetch.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({
+      success: true, clearedAt: "2026-08-03T03:04:00.000Z",
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    await useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared");
+    expect(signal.aborted).toBe(true);
+    // An already-buffered network response can still resolve despite abort.
+    delayedProvider.resolve(completedChatResponse());
+    await sending;
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [], isStreaming: false, isSending: false, isRetrying: false,
+      streamingContent: "", streamingToolResults: [], failedRequest: null, suggestions: [],
+    });
+    mockRealtimeInsertHandler?.({ new: {
+      id: "70000000-0000-4000-8000-000000000089", couple_id: TEST_COUPLE_UUID,
+      sender_id: TEST_OTHER_USER_UUID, sender_type: "groom", role: "user",
+      content: "SYNTHETIC_NEW_REALTIME_MESSAGE", metadata: {}, visibility: "shared",
+      created_at: "2026-08-03T03:05:00.000Z",
+    } });
+    expect(useChatStore.getState().messages.map((message) => message.content)).toEqual(["SYNTHETIC_NEW_REALTIME_MESSAGE"]);
+    unsubscribe();
+  });
+
+  it.each([
+    ["empty cursor", null, "2026-08-03T03:04:00.000Z", "2026-08-03T03:06:00.000Z"],
+    ["microseconds", "2026-08-03T03:04:00.123100Z", "2026-08-03T03:04:00.123500Z", "2026-08-03T03:04:00.123900Z"],
+  ])("invalidates this tab's old SSE when another tab has already written a newer reset cursor: %s", async (_precision, appliedCursor, ackCursor, otherTabCursor) => {
+    useChatStore.setState({ sharedClearedAt: appliedCursor });
+    const delayedProvider = createDeferredResult<Response>();
+    const resetAck = createDeferredResult<Response>();
+    mockIngestFetch.mockReset();
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({ content: "SYNTHETIC_OTHER_TAB_OLD_QUESTION" })));
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    const sending = useChatStore.getState().sendMessage({
+      content: "SYNTHETIC_OTHER_TAB_OLD_QUESTION", senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "합성 사용자", weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const signal = (mockFetch.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    mockIngestFetch.mockReturnValueOnce(resetAck.promise);
+    const clearing = useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared");
+    // A different tab commits T2 while this tab still waits for its T1 response.
+    window.localStorage.setItem(`hanbang.chatClearedAt.${TEST_USER_UUID}.${TEST_COUPLE_UUID}.shared`, otherTabCursor!);
+    expect(useChatStore.getState().sharedClearedAt).toBe(appliedCursor);
+    resetAck.resolve(new Response(JSON.stringify({ clearedAt: ackCursor })));
+    await clearing;
+    delayedProvider.resolve(completedChatResponse("SYNTHETIC_OTHER_TAB_STALE_ANSWER", {
+      serverMessageId: "70000000-0000-4000-8000-000000000086",
+      serverCreatedAt: "2026-08-03T03:03:00.000Z",
+    }));
+    await sending;
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [], sharedClearedAt: otherTabCursor,
+      isStreaming: false, streamingContent: "", failedRequest: null,
+    });
+    expect(signal.aborted).toBe(true);
+  });
+
+  it("keeps a newer reset cursor and active request when reset acknowledgements arrive backwards", async () => {
+    const firstAck = createDeferredResult<Response>();
+    const secondAck = createDeferredResult<Response>();
+    mockIngestFetch.mockReset();
+    mockIngestFetch.mockReturnValueOnce(firstAck.promise).mockReturnValueOnce(secondAck.promise);
+    const firstReset = useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared");
+    const secondReset = useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared");
+    secondAck.resolve(new Response(JSON.stringify({ clearedAt: "2026-08-03T03:06:00.000Z" })));
+    await secondReset;
+    const delayedProvider = createDeferredResult<Response>();
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({
+      content: "SYNTHETIC_NEW_VIEW_QUESTION", created_at: "2026-08-03T03:07:00.000Z",
+    })));
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    const sending = useChatStore.getState().sendMessage({
+      content: "SYNTHETIC_NEW_VIEW_QUESTION", senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "합성 사용자", weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const signal = (mockFetch.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    firstAck.resolve(new Response(JSON.stringify({ clearedAt: "2026-08-03T03:04:00.000Z" })));
+    await firstReset;
+    expect(signal.aborted).toBe(false);
+    expect(useChatStore.getState()).toMatchObject({ sharedClearedAt: "2026-08-03T03:06:00.000Z", isStreaming: true });
+    expect(window.localStorage.getItem(`hanbang.chatClearedAt.${TEST_USER_UUID}.${TEST_COUPLE_UUID}.shared`))
+      .toBe("2026-08-03T03:06:00.000Z");
+    expect(useChatStore.getState().messages.map((message) => message.content)).toContain("SYNTHETIC_NEW_VIEW_QUESTION");
+    delayedProvider.resolve(completedChatResponse());
+    await sending;
+  });
+
+  it.each([
+    ["milliseconds", "2026-08-03T03:04:00.000Z", "2026-08-03T03:05:00.000Z"],
+    ["microseconds", "2026-08-03T03:04:00.123100Z", "2026-08-03T03:04:00.123900Z"],
+  ])("preserves a Realtime message newer than the server reset while its HTTP acknowledgement is delayed: %s", async (_precision, resetAt, createdAt) => {
+    const ack = createDeferredResult<Response>();
+    mockIngestFetch.mockReturnValueOnce(ack.promise);
+    const unsubscribe = useChatStore.getState().subscribeToMessages(TEST_COUPLE_UUID);
+    const clearing = useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared");
+    const row = {
+      id: "70000000-0000-4000-8000-000000000088", couple_id: TEST_COUPLE_UUID,
+      sender_id: TEST_OTHER_USER_UUID, sender_type: "groom", role: "user",
+      content: "SYNTHETIC_AFTER_RESET_COMMIT", metadata: {}, visibility: "shared",
+      created_at: createdAt,
+    };
+    mockRealtimeInsertHandler?.({ new: row });
+    ack.resolve(new Response(JSON.stringify({ clearedAt: resetAt })));
+    await clearing;
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([row.id]);
+    unsubscribe();
+  });
+
+  it.each([
+    ["milliseconds", "2026-08-03T03:04:00.000Z", "2026-08-03T03:06:00.000Z"],
+    ["microseconds", "2026-08-03T03:04:00.123100Z", "2026-08-03T03:04:00.123900Z"],
+  ])("keeps a newer view reset when an older shared-clear acknowledgement arrives late: %s", async (_precision, olderResetAt, newerResetAt) => {
+    const acceptAck = createDeferredResult<Response>();
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(acceptAck.promise);
+    const accepting = useChatStore.getState().respondToClearRequest("clear-request", "accept");
+    mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({ clearedAt: newerResetAt })));
+    await useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared");
+
+    const delayedProvider = createDeferredResult<Response>();
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({
+      content: "SYNTHETIC_AFTER_SHARED_CLEAR", created_at: "2026-08-03T03:07:00.000Z",
+    })));
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    const sending = useChatStore.getState().sendMessage({
+      content: "SYNTHETIC_AFTER_SHARED_CLEAR", senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "합성 사용자", weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    const signal = (mockFetch.mock.calls[1][1] as RequestInit).signal as AbortSignal;
+    acceptAck.resolve(new Response(JSON.stringify({ clearedAt: olderResetAt })));
+    await accepting;
+    expect(useChatStore.getState().sharedClearedAt).toBe(newerResetAt);
+    expect(window.localStorage.getItem(`hanbang.chatClearedAt.${TEST_USER_UUID}.${TEST_COUPLE_UUID}.shared`))
+      .toBe(newerResetAt);
+    expect(signal.aborted).toBe(false);
+    expect(useChatStore.getState().messages.map((message) => message.content)).toContain("SYNTHETIC_AFTER_SHARED_CLEAR");
+    delayedProvider.resolve(completedChatResponse("SYNTHETIC_NEW_SHARED_REPLY", {
+      serverCreatedAt: "2026-08-03T03:08:00.000Z",
+    }));
+    await sending;
+    expect(useChatStore.getState().messages.map((message) => message.content)).toContain("SYNTHETIC_NEW_SHARED_REPLY");
+  });
+
+  it.each([false, true])("fences old SSE when accepting shared clear with a newer other-tab cursor: %s", async (otherTab) => {
+    const delayedProvider = createDeferredResult<Response>();
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({ content: "SYNTHETIC_BEFORE_ACCEPT" })));
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    const sending = useChatStore.getState().sendMessage({
+      content: "SYNTHETIC_BEFORE_ACCEPT", senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "합성 사용자", weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const signal = (mockFetch.mock.calls[0][1] as RequestInit).signal as AbortSignal;
+    if (otherTab) window.localStorage.setItem(`hanbang.chatClearedAt.${TEST_USER_UUID}.${TEST_COUPLE_UUID}.shared`, "2026-08-03T03:06:00.000Z");
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ clearedAt: "2026-08-03T03:04:00.000Z" })));
+    await useChatStore.getState().respondToClearRequest("clear-request", "accept");
+    delayedProvider.resolve(completedChatResponse("SYNTHETIC_STALE_ACCEPT_REPLY", {
+      serverCreatedAt: "2026-08-03T03:03:00.000Z",
+    }));
+    await sending;
+    expect(signal.aborted).toBe(true);
+    expect(useChatStore.getState()).toMatchObject({
+      messages: [], isStreaming: false, isSending: false, streamingContent: "",
+      sharedClearedAt: otherTab ? "2026-08-03T03:06:00.000Z" : "2026-08-03T03:04:00.000Z",
+    });
+  });
+
+  it("applies accepted Realtime clears to the old SSE while preserving the request-time card and later messages", async () => {
+    const delayedProvider = createDeferredResult<Response>();
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse(durableUserRow({ content: "SYNTHETIC_BEFORE_REALTIME_CLEAR" })));
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(delayedProvider.promise);
+    const unsubscribe = useChatStore.getState().subscribeToMessages(TEST_COUPLE_UUID);
+    const sending = useChatStore.getState().sendMessage({
+      content: "SYNTHETIC_BEFORE_REALTIME_CLEAR", senderId: TEST_USER_UUID, senderRole: "bride",
+      coupleId: TEST_COUPLE_UUID, senderName: "합성 사용자", weddingContext: {} as WeddingContext,
+      clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+    const clearCard = {
+      ...durableUserRow(), id: "70000000-0000-4000-8000-000000000080",
+      content: "SYNTHETIC_CLEAR_REQUEST", created_at: "2026-08-03T03:04:00.000Z",
+      metadata: { clearRequest: { status: "pending" } },
+    };
+    mockRealtimeInsertHandler?.({ new: clearCard });
+    mockRealtimeInsertHandler?.({ new: {
+      ...durableUserRow(), id: "70000000-0000-4000-8000-000000000081",
+      content: "SYNTHETIC_AFTER_CLEAR_REQUEST", created_at: "2026-08-03T03:05:00.000Z",
+    } });
+    mockRealtimeUpdateHandler?.({ new: {
+      ...clearCard, metadata: { clearRequest: { status: "accepted", clearedAt: clearCard.created_at } },
+    } });
+    delayedProvider.resolve(completedChatResponse("SYNTHETIC_STALE_REALTIME_REPLY", {
+      serverCreatedAt: "2026-08-03T03:03:00.000Z",
+    }));
+    await sending;
+    expect(useChatStore.getState().messages.map((message) => message.content)).toEqual([
+      "SYNTHETIC_CLEAR_REQUEST", "SYNTHETIC_AFTER_CLEAR_REQUEST",
+    ]);
+    expect(useChatStore.getState()).toMatchObject({
+      sharedClearedAt: clearCard.created_at, isStreaming: false, isSending: false,
+    });
+    unsubscribe();
+  });
+
+  it("ignores a shared-clear response from a previous account binding", async () => {
+    const acceptAck = createDeferredResult<Response>();
+    mockFetch.mockReset();
+    mockFetch.mockReturnValueOnce(acceptAck.promise);
+    const accepting = useChatStore.getState().respondToClearRequest("clear-request", "accept");
+    useChatStore.getState().reset();
+    useAuthStore.setState({ profile: {
+      id: TEST_OTHER_USER_UUID, role: "groom", couple_id: TEST_COUPLE_UUID,
+    } as never });
+    useChatStore.setState({ sharedClearedAt: "2026-08-03T03:06:00.000Z", error: "SYNTHETIC_NEW_ACCOUNT_STATE" });
+    acceptAck.resolve(new Response(JSON.stringify({ clearedAt: "2026-08-03T03:04:00.000Z" })));
+    expect(await accepting).toMatchObject({ ok: false });
+    expect(useChatStore.getState()).toMatchObject({ sharedClearedAt: "2026-08-03T03:06:00.000Z", error: "SYNTHETIC_NEW_ACCOUNT_STATE" });
+    expect(window.localStorage.getItem(`hanbang.chatClearedAt.${TEST_OTHER_USER_UUID}.${TEST_COUPLE_UUID}.shared`)).toBeNull();
+  });
+
+  it.each(["rejected", "malformed"])("preserves the active response and pending state after a %s shared-clear acknowledgement", async (kind) => {
+    useChatStore.setState({ isStreaming: true, streamingContent: "SYNTHETIC_ACTIVE_RESPONSE", error: "SYNTHETIC_EXISTING_NOTICE" });
+    mockFetch.mockReset();
+    mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(kind === "rejected"
+      ? { error: "SYNTHETIC_CLEAR_ERROR" } : { clearedAt: "invalid" }), { status: kind === "rejected" ? 503 : 200 }));
+    expect(await useChatStore.getState().respondToClearRequest("clear-request", "accept")).toMatchObject({ ok: false });
+    expect(useChatStore.getState()).toMatchObject({ isStreaming: true, streamingContent: "SYNTHETIC_ACTIVE_RESPONSE", error: "SYNTHETIC_EXISTING_NOTICE", sharedClearedAt: null });
+  });
+
+  it("excludes reset history before the polling limit so an empty view can recover its next message", async () => {
+    const freshRow = {
+      ...durableUserRow(), id: "70000000-0000-4000-8000-000000000087",
+      content: "SYNTHETIC_FRESH_POLLED_MESSAGE", created_at: "2026-08-03T03:05:00.000Z",
+    };
+    const hiddenRows = Array.from({ length: 60 }, (_, index) => ({
+      ...freshRow, id: `hidden-${index}`, created_at: "2026-08-03T03:03:00.000Z",
+    }));
+    const filters: string[] = [];
+    const query: Record<string, unknown> = {};
+    for (const method of ["select", "eq", "gt", "order"]) query[method] = vi.fn(() => query);
+    query.or = vi.fn((filter: string) => { filters.push(filter); return query; });
+    query.limit = vi.fn(async (limit: number) => ({
+      data: (filters.includes("visibility.neq.shared,created_at.gt.2026-08-03T03:04:00.000Z")
+        ? [freshRow] : [...hiddenRows, freshRow]).slice(0, limit),
+      error: null,
+    }));
+    mockFrom.mockReturnValue(query);
+    useChatStore.setState({ initialLoadDone: true, sharedClearedAt: "2026-08-03T03:04:00.000Z", messages: [] });
+    await useChatStore.getState().pollNewMessages(TEST_COUPLE_UUID);
+    expect(useChatStore.getState().messages.map((message) => message.id)).toEqual([freshRow.id]);
+  });
+
+  it("keeps an active response when the view reset fails", async () => {
+    useChatStore.setState({ isStreaming: true, streamingContent: "SYNTHETIC_IN_PROGRESS" });
+    mockIngestFetch.mockResolvedValueOnce(new Response(JSON.stringify({ error: "합성 초기화 실패" }), {
+      status: 503, headers: { "Content-Type": "application/json" },
+    }));
+    await expect(useChatStore.getState().clearMessages(TEST_COUPLE_UUID, "view_reset_shared")).rejects.toThrow();
+    expect(useChatStore.getState()).toMatchObject({ isStreaming: true, streamingContent: "SYNTHETIC_IN_PROGRESS" });
   });
 
   it("removes the hidden interrupted-turn recovery when the user starts a new shared chat", async () => {

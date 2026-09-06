@@ -99,7 +99,7 @@ describe("이월된 카드의 머리 라벨", () => {
     expect(section.textContent).not.toContain(CARRIED_PENDING_ACTION_LABEL);
     // 원본 턴에서는 제목이 일반 문장이고 확인문이 그 아래에 온다.
     expect(section.querySelector("h3")?.textContent).toBe("적용하기 전에 확인해 주세요");
-    expect(section.className).toContain("border-[#D8C7BB]");
+    expect(section.className).toContain("border-[var(--amora-line)]");
     expect(section.className).not.toContain("border-dashed");
   });
 
@@ -123,9 +123,13 @@ describe("이월된 카드의 머리 라벨", () => {
 
       // 확인 버튼 문구는 이월이라고 달라지지 않는다 — 누르는 일이 같기 때문이다.
       const buttons = section.querySelectorAll("button");
-      expect(buttons[0]?.textContent).toContain("이대로 적용");
-      expect(buttons[0]?.getAttribute("aria-label")).toBe("확인한 내용을 이대로 적용");
+      expect(buttons[0]?.textContent).toContain("내용 확인하기");
+      expect(buttons[0]?.getAttribute("aria-label")).toBe("변경 내용 확인하기");
       expect(buttons[0]?.disabled).toBe(false);
+      await act(async () => buttons[0]?.click());
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.textContent).toContain(CARRIED_PENDING_ACTION_LABEL);
+      expect(dialog?.textContent).toContain(action.confirmation);
     });
   }
 

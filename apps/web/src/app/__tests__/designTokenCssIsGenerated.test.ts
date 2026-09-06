@@ -50,7 +50,7 @@ describe("웹 팔레트는 토큰에서 생성된다", () => {
     const current = readFileSync(GLOBALS, "utf8");
     // `roles`가 빠져 있었다(2026-08-20 적대 검토). 구간 표시가 사라지면 sync가 던지긴
     // 하지만, 목록에 없으면 "이 구간이 관리 대상이다"라는 사실 자체가 기록되지 않는다.
-    for (const region of ["root", "roles", "theme"]) {
+    for (const region of ["root", "roles", "theme", "html-workspace", "html-workspace-roles"]) {
       expect(current, `${region} 구간 시작 표시가 없습니다`).toContain(
         `@generated:design-tokens ${region} start`,
       );

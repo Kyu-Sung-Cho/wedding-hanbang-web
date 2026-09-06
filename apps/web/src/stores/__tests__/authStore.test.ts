@@ -205,6 +205,14 @@ describe("useAuthStore", () => {
   // ─── updateJourney() ───
 
   describe("updateJourney()", () => {
+    beforeEach(() => {
+      useAuthStore.setState({
+        user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", couple_id: "c1" } as never,
+        couple: { id: "c1" } as never,
+      });
+    });
+
     it("updates local state only in demo mode", async () => {
       useAuthStore.setState({
         isDemo: true,
@@ -240,7 +248,53 @@ describe("useAuthStore", () => {
       await useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" });
 
       expect(mockFetch).toHaveBeenCalledWith("/api/journey", expect.objectContaining({ method: "PATCH" }));
+      expect(lastFetchBody()).toMatchObject({ expected_couple_id: "c1", expected_revision: 0 });
       expect(useAuthStore.getState().journey?.wedding_date).toBe("2026-12-01");
+    });
+
+    it("binds an old form to its original couple even when another device has switched to a couple with the same revision", async () => {
+      const originalJourney = { id: "j1", couple_id: "c1", state_revision: 7, venue: "원래 예식장" };
+      const otherCoupleJourney = { id: "j2", couple_id: "c2", state_revision: 7, venue: "새 커플 예식장" };
+      useAuthStore.setState({ journey: originalJourney as never });
+      mockFetch.mockImplementation(async (_url: string, init: RequestInit) => {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        // 다른 기기의 연결 변경은 로컬 store에 아직 오지 않았다.
+        const requestedCouple = body.expected_couple_id ?? otherCoupleJourney.couple_id;
+        if (requestedCouple !== otherCoupleJourney.couple_id) {
+          return { ok: false, json: async () => ({ code: "PLAN_CHANGE_IDENTITY_CHANGED", error: "커플 연결 상태가 바뀌었어요." }) };
+        }
+        otherCoupleJourney.venue = String(body.venue);
+        return { ok: true, json: async () => ({ status: "applied", requestId: PLAN_CHANGE_REQUEST_ID, journey: { ...otherCoupleJourney, state_revision: 8 } }) };
+      });
+
+      await expect(useAuthStore.getState().updateJourney({ venue: "이전 화면의 초안" })).rejects.toMatchObject({ code: "PLAN_CHANGE_IDENTITY_CHANGED" });
+      expect(lastFetchBody()).toMatchObject({ expected_couple_id: "c1", expected_revision: 7 });
+      expect(otherCoupleJourney.venue).toBe("새 커플 예식장");
+      expect(useAuthStore.getState().journey).toEqual(originalJourney);
+    });
+
+    it.each(["missing journey couple", "changed couple", "changed profile", "missing user"])("does not dispatch a form with %s", async (scenario) => {
+      useAuthStore.setState({ journey: { id: "j1", couple_id: "c1", state_revision: 7 } as never });
+      if (scenario === "missing journey couple") useAuthStore.setState({ journey: { id: "j1", state_revision: 7 } as never });
+      if (scenario === "changed couple") useAuthStore.setState({ couple: { id: "c2" } as never });
+      if (scenario === "changed profile") useAuthStore.setState({ profile: { id: "u1", couple_id: "c2" } as never });
+      if (scenario === "missing user") useAuthStore.setState({ user: null });
+      await expect(useAuthStore.getState().updateJourney({ venue: "이전 화면의 초안" })).rejects.toMatchObject({ code: "PLAN_CHANGE_IDENTITY_CHANGED" });
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it("does not apply or report a late receipt after the same user changes couples", async () => {
+      const originalJourney = { id: "j1", couple_id: "c1", state_revision: 7 };
+      const newJourney = { id: "j2", couple_id: "c2", state_revision: 7 };
+      useAuthStore.setState({ journey: originalJourney as never });
+      let resolvePatch!: (response: unknown) => void;
+      mockFetch.mockReturnValueOnce(new Promise((resolve) => { resolvePatch = resolve; }));
+      const save = useAuthStore.getState().updateJourney({ venue: "원래 커플 예식장" });
+      useAuthStore.setState({ profile: { id: "u1", couple_id: "c2" } as never, couple: { id: "c2" } as never, journey: newJourney as never });
+      resolvePatch({ ok: true, json: async () => ({ status: "applied", requestId: PLAN_CHANGE_REQUEST_ID, journey: { ...originalJourney, state_revision: 8 } }) });
+      await expect(save).rejects.toMatchObject({ code: "PLAN_CHANGE_IDENTITY_CHANGED" });
+      expect(useAuthStore.getState().journey).toEqual(newJourney);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
     it("keeps shared state unchanged while a partner approval is pending", async () => {
@@ -410,7 +464,7 @@ describe("useAuthStore", () => {
 
     it("propagates PATCH failure so the editor cannot report false success", async () => {
       mockFetch.mockRejectedValue(new Error("Network error"));
-      useAuthStore.setState({ isDemo: false, journey: { id: "j1" } as never });
+      useAuthStore.setState({ isDemo: false, journey: { id: "j1", couple_id: "c1" } as never });
 
       await expect(
         useAuthStore.getState().updateJourney({ wedding_date: "2026-12-01" }),

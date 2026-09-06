@@ -389,7 +389,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   updateJourney: async (updates) => {
-    const { isDemo, journey, user, couple } = get();
+    const { isDemo, journey, user, profile, couple } = get();
 
     // 데모 모드: 로컬만 업데이트
     if (isDemo) {
@@ -407,6 +407,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error("결혼 준비 정보를 찾을 수 없습니다.");
       }
       return { status: "applied", journey: nextJourney };
+    }
+
+    // 편집한 데이터의 커플을 고정한다. 현재 연결에서 다시 추론하면 다른 기기의
+    // A → B 연결 변경 뒤 revision이 같은 B에 A의 초안이 저장될 수 있다.
+    const expectedCoupleId = journey?.couple_id;
+    const expectedUserId = user?.id;
+    const identityChanged = () => new PlanChangeError(
+      "PLAN_CHANGE_IDENTITY_CHANGED",
+      "커플 연결 상태가 바뀌었어요. 최신 화면을 다시 불러와 주세요.",
+    );
+    if (
+      !expectedCoupleId || !expectedUserId
+      || profile?.id !== expectedUserId
+      || profile.couple_id !== expectedCoupleId
+      || (couple !== null && couple.id !== expectedCoupleId)
+    ) {
+      throw identityChanged();
     }
 
     // progress는 전체 덮어쓰기 대신 변경된 최상위 키만 원자 patch로 보낸다.
@@ -445,9 +462,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     const expectedRevision = journey?.state_revision ?? 0;
     body.expected_revision = expectedRevision;
+    body.expected_couple_id = expectedCoupleId;
 
     const updateSequence = ++journeyWriteSequence;
-    const expectedUserId = user?.id ?? null;
     try {
       const res = await fetch("/api/journey", {
         method: "PATCH",
@@ -475,6 +492,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error(message);
       }
 
+      const current = get();
+      if (
+        current.user?.id !== expectedUserId
+        || current.profile?.id !== expectedUserId
+        || current.profile.couple_id !== expectedCoupleId
+        || current.journey?.couple_id !== expectedCoupleId
+        || (current.couple !== null && current.couple.id !== expectedCoupleId)
+      ) {
+        throw identityChanged();
+      }
+
       if (
         data?.status === "pending_partner"
         && typeof data.requestId === "string"
@@ -499,28 +527,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const appliedJourney = data.journey as WeddingJourney;
-      const expectedCoupleId = couple?.id ?? journey?.couple_id ?? null;
       const appliedRevision = appliedJourney.state_revision;
       if (
-        expectedCoupleId === null
-        || appliedJourney.couple_id !== expectedCoupleId
+        appliedJourney.couple_id !== expectedCoupleId
         || typeof appliedRevision !== "number"
         || !Number.isSafeInteger(appliedRevision)
         || appliedRevision <= expectedRevision
       ) {
         throw new Error("저장 결과를 안전하게 확인하지 못했습니다.");
       }
-      const current = get();
-      const sameUser =
-        expectedUserId === null
-        || current.user?.id === expectedUserId;
-      if (
-        updateSequence === journeyWriteSequence
-        && sameUser
-      ) {
+      if (updateSequence === journeyWriteSequence) {
         set({ journey: appliedJourney });
-      } else if (sameUser) {
-        void current.refreshJourney(expectedUserId ?? undefined);
+      } else {
+        void current.refreshJourney(expectedUserId);
       }
       return { status: "applied", journey: appliedJourney };
     } catch (err) {

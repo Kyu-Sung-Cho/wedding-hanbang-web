@@ -34,6 +34,7 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
+import { formatWon } from "@/lib/formatWon";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import type {
@@ -101,12 +102,8 @@ function getPayerLabel(payer?: PayerType): string {
   return found?.label ?? "두 사람";
 }
 
-function formatWon(n: number): string {
-  return `${Math.round(n / 10000).toLocaleString()}만원`;
-}
-
 function formatWonFull(n: number): string {
-  return `${Math.round(n / 10000).toLocaleString()}만원`;
+  return formatWon(n);
 }
 
 // 이전 버전의 cost는 예산인지 지출인지 구분할 수 없다. 합산하지 않고
@@ -163,9 +160,11 @@ function HiddenCostBadge({ catKey }: { catKey: string }) {
 function PayerSelector({
   value,
   onChange,
+  alignStartOnMobile = false,
 }: {
   value: PayerType;
   onChange: (v: PayerType) => Promise<void> | void;
+  alignStartOnMobile?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -184,8 +183,16 @@ function PayerSelector({
   }, [open]);
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative" onKeyDown={(event) => {
+      if (event.key === "Escape" && open) {
+        event.stopPropagation();
+        setOpen(false);
+        ref.current?.querySelector("button")?.focus();
+      }
+    }}>
       <button
+        type="button"
+        aria-expanded={open}
         onClick={() => {
           setError("");
           setOpen(!open);
@@ -197,16 +204,20 @@ function PayerSelector({
         <span>{currentLabel}</span>
       </button>
       {open && (
-        <div className="absolute z-40 top-full right-0 mt-1 w-[150px] bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden">
+        <div className={`absolute z-40 top-full mt-1 w-[150px] bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden ${alignStartOnMobile ? "left-0 lg:left-auto lg:right-0" : "right-0"}`}>
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
+              type="button"
               disabled={saving}
               onClick={() => {
                 setSaving(true);
                 setError("");
-                void Promise.resolve(onChange(opt.value))
-                  .then(() => setOpen(false))
+                void Promise.resolve().then(() => onChange(opt.value))
+                  .then(() => {
+                    setOpen(false);
+                    ref.current?.querySelector("button")?.focus();
+                  })
                   .catch((changeError: unknown) => {
                     setError(
                       changeError instanceof Error
@@ -268,7 +279,7 @@ function InlineMoneyEdit({
   }, [editing]);
 
   const startEdit = () => {
-    setText(String(Math.round(value / 10000)));
+    setText(String(value / 10000));
     setError("");
     setEditing(true);
   };
@@ -413,7 +424,7 @@ function BudgetRow({
 
   return (
     <div
-      className="group flex items-center gap-3 px-6 py-5 bg-white hover:bg-[var(--hb-surface-hover)] transition-colors max-lg:flex-wrap max-lg:gap-2"
+      className="group flex items-center gap-3 px-6 py-5 bg-white last:rounded-b-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors max-lg:flex-wrap max-lg:gap-2"
     >
       {/* 아이콘 + 이름 + 포함·별도 항목 확인 */}
       <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-lg:w-full">
@@ -477,7 +488,7 @@ function BudgetRow({
 
       {/* 분담 선택 */}
       <div className="flex-shrink-0 max-lg:w-auto">
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
+        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} alignStartOnMobile />
       </div>
 
       {/* 지출 (편집 가능) */}
@@ -1100,7 +1111,7 @@ export default function BudgetContent({
                   onClick={() => {
                     setTotalText(
                       hasTotalBudget
-                        ? String(Math.round(totalBudget / 10000))
+                        ? String(totalBudget / 10000)
                         : "",
                     );
                     setEditingTotal(true);
@@ -1152,7 +1163,7 @@ export default function BudgetContent({
               <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[var(--hb-text-strong)]">
                 {hasTotalBudget ? (
                   <>
-                    <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalBudget / 10000).toLocaleString()}</span>
+                    <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalBudget / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>
                     <span className="text-[13px] font-medium text-[var(--hb-text-body)]">만원</span>
                   </>
                 ) : (
@@ -1172,7 +1183,7 @@ export default function BudgetContent({
               RECORDED SPEND
             </p>
             <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[var(--hb-text-strong)]">
-              <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalSpent / 10000).toLocaleString()}</span>
+              <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalSpent / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>
               <span className="text-[13px] font-medium text-[var(--hb-text-body)]">만원</span>
             </p>
             <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
@@ -1199,7 +1210,7 @@ export default function BudgetContent({
                 <span className="text-[30px] font-medium sm:text-[34px]">계산 전</span>
               ) : (
                 <>
-                  <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString()}</span>
+                  <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>
                   <span className="text-[13px] font-medium text-[var(--hb-text-body)]">만원</span>
                 </>
               )}
@@ -1327,7 +1338,7 @@ export default function BudgetContent({
         </Link>
 
         {/* 사진 촬영·의상·메이크업 묶음 */}
-        <div className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
+        <div className="relative z-10 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
           <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div className="flex -space-x-1">
@@ -1467,12 +1478,12 @@ export default function BudgetContent({
                 <AlertTriangle className="w-5 h-5 text-[var(--hb-accent-hover)]" />
               </div>
               <div className="min-w-0">
-                <p className="text-xs tracking-widest uppercase text-[var(--hb-accent-hover)] mb-1 font-medium">VERIFY ITEMS</p>
+                <p className="text-xs text-[var(--hb-accent-hover)] mb-1 font-medium">견적·계약 전에 확인</p>
                 <h3 className="h-section">포함·별도 항목 체크</h3>
                 <p className="text-sm text-[var(--hb-text-body)] mt-1">
                   {hiddenCostWarnings.length > 0
-                    ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리의 포함 범위를 확인해보세요.`
-                    : "계약 전에 항목별 포함·별도 여부를 서면으로 확인하세요."}
+                    ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리에서 추가 비용이 생길 수 있는 항목이에요. 업체에 포함 여부와 별도 금액을 물어보고 서면으로 받아두세요.`
+                    : "아래 항목이 견적에 포함되는지, 별도라면 얼마인지 업체에 물어보고 서면으로 받아두세요."}
                 </p>
               </div>
             </div>

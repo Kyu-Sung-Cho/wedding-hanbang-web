@@ -33,7 +33,7 @@ function scopeTag(msg: string): string {
 }
 
 /**
- * Sentry 로 보낼 예외를 고른다.
+ * 운영 콘솔과 Sentry 양쪽에 남길 예외를 고른다.
  *
  * `JSON.parse` 가 던지는 `SyntaxError` 는 **입력을 메시지에 그대로 인용한다**:
  *
@@ -53,7 +53,7 @@ function scopeTag(msg: string): string {
  * 나간다. 여기서 목록으로 막을 수 있는 종류가 아니라, 호출자가 원본을 넘길지
  * 판단해야 하는 문제다.
  */
-function toSentryError(msg: string, err: unknown): Error {
+function toProductionError(msg: string, err: unknown): Error {
   if (err instanceof SyntaxError) return new Error(`${msg} (SyntaxError)`);
   return err instanceof Error ? err : new Error(msg);
 }
@@ -65,22 +65,22 @@ export const log = {
       return;
     }
 
-    // 서버에서는 콘솔 줄을 그대로 남긴다. Vercel 런타임 로그가 사고 조사의 1차
-    // 자료이므로, `console.error` 를 `log.error` 로 바꾸는 일이 그 자료를 지우는
-    // 결과가 되면 안 된다. 브라우저에서는 남기지 않는다 — 이 모듈이 애초에
-    // 막으려던 것이 사용자 콘솔에 내부 오류가 찍히는 것이다.
+    const scope = scopeTag(msg);
+    const error = toProductionError(scope, err);
+    // 서버 콘솔도 보관되는 운영 로그다. Sentry와 같은 예외를 사용해 파싱 입력과
+    // 임의 DB payload가 한쪽 경로로 새지 않게 하고, 실패 위치와 종류는 남긴다.
     if (typeof window === "undefined") {
-      console.error(msg, err);
+      console.error(scope, error);
     }
 
     // `extra` 에는 아무것도 싣지 않는다. `beforeSend` 가 `extra` 를 통째로
     // 지우므로 실어도 도착하지 않고, 스크러버가 빠진 런타임이 생기면 임의
-    // payload 가 그대로 나가는 자리가 된다. payload 는 위 서버 콘솔에 남는다.
+    // payload 가 그대로 나가는 자리가 된다. 서버 콘솔에도 임의 payload는 싣지 않는다.
     //
     // 대신 `msg` 는 tag 로 남긴다: `err` 가 Error 이면 포착되는 예외가 그 에러라
     // 제목이 원인 문구가 되고, "어느 라우트에서 났는지"인 `msg` 는 사라진다.
-    Sentry.captureException(toSentryError(msg, err), {
-      tags: { log_scope: scopeTag(msg) },
+    Sentry.captureException(error, {
+      tags: { log_scope: scope },
     });
   },
 

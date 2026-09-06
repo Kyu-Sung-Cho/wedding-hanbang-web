@@ -92,6 +92,12 @@ export const colors = {
   adSponsored: "#EAB308",
   adAd: "#EF4444",
 
+  // 승인된 HTML 화면의 보조색. 기존 제품·네이티브 팔레트 값은 바꾸지 않는다.
+  htmlWorkspace: {
+    line: "#E5DDC9",
+    sagePale: "#DBE3D6",
+  },
+
   // Paper — 랜딩의 "결혼 준비 노트" 표면.
   //
   // 2026-08-27에 올렸다. 랜딩을 손으로 적는 노트의 문법(줄 그은 카드·테이프·

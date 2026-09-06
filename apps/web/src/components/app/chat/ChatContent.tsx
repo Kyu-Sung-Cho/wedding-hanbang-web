@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink, User } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
@@ -839,6 +840,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 유효한 초안만 읽으며 URL에는 날짜를 남기지 않는다.
   const searchParams = useSearchParams();
   const router = useRouter();
+  const appliedRouteScope = useRef<string | null>(null);
+  const requestedRouteScope = searchParams.get("scope");
+  useEffect(() => {
+    if (embedded || !authInitialized || authLoading || isStreaming || isSending) return;
+    if (requestedRouteScope !== "shared" && requestedRouteScope !== "private") return;
+    if (appliedRouteScope.current === requestedRouteScope) return;
+    if (requestedRouteScope === "private" && (isDemo || !myPrivateVisibility)) return;
+    appliedRouteScope.current = requestedRouteScope;
+    handleScopeChange(requestedRouteScope);
+  }, [authInitialized, authLoading, embedded, handleScopeChange, isDemo, isSending, isStreaming, myPrivateVisibility, requestedRouteScope]);
   const prefillAppliedRef = useRef(false);
   // 적용한 초안을 기억해 둔다. authStore 가 늦게 하이드레이션되면
   // composerIdentity 가 바뀌어 모든 초안을 비우는데, 로그인 직후 진입은 항상
@@ -2376,10 +2387,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
           viewport 우측 가장자리에 위치. 툴바·입력박스만 reading column 으로
           가운데 정렬. */}
-      <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
+      {!embedded && (
+        <nav aria-label="아모라 준비 화면" className="flex shrink-0 justify-end gap-3 px-[18px] pt-2 text-[12px] text-[var(--amora-accent)] md:px-9">
+          <Link href={weddingPath("/chat/missions")} className="inline-flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2">오늘의 미션</Link>
+          <Link href={weddingPath("/chat/board")} className="inline-flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2">준비 보드</Link>
+        </nav>
+      )}
+      <div className="flex flex-wrap items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
         {/* 탭 — 좌측 차지 (메인 동작) */}
         <div
-          className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[var(--hb-surface-hover)] rounded-[6px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
+          className="amora-chat-scopes flex items-center gap-1 flex-1 min-w-[220px] p-1 bg-[var(--hb-surface-hover)] rounded-[6px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
           role="group"
           aria-label="대화 공개 범위"
         >

@@ -50,6 +50,18 @@ export function formatManwon(won) {
   return `${Math.round(won / 10000).toLocaleString()}만원`;
 }
 
+/** 배정·기록 금액은 원 단위를 반올림하지 않는다. */
+export function formatWonExact(amount) {
+  if (!Number.isSafeInteger(amount) || amount < 0) {
+    throw new RangeError("Won amounts must be non-negative safe integers.");
+  }
+  const normalizedAmount = Object.is(amount, -0) ? 0 : amount;
+  if (normalizedAmount !== 0 && normalizedAmount % 10_000 === 0) {
+    return `${(normalizedAmount / 10_000).toLocaleString("ko-KR")}만원`;
+  }
+  return `${normalizedAmount.toLocaleString("ko-KR")}원`;
+}
+
 /** 비중 한 칸에 적을 글자. `0%` 로 적으면 "안 썼다" 로 읽히므로 갈라 준다. */
 export function formatPercentCell(percent, amount) {
   return percent === 0 && amount > 0 ? "1% 미만" : `${percent}%`;

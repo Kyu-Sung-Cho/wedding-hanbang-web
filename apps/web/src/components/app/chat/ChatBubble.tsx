@@ -1,13 +1,18 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
+import Button from "@/components/ui/Button";
 import type { ChatMessage } from "@/types/database.types";
 import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck, User } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
+import { isSavedNoteScopeCurrent, observeSavedNote, refreshSavedNote, setSavedNoteIdentity, useSavedNoteStore } from "@/stores/savedNoteStore";
 import MediationCard from "@/components/app/chat/MediationCard";
+import AmoraNoteSaveSheet from "./AmoraNoteSaveSheet";
+import PersonalActionSaveButton from "./PersonalActionSaveButton";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { isUuid } from "@/utils/requestValidation";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import {
   addStoredChatFeedback,
@@ -295,46 +300,147 @@ export function AiFeedbackRow({
 
 // 아모라가 한 말 저장 — 대화가 길어지면 앞에서 들은 중요한 말이 스크롤 뒤로
 // 묻힌다. 저장해 두면 /wedding/saved 한 곳에서 다시 볼 수 있다.
-function SaveNoteButton({ messageId, content }: { messageId: string; content: string }) {
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+export function SaveNoteButton({ messageId, content, coupleId }: { messageId: string; content: string; coupleId: string }) {
+  const scope = useSavedNoteStore(state => state.scope);
+  return <MessageSaveNoteButton key={`${scope}:${messageId}`} scope={scope} coupleId={coupleId} messageId={messageId} content={content} />;
+}
 
-  const handleSave = useCallback(async () => {
-    if (status === "saving" || status === "saved") return;
+function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messageId: string; content: string; coupleId: string; scope: number }) {
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "deleting" | "error">("idle");
+  const entry = useSavedNoteStore(state => state.entries[messageId]);
+  const savedNote = entry?.note;
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [unappliedMemo, setUnappliedMemo] = useState<string | null>(null);
+  const saveInFlight = useRef(false);
+  const savedLinkRef = useRef<HTMLAnchorElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const focusAfterDelete = useRef(false);
+
+  useEffect(() => observeSavedNote(messageId, coupleId), [messageId, coupleId]);
+
+  useEffect(() => {
+    if (status === "saved") savedLinkRef.current?.focus();
+  }, [status]);
+  useEffect(() => {
+    if (!savedNote && focusAfterDelete.current) { focusAfterDelete.current = false; triggerRef.current?.focus(); }
+  }, [savedNote]);
+
+  const handleSave = useCallback(async (memo: string) => {
+    if (!reviewOpen || saveInFlight.current || !isSavedNoteScopeCurrent(scope) || memo.length > 500) return;
+    saveInFlight.current = true;
     setStatus("saving");
+    setSaveError(null);
     try {
       const response = await fetch("/api/amora/notes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messageId, content: content.slice(0, 4000) }),
+        // 본문은 서버가 공유 메시지 원문에서 읽는다. 클라이언트 사본은 전송하지 않는다.
+        body: JSON.stringify({ messageId, memo }),
       });
-      setStatus(response.ok ? "saved" : "error");
+      const payload: unknown = await response.json().catch(() => null);
+      if (!isSavedNoteScopeCurrent(scope)) return;
+      if (
+        !response.ok
+        || !payload
+        || typeof payload !== "object"
+        || !("saved" in payload)
+        || payload.saved !== true
+        || !("id" in payload) || !isUuid(payload.id)
+        || !("memoApplied" in payload) || typeof payload.memoApplied !== "boolean"
+        || ("savedByMe" in payload && typeof payload.savedByMe !== "boolean")
+      ) {
+        const error = payload && typeof payload === "object" && "error" in payload
+          && typeof payload.error === "string" && payload.error.trim()
+          ? payload.error.slice(0, 400)
+          : "저장 여부를 확인하지 못했어요. 로그인 상태를 확인하고 다시 시도해 주세요.";
+        setSaveError(error);
+        setStatus("error");
+        return;
+      }
+      setUnappliedMemo(payload.memoApplied ? null : memo);
+      setSavedNoteIdentity(scope, messageId, { id: payload.id, messageId, savedByMe: "savedByMe" in payload ? payload.savedByMe === true : null });
+      setStatus("saved");
+      setReviewOpen(false);
     } catch {
+      if (!isSavedNoteScopeCurrent(scope)) return;
+      setSaveError("저장 여부를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.");
       setStatus("error");
+    } finally {
+      saveInFlight.current = false;
     }
-  }, [content, messageId, status]);
+  }, [messageId, reviewOpen, scope]);
 
-  if (status === "saved") {
+  const handleUnsave = async () => {
+    if (!savedNote?.savedByMe || saveInFlight.current || !isSavedNoteScopeCurrent(scope)) return;
+    saveInFlight.current = true; setStatus("deleting"); setSaveError(null);
+    try {
+      const response = await fetch("/api/amora/notes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: savedNote.id }) });
+      const payload: unknown = await response.json().catch(() => null);
+      if (!isSavedNoteScopeCurrent(scope)) return;
+      if (!response.ok || !payload || typeof payload !== "object" || !("deleted" in payload) || payload.deleted !== true || !("id" in payload) || payload.id !== savedNote.id) {
+        setSaveError("저장 취소를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."); setStatus("error"); return;
+      }
+      focusAfterDelete.current = true;
+      setSavedNoteIdentity(scope, messageId, null); setUnappliedMemo(null); setStatus("idle");
+    } catch {
+      if (isSavedNoteScopeCurrent(scope)) { setSaveError("저장 취소를 확인하지 못했어요. 잠시 후 다시 시도해 주세요."); setStatus("error"); }
+    } finally { saveInFlight.current = false; }
+  };
+
+  const closeReview = () => {
+    if (!saveInFlight.current) setReviewOpen(false);
+  };
+
+  if (savedNote && !reviewOpen) {
     return (
+      <div>
+      {savedNote.savedByMe === false && <p className="mb-1 text-sm text-[var(--hb-text-muted)]">파트너가 저장한 답변이에요.</p>}
+      {saveError && <p role="alert" className="mb-2 text-sm text-[var(--hb-text-muted)]">{saveError}</p>}
+      {unappliedMemo !== null && <div role="status" className="mb-2 text-sm leading-relaxed text-[var(--hb-text-muted)]">
+        <p>답변은 이미 저장되어 있어요. 이번 메모는 반영되지 않았어요. 저장함에서 기존 메모를 확인하고 수정해 주세요.</p>
+        {unappliedMemo && <details className="mt-1"><summary className="min-h-11 cursor-pointer py-3">내가 쓴 메모 다시 보기</summary><p className="select-text break-words whitespace-pre-wrap">{unappliedMemo}</p></details>}
+      </div>}
       <Link
+        ref={savedLinkRef}
         {...weddingLinkProps("/saved")}
         className="flex items-center gap-1.5 text-sm text-[#9A6B62] transition-colors hover:text-[#C4967E]"
       >
         <BookmarkCheck className="w-4 h-4" />
         <span>저장함 · 보러가기</span>
       </Link>
+      {savedNote.savedByMe && <Button variant="ghost" type="button" aria-label="내 저장 취소" disabled={status === "deleting"} onClick={() => void handleUnsave()} className="mt-1 min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent! hover:text-[#9A6B62]! disabled:opacity-40!">{status === "deleting" ? "취소 중…" : "내 저장 취소"}</Button>}
+      {entry?.status === "error" && <Button variant="ghost" type="button" onClick={() => refreshSavedNote(messageId)} className="min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent!">저장 상태 다시 확인</Button>}
+      </div>
     );
   }
 
   return (
+    <>
+    {entry?.status === "error" && <Button variant="ghost" type="button" onClick={() => refreshSavedNote(messageId)} className="min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent!">저장 상태 다시 확인</Button>}
     <button
-      onClick={handleSave}
-      disabled={status === "saving"}
+      ref={triggerRef}
+      type="button"
+      onClick={() => { setSaveError(null); setReviewOpen(true); }}
+      disabled={status === "saving" || entry?.status === "loading"}
+      aria-haspopup="dialog"
+      aria-expanded={reviewOpen}
       className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)] transition-colors hover:text-[#C4967E] disabled:opacity-40"
       title="나중에 다시 보기"
     >
       <Bookmark className="w-4 h-4" />
-      <span>{status === "error" ? "저장 실패 · 다시" : "저장"}</span>
+      <span>{entry?.status === "loading" ? "저장 상태 확인 중…" : status === "error" ? "저장 실패 · 다시" : "저장"}</span>
     </button>
+    {reviewOpen && (
+      <AmoraNoteSaveSheet
+        content={content}
+        busy={status === "saving"}
+        error={saveError}
+        onSave={memo => void handleSave(memo)}
+        onClose={closeReview}
+      />
+    )}
+    </>
   );
 }
 
@@ -701,9 +807,10 @@ export default function ChatBubble({
               과잉). */}
           {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
               나중에 다시 볼 말은 최근 것만이 아니다. */}
+          {aiIsPrivate && <PersonalActionSaveButton messageId={message.id} coupleId={message.couple_id} content={message.content} />}
           {!aiIsPrivate && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <SaveNoteButton messageId={message.id} content={cleanText} />
+              <SaveNoteButton messageId={message.id} content={message.content} coupleId={message.couple_id} />
               {isRecentAi && (
                 <AiFeedbackRow
                   messageId={message.id}

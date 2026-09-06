@@ -46,6 +46,9 @@ const sharedScheduleModule = compileCommonJs(
 );
 const sharedModule = {
   ...sharedScheduleModule,
+  ...compileCommonJs(readFileSync(new URL(
+    "../../../../packages/shared/src/contracts/amoraPendingActionApplication.ts", import.meta.url,
+  ), "utf8")),
   ...compileCommonJs(readFileSync(budgetImpactPath, "utf8")),
   ...compileCommonJs(readFileSync(kstDayPath, "utf8")),
   ...compileCommonJs(
@@ -103,6 +106,99 @@ const action = {
   // `add_schedule_event` 는 공유 계획 도구라 창이 24시간이다(2026-08-23).
   expiresAt: Date.parse("2026-07-18T00:00:00.000Z"),
 };
+
+function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = false } = {}) {
+  const applicationModule = compileCommonJs(readFileSync(new URL(
+    "../../../web/src/components/app/chat/amoraPendingActionApplication.ts", import.meta.url,
+  ), "utf8"), (specifier) => {
+    if (specifier === "./PendingAmoraActionCard") return { getPendingActionDisabledReason };
+    if (specifier === "@hanbang/shared") return sharedModule;
+    throw new Error(`unexpected receipt dependency: ${specifier}`);
+  });
+  const tree = ts.createSourceFile("chat.tsx", chatSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  let declaration;
+  const components = {};
+  const visit = (node) => {
+    if (ts.isFunctionDeclaration(node) && node.name?.text === "renderMessage") declaration = node;
+    if ((ts.isJsxOpeningElement(node) || ts.isJsxSelfClosingElement(node)) && ts.isIdentifier(node.tagName)) {
+      components[node.tagName.getText(tree)] = node.tagName.getText(tree);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  const item = { id: "proposal", sender_id: null, content: "제안", ...message() };
+  const messages = [item, ...receipts];
+  const bindings = {
+    ...components, ...sharedModule, ...helperModule.exports, ...applicationModule,
+    React: { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: "Fragment" },
+    messages, userRole: "bride", userId: "user-1", dismissedPendingActionIds: new Set(),
+    nowMs, streaming, latestSharedMessageId: messages.at(-1).id,
+    actionConfirmationOutcomes: applicationModule.buildAmoraActionConfirmationOutcomes(messages),
+    pendingActionApproval: null, pendingActionNotice: null, applyingPendingActionId: null,
+    parseAmoraCitations: (text) => ({ text, parts: [] }), describeAmoraCitations: () => null,
+    normalizeMediationBlock: () => null, dedupeToolResultCards: (results) => results,
+    getToolResultCardModel: () => null,
+    colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" } }, st: {},
+  };
+  const compiledRender = ts.transpileModule(declaration.getText(tree), {
+    compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
+  }).outputText;
+  const render = new Function(...Object.keys(bindings), `${compiledRender}\nreturn renderMessage;`)(...Object.values(bindings));
+  const rendered = render({ item });
+  const nodes = [];
+  const flatten = (node) => {
+    if (node && typeof node === "object") {
+      nodes.push(node);
+      for (const child of node.children ?? []) flatten(child);
+    }
+  };
+  flatten(rendered);
+  const text = JSON.stringify(rendered);
+  return { text, buttons: nodes.filter((node) => node.type === "Pressable") };
+}
+
+const confirmationReceipt = {
+  id: "confirm", sender_type: "bride", visibility: "shared",
+  metadata: { confirmed_amora_action_id: action.actionId },
+};
+const successReceipt = {
+  id: "result", sender_type: "ai", visibility: "shared",
+  metadata: { in_reply_to_user_message_id: "confirm", toolResults: [{ toolName: action.tool, success: true }] },
+};
+
+test("mobile renders a successful proposal as applied even after a newer reply and expiry", () => {
+  const rendered = renderProposal([confirmationReceipt, successReceipt], { nowMs: action.expiresAt + 1 });
+  assert.match(rendered.text, /이 제안은 적용됐어요/);
+  assert.doesNotMatch(rendered.text, /확인 시간이 지났어요|새 대화가 이어져/);
+  assert.equal(rendered.buttons[0].props.disabled, true);
+});
+
+test("mobile does not call confirmation alone, failed or unrelated tool receipts applied", () => {
+  for (const receipts of [
+    [confirmationReceipt],
+    [confirmationReceipt, { ...successReceipt, metadata: { in_reply_to_user_message_id: "confirm", toolResults: [{ toolName: action.tool, success: false }] } }],
+    [confirmationReceipt, { ...successReceipt, metadata: { in_reply_to_user_message_id: "confirm", toolResults: [{ toolName: "update_budget", success: true }] } }],
+    [confirmationReceipt, { ...successReceipt, metadata: { ...successReceipt.metadata, in_reply_to_user_message_id: "different-confirmation" } }],
+    [successReceipt],
+  ]) {
+    const rendered = renderProposal(receipts);
+    assert.doesNotMatch(rendered.text, /이 제안은 적용됐어요/);
+    assert.match(rendered.text, /새 대화가 이어져/);
+    assert.equal(rendered.buttons[0].props.disabled, true);
+  }
+});
+
+test("mobile waits for a pending result without presenting it as success or expiry", () => {
+  const rendered = renderProposal([confirmationReceipt], { streaming: true, nowMs: action.expiresAt + 1 });
+  assert.match(rendered.text, /현재 답변이 끝나면 다시 확인할 수 있어요/);
+  assert.doesNotMatch(rendered.text, /이 제안은 적용됐어요|확인 시간이 지났어요|새 대화가 이어져/);
+});
+
+test("mobile recognizes persisted success after history reload and receipt reordering", () => {
+  const rendered = renderProposal([successReceipt, confirmationReceipt]);
+  assert.match(rendered.text, /이 제안은 적용됐어요/);
+  assert.equal(rendered.buttons[0].props.disabled, true);
+});
 
 test("모바일도 웹과 같은 승인 정책을 쓴다 — 전부 한 사람 확인", () => {
   // 2026-08-23 파운더 결정. 두 사람 승인을 없애고 상대에게는 알림을 준다.
@@ -502,7 +598,7 @@ test("mobile restores an owned durable confirmation and ignores direct partner c
   );
   assert.match(
     chatSource,
-    /\.or\("metadata->>target\.is\.null,metadata->>target\.neq\.partner"\)\s*\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(1\)\s*\.maybeSingle\(\)/,
+    /\.or\("metadata->>target\.is\.null,metadata->>target\.neq\.partner"\), viewCursors\.shared\)\s*\.order\("created_at", \{ ascending: false \}\)\s*\.order\("id", \{ ascending: false \}\)\s*\.limit\(1\)\s*\.maybeSingle\(\)/,
   );
   assert.match(chatSource, /const historyMessages = boundedHistory\s*\.sort\(/);
   assert.match(

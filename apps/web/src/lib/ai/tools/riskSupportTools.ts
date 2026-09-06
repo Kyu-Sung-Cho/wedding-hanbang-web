@@ -2,10 +2,11 @@ import type { ToolExecutionResult } from "@/types/database.types";
 import { simulateGuestGuarantee } from "@/lib/amora/guestGuarantee";
 
 function parseMealPriceManwon(value: unknown): number | undefined {
+  if (typeof value !== "number") return undefined;
   const amount = Number(value);
   if (!Number.isFinite(amount) || amount <= 0) return undefined;
-  if (amount > 1000) return Math.round((amount / 10000) * 10) / 10;
-  return Math.round(amount * 10) / 10;
+  if (amount > 1000) return Math.round(amount) / 10000;
+  return Math.round(amount * 10000) / 10000;
 }
 
 function parsePositiveInteger(value: unknown): number | undefined {
@@ -20,8 +21,8 @@ export function executeSimulateGuestGuarantee(input: Record<string, unknown>): T
     guaranteedGuests: parsePositiveInteger(input.guaranteed_guests),
     mealPriceManwon: parseMealPriceManwon(input.meal_price),
     confirmedRsvpGuests: parsePositiveInteger(input.confirmed_rsvp_guests),
-    noShowRatePercent: Number.isFinite(Number(input.no_show_rate_percent))
-      ? Number(input.no_show_rate_percent)
+    noShowRatePercent: typeof input.no_show_rate_percent === "number" && Number.isFinite(input.no_show_rate_percent)
+      ? input.no_show_rate_percent
       : undefined,
     noticeDeadlineYmd: typeof input.notice_deadline === "string" ? input.notice_deadline : undefined,
     venueName: typeof input.venue_name === "string" ? input.venue_name : undefined,

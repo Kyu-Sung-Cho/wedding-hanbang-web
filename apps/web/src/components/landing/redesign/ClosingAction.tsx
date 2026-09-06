@@ -28,17 +28,17 @@ export default function ClosingAction() {
     >
       <div className={shell}>
         {/* 경계 섹션과 이 섹션을 가르는 가는 선. 시안에 있는 유일한 구분이다. */}
-        <hr className="mb-14 border-0 border-t border-[var(--color-paper-on-ink-rule)] sm:mb-[76px]" />
+        <hr className="mb-9 border-0 border-t border-[var(--color-paper-on-ink-rule)] lg:mb-[58px]" />
 
         <h2 id="closing-title" className={sectionTitleOnInk}>
           <TitleLines value={closing.title} />
         </h2>
 
-        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        <div className="mt-[30px] flex flex-col items-stretch justify-center gap-3 lg:flex-row lg:items-center lg:gap-[18px]">
           <TrackedLandingLink
             source="landing_closing_primary"
             href={closing.primary.href}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-[6px] bg-[var(--color-paper-on-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-ink)] transition-colors duration-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-on-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-paper-ink)] motion-reduce:transition-none"
+            className="inline-flex min-h-[54px] items-center justify-center rounded-[11px] bg-[var(--color-paper-on-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-ink)] transition-colors duration-200 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-on-ink)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-paper-ink)] motion-reduce:transition-none lg:rounded-[9px]"
           >
             {closing.primary.label}
           </TrackedLandingLink>

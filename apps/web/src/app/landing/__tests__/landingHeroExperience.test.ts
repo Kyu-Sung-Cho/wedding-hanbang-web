@@ -1,8 +1,48 @@
-// @vitest-environment node
+// @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import LandingPage from "../page";
+import TransformationHero from "@/components/landing/redesign/TransformationHero";
+import LandingBloomLayer from "@/components/landing/redesign/LandingBloomLayer";
+import { landingContent } from "@/components/landing/redesign/landingContent";
+
+vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
+
+function heroDocument(): Document {
+  return new DOMParser().parseFromString(renderToStaticMarkup(createElement(TransformationHero)), "text/html");
+}
+
+/** 값의 위계를 검사한다. 픽셀 위치·글꼴 로딩·줄바꿈 실측은 브라우저 QA의 몫이다. */
+function headingSizeAt(element: Element, viewport: number): number {
+  const breakpoints: Record<string, number> = { sm: 640, md: 768, lg: 1024, xl: 1280 };
+  const length = (value: string) => value.endsWith("rem") ? parseFloat(value) * 16
+    : value.endsWith("vw") ? parseFloat(value) * viewport / 100 : parseFloat(value);
+  let size: number | undefined;
+  let priority = -1;
+  for (const token of element.classList) {
+    const match = /^(?:(sm|md|lg|xl):)?(!?)text-\[(\d+(?:\.\d+)?(?:px|rem)|clamp\([^)]+\))\](!?)$/u.exec(token);
+    if (!match) continue;
+    const minimum = match[1] ? breakpoints[match[1]] : 0;
+    const rank = minimum + (match[2] || match[4] ? 10000 : 0);
+    if (minimum > viewport || rank < priority) continue;
+    const raw = match[3];
+    if (raw.startsWith("clamp(")) {
+      const [min, preferred, max] = raw.slice(6, -1).split(",").map(length);
+      size = Math.max(min, Math.min(preferred, max));
+    } else {
+      size = length(raw);
+    }
+    priority = rank;
+  }
+  expect(size, "rendered heading needs a measurable font size").toBeDefined();
+  return size!;
+}
+
+
 
 import {
   APP_ROOT,
@@ -17,44 +57,10 @@ import {
 
 /**
  * 랜딩 히어로·제품 경험 계약.
- *
- * ## 2026-08-27 적대적 검증에서 이 파일로 빠져나간 변형들
- *
- * 이 파일은 예전에 자기만의 `withoutComments`(줄 **처음**의 `//` 만 지움)와
- * 자기만의 `contentBlock`(경계를 못 찾아도 조용히 통과)을 갖고 있었다. 그래서
- * 아래 변형들이 전부 초록불이었다:
- *
- *  1. 줄 끝 주석·JSX 주석으로 컴포넌트를 꺼도 문구가 "있다"고 통과
- *  2. 히어로 문장을 `footer.tagline` 으로 옮겨도 파일 전체 `toContain` 이 통과
- *  3. 계약 문장 뒤에 그것을 뒤집는 문장을 붙여도 통과
- *     (가장 위험했던 실례: 확인 계약 뒤 "급할 때는 확인을 건너뛰고 바로 반영")
- *  4. `max-sm:hidden` · `className="hidden lg:block"`(맨 앞) 로 감춰도 통과
- *  5. 카피는 두고 그리는 `<p>` 만 지워도 통과
- *  6. `slice(indexOf(a), indexOf(b))` 뒤 `length > 0` — 경계가 사라져도 영원히 참
- *
- * 공용 도구(`landingSource.ts`)로 1·2·6 을 없앴고, 아래 헬퍼들이 3·4·5 를 막는다.
- * **자기 복사본을 다시 만들지 마라.**
- *
- * ## 2026-08-29 정본 시안으로 다시 지음 — 계약은 자리를 옮겼을 뿐이다
- *
- * 랜딩이 `docs/landing/NotebookBest.html` 로 다시 지어지며 섹션이 통째로 바뀌었다.
- * `ScenesSection` `NoSideSection` `OneRoomSection` `PrivateLaneSection`
- * `NotForVendorsSection` `PriceCompareSection` 이 없어졌다. **그 섹션들이 지고 있던
- * 고지는 사라진 게 아니라 옮겨 갔고, 이 파일은 옮겨 간 자리를 검사한다:**
- *
- *   AI 고지            `noSide.note`·`notForVendors.aiNotice`
- *                      → `hero.tape` · `amoraNote.note` · `boundaries.items[2]` · `footer.notice`
- *   궁합·점수 금지      `scenes.note`      → `availableNow.cards[1].note`
- *   개인정보·저장 고지  `privateLane.note` → `amoraNote.note` · `availableNow.cards[0].note`
- *   업체 편 아님        `notForVendors`    → `boundaries.items[0]` `[1]`
- *   가격 출처·기준일    `priceCompare`     → `availableNow.cards[2].note` · `footer.notice`
- *   샘플 표시          `oneRoom` 데모      → `amoraNote.note` · `confirm.sample*`
- *
- * **정말로 없어진 개념은 하나뿐이다 — 베타.** 2026-08-29 파운더 결정("베타 우리
- * 안할거야 알아둬")으로 계정 베타·사전등록·승인 대기라는 틀을 화면에서 쓰지 않는다.
- * 그래서 "계정 베타" 를 **요구하던** 단언을 지우고, 반대로 **베타가 화면에 없다**는
- * 단언으로 뒤집었다. 그 문장이 지고 있던 고지("이용 방법과 비용은 아직 정해지지
- * 않았고, 계정을 만들어도 지금은 결제를 요청하지 않아요")는 참이라 그대로 지킨다.
+ * 실제 렌더된 제목·진입 링크·예시의 순서를 검사하고, 카피의 사실성·개인정보·
+ * 승인 계약은 공용 landingSource 도구로 별도 보호한다.
+ * 2026-09-06 승인 HTML에 맞춰 옛 클래스·clamp 모양을 고정하던 검사는 없앴다.
+ * SSR에서 픽셀 위치를 실측했다고 주장하지 않는다.
  */
 
 function redesign(fileName: string): string {
@@ -134,7 +140,6 @@ const motionSources: ReadonlyArray<readonly [string, string]> = [
 const confirmSection = componentSource("ConfirmSection.tsx");
 const amoraNoteSection = componentSource("AmoraNoteSection.tsx");
 const availableNowSection = componentSource("AvailableNowSection.tsx");
-const bloomLayer = componentSource("LandingBloomLayer.tsx");
 
 /**
  * 화면에서 무엇을 **감추는** 유틸리티 전부.
@@ -319,15 +324,6 @@ function block(key: string): string {
  * 매기지 않는다" 고지들이 전부 여기로 내려왔다.
  */
 const availableNowCatalogue = block("availableNow");
-
-/** clamp(...) 곡선의 최대값(rem)을 숫자로. */
-function clampMaxRem(label: string, curve: string | undefined): number {
-  expect(curve, `${label} 곡선을 찾지 못함`).toBeTruthy();
-  const max = (curve ?? "").split(",").at(-1)?.trim() ?? "";
-  const parsed = Number.parseFloat(max.replace("rem", ""));
-  expect(Number.isFinite(parsed), `${label} 최대값 파싱 실패: ${max}`).toBe(true);
-  return parsed;
-}
 
 describe("landing hero product experience contract", () => {
   it("explains the product in plain language before asking for action", () => {
@@ -784,161 +780,59 @@ describe("landing hero product experience contract", () => {
     expect(sectionIndex("ConfirmSection")).toBeGreaterThan(sectionIndex("TransformationHero"));
   });
 
-  it("keeps the headline and the primary action inside the first 320px viewport", () => {
-    // 320x568에서 헤드라인부터 기본 CTA까지가 첫 화면 안에 들어와야 한다.
-    //
-    // 옛 히어로는 날짜 폼과 데모를 함께 들고 있어서 실측(320px에서 CTA bottom
-    // 503 < 568)으로 여백 예산을 고정했다. 폼도 데모도 없어져 그 값들(gap-8 pb-12
-    // pt-5 …)은 존재하지 않는다. 아래는 **지금 구현의 예산**이고, 하나라도 커지면
-    // CTA가 첫 화면 밖으로 밀린다.
-    //
-    // 2026-08-29 정본 시안으로 다시 지으며 값이 또 바뀌었다
-    // (`pb-60 pt-12 sm:pt-16 lg:pb-20` → `pb-16 pt-10 sm:pt-14`, H1 최소 2rem →
-    // 2.2rem). 새 히어로의 브라우저 실측은 아직 없으므로 이 값들은
-    // "조용한 증가를 막는 고정"이지 실측 결과가 아니다.
-    expect(hero).toContain("pb-16 pt-10 sm:pt-14");
-    // H1 곡선의 하한이 320px에서 실제로 쓰이는 값이다(7vw = 22.4px < 2.2rem).
-    expect(hero).toMatch(/<h1[^>]*text-\[clamp\(2\.2rem,/u);
-    expect(hero).toMatch(/mt-7 max-w-\[46ch\] \$\{bodyText\}/u);
-    expect(hero).toMatch(/className="mt-9 flex flex-col gap-3 sm:flex-row/u);
-
-    // 장식은 흐름에서 빠져 있어야 한다. 부케가 static이 되면 320px에서 260px를
-    // 그대로 아래로 밀어낸다.
-    //
-    // 2026-08-29: 꽃이 히어로 안(`<BouquetCorner className="pointer-events-none
-    // absolute …" />`)에서 페이지 전체를 덮는 `LandingBloomLayer` 로 빠졌다. 계약은
-    // 같다 — **꽃은 어느 것도 흐름 안에 들어오지 않는다.** 검사할 자리만 옮긴다.
-    expect(bloomLayer).toMatch(/className="pointer-events-none absolute inset-0/u);
-    const bloomPieces = [
-      ...bloomLayer.matchAll(/<(?:BloomGarland|BloomSprig|BouquetCorner)\s+className="([^"]*)"/gu),
-    ];
-    expect(bloomPieces.length, "꽃 레이어에서 꽃을 하나도 찾지 못했다").toBeGreaterThan(0);
-    for (const piece of bloomPieces) {
-      expect(piece[1], "꽃이 흐름 안에 들어왔다 — 320px에서 본문을 아래로 민다").toMatch(
-        /(?:^|\s)absolute(?=\s|$)/u,
-      );
+  it("keeps entry links before the preview and decoration outside document flow", () => {
+    const doc = heroDocument();
+    const heading = doc.querySelector("h1");
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    expect(heading?.textContent?.replace(/\s/gu, ""))
+      .toBe(landingContent.hero.title.replace(/\s/gu, ""));
+    const primary = doc.querySelector<HTMLAnchorElement>('a[href="/login?mode=signup"]');
+    const secondary = doc.querySelector<HTMLAnchorElement>('a[href="/wedding-code"]');
+    const preview = doc.querySelector("figure");
+    expect(preview).toBeTruthy();
+    for (const link of [primary, secondary]) {
+      expect(link).toBeTruthy();
+      expect(link?.closest('[hidden],[aria-hidden="true"],.hidden,.sr-only')).toBeNull();
+      expect(link?.className).toMatch(/focus-visible:(?:ring|outline)/u);
+      expect((link?.compareDocumentPosition(preview!) ?? 0) & 4).toBe(4);
     }
-    expect(hero, "히어로가 꽃을 다시 자기 안에 그린다").not.toMatch(/Bloom|Bouquet/u);
-
-    // CTA 위 요소를 **통째로 고정**한다.
-    //
-    // 옛 검사는 `<h1`·`<p` **태그 이름만** 셌다. 그래서 문단을 `<div>` 로 넣으면
-    // CTA 를 아래로 밀면서도 통과했다(2026-08-27 변형). 이제 여는 태그 열을 그대로
-    // 대조한다 — 무엇을 끼워 넣든 열이 달라진다.
-    //
-    // 히어로 배치를 일부러 바꿨다면 이 배열을 함께 고쳐라. 고치는 순간
-    // "CTA 가 첫 화면 안에 남는가"를 다시 재 봐야 한다는 뜻이다.
-    const aboveCta = hero.slice(hero.indexOf("${shell} relative"), hero.indexOf("hero.primary.href"));
-    expect(aboveCta.length, "히어로에서 CTA 위 구간을 잘라내지 못했다").toBeGreaterThan(0);
-    const tagsAboveCta = [...aboveCta.matchAll(/<([A-Za-z][\w.]*)/gu)].map((m) => m[1]);
-    expect(tagsAboveCta, "CTA 위 요소가 늘면 320px에서 CTA가 밀린다").toEqual([
-      // 2026-08-29 정본 시안: 테이프 이름표(p > span) → H1(줄마다 span) → 본문 p →
-      // 버튼 줄 div → 1차 CTA. 옛 판의 `<br>` 두 개는 없어졌다 — 제목 줄바꿈을
-      // `title.split("\n")` 이 span 으로 그린다.
-      //
-      // 2026-09-03: H1 안 span 이 하나에서 셋으로 늘었다. 시안이 둘째 줄의
-      // `우리 둘이` 만 로즈로 칠해서, 줄마다 "강조 없음 / 강조 있음" 두 갈래를
-      // 그리기 때문이다(강조 갈래가 바깥 span + 안쪽 강조 span 둘).
-      // **셋 다 인라인이라 세로 높이를 늘리지 않는다** — 이 검사가 지키려는
-      // "CTA 가 첫 화면 밖으로 밀리는가" 는 그대로다.
-      //
-      // 2026-09-03: 맨 앞에 `div` 가 하나 늘었다. 시안이 히어로 오른쪽에 앱 화면
-      // 미리보기를 되돌려 놔서 글 쪽이 한 단으로 묶였다. **좁은 화면에서는 그 div 가
-      // 폭 전체를 쓰는 블록 하나**라 세로로 아무것도 더하지 않는다.
-      "div",
-      "p",
-      "span",
-      "h1",
-      "span",
-      "span",
-      "span",
-      "p",
-      "div",
-      // 2026-08-28: `Link` → `TrackedLandingLink`. CTA 클릭이 세어지지 않아
-      // 계측 컴포넌트로 바꿨다(같은 자리, 같은 높이).
-      "TrackedLandingLink",
-    ]);
+    const decoration = new DOMParser().parseFromString(
+      renderToStaticMarkup(createElement(LandingBloomLayer)),
+      "text/html",
+    ).body.firstElementChild!;
+    expect(decoration.classList.contains("absolute")).toBe(true);
+    expect(decoration.classList.contains("pointer-events-none")).toBe(true);
+    const svgs = [...decoration.querySelectorAll("svg")];
+    expect(svgs.length).toBeGreaterThan(0);
+    for (const svg of svgs) {
+      expect(svg.classList.contains("absolute")).toBe(true);
+      expect(svg.getAttribute("aria-hidden")).toBe("true");
+    }
+    // SSR은 레이아웃 엔진이 아니다. 320px의 실제 CTA 위치·겹침은 브라우저 QA가 잰다.
   });
 
-  it("첫 화면 여백 예산 — 이 검사가 못 재는 것", () => {
-    // ⚠️ 위 검사는 **태그 이름만** 본다. 같은 태그로 높이를 늘리면 못 잡는다.
-    //
-    // 2026-08-28 실측(옛 히어로): **320x568 에서 1차 CTA 가 5px 밀려 있었다**
-    // (525~573px / 화면 568px). 390x844 에서는 첫 화면 안이었다(458~506px).
-    //
-    // 2026-08-29 정본 시안으로 다시 지으면서 여백이 줄었고(`pt-12` → `pt-10`,
-    // `pb-60` → `pb-16`) 데모 패널도 없어졌다. **그러니 위 실측값은 이제 이 화면의
-    // 값이 아니다 — 다시 재기 전까지 "괜찮아졌다"고도 "여전히 밀린다"고도 말하지 마라.**
-    //
-    // 소스만 읽는 이 파일에서는 높이를 잴 수 없다. 화면을 띄워 재야 한다:
-    //   document.querySelector('main a[href="/price"]').getBoundingClientRect()
-    //
-    // 고칠 때 건드릴 곳: 히어로 `pt-10`, H1 clamp 최소값, 본문 `mt-7`.
-    // 여기서는 그 사실이 잊히지 않게 적어만 둔다 — 실측해서 통과하면 이 케이스를 지워라.
-    const heroSource = source("src/components/landing/redesign/TransformationHero.tsx");
-    expect(heroSource, "히어로 위 여백이 바뀌면 첫 화면 예산을 다시 재라").toContain("pt-10");
-  });
 
-  it("drives every landing headline from one display scale", () => {
-    // 이전에는 8개 섹션이 각자 다른 clamp 곡선·leading·tracking을 썼고, 그 결과
-    // 1280px 실측에서 신뢰(72px)·마무리(73.6px)가 H1(68px)보다 커지는 위계 역전이
-    // 있었다. 랜딩에서 가장 큰 타입은 언제나 H1이어야 한다.
-    //
-    // 곡선의 정본이 옮겨졌다: landingType.ts(displayHero/displaySection/displayMuted)는
-    // 이제 아무도 import 하지 않고, notebook.tsx의 sectionTitle·bodyText가 그 자리를
-    // 잇는다. H1 곡선만 히어로가 직접 들고 있다.
-    const heroMax = clampMaxRem("H1", hero.match(/<h1[^>]*?text-\[clamp\(([^)]*)\)\]/u)?.[1]);
-    const sectionMax = clampMaxRem(
-      "sectionTitle",
-      notebook.match(/export const sectionTitle\s*=[\s\S]*?clamp\(([^)]*)\)/u)?.[1],
-    );
-    const bodyMax = clampMaxRem(
-      "bodyText",
-      notebook.match(/export const bodyText\s*=[\s\S]*?clamp\(([^)]*)\)/u)?.[1],
-    );
 
-    expect(sectionMax).toBeLessThan(heroMax);
-    expect(bodyMax).toBeLessThan(sectionMax);
-
-    // 섹션은 공용 타입 스케일을 가져다 쓴다. 새 크기가 필요하면 notebook.tsx 에
-    // 넣고 거기서 가져온다 — 그래야 위계가 한 곳에서 보인다.
-    expect(sectionSources.length, "렌더되는 섹션을 하나도 읽지 못했다").toBeGreaterThan(3);
-    for (const [file, text] of sectionSources) {
-      expect(text, `${file}이 공용 타입 스케일을 쓰지 않는다`).toMatch(/from "\.\/notebook"/u);
+  it("renders named headings without reversing the approved visual hierarchy", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    const h1 = doc.querySelector("h1")!;
+    const headings = [...doc.querySelectorAll("main h2")];
+    expect(doc.querySelectorAll("h1")).toHaveLength(1);
+    expect(headings.length).toBeGreaterThan(4);
+    for (const viewport of [320, 390, 768, 1024, 1440]) {
+      const heroSize = headingSizeAt(h1, viewport);
+      expect(heroSize).toBeGreaterThanOrEqual(30);
+      expect(heroSize).toBeLessThanOrEqual(50);
+      for (const heading of headings) {
+        expect(heading.textContent?.trim()).toBeTruthy();
+        expect(heading.id).not.toBe("");
+        expect(heading.closest("section")?.getAttribute("aria-labelledby")).toBe(heading.id);
+        expect(heading.classList.contains("landing-display")).toBe(true);
+        const size = headingSizeAt(heading, viewport);
+        expect(size, heading.textContent ?? "").toBeGreaterThanOrEqual(21);
+        expect(size, heading.textContent ?? "").toBeLessThanOrEqual(heroSize);
+      }
     }
-
-    // ## 인라인 곡선은 **개수가 아니라 크기**로 잰다
-    //
-    // 옛 검사는 `inlineCurves` 가 빈 배열이기를 요구했다. 그건 표기법을 재는 것이지
-    // 계약을 재는 것이 아니다 — 2026-08-29 정본 시안의 마무리 제목은 손글씨체라
-    // sectionTitle 을 쓰지 않고 자기 곡선(clamp 1.9→2.9rem)을 쓴다.
-    //
-    // 진짜 계약은 **위계 역전을 막는 것**이고, 그 사고의 실제 범인이 바로 마무리
-    // 섹션이었다(73.6px > H1 68px). 그래서 인라인 곡선이 있어도 되지만, 최대값이
-    // 섹션 제목을 넘으면 안 된다. 한 파일에서 멈추지 않고 전부 모아서 한 번에 본다.
-    const inlineCurves = sectionSources.flatMap(([file, text]) =>
-      [...text.matchAll(/text-\[clamp\(([^)]*)\)\]/gu)].map(
-        (m) => [`${file}: ${m[0]}`, m[1]] as const,
-      ),
-    );
-    for (const [label, curve] of inlineCurves) {
-      const max = clampMaxRem(label, curve);
-      expect(
-        max,
-        `${label} 이 섹션 제목보다 크다 — 랜딩에서 가장 큰 타입은 H1이다`,
-      ).toBeLessThanOrEqual(sectionMax);
-      expect(max, `${label} 이 H1보다 크다 — 위계가 뒤집힌다`).toBeLessThan(heroMax);
-    }
-
-    // 한글 헤드라인 고아 글자 방지. keep-all은 어절 단위로만 끊고, 마지막 줄에
-    // 한 어절만 남는 것("… 해야 할 / 일.")은 text-balance가 막는다.
-    // 2026-09-03: 곡선이 `sectionTitleShape` 로 빠지고 `sectionTitle`·`sectionTitleOnInk`
-    // 가 그것을 나눠 갖는다(다크 밴드가 색만 다른 제목을 쓴다). 그래서 둘 다 본다 —
-    // 곡선에 text-balance 가 있고, 제목 상수가 **그 곡선에서** 만들어지는지.
-    expect(notebook).toMatch(/const sectionTitleShape\s*=[\s\S]*?text-balance/u);
-    expect(notebook).toMatch(/export const sectionTitle\s*=\s*`\$\{sectionTitleShape\}/u);
-    expect(notebook).toMatch(/export const sectionTitleOnInk\s*=\s*`\$\{sectionTitleShape\}/u);
-    expect(hero).toMatch(/<h1[^>]*text-balance/u);
   });
 
   it("actually disables the unlayered animations under prefers-reduced-motion", () => {

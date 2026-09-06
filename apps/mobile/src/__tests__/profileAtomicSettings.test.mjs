@@ -8,7 +8,7 @@ const settingsPath = fileURLToPath(
 );
 const settingsSource = readFileSync(settingsPath, "utf8");
 
-test("mobile settings saves every editable identity and journey field through one API patch", () => {
+test("mobile settings binds profile saves to the submitted owner and advances only confirmed baselines", () => {
   const handleSaveStart = settingsSource.indexOf("async function handleSave()");
   const handleSave = settingsSource.slice(
     handleSaveStart,
@@ -18,7 +18,8 @@ test("mobile settings saves every editable identity and journey field through on
     ),
   );
 
-  assert.match(handleSave, /apiFetch\("\/api\/settings\/wedding-profile"/);
+  assert.match(handleSave, /const saveSnapshot = settingsSnapshot/);
+  assert.match(handleSave, /apiFetchForExpectedUser\(saveSnapshot\.userId, "\/api\/settings\/wedding-profile"/);
   assert.equal((handleSave.match(/method:\s*"PATCH"/g) ?? []).length, 1);
   assert.doesNotMatch(handleSave, /\.from\("wedding_journeys"\)/);
   assert.doesNotMatch(handleSave, /parseInt\(/);
@@ -27,10 +28,11 @@ test("mobile settings saves every editable identity and journey field through on
     /apiFetch\("\/api\/community\/profile",\s*\{\s*method:\s*"PATCH"/s,
   );
   assert.ok(
-    handleSave.indexOf("setInitialData(savedSettings.data)") >
+    handleSave.indexOf("current === committedInitialData ? savedSettings.data : current") >
       handleSave.indexOf("if (!response.ok)"),
     "the last-known-good snapshot must advance only after a successful response",
   );
+  assert.match(handleSave, /if \(planChanges && planOutcome === "applied"\)[\s\S]*advanceWeddingPlanBaseline\(saveSnapshot, planChanges\)/);
   // 화면 데이터가 낡았을 때는 다시 불러와야 한다 — 낡은 스냅샷을 들고 있으면 안 된다.
   assert.match(
     handleSave,

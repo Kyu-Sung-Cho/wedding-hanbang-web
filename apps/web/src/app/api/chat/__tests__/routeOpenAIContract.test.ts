@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
+import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
 import { AMORA_EMPTY_TERMINAL_FALLBACK_TEXT } from "@/lib/ai/amoraOutputHygiene";
@@ -58,6 +59,7 @@ const mocks = vi.hoisted(() => {
     }
   }
   const reserve = vi.fn();
+  const afterAtomicFinalize = vi.fn();
   const atomicResponses: Array<{
     content: string;
     metadata: Record<string, unknown>;
@@ -135,6 +137,7 @@ const mocks = vi.hoisted(() => {
           };
       atomicFinalizations.push(finalized);
       options?.onAtomicChatResponseFinalized?.(finalized);
+      afterAtomicFinalize();
     }
     return result;
   });
@@ -144,6 +147,7 @@ const mocks = vi.hoisted(() => {
     buildMultimodal: vi.fn((text: string) => text),
     mammothExtract: vi.fn(),
     providerLedger,
+    afterAtomicFinalize,
     executeTool: vi.fn(),
     extractSuggestions: vi.fn((text: string) => ({
       cleanText: text,
@@ -226,6 +230,10 @@ const mocks = vi.hoisted(() => {
       shared: null as string | null,
       private: null as string | null,
     },
+    chatViewClearedAtError: null as { code: string; message: string } | null,
+    chatViewClearedAtThrows: false,
+    chatViewPrivacyEpoch: 7,
+    requestRpc: vi.fn(),
     segmentEq: vi.fn(),
     profileProjectionRows: [] as Array<Record<string, unknown>>,
     profileProjectionError: null as { code: string } | null,
@@ -350,6 +358,7 @@ function queryResult(data: unknown, hooks: {
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: vi.fn(async () => ({
+    rpc: mocks.requestRpc,
     auth: {
       getUser: vi.fn(async () => ({
         data: { user: mocks.authenticatedUser },
@@ -461,6 +470,12 @@ vi.mock("@/lib/supabase/admin", () => ({
           name: "테스트 고객",
           shared_chat_cleared_at: mocks.chatViewClearedAt.shared,
           private_chat_cleared_at: mocks.chatViewClearedAt.private,
+        }, {
+          onSelectError: (selection) => {
+            if (!selection.includes("shared_chat_cleared_at")) return null;
+            if (mocks.chatViewClearedAtThrows) throw new Error("synthetic transport failure");
+            return mocks.chatViewClearedAtError;
+          },
         });
       }
       return queryResult([]);
@@ -527,10 +542,14 @@ vi.mock("@/lib/ai/automaticFeedback", () => ({
   saveAutomaticDissatisfaction: vi.fn(async () => undefined),
 }));
 
-vi.mock("@/lib/ai/tools", () => ({
-  BETA_SAFE_TOOLS: mocks.safeTools,
-  WEDDING_TOOLS: mocks.safeTools,
-}));
+vi.mock("@/lib/ai/tools", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/tools")>();
+  // route는 모듈 초기화 때 제안 도구 목록을 고정하므로 테스트 중 뒤늦게
+  // 추가하지 않는다. 실제 배열 스키마/제목만 있는 할 일 계약을 그대로 쓴다.
+  (mocks.safeTools as AiToolDefinition[]).push(...actual.WEDDING_TOOLS.filter(tool =>
+    tool.name === "apply_budget_plan" || tool.name === "add_amora_action"));
+  return { BETA_SAFE_TOOLS: mocks.safeTools, WEDDING_TOOLS: mocks.safeTools };
+});
 
 vi.mock("@/lib/ai/amoraProviderCallLedger", () => ({
   runAmoraProviderCallWithLedger: mocks.providerLedger,
@@ -991,6 +1010,18 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     };
     mocks.activeSegmentError = null;
     mocks.chatViewClearedAt = { shared: null, private: null };
+    mocks.chatViewClearedAtError = null;
+    mocks.chatViewClearedAtThrows = false;
+    mocks.chatViewPrivacyEpoch = 7;
+    mocks.requestRpc.mockReset();
+    mocks.requestRpc.mockImplementation(async (name: string) => {
+      if (name !== "get_own_amora_chat_view_snapshot") throw new Error("Unexpected authenticated RPC");
+      if (mocks.chatViewClearedAtThrows) throw new Error("synthetic transport failure");
+      return {
+        data: { version: 1, privacyEpoch: mocks.chatViewPrivacyEpoch, ...mocks.chatViewClearedAt },
+        error: mocks.chatViewClearedAtError,
+      };
+    });
     mocks.summaryRows.splice(0);
     mocks.decisionRows.splice(0);
     mocks.journeyRow = {
@@ -1050,6 +1081,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.atomicResponses.splice(0);
     mocks.atomicFinalizations.splice(0);
     mocks.atomicOutcome = "persisted";
+    mocks.afterAtomicFinalize.mockReset();
     mocks.journal.splice(0);
     mocks.profileProjectionError = null;
     mocks.personalizationRow = null;
@@ -2772,6 +2804,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.provider).not.toHaveBeenCalled();
   });
 
+  it("does not replay a persisted answer hidden by a subsequent view reset", async () => {
+    mocks.chatViewClearedAt.shared = "2026-07-15T01:00:00.000Z";
+    mocks.findPersisted.mockResolvedValue(persisted("CLEARED_REPLAY_FIXTURE"));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "CHAT_REPLAY_CLEARED",
+      retryable: false,
+      retryPolicy: "new_message",
+    });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
+  it("blocks persisted-answer replay when its view boundary cannot be read", async () => {
+    mocks.chatViewClearedAtError = { code: "57014", message: "synthetic timeout" };
+    mocks.findPersisted.mockResolvedValue(persisted("CLEARED_REPLAY_FIXTURE"));
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "CHAT_VIEW_BOUNDARY_UNAVAILABLE" });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+  });
+
   it("replays an already persisted answer before consuming mismatched resent attachment bytes", async () => {
     const original = { mediaType: "image/png", base64: "aGVsbG8=" };
     mocks.canonicalRows[0] = {
@@ -3243,6 +3303,51 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
     // 커플은 키가 아니라 별도 파라미터로 클레임에 들어간다.
     expect(mocks.claim.mock.calls[0]?.[0]?.coupleId).toBe(COUPLE_ID);
+  });
+
+  it.each(["shared", "bride_private"] as const)(
+    "creates a fresh greeting after the %s view reset instead of replaying the old greeting",
+    async (visibility) => {
+      mocks.chatViewClearedAt[visibility === "shared" ? "shared" : "private"] =
+        "2026-07-15T01:00:00.000Z";
+      mocks.findPersisted.mockImplementation(async ({ clientRequestId }) =>
+        clientRequestId.startsWith("greeting:")
+          ? persisted("STALE_GREETING_FIXTURE")
+          : null
+      );
+      providerAfterPreGeneration(providerResult({ fullText: "새 대화를 시작해요." }));
+
+      const response = await POST(request({
+        requestKind: "initial_greeting",
+        userMessageId: undefined,
+        visibility,
+      }));
+      const payload = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(payload).not.toContain("STALE_GREETING_FIXTURE");
+      expect(mocks.provider).toHaveBeenCalledTimes(1);
+      expect(mocks.claim).toHaveBeenCalledWith(expect.objectContaining({
+        requestKey: expect.stringMatching(/^lifecycle:[0-9a-f]{64}$/),
+        visibility,
+      }));
+      expect(mocks.findPersisted).toHaveBeenCalledWith(expect.objectContaining({
+        clientRequestId: mocks.claim.mock.calls[0]?.[0]?.requestKey,
+      }));
+    },
+  );
+
+  it("blocks greeting replay before lookup when the reset cursor is unavailable", async () => {
+    mocks.chatViewClearedAtError = { code: "57014", message: "synthetic timeout" };
+    mocks.findPersisted.mockResolvedValue(persisted("STALE_GREETING_FIXTURE"));
+
+    const response = await POST(request({ requestKind: "initial_greeting", userMessageId: undefined }));
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ code: "CHAT_VIEW_BOUNDARY_UNAVAILABLE" });
+    expect(mocks.findPersisted).not.toHaveBeenCalled();
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -3943,6 +4048,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.atomicResponses[0]?.metadata?.pending_amora_action)
       .toBeUndefined();
     expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["payload_rejected", '[pending_action]{"tool":"not_a_tool","input":{"note":"SYNTHETIC_PRIVATE_MODEL_MARKER"}}[/pending_action]'],
+    ["open_tag_without_json", "[pending_action]SYNTHETIC_PRIVATE_MODEL_MARKER"],
+  ])("keeps private model output out of dropped-card diagnostics: %s", async (shape, marker) => {
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], visibility: "bride_private" };
+      providerAfterPreGeneration(providerResult({ fullText: `확인할 내용이 있어요. ${marker}` }));
+
+      const response = await POST(request({ visibility: "bride_private" }));
+      expect(response.status).toBe(200);
+      await response.text();
+
+      expect(warning).toHaveBeenCalledWith("[chat] pending action tag dropped", expect.objectContaining({
+        shapes: [shape],
+      }));
+      const serializedWarnings = JSON.stringify(warning.mock.calls);
+      expect(serializedWarnings).not.toContain("SYNTHETIC_PRIVATE_MODEL_MARKER");
+      expect(serializedWarnings).not.toContain(COUPLE_ID);
+      const diagnostic = warning.mock.calls.find(([message]) => message === "[chat] pending action tag dropped")?.[1];
+      expect(diagnostic).toMatchObject({ requestCorrelationId: expect.stringMatching(/^[0-9a-f]{64}$/) });
+      expect(diagnostic).not.toHaveProperty("payloadHeads");
+      expect(diagnostic).not.toHaveProperty("tailHead");
+    } finally {
+      warning.mockRestore();
+    }
   });
 
   it("사이에 낀 안전 턴이 라우트에서도 연속성을 끊는다", async () => {
@@ -5074,7 +5207,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
   });
 
-  it("does not add a terminal privacy read for a current-only W4 turn", async () => {
+  it("checks the terminal privacy epoch even for a current-only W4 turn", async () => {
     const userText = "삼성전자 주식 사도 돼?";
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
@@ -5095,8 +5228,67 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(response.status).toBe(200);
     // Replay preflight, initial current-only epoch, the pre-egress fence that
     // guards token counting, the pre-generation fence, and the post-provider
-    // fence. There is deliberately no further terminal-release read.
-    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(5);
+    // fence, then the display boundary: every authenticated turn can be reset.
+    expect(mocks.getPrivacyEpoch).toHaveBeenCalledTimes(6);
+  });
+
+  it.each(["chat", "initial_greeting"])("rejects mixed cursor/epoch snapshots before provider work for %s", async (requestKind) => {
+    mocks.chatViewPrivacyEpoch = 6;
+    const response = await POST(request({
+      requestKind,
+      ...(requestKind === "initial_greeting" ? { userMessageId: undefined } : {}),
+    }));
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({ code: "AMORA_PRIVACY_CONTEXT_CHANGED", retryable: true });
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.reserve).not.toHaveBeenCalled();
+    expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({ failureCode: "AMORA_PRIVACY_CONTEXT_CHANGED" }));
+  });
+
+  it.each(["chat", "initial_greeting"])("withholds %s preview when a view reset wins atomic finalization", async (requestKind) => {
+    const marker = "SYNTHETIC_RESET_PRIVATE_DRAFT";
+    const text = "아까 말한 내용 다시 정리해줘";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.atomicOutcome = "privacy_context_changed";
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      options.onTextDelta?.(marker);
+      return providerResult({ fullText: marker });
+    });
+    const response = await POST(request({
+      requestKind, messages: [{ role: "user", content: text }],
+      ...(requestKind === "initial_greeting" ? { userMessageId: undefined } : {}),
+    }));
+    const body = await response.text();
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(body).not.toContain(marker);
+    expect(body).not.toContain('"type":"text_delta"');
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicFinalizations).toEqual([expect.objectContaining({ outcome: "privacy_context_changed" })]);
+  });
+
+  it.each(["chat", "initial_greeting"])("withholds %s when reset follows persistence but precedes terminal release", async (requestKind) => {
+    const marker = "SYNTHETIC_RESET_AFTER_PERSISTENCE";
+    const text = "아까 말한 내용 다시 정리해줘";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    providerAfterPreGeneration(providerResult({ fullText: marker }));
+    mocks.afterAtomicFinalize.mockImplementationOnce(() => {
+      mocks.getPrivacyEpoch.mockResolvedValue(8);
+    });
+    const response = await POST(request({
+      requestKind, messages: [{ role: "user", content: text }],
+      ...(requestKind === "initial_greeting" ? { userMessageId: undefined } : {}),
+    }));
+    const body = await response.text();
+    expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+    expect(body).not.toContain(marker);
+    expect(body).not.toContain('"type":"done"');
+    expect(mocks.atomicFinalizations).toEqual([expect.objectContaining({ outcome: "persisted" })]);
   });
 
   it("keeps the minimized private-mode guard without disclosing the stored actor role", async () => {
@@ -6553,6 +6745,49 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         }),
       }),
     ]);
+  });
+
+  it.each([
+    { tool: "apply_budget_plan", input: { total_budget: 30_000_000, intake_summary: "사용자가 확인한 예식장과 예비비 금액", allocations: [{ category: "venue", budget: 20_000_000 }, { category: "reserve", budget: 10_000_000 }] }, text: "결혼 예산 총 3천만원 중 예식장 2천만원과 예비비 1천만원으로 반영해줘" },
+    { tool: "add_amora_action", input: { title: "예식장 상담 질문 준비" }, text: "예식장 상담 질문 준비를 할 일로 추가해줘" },
+    { tool: "add_schedule_event", input: { title: "예식장 상담", date: "2026-10-10" }, text: "2026년 10월 10일 예식장 상담 일정을 추가해줘" },
+  ])("persists and executes the same $tool proposal only after its explicit approval", async ({ tool, input, text }) => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === tool);
+    if (!definition) throw new Error("Missing real proposal tool definition");
+    const added = !mocks.safeTools.some(candidate => candidate.name === tool);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({
+        fullText: `[pending_action]${JSON.stringify({ tool, input })}[/pending_action]`,
+        usage: { input_tokens: 10, output_tokens: 3 },
+      }));
+      const proposalResponse = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(proposalResponse.status).toBe(200);
+      await proposalResponse.text();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      const proposal = mocks.atomicResponses[0];
+      expect(proposal?.metadata).toMatchObject({ pending_amora_action: { tool, input } });
+      const pending = proposal!.metadata.pending_amora_action as { actionId: string };
+      expect(pending.actionId).toMatch(/^[0-9a-f-]{36}$/);
+      mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+        { ...mocks.canonicalRows[0], content: "확인했어. 반영해줘", created_at: "2026-07-15T00:01:00.000Z" },
+        { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: proposal!.content, metadata: proposal!.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+      );
+      mocks.executeTool.mockResolvedValueOnce({ toolName: tool, toolInput: input,
+        toolOutput: { success: true, display_text: "합성 서버 영수증: 반영했어요." }, success: true });
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "합성 제공자 응답", usage: { input_tokens: 10, output_tokens: 3 } }));
+      const confirmed = await POST(request({ messages: [{ role: "user", content: "확인했어. 반영해줘" }], confirmedActionId: pending.actionId }));
+      expect(confirmed.status).toBe(200);
+      const body = await confirmed.text();
+      expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith(tool, input, expect.objectContaining({ pendingActionId: pending.actionId }));
+      expect(mocks.adminRpc).toHaveBeenCalledWith("authorize_amora_shared_action_execution", expect.objectContaining({ p_action_id: pending.actionId, p_couple_id: COUPLE_ID }));
+      expect(body).toContain("합성 서버 영수증");
+      expect(body).not.toContain("합성 제공자 응답");
+    } finally {
+      if (added) mocks.safeTools.pop();
+    }
   });
 
   it("does not persist an executable proposal without a proposal-time journey revision", async () => {
@@ -8626,6 +8861,64 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).not.toContain("BEFORE_VIEW_RESET");
     expect(providerInput).toContain("CANONICAL_DB_USER");
   });
+
+  it("keeps canonical history written microseconds after the view-reset boundary", async () => {
+    mocks.chatViewClearedAt = {
+      shared: "2026-07-14T12:00:00.123100Z",
+      private: null,
+    };
+    pushTrustedHistoryPair({
+      index: 900,
+      userText: "결혼식은 가족 중심으로 준비해요 SYNTHETIC_AFTER_MICROSECOND_RESET",
+      assistantText: "확인한 조건으로 준비를 이어가요.",
+      createdAt: "2026-07-14T12:00:00.123900Z",
+    });
+    providerAfterPreGeneration(providerResult({ fullText: "준비 조건을 정리해볼게요." }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input))
+      .toContain("SYNTHETIC_AFTER_MICROSECOND_RESET");
+  });
+
+  it.each(["query_error", "transport_failure", "malformed_cursor"])(
+    "blocks provider context when the view-reset boundary has %s",
+    async (failure) => {
+      if (failure === "query_error") {
+        mocks.chatViewClearedAtError = {
+          code: "57014",
+          message: "synthetic boundary lookup timeout",
+        };
+      } else if (failure === "transport_failure") {
+        mocks.chatViewClearedAtThrows = true;
+      } else {
+        mocks.chatViewClearedAt.shared = "invalid synthetic cursor";
+      }
+      pushTrustedHistoryPair({
+        index: 900,
+        userText: "결혼 준비에서 이전 조건을 바꾸려고 해요 CLEARED_CONTEXT_FIXTURE",
+        assistantText: "이전 조건을 확인했어요.",
+        createdAt: "2026-07-14T00:00:00.000Z",
+      });
+      providerAfterPreGeneration(providerResult({ fullText: "synthetic response" }));
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(503);
+      expect(await response.json()).toMatchObject({
+        code: "CHAT_VIEW_BOUNDARY_UNAVAILABLE",
+        retryable: true,
+        retryPolicy: "same_request",
+      });
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(120);
+      expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({
+        failureCode: "CHAT_VIEW_BOUNDARY_UNAVAILABLE",
+      }));
+    },
+  );
 
   it("keeps the private lane when only the shared view-reset cursor moved", async () => {
     // 화면에서도 그렇다 — `chatStore` 의 `isAfterClearedAt` 는 shared 행에만 shared

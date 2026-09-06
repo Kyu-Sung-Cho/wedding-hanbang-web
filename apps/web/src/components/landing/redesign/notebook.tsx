@@ -1,47 +1,23 @@
 import type { ReactNode } from "react";
 
 /**
- * 랜딩의 노트 문법 — 공통 껍데기.
- *
- * 색·서체·장식 클래스는 `globals.css` 의 `랜딩 — 결혼 준비 노트` 블록에 있다.
- * 여기 있는 건 배치뿐이다.
- *
- * ## 왜 컴포넌트로 묶나
- *
- * 이 저장소엔 공유 UI 프리미티브가 0개다(Button/Card/Input 파일이 없다). 그래서
- * 색이 517종, 타입이 43종으로 갈라졌다. 랜딩 8개 섹션도 각자 다른 max-width 와
- * 각자 다른 세로 여백을 쓰고 있었다. 새 섹션이 자기 값을 발명하지 않게 여기서 막는다.
+ * 랜딩의 공통 배치·글자 크기. 색·서체는 globals.css의 landing-root 범위에 있다.
+ * 2026-09-06 사용자 제공 Main.dc.html·LandingMobile.dc.html 기준이다.
  */
 
 /**
- * 모든 섹션이 같은 폭을 쓴다.
- *
- * 2026-09-03: 1080 → 1240. 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)의 1440px
- * 화면에서 글이 x=122 에서 시작해 x=1318 에서 끝난다(내용 폭 1194px). 1080 이면
- * 히어로가 2단이 되는 순간 왼쪽 단이 좁아 H1 이 두 줄로 안 떨어진다 — 실제로 네 줄이
- * 됐다. 좌우 여백 32px 을 더해 1240 이 시안의 내용 폭과 맞는다.
+ * 데스크톱 내용 폭 1200px + 양쪽 32px. 모바일은 양쪽 18px.
  */
-export const shell = "mx-auto w-full max-w-[1240px] px-5 sm:px-8";
+export const shell = "mx-auto w-full max-w-[1264px] px-[18px] sm:px-8";
 
-/** 섹션 세로 리듬 — 한 단계만 쓴다. */
-/**
- * 섹션 세로 리듬 — 한 단계만 쓴다.
- *
- * 처음엔 py-24(96px)였다. 섹션 둘이 만나면 192px 이 생기고, 2단 배치에서 짧은 쪽
- * 아래가 비는 것과 겹쳐 1280px 실측에서 450px 짜리 구멍이 났다. 76px 로 줄인다.
- */
-export const band = "py-14 sm:py-[76px]";
+/** 모바일 44px, 데스크톱 92px. 연결되는 구역은 해당 섹션에서 여백을 줄인다. */
+export const band = "py-11 lg:py-[92px]";
 
 /**
- * 같은 리듬을 위아래로 나눠 쓸 때.
- *
- * 2026-09-03 시안의 끝 다크 밴드는 두 섹션(경계·마무리)이 **한 덩어리 어두운 띠**로
- * 이어진다. 둘 다 `band` 를 쓰면 사이에 152px 이 생겨 띠가 두 조각으로 읽히므로,
- * 위 섹션이 `bandTop` 을 아래 섹션이 `bandBottom` 을 갖고 가운데는 가는 선 하나가 나눈다.
- * **값은 같은 한 걸음이다** — 여기서 새 리듬을 만들지 마라.
+ * 끝의 경계·마무리는 같은 어두운 띠다. 바깥 여백만 나누고 가운데는 선으로 연결한다.
  */
-export const bandTop = "pt-14 sm:pt-[76px]";
-export const bandBottom = "pb-14 sm:pb-[76px]";
+export const bandTop = "pt-11 lg:pt-[92px]";
+export const bandBottom = "pb-12 lg:pb-24";
 
 type SectionProps = {
   id?: string;
@@ -56,17 +32,10 @@ type SectionProps = {
 };
 
 /**
- * 섹션 제목 크기.
- *
- * H1(clamp 2.4→3.6rem)보다 항상 작아야 한다. 이전 랜딩에서 신뢰·마무리 섹션이
- * H1보다 커져 위계가 뒤집힌 적이 있다. 최대값 2.9rem 이 그 사고를 구조적으로 막는다.
+ * 섹션 제목은 모바일 24px·데스크톱 36px, 고운돋움 400을 사용한다.
  */
 const sectionTitleShape =
-  // 최대값 2.9rem → 2.45rem(2026-09-03). 시안의 섹션 제목 첫 줄("할 일을 몰라서가
-  // 아니에요.")을 재니 398px 이고, Paperlogy 600 에 자간 -0.035em 이면 39px 에서
-  // 394px 이다. 잉크 높이로 재면 35px 이 나오는데 시안 서체가 우리보다 좁아 생기는
-  // 차이라, **줄이 어디서 끊기는지를 정하는 폭**을 기준으로 삼았다.
-  "text-balance text-[clamp(1.75rem,4.6vw,2.45rem)] font-semibold leading-[1.18] tracking-[-0.035em]";
+  "landing-display text-[24px] leading-[1.48] lg:text-[36px] lg:leading-[1.42]";
 
 export const sectionTitle = `${sectionTitleShape} text-[var(--color-paper-ink)]`;
 
@@ -87,7 +56,12 @@ export const sectionTitleOnInk = `${sectionTitleShape} text-[var(--color-paper-o
  * **글자**로 "화면이 정본을 그리는지"를 판정한다. 여기서 `value.split(…)` 를 손으로
  * 적으면 그 글자가 사라져 "카피에만 있고 아무도 안 그린다" 로 읽힌다.
  */
-export function TitleLines({ value }: { value: string }) {
+export function TitleLines({ value, mobileLastWord = false }: { value: string; mobileLastWord?: boolean }) {
+  // HTML 모바일 시안의 마지막 어절 줄바꿈. 데스크톱은 원래 한 문장으로 읽힌다.
+  const lastSpace = value.lastIndexOf(" ");
+  if (mobileLastWord && lastSpace > 0) {
+    return <>{value.slice(0, lastSpace)}{" "}<span className="block lg:inline">{value.slice(lastSpace + 1)}</span></>;
+  }
   return (
     <>
       {value.split("\n").map((line) => (
@@ -104,12 +78,12 @@ export function TitleLines({ value }: { value: string }) {
  * 섹션 제목보다 작고 본문보다 크다. 자기 곡선을 만들지 않게 여기에 둔다.
  */
 export const quoteText =
-  "text-[clamp(1.05rem,2.4vw,1.25rem)] font-medium leading-8";
+  "landing-display text-[16.5px] leading-[1.6] lg:text-[19px] lg:leading-[1.62]";
 
 export const bodyText =
-  "text-[clamp(1rem,1.9vw,1.125rem)] leading-[1.85] text-[var(--color-paper-ink-soft)]";
+  "text-[14px] leading-[1.76] text-[var(--color-paper-ink-soft)] lg:text-[16px] lg:leading-[1.78]";
 
-export const noteText = "text-[14px] leading-[1.75] text-[var(--color-paper-ink-faint)]";
+export const noteText = "text-[12.5px] leading-[1.65] text-[var(--color-paper-ink-faint)] lg:text-[13px]";
 
 /**
  * 섹션 눈썹 — **한 격식.**
@@ -118,14 +92,14 @@ export const noteText = "text-[14px] leading-[1.75] text-[var(--color-paper-ink-
  * `<Section>` 은 노란 테이프 이름표, 자기 `<section>` 을 여는 섹션은 손글씨 19px.
  * 시안은 전부 **12px 굵은 산세리프, 흐린 로즈브라운**이다.
  *
- * 색은 시안 픽셀 실측(#896765)과 같은 기존 토큰 `--color-rose-600`(#8F6662)이다 —
- * 새 색을 만들지 않았다. 자간은 0이다: 한글에 라틴 자간을 주면 글자가 흩어진다
+ * 작은 글씨의 대비를 위해 기존 `--color-rose-700`을 쓴다.
+ * 자간은 0이다: 한글에 라틴 자간을 주면 글자가 흩어진다
  * (`koreanLabelsHaveNoLatinTracking.test.ts`).
  *
  * 테이프 이름표는 히어로 한 장에만 남는다. 페이지에 이름표가 여럿이면 무엇이 제목인지
  * 흐려진다 — 그래서 시안이 하나로 줄인 것이다.
  */
-export const eyebrowText = "text-[12px] font-semibold text-[var(--color-rose-600)]";
+export const eyebrowText = "text-[12px] font-semibold text-[var(--color-rose-700)] lg:text-[13px]";
 
 /**
  * 같은 문체, 잉크 위에 얹는 색. 끝 다크 밴드의 작은 글씨(고지·단서)가 쓴다.

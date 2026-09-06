@@ -158,6 +158,62 @@ describe("Amora atomic mutation coverage", () => {
     expect(JSON.stringify(operation.result.toolOutput)).not.toContain("private family");
   });
 
+  it("keeps untouched fixed and custom budgets and recalculates only the actual remainder", () => {
+    const ctx = context();
+    ctx.weddingContext.progress = {
+      ...ctx.weddingContext.progress,
+      ring: { category: "ring", status: "completed", budget: 5_000_000, spent: 4_000_000 },
+      custom_ride: { category: "custom_ride", label: "차량 이동", status: "in_progress", budget: 1_000_000 },
+    } as ToolExecutionContext["weddingContext"]["progress"];
+    const untouched = structuredClone(ctx.weddingContext.progress);
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", {
+      total_budget: 50_000_000, allocations: [{ category: "venue", budget: 20_000_000 }],
+    }, ctx);
+    expectAtomicSuccess(operation);
+    applyAmoraAtomicToolResultToContext(operation.result, ctx);
+    expect(ctx.weddingContext.progress.ring).toEqual(untouched.ring);
+    expect(ctx.weddingContext.progress.custom_ride).toEqual(untouched.custom_ride);
+    expect(ctx.weddingContext.progress.reserve).toMatchObject({ budget: 24_000_000 });
+    expect(operation.result.toolOutput.remainder_to_reserve).toBe(24_000_000);
+  });
+
+  it("explicitly zeroes a former remainder when the new plan uses the whole total", () => {
+    const ctx = context();
+    Object.assign(ctx.weddingContext.progress, { reserve: { category: "reserve", status: "in_progress", budget: 30_000_000, spent: 1_000_000 } });
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", {
+      total_budget: 50_000_000, allocations: [{ category: "venue", budget: 50_000_000 }],
+    }, ctx);
+    expectAtomicSuccess(operation);
+    applyAmoraAtomicToolResultToContext(operation.result, ctx);
+    expect(ctx.weddingContext.progress.reserve).toMatchObject({ budget: 0, spent: 1_000_000, status: "in_progress" });
+  });
+
+  it.each([
+    { allocations: [{ category: "venue", budget: 48_000_000 }] },
+    { allocations: [{ category: "venue", budget: 40_000_000 }, { category: "reserve", budget: 8_000_000 }] },
+  ])("does not lower an explicit reserve or discard retained budgets to fit the total (%j)", ({ allocations }) => {
+    const ctx = context();
+    Object.assign(ctx.weddingContext.progress, { ring: { category: "ring", status: "not_started", budget: 5_000_000 } });
+    const before = structuredClone(ctx.weddingContext);
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { total_budget: 50_000_000, allocations }, ctx);
+    expect(operation.result.success).toBe(false);
+    expect(operation.domainMutation).toEqual({ kind: "none" });
+    expect(ctx.weddingContext).toEqual(before);
+  });
+
+  it("can apply a reserve-only or changed-total plan without replacing existing allocations", () => {
+    const ctx = context();
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", {
+      total_budget: 30_000_000, allocations: [{ category: "reserve", budget: 5_000_000 }],
+    }, ctx);
+    expectAtomicSuccess(operation);
+    applyAmoraAtomicToolResultToContext(operation.result, ctx);
+    expect(ctx.weddingContext.budget).toBe(30_000_000);
+    expect(ctx.weddingContext.progress.venue).toMatchObject({ budget: 10_000_000 });
+    expect(ctx.weddingContext.progress.reserve).toMatchObject({ budget: 20_000_000 });
+    expect(operation.result.toolOutput.remainder_to_reserve).toBe(15_000_000);
+  });
+
   it("creates deterministic custom categories and updates checklist entries with entry CAS", () => {
     const ctx = context();
     const category = buildAmoraAtomicToolOperation(

@@ -1,11 +1,19 @@
 import Link from "next/link";
 
-import Logo from "@/components/ui/Logo";
+import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, MessageCircle, Settings, Users, Wallet } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
-// `/price`와 같은 이유로 루트 레이아웃만 쓰지 않는다 — 검색 유입이 들어오는 공개
-// 표면인데 로고·이동 경로·정책 링크가 없으면 사용자가 여기서 막힌다.
-// 클라이언트 JS는 0으로 둔다. 읽는 화면이라 상호작용이 필요 없다.
+// 공개 읽기 화면은 인증 상태를 요청하거나 사용자·일정·알림을 가정하지 않는다.
+const SERVICE_LINKS = [
+  { href: "/chat", label: "아모라", icon: MessageCircle },
+  { href: "/lounge", label: "웨딩 라운지", icon: LayoutDashboard },
+  { href: "/checklist", label: "웨딩 체크리스트", icon: ClipboardCheck },
+  { href: "/schedule", label: "일정", icon: CalendarCheck },
+  { href: "/budget", label: "예산", icon: Wallet },
+  { href: "/community", label: "커뮤니티", icon: Users },
+  { href: "/manners", label: "예절 가이드", icon: BookOpen },
+  { href: "/settings", label: "설정", icon: Settings },
+] as const;
 
 const HEADER_LINKS = [
   { href: "/start-here", label: "지금 뭐부터?" },
@@ -22,46 +30,56 @@ const POLICY_LINKS = [
 
 export default function MannersLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col bg-[#FBF8F2]">
-      <header className="border-b border-[var(--hb-primary)]/10 bg-[#FBF8F2]">
-        <div className="mx-auto flex w-full max-w-[1320px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-6 lg:px-8">
-          <Link
-            {...weddingLinkProps()}
-            prefetch={false}
-            className="inline-flex shrink-0 items-center"
-            aria-label="웨딩한방 홈으로 이동"
-          >
-            <Logo size="sm" />
-          </Link>
-          <nav
-            aria-label="주요 메뉴"
-            className="flex items-center gap-4 text-[13px] font-semibold text-[var(--hb-text-strong)] sm:gap-5 sm:text-sm"
-          >
-            {HEADER_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} prefetch={false} className="hover:text-[#8F5150]">
-                {link.label}
-              </Link>
+    <div className="planning-workspace min-h-screen bg-[var(--amora-bg)] text-[var(--amora-soft)] [&_a:focus-visible]:outline-2 [&_a:focus-visible]:outline-offset-2 [&_a:focus-visible]:outline-[var(--hb-focus-ring)]">
+      <a href="#manners-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-[10px] focus:bg-white focus:p-3">본문으로 바로가기</a>
+      <aside className="fixed inset-y-0 left-0 hidden w-[220px] flex-col border-r border-[var(--amora-line)] bg-white pt-[22px] md:flex">
+        <Link {...weddingLinkProps()} prefetch={false} aria-label="웨딩한방 홈으로 이동" className="planning-display mx-6 flex min-h-[54px] items-start gap-2 pt-[6px] text-[17px] text-[var(--amora-ink)]">
+          <span aria-hidden className="flex size-[26px] items-center justify-center rounded-[7px] bg-[var(--amora-ink)] font-sans text-[13px] font-bold text-white">H</span>웨딩한방
+        </Link>
+        <nav aria-label="서비스 메뉴" className="flex-1 overflow-y-auto px-[14px]">
+          <ul className="space-y-1">
+            {SERVICE_LINKS.map(({ href, label, icon: Icon }) => (
+              <li key={href}>
+                <Link {...weddingLinkProps(href)} prefetch={false} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-11 items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-[14.5px] ${href === "/manners" ? "bg-[var(--amora-ink)] font-semibold text-white" : "hover:bg-[var(--amora-warm)]"}`}>
+                  <Icon aria-hidden className="size-4 shrink-0" />{label}
+                </Link>
+              </li>
             ))}
-          </nav>
+          </ul>
+        </nav>
+        <div className="mx-5 mb-6 border-t border-[var(--amora-line)] pt-4 text-[12px] leading-[1.7] text-[var(--amora-muted)]">
+          <p>지역·집안마다 다른 관행을<br />출처와 함께 읽는 안내예요.</p>
+          <Link href="/start-here" prefetch={false} className="mt-1 inline-flex min-h-11 items-center font-medium text-[var(--amora-accent)]">처음 오셨나요?</Link>
         </div>
-      </header>
+      </aside>
+      <div className="flex min-h-screen min-w-0 flex-col md:ml-[220px]">
+      <main id="manners-main" className="min-w-0 flex-1">{children}</main>
 
-      <main className="flex-1">{children}</main>
-
-      <footer className="border-t border-[var(--hb-primary)]/10 bg-[#FBF8F2]">
-        <div className="mx-auto w-full max-w-[1320px] px-4 py-6 sm:px-6 lg:px-8">
-          <p className="text-[13px] font-medium text-[var(--hb-text-strong)]/70">
+      <footer className="border-t border-[var(--amora-line)] pb-24 md:pb-0">
+        <div className="mx-auto w-full max-w-[1220px] px-[18px] py-6 md:px-9 xl:px-16">
+          <p className="text-[13px] font-medium text-[var(--amora-muted)]">
             결혼 준비, 아모라와 처음부터 끝까지.
           </p>
-          <nav aria-label="정책" className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-[var(--hb-text-muted)]">
+          <nav aria-label="공개 안내" className="mt-2 flex flex-wrap gap-x-5 text-[12.5px] text-[var(--amora-accent)]">
+            {HEADER_LINKS.map(link => <Link key={link.href} href={link.href} prefetch={false} className="inline-flex min-h-11 items-center">{link.label}</Link>)}
+          </nav>
+          <nav aria-label="정책" className="flex flex-wrap gap-x-4 text-[12px] text-[var(--amora-muted)]">
             {POLICY_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} prefetch={false} className="hover:text-[#8F5150]">
+              <Link key={link.href} href={link.href} prefetch={false} className="inline-flex min-h-11 items-center">
                 {link.label}
               </Link>
             ))}
           </nav>
         </div>
       </footer>
+      </div>
+      <nav aria-label="모바일 서비스 메뉴" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--amora-line)] bg-[var(--amora-bg)] px-2 pb-[env(safe-area-inset-bottom)] md:hidden">
+        {SERVICE_LINKS.filter(link => ["/chat", "/lounge", "/checklist", "/manners"].includes(link.href)).map(({ href, label, icon: Icon }) => (
+          <Link key={href} {...weddingLinkProps(href)} prefetch={false} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-[66px] min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[10.5px] ${href === "/manners" ? "font-semibold text-[var(--amora-rose-deep)]" : "text-[var(--amora-muted)]"}`}>
+            <Icon aria-hidden className="size-[19px]" />{label}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

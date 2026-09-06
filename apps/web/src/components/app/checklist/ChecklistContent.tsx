@@ -133,33 +133,33 @@ export default function ChecklistContent() {
   const remaining = Math.max(0, summary.total - summary.done);
 
   return (
-    <main className="mx-auto w-full max-w-[1120px] px-4 py-7 sm:px-6 sm:py-10">
-      <header className="border-b border-[var(--hb-hairline)] pb-7">
-        <p className="text-[12px] font-semibold tracking-[0.14em] text-[var(--hb-accent-hover)]">WEDDING CHECKLIST</p>
+    <div className="mx-auto w-full max-w-[1220px] px-[18px] py-6 lg:px-9 lg:py-8">
+      <header className="border-b border-[var(--amora-line)] pb-6">
+        <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--amora-rose-deep)]">WEDDING CHECKLIST</p>
         <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
-            <h1 className="text-[var(--hb-text-strong)]">
+            <h2 className="planning-display text-[22px] leading-[1.4] text-[var(--amora-ink)] md:text-[26px]">
               웨딩 체크리스트
-            </h1>
-            <p className="mt-2 max-w-[620px] text-[14px] leading-7 text-[var(--hb-text-body)] sm:text-[15px]">
+            </h2>
+            <p className="mt-2 max-w-[620px] text-[13px] leading-[1.8] text-[var(--amora-muted)] md:text-[14px]">
               첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
-          <div className="min-w-[240px] rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-4">
+          <div className="min-w-[240px] rounded-[14px] border border-[var(--amora-line)] bg-white px-5 py-4">
             <div className="flex items-end justify-between gap-4">
               <span className="text-[13px] font-medium text-[var(--hb-text-body)]">전체 진행률</span>
               <strong className="text-[30px] font-semibold leading-none text-[var(--hb-text-strong)]">{summary.percent}%</strong>
             </div>
-            <div
-              className="mt-3 h-2 overflow-hidden rounded-full bg-[#efe9dc]"
+            <progress
+              className="mt-3 block h-2 w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-rose)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-rose)]"
+              value={summary.percent}
+              max={100}
               role="progressbar"
               aria-label="전체 체크리스트 진행률"
               aria-valuemin={0}
               aria-valuemax={100}
               aria-valuenow={summary.percent}
-            >
-              <div className="h-full rounded-full bg-[var(--hb-primary)] transition-[width]" style={{ width: `${summary.percent}%` }} />
-            </div>
+            />
             <p className="mt-2 text-[12px] text-[var(--hb-text-body)]">
               {summary.done}개 완료 · {remaining}개 남음
               {summary.skippedCategories > 0 ? ` · ${summary.skippedCategories}개 분야 제외` : ""}
@@ -187,7 +187,7 @@ export default function ChecklistContent() {
               type="button"
               aria-pressed={filter === item.value}
               onClick={() => setFilter(item.value)}
-              className={`shrink-0 rounded-[6px] border px-4 py-2 text-[13px] font-semibold transition ${
+              className={`min-h-11 shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${
                 filter === item.value
                   ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
                   : "border-[#dcd4c3] bg-white text-[var(--hb-text-body)] hover:border-[#9d6f36]"
@@ -201,7 +201,7 @@ export default function ChecklistContent() {
 
       <section className="mt-6" aria-labelledby="all-checklist-heading">
         <div className="flex items-center justify-between">
-          <h2 id="all-checklist-heading" className="text-[var(--hb-text-strong)]">전체 준비</h2>
+          <h2 id="all-checklist-heading" className="planning-display text-[20px] leading-[1.4] text-[var(--amora-ink)]">전체 준비</h2>
           <span className="text-[13px] text-[var(--hb-text-body)]">{categories.length}개 분야</span>
         </div>
 
@@ -212,7 +212,7 @@ export default function ChecklistContent() {
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
               return (
-                <li key={template.key} className="rounded-[6px] border border-[#e5dece] bg-white p-4 shadow-[var(--shadow-raised)]">
+                <li key={template.key} className="rounded-[13px] border border-[var(--amora-line)] bg-white p-[15px]">
                   <button
                     type="button"
                     onClick={() => selectCategory(template.key)}
@@ -243,16 +243,14 @@ export default function ChecklistContent() {
                         </span>
                       </span>
                     </div>
-                    {status !== "not_applicable" && (
-                      <span className="mt-3 block h-1.5 overflow-hidden rounded-full bg-[#f0ece4]">
-                        <span className="block h-full rounded-full bg-[var(--hb-primary)]" style={{ width: `${percent}%` }} />
-                      </span>
+                    {status !== "not_applicable" && !declared && (
+                      <progress value={percent} max={100} aria-label={`${template.label} 항목 완료율`} className="mt-3 block h-1.5 w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-rose)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-rose)]" />
                     )}
                   </button>
                   {guide && (
                     <Link
                       {...weddingLinkProps(`/manners/${guide.slug}`)}
-                      className="mt-3 inline-flex items-center text-[12px] font-semibold text-[#8f5150] underline decoration-[#8f5150]/35 underline-offset-4"
+                      className="mt-1 inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-rose-deep)] underline decoration-[var(--amora-rose-pale)] underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
                     >
                       관련 예절 가이드 보기
                     </Link>
@@ -262,9 +260,9 @@ export default function ChecklistContent() {
             })}
           </ul>
         ) : (
-          <div className="mt-3 rounded-[6px] border border-dashed border-[#dcd4c3] bg-[var(--hb-surface-page)] px-5 py-12 text-center">
+          <div className="mt-3 rounded-[13px] border border-dashed border-[var(--amora-line)] bg-white px-5 py-12 text-center">
             <p className="text-[14px] font-medium text-[var(--hb-text-body)]">검색 조건에 맞는 준비 항목이 없어요.</p>
-            <button type="button" onClick={() => { setFilter("all"); setQuery(""); }} className="mt-3 text-[13px] font-semibold text-[var(--hb-accent-hover)] underline underline-offset-4">
+            <button type="button" onClick={() => { setFilter("all"); setQuery(""); }} className="mt-3 min-h-11 rounded-md text-[13px] font-semibold text-[var(--hb-accent-hover)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
               전체 목록 보기
             </button>
           </div>
@@ -272,10 +270,11 @@ export default function ChecklistContent() {
       </section>
 
       <CategoryChecklistModal
+        presentation="planning"
         categoryKey={selectedCategory ?? ""}
         isOpen={Boolean(selectedCategory)}
         onClose={() => selectCategory(null)}
       />
-    </main>
+    </div>
   );
 }

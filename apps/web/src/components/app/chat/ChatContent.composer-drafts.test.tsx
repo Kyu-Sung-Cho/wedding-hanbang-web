@@ -54,6 +54,7 @@ const mocks = vi.hoisted(() => ({
     updated_at: number;
   },
   queryPrefill: null as string | null,
+  queryScope: null as string | null,
   startHereHandoffId: null as string | null,
   isDemo: false,
 }));
@@ -62,6 +63,7 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => {
     const params = new URLSearchParams();
     if (mocks.queryPrefill) params.set("prefill", mocks.queryPrefill);
+    if (mocks.queryScope) params.set("scope", mocks.queryScope);
     if (mocks.startHereHandoffId) {
       params.set("startHereHandoff", mocks.startHereHandoffId);
     }
@@ -225,6 +227,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.partnerLinked = true;
     mocks.partnerTyping = null;
     mocks.queryPrefill = null;
+    mocks.queryScope = null;
     mocks.startHereHandoffId = null;
     mocks.isDemo = false;
     mocks.sendMessage.mockResolvedValue({
@@ -305,6 +308,29 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.textContent).toContain("체험용 함께 대화");
     expect(container.textContent).toContain("계정의 준비 기록에 남지 않아요");
     expect(container.textContent).not.toContain("서비스에 저장되며 상대방에게는 보이지 않아요");
+  });
+
+  it("opens an explicit private-scope link without sending and preserves the user's later scope choice", async () => {
+    mocks.queryScope = "private";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.textContent).toContain("서비스에 저장되며 상대방에게는 보이지 않아요");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    const shared = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("함께 대화"));
+    await act(async () => shared?.click());
+    await act(async () => root.render(<ChatContent />));
+    expect(shared?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it.each(["demo", "missing-role"])("does not enter private through a URL with %s", async (kind) => {
+    mocks.queryScope = "private";
+    mocks.isDemo = kind === "demo";
+    if (kind === "missing-role") mocks.profileRole = null;
+    await act(async () => root.render(<ChatContent />));
+    const privateScope = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("나만 (상담)"));
+    expect(privateScope?.getAttribute("aria-pressed")).toBe("false");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it("never offers an Amora reply suggestion while the recipient is the partner", async () => {

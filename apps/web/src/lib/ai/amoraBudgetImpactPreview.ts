@@ -73,10 +73,13 @@ function snapshotBudget(
   let allocatedBudget = 0;
   let recordedSpend = 0;
   const categories = new Map<string, CategorySnapshot>();
+  const progress = context.weddingContext.progress as Record<string, unknown>;
+  const hiddenKeys = new Set(Array.isArray(progress.__hidden) ? progress.__hidden : []);
   for (const [key, candidate] of Object.entries(
-    context.weddingContext.progress as Record<string, unknown>,
+    progress,
   )) {
     if (key.startsWith("__") || !isRecord(candidate)) continue;
+    if (Object.hasOwn(CATEGORY_LABELS, key) && hiddenKeys.has(key)) continue;
     if (
       (candidate.budget !== undefined && !isValidWeddingWonAmount(candidate.budget))
       || (candidate.spent !== undefined && !isValidWeddingWonAmount(candidate.spent))

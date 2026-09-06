@@ -1046,35 +1046,37 @@ export async function DELETE(request: Request) {
       );
     }
 
+    if (mode === "view_reset_shared" || mode === "view_reset_private") {
+      const scope = mode === "view_reset_shared" ? "shared" : "private";
+      const { data, error } = await supabase.rpc("reset_own_amora_chat_view", {
+        p_couple_id: coupleId,
+        p_scope: scope,
+      });
+      if (error || !isRecord(data) || data.success !== true || data.scope !== scope
+        || typeof data.clearedAt !== "string" || !Number.isFinite(Date.parse(data.clearedAt))
+        || !Number.isSafeInteger(data.privacyEpoch) || Number(data.privacyEpoch) < 1) {
+        const denied = error?.code === "42501";
+        return NextResponse.json(
+          {
+            error: denied ? "이 대화를 정리할 권한이 없습니다." : "대화를 안전하게 정리하지 못했어요. 다시 시도해주세요.",
+            code: denied ? "CHAT_VIEW_RESET_SCOPE_DENIED" : "CHAT_VIEW_RESET_UNAVAILABLE",
+            retryable: !denied,
+          },
+          { status: denied ? 403 : 503, headers: PRIVATE_NO_STORE_HEADERS },
+        );
+      }
+      return NextResponse.json(
+        { success: true, mode, clearedAt: data.clearedAt },
+        { headers: PRIVATE_NO_STORE_HEADERS },
+      );
+    }
+
     const { ok } = await verifyCoupleOwnership(user!.id, coupleId);
     if (!ok) {
       return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
     }
 
-    const admin = createAdminClient();
-
-    const now = new Date().toISOString();
-
     switch (mode) {
-      case "view_reset_shared": {
-        // 본인 프로필의 timestamp만 업데이트. DB의 메시지는 그대로.
-        const { error } = await admin
-          .from("profiles")
-          .update({ shared_chat_cleared_at: now })
-          .eq("id", user!.id);
-        if (error) throw error;
-        return NextResponse.json({ success: true, mode, clearedAt: now });
-      }
-
-      case "view_reset_private": {
-        const { error } = await admin
-          .from("profiles")
-          .update({ private_chat_cleared_at: now })
-          .eq("id", user!.id);
-        if (error) throw error;
-        return NextResponse.json({ success: true, mode, clearedAt: now });
-      }
-
       case "delete_shared": {
         // 공유 기록의 실제 삭제는 양쪽 동의가 필요한 clear-request 흐름만 허용한다.
         return NextResponse.json(

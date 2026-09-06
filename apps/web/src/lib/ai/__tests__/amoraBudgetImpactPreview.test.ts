@@ -251,6 +251,31 @@ describe("Amora budget impact preview", () => {
     })).toBeNull();
   });
 
+  it("previews the retained budgets and zeroed old reserve exactly as the budget page will show", () => {
+    const ctx = context();
+    Object.assign(ctx.weddingContext.progress, { reserve: { category: "reserve", status: "not_started", budget: 20_000_000 } });
+    const preview = buildAmoraBudgetImpactPreview({
+      action: action("apply_budget_plan", { total_budget: 30_000_000, allocations: [{ category: "venue", budget: 20_000_000 }] }),
+      sourceRevision: 12, context: ctx,
+    });
+    expect(preview?.proposed).toMatchObject({ totalBudget: 30_000_000, allocatedBudget: 30_000_000, unallocatedBudget: 0, recordedSpend: 5_000_000 });
+    expect(preview?.categories).toContainEqual(expect.objectContaining({ key: "reserve", currentBudget: 20_000_000, proposedBudget: 0 }));
+    expect(preview?.warnings).not.toContain("allocated_over_total");
+  });
+
+  it("excludes hidden fixed amounts from both current and proposed totals without deleting them", () => {
+    const ctx = context();
+    Object.assign(ctx.weddingContext.progress, { __hidden: ["studio"] });
+    const before = structuredClone(ctx.weddingContext.progress);
+    const preview = buildAmoraBudgetImpactPreview({
+      action: action("apply_budget_plan", { total_budget: 30_000_000, allocations: [{ category: "venue", budget: 20_000_000 }] }),
+      sourceRevision: 13, context: ctx,
+    });
+    expect(preview?.current.allocatedBudget).toBe(20_000_000);
+    expect(preview?.proposed).toMatchObject({ allocatedBudget: 30_000_000, unallocatedBudget: 0 });
+    expect(ctx.weddingContext.progress).toEqual(before);
+  });
+
   it("binds persisted preview data to the exact action digest and journey revision", () => {
     const pending = action("update_budget", { total_budget: 30_000_000 });
     const preview = buildAmoraBudgetImpactPreview({

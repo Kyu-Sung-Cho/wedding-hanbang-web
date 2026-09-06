@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
@@ -20,6 +20,10 @@ export default function CommunityAmoraLauncher() {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const overlayWasOpen = useRef(false);
+  const authRequestGeneration = useRef(0);
   const communityPath = stripWeddingBasePath(pathname);
   const isLauncherSuppressedRoute =
     communityPath === "/start-here" ||
@@ -31,13 +35,26 @@ export default function CommunityAmoraLauncher() {
   });
 
   useEffect(() => {
+    const overlayOpen = chatPanelOpen || loginPromptOpen;
+    // 인증 조회 중 disabled로 잃은 초점과 패널 뒤 다시 생긴 버튼을 모두 복구한다.
+    if (overlayWasOpen.current && !overlayOpen) launcherRef.current?.focus();
+    overlayWasOpen.current = overlayOpen;
+  }, [chatPanelOpen, loginPromptOpen]);
+
+  useEffect(() => {
     if (!isLauncherSuppressedRoute) return;
+    authRequestGeneration.current += 1;
+    setCheckingAuth(false);
+    setAuthError(null);
     setChatPanelOpen(false);
     setLoginPromptOpen(false);
   }, [isLauncherSuppressedRoute]);
 
+  useEffect(() => () => { authRequestGeneration.current += 1; }, []);
+
   async function handleOpenAmora() {
     if (checkingAuth) return;
+    setAuthError(null);
 
     if (isPreviewStubMode()) {
       setLoginPromptOpen(true);
@@ -45,9 +62,12 @@ export default function CommunityAmoraLauncher() {
     }
 
     setCheckingAuth(true);
+    const requestGeneration = ++authRequestGeneration.current;
+    const isCurrentRequest = () => requestGeneration === authRequestGeneration.current;
     try {
       if (document.cookie.includes("demo_mode=true")) {
         await initialize({ force: true });
+        if (!isCurrentRequest()) return;
         setChatPanelOpen(true);
         return;
       }
@@ -56,22 +76,30 @@ export default function CommunityAmoraLauncher() {
         cache: "no-store",
         credentials: "include",
       });
+      if (!isCurrentRequest()) return;
 
       if (!res.ok) {
-        setLoginPromptOpen(true);
-        return;
+        if (res.status === 401) {
+          setLoginPromptOpen(true);
+          return;
+        }
+        throw new Error("auth_check_failed");
       }
 
       const data = (await res.json().catch(() => null)) as { user?: unknown } | null;
+      if (!isCurrentRequest()) return;
       if (!data?.user) {
         setLoginPromptOpen(true);
         return;
       }
 
       await initialize({ force: true });
+      if (!isCurrentRequest()) return;
       setChatPanelOpen(true);
+    } catch {
+      if (isCurrentRequest()) setAuthError("연결을 확인하지 못했어요. 잠시 후 아모라 버튼을 다시 눌러 주세요.");
     } finally {
-      setCheckingAuth(false);
+      if (isCurrentRequest()) setCheckingAuth(false);
     }
   }
 
@@ -81,13 +109,25 @@ export default function CommunityAmoraLauncher() {
     <>
       <ChatSidePanel isOpen={chatPanelOpen} onClose={() => setChatPanelOpen(false)} />
 
+      {authError && !chatPanelOpen && (
+        <p
+          id="community-amora-auth-error"
+          role="alert"
+          className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 max-w-[calc(100vw-2rem)] rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] p-3 text-sm leading-relaxed text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] md:bottom-24 md:right-6 md:max-w-xs"
+        >
+          {authError}
+        </p>
+      )}
+
       {!chatPanelOpen && (
         <button
+          ref={launcherRef}
           type="button"
           onClick={handleOpenAmora}
           className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--hb-surface-hover)] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
+          aria-describedby={authError ? "community-amora-auth-error" : undefined}
           // 투어 타겟(landing-amora)은 2026-07-29에 랜딩의 아모라 블록으로 옮겼다.
           // 같은 이름이 두 곳에 있으면 스포트라이트가 어느 쪽을 잡을지 DOM 순서에
           // 달리게 되고, 첫 방문자에게는 작은 버튼보다 무엇을 해주는지 적힌 블록을

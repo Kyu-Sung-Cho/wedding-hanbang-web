@@ -7,12 +7,13 @@
  * "아모라를 불러오지 못했어요" 로 시작했다. 하네스는 인사를 요청하지 않아 하루 종일
  * 못 봤고, 브라우저로 새 커플을 열어서야 봤다.
  *
- * 여기서는 라우트의 키 템플릿과 저장소의 최신 마이그레이션 정의를 나란히 읽어
- * **둘이 같은 모양**인지 잰다. 어느 쪽을 바꾸든 다른 쪽을 함께 바꿔야 초록불이다.
+ * 라우트가 호출하는 실제 키 생성기와 DB의 허용 모양을 함께 확인한다.
+ * 초기화 뒤에는 이미 허용된 lifecycle 키를 쓰고, greeting 접미사 우회는 금지한다.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { buildAmoraInitialGreetingRequestKey } from "@/lib/ai/amoraInitialGreetingKey";
 
 const WEB_ROOT = join(__dirname, "..", "..", "..", "..", "..");
 const REPO_ROOT = join(WEB_ROOT, "..", "..");
@@ -27,12 +28,17 @@ function latestMigrationDefining(needle: string): string {
 
 describe("initial greeting request key", () => {
   const route = readFileSync(join(WEB_ROOT, "src", "app", "api", "chat", "route.ts"), "utf8");
-  const routeKeyLine = route.match(/requestKind === "initial_greeting"\s*\n\s*\? `greeting:\$\{actorId\}([^`]*)`/u);
-
-  it("라우트는 greeting:<actorId> 를 쓴다", () => {
-    expect(routeKeyLine, "greeting key template not found in route.ts").not.toBeNull();
-    // 뒤에 아무것도 안 붙는다 — 커플 id 를 붙이면 DB 가 거부한다.
-    expect(routeKeyLine?.[1] ?? "(missing)").toBe("");
+  it("처음에는 정확한 greeting 키, 초기화 뒤에는 허용된 lifecycle 키를 쓴다", () => {
+    expect(route).toMatch(/requestKind === "initial_greeting"\s*\? buildAmoraInitialGreetingRequestKey\(/u);
+    const input = {
+      actorId: "00000000-0000-4000-8000-000000000001",
+      coupleId: "00000000-0000-4000-8000-000000000002",
+      visibility: "shared" as const,
+      resetAt: null,
+    };
+    expect(buildAmoraInitialGreetingRequestKey(input)).toBe(`greeting:${input.actorId}`);
+    expect(buildAmoraInitialGreetingRequestKey({ ...input, resetAt: "2026-09-05T12:00:00Z" }))
+      .toMatch(/^lifecycle:[a-f0-9]{64}$/u);
   });
 
   it("DB 클레임 함수의 인사 키 규칙이 정확히 그 모양이다", () => {

@@ -264,16 +264,23 @@ export function invalidateCommunityPushNavigationForAuthChange() {
  * 로그아웃 전에 서버 바인딩 또는 기기 토큰 중 적어도 하나의 해제를 확인한다.
  * 둘 다 실패하면 계정 전환을 중단한다.
  */
-export async function releasePushNotificationsForCurrentSession() {
+export async function releasePushNotificationsForCurrentSession(isCurrentSession?: () => boolean) {
+  const assertCurrentSession = () => {
+    if (isCurrentSession && !isCurrentSession()) throw new Error("API_SESSION_OWNER_MISMATCH");
+  };
+  assertCurrentSession();
   invalidateCommunityPushNavigationForAuthChange();
   const { data: { user }, error: userError } = await supabase.auth.getUser();
+  assertCurrentSession();
   const [currentToken, installationId] = await Promise.all([
     SecureStore.getItemAsync(PUSH_BOUND_TOKEN_KEY),
     SecureStore.getItemAsync(PUSH_INSTALLATION_ID_KEY),
   ]);
+  assertCurrentSession();
 
   const result = await releasePushDeliveryOwnership({
     releaseServerToken: async () => {
+      assertCurrentSession();
       if (userError) {
         throw new Error(`Push token user lookup failed: ${userError.message}`);
       }
@@ -293,10 +300,11 @@ export async function releasePushNotificationsForCurrentSession() {
       const { error } = await supabase.rpc("release_mobile_push_token");
       if (error) throw new Error(`Push token release failed: ${error.message}`);
     },
-    unregisterDeviceToken: () => Notifications.unregisterForNotificationsAsync(),
-    clearCachedNotifications: clearCachedNotificationState,
+    unregisterDeviceToken: () => { assertCurrentSession(); return Notifications.unregisterForNotificationsAsync(); },
+    clearCachedNotifications: () => { assertCurrentSession(); return clearCachedNotificationState(); },
   });
 
+  assertCurrentSession();
   await SecureStore.deleteItemAsync(PUSH_BOUND_TOKEN_KEY).catch(() => undefined);
   return result;
 }

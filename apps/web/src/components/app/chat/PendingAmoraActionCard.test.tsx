@@ -9,6 +9,11 @@ import PendingAmoraActionCard, {
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
 import type { BudgetImpactPreview } from "@hanbang/shared";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { BUDGET_CATEGORY_KEYS, WEDDING_TOOLS } from "@/lib/ai/tools";
+import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
+import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ChatMessage, PendingAmoraAction } from "@/types/database.types";
 
@@ -139,7 +144,7 @@ describe("PendingAmoraActionCard", () => {
     expect(container.textContent).not.toContain("30000000");
     const buttons = container.querySelectorAll("button");
     expect(buttons).toHaveLength(2);
-    expect(buttons[0]?.getAttribute("aria-label")).toBe("확인한 내용을 이대로 적용");
+    expect(buttons[0]?.getAttribute("aria-label")).toBe("변경 내용 확인하기");
     // 문구는 모바일과 같게 맞췄다. **접근성 이름이 보이는 글자를 담아야 한다** —
     // 예전에는 보이는 글자가 "이번 화면에서 숨기기" 인데 이름은 "…에서만 숨기기" 라
     // 음성으로 보이는 대로 불러도 그 버튼이 안 잡혔다(WCAG 2.5.3 Label in Name).
@@ -150,6 +155,11 @@ describe("PendingAmoraActionCard", () => {
     expect(dismissLabel, "접근성 이름이 보이는 글자를 담지 않는다").toContain(dismissText);
 
     await act(async () => buttons[0]?.click());
+    expect(fetch).not.toHaveBeenCalled();
+    expect(onApply).not.toHaveBeenCalled();
+    const sheetConfirm = document.querySelector<HTMLButtonElement>('[role="dialog"] button[data-amora-confirm]');
+    expect(sheetConfirm?.getAttribute("aria-label")).toBe("확인한 내용을 이대로 적용");
+    await act(async () => sheetConfirm?.click());
     await act(async () => Promise.resolve());
     expect(onApply).toHaveBeenCalledWith(singleAction.actionId);
     expect(fetch).toHaveBeenCalledWith(
@@ -221,6 +231,82 @@ describe("PendingAmoraActionCard", () => {
     expect(container.textContent).not.toContain("결제액");
   });
 
+  it.each(["canonical server proposal", "22-row layout stress"])("shows every allocation in the card and approval sheet: %s", async (scenario) => {
+    const categories = scenario === "canonical server proposal"
+      ? BUDGET_CATEGORY_KEYS.map((key) => ({ key, label: new Map(Object.entries(PLANNING_CATEGORY_LABELS)).get(key)! }))
+      : [...CATEGORY_CHECKLISTS, { key: "reserve", label: PLANNING_CATEGORY_LABELS.reserve }];
+    const input = { total_budget: categories.length * 1_000_000, allocations: categories.map(({ key }) => ({ category: key, budget: 1_000_000 })), intake_summary: "사용자가 확인한 합성 배분안" };
+    let plan: PendingAmoraAction = {
+      ...action,
+      tool: "apply_budget_plan",
+      input,
+      ...getAmoraToolOperationIdentity("apply_budget_plan", input),
+      confirmation: "각 분야에 100만원씩 배정할까요?",
+      issuedAt: Date.now(),
+      expiresAt: Date.now() + 60_000,
+    };
+    let preview: BudgetImpactPreview = {
+      ...budgetImpactPreview,
+      tool: "apply_budget_plan",
+      inputDigest: plan.inputDigest,
+      categories: categories.map(({ key, label }) => ({
+        key, label, currentBudget: 0, proposedBudget: 1_000_000,
+        currentRecordedSpend: 0, proposedRecordedSpend: 0,
+      })),
+    };
+    if (scenario === "canonical server proposal") {
+      const parsed = extractAmoraPendingAction({
+        text: `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input })}[/pending_action]`,
+        allowedTools: WEDDING_TOOLS,
+        now: Date.now(),
+        createActionId: () => action.actionId,
+      });
+      expect(parsed.pendingAction).not.toBeNull();
+      plan = parsed.pendingAction!;
+      const generatedPreview = buildAmoraBudgetImpactPreview({
+        action: plan,
+        sourceRevision: 5,
+        context: {
+          coupleId: "10000000-0000-4000-8000-000000000001",
+          requestKey: "chat:20000000-0000-4000-8000-000000000001:30000000-0000-4000-8000-000000000001",
+          weddingContext: { weddingDate: null, budget: 0, venue: null, progress: {} },
+        },
+      });
+      expect(generatedPreview).not.toBeNull();
+      preview = generatedPreview!;
+      expect(preview.categories).toHaveLength(BUDGET_CATEGORY_KEYS.length);
+      for (const { label } of categories) expect(plan.confirmation).toContain(label);
+    }
+    const onApply = vi.fn();
+    await act(async () => root.render(
+      <PendingAmoraActionCard action={plan} impactPreview={preview}
+        messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" disabledReason={null}
+        isApplying={false} onApply={onApply} onDismiss={vi.fn()} />,
+    ));
+    const details = container.querySelector("details")!;
+    await act(async () => details.querySelector("summary")!.click());
+    expect(details.open).toBe(true);
+    expect(details.querySelectorAll("li")).toHaveLength(categories.length);
+    expect(details.textContent).toContain(PLANNING_CATEGORY_LABELS.reserve);
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]')!.click());
+    const dialog = document.querySelector('[role="dialog"]')!;
+    expect(dialog.textContent).toContain(plan.confirmation);
+    const sheetDetails = dialog.querySelector("details")!;
+    await act(async () => sheetDetails.querySelector("summary")!.click());
+    expect(sheetDetails.open).toBe(true);
+    expect(sheetDetails.querySelectorAll("li")).toHaveLength(categories.length);
+    for (const { label } of categories) expect(sheetDetails.textContent).toContain(label);
+    expect(sheetDetails.textContent?.match(/배정 예산 0원 → 100만원/g)).toHaveLength(categories.length);
+    expect(dialog.textContent).toContain("결제 완료를 뜻하지 않아요");
+    expect(fetch).not.toHaveBeenCalled();
+    expect(onApply).not.toHaveBeenCalled();
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ applicationGranted: true, retryAfterMs: 0 }), { status: 200 }));
+    await act(async () => dialog.querySelector<HTMLButtonElement>("button[data-amora-confirm]")!.click());
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(`/api/amora/shared-actions/${plan.actionId}`,
+      expect.objectContaining({ method: "PUT", body: JSON.stringify({ messageId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa" }) }));
+    expect(onApply).toHaveBeenCalledExactlyOnceWith(plan.actionId);
+  });
+
   // 2026-08-23 파운더 결정으로 두 사람 승인이 없어졌다. 여기 있던 여섯 개는
   // 1/2 표 세기·철회·만장일치 같은 정족수 기계장치였고, 그 화면 자체가 없어졌다.
   //
@@ -253,10 +339,12 @@ describe("PendingAmoraActionCard", () => {
     await act(async () => Promise.resolve());
 
     const confirm = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="확인한 내용을 이대로 적용"]',
+      'button[aria-label="변경 내용 확인하기"]',
     );
     expect(confirm).not.toBeNull();
     await act(async () => confirm?.click());
+    expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="dialog"] button[data-amora-confirm]')?.click());
     await act(async () => Promise.resolve());
 
     expect(onApply).toHaveBeenCalledTimes(1);
@@ -290,9 +378,10 @@ describe("PendingAmoraActionCard", () => {
     await act(async () => Promise.resolve());
 
     const confirm = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="확인한 내용을 이대로 적용"]',
+      'button[aria-label="변경 내용 확인하기"]',
     );
     await act(async () => confirm?.click());
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="dialog"] button[data-amora-confirm]')?.click());
     await act(async () => Promise.resolve());
 
     expect(onApply).not.toHaveBeenCalled();
