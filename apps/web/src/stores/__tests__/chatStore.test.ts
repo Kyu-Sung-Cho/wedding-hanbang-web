@@ -129,6 +129,26 @@ const TEST_CLIENT_REQUEST_UUID = "30000000-0000-4000-8000-000000000001";
 const TEST_CONFIRMED_ACTION_UUID = "40000000-0000-4000-8000-000000000001";
 
 describe("booking projection local sync", () => {
+  it.each(["not_started", "in_progress", "completed"])("keeps the budget and checklist when a task becomes %s", (status) => {
+    const venue = {
+      category: "venue", status: "in_progress", budget: 12_000_000, spent: 2_000_000,
+      checklist: { contract_checked: true }, notes: "확인한 계약 항목",
+    };
+    const ring = { category: "ring", status: "completed", budget: 3_000_000 };
+    useAuthStore.setState({ journey: {
+      total_budget: 30_000_000, progress: { venue, ring },
+    } as never });
+    syncToolResult({
+      toolName: "update_task_status", toolInput: { category: "venue", status },
+      toolOutput: {}, success: true, displayMessage: "",
+    });
+    expect(useAuthStore.getState().journey?.progress).toEqual({
+      venue: { ...venue, status }, ring,
+    });
+    expect(useAuthStore.getState().journey?.total_budget).toBe(30_000_000);
+    expect(venue.status).toBe("in_progress");
+  });
+
   it("uses canonical budget-plan allocations including zero reserve without adding the remainder twice", () => {
     useAuthStore.setState({ journey: {
       total_budget: 30_000_000,

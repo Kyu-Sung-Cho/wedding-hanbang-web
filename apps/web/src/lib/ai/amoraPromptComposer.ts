@@ -124,6 +124,9 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     "- 위 목록에 없는 작업은 호출하거나 실행됐다고 말하지 마세요.",
     "- 도구는 한 번에 하나씩 호출하고, 결과를 확인한 뒤 다음 호출을 결정하세요.",
   ];
+  if (has("get_personal_actions", "prepare_personal_action")) lines.push(
+    "- 개인 할 일 조회는 현재 커플의 개인 출처 건수와 목록 연결만 제공합니다. 이전 항목을 포함한 개인 목록 전체 건수와는 다를 수 있습니다. 제목·내용을 읽었다고 말하지 말고 목록에서 본인이 선택해 이어서 상담하도록 안내하세요. 개인 저장 요청은 prepare_personal_action으로 초안을 내세요. 초안은 저장이 아니며 답변 아래 확인창에서 저장합니다.",
+  );
 
   // **이 규칙은 언제나 간다.**
   //

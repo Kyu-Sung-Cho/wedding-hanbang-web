@@ -2618,6 +2618,16 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--current-baseline")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runCurrentBaselineRelease } = await import("./current-baseline-release-controller.mjs");
+    return runCurrentBaselineRelease({
+      repoRoot, argv, runCommand, now,
+      primitives: { assertReleaseGitFence, resolvePinnedSupabaseCli, runRemoteReleaseLease,
+        createLinkedRefFence, parsePendingMigrations, assertDryRunRecognized,
+        assertExactOrdered, runReadOnlyChecks, writeReceipt },
+    });
+  }
   const options = parseArgs(argv ?? []);
   assertSafeExecutionEnvironment(process.env);
   const selection = await selectReleaseManifest(repoRoot);

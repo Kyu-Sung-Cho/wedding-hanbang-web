@@ -33,7 +33,6 @@ import LoungeFirstArrival, {
   LoungeFirstArrivalEmptyNote,
 } from "@/components/app/LoungeFirstArrival";
 import WeeklyCard from "@/components/app/WeeklyCard";
-import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
   getDashboardCompanionCopy,
   getJoinedDashboardMarkerSnapshot,
@@ -47,12 +46,9 @@ import { getAmoraActions, mergeAmoraActions, type AmoraActionItem, type AmoraAct
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
-import { getChecklistCounts, mergeChecklist } from "@/utils/checklist";
 import {
   getActiveCategories,
-  getChecklistProgress,
   getProgressSummary,
-  getStatus,
 } from "@/app/(app)/lounge/progressSummary";
 import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
 import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";

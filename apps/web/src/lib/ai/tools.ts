@@ -2,6 +2,7 @@ import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import { PERSONAL_ACTION_CONVERSATION_TOOLS } from "./amoraPersonalActionConversation";
 
 /**
  * 도구 스키마의 분야 목록은 **손으로 적지 않는다.**
@@ -68,6 +69,7 @@ const BUDGET_CATEGORY_DESCRIPTION =
   `${PLANNING_CATEGORY_DESCRIPTION}, reserve=예비비`;
 
 export const WEDDING_TOOLS: AiToolDefinition[] = [
+  ...PERSONAL_ACTION_CONVERSATION_TOOLS,
   {
     name: "update_budget",
     description:

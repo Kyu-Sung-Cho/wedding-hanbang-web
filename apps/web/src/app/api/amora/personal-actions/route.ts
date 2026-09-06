@@ -6,6 +6,7 @@ import { isBodyTooLarge, isRecord, readBoundedUtf8Text } from "@/utils/requestVa
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { log } from "@/utils/log";
+import { PERSONAL_ACTION_SOURCE_JOIN, personalActionConversationVisibility } from "@/lib/amora/personalActionConversationRead";
 
 export const dynamic = "force-dynamic";
 const HEADERS = { "Cache-Control": "private, no-store, max-age=0", Vary: "Origin, Sec-Fetch-Site, Authorization" };
@@ -73,16 +74,28 @@ export async function GET(req: Request) {
     const params = new URL(req.url).searchParams;
     const status = params.get("status") ?? "all";
     const rawLimit = params.get("limit") ?? "30";
+    const conversationCoupleId = params.get("conversationCoupleId");
+    const actionId = params.get("actionId");
+    if ((conversationCoupleId !== null && !isPersonalActionId(conversationCoupleId))
+      || (actionId !== null && (!conversationCoupleId || !isPersonalActionId(actionId)))) return json({ error: "상담할 개인 할 일을 다시 선택해 주세요." }, 400);
+    const conversationVisibility = conversationCoupleId
+      ? await personalActionConversationVisibility(auth.client, auth.user.id, conversationCoupleId) : null;
     if (!["all","open","done"].includes(status) || !/^\d{1,2}$/.test(rawLimit) || Number(rawLimit) < 1 || Number(rawLimit) > 30) return json({ error: "목록 조건을 확인해 주세요." }, 400);
     const limit = Number(rawLimit);
     const cursor = readCursor(params.get("cursor"), auth.user.id, status); if (cursor instanceof NextResponse) return cursor;
-    let query = auth.client.from("amora_personal_actions").select(COLUMNS).eq("owner_user_id", auth.user.id)
+    let query = auth.client.from("amora_personal_actions").select(conversationVisibility ? `${COLUMNS},${PERSONAL_ACTION_SOURCE_JOIN}` : COLUMNS).eq("owner_user_id", auth.user.id)
       .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(limit + 1);
-    let countQuery = auth.client.from("amora_personal_actions").select("id", { head: true, count: "exact" }).eq("owner_user_id", auth.user.id);
+    let countQuery = auth.client.from("amora_personal_actions").select(conversationVisibility ? `id,${PERSONAL_ACTION_SOURCE_JOIN}` : "id", { head: true, count: "exact" }).eq("owner_user_id", auth.user.id);
+    if (conversationVisibility) {
+      query = query.eq("source.couple_id", conversationCoupleId!).eq("source.visibility", conversationVisibility);
+      countQuery = countQuery.eq("source.couple_id", conversationCoupleId!).eq("source.visibility", conversationVisibility);
+    }
+    if (actionId) { query = query.eq("id", actionId); countQuery = countQuery.eq("id", actionId); }
     if (status !== "all") { query = query.eq("status", status); countQuery = countQuery.eq("status", status); }
     if (cursor) query = query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
     const [{ data, error }, totals] = await Promise.all([query, countQuery]);
     if (error || totals.error || !Array.isArray(data)) return unavailable();
+    if (conversationCoupleId && await personalActionConversationVisibility(auth.client, auth.user.id, conversationCoupleId) !== conversationVisibility) return unavailable();
     const actions = data.slice(0, limit).map(row => toAction(row, auth.user.id));
     if (actions.some(row => row === null)) return unavailable();
     const last = actions.at(-1);

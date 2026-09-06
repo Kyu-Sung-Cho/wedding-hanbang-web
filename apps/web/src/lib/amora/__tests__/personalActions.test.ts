@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { GET, POST, PATCH, DELETE } from "@/app/api/amora/personal-actions/route";
 import { parsePersonalActionPage, parsePersonalActionReceipt } from "@hanbang/shared/amora-personal-actions";
+import { readPersonalActionConversationCount } from "@/lib/amora/personalActionConversationRead";
 
 const mocks = vi.hoisted(() => ({ client: null as unknown }));
 vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: async () => mocks.client }));
@@ -28,6 +29,7 @@ describe("personal action database boundary", () => {
   let tamperReceipt = false;
   let beforeRpc: (() => Promise<void>) | null = null;
   let requestCount = 0;
+  let afterConversationRead: (() => Promise<void>) | null = null;
   async function asActor(sql: string, values: unknown[] = [], user = actor) {
     return db.transaction(async tx => {
       await tx.exec("SET LOCAL ROLE authenticated");
@@ -49,12 +51,25 @@ describe("personal action database boundary", () => {
         const row = result.rows[0].value as Record<string,unknown>;
         return respond(tamperReceipt ? { ...row, title: "SYNTHETIC_WRONG_RECEIPT" } : row);
       }
+      if (url.pathname.endsWith("/profiles")) {
+        const owner = url.searchParams.get("id");
+        expect(owner?.startsWith("eq.")).toBe(true);
+        const result = await asActor("SELECT couple_id,role FROM profiles WHERE id=$1", [owner!.slice(3)]);
+        return respond(result.rows[0] ?? null);
+      }
       if (!url.pathname.endsWith("/amora_personal_actions")) throw new Error("Unexpected local table");
       const values: unknown[] = []; const where: string[] = [];
       const bind = (value: unknown) => { values.push(value); return `$${values.length}`; };
       for (const column of ["owner_user_id","id","revision","status"]) {
         const raw = url.searchParams.get(column);
         if (raw) { expect(raw.startsWith("eq.")).toBe(true); where.push(`${column}=${bind(raw.slice(3))}`); }
+      }
+      const sourceCouple = url.searchParams.get("source.couple_id");
+      const sourceVisibility = url.searchParams.get("source.visibility");
+      if (sourceCouple || sourceVisibility) {
+        expect(url.searchParams.get("select")).toContain("source:chat_messages!amora_personal_actions_source_message_id_fkey!inner(couple_id,visibility)");
+        expect(sourceCouple?.startsWith("eq.")).toBe(true); expect(sourceVisibility?.startsWith("eq.")).toBe(true);
+        where.push(`EXISTS(SELECT 1 FROM chat_messages src WHERE src.id=action.source_message_id AND src.couple_id=${bind(sourceCouple!.slice(3))} AND src.visibility=${bind(sourceVisibility!.slice(3))})`);
       }
       const filter = url.searchParams.get("or");
       if (filter) {
@@ -65,7 +80,8 @@ describe("personal action database boundary", () => {
       }
       const predicate = where.length ? where.join(" AND ") : "true";
       if (request.method === "HEAD") {
-        const result = await asActor(`SELECT count(*)::integer AS count FROM amora_personal_actions WHERE ${predicate}`, values);
+        const result = await asActor(`SELECT count(*)::integer AS count FROM amora_personal_actions AS action WHERE ${predicate}`, values);
+        if (sourceCouple) await afterConversationRead?.();
         return new Response(null, { status: 200, headers: { "content-range": `0-0/${result.rows[0].count}` } });
       }
       let sql: string;
@@ -104,7 +120,10 @@ describe("personal action database boundary", () => {
       CREATE TABLE couples(id uuid PRIMARY KEY,bride_id uuid,groom_id uuid);
       CREATE TABLE profiles(id uuid PRIMARY KEY,couple_id uuid,role text);
       CREATE TABLE conversation_segments(id uuid PRIMARY KEY,couple_id uuid,visibility text,owner_user_id uuid);
-      CREATE TABLE chat_messages(id uuid PRIMARY KEY,couple_id uuid,segment_id uuid,visibility text,sender_id uuid,sender_type text,role text,metadata jsonb);`);
+      CREATE TABLE chat_messages(id uuid PRIMARY KEY,couple_id uuid,segment_id uuid,visibility text,sender_id uuid,sender_type text,role text,metadata jsonb);
+      GRANT SELECT ON profiles,chat_messages TO authenticated;
+      ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY own_profile ON profiles FOR SELECT TO authenticated USING(id=auth.uid());`);
     const sql = readFileSync(migration, "utf8");
     if (sql.trim()) await db.exec(sql);
     const client = createClient("http://127.0.0.1:55431", "synthetic-local-key", { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: localPostgrest } });
@@ -113,7 +132,7 @@ describe("personal action database boundary", () => {
   });
   afterAll(async () => { await db.close(); });
   beforeEach(async () => {
-    actor = OWNER; unavailable = false; tamperReceipt = false; beforeRpc = null; requestCount = 0;
+    actor = OWNER; unavailable = false; tamperReceipt = false; beforeRpc = null; requestCount = 0; afterConversationRead = null;
     await db.exec("TRUNCATE chat_messages,conversation_segments,profiles,couples,auth.users CASCADE");
     await db.query("INSERT INTO auth.users VALUES ($1),($2)", [OWNER, PARTNER]);
     await db.query("INSERT INTO couples VALUES ($1,$2,$3)", [COUPLE, OWNER, PARTNER]);
@@ -252,5 +271,36 @@ describe("personal action database boundary", () => {
     const fn = method === "PATCH" ? PATCH : DELETE;
     expect((await fn(request(method,{id:AI_MESSAGE,expectedRevision:1,status:method === "PATCH" ? "done" : undefined,expectedOwnerId:PARTNER}))).status).toBe(403);
     expect(requestCount).toBe(0);
+  });
+  it("fresh-reads only the chosen owner's current private source for conversation and excludes deleted/partner/old-couple rows", async () => {
+    const action = await save();
+    const url = `https://hanbang.ai/api/amora/personal-actions?conversationCoupleId=${COUPLE}&actionId=${action.id}`;
+    const response = await GET(new Request(url));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ actions: [{ id: action.id, title: draft.title }], count: 1, next_cursor: null });
+    const client = mocks.client as ReturnType<typeof createClient>;
+    expect(await readPersonalActionConversationCount(client, OWNER, COUPLE, "bride_private", "all")).toBe(1);
+    actor = PARTNER;
+    expect(await (await GET(new Request(url))).json()).toMatchObject({ actions: [], count: 0 });
+    actor = OWNER;
+    await db.query("UPDATE chat_messages SET couple_id=$1 WHERE id=$2", ["88888888-8888-4888-8888-888888888888", AI_MESSAGE]);
+    expect(await (await GET(new Request(url))).json()).toMatchObject({ actions: [], count: 0 });
+    expect(await readPersonalActionConversationCount(client, OWNER, COUPLE, "bride_private", "all")).toBe(0);
+    await db.query("UPDATE chat_messages SET couple_id=$1,visibility='shared' WHERE id=$2", [COUPLE, AI_MESSAGE]);
+    expect(await (await GET(new Request(url))).json()).toMatchObject({ actions: [], count: 0 });
+    await db.query("DELETE FROM chat_messages WHERE id=$1", [AI_MESSAGE]);
+    expect(await (await GET(new Request(url))).json()).toMatchObject({ actions: [], count: 0 });
+  });
+  it("rejects a couple change during the conversation read instead of returning the stale selection or count", async () => {
+    const action = await save();
+    afterConversationRead = async () => { await db.query("UPDATE profiles SET couple_id=null WHERE id=$1", [OWNER]); };
+    const response = await GET(new Request(`https://hanbang.ai/api/amora/personal-actions?conversationCoupleId=${COUPLE}&actionId=${action.id}`));
+    expect(response.status).toBe(503); expect(await response.text()).not.toContain(draft.title);
+    await expect(readPersonalActionConversationCount(mocks.client as ReturnType<typeof createClient>, OWNER, COUPLE, "bride_private", "all")).rejects.toThrow("PERSONAL_ACTION_CONVERSATION_SCOPE_CHANGED");
+    await db.query("UPDATE profiles SET couple_id=$1 WHERE id=$2", [COUPLE, OWNER]);
+    await expect(readPersonalActionConversationCount(mocks.client as ReturnType<typeof createClient>, OWNER, COUPLE, "bride_private", "all")).rejects.toThrow("PERSONAL_ACTION_CONVERSATION_SCOPE_CHANGED");
+  });
+  it("rejects a selected-action query without a current couple boundary", async () => {
+    expect((await GET(new Request(`https://hanbang.ai/api/amora/personal-actions?actionId=${AI_MESSAGE}`))).status).toBe(400);
   });
 });

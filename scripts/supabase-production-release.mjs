@@ -4,12 +4,13 @@ import {
   ReleaseBlockedError,
   runProductionRelease,
 } from "./lib/supabase-production-release-controller.mjs";
+import { CurrentBaselineBlocked } from "./lib/current-baseline-release-contract.mjs";
 
 try {
   const result = await runProductionRelease({ argv: process.argv.slice(2) });
   process.stdout.write(`SUPABASE_PRODUCTION_RELEASE_VERIFIED: ${result.status}\n`);
 } catch (error) {
-  if (error instanceof ReleaseBlockedError) {
+  if (error instanceof ReleaseBlockedError || error instanceof CurrentBaselineBlocked) {
     process.stderr.write(`SUPABASE_PRODUCTION_RELEASE_BLOCKED [${error.code}]: ${error.message}\n`);
   } else {
     process.stderr.write(

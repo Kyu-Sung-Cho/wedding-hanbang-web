@@ -2,6 +2,8 @@ import { act, useEffect } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PersonalAction } from "@hanbang/shared/amora-personal-actions";
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => navigation }));
 
 vi.mock("@/stores/authStore", async () => {
   const { create } = await import("zustand");
@@ -11,6 +13,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useAmoraPersonalActions } from "@/hooks/useAmoraPersonalActions";
 import PersonalActionSaveButton from "@/components/app/chat/PersonalActionSaveButton";
 import AmoraPersonalActions from "./AmoraPersonalActions";
+import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const owner = "11111111-1111-4111-8111-111111111111";
@@ -32,7 +35,7 @@ async function input(value: string) { const element = document.querySelector("in
 describe("owner-only personal actions", () => {
   let root: Root; let host: HTMLDivElement;
   const fetchMock = vi.fn();
-  beforeEach(() => { identity(owner); useAuthStore.setState({ isDemo: false, isInitialized: true }); fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); host = document.createElement("div"); document.body.appendChild(host); root = createRoot(host); });
+  beforeEach(() => { personalActionContinuation.reset(); navigation.push.mockReset(); identity(owner); useAuthStore.setState({ isDemo: false, isInitialized: true }); fetchMock.mockReset(); vi.stubGlobal("fetch", fetchMock); host = document.createElement("div"); document.body.appendChild(host); root = createRoot(host); });
   afterEach(async () => { await act(async () => root.unmount()); host.remove(); vi.unstubAllGlobals(); });
 
   it("distinguishes malformed pages from empty success, retains rows on error and retries", async () => {
@@ -92,6 +95,33 @@ describe("owner-only personal actions", () => {
     await act(async () => pending.resolve(response({ saved: true, action: action() }))); expect(host.textContent).not.toContain("저장했어요");
   });
 
+  it("prefills only the validated private draft once and saves the user's reviewed changes", async () => {
+    const suggestion = { title: "생각할 예산 기준", description: "내가 편안한 범위", dueDate: "2026-09-12" };
+    const render = (personalActionDraft: unknown) => root.render(<PersonalActionSaveButton messageId={source} coupleId={couple} content="임의 본문 날짜 2030-01-01" personalActionDraft={personalActionDraft} />);
+    await act(async () => render(suggestion)); await click("개인 할 일로 저장");
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(document.querySelector<HTMLInputElement>("input")!.value).toBe(suggestion.title);
+    expect(document.querySelector<HTMLTextAreaElement>("textarea")!.value).toBe(suggestion.description);
+    expect(document.querySelector<HTMLInputElement>("input[type=date]")!.value).toBe(suggestion.dueDate);
+    await input("직접 확인한 제목");
+    await act(async () => render({ ...suggestion, title: "늦게 온 다른 초안" }));
+    expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("직접 확인한 제목");
+    fetchMock.mockResolvedValueOnce(response({ saved: true, action: action({ ...suggestion, title: "직접 확인한 제목" }) }));
+    await click("개인 할 일 저장");
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ ...suggestion, title: "직접 확인한 제목" });
+    expect(host.textContent).toContain("개인 할 일을 저장했어요");
+  });
+
+  it("malformed metadata leaves the manual preview blank and a new source resets edited fields", async () => {
+    await act(async () => root.render(<PersonalActionSaveButton messageId={source} coupleId={couple} content="본문을 제목으로 추출하지 않음" personalActionDraft={{ title: "모호한 초안", dueDate: "내일" }} />));
+    await click("개인 할 일로 저장"); expect(document.querySelector<HTMLInputElement>("input")!.value).toBe("");
+    await input("이전 답변의 편집");
+    await act(async () => root.render(<PersonalActionSaveButton messageId={other} coupleId={couple} content="다른 답변" personalActionDraft={draft} />));
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+    await click("개인 할 일로 저장"); expect(document.querySelector<HTMLInputElement>("input")!.value).toBe(draft.title);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("source provenance denial stays in the preview with a new-private-answer recovery", async () => {
     fetchMock.mockResolvedValue(response({ error: "secret db detail", code: "PERSONAL_ACTION_SOURCE_PROVENANCE_UNAVAILABLE" }, 409));
     await act(async () => root.render(<PersonalActionSaveButton messageId={source} coupleId={couple} content="예전 답변" />)); await click("개인 할 일로 저장"); await input(draft.title); await click("개인 할 일 저장");
@@ -117,5 +147,33 @@ describe("owner-only personal actions", () => {
     await act(async () => root.render(<PersonalActionSaveButton messageId={source} coupleId={couple} content="답변" />)); await click("개인 할 일로 저장"); await input(draft.title); await click("개인 할 일 저장");
     expect(document.querySelector("[role=alert]")?.textContent).toContain("300개"); expect(document.querySelector("[role=alert]")?.textContent).toContain("삭제한 뒤");
     expect(document.querySelector<HTMLInputElement>("input")!.value).toBe(draft.title);
+  });
+
+  it("reviews a fresh selected action and hands off only to private chat after explicit confirmation", async () => {
+    const fresh = action({ title: "현재 서버에서 다시 읽은 제목", description: "내 개인 메모", dueDate: "2026-09-12", revision: 2 });
+    fetchMock.mockResolvedValueOnce(page([action()])).mockImplementation(() => Promise.resolve(page([fresh])));
+    await act(async () => root.render(<AmoraPersonalActions />));
+    await click("이 할 일 이어서 상담");
+    expect(document.querySelector("[role=dialog]")?.textContent).toContain(fresh.title);
+    expect(document.querySelector("[role=dialog]")?.textContent).toContain(fresh.description);
+    expect(navigation.push).not.toHaveBeenCalled(); expect(personalActionContinuation.hasPending()).toBe(false);
+    await click("나만 상담 입력창에 넣기");
+    expect(navigation.push).toHaveBeenCalledWith("/chat?scope=private");
+    expect(fetchMock.mock.calls[1][0]).toContain(`conversationCoupleId=${couple}&actionId=${id}`);
+    const text = await personalActionContinuation.take({ ownerId: owner, coupleId: couple });
+    expect(text).not.toBeNull();
+    expect(text).toContain(fresh.title); expect(text).toContain(fresh.description); expect(text).toContain(fresh.dueDate);
+    expect(fetchMock.mock.calls.every(call => !call[1]?.method || call[1].method === "GET")).toBe(true);
+  });
+
+  it("deletion after review or account change during a delayed review never opens private continuation", async () => {
+    fetchMock.mockResolvedValueOnce(page([action()])).mockResolvedValueOnce(page([action()])).mockResolvedValueOnce(page([]));
+    await act(async () => root.render(<AmoraPersonalActions />)); await click("이 할 일 이어서 상담"); await click("나만 상담 입력창에 넣기");
+    expect(document.querySelector("[role=alert]")?.textContent ?? "").toContain("확인하지 못"); expect(navigation.push).not.toHaveBeenCalled();
+    await act(async () => root.unmount()); root = createRoot(host);
+    const pending = deferred(); fetchMock.mockResolvedValueOnce(page([action()])).mockReturnValueOnce(pending.promise).mockResolvedValue(page([]));
+    await act(async () => root.render(<AmoraPersonalActions />)); await click("이 할 일 이어서 상담");
+    await act(async () => { identity(other); identity(owner); pending.resolve(page([action()])); });
+    expect(document.querySelector("[role=dialog]")).toBeNull(); expect(personalActionContinuation.hasPending()).toBe(false); expect(navigation.push).not.toHaveBeenCalled();
   });
 });

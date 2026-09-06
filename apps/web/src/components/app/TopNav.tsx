@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
@@ -60,7 +60,6 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const today = useMemo(() => new Date(), []);
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
   // **한국 새벽 0~9시에 하루가 더 나왔다.**

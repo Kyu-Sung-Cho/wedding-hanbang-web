@@ -4,18 +4,18 @@ import { useRef, useState } from "react";
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { isPersonalActionId, normalizePersonalActionDraft } from "@hanbang/shared/amora-personal-actions";
+import { isPersonalActionId, normalizePersonalActionDraft, parsePersonalActionDraftMetadata, parsePersonalActionsViewMetadata } from "@hanbang/shared/amora-personal-actions";
 import { personalActionOwner, useAmoraPersonalActions } from "@/hooks/useAmoraPersonalActions";
 import { useAuthStore } from "@/stores/authStore";
 import AmoraSheetFrame from "./AmoraSheetFrame";
 
-type Props = { messageId: string; coupleId: string; content: string };
+type Props = { messageId: string; coupleId: string; content: string; personalActionDraft?: unknown; personalActionsView?: unknown };
 export default function PersonalActionSaveButton(props: Props) {
   const owner = useAuthStore(personalActionOwner);
   return <OwnerSave key={`${owner}:${props.coupleId}:${props.messageId}`} {...props} />;
 }
 
-function OwnerSave({ messageId, coupleId, content }: Props) {
+function OwnerSave({ messageId, coupleId, content, personalActionDraft, personalActionsView }: Props) {
   const { owner, isDemo, save, busyIds, writeError } = useAmoraPersonalActions(false);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -24,9 +24,18 @@ function OwnerSave({ messageId, coupleId, content }: Props) {
   const [saved, setSaved] = useState(false);
   const request = useRef<{ fingerprint: string; id: string } | null>(null);
   const submitting = useRef(false);
+  const initialized = useRef(false);
   if (!isPersonalActionId(messageId) || !isPersonalActionId(coupleId)) return null;
   const draft = normalizePersonalActionDraft({ title, description, dueDate });
   const busy = busyIds.includes(messageId);
+  const openPreview = () => {
+    if (!initialized.current) {
+      const suggestion = parsePersonalActionDraftMetadata(personalActionDraft);
+      if (suggestion) { setTitle(suggestion.title); setDescription(suggestion.description ?? ""); setDueDate(suggestion.dueDate ?? ""); }
+      initialized.current = true;
+    }
+    setOpen(true);
+  };
   const confirm = async () => {
     if (!draft || !owner || submitting.current || isDemo) return;
     submitting.current = true;
@@ -38,8 +47,9 @@ function OwnerSave({ messageId, coupleId, content }: Props) {
     } finally { submitting.current = false; }
   };
   return <div className="mt-2 text-sm">
+    {parsePersonalActionsViewMetadata(personalActionsView) && <p className="text-xs leading-5 text-[var(--hb-text-muted)]">개인 목록에서 진행·완료 상태와 이어서 상담할 할 일을 확인해 주세요.</p>}
     {saved ? <p role="status" className="text-[var(--hb-text-muted)]">개인 할 일을 저장했어요. <Link href="/chat/personal" className="inline-flex min-h-11 items-center underline">개인 목록 확인</Link></p>
-      : <Button variant="ghost" type="button" onClick={() => setOpen(true)} className="min-h-11 gap-1.5! rounded-lg! px-2! font-normal! text-[var(--hb-text-muted)]">
+      : <Button variant="ghost" type="button" onClick={openPreview} className="min-h-11 gap-1.5! rounded-lg! px-2! font-normal! text-[var(--hb-text-muted)]">
         <LockKeyhole className="size-3.5" aria-hidden="true" />개인 할 일로 저장
       </Button>}
     {!saved && <Link href="/chat/personal" className="inline-flex min-h-11 items-center px-2 underline">개인 목록 보기</Link>}

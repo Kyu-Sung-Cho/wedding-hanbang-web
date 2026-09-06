@@ -23,7 +23,7 @@
  * (`lib/appLinks/__tests__/appLinkIdentity.test.ts`)가 잡아냈다. 지금은 미들웨어
  * (`src/proxy.ts`)에 있고, 이 파일은 그 함수를 **실제로 호출해 응답을 본다.**
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 
 import { proxy } from "@/proxy";

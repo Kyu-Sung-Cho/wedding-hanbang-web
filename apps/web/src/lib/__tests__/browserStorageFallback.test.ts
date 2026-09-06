@@ -13,7 +13,7 @@ import { BROWSER_STORAGE_FALLBACK_SNIPPET } from "../browserStorageFallback";
  */
 
 const run = () => {
-  // eslint-disable-next-line no-new-func -- 배포되는 문자열을 그대로 실행해야 계약이 성립한다
+    // 배포되는 문자열을 그대로 실행해야 계약이 성립한다.
   new Function(BROWSER_STORAGE_FALLBACK_SNIPPET)();
 };
 

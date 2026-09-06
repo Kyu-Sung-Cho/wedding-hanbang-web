@@ -39,6 +39,8 @@ import {
   hasEphemeralPlaceSearchResult,
 } from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
+import { personalActionConversationConsent, personalActionConversationMetadata, selectPersonalActionConversationTools } from "@/lib/ai/amoraPersonalActionConversation";
+import { readPersonalActionConversationCount } from "@/lib/amora/personalActionConversationRead";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
 import {
@@ -112,14 +114,12 @@ import {
   selectAmoraPendingProposalTools,
   selectAmoraTools,
   collectAmoraChecklistLabels,
-  mentionsKnownChecklistItem,
   AMORA_CHECKLIST_STATE_VERB,
 } from "@/lib/ai/amoraToolPolicy";
 import {
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
   type AmoraQuestionScopeClassification,
-  hasAmoraSafetySignal,
 } from "@/lib/ai/amoraQuestionScope";
 import {
   buildAmoraBoundedContinuity,
@@ -3222,6 +3222,7 @@ export async function POST(request: Request) {
       : null;
   const memoryEnqueueRequested =
     questionScope.allowsLongTermMemory
+    && !(visibility !== "shared" && Object.values(personalActionConversationConsent(lastUserText)).some(Boolean))
     && memoryEnabledForTurn
     && isAuxiliaryMemoryRuntimeEnabled();
   const allowsStoredProviderContext =
@@ -3320,9 +3321,6 @@ export async function POST(request: Request) {
   const stageTag = allowsStoredProviderContext
     ? determineStage(weddingDateForStage)
     : null;
-  const providerAttachmentKind = allowsCurrentAttachmentContext
-    ? attachmentKind
-    : "none" as const;
   const requiresW4AttachmentReuploadGuidance =
     requestKind === "chat"
     && questionScope.scope === "W4_out_of_scope"
@@ -3418,16 +3416,21 @@ export async function POST(request: Request) {
   const runnableTools = visibilityScopedTools.filter((tool) => (
     tool.name !== "search_nearby_places" || isPlaceSearchConfigured()
   ));
-  const availableTools = filterAmoraToolsByQuestionScope(
+  const personalConversationTools = selectPersonalActionConversationTools({
+    tools: candidateTools, userText: lastUserText, visibility, requestKind,
+    durable: !isDemo && isDurableUserMessageBound, scope: questionScope,
+  });
+  const personalConversationToolNames = new Set(personalConversationTools.map(tool => tool.name));
+  const availableTools = [...filterAmoraToolsByQuestionScope(
     runnableTools.filter((tool) => !isMutatingTool(tool.name)),
     questionScope,
-  );
+  ), ...personalConversationTools];
   const availableToolNameSet = new Set(
     availableTools.map((tool) => tool.name),
   );
   const questionScopeToolNameCeiling = new Set(
-    filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, questionScope)
-      .map((tool) => tool.name),
+    [...filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, questionScope)
+      .map((tool) => tool.name), ...personalConversationToolNames],
   );
   const pendingProposalTools =
     !isDemo
@@ -3622,6 +3625,17 @@ export async function POST(request: Request) {
     requestKey: clientRequestId,
     requestAttemptCount: requestClaimAttemptCount ?? undefined,
     currentUserText: lastUserText,
+    ...(personalConversationTools.length > 0 && visibility !== "shared" ? {
+      personalActions: {
+        visibility,
+        readCount: async (status: "all" | "open" | "done") => {
+          await assertStoredContextTerminalReleasePrivacyEpochCurrent();
+          const count = await readPersonalActionConversationCount(supabase, actorId, coupleId, visibility, status);
+          await assertStoredContextTerminalReleasePrivacyEpochCurrent();
+          return count;
+        },
+      },
+    } : {}),
     weddingContext: {
       weddingDate: resolvedWeddingContext.weddingDate,
       budget: resolvedWeddingContext.budget,
@@ -3914,6 +3928,7 @@ export async function POST(request: Request) {
           );
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
+            ...personalActionConversationMetadata(toolResults, personalConversationToolNames),
             toolsUsed,
             senderName: safeSenderName,
             ...(outputHygiene.actions.length > 0
@@ -3936,7 +3951,7 @@ export async function POST(request: Request) {
                 }
               : {}),
             question_scope: questionScope.scope,
-            memory_eligible: questionScope.allowsLongTermMemory,
+            memory_eligible: questionScope.allowsLongTermMemory && personalConversationTools.length === 0,
             memory_enqueue_requested: memoryEnqueueRequested,
             ...(boundedContinuity
               ? {

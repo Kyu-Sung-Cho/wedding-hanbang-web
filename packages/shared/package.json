@@ -19,7 +19,8 @@
     "./community-notification": "./src/contracts/communityNotification.mjs",
     "./community-decision-feed": "./src/contracts/communityDecisionFeed.mjs",
     "./budget-share": "./src/contracts/budgetShare.mjs",
-    "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs"
+    "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs",
+    "./mediation-responses": "./src/contracts/amoraMediationResponses.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -807,7 +807,7 @@ export default function ChatBubble({
               과잉). */}
           {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
               나중에 다시 볼 말은 최근 것만이 아니다. */}
-          {aiIsPrivate && <PersonalActionSaveButton messageId={message.id} coupleId={message.couple_id} content={message.content} />}
+          {aiIsPrivate && <PersonalActionSaveButton messageId={message.id} coupleId={message.couple_id} content={message.content} personalActionDraft={message.metadata?.personal_action_draft} personalActionsView={message.metadata?.personal_actions_view} />}
           {!aiIsPrivate && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
               <SaveNoteButton messageId={message.id} content={message.content} coupleId={message.couple_id} />

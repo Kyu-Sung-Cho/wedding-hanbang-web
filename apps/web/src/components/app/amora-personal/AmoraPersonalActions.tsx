@@ -7,6 +7,7 @@ import { personalActionOwner, useAmoraPersonalActions } from "@/hooks/useAmoraPe
 import { useAuthStore } from "@/stores/authStore";
 import type { PersonalAction } from "@hanbang/shared/amora-personal-actions";
 import AmoraSheetFrame from "@/components/app/chat/AmoraSheetFrame";
+import PersonalActionContinueButton from "./PersonalActionContinueButton";
 
 export default function AmoraPersonalActions() {
   const data = useAmoraPersonalActions();
@@ -34,7 +35,8 @@ export default function AmoraPersonalActions() {
         </div>
         {action.description && <p className="mt-2 whitespace-pre-wrap break-words text-sm">{action.description}</p>}
         {action.dueDate && <p className="mt-2 text-xs text-[var(--amora-muted)]">마감일 {action.dueDate}</p>}
-        <div className="mt-2 flex gap-3">
+        <div className="mt-2 flex flex-wrap gap-3">
+          <PersonalActionContinueButton action={action} />
           <Button variant="ghost" type="button" disabled={data.busyIds.includes(action.id)} onClick={() => void data.update(action)} className="min-h-11 rounded-lg! px-2! font-normal! underline disabled:opacity-50">{action.status === "done" ? "진행 중으로 되돌리기" : "완료로 표시"}</Button>
           <Button variant="ghost" type="button" disabled={data.busyIds.includes(action.id)} onClick={() => setDeleting(action)} className="min-h-11 rounded-lg! px-2! font-normal! underline disabled:opacity-50">삭제</Button>
         </div>

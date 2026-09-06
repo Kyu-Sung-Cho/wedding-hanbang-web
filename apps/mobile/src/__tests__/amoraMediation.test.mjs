@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
+import * as responsesContract from "@hanbang/shared/mediation-responses";
 // 앱과 웹이 같은 판정을 쓰는지 확인하려면 테스트도 그 실물을 써야 한다.
 import { isRequesterSummaryMediationProvenance } from "@hanbang/shared/mediation-provenance";
 
@@ -10,7 +11,7 @@ const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.
 const cardPath = fileURLToPath(new URL("../components/chat/AmoraMediationCard.tsx", import.meta.url));
 const clientPath = fileURLToPath(new URL("../lib/amoraMediation.ts", import.meta.url));
 const chatSource = readFileSync(chatPath, "utf8");
-const cardSource = existsSync(cardPath) ? readFileSync(cardPath, "utf8") : "";
+const cardSource = (existsSync(cardPath) ? readFileSync(cardPath, "utf8") : "") + readFileSync(new URL("../components/chat/AmoraMediationResponses.tsx", import.meta.url), "utf8");
 const EXPECTED_REVISION = {
   expectedProposalVersion: "123e4567-e89b-42d3-a456-426614174000",
   expectedRosterFingerprint: "0123456789abcdef0123456789abcdef",
@@ -337,23 +338,6 @@ test("an inconsistent server response fails closed instead of showing a false jo
   );
 });
 
-test("the native confirmation surface distinguishes loading, failure, waiting, and joint completion", () => {
-  assert.match(cardSource, /getExpectedMediationRevision\(block\)/);
-  assert.match(cardSource, /getMediationAcceptance\(messageId, exactRevision\)/);
-  assert.match(cardSource, /acceptMediationResolution\(messageId, exactRevision\)/);
-  assert.match(cardSource, /withdrawMediationAcceptance\(messageId, exactRevision\)/);
-  assert.match(cardSource, /expectedProposalVersion[\s\S]*expectedRosterFingerprint[\s\S]*loadAttempt/s);
-  assert.match(cardSource, /확인 상태를 불러오는 중이에요/);
-  assert.match(cardSource, /확인 상태를 불러오지 못했어요/);
-  assert.match(cardSource, /내가 확인했어요/);
-  assert.match(cardSource, /상대방의 확인을 기다리고 있어요/);
-  assert.match(cardSource, /두 분이 각각 확인해 공동 결정으로 저장했어요/);
-  assert.match(cardSource, /이 선택안을 나는 확인했어요/);
-  assert.match(cardSource, /accessibilityRole="button"/);
-  assert.match(cardSource, /confirmButton:\s*\{[^}]*minHeight:\s*(?:4[4-9]|[5-9]\d)/s);
-  assert.match(cardSource, /retryButton:\s*\{[^}]*minHeight:\s*(?:4[4-9]|[5-9]\d)/s);
-});
-
 test("the native mediation card describes an AI draft rather than a settled agreement", () => {
   for (const copy of [
     "요청자 요약 기반 조율 초안",
@@ -362,7 +346,7 @@ test("the native mediation card describes an AI draft rather than a settled agre
     "상대방에게 확인할 점",
     "같이 검토할 선택안",
     "파트너가 연결된 뒤 두 분이 각각 확인할 수 있어요",
-    "두 분 모두 확인해야 공동 결정으로 저장돼요",
+    "두 분 모두 ‘괜찮음’으로 확인해야 공동 결정으로 저장돼요",
   ]) {
     assert.equal(cardSource.includes(copy), true, `missing non-final copy: ${copy}`);
   }
@@ -420,24 +404,43 @@ test("the mediation block keeps the provenance marker the copy depends on", () =
   }), null);
 });
 
-test("a person waiting on their partner can refresh the joint acceptance state", () => {
-  assert.match(cardSource, /상대방 확인 상태 새로고침/);
-  assert.match(cardSource, /setLoadAttempt\(\(attempt\) => attempt \+ 1\)/);
+const actor='11111111-1111-4111-8111-111111111111', partner='22222222-2222-4222-8222-222222222222', couple='33333333-3333-4333-8333-333333333333';
+const mediationRevision={messageId:'44444444-4444-4444-8444-444444444444',...EXPECTED_REVISION};
+const responseRow=(choice='ok',patch={})=>({userId:actor,choice,condition:choice==='conditional'?'조건 확인 뒤':null,revision:1,updatedAt:'2026-09-07T00:00:00Z',...patch});
+const responseState=(mine=null,theirs=null,patch={})=>({actorId:actor,proposalVersion:EXPECTED_REVISION.expectedProposalVersion,rosterFingerprint:EXPECTED_REVISION.expectedRosterFingerprint,accepted:mine?.choice==='ok',acceptedCount:[mine,theirs].filter(r=>r?.choice==='ok').length,requiredCount:2,completed:false,partnerLinked:true,myResponse:mine,myResponseRevision:mine?.revision??0,responses:[mine,theirs].filter(Boolean),...patch});
+const reply=(body,status=200)=>new Response(JSON.stringify(body),{status});
+const settle=()=>new Promise(done=>setTimeout(done,0));
+function responseHarness(replies){
+ const calls=[],navigation=[],slots=[];let index=0,tree;
+ const session=responsesContract.createMediationResponseSession({revision:mediationRevision,readScope:async()=>({ownerId:actor,coupleId:couple}),request:async(scope,path,options)=>{calls.push({scope,path,options});const next=replies.shift();if(next instanceof Error)throw next;return next;}});
+ const jsx=(type,props)=>typeof type==='function'?type(props):({type,props});const token=new Proxy({},{get:()=>token});
+ const modules={react:{useState(initial){const i=index++;slots[i]??={value:initial};return[slots[i].value,value=>{slots[i].value=value}];}},'react/jsx-runtime':{jsx,jsxs:jsx},'react-native':{ActivityIndicator:'ActivityIndicator',Pressable:'Pressable',Text:'Text',TextInput:'TextInput',View:'View',StyleSheet:{create:x=>x}},'expo-router':{router:{push:x=>navigation.push(x)}},'@hanbang/design-tokens':{colors:token},'@hanbang/shared/mediation-responses':responsesContract,'@/lib/useMediationResponses':{useMediationResponses:()=>({state:session.getState(),session})}};
+ const code=ts.transpileModule(readFileSync(new URL('../components/chat/AmoraMediationResponses.tsx',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;const exports={};new Function('exports','require',code)(exports,name=>{assert.ok(modules[name],name);return modules[name];});
+ const nodes=x=>!x?[]:Array.isArray(x)?x.flatMap(nodes):typeof x==='object'?[x,...nodes(x.props?.children)]:[];const text=x=>x==null?'':Array.isArray(x)?x.map(text).join(''):typeof x==='object'?text(x.props?.children):String(x);
+ const render=()=>{index=0;tree=exports.default({revision:mediationRevision});};render();
+ return {session,calls,navigation,render,text:()=>text(tree),nodes:()=>nodes(tree),button:label=>{const node=nodes(tree).find(n=>n.type==='Pressable'&&n.props.accessibilityLabel===label);assert.ok(node,label);return node;},field:label=>nodes(tree).find(n=>n.type==='TextInput'&&n.props.accessibilityLabel===label),press:async label=>{const node=nodes(tree).find(n=>n.type==='Pressable'&&n.props.accessibilityLabel===label);assert.ok(node,label);if(!node.props.disabled)node.props.onPress();await settle();render();}};
+}
+test('actual native choices require condition, use exact revision, and never make conditional response a decision',async()=>{
+ const h=responseHarness([reply(responseState()),reply(responseState(responseRow('conditional'))),reply(responseState(responseRow('ok',{revision:2}))),reply(responseState(null,null,{myResponseRevision:3}))]);await h.session.load();h.render();await h.press('조건부 가능');assert.equal(h.button('내 응답 저장').props.disabled,true);h.field('확인할 조건').props.onChangeText('조건 확인 뒤');h.render();await h.press('내 응답 저장');assert.equal(h.calls.length,2,'reviewed native condition must reach one POST');assert.equal(JSON.parse(h.calls[1].options.body).expectedResponseRevision,0);assert.match(h.text(),/내 응답 · 조건부 가능/);assert.doesNotMatch(h.text(),/공동 결정으로 저장했어요/);
+ await h.press('괜찮음');await h.press('내 응답 저장');assert.deepEqual(JSON.parse(h.calls[2].options.body),{...mediationRevision,expectedOwnerId:actor,expectedResponseRevision:1,choice:'ok',condition:null});await h.press('내 응답 취소');assert.equal(JSON.parse(h.calls[3].options.body).expectedResponseRevision,2);assert.equal(h.session.getState().snapshot.myResponse,null);
+ assert.ok(h.button('내 응답 저장').props.style[0].minHeight>=48);
 });
-
-test("the native card offers a 48px withdrawal action only through the incomplete-acceptance guard", () => {
-  assert.match(cardSource, /canWithdrawMediationAcceptance\(acceptance\)/);
-  assert.match(cardSource, /withdrawMediationAcceptance\(messageId, exactRevision\)/);
-  assert.match(cardSource, /내 확인 취소/);
-  assert.match(cardSource, /accessibilityLabel="내 확인 취소"/);
-  assert.match(cardSource, /withdrawButton:\s*\{[^}]*minHeight:\s*(?:4[8-9]|[5-9]\d)/s);
+test('actual native failure and solo states disable writes, while refresh reads joint completion',async()=>{
+ const h=responseHarness([reply({}),reply(responseState(null,null,{partnerLinked:false})),reply(responseState(responseRow(),responseRow('ok',{userId:partner}),{completed:true}))]);await h.session.load();h.render();assert.match(h.text(),/확인 상태를 불러오지 못/);assert.ok(h.nodes().some(n=>n.props.accessibilityRole==='alert'));assert.equal(h.nodes().some(n=>n.props.accessibilityLabel==='내 응답 저장'),false);await h.press('확인 상태 새로고침');assert.match(h.text(),/파트너가 연결된 뒤/);await h.press('확인 상태 새로고침');assert.match(h.text(),/두 분이 각각 확인해 공동 결정으로 저장했어요/);assert.equal(h.nodes().some(n=>n.props.accessibilityLabel==='내 응답 취소'),false);
 });
-
-test("a failed withdrawal keeps the accepted state and exposes an explicit 48px retry", () => {
-  assert.match(cardSource, /kind: "withdraw"/);
-  assert.match(cardSource, /기존 확인 상태는 그대로 유지했어요/);
-  assert.match(cardSource, /내 확인 취소 다시 시도/);
-  assert.match(cardSource, /accessibilityLabel=\{[^}]*내 확인 취소 다시 시도/s);
-  assert.match(cardSource, /actionError\.kind === "withdraw"[\s\S]*withdrawAcceptance\(\)/);
-  assert.match(cardSource, /retryButton:\s*\{[^}]*minHeight:\s*(?:4[8-9]|[5-9]\d)/s);
+test('actual native failed revoke retains receipt and offers refresh before explicit revision retry',async()=>{
+ const h=responseHarness([reply(responseState(responseRow())),reply({},503),reply(responseState(responseRow())),reply(responseState(null,null,{myResponseRevision:2}))]);await h.session.load();h.render();await h.press('내 응답 취소');assert.equal(h.session.getState().snapshot.accepted,true);assert.match(h.text(),/응답 결과를 확인하지 못/);await h.press('확인 상태 새로고침');await h.press('내 응답 취소');assert.equal(h.session.getState().snapshot.accepted,false);assert.ok(h.button('확인 상태 새로고침').props.style[0].minHeight>=48);
+});
+test('actual native shared follow-up requires review and unknown write result only offers the real board',async()=>{
+ const h=responseHarness([reply(responseState(responseRow('conditional'))),new Error('network dropped'),reply(responseState())]);await h.session.load();h.render();await h.press('내가 확인할 내용 정리');assert.equal(h.calls.length,1);assert.equal(h.field('확인할 할 일 제목').props.value,'');h.field('확인할 할 일 제목').props.onChangeText('방문 조건 확인');h.render();await h.press('확인하고 공유 할 일 저장');assert.match(h.text(),/저장 결과를 확인하기 전에는 다시 저장하지 않아요/);await h.press('확인 상태 새로고침');assert.equal(h.nodes().some(n=>n.props.accessibilityLabel==='확인하고 공유 할 일 저장'),false);await h.press('준비 보드에서 먼저 확인');assert.deepEqual(h.navigation,['/amora-preparation']);assert.equal(h.calls.filter(c=>c.options.method==='POST').length,1);
+});
+test('actual native response hook rechecks current roster and invalidates a delayed response on auth events',async()=>{
+ let currentActor=actor, currentCouple=couple, currentPartner=partner, authListener;
+ let resolveWrite;const pending=new Promise(done=>{resolveWrite=done;});const effects=[],calls=[];
+ const tokens={};
+ const fakeSupabase={auth:{getUser:async()=>({data:{user:{id:currentActor}},error:null}),onAuthStateChange:callback=>{authListener=callback;return{data:{subscription:{unsubscribe(){}}}};}},from:table=>({select:()=>({eq:()=>({single:async()=>({data:table==='profiles'?{id:currentActor,couple_id:currentCouple}:{id:currentCouple,bride_id:currentActor,groom_id:currentPartner},error:null})})})}),channel:()=>({on(){return this;},subscribe(){return this;}}),removeChannel:async()=>{}};
+ const modules={react:{useCallback:x=>x,useMemo:x=>x(),useRef:x=>({current:x}),useSyncExternalStore:(_sub,get)=>get(),useEffect:callback=>effects.push(callback)},'react-native':{AppState:{addEventListener:(_name,cb)=>{tokens.foreground=cb;return{remove(){}};}}},'expo-router':{useFocusEffect:()=>{}},'@hanbang/shared/mediation-responses':responsesContract,'./supabase':{supabase:fakeSupabase},'./api':{apiFetchForExpectedUser:async(expected,path,options)=>{calls.push({expected,path,options});return options.method==='POST'?pending:reply(responseState(null,null,{actorId:currentActor}));}}};
+ const code=ts.transpileModule(readFileSync(new URL('../lib/useMediationResponses.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;const exports={};new Function('exports','require',code)(exports,name=>modules[name]);const {session}=exports.useMediationResponses(mediationRevision);const cleanups=effects.map(run=>run());await settle();assert.equal(session.getState().snapshot.actorId,actor);
+ const saving=session.respond('ok',null);while(!calls.some(c=>c.options.method==='POST'))await Promise.resolve();currentActor=partner;authListener('SIGNED_IN');resolveWrite(reply(responseState(responseRow('conditional',{condition:'오래된 응답'}))));await saving;await settle();assert.notEqual(session.getState().snapshot?.actorId,actor);
+ currentPartner='66666666-6666-4666-8666-666666666666';const before=calls.filter(c=>c.options.method==='POST').length;assert.equal(await session.respond('ok',null),false);assert.equal(calls.filter(c=>c.options.method==='POST').length,before);for(const cleanup of cleanups)cleanup?.();
 });

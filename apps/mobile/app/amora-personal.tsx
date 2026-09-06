@@ -6,6 +6,7 @@ import { colors, spacing, radius } from "@hanbang/design-tokens";
 import { AppHeader } from "@/components/ui/AppUI";
 import { usePersonalActions } from "@/lib/usePersonalActions";
 import type { PersonalAction } from "@hanbang/shared/amora-personal-actions";
+import { PersonalActionContinue } from "@/components/chat/PersonalActionContinue";
 
 export default function AmoraPersonalScreen() {
   const data = usePersonalActions();
@@ -26,6 +27,7 @@ export default function AmoraPersonalScreen() {
         <Text style={styles.hint}>{action.status === "done" ? "완료" : "진행 중"}</Text>
         {!!action.description && <Text style={styles.description}>{action.description}</Text>}
         {!!action.dueDate && <Text style={styles.hint}>마감일 {action.dueDate}</Text>}
+        <PersonalActionContinue action={action} />
         <View style={styles.buttons}><Pressable accessibilityRole="button" disabled={data.busyIds.includes(action.id)} onPress={() => void data.session.update(action)} style={styles.button}><Text>{action.status === "done" ? "진행 중으로 되돌리기" : "완료로 표시"}</Text></Pressable>
           <Pressable accessibilityRole="button" disabled={data.busyIds.includes(action.id)} onPress={() => remove(action)} style={styles.button}><Text>삭제</Text></Pressable></View>
       </View>)}

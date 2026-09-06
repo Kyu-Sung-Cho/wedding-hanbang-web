@@ -1,5 +1,5 @@
 import { act } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // 컴포넌트 단위 테스트는 "내가 렌더한 것"만 본다. 이 테스트는 페이지 전체를

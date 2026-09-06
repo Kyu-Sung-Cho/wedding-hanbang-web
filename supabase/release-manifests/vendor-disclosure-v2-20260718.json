@@ -444,6 +444,10 @@
     {
       "file": "20260906151956_amora_personal_actions_owner_boundary.sql",
       "sha256": "e75ff09a75760b52cce4b673af01e67a4b74eb47128c853449c934a95d6791b5"
+    },
+    {
+      "file": "20260906223557_amora_mediation_response_choices.sql",
+      "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a"
     }
   ],
   "deploymentEvidence": {

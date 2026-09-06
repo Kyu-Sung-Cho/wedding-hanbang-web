@@ -3,10 +3,10 @@ import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleShee
 import { router } from "expo-router";
 import * as Crypto from "expo-crypto";
 import { colors, spacing, radius } from "@hanbang/design-tokens";
-import { isPersonalActionId, normalizePersonalActionDraft } from "@hanbang/shared/amora-personal-actions";
+import { isPersonalActionId, normalizePersonalActionDraft, parsePersonalActionDraftMetadata, parsePersonalActionsViewMetadata } from "@hanbang/shared/amora-personal-actions";
 import { usePersonalActions } from "@/lib/usePersonalActions";
 
-export function PersonalActionSave({ ownerId, coupleId, messageId, content }: { ownerId: string; coupleId: string; messageId: string; content: string }) {
+export function PersonalActionSave({ ownerId, coupleId, messageId, content, personalActionDraft, personalActionsView }: { ownerId: string; coupleId: string; messageId: string; content: string; personalActionDraft?: unknown; personalActionsView?: unknown }) {
   const data = usePersonalActions(ownerId, false);
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -14,10 +14,19 @@ export function PersonalActionSave({ ownerId, coupleId, messageId, content }: { 
   const [dueDate, setDueDate] = useState("");
   const [saved, setSaved] = useState(false);
   const submitting = useRef(false);
+  const initialized = useRef(false);
   const request = useRef<{ fingerprint: string; id: string } | null>(null);
   if (data.ownerId !== ownerId || !isPersonalActionId(messageId) || !isPersonalActionId(coupleId)) return null;
   const draft = normalizePersonalActionDraft({ title, description, dueDate });
   const busy = data.busyIds.includes(messageId);
+  const openPreview = () => {
+    if (!initialized.current) {
+      const suggestion = parsePersonalActionDraftMetadata(personalActionDraft);
+      if (suggestion) { setTitle(suggestion.title); setDescription(suggestion.description ?? ""); setDueDate(suggestion.dueDate ?? ""); }
+      initialized.current = true;
+    }
+    setOpen(true);
+  };
   const confirm = async () => {
     if (!draft || submitting.current || data.session.getState().ownerId !== ownerId) return;
     submitting.current = true;
@@ -30,8 +39,10 @@ export function PersonalActionSave({ ownerId, coupleId, messageId, content }: { 
   };
   const close = () => { if (!busy) setOpen(false); };
   return <View>
+    {parsePersonalActionsViewMetadata(personalActionsView) && <Text style={styles.hint}>개인 목록에서 진행·완료 상태와 이어서 상담할 할 일을 확인해 주세요.</Text>}
     {saved ? <View><Text accessibilityLiveRegion="polite" style={styles.hint}>개인 할 일을 저장했어요.</Text><Pressable accessibilityRole="button" onPress={() => router.push("/amora-personal")} style={styles.link}><Text style={styles.linkText}>개인 목록 확인</Text></Pressable></View>
-      : <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.link}><Text style={styles.linkText}>개인 할 일로 저장</Text></Pressable>}
+      : <Pressable accessibilityRole="button" onPress={openPreview} style={styles.link}><Text style={styles.linkText}>개인 할 일로 저장</Text></Pressable>}
+    {!saved && <Pressable accessibilityRole="button" onPress={() => router.push("/amora-personal")} style={styles.link}><Text style={styles.linkText}>개인 목록 보기</Text></Pressable>}
     <Modal visible={open} transparent animationType="slide" onRequestClose={close}>
       <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <View style={styles.sheet} accessibilityViewIsModal>

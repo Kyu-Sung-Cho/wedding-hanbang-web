@@ -29,11 +29,12 @@ export function useAmoraPersonalActions(loadOnMount = true) {
 
   useEffect(() => {
     mounted.current = true;
+    const activeRequests = requests.current;
     const invalidate = (next: string | null) => {
       scope.current = { owner: next, epoch: scope.current.epoch + 1 };
       readSequence.current += 1;
-      for (const controller of requests.current) controller.abort();
-      requests.current.clear();
+      for (const controller of activeRequests) controller.abort();
+      activeRequests.clear();
       writes.current.clear();
       setState({ ...EMPTY, owner: next, loading: false, error: null });
       setWriteError(null);
@@ -47,8 +48,8 @@ export function useAmoraPersonalActions(loadOnMount = true) {
     return () => {
       mounted.current = false;
       scope.current.epoch += 1;
-      for (const controller of requests.current) controller.abort();
-      requests.current.clear();
+      for (const controller of activeRequests) controller.abort();
+      activeRequests.clear();
       unsubscribe();
     };
   }, []);

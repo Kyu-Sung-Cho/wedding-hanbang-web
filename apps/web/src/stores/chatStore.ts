@@ -408,7 +408,11 @@ export function syncToolResult(result: ToolExecutionResult) {
       authStore.updateJourneyLocal({
         progress: {
           ...currentProgress,
-          [category]: { category, status } as { category: string; status: "not_started" | "in_progress" | "completed" },
+          [category]: {
+            ...currentProgress[category],
+            category,
+            status,
+          } as { category: string; status: "not_started" | "in_progress" | "completed" },
         },
       });
       break;

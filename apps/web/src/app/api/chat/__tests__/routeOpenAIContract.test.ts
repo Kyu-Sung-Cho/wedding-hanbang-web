@@ -149,6 +149,7 @@ const mocks = vi.hoisted(() => {
     providerLedger,
     afterAtomicFinalize,
     executeTool: vi.fn(),
+    personalReadCount: vi.fn(async () => 2),
     extractSuggestions: vi.fn((text: string) => ({
       cleanText: text,
       suggestions: [] as string[],
@@ -546,8 +547,8 @@ vi.mock("@/lib/ai/tools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ai/tools")>();
   // route는 모듈 초기화 때 제안 도구 목록을 고정하므로 테스트 중 뒤늦게
   // 추가하지 않는다. 실제 배열 스키마/제목만 있는 할 일 계약을 그대로 쓴다.
-  (mocks.safeTools as AiToolDefinition[]).push(...actual.WEDDING_TOOLS.filter(tool =>
-    tool.name === "apply_budget_plan" || tool.name === "add_amora_action"));
+  (mocks.safeTools as AiToolDefinition[]).push(...actual.BETA_SAFE_TOOLS.filter(tool =>
+    tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action"));
   return { BETA_SAFE_TOOLS: mocks.safeTools, WEDDING_TOOLS: mocks.safeTools };
 });
 
@@ -561,6 +562,7 @@ vi.mock("@/lib/ai/amoraTurnJournal", () => ({
 }));
 
 vi.mock("@/lib/ai/toolExecutor", () => ({ executeTool: mocks.executeTool }));
+vi.mock("@/lib/amora/personalActionConversationRead", () => ({ readPersonalActionConversationCount: mocks.personalReadCount }));
 vi.mock("mammoth", () => ({ extractRawText: mocks.mammothExtract }));
 vi.mock("@/lib/ai/chatSuggestions", () => ({
   extractSuggestions: mocks.extractSuggestions,
@@ -9114,5 +9116,41 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(typeof persistedContent).toBe("string");
     expect(String(persistedContent).trim().length).toBeGreaterThan(0);
     expect(persistedContent).toBe(AMORA_EMPTY_TERMINAL_FALLBACK_TEXT);
+  });
+  it.each(["get_personal_actions", "prepare_personal_action"])("connects a private %s through the real executor to canonical minimal metadata", async name => {
+    const text = name === "get_personal_actions" ? "내 개인 할 일 목록 보여줘" : "내 개인 할 일로 예식 준비 질문을 정리하는 초안을 저장해줘";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "bride_private" };
+    const actual = await vi.importActual<typeof import("@/lib/ai/toolExecutor")>("@/lib/ai/toolExecutor");
+    mocks.executeTool.mockImplementation(actual.executeTool);
+    const input = name === "get_personal_actions" ? { status: "open" } : { title: "예식 준비 질문 정리", description: "본인이 확인할 질문", dueDate: null };
+    providerAfterPreGeneration(providerResult({ toolCalls: [{ callId: "private_tool", name, input }], outputItems: [{ type: "function_call", call_id: "private_tool", name, arguments: JSON.stringify(input) }] }));
+    providerAfterPreGeneration(providerResult({ fullText: name === "get_personal_actions" ? "현재 건수를 확인했어요. 개인 목록에서 내용을 확인해 주세요." : "개인 할 일 초안이에요. 내용을 확인한 뒤 저장해 주세요." }));
+    const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const stream = await response.text();
+    expect(mocks.executeTool).toHaveBeenCalledWith(name, input, expect.objectContaining({ actorProfileId: "00000000-0000-4000-8000-000000000001", personalActions: expect.objectContaining({ visibility: "bride_private" }) }));
+    expect(mocks.provider.mock.calls[0][0].tools.map((tool: AiToolDefinition) => tool.name)).toContain(name);
+    const metadata = mocks.atomicResponses.at(-1)?.metadata;
+    expect(metadata?.toolResults).toEqual([]);
+    expect(metadata?.memory_eligible).toBe(false);
+    expect(metadata?.memory_enqueue_requested).toBe(false);
+    if (name === "prepare_personal_action") {
+      expect(metadata?.personal_action_draft).toEqual(input);
+      expect(stream).toContain('"saved":false');
+    } else {
+      expect(metadata?.personal_actions_view).toEqual({ status: "open" });
+      expect(mocks.personalReadCount).toHaveBeenCalledWith(expect.anything(), "00000000-0000-4000-8000-000000000001", COUPLE_ID, "bride_private", "open");
+      expect(JSON.stringify(mocks.provider.mock.calls.at(-1)?.[0].input)).not.toContain("source_message_id");
+    }
+  });
+  it.each(["shared", "bride_private"])("rejects a provider-forged personal tool in %s without current consent", async visibility => {
+    const text = visibility === "shared" ? "내 개인 할 일 목록 보여줘" : "예식 준비 순서 알려줘";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    providerAfterPreGeneration(providerResult({ toolCalls: [{ callId: "forged_private", name: "get_personal_actions", input: { status: "all" } }], outputItems: [] }));
+    providerAfterPreGeneration(providerResult({ fullText: "요청하신 준비 내용을 정리할게요." }));
+    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }] }));
+    await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses.at(-1)?.metadata).not.toHaveProperty("personal_actions_view");
   });
 });

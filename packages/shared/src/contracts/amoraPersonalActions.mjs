@@ -23,6 +23,18 @@ export function normalizePersonalActionDraft(value) {
   return { title, description, dueDate };
 }
 
+export function parsePersonalActionDraftMetadata(value) {
+  if (!object(value) || Object.keys(value).length !== 3
+    || !Object.hasOwn(value, 'title') || !Object.hasOwn(value, 'description') || !Object.hasOwn(value, 'dueDate')
+    || !(value.description === null || typeof value.description === 'string')
+    || !(value.dueDate === null || (typeof value.dueDate === 'string' && date(value.dueDate)))) return null;
+  return normalizePersonalActionDraft(value);
+}
+
+export function parsePersonalActionsViewMetadata(value) {
+  return object(value) && Object.keys(value).length === 1 && ['open', 'done', 'all'].includes(value.status) ? value.status : null;
+}
+
 export function parsePersonalAction(value, expectedOwnerId) {
   if (!object(value) || !isPersonalActionId(value.id) || !isPersonalActionId(value.sourceMessageId)
     || !isPersonalActionId(expectedOwnerId) || value.ownerUserId !== expectedOwnerId
@@ -64,4 +76,51 @@ export function parsePersonalActionReceipt(value, expectedOwnerId, expected) {
 
 export function isPersonalActionDeleteReceipt(value, expectedId) {
   return object(value) && value.deleted === true && value.id === expectedId;
+}
+
+const CONTINUATION_ERROR = '이 할 일을 현재 나만 상담으로 이어갈 수 있는지 확인하지 못했어요. 개인 목록에서 다시 확인해 주세요.';
+const sameScope = (left, right) => left && right && left.ownerId === right.ownerId && left.coupleId === right.coupleId;
+const validScope = value => object(value) && isPersonalActionId(value.ownerId) && isPersonalActionId(value.coupleId);
+
+/** 원문을 저장하지 않는 일회성 전달. 선택·확인·수신마다 현재 출처를 다시 확인한다. */
+export function createPersonalActionContinuation({ readScope, readAction }) {
+  let generation = 0;
+  let pending = null;
+  const current = async (scope, expectedGeneration) => {
+    const latest = await readScope();
+    return generation === expectedGeneration && sameScope(latest, scope);
+  };
+  const read = async (id, scope, expectedGeneration) => {
+    if (!isPersonalActionId(id) || !validScope(scope) || !await current(scope, expectedGeneration)) throw new Error(CONTINUATION_ERROR);
+    const page = parsePersonalActionPage(await readAction(id, scope), scope.ownerId);
+    if (!await current(scope, expectedGeneration) || !page || page.count !== 1 || page.nextCursor !== null
+      || page.actions.length !== 1 || page.actions[0].id !== id) throw new Error(CONTINUATION_ERROR);
+    return page.actions[0];
+  };
+  return {
+    reset() { generation += 1; pending = null; },
+    hasPending: () => pending !== null,
+    async review(id) {
+      const expectedGeneration = generation;
+      const scope = await readScope();
+      const action = await read(id, scope, expectedGeneration);
+      return { action, scope: { ...scope }, generation: expectedGeneration };
+    },
+    async stage(review) {
+      const action = await read(review.action.id, review.scope, review.generation);
+      if (JSON.stringify(action) !== JSON.stringify(review.action)) throw new Error(CONTINUATION_ERROR);
+      pending = { id: action.id, revision: action.revision, scope: { ...review.scope }, generation: review.generation };
+    },
+    async take(scope) {
+      const selection = pending;
+      pending = null;
+      if (!selection) return null;
+      if (!sameScope(selection.scope, scope)) throw new Error(CONTINUATION_ERROR);
+      const action = await read(selection.id, scope, selection.generation);
+      if (action.revision !== selection.revision) throw new Error(CONTINUATION_ERROR);
+      return ['이 개인 할 일을 이어서 상담하고 싶어요.', `제목: ${action.title}`,
+        action.description ? `내용: ${action.description}` : null,
+        action.dueDate ? `마감일: ${action.dueDate}` : null].filter(Boolean).join('\n');
+    },
+  };
 }

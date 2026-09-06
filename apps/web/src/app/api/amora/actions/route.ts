@@ -165,6 +165,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
+    const scoped = Object.hasOwn(body, "expectedOwnerId") || Object.hasOwn(body, "expectedCoupleId");
+    if (scoped && (body.expectedOwnerId !== user.id
+      || typeof body.expectedCoupleId !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.expectedCoupleId))) {
+      return NextResponse.json({ error: "계정 또는 커플 연결이 바뀌었어요. 내용을 다시 확인해 주세요." }, { status: 403 });
+    }
+
     const title = cleanOptionalText(body.title, 120);
     if (!title) {
       return NextResponse.json({ error: "제목이 필요합니다." }, { status: 400 });
@@ -178,6 +185,9 @@ export async function POST(request: Request) {
     const coupleId = lookup.coupleId;
     if (!coupleId) {
       return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
+    }
+    if (scoped && body.expectedCoupleId !== coupleId) {
+      return NextResponse.json({ error: "커플 연결이 바뀌었어요. 내용을 다시 확인해 주세요." }, { status: 403 });
     }
 
     const now = new Date().toISOString();

@@ -32,6 +32,7 @@ import { supabase } from "@/lib/supabase";
 import {
   buildAmoraActionConfirmationOutcomes,
   getAmoraPendingActionApplicationState,
+  buildAmoraConversationRecap,
 } from "@hanbang/shared";
 import {
   assertAmoraRequestActor,
@@ -83,6 +84,8 @@ import {
 import { PlaceCards } from "@/components/chat/PlaceCards";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
 import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
+import { AmoraConversationRecap } from "@/components/chat/AmoraConversationRecap";
+import { personalActionContinuation } from "@/lib/personalActionContinuation";
 import {
   dedupeToolResultCards,
   getToolResultCardModel,
@@ -1999,12 +2002,36 @@ export default function ChatScreen() {
     [firstHelloMessage, scopedMessages],
   );
   const visibleMessages = useMemo(() => [...displayedMessages].reverse(), [displayedMessages]);
+  const conversationRecap = useMemo(() => buildAmoraConversationRecap({
+    messages: messages.filter(message => !!message.created_at).map(message => ({ ...message, created_at: message.created_at! })),
+    coupleId: coupleId ?? "", userId: userId ?? "", role: userRole ?? "bride",
+    visibility: activeScope === "shared" ? "shared" : `${userRole ?? "bride"}_private`,
+    clearedAt: chatViewCursorsRef.current[activeScope], nowMs, readPending: getPendingAmoraAction,
+  }), [activeScope, coupleId, messages, nowMs, userId, userRole]);
 
   // 어느 문으로 들어왔는가. 라운지의 버튼·카드·첫 도착 CTA는 서로 다른 키를 들고 오고,
   // 그 키가 입력창 초안 한 줄을 정한다(웹의 ?prefill=과 같은 자리다). 탭으로 그냥 들어온
   // 사람에게는 키가 없고, 그러면 아무것도 채우지 않는다.
   const entryParam = useLocalSearchParams()[AMORA_CHAT_ENTRY_PARAM];
   const entryPrefillAppliedRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!initialLoaded || !userId || !coupleId || !userRole || chatLoadError || streaming
+      || sendingRef.current || !personalActionContinuation.hasPending()) return;
+    let active = true;
+    const generation = chatSessionGenerationRef.current.current();
+    void personalActionContinuation.take({ ownerId: userId, coupleId }).then(text => {
+      if (!active || !text || !chatSessionGenerationRef.current.isCurrent(generation) || sessionUserIdRef.current !== userId) return;
+      if (inputByLaneRef.current.private_ai.trim()) {
+        setPartnerSafetyNotice("작성 중인 나만 상담은 그대로 두었어요. 보내거나 비운 뒤 개인 목록에서 다시 이어가 주세요.");
+        return;
+      }
+      setActiveScope("private"); setTarget("ai");
+      setInputByLane(current => current.private_ai.trim() ? current : updateAmoraChatLaneRecord(current, "private_ai", text));
+    }).catch(() => {
+      if (active && chatSessionGenerationRef.current.isCurrent(generation)) setPartnerSafetyNotice("개인 할 일을 다시 확인하지 못했어요. 개인 목록에서 다시 이어가 주세요.");
+    });
+    return () => { active = false; };
+  }, [chatLoadError, coupleId, initialLoaded, streaming, userId, userRole]));
   useEffect(() => {
     if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
     if (entryPrefillAppliedRef.current) return;
@@ -4050,7 +4077,7 @@ export default function ChatScreen() {
             <ToolResultCard key={`${model.toolName}-${index}`} model={model} />
           ))}
           {isAi && !isThinking && !isPinnedSafetyCard && userId && (item.visibility === "bride_private" || item.visibility === "groom_private") && (
-            <PersonalActionSave key={`${userId}:${item.id}`} ownerId={userId} coupleId={item.couple_id} messageId={item.id} content={item.content} />
+            <PersonalActionSave key={`${userId}:${item.couple_id}:${item.id}`} ownerId={userId} coupleId={item.couple_id} messageId={item.id} content={item.content} personalActionDraft={item.metadata?.personal_action_draft} personalActionsView={item.metadata?.personal_actions_view} />
           )}
           {mediationBlock && (
             <AmoraMediationCard
@@ -4295,6 +4322,13 @@ export default function ChatScreen() {
       )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        {initialLoaded && !chatLoadError && !!userRole && !isP && <AmoraConversationRecap
+          key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
+          onPrefill={text => {
+            if (streaming || sendingRef.current || !activeLane || inputByLaneRef.current[activeLane].trim()) return false;
+            setInputByLane(current => current[activeLane].trim() ? current : updateAmoraChatLaneRecord(current, activeLane, text));
+            return true;
+          }} />}
         {!initialLoaded ? (
           <View style={st.loading}>
             <ActivityIndicator color={colors.rose[500]} />

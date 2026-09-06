@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "kind": "current-baseline-rollout",
+  "status": "requires-runtime-evidence",
+  "release": "amora-current-baseline-20260907",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "expectedOrigin": "https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git",
+  "requiredRemoteHead": "20260902120000",
+  "migrationFloor": "20260905153207",
+  "historicalReconciliation": [],
+  "appliedHotfixes": [],
+  "baselineObservation": {
+    "file": "supabase/release-contracts/current-production-baseline-20260907.json",
+    "sha256": "b965f9d5e13de0f3d0ba84a96373dac95e3a2a5b8cdb581497ec3c653d1b9d28"
+  },
+  "migrations": [
+    {
+      "file": "20260905153207_community_hot_rank_before_pagination.sql",
+      "sha256": "893651a7da04038b9807004518960b248e1f5b5a27886bbd091700dea5b53cde"
+    },
+    {
+      "file": "20260905223222_amora_atomic_chat_view_reset.sql",
+      "sha256": "8c29609fd1fac0cad71d9eaaab41a254be2ad00f718b0221d2703b6799130bed"
+    },
+    {
+      "file": "20260906074227_amora_manual_actions_actor_boundary.sql",
+      "sha256": "57da05968e382fd5116f2e7ae53df05503ad49bf836112a975bfbca331154865"
+    },
+    {
+      "file": "20260906090807_amora_saved_notes_canonical_source_boundary.sql",
+      "sha256": "c8de2b0882796194287d0dc66ac2852bab5193c85da466eb1138bc5ad7a948d9"
+    },
+    {
+      "file": "20260906130734_amora_budget_plan_preserves_existing_allocations.sql",
+      "sha256": "13f5cdb4c5b5cc30d69cb3b0d55c9f4adb387c61f17cff7e95cdd502b6661d3c"
+    },
+    {
+      "file": "20260906145336_amora_saved_notes_owner_delete.sql",
+      "sha256": "e1ae769d3752616f0018a57b3d853e95a53a63ea6199b73d60f73dba51816914"
+    },
+    {
+      "file": "20260906151956_amora_personal_actions_owner_boundary.sql",
+      "sha256": "e75ff09a75760b52cce4b673af01e67a4b74eb47128c853449c934a95d6791b5"
+    },
+    {
+      "file": "20260906223557_amora_mediation_response_choices.sql",
+      "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a"
+    }
+  ],
+  "excludedHistoricalFiles": [
+    "20260806090000_amora_preparation_status.sql",
+    "20260807090000_amora_mediation_send_gate.sql",
+    "20260821120000_events_append_only_allows_fk_detach.sql",
+    "20260823120000_couple_approval_becomes_notification.sql",
+    "20260824120000_amora_schedule_cancel_can_actually_apply.sql",
+    "20260824130000_mediation_tells_the_partner.sql",
+    "20260824140000_amora_can_change_custom_budget_categories.sql",
+    "20260824150000_amora_custom_category_label_match.sql",
+    "20260824160000_first_budget_entry_is_not_a_mixed_change.sql",
+    "20260826000000_harden_cohort_timeline_and_contract_writes.sql",
+    "20260826120000_anon_sees_only_public_authors.sql",
+    "20260827090000_move_card_can_name_what_it_moves.sql"
+  ],
+  "requiredEvidence": [
+    "backup",
+    "hostedRestore",
+    "hostedStaging",
+    "storage",
+    "finalizer"
+  ],
+  "allowedSchemaChanges": [
+    "function:public.amora_budget_plan_non_reserve_budgets(*)",
+    "function:public.amora_note_utf16_excerpt(*)",
+    "function:public.apply_amora_atomic_tool_execution_pre_shared_revision(*)",
+    "function:public.capture_amora_profile_privacy_epoch(*)",
+    "function:public.clean_amora_mediation_responses(*)",
+    "function:public.get_own_amora_chat_view_snapshot(*)",
+    "function:public.lock_own_amora_action_couple(*)",
+    "function:public.lock_own_amora_mediation_response(*)",
+    "function:public.mutate_own_amora_action(*)",
+    "function:public.read_own_amora_mediation_response(*)",
+    "function:public.reset_own_amora_chat_view(*)",
+    "function:public.respond_own_amora_mediation(*)",
+    "function:public.save_own_amora_note(*)",
+    "function:public.save_own_amora_personal_action(*)",
+    "function:public.sync_amora_mediation_response_acceptance(*)",
+    "function:public.touch_amora_personal_action(*)",
+    "function:public.update_own_legacy_amora_action(*)",
+    "function:public.validate_manual_amora_action_values(*)",
+    "relation:public.amora_mediation_acceptances",
+    "relation:public.amora_mediation_responses",
+    "relation:public.amora_personal_actions",
+    "relation:public.amora_saved_notes",
+    "relation:public.chat_messages",
+    "relation:public.community_posts",
+    "relation:public.couples"
+  ],
+  "cli": {
+    "version": "2.106.0",
+    "binarySha256": "a8ecf0778d52756d7f3a36e391276aaea988f78ad1b2a8b88967ce4b5c3aeea2",
+    "companionSha256": "d626b6f968391b0197038ec1875c05abafe4d6126865b1ae5b96dfb1f3e68e35"
+  },
+  "implementation": {
+    "inventory": {
+      "file": "supabase/release-checks/current-baseline-inventory-v1.sql",
+      "sha256": "0ac8d44d7b213ad8f57ccb2fcd6561fb4b2c928c94a0711e0dc21ff418f48449"
+    },
+    "writeFenceCheck": {
+      "file": "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
+      "sha256": "412511d61f110df8a6b87a5eafcf40ce95c77851438c1e06e31b119f5d0c4a6c"
+    },
+    "backupVerifier": {
+      "file": "scripts/current-baseline-backup-verify.ps1",
+      "sha256": "4da5c422cc7639c54a3158ee260666cb504e86abff07892afa4ace2672cf8952"
+    },
+    "crypto": {
+      "file": "scripts/amora-db-backup-common.ps1",
+      "sha256": "b6f9eaa6a54edf92d868f61d25f00a2008ec42e34bbd5fb4dea75def61277079"
+    }
+  }
+}
