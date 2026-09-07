@@ -319,8 +319,11 @@ describe("Amora pending actions", () => {
     const multiple = extract(`알겠어요.\n${budget}\n${venue}`);
 
     expect(multiple.pendingAction?.tool).toBe("update_budget");
-    // 카드가 되는 것은 첫 건 하나뿐이다. 두 번째 표식은 실행 경로에 남지 않는다.
+    // 현재 확인 카드는 첫 건뿐이고, 나머지 입력은 다음 확인을 위해 보존한다.
     expect(multiple.pendingAction?.input).toEqual({ total_budget: 30_000_000 });
+    expect(multiple.remainingActions).toEqual([
+      { tool: "update_venue", input: { venue: "그랜드힐" } },
+    ]);
     expect(multiple.cleanText).toContain("총 예산: 3,000만 원");
     expect(multiple.cleanText).toContain("나머지 1건은 이 확인이 끝나면 이어서 제안할게요.");
   });
@@ -439,7 +442,11 @@ describe("Amora pending actions", () => {
     expect(prompt).toContain("일정 등록 요청에는 `add_schedule_event` 표식을 이번 답변에 내세요");
     // 연도를 확인받으려고 표식을 미루는 모양이 실측됐다.
     expect(prompt).toContain("연도가 없으면 가장 가까운 미래로 넣습니다");
-    expect(prompt).toContain("여러 건이면 첫 건만 냅니다");
+    expect(prompt).toContain("나머지도 이번 답변에 각각 표식으로 내세요");
+    expect(prompt).toContain("최대 10건");
+    expect(prompt).toContain("한 건씩 확인받고 성공 뒤 다음 카드를 냅니다");
+    expect(prompt).toContain("실패·미확인은 완료가 아닙니다");
+    expect(prompt).not.toContain("여러 건이면 첫 건만 냅니다");
   });
 
   // 2026-09-04 라이브 4/4: 값(날짜·제목)이 다 적혀 있는데도 표식이 0개였고 답변은
