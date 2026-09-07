@@ -187,7 +187,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           minItems: 1,
           maxItems: 20,
           description:
-            "사용자가 확인한 항목별 금액 전체. 고정 분야에 정확히 대응하지 않는 묶음(예: 초대장·꽃·하객선물)은 category=custom, label=사용자의 이름으로 저장하며 나누거나 중복 배정하지 마세요. 같은 이름의 기존 custom은 재사용합니다. 미지정 기존 배정은 유지하고 잔액은 reserve가 됩니다.",
+            "사용자가 직접 입력하거나 확인한 목표 금액·견적·상한만 사용하세요. 고정 분야에 정확히 대응하지 않는 묶음(예: 초대장·꽃·하객선물)은 category=custom, label=사용자의 이름으로 저장하며 나누거나 중복 배정하지 마세요. 같은 이름의 기존 custom은 재사용합니다. 미지정 기존 배정은 유지하고 잔액은 reserve가 됩니다.",
           items: {
             type: "object",
             properties: {
