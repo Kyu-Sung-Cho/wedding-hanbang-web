@@ -2,9 +2,11 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AmoraActionItem } from "@/lib/amora/actions";
+import type { PreparationDecision } from "@/lib/amora/preparationBoard";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 
 const mocks = vi.hoisted(() => ({
+  decisions: { records: [] as PreparationDecision[], loading: false, loadingMore: false, error: null as string | null, nextCursor: null as { id: string; createdAt: string } | null, available: true, isDemo: false, refresh: vi.fn(), loadMore: vi.fn() },
   data: {
     actions: [] as AmoraActionItem[], loading: false, error: null as string | null,
     count: 0, open_count: 0, truncated: false, isDemo: false,
@@ -13,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   },
 }));
 vi.mock("@/hooks/useAmoraPreparationActions", () => ({ useAmoraPreparationActions: () => mocks.data }));
+vi.mock("./useDecisionBoard", () => ({ useDecisionBoard: () => mocks.decisions }));
 import AmoraDecisionBoard from "./AmoraDecisionBoard";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -25,12 +28,61 @@ describe("AmoraDecisionBoard", () => {
   let root: Root;
   let container: HTMLDivElement;
   beforeEach(() => {
+    Object.assign(mocks.decisions, { records: [], loading: false, loadingMore: false, error: null, nextCursor: null, available: true, isDemo: false });
+    mocks.decisions.refresh.mockReset(); mocks.decisions.loadMore.mockReset();
     Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, updateError: null, updatingIds: new Set<string>() });
     mocks.data.refresh.mockReset(); mocks.data.update.mockReset().mockResolvedValue(true);
     mocks.data.loadMore.mockReset(); mocks.data.nextCursor = null; mocks.data.loadingMore = false;
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
+
+  it("shows preparation decisions separately from shared to-do completion", async () => {
+    mocks.data.actions = [{ ...action, status: "done" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(container.querySelector('[aria-label="준비 결정 기록"]')).not.toBeNull();
+    expect(container.querySelector('[aria-label="공유 할 일"]')?.textContent).toContain("완료한 할 일");
+  });
+
+  it("shows an uncategorized legacy decision without inventing a field link", async () => {
+    mocks.decisions.records = [{ id: "legacy", title: "과거의 공동 결정", category: "", detail: null, status: "confirmed", stateLabel: "결정 기록", source: "", createdAt: "2026-09-07T00:00:00Z" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const card = container.querySelector('[aria-label="과거의 공동 결정"]');
+    expect(card?.textContent).toContain("준비 결정");
+    expect(card?.querySelector('a[href*="checklist"]')).toBeNull();
+  });
+
+  it("renders actual decision states without inventing two-person acknowledgement and pages independently", async () => {
+    mocks.decisions.records = [
+      { id: "decision1", title: "실제로 기록한 예산 방향", category: "venue", detail: "저장된 이유", status: "confirmed", stateLabel: "결정 기록", source: "budget", createdAt: "2026-09-07T00:00:00Z" },
+      { id: "decision2", title: "아직 고려 중인 장소", category: "venue", detail: null, status: "considering", stateLabel: "고려 중", source: "chat", createdAt: "2026-09-06T00:00:00Z" },
+    ];
+    mocks.decisions.nextCursor = { id: "decision2", createdAt: "2026-09-06T00:00:00Z" };
+    mocks.data.actions = [{ ...action, status: "done" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    expect(decisions.querySelector('[aria-label="확정 결정"]')?.textContent).toContain("실제로 기록한 예산 방향");
+    expect(decisions.querySelector('[aria-label="논의 중 결정"]')?.textContent).toContain("아직 고려 중인 장소");
+    expect(decisions.textContent).not.toContain(action.title);
+    expect(decisions.textContent).not.toMatch(/두 분 모두 확인|신랑 확인 대기|나도 확인/);
+    const considering = Array.from(decisions.querySelectorAll<HTMLButtonElement>('[aria-label="결정 상태"] button')).find(button => button.textContent?.includes("논의 중"))!;
+    await act(async () => considering.click()); expect(considering.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => Array.from(decisions.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent === "이전 결정 더 보기")!.click());
+    expect(mocks.decisions.loadMore).toHaveBeenCalledOnce(); expect(mocks.data.loadMore).not.toHaveBeenCalled();
+    expect(container.querySelector('[aria-label="공유 할 일"]')?.textContent).toContain(action.title);
+  });
+
+  it("distinguishes decision failure and retry from no data without hiding the shared tasks", async () => {
+    mocks.decisions.error = "결정 기록을 확인하지 못했어요";
+    mocks.data.actions = [action];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    expect(decisions.querySelector('[role="alert"]')?.textContent).toContain("확인하지 못했어요");
+    expect(decisions.textContent).not.toContain("이 상태로 저장된 결정이 없어요");
+    await act(async () => Array.from(decisions.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent === "결정 다시 불러오기")!.click());
+    expect(mocks.decisions.refresh).toHaveBeenCalledOnce();
+    expect(container.querySelector('[aria-label="공유 할 일"]')?.textContent).toContain(action.title);
+  });
 
   it("distinguishes loading, read error, empty data, and a partial loaded board", async () => {
     mocks.data.loading = true;

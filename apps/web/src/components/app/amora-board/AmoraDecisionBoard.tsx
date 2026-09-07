@@ -7,14 +7,62 @@ import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import Button from "@/components/ui/Button";
 import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
 import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
-import { filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES } from "@/lib/amora/preparationBoard";
+import { DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type DecisionColumn } from "@/lib/amora/preparationBoard";
 import { weddingPath } from "@/lib/weddingPaths";
+import { useDecisionBoard } from "./useDecisionBoard";
 
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]";
 const button = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${focus}`;
 const outlineButton = `${button} border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)] hover:bg-[var(--amora-warm)]`;
 const sharedButtonShape = "rounded-full! px-3.5! text-[12px]! font-medium!";
 const sharedOutlineButton = `${outlineButton} ${sharedButtonShape} border-[var(--color-paper-outline)]! bg-[var(--amora-surface)]! text-[var(--amora-soft)]! hover:bg-[var(--amora-warm)]!`;
+
+function DecisionRecords() {
+  const { records, loading, loadingMore, error, nextCursor, available, isDemo, refresh, loadMore } = useDecisionBoard();
+  const [status, setStatus] = useState<DecisionColumn>("confirmed");
+  return <section aria-label="준비 결정 기록" className="mb-9">
+    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <h2 className="amora-display text-[23px] text-[var(--amora-ink)]">결정 보드</h2>
+      <Button type="button" variant="ghost" onClick={() => void refresh()} disabled={loading || loadingMore || !available} className="text-[12px]! text-[var(--amora-accent)]!"><RefreshCw size={14} aria-hidden="true" />결정 새로고침</Button>
+    </div>
+    <p className="mb-4 rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-[18px] py-4 text-[12.5px] leading-[1.7]">
+      실제 준비 과정에서 저장된 공동 결정 기록이에요. 개인 상담과 자동 추출 기억은 포함하지 않아요.
+      <span className="mt-1 block">확정은 기록에 저장된 상태를 뜻해요. 두 사람이 모두 확인했다는 뜻은 아니며, 할 일 완료는 아래에서 따로 관리해요.</span>
+    </p>
+    {isDemo ? <p role="note" className="py-3 text-[13px]">체험 모드에서는 실제 결정 기록을 조회하지 않아요. 아래 공유 할 일은 체험용 샘플이에요.</p>
+      : !available ? <p className="py-3 text-[13px]">로그인과 현재 커플 연결을 확인하면 공동 결정 기록을 볼 수 있어요.</p>
+        : <>
+          {error && <div role="alert" className="mb-4 rounded-[12px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p><Button type="button" onClick={() => void refresh()} disabled={loading} className={`${sharedOutlineButton} mt-2`}>결정 다시 불러오기</Button></div>}
+          {loading && <p role="status" className="py-4 text-[13px]">결정 기록을 불러오는 중…</p>}
+          {!loading && !error && <>
+            <div className="mb-4 flex rounded-[11px] bg-[var(--amora-low)] p-[3px] lg:hidden" role="group" aria-label="결정 상태">
+              {DECISION_COLUMNS.map(column => <Button key={column.status} type="button" variant="ghost" aria-pressed={status === column.status} onClick={() => setStatus(column.status)} className={`min-h-[58px]! min-w-0! flex-1! flex-col! gap-0.5! rounded-[9px]! text-[12.5px]! ${status === column.status ? "bg-[var(--amora-surface)]!" : "bg-transparent!"}`}><span>{column.label}</span><span className="text-[11px]">{records.filter(row => row.status === column.status).length}</span></Button>)}
+            </div>
+            <p className="mb-4 text-[11.5px] text-[var(--amora-muted)]">불러온 결정 {records.length}개 · 아래 숫자는 불러온 기록 기준이에요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p>
+            <div className="grid min-w-0 gap-5 lg:grid-cols-3">
+              {DECISION_COLUMNS.map(column => {
+                const rows = records.filter(row => row.status === column.status);
+                return <section key={column.status} aria-label={`${column.label} 결정`} className={`min-w-0 ${status === column.status ? "block" : "hidden lg:block"}`}>
+                  <h3 className="mb-1 flex items-center gap-2 text-[14.5px] font-semibold"><span aria-hidden="true" className={`size-[9px] rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] font-normal">{rows.length}</span></h3>
+                  <p className="mb-3 border-b border-[var(--amora-line)] pb-3 text-[11.5px] leading-[1.6] text-[var(--amora-muted)]">{column.rule}</p>
+                  <div className="space-y-3">{rows.length ? rows.map(row => {
+                    const category = preparationCategory(row.category);
+                    return <article key={row.id} aria-label={row.title} className="rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-surface)] p-4">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-[11px] text-[var(--amora-muted)]"><span className="rounded-full bg-[var(--amora-low)] px-2.5 py-1">{category?.label ?? "준비 결정"}</span><time dateTime={row.createdAt}>{preparationDate(row.createdAt)}</time></div>
+                      <h4 className="break-words text-[14.5px] font-semibold leading-[1.6] text-[var(--amora-ink)]">{row.title}</h4>
+                      {row.detail && <p className="my-3 whitespace-pre-wrap break-words rounded-[9px] bg-[var(--amora-warm)] px-3 py-2.5 text-[12.5px] leading-[1.65] text-[var(--amora-muted)]">{row.detail}</p>}
+                      <p className="mt-3 text-[11.5px] text-[var(--amora-soft)]">{row.stateLabel}</p>
+                      {category && <Link href={weddingPath(`/checklist?category=${encodeURIComponent(category.key)}`)} className={`mt-2 inline-flex min-h-11 items-center text-[12px] text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>분야 체크리스트 보기</Link>}
+                    </article>;
+                  }) : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">이 상태로 저장된 결정이 없어요.</p>}</div>
+                </section>;
+              })}
+            </div>
+          </>}
+          {nextCursor && !error && <Button type="button" onClick={() => void loadMore()} disabled={loading || loadingMore} className={`${sharedOutlineButton} mt-4`}>{loadingMore ? "이전 결정을 불러오는 중…" : "이전 결정 더 보기"}</Button>}
+        </>}
+  </section>;
+}
 
 function PreparationCard({ action, busy, update }: {
   action: AmoraActionItem;
@@ -120,6 +168,9 @@ export default function AmoraDecisionBoard() {
 
   return (
     <div className="min-w-0 bg-[var(--amora-bg)] px-[18px] pt-[14px] pb-8 text-[var(--amora-soft)] lg:px-9 lg:pt-6 lg:pb-9">
+      <DecisionRecords />
+      <section aria-label="공유 할 일" className="border-t border-[var(--amora-line)] pt-6">
+      <h2 className="amora-display mb-4 text-[23px] text-[var(--amora-ink)]">공유 할 일</h2>
       <nav aria-label="아모라 화면 이동" className="mb-3 flex flex-wrap gap-x-4 xl:hidden">
         <Link href={weddingPath("/chat/missions")} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-muted)] ${focus}`}><ArrowLeft aria-hidden="true" className="h-3.5 w-3.5" />오늘의 미션</Link>
         <Link href={weddingPath("/chat")} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] ${focus}`}>대화로 이동<ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" /></Link>
@@ -172,6 +223,7 @@ export default function AmoraDecisionBoard() {
         <p className="mb-2 text-[12px] text-[var(--amora-muted)]">최근에 등록한 순서예요. 더 불러오면 이전 카드도 검색하고 분류할 수 있어요.</p>
         <Button type="button" onClick={() => void loadMore()} disabled={loading || loadingMore || updatingIds.size > 0} className={sharedOutlineButton}>{loadingMore ? "이전 기록을 불러오는 중…" : "이전 기록 더 보기"}</Button>
       </div>}
+      </section>
     </div>
   );
 }
