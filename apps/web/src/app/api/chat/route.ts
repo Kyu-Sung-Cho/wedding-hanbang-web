@@ -152,6 +152,7 @@ import {
 } from "@/lib/ai/amoraActionQueue";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
+import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
 import {
   AMORA_MAX_TOOL_ROUNDS,
   AMORA_MAX_TOOL_CALLS_PER_TURN,
@@ -3887,10 +3888,7 @@ export async function POST(request: Request) {
           const explicitBudgetPlan = pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
             ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.progress) : null;
-          const modelPendingExtraction = extractAmoraPendingAction({
-            text: explicitBudgetPlan
-              ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
-              : afterSuggest,
+          const pendingExtractionOptions = {
             allowedTools: pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
@@ -3900,7 +3898,25 @@ export async function POST(request: Request) {
                 .map((event) => event.id)
                 .filter((id): id is string => typeof id === "string" && id.length > 0),
             ),
+          };
+          let modelPendingExtraction = extractAmoraPendingAction({
+            ...pendingExtractionOptions,
+            text: explicitBudgetPlan
+              ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
+              : afterSuggest,
           });
+          const explicitSchedules = !explicitBudgetPlan && !queuedProposal?.pendingAction
+            && pendingOfferEnabled && !approvedPendingAction
+            && pendingProposalTools.some(tool => tool.name === "add_schedule_event")
+            ? parseExplicitScheduleRequest(lastUserText, afterSuggest)
+            : null;
+          if (explicitSchedules) {
+            // 완결된 원문 목록으로 대체한다. 모델 목록에 덧붙이면 같은 일정이 중복 저장된다.
+            modelPendingExtraction = extractAmoraPendingAction({
+              ...pendingExtractionOptions,
+              text: explicitSchedules.map(action => `[pending_action]${JSON.stringify(action)}[/pending_action]`).join("\n"),
+            });
+          }
           const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
           const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
           const proposalQueue = nextActionQueue ?? (pendingExtraction.pendingAction
