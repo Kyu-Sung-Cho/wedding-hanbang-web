@@ -6823,6 +6823,54 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { if (added) mocks.safeTools.pop(); }
   });
 
+  it.each([
+    { fullText: "반영할까요?", totalBudget: 35000000, expectedPlan: true },
+    { fullText: '[pending_action]{"tool":"update_budget","input":{"total_budget":35000000}}[/pending_action]', totalBudget: 35000000, expectedPlan: true },
+    { fullText: "반영할까요?", totalBudget: 36000000, expectedPlan: false },
+  ])("recovers the complete existing budget update only with canonical total $totalBudget and model output $fullText", async ({ fullText, totalBudget, expectedPlan }) => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    const text = "기존 예산의 초대장·꽃·하객선물은 새 항목을 만들지 말고 같은 이름의 금액을 150만 원에서 160만 원으로 바꿔줘. 총액은 3500만원으로 유지하고 예비비만 200만원에서 190만원으로 줄일게. 최종 배분은 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 160, 예비비 190만 원이야. 이대로 실제 예산에 반영해줘.";
+    const allocations = [
+      { category: "custom", label: "결혼식장·식사", budget: 9000000 },
+      { category: "honeymoon", budget: 10000000 },
+      { category: "custom", label: "사진", budget: 5000000 },
+      { category: "custom", label: "드레스·정장", budget: 3000000 },
+      { category: "makeup", budget: 2000000 },
+      { category: "custom", label: "반지·선물", budget: 2500000 },
+      { category: "custom", label: "초대장·꽃·하객선물", budget: 1600000 },
+      { category: "reserve", budget: 1900000 },
+    ];
+    mocks.journeyRow.total_budget = totalBudget;
+    mocks.journeyStateRevision = 1;
+    mocks.journeyRow.progress = Object.fromEntries(allocations.map((row, index) => {
+      const key = row.category === "custom" ? `custom_fixture${index}` : row.category;
+      return [key, { ...row, category: key, status: "not_started", spent: 0,
+        budget: row.label === "초대장·꽃·하객선물" ? 1500000 : row.category === "reserve" ? 2000000 : row.budget }];
+    }));
+    const before = structuredClone(mocks.journeyRow);
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText }));
+      const response = await POST(request({ messages: [{ role: "user", content: text }], weddingContext: { budget: expectedPlan ? 1 : 35000000, progress: {} } }));
+      expect(response.status).toBe(200);
+      await response.text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      if (expectedPlan) {
+        expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: { total_budget: 35000000, allocations } });
+        expect(saved.metadata.pending_amora_action_journey_revision).toBe(1);
+        expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ sourceRevision: 1, current: { totalBudget: 35000000 }, proposed: { totalBudget: 35000000, allocatedBudget: 35000000 } });
+      } else {
+        expect(saved.metadata.pending_amora_action).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_impact_preview).toBeUndefined();
+      }
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
   it.each([true, false])("uses canonical current journey custom labels, ignoring contradictory client context (existing=%s)", async (existing) => {
     const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
     const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "apply_budget_plan")!;

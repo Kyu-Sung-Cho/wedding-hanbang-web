@@ -1384,7 +1384,7 @@ function ScopedBudgetContent({
         <div className="relative z-10 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
           <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div className="flex -space-x-1">
+              <div className="flex shrink-0 -space-x-1">
                 <div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(54,83,78,0.10)] flex items-center justify-center ring-2 ring-white">
                   <Camera className="w-5 h-5 text-[var(--hb-accent-hover)]" />
                 </div>
