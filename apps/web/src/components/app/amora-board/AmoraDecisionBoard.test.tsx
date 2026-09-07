@@ -36,12 +36,113 @@ describe("AmoraDecisionBoard", () => {
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
+  const selectBoard = async (label: "결정 기록" | "공유 할 일") => {
+    const control = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="보드 보기"] button')).find(button => button.textContent === label)!;
+    await act(async () => control.click());
+    expect(control.getAttribute("aria-pressed")).toBe("true");
+    expect(document.getElementById(control.getAttribute("aria-controls")!)?.hidden).toBe(false);
+  };
 
-  it("shows preparation decisions separately from shared to-do completion", async () => {
+  it("switches between decision records and shared tasks without conflating their states", async () => {
     mocks.data.actions = [{ ...action, status: "done" }];
     await act(async () => root.render(<AmoraDecisionBoard />));
-    expect(container.querySelector('[aria-label="준비 결정 기록"]')).not.toBeNull();
-    expect(container.querySelector('[aria-label="공유 할 일"]')?.textContent).toContain("완료한 할 일");
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!.parentElement!;
+    const tasks = container.querySelector<HTMLElement>('[aria-label="공유 할 일"]')!;
+    expect(decisions.hidden).toBe(false);
+    expect(tasks.hidden).toBe(true);
+    await selectBoard("공유 할 일");
+    expect(decisions.hidden).toBe(true);
+    expect(tasks.textContent).toContain("완료한 할 일");
+    await selectBoard("결정 기록");
+    expect(tasks.hidden).toBe(true);
+    expect(mocks.data.update).not.toHaveBeenCalled();
+    expect(mocks.data.refresh).not.toHaveBeenCalled();
+    expect(mocks.decisions.refresh).not.toHaveBeenCalled();
+  });
+
+  it("filters only loaded decisions by field and search while preserving unknown fields and pagination", async () => {
+    mocks.decisions.records = [
+      { id: "venue", title: "장소 비교", category: "venue", detail: "동선을 확인하기", status: "considering", stateLabel: "고려 중", source: "chat", createdAt: "2026-09-07T00:00:00Z" },
+      { id: "makeup", title: "출장 비용", category: "makeup", detail: null, status: "confirmed", stateLabel: "예약 기록", source: "manual", createdAt: "2026-09-06T00:00:00Z" },
+      { id: "legacy", title: "과거 결정", category: "legacy-field", detail: null, status: "exploring", stateLabel: "탐색 중", source: "unknown", createdAt: "2026-09-05T00:00:00Z" },
+    ];
+    mocks.decisions.nextCursor = { id: "legacy", createdAt: "2026-09-05T00:00:00Z" };
+    mocks.data.actions = [action];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    const filter = (label: string) => Array.from(decisions.querySelectorAll<HTMLButtonElement>('[aria-label="결정 분야 필터"] button')).find(button => button.textContent?.includes(label))!;
+    await act(async () => filter("헤어·메이크업").click());
+    expect(Array.from(decisions.querySelectorAll("article"), card => card.getAttribute("aria-label"))).toEqual(["출장 비용"]);
+    await act(async () => filter("분야 미정").click());
+    expect(Array.from(decisions.querySelectorAll("article"), card => card.getAttribute("aria-label"))).toEqual(["과거 결정"]);
+    expect(decisions.querySelector("article a")).toBeNull();
+    await act(async () => filter("전체").click());
+    const input = decisions.querySelector<HTMLInputElement>('input[type="search"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "동선");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(Array.from(decisions.querySelectorAll("article"), card => card.getAttribute("aria-label"))).toEqual(["장소 비교"]);
+    expect(decisions.querySelector("article")?.textContent).toContain("대화에서 남긴 기록");
+    expect(decisions.textContent).toContain("불러온 결정 3개");
+    expect(decisions.textContent).toContain("숫자와 검색은 불러온 기록 기준");
+    await selectBoard("공유 할 일");
+    expect(container.querySelector('[aria-label="공유 할 일"] article')?.textContent).toContain(action.title);
+    await selectBoard("결정 기록");
+    expect(input.value).toBe("동선");
+    await act(async () => Array.from(decisions.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent === "이전 결정 더 보기")!.click());
+    expect(mocks.decisions.loadMore).toHaveBeenCalledOnce();
+    expect(mocks.data.loadMore).not.toHaveBeenCalled();
+  });
+
+  it("opens mobile search in the active panel, preserves both queries when folded, and exposes an applied filter with a clear action", async () => {
+    mocks.decisions.records = [{ id: "venue", title: "장소 비교", category: "venue", detail: null, status: "confirmed", stateLabel: "결정 기록", source: "chat", createdAt: "2026-09-07T00:00:00Z" }];
+    mocks.data.actions = [action];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="보드 검색 열기"]')!;
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    const decisionInput = decisions.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const taskInput = container.querySelector<HTMLInputElement>('[aria-label="공유 할 일"] input[type="search"]')!;
+    const enter = async (input: HTMLInputElement, text: string) => act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, text);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)?.contains(decisionInput)).toBe(true);
+    expect(document.activeElement).toBe(decisionInput);
+    await enter(decisionInput, "장소");
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(toggle);
+    expect(decisionInput.value).toBe("장소");
+    expect(toggle.getAttribute("aria-label")).toContain("검색 적용 중");
+    expect(container.textContent).toContain("검색 적용 중: 장소");
+    await act(async () => toggle.click());
+    expect(document.activeElement).toBe(decisionInput);
+    expect(decisionInput.value).toBe("장소");
+    await selectBoard("공유 할 일");
+    expect(document.activeElement).toBe(taskInput);
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)?.contains(taskInput)).toBe(true);
+    expect(taskInput.value).toBe("");
+    await enter(taskInput, "없는 단어");
+    await act(async () => toggle.click());
+    expect(taskInput.value).toBe("없는 단어");
+    expect(container.querySelector('[aria-label="공유 할 일"] article')).toBeNull();
+    expect(container.textContent).toContain("검색 적용 중: 없는 단어");
+    await selectBoard("결정 기록");
+    expect(decisionInput.value).toBe("장소");
+    expect(taskInput.value).toBe("없는 단어");
+    expect(container.textContent).toContain("검색 적용 중: 장소");
+    await selectBoard("공유 할 일");
+    await act(async () => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(control => control.textContent === "검색 해제")!.click());
+    expect(taskInput.value).toBe("");
+    expect(decisionInput.value).toBe("장소");
+    expect(container.querySelector('[aria-label="공유 할 일"] article')?.textContent).toContain(action.title);
+    expect(toggle.getAttribute("aria-label")).not.toContain("검색 적용 중");
+    expect(document.activeElement).toBe(toggle);
+    expect(mocks.data.update).not.toHaveBeenCalled();
   });
 
   it("shows an uncategorized legacy decision without inventing a field link", async () => {
@@ -113,7 +214,7 @@ describe("AmoraDecisionBoard", () => {
     expect(container.querySelector("article")?.textContent).toContain(action.title);
     const all = container.querySelector<HTMLButtonElement>('[aria-label="분야 필터"] button')!;
     await act(async () => all.click());
-    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const input = container.querySelector<HTMLInputElement>('[aria-label="공유 할 일"] input[type="search"]')!;
     await act(async () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "예식장");
       input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -161,6 +262,7 @@ describe("AmoraDecisionBoard", () => {
   it("edits title and category through the existing action and keeps the draft on failure", async () => {
     mocks.data.actions = [{ ...action, categoryKey: "venue" }]; mocks.data.count = 1;
     await act(async () => root.render(<AmoraDecisionBoard />));
+    await selectBoard("공유 할 일");
     await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
     const input = container.querySelector<HTMLInputElement>("article input")!;
     const select = container.querySelector<HTMLSelectElement>("article select")!;
@@ -169,6 +271,12 @@ describe("AmoraDecisionBoard", () => {
       input.dispatchEvent(new Event("input", { bubbles: true }));
       select.value = "makeup"; select.dispatchEvent(new Event("change", { bubbles: true }));
     });
+    await selectBoard("결정 기록");
+    expect(container.querySelector("article input")).toBe(input);
+    await selectBoard("공유 할 일");
+    expect(input.value).toBe("  실제 수정 제목  ");
+    expect(select.value).toBe("makeup");
+    expect(mocks.data.update).not.toHaveBeenCalled();
     const form = container.querySelector("article form")!;
     mocks.data.update.mockResolvedValueOnce(false);
     await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
@@ -191,7 +299,9 @@ describe("AmoraDecisionBoard", () => {
   it("labels demo changes as local and exposes a failed save without fake success", async () => {
     Object.assign(mocks.data, { actions: [action], isDemo: true, updateError: "변경을 저장하지 못했어요" });
     await act(async () => root.render(<AmoraDecisionBoard />));
-    expect(container.querySelector('[role="note"]')?.textContent).toContain("실제 준비 기록에 저장되지 않아요");
+    expect(container.querySelector<HTMLElement>('[aria-label="공유 할 일"]')?.hidden).toBe(false);
+    expect(container.querySelector('[aria-label="준비 결정 기록"]')?.parentElement?.hidden).toBe(true);
+    expect(container.querySelector('[aria-label="공유 할 일"] [role="note"]')?.textContent).toContain("실제 준비 기록에 저장되지 않아요");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("저장하지 못했어요");
     expect(container.querySelector("article")?.textContent).toContain("완료로 표시");
   });

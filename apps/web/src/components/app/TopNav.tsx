@@ -55,7 +55,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
   const pathname = usePathname();
   const router = useRouter();
   const appPathname = stripWeddingBasePath(pathname);
-  const title = appPathname === "/chat/board" ? "준비 보드" : appPathname === "/chat/missions" ? "아모라 · 오늘의 미션" : getPageTitle(appPathname);
+  const title = appPathname === "/chat/board" ? "결정 보드" : appPathname === "/chat/missions" ? "아모라 · 오늘의 미션" : getPageTitle(appPathname);
   const { journey } = useAuthStore();
   const { prefs } = useNotificationPrefs();
   const [showNotifications, setShowNotifications] = useState(false);

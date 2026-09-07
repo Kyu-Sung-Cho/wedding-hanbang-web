@@ -65,7 +65,7 @@ export default function AmoraSheetFrame({
         <h2 id={titleId} data-amora-sheet-title tabIndex={-1} className="shrink-0 pr-8 text-[18px] leading-7 font-semibold outline-none">
           {title}
         </h2>
-        <p id={descriptionId} className="mt-1.5 mb-[18px] shrink-0 text-[12.5px] leading-[1.6] text-[var(--amora-muted)]">
+        <p id={descriptionId} className="mt-1 mb-[18px] shrink-0 text-[12.5px] leading-[1.6] text-[var(--amora-muted)]">
           {description}
         </p>
         <div className="min-h-0 overflow-y-auto overscroll-contain">

@@ -99,19 +99,58 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     const stages = container.querySelectorAll<HTMLButtonElement>('button[aria-label$="단계 보기"]');
     expect(stages).toHaveLength(5);
     expect([...stages].every((button) => !button.disabled)).toBe(true);
+    expect([...stages].every((button) => button.getAttribute("aria-expanded") === "false")).toBe(true);
+    expect(container.querySelector("#selected-mission-stage")).toBeNull();
     await act(async () => stages[4].click());
     expect(stages[4].getAttribute("aria-pressed")).toBe("true");
+    expect(stages[4].getAttribute("aria-expanded")).toBe("true");
     expect(container.querySelector('#selected-mission-stage-title')?.textContent).toContain("신혼여행·혼인신고");
     expect(container.querySelector('a[href^="/wedding/checklist?category="]')).not.toBeNull();
     expect(container.querySelector('a[href="/wedding/chat/board"]')).not.toBeNull();
     expect(container.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="단계 상세 접기"]')!.click());
+    expect(container.querySelector("#selected-mission-stage")).toBeNull();
+    expect(stages[4].getAttribute("aria-expanded")).toBe("false");
+    expect(document.activeElement).toBe(stages[4]);
+    await act(async () => stages[4].click());
+    const recommended = [...container.querySelectorAll<HTMLButtonElement>("button")].find(button => button.textContent?.includes("추천 단계로 돌아가기"))!;
+    await act(async () => recommended.click());
+    expect(stages[0].getAttribute("aria-expanded")).toBe("true");
+    expect(container.querySelector('#selected-mission-stage-title')?.textContent).toBe("상견례 준비");
     expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
+  it("단계 상세를 펼치지 않아도 첫 제안에서 실제 체크리스트를 열고 닫은 뒤 초점을 되돌린다", async () => {
+    await render();
+    const card = container.querySelector('section[aria-labelledby="missions-heading"] article')!;
+    expect(card.querySelector("h3")?.textContent).toBe(`${CHECKLIST_MAP.greeting.label} 준비 이어가기`);
+    const trigger = card.querySelector<HTMLButtonElement>("button")!;
+    trigger.focus();
+    await act(async () => trigger.click());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    const dialog = document.querySelector('[data-planning-sheet][role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.textContent).toContain(CHECKLIST_MAP.greeting.label);
+    expect(dialog?.querySelectorAll('[role="checkbox"]').length).toBe(CHECKLIST_MAP.greeting.items.length);
+    expect(container.querySelector("#selected-mission-stage")).toBeNull();
+    expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.querySelector('[data-planning-sheet]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   async function openMission(label: string) {
+    if (!container.querySelector("#selected-mission-stage")) {
+      await act(async () => container.querySelector<HTMLButtonElement>('button[aria-current="step"]')!.click());
+    }
     const trigger = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.getAttribute("aria-label") === label)!;
     expect(trigger).toBeDefined();
+    const categoryList = trigger.closest("details");
+    if (categoryList && !categoryList.open) {
+      await act(async () => categoryList.querySelector("summary")!.click());
+      expect(categoryList.open).toBe(true);
+    }
     trigger.focus();
     await act(async () => trigger.click());
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
@@ -189,6 +228,7 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     await render();
     expect(document.querySelector('[data-planning-sheet]')).toBeNull();
     expect(container.querySelector('button[aria-pressed="true"]')?.getAttribute("aria-label")).toBe("상견례 준비 단계 보기");
+    expect(container.querySelector("#selected-mission-stage")).toBeNull();
     expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
   });
 
