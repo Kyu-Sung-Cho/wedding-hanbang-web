@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { Bookmark, Info } from "lucide-react";
+import { Bookmark, CircleCheck, Info } from "lucide-react";
 import AmoraSheetFrame from "./AmoraSheetFrame";
 
 type AmoraNoteSaveSheetProps = {
@@ -69,9 +69,12 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
         <p className="mt-1 text-right text-[11.5px] text-[var(--amora-muted)]">{memo.length}/500</p>
         </>}
       </div>
-      <div className="mb-[18px] rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.6] text-[var(--amora-soft)]">
-        <p className="mb-1 font-semibold">공개 범위 · 두 분이 함께 보는 저장함</p>
-        <p>이 답변과 내가 적은 메모도 함께 보여요. 나만 상담한 대화는 여기에 저장할 수 없어요.</p>
+      <div className="mb-[18px] flex items-start gap-2.5 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)]">
+        <CircleCheck className="mt-1 size-4 shrink-0 text-[var(--amora-rose-deep)]" aria-hidden="true" />
+        <div>
+          <p className="mb-1 font-semibold text-[var(--amora-ink)]">공개 범위 · 두 분이 함께 보는 저장함</p>
+          <p>이 답변과 내가 적은 메모도 함께 보여요. 나만 상담한 대화는 여기에 저장할 수 없어요.</p>
+        </div>
       </div>
     </AmoraSheetFrame>
   );

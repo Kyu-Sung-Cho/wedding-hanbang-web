@@ -47,6 +47,13 @@
   Desktop sidebar is 220px; mobile gutters are 18px and navigation respects safe areas.
   Muted small text and rose labels retain sufficient contrast. Reference counts,
   partner acknowledgements and automatic-save claims must correspond to actual data.
+  The 2026-09-08 alignment keeps the five-stage strip compact and reveals its
+  category details on selection, so actionable mission cards come first. The board
+  switches between decision records and shared to-dos in one location: saved decision
+  states and to-do completion remain distinct. Desktop uses three columns; mobile
+  uses a state selector, scrolling category chips and an expandable search field.
+  Saving a shared answer to the saved collection remains separate from approving
+  a budget, schedule or checklist change; the supplied sheet styling covers both.
 
 - **Landing HTML exception (2026-09-06):** The user supplied `Main.dc.html` and
   `LandingMobile.dc.html` as the approved replacement design. Only `/landing`

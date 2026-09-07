@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Check, Info } from "lucide-react";
+import { Check, CircleCheck, Info } from "lucide-react";
 import AmoraSheetFrame from "./AmoraSheetFrame";
 
 const CHANGE_DETAILS: Record<string, { category: string; effect: string }> = {
@@ -100,9 +100,12 @@ export default function AmoraSaveSheet({
 
         {children}
 
-        <div className="mb-[18px] rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.6] text-[var(--amora-soft)]">
-          <p className="mb-1 font-semibold">공개 범위 · 함께 보는 준비 정보</p>
-          <p>확인한 변경은 함께 보는 준비 정보에 반영돼요. 나만 상담한 대화를 이 창에서 공유하지 않아요.</p>
+        <div className="mb-[18px] flex items-start gap-2.5 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)]">
+          <CircleCheck className="mt-1 size-4 shrink-0 text-[var(--amora-rose-deep)]" aria-hidden="true" />
+          <div>
+            <p className="mb-1 font-semibold text-[var(--amora-ink)]">공개 범위 · 함께 보는 준비 정보</p>
+            <p>확인한 변경은 함께 보는 준비 정보에 반영돼요. 나만 상담한 대화를 이 창에서 공유하지 않아요.</p>
+          </div>
         </div>
     </AmoraSheetFrame>
   );

@@ -13,7 +13,7 @@ export default function AmoraWorkspaceNav() {
     { href: "/chat/missions", label: "오늘의 미션" },
     { href: "/chat", label: "함께 대화" },
     { href: "/chat?scope=private", label: "나만 상담" },
-    { href: "/chat/board", label: "준비 보드" },
+    { href: "/chat/board", label: "결정 보드" },
   ];
   return (
     <nav aria-label="아모라 화면" className="flex items-center gap-1 text-[13px]">
