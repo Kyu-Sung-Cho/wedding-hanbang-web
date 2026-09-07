@@ -34,10 +34,10 @@ function BoardSearch({ id, label, placeholder, query, onChange, mobileOpen, acti
   </div>;
 }
 
-function DecisionRecords({ searchId, query, onQueryChange, mobileSearchOpen, active }: {
-  searchId: string; query: string; onQueryChange(value: string): void; mobileSearchOpen: boolean; active: boolean;
+function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpen, active }: {
+  data: ReturnType<typeof useDecisionBoard>; searchId: string; query: string; onQueryChange(value: string): void; mobileSearchOpen: boolean; active: boolean;
 }) {
-  const { records, loading, loadingMore, error, nextCursor, available, isDemo, refresh, loadMore } = useDecisionBoard();
+  const { records, loading, loadingMore, error, nextCursor, available, isDemo, refresh, loadMore } = data;
   const [status, setStatus] = useState<DecisionColumn>("confirmed");
   const [category, setCategory] = useState("all");
   const filtered = useMemo(() => {
@@ -204,6 +204,7 @@ function PreparationCard({ action, busy, update }: {
 }
 
 export default function AmoraDecisionBoard() {
+  const decisions = useDecisionBoard();
   const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, updatingIds, updateError, isDemo } = useAmoraPreparationActions();
   const [selectedBoard, setSelectedBoard] = useState<"decisions" | "tasks" | null>(null);
   const board = selectedBoard ?? (isDemo ? "tasks" : "decisions");
@@ -218,6 +219,8 @@ export default function AmoraDecisionBoard() {
   const decisionSearchId = `${decisionPanelId}-search`;
   const taskSearchId = `${taskPanelId}-search`;
   const activeQuery = board === "decisions" ? decisionQuery : query;
+  const searchAvailable = board === "tasks" || (!decisions.isDemo && decisions.available && !decisions.loading && !decisions.error);
+  const searchExpanded = searchAvailable && mobileSearchOpen;
   const filtered = useMemo(() => filterPreparationActions(actions, category, query), [actions, category, query]);
   const categories = CATEGORY_CHECKLISTS.filter((item) => actions.some((action) => action.categoryKey === item.key));
   const unsortedCount = actions.filter((action) => !preparationCategory(action.categoryKey)).length;
@@ -236,19 +239,19 @@ export default function AmoraDecisionBoard() {
         <button type="button" aria-pressed={board === "decisions"} aria-controls={decisionPanelId} onClick={() => setSelectedBoard("decisions")} className={`${button} ${board === "decisions" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>결정 기록</button>
         <button type="button" aria-pressed={board === "tasks"} aria-controls={taskPanelId} onClick={() => setSelectedBoard("tasks")} className={`${button} ${board === "tasks" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>공유 할 일</button>
       </div>
-      <button ref={searchToggleRef} type="button" aria-label={mobileSearchOpen ? "보드 검색 닫기" : activeQuery.trim() ? "보드 검색 열기 · 검색 적용 중" : "보드 검색 열기"} aria-expanded={mobileSearchOpen} aria-controls={board === "decisions" ? decisionSearchId : taskSearchId} onClick={() => {
+      <button ref={searchToggleRef} type="button" disabled={!searchAvailable} aria-label={searchExpanded ? "보드 검색 닫기" : activeQuery.trim() ? "보드 검색 열기 · 검색 적용 중" : "보드 검색 열기"} aria-expanded={searchExpanded} aria-controls={searchAvailable ? (board === "decisions" ? decisionSearchId : taskSearchId) : undefined} onClick={() => {
         if (mobileSearchOpen) {
           setMobileSearchOpen(false);
           searchToggleRef.current?.focus();
         } else setMobileSearchOpen(true);
-      }} className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-soft)] lg:hidden ${focus}`}><Search aria-hidden="true" className="size-5" /></button>
+      }} className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-40 lg:hidden ${focus}`}><Search aria-hidden="true" className="size-5" /></button>
       </div>
       {activeQuery.trim() && <div className="mb-3 flex min-w-0 items-center justify-between gap-2 text-[11.5px] text-[var(--amora-muted)] lg:hidden"><p className="min-w-0 truncate">검색 적용 중: {activeQuery.trim()}</p><button type="button" onClick={() => {
         if (board === "decisions") setDecisionQuery(""); else setQuery("");
         searchToggleRef.current?.focus();
       }} className={`${button} shrink-0 px-2 text-[var(--amora-accent)]`}>검색 해제</button></div>}
       {/* 보드를 바꿔도 각 목록의 페이지·검색과 작성 중인 할 일 초안을 유지한다. */}
-      <div id={decisionPanelId} hidden={board !== "decisions"}><DecisionRecords searchId={decisionSearchId} query={decisionQuery} onQueryChange={setDecisionQuery} mobileSearchOpen={mobileSearchOpen} active={board === "decisions"} /></div>
+      <div id={decisionPanelId} hidden={board !== "decisions"}><DecisionRecords data={decisions} searchId={decisionSearchId} query={decisionQuery} onQueryChange={setDecisionQuery} mobileSearchOpen={mobileSearchOpen} active={board === "decisions"} /></div>
       <section id={taskPanelId} hidden={board !== "tasks"} aria-label="공유 할 일">
       <h2 className="sr-only">공유 할 일</h2>
       <div className="mb-5 hidden items-start gap-[14px] rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-[18px] py-4 lg:flex">

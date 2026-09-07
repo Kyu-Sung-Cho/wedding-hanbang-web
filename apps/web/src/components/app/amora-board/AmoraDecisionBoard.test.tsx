@@ -145,6 +145,67 @@ describe("AmoraDecisionBoard", () => {
     expect(mocks.data.update).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { state: "demo", values: { isDemo: true } },
+    { state: "unavailable", values: { available: false } },
+    { state: "loading", values: { loading: true } },
+    { state: "error", values: { error: "결정 기록을 확인하지 못했어요" } },
+  ])("disables decision search with no dangling controls while $state and still opens shared task search", async ({ values }) => {
+    Object.assign(mocks.decisions, values);
+    mocks.data.actions = [action];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="보드 검색 열기"]')!;
+    expect(container.querySelector('[aria-label="준비 결정 기록"] input[type="search"]')).toBeNull();
+    expect(toggle.disabled).toBe(true);
+    expect(toggle.getAttribute("aria-controls")).toBeNull();
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    await selectBoard("공유 할 일");
+    expect(toggle.disabled).toBe(false);
+    const input = container.querySelector<HTMLInputElement>('[aria-label="공유 할 일"] input[type="search"]')!;
+    expect(document.getElementById(toggle.getAttribute("aria-controls")!)?.contains(input)).toBe(true);
+    await act(async () => toggle.click());
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(input);
+    expect(mocks.decisions.refresh).not.toHaveBeenCalled();
+    expect(mocks.data.update).not.toHaveBeenCalled();
+  });
+
+  it("preserves an open decision query through a read interruption and restores only the available input focus", async () => {
+    mocks.decisions.records = [{ id: "venue", title: "장소 비교", category: "venue", detail: null, status: "confirmed", stateLabel: "결정 기록", source: "chat", createdAt: "2026-09-07T00:00:00Z" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const toggle = container.querySelector<HTMLButtonElement>('button[aria-label="보드 검색 열기"]')!;
+    await act(async () => toggle.click());
+    const originalInput = container.querySelector<HTMLInputElement>('[aria-label="준비 결정 기록"] input[type="search"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(originalInput, "장소");
+      originalInput.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.decisions.loading = true;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(toggle.disabled).toBe(true);
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle.getAttribute("aria-controls")).toBeNull();
+    expect(container.textContent).toContain("검색 적용 중: 장소");
+    await selectBoard("공유 할 일");
+    const taskInput = container.querySelector<HTMLInputElement>('[aria-label="공유 할 일"] input[type="search"]')!;
+    expect(document.activeElement).toBe(taskInput);
+    expect(taskInput.value).toBe("");
+    Object.assign(mocks.decisions, { loading: false, error: "결정 기록을 확인하지 못했어요" });
+    await selectBoard("결정 기록");
+    expect(toggle.disabled).toBe(true);
+    expect(toggle.getAttribute("aria-controls")).toBeNull();
+    mocks.decisions.error = null;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const restoredInput = container.querySelector<HTMLInputElement>('[aria-label="준비 결정 기록"] input[type="search"]')!;
+    expect(toggle.disabled).toBe(false);
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(restoredInput.value).toBe("장소");
+    expect(document.activeElement).toBe(restoredInput);
+    expect(taskInput.value).toBe("");
+    expect(mocks.data.update).not.toHaveBeenCalled();
+  });
+
   it("shows an uncategorized legacy decision without inventing a field link", async () => {
     mocks.decisions.records = [{ id: "legacy", title: "과거의 공동 결정", category: "", detail: null, status: "confirmed", stateLabel: "결정 기록", source: "", createdAt: "2026-09-07T00:00:00Z" }];
     await act(async () => root.render(<AmoraDecisionBoard />));
