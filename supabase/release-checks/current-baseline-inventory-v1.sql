@@ -55,7 +55,8 @@ WITH namespaces AS MATERIALIZED (
       ORDER BY k.conname) FROM pg_constraint k WHERE k.contypid=t.oid))
   FROM pg_type t JOIN namespaces n ON n.oid=t.typnamespace WHERE t.typtype IN ('d','e')
   UNION ALL
-  SELECT 'role',r.rolname,to_jsonb(r)-'oid' FROM pg_roles r
+  SELECT 'role',r.rolname,CASE WHEN r.rolname IN ('cli_login_postgres','cli_login_supabase_read_only_user')
+    THEN to_jsonb(r)-'oid'-'rolvaliduntil' ELSE to_jsonb(r)-'oid' END FROM pg_roles r
   UNION ALL
   SELECT 'membership',format('%s:%s',pg_get_userbyid(roleid),pg_get_userbyid(member)),
     jsonb_build_array(pg_get_userbyid(grantor),admin_option,inherit_option,set_option) FROM pg_auth_members
@@ -84,6 +85,10 @@ SELECT jsonb_build_object(
   'readOnly',current_setting('transaction_read_only')='on',
   'systemIdentifier',(SELECT system_identifier::text FROM pg_control_system()),
   'serverVersion',current_setting('server_version'),
+  -- CLI 2.106.0의 임시 암호 TTL만 분리한다. 권한·설정·모든 멤버십은 위 지문에 남는다.
+  'cliRoleExpirations',(SELECT coalesce(jsonb_agg(jsonb_build_object('name',rolname,
+    'validUntil',rolvaliduntil) ORDER BY rolname),'[]'::jsonb) FROM pg_roles
+    WHERE rolname IN ('cli_login_postgres','cli_login_supabase_read_only_user')),
   'storageStructureSha256',(SELECT encode(sha256(convert_to((definition-'policies')::text,'UTF8')),'hex')
     FROM objects WHERE kind='relation' AND identity='storage.objects'),
   'storagePolicies',(SELECT coalesce(jsonb_agg(jsonb_build_object('name',p.polname,'command',p.polcmd,

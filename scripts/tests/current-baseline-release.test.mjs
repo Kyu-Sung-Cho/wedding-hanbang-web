@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { assertSameBaseline, assertFencedBaseline, digest, digestJson, EVIDENCE_KINDS, loadCurrentBaselineContract,
-  validateCurrentEvidence } from "../lib/current-baseline-release-contract.mjs";
+  validateCurrentEvidence, validateObservation, validateBaselineSupplement } from "../lib/current-baseline-release-contract.mjs";
 import { createMigrationBundle, parseCurrentArgs, runCurrentBaselineRelease,
   verifyMigrationBundle } from "../lib/current-baseline-release-controller.mjs";
 import { runProductionRelease } from "../lib/supabase-production-release-controller.mjs";
@@ -18,6 +19,17 @@ const roots = [];
 test.after(() => { for (const root of roots) rmSync(root, { recursive: true, force: true }); });
 const json = (file, value) => writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
 const blocked = code => error => error?.code === code;
+function releaseData() {
+  const contract = JSON.parse(readFileSync(join(REPO, "supabase/release-contracts/current-baseline-rollout-v1.json")));
+  return { contract, baseline: JSON.parse(readFileSync(join(REPO, contract.baselineObservation.file))) };
+}
+function writeSyntheticBaseline(repo, contract, baseline, original) {
+  json(join(repo, contract.baselineSupplement.originalObservation.file), original);
+  contract.baselineSupplement.originalObservation.sha256 = digest(readFileSync(join(repo, contract.baselineSupplement.originalObservation.file)));
+  baseline.cliRoleTransitionEvidence.originalObservationSha256 = contract.baselineSupplement.originalObservation.sha256;
+  json(join(repo, contract.baselineObservation.file), baseline);
+  contract.baselineObservation.sha256 = digest(readFileSync(join(repo, contract.baselineObservation.file)));
+}
 
 function fixture() {
   const outer = mkdtempSync(join(tmpdir(), "current-baseline-test-")); roots.push(outer);
@@ -26,12 +38,14 @@ function fixture() {
   cpSync(join(REPO, "supabase/migrations"), join(repo, "supabase/migrations"), { recursive: true });
   const contract = JSON.parse(readFileSync(join(REPO, "supabase/release-contracts/current-baseline-rollout-v1.json")));
   const baseline = JSON.parse(readFileSync(join(REPO, contract.baselineObservation.file)));
+  const original = JSON.parse(readFileSync(join(REPO, contract.baselineSupplement.originalObservation.file)));
   // 소형 합성 DB를 사용한다. 실제 운영 baseline 파일은 별도 검사로 전량 검증한다.
   baseline.relations = baseline.relations.filter(x => ["public.profiles", "auth.users", "storage.objects", "storage.buckets", "supabase_migrations.schema_migrations", "vault.secrets", "cron.job"].includes(`${x.schema}.${x.name}`));
-  baseline.objects = baseline.objects.filter(x => x.kind === "relation" && baseline.relations.some(r => `${r.schema}.${r.name}` === x.identity));
-  json(join(repo, contract.baselineObservation.file), baseline);
-  contract.baselineObservation.sha256 = digest(readFileSync(join(repo, contract.baselineObservation.file)));
-  for (const pin of Object.values(contract.implementation)) cpSync(join(REPO, pin.file), join(repo, pin.file));
+  const keepObject = x => ["role", "membership"].includes(x.kind) || (x.kind === "relation" && baseline.relations.some(r => `${r.schema}.${r.name}` === x.identity));
+  baseline.objects = baseline.objects.filter(keepObject);
+  original.objects = original.objects.filter(keepObject); original.relations = clone(baseline.relations);
+  writeSyntheticBaseline(repo, contract, baseline, original);
+  for (const pin of Object.values(contract.implementation)) { mkdirSync(dirname(join(repo, pin.file)), { recursive: true }); cpSync(join(REPO, pin.file), join(repo, pin.file)); }
   const binaryDirectory = join(repo, "cli"); mkdirSync(binaryDirectory);
   writeFileSync(join(binaryDirectory, "supabase-go.exe"), "synthetic companion");
   contract.cli.companionSha256 = digest("synthetic companion");
@@ -93,9 +107,101 @@ function fixture() {
     json(join(evidence, "current-release-evidence.json"), index);
   }
   save();
-  return { outer, repo, evidence, bundles, contract, baseline, release, reports, save, binary: join(binaryDirectory, "supabase.exe") };
+  return { outer, repo, evidence, bundles, contract, baseline, original, release, reports, save, binary: join(binaryDirectory, "supabase.exe") };
 }
 const validate = f => validateCurrentEvidence({ root: f.evidence, release: f.release, expectedCommit: COMMIT, now: NOW });
+
+function observedCliRoles(baseline) {
+  const observation = clone(baseline);
+  observation.observedAt = NOW.toISOString();
+  observation.cliRoleExpirations = ["cli_login_postgres", "cli_login_supabase_read_only_user"].map(name => ({
+    name, validUntil: new Date(NOW.getTime() + 300_000).toISOString(),
+  }));
+  return observation;
+}
+test("CLI 임시 역할의 정상 재발급과 이미 만료된 유한 시각은 안정 지문을 바꾸지 않는다", () => {
+  const release = releaseData(); const actual = observedCliRoles(release.baseline);
+  assert.doesNotThrow(() => assertSameBaseline(actual, release.baseline, release.contract));
+  actual.cliRoleExpirations[0].validUntil = "2020-01-01T00:00:00Z";
+  assert.doesNotThrow(() => assertSameBaseline(actual, release.baseline, release.contract));
+});
+test("CLI 임시 역할의 null·무한·비정상·과도한 만료는 지문이 같아도 거절한다", () => {
+  const release = releaseData();
+  for (const value of [null, "infinity", "-infinity", "not-a-date", 0, new Date(NOW.getTime() + 310_001).toISOString()]) {
+    const actual = observedCliRoles(release.baseline); actual.cliRoleExpirations[0].validUntil = value;
+    assert.throws(() => validateObservation(actual, release.contract), blocked("CLI_ROLE_EXPIRATION_INVALID"), String(value));
+  }
+});
+test("CLI 임시 역할 관측의 누락·중복·유사 이름을 거절한다", () => {
+  const release = releaseData();
+  for (const mutate of [x => { delete x.cliRoleExpirations; }, x => x.cliRoleExpirations.pop(),
+    x => { x.cliRoleExpirations[1].name = x.cliRoleExpirations[0].name; },
+    x => { x.cliRoleExpirations[0].name += "_unexpected"; }]) {
+    const actual = observedCliRoles(release.baseline); mutate(actual);
+    assert.throws(() => validateObservation(actual, release.contract), blocked("CLI_ROLE_EXPIRATION_INVALID"));
+  }
+});
+test("CLI 역할 권한·모든 멤버십·알 수 없는 역할·제품 schema 변경은 계속 거절한다", () => {
+  const release = releaseData();
+  for (const select of [x => x.kind === "role" && x.identity === "cli_login_postgres",
+    x => x.kind === "role" && x.identity === "postgres", x => x.kind === "membership",
+    x => x.kind === "function", x => x.kind === "relation"]) {
+    const actual = observedCliRoles(release.baseline); actual.objects.find(select).sha256 = "f".repeat(64);
+    assert.throws(() => assertSameBaseline(actual, release.baseline, release.contract), blocked("LIVE_SCHEMA_DRIFT"));
+  }
+  const actual = observedCliRoles(release.baseline);
+  actual.objects.push({kind: "role", identity: "cli_login_unreviewed", sha256: "f".repeat(64)});
+  actual.objects.sort((a,b) => `${a.kind}\0${a.identity}` < `${b.kind}\0${b.identity}` ? -1 : 1);
+  assert.throws(() => assertSameBaseline(actual, release.baseline, release.contract), blocked("LIVE_SCHEMA_DRIFT"));
+});
+test("원본 baseline 보충은 정확한 세 변화만 허용하고 추가 권한·제품·이력 변경을 거절한다", () => {
+  const {contract, baseline} = releaseData();
+  const original = JSON.parse(readFileSync(join(REPO, contract.baselineSupplement.originalObservation.file)));
+  assert.doesNotThrow(() => validateBaselineSupplement(original, baseline, contract.baselineSupplement, contract));
+  for (const mutate of [x => { x.ledger[0].name += "_changed"; }, x => { x.objects[0].sha256 = "f".repeat(64); },
+    x => { x.objects.find(y => y.kind === "membership" && y.identity === "postgres:cli_login_postgres").sha256 = "f".repeat(64); },
+    x => { x.objects.find(y => y.kind === "role" && y.identity === "cli_login_postgres").sha256 = "f".repeat(64); }]) {
+    const actual = clone(baseline); mutate(actual);
+    assert.throws(() => validateBaselineSupplement(original, actual, contract.baselineSupplement, contract), blocked("BASELINE_SUPPLEMENT_DRIFT"));
+  }
+  const actual = clone(baseline); actual.cliRoleTransitionEvidence.issuance.ttlSeconds = 3600;
+  assert.throws(() => validateBaselineSupplement(original, actual, contract.baselineSupplement, contract), blocked("BASELINE_SUPPLEMENT_EVIDENCE_INVALID"));
+});
+test("실제 inventory SQL은 두 역할의 TTL만 분리하고 유사 역할·권한·멤버십 속성을 보존한다", async () => {
+  const { PGlite } = await import(pathToFileURL(join(REPO, "apps/web/node_modules/@electric-sql/pglite/dist/index.js")).href);
+  const db = new PGlite();
+  try {
+    const sql = readFileSync(join(REPO, "supabase/release-checks/current-baseline-inventory-v1.sql"), "utf8");
+    const roleStart = sql.indexOf("SELECT 'role',"); const roleEnd = sql.indexOf("\n  UNION ALL", roleStart);
+    const membershipStart = sql.indexOf("SELECT 'membership',"); const membershipEnd = sql.indexOf("\n  UNION ALL", membershipStart);
+    const rolesSql = `SELECT * FROM (${sql.slice(roleStart, roleEnd)}) AS inventory(kind,identity,definition)`;
+    const membershipsSql = `SELECT * FROM (${sql.slice(membershipStart, membershipEnd)}) AS inventory(kind,identity,definition)`;
+    await db.exec("CREATE ROLE cli_login_postgres LOGIN NOINHERIT VALID UNTIL '2026-09-07T00:05:00Z'; CREATE ROLE cli_login_supabase_read_only_user LOGIN NOINHERIT VALID UNTIL '2026-09-07T00:05:00Z'; CREATE ROLE cli_login_unreviewed LOGIN VALID UNTIL '2026-09-07T00:05:00Z'; CREATE ROLE regular_user LOGIN VALID UNTIL '2026-09-07T00:05:00Z';");
+    const readRole = async name => (await db.query(rolesSql)).rows.find(x => x.identity === name).definition;
+    for (const name of ["cli_login_postgres", "cli_login_supabase_read_only_user", "cli_login_unreviewed", "regular_user"]) {
+      const before = await readRole(name);
+      await db.exec(`ALTER ROLE ${name} VALID UNTIL '2026-09-07T01:05:00Z'`);
+      const after = await readRole(name);
+      if (["cli_login_postgres", "cli_login_supabase_read_only_user"].includes(name)) {
+        assert.deepEqual(after, before, `${name}: TTL 재발급으로 지문이 바뀌면 안 된다`);
+        assert.equal(Object.hasOwn(after, "rolvaliduntil"), false);
+        for (const field of ["rolname", "rolsuper", "rolinherit", "rolcreaterole", "rolcreatedb", "rolcanlogin", "rolreplication", "rolbypassrls", "rolconnlimit", "rolconfig", "rolpassword"]) assert.ok(Object.hasOwn(after, field), field);
+      } else assert.notDeepEqual(after, before, `${name}: 검토되지 않은 역할 TTL은 지문에서 제거하면 안 된다`);
+    }
+    for (const change of ["SUPERUSER", "CREATEROLE", "CREATEDB", "REPLICATION", "BYPASSRLS", "INHERIT", "NOLOGIN", "CONNECTION LIMIT 7", "SET statement_timeout TO '10s'"]) {
+      const before = await readRole("cli_login_postgres"); await db.exec(`ALTER ROLE cli_login_postgres ${change}`);
+      assert.notDeepEqual(await readRole("cli_login_postgres"), before, change);
+    }
+    await db.exec("GRANT postgres TO cli_login_postgres WITH INHERIT FALSE, SET TRUE");
+    const membership = async () => (await db.query(membershipsSql)).rows.find(x=>x.identity==='postgres:cli_login_postgres').definition;
+    assert.deepEqual(await membership(), ["postgres",false,false,true]);
+    for (const [option, expected] of [["ADMIN TRUE",[true,false,true]], ["INHERIT TRUE",[true,true,true]], ["SET FALSE",[true,true,false]]]) {
+      const before = await membership(); await db.exec(`GRANT postgres TO cli_login_postgres WITH ${option}`);
+      assert.notDeepEqual(await membership(), before, option);
+      assert.deepEqual(await membership(), ["postgres", ...expected]);
+    }
+  } finally { await db.close(); }
+});
 
 test("실관측206개 이력과 신규8개만 채택하고 옛12개는 적용대상에서 제외한다", () => {
   const release = loadCurrentBaselineContract(REPO);
@@ -216,8 +322,8 @@ function runnerFixture(f, { failPush = false, postLedgerDrift = false, postRelat
   const source = { version: "20260820100000", name: "community_report_privacy_reason", statementsJson: '["SELECT 1"]' };
   const historicalRow = f.baseline.ledger.find(x => x.version === source.version); historicalRow.statementsSha256 = digest(source.statementsJson);
   // bundle's runtime historical source must be identical to this synthetic baseline pin.
-  json(join(f.repo, f.contract.baselineObservation.file), f.baseline);
-  f.contract.baselineObservation.sha256 = digest(readFileSync(join(f.repo, f.contract.baselineObservation.file)));
+  f.original.ledger.find(x => x.version === source.version).statementsSha256 = digest(source.statementsJson);
+  writeSyntheticBaseline(f.repo, f.contract, f.baseline, f.original);
   json(join(f.repo, "supabase/release-contracts/current-baseline-rollout-v1.json"), f.contract);
   f.release = loadCurrentBaselineContract(f.repo); snapshot = { ...clone(f.baseline), storagePolicies: f.baseline.storagePolicies.filter(x => x.command === "r") };
   for (const report of Object.values(f.reports)) { report.contractSha256 = f.release.contractSha256; report.baselineSha256 = f.release.baselineSha256; }

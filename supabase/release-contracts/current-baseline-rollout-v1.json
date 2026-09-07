@@ -11,8 +11,8 @@
   "historicalReconciliation": [],
   "appliedHotfixes": [],
   "baselineObservation": {
-    "file": "supabase/release-contracts/current-production-baseline-20260907.json",
-    "sha256": "b965f9d5e13de0f3d0ba84a96373dac95e3a2a5b8cdb581497ec3c653d1b9d28"
+    "file": "supabase/release-contracts/current-production-baseline-cli-expiry-20260907.json",
+    "sha256": "163d29851928a84abcffaeb77df742eeb8f98f20a6d6bddec4f76e9cc317b4d8"
   },
   "migrations": [
     {
@@ -104,7 +104,7 @@
   "implementation": {
     "inventory": {
       "file": "supabase/release-checks/current-baseline-inventory-v1.sql",
-      "sha256": "0ac8d44d7b213ad8f57ccb2fcd6561fb4b2c928c94a0711e0dc21ff418f48449"
+      "sha256": "25426ca5d3397de465e137ea3c4119ca2373277b18b8f5e610407deba1ad96f8"
     },
     "writeFenceCheck": {
       "file": "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
@@ -117,6 +117,42 @@
     "crypto": {
       "file": "scripts/amora-db-backup-common.ps1",
       "sha256": "b6f9eaa6a54edf92d868f61d25f00a2008ec42e34bbd5fb4dea75def61277079"
+    },
+    "contractValidator": {
+      "file": "scripts/lib/current-baseline-release-contract.mjs",
+      "sha256": "0044dbebd73b5dc8f819bd26481028eca35e7f0f4c796f0d991f7bb0c3cc5034"
+    },
+    "currentFinalizer": {
+      "file": "scripts/lib/current-baseline-finalizer.mjs",
+      "sha256": "35f2647af3604943e2fcd599feca1eed67b305a3d715077e5b738f078b7b90db"
+    },
+    "currentFinalizerCli": {
+      "file": "scripts/current-baseline-finalizer.mjs",
+      "sha256": "a712c90b663c5b68ae5a59014f6feac20d529bde9fac506f2d0f9a5e55efcc5e"
     }
+  },
+  "baselineSupplement": {
+    "version": 1,
+    "originalObservation": {
+      "file": "supabase/release-contracts/current-production-baseline-20260907.json",
+      "sha256": "b965f9d5e13de0f3d0ba84a96373dac95e3a2a5b8cdb581497ec3c653d1b9d28"
+    },
+    "objectChanges": [
+      {
+        "identity": "membership:supabase_read_only_user:cli_login_supabase_read_only_user",
+        "beforeSha256": null,
+        "afterSha256": "00a4dffbf81d905f030867c0f1691ee7c849e0f3a413d74f02ae2799f9bc37a1"
+      },
+      {
+        "identity": "role:cli_login_postgres",
+        "beforeSha256": "358520ae26a91f489cba0c7f13ab631bfb96ae964c60d28d2cc7a8d5d1a70dea",
+        "afterSha256": "e8741390beca6040221a812eec46c45ef5ca359dac828419924d599e1abfb603"
+      },
+      {
+        "identity": "role:cli_login_supabase_read_only_user",
+        "beforeSha256": null,
+        "afterSha256": "6cd686c62bd483beba72740979d30883d180f7c9672501730aab1c8efaf8f7df"
+      }
+    ]
   }
 }

@@ -8,6 +8,9 @@ const SHA = /^[a-f0-9]{64}$/;
 const FILE = /^(\d{14})_[a-z0-9][a-z0-9_.-]*\.sql$/;
 const REF = /^[a-z0-9]{20}$/;
 const COMMIT = /^[a-f0-9]{40}$/;
+const CLI_ROLE_NAMES = Object.freeze(["cli_login_postgres", "cli_login_supabase_read_only_user"]);
+const CLI_ROLE_MAX_FUTURE_MS = 310_000; // 관측된 공식 TTL 300초 + DB 관측 시각 여유 10초.
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export class CurrentBaselineBlocked extends Error {
   constructor(code) { super(code); this.name = "CurrentBaselineBlocked"; this.code = code; }
@@ -54,10 +57,19 @@ function uniqueOrdered(values, key, code) {
 export function validateObservation(observation, contract) {
   requireRelease(observation?.format === "current-baseline-observation-v1" && observation.readOnly === true && observation.systemIdentifier === contract.systemIdentifier && /^17\./.test(observation.serverVersion), "BASELINE_IDENTITY_MISMATCH");
   requireRelease(Number.isFinite(Date.parse(observation.observedAt)), "BASELINE_TIME_INVALID");
+  const expirations = observation.cliRoleExpirations;
+  requireRelease(Array.isArray(expirations) && expirations.length === CLI_ROLE_NAMES.length, "CLI_ROLE_EXPIRATION_INVALID");
+  for (const [index, row] of expirations.entries()) {
+    requireRelease(row && row.name === CLI_ROLE_NAMES[index] && Object.keys(row).sort().join(",") === "name,validUntil"
+      && typeof row.validUntil === "string" && ISO_TIMESTAMP.test(row.validUntil)
+      && Number.isFinite(Date.parse(row.validUntil))
+      && Date.parse(row.validUntil) <= Date.parse(observation.observedAt) + CLI_ROLE_MAX_FUTURE_MS, "CLI_ROLE_EXPIRATION_INVALID");
+  }
   uniqueOrdered(observation.ledger, x => x.version, "BASELINE_LEDGER_INVALID");
   for (const row of observation.ledger) requireRelease(/^\d{14}$/.test(row.version) && typeof row.name === "string" && (row.statementsSha256 === null || SHA.test(row.statementsSha256)), "BASELINE_LEDGER_INVALID");
   uniqueOrdered(observation.objects, x => `${x.kind}\0${x.identity}`, "BASELINE_OBJECTS_INVALID");
   for (const object of observation.objects) requireRelease(SHA.test(object.sha256), "BASELINE_OBJECTS_INVALID");
+  for (const name of CLI_ROLE_NAMES) requireRelease(observation.objects.some(x => x.kind === "role" && x.identity === name), "CLI_ROLE_EXPIRATION_INVALID");
   uniqueOrdered(observation.relations, x => `${x.schema}\0${x.name}`, "BASELINE_RELATIONS_INVALID");
   for (const relation of observation.relations) requireRelease(/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(relation.schema) && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(relation.name) && ["r", "p", "v", "m", "S"].includes(relation.kind), "BASELINE_RELATIONS_INVALID");
   for (const required of ["public.profiles", "auth.users", "storage.objects", "storage.buckets", "supabase_migrations.schema_migrations", "vault.secrets", "cron.job"])
@@ -79,6 +91,29 @@ export function assertFencedBaseline(actual, expected, contract) {
     ? expected.objects.find(y => y.kind === x.kind && y.identity === x.identity) : x);
   assertSameBaseline({ ...actual, objects }, expected, contract);
 }
+// 원래 관측을 덮어쓰지 않는다. 공식 CLI로 생긴 정확한 세 변화 외에는 보충 채택할 수 없다.
+export function validateBaselineSupplement(original, baseline, supplement, contract) {
+  requireRelease(supplement?.version === 1, "BASELINE_SUPPLEMENT_INVALID");
+  for (const key of ["format", "readOnly", "systemIdentifier", "serverVersion", "ledger", "relations",
+    "storageStructureSha256", "storagePolicies", "vaultRows", "cronJobs"])
+    same(baseline[key], original[key], "BASELINE_SUPPLEMENT_DRIFT");
+  const expectedIdentities = ["membership:supabase_read_only_user:cli_login_supabase_read_only_user",
+    "role:cli_login_postgres", "role:cli_login_supabase_read_only_user"];
+  const before = new Map(original.objects.map(x => [`${x.kind}:${x.identity}`, x.sha256]));
+  const after = new Map(baseline.objects.map(x => [`${x.kind}:${x.identity}`, x.sha256]));
+  const changes = [...new Set([...before.keys(), ...after.keys()])].sort().filter(key => before.get(key) !== after.get(key))
+    .map(identity => ({ identity, beforeSha256: before.get(identity) ?? null, afterSha256: after.get(identity) ?? null }));
+  same(changes.map(x => x.identity), expectedIdentities, "BASELINE_SUPPLEMENT_DRIFT");
+  requireRelease(changes.every(x => SHA.test(x.afterSha256) && (x.identity === "role:cli_login_postgres" ? SHA.test(x.beforeSha256) : x.beforeSha256 === null)), "BASELINE_SUPPLEMENT_INVALID");
+  same(changes, supplement.objectChanges, "BASELINE_SUPPLEMENT_DRIFT");
+  const evidence = baseline.cliRoleTransitionEvidence;
+  requireRelease(evidence?.originalObservationSha256 === supplement.originalObservation.sha256
+    && SHA.test(evidence.rawObservationSha256) && SHA.test(evidence.issuance?.sourceSha256)
+    && evidence.issuance.projectRef === contract.projectRef && evidence.issuance.cliVersion === contract.cli.version
+    && evidence.issuance.readOnlyRequested === true && evidence.issuance.ttlSeconds === 300
+    && evidence.roleReconstruction?.reconstructedOriginalSha256 === before.get("role:cli_login_postgres")
+    && evidence.roleReconstruction.stableSha256 === after.get("role:cli_login_postgres"), "BASELINE_SUPPLEMENT_EVIDENCE_INVALID");
+}
 export function loadCurrentBaselineContract(repoRoot) {
   const bytes = readAnchored(repoRoot, CURRENT_BASELINE_CONTRACT);
   const contract = JSON.parse(bytes);
@@ -89,6 +124,8 @@ export function loadCurrentBaselineContract(repoRoot) {
   same(contract.appliedHotfixes, [], "HISTORY_REPAIR_FORBIDDEN");
   same(contract.requiredEvidence, EVIDENCE_KINDS, "EVIDENCE_SCOPE_WEAKENED");
   const baseline = validateObservation(JSON.parse(pinnedArtifact(repoRoot, contract.baselineObservation)), contract);
+  const original = JSON.parse(pinnedArtifact(repoRoot, contract.baselineSupplement?.originalObservation));
+  validateBaselineSupplement(original, baseline, contract.baselineSupplement, contract);
   requireRelease(baseline.ledger.at(-1).version === contract.requiredRemoteHead && contract.requiredRemoteHead < contract.migrationFloor, "BASELINE_HEAD_MISMATCH");
   const seen = new Set();
   const migrations = contract.migrations.map(pin => {
