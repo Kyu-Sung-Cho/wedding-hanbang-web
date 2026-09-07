@@ -49,7 +49,7 @@
   ],
   "operatingBaseline": {
     "file": "supabase/release-contracts/amora-named-budget-production-baseline-20260907.json",
-    "sha256": "186c659130d4c6aafdd457ccb0066d59f4ae96ecad150c600c9ccd559c273e41"
+    "sha256": "a277b1a7bf4c825f0ed06a3e48e785844609cee6de3773b0044720ebe60db0c0"
   },
   "allowedSchemaChanges": [
     "function:public.amora_resolve_budget_plan_allocations(p_couple_id uuid, p_progress jsonb, p_allocations jsonb)",
