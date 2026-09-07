@@ -133,7 +133,7 @@ describe("실제 랜딩 소스", () => {
     // `availableNow.cards[1].note` 로 옮겨왔다(CLAUDE.md: 궁합 점수·관계 예측 금지).
     // 누가 카피에서 그 고지를 지우고 주석만 남기면, 주석을 안 벗기는 가드는 전부
     // 초록불이 된다. 제거기가 진짜로 이 상황을 가르는지 원문으로 확인한다.
-    const MARKER = "CLAUDE.md 가 요구하는 고지가 이 줄에 있다";
+    const MARKER = "예시·AI 한계·공유 범위·비용 고지는 각 문장이 가리키는 표면에 둔다";
     const NOTICE = "점수도 궁합도 매기지 않아요";
 
     const raw = source(CONTENT_PATH);

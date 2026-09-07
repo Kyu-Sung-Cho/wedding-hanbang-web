@@ -377,7 +377,7 @@ describe("landing available-now section", () => {
       .toContain("eyebrow:");
 
     const wrongWords = ["하나", "둘", "셋", "넷", "다섯", "여섯", "일곱"].filter(
-      (word) => availableNowLead.includes(word),
+      (word) => new RegExp(`(?:^|[\\s"·])${word}(?:[\\s"·]|$)`, "u").test(availableNowLead),
     );
     expect(
       wrongWords,

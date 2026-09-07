@@ -276,7 +276,7 @@ describe("computePreparationPriorities", () => {
       (STAGED_SPEECH.has(key) ? undefined : value));
     // 자기검증: 정말로 발화만 빠졌는지. 같은 대화 카드의 캡션은 남아 있어야 한다.
     expect(landingCopy, "연출 대화 제거가 카피를 통째로 먹었다")
-      .toContain("앞에서 말한 시기랑 예산을 그대로 이어받아");
+      .toContain(landingContent.amoraNote.chat.caption);
     expect(landingCopy, "연출된 발화가 그대로 남아 있다")
       .not.toContain("신혼집 자금은 안 건드렸으면");
 

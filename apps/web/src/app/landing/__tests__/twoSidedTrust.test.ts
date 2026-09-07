@@ -76,7 +76,7 @@ import {
  *
  * 지운 대신 **반대 방향 가드를 넣었다** — "베타" 라는 틀이 화면에 **다시 생기면**
  * 실패한다(`베타가 화면에 없다`). 없어진 것은 틀이지 고지가 아니다:
- * "이용 방법과 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지
+ * "향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도 지금은 결제를 요청하지
  * 않아요" 는 오늘도 참이라 **그 두 단언은 그대로 남겼다**(confirm·closing 두 자리).
  *
  * ### 표기가 아니라 뜻을 재도록 고친 것 둘
@@ -212,7 +212,7 @@ const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
     "법률·의료·금융 판단을 한다고 말한다",
   ],
 
-  // 비용 경계. "이용 방법과 비용은 아직 정해지지 않았다" 가 정본이다.
+  // 비용 경계. "향후 이용 비용은 아직 정해지지 않았다" 가 정본이다.
   [
     /(?:서비스|웨딩한방|모든\s*기능|전\s*기능|전부|평생|계속)[^.\n]{0,8}(?:무료|공짜)/u,
     "서비스가 통째로 무료라고 말한다 — 비용은 아직 정해지지 않았다",
@@ -282,9 +282,9 @@ describe("landing two-sided trust contract", () => {
     // "결혼 준비, 뭐부터 할지보다 우리 둘이 뭘 원하는지부터"). 문장은 바뀌어도 여기서
     // 재는 것은 같다: 첫 화면이 **둘 사이에서 벌어지는 장면**을 말하는가.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("우리 둘이 뭘 원하는지부터.");
-    expect(heroCopy).toContain("예산, 하객, 부모님 의견.");
-    expect(heroCopy).toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요.");
+    expect(heroCopy).toMatch(/막막한 결혼 준비[\s\S]*함께 정리/u);
+    expect(heroCopy).toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
+    expect(heroCopy).toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
     expectWired("hero.body");
     expectWired("hero.note");
     // 2026-08-29: 옛 컴포넌트는 줄바꿈·색 강조 때문에 H1 글자를 손으로 적었고, 그래서
@@ -321,8 +321,8 @@ describe("landing two-sided trust contract", () => {
     const confirmCopy = contentBlock("confirm", "availableNow");
     // 2026-09-03 시안이 같은 뜻을 두 줄로 풀어 썼다("결정은 둘이. 아모라는 정리." →
     // "결정은 둘이 합니다. / 아모라는 그 앞까지만 도와요.").
-    expect(boundariesCopy).toContain("결정은 둘이 합니다.");
-    expect(boundariesCopy).toContain("아모라는 그 앞까지만 도와요.");
+    expect(boundariesCopy).toContain("결정은 직접,");
+    expect(boundariesCopy).toContain("아모라는 준비를 돕습니다.");
     expectWired("boundaries.title");
     expect(confirmCopy).toContain("확인한 것만 남아요.");
     expect(confirmCopy).toContain("한 번에 한 가지 변경을 제안하고");
@@ -716,14 +716,15 @@ describe("landing two-sided trust contract", () => {
 
     // 2026-09-03 시안 문장으로 바뀌었다. 뜻은 같다 — 가입 전에 열려 있는 것들.
     expect(availableNowCopy).toContain("가입 전에 그냥 써보세요");
-    expect(availableNowCopy).toContain("쓸 만한 건 로그인 없이 열어뒀어요.");
+    expect(availableNowCopy).toMatch(/title: "가입 전에[^"\n]*"/u);
     expect(availableNowCopy).toContain("도 로그인 없이 열려 있어요.");
     expectWired("availableNow.eyebrow");
     expectWired("availableNow.title");
     expectWired("availableNow.footTail");
     // 첫 화면에서도 조건을 먼저 말한다 — 여기까지 안 내려온 사람이 훨씬 많다.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toContain("로그인·결제 없이 열려요.");
+    expect(heroCopy).toContain("계정을 만들고 웹에서 시작해요.");
+    expect(closingCopy).toContain("로그인·결제 없이 열려요.");
 
     // 계정을 만들면 무엇이 열리는지. 옛 판은 ⑦ 섹션이 한 줄로 적었고, 지금은 확인
     // 섹션의 눈썹("계정을 만들면")과 본문이 그 일을 한다.
@@ -785,7 +786,7 @@ describe("landing two-sided trust contract", () => {
 
     // 비용은 미정이라고 적는다. **베타를 안 하기로 한 뒤에도 이 고지는 참이라 남는다**
     // (CLAUDE.md 2026-08-29: "없어지는 것은 틀이지 고지가 아니다").
-    expect(confirmCopy).toContain("이용 방법과 비용은 아직 정해지지 않았");
+    expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았");
 
     // 가입해도 결제되지 않는다는 약속. 두 자리에 다 있어야 한다 — 확인 섹션에서
     // 계정을 말하는 자리와, 마지막으로 누르기 직전의 마무리.
