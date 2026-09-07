@@ -6809,7 +6809,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         { category: "honeymoon", budget: 10000000 },
         { category: "custom", label: "사진", budget: 5000000 },
         { category: "custom", label: "드레스·정장", budget: 3000000 },
-        { category: "custom", label: "헤어·메이크업", budget: 2000000 },
+        { category: "makeup", budget: 2000000 },
         { category: "custom", label: "반지·선물", budget: 2500000 },
         { category: "custom", label: "초대장·꽃·하객선물", budget: 1500000 },
         { category: "reserve", budget: 2000000 },
@@ -6817,6 +6817,32 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ proposed: { totalBudget: 35000000 } });
       expect(saved.content).toContain("초대장·꽃·하객선물");
       expect(saved.content).not.toContain("반영했어요");
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each([true, false])("uses canonical current journey custom labels, ignoring contradictory client context (existing=%s)", async (existing) => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    const text = "헤어·메이크업 200, 예비비 20만 원이야. 이대로 예산에 반영해줘.";
+    const progress = { custom_existing: { label: "헤어·메이크업", category: "custom_existing", budget: 1000000, spent: 700000, payer: "bride", status: "completed" } };
+    mocks.journeyRow.progress = existing ? progress : {};
+    const before = structuredClone(mocks.journeyRow);
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "반영할까요?" }));
+      const response = await POST(request({ messages: [{ role: "user", content: text }], weddingContext: { budget: 0, progress: existing ? {} : progress } }));
+      expect(response.status).toBe(200);
+      await response.text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: { total_budget: 2200000, allocations: [
+        existing ? { category: "custom", label: "헤어·메이크업", budget: 2000000 } : { category: "makeup", budget: 2000000 },
+        { category: "reserve", budget: 200000 },
+      ] } });
+      expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ proposed: { totalBudget: 2200000 } });
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
     } finally { if (added) mocks.safeTools.pop(); }
   });
 

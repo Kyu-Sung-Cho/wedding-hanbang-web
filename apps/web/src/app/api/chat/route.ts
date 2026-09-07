@@ -3886,7 +3886,7 @@ export async function POST(request: Request) {
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
           const explicitBudgetPlan = pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
-              ? parseExplicitBudgetPlanRequest(lastUserText) : null;
+            ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.progress) : null;
           const modelPendingExtraction = extractAmoraPendingAction({
             text: explicitBudgetPlan
               ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
