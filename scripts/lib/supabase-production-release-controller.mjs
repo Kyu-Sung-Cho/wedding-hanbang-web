@@ -2618,6 +2618,43 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--amora-runtime-hotfix")) {
+    assertSafeExecutionEnvironment(process.env);
+    const {
+      parseHotfixArgs,
+      parseHotfixFinalizeArgs,
+      loadHotfixRelease,
+      createManagementHotfixTransport,
+      runAmoraRuntimeHotfix,
+      runAmoraRuntimeHotfixFinalize,
+      HotfixBlocked,
+    } = await import("./amora-runtime-hotfix-controller.mjs");
+    const finalizing = argv.includes("--finalize");
+    const options = finalizing ? parseHotfixFinalizeArgs(argv) : parseHotfixArgs(argv);
+    const release = loadHotfixRelease(repoRoot);
+    const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
+    if (!/^sbp_(oauth_)?[a-f0-9]{40}$/.test(accessToken ?? "")) {
+      throw new HotfixBlocked("EXISTING_CLI_CREDENTIAL_UNAVAILABLE");
+    }
+    const runtime = {
+      repoRoot, now,
+      transport: createManagementHotfixTransport({ accessToken, projectRef: release.hotfix.projectRef }),
+      primitives: { assertReleaseGitFence, runCommand },
+    };
+    if (finalizing) {
+      return runAmoraRuntimeHotfixFinalize({
+        ...runtime,
+        evidenceRoot: options["evidence-root"],
+        outcomePath: options.outcome,
+        canaryPath: options.canary,
+        receiptOut: options["receipt-out"],
+        expectedCommit: options["expected-commit"],
+        remoteRef: options["remote-ref"],
+        confirmProduction: options["confirm-production"],
+      });
+    }
+    return runAmoraRuntimeHotfix({ ...runtime, argv });
+  }
   if ((argv ?? []).includes("--current-baseline")) {
     assertSafeExecutionEnvironment(process.env);
     const { runCurrentBaselineRelease } = await import("./current-baseline-release-controller.mjs");
