@@ -6,8 +6,18 @@ import { canonical, digest, digestJson, loadCurrentBaselineContract, pinnedArtif
 import { transactionBody } from './current-baseline-hosted-synthetic.mjs';
 import { resolvePinnedWindowsProductionToolchain } from './production-windows-toolchain.mjs';
 import { validateVercelDeploymentRawEvidence } from './production-external-gate-provenance.mjs';
+import { NAMED_BUDGET_MIGRATION } from './amora-named-budget-migration-pin.mjs';
 
 export const HOTFIX_CONTRACT_FILE = 'supabase/release-contracts/amora-runtime-hotfix-v1.json';
+export const NAMED_BUDGET_CONTRACT_FILE = 'supabase/release-contracts/amora-named-budget-hotfix-v1.json';
+const NAMED_BUDGET_KIND = 'amora-named-budget-single-sql-hotfix';
+const isNamedBudget = release => release.hotfix.kind === NAMED_BUDGET_KIND;
+const addedRelations = release => isNamedBudget(release) ? [] : [
+  { schema: 'public', name: 'amora_mediation_responses', kind: 'r' }, { schema: 'public', name: 'amora_personal_actions', kind: 'r' }];
+export const NAMED_BUDGET_FUNCTIONS = Object.freeze([
+  'function:public.amora_resolve_budget_plan_allocations(p_couple_id uuid, p_progress jsonb, p_allocations jsonb)',
+  'function:public.apply_amora_atomic_tool_execution_pre_shared_revision(p_couple_id uuid, p_request_key text, p_operation_key text, p_request_attempt_count integer, p_input_digest text, p_tool_input jsonb, p_domain_mutation jsonb, p_result jsonb)',
+]);
 const SHA = /^[a-f0-9]{64}$/;
 const nativeSha = value => typeof value === 'string' && /^[a-f0-9]{64}$/i.test(value);
 const COMMIT = /^[a-f0-9]{40}$/;
@@ -69,6 +79,60 @@ export function parseHotfixFinalizeArgs(argv) {
     && new Set(['outcome', 'canary', 'receipt-out'].map(key => resolve(options[key]).toLowerCase())).size === 3, 'OUTPUT_PATH_INVALID');
   ensure(typeof options['confirm-production'] === 'string', 'PRODUCTION_CONFIRMATION_MISMATCH');
   return options;
+}
+
+export function parseNamedBudgetHotfixArgs(argv) {
+  ensure(argv.includes('--amora-named-budget-hotfix') && !argv.includes('--amora-runtime-hotfix'), 'MODE_REQUIRED');
+  const parser = argv.includes('--finalize') ? parseHotfixFinalizeArgs : parseHotfixArgs;
+  const options = parser(argv.map(arg => arg === '--amora-named-budget-hotfix' ? '--amora-runtime-hotfix' : arg));
+  delete options['amora-runtime-hotfix']; options['amora-named-budget-hotfix'] = true;
+  return options;
+}
+
+export function loadNamedBudgetHotfixRelease(repoRoot) {
+  const prior = loadHotfixRelease(repoRoot);
+  const bytes = readAnchored(repoRoot, NAMED_BUDGET_CONTRACT_FILE);
+  const hotfix = JSON.parse(bytes);
+  ensure(hotfix.version === 1 && hotfix.kind === NAMED_BUDGET_KIND && hotfix.release === 'amora-named-budget-20260907'
+    && hotfix.status === 'requires-scoped-runtime-evidence', 'HOTFIX_CONTRACT_INVALID');
+  ensure(hotfix.projectRef === prior.hotfix.projectRef && hotfix.systemIdentifier === prior.hotfix.systemIdentifier
+    && hotfix.requiredLedgerCount === 214 && hotfix.requiredRemoteHead === '20260906223557', 'HOTFIX_BASELINE_INVALID');
+  equal(hotfix.migrations, [NAMED_BUDGET_MIGRATION], 'HOTFIX_MIGRATION_SET_MISMATCH');
+  equal(hotfix.predecessor, { file: HOTFIX_CONTRACT_FILE, sha256: prior.hotfixSha256 }, 'HOTFIX_PREDECESSOR_CHANGED');
+  equal(hotfix.excludedHistoricalFiles, prior.hotfix.excludedHistoricalFiles, 'HOTFIX_HISTORY_CHANGED');
+  equal(hotfix.scope, prior.hotfix.scope, 'HOTFIX_SCOPE_INVALID');
+  equal(hotfix.requiredEvidence, prior.hotfix.requiredEvidence, 'HOTFIX_EVIDENCE_CONTRACT_INVALID');
+  equal(hotfix.allowedSchemaChanges, NAMED_BUDGET_FUNCTIONS, 'HOTFIX_SCOPE_INVALID');
+  const baselineBytes = pinnedArtifact(repoRoot, hotfix.operatingBaseline);
+  const baseline = JSON.parse(baselineBytes);
+  validateNamedBudgetPredecessor({ prior, baseline, delta: hotfix.predecessorDelta });
+  const migrations = hotfix.migrations.map(pin => ({ ...pin, version: pin.file.slice(0, 14),
+    sql: pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` }) }));
+  ensure(!baseline.ledger.some(row => row.version === migrations[0].version), 'MIGRATION_ALREADY_APPLIED');
+  return { ...prior, baseline, baselineSha256: digest(baselineBytes), migrations, migrationSetSha256: digestJson(hotfix.migrations),
+    contract: { ...prior.contract, requiredRemoteHead: hotfix.requiredRemoteHead, migrations: hotfix.migrations,
+      allowedSchemaChanges: hotfix.allowedSchemaChanges }, hotfix, hotfixSha256: digest(bytes) };
+}
+
+export function validateNamedBudgetPredecessor({ prior, baseline, delta }) {
+  validateObservation(baseline, prior.contract);
+  for (const key of ['format', 'systemIdentifier', 'serverVersion', 'storageStructureSha256', 'storagePolicies', 'vaultRows', 'cronJobs'])
+    equal(baseline[key], prior.baseline[key], 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  // 실제 이전 원자 적용은 각 migration의 원문 전체를 statements[0]에 기록했다.
+  const applied = prior.migrations.map(m => ({ version: m.version, name: m.file.slice(15, -4),
+    statementsSha256: digest(JSON.stringify([m.sql.toString('utf8')])) }));
+  equal(baseline.ledger, [...prior.baseline.ledger, ...applied], 'HOTFIX_PREDECESSOR_LEDGER_CHANGED');
+  const before = new Map(prior.baseline.objects.map(o => [`${o.kind}:${o.identity}`, o.sha256]));
+  const after = new Map(baseline.objects.map(o => [`${o.kind}:${o.identity}`, o.sha256]));
+  const changes = [...new Set([...before.keys(), ...after.keys()])].sort().filter(k => before.get(k) !== after.get(k))
+    .map(identity => ({ identity, beforeSha256: before.get(identity) ?? null, afterSha256: after.get(identity) ?? null }));
+  ensure(changes.length === 25 && changes.every(row => SHA.test(row.afterSha256)
+    && /^(?:function|relation):public\./.test(row.identity)
+    && prior.contract.allowedSchemaChanges.some(rule => rule === row.identity || (rule.endsWith('(*)') && row.identity.startsWith(rule.slice(0, -2))))),
+  'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  equal(changes, delta?.objects, 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  equal(baseline.relations, [...prior.baseline.relations, ...addedRelations(prior)]
+    .sort((a, b) => `${a.schema}.${a.name}` < `${b.schema}.${b.name}` ? -1 : 1), 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
 }
 
 export function loadHotfixRelease(repoRoot) {
@@ -179,14 +243,16 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
       && actual.releaseCommit === (report.sourceReleaseCommit ?? expectedCommit), 'HOSTED_RAW_BINDING_INVALID');
   }
   const restored = JSON.parse(raw.rollback);
-  ensure(restored.kind === 'synthetic-eight-sql-transaction-rollback' && restored.sourceArchiveRestored === false
+  ensure(restored.kind === (isNamedBudget(release) ? 'synthetic-named-budget-sql-transaction-rollback' : 'synthetic-eight-sql-transaction-rollback') && restored.sourceArchiveRestored === false
     && restored.originalDdlArtifactSha256 === evidence.rollbackOriginal.sha256
     && SHA.test(restored.beforeSchemaSha256) && restored.beforeSchemaSha256 === restored.afterRollbackSchemaSha256
     && SHA.test(restored.beforeDataSha256) && restored.beforeDataSha256 === restored.afterRollbackDataSha256
     && restored.transactionRollbackExecuted === true && restored.operatorFenceHeld === true, 'ROLLBACK_NOT_PROVEN');
   const hosted = JSON.parse(raw.hosted);
   equal(hosted.executedMigrations, release.migrations.map(m => ({ file: m.file, sha256: m.sha256, bodySha256: digest(transactionBody(m.sql.toString('utf8'))) })), 'HOSTED_MIGRATION_MISMATCH');
-  const checks = ['actorBoundary', 'budgetPreservesOmittedAllocations', 'personalOwnerPrivacy', 'mediationChoices', 'rollback'];
+  const checks = isNamedBudget(release)
+    ? ['actorBoundary', 'namedAllocationsExactReceipt', 'budgetPreservesOmittedAllocations', 'retryAndConcurrentLabels', 'privateHelperAcl', 'rollback']
+    : ['actorBoundary', 'budgetPreservesOmittedAllocations', 'personalOwnerPrivacy', 'mediationChoices', 'rollback'];
   equal(hosted.checks?.map(c => c.name).sort(), [...checks].sort(), 'HOSTED_CHECKS_INCOMPLETE');
   ensure(hosted.checks.every(c => c.status === 'passed' && c.observed && c.rawEvidenceSha256 === digestJson(c.observed)), 'HOSTED_CHECK_FAILED');
   const concurrency = JSON.parse(raw.concurrency);
@@ -218,6 +284,7 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
     ensure((before.objects.find(o => o.kind === row.kind && o.identity === row.identity)?.sha256 ?? null) === row.beforeSha256, 'SCHEMA_TRANSITION_BEFORE_MISMATCH');
   }
   equal(hosted.transitions, evidence.transitions, 'SCHEMA_TRANSITION_EVIDENCE_MISMATCH');
+  if (isNamedBudget(release)) equal([...identities].sort(), [...NAMED_BUDGET_FUNCTIONS].sort(), 'SCHEMA_TRANSITIONS_MISSING');
   return { evidence, reports, raw, evidenceSha256: digestJson(evidence), deadlineMs: Math.min(instant(evidence.expiresAt),
     ...['backup', 'fence', 'dryRun'].map(kind => instant(reports[kind].verifiedAt) + 30 * 60_000),
     ...['rollback', 'hosted', 'concurrency'].map(kind => instant(reports[kind].verifiedAt) + 24 * 3600_000)) };
@@ -244,11 +311,11 @@ export async function verifyHotfixSourceLineage({ repoRoot, state, release, runC
 function publicTables(observation) {
   return observation.relations.filter(r => r.schema === 'public' && ['r', 'p'].includes(r.kind) && r.name !== 'production_release_lease_20260717');
 }
-export function renderPublicDataQuery(observation) {
+export function renderPublicDataQuery(observation, { preserveHotRank = false } = {}) {
   const tables = publicTables(observation); ensure(tables.length > 0 && tables.length <= 500, 'DATA_SCOPE_INVALID');
   const queries = tables.map(r => `SELECT ${literal(`${r.schema}.${r.name}`)} AS relation,count(*) AS rows,
     encode(sha256(convert_to(coalesce(string_agg(row_hash,'' ORDER BY row_hash),''),'UTF8')),'hex') AS "rowsSha256"
-    FROM (SELECT encode(sha256(convert_to((to_jsonb(t)${r.name === 'community_posts' ? "-'hot_rank'" : ''})::text,'UTF8')),'hex') AS row_hash
+    FROM (SELECT encode(sha256(convert_to((to_jsonb(t)${!preserveHotRank && r.name === 'community_posts' ? "-'hot_rank'" : ''})::text,'UTF8')),'hex') AS row_hash
       FROM ${identifier(r.schema)}.${identifier(r.name)} t) hashes`);
   return `SELECT coalesce(jsonb_agg(to_jsonb(s) ORDER BY relation),'[]'::jsonb) AS data FROM (${queries.join('\nUNION ALL\n')}) s`;
 }
@@ -282,8 +349,7 @@ function ttlCheck() {
 }
 function guardBlock({ release, evidence, deadlineMs, phase }) {
   const expected = phase === 'before' ? evidence.before.objects : expectedObjects(evidence);
-  const relations = phase === 'before' ? evidence.before.relations : [...evidence.before.relations,
-    { schema: 'public', name: 'amora_mediation_responses', kind: 'r' }, { schema: 'public', name: 'amora_personal_actions', kind: 'r' }]
+  const relations = phase === 'before' ? evidence.before.relations : [...evidence.before.relations, ...addedRelations(release)]
     .sort((a, b) => `${a.schema}.${a.name}` < `${b.schema}.${b.name}` ? -1 : 1);
   return `SET LOCAL search_path=pg_catalog,public;
 DO $hotfix_${phase}$ DECLARE observed jsonb; actual_data jsonb; cli jsonb; BEGIN
@@ -296,7 +362,7 @@ DO $hotfix_${phase}$ DECLARE observed jsonb; actual_data jsonb; cli jsonb; BEGIN
       OR observed->>'storageStructureSha256' IS DISTINCT FROM ${literal(evidence.before.storageStructureSha256)}
       OR observed->'vaultRows' IS DISTINCT FROM ${json(evidence.before.vaultRows)} OR observed->'cronJobs' IS DISTINCT FROM ${json(evidence.before.cronJobs)}
       THEN RAISE EXCEPTION 'HOTFIX_${phase.toUpperCase()}_SCHEMA_DRIFT'; END IF;
-    SELECT data INTO actual_data FROM (${renderPublicDataQuery(evidence.before)}) captured;
+    SELECT data INTO actual_data FROM (${renderPublicDataQuery(evidence.before, { preserveHotRank: isNamedBudget(release) })}) captured;
     IF actual_data IS DISTINCT FROM ${json(evidence.beforeData)} THEN RAISE EXCEPTION 'HOTFIX_EXISTING_ROWS_CHANGED'; END IF;
     ${phase === 'before' ? `IF observed->'ledger' IS DISTINCT FROM ${json(evidence.before.ledger)} THEN RAISE EXCEPTION 'HOTFIX_LEDGER_DRIFT'; END IF;`
       : `IF (SELECT jsonb_agg(value ORDER BY value->>'version') FROM jsonb_array_elements(observed->'ledger') WHERE value->>'version'<${literal(release.migrations[0].version)}) IS DISTINCT FROM ${json(evidence.before.ledger)} THEN RAISE EXCEPTION 'HOTFIX_ORIGINAL_LEDGER_CHANGED'; END IF;`}
@@ -338,12 +404,12 @@ DO $hotfix_post$ BEGIN
     WHERE e.version IS NULL OR a.version IS NULL OR a.name IS DISTINCT FROM e.name OR a.statements IS DISTINCT FROM e.statements)
     OR (SELECT count(*) FROM supabase_migrations.schema_migrations)<>${evidence.before.ledger.length + bodies.length}
     THEN RAISE EXCEPTION 'HOTFIX_POST_LEDGER_MISMATCH'; END IF;
-  IF EXISTS(SELECT 1 FROM public.community_posts WHERE hot_rank IS DISTINCT FROM (2::numeric*coalesce(upvote_count,0)+3::numeric*coalesce(comment_count,0)+coalesce(extract(epoch FROM(created_at AT TIME ZONE 'UTC')),0)/7200))
+  ${isNamedBudget(release) ? '' : `IF EXISTS(SELECT 1 FROM public.community_posts WHERE hot_rank IS DISTINCT FROM (2::numeric*coalesce(upvote_count,0)+3::numeric*coalesce(comment_count,0)+coalesce(extract(epoch FROM(created_at AT TIME ZONE 'UTC')),0)/7200))
     OR EXISTS(SELECT 1 FROM public.amora_personal_actions)
     OR EXISTS(SELECT 1 FROM public.amora_mediation_acceptances a FULL JOIN public.amora_mediation_responses r ON a.message_id=r.message_id AND a.user_id=r.user_id
       WHERE a.message_id IS NULL OR r.message_id IS NULL OR r.couple_id IS DISTINCT FROM a.couple_id OR r.proposal_version IS DISTINCT FROM a.proposal_version
       OR r.roster_fingerprint IS DISTINCT FROM a.proposal_roster_fingerprint OR r.choice IS DISTINCT FROM 'ok')
-    THEN RAISE EXCEPTION 'HOTFIX_BACKFILL_MISMATCH'; END IF;
+    THEN RAISE EXCEPTION 'HOTFIX_BACKFILL_MISMATCH'; END IF;`}
   IF clock_timestamp()>=to_timestamp(${deadlineMs}/1000.0) THEN RAISE EXCEPTION 'HOTFIX_EVIDENCE_EXPIRED'; END IF;
   UPDATE ${LEASE} SET phase='deployment-canary',updated_at=clock_timestamp() WHERE ${predicate} AND phase='claimed';
   IF NOT FOUND THEN RAISE EXCEPTION 'HOTFIX_OWNER_OR_PHASE_CHANGED'; END IF;
@@ -387,8 +453,8 @@ export function classifyHotfixObservation({ rows, release, binding }) {
   // 0개는 아직 실행 중인 transaction의 MVCC 결과일 수 있다. 자동 retry/unfence하지 않는다.
   if (!Array.isArray(rows) || rows.length !== 1) return 'ambiguous';
   const row = rows[0];
-  return row.system_identifier === release.hotfix.systemIdentifier && row.owner_count === 1 && row.exact_migration_count === 8
-    && row.ledger_count === release.hotfix.requiredLedgerCount + 8 && row.owner_id === binding.ownerId
+  return row.system_identifier === release.hotfix.systemIdentifier && row.owner_count === 1 && row.exact_migration_count === release.migrations.length
+    && row.ledger_count === release.hotfix.requiredLedgerCount + release.migrations.length && row.owner_id === binding.ownerId
     && row.release_commit === binding.releaseCommit && row.phase === 'deployment-canary' ? 'committed-lease-held' : 'ambiguous';
 }
 export function renderHotfixAdjudicationSql({ release, binding }) {
@@ -460,7 +526,10 @@ try { $v=[Console]::In.ReadToEnd()|ConvertFrom-Json; . $v.crypto;
 }
 
 export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primitives, now = () => new Date(), verifyRecovery = verifyHotfixRecovery }) {
-  const options = parseHotfixArgs(argv); const release = loadHotfixRelease(repoRoot);
+  const named = argv.includes('--amora-named-budget-hotfix');
+  const options = named ? parseNamedBudgetHotfixArgs(argv) : parseHotfixArgs(argv);
+  const loadRelease = named ? loadNamedBudgetHotfixRelease : loadHotfixRelease;
+  const release = loadRelease(repoRoot);
   ensure(typeof transport?.query === 'function' && typeof primitives?.assertReleaseGitFence === 'function', 'RUNTIME_DEPENDENCY_REQUIRED');
   const expectedCommit = options['expected-commit'];
   ensure(options['confirm-production'] === `${options.apply ? 'APPLY' : 'CHECK'}:${release.hotfix.projectRef}:${release.hotfix.release}:${expectedCommit}`, 'PRODUCTION_CONFIRMATION_MISMATCH');
@@ -479,7 +548,7 @@ export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primiti
   await exclusive(options['bundle-out'], sql);
   await exclusive(options['receipt-out'], JSON.stringify({ ...base, status: 'prepared', remoteWritesPerformed: false }));
   const stable = async () => {
-    await sourceFence(); ensure(loadHotfixRelease(repoRoot).hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
+    await sourceFence(); ensure(loadRelease(repoRoot).hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
     ensure((await readEvidenceFiles(repoRoot, options['evidence-root'], release, expectedCommit, now())).evidenceSha256 === state.evidenceSha256, 'HOTFIX_EVIDENCE_CHANGED');
     ensure(digest(await readFile(options['bundle-out'])) === base.bundleSha256, 'ATOMIC_BUNDLE_CHANGED');
   };
@@ -577,13 +646,13 @@ DO $owner$ BEGIN ${identityCheck(release)}
   PERFORM 1 FROM ${LEASE} WHERE ${predicate} AND phase='deployment-canary' FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'HOTFIX_FINALIZER_OWNER_OR_PHASE'; END IF;
 END $owner$;
-LOCK TABLE ${publicTables(evidence.before).map(t => `${identifier(t.schema)}.${identifier(t.name)}`).join(',')},public.amora_personal_actions,public.amora_mediation_responses IN SHARE ROW EXCLUSIVE MODE;
+LOCK TABLE ${[...publicTables(evidence.before), ...addedRelations(release)].map(t => `${identifier(t.schema)}.${identifier(t.name)}`).join(',')} IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE supabase_migrations.schema_migrations IN SHARE ROW EXCLUSIVE MODE;
 ${release.fenceBody}
 ${guardBlock({ release, evidence, deadlineMs, phase: 'after' })}
 DO $ledger$ BEGIN
-  IF (SELECT count(*) FROM (${expectedLedger}) e JOIN supabase_migrations.schema_migrations a USING(version) WHERE e.name=a.name AND e.statements=a.statements)<>8
-    OR (SELECT count(*) FROM supabase_migrations.schema_migrations)<>${evidence.before.ledger.length + 8}
+  IF (SELECT count(*) FROM (${expectedLedger}) e JOIN supabase_migrations.schema_migrations a USING(version) WHERE e.name=a.name AND e.statements=a.statements)<>${release.migrations.length}
+    OR (SELECT count(*) FROM supabase_migrations.schema_migrations)<>${evidence.before.ledger.length + release.migrations.length}
   THEN RAISE EXCEPTION 'HOTFIX_FINALIZER_LEDGER'; END IF;
 END $ledger$;
 DROP EVENT TRIGGER evt_production_write_fence_ddl_lock_20260717;
@@ -607,9 +676,11 @@ SELECT 1::integer AS hotfix_finalized_count,${literal(binding.ownerId)}::text AS
 }
 
 export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, outcomePath, canaryPath, receiptOut,
-  expectedCommit, remoteRef, confirmProduction, transport, primitives, now = () => new Date(), verifyRecovery = verifyHotfixRecovery }) {
+  expectedCommit, remoteRef, confirmProduction, transport, primitives, mode = '--amora-runtime-hotfix', now = () => new Date(), verifyRecovery = verifyHotfixRecovery }) {
   ensure(COMMIT.test(expectedCommit) && [evidenceRoot, outcomePath, canaryPath, receiptOut].every(isAbsolute), 'FINALIZER_PATH_OR_COMMIT_INVALID');
-  const release = loadHotfixRelease(repoRoot);
+  ensure(['--amora-runtime-hotfix', '--amora-named-budget-hotfix'].includes(mode), 'MODE_REQUIRED');
+  const loadRelease = mode === '--amora-named-budget-hotfix' ? loadNamedBudgetHotfixRelease : loadHotfixRelease;
+  const release = loadRelease(repoRoot);
   for (const file of [outcomePath, canaryPath, receiptOut]) await privateParent(repoRoot, file);
   const sourceFence = () => primitives.assertReleaseGitFence({ repoRoot, expectedCommit, expectedOrigin: release.contract.expectedOrigin, remoteRef, runCommand: primitives.runCommand });
   await sourceFence();
@@ -644,7 +715,7 @@ export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, ou
     sourceOutcomeSha256: digest(outcomeText), finalizerSqlSha256: digest(sql), scope: release.hotfix.scope, rerunProhibited: true };
   await exclusive(receiptOut, JSON.stringify({ ...base, status: 'prepared', remoteWritesPerformed: false }));
   const stable = async () => {
-    await sourceFence(); ensure(loadHotfixRelease(repoRoot).hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
+    await sourceFence(); ensure(loadRelease(repoRoot).hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
     ensure((await readEvidenceFiles(repoRoot, evidenceRoot, release, expectedCommit, now())).evidenceSha256 === state.evidenceSha256, 'HOTFIX_EVIDENCE_CHANGED');
     ensure(digest(await readFile(outcomePath)) === base.sourceOutcomeSha256, 'FINALIZER_OUTCOME_CHANGED');
     equal(JSON.parse(await readFile(canaryPath, 'utf8')), canary, 'FINALIZER_CANARY_CHANGED');

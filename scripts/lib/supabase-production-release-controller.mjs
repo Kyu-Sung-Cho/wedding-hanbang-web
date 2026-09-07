@@ -2618,20 +2618,23 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
-  if ((argv ?? []).includes("--amora-runtime-hotfix")) {
+  if ((argv ?? []).some(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix'].includes(arg))) {
     assertSafeExecutionEnvironment(process.env);
     const {
       parseHotfixArgs,
       parseHotfixFinalizeArgs,
       loadHotfixRelease,
+      parseNamedBudgetHotfixArgs,
+      loadNamedBudgetHotfixRelease,
       createManagementHotfixTransport,
       runAmoraRuntimeHotfix,
       runAmoraRuntimeHotfixFinalize,
       HotfixBlocked,
     } = await import("./amora-runtime-hotfix-controller.mjs");
     const finalizing = argv.includes("--finalize");
-    const options = finalizing ? parseHotfixFinalizeArgs(argv) : parseHotfixArgs(argv);
-    const release = loadHotfixRelease(repoRoot);
+    const named = argv.includes('--amora-named-budget-hotfix');
+    const options = named ? parseNamedBudgetHotfixArgs(argv) : finalizing ? parseHotfixFinalizeArgs(argv) : parseHotfixArgs(argv);
+    const release = named ? loadNamedBudgetHotfixRelease(repoRoot) : loadHotfixRelease(repoRoot);
     const accessToken = process.env.SUPABASE_ACCESS_TOKEN;
     if (!/^sbp_(oauth_)?[a-f0-9]{40}$/.test(accessToken ?? "")) {
       throw new HotfixBlocked("EXISTING_CLI_CREDENTIAL_UNAVAILABLE");
@@ -2644,6 +2647,7 @@ export async function runProductionRelease({
     if (finalizing) {
       return runAmoraRuntimeHotfixFinalize({
         ...runtime,
+        mode: named ? '--amora-named-budget-hotfix' : '--amora-runtime-hotfix',
         evidenceRoot: options["evidence-root"],
         outcomePath: options.outcome,
         canaryPath: options.canary,

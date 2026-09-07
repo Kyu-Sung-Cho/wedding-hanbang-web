@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "kind": "amora-named-budget-single-sql-hotfix",
+  "release": "amora-named-budget-20260907",
+  "status": "requires-scoped-runtime-evidence",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "requiredRemoteHead": "20260906223557",
+  "requiredLedgerCount": 214,
+  "migrations": [
+    {
+      "file": "20260907085111_amora_budget_plan_named_allocations.sql",
+      "sha256": "5be83d180d905c6c0883c81ef0e0379b7b70a70c56ddea86d30b04548a950ae9"
+    }
+  ],
+  "predecessor": {
+    "file": "supabase/release-contracts/amora-runtime-hotfix-v1.json",
+    "sha256": "01ab4685c5830caa67c7e3b2a4f50767ff9bd09576608e2e3db9140169fdfe14"
+  },
+  "excludedHistoricalFiles": [
+    "20260806090000_amora_preparation_status.sql",
+    "20260807090000_amora_mediation_send_gate.sql",
+    "20260821120000_events_append_only_allows_fk_detach.sql",
+    "20260823120000_couple_approval_becomes_notification.sql",
+    "20260824120000_amora_schedule_cancel_can_actually_apply.sql",
+    "20260824130000_mediation_tells_the_partner.sql",
+    "20260824140000_amora_can_change_custom_budget_categories.sql",
+    "20260824150000_amora_custom_category_label_match.sql",
+    "20260824160000_first_budget_entry_is_not_a_mixed_change.sql",
+    "20260826000000_harden_cohort_timeline_and_contract_writes.sql",
+    "20260826120000_anon_sees_only_public_authors.sql",
+    "20260827090000_move_card_can_name_what_it_moves.sql"
+  ],
+  "scope": {
+    "database": "public-schema-and-existing-public-rows",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "fullDatabaseRestoreVerified": false,
+    "storageObjectsRestored": false,
+    "authDataRestored": false
+  },
+  "requiredEvidence": [
+    "backup",
+    "rollback",
+    "hosted",
+    "concurrency",
+    "fence",
+    "dryRun"
+  ],
+  "operatingBaseline": {
+    "file": "supabase/release-contracts/amora-named-budget-production-baseline-20260907.json",
+    "sha256": "186c659130d4c6aafdd457ccb0066d59f4ae96ecad150c600c9ccd559c273e41"
+  },
+  "allowedSchemaChanges": [
+    "function:public.amora_resolve_budget_plan_allocations(p_couple_id uuid, p_progress jsonb, p_allocations jsonb)",
+    "function:public.apply_amora_atomic_tool_execution_pre_shared_revision(p_couple_id uuid, p_request_key text, p_operation_key text, p_request_attempt_count integer, p_input_digest text, p_tool_input jsonb, p_domain_mutation jsonb, p_result jsonb)"
+  ],
+  "predecessorDelta": {
+    "objects": [
+      {
+        "identity": "function:public.amora_budget_plan_non_reserve_budgets(p_progress jsonb)",
+        "beforeSha256": null,
+        "afterSha256": "ff671bccac74fce342e48566c28cacdc2ed446f290019a7b923c2039dc769802"
+      },
+      {
+        "identity": "function:public.amora_note_utf16_excerpt(p_text text, p_max_units integer)",
+        "beforeSha256": null,
+        "afterSha256": "eb1ff23b9f65e241220622011d670f8e67ce6ed94d217562d2bb8475520da63c"
+      },
+      {
+        "identity": "function:public.apply_amora_atomic_tool_execution_pre_shared_revision(p_couple_id uuid, p_request_key text, p_operation_key text, p_request_attempt_count integer, p_input_digest text, p_tool_input jsonb, p_domain_mutation jsonb, p_result jsonb)",
+        "beforeSha256": "4a7bfd1137d08be6b3c331ebee3e88287ea292101c2b8dea4937ae835e66a862",
+        "afterSha256": "d653132f4444528aa9e65cb4b1ed12de713925fe91f96598ceb74432d5be181e"
+      },
+      {
+        "identity": "function:public.capture_amora_profile_privacy_epoch()",
+        "beforeSha256": "6894e30738014b5cfbcf984a77f54f3c56f90ee8b5c0f7d7ecf8a2361c246838",
+        "afterSha256": "299ea8d564bb362513928d9498e4970841591a3456eacaa0e8bd93043f916436"
+      },
+      {
+        "identity": "function:public.clean_amora_mediation_responses()",
+        "beforeSha256": null,
+        "afterSha256": "bdbe62d215b2510c9776e07f09eef910a902ed74ebf0dabb796f5572285e2b98"
+      },
+      {
+        "identity": "function:public.get_own_amora_chat_view_snapshot(p_couple_id uuid, p_visibility text)",
+        "beforeSha256": null,
+        "afterSha256": "c236c6a4ccf6b49a64adcb53cb68e37010c6dc8f5ab1845398e4f2640358aa57"
+      },
+      {
+        "identity": "function:public.lock_own_amora_action_couple(p_couple_id uuid)",
+        "beforeSha256": null,
+        "afterSha256": "ce2abb19f45db5577e3db1bf78f00dd5e4a56a0e55f52a35de148b3413dcb43c"
+      },
+      {
+        "identity": "function:public.lock_own_amora_mediation_response(p_message_id uuid, p_expected_owner_id uuid, p_expected_proposal_version uuid, p_expected_roster_fingerprint text)",
+        "beforeSha256": null,
+        "afterSha256": "dad5da70ebf849bb7e011323d6ec70e2d92b555b15cdecab4426897e897254a5"
+      },
+      {
+        "identity": "function:public.mutate_own_amora_action(p_couple_id uuid, p_action_id text, p_operation text, p_values jsonb)",
+        "beforeSha256": null,
+        "afterSha256": "2c9610f8b772580fd9410809b4cfbf102b49f5f90e413397800b7adc82ad52eb"
+      },
+      {
+        "identity": "function:public.read_own_amora_mediation_response(p_message_id uuid, p_expected_owner_id uuid, p_expected_proposal_version uuid, p_expected_roster_fingerprint text)",
+        "beforeSha256": null,
+        "afterSha256": "862daa71a6fe428e0781ac41921bb188a2a5e4a5af3f16bf83a99ea39572079c"
+      },
+      {
+        "identity": "function:public.reset_own_amora_chat_view(p_couple_id uuid, p_scope text)",
+        "beforeSha256": null,
+        "afterSha256": "1917d889087697b1707553e82e37a23cc8054cc2367e0a441cdf31366b43974f"
+      },
+      {
+        "identity": "function:public.respond_own_amora_mediation(p_message_id uuid, p_expected_owner_id uuid, p_expected_proposal_version uuid, p_expected_roster_fingerprint text, p_expected_response_revision bigint, p_choice text, p_condition text)",
+        "beforeSha256": null,
+        "afterSha256": "c81cd408922de15be2d9b032b476bd12f6a843af8fabba51e944750b97e13836"
+      },
+      {
+        "identity": "function:public.save_own_amora_note(p_couple_id uuid, p_message_id uuid, p_memo text)",
+        "beforeSha256": null,
+        "afterSha256": "6abf6229b0d9833e5cdabe7458885732e266da86e016a6dd2db779c13f9da23e"
+      },
+      {
+        "identity": "function:public.save_own_amora_personal_action(p_owner_id uuid, p_couple_id uuid, p_message_id uuid, p_request_id uuid, p_title text, p_description text, p_due_date date)",
+        "beforeSha256": null,
+        "afterSha256": "cce1401c7f61484570f4a73470d1d2f167ef0ccfba48be4d649c939825589a2b"
+      },
+      {
+        "identity": "function:public.sync_amora_mediation_response_acceptance()",
+        "beforeSha256": null,
+        "afterSha256": "28782911d3c9c931567ce29a833ae860733247284a92eab243b63e05dcf4ac10"
+      },
+      {
+        "identity": "function:public.touch_amora_personal_action()",
+        "beforeSha256": null,
+        "afterSha256": "e9d083e34a7dc03c1be8e9f07dc1ad83f0258deab705056782c8dff76f30ddd8"
+      },
+      {
+        "identity": "function:public.update_own_legacy_amora_action(p_couple_id uuid, p_journey_id uuid, p_action_id text, p_expected_revision bigint, p_values jsonb)",
+        "beforeSha256": null,
+        "afterSha256": "08683c6162e926887079c50c9e8e65b556321377d9811ff1be22b9e7bf7da36a"
+      },
+      {
+        "identity": "function:public.validate_manual_amora_action_values(p_values jsonb, p_create boolean)",
+        "beforeSha256": null,
+        "afterSha256": "8ef4e44a2c1a8a8c34a5d400851b1de95755550c6b2ea419b59d7c1ddb28a023"
+      },
+      {
+        "identity": "relation:public.amora_mediation_acceptances",
+        "beforeSha256": "2c643746f332765cc70eae379d7c6cf8e29fac27fa08b2878011200e01d11435",
+        "afterSha256": "e598e5ac4482f062c9d0777c858e704deee90cb00f895f187ff1be7a0fcbaea4"
+      },
+      {
+        "identity": "relation:public.amora_mediation_responses",
+        "beforeSha256": null,
+        "afterSha256": "4405db843f7aeb595e68746e7b48a27c158ef1b6d4feb2b861df6bd3fed1a38a"
+      },
+      {
+        "identity": "relation:public.amora_personal_actions",
+        "beforeSha256": null,
+        "afterSha256": "62dfb015b1cb855e5b6e5862ba5478ba051ee87beb72eb1926c15ead1893ef78"
+      },
+      {
+        "identity": "relation:public.amora_saved_notes",
+        "beforeSha256": "c76d98d10cc6d307598110096ceef1f37d8d88cc8f2eb3c1a0cd9b3571e119a4",
+        "afterSha256": "5842fc197a684bb0128fe2589e07047a11b633fc345084c6d07ba557323fd1e3"
+      },
+      {
+        "identity": "relation:public.chat_messages",
+        "beforeSha256": "43900c3e906213f76dc7561638059729f2d5385af47e7572fbd019bf030410d3",
+        "afterSha256": "34a2360b24ec4c075a7ecf1ceb1a9cfe4a96792aa1bb476eddd0bf57f2309e65"
+      },
+      {
+        "identity": "relation:public.community_posts",
+        "beforeSha256": "96680b8c39bea184ebfcb8106c6511982726f4d2adf7b21bf6c8526853563422",
+        "afterSha256": "0242eb2e0af838f7a49d275da174a176a271bc574835ab907771a940c2ba1798"
+      },
+      {
+        "identity": "relation:public.couples",
+        "beforeSha256": "d6759ed2e1fc13e389cb4a03c53dc10e957c52b39fdccc730024267c0799e4d0",
+        "afterSha256": "25c29099e41d9eb716df31051d204cf2c3e9419212dbbc30b4993434eae53173"
+      }
+    ]
+  }
+}
