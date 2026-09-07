@@ -545,6 +545,9 @@ vi.mock("@/lib/ai/automaticFeedback", () => ({
 
 vi.mock("@/lib/ai/tools", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/ai/tools")>();
+  // 선택 필드도 실제 schema로 검증한다. date/title 전용 축약본은 합법적인 값을 제거한다.
+  Object.assign(mocks.safeTools.find(tool => tool.name === "add_schedule_event")!,
+    actual.WEDDING_TOOLS.find(tool => tool.name === "add_schedule_event")!);
   // route는 모듈 초기화 때 제안 도구 목록을 고정하므로 테스트 중 뒤늦게
   // 추가하지 않는다. 실제 배열 스키마/제목만 있는 할 일 계약을 그대로 쓴다.
   (mocks.safeTools as AiToolDefinition[]).push(...actual.BETA_SAFE_TOOLS.filter(tool =>
@@ -6844,6 +6847,123 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(mocks.executeTool).not.toHaveBeenCalled();
       expect(mocks.journeyRow).toEqual(before);
     } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each([0, 1])("recovers the three explicit current-turn schedules when the provider emits %i markers and confirms each once", async (markerCount) => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "add_schedule_event")!;
+    const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    const text = "다음 일정 3건을 모두 추가할 수 있게 순서대로 확인 카드를 만들어줘. 2026년 10월 10일 예식장 견적 상담, 2026년 10월 11일 드레스 투어 상담, 2026년 10월 12일 신혼여행 후보 비교. 시간과 메모는 지정하지 않을게. 한 건씩 확인할게.";
+    const inputs = [
+      { date: "2026-10-10", title: "예식장 견적 상담", ...(markerCount ? { category_key: "venue", schedule_scope: "external_commitment" } : {}) },
+      { date: "2026-10-11", title: "드레스 투어 상담" },
+      { date: "2026-10-12", title: "신혼여행 후보 비교" },
+    ];
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: markerCount
+        ? `[pending_action]${JSON.stringify({ tool: definition.name, input: inputs[0] })}[/pending_action]`
+        : "일정 세 건을 확인할까요?" }));
+      const initial = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(initial.status).toBe(200);
+      await initial.text();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      let proposal = mocks.atomicResponses.at(-1)!;
+      expect(proposal.metadata).toMatchObject({ pending_amora_action: { input: inputs[0] }, pending_amora_action_queue: {
+        totalCount: 3, completedCount: 0, remainingActions: inputs.slice(1).map(input => ({ tool: definition.name, input })),
+      } });
+      const actionIds = new Set<string>();
+      for (let index = 0; index < inputs.length; index += 1) {
+        const pending = proposal.metadata.pending_amora_action as { actionId: string; input: unknown };
+        expect(pending.input).toEqual(inputs[index]);
+        expect(actionIds.has(pending.actionId)).toBe(false);
+        actionIds.add(pending.actionId);
+        mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+          { ...mocks.canonicalRows[0], content: "확인했어. 반영해줘", created_at: "2026-07-15T00:01:00.000Z" },
+          { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: proposal.content, metadata: proposal.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+        );
+        mocks.executeTool.mockImplementationOnce(async () => {
+          mocks.journeyStateRevision = index + 1;
+          return { toolName: definition.name, toolInput: inputs[index], toolOutput: { success: true, display_text: `일정 ${index + 1}건 반영했어요.` }, success: true };
+        });
+        mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "전부 반영했어요." }));
+        await (await POST(request({ messages: [{ role: "user", content: "확인했어. 반영해줘" }], confirmedActionId: pending.actionId }))).text();
+        expect(mocks.executeTool).toHaveBeenCalledTimes(index + 1);
+        expect(mocks.executeTool).toHaveBeenLastCalledWith(definition.name, inputs[index], expect.objectContaining({ pendingActionId: pending.actionId }));
+        proposal = mocks.atomicResponses.at(-1)!;
+        if (index < 2) {
+          expect(proposal.metadata).toMatchObject({ pending_amora_action: { input: inputs[index + 1] }, pending_amora_action_journey_revision: index + 1,
+            pending_amora_action_queue: { totalCount: 3, completedCount: index + 1 } });
+        } else {
+          expect(proposal.metadata.pending_amora_action).toBeUndefined();
+          expect(proposal.metadata.completed_amora_action_queue).toMatchObject({ totalCount: 3, completedCount: 3 });
+        }
+      }
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each(["private", "demo", "initial_greeting", "unbound"])("does not recover explicit schedules outside a durable shared chat: %s", async (mode) => {
+    const text = "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: mode === "private" ? "bride_private" : "shared" };
+    if (mode === "demo") { mocks.authenticatedUser = null; mocks.signedDemo = true; }
+    providerAfterPreGeneration(providerResult({ fullText: "내용을 확인했어요." }));
+    const response = await POST(request({
+      messages: [{ role: "user", content: text }],
+      ...(mode === "private" ? { visibility: "bride_private" } : {}),
+      ...(mode === "demo" ? { isDemo: true, coupleId: "demo-couple", userMessageId: undefined } : {}),
+      ...(mode === "initial_greeting" ? { requestKind: "initial_greeting", userMessageId: undefined } : {}),
+      ...(mode === "unbound" ? { userMessageId: undefined } : {}),
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain('"pending_amora_action"');
+    expect(body).not.toContain('"pending_amora_action_queue"');
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    for (const saved of mocks.atomicResponses) {
+      expect(saved.metadata.pending_amora_action).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+    }
+  });
+
+  it("does not start a new explicit schedule queue while executing an already confirmed action", async () => {
+    const text = "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담.";
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    providerAfterPreGeneration(providerResult({ fullText: "일정도 확인할까요?" }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }], confirmedActionId: actionId }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).toHaveBeenCalledWith("update_budget", { total_budget: 30000000 }, expect.anything());
+    expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action).toBeUndefined();
+    expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action_queue).toBeUndefined();
+  });
+
+  it("leaves meaningful model time information intact without expanding an unsupported partial schedule proposal", async () => {
+    const text = "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담.";
+    const input = { date: "2026-10-10", title: "예식장 견적 상담", time: "14:30", memo: "견적서 지참" };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    providerAfterPreGeneration(providerResult({ fullText: `[pending_action]${JSON.stringify({ tool: "add_schedule_event", input })}[/pending_action]` }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action).toMatchObject({ input });
+    expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it.each([{ location: "강남" }, { category_key: "unknown" }])("does not expand a model schedule whose raw information the existing extractor would discard: %j", async (extra) => {
+    const text = "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담.";
+    const input = { date: "2026-10-10", title: "예식장 견적 상담", ...extra };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    providerAfterPreGeneration(providerResult({ fullText: `[pending_action]${JSON.stringify({ tool: "add_schedule_event", input })}[/pending_action]` }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action).toMatchObject({ tool: "add_schedule_event" });
+    expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
   it.each([3, 5])("retains all %i schedule requests and advances only the explicitly confirmed item", async (count) => {
