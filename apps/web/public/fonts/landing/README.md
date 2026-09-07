@@ -19,3 +19,8 @@ When adding landing copy, extend `glyphs.txt` and regenerate the subsets from
 the upstream originals using FontTools subset with retained name records,
 renamed families and WOFF2 flavor. Keep the complete notices with distributions.
 Paperlogy is the fallback for any character outside the subset.
+
+The `/fonts/` responses are cached for one year with `immutable`. After regenerating
+any file, update that font's `globals.css` URL with `?v=` followed by the first
+12 lowercase characters of its SHA256. The landing design-system test checks that
+the URL matches the file, so returning visitors request the updated subset.
