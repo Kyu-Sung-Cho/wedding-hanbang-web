@@ -11,6 +11,9 @@
 *.jsx text eol=lf
 *.md text eol=lf
 *.mjs text eol=lf
+# Unified diffs preserve upstream indentation and blank context lines.
+# Their bytes are hashed by pnpm, so keep LF on every checkout.
+*.patch text eol=lf -whitespace
 *.ps1 text eol=lf
 *.sh text eol=lf
 *.sql text eol=lf

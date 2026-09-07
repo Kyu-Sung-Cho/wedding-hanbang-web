@@ -11,12 +11,16 @@ test("dependency security floors and compatibility patches stay pinned", async (
     workspace,
     minimatchPatch,
     sharpPatch,
+    decoderPatch,
+    imageSizePatch,
   ] = await Promise.all([
     readFile(new URL("package.json", root), "utf8").then(JSON.parse),
     readFile(new URL("apps/web/package.json", root), "utf8").then(JSON.parse),
     readFile(new URL("pnpm-workspace.yaml", root), "utf8"),
     readFile(new URL("patches/minimatch@3.1.5.patch", root), "utf8"),
     readFile(new URL("patches/sharp@0.35.0.patch", root), "utf8"),
+    readFile(new URL("patches/decode-uri-component@0.5.0.patch", root), "utf8"),
+    readFile(new URL("patches/image-size@1.2.1.patch", root), "utf8"),
   ]);
 
   assert.equal(webPackage.dependencies.next, "16.2.11");
@@ -36,7 +40,13 @@ test("dependency security floors and compatibility patches stay pinned", async (
     '"js-yaml@>=4.0.0 <4.3.1": "4.3.1"',
     '"nanoid@<3.3.18": "3.3.18"',
     'brace-expansion: "5.0.9"',
-    'fast-uri: "3.1.5"',
+    'fast-uri: "3.1.6"',
+    'browserslist: "4.28.7"',
+    '"@humanfs/node": "0.16.8"',
+    'fflate: "0.4.9"',
+    '"@xmldom/xmldom": "0.8.15"',
+    'postcss-selector-parser: "6.1.3"',
+    'decode-uri-component: "0.5.0"',
     'sharp: "0.35.0"',
   ]) {
     assert.match(
@@ -56,4 +66,34 @@ test("dependency security floors and compatibility patches stay pinned", async (
     /var expand = braceExpansion\.expand \|\| braceExpansion/,
   );
   assert.match(sharpPatch, /"types": "\.\/lib\/index\.d\.ts"/);
+  assert.match(workspace, /decode-uri-component@0\.5\.0:\s+patches\/decode-uri-component@0\.5\.0\.patch/);
+  assert.match(decoderPatch, /\+module\.exports = function decodeUriComponent/);
+  assert.match(decoderPatch, /\+\s*"type": "commonjs"/);
+  assert.match(workspace, /image-size@1\.2\.1:\s+patches\/image-size@1\.2\.1\.patch/);
+  assert.match(imageSizePatch, /\+\s*if \(imageLength < SIZE_HEADER\)/);
+  assert.match(imageSizePatch, /\+\s*const boxSize = declaredSize === 0 \? remaining : declaredSize/);
+});
+
+test("September advisory fixes are resolved in the lockfile, not only requested by overrides", async () => {
+  const lockfile = (await readFile(new URL("pnpm-lock.yaml", root), "utf8")).replace(/\r\n?/g, "\n");
+  const packages = lockfile.split("\npackages:\n")[1]?.split("\nsnapshots:\n")[0];
+  assert.ok(packages, "lockfile package inventory must be present");
+  const identities = packages.split(/\r?\n/)
+    .filter(line => /^  \S.*:$/.test(line))
+    .map(line => line.trim().slice(0, -1).replace(/^'|'$/g, ""));
+  for (const [name, version] of [
+    ["fast-uri", "3.1.6"],
+    ["browserslist", "4.28.7"],
+    ["@humanfs/node", "0.16.8"],
+    ["fflate", "0.4.9"],
+    ["@xmldom/xmldom", "0.8.15"],
+    ["postcss-selector-parser", "6.1.3"],
+    ["decode-uri-component", "0.5.0"],
+  ]) {
+    assert.deepEqual(
+      identities.filter(identity => identity.startsWith(`${name}@`)),
+      [`${name}@${version}`],
+      `${name} must resolve only to the reviewed security patch`,
+    );
+  }
 });
