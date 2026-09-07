@@ -448,6 +448,10 @@
     {
       "file": "20260906223557_amora_mediation_response_choices.sql",
       "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a"
+    },
+    {
+      "file": "20260907085111_amora_budget_plan_named_allocations.sql",
+      "sha256": "5be83d180d905c6c0883c81ef0e0379b7b70a70c56ddea86d30b04548a950ae9"
     }
   ],
   "deploymentEvidence": {

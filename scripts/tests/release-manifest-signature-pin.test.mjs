@@ -44,10 +44,10 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 이 값을 바꾸는 커밋은 반드시 Vercel 서명 교체와 짝이다. 짝 없이 바꾸면 그 순간부터
  * 프로덕션 배포가 전부 막히고, 사이트는 직전 빌드를 계속 서비스해서 멀쩡해 보인다.
  *
- * 2026-09-07 로컬 수정안: 인기 정렬·대화 초기화·수동 할 일 권한·노트 원문·예산 배분 RPC·
- * 본인 저장 취소·개인 할 일·중재 응답의 기대값이다.
- * 운영 환경변수는 아직 교체하지 않았다. 이 브랜치를 배포하기 전에 DB 적용 검증과
- * Vercel 서명 교체가 필요하며, 현재 deployment_blocked 상태를 유지한다.
+ * 2026-09-07 후속 로컬 수정안: 검토한 이름별 예산 배분 SQL 1개를 추가 등록한 기대값이다.
+ * 기존 8개 실행 매니페스트는 그대로이며, 이번 SQL은 별도 214→215 경로로 검증한다.
+ * 새 서명의 운영 환경변수 교체는 아직 미완료다. 교체·후보 빌드와 별도 DB 적용 검증을
+ * 구분해서 기록하며, 전역 deployment_blocked 및 누락 증거 5종은 그대로 유지한다.
  *
  * 2026-09-02: `20260902120000_leaving_does_not_erase_the_partner_memory.sql` 을
  * 등록하면서 다시 바뀌었다(한 사람이 떠나도 배우자 기억이 남게 하는 트리거).
@@ -66,7 +66,7 @@ const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
  * 펜스는 next build 앞에서 정확히 일치할 때만 통과하기 때문이다.
  */
 const EXPECTED_SIGNATURE =
-  "e7f898a9671d4be1cd775a2963dc76e1040660d9fb215bc3f3609aff48977ec2";
+  "9fdf97e91ca6e53ac19394443d452061f635d1f05cfceff50483fa3d3cc5f3e7";
 
 test("측정기가 살아 있다", () => {
   const actual = expectedProductionAuthorizationSha256(repoRoot);
