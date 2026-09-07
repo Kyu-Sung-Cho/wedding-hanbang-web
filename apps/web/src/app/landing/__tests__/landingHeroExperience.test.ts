@@ -16,6 +16,59 @@ function heroDocument(): Document {
   return new DOMParser().parseFromString(renderToStaticMarkup(createElement(TransformationHero)), "text/html");
 }
 
+describe("처음 방문한 사람이 보는 준비 흐름", () => {
+  it("예시는 발언하지 않은 조건·동기를 추정하지 않고 견적 도구의 직접 선택을 설명한다", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    const amora = doc.querySelector("#amora")?.textContent ?? "";
+    expect(amora).not.toMatch(/시기랑 예산을 그대로 이어받아|식장은 아직 안 봐도/u);
+    expect(amora).toMatch(/준비 시기를 바탕으로/u);
+    const discussion = doc.querySelector("#noside")?.textContent ?? "";
+    expect(discussion).not.toMatch(/두 분 다[^.]*후회 안 할/u);
+    expect(discussion).toMatch(/사진에 쓰고 싶은 예산[\s\S]*신혼집에 남겨둘 금액/u);
+    const quoteTool = doc.querySelector('#now a[href="/wedding/community/quote-check"]')?.textContent ?? "";
+    expect(quoteTool).toMatch(/분야별 항목을 하나씩 확인/u);
+    expect(quoteTool).toContain("업체에 물어볼 질문");
+    expect(quoteTool).not.toMatch(/견적서[^.]*짚어주|자동[^.]*분석/u);
+  });
+
+  it("첫 화면에서 AI와 확인 후 기록할 목적지를 이해하고 가입 없이 설명으로 이동한다", () => {
+    const doc = heroDocument();
+    const copy = doc.body.textContent ?? "";
+    expect(copy).toMatch(/AI[\s\S]*아모라/u);
+    expect(copy).toMatch(/확인한[\s\S]*예산·할 일·일정/u);
+    expect(copy).not.toMatch(/할 일을 몰라서가 아니|뭐부터 할지보다|둘이 갈리는 것부터/u);
+    expect(doc.querySelector('a[href="/login?mode=signup"]')?.textContent).toContain("아모라");
+    const explanation = doc.querySelector('a[href="#amora"]');
+    expect(explanation?.textContent).toContain("어떻게");
+    const page = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    expect(page.querySelector(explanation?.getAttribute("href") ?? "#missing")?.textContent).toContain("아모라");
+  });
+
+  it("상담 바로 다음에 승인과 기록을 보여주고 의견 차이는 뒤에서 소개한다", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    const ids = [...doc.querySelectorAll("main > section")].map((section) => section.id);
+    expect(ids.indexOf("amora")).toBe(1);
+    expect(ids.indexOf("confirm")).toBe(ids.indexOf("amora") + 1);
+    expect(ids.indexOf("reasons")).toBeGreaterThan(ids.indexOf("confirm"));
+    const confirmation = doc.querySelector("#confirm")?.textContent ?? "";
+    expect(confirmation).toContain("아직 반영 전");
+    expect(confirmation).toContain("예산 화면 → 예식장");
+    expect(confirmation).toMatch(/한 분이 확인[\s\S]*알림/u);
+  });
+
+  it("개인 상담 비노출 고지는 개인 카드에만 붙고 공유 카드는 함께 보임을 설명한다", () => {
+    const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
+    const lanes = [...doc.querySelectorAll("#amora li")];
+    const shared = lanes.find((lane) => lane.textContent?.includes("함께 보는 대화"));
+    const personal = lanes.find((lane) => lane.textContent?.includes("나만 보는 상담"));
+    expect(shared?.textContent).toContain("둘 다 볼 수 있어요");
+    expect(shared?.textContent).not.toContain("배우자 화면에는 표시하지 않아요");
+    expect(personal?.textContent).toContain("개인 상담의 대화 내용은");
+    expect(personal?.textContent).toContain("서비스에서 처리·저장될 수 있어요");
+    expect(personal?.textContent).toContain("배우자 화면에는 표시하지 않아요");
+  });
+});
+
 /** 값의 위계를 검사한다. 픽셀 위치·글꼴 로딩·줄바꿈 실측은 브라우저 QA의 몫이다. */
 function headingSizeAt(element: Element, viewport: number): number {
   const breakpoints: Record<string, number> = { sm: 640, md: 768, lg: 1024, xl: 1280 };
@@ -341,7 +394,7 @@ describe("landing hero product experience contract", () => {
     // 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)으로 본문이 바뀌었다.
     // 옛 문장은 우리가 무엇을 **펼쳐 주는지**(공시 원문)를 말했고, 새 문장은 우리가
     // 무엇을 **같이 정하는지**를 말한다. 계약은 그대로다 — 첫 화면이 제품을 설명한다.
-    expect(heroCopy).toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요");
+    expect(heroCopy).toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
 
     // 산출물을 **개수가 아니라 이름으로** 말한다. 이전 문구는 "세 가지"라고만 해서
     // 그 셋이 무엇인지 랜딩 어디에도 없었다. 스무 장면은 2026-08-29 개편에서
@@ -361,37 +414,17 @@ describe("landing hero product experience contract", () => {
     // ("아모라 · 대화를 정리하는 AI") → `noSide.note` → 다시 히어로 테이프로 돌아왔고,
     // 아모라 카드와 경계 섹션과 푸터가 같은 것을 한 번 더 말한다. 네 자리를 다 본다 —
     // 한 자리만 보면 나머지가 조용히 사라진다.
-    expect(heroCopy, "첫 화면이 아모라를 AI라고 말하지 않는다").toContain("대화를 정리하는 AI");
+    expect(heroCopy, "첫 화면이 아모라를 AI라고 말하지 않는다").toMatch(/AI[^"\n]*아모라/u);
     expect(block("amoraNote")).toContain("AI 생성 답변");
     expect(block("amoraNote")).toContain("AI는 틀리거나 놓칠 수 있어요");
     expect(block("boundaries")).toContain("AI가 만든 답변임을 표시해요");
     expect(block("footer")).toContain("아모라 답변은 AI가 만든 내용이며 참고용이에요");
 
-    // 도구 이름은 사라지지 않았다 — 첫 화면에서 확인 섹션으로 **내려갔다**.
-    // 옛 히어로는 예산·할 일·일정·변경 제안·준비에 반영을 첫 화면에 늘어놨는데,
-    // 새 히어로는 노트 낱말로 간다(85개 시안 계량: 장면 낱말 대 도구 낱말 0.47).
-    // 그래서 "제품이 무엇을 남기는지 도구 이름으로 말한다"는 계약을 여기서 지킨다.
+    // 목적지를 구체적으로 말하되 사용자 확인을 생략한 자동 저장 약속이 되지 않는다.
+    expect(toolNamesIn(heroCopy)).toEqual(["예산", "할 일", "일정"]);
+    expect(heroCopy).toMatch(/직접 확인한 내용은 예산·할 일·일정/u);
     for (const tool of ["예산", "할 일", "일정", "제안", "반영"]) {
       expect(confirmCopy, `확인 섹션이 ${tool}을 말하지 않는다`).toContain(tool);
-    }
-    //
-    // ## 왜 "하나도 쓰지 마라"가 아니라 "늘어놓지 마라"인가
-    //
-    // 2026-09-03 시안의 본문은 "**예산**, 하객, 부모님 의견. 둘이 갈리는 것부터…"다.
-    // 여기서 `예산` 은 도구 이름이 아니라 **둘이 갈리는 화제**의 첫 번째다 — 하객·부모님
-    // 의견과 나란히 놓여 있고, 셋 중 둘은 제품에 도구가 없다. 낱말 하나로는 그 절이
-    // 도구 소개인지 장면 묘사인지 가를 수 없다(이 저장소가 여러 번 겪은 함정).
-    //
-    // 그래서 계약 문장 그대로 잰다 — **늘어놓았는가**. 옛 히어로가 실제로 한 일은
-    // 예산·할 일·일정·변경 제안·반영을 한 줄에 죽 세운 것이었고, 그건 둘 이상이다.
-    // 하나는 통과, 둘부터 실패. 아래 "도구 이름을 늘어놓으면 잡는다" 케이스가 옛 히어로
-    // 문장을 그대로 넣어 이 규칙이 살아 있는지 확인한다.
-    for (const [where, text] of [["카피", heroCopy], ["컴포넌트", hero]] as const) {
-      const listed = toolNamesIn(text);
-      expect(
-        listed.length,
-        `첫 화면(${where})에 도구 이름을 늘어놓았다: ${listed.join("·")}`,
-      ).toBeLessThanOrEqual(1);
     }
 
     // 행동을 부르는 문장은 설명 뒤에 오고, 첫 화면과 마무리가 **같은 행동**을 부른다.
@@ -425,13 +458,13 @@ describe("landing hero product experience contract", () => {
     // 사람이 첫 화면에서 아무 데도 못 간다")은 문이 하나라도 열려 있으면 일어나지 않고,
     // 둘 다 닫히면 운다 — 그 판정은 `landingFirstVisitClarity.test.ts` 가 진다
     // (거기서 두 버튼을 "로그인 없이 되는 것" 목록과 맞대본다).
-    expect(heroCopy).toContain('href: "/wedding-code"');
+    expect(heroCopy).toContain('href: "#amora"');
     expect(hero).toContain("hero.primary.href");
 
     // 첫 화면의 조건을 CTA 옆에서 말한다. 시안 문장("결제 없이 계정 생성")이 첫 버튼의
     // 조건을 지고, 뒤 문장이 로그인 없이 열린 쪽의 조건을 진다.
-    expect(heroCopy).toContain("결제 없이 계정 생성");
-    expect(heroCopy).toContain("로그인·결제 없이 열려요");
+    expect(heroCopy).toContain("계정을 만들고 웹에서 시작해요");
+    expect(heroCopy).toContain("지금은 결제를 요청하지 않아요");
 
     // **뒤에 붙여 뒤집는 것**도 막는다. 계약 문장을 그대로 두고 그 뒤에
     // "다만 결과를 보려면 가입해야 해요"를 붙이면 있어야 할 문장 검사는 전부
@@ -730,7 +763,7 @@ describe("landing hero product experience contract", () => {
     // 첫 문단은 "무엇이 문제고 우리가 무엇을 하는지"만 말한다.
     // 2026-09-03 시안: 문제는 "기록이 흩어진 것"에서 "둘의 답이 갈리는 것"으로 옮겼다.
     // 갈리는 것 셋을 먼저 이름으로 대고(예산·하객·부모님 의견) 그것부터 정한다고 말한다.
-    expect(heroCopy).toContain("예산, 하객, 부모님 의견");
+    expect(heroCopy).toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
     expect(heroCopy, "산출물을 개수로만 말하면 안 된다").not.toMatch(/(?:세|3|셋)\s*가지/u);
 
     // ## 베타는 개념 자체가 없어졌다 — 그래서 요구가 아니라 금지로 뒤집는다
@@ -756,11 +789,11 @@ describe("landing hero product experience contract", () => {
     expect(heroCopy).not.toContain("베타");
     expect(hero).not.toContain("베타");
 
-    // **없어진 것은 틀이지 고지가 아니다.** "이용 방법과 비용은 아직 정해지지 않았고,
+    // **없어진 것은 틀이지 고지가 아니다.** "향후 이용 비용은 아직 정해지지 않았고,
     // 계정을 만들어도 지금은 결제를 요청하지 않아요" 는 베타라서가 아니라 오늘 참이라
     // 남는다(CLAUDE.md 2026-08-29). 그 고지가 지금 사는 자리가 확인 섹션이다.
     // 카피 정본이 두 줄로 이어 붙이므로 조각으로 찾는다.
-    expect(confirmCopy).toContain("이용 방법과 비용은 아직 정해지지 않았고");
+    expect(confirmCopy).toContain("향후 이용 비용은 아직 정해지지 않았고");
     expect(confirmCopy).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
     // 마무리도 같은 말을 한 번 더 한다 — 여기까지 읽고 계정을 만드는 사람이 본다.
     expect(block("closing")).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
@@ -787,7 +820,7 @@ describe("landing hero product experience contract", () => {
     expect(heading?.textContent?.replace(/\s/gu, ""))
       .toBe(landingContent.hero.title.replace(/\s/gu, ""));
     const primary = doc.querySelector<HTMLAnchorElement>('a[href="/login?mode=signup"]');
-    const secondary = doc.querySelector<HTMLAnchorElement>('a[href="/wedding-code"]');
+    const secondary = doc.querySelector<HTMLAnchorElement>('a[href="#amora"]');
     const preview = doc.querySelector("figure");
     expect(preview).toBeTruthy();
     for (const link of [primary, secondary]) {
@@ -955,7 +988,7 @@ describe("landing hero product experience contract", () => {
     expect(
       [renderedSectionNames[heroAt + 1], renderedSectionNames[heroAt + 2]],
       "히어로와 증거 사이에 다른 섹션이 끼면 증거가 첫 화면에서 멀어진다",
-    ).toEqual(["BlockedReasonsSection", "AmoraNoteSection"]);
+    ).toEqual(["AmoraNoteSection", "ConfirmSection"]);
   });
 
   it("shows the two-person evidence on mobile, because the H1 promises it", () => {
@@ -1016,20 +1049,13 @@ describe("landing hero product experience contract", () => {
     }
   });
 
-  it("도구 이름을 늘어놓으면 잡는다 — 하나만 통과시키는 규칙이 살아 있다", () => {
-    // 위 케이스는 "둘부터 실패"로 느슨해졌다. 느슨해진 규칙이 **여전히 원래 잡던 것을
-    // 잡는지** 여기서 확인한다 — 안 그러면 조용히 아무것도 안 막는 검사가 된다.
-    //
-    // 2026-08-29 전 히어로가 실제로 첫 화면에 늘어놓던 문장이다.
-    const oldLineup = "예산, 할 일, 일정을 한곳에서 보고 변경 제안을 준비에 반영해요";
-    expect(toolNamesIn(oldLineup).length, "옛 히어로 문장을 통과시킨다")
-      .toBeGreaterThan(1);
-
-    // 지금 카피는 `예산` 하나뿐이고, 그건 도구가 아니라 갈리는 화제의 첫 번째다.
-    expect(toolNamesIn(block("hero"))).toEqual(["예산"]);
-
-    // 그리고 목록이 비면 규칙 자체가 사라진다 — 이름을 지워도 초록이 되지 않게.
-    expect(TOOL_NAMES.length, "도구 이름 목록이 비었다").toBeGreaterThan(2);
+  it("구체적인 기록 목적지를 말할 때 승인 경계가 같은 문장에 있다", () => {
+    const doc = heroDocument();
+    const paragraphs = [...doc.querySelectorAll("p")].map((paragraph) => paragraph.textContent ?? "");
+    const outcomes = paragraphs.filter((text) => toolNamesIn(text).length > 1);
+    expect(outcomes).toHaveLength(1);
+    expect(outcomes[0]).toMatch(/직접 확인한[^.]*예산·할 일·일정/u);
+    expect(outcomes[0]).not.toMatch(/자동으로|알아서 저장|확인 없이/u);
   });
 
   it("keeps the source helper in charge — no private comment stripper comes back", () => {

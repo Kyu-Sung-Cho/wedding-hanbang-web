@@ -95,7 +95,7 @@ export default async function OpenGraphImage() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div style={{ display: "flex", color: PAPER.pen, fontSize: 28 }}>
-            둘이 함께 준비하는 결혼
+            결혼 준비 동반자, 아모라
           </div>
           <div style={{ display: "flex", flexDirection: "column", fontSize: 58, lineHeight: 1.2, letterSpacing: -2 }}>
             <div style={{ display: "flex", color: PAPER.ink }}>{lead}</div>
@@ -107,7 +107,7 @@ export default async function OpenGraphImage() {
         </div>
 
         <div style={{ display: "flex", justifyContent: "space-between", color: PAPER.inkFaint, fontSize: 23 }}>
-          <div style={{ display: "flex" }}>로그인·결제 없이 지금 확인</div>
+          <div style={{ display: "flex" }}>확인한 내용만 준비 기록에</div>
           <div style={{ display: "flex" }}>hanbang.ai</div>
         </div>
       </div>

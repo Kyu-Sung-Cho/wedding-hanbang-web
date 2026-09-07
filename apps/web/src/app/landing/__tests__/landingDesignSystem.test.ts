@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
 import { describe, expect, it, vi } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -372,7 +373,13 @@ describe("landing design system", () => {
     for (const face of faces) {
       const path = /url\("([^"]+)"\)/u.exec(face)?.[1];
       expect(path).toMatch(/^\/fonts\//u);
-      expect(existsSync(resolve(APP_ROOT, "public" + path))).toBe(true);
+      const fontUrl = new URL(path!, "https://hanbang.ai");
+      const fontPath = resolve(APP_ROOT, "public" + fontUrl.pathname);
+      expect(existsSync(fontPath)).toBe(true);
+      // 1년 immutable 캐시에서도 재방문자가 변경된 글꼴을 받도록 내용으로 주소를 구분한다.
+      expect(fontUrl.searchParams.get("v")).toBe(
+        createHash("sha256").update(readFileSync(fontPath)).digest("hex").slice(0, 12),
+      );
       expect(face).toContain("font-display: swap");
     }
     expect(globals).toMatch(/\.landing-root\s*\{[^}]*font-family:\s*"Hanbang Landing Body"/u);

@@ -1050,35 +1050,35 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 /* 사용자 제공 HTML의 서체는 랜딩에만 적용한다. 제품 UI는 Paperlogy를 유지한다. */
 @font-face {
   font-family: "Hanbang Landing Display";
-  src: url("/fonts/landing/gowun-dodum-400.woff2") format("woff2");
+  src: url("/fonts/landing/gowun-dodum-400.woff2?v=a103631384ff") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Hanbang Landing Body";
-  src: url("/fonts/landing/ibm-plex-kr-400.woff2") format("woff2");
+  src: url("/fonts/landing/ibm-plex-kr-400.woff2?v=33f7dd5a2545") format("woff2");
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Hanbang Landing Body";
-  src: url("/fonts/landing/ibm-plex-kr-500.woff2") format("woff2");
+  src: url("/fonts/landing/ibm-plex-kr-500.woff2?v=3e9aa41a6a07") format("woff2");
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Hanbang Landing Body";
-  src: url("/fonts/landing/ibm-plex-kr-600.woff2") format("woff2");
+  src: url("/fonts/landing/ibm-plex-kr-600.woff2?v=080e349813cb") format("woff2");
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: "Hanbang Landing Body";
-  src: url("/fonts/landing/ibm-plex-kr-700.woff2") format("woff2");
+  src: url("/fonts/landing/ibm-plex-kr-700.woff2?v=046517bf1995") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -1094,7 +1094,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 @font-face {
   font-family: "Hanbang Landing Hand";
-  src: url("/fonts/landing/hand-700.woff2") format("woff2");
+  src: url("/fonts/landing/hand-700.woff2?v=6549ed0eb547") format("woff2");
   font-weight: 700;
   font-style: normal;
   font-display: swap;

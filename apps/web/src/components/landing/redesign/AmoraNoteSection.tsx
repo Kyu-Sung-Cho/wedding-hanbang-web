@@ -17,7 +17,7 @@ import { band, bodyText, eyebrowText, noteText, shell } from "./notebook";
  * **연출된 대화가 진짜 대화로 읽힌다.** 그래서 대화 카드 마지막 자식으로 둔다.
  *
  * `privacyNote`(대화 저장·배우자 비노출)는 없어진 `privateLane.note` 가 지던 고지다.
- * 자리 카드 바로 아래에 둔다 — 그 고지가 설명하는 것이 두 자리의 차이이기 때문이다.
+ * 개인 상담 카드 안에 둔다 — 공동 대화까지 비공개라는 뜻으로 읽히지 않게 한다.
  */
 export default function AmoraNoteSection() {
   const { amoraNote } = landingContent;
@@ -96,11 +96,11 @@ export default function AmoraNoteSection() {
                   {lane.name}
                 </p>
                 <p className={`mt-[7px] lg:mt-2 ${noteText}`}>{lane.detail}</p>
+                {!lane.shared && <p className={`mt-2 ${noteText}`}>{amoraNote.privacyNote}</p>}
               </li>
             ))}
           </ul>
           <p className={`mt-3 lg:mt-[14px] ${noteText}`}>{amoraNote.laneNote}</p>
-          <p className={`mt-2 ${noteText}`}>{amoraNote.privacyNote}</p>
         </div>
       </div>
     </section>

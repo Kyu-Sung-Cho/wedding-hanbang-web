@@ -211,7 +211,7 @@ const CONTRACT_REVERSALS: ReadonlyArray<readonly [RegExp, string]> = [
  * 기능은 그냥 있는 기능이다. 이 파일은 예전에 `"계정 베타에서는 …"` 을 **요구**했으므로,
  * 그 단언을 지우기만 하면 문구가 조용히 되살아나도 아무도 안 운다. 방향을 뒤집어 건다.
  *
- * 없어지는 것은 틀이지 고지가 아니다 — "이용 방법과 비용은 아직 정해지지 않았고,
+ * 없어지는 것은 틀이지 고지가 아니다 — "향후 이용 비용은 아직 정해지지 않았고,
  * 계정을 만들어도 지금은 결제를 요청하지 않아요" 는 계속 참이라 아래에서 따로 지킨다.
  */
 const BETA_FRAMING: ReadonlyArray<readonly [RegExp, string]> = [
@@ -248,11 +248,11 @@ describe("landing first visit clarity", () => {
     // **히어로 블록 안에서** 찾는다 — 파일 전체로 물으면 이 문장을 footer.tagline 으로
     // 옮겨도 통과한다(2026-08-28 변형으로 확인).
     expect(heroBlock, "결혼 준비의 아픈 자리를 말하는 문장이 히어로에 없다")
-      .toContain("예산, 하객, 부모님 의견.");
+      .toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
     // 아픔만 말하고 끝내지 않는다 — 우리가 무엇을 대신 해주는지가 같은 문장 안에 있어야
     // 한다. 앞 절만 남기면 "정리 안 되죠?" 라고 묻고 마는 화면이 된다.
     expect(heroBlock, "우리가 무엇을 해주는지가 히어로에서 사라졌다")
-      .toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요.");
+      .toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
     // 카피에 남아 있어도 그리는 자리가 없으면 화면은 빈다.
     expect(hero, "히어로가 hero.body 를 그리지 않는다 — 카피만 남고 화면은 빈다")
       .toContain("{hero.body}");
@@ -269,7 +269,7 @@ describe("landing first visit clarity", () => {
       .toContain("점수도 궁합도 매기지 않아요");
     // 견적 카드도 같은 규칙 — 넣으면 무엇이 나오는지 말한다.
     expect(nowCards, "견적을 넣으면 무엇이 나오는지가 '지금 되는 것' 카드에서 사라졌다")
-      .toContain("업체에 그대로 물어볼 질문을 만들어드려요");
+      .toMatch(/분야별 항목을 하나씩 확인[\s\S]*업체에 물어볼 질문/u);
     // 산출물을 개수로만 말하지 않는다. 이전 문구("지금 볼 세 가지가 나와요")는
     // 그 셋이 무엇인지 랜딩 어디에도 없어서 입력은 분명한데 출력이 빈칸이었다.
     // 표기를 하나만 막으면 "세 가지"를 "3가지"로 바꿔 그대로 되살릴 수 있다 —
@@ -306,7 +306,7 @@ describe("landing first visit clarity", () => {
       linkHref(heroBlock, "secondary"),
     ];
     expect(
-      heroDoors.filter((href: string) => openWithoutAccount.includes(href)),
+      heroDoors.filter((href: string) => openWithoutAccount.includes(href) || (href === "#amora" && amora.includes('id="amora"'))),
       "첫 화면의 두 버튼이 모두 계정을 요구한다 — 처음 온 사람이 바로 막힌다",
     ).not.toHaveLength(0);
     expect(hero.indexOf("{hero.primary.label}"), "히어로가 primary 버튼을 그리지 않는다")
@@ -361,7 +361,7 @@ describe("landing first visit clarity", () => {
     // 베타는 없어졌지만 이 고지는 **사실이라 남는다**(CLAUDE.md 2026-08-29).
     // 틀을 걷어내면서 같이 지워지기 가장 쉬운 문장이라 따로 못 박는다.
     expect(confirmBlock, "비용·결제 고지가 베타 틀과 함께 지워졌다")
-      .toContain("이용 방법과 비용은 아직 정해지지 않았고, ");
+      .toContain("향후 이용 비용은 아직 정해지지 않았고, ");
     expect(confirmBlock, "결제를 요청하지 않는다는 고지가 사라졌다")
       .toContain("계정을 만들어도 지금은 결제를 요청하지 않아요.");
     // 정본에 남아 있어도 그리지 않으면 화면에는 없다.
@@ -487,22 +487,10 @@ describe("landing first visit clarity", () => {
     expect(sections, "아모라 카드 섹션이 렌더되지 않는다").toContain("AmoraNoteSection");
     expect(sections, "확인 계약 섹션이 렌더되지 않는다").toContain("ConfirmSection");
     //
-    // 2026-09-03: 시안이 아모라와 확인 **사이**에 "편을 들지 않아요"를 끼웠다. 규칙이
-    // 느슨해진 게 아니라 **걱정이 둘**이라는 것이 드러난 것이다 — 아모라가 답하는 걸
-    // 보면 "한쪽 편들면 어떡해"와 "내 계획을 마음대로 바꾸나"가 함께 떠오르고, 시안은
-    // 그 둘을 차례로 받는다. 그래서 "바로 뒤"를 **"이 셋이 끊기지 않고 이어진다"**로
-    // 옮긴다. 사이에 다른 섹션이 끼면 여전히 운다.
-    expect(sections, "편을 들지 않는다는 섹션이 렌더되지 않는다").toContain("NoSideSection");
-    expect(
-      [
-        sections.indexOf("NoSideSection"),
-        sections.indexOf("ConfirmSection"),
-      ],
-      "아모라 → 편 안 듦 → 확인 이 끊겼다 — 아모라 카드가 불안으로 끝난다",
-    ).toEqual([
-      sections.indexOf("AmoraNoteSection") + 1,
-      sections.indexOf("AmoraNoteSection") + 2,
-    ]);
+    // 답변을 본 직후 확인 경계를 설명한다. 의견 차이는 그 뒤의 선택적 사용 장면이다.
+    expect(sections).toContain("NoSideSection");
+    expect(sections.indexOf("ConfirmSection")).toBe(sections.indexOf("AmoraNoteSection") + 1);
+    expect(sections.indexOf("NoSideSection")).toBeGreaterThan(sections.indexOf("ConfirmSection"));
 
     // 알아볼 장면이 계정 요구보다 먼저다 — 옛 "문제를 비춘 뒤에 결과" 규칙이 서 있던
     // 자리다. 지금 그 장면은 아모라가 실제로 답하는 노트 카드다.
@@ -521,10 +509,10 @@ describe("landing first visit clarity", () => {
       // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
       // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
-      "BlockedReasonsSection",
       "AmoraNoteSection",
-      "NoSideSection",
       "ConfirmSection",
+      "BlockedReasonsSection",
+      "NoSideSection",
       "AvailableNowSection",
       "CommunitySection",
       "PhotoBandSection",

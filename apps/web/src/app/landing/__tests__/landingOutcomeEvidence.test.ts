@@ -38,7 +38,7 @@ import {
  * - **베타 묶음**(`footerLinks.beta`, "계정 베타"·"사전등록" 문구). 2026-08-29 파운더
  *   결정으로 베타를 안 한다. 그래서 "베타가 있어야 한다"는 단언을 지우고, 반대로
  *   **베타 틀이 화면에 없다**를 `CONTRACT_REVERSALS` 가 지키게 했다.
- *   같이 없애지 않은 것: "이용 방법과 비용은 아직 정해지지 않았고, 계정을 만들어도
+ *   같이 없애지 않은 것: "향후 이용 비용은 아직 정해지지 않았고, 계정을 만들어도
  *   지금은 결제를 요청하지 않아요" — 베타라서가 아니라 **오늘 참이라서** 남는다.
  *   그 고지는 아래 confirm/closing 단언이 계속 진다.
  * - **"함께 보는 자리 / 나만 보는 자리" 두 칸 카드**. 랜딩에서 개념 자체가 사라졌다
@@ -271,14 +271,14 @@ describe("landing product outcome evidence", () => {
     // 2026-08-29 파운더 결정: 베타 틀은 없애되 **이 고지는 남긴다.** 베타라서가 아니라
     // 오늘 참이라서다 — 이용 방법과 비용이 아직 정해지지 않았고 결제를 요청하지 않는다.
     expect(block.confirm, "가격 미정·결제 없음 고지가 사라졌다").toContain(
-      "이용 방법과 비용은 아직 정해지지 않았고",
+      "향후 이용 비용은 아직 정해지지 않았고",
     );
     expect(block.confirm).toContain("계정을 만들어도 지금은 결제를 요청하지 않아요");
 
     // 반영될 것이 화면에 그대로 보인다. 2026-09-03 시안으로 카드가 "제안 한 건(금액)"
     // 에서 **"아모라가 이렇게 이해했어요" 세 줄**로 바뀌었다 — 값이 아니라 상태(확정·
     // 미정·다음)를 보여 준다. 지키는 것은 같다: 무엇이 반영될지가 눌리기 전에 보인다.
-    expect(block.confirm).toContain("사진은 꼭 남긴다");
+    expect(block.confirm).toContain("예식장 예산을 1,000만 원으로 변경");
     expect(block.confirm).toContain("아직 반영 전");
 
     // "아직 반영 전"이라는 말과 [확인]·[나중에] 두 버튼이 함께 있어야, 확인 전에는
@@ -445,10 +445,10 @@ describe("landing product outcome evidence", () => {
       // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
       // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
-      "BlockedReasonsSection",
       "AmoraNoteSection",
-      "NoSideSection",
       "ConfirmSection",
+      "BlockedReasonsSection",
+      "NoSideSection",
       "AvailableNowSection",
       "CommunitySection",
       "PhotoBandSection",

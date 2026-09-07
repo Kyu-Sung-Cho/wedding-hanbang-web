@@ -5,19 +5,7 @@ import TrackedLandingLink from "./TrackedLandingLink";
 import { landingContent } from "./landingContent";
 import { band, bodyText, eyebrowText, noteText, shell } from "./notebook";
 
-/**
- * ④ 둘의 의견이 다를 때 — **편을 들지 않는다.**
- *
- * 2026-09-03 시안: 왼쪽에 카피·버튼·사진 자리, 오른쪽에 신부/신랑/아모라 대화 카드.
- *
- * ## 이 섹션이 파는 것은 기능이 아니다
- *
- * "편을 들지 않는다"는 못 하는 게 아니라 **선택**이고, 그게 이 제품이 범용 챗봇과
- * 갈리는 자리다. 그래서 대화 카드가 셋이다 — 두 사람이 각자 말하고, 아모라가 어느
- * 쪽 손도 들지 않은 채 둘 다 지킬 선을 찾는 장면이 한 화면에 있어야 한다.
- *
- * `note` 는 AI 고지와 샘플 표시를 함께 진다. 아모라가 말하는 카드에는 매번 붙는다.
- */
+/** 의견 차이는 준비 과정의 한 장면으로 소개하고, 실제 웨딩코드 읽기 도구로 연결한다. */
 export default function NoSideSection() {
   const { noSide } = landingContent;
 

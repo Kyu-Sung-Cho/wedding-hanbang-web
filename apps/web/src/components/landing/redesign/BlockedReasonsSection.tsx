@@ -1,19 +1,7 @@
 import { landingContent } from "./landingContent";
 import { band, eyebrowText, noteText, quoteText, sectionTitle, shell } from "./notebook";
 
-/**
- * ② 결혼 준비가 자꾸 막히는 이유.
- *
- * 2026-09-03 시안(`(웨딩한방) 랜딩페이지 디자인 예시.pdf`)에서 새로 생긴 섹션이다.
- * 히어로가 "둘의 기준"을 말한 직후, 그 기준이 없을 때 실제로 무슨 생각이 드는지를
- * **커플의 말로** 보여 준다. 설명이 아니라 인용이라 처음 온 사람이 자기 문장을 알아본다.
- *
- * ## 왜 눈썹이 테이프가 아닌가
- *
- * 시안의 섹션 눈썹은 12px 굵은 산세리프에 흐린 로즈브라운이다(픽셀 실측 #896765 ≈
- * `--color-rose-600`). 테이프 이름표는 히어로 한 장에만 남는다 — 페이지에 이름표가
- * 여럿이면 무엇이 제목인지가 흐려진다.
- */
+/** 승인된 질문 카드 배치를 유지한다. 인용은 고객 후기가 아닌 질문 예시다. */
 export default function BlockedReasonsSection() {
   const { blockedReasons } = landingContent;
 
@@ -44,8 +32,7 @@ export default function BlockedReasonsSection() {
               key={quote}
               className="rounded-[14px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-5 lg:rounded-[16px] lg:px-7 lg:py-[30px]"
             >
-              {/* 여는 따옴표는 장식이 아니라 "이건 우리가 아니라 커플이 한 말" 이라는
-                  표시다. 그래서 로즈로 칠하고 본문과 분리해 둔다. */}
+              {/* 질문 예시를 구분하는 인용 부호이며 실제 고객 후기를 뜻하지 않는다. */}
               <p aria-hidden className="landing-display text-[26px] leading-none text-[var(--color-rose-light)] lg:text-[34px]">
                 “
               </p>

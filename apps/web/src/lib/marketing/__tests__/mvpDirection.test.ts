@@ -111,7 +111,7 @@ describe("web MVP product direction", () => {
     // "우리 둘이 뭘 원하는지부터"). 제품을 무엇이라 소개하는지는 여전히 히어로가 정한다.
     const heroBlock = contentBlock("hero", "amoraNote");
     expect(heroBlock, "제품 소개 문장이 히어로 밖으로 나갔다")
-      .toContain("둘이 갈리는 것부터 아모라와 하나씩 정해요");
+      .toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
     // 아모라를 무엇이라고 부르는지도 히어로가 정한다(옛 `aiRole`이 지던 몫의 앞쪽).
     //
     // 같은 시안이 테이프 이름표를 "둘이 하는 결혼 준비, 아모라와"로 바꿔 이름표에서
@@ -122,10 +122,10 @@ describe("web MVP product direction", () => {
     expect(heroBlock, "아모라를 부르는 이름이 히어로에 없다")
       .toContain("아모라");
     expect(heroBlock, "첫 화면이 아모라를 AI라고 말하지 않는다")
-      .toContain("대화를 정리하는 AI");
+      .toMatch(/AI[^"\n]*아모라/u);
     // 그리고 아모라가 **처음 말하는 자리**에서 AI라는 것을 밝힌다(뒤쪽 몫).
     expect(contentBlock("amoraNote", "noSide"), "AI 고지가 아모라 소개 자리에 없다")
-      .toContain("아모라 답변은 AI가 만든 내용이에요");
+      .toMatch(/AI 생성 답변/u);
     // 도구 세 이름은 "확인한 것만 남는다"를 말하는 자리에서 불린다.
     expect(contentBlock("confirm", "availableNow")).toContain("예산·할 일·일정");
 
