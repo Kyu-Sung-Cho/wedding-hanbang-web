@@ -1,123 +1,155 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
-  .IS_REACT_ACT_ENVIRONMENT = true;
-
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const mocks = vi.hoisted(() => {
-  const channel = {
-    on: vi.fn(),
-    subscribe: vi.fn(),
-  };
-  channel.on.mockReturnValue(channel);
-  channel.subscribe.mockReturnValue(channel);
-
-  return {
-    channel,
-    createChannel: vi.fn(() => channel),
-    removeChannel: vi.fn(),
-    refreshJourney: vi.fn(),
-    state: {
-      user: { id: "user-a" },
-      journey: { couple_id: "couple-a" },
-      isDemo: false,
-    },
-  };
+  const channel = { on: vi.fn(), subscribe: vi.fn() };
+  return { channel, createChannel: vi.fn(() => channel), removeChannel: vi.fn(), pathname: "/budget" };
 });
-
-vi.mock("@/lib/supabase/client", () => ({
-  createClient: () => ({
-    channel: mocks.createChannel,
-    removeChannel: mocks.removeChannel,
-  }),
-}));
-
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: (selector: (state: Record<string, unknown>) => unknown) => selector({
-    ...mocks.state,
-    refreshJourney: mocks.refreshJourney,
-  }),
-}));
-
+vi.mock("@/lib/supabase/client", () => ({ createClient: () => ({ channel: mocks.createChannel, removeChannel: mocks.removeChannel }) }));
+vi.mock("next/navigation", () => ({ usePathname: () => mocks.pathname }));
+import { useAuthStore } from "@/stores/authStore";
+import type { Couple, Profile, WeddingJourney } from "@/types/database.types";
+import BudgetContent from "./budget/BudgetContent";
 import JourneyRealtimeSync from "./JourneyRealtimeSync";
-
+const scope = (owner = "user-a", couple = "couple-a") => ({
+  user: { id: owner, email: `${owner}@test.invalid` },
+  profile: { id: owner, couple_id: couple, role: "bride", name: owner } as Profile,
+  couple: { id: couple } as Couple, partner: null,
+  journey: { id: `journey-${couple}`, couple_id: couple, total_budget: 25_000_000, state_revision: 0,
+    wedding_date: null, venue: null, created_at: "2026-09-07T00:00:00Z", updated_at: "2026-09-07T00:00:00Z",
+    progress: { venue: { category: "venue", status: "in_progress", budget: 9_000_000, spent: 10_001 }, reserve: { category: "reserve", status: "not_started", budget: 100_000 } },
+  } as WeddingJourney, isDemo: false, isInitialized: true, isLoading: false,
+});
+const response = (data: ReturnType<typeof scope>) => ({ ok: true, json: async () => data });
+const deferred = <T,>() => {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>(done => { resolve = done; });
+  return { promise, resolve };
+};
 describe("JourneyRealtimeSync", () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
+  const original = useAuthStore.getState();
+  let container: HTMLDivElement; let root: Root; let server: ReturnType<typeof scope>;
+  const fetchMock = vi.fn();
+  const render = async (withBudget = false) => { await act(async () => root.render(<><JourneyRealtimeSync />{withBudget && <BudgetContent />}</>)); };
+  const tick = async (ms = 10_000) => { await act(async () => vi.advanceTimersByTimeAsync(ms)); };
+  const event = async (name: string, target: Window | Document = window) => { await act(async () => target.dispatchEvent(new Event(name))); };
+  const handler = (table: string) => mocks.channel.on.mock.calls.find(call => call[1].table === table)?.[2] as () => void;
+  const status = async (value: string) => {
+    const callback = mocks.channel.subscribe.mock.calls.at(-1)?.[0] as ((value: string) => void) | undefined;
+    expect(callback, "subscription recovery callback").toBeTypeOf("function");
+    await act(async () => callback!(value));
+  };
   beforeEach(() => {
-    vi.clearAllMocks();
-    mocks.channel.on.mockReturnValue(mocks.channel);
-    mocks.channel.subscribe.mockReturnValue(mocks.channel);
-    mocks.state.user = { id: "user-a" };
-    mocks.state.journey = { couple_id: "couple-a" };
-    mocks.state.isDemo = false;
-    container = document.createElement("div");
-    document.body.appendChild(container);
-    root = createRoot(container);
+    vi.useFakeTimers(); vi.clearAllMocks();
+    mocks.channel.on.mockReturnValue(mocks.channel); mocks.channel.subscribe.mockReturnValue(mocks.channel); mocks.pathname = "/budget";
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible"); vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
+    server = scope(); useAuthStore.setState(server);
+    fetchMock.mockReset().mockImplementation(async () => response(server)); vi.stubGlobal("fetch", fetchMock);
+    container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   });
-
   afterEach(async () => {
-    await act(async () => root.unmount());
-    container.remove();
+    await act(async () => root.unmount()); container.remove(); useAuthStore.setState(original);
+    vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals();
   });
-
-  it("refreshes the open web experience when the shared journey changes", async () => {
-    await act(async () => root.render(<JourneyRealtimeSync />));
-
-    expect(mocks.createChannel).toHaveBeenCalledWith(
-      "web-journey-sync:couple-a:user-a",
-    );
-    expect(mocks.channel.on).toHaveBeenCalledWith(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "wedding_journeys",
-        filter: "couple_id=eq.couple-a",
-      },
-      expect.any(Function),
-    );
-
-    const realtimeHandler = mocks.channel.on.mock.calls[0]?.[2] as (() => void);
-    await act(async () => realtimeHandler());
-
-    expect(mocks.refreshJourney).toHaveBeenCalledWith("user-a");
+  it.each(["wedding_journeys", "couples"])("refetches canonical data for the exact %s subscription", async table => {
+    await render(); expect(mocks.createChannel).toHaveBeenCalledWith("web-journey-sync:couple-a:user-a");
+    expect(mocks.channel.on).toHaveBeenCalledWith("postgres_changes", { event: "UPDATE", schema: "public", table,
+      filter: table === "couples" ? "id=eq.couple-a" : "couple_id=eq.couple-a" }, expect.any(Function));
+    server = { ...server, journey: { ...server.journey, total_budget: 35_000_000, state_revision: 1 } };
+    await act(async () => handler(table)()); expect(useAuthStore.getState().journey?.total_budget).toBe(35_000_000);
   });
-
-  it("파트너가 합류하면 화면을 다시 불러온다", async () => {
-    // 파트너 합류로 바뀌는 것은 `couples` 행이다. journey 만 듣고 있으면 그 순간
-    // 아무 일도 일어나지 않아, 먼저 시작한 사람 화면이 계속 "혼자 준비 중" 으로
-    // 남는다. A 는 코드가 안 먹혔다고 오해해 코드를 다시 보내거나 재발급한다
-    // (2026-08-24 감사).
-    await act(async () => root.render(<JourneyRealtimeSync />));
-
-    expect(mocks.channel.on).toHaveBeenCalledWith(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "couples",
-        filter: "id=eq.couple-a",
-      },
-      expect.any(Function),
-    );
-
-    const coupleCall = mocks.channel.on.mock.calls.find(
-      (call) => (call[1] as { table?: string })?.table === "couples",
-    );
-    const coupleHandler = coupleCall?.[2] as (() => void);
-    await act(async () => coupleHandler());
-
-    expect(mocks.refreshJourney).toHaveBeenCalledWith("user-a");
+  it.each(["/budget", "/wedding/budget"])("updates the already-open %s within ten seconds when every realtime event is lost", async (pathname) => {
+    mocks.pathname = pathname;
+    await render(true);
+    server = { ...server, journey: { ...server.journey, total_budget: 35_000_000, state_revision: 1,
+      progress: { ...server.journey.progress, venue: { ...server.journey.progress.venue, budget: 9_500_000 }, reserve: { ...server.journey.progress.reserve, budget: 0 } } } };
+    await tick();
+    expect(container.textContent).toContain("3,500");
+    expect(container.querySelector('button[title="결혼식장 예산 수정"]')?.textContent).toContain("950");
+    expect(container.querySelector('button[title="결혼식장 기록 지출 수정"]')?.textContent).toContain("10,001원");
+    expect(useAuthStore.getState().journey?.progress.reserve.budget).toBe(0);
+    expect(fetchMock.mock.calls.every(call => call[0] === "/api/auth/me" && !call[1]?.method)).toBe(true);
   });
-
-  it("removes the exact subscription on unmount", async () => {
-    await act(async () => root.render(<JourneyRealtimeSync />));
-    await act(async () => root.unmount());
-
-    expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channel);
-    root = createRoot(container);
+  it("keeps an open amount draft while canonical amounts refresh underneath it", async () => {
+    await render(true); await act(async () => container.querySelector<HTMLButtonElement>('button[title="총 예산 수정"]')!.click());
+    const input = container.querySelector<HTMLInputElement>('input[type="number"]')!;
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => { setter.call(input, "4123.4567"); input.dispatchEvent(new Event("input", { bubbles: true })); });
+    server = { ...server, journey: { ...server.journey, total_budget: 35_000_000, state_revision: 1 } };
+    await tick(); expect(useAuthStore.getState().journey?.total_budget).toBe(35_000_000);
+    expect(container.querySelector("input")).toBe(input); expect(input.value).toBe("4123.4567");
+  });
+  it.each(["/budget", "/wedding/budget"])("recovers a missed subscription window and backs off healthy %s polling to ten seconds", async (pathname) => {
+    mocks.pathname = pathname;
+    await render(); server = { ...server, journey: { ...server.journey, total_budget: 36_000_000 } };
+    await status("SUBSCRIBED"); expect(useAuthStore.getState().journey?.total_budget).toBe(36_000_000);
+    fetchMock.mockClear(); await tick(9_999); expect(fetchMock).not.toHaveBeenCalled(); await tick(1); expect(fetchMock).toHaveBeenCalledTimes(1);
+    await status("CHANNEL_ERROR"); fetchMock.mockClear(); await tick(5_000); expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("pauses hidden/offline polling and refreshes on foreground, online and bfcache return", async () => {
+    await render(); fetchMock.mockClear();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden"); await event("visibilitychange", document); await tick(30_000); expect(fetchMock).not.toHaveBeenCalled();
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible"); await event("visibilitychange", document); expect(fetchMock).toHaveBeenCalledTimes(1);
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false); await event("offline"); fetchMock.mockClear(); await tick(30_000); expect(fetchMock).not.toHaveBeenCalled();
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true); await event("online"); expect(fetchMock).toHaveBeenCalledTimes(1);
+    await event("pageshow"); expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it.each(["/settings", "/wedding/settings", "/wedding-code"])("does not poll unrelated %s or demo sessions", async (pathname) => {
+    mocks.pathname = pathname; await render(); await status("SUBSCRIBED"); fetchMock.mockClear(); await tick(60_000); expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => useAuthStore.setState({ isDemo: true })); await event("online"); await tick(); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("coalesces an event burst during a read into one trailing read", async () => {
+    await render(); fetchMock.mockClear(); const pending = deferred<ReturnType<typeof response>>(); fetchMock.mockImplementationOnce(() => pending.promise);
+    await act(async () => { handler("wedding_journeys")(); handler("couples")(); handler("wedding_journeys")(); }); expect(fetchMock).toHaveBeenCalledTimes(1);
+    await act(async () => pending.resolve(response(server))); expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+  it("does not send old callbacks into a returned A owner after a batched A-B-A switch", async () => {
+    await render(); const oldHandler = handler("wedding_journeys");
+    await act(async () => { useAuthStore.setState(scope("user-b", "couple-b")); useAuthStore.setState(scope()); });
+    fetchMock.mockClear(); await act(async () => oldHandler()); expect(fetchMock).not.toHaveBeenCalled(); await tick(); expect(fetchMock).toHaveBeenCalled();
+  });
+  it("aborts a disposed read and refuses a late response even if fetch ignores abort", async () => {
+    await render(); const pending = deferred<ReturnType<typeof response>>(); fetchMock.mockImplementationOnce(() => pending.promise);
+    await act(async () => handler("wedding_journeys")()); const signal = fetchMock.mock.calls.at(-1)?.[1]?.signal as AbortSignal | undefined;
+    await act(async () => root.render(null)); expect(signal?.aborted).toBe(true); const before = useAuthStore.getState().journey;
+    await act(async () => pending.resolve(response({ ...server, journey: { ...server.journey, total_budget: 1 } }))); expect(useAuthStore.getState().journey).toBe(before);
+    fetchMock.mockClear(); await tick(); expect(fetchMock).not.toHaveBeenCalled(); expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channel);
+  });
+  it("times out a stalled read and recovers on a subsequent poll", async () => {
+    await render(); fetchMock.mockClear();
+    fetchMock.mockImplementationOnce((_url: string, init: RequestInit) => new Promise((_resolve, reject) => {
+      init.signal?.addEventListener("abort", () => reject(new DOMException("Aborted", "AbortError")), { once: true });
+    }));
+    await act(async () => handler("wedding_journeys")()); await tick(20_000);
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true); expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+  });
+  it("does not roll back a newer same-journey receipt with an older in-flight read", async () => {
+    await render(); const pending = deferred<ReturnType<typeof response>>();
+    fetchMock.mockImplementationOnce(() => pending.promise);
+    await act(async () => handler("wedding_journeys")());
+    const newer = { ...server.journey, state_revision: 2, total_budget: 38_000_000 };
+    await act(async () => useAuthStore.setState({ journey: newer }));
+    await act(async () => pending.resolve(response(server)));
+    expect(useAuthStore.getState().journey).toBe(newer);
+  });
+  it.each(["another-owner", "same-owner-another-couple"])("refuses a late response after %s replaces the subscription", async mode => {
+    await render(); const oldHandler = handler("wedding_journeys"); const oldServer = server;
+    const pending = deferred<ReturnType<typeof response>>(); fetchMock.mockImplementationOnce(() => pending.promise);
+    await act(async () => oldHandler());
+    server = scope(mode === "another-owner" ? "user-b" : "user-a", "couple-b");
+    await act(async () => useAuthStore.setState(server));
+    await act(async () => pending.resolve(response(oldServer)));
+    expect(useAuthStore.getState().journey?.couple_id).toBe("couple-b");
+    fetchMock.mockClear(); await act(async () => oldHandler()); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it("retries failed reads without blanking the current budget or claiming a saved change", async () => {
+    await render(true); const before = useAuthStore.getState().journey;
+    fetchMock.mockResolvedValueOnce({ ok: false });
+    await act(async () => handler("wedding_journeys")());
+    expect(useAuthStore.getState().journey).toBe(before);
+    expect(container.textContent).not.toContain("변경 내용을 저장했어요");
+    server = { ...server, journey: { ...server.journey, total_budget: 36_000_000, state_revision: 1 } };
+    await tick(); expect(useAuthStore.getState().journey?.total_budget).toBe(36_000_000);
   });
 });

@@ -114,6 +114,7 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
 };
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   general: "일반",
+  custom: "맞춤 항목",
   ...PLANNING_CATEGORY_LABELS,
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);
@@ -123,7 +124,7 @@ const INTERNAL_CONFIRMATION_FIELDS = new Set([
   "action_id",
   "service_id",
 ]);
-const NESTED_FIELD_ORDER = ["category", "budget", "rationale"] as const;
+const NESTED_FIELD_ORDER = ["category", "label", "budget", "rationale"] as const;
 
 const ajv = new Ajv({
   allErrors: true,
@@ -149,6 +150,31 @@ interface PendingActionMarker {
   tool: string;
   input: Record<string, unknown>;
   confirmation: string;
+}
+
+export interface AmoraQueuedAction {
+  tool: string;
+  input: Record<string, unknown>;
+}
+
+export const AMORA_MAX_QUEUED_ACTIONS = 10;
+
+export function validateAmoraQueuedAction(
+  value: unknown,
+  allowedTools: readonly AiToolDefinition[],
+  now: number,
+): AmoraQueuedAction | null {
+  const marker = validateMarker(value, allowedTools, now);
+  return marker ? { tool: marker.tool, input: marker.input } : null;
+}
+
+export function describeAmoraQueuedAction(
+  value: unknown,
+  allowedTools: readonly AiToolDefinition[],
+  now: number,
+): string | null {
+  const marker = validateMarker(value, allowedTools, now);
+  return marker?.confirmation.replace(/^다음 변경을 적용할까요\?\s*/u, "") ?? null;
 }
 
 interface ExtractPendingActionInput {
@@ -1185,6 +1211,8 @@ export function extractAmoraPendingAction({
 }: ExtractPendingActionInput): {
   cleanText: string;
   pendingAction: StoredAmoraPendingAction | null;
+  /** 아직 승인되지 않은 다음 요청. 별도 서버 metadata로만 보존한다. */
+  remainingActions?: AmoraQueuedAction[];
   hadPendingActionTag: boolean;
   /** 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다. */
   dropReason?: "unknown_schedule_event";
@@ -1234,7 +1262,8 @@ export function extractAmoraPendingAction({
   // 안다" 였다. 그 걱정은 안내로 없앨 수 있고(아래 `buildRemainingProposalNotice`),
   // 카드를 0개로 만드는 손해는 없앨 수 없다 — 실제로 사용자는 세 건을 부탁하고
   // 아무것도 못 받았다. 확인 없이는 무엇도 실행되지 않으므로 첫 건 카드는 안전하다.
-  let marker: PendingActionMarker | null = null;
+  const validMarkers: PendingActionMarker[] = [];
+  const operationKeys = new Set<string>();
   for (const payload of distinctPayloads) {
     let parsed: unknown;
     try {
@@ -1244,16 +1273,28 @@ export function extractAmoraPendingAction({
     }
     const candidate = validateMarker(parsed, allowedTools, now);
     if (candidate) {
-      marker = candidate;
-      break;
+      const key = getAmoraToolOperationIdentity(candidate.tool, candidate.input).operationKey;
+      if (!operationKeys.has(key)) {
+        operationKeys.add(key);
+        validMarkers.push(candidate);
+      }
     }
   }
-  const remainingProposalCount = distinctPayloads.length - 1;
+  if (validMarkers.length > AMORA_MAX_QUEUED_ACTIONS) {
+    return {
+      cleanText: `한 번에 ${AMORA_MAX_QUEUED_ACTIONS}건까지 확인할 수 있어요. 먼저 처리할 항목을 나눠 말씀해 주세요. 아직 반영한 항목은 없어요.`,
+      pendingAction: null,
+      hadPendingActionTag,
+      droppedShapes: [...dropShapes, "too_many_actions"],
+    };
+  }
+  const marker = validMarkers[0] ?? null;
+  const remainingProposalCount = Math.max(0, validMarkers.length - 1);
   if (!marker) {
     // 통과한 표식이 하나도 없다. 여러 건이었다면 다음에 무엇을 하면 되는지
     // 지목하는 안내를 남긴다(그러지 않으면 사용자는 무엇을 잃었는지 모른다).
     return {
-      cleanText: remainingProposalCount > 0 ? MULTI_ACTION_REPLACEMENT : cleanText,
+      cleanText: distinctPayloads.length > 1 ? MULTI_ACTION_REPLACEMENT : cleanText,
       pendingAction: null,
       hadPendingActionTag,
       droppedPayloadHeads,
@@ -1261,9 +1302,9 @@ export function extractAmoraPendingAction({
     };
   }
 
-  if (knownScheduleEventIds && SCHEDULE_TARGET_TOOLS.has(marker.tool)) {
-    const eventId = marker.input.event_id;
-    if (typeof eventId !== "string" || !knownScheduleEventIds.has(eventId)) {
+  if (knownScheduleEventIds) {
+    if (validMarkers.some((item) => SCHEDULE_TARGET_TOOLS.has(item.tool)
+      && (typeof item.input.event_id !== "string" || !knownScheduleEventIds.has(item.input.event_id)))) {
       return {
         cleanText: [cleanText.trim(), UNKNOWN_SCHEDULE_EVENT_NOTICE]
           .filter((part) => part.length > 0)
@@ -1288,6 +1329,9 @@ export function extractAmoraPendingAction({
         ].join("\n\n")
       : marker.confirmation,
     hadPendingActionTag,
+    ...(validMarkers.length > 1 ? {
+      remainingActions: validMarkers.slice(1).map((item) => ({ tool: item.tool, input: item.input })),
+    } : {}),
     pendingAction: {
       version: 2,
       actionId,
@@ -1690,19 +1734,20 @@ export function buildAmoraPendingActionPrompt(
   // 프롬프트는 상한(48,000자)에 붙어 있어 그 중복이 곧 저장 문맥 꼬리를 밀어낸다.
   const markerShapeExample = supports("add_schedule_event")
     ? "표식 안은 **JSON** — 위 예시 모양 그대로."
-    : "표식 형식: 대괄호 안은 **JSON**: [pending_action]{\"tool\":\"위 목록의 도구명\",\"input\":{\"필드명\":\"값\"}}[/pending_action].";
+    : "표식은 **JSON**: [pending_action]{\"tool\":\"허용 도구명\",\"input\":{\"필드명\":\"값\"}}[/pending_action].";
   return [
     "[서버 발급 후속 확인 계약]",
-    "- 변경을 제안하거나 적용 여부를 물을 때는 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 실행할 방법이 없습니다.",
+    "- 변경 한 건마다 pending_action 표식을 **반드시 정확히 하나** 내세요. 표식 없는 질문은 실행 불가.",
     // 2026-09-03: 옛 문장은 "첫 번째 건만 표식으로 내고" 였다. 모델이 그걸
     // **능력 부정**으로 옮겨 적었다 — 일정 3건을 한 번에 부탁하면 "한 번에 하나만
     // 등록할 수 있어요" 라고 답하고 표식을 아예 안 냈다(스테이징 일괄 등록 카드 0건).
     // 하나만 내라는 것은 표식 형식 제약이지 제품의 한계가 아니다.
-    "- 요청이 여러 건이면 **첫 번째 건의 표식은 이번 답변에 반드시 내고**, 나머지는 순서대로 적고 이 확인 뒤 이어서 제안하겠다고 말하세요. 형식 규칙이니 \"한 번에 하나만 등록할 수 있어요\"처럼 말하지 마세요.",
+    "- 여러 요청은 **첫 번째 건의 표식은 이번 답변에 반드시 내고**, 나머지도 이번 답변에 각각 표식으로 내세요(최대 10건). 서버가 순서대로 한 건씩 확인받고 성공 뒤 다음 카드를 냅니다. 실패·미확인은 완료가 아닙니다. \"한 번에 하나만 등록할 수 있어요\"처럼 말하지 마세요.",
     ...(supports("apply_budget_plan") ? [
-      "- 예산 여러 항목은 배분 전체를 한 표식의 `apply_budget_plan` input.allocations 배열에 담으세요. 총액만 요청했으면 배분을 만들지 마세요.",
+      "- 예산은 배분 전체를 한 표식의 `apply_budget_plan` input.allocations에 담으세요. 총액만 요청하면 배분 생성 금지.",
+      "- 묶음 분할 금지. 표준 분야 밖은 category:\"custom\", label:사용자 원명칭, budget:원 단위 금액. 명시 저장 요청과 모든 금액이 있으면 표식을 내세요.",
     ] : []),
-    `- 허용 도구와 input 필드 (\`*\`는 필수). 선언되지 않은 값은 저장되지 않으며 필수값이 빠지면 카드가 없습니다. 이름을 지어내지 말고 ${declaresMemoField ? "memo 같은 " : ""}선언된 필드에 넣거나 생략하세요.`,
+    `- input(\`*\` 필수): 필수 누락은 카드 없음. ${declaresMemoField ? "memo 등 " : ""}선언된 필드만 저장됩니다.`,
     ...toolLines,
     // 필드 이름만 알려주고 이 줄을 빼면, 예전엔 다른 지어낸 키에 걸려 버려지던
     // 표식이 이제는 스키마를 통과해 **지어낸 id로 카드가 나간다.** 그래서 출처를
@@ -1747,7 +1792,7 @@ export function buildAmoraPendingActionPrompt(
     // 보여준다. 자리는 같은 계약문에서 만든다: 이 줄이 `date`·`title` 을 눈으로
     // 보여주므로 위 줄의 필드 나열과 아래 형식 줄의 빈 자리표시자를 걷어낸다.
     ...(supports("add_schedule_event") ? [
-      "- 일정 등록 요청에는 `add_schedule_event` 표식을 이번 답변에 내세요. 연도가 없으면 가장 가까운 미래로 넣습니다. 여러 건이면 첫 건만 냅니다.",
+      "- 일정 등록 요청에는 `add_schedule_event` 표식을 이번 답변에 내세요. 연도가 없으면 가장 가까운 미래로 넣습니다. 여러 건은 위 순차 확인 규칙을 따르세요.",
       "- 표식은 이 모양 그대로, 값만 바꿔 쓰세요: [pending_action]{\"tool\":\"add_schedule_event\",\"input\":{\"date\":\"2026-09-10\",\"title\":\"신혼집 지역 정하기\"}}[/pending_action]",
     ] : []),
     // 같은 공백이 `log_wedding_event` 에도 있었다. 다만 이 도구는 8종 준비 일정
@@ -1761,25 +1806,25 @@ export function buildAmoraPendingActionPrompt(
     // 옛 줄은 `{...}` 라는 자리표시자 한 줄뿐이라 "여기에 필요한 말을 적어라" 로 읽혔다.
     // 바로 아래 [mediation] 규칙("마커 안은 평문 문장만")이 위치상 이 표식에도
     // 읽히던 것까지 여기서 끊는다.
-    `- ${markerShapeExample} \`[ pending_action 필요 ]\`처럼 우리말로 쓰면 서버가 지워 카드가 안 나갑니다. "마커 안은 평문만"은 [mediation] 규칙.`,
-    "- 모호한 값은 먼저 확인하세요. 확인 문장은 서버가 검증된 tool/input으로 만듭니다.",
+    `- ${markerShapeExample} \`[ pending_action 필요 ]\`는 무효. 평문 마커는 [mediation] 전용.`,
+    "- 모호한 필수값만 질문하세요. 서버가 tool/input을 검증해 확인 문구를 만듭니다.",
     // 윗줄의 "모호하면 되물어라" 를 모델이 **선택 필드까지** 적용했다. 필수 1개·선택
     // 6개인 도구에서는 그게 곧 영원한 되묻기다.
     // 2026-09-04: 꼬리("확실하지 않은 것은 빼세요")를 뗐다. 선택 필드가 목록 밖
     // 값이거나 날짜 모양이 아니면 이제 서버가 그 필드만 보정하거나 뺀다
     // (`coerceLenientOptionalFields`) — 모델에게 시킬 이유가 없는 말이 됐다.
     // 되묻기로 도망가지 말라는 앞부분은 그대로 둔다.
-    "- 선택 필드를 무엇으로 채울지 망설임은 '모호한 값'이 아닙니다 — 필수 필드(`*`)가 사용자 말에 있으면 표식을 내세요.",
+    "- 선택 필드는 생략 가능. 사용자 말에 필수값(`*`)이 있으면 바로 표식을 내세요.",
     // 표식 없이 값만 나열하고 "등록할까요?" 로 끝난 답변이 라이브에서 반복됐다.
     // 사용자 화면에는 누를 것이 없다.
-    "- \"등록할까요?\"·\"저장할까요?\"만 묻지 말고 표식을 내세요. 서버가 목록과 버튼을 만듭니다.",
-    "- 표식은 서버가 제거·검증하며, 사용자가 서버가 발급한 정확한 action_id를 바로 다음 공유 요청으로 확인한 경우에만 실행됩니다.",
+    "- 서버가 표식을 제거하고 목록·버튼을 만듭니다.",
+    "- 서버 발급의 정확한 action_id를 사용자가 바로 다음 공유 요청으로 확인해야 실행됩니다.",
     // 이 계약이 붙은 턴은 제안이 실제로 가능한 턴이다. 그런데 직전 턴에서
     // 도구가 빈 결과를 냈거나 이미 표식을 한 번 낸 뒤면, 모델이 "도구가 없다"·
     // "이 환경에서는 안 된다"며 기능 부재를 선언하는 일이 관측된다
     // (2026-07-25 실계정 E2E: 같은 문장도 첫 턴이면 표식 발화, 뒤 턴이면 거절).
     // 사용자는 이걸 버그가 아니라 제품이 원래 안 되는 것으로 받아들인다.
-    "- 이 계약이 있으면 변경 제안이 가능합니다. **기능이 없다고 말하지 마세요.** 값이 확정됐으면 표식을 내고, 모호한 값만 되물으세요. 앞선 턴에서 다른 도구가 빈 결과를 냈거나 이미 표식을 냈어도 이번 제안과 무관합니다.",
+    "- **기능이 없다고 말하지 마세요.** 앞선 턴에서 다른 도구가 빈 결과를 냈거나 표식을 냈어도 이번 제안은 가능합니다.",
   ].join("\n");
 }
 

@@ -129,6 +129,29 @@ const TEST_CLIENT_REQUEST_UUID = "30000000-0000-4000-8000-000000000001";
 const TEST_CONFIRMED_ACTION_UUID = "40000000-0000-4000-8000-000000000001";
 
 describe("booking projection local sync", () => {
+  it.each([{ budget: 800_000 }, { spent: 200_000 }, { budget: 0, spent: 0 }])("merges a custom category receipt without dropping omitted fields: %j", (amounts) => {
+    const custom = { category: "custom_photo", label: "포토부스", status: "completed", budget: 700_000,
+      spent: 100_000, payer: "bride_parents", checklist: [{ id: "confirmed", done: true }], notes: "계약 확인 완료" };
+    const ring = { category: "ring", status: "in_progress", budget: 3_000_000 };
+    useAuthStore.setState({ journey: { total_budget: 35_000_000, progress: { custom_photo: custom, ring } } as never });
+    syncToolResult({ toolName: "add_custom_category", toolInput: { label: "포토부스", ...amounts },
+      toolOutput: { key: "custom_photo", label: "포토부스", created: false }, success: true, displayMessage: "" });
+    expect(useAuthStore.getState().journey?.progress).toEqual({ custom_photo: { ...custom, ...amounts }, ring });
+    expect(custom).toMatchObject({ budget: 700_000, spent: 100_000, status: "completed" });
+    expect(useAuthStore.getState().journey?.total_budget).toBe(35_000_000);
+  });
+
+  it("creates a new custom category and does not mutate it for a failed receipt", () => {
+    useAuthStore.setState({ journey: { progress: {} } as never });
+    const result = { toolName: "add_custom_category", toolInput: { label: "포토부스", budget: 500_000 },
+      toolOutput: { key: "custom_photo" }, success: true, displayMessage: "" };
+    syncToolResult(result);
+    const journey = useAuthStore.getState().journey;
+    expect(journey?.progress.custom_photo).toEqual({ category: "custom_photo", label: "포토부스", status: "in_progress", budget: 500_000 });
+    syncToolResult({ ...result, toolInput: { ...result.toolInput, spent: 0 }, success: false });
+    expect(useAuthStore.getState().journey).toBe(journey);
+  });
+
   it.each(["not_started", "in_progress", "completed"])("keeps the budget and checklist when a task becomes %s", (status) => {
     const venue = {
       category: "venue", status: "in_progress", budget: 12_000_000, spent: 2_000_000,
@@ -834,6 +857,22 @@ describe("chat lifecycle isolation", () => {
     afterEach(() => {
       useAuthStore.setState({ refreshJourney: originalRefresh });
       vi.clearAllMocks();
+    });
+
+    it("keeps existing custom spend and checklist after a streamed budget update when the authoritative refresh is unavailable", async () => {
+      const custom = { category: "custom_photo", label: "포토부스", status: "completed", budget: 700_000,
+        spent: 100_000, payer: "bride_parents", checklist: [{ id: "confirmed", done: true }] };
+      useAuthStore.setState({ journey: { ...useAuthStore.getState().journey!, progress: { custom_photo: custom } } as never });
+      const result = { toolName: "add_custom_category", toolInput: { label: "포토부스", budget: 800_000 },
+        toolOutput: { key: "custom_photo", label: "포토부스", created: false }, success: true, displayMessage: "배정액을 변경했어요." };
+      refreshJourney.mockResolvedValueOnce(false);
+      mockFetch.mockResolvedValueOnce(response([result], [result]));
+      await send();
+      expect(refreshJourney).toHaveBeenCalledExactlyOnceWith(TEST_USER_UUID);
+      expect(useAuthStore.getState().journey?.progress.custom_photo).toEqual({ ...custom, budget: 800_000 });
+      expect(useChatStore.getState().error).toContain("최신 준비 정보를 불러오지 못했어요");
+      expect(useChatStore.getState().failedRequest).toBeNull();
+      expect(useChatStore.getState().messages.find(m => m.id === "ai-budget-replay")?.metadata?.toolResults).toEqual([result]);
     });
 
     it.each(["update_budget", "update_category_budget", "apply_budget_plan", "add_custom_category"])(

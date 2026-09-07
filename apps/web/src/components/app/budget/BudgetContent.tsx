@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   FileText,
   TrendingDown,
@@ -692,11 +692,48 @@ interface BudgetContentProps {
   paymentLedgerEnabled?: boolean;
 }
 
-export default function BudgetContent({
+function budgetEditorOwnerKey() {
+  const state = useAuthStore.getState();
+  return JSON.stringify([
+    state.isDemo, state.user?.id, state.profile?.id, state.profile?.couple_id,
+    state.couple?.id, state.journey?.couple_id, state.journey?.id,
+  ]);
+}
+
+export default function BudgetContent(props: BudgetContentProps = {}) {
+  // 입력·삭제·분담 선택을 같은 소유 범위에 묶는다. 구독에서 매 전환을 관찰해야
+  // React가 A→B→A를 한 번에 그려도 A의 옛 초안과 지연된 저장이 되살아나지 않는다.
+  const [owner] = useState(() => {
+    let snapshot = { key: budgetEditorOwnerKey(), epoch: 0 };
+    const getSnapshot = () => {
+      const key = budgetEditorOwnerKey();
+      if (key !== snapshot.key) snapshot = { key, epoch: snapshot.epoch + 1 };
+      return snapshot;
+    };
+    return {
+      getSnapshot,
+      subscribe: (notify: () => void) => useAuthStore.subscribe(() => {
+        const previous = snapshot;
+        if (getSnapshot() !== previous) notify();
+      }),
+    };
+  });
+  const binding = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
+  return <ScopedBudgetContent {...props} key={`${binding.key}:${binding.epoch}`}
+    isCurrentOwner={() => owner.getSnapshot() === binding} />;
+}
+
+function ScopedBudgetContent({
   embedded = false,
   paymentLedgerEnabled = false,
-}: BudgetContentProps = {}) {
+  isCurrentOwner,
+}: BudgetContentProps & { isCurrentOwner: () => boolean }) {
   const { journey, updateJourney } = useAuthStore();
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const totalBudget = journey?.total_budget ?? 0;
   const progress = useMemo(
@@ -726,7 +763,13 @@ export default function BudgetContent({
       setJourneyError("");
       setJourneyNotice("");
       try {
+        if (!mounted.current || !isCurrentOwner()) {
+          throw new Error("계정이나 커플 연결이 바뀌었어요. 현재 예산 화면에서 다시 입력해 주세요.");
+        }
         const result = await updateJourney(updates);
+        if (!mounted.current || !isCurrentOwner()) {
+          throw new Error("계정이나 커플 연결이 바뀌었어요. 현재 예산 화면에서 결과를 확인해 주세요.");
+        }
         if (result.status === "pending_partner") {
           setJourneyNotice(
             `${result.summary} 상대방에게 확인 요청을 보냈어요. 두 분 확인 전에는 반영되지 않습니다.`,
@@ -744,7 +787,7 @@ export default function BudgetContent({
         throw error;
       }
     },
-    [updateJourney],
+    [isCurrentOwner, updateJourney],
   );
 
 

@@ -132,6 +132,31 @@ describe("두 지역 장소 검색", () => {
     expect(output.resultCount).toBe(1);
   });
 
+  it("carries the requested count through a short result and caps only displayed candidates", async () => {
+    stubSearchFetch((url) => jsonResponse({ items: url.pathname.endsWith("/local")
+      ? [localItem("같은집", "대전 서구 둔산로 1")] : [] }));
+    const result = await executeSearchNearbyPlaces({ query: "대전이나 청주 한정식", requestedCount: 3 });
+    expect(result.toolOutput.requestedCount).toBe(3);
+    expect(result.toolOutput.resultCount).toBe(1);
+    expect(result.toolOutput.orderBasis).toBe("region_kind");
+    expect(result.displayMessage).toContain("1곳");
+  });
+
+  it("a smaller explicit request limits final cards without adding queries or losing the regional order", async () => {
+    const fetchMock = stubSearchFetch((url) => {
+      if (!url.pathname.endsWith("/local")) return jsonResponse({ items: [] });
+      const region = url.searchParams.get("query")?.startsWith("청주") ? "청주" : "대전";
+      return jsonResponse({ items: [localItem(`${region}한상`, `${region} 1`), localItem(`${region}정식`, `${region} 2`)] });
+    });
+    const result = await executeSearchNearbyPlaces({ query: "대전이나 청주 한정식", requestedCount: 2 });
+    expect(result.toolOutput.resultCount).toBe(2);
+    expect(result.toolOutput.places).toEqual([
+      expect.objectContaining({ name: "대전한상" }), expect.objectContaining({ name: "청주한상" }),
+    ]);
+    expect(localSearchQueries(fetchMock)).toHaveLength(2);
+    expect(result.displayMessage).toContain("2곳");
+  });
+
   it("두 지역 검색이 모두 비면 결과 없음으로 끝내고 조회 시각을 남긴다", async () => {
     const fetchMock = stubSearchFetch(() => jsonResponse({ items: [] }));
 

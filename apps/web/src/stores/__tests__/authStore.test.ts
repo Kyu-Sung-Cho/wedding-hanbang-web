@@ -582,6 +582,122 @@ describe("useAuthStore", () => {
   // ─── updateJourneyLocal() ───
 
   describe("refreshJourney()", () => {
+    it.each(["profile PATCH", "settings direct set", "new couple snapshot"])("preserves a later scalar profile save during %s without losing refreshed budget", async (scenario) => {
+      const oldProfile = { id: "u1", couple_id: "c1", role: "bride", name: "이전 이름", care_notifications_enabled: true };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: oldProfile as never,
+        couple: { id: "c1" } as never, journey: { id: "j1", couple_id: "c1", total_budget: 10_000_000 } as never });
+      let finishRefresh!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
+      const refreshing = useAuthStore.getState().refreshJourney("u1");
+      const savedProfile = { ...oldProfile, name: "저장한 이름", care_notifications_enabled: false };
+      if (scenario === "profile PATCH") {
+        mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ profile: savedProfile }) });
+        await useAuthStore.getState().updateProfile({ name: savedProfile.name, care_notifications_enabled: false });
+      } else {
+        useAuthStore.setState({ profile: savedProfile as never });
+      }
+      const coupleId = scenario === "new couple snapshot" ? "c2" : "c1";
+      const role = scenario === "new couple snapshot" ? "groom" : "bride";
+      finishRefresh({ ok: true, json: async () => ({ user: { id: "u1" }, profile: { ...oldProfile, couple_id: coupleId, role },
+        couple: { id: coupleId }, partner: null, journey: { id: "fresh", couple_id: coupleId, total_budget: 35_000_000 } }) });
+      await expect(refreshing).resolves.toBe(true);
+      expect(useAuthStore.getState().profile).toMatchObject({ name: "저장한 이름", care_notifications_enabled: false, couple_id: coupleId, role });
+      expect(useAuthStore.getState().journey).toMatchObject({ id: "fresh", couple_id: coupleId, total_budget: 35_000_000 });
+      expect(useAuthStore.getState().couple?.id).toBe(coupleId);
+    });
+
+    it("rejects an old refresh after a profile binding changes and returns to the same object", async () => {
+      const profile = { id: "u1", couple_id: "c1", role: "bride" };
+      const journey = { id: "current", couple_id: "c1" };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: profile as never,
+        couple: { id: "c1" } as never, journey: journey as never });
+      let finishRefresh!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
+      const refreshing = useAuthStore.getState().refreshJourney("u1");
+      useAuthStore.setState({ profile: { ...profile, couple_id: "c2" } as never });
+      useAuthStore.setState({ profile: profile as never });
+      finishRefresh({ ok: true, json: async () => ({ user: { id: "u1" }, profile,
+        couple: { id: "c1" }, partner: null, journey: { id: "stale", couple_id: "c1" } }) });
+      await expect(refreshing).resolves.toBe(false);
+      expect(useAuthStore.getState().journey).toBe(journey);
+    });
+
+    it("atomically refreshes the same user's profile with their new couple and journey", async () => {
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", couple_id: "c1", role: "bride" } as never,
+        couple: { id: "c1" } as never, journey: { id: "j1", couple_id: "c1" } as never });
+      const profile = { id: "u1", couple_id: "c2", role: "groom" };
+      const observations: string[] = [];
+      const unsubscribe = useAuthStore.subscribe(state => observations.push(`${state.profile?.couple_id}:${state.couple?.id}:${state.journey?.couple_id}`));
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: { id: "u1" }, profile,
+        couple: { id: "c2" }, partner: null, journey: { id: "j2", couple_id: "c2" } }) });
+      try {
+        await expect(useAuthStore.getState().refreshJourney("u1")).resolves.toBe(true);
+        expect(useAuthStore.getState().profile).toEqual(profile);
+        expect(observations).toEqual(["c2:c2:c2"]);
+      } finally { unsubscribe(); }
+    });
+
+    it.each([
+      { id: "u2", couple_id: "c2", role: "bride" },
+      { id: "u1", couple_id: "c1", role: "bride" },
+      null,
+    ])("rejects a mismatched profile without partially replacing the journey: %j", async (profile) => {
+      const currentProfile = { id: "u1", couple_id: "c1", role: "bride" };
+      const journey = { id: "j1", couple_id: "c1" };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: currentProfile as never, journey: journey as never });
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: { id: "u1" }, profile,
+        couple: { id: "c2" }, partner: null, journey: { id: "j2", couple_id: "c2" } }) });
+      await expect(useAuthStore.getState().refreshJourney("u1")).resolves.toBe(false);
+      expect(useAuthStore.getState().profile).toBe(currentProfile);
+      expect(useAuthStore.getState().journey).toBe(journey);
+    });
+
+    it("does not restore an old profile after a newer couple refresh settles before initialize", async () => {
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", couple_id: "c1", role: "bride" } as never,
+        couple: { id: "c1" } as never, journey: { id: "j1", couple_id: "c1" } as never, isInitialized: true });
+      let finishInitialize!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finishInitialize = resolve; }))
+        .mockResolvedValueOnce({ ok: true, json: async () => ({ user: { id: "u1" },
+          profile: { id: "u1", couple_id: "c2", role: "bride" }, couple: { id: "c2" }, partner: null,
+          journey: { id: "j2", couple_id: "c2" } }) });
+      const initialize = useAuthStore.getState().initialize({ force: true });
+      await useAuthStore.getState().refreshJourney("u1");
+      finishInitialize({ ok: true, json: async () => ({ user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", couple_id: "c1", role: "bride" }, couple: { id: "c1" }, partner: null,
+        journey: { id: "j1", couple_id: "c1" } }) });
+      await initialize;
+      expect(useAuthStore.getState().profile?.couple_id).toBe("c2");
+      expect(useAuthStore.getState().couple?.id).toBe("c2");
+      expect(useAuthStore.getState().journey?.couple_id).toBe("c2");
+    });
+
+    it("clears a verified unlink snapshot atomically without retaining the former partner", async () => {
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", couple_id: "c1", role: "bride" } as never,
+        partner: { id: "former-partner" } as never, couple: { id: "c1" } as never,
+        journey: { id: "j1", couple_id: "c1" } as never });
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ user: { id: "u1" },
+        profile: { id: "u1", couple_id: null, role: "bride" }, couple: null, partner: null, journey: null }) });
+      await expect(useAuthStore.getState().refreshJourney("u1")).resolves.toBe(true);
+      expect(useAuthStore.getState()).toMatchObject({ profile: { id: "u1", couple_id: null }, partner: null, couple: null, journey: null });
+    });
+
+    it.each(["profile", "couple", "partner"])("does not infer a new couple from a partial snapshot missing %s", async (missing) => {
+      const previous = { user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", couple_id: "c1", role: "bride" } as never,
+        couple: { id: "c1" } as never, partner: { id: "former-partner" } as never,
+        journey: { id: "j1", couple_id: "c1" } as never };
+      useAuthStore.setState(previous);
+      const data: Record<string, unknown> = { user: { id: "u1" }, profile: { id: "u1", couple_id: "c2", role: "bride" },
+        couple: { id: "c2" }, partner: null, journey: { id: "j2", couple_id: "c2" } };
+      delete data[missing];
+      mockFetch.mockResolvedValue({ ok: true, json: async () => data });
+      await expect(useAuthStore.getState().refreshJourney("u1")).resolves.toBe(false);
+      expect(useAuthStore.getState()).toMatchObject(previous);
+    });
+
     it("keeps a late older response from replacing a newer journey", async () => {
       useAuthStore.setState({
         user: { id: "u1", email: "test@example.com" },

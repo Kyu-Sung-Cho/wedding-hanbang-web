@@ -120,7 +120,7 @@
     },
     "contractValidator": {
       "file": "scripts/lib/current-baseline-release-contract.mjs",
-      "sha256": "0044dbebd73b5dc8f819bd26481028eca35e7f0f4c796f0d991f7bb0c3cc5034"
+      "sha256": "03f36e6965866ca03b8ea6c9b1adad6a29cd1463914ea1aa8306d1cbbe100554"
     },
     "currentFinalizer": {
       "file": "scripts/lib/current-baseline-finalizer.mjs",

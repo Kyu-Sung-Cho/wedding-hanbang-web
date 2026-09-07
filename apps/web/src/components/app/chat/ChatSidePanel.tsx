@@ -1338,7 +1338,7 @@ export default function ChatSidePanel({
                     ? "나만의 상담 이전 메시지를 내 화면에서만 숨길까요?"
                     : "함께 대화의 이전 메시지를 내 화면에서만 숨길까요?"}
                   <span className="mt-1 block text-[var(--hb-accent-hover)]">
-                    서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.
+                    해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.
                   </span>
                 </p>
                 <div className="flex shrink-0 gap-1.5">

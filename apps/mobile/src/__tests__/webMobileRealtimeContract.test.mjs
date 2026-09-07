@@ -17,7 +17,7 @@ test("web and mobile both consume the shared journey realtime stream", () => {
   assert.match(webLayout, /<JourneyRealtimeSync\s*\/>/);
   assert.match(webSync, /table:\s*"wedding_journeys"/);
   assert.match(webSync, /filter:\s*`couple_id=eq\.\$\{coupleId\}`/);
-  assert.match(webSync, /refreshJourney\(userId\)/);
+  assert.match(webSync, /refreshJourney\(userId,\s*controller\.signal\)/);
   assert.match(
     migration,
     /ALTER PUBLICATION supabase_realtime ADD TABLE public\.wedding_journeys/,

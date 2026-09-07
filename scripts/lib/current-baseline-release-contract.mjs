@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, realpathSync, readdirSync } from "node:fs";
 import { isAbsolute, join, relative, sep } from "node:path";
+import { NAMED_BUDGET_MIGRATION } from './amora-named-budget-migration-pin.mjs';
 
 export const CURRENT_BASELINE_CONTRACT = "supabase/release-contracts/current-baseline-rollout-v1.json";
 export const EVIDENCE_KINDS = Object.freeze(["backup", "hostedRestore", "hostedStaging", "storage", "finalizer"]);
@@ -138,7 +139,11 @@ export function loadCurrentBaselineContract(repoRoot) {
   });
   uniqueOrdered(migrations, x => x.file, "MIGRATION_ORDER_INVALID");
   const local = readdirSync(join(repoRoot, "supabase/migrations")).filter(f => FILE.test(f)).sort();
-  same(local.filter(f => f.slice(0, 14) >= contract.migrationFloor), migrations.map(x => x.file), "NEW_MIGRATION_NOT_REVIEWED");
+  // 별도 검토한 후속 원문만 발견 검사에서 분리한다. 이전 적용 목록/원격 head는 바꾸지 않는다.
+  if (local.includes(NAMED_BUDGET_MIGRATION.file)) pinnedArtifact(repoRoot,
+    { ...NAMED_BUDGET_MIGRATION, file: `supabase/migrations/${NAMED_BUDGET_MIGRATION.file}` });
+  same(local.filter(f => f.slice(0, 14) >= contract.migrationFloor && f !== NAMED_BUDGET_MIGRATION.file),
+    migrations.map(x => x.file), "NEW_MIGRATION_NOT_REVIEWED");
   const remote = new Set(baseline.ledger.map(x => x.version));
   same(local.filter(f => f.slice(0, 14) < contract.migrationFloor && !remote.has(f.slice(0, 14))), contract.excludedHistoricalFiles, "HISTORICAL_DRIFT_CHANGED");
   for (const pin of Object.values(contract.implementation)) pinnedArtifact(repoRoot, pin);

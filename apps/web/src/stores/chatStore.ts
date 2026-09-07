@@ -451,6 +451,7 @@ export function syncToolResult(result: ToolExecutionResult) {
         : result.toolInput.allocations ?? []) as Array<{
         category: string;
         budget: number;
+        label?: string;
       }>;
       const remainder = (result.toolOutput.remainder_to_reserve as number | undefined) ?? 0;
       const curProgress = authStore.journey?.progress ?? {};
@@ -464,6 +465,8 @@ export function syncToolResult(result: ToolExecutionResult) {
           ...existing,
           category: alloc.category,
           budget: alloc.budget,
+          ...(typeof alloc.label === "string" && alloc.label.length > 0
+            ? { label: alloc.label } : {}),
         };
       }
       // 잔여분이 reserve 로 자동 추가됐다면 그것도 반영
@@ -489,10 +492,13 @@ export function syncToolResult(result: ToolExecutionResult) {
       const customKey = result.toolOutput.key as string;
       const customLabel = result.toolInput.label as string;
       const curProgressCustom = authStore.journey?.progress ?? {};
-      const customCatItem: { category: string; label: string; status: "in_progress"; budget?: number; spent?: number } = {
+      const existingCustom = curProgressCustom[customKey];
+      // 같은 이름의 항목 갱신은 서버처럼 생략된 비용·완료 상태·체크리스트를 보존한다.
+      const customCatItem = {
+        ...existingCustom,
         category: customKey,
         label: customLabel,
-        status: "in_progress",
+        status: existingCustom?.status ?? "in_progress",
       };
       if (result.toolInput.budget !== undefined) customCatItem.budget = result.toolInput.budget as number;
       if (result.toolInput.spent !== undefined) customCatItem.spent = result.toolInput.spent as number;

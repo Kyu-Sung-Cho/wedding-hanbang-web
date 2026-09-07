@@ -3,6 +3,7 @@
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { formatPlaceSearchDate, getPlaceSearchPresentation } from "@hanbang/shared/place-search-presentation";
 import {
   Star,
   ChevronRight,
@@ -1075,12 +1076,6 @@ function BookingCancelCard({ result }: { result: ToolExecutionResult }) {
  * 기본 시간대를 쓰면 서버·기기 시간대를 타서 한국 새벽에 엉뚱한 시각이 뜬다.
  * `hourCycle: "h23"` 은 자정을 `24:00` 이 아니라 `00:00` 으로 쓰기 위한 것이다.
  */
-const PLACE_SEARCHED_AT_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 
 /**
  * 받침에 맞는 조사. '대전 식당'으로 / '강남 카페'로. (2026-09-03)
@@ -1096,10 +1091,7 @@ function withRoParticle(word: string): string {
 }
 
 export function placeSearchedAtLabel(searchedAt: unknown): string | null {
-  if (typeof searchedAt !== "string" || !searchedAt) return null;
-  const parsed = new Date(searchedAt);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return PLACE_SEARCHED_AT_FORMATTER.format(parsed);
+  return formatPlaceSearchDate(searchedAt);
 }
 
 function PlaceCards({ result }: { result: ToolExecutionResult }) {
@@ -1154,6 +1146,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
     const restoredQuery = output.query ?? "";
     const restoredCount = typeof output.resultCount === "number" ? output.resultCount : 0;
     const restoredAt = placeSearchedAtLabel(output.searchedAt);
+    const presentation = getPlaceSearchPresentation(output, restoredCount);
     return (
       <div className="flex justify-start ml-14 my-2">
         <div
@@ -1172,6 +1165,9 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                 검색 결과 카드는 저장하지 않아서 다시 열면 사라져요. 다시 검색할까요?
               </p>
+              <p className="mt-1 text-sm text-[var(--hb-text-body)]">{presentation.countLabel}</p>
+              {presentation.shortageLabel && <p className="mt-1 text-sm text-[var(--hb-text-body)]">{presentation.shortageLabel}</p>}
+              <p className="mt-1 text-sm text-[var(--hb-text-body)]">{presentation.verificationLabel}</p>
             </div>
           </div>
         </div>
@@ -1287,6 +1283,7 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
   }
 
   const places = output.places ?? [];
+  const presentation = getPlaceSearchPresentation(output, places.length);
   if (places.length === 0) {
     return (
       <div className="flex justify-start ml-14 my-2">
@@ -1302,6 +1299,8 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">
                 다른 키워드로 다시 물어봐 주시거나, 좀 더 넓은 지역으로 알려주시면 다시 찾아볼게요.
               </p>
+              <p className="mt-1 text-sm text-[var(--hb-text-body)]">{presentation.countLabel}</p>
+              {presentation.shortageLabel && <p className="mt-1 text-sm text-[var(--hb-text-body)]">{presentation.shortageLabel}</p>}
             </div>
           </div>
         </div>
@@ -1330,6 +1329,11 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
           </div>
         )}
 
+        <div className="px-1 text-sm leading-relaxed text-[var(--hb-text-body)]" role="note">
+          <p className="font-medium">{presentation.countLabel}</p>
+          {presentation.shortageLabel && <p>{presentation.shortageLabel}</p>}
+          <p>{presentation.verificationLabel}</p>
+        </div>
         {places.map((p, idx) => (
           <div
             key={p.id}
@@ -1475,9 +1479,9 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
                   일반 지역검색만 부르므로 이건 우리가 단언할 수 있는 사실이다.
                   조회 시각은 실행기가 넣은 `searchedAt` — 없으면 그 문장만 뺀다. */}
               <span>
-                {searchedAtLabel
-                  ? `네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이고, 조회 시각은 ${searchedAtLabel} 입니다. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.`
-                  : "네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이에요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다."}
+                네이버 지역검색 일반 결과예요(광고·제휴 아님). {presentation.orderLabel}{" "}
+                {searchedAtLabel ? `조회 시각은 ${searchedAtLabel} (한국 시간)입니다. ` : ""}
+                리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
               </span>
             </div>
           </div>

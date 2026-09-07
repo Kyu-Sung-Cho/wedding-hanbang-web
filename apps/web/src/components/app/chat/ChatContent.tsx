@@ -2589,7 +2589,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       {showNewChatBanner && !isStreaming && (
         <div className="mx-2 mb-2 p-3.5 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-between shadow-[var(--shadow-raised)]">
           <p className="text-sm text-[var(--hb-accent-hover)]">
-            대화가 길어졌어요. 이전 메시지를 화면에서 정리해도 원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
+            대화가 길어졌어요. 화면을 정리하면 이전 대화는 해당 범위의 이후 상담에서 제외돼요. 원문과 저장한 예산·일정·결정은 남아요.
           </p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
             <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] shadow-sm">괜찮아요</button>
@@ -2618,8 +2618,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               <>
                 <h3 id="new-chat-dialog-title" className="text-[var(--hb-text-strong)] mb-2">함께 대화 화면 정리</h3>
                 <p className="text-sm text-[var(--hb-text-body)] leading-relaxed mb-5">
-                  화면에 보이는 이전 대화를 정리할 방법을 골라주세요. 원문 데이터와
-                  아모라가 참고하는 기존 맥락은 그대로 유지돼요.
+                  화면에 보이는 이전 대화를 정리할 방법을 골라주세요. 해당 범위의 원문은 보관하지만
+                  정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.
                   <br />
                   <span className="text-[var(--hb-text-muted)] text-[12.5px]">비공개 상담 기록은 영향받지 않아요.</span>
                 </p>
@@ -2640,7 +2640,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     <div className="text-[14.5px] font-medium text-[var(--hb-accent-hover)] mb-1">둘의 화면 함께 정리 (상대방 동의 필요)</div>
                     <div className="text-[12px] text-[var(--hb-text-body)]">
                       상대방에게 동의 요청을 보내요. 상대방이 [동의] 누르면 양쪽 화면이
-                      함께 정리돼요. <strong>원문과 아모라의 기존 맥락은 유지</strong>돼요.
+                      함께 정리되고 이전 대화는 이후 상담에서 제외돼요. <strong>원문과 저장한 예산·일정·결정은 유지</strong>돼요.
                     </div>
                   </button>
                 </div>
@@ -2666,7 +2666,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   정리됩니다. 거절되면 그대로 유지돼요.
                   <br />
                   <span className="text-[var(--hb-text-muted)] text-[12.5px]">
-                    원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
+                    해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.
                   </span>
                 </p>
                 <div className="flex justify-end gap-2">
@@ -2713,7 +2713,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   >
                     <div className="text-[14.5px] font-medium text-[#5a6147] mb-1">내 화면만 정리 (추천)</div>
                     <div className="text-[12px] text-[var(--hb-text-body)]">
-                      원문 데이터와 아모라가 참고하는 기존 맥락은 유지돼요.
+                      해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.
                     </div>
                   </button>
                   <button

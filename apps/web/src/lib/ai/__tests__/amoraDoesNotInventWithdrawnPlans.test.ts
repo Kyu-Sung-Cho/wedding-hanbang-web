@@ -106,6 +106,13 @@ const VARIANTS: Array<{ label: string; prompt: string }> = [
 ];
 
 describe("철회 목록을 지어내지 않는다", () => {
+  it("저장 실패·대기와 사용자의 계획 철회를 구분한다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const line = prompt.split("\n").find(value => value.includes("저장 실패·확인 대기")) ?? "";
+      expect(line, label).toContain("사용자의 철회가 아닙니다");
+      expect(line, label).toContain("아직 반영되지 않은 요청");
+    }
+  });
   it("어떤 갈래에서도 규칙이 정확히 한 번 실린다", () => {
     for (const { label, prompt } of VARIANTS) {
       const hits = prompt.split("철회·폐기·취소 목록").length - 1;

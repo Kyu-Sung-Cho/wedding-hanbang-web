@@ -1,4 +1,5 @@
 import type { ToolExecutionResult } from "@/types/database.types";
+import { readPlaceRequestedCount } from "@hanbang/shared/place-search-presentation";
 import {
   describeDistance,
   extractPlaceAnchor,
@@ -508,6 +509,23 @@ function buildPlacesFromItems(
 export async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
+  const result = await searchNearbyPlaces(input);
+  const requestedCount = readPlaceRequestedCount(input.requestedCount);
+  if (requestedCount === null) return result;
+  const places = Array.isArray(result.toolOutput.places)
+    ? result.toolOutput.places.slice(0, Math.min(5, requestedCount)) : [];
+  return {
+    ...result,
+    toolOutput: { ...result.toolOutput, requestedCount, places, resultCount: places.length },
+    ...(result.success && places.length > 0
+      ? { displayMessage: `'${result.toolOutput.query}' 검색 결과 ${places.length}곳을 표시했어요.${result.toolOutput.partial === true ? " 일부 사진 정보는 불러오지 못했습니다." : ""}` }
+      : {}),
+  };
+}
+
+async function searchNearbyPlaces(
+  input: Record<string, unknown>
+): Promise<ToolExecutionResult> {
   const query = typeof input.query === "string" ? input.query.trim() : "";
   // 모델이 자기 검색을 한 글자도 못 보던 문제(2026-09-03). 제공자 텍스트는 그대로
   // 막아 두고, **우리가 만든 값**(개수·보정한 질의·조회 시각)만 결과에 함께 싣는다.
@@ -798,6 +816,7 @@ export async function executeSearchNearbyPlaces(
       searchedAt,
       basePlaces,
       rankByKind: true,
+      hasDistance: rankedPlaces.some((place) => place.distanceMeters !== null),
     });
   } catch (error) {
     const status = error instanceof NaverSearchError ? error.status : null;
@@ -838,6 +857,7 @@ async function buildPlaceSearchSuccess(
     searchedAt: string;
     basePlaces: PlaceSearchResult[];
     rankByKind: boolean;
+    hasDistance?: boolean;
   },
 ): Promise<ToolExecutionResult> {
   const { input, query, effectiveQuery, searchedAt, basePlaces } = args;
@@ -893,6 +913,7 @@ async function buildPlaceSearchSuccess(
       partial: warningList.length > 0,
       warnings: warningList,
       resultCount: orderedPlaces.length,
+      orderBasis: !args.rankByKind ? "region_kind" : args.hasDistance ? "kind_distance" : "kind_provider",
       effectiveQuery,
       searchedAt,
     },

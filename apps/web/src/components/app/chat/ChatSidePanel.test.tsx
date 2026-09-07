@@ -998,7 +998,7 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     expect(container.textContent).toContain("함께 대화의 이전 메시지를 내 화면에서만 숨길까요?");
-    expect(container.textContent).toContain("서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.");
+    expect(container.textContent).toContain("해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.");
     expect(container.textContent).not.toContain("삭제");
     expect(container.textContent).not.toContain("초기화");
     const confirmButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
@@ -1043,7 +1043,7 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     expect(container.textContent).toContain("나만의 상담 이전 메시지를 내 화면에서만 숨길까요?");
-    expect(container.textContent).toContain("서버 원문과 아모라가 참고하는 기존 맥락은 그대로 유지돼요.");
+    expect(container.textContent).toContain("해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.");
     expect(container.textContent).not.toContain("삭제");
     expect(container.textContent).not.toContain("초기화");
     const confirmButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))

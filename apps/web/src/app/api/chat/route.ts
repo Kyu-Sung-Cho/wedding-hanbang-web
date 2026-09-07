@@ -142,8 +142,16 @@ import {
   extractAmoraPendingAction,
   resolveAmoraPendingAction,
   describeUnconfirmedAmoraPendingAction,
+  describeAmoraQueuedAction,
 } from "@/lib/ai/amoraPendingAction";
+import {
+  advanceAmoraActionQueue,
+  createAmoraActionQueue,
+  resolveAmoraActionQueue,
+  type AmoraActionQueue,
+} from "@/lib/ai/amoraActionQueue";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
+import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import {
   AMORA_MAX_TOOL_ROUNDS,
   AMORA_MAX_TOOL_CALLS_PER_TURN,
@@ -2626,6 +2634,7 @@ export async function POST(request: Request) {
     metadata: {
       target?: string;
       pending_amora_action?: unknown;
+      pending_amora_action_queue?: unknown;
       // 아직 안 누른 카드를 새 답변으로 옮길 때 **원래 값 그대로** 들고 간다.
       pending_amora_action_journey_revision?: unknown;
       pending_amora_action_impact_preview?: unknown;
@@ -2947,6 +2956,14 @@ export async function POST(request: Request) {
       },
       { status: 409, headers: { "Cache-Control": "no-store" } },
     );
+  }
+  const queueHead = approvedPendingAction ?? awaitingPendingCard;
+  const storedActionQueue = queueHead
+    ? resolveAmoraActionQueue(previousCanonicalRow?.metadata?.pending_amora_action_queue, queueHead, PENDING_ACTION_TOOLS, Date.now())
+    : null;
+  if (approvedPendingAction && previousCanonicalRow?.metadata?.pending_amora_action_queue !== undefined && !storedActionQueue) {
+    await releaseClaimBeforeStream("AMORA_PENDING_ACTION_QUEUE_INVALID");
+    return NextResponse.json({ error: "남은 요청을 안전하게 확인하지 못해 변경하지 않았어요. 내용을 다시 알려주세요.", code: "AMORA_PENDING_ACTION_QUEUE_INVALID" }, { status: 409, headers: { "Cache-Control": "no-store" } });
   }
   if (approvedPendingAction) {
     const approvalPolicy = getAmoraActionApprovalPolicy(
@@ -3754,6 +3771,13 @@ export async function POST(request: Request) {
         let lockToolsAfterPlaceSearch = false;
         let toolCallCount = 0;
         let approvedPendingActionExecuted = false;
+        let queuedProposal: ReturnType<typeof extractAmoraPendingAction> | null = null;
+        let nextActionQueue: AmoraActionQueue | null = null;
+        let nextActionRevision: number | null = null;
+        let nextActionContext = executionContext;
+        let queueCompletion: { queueId: string; totalCount: number; completedCount: number } | null = null;
+        let queueResumeNotice: string | null = null;
+        let queueStepSucceeded: boolean | null = null;
         const executeApprovedPendingAction = async (
           reserveBeforeSideEffect?: () => Promise<void>,
         ) => {
@@ -3790,6 +3814,50 @@ export async function POST(request: Request) {
             type: "tool_result",
             result: getClientSafeToolResult(approvedResult),
           });
+          if (storedActionQueue) {
+            queueStepSucceeded = approvedResult.success;
+            const remaining = storedActionQueue.remainingActions;
+            if (!approvedResult.success) {
+              // 실패 영수증에는 결과 불명·진행 중도 포함된다. 새 id를 주면 중복 방지
+              // 원장을 우회하므로 자동 재제안을 하지 않고 먼저 현재 상태를 확인한다.
+              queueResumeNotice = "이번 항목의 처리 결과를 먼저 확인해 주세요. 남은 항목은 실행하지 않았어요.";
+            } else if (remaining.length === 0) {
+              queueCompletion = { queueId: storedActionQueue.queueId, totalCount: storedActionQueue.totalCount, completedCount: storedActionQueue.totalCount };
+            } else {
+              // 적용 결과와 다음 제안의 기준은 다르다. 저장 뒤 최신 리비전을 다시 읽는다.
+              const fresh = await supabase.from("wedding_journeys")
+                .select("state_revision,total_budget,progress")
+                .eq("couple_id", coupleId).maybeSingle();
+              const revision = fresh.data?.state_revision;
+              if (!fresh.error && fresh.data && typeof revision === "number" && Number.isSafeInteger(revision) && revision >= 0) {
+                const candidate = remaining[0];
+                queuedProposal = extractAmoraPendingAction({
+                  text: `[pending_action]${JSON.stringify(candidate)}[/pending_action]`,
+                  allowedTools: PENDING_ACTION_TOOLS,
+                  now: Date.now(), createActionId: randomUUID,
+                });
+                if (queuedProposal.pendingAction) {
+                  nextActionRevision = revision;
+                  nextActionContext = { ...executionContext, weddingContext: {
+                    ...executionContext.weddingContext,
+                    budget: fresh.data.total_budget ?? executionContext.weddingContext.budget,
+                    progress: (fresh.data.progress ?? {}) as ToolExecutionContext["weddingContext"]["progress"],
+                  } };
+                  nextActionQueue = advanceAmoraActionQueue(storedActionQueue, queuedProposal.pendingAction);
+                }
+              }
+              if (!queuedProposal?.pendingAction) {
+                // 이미 실행된 항목을 실패로 바꾸거나 다시 실행하지 않는다. 나머지 입력은 보존한다.
+                queueResumeNotice = "이번 항목은 반영됐어요. 다음 확인을 준비할 최신 정보를 읽지 못했어요. 아래 남은 요청을 확인한 뒤 이어서 요청해 주세요.";
+              }
+            }
+            if (queueResumeNotice) {
+              const unresolved = approvedResult.success ? remaining
+                : [{ tool: approvedPendingAction.tool, input: approvedPendingAction.input }, ...remaining];
+              const descriptions = unresolved.map(item => describeAmoraQueuedAction(item, PENDING_ACTION_TOOLS, Date.now())).filter(Boolean);
+              queueResumeNotice += `\n\n${approvedResult.success ? "아직 반영하지 않은 요청" : "처리 상태를 확인할 요청"}\n${descriptions.join("\n\n")}`;
+            }
+          }
           currentMessages.push({
             role: "user",
             content: [
@@ -3814,8 +3882,15 @@ export async function POST(request: Request) {
           const { cleanText: afterSuggest, suggestions } = extractSuggestions(
             stripAmoraReasoningPreamble(fullText),
           );
-          const pendingExtraction = extractAmoraPendingAction({
-            text: afterSuggest,
+          // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
+          // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
+          const explicitBudgetPlan = pendingOfferEnabled && !approvedPendingAction
+            && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
+              ? parseExplicitBudgetPlanRequest(lastUserText) : null;
+          const modelPendingExtraction = extractAmoraPendingAction({
+            text: explicitBudgetPlan
+              ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
+              : afterSuggest,
             allowedTools: pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
@@ -3826,18 +3901,22 @@ export async function POST(request: Request) {
                 .filter((id): id is string => typeof id === "string" && id.length > 0),
             ),
           });
+          const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
+          const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
+          const proposalQueue = nextActionQueue ?? (pendingExtraction.pendingAction
+            ? createAmoraActionQueue(pendingExtraction.pendingAction, pendingExtraction.remainingActions) : null);
           if (
             pendingExtraction.pendingAction
-            && canonicalJourneyStateRevision === null
+            && proposalRevision === null
           ) {
             throw new Error("AMORA_JOURNEY_REVISION_UNAVAILABLE");
           }
           const pendingBudgetImpactPreview = pendingExtraction.pendingAction
-            && canonicalJourneyStateRevision !== null
+            && proposalRevision !== null
             ? buildAmoraBudgetImpactPreview({
                 action: pendingExtraction.pendingAction,
-                sourceRevision: canonicalJourneyStateRevision,
-                context: executionContext,
+                sourceRevision: proposalRevision,
+                context: queuedProposal?.pendingAction ? nextActionContext : executionContext,
               })
             : null;
           const {
@@ -3923,8 +4002,11 @@ export async function POST(request: Request) {
               shapes: pendingExtraction.droppedShapes ?? [],
             });
           }
+          const queueText = queuedProposal?.pendingAction && nextActionQueue
+            ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${queuedProposal.pendingAction.confirmation}`
+            : queueResumeNotice;
           const persistenceSafeText = ensureNonEmptyTerminalText(
-            persistenceClaimGuard.text,
+            [persistenceClaimGuard.text, queueText].filter(Boolean).join("\n\n"),
           );
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
@@ -3979,11 +4061,20 @@ export async function POST(request: Request) {
               : {}),
             ...(suggestions.length > 0 ? { suggestions } : {}),
             ...(mediation ? { mediation } : {}),
+            ...(proposalQueue ? { pending_amora_action_queue: proposalQueue } : {}),
+            ...(queueCompletion ? { completed_amora_action_queue: queueCompletion } : {}),
+            ...(queueResumeNotice && storedActionQueue ? { deferred_amora_action_queue: {
+              queueId: storedActionQueue.queueId, totalCount: storedActionQueue.totalCount,
+              completedCount: storedActionQueue.completedCount + (queueStepSucceeded ? 1 : 0),
+              remainingActions: queueStepSucceeded
+                ? storedActionQueue.remainingActions
+                : [{ tool: approvedPendingAction!.tool, input: approvedPendingAction!.input }, ...storedActionQueue.remainingActions],
+            } } : {}),
             ...(pendingExtraction.pendingAction
               ? {
                   pending_amora_action: pendingExtraction.pendingAction,
                   pending_amora_action_journey_revision:
-                    canonicalJourneyStateRevision,
+                    proposalRevision,
                   ...(pendingBudgetImpactPreview
                     ? {
                         pending_amora_action_impact_preview:
@@ -4015,6 +4106,7 @@ export async function POST(request: Request) {
               : awaitingPendingCard && shouldCarryPendingCard
                 ? {
                     pending_amora_action: awaitingPendingCard,
+                    ...(storedActionQueue ? { pending_amora_action_queue: storedActionQueue } : {}),
                     pending_amora_action_carry_count: nextPendingCardCarries,
                     ...(carriedPendingActionOriginMessageId !== null
                       ? {

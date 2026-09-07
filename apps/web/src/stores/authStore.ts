@@ -130,6 +130,8 @@ function isTransientAuthFetchError(err: unknown) {
 }
 
 let journeyWriteSequence = 0;
+let profileWriteSequence = 0;
+let authBindingSequence = 0;
 let authInitializeSequence = 0;
 const PLAN_CHANGE_REQUEST_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -172,7 +174,7 @@ interface AuthState {
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
-  refreshJourney: (expectedUserId?: string) => Promise<boolean>;
+  refreshJourney: (expectedUserId?: string, signal?: AbortSignal) => Promise<boolean>;
   updateProfile: (
     updates: Partial<Pick<Profile, "name" | "care_notifications_enabled" | "phone">> & {
       sync_community_nickname?: boolean;
@@ -234,6 +236,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
           const current = get();
           const sameUser = current.user?.id === data.user.id;
+          const preserveNewerJourney = sameUser && initializeJourneySequence !== journeyWriteSequence;
           const nextJourney =
             (
               initializeJourneySequence === journeyWriteSequence
@@ -248,9 +251,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           useCommunityStore.getState().bindViewer(data.user.id);
           set({
             user: data.user,
-            profile: data.profile ?? null,
-            couple: data.couple ?? null,
-            partner: data.partner ?? null,
+            // 최신 준비 정보와 소유 프로필은 하나의 스냅샷이다. 늦은 초기화가
+            // 예산만 보존하고 예전 커플 프로필을 되살리지 않게 함께 보존한다.
+            profile: preserveNewerJourney ? current.profile : data.profile ?? null,
+            couple: preserveNewerJourney ? current.couple : data.couple ?? null,
+            partner: preserveNewerJourney ? current.partner : data.partner ?? null,
             journey: nextJourney,
             isDemo: false,
             isLoading: false,
@@ -325,14 +330,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   // 서버에서 journey 만 강제 재fetch — AI 도구 실행 후 클라이언트 sync 안전망
-  refreshJourney: async (expectedUserId) => {
+  refreshJourney: async (expectedUserId, signal) => {
     const refreshSequence = ++journeyWriteSequence;
+    const refreshProfileSequence = profileWriteSequence;
+    const refreshBindingSequence = authBindingSequence;
     const { isDemo, user } = get();
     if (isDemo) return true;
-    const identityToPreserve = expectedUserId ?? null;
+    const identityToPreserve = expectedUserId ?? user?.id ?? null;
     if (expectedUserId && user?.id !== expectedUserId) return false;
     try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const res = await fetch("/api/auth/me", { cache: "no-store", ...(signal ? { signal } : {}) });
       if (!res.ok) return false;
       const data = await res.json() as unknown;
       if (
@@ -340,6 +347,43 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         || data === null
         || !("journey" in data)
       ) return false;
+      const current = get();
+      // 새 프로필을 포함한 응답은 인증된 같은 사용자 및 동일 커플의 준비 정보와
+      // 맞을 때만 한 번에 반영한다. 구형 응답의 생략된 프로필로 새 연결을 추정하지 않는다.
+      const responseProfile = "profile" in data ? data.profile : undefined;
+      const responseCouple = "couple" in data ? data.couple : current.couple;
+      const responsePartner = "partner" in data ? data.partner : current.partner;
+      if (responseProfile !== undefined) {
+        if (responseProfile === null) {
+          if (data.journey !== null || responseCouple !== null || responsePartner !== null) return false;
+        } else {
+          if (
+            typeof responseProfile !== "object"
+            || Array.isArray(responseProfile)
+            || !("id" in responseProfile)
+            || responseProfile.id !== identityToPreserve
+            || !("couple_id" in responseProfile)
+            || (responseProfile.couple_id !== null && typeof responseProfile.couple_id !== "string")
+          ) return false;
+          if (responseProfile.couple_id !== current.profile?.couple_id
+            && (!("couple" in data) || !("partner" in data))) return false;
+          if (
+            data.journey !== null
+            && (typeof data.journey !== "object"
+              || !("couple_id" in data.journey)
+              || data.journey.couple_id !== responseProfile.couple_id)
+          ) return false;
+          if (responseCouple !== null && (
+            typeof responseCouple !== "object"
+            || !("id" in responseCouple)
+            || responseCouple.id !== responseProfile.couple_id
+          )) return false;
+        }
+      } else if (current.profile && data.journey !== null && (
+        typeof data.journey !== "object"
+        || !("couple_id" in data.journey)
+        || data.journey.couple_id !== current.profile.couple_id
+      )) return false;
       const responseUserId =
         "user" in data
         && typeof data.user === "object"
@@ -348,9 +392,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         && typeof data.user.id === "string"
           ? data.user.id
           : null;
-      const current = get();
       if (
-        refreshSequence !== journeyWriteSequence
+        signal?.aborted
+        || refreshSequence !== journeyWriteSequence
+        || refreshBindingSequence !== authBindingSequence
         || current.isDemo
         || (
           identityToPreserve !== null
@@ -370,8 +415,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         partner?: unknown;
         couple?: unknown;
       };
+      // 다른 탭/AI의 새 영수증을 이미 반영했다면, 먼저 시작한 조회의 옛 revision으로
+      // 되돌리지 않는다. 같은 준비 공간에 발급된 단조 증가 revision끼리만 비교한다.
+      if (refreshed.journey && current.journey
+        && refreshed.journey.id === current.journey.id
+        && refreshed.journey.couple_id === current.journey.couple_id
+        && typeof refreshed.journey.state_revision === "number"
+        && typeof current.journey.state_revision === "number"
+        && Number.isSafeInteger(refreshed.journey.state_revision)
+        && Number.isSafeInteger(current.journey.state_revision)
+        && refreshed.journey.state_revision < current.journey.state_revision) return false;
+      const verifiedProfile = responseProfile as Profile | null | undefined;
+      // 설정 화면의 직접 저장도 관찰한다. 대기 중 저장한 프로필 값은 보존하되,
+      // 검증된 새 커플 연결은 준비 정보와 같은 응답에서 함께 반영한다.
+      const refreshedProfile = verifiedProfile && current.profile && refreshProfileSequence !== profileWriteSequence
+        ? { ...verifiedProfile, ...current.profile, couple_id: verifiedProfile.couple_id, role: verifiedProfile.role }
+        : verifiedProfile;
       set({
         journey: refreshed.journey ?? null,
+        ...(responseProfile !== undefined ? { profile: refreshedProfile as Profile | null } : {}),
         ...("partner" in refreshed
           ? { partner: (refreshed.partner ?? null) as AuthState["partner"] }
           : {}),
@@ -612,3 +674,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 }));
+
+// 직접 setState로 저장하는 설정과, 같은 계정으로 돌아오는 연결 전환도 누락하지 않는다.
+useAuthStore.subscribe((current, previous) => {
+  if (current.profile !== previous.profile) profileWriteSequence += 1;
+  if (current.user?.id !== previous.user?.id
+    || current.isDemo !== previous.isDemo
+    || current.profile?.id !== previous.profile?.id
+    || current.profile?.couple_id !== previous.profile?.couple_id
+    || current.profile?.role !== previous.profile?.role
+    || current.couple?.id !== previous.couple?.id
+    || current.journey?.couple_id !== previous.journey?.couple_id) {
+    authBindingSequence += 1;
+  }
+});
