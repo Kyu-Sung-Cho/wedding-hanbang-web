@@ -47,6 +47,17 @@ const CLEAN_ANSWERS: readonly string[] = [
 ];
 
 describe("applyAmoraOutputHygiene", () => {
+  it("removes only the observed stray cvs suffix while protecting names, units, code and user text", () => {
+    const text = "> 변경·취소 조건을 서면으로 안내 부탁드립니다. cvs";
+    expect(applyAmoraOutputHygiene(text).text).toBe("> 변경·취소 조건을 서면으로 안내 부탁드립니다.");
+    for (const original of [
+      "근처 cvs 에서 사실 수 있어요.", "미국 CVS 약국에서 확인해 주세요.",
+      "단위는 cm, kg, vs를 그대로 씁니다.", "브랜드 이름: cvs",
+      "https://example.com/cvs", "담당자 cvs@example.com", "`부탁드립니다. cvs`",
+      "```text\n부탁드립니다. cvs\n```",
+    ]) expect(applyAmoraOutputHygiene(original).text).toBe(original);
+    expect(applyAmoraOutputHygiene(text, { userText: "이 문구를 보존해 줘: 부탁드립니다. cvs" }).text).toBe(text);
+  });
   it("changes not one character of a clean Korean answer", () => {
     for (const answer of CLEAN_ANSWERS) {
       const result = applyAmoraOutputHygiene(answer);

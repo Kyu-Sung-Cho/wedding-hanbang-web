@@ -159,6 +159,8 @@ async function createDatabase(withCurrentBudgetPlan = false) {
     await db.exec(migration("20260824150000_amora_custom_category_label_match.sql"));
     const next = migration("20260906130734_amora_budget_plan_preserves_existing_allocations.sql");
     if (next.trim()) await db.exec(next);
+    const namedBudgetPlan = migration("20260907085111_amora_budget_plan_named_allocations.sql");
+    await db.exec(namedBudgetPlan);
     await db.exec("ALTER TABLE public.amora_tool_executions ADD COLUMN pending_action_journey_revision bigint");
     const wrapper = migration("20260730102000_amora_shared_action_approval_and_notifications.sql")
       .match(/CREATE FUNCTION public\.apply_amora_atomic_tool_execution\([\s\S]*?\$function\$;/u)?.[0];
@@ -221,6 +223,104 @@ describe("Amora atomic mutation coverage migration", () => {
     await insertExecution(db, "apply_budget_plan", identity.operationKey, identity.inputDigest);
     return { operation, identity };
   }
+
+  it("commits the original eight grouped budgets and exact names in one transaction with replay", async () => {
+    const db = await createDatabase(true);
+    try {
+      const retained = { venue: { category: "venue", status: "completed", budget: 0, spent: 250_000, payer: "bride", checklist: [{id:"venue_01",done:true}] }, __events: [{id:"keep"}], __shares: {bride:40,groom:60} };
+      await db.query("UPDATE wedding_journeys SET total_budget=0,progress=$1::jsonb",[JSON.stringify(retained)]);
+      const named = [["결혼식장·식사",9_000_000],["사진",5_000_000],["드레스·정장",3_000_000],["헤어·메이크업",2_000_000],["반지·선물",2_500_000],["초대장·꽃·하객선물",1_500_000]] as const;
+      const input = {total_budget:35_000_000,allocations:[...named.map(([label,budget])=>({category:"custom",label,budget})),{category:"honeymoon",budget:10_000_000},{category:"reserve",budget:2_000_000}]};
+      const {operation,identity} = await buildCurrentPlan(db,input);
+      expect(operation.result.success).toBe(true);
+      const receipt = durableBudgetResult(operation.result);
+      const first = await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt);
+      expect(first.rows[0].result).toMatchObject({success:true,toolOutput:{applied_count:8,remainder_to_reserve:0}});
+      const row = (await db.query<{total_budget:number;progress:Record<string,Record<string,unknown>>}>("SELECT total_budget,progress FROM wedding_journeys")).rows[0];
+      expect(Number(row.total_budget)).toBe(35_000_000);
+      for (const [key,value] of Object.entries(retained)) expect(row.progress[key]).toEqual(value);
+      const custom = Object.entries(row.progress).filter(([key])=>key.startsWith("custom_"));
+      expect(custom).toHaveLength(6);
+      for (const [label,budget] of named) expect(custom.filter(([,value])=>value.label===label).map(([,value])=>value.budget)).toEqual([budget]);
+      expect(row.progress.honeymoon.budget).toBe(10_000_000);
+      expect(row.progress.reserve.budget).toBe(2_000_000);
+      const replay = await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt);
+      expect(replay.rows).toEqual(first.rows);
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows[0]).toEqual(row);
+    } finally { await db.close(); }
+  });
+
+  it("reuses an existing named item while preserving every nonbudget field", async () => {
+    const db = await createDatabase(true);
+    try {
+      const original = {category:"custom_ui",label:"Wedding  Car",budget:500_000,spent:300_000,status:"completed",payer:"groom",checklist:[{id:"car",done:true}],notes:"보존"};
+      await db.query("UPDATE wedding_journeys SET progress=progress||$1::jsonb",[JSON.stringify({custom_ui:original})]);
+      const input = {total_budget:50_000_000,allocations:[{category:"custom",label:" wedding car ",budget:800_000}]};
+      const {operation,identity} = await buildCurrentPlan(db,input);
+      const result = await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,durableBudgetResult(operation.result));
+      expect(result.rows[0].result.success).toBe(true);
+      const progress = (await db.query<{progress:Record<string,Record<string,unknown>>}>("SELECT progress FROM wedding_journeys")).rows[0].progress;
+      expect(progress.custom_ui).toEqual({...original,label:"wedding car",budget:800_000});
+      expect(progress.reserve.budget).toBe(39_200_000);
+      expect(Object.keys(progress).filter(key=>key.startsWith("custom_"))).toEqual(["custom_ui"]);
+    } finally { await db.close(); }
+  });
+
+  it.each(["label", "key", "spent", "payer", "status"])("rejects a forged named budget %s and leaves the domain and execution untouched", async (field) => {
+    const db = await createDatabase(true);
+    try {
+      const input = {total_budget:50_000_000,allocations:[{category:"custom",label:"사진",budget:500_000}]};
+      const {operation,identity} = await buildCurrentPlan(db,input);
+      const mutation = structuredClone(operation.domainMutation);
+      const entries = mutation.entries as Array<{key:string;value:Record<string,unknown>}>;
+      const entry = entries.find(value=>value.key.startsWith("custom_"))!;
+      const receipt = durableBudgetResult(structuredClone(operation.result));
+      const output = (receipt.toolOutput.allocations as Array<Record<string,unknown>>).find(value=>typeof value.category==="string" && value.category.startsWith("custom_"))!;
+      if (field === "key") { entry.key="custom_attacker"; entry.value.category=entry.key; output.category=entry.key; }
+      else if (field === "label") { entry.value.label="다른 항목"; output.label="다른 항목"; }
+      else entry.value[field] = field === "spent" ? 999 : field === "status" ? "completed" : "groom";
+      const before = (await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      await expect(apply(db,identity.operationKey,identity.inputDigest,input,mutation,receipt)).rejects.toMatchObject({code:"22023"});
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+      expect((await db.query<{status:string}>("SELECT status FROM amora_tool_executions")).rows[0].status).toBe("processing");
+    } finally { await db.close(); }
+  });
+
+  it("refuses an independently created same-label item rather than creating a duplicate at commit", async () => {
+    const db = await createDatabase(true);
+    try {
+      const input = {total_budget:50_000_000,allocations:[{category:"custom",label:"사진",budget:500_000}]};
+      const {operation,identity} = await buildCurrentPlan(db,input);
+      await db.query("UPDATE wedding_journeys SET progress=progress||$1::jsonb",[JSON.stringify({custom_other:{category:"custom_other",label:"사진",status:"not_started"}})]);
+      const before = (await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      await expect(apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,durableBudgetResult(operation.result))).rejects.toMatchObject({code:"22023"});
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally { await db.close(); }
+  });
+
+  it("checks exact named-input shape, normalized collisions, UTF16 limits and helper permissions in PostgreSQL", async () => {
+    const db = await createDatabase(true);
+    try {
+      for (const role of ["anon","authenticated","service_role"]) {
+        expect((await db.query<{allowed:boolean}>("SELECT has_function_privilege($1,'public.amora_resolve_budget_plan_allocations(uuid,jsonb,jsonb)','EXECUTE') allowed",[role])).rows[0].allowed).toBe(false);
+      }
+      await db.exec("RESET ROLE");
+      const resolve = (allocations:unknown, progress:unknown={}) => db.query<{allocations:Array<{category:string;label:string;budget:number}>}>("SELECT public.amora_resolve_budget_plan_allocations($1::uuid,$2::jsonb,$3::jsonb) allocations",[COUPLE_ID,JSON.stringify(progress),JSON.stringify(allocations)]);
+      const valid = await resolve([{category:"custom",label:"😀".repeat(30),budget:1}]);
+      expect(valid.rows[0].allocations[0].label).toBe("😀".repeat(30));
+      const space = await resolve([{category:"custom",label:"\u00a0Wedding\u3000Car\u00a0",budget:1}], {custom_manual:{label:"Wedding  Car"}});
+      expect(space.rows[0].allocations[0]).toEqual({category:"custom_manual",label:"Wedding Car",budget:1});
+      for (const invalid of [
+        [{category:"custom",label:"😀".repeat(31),budget:1}],
+        [{category:"custom",label:"사진\u202e",budget:1}],
+        [{category:"custom",label:"사진",budget:1,spent:9}],
+        [{category:"custom",budget:1}],
+        [{category:"venue",label:"다른 이름",budget:1}],
+        [{category:"custom",label:"사진",budget:1},{category:"custom",label:" 사진 ",budget:2}],
+      ]) await expect(resolve(invalid)).rejects.toMatchObject({code:"22023"});
+      await expect(resolve([{category:"custom",label:"사진",budget:1}],{custom_a:{label:"사진"},custom_b:{label:" 사진 "}})).rejects.toMatchObject({code:"22023"});
+    } finally { await db.close(); }
+  });
 
   it.each([
     { extras: { ring: {category: "ring", status: "completed", budget: 5_000_000, spent: 4_000_000}, custom_ride: {category: "custom_ride", label: "합성 이동", status: "not_started", budget: 1_000_000} }, total: 50_000_000, allocations: [{category: "venue", budget: 20_000_000}], reserve: 24_000_000 },

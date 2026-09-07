@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { BookOpen, ImageOff, MapPin, Phone, Search } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { getPlaceSearchPresentation } from "@hanbang/shared/place-search-presentation";
 import {
   getPlaceCardsModel,
   withRoParticle,
@@ -181,6 +182,8 @@ function PlaceCard({ place, index }: { place: PlaceCardModel; index: number }) {
 
 export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
   const model = getPlaceCardsModel(result);
+  const presentation = getPlaceSearchPresentation(result.toolOutput,
+    model.state === "places" ? model.places.length : model.state === "placeholder" ? model.resultCount : 0);
 
   if (model.state === "handoff") {
     const primaryUrl = model.searchUrl ?? model.mapsUrl;
@@ -232,6 +235,9 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
           <Text style={styles.noticeText}>
             검색 결과 카드는 저장하지 않아서 다시 열면 사라져요. 다시 검색할까요?
           </Text>
+          <Text style={styles.noticeText}>{presentation.countLabel}</Text>
+          {presentation.shortageLabel && <Text style={styles.noticeText}>{presentation.shortageLabel}</Text>}
+          <Text style={styles.noticeText}>{presentation.verificationLabel}</Text>
         </View>
       </View>
     );
@@ -272,6 +278,8 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
         <View style={styles.noticeCopy}>
           <Text style={styles.noticeTitle}>검색된 장소가 없어요</Text>
           <Text style={styles.noticeText}>{model.message}</Text>
+          <Text style={styles.noticeText}>{presentation.countLabel}</Text>
+          {presentation.shortageLabel && <Text style={styles.noticeText}>{presentation.shortageLabel}</Text>}
         </View>
       </View>
     );
@@ -287,15 +295,20 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
           </Text>
         </View>
       ) : null}
+      <View style={styles.searchSummary}>
+        <Text style={styles.noticeText}>{presentation.countLabel}</Text>
+        {presentation.shortageLabel && <Text style={styles.noticeText}>{presentation.shortageLabel}</Text>}
+        <Text style={styles.noticeText}>{presentation.verificationLabel}</Text>
+      </View>
       {model.places.map((place, index) => (
         <PlaceCard key={place.id} place={place} index={index} />
       ))}
       {/* 광고·제휴인지 묻는 질문에 화면이 답한다(2026-09-03). 웹 카드와 같은 문장을
           쓴다 — 한쪽만 고치면 표면이 갈린다. 조회 시각이 없으면 그 문장만 뺀다. */}
       <Text style={styles.providerNote}>
-        {model.searchedAtLabel
-          ? `네이버 지역검색 일반 결과예요(광고·제휴 아님). 사진은 네이버 이미지 검색 결과예요. 정렬은 네이버 기준이고, 조회 시각은 ${model.searchedAtLabel} 입니다. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.`
-          : "네이버 지역검색 일반 결과예요(광고·제휴 아님). 사진은 네이버 이미지 검색 결과예요. 정렬은 네이버 기준이에요. 리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다."}
+        네이버 지역검색 일반 결과예요(광고·제휴 아님). 사진은 네이버 이미지 검색 결과예요. {presentation.orderLabel}{" "}
+        {model.searchedAtLabel ? `조회 시각은 ${model.searchedAtLabel} (한국 시간)입니다. ` : ""}
+        리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
       </Text>
     </View>
   );
@@ -303,6 +316,7 @@ export function PlaceCards({ result }: { result: PlaceSearchToolResult }) {
 
 const styles = StyleSheet.create({
   container: { gap: 10, marginTop: 8 },
+  searchSummary: { paddingHorizontal: 4, gap: 4 },
   queryRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 4 },
   queryText: { flex: 1, fontSize: 12, lineHeight: 18, color: colors.textSecondary, fontWeight: "600" },
   providerNote: { paddingHorizontal: 4, fontSize: 10, lineHeight: 15, color: colors.textTertiary },

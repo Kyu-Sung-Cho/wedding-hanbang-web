@@ -1,4 +1,5 @@
 import type { ToolExecutionResult } from "@/types/database.types";
+import { readPlaceSearchFacts } from "@hanbang/shared/place-search-presentation";
 
 export const EPHEMERAL_PLACE_SEARCH_TOOL = "search_nearby_places";
 const PRIVATE_SCHEDULE_MUTATION_TOOLS = new Set([
@@ -200,6 +201,7 @@ function placeSearchPlaceholderResult(
       places: [],
       query,
       resultCount,
+      ...readPlaceSearchFacts(output),
       ...(typeof output.searchedAt === "string" && output.searchedAt
         ? { searchedAt: output.searchedAt }
         : {}),
@@ -269,6 +271,7 @@ export function getModelSafeToolOutput(result: ToolExecutionResult): Record<stri
     success: result.success,
     status: result.success ? "rendered_in_client" : "unavailable",
     resultCount,
+    ...readPlaceSearchFacts(output),
     ...(typeof output.effectiveQuery === "string" && output.effectiveQuery
       ? { effectiveQuery: output.effectiveQuery }
       : {}),

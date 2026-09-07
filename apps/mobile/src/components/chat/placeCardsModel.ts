@@ -1,3 +1,5 @@
+import { formatPlaceSearchDate } from "@hanbang/shared/place-search-presentation";
+
 export interface PlaceSearchToolResult {
   toolName: string;
   toolInput: Record<string, unknown>;
@@ -50,18 +52,9 @@ export type PlaceCardsModel =
  * 기기 시간대를 그대로 쓰면 해외에서 열었을 때 다른 시각이 뜬다.
  * `hourCycle: "h23"` 은 자정을 `24:00` 이 아니라 `00:00` 으로 쓰기 위한 것이다.
  */
-const SEARCHED_AT_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
-  timeZone: "Asia/Seoul",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
 
 export function formatPlaceSearchedAtLabel(value: unknown): string | null {
-  if (typeof value !== "string" || !value.trim()) return null;
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return SEARCHED_AT_FORMATTER.format(parsed);
+  return formatPlaceSearchDate(value);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -174,7 +174,7 @@ interface AuthState {
   updateJourneyLocal: (updates: Partial<Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">>) => void;
   /** 서버에서 journey 만 다시 fetch (initialize 와 달리 항상 강제 실행).
    *  AI 도구 실행 후 클라이언트 sync 가 누락된 케이스 안전망. */
-  refreshJourney: (expectedUserId?: string) => Promise<boolean>;
+  refreshJourney: (expectedUserId?: string, signal?: AbortSignal) => Promise<boolean>;
   updateProfile: (
     updates: Partial<Pick<Profile, "name" | "care_notifications_enabled" | "phone">> & {
       sync_community_nickname?: boolean;
@@ -330,7 +330,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   // 서버에서 journey 만 강제 재fetch — AI 도구 실행 후 클라이언트 sync 안전망
-  refreshJourney: async (expectedUserId) => {
+  refreshJourney: async (expectedUserId, signal) => {
     const refreshSequence = ++journeyWriteSequence;
     const refreshProfileSequence = profileWriteSequence;
     const refreshBindingSequence = authBindingSequence;
@@ -339,7 +339,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const identityToPreserve = expectedUserId ?? user?.id ?? null;
     if (expectedUserId && user?.id !== expectedUserId) return false;
     try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const res = await fetch("/api/auth/me", { cache: "no-store", ...(signal ? { signal } : {}) });
       if (!res.ok) return false;
       const data = await res.json() as unknown;
       if (
@@ -393,7 +393,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           ? data.user.id
           : null;
       if (
-        refreshSequence !== journeyWriteSequence
+        signal?.aborted
+        || refreshSequence !== journeyWriteSequence
         || refreshBindingSequence !== authBindingSequence
         || current.isDemo
         || (
@@ -414,6 +415,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         partner?: unknown;
         couple?: unknown;
       };
+      // 다른 탭/AI의 새 영수증을 이미 반영했다면, 먼저 시작한 조회의 옛 revision으로
+      // 되돌리지 않는다. 같은 준비 공간에 발급된 단조 증가 revision끼리만 비교한다.
+      if (refreshed.journey && current.journey
+        && refreshed.journey.id === current.journey.id
+        && refreshed.journey.couple_id === current.journey.couple_id
+        && typeof refreshed.journey.state_revision === "number"
+        && typeof current.journey.state_revision === "number"
+        && Number.isSafeInteger(refreshed.journey.state_revision)
+        && Number.isSafeInteger(current.journey.state_revision)
+        && refreshed.journey.state_revision < current.journey.state_revision) return false;
       const verifiedProfile = responseProfile as Profile | null | undefined;
       // 설정 화면의 직접 저장도 관찰한다. 대기 중 저장한 프로필 값은 보존하되,
       // 검증된 새 커플 연결은 준비 정보와 같은 응답에서 함께 반영한다.

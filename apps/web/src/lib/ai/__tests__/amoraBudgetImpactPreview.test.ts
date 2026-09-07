@@ -51,6 +51,19 @@ function action(tool: string, input: Record<string, unknown>) {
 }
 
 describe("Amora budget impact preview", () => {
+  it("previews named groups with the exact persisted labels while preserving recorded spend", () => {
+    const prior = {category:"custom_photo",label:"사진",budget:1_000_000,spent:300_000,status:"completed",payer:"bride"};
+    const ctx = context({budget:35_000_000,progress:{custom_photo:prior,venue:{category:"venue",status:"completed",budget:9_000_000,spent:1_000_000}} as unknown as ToolExecutionContext["weddingContext"]["progress"]});
+    const before=structuredClone(ctx);
+    const preview=buildAmoraBudgetImpactPreview({action:action("apply_budget_plan",{total_budget:35_000_000,allocations:[{category:"custom",label:"사진",budget:5_000_000},{category:"custom",label:"초대장·꽃·하객선물",budget:1_500_000}]}),sourceRevision:2,context:ctx});
+    expect(preview).not.toBeNull();
+    expect(preview?.categories).toEqual(expect.arrayContaining([
+      expect.objectContaining({key:"custom_photo",label:"사진",proposedBudget:5_000_000,currentRecordedSpend:300_000,proposedRecordedSpend:300_000}),
+      expect.objectContaining({label:"초대장·꽃·하객선물",proposedBudget:1_500_000}),
+      expect.objectContaining({key:"reserve",proposedBudget:19_500_000}),
+    ]));
+    expect(ctx).toEqual(before);
+  });
   it("previews the exact total-budget mutation and never treats legacy cost as recorded spend", () => {
     const pending = action("update_budget", { total_budget: 25_000_000 });
     const preview = buildAmoraBudgetImpactPreview({

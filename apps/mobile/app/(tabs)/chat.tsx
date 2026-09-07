@@ -82,6 +82,7 @@ import {
   type ChatViewCursors,
 } from "@/lib/chatPrivacyScope";
 import { PlaceCards } from "@/components/chat/PlaceCards";
+import { AmoraMessageBody } from "@/components/chat/AmoraMessageBody";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
 import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
 import { AmoraConversationRecap } from "@/components/chat/AmoraConversationRecap";
@@ -4053,9 +4054,11 @@ export default function ChatScreen() {
               <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
                 {isThinking ? <ThinkingDots /> : (
                   <>
-                    <Text style={[st.bubbleText, { color: textColor }, isAi && { lineHeight: 24 }]}>
-                      {citationText}
-                    </Text>
+                    {isAi ? (
+                      <AmoraMessageBody content={citationText} textStyle={[st.bubbleText, { color: textColor, lineHeight: 24 }]} />
+                    ) : (
+                      <Text style={[st.bubbleText, { color: textColor }]}>{citationText}</Text>
+                    )}
                     {/* 아모라가 예절 안내를 근거로 답하면 본문 끝에 `[etiquette:N]`을 붙인다.
                         웹은 그 표식을 안내 카드로 바꾸는데 모바일은 그대로 그려서
                         사용자가 `[etiquette:9]`를 읽고 있었다. 근거를 대라고 만든 표식이

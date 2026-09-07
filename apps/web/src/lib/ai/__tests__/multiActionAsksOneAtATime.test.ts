@@ -5,6 +5,7 @@ import {
   isAmoraFailedProposalNotice,
 } from "@/lib/ai/amoraPendingAction";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import { createAmoraActionQueue, resolveAmoraActionQueue } from "@/lib/ai/amoraActionQueue";
 
 /**
  * "예산 6천으로 올리고 드레스 투어도 다음 주 토요일로 잡아줘" 는 흔한 요청이다.
@@ -65,6 +66,21 @@ const BROKEN_SCHEDULE_MARKER =
   '[pending_action]{"tool":"add_schedule_event","input":{"event_date":"2026-09-05"}}[/pending_action]';
 
 describe("한 번에 두 가지를 부탁하면 첫 건을 내고 나머지를 말해준다", () => {
+  it("첫 카드 뒤의 유효한 요청도 입력 그대로 보존한다", () => {
+    const result = extract(`${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
+    expect(result.remainingActions).toEqual([
+      { tool: "add_schedule_event", input: { date: "2026-09-05", title: "드레스 투어" } },
+    ]);
+  });
+
+  it("입력이 같은 중복 요청은 한 번만 보존하고 잘못된 표식은 큐에 넣지 않는다", () => {
+    const duplicate = '[pending_action]{"input":{"title":"드레스 투어","date":"2026-09-05"},"tool":"add_schedule_event"}[/pending_action]';
+    const result = extract(`${BROKEN_MARKER}\n${BUDGET_MARKER}\n${SCHEDULE_MARKER}\n${duplicate}`);
+    expect(result.remainingActions).toEqual([
+      { tool: "add_schedule_event", input: { date: "2026-09-05", title: "드레스 투어" } },
+    ]);
+  });
+
   it("표식이 둘이면 첫 건이 카드가 된다", () => {
     const result = extract(`알겠어요.\n${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
     expect(result.pendingAction?.tool).toBe("update_budget");
@@ -129,5 +145,34 @@ ${SCHEDULE_MARKER}`);
     const result = extract(`알겠어요.
 ${BUDGET_MARKER}`);
     expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(false);
+  });
+});
+
+describe("남은 요청은 서버 검증을 통과해야 이어진다", () => {
+  it("대화 기록을 다시 읽어도 동일한 요청 순서를 복원한다", () => {
+    const result = extract(`${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
+    const queue = createAmoraActionQueue(result.pendingAction!, result.remainingActions);
+    expect(resolveAmoraActionQueue(JSON.parse(JSON.stringify(queue)), result.pendingAction!, TOOLS, NOW)).toEqual(queue);
+  });
+
+  it.each([
+    { currentActionId: "22222222-2222-4222-8222-222222222222" },
+    { totalCount: 11 },
+    { completedCount: -1 },
+    { remainingActions: [] },
+    { remainingActions: [{ tool: "unsupported_write", input: {} }] },
+    { remainingActions: [{ tool: "add_schedule_event", input: {} }] },
+    { remainingActions: [{ tool: "update_budget", input: { total_budget: 60000000 } }] },
+  ])("카드 바꿔치기·잘못된 개수·입력·중복을 거부한다: %j", (changes) => {
+    const result = extract(`${BUDGET_MARKER}\n${SCHEDULE_MARKER}`);
+    const queue = createAmoraActionQueue(result.pendingAction!, result.remainingActions);
+    expect(resolveAmoraActionQueue({ ...queue, ...changes }, result.pendingAction!, TOOLS, NOW)).toBeNull();
+  });
+
+  it("열 건을 넘으면 일부만 저장할 수 있는 카드로 잘라내지 않는다", () => {
+    const result = extract(Array.from({ length: 11 }, (_, index) => `[pending_action]${JSON.stringify({ tool: "add_schedule_event", input: { title: `예식장 ${index} 상담`, date: "2026-10-10" } })}[/pending_action]`).join("\n"));
+    expect(result.pendingAction).toBeNull();
+    expect(result.remainingActions).toBeUndefined();
+    expect(result.cleanText).toContain("10건까지");
   });
 });

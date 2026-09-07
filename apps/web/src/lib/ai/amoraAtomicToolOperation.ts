@@ -36,6 +36,7 @@ import {
   ymdInKst,
 } from "@/lib/utils/kstDate";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
+import { BUDGET_CATEGORY_KEYS } from "@/lib/ai/tools";
 import {
   formatWeddingBudgetCeiling,
   isValidWeddingWonAmount,
@@ -526,7 +527,7 @@ function buildBudgetPlanOperation(
     !isValidWonAmount(totalBudget)
     || !Array.isArray(allocations)
     || allocations.length < 1
-    || allocations.length > Object.keys(CATEGORY_LABELS).length
+    || allocations.length > 20
     || (toolInput.intake_summary !== undefined
       && (
         typeof toolInput.intake_summary !== "string"
@@ -540,12 +541,15 @@ function buildBudgetPlanOperation(
       "총예산과 카테고리 배분을 다시 확인해 주세요.",
     );
   }
-  const normalizedAllocations: Array<{ category: string; budget: number }> = [];
+  const progress = context.weddingContext.progress as Record<string, unknown>;
+  const normalizedAllocations: Array<{ category: string; budget: number; label?: string }> = [];
   for (const candidate of allocations) {
     if (
       !isRecord(candidate)
       || typeof candidate.category !== "string"
-      || !Object.prototype.hasOwnProperty.call(CATEGORY_LABELS, candidate.category)
+      || !(BUDGET_CATEGORY_KEYS.includes(candidate.category) || candidate.category === "custom")
+      || Object.keys(candidate).some((key) => !["category", "budget", "label", "rationale"].includes(key))
+      || (candidate.category !== "custom" && candidate.label !== undefined)
       || !isValidWonAmount(candidate.budget)
       || (candidate.rationale !== undefined
         && (typeof candidate.rationale !== "string" || candidate.rationale.length > 500))
@@ -557,9 +561,29 @@ function buildBudgetPlanOperation(
         "총예산과 카테고리 배분을 다시 확인해 주세요.",
       );
     }
+    let category = candidate.category;
+    let label: string | undefined;
+    if (category === "custom") {
+      label = typeof candidate.label === "string" ? normalizeWhitespace(candidate.label) : "";
+      if (!label || label.length > 60 || /[\p{Cc}\p{Cf}]/u.test(label)) {
+        return noOpFailure("apply_budget_plan", toolInput, "invalid_category_label", "묶음 예산 항목의 이름을 1~60자로 확인해 주세요.");
+      }
+      const normalizedLabel = label.toLocaleLowerCase("ko-KR");
+      const matches = Object.entries(progress).filter(([key, value]) => key.startsWith("custom_")
+        && isRecord(value) && typeof value.label === "string"
+        && normalizeWhitespace(value.label).toLocaleLowerCase("ko-KR") === normalizedLabel);
+      category = matches[0]?.[0] ?? customCategoryKey(context.coupleId, normalizedLabel);
+      const existing = progress[category];
+      if (matches.length > 1 || !/^custom_[0-9A-Za-z_-]{1,48}$/.test(category)
+        || (existing !== undefined && (!isRecord(existing) || typeof existing.label !== "string"
+          || normalizeWhitespace(existing.label).toLocaleLowerCase("ko-KR") !== normalizedLabel))) {
+        return noOpFailure("apply_budget_plan", toolInput, "custom_category_collision", "같은 이름이나 키의 예산 항목이 겹쳐 적용하지 않았어요. 기존 항목을 먼저 확인해 주세요.");
+      }
+    }
     normalizedAllocations.push({
-      category: candidate.category,
+      category,
       budget: candidate.budget,
+      ...(label !== undefined ? { label } : {}),
     });
   }
   if (
@@ -573,7 +597,6 @@ function buildBudgetPlanOperation(
       "같은 예산 카테고리가 두 번 들어가 있어 적용하지 않았어요.",
     );
   }
-  const progress = context.weddingContext.progress as Record<string, unknown>;
   const hiddenKeys = new Set(
     Array.isArray(progress.__hidden)
       ? progress.__hidden.filter((key): key is string => typeof key === "string")
@@ -624,7 +647,7 @@ function buildBudgetPlanOperation(
   // 없어서 합계도 안 맞는다 — 사용자에게는 거짓말로 보인다.
   // 남는 돈이 자동으로 가는 예비비도 지워져 있을 수 있어 같이 본다.
   const hiddenTargets = finalAllocations
-    .filter((item) => hiddenKeys.has(item.category))
+    .filter((item) => Object.hasOwn(CATEGORY_LABELS, item.category) && hiddenKeys.has(item.category))
     .map((item) => CATEGORY_LABELS[item.category] ?? item.category);
   if (hiddenTargets.length > 0) {
     return noOpFailure(
@@ -663,6 +686,7 @@ function buildBudgetPlanOperation(
     const value = {
       ...(existing ?? {}),
       category: allocation.category,
+      ...(allocation.label !== undefined ? { label: allocation.label } : {}),
       status: isRecord(existing) && typeof existing.status === "string"
         ? existing.status
         : "not_started",
@@ -1749,6 +1773,7 @@ export function applyAmoraAtomicToolResultToContext(
           next[allocation.category] = {
             ...existing,
             category: allocation.category,
+            ...(typeof allocation.label === "string" ? { label: allocation.label } : {}),
             status: typeof existing.status === "string" ? existing.status : "not_started",
             budget: allocation.budget,
           };

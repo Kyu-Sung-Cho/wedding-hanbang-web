@@ -173,7 +173,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "apply_budget_plan",
     description:
-      "확인 카드로 사용자가 확정한 예산 배분을 한 번에 적용하고 총액도 갱신합니다. 미지정 기존 항목은 유지하며, 변경 후 전체 배정이 총액을 넘으면 거부합니다. 비예비비 배정을 뺀 잔액은 reserve가 됩니다.",
+      "확인 카드로 사용자가 확정한 예산 배분을 한 번에 적용하고 총액도 갱신합니다. 묶음 이름은 custom+label로 그대로 보존하며 임의로 금액을 나누지 않습니다. 미지정 기존 항목은 유지하고, 변경 후 전체 배정이 총액을 넘으면 거부합니다. 비예비비 배정을 뺀 잔액은 reserve가 됩니다.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -184,15 +184,23 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         allocations: {
           type: "array",
+          minItems: 1,
+          maxItems: 20,
           description:
-            "카테고리별 배분 리스트. 사용자가 직접 입력하거나 확인한 목표 금액·견적·상한만 사용하세요. 미지정 기존 배정은 유지됩니다. 잔액은 reserve(미정 금액)이며 명시한 reserve보다 작으면 거부합니다.",
+            "사용자가 확인한 항목별 금액 전체. 고정 분야에 정확히 대응하지 않는 묶음(예: 초대장·꽃·하객선물)은 category=custom, label=사용자의 이름으로 저장하며 나누거나 중복 배정하지 마세요. 같은 이름의 기존 custom은 재사용합니다. 미지정 기존 배정은 유지하고 잔액은 reserve가 됩니다.",
           items: {
             type: "object",
             properties: {
               category: {
                 type: "string",
-                enum: BUDGET_CATEGORY_KEYS,
-                description: "카테고리 키",
+                enum: [...BUDGET_CATEGORY_KEYS, "custom"],
+                description: "고정 분야 키 또는 이름을 보존하는 custom. 예비비는 reserve.",
+              },
+              label: {
+                type: "string",
+                minLength: 1,
+                maxLength: 60,
+                description: "category가 custom일 때만 필수. 사용자가 정한 묶음 이름을 그대로 쓰세요.",
               },
               budget: {
                 type: "number",
@@ -205,6 +213,12 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
               },
             },
             required: ["category", "budget"],
+            additionalProperties: false,
+            allOf: [{
+              if: { properties: { category: { const: "custom" } } },
+              then: { required: ["label"] },
+              else: { not: { required: ["label"] } },
+            }],
           },
         },
         intake_summary: {
@@ -1026,6 +1040,12 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
             + "'근처', '하기 좋은', '조용한', '양쪽 부모님 모임' 같은 말은 빼세요.",
           minLength: 2,
           maxLength: 40,
+        },
+        requestedCount: {
+          type: "integer",
+          minimum: 1,
+          maximum: 20,
+          description: "사용자가 명시적으로 요청한 장소 수만 넣으세요(예: 3곳이면 3). 인원 수와 혼동하지 마세요. 요청이 없으면 생략합니다. 카드는 한 번에 최대 5곳이며 부족한 경우 실제 표시 수와 미확인 수용 조건을 안내합니다.",
         },
       },
       required: ["query"],

@@ -451,6 +451,7 @@ export function syncToolResult(result: ToolExecutionResult) {
         : result.toolInput.allocations ?? []) as Array<{
         category: string;
         budget: number;
+        label?: string;
       }>;
       const remainder = (result.toolOutput.remainder_to_reserve as number | undefined) ?? 0;
       const curProgress = authStore.journey?.progress ?? {};
@@ -464,6 +465,8 @@ export function syncToolResult(result: ToolExecutionResult) {
           ...existing,
           category: alloc.category,
           budget: alloc.budget,
+          ...(typeof alloc.label === "string" && alloc.label.length > 0
+            ? { label: alloc.label } : {}),
         };
       }
       // 잔여분이 reserve 로 자동 추가됐다면 그것도 반영

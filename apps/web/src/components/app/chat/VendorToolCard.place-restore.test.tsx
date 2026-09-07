@@ -130,6 +130,20 @@ describe("장소 카드 — 신선한 결과와 다시 적재한 결과", () => 
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
+  it("restored requests retain only validated requested count and disclose the original calendar date and unknown capacity", async () => {
+    const [restored] = getPersistableToolResults([{
+      ...freshPlaceResult,
+      toolOutput: { ...freshPlaceResult.toolOutput, requestedCount: 3, orderBasis: "region_kind" },
+    }]);
+    await render(restored);
+    expect(container.textContent).toContain("2026.09.03 10:20");
+    expect(container.textContent).toContain("요청 3곳 중 2곳 표시");
+    expect(container.textContent).toContain("수용인원·예약 가능일·가격은 확인되지 않았어요");
+    expect(JSON.stringify(restored)).not.toContain("라마다");
+    expect(JSON.stringify(restored)).not.toContain("https:");
+    expect(getPersistableToolResults([restored])).toEqual([restored]);
+  });
+
   it("받침에 따라 조사가 갈린다 — '카페'로 / '식당 예식'으로", async () => {
     const [restored] = getPersistableToolResults([{
       ...freshPlaceResult,

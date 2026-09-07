@@ -41,6 +41,72 @@ function expectAtomicSuccess(operation: ReturnType<typeof buildAmoraAtomicToolOp
 }
 
 describe("Amora atomic mutation coverage", () => {
+  it("preserves all eight original grouped names and amounts in one budget operation", () => {
+    const ctx = context();
+    ctx.weddingContext.budget = 0;
+    ctx.weddingContext.progress = { venue: { category: "venue", status: "completed", budget: 0, spent: 250_000, payer: "bride", checklist: [{ id: "venue_01", done: true }] }, __events: [{ id: "kept" }] } as unknown as ToolExecutionContext["weddingContext"]["progress"];
+    const before = structuredClone(ctx.weddingContext.progress);
+    const named = [
+      ["결혼식장·식사", 9_000_000], ["사진", 5_000_000],
+      ["드레스·정장", 3_000_000], ["헤어·메이크업", 2_000_000],
+      ["반지·선물", 2_500_000], ["초대장·꽃·하객선물", 1_500_000],
+    ] as const;
+    const input = { total_budget: 35_000_000, allocations: [
+      ...named.map(([label, budget]) => ({ category: "custom", label, budget })),
+      { category: "honeymoon", budget: 10_000_000 }, { category: "reserve", budget: 2_000_000 },
+    ] };
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", input, ctx);
+    expectAtomicSuccess(operation);
+    expect(operation.result.toolOutput.applied_count).toBe(8);
+    expect(operation.result.toolOutput.remainder_to_reserve).toBe(0);
+    applyAmoraAtomicToolResultToContext(operation.result, ctx);
+    expect(ctx.weddingContext.budget).toBe(35_000_000);
+    expect(ctx.weddingContext.progress.venue).toEqual(before.venue);
+    expect(ctx.weddingContext.progress.__events).toEqual(before.__events);
+    const rows = Object.entries(ctx.weddingContext.progress as Record<string, Record<string, unknown>>).filter(([key]) => key.startsWith("custom_"));
+    expect(rows).toHaveLength(6);
+    for (const [label, budget] of named) {
+      expect(rows.filter(([, value]) => value.label === label).map(([, value]) => value.budget)).toEqual([budget]);
+    }
+    expect(buildAmoraAtomicToolOperation("apply_budget_plan", input, ctx).result.toolOutput.error).toBe("no_change");
+  });
+
+  it("reuses a same-label custom key and preserves its spend, payer, checklist, and omitted rows", () => {
+    const ctx = context();
+    const prior = { category: "custom_manual", label: "Wedding  Car", budget: 100_000, spent: 70_000, payer: "groom", status: "completed", checklist: [{ id: "car_1", done: true }], notes: "그대로" };
+    Object.assign(ctx.weddingContext.progress, { custom_manual: prior, custom_other: { category: "custom_other", label: "다른 항목", status: "not_started", budget: 2_000_000 } });
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { total_budget: 50_000_000, allocations: [{ category: "custom", label: " wedding car ", budget: 800_000 }] }, ctx);
+    expectAtomicSuccess(operation);
+    applyAmoraAtomicToolResultToContext(operation.result, ctx);
+    expect(ctx.weddingContext.progress.custom_manual).toEqual({ ...prior, label: "wedding car", budget: 800_000 });
+    const progress = ctx.weddingContext.progress as Record<string, Record<string, unknown>>;
+    expect(progress.custom_other.budget).toBe(2_000_000);
+    expect(progress.reserve.budget).toBe(37_200_000);
+    expect(Object.keys(ctx.weddingContext.progress).filter(key => key.startsWith("custom_"))).toHaveLength(2);
+  });
+
+  it.each([
+    [{ category: "custom", label: "사진", budget: 1 }, { category: "custom", label: " 사진 ", budget: 2 }],
+    [{ category: "custom", label: "", budget: 1 }],
+    [{ category: "custom", label: "😀".repeat(31), budget: 1 }],
+    [{ category: "custom", budget: 1 }],
+    [{ category: "venue", label: "식장과 사진", budget: 1 }],
+  ])("rejects ambiguous or malformed named allocations without changing any state (%j)", (...allocations) => {
+    const ctx = context();
+    const before = structuredClone(ctx.weddingContext);
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { total_budget: 50_000_000, allocations }, ctx);
+    expect(operation.result.success).toBe(false);
+    expect(operation.domainMutation).toEqual({ kind: "none" });
+    expect(ctx.weddingContext).toEqual(before);
+  });
+
+  it("rejects duplicate stored names rather than selecting an arbitrary custom budget", () => {
+    const ctx = context();
+    Object.assign(ctx.weddingContext.progress, { custom_a: { label: "사진", budget: 1 }, custom_b: { label: " 사진 ", budget: 2 } });
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { total_budget: 50_000_000, allocations: [{ category: "custom", label: "사진", budget: 3 }] }, ctx);
+    expect(operation.result).toMatchObject({ success: false, toolOutput: { error: "custom_category_collision" } });
+  });
+
   it("keeps every beta-exposed mutating tool inside the atomic dispatcher", () => {
     const exposedMutations = BETA_SAFE_TOOLS
       .map((tool) => tool.name)

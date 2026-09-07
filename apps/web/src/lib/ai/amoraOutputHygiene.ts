@@ -38,12 +38,8 @@
  * 안전 집합 밖이라는 것은 스팸이라는 뜻이 아니라 우리 안전 집합이 틀렸다는
  * 뜻일 가능성이 더 크다. 빈 답변은 사용자가 아무것도 못 받는 결과다.
  *
- * ## 라틴 조각은 지우지 않는다 — 세어만 둔다
- *
- * 감사 제안에는 `cvs` 같은 뜻 없는 영문 조각도 있었다. 지우지 않는다.
- * `cm`·`kg`·`vs`·영문 상호와 구별할 방법이 없기 때문이다(반증자 지적).
- * 그래서 3계층은 **탐지 개수만** 남기고 본문은 건드리지 않는다. 오늘 밤 팀이
- * 무엇이 얼마나 걸렸는지 뒤에서 셀 수 있게 하는 것이 목적이다.
+ * 라틴 단어는 일반적으로 보존한다. 다만 한국어 문장 종결 뒤 줄 끝에 붙은
+ * 원문 제보의 소문자 `cvs`만 걷는다. 사용자 입력·코드·상호와 단위는 보존한다.
  */
 
 import { scrubAmoraSpam } from "@/lib/ai/amoraSpamTail";
@@ -149,7 +145,8 @@ export type AmoraOutputHygieneAction =
       kind: "foreign_run_kept_empty_result";
       runs: number;
     }
-  | { kind: "latin_fragment_detected"; count: number };
+  | { kind: "latin_fragment_detected"; count: number }
+  | { kind: "known_stray_suffix_removed"; count: number };
 
 export type AmoraOutputHygieneResult = {
   text: string;
@@ -234,6 +231,26 @@ function countShortLatinFragments(text: string): number {
  * 호출 자리는 `api/chat/route.ts` 의 표식 제거 뒤, 예전 `stripAmoraSpamTail`
  * 자리 하나뿐이다.
  */
+function removeKnownStraySuffix(text: string, userText: string): { text: string; count: number } {
+  if (/\bcvs\b/iu.test(userText)) return { text, count: 0 };
+  let fence: string | null = null;
+  let count = 0;
+  const cleaned = text.split("\n").map((line) => {
+    const marker = line.trimStart().match(/^(`{3,}|~{3,})/u)?.[1];
+    if (marker) {
+      if (fence === null) fence = marker;
+      else if (marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      return line;
+    }
+    if (fence || line.includes("`")) return line;
+    return line.replace(/([가-힣][.!?])[ \t]+cvs[ \t]*$/u, (_match, ending: string) => {
+      count += 1;
+      return ending;
+    });
+  }).join("\n");
+  return { text: cleaned, count };
+}
+
 export function applyAmoraOutputHygiene(
   text: string,
   options: { userText?: string } = {},
@@ -275,6 +292,9 @@ export function applyAmoraOutputHygiene(
     }
   }
 
+  const suffix = removeKnownStraySuffix(finalText, options.userText ?? "");
+  finalText = suffix.text;
+  if (suffix.count > 0) actions.push({ kind: "known_stray_suffix_removed", count: suffix.count });
   const latinFragments = countShortLatinFragments(finalText);
   if (latinFragments > 0) {
     actions.push({ kind: "latin_fragment_detected", count: latinFragments });

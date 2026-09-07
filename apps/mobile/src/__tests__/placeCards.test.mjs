@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
+import * as presentation from "@hanbang/shared/place-search-presentation";
 
 const sourcePath = fileURLToPath(
   new URL("../components/chat/placeCardsModel.ts", import.meta.url),
@@ -15,8 +16,30 @@ const compiled = ts.transpileModule(sourceText, {
   },
 });
 const module = { exports: {} };
-new Function("module", "exports", compiled.outputText)(module, module.exports);
+new Function("module", "exports", "require", compiled.outputText)(module, module.exports, (name) => {
+  assert.equal(name, "@hanbang/shared/place-search-presentation");
+  return presentation;
+});
 const { getPlaceCardsModel, withRoParticle } = module.exports;
+
+test("search presentation counts rendered candidates, rejects malformed facts and keeps calendar dates across restore", () => {
+  const summary = presentation.getPlaceSearchPresentation({ requestedCount: 3, resultCount: 99, orderBasis: "kind_distance" }, 2);
+  assert.equal(summary.countLabel, "요청 3곳 중 2곳 표시");
+  assert.ok(summary.shortageLabel.includes("요청보다 적어요"));
+  assert.ok(summary.orderLabel.includes("직선거리"));
+  assert.ok(summary.verificationLabel.includes("수용인원·예약 가능일·가격은 확인되지 않았어요"));
+  const empty = presentation.getPlaceSearchPresentation({ requestedCount: 10 }, 0);
+  assert.ok(empty.shortageLabel.includes("최대 5곳"));
+  for (const requestedCount of [null, "3", 0, -1, 1.5, 21, Infinity]) {
+    const safe = presentation.getPlaceSearchPresentation({ requestedCount, orderBasis: "광고 순" }, 2);
+    assert.equal(safe.countLabel, "검색 결과 2곳");
+    assert.equal(safe.shortageLabel, null);
+    assert.ok(!safe.orderLabel.includes("광고 순"));
+  }
+  assert.equal(presentation.formatPlaceSearchDate("2026-09-03T15:00:00Z"), "2026.09.04 00:00");
+  assert.equal(presentation.formatPlaceSearchDate("invalid"), null);
+  assert.equal(presentation.formatPlaceSearchDate(null), null);
+});
 
 test("place search result keeps the fields and Naver destinations used by mobile cards", () => {
   const model = getPlaceCardsModel({
@@ -84,7 +107,7 @@ test("place cards carry the KST search time and the region label the server atta
   });
 
   assert.equal(model.state, "places");
-  assert.equal(model.searchedAtLabel, "20:20");
+  assert.equal(model.searchedAtLabel, "2026.09.03 20:20");
   assert.deepEqual(model.places.map((place) => place.regionLabel), ["대전", "청주"]);
 
   const withoutTime = getPlaceCardsModel({
@@ -222,7 +245,7 @@ test("mobile place cards expose accessible Naver links and a broken-image fallba
   // 광고·제휴가 아니라는 사실과 조회 시각은 웹 카드와 같은 문장으로 나간다 —
   // 한쪽만 고치면 표면이 갈린다(2026-09-03).
   assert.ok(component.includes("네이버 지역검색 일반 결과예요(광고·제휴 아님)"));
-  assert.ok(component.includes("조회 시각은 ${model.searchedAtLabel} 입니다"));
+  assert.ok(component.includes("조회 시각은 ${model.searchedAtLabel} (한국 시간)입니다"));
   for (const dead of ["블로그 검색 {", "블로그 언급", "룸 언급 있음", "blogSnippet", "priceRange"]) {
     assert.ok(!component.includes(dead), `카드에 남아 있으면 안 되는 표시: ${dead}`);
   }
@@ -250,7 +273,7 @@ test("saved place search results become a placeholder card, not an empty search"
     state: "placeholder",
     query: "대전 식당 예식",
     resultCount: 4,
-    searchedAtLabel: "10:20",
+    searchedAtLabel: "2026.09.03 10:20",
   });
 });
 

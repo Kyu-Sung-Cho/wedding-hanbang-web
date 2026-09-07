@@ -51,6 +51,24 @@ describe("VendorToolCard place search results", () => {
     expect(container.textContent).not.toContain("근처 장소 검색 결과가 없어요");
   });
 
+  it("shows requested/visible counts and unverified suitability without inventing missing venues", async () => {
+    await act(async () => root.render(<VendorToolCard result={placeResult({
+      toolOutput: {
+        query: "대전이나 청주 한정식", requestedCount: 3, resultCount: 99,
+        orderBasis: "region_kind", searchedAt: "2026-09-03T11:20:00Z",
+        places: [{ id: "one", name: "대전 한상", address: "대전", category: "한정식" },
+          { id: "two", name: "청주 한상", address: "청주", category: "한정식" }],
+      },
+    })} />));
+    expect(container.textContent).toContain("요청 3곳 중 2곳 표시");
+    expect(container.textContent).toContain("이번 검색에서 표시할 수 있는 결과가 요청보다 적어요");
+    expect(container.textContent).toContain("수용인원·예약 가능일·가격은 확인되지 않았어요");
+    expect(container.textContent).toContain("2026.09.03 20:20");
+    expect(container.textContent).toContain("지역별 결과를 번갈아 배치");
+    expect(container.textContent).not.toContain("정렬은 네이버 기준");
+    expect(container.textContent).not.toContain("99곳");
+  });
+
   it("offers a safe Naver handoff when API HUB is temporarily unavailable", async () => {
     const searchUrl = "https://search.naver.com/search.naver?query=%EA%B0%95%EB%82%A8";
     const mapsUrl = "https://map.naver.com/p/search/%EA%B0%95%EB%82%A8";
@@ -240,7 +258,7 @@ describe("VendorToolCard place search results", () => {
     });
 
     expect(container.textContent).toContain(
-      "네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이고, 조회 시각은 20:20 입니다.",
+      "조회 시각은 2026.09.03 20:20 (한국 시간)입니다.",
     );
   });
 
@@ -256,7 +274,7 @@ describe("VendorToolCard place search results", () => {
     });
 
     expect(container.textContent).toContain(
-      "네이버 지역검색 일반 결과예요(광고·제휴 아님). 정렬은 네이버 기준이에요.",
+      "네이버 지역검색 일반 결과예요(광고·제휴 아님).",
     );
     expect(container.textContent).not.toContain("조회 시각은");
   });

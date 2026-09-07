@@ -1,4 +1,5 @@
 import { PRICE_REGION_OPTIONS } from "@/lib/price/labels";
+import { readPlaceSearchFacts } from "@hanbang/shared/place-search-presentation";
 import { AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS, type AmoraBoundedContinuityResult } from "@/lib/ai/amoraBoundedContinuity";
 
 type Data = Record<string, unknown>;
@@ -38,6 +39,7 @@ function searchData(output: Data): Data | null {
     || (output.provider !== undefined && output.provider !== "api_hub")) return null;
   const data: Data = {
     tool: "search_nearby_places", query, resultCount: output.resultCount,
+    ...readPlaceSearchFacts(output),
     source: "네이버 지역검색", advertising: "일반 검색 결과, 광고·제휴 아님",
     limits: "업체 이름·원문은 이력에 없음. 수용 인원·가격·예약 가능 여부는 확인되지 않음.",
   };

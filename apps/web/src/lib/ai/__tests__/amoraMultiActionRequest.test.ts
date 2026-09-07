@@ -115,7 +115,7 @@ describe("여러 건 요청 계약이 합성된 프롬프트에 있다", () => {
     // (스테이징 일괄 등록 카드 0건). 순서 규칙은 그대로고, 첫 건을 **이번
     // 답변에** 내라는 것이 명시됐다.
     expect(prompt).toContain("첫 번째 건의 표식은 이번 답변에 반드시 내고");
-    expect(prompt).toContain("이어서 제안하겠다고 말하세요");
+    expect(prompt).toContain("나머지도 이번 답변에 각각 표식으로 내세요");
   });
 
   it("계약문이 실리는 턴이면 길이 상한 안에서 함께 실린다", () => {
@@ -137,7 +137,8 @@ describe("표식이 둘 이상이면 서버가 남기는 말", () => {
     expect(result.hadPendingActionTag).toBe(true);
     expect(result.cleanText).toContain("총 예산: 6,000만 원");
     // 나머지가 조용히 사라지면 사용자는 둘 다 된 줄 안다. 서버가 직접 말한다.
-    expect(result.cleanText).toContain("나머지 1건은 이 확인이 끝나면 이어서 제안할게요.");
+    expect(result.remainingActions).toBeUndefined();
+    expect(result.cleanText).not.toContain("이 확인이 끝나면 이어서 제안할게요");
     // 카드가 나간 턴은 실패 안내가 아니다 — 이력에서 빼면 안 된다.
     expect(isAmoraFailedProposalNotice(result.cleanText)).toBe(false);
   });
