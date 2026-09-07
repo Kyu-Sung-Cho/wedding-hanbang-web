@@ -213,6 +213,9 @@ export interface ChatMessageMetadata {
   partner_recipient_id?: string;
   suggestions?: string[];
   toolResults?: ToolExecutionResult[];
+  /** 개인 답변의 확인용 초안. 저장 성공 영수증이 아니다. */
+  personal_action_draft?: { title: string; description: string | null; dueDate: string | null };
+  personal_actions_view?: { status: "all" | "open" | "done" };
   imageUrls?: string[];
   imagePaths?: string[];
   target?: ChatMessageTarget; // "ai" = 아모라에게, "partner" = 상대방에게

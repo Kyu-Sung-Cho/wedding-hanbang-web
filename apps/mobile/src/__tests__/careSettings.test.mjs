@@ -66,7 +66,7 @@ test("a paused outbound channel blocks opt-in while preserving opt-out", () => {
 });
 
 test("mobile settings reads its private profile through the authenticated server contract", () => {
-  assert.match(settingsSource, /apiFetch\("\/api\/settings\/wedding-profile"\)/);
+  assert.match(settingsSource, /apiFetchForExpectedUser\(user\.id, "\/api\/settings\/wedding-profile"\)/);
   assert.doesNotMatch(settingsSource, /\.from\("profiles"\)/);
   assert.match(settingsSource, /profile\.id !== user\.id/);
 });

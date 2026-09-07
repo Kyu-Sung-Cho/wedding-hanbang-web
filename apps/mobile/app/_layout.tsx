@@ -143,6 +143,7 @@ function RootLayout() {
             <Stack.Screen name="schedule" options={{ headerShown: false }} />
             <Stack.Screen name="checklist" options={{ headerShown: false }} />
             <Stack.Screen name="budget" options={{ headerShown: false }} />
+            <Stack.Screen name="amora-preparation" options={{ headerShown: false }} />
             <Stack.Screen name="vendors" options={{ headerShown: false }} />
             <Stack.Screen name="settings" options={{ headerShown: false }} />
             <Stack.Screen name="market-prices" options={{ headerShown: false }} />

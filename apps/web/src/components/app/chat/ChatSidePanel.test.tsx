@@ -874,6 +874,27 @@ describe("ChatSidePanel attachment sending", () => {
     expect(document.activeElement).toBe(openingControl);
   });
 
+  it("yields keyboard handling to a checklist sheet and resumes after that sheet closes", async () => {
+    const onClose = vi.fn();
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={onClose} />));
+    const sheet = document.createElement("section");
+    sheet.setAttribute("role", "dialog");
+    sheet.setAttribute("aria-modal", "true");
+    sheet.setAttribute("data-planning-sheet", "");
+    const control = document.createElement("button");
+    control.textContent = "항목 완료";
+    sheet.appendChild(control);
+    document.body.appendChild(sheet);
+    control.focus();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+    expect(document.activeElement).toBe(control);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onClose).not.toHaveBeenCalled();
+    sheet.remove();
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps shared and private conversations visually separated and sends the selected private scope", async () => {
     mocks.messages = [
       {
@@ -1910,7 +1931,7 @@ describe("ChatSidePanel attachment sending", () => {
 
     expect(container.textContent).toContain("예식장 예산에 300만 원을 추가할까요?");
     const applyButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="확인한 내용을 이대로 적용"]',
+      'button[aria-label="변경 내용 확인하기"]',
     );
     expect(applyButton?.disabled).toBe(false);
 
@@ -1919,6 +1940,8 @@ describe("ChatSidePanel attachment sending", () => {
       await Promise.resolve();
     });
 
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="dialog"] button[data-amora-confirm]')?.click());
     await vi.waitFor(() => {
       expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
         content: "좋아요. 제안한 변경을 적용해 주세요.",
@@ -1927,6 +1950,68 @@ describe("ChatSidePanel attachment sending", () => {
         confirmedActionId: actionId,
       }));
     });
+  });
+
+  it("gives a portal review sheet keyboard control while preserving the parent panel", async () => {
+    const issuedAt = Date.now() - 1_000;
+    mocks.messages = [{
+      id: "proposal-keyboard",
+      sender_id: null,
+      sender_role: "ai",
+      content: "예산을 확인해 주세요.",
+      visibility: "shared",
+      metadata: {
+        target: "ai",
+        pending_amora_action: {
+          version: 2,
+          actionId: "123e4567-e89b-42d3-a456-426614174010",
+          tool: "update_budget",
+          input: { totalBudget: 30_000_000 },
+          ...pendingIdentity("update_budget", { totalBudget: 30_000_000 }),
+          confirmation: "총예산을 3,000만 원으로 변경할까요?",
+          issuedAt,
+          expiresAt: issuedAt + 24 * 60 * 60 * 1_000,
+        },
+      },
+      created_at: new Date(issuedAt).toISOString(),
+    }];
+    const onClose = vi.fn();
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={onClose} />));
+    const trigger = container.querySelector<HTMLButtonElement>('button[aria-haspopup="dialog"]')!;
+    trigger.focus();
+    await act(async () => trigger.click());
+    const sheet = document.querySelector<HTMLElement>('[role="dialog"] button[data-amora-confirm]')!.closest('[role="dialog"]')!;
+    const confirm = sheet.querySelector<HTMLButtonElement>('button[data-amora-confirm]')!;
+    confirm.focus();
+    const forward = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    await act(async () => document.dispatchEvent(forward));
+    // JSDOM은 기본 Tab 이동을 실행하지 않는다. 부모가 가로채지 않아야 브라우저가 다음 버튼으로 이동한다.
+    expect(forward.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(confirm);
+    const backwards = new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true });
+    await act(async () => document.dispatchEvent(backwards));
+    expect(backwards.defaultPrevented).toBe(false);
+    expect(document.activeElement).toBe(confirm);
+
+    let resolveClaim!: (response: Response) => void;
+    mocks.applicationFetch.mockReturnValueOnce(new Promise((resolve) => { resolveClaim = resolve; }));
+    await act(async () => confirm.click());
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(onClose).not.toHaveBeenCalled();
+    expect(sheet.isConnected).toBe(true);
+    await act(async () => resolveClaim(new Response(JSON.stringify({ error: "다시 확인해 주세요." }), { status: 409 })));
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(sheet.isConnected).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+    expect(document.body.style.overflow).toBe("hidden");
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(onClose).toHaveBeenCalledOnce();
+    await act(async () => trigger.click());
+    await act(async () => root.unmount());
+    // 경로 이동처럼 부모와 시트를 함께 없애도 스크롤 잠금이 남지 않는다.
+    expect(document.body.style.overflow).not.toBe("hidden");
+    root = createRoot(container);
   });
 
   it("fails closed when a newer shared Amora-context message follows the proposal", async () => {
@@ -1979,7 +2064,7 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     const applyButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="확인한 내용을 이대로 적용"]',
+      'button[aria-label="변경 내용 확인하기"]',
     );
     expect(applyButton?.disabled).toBe(true);
     expect(container.textContent).toContain("새 대화가 이어져 이 제안은 적용할 수 없어요.");
@@ -2041,13 +2126,15 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     const applyButton = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="확인한 내용을 이대로 적용"]',
+      'button[aria-label="변경 내용 확인하기"]',
     );
     expect(applyButton?.disabled).toBe(false);
     await act(async () => {
       applyButton?.click();
       await Promise.resolve();
     });
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="dialog"] button[data-amora-confirm]')?.click());
     await vi.waitFor(() => {
       expect(mocks.sendMessage).toHaveBeenCalledWith(expect.objectContaining({
         confirmedActionId: actionId,
@@ -2091,7 +2178,7 @@ describe("ChatSidePanel attachment sending", () => {
     });
 
     expect(container.textContent).toContain("개인 상담 제안");
-    expect(container.querySelector('button[aria-label="확인한 내용을 이대로 적용"]')).toBeNull();
+    expect(container.querySelector('button[aria-label="변경 내용 확인하기"]')).toBeNull();
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 });

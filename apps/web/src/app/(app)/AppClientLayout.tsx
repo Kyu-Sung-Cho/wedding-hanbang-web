@@ -20,6 +20,7 @@ import {
 import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
+import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
@@ -44,11 +45,19 @@ import { useAuthStore } from "@/stores/authStore";
  * **영영** 못 만난다. 그래서 만든 즉시 짧은 보관(`lib/amora/pendingFirstHello`)에 넣고,
  * 대화 화면이 가져가면 지운다. 앱도 같은 이유로 같은 모양의 보관을 쓴다.
  */
-function GlobalChatAssistant() {
+function GlobalChatAssistant({ aboveBottomNav = false }: { aboveBottomNav?: boolean }) {
   const [chatPanelOpen, setChatPanelOpen] = useState(false);
   const [firstHello, setFirstHello] = useState<AmoraFirstHello | null>(null);
   const [bubbleVisible, setBubbleVisible] = useState(false);
   const { profile, journey, partner } = useAuthStore();
+  const launcherRef = useRef<HTMLButtonElement>(null);
+  const panelWasOpen = useRef(false);
+
+  useEffect(() => {
+    // 패널을 여는 동안 사라졌던 버튼은 닫을 때 새로 생기므로 새 요소에 초점을 돌린다.
+    if (panelWasOpen.current && !chatPanelOpen) launcherRef.current?.focus();
+    panelWasOpen.current = chatPanelOpen;
+  }, [chatPanelOpen]);
 
   // 이벤트 핸들러는 한 번만 등록하고 값은 여기서 최신으로 읽는다. 온보딩 값이
   // 늦게 도착해도 첫마디가 옛 값으로 굳지 않게 하려고.
@@ -143,7 +152,7 @@ function GlobalChatAssistant() {
           {showBubble && (
             <div
               data-testid="amora-first-hello-bubble"
-              className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-3 shadow-[var(--shadow-raised)] md:bottom-[6.5rem] md:right-6"
+              className={`fixed ${aboveBottomNav ? "bottom-[calc(146px+env(safe-area-inset-bottom))]" : "bottom-[calc(4.5rem+env(safe-area-inset-bottom))]"} right-[calc(1rem+env(safe-area-inset-right))] z-30 flex max-w-[17rem] items-start gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-3 shadow-[var(--shadow-raised)] md:bottom-[6.5rem] md:right-6`}
             >
               <button
                 type="button"
@@ -170,9 +179,10 @@ function GlobalChatAssistant() {
 
           <button
             type="button"
+            ref={launcherRef}
             onClick={openPanel}
             data-tutorial-target="amora-fab"
-            className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14"
+            className={`fixed ${aboveBottomNav ? "bottom-[calc(90px+env(safe-area-inset-bottom))]" : "bottom-[calc(1rem+env(safe-area-inset-bottom))]"} right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14`}
             title="아모라 AI 상담"
             aria-label="아모라 AI 상담"
           >
@@ -210,6 +220,9 @@ export default function AppClientLayout({
   const searchParams = useSearchParams();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
+  const isAmoraPage = isChatPage || appPathname.startsWith("/chat/");
+  const isPlanningPage = appPathname === "/checklist";
+  const hasHtmlDesign = isAmoraPage || isPlanningPage;
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
@@ -239,19 +252,24 @@ export default function AppClientLayout({
 
   return (
     <div
-      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${
+      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage ? "amora-workspace " : isPlanningPage ? "planning-workspace " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh
           ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[var(--hb-surface-page)]"
           : "hanbang-service-theme min-h-screen bg-[var(--hb-surface-page)]"
       }`}
     >
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[16rem]" : "md:ml-[16rem]"}>
-        <TopNav onMenuToggle={() => setSidebarOpen(true)} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} />
+      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : "md:ml-[16rem]"}>
+        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} />
         {banner}
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
+        ) : hasHtmlDesign ? (
+          <>
+            <main>{children}</main>
+            {isPlanningPage && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
+          </>
         ) : (
           <>
             <main className="p-6 max-md:p-4">
@@ -266,8 +284,11 @@ export default function AppClientLayout({
         )}
       </div>
 
-      {!isChatPage && !vendorAdminPreview && (
-        <GlobalChatAssistant />
+      {isAmoraPage && !isChatPage && <AmoraBottomNav />}
+      {isPlanningPage && <AmoraBottomNav active="checklist" />}
+
+      {!isAmoraPage && !vendorAdminPreview && (
+        <GlobalChatAssistant aboveBottomNav={isPlanningPage} />
       )}
     </div>
   );

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { splitAmoraClaimSegments } from "../amoraClaimSegments";
 
 import {
   composeAmoraPersistenceTerminal,
@@ -6,6 +7,29 @@ import {
 } from "../amoraPersistenceClaims";
 
 describe("composeAmoraPersistenceTerminal", () => {
+  it("preserves the existing claim screening boundaries across punctuation and layout structures", () => {
+    const phrases = ["예산을 저장했어요.", "아직 저장하지 않았어요.", "Saved!", "not saved?", "31.4%", "3.5만원", "https://example.com/p?a=1", "**강조**", "| 항목 | 금액 |", "- 다음 할 일", "등록됐어요。", "미확인！？", "🧡", ""];
+    for (const first of phrases) for (const second of phrases) for (const separator of ["", " ", "\n", "\n\n", "\r\n", "\t"]) {
+      const source = `${first}${separator}${second}`;
+      const segments = splitAmoraClaimSegments(source);
+      expect(segments.map(segment => segment.claim).filter(Boolean)).toEqual(source.split(/(?<=[.!?。！？])\s*|\n+/u).map(segment => segment.trim()).filter(Boolean));
+      expect(segments.map(segment => segment.source).join("")).toBe(source);
+    }
+  });
+
+  it("removes an unverified write without changing the budget table, decimal amounts, or source URL", () => {
+    const table = "| 항목 | 제안 금액 | 비율 |\n|---|---|---|\n| 결혼식장·식사 | 1,100만원 | 31.4% |\n| 신혼여행 | 800만원 | 22.9% |";
+    const details = "금액은 3.5만원 단위예요.\n출처: https://example.com/prices?region=seoul&year=2026";
+    const result = composeAmoraPersistenceTerminal({
+      text: `예산을 저장했어요.\n\n${table}\n\n${details}`,
+      hasPendingAction: false, persistenceMode: "durable", toolResults: [],
+    });
+    expect(result.text).not.toContain("예산을 저장했어요.");
+    expect(result.text).toContain(table);
+    expect(result.text).toContain(details);
+    expect(result.removedClaimCount).toBe(1);
+  });
+
   it("uses only ordered server display messages when mutating receipts exist", () => {
     const result = composeAmoraPersistenceTerminal({
       text: "예산과 일정 모두 저장해뒀어요.",

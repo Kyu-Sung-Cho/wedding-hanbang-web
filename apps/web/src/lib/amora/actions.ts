@@ -67,7 +67,7 @@ export function mergeAmoraActions(
   for (const action of [...fallback, ...primary]) {
     byId.set(action.id, normalizeAmoraAction(action));
   }
-  return sortAmoraActions([...byId.values()]).slice(0, MAX_ACTIONS);
+  return sortAmoraActions([...byId.values()]);
 }
 
 export function createAmoraActionId() {

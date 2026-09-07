@@ -1,0 +1,111 @@
+{
+  "version": 1,
+  "kind": "amora-public-runtime-eight-sql-hotfix",
+  "release": "amora-public-runtime-20260907",
+  "status": "requires-scoped-runtime-evidence",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "requiredRemoteHead": "20260902120000",
+  "requiredLedgerCount": 206,
+  "migrations": [
+    {
+      "file": "20260905153207_community_hot_rank_before_pagination.sql",
+      "sha256": "893651a7da04038b9807004518960b248e1f5b5a27886bbd091700dea5b53cde"
+    },
+    {
+      "file": "20260905223222_amora_atomic_chat_view_reset.sql",
+      "sha256": "8c29609fd1fac0cad71d9eaaab41a254be2ad00f718b0221d2703b6799130bed"
+    },
+    {
+      "file": "20260906074227_amora_manual_actions_actor_boundary.sql",
+      "sha256": "57da05968e382fd5116f2e7ae53df05503ad49bf836112a975bfbca331154865"
+    },
+    {
+      "file": "20260906090807_amora_saved_notes_canonical_source_boundary.sql",
+      "sha256": "c8de2b0882796194287d0dc66ac2852bab5193c85da466eb1138bc5ad7a948d9"
+    },
+    {
+      "file": "20260906130734_amora_budget_plan_preserves_existing_allocations.sql",
+      "sha256": "13f5cdb4c5b5cc30d69cb3b0d55c9f4adb387c61f17cff7e95cdd502b6661d3c"
+    },
+    {
+      "file": "20260906145336_amora_saved_notes_owner_delete.sql",
+      "sha256": "e1ae769d3752616f0018a57b3d853e95a53a63ea6199b73d60f73dba51816914"
+    },
+    {
+      "file": "20260906151956_amora_personal_actions_owner_boundary.sql",
+      "sha256": "e75ff09a75760b52cce4b673af01e67a4b74eb47128c853449c934a95d6791b5"
+    },
+    {
+      "file": "20260906223557_amora_mediation_response_choices.sql",
+      "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a"
+    }
+  ],
+  "excludedHistoricalFiles": [
+    "20260806090000_amora_preparation_status.sql",
+    "20260807090000_amora_mediation_send_gate.sql",
+    "20260821120000_events_append_only_allows_fk_detach.sql",
+    "20260823120000_couple_approval_becomes_notification.sql",
+    "20260824120000_amora_schedule_cancel_can_actually_apply.sql",
+    "20260824130000_mediation_tells_the_partner.sql",
+    "20260824140000_amora_can_change_custom_budget_categories.sql",
+    "20260824150000_amora_custom_category_label_match.sql",
+    "20260824160000_first_budget_entry_is_not_a_mixed_change.sql",
+    "20260826000000_harden_cohort_timeline_and_contract_writes.sql",
+    "20260826120000_anon_sees_only_public_authors.sql",
+    "20260827090000_move_card_can_name_what_it_moves.sql"
+  ],
+  "scope": {
+    "database": "public-schema-and-existing-public-rows",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "fullDatabaseRestoreVerified": false,
+    "storageObjectsRestored": false,
+    "authDataRestored": false
+  },
+  "requiredEvidence": [
+    "backup",
+    "rollback",
+    "hosted",
+    "concurrency",
+    "fence",
+    "dryRun"
+  ],
+  "operatingBaseline": {
+    "file": "supabase/release-contracts/amora-hotfix-production-baseline-20260907.json",
+    "sha256": "5d122015d2b85679f82e3fc747dce9ef7ab5219298224bb6ae4f7d643c550595"
+  },
+  "baselineDelta": {
+    "objects": [
+      {
+        "identity": "publication:supabase_realtime_messages_publication",
+        "beforeSha256": "94c677abc7ae0e39dfc315894dd83574cee5a9e09277414f25102bba87fe80a1",
+        "afterSha256": "c97fa050c625553a7f10641e06dad5af473f7b2fc5db5b8da7041c21d32e4f2b"
+      },
+      {
+        "identity": "relation:realtime.messages_2026_09_03",
+        "beforeSha256": "c5607a61fc0ef9b0e4248e95efe38fab273e484c2ab855e58897e777fe055fb6",
+        "afterSha256": null
+      },
+      {
+        "identity": "relation:realtime.messages_2026_09_10",
+        "beforeSha256": null,
+        "afterSha256": "885d42a852d8d62c3c517d7a040ace904c09da4b19c727f4de8473a88e816ebe"
+      }
+    ],
+    "relationsAdded": [
+      {
+        "kind": "r",
+        "name": "messages_2026_09_10",
+        "schema": "realtime"
+      }
+    ],
+    "relationsRemoved": [
+      {
+        "schema": "realtime",
+        "name": "messages_2026_09_03",
+        "kind": "r"
+      }
+    ]
+  }
+}

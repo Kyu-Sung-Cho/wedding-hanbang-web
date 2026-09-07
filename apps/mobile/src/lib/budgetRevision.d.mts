@@ -51,6 +51,7 @@ export function parseBudgetJourney(
 ): BudgetJourneySnapshot;
 
 export function parseManwonInput(value: string): number;
+export function parseBudgetEditorManwonInput(value: string): number;
 
 export function buildTotalBudgetMutation(
   snapshot: BudgetJourneySnapshot,

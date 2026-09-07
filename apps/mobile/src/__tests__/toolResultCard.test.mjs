@@ -18,7 +18,7 @@ const compiled = ts.transpileModule(readFileSync(sourcePath, "utf8"), {
 });
 const module = { exports: {} };
 new Function("module", "exports", compiled.outputText)(module, module.exports);
-const { getToolResultCardModel, dedupeToolResultCards, TOOL_RESULT_CARD_TOOLS } = module.exports;
+const { getToolResultCardModel, dedupeToolResultCards, TOOL_RESULT_CARD_TOOLS, getToolResultDestination } = module.exports;
 
 const chatSource = readFileSync(
   fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url)),
@@ -98,6 +98,43 @@ test("같은 실패의 반복은 한 장으로 접힌다", () => {
     toolName: "toggle_checklist_item", toolInput: {}, toolOutput: {}, success: false, displayMessage: "",
   });
   assert.equal(dedupeToolResultCards([one, { ...one }, { ...one }]).length, 1);
+});
+
+test("confirmed results lead to an existing native planning destination instead of a dead end", () => {
+  for (const [toolName, pathname] of [["update_budget", "/budget"], ["apply_budget_plan", "/budget"], ["add_schedule_event", "/schedule"], ["toggle_checklist_item", "/checklist"], ["add_amora_action", "/amora-preparation"]]) {
+    assert.equal(getToolResultDestination(toolName).pathname, pathname);
+  }
+  assert.equal(getToolResultDestination("https://malicious.test"), null);
+  assert.equal(getToolResultDestination("search_nearby_places"), null);
+});
+
+test("actual native result buttons open only the app-owned destination and never auto-submit", () => {
+  const source = readFileSync(new URL("../components/chat/ToolResultCard.tsx", import.meta.url), "utf8");
+  const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX } }).outputText;
+  const navigation = [];
+  const jsx = (type, props) => ({ type, props });
+  const dependencies = {
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", StyleSheet: { create: value => value } },
+    "expo-router": { router: { push: pathname => navigation.push(pathname) } },
+    "lucide-react-native": { CheckCircle2: "CheckCircle2", XCircle: "XCircle" },
+    "@hanbang/design-tokens": { colors: { noir: { 800: "black", soft: "gray" }, rose: { 600: "rose" } } },
+    "./toolResultCardModel": module.exports,
+  };
+  const cardModule = { exports: {} };
+  new Function("exports", "module", "require", code)(cardModule.exports, cardModule, key => {
+    assert.ok(dependencies[key], `unmocked dependency ${key}`); return dependencies[key];
+  });
+  const nodes = value => !value ? [] : Array.isArray(value) ? value.flatMap(nodes) : typeof value === "object" ? [value, ...nodes(value.props?.children)] : [];
+  for (const [toolName, pathname] of [["update_budget", "/budget"], ["add_schedule_event", "/schedule"], ["toggle_checklist_item", "/checklist"], ["add_amora_action", "/amora-preparation"]]) {
+    const model = getToolResultCardModel({ toolName, success: true, displayMessage: "https://untrusted.example/path" });
+    const tree = cardModule.exports.ToolResultCard({ model });
+    const buttons = nodes(tree).filter(node => node.type === "Pressable");
+    assert.equal(buttons.length, 1);
+    assert.equal(buttons[0].props.accessibilityRole, "button");
+    buttons[0].props.onPress(); assert.equal(navigation.at(-1), pathname);
+  }
+  assert.equal(navigation.length, 4);
 });
 
 test("화면이 카드를 그리고 서버에 그릴 수 있는 도구를 알린다", () => {

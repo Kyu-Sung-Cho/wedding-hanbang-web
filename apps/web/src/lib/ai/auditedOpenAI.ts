@@ -207,7 +207,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
   let requestId: string | null | undefined;
   let inputCountRequestId: string | null | undefined;
   // 사전 토큰 계산이 불가능했던 이유 — 원장에 남겨 장애를 눈에 보이게 한다.
-  let inputCountUnavailableReason: string | null = null;
+  const inputCountUnavailableReason: string | null = null;
   let response: OpenAIResponse | undefined;
   let providerAttempted = false;
   let providerEgressGateFailed = false;
@@ -314,19 +314,10 @@ async function createOpenAIResponseWithAuditInternal<T>(
         model: modelConfig.model,
         requestId: inputCountRequestId,
       });
-      // 측정에 성공했고 그 값이 한도를 넘은 경우는 그대로 막는다.
-      if (error instanceof OpenAIInputTokenLimitError) throw normalized;
-      // 측정 자체가 실패한 것은 사전 점검의 실패지 대화의 실패가 아니다.
-      // 여기서 던지면 선택적 가드레일 하나가 서비스 전체를 멈춘다 —
-      // 2026-07-25 운영에서 실제로 inputTokens.count가 계속 실패하며 모든 턴이
-      // AMORA_INPUT_COUNT_UNAVAILABLE로 죽었다("안녕" 한 마디까지).
-      // 과대 입력은 제공자가 스스로 거부하고 그 경로(input_token_limit)는 이미
-      // 처리돼 있으므로, 측정 불가일 때는 본 호출로 진행한다.
-      inputCountUnavailableReason =
-        normalized.providerCode ?? normalized.category ?? "unknown";
-      console.warn(
-        `[amora] input token pre-count unavailable (${inputCountUnavailableReason}) — proceeding without it`,
-      );
+      // 비용 예약은 앱의 입력 상한을 전제로 한다. 제공자의 더 큰 context
+      // 한도는 이 상한을 보장하지 않으므로, 측정 장애에도 생성 전에 종료한다.
+      // 재시도 가능한 input_count 오류로 전달하고 유료 예약/생성은 하지 않는다.
+      throw normalized;
     }
 
     options.signal?.throwIfAborted();

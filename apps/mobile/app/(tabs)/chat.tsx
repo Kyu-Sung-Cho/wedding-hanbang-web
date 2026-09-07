@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import {
   View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking } from "react-native";
+  KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,8 +27,13 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
-import { useLocalSearchParams } from "expo-router";
+import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { supabase } from "@/lib/supabase";
+import {
+  buildAmoraActionConfirmationOutcomes,
+  getAmoraPendingActionApplicationState,
+  buildAmoraConversationRecap,
+} from "@hanbang/shared";
 import {
   assertAmoraRequestActor,
   assertSharedActionActor,
@@ -65,13 +70,22 @@ import {
 } from "@/lib/pendingAmoraAction";
 import {
   chatVisibilityForScope,
+  readChatViewCursors,
+  hasChatViewCursorAdvanced,
+  isMessageAfterChatViewCursor,
+  buildChatViewCursorFilter,
+  withChatViewCursor,
   isMessageInAiContext,
   isMessageInChatScope,
   selectChatScope,
   type ChatScope,
+  type ChatViewCursors,
 } from "@/lib/chatPrivacyScope";
 import { PlaceCards } from "@/components/chat/PlaceCards";
 import { ToolResultCard } from "@/components/chat/ToolResultCard";
+import { PersonalActionSave } from "@/components/chat/PersonalActionSave";
+import { AmoraConversationRecap } from "@/components/chat/AmoraConversationRecap";
+import { personalActionContinuation } from "@/lib/personalActionContinuation";
 import {
   dedupeToolResultCards,
   getToolResultCardModel,
@@ -925,10 +939,10 @@ function asChatMessageMetadata(value: unknown): ChatMessageMetadata | null {
         && (result.toolName !== "search_nearby_places" || isPlaceSearchPlaceholder(result))
       )
     : undefined;
-  return {
-    ...value,
-    ...(toolResults ? { toolResults } : {}),
-  } as ChatMessageMetadata;
+  const metadata = { ...value };
+  if (toolResults) metadata.toolResults = toolResults;
+  else delete metadata.toolResults;
+  return metadata as ChatMessageMetadata;
 }
 
 function asChatStreamEvent(value: unknown): ChatStreamEvent | null {
@@ -1891,6 +1905,7 @@ export default function ChatScreen() {
   const [partnerName, setPartnerName] = useState<string | null>(null);
   const [hasLinkedPartner, setHasLinkedPartner] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
+  const [chatLoadError, setChatLoadError] = useState<string | null>(null);
   const [target, setTarget] = useState<MessageTarget>("ai");
   const [activeScope, setActiveScope] = useState<ChatScope>("shared");
   const [inputByLane, setInputByLane] = useState<AmoraChatLaneRecord<string>>(
@@ -1937,6 +1952,14 @@ export default function ChatScreen() {
   const hasLinkedPartnerRef = useRef(false);
   const linkedPartnerIdRef = useRef<string | null>(null);
   const chatSessionGenerationRef = useRef(createChatSessionGenerationGuard());
+  const chatViewCursorsRef = useRef<ChatViewCursors>({ shared: null, private: null });
+  const inputByLaneRef = useRef(inputByLane);
+  inputByLaneRef.current = inputByLane;
+  const pendingChatDraftRestoreRef = useRef<{
+    userId: string; coupleId: string; drafts: AmoraChatLaneRecord<string>;
+  } | null>(null);
+  const reloadChatSessionRef = useRef<() => void>(() => {});
+  const refreshChatSessionRef = useRef<(() => Promise<void>) | null>(null);
   // 공동 승인은 "누가 눌렀는가"가 동의의 주체다. 핸들러가 이 값을 동기적으로 읽어
   // 요청에 실으면, 요청이 나가는 사이 계정이 바뀌어도 fence가 불일치를 잡는다.
   const sessionUserIdRef = useRef<string | null>(null);
@@ -1979,13 +2002,38 @@ export default function ChatScreen() {
     [firstHelloMessage, scopedMessages],
   );
   const visibleMessages = useMemo(() => [...displayedMessages].reverse(), [displayedMessages]);
+  const conversationRecap = useMemo(() => buildAmoraConversationRecap({
+    messages: messages.filter(message => !!message.created_at).map(message => ({ ...message, created_at: message.created_at! })),
+    coupleId: coupleId ?? "", userId: userId ?? "", role: userRole ?? "bride",
+    visibility: activeScope === "shared" ? "shared" : `${userRole ?? "bride"}_private`,
+    clearedAt: chatViewCursorsRef.current[activeScope], nowMs, readPending: getPendingAmoraAction,
+  }), [activeScope, coupleId, messages, nowMs, userId, userRole]);
 
   // 어느 문으로 들어왔는가. 라운지의 버튼·카드·첫 도착 CTA는 서로 다른 키를 들고 오고,
   // 그 키가 입력창 초안 한 줄을 정한다(웹의 ?prefill=과 같은 자리다). 탭으로 그냥 들어온
   // 사람에게는 키가 없고, 그러면 아무것도 채우지 않는다.
   const entryParam = useLocalSearchParams()[AMORA_CHAT_ENTRY_PARAM];
   const entryPrefillAppliedRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (!initialLoaded || !userId || !coupleId || !userRole || chatLoadError || streaming
+      || sendingRef.current || !personalActionContinuation.hasPending()) return;
+    let active = true;
+    const generation = chatSessionGenerationRef.current.current();
+    void personalActionContinuation.take({ ownerId: userId, coupleId }).then(text => {
+      if (!active || !text || !chatSessionGenerationRef.current.isCurrent(generation) || sessionUserIdRef.current !== userId) return;
+      if (inputByLaneRef.current.private_ai.trim()) {
+        setPartnerSafetyNotice("작성 중인 나만 상담은 그대로 두었어요. 보내거나 비운 뒤 개인 목록에서 다시 이어가 주세요.");
+        return;
+      }
+      setActiveScope("private"); setTarget("ai");
+      setInputByLane(current => current.private_ai.trim() ? current : updateAmoraChatLaneRecord(current, "private_ai", text));
+    }).catch(() => {
+      if (active && chatSessionGenerationRef.current.isCurrent(generation)) setPartnerSafetyNotice("개인 할 일을 다시 확인하지 못했어요. 개인 목록에서 다시 이어가 주세요.");
+    });
+    return () => { active = false; };
+  }, [chatLoadError, coupleId, initialLoaded, streaming, userId, userRole]));
   useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
     if (entryPrefillAppliedRef.current) return;
     const prefill = getAmoraChatEntryPrefill(entryParam);
     if (!prefill) return;
@@ -1994,25 +2042,28 @@ export default function ChatScreen() {
     // 공유 아모라 레인에만 놓는다. 파트너 대화나 비공개 상담에 진입 문구가 섞이면,
     // 사람은 자기가 쓰지 않은 말을 상대에게 보낼 뻔한다.
     setInputByLane((current) =>
-      updateAmoraChatLaneRecord(current, "shared_ai", prefill),
+      current.shared_ai.trim() ? current : updateAmoraChatLaneRecord(current, "shared_ai", prefill),
     );
-  }, [entryParam]);
+  }, [chatLoadError, coupleId, entryParam, initialLoaded, userId]);
 
   // 라운지에서 만들어 둔 첫마디를 가져온다. 모델을 부르지 않으므로 네트워크가 느려도
   // 대화를 열자마자 놓여 있다.
   useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError || chatViewCursorsRef.current.shared !== null) return;
     let active = true;
+    const generation = chatSessionGenerationRef.current.current();
+    const owner = { userId, coupleId };
     void (async () => {
-      const delivered = getDeliveredAmoraFirstHello();
+      const delivered = getDeliveredAmoraFirstHello({ owner });
       const hello =
-        delivered ?? (await consumePendingAmoraFirstHello({ storage: AsyncStorage }));
-      if (!active || !hello) return;
+        delivered ?? (await consumePendingAmoraFirstHello({ storage: AsyncStorage, owner }));
+      if (!active || !hello || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(generation)) return;
       setFirstHelloBody(hello.body);
     })();
     return () => {
       active = false;
     };
-  }, []);
+  }, [chatLoadError, coupleId, initialLoaded, userId]);
   const activeW5PersistenceState = useMemo<{
     rawDisclosurePersisted: boolean | null;
     persistence: RawDisclosurePersistence;
@@ -2055,6 +2106,10 @@ export default function ChatScreen() {
     [messages],
   );
   const latestSharedMessageId = latestSharedMessage?.id ?? null;
+  const actionConfirmationOutcomes = useMemo(
+    () => buildAmoraActionConfirmationOutcomes(messages),
+    [messages],
+  );
   const latestPendingAction = useMemo(
     () => latestSharedMessage ? getPendingAmoraAction(latestSharedMessage) : null,
     [latestSharedMessage],
@@ -2101,6 +2156,8 @@ export default function ChatScreen() {
     setPartnerName(null);
     setHasLinkedPartner(false);
     setInitialLoaded(false);
+    setChatLoadError(null);
+    setFirstHelloBody(null);
     setTarget("ai");
     setActiveScope("shared");
     setInputByLane(createEmptyAmoraChatLaneRecord(() => ""));
@@ -2201,12 +2258,17 @@ export default function ChatScreen() {
     }, delay);
   }, []);
 
+  useFocusEffect(useCallback(() => {
+    void refreshChatSessionRef.current?.();
+  }, []));
+
   useEffect(() => {
     mountedRef.current = true;
     let authReloadTimer: ReturnType<typeof setTimeout> | null = null;
     let observedAuthUserId: string | null | undefined;
 
-    function scheduleChatSessionReload() {
+    function scheduleChatSessionReload(preserveDrafts = false) {
+      if (!preserveDrafts) pendingChatDraftRestoreRef.current = null;
       chatSessionGenerationRef.current.invalidate();
       resetChatSessionState();
       if (authReloadTimer) clearTimeout(authReloadTimer);
@@ -2215,14 +2277,17 @@ export default function ChatScreen() {
         if (mountedRef.current) void loadChatSession();
       }, 0);
     }
+    reloadChatSessionRef.current = () => scheduleChatSessionReload(true);
 
     async function loadChatSession() {
       const generation = chatSessionGenerationRef.current.begin();
+      refreshChatSessionRef.current = null;
       resetChatSessionState();
       const isCurrentGeneration = () => isCurrentChatSession(generation);
-
-      const { data: { user } } = await supabase.auth.getUser();
+      try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (!isCurrentGeneration()) return;
+      if (authError) throw authError;
       sessionUserIdRef.current = user?.id ?? null;
       observedAuthUserId = user?.id ?? null;
       if (!user) {
@@ -2234,11 +2299,15 @@ export default function ChatScreen() {
         scheduleChatSessionReload();
       };
 
-      const { data: profile } = await supabase.from("profiles")
-        .select("name, role, couple_id")
+      const profileSelect = "name, role, couple_id, shared_chat_cleared_at, private_chat_cleared_at";
+      const { data: profile, error: profileError } = await supabase.from("profiles")
+        .select(profileSelect)
         .eq("id", user.id)
         .single();
       if (!isCurrentGeneration()) return;
+      if (profileError || !profile) throw new Error("대화 범위를 확인하지 못했어요.");
+      const viewCursors = readChatViewCursors(profile);
+      chatViewCursorsRef.current = viewCursors;
       const reloadWhenProfileIdentityChanges = (payload: { new: Record<string, unknown> }) => {
         if (!isCurrentGeneration()) return;
         const nextProfile = payload.new;
@@ -2246,6 +2315,13 @@ export default function ChatScreen() {
           nextProfile.couple_id !== profile?.couple_id
           || nextProfile.role !== profile?.role
         ) reloadIdentity();
+        else {
+          try {
+            if (hasChatViewCursorAdvanced(viewCursors, readChatViewCursors(nextProfile))) reloadIdentity();
+          } catch {
+            reloadIdentity();
+          }
+        }
       };
       setUserId(user.id);
       if (!profile?.couple_id) {
@@ -2322,40 +2398,79 @@ export default function ChatScreen() {
       const privateVisibility: ChatMessageVisibility | null = viewerRole
         ? `${viewerRole}_private`
         : null;
+      const verifyLoadedChatBoundary = async () => {
+        const [{ data: currentProfile, error }, { data: currentCouple, error: coupleError }] = await Promise.all([
+          supabase.from("profiles").select(profileSelect).eq("id", user.id).single(),
+          supabase.from("couples").select("bride_id, groom_id").eq("id", profile.couple_id).maybeSingle(),
+        ]);
+        if (!isCurrentGeneration()) return false;
+        if (error || coupleError || !currentProfile || !currentCouple) throw new Error("대화 범위를 확인하지 못했어요.");
+        if (currentProfile.couple_id !== profile.couple_id || currentProfile.role !== profile.role ||
+          currentCouple.bride_id !== couple?.bride_id || currentCouple.groom_id !== couple?.groom_id ||
+          hasChatViewCursorAdvanced(viewCursors, readChatViewCursors(currentProfile))) {
+          reloadIdentity();
+          return false;
+        }
+        return true;
+      };
+      const reconcilePersistedReplies = (rows: readonly ChatMessage[]) => {
+        for (const reply of rows) {
+          if (reply.sender_type !== "ai") continue;
+          const key = reply.metadata?.client_visible_request_id ?? reply.metadata?.client_request_id;
+          const questionId = reply.metadata?.in_reply_to_user_message_id;
+          if (key) persistedAiRequestKeysRef.current.add(key);
+          const lane = aiLaneForVisibility(reply.visibility);
+          setSendFailuresByLane((current) => {
+            const failure = current[lane];
+            const matchesResponse = failure?.kind === "ai_response" && reply.couple_id === failure.request.body.coupleId &&
+              (Boolean(key && key === failure.request.serverRequestKey) || Boolean(questionId && questionId === failure.request.body.userMessageId));
+            const matchesDraft = failure?.kind === "ai_insert" && reply.couple_id === failure.draft.coupleId &&
+              (key === failure.draft.clientRequestId || key === `chat:${failure.draft.userId}:${failure.draft.clientRequestId}`);
+            return matchesResponse || matchesDraft ? updateAmoraChatLaneRecord(current, lane, null) : current;
+          });
+          setColdStartAiRecoveryByLane((current) => {
+            const recovery = current[lane];
+            if (!recovery) return current;
+            const answersRecovery = questionId === recovery.userMessageId || Boolean(key &&
+              (key === recovery.clientRequestId || key === `chat:${user.id}:${recovery.clientRequestId}`));
+            return answersRecovery ? updateAmoraChatLaneRecord(current, lane, null) : current;
+          });
+        }
+      };
       const latestOwnSharedAiUserRequest = viewerRole
-        ? supabase.from("chat_messages")
+        ? withChatViewCursor(supabase.from("chat_messages")
           .select(chatMessageSelect)
           .eq("couple_id", profile.couple_id)
           .eq("sender_id", user.id)
           .eq("sender_type", viewerRole)
           .eq("role", "user")
           .eq("visibility", "shared")
-          .or("metadata->>target.is.null,metadata->>target.eq.ai")
+          .or("metadata->>target.is.null,metadata->>target.eq.ai"), viewCursors.shared)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(1)
           .maybeSingle()
         : Promise.resolve({ data: null, error: null });
       const latestPrivateCanonicalRequest = privateVisibility
-        ? supabase.from("chat_messages")
+        ? withChatViewCursor(supabase.from("chat_messages")
           .select(chatMessageSelect)
           .eq("couple_id", profile.couple_id)
           .eq("visibility", privateVisibility)
-          .or("metadata->>target.is.null,metadata->>target.eq.ai")
+          .or("metadata->>target.is.null,metadata->>target.eq.ai"), viewCursors.private)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(1)
           .maybeSingle()
         : Promise.resolve({ data: null, error: null });
       const latestOwnPrivateAiUserRequest = privateVisibility && viewerRole
-        ? supabase.from("chat_messages")
+        ? withChatViewCursor(supabase.from("chat_messages")
           .select(chatMessageSelect)
           .eq("couple_id", profile.couple_id)
           .eq("sender_id", user.id)
           .eq("sender_type", viewerRole)
           .eq("role", "user")
           .eq("visibility", privateVisibility)
-          .or("metadata->>target.is.null,metadata->>target.eq.ai")
+          .or("metadata->>target.is.null,metadata->>target.eq.ai"), viewCursors.private)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(1)
@@ -2363,7 +2478,7 @@ export default function ChatScreen() {
         : Promise.resolve({ data: null, error: null });
 
       const [
-        { data: history },
+        { data: history, error: historyError },
         {
           data: latestSharedCanonical,
           error: latestSharedCanonicalError,
@@ -2384,14 +2499,15 @@ export default function ChatScreen() {
         supabase.from("chat_messages")
           .select(chatMessageSelect)
           .eq("couple_id", profile.couple_id)
+          .or(buildChatViewCursorFilter(viewCursors, viewerRole))
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(200),
-        supabase.from("chat_messages")
+        withChatViewCursor(supabase.from("chat_messages")
           .select(chatMessageSelect)
           .eq("couple_id", profile.couple_id)
           .eq("visibility", "shared")
-          .or("metadata->>target.is.null,metadata->>target.neq.partner")
+          .or("metadata->>target.is.null,metadata->>target.neq.partner"), viewCursors.shared)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
           .limit(1)
@@ -2401,11 +2517,14 @@ export default function ChatScreen() {
         latestOwnPrivateAiUserRequest,
       ]);
       if (!isCurrentGeneration()) return;
+      if (historyError || latestSharedCanonicalError || latestOwnSharedAiUserError ||
+        latestPrivateCanonicalError || latestOwnPrivateAiUserError) throw new Error("대화를 불러오지 못했어요.");
+      if (!await verifyLoadedChatBoundary()) return;
 
       const normalizedBoundedHistory = (history ?? [])
         .map((message) => chatMessageFromRealtimeRow(message))
         .filter((message): message is ChatMessage => (
-          message !== null && canViewerSeeChatMessage(message, viewerRole)
+          message !== null && canViewerSeeChatMessage(message, viewerRole) && isMessageAfterChatViewCursor(message, viewCursors)
         ));
       const sharedSupplementalCanonicalTurns =
         latestSharedCanonicalError || latestOwnSharedAiUserError
@@ -2421,7 +2540,7 @@ export default function ChatScreen() {
       ]
         .map((message) => chatMessageFromRealtimeRow(message))
         .filter((message): message is ChatMessage => (
-          message !== null && canViewerSeeChatMessage(message, viewerRole)
+          message !== null && canViewerSeeChatMessage(message, viewerRole) && isMessageAfterChatViewCursor(message, viewCursors)
         ));
       const boundedHistory = mergeColdStartRecoveryHistory(
         normalizedBoundedHistory,
@@ -2511,7 +2630,7 @@ export default function ChatScreen() {
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "chat_messages", filter: `couple_id=eq.${profile.couple_id}` }, (payload) => {
           if (!isCurrentChatSession(generation)) return;
           const incoming = chatMessageFromRealtimeRow(payload.new);
-          if (!incoming || !canViewerSeeChatMessage(incoming, viewerRole)) return;
+          if (!incoming || !canViewerSeeChatMessage(incoming, viewerRole) || !isMessageAfterChatViewCursor(incoming, viewCursors)) return;
           const incomingMetadata = incoming.metadata;
           const incomingRequestKey = incoming.sender_type === "ai"
             ? incomingMetadata?.client_visible_request_id ?? incomingMetadata?.client_request_id
@@ -2558,7 +2677,7 @@ export default function ChatScreen() {
             ?? (payload.new as Record<string, unknown> | null)?.id;
           if (typeof updatedId !== "string") return;
           setMessages((previous) => {
-            if (!updated || !canViewerSeeChatMessage(updated, viewerRole)) {
+            if (!updated || !canViewerSeeChatMessage(updated, viewerRole) || !isMessageAfterChatViewCursor(updated, viewCursors)) {
               return reconcileMobileAmoraCrisisRecovery(
                 previous.filter((message) => message.id !== updatedId),
                 user.id,
@@ -2577,16 +2696,65 @@ export default function ChatScreen() {
         })
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` }, reloadWhenProfileIdentityChanges)
         .on("postgres_changes", { event: "UPDATE", schema: "public", table: "couples", filter: `id=eq.${profile.couple_id}` }, reloadWhenCoupleRosterChanges)
-        .subscribe();
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") void refreshChatSessionRef.current?.();
+        });
       if (!isCurrentGeneration()) {
         void supabase.removeChannel(ch);
         return;
       }
       channelRef.current = ch;
+      let refreshing = false;
+      refreshChatSessionRef.current = async () => {
+        if (refreshing || !isCurrentGeneration()) return;
+        refreshing = true;
+        try {
+          if (!await verifyLoadedChatBoundary()) return;
+          const { data: currentHistory, error } = await supabase.from("chat_messages").select(chatMessageSelect)
+            .eq("couple_id", profile.couple_id).or(buildChatViewCursorFilter(viewCursors, viewerRole))
+            .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(200);
+          if (!isCurrentGeneration()) return;
+          if (error) throw error;
+          if (!await verifyLoadedChatBoundary()) return;
+          const incoming = (currentHistory ?? []).map(chatMessageFromRealtimeRow).filter((message): message is ChatMessage =>
+            message !== null && canViewerSeeChatMessage(message, viewerRole) && isMessageAfterChatViewCursor(message, viewCursors));
+          reconcilePersistedReplies(incoming);
+          setMessages((previous) => reconcileMobileAmoraCrisisRecovery(
+            mergeColdStartRecoveryHistory(previous, incoming), user.id, profile.couple_id, viewerRole));
+          setChatLoadError(null);
+        } catch {
+          if (isCurrentGeneration()) {
+            pendingChatDraftRestoreRef.current = { userId: user.id, coupleId: profile.couple_id, drafts: inputByLaneRef.current };
+            chatSessionGenerationRef.current.invalidate();
+            activeControllerRef.current?.abort();
+            setStreaming(false);
+            setMessages([]);
+            setSendFailuresByLane(createEmptyAmoraChatLaneRecord(() => null));
+            setColdStartAiRecoveryByLane(createEmptyAmoraChatLaneRecord(() => null));
+            setChatLoadError("대화 상태를 확인하지 못했어요. 연결을 확인한 뒤 다시 불러와 주세요.");
+          }
+        } finally {
+          refreshing = false;
+        }
+      };
+      // 구독 연결 전 생긴 변경도 두 번째 범위 조회로 확인한다.
+      if (!await verifyLoadedChatBoundary()) return;
+      const restoreDraft = pendingChatDraftRestoreRef.current;
+      pendingChatDraftRestoreRef.current = null;
+      if (restoreDraft?.userId === user.id && restoreDraft.coupleId === profile.couple_id) setInputByLane(restoreDraft.drafts);
       setInitialLoaded(true);
+      } catch {
+        if (!isCurrentGeneration()) return;
+        resetChatSessionState();
+        setChatLoadError("대화를 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.");
+        setInitialLoaded(true);
+      }
     }
 
     void loadChatSession();
+    const appStateSubscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") void refreshChatSessionRef.current?.();
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       const nextAuthUserId = session?.user.id ?? null;
       // 아래 early return보다 먼저 갱신한다. 승인 요청이 결박할 대상은 항상 지금 사람이다.
@@ -2601,6 +2769,8 @@ export default function ChatScreen() {
       chatSessionGenerationRef.current.invalidate();
       if (authReloadTimer) clearTimeout(authReloadTimer);
       subscription.unsubscribe();
+      appStateSubscription.remove();
+      refreshChatSessionRef.current = null;
       activeControllerRef.current?.abort();
       activeControllerRef.current = null;
       if (channelRef.current) {
@@ -3321,6 +3491,8 @@ export default function ChatScreen() {
       !text
       || streaming
       || sendingRef.current
+      || !initialLoaded
+      || chatLoadError !== null
       || !coupleId
       || !userId
       || !userRole
@@ -3772,6 +3944,7 @@ export default function ChatScreen() {
           nowMs,
           item.id === latestSharedMessageId,
           streaming,
+          getAmoraPendingActionApplicationState(pendingAction, actionConfirmationOutcomes),
         )
       : null;
     // 지난 날짜를 저장하려는 카드인가 (2026-09-03). 막지 않고 한 줄만 덧붙인다 —
@@ -3903,6 +4076,9 @@ export default function ChatScreen() {
           {toolResultCards.map((model, index) => (
             <ToolResultCard key={`${model.toolName}-${index}`} model={model} />
           ))}
+          {isAi && !isThinking && !isPinnedSafetyCard && userId && (item.visibility === "bride_private" || item.visibility === "groom_private") && (
+            <PersonalActionSave key={`${userId}:${item.couple_id}:${item.id}`} ownerId={userId} coupleId={item.couple_id} messageId={item.id} content={item.content} personalActionDraft={item.metadata?.personal_action_draft} personalActionsView={item.metadata?.personal_actions_view} />
+          )}
           {mediationBlock && (
             <AmoraMediationCard
               key={`${item.id}:${mediationBlock.proposalVersion ?? "draft"}:${mediationBlock.rosterFingerprint ?? "unknown-roster"}`}
@@ -3963,7 +4139,9 @@ export default function ChatScreen() {
               )}
               {pendingActionDisabledReason && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
-                  {pendingActionDisabledReason === "expired"
+                  {pendingActionDisabledReason === "applied"
+                    ? "이 제안은 적용됐어요."
+                    : pendingActionDisabledReason === "expired"
                     ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
                     : pendingActionDisabledReason === "not_latest"
                       ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
@@ -4144,10 +4322,22 @@ export default function ChatScreen() {
       )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        {initialLoaded && !chatLoadError && !!userRole && !isP && <AmoraConversationRecap
+          key={`${userId}:${coupleId}:${activeScope}`} recap={conversationRecap} scopeLabel={activeScope === "private" ? "나만 상담" : "함께 대화"} disabled={streaming}
+          onPrefill={text => {
+            if (streaming || sendingRef.current || !activeLane || inputByLaneRef.current[activeLane].trim()) return false;
+            setInputByLane(current => current[activeLane].trim() ? current : updateAmoraChatLaneRecord(current, activeLane, text));
+            return true;
+          }} />}
         {!initialLoaded ? (
           <View style={st.loading}>
             <ActivityIndicator color={colors.rose[500]} />
             <Text style={st.loadingText}>대화를 준비하는 중이에요</Text>
+          </View>
+        ) : chatLoadError ? (
+          <View style={st.empty}>
+            <EmptyState title="대화를 불러오지 못했어요" description={chatLoadError}
+              action={<Pressable style={st.retryBtn} onPress={() => reloadChatSessionRef.current()} accessibilityRole="button" accessibilityLabel="대화 다시 불러오기"><Text style={st.retryText}>다시 불러오기</Text></Pressable>} />
           </View>
         ) : displayedMessages.length === 0 ? (
           <View style={st.empty}>
@@ -4271,9 +4461,9 @@ export default function ChatScreen() {
         )}
 
         <View style={[st.inputBar, isP && { borderTopColor: colors.rose.light }]}>
-          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming} returnKeyType="send" accessibilityLabel="메시지 입력" />
+          <TextInput style={st.input} value={input} onChangeText={handleInputChange} placeholder={isP ? `${partnerName ?? "파트너"}에게 메시지...` : activeScope === "private" ? "나만의 상담을 입력하세요..." : "메시지를 입력하세요..."} placeholderTextColor={colors.taupe[400]} multiline maxLength={4000} editable={!streaming && initialLoaded && !chatLoadError} returnKeyType="send" accessibilityLabel="메시지 입력" />
           <Animated.View style={{ transform: [{ scale: sendBtnScale }] }}>
-            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming} accessibilityLabel="메시지 보내기" accessibilityRole="button">
+            <Pressable style={[st.sendBtn, isP && { backgroundColor: colors.rose[500] }, (!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)) && st.sendBtnOff]} onPress={handleSend} onPressIn={pressIn} onPressOut={pressOut} disabled={!input.trim() || streaming || !initialLoaded || Boolean(chatLoadError)} accessibilityLabel="메시지 보내기" accessibilityRole="button">
               {isP ? <Heart size={18} color="#FFF" /> : <Send size={18} color="#FFF" />}
             </Pressable>
           </Animated.View>

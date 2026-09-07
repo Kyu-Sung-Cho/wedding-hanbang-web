@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X, Check, Sparkle, BookOpen } from "lucide-react";
 import Link from "next/link";
 import { CHECKLIST_MAP } from "@/constants/checklists";
@@ -10,7 +11,8 @@ import {
   labelWithoutConditionSuffix,
   type ChecklistItemTag,
 } from "@hanbang/shared/constants";
-import { mergeChecklist, calculateStatus, getChecklistCounts } from "@/utils/checklist";
+import { mergeChecklist, calculateStatus, getChecklistCounts, isStatusDeclared, resolveStatus } from "@/utils/checklist";
+import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -63,9 +65,19 @@ interface Props {
   categoryKey: string;
   isOpen: boolean;
   onClose: () => void;
+  presentation?: "default" | "planning";
 }
 
-export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }: Props) {
+export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, presentation = "default" }: Props) {
+  const isPlanning = presentation === "planning";
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => { setPortalReady(true); }, []);
+  const planningDialogRef = useAccessibleModal({
+    open: isPlanning && isOpen && portalReady,
+    onClose,
+    initialFocusSelector: "[data-planning-close]",
+    respectExistingScrollLock: true,
+  });
   const { journey, updateJourney } = useAuthStore();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
   const [saving, setSaving] = useState(false);
@@ -94,7 +106,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
   }, [isOpen, categoryKey, template, existing?.checklist, existing?.status]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isPlanning) return;
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
@@ -133,7 +145,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       document.body.style.overflow = previousOverflow;
       previouslyFocusedRef.current?.focus();
     };
-  }, [isOpen]);
+  }, [isOpen, isPlanning]);
 
   const toggleItem = useCallback(
     async (itemId: string) => {
@@ -224,7 +236,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
   const { done, total } = getChecklistCounts(checklist);
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-  const status = calculateStatus(checklist);
+  const declared = isPlanning && isStatusDeclared(existing);
+  const status = declared ? resolveStatus(template.items, existing) : calculateStatus(checklist);
   // 출처 계약을 통과한 /manners를 먼저 쓰고, 없으면 레거시 25파트로 내려간다.
   // 이 폴백으로 19개 카테고리가 전부 안내를 갖게 됐다(이전에는 10개).
   const relatedGuide = guideLinkForCategory(categoryKey);
@@ -268,11 +281,14 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
     }
   }
 
-  const nextItemId = isNotApplicable
+  const nextItemId = isNotApplicable || (declared && status === "completed")
     ? undefined
     : groups.flatMap((group) => group.items).find((item) => !item.done)?.id;
+  const desktopHeight = categoryKey === "venue" || categoryKey === "greeting"
+    ? "md:max-h-[min(760px,calc(100dvh-60px))]"
+    : "md:max-h-[min(900px,calc(100dvh-60px))]";
 
-  return (
+  const content = (
     <>
       {/* 오버레이 */}
       <div
@@ -283,23 +299,27 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
 
       {/* 모달 */}
       <div
-        ref={dialogRef}
+        ref={isPlanning ? planningDialogRef : dialogRef}
+        data-planning-sheet={isPlanning ? "" : undefined}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="fixed inset-x-4 top-1/2 z-50 mx-auto flex max-h-[84dvh] -translate-y-1/2 flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.35)] animate-fade-in sm:max-w-[860px]"
+        className={isPlanning
+          ? `fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[90dvh] flex-col overflow-hidden rounded-t-[22px] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.35)] md:inset-x-7 md:bottom-auto md:top-1/2 ${desktopHeight} md:w-[min(860px,calc(100vw-56px))] md:-translate-y-1/2 md:rounded-[20px]`
+          : "fixed inset-x-4 top-1/2 z-50 mx-auto flex max-h-[84dvh] -translate-y-1/2 flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_40px_80px_-20px_rgba(0,0,0,0.35)] animate-fade-in sm:max-w-[860px]"}
       >
+        {isPlanning && <div aria-hidden="true" className="mx-auto mt-[10px] mb-[14px] h-1 w-[38px] shrink-0 rounded-full bg-[var(--amora-line)] md:hidden" />}
         {/* 헤더 */}
-        <div className="border-b border-[#E5DDC9] px-7 pt-6 pb-[18px]">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex min-w-0 items-center gap-4">
+        <div className={isPlanning ? "shrink-0 border-b border-[var(--amora-line)] px-5 pb-4 md:px-7 md:pt-6 md:pb-[18px]" : "border-b border-[#E5DDC9] px-7 pt-6 pb-[18px]"}>
+          <div className={`flex items-center justify-between ${isPlanning ? "gap-1" : "mb-4"}`}>
+            <div className={`flex min-w-0 items-center ${isPlanning ? "gap-[13px] md:gap-4" : "gap-4"}`}>
               {/*
                 진행률 고리. 예전에는 제목 아래 가로 막대와 「N% 달성」 한 줄이었는데,
                 시안은 그 둘을 제목 **왼쪽 고리 하나**로 합쳤다 — 머리에서 세로 두 줄이
                 줄어 항목이 그만큼 먼저 보인다.
 
-                고리는 `conic-gradient` 한 겹이다. 채운 각도는 360 × 비율이고, 가운데
-                흰 원이 도넛 구멍을 만든다. 분야를 껐으면(`not_applicable`) 비율을
+                SVG 고리에 실제 항목 완료율을 표시한다. 분야를 껐으면(`not_applicable`) 비율을
                 0으로 그린다 — 진행률에서 빠져 있다는 말과 고리가 어긋나면 안 된다.
 
                 `role="progressbar"` 는 막대에서 여기로 **옮겨온 것**이다. 지우면
@@ -310,40 +330,39 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 aria-label={`${template.label} 완료율`}
                 aria-valuemin={0}
                 aria-valuemax={100}
-                aria-valuenow={isNotApplicable ? 0 : percent}
-                className="flex h-[52px] w-[52px] flex-shrink-0 items-center justify-center rounded-full"
-                style={{
-                  background: `conic-gradient(var(--color-rose-500) 0deg ${
-                    (isNotApplicable ? 0 : percent) * 3.6
-                  }deg, var(--color-surface-low) ${
-                    (isNotApplicable ? 0 : percent) * 3.6
-                  }deg 360deg)`,
-                }}
+                aria-valuenow={isNotApplicable || declared ? undefined : percent}
+                aria-valuetext={isNotApplicable ? "진행률에서 제외됨" : declared ? "분야 상태로 표시함 · 항목은 확인 전" : undefined}
+                className={`relative flex flex-shrink-0 items-center justify-center rounded-full ${isPlanning ? "h-[46px] w-[46px] md:h-[52px] md:w-[52px]" : "h-[52px] w-[52px]"}`}
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[12px] font-bold text-[var(--hb-text-strong)] tabular-nums">
-                  {isNotApplicable ? "—" : `${percent}%`}
+                <svg viewBox="0 0 52 52" className="absolute inset-0 h-full w-full -rotate-90" aria-hidden="true">
+                  <circle cx="26" cy="26" r="23" fill="none" stroke="var(--color-surface-low)" strokeWidth="6" />
+                  <circle cx="26" cy="26" r="23" fill="none" stroke="var(--color-rose-500)" strokeWidth="6" pathLength="100" strokeDasharray={`${isNotApplicable || declared ? 0 : percent} 100`} />
+                </svg>
+                <span className={`relative flex items-center justify-center rounded-full bg-white text-[12px] font-bold text-[var(--hb-text-strong)] tabular-nums ${isPlanning ? "h-9 w-9 md:h-10 md:w-10" : "h-10 w-10"}`}>
+                  {isNotApplicable || declared ? "—" : `${percent}%`}
                 </span>
               </div>
               <div className="min-w-0">
-                <h3 id={titleId} className="truncate text-[19px] font-semibold text-[var(--hb-text-strong)]">
+                <h2 id={titleId} className={isPlanning ? "text-[17px] leading-[1.4] font-semibold text-[var(--amora-ink)] md:text-[19px]" : "truncate text-[19px] font-semibold text-[var(--hb-text-strong)]"}>
                   {template.label}
-                </h3>
-                <div className="mt-1 flex flex-wrap items-center gap-2 text-[12.5px] text-[var(--hb-text-muted)]">
+                </h2>
+                <div className={`mt-1 flex flex-wrap items-center gap-2 text-[var(--hb-text-muted)] ${isPlanning ? "text-[11.5px] md:text-[12.5px]" : "text-[12.5px]"}`}>
                   <span className="rounded-full bg-[var(--color-surface-low)] px-[9px] py-[3px] text-[11px] font-semibold text-[var(--hb-text-body)]">
                     {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
                   <span>
-                    {isNotApplicable ? "진행률에서 제외됨" : `${done}/${total} 완료 · ${percent}%`}
+                    {isNotApplicable ? "진행률에서 제외됨" : declared ? "분야 상태로 표시함 · 항목은 확인 전" : `${done}/${total} 완료 · ${percent}%`}
                   </span>
                 </div>
               </div>
             </div>
             <button
               ref={closeButtonRef}
+              data-planning-close={isPlanning ? "" : undefined}
               type="button"
               onClick={onClose}
               aria-label={`${template.label} 체크리스트 닫기`}
-              className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-low)] text-[var(--hb-text-muted)] transition-colors hover:bg-[#E5DDC9]"
+              className={isPlanning ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]" : "flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-surface-low)] text-[var(--hb-text-muted)] transition-colors hover:bg-[#E5DDC9]"}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -353,11 +372,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         </div>
 
         {/* 체크리스트 */}
-        <div className="flex-1 overflow-y-auto bg-white px-7 pt-1.5 pb-5">
+        <div data-planning-body={isPlanning ? "" : undefined} className={isPlanning ? "min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white px-5 pt-1 pb-5 md:px-7 md:pt-1.5" : "flex-1 overflow-y-auto bg-white px-7 pt-1.5 pb-5"}>
           {groups.map((group) => {
             const groupDone = group.items.filter((item) => item.done).length;
             return (
-              <section key={group.title || "all"} className="mt-[18px]">
+              <section key={group.title || "all"} className={isPlanning ? "mt-4 md:mt-[18px]" : "mt-[18px]"}>
                 {/*
                   단계 머리. 「01 · 예약 전에」와 그 단계의 개수만 있다.
 
@@ -366,11 +385,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                   생기면 그 분야만 위가 벌어진 것처럼 보인다.
                 */}
                 {group.title ? (
-                  <div className="flex items-center justify-between py-1.5">
-                    <h4 className="text-[12.5px] font-bold tracking-[0.02em] text-[var(--color-rose-600)]">
+                  <div className="flex items-center justify-between gap-3 py-1.5">
+                    <h3 className={`font-bold tracking-[0.02em] text-[var(--color-rose-600)] ${isPlanning ? "text-[11.5px] md:text-[12.5px]" : "text-[12.5px]"}`}>
                       {group.title}
-                    </h4>
-                    <span className="text-[11.5px] text-[var(--hb-text-muted)] tabular-nums">
+                    </h3>
+                    <span className="shrink-0 text-[11.5px] text-[var(--hb-text-muted)] tabular-nums">
                       {groupDone}/{group.items.length}
                     </span>
                   </div>
@@ -402,10 +421,10 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                         role="checkbox"
                         aria-checked={item.done}
                         aria-labelledby={`${titleId}-${item.id}-label`}
-                        aria-describedby={item.note ? `${titleId}-${item.id}-note` : undefined}
+                        aria-describedby={item.note ? (isPlanning && item.done ? undefined : `${titleId}-${item.id}-note`) : undefined}
                         disabled={saving || isNotApplicable}
                         onClick={() => toggleItem(item.id)}
-                        className="group flex w-full items-start gap-3 rounded-[6px] px-1 pt-3 pb-2 text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A96E]/50 disabled:cursor-not-allowed disabled:opacity-55"
+                        className={`group flex min-h-11 w-full items-start rounded-[6px] text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] disabled:cursor-not-allowed disabled:opacity-55 ${isPlanning ? "gap-[11px] px-0.5 py-[13px] md:gap-3 md:px-1 md:pt-3 md:pb-2" : "gap-3 px-1 pt-3 pb-2"}`}
                       >
                         {/*
                           동그라미 셋이 서로 다른 말을 한다 — 끝난 것(초록·체크),
@@ -415,15 +434,15 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                         */}
                         <span className="mt-px flex-shrink-0">
                           {item.done ? (
-                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[var(--color-sage-500)]">
+                            <span className={`flex items-center justify-center rounded-full bg-[var(--color-sage-500)] ${isPlanning ? "h-[22px] w-[22px] md:h-5 md:w-5" : "h-5 w-5"}`}>
                               <Check className="h-3 w-3 text-white" strokeWidth={1.7} />
                             </span>
                           ) : (
                             <span
-                              className={`block h-5 w-5 rounded-full border-[1.8px] transition-colors ${
+                              className={`block rounded-full border-[1.8px] transition-colors ${isPlanning ? "h-[22px] w-[22px] md:h-5 md:w-5" : "h-5 w-5"} ${
                                 isNext
                                   ? "border-[var(--color-rose-500)] bg-[var(--color-rose-pale)]"
-                                  : "border-[#E5DDC9] group-hover:border-[var(--hb-text-muted)]"
+                                  : isPlanning ? "border-[var(--hb-text-muted)]" : "border-[#E5DDC9] group-hover:border-[var(--hb-text-muted)]"
                               }`}
                             />
                           )}
@@ -438,6 +457,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                         */}
                         <ChecklistItemText
                           item={shown}
+                          accessibleLabel={isPlanning ? item.label : undefined}
                           idPrefix={`${titleId}-${item.id}`}
                           labelClassName={`text-[14px] font-medium leading-snug ${
                             item.done
@@ -446,11 +466,11 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                                 ? "font-semibold text-[var(--hb-text-strong)]"
                                 : "text-[var(--hb-text-strong)]"
                           }`}
-                          labelSuffix={
-                            isNext ? <ItemTag kind="다음 할 일" /> : tag ? <ItemTag kind={tag} /> : undefined
-                          }
+                          labelSuffix={isPlanning && isNext && tag ? (
+                            <span className="inline-flex flex-wrap gap-1"><ItemTag kind="다음 할 일" /><ItemTag kind={tag} /></span>
+                          ) : isNext ? <ItemTag kind="다음 할 일" /> : tag ? <ItemTag kind={tag} /> : undefined}
                           // 시안 `.item-desc` — 12.5px / 행간 1.6 / 위 6px / 최대 560px.
-                          noteClassName="mt-1.5 block max-w-[560px] text-[12.5px] leading-[1.6] text-[#8A876F]"
+                          noteClassName={`mt-1.5 block max-w-[560px] text-[12.5px] leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[#8A876F]"}`}
                           hideNoteWhenDone
                         />
                       </button>
@@ -458,6 +478,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                         <ChecklistItemSource
                           itemId={item.id}
                           variant="chip"
+                          touchTarget={isPlanning}
                           indentClassName="ml-9"
                         />
                       ) : null}
@@ -487,14 +508,14 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             {isNotApplicable ? (
               <>
                 <span className="font-semibold text-[var(--hb-text-strong)]">다시 준비 목록에 넣기</span>
-                <span className="mt-0.5 block leading-[1.6] text-[#8A876F]">
+                <span className={`mt-0.5 block leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[#8A876F]"}`}>
                   지금은 진행률과 마감 알림에서 빠져 있어요.
                 </span>
               </>
             ) : (
               <>
                 <span className="font-semibold text-[var(--hb-text-strong)]">우리는 이건 안 해요</span>
-                <span className="mt-0.5 block leading-[1.6] text-[#8A876F]">
+                <span className={`mt-0.5 block leading-[1.6] ${isPlanning ? "text-[var(--amora-muted)]" : "text-[#8A876F]"}`}>
                   진행률과 마감 알림에서 빼드릴게요. 언제든 되돌릴 수 있어요.
                 </span>
               </>
@@ -503,7 +524,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
         </div>
 
         {/* 팁 */}
-        <div className="border-t border-[#E5DDC9] bg-[var(--color-ivory-warm)] px-7 py-4">
+        <div className={isPlanning ? "max-h-[40dvh] shrink-0 overflow-y-auto border-t border-[var(--amora-line)] bg-[var(--amora-warm)] px-5 pt-[14px] pb-[max(22px,env(safe-area-inset-bottom))] md:max-h-[35dvh] md:px-7 md:py-4" : "border-t border-[#E5DDC9] bg-[var(--color-ivory-warm)] px-7 py-4"}>
           {error && (
             <p
               role="alert"
@@ -524,15 +545,15 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
             링크의 부제 두 줄을 뺐다 — 제목이 「첫인사 예절 보기」처럼 이미 무엇을 여는지
             말하고 있어서, 그 아래 설명은 같은 말을 길게 반복하는 자리였다.
           */}
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="flex items-start gap-2.5 text-[12.5px] leading-[1.6] text-[var(--hb-text-body)]">
+          <div className={isPlanning ? "flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4" : "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"}>
+            <p className={`flex items-start gap-2.5 leading-[1.6] text-[var(--hb-text-body)] ${isPlanning ? "text-[12px] md:text-[12.5px]" : "text-[12.5px]"}`}>
               <Sparkle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" strokeWidth={1.7} />
               <span>{template.tip}</span>
             </p>
 
             <Link
               {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
-              className="flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)]"
+              className={`flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${isPlanning ? "min-h-[46px] md:min-h-11" : ""}`}
             >
               <BookOpen className="h-[15px] w-[15px] flex-shrink-0" aria-hidden="true" />
               {/*
@@ -543,7 +564,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
                 폴백(`아모라에게 물어보기`)에는 안 붙인다 — 이미 `보기` 로 끝나서
                 「…물어보기 보기」 가 된다.
               */}
-              <span className="whitespace-nowrap">
+              <span className={isPlanning ? "text-center" : "whitespace-nowrap"}>
                 {relatedGuide ? `${relatedGuide.title} 보기` : "아모라에게 물어보기"}
               </span>
             </Link>
@@ -553,4 +574,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose }:
       </div>
     </>
   );
+  return isPlanning
+    ? (portalReady ? createPortal(<div className="planning-workspace">{content}</div>, document.body) : null)
+    : content;
 }

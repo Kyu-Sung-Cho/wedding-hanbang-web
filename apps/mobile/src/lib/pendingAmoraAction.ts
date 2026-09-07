@@ -2,6 +2,7 @@ import {
   getAmoraPendingActionTtlMs,
   parseBudgetImpactPreview,
   type BudgetImpactPreview,
+  type AmoraPendingActionApplicationState,
   // 2026-09-03: utils 하위 경로 대신 루트에서 — 모바일 테스트 하네스가 "@hanbang/shared" 만 이어 준다
   todayYmdInKst,
 } from "@hanbang/shared";
@@ -27,7 +28,7 @@ export interface PendingAmoraAction {
   expiresAt: number;
 }
 
-export type PendingActionDisabledReason = "busy" | "expired" | "not_latest" | null;
+export type PendingActionDisabledReason = "busy" | "expired" | "not_latest" | "applied" | null;
 interface PendingActionMessageBoundary {
   sender_type?: unknown;
   visibility?: unknown;
@@ -306,7 +307,10 @@ export function getPendingActionDisabledReason(
   nowMs: number,
   isLatest: boolean,
   busy: boolean,
+  applicationState: AmoraPendingActionApplicationState = "none",
 ): PendingActionDisabledReason {
+  if (applicationState === "applied") return "applied";
+  if (applicationState === "awaiting_result" && busy) return "busy";
   if (isPendingAmoraActionExpired(action, nowMs)) return "expired";
   if (!isLatest) return "not_latest";
   if (busy) return "busy";

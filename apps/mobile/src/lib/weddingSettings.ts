@@ -306,6 +306,84 @@ export function parseWeddingSettingsResponse(
  */
 const PLAN_CHANGE_KEYS = ["wedding_date", "venue", "total_budget"] as const;
 
+/** 최신 버전은 편집을 시작했던 사용자·커플의 응답일 때만 사용할 수 있다. */
+export function buildWeddingPlanChangeBody(
+  snapshot: WeddingSettingsSnapshot,
+  changes: Record<string, string | number | null>,
+  current: unknown,
+): Record<string, string | number | null> {
+  if (
+    !snapshot.coupleId || !isRecord(current) || !isRecord(current.profile) ||
+    current.profile.id !== snapshot.userId || current.profile.couple_id !== snapshot.coupleId ||
+    !isRecord(current.journey) || current.journey.couple_id !== snapshot.coupleId
+  ) {
+    throw new Error("커플 연결 상태가 바뀌었어요. 설정을 다시 불러와주세요.");
+  }
+  const journey = current.journey;
+  const revision = journey.state_revision;
+  if (typeof revision !== "number" || !Number.isSafeInteger(revision) || revision < 0 || revision >= Number.MAX_SAFE_INTEGER) {
+    throw new Error("결혼 정보를 불러오지 못했어요. 설정을 다시 불러와주세요.");
+  }
+  const baseline: Record<string, string | number | null> = {
+    wedding_date: snapshot.weddingDate,
+    venue: snapshot.venue,
+    total_budget: snapshot.totalBudget,
+  };
+  const fields = Object.keys(changes);
+  if (fields.length === 0 || fields.some((field) =>
+    !Object.prototype.hasOwnProperty.call(baseline, field) || baseline[field] === undefined ||
+    !Object.prototype.hasOwnProperty.call(journey, field) || journey[field] !== baseline[field]
+  )) {
+    throw new Error("그 사이 결혼 정보가 바뀌었어요. 설정을 다시 불러온 뒤 변경해 주세요.");
+  }
+  return { ...changes, expected_couple_id: snapshot.coupleId, expected_revision: revision };
+}
+
+/** 서버가 적용을 확인한 계획 필드만 갱신한다. 실패한 프로필 필드의 기준은 남긴다. */
+export function advanceWeddingPlanBaseline(
+  snapshot: WeddingSettingsSnapshot,
+  changes: Record<string, string | number | null>,
+): WeddingSettingsSnapshot {
+  const next = { ...snapshot };
+  if ("wedding_date" in changes) {
+    if (changes.wedding_date !== null && typeof changes.wedding_date !== "string") throw new Error("잘못된 결혼 날짜 변경입니다.");
+    next.weddingDate = changes.wedding_date;
+  }
+  if ("venue" in changes) {
+    if (changes.venue !== null && typeof changes.venue !== "string") throw new Error("잘못된 결혼식장 변경입니다.");
+    next.venue = changes.venue;
+  }
+  if ("total_budget" in changes) {
+    if (changes.total_budget !== null && typeof changes.total_budget !== "number") throw new Error("잘못된 예산 변경입니다.");
+    next.totalBudget = changes.total_budget;
+  }
+  return next;
+}
+
+/** 서버 응답을 기다리는 동안 추가로 편집한 필드는 저장된 값으로 덮어쓰지 않는다. */
+export function mergeWeddingSettingsDraftAfterSave(
+  current: WeddingSettingsData | null,
+  submitted: WeddingSettingsData,
+  saved: WeddingSettingsData,
+): WeddingSettingsData | null {
+  if (!current || current.userId !== submitted.userId || current.coupleId !== submitted.coupleId ||
+    saved.userId !== submitted.userId || saved.coupleId !== submitted.coupleId) return current;
+  return {
+    ...saved,
+    nickname: current.nickname === submitted.nickname ? saved.nickname : current.nickname,
+    communityNickname: current.communityNickname === submitted.communityNickname ? saved.communityNickname : current.communityNickname,
+    weddingDate: current.weddingDate === submitted.weddingDate ? saved.weddingDate : current.weddingDate,
+    venue: current.venue === submitted.venue ? saved.venue : current.venue,
+    totalBudget: current.totalBudget === submitted.totalBudget ? saved.totalBudget : current.totalBudget,
+  };
+}
+
+export function isWeddingSettingsDraftUnchanged(current: WeddingSettingsData | null, submitted: WeddingSettingsData): boolean {
+  return current !== null && current.userId === submitted.userId && current.coupleId === submitted.coupleId &&
+    current.nickname === submitted.nickname && current.communityNickname === submitted.communityNickname &&
+    current.weddingDate === submitted.weddingDate && current.venue === submitted.venue && current.totalBudget === submitted.totalBudget;
+}
+
 export interface SplitWeddingSettingsPatch {
   /** `/api/settings/wedding-profile` 로 보낼 나머지. 바뀐 게 없으면 null. */
   profilePatch: WeddingSettingsPatchBody | null;

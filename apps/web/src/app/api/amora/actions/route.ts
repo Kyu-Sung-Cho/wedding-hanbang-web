@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import {
-  insertAmoraActionRecord,
+  getManualAmoraActionFailure,
+  mutateOwnAmoraActionRecord,
   isAmoraActionStorageUnavailable,
-  listAmoraActionRecords,
+  readAmoraActionPage,
+  InvalidAmoraActionCursorError,
 } from "@/lib/amora/actionRepository";
 import {
   createAmoraActionId,
   getAmoraActions,
-  mergeAmoraActions,
   normalizeAmoraAction,
   type AmoraActionItem,
   type AmoraActionPriority,
@@ -43,10 +44,10 @@ type CoupleLookup =
   | { ok: false };
 
 async function getCoupleIdForUser(
-  admin: ReturnType<typeof createAdminClient>,
+  client: SupabaseClient,
   userId: string,
 ): Promise<CoupleLookup> {
-  const { data: profile, error } = await admin
+  const { data: profile, error } = await client
     .from("profiles")
     .select("couple_id")
     .eq("id", userId)
@@ -71,14 +72,19 @@ function coupleLookupFailed() {
   );
 }
 
-async function getLegacyActions(admin: ReturnType<typeof createAdminClient>, coupleId: string) {
-  const { data } = await admin
+async function getLegacyActions(client: SupabaseClient, coupleId: string) {
+  const { data, error } = await client
     .from("wedding_journeys")
     .select("progress")
     .eq("couple_id", coupleId)
     .maybeSingle();
 
-  return getAmoraActions((data?.progress ?? {}) as Record<string, unknown>);
+  if (error) throw new Error("Amora action legacy read failed");
+  const progress = isRecord(data?.progress) ? data.progress : {};
+  const raw = Array.isArray(progress.__amora_actions) ? progress.__amora_actions : [];
+  return getAmoraActions({ ...progress, __amora_actions: raw.map((item) => isRecord(item)
+    ? { ...item, createdAt: typeof item.createdAt === "string" ? item.createdAt : "1970-01-01T00:00:00.000Z" }
+    : item) });
 }
 
 function cleanHref(raw: unknown): string | undefined {
@@ -104,44 +110,33 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
     }
 
-    const admin = createAdminClient();
-    const lookup = await getCoupleIdForUser(admin, user.id);
+    const client = supabase;
+    const lookup = await getCoupleIdForUser(client, user.id);
     if (!lookup.ok) {
       return coupleLookupFailed();
     }
     const coupleId = lookup.coupleId;
     if (!coupleId) {
-      return NextResponse.json({ actions: [], count: 0, open_count: 0 });
+      return NextResponse.json({ actions: [], count: 0, open_count: 0, next_cursor: null });
     }
 
     const params = new URL(request.url).searchParams;
     const limit = cleanIntegerInRange(params.get("limit"), 1, 80) ?? 40;
     const status = parseStatusParam(request);
-    const legacyActions = await getLegacyActions(admin, coupleId);
+    const legacyActions = await getLegacyActions(client, coupleId);
 
-    try {
-      const storedActions = await listAmoraActionRecords(admin, coupleId, { status: "all", limit: 80 });
-      const merged = mergeAmoraActions(storedActions, legacyActions);
-      const actions = status === "all" ? merged : merged.filter((action) => action.status === status);
-      return NextResponse.json({
-        actions: actions.slice(0, limit),
-        count: actions.length,
-        open_count: merged.filter((action) => action.status === "open").length,
-        source: "table",
-      });
-    } catch (error) {
-      if (!isAmoraActionStorageUnavailable(error)) throw error;
-      const actions = status === "all"
-        ? legacyActions
-        : legacyActions.filter((action) => action.status === status);
-      return NextResponse.json({
-        actions: actions.slice(0, limit),
-        count: actions.length,
-        open_count: legacyActions.filter((action) => action.status === "open").length,
-        source: "legacy",
-      });
-    }
+    const snapshot = await readAmoraActionPage(client, coupleId, legacyActions, status, limit, params.get("cursor"));
+    const actions = snapshot.actions;
+    return NextResponse.json({
+      actions,
+      count: snapshot.count,
+      open_count: snapshot.openCount,
+      truncated: actions.length < snapshot.count,
+      source: snapshot.source,
+      next_cursor: snapshot.nextCursor,
+    });
   } catch (error) {
+    if (error instanceof InvalidAmoraActionCursorError) return NextResponse.json({ error: "페이지 정보가 바뀌었어요. 처음부터 다시 불러와 주세요." }, { status: 400 });
     log.error("amora actions get failed:", error);
     return NextResponse.json({ error: "아모라 행동을 불러오지 못했습니다." }, { status: 500 });
   }
@@ -170,19 +165,29 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
+    const scoped = Object.hasOwn(body, "expectedOwnerId") || Object.hasOwn(body, "expectedCoupleId");
+    if (scoped && (body.expectedOwnerId !== user.id
+      || typeof body.expectedCoupleId !== "string"
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.expectedCoupleId))) {
+      return NextResponse.json({ error: "계정 또는 커플 연결이 바뀌었어요. 내용을 다시 확인해 주세요." }, { status: 403 });
+    }
+
     const title = cleanOptionalText(body.title, 120);
     if (!title) {
       return NextResponse.json({ error: "제목이 필요합니다." }, { status: 400 });
     }
 
-    const admin = createAdminClient();
-    const lookup = await getCoupleIdForUser(admin, user.id);
+    const client = supabase;
+    const lookup = await getCoupleIdForUser(client, user.id);
     if (!lookup.ok) {
       return coupleLookupFailed();
     }
     const coupleId = lookup.coupleId;
     if (!coupleId) {
       return NextResponse.json({ error: "커플 정보가 없습니다." }, { status: 404 });
+    }
+    if (scoped && body.expectedCoupleId !== coupleId) {
+      return NextResponse.json({ error: "커플 연결이 바뀌었어요. 내용을 다시 확인해 주세요." }, { status: 403 });
     }
 
     const now = new Date().toISOString();
@@ -200,9 +205,12 @@ export async function POST(request: Request) {
       updatedAt: now,
     });
 
-    const saved = await insertAmoraActionRecord(admin, coupleId, action, user.id);
+    const saved = await mutateOwnAmoraActionRecord(supabase, coupleId, action.id, "create", action);
+    if (!saved) throw new Error("Amora action create returned no receipt");
     return NextResponse.json({ action: saved }, { status: 201 });
   } catch (error) {
+    const failure = getManualAmoraActionFailure(error);
+    if (failure) return NextResponse.json({ error: failure.error, code: failure.code }, { status: failure.status });
     if (isAmoraActionStorageUnavailable(error)) {
       return NextResponse.json(
         { error: "아모라 행동 저장소가 아직 배포되지 않았습니다." },

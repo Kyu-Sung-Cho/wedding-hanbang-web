@@ -1,7 +1,7 @@
 import TrackedLandingLink from "./TrackedLandingLink";
 
 import { landingContent } from "./landingContent";
-import { band, noteText, sectionTitle, shell } from "./notebook";
+import { band, noteText, shell } from "./notebook";
 
 /**
  * ⑦ 같은 시기에 준비하는 사람들 — **흰 카드 한 장.**
@@ -25,15 +25,15 @@ export default function CommunitySection() {
   const { community } = landingContent;
 
   return (
-    <section id="community" className={band} aria-labelledby="community-title">
+    <section id="community" className={`${band} bg-[var(--color-paper-tint)] !pt-[34px]`} aria-labelledby="community-title">
       <div className={shell}>
-        <div className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-8 sm:px-10 sm:py-10">
-          <div className="grid gap-9 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.55fr)] lg:items-center lg:gap-14">
+        <div className="rounded-[16px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-5 lg:rounded-[18px] lg:px-[34px] lg:py-[30px]">
+          <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_230px] lg:items-center lg:gap-10">
             <div>
-              <h2 id="community-title" className={sectionTitle}>
+              <h2 id="community-title" className={`landing-display text-[21px] leading-[1.45] text-[var(--color-paper-ink)] lg:text-[23px]`}>
                 {community.title}
               </h2>
-              <p className={`mt-6 max-w-[52ch] ${noteText}`}>{community.body}</p>
+              <p className={`mt-[10px] max-w-[64ch] ${noteText}`}>{community.body}</p>
               <p className={`mt-2 max-w-[52ch] ${noteText}`}>{community.note}</p>
               <p className="mt-5">
                 <TrackedLandingLink
@@ -46,16 +46,16 @@ export default function CommunitySection() {
               </p>
             </div>
 
-            <ul className="grid gap-3">
+            <ul className="grid gap-[7px]">
               {community.cohorts.map((cohort) => (
                 <li
                   key={cohort}
-                  className="flex items-center justify-between gap-4 rounded-[8px] border border-[var(--color-paper-edge)] px-4 py-3"
+                  className="flex items-center justify-between gap-3 rounded-[10px] border border-[var(--color-paper-edge)] px-[14px] py-[11px]"
                 >
-                  <span className="text-[16px] font-medium text-[var(--color-paper-ink)]">
+                  <span className="text-[13px] font-normal text-[var(--color-paper-ink-soft)]">
                     {cohort}
                   </span>
-                  <span className="text-[12px] font-semibold text-[var(--color-paper-ink-faint)]">
+                  <span className="whitespace-nowrap text-[11px] text-[var(--color-paper-ink-faint)]">
                     {community.cohortTag}
                   </span>
                 </li>

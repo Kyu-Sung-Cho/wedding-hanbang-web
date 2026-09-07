@@ -14,6 +14,16 @@ function screen(text: string) {
 }
 
 describe("검증할 수 없는 약속을 걷어낸다", () => {
+  it("keeps the original layout and numbers when removing a guarantee from a budget answer", () => {
+    const table = "| 항목 | 비율 |\n|---|---|\n| 식사 | 31.4% |\n| 여행 | 22.9% |";
+    const source = "출처: https://example.com/prices?year=2026";
+    const result = screenAmoraTrustClaims(`제가 다 책임질게요.\n\n${table}\n\n${source}`);
+    expect(result.text).not.toContain("책임질게요");
+    expect(result.text).toContain(table);
+    expect(result.text).toContain(source);
+    expect(result.removedCount).toBe(1);
+  });
+
   it.each([
     ["보증", "제가 다 책임질게요.", "guarantee"],
     ["절대 안전", "100% 개인정보가 안전합니다.", "guarantee"],

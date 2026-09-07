@@ -1,150 +1,49 @@
 "use client";
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Wallet, CheckCircle2, CalendarClock } from "lucide-react";
+import { useId, useState, type ElementType } from "react";
+import { X, Wallet, CheckCircle2, CalendarClock, MessagesSquare } from "lucide-react";
+import Button from "@/components/ui/Button";
+import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import BudgetTab from "./panel/BudgetTab";
 import ChecklistTab from "./panel/ChecklistTab";
 import UpcomingTab from "./panel/UpcomingTab";
+import ConversationRecapPanel, { type ConversationRecapPanelProps } from "./panel/ConversationRecapPanel";
 
-type Tab = "budget" | "checklist" | "upcoming";
-
-const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+type Tab = "recap" | "budget" | "checklist" | "upcoming";
+const TABS: { key: Tab; label: string; icon: ElementType }[] = [
+  { key: "recap", label: "대화 정리", icon: MessagesSquare },
   { key: "budget", label: "예산", icon: Wallet },
   { key: "checklist", label: "체크리스트", icon: CheckCircle2 },
   { key: "upcoming", label: "임박 일정", icon: CalendarClock },
 ];
+interface Props { isOpen: boolean; onClose(): void; recap?: ConversationRecapPanelProps }
 
-interface Props {
-  isOpen: boolean;
-  onClose: () => void;
-}
-
-export default function ChatInfoPanel({ isOpen, onClose }: Props) {
-  const [activeTab, setActiveTab] = useState<Tab>("checklist");
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* 배경 오버레이 (모바일만) */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/20 z-40 md:hidden"
-            onClick={onClose}
-          />
-
-          {/* 데스크톱: 오른쪽 슬라이드 */}
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed right-0 top-[72px] w-[380px] h-[calc(100vh-72px)] bg-white border-l border-black/[0.06] shadow-[-8px_0_40px_rgba(0,0,0,0.06)] z-50 flex flex-col max-md:hidden"
-          >
-            {/* 헤더 */}
-            <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/[0.04]">
-              <h3 className="text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* 탭 바 */}
-            <div className="flex border-b border-black/[0.04]">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
-                    activeTab === tab.key
-                      ? "text-[var(--hb-accent-hover)]"
-                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                  {activeTab === tab.key && (
-                    <motion.div
-                      layoutId="panel-tab-indicator"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--hb-primary)] rounded-full"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* 탭 내용 */}
-            <div className="flex-1 overflow-hidden">
-              {activeTab === "budget" && <BudgetTab />}
-              {activeTab === "checklist" && <ChecklistTab />}
-              {activeTab === "upcoming" && <UpcomingTab />}
-            </div>
-          </motion.div>
-
-          {/* 모바일: 하단 시트 */}
-          <motion.div
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ type: "spring", damping: 25, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 h-[85vh] bg-white rounded-t-2xl shadow-[var(--shadow-raised)] z-50 flex flex-col md:hidden"
-          >
-            {/* 핸들 바 */}
-            <div className="flex justify-center pt-2 pb-1">
-              <div className="w-10 h-1 rounded-full bg-taupe-400/30" />
-            </div>
-
-            {/* 헤더 */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-black/[0.04]">
-              <h3 className="text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
-              <button
-                onClick={onClose}
-                className="w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-page)] hover:text-[var(--hb-text-strong)] transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* 탭 바 */}
-            <div className="flex border-b border-black/[0.04]">
-              {TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors relative ${
-                    activeTab === tab.key
-                      ? "text-[var(--hb-accent-hover)]"
-                      : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
-                  }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                  {activeTab === tab.key && (
-                    <motion.div
-                      layoutId="panel-tab-indicator-mobile"
-                      className="absolute bottom-0 left-2 right-2 h-0.5 bg-[var(--hb-primary)] rounded-full"
-                    />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* 탭 내용 */}
-            <div className="flex-1 overflow-hidden">
-              {activeTab === "budget" && <BudgetTab />}
-              {activeTab === "checklist" && <ChecklistTab />}
-              {activeTab === "upcoming" && <UpcomingTab />}
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
+export default function ChatInfoPanel({ isOpen, onClose, recap }: Props) {
+  const [activeTab, setActiveTab] = useState<Tab>(recap ? "recap" : "checklist");
+  const headingId = useId();
+  const dialogRef = useAccessibleModal({ open: isOpen, onClose });
+  if (!isOpen) return null;
+  const tabs = recap ? TABS : TABS.filter(tab => tab.key !== "recap");
+  return <>
+    <div aria-hidden="true" className="fixed inset-0 z-40 bg-black/20 md:bg-black/5" onClick={onClose} />
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={headingId} tabIndex={-1}
+      className="fixed inset-x-0 bottom-0 z-50 flex h-[85dvh] flex-col rounded-t-2xl border-l border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] pb-[env(safe-area-inset-bottom)] shadow-[var(--shadow-overlay)] md:inset-x-auto md:top-[72px] md:right-0 md:bottom-0 md:h-auto md:w-[380px] md:rounded-none">
+      <div className="flex items-center justify-between border-b border-[var(--hb-hairline)] px-4 py-3">
+        <h3 id={headingId} className="text-[var(--hb-text-strong)]">결혼 준비 현황</h3>
+        <Button variant="icon" label="준비 현황 닫기" onClick={onClose}><X className="h-5 w-5" aria-hidden="true" /></Button>
+      </div>
+      <nav aria-label="준비 현황 보기" className="flex border-b border-[var(--hb-hairline)]">
+        {tabs.map(tab => <Button key={tab.key} variant="ghost" aria-pressed={activeTab === tab.key}
+          onClick={() => setActiveTab(tab.key)} className={`min-w-0 flex-1 flex-col gap-1! rounded-none! px-1! py-2 text-[11px]! ${activeTab === tab.key ? "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]!" : ""}`}>
+          <tab.icon className="h-4 w-4" aria-hidden="true" />{tab.label}
+        </Button>)}
+      </nav>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {activeTab === "recap" && recap && <ConversationRecapPanel {...recap} />}
+        {activeTab === "budget" && <BudgetTab />}
+        {activeTab === "checklist" && <ChecklistTab />}
+        {activeTab === "upcoming" && <UpcomingTab />}
+      </div>
+    </div>
+  </>;
 }

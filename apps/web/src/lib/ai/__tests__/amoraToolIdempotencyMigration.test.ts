@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, it } from "vitest";
+import { buildAmoraInitialGreetingRequestKey } from "@/lib/ai/amoraInitialGreetingKey";
 
 const migration = readFileSync(
   resolve(
@@ -332,6 +333,41 @@ describe("Amora mutating-tool idempotency migration", () => {
         ],
       );
       expect(toolClaim.rows[0]?.result).toEqual({ action: "stale_context" });
+    } finally {
+      await resetPersona(db).catch(() => undefined);
+      await db.close();
+    }
+  }, 30_000);
+
+  it("accepts reset greeting lifecycle keys with independent durable claims", async () => {
+    const db = await createDatabase();
+    try {
+      await applyToolMigrations(db);
+      await setPersona(db, "service_role");
+      const firstKey = buildAmoraInitialGreetingRequestKey({
+        actorId: USER_ID, coupleId: COUPLE_ONE, visibility: "shared",
+        resetAt: "2026-07-15T01:00:00.000Z",
+      });
+      const nextKey = buildAmoraInitialGreetingRequestKey({
+        actorId: USER_ID, coupleId: COUPLE_ONE, visibility: "shared",
+        resetAt: "2026-07-16T01:00:00.000Z",
+      });
+      for (const key of [`greeting:${USER_ID}`, firstKey, nextKey]) {
+        const claim = await db.query<{ result: Record<string, unknown> }>(
+          "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5) AS result",
+          [COUPLE_ONE, key, USER_ID, "shared", null],
+        );
+        expect(claim.rows[0]?.result).toMatchObject({ action: "acquired" });
+      }
+      const retry = await db.query<{ result: Record<string, unknown> }>(
+        "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5) AS result",
+        [COUPLE_ONE, firstKey, USER_ID, "shared", null],
+      );
+      expect(retry.rows[0]?.result).toMatchObject({ action: "in_progress" });
+      await expect(db.query(
+        "SELECT public.claim_amora_chat_request($1,$2,$3,$4,$5)",
+        [COUPLE_ONE, `greeting:${USER_ID}:reset`, USER_ID, "shared", null],
+      )).rejects.toThrow(/AMORA_CHAT_CLAIM_INVALID_INPUT/);
     } finally {
       await resetPersona(db).catch(() => undefined);
       await db.close();

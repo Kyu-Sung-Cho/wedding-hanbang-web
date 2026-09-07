@@ -69,7 +69,12 @@ describe("일정 규칙이 모델에게 닿는다", () => {
 describe("예산 규칙이 모델에게 닿는다", () => {
   it("일괄 배분은 한 번으로 적용하라고 알려준다", () => {
     expect(delivered).toContain("apply_budget_plan");
-    expect(delivered).toContain("합계는 총예산과 정확히 일치");
+    expect(delivered).toContain("명시적으로 확정한 뒤");
+    expect(delivered).not.toContain("합계는 총예산과 정확히 일치");
+    expect(delivered).toContain("기존 배정");
+    expect(delivered).toContain("잔액");
+    expect(delivered).toContain("예비비");
+    expect(delivered).toContain("임의로 채우지");
   });
 });
 
@@ -89,7 +94,7 @@ describe("조회 도구가 없으면 그 규칙도 빠진다", () => {
       requestKind: "chat",
       persistenceMode: "durable",
     });
-    expect(withoutBudget).not.toContain("합계는 총예산과 정확히 일치");
+    expect(withoutBudget).not.toContain("예산 일괄 배분");
   });
 });
 

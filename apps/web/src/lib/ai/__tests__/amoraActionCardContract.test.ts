@@ -164,6 +164,20 @@ function extract(text: string) {
 }
 
 describe("행동 카드 계약문", () => {
+  it.each([0, 12])("일괄 예산 요청은 모든 배정을 담을 계약과 배열 필드를 받는다 — 결정 %i건", (decisionCount) => {
+    const { prompt, proposableToolNames } = composeLikeProduction(
+      "총예산 5000만원에 예식장 2000만원, 스튜디오 300만원으로 함께 배분 적용해줘",
+      decisionCount,
+    );
+    expect(proposableToolNames).toContain("apply_budget_plan");
+    expect(prompt).toContain("배분 전체를 한 표식");
+    expect(prompt).toContain("category*");
+    expect(prompt).toContain("budget*");
+    expect(prompt).toContain("rationale(");
+    expect(prompt).toContain("정확한 action_id");
+    expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+
   it("행동 도구가 열린 턴에만 그 도구를 내라고 시킨다", () => {
     const todo = composeLikeProduction(TODO_UTTERANCE, 0);
     expect(todo.proposableToolNames).toContain("add_amora_action");

@@ -2,6 +2,7 @@ import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
+import { PERSONAL_ACTION_CONVERSATION_TOOLS } from "./amoraPersonalActionConversation";
 
 /**
  * 도구 스키마의 분야 목록은 **손으로 적지 않는다.**
@@ -68,6 +69,7 @@ const BUDGET_CATEGORY_DESCRIPTION =
   `${PLANNING_CATEGORY_DESCRIPTION}, reserve=예비비`;
 
 export const WEDDING_TOOLS: AiToolDefinition[] = [
+  ...PERSONAL_ACTION_CONVERSATION_TOOLS,
   {
     name: "update_budget",
     description:
@@ -171,19 +173,19 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "apply_budget_plan",
     description:
-      "예산 인터뷰 완료 후 카테고리별 배분을 한 번에 적용합니다. 사용자가 '이대로 적용', '좋아 그렇게 해줘'처럼 명시적으로 확정한 경우에만 호출하세요. 총 예산도 함께 갱신되며, allocations 합계는 total_budget과 같거나 작아야 합니다 (남으면 reserve로 자동 처리).",
+      "확인 카드로 사용자가 확정한 예산 배분을 한 번에 적용하고 총액도 갱신합니다. 미지정 기존 항목은 유지하며, 변경 후 전체 배정이 총액을 넘으면 거부합니다. 비예비비 배정을 뺀 잔액은 reserve가 됩니다.",
     input_schema: {
       type: "object" as const,
       properties: {
         total_budget: {
           type: "number",
           description:
-            "총 결혼 예산 (원 단위). 이 금액이 어디까지 덮는지는 사용자가 확인해 준 범위를 따릅니다. 결혼식, 사진 촬영·드레스·메이크업, 결혼반지, 신혼여행, 가전·가구, 신혼집은 서로 다른 자금 범위일 수 있으므로 금액 크기로 포함 여부를 추정하지 말고, 모호하면 먼저 한 문장으로 확인하세요.",
+            "총 결혼 예산 (원 단위). 예식·사진 촬영·드레스·메이크업·반지·신혼여행·가전가구·신혼집 중 사용자가 확인한 포함 범위만 따르세요. 금액 크기로 추정하지 말고 모호한 범위만 한 문장으로 확인하세요.",
         },
         allocations: {
           type: "array",
           description:
-            "카테고리별 배분 리스트. 사용자가 직접 입력하거나 확인한 목표 금액·견적·상한만 사용하세요. 선호도나 평균을 근거로 금액 또는 비율을 새로 만들지 말고, 확인되지 않은 금액은 배분하지 않은 채 남겨 두세요. 합계가 total_budget보다 작으면 잔여분은 자동으로 reserve(아직 쓰임을 정하지 않은 금액)로 처리됩니다.",
+            "카테고리별 배분 리스트. 사용자가 직접 입력하거나 확인한 목표 금액·견적·상한만 사용하세요. 미지정 기존 배정은 유지됩니다. 잔액은 reserve(미정 금액)이며 명시한 reserve보다 작으면 거부합니다.",
           items: {
             type: "object",
             properties: {
@@ -199,7 +201,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
               rationale: {
                 type: "string",
                 description:
-                  "금액의 확인 가능한 출처를 한 줄로 적습니다. 예: '사용자가 입력한 견적', '사용자가 정한 지출 상한'. 우선순위만으로 임의의 비율이나 금액을 만들지 마세요.",
+                  "확인한 금액 출처 한 줄(견적·지출 상한 등). 우선순위만으로 임의의 비율이나 금액을 만들지 마세요.",
               },
             },
             required: ["category", "budget"],
@@ -208,7 +210,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         intake_summary: {
           type: "string",
           description:
-            "이번 배분의 근거가 된 사용자 우선순위·가치관·제약 1~3줄 요약. 이 도구는 총액과 배분만 저장하며, 요약 원문 자체는 저장하지 않습니다.",
+            "사용자 우선순위·가치관·제약 1~3줄 요약. 총액·배분만 저장되며 요약 원문은 저장되지 않습니다.",
         },
       },
       required: ["total_budget", "allocations", "intake_summary"],
@@ -982,7 +984,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
         },
         no_show_rate_percent: {
           type: "number",
-          description: "사용자가 직접 정한 노쇼/불참 시나리오 비율(0~100). 업계 평균이나 기본값을 추정하지 말고, 모르면 계산 전에 사용자에게 확인합니다.",
+          description: "사용자가 직접 정한 불참 시나리오 비율(0~100). 모르면 생략하고 인원×식대만 먼저 계산합니다. 불참 비교가 필요할 때만 비율을 확인하며 평균·기본값을 추정하지 않습니다.",
         },
         notice_deadline: {
           type: "string",

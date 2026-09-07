@@ -1,5 +1,7 @@
+import { LockKeyhole, Sparkles, Users } from "lucide-react";
+
 import { landingContent } from "./landingContent";
-import { band, bodyText, eyebrowText, noteText, sectionTitle, shell } from "./notebook";
+import { band, bodyText, eyebrowText, noteText, shell } from "./notebook";
 
 /**
  * ③ 막막한 그대로 말해도 돼요 — 아모라가 **처음 말하는 자리**.
@@ -21,16 +23,16 @@ export default function AmoraNoteSection() {
   const { amoraNote } = landingContent;
 
   return (
-    <section id="amora" className={band} aria-labelledby="amora-title">
-      <div className={`${shell} grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.92fr)] lg:gap-14`}>
-        <div>
-          <p className="mb-5">
+    <section id="amora" className={`${band} bg-[var(--color-ivory-50)]`} aria-labelledby="amora-title">
+      <div className={`${shell} grid gap-y-[22px] lg:grid-cols-2 lg:gap-x-[72px] lg:gap-y-0`}>
+        <div className="min-w-0 lg:col-start-1 lg:row-start-1 lg:self-end">
+          <p className="mb-[10px] lg:mb-3">
             <span className={eyebrowText}>
               {amoraNote.eyebrow}
             </span>
           </p>
 
-          <h2 id="amora-title" className={sectionTitle}>
+          <h2 id="amora-title" className="landing-display text-[24px] leading-[1.48] text-[var(--color-paper-ink)] lg:text-[31px] lg:leading-[1.42]">
             {amoraNote.title.split("\n").map((line) => (
               <span key={line} className="block">
                 {line}
@@ -38,64 +40,67 @@ export default function AmoraNoteSection() {
             ))}
           </h2>
 
-          <p className={`mt-7 max-w-[46ch] ${bodyText}`}>{amoraNote.body}</p>
-
-          <ul className="mt-9 grid gap-4 sm:grid-cols-2">
-            {amoraNote.lanes.map((lane) => (
-              <li
-                key={lane.name}
-                // 시안은 "나만 보는" 쪽만 점선으로 그린다 — 선의 모양이 곧
-                // "이건 닫혀 있다"는 뜻이다. 색이 아니라 형태로 말한다.
-                className={`rounded-[12px] px-5 py-5 ${
-                  lane.shared
-                    ? "border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)]"
-                    : "border border-dashed border-[var(--color-paper-outline)]"
-                }`}
-              >
-                <p className="text-[16px] font-semibold text-[var(--color-paper-ink)]">
-                  {lane.name}
-                </p>
-                <p className={`mt-2 ${noteText}`}>{lane.detail}</p>
-              </li>
-            ))}
-          </ul>
-
-          <p className={`mt-5 ${noteText}`}>{amoraNote.laneNote}</p>
-          <p className={`mt-2 ${noteText}`}>{amoraNote.privacyNote}</p>
+          <p className={`mt-[14px] lg:mt-4 ${bodyText}`}>{amoraNote.body}</p>
         </div>
 
-        <div className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-7 shadow-raised sm:px-7">
-          <p className="text-[12px] font-medium text-[var(--color-paper-ink-faint)]">
+        <div className="min-w-0 rounded-[16px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-[18px] shadow-raised lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:self-center lg:rounded-[18px] lg:p-6">
+          <p className="mb-[6px] text-[11px] text-[var(--color-paper-ink-faint)] lg:mb-[7px] lg:text-[11.5px]">
             {amoraNote.chat.meLabel}
           </p>
-          <p className="mt-2 rounded-[12px] bg-[var(--color-paper-tint)] px-5 py-4 text-[16px] leading-[1.7] text-[var(--color-paper-ink)]">
+          <p className="rounded-[13px] rounded-br-[4px] bg-[var(--color-surface-low)] px-[14px] py-3 text-[13.5px] leading-[1.7] text-[var(--color-paper-ink)] lg:rounded-[15px] lg:rounded-br-[5px] lg:px-[17px] lg:py-[14px] lg:text-[14.5px]">
             {amoraNote.chat.me}
           </p>
 
-          <p className="mt-5 flex items-center gap-2 text-[12px] font-medium text-[var(--color-paper-ink-faint)]">
-            <span aria-hidden>☆</span>
+          <p className="mb-[7px] mt-[13px] flex items-center gap-[6px] text-[11.5px] font-semibold text-[var(--color-rose-700)] lg:mb-2 lg:mt-4 lg:gap-[7px] lg:text-[12px]">
+            <Sparkles aria-hidden className="size-[14px]" strokeWidth={1.7} />
             <span>{amoraNote.chat.amoraLabel}</span>
           </p>
-          <p className="mt-2 rounded-[12px] bg-[var(--color-paper-rule)] px-5 py-4 text-[16px] leading-[1.7] text-[var(--color-paper-ink)]">
+          <p className="rounded-[13px] rounded-bl-[4px] bg-[var(--color-sage-pale)] px-[14px] py-3 text-[13.5px] leading-[1.7] text-[var(--color-paper-ink)] lg:rounded-[15px] lg:rounded-bl-[5px] lg:px-[17px] lg:py-[14px] lg:text-[14.5px]">
             {amoraNote.chat.amora}
           </p>
 
           {/* 칩은 **그림이다.** 누를 수 있는 것처럼 보이지만 이 화면에서는 아무 일도
               일어나지 않는다(비로그인 아모라 체험이 닫혀 있다). 보조기기가 진짜
               버튼으로 읽지 않도록 aria-hidden 으로 묶는다. */}
-          <div aria-hidden className="mt-5 flex flex-wrap gap-3">
+          <div aria-hidden className="mt-[13px] flex gap-2 lg:mt-4 lg:gap-[9px]">
             {amoraNote.chat.chips.map((chip) => (
               <span
                 key={chip}
-                className="inline-flex items-center rounded-[6px] border border-[var(--color-paper-outline)] px-4 py-2 text-[14px] font-semibold text-[var(--color-paper-ink)]"
+                className="inline-flex min-h-11 flex-1 items-center justify-center rounded-full border-[1.5px] border-[var(--color-paper-ink)] px-4 text-[13.5px] font-semibold text-[var(--color-paper-ink)] lg:flex-none lg:px-5"
               >
                 {chip}
               </span>
             ))}
           </div>
 
-          <p className={`mt-5 ${noteText}`}>{amoraNote.chat.caption}</p>
+          <p className={`mt-[14px] lg:mt-4 ${noteText}`}>{amoraNote.chat.caption}</p>
           <p className={`mt-4 ${noteText}`}>{amoraNote.note}</p>
+        </div>
+
+        {/* 모바일에서는 대화 다음에, 넓은 화면에서는 설명 아래에 두 자리를 소개한다. */}
+        <div className="min-w-0 lg:col-start-1 lg:row-start-2 lg:mt-8 lg:self-start">
+          <ul className="grid gap-[10px] lg:grid-cols-2 lg:gap-4">
+            {amoraNote.lanes.map((lane) => (
+              <li
+                key={lane.name}
+                className={`rounded-[13px] border p-[17px] lg:rounded-[14px] lg:px-[22px] lg:py-5 ${
+                  lane.shared
+                    ? "border-[var(--color-paper-edge)] bg-[var(--color-paper-card)]"
+                    : "border-dashed border-[var(--color-paper-outline)] bg-[var(--color-ivory-50)]"
+                }`}
+              >
+                <p className="flex items-center gap-[7px] text-[13.5px] font-semibold text-[var(--color-paper-ink)] lg:gap-2 lg:text-[14px]">
+                  {lane.shared
+                    ? <Users aria-hidden className="size-4 shrink-0" strokeWidth={1.7} />
+                    : <LockKeyhole aria-hidden className="size-4 shrink-0" strokeWidth={1.7} />}
+                  {lane.name}
+                </p>
+                <p className={`mt-[7px] lg:mt-2 ${noteText}`}>{lane.detail}</p>
+              </li>
+            ))}
+          </ul>
+          <p className={`mt-3 lg:mt-[14px] ${noteText}`}>{amoraNote.laneNote}</p>
+          <p className={`mt-2 ${noteText}`}>{amoraNote.privacyNote}</p>
         </div>
       </div>
     </section>

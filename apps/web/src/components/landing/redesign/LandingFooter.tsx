@@ -24,27 +24,27 @@ export default function LandingFooter() {
   ];
 
   return (
-    <footer className="border-t border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] py-14">
+    <footer className="border-t border-[var(--color-paper-edge)] bg-[var(--color-paper-sheet)] py-[38px]">
       <div className={shell}>
-        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.1fr)_repeat(3,minmax(0,1fr))]">
-          <div>
-            <p className="landing-hand text-[24px] text-[var(--color-paper-ink)]">웨딩한방</p>
-            <p className="mt-3 max-w-[24ch] text-[14px] leading-[1.75] text-[var(--color-paper-ink-faint)]">
+        <div className="grid gap-5 lg:grid-cols-[240px_1fr] lg:gap-x-12">
+          <div className="lg:row-span-3">
+            <p className="landing-display text-[19px] text-[var(--color-paper-ink)]">웨딩한방</p>
+            <p className="mt-2 text-[12px] leading-[1.75] text-[var(--color-paper-ink-faint)]">
               {footer.tagline}
             </p>
           </div>
 
           {groups.map((group) => (
-            <nav key={group.label} aria-label={group.label}>
-              <p className="text-[12px] font-bold text-[var(--color-paper-ink-faint)]">
+            <nav key={group.label} aria-label={group.label} className="flex flex-wrap items-baseline gap-x-5 gap-y-1">
+              <p className="min-w-[80px] text-[12px] font-bold text-[var(--color-paper-ink-faint)]">
                 {group.label}
               </p>
-              <ul className="mt-4 space-y-1">
+              <ul className="flex flex-wrap gap-x-5">
                 {group.items.map((item) => (
                   <li key={`${group.label}-${item.href}-${item.label}`}>
                     <Link
                       href={item.href}
-                      className="inline-flex min-h-11 items-center text-[14px] leading-[1.6] text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-pen)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+                      className="inline-flex min-h-11 items-center text-[12px] leading-[1.6] text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-pen)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
                     >
                       {item.label}
                     </Link>
@@ -55,7 +55,7 @@ export default function LandingFooter() {
           ))}
         </div>
 
-        <p className="mt-12 border-t border-[var(--color-paper-divider)] pt-6 text-[12px] leading-[1.85] text-[var(--color-paper-ink-faint)]">
+        <p className="mt-7 border-t border-[var(--color-paper-divider)] pt-5 text-[12px] leading-[1.85] text-[var(--color-paper-ink-faint)]">
           {footer.notice}
         </p>
         <p className="mt-4 text-[12px] text-[var(--color-paper-ink-faint)]">{footer.copyright}</p>

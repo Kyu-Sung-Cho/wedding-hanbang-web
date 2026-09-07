@@ -18,6 +18,8 @@ import {
   WEB_SEMANTIC_ROLE_VARS,
   WEB_THEME_COLOR_VARS,
   WEB_THEME_ROLE_VARS,
+  WEB_HTML_WORKSPACE_COLOR_VARS,
+  WEB_HTML_WORKSPACE_ROLE_VARS,
   renderWebCssColorVars,
   webCssManagedEnd,
   webCssManagedStart,
@@ -36,6 +38,8 @@ const REGIONS = [
   // 색이 둘로 갈린다(2026-08-21 실측).
   { region: "service-theme", vars: WEB_THEME_ROLE_VARS, prefix: "hb-" },
   { region: "community-theme", vars: WEB_THEME_ROLE_VARS, prefix: "hb-" },
+  { region: "html-workspace", vars: WEB_HTML_WORKSPACE_COLOR_VARS, prefix: "amora-" },
+  { region: "html-workspace-roles", vars: WEB_HTML_WORKSPACE_ROLE_VARS, prefix: "hb-" },
 ];
 
 /**

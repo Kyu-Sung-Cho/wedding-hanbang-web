@@ -111,6 +111,19 @@ test("만원 input is parsed exactly and cannot use a parseInt prefix", () => {
   }
 });
 
+test("budget editors accept at most four decimal manwon digits without rounding a won", () => {
+  const snapshot = parseBudgetJourney(journey(), COUPLE_A);
+  for (const [input, amount] of [["0.0001", 1], ["0.5", 5_000], ["1.5001", 15_001], ["12345.6789", 123_456_789], ["99999.9999", 999_999_999], ["100000.0000", 1_000_000_000]]) {
+    assert.equal(buildTotalBudgetMutation(snapshot, input).total_budget, amount);
+    const category = buildCategoryBudgetMutation(snapshot, { categoryKey: "venue", budgetInput: input, spentInput: input, payer: "couple" });
+    assert.equal(category.progress_patch.venue.budget, amount);
+    assert.equal(category.progress_patch.venue.spent, amount);
+  }
+  for (const invalid of ["", ".5", "1.", "0.00001", "100000.0001", "1e2", "1,000", "-0.5", " 1", "1 ", "NaN", "Infinity"]) {
+    assert.throws(() => buildTotalBudgetMutation(snapshot, invalid), /INVALID_MANWON_AMOUNT/);
+  }
+});
+
 test("total and category writes bind the loaded revision and loaded progress snapshot", () => {
   const snapshot = parseBudgetJourney(journey(), COUPLE_A);
   assert.deepEqual(buildTotalBudgetMutation(snapshot, "4200"), {

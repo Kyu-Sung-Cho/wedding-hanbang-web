@@ -2,7 +2,7 @@ import AppPreviewCard from "./AppPreviewCard";
 import TrackedLandingLink from "./TrackedLandingLink";
 
 import { landingContent } from "./landingContent";
-import { bodyText, noteText, shell } from "./notebook";
+import { noteText, shell } from "./notebook";
 
 /**
  * 첫 화면.
@@ -48,20 +48,20 @@ export default function TransformationHero() {
 
   return (
     <section
-      className="relative overflow-hidden pb-16 pt-10 sm:pt-14"
+      className="relative overflow-hidden pb-[34px] pt-6 lg:pb-[76px] lg:pt-20"
       aria-labelledby="hero-title"
     >
       {/* 꽃은 여기서 그리지 않는다. 정본 시안은 다섯 자리에 놓고, 그 배치는
           페이지 전체를 덮는 `LandingBloomLayer` 가 진다. */}
-      <div className={`${shell} relative grid items-center gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)] lg:gap-14`}>
+      <div className={`${shell} relative grid items-start gap-[30px] lg:grid-cols-2 lg:gap-16`}>
         <div>
-        <p className="mb-7">
+        <p className="mb-4 lg:mb-6">
           <span className="landing-tape landing-hand">{hero.tape}</span>
         </p>
 
         <h1
           id="hero-title"
-          className="text-balance text-[clamp(2.2rem,7vw,3.45rem)] font-semibold leading-[1.14] tracking-[-0.045em] text-[var(--color-paper-ink)]">
+          className="landing-display text-[30px] leading-[1.42] tracking-[-0.01em] text-[var(--color-paper-ink)] lg:text-[clamp(2.25rem,3.48vw,3.125rem)] lg:leading-[1.34]">
           {hero.title.split("\n").map((line) => {
             // 시안은 둘째 줄의 `우리 둘이` 만 로즈브라운으로 칠한다.
             // 시안 픽셀을 재니 #8F6563 이고 이는 기존 토큰 `--color-rose-600`(#8F6662)와
@@ -71,7 +71,12 @@ export default function TransformationHero() {
             if (at < 0) {
               return (
                 <span key={line} className="block">
-                  {line}
+                  {line.includes(", ") ? <>
+                    {line.slice(0, line.indexOf(", ") + 1)}
+                    <br className="lg:hidden" />
+                    <span className="hidden lg:inline"> </span>
+                    {line.slice(line.indexOf(", ") + 2)}
+                  </> : line}
                 </span>
               );
             }
@@ -85,26 +90,26 @@ export default function TransformationHero() {
           })}
         </h1>
 
-        <p className={`mt-7 max-w-[46ch] ${bodyText}`}>{hero.body}</p>
+        <p className="mt-[14px] max-w-[470px] text-[15px] leading-[1.74] text-[var(--color-paper-ink-soft)] lg:mt-[18px] lg:text-[17.5px] lg:leading-[1.76]">{hero.body}</p>
 
-        <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="mt-[22px] flex flex-col gap-1 lg:mt-8 lg:flex-row lg:items-center lg:gap-[14px]">
           <TrackedLandingLink
             source="landing_hero_primary"
             href={hero.primary.href}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-[6px] bg-[var(--color-paper-ink)] px-7 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+            className="inline-flex min-h-[54px] items-center justify-center whitespace-nowrap rounded-[11px] bg-[var(--color-paper-ink)] px-5 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:rounded-[9px] lg:px-6"
           >
             {hero.primary.label}
           </TrackedLandingLink>
           <TrackedLandingLink
             source="landing_hero_secondary"
             href={hero.secondary.href}
-            className="inline-flex min-h-[54px] items-center justify-center rounded-[6px] border border-[var(--color-paper-outline)] px-6 text-[16px] font-semibold text-[var(--color-paper-ink)] transition-colors duration-200 hover:border-[var(--color-paper-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none"
+            className="inline-flex min-h-12 items-center justify-center whitespace-nowrap rounded-[9px] px-5 text-[14.5px] font-semibold text-[var(--color-paper-pen)] transition-colors duration-200 hover:text-[var(--color-paper-pen-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:min-h-[54px] lg:border lg:border-[var(--color-paper-ink)] lg:text-[16px] lg:text-[var(--color-paper-ink)]"
           >
             {hero.secondary.label}
           </TrackedLandingLink>
         </div>
 
-        <p className={`relative mt-6 max-w-[46ch] ${noteText}`}>{hero.note}</p>
+        <p className={`relative mt-2 max-w-[470px] text-center lg:mt-[14px] lg:text-left ${noteText}`}>{hero.note}</p>
         </div>
 
         {/* 앱 화면 미리보기. 좁은 화면에서는 첫 행동(버튼·안내문) 뒤로 내려간다 —

@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   foldPayerSides,
   formatManwon,
+  formatWonExact,
   formatPercentCell,
   withPercents,
 } from "../budgetShare.mjs";
@@ -55,6 +56,20 @@ test("금액이 있는데 0%로 내림된 조각은 `1% 미만`으로 적는다"
 test("금액은 만원 단위로 적는다", () => {
   assert.equal(formatManwon(18_000_000), "1,800만원");
   assert.equal(formatManwon(0), "0만원");
+});
+
+test("저장한 예산과 기록 지출은 소액·억 단위도 원 단위를 그대로 표시한다", () => {
+  for (const [amount, label] of [
+    [0, "0원"], [-0, "0원"], [1, "1원"], [5_000, "5,000원"],
+    [14_999, "14,999원"], [5_995_000, "5,995,000원"],
+    [100_001_000, "100,001,000원"], [30_000_000, "3,000만원"],
+  ]) assert.equal(formatWonExact(amount), label);
+});
+
+test("잘못된 원 단위 값을 정상 금액으로 표시하지 않는다", () => {
+  for (const amount of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => formatWonExact(amount), RangeError);
+  }
 });
 
 test("분담 네 값이 세 기둥으로 접힌다", () => {

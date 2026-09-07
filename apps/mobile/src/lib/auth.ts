@@ -131,10 +131,16 @@ export async function signInWithOAuth(provider: SupportedOAuthProvider) {
 
 export async function signOut(options: {
   continueOnDecisionPurgeFailure?: boolean;
+  isCurrentSession?: () => boolean;
 } = {}) {
+  const assertCurrentSession = () => {
+    if (options.isCurrentSession && !options.isCurrentSession()) throw new Error("API_SESSION_OWNER_MISMATCH");
+  };
+  assertCurrentSession();
   let decisionDataPurged = true;
   if (Platform.OS !== "web") {
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    assertCurrentSession();
     if (sessionError) throw sessionError;
     const ownerId = sessionData.session?.user.id ?? null;
     if (ownerId) {
@@ -142,6 +148,7 @@ export async function signOut(options: {
         const { purgeCommunityDecisionPendingForOwnerWithRetry } = await import(
           "./communityDecisionPending"
         );
+        assertCurrentSession();
         await purgeCommunityDecisionPendingForOwnerWithRetry(ownerId);
       } catch {
         decisionDataPurged = false;
@@ -149,12 +156,16 @@ export async function signOut(options: {
           throw new Error("COMMUNITY_DECISION_OWNER_PURGE_UNCONFIRMED");
         }
       }
+      assertCurrentSession();
     }
     const { releasePushNotificationsForCurrentSession } = await import("./notifications");
-    await releasePushNotificationsForCurrentSession();
+    assertCurrentSession();
+    if (options.isCurrentSession) await releasePushNotificationsForCurrentSession(options.isCurrentSession);
+    else await releasePushNotificationsForCurrentSession();
   }
   // 일반 기기 로그아웃은 다른 휴대폰의 준비 흐름과 알림 세션을 끊지 않는다.
   // 계정 삭제/모든 기기 로그아웃은 별도의 명시적 서버 경계를 사용한다.
+  assertCurrentSession();
   const { error } = await supabase.auth.signOut({ scope: "local" });
   if (error) throw error;
   return { decisionDataPurged };

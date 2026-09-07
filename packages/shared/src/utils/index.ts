@@ -1,5 +1,6 @@
 export * from "./coupleConnection";
 export * from "./chatLane";
+export * from "./chatTimestamp";
 export * from "./mobileOAuth";
 export * from "./scheduleMemo";
 export * from "./planningChecklist";

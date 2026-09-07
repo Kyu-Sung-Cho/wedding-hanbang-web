@@ -573,7 +573,7 @@ test("closing the bubble hides the bubble, not the fact that Amora spoke", () =>
   // 앱을 다시 켰을 때도, 말풍선을 접었던 사람에게 점은 남아 있어야 한다.
   assert.match(
     loungeSource,
-    /if \(!active \|\| !pending\) return;[\s\S]{0,200}setAmoraUnread\(true\);[\s\S]{0,200}if \(pending\.bubbleDismissed\) return;/,
+    /if \(!active \|\| !pending \|\| firstRunProfileRef\.current !== owner\) return;[\s\S]{0,200}setAmoraUnread\(true\);[\s\S]{0,200}if \(pending\.bubbleDismissed\) return;/,
   );
 });
 
@@ -644,6 +644,47 @@ test("the hello path never touches the network or the proactive route", () => {
   assert.match(loungeSource, /buildAmoraFirstHello\(\{/);
 });
 
+const helloOwner = { userId: "synthetic-owner", coupleId: "synthetic-couple" };
+
+test("a greeting from another account or former couple is never restored from memory or device storage", async () => {
+  firstHello.resetAmoraFirstHelloMemory();
+  const storage = createMemoryStorage();
+  const now = Date.parse("2026-09-06T01:00:00Z");
+  await firstHello.rememberPendingAmoraFirstHello({ preview: "합성 첫 인사", body: "이전 커플의 준비 단계" }, { storage, now, owner: helloOwner });
+  for (const owner of [{ ...helloOwner, userId: "other-owner" }, { ...helloOwner, coupleId: "new-couple" }]) {
+    assert.equal(await firstHello.peekPendingAmoraFirstHello({ storage, now, owner }), null);
+  }
+  firstHello.resetAmoraFirstHelloMemory();
+  assert.equal(await firstHello.peekPendingAmoraFirstHello({ storage, now, owner: { ...helloOwner, userId: "other-owner" } }), null);
+  assert.equal((await firstHello.peekPendingAmoraFirstHello({ storage, now, owner: helloOwner })).body, "이전 커플의 준비 단계");
+});
+
+test("a delivered greeting stays bound to its owner and still expires in the same runtime", async () => {
+  firstHello.resetAmoraFirstHelloMemory();
+  const now = Date.parse("2026-09-06T01:00:00Z");
+  await firstHello.rememberPendingAmoraFirstHello({ preview: "합성 인사", body: "원래 계정의 준비 단계" }, { now, owner: helloOwner });
+  await firstHello.consumePendingAmoraFirstHello({ now, owner: helloOwner });
+  assert.equal(firstHello.getDeliveredAmoraFirstHello({ now, owner: { ...helloOwner, userId: "other-owner" } }), null);
+  assert.equal(firstHello.getDeliveredAmoraFirstHello({ now: now + 4 * 24 * 3600_000, owner: helloOwner }), null);
+});
+
+test("unowned legacy greetings fail closed and a late read cannot replace another owner's pending greeting", async () => {
+  firstHello.resetAmoraFirstHelloMemory();
+  const now = Date.parse("2026-09-06T01:00:00Z");
+  const record = { preview: "합성 과거 인사", body: "소유자 없는 기록", savedAt: now, bubbleDismissed: false };
+  const storage = createMemoryStorage({ "@hanbang/amora_first_hello_pending.v1": JSON.stringify(record) });
+  assert.equal(await firstHello.peekPendingAmoraFirstHello({ storage, now, owner: helloOwner }), null);
+  assert.equal(await firstHello.rememberPendingAmoraFirstHello(record, { storage, now }), null);
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const pendingRead = firstHello.peekPendingAmoraFirstHello({ now, owner: helloOwner, storage: { ...storage, getItem: () => waiting } });
+  const otherOwner = { ...helloOwner, userId: "other-owner" };
+  await firstHello.rememberPendingAmoraFirstHello({ preview: "현재 인사", body: "새 계정의 준비 단계" }, { storage, now, owner: otherOwner });
+  release(JSON.stringify(record));
+  await pendingRead;
+  assert.equal((await firstHello.peekPendingAmoraFirstHello({ storage, now, owner: otherOwner })).body, "새 계정의 준비 단계");
+});
+
 test("the greeting survives the trip from the lounge to the conversation", async () => {
   firstHello.resetAmoraFirstHelloMemory();
   const storage = createMemoryStorage();
@@ -655,31 +696,31 @@ test("the greeting survives the trip from the lounge to the conversation", async
     now,
   });
 
-  await firstHello.rememberPendingAmoraFirstHello(hello, { storage, now });
+  await firstHello.rememberPendingAmoraFirstHello(hello, { storage, now, owner: helloOwner });
 
   // 라운지가 앱 재시작 뒤에도 말풍선을 되살릴 수 있어야 한다.
   firstHello.resetAmoraFirstHelloMemory();
-  const restored = await firstHello.peekPendingAmoraFirstHello({ storage, now });
+  const restored = await firstHello.peekPendingAmoraFirstHello({ storage, now, owner: helloOwner });
   assert.equal(restored.preview, hello.preview);
   assert.equal(restored.bubbleDismissed, false);
 
   // 말풍선을 닫아도 인사 자체는 남는다 — 닫기는 "알림 봤다"이지 "인사 필요 없다"가 아니다.
-  await firstHello.dismissAmoraFirstHelloBubble({ storage, now });
+  await firstHello.dismissAmoraFirstHelloBubble({ storage, now, owner: helloOwner });
   firstHello.resetAmoraFirstHelloMemory();
   assert.equal(
-    (await firstHello.peekPendingAmoraFirstHello({ storage, now })).bubbleDismissed,
+    (await firstHello.peekPendingAmoraFirstHello({ storage, now, owner: helloOwner })).bubbleDismissed,
     true,
   );
 
-  const delivered = await firstHello.consumePendingAmoraFirstHello({ storage, now });
+  const delivered = await firstHello.consumePendingAmoraFirstHello({ storage, now, owner: helloOwner });
   assert.equal(delivered.body, hello.body);
-  assert.equal(storage.items.has(firstHello.PENDING_AMORA_FIRST_HELLO_KEY), false);
+  assert.equal(storage.items.has(firstHello.amoraFirstHelloStorageKey(helloOwner)), false);
   // 두 번 열어도 같은 인사가 보인다(같은 실행 안에서는).
-  assert.deepEqual(firstHello.getDeliveredAmoraFirstHello(), delivered);
+  assert.deepEqual(firstHello.getDeliveredAmoraFirstHello({ now, owner: helloOwner }), delivered);
 
   firstHello.resetAmoraFirstHelloMemory();
-  assert.equal(await firstHello.consumePendingAmoraFirstHello({ storage, now }), null);
-  assert.equal(firstHello.getDeliveredAmoraFirstHello(), null);
+  assert.equal(await firstHello.consumePendingAmoraFirstHello({ storage, now, owner: helloOwner }), null);
+  assert.equal(firstHello.getDeliveredAmoraFirstHello({ now, owner: helloOwner }), null);
 });
 
 test("a stale or malformed stored greeting is treated as absent", async () => {

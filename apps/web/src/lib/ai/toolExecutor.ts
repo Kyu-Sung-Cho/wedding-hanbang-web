@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { resolveStatusByKey } from "@/utils/checklist";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { executePersonalActionConversationTool } from "./tools/personalActionTools";
 import type { ToolExecutionResult } from "@/types/database.types";
 import {
   executeSimulateGuestGuarantee,
@@ -518,6 +519,9 @@ async function executeToolOnce(
   context: ExecutionContext
 ): Promise<ToolExecutionResult> {
   switch (toolName) {
+      case "get_personal_actions":
+      case "prepare_personal_action":
+        return executePersonalActionConversationTool(toolName, toolInput, context);
       case "update_budget":
         return await executeUpdateBudget(toolInput, context);
       case "update_wedding_date":

@@ -5,6 +5,8 @@ export declare function withPercents<T extends { amount: number }>(
 
 export declare function formatManwon(won: number): string;
 
+export declare function formatWonExact(won: number): string;
+
 export declare function formatPercentCell(percent: number, amount: number): string;
 
 export interface PayerSides {

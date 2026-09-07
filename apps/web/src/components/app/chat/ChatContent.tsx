@@ -1,7 +1,10 @@
 "use client";
 
+import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
+
 import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink, User } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
@@ -13,6 +16,7 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
+import Button from "@/components/ui/Button";
 import MediationConsentDialog from "@/components/app/chat/MediationConsentDialog";
 import {
   AmoraPersonalizationConfirmation,
@@ -839,6 +843,44 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 유효한 초안만 읽으며 URL에는 날짜를 남기지 않는다.
   const searchParams = useSearchParams();
   const router = useRouter();
+  const appliedRouteScope = useRef<string | null>(null);
+  const requestedRouteScope = searchParams.get("scope");
+  const [personalContinuationNotice, setPersonalContinuationNotice] = useState<{ identity: string; text: string } | null>(null);
+  const privateDraftRef = useRef(composerDrafts.private_ai);
+  privateDraftRef.current = composerDrafts.private_ai;
+  useEffect(() => {
+    if (embedded || !authInitialized || authLoading || !initialLoadDone || isDemo || !profile?.id || !coupleId
+      || !myPrivateVisibility || isStreaming || isSending || !personalActionContinuation.hasPending()) return;
+    let active = true;
+    const epoch = composerEpochRef.current;
+    const scope = { ownerId: profile.id, coupleId };
+    handleScopeChange("private");
+    setPersonalContinuationNotice(null);
+    void personalActionContinuation.take(scope).then(text => {
+      if (!active || !text || epoch !== composerEpochRef.current) return;
+      const current = useAuthStore.getState();
+      if (current.user?.id !== scope.ownerId || current.profile?.couple_id !== scope.coupleId) return;
+      const existing = privateDraftRef.current;
+      if (existing.input.trim() || existing.attachments.length || existing.pendingAttachmentReads) {
+        setPersonalContinuationNotice({ identity: composerIdentity, text: "작성 중인 나만 상담은 그대로 두었어요. 보내거나 비운 뒤 개인 목록에서 다시 이어가 주세요." });
+        return;
+      }
+      handleScopeChange("private");
+      setDraftInput("private_ai", previous => previous.trim() ? previous : text);
+      requestAnimationFrame(() => textareaRef.current?.focus());
+    }).catch(() => {
+      if (active && epoch === composerEpochRef.current) setPersonalContinuationNotice({ identity: composerIdentity, text: "개인 할 일을 다시 확인하지 못했어요. 개인 목록에서 다시 이어가 주세요." });
+    });
+    return () => { active = false; };
+  }, [authInitialized, authLoading, composerIdentity, coupleId, embedded, handleScopeChange, initialLoadDone, isDemo, isSending, isStreaming, myPrivateVisibility, profile?.id, setDraftInput]);
+  useEffect(() => {
+    if (embedded || !authInitialized || authLoading || isStreaming || isSending) return;
+    if (requestedRouteScope !== "shared" && requestedRouteScope !== "private") return;
+    if (appliedRouteScope.current === requestedRouteScope) return;
+    if (requestedRouteScope === "private" && (isDemo || !myPrivateVisibility)) return;
+    appliedRouteScope.current = requestedRouteScope;
+    handleScopeChange(requestedRouteScope);
+  }, [authInitialized, authLoading, embedded, handleScopeChange, isDemo, isSending, isStreaming, myPrivateVisibility, requestedRouteScope]);
   const prefillAppliedRef = useRef(false);
   // 적용한 초안을 기억해 둔다. authStore 가 늦게 하이드레이션되면
   // composerIdentity 가 바뀌어 모든 초안을 비우는데, 로그인 직후 진입은 항상
@@ -2376,10 +2418,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
           viewport 우측 가장자리에 위치. 툴바·입력박스만 reading column 으로
           가운데 정렬. */}
-      <div className="flex items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
+      {!embedded && (
+        <nav aria-label="아모라 준비 화면" className="flex shrink-0 justify-end gap-3 px-[18px] pt-2 text-[12px] text-[var(--amora-accent)] md:px-9">
+          <Link href={weddingPath("/chat/missions")} className="inline-flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2">오늘의 미션</Link>
+          <Link href={weddingPath("/chat/board")} className="inline-flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2">준비 보드</Link>
+        </nav>
+      )}
+      <div className="flex flex-wrap items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
         {/* 탭 — 좌측 차지 (메인 동작) */}
         <div
-          className="flex items-center gap-1 flex-1 min-w-0 p-1 bg-[var(--hb-surface-hover)] rounded-[6px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
+          className="amora-chat-scopes flex items-center gap-1 flex-1 min-w-[220px] p-1 bg-[var(--hb-surface-hover)] rounded-[6px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
           role="group"
           aria-label="대화 공개 범위"
         >
@@ -2460,8 +2508,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df]"
             }`}
-            aria-label="정보 패널"
-            title="정보 패널"
+            aria-label="정보 패널 · 대화 정리와 준비 현황"
+            title="대화 정리와 준비 현황"
           >
             <PanelRightOpen className="w-4 h-4" />
           </button>
@@ -3056,6 +3104,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               ? `무료 상담이 ${quotaRemaining}회 남았어요. 소진돼도 예산·일정 기록은 그대로 보관돼요.`
               : "무료 상담을 모두 사용했어요. 예산·일정 기록은 그대로 보관돼요."}
           </p>
+          <Button variant="ghost" onClick={() => setInfoPanelOpen(true)} className="shrink-0 px-2! text-xs!">대화 정리</Button>
           <button
             onClick={() => useChatStore.setState({ quotaRemaining: null })}
             className="ml-2 flex-shrink-0 text-[var(--hb-text-muted)] hover:text-[#6d625a]"
@@ -3067,6 +3116,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 에러 메시지 */}
+      {activeTab === "private" && personalContinuationNotice?.identity === composerIdentity && <div role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
+        <p>{personalContinuationNotice.text}</p><Link href="/chat/personal" className="inline-flex min-h-11 items-center underline">개인 목록에서 다시 확인</Link>
+      </div>}
       {transientArtifactsVisible && error && !isStreaming && (
         <div
           className={`mx-2 mt-2 rounded-[6px] border p-3.5 shadow-[var(--shadow-raised)] ${
@@ -3474,7 +3526,23 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
 
     </div>
       {/* 정보 패널 */}
-      <ChatInfoPanel isOpen={infoPanelOpen} onClose={() => setInfoPanelOpen(false)} />
+      <ChatInfoPanel key={`${activeArtifactVisibility}:${infoPanelOpen}`} isOpen={infoPanelOpen} onClose={() => setInfoPanelOpen(false)}
+        recap={activeArtifactVisibility ? {
+          visibility: activeArtifactVisibility,
+          nowMs,
+          canDraft: !isStreaming && !isSending && !isDemo
+            && !composerDrafts[isPrivate ? "private_ai" : "shared_ai"].input.trim()
+            && composerDrafts[isPrivate ? "private_ai" : "shared_ai"].attachments.length === 0
+            && composerDrafts[isPrivate ? "private_ai" : "shared_ai"].pendingAttachmentReads === 0,
+          onDraft: text => {
+            const lane = isPrivate ? "private_ai" : "shared_ai";
+            if (isStreaming || isSending || composerDrafts[lane].input.trim()
+              || composerDrafts[lane].attachments.length || composerDrafts[lane].pendingAttachmentReads) return;
+            setDraftInput(lane, text);
+            setMessageTarget("ai");
+            setInfoPanelOpen(false);
+          },
+        } : undefined} />
     </div>
   );
 }

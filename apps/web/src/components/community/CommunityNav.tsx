@@ -46,7 +46,7 @@ export default function CommunityNav({
           </span>
         </div>
 
-        <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] md:flex">
+        <nav className="hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] lg:flex">
           {baseNavItems.map((item, index) => (
             <div key={item.legacyPath} className="flex items-center gap-6">
               {index > 0 && <span className="h-4 w-px bg-[#eadfc9]" aria-hidden />}
@@ -90,7 +90,7 @@ export default function CommunityNav({
         <button
           type="button"
           onClick={() => setMobileOpen((value) => !value)}
-          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] md:hidden"
+          className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--hb-hairline)] text-[var(--hb-text-strong)] lg:hidden"
           aria-label="커뮤니티 메뉴"
           aria-expanded={mobileOpen}
         >
@@ -98,7 +98,7 @@ export default function CommunityNav({
         </button>
       </div>
       {mobileOpen && (
-        <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] md:hidden">
+        <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] lg:hidden">
           <div className="mx-auto flex w-full max-w-[1320px] flex-col gap-2 px-4 py-4 sm:px-6 lg:px-8">
             {baseNavItems.map((item) => (
               <Link

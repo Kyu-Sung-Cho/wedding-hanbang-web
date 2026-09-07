@@ -33,7 +33,8 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 
-vi.mock("lucide-react", () => ({
+vi.mock("lucide-react", async (importOriginal) => ({
+  ...await importOriginal<typeof import("lucide-react")>(),
   Sparkles: () => <span>sparkles</span>,
 }));
 
@@ -147,6 +148,21 @@ describe("AppClientLayout global Amora panel", () => {
     expect(mocks.authSyncCalls).toEqual([false]);
   });
 
+  it("restores focus to the remounted launcher after closing the panel without taking initial focus", async () => {
+    await renderLayout();
+    expect(document.activeElement).toBe(document.body);
+    const launcher = container.querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]')!;
+    launcher.focus();
+    await act(async () => launcher.click());
+    expect(launcher.isConnected).toBe(false);
+    const close = container.querySelector<HTMLButtonElement>('[data-testid="global-amora-panel-close"]')!;
+    close.focus();
+    await act(async () => close.click());
+    const restored = container.querySelector<HTMLButtonElement>('button[aria-label="아모라 AI 상담"]');
+    expect(restored).not.toBeNull();
+    expect(document.activeElement).toBe(restored);
+  });
+
   it("unmounts and resets the global panel when navigation enters the full chat page", async () => {
     await renderLayout();
 
@@ -169,6 +185,17 @@ describe("AppClientLayout global Amora panel", () => {
       .toBe("false");
   });
 
+  it.each(["/wedding/chat/missions", "/wedding/chat/board"])("keeps %s in the Amora shell with reachable mobile navigation", async (pathname) => {
+    mocks.pathname = pathname;
+    await renderLayout();
+    expect(container.querySelector(".amora-workspace main")).not.toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+    const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
+    expect(nav?.querySelectorAll("a")).toHaveLength(5);
+    expect(nav?.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="/wedding/checklist"]')).not.toBeNull();
+  });
+
   it.each([
     "/wedding/vendors",
     "/wedding/vendors/vendor-123",
@@ -179,6 +206,17 @@ describe("AppClientLayout global Amora panel", () => {
     expect(
       container.querySelectorAll('button[aria-label="아모라 AI 상담"]'),
     ).toHaveLength(1);
+  });
+
+  it("uses the checklist design with active navigation and retains the global assistant", async () => {
+    mocks.pathname = "/wedding/checklist";
+    await renderLayout();
+    expect(container.querySelector(".planning-workspace main")).not.toBeNull();
+    const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
+    expect(nav?.querySelectorAll("a")).toHaveLength(5);
+    expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/checklist");
+    expect(container.querySelectorAll('button[aria-label="아모라 AI 상담"]')).toHaveLength(1);
+    expect(container.textContent).toContain("AI notice");
   });
 
   it("suppresses analytics capture and the Amora launcher only in admin vendor preview mode", async () => {

@@ -1,5 +1,7 @@
+import { CalendarDays, ClipboardList, Sparkles, Wallet } from "lucide-react";
+
 import { landingContent } from "./landingContent";
-import { band, bodyText, eyebrowText, noteText, sectionTitle, shell } from "./notebook";
+import { band, bodyText, eyebrowText, noteText, sectionTitle, shell, TitleLines } from "./notebook";
 
 /**
  * ⑤ 대화로 끝나지 않게 — 정한 것이 **어디로 가는지.**
@@ -23,40 +25,49 @@ import { band, bodyText, eyebrowText, noteText, sectionTitle, shell } from "./no
  */
 export default function ConfirmSection() {
   const { confirm } = landingContent;
+  const toolIcons = [Wallet, ClipboardList, CalendarDays];
 
   return (
-    <section id="confirm" className={band} aria-labelledby="confirm-title">
+    <section id="confirm" className={`${band} bg-[var(--color-ivory-50)]`} aria-labelledby="confirm-title">
       <div className={shell}>
-        <p className="mb-5">
+        <p className="mb-[10px] lg:mb-3">
           <span className={eyebrowText}>
             {confirm.eyebrow}
           </span>
         </p>
 
-        <h2 id="confirm-title" className={sectionTitle}>
-          {confirm.title}
+        <h2 id="confirm-title" className={`${sectionTitle} max-w-[300px] lg:max-w-none`}>
+          <TitleLines value={confirm.title} mobileLastWord />
         </h2>
 
-        <p className={`mt-7 max-w-[52ch] ${bodyText}`}>{confirm.lede}</p>
+        <p className={`mt-[14px] max-w-[600px] lg:mt-4 ${bodyText}`}>{confirm.lede}</p>
 
-        <ul className="mt-10 grid gap-5 md:grid-cols-3">
-          {confirm.tools.map((tool) => (
-            <li
-              key={tool.title}
-              className="rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-6"
-            >
-              <p className="text-[18px] font-semibold text-[var(--color-paper-ink)]">
-                {tool.title}
-              </p>
-              <p className={`mt-2 ${noteText}`}>{tool.body}</p>
-            </li>
-          ))}
+        <ul className="mt-[22px] grid gap-[10px] lg:mt-[46px] lg:grid-cols-3 lg:gap-[18px]">
+          {confirm.tools.map((tool, index) => {
+            const Icon = toolIcons[index] ?? ClipboardList;
+            return (
+              <li
+                key={tool.title}
+                className="flex items-center gap-[13px] rounded-[13px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-4 lg:block lg:rounded-[14px] lg:p-[22px]"
+              >
+                <span aria-hidden className="flex size-[38px] shrink-0 items-center justify-center rounded-[10px] bg-[var(--color-ivory-warm)] text-[var(--color-rose-700)] lg:mb-[14px]">
+                  <Icon className="size-5" strokeWidth={1.7} />
+                </span>
+                <div>
+                  <p className="text-[14px] font-semibold text-[var(--color-paper-ink)] lg:text-[15px]">
+                    {tool.title}
+                  </p>
+                  <p className={`mt-[3px] lg:mt-[6px] ${noteText}`}>{tool.body}</p>
+                </div>
+              </li>
+            );
+          })}
         </ul>
 
-        <div className="mt-6 rounded-[12px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] px-6 py-7 shadow-raised sm:px-8">
-          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] font-semibold text-[var(--color-paper-ink-faint)]">
-            <span className="flex items-center gap-2">
-              <span aria-hidden>☆</span>
+        <div className="mt-[22px] max-w-[700px] rounded-[16px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-5 lg:mt-7 lg:rounded-[18px] lg:px-[30px] lg:py-7">
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] font-semibold text-[var(--color-rose-700)] lg:text-[13px]">
+            <span className="flex items-center gap-[7px] lg:gap-2">
+              <Sparkles aria-hidden className="size-[14px]" strokeWidth={1.7} />
               <span>{confirm.sample.cardTitle}</span>
             </span>
             {/* 아직 아무 일도 일어나지 않았다는 표시. 시안에는 없지만 이 카드가
@@ -66,20 +77,26 @@ export default function ConfirmSection() {
             </span>
           </p>
 
-          <ul className="mt-5">
+          <ul className="mt-[14px] lg:mt-[18px]">
             {confirm.sample.rows.map((row, index) => (
               <li
                 key={row.text}
                 className={
                   index === 0
-                    ? "flex items-center gap-4 py-3"
-                    : "flex items-center gap-4 border-t border-[var(--color-paper-divider)] py-3"
+                    ? "flex items-start gap-[11px] py-[11px] lg:gap-[14px] lg:py-[13px]"
+                    : "flex items-start gap-[11px] border-t border-[var(--color-paper-edge)] py-[11px] lg:gap-[14px] lg:py-[13px]"
                 }
               >
-                <span className="inline-flex min-w-[52px] justify-center rounded-full bg-[var(--color-paper-tint)] px-3 py-1 text-[12px] font-semibold text-[var(--color-paper-ink-faint)]">
+                <span className={`inline-flex min-w-[46px] shrink-0 justify-center whitespace-nowrap rounded-full px-[9px] py-[3px] text-[10.5px] font-bold lg:min-w-[52px] lg:px-[10px] lg:py-1 lg:text-[11px] ${
+                  index === 0
+                    ? "bg-[var(--color-sage-pale)] text-[var(--color-paper-ink)]"
+                    : index === 1
+                      ? "bg-[var(--color-gold-light)] text-[var(--color-paper-ink-soft)]"
+                      : "bg-[var(--color-rose-pale)] text-[var(--color-rose-700)]"
+                }`}>
                   {row.chip}
                 </span>
-                <span className="text-[16px] leading-[1.6] text-[var(--color-paper-ink)]">
+                <span className="text-[13.5px] leading-[1.6] text-[var(--color-paper-ink)] lg:text-[15px]">
                   {row.text}
                 </span>
               </li>
@@ -87,26 +104,26 @@ export default function ConfirmSection() {
           </ul>
 
           {/* 진짜 버튼이 아니다. 눌리지 않는 그림이라는 걸 보조기기에도 알려야 한다. */}
-          <div className="mt-5 flex flex-wrap gap-2" aria-hidden="true">
-            <span className="inline-flex min-h-9 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-4 text-[14px] font-semibold text-[var(--color-paper-card)]">
+          <div className="mt-4 grid grid-cols-2 gap-2 lg:mt-[18px] lg:flex lg:flex-wrap lg:gap-[9px]" aria-hidden="true">
+            <span className="inline-flex min-h-11 items-center justify-center rounded-[10px] bg-[var(--color-paper-ink)] px-4 text-[13px] font-semibold text-[var(--color-paper-card)] lg:rounded-[9px] lg:px-5 lg:text-[13.5px]">
               {confirm.sample.confirm}
             </span>
-            <span className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--color-paper-edge)] px-4 text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
+            <span className="inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[var(--color-paper-edge)] px-4 text-[13px] font-semibold text-[var(--color-paper-ink-soft)] lg:rounded-[9px] lg:px-5 lg:text-[13.5px]">
               {confirm.sample.edit}
             </span>
-            <span className="inline-flex min-h-9 items-center rounded-[6px] border border-[var(--color-paper-edge)] px-4 text-[14px] font-semibold text-[var(--color-paper-ink-soft)]">
+            <span className="col-span-2 inline-flex min-h-11 items-center justify-center rounded-[10px] border border-[var(--color-paper-edge)] px-4 text-[13px] font-semibold text-[var(--color-paper-ink-soft)] lg:rounded-[9px] lg:px-5 lg:text-[13.5px]">
               {confirm.sample.later}
             </span>
           </div>
 
-          <p className="mt-5 text-[16px] font-medium leading-[1.7] text-[var(--color-paper-ink)]">
+          <p className="mt-5 text-[14px] font-medium leading-[1.7] text-[var(--color-paper-ink)] lg:text-[15px]">
             {confirm.sample.contract}
           </p>
           <p className={`mt-2 ${noteText}`}>확인을 누르기 전까지 예산 화면은 그대로예요.</p>
           <p className={`mt-2 ${noteText}`}>{confirm.sampleNote}</p>
         </div>
 
-        <p className={`mt-8 max-w-[60ch] ${noteText}`}>{confirm.body}</p>
+        <p className={`mt-[22px] max-w-[700px] lg:mt-7 ${noteText}`}>{confirm.body}</p>
         <p className={`mt-2 max-w-[60ch] ${noteText}`}>{confirm.body2}</p>
         <p className={`mt-2 max-w-[60ch] ${noteText}`}>{confirm.note}</p>
       </div>

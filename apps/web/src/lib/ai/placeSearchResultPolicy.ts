@@ -216,6 +216,8 @@ export function getPersistableToolResults(
 ): ToolExecutionResult[] {
   return results
     .flatMap((result) => {
+      // 개인 조회 건수와 모델 초안은 별도 최소 metadata만 사용한다. 도구 이력으로 재전송하지 않는다.
+      if (result.toolName === "get_personal_actions" || result.toolName === "prepare_personal_action") return [];
       if (result.toolName === EPHEMERAL_PLACE_SEARCH_TOOL) {
         const placeholder = placeSearchPlaceholderResult(result);
         return placeholder ? [placeholder] : [];

@@ -9,6 +9,8 @@ export * from "./contracts/todayOneCare";
 export * from "./contracts/sharedSchedule";
 export * from "./contracts/budgetImpactPreview";
 export * from "./contracts/amoraActionApproval";
+export * from "./contracts/amoraPendingActionApplication";
+export * from "./contracts/amoraConversationRecap";
 export * from "./safety/sentryScrub";
 export * from "./safety/coerciveControlSignals";
 export * from "./contracts/decisionPacket";

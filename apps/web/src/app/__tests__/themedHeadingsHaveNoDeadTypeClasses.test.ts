@@ -65,6 +65,10 @@ const UNTHEMED_ROUTE_DIRS = [
   "app/quote", "app/consent", "app/ai-policy", "app/wedding",
 ];
 
+// 2026-09-06 사용자 승인 HTML: 테마 셸 안이지만 .amora-workspace는 일반 제목
+// bridge에서 제외된다. 이 화면의 선언된 크기는 실제로 렌더되므로 지우면 안 된다.
+const CUSTOM_HEADING_ROUTE_DIRS = ["app/(app)/chat", "app/(app)/checklist"];
+
 /**
  * 두 레이아웃에서 `<main>` **밖**에 놓이는 슬롯. 여기서 시작해 import 를 전이적으로 따라간
  * 것이 전부 "블록이 안 걸리는" 파일이다.
@@ -175,7 +179,7 @@ function portalsToBody(text: string): boolean {
 function targetFiles(): string[] {
   const themed = THEMED_ROUTE_DIRS.flatMap((d) => routeEntries(path.join(SRC, d)));
   const unthemed = [
-    ...UNTHEMED_ROUTE_DIRS.flatMap((d) => routeEntries(path.join(SRC, d))),
+    ...[...UNTHEMED_ROUTE_DIRS, ...CUSTOM_HEADING_ROUTE_DIRS].flatMap((d) => routeEntries(path.join(SRC, d))),
     ...["app/layout.tsx", "app/page.tsx", "app/error.tsx", "app/not-found.tsx", "app/loading.tsx"]
       .map((f) => toPosix(path.join(SRC, f)))
       .filter((f) => existsSync(f)),
@@ -225,6 +229,14 @@ function scan(): { findings: Finding[]; headings: number; files: number } {
 }
 
 describe("테마 안 제목 타이포", () => {
+  it("keeps the approved Amora HTML headings out of the generic bridge", () => {
+    const css = readFileSync(path.join(SRC, "app/globals.css"), "utf8");
+    expect(css).toContain(".hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main h2");
+    const files = new Set(targetFiles().map((file) => toPosix(path.relative(WEB_ROOT, file))));
+    expect(files.has("src/components/app/amora-missions/AmoraMissions.tsx")).toBe(false);
+    expect(files.has("src/components/app/amora-board/AmoraDecisionBoard.tsx")).toBe(false);
+    expect(files.has("src/components/app/checklist/ChecklistContent.tsx")).toBe(false);
+  });
   it("측정기가 살아 있다", () => {
     const { headings, files } = scan();
 

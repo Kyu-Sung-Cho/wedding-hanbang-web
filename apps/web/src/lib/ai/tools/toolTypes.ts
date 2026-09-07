@@ -33,6 +33,11 @@ export interface ToolExecutionContext {
    */
   pendingActionId?: string;
   currentUserText?: string;
+  /** 현재 인증 요청에만 결합된 개인 조회. 서비스 역할 클라이언트를 사용하지 않는다. */
+  personalActions?: {
+    visibility: "bride_private" | "groom_private";
+    readCount: (status: "all" | "open" | "done") => Promise<number>;
+  };
   weddingContext: {
     weddingDate: string | null;
     budget: number;

@@ -98,6 +98,23 @@ describe("계약문이 입력 필드 이름을 알려준다", () => {
     expect(prompt).toContain("30000000");
   });
 
+  it("일괄 배분의 배열 안에도 필드 이름·필수값·허용 카테고리·원 단위가 보인다", () => {
+    const tool = MUTATING_TOOLS.find((candidate) => candidate.name === "apply_budget_plan")!;
+    const prompt = buildAmoraPendingActionPrompt([tool]);
+    const allocations = prompt.slice(prompt.indexOf("allocations*"), prompt.indexOf("intake_summary*"));
+    expect(allocations).toContain("category*");
+    expect(allocations).toContain("budget*");
+    expect(allocations).toContain("rationale(");
+    expect(allocations).not.toContain("rationale*");
+    expect(allocations).toContain("원 단위");
+    const schema = tool.input_schema.properties as Record<string, {
+      items: { properties: { category: { enum: string[] } } };
+    }>;
+    for (const category of schema.allocations.items.properties.category.enum) {
+      expect(allocations).toContain(category);
+    }
+  });
+
   it("설명이 있는 필드는 설명을 싣는다", () => {
     const withDescription = MUTATING_TOOLS.filter((tool) =>
       Object.values(declaredProperties(tool)).some((schema) =>
@@ -160,6 +177,17 @@ describe("계약문이 알려준 이름만으로 만든 표식은 서버를 통�
       tool: "update_category_budget",
       input: { category: "studio", budget: 3_000_000 },
     },
+    {
+      tool: "apply_budget_plan",
+      input: {
+        total_budget: 50_000_000,
+        allocations: [
+          { category: "venue", budget: 20_000_000, rationale: "사용자가 확인한 예식장 상한" },
+          { category: "studio", budget: 3_000_000 },
+        ],
+        intake_summary: "예식장과 스튜디오 상한만 확정함",
+      },
+    },
   ];
 
   it.each(cases.map((c) => [c.tool, c] as const))("%s", (_name, testCase) => {
@@ -184,6 +212,7 @@ describe("계약문이 알려준 이름만으로 만든 표식은 서버를 통�
     expect(result.hadPendingActionTag).toBe(true);
     expect(result.pendingAction, "카드가 발급되지 않았다").not.toBeNull();
     expect(result.pendingAction?.tool).toBe(testCase.tool);
+    expect(result.pendingAction?.input).toEqual(testCase.input);
   });
 });
 
@@ -236,6 +265,19 @@ describe("지어낸 키는 실행 경로에 닿지 않는다", () => {
       amount: 3_000_000,
     });
     expect(result.pendingAction).toBeNull();
+  });
+
+  it("일괄 배분: 배열 안의 category_key·amount를 실제 금액으로 추측하지 않는다", () => {
+    for (const allocation of [
+      { category_key: "venue", budget: 20_000_000 },
+      { category: "venue", amount: 20_000_000 },
+    ]) {
+      expect(extractMarker("apply_budget_plan", {
+        total_budget: 50_000_000,
+        allocations: [allocation],
+        intake_summary: "사용자가 확인한 예식장 상한",
+      }).pendingAction).toBeNull();
+    }
   });
 
   it("계약문이 지어낸 이름을 정답처럼 싣지 않는다", () => {

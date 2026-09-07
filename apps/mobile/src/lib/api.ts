@@ -20,6 +20,15 @@ type OptionalAuthGetOptions = Omit<
   method?: "GET";
 };
 const webBridgeSessionRefreshGate = createMobileWebApiSessionRefreshGate();
+let apiSessionEpoch = 0;
+let observingApiSession = false;
+function observeApiSession() {
+  if (observingApiSession) return;
+  observingApiSession = true;
+  supabase.auth.onAuthStateChange((event) => {
+    if (event !== "INITIAL_SESSION") apiSessionEpoch += 1;
+  });
+}
 const OPTIONAL_AUTH_FORBIDDEN_HEADERS = [
   "authorization",
   "cookie",
@@ -129,6 +138,8 @@ async function authenticatedApiFetch(
     throw new Error("내부 API 경로만 호출할 수 있습니다.");
   }
 
+  if (handleExpiredSession) observeApiSession();
+  const requestEpoch = apiSessionEpoch;
   const { data } = await supabase.auth.getSession();
   const userId = data.session?.user.id;
   const token = data.session?.access_token;
@@ -167,18 +178,30 @@ async function authenticatedApiFetch(
   if (!token) {
     throw new Error("로그인이 필요합니다.");
   }
+  if (requestEpoch !== apiSessionEpoch) throw new Error("API_SESSION_OWNER_MISMATCH");
+
+  const isRequestSessionCurrent = async () => {
+    if (requestEpoch !== apiSessionEpoch) return false;
+    const current = await readCurrentWebBridgeSession();
+    return requestEpoch === apiSessionEpoch && current !== null && current.userId === userId && current.accessToken === token;
+  };
 
   const res = await fetchWithAccessToken(token);
 
   // 세션 만료 시 로그아웃 후 로그인 화면으로 이동
   if (res.status === 401 && handleExpiredSession) {
+    if (!(await isRequestSessionCurrent())) throw new Error("API_SESSION_OWNER_MISMATCH");
     Alert.alert("세션 만료", "다시 로그인해주세요.", [
       {
         text: "확인",
         onPress: () => {
-          void signOut()
-            .then(() => router.replace("/(auth)/login"))
+          void (async () => {
+            if (!(await isRequestSessionCurrent()) || requestEpoch !== apiSessionEpoch) return;
+            await signOut({ isCurrentSession: () => requestEpoch === apiSessionEpoch });
+            if (!(await readCurrentWebBridgeSession())) router.replace("/(auth)/login");
+          })()
             .catch((error: unknown) => {
+              if (requestEpoch !== apiSessionEpoch) return;
               const message = error instanceof Error
                 ? error.message
                 : "알림 연결을 안전하게 해제하지 못했습니다.";

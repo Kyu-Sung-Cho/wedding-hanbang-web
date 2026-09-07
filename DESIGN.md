@@ -17,6 +17,53 @@
 
 ## Typography
 
+- **Checklist and manners HTML exception (2026-09-06):** The user approved the
+  supplied design-pattern document, two desktop/mobile PDFs and sixteen checklist
+  and manners HTML examples. `/checklist`, its category sheets, and public `/manners`
+  index/detail pages use `.planning-workspace` with the same self-hosted Gowun Dodum
+  and IBM Plex Sans KR families as the Amora HTML surfaces. `.planning-display`
+  identifies display text; body and controls use IBM. No duplicate font assets are needed.
+  The shared 220px desktop sidebar and 18px mobile gutters apply to these routes.
+  Checklist detail follows the supplied desktop dialog/mobile bottom-sheet pattern.
+  Its existing category IDs, item order, groups, source links and save behavior remain
+  authoritative. The guide remains publicly readable and preserves every section,
+  source, table alternative and caveat. Example prices, statistics, partner statuses
+  and legal assertions in the mockups are not implementation facts. Other routes
+  retain their existing typography. Small text and interactive boundaries keep
+  readable contrast even where the reference uses paler colors.
+  The HTML workspace palette and its shared component role aliases are generated
+  from `packages/design-tokens/src/webCssVars.ts` and `colors.ts`; `tokens:sync`
+  maintains their scoped regions in `globals.css` without changing other routes.
+
+- **Amora HTML exception (2026-09-06):** The user also approved the supplied
+  `AmoraMissions.dc.html`, `MissionsMobile.dc.html`, `AmoraDecisionBoard.dc.html`,
+  `BoardMobile.dc.html` and `SaveSheetMobile.dc.html`, requesting the closest possible match.
+  `/chat`, its missions/board subpages and their save confirmation sheet use self-hosted
+  Gowun Dodum display text and IBM Plex Sans KR body/controls within `.amora-workspace`.
+  The modified fonts have renamed families, OFL notices and full modern Hangul coverage
+  for user content. Other product routes retain Paperlogy except the separately approved
+  checklist and manners surfaces above. The scoped HTML palette,
+  intermediate type sizes and 8–24px radii are approved for these surfaces.
+  Desktop sidebar is 220px; mobile gutters are 18px and navigation respects safe areas.
+  Muted small text and rose labels retain sufficient contrast. Reference counts,
+  partner acknowledgements and automatic-save claims must correspond to actual data.
+
+- **Landing HTML exception (2026-09-06):** The user supplied `Main.dc.html` and
+  `LandingMobile.dc.html` as the approved replacement design. Only `/landing`
+  uses Gowun Dodum 400 for display text, IBM Plex Sans KR 400–700 for body and
+  controls, and the existing Gaegu 700 for the hero tape. The modified font subsets
+  are self-hosted under `public/fonts/landing/`, with OFL notices and renamed font
+  families. Product screens retain Paperlogy except the separately approved HTML
+  surfaces above. No third-party font request is needed.
+  The landing uses a 1200px desktop content width and 18px mobile gutters, with
+  50px/30px hero headings, 36px/24px section headings, and 31px desktop split headings.
+  The attached design's intermediate sizes (12.5, 13.5, 14.5, 16.5, 17.5, 19, 31px)
+  and radii (9, 10, 11, 13, 14, 15, 18px; 4/5px for bubble tails) are allowed
+  within this landing only.
+  Mobile sections use 44px vertical padding; desktop sections use 92px.
+  Landing surfaces use existing ivory-50 and ivory-warm; small-print contrast,
+  sample disclosures, working links and privacy boundaries remain required.
+
 - **Brand font:** Paperlogy. Use across web and mobile for display, body, UI, and numeric moments.
 - **Hierarchy:** Use Paperlogy weight, size, color, and spacing for emphasis instead of mixing serif/sans/display families.
 - **Numbers/display:** Paperlogy with tabular number styling where available. D-day and money totals may use larger size and heavier weight, not a separate font family.

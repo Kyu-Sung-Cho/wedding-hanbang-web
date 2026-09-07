@@ -48,9 +48,13 @@ import {
 } from "@hanbang/shared";
 import { supabase } from "@/lib/supabase";
 import { signOut } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, apiFetchForExpectedUser } from "@/lib/api";
 import {
   buildWeddingSettingsPatch,
+  buildWeddingPlanChangeBody,
+  advanceWeddingPlanBaseline,
+  mergeWeddingSettingsDraftAfterSave,
+  isWeddingSettingsDraftUnchanged,
   createLatestSettingsLoadGate,
   parseWeddingSettingsResponse,
   splitWeddingSettingsPatch,
@@ -92,6 +96,9 @@ export default function SettingsScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
+  const saveInFlightRef = useRef(false);
+  const settingsDataRef = useRef(data);
+  settingsDataRef.current = data;
   const [saved, setSaved] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -135,7 +142,7 @@ export default function SettingsScreen() {
           throw new Error("로그인이 만료됐어요. 다시 로그인한 뒤 시도해주세요.");
         }
 
-        const settingsResponse = await apiFetch("/api/settings/wedding-profile");
+        const settingsResponse = await apiFetchForExpectedUser(user.id, "/api/settings/wedding-profile");
         const settingsPayload = await settingsResponse.json().catch(() => ({}));
         if (!settingsResponse.ok) {
           const errorMessage =
@@ -184,7 +191,7 @@ export default function SettingsScreen() {
             }
 
             // 커플 초대 코드 조회
-            const codeRes = await apiFetch("/api/couple/code");
+            const codeRes = await apiFetchForExpectedUser(user.id, "/api/couple/code");
             if (codeRes.ok) {
               const codeData = (await codeRes.json().catch(() => null)) as CoupleCodeResponse | null;
               nextCoupleConnection = resolveCoupleConnectionState(codeData, { partnerPresent });
@@ -239,32 +246,23 @@ export default function SettingsScreen() {
     data.totalBudget !== initialData.totalBudget
   );
 
-  /**
-   * 계획 변경(결혼 예정일·식장·총 예산)을 승인 경로로 보낸다.
-   *
-   * 웹 설정이 하는 것과 같은 경로다(`/api/journey` → `submit_couple_plan_change`).
-   * 파트너가 연결돼 있으면 서버가 `pending_partner` 를 돌려주고, 그때는 아직 반영되지
-   * 않았다고 말해야 한다 — 저장했다고 말하면 이 제품이 가장 하면 안 되는 거짓말이 된다.
-   *
-   * `expected_revision` 은 필수다(route.ts 가 없으면 400). 이 화면이 들고 있는 값에는
-   * 없으므로 보내기 직전에 `/api/auth/me` 에서 현재 값을 읽는다.
-   */
+  /** 편집 당시 사용자·커플·필드 값이 유지될 때만 최신 버전으로 계획 변경을 보낸다. */
   async function submitWeddingPlanChange(
     changes: Record<string, string | number | null>,
   ): Promise<"applied" | "pending_partner"> {
-    const meResponse = await apiFetch("/api/auth/me");
+    if (!settingsSnapshot) {
+      throw new Error("저장 기준을 확인하지 못했어요. 설정을 다시 불러와주세요.");
+    }
+    const snapshot = settingsSnapshot;
+    const meResponse = await apiFetchForExpectedUser(snapshot.userId, "/api/auth/me");
     const mePayload: unknown = await meResponse.json().catch(() => null);
-    const revision =
-      isRecord(mePayload) && isRecord(mePayload.journey)
-        ? mePayload.journey.state_revision
-        : null;
-    if (!meResponse.ok || typeof revision !== "number") {
+    if (!meResponse.ok) {
       throw new Error("결혼 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요.");
     }
-
-    const response = await apiFetch("/api/journey", {
+    const body = buildWeddingPlanChangeBody(snapshot, changes, mePayload);
+    const response = await apiFetchForExpectedUser(snapshot.userId, "/api/journey", {
       method: "PATCH",
-      body: JSON.stringify({ expected_revision: revision, ...changes }),
+      body: JSON.stringify(body),
     });
     const payload: unknown = await response.json().catch(() => null);
     if (!response.ok) {
@@ -282,16 +280,22 @@ export default function SettingsScreen() {
   /** 계획 변경만 있었을 때의 마무리. 서버가 정본이므로 화면 값을 지어내지 않고 다시 읽는다. */
   async function reloadAfterPlanChange(
     outcome: "applied" | "pending_partner" | null,
+    snapshot: WeddingSettingsSnapshot,
+    submittedData: SettingsData,
+    baselineData: SettingsData | null,
   ) {
     // 파트너 확인을 기다리는 중이면 서버 값은 아직 예전 그대로다. 다시 읽어야
     // 화면이 "저장된 것처럼" 남아 있지 않는다.
     try {
-      const refreshed = await apiFetch("/api/settings/wedding-profile");
+      const refreshed = await apiFetchForExpectedUser(snapshot.userId, "/api/settings/wedding-profile");
       if (refreshed.ok) {
         const parsed = parseWeddingSettingsResponse(await refreshed.json());
-        setData(parsed.data);
-        setInitialData(parsed.data);
-        setSettingsSnapshot(parsed.snapshot);
+        if (parsed.snapshot.userId !== snapshot.userId || parsed.snapshot.coupleId !== snapshot.coupleId) {
+          throw new Error("커플 연결 상태가 바뀌었어요. 설정을 다시 불러와주세요.");
+        }
+        setData((current) => mergeWeddingSettingsDraftAfterSave(current, submittedData, parsed.data));
+        setInitialData((current) => current === baselineData ? parsed.data : current);
+        setSettingsSnapshot((current) => current === snapshot ? parsed.snapshot : current);
       }
     } catch (refreshError) {
       console.error("설정 다시 불러오기 실패:", refreshError);
@@ -304,6 +308,7 @@ export default function SettingsScreen() {
       );
       return;
     }
+    if (!isWeddingSettingsDraftUnchanged(settingsDataRef.current, submittedData)) return;
     setSaved(true);
     Animated.sequence([
       Animated.spring(checkScale, { toValue: 1, friction: 3, useNativeDriver: true }),
@@ -312,11 +317,17 @@ export default function SettingsScreen() {
   }
 
   async function handleSave() {
-    if (!data || !settingsSnapshot) return;
+    if (!data || !settingsSnapshot || saveInFlightRef.current) return;
+    const submittedData = data;
+    const saveSnapshot = settingsSnapshot;
+    const saveInitialData = initialData;
+    let committedSnapshot = saveSnapshot;
+    let committedInitialData = saveInitialData;
+    saveInFlightRef.current = true;
     setSaving(true);
 
     try {
-      const patch = buildWeddingSettingsPatch(data, settingsSnapshot);
+      const patch = buildWeddingSettingsPatch(submittedData, saveSnapshot);
       if (!patch) {
         if (initialData) setData(initialData);
         return;
@@ -330,12 +341,29 @@ export default function SettingsScreen() {
         ? await submitWeddingPlanChange(planChanges)
         : null;
 
+      if (planChanges && planOutcome === "applied") {
+        // 이 응답으로 성공한 부분만 기준에 반영해야 뒤의 프로필 실패를 다시 시도할 수 있다.
+        committedSnapshot = advanceWeddingPlanBaseline(saveSnapshot, planChanges);
+        const confirmedSnapshot = committedSnapshot;
+        setSettingsSnapshot((current) => current === saveSnapshot ? confirmedSnapshot : current);
+        if (saveInitialData) {
+          committedInitialData = {
+            ...saveInitialData,
+            weddingDate: confirmedSnapshot.weddingDate ?? "",
+            venue: confirmedSnapshot.venue ?? "",
+            totalBudget: confirmedSnapshot.totalBudget === null ? "" : String(confirmedSnapshot.totalBudget / 10_000),
+          };
+          const confirmedInitialData = committedInitialData;
+          setInitialData((current) => current === saveInitialData ? confirmedInitialData : current);
+        }
+      }
+
       if (!profilePatch) {
-        await reloadAfterPlanChange(planOutcome);
+        await reloadAfterPlanChange(planOutcome, committedSnapshot, submittedData, committedInitialData);
         return;
       }
 
-      const response = await apiFetch("/api/settings/wedding-profile", {
+      const response = await apiFetchForExpectedUser(saveSnapshot.userId, "/api/settings/wedding-profile", {
         method: "PATCH",
         body: JSON.stringify(profilePatch),
       });
@@ -365,12 +393,16 @@ export default function SettingsScreen() {
       }
 
       const savedSettings = parseWeddingSettingsResponse(responseBody);
-      setData(savedSettings.data);
-      setInitialData(savedSettings.data);
-      setSettingsSnapshot(savedSettings.snapshot);
+      if (savedSettings.snapshot.userId !== saveSnapshot.userId || savedSettings.snapshot.coupleId !== saveSnapshot.coupleId) {
+        throw new Error("커플 연결 상태가 바뀌었어요. 설정을 다시 불러와주세요.");
+      }
+      setData((current) => mergeWeddingSettingsDraftAfterSave(current, submittedData, savedSettings.data));
+      setInitialData((current) => current === committedInitialData ? savedSettings.data : current);
+      setSettingsSnapshot((current) => current === committedSnapshot ? savedSettings.snapshot : current);
       if ("name" in patch.changes || "community_nickname" in patch.changes) {
         clearCommunityCaches();
       }
+      if (!isWeddingSettingsDraftUnchanged(settingsDataRef.current, submittedData)) return;
       setSaved(true);
 
       // 체크마크 애니메이션
@@ -381,6 +413,7 @@ export default function SettingsScreen() {
     } catch (err) {
       Alert.alert("오류", toKoreanErrorMessage(err, "저장 중 문제가 있었어요. 잠시 뒤 다시 시도해 주세요."));
     } finally {
+      saveInFlightRef.current = false;
       setSaving(false);
     }
   }

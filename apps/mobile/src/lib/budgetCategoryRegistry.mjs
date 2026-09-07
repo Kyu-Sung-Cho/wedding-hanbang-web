@@ -17,8 +17,8 @@ function customLabel(value) {
 }
 
 /**
- * Keeps the fixed wedding categories first and appends only canonical custom
- * budget rows. Other progress metadata must never affect money totals.
+ * Keeps visible fixed wedding categories first and appends only canonical custom
+ * budget rows. Hidden amounts stay stored; other metadata never enters totals.
  */
 export function listBudgetCategories({ fixedCategories, progress }) {
   if (!Array.isArray(fixedCategories) || !isRecord(progress)) {
@@ -36,6 +36,9 @@ export function listBudgetCategories({ fixedCategories, progress }) {
     return { key: category.key, label: category.label };
   });
   const fixedKeys = new Set(fixed.map((category) => category.key));
+  const hiddenKeys = new Set(Array.isArray(progress.__hidden)
+    ? progress.__hidden.filter(key => typeof key === "string")
+    : []);
   const custom = Object.entries(progress)
     .filter(([key, value]) => (
       !fixedKeys.has(key)
@@ -48,5 +51,5 @@ export function listBudgetCategories({ fixedCategories, progress }) {
       label: customLabel(value.label),
     }));
 
-  return [...fixed, ...custom];
+  return [...fixed.filter(category => !hiddenKeys.has(category.key)), ...custom];
 }

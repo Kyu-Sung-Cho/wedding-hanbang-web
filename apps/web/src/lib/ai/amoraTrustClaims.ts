@@ -1,3 +1,5 @@
+import { splitAmoraClaimSegments } from "./amoraClaimSegments";
+
 /**
  * 아모라가 해서는 안 되는 말을 답변에서 걷어낸다.
  *
@@ -100,27 +102,24 @@ export function screenAmoraTrustClaims(text: string): AmoraTrustClaimScreenResul
 
   // `amoraPersistenceClaims`와 같은 문장 분리 규칙을 쓴다. 두 검사가 서로 다른
   // 단위로 자르면 한쪽만 통과하는 문장이 생긴다.
-  const segments = normalized
-    .split(/(?<=[.!?。！？])\s*|\n+/u)
-    .map((segment) => segment.trim())
-    .filter(Boolean);
+  const segments = splitAmoraClaimSegments(normalized);
 
   const kept: string[] = [];
   const removedKinds = new Set<AmoraTrustClaimKind>();
   let removedCount = 0;
 
-  for (const segment of segments) {
+  for (const { claim: segment, source } of segments) {
     const kinds = findAmoraTrustClaims(segment);
     if (kinds.length > 0) {
       removedCount += 1;
       for (const kind of kinds) removedKinds.add(kind);
     } else {
-      kept.push(segment);
+      kept.push(source);
     }
   }
 
   return {
-    text: removedCount === 0 ? normalized : kept.join("\n\n"),
+    text: removedCount === 0 ? normalized : kept.join("").trim(),
     removedKinds: [...removedKinds],
     removedCount,
   };

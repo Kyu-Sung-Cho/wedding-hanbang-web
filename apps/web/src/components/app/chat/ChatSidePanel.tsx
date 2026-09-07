@@ -389,6 +389,8 @@ export default function ChatSidePanel({
 
     const handleDialogKeyDown = (event: KeyboardEvent) => {
       if (mediationConsentOpen) return;
+      // body portal로 열린 저장 시트가 포커스와 Escape를 맡는다. 저장 중에도 부모를 닫지 않는다.
+      if (document.querySelector('[data-amora-sheet][aria-modal="true"], [data-planning-sheet][aria-modal="true"]')) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onCloseRef.current();

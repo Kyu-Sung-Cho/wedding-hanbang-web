@@ -21,6 +21,7 @@ export default function ChecklistItemText({
   labelSuffix,
   noteClassName,
   hideNoteWhenDone = false,
+  accessibleLabel,
 }: {
   item: ChecklistItem;
   /**
@@ -53,6 +54,8 @@ export default function ChecklistItemText({
    * 그 한 줄이 필요하다 — 2026-08-19 에 그 이유로 넣은 자리다.
    */
   hideNoteWhenDone?: boolean;
+  /** 표시용 조건 태그를 분리해도 체크박스 이름에는 정본 조건을 남긴다. */
+  accessibleLabel?: string;
   /**
    * label 바로 옆에 붙는 작은 표시(「필수」·「해당 시」·「다음 할 일」).
    *
@@ -65,7 +68,7 @@ export default function ChecklistItemText({
   labelSuffix?: ReactNode;
 }) {
   const label = (
-    <span id={idPrefix ? `${idPrefix}-label` : undefined} className={`block ${labelClassName}`}>
+    <span id={idPrefix ? `${idPrefix}-label` : undefined} aria-label={accessibleLabel} className={`block ${labelClassName}`}>
       {item.label}
     </span>
   );

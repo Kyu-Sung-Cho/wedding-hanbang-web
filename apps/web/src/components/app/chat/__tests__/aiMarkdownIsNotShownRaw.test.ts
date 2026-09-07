@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import ChatBubble from "../ChatBubble";
+import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -68,6 +69,19 @@ function renderAi(content: string): string {
 }
 
 describe("마크다운 원문이 화면에 글자로 나오지 않는다", () => {
+  it("renders the decimal budget table after the server removes an unverified save claim", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: "저장했어요.\n\n| 항목 | 비율 |\n|---|---|\n| 결혼식장 | 31.4% |\n| 신혼여행 | 22.9% |",
+      hasPendingAction: false, persistenceMode: "durable", toolResults: [],
+    });
+    const text = renderAi(result.text);
+    expect(container.querySelectorAll("table tbody tr")).toHaveLength(2);
+    expect(text).toContain("31.4%");
+    expect(text).toContain("22.9%");
+    expect(text).not.toContain("|---|");
+    expect(text).not.toContain("저장했어요");
+  });
+
   it("인용문 표시가 사라진다 — 운영에서 실제로 나온 문장", () => {
     const text = renderAi(
       "업체에 이렇게 물어보세요.\n\n> 2026년 10월 15일 결혼식 당일 예약 가능 여부와 대관료를 알려주세요.",

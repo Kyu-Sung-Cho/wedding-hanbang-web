@@ -1,7 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { compareChatTimestamps } from "@hanbang/shared";
 import type { AmoraAction } from "@/types/database.types";
 import {
   MAX_ACTIONS,
+  mergeAmoraActions,
   normalizeAmoraAction,
   sortAmoraActions,
   type AmoraActionItem,
@@ -101,6 +103,7 @@ export async function listAmoraActionRecords(
     .select("*")
     .eq("couple_id", coupleId)
     .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
     .limit(Math.min(Math.max(options.limit ?? MAX_ACTIONS, 1), MAX_ACTIONS));
 
   if (options.status && options.status !== "all") {
@@ -109,8 +112,186 @@ export async function listAmoraActionRecords(
 
   const { data, error } = await query;
   if (error) assertStorageAvailable(error);
-
   return sortAmoraActions(((data ?? []) as AmoraAction[]).map(rowToAmoraAction));
+}
+
+export interface AmoraActionSnapshot {
+  actions: AmoraActionItem[];
+  count: number;
+  openCount: number;
+  source: "table" | "legacy";
+}
+
+/** 상태별로 조회 제한을 적용하고, 예전 JSON 카드의 현재 상태만 ID로 대조한다. */
+export async function readAmoraActionSnapshot(
+  client: SupabaseClient,
+  coupleId: string,
+  legacy: AmoraActionItem[],
+  status: AmoraActionStatus | "all" = "all",
+): Promise<AmoraActionSnapshot> {
+  const legacyActions = sortAmoraActions(legacy).slice(0, MAX_ACTIONS);
+  const statuses: AmoraActionStatus[] = status === "all" ? ["open", "done", "dismissed"] : [status];
+
+  try {
+    const pages = await Promise.all(statuses.map(async (selectedStatus) => {
+      const { data, error, count } = await client.from(TABLE)
+        .select("*", { count: "exact" })
+        .eq("couple_id", coupleId)
+        .eq("status", selectedStatus)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(MAX_ACTIONS);
+      if (error) assertStorageAvailable(error);
+      if (count === null || count === undefined) throw new Error("Amora action count unavailable");
+      return { status: selectedStatus, count, actions: ((data ?? []) as AmoraAction[]).map(rowToAmoraAction) };
+    }));
+
+    let openCount = pages.find((page) => page.status === "open")?.count;
+    if (openCount === undefined) {
+      const { count, error } = await client.from(TABLE)
+        .select("id", { count: "exact", head: true })
+        .eq("couple_id", coupleId)
+        .eq("status", "open");
+      if (error) assertStorageAvailable(error);
+      if (count === null || count === undefined) throw new Error("Amora action count unavailable");
+      openCount = count;
+    }
+
+    let reconciled: AmoraActionItem[] = [];
+    if (legacyActions.length > 0) {
+      const { data, error } = await client.from(TABLE).select("*")
+        .eq("couple_id", coupleId)
+        .in("id", legacyActions.map((action) => action.id))
+        .limit(MAX_ACTIONS);
+      if (error) assertStorageAvailable(error);
+      reconciled = ((data ?? []) as AmoraAction[]).map(rowToAmoraAction);
+    }
+    const storedIds = new Set(reconciled.map((action) => action.id));
+    const legacyOnly = legacyActions.filter((action) => !storedIds.has(action.id));
+    const merged = mergeAmoraActions([...pages.flatMap((page) => page.actions), ...reconciled], legacyActions);
+    const matching = (action: AmoraActionItem) => status === "all" || action.status === status;
+    return {
+      actions: merged.filter(matching).slice(0, MAX_ACTIONS),
+      count: pages.reduce((sum, page) => sum + page.count, 0) + legacyOnly.filter(matching).length,
+      openCount: openCount + legacyOnly.filter((action) => action.status === "open").length,
+      source: "table",
+    };
+  } catch (error) {
+    if (!isAmoraActionStorageUnavailable(error)) throw error;
+    const actions = legacyActions.filter((action) => status === "all" || action.status === status);
+    return { actions, count: actions.length, openCount: legacyActions.filter((action) => action.status === "open").length, source: "legacy" };
+  }
+}
+
+type ActionPagePosition = { createdAt: string; id: string };
+type ActionPageCursor = {
+  version: 1; coupleId: string; status: AmoraActionStatus | "all";
+  table: ActionPagePosition | null; legacy: ActionPagePosition | null;
+};
+export class InvalidAmoraActionCursorError extends Error {}
+
+function validPagePosition(value: unknown): value is ActionPagePosition | null {
+  if (value === null) return true;
+  if (!value || typeof value !== "object") return false;
+  const position = value as Partial<ActionPagePosition>;
+  return typeof position.createdAt === "string"
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/.test(position.createdAt)
+    && compareChatTimestamps(position.createdAt, position.createdAt) === 0
+    && typeof position.id === "string" && position.id.length > 0 && position.id.length <= 256
+    && !/[\u0000-\u001f]/.test(position.id);
+}
+
+function parseActionPageCursor(raw: string | null, coupleId: string, status: AmoraActionStatus | "all"): ActionPageCursor {
+  if (raw === null) return { version: 1, coupleId, status, table: null, legacy: null };
+  try {
+    if (raw.length > 2048 || !/^[A-Za-z0-9_-]+$/.test(raw)) throw new Error();
+    const cursor: unknown = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    if (!cursor || typeof cursor !== "object") throw new Error();
+    const value = cursor as ActionPageCursor;
+    if (value.version !== 1 || value.coupleId !== coupleId || value.status !== status
+        || !validPagePosition(value.table) || !validPagePosition(value.legacy)) throw new Error();
+    return value;
+  } catch { throw new InvalidAmoraActionCursorError(); }
+}
+
+function compareActionPositions(left: ActionPagePosition, right: ActionPagePosition): number {
+  return (compareChatTimestamps(right.createdAt, left.createdAt) ?? 0) || right.id.localeCompare(left.id);
+}
+
+function actionPosition(action: AmoraActionItem): ActionPagePosition {
+  return { createdAt: action.createdAt, id: action.id };
+}
+
+/** UI 전용 등록 최신순 페이지. AI의 우선순위 snapshot과 표시 상한은 유지한다. */
+export async function readAmoraActionPage(
+  client: SupabaseClient, coupleId: string, legacy: AmoraActionItem[],
+  status: AmoraActionStatus | "all", limit: number, rawCursor: string | null,
+): Promise<AmoraActionSnapshot & { nextCursor: string | null }> {
+  const cursor = parseActionPageCursor(rawCursor, coupleId, status);
+  const pageLimit = Math.min(Math.max(limit, 1), MAX_ACTIONS);
+  // 과거 JSON에 시각이 없더라도 요청마다 now로 바뀌어 cursor가 흔들리지 않는다.
+  const legacyActions = [...new Map(legacy.map((action) => [action.id, {
+    ...action, createdAt: validPagePosition(actionPosition(action)) ? action.createdAt : "1970-01-01T00:00:00.000Z",
+  }])).values()].sort(compareActionPositions);
+  const matching = (action: AmoraActionItem) => status === "all" || action.status === status;
+  const makePage = (tableRows: AmoraActionItem[], legacyOnly: AmoraActionItem[], count: number, openCount: number, source: "table" | "legacy") => {
+    const remainingLegacy = legacyOnly.filter((action) => matching(action)
+      && (!cursor.legacy || compareActionPositions(action, cursor.legacy) > 0));
+    const actions: AmoraActionItem[] = [];
+    let tableIndex = 0; let legacyIndex = 0;
+    const next = { ...cursor };
+    // 각 저장소의 cursor를 따로 전진시킨다. DB text collation과 JS의 tie 정렬이
+    // 다르더라도 아직 내보내지 않은 canonical 행을 건너뛰지 않는다.
+    while (actions.length < pageLimit && (tableIndex < tableRows.length || legacyIndex < remainingLegacy.length)) {
+      const table = tableRows[tableIndex]; const old = remainingLegacy[legacyIndex];
+      if (table && (!old || compareActionPositions(table, old) <= 0)) {
+        actions.push(table); next.table = actionPosition(table); tableIndex += 1;
+      } else {
+        actions.push(old); next.legacy = actionPosition(old); legacyIndex += 1;
+      }
+    }
+    const hasMore = tableIndex < tableRows.length || legacyIndex < remainingLegacy.length;
+    return { actions, count, openCount, source,
+      nextCursor: hasMore ? Buffer.from(JSON.stringify(next)).toString("base64url") : null };
+  };
+  try {
+    const countStatus = async (selectedStatus: AmoraActionStatus | "all") => {
+      let query = client.from(TABLE).select("id", { count: "exact", head: true }).eq("couple_id", coupleId);
+      if (selectedStatus !== "all") query = query.eq("status", selectedStatus);
+      const { count, error } = await query;
+      if (error) assertStorageAvailable(error);
+      if (count === null || count === undefined || !Number.isSafeInteger(count) || count < 0) throw new Error("Amora action count unavailable");
+      return count;
+    };
+    let query = client.from(TABLE).select("*").eq("couple_id", coupleId)
+      .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(pageLimit + 1);
+    if (status !== "all") query = query.eq("status", status);
+    if (cursor.table) {
+      // 시각은 엄격한 ISO이고, ID는 PostgREST의 인용 값으로 이스케이프한다.
+      const escapedId = cursor.table.id.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+      query = query.or(`created_at.lt.${cursor.table.createdAt},and(created_at.eq.${cursor.table.createdAt},id.lt."${escapedId}")`);
+    }
+    const [page, count, openCount] = await Promise.all([query, countStatus(status), status === "open" ? Promise.resolve<number | null>(null) : countStatus("open")]);
+    if (page.error) assertStorageAvailable(page.error);
+    // 현재 페이지 밖의 canonical 행도 legacy를 덮는다. 조회 IN 목록만80씩 나누며
+    // 원래 JSON 배열의91번째 이후 항목을 잘라서 잃지 않는다.
+    const storedIds = new Set<string>();
+    for (let start = 0; start < legacyActions.length; start += MAX_ACTIONS) {
+      const ids = legacyActions.slice(start, start + MAX_ACTIONS).map((action) => action.id);
+      const { data, error } = await client.from(TABLE).select("id").eq("couple_id", coupleId).in("id", ids).limit(ids.length);
+      if (error) assertStorageAvailable(error);
+      for (const row of data ?? []) storedIds.add(row.id);
+    }
+    const legacyOnly = legacyActions.filter((action) => !storedIds.has(action.id));
+    return makePage(((page.data ?? []) as AmoraAction[]).map(rowToAmoraAction), legacyOnly,
+      count + legacyOnly.filter(matching).length,
+      (openCount ?? count) + legacyOnly.filter((action) => action.status === "open").length, "table");
+  } catch (error) {
+    if (!isAmoraActionStorageUnavailable(error)) throw error;
+    if (cursor.table) throw new Error("Amora action storage changed during pagination");
+    return makePage([], legacyActions, legacyActions.filter(matching).length,
+      legacyActions.filter((action) => action.status === "open").length, "legacy");
+  }
 }
 
 export async function insertAmoraActionRecord(
@@ -130,6 +311,19 @@ export async function insertAmoraActionRecord(
   return rowToAmoraAction(data as AmoraAction);
 }
 
+export async function getAmoraActionRecord(
+  client: SupabaseClient,
+  coupleId: string,
+  actionId: string,
+): Promise<AmoraActionItem | null> {
+  const { data, error } = await client.from(TABLE).select("*")
+    .eq("couple_id", coupleId)
+    .eq("id", actionId)
+    .maybeSingle();
+  if (error) assertStorageAvailable(error);
+  return data ? rowToAmoraAction(data as AmoraAction) : null;
+}
+
 export interface AmoraActionUpdate {
   title?: string;
   description?: string;
@@ -147,21 +341,10 @@ export async function updateAmoraActionRecord(
   actionId: string,
   updates: AmoraActionUpdate
 ): Promise<AmoraActionItem | null> {
-  const payload: Record<string, unknown> = {};
-  if (updates.title !== undefined) payload.title = updates.title.trim().slice(0, 120);
-  if (updates.description !== undefined) payload.description = cleanOptional(updates.description, 500);
-  if (updates.dueDate !== undefined) payload.due_date = cleanOptional(updates.dueDate, 40);
-  if (updates.categoryKey !== undefined) payload.category_key = cleanOptional(updates.categoryKey, 80);
-  if (updates.priority !== undefined) payload.priority = updates.priority;
-  if (updates.status !== undefined) payload.status = updates.status;
-  if (updates.source !== undefined) payload.source = updates.source;
-  if (updates.href !== undefined) {
-    payload.href = updates.href.startsWith("/") ? updates.href.slice(0, 180) : null;
-  }
+  const payload = amoraActionUpdatesToPayload(updates);
 
   if (Object.keys(payload).length === 0) {
-    const existing = await listAmoraActionRecords(client, coupleId, { status: "all" });
-    return existing.find((action) => action.id === actionId) ?? null;
+    return getAmoraActionRecord(client, coupleId, actionId);
   }
 
   const { data, error } = await client
@@ -174,4 +357,44 @@ export async function updateAmoraActionRecord(
 
   if (error) assertStorageAvailable(error);
   return data ? rowToAmoraAction(data as AmoraAction) : null;
+}
+
+export function amoraActionUpdatesToPayload(updates: AmoraActionUpdate): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (updates.title !== undefined) payload.title = updates.title.trim().slice(0, 120);
+  if (updates.description !== undefined) payload.description = cleanOptional(updates.description, 500);
+  if (updates.dueDate !== undefined) payload.due_date = cleanOptional(updates.dueDate, 40);
+  if (updates.categoryKey !== undefined) payload.category_key = cleanOptional(updates.categoryKey, 80);
+  if (updates.priority !== undefined) payload.priority = updates.priority;
+  if (updates.status !== undefined) payload.status = updates.status;
+  if (updates.source !== undefined) payload.source = updates.source;
+  if (updates.href !== undefined) {
+    payload.href = updates.href.startsWith("/") ? updates.href.slice(0, 180) : null;
+  }
+
+  return payload;
+}
+
+/** 수동 API 전용. AI 승인/감사 경로의 admin helper는 위에 그대로 둔다. */
+export async function mutateOwnAmoraActionRecord(
+  client: SupabaseClient,
+  coupleId: string,
+  actionId: string,
+  operation: "create" | "update",
+  updates: AmoraActionUpdate,
+): Promise<AmoraActionItem | null> {
+  const { data, error } = await client.rpc("mutate_own_amora_action", {
+    p_couple_id: coupleId, p_action_id: actionId, p_operation: operation,
+    p_values: amoraActionUpdatesToPayload(updates),
+  });
+  if (error) throw error;
+  return data ? rowToAmoraAction(data as AmoraAction) : null;
+}
+
+export function getManualAmoraActionFailure(error: unknown): { status: number; code: string; error: string } | null {
+  const code = error && typeof error === "object" && "code" in error ? error.code : null;
+  if (code === "42501") return { status: 403, code: "AMORA_ACTION_SCOPE_DENIED", error: "현재 연결된 커플의 준비 기록만 변경할 수 있어요. 화면을 새로 열어 주세요." };
+  if (code === "PGRST202" || code === "42883" || code === "55000") return { status: 503, code: "AMORA_ACTION_UNAVAILABLE", error: "준비 기록의 저장 상태를 확인하지 못했어요. 잠시 후 다시 시도해 주세요." };
+  if (code === "22023") return { status: 400, code: "AMORA_ACTION_INVALID_INPUT", error: "변경할 내용을 확인한 뒤 다시 시도해 주세요." };
+  return null;
 }

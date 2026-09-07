@@ -64,6 +64,7 @@ export default function ChecklistItemSource({
   itemId,
   indentClassName = "ml-9",
   variant = "link",
+  touchTarget = false,
 }: {
   itemId: string;
   /** 체크 아이콘 너비만큼 안쪽으로 — 화면마다 아이콘 크기가 달라 밖에서 받는다. */
@@ -74,6 +75,8 @@ export default function ChecklistItemSource({
    * 알약이 들어가면 행 높이가 흔들린다. 기본값을 바꾸지 마라.
    */
   variant?: "link" | "chip";
+  /** 체크리스트 시트에서는 근거 링크도 44px 터치 영역으로 표시한다. */
+  touchTarget?: boolean;
 }) {
   const source = noteSourceLink(itemId);
   const label = checklistSourceLabel(itemId);
@@ -83,10 +86,10 @@ export default function ChecklistItemSource({
     return (
       <Link
         {...weddingLinkProps(source.href)}
-        className={`${indentClassName} mt-2 mb-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--color-ivory-warm)] px-[11px] py-[5px] text-[11.5px] leading-[1.5] text-[var(--hb-accent)] transition-colors hover:bg-[var(--color-surface-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]/50`}
+        className={`${indentClassName} mt-2 mb-3 inline-flex w-fit items-center gap-1.5 bg-[var(--color-ivory-warm)] px-[11px] py-[5px] text-[11.5px] leading-[1.5] text-[var(--hb-accent)] transition-colors hover:bg-[var(--color-surface-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]/50 ${touchTarget ? "min-h-11 max-w-[calc(100%-36px)] rounded-[18px]" : "rounded-full"}`}
       >
         <BookOpen className="h-[13px] w-[13px] flex-shrink-0" aria-hidden="true" />
-        {label}
+        <span className="min-w-0 break-words">{label}</span>
       </Link>
     );
   }

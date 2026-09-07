@@ -54,14 +54,23 @@ const mocks = vi.hoisted(() => ({
     updated_at: number;
   },
   queryPrefill: null as string | null,
+  queryScope: null as string | null,
   startHereHandoffId: null as string | null,
   isDemo: false,
+  personalHandoffPending: false,
+  takePersonalHandoff: vi.fn(),
 }));
+
+vi.mock("@/lib/amora/personalActionContinuation", () => ({ personalActionContinuation: {
+  hasPending: () => mocks.personalHandoffPending,
+  take: (...args: unknown[]) => { mocks.personalHandoffPending = false; return mocks.takePersonalHandoff(...args); },
+} }));
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => {
     const params = new URLSearchParams();
     if (mocks.queryPrefill) params.set("prefill", mocks.queryPrefill);
+    if (mocks.queryScope) params.set("scope", mocks.queryScope);
     if (mocks.startHereHandoffId) {
       params.set("startHereHandoff", mocks.startHereHandoffId);
     }
@@ -71,7 +80,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({
+  useAuthStore: Object.assign(() => ({
     profile: {
       id: mocks.profileId,
       role: mocks.profileRole,
@@ -87,7 +96,7 @@ vi.mock("@/stores/authStore", () => ({
     isDemo: mocks.isDemo,
     isInitialized: true,
     isLoading: false,
-  }),
+  }), { getState: () => ({ user: { id: mocks.profileId }, profile: { id: mocks.profileId, couple_id: mocks.coupleId } }) }),
 }));
 
 vi.mock("@/hooks/useAmoraPersonalization", () => ({
@@ -210,6 +219,7 @@ describe("ChatContent composer draft lanes", () => {
   let container: HTMLDivElement;
 
   beforeEach(async () => {
+    mocks.personalHandoffPending = false; mocks.takePersonalHandoff.mockReset();
     vi.clearAllMocks();
     mocks.messages = [];
     mocks.suggestions = [];
@@ -225,6 +235,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.partnerLinked = true;
     mocks.partnerTyping = null;
     mocks.queryPrefill = null;
+    mocks.queryScope = null;
     mocks.startHereHandoffId = null;
     mocks.isDemo = false;
     mocks.sendMessage.mockResolvedValue({
@@ -305,6 +316,29 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.textContent).toContain("체험용 함께 대화");
     expect(container.textContent).toContain("계정의 준비 기록에 남지 않아요");
     expect(container.textContent).not.toContain("서비스에 저장되며 상대방에게는 보이지 않아요");
+  });
+
+  it("opens an explicit private-scope link without sending and preserves the user's later scope choice", async () => {
+    mocks.queryScope = "private";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.textContent).toContain("서비스에 저장되며 상대방에게는 보이지 않아요");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    const shared = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("함께 대화"));
+    await act(async () => shared?.click());
+    await act(async () => root.render(<ChatContent />));
+    expect(shared?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it.each(["demo", "missing-role"])("does not enter private through a URL with %s", async (kind) => {
+    mocks.queryScope = "private";
+    mocks.isDemo = kind === "demo";
+    if (kind === "missing-role") mocks.profileRole = null;
+    await act(async () => root.render(<ChatContent />));
+    const privateScope = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find((button) => button.textContent?.includes("나만 (상담)"));
+    expect(privateScope?.getAttribute("aria-pressed")).toBe("false");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it("never offers an Amora reply suggestion while the recipient is the partner", async () => {
@@ -1157,5 +1191,54 @@ describe("ChatContent composer draft lanes", () => {
     expect(mocks.sendMessage).not.toHaveBeenLastCalledWith(expect.objectContaining({
       clientRequestId: requestId,
     }));
+  });
+
+  it("places a confirmed personal handoff in the private composer without sending or modifying shared drafts", async () => {
+    await act(async () => root.unmount()); root = createRoot(container);
+    mocks.personalHandoffPending = true; mocks.takePersonalHandoff.mockResolvedValue("이 개인 할 일을 이어서 상담하고 싶어요.\n제목: 내 기준");
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toContain("제목: 내 기준");
+    expect(container.querySelector('button[aria-label="나만의 아모라 상담 메시지 보내기"]')).not.toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    const shared = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("함께 대화"));
+    await act(async () => shared?.click()); expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+  });
+
+  it("a personal handoff never overwrites a private draft typed while its fresh read is pending", async () => {
+    let resolve!: (value: string) => void;
+    await act(async () => root.unmount()); root = createRoot(container);
+    mocks.personalHandoffPending = true; mocks.takePersonalHandoff.mockReturnValue(new Promise<string>(done => { resolve = done; }));
+    await act(async () => root.render(<ChatContent />));
+    const privateScope = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("나만 (상담)"));
+    await act(async () => privateScope?.click());
+    await act(async () => {
+      const textarea = container.querySelector("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "이미 쓰는 개인 초안");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => resolve("전달하려던 개인 내용"));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("이미 쓰는 개인 초안");
+    expect(container.textContent).toContain("작성 중인 나만 상담은 그대로 두었어요");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("a personal continuation resolving after a couple switch cannot enter the new composer", async () => {
+    let resolve!: (value: string) => void;
+    await act(async () => root.unmount()); root = createRoot(container);
+    mocks.personalHandoffPending = true; mocks.takePersonalHandoff.mockReturnValue(new Promise<string>(done => { resolve = done; }));
+    await act(async () => root.render(<ChatContent />));
+    mocks.coupleId = "couple-2";
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => resolve("이전 커플에서 선택한 개인 내용"));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(""); expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("shows a failed personal handoff in the private view even while shared AI artifacts are selected", async () => {
+    await act(async () => root.unmount()); root = createRoot(container);
+    mocks.artifactVisibility = "shared"; mocks.personalHandoffPending = true; mocks.takePersonalHandoff.mockRejectedValue(new Error("source no longer exists"));
+    await act(async () => root.render(<ChatContent />));
+    expect(container.textContent).toContain("개인 할 일을 다시 확인하지 못했어요");
+    expect(container.querySelector('button[aria-label="나만의 아모라 상담 메시지 보내기"]')).not.toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 });

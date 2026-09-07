@@ -833,35 +833,35 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0;
 }
 
-.hanbang-service-theme main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]),
+.hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]),
 .hanbang-community-theme main :is(h1, h2, h3, h4, h5, h6, [class~="font-serif"], [class~="font-serif-kr"], [class~="font-display"]) {
   font-family: var(--font-noto-serif-kr), serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji' !important;
   font-style: normal !important;
   letter-spacing: 0 !important;
 }
 
-.hanbang-service-theme main h1,
+.hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main h1,
 .hanbang-community-theme main h1 {
   font-size: clamp(1.5rem, 1.35rem + 0.45vw, 1.875rem) !important;
   line-height: 1.25 !important;
   font-weight: 500 !important;
 }
 
-.hanbang-service-theme main h2,
+.hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main h2,
 .hanbang-community-theme main h2 {
   font-size: clamp(1.25rem, 1.12rem + 0.28vw, 1.375rem) !important;
   line-height: 1.32 !important;
   font-weight: 500 !important;
 }
 
-.hanbang-service-theme main h3,
+.hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main h3,
 .hanbang-community-theme main h3 {
   font-size: clamp(1.0625rem, 0.98rem + 0.18vw, 1.125rem) !important;
   line-height: 1.38 !important;
   font-weight: 500 !important;
 }
 
-.hanbang-service-theme main :is(h4, h5, h6),
+.hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main :is(h4, h5, h6),
 .hanbang-community-theme main :is(h4, h5, h6) {
   font-size: 1.0625rem !important;
   line-height: 1.4 !important;
@@ -1021,14 +1021,13 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 /* ─────────────────────────────────────────────────────────────
- * 랜딩 — 결혼 준비 노트
+ * 랜딩 — 사용자 제공 데스크톱·모바일 HTML 시안 (2026-09-06)
  *
- * 랜딩(/landing, /)은 손으로 적는 노트의 문법으로 짠다. 줄 그은 카드에 적고,
- * 테이프로 이름표를 붙이고, 파란 펜으로 밑줄을 긋고, 빨간 펜으로 동그라미를 친다.
- * 여백에는 꽃을 그려 둔다.
+ * 따뜻한 바탕, 흰 카드와 꽃 장식을 사용한다. 기존 노트 보조 클래스도 여기서 관리한다.
  *
  * 색은 `--color-paper-*`(브랜드 팔레트 밖 · 랜딩 전용). DESIGN.md 의 Color 절 참고.
- * 손글씨는 Gaegu — 짧은 강조에만, 본문은 Paperlogy. Typography 절의 예외 항목 참고.
+ * landing-root는 제목 Gowun Dodum·본문 IBM Plex Sans KR·테이프 Gaegu를 쓴다.
+ * DESIGN.md Typography 절의 HTML 예외 항목 참고.
  * **제품 화면에서는 이 클래스들을 쓰지 않는다.**
  * ───────────────────────────────────────────────────────────── */
 
@@ -1046,6 +1045,65 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   font-family: "Gaegu", var(--font-paperlogy), cursive;
   font-weight: 700;
   letter-spacing: 0;
+}
+
+/* 사용자 제공 HTML의 서체는 랜딩에만 적용한다. 제품 UI는 Paperlogy를 유지한다. */
+@font-face {
+  font-family: "Hanbang Landing Display";
+  src: url("/fonts/landing/gowun-dodum-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Landing Body";
+  src: url("/fonts/landing/ibm-plex-kr-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Landing Body";
+  src: url("/fonts/landing/ibm-plex-kr-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Landing Body";
+  src: url("/fonts/landing/ibm-plex-kr-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Landing Body";
+  src: url("/fonts/landing/ibm-plex-kr-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+.landing-root {
+  font-family: "Hanbang Landing Body", var(--font-paperlogy), sans-serif;
+  --color-paper-sheet: var(--color-ivory-50);
+  --color-paper-tint: var(--color-ivory-warm);
+}
+.landing-display {
+  font-family: "Hanbang Landing Display", var(--font-paperlogy), sans-serif;
+  font-weight: 400;
+}
+@font-face {
+  font-family: "Hanbang Landing Hand";
+  src: url("/fonts/landing/hand-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+.landing-root .landing-hand {
+  font-family: "Hanbang Landing Hand", var(--font-paperlogy), cursive;
+}
+.landing-root section[id] {
+  scroll-margin-top: 100px;
 }
 
 /* 줄 그은 노트 카드 */
@@ -1171,8 +1229,100 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 }
 
 /* 키보드로 탭을 옮길 때 무엇이 잡혔는지 보인다. */
-.manners-roles input[type="radio"]:focus-visible ~ .manners-role-tabs label[for$="all"],
-.manners-roles input[type="radio"]:focus-visible + .manners-role-tabs label {
+.manners-roles input[value="all"]:focus-visible ~ .manners-role-tabs label[for$="all"],
+.manners-roles input[value="couple"]:focus-visible ~ .manners-role-tabs label[for$="couple"],
+.manners-roles input[value="elders"]:focus-visible ~ .manners-role-tabs label[for$="elders"],
+.manners-roles input[value="guest"]:focus-visible ~ .manners-role-tabs label[for$="guest"] {
   outline: 2px solid var(--hb-focus-ring);
   outline-offset: 2px;
+}
+
+/* 팀원 HTML 시안. 아모라·체크리스트·예절 가이드와 해당 시트에만 적용한다. */
+@font-face {
+  font-family: "Hanbang Amora Display";
+  src: url("/fonts/amora/display-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Amora Body";
+  src: url("/fonts/amora/body-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Amora Body";
+  src: url("/fonts/amora/body-500.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Amora Body";
+  src: url("/fonts/amora/body-600.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Hanbang Amora Body";
+  src: url("/fonts/amora/body-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+.amora-workspace,
+.planning-workspace {
+  font-family: "Hanbang Amora Body", var(--font-paperlogy), sans-serif;
+  --font-noto-sans-kr: "Hanbang Amora Body", var(--font-paperlogy);
+  --font-noto-serif-kr: "Hanbang Amora Display", var(--font-paperlogy);
+  /* @generated:design-tokens html-workspace start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  --amora-bg: #FBF8F2;
+  --amora-warm: #F6EFE5;
+  --amora-surface: #FFFFFF;
+  --amora-low: #F1E8DA;
+  --amora-ink: #26251F;
+  --amora-soft: #4A483F;
+  --amora-muted: #605E54;
+  --amora-line: #E5DDC9;
+  --amora-accent: #35638A;
+  --amora-rose: #A77B74;
+  --amora-rose-deep: #7D5753;
+  --amora-rose-pale: #EADDD8;
+  --amora-sage: #6D806E;
+  --amora-sage-pale: #DBE3D6;
+  --amora-danger: #D95F5F;
+  /* @generated:design-tokens html-workspace end */
+  /* @generated:design-tokens html-workspace-roles start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  --hb-surface-page: var(--amora-bg);
+  --hb-surface-card: var(--amora-surface);
+  --hb-surface-hover: var(--amora-warm);
+  --hb-hairline: var(--amora-line);
+  --hb-primary: var(--amora-ink);
+  --hb-text-strong: var(--amora-ink);
+  --hb-text-body: var(--amora-soft);
+  --hb-text-muted: var(--amora-muted);
+  /* @generated:design-tokens html-workspace-roles end */
+}
+.amora-workspace .amora-display,
+.planning-workspace .amora-display,
+.planning-workspace .planning-display {
+  font-family: "Hanbang Amora Display", var(--font-paperlogy), sans-serif;
+  font-weight: 400;
+}
+.amora-workspace .amora-chat-scopes {
+  border-radius: 100px;
+  background: transparent;
+  box-shadow: none;
+}
+.amora-workspace .amora-chat-scopes button {
+  border-radius: 100px;
+  background: var(--amora-low);
+  box-shadow: none;
+}
+.amora-workspace .amora-chat-scopes button[aria-pressed="true"] {
+  background: var(--amora-ink);
+  color: white;
 }

@@ -115,7 +115,7 @@ export default function LandingPage() {
     // 통째로 사라진다). 자르는 일은 `LandingBloomLayer` 가 자기 상자에서 이미
     // 한다(정본 시안도 `.bq-layer { overflow: hidden }` 으로 레이어에만 걸었고
     // 래퍼에는 없다). 여기에 다시 넣지 마라 — 헤더가 조용히 죽는다.
-    <div className="relative min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
+    <div className="landing-root relative min-h-screen bg-[var(--color-paper-sheet)] text-[var(--color-paper-ink)]">
       <a
         href="#main-content"
         className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-[6px] bg-[var(--color-paper-card)] px-5 py-3 text-[14px] font-semibold text-[var(--color-paper-ink)] shadow-raised transition-transform duration-200 motion-reduce:transition-none focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-[var(--color-paper-pen)] focus:ring-offset-2"

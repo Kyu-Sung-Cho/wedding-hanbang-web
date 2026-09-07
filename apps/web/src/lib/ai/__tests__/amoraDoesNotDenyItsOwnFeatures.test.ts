@@ -78,7 +78,13 @@ describe("기능을 부정하지 않는다", () => {
   });
 
   it("개인 대화가 공유 계획을 안 바꾸는 이유를 말한다", () => {
-    expect(compose(["get_budget_summary"])).toContain("그건 제한이 아니라 약속이니");
+    const privacyRule = compose(["get_budget_summary"]).split("\n")
+      .find((line) => line.startsWith("- 개인 대화에서는")) ?? "";
+    expect(privacyRule).toContain("상대방에게 공개하지 않으므로");
+    expect(privacyRule).toContain("함께 쓰는 예산·일정·할 일을 바꾸지 않습니다");
+    expect(privacyRule).toContain("공유 변경은 함께 보는 대화에서 안내하세요");
+    expect(privacyRule).toContain("개인 할 일로 저장");
+    expect(privacyRule).toContain("버튼의 저장 결과 없이 저장됐다고 말하지 마세요");
   });
 
   it("도구가 하나도 없는 턴에는 이 계약이 실리지 않는다", () => {

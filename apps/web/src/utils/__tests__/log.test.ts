@@ -136,6 +136,35 @@ describe("log", () => {
 
 describe("JSON 파싱 실패는 입력을 Sentry 로 실어 나르지 않는다", () => {
   beforeEach(() => { captureException.mockClear(); });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("서버 콘솔에도 파싱 입력과 임의 payload를 남기지 않는다", async () => {
+    vi.stubGlobal("window", undefined);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const log = await loadLog("production");
+    let thrown: unknown;
+    try {
+      JSON.parse("비공개 가족 예산 고민");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(SyntaxError);
+    log.error("[api/money] POST 실패", thrown);
+    log.error("[api/money] DB 실패", { details: "비공개 가족 예산 고민" });
+
+    expect(consoleError).toHaveBeenCalledTimes(2);
+    for (const [scope, error] of consoleError.mock.calls) {
+      expect(error).toBeInstanceOf(Error);
+      expect(`${scope} ${String(error)} ${(error as Error).stack}`)
+        .not.toContain("비공개 가족 예산 고민");
+    }
+    expect(consoleError.mock.calls[0][1]).toBe(captureException.mock.calls[0][0]);
+    expect(consoleError.mock.calls[0][1].message).toContain("SyntaxError");
+  });
 
   it("SyntaxError 는 원본 대신 종류만 남긴다", async () => {
     const log = await loadLog("production");

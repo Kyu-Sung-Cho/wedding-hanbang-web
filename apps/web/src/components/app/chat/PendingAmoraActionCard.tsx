@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Loader2, RotateCcw, ShieldCheck, Users, X } from "lucide-react";
 import { SHARED_PLAN_TOOLS } from "@hanbang/shared";
 import {
@@ -14,6 +14,7 @@ import {
 } from "@hanbang/shared";
 import { todayYmdInKst } from "@hanbang/shared/utils";
 import { formatWon } from "@/lib/formatWon";
+import AmoraSaveSheet from "./AmoraSaveSheet";
 import type {
   ChatMessage,
   PendingAmoraAction,
@@ -407,6 +408,10 @@ export default function PendingAmoraActionCard({
   onApply,
   onDismiss,
 }: PendingAmoraActionCardProps) {
+  const [reviewedActionKey, setReviewedActionKey] = useState<string | null>(null);
+  const actionKey = `${messageId}:${action.actionId}:${action.inputDigest}`;
+  const reviewOpen = reviewedActionKey === actionKey;
+  const mutationInFlight = useRef(false);
   const approvalPolicy = getAmoraActionApprovalPolicy(action.tool, action.input);
   const requiresCoupleApproval = approvalPolicy === "couple";
   // 공유 계획을 건드리는 변경인가 — 상대에게 알림이 가는 것들이다.
@@ -502,7 +507,8 @@ export default function PendingAmoraActionCard({
   ]);
 
   const confirmOrApply = async () => {
-    if (isSavingApproval) return;
+    if (disabled || !reviewOpen || mutationInFlight.current) return;
+    mutationInFlight.current = true;
     setApprovalMutation("confirm");
     setApprovalError(null);
     setApplicationNotice(null);
@@ -560,6 +566,8 @@ export default function PendingAmoraActionCard({
         return;
       }
       onApply(action.actionId);
+      // 적용 결과는 기존 채팅 흐름이 알린다. 리스 획득을 저장 성공으로 말하지 않는다.
+      setReviewedActionKey(null);
     } catch (error) {
       setApprovalError(
         error instanceof Error
@@ -567,6 +575,7 @@ export default function PendingAmoraActionCard({
           : "내 확인을 안전하게 저장하지 못했어요.",
       );
     } finally {
+      mutationInFlight.current = false;
       setApprovalMutation(null);
     }
   };
@@ -700,6 +709,7 @@ export default function PendingAmoraActionCard({
       : "확인한 내용을 이대로 적용";
 
   return (
+    <>
     <section
       data-pending-action-carried={isCarriedForward ? "true" : "false"}
       aria-labelledby={isCarriedForward ? `${carryLabelId} ${titleId}` : titleId}
@@ -708,10 +718,10 @@ export default function PendingAmoraActionCard({
       }${disabledReason ? ` ${statusId}` : ""}${
         approvalCopy ? ` ${approvalStatusId}` : ""
       }`}
-      className={`ml-11 mt-2 max-w-[94%] rounded-[6px] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem] ${
+      className={`amora-workspace ml-11 mt-2 max-w-[94%] rounded-[14px] p-4 shadow-[var(--shadow-raised)] sm:ml-14 sm:max-w-[53.75rem] ${
         isCarriedForward
           ? "border border-dashed border-[#B99A7E] bg-[#FBF5EE]"
-          : "border border-[#D8C7BB] bg-[#FFFCF8]"
+          : "border border-[var(--amora-line)] bg-[var(--amora-surface)]"
       }`}
     >
       <div className="flex items-start gap-2.5">
@@ -792,17 +802,19 @@ export default function PendingAmoraActionCard({
       <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         <button
           type="button"
-          onClick={() => void confirmOrApply()}
+          onClick={() => setReviewedActionKey(actionKey)}
           disabled={disabled}
-          aria-label={applyAriaLabel}
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] bg-[#2F5F51] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#274F44] disabled:cursor-not-allowed disabled:bg-[#B5ADA3] disabled:text-white"
+          aria-label="변경 내용 확인하기"
+          aria-haspopup="dialog"
+          aria-expanded={reviewOpen}
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--amora-ink)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           {approvalMutation === "confirm" || loadingApproval ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
           ) : (
             <Check className="h-4 w-4" aria-hidden="true" />
           )}
-          {applyLabel}
+          {isApplying || isSavingApproval || loadingApproval || waitingForPartner ? applyLabel : "내용 확인하기"}
         </button>
         {canWithdrawApproval && (
           <button
@@ -833,7 +845,7 @@ export default function PendingAmoraActionCard({
         <button
           type="button"
           onClick={onDismiss}
-          disabled={isApplying}
+          disabled={isApplying || isSavingApproval}
           aria-label="지금은 적용하지 않기"
           className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -842,5 +854,35 @@ export default function PendingAmoraActionCard({
         </button>
       </div>
     </section>
+    {reviewOpen && (
+      <AmoraSaveSheet
+        confirmation={action.confirmation}
+        tool={action.tool}
+        carriedLabel={isCarriedForward ? CARRIED_PENDING_ACTION_LABEL : undefined}
+        disabled={disabled}
+        busy={isApplying || isSavingApproval}
+        applyLabel={applyLabel}
+        applyAriaLabel={applyAriaLabel}
+        error={approvalError}
+        notice={disabledReason ? DISABLED_COPY[disabledReason] : approvalCopy}
+        onConfirm={() => void confirmOrApply()}
+        onClose={() => {
+          if (!mutationInFlight.current && !isApplying) setReviewedActionKey(null);
+        }}
+        onDefer={() => {
+          if (mutationInFlight.current || isApplying) return;
+          setReviewedActionKey(null);
+          onDismiss();
+        }}
+      >
+        {impactPreview && <div className="mb-4"><BudgetImpactDetails preview={impactPreview} /></div>}
+        {showsPastDateNotice && (
+          <p role="status" className="mb-4 rounded-xl bg-[#FFF2EF] px-3.5 py-3 text-xs leading-5 text-[#8A3D31]">
+            {PAST_SCHEDULE_DATE_NOTICE}
+          </p>
+        )}
+      </AmoraSaveSheet>
+    )}
+    </>
   );
 }

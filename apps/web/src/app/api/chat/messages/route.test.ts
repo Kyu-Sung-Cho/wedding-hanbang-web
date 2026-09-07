@@ -206,6 +206,31 @@ function mockAuthenticatedRpc(result: { data: unknown; error: unknown }) {
   return rpc;
 }
 
+describe("/api/chat/messages atomic own view reset", () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+  it.each(["shared", "private"])("returns the DB cursor for %s without service profile writes", async (scope) => {
+    const rpc = mockAuthenticatedRpc({ data: { success: true, scope, clearedAt: CLEARED_AT, privacyEpoch: 8 }, error: null });
+    const response = await DELETE(request({ coupleId: COUPLE_ID, mode: `view_reset_${scope}` }));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ success: true, mode: `view_reset_${scope}`, clearedAt: CLEARED_AT });
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(rpc).toHaveBeenCalledWith("reset_own_amora_chat_view", { p_couple_id: COUPLE_ID, p_scope: scope });
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+  it.each([
+    { data: null, error: { code: "42883" }, status: 503 },
+    { data: null, error: { code: "42501" }, status: 403 },
+    { data: { success: true, scope: "shared", clearedAt: CLEARED_AT }, error: null, status: 503 },
+    { data: { success: true, scope: "private", clearedAt: CLEARED_AT, privacyEpoch: 8 }, error: null, status: 503 },
+    { data: { success: true, scope: "shared", clearedAt: "invalid", privacyEpoch: 8 }, error: null, status: 503 },
+  ])("fails closed for unavailable, denied or incomplete reset results %#", async ({ data, error, status }) => {
+    mockAuthenticatedRpc({ data, error });
+    const response = await DELETE(request({ coupleId: COUPLE_ID }));
+    expect(response.status).toBe(status);
+    expect(createAdminClient).not.toHaveBeenCalled();
+  });
+});
+
 describe("/api/chat/messages private hard delete", () => {
   beforeEach(() => {
     vi.clearAllMocks();

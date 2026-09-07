@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { Bookmark, Loader2, Pencil, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { z } from "zod";
 
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { useAuthStore } from "@/stores/authStore";
 
 type SavedNote = {
   id: string;
@@ -16,6 +18,16 @@ type SavedNote = {
 };
 
 type LoadStatus = "loading" | "ready" | "error";
+const notesSchema = z.object({ notes: z.array(z.object({
+  id: z.string().uuid(), messageId: z.string().uuid().nullable(),
+  content: z.string().min(1).max(4_000), memo: z.string().max(500).nullable(),
+  savedByMe: z.boolean(), createdAt: z.string(),
+})).max(300), next_cursor: z.string().min(1).max(2_048).nullable().optional() });
+
+function savedNotesScope(state: ReturnType<typeof useAuthStore.getState>) {
+  if (!state.isInitialized || !state.user || state.profile?.id !== state.user.id) return "";
+  return JSON.stringify([state.user.id, state.profile.couple_id, state.isDemo]);
+}
 
 function formatSavedAt(value: string): string {
   const date = new Date(value);
@@ -28,32 +40,57 @@ function formatSavedAt(value: string): string {
 }
 
 export default function SavedNotesContent() {
+  const scope = useAuthStore(savedNotesScope);
+  const initialized = useAuthStore(state => state.isInitialized);
+  if (!scope) return <p role="status" className="px-5 py-12 text-[var(--hb-text-muted)]">{initialized ? "로그인과 커플 정보를 확인하고 있어요." : "불러오는 중이에요"}</p>;
+  // 계정·커플이 바뀌면 목록뿐 아니라 작성 중인 메모와 늦게 온 응답도 분리한다.
+  return <ScopedSavedNotesContent key={scope} scope={scope} />;
+}
+
+function ScopedSavedNotesContent({ scope }: { scope: string }) {
   const [notes, setNotes] = useState<SavedNote[]>([]);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [memoDraft, setMemoDraft] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
   /** 저장·삭제가 거절된 이유. 불러오기 실패와 달리 목록은 그대로 두고 위에 띄운다. */
   const [actionError, setActionError] = useState<string | null>(null);
+  const lifecycle = useRef(0);
+  const sequence = useRef(0);
+  const pending = useRef(false);
+  const readPending = useRef(false);
+  const stillCurrent = useCallback((generation: number) => generation === lifecycle.current
+    && savedNotesScope(useAuthStore.getState()) === scope, [scope]);
 
-  const load = useCallback(async () => {
-    setStatus("loading");
+  const load = useCallback(async (cursor: string | null = null) => {
+    if (pending.current || readPending.current) return;
+    readPending.current = true;
+    const generation = lifecycle.current;
+    const request = ++sequence.current;
+    const current = () => stillCurrent(generation) && request === sequence.current;
+    if (cursor) setLoadingMore(true); else setStatus("loading");
     try {
-      const response = await fetch("/api/amora/notes", { cache: "no-store" });
-      if (!response.ok) {
-        setStatus("error");
-        return;
+      const response = await fetch(`/api/amora/notes${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("read_failed");
+      const body = notesSchema.parse(await response.json());
+      if (cursor && body.next_cursor === cursor) throw new Error("cursor_did_not_advance");
+      if (body.next_cursor && body.notes.length === 0) throw new Error("empty_cursor_page");
+      if (current()) {
+        setNotes(previous => cursor ? [...new Map([...previous, ...body.notes].map(note => [note.id, note])).values()] : body.notes);
+        setNextCursor(body.next_cursor ?? null); setStatus("ready");
       }
-      const body = await response.json() as { notes?: SavedNote[] };
-      setNotes(Array.isArray(body.notes) ? body.notes : []);
-      setStatus("ready");
     } catch {
-      setStatus("error");
+      if (current()) setStatus("error");
+    } finally {
+      if (current()) { readPending.current = false; setLoadingMore(false); }
     }
-  }, []);
+  }, [stillCurrent]);
 
   useEffect(() => {
     void load();
+    return () => { lifecycle.current += 1; sequence.current += 1; readPending.current = false; };
   }, [load]);
 
   /** 서버가 준 이유를 읽는다. 없으면 부르는 쪽이 준 기본 문구. */
@@ -63,15 +100,20 @@ export default function SavedNotesContent() {
   }
 
   const saveMemo = useCallback(async (id: string) => {
+    const generation = lifecycle.current;
+    if (pending.current || readPending.current || !stillCurrent(generation) || memoDraft.length > 500) return;
+    pending.current = true;
+    const memo = memoDraft.trim() || null;
     setBusyId(id);
     try {
       const response = await fetch("/api/amora/notes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, memo: memoDraft }),
+        body: JSON.stringify({ id, memo: memoDraft, expectedMemo: notes.find(note => note.id === id)?.memo }),
       });
-      if (response.ok) {
-        const memo = memoDraft.trim() ? memoDraft.trim() : null;
+      const receipt = await response.clone().json().catch(() => null) as { updated?: unknown; id?: unknown } | null;
+      if (!stillCurrent(generation)) return;
+      if (response.ok && receipt?.updated === true && receipt.id === id) {
         setNotes((current) => current.map((note) => (note.id === id ? { ...note, memo } : note)));
         setEditingId(null);
         setActionError(null);
@@ -81,13 +123,17 @@ export default function SavedNotesContent() {
         setActionError(await readError(response, "메모를 저장하지 못했어요."));
       }
     } catch {
-      setActionError("메모를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      if (stillCurrent(generation)) setActionError("메모 저장 여부를 확인하지 못했어요. 다시 시도해 주세요.");
     } finally {
-      setBusyId(null);
+      pending.current = false;
+      if (stillCurrent(generation)) setBusyId(null);
     }
-  }, [memoDraft]);
+  }, [memoDraft, notes, stillCurrent]);
 
   const removeNote = useCallback(async (id: string) => {
+    const generation = lifecycle.current;
+    if (pending.current || readPending.current || !stillCurrent(generation) || !notes.find(note => note.id === id)?.savedByMe) return;
+    pending.current = true;
     setBusyId(id);
     try {
       const response = await fetch("/api/amora/notes", {
@@ -95,18 +141,23 @@ export default function SavedNotesContent() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      if (response.ok) {
+      const receipt = await response.clone().json().catch(() => null) as { deleted?: unknown; id?: unknown } | null;
+      if (!stillCurrent(generation)) return;
+      if (response.ok && receipt?.deleted === true && receipt.id === id) {
         setNotes((current) => current.filter((note) => note.id !== id));
+        window.dispatchEvent(new Event("amora-saved-notes-changed"));
+        if (editingId === id) { setEditingId(null); setMemoDraft(""); }
         setActionError(null);
       } else {
         setActionError(await readError(response, "저장한 이야기를 지우지 못했어요."));
       }
     } catch {
-      setActionError("저장한 이야기를 지우지 못했어요. 잠시 후 다시 시도해 주세요.");
+      if (stillCurrent(generation)) setActionError("삭제 여부를 확인하지 못했어요. 다시 시도해 주세요.");
     } finally {
-      setBusyId(null);
+      pending.current = false;
+      if (stillCurrent(generation)) setBusyId(null);
     }
-  }, []);
+  }, [editingId, notes, stillCurrent]);
 
   return (
     <div className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10">
@@ -122,6 +173,11 @@ export default function SavedNotesContent() {
           아모라와 나눈 이야기 중 저장한 것들이에요. 대화에서 저장 버튼을 누르면
           여기 쌓입니다. 둘 중 누가 저장해도 같이 보여요.
         </p>
+        <div className="mt-3 flex flex-wrap gap-4 text-sm text-[#9A6B62]">
+          <Link {...weddingLinkProps("/chat")} className="inline-flex min-h-11 items-center underline underline-offset-4">아모라 대화</Link>
+          <Link {...weddingLinkProps("/chat/board")} className="inline-flex min-h-11 items-center underline underline-offset-4">준비 보드</Link>
+          <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load()} className="min-h-11 disabled:opacity-40">새로고침</button>
+        </div>
       </header>
 
       {status === "loading" ? (
@@ -142,7 +198,8 @@ export default function SavedNotesContent() {
           <p className="text-base font-semibold text-[var(--hb-text-strong)]">지금은 불러오지 못했어요.</p>
           <button
             type="button"
-            onClick={() => void load()}
+            onClick={() => void load(notes.length && nextCursor ? nextCursor : null)}
+            disabled={loadingMore || busyId !== null || editingId !== null}
             className="mt-3 min-h-11 rounded-[6px] bg-[#C4967E]/10 px-4 text-base font-bold text-[#9A6B62] hover:bg-[#C4967E]/20"
           >
             다시 시도
@@ -150,7 +207,7 @@ export default function SavedNotesContent() {
         </div>
       ) : null}
 
-      {status === "ready" && notes.length === 0 ? (
+      {status === "ready" && notes.length === 0 && !nextCursor ? (
         <div className="py-14 text-center">
           <p className="text-base font-semibold text-[var(--hb-text-strong)]">아직 저장한 이야기가 없어요.</p>
           <p className="mt-2 text-base text-[var(--hb-text-muted)]">
@@ -165,7 +222,7 @@ export default function SavedNotesContent() {
         </div>
       ) : null}
 
-      {status === "ready" && notes.length > 0 ? (
+      {status !== "loading" && notes.length > 0 ? (
         <ul className="mt-6 space-y-4">
           {notes.map((note) => (
             <li
@@ -177,26 +234,29 @@ export default function SavedNotesContent() {
                   {formatSavedAt(note.createdAt)}
                   {note.savedByMe ? " · 내가 저장" : " · 파트너가 저장"}
                 </p>
-                <button
+                {note.savedByMe && <button
                   type="button"
                   onClick={() => void removeNote(note.id)}
-                  disabled={busyId === note.id}
-                  className="inline-flex min-h-9 items-center gap-1 rounded-[6px] px-2 text-sm text-[var(--hb-text-muted)] hover:text-[#9A6B62] disabled:opacity-40"
+                  disabled={busyId !== null || loadingMore}
+                  className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-[6px] px-2 text-sm whitespace-nowrap text-[var(--hb-text-muted)] hover:text-[#9A6B62] disabled:opacity-40"
                   aria-label="저장 지우기"
                 >
                   <Trash2 aria-hidden="true" className="h-4 w-4" />
                   지우기
-                </button>
+                </button>}
               </div>
 
               {/* 원문 그대로 — 우리가 줄이거나 바꾸지 않는다. */}
-              <p className="mt-3 whitespace-pre-line text-base leading-7 text-[var(--hb-text-strong)]">
+              <p className="mt-3 break-words whitespace-pre-line text-base leading-7 text-[var(--hb-text-strong)]">
                 {note.content}
               </p>
 
               {editingId === note.id ? (
                 <div className="mt-4">
                   <textarea
+                    aria-label="저장한 이야기 메모"
+                    disabled={busyId !== null || loadingMore}
+                    maxLength={500}
                     value={memoDraft}
                     onChange={(event) => setMemoDraft(event.target.value.slice(0, 500))}
                     rows={2}
@@ -207,7 +267,7 @@ export default function SavedNotesContent() {
                     <button
                       type="button"
                       onClick={() => void saveMemo(note.id)}
-                      disabled={busyId === note.id}
+                      disabled={busyId !== null || loadingMore}
                       className="min-h-11 rounded-[6px] bg-[#C4967E] px-4 text-base font-bold text-white hover:bg-[#B5876F] disabled:opacity-40"
                     >
                       메모 저장
@@ -215,6 +275,7 @@ export default function SavedNotesContent() {
                     <button
                       type="button"
                       onClick={() => setEditingId(null)}
+                      disabled={busyId !== null}
                       className="min-h-11 rounded-[6px] px-4 text-base font-semibold text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)]"
                     >
                       취소
@@ -225,10 +286,12 @@ export default function SavedNotesContent() {
                 <button
                   type="button"
                   onClick={() => {
+                    if (pending.current) return;
                     setEditingId(note.id);
                     setMemoDraft(note.memo ?? "");
                   }}
-                  className="mt-4 inline-flex min-h-9 items-center gap-1.5 text-sm font-semibold text-[#9A6B62] hover:text-[#C4967E]"
+                  disabled={busyId !== null || loadingMore}
+                  className="mt-4 inline-flex min-h-11 items-center gap-1.5 break-words text-sm font-semibold text-[#9A6B62] hover:text-[#C4967E] disabled:opacity-40"
                 >
                   <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   {note.memo ? note.memo : "메모 남기기"}
@@ -238,6 +301,10 @@ export default function SavedNotesContent() {
           ))}
         </ul>
       ) : null}
+      {nextCursor && <div className="mt-5 text-center text-sm text-[var(--hb-text-muted)]">
+        <p>{notes.length}개를 불러왔어요. 이전 이야기도 이어서 볼 수 있어요.</p>
+        <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load(nextCursor)} className="mt-2 min-h-11 rounded-[6px] border border-[#E8E0D8] px-4 font-semibold text-[#9A6B62] disabled:opacity-40">{loadingMore ? "불러오는 중…" : "이전 이야기 더 보기"}</button>
+      </div>}
     </div>
   );
 }

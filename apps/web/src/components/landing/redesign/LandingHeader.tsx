@@ -20,15 +20,15 @@ const focusRing =
 export default function LandingHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--color-paper-edge)] bg-[var(--color-paper-sheet)]/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-      <div className={`${shell} flex h-14 items-center justify-between gap-5 lg:h-16`}>
+      <div className={`${shell} flex min-h-[68px] items-center justify-between gap-5 py-3 lg:min-h-[98px] lg:py-[26px]`}>
         <Link
           href="/landing"
-          className={`landing-hand inline-flex min-h-11 shrink-0 items-center whitespace-nowrap text-[20px] text-[var(--color-paper-ink)] ${focusRing}`}
+          className={`landing-display inline-flex min-h-11 shrink-0 items-center whitespace-nowrap text-[17px] text-[var(--color-paper-ink)] lg:text-[21px] ${focusRing}`}
         >
           웨딩한방
         </Link>
 
-        <nav className="hidden items-center gap-6 lg:flex" aria-label="랜딩페이지 주요 메뉴">
+        <nav className="hidden items-center gap-[38px] lg:flex" aria-label="랜딩페이지 주요 메뉴">
           {headerNav.map((item) => (
             <Link
               key={item.href}
@@ -56,7 +56,7 @@ export default function LandingHeader() {
           <TrackedLandingLink
             href={headerAuth.signUp.href}
             source="landing_header"
-            className={`hidden min-h-11 items-center rounded-[6px] bg-[var(--color-paper-ink)] px-5 text-[14px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black motion-reduce:transition-none sm:inline-flex ${focusRing}`}
+            className={`hidden min-h-11 items-center rounded-[8px] bg-[var(--color-paper-ink)] px-[26px] text-[15px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black motion-reduce:transition-none sm:inline-flex ${focusRing}`}
           >
             {headerAuth.signUp.label}
           </TrackedLandingLink>

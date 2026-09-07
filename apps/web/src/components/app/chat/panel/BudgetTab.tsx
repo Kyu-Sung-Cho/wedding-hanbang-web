@@ -1,12 +1,14 @@
 "use client";
 
-import { sumRecordedSpend } from "@/lib/budgetTotals";
+import { listCountedBudgetEntries, sumRecordedSpend } from "@/lib/budgetTotals";
+import { formatWon } from "@/lib/formatWon";
 import {
   FileText,
   Users, Building2, Camera, Shirt, Palette, Gem, Flower2, Plane, Home, Key,
   Mail, Gift, Wallet, Video, Package, Sparkles, Flower, Heart, Mic, Box,
 } from "lucide-react";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 import CollapsibleSection from "./CollapsibleSection";
@@ -32,9 +34,11 @@ const STATUS_LABELS: Record<string, string> = {
   not_applicable: "해당 없음",
 };
 
-function formatWon(n: number): string {
-  return `${Math.round(n / 10000).toLocaleString()}만원`;
-}
+const BUDGET_CATEGORIES = [
+  ...CATEGORY_CHECKLISTS,
+  { key: "reserve", label: PLANNING_CATEGORY_LABELS.reserve, icon: "Wallet" },
+];
+const BUDGET_KEYS = BUDGET_CATEGORIES.map((category) => category.key);
 
 interface CategoryBudgetItem {
   key: string;
@@ -50,23 +54,38 @@ export default function BudgetTab() {
   const totalBudget = journey?.total_budget ?? 0;
   const progress = (journey?.progress ?? {}) as Record<string, ProgressItem>;
 
-  const categories: CategoryBudgetItem[] = CATEGORY_CHECKLISTS.map((cat) => {
+  // 메인 예산 화면은 고정 분야의 숨김만 적용하고 직접 만든 항목은 보존한다.
+  const hidden = new Set(Array.isArray(progress.__hidden)
+    ? progress.__hidden.filter((key): key is string => typeof key === "string" && BUDGET_KEYS.includes(key))
+    : []);
+  const countedProgress = { ...progress, __hidden: [...hidden] };
+  const counted = listCountedBudgetEntries(countedProgress, BUDGET_KEYS);
+  const amounts = new Map(counted.map((entry) => [entry.key, entry]));
+  const definitions = [
+    ...BUDGET_CATEGORIES.filter((category) => !hidden.has(category.key)),
+    ...counted.filter((entry) => entry.key.startsWith("custom_")).map((entry) => ({
+      key: entry.key,
+      label: typeof progress[entry.key]?.label === "string" && progress[entry.key].label!.trim()
+        ? progress[entry.key].label! : "사용자 항목",
+      icon: "Wallet",
+    })),
+  ];
+  const categories: CategoryBudgetItem[] = definitions.map((cat) => {
     const item = progress[cat.key];
     return {
       key: cat.key,
       label: cat.label,
       icon: cat.icon,
       status: item?.status ?? "not_started",
-      budget: item?.budget ?? 0,
-      spent: item?.spent ?? 0,
+      budget: amounts.get(cat.key)?.budget ?? 0,
+      spent: amounts.get(cat.key)?.spent ?? 0,
     };
   });
 
   const incomplete = categories.filter((c) => c.status !== "completed" && c.status !== "not_applicable");
   const completed = categories.filter((c) => c.status === "completed" || c.status === "not_applicable");
   // 예산 화면과 같은 것을 센다 — 지운 항목 제외, 직접 추가한 항목 포함.
-  // 목록(categories)은 고정 카테고리만 그리지만 합계는 화면과 같아야 한다.
-  const totalSpent = sumRecordedSpend(progress, CATEGORY_CHECKLISTS.map((c) => c.key));
+  const totalSpent = sumRecordedSpend(countedProgress, BUDGET_KEYS);
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
@@ -81,7 +100,7 @@ export default function BudgetTab() {
         {totalBudget > 0 && (
           <div className="mt-2.5">
             <div className="flex items-center justify-between text-sm mb-1.5">
-              <span className="text-[var(--hb-text-muted)]">지출</span>
+              <span className="text-[var(--hb-text-muted)]">기록 지출</span>
               <span className="text-[var(--hb-accent-hover)]">{formatWon(totalSpent)}</span>
             </div>
             <div className="h-2.5 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden">
@@ -107,9 +126,7 @@ export default function BudgetTab() {
                 <div className="flex-1 min-w-0">
                   <span className="text-base text-[var(--hb-text-strong)] truncate block">{cat.label}</span>
                 </div>
-                {cat.budget > 0 && (
-                  <span className="text-sm text-[var(--hb-text-muted)] flex-shrink-0">{formatWon(cat.budget)}</span>
-                )}
+                <BudgetAmounts category={cat} />
                 <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
                   {STATUS_LABELS[cat.status]}
                 </span>
@@ -135,11 +152,9 @@ export default function BudgetTab() {
                 <div className="flex-1 min-w-0">
                   <span className="text-base text-[var(--hb-text-strong)] truncate block">{cat.label}</span>
                 </div>
-                {cat.spent > 0 && (
-                  <span className="text-sm text-[var(--hb-text-muted)] flex-shrink-0">{formatWon(cat.spent)}</span>
-                )}
-                <span className="text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 bg-[#2E7D5A]">
-                  완료
+                <BudgetAmounts category={cat} />
+                <span className={`text-xs px-2 py-0.5 rounded-full text-white font-medium flex-shrink-0 ${STATUS_COLORS[cat.status]}`}>
+                  {STATUS_LABELS[cat.status]}
                 </span>
               </div>
             );
@@ -149,6 +164,15 @@ export default function BudgetTab() {
           )}
         </div>
       </CollapsibleSection>
+    </div>
+  );
+}
+
+function BudgetAmounts({ category }: { category: CategoryBudgetItem }) {
+  return (
+    <div className="text-right text-sm text-[var(--hb-text-muted)] flex-shrink-0">
+      {category.budget > 0 && <span className="block">배정 {formatWon(category.budget)}</span>}
+      {category.spent > 0 && <span className="block">기록 {formatWon(category.spent)}</span>}
     </div>
   );
 }

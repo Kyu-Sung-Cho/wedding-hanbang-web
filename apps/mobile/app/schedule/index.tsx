@@ -318,12 +318,14 @@ async function submitScheduleEvents(
   expectedUserId: string,
   expectedRevision: number,
   updatedEvents: ScheduleEvent[],
+  expectedCoupleId: string,
 ): Promise<ScheduleMutationSubmission> {
   const response = await apiFetchForExpectedUser(expectedUserId, "/api/journey", {
     method: "PATCH",
-    body: JSON.stringify(
-      buildScheduleProgressPatch(expectedRevision, updatedEvents),
-    ),
+    body: JSON.stringify({
+      ...buildScheduleProgressPatch(expectedRevision, updatedEvents),
+      expected_couple_id: expectedCoupleId,
+    }),
   });
   const payload: unknown = await response.json().catch(() => null);
 
@@ -869,6 +871,7 @@ export default function ScheduleScreen() {
         method: "PATCH",
         body: JSON.stringify({
           expected_revision: snapshot.stateRevision,
+          expected_couple_id: sessionToken.coupleId,
           progress_patch: { [categoryKey]: currentProgress[categoryKey] },
         }),
         },
@@ -972,6 +975,7 @@ export default function ScheduleScreen() {
         method: "PATCH",
         body: JSON.stringify({
           expected_revision: snapshot.stateRevision,
+          expected_couple_id: sessionToken.coupleId,
           progress_patch: { [categoryKey]: nextCategory },
         }),
       });
@@ -1184,6 +1188,7 @@ export default function ScheduleScreen() {
         sessionToken.ownerId,
         snapshot.stateRevision,
         updatedEvents,
+        sessionToken.coupleId,
       );
       if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
       rememberPendingApproval(outcome, sessionToken);
@@ -1280,6 +1285,7 @@ export default function ScheduleScreen() {
               sessionToken.ownerId,
               snapshot.stateRevision,
               mutation.events,
+              sessionToken.coupleId,
             );
             if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
             rememberPendingApproval(outcome, sessionToken);
@@ -1372,6 +1378,7 @@ export default function ScheduleScreen() {
               sessionToken.ownerId,
               snapshot.stateRevision,
               mutation.events,
+              sessionToken.coupleId,
             );
             if (!scheduleSessionFenceRef.isCurrent(sessionToken)) return;
             rememberPendingApproval(outcome, sessionToken);

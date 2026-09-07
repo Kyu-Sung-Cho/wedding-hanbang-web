@@ -1565,19 +1565,36 @@ function describeToolInputFields(
   tool: AiToolDefinition,
   sharedDescriptions?: SharedDescriptionState,
 ): string {
-  const properties = isRecord(tool.input_schema.properties)
-    ? tool.input_schema.properties
+  return describeSchemaFields(tool.input_schema, tool.name, sharedDescriptions);
+}
+
+function describeSchemaFields(
+  inputSchema: Record<string, unknown>,
+  fieldPath: string,
+  sharedDescriptions?: SharedDescriptionState,
+): string {
+  const properties = isRecord(inputSchema.properties)
+    ? inputSchema.properties
     : {};
   const required = new Set(
-    Array.isArray(tool.input_schema.required)
-      ? (tool.input_schema.required as unknown[]).filter(
+    Array.isArray(inputSchema.required)
+      ? (inputSchema.required as unknown[]).filter(
           (name): name is string => typeof name === "string",
         )
       : [],
   );
   const fields = Object.entries(properties).map(([name, rawSchema]) => {
     const schema = isRecord(rawSchema) ? rawSchema : {};
-    const type = typeof schema.type === "string" ? schema.type : "값";
+    let type = typeof schema.type === "string" ? schema.type : "값";
+    // 변경 도구는 provider tools에 없으므로 배열 안의 필드도 이 계약에서 알려준다.
+    if (type === "array" && isRecord(schema.items)) {
+      const items = schema.items;
+      type = isRecord(items.properties)
+        ? `array<{${describeSchemaFields(items, `${fieldPath}.${name}[]`, sharedDescriptions)}}>`
+        : `array<${typeof items.type === "string" ? items.type : "값"}>`;
+    } else if (type === "object" && isRecord(schema.properties)) {
+      type = `object<{${describeSchemaFields(schema, `${fieldPath}.${name}`, sharedDescriptions)}}>`;
+    }
     const enumValues = Array.isArray(schema.enum)
       ? schema.enum.filter((value) => typeof value === "string" || typeof value === "number")
       : [];
@@ -1595,7 +1612,7 @@ function describeToolInputFields(
     const shownDescription = sharedDescriptions
       ? foldRepeatedDescription(
           description,
-          `위 ${tool.name}의 ${name} 설명과 같음`,
+          `위 ${fieldPath}의 ${name} 설명과 같음`,
           sharedDescriptions,
         )
       : description;
@@ -1676,13 +1693,16 @@ export function buildAmoraPendingActionPrompt(
     : "표식 형식: 대괄호 안은 **JSON**: [pending_action]{\"tool\":\"위 목록의 도구명\",\"input\":{\"필드명\":\"값\"}}[/pending_action].";
   return [
     "[서버 발급 후속 확인 계약]",
-    "- 사용자의 확인이 필요한 변경을 제안하거나 적용 여부를 물을 때는, 그 답변 안에 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 사용자가 확인해도 실행할 방법이 없습니다.",
+    "- 변경을 제안하거나 적용 여부를 물을 때는 pending_action 표식을 **반드시 정확히 하나** 포함하세요. 표식 없이 \"적용할까요?\"만 물으면 실행할 방법이 없습니다.",
     // 2026-09-03: 옛 문장은 "첫 번째 건만 표식으로 내고" 였다. 모델이 그걸
     // **능력 부정**으로 옮겨 적었다 — 일정 3건을 한 번에 부탁하면 "한 번에 하나만
     // 등록할 수 있어요" 라고 답하고 표식을 아예 안 냈다(스테이징 일괄 등록 카드 0건).
     // 하나만 내라는 것은 표식 형식 제약이지 제품의 한계가 아니다.
-    "- 요청이 여러 건이면 **첫 번째 건의 표식은 이번 답변에 반드시 내고**, 나머지는 본문에 순서대로 적은 뒤 이 확인이 끝나면 이어서 제안하겠다고 말하세요. 표식이 둘 이상이면 서버가 모두 버려 카드가 하나도 나가지 않습니다. 이건 형식 규칙이지 제품의 한계가 아니니 \"한 번에 하나만 등록할 수 있어요\"처럼 말하지 마세요.",
-    `- 제안 가능한 변경 도구와 input 필드 (\`*\`는 필수). **아래에 없는 이름을 쓰면 표식이 통째로 버려지고 사용자는 확인 버튼을 받지 못합니다. 값을 넣을 자리가 없으면 지어내지 말고 ${declaresMemoField ? "memo 같은 " : ""}선언된 필드에 넣거나 생략하세요.**`,
+    "- 요청이 여러 건이면 **첫 번째 건의 표식은 이번 답변에 반드시 내고**, 나머지는 순서대로 적고 이 확인 뒤 이어서 제안하겠다고 말하세요. 형식 규칙이니 \"한 번에 하나만 등록할 수 있어요\"처럼 말하지 마세요.",
+    ...(supports("apply_budget_plan") ? [
+      "- 예산 여러 항목은 배분 전체를 한 표식의 `apply_budget_plan` input.allocations 배열에 담으세요. 총액만 요청했으면 배분을 만들지 마세요.",
+    ] : []),
+    `- 허용 도구와 input 필드 (\`*\`는 필수). 선언되지 않은 값은 저장되지 않으며 필수값이 빠지면 카드가 없습니다. 이름을 지어내지 말고 ${declaresMemoField ? "memo 같은 " : ""}선언된 필드에 넣거나 생략하세요.`,
     ...toolLines,
     // 필드 이름만 알려주고 이 줄을 빼면, 예전엔 다른 지어낸 키에 걸려 버려지던
     // 표식이 이제는 스키마를 통과해 **지어낸 id로 카드가 나간다.** 그래서 출처를
@@ -1742,7 +1762,7 @@ export function buildAmoraPendingActionPrompt(
     // 바로 아래 [mediation] 규칙("마커 안은 평문 문장만")이 위치상 이 표식에도
     // 읽히던 것까지 여기서 끊는다.
     `- ${markerShapeExample} \`[ pending_action 필요 ]\`처럼 우리말로 쓰면 서버가 지워 카드가 안 나갑니다. "마커 안은 평문만"은 [mediation] 규칙.`,
-    "- 모든 입력값이 확정됐을 때만 표식을 쓰세요. 값이 아직 모호하면 표식 없이 값부터 확인하세요. 보이는 확인 문장은 서버가 검증된 tool/input으로 직접 만듭니다.",
+    "- 모호한 값은 먼저 확인하세요. 확인 문장은 서버가 검증된 tool/input으로 만듭니다.",
     // 윗줄의 "모호하면 되물어라" 를 모델이 **선택 필드까지** 적용했다. 필수 1개·선택
     // 6개인 도구에서는 그게 곧 영원한 되묻기다.
     // 2026-09-04: 꼬리("확실하지 않은 것은 빼세요")를 뗐다. 선택 필드가 목록 밖
@@ -1752,14 +1772,14 @@ export function buildAmoraPendingActionPrompt(
     "- 선택 필드를 무엇으로 채울지 망설임은 '모호한 값'이 아닙니다 — 필수 필드(`*`)가 사용자 말에 있으면 표식을 내세요.",
     // 표식 없이 값만 나열하고 "등록할까요?" 로 끝난 답변이 라이브에서 반복됐다.
     // 사용자 화면에는 누를 것이 없다.
-    "- 값을 목록으로 적고 \"등록할까요?\"·\"저장할까요?\"라고만 묻는 답변엔 누를 것이 없습니다. 그 목록은 서버가 표식으로 만드니 같은 답변에 표식을 내세요.",
+    "- \"등록할까요?\"·\"저장할까요?\"만 묻지 말고 표식을 내세요. 서버가 목록과 버튼을 만듭니다.",
     "- 표식은 서버가 제거·검증하며, 사용자가 서버가 발급한 정확한 action_id를 바로 다음 공유 요청으로 확인한 경우에만 실행됩니다.",
     // 이 계약이 붙은 턴은 제안이 실제로 가능한 턴이다. 그런데 직전 턴에서
     // 도구가 빈 결과를 냈거나 이미 표식을 한 번 낸 뒤면, 모델이 "도구가 없다"·
     // "이 환경에서는 안 된다"며 기능 부재를 선언하는 일이 관측된다
     // (2026-07-25 실계정 E2E: 같은 문장도 첫 턴이면 표식 발화, 뒤 턴이면 거절).
     // 사용자는 이걸 버그가 아니라 제품이 원래 안 되는 것으로 받아들인다.
-    "- ⚠️ 이 계약이 있는 턴에서는 변경 제안이 가능합니다. \"도구가 없다\", \"이 환경에서는 실행할 수 없다\", \"직접 수정할 수 없다\"처럼 **기능이 없다고 말하지 마세요.** 값이 확정됐으면 표식을 내고, 값이 모호하면 표식 없이 값만 되물으세요. 앞선 턴에서 다른 도구가 빈 결과를 냈거나 이미 표식을 낸 적이 있어도 이번 제안과는 무관합니다.",
+    "- 이 계약이 있으면 변경 제안이 가능합니다. **기능이 없다고 말하지 마세요.** 값이 확정됐으면 표식을 내고, 모호한 값만 되물으세요. 앞선 턴에서 다른 도구가 빈 결과를 냈거나 이미 표식을 냈어도 이번 제안과 무관합니다.",
   ].join("\n");
 }
 

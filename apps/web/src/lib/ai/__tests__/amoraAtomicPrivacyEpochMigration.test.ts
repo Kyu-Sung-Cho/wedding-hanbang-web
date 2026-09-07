@@ -73,7 +73,9 @@ async function createDatabase() {
     CREATE TABLE public.profiles (
       id uuid PRIMARY KEY,
       couple_id uuid REFERENCES public.couples(id),
-      role text
+      role text,
+      shared_chat_cleared_at timestamptz,
+      private_chat_cleared_at timestamptz
     );
     CREATE TABLE public.chat_messages (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -232,6 +234,7 @@ async function createDatabase() {
   await db.exec(atomicChatResponse);
   await db.exec(privacySnapshot);
   if (privacyEpoch) await db.exec(privacyEpoch);
+  await db.exec(migration("20260905223222_amora_atomic_chat_view_reset.sql"));
   return db;
 }
 
@@ -347,6 +350,142 @@ function fencedFinalizeSql(options: {
 }
 
 describe("atomic Amora privacy epoch migration", () => {
+  it("rolls the cursor back if schema drift prevents advancing the epoch", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec("ALTER TABLE public.profiles DISABLE TRIGGER trg_amora_privacy_epoch_profiles");
+      await setPersona(db, "authenticated", BRIDE_ID);
+      await expect(db.query("SELECT public.reset_own_amora_chat_view($1::uuid, 'shared')", [COUPLE_ID]))
+        .rejects.toThrow("AMORA_CHAT_VIEW_RESET_EPOCH_NOT_ADVANCED");
+      const view = await db.query<{ result: Record<string, unknown> }>(`
+        SELECT public.get_own_amora_chat_view_snapshot($1::uuid, 'shared') AS result
+      `, [COUPLE_ID]);
+      expect(view.rows[0]!.result).toEqual({ version: 1, privacyEpoch: 1, shared: null, private: null });
+    } finally { await resetPersona(db); await db.close(); }
+  }, 30_000);
+
+  it.each(["shared", "private"])("discards and settles a paid response when %s view reset wins the epoch lock", async (scope) => {
+    const db = await createDatabase();
+    try {
+      const expectedEpoch = await getSnapshotEpoch(db);
+      await resetPersona(db);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const receipt = await prepareMainChat(db);
+      await resetPersona(db);
+      await setPersona(db, "authenticated", BRIDE_ID);
+      const reset = await db.query<{ result: { privacyEpoch: number; clearedAt: string } }>(`
+        SELECT public.reset_own_amora_chat_view($1::uuid, $2) AS result
+      `, [COUPLE_ID, scope]);
+      expect(reset.rows[0]!.result.privacyEpoch).toBe(expectedEpoch + 1);
+      const view = await db.query<{ result: Record<string, unknown> }>(`
+        SELECT public.get_own_amora_chat_view_snapshot($1::uuid, 'shared') AS result
+      `, [COUPLE_ID]);
+      expect(view.rows[0]!.result).toEqual({
+        version: 1, privacyEpoch: expectedEpoch + 1,
+        shared: scope === "shared" ? reset.rows[0]!.result.clearedAt : null,
+        private: scope === "private" ? reset.rows[0]!.result.clearedAt : null,
+      });
+      await resetPersona(db);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const finalized = await db.query<{ outcome: string; message_id: string | null }>(fencedFinalizeSql(), [
+        receipt.receipt_id, receipt.claim_token, REQUEST_KEY, expectedEpoch,
+        "SYNTHETIC_PRE_RESET_RESPONSE", JSON.stringify({ kind: "terminal" }), "{}",
+      ]);
+      expect(finalized.rows[0]).toMatchObject({ outcome: "privacy_context_changed", message_id: null });
+      const state = await db.query(`
+        SELECT receipt.amora_cost_status, receipt.amora_actual_cost_microusd,
+          receipt.ai_output, claim.status, claim.failure_code,
+          (SELECT count(*)::int FROM public.chat_messages) AS message_count
+        FROM public.ai_interactions_log receipt
+        JOIN public.amora_chat_request_claims claim ON claim.request_key = receipt.amora_request_key
+        WHERE receipt.id = $1::uuid
+      `, [receipt.receipt_id]);
+      expect(state.rows[0]).toMatchObject({
+        amora_cost_status: "settled", amora_actual_cost_microusd: 1230,
+        ai_output: null, status: "failed", failure_code: "PRIVACY_CONTEXT_CHANGED", message_count: 0,
+      });
+    } finally { await resetPersona(db); await db.close(); }
+  }, 30_000);
+
+  it("hides a response committed before reset while preserving the immutable cost receipt replay", async () => {
+    const db = await createDatabase();
+    try {
+      const epoch = await getSnapshotEpoch(db);
+      await resetPersona(db);
+      await setPersona(db, "service_role", BRIDE_ID);
+      const receipt = await prepareMainChat(db);
+      const params = [receipt.receipt_id, receipt.claim_token, REQUEST_KEY, epoch,
+        "SYNTHETIC_COMMITTED_BEFORE_RESET", "{}", "{}"];
+      const first = await db.query<{ message_id: string }>(fencedFinalizeSql(), params);
+      await resetPersona(db);
+      await setPersona(db, "authenticated", BRIDE_ID);
+      await db.query("SELECT public.reset_own_amora_chat_view($1::uuid, 'shared')", [COUPLE_ID]);
+      await resetPersona(db);
+      const visible = await db.query<{ visible: boolean; partner_unchanged: boolean }>(`
+        SELECT message.created_at > profile.shared_chat_cleared_at AS visible,
+          (SELECT shared_chat_cleared_at IS NULL FROM public.profiles WHERE id = $3::uuid) AS partner_unchanged
+        FROM public.chat_messages message, public.profiles profile
+        WHERE message.id = $1::uuid AND profile.id = $2::uuid
+      `, [first.rows[0]!.message_id, BRIDE_ID, GROOM_ID]);
+      expect(visible.rows[0]).toEqual({ visible: false, partner_unchanged: true });
+      await setPersona(db, "service_role", BRIDE_ID);
+      const retry = await db.query(fencedFinalizeSql(), params);
+      expect(retry.rows[0]).toMatchObject({ outcome: "persisted", message_id: first.rows[0]!.message_id, message_reused: true });
+    } finally { await resetPersona(db); await db.close(); }
+  }, 30_000);
+
+  it("keeps the shared-clear request message timestamp and later messages intact", async () => {
+    const db = await createDatabase();
+    try {
+      await db.exec(migration("20260714163000_atomic_chat_clear_request.sql"));
+      const inserted = await db.query<{ id: string }>(`
+        INSERT INTO public.chat_messages(couple_id,sender_id,sender_type,role,content,visibility,created_at,metadata)
+        VALUES ($1::uuid,$2::uuid,'bride','user','SYNTHETIC_CLEAR_REQUEST','shared','2026-08-01T00:00:00Z',
+          jsonb_build_object('clearRequest',jsonb_build_object('type','shared','requestedBy',$2::text,'requestedByRole','bride','status','pending')))
+        RETURNING id
+      `, [COUPLE_ID, BRIDE_ID]);
+      await setPersona(db, "authenticated", GROOM_ID);
+      const result = await db.query<{ resolution_status: string; cleared_at: Date }>(`
+        SELECT * FROM public.resolve_shared_chat_clear_request($1::uuid,'accept')
+      `, [inserted.rows[0]!.id]);
+      expect(result.rows[0]!.resolution_status).toBe("accepted");
+      expect(new Date(result.rows[0]!.cleared_at).toISOString()).toBe("2026-08-01T00:00:00.000Z");
+      await resetPersona(db);
+      const cursors = await db.query<{ preserved: boolean }>(`
+        SELECT bool_and(shared_chat_cleared_at = '2026-08-01T00:00:00Z'::timestamptz) AS preserved
+        FROM public.profiles WHERE id IN ($1::uuid,$2::uuid)
+      `, [BRIDE_ID, GROOM_ID]);
+      expect(cursors.rows[0]!.preserved).toBe(true);
+      expect(await getSnapshotEpoch(db)).toBe(3);
+    } finally { await resetPersona(db); await db.close(); }
+  }, 30_000);
+
+  it("restricts reset/snapshot RPCs to current members and exact private scope without changing memory consent", async () => {
+    const db = await createDatabase();
+    try {
+      for (const rpc of ["get_own_amora_chat_view_snapshot", "reset_own_amora_chat_view"]) {
+        for (const role of ["anon", "service_role"] as const) {
+          await setPersona(db, role, BRIDE_ID);
+          await expect(db.query(`SELECT public.${rpc}($1::uuid,'shared')`, [COUPLE_ID])).rejects.toThrow();
+          await resetPersona(db);
+        }
+        await setPersona(db, "authenticated", OUTSIDER_ID);
+        await expect(db.query(`SELECT public.${rpc}($1::uuid,'shared')`, [COUPLE_ID])).rejects.toThrow();
+        await resetPersona(db);
+      }
+      await setPersona(db, "authenticated", BRIDE_ID);
+      await expect(db.query("SELECT public.get_own_amora_chat_view_snapshot($1::uuid,'groom_private')", [COUPLE_ID])).rejects.toThrow();
+      await expect(db.query("SELECT public.reset_own_amora_chat_view($1::uuid,'shared')", [NEW_COUPLE_ID])).rejects.toThrow();
+      const before = (await getSnapshot(db)).rows[0]!.snapshot;
+      await db.query("SELECT public.reset_own_amora_chat_view($1::uuid,'private')", [COUPLE_ID]);
+      const after = (await getSnapshot(db)).rows[0]!.snapshot;
+      expect(after).toEqual({ ...before, privacyEpoch: before.privacyEpoch + 1 });
+      await resetPersona(db);
+      await db.query("UPDATE public.profiles SET private_chat_cleared_at = private_chat_cleared_at WHERE id = $1::uuid", [BRIDE_ID]);
+      expect(await getSnapshotEpoch(db)).toBe(after.privacyEpoch);
+    } finally { await resetPersona(db); await db.close(); }
+  }, 30_000);
+
   it("commits through the existing atomic finalizer when the authenticated snapshot epoch is unchanged", async () => {
     const db = await createDatabase();
     try {

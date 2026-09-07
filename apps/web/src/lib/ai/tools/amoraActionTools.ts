@@ -13,9 +13,11 @@ import {
   type AmoraActionStatus,
 } from "@/lib/amora/actions";
 import {
+  getAmoraActionRecord,
   insertAmoraActionRecord,
   isAmoraActionStorageUnavailable,
   listAmoraActionRecords,
+  readAmoraActionSnapshot,
   updateAmoraActionRecord,
   type AmoraActionUpdate,
 } from "@/lib/amora/actionRepository";
@@ -69,9 +71,7 @@ async function listStoredAmoraActions(ctx: ToolExecutionContext): Promise<AmoraA
   try {
     return await listAmoraActionRecords(getAdminClient(), ctx.coupleId, { status: "all" });
   } catch (error) {
-    if (!isAmoraActionStorageUnavailable(error)) {
-      console.warn("amora action table read skipped:", error instanceof Error ? error.message : String(error));
-    }
+    if (!isAmoraActionStorageUnavailable(error)) throw error;
     return null;
   }
 }
@@ -172,23 +172,38 @@ export async function executeGetAmoraActions(
   input: Record<string, unknown>,
   ctx: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const status = typeof input.status === "string" ? input.status : "open";
-  const allActions = await getAmoraActionSnapshot(ctx);
-  const actions = status === "all"
-    ? allActions
-    : allActions.filter((item) => item.status === status);
+  const status = input.status === "all" ? "all" : normalizeActionStatus(input.status) ?? "open";
+  let snapshot;
+  try {
+    snapshot = await readAmoraActionSnapshot(
+      getAdminClient(),
+      ctx.coupleId,
+      getAmoraActions(ctx.weddingContext.progress as Record<string, unknown>),
+      status,
+    );
+  } catch {
+    return {
+      toolName: "get_amora_actions",
+      toolInput: input,
+      toolOutput: { error: "action_read_failed" },
+      success: false,
+      displayMessage: "아모라 행동 카드를 불러오지 못했어요. 잠시 후 다시 시도해주세요.",
+    };
+  }
+  const { actions } = snapshot;
 
   return {
     toolName: "get_amora_actions",
     toolInput: input,
     toolOutput: {
       actions,
-      count: actions.length,
-      open_count: allActions.filter((item) => item.status === "open").length,
+      count: snapshot.count,
+      open_count: snapshot.openCount,
+      truncated: actions.length < snapshot.count,
     },
     success: true,
     displayMessage: actions.length > 0
-      ? `아모라가 기억한 행동 ${actions.length}개: ${actions.slice(0, 5).map((item) => item.title).join(", ")}`
+      ? `아모라가 기억한 행동 ${snapshot.count}개: ${actions.slice(0, 5).map((item) => item.title).join(", ")}`
       : "현재 열려 있는 아모라 행동 카드가 없습니다.",
   };
 }
@@ -199,9 +214,23 @@ export async function executeUpdateAmoraAction(
 ): Promise<ToolExecutionResult> {
   const actionId = String(input.action_id ?? "");
   const currentProgress = ctx.weddingContext.progress as Record<string, unknown>;
-  const currentActions = await getAmoraActionSnapshot(ctx);
-  const existing = currentActions.find((item) => item.id === actionId);
-  const legacyHasAction = getAmoraActions(currentProgress).some((item) => item.id === actionId);
+  const legacyAction = getAmoraActions(currentProgress).find((item) => item.id === actionId);
+  const legacyHasAction = Boolean(legacyAction);
+  let storedExisting: AmoraActionItem | null = null;
+  try {
+    storedExisting = await getAmoraActionRecord(getAdminClient(), ctx.coupleId, actionId);
+  } catch (error) {
+    if (!isAmoraActionStorageUnavailable(error)) {
+      return {
+        toolName: "update_amora_action",
+        toolInput: input,
+        toolOutput: { error: "action_read_failed", action_id: actionId },
+        success: false,
+        displayMessage: "수정할 아모라 행동 카드를 확인하지 못했어요. 잠시 후 다시 시도해주세요.",
+      };
+    }
+  }
+  const existing = storedExisting ?? legacyAction;
 
   if (!existing) {
     return {
@@ -254,7 +283,7 @@ export async function executeUpdateAmoraAction(
 
   if (updated) {
     await mirrorAmoraActionToProgress(ctx, updated, "update");
-  } else if (legacyHasAction) {
+  } else if (legacyHasAction && !storedExisting) {
     const newProgress = withUpdatedAmoraAction(currentProgress, actionId, updates);
     await saveProgress(ctx, newProgress);
     updated = getAmoraActions(newProgress).find((item) => item.id === actionId);

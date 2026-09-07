@@ -84,7 +84,7 @@ import {
  * - **업체 수.** 옛 단언은 "랜딩에 업체 수가 있으면 실패" 였다. 새 랜딩은 공시 카드에
  *   `829곳` 을 다시 쓴다. 지키던 것은 숫자의 유무가 아니라 **수치에 근거와 기준 시점이
  *   붙어 있는가** 였으므로(옛 주석이 그렇게 적어 뒀다), 숫자를 세지 말고 **근거가
- *   곁에 있는지**를 재도록 바꿨다(`VENDOR_COUNT` + `COUNT_EVIDENCE`).
+ *   곁에 있는지**를 재도록 바꿨다(업체 수와 공시 기준 시점 검사).
  * - **H1.** 옛 컴포넌트는 H1 글자를 손으로 적었고 그래서 문자열로 물었다. 새
  *   컴포넌트는 `hero.title` 을 읽는다 — 문자열로 물으면 영원히 실패한다.
  *   `<h1>` 이 카피를 **읽는지**로 바꿨다.
@@ -105,7 +105,6 @@ const header = rendered(`${REDESIGN}/LandingHeader.tsx`);
 const mobileMenu = rendered(`${REDESIGN}/MobileLandingMenu.tsx`);
 const hero = rendered(`${REDESIGN}/TransformationHero.tsx`);
 const content = rendered(CONTENT_PATH);
-const amoraNoteSection = rendered(`${REDESIGN}/AmoraNoteSection.tsx`);
 const boundariesSection = rendered(`${REDESIGN}/BoundariesSection.tsx`);
 const availableNowSection = rendered(`${REDESIGN}/AvailableNowSection.tsx`);
 const communitySection = rendered(`${REDESIGN}/CommunitySection.tsx`);
@@ -269,16 +268,6 @@ const FORBIDDEN: ReadonlyArray<readonly [RegExp, string]> = [
  */
 const VENDOR_COUNT =
   /\d[\d,]*\s*(?:곳|군데|개사|개소)|(?:업체|업소|예식장|웨딩홀|스튜디오|매장|제휴사)[^.\n]{0,14}\d[\d,]*\s*(?:개|건|사|팀)|\d[\d,]*\s*(?:개|건|사|팀)[^.\n]{0,14}(?:업체|업소|예식장|웨딩홀|스튜디오|매장|제휴사)/gu;
-
-/**
- * 수치 곁에 있어야 하는 근거. **출처**(누가 낸 자료냐)나 **기준 시점**(언제 것이냐).
- *
- * ⚠️ 처음엔 `공시한` 도 근거로 쳤다. 그러자 카드 본문의 "업체가 **공시한** 기본 금액"이
- * 대신 대답해서, 출처(한국소비자원)와 기준월을 **둘 다 지워도 초록**이었다
- * (2026-08-29에 실제로 심어 확인). "공시" 라는 낱말은 자료의 성격이지 출처도 시점도
- * 아니다. 기관 이름이거나 날짜가 붙은 표기만 근거로 친다.
- */
-const COUNT_EVIDENCE = /한국소비자원|\d{4}년\s*\d{1,2}월[^.\n]{0,8}기준|\d{4}\.\d{2}\.\d{2}/u;
 
 describe("landing two-sided trust contract", () => {
   it("leads with the concrete couple loop, then makes its trust evidence verifiable", () => {

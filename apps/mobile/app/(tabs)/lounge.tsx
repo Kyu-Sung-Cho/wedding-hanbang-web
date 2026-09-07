@@ -678,9 +678,13 @@ export default function DashboardScreen() {
   // 그 사람은 "먼저 말을 거는 아모라"를 영영 만나지 못한다.
   useEffect(() => {
     let active = true;
+    setAmoraBubble(null);
+    setAmoraUnread(false);
+    const owner = firstRunProfileRef.current;
+    if (!owner || !data || owner.coupleId !== data.coupleId) return;
     void (async () => {
-      const pending = await peekPendingAmoraFirstHello({ storage: AsyncStorage });
-      if (!active || !pending) return;
+      const pending = await peekPendingAmoraFirstHello({ storage: AsyncStorage, owner });
+      if (!active || !pending || firstRunProfileRef.current !== owner) return;
       // 아직 대화에서 소비되지 않은 첫마디가 있다 = 아직 안 읽었다. 말풍선을 접었더라도
       // 점은 남아야 "아모라가 뭔가 남겼다"가 화면에 남는다.
       setAmoraUnread(true);
@@ -690,7 +694,7 @@ export default function DashboardScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [data]);
 
   const handleFirstRunTutorialClose = useCallback(
     async (outcome: FirstRunCoachMarksOutcome) => {
@@ -726,6 +730,7 @@ export default function DashboardScreen() {
       const partnerLinked = context.coupleId
         ? await loadPartnerLinked(context.coupleId, context.userId)
         : false;
+      if (firstRunProfileRef.current !== context) return;
       const hello = buildAmoraFirstHello({
         weddingDate: context.weddingDate,
         preparationStage: context.preparationStage,
@@ -733,7 +738,8 @@ export default function DashboardScreen() {
         now: Date.now(),
       });
 
-      await rememberPendingAmoraFirstHello(hello, { storage: AsyncStorage });
+      await rememberPendingAmoraFirstHello(hello, { storage: AsyncStorage, owner: context });
+      if (firstRunProfileRef.current !== context) return;
       setAmoraBubble(hello.preview);
       setAmoraUnread(true);
     },
@@ -795,7 +801,7 @@ export default function DashboardScreen() {
   const handleDismissAmoraBubble = useCallback(() => {
     // 접는 것은 "알림 봤다"이지 "첫마디 필요 없다"가 아니다. 점은 그대로 둔다.
     setAmoraBubble(null);
-    void dismissAmoraFirstHelloBubble({ storage: AsyncStorage });
+    void dismissAmoraFirstHelloBubble({ storage: AsyncStorage, owner: firstRunProfileRef.current });
   }, []);
 
   if (error && !data) {

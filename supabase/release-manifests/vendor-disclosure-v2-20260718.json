@@ -416,6 +416,38 @@
     {
       "file": "20260902120000_leaving_does_not_erase_the_partner_memory.sql",
       "sha256": "a769396d614c4fc1bb31e97c289fac7afea0dfa259f18bd64293a75cc9f0223e"
+    },
+    {
+      "file": "20260905153207_community_hot_rank_before_pagination.sql",
+      "sha256": "893651a7da04038b9807004518960b248e1f5b5a27886bbd091700dea5b53cde"
+    },
+    {
+      "file": "20260905223222_amora_atomic_chat_view_reset.sql",
+      "sha256": "8c29609fd1fac0cad71d9eaaab41a254be2ad00f718b0221d2703b6799130bed"
+    },
+    {
+      "file": "20260906074227_amora_manual_actions_actor_boundary.sql",
+      "sha256": "57da05968e382fd5116f2e7ae53df05503ad49bf836112a975bfbca331154865"
+    },
+    {
+      "file": "20260906090807_amora_saved_notes_canonical_source_boundary.sql",
+      "sha256": "c8de2b0882796194287d0dc66ac2852bab5193c85da466eb1138bc5ad7a948d9"
+    },
+    {
+      "file": "20260906130734_amora_budget_plan_preserves_existing_allocations.sql",
+      "sha256": "13f5cdb4c5b5cc30d69cb3b0d55c9f4adb387c61f17cff7e95cdd502b6661d3c"
+    },
+    {
+      "file": "20260906145336_amora_saved_notes_owner_delete.sql",
+      "sha256": "e1ae769d3752616f0018a57b3d853e95a53a63ea6199b73d60f73dba51816914"
+    },
+    {
+      "file": "20260906151956_amora_personal_actions_owner_boundary.sql",
+      "sha256": "e75ff09a75760b52cce4b673af01e67a4b74eb47128c853449c934a95d6791b5"
+    },
+    {
+      "file": "20260906223557_amora_mediation_response_choices.sql",
+      "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a"
     }
   ],
   "deploymentEvidence": {
