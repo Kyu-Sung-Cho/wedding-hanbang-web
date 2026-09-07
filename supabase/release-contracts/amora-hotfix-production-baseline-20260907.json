@@ -4770,7 +4770,7 @@
     },
     {
       "kind": "publication",
-      "sha256": "5ca32999d9f57bfc8c13169f1460c1568c882c95944964aa3691eb8de84416c1",
+      "sha256": "c97fa050c625553a7f10641e06dad5af473f7b2fc5db5b8da7041c21d32e4f2b",
       "identity": "supabase_realtime_messages_publication"
     },
     {
@@ -6027,11 +6027,6 @@
       "kind": "relation",
       "sha256": "d2a0077ab61e0bf4fa60329ada6e2dee5e3cc89e3529a137209a7f913da0be90",
       "identity": "realtime.messages"
-    },
-    {
-      "kind": "relation",
-      "sha256": "c5607a61fc0ef9b0e4248e95efe38fab273e484c2ab855e58897e777fe055fb6",
-      "identity": "realtime.messages_2026_09_03"
     },
     {
       "kind": "relation",
@@ -7689,11 +7684,6 @@
     },
     {
       "kind": "r",
-      "name": "messages_2026_09_03",
-      "schema": "realtime"
-    },
-    {
-      "kind": "r",
       "name": "messages_2026_09_04",
       "schema": "realtime"
     },
@@ -7799,7 +7789,7 @@
     }
   ],
   "vaultRows": 0,
-  "observedAt": "2026-09-07T03:53:18.230989+00:00",
+  "observedAt": "2026-09-07T04:53:13.233675+00:00",
   "serverVersion": "17.6",
   "storagePolicies": [
     {
@@ -7902,11 +7892,11 @@
   "cliRoleExpirations": [
     {
       "name": "cli_login_postgres",
-      "validUntil": "2026-09-07T00:00:05.409719+00:00"
+      "validUntil": "2026-09-07T04:02:07.35117+00:00"
     },
     {
       "name": "cli_login_supabase_read_only_user",
-      "validUntil": "2026-09-07T03:54:30.392522+00:00"
+      "validUntil": "2026-09-07T04:02:31.225746+00:00"
     }
   ],
   "storageStructureSha256": "1dd503decdff0c859131137720045cac5f5353c7dc5d4af6ced7ff596608fcf0"

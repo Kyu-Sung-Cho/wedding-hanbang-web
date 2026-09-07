@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { digest, digestJson, loadCurrentBaselineContract } from '../lib/current-baseline-release-contract.mjs';
@@ -11,7 +12,7 @@ import { transactionBody } from '../lib/current-baseline-hosted-synthetic.mjs';
 import { localPredecessor } from './fixtures/current-baseline-hosted-synthetic-local.mjs';
 import { loadHotfixRelease, parseHotfixArgs, parseHotfixFinalizeArgs, validateHotfixEvidence, renderPublicDataQuery,
   renderHotfixAtomicSql, renderHotfixAdjudicationSql, classifyHotfixObservation, createManagementHotfixTransport,
-  validateHotfixOperatingBaseline, validateHotfixCanary, renderHotfixFinalizeSql } from '../lib/amora-runtime-hotfix-controller.mjs';
+  validateHotfixOperatingBaseline, validateHotfixCanary, renderHotfixFinalizeSql, validateHotfixReadOnlyQuery } from '../lib/amora-runtime-hotfix-controller.mjs';
 import { runAmoraRuntimeHotfix, verifyHotfixSourceLineage } from '../lib/amora-runtime-hotfix-controller.mjs';
 import { resolvePinnedWindowsProductionToolchain } from '../lib/production-windows-toolchain.mjs';
 
@@ -124,7 +125,7 @@ test('before-schema/ledger/old public rows and fresh evidence cannot be replaced
   ]) { const f = evidenceFixture(); f.evidence.scope = { ...f.evidence.scope }; change(f); assert.throws(() => validate(f)); }
 });
 
-async function localFixture() {
+async function localFixture({ searchPathProbe = false } = {}) {
   const db = await localPredecessor(root);
   try {
     await db.exec(`CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid,bucket_id text,name text); CREATE TABLE storage.buckets(id text);
@@ -135,7 +136,16 @@ async function localFixture() {
       CREATE ROLE cli_login_supabase_read_only_user LOGIN VALID UNTIL '2026-09-07T00:00:00Z';
       INSERT INTO public.community_posts(id,title,content,upvote_count,comment_count) VALUES('60907000-0000-4000-8000-000000000050','ORIGINAL TITLE','ORIGINAL BODY',4,2);`);
     await db.exec(readFileSync(join(root, 'supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql'), 'utf8'));
-    const observe = async () => (await db.query(`${release.inventorySelect};`)).rows[0].observation;
+    if (searchPathProbe) await db.exec(`CREATE SCHEMA extensions;
+      CREATE FUNCTION extensions.synthetic_marker() RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT 'synthetic'::text $$;
+      ALTER TABLE public.profiles ADD COLUMN path_probe text DEFAULT extensions.synthetic_marker();
+      SET search_path=pg_catalog,public;`);
+    const observe = async () => {
+      const previous = (await db.query('SHOW search_path')).rows[0].search_path;
+      await db.query("SELECT set_config('search_path','pg_catalog,public',false)");
+      try { return (await db.query(`${release.inventorySelect};`)).rows[0].observation; }
+      finally { await db.query("SELECT set_config('search_path',$1,false)", [previous]); }
+    };
     const before = await observe();
     const data = (await db.query(`${renderPublicDataQuery(before)};`)).rows[0].data;
     await db.exec('BEGIN');
@@ -164,6 +174,21 @@ test('one actual PostgreSQL transaction executes eight original SQLs plus exact 
     assert.equal(classifyHotfixObservation({ rows: post, release: f.release, binding }), 'committed-lease-held');
     const fence = await f.db.query("SELECT count(*)::integer AS n FROM pg_trigger WHERE tgname='trg_production_write_fence_20260717' AND NOT tgisinternal");
     assert.equal(fence.rows[0].n, f.evidence.before.relations.filter(r => r.schema === 'public' && ['r', 'p'].includes(r.kind)).length + 3);
+  } finally { await f.db.close(); }
+});
+
+test('actual apply and finalizer normalize catalog deparsing without altering the incoming session search path', { timeout: 120000 }, async () => {
+  const f = await localFixture({ searchPathProbe: true });
+  try {
+    await f.db.exec('SET search_path=pg_catalog,public,extensions');
+    const unnormalized = (await f.db.query(`${release.inventorySelect};`)).rows[0].observation;
+    assert.notEqual(unnormalized.objects.find(o => o.identity === 'public.profiles').sha256,
+      f.evidence.before.objects.find(o => o.identity === 'public.profiles').sha256);
+    await f.db.exec(renderHotfixAtomicSql(f));
+    assert.equal((await f.db.query('SHOW search_path')).rows[0].search_path, 'pg_catalog, public, extensions');
+    const result = await f.db.exec(renderHotfixFinalizeSql({ ...f, canarySha256: hash }));
+    assert.equal(result.flatMap(r => r.rows ?? []).at(-1).hotfix_finalized_count, 1);
+    assert.equal((await f.db.query('SHOW search_path')).rows[0].search_path, 'pg_catalog, public, extensions');
   } finally { await f.db.close(); }
 });
 
@@ -209,7 +234,7 @@ test('Management API uses only the pinned destination, no redirects, and never e
   } });
   assert.deepEqual(await transport.query('BEGIN READ ONLY; SELECT 1; COMMIT;'), [{ verified: true }]);
   assert.equal(calls[0].url, 'https://api.supabase.com/v1/projects/slrtobkksjmxgzatjyqb/database/query');
-  assert.equal(calls[0].init.redirect, 'error'); assert.equal(JSON.parse(calls[0].init.body).read_only, true);
+  assert.equal(calls[0].init.redirect, 'error'); assert.equal(JSON.parse(calls[0].init.body).read_only, false);
   for (const fetchImpl of [async () => { throw new Error(secret); }, async () => ({ ok: false, text: async () => secret }),
     async () => ({ ok: true, text: async () => JSON.stringify({ error: secret }) })]) {
     const bad = createManagementHotfixTransport({ accessToken: secret, projectRef: release.hotfix.projectRef, fetchImpl });
@@ -218,7 +243,42 @@ test('Management API uses only the pinned destination, no redirects, and never e
   assert.throws(() => createManagementHotfixTransport({ accessToken: secret, projectRef: 'abcdefghijklmnopqrst' }));
 });
 
-test('fresh managed-partition supplement allows only the pinned two objects and one relation, preserving role and grant fingerprints', () => {
+test('postgres API selector accepts only a complete read-only transaction and rejects transaction escape before sending', async () => {
+  const calls = [];
+  const transport = createManagementHotfixTransport({ accessToken: 'SYNTHETIC_MANAGEMENT_TOKEN', projectRef: release.hotfix.projectRef,
+    fetchImpl: async (_url, init) => { calls.push(JSON.parse(init.body)); return { ok: true, text: async () => '[]' }; } });
+  for (const sql of ['SELECT 1;', 'BEGIN; SELECT 1; COMMIT;', 'BEGIN READ ONLY; SELECT 1; COMMIT; SELECT 2;',
+    'BEGIN READ ONLY; /* outer /* inner */ tail */ COMMIT; INSERT INTO public.example VALUES(1); COMMIT;',
+    'BEGIN READ ONLY; ROLLBACK; BEGIN; SELECT 1; COMMIT;']) {
+    await assert.rejects(transport.query(sql), error => error.code === 'MANAGEMENT_READ_ONLY_ENVELOPE_REQUIRED');
+  }
+  assert.equal(calls.length, 0);
+  await transport.query("BEGIN TRANSACTION READ ONLY; SELECT 'COMMIT; ROLLBACK;' AS harmless; COMMIT;");
+  assert.equal(calls.length, 1); assert.equal(calls[0].read_only, false);
+});
+
+test('actual PostgreSQL keeps the postgres connection read-only even if inner SQL tries to switch transaction access', async () => {
+  const { PGlite } = createRequire(join(root, 'apps/web/package.json'))('@electric-sql/pglite');
+  const db = await PGlite.create(); const sqlstates = [];
+  const transport = createManagementHotfixTransport({ accessToken: 'SYNTHETIC_MANAGEMENT_TOKEN', projectRef: release.hotfix.projectRef,
+    fetchImpl: async (_url, init) => {
+      const body = JSON.parse(init.body); assert.equal(body.read_only, false);
+      try { const results = await db.exec(body.query); return { ok: true, text: async () => JSON.stringify(results.flatMap(r => r.rows ?? [])) }; }
+      catch (error) { sqlstates.push(error.code); await db.exec('ROLLBACK'); return { ok: false, text: async () => 'not disclosed' }; }
+    } });
+  try {
+    await db.exec('CREATE TABLE public.readonly_target(id integer)');
+    const rows = await transport.query("BEGIN READ ONLY; SELECT current_user AS actor,current_setting('transaction_read_only') AS readonly; COMMIT;");
+    assert.deepEqual(rows, [{ actor: 'postgres', readonly: 'on' }]);
+    for (const change of ['SET TRANSACTION READ WRITE;', "SELECT set_config('transaction_read_only','off',true);"])
+      await assert.rejects(transport.query(`BEGIN READ ONLY; ${change} INSERT INTO public.readonly_target VALUES(1); COMMIT;`), /MANAGEMENT_QUERY_UNCONFIRMED/);
+    await assert.rejects(transport.query('BEGIN READ ONLY; INSERT INTO public.readonly_target VALUES(2); COMMIT;'), /MANAGEMENT_QUERY_UNCONFIRMED/);
+    assert.deepEqual(sqlstates, ['25001', '25001', '25006']);
+    assert.equal((await db.query('SELECT count(*)::integer AS n FROM public.readonly_target')).rows[0].n, 0);
+  } finally { await db.close(); }
+});
+
+test('fresh managed-partition supplement permits exactly one addition, one removal and the publication while preserving app, role and grant fingerprints', () => {
   const original = loadCurrentBaselineContract(root).baseline;
   const args = { original, current: release.baseline, delta: release.hotfix.baselineDelta, contract: release.contract };
   assert.doesNotThrow(() => validateHotfixOperatingBaseline(args));
@@ -231,6 +291,8 @@ test('fresh managed-partition supplement allows only the pinned two objects and 
     const current = structuredClone(release.baseline); change(current);
     assert.throws(() => validateHotfixOperatingBaseline({ ...args, current }));
   }
+  for (const relationsRemoved of [[], [{ schema: 'public', name: 'profiles', kind: 'r' }]])
+    assert.throws(() => validateHotfixOperatingBaseline({ ...args, delta: { ...args.delta, relationsRemoved } }));
 });
 
 test('native receipt exact server types and uppercase digest are preserved; all evidence deadlines bound the transaction', () => {
@@ -374,6 +436,7 @@ test('wrong claim and lost apply response write durable adjudication, throw, and
       assert.equal(result.phase, mode === 'wrong-owner' ? 'claiming' : 'apply-requested');
       assert.equal(result.fenceMustRemainHeld, true); assert.equal(result.rerunProhibited, true);
       assert.equal(calls.length, mode === 'wrong-owner' ? 2 : 3);
+      assert.doesNotThrow(() => validateHotfixReadOnlyQuery(calls[0].sql));
       assert.equal(calls.some(c => c.sql.includes('DROP TABLE public.production_release_lease_20260717')), false);
       assert.equal(JSON.stringify(result).includes('SYNTHETIC_PRIVATE_SQL'), false);
     } finally { await rm(folder, { recursive: true, force: true }); }

@@ -24,4 +24,6 @@ DB 응답이 끊기면 원래 결과 경로와 lease를 보존한다. 빈 이력
 
 - Supabase CLI 2.106.0은 임시 비밀번호 발급 뒤 pooler에 같은 자격 증명으로 접속을 재시도한다. 발급 직후 인증 실패는 새 비밀번호를 반복 발급해 해결하지 않는다.
 - libpq의 `verify-full`은 클라이언트와 pooler 사이의 TLS·인증서·호스트 이름을 검증한다. `pg_stat_ssl`은 pooler와 DB 사이의 별도 연결 상태이므로 두 값을 나누어 기록한다.
-- 이번 관측에서 추가된 `realtime.messages_2026_09_10`은 Supabase 관리자의 빈 날짜 파티션이다. 새 hotfix 기준은 이 파티션과 해당 publication의 두 변경만 원래 관측에서 허용하며, 앱 스키마나 다른 관리 객체의 변화를 포괄적으로 무시하지 않는다.
+- 관리 API의 `read_only: true`는 `supabase_read_only_user` 연결을 선택한다. 배포 검사의 `postgres` 세션과 구분해야 하므로 scoped 실행기는 `postgres` 연결을 선택하고, 조회 SQL 자체의 `BEGIN READ ONLY … COMMIT` 경계를 검사한다. 적용·해제 세션의 `postgres`·JWT 없음 조건은 유지한다.
+- 두 연결의 기본 `search_path`가 달라 같은 뷰·기본값·제약·이벤트 트리거가 16개 다른 지문으로 표현됐다. 실제 양쪽 조회에서 `pg_catalog, public`으로 고정하면 이 차이가 사라졌다. scoped 관측은 독립 쿼리와 트랜잭션 내부 관측 모두 이 경로를 명시한다. 원래 inventory SQL이나 전체 복구 실행기의 기준은 바꾸지 않는다.
+- 원래 관측에서 추가된 `realtime.messages_2026_09_10`, 이후 삭제된 `realtime.messages_2026_09_03`, 해당 publication의 정확한 변경만 scoped 기준에 반영한다. 삭제 주체나 retention 작업의 실행 여부는 이 관측만으로 확인한 것이 아니다. 앱 스키마나 다른 관리 객체의 변화를 포괄적으로 무시하지 않는다.

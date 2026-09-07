@@ -103,11 +103,15 @@ export function validateHotfixOperatingBaseline({ original, current, delta, cont
   const after = new Map(current.objects.map(o => [`${o.kind}:${o.identity}`, o.sha256]));
   const changes = [...new Set([...before.keys(), ...after.keys()])].sort().filter(k => before.get(k) !== after.get(k))
     .map(identity => ({ identity, beforeSha256: before.get(identity) ?? null, afterSha256: after.get(identity) ?? null }));
-  equal(changes.map(c => c.identity), ['publication:supabase_realtime_messages_publication', 'relation:realtime.messages_2026_09_10'], 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  equal(changes.map(c => c.identity), ['publication:supabase_realtime_messages_publication', 'relation:realtime.messages_2026_09_03', 'relation:realtime.messages_2026_09_10'], 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
   equal(changes, delta?.objects, 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
-  ensure(changes.every(c => SHA.test(c.afterSha256) && (c.identity.startsWith('relation:') ? c.beforeSha256 === null : SHA.test(c.beforeSha256))), 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  ensure(changes.every(c => c.identity === 'relation:realtime.messages_2026_09_03'
+    ? SHA.test(c.beforeSha256) && c.afterSha256 === null
+    : SHA.test(c.afterSha256) && (c.identity.startsWith('relation:') ? c.beforeSha256 === null : SHA.test(c.beforeSha256))), 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
   equal(delta?.relationsAdded, [{ schema: 'realtime', name: 'messages_2026_09_10', kind: 'r' }], 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
-  equal(current.relations, [...original.relations, ...delta.relationsAdded].sort((a, b) => `${a.schema}.${a.name}` < `${b.schema}.${b.name}` ? -1 : 1), 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  equal(delta?.relationsRemoved, [{ schema: 'realtime', name: 'messages_2026_09_03', kind: 'r' }], 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
+  equal(current.relations, [...original.relations.filter(r => r.schema !== 'realtime' || r.name !== 'messages_2026_09_03'), ...delta.relationsAdded]
+    .sort((a, b) => `${a.schema}.${a.name}` < `${b.schema}.${b.name}` ? -1 : 1), 'HOTFIX_BASELINE_UNAPPROVED_DRIFT');
 }
 function reportBinding(report, evidence, release, kind, now) {
   ensure(report?.format === `amora-hotfix-${kind}-v1` && report.projectRef === release.hotfix.projectRef
@@ -281,7 +285,8 @@ function guardBlock({ release, evidence, deadlineMs, phase }) {
   const relations = phase === 'before' ? evidence.before.relations : [...evidence.before.relations,
     { schema: 'public', name: 'amora_mediation_responses', kind: 'r' }, { schema: 'public', name: 'amora_personal_actions', kind: 'r' }]
     .sort((a, b) => `${a.schema}.${a.name}` < `${b.schema}.${b.name}` ? -1 : 1);
-  return `DO $hotfix_${phase}$ DECLARE observed jsonb; actual_data jsonb; cli jsonb; BEGIN
+  return `SET LOCAL search_path=pg_catalog,public;
+DO $hotfix_${phase}$ DECLARE observed jsonb; actual_data jsonb; cli jsonb; BEGIN
     ${identityCheck(release)}
     IF clock_timestamp()>=to_timestamp(${deadlineMs}/1000.0) THEN RAISE EXCEPTION 'HOTFIX_EVIDENCE_EXPIRED'; END IF;
     SELECT observation INTO observed FROM (${release.inventorySelect}) captured;
@@ -310,6 +315,7 @@ export function renderHotfixAtomicSql({ release, evidence, binding, deadlineMs }
   const expectedLedger = bodies.map(m => `SELECT ${literal(m.version)}::text AS version,${literal(m.file.slice(15, -4))}::text AS name,
     ARRAY[${literal(m.original)}]::text[] AS statements`).join('\nUNION ALL\n');
   const sql = `BEGIN;
+SET LOCAL search_path=pg_catalog,public;
 SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='60s'; SET LOCAL idle_in_transaction_session_timeout='90s';
 SELECT pg_advisory_xact_lock(7523370826071712::bigint);
 DO $hotfix_owner$ BEGIN ${identityCheck(release)}
@@ -348,16 +354,27 @@ SELECT 1::integer AS hotfix_committed_count,${literal(binding.ownerId)}::text AS
   return sql;
 }
 
+export function validateHotfixReadOnlyQuery(sql) {
+  const envelope = /^\s*BEGIN(?:\s+TRANSACTION)?\s+READ\s+ONLY\s*;([\s\S]*)COMMIT\s*;\s*$/i.exec(sql);
+  ensure(envelope, 'MANAGEMENT_READ_ONLY_ENVELOPE_REQUIRED');
+  let body;
+  try { body = transactionBody(`BEGIN TRANSACTION READ ONLY;${envelope[1]}COMMIT;`); }
+  catch { throw new HotfixBlocked('MANAGEMENT_READ_ONLY_ENVELOPE_REQUIRED'); }
+  // API의 read_only는 연결 역할 선택이다. SQL 자체의 READ ONLY와 첫 snapshot으로 중간 READ WRITE 전환도 막는다.
+  return `BEGIN TRANSACTION READ ONLY;\nSELECT 1 FROM pg_catalog.pg_class LIMIT 0;\n${body}\nCOMMIT;`;
+}
+
 export function createManagementHotfixTransport({ accessToken, projectRef, fetchImpl = globalThis.fetch, timeoutMs = 120000 }) {
   ensure(typeof accessToken === 'string' && accessToken.length >= 20 && !/[\r\n]/.test(accessToken), 'MANAGEMENT_CREDENTIAL_REQUIRED');
   ensure(projectRef === 'slrtobkksjmxgzatjyqb', 'MANAGEMENT_PROJECT_MISMATCH');
   return { async query(sql, { readOnly = true } = {}) {
     ensure(typeof sql === 'string' && Buffer.byteLength(sql) <= MAX_SQL_BYTES, 'MANAGEMENT_QUERY_INVALID');
+    const query = readOnly ? validateHotfixReadOnlyQuery(sql) : sql;
     let response;
     try {
       response = await fetchImpl(`https://api.supabase.com/v1/projects/${projectRef}/database/query`, {
         method: 'POST', redirect: 'error', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query: sql, read_only: readOnly }), signal: AbortSignal.timeout(timeoutMs),
+        body: JSON.stringify({ query, read_only: false }), signal: AbortSignal.timeout(timeoutMs),
       });
       ensure(response.ok, 'MANAGEMENT_QUERY_UNCONFIRMED');
       const text = await response.text(); ensure(Buffer.byteLength(text) <= 4 * 1024 * 1024, 'MANAGEMENT_RESPONSE_TOO_LARGE');
@@ -376,7 +393,8 @@ export function classifyHotfixObservation({ rows, release, binding }) {
 }
 export function renderHotfixAdjudicationSql({ release, binding }) {
   const expected = release.migrations.map(m => `SELECT ${literal(m.version)}::text AS version,${literal(m.file.slice(15, -4))}::text AS name,ARRAY[${literal(m.sql.toString('utf8'))}]::text[] AS statements`).join(' UNION ALL ');
-  return `BEGIN READ ONLY; SELECT (SELECT system_identifier::text FROM pg_control_system()) AS system_identifier,
+  return `BEGIN READ ONLY; SET LOCAL search_path=pg_catalog,public;
+    SELECT (SELECT system_identifier::text FROM pg_control_system()) AS system_identifier,
     (SELECT count(*)::integer FROM supabase_migrations.schema_migrations) AS ledger_count,
     (SELECT count(*)::integer FROM (${expected}) e JOIN supabase_migrations.schema_migrations a USING(version) WHERE e.name=a.name AND e.statements=a.statements) AS exact_migration_count,
     count(*)::integer AS owner_count,max(owner_id::text) AS owner_id,max(release_commit) AS release_commit,max(phase) AS phase
@@ -471,7 +489,7 @@ export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primiti
     await replaceReceipt(options['receipt-out'], receipt); return receipt;
   };
   // check-only는 실제 SQL을 실행하는 dry-run이 아니다. 읽기 precondition과 원문 번들만 검증한다.
-  const preflight = `BEGIN READ ONLY; ${release.fenceBody}\n${guardBlock({ release, ...state, phase: 'before' })}\nCOMMIT; SELECT 1::integer AS hotfix_preflight_count;`;
+  const preflight = `BEGIN READ ONLY; SET LOCAL search_path=pg_catalog,public; ${release.fenceBody}\n${guardBlock({ release, ...state, phase: 'before' })}\nSELECT 1::integer AS hotfix_preflight_count; COMMIT;`;
   const pre = await transport.query(preflight, { readOnly: true });
   ensure(pre.some(row => row.hotfix_preflight_count === 1), 'PREFLIGHT_UNCONFIRMED');
   await stable();
@@ -552,6 +570,7 @@ export function renderHotfixFinalizeSql({ release, evidence, binding, deadlineMs
   const predicate = leasePredicate(binding);
   const expectedLedger = release.migrations.map(m => `SELECT ${literal(m.version)}::text AS version,${literal(m.file.slice(15, -4))}::text AS name,ARRAY[${literal(m.sql.toString('utf8'))}]::text[] AS statements`).join(' UNION ALL ');
   return `BEGIN;
+SET LOCAL search_path=pg_catalog,public;
 SET LOCAL lock_timeout='5s'; SET LOCAL statement_timeout='60s';
 SELECT pg_advisory_xact_lock(7523370826071712::bigint);
 DO $owner$ BEGIN ${identityCheck(release)}

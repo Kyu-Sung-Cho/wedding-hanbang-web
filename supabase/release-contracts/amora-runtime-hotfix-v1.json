@@ -73,14 +73,19 @@
   ],
   "operatingBaseline": {
     "file": "supabase/release-contracts/amora-hotfix-production-baseline-20260907.json",
-    "sha256": "1eae5c0c256afe2ab207eb816464755e77bf8e4a4653af3bdb163c8828d34436"
+    "sha256": "5d122015d2b85679f82e3fc747dce9ef7ab5219298224bb6ae4f7d643c550595"
   },
   "baselineDelta": {
     "objects": [
       {
         "identity": "publication:supabase_realtime_messages_publication",
         "beforeSha256": "94c677abc7ae0e39dfc315894dd83574cee5a9e09277414f25102bba87fe80a1",
-        "afterSha256": "5ca32999d9f57bfc8c13169f1460c1568c882c95944964aa3691eb8de84416c1"
+        "afterSha256": "c97fa050c625553a7f10641e06dad5af473f7b2fc5db5b8da7041c21d32e4f2b"
+      },
+      {
+        "identity": "relation:realtime.messages_2026_09_03",
+        "beforeSha256": "c5607a61fc0ef9b0e4248e95efe38fab273e484c2ab855e58897e777fe055fb6",
+        "afterSha256": null
       },
       {
         "identity": "relation:realtime.messages_2026_09_10",
@@ -93,6 +98,13 @@
         "kind": "r",
         "name": "messages_2026_09_10",
         "schema": "realtime"
+      }
+    ],
+    "relationsRemoved": [
+      {
+        "schema": "realtime",
+        "name": "messages_2026_09_03",
+        "kind": "r"
       }
     ]
   }
