@@ -15,7 +15,10 @@ const FIXED_BY_LABEL = new Map(Object.entries(PLANNING_CATEGORY_LABELS)
   .map(([key, label]) => [label as string, key]));
 
 /** 현재 문장의 완결된 금액 목록만 읽는다. 권한·승인·실제 저장은 기존 pending 경계가 맡는다. */
-export function parseExplicitBudgetPlanRequest(text: string): ExplicitBudgetPlanInput | null {
+export function parseExplicitBudgetPlanRequest(
+  text: string,
+  progress: Record<string, unknown> = {},
+): ExplicitBudgetPlanInput | null {
   if (typeof text !== "string" || text.length > 4000
     || /["'“”‘’`<>\p{Cf}]/u.test(text)
     || /(?:예시|가정|대략|아마|나중|보류|하지\s*마|하지\s*말|말고|취소|삭제|지워)/u.test(text)) return null;
@@ -56,11 +59,18 @@ export function parseExplicitBudgetPlanRequest(text: string): ExplicitBudgetPlan
   if (!allExplicit && !lastOnly) return null;
   const labels = rows.map(row => row.label.toLocaleLowerCase("ko-KR"));
   if (new Set(labels).size !== labels.length) return null;
+  const existingCustomLabels = new Set(Object.entries(progress).flatMap(([key, value]) => {
+    if (!key.startsWith("custom_") || value === null || typeof value !== "object"
+      || Array.isArray(value) || !("label" in value) || typeof value.label !== "string") return [];
+    return [value.label.replace(/\s+/gu, " ").trim().toLocaleLowerCase("ko-KR")];
+  }));
   const allocations = rows.map(row => {
     const budget = row.value * ((row.unit ?? lastUnit)!.startsWith("만") ? 10_000 : 1);
-    const category = row.label === "예비비" || row.label === PLANNING_CATEGORY_LABELS.reserve
-      ? "reserve"
-      : /[·ㆍ&+/]/u.test(row.label) ? undefined : FIXED_BY_LABEL.get(row.label);
+    // 기존 추가 항목은 이동하지 않는다. 키 재사용·중복 거절은 원자 저장기가 검증한다.
+    // 새 항목은 구분점이 있어도 기본 이름과 정확히 같으면 같은 예산 항목에 연결한다.
+    const category = existingCustomLabels.has(row.label.toLocaleLowerCase("ko-KR"))
+      ? undefined
+      : row.label === "예비비" ? "reserve" : FIXED_BY_LABEL.get(row.label);
     return category ? { category, budget } : { category: "custom", label: row.label, budget };
   });
   const fixedKeys = allocations.filter(row => row.category !== "custom").map(row => row.category);
