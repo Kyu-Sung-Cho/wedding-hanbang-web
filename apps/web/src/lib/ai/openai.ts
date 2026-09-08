@@ -488,6 +488,19 @@ function getRefusalText(response: OpenAIResponse): string {
     .join("");
 }
 
+function getCompletedResponseText(response: OpenAIResponse): string {
+  if (response.status !== "completed" || response.error) return "";
+  const parts = response.output
+    .flatMap((item) => item.type === "message"
+      && item.role === "assistant" && item.status === "completed" ? item.content : [])
+    .filter((content) => content.type === "output_text")
+    .map((content) => content.text);
+  // 일부만 합치면 완성본처럼 보일 수 있어 잘못된 nested 본문은 전체를 버린다.
+  if (parts.some((part) => typeof part !== "string")) return "";
+  const text = parts.join("");
+  return text.trim() ? text : "";
+}
+
 export function normalizeResponseUsage(
   response: OpenAIResponse
 ): NormalizedOpenAIUsage | undefined {
@@ -847,7 +860,9 @@ export async function chatWithToolsStream(options: {
   });
 
   const resolvedRefusal = getRefusalText(finalResponse) || refusalText;
-  const resolvedText = finalResponse.output_text || resolvedRefusal || fullText || "";
+  // raw 스트림에는 SDK 편의 필드가 없을 수 있다. 완료 본문을 delta와 중복하지 않는다.
+  const resolvedText = finalResponse.output_text || resolvedRefusal
+    || getCompletedResponseText(finalResponse) || fullText || "";
   if (!resolvedText && toolCalls.length === 0) {
     throw new OpenAIProviderError("[openai] empty response", {
       category: "response_invalid",
