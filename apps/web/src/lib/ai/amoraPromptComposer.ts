@@ -202,7 +202,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   //    프롬프트 어디에도 그 도구를 쓸 이유가 적혀 있지 않았다(전체 검색 0건).
   if (has("get_wedding_info", "get_budget_summary")) {
     lines.push(
-      "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요.",
+      "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요. 우선 할 일 하나를 다른 준비가 필요 없다는 뜻으로 말하지 마세요.",
     );
   }
 
