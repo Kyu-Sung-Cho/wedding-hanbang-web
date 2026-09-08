@@ -186,3 +186,113 @@ describe("읽기 턴과 되묻기 턴은 저장 안내를 받지 않는다 (2026
     expect(result.text).toBe(SERVER_OWNED_EMPTY_ANSWER_NOTICE);
   });
 });
+
+describe("요청 없는 제안 실패는 대화 접수를 실행 실패로 바꾸지 않는다", () => {
+  const acknowledgement = "두 사람이 예단과 폐백을 생략하기로 했다고 말씀하셨어요. 생략 기준으로 이해했어요.";
+  const baseInput = {
+    toolResults: [],
+    hasPendingAction: false,
+    persistenceMode: "durable" as const,
+    droppedPendingActionTag: true,
+  };
+
+  it("요청 없이 표식만 버린 턴은 접수 원문을 보존한다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      ...baseInput,
+      text: acknowledgement,
+      userRequestedChange: false,
+    });
+
+    expect(result.text).toBe(acknowledgement);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  it.each([
+    "체크리스트에 반영했어요.",
+    "체크리스트에 반영할게요.",
+  ])("사용자 합의의 접수는 보존하되 별도의 가짜 실행은 계속 제거한다: %s", (claim) => {
+    const result = composeAmoraPersistenceTerminal({
+      ...baseInput,
+      text: `${acknowledgement} ${claim}`,
+      userRequestedChange: false,
+    });
+
+    expect(result.text).toBe(acknowledgement);
+    expect(result.removedClaimCount).toBe(1);
+    expect(result.source).toBe("server_correction");
+  });
+
+  it.each([
+    ["", 0],
+    ["체크리스트에 반영했어요.", 1],
+    ["체크리스트에 반영할게요.", 1],
+  ] as const)("요청 없는 표식 폐기 뒤 본문이 비어도 중립 안내를 쓴다: %s", (text, removedClaimCount) => {
+    const result = composeAmoraPersistenceTerminal({
+      ...baseInput,
+      text,
+      userRequestedChange: false,
+    });
+
+    expect(result.text).toBe(SERVER_OWNED_EMPTY_ANSWER_NOTICE);
+    expect(result.removedClaimCount).toBe(removedClaimCount);
+    expect(result.source).toBe("server_correction");
+  });
+
+  it.each([true, undefined])("실제 요청 또는 생략된 기존 인수의 표식 실패 안내는 유지한다: %s", (userRequestedChange) => {
+    const result = composeAmoraPersistenceTerminal({
+      ...baseInput,
+      text: acknowledgement,
+      userRequestedChange,
+    });
+
+    expect(result.text).toBe(`${acknowledgement}\n\n${SERVER_OWNED_UNVERIFIED_NOTICE}`);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  it.each([true, undefined])("실제 요청 또는 생략된 기존 인수의 빈 표식 실패 안내는 유지한다: %s", (userRequestedChange) => {
+    expect(composeAmoraPersistenceTerminal({
+      ...baseInput,
+      text: "",
+      userRequestedChange,
+    }).text).toBe(SERVER_OWNED_UNVERIFIED_NOTICE);
+  });
+
+  it("요청 인수와 표식이 모두 없었던 빈본문의 기존 중립 안내는 유지한다", () => {
+    expect(composeAmoraPersistenceTerminal({
+      text: "", toolResults: [], hasPendingAction: false, persistenceMode: "durable",
+    }).text).toBe(SERVER_OWNED_EMPTY_ANSWER_NOTICE);
+  });
+
+  it("요청 인수를 생략한 기존 미래 약속 호출은 안내를 유지한다", () => {
+    const result = composeAmoraPersistenceTerminal({
+      text: `${acknowledgement} 체크리스트에 반영할게요.`,
+      toolResults: [], hasPendingAction: false, persistenceMode: "durable",
+    });
+    expect(result.text).toBe(`${acknowledgement}\n\n${SERVER_OWNED_UNVERIFIED_NOTICE}`);
+    expect(result.removedClaimCount).toBe(1);
+  });
+
+  it("요청 여부가 false여도 유효 카드의 확인 문장은 그대로 둔다", () => {
+    const text = "다음 변경을 적용할까요? 상견례 일정을 추가할게요.";
+    const result = composeAmoraPersistenceTerminal({
+      text, toolResults: [], hasPendingAction: true,
+      persistenceMode: "durable", userRequestedChange: false,
+    });
+    expect(result.text).toBe(text);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  it.each([true, false])("요청 여부가 false여도 실제 실행 영수증이 본문을 소유한다: success=%s", (success) => {
+    const displayMessage = success ? "총예산을 3,000만 원으로 변경했어요." : "예산을 변경하지 못했어요.";
+    const result = composeAmoraPersistenceTerminal({
+      text: `${acknowledgement} 체크리스트에 반영할게요.`,
+      toolResults: [{
+        toolName: "update_budget", toolInput: { total_budget: 30_000_000 },
+        toolOutput: { success }, success, displayMessage,
+      }],
+      hasPendingAction: false, persistenceMode: "durable", userRequestedChange: false,
+    });
+    expect(result.text).toBe(displayMessage);
+    expect(result.source).toBe("server_mutation_receipts");
+  });
+});
