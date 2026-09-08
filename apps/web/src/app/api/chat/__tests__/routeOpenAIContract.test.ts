@@ -9524,6 +9524,38 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
+  it.each(["two-parts", "per-character"] as const)("keeps the observed temporal reclassification canonical/SSE consistent without writes: %s", async split => {
+    const text = "두 분의 기준을 한쪽이 포기하는 문제로만 보기는 어려워요.  \nA는 **가족이 오기 편하고 격식을 갖춘 예식**을, B는 **친척 관계를 빠뜨리지 않으면서 총예산을 지키는 것**을 중요하게 보고 있어요.\n\n절충안을 가르는 핵심은 **실제 초대 명단·참석 예상 인원·대전 시내 예식장 견적**입니다.\n\n1. **대전 시내 160명 기준**\n   - 두 분 모두의 기준을 중간에서 반영\n   - 정식 예식과 가족 접근성을 유지\n   - B의 친척 초대 범위는 일부 조정\n   - 3,500만 원 안에 들어오는지는 식대와 최소 식사 인원 확인 필요\n\n2. **대전 시내 180~200명 기준**\n   - B의 친척 초대 기준을 우선 반영\n   - A가 중요하게 본 이동 편의성과 정식 예식은 유지\n   - 식대·장식·사진 촬영 등 다른 항목의 실제 견적을 함께 확인해야 예산 가능 여부 판단 가능\n\n3. **대전 시내 120명 정식 예식 + 별도 친척 인사**\n   - A의 예식 규모와 장소 기준을 유지\n   - B가 걱정하는 친척 관계는 결혼식 초대 대신 별도 식사나 인사 자리로 나눌 수 있음\n   - 별도 자리 비용과 관계상 받아들일 수 있는 방식인지 확인 필요\n\n**현재 추천 1순위는 1안, 대전 시내 160명 기준이에요.** 두 분의 장소·형식 기준을 유지하면서 규모 차이를 줄이는 안이기 때문이에요. 다만 160명은 아직 두 분이 합의한 숫자가 아니므로, 추천이라기보다 먼저 견적을 받아볼 **검토 후보**로 두는 게 정확해요.\n\n다음에는 양가별 초대 명단을 실제로 세어 **“꼭 초대할 분”과 “초대 여부를 상의할 분”**을 나눠보세요.";
+    const expected = text.replace("추천 1순위", "우선 검토 후보");
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      const boundary = text.indexOf("다만 160명은");
+      expect(boundary).toBeGreaterThan(0);
+      const pieces = split === "per-character" ? [...text] : [text.slice(0, boundary), text.slice(boundary)];
+      pieces.forEach(piece => options.onTextDelta?.(piece));
+      return providerResult({ fullText: text });
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.content).toBe(expected);
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(expected);
+    expect(events.filter(event => event.type === "text_delta").map(event => event.content).join("")).toBe(expected);
+    expect(body).not.toContain("현재 추천 1순위");
+    expect(mocks.atomicResponses[0]?.metadata.output_hygiene).toContainEqual({ kind: "recommendation_label_aligned", count: 1 });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("personal_action_draft");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it("does not flush a ranked preview or invent a successful terminal when generation fails", async () => {
     mocks.provider.mockImplementationOnce(async (options: {
       beforeProviderEgress?: () => Promise<void>;

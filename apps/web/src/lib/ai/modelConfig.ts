@@ -107,6 +107,32 @@ export function hasOpenAIConfig(role?: AmoraModelRole): boolean {
 const TERRA_RISK_PATTERN =
   /갈등|싸(?:웠|움)|다툼|파혼|헤어지|폭력|폭행|협박|학대|강요|자해|자살|살기\s*싫|죽고\s*싶|극단적\s*선택|스토킹|감금|성폭행|성폭력|성추행|강간|소송|분쟁/;
 
+const MULTI_PARTY_OPINION_REQUEST =
+  /(?:^|\s)(?:두\s*(?:사람|분)|둘|각자|서로)(?:의)?\s*(?:의견|입장|조건)(?:을|를)\s*(?:(?:차례로|하나씩|각각|함께|먼저|지금|서로|좀)\s+)*(?:(?:전달|비교|정리|중재|조율)해\s*(?:줘(?:요)?|주세요|줄래(?:요)?)|전달(?:할게(?:요)?|합니다))\s*$/;
+
+const NON_CURRENT_OPINION_TASK =
+  /만약|가령|예를\s*들어|가정|면(?:\s|,)|나중에|다음에|언젠가|(?:예문|예시|문구|문장)(?:\s*[:：]|로\s)/;
+
+const EXPLICIT_EXECUTION_REQUEST =
+  /(?:저장|반영|승인|등록|추가|수정|삭제|배분|적용|실행|확정)\s*(?:좀\s*)?(?:해(?:\s*(?:줘(?:요)?|주세요|줄래(?:요)?|주실래(?:요)?|줄\s*수\s*있(?:어(?:요)?|나요)))?|부탁(?:해(?:요)?|합니다)|하자|할게(?:요)?|하고)(?=$|[\s.!?;,])/;
+
+function isExplicitMultiPartyOpinionTurn(text: string): boolean {
+  // 인용문의 의도를 현재 요청으로 읽지 않는다. 기존 위기 판별에는 적용하지 않는다.
+  const unquotedText = text
+    .replace(/```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)/g, "\n")
+    .replace(/^\s*>[^\n]*/gm, "\n")
+    .replace(/`[^`]*(?:`|$)|"[^"]*(?:"|$)|'[^']*(?:'|$)|“[^”]*(?:”|$)|‘[^’]*(?:’|$)|「[^」]*(?:」|$)|『[^』]*(?:』|$)/g, "\n");
+
+  // Terra-none 저장 턴의 빈 본문 이력이 있어 혼합 실행 요청은 새 승격에서 뺀다.
+  if (EXPLICIT_EXECUTION_REQUEST.test(unquotedText)) return false;
+
+  return unquotedText.split(/[.!?;\n]/u).some((clause) => {
+    const currentClause = clause.trim();
+    return !NON_CURRENT_OPINION_TASK.test(currentClause)
+      && MULTI_PARTY_OPINION_REQUEST.test(currentClause);
+  });
+}
+
 /** 일반 상담은 Luna, 오답 비용이 큰 턴만 Terra로 승격한다. */
 export function chooseAmoraChatModelRole(input: {
   specialistType: string;
@@ -117,5 +143,6 @@ export function chooseAmoraChatModelRole(input: {
   if (classifyAmoraCrisis(input.userText)) return "primary";
   const normalizedUserText = normalizeAmoraSafetyText(input.userText);
   if (TERRA_RISK_PATTERN.test(normalizedUserText)) return "primary";
+  if (isExplicitMultiPartyOpinionTurn(normalizedUserText)) return "primary";
   return "fast";
 }
