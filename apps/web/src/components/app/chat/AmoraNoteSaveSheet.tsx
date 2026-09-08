@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Bookmark, CircleCheck, Info } from "lucide-react";
 import AmoraSheetFrame from "./AmoraSheetFrame";
 
@@ -16,8 +16,20 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
   const [memo, setMemo] = useState("");
   const [memoExpanded, setMemoExpanded] = useState(false);
   const memoId = useId();
+  const memoPanelId = useId();
+  const memoRef = useRef<HTMLTextAreaElement>(null);
+  const memoToggleRef = useRef<HTMLButtonElement>(null);
   const source = content.trim();
   const preview = source.slice(0, 4_000).replace(/[\uD800-\uDBFF]$/, "");
+
+  useEffect(() => {
+    if (memoExpanded) memoRef.current?.focus();
+  }, [memoExpanded]);
+
+  const toggleMemo = () => {
+    if (memoExpanded) memoToggleRef.current?.focus();
+    setMemoExpanded(!memoExpanded);
+  };
 
   return (
     <AmoraSheetFrame
@@ -32,42 +44,45 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
       onDefer={onClose}
     >
       <div className="mb-4">
-        <p className="mb-[7px] text-[11.5px] text-[var(--amora-muted)]">저장할 답변</p>
+        <p className="mb-[7px] text-[12px] text-[var(--amora-muted)]">저장할 답변</p>
         <div className="max-h-[28dvh] overflow-y-auto overscroll-contain rounded-[11px] border border-[var(--amora-line)] bg-[var(--amora-bg)] px-3.5 py-[13px] text-[14.5px] leading-[1.6] whitespace-pre-wrap break-words" tabIndex={0} aria-label="저장할 답변 원문">
           {preview}
         </div>
-        {source.length > 4_000 && <p className="mt-1.5 text-[11.5px] text-[var(--amora-muted)]">긴 답변은 앞 4,000자까지 저장돼요.</p>}
+        {source.length > 4_000 && <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">긴 답변은 앞 4,000자까지 저장돼요.</p>}
       </div>
       <div className="mb-4">
-        <p className="mb-[7px] text-[11.5px] text-[var(--amora-muted)]">보관 위치</p>
+        <p className="mb-[7px] text-[12px] text-[var(--amora-muted)]">보관 위치</p>
         <span className="inline-flex min-h-11 items-center gap-[7px] rounded-full bg-[var(--amora-ink)] px-4 text-[13.5px] font-semibold text-white">
           <Bookmark className="size-3.5" aria-hidden="true" />저장함
         </span>
-        <p className="mt-2 flex items-start gap-[7px] text-[11.5px] leading-[1.55] text-[var(--amora-muted)]">
+        <p className="mt-2 flex items-start gap-[7px] text-[12px] leading-[1.55] text-[var(--amora-muted)]">
           <Info className="mt-0.5 size-[13px] shrink-0" aria-hidden="true" />
           <span>답변을 보관하는 기능이에요. 예산이나 일정, 준비 상태를 바꾸지 않아요.</span>
         </p>
       </div>
       <div className="mb-4">
         <div className="flex min-h-11 items-center justify-between gap-3">
-          <label htmlFor={memoId} className="text-[11.5px] text-[var(--amora-muted)]">함께 남길 메모 · 선택</label>
-          <button type="button" onClick={() => setMemoExpanded(!memoExpanded)} disabled={busy} aria-expanded={memoExpanded} className="min-h-11 rounded-lg px-2 text-[12.5px] font-medium text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-45">
+          <label htmlFor={memoId} className="text-[12px] text-[var(--amora-muted)]">함께 남길 메모 · 선택</label>
+          <button ref={memoToggleRef} type="button" onClick={toggleMemo} disabled={busy} aria-expanded={memoExpanded} aria-controls={memoPanelId} className="min-h-11 shrink-0 rounded-lg px-2 text-[12.5px] font-medium text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-45">
             {memoExpanded ? "메모 접기" : memo ? "메모 수정" : "메모 추가"}
           </button>
         </div>
-        {memoExpanded && <>
-        <textarea
-          id={memoId}
-          value={memo}
-          onChange={event => setMemo(event.target.value)}
-          maxLength={500}
-          disabled={busy}
-          rows={2}
-          placeholder="다시 볼 때 기억할 내용을 적어 주세요."
-          className="w-full resize-y rounded-[11px] border border-[var(--hb-outline-strong,#8F8A7A)] bg-[var(--amora-surface)] px-3.5 py-3 text-[13px] leading-[1.6] text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-50"
-        />
-        <p className="mt-1 text-right text-[11.5px] text-[var(--amora-muted)]">{memo.length}/500</p>
-        </>}
+        <div id={memoPanelId} hidden={!memoExpanded}>
+          {memoExpanded && <>
+            <textarea
+              ref={memoRef}
+              id={memoId}
+              value={memo}
+              onChange={event => setMemo(event.target.value)}
+              maxLength={500}
+              disabled={busy}
+              rows={2}
+              placeholder="다시 볼 때 기억할 내용을 적어 주세요."
+              className="w-full resize-y rounded-[11px] border border-[var(--hb-outline-strong,#8F8A7A)] bg-[var(--amora-surface)] px-3.5 py-3 text-[16px] leading-[1.6] text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:opacity-50"
+            />
+            <p className="mt-1 text-right text-[12px] text-[var(--amora-muted)]">{memo.length}/500</p>
+          </>}
+        </div>
       </div>
       <div className="mb-[18px] flex items-start gap-2.5 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)]">
         <CircleCheck className="mt-1 size-4 shrink-0 text-[var(--amora-rose-deep)]" aria-hidden="true" />

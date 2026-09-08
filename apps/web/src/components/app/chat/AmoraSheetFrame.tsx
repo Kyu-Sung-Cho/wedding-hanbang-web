@@ -65,18 +65,18 @@ export default function AmoraSheetFrame({
         <h2 id={titleId} data-amora-sheet-title tabIndex={-1} className="shrink-0 pr-8 text-[18px] leading-7 font-semibold outline-none">
           {title}
         </h2>
-        <p id={descriptionId} className="mt-1 mb-[18px] shrink-0 text-[12.5px] leading-[1.6] text-[var(--amora-muted)]">
-          {description}
-        </p>
-        <div className="min-h-0 overflow-y-auto overscroll-contain">
-        {children}
-        </div>
-        <div className="flex shrink-0 flex-col gap-[9px]">
-        {(error || notice) && (
-          <p role={error ? "alert" : "status"} className={`max-h-[18dvh] overflow-y-auto rounded-xl px-3.5 py-3 text-[12.5px] leading-[1.6] ${error ? "bg-[#FFF2EF] text-[#8A3D31]" : "bg-[var(--amora-warm)] text-[var(--amora-soft)]"}`}>
-            {error || notice}
+        <div data-amora-sheet-content tabIndex={0} aria-label="확인할 내용" className="mt-1 min-h-0 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[var(--amora-accent)]">
+          <p id={descriptionId} className="mb-[18px] text-[12.5px] leading-[1.6] text-[var(--amora-muted)]">
+            {description}
           </p>
-        )}
+          {children}
+        </div>
+        <div className="grid shrink-0 grid-cols-1 gap-[9px] [@media(max-height:500px)]:grid-cols-2">
+          {(error || notice) && (
+            <p role={error ? "alert" : "status"} className={`col-span-full max-h-[18dvh] overflow-y-auto rounded-xl px-3.5 py-3 text-[12.5px] leading-[1.6] ${error ? "bg-[#FFF2EF] text-[#8A3D31]" : "bg-[var(--amora-warm)] text-[var(--amora-soft)]"}`}>
+              {error || notice}
+            </p>
+          )}
           <button
             type="button"
             data-amora-confirm

@@ -102,7 +102,7 @@ function MissionStage({ group, recommendation, onOpen, onRecommended, onClose }:
         </ul>
       </details>
       {group.declaredCompleted > 0 && <p className="mt-3 text-xs leading-5 text-[var(--amora-muted)]">분야 전체를 완료로 표시한 기록은 개별 항목의 체크 수에 포함하지 않아요.</p>}
-      <p className="mt-3 text-[11.5px] leading-5 text-[var(--amora-muted)]">추천은 준비 기록을 기준으로 정해요. 어느 단계든 먼저 열고, 체크를 해제하거나 해당 없는 분야를 다시 넣을 수 있어요.</p>
+      <p className="mt-3 text-xs leading-5 text-[var(--amora-muted)]">준비 기록에 따라 추천해요. 단계는 자유롭게 열고, 체크를 해제하거나 제외한 분야를 다시 넣을 수 있어요.</p>
       <Link {...weddingLinkProps(group.href)} className={`mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg text-[11.5px] text-[var(--amora-muted)] underline underline-offset-4 ${FOCUS}`}>전체 체크리스트에서 보기<ChevronRight size={13} aria-hidden="true" /></Link>
     </section>
   );
@@ -137,11 +137,11 @@ function MissionCardAction({ card, highlighted, completed, onOpen }: { card: Amo
   return (
     <>
       {counts && <progress aria-label={`${card.title} 체크 진행률`} value={counts.done} max={counts.total || 1} className="mb-3.5 block h-[5px] w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] text-[var(--amora-rose)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <span className="hidden text-xs text-[var(--amora-muted)] md:inline">
-          {completed ? "공유 할 일에서 완료로 표시했어요" : counts ? `${counts.done} / ${counts.total}개 체크 완료` : "내용을 확인한 뒤 이어가세요"}
-        </span>
-        {!completed && card.kind === "checklist" && card.categoryKey ? <Button variant={highlighted ? "primary" : "secondary"} size="lg" type="button" onClick={() => onOpen(card.categoryKey!)} aria-label={`${card.title} 체크리스트 열기`} className={`w-full !gap-[7px] !whitespace-normal !rounded-[11px] !px-[18px] py-[9px] !text-[14.5px] md:min-h-11 md:w-auto md:!rounded-lg md:!text-[13.5px] ${highlighted ? "!border-[var(--amora-ink)] !bg-[var(--amora-ink)] !text-white hover:!bg-[var(--amora-soft)]" : "!border-[var(--amora-muted)] !bg-[var(--amora-surface)] !text-[var(--amora-ink)] hover:!bg-[var(--amora-warm)]"} ${BUTTON_FOCUS}`}>{card.cta}<ArrowRight size={15} aria-hidden="true" /></Button> : <Link {...weddingLinkProps(completed ? "/chat/board" : card.href)} className={`inline-flex min-h-12 w-full items-center justify-center gap-[7px] rounded-[11px] px-[18px] py-[9px] text-[14.5px] font-semibold md:min-h-11 md:w-auto md:rounded-lg md:text-[13.5px] ${completed || !highlighted ? "border border-[var(--amora-muted)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:bg-[var(--amora-warm)]" : "bg-[var(--amora-ink)] text-white hover:bg-[var(--amora-soft)]"} ${FOCUS}`}>
+      <div className={`flex flex-wrap items-center gap-3 ${completed || counts ? "justify-between" : "justify-end"}`}>
+        {(completed || counts) && <span className="hidden text-xs text-[var(--amora-muted)] md:inline">
+          {completed ? "공유 할 일에서 완료로 표시했어요" : counts ? `${counts.done} / ${counts.total}개 체크 완료` : null}
+        </span>}
+        {!completed && card.kind === "checklist" && card.categoryKey ? <Button variant={highlighted ? "primary" : "secondary"} size="lg" type="button" onClick={() => onOpen(card.categoryKey!)} aria-label={`${card.title} 체크리스트 열기`} className={`w-full !gap-[7px] !whitespace-normal !rounded-[11px] !px-[18px] py-[9px] !text-[14.5px] md:min-h-11 md:w-auto md:!rounded-lg md:!text-[13.5px] ${highlighted ? "!border-[var(--amora-ink)] !bg-[var(--amora-ink)] !text-white hover:!bg-[var(--amora-soft)]" : "!border-[var(--amora-muted)] !bg-[var(--amora-surface)] !text-[var(--amora-ink)] hover:!bg-[var(--amora-warm)]"} ${BUTTON_FOCUS}`}>{card.cta}<ArrowRight size={15} aria-hidden="true" /></Button> : <Link {...weddingLinkProps(completed ? "/chat/board?view=tasks" : card.href)} className={`inline-flex min-h-12 w-full items-center justify-center gap-[7px] rounded-[11px] px-[18px] py-[9px] text-[14.5px] font-semibold md:min-h-11 md:w-auto md:rounded-lg md:text-[13.5px] ${completed || !highlighted ? "border border-[var(--amora-muted)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:bg-[var(--amora-warm)]" : "bg-[var(--amora-ink)] text-white hover:bg-[var(--amora-soft)]"} ${FOCUS}`}>
           {completed ? "준비 기록 보기" : card.cta}<ArrowRight size={15} aria-hidden="true" />
         </Link>}
       </div>
@@ -203,7 +203,6 @@ function AmoraMissionsView() {
 
   return (
     <div className="mx-auto max-w-[1440px] px-[18px] pb-7 pt-4 text-[var(--amora-ink)] md:px-9 md:py-8">
-      {isDemo && <p role="note" className="mb-4 rounded-lg bg-[var(--amora-warm)] px-3 py-2 text-xs leading-5 text-[var(--amora-rose-deep)]">예시 화면 · 아래 준비 상태와 공유 할 일은 데모 데이터예요.</p>}
       <PreparationPath groups={model.groups} available={checklistAvailable} selectedGroupId={selectedGroup.id} expanded={checklistAvailable && stageExpanded} pathRef={pathRef} onSelect={groupId => {
         if (!viewScope || !checklistAvailable) return;
         setSelection({ scope: viewScope, groupId });
@@ -213,12 +212,11 @@ function AmoraMissionsView() {
       </PreparationPath>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_320px]">
         <section aria-labelledby="missions-heading" aria-busy={busy}>
-          <p className="mb-1 text-xs font-semibold text-[var(--amora-rose-deep)] md:mb-1.5 md:text-[13px]">
-            <span className="md:hidden">오늘 이어서 정할 것</span>
-            <span className="hidden md:inline">{model.groups.find(group => group.id === model.currentGroupId)?.label ?? "아모라의 제안"}{model.currentGroupId ? " 단계" : ""}</span>
+          <p className="mb-1.5 hidden text-[13px] font-semibold text-[var(--amora-rose-deep)] md:block">
+            {model.groups.find(group => group.id === model.currentGroupId)?.label ?? "아모라의 제안"}{model.currentGroupId ? " 단계" : ""}
           </p>
           <h2 id="missions-heading" className="amora-display mb-3.5 text-[20px] leading-[1.4] md:mb-5 md:text-[23px]">
-            <span className="md:hidden">{actionsAvailable && openCount > 0 ? `공유 할 일 ${openCount}개 남았어요` : !busy && cards.length > 0 ? `추천 미션 ${cards.length}개를 살펴보세요` : "우리의 준비를 하나씩 이어가요"}</span>
+            <span className="md:hidden">오늘 이어갈 준비</span>
             <span className="hidden md:inline">오늘 이어서 정할 것</span>
           </h2>
 
@@ -240,7 +238,10 @@ function AmoraMissionsView() {
                 <p className="mt-2 text-[13px] leading-6 text-[var(--amora-muted)]">새로 고민되는 준비가 있다면 아모라와 이야기해 보세요.</p>
                 <Link {...weddingLinkProps("/chat")} className={`mt-3 inline-flex min-h-12 items-center gap-2 rounded-[11px] bg-[var(--amora-ink)] px-[18px] text-sm font-semibold text-white ${FOCUS}`}>아모라와 이야기하기<ArrowRight size={15} aria-hidden="true" /></Link>
               </div>}
-              {actionsAvailable && openCount > cards.filter((card) => card.kind === "action").length && <Link {...weddingLinkProps("/chat/board")} className={`mt-2 inline-flex min-h-11 items-center gap-1 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] ${FOCUS}`}>모든 공유 할 일 보기<ChevronRight size={15} aria-hidden="true" /></Link>}
+              {actionsAvailable && openCount > cards.filter((card) => card.kind === "action").length && <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3">
+                <p className="text-xs leading-5 text-[var(--amora-muted)]">공유 할 일 {openCount}개 남았어요</p>
+                <Link {...weddingLinkProps("/chat/board?view=tasks")} className={`inline-flex min-h-11 items-center gap-1 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] ${FOCUS}`}>모든 공유 할 일 보기<ChevronRight size={15} aria-hidden="true" /></Link>
+              </div>}
               {model.completedCard && actionsAvailable && <div className="mt-3 hidden md:mt-3.5 md:block"><MissionCard card={model.completedCard} completed onOpen={openCategory} /></div>}
               {truncated && actionsAvailable && <p className="mt-3 text-xs leading-5 text-[var(--amora-muted)]">공유 할 일이 많아 불러온 목록 중 일부를 보여드려요. 전체 진행 중 수와 보이는 카드 수는 다를 수 있어요.</p>}
             </>
@@ -273,7 +274,7 @@ function AmoraMissionsView() {
               <span aria-hidden="true" className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-white/15"><ListChecks size={18} strokeWidth={1.6} /></span>
               <div className="min-w-0">
                 <p className="text-[13.5px] font-semibold">확인한 준비를 한곳에서</p>
-                <p className="mt-1 text-xs leading-[1.65] text-white/80">미션에서 체크한 내용은 같은 준비 기록에 저장돼요. 단계는 저장된 상태로 계산하며, 언제든 체크를 해제하거나 제외한 분야를 복구할 수 있어요.</p>
+                <p className="mt-1 text-xs leading-[1.65] text-white/80">미션의 체크는 준비 기록에 저장돼요. 체크를 해제하거나 제외한 분야를 복구하면 단계도 다시 계산해요.</p>
               </div>
             </div>
             <Link {...weddingLinkProps("/chat/board")} className={`mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg text-[13px] font-semibold ${FOCUS}`}>준비 기록 보기<ArrowRight size={14} aria-hidden="true" /></Link>
@@ -284,6 +285,7 @@ function AmoraMissionsView() {
           </div>
         </aside>
       </div>
+      {isDemo && <p role="note" className="mt-4 text-xs leading-5 text-[var(--amora-muted)]">예시 화면 · 준비 상태와 공유 할 일은 데모 데이터예요.</p>}
       {visibleCategory && <CategoryChecklistModal key={`${viewScope}:${visibleCategory}`} categoryKey={visibleCategory} isOpen onClose={() => setOpenedCategory(null)} presentation="planning" />}
     </div>
   );

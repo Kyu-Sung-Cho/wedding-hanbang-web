@@ -92,7 +92,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
           </button>
           <Link
             {...weddingLinkProps()}
-            className="block rounded-[6px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+            className={`flex flex-col justify-center rounded-[6px] outline-none transition-colors hover:text-[var(--hb-accent-hover)] focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50 ${amoraWorkspace ? "min-h-11" : ""}`}
             aria-label="웨딩한방 홈으로 이동"
           >
             <p className={htmlDesign ? "mb-1 hidden text-[11px] tracking-[0.08em] text-[var(--amora-muted)] md:block" : "text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--hb-accent-hover)]"}>Wedding Hanbang</p>
@@ -131,7 +131,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             </span>
           </div>
 
-          <button
+          {!amoraWorkspace && <button
             type="button"
             onClick={() => router.push(weddingPath("/community?feed=all#community-feed"))}
             className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]"
@@ -139,7 +139,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             title="커뮤니티 검색"
           >
             <Search className="h-5 w-5" />
-          </button>
+          </button>}
 
           <div className="relative">
             <button

@@ -1987,11 +1987,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, [coupleId, journey, profile, sendMessage]);
 
   const dismissPendingAmoraAction = useCallback((actionId: string) => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const epoch = composerEpochRef.current;
+    const lane = activeComposerLaneRef.current;
     setDismissedPendingActionIds((current) => {
       if (current.has(actionId)) return current;
       const next = new Set(current);
       next.add(actionId);
       return next;
+    });
+    if (!previousFocus || previousFocus === document.body) return;
+
+    // 시트와 진입 카드가 함께 사라지면 같은 상담의 입력창으로 돌아간다.
+    // 그사이 다른 곳을 선택했다면 사용자의 새 초점을 우선한다.
+    let focusMoved = false;
+    const trackFocus = () => { focusMoved = true; };
+    document.addEventListener("focusin", trackFocus);
+    requestAnimationFrame(() => {
+      document.removeEventListener("focusin", trackFocus);
+      if (focusMoved || previousFocus.isConnected
+        || document.activeElement !== document.body
+        || composerEpochRef.current !== epoch
+        || activeComposerLaneRef.current !== lane) return;
+      textareaRef.current?.focus();
     });
   }, []);
 
