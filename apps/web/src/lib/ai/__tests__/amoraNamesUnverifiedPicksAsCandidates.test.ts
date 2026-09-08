@@ -153,7 +153,7 @@ describe("미검증 안은 추천이 아니라 후보로 부른다", () => {
     const prompt = promptWith(0);
     expect(prompt).toContain("견적·인원·날짜를 확인한 비교와 일반 준비 순서 추천은 가능");
     expect(prompt).toContain("첫 제목부터 끝까지 같은 이름");
-    expect(prompt).toContain("먼저 견적을 받아볼 후보는 1안이에요");
+    expect(prompt).toContain("검토 1순위는 1안이에요");
   });
 
   it("규칙이 결정 역할 바로 다음에 있다", () => {
@@ -165,7 +165,7 @@ describe("미검증 안은 추천이 아니라 후보로 부른다", () => {
     expect(section, "무엇을 미검증으로 볼지가 없다")
       .toContain("예산·수용 인원·일정 적합성");
     expect(section, "부르지 말라고만 하고 대신 무엇이라 부를지 없다")
-      .toContain("먼저 견적을 받아볼 후보");
+      .toContain('검토 후보의 우선순위인 "검토 1순위"');
     expect(section, "이름이 언제 바뀌는지 말하지 않으면 사용자는 다음 행동을 모른다")
       .toContain("무엇을 확인해야 그 이름이 바뀌는지");
     expect(section, "1순위를 요구받아도 미검증 후보의 이름을 낮춰야 한다")

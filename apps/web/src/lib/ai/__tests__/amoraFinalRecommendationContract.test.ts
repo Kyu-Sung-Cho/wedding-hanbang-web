@@ -30,7 +30,7 @@ type PromptOptions = Parameters<typeof buildAmoraSystemPrompt>[1];
 // 모델 응답 품질 대신, 이 요청으로 조합되는 최종 지침의 전달과 범위만 검사한다.
 const ACTUAL_T3 = "앞에서 전달한 A와 B의 공개 의견을 기준으로 이제 둘의 의견을 중재해줘. 누가 양보하라고만 하지 말고, 각자 밑바탕 가치가 뭔지 짚고 예산·하객·장소를 묶은 절충안 3개와 추천 1순위를 제시해.";
 const RECOMMENDATION_HEADING = "[추천 근거 확인]";
-const RECOMMENDATION_RULE = "- 추천에 필요한 견적·예산·인원·날짜 조건이 미확인이면 첫 명칭부터 검토 후보로 쓰세요. 제공된 확인 조건의 비교 추천과 일반 준비 순서 추천은 가능합니다.";
+const RECOMMENDATION_RULE = "- 추천에 필요한 견적·예산·인원·날짜가 미확인이면 처음부터 끝까지 검토 후보, 순위는 검토 1순위로 쓰세요. 확인된 조건의 비교와 일반 준비 순서 추천은 가능합니다.";
 const PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 이유는 한 번만 묻되 이미 말했으면 건너뛰고, 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요. 작은 월 선호는 되묻지 마세요.";
 const QUESTION_SCOPE_HEADING = "[서버 확정 질문 범위 계약]";
 
@@ -171,7 +171,7 @@ describe("추천 근거 지침은 마지막 보호 구간에 전달된다", () =
       prompt.indexOf(QUESTION_SCOPE_HEADING),
     );
     expect(contract).toContain("추천에 필요한");
-    expect(contract).toContain("제공된 확인 조건의 비교 추천과 일반 준비 순서 추천은 가능합니다");
+    expect(contract).toContain("확인된 조건의 비교와 일반 준비 순서 추천은 가능합니다");
 
     if (testCase.mustTruncate) {
       expect(prompt, "절단이 실제 발생하는 입력에서 필수 꼬리를 확인한다")
@@ -189,7 +189,7 @@ describe("추천 근거 지침은 마지막 보호 구간에 전달된다", () =
     }
   });
 
-  it("기존 pivot 110자와 추가 보호 구간 101자의 길이 예산을 유지한다", () => {
+  it("기존 pivot 110자와 정렬된 보호 구간 106자의 길이 예산을 유지한다", () => {
     const prompt = buildAmoraSystemPrompt(BASE_CONTEXT, selectedOptions(ACTUAL_T3));
     const pivot = prompt.split("\n").find(line => line.includes("하객 규모") && line.includes("이유는 한 번만"));
     expect(pivot).toBe(PIVOT_RULE);
@@ -199,7 +199,7 @@ describe("추천 근거 지침은 마지막 보호 구간에 전달된다", () =
       prompt.indexOf(RECOMMENDATION_RULE) + RECOMMENDATION_RULE.length,
     );
     expect(addition).toBe(`\n\n${RECOMMENDATION_HEADING}\n${RECOMMENDATION_RULE}`);
-    expect(addition.length).toBe(101);
+    expect(addition.length).toBe(106);
   });
 
   it("W1 일반 상담에도 같은 계약을 전달한다", () => {
