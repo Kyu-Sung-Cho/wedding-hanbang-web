@@ -44,6 +44,7 @@
 
 import { scrubAmoraSpam } from "@/lib/ai/amoraSpamTail";
 import { stripAmoraRequestMarkers } from "./amoraRequestMarkers";
+import { alignAmoraRecommendationLabels } from "./amoraRecommendationConsistency";
 
 /**
  * 지우지 않을 문자.
@@ -132,6 +133,7 @@ const SHORT_LATIN_TOKEN_RE = /(?<![0-9A-Za-z@/:._%+-])[a-z]{1,5}(?![0-9A-Za-z@/:
 
 export type AmoraOutputHygieneAction =
   | { kind: "reserved_request_markers_removed" }
+  | { kind: "recommendation_label_aligned"; count: number }
   | { kind: "spam_tail_trimmed" }
   | { kind: "spam_body_replaced" }
   | {
@@ -264,7 +266,9 @@ export function applyAmoraOutputHygiene(
 
   const withoutRequestMarkers = stripAmoraRequestMarkers(text);
   if (withoutRequestMarkers !== text) actions.push({ kind: "reserved_request_markers_removed" });
-  const spam = scrubAmoraSpam(withoutRequestMarkers);
+  const recommendation = alignAmoraRecommendationLabels(withoutRequestMarkers);
+  if (recommendation.count > 0) actions.push({ kind: "recommendation_label_aligned", count: recommendation.count });
+  const spam = scrubAmoraSpam(recommendation.text);
   if (spam.action === "trimmed_tail") actions.push({ kind: "spam_tail_trimmed" });
   if (spam.action === "replaced_body") actions.push({ kind: "spam_body_replaced" });
 

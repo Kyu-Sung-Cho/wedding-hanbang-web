@@ -1,5 +1,6 @@
 import { composeAmoraPersistenceTerminal } from "./amoraPersistenceClaims";
 import { hasAmoraRequestMarkerPrefix } from "./amoraRequestMarkers";
+import { hasAmoraRankedRecommendation } from "./amoraRecommendationConsistency";
 
 const STRUCTURED_OUTPUT_MARKER_RE =
   /(?:\[\/?(?:suggestions?|pending_action|mediation)\b|\[추천(?:\s*(?:질문|대화))?\s*\])/iu;
@@ -27,7 +28,8 @@ export function createAmoraProviderPreviewGate(
     if (!delta || structuredOutputSeen) return;
     pending += delta;
 
-    if (STRUCTURED_OUTPUT_MARKER_RE.test(pending) || hasAmoraRequestMarkerPrefix(pending)) {
+    if (STRUCTURED_OUTPUT_MARKER_RE.test(pending) || hasAmoraRequestMarkerPrefix(pending)
+      || hasAmoraRankedRecommendation(pending)) {
       structuredOutputSeen = true;
       return;
     }
