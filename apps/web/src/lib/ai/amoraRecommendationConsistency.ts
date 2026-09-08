@@ -1,4 +1,6 @@
-// 추천의 근거를 새로 판단하지 않는다. 같은 문단에서 스스로 후보라고 낮춘 명칭만 맞춘다.
+import { alignSelectedOptionRecommendation } from "./amoraSelectedOptionRecommendation";
+
+// 추천의 근거를 새로 판단하지 않는다. 응답 스스로 밝힌 후보/미확인 상태의 명칭만 맞춘다.
 const RANK_LABEL = /^([ \t]*(?:\*\*)?(?:(?:현재|지금|현[ \t]*시점)(?:은|에는|에서는|에서|으로서는|로서는)?(?:\*\*)?[ \t]*(?:\*\*)?)?)(추천[ \t]*1[ \t]*순위|1[ \t]*순위[ \t]*추천|최우선[ \t]*추천)(?=[ \t]*(?:[은는이가:：]|\*\*|$))/u;
 const RANKED_RECOMMENDATION = /(?:추천[ \t]*1[ \t]*순위|1[ \t]*순위[ \t]*추천|최우선[ \t]*추천)/u;
 const PROTECTED_PROSE = /[`"'“”‘’「」『』]|(?:라고|라는|이라고|이라는)\s*(?:말|표현|문구|요청|의견|뜻|의미)|(?:^|\n)[ \t]*(?:>|\||[-*+]\s|\d+[.)]\s|#{1,6}\s)/u;
@@ -118,7 +120,8 @@ export function alignAmoraRecommendationLabels(text: string): { text: string; co
     count++;
     return block.slice(0, label[1].length) + "우선 검토 후보" + tail;
   }).join("");
-  return { text: corrected, count };
+  const selected = alignSelectedOptionRecommendation(corrected);
+  return { text: selected.text, count: count + selected.count };
 }
 
 /** 뒤의 후보 단서가 오기 전에 순위 문장을 보내지 않는다. 정상 추천의 최종 본문은 보존한다. */
