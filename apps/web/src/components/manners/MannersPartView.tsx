@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowUp, Sparkles } from "lucide-react";
 import type { MannersBlock, MannersPart, MannersSource } from "@/lib/manners/types";
 import { categoryKeysForMannersPart } from "@/lib/manners/categoryMap";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
@@ -7,9 +8,11 @@ import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import MannersMobileHeader from "./MannersMobileHeader";
+import MannersAnchor from "./MannersAnchor";
+import MannersReadingNavigation from "./MannersReadingNavigation";
 
 /**
- * 결혼 예절 안내 본문. 서버 전용이고 클라이언트 JS가 0이다.
+ * 결혼 예절 안내 본문은 서버에서 전부 렌더하고 검색·목차 이동만 작은 클라이언트로 둔다.
  *
  * 첨부 HTML의 카드·문장·표 패턴을 전체 원문에 적용한다. 시안은 발췌본이므로
  * 본문·각주·표의 한계는 자료 계약 그대로 렌더한다. 좁은 화면에서는 시간 순서와
@@ -89,7 +92,7 @@ function List({
 /** 시안 `.sub-h` — 상자도 배경도 없는 로즈 소제목. */
 function SubHeading({ children }: { children: string }) {
   return (
-    <h3 className="mb-2 mt-3.5 text-[11.5px] font-bold text-[var(--amora-rose-deep)] sm:mt-4 sm:text-[12.5px]">{children}</h3>
+    <h3 className="mb-2 mt-3.5 text-[12px] font-bold text-[var(--amora-rose-deep)] sm:mt-4 sm:text-[12.5px]">{children}</h3>
   );
 }
 
@@ -174,7 +177,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
           {block.lines.map((line) => (
             <div key={line.say} className="rounded-[12px] bg-[var(--amora-warm)] px-[15px] py-3.5 sm:px-4 sm:py-[15px]">
               {line.note ? (
-                <p className="mb-1.5 text-[11px] font-semibold leading-[1.55] text-[var(--amora-rose-deep)]">
+                <p className="mb-1.5 text-[12px] font-semibold leading-[1.55] text-[var(--amora-rose-deep)]">
                   {line.note}
                 </p>
               ) : null}
@@ -221,7 +224,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
                   aria-hidden
                   className="relative mt-0.5 block size-3.5 shrink-0 rounded-full border-[2.5px] border-[var(--amora-rose)] bg-white sm:mx-auto sm:mb-2.5 sm:mt-0"
                 />
-                <span className="block w-[82px] shrink-0 text-[11.5px] sm:mb-[3px] sm:w-auto text-[var(--amora-muted)]">
+                <span className="block w-[82px] shrink-0 text-[12px] sm:mb-[3px] sm:w-auto text-[var(--amora-muted)]">
                   {node.at}
                 </span>
                 <span className="block text-[13px] font-semibold leading-[1.4] text-[var(--amora-ink)] sm:text-[12.5px]">
@@ -239,7 +242,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
           읽혔다 — 사용자는 표만 캡처해 옮기고, 옮겨진 표에는 각주가 안 따라간다.
         */}
         <span
-          className="rounded-full bg-[var(--amora-low)] px-2 py-0.5 text-[11px] font-medium text-[var(--amora-muted)]"
+          className="rounded-full bg-[var(--amora-low)] px-2 py-0.5 text-[12px] font-medium text-[var(--amora-muted)]"
         >
           {block.asOf}
         </span>
@@ -253,7 +256,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
                 <th
                   key={column}
                   scope="col"
-                  className="px-3 pb-2 pt-0 text-[11px] font-bold text-[var(--amora-muted)]"
+                  className="px-3 pb-2 pt-0 text-[12px] font-bold text-[var(--amora-muted)]"
                 >
                   {column}
                 </th>
@@ -272,7 +275,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
                         : compare
                           ? `text-[12.5px] leading-[1.6] ${index === 1 ? "text-[var(--hb-success)]" : "text-[var(--amora-rose-deep)]"}`
                           : index === row.length - 1 && row.length >= 3
-                            ? "text-[11.5px] leading-[1.5] text-[var(--amora-muted)]"
+                            ? "text-[12px] leading-[1.5] text-[var(--amora-muted)]"
                             : "text-[12.5px] leading-[1.6] text-[var(--amora-soft)]"
                     }`}
                   >
@@ -297,7 +300,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
               <dl className="m-0 space-y-2">
                 {row.slice(1).map((cell, index) => (
                   <div key={`${index}-${cell}`} className="text-right">
-                    <dt className="text-[11px] text-[var(--amora-muted)]">{block.columns[index + 1]}</dt>
+                    <dt className="text-[12px] text-[var(--amora-muted)]">{block.columns[index + 1]}</dt>
                     <dd className={`m-0 text-[12.5px] leading-[1.6] ${compare ? index === 0 ? "text-[var(--hb-success)]" : "text-[var(--amora-rose-deep)]" : "text-[var(--amora-soft)]"}`}>
                       {cell}
                     </dd>
@@ -339,7 +342,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
                     href={source.url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="font-medium text-[var(--hb-accent)]"
+                    className="inline-flex min-h-11 items-center font-medium text-[var(--hb-accent)]"
                   >
                     {source.label}
                   </a>
@@ -378,9 +381,6 @@ const ROLE_TABS = [
   { key: "guest", label: "하객", match: "하객", caption: "하객이 볼 항목" },
 ] as const;
 
-/** 「공통」 절은 어느 탭에서도 보인다. */
-const SHARED_ROLE = "공통";
-
 /** 편 순서. 목차(`MANNERS_CATEGORIES`)에 적힌 순서가 읽는 순서다. */
 function neighbourParts(slug: string) {
   const order = MANNERS_CATEGORIES.flatMap((category) => category.slugs);
@@ -413,11 +413,6 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
    */
   const hasRoles = part.sections.some((section) => section.role);
   const roleId = (key: string) => `${part.slug}-role-${key}`;
-  const countFor = (match: string | null) =>
-    part.sections.filter(
-      (section) => !match || section.role === match || section.role === SHARED_ROLE,
-    ).length;
-
   const shownSources = part.sources.slice(0, SOURCES_SHOWN);
   const hiddenSources = part.sources.slice(SOURCES_SHOWN);
 
@@ -425,7 +420,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
     <>
     <MannersMobileHeader />
     <div className="mx-auto w-full max-w-[1220px] px-[18px] pb-14 pt-[22px] md:px-9 xl:px-16 xl:pt-[30px]">
-      <article className="min-w-0">
+      <article id="manners-top" tabIndex={-1} className="min-w-0 scroll-mt-28 focus-visible:outline-2 focus-visible:outline-[var(--amora-accent)]">
         <header>
           {/* 시안 `.crumb` — 파란 글자, 밑줄 없음, 현재 편 이름까지. */}
           <nav aria-label="이동 경로" className="mb-3.5 hidden text-[12.5px] text-[var(--hb-accent)] md:block">
@@ -450,20 +445,20 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             {!hasRoles && <span className={`rounded-full px-3.5 py-[7px] text-[12px] font-semibold sm:px-4 sm:py-2 sm:text-[13px] ${audience.className}`}>
               {audience.label}
             </span>}
-            <span className="text-[11.5px] sm:text-[12.5px] text-[var(--amora-muted)]">
+            <span className="text-[12px] sm:text-[12.5px] text-[var(--amora-muted)]">
               예상 읽기 {readingMinutes}분 · {part.sections.length}개 절
             </span>
             {part.sources.length > 0 ? (
-              <a href="#manners-sources" className="inline-flex min-h-11 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-sage-pale)] px-[11px] py-[5px] text-[10.5px] leading-[1.6] text-[var(--amora-ink)] sm:text-[11.5px]">
+              <MannersAnchor href="#manners-sources" className="inline-flex min-h-11 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-sage-pale)] px-[11px] py-[5px] text-[12px] leading-[1.6] text-[var(--amora-ink)] sm:text-[12px]">
                   <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 shrink-0 fill-none stroke-current stroke-[1.7]"><path d="M5 12l4 4L19 6" /></svg>
                   출처·확인일 보기
                 </span>
                 <span className="sr-only"> — 출처별 확인일은 아래 자료에서 확인해 주세요</span>
-              </a>
+              </MannersAnchor>
             ) : (
               <span
-                className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-[11px] py-[5px] text-[11.5px] border-[var(--amora-line)] text-[var(--amora-muted)]"
+                className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-[11px] py-[5px] text-[12px] border-[var(--amora-line)] text-[var(--amora-muted)]"
               >
                 <svg
                   aria-hidden
@@ -492,11 +487,8 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
           </p>
         </header>
 
-        {/*
-          역할 탭. 숨긴 라디오와 CSS 형제 선택자로만 움직인다 — 이 화면은 클라이언트
-          JS 가 0이고 정적으로 미리 만들어진다(`globals.css` 의 「예절 안내 — 역할 탭」).
-        */}
-        <div className={hasRoles ? "manners-roles" : undefined}>
+        {/* 원문의 역할 필터와 목차가 같은 선택을 따른다. 본문 전체는 서버 HTML에 남는다. */}
+        <MannersReadingNavigation key={part.slug} slug={part.slug} hasRoles={hasRoles} sections={part.sections.map((section, index) => ({ id: `section-${index + 1}`, label: sectionLabel(section.heading), role: section.role }))} controls={<>
           {hasRoles
             ? ROLE_TABS.map((tab) => (
                 <input
@@ -524,28 +516,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             </div>
           ) : null}
 
-          {hasRoles ? (
-            <div className="manners-role-dots mb-6">
-              {ROLE_TABS.map((tab) => (
-                <div
-                  key={tab.key}
-                  className="manners-dots min-w-0 flex-wrap items-center gap-1.5"
-                  data-for={tab.key}
-                >
-                  {Array.from({ length: countFor(tab.match) }, (_, index) => (
-                    <span
-                      key={index}
-                      aria-hidden
-                      className={`h-[5px] w-[26px] rounded-full ${index === 0 ? "bg-[var(--amora-rose)]" : "bg-[var(--amora-line)]"}`}
-                    />
-                  ))}
-                  <span className="w-full pt-1 text-[12px] sm:ml-2 sm:w-auto sm:pt-0 text-[var(--amora-muted)]">
-                    {countFor(tab.match)}개 절 · {tab.caption}
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : null}
+        </>}>
 
         <div className="manners-sections mt-6 space-y-[12px] sm:space-y-[18px]">
           {/* 「정답이 아니라 관행」 고지. 시안 `.notice` — 테두리 있는 따뜻한 상자. */}
@@ -591,8 +562,9 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               <section
                 key={section.heading}
                 id={`section-${index + 1}`}
+                tabIndex={-1}
                 data-role={section.role}
-                className="scroll-mt-28 rounded-[16px] bg-white px-[18px] py-5 sm:rounded-[18px] sm:px-7 sm:py-[26px] border border-[var(--amora-line)]"
+                className="scroll-mt-28 rounded-[16px] bg-white px-[18px] py-5 sm:rounded-[18px] sm:px-7 sm:py-[26px] border border-[var(--amora-line)] focus-visible:outline-2 focus-visible:outline-[var(--amora-accent)]"
               >
                 <div className="mb-3 flex items-center gap-[11px] sm:mb-3.5 sm:gap-3">
                   <span
@@ -604,9 +576,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                   <h2 className="min-w-0 flex-1 text-[15.5px] font-semibold leading-[1.4] text-[var(--amora-ink)] sm:text-[18px]">
                     {sectionLabel(section.heading)}
                   </h2>
-                  <span className="shrink-0 text-[11px] sm:text-[12px] text-[var(--amora-muted)]">
-                    {index + 1}/{part.sections.length}
-                  </span>
+                  {sectionAmoraHref && <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className="-mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-accent)] hover:bg-[var(--amora-warm)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Sparkles aria-hidden className="h-[18px] w-[18px]" /></Link>}
                 </div>
 
                 {lead ? (
@@ -624,18 +594,11 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                     />
                   ))}
                 </div>
-                {sectionAmoraHref && (
-                  <div className="mt-3 flex justify-end border-t border-[var(--amora-line)] pt-1">
-                    <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                      이 내용 아모라에 질문
-                    </Link>
-                  </div>
-                )}
               </section>
             );
           })}
         </div>
-        </div>
+        </MannersReadingNavigation>
 
         {/*
           각주 `cite-foot`. **출처가 없는 편에는 아예 안 그린다** — 시안 신혼여행 편이
@@ -645,7 +608,8 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         {part.sources.length > 0 ? (
           <footer
             id="manners-sources"
-            className="mt-3 rounded-[14px] bg-white p-4 sm:mt-[18px] sm:rounded-[16px] sm:px-6 sm:py-5 border border-[var(--amora-line)]"
+            tabIndex={-1}
+            className="mt-3 scroll-mt-28 rounded-[14px] bg-white p-4 sm:mt-[18px] sm:rounded-[16px] sm:px-6 sm:py-5 border border-[var(--amora-line)] focus-visible:outline-2 focus-visible:outline-[var(--amora-accent)]"
           >
             <h2 className="flex items-center gap-2 text-[13px] font-bold text-[var(--amora-ink)]">
               <svg
@@ -673,7 +637,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                     href={source.url}
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="text-[12.5px] font-semibold text-[var(--hb-accent)]"
+                    className="inline-flex min-h-11 items-center text-[12.5px] font-semibold text-[var(--hb-accent)]"
                   >
                     {source.label}
                   </a>
@@ -704,7 +668,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                         href={source.url}
                         target="_blank"
                         rel="noreferrer noopener"
-                        className="text-[12.5px] font-semibold text-[var(--hb-accent)]"
+                        className="inline-flex min-h-11 items-center text-[12.5px] font-semibold text-[var(--hb-accent)]"
                       >
                         {source.label}
                       </a>
@@ -805,6 +769,10 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             ) : null}
           </nav>
         ) : null}
+        <nav aria-label="글 안에서 이동" className="mt-3 flex items-center justify-between gap-3">
+          <MannersAnchor href="#manners-toc" className="inline-flex min-h-11 items-center rounded-lg px-2 text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-[var(--amora-accent)]">목차로 돌아가기</MannersAnchor>
+          <MannersAnchor href="#manners-top" className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-[13px] text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-[var(--amora-accent)]"><ArrowUp aria-hidden className="h-4 w-4" />맨 위로</MannersAnchor>
+        </nav>
       </article>
     </div>
     </>

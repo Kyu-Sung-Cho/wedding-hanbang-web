@@ -163,7 +163,7 @@ describe("AppClientLayout global Amora panel", () => {
     expect(document.activeElement).toBe(restored);
   });
 
-  it("unmounts and resets the global panel when navigation enters the full chat page", async () => {
+  it.each(["/wedding/chat", "/wedding/checklist", "/checklist"])("unmounts and resets the global panel when navigation enters %s", async (pathname) => {
     await renderLayout();
 
     const launcher = container.querySelector<HTMLButtonElement>(
@@ -175,7 +175,7 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector('[data-testid="global-amora-panel"]')?.getAttribute("data-open"))
       .toBe("true");
 
-    mocks.pathname = "/wedding/chat";
+    mocks.pathname = pathname;
     await renderLayout();
     expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
 
@@ -199,6 +199,8 @@ describe("AppClientLayout global Amora panel", () => {
   it.each([
     "/wedding/vendors",
     "/wedding/vendors/vendor-123",
+    "/wedding/budget",
+    "/wedding/schedule",
   ])("keeps exactly one global Amora launcher on %s", async (pathname) => {
     mocks.pathname = pathname;
     await renderLayout();
@@ -208,14 +210,16 @@ describe("AppClientLayout global Amora panel", () => {
     ).toHaveLength(1);
   });
 
-  it("uses the checklist design with active navigation and retains the global assistant", async () => {
-    mocks.pathname = "/wedding/checklist";
+  it.each(["/wedding/checklist", "/checklist"])("keeps checklist navigation without a competing global launcher on %s", async (pathname) => {
+    mocks.pathname = pathname;
     await renderLayout();
     expect(container.querySelector(".planning-workspace main")).not.toBeNull();
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
     expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/checklist");
-    expect(container.querySelectorAll('button[aria-label="아모라 AI 상담"]')).toHaveLength(1);
+    expect(nav?.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
+    expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
     expect(container.textContent).toContain("AI notice");
   });
 

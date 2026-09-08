@@ -287,7 +287,8 @@ export default function AppClientLayout({
       {isAmoraPage && !isChatPage && <AmoraBottomNav />}
       {isPlanningPage && <AmoraBottomNav active="checklist" />}
 
-      {!isAmoraPage && !vendorAdminPreview && (
+      {/* 체크리스트는 분야·항목별 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
+      {!isAmoraPage && !isPlanningPage && !vendorAdminPreview && (
         <GlobalChatAssistant aboveBottomNav={isPlanningPage} />
       )}
     </div>

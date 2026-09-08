@@ -47,6 +47,19 @@
   Per-item Amora links use a separate 44px icon beside the checklist control.
   Guide and category-question actions share a compact footer row. Guide source
   links use a sage badge, and previous/next guides stay in two columns on mobile.
+  The subsequent 2026-09-08 simplification keeps checklist index rows focused on
+  the category and saved progress, with separate, accessible guide/question actions.
+  Long category tips scroll with the checklist instead of occupying its fixed footer.
+  The guide index supports title/body search combined with a topic filter; compact
+  entries still expose their audience and reading length. Articles retain the complete
+  server-rendered content and add a collapsible contents list, section links and a
+  return-to-top action. Role selection filters both contents and visible sections;
+  direct links reveal the addressed section, including repeated links to the same hash.
+  Section questions sit beside their headings instead of repeating a footer sentence.
+  These navigation controls never send an Amora message or alter saved preparation.
+  Checklist routes omit the global floating Amora launcher so it cannot cover the
+  row actions; category/item questions and the bottom Amora navigation remain available.
+  Clearing or resetting a search restores keyboard focus to its search input.
 
 - **Amora HTML exception (2026-09-06):** The user also approved the supplied
   `AmoraMissions.dc.html`, `MissionsMobile.dc.html`, `AmoraDecisionBoard.dc.html`,

@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Ban, CheckCircle2, ChevronRight, Circle, Search } from "lucide-react";
+import { BookOpen, ChevronRight, Search, Sparkles } from "lucide-react";
 
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
@@ -82,6 +82,7 @@ export default function ChecklistContent() {
   );
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSelectedCategory(validRequestedCategory);
@@ -136,17 +137,16 @@ export default function ChecklistContent() {
   return (
     <div className="mx-auto w-full max-w-[1220px] px-[18px] py-6 lg:px-9 lg:py-8">
       <header className="border-b border-[var(--amora-line)] pb-6">
-        <p className="text-[11px] font-semibold tracking-[0.14em] text-[var(--amora-rose-deep)]">WEDDING CHECKLIST</p>
-        <div className="mt-2 flex flex-col justify-between gap-5 md:flex-row md:items-end">
+        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
           <div>
             <h2 className="planning-display text-[22px] leading-[1.4] text-[var(--amora-ink)] md:text-[26px]">
               웨딩 체크리스트
             </h2>
             <p className="mt-2 max-w-[620px] text-[13px] leading-[1.8] text-[var(--amora-muted)] md:text-[14px]">
-              첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 준비 항목을 한꺼번에 하지 않아도 돼요. 지금 필요한 것부터 하나씩 확인하세요.
+              첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 항목. 지금 필요한 것부터 하나씩 확인하세요.
             </p>
           </div>
-          <div className="min-w-[240px] rounded-[14px] border border-[var(--amora-line)] bg-white px-5 py-4">
+          <div className="min-w-[240px] md:w-[280px]">
             <div className="flex items-end justify-between gap-4">
               <span className="text-[13px] font-medium text-[var(--hb-text-body)]">전체 진행률</span>
               <strong className="text-[30px] font-semibold leading-none text-[var(--hb-text-strong)]">{summary.percent}%</strong>
@@ -174,11 +174,12 @@ export default function ChecklistContent() {
           <span className="sr-only">체크리스트 검색</span>
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--hb-text-body)]" />
           <input
+            ref={searchInputRef}
             type="search"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="예: 상견례, 취소, 보증금"
-            className="h-11 w-full rounded-full border border-[#dcd4c3] bg-white pl-11 pr-4 text-[14px] text-[var(--hb-text-strong)] outline-none transition focus:border-[#9d6f36] focus:ring-2 focus:ring-[#c9a96e]/20"
+            className="h-11 w-full rounded-[10px] border border-[var(--amora-line)] bg-white pl-11 pr-4 text-[14px] text-[var(--amora-ink)] outline-none transition focus:border-[var(--amora-accent)] focus:ring-2 focus:ring-[var(--amora-accent)]/20"
           />
         </label>
         <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="상태 필터">
@@ -188,10 +189,10 @@ export default function ChecklistContent() {
               type="button"
               aria-pressed={filter === item.value}
               onClick={() => setFilter(item.value)}
-              className={`min-h-11 shrink-0 rounded-full border px-4 py-2 text-[13px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${
+              className={`min-h-11 shrink-0 rounded-full border px-3.5 py-2 text-[13px] font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${
                 filter === item.value
-                  ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
-                  : "border-[#dcd4c3] bg-white text-[var(--hb-text-body)] hover:border-[#9d6f36]"
+                  ? "border-[var(--amora-ink)] bg-[var(--amora-ink)] text-white"
+                  : "border-[var(--amora-line)] bg-transparent text-[var(--amora-soft)] hover:bg-[var(--amora-warm)]"
               }`}
             >
               {item.label}
@@ -205,7 +206,13 @@ export default function ChecklistContent() {
           <h2 id="all-checklist-heading" className="planning-display text-[20px] leading-[1.4] text-[var(--amora-ink)]">전체 준비</h2>
           <span className="text-[13px] text-[var(--hb-text-body)]">{categories.length}개 분야</span>
         </div>
-        <p className="mt-1.5 text-[12px] leading-[1.6] text-[var(--amora-muted)]">아모라로 이어서 물어볼 수 있어요. 질문 초안을 확인한 뒤 직접 보내요.</p>
+        <div className="mt-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[12px] leading-[1.6] text-[var(--amora-muted)]">
+          <p>질문 초안을 확인한 뒤 직접 보내요.</p>
+          <p className="flex items-center gap-3">
+            <span className="inline-flex items-center gap-1"><BookOpen aria-hidden="true" className="size-3.5" />예절 가이드</span>
+            <span className="inline-flex items-center gap-1"><Sparkles aria-hidden="true" className="size-3.5" />아모라 질문</span>
+          </p>
+        </div>
 
         {categories.length > 0 ? (
           <ul className="mt-3 grid gap-3 md:grid-cols-2">
@@ -215,29 +222,20 @@ export default function ChecklistContent() {
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
               return (
-                <li key={template.key} className="rounded-[13px] border border-[var(--amora-line)] bg-white p-[15px]">
+                <li key={template.key} className="flex items-center gap-1 rounded-[13px] border border-[var(--amora-line)] bg-white py-2 pl-[15px] pr-2">
                   <button
                     type="button"
                     onClick={() => selectCategory(template.key)}
-                    className="w-full rounded-[6px] text-left outline-none focus-visible:ring-2 focus-visible:ring-[#c9a96e]/50"
+                    className="min-h-16 min-w-0 flex-1 rounded-[6px] py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
                     aria-label={`${template.label} 체크리스트 열기`}
                   >
-                    <div className="flex items-start gap-3">
-                      <span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                        status === "completed"
-                          ? "bg-[#edf4eb] text-[#607044]"
-                          : status === "not_applicable"
-                            ? "bg-[#f1efeb] text-[#8b857c]"
-                            : "bg-[var(--hb-surface-hover)] text-[var(--hb-accent-hover)]"
-                      }`}>
-                        {status === "completed" ? <CheckCircle2 className="h-5 w-5" /> : status === "not_applicable" ? <Ban className="h-5 w-5" /> : <Circle className="h-5 w-5" />}
-                      </span>
+                    <div className="flex items-start gap-2">
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center justify-between gap-3">
-                          <strong className="text-[16px] font-semibold text-[var(--hb-text-strong)]">{template.label}</strong>
-                          <ChevronRight className="h-4 w-4 shrink-0 text-[#a59d91]" />
+                          <strong className="text-[14px] font-semibold leading-[1.5] text-[var(--amora-ink)] md:text-[15px]">{template.label}</strong>
+                          <ChevronRight aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-[var(--amora-muted)]" />
                         </span>
-                        <span className="mt-1 block text-[13px] leading-5 text-[var(--hb-text-body)]">
+                        <span className="mt-1 block text-[12px] leading-5 text-[var(--amora-muted)]">
                           {status === "not_applicable"
                             ? "진행률과 알림에서 제외됨"
                             : declared
@@ -247,21 +245,23 @@ export default function ChecklistContent() {
                       </span>
                     </div>
                     {status !== "not_applicable" && !declared && (
-                      <progress value={percent} max={100} aria-label={`${template.label} 항목 완료율`} className="mt-3 block h-1.5 w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-rose)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-rose)]" />
+                      <progress value={percent} max={100} aria-label={`${template.label} 항목 완료율`} className="mt-2 block h-1 w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-rose)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-rose)]" />
                     )}
                   </button>
-                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4">
+                  <div className="flex shrink-0 items-center">
                   {guide && (
                     <Link
                       {...weddingLinkProps(`/manners/${guide.slug}`)}
-                      className="inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-rose-deep)] underline decoration-[var(--amora-rose-pale)] underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+                      aria-label={`${template.label} 관련 예절 가이드 보기`}
+                      title={`${template.label} 관련 예절 가이드 보기`}
+                      className="inline-flex size-11 items-center justify-center rounded-full text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)] hover:text-[var(--amora-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
                     >
-                      관련 예절 가이드 보기
+                      <BookOpen aria-hidden="true" className="size-[17px]" strokeWidth={1.7} />
                     </Link>
                   )}
                   {amoraHref && (
-                    <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                      아모라에 질문하기
+                    <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} title={`${template.label} 아모라에 질문하기`} className="inline-flex size-11 items-center justify-center rounded-full text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)] hover:text-[var(--amora-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                      <Sparkles aria-hidden="true" className="size-[17px]" strokeWidth={1.7} />
                     </Link>
                   )}
                   </div>
@@ -272,7 +272,7 @@ export default function ChecklistContent() {
         ) : (
           <div className="mt-3 rounded-[13px] border border-dashed border-[var(--amora-line)] bg-white px-5 py-12 text-center">
             <p className="text-[14px] font-medium text-[var(--hb-text-body)]">검색 조건에 맞는 준비 항목이 없어요.</p>
-            <button type="button" onClick={() => { setFilter("all"); setQuery(""); }} className="mt-3 min-h-11 rounded-md text-[13px] font-semibold text-[var(--hb-accent-hover)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+            <button type="button" onClick={() => { setFilter("all"); setQuery(""); searchInputRef.current?.focus(); }} className="mt-3 min-h-11 rounded-md text-[13px] font-semibold text-[var(--hb-accent-hover)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
               전체 목록 보기
             </button>
           </div>

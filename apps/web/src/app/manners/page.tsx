@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import MannersMobileHeader from "@/components/manners/MannersMobileHeader";
+import MannersGuideDirectory from "@/components/manners/MannersGuideDirectory";
+import type { MannersPart } from "@/lib/manners/types";
 
 export const metadata: Metadata = {
   title: "결혼 예절 안내 — 웨딩한방",
@@ -23,8 +26,36 @@ const AUDIENCE_LABEL = {
   both: "모두에게",
 } as const;
 
+// 검색에는 실제 제목과 본문만 싣는다. 정본 블록이나 출처 구조를 클라이언트로 복제하지 않는다.
+function guideSearchText(part: MannersPart) {
+  const content = part.sections.flatMap(section => [section.heading, ...section.blocks.flatMap(block => {
+    if (block.kind === "paragraph") return [block.text];
+    if (block.kind === "dialogue") return [block.title ?? "", ...block.lines.flatMap(line => [line.say, line.note ?? ""])];
+    if (block.kind === "table") return [block.title, block.caption, block.asOf, block.limits, ...block.columns, ...block.rows.flat(), ...(block.timeline ?? []).flatMap(node => [node.at, node.label])];
+    return [block.title ?? "", ...block.items];
+  })]);
+  const words = [part.title, part.subtitle, part.description, part.caveat, ...content].join(" ").normalize("NFKC").toLocaleLowerCase("ko-KR").split(/\s+/);
+  return [...new Set(words)].join(" ");
+}
+
 export default function MannersIndexPage() {
   const bySlug = new Map(MANNERS_PARTS.map((part) => [part.slug, part]));
+  const groups = MANNERS_CATEGORIES.map(category => ({
+    label: category.label,
+    entries: category.slugs.flatMap(slug => {
+      const part = bySlug.get(slug);
+      if (!part) return [];
+      const amoraHref = buildAmoraPreparationHref({ kind: "manners", partSlug: part.slug });
+      return [{ slug, searchText: guideSearchText(part), card: <>
+        <Link href={`/wedding/manners/${part.slug}`} prefetch={false} className="min-h-11 min-w-0 flex-1 rounded-[14px] px-4 py-3.5 transition-colors hover:text-[var(--amora-rose-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">
+          <h3 className="text-[15.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[17px]">{part.title}</h3>
+          <p className="mt-1 text-[13px] leading-[1.6] text-[var(--amora-soft)]">{part.subtitle}</p>
+          <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">{AUDIENCE_LABEL[part.audience]} · {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절</p>
+        </Link>
+        {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} title={`${part.title} 아모라에 질문하기`} className="mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-accent)] hover:bg-[var(--amora-warm)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Sparkles aria-hidden className="h-[18px] w-[18px]" /></Link>}
+      </> }];
+    }),
+  }));
 
   return (
     <>
@@ -59,58 +90,7 @@ export default function MannersIndexPage() {
         </p>
       </header>
 
-      <div className="mt-7 space-y-7 sm:mt-8 sm:space-y-8">
-        {MANNERS_CATEGORIES.map((category) => {
-          const parts = category.slugs
-            .map((slug) => bySlug.get(slug))
-            .filter((part): part is NonNullable<typeof part> => part !== undefined);
-          if (parts.length === 0) return null;
-
-          return (
-            <section key={category.label}>
-              <h2 className="text-[13px] font-semibold text-[var(--amora-rose-deep)]">
-                {category.label}
-              </h2>
-              <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                {parts.map((part) => {
-                  const amoraHref = buildAmoraPreparationHref({ kind: "manners", partSlug: part.slug });
-                  return (
-                  <li key={part.slug} className="flex flex-col rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] pt-5 pb-2 sm:rounded-[18px] sm:px-6 sm:pt-6">
-                    <Link
-                      href={`/wedding/manners/${part.slug}`}
-                      prefetch={false}
-                      className="block flex-1 rounded-md transition-colors hover:text-[var(--amora-rose-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
-                    >
-                      <p className="text-[11.5px] font-semibold text-[var(--hb-text-muted)]">
-                        {AUDIENCE_LABEL[part.audience]}
-                      </p>
-                      <h3 className="mt-1 text-[15.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[18px]">
-                        {part.title}
-                      </h3>
-                      <p className="mt-1.5 text-[13px] leading-[1.65] text-[var(--amora-soft)]">
-                        {part.subtitle}
-                      </p>
-                      {/*
-                        분량을 **문 앞에서** 알려준다. 예전에는 카드에 오디언스·제목·부제뿐이라
-                        3분짜리와 18분짜리가 똑같이 생겼고, 사람은 모르고 들어갔다가 나왔다.
-                        본문과 같은 함수를 쓴다 — 두 화면이 다른 숫자를 말하면 안 된다.
-                      */}
-                      <p className="mt-2 text-[12px] text-[var(--hb-text-muted)]">
-                        {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절
-                      </p>
-                    </Link>
-                    {amoraHref && (
-                      <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className="mt-2 inline-flex min-h-11 items-center self-start rounded-md text-[12px] font-semibold text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                        이 주제 아모라에 질문
-                      </Link>
-                    )}
-                  </li>
-                );})}
-              </ul>
-            </section>
-          );
-        })}
-      </div>
+      <MannersGuideDirectory groups={groups} />
 
       <p className="mt-9 text-[13px] leading-[1.75] text-[var(--amora-muted)]">
         각 편에서 우리 상황에 맞는 질문을 아모라로 이어갈 수 있어요. 질문 초안을 확인한 뒤 직접 보내요.{" "}
