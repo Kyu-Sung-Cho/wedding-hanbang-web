@@ -136,9 +136,9 @@ const APP_LINK_PATHS = new Set([
  *
  * ## 루트 판정을 가로채지 않는다
  *
- * `src/app/__tests__/rootIsTheAppDoor.test.ts` 가 막는 것은 `source: "/"` 로
- * **세션 판정**을 엣지가 가로채는 것이다. 여기는 호스트만 보고 apex 로 넘기고,
- * 랜딩·라운지를 가르는 판정은 apex 도착 뒤 `redirectAppDoor` 가 그대로 한다.
+ * 여기는 호스트만 보고 경로·query를 그대로 apex로 넘긴다. apex 도착 뒤
+ * 미들웨어가 정확한 `/`를 `/landing`으로 보내며, 앱 주소는 기존 인증 관문을 따른다.
+ * 루트 회귀 검사는 별도의 정적 redirect가 이 흐름과 충돌하지 않는지도 확인한다.
  */
 function redirectWwwToApex(request: NextRequest): NextResponse | null {
   // `Host` 헤더와 `nextUrl` 둘 다 본다. 헤더는 프록시 뒤에서 비어 오기도 하고,

@@ -60,6 +60,32 @@ describe("AmoraDecisionBoard", () => {
     expect(mocks.decisions.refresh).not.toHaveBeenCalled();
   });
 
+  it("refreshes only the selected board and keeps its read and pending-write guards", async () => {
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const refresh = () => container.querySelector<HTMLButtonElement>('button[aria-label$="새로고침"]')!;
+    expect(refresh().getAttribute("aria-label")).toBe("결정 새로고침");
+    await act(async () => refresh().click());
+    expect(mocks.decisions.refresh).toHaveBeenCalledOnce();
+    expect(mocks.data.refresh).not.toHaveBeenCalled();
+    mocks.decisions.loadingMore = true;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(refresh().disabled).toBe(true);
+    await selectBoard("공유 할 일");
+    expect(refresh().disabled).toBe(false);
+    await act(async () => refresh().click());
+    expect(mocks.data.refresh).toHaveBeenCalledOnce();
+    expect(mocks.decisions.refresh).toHaveBeenCalledOnce();
+    mocks.data.updatingIds = new Set([action.id]);
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(refresh().disabled).toBe(true);
+    await act(async () => refresh().click());
+    expect(mocks.data.refresh).toHaveBeenCalledOnce();
+    mocks.data.updatingIds = new Set(); mocks.data.isDemo = true;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(refresh().disabled).toBe(true);
+    expect(mocks.data.update).not.toHaveBeenCalled();
+  });
+
   it("filters only loaded decisions by field and search while preserving unknown fields and pagination", async () => {
     mocks.decisions.records = [
       { id: "venue", title: "장소 비교", category: "venue", detail: "동선을 확인하기", status: "considering", stateLabel: "고려 중", source: "chat", createdAt: "2026-09-07T00:00:00Z" },

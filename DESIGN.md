@@ -44,6 +44,9 @@
   16.5px mobile size. Role tabs replace the redundant audience badge in role-based
   guides. Source dates belong to individual references and their stated scope,
   rather than a single date claiming that the whole guide was verified.
+  Per-item Amora links use a separate 44px icon beside the checklist control.
+  Guide and category-question actions share a compact footer row. Guide source
+  links use a sage badge, and previous/next guides stay in two columns on mobile.
 
 - **Amora HTML exception (2026-09-06):** The user also approved the supplied
   `AmoraMissions.dc.html`, `MissionsMobile.dc.html`, `AmoraDecisionBoard.dc.html`,
@@ -64,6 +67,9 @@
   uses a state selector, scrolling category chips and an expandable search field.
   Saving a shared answer to the saved collection remains separate from approving
   a budget, schedule or checklist change; the supplied sheet styling covers both.
+  Desktop and mobile Amora navigation both enter missions; the conversation scope
+  controls and board link share a row. Ordinary messages use the reference's sage
+  and ink bubbles. Shared/private scope and approval controls remain functional.
 
 - **Landing HTML exception (2026-09-06):** The user supplied `Main.dc.html` and
   `LandingMobile.dc.html` as the approved replacement design. Only `/landing`
@@ -80,6 +86,13 @@
   Mobile sections use 44px vertical padding; desktop sections use 92px.
   Landing surfaces use existing ivory-50 and ivory-warm; small-print contrast,
   sample disclosures, working links and privacy boundaries remain required.
+  The 2026-09-08 correction restores the supplied hero headline (two desktop lines,
+  three mobile lines) and section sequence: preparation questions, Amora dialogue,
+  different preferences, confirmed records, public tools, community, boundaries.
+  Keep truthful AI, sample, saving and sharing disclosures even when they add height
+  to the reference. Do not publish its placeholder user counts or photo instructions.
+  A direct visit to `/` opens `/landing` regardless of sign-in state; explicit login
+  return destinations and navigation into protected product pages remain separate.
 
 - **Brand font:** Paperlogy. Use across web and mobile for display, body, UI, and numeric moments.
 - **Hierarchy:** Use Paperlogy weight, size, color, and spacing for emphasis instead of mixing serif/sans/display families.

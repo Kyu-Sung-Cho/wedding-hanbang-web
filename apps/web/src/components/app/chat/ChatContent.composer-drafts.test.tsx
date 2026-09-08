@@ -310,6 +310,29 @@ describe("ChatContent composer draft lanes", () => {
     expect(composer()?.value).toBe("나만 아모라 초안");
   });
 
+  it("keeps embedded conversation controls and private drafts without introducing page navigation or an automatic send", async () => {
+    expect(container.querySelector('a[href="/wedding/chat/board"]')?.textContent).toBe("결정보드");
+    expect(container.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    await act(async () => root.render(<ChatContent embedded />));
+    expect(container.querySelector('a[href="/wedding/chat/board"]')).toBeNull();
+    expect(container.querySelector('a[href="/wedding/chat/missions"]')).toBeNull();
+    const composer = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(composer, "함께 대화 초안");
+      composer.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const scope = (name: string) => Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="대화 공개 범위"] button')).find(button => button.textContent?.includes(name))!;
+    await act(async () => scope("나만 (상담)").click());
+    expect(composer.value).toBe("");
+    expect(scope("나만 (상담)").getAttribute("aria-pressed")).toBe("true");
+    expect(container.textContent).toContain("서비스에 저장되며 상대방에게는 보이지 않아요");
+    await act(async () => scope("함께 대화").click());
+    expect(composer.value).toBe("함께 대화 초안");
+    expect(container.querySelector('button[aria-label="대화 검색"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="정보 패널 · 대화 정리와 준비 현황"]')).not.toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("keeps the login-free demo in shared mode and labels the account-only private scope", async () => {
     await act(async () => root.unmount());
     container.remove();

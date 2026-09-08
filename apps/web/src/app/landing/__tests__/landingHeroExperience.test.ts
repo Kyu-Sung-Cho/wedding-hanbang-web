@@ -36,7 +36,9 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     const copy = doc.body.textContent ?? "";
     expect(copy).toMatch(/AI[\s\S]*아모라/u);
     expect(copy).toMatch(/확인한[\s\S]*예산·할 일·일정/u);
-    expect(copy).not.toMatch(/할 일을 몰라서가 아니|뭐부터 할지보다|둘이 갈리는 것부터/u);
+    const titleLines = [...doc.querySelectorAll("h1 > span")].map((line) => line.textContent);
+    expect(titleLines).toEqual(["결혼 준비, 뭐부터 할지보다", "우리 둘이 뭘 원하는지부터."]);
+    expect(doc.querySelector(".landing-tape")?.textContent).toBe("둘이 하는 결혼 준비, 아모라와");
     expect(doc.querySelector('a[href="/login?mode=signup"]')?.textContent).toContain("아모라");
     const explanation = doc.querySelector('a[href="#amora"]');
     expect(explanation?.textContent).toContain("어떻게");
@@ -44,12 +46,10 @@ describe("처음 방문한 사람이 보는 준비 흐름", () => {
     expect(page.querySelector(explanation?.getAttribute("href") ?? "#missing")?.textContent).toContain("아모라");
   });
 
-  it("상담 바로 다음에 승인과 기록을 보여주고 의견 차이는 뒤에서 소개한다", () => {
+  it("원본 순서로 준비 고민·대화·의견 차이를 보여준 뒤 확인과 기록을 설명한다", () => {
     const doc = new DOMParser().parseFromString(renderToStaticMarkup(createElement(LandingPage)), "text/html");
     const ids = [...doc.querySelectorAll("main > section")].map((section) => section.id);
-    expect(ids.indexOf("amora")).toBe(1);
-    expect(ids.indexOf("confirm")).toBe(ids.indexOf("amora") + 1);
-    expect(ids.indexOf("reasons")).toBeGreaterThan(ids.indexOf("confirm"));
+    expect(ids.slice(0, 5)).toEqual(["", "reasons", "amora", "noside", "confirm"]);
     const confirmation = doc.querySelector("#confirm")?.textContent ?? "";
     expect(confirmation).toContain("아직 반영 전");
     expect(confirmation).toContain("예산 화면 → 예식장");
@@ -934,7 +934,7 @@ describe("landing hero product experience contract", () => {
     }
   });
 
-  it("keeps the hero to one column and puts the evidence right after it", () => {
+  it("keeps the mobile hero to one column and follows the original introduction order", () => {
     // 옛 히어로는 2단이었다 — 왼쪽 글, 오른쪽 결과 패널. 그래서 "작은 화면에서
     // 결과를 먼저"라는 계약이 min-h·grid-cols·max-w 값으로 고정돼 있었다.
     // 새 히어로는 어느 폭에서도 한 단이고, 결과(아모라가 적어 준 노트)는 컬럼이
@@ -974,21 +974,14 @@ describe("landing hero product experience contract", () => {
     expect("grid items-center lg:grid-cols-[minmax(0,1fr)_minmax(0,0.95fr)]")
       .not.toMatch(UNPREFIXED_COLUMNS);
 
-    // 증거가 첫 화면 바로 다음이다. 옛 판은 `ScenesSection`(장면 문항)이 그 자리였고,
-    // 2026-08-29 정본 시안에서는 `AmoraNoteSection`(아모라가 적어 준 노트 한 장)이다.
-    // 시안에서는 아예 히어로와 **같은 섹션 안**에 있던 카드다.
-    // 주석으로 꺼 놓은 섹션은 세지 않는다. 렌더되는 순서만 본다.
-    //
-    // 2026-09-03 시안이 사이에 **한 칸**을 넣었다 — "결혼 준비가 자꾸 막히는 이유"
-    // (커플의 말 세 마디). 증거가 멀어진 것이 아니라 **증거가 무엇에 대한 답인지**를
-    // 먼저 세운 것이다: 문제(둘의 기준이 없다) → 그 자리에서 아모라가 하는 일.
-    // 한 칸만 허용한다 — 이름으로 못 박아 두 칸이 되면 여기가 운다.
+    // 2026-09-08 원본 HTML 복원: 준비 고민 → 대화 → 의견 차이 → 확인.
+    // 주석으로 꺼 놓은 섹션은 세지 않고 실제 JSX 순서를 검사한다.
     const heroAt = sectionIndex("TransformationHero");
     expect(sectionIndex("AmoraNoteSection")).toBeGreaterThan(heroAt);
     expect(
-      [renderedSectionNames[heroAt + 1], renderedSectionNames[heroAt + 2]],
-      "히어로와 증거 사이에 다른 섹션이 끼면 증거가 첫 화면에서 멀어진다",
-    ).toEqual(["AmoraNoteSection", "ConfirmSection"]);
+      renderedSectionNames.slice(heroAt + 1, heroAt + 5),
+      "준비 고민과 두 사람의 대화 장면을 보여준 다음 확인 경계를 설명한다",
+    ).toEqual(["BlockedReasonsSection", "AmoraNoteSection", "NoSideSection", "ConfirmSection"]);
   });
 
   it("shows the two-person evidence on mobile, because the H1 promises it", () => {

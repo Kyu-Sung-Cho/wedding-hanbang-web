@@ -1,6 +1,6 @@
 /**
  * 승인된 Main.dc.html·LandingMobile.dc.html의 시각 규격은 유지한다.
- * 2026-09-07: 초보자의 준비 질문 → 대화 → 직접 확인한 기록을 먼저 설명한다.
+ * 2026-09-08: 팀 HTML의 첫 제목과 섹션 순서를 복원하고 실제 기능 고지는 유지한다.
  * 예시·AI 한계·공유 범위·비용 고지는 각 문장이 가리키는 표면에 둔다.
  */
 import { upcomingWeddingQuarterLabels } from "@/utils/quarter";
@@ -10,13 +10,13 @@ import { CONTACT } from "@/lib/constants/contact";
 export const landingContent = {
   hero: {
 
-    tape: "결혼 준비 동반자, 아모라",
+    tape: "둘이 하는 결혼 준비, 아모라와",
 
-    title: "막막한 결혼 준비,\n지금 할 일부터 함께 정리해요.",
+    title: "결혼 준비, 뭐부터 할지보다\n우리 둘이 뭘 원하는지부터.",
 
     body: "예산은 얼마나, 준비는 어떤 순서로 할지. AI 동반자 아모라와 이야기하고, 직접 확인한 내용은 예산·할 일·일정에 남겨요.",
 
-    titleAccent: "지금 할 일부터",
+    titleAccent: "우리 둘이",
     primary: { label: "아모라와 준비 시작하기", href: "/login?mode=signup" },
     secondary: { label: "어떻게 도와주는지 보기", href: "#amora" },
 

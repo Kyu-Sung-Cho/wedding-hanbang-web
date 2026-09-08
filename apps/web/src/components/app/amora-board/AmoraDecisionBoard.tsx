@@ -73,10 +73,10 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
           {loading && <p role="status" className="py-4 text-[13px]">결정 기록을 불러오는 중…</p>}
           {!loading && !error && <>
             <div className="mb-3 flex rounded-[11px] bg-[var(--amora-low)] p-[3px] lg:hidden" role="group" aria-label="결정 상태">
-              {DECISION_COLUMNS.map(column => <button key={column.status} type="button" aria-pressed={status === column.status} onClick={() => setStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] text-[12.5px] ${focus} ${status === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${column.dot}`} />{column.label}<span className="text-[11px] tabular-nums">{filtered.filter(row => row.status === column.status).length}</span></button>)}
+              {DECISION_COLUMNS.map(column => <button key={column.status} type="button" aria-pressed={status === column.status} onClick={() => setStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 items-center justify-center gap-[5px] rounded-[9px] text-[12.5px] ${focus} ${status === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${column.dot}`} />{column.label}<span className="text-[11px] tabular-nums">{filtered.filter(row => row.status === column.status).length}</span></button>)}
             </div>
             <p className="border-b border-[var(--amora-line)] pb-3 text-[11.5px] leading-[1.5] text-[var(--amora-muted)] lg:hidden">{activeColumn.rule}</p>
-            <div className="flex min-w-0 flex-col gap-3 py-3 lg:flex-row lg:items-start lg:pt-0">
+            <div className="flex min-w-0 flex-col gap-2 py-2 lg:flex-row lg:items-start lg:gap-3 lg:py-3 lg:pt-0">
               <div aria-label="결정 분야 필터" className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 lg:flex-wrap">
                 {categoryButton("all", "전체", records.length)}
                 {categories.map(item => categoryButton(item.key, item.label, records.filter(row => row.category === item.key).length))}
@@ -84,10 +84,9 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
               </div>
               <BoardSearch id={searchId} label="불러온 결정 검색" placeholder="결정 검색" query={query} onChange={onQueryChange} mobileOpen={mobileSearchOpen} active={active} />
             </div>
-            <div className="mb-3 flex items-center justify-between gap-x-3 text-[11.5px] leading-relaxed text-[var(--amora-muted)] lg:mb-5 lg:flex-wrap">
+            <div className="mb-2 text-[11.5px] leading-relaxed text-[var(--amora-muted)] lg:mb-5">
               <p className="lg:hidden">불러온 {records.length}개 기준</p>
               <p className="hidden lg:block">불러온 결정 {records.length}개 · 숫자와 검색은 불러온 기록 기준이에요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p>
-              <Button type="button" variant="ghost" onClick={() => void refresh()} disabled={loading || loadingMore || !available} aria-label="결정 새로고침" className="shrink-0 px-0! text-[12px]! text-[var(--amora-accent)]!"><RefreshCw size={14} aria-hidden="true" /><span><span className="hidden lg:inline">결정 </span>새로고침</span></Button>
             </div>
             <div className="grid min-w-0 gap-5 lg:grid-cols-3">
               {DECISION_COLUMNS.map(column => {
@@ -221,6 +220,9 @@ export default function AmoraDecisionBoard() {
   const activeQuery = board === "decisions" ? decisionQuery : query;
   const searchAvailable = board === "tasks" || (!decisions.isDemo && decisions.available && !decisions.loading && !decisions.error);
   const searchExpanded = searchAvailable && mobileSearchOpen;
+  const refreshDisabled = board === "decisions"
+    ? decisions.isDemo || !decisions.available || decisions.loading || decisions.loadingMore
+    : loading || loadingMore || updatingIds.size > 0 || isDemo;
   const filtered = useMemo(() => filterPreparationActions(actions, category, query), [actions, category, query]);
   const categories = CATEGORY_CHECKLISTS.filter((item) => actions.some((action) => action.categoryKey === item.key));
   const unsortedCount = actions.filter((action) => !preparationCategory(action.categoryKey)).length;
@@ -233,18 +235,21 @@ export default function AmoraDecisionBoard() {
   );
 
   return (
-    <div className="min-w-0 bg-[var(--amora-bg)] px-[18px] pt-[14px] pb-8 text-[var(--amora-soft)] lg:px-9 lg:pt-6 lg:pb-9">
-      <div className="mb-3 flex items-center justify-between gap-2 lg:mb-5">
+    <div className="min-w-0 bg-[var(--amora-bg)] px-[18px] pt-[10px] pb-8 text-[var(--amora-soft)] lg:px-9 lg:pt-6 lg:pb-9">
+      <div className="mb-2 flex items-center justify-between gap-2 lg:mb-4">
       <div role="group" aria-label="보드 보기" className="flex w-fit min-w-0 max-w-full gap-1 rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] p-[3px]">
         <button type="button" aria-pressed={board === "decisions"} aria-controls={decisionPanelId} onClick={() => setSelectedBoard("decisions")} className={`${button} ${board === "decisions" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>결정 기록</button>
         <button type="button" aria-pressed={board === "tasks"} aria-controls={taskPanelId} onClick={() => setSelectedBoard("tasks")} className={`${button} ${board === "tasks" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>공유 할 일</button>
       </div>
+      <div className="flex shrink-0 items-center gap-1">
+      <button type="button" onClick={() => void (board === "decisions" ? decisions.refresh() : refresh())} disabled={refreshDisabled} aria-label={board === "decisions" ? "결정 새로고침" : "공유 할 일 새로고침"} className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full text-[12px] text-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-40 ${focus}`}><RefreshCw aria-hidden="true" className="size-4" /><span className="hidden lg:inline">새로고침</span></button>
       <button ref={searchToggleRef} type="button" disabled={!searchAvailable} aria-label={searchExpanded ? "보드 검색 닫기" : activeQuery.trim() ? "보드 검색 열기 · 검색 적용 중" : "보드 검색 열기"} aria-expanded={searchExpanded} aria-controls={searchAvailable ? (board === "decisions" ? decisionSearchId : taskSearchId) : undefined} onClick={() => {
         if (mobileSearchOpen) {
           setMobileSearchOpen(false);
           searchToggleRef.current?.focus();
         } else setMobileSearchOpen(true);
       }} className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-40 lg:hidden ${focus}`}><Search aria-hidden="true" className="size-5" /></button>
+      </div>
       </div>
       {activeQuery.trim() && <div className="mb-3 flex min-w-0 items-center justify-between gap-2 text-[11.5px] text-[var(--amora-muted)] lg:hidden"><p className="min-w-0 truncate">검색 적용 중: {activeQuery.trim()}</p><button type="button" onClick={() => {
         if (board === "decisions") setDecisionQuery(""); else setQuery("");
@@ -264,10 +269,10 @@ export default function AmoraDecisionBoard() {
       </div>
       {isDemo && <p role="note" className="mb-4 rounded-[9px] bg-[var(--amora-warm)] px-3 py-2 text-[12px] text-[var(--amora-rose-deep)]">체험용 샘플 데이터예요. 상태와 분야 변경은 이 화면에서만 유지되고 실제 준비 기록에 저장되지 않아요.</p>}
       <div className="mb-3 flex rounded-[11px] bg-[var(--amora-low)] p-[3px] lg:hidden" role="group" aria-label="할 일 상태">
-        {PREPARATION_COLUMNS.map((column) => <button key={column.status} type="button" aria-pressed={activeStatus === column.status} onClick={() => setActiveStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[9px] text-[12.5px] ${focus} ${activeStatus === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${column.dot}`} />{column.label}<span className="text-[11px] tabular-nums">{statusCount(column.status)}</span></button>)}
+        {PREPARATION_COLUMNS.map((column) => <button key={column.status} type="button" aria-pressed={activeStatus === column.status} onClick={() => setActiveStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 items-center justify-center gap-[5px] rounded-[9px] text-[12.5px] ${focus} ${activeStatus === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${column.dot}`} />{column.label}<span className="text-[11px] tabular-nums">{statusCount(column.status)}</span></button>)}
       </div>
       <p className="border-b border-[var(--amora-line)] pb-3 text-[11.5px] leading-[1.5] text-[var(--amora-muted)] lg:hidden">{activeColumn.rule}</p>
-      <div className="flex min-w-0 flex-col gap-3 py-3 lg:flex-row lg:items-start lg:pt-0">
+      <div className="flex min-w-0 flex-col gap-2 py-2 lg:flex-row lg:items-start lg:gap-3 lg:py-3 lg:pt-0">
         <div aria-label="분야 필터" className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1 lg:flex-wrap">
           {categoryButton("all", "전체", actions.length)}
           {categories.map((item) => categoryButton(item.key, item.label, actions.filter((action) => action.categoryKey === item.key).length))}
@@ -275,10 +280,9 @@ export default function AmoraDecisionBoard() {
         </div>
         <BoardSearch id={taskSearchId} label="불러온 카드 검색" placeholder="카드 검색" query={query} onChange={setQuery} mobileOpen={mobileSearchOpen} active={board === "tasks"} />
       </div>
-      <div className="mb-3 flex items-center justify-between gap-x-3 text-[11.5px] leading-relaxed text-[var(--amora-muted)] lg:mb-5 lg:flex-wrap">
+      <div className="mb-2 text-[11.5px] leading-relaxed text-[var(--amora-muted)] lg:mb-5">
         <p className="lg:hidden">불러온 {actions.length}개 기준</p>
         <p className="hidden lg:block">{truncated ? `전체 ${count}개 중 ${actions.length}개를 불러왔어요. 아래 숫자와 검색은 불러온 카드 기준이에요.` : `불러온 카드 ${actions.length}개 · 카드의 분야를 누르면 해당 체크리스트로 이어져요.`}</p>
-        <button type="button" onClick={() => void refresh()} disabled={loading || loadingMore || updatingIds.size > 0 || isDemo} className={`${button} shrink-0 px-0 text-[var(--amora-accent)]`}><RefreshCw aria-hidden="true" className="h-3 w-3" />새로고침</button>
       </div>
       {error && <div role="alert" className="mb-4 rounded-[9px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p>{actions.length > 0 && <p className="mt-1 text-[12px]">마지막으로 불러온 기록이에요. 최신 상태를 다시 확인해 주세요.</p>}<button type="button" onClick={() => void refresh()} disabled={loading} className={`${outlineButton} mt-2`}>다시 불러오기</button></div>}
       {updateError && <p role="alert" className="mb-4 rounded-[9px] bg-[var(--amora-rose-pale)] p-3 text-[13px] text-[var(--amora-rose-deep)]">{updateError}</p>}

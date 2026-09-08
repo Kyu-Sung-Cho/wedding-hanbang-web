@@ -282,7 +282,7 @@ describe("landing two-sided trust contract", () => {
     // "결혼 준비, 뭐부터 할지보다 우리 둘이 뭘 원하는지부터"). 문장은 바뀌어도 여기서
     // 재는 것은 같다: 첫 화면이 **둘 사이에서 벌어지는 장면**을 말하는가.
     const heroCopy = contentBlock("hero", "amoraNote");
-    expect(heroCopy).toMatch(/막막한 결혼 준비[\s\S]*함께 정리/u);
+    expect(heroCopy).toMatch(/결혼 준비, 뭐부터 할지보다[\s\S]*우리 둘이 뭘 원하는지부터/u);
     expect(heroCopy).toMatch(/예산[^"\n]*준비[^"\n]*순서/u);
     expect(heroCopy).toMatch(/AI[^"\n]*아모라[\s\S]*직접 확인한 내용은 예산·할 일·일정/u);
     expectWired("hero.body");

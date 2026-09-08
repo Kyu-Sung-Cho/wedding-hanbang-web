@@ -74,12 +74,12 @@ export default function LandingPage() {
       <LandingBloomLayer />
       <LandingHeader />
       <main id="main-content" tabIndex={-1}>
-        {/* 대화 다음에 확인과 기록을 설명하고, 다양한 질문과 의견 차이는 뒤에서 다룬다. */}
+        {/* 팀 HTML 순서: 준비 고민 → 대화 → 의견 차이 → 확인한 기록. */}
         <TransformationHero />
-        <AmoraNoteSection />
-        <ConfirmSection />
         <BlockedReasonsSection />
+        <AmoraNoteSection />
         <NoSideSection />
+        <ConfirmSection />
         <AvailableNowSection />
         <CommunitySection />
         <PhotoBandSection />

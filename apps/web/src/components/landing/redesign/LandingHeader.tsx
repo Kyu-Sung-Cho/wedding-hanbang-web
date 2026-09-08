@@ -33,7 +33,7 @@ export default function LandingHeader() {
             <Link
               key={item.href}
               href={item.href}
-              className={`inline-flex min-h-11 items-center text-[14px] font-medium text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
+              className={`inline-flex min-h-11 items-center text-[15px] font-normal text-[var(--color-paper-ink-soft)] transition-colors duration-200 hover:text-[var(--color-paper-ink)] motion-reduce:transition-none ${focusRing}`}
             >
               {item.label}
             </Link>
