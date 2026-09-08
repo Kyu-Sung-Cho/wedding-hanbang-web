@@ -62,7 +62,7 @@ function section(prompt: string, start: string, end: string): string {
 function expectPivotGuidance(prompt: string): void {
   const roles = section(prompt, "### 먼저 이번 턴의 역할 하나를 고르기", "### 순서를 말할 때는");
   expect(roles).toContain("이유가 비어 있는 큰 실무 방향 전환");
-  expect(roles).toContain("새 취향을 고르게 하기 전에 왜 바뀌었는지 한 번 먼저");
+  expect(roles).toContain("새 취향 질문 전에 바뀐 이유를 한 번");
   expect(roles).toContain("질문과 함께 완성된 계획까지 한꺼번에 주지 마세요");
   const continuity = section(prompt, "### 듣는 방식", "### 자연스러운 말투");
   expect(continuity).toContain("예식 형태·지역 변경이나 하객 규모 절반 이하·2배 이상");
@@ -85,22 +85,22 @@ function expectPivotGuidance(prompt: string): void {
 describe("큰 실무 전환과 작은 선호의 질문 목적을 원래 규칙에서 구분한다", () => {
   it("역할을 고르는 입구에서 이유 미상 큰 전환과 경청·안전·질문 거부의 우선순위를 정한다", () => {
     const entry = section(AMORA_CARE_VOICE, "### 먼저 이번 턴의 역할 하나를 고르기", "- **곁에 있기**");
-    expect(entry).toContain("큰 실무 방향 전환의 이유가 비어 있다면 탐색을 먼저");
+    expect(entry).toContain("이유가 비어 있는 큰 실무 방향 전환은 **탐색**부터");
     expect(entry).toContain("경청·안전·질문 거부 예외를 우선");
   });
 
   it("명확한 새 선택이나 추천 요청을 이유 확인이 끝난 증거로 혼동하지 않는다", () => {
     const preference = section(getWeddingPlannerSystemPrompt(BASE), "**선호가 아직 흐릴 때:**", "**인스타 vs 현실");
-    expect(preference).toContain("불필요한 취향 인터뷰를 늘이지 말고");
-    expect(preference).toContain("이유가 비어 있는 큰 전환에서는 위 이유 확인·예외 기준을 먼저");
+    expect(preference).toContain("불필요한 취향 인터뷰 없이");
+    expect(preference).toContain("큰 전환은 위 이유 확인·예외 기준을 먼저");
     expect(preference).not.toContain('이미 명확히 답했거나 "그냥 추천해줘"');
   });
 
   it("기본 프롬프트의 일반 선호 지침이 큰 전환 이유 확인을 취소하지 않는다", () => {
     const preference = section(getWeddingPlannerSystemPrompt(BASE), "**선호가 아직 흐릴 때:**", "**인스타 vs 현실");
     expect(preference).toContain("작은 월·분위기 선호 변경");
-    expect(preference).toContain("큰 실무 방향 전환의 이유가 비어 있으면 새 취향 질문보다");
-    expect(preference).toContain("그 이유를 한 번 먼저 확인");
+    expect(preference).toContain("큰 전환의 이유가 비면 새 취향 질문보다");
+    expect(preference).toContain("이유 한 번이 먼저");
     expect(preference).not.toContain("이전 답과 달라졌다면 변화 이유를 캐묻기보다");
   });
 
