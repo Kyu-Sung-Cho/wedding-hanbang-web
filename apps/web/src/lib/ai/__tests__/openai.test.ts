@@ -93,6 +93,19 @@ function completedResponse(output: unknown[], outputText = "최종 답변", usag
   };
 }
 
+function nestedTextMessage(text: string) {
+  return {
+    id: "msg_nested", type: "message", role: "assistant", status: "completed",
+    content: [{ type: "output_text", text, annotations: [] }],
+  };
+}
+
+function responseWithoutConvenience(output: unknown[]) {
+  const response = completedResponse(output);
+  Reflect.deleteProperty(response, "output_text");
+  return response;
+}
+
 describe("OpenAI Responses adapter", () => {
   beforeEach(() => {
     process.env.AMORA_OPENAI_ENABLED = "true";
@@ -302,6 +315,193 @@ describe("OpenAI Responses adapter", () => {
     expect(result.stopReason).toBe("refusal");
     expect(result.fullText).toContain("도와드릴 수 없는");
     expect(result.usageStatus).toBe("complete");
+  });
+
+  it.each([{ deltas: [] }, { deltas: ["완성된 "] }])("reads the completed nested body instead of only the streamed prefix: $deltas", async ({ deltas }) => {
+    const output = [{
+      id: "msg_nested", type: "message", role: "assistant", status: "completed",
+      content: [{ type: "output_text", text: "완성된 답변입니다.", annotations: [] }],
+    }];
+    const response = { ...completedResponse(output), model: "gpt-5.6-terra" };
+    // raw Responses 스트림은 SDK 편의 필드를 만들지 않는다.
+    Reflect.deleteProperty(response, "output_text");
+    const { client, create, count } = fakeClient([
+      ...deltas.map(delta => ({ type: "response.output_text.delta", delta, item_id: "msg_nested" })),
+      { type: "response.completed", response },
+    ]);
+    const beforeProviderEgress = vi.fn();
+    const beforeGeneration = vi.fn();
+    const onTextDelta = vi.fn();
+
+    const result = await chatWithToolsStream({
+      systemPrompt: "system", input: "의견을 확인해줘", tools: [], modelRole: "primary",
+      beforeProviderEgress, beforeGeneration, onTextDelta, client,
+    });
+
+    expect(result.fullText).toBe("완성된 답변입니다.");
+    expect(result.outputItems).toEqual(output);
+    expect(result).toMatchObject({
+      model: "gpt-5.6-terra", stopReason: "completed", usageStatus: "complete",
+      requestId: "req_test", responseId: "resp_1", inputCountRequestId: "req_count_default",
+      usage: { input_tokens: 120, output_tokens: 30 },
+    });
+    expect(create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      model: "gpt-5.6-terra", reasoning: { effort: "none" }, max_output_tokens: 1_400,
+      store: false, stream: true,
+    }), undefined);
+    expect(count).toHaveBeenCalledTimes(1);
+    expect(beforeProviderEgress).toHaveBeenCalledTimes(1);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    expect(onTextDelta.mock.calls.map(([delta]) => delta)).toEqual(deltas);
+  });
+
+  it("preserves completed message/content order and original whitespace", async () => {
+    const first = nestedTextMessage(" 첫째 ");
+    first.content.push({ type: "output_text", text: "\n둘째", annotations: [] });
+    const output = [first, { ...nestedTextMessage("\n셋째  "), id: "msg_second" }];
+    const { client } = fakeClient([{ type: "response.completed", response: responseWithoutConvenience(output) }]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "system", input: "순서 확인", tools: [], beforeGeneration: vi.fn(), client,
+    });
+    expect(result.fullText).toBe(" 첫째 \n둘째\n셋째  ");
+    expect(result.outputItems).toEqual(output);
+  });
+
+  it.each([
+    { name: "number-only", badText: 35_000_000, mixed: false },
+    { name: "object-only", badText: { value: "본문 아님" }, mixed: false },
+    { name: "number-mixed", badText: 35_000_000, mixed: true },
+    { name: "object-mixed", badText: { value: "본문 아님" }, mixed: true },
+  ])("rejects the whole nested fallback for non-string text: $name", async ({ badText, mixed }) => {
+    const malformed = {
+      id: "msg_malformed", type: "message", role: "assistant", status: "completed",
+      content: [{ type: "output_text", text: badText, annotations: [] }],
+    };
+    const output = mixed ? [nestedTextMessage("완성본으로 오인하면 안 되는 일부"), malformed] : [malformed];
+    const { client, create } = fakeClient([{ type: "response.completed", response: responseWithoutConvenience(output) }]);
+    await expect(chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [], beforeGeneration: vi.fn(), client,
+    })).rejects.toMatchObject({ category: "response_invalid", providerCode: "empty_response" });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["convenience", "refusal", "delta"])("keeps the existing %s path when nested text is malformed", async source => {
+    const output = [{
+      id: "msg_malformed", type: "message", role: "assistant", status: "completed",
+      content: [{ type: "output_text", text: { value: "본문 아님" } }],
+    }];
+    const response = source === "convenience"
+      ? completedResponse(output, "기존 본문")
+      : responseWithoutConvenience(source === "refusal" ? [...output, {
+          id: "msg_refusal", type: "message", role: "assistant", status: "completed",
+          content: [{ type: "refusal", refusal: "거절 안내" }],
+        }] : output);
+    const { client } = fakeClient([
+      ...(source === "delta" ? [{ type: "response.output_text.delta", delta: "기존 delta", item_id: "msg_delta" }] : []),
+      { type: "response.completed", response },
+    ]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [], beforeGeneration: vi.fn(), client,
+    });
+    expect(result.fullText).toBe(source === "convenience" ? "기존 본문" : source === "refusal" ? "거절 안내" : "기존 delta");
+  });
+
+  it.each([
+    { source: "convenience", expected: "기존 최상위 본문", refusal: false },
+    { source: "refusal", expected: "거절 안내", refusal: true },
+  ])("preserves existing $source precedence over nested text", async ({ source, expected, refusal }) => {
+    const output = [nestedTextMessage("새 nested 본문")];
+    const response = refusal
+      ? responseWithoutConvenience([...output, {
+          id: "msg_refusal", type: "message", role: "assistant", status: "completed",
+          content: [{ type: "refusal", refusal: expected }],
+        }])
+      : completedResponse(output, expected);
+    const { client } = fakeClient([{ type: "response.completed", response }]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "system", input: source, tools: [], beforeGeneration: vi.fn(), client,
+    });
+    expect(result.fullText).toBe(expected);
+    expect(result.stopReason).toBe(refusal ? "refusal" : "completed");
+  });
+
+  it.each([
+    { name: "in-progress message", output: [{ ...nestedTextMessage("미완성 본문"), status: "in_progress" }] },
+    { name: "incomplete message", output: [{ ...nestedTextMessage("미완성 본문"), status: "incomplete" }] },
+    { name: "non-assistant message", output: [{ ...nestedTextMessage("사용자 본문"), role: "user" }] },
+    { name: "whitespace only", output: [nestedTextMessage(" \n\t ")] },
+    { name: "actually empty", output: [] },
+  ])("does not promote $name to a completed answer", async ({ output }) => {
+    const { client, create } = fakeClient([{ type: "response.completed", response: responseWithoutConvenience(output) }]);
+    await expect(chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [], beforeGeneration: vi.fn(), client,
+    })).rejects.toMatchObject({ category: "response_invalid", providerCode: "empty_response" });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    { event: "response.failed", status: "failed", code: "server_error" },
+    { event: "response.incomplete", status: "incomplete", code: "max_output_tokens" },
+    { event: "response.completed", status: "failed", code: "empty_response" },
+    { event: "response.completed", status: "completed", code: "empty_response" },
+  ])("does not rescue an error response from nested text: $event/$status", async ({ event, status, code }) => {
+    const response = {
+      ...responseWithoutConvenience([nestedTextMessage("승격하면 안 되는 본문")]),
+      status, error: status === "incomplete" ? null : { code: "server_error", message: "fixture failure" },
+      incomplete_details: status === "incomplete" ? { reason: "max_output_tokens" } : null,
+    };
+    const { client, create } = fakeClient([{ type: event, response }]);
+    await expect(chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [], beforeGeneration: vi.fn(), client,
+    })).rejects.toMatchObject({ providerCode: code });
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the existing partial delta policy for an incomplete response", async () => {
+    const response = {
+      ...responseWithoutConvenience([nestedTextMessage("완료로 승격하면 안 되는 본문")]),
+      status: "incomplete", incomplete_details: { reason: "max_output_tokens" },
+    };
+    const { client } = fakeClient([
+      { type: "response.output_text.delta", delta: "이미 받은 일부", item_id: "msg_nested" },
+      { type: "response.incomplete", response },
+    ]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [], beforeGeneration: vi.fn(), client,
+    });
+    expect(result.fullText).toBe("이미 받은 일부");
+    expect(result.stopReason).toBe("max_output_tokens");
+  });
+
+  it.each([false, true])("preserves validated tool calls and replay alongside nested text: %s", async withText => {
+    const tool = {
+      name: "read_example", description: "Read-only fixture",
+      input_schema: { type: "object", properties: {}, additionalProperties: false },
+    };
+    const call = {
+      id: "fc_nested", type: "function_call", status: "completed",
+      call_id: "call_nested", name: tool.name, arguments: "{}",
+    };
+    const output = withText ? [nestedTextMessage("확인할게요."), call] : [call];
+    const { client, create } = fakeClient([{ type: "response.completed", response: responseWithoutConvenience(output) }]);
+    const result = await chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [tool], beforeGeneration: vi.fn(), client,
+    });
+    expect(result.fullText).toBe(withText ? "확인할게요." : "");
+    expect(result.toolCalls).toEqual([{ callId: "call_nested", name: tool.name, input: {}, parseError: undefined }]);
+    expect(result.outputItems).toEqual(output);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("still rejects an unoffered function before releasing nested text", async () => {
+    const output = [nestedTextMessage("확인할게요."), {
+      id: "fc_nested", type: "function_call", status: "completed",
+      call_id: "call_nested", name: "unoffered_function", arguments: "{}",
+    }];
+    const { client } = fakeClient([{ type: "response.completed", response: responseWithoutConvenience(output) }]);
+    await expect(chatWithToolsStream({
+      systemPrompt: "system", input: "확인", tools: [], beforeGeneration: vi.fn(), client,
+    })).rejects.toMatchObject({ providerCode: "invalid_function_call_name" });
   });
 
   it("records interrupted streams as unknown usage instead of zero cost", async () => {

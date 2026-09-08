@@ -4,6 +4,8 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
 import { AMORA_EMPTY_TERMINAL_FALLBACK_TEXT } from "@/lib/ai/amoraOutputHygiene";
+import { OpenAIProviderError } from "@/lib/ai/openai";
+import { log as operationalLog } from "@/utils/log";
 import {
   matchedSpecialistByKeyword,
   routeSpecialist,
@@ -523,6 +525,7 @@ vi.mock("@/lib/ai/openai", async (importOriginal) => {
     // 2026-09-03: 실패 원인 문구는 정규화된 category 로 갈린다. 여기서만
     // 가짜를 쓰면 그 갈래가 시험되지 않으므로 실제 구현을 그대로 쓴다.
     normalizeOpenAIProviderError: actual.normalizeOpenAIProviderError,
+    OpenAIProviderError: actual.OpenAIProviderError,
   };
 });
 
@@ -7463,6 +7466,165 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(body).not.toContain('"type":"done"');
     expect(mocks.persist).not.toHaveBeenCalled();
     expect(mocks.completeClaim).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["response_invalid", "empty_response"],
+    ["incomplete_max_output", "max_output_tokens"],
+    ["rate_limit", "rate_limit_exceeded"],
+    ["provider_5xx", "server_error"],
+    ["invalid_request", "input_token_limit"],
+    ["refusal", "model_refusal"],
+    ["auth_config", "openai_not_enabled"],
+    ["transport", "stream_error"],
+    ["timeout", null],
+    ["aborted", null],
+  ] as const)("logs only safe provider classification from an actual POST failure: %s/%s", async (category, providerCode) => {
+    const secret = "SYNTHETIC_PRIVATE_CUSTOMER_MESSAGE";
+    const original = Object.assign(new OpenAIProviderError(secret, {
+      category,
+      providerCode,
+      model: "SYNTHETIC_PRIVATE_MODEL_VALUE",
+      requestId: "SYNTHETIC_PRIVATE_REQUEST_ID",
+      responseId: "SYNTHETIC_PRIVATE_RESPONSE_ID",
+      usage: { input_tokens: 987654, output_tokens: 123456 },
+    }), {
+      cause: new Error("SYNTHETIC_PRIVATE_CAUSE"),
+      privatePayload: { customer: secret },
+    });
+    original.stack = "SYNTHETIC_PRIVATE_STACK";
+    const errorSpy = vi.spyOn(operationalLog, "error").mockImplementation(() => undefined);
+    try {
+      mocks.provider.mockImplementationOnce(async (options: { beforeGeneration?: () => Promise<void> }) => {
+        await options.beforeGeneration?.();
+        throw original;
+      });
+      const response = await POST(request());
+      const body = await response.text();
+      expect(response.status).toBe(200);
+      expect(body).toContain('"type":"text_clear"');
+      expect(body).toContain('"type":"error"');
+      expect(body).toContain('"retryPolicy":"new_message"');
+      expect(body).not.toContain('"type":"done"');
+      expect(body).not.toContain("SYNTHETIC_PRIVATE");
+      expect(body).not.toContain("provider_code");
+      expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({
+        failureCode: providerCode === "input_token_limit" ? "AMORA_INPUT_TOO_LARGE" : "CHAT_TURN_FAILED",
+      }));
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(0);
+      expect(mocks.completeClaim).not.toHaveBeenCalled();
+      expect(mocks.reserve).toHaveBeenCalledTimes(1);
+      const call = errorSpy.mock.calls.find(([scope]) => scope === "채팅 API 에러:");
+      expect(call).toHaveLength(2);
+      const captured = call?.[1];
+      expect(captured).toBeInstanceOf(Error);
+      if (!(captured instanceof Error)) throw new Error("Safe log error was not captured");
+      expect(captured).not.toBe(original);
+      expect(captured.message).toBe(`[chat] failure source=openai_boundary category=${category} provider_code=${providerCode ?? "unknown"}`);
+      expect(Object.getOwnPropertyNames(captured).sort()).toEqual(["message", "stack"]);
+      expect(`${captured.message} ${captured.stack}`).not.toContain("SYNTHETIC_PRIVATE");
+      expect(captured).not.toHaveProperty("cause");
+      expect(captured).not.toHaveProperty("usage");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    "arbitrary_identifier_ABC123",
+    "sk-synthetic-private-token",
+    "person@example.com",
+    "https://example.invalid/private",
+    "비공개 가족 예산",
+    "empty_response_private_suffix",
+    " empty_response",
+    "EMPTY_RESPONSE",
+  ])("does not log an unknown provider code on POST failure: %s", async (providerCode) => {
+    const errorSpy = vi.spyOn(operationalLog, "error").mockImplementation(() => undefined);
+    try {
+      mocks.provider.mockRejectedValueOnce(new OpenAIProviderError("SYNTHETIC_PRIVATE", { category: "response_invalid", providerCode }));
+      const response = await POST(request());
+      const body = await response.text();
+      expect(body).toContain('"retryPolicy":"same_request"');
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      const captured = errorSpy.mock.calls.find(([scope]) => scope === "채팅 API 에러:")?.[1];
+      expect(captured).toBeInstanceOf(Error);
+      if (!(captured instanceof Error)) throw new Error("Safe log error was not captured");
+      expect(captured.message).toBe("[chat] failure source=openai_boundary category=response_invalid provider_code=unknown");
+      expect(`${captured.message} ${captured.stack}`).not.toContain(providerCode);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("rejects an unknown runtime provider category in the POST error log", async () => {
+    const original = new OpenAIProviderError("SYNTHETIC_PRIVATE", { category: "transport", providerCode: "stream_error" });
+    Object.defineProperty(original, "category", { value: "SYNTHETIC_PRIVATE_CATEGORY" });
+    const errorSpy = vi.spyOn(operationalLog, "error").mockImplementation(() => undefined);
+    try {
+      mocks.provider.mockRejectedValueOnce(original);
+      await (await POST(request())).text();
+      const captured = errorSpy.mock.calls.find(([scope]) => scope === "채팅 API 에러:")?.[1];
+      expect(captured).toBeInstanceOf(Error);
+      if (!(captured instanceof Error)) throw new Error("Safe log error was not captured");
+      expect(captured.message).toBe("[chat] failure source=openai_boundary category=unknown provider_code=stream_error");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it.each(["category", "providerCode"] as const)("snapshots provider diagnostic fields before checking and logging: %s", async (field) => {
+    const original = new OpenAIProviderError("SYNTHETIC_PRIVATE", { category: "response_invalid", providerCode: "empty_response" });
+    let reads = 0;
+    Object.defineProperty(original, field, {
+      get: () => ++reads >= 4 ? "SYNTHETIC_PRIVATE_CHANGED_VALUE" : field === "category" ? "response_invalid" : "empty_response",
+    });
+    const errorSpy = vi.spyOn(operationalLog, "error").mockImplementation(() => undefined);
+    try {
+      mocks.provider.mockRejectedValueOnce(original);
+      await (await POST(request())).text();
+      const captured = errorSpy.mock.calls.find(([scope]) => scope === "채팅 API 에러:")?.[1];
+      expect(captured).toBeInstanceOf(Error);
+      if (!(captured instanceof Error)) throw new Error("Safe log error was not captured");
+      expect(captured.message).toBe("[chat] failure source=openai_boundary category=response_invalid provider_code=empty_response");
+      expect(`${captured.message} ${captured.stack}`).not.toContain("SYNTHETIC_PRIVATE");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    ["ordinary error", (): unknown => new Error("SYNTHETIC_PRIVATE"), "CHAT_TURN_FAILED"],
+    ["syntax error", (): unknown => new SyntaxError("SYNTHETIC_PRIVATE"), "CHAT_TURN_FAILED"],
+    ["string", (): unknown => "SYNTHETIC_PRIVATE", "CHAT_TURN_FAILED"],
+    ["provider-shaped object", (): unknown => ({ name: "OpenAIProviderError", category: "transport", providerCode: "stream_error", message: "SYNTHETIC_PRIVATE" }), "CHAT_TURN_FAILED"],
+    ["privacy guard", (): unknown => new mocks.PrivacyContextError("AMORA_PRIVACY_CONTEXT_CHANGED"), "AMORA_PRIVACY_CONTEXT_CHANGED"],
+    ["cost guard", (): unknown => new mocks.CostGuardError({ allowed: false, reason: "global_budget", message: "사용량 확인을 완료하지 못했어요." }), "COST_GUARD_GLOBAL_BUDGET"],
+    ["persistence", (): unknown => new mocks.PersistenceError("SYNTHETIC_PRIVATE"), "AI_MESSAGE_PERSISTENCE_FAILED"],
+    ["request claim", (): unknown => new mocks.ClaimError("SYNTHETIC_PRIVATE"), "CHAT_REQUEST_CLAIM_FAILED"],
+  ] as const)("keeps non-provider POST failures out of provider diagnostics: %s", async (_label, createError, failureCode) => {
+    const errorSpy = vi.spyOn(operationalLog, "error").mockImplementation(() => undefined);
+    try {
+      mocks.provider.mockRejectedValueOnce(createError());
+      const body = await (await POST(request())).text();
+      const captured = errorSpy.mock.calls.find(([scope]) => scope === "채팅 API 에러:")?.[1];
+      expect(captured).toBeInstanceOf(Error);
+      if (!(captured instanceof Error)) throw new Error("Safe log error was not captured");
+      expect(captured.message).toBe("[chat] failure source=non_provider_or_unknown");
+      expect(`${captured.message} ${captured.stack}`).not.toContain("SYNTHETIC_PRIVATE");
+      expect(body).toContain('"type":"error"');
+      expect(body).toContain('"retryPolicy":"same_request"');
+      expect(body).not.toContain('"type":"done"');
+      expect(body).not.toContain("SYNTHETIC_PRIVATE");
+      expect(mocks.failClaim).toHaveBeenCalledWith(expect.objectContaining({ failureCode }));
+      if (failureCode === "COST_GUARD_GLOBAL_BUDGET") expect(body).toContain("사용량 확인을 완료하지 못했어요.");
+      expect(mocks.reserve).not.toHaveBeenCalled();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("maps an oversized provider input to an actionable SSE error without leaking internals", async () => {

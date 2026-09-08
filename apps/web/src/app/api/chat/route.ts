@@ -13,6 +13,7 @@ import {
   buildToolResultInput,
   chatWithToolsStream,
   normalizeOpenAIProviderError,
+  OpenAIProviderError,
 } from "@/lib/ai/openai";
 import type { ChatInputItem, ImageAttachment } from "@/lib/ai/openai";
 import type { ChatWithToolsResult } from "@/lib/ai/openai";
@@ -338,6 +339,38 @@ function isMissingChatImageObjectError(error: unknown): boolean {
   const detail = `${String(error.error ?? "")} ${String(error.message ?? "")}`
     .toLowerCase();
   return status === "404" || detail.includes("not found");
+}
+
+const CHAT_LOG_PROVIDER_CATEGORIES = new Set<string>([
+  "auth_config", "rate_limit", "timeout", "aborted", "invalid_request",
+  "provider_5xx", "incomplete_max_output", "refusal", "transport", "response_invalid",
+]);
+const CHAT_LOG_PROVIDER_CODES = new Set<string>([
+  "openai_not_enabled", "input_token_limit", "invalid_input_token_count",
+  "invalid_tool_name", "invalid_tool_schema", "forced_tool_unavailable", "prompt_cache_disabled",
+  "invalid_function_call_status", "invalid_function_call_id", "invalid_function_call_name",
+  "duplicate_function_call_id", "too_many_function_calls", "missing_completed_response",
+  "empty_response", "model_refusal", "max_output_tokens", "incomplete",
+  "response_failed", "stream_error", "rate_limit_exceeded", "server_error",
+]);
+
+function safeChatFailureLogError(error: unknown): Error {
+  // 정규화는 일반 오류도 transport로 분류한다. 원래 typed 경계만 진단에 사용한다.
+  try {
+    if (error instanceof OpenAIProviderError) {
+      const suppliedCategory = error.category;
+      const suppliedCode = error.providerCode;
+      const category = typeof suppliedCategory === "string" && CHAT_LOG_PROVIDER_CATEGORIES.has(suppliedCategory)
+        ? suppliedCategory : "unknown";
+      const code = typeof suppliedCode === "string" && CHAT_LOG_PROVIDER_CODES.has(suppliedCode)
+        ? suppliedCode : "unknown";
+      // 원래 message·stack·cause·ID·usage를 복사하지 않는다. 새 Error의 자체 스택만 남는다.
+      return new Error(`[chat] failure source=openai_boundary category=${category} provider_code=${code}`);
+    }
+  } catch {
+    // 진단 속성이 잘못되어도 기존 SSE 실패 처리를 중단하지 않는다.
+  }
+  return new Error("[chat] failure source=non_provider_or_unknown");
 }
 
 function getAmoraInputStreamError(error: unknown): {
@@ -5044,7 +5077,7 @@ export async function POST(request: Request) {
           deadlineAbortController.signal.aborted
           || providerErrorCategory === "timeout"
           || providerErrorCategory === "aborted";
-        log.error("채팅 API 에러:", errMsg);
+        log.error("채팅 API 에러:", safeChatFailureLogError(err));
         if (requestClaimAcquired) {
           await failChatRequest({
             ...claimParams,
