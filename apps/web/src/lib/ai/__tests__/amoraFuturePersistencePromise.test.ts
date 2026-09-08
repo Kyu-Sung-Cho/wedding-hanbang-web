@@ -87,18 +87,15 @@ describe("미래형 저장 약속을 지운다", () => {
     }
   });
 
-  it("제안 도구가 안 열린 턴에서도 안내를 억제하지 않는다", () => {
-    // 억제 규칙은 "요청하지도 않은 변경의 실패를 사과하지 말자" 는 것인데,
-    // 미래형 약속은 정의상 사용자가 무언가를 부탁했다는 뜻이다.
-    // 남는 문장을 하나 둔다. 문장이 전부 지워지면 빈 본문 방지 관문이 대신
-    // 같은 안내를 넣어 주기 때문에, 억제 여부를 이 입력으로는 가릴 수 없다.
-    const result = terminal(
-      "그랜드호텔은 보증 200명이에요. 예식장을 그랜드호텔로 등록할게요.",
-      { userRequestedChange: false },
-    );
+  it.each(FUTURE_PROMISES)("요청 없는 약속은 지우되 남은 접수에 실행 실패를 붙이지 않는다: %s", (promise) => {
+    // 모델의 자발적 약속은 사용자의 변경 요청을 증명하지 않는다.
+    const acknowledgement = "신혼집이 우선이고 사진도 중요하다는 기준으로 이해했어요.";
+    const result = terminal(`${acknowledgement} ${promise}`, { userRequestedChange: false });
 
-    expect(result.text).toContain("그랜드호텔은 보증 200명이에요.");
-    expect(result.text).toContain(UNVERIFIED_NOTICE);
+    expect(result.text).toBe(acknowledgement);
+    expect(result.removedClaimCount).toBe(1);
+    expect(result.source).toBe("server_correction");
+    expect(isAmoraFailedProposalNotice(result.text)).toBe(false);
   });
 
   it("남은 문장은 그대로 살린다", () => {

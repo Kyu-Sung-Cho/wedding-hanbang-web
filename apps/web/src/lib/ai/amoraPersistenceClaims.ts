@@ -148,11 +148,11 @@ export function composeAmoraPersistenceTerminal(
 ): AmoraPersistenceTerminalResult {
   const composed = composeTerminalCandidate(input);
   if (composed.text.trim()) return composed;
-  // 2026-09-05: 변경을 요청하지도, 표식을 내지도 않은 턴(읽기·상담)에서 본문이 비면
-  // "이 변경은 아직 반영되지 않았어요" 는 거짓 안내다. 그런 턴은 중립 문장으로 남긴다.
+  // 변경 요청이 없는 읽기·상담 턴은 자발적 표식까지 버렸더라도 중립 문장으로 남긴다.
+  // 요청 인수를 생략한 기존 호출은 표식 유무에 따른 이전 fallback을 유지한다.
   if (
     input.userRequestedChange !== true
-    && input.droppedPendingActionTag !== true
+    && (input.droppedPendingActionTag !== true || input.userRequestedChange === false)
     && !input.hasPendingAction
   ) {
     return {
@@ -197,7 +197,7 @@ function composeTerminalCandidate({
   persistenceMode: "durable" | "demo";
   demoUserText?: string;
   /**
-   * 이번 턴에 사용자가 변경을 요청할 수 있었는가(제안 도구가 열렸는가).
+   * 이번 턴에 사용자가 변경을 요청했는가. 제안 도구가 열린 것과는 별개다.
    *
    * 거짓 저장 주장을 지운 뒤 붙이는 안내는 "변경할 내용을 확인한 뒤 다시
    * 요청해주세요" 라고 말한다. 사용자가 아무것도 요청하지 않은 턴에서는 그 말이
@@ -213,10 +213,10 @@ function composeTerminalCandidate({
    * 표식이 스키마를 통과 못 하면(지어낸 도구 이름·없는 필드) 카드가 안 나온다.
    * 그때 모델 본문이 거짓 성공 주장을 담고 있으면 아래 정리가 잡아내지만,
    * **중립적으로 쓰여 있으면 지울 것이 없어 아무 말도 안 나간다.**
-   * 사용자는 평범한 답을 읽고 아무것도 저장되지 않는다.
+   * 실제 변경 요청이 있었다면 사용자는 평범한 답만 읽고 저장 여부를 알 수 없다.
    *
-   * 표식을 냈다는 것은 모델이 변경을 의도했다는 뜻이다. 그러니 반영되지
-   * 않았다는 사실은 알려야 한다. 2026-08-25 적대적 검토.
+   * 모델의 자발적 표식은 사용자 요청을 뜻하지 않는다. 실패 안내 여부는
+   * userRequestedChange로 따로 판단하며 표식 검증 자체는 유지한다.
    */
   droppedPendingActionTag?: boolean;
 }): AmoraPersistenceTerminalResult {
@@ -286,8 +286,8 @@ function composeTerminalCandidate({
   // 안내를 붙이지 않는다.
   const endsWithQuestion = /[?？]\s*$/u.test(sanitized.text.trim());
   if (sanitized.removedClaimCount === 0) {
-    // 지울 거짓 주장이 없어도, 표식이 버려졌으면 그 사실은 알려야 한다.
-    if (droppedPendingActionTag && !endsWithQuestion) {
+    // 실제 변경 요청의 표식 실패만 안내한다. 모델의 자발적 표식은 요청의 근거가 아니다.
+    if (droppedPendingActionTag && userRequestedChange && !endsWithQuestion) {
       return {
         text: [sanitized.text, SERVER_OWNED_UNVERIFIED_NOTICE]
           .filter(Boolean)
@@ -307,13 +307,10 @@ function composeTerminalCandidate({
 
   // 요청하지 않은 변경의 실패를 알릴 이유가 없다. 거짓 주장은 이미 지웠으므로
   // 사용자가 잘못 믿을 것도 남아 있지 않다.
-  // 2026-09-03: 미래형 약속을 지운 턴은 예외다. "등록할게요" 는 정의상 사용자가
-  // 변경을 부탁했다는 뜻이고, 그 문장만 지우고 아무 말도 안 하면 사용자는 아모라가
-  // 딴소리를 했다고 읽는다 — 무엇이 반영되지 않았는지 알 방법이 없다.
+  // 모델이 자발적으로 한 미래 약속도 사용자 요청을 증명하지 않는다.
   const notice = (
     !hasPendingAction
     && !userRequestedChange
-    && sanitized.removedFuturePromiseCount === 0
   ) || (!hasPendingAction && endsWithQuestion)
     ? null
     : hasPendingAction
