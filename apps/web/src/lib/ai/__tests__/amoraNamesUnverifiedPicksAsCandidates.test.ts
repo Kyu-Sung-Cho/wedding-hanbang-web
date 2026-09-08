@@ -6,14 +6,13 @@
  * "다만 실제 예산 적합성은 아직 판단할 수 없어요" 를 뒤에 붙였다. 단서는 있었고
  * 순서만 위험했다 — 사용자는 1순위를 먼저 읽는다.
  *
- * `## 할루시네이션 방지` 의 근거 등급 원칙이 표현을 낮추게는 하지만, **미검증 안을
- * 무엇이라 부를지**는 저장소 어디에도 없었다. 그래서 `**추천·비교의 내부 점검:**`
- * 목록에 한 줄을 더했다.
+ * 2026-09-08 재검증에서도 1순위를 먼저 말하고 단서를 뒤에 붙였다. 강화한 규칙도
+ * 포화 프로필·긴 이력에서는 잘렸으므로 결정 역할 바로 아래로 옮긴다.
  *
  * ## 이 파일이 재는 것
  *
- * 이 섹션(`## 아모라의 사고방식`)은 **보호 헤딩이 아니다.** 문맥이 무거우면 절단
- * 대상이므로, 결정을 쌓아 실제로 절단이 일어나는 표본에서도 남는지 함께 본다.
+ * 결정·프로필·대화 요약을 각각 채워 실제로 절단이 일어나는 표본에서도 규칙 전체가
+ * 한 번만 남는지 본다. 다른 추천 기준도 유지한다.
  * 절단이 한 번도 안 일어난 표본으로 재면 이 검사는 아무것도 지키지 못한다.
  */
 import { describe, expect, it } from "vitest";
@@ -44,7 +43,7 @@ const CHECKLIST_HEADING = "**추천·비교의 내부 점검:**";
 const PENDING_ACTION_TOOLS = BETA_SAFE_TOOLS.filter((tool) => isMutatingTool(tool.name));
 const USER_TEXT = "결혼식 예산 배분 좀 도와줘";
 
-function promptWith(decisionCount: number): string {
+function promptWith(decisionCount: number, stress: "none" | "profiles" | "history" = "none"): string {
   const questionScope = classifyAmoraQuestionScope({ userText: USER_TEXT });
   const candidateTools = getAvailableChatTools({
     requestKind: "chat",
@@ -102,6 +101,21 @@ function promptWith(decisionCount: number): string {
       chatSummaries: [],
       pastConflicts: [],
       pastDecisions,
+      ...(stress === "profiles" ? {
+        amoraProfiles: Object.fromEntries(["shared", "private"].map(scope => [scope, {
+          personaSummary: "가".repeat(2_000), budgetPosture: "가".repeat(2_000),
+          decisionStyle: "가".repeat(2_000), tasteProfile: "가".repeat(2_000),
+          communicationStyle: "가".repeat(2_000), conflictPattern: "가".repeat(2_000),
+          sensitiveTopics: ["가".repeat(2_000)], recommendationRules: ["가".repeat(2_000)],
+          openQuestions: ["가".repeat(2_000)], confidenceScore: 0.9,
+        }])),
+      } : {}),
+      ...(stress === "history" ? {
+        chatSummaries: Array.from({ length: 30 }, (_, index) => `요약 ${index}. 예식장 후보와 촬영 견적을 비교한 합성 대화. `.repeat(30)),
+        scheduleEvents: Array.from({ length: 40 }, (_, index) => ({
+          id: `evt-${index}`, title: `일정 ${index}: 견적 문의`, date: "2027-03-01", type: "couple_promise",
+        })),
+      } : {}),
     } as never,
     {
       specialist: "general",
@@ -126,9 +140,11 @@ function checklistSection(prompt: string): string {
 }
 
 describe("미검증 안은 추천이 아니라 후보로 부른다", () => {
-  it("규칙이 내부 점검 목록 안에 있다", () => {
-    // 다른 절(해석·근거 등급)에 흩어 두면 추천 순간에 안 걸린다.
-    const section = checklistSection(promptWith(0));
+  it("규칙이 결정 역할 바로 다음에 있다", () => {
+    const prompt = promptWith(0);
+    const section = prompt.split("\n").find(line => line.includes("**미검증은 이름부터**")) ?? "";
+    expect(prompt.indexOf(section)).toBeGreaterThan(prompt.indexOf("- **결정**:"));
+    expect(prompt.indexOf(section)).toBeLessThan(prompt.indexOf("단 **두 사람의 의견이 갈린 자리**"));
     expect(section).toContain("미검증은 이름부터");
     expect(section, "무엇을 미검증으로 볼지가 없다")
       .toContain("예산·수용 인원·일정 적합성");
@@ -136,14 +152,31 @@ describe("미검증 안은 추천이 아니라 후보로 부른다", () => {
       .toContain("먼저 견적을 받아볼 후보");
     expect(section, "이름이 언제 바뀌는지 말하지 않으면 사용자는 다음 행동을 모른다")
       .toContain("무엇을 확인해야 그 이름이 바뀌는지");
+    expect(section, "1순위를 요구받아도 미검증 후보의 이름을 낮춰야 한다")
+      .toContain("미검증이면 1순위를 요청해도");
+    expect(section, "후보를 확정 추천한 뒤 단서만 붙이는 것은 같은 실패다")
+      .toContain("뒤에 단서를 붙여");
   });
 
   it("결정이 쌓여 절단이 일어나는 턴에서도 남는다", () => {
     const prompt = promptWith(12);
     expect(prompt, "이 표본은 절단 구간에 닿지 않는다 — 아래 단언이 헛돈다")
       .toContain("길이 제한으로 생략됨");
-    expect(checklistSection(prompt), "문맥이 무거운 커플에게서 이 규칙이 조용히 빠진다")
+    expect(prompt, "문맥이 무거운 커플에게서 이 규칙이 조용히 빠진다")
       .toContain("미검증은 이름부터");
+  });
+
+  it.each(["profiles", "history"] as const)("%s가 상한에 닿아도 같은 추천 계약 전체가 한 번만 남는다", stress => {
+    const ordinary = promptWith(0);
+    const expectedRule = ordinary.split("\n").find(line => line.includes("**미검증은 이름부터**"))?.trim();
+    expect(expectedRule).toBeTruthy();
+    const prompt = promptWith(0, stress);
+    expect(prompt, "실제 절단이 없는 표본으로 도달을 주장하지 않는다").toContain("길이 제한으로 생략됨");
+    expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+    const rules = prompt.split("\n").filter(line => line.includes("**미검증은 이름부터**")).map(line => line.trim());
+    expect(rules).toEqual([expectedRule]);
+    expect(prompt).toContain("확인된 공동 합의는 유지");
+    expect(prompt).toContain("미정은 미전달의 증거가 아닙니다");
   });
 
   it("같은 목록의 기존 기준을 밀어내지 않았다", () => {
