@@ -83,6 +83,17 @@
   Desktop and mobile Amora navigation both enter missions; the conversation scope
   controls and board link share a row. Ordinary messages use the reference's sage
   and ink bubbles. Shared/private scope and approval controls remain functional.
+  The subsequent Amora review labels mixed task/checklist suggestions as today's
+  preparation and keeps the actual shared-task count separate. Task links select
+  `?view=tasks`; board selection follows browser history while preserving drafts.
+  Amora headers omit the unrelated community search shortcut. Mobile board state
+  controls stack their dot, label and count; supporting labels are at least 12px.
+  Long decisions retain their full fetched text for search and an explicit reveal.
+  Save sheets keep their title and actions fixed while the explanation and content
+  scroll. Actions sit side by side only below 500px viewport height. Expanding a memo
+  focuses its 16px input; closing or deferring restores a meaningful control without
+  overriding a newer focus choice. These presentation changes do not imply storage,
+  partner approval or a completed budget/schedule/checklist update.
 
 - **Landing HTML exception (2026-09-06):** The user supplied `Main.dc.html` and
   `LandingMobile.dc.html` as the approved replacement design. Only `/landing`

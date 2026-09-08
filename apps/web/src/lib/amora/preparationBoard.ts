@@ -43,7 +43,7 @@ export function parsePreparationDecisions(value: unknown, coupleId: string, curs
   const visible = rows.slice(0, DECISION_PAGE_SIZE);
   return {
     records: visible.map((row): PreparationDecision => ({
-      id: row.id, category: row.category ?? "", title: row.title.slice(0, 400), detail: row.reasoning?.slice(0, 1000) || null,
+      id: row.id, category: row.category ?? "", title: row.title, detail: row.reasoning || null,
       createdAt: row.created_at, source: row.source ?? "",
       status: row.decision_type === "exploring" ? "exploring" : row.decision_type === "considering" ? "considering" : "confirmed",
       stateLabel: DECISION_STATE_LABELS[row.decision_type],

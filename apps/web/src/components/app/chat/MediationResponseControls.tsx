@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
+import { weddingPath } from '@/lib/weddingPaths';
 import { createMediationResponseSession, mediationChoiceLabels, type MediationChoice, type MediationResponseRevision } from '@hanbang/shared/mediation-responses';
 
 function identityKey() {
@@ -48,7 +49,7 @@ function ResponseForm({state,session,connected}:{state:ReturnType<ReturnType<typ
     {!connected&&<p className="text-sm">실제 계정으로 연결한 뒤 응답할 수 있어요.</p>}
     {state.loading&&<p className="text-sm">확인 상태를 불러오는 중이에요</p>}
     {state.error&&<p role="alert" className="text-sm text-red-700">{state.error}</p>}
-    {state.taskUnknown&&<p className="text-sm">저장 결과를 확인하기 전에는 다시 저장하지 않아요. <Link href="/chat/board" className="underline">준비 보드에서 먼저 확인</Link></p>}
+    {state.taskUnknown&&<p className="text-sm">저장 결과를 확인하기 전에는 다시 저장하지 않아요. <Link href={weddingPath('/chat/board?view=tasks')} className="underline">공유 할 일에서 먼저 확인</Link></p>}
     {snapshot&&<>
       {snapshot.responses.map(item=><div key={item.userId} className="rounded-[6px] bg-[var(--hb-surface-hover)] p-3 text-sm text-[var(--hb-text-body)]"><p className="font-semibold">{item.userId===snapshot.actorId?'내 응답':'상대방 응답'} · {mediationChoiceLabels[item.choice]}</p>{item.condition&&<p className="mt-1 whitespace-pre-wrap break-words">{item.condition}</p>}</div>)}
       {snapshot.completed?<p className="text-sm font-semibold text-[var(--hb-success)]">두 분이 각각 확인해 공동 결정으로 저장했어요</p>:!snapshot.partnerLinked?<p className="text-sm">파트너가 연결된 뒤 두 분이 각각 확인할 수 있어요</p>:<>
@@ -59,7 +60,7 @@ function ResponseForm({state,session,connected}:{state:ReturnType<ReturnType<typ
         {snapshot.myResponse&&<Button fullWidth variant="secondary" disabled={disabled} onClick={()=>void session.revoke().then(saved=>{if(saved){setEditing(false);setChoice(null);setCondition('');}})}>내 응답 취소</Button>}
         <p className="text-xs text-[var(--hb-text-muted)]">{snapshot.acceptedCount}/2명 괜찮음 · 조건부 가능과 어려움은 공동 확정이 아니에요.</p>
       </>}
-      {state.taskUnknown?null:state.taskSaved?<p className="text-sm">공유 할 일에 저장했어요. <Link href="/chat/board" className="underline">준비 보드 보기</Link></p>:!taskOpen?<Button variant="secondary" fullWidth disabled={disabled} onClick={()=>{setTaskOpen(true);setDescription(snapshot.myResponse?.condition??'');}}>내가 확인할 내용 정리</Button>:<div className="space-y-3 rounded-[6px] border border-[var(--hb-hairline)] p-3">
+      {state.taskUnknown?null:state.taskSaved?<p className="text-sm">공유 할 일에 저장했어요. <Link href={weddingPath('/chat/board?view=tasks')} className="underline">공유 할 일 보기</Link></p>:!taskOpen?<Button variant="secondary" fullWidth disabled={disabled} onClick={()=>{setTaskOpen(true);setDescription(snapshot.myResponse?.condition??'');}}>내가 확인할 내용 정리</Button>:<div className="space-y-3 rounded-[6px] border border-[var(--hb-hairline)] p-3">
         <p className="text-sm font-semibold">공유 할 일로 저장할 내용 확인</p><p className="text-xs leading-relaxed">파트너도 보는 준비 보드에 저장해요. 상대방에게 담당자를 지정하거나 선택안을 확정하지 않아요.</p>
         <label className="block text-sm">제목<input aria-label="확인할 할 일 제목" value={title} maxLength={120} disabled={disabled} onChange={e=>setTitle(e.target.value)} className="mt-1 min-h-11 w-full rounded-[6px] border border-[var(--hb-hairline)] p-2" /></label>
         <label className="block text-sm">내용<textarea aria-label="확인할 할 일 내용" value={description} maxLength={500} rows={3} disabled={disabled} onChange={e=>setDescription(e.target.value)} className="mt-1 w-full rounded-[6px] border border-[var(--hb-hairline)] p-2" /></label>
