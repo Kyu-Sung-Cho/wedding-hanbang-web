@@ -119,7 +119,7 @@ describe("철회 목록을 지어내지 않는다", () => {
       const roles = prompt.slice(rolesStart, rolesEnd);
       const listening = prompt.slice(listeningStart, listeningEnd);
       expect(roles, label).toContain("이유가 비어 있는 큰 실무 방향 전환");
-      expect(roles, label).toContain("새 취향 질문 전에 바뀐 이유를 한 번");
+      expect(roles, label).toContain("새 취향 질문 전에 현재 바꾼 대상의 이유를 한 번");
       expect(listening, label).toContain("바꾼 부분만 대화 기준에 반영");
       expect(listening, label).toContain("이유를 이미 말했으면 다시 묻지");
       expect(listening, label).toContain("알려진 조건의 유지 여부를 되묻거나 새 공동 합의로 만들지");
