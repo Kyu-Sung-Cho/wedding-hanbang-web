@@ -1,12 +1,21 @@
 // 추천의 근거를 새로 판단하지 않는다. 같은 문단에서 스스로 후보라고 낮춘 명칭만 맞춘다.
-const RANK_LABEL = /^([ \t]*(?:\*\*)?)(추천[ \t]*1[ \t]*순위|1[ \t]*순위[ \t]*추천|최우선[ \t]*추천)(?=[ \t]*(?:[은는이가:：]|\*\*|$))/u;
+const RANK_LABEL = /^([ \t]*(?:\*\*)?(?:(?:현재|지금|현[ \t]*시점)(?:은|에는|에서는|에서|으로서는|로서는)?(?:\*\*)?[ \t]*(?:\*\*)?)?)(추천[ \t]*1[ \t]*순위|1[ \t]*순위[ \t]*추천|최우선[ \t]*추천)(?=[ \t]*(?:[은는이가:：]|\*\*|$))/u;
 const RANKED_RECOMMENDATION = /(?:추천[ \t]*1[ \t]*순위|1[ \t]*순위[ \t]*추천|최우선[ \t]*추천)/u;
-const UNVERIFIED = /(?:확인|검증)(?:되지\s*않|하지\s*못|하지\s*않|할\s*수\s*없)|미(?:확인|검증)/u;
-const SELF_CANDIDATE = /(?:현재(?:로서는)?|지금(?:은|으로서는)?|이\s*(?:안|제안|추천|선택)(?:은|이)?|제가\s*(?:제시한|드린)\s*(?:안|제안)(?:은|이)?)\s*(?:아직\s*)?(?:실제|확정(?:적인)?|최종)\s*추천(?:이|은)?\s*(?:아니라|아닌|아니고)(?=\s)[^.!?\n]{0,96}후보(?:예요|이에요|입니다)(?=[.!?]|$)/u;
 const PROTECTED_PROSE = /[`"'“”‘’「」『』]|(?:라고|라는|이라고|이라는)\s*(?:말|표현|문구|요청|의견|뜻|의미)|(?:^|\n)[ \t]*(?:>|\||[-*+]\s|\d+[.)]\s|#{1,6}\s)/u;
 const FACT_SUBJECT = /^(?:견적|가격|비용|예산|상한|인원|날짜|일정|범위|금액|수용량|접근성|식대)$/u;
 const DIRECT_CANDIDATE_STATE = /(?:아직\s*)?(?:(?:확인|검증)(?:되지\s*않은|하지\s*못한)|미(?:확인|검증)(?:인)?)\s*(?:(?:비교|검토|절충)\s*)?후보(?:안)?(?:이에요|예요|입니다)$/u;
 const HYPOTHETICAL_STATE = /(?:^|\s)만약(?:\s|$)|(?<!서)면(?=[,\s])|(?:일|인)\s*경우/u;
+const RECLASSIFICATION = /(?:(?:현재(?:로서는)?|지금(?:은|으로서는)?|이\s*(?:안|제안|추천|선택)(?:은|이)?|제가\s*(?:제시한|드린)\s*(?:안|제안)(?:은|이)?)\s*)?(?:(?:실제|확정(?:적인)?|최종)\s*)?추천(?:이(?:라기보다(?:는)?|라기보단)|(?:이|은)?\s*(?:아니라|아닌|아니고)|보다는)\s*(?:(?:먼저|우선)\s*)?(?:(?:견적을\s*받아볼|비교할|검토할)\s*)?(?:(?:검토|비교|절충)\s*)?후보(?:안)?(?:예요|이에요|입니다|로\s*(?:(?:두는|보는)\s*(?:게|것이)\s*(?:정확해요|정확합니다|맞아요|맞습니다)|두겠습니다|봐야\s*해요|제안해요))$/u;
+const AGREEMENT_NEGATION = /(?:아직\s*)?(?:(?:두\s*(?:분|사람)|둘)(?:이|은|는)?\s*)?(?:(?:인원|날짜|예산|금액|범위)(?:에|을|를)\s*)?(?:공동으로\s*|함께\s*)?(?:(?:합의|동의)(?:하지\s*않(?:았으므로|아서|아)|되지\s*않(?:았으므로|아서|아))|정하지\s*못(?:했으므로|해서|해))/u;
+const NOT_AN_AGREED_FACT = /(?:아직\s*)?(?:(?:두\s*(?:분|사람)|둘)(?:이|은|는)?\s*)?(?:합의한|함께\s*정한)\s*(?:숫자|인원|날짜|예산|금액|범위)(?:가|는|이)?\s*아니(?:므로|라서|어서)/u;
+
+// 추천→후보라는 명시적인 자기 재분류 자체가 근거다. 앞 이유의 사실성을 추정하지 않는다.
+function classifyCandidateState(text: string): { kind: "unverified-candidate" | "explicit-reclassification"; index: number } | null {
+  const direct = text.match(DIRECT_CANDIDATE_STATE);
+  if (direct && direct.index !== undefined) return { kind: "unverified-candidate", index: direct.index };
+  const reclassified = text.match(RECLASSIFICATION);
+  return reclassified && reclassified.index !== undefined ? { kind: "explicit-reclassification", index: reclassified.index } : null;
+}
 
 function namedCandidates(text: string): Set<string> {
   return new Set([...text.matchAll(/(?:[A-Z0-9]+\s*안|안\s*[A-Z0-9]+|[가-힣A-Za-z0-9·-]+(?:웨딩홀|예식장|호텔|홀))(?=[은는이가입을를의\s,.!?*]|$)/gu)]
@@ -18,6 +27,13 @@ function hasDifferentTopic(text: string, reason = false): boolean {
   let scope = text.replace(/(?:^|\s)같은(?=\s)/gu, " ");
   // 인물 이름이 아니라 선호 관계절만 구분한다. 별도 분야의 주제 전환은 계속 막는다.
   if (reason) scope = scope.replace(/(?:^|\s)[가-힣A-Za-z0-9·-]+(?:가|이)\s+(?:원하는|선호하는|중요하게\s*여기는)(?=\s)/gu, " ");
+  // '…는 안이기 때문'의 관형절 종결은 별도 명사의 주제 조사와 구분한다.
+  // 앞쪽의 촬영은/패키지는 등 명시적인 분야 전환은 그대로 검사한다.
+  if (reason && /(?:^|\s)[가-힣]+는\s+안이기\s*때문(?:이에요|입니다|이죠)$/u.test(scope)) {
+    const possessives = scope.replace(/(?:두\s*(?:분|사람)|둘)의(?=\s)/gu, " ");
+    if (/(?:^|\s)[가-힣A-Za-z0-9·-]+의(?=\s)|(?:다른|별도(?:의)?)\s*(?:안|옵션|패키지|분야|후보)/u.test(possessives)) return true;
+    scope = scope.replace(/(?:^|\s)[가-힣]+는(?=\s+안이기\s*때문(?:이에요|입니다|이죠)$)/u, " ");
+  }
   return [...scope.matchAll(/(?:^|\s)([가-힣A-Za-z0-9·-]+?)(?:은|는|이|가)(?=\s)/gu)]
     .some(match => !FACT_SUBJECT.test(match[1]));
 }
@@ -32,6 +48,8 @@ function isEvidenceFollowup(text: string): boolean {
 function isFactConditionPrefix(text: string): boolean {
   // 모르는 수식어를 같은 안의 조건으로 추정하지 않는다. '촬영 패키지의 예산'도 남긴다.
   let scope = text;
+  scope = scope.replace(AGREEMENT_NEGATION, " ").replace(NOT_AN_AGREED_FACT, " ");
+  scope = scope.replace(/\d[\d,]*(?:\.\d+)?\s*(?:만|억|천)?\s*(?:명|원)(?:은|는|이|가)(?=\s)/gu, " ");
   // 예산 안의 포함 범위를 묻는 항목 나열은 별도 분야의 후보 선언과 구분한다.
   if (/(?:\d[\d,]*(?:\.\d+)?\s*(?:억|만|천)?\s*원\s*안에|예산\s*(?:안에|에))/u.test(scope)) {
     scope = scope.replace(/(?:^|\s)[가-힣]+(?:\s*[·,]\s*[가-힣]+)*\s+등이\s+포함되는지는(?=\s)/gu, " ");
@@ -51,8 +69,7 @@ function hasCandidateStateWithContext(plain: string): boolean {
     ? [] : [{ text: piece.trim(), ending: pieces[index + 1]?.trim() ?? "" }]);
   const states = sentences.flatMap((sentence, index) => {
     if (sentence.text.includes("?") || sentence.ending.includes("?") || HYPOTHETICAL_STATE.test(sentence.text)) return [];
-    const state = sentence.text.match(DIRECT_CANDIDATE_STATE)
-      ?? (UNVERIFIED.test(sentence.text) ? sentence.text.match(SELF_CANDIDATE) : null);
+    const state = classifyCandidateState(sentence.text);
     return state ? [{ index, state }] : [];
   });
   if (states.length !== 1) return false;
@@ -82,7 +99,7 @@ export function alignAmoraRecommendationLabels(text: string): { text: string; co
     if (!label) return block;
     const plain = block.replaceAll("**", "");
     const candidates = namedCandidates(plain);
-    if (!UNVERIFIED.test(plain) || candidates.size !== 1
+    if (candidates.size !== 1
       || [...plain.matchAll(new RegExp(RANKED_RECOMMENDATION.source, "gu"))].length !== 1
       || /(?:[2-9]|\d{2,})\s*순위/u.test(plain)) return block;
 
