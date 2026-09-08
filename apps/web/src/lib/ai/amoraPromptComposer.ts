@@ -48,6 +48,7 @@ export const AMORA_SYSTEM_PROMPT_MAX_CHARS = 48_000;
 // 전달하되, 저장 문맥을 허용하는 일반 웨딩 상담 범위에서만 보호한다.
 const AMORA_PLANNING_PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 이유는 한 번만 묻되 이미 말했으면 건너뛰고, 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요. 작은 월 선호는 되묻지 마세요.";
 const AMORA_RECOMMENDATION_EVIDENCE_RULE = "- 추천에 필요한 견적·예산·인원·날짜 조건이 미확인이면 첫 명칭부터 검토 후보로 쓰세요. 제공된 확인 조건의 비교 추천과 일반 준비 순서 추천은 가능합니다.";
+const AMORA_ATTRIBUTION_EVIDENCE_RULE = "- 공개된 두 사람의 준비 의견을 비교할 때, 직전 맥락까지 확인해 말·이유·조건을 말한 사람에게만 귀속하세요. 한 주제에서 한쪽만 조건을 밝혔다면 그 사람의 조건으로 남기고, 공동 기준이나 의견 충돌로 확대하지 마세요. 같은 주제에서 양쪽이 밝힌 양립하지 않는 조건이 있을 때만 의견이 갈린다고 하세요. 한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지하세요. 감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요.";
 
 const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
 const KNOWN_TOOL_NAME_SET = new Set(KNOWN_TOOL_NAMES);
@@ -946,10 +947,15 @@ export function buildAmoraSystemPrompt(
   const recommendationEvidenceContract = canUseStoredPromptContext(options)
     ? `\n\n[추천 근거 확인]\n${AMORA_RECOMMENDATION_EVIDENCE_RULE}`
     : "";
+  // 기본 중재 섹션의 귀속 규칙을 마지막으로 옮긴다. 안전 신고에서 이
+  // 비교 규칙을 제외하던 경계는 유지하며, 새 조건을 갈등으로 만들지 않는다.
+  const attributionEvidenceContract = !isSafetyScopedTurn(options.questionScope)
+    ? `\n\n[준비 의견의 근거 확인]\n${AMORA_ATTRIBUTION_EVIDENCE_RULE}`
+    : "";
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
+  )}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {

@@ -9,13 +9,13 @@ function roleFor(userText: string, correctionCount = 0) {
   });
 }
 
-describe("explicit multi-party opinion model routing", () => {
+describe("multi-party opinion routing recovery", () => {
   it.each([
     "공개된 두 사람의 의견을 차례로 전달할게. A의 의견: “나는 이동이 편한 대전 시내에서 120명 안팎의 정식 예식을 하고 싶어. 가족 접근성과 격식을 중요하게 생각해.”",
     "공개된 두 사람의 의견을 차례로 전달할게. B의 의견: “나는 우리 집안 친척 관계 때문에 180~200명은 초대해야 한다고 생각해. 대신 총예산 3,500만 원은 지키고 싶어.”",
     "앞에서 전달한 A와 B의 공개 의견을 기준으로 이제 둘의 의견을 중재해줘. 누가 양보하라고만 하지 말고, 각자 밑바탕 가치가 뭔지 짚고 예산·하객·장소를 묶은 절충안 3개와 추천 1순위를 제시해.",
-  ])("uses primary for the actual public opinion delivery/review turn: %s", (text) => {
-    expect(roleFor(text)).toBe("primary");
+  ])("keeps the frozen public opinion delivery/review turn on fast: %s", (text) => {
+    expect(roleFor(text)).toBe("fast");
   });
 
   it.each([
@@ -24,8 +24,8 @@ describe("explicit multi-party opinion model routing", () => {
     "두 분의 의견을 조율해줄래?",
     "우리 둘의 입장을 전달합니다.",
     "두 사람의 의견을 먼저 정리해줘. 중재하지는 마.",
-  ])("reviews explicit opinions without relying on names: %s", (text) => {
-    expect(roleFor(text)).toBe("primary");
+  ])("keeps ordinary opinion delivery and review on fast: %s", (text) => {
+    expect(roleFor(text)).toBe("fast");
   });
 
   it.each([
@@ -65,8 +65,8 @@ describe("explicit multi-party opinion model routing", () => {
     expect(roleFor(text)).toBe("fast");
   });
 
-  it("does not mistake another person's quoted storage request for current execution", () => {
-    expect(roleFor("두 사람의 의견을 차례로 전달할게. 한 사람은 ‘예산에 저장해줘.’라고 했어.")).toBe("primary");
+  it("keeps a quoted storage request inside opinion delivery on fast", () => {
+    expect(roleFor("두 사람의 의견을 차례로 전달할게. 한 사람은 ‘예산에 저장해줘.’라고 했어.")).toBe("fast");
   });
 
   it("does not cancel existing correction or crisis escalation", () => {

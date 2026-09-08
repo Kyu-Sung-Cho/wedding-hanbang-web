@@ -9071,7 +9071,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         coupleId: "00000000-0000-4000-8000-000000000001",
         isAdmin: false,
         quotaScope: "release_eval",
-        maxCostMicrousd: 88_400,
+        maxCostMicrousd: 17_680,
       },
     );
     expect(mocks.rateLimit).toHaveBeenCalledWith(

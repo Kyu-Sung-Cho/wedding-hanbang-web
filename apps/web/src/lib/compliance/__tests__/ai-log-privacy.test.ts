@@ -86,6 +86,19 @@ describe("logAIInteraction privacy boundary", () => {
     );
   });
 
+  it.each([0, 0.7])("preserves an explicitly supplied historical cost of %s USD", async (costUsd) => {
+    await logAIInteraction({
+      interactionType: "chat_turn",
+      model: "gpt-5.6-luna",
+      tokensInput: 100_000,
+      tokensOutput: 100_000,
+      costUsd,
+    });
+
+    expect(db.insert).toHaveBeenCalledTimes(1);
+    expect(db.insert).toHaveBeenCalledWith(expect.objectContaining({ cost_usd: costUsd }));
+  });
+
   it("redacts secret-looking tokens even when they match the code character set", async () => {
     await logAIInteraction({
       interactionType: "chat_turn",

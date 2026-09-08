@@ -88,27 +88,27 @@ describe("Amora cost report pricing", () => {
       model: "gpt-5.6-luna",
       tokensInput: 100_000,
       tokensOutput: 100_000,
-    })).toBeCloseTo(0.7, 6);
+    })).toBeCloseTo(0.14, 6);
     expect(calcModelCostUsd({
       model: "gpt-5.6-terra",
       tokensInput: 100_000,
       tokensOutput: 100_000,
-    })).toBeCloseTo(1.75, 6);
+    })).toBeCloseTo(1.4, 6);
   });
 
   it("tracks the verified GPT-5.6 long-context multiplier for both active models", () => {
-    expect(MODEL_PRICING_CATALOG.sources.openai.checkedAt).toBe("2026-07-16");
+    expect(MODEL_PRICING_CATALOG.sources.openai.checkedAt).toBe("2026-09-09");
     expect(MODEL_PRICING_CATALOG.sources.openai.url)
       .toBe("https://developers.openai.com/api/docs/pricing");
     expect(MODEL_PRICING_CATALOG.models["gpt-5.6-luna"].longContext)
-      .toMatchObject({ inputTokenThresholdExclusive: 272_000, input: 2, output: 9 });
+      .toMatchObject({ inputTokenThresholdExclusive: 272_000, input: 0.4, output: 1.8, cacheWrite: 0.5, cacheRead: 0.04 });
     expect(MODEL_PRICING_CATALOG.models["gpt-5.6-terra"].longContext)
-      .toMatchObject({ inputTokenThresholdExclusive: 272_000, input: 5, output: 22.5 });
+      .toMatchObject({ inputTokenThresholdExclusive: 272_000, input: 4, output: 18, cacheWrite: 5, cacheRead: 0.4 });
     expect(calcModelCostUsd({
       model: "gpt-5.6-terra",
       tokensInput: 300_000,
       tokensOutput: 100_000,
-    })).toBeCloseTo(3.75, 6);
+    })).toBeCloseTo(3, 6);
   });
 
   it("prints CLI help without credentials or network access", () => {

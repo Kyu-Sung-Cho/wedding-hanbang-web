@@ -29,8 +29,8 @@ export const AMORA_MAX_TOOL_CALLS_PER_TURN = 8;
  * config/amora-model-pricing.json (the policy test recomputes and locks these).
  */
 export const AMORA_MAX_PROVIDER_CALL_COST_MICROUSD_BY_ROLE = {
-  fast: 88_400,
-  primary: 221_000,
+  fast: 17_680,
+  primary: 176_800,
 } as const;
 
 /**
