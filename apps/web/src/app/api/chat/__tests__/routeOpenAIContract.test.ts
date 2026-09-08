@@ -9487,9 +9487,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .not.toHaveProperty("output_hygiene");
   });
 
-  it.each([true, false])("keeps ranked recommendation canonical/SSE consistent with its own candidate status: %s", async selfCandidate => {
+  it.each(["explicit-demotion", "direct-candidate-state", "confirmed"] as const)("keeps ranked recommendation canonical/SSE consistent with its own candidate status: %s", async mode => {
+    const selfCandidate = mode !== "confirmed";
     const prefix = "**추천 1순위는 2안**이에요.";
-    const suffix = selfCandidate
+    const suffix = mode === "direct-candidate-state"
+      ? " B의 친척 초대 필요를 반영하면서 A가 원하는 대전 시내의 정식 예식도 유지할 수 있기 때문이에요. 다만 **3,500만 원 안에서 가능한지는 아직 확인되지 않은 후보안**이에요. 장소의 식사 금액, 최소 식사 인원, 대관료와 포함 범위를 같은 조건으로 받아본 뒤 판단해야 해요."
+      : selfCandidate
       ? " 접근성 때문이에요. 다만 예산 범위가 확인되지 않아 현재로서는 확정 추천이 아니라 먼저 견적을 받아볼 후보예요."
       : " 제공한 가상 서면 견적에서 2안은 1,000만 원, 1안은 1,050만 원이고 두 안 모두 150명이 가능해요. 상한 1,200만 원 아래에서 2안이 50만 원 적어요. 다만 주류 포함 여부는 추가로 확인하세요.";
     const text = prefix + suffix;
