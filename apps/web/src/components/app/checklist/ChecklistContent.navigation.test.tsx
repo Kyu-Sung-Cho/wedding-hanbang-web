@@ -130,6 +130,27 @@ describe("ChecklistContent category deep links", () => {
       container.querySelector('button[aria-label="결혼식장 체크리스트 열기"]'),
     ).toBeNull();
   });
+
+  it("restores focus to search when resetting an empty result", async () => {
+    await render();
+    const search = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    await act(async () => {
+      valueSetter?.call(search, "존재하지않는준비항목");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const reset = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent === "전체 목록 보기")!;
+    expect(reset).toBeDefined();
+    reset.focus();
+    await act(async () => reset.click());
+
+    expect(reset.isConnected).toBe(false);
+    expect(search.value).toBe("");
+    expect(document.activeElement).toBe(search);
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(CATEGORY_CHECKLISTS.length);
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
 });
 
 /**

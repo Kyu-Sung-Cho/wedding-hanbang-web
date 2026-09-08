@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 
-import { createElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { createRoot, type Root } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MannersIndexPage from "@/app/manners/page";
 import MannersLayout from "@/app/manners/layout";
@@ -13,6 +14,152 @@ import MannersPartView from "./MannersPartView";
 
 const text = (value: string | null) => (value ?? "").replace(/\s+/g, " ").trim();
 const parse = (html: string) => new DOMParser().parseFromString(html, "text/html");
+
+(globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+let mountedRoot: Root | undefined;
+function mount(element: ReactElement) {
+  const container = document.createElement("div");
+  document.body.append(container);
+  act(() => { mountedRoot = createRoot(container); mountedRoot.render(element); });
+  return container;
+}
+function searchGuide(container: HTMLElement, value: string) {
+  const input = container.querySelector<HTMLInputElement>('input[type="search"][aria-label="가이드 검색"]');
+  expect(input, "가이드 검색 입력을 제공한다").not.toBeNull();
+  act(() => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+    input!.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+}
+function clickButton(container: HTMLElement, name: string) {
+  const button = [...container.querySelectorAll("button")].find(element => element.getAttribute("aria-label") === name || element.textContent === name);
+  expect(button, `${name} 버튼을 제공한다`).toBeDefined();
+  act(() => button!.click());
+  return button!;
+}
+afterEach(() => { act(() => mountedRoot?.unmount()); mountedRoot = undefined; document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, "", "/"); });
+
+describe("예절에서 필요한 글과 절을 찾는다", () => {
+  it("제목에 없는 본문 키워드도 검색하고, 빈 결과에서 전체 목록으로 돌아온다", () => {
+    const container = mount(<MannersIndexPage />);
+    searchGuide(container, "봉투");
+    expect(container.querySelector('[data-guide-slug="gift-money"]')).not.toBeNull();
+    expect(container.querySelector('[data-guide-slug="post-honeymoon-thanks"]')).toBeNull();
+    searchGuide(container, "찾을수없는가이드123");
+    expect(container.textContent).toContain("찾는 가이드가 없어요");
+    expect(container.querySelectorAll("[data-guide-slug]")).toHaveLength(0);
+    clickButton(container, "검색과 주제 초기화");
+    expect(container.querySelectorAll("[data-guide-slug]")).toHaveLength(25);
+  });
+
+  it("주제를 선택한 뒤에도 검색 조건을 함께 적용하고 전체로 복구한다", () => {
+    const container = mount(<MannersIndexPage />);
+    clickButton(container, "식이 끝난 뒤");
+    expect(container.querySelector('[data-guide-slug="post-honeymoon-thanks"]')).not.toBeNull();
+    expect(container.querySelector('[data-guide-slug="gift-money"]')).toBeNull();
+    searchGuide(container, "신혼여행");
+    expect(container.querySelector('[data-guide-slug="post-honeymoon-thanks"]')).not.toBeNull();
+    expect([...container.querySelectorAll("button")].find(button => button.textContent === "식이 끝난 뒤")?.getAttribute("aria-pressed")).toBe("true");
+    clickButton(container, "검색과 주제 초기화");
+    expect(container.querySelectorAll("[data-guide-slug]")).toHaveLength(25);
+  });
+
+  it("검색어를 지우거나 초기화해도 키보드 초점이 검색창으로 돌아온다", () => {
+    const container = mount(<MannersIndexPage />);
+    searchGuide(container, "봉투");
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    container.querySelector<HTMLButtonElement>('button[aria-label="검색어 지우기"]')!.focus();
+    clickButton(container, "검색어 지우기");
+    expect(document.activeElement).toBe(input);
+    clickButton(container, "식이 끝난 뒤");
+    container.querySelector<HTMLButtonElement>('button[aria-label="검색과 주제 초기화"]')!.focus();
+    clickButton(container, "검색과 주제 초기화");
+    expect(document.activeElement).toBe(input);
+  });
+
+  it("상단 주의문에만 있는 키워드로도 가이드를 찾는다", () => {
+    const container = mount(<MannersIndexPage />);
+    searchGuide(container, "식대별");
+    expect(container.querySelector('[data-guide-slug="gift-money"]')).not.toBeNull();
+  });
+
+  it("타임라인에만 표시된 문구도 검색에 포함한다", () => {
+    const part = MANNERS_PARTS.find(item => item.slug === "wedding-day")!;
+    const block = part.sections.flatMap(section => section.blocks).find(item => item.kind === "table" && item.timeline);
+    if (block?.kind !== "table" || !block.timeline?.length) throw new Error("타임라인이 필요해요.");
+    const node = block.timeline[0];
+    const originalLabel = node.label;
+    try {
+      node.label = "검증용동선표시";
+      const container = mount(<MannersIndexPage />);
+      searchGuide(container, "검증용동선표시");
+      expect(container.querySelector('[data-guide-slug="wedding-day"]')).not.toBeNull();
+    } finally {
+      node.label = originalLabel;
+    }
+  });
+
+  it("역할을 바꾸면 목차도 공통 절과 선택한 역할만 가리킨다", () => {
+    const part = MANNERS_PARTS.find(item => item.slug === "wedding-day")!;
+    const container = mount(<MannersPartView part={part} />);
+    act(() => container.querySelector<HTMLInputElement>('#wedding-day-role-guest')!.click());
+    const toc = container.querySelector<HTMLElement>('nav[aria-label="이 글의 목차"]');
+    expect(toc, "원문의 절을 목차로 연결한다").not.toBeNull();
+    const links = [...toc!.querySelectorAll('a[href^="#section-"]')].map(a => a.getAttribute("href"));
+    const expected = part.sections.flatMap((section, index) => !section.role || section.role === "공통" || section.role === "하객" ? [`#section-${index + 1}`] : []);
+    expect(links).toEqual(expected);
+    expect(links.length).toBeLessThan(part.sections.length);
+    expect(container.querySelectorAll("section[id^='section-']")).toHaveLength(part.sections.length);
+    act(() => container.querySelector<HTMLInputElement>('#wedding-day-role-all')!.click());
+    expect(toc!.querySelectorAll('a[href^="#section-"]')).toHaveLength(part.sections.length);
+  });
+
+  it("같은 절 앵커를 다시 눌러도 해당 절로 이동한다", () => {
+    const scroll = vi.fn();
+    vi.stubGlobal("matchMedia", vi.fn(() => ({ matches: true })));
+    const part = MANNERS_PARTS.find(item => item.slug === "gift-money")!;
+    const container = mount(<MannersPartView part={part} />);
+    const target = container.querySelector<HTMLElement>("#section-1")!;
+    target.scrollIntoView = scroll;
+    const link = container.querySelector<HTMLAnchorElement>('nav[aria-label="이 글의 목차"] a[href="#section-1"]');
+    expect(link, "첫 절 목차 링크를 제공한다").not.toBeNull();
+    act(() => link!.click());
+    act(() => link!.click());
+    expect(window.location.hash).toBe("#section-1");
+    expect(scroll).toHaveBeenCalledTimes(2);
+    expect(target).toBe(document.activeElement);
+    vi.unstubAllGlobals();
+  });
+
+  it("역할 밖의 절 주소로 들어오면 전체 역할로 되돌려 원문을 보여준다", () => {
+    const part = MANNERS_PARTS.find(item => item.slug === "wedding-day")!;
+    const container = mount(<MannersPartView part={part} />);
+    act(() => container.querySelector<HTMLInputElement>('#wedding-day-role-guest')!.click());
+    const hiddenIndex = part.sections.findIndex(section => section.role === "두 사람");
+    const target = container.querySelector<HTMLElement>(`#section-${hiddenIndex + 1}`)!;
+    const scroll = vi.fn();
+    target.scrollIntoView = scroll;
+    act(() => {
+      window.history.replaceState(null, "", `#section-${hiddenIndex + 1}`);
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    expect(container.querySelector<HTMLInputElement>('#wedding-day-role-all')?.checked).toBe(true);
+    expect(container.querySelectorAll('nav[aria-label="이 글의 목차"] a')).toHaveLength(part.sections.length);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(target);
+  });
+
+  it("목차로 돌아가면 접혀 있던 목차를 열고 초점을 옮긴다", () => {
+    const part = MANNERS_PARTS.find(item => item.slug === "gift-money")!;
+    const container = mount(<MannersPartView part={part} />);
+    const toc = container.querySelector<HTMLDetailsElement>("#manners-toc")!;
+    toc.scrollIntoView = vi.fn();
+    expect(toc.open).toBe(false);
+    act(() => container.querySelector<HTMLAnchorElement>('a[href="#manners-toc"]')!.click());
+    expect(toc.open).toBe(true);
+    expect(document.activeElement).toBe(toc);
+  });
+});
 
 describe("예절 HTML 패턴이 검증 원문 전체를 보존한다", () => {
   it.each(MANNERS_PARTS)("$slug의 모든 절·문장·표·근거가 서버 HTML에 남는다", part => {

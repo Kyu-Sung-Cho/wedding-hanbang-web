@@ -24,7 +24,7 @@ import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 // ⚠️ 분야 아이콘 표를 2026-09-04에 지웠다. 시안 여덟 장의 모달 제목은 **글자뿐**이고,
 // 아이콘 18px + 간격 8px 이 긴 분야 이름(「혼인신고와 주소·보험 신고」)의 자리를 먹었다.
-// 분야 아이콘은 목록 화면(`ChecklistContent`)이 계속 쓴다.
+// 목록도 분야명과 진행수로 구분하며, 아이콘은 예절·아모라 보조 행동에만 쓴다.
 
 // ⚠️ 상태별 칩 색 표를 2026-09-04에 지웠다. 시안 네 장이 상태와 무관하게
 // **같은 베이지 칩**을 쓴다 — 상태는 글자로만 말한다. 색을 되살리면 머리에
@@ -53,9 +53,9 @@ function ItemTag({ kind }: { kind: ChecklistItemTag | "다음 할 일" }) {
   // 목록에서 그 한 줄만 튀어 시안과 다르게 보였다.
   const style = kind === "해당 시"
     ? "bg-[var(--color-surface-low)] text-[var(--hb-text-body)]"
-    : "bg-[var(--color-rose-pale)] text-[var(--color-rose-600)]";
+    : "bg-[var(--color-rose-pale)] text-[var(--color-rose-700)]";
   return (
-    <span className={`flex-shrink-0 rounded-full px-[7px] py-[2px] text-[10px] font-bold ${style}`}>
+    <span className={`flex-shrink-0 rounded-full px-[7px] py-[2px] text-[11px] font-bold ${style}`}>
       {kind}
     </span>
   );
@@ -436,10 +436,10 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                 */}
                 {group.title ? (
                   <div className="flex items-center justify-between gap-3 py-1.5">
-                    <h3 className={`font-bold tracking-[0.02em] text-[var(--color-rose-600)] ${isPlanning ? "text-[11.5px] md:text-[12.5px]" : "text-[12.5px]"}`}>
+                    <h3 className={`font-bold text-[var(--color-rose-700)] ${isPlanning ? "text-[12px] md:text-[12.5px]" : "text-[12.5px]"}`}>
                       {group.title}
                     </h3>
-                    <span className="shrink-0 text-[11.5px] text-[var(--hb-text-muted)] tabular-nums">
+                    <span className={`shrink-0 text-[var(--hb-text-muted)] tabular-nums ${isPlanning ? "text-[12px]" : "text-[11.5px]"}`}>
                       {groupDone}/{group.items.length}
                     </span>
                   </div>
@@ -529,7 +529,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                         />
                       </button>
                       {itemAmoraHref && (
-                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-accent)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)] hover:text-[var(--amora-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
                           <Sparkle className="h-[18px] w-[18px]" aria-hidden="true" strokeWidth={1.7} />
                         </Link>
                       )}
@@ -549,6 +549,12 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
             );
           })}
 
+          {isPlanning && (
+            <p className="mt-5 border-t border-[var(--amora-line)] pt-4 text-[12.5px] leading-[1.7] text-[var(--amora-soft)]">
+              {template.tip}
+            </p>
+          )}
+
           {/*
             「우리는 이건 안 해요」.
 
@@ -563,7 +569,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
             type="button"
             onClick={toggleNotApplicable}
             disabled={saving || !checklistReady}
-            className="mt-6 w-full rounded-[11px] border border-[#E5DDC9] bg-white px-4 py-3 text-left text-[12.5px] text-[var(--hb-text-body)] transition-colors hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
+            className="mt-5 w-full rounded-[11px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-4 py-3 text-left text-[12.5px] text-[var(--hb-text-body)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] disabled:opacity-50"
           >
             {isNotApplicable ? (
               <>
@@ -584,7 +590,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
         </div>
 
         {/* 팁 */}
-        <div className={isPlanning ? "max-h-[40dvh] shrink-0 overflow-y-auto border-t border-[var(--amora-line)] bg-[var(--amora-warm)] px-5 pt-[14px] pb-[max(22px,env(safe-area-inset-bottom))] md:max-h-[35dvh] md:px-7 md:py-4" : "border-t border-[#E5DDC9] bg-[var(--color-ivory-warm)] px-7 py-4"}>
+        <div className={isPlanning ? "max-h-[35dvh] shrink-0 overflow-y-auto border-t border-[var(--amora-line)] bg-[var(--amora-warm)] px-5 pt-3 pb-[max(16px,env(safe-area-inset-bottom))] md:px-7 md:py-3" : "border-t border-[#E5DDC9] bg-[var(--color-ivory-warm)] px-7 py-4"}>
           {error && (
             <p
               role="alert"
@@ -598,23 +604,19 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
               {notice}
             </p>
           )}
-          {/*
-            팁과 예절 링크가 나란히 선다. 예전에는 세로로 쌓여 바닥이 화면의 3분의 1을
-            먹었고, 그만큼 항목이 밀려 스크롤이 늘었다. 좁은 화면에서는 다시 쌓인다.
-
-            링크의 부제 두 줄을 뺐다 — 제목이 「첫인사 예절 보기」처럼 이미 무엇을 여는지
-            말하고 있어서, 그 아래 설명은 같은 말을 길게 반복하는 자리였다.
-          */}
+          {/* 긴 팁은 본문에서 읽고, 시트 하단에는 이어서 할 수 있는 행동만 둔다. */}
           <div className={isPlanning ? "flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4" : "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"}>
-            <p className={`flex items-start gap-2.5 leading-[1.6] text-[var(--hb-text-body)] ${isPlanning ? "text-[12px] md:text-[12.5px]" : "text-[12.5px]"}`}>
+            {!isPlanning && <p className="flex items-start gap-2.5 text-[12.5px] leading-[1.6] text-[var(--hb-text-body)]">
               <Sparkle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" strokeWidth={1.7} />
               <span>{template.tip}</span>
-            </p>
+            </p>}
 
-            <div className="flex min-w-0 items-stretch gap-2 md:max-w-[50%] md:shrink-0">
+            {isPlanning && <p className="text-[12px] leading-[1.6] text-[var(--amora-muted)] md:max-w-[280px]">질문 초안을 확인한 뒤 직접 보내요. 체크 상태는 바뀌지 않아요.</p>}
+
+            <div className={isPlanning ? "flex min-w-0 items-stretch gap-2 md:shrink-0" : "flex min-w-0 items-stretch gap-2 md:max-w-[50%] md:shrink-0"}>
             {relatedGuide && <Link
               {...weddingLinkProps(relatedGuide.href)}
-              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${isPlanning ? "min-h-[46px] md:min-h-11" : ""}`}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[10px] border border-[var(--hb-hairline)] bg-white px-3 py-2 text-[12.5px] font-medium text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${isPlanning ? "min-h-11" : ""}`}
             >
               <BookOpen className="h-[15px] w-[15px] flex-shrink-0" aria-hidden="true" />
               {/*
@@ -630,13 +632,13 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
               </span>
             </Link>}
             {amoraHref && (
-              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-[46px] shrink-0 items-center justify-center rounded-[11px] bg-[var(--amora-ink)] px-3.5 py-[9px] text-center text-[12.5px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:min-h-11">
-                아모라 질문
+              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-center text-[12.5px] font-medium text-[var(--amora-accent)] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                <Sparkle aria-hidden="true" className="size-[15px]" strokeWidth={1.7} />아모라 질문
               </Link>
             )}
             </div>
           </div>
-          <p className="mt-2 text-[11.5px] leading-[1.6] text-[var(--amora-muted)]">질문 초안을 확인한 뒤 직접 보내요. 체크 상태는 바뀌지 않아요.</p>
+          {!isPlanning && <p className="mt-2 text-[11.5px] leading-[1.6] text-[var(--amora-muted)]">질문 초안을 확인한 뒤 직접 보내요. 체크 상태는 바뀌지 않아요.</p>}
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>
       </div>

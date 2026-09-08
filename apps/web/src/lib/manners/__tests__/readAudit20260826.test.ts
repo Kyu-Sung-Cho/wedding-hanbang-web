@@ -312,10 +312,8 @@ describe("빽빽함 — 눈이 구별할 수 있게", () => {
     // 강하게 지켜진다. 그래서 표기가 아니라 **뜻**을 잰다: 절을 그리는 `<section>` 이
     // 자기 테두리를 갖고, 그것들을 감싼 줄이 사이 여백을 준다.
     const source = view();
-    const sectionTag = source.slice(
-      source.indexOf("<section", source.indexOf("part.sections.map")),
-      source.indexOf(">", source.indexOf("scroll-mt-28")) + 1,
-    );
+    const sectionStart = source.indexOf("<section", source.indexOf("part.sections.map"));
+    const sectionTag = source.slice(sectionStart, source.indexOf(">", sectionStart) + 1);
     expect(sectionTag, "절 <section> 을 못 찾았다").toContain("scroll-mt-28");
     expect(sectionTag, "절마다 경계가 없다 — 스크롤하면 균질한 기둥이 된다")
       .toMatch(/\bborder\b/u);
