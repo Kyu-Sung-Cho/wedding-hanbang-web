@@ -9487,6 +9487,60 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .not.toHaveProperty("output_hygiene");
   });
 
+  it.each([true, false])("keeps ranked recommendation canonical/SSE consistent with its own candidate status: %s", async selfCandidate => {
+    const prefix = "**추천 1순위는 2안**이에요.";
+    const suffix = selfCandidate
+      ? " 접근성 때문이에요. 다만 예산 범위가 확인되지 않아 현재로서는 확정 추천이 아니라 먼저 견적을 받아볼 후보예요."
+      : " 제공한 가상 서면 견적에서 2안은 1,000만 원, 1안은 1,050만 원이고 두 안 모두 150명이 가능해요. 상한 1,200만 원 아래에서 2안이 50만 원 적어요. 다만 주류 포함 여부는 추가로 확인하세요.";
+    const text = prefix + suffix;
+    const expected = selfCandidate ? text.replace("추천 1순위", "우선 검토 후보") : text;
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      options.onTextDelta?.(prefix);
+      options.onTextDelta?.(suffix);
+      return providerResult({ fullText: text });
+    });
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.content).toBe(expected);
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(expected);
+    expect(events.filter(event => event.type === "text_delta").map(event => event.content).join("")).toBe(expected);
+    if (selfCandidate) expect(mocks.atomicResponses[0]?.metadata.output_hygiene).toContainEqual({ kind: "recommendation_label_aligned", count: 1 });
+    else expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("output_hygiene");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("does not flush a ranked preview or invent a successful terminal when generation fails", async () => {
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      options.onTextDelta?.("추천 1순위는 2안이에요.");
+      throw new Error("SYNTHETIC_GENERATION_INTERRUPTED");
+    });
+    const response = await POST(request());
+    const body = await response.text();
+    expect(body).not.toContain("추천 1순위");
+    expect(body).not.toContain('"type":"done"');
+    expect(body).toContain('"type":"error"');
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it.each(["", "[MEDIATION_REQUEST]", " \n[INITIAL_GREETING][/INITIAL_GREETING]\t "])("never hands an empty terminal body to the durable ledger: %j", async fullText => {
     // 빈 본문이 원장으로 가면 사용자는 침묵만 본다. 오늘은 앞단
     // (`composeAmoraPersistenceTerminal`)이 먼저 서버 문장을 채우고,
