@@ -377,6 +377,61 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
     });
   });
 
+  it("binds a public preparation reference without inserting guide text as a user decision", async () => {
+    const preparationSource = "c.venue.venue_04";
+    const row = canonicalUserRow({ metadata: { client_request_id: REQUEST_ID, preparation_source: preparationSource } });
+    const admin = mockPostAdmin({ insertData: row });
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID, content: row.content, clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared", preparationSource,
+    }));
+    expect(response.status).toBe(201);
+    expect(admin.insert).toHaveBeenCalledWith(expect.objectContaining({
+      content: row.content,
+      metadata: { client_request_id: REQUEST_ID, preparation_source: preparationSource },
+    }));
+  });
+
+  it.each(["c.unknown", "g.cost-saving.section-999", "https://evil.invalid/guide", 12])("rejects an unknown public preparation reference before insertion: %s", async (preparationSource) => {
+    const admin = mockPostAdmin();
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID, content: "예식장 비교 기준을 정리해줘", clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared", preparationSource,
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "INVALID_PREPARATION_SOURCE" });
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
+  it("rejects reusing a durable request with a different public preparation reference", async () => {
+    const admin = mockPostAdmin({ insertData: null, insertError: { code: "23505" }, reconcileData: canonicalUserRow() });
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID, content: "예식장 비교 기준을 정리해줘", clientRequestId: REQUEST_ID,
+      requestedVisibility: "shared", preparationSource: "c.venue.venue_04",
+    }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "USER_MESSAGE_REQUEST_CONFLICT" });
+    expect(admin.reconcileMaybeSingle).toHaveBeenCalled();
+  });
+
+  it.each(["partner", "private", "confirmed"])("does not attach public preparation context to %s delivery", async (scope) => {
+    const admin = mockPostAdmin();
+    if (scope === "private") vi.mocked(planAmoraCrisisDelivery).mockReturnValue({
+      disposition: "continue", classification: null, effectiveVisibility: "bride_private",
+      safetyPrivacyRedirected: false, partnerDeliveryHeld: false, response: null,
+    });
+    const response = await POST(postRequest({
+      coupleId: COUPLE_ID, content: "예식장 비교 기준을 정리해줘", clientRequestId: REQUEST_ID,
+      requestedVisibility: scope === "private" ? "bride_private" : "shared",
+      ...(scope === "partner" ? { target: "partner" } : {}),
+      ...(scope === "confirmed" ? { confirmedActionId: ACTION_ID } : {}),
+      preparationSource: "c.venue.venue_04",
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "INVALID_PREPARATION_SOURCE" });
+    expect(admin.insert).not.toHaveBeenCalled();
+  });
+
   it("bounds an oversized chunked ingest body before classification or persistence", async () => {
     const chunk = new Uint8Array(128 * 1024 + 1);
     let pulls = 0;
@@ -928,6 +983,7 @@ describe("/api/chat/messages server-authoritative AI ingest", () => {
       clientRequestId: REQUEST_ID,
       requestedVisibility: "shared",
       confirmedActionId: ACTION_ID,
+      preparationSource: "g.unknown",
       imagePaths: [`${COUPLE_ID}/${USER_ID}/${MESSAGE_ID}.webp`],
       providerAttachmentCount: 1,
       providerAttachmentManifest: [{

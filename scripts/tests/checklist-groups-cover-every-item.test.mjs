@@ -116,7 +116,7 @@ test("표시가 붙은 항목은 모두 실재하고, 표시는 두 가지뿐이
   assert.deepEqual(ghosts, [], `정본에 없는 id 에 표시가 달렸다: ${ghosts.join(", ")}`);
 
   const badTags = tagged
-    .filter(({ tag }) => tag !== "필수" && tag !== "해당 시")
+    .filter(({ tag }) => tag !== "중요 확인" && tag !== "해당 시")
     .map(({ id, tag }) => `${id}=${tag}`);
   assert.deepEqual(badTags, [], `모르는 표시: ${badTags.join(", ")}`);
 });
@@ -153,13 +153,13 @@ test("조건 표현이 붙은 항목은 빠짐없이 「해당 시」다", () =>
   assert.deepEqual(extra, [], `조건 표현이 없는데 「해당 시」가 붙었다: ${extra.join(", ")}`);
 });
 
-test("「필수」는 아끼는 것이 기본이다", () => {
-  // 표시는 사용자에게 사실을 주장한다. 절반에 붙으면 아무것도 강조하지 않는 것과 같고,
-  // 틀린 「필수」는 거짓말이다. 늘리려면 근거를 들고 이 숫자를 함께 올려라.
+test("「중요 확인」은 아끼고 법적 의무로 표시하지 않는다", () => {
+  // 강조가 절반에 붙으면 아무것도 강조하지 않는 것과 같다.
   const tagged = readTaggedIds();
-  const required = tagged.filter(({ tag }) => tag === "필수");
+  assert.ok(tagged.every(({ tag }) => tag !== "필수"));
+  const required = tagged.filter(({ tag }) => tag === "중요 확인");
   assert.ok(
     required.length <= itemIds.length * 0.12,
-    `「필수」가 ${required.length}개다 — 전체 ${itemIds.length}개의 12% 를 넘는다`,
+    `「중요 확인」이 ${required.length}개다 — 전체 ${itemIds.length}개의 12% 를 넘는다`,
   );
 });

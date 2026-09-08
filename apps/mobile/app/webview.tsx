@@ -2,7 +2,7 @@
 import { useState, useRef, useCallback, useMemo } from "react";
 import {
   View, Text, StyleSheet, Pressable, ActivityIndicator,
-  Share, Linking,
+  Share, Linking, Alert,
 } from "react-native";
 import * as Crypto from "expo-crypto";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -11,6 +11,7 @@ import { ArrowLeft, Share2 } from "lucide-react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 import { colors } from "@hanbang/design-tokens";
 import { apiFetchForWebBridge } from "@/lib/api";
+import { preparationNavigation } from "@/lib/amoraPreparationSource";
 import {
   MOBILE_WEB_API_PROTOCOL,
   MOBILE_WEB_API_NONCE_PROPERTY,
@@ -142,6 +143,12 @@ export default function WebViewScreen() {
   const handleNavigation = useCallback((event: { url: string }) => {
     const nextUrl = normalizeMobileSiteUrl(event.url, SITE_ORIGIN);
     if (nextUrl) {
+      const preparation = preparationNavigation(nextUrl);
+      if (preparation) {
+        if ("invalid" in preparation) Alert.alert("안내를 확인하지 못했어요", "원래 안내에서 질문 버튼을 다시 눌러 주세요.");
+        else router.replace(preparation.route as Parameters<typeof router.replace>[0]);
+        return false;
+      }
       // 로그인 필요한 화면은 웹뷰에서 열지 않는다 — 웹뷰에 세션이 없어 로그인 폼이 뜬다.
       const native = nativeRouteForWebPath(new URL(nextUrl).pathname);
       if (native) {

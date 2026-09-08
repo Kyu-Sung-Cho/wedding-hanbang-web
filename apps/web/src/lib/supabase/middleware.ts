@@ -208,7 +208,7 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = SIGNUP_CONSENT_PATH;
-    url.search = `?redirect=${encodeURIComponent(pathname)}`;
+    url.search = `?${new URLSearchParams({ redirect: `${pathname}${request.nextUrl.search}` })}`;
     return NextResponse.redirect(url);
   }
 

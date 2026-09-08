@@ -27,7 +27,11 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
-import { useFocusEffect, useLocalSearchParams } from "expo-router";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import {
+  readPreparationSource, loadPreparationForContext, preparationContextMatches,
+  type PreparationDraft, type PreparationContext,
+} from "@/lib/amoraPreparationSource";
 import { supabase } from "@/lib/supabase";
 import {
   buildAmoraActionConfirmationOutcomes,
@@ -179,6 +183,7 @@ interface ChatRequestBody {
   userMessageId: string;
   visibility: ChatMessageVisibility;
   confirmedActionId?: string;
+  preparationSource?: string;
 }
 
 interface AiDraft {
@@ -198,6 +203,7 @@ interface AiDraft {
   sessionGeneration: number;
   confirmedActionId?: string;
   amoraSourceMessageId?: string;
+  preparationSource?: string;
 }
 
 interface AiMessageIngestExpected {
@@ -210,6 +216,7 @@ interface AiMessageIngestExpected {
   providerAttachmentCount: number;
   partnerRecipientId?: string;
   confirmedActionId?: string;
+  preparationSource?: string;
 }
 
 type AiSafetyResolution = "non_immediate_safety" | "immediate_crisis";
@@ -308,6 +315,7 @@ interface ColdStartAiRecovery {
   visibility: ChatMessageVisibility;
   providerAttachmentState: ProviderAttachmentState | "unknown";
   providerAttachmentCount: number | null;
+  preparationSource?: string;
 }
 
 function mergeColdStartRecoveryHistory(
@@ -367,6 +375,12 @@ function findColdStartAiRecovery(
   if (latestLaneRow?.id !== candidate.id) return null;
 
   const metadata = candidate.metadata;
+  const preparationSource = metadata.preparation_source;
+  if (preparationSource !== undefined && (
+    context.visibility !== "shared" || typeof preparationSource !== "string"
+    || preparationSource.length > 170
+    || !/^(?:c\.[a-z][a-z0-9-]{0,63}(?:\.[a-z][a-z0-9_]{0,79})?|g\.[a-z][a-z0-9-]{0,63}(?:\.section-[1-9]\d{0,2})?)$/.test(preparationSource)
+  )) return null;
   const providerAttachmentState: ProviderAttachmentState | "unknown" =
     metadata.provider_attachment_state === "none"
     || metadata.provider_attachment_state === "present"
@@ -442,6 +456,7 @@ function findColdStartAiRecovery(
     visibility: candidate.visibility,
     providerAttachmentState,
     providerAttachmentCount,
+    ...(typeof preparationSource === "string" ? { preparationSource } : {}),
   };
 }
 
@@ -810,6 +825,15 @@ function parseAiMessageIngestResult(
     const confirmedActionMatches = value.safetyPrivacyRedirected === true
       ? canonicalConfirmedActionId === null
       : canonicalConfirmedActionId === expectedConfirmedActionId;
+    const canonicalPreparationSource = message?.metadata?.preparation_source ?? null;
+    const preparationSourceMatches = value.safetyPrivacyRedirected === true
+      ? canonicalPreparationSource === null
+      : canonicalPreparationSource === (expected.preparationSource ?? null)
+        && (canonicalPreparationSource === null || (
+          typeof canonicalPreparationSource === "string"
+          && expectedTarget === "ai" && effectiveVisibility === "shared"
+          && expectedConfirmedActionId === null
+        ));
     const canonicalProviderAttachmentCount = value.safetyPrivacyRedirected === true
       ? 0
       : expected.providerAttachmentCount;
@@ -835,6 +859,7 @@ function parseAiMessageIngestResult(
       && typeof value.safetyPrivacyRedirected === "boolean"
       && safetyContractMatches
       && confirmedActionMatches
+      && preparationSourceMatches
       && ingestContractMatches
       && targetMatches
       && effectiveVisibility !== null
@@ -1470,11 +1495,18 @@ function waitForUnlessAborted<T>(operation: PromiseLike<T>, signal: AbortSignal)
 
 async function requestAiMessageIngest(
   draft: AiDraft | PartnerDraft,
+  isCurrentSession: (generation: number) => boolean,
 ): Promise<AiMessageIngestResult> {
+  if (!isCurrentSession(draft.sessionGeneration)) {
+    throw new AiMessageIngestError(403, "AUTH_CONTEXT_CHANGED", "new_message");
+  }
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   if (sessionError || !accessToken) {
     throw new AiMessageIngestError(401, "AUTH_REQUIRED", "new_message");
+  }
+  if (sessionData.session?.user?.id !== draft.userId || !isCurrentSession(draft.sessionGeneration)) {
+    throw new AiMessageIngestError(403, "AUTH_CONTEXT_CHANGED", "new_message");
   }
 
   const controller = new AbortController();
@@ -1496,6 +1528,8 @@ async function requestAiMessageIngest(
         providerAttachmentCount: draft.target === "partner"
           ? 0
           : draft.providerAttachmentCount,
+        ...(draft.target === "ai" && draft.preparationSource
+          ? { preparationSource: draft.preparationSource } : {}),
         ...("confirmedActionId" in draft && draft.confirmedActionId
           ? { confirmedActionId: draft.confirmedActionId }
           : {}),
@@ -1534,6 +1568,8 @@ async function requestAiMessageIngest(
     ...(draft.target === "partner"
       ? { partnerRecipientId: draft.partnerRecipientId }
       : {}),
+    ...(draft.target === "ai" && draft.preparationSource
+      ? { preparationSource: draft.preparationSource } : {}),
     ...(expectedCanonicalMetadata.confirmed_amora_action_id
       ? { confirmedActionId: expectedCanonicalMetadata.confirmed_amora_action_id }
       : {}),
@@ -1945,6 +1981,8 @@ export default function ChatScreen() {
     useState<PendingActionApprovalState | null>(null);
   const [partnerSafetyNotice, setPartnerSafetyNotice] = useState<string | null>(null);
   const [firstHelloBody, setFirstHelloBody] = useState<string | null>(null);
+  const [preparationDraft, setPreparationDraft] = useState<(PreparationDraft & { context: PreparationContext }) | null>(null);
+  const [preparationNotice, setPreparationNotice] = useState<string | null>(null);
   const flatListRef = useRef<FlatList<ChatMessage>>(null);
   const sendBtnScale = useRef(new Animated.Value(1)).current;
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -2013,7 +2051,69 @@ export default function ChatScreen() {
   // 어느 문으로 들어왔는가. 라운지의 버튼·카드·첫 도착 CTA는 서로 다른 키를 들고 오고,
   // 그 키가 입력창 초안 한 줄을 정한다(웹의 ?prefill=과 같은 자리다). 탭으로 그냥 들어온
   // 사람에게는 키가 없고, 그러면 아무것도 채우지 않는다.
-  const entryParam = useLocalSearchParams()[AMORA_CHAT_ENTRY_PARAM];
+  const routeParams = useLocalSearchParams();
+  const entryParam = routeParams[AMORA_CHAT_ENTRY_PARAM];
+  const preparationParam = routeParams.amoraSource;
+  const consumedPreparationRef = useRef<string | null>(null);
+  const preparationContextRef = useRef<PreparationContext>({ ownerId: null, coupleId: null, generation: 0, lane: null, ready: false, busy: false, input: "" });
+  preparationContextRef.current = {
+    ownerId: userId, coupleId, generation: chatSessionGenerationRef.current.current(), lane: activeLane,
+    ready: initialLoaded && !chatLoadError, busy: streaming || sendingRef.current, input: inputByLane.shared_ai,
+  };
+  useEffect(() => {
+    if (preparationParam === undefined) { consumedPreparationRef.current = null; return; }
+    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
+    const paramKey = JSON.stringify(preparationParam);
+    if (consumedPreparationRef.current === paramKey) {
+      router.setParams({ amoraSource: undefined });
+      return;
+    }
+    consumedPreparationRef.current = paramKey;
+    const before = { ...preparationContextRef.current };
+    const controller = new AbortController();
+    let active = true;
+    const current = (): PreparationContext => ({
+      ...preparationContextRef.current,
+      generation: chatSessionGenerationRef.current.current(),
+      ready: active && mountedRef.current && preparationContextRef.current.ready && sessionUserIdRef.current === before.ownerId,
+      busy: preparationContextRef.current.busy || sendingRef.current,
+      input: inputByLaneRef.current.shared_ai,
+    });
+    const source = readPreparationSource(preparationParam);
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    void (async () => {
+      try {
+        const resolved = source && entryParam === undefined ? await loadPreparationForContext(source, before, current, async id => {
+          const url = buildMobileSiteUrl(`/api/amora/preparation-source?${new URLSearchParams({ source: id })}`, amoraSiteOrigin);
+          const response = await fetch(url, { credentials: "omit", redirect: "error", signal: controller.signal });
+          if (!response.ok) throw new Error("preparation_source_unavailable");
+          const text = await response.text();
+          if (text.length > 32_768) throw new Error("preparation_source_too_large");
+          return JSON.parse(text) as unknown;
+        }) : null;
+        if (!active || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(before.generation)
+          || sessionUserIdRef.current !== before.ownerId) return;
+        if (!resolved || !preparationContextMatches(before, current()) || inputByLaneRef.current.shared_ai.trim()) {
+          setPreparationNotice("안내 질문을 넣지 않았어요. 함께 대화의 작성 중인 질문을 보내거나 비운 뒤 원래 안내에서 다시 눌러 주세요.");
+          return;
+        }
+        setPreparationDraft({ ...resolved, context: before });
+        inputByLaneRef.current = updateAmoraChatLaneRecord(inputByLaneRef.current, "shared_ai", resolved.text);
+        setInputByLane(drafts => drafts.shared_ai.trim() ? drafts : updateAmoraChatLaneRecord(drafts, "shared_ai", resolved.text));
+        setPreparationNotice(null);
+      } catch {
+        if (active && mountedRef.current && chatSessionGenerationRef.current.isCurrent(before.generation)
+          && sessionUserIdRef.current === before.ownerId) setPreparationNotice("안내를 다시 확인하지 못했어요. 원래 안내에서 질문 버튼을 다시 눌러 주세요.");
+      } finally {
+        clearTimeout(timeout);
+        if (active) router.setParams({ amoraSource: undefined });
+      }
+    })();
+    return () => { active = false; controller.abort(); clearTimeout(timeout); };
+  }, [preparationParam, entryParam, initialLoaded, userId, coupleId, chatLoadError, activeLane]);
+  useEffect(() => {
+    if (activeLane !== "shared_ai" || !inputByLane.shared_ai.trim()) setPreparationDraft(null);
+  }, [activeLane, inputByLane.shared_ai]);
   const entryPrefillAppliedRef = useRef(false);
   useFocusEffect(useCallback(() => {
     if (!initialLoaded || !userId || !coupleId || !userRole || chatLoadError || streaming
@@ -2170,6 +2270,8 @@ export default function ChatScreen() {
     setPendingActionNotice(null);
     setPendingActionApproval(null);
     setPartnerSafetyNotice(null);
+    setPreparationDraft(null);
+    setPreparationNotice(null);
   }, []);
 
   useEffect(() => {
@@ -2870,6 +2972,7 @@ export default function ChatScreen() {
       )
       || metadata?.partner_recipient_id !== undefined
       || !confirmedActionMatches
+      || (metadata?.preparation_source ?? null) !== (draft.preparationSource ?? null)
       || !ingestContractMatches
     ) return null;
     if (draft.durableUserMessageId) {
@@ -2932,7 +3035,7 @@ export default function ChatScreen() {
         throw new Error("partner recipient verification unavailable");
       }
 
-      const ingestResult = await requestAiMessageIngest(draft);
+      const ingestResult = await requestAiMessageIngest(draft, isCurrentChatSession);
       if (!isCurrentChatSession(draft.sessionGeneration)) return;
       if (ingestResult.outcome === "ephemeral_safety") {
         if (!ingestResult.partnerDeliveryHeld) {
@@ -3234,7 +3337,7 @@ export default function ChatScreen() {
       let safetyPrivacyRedirected = durableMessage !== null
         && durableMessage.visibility !== draft.requestedVisibility;
       if (!durableMessage) {
-        const ingestResult = await requestAiMessageIngest(draft);
+        const ingestResult = await requestAiMessageIngest(draft, isCurrentChatSession);
         if (!isCurrentChatSession(draft.sessionGeneration)) return;
         if (ingestResult.outcome === "ephemeral_safety") {
           const safetyCardId =
@@ -3357,6 +3460,8 @@ export default function ChatScreen() {
           ...(canonicalConfirmedActionId
             ? { confirmedActionId: canonicalConfirmedActionId }
             : {}),
+          ...(effectiveVisibility === "shared" && typeof canonicalUserMessage.metadata?.preparation_source === "string"
+            ? { preparationSource: canonicalUserMessage.metadata.preparation_source } : {}),
         },
       };
 
@@ -3435,6 +3540,7 @@ export default function ChatScreen() {
       providerAttachmentCount: 0,
       durableUserMessageId: recovery.userMessageId,
       recoveredProviderAttachmentState: recovery.providerAttachmentState,
+      ...(recovery.preparationSource ? { preparationSource: recovery.preparationSource } : {}),
       sessionGeneration,
     };
 
@@ -3615,6 +3721,9 @@ export default function ChatScreen() {
         senderType: userRole,
         senderName: userName,
         requestedVisibility: activeVisibility,
+        ...(effectiveVisibility === "shared" && preparationDraft
+          && preparationContextMatches(preparationDraft.context, { ...preparationContextRef.current, busy: false, generation: sessionGeneration })
+          ? { preparationSource: preparationDraft.source } : {}),
         visibility: effectiveVisibility,
         providerAttachmentCount: 0,
         sessionGeneration,
@@ -3627,7 +3736,9 @@ export default function ChatScreen() {
   function handleInputChange(value: string) {
     if (!activeLane) return;
     safetyHoldLockRef.current = false;
+    inputByLaneRef.current = updateAmoraChatLaneRecord(inputByLaneRef.current, activeLane, value);
     setActiveInput(value);
+    if (!value.trim()) setPreparationDraft(null);
     setSendFailuresByLane((current) => {
       const failure = current[activeLane];
       return failure?.kind === "partner_ingest" || failure?.kind === "ai_insert"
@@ -4389,6 +4500,24 @@ export default function ChatScreen() {
           </View>
         )}
 
+        {preparationDraft && activeLane === "shared_ai"
+          && preparationDraft.context.ownerId === userId && preparationDraft.context.coupleId === coupleId
+          && chatSessionGenerationRef.current.isCurrent(preparationDraft.context.generation) && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText}>{preparationDraft.sourceLabel}{"\n"}공개 안내를 참고해요. 질문을 확인한 뒤 직접 보내세요.</Text>
+            <Pressable style={st.retryBtn} onPress={() => setPreparationDraft(null)} accessibilityRole="button" accessibilityLabel="안내 연결 해제">
+              <Text style={st.retryText}>해제</Text>
+            </Pressable>
+          </View>
+        )}
+        {preparationNotice && (
+          <View style={st.failureBar} accessibilityLiveRegion="polite">
+            <Text style={st.failureText}>{preparationNotice}</Text>
+            <Pressable style={st.retryBtn} onPress={() => setPreparationNotice(null)} accessibilityRole="button" accessibilityLabel="안내 질문 알림 닫기">
+              <Text style={st.retryText}>확인</Text>
+            </Pressable>
+          </View>
+        )}
         {partnerSafetyNotice && (
           <View style={st.failureBar} accessibilityLiveRegion="assertive">
             <Text style={st.failureText} accessibilityRole="alert">

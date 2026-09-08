@@ -624,7 +624,7 @@ test("AI transport stays behind the durable user-message gate", () => {
     "async function sendAiDraft",
     "async function handleRetry",
   );
-  const ingestGate = sendAiDraft.indexOf("await requestAiMessageIngest(draft)");
+  const ingestGate = sendAiDraft.indexOf("await requestAiMessageIngest(draft, isCurrentChatSession)");
   const durableGate = sendAiDraft.indexOf("durableMessage = ingestResult.message");
   const transportCall = sendAiDraft.indexOf("await streamAiRequest(request)");
   const inputClear = sendAiDraft.indexOf("setInputByLane((current)");
@@ -660,7 +660,7 @@ test("AI retry continues from an existing canonical user row without re-ingestin
   );
   const durableLookup = aiSend.indexOf('await findDurableUserMessage(draft, "ai")');
   const missingDurableGate = aiSend.indexOf("if (!durableMessage) {");
-  const ingestCall = aiSend.indexOf("await requestAiMessageIngest(draft)");
+  const ingestCall = aiSend.indexOf("await requestAiMessageIngest(draft, isCurrentChatSession)");
   const providerCall = aiSend.indexOf("await streamAiRequest(request)");
 
   assert.ok(durableLookup >= 0);
@@ -2099,10 +2099,10 @@ test("mobile posts both AI and partner user rows through the Bearer ingest bound
   );
   assert.doesNotMatch(ingestRequest, /imagePaths|attachments/);
 
-  assert.match(aiSend, /await requestAiMessageIngest\(draft\)/);
+  assert.match(aiSend, /await requestAiMessageIngest\(draft, isCurrentChatSession\)/);
   assert.doesNotMatch(aiSend, /\.from\("chat_messages"\)[\s\S]*?\.insert\(/);
   assert.match(aiSend, /durableMessage = ingestResult\.message/);
-  assert.match(partnerSend, /await requestAiMessageIngest\(draft\)/);
+  assert.match(partnerSend, /await requestAiMessageIngest\(draft, isCurrentChatSession\)/);
   assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
   assert.doesNotMatch(partnerSend, /streamAiRequest|requestChatStream/);
 });
@@ -2228,9 +2228,9 @@ test("mobile send path preserves the safety-effective visibility through persist
   assert.doesNotMatch(durableLookup, /\.eq\("content", draft\.text\)/);
   assert.match(durableLookup, /durableMessage\.content !== draft\.text/);
   assert.doesNotMatch(durableLookup, /draft\.startedAt/);
-  assert.match(partnerSend, /await requestAiMessageIngest\(draft\)/);
+  assert.match(partnerSend, /await requestAiMessageIngest\(draft, isCurrentChatSession\)/);
   assert.doesNotMatch(partnerSend, /\.from\("chat_messages"\)|\.insert\(/);
-  assert.match(aiSend, /const ingestResult = await requestAiMessageIngest\(draft\)/);
+  assert.match(aiSend, /const ingestResult = await requestAiMessageIngest\(draft, isCurrentChatSession\)/);
   assert.match(aiSend, /durableMessage = ingestResult\.message/);
   assert.match(aiSend, /coupleId: canonicalUserMessage\.couple_id/);
   assert.match(aiSend, /clientRequestId: canonicalUserMessage\.metadata!\.client_request_id!/);
@@ -2478,7 +2478,7 @@ test("partner delivery is fail-closed and AI suggestions never overwrite the par
   assert.doesNotMatch(suggestionHandler, /handleInputChange/);
 
   const verificationCallIndex = partnerSend.indexOf("await verifyPartnerDraftRecipient(draft)");
-  const ingestIndex = partnerSend.indexOf("await requestAiMessageIngest(draft)");
+  const ingestIndex = partnerSend.indexOf("await requestAiMessageIngest(draft, isCurrentChatSession)");
   assert.ok(verificationCallIndex >= 0, "partner recipient must be reverified before delivery");
   assert.ok(ingestIndex > verificationCallIndex, "recipient verification must finish before server ingest");
   assert.doesNotMatch(partnerSend, /\.insert\(/);

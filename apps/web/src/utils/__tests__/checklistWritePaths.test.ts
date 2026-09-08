@@ -3,6 +3,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 
 /**
  * 진행 현황을 저장하는 모든 경로가 항목 안내(`note`)를 떼고 보내는지 본다.
@@ -38,7 +39,47 @@ const PERSISTS = /\b(updateJourney|patchJourneyProgress)\s*\(|["`]\/api\/journey
  * 뒤에 `.`이 오면 `category.items`처럼 남의 것을 읽어 쓰는 표시용 계산이라 건너뛴다.
  * 우리가 만들어 실어 보내는 배열만 남긴다.
  */
-const CHECKLIST_ASSIGN = /checklist:\s*([A-Za-z_$][\w$]*)(?![\w$.])/g
+const CHECKLIST_ASSIGN = /checklist:\s*([A-Za-z_$][\w$]*)(?![\w$.])/g;
+
+/** useState setter에 직접 보관한 표시용 속성만 제외한다. 같은 파일의 저장 호출은 계속 검사한다. */
+function localStateChecklistOffsets(source: string): Set<number> {
+  const tree = ts.createSourceFile("source.tsx", source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  const setters = new Set<string>();
+  const offsets = new Set<number>();
+  const collectSetters = (node: ts.Node) => {
+    if (ts.isVariableDeclaration(node) && ts.isArrayBindingPattern(node.name)
+      && node.initializer && ts.isCallExpression(node.initializer)
+      && node.initializer.expression.getText(tree) === "useState") {
+      const setter = node.name.elements[1];
+      if (setter && ts.isBindingElement(setter) && ts.isIdentifier(setter.name)) setters.add(setter.name.text);
+    }
+    ts.forEachChild(node, collectSetters);
+  };
+  collectSetters(tree);
+  const collectOffsets = (node: ts.Node) => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && setters.has(node.expression.text)) {
+      const value = node.arguments[0];
+      if (value && ts.isObjectLiteralExpression(value)) {
+        for (const property of value.properties) {
+          if (ts.isPropertyAssignment(property) && ts.isIdentifier(property.name) && property.name.text === "checklist") {
+            offsets.add(property.name.getStart(tree));
+          }
+        }
+      }
+    }
+    ts.forEachChild(node, collectOffsets);
+  };
+  collectOffsets(tree);
+  return offsets;
+}
+
+function unstrippedAssignments(source: string) {
+  const localState = localStateChecklistOffsets(source);
+  return [...source.matchAll(CHECKLIST_ASSIGN)].filter(match => (
+    !localState.has(match.index!)
+    && !["stripPlanningChecklistNotes", "ChecklistItem", "buildDemoChecklist"].includes(match[1])
+  ));
+}
 
 function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
@@ -66,7 +107,7 @@ describe("체크리스트 저장 경로", () => {
 
     for (const file of persistingFiles) {
       const source = readFileSync(file, "utf8");
-      for (const match of source.matchAll(CHECKLIST_ASSIGN)) {
+      for (const match of unstrippedAssignments(source)) {
         const value = match[1];
         // 떼고 보내는 호출이거나, 타입 선언·표시용 지역 변수는 통과.
         if (value === "stripPlanningChecklistNotes") continue;
@@ -80,5 +121,17 @@ describe("체크리스트 저장 경로", () => {
     }
 
     expect(leaks, "저장 전에 stripPlanningChecklistNotes를 거치지 않는 자리").toEqual([]);
+  });
+
+  it("원본 참조를 보관한 로컬 state는 구별하고 실제 저장의 note 포함 배열은 계속 검출한다", () => {
+    const local = "const [state, setListSource] = useState(null); setListSource({ checklist: existing?.checklist });";
+    expect(unstrippedAssignments(local)).toEqual([]);
+    const save = "updateJourney({ progress: { venue: { checklist: updatedWithNotes } } });";
+    expect(unstrippedAssignments(local + save).map(match => match[1])).toEqual(["updatedWithNotes"]);
+    expect(unstrippedAssignments(local + save.replace("updatedWithNotes", "stripPlanningChecklistNotes(updatedWithNotes)"))).toEqual([]);
+    // setter라는 이름만 붙인 함수나 setter 안에 중첩한 실제 저장은 면제하지 않는다.
+    expect(unstrippedAssignments("setListSource({ checklist: updatedWithNotes });").map(match => match[1])).toEqual(["updatedWithNotes"]);
+    expect(unstrippedAssignments(local + "setListSource({ checklist: updateJourney({ checklist: updatedWithNotes }) });").map(match => match[1])).toEqual(["updatedWithNotes"]);
+    expect(unstrippedAssignments(local + "setListSource(() => { updateJourney({ progress: { venue: { checklist: rawWithNotes } } }); return null; });").map(match => match[1])).toEqual(["rawWithNotes"]);
   });
 });

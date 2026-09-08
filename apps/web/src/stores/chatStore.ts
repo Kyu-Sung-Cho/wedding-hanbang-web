@@ -18,6 +18,7 @@ import {
   isExistingChatImageUploadError,
 } from "@/lib/chat/attachmentStorage";
 import { resolveMonotonicSharedClearCursor } from "@/lib/chat/clearCursor";
+import { parseAmoraPreparationSource } from "@/lib/amora/preparationHandoff";
 
 /**
  * coupleId당 활성 Realtime 채널 레지스트리.
@@ -338,6 +339,7 @@ interface ChatStoreState {
     visibility?: "shared" | "bride_private" | "groom_private";
     partnerRecipientId?: string;
     confirmedActionId?: string;
+    preparationSource?: string;
     clientRequestId?: string;
   }) => Promise<ChatSendOutcome>;
   retryFailedMessage: () => Promise<void>;
@@ -902,6 +904,7 @@ function isBoundUserMessageRow(
     target: ChatMessageTarget;
     partnerRecipientId: string | null;
     confirmedActionId: string | null;
+    preparationSource: string | null;
     clientRequestId: string;
     providerAttachmentCount: number;
     providerAttachmentState: NonNullable<ChatMessageMetadata["provider_attachment_state"]>;
@@ -950,6 +953,7 @@ function isBoundUserMessageRow(
           && manifestEntry.sha256 === expectedEntry.sha256;
       });
   return record.client_request_id === expected.clientRequestId
+    && (record.preparation_source ?? null) === expected.preparationSource
     && record.amora_ingest_contract_version === expected.providerAttachmentContractVersion
     && record.ai_response_requested === expected.aiResponseRequested
     && record.provider_attachment_state === expected.providerAttachmentState
@@ -1207,6 +1211,9 @@ export function buildUnansweredMessageRecoveryRequest(
   if (!unanswered || !unanswered.metadata) return null;
 
   const clientRequestId = unanswered.metadata.client_request_id!.toLowerCase();
+  const preparationSource = unanswered.metadata.preparation_source;
+  if (preparationSource !== undefined && (typeof preparationSource !== "string"
+    || !parseAmoraPreparationSource(preparationSource) || unanswered.visibility !== "shared")) return null;
   const attachmentCount = unanswered.metadata.provider_attachment_count ?? 0;
   const requiresReattach = unanswered.metadata.provider_attachment_state === "present";
   const scopedMessages = canonical
@@ -1244,6 +1251,7 @@ export function buildUnansweredMessageRecoveryRequest(
         clientRequestId,
         userMessageId: unanswered.id,
         visibility: unanswered.visibility,
+        ...(preparationSource ? { preparationSource } : {}),
       });
 
   return {
@@ -1943,7 +1951,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
 
   sendMessage: async ({
     content, senderId, senderRole, coupleId, senderName, weddingContext, images, target = "ai", visibility,
-    confirmedActionId, clientRequestId: requestedClientRequestId, partnerRecipientId,
+    confirmedActionId, preparationSource, clientRequestId: requestedClientRequestId, partnerRecipientId,
   }) => {
     const lifecycleBinding = captureActiveChatLifecycleBinding();
     // Durable Supabase account/couple scopes are UUID-bound. Signed demo and
@@ -1988,6 +1996,12 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const effectiveConfirmedActionId = crisisPreflight?.disposition === "private_safety_route"
       ? undefined
       : confirmedActionId;
+    let effectivePreparationSource = crisisPreflight?.disposition === "private_safety_route" ? undefined : preparationSource;
+    if (effectivePreparationSource !== undefined && (typeof effectivePreparationSource !== "string"
+      || !parseAmoraPreparationSource(effectivePreparationSource) || target !== "ai"
+      || finalVisibility !== "shared" || effectiveConfirmedActionId !== undefined)) {
+      return { userMessage: "not_persisted", reason: "validation" };
+    }
     let privateSafetyCardId: string | null = null;
     if (crisisPreflight?.disposition === "local_safety_hold") {
       const safetyCardId = `amora-crisis-preflight:${coupleId}:${
@@ -2213,6 +2227,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       ...(effectiveConfirmedActionId
         ? { confirmed_amora_action_id: effectiveConfirmedActionId }
         : {}),
+      ...(effectivePreparationSource ? { preparation_source: effectivePreparationSource } : {}),
     };
 
     // 이미지를 Supabase Storage에 업로드 시도 (채팅 기록 표시용)
@@ -2225,6 +2240,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       target,
       partnerRecipientId: target === "partner" ? normalizedPartnerRecipientId : null,
       confirmedActionId: effectiveConfirmedActionId ?? null,
+      preparationSource: effectivePreparationSource ?? null,
       clientRequestId,
       providerAttachmentCount: target === "partner" ? 0 : attachments.length,
       providerAttachmentState: (target === "partner"
@@ -2356,6 +2372,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
             ...(effectiveConfirmedActionId
               ? { confirmedActionId: effectiveConfirmedActionId }
               : {}),
+            ...(effectivePreparationSource ? { preparationSource: effectivePreparationSource } : {}),
             ...(imagePaths.length > 0 ? { imagePaths } : {}),
           }),
         });
@@ -2536,6 +2553,8 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
       finalVisibility = serverVisibility;
       expectedRow.visibility = serverVisibility;
       if (ingestPayload.safetyPrivacyRedirected === true) {
+        effectivePreparationSource = undefined;
+        expectedRow.preparationSource = null;
         expectedRow.providerAttachmentCount = 0;
         expectedRow.providerAttachmentState = attachments.length > 0
           ? "discarded_by_safety_policy"
@@ -2667,6 +2686,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         ...(effectiveConfirmedActionId !== undefined
           ? { confirmedActionId: effectiveConfirmedActionId }
           : {}),
+        ...(effectivePreparationSource ? { preparationSource: effectivePreparationSource } : {}),
         ...(attachmentPayload.length > 0 ? { attachments: attachmentPayload } : {}),
       });
     } catch (error) {

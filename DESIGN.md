@@ -34,6 +34,16 @@
   The HTML workspace palette and its shared component role aliases are generated
   from `packages/design-tokens/src/webCssVars.ts` and `colors.ts`; `tokens:sync`
   maintains their scoped regions in `globals.css` without changing other routes.
+  The 2026-09-08 content alignment keeps every canonical item and guide section,
+  including the rows clipped out of the mobile HTML examples. Each category,
+  canonical checklist item, guide and section has a separate Amora question link;
+  opening it prepares a question for review and never sends or checks an item.
+  These links coexist with the checklist and related-guide controls. Saved custom
+  items remain intact; they do not receive an invented public source identifier.
+  Long checklist headings wrap, with the registration heading using the reference's
+  16.5px mobile size. Role tabs replace the redundant audience badge in role-based
+  guides. Source dates belong to individual references and their stated scope,
+  rather than a single date claiming that the whole guide was verified.
 
 - **Amora HTML exception (2026-09-06):** The user also approved the supplied
   `AmoraMissions.dc.html`, `MissionsMobile.dc.html`, `AmoraDecisionBoard.dc.html`,

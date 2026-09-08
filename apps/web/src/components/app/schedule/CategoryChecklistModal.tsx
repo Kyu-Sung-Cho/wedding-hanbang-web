@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useId, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useId, useRef, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { X, Check, Sparkle, BookOpen } from "lucide-react";
 import Link from "next/link";
@@ -16,6 +16,7 @@ import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
 import ChecklistItemSource, { checklistSourceLabel } from "@/components/app/checklist/ChecklistItemSource";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
@@ -43,12 +44,11 @@ const STATUS_LABELS: Record<string, string> = {
  * 진행 상태고 나머지 둘은 항목의 성격이다. 그래서 진행 상태만 채운 장미색으로
  * 두고, 성격 표시 둘은 연한 바탕에 글자색으로 구분한다.
  *
- * ⚠️ 「필수」는 사용자에게 **사실을 주장한다.** 붙는 자리는 데이터
- * (`checklistGroups.ts` 의 `CHECKLIST_ITEM_TAGS`)가 정하고 172개 중 10개뿐이다.
- * 여기서 조건을 만들어 더 붙이지 마라.
+ * 「중요 확인」은 법적 의무 표시가 아니다. 항목의 성격은 정본
+ * `CHECKLIST_ITEM_TAGS`에서만 읽고 여기서 조건이나 우선순위를 추가하지 않는다.
  */
 function ItemTag({ kind }: { kind: ChecklistItemTag | "다음 할 일" }) {
-  // 시안의 `.must-tag` 는 「필수」와 「다음 할 일」이 같은 모양이고(연한 장미 바탕 +
+  // 시안의 `.must-tag` 는 「중요 확인」과 「다음 할 일」이 같은 모양이고(연한 장미 바탕 +
   // 진한 장미 글자), 「해당 시」만 베이지다. 진행 상태를 채운 색으로 뒤집었더니
   // 목록에서 그 한 줄만 튀어 시안과 다르게 보였다.
   const style = kind === "해당 시"
@@ -68,7 +68,39 @@ interface Props {
   presentation?: "default" | "planning";
 }
 
-export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, presentation = "default" }: Props) {
+function checklistOwnerKey() {
+  const state = useAuthStore.getState();
+  return JSON.stringify([
+    state.isDemo, state.user?.id, state.profile?.id, state.profile?.couple_id, state.profile?.role,
+    state.couple?.id, state.couple?.bride_id, state.couple?.groom_id,
+    state.journey?.couple_id, state.journey?.id,
+  ]);
+}
+
+export default function CategoryChecklistModal(props: Props) {
+  // 예산 화면과 같은 관찰 방식으로, React가 한 번에 그린 A→B→A도 별도 세대로 구분한다.
+  const [owner] = useState(() => {
+    let snapshot = { key: checklistOwnerKey(), epoch: 0 };
+    const getSnapshot = () => {
+      const key = checklistOwnerKey();
+      if (key !== snapshot.key) snapshot = { key, epoch: snapshot.epoch + 1 };
+      return snapshot;
+    };
+    return {
+      getSnapshot,
+      subscribe: (notify: () => void) => useAuthStore.subscribe(() => {
+        const previous = snapshot;
+        if (getSnapshot() !== previous) notify();
+      }),
+    };
+  });
+  const binding = useSyncExternalStore(owner.subscribe, owner.getSnapshot, owner.getSnapshot);
+  const isCurrentOwner = useCallback(() => owner.getSnapshot() === binding, [owner, binding]);
+  return <ScopedCategoryChecklistModal {...props} key={`${binding.key}:${binding.epoch}:${props.categoryKey}:${props.isOpen}`}
+    isCurrentOwner={isCurrentOwner} />;
+}
+
+function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentation = "default", isCurrentOwner }: Props & { isCurrentOwner: () => boolean }) {
   const isPlanning = presentation === "planning";
   const [portalReady, setPortalReady] = useState(false);
   useEffect(() => { setPortalReady(true); }, []);
@@ -80,6 +112,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
   });
   const { journey, updateJourney } = useAuthStore();
   const [checklist, setChecklist] = useState<ChecklistItem[]>([]);
+  const [listSource, setListSource] = useState<{ checklist: ChecklistItem[] | undefined; status: ProgressItem["status"] | undefined } | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -93,17 +126,25 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
   const template = CHECKLIST_MAP[categoryKey];
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
   const existing = progress[categoryKey] as ProgressItem | undefined;
+  const checklistReady = listSource !== null && listSource.checklist === existing?.checklist && listSource.status === existing?.status;
+  const mounted = useRef(false);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   useEffect(() => {
     if (!isOpen || !template) return;
     const timer = window.setTimeout(() => {
+      if (!mounted.current || !isCurrentOwner()) return;
       const merged = mergeChecklist(template.items, existing?.checklist, existing?.status);
       setChecklist(merged);
+      setListSource({ checklist: existing?.checklist, status: existing?.status });
       setError("");
       setNotice("");
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [isOpen, categoryKey, template, existing?.checklist, existing?.status]);
+  }, [isOpen, categoryKey, template, existing?.checklist, existing?.status, isCurrentOwner]);
 
   useEffect(() => {
     if (!isOpen || isPlanning) return;
@@ -149,7 +190,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
 
   const toggleItem = useCallback(
     async (itemId: string) => {
-      if (saving) return;
+      if (saving || !checklistReady || !mounted.current || !isCurrentOwner()
+        || useAuthStore.getState().journey?.progress !== progress) return;
 
       const updated = checklist.map((c) =>
         c.id === itemId ? { ...c, done: !c.done } : c
@@ -172,13 +214,17 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
       setNotice("");
       try {
         const result = await updateJourney({ progress: newProgress });
+        if (!mounted.current || !isCurrentOwner()) return;
         if (result.status === "pending_partner") {
+          if (useAuthStore.getState().journey?.progress?.[categoryKey] !== existing) return;
           setChecklist(checklist);
           setNotice("상대방에게 확인을 요청했어요. 두 분이 확인하면 체크 상태에 반영돼요.");
         } else {
           setNotice("체크 상태를 저장했어요.");
         }
       } catch (saveError) {
+        if (!mounted.current || !isCurrentOwner()
+          || useAuthStore.getState().journey?.progress?.[categoryKey] !== existing) return;
         setChecklist(checklist);
         setError(
           saveError instanceof Error
@@ -186,10 +232,10 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
             : "체크리스트를 저장하지 못했습니다.",
         );
       } finally {
-        setSaving(false);
+        if (mounted.current && isCurrentOwner()) setSaving(false);
       }
     },
-    [checklist, saving, progress, categoryKey, existing, updateJourney]
+    [checklist, checklistReady, saving, progress, categoryKey, existing, updateJourney, isCurrentOwner]
   );
 
   const isNotApplicable = existing?.status === "not_applicable";
@@ -197,7 +243,8 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
   // 우리 결혼에는 해당 없는 항목(함·폐백·예단 등)을 끄고 켠다.
   // 끄면 진행률 분모와 마감 알림에서 빠져 "영구 미완료"로 남지 않는다.
   const toggleNotApplicable = async () => {
-    if (saving) return;
+    if (saving || !checklistReady || !mounted.current || !isCurrentOwner()
+      || useAuthStore.getState().journey?.progress !== progress) return;
     const nextStatus = isNotApplicable ? calculateStatus(checklist) : "not_applicable";
     setSaving(true);
     setError("");
@@ -214,6 +261,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
           },
         } as Record<string, ProgressItem>,
       });
+      if (!mounted.current || !isCurrentOwner()) return;
       setNotice(
         result.status === "pending_partner"
           ? "상대방에게 확인을 요청했어요. 두 분이 확인하면 상태가 바뀌어요."
@@ -222,13 +270,14 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
             : "이 분야를 진행률과 마감 알림에서 제외했어요.",
       );
     } catch (saveError) {
+      if (!mounted.current || !isCurrentOwner()) return;
       setError(
         saveError instanceof Error
           ? saveError.message
           : "체크리스트 상태를 저장하지 못했습니다.",
       );
     } finally {
-      setSaving(false);
+      if (mounted.current && isCurrentOwner()) setSaving(false);
     }
   };
 
@@ -288,6 +337,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
     ? "md:max-h-[min(760px,calc(100dvh-60px))]"
     : "md:max-h-[min(900px,calc(100dvh-60px))]";
 
+  const amoraHref = buildAmoraPreparationHref({ kind: "checklist", categoryKey });
   const content = (
     <>
       {/* 오버레이 */}
@@ -343,7 +393,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
                 </span>
               </div>
               <div className="min-w-0">
-                <h2 id={titleId} className={isPlanning ? "text-[17px] leading-[1.4] font-semibold text-[var(--amora-ink)] md:text-[19px]" : "truncate text-[19px] font-semibold text-[var(--hb-text-strong)]"}>
+                <h2 id={titleId} className={isPlanning ? `${categoryKey === "registration" ? "text-[16.5px] leading-[1.3]" : "text-[17px] leading-[1.4]"} font-semibold text-[var(--amora-ink)] md:text-[19px]` : "truncate text-[19px] font-semibold text-[var(--hb-text-strong)]"}>
                   {template.label}
                 </h2>
                 <div className={`mt-1 flex flex-wrap items-center gap-2 text-[var(--hb-text-muted)] ${isPlanning ? "text-[11.5px] md:text-[12.5px]" : "text-[12.5px]"}`}>
@@ -397,6 +447,9 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
 
                 {group.items.map((item, index) => {
                   const tag = checklistItemTag(item.id);
+                  const itemAmoraHref = template.items.some(canonical => canonical.id === item.id)
+                    ? buildAmoraPreparationHref({ kind: "checklist", categoryKey, itemId: item.id })
+                    : null;
                   const isNext = item.id === nextItemId;
                   // 「해당 시」 표시가 붙는 항목은 라벨 끝의 `(해당하는 경우)` 를 뗀다.
                   // 표시가 그 말을 대신하므로 두면 같은 말이 두 번 보인다. **표시할
@@ -422,7 +475,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
                         aria-checked={item.done}
                         aria-labelledby={`${titleId}-${item.id}-label`}
                         aria-describedby={item.note ? (isPlanning && item.done ? undefined : `${titleId}-${item.id}-note`) : undefined}
-                        disabled={saving || isNotApplicable}
+                        disabled={saving || !checklistReady || isNotApplicable}
                         onClick={() => toggleItem(item.id)}
                         className={`group flex min-h-11 w-full items-start rounded-[6px] text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] disabled:cursor-not-allowed disabled:opacity-55 ${isPlanning ? "gap-[11px] px-0.5 py-[13px] md:gap-3 md:px-1 md:pt-3 md:pb-2" : "gap-3 px-1 pt-3 pb-2"}`}
                       >
@@ -474,14 +527,21 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
                           hideNoteWhenDone
                         />
                       </button>
+                      <div className="ml-9 flex flex-wrap items-center justify-between gap-x-3">
                       {sourceChipItemIds.has(item.id) ? (
                         <ChecklistItemSource
                           itemId={item.id}
                           variant="chip"
                           touchTarget={isPlanning}
-                          indentClassName="ml-9"
+                          indentClassName=""
                         />
                       ) : null}
+                      {itemAmoraHref && (
+                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-md text-[12px] font-medium text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                          이 항목 아모라에 질문
+                        </Link>
+                      )}
+                      </div>
                     </div>
                   );
                 })}
@@ -502,7 +562,7 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
           <button
             type="button"
             onClick={toggleNotApplicable}
-            disabled={saving}
+            disabled={saving || !checklistReady}
             className="mt-6 w-full rounded-[11px] border border-[#E5DDC9] bg-white px-4 py-3 text-left text-[12.5px] text-[var(--hb-text-body)] transition-colors hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
           >
             {isNotApplicable ? (
@@ -551,8 +611,9 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
               <span>{template.tip}</span>
             </p>
 
-            <Link
-              {...weddingLinkProps(relatedGuide ? relatedGuide.href : "/chat")}
+            <div className="flex shrink-0 flex-wrap gap-2 md:max-w-[45%]">
+            {relatedGuide && <Link
+              {...weddingLinkProps(relatedGuide.href)}
               className={`flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${isPlanning ? "min-h-[46px] md:min-h-11" : ""}`}
             >
               <BookOpen className="h-[15px] w-[15px] flex-shrink-0" aria-hidden="true" />
@@ -565,10 +626,17 @@ export default function CategoryChecklistModal({ categoryKey, isOpen, onClose, p
                 「…물어보기 보기」 가 된다.
               */}
               <span className={isPlanning ? "text-center" : "whitespace-nowrap"}>
-                {relatedGuide ? `${relatedGuide.title} 보기` : "아모라에게 물어보기"}
+                {`${relatedGuide.title} 보기`}
               </span>
-            </Link>
+            </Link>}
+            {amoraHref && (
+              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-[46px] flex-1 items-center justify-center rounded-[11px] bg-[var(--amora-ink)] px-3.5 py-[9px] text-center text-[12.5px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:min-h-11">
+                아모라에 질문하기
+              </Link>
+            )}
+            </div>
           </div>
+          <p className="mt-2 text-[11.5px] leading-[1.6] text-[var(--amora-muted)]">질문 초안을 확인한 뒤 직접 보내요. 체크 상태는 바뀌지 않아요.</p>
           <p className="sr-only" aria-live="polite">{saving ? "체크리스트 저장 중" : ""}</p>
         </div>
       </div>

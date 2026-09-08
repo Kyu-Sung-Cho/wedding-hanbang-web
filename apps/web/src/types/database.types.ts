@@ -189,6 +189,8 @@ export interface PendingAmoraAction {
 }
 
 export interface ChatMessageMetadata {
+  /** 서버에서 대조한 공개 체크리스트·예절 안내 ID. 사용자 확정 사실과 분리한다. */
+  preparation_source?: string;
   roomId?: string;
   /** Browser/server idempotency key, protected by a per-couple unique index. */
   client_request_id?: string;

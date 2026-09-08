@@ -40,16 +40,23 @@ const authState = vi.hoisted(
     profile: { id: string; name: string };
     partner: { id: string; name: string } | null;
     isDemo: boolean;
+    publish: () => void;
   } => ({
     journey: { wedding_date: null, progress: {} },
     updateJourney: vi.fn(),
     profile: { id: "7ec381b3-c70a-4f59-a6cc-6bdf76f95ab2", name: "지은" },
     partner: { id: "4ed560aa-52e6-47d2-9595-612d0bfe2c7b", name: "수현" },
     isDemo: false,
+    publish: () => {},
   }),
 );
 
-vi.mock("@/stores/authStore", () => ({ useAuthStore: () => authState }));
+vi.mock("@/stores/authStore", async () => {
+  const { create } = await import("zustand");
+  const useAuthStore = create(() => ({ ...authState }));
+  authState.publish = () => useAuthStore.setState({ ...authState }, true);
+  return { useAuthStore };
+});
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),
@@ -140,6 +147,7 @@ describe("일정 화면은 달력을 먼저 보여준다", () => {
   async function mount(journey: MockJourney) {
     authState.journey = journey;
     await act(async () => {
+      authState.publish();
       root.render(<ScheduleContent />);
       await Promise.resolve();
     });

@@ -53,7 +53,7 @@ describe("예절 HTML 패턴이 검증 원문 전체를 보존한다", () => {
             expect(desktop).toContain(text(cell));
             expect(mobile).toContain(text(cell));
           }
-          if (block.unsourced) expect(figureText).toContain("공개된 1차 자료를 아직 찾지 못한 표예요.");
+          if (block.unsourced) expect(figureText).toContain("검증된 가격·통계나 필수 관행을 뜻하지 않습니다");
           for (const ref of block.sourceRefs ?? []) {
             expect([...figure!.querySelectorAll("a")].map(link => link.getAttribute("href"))).toContain(part.sources[ref - 1].url);
           }
@@ -79,6 +79,14 @@ describe("예절 HTML 패턴이 검증 원문 전체를 보존한다", () => {
       expect([...sources!.querySelectorAll("a")].map(link => link.getAttribute("href"))).toContain(source.url);
     }
     if (!part.sources.length) expect(pageText).toContain("공개 자료 확인 전");
+    else {
+      const header = doc.querySelector("article > header")!;
+      expect(header.textContent).toContain("출처별 확인일은 아래 자료에서 확인해 주세요");
+      expect(header.textContent).not.toMatch(/\d{4}-\d{2}-\d{2} 출처 확인/);
+      expect(header.querySelector('a[href="#manners-sources"]')).not.toBeNull();
+      expect(sources?.getAttribute("id")).toBe("manners-sources");
+      expect(sources?.textContent).toContain("각 자료가 뒷받침하는 내용과 범위를 구분했어요");
+    }
     expect(doc.querySelectorAll('input[type="checkbox"], [role="progressbar"]')).toHaveLength(0);
     expect(pageText).not.toMatch(/개 절 중.*발췌|읽기 완료|양측.*확정/);
 
@@ -87,6 +95,21 @@ describe("예절 HTML 패턴이 검증 원문 전체를 보존한다", () => {
       const level = Number(heading.tagName.slice(1));
       expect(level).toBeLessThanOrEqual(previousLevel + 1);
       previousLevel = level;
+    }
+  });
+
+  it("keeps every guide and section question reachable even when a checklist is available", () => {
+    for (const part of MANNERS_PARTS) {
+      const doc = parse(renderToStaticMarkup(createElement(MannersPartView, { part })));
+      const hrefs = [...doc.querySelectorAll<HTMLAnchorElement>('a[href*="amoraSource="]')].map(link => link.getAttribute("href"));
+      expect(hrefs).toContain(`/wedding/chat?amoraSource=g.${part.slug}`);
+      part.sections.forEach((section, index) => {
+        const link = doc.getElementById(`section-${index + 1}`)?.querySelector('a[href*="amoraSource="]');
+        expect(link?.getAttribute("href")).toBe(`/wedding/chat?amoraSource=g.${part.slug}.section-${index + 1}`);
+        expect(link?.getAttribute("aria-label")).toContain(section.heading.replace(/^[0-9]+[.] */, ""));
+      });
+      expect(doc.body.textContent).toContain("질문 초안을 확인한 뒤 직접 보내요");
+      expect(doc.querySelectorAll('a a, button a')).toHaveLength(0);
     }
   });
 
@@ -130,6 +153,8 @@ describe("예절 HTML 패턴이 검증 원문 전체를 보존한다", () => {
     const order = MANNERS_CATEGORIES.flatMap(category => category.slugs);
     expect(hrefs.filter(href => href?.startsWith("/wedding/manners/"))).toEqual(order.map(slug => `/wedding/manners/${slug}`));
     expect(hrefs).toContain("/wedding/checklist");
+    expect(hrefs.filter(href => href?.includes("amoraSource="))).toEqual(order.map(slug => `/wedding/chat?amoraSource=g.${slug}`));
+    expect(main.querySelectorAll("a a")).toHaveLength(0);
     expect(doc.querySelectorAll("h1")).toHaveLength(1);
     expect(doc.querySelector('[aria-label="정책"]')?.textContent).toContain("개인정보처리방침");
     expect([...doc.querySelectorAll('[aria-label="정책"] a')].map(link => link.getAttribute("href"))).toEqual(["/terms", "/privacy", "/ai-policy"]);

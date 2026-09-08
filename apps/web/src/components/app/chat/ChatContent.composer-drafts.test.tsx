@@ -45,8 +45,8 @@ const mocks = vi.hoisted(() => ({
   streamingContent: "",
   quotaRemaining: null as number | null,
   profileRole: "bride" as "bride" | "groom" | null,
-  profileId: "user-1",
-  coupleId: "couple-1",
+  profileId: "user-1" as string | null,
+  coupleId: "couple-1" as string | null,
   partnerLinked: true,
   partnerTyping: null as null | {
     sender_role: "bride" | "groom";
@@ -55,10 +55,17 @@ const mocks = vi.hoisted(() => ({
   },
   queryPrefill: null as string | null,
   queryScope: null as string | null,
+  preparationSources: [] as string[],
+  resolvePreparation: vi.fn(),
   startHereHandoffId: null as string | null,
   isDemo: false,
   personalHandoffPending: false,
   takePersonalHandoff: vi.fn(),
+}));
+
+vi.mock("@/lib/amora/preparationHandoff", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/amora/preparationHandoff")>(),
+  resolveAmoraPreparationSource: mocks.resolvePreparation,
 }));
 
 vi.mock("@/lib/amora/personalActionContinuation", () => ({ personalActionContinuation: {
@@ -71,6 +78,7 @@ vi.mock("next/navigation", () => ({
     const params = new URLSearchParams();
     if (mocks.queryPrefill) params.set("prefill", mocks.queryPrefill);
     if (mocks.queryScope) params.set("scope", mocks.queryScope);
+    mocks.preparationSources.forEach(source => params.append("amoraSource", source));
     if (mocks.startHereHandoffId) {
       params.set("startHereHandoff", mocks.startHereHandoffId);
     }
@@ -236,6 +244,12 @@ describe("ChatContent composer draft lanes", () => {
     mocks.partnerTyping = null;
     mocks.queryPrefill = null;
     mocks.queryScope = null;
+    mocks.preparationSources = [];
+    mocks.resolvePreparation.mockReset().mockResolvedValue({
+      text: "결혼식장 · 견적 확인 준비를 도와주세요.",
+      sourceLabel: "결혼식장 · 견적 확인",
+      sourceHref: "/checklist?category=venue",
+    });
     mocks.startHereHandoffId = null;
     mocks.isDemo = false;
     mocks.sendMessage.mockResolvedValue({
@@ -560,8 +574,8 @@ describe("ChatContent composer draft lanes", () => {
   // 방금 넘겨받은 초안까지 지워졌다 — 실제로 운영에서 당했다.
   it("신원이 늦게 확정돼도 온보딩 초안은 살아있다", async () => {
     mocks.queryPrefill = "신혼집부터 먼저 정리하고 싶어요.";
-    mocks.profileId = "anonymous";
-    mocks.coupleId = "no-couple";
+    mocks.profileId = null;
+    mocks.coupleId = null;
 
     await act(async () => {
       root.render(<ChatContent />);
@@ -569,7 +583,8 @@ describe("ChatContent composer draft lanes", () => {
     });
 
     const composer = () => container.querySelector<HTMLTextAreaElement>("textarea");
-    expect(composer()?.value).toBe("신혼집부터 먼저 정리하고 싶어요.");
+    // 아직 인증 신원이 없으면 전송 가능한 작성창 자체를 노출하지 않는다.
+    expect(composer()).toBeNull();
 
     // authStore 가 늦게 하이드레이션된 상황
     mocks.profileId = "user-1";
@@ -604,6 +619,177 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => findButton("함께 대화")?.click());
     expect(composer()?.value).toBe("이어 온 아모라 질문");
     expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+  });
+
+  it.each(["owner", "couple"])("never restores a consumed prefill after a verified %s changes", async (change) => {
+    mocks.queryPrefill = "이전 공간에서 이어 온 질문";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(mocks.queryPrefill);
+    mocks.queryPrefill = null;
+    if (change === "owner") mocks.profileId = "different-user";
+    else mocks.coupleId = "different-couple";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("resolves a short preparation source once, keeps it as an unsent draft and removes its URL", async () => {
+    mocks.preparationSources = ["c.venue.venue_04"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(mocks.resolvePreparation).toHaveBeenCalledExactlyOnceWith("c.venue.venue_04");
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("결혼식장 · 견적 확인 준비를 도와주세요.");
+    expect(container.textContent).toContain("상대방도 볼 수 있어요");
+    expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+    await act(async () => root.render(<ChatContent />));
+    expect(mocks.resolvePreparation).toHaveBeenCalledTimes(1);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("sends a reference ID separately from the short question and clears it after successful send", async () => {
+    mocks.preparationSources = ["g.cost-saving.section-3"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(container.textContent).toContain("함께 볼 참고 안내");
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')?.click());
+    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      content: "결혼식장 · 견적 확인 준비를 도와주세요.", preparationSource: "g.cost-saving.section-3",
+    }));
+    expect(mocks.sendMessage.mock.calls[0][0]).not.toHaveProperty("referenceText");
+    expect(container.querySelector('button[aria-label="첨부한 준비 안내 제거"]')).toBeNull();
+  });
+
+  it("restores an unknown-send reference with its retry key, while removing the reference starts a new request", async () => {
+    const key = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: key });
+    mocks.preparationSources = ["c.venue"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    const send = () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]');
+    await act(async () => send()?.click());
+    expect(container.querySelector('button[aria-label="첨부한 준비 안내 제거"]')).not.toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="첨부한 준비 안내 제거"]')?.click());
+    await act(async () => send()?.click());
+    expect(mocks.sendMessage.mock.calls[1][0]).not.toHaveProperty("preparationSource");
+    expect(mocks.sendMessage.mock.calls[1][0]).not.toHaveProperty("clientRequestId");
+  });
+
+  it("rejects duplicate source IDs without falling through to an arbitrary legacy prefill", async () => {
+    mocks.preparationSources = ["c.venue", "g.cost-saving"];
+    mocks.queryPrefill = "검증되지 않은 대체 질문";
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(mocks.resolvePreparation).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).toContain("준비 항목을 확인하지 못했어요");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not mix a guide source with a signup nonce or consume its private stored draft", async () => {
+    mocks.preparationSources = ["c.venue"];
+    mocks.startHereHandoffId = HANDOFF_ID;
+    rememberDemoAmoraPrefill(window.localStorage, "가입 때 입력한 개인 조건", HANDOFF_ID);
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(mocks.resolvePreparation).not.toHaveBeenCalled();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).not.toContain("가입 때 입력한 개인 조건");
+    expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("uses a new explicit source on the same page after the previous source query was consumed", async () => {
+    mocks.preparationSources = ["c.venue"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    mocks.preparationSources = [];
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.resolvePreparation.mockResolvedValue({ text: "새 절의 질문", sourceLabel: "새 절", sourceHref: "/manners/cost-saving#section-2" });
+    mocks.preparationSources = ["g.cost-saving.section-2"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("새 절의 질문");
+    expect(mocks.resolvePreparation).toHaveBeenCalledTimes(2);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps meaningful punctuation in a legacy URL draft and never sends it automatically", async () => {
+    mocks.queryPrefill = "예산 & 준비? 10% + 다음 단계\n무엇부터 할까요";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(mocks.queryPrefill);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each(["질".repeat(20_001), "질문\u0000본문"])("rejects a legacy draft the request contract cannot accept", async draft => {
+    mocks.queryPrefill = draft;
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).toContain("형식이나 길이를 확인하지 못했어요");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("a legacy link does not overwrite a draft already being written", async () => {
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "작성 중인 질문");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.queryPrefill = "새로 온 질문";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("작성 중인 질문");
+    expect(container.textContent).toContain("작성 중인 함께 대화는 그대로");
+  });
+
+  it.each(["unknown", "error"])("does not fabricate a question when catalog resolution has %s", async kind => {
+    if (kind === "unknown") mocks.resolvePreparation.mockResolvedValue(null);
+    else mocks.resolvePreparation.mockRejectedValue(new Error("private transport details"));
+    mocks.preparationSources = ["c.unknown"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).not.toContain("private transport details");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
+  });
+
+  it("keeps an existing private draft and offers a manual shared-composer handoff", async () => {
+    const button = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(node => node.textContent?.includes(label));
+    await act(async () => button("나만 (상담)")?.click());
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "개인적으로 쓰던 질문");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.preparationSources = ["c.venue.venue_04"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("개인적으로 쓰던 질문");
+    await act(async () => button("비운 함께 대화에 질문 넣기")?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("결혼식장 · 견적 확인 준비를 도와주세요.");
+    await act(async () => button("나만 (상담)")?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("개인적으로 쓰던 질문");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it.each(["typed", "owner", "couple", "owner-aba"])("does not insert a delayed source over %s", async change => {
+    let resolve!: (value: { text: string; sourceLabel: string; sourceHref: string }) => void;
+    mocks.resolvePreparation.mockReturnValue(new Promise(done => { resolve = done; }));
+    mocks.preparationSources = ["c.venue.venue_04"];
+    await act(async () => root.render(<ChatContent />));
+    if (change === "typed") {
+      await act(async () => {
+        const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "지금 작성한 질문");
+        textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    } else {
+      if (change === "couple") mocks.coupleId = "next-couple";
+      else mocks.profileId = "next-user";
+      await act(async () => root.render(<ChatContent />));
+      if (change === "owner-aba") {
+        mocks.profileId = "user-1";
+        await act(async () => root.render(<ChatContent />));
+      }
+    }
+    await act(async () => { resolve({ text: "오래된 준비 질문", sourceLabel: "출처", sourceHref: "/checklist" }); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(change === "typed" ? "지금 작성한 질문" : "");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
   it("restores a signup handoff from the same browser and removes it after applying", async () => {

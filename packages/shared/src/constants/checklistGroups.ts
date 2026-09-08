@@ -22,17 +22,16 @@
  *
  * ## 표시(태그)는 아끼는 것이 기본이다
  *
- * 172개 중 25개에만 붙는다. `필수` 는 사용자에게 사실을 주장하는 것이라 틀리면
- * 사고다. 시안이 직접 표시한 네 분야(결혼식장·신혼집·혼인신고)와, 그와 성격이
- * 같다고 판정된 것만 남겼다. 확신이 없으면 붙이지 않는다 — 나머지 17개 분야에
- * 태그가 거의 없는 것은 빠뜨린 것이 아니라 그렇게 정한 것이다.
+ * 계약·신고 때 놓치기 쉬운 항목만 `중요 확인`으로 표시한다. 시안의 `필수`를
+ * 그대로 쓰면 계약금 납부 같은 선택도 법적 의무로 읽힐 수 있어 뜻을 구분했다.
+ * `해당 시`는 라벨의 조건을 대신 표시하며, 두 표시는 완료 상태를 바꾸지 않는다.
  *
  * 이 파일은 `scripts/tests/checklist-groups-cover-every-item.test.mjs` 가 지킨다.
  * 172개 항목이 **정확히 한 번씩** 들어가야 하고, 없는 id 를 적으면 실패한다.
  */
 
 /** 항목 옆에 붙는 표시. 둘뿐이고, 대부분의 항목에는 없다. */
-export type ChecklistItemTag = "필수" | "해당 시";
+export type ChecklistItemTag = "중요 확인" | "해당 시";
 
 export interface ChecklistGroup {
   /** 화면에 그대로 나가는 이름. 「01 · 예약 전에」 꼴 — 번호와 가운뎃점을 포함한다. */
@@ -147,45 +146,36 @@ export const CHECKLIST_GROUPS: Record<string, readonly ChecklistGroup[]> = {
   registration: [
     { title: "01 · 신고 준비", itemIds: ["registration_01", "registration_02", "registration_03", "registration_04", "registration_05", "registration_06"] },
     { title: "02 · 접수하기", itemIds: ["registration_07", "registration_08"] },
-    { title: "03 · 신고 후 챙기기", itemIds: ["registration_11", "registration_09", "registration_10"] },
+    { title: "03 · 이사·보험은 해당 일정에 맞춰", itemIds: ["registration_11", "registration_09", "registration_10"] },
   ],
 };
 
 /**
  * 표시가 붙는 항목. 여기 없는 항목에는 아무것도 안 붙는다(그게 기본값이다).
  *
- * ## 규칙은 파운더 설계 문서가 정했다
- *
- * 「태그는 문구에서 그대로 읽어요. `(필요한 경우)`·`(해당하는 경우)` 가 붙은 항목은
- * **해당 시**, 계약금·법정 서류처럼 건너뛰면 안 되는 항목은 **필수**, 그 외에는
- * 태그를 달지 않습니다.」 (`설계 패턴에 대해 써놓은 문서.html` 01절)
- *
- * 그래서 이 목록은 판단이 아니라 **읽기**다.
- *
- * - `해당 시` 12개 = 라벨 끝에 조건 표현이 붙은 항목 **전부**. 하나라도 빼면 규칙이
- *   아니라 취향이 된다. 라벨을 고치면 여기도 같이 고쳐야 한다.
- * - `필수` 13개 = 계약금·잔금을 실제로 내는 항목과 법이 요구하는 절차. 「중요해
- *   보인다」는 필수가 아니다 — 그렇게 늘리기 시작하면 절반에 붙고 아무것도
- *   강조하지 못한다.
+ * 시안의 조건 태그는 유지한다. 라벨 끝의 `(필요한 경우)`·`(해당하는 경우)`가
+ * 있는 항목은 빠짐없이 `해당 시`다. 법정 의무를 확정할 수 없는 계약·신고 항목은
+ * `필수` 대신 `중요 확인`으로 표시한다. 아래 목록은 법적 의무 목록이 아니다.
  *
  * ⚠️ 첫인사 시안(`ChecklistGreeting.dc.html`)은 `greeting_04` 에 접미사를 남기고
  * 표시를 안 달았는데, 혼인신고 시안은 접미사를 떼고 표시를 달았다. **문서의 규칙을
  * 따랐다**(둘 다 표시). 시안 둘이 서로 다를 때 규칙을 적어 둔 쪽이 정본이다.
  */
 export const CHECKLIST_ITEM_TAGS: Record<string, ChecklistItemTag> = {
-  venue_04: "필수",
-  venue_09: "필수",
-  venue_06: "필수",
-  venue_07: "필수",
-  studio_06: "필수",
-  ring_06: "필수",
-  snap_05: "필수",
-  housing_10: "필수",
-  housing_05: "필수",
-  housing_11: "필수",
-  registration_05: "필수",
-  registration_08: "필수",
-  registration_09: "필수",
+  venue_04: "중요 확인",
+  venue_09: "중요 확인",
+  venue_06: "중요 확인",
+  venue_07: "중요 확인",
+  studio_06: "중요 확인",
+  ring_06: "중요 확인",
+  snap_05: "중요 확인",
+  housing_10: "중요 확인",
+  housing_05: "중요 확인",
+  housing_11: "중요 확인",
+  registration_05: "중요 확인",
+  registration_08: "중요 확인",
+  registration_09: "해당 시",
+  registration_11: "해당 시",
   greeting_04: "해당 시",
   studio_11: "해당 시",
   dress_09: "해당 시",

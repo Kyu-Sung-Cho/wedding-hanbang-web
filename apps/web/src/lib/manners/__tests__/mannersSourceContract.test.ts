@@ -18,7 +18,10 @@ import { claimsNumbers, mannersTables } from "../types";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 // 관행은 시간이 지나면 달라진다. 확인일이 없거나 미래면 신뢰할 수 없다.
-const TODAY = new Date().toISOString().slice(0, 10);
+// 출처의 검토일은 한국 서비스의 KST 달력 날짜다. UTC 자정 전에도 같은 기준으로 비교한다.
+const TODAY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
+}).format(new Date());
 const MAX_SOURCE_AGE_DAYS = 366;
 
 // 개인 블로그·카페는 1차 출처가 아니다. 삭제 사유의 절반이 근거 없는 수치였다.

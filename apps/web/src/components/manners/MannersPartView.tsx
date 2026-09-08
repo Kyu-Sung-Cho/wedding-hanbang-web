@@ -5,6 +5,7 @@ import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import MannersMobileHeader from "./MannersMobileHeader";
 
 /**
@@ -310,7 +311,7 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
 
       {/*
         시안 `.read-tip` — 표 **아래에 붙는** 따뜻한 띠(위 두 모서리가 0이라 표와 한
-        덩어리로 읽힌다). 「이 숫자가 말하지 않는 것」이 여기 산다. 표만 캡처해 옮겨도
+        덩어리로 읽힌다). 표의 적용 한계가 여기 산다. 표만 캡처해 옮겨도
         한계가 같이 가야 한다는 계약(`types.ts`)이 이 자리를 요구한다.
       */}
       <div className="mt-0.5 flex items-start gap-2.5 rounded-b-[10px] bg-[var(--amora-warm)] px-3.5 py-3">
@@ -325,9 +326,9 @@ function Block({ block, sources }: { block: MannersBlock; sources: MannersSource
           <path d="M12 9v4M12 17h.01" />
         </svg>
         <p className="text-[12px] leading-[1.6] text-[var(--amora-soft)]">
-          {block.caption} <span className="font-medium">이 숫자가 말하지 않는 것 · </span>
+          {block.caption} <span className="font-medium">이 표의 적용 범위 · </span>
           {block.limits}
-          {block.unsourced ? " 공개된 1차 자료를 아직 찾지 못한 표예요." : null}
+          {block.unsourced ? " 선택·확인용 참고표이며, 검증된 가격·통계나 필수 관행을 뜻하지 않습니다." : null}
           {refs.length > 0 ? (
             <>
               {" "}
@@ -400,10 +401,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
   const checklistLabel = primaryCategory
     ? PLANNING_CATEGORY_LABELS[primaryCategory as keyof typeof PLANNING_CATEGORY_LABELS]
     : null;
-  const lastCheckedAt = part.sources
-    .map((source) => source.checkedAt)
-    .sort()
-    .at(-1);
+  const amoraHref = buildAmoraPreparationHref({ kind: "manners", partSlug: part.slug });
   const readingMinutes = readingMinutesOf(part.sections);
   const audience = AUDIENCE_BADGE[part.audience];
   const { previous, next } = neighbourParts(part.slug);
@@ -449,27 +447,16 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
           </p>
 
           <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-2">
-            <span className={`rounded-full px-3.5 py-[7px] text-[12px] font-semibold sm:px-4 sm:py-2 sm:text-[13px] ${audience.className}`}>
+            {!hasRoles && <span className={`rounded-full px-3.5 py-[7px] text-[12px] font-semibold sm:px-4 sm:py-2 sm:text-[13px] ${audience.className}`}>
               {audience.label}
-            </span>
+            </span>}
             <span className="text-[11.5px] sm:text-[12.5px] text-[var(--amora-muted)]">
               예상 읽기 {readingMinutes}분 · {part.sections.length}개 절
             </span>
-            {lastCheckedAt ? (
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full px-[11px] py-[5px] text-[11.5px] font-semibold bg-[var(--amora-sage-pale)] text-[var(--amora-ink)]"
-              >
-                <svg
-                  aria-hidden
-                  viewBox="0 0 24 24"
-                  className="h-3 w-3 shrink-0 fill-none stroke-current stroke-[1.7]"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12l4 4 10-10" />
-                </svg>
-                {lastCheckedAt} 출처 확인
-              </span>
+            {part.sources.length > 0 ? (
+              <a href="#manners-sources" className="inline-flex min-h-11 items-center rounded-md text-[11.5px] leading-[1.6] text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                출처별 확인일은 아래 자료에서 확인해 주세요
+              </a>
             ) : (
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border border-dashed px-[11px] py-[5px] text-[11.5px] border-[var(--amora-line)] text-[var(--amora-muted)]"
@@ -594,6 +581,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             const lead =
               intro?.kind === "paragraph" && !intro.law && following.length > 0 ? intro : undefined;
             const body = lead ? following : displayBlocks;
+            const sectionAmoraHref = buildAmoraPreparationHref({ kind: "manners", partSlug: part.slug, sectionId: `section-${index + 1}` });
 
             return (
               <section
@@ -632,6 +620,13 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                     />
                   ))}
                 </div>
+                {sectionAmoraHref && (
+                  <div className="mt-3 flex justify-end border-t border-[var(--amora-line)] pt-1">
+                    <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                      이 내용 아모라에 질문
+                    </Link>
+                  </div>
+                )}
               </section>
             );
           })}
@@ -645,6 +640,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
         */}
         {part.sources.length > 0 ? (
           <footer
+            id="manners-sources"
             className="mt-3 rounded-[14px] bg-white p-4 sm:mt-[18px] sm:rounded-[16px] sm:px-6 sm:py-5 border border-[var(--amora-line)]"
           >
             <h2 className="flex items-center gap-2 text-[13px] font-bold text-[var(--amora-ink)]">
@@ -659,6 +655,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               </svg>
               어디서 확인한 내용인가요
             </h2>
+            <p className="mt-2 text-[12px] leading-[1.6] text-[var(--amora-muted)]">각 자료가 뒷받침하는 내용과 범위를 구분했어요. 확인일은 자료별로 다르며, 글 전체를 확인한 날짜가 아니에요.</p>
             {/*
               각주 한 줄은 「이름 · 확인일」과 「덮는 범위 · 뒷받침 내용」이다.
               `scope` 는 이 출처가 무엇을 덮는가다(예: 2025년 4월 전국 14개 지역 370곳
@@ -735,16 +732,18 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               ? `${checklistLabel} 준비 항목을 열어 실제로 확인하고 저장할 수 있어요.`
               : "우리 상황에 맞게 적용할 부분만 아모라와 정리해 보세요."}
           </p>
-          <Link
-            {...weddingLinkProps(
-              primaryCategory
-                ? `/checklist?category=${encodeURIComponent(primaryCategory)}`
-                : `/chat?${new URLSearchParams({ prefill: `${part.title} 내용을 우리 상황에 맞게 정리해줘` })}`,
-            )}
-            className="mt-3.5 inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-ink)] px-5 text-[13px] font-semibold text-white"
-          >
-            {checklistLabel ? `${checklistLabel} 체크리스트 열기` : "아모라에게 물어보기"}
-          </Link>
+          <div className="mt-3.5 flex flex-wrap gap-2">
+            {primaryCategory && <Link
+              {...weddingLinkProps(`/checklist?category=${encodeURIComponent(primaryCategory)}`)}
+              className="inline-flex min-h-11 items-center rounded-[11px] border border-[var(--amora-line)] bg-white px-4 py-2.5 text-[13px] font-semibold text-[var(--amora-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+            >
+              {checklistLabel} 체크리스트 열기
+            </Link>}
+            {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-ink)] px-4 py-2.5 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+              아모라에 질문하기
+            </Link>}
+          </div>
+          <p className="mt-2 text-[12px] leading-[1.6] text-[var(--amora-muted)]">질문 초안을 확인한 뒤 직접 보내요. 준비 상태는 바뀌지 않아요.</p>
         </div>
 
         {/* 이웃 편으로. 시안의 이전/다음 버튼 — 화살표 아이콘이 붙는다. */}

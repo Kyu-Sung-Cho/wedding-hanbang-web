@@ -346,6 +346,7 @@ async function defaultIngestFetch(_input: RequestInfo | URL, init?: RequestInit)
     ...(typeof body.confirmedActionId === "string"
       ? { confirmed_amora_action_id: body.confirmedActionId }
       : {}),
+    ...(typeof body.preparationSource === "string" ? { preparation_source: body.preparationSource } : {}),
     ...(Array.isArray(body.imagePaths) ? { imagePaths: body.imagePaths } : {}),
   };
   let insertResult: { data?: Record<string, unknown> | null; error?: unknown } | undefined;
@@ -643,6 +644,23 @@ describe("unanswered Amora turn recovery", () => {
       visibility: "shared",
     }));
     expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("restores the exact canonical public reference ID after reopening an unanswered turn", () => {
+    const recovery = buildUnansweredMessageRecoveryRequest([{
+      ...baseUserMessage, metadata: { ...baseUserMessage.metadata, preparation_source: "g.cost-saving.section-3" },
+    }], TEST_COUPLE_UUID);
+    expect(JSON.parse(recovery!.requestBody)).toEqual(expect.objectContaining({ preparationSource: "g.cost-saving.section-3", userMessageId: baseUserMessage.id }));
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it("cannot recover malformed or private reference bindings", () => {
+    expect(buildUnansweredMessageRecoveryRequest([{
+      ...baseUserMessage, metadata: { ...baseUserMessage.metadata, preparation_source: "c.venue&memo=secret" },
+    }], TEST_COUPLE_UUID)).toBeNull();
+    expect(buildUnansweredMessageRecoveryRequest([{
+      ...baseUserMessage, visibility: "bride_private", metadata: { ...baseUserMessage.metadata, preparation_source: "c.venue" },
+    }], TEST_COUPLE_UUID)).toBeNull();
   });
 
   it("requires a new message when provider-only attachment bytes are unavailable", () => {
@@ -5054,6 +5072,53 @@ describe("useChatStore failed provider retry", () => {
     expect(JSON.parse(String((mockFetch.mock.calls[1][1] as RequestInit).body))).toEqual(
       expect.objectContaining({ confirmedActionId: "22222222-2222-4222-8222-222222222222" }),
     );
+  });
+
+  it("keeps only the public ID in ingest and an immutable provider retry", async () => {
+    mockFetch.mockResolvedValueOnce(retryableChatHttpResponse()).mockResolvedValueOnce(completedChatResponse());
+    await useChatStore.getState().sendMessage({
+      content: "안내에서 무엇부터 확인할까요?", senderId: "user-1", senderRole: "bride", coupleId: "couple-1",
+      senderName: "테스터", weddingContext: {} as WeddingContext, visibility: "shared", preparationSource: "g.cost-saving.section-3",
+    });
+    const ingest = JSON.parse(String((mockIngestFetch.mock.calls[0][1] as RequestInit).body));
+    const firstBody = (mockFetch.mock.calls[0][1] as RequestInit).body;
+    expect(ingest).toEqual(expect.objectContaining({ content: "안내에서 무엇부터 확인할까요?", preparationSource: "g.cost-saving.section-3" }));
+    expect(JSON.parse(String(firstBody))).toEqual(expect.objectContaining({ preparationSource: "g.cost-saving.section-3" }));
+    expect(JSON.parse(String(firstBody))).not.toHaveProperty("referenceText");
+    await useChatStore.getState().retryFailedMessage();
+    expect((mockFetch.mock.calls[1][1] as RequestInit).body).toBe(firstBody);
+    expect(mockIngestFetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a saved-row source mismatch before calling the provider", async () => {
+    mockIngestFetch.mockResolvedValueOnce(persistedIngestResponse({
+      id: "user-message-1", couple_id: "couple-1", sender_id: "user-1", sender_type: "bride", role: "user",
+      content: "안내 확인", visibility: "shared", metadata: {
+        client_request_id: TEST_CLIENT_REQUEST_UUID, amora_ingest_contract_version: 1, ai_response_requested: true,
+        provider_attachment_state: "none", provider_attachment_count: 0, preparation_source: "c.studio",
+      },
+    }));
+    const result = await useChatStore.getState().sendMessage({
+      content: "안내 확인", senderId: "user-1", senderRole: "bride", coupleId: "couple-1", senderName: "테스터",
+      weddingContext: {} as WeddingContext, preparationSource: "c.venue", clientRequestId: TEST_CLIENT_REQUEST_UUID,
+    });
+    expect(result).toEqual(expect.objectContaining({ userMessage: "not_persisted", reason: "validation" }));
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { preparationSource: "c.venue&memo=secret" },
+    { preparationSource: "c.venue", visibility: "bride_private" as const },
+    { preparationSource: "c.venue", target: "partner" as const },
+    { preparationSource: "c.venue", confirmedActionId: "22222222-2222-4222-8222-222222222222" },
+  ])("rejects a malformed or incompatible source before persistence: %j", async extra => {
+    const result = await useChatStore.getState().sendMessage({
+      content: "안내 확인", senderId: "user-1", senderRole: "bride", coupleId: "couple-1", senderName: "테스터",
+      weddingContext: {} as WeddingContext, ...extra,
+    });
+    expect(result).toEqual(expect.objectContaining({ userMessage: "not_persisted", reason: "validation" }));
+    expect(mockIngestFetch).not.toHaveBeenCalled();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("reconciles a committed confirmation when its insert response is lost", async () => {

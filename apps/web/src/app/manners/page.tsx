@@ -4,6 +4,7 @@ import Link from "next/link";
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import MannersMobileHeader from "@/components/manners/MannersMobileHeader";
 
 export const metadata: Metadata = {
@@ -53,8 +54,8 @@ export default function MannersIndexPage() {
         */}
         <p className="mt-[18px] rounded-[12px] border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)] sm:rounded-[14px] sm:px-[18px] sm:py-4 sm:text-[13px]">
           여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다릅니다. 공개된
-          자료로 확인한 편에는 어디서 확인했는지와 확인한 날짜를 적어 뒀고, 아직 확인하지
-          못한 편에는 각 글 위에 그렇게 표시해 뒀어요.
+          자료가 있는 편에는 출처별 확인일과 뒷받침하는 범위를 적었어요. 자료가 없는 편은
+          각 글 위에 표시했어요. 모든 관행을 검증했다는 뜻은 아니에요.
         </p>
       </header>
 
@@ -71,12 +72,14 @@ export default function MannersIndexPage() {
                 {category.label}
               </h2>
               <ul className="mt-3 grid gap-3 sm:grid-cols-2">
-                {parts.map((part) => (
-                  <li key={part.slug}>
+                {parts.map((part) => {
+                  const amoraHref = buildAmoraPreparationHref({ kind: "manners", partSlug: part.slug });
+                  return (
+                  <li key={part.slug} className="flex flex-col rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] pt-5 pb-2 sm:rounded-[18px] sm:px-6 sm:pt-6">
                     <Link
                       href={`/wedding/manners/${part.slug}`}
                       prefetch={false}
-                      className="block h-full rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] py-5 transition-colors hover:border-[var(--amora-rose)] sm:rounded-[18px] sm:px-6 sm:py-6"
+                      className="block flex-1 rounded-md transition-colors hover:text-[var(--amora-rose-deep)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
                     >
                       <p className="text-[11.5px] font-semibold text-[var(--hb-text-muted)]">
                         {AUDIENCE_LABEL[part.audience]}
@@ -96,8 +99,13 @@ export default function MannersIndexPage() {
                         {readingMinutesOf(part.sections)}분 · {part.sections.length}개 절
                       </p>
                     </Link>
+                    {amoraHref && (
+                      <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className="mt-2 inline-flex min-h-11 items-center self-start rounded-md text-[12px] font-semibold text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                        이 주제 아모라에 질문
+                      </Link>
+                    )}
                   </li>
-                ))}
+                );})}
               </ul>
             </section>
           );
@@ -105,7 +113,7 @@ export default function MannersIndexPage() {
       </div>
 
       <p className="mt-9 text-[13px] leading-[1.75] text-[var(--amora-muted)]">
-        우리 상황에서는 어떻게 적용할지 막히면, 가족 구성과 고민을 아모라에게 그대로 말해 보세요.{" "}
+        각 편에서 우리 상황에 맞는 질문을 아모라로 이어갈 수 있어요. 질문 초안을 확인한 뒤 직접 보내요.{" "}
         <Link {...weddingLinkProps("/chat")} className="font-medium text-[var(--amora-accent)] underline underline-offset-2">
           아모라에게 물어보기
         </Link>
