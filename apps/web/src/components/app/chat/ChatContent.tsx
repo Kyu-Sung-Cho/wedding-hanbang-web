@@ -1,6 +1,7 @@
 "use client";
 
 import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
+import { AMORA_PREPARATION_SOURCE_PARAM, resolveAmoraPreparationSource, type AmoraPreparationDraft } from "@/lib/amora/preparationHandoff";
 
 import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -94,6 +95,7 @@ type ChatComposerLane = "shared_ai" | "shared_partner" | "private_ai";
 
 interface ChatComposerDraft {
   input: string;
+  preparation: { source: string; draft: AmoraPreparationDraft } | null;
   attachments: AttachmentItem[];
   retryClientRequestId: string | null;
   pendingAttachmentReads: number;
@@ -108,18 +110,21 @@ function createEmptyComposerDrafts(): Record<ChatComposerLane, ChatComposerDraft
   return {
     shared_ai: {
       input: "",
+      preparation: null,
       attachments: [],
       retryClientRequestId: null,
       pendingAttachmentReads: 0,
     },
     shared_partner: {
       input: "",
+      preparation: null,
       attachments: [],
       retryClientRequestId: null,
       pendingAttachmentReads: 0,
     },
     private_ai: {
       input: "",
+      preparation: null,
       attachments: [],
       retryClientRequestId: null,
       pendingAttachmentReads: 0,
@@ -496,6 +501,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const [composerDrafts, setComposerDrafts] = useState<Record<ChatComposerLane, ChatComposerDraft>>(
     createEmptyComposerDrafts,
   );
+  const composerDraftsRef = useRef(composerDrafts);
+  composerDraftsRef.current = composerDrafts;
+  const activeComposerLaneRef = useRef(activeComposerLane);
+  activeComposerLaneRef.current = activeComposerLane;
   const input = composerDrafts[activeComposerLane].input;
   const attachments = composerDrafts[activeComposerLane].attachments;
   const retryClientRequestId = composerDrafts[activeComposerLane].retryClientRequestId;
@@ -721,23 +730,29 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     sendInFlightRef.current = null;
     greetingRequested.current = false;
     stopSharedTyping();
+    const pending = pendingPrefillRef.current;
+    const mayHydrate = pending
+      && (!pending.ownerId || pending.ownerId === profile?.id)
+      && (!pending.coupleId || pending.coupleId === coupleId);
+    // 최초 신원 확정만 이어 준다. 확정된 계정·커플을 떠나면 과거 질문을 복원하지 않는다.
+    pendingPrefillRef.current = mayHydrate && (!authInitialized || authLoading || !profile?.id || !coupleId || !senderRole)
+      ? { ...pending, ownerId: profile?.id ?? null, coupleId: coupleId ?? null }
+      : null;
     setComposerDrafts((currentDrafts) => {
       Object.values(currentDrafts).forEach((draft) => {
         draft.attachments.forEach((attachment) => revokeObjectPreview(attachment.previewUrl));
       });
       const emptied = createEmptyComposerDrafts();
-      // 사용자가 직접 친 글은 신원이 바뀌면 버리는 게 맞지만,
-      // 온보딩에서 넘어온 초안은 이 신원을 위해 만들어졌다.
-      const pending = pendingPrefillRef.current;
-      if (pending) {
-        emptied.shared_ai = { ...emptied.shared_ai, input: pending };
+      if (mayHydrate && currentDrafts.shared_ai.input === pending.text
+        && !currentDrafts.shared_ai.attachments.length && !currentDrafts.shared_ai.pendingAttachmentReads) {
+        emptied.shared_ai = { ...emptied.shared_ai, input: pending.text };
       }
       return emptied;
     });
     setActiveTab("shared");
     setMessageTarget("ai");
     setPendingSend(null);
-  }, [composerIdentity, stopSharedTyping]);
+  }, [authInitialized, authLoading, composerIdentity, coupleId, profile?.id, senderRole, stopSharedTyping]);
 
   useEffect(() => () => stopSharedTyping(), [stopSharedTyping]);
 
@@ -758,6 +773,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         ...currentDrafts,
         shared_partner: {
           input: "",
+          preparation: null,
           attachments: [],
           retryClientRequestId: null,
           pendingAttachmentReads: 0,
@@ -843,6 +859,75 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 유효한 초안만 읽으며 URL에는 날짜를 남기지 않는다.
   const searchParams = useSearchParams();
   const router = useRouter();
+  const preparationRouterRef = useRef(router);
+  preparationRouterRef.current = router;
+  const preparationValues = searchParams.getAll(AMORA_PREPARATION_SOURCE_PARAM);
+  const preparationKey = JSON.stringify(preparationValues);
+  const currentSearchRef = useRef(searchParams);
+  currentSearchRef.current = searchParams;
+  const preparationVisitRef = useRef<{ key: string; identity: string; completed: boolean } | null>(null);
+  const [preparationNotice, setPreparationNotice] = useState<{
+    identity: string;
+    epoch: number;
+    draft?: AmoraPreparationDraft;
+    source?: string;
+    error?: string;
+  } | null>(null);
+  useEffect(() => {
+    const values: string[] = JSON.parse(preparationKey);
+    if (!values.length) { preparationVisitRef.current = null; return; }
+    if (embedded || !authInitialized || authLoading || (!isDemo && (!profile?.id || !coupleId || !senderRole))) return;
+    const epoch = composerEpochRef.current;
+    let active = true;
+    const cleanSource = () => {
+      if (JSON.stringify(currentSearchRef.current.getAll(AMORA_PREPARATION_SOURCE_PARAM)) !== preparationKey) return;
+      const next = new URLSearchParams(currentSearchRef.current.toString());
+      next.delete(AMORA_PREPARATION_SOURCE_PARAM);
+      next.delete("prefill");
+      next.delete(START_HERE_HANDOFF_QUERY_PARAM);
+      const qs = next.toString();
+      preparationRouterRef.current.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
+    };
+    const visit = preparationVisitRef.current;
+    if (visit?.key === preparationKey && (visit.identity !== composerIdentity || visit.completed)) {
+      visit.completed = true;
+      cleanSource();
+      return;
+    }
+    const currentVisit = { key: preparationKey, identity: composerIdentity, completed: false };
+    preparationVisitRef.current = currentVisit;
+    void (async () => {
+      try {
+        const draft = values.length === 1 && !currentSearchRef.current.has(START_HERE_HANDOFF_QUERY_PARAM)
+          ? await resolveAmoraPreparationSource(values[0]) : null;
+        if (!active || epoch !== composerEpochRef.current) return;
+        if (!draft) {
+          setPreparationNotice({ identity: composerIdentity, epoch, error: "이어 온 준비 항목을 확인하지 못했어요. 원래 안내에서 다시 열어 주세요." });
+          return;
+        }
+        setPreparationNotice({ identity: composerIdentity, epoch, draft, source: values[0] });
+        const current = composerDraftsRef.current.shared_ai;
+        if (activeComposerLaneRef.current === "shared_ai" && !current.input.trim()
+          && !current.attachments.length && !current.pendingAttachmentReads) {
+          setComposerDrafts(previous => {
+            const lane = previous.shared_ai;
+            if (lane.input.trim() || lane.attachments.length || lane.pendingAttachmentReads) return previous;
+            return { ...previous, shared_ai: { ...lane, input: draft.text, preparation: { source: values[0], draft }, retryClientRequestId: null } };
+          });
+          requestAnimationFrame(() => {
+            if (activeComposerLaneRef.current === "shared_ai" && epoch === composerEpochRef.current) textareaRef.current?.focus();
+          });
+        }
+      } catch {
+        if (active && epoch === composerEpochRef.current) {
+          setPreparationNotice({ identity: composerIdentity, epoch, error: "준비 질문을 불러오지 못했어요. 원래 안내에서 다시 열어 주세요." });
+        }
+      } finally {
+        if (active) { currentVisit.completed = true; cleanSource(); }
+      }
+    })();
+    return () => { active = false; };
+  }, [authInitialized, authLoading, composerIdentity, coupleId, embedded, isDemo, preparationKey, profile?.id, senderRole]);
   const appliedRouteScope = useRef<string | null>(null);
   const requestedRouteScope = searchParams.get("scope");
   const [personalContinuationNotice, setPersonalContinuationNotice] = useState<{ identity: string; text: string } | null>(null);
@@ -885,9 +970,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // 적용한 초안을 기억해 둔다. authStore 가 늦게 하이드레이션되면
   // composerIdentity 가 바뀌어 모든 초안을 비우는데, 로그인 직후 진입은 항상
   // 그 순서라 방금 채운 초안이 지워졌다.
-  const pendingPrefillRef = useRef<string | null>(null);
+  const pendingPrefillRef = useRef<{ text: string; ownerId: string | null; coupleId: string | null } | null>(null);
   useEffect(() => {
     if (prefillAppliedRef.current) return;
+    // 식별자 연결을 임의 본문과 섞지 않는다. 유효하지 않은 source도 legacy 초안으로 우회하지 않는다.
+    if (searchParams.has(AMORA_PREPARATION_SOURCE_PARAM)) return;
     const queryPrefill = searchParams?.get("prefill");
     const startHereHandoffId = searchParams?.get(START_HERE_HANDOFF_QUERY_PARAM) ?? null;
     let handoffPrefill: string | null = null;
@@ -920,11 +1007,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         // 현재 탭 체험 초안이 유효하면 브라우저 공용 저장소 정리 실패와 무관하게 사용한다.
       }
     }
-    const prefill = startHereHandoffId
+    const requestedPrefill = startHereHandoffId
       ? handoffPrefill
       : queryPrefill ?? handoffPrefill;
+    const prefill = requestedPrefill && requestedPrefill.length <= 20_000
+      && !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(requestedPrefill)
+      && searchParams.getAll("prefill").length <= 1 ? requestedPrefill : null;
     const shouldCleanUrl = Boolean(queryPrefill) || Boolean(startHereHandoffId);
     if (!prefill) {
+      if (requestedPrefill) {
+        prefillAppliedRef.current = true;
+        setPreparationNotice({ identity: composerIdentity, epoch: composerEpochRef.current, error: "이어 온 질문의 형식이나 길이를 확인하지 못했어요. 원래 화면에서 다시 열어 주세요." });
+      }
       if (shouldCleanUrl) {
         const next = new URLSearchParams(searchParams?.toString());
         next.delete("prefill");
@@ -935,8 +1029,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       return;
     }
     prefillAppliedRef.current = true;
-    pendingPrefillRef.current = prefill;
-    setDraftInput("shared_ai", prefill);
+    const currentDraft = composerDraftsRef.current.shared_ai;
+    const canPlace = !currentDraft.input.trim() && !currentDraft.attachments.length && !currentDraft.pendingAttachmentReads;
+    pendingPrefillRef.current = !authInitialized || authLoading || !profile?.id || !coupleId || !senderRole
+      ? { text: prefill, ownerId: profile?.id ?? null, coupleId: coupleId ?? null }
+      : null;
+    if (canPlace) setDraftInput("shared_ai", previous => previous.trim() ? previous : prefill);
+    else {
+      pendingPrefillRef.current = null;
+      setPreparationNotice({ identity: composerIdentity, epoch: composerEpochRef.current, error: "작성 중인 함께 대화는 그대로 두었어요. 보내거나 비운 뒤 원래 화면에서 질문을 다시 이어 주세요." });
+    }
     // 질문 원문과 일회성 가입 표식은 입력창에 적용한 직후 주소에서 제거한다.
     if (shouldCleanUrl) {
       const next = new URLSearchParams(searchParams.toString());
@@ -945,8 +1047,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const qs = next.toString();
       router.replace(qs ? `?${qs}` : window.location.pathname, { scroll: false });
     }
-    requestAnimationFrame(() => textareaRef.current?.focus());
-  }, [searchParams, router, setDraftInput]);
+    if (canPlace && activeComposerLaneRef.current === "shared_ai") requestAnimationFrame(() => textareaRef.current?.focus());
+  }, [authInitialized, authLoading, composerIdentity, coupleId, profile?.id, searchParams, router, senderRole, setDraftInput]);
 
   useEffect(() => {
     if (!profile?.id || !coupleId || isDemo) {
@@ -1567,6 +1669,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       const content = usesComposer ? input.trim() : text;
       const currentAttachments = usesComposer ? [...attachments] : [];
       const sourceLane = activeComposerLane;
+      const submittedPreparation = usesComposer ? composerDraftsRef.current[sourceLane].preparation : null;
       const submittedClientRequestId = usesComposer ? retryClientRequestId : null;
       if (
         (!content && currentAttachments.length === 0)
@@ -1685,6 +1788,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             [submittedLane]: {
               ...currentDraft,
               input: currentDraft.input || submittedInput,
+              preparation: currentDraft.input ? currentDraft.preparation : submittedPreparation,
               attachments: [
                 ...currentDraft.attachments,
                 ...currentAttachments.filter(
@@ -1718,6 +1822,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           [sourceLane]: {
             ...currentDrafts[sourceLane],
             input: "",
+            preparation: null,
             attachments: [],
             retryClientRequestId: submittedClientRequestId,
           },
@@ -1755,6 +1860,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ? { partnerRecipientId: linkedPartnerId }
             : {}),
           visibility,
+          ...(submittedPreparation && sourceLane === "shared_ai" && sendTarget === "ai" && !isPrivateSafetyRoute
+            ? { preparationSource: submittedPreparation.source } : {}),
           ...(submittedClientRequestId
             ? { clientRequestId: submittedClientRequestId }
             : {}),
@@ -3116,6 +3223,27 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
       {/* 에러 메시지 */}
+      {preparationNotice?.identity === composerIdentity && preparationNotice.epoch === composerEpochRef.current && (
+        <div role="status" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
+          {preparationNotice.draft ? <>
+            <p>{preparationNotice.draft.sourceLabel}에서 이어 왔어요. 함께 대화에 보내면 상대방도 볼 수 있어요. 전송과 변경 저장은 직접 확인해 주세요.</p>
+            <details><summary className="flex min-h-11 cursor-pointer items-center">이어 온 질문 보기</summary><p>{preparationNotice.draft.text}</p></details>
+            <button type="button" className="min-h-11 underline disabled:opacity-50"
+              disabled={isStreaming || isSending || Boolean(composerDrafts.shared_ai.input.trim()) || composerDrafts.shared_ai.attachments.length > 0 || composerDrafts.shared_ai.pendingAttachmentReads > 0}
+              onClick={() => {
+                const draft = preparationNotice.draft;
+                if (!draft || !preparationNotice.source || preparationNotice.identity !== composerIdentity || preparationNotice.epoch !== composerEpochRef.current || isStreaming || isSending) return;
+                const current = composerDraftsRef.current.shared_ai;
+                if (current.input.trim() || current.attachments.length || current.pendingAttachmentReads) return;
+                setComposerDrafts(previous => ({ ...previous, shared_ai: { ...previous.shared_ai, input: draft.text, preparation: { source: preparationNotice.source!, draft }, retryClientRequestId: null } }));
+                handleScopeChange("shared");
+                handleMessageTargetChange("ai");
+                requestAnimationFrame(() => textareaRef.current?.focus());
+              }}>비운 함께 대화에 질문 넣기</button>
+            <Link href={weddingPath(preparationNotice.draft.sourceHref)} className="ml-3 inline-flex min-h-11 items-center underline">원래 안내 보기</Link>
+          </> : <p>{preparationNotice.error}</p>}
+        </div>
+      )}
       {activeTab === "private" && personalContinuationNotice?.identity === composerIdentity && <div role="alert" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
         <p>{personalContinuationNotice.text}</p><Link href="/chat/personal" className="inline-flex min-h-11 items-center underline">개인 목록에서 다시 확인</Link>
       </div>}
@@ -3403,6 +3531,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
+        {composerDrafts[activeComposerLane].preparation && <div className="mb-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm">
+          <p>함께 볼 참고 안내: {composerDrafts[activeComposerLane].preparation.draft.sourceLabel}</p>
+          <p className="text-xs">보낼 때 공개 안내를 참고자료로 함께 전달해요. 내 예산이나 완료 상태로 저장하지 않아요.</p>
+          <button type="button" aria-label="첨부한 준비 안내 제거" className="min-h-11 underline" disabled={isStreaming || isSending}
+            onClick={() => setComposerDrafts(previous => ({ ...previous, [activeComposerLane]: { ...previous[activeComposerLane], preparation: null, retryClientRequestId: null } }))}>안내 빼기</button>
+        </div>}
         <div className={`bg-white rounded-[6px] shadow-[var(--shadow-raised)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"

@@ -32,6 +32,13 @@ describe("체크리스트 항목 안내 문구", () => {
     expect(notes.length).toBeGreaterThan(0);
   });
 
+  it("각 준비 항목에 판단이나 다음 행동을 돕는 안내가 있다", () => {
+    const missing = CATEGORY_CHECKLISTS.flatMap((category) =>
+      category.items.filter((item) => !item.note?.trim()).map((item) => item.id),
+    );
+    expect(missing).toEqual([]);
+  });
+
   it("사용자에게 하는 말투로 끝난다 — 편집 지시문은 여기서 걸린다", () => {
     const wrong = notes.filter((n) => !POLITE_ENDING.test(n.note));
     expect(wrong.map((n) => `${n.where}: ${n.note}`)).toEqual([]);
@@ -47,7 +54,12 @@ describe("체크리스트 항목 안내 문구", () => {
    * "얼마"가 아니라 **무엇을 물어야 하는지**만 쓴다.
    */
   it("숫자와 법령 이름을 말하지 않는다", () => {
-    const NUMERIC = /[0-9]|[일이삼사오육칠팔구십백천만억]\s*(원|만원|퍼센트|%|일|주|개월|년)/;
+    // ‘두 사람이 원하는’의 ‘이 원’을 금액으로 읽지 않는다.
+    const NUMERIC = /[0-9]|(?<![가-힣])[일이삼사오육칠팔구십백천만억]+\s*(원|만원|퍼센트|%|일|주|개월|년)/;
+    expect(NUMERIC.test("두 사람이 원하는 방식으로 정해 주세요.")).toBe(false);
+    for (const claim of ["삼만원이면 돼요.", "이 주 전에 준비하세요.", "3일 안에 끝나요."]) {
+      expect(NUMERIC.test(claim)).toBe(true);
+    }
     const STATUTE = /법률|시행령|시행규칙|민법|약관법|제\s*\d+\s*조/;
     const bad = notes.filter((n) => NUMERIC.test(n.note) || STATUTE.test(n.note));
     expect(bad.map((n) => `${n.where}: ${n.note}`)).toEqual([]);

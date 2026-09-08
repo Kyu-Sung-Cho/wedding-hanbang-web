@@ -25,6 +25,7 @@ import { hasAmoraSafetySignal } from "@/lib/ai/amoraQuestionScope";
 import { observeAmoraSafetyRecall } from "@/lib/ai/amoraSafetyRecallProbe";
 import { verifyChatImageObjectBindings } from "@/lib/chat/attachmentStorage";
 import { log } from "@/utils/log";
+import { resolveAmoraPreparationSource } from "@/lib/amora/preparationHandoff";
 
 const MAX_BODY_BYTES = 8 * 1024;
 // 20,000 Unicode code points can occupy up to 80KiB in UTF-8. Keep bounded
@@ -47,6 +48,7 @@ const POST_BODY_KEYS = new Set([
   "requestedVisibility",
   "target",
   "confirmedActionId",
+  "preparationSource",
   "imagePaths",
   "providerAttachmentCount",
   "providerAttachmentManifest",
@@ -94,6 +96,7 @@ type ExpectedUserRow = {
   partnerRecipientId: string | null;
   visibility: ChatVisibility;
   confirmedActionId: string | null;
+  preparationSource: string | null;
   imagePaths: string[];
   providerAttachmentCount: number | null;
   providerAttachmentState: ProviderAttachmentState | null;
@@ -266,6 +269,7 @@ function isBoundCanonicalUserRow(
     ? metadata.confirmed_amora_action_id
     : null;
   if (storedAction !== expected.confirmedActionId) return false;
+  if ((metadata.preparation_source ?? null) !== expected.preparationSource) return false;
   if (
     expected.providerAttachmentCount === null
       ? metadata.provider_attachment_count !== undefined
@@ -593,6 +597,24 @@ export async function POST(request: Request) {
       );
     }
 
+    // 공개 안내는 질문과 분리해 묶고, 안전 전환에는 싣지 않는다.
+    let preparationSource: string | null = null;
+    if (deliveryPlan.disposition !== "private_safety_route" && body.preparationSource !== undefined) {
+      if (
+        target !== "ai"
+        || effectiveVisibility !== "shared"
+        || confirmedActionId !== null
+        || typeof body.preparationSource !== "string"
+        || !(await resolveAmoraPreparationSource(body.preparationSource))
+      ) {
+        return postJson(
+          { error: "연결한 안내를 확인하지 못했어요. 안내를 다시 열어 질문해 주세요.", code: "INVALID_PREPARATION_SOURCE" },
+          400,
+        );
+      }
+      preparationSource = body.preparationSource;
+    }
+
     // A stale client can upload before learning that the server classified the
     // text as W2. Never bind those attachment paths to the private safety row;
     // the client uses the authoritative redirect response to delete its upload.
@@ -783,6 +805,7 @@ export async function POST(request: Request) {
 
     const metadata: Record<string, unknown> = {
       client_request_id: clientRequestId,
+      ...(preparationSource ? { preparation_source: preparationSource } : {}),
       ...(target === "partner"
         ? {
             target: "partner",
@@ -818,6 +841,7 @@ export async function POST(request: Request) {
         : null,
       visibility: effectiveVisibility,
       confirmedActionId,
+      preparationSource,
       imagePaths,
       providerAttachmentCount,
       providerAttachmentState,

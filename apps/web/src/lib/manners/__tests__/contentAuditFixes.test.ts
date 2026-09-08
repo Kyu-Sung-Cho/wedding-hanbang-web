@@ -30,15 +30,12 @@ describe("법률·세무 주장에는 근거가 붙어 있다", () => {
     expect(labels, "권익위 가액범위 근거가 없다").toMatch(/권익위/);
   });
 
-  it("근거를 못 댄 세금 이야기는 그 한계를 그 자리에서 밝힌다", () => {
-    // 지우지 않았다 — 거짓이라는 증거도 없기 때문이다. 다만 다른 서술과 같은
-    // 무게로 읽히면 안 된다.
-    const text = JSON.stringify(giftMoney);
+  it("출처 없는 축의금 귀속·증여세 결론을 공식 판단처럼 말하지 않는다", () => {
+    const text = JSON.stringify(giftMoney?.sections);
     expect(text).toContain("증여세");
-    expect(
-      text,
-      "증여세 이야기에 '1차 자료로 확인한 내용이 아니다'라는 단서가 없다",
-    ).toContain("공개된 1차 자료로 확인한 내용이 아니라");
+    expect(text).not.toContain("국세청은 원칙적으로");
+    expect(text).toContain("전문가");
+    expect(text).toContain("귀속");
   });
 });
 
@@ -92,11 +89,9 @@ describe("가족 구성을 하나로 전제하지 않는다", () => {
     // 문장이다. 부모가 한 분이거나 다른 분이 키운 사람이 그 자리에 선다.
     const part = MANNERS_PARTS.find((p) => p.slug === "first-family-visit");
     const text = JSON.stringify(part);
-    expect(text).toContain("두 분께서 잘 키워주셔서");
-    expect(
-      text,
-      "그 대사 곁에 가족 구성이 다를 수 있다는 안내가 없다",
-    ).toContain("한 분만 계시거나 다른 분이 키워주셨다면");
+    expect(text).not.toContain("두 분께서 잘 키워주셔서");
+    expect(text).toContain("가족 구성");
+    expect(text).toContain("가족의 양육이나 성격을 추측해 칭찬하지 않습니다");
   });
 
   it("한복 항목이 여쭐 어른이 계신 것을 전제하지 않는다", () => {
@@ -125,11 +120,12 @@ describe("두 사람이 읽는 글이 한쪽 성별을 독자로 세우지 않�
     });
   }
 
-  it("관행을 설명하는 문장까지 지우지는 않았다", () => {
-    // 일괄 치환하면 "전통적으로는 시댁을 먼저 찾았지만 요즘은…" 같은 **사실 서술**
-    // 까지 사라진다. 읽는 사람을 세우는 것과 관행을 적는 것은 다르다.
+  it("출처 없는 시댁 우선 관행을 방문 의무로 되살리지 않는다", () => {
     const part = MANNERS_PARTS.find((p) => p.slug === "post-honeymoon-thanks");
-    expect(JSON.stringify(part)).toContain("전통적으로는 시댁을 먼저 찾았지만");
+    const text = JSON.stringify(part?.sections);
+    expect(text).not.toContain("전통적으로는 시댁을 먼저 찾았지만");
+    expect(text).toContain("방문 순서");
+    expect(text).toContain("의무");
   });
 });
 

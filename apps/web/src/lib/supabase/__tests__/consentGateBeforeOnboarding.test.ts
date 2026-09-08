@@ -24,8 +24,20 @@
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { NextRequest } from "next/server";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
+
+const mocks = vi.hoisted(() => ({
+  createServerClient: vi.fn(),
+  getUser: vi.fn(),
+}));
+
+vi.mock("@supabase/ssr", () => ({
+  createServerClient: mocks.createServerClient,
+}));
+
+import { updateSession } from "../middleware";
 
 const source = readFileSync(
   resolve(process.cwd(), "src/lib/supabase/middleware.ts"),
@@ -38,6 +50,19 @@ const code = source
   .replace(/^\s*\/\/.*$/gmu, "");
 
 describe("동의 관문 순서", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "synthetic-anon-key");
+    mocks.getUser.mockReset().mockResolvedValue({
+      data: { user: { id: "synthetic-consent-pending-user", user_metadata: {} } },
+    });
+    mocks.createServerClient.mockReset().mockReturnValue({
+      auth: { getUser: mocks.getUser },
+    });
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
   it("동의 검사가 온보딩 검사보다 먼저 있다", () => {
     const consentAt = code.indexOf("hasRecordedSignupConsent");
     const onboardingAt = code.indexOf("onboarding_complete");
@@ -54,9 +79,25 @@ describe("동의 관문 순서", () => {
     expect(code).toContain("pathname !== SIGNUP_CONSENT_PATH");
   });
 
-  it("가려던 곳을 잃지 않는다", () => {
-    // 동의를 마친 사람은 처음 가려던 화면으로 돌아가야 한다.
-    expect(code).toMatch(/redirect=\$\{encodeURIComponent\(pathname\)\}/u);
+  it.each([
+    "/wedding/chat",
+    "/wedding/chat?amoraSource=c.venue.venue_04",
+    "/wedding/chat?amoraSource=g.gift-money.section-2",
+    "/wedding/chat?q=%EC%8B%9D%EC%9E%A5%20%26%20%EC%98%88%EC%82%B0%3F%2B%25&mode=shared",
+  ])("동의 전 가려던 경로와 쿼리를 함께 보존한다 — %s", async (destination) => {
+    // 문자열 구현 대신 실제 307 응답을 본다. 쿼리는 동의 페이지에 풀리지 않고
+    // redirect 안에 한 번만 중첩되어야 출처 ID와 기존 질문 초안을 잃지 않는다.
+    const request = new NextRequest(`https://hanbang.ai${destination}`);
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    const location = new URL(response.headers.get("location")!);
+    expect(location.origin).toBe("https://hanbang.ai");
+    expect(location.pathname).toBe(SIGNUP_CONSENT_PATH);
+    expect([...location.searchParams.keys()]).toEqual(["redirect"]);
+    expect(location.searchParams.get("redirect")).toBe(destination);
+    expect(`${request.nextUrl.pathname}${request.nextUrl.search}`).toBe(destination);
+    expect(mocks.getUser).toHaveBeenCalledOnce();
   });
 
   it("판정을 손으로 짓지 않고 공유 계약을 쓴다", () => {

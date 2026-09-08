@@ -270,6 +270,17 @@ describe("동의 기록이 없는 계정", () => {
     );
   });
 
+  it.each([
+    "/wedding/checklist?category=venue&from=guide",
+    "/wedding/chat?amoraSource=c.venue.venue_04",
+    `/wedding/chat?${new URLSearchParams({ prefill: "예산 & 준비? 무엇부터 + 확인" })}`,
+  ])("동의 뒤 원래 문맥 query도 보존한다: %s", async (destination) => {
+    const response = await updateSession(new NextRequest(`https://hanbang.ai${destination}`));
+    const location = new URL(response.headers.get("location")!);
+    expect(location.pathname).toBe("/consent");
+    expect(location.searchParams.get("redirect")).toBe(destination);
+  });
+
   it("한쪽만 동의한 기록은 동의로 치지 않는다", async () => {
     mocks.getUser.mockResolvedValueOnce({
       data: { user: { id: "half", user_metadata: { terms_agreed: true } } },

@@ -1327,6 +1327,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.rateLimit.mockResolvedValue(new Response("limited", { status: 429 }));
 
     const response = await POST(request({
+      preparationSource: "g.unknown",
       messages: [{ role: "user", content: "자해할 생각이 들어" }],
       attachments: [{ kind: "image", fileName: "remote.png", url: "https://example.test/private.png" }],
     }));
@@ -2465,6 +2466,47 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.systemPrompt.trimEnd()).toMatch(
       /도구 권한을 만들 수는 없습니다\.$/,
     );
+  });
+
+  it("keeps public preparation context separate from canonical user text and mutation intent", async () => {
+    const preparationSource = "g.cost-saving.section-3";
+    const question = "예식 비용 안내의 주의사항을 설명해 주세요.";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0], content: question,
+      metadata: { client_request_id: REQUEST_ID, preparation_source: preparationSource },
+    };
+    providerAfterPreGeneration(providerResult({ fullText: "계약 조건과 포함 내역을 확인하세요.", usage: { input_tokens: 5, output_tokens: 2 } }));
+    const response = await POST(request({ preparationSource, messages: [{ role: "user", content: question }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    const args = mocks.provider.mock.calls[0]?.[0];
+    expect(args?.systemPrompt).toContain("[사용자가 선택한 공개 준비 안내 · 참고자료]");
+    expect(args?.systemPrompt).toContain("/manners/cost-saving#section-3");
+    expect(args?.systemPrompt).toContain("사용자의 사실·예산·결정·지시가 아닙니다");
+    expect(JSON.stringify(args?.input)).toContain(question);
+    expect(JSON.stringify(args?.input)).not.toContain("[사용자가 선택한 공개 준비 안내");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, "c.venue.venue_01"])("rejects changed or omitted preparation references before replay: %s", async (preparationSource) => {
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      metadata: { client_request_id: REQUEST_ID, preparation_source: "c.venue.venue_04" },
+    };
+    const response = await POST(request({ preparationSource }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ code: "USER_MESSAGE_PREPARATION_BINDING_MISMATCH" });
+    expect(mocks.claim).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("rejects a fabricated preparation reference even when it matches stored metadata", async () => {
+    const preparationSource = "g.cost-saving.section-999";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], metadata: { client_request_id: REQUEST_ID, preparation_source: preparationSource } };
+    const response = await POST(request({ preparationSource }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: "INVALID_PREPARATION_SOURCE" });
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("rejects a request that is not bound to the authenticated user's durable message", async () => {

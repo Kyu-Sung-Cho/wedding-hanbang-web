@@ -8,10 +8,24 @@ import type { ProgressItem } from "@/types/database.types";
 const mocks = vi.hoisted(() => ({
   progress: {} as Record<string, ProgressItem>,
   updateJourney: vi.fn(),
+  ownerId: "owner-a",
+  coupleId: "couple-a",
+  listeners: new Set<() => void>(),
 }));
-vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({ journey: { progress: mocks.progress }, updateJourney: mocks.updateJourney }),
-}));
+vi.mock("@/stores/authStore", () => {
+  const getState = () => ({
+    isDemo: false,
+    user: { id: mocks.ownerId },
+    profile: { id: mocks.ownerId, couple_id: mocks.coupleId, role: "bride" },
+    couple: { id: mocks.coupleId, bride_id: mocks.ownerId, groom_id: null },
+    journey: { id: `journey-${mocks.coupleId}`, couple_id: mocks.coupleId, progress: mocks.progress },
+    updateJourney: mocks.updateJourney,
+  });
+  return { useAuthStore: Object.assign(getState, {
+    getState,
+    subscribe: (listener: () => void) => { mocks.listeners.add(listener); return () => { mocks.listeners.delete(listener); }; },
+  }) };
+});
 vi.mock("next/link", () => ({
   default: ({ children, href, prefetch, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { prefetch?: boolean }) => {
     void prefetch;
@@ -35,6 +49,8 @@ describe("planning checklist sheet", () => {
     testEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
     mocks.progress = {};
+    mocks.ownerId = "owner-a";
+    mocks.coupleId = "couple-a";
     mocks.updateJourney.mockReset().mockResolvedValue({ status: "applied" });
     onClose.mockReset();
     container = document.createElement("div");
@@ -57,6 +73,122 @@ describe("planning checklist sheet", () => {
   }
   function dialog() { return document.querySelector<HTMLElement>('[data-planning-sheet]')!; }
   function checkboxes() { return Array.from(dialog().querySelectorAll<HTMLButtonElement>('[role="checkbox"]')); }
+  async function switchOwner(ownerId: string, progress: Record<string, ProgressItem>, flush = true) {
+    await act(async () => {
+      mocks.ownerId = ownerId;
+      mocks.coupleId = `couple-${ownerId}`;
+      mocks.progress = progress;
+      for (const listener of mocks.listeners) listener();
+      root.render(<CategoryChecklistModal categoryKey="greeting" isOpen onClose={onClose} presentation="planning" />);
+    });
+    if (flush) await act(async () => vi.runOnlyPendingTimers());
+  }
+
+  it.each(["reject", "applied", "pending_partner"])("ignores old owner %s after another owner's checklist opens", async outcome => {
+    let settle!: (value: { status: string }) => void;
+    let reject!: (error: Error) => void;
+    mocks.updateJourney.mockImplementationOnce(() => new Promise((resolve, fail) => { settle = resolve; reject = fail; }));
+    await render();
+    await act(async () => checkboxes()[0].click());
+    const nextProgress = { greeting: { category: "greeting", status: "in_progress" as const, checklist: CHECKLIST_MAP.greeting.items.map((item, index) => ({ ...item, done: index === 1 })) } };
+    await switchOwner("owner-b", nextProgress);
+    const before = checkboxes().map(button => button.getAttribute("aria-checked"));
+    await act(async () => { if (outcome === "reject") reject(new Error("A의 늦은 실패")); else settle({ status: outcome }); });
+    expect(checkboxes().map(button => button.getAttribute("aria-checked"))).toEqual(before);
+    expect(dialog().textContent).not.toMatch(/A의 늦은 실패|체크 상태를 저장했어요|상대방에게 확인을 요청했어요/);
+    expect(checkboxes().every(button => !button.disabled)).toBe(true);
+    await act(async () => checkboxes()[0].click());
+    expect(mocks.updateJourney.mock.calls[1][0].progress.greeting.checklist[1].done).toBe(true);
+  });
+
+  it("does not expose or save A's custom rows during B's initial merge timer", async () => {
+    mocks.progress.greeting = { category: "greeting", status: "in_progress", checklist: [{ id: "greeting_only_a", label: "A에게만 있는 기록", done: true }] };
+    await render();
+    const staleButton = checkboxes()[0];
+    await switchOwner("owner-b", {}, false);
+    expect(dialog().textContent).not.toContain("A에게만 있는 기록");
+    await act(async () => staleButton.click());
+    expect(mocks.updateJourney).not.toHaveBeenCalled();
+    const exclude = [...dialog().querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes("우리는 이건 안 해요"))!;
+    await act(async () => exclude.click());
+    expect(mocks.updateJourney).not.toHaveBeenCalled();
+    await act(async () => vi.runOnlyPendingTimers());
+    expect(checkboxes()).toHaveLength(CHECKLIST_MAP.greeting.items.length);
+  });
+
+  it("invalidates a pending save when A to B to A happens before a render", async () => {
+    let reject!: (error: Error) => void;
+    mocks.updateJourney.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+    await render();
+    await act(async () => checkboxes()[0].click());
+    await act(async () => {
+      for (const owner of ["owner-b", "owner-a"]) {
+        mocks.ownerId = owner;
+        for (const listener of mocks.listeners) listener();
+      }
+      mocks.progress = { greeting: { category: "greeting", status: "completed", checklist: CHECKLIST_MAP.greeting.items.map(item => ({ ...item, done: true })) } };
+      root.render(<CategoryChecklistModal categoryKey="greeting" isOpen onClose={onClose} presentation="planning" />);
+    });
+    await act(async () => vi.runOnlyPendingTimers());
+    await act(async () => reject(new Error("옛 A 저장 실패")));
+    expect(checkboxes().every(button => button.getAttribute("aria-checked") === "true")).toBe(true);
+    expect(dialog().textContent).not.toContain("옛 A 저장 실패");
+  });
+
+  it("clears the old checklist on a couple-only change for the same user", async () => {
+    mocks.progress.greeting = { category: "greeting", status: "in_progress", checklist: [{ id: "greeting_old_couple", label: "예전 커플의 기록", done: true }] };
+    await render();
+    await switchOwner("owner-a", {}, false);
+    expect(dialog().textContent).not.toContain("예전 커플의 기록");
+    await act(async () => vi.runOnlyPendingTimers());
+    await act(async () => checkboxes()[0].click());
+    expect(mocks.updateJourney.mock.calls[0][0].progress.greeting.checklist).toHaveLength(CHECKLIST_MAP.greeting.items.length);
+  });
+
+  it("observes A to B to A even when the canonical progress object is unchanged", async () => {
+    let settle!: (value: { status: string }) => void;
+    mocks.updateJourney.mockImplementationOnce(() => new Promise(resolve => { settle = resolve; }));
+    await render();
+    await act(async () => checkboxes()[0].click());
+    await act(async () => {
+      for (const owner of ["owner-b", "owner-a"]) {
+        mocks.ownerId = owner;
+        for (const listener of mocks.listeners) listener();
+      }
+      root.render(<CategoryChecklistModal categoryKey="greeting" isOpen onClose={onClose} presentation="planning" />);
+    });
+    await act(async () => vi.runOnlyPendingTimers());
+    await act(async () => settle({ status: "applied" }));
+    expect(checkboxes().every(button => button.getAttribute("aria-checked") === "false")).toBe(true);
+    expect(dialog().textContent).not.toContain("체크 상태를 저장했어요");
+  });
+
+  it("waits for a fresh canonical checklist before allowing a same-owner click", async () => {
+    await render();
+    mocks.progress = { greeting: { category: "greeting", status: "in_progress", checklist: CHECKLIST_MAP.greeting.items.map((item, index) => ({ ...item, done: index === 1 })) } };
+    await act(async () => root.render(<CategoryChecklistModal categoryKey="greeting" isOpen onClose={onClose} presentation="planning" />));
+    expect(checkboxes()[0].disabled).toBe(true);
+    await act(async () => checkboxes()[0].click());
+    expect(mocks.updateJourney).not.toHaveBeenCalled();
+    await act(async () => vi.runOnlyPendingTimers());
+    await act(async () => checkboxes()[0].click());
+    expect(mocks.updateJourney.mock.calls[0][0].progress.greeting.checklist[1].done).toBe(true);
+  });
+
+  it.each(["another-category", "reopened"])("ignores a pending failure in a %s sheet", async mode => {
+    let reject!: (error: Error) => void;
+    mocks.updateJourney.mockImplementationOnce(() => new Promise((_, fail) => { reject = fail; }));
+    await render();
+    await act(async () => checkboxes()[0].click());
+    const category = mode === "another-category" ? "housing" : "greeting";
+    if (mode === "reopened") await render("greeting", false);
+    mocks.progress = { [category]: { category, status: "completed", checklist: CHECKLIST_MAP[category].items.map(item => ({ ...item, done: true })) } };
+    await render(category);
+    await act(async () => reject(new Error("닫힌 시트의 실패")));
+    expect(checkboxes()).toHaveLength(CHECKLIST_MAP[category].items.length);
+    expect(checkboxes().every(button => button.getAttribute("aria-checked") === "true")).toBe(true);
+    expect(dialog().textContent).not.toContain("닫힌 시트의 실패");
+  });
 
   it.each(["venue", "greeting", "housing", "registration"])("keeps every canonical %s item and its display order in the scroll body", async (categoryKey) => {
     await render(categoryKey);
@@ -65,6 +197,25 @@ describe("planning checklist sheet", () => {
     expect(checkboxes().map(button => button.getAttribute("aria-labelledby")?.split("-").at(-2))).toEqual(expected.map(item => item.id));
     for (const button of checkboxes()) expect(button.closest('[data-planning-body]')).not.toBeNull();
     expect(mocks.updateJourney).not.toHaveBeenCalled();
+  });
+
+  it.each(["venue", "greeting", "housing", "registration"])("offers independent %s category and item questions without changing checks", async (categoryKey) => {
+    await render(categoryKey);
+    const links = Array.from(dialog().querySelectorAll<HTMLAnchorElement>('a[href*="amoraSource="]'));
+    expect(links.map(link => link.getAttribute("href"))).toEqual([
+      ...groupChecklistItems(categoryKey, CHECKLIST_MAP[categoryKey].items).flatMap(group => group.items).map(item => `/chat?amoraSource=c.${categoryKey}.${item.id}`),
+      `/chat?amoraSource=c.${categoryKey}`,
+    ]);
+    const before = checkboxes().map(button => button.getAttribute("aria-checked"));
+    for (const link of links) {
+      expect(link.closest('[role="checkbox"]')).toBeNull();
+      expect(link.getAttribute("aria-label")).toBeTruthy();
+      link.addEventListener("click", event => event.preventDefault());
+      await act(async () => link.click());
+    }
+    expect(checkboxes().map(button => button.getAttribute("aria-checked"))).toEqual(before);
+    expect(mocks.updateJourney).not.toHaveBeenCalled();
+    expect(dialog().textContent).toContain("체크 상태는 바뀌지 않아요");
   });
 
   it("portals with labelled dialog, traps focus, closes on Escape and restores the opener", async () => {
@@ -128,6 +279,7 @@ describe("planning checklist sheet", () => {
     ] };
     await render();
     expect(checkboxes()).toHaveLength(CHECKLIST_MAP.greeting.items.length + 1);
+    expect(dialog().querySelector('a[href*="amoraSource=c.greeting.greeting_custom"]')).toBeNull();
     const exclude = Array.from(dialog().querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes("우리는 이건 안 해요"))!;
     await act(async () => exclude.click());
     const saved = mocks.updateJourney.mock.calls[0][0].progress.greeting;
@@ -138,7 +290,7 @@ describe("planning checklist sheet", () => {
 
   it("keeps source links outside checkboxes and never saves when navigating to a guide", async () => {
     await render("registration");
-    const links = Array.from(dialog().querySelectorAll<HTMLAnchorElement>('a[href]'));
+    const links = Array.from(dialog().querySelectorAll<HTMLAnchorElement>('a[href]:not([href*="amoraSource="])'));
     expect(links.length).toBeGreaterThan(1);
     for (const link of links) {
       expect(link.closest('[role="checkbox"]')).toBeNull();

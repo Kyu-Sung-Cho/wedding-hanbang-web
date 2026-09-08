@@ -13,10 +13,16 @@ const mocks = vi.hoisted(() => ({
     isInitialized: true, isLoading: false, isDemo: false,
     updateJourney: vi.fn(),
   },
+  publishAuth: () => {},
   actions: [] as AmoraActionItem[], loading: false, error: null as string | null,
   refresh: vi.fn(), open_count: 0, truncated: false,
 }));
-vi.mock("@/stores/authStore", () => ({ useAuthStore: () => mocks.auth }));
+vi.mock("@/stores/authStore", async () => {
+  const { create } = await import("zustand");
+  const useAuthStore = create(() => ({ ...mocks.auth }));
+  mocks.publishAuth = () => useAuthStore.setState({ ...mocks.auth }, true);
+  return { useAuthStore };
+});
 vi.mock("@/hooks/useAmoraPreparationActions", () => ({ useAmoraPreparationActions: () => mocks }));
 vi.mock("next/link", () => ({
   default: ({ children, href, as, prefetch, ...props }: AnchorHTMLAttributes<HTMLAnchorElement> & { as?: string; prefetch?: boolean }) => {
@@ -42,6 +48,7 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     mocks.auth.isDemo = false;
     mocks.auth.updateJourney.mockReset().mockImplementation(async (updates: { progress: Record<string, ProgressItem> }) => {
       mocks.auth.journey = { ...mocks.auth.journey, ...updates };
+      mocks.publishAuth();
       return { status: "applied", journey: mocks.auth.journey };
     });
     mocks.actions = [];
@@ -59,7 +66,9 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     container.remove();
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
   });
-  async function render() { await act(async () => root.render(<AmoraMissions />)); }
+  async function render() {
+    await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions />); });
+  }
 
   it("빈 공유 할 일과 조회 실패를 구분하고 실패는 다시 불러올 수 있다", async () => {
     await render();

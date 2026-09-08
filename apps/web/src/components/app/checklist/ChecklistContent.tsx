@@ -9,6 +9,7 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import { directionParticle } from "@/lib/korean/particles";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
@@ -204,10 +205,12 @@ export default function ChecklistContent() {
           <h2 id="all-checklist-heading" className="planning-display text-[20px] leading-[1.4] text-[var(--amora-ink)]">전체 준비</h2>
           <span className="text-[13px] text-[var(--hb-text-body)]">{categories.length}개 분야</span>
         </div>
+        <p className="mt-1.5 text-[12px] leading-[1.6] text-[var(--amora-muted)]">아모라로 이어서 물어볼 수 있어요. 질문 초안을 확인한 뒤 직접 보내요.</p>
 
         {categories.length > 0 ? (
           <ul className="mt-3 grid gap-3 md:grid-cols-2">
             {categories.map(({ template, status, counts, declared, guide }) => {
+              const amoraHref = buildAmoraPreparationHref({ kind: "checklist", categoryKey: template.key });
               const percent = status === "not_applicable" || counts.total === 0
                 ? 0
                 : Math.round((counts.done / counts.total) * 100);
@@ -247,14 +250,21 @@ export default function ChecklistContent() {
                       <progress value={percent} max={100} aria-label={`${template.label} 항목 완료율`} className="mt-3 block h-1.5 w-full appearance-none overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-[var(--amora-rose)] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-[var(--amora-rose)]" />
                     )}
                   </button>
+                  <div className="mt-1 flex flex-wrap items-center justify-between gap-x-4">
                   {guide && (
                     <Link
                       {...weddingLinkProps(`/manners/${guide.slug}`)}
-                      className="mt-1 inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-rose-deep)] underline decoration-[var(--amora-rose-pale)] underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+                      className="inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-rose-deep)] underline decoration-[var(--amora-rose-pale)] underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
                     >
                       관련 예절 가이드 보기
                     </Link>
                   )}
+                  {amoraHref && (
+                    <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-md text-[12px] font-semibold text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                      아모라에 질문하기
+                    </Link>
+                  )}
+                  </div>
                 </li>
               );
             })}

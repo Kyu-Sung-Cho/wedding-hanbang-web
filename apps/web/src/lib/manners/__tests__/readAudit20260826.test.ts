@@ -70,7 +70,11 @@ describe("아는 것을 모른다고 말하지 않는다", () => {
 
   it("두 편이 같은 합산 규칙을 말한다", () => {
     for (const slug of ["invitation-sending", "gift-money"]) {
-      expect(textOf(slug), `${slug}: 합산 규칙이 없다`).toContain("현금은 5만원을 넘을 수 없습니다");
+      const body = JSON.stringify(part(slug)?.sections);
+      expect(body, `${slug}: 원칙과 예외가 없다`).toContain("원칙적으로 금지");
+      expect(body).toMatch(/예외 (?:목적|요건)/u);
+      expect(body).toMatch(/합(?:산|계) 10만원/u);
+      expect(body).toMatch(/(?:현금은 5만원을 넘을 수 없습니다|축의금은 5만원 이내)/u);
     }
   });
 
@@ -78,7 +82,7 @@ describe("아는 것을 모른다고 말하지 않는다", () => {
     // 이 편은 절이 11개이고 청탁금지법 안내는 3번 절이다. 8번은 「정산과 양가 분배」다.
     const money = part("gift-money");
     expect(money?.sections.length).toBe(11);
-    expect(money?.sections[7]?.heading).toContain("정산");
+    expect(money?.sections[7]?.blocks.some((block) => JSON.stringify(block).includes("정산"))).toBe(true);
     for (const source of money?.sources ?? []) {
       expect(source.supports, `${source.label}: 8번 섹션을 가리킨다`).not.toContain("8번 섹션");
     }
@@ -95,9 +99,10 @@ describe("아직 안 한 결혼식에 누가 왔다고 하지 않는다", () => 
     }
   });
 
-  it("내가 축의를 했던 분을 빠뜨리는 쪽도 경고한다", () => {
-    // 한국에서 실제로 다툼이 나는 지점인데 경고가 통째로 없었다.
-    expect(invitation).toContain("그분이 갚을 기회를 잃으니");
+  it("명단을 축의금 상환 의무로 만들지 않는다", () => {
+    const body = JSON.stringify(part("invitation-sending")?.sections);
+    expect(body).not.toContain("그분이 갚을 기회를 잃으니");
+    expect(body).toContain("축하와 참석은 자발적인 선택");
   });
 });
 
@@ -263,8 +268,10 @@ describe("확인 못 한 범위를 그 자리에서 밝힌다", () => {
   it("대출 신청 기한과 대상주택 요건의 한계를 적는다", () => {
     // 기한을 넘기면 대출 자체가 불가능해지고, 대상주택 요건에 안 맞으면 계약금을 잃는다.
     // 주택도시기금 안내가 자바스크립트로 그려져 1차 자료로 확인하지 못했다.
-    expect(JSON.stringify(part("cost-saving")?.sections))
-      .toContain("대상주택 요건은 저희가 1차 자료로 확인하지 못했습니다");
+    const body = JSON.stringify(part("cost-saving")?.sections);
+    expect(body).toContain("현재 공식 상품 안내와 수탁은행에 확인");
+    expect(body).toContain("계약금 처리 특약");
+    expect(body).not.toContain("6개월 이내 신청");
   });
 });
 

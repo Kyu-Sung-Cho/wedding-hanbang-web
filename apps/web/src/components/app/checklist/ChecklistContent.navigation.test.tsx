@@ -36,6 +36,7 @@ vi.mock("@/components/app/schedule/CategoryChecklistModal", () => ({
 }));
 
 import ChecklistContent from "./ChecklistContent";
+import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 
 const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT: boolean;
@@ -64,6 +65,20 @@ describe("ChecklistContent category deep links", () => {
   async function render() {
     await act(async () => root.render(<ChecklistContent />));
   }
+
+  it("offers a source-bound Amora link for every category alongside its checklist and guide", async () => {
+    await render();
+    for (const category of CATEGORY_CHECKLISTS) {
+      const open = container.querySelector(`button[aria-label="${category.label} 체크리스트 열기"]`)!;
+      const link = open.closest("li")?.querySelector<HTMLAnchorElement>('a[href*="amoraSource="]');
+      expect(link?.getAttribute("href")).toBe(`/chat?amoraSource=c.${category.key}`);
+      expect(link?.closest("button")).toBeNull();
+      expect(link?.getAttribute("aria-label")).toContain(category.label);
+    }
+    expect(container.textContent).toContain("질문 초안을 확인한 뒤 직접 보내요");
+    expect(mocks.replace).not.toHaveBeenCalled();
+    expect(container.querySelector('[data-testid="modal-close"]')).toBeNull();
+  });
 
   it("adds a shareable category query when a category opens", async () => {
     mocks.searchParams = new URLSearchParams("from=dashboard");
