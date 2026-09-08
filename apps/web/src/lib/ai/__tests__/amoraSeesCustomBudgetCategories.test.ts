@@ -110,12 +110,12 @@ describe("직접 추가한 예산 항목을 아모라가 본다", () => {
     expect(prompt).toContain(SCREEN_MADE);
   });
 
-  it("예산 화면에서 지운 항목은 실리지 않는다", () => {
+  it("사용자 항목은 고정 분야용 숨김 표시가 남아 있어도 프롬프트에 실린다", () => {
     const shown = promptWith(PROGRESS);
     // 대조군: 지우지 않으면 실린다.
     expect(shown).toContain("차량 이동");
     const hidden = promptWith({ ...PROGRESS, __hidden: [SCREEN_MADE] });
-    expect(hidden).not.toContain("차량 이동");
+    expect(hidden).toContain("차량 이동");
     // 다른 커스텀 항목은 그대로다.
     expect(hidden).toContain("사진 촬영 공간");
   });
@@ -154,7 +154,7 @@ describe("예산 요약이 화면과 같은 숫자를 말한다", () => {
     expect(out.total_spent).toBe(5_200_000);
   });
 
-  it("지운 항목은 요약에서도 빠진다", async () => {
+  it("사용자 항목은 고정 분야용 숨김 표시가 남아 있어도 요약에 들어간다", async () => {
     const result = await executeTool(
       "get_budget_summary",
       {},
@@ -164,8 +164,8 @@ describe("예산 요약이 화면과 같은 숫자를 말한다", () => {
       total_spent: number;
       categories: Array<{ key: string }>;
     };
-    expect(out.categories.some((c) => c.key === SCREEN_MADE)).toBe(false);
-    expect(out.total_spent).toBe(5_000_000);
+    expect(out.categories.some((c) => c.key === SCREEN_MADE)).toBe(true);
+    expect(out.total_spent).toBe(5_200_000);
   });
 });
 

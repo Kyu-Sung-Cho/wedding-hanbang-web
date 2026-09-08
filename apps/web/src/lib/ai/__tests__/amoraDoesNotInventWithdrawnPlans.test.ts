@@ -106,6 +106,27 @@ const VARIANTS: Array<{ label: string; prompt: string }> = [
 ];
 
 describe("철회 목록을 지어내지 않는다", () => {
+  it("요청받은 상태 요약에서 거부 조건과 결정 상태·전달 여부를 섞지 않는다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const line = prompt.split("\n").find(value => value.includes("상태 요약을 요청하면")) ?? "";
+      expect(line, label).toContain("선호와 거부 조건을 함께");
+      expect(line, label).toContain("확정·가설·미정과 상대에게 전달했는지는 따로 구분");
+      expect(line, label).toContain("미정은 미전달의 증거가 아닙니다");
+      expect(line, label).toContain("확인되지 않으면 미확인");
+      expect(line, label).not.toMatch(/항상|반드시.*표/u);
+    }
+  });
+
+  it("단순 선호 변경은 저장 약속으로 바꾸지 않되 명시 실행 요청은 유지한다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const line = prompt.split("\n").find(value => value.startsWith("- **실행**:")) ?? "";
+      expect(line, label).toContain("저장·수정·조회·문구 작성처럼 할 일이 분명하면");
+      expect(line, label).toContain("실행 뒤에는 실제 반영 여부를 확인");
+      expect(line, label).toContain("단순 선호·후보만 달라지면 대화 기준으로");
+      expect(line, label).toContain("저장 요청이 없는 턴에 저장 약속·실패 안내를 만들지");
+    }
+  });
+
   it("저장 실패·대기와 사용자의 계획 철회를 구분한다", () => {
     for (const { label, prompt } of VARIANTS) {
       const line = prompt.split("\n").find(value => value.includes("저장 실패·확인 대기")) ?? "";

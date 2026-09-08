@@ -51,6 +51,8 @@ it("일반 대화 조율에서도 두 사람의 이유와 조건의 귀속을 �
   expect(line).toContain("말·이유·조건");
   expect(line).toContain("서로 바꾸거나 합의로 묶지");
   expect(line).toContain("감정·의도는 단정하지");
+  expect(line).toContain("한 사람의 예산 제안만으로 공동 상한이나 예산 갈등을 만들지");
+  expect(line).toContain("확인된 공동 합의는 유지");
 });
 it("개인 상담 답변은 실제 개인 저장 버튼으로 안내하고 대화만으로 저장됐다고 하지 않는다", () => {
   const line = delivered.split("\n").find(candidate => candidate.includes("개인 할 일로 저장")) ?? "";
@@ -108,7 +110,9 @@ describe("큰 방향전환은 이유를 한 번 확인한다", () => {
 
   it("작은 변경까지 되묻게 하지는 않는다", () => {
     // 이 단서가 빠지면 날짜 한 달 옮기는 것도 되묻는다.
-    expect(pivotRuleLine(delivered)).toContain("날짜 한 달 이동은 반영하세요");
+    const line = pivotRuleLine(delivered);
+    expect(line).toContain("작은 월 선호는 되묻지 마세요");
+    expect(line).not.toContain("반영하세요");
   });
 
   it("결혼 조회 도구가 없으면 싣지 않는다", () => {
