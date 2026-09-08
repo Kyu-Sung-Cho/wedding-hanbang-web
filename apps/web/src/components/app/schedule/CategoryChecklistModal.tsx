@@ -469,6 +469,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                           : "border-b border-[#E5DDC9]"
                       }`}
                     >
+                      <div className="flex items-start gap-1">
                       <button
                         type="button"
                         role="checkbox"
@@ -477,7 +478,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                         aria-describedby={item.note ? (isPlanning && item.done ? undefined : `${titleId}-${item.id}-note`) : undefined}
                         disabled={saving || !checklistReady || isNotApplicable}
                         onClick={() => toggleItem(item.id)}
-                        className={`group flex min-h-11 w-full items-start rounded-[6px] text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] disabled:cursor-not-allowed disabled:opacity-55 ${isPlanning ? "gap-[11px] px-0.5 py-[13px] md:gap-3 md:px-1 md:pt-3 md:pb-2" : "gap-3 px-1 pt-3 pb-2"}`}
+                        className={`group flex min-h-11 min-w-0 flex-1 items-start rounded-[6px] text-left transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] disabled:cursor-not-allowed disabled:opacity-55 ${isPlanning ? "gap-[11px] px-0.5 py-[13px] md:gap-3 md:px-1 md:pt-3 md:pb-2" : "gap-3 px-1 pt-3 pb-2"}`}
                       >
                         {/*
                           동그라미 셋이 서로 다른 말을 한다 — 끝난 것(초록·체크),
@@ -527,21 +528,20 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                           hideNoteWhenDone
                         />
                       </button>
-                      <div className="ml-9 flex flex-wrap items-center justify-between gap-x-3">
+                      {itemAmoraHref && (
+                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-accent)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                          <Sparkle className="h-[18px] w-[18px]" aria-hidden="true" strokeWidth={1.7} />
+                        </Link>
+                      )}
+                      </div>
                       {sourceChipItemIds.has(item.id) ? (
                         <ChecklistItemSource
                           itemId={item.id}
                           variant="chip"
                           touchTarget={isPlanning}
-                          indentClassName=""
+                          indentClassName="ml-9"
                         />
                       ) : null}
-                      {itemAmoraHref && (
-                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-md text-[12px] font-medium text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                          이 항목 아모라에 질문
-                        </Link>
-                      )}
-                      </div>
                     </div>
                   );
                 })}
@@ -605,16 +605,16 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
             링크의 부제 두 줄을 뺐다 — 제목이 「첫인사 예절 보기」처럼 이미 무엇을 여는지
             말하고 있어서, 그 아래 설명은 같은 말을 길게 반복하는 자리였다.
           */}
-          <div className={isPlanning ? "flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4" : "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"}>
+          <div className={isPlanning ? "flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-4" : "flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"}>
             <p className={`flex items-start gap-2.5 leading-[1.6] text-[var(--hb-text-body)] ${isPlanning ? "text-[12px] md:text-[12.5px]" : "text-[12.5px]"}`}>
               <Sparkle className="mt-px h-4 w-4 flex-shrink-0 text-[var(--color-gold)]" aria-hidden="true" strokeWidth={1.7} />
               <span>{template.tip}</span>
             </p>
 
-            <div className="flex shrink-0 flex-wrap gap-2 md:max-w-[45%]">
+            <div className="flex min-w-0 items-stretch gap-2 md:max-w-[50%] md:shrink-0">
             {relatedGuide && <Link
               {...weddingLinkProps(relatedGuide.href)}
-              className={`flex flex-shrink-0 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${isPlanning ? "min-h-[46px] md:min-h-11" : ""}`}
+              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[11px] border border-[#E5DDC9] bg-white px-3.5 py-[9px] text-[12.5px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${isPlanning ? "min-h-[46px] md:min-h-11" : ""}`}
             >
               <BookOpen className="h-[15px] w-[15px] flex-shrink-0" aria-hidden="true" />
               {/*
@@ -630,8 +630,8 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
               </span>
             </Link>}
             {amoraHref && (
-              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-[46px] flex-1 items-center justify-center rounded-[11px] bg-[var(--amora-ink)] px-3.5 py-[9px] text-center text-[12.5px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:min-h-11">
-                아모라에 질문하기
+              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-[46px] shrink-0 items-center justify-center rounded-[11px] bg-[var(--amora-ink)] px-3.5 py-[9px] text-center text-[12.5px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:min-h-11">
+                아모라 질문
               </Link>
             )}
             </div>

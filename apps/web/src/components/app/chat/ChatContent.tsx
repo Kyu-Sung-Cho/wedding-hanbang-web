@@ -2525,16 +2525,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
           viewport 우측 가장자리에 위치. 툴바·입력박스만 reading column 으로
           가운데 정렬. */}
-      {!embedded && (
-        <nav aria-label="아모라 준비 화면" className="flex shrink-0 justify-end gap-3 px-[18px] pt-2 text-[12px] text-[var(--amora-accent)] md:px-9">
-          <Link href={weddingPath("/chat/missions")} className="inline-flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2">오늘의 미션</Link>
-          <Link href={weddingPath("/chat/board")} className="inline-flex min-h-11 items-center rounded-md px-1 focus-visible:outline-none focus-visible:ring-2">준비 보드</Link>
-        </nav>
-      )}
-      <div className="flex flex-wrap items-center gap-2 px-2 pb-2 pt-1 w-full max-w-[70rem] mx-auto">
+      <div className="mx-auto flex w-full max-w-[70rem] flex-wrap items-center gap-x-3 gap-y-1 px-[18px] pt-[14px] pb-2 md:px-9">
         {/* 탭 — 좌측 차지 (메인 동작) */}
+        <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:flex-1">
         <div
-          className="amora-chat-scopes flex items-center gap-1 flex-1 min-w-[220px] p-1 bg-[var(--hb-surface-hover)] rounded-[6px] shadow-[inset_0_1px_2px_rgba(0,0,0,0.04)]"
+          className="amora-chat-scopes flex min-w-0 flex-[2] items-center gap-1.5"
           role="group"
           aria-label="대화 공개 범위"
         >
@@ -2543,9 +2538,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => handleScopeChange("shared")}
             disabled={isStreaming || isSending}
             aria-pressed={activeTab === "shared"}
-            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-[9px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "shared"
-                ? "bg-white text-[var(--hb-accent-hover)] shadow-[var(--shadow-raised)]"
+                ? "bg-[var(--amora-ink,#26251F)] text-white"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
           >
@@ -2560,9 +2555,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             onClick={() => handleScopeChange("private")}
             disabled={isDemo || isStreaming || isSending || !myPrivateVisibility}
             aria-pressed={activeTab === "private"}
-            className={`flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-[9px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "private"
-                ? "bg-white text-[#5a6147] shadow-[var(--shadow-raised)]"
+                ? "bg-[var(--amora-ink,#26251F)] text-white"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
             title={
@@ -2580,12 +2575,15 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ) : null}
           </button>
         </div>
+        {!embedded && <Link href={weddingPath("/chat/board")} className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full bg-[var(--amora-low,#F0EAD9)] px-2 py-[9px] text-[12px] font-medium text-[var(--amora-muted,#605E54)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent,#486455)]">결정보드</Link>}
+        </div>
 
         {/* 액션 — 우측 (검색/정보/새채팅) */}
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex w-full shrink-0 items-center justify-end gap-1 md:w-auto">
+          {!embedded && <Link href={weddingPath("/chat/missions")} className="mr-auto inline-flex min-h-11 items-center rounded-full px-1 text-[12px] text-[var(--amora-accent,#486455)] focus-visible:outline-2 focus-visible:outline-offset-2">오늘의 미션</Link>}
           <a
             href="/ai-policy"
-            className="flex items-center justify-center h-9 px-2 rounded-[6px] text-[0.6875rem] font-medium text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
+            className="flex size-11 items-center justify-center rounded-full text-[12px] font-medium text-[var(--amora-muted,#605E54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
             aria-label="AI 정책"
             title="AI 정책"
           >
@@ -2598,10 +2596,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 return !v;
               });
             }}
-            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-[6px] transition-colors ${
+            className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors ${
               searchOpen
                 ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
-                : "text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df]"
+                : "text-[var(--amora-muted,#605E54)] hover:bg-[var(--amora-low,#F0EAD9)]"
             }`}
             aria-label="대화 검색"
             title="대화 검색"
@@ -2610,10 +2608,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </button>
           <button
             onClick={() => setInfoPanelOpen(!infoPanelOpen)}
-            className={`flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-[6px] transition-colors ${
+            className={`flex size-11 shrink-0 items-center justify-center rounded-full transition-colors ${
               infoPanelOpen
                 ? "text-[var(--hb-accent-hover)] bg-[rgba(54,83,78,0.10)]"
-                : "text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df]"
+                : "text-[var(--amora-muted,#605E54)] hover:bg-[var(--amora-low,#F0EAD9)]"
             }`}
             aria-label="정보 패널 · 대화 정리와 준비 현황"
             title="대화 정리와 준비 현황"
@@ -2623,7 +2621,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           {messages.length > 0 && (
             <button
               onClick={openNewChatModal}
-              className="flex items-center justify-center tap-area shrink-0 w-9 h-9 rounded-[6px] text-[var(--hb-text-muted)] hover:text-[var(--hb-accent-hover)] bg-[#f3e9df] transition-colors"
+              className="flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted,#605E54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"
               aria-label="대화 화면 정리"
               title="대화 화면 정리"
             >

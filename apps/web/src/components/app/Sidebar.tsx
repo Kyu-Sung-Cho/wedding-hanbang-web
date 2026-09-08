@@ -22,13 +22,14 @@ import { useAuthStore } from "@/stores/authStore";
 
 type SidebarMenuItem = {
   legacyPath: string;
+  activePath?: string;
   icon: ComponentType<{ className?: string }>;
   label: string;
   tutorialTarget?: string;
 };
 
 const menuItems: SidebarMenuItem[] = [
-  { legacyPath: "/chat", icon: MessageCircle, label: "아모라", tutorialTarget: "service-nav-amora" },
+  { legacyPath: "/chat/missions", activePath: "/chat", icon: MessageCircle, label: "아모라", tutorialTarget: "service-nav-amora" },
   { legacyPath: "/saved", icon: Bookmark, label: "저장함" },
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
   { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
@@ -89,14 +90,16 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
         <nav aria-label="서비스 메뉴" className={htmlDesign ? "flex-1 overflow-y-auto px-[14px]" : "flex-1 overflow-y-auto px-3 py-3"}>
           <div className="flex flex-col gap-1">
             {menuItems.map((item) => {
-              const isActive = currentPath === item.legacyPath
-                || (item.legacyPath !== "/lounge" && currentPath.startsWith(item.legacyPath));
+              const activePath = item.activePath ?? item.legacyPath;
+              const isActive = currentPath === activePath
+                || (activePath !== "/lounge" && currentPath.startsWith(`${activePath}/`));
               return (
                 <Link
                   key={item.legacyPath}
                   {...weddingLinkProps(item.legacyPath)}
                   onClick={onClose}
                   data-tutorial-target={item.tutorialTarget}
+                  aria-current={isActive ? "page" : undefined}
                   className={`flex items-center transition-colors ${htmlDesign ? "min-h-11 gap-[11px] rounded-[9px] px-3 py-[10px] text-[14.5px]" : "gap-3 rounded-[6px] px-4 py-3 text-[14px] font-semibold"} ${
                     isActive
                       ? htmlDesign ? "bg-[var(--amora-ink)] font-semibold text-white" : "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"

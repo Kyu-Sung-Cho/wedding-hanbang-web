@@ -1122,7 +1122,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 /* 테이프 이름표 */
 .landing-tape {
   display: inline-block;
-  padding: 5px 16px;
+  padding: 6px 16px 8px;
   background: var(--color-paper-tape);
   color: var(--color-paper-tape-ink);
   /* 크기는 여기서만 정한다. 쓰는 쪽에서 text-* 를 얹으면 이 선언이 이겨서
@@ -1130,7 +1130,11 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
    * Gaegu 는 같은 px 에서 Paperlogy 보다 작아 보여 한 단계 올린다. */
   font-size: 16px;
   font-weight: 700;
-  transform: rotate(-1.5deg);
+  transform: rotate(-1.2deg);
+}
+
+@media (min-width: 1024px) {
+  .landing-tape { font-size: 18px; }
 }
 
 /* 파란 펜 밑줄 */

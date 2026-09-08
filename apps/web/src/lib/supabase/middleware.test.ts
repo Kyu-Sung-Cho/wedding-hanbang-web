@@ -102,7 +102,7 @@ describe("vendor admin-preview onboarding boundary", () => {
   });
 });
 
-describe("루트는 앱의 문이다 — 진짜 307", () => {
+describe("루트는 로그인 상태와 관계없이 랜딩으로 보낸다 — 진짜 307", () => {
   /**
    * 이 판정은 원래 서버 컴포넌트(`app/page.tsx`)의 `redirect()`에 있었다. 브라우저에서는
    * 잘 동작했지만 응답 자체는 `200 + HTML`이었다 — 세션을 물어보는 사이 스트리밍이
@@ -123,10 +123,6 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
 
   afterEach(() => vi.unstubAllEnvs());
 
-  // 2026-08-27 파운더 결정으로 로그아웃 목적지가 `/login` → `/landing` 이 됐다.
-  // 웹의 일은 유입·설명인데(CLAUDE.md 제품 계약) 정문이 로그인 벽이면 그 일을 못 한다.
-  // 로그인한 사람은 그대로 라운지로 간다 — 8-20 결정이 막으려던 왕복은 안 생긴다.
-  // 이유 전문은 `app/page.tsx` 주석에 있다.
   it("세션이 없으면 307로 랜딩에 보낸다", async () => {
     const response = await updateSession(new NextRequest("https://hanbang.ai/"));
 
@@ -134,14 +130,27 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
     expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
   });
 
-  it("세션이 있으면 307로 라운지에 보낸다", async () => {
+  it("세션이 있어도 인증을 조회하지 않고 307로 랜딩에 보낸다", async () => {
     mocks.getUser.mockResolvedValueOnce({ data: { user: { id: "signed-in" } } });
 
     const response = await updateSession(new NextRequest("https://hanbang.ai/"));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://hanbang.ai/wedding/lounge");
+    expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+    expect(mocks.getUser).not.toHaveBeenCalled();
   });
+
+  it.each(["", "https://your-project.supabase.co"])(
+    "Supabase 설정이 없어도 루트는 307이다: %s",
+    async (url) => {
+      vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", url);
+      const response = await updateSession(new NextRequest("https://hanbang.ai/"));
+      expect(response.status).toBe(307);
+      expect(response.headers.get("location")).toBe("https://hanbang.ai/landing");
+      expect(mocks.createServerClient).not.toHaveBeenCalled();
+    },
+  );
 
   it("유입 표식을 목적지까지 들고 간다", async () => {
     // 루트에서 쿼리가 끊기면 어느 캠페인에서 왔는지가 랜딩 직전에 사라진다.
@@ -156,11 +165,7 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
   });
 
   it("위조 가능한 체험 표식만으로 라운지에 보내지 않는다", async () => {
-    // `demo_mode`는 위조 가능한 표식이고, 체험의 진짜 자격은 서명된 `demo_session`이다
-    // (`lib/demoSession.ts`). 표식만 믿고 라운지로 보내면 **만료된 체험 쿠키를 든 사람이
-    // 라운지에 갔다가 다시 튕기고**, 그 튕김이 클라이언트에서 일어나 UTM까지
-    // 사라진다. 서명 검증이 불가능해서가 아니라 목적지를 바꾸지 않기로 한 결정이다 —
-    // 자세한 이유는 `middleware.ts`의 `redirectAppDoor` 주석에 있다.
+    // 루트의 공개 목적지는 체험 표식으로도 바뀌지 않는다.
     const request = new NextRequest("https://hanbang.ai/?utm_source=kakao");
     request.cookies.set("demo_mode", "true");
 
@@ -208,23 +213,57 @@ describe("루트는 앱의 문이다 — 진짜 307", () => {
     expect(response.headers.get("location"), `${path} 가 어딘가로 보낸다`).toBeNull();
   });
 
-  it("갱신된 세션 쿠키를 리다이렉트에 실어 보낸다", async () => {
-    // 여기서 흘리면 방금 갱신된 토큰이 사라지고, 다음 요청이 로그아웃 상태로 도착한다.
+  it("루트 이동은 기존 쿠키를 갱신하거나 지우지 않는다", async () => {
+    const request = new NextRequest("https://hanbang.ai/?utm_source=existing&tag=a&tag=b");
+    request.cookies.set("sb-access-token", "existing-session");
+    const before = request.cookies.getAll();
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(
+      "https://hanbang.ai/landing?utm_source=existing&tag=a&tag=b",
+    );
+    expect(request.cookies.getAll()).toEqual(before);
+    expect(response.cookies.getAll()).toEqual([]);
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
+  });
+
+  it("보호된 앱 경로에서는 갱신된 세션 쿠키를 계속 응답에 실어 보낸다", async () => {
     mocks.createServerClient.mockImplementationOnce((_url, _key, options) => ({
       auth: {
         getUser: async () => {
           options.cookies.setAll([
             { name: "sb-access-token", value: "refreshed", options: { path: "/" } },
           ]);
-          return { data: { user: { id: "signed-in" } } };
+          return { data: { user: {
+            id: "signed-in",
+            user_metadata: { terms_agreed: true, privacy_agreed: true },
+          } } };
         },
       },
     }));
 
-    const response = await updateSession(new NextRequest("https://hanbang.ai/"));
+    const request = new NextRequest("https://hanbang.ai/wedding/lounge");
+    request.cookies.set("onboarding_complete", "true");
+    const response = await updateSession(request);
 
-    expect(response.status).toBe(307);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
     expect(response.cookies.get("sb-access-token")?.value).toBe("refreshed");
+  });
+
+  it.each([
+    "/login?redirect=%2Fwedding%2Fbudget",
+    "/login?mode=signup&redirect=%2Fwedding%2Fchat",
+    "/consent?redirect=%2Fwedding%2Fchat%3FamoraSource%3Dc.venue",
+    "/invite",
+    "/api/auth/callback?code=synthetic&redirect=%2Fwedding%2Fbudget",
+  ])("명시적인 로그인·동의·초대 복귀 경로를 루트로 취급하지 않는다: %s", async (destination) => {
+    const response = await updateSession(new NextRequest(`https://hanbang.ai${destination}`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(mocks.createServerClient).not.toHaveBeenCalled();
   });
 });
 

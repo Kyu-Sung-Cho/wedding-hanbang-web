@@ -740,14 +740,14 @@ export default function ChatBubble({
       message.visibility === "bride_private" || message.visibility === "groom_private";
 
     return (
-      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
+      <div className="group/ai flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
         {/* AI 아바타 — 모바일에선 작게 */}
-        <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--amora-accent,#486455)] sm:size-8">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
         </div>
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <span className="text-base font-medium text-[var(--hb-text-muted)] flex items-center gap-1.5">
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#605E54)]">
             아모라
             {aiIsPrivate && (
               <span className="inline-flex items-center gap-1 text-xs text-[#5a6147] font-normal">
@@ -756,10 +756,10 @@ export default function ChatBubble({
               </span>
             )}
           </span>
-          <div className={`bg-white rounded-[6px] rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border shadow-sm ${
-            aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-black/[0.06]"
+          <div className={`rounded-[14px] rounded-bl-[4px] border bg-[var(--amora-sage-pale,#DBE3D6)] px-[14px] py-[11px] ${
+            aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-transparent"
           }`}>
-            <div className="text-sm sm:text-[0.9375rem] text-[var(--hb-text-strong)] leading-relaxed break-words">
+            <div className="break-words text-[13px] leading-[1.6] text-[#233426] sm:text-[14px]">
               {renderAiMarkdown(cleanText)}
             </div>
             {/* 2026-08-19 — 태그가 가리키는 챕터로 직접 보낸다. 같은 날 레거시 25편을
@@ -798,7 +798,7 @@ export default function ChatBubble({
               messageId={message.id}
             />
           )}
-          <span className="text-sm text-[var(--hb-text-muted)] ml-1">
+          <span className="text-[11px] text-[var(--hb-text-muted)] ml-1">
             {formatTime(created_at)}
           </span>
           {/* AI 고지 footer 는 채팅 상단 헤더 배지로 통합됨 — 메시지별 반복 제거.
@@ -833,12 +833,12 @@ export default function ChatBubble({
 
   // 색은 성별이 아니라 "나 vs 상대" 축으로 가른다. 이전 신부 색(#C4967E)은 흰 글자
   // 대비 2.62:1로 WCAG AA 미달이었다 — 중립화가 접근성 수정을 겸한다.
-  const myBubbleBg = "bg-[var(--hb-primary)]";
-  const partnerBubbleBg = "bg-[var(--hb-surface-hover)]";
+  const myBubbleBg = "bg-[var(--amora-ink,#26251F)]";
+  const partnerBubbleBg = "bg-[var(--amora-warm,#F4EDE0)]";
   const partnerBubbleBorder = "border-[#E8DDD3]";
 
-  // 상대 아바타. 아모라 아바타(from-[#C4967E] to-[#C9A96E])와 색이 겹치지 않는다.
-  const avatarBg = "bg-gradient-to-br from-[#795252] to-[#946a6a]";
+  // 상대 아바타는 아모라의 세이지 색과 구분한다.
+  const avatarBg = "bg-[var(--amora-rose-deep,#7D5753)]";
   const badgeBg = "bg-[#795252]/12 text-[var(--hb-accent-hover)]";
 
   // 사용자 메시지에서 선택 태그 숨김
@@ -855,7 +855,7 @@ export default function ChatBubble({
     // 내 메시지: 오른쪽 정렬
     return (
       <div className="flex justify-end">
-        <div className="flex flex-col items-end gap-1.5 max-w-[88%] sm:max-w-[75%]">
+        <div className="flex max-w-[80%] flex-col items-end gap-1.5">
           {/* 상대방에게 보낸 메시지 표시 */}
           {isPartnerMsg && (
             <div className="flex items-center gap-1.5 mr-1">
@@ -873,13 +873,13 @@ export default function ChatBubble({
           {/* 첨부 파일 (이미지 + PDF) */}
           <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
           <div
-            className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-400 to-rose-400" : myBubbleBg} rounded-[6px] rounded-tr-md px-5 py-4 shadow-sm`}
+            className={`${isPartnerMsg ? "bg-[var(--amora-rose-deep,#7D5753)]" : myBubbleBg} rounded-[14px] rounded-br-[4px] px-[14px] py-[11px]`}
           >
-            <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">
+            <p className="whitespace-pre-wrap text-[13px] leading-[1.6] text-white sm:text-[14px]">
               {displayContent}
             </p>
           </div>
-          <span className="text-sm text-[var(--hb-text-muted)] mr-1">
+          <span className="text-[11px] text-[var(--hb-text-muted)] mr-1">
             {formatTime(created_at)}
           </span>
         </div>
@@ -889,10 +889,10 @@ export default function ChatBubble({
 
   // 상대방 메시지: 왼쪽 정렬
   return (
-    <div className="flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
+    <div className="flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
       {/* 아바타 — 모바일 작게 */}
       <div
-        className={`flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full ${isPartnerMsg ? "bg-gradient-to-br from-pink-400 to-rose-400" : avatarBg} flex items-center justify-center shadow-sm`}
+        className={`flex size-7 shrink-0 items-center justify-center rounded-full ${avatarBg} sm:size-8`}
       >
         {isPartnerMsg ? (
           <Heart className="w-5 h-5 text-white" />
@@ -917,13 +917,13 @@ export default function ChatBubble({
         </div>
         <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
         <div
-          className={`${isPartnerMsg ? "bg-gradient-to-r from-pink-50 to-rose-50 border-pink-200" : `${partnerBubbleBg} border ${partnerBubbleBorder}`} border rounded-[6px] rounded-tl-md px-5 py-4 shadow-sm`}
+          className={`${isPartnerMsg ? "bg-[var(--amora-rose-pale,#EDD9D0)] border-transparent" : `${partnerBubbleBg} ${partnerBubbleBorder}`} rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px]`}
         >
-          <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed whitespace-pre-wrap">
+          <p className="whitespace-pre-wrap text-[13px] leading-[1.6] text-[var(--hb-text-strong)] sm:text-[14px]">
             {displayContent}
           </p>
         </div>
-        <span className="text-sm text-[var(--hb-text-muted)] ml-1">
+        <span className="text-[11px] text-[var(--hb-text-muted)] ml-1">
           {formatTime(created_at)}
         </span>
       </div>

@@ -1,48 +1,13 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * 루트(`/`)는 앱의 문이다 — 세션이 있으면 라운지로, 없으면 랜딩으로.
- *
- * ## 무엇을 지키는가
- *
- * **세션을 보고 갈린다**는 것 하나다. 목적지 두 개가 다 맞아야 한다.
- *
- * 이 판정이 무너지는 방법이 둘 있고, 둘 다 조용하다.
- *
- * 1. **엣지 리다이렉트가 되살아난다.** `next.config.ts`에 `source: "/"`가 생기면
- *    page.tsx의 세션 판정은 영영 돌지 않는다. 엣지는 세션을 볼 수 없으므로 로그인한
- *    사람도 매번 랜딩을 지나 다시 앱으로 들어가야 한다 — 2026-08-20에 실제로 그랬고,
- *    그 왕복이 그때 루트를 바꾼 이유였다. 랜딩을 정문으로 되돌린 지금도 이건 막는다.
- * 2. **한쪽 목적지만 고친다.** 판정이 미들웨어와 page.tsx 두 곳에 있어서, 한 곳만
- *    고치면 미들웨어가 도는 환경과 안 도는 환경의 결론이 갈린다.
- *
- * ## 2026-08-27 — 로그아웃 목적지가 `/login`에서 `/landing`으로
- *
- * 파운더 결정이다. 8-20에는 로그아웃이면 로그인 화면이었다. 이유는 "앱의 첫 화면이
- * 로그인인데 웹만 소개 페이지면 제품의 약속이 웹에서만 거짓"이라는 것이었는데,
- * 그 규칙이 웹의 일과 어긋났다 — 제품 계약(CLAUDE.md)은 **웹이 유입·설명을 담당**한다고
- * 정한다. 유입·설명이 일인 표면의 정문이 로그인 벽이면 그 일을 할 수가 없다.
- *
- * 8-20이 막으려던 왕복은 여기서 세션을 보고 갈라 그대로 막는다.
- *
- * ## 무엇을 지키지 않는가
- *
- * 랜딩의 내용은 지키지 않는다 — `landing/__tests__/`가 한다. 여기서는 **도착지가
- * 어디인가**만 본다. canonical과 sitemap이 `/landing`을 가리키는 것도 함께 고정한다.
- * 루트는 307로 거기 보내므로 같은 내용이 두 주소에 생기지 않는다.
- *
- * ## page.tsx는 폴백이지 정본이 아니다
- *
- * 실제 판정은 **미들웨어**(`lib/supabase/middleware.ts`의 `redirectAppDoor`)가 한다.
- * 거기서 해야 진짜 307이 나가기 때문이다 — 서버 컴포넌트의 `redirect()`는 세션을
- * 물어보는 사이 스트리밍이 시작돼서 `200 + HTML`로 나가고, 리다이렉트가 클라이언트로
- * 밀린다. 그 동작은 `lib/supabase/middleware.test.ts`가 상태 코드로 지킨다.
- *
- * 아래 page.tsx 단언들은 **미들웨어가 돌지 않는 환경**(Supabase 설정 누락 등)의 폴백을
- * 지킨다. 중복으로 보인다는 이유로 지우면, 그 환경에서 루트가 다시 폴백 문서가 된다.
- */
+/** 도메인 루트는 공개 랜딩이며 명시적 앱 주소의 인증 경계와 독립적이다. */
+const mocks = vi.hoisted(() => ({ createClient: vi.fn(), getUser: vi.fn(), redirect: vi.fn() }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: mocks.createClient }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+
+import HomePage from "../page";
 
 const WEB_ROOT = process.cwd();
 
@@ -50,52 +15,39 @@ function read(relativePath: string): string {
   return readFileSync(path.join(WEB_ROOT, relativePath), "utf8");
 }
 
-describe("루트는 앱의 문이다", () => {
+describe("루트는 로그인 상태와 관계없이 랜딩으로 보낸다", () => {
+  beforeEach(() => {
+    mocks.getUser.mockReset().mockResolvedValue({ data: { user: null } });
+    mocks.createClient.mockReset().mockResolvedValue({ auth: { getUser: mocks.getUser } });
+    mocks.redirect.mockReset().mockImplementation(() => { throw new Error("ROOT_REDIRECT"); });
+  });
   it("엣지가 루트를 가로채지 않는다", () => {
     const config = read("next.config.ts");
-    // `source: "/"`인 리다이렉트가 있으면 page.tsx는 절대 돌지 않는다.
-    //
-    // 처음에는 뒤에 쉼표가 오는 형태만 봤다. 그래서 `source`를 객체의 **마지막 키**로
-    // 쉼표 없이 쓰면 8/8 통과하면서 엣지 리다이렉트가 되살아났다(2026-08-21 변이로 확인).
-    // 쉼표·닫는 중괄호·줄바꿈 어느 것이 뒤에 와도 잡는다.
+    // 루트 307은 미들웨어에서 관리한다. 별도 정적 규칙과 목적지가 갈리지 않게 한다.
     expect(config).not.toMatch(/source:\s*"\/"\s*(?=[,}\r\n])/u);
   });
 
-  it("세션이 있으면 라운지로, 없으면 랜딩으로 보낸다", () => {
-    const page = read("src/app/page.tsx");
-    expect(page).toContain("supabase.auth.getUser()");
-    expect(page).toMatch(/signedIn \? "\/wedding\/lounge" : "\/landing"/u);
+  it.each([null, { id: "signed-in" }])("폴백은 세션에 관계없이 랜딩으로 보낸다: %j", async (user) => {
+    mocks.getUser.mockResolvedValueOnce({ data: { user } });
+    await expect(HomePage({})).rejects.toThrow("ROOT_REDIRECT");
+    expect(mocks.redirect).toHaveBeenCalledExactlyOnceWith("/landing");
+    expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
-  it("미들웨어와 폴백이 같은 결론을 낸다", () => {
-    // 판정이 두 곳에 있다. 한 곳만 고치면 미들웨어가 도는 환경과 안 도는 환경의
-    // 결론이 갈리고, 갈린 날 사람이 두 화면 사이에 갇힌다.
-    // 문자열 비교가 아니라 **같은 두 목적지를 같은 조건으로 고르는지**를 본다.
-    const middleware = read("src/lib/supabase/middleware.ts");
-    expect(middleware).toMatch(
-      /signedIn \? "\/wedding\/lounge" : "\/landing"/u,
+  it("유입 query의 여러 값과 빈 값을 목적지까지 보존한다", async () => {
+    await expect(HomePage({ searchParams: Promise.resolve({
+      utm_source: "카카오 & 친구", tag: ["a", "b"], empty: "", missing: undefined,
+    }) })).rejects.toThrow("ROOT_REDIRECT");
+    expect(mocks.redirect).toHaveBeenCalledExactlyOnceWith(
+      "/landing?utm_source=%EC%B9%B4%EC%B9%B4%EC%98%A4+%26+%EC%B9%9C%EA%B5%AC&tag=a&tag=b&empty=",
     );
-    // 로그아웃을 로그인 화면으로 보내던 경로가 어느 쪽에도 남으면 안 된다.
-    for (const [name, source] of [
-      ["page.tsx", read("src/app/page.tsx")],
-      ["middleware.ts", middleware],
-    ] as const) {
-      expect(source, `${name}에 옛 로그아웃 목적지가 남아 있습니다`).not.toMatch(
-        /signedIn \? "\/wedding\/lounge" : "\/login"/u,
-      );
-    }
   });
 
-  it("유입 표식을 목적지까지 들고 간다", () => {
-    // 루트에서 쿼리가 끊기면 어느 캠페인에서 왔는지가 로그인 직전에 사라진다.
-    const page = read("src/app/page.tsx");
-    expect(page).toMatch(/\$\{destination\}\?\$\{query\}/u);
-  });
-
-  it("세션을 못 물어봐도 화면이 죽지 않는다", () => {
-    // 설정 누락·네트워크 실패로 여기서 던지면 도메인 루트가 통째로 오류가 된다.
-    const page = read("src/app/page.tsx");
-    expect(page).toMatch(/catch\s*\{\s*signedIn = false;/u);
+  it("인증 서비스가 실패하는 환경도 폴백의 목적지를 바꾸지 않는다", async () => {
+    mocks.createClient.mockRejectedValueOnce(new Error("Auth unavailable"));
+    await expect(HomePage({})).rejects.toThrow("ROOT_REDIRECT");
+    expect(mocks.redirect).toHaveBeenCalledExactlyOnceWith("/landing");
+    expect(mocks.createClient).not.toHaveBeenCalled();
   });
 
   it("검색 유입은 여전히 랜딩으로 들어온다", () => {

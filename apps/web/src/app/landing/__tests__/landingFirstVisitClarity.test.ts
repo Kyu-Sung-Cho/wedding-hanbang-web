@@ -462,35 +462,17 @@ describe("landing first visit clarity", () => {
     const amoraBlock = contentBlock("amoraNote", "noSide");
     const amora = rendered(AMORA_NOTE);
 
-    // 2026-08-27 개편 전에는 이 케이스가 ProblemMirrorSection → PreparationResult 순서를
-    // 지켰다. "카톡에는 날짜, 메모장에는 예산, 머릿속에는 해야 할 일."로 흩어진 준비를
-    // 비춘 **뒤에** 결과를 보여준다는 규칙이었다. 그다음 판에서는 히어로(문제 문장) →
-    // ScenesSection(알아볼 장면) → ConfirmSection(남는 것)이 그 일을 나눠 맡았고,
-    // 2026-08-29 정본 시안 개편에서 다시 히어로(문제 문장) → AmoraNoteSection(대화 한
-    // 토막) → ConfirmSection(남는 것)이 됐다. 그래서 지키는 대상은 그때부터 문구가 아니라
-    // **섹션 순서**다.
-    //
+    // 2026-09-08 사용자 요청: 첨부 HTML의 준비 고민 → 대화 → 의견 차이 → 확인 순서를
+    // 복원한다. 확인 경계의 내용은 유지하되 대화 직후에 붙어야 한다는 이전 배치는 폐기한다.
     // 목록은 `page.tsx` 원문이 아니라 `renderedSections()` 에서 온다. 원문에서 세면
     // 주석으로 꺼 놓은 섹션이 렌더된 것으로 잡혀 아래 단언들이 전부 빈 통과였다.
     const sections = renderedSections();
 
-    // 이유가 적힌 규칙을 전체 목록 대조보다 **먼저** 세운다. 자리를 바꾸면 두 단언이
-    // 다 깨지는데, 그때 먼저 보이는 문장이 "왜 안 되는지"를 말해야 한다.
-    //
-    // 인접 규칙. 예전에는 ④(나만 보는 자리)가 ③(두 사람 대화를 한 덩어리로 읽는다)
-    // 바로 뒤여야 했다 — ③ 직후에 "그럼 내가 쓴 게 다 가나" 라는 걱정이 오는데 다음
-    // 섹션이 그걸 받지 않으면 ③이 불안으로 끝나기 때문이다. 두 섹션은 2026-08-29에
-    // 없어졌지만 **규칙은 그대로 살아 있다**: 아모라가 답하는 카드 직후에 오는 걱정은
-    // "그럼 아모라가 내 계획을 마음대로 바꾸나" 이고, 그 걱정을 받는 것이 확인
-    // 섹션("아모라가 바꾸지 않아요. 확인한 것만 남아요.")이다. 사이에 다른 섹션을 끼우면
-    // 아모라 카드가 다시 불안으로 끝난다 — page.tsx 주석이 못 박은 순서다.
     expect(sections, "아모라 카드 섹션이 렌더되지 않는다").toContain("AmoraNoteSection");
     expect(sections, "확인 계약 섹션이 렌더되지 않는다").toContain("ConfirmSection");
-    //
-    // 답변을 본 직후 확인 경계를 설명한다. 의견 차이는 그 뒤의 선택적 사용 장면이다.
     expect(sections).toContain("NoSideSection");
-    expect(sections.indexOf("ConfirmSection")).toBe(sections.indexOf("AmoraNoteSection") + 1);
-    expect(sections.indexOf("NoSideSection")).toBeGreaterThan(sections.indexOf("ConfirmSection"));
+    expect(sections.indexOf("NoSideSection")).toBe(sections.indexOf("AmoraNoteSection") + 1);
+    expect(sections.indexOf("ConfirmSection")).toBe(sections.indexOf("NoSideSection") + 1);
 
     // 알아볼 장면이 계정 요구보다 먼저다 — 옛 "문제를 비춘 뒤에 결과" 규칙이 서 있던
     // 자리다. 지금 그 장면은 아모라가 실제로 답하는 노트 카드다.
@@ -499,9 +481,7 @@ describe("landing first visit clarity", () => {
       "계정을 요구하기 전에 알아볼 장면을 보여줘야 한다",
     ).toBeLessThan(sections.indexOf("ConfirmSection"));
 
-    // page.tsx 주석이 이 순서와 이유를 함께 들고 있다(제품 계약의 축 순서:
-    // 아모라 → 확인 → 커뮤니티 → 부가 도구 → 하지 않는 것 → 마무리. 공시 가격·위약금은
-    // 부가 기능이라 전용 섹션이 아니라 `availableNow` 카드 한 장이다).
+    // 원본 HTML 순서다. 공시 가격·위약금은 `availableNow` 카드 안에 남는다.
     // 목록을 통째로 대조하므로 끼워 넣기·빼기·자리 바꾸기가 전부 여기서 걸린다.
     expect(sections).toEqual([
       // 2026-09-03 시안으로 목록이 갈렸다. `ScenesSection`·`OneRoomSection`·
@@ -509,10 +489,10 @@ describe("landing first visit clarity", () => {
       // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
       // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
-      "AmoraNoteSection",
-      "ConfirmSection",
       "BlockedReasonsSection",
+      "AmoraNoteSection",
       "NoSideSection",
+      "ConfirmSection",
       "AvailableNowSection",
       "CommunitySection",
       "PhotoBandSection",

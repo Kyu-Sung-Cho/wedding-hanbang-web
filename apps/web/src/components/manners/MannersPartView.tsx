@@ -454,8 +454,12 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
               예상 읽기 {readingMinutes}분 · {part.sections.length}개 절
             </span>
             {part.sources.length > 0 ? (
-              <a href="#manners-sources" className="inline-flex min-h-11 items-center rounded-md text-[11.5px] leading-[1.6] text-[var(--amora-accent)] underline underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                출처별 확인일은 아래 자료에서 확인해 주세요
+              <a href="#manners-sources" className="inline-flex min-h-11 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-sage-pale)] px-[11px] py-[5px] text-[10.5px] leading-[1.6] text-[var(--amora-ink)] sm:text-[11.5px]">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" className="h-3 w-3 shrink-0 fill-none stroke-current stroke-[1.7]"><path d="M5 12l4 4L19 6" /></svg>
+                  출처·확인일 보기
+                </span>
+                <span className="sr-only"> — 출처별 확인일은 아래 자료에서 확인해 주세요</span>
               </a>
             ) : (
               <span
@@ -748,11 +752,11 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
 
         {/* 이웃 편으로. 시안의 이전/다음 버튼 — 화살표 아이콘이 붙는다. */}
         {previous || next ? (
-          <nav className="mt-[18px] flex flex-col gap-3 sm:flex-row" aria-label="다른 편">
+          <nav className="mt-[18px] grid grid-cols-2 gap-2.5 sm:gap-3" aria-label="다른 편">
             {previous ? (
               <Link
                 {...weddingLinkProps(`/manners/${previous.slug}`)}
-                className="flex flex-1 items-center gap-2.5 rounded-[14px] bg-white px-5 py-4 border border-[var(--amora-line)]"
+                className="flex min-w-0 items-center gap-2.5 rounded-xl border border-[var(--amora-line)] bg-white px-3.5 py-3 sm:rounded-[14px] sm:px-5 sm:py-4"
               >
                 <svg
                   aria-hidden
@@ -777,7 +781,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             {next ? (
               <Link
                 {...weddingLinkProps(`/manners/${next.slug}`)}
-                className="flex flex-1 items-center justify-end gap-2.5 rounded-[14px] bg-white px-5 py-4 text-right border border-[var(--amora-line)]"
+                className="col-start-2 flex min-w-0 items-center justify-end gap-2.5 rounded-xl border border-[var(--amora-line)] bg-white px-3.5 py-3 text-right sm:rounded-[14px] sm:px-5 sm:py-4"
               >
                 <span className="min-w-0">
                   <span className="block text-[12px] text-[var(--amora-muted)]">

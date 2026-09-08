@@ -298,4 +298,24 @@ describe("planning checklist sheet", () => {
     }
     expect(mocks.updateJourney).not.toHaveBeenCalled();
   });
+
+  it("keeps compact question actions named, keyboard reachable and independent from checking", async () => {
+    await render("greeting");
+    const before = checkboxes().map(button => button.getAttribute("aria-checked"));
+    for (const item of CHECKLIST_MAP.greeting.items) {
+      const link = dialog().querySelector<HTMLAnchorElement>(`a[href="/chat?amoraSource=c.greeting.${item.id}"]`)!;
+      expect(link.getAttribute("aria-label")).toBe(`${item.label} 아모라에 질문하기`);
+      expect(link.getAttribute("title")).toBe(`${item.label} 아모라에 질문하기`);
+      expect(link.closest('[role="checkbox"]')).toBeNull();
+      expect(link.tabIndex).toBe(0);
+      link.focus();
+      expect(document.activeElement).toBe(link);
+      link.addEventListener("click", event => event.preventDefault(), { once: true });
+      await act(async () => link.click());
+    }
+    expect(checkboxes().map(button => button.getAttribute("aria-checked"))).toEqual(before);
+    expect(mocks.updateJourney).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialog().textContent).toContain("질문 초안을 확인한 뒤 직접 보내요. 체크 상태는 바뀌지 않아요.");
+  });
 });

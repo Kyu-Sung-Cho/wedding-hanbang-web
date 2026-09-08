@@ -433,9 +433,8 @@ describe("landing product outcome evidence", () => {
   });
 
   it("keeps the editorial story in the intended order", () => {
-    // 순서에 이유가 있다(page.tsx 머리 주석 = CLAUDE.md 제품 계약의 축 순서).
-    // 아모라(제품 중심) → 확인·파트너 알림 → 커뮤니티(비슷한 시기 사람들)
-    // → 부가 도구 → 하지 않는 것 → 마무리.
+    // 2026-09-08 첨부 HTML의 순서를 복원한다. 준비 고민 → 대화 → 의견 차이 → 확인,
+    // 그 뒤에 직접 쓸 도구·커뮤니티·기능 한계를 설명한다.
     //
     // `landing.indexOf("<X />")` 로 묻던 시절에는 주석으로 꺼 놓은 섹션이 렌더된
     // 것으로 잡혔다. `renderedSections()` 는 주석을 벗기고 <main> 안만 센다.
@@ -445,10 +444,10 @@ describe("landing product outcome evidence", () => {
       // 들어왔다. **없어진 셋의 내용은 사라지지 않았다** — 어디로 갔는지는
       // `app/landing/page.tsx` 머리말이 이름으로 적어 둔다.
       "TransformationHero",
-      "AmoraNoteSection",
-      "ConfirmSection",
       "BlockedReasonsSection",
+      "AmoraNoteSection",
       "NoSideSection",
+      "ConfirmSection",
       "AvailableNowSection",
       "CommunitySection",
       "PhotoBandSection",
@@ -464,7 +463,7 @@ describe("landing product outcome evidence", () => {
       previous = index;
     }
 
-    // 부분집합만 보면 사이에 아무거나 끼워 넣어도 통과한다. 일곱 개가 이 순서로
+    // 부분집합만 보면 사이에 아무거나 끼워 넣어도 통과한다. 열 개가 이 순서로
     // **전부**여야 한다 — 섹션을 늘리거나 줄이는 건 이 목록을 같이 고칠 일이다.
     expect(sections, "랜딩이 그리는 섹션 목록이 정본 순서와 다르다").toEqual(order);
 
