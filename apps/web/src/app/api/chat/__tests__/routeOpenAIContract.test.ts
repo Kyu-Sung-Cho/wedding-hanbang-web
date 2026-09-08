@@ -9454,6 +9454,26 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
+  it.each(["MEDIATION_REQUEST", "INITIAL_GREETING"])("removes reserved %s wrappers from canonical and SSE answers without promoting a card", async marker => {
+    const clean = "이어서 말해줘\n[예약 전] [A] 기준이에요.\n\n| 항목 | 예산 |\n|---|---|\n| 사진 | 300만 원 |";
+    providerAfterPreGeneration(providerResult({
+      fullText: `[${marker}]이어서 말해줘[/${marker}]\n[예약 전] [A] 기준이에요.\n\n| 항목 | 예산 |\n|---|---|\n| 사진 | 300만 원 |`,
+    }));
+
+    const response = await POST(request({ requestKind: "chat" }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.content).toBe(clean);
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(clean);
+    expect(events.filter(event => event.type === "text_delta").map(event => event.content).join("")).toBe(clean);
+    expect(body).not.toContain(`[${marker}]`);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("mediation");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it("leaves a clean Korean answer byte-identical", async () => {
     const clean = "예식장 대관료는 지역마다 달라요 ㅋㅋ 예산은 3,000만 원으로 잡아볼까요?";
     providerAfterPreGeneration(providerResult({ fullText: clean }));
@@ -9467,21 +9487,25 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .not.toHaveProperty("output_hygiene");
   });
 
-  it("never hands an empty terminal body to the durable ledger", async () => {
+  it.each(["", "[MEDIATION_REQUEST]", " \n[INITIAL_GREETING][/INITIAL_GREETING]\t "])("never hands an empty terminal body to the durable ledger: %j", async fullText => {
     // 빈 본문이 원장으로 가면 사용자는 침묵만 본다. 오늘은 앞단
     // (`composeAmoraPersistenceTerminal`)이 먼저 서버 문장을 채우고,
     // `ensureNonEmptyTerminalText` 가 그 뒤에 서는 두 번째 그물이다.
     // 여기서 잠그는 것은 **원장이 받는 본문이 절대 비지 않는다**는 사실이다.
-    providerAfterPreGeneration(providerResult({ fullText: "" }));
+    providerAfterPreGeneration(providerResult({ fullText }));
 
     const response = await POST(request());
     expect(response.status).toBe(200);
-    await response.text();
+    const body = await response.text();
 
     const persistedContent = mocks.atomicResponses[0]?.content;
     expect(typeof persistedContent).toBe("string");
     expect(String(persistedContent).trim().length).toBeGreaterThan(0);
     expect(persistedContent).toBe(AMORA_EMPTY_TERMINAL_FALLBACK_TEXT);
+    const done = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)))
+      .find(event => event.type === "done");
+    expect(done?.fullContent).toBe(AMORA_EMPTY_TERMINAL_FALLBACK_TEXT);
+    expect(body).not.toMatch(/\[\/?(?:MEDIATION_REQUEST|INITIAL_GREETING)\]/u);
   });
   it.each(["get_personal_actions", "prepare_personal_action"])("connects a private %s through the real executor to canonical minimal metadata", async name => {
     const text = name === "get_personal_actions" ? "내 개인 할 일 목록 보여줘" : "내 개인 할 일로 예식 준비 질문을 정리하는 초안을 저장해줘";

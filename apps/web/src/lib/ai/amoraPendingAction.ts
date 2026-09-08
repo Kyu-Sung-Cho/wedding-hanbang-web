@@ -3,7 +3,7 @@ import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
 import { SERVER_OWNED_UNVERIFIED_NOTICE } from "@/lib/ai/amoraPersistenceClaims";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
-import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CATEGORY_LABELS as AMORA_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { ymdInKst } from "@/lib/utils/kstDate";
 
@@ -115,7 +115,13 @@ const ENUM_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>
 const CATEGORY_LABELS: Readonly<Record<string, string>> = {
   general: "일반",
   custom: "맞춤 항목",
-  ...PLANNING_CATEGORY_LABELS,
+  ...AMORA_CATEGORY_LABELS,
+};
+// 기존 발급문의 이름만 호환한다. 현재 화면 문구가 바뀌어도 허용값이 늘지 않게 고정한다.
+const LEGACY_CATEGORY_LABELS: Readonly<Record<string, string>> = {
+  ...CATEGORY_LABELS,
+  yedan: "두 가족에게 드릴 선물",
+  pyebaek: "결혼식 뒤 전통 인사",
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);
 const INTERNAL_CONFIRMATION_FIELDS = new Set([
@@ -614,7 +620,11 @@ function formatKoreanDate(value: string): string | null {
   return `${Number(year)}년 ${Number(month)}월 ${Number(day)}일`;
 }
 
-function formatFieldValue(key: string, value: unknown): string {
+function formatFieldValue(
+  key: string,
+  value: unknown,
+  categoryLabels: Readonly<Record<string, string>>,
+): string {
   if (typeof value === "number") {
     return WON_FIELDS.has(key) ? formatWon(value) : formatNumber(value);
   }
@@ -632,7 +642,7 @@ function formatFieldValue(key: string, value: unknown): string {
       if (korean) return korean;
     }
     const categoryLabel = key === "category" || key === "category_key"
-      ? CATEGORY_LABELS[normalized]
+      ? categoryLabels[normalized]
       : undefined;
     const enumLabel = ENUM_VALUE_LABELS[key]?.[normalized];
     return categoryLabel ?? enumLabel ?? JSON.stringify(normalized);
@@ -656,17 +666,17 @@ function formatFieldValue(key: string, value: unknown): string {
             if (rightIndex === -1) return -1;
             return leftIndex - rightIndex;
           })
-          .map((nestedKey) => `${FIELD_LABELS[nestedKey] ?? nestedKey}: ${formatFieldValue(nestedKey, item[nestedKey])}`)
+          .map((nestedKey) => `${FIELD_LABELS[nestedKey] ?? nestedKey}: ${formatFieldValue(nestedKey, item[nestedKey], categoryLabels)}`)
           .join(", ");
         return `${index + 1}) ${fields}`;
       }
-      return formatFieldValue(key, item);
+      return formatFieldValue(key, item, categoryLabels);
     }).join(" / ");
   }
   if (isRecord(value)) {
     return Object.keys(value)
       .sort()
-      .map((nestedKey) => `${FIELD_LABELS[nestedKey] ?? nestedKey}: ${formatFieldValue(nestedKey, value[nestedKey])}`)
+      .map((nestedKey) => `${FIELD_LABELS[nestedKey] ?? nestedKey}: ${formatFieldValue(nestedKey, value[nestedKey], categoryLabels)}`)
       .join(", ");
   }
   return "없음";
@@ -705,6 +715,7 @@ function resolveChecklistItemLabel(input: Record<string, unknown>): string | nul
 function formatCanonicalConfirmation(
   tool: AiToolDefinition,
   input: Record<string, unknown>,
+  categoryLabels: Readonly<Record<string, string>> = CATEGORY_LABELS,
 ): string | null {
   const toolLabel = TOOL_LABELS[tool.name];
   if (!toolLabel) return null;
@@ -716,7 +727,7 @@ function formatCanonicalConfirmation(
       !INTERNAL_CONFIRMATION_FIELDS.has(key)
       && Object.prototype.hasOwnProperty.call(input, key)
     )
-    .map((key) => `- ${FIELD_LABELS[key] ?? key}: ${formatFieldValue(key, input[key])}`);
+    .map((key) => `- ${FIELD_LABELS[key] ?? key}: ${formatFieldValue(key, input[key], categoryLabels)}`);
 
   if (tool.name === "toggle_checklist_item") {
     const itemLabel = resolveChecklistItemLabel(input);
@@ -1512,7 +1523,16 @@ export function resolveAmoraPendingAction({
     tool: value.tool,
     input: value.input,
   }, allowedTools, now);
-  if (!marker || value.confirmation !== marker.confirmation) return null;
+  if (!marker || typeof value.confirmation !== "string") return null;
+  if (value.confirmation !== marker.confirmation) {
+    const tool = allowedTools.find((candidate) => candidate.name === marker.tool);
+    // 예단·폐백의 이름을 고치기 전에 발급된 문장도 같은 검증된 입력으로 전부 재구성한다.
+    // 일부 문자열 교체·부분 일치는 허용하지 않고, 사용자가 본 이전 문장을 그대로 유지한다.
+    const legacyConfirmation = tool
+      ? formatCanonicalConfirmation(tool, marker.input, LEGACY_CATEGORY_LABELS)
+      : null;
+    if (value.confirmation !== legacyConfirmation) return null;
+  }
   const identity = getAmoraToolOperationIdentity(marker.tool, marker.input);
   if (
     value.inputDigest !== identity.inputDigest
@@ -1530,7 +1550,7 @@ export function resolveAmoraPendingAction({
     input: marker.input,
     inputDigest: identity.inputDigest,
     operationKey: identity.operationKey,
-    confirmation: marker.confirmation,
+    confirmation: value.confirmation,
     issuedAt: value.issuedAt,
     expiresAt: value.expiresAt,
   };

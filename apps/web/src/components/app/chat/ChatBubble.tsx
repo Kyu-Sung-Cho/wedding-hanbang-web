@@ -12,6 +12,7 @@ import AmoraNoteSaveSheet from "./AmoraNoteSaveSheet";
 import PersonalActionSaveButton from "./PersonalActionSaveButton";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { stripAmoraRequestMarkers } from "@/lib/ai/amoraRequestMarkers";
 import { isUuid } from "@/utils/requestValidation";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import {
@@ -734,7 +735,7 @@ export default function ChatBubble({
 
   // AI 메시지
   if (sender_role === "ai") {
-    const { cleanText, partNumbers } = parseEtiquetteTags(content);
+    const { cleanText, partNumbers } = parseEtiquetteTags(stripAmoraRequestMarkers(content));
     const mediationBlock = normalizeMediationBlock(message.metadata?.mediation);
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
