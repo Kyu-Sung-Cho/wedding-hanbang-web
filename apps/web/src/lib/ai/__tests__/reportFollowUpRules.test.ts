@@ -277,15 +277,17 @@ describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
   });
 });
 
-describe("이 규칙에는 늘릴 자리가 없다", () => {
+describe("voice에서 재배치한 방향 변경 규칙의 길이 상한을 지킨다", () => {
   /**
    * 프롬프트 상한은 48,000자이고 이 턴의 여유는 1,400자대다(2026-08-31 실측
    * 46,583자 / 여유 1,417자). 이 줄을 고칠 때 길어지면 문맥이 많은 커플에서
    * 저장 문맥 꼬리가 그만큼 잘린다 — 그래서 길이를 함께 못 박는다.
-   * 이번 수정은 108자 -> 107자였다.
+   * 위 숫자는 당시 측정 기록이다. 2026-09-09 이유 대상·후속 순서를 보호하려
+   * pivot은 233자로 재배치했다. voice+관련 suffix 합계 5,680자 상한은
+   * amoraPivotReasonContinuity.test.ts에서 별도로 고정한다.
    */
-  it("규칙 한 줄이 110자를 넘지 않는다", () => {
-    expect(pivotRuleLine(delivered).length).toBeLessThanOrEqual(110);
+  it("규칙 한 줄이 재배치한 233자를 넘지 않는다", () => {
+    expect(pivotRuleLine(delivered).length).toBeLessThanOrEqual(233);
   });
 
   it("운영과 같은 도구 집합에서 프롬프트가 상한 안에 있다", () => {
@@ -356,7 +358,7 @@ describe("방향 변경의 대화 기준은 도구 권한과 분리한다", () =
       expect(prompt).toContain("길이 제한으로 생략됨");
       expect(prompt.split("\n").filter(line => line === pivotRuleLine(delivered)))
         .toEqual([pivotRuleLine(delivered)]);
-      expect(pivotRuleLine(prompt).length).toBeLessThanOrEqual(110);
+      expect(pivotRuleLine(prompt).length).toBeLessThanOrEqual(233);
       expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
       expect(prompt).toContain("[서버 확정 요청 계약]");
       expect(prompt).toContain("## 할루시네이션 방지");
