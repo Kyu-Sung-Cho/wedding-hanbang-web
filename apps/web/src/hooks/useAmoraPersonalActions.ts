@@ -13,6 +13,7 @@ export function personalActionOwner(state = useAuthStore.getState()): string | n
 
 const EMPTY: PersonalActionPage = { actions: [], count: 0, nextCursor: null };
 const PATH = "/api/amora/personal-actions";
+const REQUEST_TIMEOUT_MS = 30_000;
 type State = PersonalActionPage & { owner: string | null; loading: boolean; error: string | null };
 
 export function useAmoraPersonalActions(loadOnMount = true) {
@@ -61,6 +62,8 @@ export function useAmoraPersonalActions(loadOnMount = true) {
     if (!current(identity)) throw new Error("IDENTITY_CHANGED");
     const controller = new AbortController();
     requests.current.add(controller);
+    // 응답 본문까지 대기를 제한합니다. 중단은 서버 저장 취소를 뜻하지 않습니다.
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch(method === "GET" ? `${PATH}?status=all&limit=30${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}` : PATH, {
         method, cache: "no-store", credentials: "same-origin", signal: controller.signal,
@@ -76,7 +79,10 @@ export function useAmoraPersonalActions(loadOnMount = true) {
       const payload: unknown = await response.json();
       if (!current(identity)) throw new Error("IDENTITY_CHANGED");
       return payload;
-    } finally { requests.current.delete(controller); }
+    } finally {
+      clearTimeout(timeout);
+      requests.current.delete(controller);
+    }
   }, [current]);
 
   const load = useCallback(async (cursor?: string) => {

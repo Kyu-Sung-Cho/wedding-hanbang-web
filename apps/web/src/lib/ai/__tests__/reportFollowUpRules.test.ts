@@ -16,12 +16,14 @@ import {
 } from "@/lib/ai/amoraPromptComposer";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import type { AmoraQuestionScopeClassification } from "@/lib/ai/amoraQuestionScope";
+import type { WeddingPlannerPromptContext } from "@/lib/ai/prompts";
 
 const PRODUCTION_ENABLED_TOOL_NAMES = BETA_SAFE_TOOLS
   .filter((tool) => !isMutatingTool(tool.name))
   .map((tool) => tool.name);
 
-function promptContext() {
+function promptContext(): WeddingPlannerPromptContext {
   return {
     weddingDate: "2027-05-15",
     budget: 50_000_000,
@@ -30,12 +32,13 @@ function promptContext() {
     preparationStatus: null,
     brideName: "신부",
     groomName: "신랑",
+    senderName: "신부",
     bookings: [],
     scheduleEvents: [],
     chatSummaries: [],
     pastConflicts: [],
     pastDecisions: [],
-  } as never;
+  };
 }
 
 const compose = (enabledToolNames: string[]) =>
@@ -115,8 +118,8 @@ describe("큰 방향전환은 이유를 한 번 확인한다", () => {
     expect(line).not.toContain("반영하세요");
   });
 
-  it("결혼 조회 도구가 없으면 싣지 않는다", () => {
-    expect(pivotRuleLine(without("get_wedding_info", "get_budget_summary"))).toBe("");
+  it("도구 없는 최종 답변에도 같은 큰 변경 대화 기준이 남는다", () => {
+    expect(pivotRuleLine(compose([]))).toBe(pivotRuleLine(delivered));
   });
 
   /**
@@ -155,9 +158,9 @@ describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
     expect(pivotRuleLine(delivered)).not.toContain("무엇이 남고 무엇을 다시 정할지");
   });
 
-  it("결혼 조회 도구가 없으면 싣지 않는다", () => {
-    expect(without("get_wedding_info", "get_budget_summary"))
-      .not.toContain("유지할 것과 다시 정할 것을");
+  it("결혼 조회 도구 없이도 유지할 기준과 재검토할 범위를 이어간다", () => {
+    expect(pivotRuleLine(without("get_wedding_info", "get_budget_summary")))
+      .toBe(pivotRuleLine(delivered));
   });
 });
 
@@ -174,6 +177,78 @@ describe("이 규칙에는 늘릴 자리가 없다", () => {
 
   it("운영과 같은 도구 집합에서 프롬프트가 상한 안에 있다", () => {
     expect(delivered.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+});
+
+describe("방향 변경의 대화 기준은 도구 권한과 분리한다", () => {
+  const scopes: AmoraQuestionScopeClassification[] = [
+    { scope: "W0_wedding_core", allowsLongTermMemory: true, confidence: "high", needsClarification: false },
+    { scope: "W1_wedding_adjacent", allowsLongTermMemory: true, confidence: "high", needsClarification: false },
+    { scope: "W2_high_risk_adjacent", highRiskReason: "domain", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W2_high_risk_adjacent", highRiskReason: "safety", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W3_social_care", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W4_out_of_scope", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W5_safety_override", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+  ];
+
+  it.each(scopes)("도구 없는 $scope $highRiskReason 답변은 서버가 허용한 대화 범위만 잇는다", questionScope => {
+    const prompt = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: [], requestKind: "chat", persistenceMode: "durable",
+      questionScope, maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+    const isWeddingConversation = questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent";
+    expect(pivotRuleLine(prompt)).toBe(isWeddingConversation ? pivotRuleLine(delivered) : "");
+    expect(prompt).not.toContain("## 현재 실행 가능한 도구 계약");
+    expect(prompt).toContain("[서버 확정 요청 계약]");
+    expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+
+  it.each(["initial_greeting", "mediation"] as const)("%s에는 일반 웨딩 계획의 이유 질문을 추가하지 않는다", requestKind => {
+    const prompt = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: [], requestKind, persistenceMode: "durable",
+      questionScope: scopes[1], maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+    expect(pivotRuleLine(prompt)).toBe("");
+    expect(prompt).toContain(`request_kind: ${requestKind}`);
+  });
+
+  const denseText = "가".repeat(2_000);
+  const denseProfile = {
+    personaSummary: denseText, budgetPosture: denseText, decisionStyle: denseText,
+    tasteProfile: denseText, communicationStyle: denseText, conflictPattern: denseText,
+    sensitiveTopics: [denseText], recommendationRules: [denseText], openQuestions: [denseText],
+    confidenceScore: 0.9,
+  };
+  const denseContexts: { label: string; context: WeddingPlannerPromptContext }[] = [
+    { label: "포화 프로필", context: {
+      ...promptContext(), amoraProfiles: { shared: denseProfile, private: denseProfile },
+    } },
+    { label: "긴 일정·요약", context: {
+      ...promptContext(),
+      scheduleEvents: Array.from({ length: 40 }, (_, index) => ({
+        id: `evt-${index}`, title: `일정 ${index}: 견적 문의`, date: "2027-03-01",
+      })),
+      chatSummaries: Array.from({ length: 30 }, (_, index) =>
+        `요약 ${index}. 예식장 후보와 촬영 견적을 비교한 합성 대화. `.repeat(30)),
+    } },
+  ];
+
+  it.each(denseContexts)("$label이 잘려도 도구 호출 전후 같은 피벗 기준 전체가 한 번 남는다", ({ context }) => {
+    for (const enabledToolNames of [PRODUCTION_ENABLED_TOOL_NAMES, []]) {
+      const prompt = buildAmoraSystemPrompt(context, {
+        enabledToolNames, requestKind: "chat", persistenceMode: "durable",
+        questionScope: scopes[0], maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      expect(prompt).toContain("길이 제한으로 생략됨");
+      expect(prompt.split("\n").filter(line => line === pivotRuleLine(delivered)))
+        .toEqual([pivotRuleLine(delivered)]);
+      expect(pivotRuleLine(prompt).length).toBeLessThanOrEqual(110);
+      expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+      expect(prompt).toContain("[서버 확정 요청 계약]");
+      expect(prompt).toContain("## 할루시네이션 방지");
+      expect(prompt).toContain("## 판정 금지 · 업체 상대 발언 금지");
+    }
   });
 });
 

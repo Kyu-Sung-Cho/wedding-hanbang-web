@@ -106,6 +106,26 @@ const VARIANTS: Array<{ label: string; prompt: string }> = [
 ];
 
 describe("철회 목록을 지어내지 않는다", () => {
+  it("큰 변화 뒤 이유를 들으면 이미 답한 유지 조건 대신 다음 확인으로 이어간다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const line = prompt.split("\n").find(value => value.includes("현재 대화에서 확인한 조건")) ?? "";
+      expect(line, label).toContain("바꾼 부분만 대화 기준에 반영");
+      expect(line, label).toContain("이유가 비어 있으면 그 이유");
+      expect(line, label).toContain("유지 여부를 다시 묻지 말고");
+      expect(line, label).toContain("다음에 확인할 한 가지");
+    }
+  });
+
+  it("쉬운말로 풀어도 사용자가 정한 항목의 원명칭과 범위를 보존한다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const line = prompt.split("\n").find(value => value.includes("원명칭과 범위를 유지")) ?? "";
+      expect(line, label).toContain("예단 생략을 모든 가족 선물 생략으로");
+      expect(line, label).toContain("폐백 생략을 감사 인사 생략으로");
+      expect(line, label).toContain("확대하지 마세요");
+      expect(line, label).toContain("명시적으로 더 넓게 정했다면 그 범위");
+    }
+  });
+
   it("요청받은 상태 요약에서 거부 조건과 결정 상태·전달 여부를 섞지 않는다", () => {
     for (const { label, prompt } of VARIANTS) {
       const line = prompt.split("\n").find(value => value.includes("상태 요약을 요청하면")) ?? "";

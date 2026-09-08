@@ -140,6 +140,22 @@ function checklistSection(prompt: string): string {
 }
 
 describe("미검증 안은 추천이 아니라 후보로 부른다", () => {
+  it("결론부터 말하는 규칙 자체가 확인된 비교와 미검증 후보를 구분한다", () => {
+    const prompt = promptWith(0);
+    const decision = prompt.split("\n").find(line => line.startsWith("- **결정**:")) ?? "";
+    expect(decision).toContain("확인된 근거 안에서");
+    const objectRule = prompt.split("\n").find(line => line.includes("**사물**")) ?? "";
+    expect(objectRule).toContain("미검증 후보의 이름은 유지");
+    expect(objectRule).not.toContain("그대로 결론부터");
+  });
+
+  it("미검증 후보는 첫 이름과 근거를 일치시키고 검증된 비교·준비 순서 추천은 허용한다", () => {
+    const prompt = promptWith(0);
+    expect(prompt).toContain("견적·인원·날짜를 확인한 비교와 일반 준비 순서 추천은 가능");
+    expect(prompt).toContain("첫 제목부터 끝까지 같은 이름");
+    expect(prompt).toContain("먼저 견적을 받아볼 후보는 1안이에요");
+  });
+
   it("규칙이 결정 역할 바로 다음에 있다", () => {
     const prompt = promptWith(0);
     const section = prompt.split("\n").find(line => line.includes("**미검증은 이름부터**")) ?? "";

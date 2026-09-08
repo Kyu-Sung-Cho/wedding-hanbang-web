@@ -44,6 +44,10 @@ type BuildAmoraSystemPromptOptions = {
 // pricing threshold while leaving room for tool schemas and conversation input.
 export const AMORA_SYSTEM_PROMPT_MAX_CHARS = 48_000;
 
+// 방향 변경은 조회 도구의 사용법이 아니다. 최종 no-tool 답변에도 같은 기준을
+// 전달하되, 저장 문맥을 허용하는 일반 웨딩 상담 범위에서만 보호한다.
+const AMORA_PLANNING_PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 이유는 한 번만 묻되 이미 말했으면 건너뛰고, 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요. 작은 월 선호는 되묻지 마세요.";
+
 const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
 const KNOWN_TOOL_NAME_SET = new Set(KNOWN_TOOL_NAMES);
 const MUTATING_TOOL_NAME_SET = new Set<string>(MUTATING_TOOL_NAMES);
@@ -158,14 +162,9 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
 
   // 팀 테스트(2026-08-29 리포트)에서 나온 것들.
   //
-  // **자리가 얼마 없다.** 이 네 줄이 338자이고, 그 뒤 남는 여유는 결혼일이 있고
-  // 시작점을 묻는 턴에서 157자다(main 495자). 문맥이 많은 커플은 이미 상한에
-  // 붙어 있으므로 여기 한 줄을 더하면 그만큼 저장 문맥 꼬리가 잘린다.
-  // 더하기 전에 `AMORA_SYSTEM_PROMPT_MAX_CHARS` 기준으로 실제로 재라.
-  //
-  // 조회 도구가 있을 때만
-  // 싣는다 — 프롬프트가 이미 상한(48,000자)에 붙어 있어 늘 실으면 저장 문맥
-  // 꼬리가 잘린다.
+  // 2026-09-08: 아래 기록의 방향전환 규칙은 AMORA_PLANNING_PIVOT_RULE로
+  // 옮겼다. 조회 도구 조건에 두면 최종 no-tool 답변에서 규칙이 사라진다.
+  // 준비 시작점·시세 안내만 해당 조회 도구에 묶는다. 상한은 48,000자다.
   //
   // 1) 큰 방향전환: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용하고
   //    기존 기준을 통째로 폐기했다. 작은 변경(날짜 한 달, 하객 ±10%)까지 되묻게
@@ -201,7 +200,6 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   //    프롬프트 어디에도 그 도구를 쓸 이유가 적혀 있지 않았다(전체 검색 0건).
   if (has("get_wedding_info", "get_budget_summary")) {
     lines.push(
-      "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 이유는 한 번만 묻되 이미 말했으면 건너뛰고, 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요. 작은 월 선호는 되묻지 마세요.",
       "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요.",
     );
   }
@@ -941,10 +939,13 @@ export function buildAmoraSystemPrompt(
 - 다시 내지 말아야 할 것은 **같은 변경**(같은 도구·같은 대상)뿐입니다. 다른 할 일·다른 일정·다른 항목을 부탁받으면 이번 답변에 새 표식을 내세요 — 화면의 카드는 그대로 남고, 새 카드는 따로 나갑니다.
 - 같은 변경이라도 사용자가 값을 바꾸고 싶어 하면 새 표식을 내세요.`
     : "";
+  const planningPivotContract = canUseStoredPromptContext(options)
+    ? `\n\n[준비 방향 변경]\n${AMORA_PLANNING_PIVOT_RULE}`
+    : "";
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
+  )}${planningPivotContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {
