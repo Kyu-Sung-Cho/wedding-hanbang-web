@@ -22,7 +22,7 @@ import modelPricingCatalog from "../../../../../config/amora-model-pricing.json"
 // -------------------------------------------
 // 모델별 가격표 ($ / 1M tokens)
 // -------------------------------------------
-// OpenAI 공식 모델·가격 확인일: 2026-07-16
+// OpenAI 공식 모델·가격 확인일: 2026-09-09
 // https://developers.openai.com/api/docs/pricing
 interface TokenRates {
   input: number;
