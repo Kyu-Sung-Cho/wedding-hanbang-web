@@ -9791,6 +9791,62 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(done?.fullContent).toBe(AMORA_EMPTY_TERMINAL_FALLBACK_TEXT);
     expect(body).not.toMatch(/\[\/?(?:MEDIATION_REQUEST|INITIAL_GREETING)\]/u);
   });
+  it("delivers the exact ceaa personal draft request to the real executor and canonical/done card without saving", async () => {
+    const text = '나만 볼 개인 할 일 초안을 하나 만들어줘. 제목은 "사진에서 꼭 남기고 싶은 장면 세 가지 정리"로 해줘. 설명에는 나만 볼 생각을 메모한다는 내용을 담아줘. 마감일은 정하지 않았어. 개인 할 일 저장 전에 내가 검토할 수 있게 초안을 보여줘.';
+    const draft = { title: "사진에서 꼭 남기고 싶은 장면 세 가지 정리", description: "나만 볼 생각을 메모하며 사진에서 꼭 남기고 싶은 장면 세 가지를 정리한다.", dueDate: null };
+    const reply = "개인 할 일 초안이에요. 아직 저장하지 않았으니 내용을 확인한 뒤 저장해 주세요.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "bride_private" };
+    const actual = await vi.importActual<typeof import("@/lib/ai/toolExecutor")>("@/lib/ai/toolExecutor");
+    mocks.executeTool.mockImplementation(actual.executeTool);
+    providerAfterPreGeneration(providerResult({ toolCalls: [{ callId: "personal_draft", name: "prepare_personal_action", input: draft }], outputItems: [{ type: "function_call", call_id: "personal_draft", name: "prepare_personal_action", arguments: JSON.stringify(draft) }] }));
+    providerAfterPreGeneration(providerResult({ fullText: reply }));
+    const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const done = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)))
+      .find(event => event.type === "done");
+    expect(mocks.provider.mock.calls[0][0].tools.map((tool: AiToolDefinition) => tool.name)).toContain("prepare_personal_action");
+    expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith("prepare_personal_action", draft, expect.objectContaining({
+      currentUserText: text, actorProfileId: "00000000-0000-4000-8000-000000000001",
+      personalActions: expect.objectContaining({ visibility: "bride_private" }),
+    }));
+    const result = await mocks.executeTool.mock.results[0].value;
+    expect(result.toolOutput).toEqual({ saved: false, requires_confirmation: true, draft });
+    expect(mocks.personalReadCount).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(1);
+    const canonical = mocks.atomicResponses[0];
+    expect(canonical?.content).toBe(reply);
+    expect(done?.fullContent).toBe(canonical?.content);
+    expect(canonical?.metadata).toMatchObject({ personal_action_draft: draft, question_scope: "W0_wedding_core", memory_eligible: false, memory_enqueue_requested: false, toolResults: [] });
+    expect(done?.metadata.personal_action_draft).toEqual(draft);
+    expect(canonical?.metadata).not.toHaveProperty("pending_amora_action");
+  });
+
+  it.each([
+    '나만 볼 개인 할 일 초안을 하나 만들어줘. 제목은 "사진에서 꼭 남기고 싶은 장면 세 가지 정리"로 해줘. 설명에는 나만 볼 생각을 메모한다는 내용을 담아줘. 마감일은 정하지 않았어. 개인 할 일 저장 전에 내가 검토할 수 있게 초안을 보여줘.',
+    "내 개인 할 일 초안을 만들어줘",
+  ])("does not turn a personal draft request in shared chat into a shared approval proposal: %s", async text => {
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "shared" };
+    providerAfterPreGeneration(providerResult({ fullText: '초안을 확인해 주세요.\n[pending_action]{"tool":"add_amora_action","input":{"title":"사진에서 꼭 남기고 싶은 장면 세 가지 정리"}}[/pending_action]' }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const done = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)))
+      .find(event => event.type === "done");
+    const provider = mocks.provider.mock.calls[0]?.[0];
+    expect(provider.systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
+    expect(provider.tools.map((tool: AiToolDefinition) => tool.name)).not.toContain("prepare_personal_action");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0].metadata).toMatchObject({ question_scope: "W4_out_of_scope", memory_eligible: false });
+    for (const metadata of [mocks.atomicResponses[0].metadata, done?.metadata]) {
+      expect(metadata).not.toHaveProperty("pending_amora_action");
+      expect(metadata).not.toHaveProperty("pending_amora_action_queue");
+      expect(metadata).not.toHaveProperty("personal_action_draft");
+    }
+    expect(done?.fullContent).toBe(mocks.atomicResponses[0].content);
+  });
+
   it.each(["get_personal_actions", "prepare_personal_action"])("connects a private %s through the real executor to canonical minimal metadata", async name => {
     const text = name === "get_personal_actions" ? "내 개인 할 일 목록 보여줘" : "내 개인 할 일로 예식 준비 질문을 정리하는 초안을 저장해줘";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "bride_private" };

@@ -1502,7 +1502,11 @@ export async function POST(request: Request) {
           requestKind,
         })
       : trustedCanonicalScopeUserRow && earlyCrisisUserText !== null
-        ? classifyAmoraQuestionScope({ userText: earlyCrisisUserText })
+        ? classifyAmoraQuestionScope({
+            userText: earlyCrisisUserText,
+            hasTrustedPrivateDraftContext: !isDemo && visibility !== "shared"
+              && typeof bodyUserMessageId === "string",
+          })
         : null;
 
   // 이 커플의 체크리스트 항목을 끝냈다는 말은 **정의상 결혼 핵심**이다.
@@ -3247,6 +3251,8 @@ export async function POST(request: Request) {
     userText: lastUserText,
     requestKind,
     hasApprovedWeddingAction: Boolean(approvedPendingAction),
+    hasTrustedPrivateDraftContext: !isDemo && requestKind === "chat"
+      && isDurableUserMessageBound && visibility !== "shared",
     hasWeddingClarificationContinuity:
       Boolean(weddingClarificationContinuityWithFallback) || firstHelloAnswered,
   });
