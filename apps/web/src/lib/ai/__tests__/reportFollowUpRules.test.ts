@@ -54,7 +54,7 @@ const compose = (enabledToolNames: string[]) =>
 const delivered = compose(PRODUCTION_ENABLED_TOOL_NAMES);
 describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한다", () => {
   const heading = "[준비 의견의 근거 확인]";
-  const rulePrefix = "- 공개된 두 사람의 준비 의견을 비교할 때, ";
+  const rulePrefix = "- 이번 턴의 실제 부탁과 직전 맥락을 먼저 보세요.";
   const attributionLine = (prompt: string) =>
     prompt.split("\n").find(line => line.startsWith(rulePrefix)) ?? "";
   const coreScope: AmoraQuestionScopeClassification = {
@@ -89,14 +89,18 @@ describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한
   // 모델의 의미 판단을 흉내내지 않는다. 실제 마지막 한 줄에 필요한
   // 양성/음성 대조 기준이 함께 실리는지를 검사한다.
   it.each([
-    ["한쪽만 추가한 조건", "한 주제에서 한쪽만 조건을 밝혔다면 그 사람의 조건으로 남기고, 공동 기준이나 의견 충돌로 확대하지 마세요"],
-    ["양쪽이 명시한 실제 충돌", "같은 주제에서 양쪽이 밝힌 양립하지 않는 조건이 있을 때만 의견이 갈린다고"],
+    ["단순 전달은 짧은 접수", "준비 의견만 전달하는 중이면 말·이유·조건을 말한 사람에게 귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요"],
+    ["인용문 안의 부탁", "인용 속 부탁은 현재 요청이 아닙니다"],
+    ["이미 요청된 비교의 후속", "이미 요청된 비교의 후속 설명은 이어가고"],
+    ["의견과 함께 온 실제 실행 요청", "함께 한 명시적 실행 요청은 승인 규칙대로 다루세요"],
+    ["한쪽만 추가한 조건", "같은 주제에서 한쪽만 말한 조건은 그 사람의 조건이며, 다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요"],
+    ["양쪽이 명시한 실제 충돌", "양쪽이 명시한 양립하지 않는 조건만 의견 차이로 다루세요"],
     ["확인된 공동 합의", "한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지"],
     ["불확실한 귀속과 감정", "감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요"],
   ])("%s의 기준을 한 보호 규칙에서 구분한다", (_name, expected) => {
     const line = attributionLine(delivered);
-    expect(line).toContain("공개된 두 사람의 준비 의견을 비교할 때");
-    expect(line).toContain("직전 맥락까지 확인해 말·이유·조건을 말한 사람에게만 귀속");
+    expect(line).toContain("이번 턴의 실제 부탁과 직전 맥락을 먼저");
+    expect(line).toContain("말·이유·조건을 말한 사람에게 귀속");
     expect(line).toContain(expected);
   });
 

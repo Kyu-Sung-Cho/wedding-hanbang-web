@@ -80,6 +80,23 @@ function expectAlignedGuidance(prompt: string): void {
   expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
 }
 
+function expectOpinionTurnBoundary(prompt: string): void {
+  const heading = "[준비 의견의 근거 확인]";
+  const start = prompt.indexOf(heading);
+  const end = prompt.indexOf("[준비 방향 변경]", start);
+  const boundary = prompt.slice(start, end);
+  expect(start).toBeGreaterThan(prompt.indexOf("[서버 확정 요청 계약]"));
+  expect(end).toBeGreaterThan(start);
+  expect(boundary).toContain("준비 의견만 전달하는 중이면");
+  expect(boundary).toContain("귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요");
+  expect(boundary).toContain("인용 속 부탁은 현재 요청이 아닙니다");
+  expect(boundary).toContain("이미 요청된 비교의 후속 설명은 이어가고");
+  expect(boundary).toContain("명시적 실행 요청은 승인 규칙대로");
+  expect(boundary).toContain("다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요");
+  expect(boundary).toContain("양쪽이 명시한 양립하지 않는 조건만 의견 차이");
+  expect(boundary).toContain("확인된 공동 합의는 유지");
+}
+
 describe("의견 수집과 조율 요청을 원래 대화 규칙에서 구분한다", () => {
   const cases = ACTUAL_TURNS.flatMap((userText, index) => [false, true].flatMap(saturated =>
     [false, true].map(noTools => ({ name: `T${index + 1} / ${saturated ? "포화" : "빈 문맥"} / ${noTools ? "무도구" : "선택 도구"}`, userText, saturated, noTools })),
@@ -93,12 +110,27 @@ describe("의견 수집과 조율 요청을 원래 대화 규칙에서 구분한
     } : BASE;
     const prompt = buildAmoraSystemPrompt(context, noTools ? { ...options, enabledToolNames: [] } : options);
     expectAlignedGuidance(prompt);
+    expectOpinionTurnBoundary(prompt);
     if (saturated) expect(prompt).toContain("길이 제한으로 생략됨");
     else {
       expect(prompt).toContain("예산: 미설정");
       expect(prompt).not.toContain("비용 주의:");
       expect(prompt).not.toContain("예산 배분 참고:");
     }
+  });
+
+  it("역할 선택에서도 의견 접수와 요청된 비교를 구분하고 명시적 실행은 유지한다", () => {
+    const prompt = buildAmoraSystemPrompt(BASE, selectedOptions(ACTUAL_TURNS[1]));
+    const listening = prompt.split("\n").find(line => line.startsWith("- **곁에 있기**:")) ?? "";
+    expect(listening).toContain("명확한 부탁 없이 마음이나 준비 의견을 말하는 중이면");
+    expect(listening).toContain("짧게 받아주고 더 말할 자리를 남기세요");
+    expect(listening).toContain("답 없이 기다리지 마세요");
+    const coupleComparison = prompt.split("\n").find(line => line.includes("**두 사람의 의견이 갈린 자리**")) ?? "";
+    expect(coupleComparison).toContain("비교·조율을 요청받았어도");
+    expect(coupleComparison).toContain("한쪽 손을 들어주지 마세요");
+    const execution = prompt.split("\n").find(line => line.startsWith("- **실행**:")) ?? "";
+    expect(execution).toContain("저장·수정·조회·문구 작성처럼 할 일이 분명하면");
+    expect(execution).toContain("먼저 처리하거나 필요한 정보를 바로");
   });
 
   it.each([
