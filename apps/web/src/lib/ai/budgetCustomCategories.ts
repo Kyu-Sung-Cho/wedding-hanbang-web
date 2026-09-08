@@ -15,7 +15,8 @@
  * 둘 다 사용자에게는 똑같은 예산 항목이다. 한쪽만 읽으면 화면과 다른 말을 하게
  * 되므로 `custom_` 접두사와 라벨만 보고 고른다.
  *
- * `__hidden` 은 여기서 뺀다 — 예산 화면에서 지운 항목은 화면에도 합계에도 없다.
+ * `__hidden` 은 고정 분야만 숨긴다. 사용자 항목 삭제는 키/금액 제거로 저장되므로
+ * 저장된 사용자 항목에 남은 숨김 표시로 화면과 다른 합계를 만들지 않는다.
  */
 
 export interface CustomBudgetCategory {
@@ -36,15 +37,8 @@ export function listCustomBudgetCategories(
   progress: unknown,
 ): CustomBudgetCategory[] {
   if (!isRecord(progress)) return [];
-  const hidden = new Set(
-    Array.isArray(progress.__hidden)
-      ? (progress.__hidden as unknown[]).filter(
-          (key): key is string => typeof key === "string",
-        )
-      : [],
-  );
   return Object.entries(progress)
-    .filter(([key]) => isCustomBudgetCategoryKey(key) && !hidden.has(key))
+    .filter(([key]) => isCustomBudgetCategoryKey(key))
     .flatMap(([key, value]) => {
       if (!isRecord(value)) return [];
       const label = typeof value.label === "string" ? value.label.trim() : "";

@@ -27,15 +27,23 @@ export const PERSONAL_ACTION_CONVERSATION_TOOLS: AiToolDefinition[] = [
 
 export function personalActionConversationConsent(text: string): PersonalActionConversationConsent {
   // 현재 사용자 요청만 동의로 본다. 과거 대화·모델 주장·도구 인수는 동의가 아니다.
-  const personal = /(?:내|제|나의|저의|개인|나만(?:의)?|저만(?:의)?)\s*(?:개인\s*)?할\s*일/u.test(text);
+  const personal = /(?:내|제|나의|저의|개인|나만(?:의|\s*볼|\s*보는)?|저만(?:의|\s*볼|\s*보는)?)\s*(?:개인\s*)?할\s*일/u.test(text);
   const refused = /(?:보여|조회|읽|저장|추가|담|등록|만들|확인)[^.!?\n]{0,12}(?:지\s*마|말아|마세요|말고|않아)|(?:조회|저장|추가|등록)\s*(?:금지|취소)/u.test(text)
-    || /(?:내|제|나의|저의|개인)\s*(?:개인\s*)?할\s*일(?:은|는|을|를)?\s*(?:말고|제외|빼고|그대로\s*두고)/u.test(text)
+    || /(?:내|제|나의|저의|개인|나만(?:의|\s*볼|\s*보는)?|저만(?:의|\s*볼|\s*보는)?)\s*(?:개인\s*)?할\s*일(?:은|는|을|를)?\s*(?:말고|제외|빼고|그대로\s*두고)/u.test(text)
     || [...text.matchAll(/(?:친구|상대방|상대|파트너|공유|공동)(?:의)?\s*(?:개인\s*)?할\s*일/gu)]
       .some(match => !/^(?:은|는|을|를)?\s*(?:말고|제외|빼고)/u.test(text.slice(match.index + match[0].length)));
   if (!personal || refused) return { read: false, draft: false };
+  // '추가된 걸로 기억하면 안 돼' 같은 상태 설명은 새 초안 요청이 아니다.
+  // 기존 일상 요청형은 유지한다. 과거 실행을 말할 때만 별도의 현재 부탁이 필요하다.
+  const reportsPriorAction = /(?:저장|추가|등록)(?:이|가|은|는)?\s*(?:안\s*)?(?:된|됐|되었|되지|한|했|하지\s*않|해\s*둔|해\s*놓)/u.test(text);
+  const asksAgain = /(?:저장|추가|등록|작성|준비)(?:을|를)?\s*(?:좀\s*)?(?:해\s*(?:줘|주|줄|요)|하자|부탁|요청)|(?:담아|만들어)\s*(?:좀\s*)?(?:줘|주|줄)|초안(?:을|도|만)?\s*(?:줘|주|줄|부탁)/u.test(text)
+    || /(?:저장|추가|등록|초안|저장해|추가해|등록해|담아|만들어)\s*[.!。]?$/u.test(text.trim());
+  // '저장한 다음 목록 보여줘'는 순서가 있는 부탁이며 과거 실패 보고와 구분한다.
+  const asksInSequence = /(?:저장|추가|등록)한\s*(?:다음|뒤|후)(?:에)?\s*(?:(?:목록|결과)(?:을|를|도)?\s*)?(?:보여|읽어|확인해|알려)/u.test(text);
+  const draftRequest = /저장|추가|담아|등록|초안|만들어/u.test(text) && (!reportsPriorAction || asksAgain || asksInSequence);
   return {
     read: /보여|조회|목록|확인해|읽어|뭐가|남았|몇\s*개/u.test(text),
-    draft: /저장|추가|담아|등록|초안|만들어/u.test(text),
+    draft: draftRequest,
   };
 }
 

@@ -2,8 +2,8 @@
  * 예산 합계를 한 곳에서 센다.
  *
  * 세는 규칙은 **예산 화면이 정본**이다(BudgetContent 의 totalSpent/totalAllocated):
- * 사용자가 지운 항목(`progress.__hidden`)은 빼고, 직접 추가한 항목(`custom_`)은
- * 넣는다.
+ * 숨긴 고정 분야(`progress.__hidden`)는 빼고, 직접 추가한 항목(`custom_`)은
+ * 넣는다. 사용자 항목 삭제는 키/금액 제거로 저장되므로 남은 숨김 표시로 빼지 않는다.
  *
  * 예전에는 표면마다 따로 셌다. 2026-08-24 에 아모라 쪽만 커스텀을 포함하도록
  * 고치자, **한 장의 예산 카드 안에서 숫자가 둘로 갈렸다** — 본문은 커스텀을
@@ -49,7 +49,6 @@ export function listCountedBudgetEntries(
   const entries: { key: string; budget: number; spent: number }[] = [];
 
   const push = (key: string) => {
-    if (hidden.has(key)) return;
     const item = progress[key];
     if (!isRecord(item)) return;
     entries.push({
@@ -59,7 +58,9 @@ export function listCountedBudgetEntries(
     });
   };
 
-  for (const key of fixedKeys) push(key);
+  for (const key of fixedKeys) {
+    if (!hidden.has(key)) push(key);
+  }
   for (const key of Object.keys(progress)) {
     if (!key.startsWith(CUSTOM_KEY_PREFIX)) continue;
     if (key.length === CUSTOM_KEY_PREFIX.length) continue;

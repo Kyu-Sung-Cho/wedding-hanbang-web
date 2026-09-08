@@ -192,8 +192,10 @@ function BudgetMiniCard() {
 
   if (!totalBudget) return null;
 
+  const hidden = new Set(Array.isArray(progress.__hidden) ? progress.__hidden : []);
   const topCategories = ["venue", "studio", "dress", "makeup", "ring", "honeymoon"];
   const items = topCategories.flatMap((key) => {
+    if (hidden.has(key)) return [];
     const item = progress[key];
     const budget = readWonAmount(item?.budget);
     const spent = readExplicitProgressSpent(item);

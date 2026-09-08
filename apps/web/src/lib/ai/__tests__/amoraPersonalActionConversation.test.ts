@@ -72,6 +72,43 @@ describe("personal action conversation capabilities", () => {
   it("keeps an explicitly chosen personal target after excluding shared tasks", () => {
     expect(personalActionConversationConsent("공유 할 일 말고 내 개인 할 일로 저장할 초안을 만들어줘")).toEqual({ read: false, draft: true });
   });
+  it.each([
+    "방금 개인 할 일은 실제로 추가된 걸로 기억하면 안 돼. 지금 개인방에서 확정된 사실, 보류된 사실, 실제로 실행된 액션, 아직 실행되지 않은 액션을 4개 구역으로 나눠 짧게 정리해줘.",
+    "내 개인 할 일이 저장됐다고 했지만 아직 실행 안 됐어. 현재 상태만 요약해줘.",
+    "내 개인 할 일로 등록한 건 실제로 반영되지 않았어. 미실행으로 기억해줘.",
+    "내 개인 할 일 초안은 아직 저장하지 않았어. 지금까지 이야기만 정리해줘.",
+    "내 개인 할 일이 저장이 안 됐어. 지금 상태만 요약해줘",
+    "개인 할 일에 추가가 안 된 상태로 정리해줘",
+    "내 개인 할 일로 저장한 다음 오류가 났어. 현재 상태만 정리해줘",
+    "내 개인 할 일을 등록한 뒤 목록에 안 보여. 상태만 요약해줘",
+  ])("does not mistake a past action/status report for a new draft request: %s", async text => {
+    expect(personalActionConversationConsent(text).draft).toBe(false);
+    expect(offered(text).map(tool => tool.name)).not.toContain("prepare_personal_action");
+    expect((await executeTool("prepare_personal_action", draft, context(text))).success).toBe(false);
+  });
+  it("keeps a requested status read without offering a new draft", () => {
+    const text = "내 개인 할 일이 추가됐는지 목록 보여줘";
+    expect(personalActionConversationConsent(text)).toEqual({ read: true, draft: false });
+    expect(offered(text).map(tool => tool.name)).toEqual(["get_personal_actions"]);
+  });
+  it.each([
+    "내 개인 할 일로 추가해줘", "내 개인 할 일로 저장해 주세요", "내 개인 할 일로 등록 부탁해",
+    "내 개인 할 일에 담아줘", "내 개인 할 일 저장 초안만 줘", "내 개인 할 일 초안을 만들어줘",
+    "내 개인 할 일이 아까 추가되지 않았어. 이번에는 새 초안을 만들어줘",
+    "내 개인 할 일 추가", "내 개인 할 일 저장할 초안을 준비해줘",
+    "개인 할 일에 일정 확인 추가해줄래?", "나만 볼 할 일로 견적 문의를 등록 좀 해줘",
+    "개인 할 일 초안을 만들어 주세요", "내 개인 할 일로 저장해주실래요?",
+    "내 개인 할 일이 저장이 안됐어. 다시 추가해줄래?",
+    "내 개인 할 일로 예식장 상담 준비를 저장한 다음 목록 보여줘",
+    "내 개인 할 일로 예식장 상담 준비를 저장한 뒤 목록 보여줘",
+  ])("continues to offer the current explicitly requested draft: %s", text => {
+    expect(personalActionConversationConsent(text).draft).toBe(true);
+    // 발화 범위 관문은 그대로 둔다. 초안 동의와 결혼 범위는 서로 다른 조건이다.
+    expect(offered(`예식 준비: ${text}`).map(tool => tool.name)).toContain("prepare_personal_action");
+  });
+  it.each(["나만 볼 할 일에 저장하지 마", "나만 보는 할 일은 그대로 두고 공유 할 일을 알려줘"])("keeps refusal on an explicit only-me target: %s", text => {
+    expect(personalActionConversationConsent(text)).toEqual({ read: false, draft: false });
+  });
   it("requires a current user message and ordinary chat, not a greeting/demo/mediation", () => {
     for (const requestKind of ["initial_greeting", "mediation"]) expect(offered("내 개인 할 일 목록 보여줘", "bride_private", true, requestKind)).toEqual([]);
     expect(offered("내 개인 할 일 목록 보여줘", "bride_private", false)).toEqual([]);
