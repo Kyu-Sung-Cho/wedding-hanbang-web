@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import WeddingTasteClient from "./WeddingTasteClient";
 import { useAuthStore } from "@/stores/authStore";
+import { CONTACT } from "@/lib/constants/contact";
 import { buildWeddingTasteShareUrl, createEmptyWeddingTasteDraft, decodeWeddingTasteShareHash, type WeddingTasteDraftV1 } from "@/lib/weddingCode/taste";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
@@ -115,7 +116,7 @@ describe("직접 취향의 끝까지 흐름", () => {
     await render();
     expect(host.textContent).toContain("로그인 상태를 확인하지 못했어요");
     expect(host.querySelector("[data-taste-experience]")).toBeNull();
-    expect(host.querySelector('a[href="mailto:contact@hanbang.ai"]')).not.toBeNull();
+    expect(host.querySelector(`a[href="mailto:${CONTACT.email}"]`)).not.toBeNull();
     await click("다시 확인하기");
     await click("내 취향 고르기");
     expect(host.querySelector("#wedding-taste-question")).not.toBeNull();
@@ -152,7 +153,7 @@ describe("직접 취향의 끝까지 흐름", () => {
     await render(); await click("내 취향 고르기"); await completePhoto(); await click("전달할 내용 확인하기");
     expect(host.textContent).toContain("계정 준비는 완료됐지만");
     expect([...host.querySelectorAll("button")].find(button => button.textContent === "계정 준비하고 내 선택 이어가기")).toBeUndefined();
-    expect(host.querySelector('a[href="mailto:contact@hanbang.ai"]')).not.toBeNull();
+    expect(host.querySelector(`a[href="mailto:${CONTACT.email}"]`)).not.toBeNull();
     expect(push).not.toHaveBeenCalled(); expect(sessionStorage.length).toBe(0);
     vi.mocked(fetch).mockResolvedValueOnce(response(account()));
     await click("계정 정보 다시 확인");

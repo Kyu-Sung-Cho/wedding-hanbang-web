@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
+import { CONTACT } from "@/lib/constants/contact";
 import WeddingTasteForm from "@/components/wedding-code/WeddingTasteForm";
 import { useAuthStore } from "@/stores/authStore";
 import { useWeddingCodeSession } from "@/hooks/useWeddingCodeSession";
@@ -34,7 +35,7 @@ export default function WeddingTasteClient() {
       <section className={`${card} mx-auto w-full max-w-[640px]`} role={session.status === "error" ? "alert" : "status"}>
         <h1 className="text-xl font-semibold">{session.status === "error" ? "로그인 상태를 확인하지 못했어요" : "로그인 상태를 확인하고 있어요"}</h1>
         <p className="mt-3 text-sm leading-relaxed">{hasVerifiedSession ? "이 화면의 선택은 잠시 그대로 두었어요. 같은 계정이 확인되면 이어서 볼 수 있어요." : "계정 확인이 끝나면 내 취향을 고를 수 있어요. 입력 중에 계정이 바뀌어 선택을 잃지 않도록 먼저 확인해요."}</p>
-        {session.status === "error" ? <><Button className="mt-4" onClick={session.retry}>다시 확인하기</Button><p className="mt-3 text-sm leading-relaxed">계속 확인되지 않으면 <a className="underline underline-offset-4" href="mailto:contact@hanbang.ai">고객지원에 문의해 주세요</a>.</p></> : null}
+        {session.status === "error" ? <><Button className="mt-4" onClick={session.retry}>다시 확인하기</Button><p className="mt-3 text-sm leading-relaxed">계속 확인되지 않으면 <a className="underline underline-offset-4" href={"mailto:" + CONTACT.email}>고객지원에 문의해 주세요</a>.</p></> : null}
       </section>
     </main> : null}
     {hasVerifiedSession ? <div hidden={session.status !== "ready"} data-taste-experience=""><TasteExperience key={ownerId} session={session} /></div> : null}
@@ -174,7 +175,7 @@ function TasteExperience({ session }: { session: ReturnType<typeof useWeddingCod
                 {needsAccountReview ? <div className="mt-4 rounded-[6px] border border-[var(--hb-hairline)] p-4 text-sm leading-relaxed" role="alert">
                   <p>계정 준비는 완료됐지만 개인 상담에 필요한 연결 정보를 확인하지 못했어요. 계정 정보를 다시 불러와 주세요. 같은 문제가 계속되면 고객지원에서 확인을 도와드릴게요.</p>
                   <Button className="mt-3" onClick={session.retry}>계정 정보 다시 확인</Button>
-                  <a className="ml-3 inline-flex min-h-11 items-center underline underline-offset-4" href="mailto:contact@hanbang.ai">고객지원 문의</a>
+                  <a className="ml-3 inline-flex min-h-11 items-center underline underline-offset-4" href={"mailto:" + CONTACT.email}>고객지원 문의</a>
                 </div> : <Button variant="primary" className="mt-5" fullWidth disabled={session.status !== "ready" || !isInitialized || isLoading} onClick={() => {
                   if (session.status !== "ready" || needsAccountReview) return;
                   const handoff = canChat ? prepareWeddingTasteChat(own) : createWeddingTasteLoginHandoff(own);
