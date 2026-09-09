@@ -18,6 +18,7 @@ import {
 import type { ChatInputItem, ImageAttachment } from "@/lib/ai/openai";
 import type { ChatWithToolsResult } from "@/lib/ai/openai";
 import { chooseAmoraChatModelRole } from "@/lib/ai/modelConfig";
+import { getAmoraPlanningTurn } from "@/lib/ai/amoraPlanningTurn";
 import {
   AMORA_SYSTEM_PROMPT_MAX_CHARS,
   buildAmoraSystemPrompt,
@@ -3569,49 +3570,6 @@ export async function POST(request: Request) {
           text: buildAmoraPendingActionPrompt(pendingProposalTools),
         }
       : undefined;
-  const promptContext = {
-    // 준비 순서 목록은 시작점을 묻는 턴에만 싣는다 — 프롬프트 상한에 여유가 없다.
-    startingPointAsked: asksWhereToStart(lastUserText),
-    weddingDate: weddingDateForStage,
-    budget: resolvedWeddingContext.budget,
-    venue: resolvedWeddingContext.venue,
-    progress,
-    preparationStatus: normalizePreparationStatus(
-      userProfile.preparation_status,
-    ),
-    brideName,
-    groomName,
-    // 프롬프트의 접두어 규칙이 런타임과 같은 문자열을 쓰게 한다.
-    neutralMemberPresentation: usesNeutralMemberPresentation,
-    senderName: safeSenderName,
-    // Legacy booking rows are outside the current web MVP and are not sent
-    // to the model merely because they still exist in the database.
-    bookings: [],
-    scheduleEvents,
-    chatSummaries,
-    preferences: preferences ?? undefined,
-    helpPreference: personalizationProfile?.preferences ?? null,
-    amoraProfiles: consentedAmoraProfiles,
-    pastDecisions,
-    pastConflicts,
-  };
-  const buildSystemPromptForTools = (enabledTools: typeof BETA_SAFE_TOOLS) =>
-    preparationReferencePrefix + cautionPrefix + privacyPrefix + buildAmoraSystemPrompt(promptContext, {
-      specialist: specialistType,
-      requestKind,
-      persistenceMode: isDemo ? "demo" : "durable",
-      enabledToolNames: enabledTools.map((tool) => tool.name),
-      actionContract,
-      questionScope,
-      linkedContextMode: boundedContinuity?.mode,
-      awaitingCardConfirmation: awaitingPendingCard?.confirmation,
-      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
-    });
-  const systemPrompt = buildSystemPromptForTools(availableTools);
-  const noToolSystemPrompt = availableTools.length > 0
-    ? buildSystemPromptForTools([])
-    : systemPrompt;
-
   // 오래된 대화가 exact-token 상한을 영구적으로 막지 않게 최근 연속 문맥을
   // 보존한다. 실제 비용 경계는 provider의 exact count가 최종 판정한다.
   const currentCanonicalUserMessageId = !isDemo && requestKind === "chat"
@@ -3666,6 +3624,69 @@ export async function POST(request: Request) {
       ?? (w4TrustedProviderMessages !== null
         ? takeRecentAmoraConversation(w4TrustedProviderMessages)
         : [{ role: "user" as const, content: lastUserText }]);
+  const planningTurn = getAmoraPlanningTurn({
+    requestKind,
+    durable: !isDemo && isDurableUserMessageBound,
+    scope: questionScope.scope,
+    allowsStoredProviderContext,
+    preparationStatus: normalizePreparationStatus(userProfile.preparation_status),
+    // 연속성 신호는 일반 이유 답변에도 생긴다. 실제 요청·확인 카드만 우선한다.
+    hasPriorityAction: Boolean(
+      approvedPendingAction || awaitingPendingCard || offersPlaceSearch
+      || personalConversationTools.length > 0 || isExplicitAmoraChangeRequest(lastUserText)
+      || (carriedToolIntent && isExplicitAmoraChangeRequest(carriedToolIntent.priorUserText))
+    ),
+    hasAttachments: textAttachments.length > 0 || visionAttachments.length > 0,
+    actorId: actorId ?? "",
+    currentUserMessageId: currentCanonicalUserMessageId ?? "",
+    currentUserText: lastUserText,
+    oldestFirstRows: canonicalRows,
+    providerMessages,
+  });
+  const promptContext = {
+    // 준비 순서 목록은 시작점을 묻는 턴에만 싣는다 — 프롬프트 상한에 여유가 없다.
+    startingPointAsked: asksWhereToStart(lastUserText),
+    weddingDate: weddingDateForStage,
+    budget: resolvedWeddingContext.budget,
+    venue: resolvedWeddingContext.venue,
+    progress,
+    preparationStatus: normalizePreparationStatus(
+      userProfile.preparation_status,
+    ),
+    brideName,
+    groomName,
+    // 프롬프트의 접두어 규칙이 런타임과 같은 문자열을 쓰게 한다.
+    neutralMemberPresentation: usesNeutralMemberPresentation,
+    senderName: safeSenderName,
+    // Legacy booking rows are outside the current web MVP and are not sent
+    // to the model merely because they still exist in the database.
+    bookings: [],
+    scheduleEvents,
+    chatSummaries,
+    preferences: preferences ?? undefined,
+    helpPreference: personalizationProfile?.preferences ?? null,
+    amoraProfiles: consentedAmoraProfiles,
+    pastDecisions,
+    pastConflicts,
+  };
+  const buildSystemPromptForTools = (enabledTools: typeof BETA_SAFE_TOOLS) =>
+    preparationReferencePrefix + cautionPrefix + privacyPrefix + buildAmoraSystemPrompt(promptContext, {
+      specialist: specialistType,
+      requestKind,
+      persistenceMode: isDemo ? "demo" : "durable",
+      enabledToolNames: enabledTools.map((tool) => tool.name),
+      actionContract,
+      questionScope,
+      linkedContextMode: boundedContinuity?.mode,
+      awaitingCardConfirmation: awaitingPendingCard?.confirmation,
+      planningTurn,
+      maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+  const systemPrompt = buildSystemPromptForTools(availableTools);
+  const noToolSystemPrompt = availableTools.length > 0
+    ? buildSystemPromptForTools([])
+    : systemPrompt;
+
   const boundedTextAttachments = allowsCurrentAttachmentContext
     ? boundAmoraTextAttachments(textAttachments)
     : "";

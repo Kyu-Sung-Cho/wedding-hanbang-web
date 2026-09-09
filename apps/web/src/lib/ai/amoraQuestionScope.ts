@@ -339,6 +339,23 @@ const NON_WEDDING_DOMAIN_HINT_PATTERN =
 // 바꿔줘" 가 정본 분기(W0)로 올라갔다 — 이 방어가 그 둘을 몰랐기 때문이다. 같이 넣는다.
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
   /(?:회사|업무|직장|부서|프로젝트|식당|레스토랑|맛집|병원|미용실|공연|콘서트|발표).{0,12}(?:예산|배분\s*(?:표|안)|일정|스케줄|예약|리허설|피팅|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
+
+function hasExplicitNonWeddingState(text: string, trustedExplicitPrivateDraft: boolean): boolean {
+  if (!trustedExplicitPrivateDraft
+    || NON_WEDDING_DOMAIN_HINT_PATTERN.test(text) || LATE_NON_WEDDING_TOPIC_PATTERN.test(text)
+    || /`{3,}|~{3,}/u.test(text)) return EXPLICIT_NON_WEDDING_STATE_PATTERN.test(text);
+  // 종결된 상견례 검색과 다음 개인 초안을 식당 운영 과업으로 합치지 않는다.
+  // 이 guard용 사본에서만 검색 문장을 분리한다. 회사 선언 등 다른 연결은 유지한다.
+  const quotes = [...text.matchAll(/"[^"]*"|'[^']*'|“[^”]*”|‘[^’]*’|`[^`]*`/gu)];
+  const stateText = text.replace(/(?:^|(?<=[.!?。！？\n]))[^.!?。！？\n]+[.!?。！？]/gu, (sentence, offset: number) => {
+    if (/["'“”‘’`>]/u.test(sentence)
+      || quotes.some(quote => quote.index < offset && offset < quote.index + quote[0].length)
+      || EXPLICIT_NON_WEDDING_STATE_PATTERN.test(sentence)) return sentence;
+    return /상견례[^.!?。！？\n]{0,40}(?:식당|레스토랑|맛집)(?:을|를)?\s*(?:좀\s*)?(?:찾아|검색해)\s*(?:줘|주세요)\s*[.!?。！？]$/u.test(sentence)
+      ? "\n" : sentence;
+  });
+  return EXPLICIT_NON_WEDDING_STATE_PATTERN.test(stateText);
+}
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
 const HONEYMOON_PATTERN = /신혼\s*여행|허니문/iu;
 const CANONICAL_TOTAL_BUDGET_ACTION_PATTERN =
@@ -514,7 +531,8 @@ export function classifyAmoraQuestionScope({
     };
   }
   if (
-    EXPLICIT_NON_WEDDING_STATE_PATTERN.test(normalizedText)
+    hasExplicitNonWeddingState(normalizedText,
+      hasTrustedPrivateDraftContext && hasExplicitPersonalActionDraftRequest(userText))
     || (
       GENERIC_TRAVEL_BUDGET_PATTERN.test(normalizedText)
       && !HONEYMOON_PATTERN.test(normalizedText)

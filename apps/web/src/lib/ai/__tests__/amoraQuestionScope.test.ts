@@ -10,6 +10,59 @@ import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { selectAmoraPendingProposalTools } from "@/lib/ai/amoraToolPolicy";
 
 describe("Amora question-scope ceiling", () => {
+  describe("독립된 상견례 검색과 본인 개인 초안 문장", () => {
+    const draft = '내 개인 할 일 초안을 만들어줘. 제목은 "식당 상담 질문 준비"로 해줘.';
+    const classify = (userText: string) => classifyAmoraQuestionScope({
+      userText, requestKind: "chat", hasTrustedPrivateDraftContext: true,
+    });
+
+    it.each([
+      `강남 상견례 식당 찾아줘. ${draft}`,
+      `${draft} 강남 상견례 식당 찾아줘.`,
+      `강남 상견례 식당 찾아줘! ${draft}`,
+      `강남 상견례 식당 찾아줘。 ${draft}`,
+      "강남 상견례 식당 찾아줘.",
+      draft,
+    ])("서로 다른 요청을 식당 운영 할 일로 합치지 않는다: %s", userText => {
+      const classification = classify(userText);
+      expect(classification.scope).toBe("W0_wedding_core");
+      expect(classification.needsClarification).toBe(false);
+    });
+
+    it.each([
+      "회사 얘기야. 예산을 3천만원으로 변경해줘.",
+      "식당 운영이야. 내 개인 할 일 초안을 만들어줘.",
+      "회사 프로젝트 할 일 초안을 만들어줘.",
+      `상견례 식당 예약 찾아줘. ${draft}`,
+      `"상견례 식당 찾아줘." ${draft}`,
+      `친구가 "메모. 상견례 식당 찾아줘." ${draft}`,
+      `> 상견례 식당 찾아줘. ${draft}`,
+      `회사 상견례 식당 찾아줘. ${draft}`,
+      '친구가 "내 개인 할 일 초안을 만들어줘."라고 했어.',
+      "내 개인 할 일 초안을 만들지 마.",
+    ])("실제 비웨딩 선언·과업·인용·거부는 원래 경계에 남긴다: %s", userText => {
+      expect(classify(userText)).toMatchObject({ scope: "W4_out_of_scope", allowsLongTermMemory: false });
+    });
+
+    it("본인 private 정본 증명이 없으면 혼합 요청 예외를 열지 않는다", () => {
+      expect(classifyAmoraQuestionScope({ userText: `강남 상견례 식당 찾아줘. ${draft}` }).scope)
+        .toBe("W4_out_of_scope");
+    });
+
+    it("원문 개인 요청 predicate를 두 번 정규화해서 바꾸지 않는다", () => {
+      expect(classify("강남 상견례 식당 찾아줘. \u1102\u200D\u1161의 할 일 초안을 만들어줘.").scope)
+        .toBe("W4_out_of_scope");
+    });
+
+    it.each([
+      `강남 상견례 식당 찾아줘. ${draft} 예식장 계약금 환불을 법적으로 판단해줘.`,
+      `강남 상견례 식당 찾아줘. ${draft} 예전에 남편에게 맞았어요.`,
+    ])("새 요청의 고위험·안전 판정이 계속 먼저다: %s", userText => {
+      expect(classify(userText)).toMatchObject({ scope: "W2_high_risk_adjacent", allowsLongTermMemory: false });
+      expect(filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classify(userText))).toEqual([]);
+    });
+  });
+
   it("gives a disguised non-wedding investment-budget request no wedding proposal tools", () => {
     const userText = "주식 투자 예산을 3천만원으로 바꿔줘";
     const classification = classifyAmoraQuestionScope({ userText });

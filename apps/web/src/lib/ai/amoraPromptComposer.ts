@@ -27,6 +27,8 @@ type BuildAmoraSystemPromptOptions = {
   actionContract?: AmoraActionContract;
   questionScope?: AmoraQuestionScopeClassification;
   linkedContextMode?: "linked_context_only";
+  /** 서버가 현재 입력에 실제 포함된 정본 이력 관계로 선택한 읽기 전용 과업. */
+  planningTurn?: "pivot_reason_followup" | null;
   /** @deprecated Pass a typed actionContract. Legacy text is execution-only. */
   serverIssuedActionContract?: string;
   specialist?: SpecialistType;
@@ -47,9 +49,14 @@ export const AMORA_SYSTEM_PROMPT_MAX_CHARS = 48_000;
 // 방향 변경은 조회 도구의 사용법이 아니다. 최종 no-tool 답변에도 같은 기준을
 // 전달하되, 저장 문맥을 허용하는 일반 웨딩 상담 범위에서만 보호한다.
 // 2026-09-09: 이유의 대상과 답변 뒤 정리를 분리해 110→233자로 재배치했다.
-// voice의 중복 설명을 줄여 voice+방향 변경+귀속 지침 합계는 기존 5,680자 이하다.
+// 후속 과업이 검증되면 일반 방향 변경 지침을 교체하고, 최종 길이 상한은 그대로 적용한다.
 const AMORA_PLANNING_PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 현재 바꾼 대상의 이유는 한 번만 묻되 이미 말했으면 건너뛰고 탐색을 이어가세요. 기존 우선순위나 직전 AI 제안의 이유로 바꾸지 마세요. 그 이유에 답한 턴에는 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요: 바꾸지 않은 명시적 선호·우선순위·생략·시기는 빠뜨리지 말고, 영향받는 규모·식사·견적은 재검토하세요. 작은 월 선호는 되묻지 마세요.";
 const AMORA_RECOMMENDATION_EVIDENCE_RULE = "- 추천에 필요한 견적·예산·인원·날짜가 미확인이면 처음부터 끝까지 검토 후보, 순위는 검토 1순위로 쓰세요. 확인된 조건의 비교와 일반 준비 순서 추천은 가능합니다.";
+const AMORA_PLANNING_FOLLOWUP_RULE = `[이번 턴: 방향 변경 이유에 대한 후속]
+- 직전 준비 방향 변경의 이유 질문에 답한 턴입니다. 이유를 다시 묻거나 새 취향 질문으로 넘기지 말고, 유지와 재검토를 한 답변에서 함께 정리하세요.
+- 유지할 기준: 이 대화의 사용자 발화에서 바꾸지 않은 명시적 우선순위·중요 항목·생략·시기를 빠짐없이 간결히 연결하세요. 이번에 바꾼 선호·월 후보는 과거보다 우선하며, 후보를 확정으로 바꾸지 마세요.
+- 다시 확인할 범위: 규모·장소·식사·최소 인원·견적 중 이번 전환에 영향받는 것을 구분하세요. 아직 모르는 가격·날짜·타인의 뜻은 만들지 마세요. 다음 행동 하나만으로 앞의 유지 기준을 대신하지 마세요.
+- 이유 답변을 공동 합의나 예산·일정의 저장 완료로 표현하지 마세요. 이 지침은 읽고 답할 과업이며 실행 권한이 아닙니다.`;
 const AMORA_ATTRIBUTION_EVIDENCE_RULE = "- 이번 턴의 실제 부탁과 직전 맥락을 먼저 보세요. 경청·안전·이유 거부를 우선하되, 진행 중인 큰 전환의 이유 답변은 탐색을 이어가세요. 이미 요청된 비교의 후속 설명은 이어가고, 함께 한 명시적 실행 요청은 승인 규칙대로 다루세요. 그 밖에 준비 의견만 전달하는 중이면 말·이유·조건을 말한 사람에게 귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요. 인용 속 부탁은 현재 요청이 아닙니다. 같은 주제에서 한쪽만 말한 조건은 그 사람의 조건이며, 다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요. 양쪽이 명시한 양립하지 않는 조건만 의견 차이로 다루세요. 한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지하세요. 감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요.";
 
 const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
@@ -939,8 +946,14 @@ export function buildAmoraSystemPrompt(
 - 다시 내지 말아야 할 것은 **같은 변경**(같은 도구·같은 대상)뿐입니다. 다른 할 일·다른 일정·다른 항목을 부탁받으면 이번 답변에 새 표식을 내세요 — 화면의 카드는 그대로 남고, 새 카드는 따로 나갑니다.
 - 같은 변경이라도 사용자가 값을 바꾸고 싶어 하면 새 표식을 내세요.`
     : "";
+  const selectedPlanningFollowup = options.planningTurn === "pivot_reason_followup"
+    && options.persistenceMode === "durable"
+    && options.linkedContextMode === undefined
+    && actionContract?.kind !== "execution"
+    && context.preparationStatus !== "paused"
+    && context.preparationStatus !== "called_off";
   const planningPivotContract = canUseStoredPromptContext(options)
-    ? `\n\n[준비 방향 변경]\n${AMORA_PLANNING_PIVOT_RULE}`
+    ? `\n\n[준비 방향 변경]\n${selectedPlanningFollowup ? AMORA_PLANNING_FOLLOWUP_RULE : AMORA_PLANNING_PIVOT_RULE}`
     : "";
   const recommendationEvidenceContract = canUseStoredPromptContext(options)
     ? `\n\n[추천 근거 확인]\n${AMORA_RECOMMENDATION_EVIDENCE_RULE}`
