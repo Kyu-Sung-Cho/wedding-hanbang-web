@@ -4,26 +4,9 @@ import type { WeddingCodeSelfAxisReading, WeddingCodeSelfProfile } from "@/lib/w
 /**
  * 웨딩코드 4글자.
  *
- * ## 이게 왜 성격 판정이 아닌가
- *
- * MBTI는 두 가지를 한 번에 말한다. (1) 「당신의 답을 네 글자로 요약하면 INFP」와
- * (2) 「INFP는 이런 사람이고 이런 사람과 잘 맞는다」. (1)은 계산이고 (2)는 주장이다.
- * MBTI는 (2)를 근거 없이 팔면서 (1)의 불안정성을 숨긴다 — 5주 뒤 다시 풀면 절반이
- * 글자가 바뀐다.
- *
- * 웨딩코드는 **(1)만 한다.** 글자는 그 축 다섯 장면에서 어느 쪽을 더 많이 골랐는지를
- * 적은 것이고, 그건 사용자가 방금 남긴 사실이다. 대신 MBTI가 숨기는 것을 드러낸다 —
- * **글자마다 몇 대 몇이었는지**를 같이 보여주고, 3:2로 아슬한 글자는 소문자로 적어
- * 다음에 바뀔 수 있다고 먼저 말한다.
- *
- * ## 왜 축당 문항이 홀수인가
- *
- * 짝수면 2:2 동점이 생긴다(4문항일 때 26%). 동점에서는 글자를 정할 수 없으므로
- * 「장면마다 달랐어요」 같은 애매한 칸이 생기고, 코드가 안 나온다. 홀수면 동점이
- * 구조적으로 불가능해서 답을 다 한 사람은 항상 네 글자를 받는다.
- *
- * 다만 **건너뛴 문항이 있으면 짝수가 될 수 있다.** 그때는 글자를 지어내지 않고
- * `MISSING_LETTER`를 넣는다. 안 고른 답으로 정체성을 만들지 않는다.
+ * 축별로 어느 쪽 답을 더 많이 골랐는지 요약한다. 응답 수와 양쪽 수를 함께
+ * 표시하며, 그 분포를 사람의 확신이나 재응답 안정성으로 해석하지 않는다.
+ * 동점·무응답은 글자를 정하지 않고, 일부 응답에서 글자가 나와도 완료로 보지 않는다.
  */
 
 /** 답이 없거나 정확히 반반이라 글자를 정할 수 없는 자리. */
@@ -34,7 +17,7 @@ export type WeddingCodeLetterFirmness = "firm" | "clear" | "narrow" | "unset";
 export type WeddingCodeLetterSlot = Readonly<{
   axis: WeddingCodeV06AxisKey;
   axisLabel: string;
-  /** 확정된 글자. 미정이면 `·`. 아슬한 글자는 소문자로 나간다. */
+  /** 응답 요약 글자. 미정이면 `·`. 양쪽 답이 있고 한 표 차이면 소문자로 나간다. */
   letter: string;
   /** 대문자 기준 글자. 미정이면 null. 비교·집계는 이걸 쓴다. */
   upper: string | null;
@@ -46,7 +29,7 @@ export type WeddingCodeLetterSlot = Readonly<{
   answered: number;
   /** 「다섯 장면 중 세 곳」처럼 그대로 읽어줄 사실 문장. */
   tally: string;
-  /** 아슬한 글자에만. 바뀔 수 있다는 사실을 먼저 알린다. */
+  /** 한 표 차이일 때 응답 변경에 따른 글자 변경 가능성을 알린다. */
   caution: string | null;
 }>;
 
@@ -55,6 +38,7 @@ export type WeddingCodeLetters = Readonly<{
   code: string;
   /** 미정 자리를 뺀 확정 코드. 전부 확정이면 code와 같다(대문자). */
   upperCode: string;
+  /** 모든 문항에 답했고 네 자리 모두 글자가 있는가. */
   complete: boolean;
   slots: readonly WeddingCodeLetterSlot[];
 }>;
@@ -94,17 +78,15 @@ export const WEDDING_CODE_LETTERS: Readonly<
 export const WEDDING_CODE_FIRMNESS_LABEL: Readonly<
   Record<WeddingCodeLetterFirmness, string>
 > = {
-  firm: "굳음",
-  clear: "뚜렷",
-  narrow: "아슬",
+  firm: "답한 장면 모두 같은 쪽",
+  clear: "한쪽 답이 더 많음",
+  narrow: "한 표 차이",
   unset: "미정",
 };
 
 /**
- * 굳기 판정.
- *
- * 소수 쪽이 하나 이하로 남았으면 뚜렷하고, 다수와 소수의 차이가 1이면 아슬하다.
- * 「몇 대 몇」을 항상 같이 내보내므로 사용자는 이 판정을 직접 반증할 수 있다.
+ * 기존 표시용 enum을 유지하되, 실제 응답 분포만 구분한다.
+ * 모두 같은 쪽이라는 사실은 문항 수나 확신을 대신하지 않는다.
  */
 function firmnessOf(majority: number, minority: number): WeddingCodeLetterFirmness {
   if (majority === minority) return "unset";
@@ -144,7 +126,7 @@ function slotFor(reading: WeddingCodeSelfAxisReading): WeddingCodeLetterSlot {
   return {
     axis: reading.axis,
     axisLabel: reading.axisLabel,
-    // 아슬한 글자를 대문자로 적으면 굳은 글자와 구별되지 않는다.
+    // 기존 공유 코드의 대소문자 의미를 유지한다.
     letter: firmness === "narrow" ? side.letter.toLowerCase() : side.letter,
     upper: side.letter,
     firmness,
@@ -152,10 +134,10 @@ function slotFor(reading: WeddingCodeSelfAxisReading): WeddingCodeLetterSlot {
     majority,
     minority,
     answered: reading.answered,
-    tally: `답한 ${reading.answered}장면 중 ${majority}곳이 이쪽이었어요.`,
+    tally: `답한 ${reading.answered}장면에서 이쪽과 반대쪽 답은 ${majority} 대 ${minority}예요.`,
     caution:
       firmness === "narrow"
-        ? `${majority} 대 ${minority}로 아슬해서, 다시 답하면 ${
+        ? `${majority} 대 ${minority}로 한 표 차이예요. 답을 바꾸면 ${
           side.letter === pair.left.letter ? pair.right.letter : pair.left.letter
         }로 바뀔 수 있어요.`
         : null,
@@ -170,7 +152,7 @@ export function buildWeddingCodeLetters(
   return {
     code: slots.map((slot) => slot.letter).join(""),
     upperCode: slots.map((slot) => slot.upper ?? WEDDING_CODE_MISSING_LETTER).join(""),
-    complete: slots.every((slot) => slot.upper !== null),
+    complete: profile.complete && slots.every((slot) => slot.upper !== null),
     slots,
   };
 }

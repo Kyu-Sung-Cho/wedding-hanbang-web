@@ -89,11 +89,11 @@ describe("웨딩코드 진입 화면", () => {
     for (const banned of ["점수가", "등급", "궁합이", "유형이에요", "당신은 "]) {
       expect(html, banned).not.toContain(banned);
     }
-    expect(html).toContain("맞는 답도 틀린 답도 없어요");
-    expect(html).toContain("우리와 안 맞는 장면은 건너뛸 수 있어요");
+    expect(html).toContain("성격이나 궁합을 판정하지 않아요");
+    expect(html).toContain("아직 답하기 어려운 장면은 건너뛸 수 있어요");
     // 금액 규모와 가족 구성이 다른 사람도 배제되지 않는다고 먼저 말한다.
-    expect(html).toContain("금액은 예시예요");
-    expect(html).toContain("부모님이나 하객이 없는 상황이면");
+    expect(html).toContain("금액과 상황은 예시예요");
+    expect(html).toContain("부모님·하객·예식이 없는 경우도");
   });
 
   it("먼저 답한 사람의 코드가 오면 응답 순서를 정확히 알린다", async () => {
@@ -104,8 +104,8 @@ describe("웨딩코드 진입 화면", () => {
 
   it("DB 비저장과 URL 노출을 구분해 알린다", async () => {
     const html = await render({});
-    expect(html).toContain("답은 기기 안에서 계산하며 서버 DB에 저장하지 않아요");
-    expect(html).toContain("공유 링크에는 답을 나타내는 코드가 들어가므로");
+    expect(html).toContain("장면의 답은 서버나 브라우저 저장소에 보관하지 않아요");
+    expect(html).toContain("공유 링크에는 답이 들어가므로");
     expect(html).not.toContain("답은 저장되지 않아요");
   });
 
@@ -301,7 +301,8 @@ describe("웨딩코드 진입 화면", () => {
       b: encodeWeddingCodeV06(V08_RIGHT, WEDDING_CODE_V08_QUESTIONS),
     });
     expect(html).toContain('data-pair-state=');
-    expect(html).toMatch(/서로 다름|방향 같음/);
+    expect(html).toContain('data-pair-state="different"');
+    expect(html).toContain("다른 답 있음");
     for (const banned of ["맞는 쪽", "올바른 쪽", "더 나은 쪽", "권장하는 쪽"]) {
       expect(html, banned).not.toContain(banned);
     }

@@ -47,8 +47,20 @@ export function decodeWeddingCodeShareHash(
   hash: string,
 ): DecodedWeddingCodeShareLink | null {
   const raw = hash.startsWith("#") ? hash.slice(1) : hash;
-  if (!raw) return null;
-  return decodeWeddingCodeShareParams(new URLSearchParams(raw));
+  // 정상 두 사람 코드보다 충분히 넉넉하게 두되, 파싱 전 입력 크기를 제한한다.
+  if (!raw || raw.length > 1024) return null;
+  const params = new URLSearchParams(raw);
+  const allowedKeys = new Set(["v", "a", "b"]);
+  for (const key of params.keys()) {
+    if (!allowedKeys.has(key) || params.getAll(key).length !== 1) return null;
+  }
+  if (!params.has("a")) return null;
+
+  const decoded = decodeWeddingCodeShareParams(params);
+  if (!decoded?.partnerCode) return null;
+  // 두 사람 링크에서 한 코드가 깨졌다고 다른 사람 답만 유효한 링크로 바꾸지 않는다.
+  if (params.has("b") && !decoded.bothCodes) return null;
+  return decoded;
 }
 
 /**

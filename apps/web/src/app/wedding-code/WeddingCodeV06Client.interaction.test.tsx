@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CURRENT_WEDDING_CODE_SCENE_CONFIG } from "@/lib/weddingCode/scene/config";
 import { useAuthStore } from "@/stores/authStore";
@@ -16,6 +16,7 @@ describe("WeddingCodeV06Client interaction", () => {
   let root: Root;
 
   beforeEach(() => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({ user: null }), { status: 200 }));
     window.history.replaceState(null, "", "/wedding-code");
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -25,6 +26,7 @@ describe("WeddingCodeV06Client interaction", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     document.body.replaceChildren();
+    vi.restoreAllMocks();
   });
 
   it("moves from the intro through an answered question", async () => {
@@ -147,7 +149,7 @@ describe("WeddingCodeV06Client interaction", () => {
     }
     // 글자마다 몇 대 몇이었는지 같이 나온다 — MBTI가 숨기는 것을 드러낸다.
     const badgeText = badge?.textContent ?? "";
-    expect(badgeText).toMatch(/답한 \d장면 중 \d곳이 이쪽이었어요/);
+    expect(badgeText).toMatch(/답한 \d장면에서 이쪽과 반대쪽 답은 \d 대 \d예요/);
     expect(badgeText).toContain("성격을 맞힌 게 아니라");
     expect(badgeText).not.toMatch(/\d+\s*점|궁합|잘 맞는/);
 
@@ -158,9 +160,9 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(container.querySelector('[data-proposal="workMode"]')).toBeTruthy();
     expect(container.querySelector('[data-proposal="familyOrder"]')).toBeTruthy();
     expect(container.querySelector('[data-proposal="supportOrder"]')).toBeTruthy();
-    expect(proposalText).toMatch(/장면 중 \d곳/);
+    expect(proposalText).toContain("지금 원하는 도움과 같지는 않아요");
     // 없는 자동 연동을 있는 것처럼 말하지 않는다.
-    expect(proposalText).toContain("웨딩코드가 자동으로 바꾸지 않고");
+    expect(proposalText).toContain("직접 고른 항목만");
     expect(proposalText).not.toMatch(/자동으로 반영(됐|되었|됩니다|돼요)/);
     expect(proposals?.querySelector('a[href="/settings/amora-style"]')).toBeTruthy();
 
@@ -169,7 +171,8 @@ describe("WeddingCodeV06Client interaction", () => {
      * 저장되는지(설정값)와 무엇이 저장되지 않는지(답과 고른 문장)를 함께 말한다.
      */
     expect(container.querySelector("[data-apply-amora]")).toBeNull();
-    expect(proposalText).toContain("로그인하고 아모라에 반영하기");
+    expect(proposalText).toContain("로그인하고 선택한 방식 확인하기");
+    expect(container.querySelector<HTMLButtonElement>("[data-continue-amora]")?.disabled).toBe(true);
     expect(proposalText).toContain("웨딩코드 답과 고른 문장은");
     // 저장 결과를 확인하기 전에 반영됐다고 말하지 않는다.
     expect(proposalText).not.toContain("아모라에 반영했어요");
@@ -198,6 +201,7 @@ describe("WeddingCodeV06Client interaction", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
+      if (url === "/api/auth/me") return new Response(JSON.stringify({ user: useAuthStore.getState().user }), { status: 200 });
       calls.push({
         url,
         method: init?.method ?? "GET",
@@ -244,7 +248,13 @@ describe("WeddingCodeV06Client interaction", () => {
 
       const apply = container.querySelector<HTMLButtonElement>("[data-apply-amora]");
       expect(apply).toBeTruthy();
-      expect(apply?.textContent).toContain("아모라에 반영하기");
+      expect(apply?.disabled).toBe(true);
+      expect(calls.filter(c => c.method === "PUT")).toHaveLength(0);
+      for (const [field, value] of Object.entries({ workMode: "together", familyOrder: "couple_first", supportOrder: "listen_first", decisionStart: "compare_first" })) {
+        const select = container.querySelector<HTMLSelectElement>(`#wc-help-${field}`)!;
+        await act(async () => { select.value = value; select.dispatchEvent(new Event("change", { bubbles: true })); });
+      }
+      expect(apply?.disabled).toBe(false);
       await act(async () => apply?.click());
       // save()의 then은 클릭 act 밖의 마이크로태스크에서 끝난다. 한 번 더 흘려보낸다.
       await act(async () => { await Promise.resolve(); });
@@ -268,7 +278,7 @@ describe("WeddingCodeV06Client interaction", () => {
       // 저장 결과를 확인한 뒤에만 반영됐다고 말한다.
       expect(container.querySelector("[data-apply-amora]")?.textContent)
         .toContain("아모라에 반영했어요");
-      expect(container.textContent).toContain("다음 대화부터 아모라가 이 방식으로 움직여요");
+      expect(container.textContent).toContain("저장한 방식은 다음 아모라 답변에 참고돼요");
     } finally {
       globalThis.fetch = originalFetch;
       useAuthStore.setState({ user: null });

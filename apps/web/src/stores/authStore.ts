@@ -165,7 +165,7 @@ interface AuthState {
   isInitialized: boolean;
   isDemo: boolean;
 
-  initialize: (options?: { force?: boolean; initialDemo?: boolean }) => Promise<void>;
+  initialize: (options?: { force?: boolean; initialDemo?: boolean; requireVerifiedSession?: boolean }) => Promise<void>;
   updateJourney: (
     updates: Partial<
       Pick<WeddingJourney, "wedding_date" | "total_budget" | "venue" | "progress">
@@ -224,9 +224,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 실제 인증 세션 먼저 확인 (데모 모드보다 우선)
       const res = await fetch("/api/auth/me");
 
+      // 공개 화면에서 계정 인계를 준비할 때는 장애를 비로그인으로 해석하지 않는다.
+      if (options?.requireVerifiedSession && !res.ok && res.status !== 401) {
+        throw new Error("로그인 상태를 확인하지 못했어요. 다시 시도해 주세요.");
+      }
+
       if (res.ok) {
         const data = await res.json();
-        if (initializeSequence !== authInitializeSequence) return;
+        if (initializeSequence !== authInitializeSequence) {
+          if (options?.requireVerifiedSession) throw new Error("로그인 확인이 갱신됐어요. 다시 확인해 주세요.");
+          return;
+        }
 
         if (data.user) {
           // 실제 로그인된 유저가 있으면 데모 쿠키 제거 후 실제 데이터 사용
@@ -265,7 +273,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       }
 
-      if (initializeSequence !== authInitializeSequence) return;
+      if (initializeSequence !== authInitializeSequence) {
+        if (options?.requireVerifiedSession) throw new Error("로그인 확인이 갱신됐어요. 다시 확인해 주세요.");
+        return;
+      }
       // 실제 유저가 없을 때만 데모 모드 체크
       if (isDemoMode()) {
         journeyWriteSequence += 1;
@@ -295,6 +306,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isInitialized: true,
       });
     } catch (err) {
+      if (options?.requireVerifiedSession) {
+        if (initializeSequence === authInitializeSequence) set({ isLoading: false });
+        throw err;
+      }
       if (initializeSequence !== authInitializeSequence) return;
       if (!isTransientAuthFetchError(err)) {
         console.error("Auth store init error:", err);
