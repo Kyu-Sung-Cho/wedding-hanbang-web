@@ -49,6 +49,7 @@ import BudgetShareChart from "./BudgetShareChart";
 import { foldPayerSides } from "./shareMath";
 import BudgetSideSplit from "./BudgetSideSplit";
 import { isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
+import Button from "@/components/ui/Button";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
@@ -1583,19 +1584,21 @@ function ScopedBudgetContent({
               <p className="mb-3 text-sm text-[var(--hb-text-body)]">필요한 항목을 선택하면 위에서 예산을 입력할 수 있어요.</p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                 {unusedCategories.map((cat) => (
-                  <button
+                  <Button
                     key={cat.key}
                     type="button"
+                    variant="secondary"
+                    size="md"
                     onClick={() => {
                       categoryToFocus.current = cat.key;
                       setOpenedCategories((current) => new Set([...current, cat.key]));
                     }}
-                    className="flex min-h-11 items-center justify-between gap-3 rounded-[6px] border border-[var(--hb-hairline)] px-3 py-2 text-left text-sm text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-accent)]"
+                    className="w-full min-w-0 py-2"
                     aria-label={`${cat.label} 예산 입력하기`}
                   >
-                    <span>{cat.label}</span>
+                    <span className="flex-1 text-left whitespace-normal">{cat.label}</span>
                     <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
