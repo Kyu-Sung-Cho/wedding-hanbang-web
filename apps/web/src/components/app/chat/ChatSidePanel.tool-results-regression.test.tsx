@@ -11,6 +11,14 @@ import ChatSidePanel from "./ChatSidePanel";
   .IS_REACT_ACT_ENVIRONMENT = true;
 
 const mocks = vi.hoisted(() => ({
+  authState: {
+    user: { id: "user-1" },
+    profile: { id: "user-1", role: "bride", name: "테스트" },
+    couple: { id: "couple-1", bride_id: "user-1", groom_id: "user-2" },
+    journey: null,
+    isDemo: false,
+  },
+  personalizationFetch: vi.fn(),
   messages: [] as Array<Record<string, unknown>>,
   loadMessages: vi.fn(),
   requestInitialGreeting: vi.fn(),
@@ -22,12 +30,12 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({
-    profile: { id: "user-1", role: "bride", name: "테스트" },
-    couple: { id: "couple-1", bride_id: "user-1", groom_id: "user-2" },
-    journey: null,
-    isDemo: false,
-  }),
+  useAuthStore: Object.assign(
+    (selector?: (state: typeof mocks.authState) => unknown) => (
+      selector ? selector(mocks.authState) : mocks.authState
+    ),
+    { getState: () => mocks.authState },
+  ),
 }));
 
 vi.mock("@/stores/chatStore", () => {
@@ -90,6 +98,11 @@ describe("ChatSidePanel tool-result deduplication", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.personalizationFetch.mockImplementation((url: string) => {
+      if (url !== "/api/amora/personalization") throw new Error(`Unexpected request: ${url}`);
+      return Promise.resolve(new Response(JSON.stringify({ profile: null }), { status: 200 }));
+    });
+    vi.stubGlobal("fetch", mocks.personalizationFetch);
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -99,6 +112,7 @@ describe("ChatSidePanel tool-result deduplication", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     document.body.replaceChildren();
   });
 
@@ -124,6 +138,7 @@ describe("ChatSidePanel tool-result deduplication", () => {
     expect(cards).toHaveLength(2);
     expect(container.textContent).toContain("드레스 투어 예약");
     expect(container.textContent).toContain("메이크업 상담 예약");
+    expect(mocks.personalizationFetch).toHaveBeenCalledTimes(1);
   });
 
   it("still collapses an exact repeated call", async () => {
@@ -144,5 +159,6 @@ describe("ChatSidePanel tool-result deduplication", () => {
     });
 
     expect(container.querySelectorAll('[data-testid="action-card"]')).toHaveLength(1);
+    expect(mocks.personalizationFetch).toHaveBeenCalledTimes(1);
   });
 });
