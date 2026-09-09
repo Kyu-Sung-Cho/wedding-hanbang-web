@@ -74,9 +74,12 @@ function asksReasonForChange(text: string, kinds: ReadonlySet<ChangeKind>): bool
   const changed = "(?:바꾸신|바꾼|변경한|전환한|줄인|늘린|바꾸게\\s*된)";
   return text.split(/[.!\n]/u).some(sentence =>
     /[?？]|여쭤|물어|알려.{0,12}(?:주실|주세요|줄래)/u.test(sentence)
-    && [...kinds].some(kind => new RegExp(
-      `${CHANGE_TARGETS[kind]}(?:으로|로|을|를)?\\s*${changed}\\s*(?:이유|계기)`, "u",
-    ).test(sentence)));
+    && [...kinds].some(kind => {
+      const direction = kind === "format" ? "(?:방향을\\s*)?" : "";
+      return new RegExp(
+        `${CHANGE_TARGETS[kind]}(?:으로|로|을|를)?\\s*${direction}${changed}\\s*(?:이유|계기)`, "u",
+      ).test(sentence);
+    }));
 }
 
 function givesReason(text: string): boolean {

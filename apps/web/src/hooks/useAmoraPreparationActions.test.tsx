@@ -59,6 +59,26 @@ describe("useAmoraPreparationActions", () => {
     vi.unstubAllGlobals();
   });
 
+  it("normalizes legacy null plan fields on reads and accepts an explicit clear receipt", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [{ ...action, description: null, dueDate: null }], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    expect(latest.error).toBeNull();
+    expect(latest.actions[0]).toMatchObject({ description: undefined, dueDate: undefined });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: null, dueDate: null } }));
+    await act(async () => { expect(await latest.update(action.id, { description: "", due_date: "" })).toBe(true); });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ description: "", due_date: "" });
+  });
+
+  it("validates plan field receipts using the server sanitizer and rejects a stale value", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: "전화로 견적 확인", dueDate: "다음 주 중" } }));
+    await act(async () => { expect(await latest.update(action.id, { description: " 전화로\n 견적 확인 ", due_date: " 다음 주 중 " })).toBe(true); });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: "옛 설명", dueDate: "다음 주 중" } }));
+    await act(async () => { expect(await latest.update(action.id, { description: "새 설명" })).toBe(false); });
+    expect(latest.actions[0].description).toBe("전화로 견적 확인");
+  });
+
   it("distinguishes a failed read from an empty board and recovers on retry", async () => {
     fetchMock.mockResolvedValueOnce(response({ error: "준비 상황을 불러오지 못했어요." }, 503));
     await act(async () => root.render(<Harness />));

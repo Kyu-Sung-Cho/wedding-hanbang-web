@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUpRight, Check, CircleHelp, Link2, Pencil, RefreshCw, S
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import Button from "@/components/ui/Button";
 import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
+import AmoraActionPlanFields from "./AmoraActionPlanFields";
 import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
 import { DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type DecisionColumn } from "@/lib/amora/preparationBoard";
 import { weddingPath } from "@/lib/weddingPaths";
@@ -185,6 +186,9 @@ function PreparationCard({ action, busy, update, changeStatus }: {
   const [editing, setEditing] = useState(false);
   const [titleDraft, setTitleDraft] = useState("");
   const [categoryDraft, setCategoryDraft] = useState("");
+  const [descriptionDraft, setDescriptionDraft] = useState("");
+  const [dueDateDraft, setDueDateDraft] = useState("");
+  const [originalPlan, setOriginalPlan] = useState({ description: "", dueDate: "" });
   const titleInputRef = useRef<HTMLInputElement>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
   const finishEditFocus = useRef<(() => boolean) | null>(null);
@@ -200,6 +204,8 @@ function PreparationCard({ action, busy, update, changeStatus }: {
   const date = preparationDate(action.updatedAt);
   const href = preparationActionHref(action.href);
   const disabled = busy;
+  const validPlanDraft = (descriptionDraft === originalPlan.description || descriptionDraft.length <= 500)
+    && (dueDateDraft === originalPlan.dueDate || dueDateDraft.length <= 40);
   return (
     <article data-preparation-action={action.id} aria-label={action.title} aria-busy={busy} className={`min-w-0 rounded-[14px] border bg-[var(--amora-surface)] px-4 py-4 lg:px-[17px] ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${action.status === "dismissed" ? "border-dashed" : ""}`}>
       <div className="mb-2 flex items-start justify-between gap-2">
@@ -213,14 +219,18 @@ function PreparationCard({ action, busy, update, changeStatus }: {
         {!editing && <Button ref={editButtonRef} type="button" variant="icon" label={`${action.title} 수정`} disabled={disabled} onClick={event => {
           finishEditFocus.current = focusIntent(event.currentTarget);
           setTitleDraft(action.title); setCategoryDraft(action.categoryKey ?? ""); setEditing(true);
+          const plan = { description: action.description ?? "", dueDate: action.dueDate ?? "" };
+          setOriginalPlan(plan); setDescriptionDraft(plan.description); setDueDateDraft(plan.dueDate);
         }} className={`-mt-2 min-h-11 min-w-11 shrink-0 rounded-lg! text-[var(--amora-accent)]! disabled:opacity-40! ${focus}`}><Pencil aria-hidden="true" className="h-3.5 w-3.5" /></Button>}
       </div>
       {editing && <form className="mb-3 space-y-2 rounded-[9px] bg-[var(--amora-warm)] p-3" onSubmit={async event => {
         event.preventDefault();
-        if (disabled || !titleDraft.trim() || titleDraft.length > 120) return;
+        if (disabled || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft) return;
         const updates: AmoraPreparationActionUpdate = {};
         if (titleDraft.trim() !== action.title) updates.title = titleDraft.trim();
         if (categoryDraft !== (action.categoryKey ?? "")) updates.category_key = categoryDraft;
+        if (descriptionDraft !== originalPlan.description) updates.description = descriptionDraft;
+        if (dueDateDraft !== originalPlan.dueDate) updates.due_date = dueDateDraft;
         const finish = focusIntent(event.currentTarget.contains(document.activeElement) && document.activeElement instanceof HTMLElement ? document.activeElement : null);
         if (Object.keys(updates).length === 0 || await update(action.id, updates)) {
           finishEditFocus.current = finish; setEditing(false);
@@ -234,8 +244,10 @@ function PreparationCard({ action, busy, update, changeStatus }: {
           {!category && action.categoryKey && <option value={action.categoryKey}>기존 분야 유지</option>}
           {CATEGORY_CHECKLISTS.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
         </select>
+        <AmoraActionPlanFields description={descriptionDraft} dueDate={dueDateDraft} onDescriptionChange={setDescriptionDraft} onDueDateChange={setDueDateDraft} disabled={disabled} />
+        <p className="text-[12px] leading-relaxed text-[var(--amora-muted)]">함께 준비하는 사람에게도 보이는 기록이에요.</p>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" variant="primary" disabled={disabled || !titleDraft.trim() || titleDraft.length > 120} className={`${button} ${sharedButtonShape} bg-[var(--amora-ink)]! text-white!`}>수정 저장</Button>
+          <Button type="submit" variant="primary" disabled={disabled || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft} className={`${button} ${sharedButtonShape} bg-[var(--amora-ink)]! text-white!`}>수정 저장</Button>
           <Button type="button" disabled={disabled} onClick={event => { finishEditFocus.current = focusIntent(event.currentTarget); setEditing(false); }} className={sharedOutlineButton}>취소</Button>
         </div>
       </form>}
@@ -253,7 +265,7 @@ function PreparationCard({ action, busy, update, changeStatus }: {
         </form>
       )}
       <p className="mb-3 flex items-center gap-1.5 text-[12px] leading-relaxed text-[var(--amora-muted)]"><Link2 aria-hidden="true" className="h-3 w-3 shrink-0" />{PREPARATION_SOURCES[action.source]}</p>
-      {action.dueDate && <p className="mb-3 text-[12px] text-[var(--amora-muted)]">예정일 {preparationDate(action.dueDate) ?? "날짜 확인 필요"}</p>}
+      {action.dueDate && <p className="mb-3 text-[12px] break-words text-[var(--amora-muted)]">예정일 {action.dueDate}</p>}
       <div className="flex flex-wrap items-center gap-2">
         {action.status === "open" ? (
           <>

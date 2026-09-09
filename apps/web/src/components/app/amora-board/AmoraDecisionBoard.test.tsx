@@ -346,6 +346,33 @@ describe("AmoraDecisionBoard", () => {
     expect(card.querySelector("time")?.getAttribute("datetime")).toBe(action.updatedAt);
   });
 
+  it("edits and clears plan fields, preserves failed drafts and never resends an untouched legacy date", async () => {
+    mocks.data.actions = [{ ...action, categoryKey: "venue", dueDate: "양가 일정 맞춘 뒤" }]; mocks.data.count = 1;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    await selectBoard("공유 할 일");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const description = container.querySelector<HTMLTextAreaElement>('article textarea')!;
+    const date = container.querySelector<HTMLInputElement>('article input[data-plan-date]')!;
+    expect(date.type).toBe("text"); expect(date.value).toBe("양가 일정 맞춘 뒤");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(description, "새 확인 내용");
+      description.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.data.update.mockResolvedValueOnce(false);
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "새 확인 내용" });
+    expect(description.value).toBe("새 확인 내용"); expect(date.value).toBe("양가 일정 맞춘 뒤");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(description, "");
+      description.dispatchEvent(new Event("input", { bubbles: true }));
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(date, "");
+      date.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "", due_date: "" });
+    expect(container.querySelector('article textarea')).toBeNull();
+  });
+
   it("edits title and category through the existing action and keeps the draft on failure", async () => {
     mocks.data.actions = [{ ...action, categoryKey: "venue" }]; mocks.data.count = 1;
     await act(async () => root.render(<AmoraDecisionBoard />));
@@ -371,6 +398,37 @@ describe("AmoraDecisionBoard", () => {
     expect(container.querySelector("article input")).toBe(input); expect(input.value).toBe("  실제 수정 제목  ");
     await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(container.querySelector("article input")).toBeNull();
+  });
+
+  it("does not overwrite a partner's refreshed plan fields while editing only the title", async () => {
+    mocks.data.actions = [{ ...action, categoryKey: "venue", dueDate: "다음 주 중" }];
+    await act(async () => root.render(<AmoraDecisionBoard />)); await selectBoard("공유 할 일");
+    expect(container.querySelector("article")!.textContent).toContain("예정일 다음 주 중");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const title = container.querySelector<HTMLInputElement>("article input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(title, "새 제목");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.data.actions = [{ ...action, categoryKey: "venue", description: "상대가 새로 적은 설명", dueDate: "다음 달 중" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
+  });
+
+  it("allows title-only editing without shortening oversized legacy plan fields", async () => {
+    mocks.data.actions = [{ ...action, categoryKey: "venue", description: "가".repeat(501), dueDate: "나".repeat(41) }];
+    await act(async () => root.render(<AmoraDecisionBoard />)); await selectBoard("공유 할 일");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const title = container.querySelector<HTMLInputElement>("article input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(title, "새 제목");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const save = container.querySelector<HTMLButtonElement>('article button[type="submit"]')!;
+    expect(save.disabled).toBe(false);
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
   });
 
   it("loads older records through the real cursor control and links saved answers separately", async () => {
