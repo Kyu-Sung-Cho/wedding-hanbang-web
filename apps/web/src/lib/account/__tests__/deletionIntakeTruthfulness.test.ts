@@ -81,31 +81,9 @@ describe("탈퇴가 거부될 것을 미리 말한다", () => {
     }
   });
 
-  it("닫혔을 때는 확인 문구를 요구하지 않는다", () => {
-    // 지워지지 않을 일에 파기 확인 절차를 시키는 것이 이 테스트가 막으려는 것이다.
-    const settings = read(SETTINGS);
-    const CHECK = 'deleteConfirmText !== "탈퇴합니다"';
-
-    // 처음에는 정규식 하나로 "가드 뒤에 있는 자리가 **하나라도** 있는가"를 봤다.
-    // 그 판은 핸들러의 가드를 지워도 통과했다 — 버튼 쪽 같은 문장을 집었기 때문이다.
-    // 그래서 **모든** 자리를 세고, 각각이 가드 뒤에 있는지 본다.
-    const spots: number[] = [];
-    for (let at = settings.indexOf(CHECK); at !== -1; at = settings.indexOf(CHECK, at + 1)) {
-      spots.push(at);
-    }
-    expect(spots.length, "확인 문구 검사를 못 찾았습니다 — 이름이 바뀌었는지 보세요")
-      .toBeGreaterThanOrEqual(2);
-
-    const unguarded = spots.filter(
-      (at) => !settings.slice(Math.max(0, at - 160), at).includes("deletionIntakeOpen === true"),
-    );
-    expect(
-      unguarded.length,
-      `확인 문구를 무조건 요구하는 자리가 ${unguarded.length}곳 있습니다. `
-        + "거부될 요청에 사용자가 헛수고를 합니다 — 모든 자리가 "
-        + "`deletionIntakeOpen === true` 뒤에 있어야 합니다.",
-    ).toBe(0);
-  });
+  // 확인 입력과 실제 요청의 경계는 settings/page.account-deletion.test.tsx에서
+  // 렌더·클릭으로 검증한다. 문자열 배선만 보던 검사는 닫힘 안내도 DELETE를
+  // 전송하는 결함을 놓쳤다. 닫힘/모름은 요청 0회, 열림은 명시 확인 후만 허용한다.
 
   it("서버는 여전히 인증보다 먼저 막는다", () => {
     // 화면 안내는 편의일 뿐이고 진짜 경계는 서버다. 순서가 뒤집히면 안내가
@@ -134,8 +112,7 @@ describe("탈퇴가 거부될 것을 미리 말한다", () => {
   });
 
   it("안내 문구가 살아 있지 않은 연락처를 단정하지 않는다", () => {
-    // 대체 경로는 서버 응답(`supportEmail`)이 준다. 화면 상수에 주소를 박아 두면
-    // 그 사서함이 죽어 있을 때 화면이 또 한 번 거짓말을 한다.
+    // 안내문에 주소를 중복하지 않는다. 실제 문의 링크는 공통 CONTACT 값을 쓴다.
     expect(ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE).not.toMatch(/@/u);
     expect(ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE.length).toBeGreaterThan(10);
   });
