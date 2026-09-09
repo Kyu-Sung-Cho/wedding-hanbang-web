@@ -2,6 +2,10 @@ import {
   classifyAmoraCrisis,
   normalizeAmoraSafetyText,
 } from "@/lib/ai/amoraCrisisSafety";
+import {
+  shouldEscalateAmoraEvidenceSummary,
+  type AmoraEvidenceSummaryContext,
+} from "./amoraEvidenceSummaryRouting";
 
 export type AmoraModelRole = "primary" | "fast";
 
@@ -112,10 +116,14 @@ export function chooseAmoraChatModelRole(input: {
   specialistType: string;
   userText: string;
   correctionCount: number;
+  evidenceSummaryContext?: AmoraEvidenceSummaryContext;
 }): AmoraModelRole {
   if (input.correctionCount >= 2) return "primary";
   if (classifyAmoraCrisis(input.userText)) return "primary";
   const normalizedUserText = normalizeAmoraSafetyText(input.userText);
   if (TERRA_RISK_PATTERN.test(normalizedUserText)) return "primary";
+  if (shouldEscalateAmoraEvidenceSummary(input.userText, input.evidenceSummaryContext)) {
+    return "primary";
+  }
   return "fast";
 }

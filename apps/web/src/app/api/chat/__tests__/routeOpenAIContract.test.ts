@@ -2053,6 +2053,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(mocks.provider.mock.calls[2]?.[0]?.tools).toEqual([]);
       expect(mocks.provider.mock.calls[1]?.[0]?.toolChoice).toBeUndefined();
       expect(mocks.provider.mock.calls[2]?.[0]?.toolChoice).toBeUndefined();
+      expect(mocks.chooseModelRole).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        evidenceSummaryContext: expect.objectContaining({ offersPlaceSearch: true }),
+      }));
       if (visibility === "bride_private") {
         expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual(expect.arrayContaining([
           expect.objectContaining({ name: "prepare_personal_action" }),
@@ -9420,7 +9423,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
             { role: "user", content: `[신부] ${currentUser}` },
           ]);
           expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
-          if (withHistory) expect(providerArgs?.modelRole).toBe("fast");
+          expect(providerArgs?.modelRole).toBe("primary");
+          expect(providerArgs?.tools?.map((tool: { name: string }) => tool.name) ?? []).toEqual(["get_wedding_info"]);
+          expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({
+            evidenceSummaryContext: {
+              requestKind: "chat", durable: true, isDemo: false,
+              hasPriorityAction: false, hasPersonalTools: false, hasAttachments: false,
+              offersPlaceSearch: false, toolNames: ["get_wedding_info"],
+            },
+          }));
           expect(mocks.chatHistoryEq).toHaveBeenCalledWith("visibility", "bride_private");
           expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith("visibility", "shared");
           const systemPrompt: string = providerArgs?.systemPrompt;
@@ -9464,6 +9475,43 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         },
       ),
     );
+  });
+
+  it.each(["legacy", "attachment", "proposal", "mixed-write", "awaiting-card"] as const)("keeps status summaries on the existing route at the %s boundary", async boundary => {
+    const baseText = "결혼 준비에서 확정한 것과 미정인 내용을 표로 요약해줘.";
+    const text = boundary === "proposal" ? "총예산을 3500만 원으로 저장해줘."
+      : boundary === "mixed-write" ? `${baseText} 총예산을 3500만 원으로 저장해줘.` : baseText;
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    if (boundary === "awaiting-card") {
+      setCanonicalConfirmedBudgetAction("11111111-1111-4111-8111-111111111111", text);
+    }
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    if (boundary === "attachment") await bindCanonicalProviderAttachments([attachment]);
+    providerAfterPreGeneration(providerResult({ fullText: "확정 여부를 먼저 확인할게요." }));
+    const modelConfig = await import("@/lib/ai/modelConfig");
+    const actualModelConfig = await vi.importActual<typeof import("@/lib/ai/modelConfig")>("@/lib/ai/modelConfig");
+    await vi.mocked(modelConfig.chooseAmoraChatModelRole).withImplementation(actualModelConfig.chooseAmoraChatModelRole, async () => {
+      const response = await POST(request({
+        messages: [{ role: "user", content: text }],
+        ...(boundary === "legacy" ? { userMessageId: undefined } : {}),
+        ...(boundary === "attachment" ? { attachments: [attachment] } : {}),
+      }));
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(mocks.provider).toHaveBeenCalled();
+      expect(mocks.provider.mock.calls.every(call => call[0]?.modelRole === "fast")).toBe(true);
+      expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledTimes(1);
+      expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({
+        userText: text,
+        evidenceSummaryContext: expect.objectContaining(
+          boundary === "legacy" ? { durable: false }
+            : boundary === "attachment" ? { hasAttachments: true }
+              : boundary === "mixed-write" ? { hasPriorityAction: false }
+              : { hasPriorityAction: true },
+        ),
+      }));
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+    });
   });
 
   it.each([
@@ -10140,6 +10188,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .find(event => event.type === "done");
     expect(mocks.provider.mock.calls[0][0].tools.map((tool: AiToolDefinition) => tool.name)).toContain("prepare_personal_action");
     expect(mocks.provider.mock.calls[0][0].toolChoice).toEqual({ type: "function", name: "prepare_personal_action" });
+    expect(mocks.chooseModelRole).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      evidenceSummaryContext: expect.objectContaining({ hasPersonalTools: true }),
+    }));
     expect(mocks.provider).toHaveBeenCalledTimes(2);
     expect(mocks.provider.mock.calls[1][0].toolChoice).toBeUndefined();
     expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith("prepare_personal_action", draft, expect.objectContaining({

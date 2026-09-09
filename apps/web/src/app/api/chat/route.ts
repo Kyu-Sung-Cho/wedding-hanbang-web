@@ -3732,6 +3732,16 @@ export async function POST(request: Request) {
           specialistType,
           userText: lastUserText,
           correctionCount: providerCorrectionCount,
+          evidenceSummaryContext: {
+            requestKind,
+            durable: isDurableUserMessageBound,
+            isDemo,
+            hasPriorityAction: Boolean(actionContract) || Boolean(awaitingPendingCard),
+            hasPersonalTools: personalConversationTools.length > 0,
+            hasAttachments: attachmentKind !== "none",
+            offersPlaceSearch,
+            toolNames: availableTools.map(tool => tool.name),
+          },
         });
   const shouldBufferProviderText = Boolean(approvedPendingAction)
     || pendingOfferEnabled
