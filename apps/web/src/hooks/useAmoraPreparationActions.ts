@@ -21,11 +21,14 @@ const snapshotSchema = z.object({
 }).refine((value) => value.count >= value.actions.length && value.open_count <= value.count);
 
 export type AmoraPreparationActionUpdate = { status?: AmoraActionStatus; category_key?: string; title?: string; description?: string; due_date?: string };
+export type AmoraPreparationActionCreate = { title: string; category_key?: string; description?: string; due_date?: string };
 type Snapshot = { actions: AmoraActionItem[]; count: number; open_count: number; truncated: boolean; nextCursor: string | null };
 type LoadState = Snapshot & { scope: string; loading: boolean; loadingMore: boolean; error: string | null };
 const EMPTY: Snapshot = { actions: [], count: 0, open_count: 0, truncated: false, nextCursor: null };
 const NO_UPDATES: ReadonlySet<string> = new Set<string>();
 const READ_ERROR = "준비 상황을 불러오지 못했어요. 다시 시도해 주세요.";
+
+const CREATE_ID = "[new]";
 
 function matchesPlanFields(action: AmoraActionItem, fields: { description?: string; due_date?: string }) {
   return (fields.description === undefined || (action.description ?? "") === (cleanOptionalText(fields.description, 500) ?? ""))
@@ -56,10 +59,13 @@ export function useAmoraPreparationActions() {
   const controller = useRef<AbortController | null>(null);
   const pageInFlight = useRef(false);
   const pendingUpdates = useRef(new Set<string>());
+  const createAttempt = useRef<{ scope: string; generation: number; fieldsKey: string; body: string; requestId: string } | null>(null);
+  const [createLockedScope, setCreateLockedScope] = useState("");
   const [mutation, setMutation] = useState<{ scope: string; ids: ReadonlySet<string>; error: string | null }>({ scope: "", ids: NO_UPDATES, error: null });
 
-  const readPage = useCallback(async (cursor: string | null) => {
-    if (!scope || isDemo || pendingUpdates.current.size > 0 || (cursor && pageInFlight.current)) return;
+  const readPage = useCallback(async (cursor: string | null, completedCreateKey?: string) => {
+    const ownCreateRefresh = completedCreateKey !== undefined && pendingUpdates.current.size === 1 && pendingUpdates.current.has(completedCreateKey);
+    if (!scope || isDemo || (pendingUpdates.current.size > 0 && !ownCreateRefresh) || (cursor && pageInFlight.current)) return;
     const requestId = ++sequence.current;
     pageInFlight.current = true;
     controller.current?.abort();
@@ -103,6 +109,8 @@ export function useAmoraPreparationActions() {
       controller.current?.abort();
       pageInFlight.current = false;
       pending.clear();
+      createAttempt.current = null;
+      setCreateLockedScope("");
       setMutation({ scope: "", ids: NO_UPDATES, error: null });
       setDemoChanges({ scope: "", changes: {} });
     };
@@ -112,7 +120,7 @@ export function useAmoraPreparationActions() {
     const generation = lifecycle.current;
     const current = () => generation === lifecycle.current && scope !== "" && scopeFor(useAuthStore.getState()) === scope;
     const pendingKey = JSON.stringify([scope, generation, id]);
-    if (!current()) return false;
+    if (!current() || pendingUpdates.current.has(JSON.stringify([scope, generation, CREATE_ID]))) return false;
     if (isDemo) {
       if (!demoActions.some((action) => action.id === id)) return false;
       setDemoChanges((previous) => {
@@ -165,6 +173,64 @@ export function useAmoraPreparationActions() {
     }
   }, [scope, isDemo, demoActions, state.scope, state.actions]);
 
+  const cancelCreate = useCallback(() => {
+    if (!scope || scopeFor(useAuthStore.getState()) !== scope || pendingUpdates.current.size > 0) return false;
+    createAttempt.current = null;
+    setCreateLockedScope("");
+    setMutation(previous => ({ ...previous, error: null }));
+    return true;
+  }, [scope]);
+
+  const create = useCallback(async (fields: AmoraPreparationActionCreate): Promise<boolean> => {
+    const generation = lifecycle.current;
+    const owner = useAuthStore.getState();
+    const current = () => generation === lifecycle.current && scope !== "" && scopeFor(useAuthStore.getState()) === scope;
+    const pendingKey = JSON.stringify([scope, generation, CREATE_ID]);
+    if (isDemo || !current() || !owner.profile?.couple_id || pendingUpdates.current.size > 0
+      || !cleanOptionalText(fields.title, 120) || fields.title.trim().length > 120
+      || (fields.description?.length ?? 0) > 500 || (fields.due_date?.length ?? 0) > 40) return false;
+    const fieldsKey = JSON.stringify({ title: fields.title, category_key: fields.category_key, description: fields.description, due_date: fields.due_date });
+    const prior = createAttempt.current;
+    if (prior && (prior.scope !== scope || prior.generation !== generation || prior.fieldsKey !== fieldsKey)) return false;
+    const requestId = prior?.requestId ?? crypto.randomUUID();
+    const attempt = prior ?? { scope, generation, fieldsKey, requestId,
+      body: JSON.stringify({ ...JSON.parse(fieldsKey), status: "open", priority: "medium", source: "manual", requestId,
+        expectedOwnerId: owner.user!.id, expectedCoupleId: owner.profile.couple_id }) };
+    createAttempt.current = attempt;
+    setCreateLockedScope(scope);
+    pendingUpdates.current.add(pendingKey);
+    controller.current?.abort(); sequence.current += 1; pageInFlight.current = false;
+    setState(previous => ({ ...previous, loading: false, loadingMore: false }));
+    setMutation({ scope, ids: new Set([CREATE_ID]), error: null });
+    let saved = false;
+    try {
+      const response = await fetch("/api/amora/actions", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: attempt.body,
+      });
+      if (!response.ok) throw new Error("create_failed");
+      const receipt = z.object({ action: actionSchema, requestId: z.string(), replayed: z.boolean() }).parse(await response.json());
+      const { action } = receipt;
+      if (receipt.requestId !== requestId || action.title !== cleanOptionalText(fields.title, 120) || action.source !== "manual"
+        || action.status !== "open" || action.priority !== "medium"
+        || (action.categoryKey ?? "") !== (cleanOptionalText(fields.category_key, 80) ?? "")
+        || action.href !== undefined
+        || !matchesPlanFields(action, { description: fields.description ?? "", due_date: fields.due_date ?? "" })) throw new Error("create_receipt_mismatch");
+      if (!current()) return false;
+      createAttempt.current = null;
+      setCreateLockedScope("");
+      saved = true;
+      // 생성부터 최종 조회까지 카드 수정을 막아 조회가 다른 PATCH에 밀려 빠지지 않게 한다.
+      await readPage(null, pendingKey);
+    } catch {
+      if (current()) setMutation(previous => ({ ...previous, scope, error: "저장 결과를 확인하지 못했어요. 같은 요청을 다시 확인하거나 목록을 확인해 주세요. 이미 저장됐을 수 있어요." }));
+    } finally {
+      pendingUpdates.current.delete(pendingKey);
+      if (current()) setMutation(previous => ({ ...previous, ids: new Set([...previous.ids].filter(id => id !== CREATE_ID)) }));
+    }
+    return saved && current();
+  }, [scope, isDemo, readPage]);
+
   const snapshot = isDemo && scope
     ? { actions: demoActions, count: demoActions.length, open_count: demoActions.filter((action) => action.status === "open").length, truncated: false, nextCursor: null }
     : state.scope === scope ? state : EMPTY;
@@ -175,7 +241,9 @@ export function useAmoraPreparationActions() {
     refresh,
     loadMore,
     loadingMore: state.scope === scope && !isDemo && state.loadingMore,
-    update,
+    update, create, cancelCreate, createLocked: !!scope && createLockedScope === scope, ownerScope: scope,
+    canCreate: !!scope && !isDemo && !!useAuthStore.getState().profile?.couple_id,
+    creating: mutation.scope === scope && mutation.ids.has(CREATE_ID),
     updatingIds: mutation.scope === scope ? mutation.ids : NO_UPDATES,
     updateError: mutation.scope === scope ? mutation.error : null,
     isDemo,

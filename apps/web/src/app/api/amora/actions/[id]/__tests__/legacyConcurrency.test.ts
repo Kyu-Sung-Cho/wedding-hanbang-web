@@ -82,6 +82,13 @@ async function localPostgrest(input: RequestInfo | URL, init?: RequestInit): Pro
   }
   if (table === "amora_actions") {
     expect(url.searchParams.get("couple_id")).toBe(`eq.${COUPLE_ID}`);
+    const replayId = url.searchParams.get("id");
+    if (replayId?.startsWith("eq.")) {
+      expect(url.searchParams.get("created_by")).toBe(`eq.${USER_ID}`);
+      if (queryError) return json({ code: "XX000", message: "private replay read error" }, 500);
+      const result = await rpcAs("authenticated", "SELECT to_jsonb(a) AS value FROM amora_actions a WHERE id=$1 AND couple_id=$2 AND created_by=$3", [replayId.slice(3), COUPLE_ID, USER_ID]);
+      return json(result.rows[0]?.value ?? null);
+    }
     const values: unknown[] = [COUPLE_ID];
     const where = ["couple_id = $1"];
     const bind = (value: unknown) => { values.push(value); return `$${values.length}`; };
@@ -140,11 +147,11 @@ async function patch(id: string, updates: Record<string, unknown> = { status: "d
   }), { params: Promise.resolve({ id }) });
 }
 
-async function createAction() {
+async function createAction(fields: Record<string, unknown> = {}) {
   const { POST } = await import("../../route");
   return POST(new Request("https://hanbang.ai/api/amora/actions", {
     method: "POST", headers: { authorization: "Bearer test-token", "content-type": "application/json" },
-    body: JSON.stringify({ title: "합성 준비 항목", href: "/wedding/checklist" }),
+    body: JSON.stringify({ title: "합성 준비 항목", href: "/wedding/checklist", ...fields }),
   }));
 }
 
@@ -152,7 +159,7 @@ async function rpcAs(role: "authenticated" | "anon" | "service_role", sql: strin
   return db.transaction(async (tx) => {
     await tx.exec(`SET LOCAL ROLE ${role}`);
     await tx.query("SELECT set_config('request.jwt.claim.sub', $1, true)", [actor]);
-    return tx.query(sql, values);
+    return tx.query<Record<string, unknown>>(sql, values);
   });
 }
 
@@ -181,6 +188,17 @@ beforeAll(async () => {
   await db.exec(readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260615101000_fix_amora_action_status_timestamps.sql"), "utf8"));
   await db.exec("CREATE TRIGGER set_amora_actions_status_timestamps BEFORE INSERT OR UPDATE ON amora_actions FOR EACH ROW EXECUTE FUNCTION public.set_amora_action_status_timestamps()");
   await db.exec(readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260906074227_amora_manual_actions_actor_boundary.sql"), "utf8"));
+  const privacy = readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260716114000_current_couple_membership_privacy_fence.sql"), "utf8");
+  for (const name of ["is_current_couple_member", "is_couple_member"]) {
+    const original = privacy.match(new RegExp(`CREATE OR REPLACE FUNCTION public\\.${name}\\([\\s\\S]*?GRANT EXECUTE ON FUNCTION public\\.${name}\\([\\s\\S]*?;`))?.[0];
+    if (!original) throw new Error(`Missing original ${name}`);
+    await db.exec(original);
+  }
+  const actionMigration = readFileSync(path.resolve(process.cwd(), "../../supabase/migrations/20260615100000_create_amora_actions.sql"), "utf8");
+  const selectPolicy = actionMigration.match(/create policy amora_actions_select_couple[\s\S]*?;/)?.[0];
+  if (!selectPolicy) throw new Error("Missing original action SELECT policy");
+  await db.exec("ALTER TABLE amora_actions ENABLE ROW LEVEL SECURITY; GRANT SELECT ON amora_actions TO authenticated");
+  await db.exec(selectPolicy);
   mocks.admin = createClient("http://127.0.0.1:55430", "local-test-key", { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: localPostgrest } });
   const authenticated = createClient("http://127.0.0.1:55430", "local-authenticated-key", { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: localPostgrest } });
   vi.spyOn(authenticated.auth, "getUser").mockResolvedValue({ data: { user: { id: USER_ID } }, error: null } as never);
@@ -323,6 +341,103 @@ describe("legacy action updates preserve concurrent preparation changes", () => 
 });
 
 describe("manual action authenticated database boundary", () => {
+  const requestId = "77777777-7777-4777-8777-777777777777";
+  const retryFields = { requestId, expectedOwnerId: USER_ID, expectedCoupleId: COUPLE_ID, source: "manual", description: "식사\n포함 범위", due_date: "다음 주" };
+
+  it("reuses one canonical row for concurrent same-request creates and returns its exact receipt", async () => {
+    const before = await stored();
+    const responses = await Promise.all([createAction(retryFields), createAction(retryFields)]);
+    expect(responses.map(response => response.status).sort()).toEqual([200, 201]);
+    const payloads = await Promise.all(responses.map(response => response.json()));
+    expect(payloads[0].action).toEqual(payloads[1].action);
+    expect(payloads.map(payload => payload.replayed).sort()).toEqual([false, true]);
+    expect(payloads.every(payload => payload.requestId === requestId)).toBe(true);
+    expect((await db.query("SELECT count(*)::integer AS count FROM amora_actions")).rows).toEqual([{ count: 1 }]);
+    expect(await stored()).toEqual(before);
+  });
+
+  it("rejects concurrent different payloads for the same request without overwriting the winner", async () => {
+    const responses = await Promise.all([createAction({ ...retryFields, title: "첫 후보" }), createAction({ ...retryFields, title: "다른 후보" })]);
+    expect(responses.map(response => response.status).sort()).toEqual([201, 409]);
+    const saved = await responses.find(response => response.status === 201)!.json();
+    expect((await db.query("SELECT title FROM amora_actions")).rows).toEqual([{ title: saved.action.title }]);
+  });
+
+  it("recovers a lost create response with the same request and treats normalized empty fields equally", async () => {
+    await createAction({ ...retryFields, description: null, due_date: " " });
+    const before = (await db.query("SELECT * FROM amora_actions")).rows;
+    const response = await createAction({ ...retryFields, description: "", due_date: null });
+    expect(response.status).toBe(200); expect((await response.json()).replayed).toBe(true);
+    expect((await db.query("SELECT * FROM amora_actions")).rows).toEqual(before);
+  });
+
+  it("never restores an original payload when the created row has since changed", async () => {
+    const saved = await (await createAction(retryFields)).json();
+    await db.query("UPDATE amora_actions SET description = '상대가 수정한 설명', status = 'done' WHERE id = $1", [saved.action.id]);
+    const before = (await db.query("SELECT * FROM amora_actions")).rows;
+    const response = await createAction(retryFields);
+    expect(response.status).toBe(409); expect(await response.json()).not.toHaveProperty("action");
+    expect((await db.query("SELECT * FROM amora_actions")).rows).toEqual(before);
+  });
+
+  it("does not use legacy storage or a successful existing row for a non-23505 error", async () => {
+    await createAction(retryFields);
+    const before = await stored();
+    mocks.repositoryError = { code: "XX000", message: "private write error" };
+    expect((await createAction(retryFields)).status).toBe(500);
+    mocks.repositoryError = { code: "42P01", message: "missing table" };
+    expect((await createAction(retryFields)).status).toBe(503);
+    expect(await stored()).toEqual(before);
+    expect((await db.query("SELECT count(*)::integer AS count FROM amora_actions")).rows).toEqual([{ count: 1 }]);
+  });
+
+  it("does not accept an unreadable duplicate as a successful replay", async () => {
+    await createAction(retryFields); queryError = true;
+    const response = await createAction(retryFields);
+    expect(response.status).toBe(500);
+    const body = await response.json();
+    expect(body).not.toHaveProperty("action"); expect(JSON.stringify(body)).not.toContain("private");
+  });
+
+  it.each(["other creator", "foreign couple"])("does not replay a collision owned by %s", async kind => {
+    const saved = await (await createAction(retryFields)).json();
+    await db.query(`UPDATE amora_actions SET ${kind === "other creator" ? "created_by" : "couple_id"}=$1 WHERE id=$2`, [JOURNEY_ID, saved.action.id]);
+    const before = (await db.query("SELECT * FROM amora_actions")).rows;
+    expect((await createAction(retryFields)).status).toBe(409);
+    expect((await db.query("SELECT * FROM amora_actions")).rows).toEqual(before);
+  });
+
+  it("applies the real SELECT membership fence after a duplicate write and before replay", async () => {
+    await createAction(retryFields);
+    const original = localPostgrest;
+    const guarded = createClient("http://127.0.0.1:55430", "local-test-key", { auth: { persistSession: false, autoRefreshToken: false }, global: { fetch: async (input, init) => {
+      const request = new Request(input, init);
+      if (new URL(request.url).pathname.endsWith("/amora_actions")) await db.query("UPDATE profiles SET couple_id=NULL WHERE id=$1", [USER_ID]);
+      return original(request);
+    } } });
+    vi.spyOn(guarded.auth, "getUser").mockResolvedValue({ data: { user: { id: USER_ID } }, error: null } as never);
+    const previous = mocks.authenticated;
+    mocks.authenticated = guarded;
+    try { expect((await createAction(retryFields)).status).toBe(409); }
+    finally { mocks.authenticated = previous; }
+  });
+
+  it("keeps no-requestId callers independent and documents recreation after physical deletion", async () => {
+    const first = await createAction(); const second = await createAction();
+    expect(first.status).toBe(201); expect(second.status).toBe(201);
+    const a = await first.json(); const b = await second.json();
+    expect(a.action.id).not.toBe(b.action.id); expect(a).not.toHaveProperty("requestId");
+    const created = await (await createAction(retryFields)).json();
+    await db.query("DELETE FROM amora_actions WHERE id=$1", [created.action.id]);
+    const recreated = await createAction(retryFields);
+    expect(recreated.status).toBe(201);
+    expect(await recreated.json()).toMatchObject({ action: { id: created.action.id }, replayed: false });
+  });
+
+  it.each([{ requestId: "wrong" }, { requestId }, { ...retryFields, expectedOwnerId: COUPLE_ID }])("rejects invalid or unbound retry identity: %j", async fields => {
+    expect((await createAction(fields)).status).toBe(fields.requestId === "wrong" ? 400 : 403);
+    expect((await db.query("SELECT count(*)::integer AS count FROM amora_actions")).rows).toEqual([{ count: 0 }]);
+  });
   it("reports profile read errors as unavailable instead of pretending the couple is missing", async () => {
     profileError = true;
     const response = await patch(ACTION_A);

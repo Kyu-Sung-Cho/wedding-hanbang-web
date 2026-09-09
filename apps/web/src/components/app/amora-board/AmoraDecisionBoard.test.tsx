@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   decisions: { records: [] as PreparationDecision[], loading: false, loadingMore: false, error: null as string | null, nextCursor: null as { id: string; createdAt: string } | null, available: true, isDemo: false, refresh: vi.fn(), loadMore: vi.fn() },
   data: {
     actions: [] as AmoraActionItem[], loading: false, error: null as string | null,
-    count: 0, open_count: 0, truncated: false, isDemo: false,
+    count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false,
     updateError: null as string | null, updatingIds: new Set<string>(),
     refresh: vi.fn(), update: vi.fn(), loadMore: vi.fn(), nextCursor: null as string | null, loadingMore: false,
   },
@@ -30,7 +30,7 @@ describe("AmoraDecisionBoard", () => {
   beforeEach(() => {
     Object.assign(mocks.decisions, { records: [], loading: false, loadingMore: false, error: null, nextCursor: null, available: true, isDemo: false });
     mocks.decisions.refresh.mockReset(); mocks.decisions.loadMore.mockReset();
-    Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, updateError: null, updatingIds: new Set<string>() });
+    Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false, updateError: null, updatingIds: new Set<string>() });
     mocks.data.refresh.mockReset(); mocks.data.update.mockReset().mockResolvedValue(true);
     mocks.data.loadMore.mockReset(); mocks.data.nextCursor = null; mocks.data.loadingMore = false;
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
@@ -289,6 +289,17 @@ describe("AmoraDecisionBoard", () => {
     expect(container.textContent).toContain("전체 100개 중 1개");
     expect(container.textContent).toContain("불러온 카드 기준");
     expect(container.textContent).not.toMatch(/두 분 모두 확인|상대가 확인하면 확정|신랑 확인 대기/);
+  });
+
+  it("disables existing card mutations during create and does not call an uncertain empty snapshot unsaved", async () => {
+    Object.assign(mocks.data, { actions: [action], creating: true, createLocked: true });
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const card = container.querySelector('[data-preparation-action="act_test"]')!;
+    expect([...card.querySelectorAll<HTMLButtonElement>("button")].every(button => button.disabled)).toBe(true);
+    Object.assign(mocks.data, { actions: [], creating: false });
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(container.textContent).not.toContain("아직 저장된 할 일이 없어요");
+    expect(container.textContent).toContain("저장 여부는 목록을 새로고쳐 확인해 주세요");
   });
 
   it("filters actual titles and categories and exposes a truthful mobile status selection", async () => {
