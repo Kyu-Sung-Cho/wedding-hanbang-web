@@ -9390,6 +9390,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     assistantText: string;
     createdAt: string;
     visibility?: "shared" | "bride_private" | "groom_private";
+    questionScope?: "W0_wedding_core" | "W4_out_of_scope";
   }): void {
     const suffix = String(options.index).padStart(4, "0");
     const userId = `30000000-0000-4000-8000-0000000${suffix}`;
@@ -9403,8 +9404,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       content: options.assistantText,
       metadata: {
         in_reply_to_user_message_id: userId,
-        question_scope: "W0_wedding_core",
-        memory_eligible: true,
+        question_scope: options.questionScope ?? "W0_wedding_core",
+        memory_eligible: options.questionScope !== "W4_out_of_scope",
       },
       visibility,
       created_at: options.createdAt,
@@ -9421,12 +9422,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   }
 
-  it.each(["e8 private follow-up", "87e direct item scope"] as const)("delivers status evidence protection for %s without rewriting the mock reply", async (scenario) => {
+  it.each(["e8 private follow-up", "87e direct item scope", "958 future draft separation"] as const)("delivers status evidence protection for %s without rewriting the mock reply", async (scenario) => {
     // e8 후속 요약과 87e 첫 상태 표의 공개 합성 입력이다. 모의 출력은 모델 품질 검사가 아니다.
     const firstUser = "작은 공간에서 정말 가까운 사람들만 만나고, 짧게 인사하고 사진도 남기는 정도가 좋아. 큰 홀 입장·축가·긴 인사는 원하지 않아. 하객 수·예산·부모님 기대는 미정이야. 그런데 ‘짧은 축하 자리’가 또 예식처럼 느껴질까 봐 걱정돼. 파트너에게 어떻게 처음 꺼내면 좋을까? 오늘 결론을 내자고 몰아붙이고 싶진 않아.";
     const firstAssistant = "처음부터 형식을 정하려 하기보다, **내가 원하는 장면과 걱정**을 전해보면 좋아요.\n\n> “나는 큰 예식보다는 가까운 사람들과 짧게 인사하고 사진을 남기는 시간이 더 편하고 좋아 보여. 다만 작은 축하 자리도 결국 예식처럼 느껴질까 봐 걱정돼. 오늘 결론 내리자는 건 아니고, 우리에게 어떤 시간이 좋을지 각자 생각을 나눠보고 싶어.”\n\n마지막에 이렇게 덧붙여도 좋아요.\n\n> “당신이 중요하게 생각하는 장면도 먼저 듣고 싶어.”\n\n지금은 하객 수나 예산을 정하기보다, **서로 원하는 분위기를 확인하는 첫 대화**로만 열면 충분해요.";
     const withHistory = scenario === "e8 private follow-up";
-    const currentUser = withHistory
+    const isSeparation = scenario === "958 future draft separation";
+    const expectedScope = isSeparation ? "W4_out_of_scope" : "W0_wedding_core";
+    const currentUser = isSeparation ? "다음 두 문장은 실제로 일어난 일을 보고하는 게 아니야. “만약 파트너에게 초대장을 모바일로 하자고 말했다면 어떨까?”는 가정이고, “다음 주에 파트너에게 꽃 장식은 줄이고 싶다고 말해볼까”는 아직 검토 중인 말 초안이야. 사진·예산·식후 감사 인사와 이 두 새 항목을 같은 표에 정리하되, 실제 전달 상태와 가정·미래 초안을 섞지 말아줘. 초대장·꽃 장식의 실제 전달 여부는 여기서 밝히지 않았어. 저장하거나 공유하지 마." : withHistory
       ? "지금까지 내 입장에서 확정한 것, 아직 가설인 것, 파트너에게 아직 말하지 않은 것을 섞지 말고 표로 요약해줘. 그리고 다음에 나에게 물어볼 자연스러운 질문을 정확히 네 개만 써줘."
       : "결혼 준비 이야기를 정리하고 싶어. 어제 파트너에게 “사진은 꼭 남기고 싶어”라고 직접 말했어. 예산에 대해서는 아직 파트너에게 말 안 했어. 사진 촬영 방식과 예산 금액은 미정이고, 둘이 합의한 내용도 아직 없어. 지금은 내 개인 상담이야. 항목별로 내가 말한 선호, 전달 여부, 합의 여부를 구분해서 표로 정리해줘. 저장하거나 공유하지 마.";
     const mockReply = "| 구분 | 내용 |\n|---|---|\n| 파트너에게 전달 여부 | 미확인 |";
@@ -9436,13 +9439,24 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       visibility: "bride_private",
       created_at: "2026-09-09T03:07:17.088Z",
     };
-    if (withHistory) pushTrustedHistoryPair({
-      index: 903,
-      userText: firstUser,
-      assistantText: firstAssistant,
-      createdAt: "2026-09-09T03:07:17.087Z",
+    // 운영에서 관측한 합성 이력이다. 출력의 의미 성공을 모의 테스트로 주장하지 않는다.
+    const historyPairs = isSeparation ? [
+  {
+    "userText": "결혼 준비 이야기를 정리하고 싶어. 어제 파트너에게 “사진은 꼭 남기고 싶어”라고 직접 말했어. 예산에 대해서는 아직 파트너에게 말 안 했어. 사진 촬영 방식과 예산 금액은 미정이고, 둘이 합의한 내용도 아직 없어. 지금은 내 개인 상담이야. 항목별로 내가 말한 선호, 전달 여부, 합의 여부를 구분해서 표로 정리해줘. 저장하거나 공유하지 마.",
+    "assistantText": "| 항목 | 내가 말한 선호·상태 | 파트너에게 전달 | 둘의 합의 |\n|---|---|---|---|\n| 웨딩 사진 촬영 | 사진은 꼭 남기고 싶음 | 전달함 — 어제 직접 말함 | 아직 없음 |\n| 사진 촬영 방식 | 미정 | 미확인 | 아직 없음 |\n| 예산 | 금액 미정 | 아직 말하지 않음 | 아직 없음 |\n\n저장하거나 공유하지 않았어요."
+  },
+  {
+    "userText": "오늘 파트너에게 “식후 감사 인사는 짧게 하고 싶어”라고 말했는데, 다음 대화를 어떻게 이어가면 좋을까? 먼저 사진·예산·식후 감사 인사의 현재 전달 상태를 각각 한 줄씩 정리하고, 이어서 시작 문장 하나만 제안해줘. 파트너의 답변이나 동의는 아직 듣지 못했어. 저장하거나 공유하지 마.",
+    "assistantText": "- 사진: “사진은 꼭 남기고 싶어”라고 어제 직접 전달함.\n- 예산: 아직 파트너에게 말하지 않음.\n- 식후 감사 인사: “식후 감사 인사는 짧게 하고 싶어”라고 오늘 직접 전달함. 파트너의 답변은 아직 듣지 못함.\n\n이어서 이렇게 시작해보세요:  \n“나는 식후 감사 인사는 짧게 하고 싶고, 사진은 꼭 남기고 싶은데, 너는 어떻게 생각해?”"
+  }
+]
+      : withHistory ? [{ userText: firstUser, assistantText: firstAssistant }] : [];
+    [...historyPairs].reverse().forEach((pair, reverseIndex) => pushTrustedHistoryPair({
+      index: 903 + historyPairs.length - 1 - reverseIndex, ...pair,
+      createdAt: new Date(Date.parse("2026-09-09T03:07:17.085Z") + historyPairs.length - 1 - reverseIndex).toISOString(),
       visibility: "bride_private",
-    });
+      questionScope: isSeparation && reverseIndex === 0 ? "W4_out_of_scope" : "W0_wedding_core",
+    }));
     const journeyBefore = structuredClone(mocks.journeyRow);
     const revisionBefore = mocks.journeyStateRevision;
     const modelConfig = await import("@/lib/ai/modelConfig");
@@ -9483,17 +9497,18 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(mocks.provider).toHaveBeenCalledTimes(1);
           const providerArgs = mocks.provider.mock.calls[0]?.[0];
           expect(providerArgs?.input).toEqual([
-            ...(withHistory ? [
-              { role: "user", content: `[신부] ${firstUser}` },
-              { role: "assistant", content: firstAssistant },
-            ] : []),
+            ...historyPairs.flatMap(pair => [
+              { role: "user", content: `[신부] ${pair.userText}` },
+              { role: "assistant", content: pair.assistantText },
+            ]),
             { role: "user", content: `[신부] ${currentUser}` },
           ]);
           expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
           expect(providerArgs?.modelRole).toBe("primary");
           const toolNames = providerArgs?.tools?.map((tool: { name: string }) => tool.name) ?? [];
-          expect(toolNames).toEqual(expect.arrayContaining(["get_wedding_info", "get_budget_summary", "get_schedule_summary", "get_amora_actions"]));
-          if (!withHistory) expect([...toolNames].sort()).toEqual([
+          if (isSeparation) expect(toolNames).toEqual(["get_market_price"]);
+          else expect(toolNames).toEqual(expect.arrayContaining(["get_wedding_info", "get_budget_summary", "get_schedule_summary", "get_amora_actions"]));
+          if (!withHistory && !isSeparation) expect([...toolNames].sort()).toEqual([
             "analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events",
             "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee",
           ]);
@@ -9508,16 +9523,19 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith("visibility", "shared");
           const systemPrompt: string = providerArgs?.systemPrompt;
           expect(systemPrompt).toContain("[PRIVATE_MODE]");
-          expect(systemPrompt).toContain("question_scope: W0_wedding_core");
+          expect(systemPrompt).toContain(`question_scope: ${expectedScope}`);
           expect(systemPrompt.length).toBeLessThanOrEqual(48_000);
-          expect(systemPrompt.match(/\[준비 상태의 근거\]/gu)).toHaveLength(1);
+          if (!isSeparation) expect(systemPrompt.match(/\[준비 상태의 근거\]/gu)).toHaveLength(1);
+          else expect(systemPrompt).not.toContain("[준비 상태의 근거]");
           const statusStart = systemPrompt.indexOf("[준비 상태의 근거]");
           const priorityStart = systemPrompt.indexOf("[이번 답변의 대화 우선순위]");
           const attributionStart = systemPrompt.indexOf("[준비 의견의 근거 확인]");
           expect(priorityStart).toBeGreaterThan(-1);
-          expect(statusStart).toBeGreaterThan(priorityStart);
-          expect(statusStart).toBeLessThan(attributionStart);
-          const statusBlock = systemPrompt.slice(statusStart, attributionStart);
+          if (!isSeparation) {
+            expect(statusStart).toBeGreaterThan(priorityStart);
+            expect(statusStart).toBeLessThan(attributionStart);
+          }
+          const statusBlock = isSeparation ? systemPrompt : systemPrompt.slice(statusStart, attributionStart);
           for (const requiredEvidenceRule of [
             "명시한 선호와 거부 조건을 함께 남기고",
             "확정·가설·미정과 상대에게 전달했는지는 따로 구분하세요",
@@ -9534,7 +9552,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(mocks.atomicResponses).toHaveLength(1);
           expect(mocks.atomicResponses[0]?.content).toBe(mockReply);
           expect(mocks.atomicFinalizations[0]).toMatchObject({ message: { visibility: "bride_private" } });
-          expect(mocks.atomicResponses[0]?.metadata).toMatchObject({ question_scope: "W0_wedding_core", toolResults: [] });
+          expect(mocks.atomicResponses[0]?.metadata).toMatchObject({ question_scope: expectedScope, toolResults: [] });
           expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
           expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action_queue");
           expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("confirmed_amora_action_id");
