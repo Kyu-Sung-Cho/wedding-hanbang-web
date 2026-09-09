@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowUpRight, Check, CircleHelp, Link2, Pencil, RefreshCw, S
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import Button from "@/components/ui/Button";
 import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
+import CreatePreparationAction from "./CreatePreparationAction";
 import AmoraActionPlanFields from "./AmoraActionPlanFields";
 import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
 import { DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type DecisionColumn } from "@/lib/amora/preparationBoard";
@@ -287,7 +288,7 @@ function PreparationCard({ action, busy, update, changeStatus }: {
 
 export default function AmoraDecisionBoard() {
   const decisions = useDecisionBoard();
-  const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, updatingIds, updateError, isDemo } = useAmoraPreparationActions();
+  const { actions, loading, loadingMore, error, count, truncated, nextCursor, loadMore, refresh, update, updatingIds, updateError, isDemo, create, cancelCreate, createLocked, creating, canCreate, ownerScope } = useAmoraPreparationActions();
   const location = useSyncExternalStore(subscribeBoardLocation, boardLocation, serverBoardLocation);
   const requestedView = new URLSearchParams(location.split("?")[1] ?? "").get("view");
   const [selectedBoard, setSelectedBoard] = useState<BoardView | null>(null);
@@ -391,6 +392,10 @@ export default function AmoraDecisionBoard() {
       <div id={decisionPanelId} hidden={board !== "decisions"}><DecisionRecords data={decisions} searchId={decisionSearchId} query={decisionQuery} onQueryChange={setDecisionQuery} mobileSearchOpen={mobileSearchOpen} active={board === "decisions"} /></div>
       <section ref={taskPanelRef} id={taskPanelId} hidden={board !== "tasks"} aria-label="공유 할 일">
       <h2 className="sr-only">공유 할 일</h2>
+      <CreatePreparationAction key={ownerScope} create={create} cancelCreate={cancelCreate} locked={createLocked} busy={creating || updatingIds.size > 0} available={canCreate && !loading && !error} isDemo={isDemo} focusIntent={focusIntent} onCreated={() => {
+        setActiveStatus("open"); setCategory("all"); setQuery("");
+        setAnnouncement(previous => ({ message: "공유 할 일을 추가했어요.", sequence: previous.sequence + 1 }));
+      }} />
       <div className="mb-5 hidden items-start gap-[14px] rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-[18px] py-4 lg:flex">
         <CircleHelp aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[var(--amora-rose-deep)]" />
         <div className="min-w-0 flex-1">
@@ -419,13 +424,13 @@ export default function AmoraDecisionBoard() {
       {error && <div role="alert" className="mb-4 rounded-[9px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p>{actions.length > 0 && <p className="mt-1 text-[12px]">마지막으로 불러온 기록이에요. 최신 상태를 다시 확인해 주세요.</p>}<button type="button" onClick={() => void refresh()} disabled={loading} className={`${outlineButton} mt-2`}>다시 불러오기</button></div>}
       {updateError && <p role="alert" className="mb-4 rounded-[9px] bg-[var(--amora-rose-pale)] p-3 text-[13px] text-[var(--amora-rose-deep)]">{updateError}</p>}
       {loading && <p role="status" className="py-5 text-center text-[13px] text-[var(--amora-muted)]">준비 기록을 불러오는 중…</p>}
-      {!loading && !error && actions.length === 0 ? <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${button} mt-4 bg-[var(--amora-ink)] text-white`}>아모라와 이야기하기</Link></div> : actions.length > 0 && (
+      {!loading && !error && actions.length === 0 ? createLocked ? <p className="py-5 text-center text-[13px] text-[var(--amora-muted)]">저장 여부는 목록을 새로고쳐 확인해 주세요.</p> : <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${button} mt-4 bg-[var(--amora-ink)] text-white`}>아모라와 이야기하기</Link></div> : actions.length > 0 && (
         <div className="grid min-w-0 gap-5 lg:grid-cols-3">
           {PREPARATION_COLUMNS.map((column) => {
             const columnActions = filtered.filter((action) => action.status === column.status);
             return <section key={column.status} aria-label={`${column.label} 할 일`} className={`min-w-0 ${activeStatus === column.status ? "block" : "hidden lg:block"}`}>
               <div className="lg:mb-[14px]"><h2 data-task-column={column.status} tabIndex={-1} className={`sr-only items-center gap-2 text-[14.5px] font-semibold text-[var(--amora-ink)] lg:not-sr-only lg:flex ${focus}`}><span aria-hidden="true" className={`h-[9px] w-[9px] rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] font-normal text-[var(--amora-muted)]">{columnActions.length}</span></h2><p className="mt-1 hidden pl-[17px] text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:block">{column.rule}</p></div>
-              <div className="space-y-[10px] lg:space-y-3">{columnActions.length ? columnActions.map((action) => <PreparationCard key={action.id} action={action} busy={updatingIds.has(action.id)} update={updateCard} changeStatus={(item, nextStatus, origin) => void changeStatus(item, nextStatus, origin)} />) : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-center text-[12px] leading-relaxed text-[var(--amora-muted)]">{query || category !== "all" ? "이 조건에 맞는 카드가 없어요." : "이 상태의 할 일이 없어요."}</p>}</div>
+              <div className="space-y-[10px] lg:space-y-3">{columnActions.length ? columnActions.map((action) => <PreparationCard key={action.id} action={action} busy={creating || updatingIds.has(action.id)} update={updateCard} changeStatus={(item, nextStatus, origin) => void changeStatus(item, nextStatus, origin)} />) : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-center text-[12px] leading-relaxed text-[var(--amora-muted)]">{query || category !== "all" ? "이 조건에 맞는 카드가 없어요." : "이 상태의 할 일이 없어요."}</p>}</div>
             </section>;
           })}
         </div>

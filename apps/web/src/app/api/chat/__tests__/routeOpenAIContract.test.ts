@@ -9368,6 +9368,99 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   }
 
+  it("delivers status evidence protection for the exact e8 private summary turn without rewriting the mock reply", async () => {
+    // e8 공개 합성 실측의 T1 user/assistant와 T2 user다. 모의 출력은 모델 품질 검사가 아니다.
+    const firstUser = "작은 공간에서 정말 가까운 사람들만 만나고, 짧게 인사하고 사진도 남기는 정도가 좋아. 큰 홀 입장·축가·긴 인사는 원하지 않아. 하객 수·예산·부모님 기대는 미정이야. 그런데 ‘짧은 축하 자리’가 또 예식처럼 느껴질까 봐 걱정돼. 파트너에게 어떻게 처음 꺼내면 좋을까? 오늘 결론을 내자고 몰아붙이고 싶진 않아.";
+    const firstAssistant = "처음부터 형식을 정하려 하기보다, **내가 원하는 장면과 걱정**을 전해보면 좋아요.\n\n> “나는 큰 예식보다는 가까운 사람들과 짧게 인사하고 사진을 남기는 시간이 더 편하고 좋아 보여. 다만 작은 축하 자리도 결국 예식처럼 느껴질까 봐 걱정돼. 오늘 결론 내리자는 건 아니고, 우리에게 어떤 시간이 좋을지 각자 생각을 나눠보고 싶어.”\n\n마지막에 이렇게 덧붙여도 좋아요.\n\n> “당신이 중요하게 생각하는 장면도 먼저 듣고 싶어.”\n\n지금은 하객 수나 예산을 정하기보다, **서로 원하는 분위기를 확인하는 첫 대화**로만 열면 충분해요.";
+    const currentUser = "지금까지 내 입장에서 확정한 것, 아직 가설인 것, 파트너에게 아직 말하지 않은 것을 섞지 말고 표로 요약해줘. 그리고 다음에 나에게 물어볼 자연스러운 질문을 정확히 네 개만 써줘.";
+    const mockReply = "| 구분 | 내용 |\n|---|---|\n| 파트너에게 전달 여부 | 미확인 |";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: currentUser,
+      visibility: "bride_private",
+      created_at: "2026-09-09T03:07:17.088Z",
+    };
+    pushTrustedHistoryPair({
+      index: 903,
+      userText: firstUser,
+      assistantText: firstAssistant,
+      createdAt: "2026-09-09T03:07:17.087Z",
+      visibility: "bride_private",
+    });
+    const journeyBefore = structuredClone(mocks.journeyRow);
+    const revisionBefore = mocks.journeyStateRevision;
+    const modelConfig = await import("@/lib/ai/modelConfig");
+    const actualModelConfig = await vi.importActual<typeof import("@/lib/ai/modelConfig")>("@/lib/ai/modelConfig");
+    const prompts = await import("@/lib/ai/prompts");
+    const actualPrompts = await vi.importActual<typeof import("@/lib/ai/prompts")>("@/lib/ai/prompts");
+    providerAfterPreGeneration(providerResult({ fullText: mockReply }));
+
+    await vi.mocked(modelConfig.chooseAmoraChatModelRole).withImplementation(
+      actualModelConfig.chooseAmoraChatModelRole,
+      async () => vi.mocked(prompts.getWeddingPlannerSystemPrompt).withImplementation(
+        actualPrompts.getWeddingPlannerSystemPrompt,
+        async () => {
+          const response = await POST(request({
+            requestKind: "chat",
+            visibility: "bride_private",
+            messages: [{ role: "user", content: currentUser }],
+          }));
+          expect(response.status).toBe(200);
+          const body = await response.text();
+          expect(mocks.provider).toHaveBeenCalledTimes(1);
+          const providerArgs = mocks.provider.mock.calls[0]?.[0];
+          expect(providerArgs?.input).toEqual([
+            { role: "user", content: `[신부] ${firstUser}` },
+            { role: "assistant", content: firstAssistant },
+            { role: "user", content: `[신부] ${currentUser}` },
+          ]);
+          expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
+          expect(providerArgs?.modelRole).toBe("fast");
+          expect(mocks.chatHistoryEq).toHaveBeenCalledWith("visibility", "bride_private");
+          expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith("visibility", "shared");
+          const systemPrompt: string = providerArgs?.systemPrompt;
+          expect(systemPrompt).toContain("[PRIVATE_MODE]");
+          expect(systemPrompt).toContain("question_scope: W0_wedding_core");
+          expect(systemPrompt.length).toBeLessThanOrEqual(48_000);
+          expect(systemPrompt.match(/\[준비 상태의 근거\]/gu)).toHaveLength(1);
+          const statusStart = systemPrompt.indexOf("[준비 상태의 근거]");
+          const priorityStart = systemPrompt.indexOf("[이번 답변의 대화 우선순위]");
+          const attributionStart = systemPrompt.indexOf("[준비 의견의 근거 확인]");
+          expect(priorityStart).toBeGreaterThan(-1);
+          expect(statusStart).toBeGreaterThan(priorityStart);
+          expect(statusStart).toBeLessThan(attributionStart);
+          const statusBlock = systemPrompt.slice(statusStart, attributionStart);
+          for (const requiredEvidenceRule of [
+            "명시한 선호와 거부 조건을 함께 남기고",
+            "확정·가설·미정과 상대에게 전달했는지는 따로 구분하세요",
+            "미정은 미전달의 증거가 아닙니다",
+            "전달 여부나 공동 합의가 확인되지 않으면 미확인으로 쓰세요",
+            "전달·미전달은 항목별 직접 진술만 쓰세요",
+            "질문·분류 요청·AI가 제안한 문구로 확정하지 말되",
+            "질문 안에 포함된 직접 진술은 유지하세요",
+            "근거 없으면 전달 여부 미확인입니다",
+          ]) expect(statusBlock).toContain(requiredEvidenceRule);
+          const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+          expect(events.some(event => event.type === "error")).toBe(false);
+          expect(events.find(event => event.type === "done")?.fullContent).toBe(mockReply);
+          expect(mocks.atomicResponses).toHaveLength(1);
+          expect(mocks.atomicResponses[0]?.content).toBe(mockReply);
+          expect(mocks.atomicFinalizations[0]).toMatchObject({ message: { visibility: "bride_private" } });
+          expect(mocks.atomicResponses[0]?.metadata).toMatchObject({ question_scope: "W0_wedding_core", toolResults: [] });
+          expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+          expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action_queue");
+          expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("confirmed_amora_action_id");
+          expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("completed_amora_action");
+          expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("personal_action_draft");
+          expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("output_hygiene");
+          expect(mocks.executeTool).not.toHaveBeenCalled();
+          expect(mocks.journeyRow).toEqual(journeyBefore);
+          expect(mocks.journeyStateRevision).toBe(revisionBefore);
+        },
+      ),
+    );
+  });
+
   it.each([
     {
       candidate: "b384",

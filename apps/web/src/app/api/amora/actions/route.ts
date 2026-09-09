@@ -7,7 +7,10 @@ import {
   isAmoraActionStorageUnavailable,
   readAmoraActionPage,
   InvalidAmoraActionCursorError,
+  rowToAmoraAction,
 } from "@/lib/amora/actionRepository";
+import { manualActionIdForRequest, matchesManualActionCreateRow, parseManualActionRequestId } from "@/lib/amora/manualActionCreate";
+import type { AmoraAction } from "@/types/database.types";
 import {
   createAmoraActionId,
   getAmoraActions,
@@ -165,7 +168,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
     }
 
-    const scoped = Object.hasOwn(body, "expectedOwnerId") || Object.hasOwn(body, "expectedCoupleId");
+    const hasRequestId = Object.hasOwn(body, "requestId");
+    const requestId = hasRequestId ? parseManualActionRequestId(body.requestId) : null;
+    if (hasRequestId && (!requestId || (body.source !== undefined && body.source !== "manual"))) {
+      return NextResponse.json({ error: "잘못된 생성 요청입니다." }, { status: 400 });
+    }
+    const scoped = hasRequestId || Object.hasOwn(body, "expectedOwnerId") || Object.hasOwn(body, "expectedCoupleId");
     if (scoped && (body.expectedOwnerId !== user.id
       || typeof body.expectedCoupleId !== "string"
       || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.expectedCoupleId))) {
@@ -192,7 +200,7 @@ export async function POST(request: Request) {
 
     const now = new Date().toISOString();
     const action: AmoraActionItem = normalizeAmoraAction({
-      id: createAmoraActionId(),
+      id: requestId ? manualActionIdForRequest(user.id, coupleId, requestId) : createAmoraActionId(),
       title,
       description: cleanOptionalText(body.description, 500) ?? undefined,
       dueDate: cleanOptionalText(body.due_date, 40) ?? undefined,
@@ -205,9 +213,21 @@ export async function POST(request: Request) {
       updatedAt: now,
     });
 
-    const saved = await mutateOwnAmoraActionRecord(supabase, coupleId, action.id, "create", action);
-    if (!saved) throw new Error("Amora action create returned no receipt");
-    return NextResponse.json({ action: saved }, { status: 201 });
+    try {
+      const saved = await mutateOwnAmoraActionRecord(supabase, coupleId, action.id, "create", action);
+      if (!saved) throw new Error("Amora action create returned no receipt");
+      return NextResponse.json({ action: saved, ...(requestId ? { requestId, replayed: false } : {}) }, { status: 201 });
+    } catch (error) {
+      if (!requestId || !isRecord(error) || error.code !== "23505") throw error;
+      // PK 충돌만 조회한다. 현재 인증/RLS와 생성자 경계를 유지하며 기존 행을 고치지 않는다.
+      const { data: existing, error: readError } = await supabase.from("amora_actions").select("*")
+        .eq("id", action.id).eq("couple_id", coupleId).eq("created_by", user.id).maybeSingle();
+      if (readError) throw readError;
+      if (!matchesManualActionCreateRow(existing, action, user.id, coupleId)) {
+        return NextResponse.json({ error: "기존 저장 내용이 달라졌어요. 목록을 확인해 주세요.", code: "AMORA_ACTION_CREATE_CONFLICT" }, { status: 409 });
+      }
+      return NextResponse.json({ action: rowToAmoraAction(existing as AmoraAction), requestId, replayed: true });
+    }
   } catch (error) {
     const failure = getManualAmoraActionFailure(error);
     if (failure) return NextResponse.json({ error: failure.error, code: failure.code }, { status: failure.status });
