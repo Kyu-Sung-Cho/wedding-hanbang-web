@@ -41,7 +41,7 @@ import {
   hasEphemeralPlaceSearchResult,
 } from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
-import { personalActionConversationConsent, personalActionConversationMetadata, selectPersonalActionConversationTools } from "@/lib/ai/amoraPersonalActionConversation";
+import { getPersonalActionDraftToolChoice, personalActionConversationConsent, personalActionConversationMetadata, selectPersonalActionConversationTools } from "@/lib/ai/amoraPersonalActionConversation";
 import { readPersonalActionConversationCount } from "@/lib/amora/personalActionConversationRead";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
@@ -4334,7 +4334,11 @@ export async function POST(request: Request) {
                       userText: lastUserText,
                       round,
                       tools: availableTools,
-                }),
+                    }) ?? getPersonalActionDraftToolChoice({
+                      userText: lastUserText,
+                      round,
+                      tools: availableTools,
+                    }),
                 onTextDelta: (token) => {
                   providerPreviewGate?.push(token);
                 },

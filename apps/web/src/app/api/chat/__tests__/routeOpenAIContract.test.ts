@@ -1946,7 +1946,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }));
   });
 
-  it("renders NAVER results over SSE but never stores or forwards provider content", async () => {
+  it.each([
+    { text: "강남 상견례 식당 찾아줘", visibility: "shared" },
+    { text: '내 개인 할 일 초안을 만들어줘. 제목은 "내가 할 질문 정리"로 해줘. 강남 상견례 식당 찾아줘.', visibility: "bride_private" },
+  ])("renders NAVER results without forwarding them and preserves the place lock: $visibility", async ({ text, visibility }) => {
     // 2026-08-22부터 라우트는 **지금 쓸 수 없는 도구를 모델에게 주지 않는다**
     // (`isPlaceSearchConfigured()`). 자격증명이 없으면 장소 검색이 도구 목록에서
     // 빠지므로, NAVER 렌더링 계약을 확인하려면 설정된 상태를 만들어야 한다.
@@ -1969,7 +1972,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.safeTools.push(placeTool);
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
-      content: "강남 상견례 식당 찾아줘",
+      content: text,
+      visibility,
     };
     const externalResult = {
       toolName: "search_nearby_places",
@@ -2022,10 +2026,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       }));
 
     try {
-      const response = await POST(request());
+      const response = await POST(request({ visibility, messages: [{ role: "user", content: text }] }));
       expect(response.status).toBe(200);
       const body = await response.text();
 
+      expect(mocks.executeTool.mock.calls.map(call => call[0])).toEqual(["search_nearby_places"]);
       expect(body).toContain("외부 식당명");
       expect(mocks.provider).toHaveBeenCalledTimes(3);
       expect(mocks.provider.mock.calls[0]?.[0]?.toolChoice).toEqual({
@@ -2034,6 +2039,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       });
       expect(mocks.provider.mock.calls[1]?.[0]?.tools).toEqual([]);
       expect(mocks.provider.mock.calls[2]?.[0]?.tools).toEqual([]);
+      expect(mocks.provider.mock.calls[1]?.[0]?.toolChoice).toBeUndefined();
+      expect(mocks.provider.mock.calls[2]?.[0]?.toolChoice).toBeUndefined();
+      if (visibility === "bride_private") {
+        expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual(expect.arrayContaining([
+          expect.objectContaining({ name: "prepare_personal_action" }),
+        ]));
+        expect(mocks.atomicResponses.at(-1)?.metadata).not.toHaveProperty("personal_action_draft");
+      }
       expect(mocks.executeTool).toHaveBeenCalledTimes(1);
 
       const [, modelOutput] = mocks.buildToolResult.mock.calls[0] as [string, string];
@@ -2074,9 +2087,25 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(persistedPayload).not.toContain("강남 파인다이닝");
       expect(persistedPayload).not.toContain("pstatic.net");
     } finally {
+      mocks.executeTool.mockReset();
       mocks.safeTools.pop();
       restoreNaverEnv();
     }
+  });
+
+  it("keeps the existing restaurant/task scope ceiling instead of forcing a private draft", async () => {
+    // 기존 '식당…할 일'의 명시 비웨딩 판정은 새 호출 선택으로 바꾸지 않는다.
+    const text = '강남 상견례 식당 찾아줘. 내 개인 할 일 초안을 만들어줘. 제목은 "식당 상담 질문 준비"로 해줘.';
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "bride_private" };
+    providerAfterPreGeneration(providerResult({ fullText: "어떤 준비인지 확인할게요." }));
+    const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
+    expect(mocks.provider.mock.calls[0][0].toolChoice).toBeUndefined();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses[0].metadata).toMatchObject({ question_scope: "W4_out_of_scope" });
+    expect(mocks.atomicResponses[0].metadata).not.toHaveProperty("personal_action_draft");
   });
 
   it("ignores client-supplied assistant history and prompts only from canonical DB history", async () => {
@@ -9791,14 +9820,24 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(done?.fullContent).toBe(AMORA_EMPTY_TERMINAL_FALLBACK_TEXT);
     expect(body).not.toMatch(/\[\/?(?:MEDIATION_REQUEST|INITIAL_GREETING)\]/u);
   });
-  it("delivers the exact ceaa personal draft request to the real executor and canonical/done card without saving", async () => {
+  it("requires the exact personal draft function before canonical/done delivery without saving", async () => {
     const text = '나만 볼 개인 할 일 초안을 하나 만들어줘. 제목은 "사진에서 꼭 남기고 싶은 장면 세 가지 정리"로 해줘. 설명에는 나만 볼 생각을 메모한다는 내용을 담아줘. 마감일은 정하지 않았어. 개인 할 일 저장 전에 내가 검토할 수 있게 초안을 보여줘.';
     const draft = { title: "사진에서 꼭 남기고 싶은 장면 세 가지 정리", description: "나만 볼 생각을 메모하며 사진에서 꼭 남기고 싶은 장면 세 가지를 정리한다.", dueDate: null };
     const reply = "개인 할 일 초안이에요. 아직 저장하지 않았으니 내용을 확인한 뒤 저장해 주세요.";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "bride_private" };
     const actual = await vi.importActual<typeof import("@/lib/ai/toolExecutor")>("@/lib/ai/toolExecutor");
     mocks.executeTool.mockImplementation(actual.executeTool);
-    providerAfterPreGeneration(providerResult({ toolCalls: [{ callId: "personal_draft", name: "prepare_personal_action", input: draft }], outputItems: [{ type: "function_call", call_id: "personal_draft", name: "prepare_personal_action", arguments: JSON.stringify(draft) }] }));
+    mocks.provider.mockImplementationOnce(async (options: {
+      toolChoice?: { type: "function"; name: string };
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      return options.toolChoice?.type === "function" && options.toolChoice.name === "prepare_personal_action"
+        ? providerResult({ toolCalls: [{ callId: "personal_draft", name: "prepare_personal_action", input: draft }], outputItems: [{ type: "function_call", call_id: "personal_draft", name: "prepare_personal_action", arguments: JSON.stringify(draft) }] })
+        : providerResult({ fullText: "개인 할 일 저장 전 초안이에요. 제목과 설명을 확인한 뒤 아래 저장 버튼에서 반영할 수 있어요." });
+    });
     providerAfterPreGeneration(providerResult({ fullText: reply }));
     const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: text }] }));
     expect(response.status).toBe(200);
@@ -9806,6 +9845,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const done = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)))
       .find(event => event.type === "done");
     expect(mocks.provider.mock.calls[0][0].tools.map((tool: AiToolDefinition) => tool.name)).toContain("prepare_personal_action");
+    expect(mocks.provider.mock.calls[0][0].toolChoice).toEqual({ type: "function", name: "prepare_personal_action" });
+    expect(mocks.provider).toHaveBeenCalledTimes(2);
+    expect(mocks.provider.mock.calls[1][0].toolChoice).toBeUndefined();
     expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith("prepare_personal_action", draft, expect.objectContaining({
       currentUserText: text, actorProfileId: "00000000-0000-4000-8000-000000000001",
       personalActions: expect.objectContaining({ visibility: "bride_private" }),
