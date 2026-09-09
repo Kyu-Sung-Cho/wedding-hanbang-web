@@ -4,6 +4,7 @@ import {
   AMORA_DEMO_TURN_GUARD,
   AMORA_FINAL_TURN_GUARD,
   AMORA_MEDIATION_TURN_GUARD,
+  AMORA_STATUS_SUMMARY_EVIDENCE_RULE,
 } from "@/lib/ai/amoraVoice";
 import {
   getWeddingPlannerSystemPrompt,
@@ -817,6 +818,13 @@ export function buildAmoraSystemPrompt(
 ): string {
   const projectedContext = projectPromptContextForScope(context, options);
   let rawBasePrompt = getWeddingPlannerSystemPrompt(projectedContext);
+  const statusSummaryEvidenceContract = canUseStoredPromptContext(options)
+    ? `\n\n[준비 상태의 근거]\n${AMORA_STATUS_SUMMARY_EVIDENCE_RULE}`
+    : "";
+  if (statusSummaryEvidenceContract) {
+    // 원문과 같은 상수 한 번만 옮겨, 도구 유무·긴 문맥에도 기준을 보존한다.
+    rawBasePrompt = rawBasePrompt.replace(`${AMORA_STATUS_SUMMARY_EVIDENCE_RULE}\n`, "");
+  }
   if (!canUseStoredPromptContext(options)) {
     // Neutral placeholder values are not facts. Removing the rendered context
     // section avoids telling the model that a real couple has no date/budget or
@@ -966,7 +974,7 @@ export function buildAmoraSystemPrompt(
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
+  )}${statusSummaryEvidenceContract}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {
