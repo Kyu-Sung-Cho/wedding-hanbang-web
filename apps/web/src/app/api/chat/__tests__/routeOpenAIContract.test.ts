@@ -27,6 +27,18 @@ type PrivacySnapshotFixture = {
 };
 
 const mocks = vi.hoisted(() => {
+  const userProfile: {
+    couple_id: string;
+    role: "bride" | "groom";
+    is_admin: boolean;
+    name: string;
+    preparation_status?: "preparing" | "paused" | "called_off" | null;
+  } = {
+    couple_id: "10000000-0000-4000-8000-000000000001",
+    role: "bride",
+    is_admin: false,
+    name: "Test customer",
+  };
   class PersistenceError extends Error {
     readonly code = "AI_MESSAGE_PERSISTENCE_FAILED";
   }
@@ -264,12 +276,7 @@ const mocks = vi.hoisted(() => {
     requestFrom: vi.fn(),
     profileSourceSelect: vi.fn(),
     authenticatedUser: { id: "00000000-0000-4000-8000-000000000001" } as { id: string } | null,
-    userProfile: {
-      couple_id: "10000000-0000-4000-8000-000000000001",
-      role: "bride" as "bride" | "groom",
-      is_admin: false,
-      name: "Test customer",
-    },
+    userProfile,
     signedDemo: false,
     demoSessionToken: "signed-demo-test-token",
     reserve,
@@ -471,6 +478,9 @@ vi.mock("@/lib/supabase/admin", () => ({
           role: mocks.userProfile.role,
           is_admin: mocks.userProfile.is_admin,
           name: "테스트 고객",
+          ...(mocks.userProfile.preparation_status !== undefined
+            ? { preparation_status: mocks.userProfile.preparation_status }
+            : {}),
           shared_chat_cleared_at: mocks.chatViewClearedAt.shared,
           private_chat_cleared_at: mocks.chatViewClearedAt.private,
         }, {
@@ -1949,6 +1959,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   it.each([
     { text: "강남 상견례 식당 찾아줘", visibility: "shared" },
     { text: '내 개인 할 일 초안을 만들어줘. 제목은 "내가 할 질문 정리"로 해줘. 강남 상견례 식당 찾아줘.', visibility: "bride_private" },
+    // 식당과 할 일이 다른 문장에 있어도 상견례 검색을 비웨딩 업무로 오인하지 않는다.
+    { text: '강남 상견례 식당 찾아줘. 내 개인 할 일 초안을 만들어줘. 제목은 "식당 상담 질문 준비"로 해줘.', visibility: "bride_private" },
   ])("renders NAVER results without forwarding them and preserves the place lock: $visibility", async ({ text, visibility }) => {
     // 2026-08-22부터 라우트는 **지금 쓸 수 없는 도구를 모델에게 주지 않는다**
     // (`isPlaceSearchConfigured()`). 자격증명이 없으면 장소 검색이 도구 목록에서
@@ -2048,6 +2060,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         expect(mocks.atomicResponses.at(-1)?.metadata).not.toHaveProperty("personal_action_draft");
       }
       expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+      expect(mocks.atomicResponses.at(-1)?.metadata).toMatchObject({ question_scope: "W0_wedding_core" });
 
       const [, modelOutput] = mocks.buildToolResult.mock.calls[0] as [string, string];
       expect(modelOutput).toContain('"status":"rendered_in_client"');
@@ -2091,21 +2104,6 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       mocks.safeTools.pop();
       restoreNaverEnv();
     }
-  });
-
-  it("keeps the existing restaurant/task scope ceiling instead of forcing a private draft", async () => {
-    // 기존 '식당…할 일'의 명시 비웨딩 판정은 새 호출 선택으로 바꾸지 않는다.
-    const text = '강남 상견례 식당 찾아줘. 내 개인 할 일 초안을 만들어줘. 제목은 "식당 상담 질문 준비"로 해줘.';
-    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: "bride_private" };
-    providerAfterPreGeneration(providerResult({ fullText: "어떤 준비인지 확인할게요." }));
-    const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: text }] }));
-    expect(response.status).toBe(200);
-    await response.text();
-    expect(mocks.provider.mock.calls[0][0].tools).toEqual([]);
-    expect(mocks.provider.mock.calls[0][0].toolChoice).toBeUndefined();
-    expect(mocks.executeTool).not.toHaveBeenCalled();
-    expect(mocks.atomicResponses[0].metadata).toMatchObject({ question_scope: "W4_out_of_scope" });
-    expect(mocks.atomicResponses[0].metadata).not.toHaveProperty("personal_action_draft");
   });
 
   it("ignores client-supplied assistant history and prompts only from canonical DB history", async () => {
@@ -9369,6 +9367,195 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       created_at: options.createdAt,
     });
   }
+
+  it("diagnoses the b384 pivot turn input, real model role, and terminal preservation without generating a reply", async () => {
+    // 공개 합성 사례의 실제 T1/T2 원문이다. 모의 T3는 생성 품질이 아니라 출력 보존만 검사한다.
+    const firstUser = "서울이나 경기에서 180명 정도 일반 웨딩을 생각 중이야. 내년 가을이고 정확한 날짜와 총예산은 미정이야. 신혼집이 최우선이고 사진은 중요해. 예단과 폐백은 두 사람이 생략하기로 했어.";
+    const firstAssistant = "서울·경기에서 하객 약 180명, **2027년 가을** 예식을 생각 중이고 정확한 날짜와 총예산은 아직 미정이군요. 신혼집을 최우선으로 두고, 웨딩 사진 촬영은 중요하게 보며 **예단과 폐백은 생략하기로 한 것**으로 이해했어요.\n\n신혼집을 제외한 결혼 준비 범위를 먼저 정해볼까요, 아니면 신혼집까지 포함한 전체 예산을 생각하고 계신가요?";
+    const secondUser = "생각이 바뀌었어. 180명 일반웨딩 말고 그냥 40명만 부르는 가족식으로 할래.";
+    const secondAssistant = "40명 가족식으로 바꾸신 이유를 먼저 여쭤봐도 될까요? 이유를 알아야 기존에 유지할 기준과 다시 확인할 항목을 정확히 나눌 수 있어요.";
+    const currentUser = "비용도 부담되고 준비 과정도 너무 복잡하게 느껴져서 그래. 큰 결혼식이 우리 취향도 아닌 것 같아. 날짜 후보는 9월보다 10월이 더 좋아. 이건 그냥 선호가 바뀐 거야.";
+    const validResponse = "비용 부담과 복잡한 준비를 줄이고 취향에 맞추려는 변화로 이해했어요. 신혼집 최우선, 사진 중요, 예단·폐백 생략은 유지하고 2027년 10월은 정확한 날짜가 정해지지 않은 후보로 둘게요. 40명 가족식에 맞춰 식사·장소·사진 구성과 견적은 다시 확인해보세요.";
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: currentUser,
+      created_at: "2026-09-09T00:41:13.222Z",
+    };
+    pushTrustedHistoryPair({
+      index: 902,
+      userText: secondUser,
+      assistantText: secondAssistant,
+      createdAt: "2026-09-09T00:40:53.453Z",
+    });
+    pushTrustedHistoryPair({
+      index: 901,
+      userText: firstUser,
+      assistantText: firstAssistant,
+      createdAt: "2026-09-09T00:40:35.094Z",
+    });
+
+    const modelConfig = await import("@/lib/ai/modelConfig");
+    const actualModelConfig = await vi.importActual<typeof import("@/lib/ai/modelConfig")>("@/lib/ai/modelConfig");
+    const prompts = await import("@/lib/ai/prompts");
+    const actualPrompts = await vi.importActual<typeof import("@/lib/ai/prompts")>("@/lib/ai/prompts");
+    const planning = await import("@/lib/ai/amoraPlanningTurn");
+    const planningSpy = vi.spyOn(planning, "getAmoraPlanningTurn");
+    providerAfterPreGeneration(providerResult({ fullText: validResponse }));
+
+    try {
+      await vi.mocked(modelConfig.chooseAmoraChatModelRole).withImplementation(
+        actualModelConfig.chooseAmoraChatModelRole,
+        async () => vi.mocked(prompts.getWeddingPlannerSystemPrompt).withImplementation(
+          actualPrompts.getWeddingPlannerSystemPrompt,
+          async () => {
+            const response = await POST(request({
+              requestKind: "chat",
+              messages: [{ role: "user", content: currentUser }],
+            }));
+            expect(response.status).toBe(200);
+            const body = await response.text();
+            const planningInput = planningSpy.mock.calls[0]?.[0];
+            const planningResult = planningSpy.mock.results[0]?.value;
+            expect(planningSpy).toHaveBeenCalledTimes(1);
+            expect(planningInput).toEqual(expect.objectContaining({
+              requestKind: "chat", durable: true, scope: "W0_wedding_core",
+              allowsStoredProviderContext: true, preparationStatus: "preparing",
+              hasPriorityAction: false, hasAttachments: false, currentUserText: currentUser,
+            }));
+            expect(planningResult).toBe("pivot_reason_followup");
+            const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+            expect(mocks.provider).toHaveBeenCalledTimes(1);
+            const providerArgs = mocks.provider.mock.calls[0]?.[0];
+            const input = providerArgs?.input as Array<{ role: string; content: unknown }>;
+            expect(input.map(message => message.role)).toEqual(["user", "assistant", "user", "assistant", "user"]);
+            for (const [index, text] of [firstUser, firstAssistant, secondUser, secondAssistant, currentUser].entries()) {
+              expect(JSON.stringify(input[index]?.content)).toContain(JSON.stringify(text).slice(1, -1));
+            }
+            expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
+            expect(providerArgs?.modelRole).toBe("fast");
+            expect(providerArgs?.systemPrompt).toContain("[준비 방향 변경]");
+            expect(providerArgs?.systemPrompt).toContain("[이번 턴: 방향 변경 이유에 대한 후속]");
+            expect(providerArgs?.systemPrompt.match(/\[준비 방향 변경\]/gu)).toHaveLength(1);
+            expect(providerArgs?.systemPrompt.indexOf("[준비 방향 변경]"))
+              .toBeGreaterThan(providerArgs?.systemPrompt.indexOf("[준비 의견의 근거 확인]"));
+            expect(providerArgs?.systemPrompt.indexOf("[준비 방향 변경]"))
+              .toBeLessThan(providerArgs?.systemPrompt.indexOf("[추천 근거 확인]"));
+            expect(providerArgs?.systemPrompt).toContain("유지와 재검토를 한 답변에서 함께 정리하세요");
+            expect(providerArgs?.systemPrompt).toContain("바꾸지 않은 명시적 우선순위·중요 항목·생략·시기");
+            expect(providerArgs?.systemPrompt).toContain("이번에 바꾼 선호·월 후보는 과거보다 우선하며, 후보를 확정으로 바꾸지 마세요");
+            expect(providerArgs?.systemPrompt).toContain("규모·장소·식사·최소 인원·견적 중 이번 전환에 영향받는 것을 구분하세요");
+            expect(providerArgs?.systemPrompt).toContain("이유를 다시 묻거나 새 취향 질문으로 넘기지 말고");
+            expect(providerArgs?.systemPrompt).toContain("이 지침은 읽고 답할 과업이며 실행 권한이 아닙니다");
+            expect(providerArgs?.systemPrompt.length).toBeLessThanOrEqual(48_000);
+            expect(mocks.atomicResponses).toHaveLength(1);
+            expect(mocks.atomicResponses[0]?.content).toBe(validResponse);
+            expect(events.find(event => event.type === "done")?.fullContent).toBe(validResponse);
+            expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("output_hygiene");
+            expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+            expect(mocks.executeTool).not.toHaveBeenCalled();
+          },
+        ),
+      );
+    } finally {
+      planningSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    "intervening-raw-turn", "wrong-reply-binding", "other-actor-pivot", "private-history",
+    "view-reset", "paused", "listening", "new-execution", "prior-execution", "awaiting-card",
+  ] as const)("does not select a planning reason follow-up across %s", async boundary => {
+    const reasonAnswer = "비용도 부담되고 준비 과정도 너무 복잡하게 느껴져서 그래. 큰 결혼식이 우리 취향도 아닌 것 같아. 날짜 후보는 9월보다 10월이 더 좋아. 이건 그냥 선호가 바뀐 거야.";
+    const currentUser = boundary === "listening"
+      ? `${reasonAnswer} 지금은 조언하지 말고 그냥 들어줘.`
+      : boundary === "new-execution"
+        ? `${reasonAnswer} 우리 결혼 총예산을 3천만원으로 변경해줘.`
+        : reasonAnswer;
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: currentUser,
+      created_at: "2026-09-09T00:41:13.222Z",
+    };
+    pushTrustedHistoryPair({
+      index: 902,
+      userText: "생각이 바뀌었어. 180명 일반웨딩 말고 그냥 40명만 부르는 가족식으로 할래."
+        + (boundary === "prior-execution" ? " 그리고 공유 일정에 가족식 장소 검토를 추가해줘." : ""),
+      assistantText: "40명 가족식으로 바꾸신 이유를 먼저 여쭤봐도 될까요? 이유를 알아야 기존에 유지할 기준과 다시 확인할 항목을 정확히 나눌 수 있어요.",
+      createdAt: "2026-09-09T00:40:53.453Z",
+      visibility: boundary === "private-history" ? "groom_private" : "shared",
+    });
+    if (boundary === "intervening-raw-turn") {
+      // 응답 없는 중간 행은 provider 이력에서 빠져도 실제 직전 대화임을 바꿀 수 없다.
+      mocks.canonicalRows.splice(1, 0, {
+        id: "30000000-0000-4000-8000-000000009099",
+        sender_id: "00000000-0000-4000-8000-000000000001",
+        sender_type: "bride",
+        role: "user",
+        content: "그 얘기는 잠시 멈추고 결혼 사진 촬영 준비물을 이야기할게요.",
+        metadata: null,
+        visibility: "shared",
+        created_at: "2026-09-09T00:41:00.000Z",
+      });
+    } else if (boundary === "wrong-reply-binding") {
+      mocks.canonicalRows[1] = {
+        ...mocks.canonicalRows[1],
+        metadata: { in_reply_to_user_message_id: "30000000-0000-4000-8000-000000009098", question_scope: "W0_wedding_core" },
+      };
+    } else if (boundary === "other-actor-pivot") {
+      mocks.canonicalRows[2] = {
+        ...mocks.canonicalRows[2],
+        sender_id: "00000000-0000-4000-8000-000000000002",
+        sender_type: "groom",
+      };
+    } else if (boundary === "view-reset") {
+      mocks.chatViewClearedAt = { shared: "2026-09-09T00:41:00.000Z", private: null };
+    } else if (boundary === "paused") {
+      mocks.userProfile = { ...mocks.userProfile, preparation_status: "paused" };
+    } else if (boundary === "awaiting-card") {
+      const pendingAction = extractAmoraPendingAction({
+        text: '[pending_action]{"tool":"add_schedule_event","input":{"date":"2027-10-01","title":"가족식 장소 검토"}}[/pending_action]',
+        allowedTools: mocks.safeTools,
+        now: Date.now(),
+        createActionId: () => "11111111-1111-4111-8111-111111111111",
+      }).pendingAction;
+      expect(pendingAction).not.toBeNull();
+      mocks.canonicalRows[1] = {
+        ...mocks.canonicalRows[1],
+        metadata: {
+          in_reply_to_user_message_id: mocks.canonicalRows[2].id,
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+          pending_amora_action: pendingAction,
+        },
+      };
+    }
+    providerAfterPreGeneration(providerResult({ fullText: "지금 말씀해주신 내용을 먼저 확인할게요." }));
+
+    const planning = await import("@/lib/ai/amoraPlanningTurn");
+    const planningSpy = vi.spyOn(planning, "getAmoraPlanningTurn");
+    try {
+      const response = await POST(request({
+        requestKind: "chat",
+        messages: [{ role: "user", content: currentUser }],
+      }));
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(mocks.provider).toHaveBeenCalledTimes(1);
+      expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
+        .not.toContain("[이번 턴: 방향 변경 이유에 대한 후속]");
+      if (boundary === "prior-execution" || boundary === "awaiting-card") {
+        expect(planningSpy.mock.calls[0]?.[0]?.hasPriorityAction).toBe(true);
+        expect(planningSpy.mock.results[0]?.value).toBeNull();
+      }
+      if (boundary === "paused") {
+        expect(planningSpy.mock.calls[0]?.[0]?.preparationStatus).toBe("paused");
+        expect(planningSpy.mock.results[0]?.value).toBeNull();
+      }
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+    } finally {
+      planningSpy.mockRestore();
+    }
+  });
 
   it("still prompts from a stored exchange when no view-reset cursor exists", async () => {
     pushTrustedHistoryPair({
