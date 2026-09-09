@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
-import { log } from "@/utils/log";
+import {
+  createRetentionRunLog,
+  type RetentionRunStep,
+} from "@/lib/compliance/retentionRunLog";
 
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -18,15 +21,22 @@ export async function GET(request: Request) {
     );
   }
 
-  if (process.env.AI_LOG_RETENTION_CRON_ENABLED !== "true") {
+  const enabled = process.env.AI_LOG_RETENTION_CRON_ENABLED === "true";
+  const recordRun = createRetentionRunLog(enabled);
+  if (!enabled) {
+    recordRun({ status: "disabled" });
     return NextResponse.json(
       { ok: true, enabled: false, status: "disabled" },
       { headers: NO_STORE_HEADERS },
     );
   }
 
+  recordRun({ status: "started" });
+  let step: RetentionRunStep = "client";
+  let redacted: number | null = null;
   try {
     const admin = createAdminClient();
+    step = "ai_interactions";
     const { data, error } = await admin.rpc("redact_old_ai_interactions", {
       p_retention: "90 days",
     });
@@ -36,11 +46,13 @@ export async function GET(request: Request) {
       || !Number.isSafeInteger(data)
       || data < 0
     ) {
+      recordRun({ status: "failed", failedStep: step });
       return NextResponse.json(
         { error: "AI log retention failed" },
         { status: 500, headers: NO_STORE_HEADERS },
       );
     }
+    redacted = data;
 
     // 관리자 접속기록도 같은 작업에서 지운다.
     //
@@ -50,6 +62,7 @@ export async function GET(request: Request) {
     //
     // **이 값은 처방침에 적힌 기간과 같아야 한다.** 어긋나면
     // `retentionNoticeMatchesCode.test.ts` 가 빨개진다.
+    step = "admin_access";
     const { data: purgedAdminAccess, error: adminPurgeError } = await admin.rpc(
       "purge_admin_access_log",
       { p_retention: "365 days" },
@@ -61,12 +74,14 @@ export async function GET(request: Request) {
       || purgedAdminAccess < 0
     ) {
       // 앞의 파기는 이미 끝났다. 그 사실을 잃지 않도록 부분 성공으로 알린다.
+      recordRun({ status: "partial", failedStep: step, redacted });
       return NextResponse.json(
         { error: "Admin access log retention failed", redacted: data },
         { status: 500, headers: NO_STORE_HEADERS },
       );
     }
 
+    recordRun({ status: "completed", redacted, purgedAdminAccess });
     return NextResponse.json(
       {
         ok: true,
@@ -77,10 +92,16 @@ export async function GET(request: Request) {
       },
       { headers: NO_STORE_HEADERS },
     );
-  } catch (err) {
-    log.error("api/cron/ai-log-retention", err);
+  } catch {
+    recordRun({
+      status: redacted === null ? "failed" : "partial",
+      failedStep: step,
+      redacted: redacted ?? undefined,
+    });
     return NextResponse.json(
-      { error: "AI log retention failed" },
+      redacted === null
+        ? { error: "AI log retention failed" }
+        : { error: "Admin access log retention failed", redacted },
       { status: 500, headers: NO_STORE_HEADERS },
     );
   }

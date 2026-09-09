@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ArrowLeft,
   BrainCircuit,
@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { useAuthStore } from "@/stores/authStore";
 
 type Visibility = "shared" | "bride_private" | "groom_private";
 
@@ -146,7 +147,25 @@ function formatDate(value: string | null): string {
   return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric" }).format(date);
 }
 
+function memorySettingsOwnerKey(state: ReturnType<typeof useAuthStore.getState>): string | null {
+  if (state.isDemo || !state.user) return null;
+  const profileCoupleId = state.profile?.couple_id ?? "";
+  const coupleId = state.couple?.id ?? "";
+  // 준비 공간을 갱신하는 중 두 정본이 다르면 이전 공간의 확인을 사용할 수 없다.
+  if (profileCoupleId && coupleId && profileCoupleId !== coupleId) return null;
+  return [
+    state.user.id, profileCoupleId, coupleId, state.profile?.role ?? "",
+    state.couple?.bride_id ?? "", state.couple?.groom_id ?? "",
+  ].join(":");
+}
+
 export default function AmoraMemorySettingsPage() {
+  const ownerKey = useAuthStore(memorySettingsOwnerKey);
+  // 계정·준비 공간이 바뀌면 이전 기억과 동의 확인을 같은 화면에 남기지 않는다.
+  return <MemorySettingsContent key={ownerKey ?? "unavailable"} ownerKey={ownerKey} />;
+}
+
+function MemorySettingsContent({ ownerKey }: { ownerKey: string | null }) {
   const [data, setData] = useState<MemoryResponse | null>(null);
   const [activeVisibility, setActiveVisibility] = useState<Visibility>("shared");
   const [loading, setLoading] = useState(true);
@@ -158,25 +177,43 @@ export default function AmoraMemorySettingsPage() {
   const [editValue, setEditValue] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmEnable, setConfirmEnable] = useState(false);
+  const mounted = useRef(false);
+  const loadSequence = useRef(0);
+  const isCurrentOwner = useCallback(() => mounted.current && ownerKey !== null
+    && memorySettingsOwnerKey(useAuthStore.getState()) === ownerKey, [ownerKey]);
 
   const load = useCallback(async () => {
+    if (!ownerKey) {
+      setLoading(false);
+      setError("로그인과 준비 공간 정보를 확인한 뒤 다시 열어주세요.");
+      return;
+    }
+    if (!isCurrentOwner()) return;
+    const sequence = ++loadSequence.current;
     setLoading(true);
     setError(null);
     try {
       const response = await fetch("/api/amora/memory", { cache: "no-store" });
       const payload = await response.json() as MemoryResponse & { error?: string };
+      if (!isCurrentOwner() || sequence !== loadSequence.current) return;
       if (!response.ok) throw new Error(payload.error ?? "기억을 불러오지 못했어요.");
       setData(payload);
       const available = payload.settings.map((setting) => setting.visibility);
       setActiveVisibility((current) => available.includes(current) ? current : available[0] ?? "shared");
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "기억을 불러오지 못했어요.");
+      if (isCurrentOwner() && sequence === loadSequence.current) {
+        setError(loadError instanceof Error ? loadError.message : "기억을 불러오지 못했어요.");
+      }
     } finally {
-      setLoading(false);
+      if (isCurrentOwner() && sequence === loadSequence.current) setLoading(false);
     }
-  }, []);
+  }, [isCurrentOwner, ownerKey]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    mounted.current = true;
+    void load();
+    return () => { mounted.current = false; loadSequence.current += 1; };
+  }, [load]);
 
   const setting = data?.settings.find((item) => item.visibility === activeVisibility);
   const memories = useMemo(
@@ -196,13 +233,16 @@ export default function AmoraMemorySettingsPage() {
     : [];
 
   async function patch(body: Record<string, unknown>) {
+    if (!isCurrentOwner()) return false;
     const response = await fetch("/api/amora/memory", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     const payload = await response.json() as { error?: string };
+    if (!isCurrentOwner()) return false;
     if (!response.ok) throw new Error(payload.error ?? "설정을 바꾸지 못했어요.");
+    return true;
   }
 
   async function toggleMemory() {
@@ -225,13 +265,13 @@ export default function AmoraMemorySettingsPage() {
     setBusy(true);
     setError(null);
     try {
-      await patch({ action: "toggle", visibility: activeVisibility, enabled: !setting.consentedByMe });
+      if (!await patch({ action: "toggle", visibility: activeVisibility, enabled: !setting.consentedByMe })) return;
       setConfirmEnable(false);
       await load();
     } catch (toggleError) {
-      setError(toggleError instanceof Error ? toggleError.message : "설정을 바꾸지 못했어요.");
+      if (isCurrentOwner()) setError(toggleError instanceof Error ? toggleError.message : "설정을 바꾸지 못했어요.");
     } finally {
-      setBusy(false);
+      if (isCurrentOwner()) setBusy(false);
     }
   }
 
@@ -247,19 +287,19 @@ export default function AmoraMemorySettingsPage() {
     setBusy(true);
     setError(null);
     try {
-      await patch({
+      if (!await patch({
         action: "update_memory",
         visibility: activeVisibility,
         memoryId: memory.id,
         title: editTitle,
         value: editValue,
-      });
+      })) return;
       setEditingId(null);
       await load();
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "기억을 고치지 못했어요.");
+      if (isCurrentOwner()) setError(saveError instanceof Error ? saveError.message : "기억을 고치지 못했어요.");
     } finally {
-      setBusy(false);
+      if (isCurrentOwner()) setBusy(false);
     }
   }
 
@@ -268,13 +308,13 @@ export default function AmoraMemorySettingsPage() {
     setBusy(true);
     setError(null);
     try {
-      await patch({ action: "delete_memory", visibility: activeVisibility, memoryId: memory.id });
+      if (!await patch({ action: "delete_memory", visibility: activeVisibility, memoryId: memory.id })) return;
       setDeletingId(null);
       await load();
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "기억을 지우지 못했어요.");
+      if (isCurrentOwner()) setError(deleteError instanceof Error ? deleteError.message : "기억을 지우지 못했어요.");
     } finally {
-      setBusy(false);
+      if (isCurrentOwner()) setBusy(false);
     }
   }
 
@@ -283,13 +323,13 @@ export default function AmoraMemorySettingsPage() {
     setBusy(true);
     setError(null);
     try {
-      await patch({ action: "clear_scope", visibility: activeVisibility });
+      if (!await patch({ action: "clear_scope", visibility: activeVisibility })) return;
       setConfirmClear(false);
       await load();
     } catch (clearError) {
-      setError(clearError instanceof Error ? clearError.message : "기억을 모두 지우지 못했어요.");
+      if (isCurrentOwner()) setError(clearError instanceof Error ? clearError.message : "기억을 모두 지우지 못했어요.");
     } finally {
-      setBusy(false);
+      if (isCurrentOwner()) setBusy(false);
     }
   }
 
@@ -337,10 +377,12 @@ export default function AmoraMemorySettingsPage() {
                 key={item.visibility}
                 type="button"
                 role="tab"
+                disabled={busy || loading}
                 aria-selected={activeVisibility === item.visibility}
                 onClick={() => {
                   setActiveVisibility(item.visibility);
                   setConfirmClear(false);
+                  setConfirmEnable(false);
                   setDeletingId(null);
                   setEditingId(null);
                 }}
