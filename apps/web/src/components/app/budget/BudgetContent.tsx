@@ -48,6 +48,7 @@ import PaymentLedger from "./PaymentLedger";
 import BudgetShareChart from "./BudgetShareChart";
 import { foldPayerSides } from "./shareMath";
 import BudgetSideSplit from "./BudgetSideSplit";
+import { isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
@@ -756,6 +757,26 @@ function ScopedBudgetContent({
     [journey?.progress]
   );
   const hiddenKeys = new Set(((progress as Record<string, unknown>).__hidden as string[]) ?? []);
+  const [openedCategories, setOpenedCategories] = useState<Set<string>>(() => new Set());
+  const categorySection = useRef<HTMLDivElement>(null);
+  const categoryToFocus = useRef<string | null>(null);
+  const shownFixedKeys = BUDGET_CATEGORIES.filter(({ key }) =>
+    !hiddenKeys.has(key)
+    && (openedCategories.has(key) || !isUnusedBudgetCategory(key, progress[key])),
+  ).map(({ key }) => key);
+  const unusedCategories = BUDGET_CATEGORIES.filter(({ key }) =>
+    !hiddenKeys.has(key) && !shownFixedKeys.includes(key),
+  );
+  const shownPhotoAttireMakeupKeys = PHOTO_ATTIRE_MAKEUP_KEYS.filter((key) => shownFixedKeys.includes(key));
+
+  useEffect(() => {
+    const category = BUDGET_CATEGORIES.find(({ key }) => key === categoryToFocus.current);
+    if (!category) return;
+    const editButton = Array.from(categorySection.current?.querySelectorAll<HTMLButtonElement>("button[title]") ?? [])
+      .find((button) => button.title === `${category.label} 예산 수정`);
+    editButton?.focus();
+    categoryToFocus.current = null;
+  }, [openedCategories]);
 
   // 커스텀 카테고리 추가 폼
   const [showAddModal, setShowAddModal] = useState(false);
@@ -1413,7 +1434,9 @@ function ScopedBudgetContent({
           <ArrowRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-strong)] sm:hidden" />
         </Link>
 
-        {/* 사진 촬영·의상·메이크업 묶음 */}
+        <div ref={categorySection} className="space-y-6">
+        {/* 소계는 기본 세 항목만 포함하며, 별도로 만든 항목과 합치지 않는다. */}
+        {shownPhotoAttireMakeupKeys.length > 0 && (
         <div className="relative z-10 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
           <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
             <div className="flex items-center gap-3 sm:gap-4 min-w-0">
@@ -1429,9 +1452,14 @@ function ScopedBudgetContent({
                 </div>
               </div>
               <div className="min-w-0">
-                <p className="text-xs text-[var(--hb-accent-hover)] mb-1 font-medium">묶음 예산</p>
-                <h3 className="h-section">사진 촬영·드레스·헤어·메이크업 묶음</h3>
-                <p className="text-sm text-[var(--hb-text-body)] mt-0.5">웨딩 사진 촬영 · 드레스 · 헤어·메이크업</p>
+                <p className="text-xs text-[var(--hb-accent-hover)] mb-1 font-medium">기본 항목 소계</p>
+                <h3 className="h-section">사진·드레스·메이크업</h3>
+                <p className="text-sm text-[var(--hb-text-body)] mt-1">
+                  포함 항목: {shownPhotoAttireMakeupKeys.map((key) => BUDGET_CATEGORIES.find((cat) => cat.key === key)!.label).join(" · ")}
+                </p>
+                {customCategories.length > 0 && (
+                  <p className="text-xs text-[var(--hb-text-muted)] mt-1">별도로 만든 항목은 이 소계에 포함되지 않아요.</p>
+                )}
               </div>
             </div>
             <div className="text-right">
@@ -1453,7 +1481,7 @@ function ScopedBudgetContent({
             </div>
           </div>
           <div className="divide-y divide-[#f6f3f2]">
-            {PHOTO_ATTIRE_MAKEUP_KEYS.filter((key) => !hiddenKeys.has(key)).map((key) => {
+            {shownPhotoAttireMakeupKeys.map((key) => {
               const cat = BUDGET_CATEGORIES.find((category) => category.key === key)!;
               return (
                 <BudgetRow
@@ -1476,12 +1504,13 @@ function ScopedBudgetContent({
             })}
           </div>
         </div>
+        )}
 
         {/* 기타 카테고리 헤더 */}
         <div className="flex items-center justify-between gap-3 mb-4 animate-fade-in flex-wrap">
           <div className="min-w-0">
-            <p className="text-xs tracking-widest uppercase text-[var(--hb-accent-hover)] mb-1 font-medium">OTHER CATEGORIES</p>
-            <h3 className="h-section">기타 카테고리</h3>
+            <h3 className="h-section">{shownPhotoAttireMakeupKeys.length > 0 ? "나머지 예산 항목" : "예산 항목"}</h3>
+            <p className="text-sm text-[var(--hb-text-body)] mt-1">입력한 금액이나 준비 기록이 있는 항목부터 보여드려요.</p>
           </div>
           <div className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)]">
             <Pencil className="w-4 h-4 text-[rgba(54,83,78,0.55)]" />
@@ -1491,7 +1520,7 @@ function ScopedBudgetContent({
 
         {/* 기타 카테고리 - 2열 그리드 카드 */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
-          {OTHER_KEYS.filter((k) => !hiddenKeys.has(k)).map((key) => {
+          {OTHER_KEYS.filter((key) => shownFixedKeys.includes(key)).map((key) => {
             const cat = BUDGET_CATEGORIES.find((category) => category.key === key)!;
             return (
               <BudgetCard
@@ -1543,6 +1572,35 @@ function ScopedBudgetContent({
             </div>
             <span className="text-base text-[var(--hb-text-muted)] group-hover:text-[var(--hb-accent-hover)] font-serif-kr">새 항목 추가</span>
           </button>
+        </div>
+
+        {unusedCategories.length > 0 && (
+          <details className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/70">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-accent)]">
+              아직 입력하지 않은 기본 항목 {unusedCategories.length}개 보기
+            </summary>
+            <div className="px-5 pb-5">
+              <p className="mb-3 text-sm text-[var(--hb-text-body)]">필요한 항목을 선택하면 위에서 예산을 입력할 수 있어요.</p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {unusedCategories.map((cat) => (
+                  <button
+                    key={cat.key}
+                    type="button"
+                    onClick={() => {
+                      categoryToFocus.current = cat.key;
+                      setOpenedCategories((current) => new Set([...current, cat.key]));
+                    }}
+                    className="flex min-h-11 items-center justify-between gap-3 rounded-[6px] border border-[var(--hb-hairline)] px-3 py-2 text-left text-sm text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-accent)]"
+                    aria-label={`${cat.label} 예산 입력하기`}
+                  >
+                    <span>{cat.label}</span>
+                    <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </details>
+        )}
         </div>
 
         {/* 하단: Hidden Costs + AI Spotlight */}
