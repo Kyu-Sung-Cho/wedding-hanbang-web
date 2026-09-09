@@ -1,9 +1,12 @@
-import { act } from "react";
+import { act, StrictMode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
 import type { ChatMessage } from "@/types/database.types";
+import { buildWeddingTasteAmoraText, createEmptyWeddingTasteDraft } from "@/lib/weddingCode/taste";
+import { prepareWeddingTasteChat, WEDDING_TASTE_CHAT_KEY, WEDDING_TASTE_HANDOFF_TTL_MS } from "@/lib/weddingCode/tasteHandoff";
+import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import {
   DEMO_AMORA_PREFILL_STORAGE_KEY,
   rememberDemoAmoraPrefill,
@@ -42,6 +45,7 @@ const mocks = vi.hoisted(() => ({
   },
   artifactVisibility: "shared" as "shared" | "bride_private" | "groom_private" | null,
   isStreaming: false,
+  isSending: false,
   streamingContent: "",
   quotaRemaining: null as number | null,
   profileRole: "bride" as "bride" | "groom" | null,
@@ -55,6 +59,7 @@ const mocks = vi.hoisted(() => ({
   },
   queryPrefill: null as string | null,
   queryScope: null as string | null,
+  tasteNonces: [] as string[],
   preparationSources: [] as string[],
   resolvePreparation: vi.fn(),
   startHereHandoffId: null as string | null,
@@ -78,6 +83,7 @@ vi.mock("next/navigation", () => ({
     const params = new URLSearchParams();
     if (mocks.queryPrefill) params.set("prefill", mocks.queryPrefill);
     if (mocks.queryScope) params.set("scope", mocks.queryScope);
+    mocks.tasteNonces.forEach(nonce => params.append("wcTasteChat", nonce));
     mocks.preparationSources.forEach(source => params.append("amoraSource", source));
     if (mocks.startHereHandoffId) {
       params.set("startHereHandoff", mocks.startHereHandoffId);
@@ -104,7 +110,11 @@ vi.mock("@/stores/authStore", () => ({
     isDemo: mocks.isDemo,
     isInitialized: true,
     isLoading: false,
-  }), { getState: () => ({ user: { id: mocks.profileId }, profile: { id: mocks.profileId, couple_id: mocks.coupleId } }) }),
+  }), { getState: () => ({
+    user: { id: mocks.profileId }, profile: { id: mocks.profileId, couple_id: mocks.coupleId, role: mocks.profileRole },
+    couple: { id: mocks.coupleId, bride_id: mocks.profileRole === "bride" ? mocks.profileId : "user-2", groom_id: mocks.profileRole === "groom" ? mocks.profileId : "user-2" },
+    isDemo: mocks.isDemo, isInitialized: true, isLoading: false,
+  }) }),
 }));
 
 vi.mock("@/hooks/useAmoraPersonalization", () => ({
@@ -125,7 +135,7 @@ vi.mock("@/stores/chatStore", () => {
     get isStreaming() {
       return mocks.isStreaming;
     },
-    isSending: false,
+    get isSending() { return mocks.isSending; },
     get streamingContent() {
       return mocks.streamingContent;
     },
@@ -235,6 +245,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.failedRequest = null;
     mocks.artifactVisibility = "shared";
     mocks.isStreaming = false;
+    mocks.isSending = false;
     mocks.streamingContent = "";
     mocks.quotaRemaining = null;
     mocks.profileRole = "bride";
@@ -244,6 +255,7 @@ describe("ChatContent composer draft lanes", () => {
     mocks.partnerTyping = null;
     mocks.queryPrefill = null;
     mocks.queryScope = null;
+    mocks.tasteNonces = [];
     mocks.preparationSources = [];
     mocks.resolvePreparation.mockReset().mockResolvedValue({
       text: "결혼식장 · 견적 확인 준비를 도와주세요.",
@@ -273,6 +285,195 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => root.unmount());
     vi.restoreAllMocks();
     document.body.replaceChildren();
+  });
+
+  const tasteDraft = () => ({ ...createEmptyWeddingTasteDraft(), mood: { status: "answered" as const, values: ["natural" as const] } });
+  const queueTaste = () => {
+    const href = prepareWeddingTasteChat(tasteDraft())!.href;
+    const params = new URL(href, "https://hanbang.ai").searchParams;
+    mocks.queryScope = "private"; mocks.tasteNonces = params.getAll("wcTasteChat");
+  };
+  const buttonWith = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes(label))!;
+  const typeComposer = (value: string) => {
+    const textarea = container.querySelector("textarea");
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, value);
+    textarea!.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  it("places confirmed wedding taste only in private_ai, with no initial greeting, proactive write or automatic send under StrictMode", async () => {
+    await act(async () => root.unmount());
+    queueTaste(); vi.clearAllMocks(); root = createRoot(container);
+    await act(async () => { root.render(<StrictMode><ChatContent /></StrictMode>); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.requestInitialGreeting).not.toHaveBeenCalled();
+    expect(requestProactiveCare).not.toHaveBeenCalled();
+    const shared = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(b => b.textContent?.includes("함께 대화"))!;
+    await act(async () => shared.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+  });
+  it("rejects mixed personal taste and public prefill without copying either into a composer", async () => {
+    queueTaste(); mocks.queryPrefill = "함께 보는 질문";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    const shared = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(b => b.textContent?.includes("함께 대화"))!;
+    await act(async () => shared.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it.each(["source", "prefill"])("accepts a later explicit %s on the same mounted page without moving private taste into shared", async kind => {
+    await act(async () => root.unmount());
+    queueTaste(); vi.clearAllMocks(); root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    const tasteText = buildWeddingTasteAmoraText(tasteDraft());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(tasteText);
+    // Next의 query 교체는 같은 ChatContent를 유지한다. 먼저 소비된 nonce 주소를 정리한다.
+    mocks.tasteNonces = []; mocks.queryScope = null;
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    const nextText = "새 준비 항목을 함께 확인해 주세요.";
+    if (kind === "source") {
+      mocks.resolvePreparation.mockResolvedValue({ text: nextText, sourceLabel: "새 항목", sourceHref: "/checklist" });
+      mocks.preparationSources = ["c.venue"];
+    } else mocks.queryPrefill = nextText;
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(nextText);
+    if (kind === "source") expect(mocks.resolvePreparation).toHaveBeenCalledExactlyOnceWith("c.venue");
+    await act(async () => buttonWith("나만 (상담)").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(tasteText);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.requestInitialGreeting).not.toHaveBeenCalled();
+    expect(requestProactiveCare).not.toHaveBeenCalled();
+  });
+  it.each(["source", "prefill"])("keeps the original mixed %s suppressed after nonce-only removal but accepts a later clean visit", async kind => {
+    queueTaste();
+    if (kind === "source") mocks.preparationSources = ["c.venue"];
+    else mocks.queryPrefill = "나중에 직접 연 질문";
+    await act(async () => root.render(<ChatContent />));
+    mocks.tasteNonces = [];
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => buttonWith("함께 대화").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(mocks.resolvePreparation).not.toHaveBeenCalled();
+    // 모든 인계 파라미터가 정리된 뒤 같은 출처를 새로 열면 별도 명시적 방문이다.
+    mocks.preparationSources = []; mocks.queryPrefill = null; mocks.queryScope = null;
+    await act(async () => root.render(<ChatContent />));
+    if (kind === "source") mocks.preparationSources = ["c.venue"];
+    else mocks.queryPrefill = "나중에 직접 연 질문";
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(
+      kind === "source" ? "결혼식장 · 견적 확인 준비를 도와주세요." : "나중에 직접 연 질문",
+    );
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it.each(["source", "signup", "duplicate", "wrong-scope"])("rejects a wedding taste handoff mixed with %s", async kind => {
+    queueTaste();
+    if (kind === "source") mocks.preparationSources = ["checklist:venue"];
+    if (kind === "signup") mocks.startHereHandoffId = HANDOFF_ID;
+    if (kind === "duplicate") mocks.tasteNonces.push(mocks.tasteNonces[0]);
+    if (kind === "wrong-scope") mocks.queryScope = "shared";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    expect(mocks.resolvePreparation).not.toHaveBeenCalled();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("preserves an existing private draft and applies pending taste only after explicit retry, then sends only privately", async () => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("기존 개인 초안"));
+    queueTaste(); await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("기존 개인 초안");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).not.toBeNull();
+    expect(buttonWith("이어 온 내 취향 불러오기").disabled).toBe(true);
+    await act(async () => typeComposer(""));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    await act(async () => { buttonWith("이어 온 내 취향 불러오기").click(); buttonWith("이어 온 내 취향 불러오기").click(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="나만의 아모라 상담 메시지 보내기"]')!.click());
+    expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ target: "ai", visibility: "bride_private", content: buildWeddingTasteAmoraText(tasteDraft()) }));
+    expect(mocks.sendMessage.mock.calls[0][0]).not.toHaveProperty("preparationSource");
+  });
+  it("does not overwrite typing queued in the same tick as a pending taste retry", async () => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("먼저 쓴 글"));
+    queueTaste(); await act(async () => root.render(<ChatContent />));
+    await act(async () => typeComposer(""));
+    const retry = buttonWith("이어 온 내 취향 불러오기");
+    await act(async () => { typeComposer("새로 쓰는 글"); retry.click(); });
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("새로 쓰는 글");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).not.toBeNull();
+  });
+  it.each(["image/png", "application/pdf"])("keeps pending %s reads and attachments, and only applies after their removal", async mediaType => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    const readers: FileReader[] = [];
+    vi.spyOn(FileReader.prototype, "readAsDataURL").mockImplementation(function (this: FileReader) { readers.push(this); });
+    const fileInput = container.querySelector<HTMLInputElement>('input[type="file"]')!;
+    Object.defineProperty(fileInput, "files", { configurable: true, value: [new File(["content"], mediaType === "image/png" ? "photo.png" : "contract.pdf", { type: mediaType })] });
+    await act(async () => fileInput.dispatchEvent(new Event("change", { bubbles: true })));
+    queueTaste(); await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).not.toBeNull();
+    expect(buttonWith("이어 온 내 취향 불러오기").disabled).toBe(true);
+    await act(async () => {
+      Object.defineProperty(readers[0], "result", { configurable: true, value: `data:${mediaType};base64,Y29udGVudA==` });
+      readers[0].onload?.(new ProgressEvent("load") as ProgressEvent<FileReader>);
+    });
+    expect(buttonWith("이어 온 내 취향 불러오기").disabled).toBe(true);
+    const remove = container.querySelector<HTMLButtonElement>('button[aria-label*="첨부 삭제"], button[aria-label*="제거"]');
+    expect(remove).not.toBeNull();
+    await act(async () => remove!.click());
+    await act(async () => buttonWith("이어 온 내 취향 불러오기").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it.each(["streaming", "sending"])("keeps taste pending during %s and resumes when it ends", async kind => {
+    queueTaste(); if (kind === "streaming") mocks.isStreaming = true; else mocks.isSending = true;
+    await act(async () => root.render(<ChatContent />));
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).not.toBeNull();
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    mocks.isStreaming = false; mocks.isSending = false;
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it.each(["owner", "couple"])("discards a pending taste handoff on %s change and never restores it when returning", async kind => {
+    queueTaste(); mocks.isStreaming = true;
+    await act(async () => root.render(<ChatContent />));
+    if (kind === "owner") mocks.profileId = "next-user"; else mocks.coupleId = "next-couple";
+    mocks.isStreaming = false;
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    mocks.profileId = "user-1"; mocks.coupleId = "couple-1";
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+  it("retains a pending nonce through remount and never reapplies an already consumed nonce", async () => {
+    queueTaste(); mocks.isStreaming = true;
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => root.unmount()); root = createRoot(container); mocks.isStreaming = false;
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe(buildWeddingTasteAmoraText(tasteDraft()));
+    await act(async () => root.unmount()); root = createRoot(container);
+    await act(async () => root.render(<ChatContent />));
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(container.textContent).toContain("유효 시간을 확인하지 못했어요");
+  });
+  it("revalidates expiry on retry without replacing an existing draft or silently truncating text", async () => {
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("아직 보내지 않은 글"));
+    queueTaste(); await act(async () => root.render(<ChatContent />));
+    const now = Date.now(); vi.spyOn(Date, "now").mockReturnValue(now + WEDDING_TASTE_HANDOFF_TTL_MS + 1);
+    await act(async () => typeComposer(""));
+    await act(async () => buttonWith("이어 온 내 취향 불러오기").click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    expect(sessionStorage.getItem(WEDDING_TASTE_CHAT_KEY)).toBeNull();
+    expect(container.textContent).toContain("유효 시간을 확인하지 못했어요");
   });
 
   it("keeps all three valid delivery-lane drafts separate and restores each one", async () => {

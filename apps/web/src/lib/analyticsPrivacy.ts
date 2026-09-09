@@ -24,6 +24,8 @@ const COMMUNITY_ANALYTICS_QUERY_ALLOWLIST = new Set([
   "source",
   "view",
 ]);
+const PRIVATE_HANDOFF_QUERY_KEYS = new Set(["wcTasteChat", "wcTasteReview", "wcAmoraHandoff"]);
+const MAX_NESTED_LOCATION_QUERY_DEPTH = 8;
 
 type SearchParamsReader = Pick<URLSearchParams, "get">;
 
@@ -64,10 +66,10 @@ export function analyticsSafeSearchParams(
         (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
       ),
   );
-  if (!isCommunityPath) return searchParams.toString();
+  if (!isCommunityPath) return safeHandoffSearchParams(searchParams).toString();
 
   const safe = new URLSearchParams();
-  for (const [key, value] of searchParams.entries()) {
+  for (const [key, value] of safeHandoffSearchParams(searchParams).entries()) {
     if (COMMUNITY_ANALYTICS_QUERY_ALLOWLIST.has(key)) safe.append(key, value);
   }
   return safe.toString();
@@ -83,8 +85,32 @@ function looksLikeLocationValue(value: unknown): value is string {
   return value.startsWith("/") || /^https?:\/\//i.test(value);
 }
 
-/** 중첩 속성을 훑는 깊이 한도. posthog가 실제로 쓰는 `$set`/`$set_once`는 한 겹이다. */
-const MAX_LOCATION_STRIP_DEPTH = 4;
+function safeHandoffSearchParams(
+  params: Pick<URLSearchParams, "entries">,
+  depth = 0,
+): URLSearchParams {
+  const safe = new URLSearchParams();
+  for (const [key, value] of params.entries()) {
+    if (PRIVATE_HANDOFF_QUERY_KEYS.has(key)) continue;
+    safe.append(key, looksLikeLocationValue(value) ? stripLocationSecrets(value, depth + 1) : value);
+  }
+  return safe;
+}
+
+/** 로그인 redirect 안의 URL도 정리하되 실제 이동 주소는 변경하지 않는다. */
+function stripLocationSecrets(value: string, depth = 0): string {
+  const hashIndex = value.indexOf("#");
+  const withoutFragment = hashIndex < 0 ? value : value.slice(0, hashIndex);
+  const queryIndex = withoutFragment.indexOf("?");
+  if (queryIndex < 0) return withoutFragment;
+  const prefix = withoutFragment.slice(0, queryIndex);
+  // 비정상적으로 깊게 중첩된 URL은 그 지점의 경로만 분석에 남긴다.
+  if (depth >= MAX_NESTED_LOCATION_QUERY_DEPTH) return prefix;
+  const original = new URLSearchParams(withoutFragment.slice(queryIndex + 1));
+  const safe = safeHandoffSearchParams(original, depth);
+  if (safe.toString() === original.toString()) return withoutFragment;
+  return prefix + (safe.size ? `?${safe.toString()}` : "");
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -99,35 +125,39 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
  * **한 겹 안쪽**에 실어 보낸다. 겉만 훑으면 그 자리에 프래그먼트가 그대로 남는다.
  * 바뀐 것이 없으면 같은 객체를 그대로 돌려준다 — 필요 없는 복사를 만들지 않는다.
  */
-function stripLocationFragment(value: unknown, depth = 0): unknown {
-  if (looksLikeLocationValue(value)) {
-    const hashIndex = value.indexOf("#");
-    return hashIndex < 0 ? value : value.slice(0, hashIndex);
-  }
-  if (depth >= MAX_LOCATION_STRIP_DEPTH) return value;
+function stripLocationFragment(value: unknown): unknown {
+  if (looksLikeLocationValue(value)) return stripLocationSecrets(value);
+  if (!Array.isArray(value) && !isPlainObject(value)) return value;
 
-  if (Array.isArray(value)) {
-    let changed = false;
-    const next = value.map((item) => {
-      const stripped = stripLocationFragment(item, depth + 1);
-      if (stripped !== item) changed = true;
-      return stripped;
-    });
-    return changed ? next : value;
-  }
+  type Container = Record<string, unknown> | unknown[];
+  const copyOf = (source: Container): Container => Array.isArray(source) ? new Array<unknown>(source.length) : {};
+  const root = copyOf(value);
+  const copies = new Map<Container, Container>([[value, root]]);
+  const pending: [Container, Container][] = [[value, root]];
+  let changed = false;
 
-  if (isPlainObject(value)) {
-    let changed = false;
-    const next: Record<string, unknown> = {};
-    for (const [key, item] of Object.entries(value)) {
-      const stripped = stripLocationFragment(item, depth + 1);
-      if (stripped !== item) changed = true;
-      next[key] = stripped;
+  // 깊은 initial/referrer 속성과 순환 객체도 재귀 호출이나 깊이 우회 없이 훑는다.
+  while (pending.length > 0) {
+    const [source, target] = pending.pop()!;
+    for (const [key, item] of Object.entries(source)) {
+      let next = item;
+      if (looksLikeLocationValue(item)) {
+        next = stripLocationSecrets(item);
+        if (next !== item) changed = true;
+      } else if (Array.isArray(item) || isPlainObject(item)) {
+        let copy = copies.get(item);
+        if (!copy) {
+          copy = copyOf(item);
+          copies.set(item, copy);
+          pending.push([item, copy]);
+        }
+        next = copy;
+      }
+      if (Array.isArray(target)) target[Number(key)] = next;
+      else target[key] = next;
     }
-    return changed ? next : value;
   }
-
-  return value;
+  return changed ? root : value;
 }
 
 function pathnameFromLocationValue(value: unknown): string | null {

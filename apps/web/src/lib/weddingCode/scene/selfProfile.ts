@@ -14,6 +14,9 @@ import {
 } from "@/constants/weddingCodeSelfReading";
 import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 
+/** 문항·공유 코드 버전과 독립적인 응답 요약 규칙 버전. */
+export const WEDDING_CODE_SELF_PROFILE_VERSION = "wedding-code-response-summary-v2";
+
 /**
  * 개인 결과 — **내가 고른 답의 집계**.
  *
@@ -22,18 +25,17 @@ import type { WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
  * 심리검사는 응답에서 **보이지 않는 특성**을 추정한다(「당신은 신중한 사람입니다」).
  * 여기서는 추정하지 않는다. 계산하는 것은 세 가지뿐이다.
  *
- * 1. 같은 축 네 장면에서 어느 쪽 답을 몇 번 골랐나 — **셈**
+ * 1. 같은 축에서 답한 장면 중 어느 쪽 답을 몇 번 골랐나 — **셈**
  * 2. 그 답의 실제 문장 — **인용**
  * 3. 한 번도 고르지 않은 쪽이 무엇인가 — **부재**
  *
- * 셋 다 사용자가 30초 전에 직접 남긴 사실이고, 화면에서 근거(장면과 문장)와 함께
+ * 셋 다 사용자가 직접 남긴 응답에서 나오며, 화면에서 근거(장면과 문장)와 함께
  * 보여주므로 사용자가 직접 반증할 수 있다. 유형·점수·등급·궁합·관계 예측은 만들지 않는다.
  *
  * ## 왜 「부재」까지 세나
  *
- * 자기 파악에서 실제로 새로운 정보는 **자기가 안 고른 것**이다. 금액을 먼저 보는 사람은
- * 자기가 그런다는 걸 대체로 안다. 네 장면 내내 「우리가 원하는 느낌인지」를 한 번도
- * 먼저 고르지 않았다는 사실은 보여주기 전에는 모른다. 그래서 `missingPhrases`가 있다.
+ * `missingPhrases`는 이번 응답에서 한 번도 고르지 않은 확인 대상을 나타낸다.
+ * 그 사실만으로 사용자가 실제 준비에서도 해당 확인을 생략했다고 해석하지 않는다.
  */
 
 const READABLE_CONSTRUCTS = new Set<string>(Object.keys(WEDDING_CODE_CHECK_PHRASE));
@@ -51,7 +53,7 @@ export type WeddingCodeSelfAxisReading = Readonly<{
   leftCount: number;
   rightCount: number;
   answered: number;
-  /** 많이 고른 쪽 문장을 먼저. 균형이면 양쪽에서 하나씩. */
+  /** 많이 고른 쪽을 먼저 두되, 양쪽 답이 있으면 각각 하나씩 인용한다. */
   evidence: readonly WeddingCodeSelfQuote[];
   /** 한 번도 고르지 않은 쪽 문장. 비어 있으면 양쪽 다 고른 것이다. */
   missingPhrases: readonly string[];
@@ -69,7 +71,7 @@ export type WeddingCodeSelfProfile = Readonly<{
   answered: number;
   total: number;
   complete: boolean;
-  /** 열여섯 장면 전체에서 가장 자주 먼저 고른 확인. 동률이면 모두 담는다. */
+  /** 답한 장면 전체에서 가장 자주 고른 확인. 동률이면 모두 담는다. 중요도 순위가 아니다. */
   repeated: readonly WeddingCodeRepeatedCheck[];
   axes: readonly WeddingCodeSelfAxisReading[];
 }>;
@@ -180,10 +182,9 @@ export function buildWeddingCodeSelfProfile(
 
     const dominant = lean === "right" ? rightQuotes : leftQuotes;
     const other = lean === "right" ? leftQuotes : rightQuotes;
-    const evidence =
-      lean === "mixed"
-        ? [leftQuotes[0], rightQuotes[0]].filter(Boolean).slice(0, 2)
-        : [...dominant.slice(0, 2), ...other.slice(0, 1)].slice(0, 2);
+    const evidence = other.length > 0
+      ? [dominant[0], other[0]]
+      : dominant.slice(0, 2);
 
     // 「한 번도 안 고른 것」은 고르지 않은 편 전체가 아니라, 그 편에서 실제로 한 번도
     // 대표되지 않은 확인 대상이다. 축 A는 한 편에 확인 대상이 둘이라 부분적으로 빌 수 있다.
@@ -244,7 +245,7 @@ export function describeSelfAxisReading(reading: WeddingCodeSelfAxisReading): st
   const { leftCount, rightCount, answered, leftLabel, rightLabel } = reading;
   if (answered === 0) return "이 주제는 아직 답하지 않았어요.";
   if (reading.lean === "mixed") {
-    return `네 장면 중 ${leftLabel} 쪽이 ${leftCount}곳, ${rightLabel} 쪽이 ${rightCount}곳이었어요.`;
+    return `답한 ${answered}장면 중 ${leftLabel} 쪽이 ${leftCount}곳, ${rightLabel} 쪽이 ${rightCount}곳이었어요.`;
   }
   const count = Math.max(leftCount, rightCount);
   const label = leftCount > rightCount ? leftLabel : rightLabel;

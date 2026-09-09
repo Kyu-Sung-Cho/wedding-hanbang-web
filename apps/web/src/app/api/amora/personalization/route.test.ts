@@ -126,6 +126,47 @@ describe("/api/amora/personalization", () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  it.each(["PUT", "DELETE"] as const)("rejects a stale screen actor before %s reaches another cookie owner's RPC", async method => {
+    const { client, from, rpc } = makeClient({ userId: "22222222-2222-4222-8222-222222222222" });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const body = { expectedRevision: 3, expectedOwnerUserId: USER_ID, ...(method === "PUT" ? { preferences: PREFERENCES } : {}) };
+    const result = await (method === "PUT" ? PUT : DELETE)(jsonRequest(method, body));
+    expect(result.status).toBe(409);
+    expect(await result.json()).toMatchObject({ code: "PERSONALIZATION_OWNER_MISMATCH" });
+    expect(from).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("rejects a stale expected GET owner without reading the replacement session's profile", async () => {
+    const { client, from } = makeClient({ userId: "22222222-2222-4222-8222-222222222222", row: STORED_ROW });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const result = await GET(new Request("http://localhost/api/amora/personalization", { headers: { "X-Amora-Expected-Owner": USER_ID } }));
+    expect(result.status).toBe(409);
+    const payload = await result.json();
+    expect(payload.code).toBe("PERSONALIZATION_OWNER_MISMATCH");
+    expect(payload).not.toHaveProperty("profile");
+    expect(payload).not.toHaveProperty("current");
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it.each(["PUT", "DELETE"] as const)("accepts a matching optional %s owner without forwarding it as an RPC target", async method => {
+    const { client, rpc } = makeClient({ rpcResult: { data: method === "PUT" ? [STORED_ROW] : true, error: null } });
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const result = await (method === "PUT" ? PUT : DELETE)(jsonRequest(method, { expectedRevision: 2, expectedOwnerUserId: USER_ID, ...(method === "PUT" ? { preferences: PREFERENCES } : {}) }));
+    expect(result.status).toBe(200);
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("expectedOwnerUserId");
+    expect(rpc.mock.calls[0][1]).not.toHaveProperty("p_owner_user_id");
+  });
+
+  it.each([null, "", 42, {}, "x".repeat(129)])("rejects malformed optional expected owners: %j", async expectedOwnerUserId => {
+    const { client, rpc } = makeClient();
+    vi.mocked(createClientFromRequest).mockResolvedValue(client as never);
+    const result = await PUT(jsonRequest("PUT", { expectedRevision: null, preferences: PREFERENCES, expectedOwnerUserId }));
+    expect(result.status).toBe(400);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
   it("rejects unknown or partial PUT state before the RPC", async () => {
     const { client, rpc } = makeClient();
     vi.mocked(createClientFromRequest).mockResolvedValue(client as never);

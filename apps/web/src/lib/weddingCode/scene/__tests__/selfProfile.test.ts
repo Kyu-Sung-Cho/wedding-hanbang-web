@@ -37,6 +37,42 @@ function reading(profile: ReturnType<typeof buildWeddingCodeSelfProfile>, axis: 
 }
 
 describe("웨딩코드 개인 결과", () => {
+  it.each([
+    { answers: { A1: "A", A2: "B" } as const, answered: 2 },
+    { answers: { A1: "A", A2: "A", A3: "A", A4: "A" } as const, answered: 4 },
+  ])("반반인 부분 응답도 실제 답한 $answered장면만 읽는다", ({ answers, answered }) => {
+    const axis = reading(buildWeddingCodeSelfProfile(answers, V07), "decisionCriteria");
+    expect(axis.lean).toBe("mixed");
+    expect(describeSelfAxisReading(axis)).toContain(`답한 ${answered}장면`);
+  });
+
+  it.each([
+    { answers: { A1: "A", A2: "A", A3: "C", A4: "A", A5: "C" } as const, minorityScene: "A4" },
+    { answers: { A1: "C", A2: "B", A3: "A", A4: "B", A5: "A" } as const, minorityScene: "A4" },
+  ])("3 대 2 응답에서 소수 쪽 원문도 결과 근거에 남긴다", ({ answers, minorityScene }) => {
+    const axis = reading(buildWeddingCodeSelfProfile(answers, V07), "decisionCriteria");
+    const minorityQuestion = WEDDING_CODE_V08_QUESTIONS.find((question) => question.key === minorityScene)!;
+    const minorityOption = minorityQuestion.options.find((option) => option.value === answers.A4)!;
+    expect(axis.evidence).toHaveLength(2);
+    expect(axis.evidence.map((quote) => quote.label)).toContain(minorityOption.label);
+  });
+
+  it("상대에게 실행 도움을 준 답으로 내가 받을 도움을 단정하지 않는다", () => {
+    const axis = reading(buildWeddingCodeSelfProfile({
+      D1: "A", D2: "B", D3: "A", D4: "B", D5: "B",
+    }, V07), "supportOrder");
+    expect(axis.tellPartner).not.toContain("할 일을 하나 정하면 마음이 놓여");
+    expect(axis.tellPartner).toContain("?");
+    expect(axis.watchOut).toContain("확인");
+  });
+
+  it("일정이 밀린 답에서 함께 준비하면 안심된다는 마음을 만들지 않는다", () => {
+    const axis = reading(buildWeddingCodeSelfProfile({ B5: "A" }, V07), "preparationMode");
+    expect(axis.tellPartner).not.toMatch(/안심|편해|싶어/);
+    expect(axis.tellPartner).toContain("?");
+    expect(axis.title).toContain("답");
+  });
+
   it("답하지 않은 문항을 고른 것처럼 세지 않는다", () => {
     const profile = buildWeddingCodeSelfProfile({}, V07);
     expect(profile.answered).toBe(0);

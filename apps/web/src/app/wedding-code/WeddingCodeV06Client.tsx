@@ -10,6 +10,7 @@ import {
   describeGap,
   topGapsForDisplay,
   type WeddingCodeV06Answers,
+  type WeddingCodeV06GapMap,
 } from "@/lib/weddingCode/v06/gap";
 import {
   weddingCodeSceneConfigForExactVersion,
@@ -21,16 +22,13 @@ import {
   buildWeddingCodeSelfProfile,
   describeSelfAxisAbsence,
   describeSelfAxisReading,
-  withJosa,
   type WeddingCodeSelfProfile,
 } from "@/lib/weddingCode/scene/selfProfile";
 import {
-  buildWeddingCodeAmoraProposals,
   buildWeddingCodeCoupleCombination,
-  weddingCodeProposalChanges,
 } from "@/lib/weddingCode/profile/amoraBridge";
-import { useAmoraPersonalization } from "@/hooks/useAmoraPersonalization";
-import { useAuthStore } from "@/stores/authStore";
+import AmoraStyleConfirmation from "./AmoraStyleConfirmation";
+import Button from "@/components/ui/Button";
 import {
   WEDDING_CODE_FIRMNESS_LABEL,
   buildWeddingCodeLetters,
@@ -102,15 +100,31 @@ export default function WeddingCodeV06Client({
   /** 건너뛴 문항. 아직 안 본 문항과 구분해야 「다음」을 열어줄 수 있다. */
   const [skipped, setSkipped] = useState<readonly string[]>([]);
   const [copied, setCopied] = useState(false);
+  const [linkError, setLinkError] = useState(false);
 
   const theirs = linkContext.bothCodes?.first ?? linkContext.partnerAnswers;
   const done = answeredCount(answers, questions);
   const sceneCount = weddingCodeSceneCountLabel(questions.length);
 
   useEffect(() => {
-    const applyShareHash = () => {
+    const clearLinkState = () => {
+      setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
+      setAnswers({});
+      setSkipped([]);
+      setStep("intro");
+      setIndex(0);
+      setCopied(false);
+    };
+    const applyShareHash = (event?: Event) => {
       const decodedHash = decodeWeddingCodeShareHash(window.location.hash);
-      if (!decodedHash) return false;
+      if (!decodedHash) {
+        if (event || window.location.hash) {
+          clearLinkState();
+          setLinkError(Boolean(window.location.hash));
+        }
+        return false;
+      }
+      setLinkError(false);
       setActiveVersion(decodedHash.version);
       setLinkContext({
         partnerAnswers: decodedHash.partnerAnswers,
@@ -156,17 +170,31 @@ export default function WeddingCodeV06Client({
   }, [bothCodes, partnerCode, version]);
 
   function restart() {
+    // 반송된 비교 링크만으로 어느 응답이 현재 방문자의 것인지는 알 수 없다.
+    // 새 응답은 이전 두 사람의 문맥과 주소를 함께 비워 시작한다.
+    setLinkContext({ partnerAnswers: null, partnerCode: null, bothCodes: null });
+    window.history.replaceState(null, "", window.location.pathname);
     setStep("intro");
     setIndex(0);
     setAnswers({});
     setSkipped([]);
     setCopied(false);
+    setLinkError(false);
+  }
+
+  if (linkError) {
+    return <Shell><section className={`${surface} px-5 py-7`} role="alert">
+      <h1 className="text-xl font-semibold text-[var(--hb-text-strong)]">이 결과 링크를 확인하지 못했어요</h1>
+      <p className="mt-3 text-sm leading-relaxed text-[var(--hb-text-body)]">지원하지 않는 버전이거나 답이 손상된 링크예요. 보낸 사람에게 링크를 다시 받거나 새로 시작해 주세요.</p>
+      <Button className="mt-5" onClick={restart}>새 응답 시작하기</Button>
+    </section></Shell>;
   }
 
   if (step === "result") {
     return (
       <Shell>
         <ResultView
+          key={`${activeVersion}:${encodeWeddingCodeV06(theirs ?? {}, questions)}:${encodeWeddingCodeV06(answers, questions)}`}
           answers={answers}
           theirs={theirs}
           config={config}
@@ -200,18 +228,9 @@ export default function WeddingCodeV06Client({
 
           <div className="space-y-3 px-5 py-6 sm:px-8">
             {[
-              "다 답하면 내 웨딩코드 네 글자가 나와요. 열여섯 가지 중 하나예요.",
-              "맞는 답도 틀린 답도 없어요. 점수도 궁합도 매기지 않아요.",
-              "코드는 성격을 맞힌 게 아니라 내가 고른 답을 적은 거예요.",
-              "글자마다 몇 대 몇으로 갈렸는지도 같이 보여줘요.",
-              "우리와 안 맞는 장면은 건너뛸 수 있어요.",
-              "금액은 예시예요. 우리 규모와 다르면 비율로 바꿔 생각해도 돼요.",
-              "부모님이나 하객이 없는 상황이면 그 장면은 건너뛰면 돼요.",
-              "두 사람이 실제로 고른 문장을 그대로 보여줘요.",
-              "겪지 않은 장면은 지금이라면 고를 답을 선택해요.",
-              "로그인 없이 사용할 수 있어요.",
-              "답은 기기 안에서 계산하며 서버 DB에 저장하지 않아요.",
-              "공유 링크에는 답을 나타내는 코드가 들어가므로 함께 볼 사람에게만 보내요.",
+              "내가 고른 답을 네 글자와 실제 문장으로 정리해요. 성격이나 궁합을 판정하지 않아요.",
+              "상대도 같은 장면에 답하면, 두 사람이 고른 말을 나란히 볼 수 있어요.",
+              "안 맞거나 아직 답하기 어려운 장면은 건너뛸 수 있어요. 미응답은 추측하지 않아요.",
             ].map((line) => (
               <p key={line} className="flex gap-2.5 text-[14px] font-medium leading-[1.6] text-[var(--hb-text-strong)]">
                 <Check aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-success)]" />
@@ -219,6 +238,11 @@ export default function WeddingCodeV06Client({
               </p>
             ))}
           </div>
+          <details className="border-t border-[var(--hb-hairline)] px-5 py-4 sm:px-8">
+            <summary className="cursor-pointer py-2 text-sm font-semibold text-[var(--hb-text-strong)]">응답과 공유 안내</summary>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">금액과 상황은 예시예요. 겪지 않은 장면은 지금이라면 고를 답을 선택하거나 건너뛰세요. 부모님·하객·예식이 없는 경우도 해당 장면을 비워둘 수 있어요.</p>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">로그인 없이 쓸 수 있고 장면의 답은 서버나 브라우저 저장소에 보관하지 않아요. 새로고침하면 작성 중인 답은 사라져요. 공유 링크에는 답이 들어가므로 함께 비교할 사람에게만 보내주세요.</p>
+          </details>
         </section>
 
         <button
@@ -232,6 +256,7 @@ export default function WeddingCodeV06Client({
         <p className="mt-3 text-center text-[13px] font-medium text-[var(--color-rose-700)]">
           {sceneCount} 문항
         </p>
+        {!theirs ? <WeddingTasteEntry /> : null}
       </Shell>
     );
   }
@@ -390,6 +415,8 @@ function ResultView({
   onRestart: () => void;
 }) {
   const [showAllGaps, setShowAllGaps] = useState(false);
+  const [copyError, setCopyError] = useState(false);
+  const canShare = answeredCount(answers, config.questions) > 0;
   const mineCode = encodeWeddingCodeV06(answers, config.questions);
   // 상대 답이 이미 있으면 둘 다 담아 돌려준다 — 그래야 상대도 같은 화면을 본다.
   const shareUrl = buildWeddingCodeShareUrl({
@@ -403,22 +430,31 @@ function ResultView({
   const shareLetters = buildWeddingCodeLetters(
     buildWeddingCodeSelfProfile(answers, { questions: config.questions, axes: config.axes }),
   );
-  const shareText = shareLetters.complete
+  const shareText = theirs
+    ? `두 사람이 답한 장면을 나란히 보는 웨딩코드 결과예요.\n${shareUrl}`
+    : shareLetters.complete
     ? `내 웨딩코드는 ${shareLetters.code}예요. 같은 ${weddingCodeSceneCountLabel(config.questions.length)} 장면에 답해볼래요?
 ${shareUrl}`
     : shareUrl;
 
-  const copyButton = (
+  const copyButton = !canShare ? (
+    <p className="mt-5 text-sm leading-relaxed text-[var(--hb-text-body)]">내 답이 없어 비교 결과를 공유할 수 없어요. 한 장면 이상 답한 뒤 다시 비교해 주세요.</p>
+  ) : (
     <div className="mt-5">
       <button
         type="button"
         data-share-url={shareUrl}
         data-share-text={shareText}
-        onClick={() => {
-          void navigator.clipboard?.writeText?.(shareText).then(
-            () => onCopied(true),
-            () => onCopied(false),
-          );
+        onClick={async () => {
+          try {
+            if (!navigator.clipboard?.writeText) throw new Error("clipboard unavailable");
+            await navigator.clipboard.writeText(shareText);
+            onCopied(true);
+            setCopyError(false);
+          } catch {
+            onCopied(false);
+            setCopyError(true);
+          }
         }}
         className={`${primaryButton} w-full`}
       >
@@ -427,9 +463,14 @@ ${shareUrl}`
       </button>
       <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
         {theirs
-          ? "링크에는 두 사람의 답이 포함돼요. 먼저 답한 사람에게만 보내 주세요."
+          ? "링크에는 두 사람의 답이 포함돼요. 답을 함께 비교한 두 사람 사이에서만 보내 주세요."
           : "링크에는 내 답이 포함돼요. 함께 비교할 사람에게만 보내 주세요."}
       </p>
+      {copyError ? <p role="alert" className="mt-3 text-sm text-[var(--hb-text-body)]">자동 복사가 안 됐어요. 아래에서 링크 주소를 직접 복사해 주세요.</p> : null}
+      <details className="mt-3 text-sm text-[var(--hb-text-body)]" open={copyError || undefined}>
+        <summary className="cursor-pointer py-2 underline underline-offset-4">링크 주소 직접 복사하기</summary>
+        <input aria-label="웨딩코드 공유 링크" readOnly value={shareUrl} onFocus={event => event.currentTarget.select()} className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 text-sm" />
+      </details>
     </div>
   );
 
@@ -477,17 +518,9 @@ ${shareUrl}`
             <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
               내가 반복해서 고른 것
             </h1>
-            {profile.repeated.length > 0 ? (
-              <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
-                답한 {profile.answered}장면 중 {profile.repeated[0].count}곳에서{" "}
-                {withJosa(
-                  profile.repeated.map((item) => `“${item.phrase}”`).join(", "),
-                  "을",
-                  "를",
-                )}{" "}
-                먼저 보는 답을 골랐어요.
-              </p>
-            ) : null}
+            <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
+              답한 {profile.answered}장면을 주제별로 정리했어요. 많이 고른 답이 가장 중요한 취향이라는 뜻은 아니에요.
+            </p>
             <p className="mt-3 text-[13px] font-medium leading-[1.6] text-[#C7D1C2]">
               더 좋은 답도 부족한 답도 없어요. 고른 답을 세어서 그대로 보여줄 뿐이고, 유형을
               붙이거나 점수를 매기지 않아요.
@@ -568,7 +601,9 @@ ${shareUrl}`
 
         <TellPartnerDraft profile={profile} />
 
-        <AmoraStyleProposals profile={profile} />
+        <WeddingTasteEntry />
+
+        <AmoraStyleConfirmation profile={profile} />
         {copyButton}
         <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>
           <RotateCcw aria-hidden="true" className="h-4 w-4" />
@@ -615,9 +650,9 @@ ${shareUrl}`
           <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
             {compared === 0
               ? "두 사람이 함께 답한 장면이 없어요"
-              : map.splits.length > 0
-                ? `함께 답한 ${compared}장면 중 ${map.splits.length}곳에서 갈렸어요`
-                : `함께 답한 ${compared}장면에서 방향이 같았어요`}
+              : compared > map.identical.length
+                ? `함께 답한 ${compared}장면 중 ${compared - map.identical.length}곳에서 다른 답을 골랐어요`
+                : `함께 답한 ${compared}장면에서 같은 답을 골랐어요`}
           </h1>
           <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
             {compared === 0
@@ -669,9 +704,9 @@ ${shareUrl}`
         ) : (
           <div className="px-5 py-6 sm:px-8">
             <p className="text-[15px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-              함께 답한 장면에서 모두 같은 방향이었어요. 그중 문장까지 똑같았던 건{" "}
-              {map.identical.length}곳이에요 — 나머지는 같은 쪽을 보면서 다른 말로 표현한
-              자리예요.
+              {compared === 0
+                ? "비교할 답이 아직 없어요. 같은 장면을 각자 고른 뒤 나란히 확인해 보세요."
+                : `함께 답한 ${compared}장면 중 ${map.identical.length}곳에서 같은 문장을 골랐어요. 다른 문장을 고른 장면도 아래에서 모두 확인할 수 있어요.`}
             </p>
           </div>
         )}
@@ -703,12 +738,34 @@ ${shareUrl}`
         </button>
       ) : null}
 
-      <SelfProfilePair first={firstProfile} second={secondProfile} />
+      {compared > 0 ? (
+        <details className={`${surface} mt-4 px-5 py-5 sm:px-8`} data-all-compared="">
+          <summary className="cursor-pointer py-2 text-[15px] font-semibold text-[var(--hb-text-strong)]">
+            함께 답한 {compared}장면 모두 나란히 보기
+          </summary>
+          <div className="mt-3 divide-y divide-[var(--hb-hairline)]">
+            {config.questions.flatMap((question) => {
+              const gap = [...map.identical, ...map.shared, ...map.splits].find((item) => item.key === question.key);
+              if (!gap) return [];
+              return [(
+                <article key={gap.key} data-compared-scene={gap.key} className="py-4">
+                  <h2 className="text-[14px] font-semibold leading-relaxed text-[var(--hb-text-strong)]">{gap.scene}</h2>
+                  <p className="mt-1 text-[12px] text-[var(--hb-text-muted)]">{gap.same ? "같은 문장을 골랐어요" : "다른 문장을 골랐어요"}</p>
+                  <p className="mt-3 text-[14px] leading-relaxed text-[var(--hb-text-body)]">먼저 답한 사람: “{gap.firstLabel}”</p>
+                  <p className="mt-2 text-[14px] leading-relaxed text-[var(--hb-text-body)]">나중에 답한 사람: “{gap.secondLabel}”</p>
+                </article>
+              )];
+            })}
+          </div>
+        </details>
+      ) : null}
+
+      <SelfProfilePair first={firstProfile} second={secondProfile} map={map} />
 
       {copyButton}
       <button type="button" onClick={onRestart} className={`${secondaryButton} mt-4 w-full`}>
         <RotateCcw aria-hidden="true" className="h-4 w-4" />
-        답변을 처음부터 다시 고르기
+          새 응답 시작하기
       </button>
     </>
   );
@@ -746,14 +803,16 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
           ))}
         </p>
         <p className="mt-4 text-[13px] font-medium leading-[1.7] text-[#C7D1C2]">
-          열여섯 가지 중 하나예요. 성격을 맞힌 게 아니라, 내가 고른 답을 네 글자로 적은
-          거예요.
+          성격을 맞힌 게 아니라, 내가 고른 답을 주제별로 요약한 글자예요.
+          {!letters.complete ? " 아직 글자가 비어 있거나 답하지 않은 장면이 있는 요약이에요." : ""}
           {letters.slots.some((slot) => slot.firmness === "narrow")
-            ? " 작은 글자는 아슬아슬하게 정해진 자리예요."
+            ? " 작은 글자는 양쪽 답이 한 표 차이인 자리예요."
             : ""}
         </p>
       </div>
 
+      <details>
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--hb-text-strong)] sm:px-8">네 글자와 답의 개수 자세히 보기</summary>
       <div className="divide-y divide-[var(--hb-hairline)]">
         {letters.slots.map((slot) => (
           <div key={slot.axis} className="flex gap-4 px-5 py-4 sm:px-8">
@@ -782,6 +841,7 @@ function WeddingCodeBadge({ letters }: { letters: WeddingCodeLetters }) {
           </div>
         ))}
       </div>
+      </details>
     </section>
   );
 }
@@ -814,10 +874,12 @@ function WeddingCodePair({
           {different.length > 0
             ? `네 자리 중 ${different.length}자리가 달라요. 점수는 매기지 않아요 — 다른 자리부터 이야기하면 돼요.`
             : unknown.length === comparison.length
-              ? "함께 답한 자리가 없어서 나란히 볼 글자가 없어요."
-              : "글자가 모두 같아요. 그래도 같은 글자 안에서 고른 문장은 다를 수 있어요."}
+              ? "미응답이나 동률 때문에 비교할 글자가 없어요. 실제로 고른 답은 아래 장면별로 확인해 주세요."
+              : `비교할 수 있는 ${comparison.length - unknown.length}자리의 글자가 같아요. 같은 글자여도 장면마다 고른 답은 다를 수 있어요.`}
         </p>
       </div>
+      <details>
+        <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-[var(--hb-text-strong)] sm:px-8">글자별 집계 자세히 보기</summary>
       <div className="divide-y divide-[var(--hb-hairline)]">
         {comparison.map((item) => (
           <div key={item.axis} data-code-slot={item.axis} data-code-state={item.state} className="flex items-center gap-4 px-5 py-3.5 sm:px-8">
@@ -832,13 +894,22 @@ function WeddingCodePair({
                 ? " — 서로 다른 자리예요"
                 : item.state === "same"
                   ? " — 같은 자리예요"
-                  : " — 한 사람이 건너뛰어 비교하지 않았어요"}
+                  : " — 미응답이나 동률로 글자를 비교하지 않았어요"}
             </p>
           </div>
         ))}
       </div>
+      </details>
     </section>
   );
+}
+
+function WeddingTasteEntry() {
+  return <section className={`${surface} mt-5 px-5 py-5 sm:px-8`}>
+    <h2 className="text-lg font-semibold text-[var(--hb-text-strong)]">원하는 결혼식도 골라볼까요?</h2>
+    <p className="mt-2 text-sm leading-relaxed text-[var(--hb-text-body)]">분위기와 중요한 취향, 피하고 싶은 것, 함께 맞춰볼 범위를 직접 정리해요.</p>
+    <Button href="/wedding-code/taste" variant="secondary" fullWidth className="mt-4">내가 원하는 결혼식 고르기</Button>
+  </section>;
 }
 
 /**
@@ -933,105 +1004,6 @@ function TellPartnerDraft({ profile }: { profile: WeddingCodeSelfProfile }) {
  * 사실만 말하고, 실제 반영은 사용자가 설정 화면에서 직접 확인할 때만 일어난다.
  * 없는 자동 연동을 있는 것처럼 말하지 않는다.
  */
-function AmoraStyleProposals({ profile }: { profile: WeddingCodeSelfProfile }) {
-  const proposals = buildWeddingCodeAmoraProposals(profile);
-  const user = useAuthStore((state) => state.user);
-  // 로그인하지 않은 사람에게는 설정을 불러올 것도 저장할 것도 없다.
-  const personalization = useAmoraPersonalization(Boolean(user));
-  const [applied, setApplied] = useState(false);
-
-  if (proposals.length === 0) return null;
-  const changes = weddingCodeProposalChanges(proposals);
-
-  return (
-    <section className={`${surface} mt-4 overflow-hidden`} data-amora-proposals="">
-      <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
-        <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
-          아모라에게 알려줄 도움 방식
-        </h2>
-        <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-          내 답과 같은 뜻인 설정값이에요. 웨딩코드가 자동으로 바꾸지 않고, 설정 화면에서
-          직접 고를 때만 아모라에 적용돼요.
-        </p>
-      </div>
-      <div className="divide-y divide-[var(--hb-hairline)]">
-        {proposals.map((proposal) => (
-          <div key={proposal.field} data-proposal={proposal.field} className="px-5 py-5 sm:px-8">
-            <p className="text-[15px] font-semibold leading-[1.5] text-[var(--hb-text-strong)]">
-              {proposal.choiceLabel}
-            </p>
-            <p className="mt-1 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-              {proposal.basis}
-            </p>
-            <p className="mt-2 text-[13px] font-medium leading-[1.7] text-[var(--hb-text-strong)]">
-              {proposal.effect}
-            </p>
-            {proposal.caution ? (
-              <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                {proposal.caution}
-              </p>
-            ) : null}
-          </div>
-        ))}
-      </div>
-      <div className="border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-8">
-        {user ? (
-          <>
-            <button
-              type="button"
-              data-apply-amora=""
-              disabled={personalization.saving || applied || personalization.status === "loading"}
-              onClick={() => {
-                void personalization.save(changes).then((result) => {
-                  // 저장 결과를 확인하기 전에 반영됐다고 말하지 않는다.
-                  if (result) setApplied(true);
-                });
-              }}
-              className={`${primaryButton} w-full`}
-            >
-              {applied ? <Check aria-hidden="true" className="h-4 w-4" /> : null}
-              {applied
-                ? "아모라에 반영했어요"
-                : personalization.saving
-                  ? "반영하는 중…"
-                  : "이 방식으로 아모라에 반영하기"}
-            </button>
-            {personalization.error ? (
-              <p role="alert" className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-                {personalization.error}
-              </p>
-            ) : null}
-            <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-              {applied
-                ? "다음 대화부터 아모라가 이 방식으로 움직여요. 설정 화면에서 언제든 바꿀 수 있어요."
-                : "위 설정값만 내 계정에 저장돼요. 웨딩코드 답과 고른 문장은 저장하지 않아요."}
-            </p>
-            <a
-              href="/settings/amora-style"
-              className="mt-3 inline-block text-[13px] font-semibold text-[var(--hb-text-strong)] underline underline-offset-4"
-            >
-              설정 화면에서 직접 보기
-            </a>
-          </>
-        ) : (
-          <>
-            <a
-              href="/settings/amora-style"
-              className={`${primaryButton} w-full`}
-            >
-              로그인하고 아모라에 반영하기
-            </a>
-            <p className="mt-2 text-[12px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
-              로그인하면 위 설정값을 내 계정에 저장할 수 있어요. 웨딩코드 답과 고른 문장은
-              저장하지 않아요.
-            </p>
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
 /**
  * 커플 결과에서도 **각자 몫**을 남긴다.
  *
@@ -1042,11 +1014,13 @@ function AmoraStyleProposals({ profile }: { profile: WeddingCodeSelfProfile }) {
 function SelfProfilePair({
   first,
   second,
+  map,
 }: {
   first: WeddingCodeSelfProfile;
   second: WeddingCodeSelfProfile;
+  map: WeddingCodeV06GapMap;
 }) {
-  const combination = buildWeddingCodeCoupleCombination(first, second);
+  const combination = buildWeddingCodeCoupleCombination(first, second, map);
   return (
     <section className={`${surface} mt-4 overflow-hidden`} data-result="self-pair">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
@@ -1071,12 +1045,12 @@ function SelfProfilePair({
                   <span
                     data-pair-state={combined.state}
                     className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      combined.state === "split"
+                      combined.state === "different"
                         ? "bg-[var(--hb-surface-hover)] text-[var(--color-rose-700)]"
                         : "bg-[#EEF2EC] text-[var(--hb-text-strong)]"
                     }`}
                   >
-                    {combined.state === "split" ? "서로 다름" : "방향 같음"}
+                    {combined.state === "different" ? "다른 답 있음" : "함께 답한 장면만 같음"}
                   </span>
                 ) : null}
               </div>

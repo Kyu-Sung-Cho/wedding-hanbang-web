@@ -387,6 +387,19 @@ interface ChatStoreState {
 // sync 가 누락된 케이스 대비 refreshJourney 트리거.
 const PROGRESS_AFFECTING_TOOLS = new Set<string>(MUTATING_TOOL_NAMES);
 
+function captureJourneyToolSync() {
+  let expectedJourney = useAuthStore.getState().journey;
+  let superseded = false;
+  return (result: ToolExecutionResult) => {
+    // 요청 중 재조회·상대방 수정으로 바뀐 정본에 옛 부분 영수증을 덧씌우지 않는다.
+    // 이 스트림이 직접 반영한 변경만 이어받고, 이후의 정본 확인은 refreshJourney에 맡긴다.
+    superseded ||= useAuthStore.getState().journey !== expectedJourney;
+    if (superseded) return;
+    syncToolResult(result);
+    expectedJourney = useAuthStore.getState().journey;
+  };
+}
+
 // 도구 결과를 authStore에 반영
 export function syncToolResult(result: ToolExecutionResult) {
   if (!result.success) return;
@@ -1464,6 +1477,7 @@ async function executeChatProviderRequest(
   const activeProviderRequest = { controller: abortController, lifecycleBinding };
   activeProviderRequests.add(activeProviderRequest);
   const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
+  const syncCurrentToolResult = captureJourneyToolSync();
 
   try {
     const res = await fetch("/api/chat", {
@@ -1536,7 +1550,7 @@ async function executeChatProviderRequest(
       },
       onToolResult: (result) => {
         if (!isCurrentLifecycle()) return;
-        syncToolResult(result);
+        syncCurrentToolResult(result);
         if (PROGRESS_AFFECTING_TOOLS.has(result.toolName) && result.success) {
           progressTouched = true;
         }
@@ -2773,6 +2787,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const activeProviderRequest = { controller: abortController, lifecycleBinding };
     activeProviderRequests.add(activeProviderRequest);
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
+    const syncCurrentToolResult = captureJourneyToolSync();
 
     try {
       const roleLabel = senderRole === "bride" ? "신부" : "신랑";
@@ -2812,7 +2827,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         },
         onToolResult: (result) => {
           if (!isCurrentLifecycle()) return;
-          syncToolResult(result);
+          syncCurrentToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => {
@@ -2941,6 +2956,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
     const activeProviderRequest = { controller: abortController, lifecycleBinding };
     activeProviderRequests.add(activeProviderRequest);
     const fetchTimeout = setTimeout(() => abortController.abort(), 180000);
+    const syncCurrentToolResult = captureJourneyToolSync();
 
     try {
       // 상대방에게 직접 보낸 원문이나 비공개 대화를 클라이언트 payload에
@@ -3008,7 +3024,7 @@ export const useChatStore = create<ChatStoreState>((set, get) => ({
         },
         onToolResult: (result) => {
           if (!isCurrentLifecycle()) return;
-          syncToolResult(result);
+          syncCurrentToolResult(result);
           set((s) => ({ streamingToolResults: [...s.streamingToolResults, result] }));
         },
         onSuggestions: (sug) => {

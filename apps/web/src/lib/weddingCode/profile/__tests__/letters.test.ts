@@ -7,6 +7,7 @@ import type {
 } from "@/lib/weddingCode/scene/selfProfile";
 import {
   WEDDING_CODE_LETTERS,
+  WEDDING_CODE_FIRMNESS_LABEL,
   WEDDING_CODE_MISSING_LETTER,
   buildWeddingCodeLetters,
   compareWeddingCodeLetters,
@@ -47,6 +48,23 @@ function profileOf(
 }
 
 describe("웨딩코드 네 글자", () => {
+  it("네 축에 한 답씩만 남겨도 전체 응답이 완료된 것으로 표시하지 않는다", () => {
+    const letters = buildWeddingCodeLetters(profileOf([[1, 0], [1, 0], [1, 0], [1, 0]]));
+    expect(letters.code).toBe("VTUH");
+    expect(letters.complete).toBe(false);
+    for (const slot of letters.slots) {
+      expect(slot.tally).toContain("답한 1장면");
+      expect(slot.tally).toContain("1 대 0");
+      expect(WEDDING_CODE_FIRMNESS_LABEL[slot.firmness]).not.toMatch(/굳음|확신|신뢰|안정/);
+    }
+  });
+
+  it("응답 분포의 이름을 검증된 확신 정도로 표현하지 않는다", () => {
+    for (const label of Object.values(WEDDING_CODE_FIRMNESS_LABEL)) {
+      expect(label).not.toMatch(/굳음|뚜렷|아슬|확신|신뢰|안정/);
+    }
+  });
+
   it("축 순서대로 네 자리를 만든다", () => {
     const letters = buildWeddingCodeLetters(
       profileOf([[5, 0], [5, 0], [5, 0], [5, 0]]),

@@ -40,6 +40,8 @@ const ROW_SELECT = [
 ].join(", ");
 const PUT_KEYS = ["expectedRevision", "preferences"] as const;
 const DELETE_KEYS = ["expectedRevision"] as const;
+const EXPECTED_OWNER_FIELD = "expectedOwnerUserId";
+const EXPECTED_OWNER_HEADER = "X-Amora-Expected-Owner";
 const LEGACY_PERSONALIZATION_FIELD_NAMES = [
   "decisionStart",
   "answerDetail",
@@ -98,6 +100,19 @@ function hasOnlyKeys(
 ): boolean {
   const allowedSet = new Set(allowed);
   return Object.keys(value).every((key) => allowedSet.has(key));
+}
+
+/** 화면의 계정과 요청 쿠키의 계정이 갈리면 다른 계정의 값도 읽어 돌려주지 않는다. */
+function checkExpectedOwner(value: unknown, supplied: boolean, userId: string): NextResponse | null {
+  if (!supplied) return null;
+  if (typeof value !== "string" || !value.length || value.length > 128) {
+    return response({ error: "설정을 확인할 계정 정보가 올바르지 않습니다." }, 400);
+  }
+  if (value !== userId) {
+    return response({ code: "PERSONALIZATION_OWNER_MISMATCH",
+      error: "로그인 계정이 바뀌었어요. 새로고침한 뒤 현재 계정을 확인해 주세요." }, 409);
+  }
+  return null;
 }
 
 function parseExpectedRevision(
@@ -392,6 +407,9 @@ export async function GET(request: Request) {
     const auth = await authenticate(request);
     if (!auth.ok) return auth.response;
 
+    const ownerError = checkExpectedOwner(request.headers.get(EXPECTED_OWNER_HEADER), request.headers.has(EXPECTED_OWNER_HEADER), auth.context.userId);
+    if (ownerError) return ownerError;
+
     const limited = checkRate(
       "amora-personalization:read",
       request,
@@ -421,11 +439,13 @@ export async function PUT(request: Request) {
     const body = await readBody(request);
     if (body instanceof NextResponse) return body;
     if (
-      !hasOnlyKeys(body, PUT_KEYS) ||
+      !hasOnlyKeys(body, [...PUT_KEYS, EXPECTED_OWNER_FIELD]) ||
       !PUT_KEYS.every((key) => hasOwn(body, key))
     ) {
       return response({ error: "허용되지 않은 설정 항목이 있습니다." }, 400);
     }
+    const ownerError = checkExpectedOwner(body[EXPECTED_OWNER_FIELD], hasOwn(body, EXPECTED_OWNER_FIELD), auth.context.userId);
+    if (ownerError) return ownerError;
 
     const expectedRevision = parseExpectedRevision(
       body.expectedRevision,
@@ -534,11 +554,13 @@ export async function DELETE(request: Request) {
     const body = await readBody(request);
     if (body instanceof NextResponse) return body;
     if (
-      !hasOnlyKeys(body, DELETE_KEYS) ||
+      !hasOnlyKeys(body, [...DELETE_KEYS, EXPECTED_OWNER_FIELD]) ||
       !DELETE_KEYS.every((key) => hasOwn(body, key))
     ) {
       return response({ error: "허용되지 않은 삭제 항목이 있습니다." }, 400);
     }
+    const ownerError = checkExpectedOwner(body[EXPECTED_OWNER_FIELD], hasOwn(body, EXPECTED_OWNER_FIELD), auth.context.userId);
+    if (ownerError) return ownerError;
     const expectedRevision = parseExpectedRevision(
       body.expectedRevision,
       MAX_STORED_REVISION,

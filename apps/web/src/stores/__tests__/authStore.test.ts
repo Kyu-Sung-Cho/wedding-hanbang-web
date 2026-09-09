@@ -60,6 +60,27 @@ describe("useAuthStore", () => {
   // ─── initialize() ───
 
   describe("initialize()", () => {
+    it.each([503, 403])("공개 화면의 확인 요청은 HTTP %s를 로그아웃으로 확정하지 않는다", async (status) => {
+      useAuthStore.setState({ user: { id: "existing", email: "existing@example.com" }, isInitialized: true });
+      mockFetch.mockResolvedValue({ ok: false, status });
+      await expect(useAuthStore.getState().initialize({ force: true, requireVerifiedSession: true })).rejects.toThrow();
+      expect(useAuthStore.getState().user?.id).toBe("existing");
+    });
+
+    it("공개 화면의 네트워크 실패는 이전 계정을 확인 완료로 보고하지 않는다", async () => {
+      useAuthStore.setState({ user: { id: "existing", email: "existing@example.com" }, isInitialized: true });
+      mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+      await expect(useAuthStore.getState().initialize({ force: true, requireVerifiedSession: true })).rejects.toThrow();
+      expect(useAuthStore.getState().user?.id).toBe("existing");
+    });
+
+    it("공개 화면도 실제 401 응답은 비로그인 상태로 확인한다", async () => {
+      useAuthStore.setState({ user: { id: "existing", email: "existing@example.com" }, isInitialized: true });
+      mockFetch.mockResolvedValue({ ok: false, status: 401 });
+      await expect(useAuthStore.getState().initialize({ force: true, requireVerifiedSession: true })).resolves.toBeUndefined();
+      expect(useAuthStore.getState().user).toBeNull();
+    });
+
     it("uses a server-verified demo session immediately without waiting for auth/me", async () => {
       await useAuthStore.getState().initialize({ initialDemo: true });
 

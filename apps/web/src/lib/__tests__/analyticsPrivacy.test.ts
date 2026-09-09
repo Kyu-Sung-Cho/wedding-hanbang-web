@@ -108,6 +108,84 @@ describe("zero-I/O research analytics boundary", () => {
 });
 
 describe("전송되는 URL에서 프래그먼트를 잘라낸다", () => {
+  it.each(["wcTasteChat", "wcTasteReview", "wcAmoraHandoff"])(
+    "%s 값은 페이지뷰와 로그인 redirect 안의 URL에서 제거한다",
+    (key) => {
+      const secret = "1b5088fe-beb0-4dcf-9a61-3c81aacdb310";
+      for (const pathname of ["/chat", "/wedding/chat", "/settings/amora-style"]) {
+        const query = new URLSearchParams({ [key]: secret, source: "wedding-code" });
+        const safe = analyticsSafeSearchParams(pathname, query);
+        expect(safe).not.toContain(secret);
+        expect(new URLSearchParams(safe).get("source")).toBe("wedding-code");
+      }
+      const target = `/settings/amora-style?${new URLSearchParams({ [key]: secret, mode: "review" })}`;
+      const nested = `/login?${new URLSearchParams({ redirect: target })}`;
+      const safeLogin = analyticsSafeSearchParams(
+        "/login", new URLSearchParams({ redirect: nested, utm_source: "launch" }),
+      );
+      expect(decodeURIComponent(decodeURIComponent(safeLogin))).not.toContain(secret);
+      expect(new URLSearchParams(safeLogin).get("utm_source")).toBe("launch");
+      const next = new URLSearchParams(new URLSearchParams(safeLogin).get("redirect")!.split("?")[1]).get("redirect");
+      expect(next).toBe("/settings/amora-style?mode=review");
+    },
+  );
+
+  it.each(["wcTasteChat", "wcTasteReview", "wcAmoraHandoff"])(
+    "%s 값은 지연된 current/referrer/initial URL과 중첩 속성에서도 제거한다",
+    (key) => {
+      const secret = "ad2d989c-a86a-4d4f-a679-b755b1561561";
+      const target = `/chat?${new URLSearchParams({ [key]: secret, source: "wedding-code" })}`;
+      const login = `https://hanbang.ai/login?${new URLSearchParams({ redirect: target })}`;
+      const event = {
+        event: "$pageleave",
+        properties: {
+          $current_url: `https://hanbang.ai${target}`,
+          $referrer: login,
+          $set_once: { $initial_current_url: login },
+          flow: [{ nested: { $initial_referrer: login } }],
+          count: 3,
+          note: "해시태그 #웨딩 준비",
+        },
+      };
+      const safe = stripAnalyticsUrlFragments(event);
+      expect(JSON.stringify(safe)).not.toContain(secret);
+      expect(safe.properties.$current_url).toBe("https://hanbang.ai/chat?source=wedding-code");
+      expect(safe.properties.count).toBe(3);
+      expect(safe.properties.note).toBe(event.properties.note);
+      expect(event.properties.$current_url).toContain(secret);
+    },
+  );
+
+  it("민감 파라미터가 없는 로그인 redirect와 무관한 이벤트는 그대로 유지한다", () => {
+    const url = "https://hanbang.ai/login?redirect=%2Fwedding%2Fbudget&utm_source=launch";
+    const capture = { event: "opened", properties: { $current_url: url, detail: { label: "예산" } } };
+    expect(stripAnalyticsUrlFragments(capture)).toBe(capture);
+    expect(analyticsSafeSearchParams("/login", new URLSearchParams(url.split("?")[1])))
+      .toBe("redirect=%2Fwedding%2Fbudget&utm_source=launch");
+  });
+
+  it("깊게 중첩된 initial URL에도 핸드오프 값이 남지 않는다", () => {
+    const secret = "f4dcdb1e-2570-4890-8b04-72624d85b054";
+    let nested: Record<string, unknown> = {
+      $initial_current_url: `https://hanbang.ai/chat?wcTasteChat=${secret}`,
+    };
+    for (let depth = 0; depth < 12; depth += 1) nested = { next: nested };
+    const safe = stripAnalyticsUrlFragments({ properties: { nested } });
+    expect(JSON.stringify(safe)).not.toContain(secret);
+    expect(JSON.stringify(safe)).toContain("https://hanbang.ai/chat");
+  });
+
+  it("지나치게 중첩된 redirect는 끝쪽 쿼리를 남기지 않고 분석만 정리한다", () => {
+    const secret = "b7fce197-85b2-4a7f-8ba3-acd762f3caa2";
+    let redirect = `/chat?wcTasteChat=${secret}`;
+    for (let depth = 0; depth < 12; depth += 1) {
+      redirect = `/login?${new URLSearchParams({ redirect })}`;
+    }
+    const safe = stripAnalyticsUrlFragments({ properties: { $current_url: redirect } });
+    expect(JSON.stringify(safe)).not.toContain(secret);
+    expect(safe.properties.$current_url.startsWith("/login?")).toBe(true);
+  });
+
   it("커플 초대 코드가 URL 속성에 실려 나가지 않는다", () => {
     // posthog-js는 capture_pageleave가 켜져 있으면 $current_url에 location.href를
     // 스스로 넣는다. 억제 목록은 경로만 보므로, 프래그먼트를 달고 다른 경로로 넘어간
