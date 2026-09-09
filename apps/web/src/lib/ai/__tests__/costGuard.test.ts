@@ -457,3 +457,164 @@ describe("reserveAmoraProviderCall", () => {
     });
   });
 });
+
+describe("서버에서 확인한 팀 테스트 한도 예외", () => {
+  const TEAM = { ...BASE, isQuotaExempt: true };
+  const RECEIPT = {
+    receiptId: "30000000-0000-4000-8000-000000000001",
+    claimToken: "40000000-0000-4000-8000-000000000001",
+    requestKey: "team_request_123",
+  };
+
+  beforeEach(() => {
+    vi.stubEnv("AMORA_COST_GUARD_ENABLED", "true");
+    vi.stubEnv("AMORA_COUPLE_QUOTA_ENABLED", "true");
+    vi.stubEnv("AMORA_COUPLE_DAILY_CAP_ENABLED", "true");
+    vi.stubEnv("AMORA_FREE_MESSAGES_PER_COUPLE", "100");
+    vi.stubEnv("AMORA_COUPLE_DAILY_CAP", "80");
+    vi.stubEnv("AMORA_GLOBAL_DAILY_MESSAGE_CAP", "300");
+    vi.stubEnv("AMORA_GLOBAL_DAILY_COST_CAP_USD", "20");
+    vi.resetModules();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("전역과 커플 한도가 소진되어도 팀의 사전 확인은 통과한다", async () => {
+    const guard = await import("../costGuard");
+
+    const result = await guard.checkAmoraCostGuard(
+      makeAdmin({ global: 9_999, couple: 9_999 }),
+      TEAM,
+    );
+
+    expect(result).toEqual({ allowed: true });
+  });
+
+  it.each(["true", "false"])("팀은 전체 가드 %s일 때도 턴 예약을 유지한다", async (guardEnabled) => {
+    vi.stubEnv("AMORA_COST_GUARD_ENABLED", guardEnabled);
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: true },
+      counts: { global: 9_999, couple: 9_999 },
+    });
+
+    const result = await guard.reserveAmoraTurn(admin, TEAM);
+
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledExactlyOnceWith("reserve_amora_turn", {
+      p_couple_id: "c1",
+      p_couple_cap: 2_147_483_647,
+      p_global_cap: 2_147_483_647,
+      p_reserve_cost_microusd: TEAM.maxCostMicrousd,
+      p_global_cost_cap_microusd: Number.MAX_SAFE_INTEGER,
+    });
+  });
+
+  it.each(["true", "false"])("실제 채팅은 전체 가드 %s일 때도 팀 receipt를 예약한다", async (guardEnabled) => {
+    vi.stubEnv("AMORA_COST_GUARD_ENABLED", guardEnabled);
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: true },
+      counts: { global: 9_999, couple: 9_999 },
+    });
+
+    const result = await guard.reserveAmoraProviderCall(admin, { ...TEAM, ...RECEIPT });
+
+    expect(result.allowed).toBe(true);
+    expect(result.remaining).toBeUndefined();
+    expect(rpcSpy).toHaveBeenCalledExactlyOnceWith("reserve_amora_provider_call", {
+      p_receipt_id: RECEIPT.receiptId,
+      p_claim_token: RECEIPT.claimToken,
+      p_request_key: RECEIPT.requestKey,
+      p_cost_couple_id: "c1",
+      p_couple_cap: 2_147_483_647,
+      p_global_cap: 2_147_483_647,
+      p_reserve_cost_microusd: TEAM.maxCostMicrousd,
+      p_global_cost_cap_microusd: Number.MAX_SAFE_INTEGER,
+    });
+  });
+
+  it("예외가 false인 일반 사용자는 커플 일일 제한을 유지한다", async () => {
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({
+      rpc: { allowed: true },
+      counts: { global: 80 },
+    });
+
+    const result = await guard.reserveAmoraProviderCall(admin, {
+      ...TEAM,
+      ...RECEIPT,
+      isQuotaExempt: false,
+    });
+
+    expect(result).toMatchObject({ allowed: false, reason: "couple_daily" });
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it.each([0, -1, 0.5, Number.NaN])(
+    "팀도 유효하지 않은 턴 비용 %s로 예약할 수 없다",
+    async (maxCostMicrousd) => {
+      const guard = await import("../costGuard");
+      const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true } });
+
+      const result = await guard.reserveAmoraTurn(admin, { ...TEAM, maxCostMicrousd });
+
+      expect(result).toMatchObject({ allowed: false, reason: "guard_unavailable" });
+      expect(rpcSpy).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { receiptId: "invalid-receipt" },
+    { claimToken: "invalid-claim" },
+    { requestKey: "" },
+    { maxCostMicrousd: 0 },
+  ])("팀도 유효하지 않은 provider 예약 인자는 차단한다: %j", async (invalid) => {
+    const guard = await import("../costGuard");
+    const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: true } });
+
+    const result = await guard.reserveAmoraProviderCall(admin, {
+      ...TEAM,
+      ...RECEIPT,
+      ...invalid,
+    });
+
+    expect(result).toMatchObject({ allowed: false, reason: "guard_unavailable" });
+    expect(rpcSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["error", "throw"] as const)(
+    "팀도 두 예약 RPC의 %s에서는 미계측 호출을 차단한다",
+    async (rpc) => {
+      const guard = await import("../costGuard");
+      const turn = makeReserveAdmin({ rpc });
+      const provider = makeReserveAdmin({ rpc });
+
+      const turnResult = await guard.reserveAmoraTurn(turn.admin, TEAM);
+      const providerResult = await guard.reserveAmoraProviderCall(provider.admin, {
+        ...TEAM,
+        ...RECEIPT,
+      });
+
+      expect(turnResult).toMatchObject({ allowed: false, reason: "guard_unavailable" });
+      expect(providerResult).toMatchObject({ allowed: false, reason: "guard_unavailable" });
+      expect(turn.rpcSpy).toHaveBeenCalledOnce();
+      expect(provider.rpcSpy).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["invalid_receipt", "stale_claim", "receipt_not_prepared", "invalid_call_sequence"])(
+    "팀도 DB가 거부한 receipt 상태 %s를 우회할 수 없다",
+    async (reason) => {
+      const guard = await import("../costGuard");
+      const { admin, rpcSpy } = makeReserveAdmin({ rpc: { allowed: false, reason } });
+
+      const result = await guard.reserveAmoraProviderCall(admin, { ...TEAM, ...RECEIPT });
+
+      expect(result).toMatchObject({ allowed: false, reason: "guard_unavailable" });
+      expect(rpcSpy).toHaveBeenCalledOnce();
+    },
+  );
+});

@@ -20,8 +20,9 @@
 // 카운터 테이블(amora_turn_counters)은 첫 접근 시 이 장부에서 자동 시드된다.
 // DB 카운트라 서버리스에서도 정확. service_role로 RLS 우회.
 //
-// ⚠️ 면제는 is_admin(DB 검증)만. 클라이언트가 보내는 값(body의 isDemo 등)으로
-// 면제하면 안 됨 — 인증 유저가 그 값을 조작해 가드를 우회할 수 있다.
+// 커플 한도는 DB 검증 관리자에게, 전체 한도는 서버에서 확인한 팀 테스트 계정에
+// 한해 면제한다. 클라이언트 body의 isDemo·면제 플래그는 신뢰하지 않는다.
+// 팀도 비용 예약과 receipt 검증·정산을 거치며 사용량 장부는 그대로 남긴다.
 //
 // 환경변수로 조정 가능 (미설정 시 보수적 기본값):
 //   AMORA_COUPLE_QUOTA_ENABLED=false (커플별 한도만 해제, 전역 가드는 유지)
@@ -268,6 +269,8 @@ export class AmoraCostGuardError extends Error {
 type CostGuardParams = {
   coupleId: string;
   isAdmin: boolean;
+  /** 인증 사용자와 서버 허용 목록으로만 판정한다. 요청 body의 값을 전달하지 않는다. */
+  isQuotaExempt?: boolean;
   /** Demo/release-eval/background calls bypass couple quota, never global cost. */
   quotaScope?: "standard" | "demo" | "release_eval" | "background";
 };
@@ -337,7 +340,8 @@ export async function reserveAmoraTurn(
   admin: SupabaseClient,
   params: ReserveCostGuardParams,
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED) return ALLOW;
+  // 팀 예외는 긴급 전체 해제와 달리 검증과 원자 예약을 항상 유지한다.
+  if (!GUARD_ENABLED && params.isQuotaExempt !== true) return ALLOW;
   if (
     !Number.isSafeInteger(params.maxCostMicrousd)
     || params.maxCostMicrousd < 1
@@ -345,8 +349,10 @@ export async function reserveAmoraTurn(
     console.error("[costGuard] invalid maxCostMicrousd; blocking provider call");
     return DENY_UNAVAILABLE;
   }
+  const enforceCaps = GUARD_ENABLED && params.isQuotaExempt !== true;
   const appliesCoupleQuota =
-    !params.isAdmin
+    enforceCaps
+    && !params.isAdmin
     && (params.quotaScope ?? "standard") === "standard"
     && COUPLE_QUOTA_ENABLED;
   const coupleCap = appliesCoupleQuota ? FREE_PER_COUPLE : DISABLED_COUPLE_CAP;
@@ -372,9 +378,11 @@ export async function reserveAmoraTurn(
     const { data, error } = await admin.rpc("reserve_amora_turn", {
       p_couple_id: ledgerCoupleId,
       p_couple_cap: coupleCap,
-      p_global_cap: caps.turns,
+      p_global_cap: enforceCaps ? caps.turns : POSTGRES_INT_MAX,
       p_reserve_cost_microusd: params.maxCostMicrousd,
-      p_global_cost_cap_microusd: caps.costMicrousd,
+      p_global_cost_cap_microusd: enforceCaps
+        ? caps.costMicrousd
+        : POSTGRES_BIGINT_SAFE_MAX,
     });
     if (error) {
       console.error("[costGuard] 원자 예약 실패 (차단):", error.message);
@@ -455,10 +463,11 @@ async function countCoupleTurnsToday(
  */
 async function denyIfCoupleUsedTodayUp(
   admin: SupabaseClient,
-  params: { coupleId: string; isAdmin: boolean; quotaScope?: string },
+  params: CostGuardParams,
 ): Promise<CostGuardResult | null> {
   const applies =
     GUARD_ENABLED
+    && params.isQuotaExempt !== true
     && !params.isAdmin
     && (params.quotaScope ?? "standard") === "standard"
     && COUPLE_DAILY_CAP_ENABLED;
@@ -496,8 +505,9 @@ export async function reserveAmoraProviderCall(
   const dailyDenial = await denyIfCoupleUsedTodayUp(admin, params);
   if (dailyDenial) return dailyDenial;
 
+  const enforceCaps = GUARD_ENABLED && params.isQuotaExempt !== true;
   const appliesCoupleQuota =
-    GUARD_ENABLED
+    enforceCaps
     && !params.isAdmin
     && (params.quotaScope ?? "standard") === "standard"
     && COUPLE_QUOTA_ENABLED;
@@ -515,9 +525,9 @@ export async function reserveAmoraProviderCall(
       p_request_key: params.requestKey,
       p_cost_couple_id: ledgerCoupleId,
       p_couple_cap: coupleCap,
-      p_global_cap: GUARD_ENABLED ? providerCaps.turns : POSTGRES_INT_MAX,
+      p_global_cap: enforceCaps ? providerCaps.turns : POSTGRES_INT_MAX,
       p_reserve_cost_microusd: params.maxCostMicrousd,
-      p_global_cost_cap_microusd: GUARD_ENABLED
+      p_global_cost_cap_microusd: enforceCaps
         ? providerCaps.costMicrousd
         : POSTGRES_BIGINT_SAFE_MAX,
     });
@@ -580,7 +590,7 @@ export async function checkAmoraCostGuard(
   admin: SupabaseClient,
   params: CostGuardParams,
 ): Promise<CostGuardResult> {
-  if (!GUARD_ENABLED) return ALLOW;
+  if (!GUARD_ENABLED || params.isQuotaExempt === true) return ALLOW;
 
   // 1) 전역 일일 상한 — KST 자정 기준 오늘 발생한 LLM 턴 수
   const startOfTodayKstUtc = getStartOfTodayKstAsUtcIso();
