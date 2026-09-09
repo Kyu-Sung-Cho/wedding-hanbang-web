@@ -137,39 +137,49 @@ export default function SettingsPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [deleteReason, setDeleteReason] = useState("");
-  /**
-   * 자동 탈퇴 접수가 열려 있는가. 서버가 판정해 `/api/auth/me` 의 capabilities 로 내려준다.
-   *
-   * **모르는 동안(null)에는 닫힌 것으로 그린다.** 열려 있다고 잘못 그리면 사용자가
-   * 확인 문구까지 친 뒤에 거부당하고, 닫혔다고 잘못 그리면 안내가 한 번 더 뜰 뿐이다.
-   */
-  const [deletionIntakeOpen, setDeletionIntakeOpen] = useState<boolean | null>(null);
+  // 접수 가능 여부와 확인 입력은 그 응답을 받은 계정에서만 사용한다.
+  const deletionOwnerId = !isDemo ? user?.id ?? null : null;
+  const [deletionCapability, setDeletionCapability] = useState<{
+    ownerId: string;
+    open: boolean;
+  } | null>(null);
+  const deletionIntakeOpen = deletionOwnerId && deletionCapability?.ownerId === deletionOwnerId
+    ? deletionCapability.open
+    : null;
 
   useEffect(() => {
-    if (isDemo) return;
+    setDeletionCapability(null);
+    setDeleteConfirmText("");
+    setDeleteReason("");
+    setDeleteError("");
+    setDeleting(false);
+    setShowDeleteModal(false);
+    if (!deletionOwnerId) return;
     const controller = new AbortController();
     let cancelled = false;
 
-    fetch("/api/auth/me", { signal: controller.signal })
+    fetch("/api/auth/me", { signal: controller.signal, cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) return;
         const payload: unknown = await response.json().catch(() => null);
-        if (cancelled) return;
-        setDeletionIntakeOpen(
-          parseAccountDeletionIntakeCapability(
-            (payload as { capabilities?: unknown } | null)?.capabilities,
-          ),
-        );
+        const account = payload as { user?: { id?: unknown }; capabilities?: unknown } | null;
+        const currentAuth = useAuthStore.getState();
+        if (cancelled || currentAuth.isDemo || currentAuth.user?.id !== deletionOwnerId
+          || account?.user?.id !== deletionOwnerId) return;
+        setDeletionCapability({
+          ownerId: deletionOwnerId,
+          open: parseAccountDeletionIntakeCapability(account.capabilities),
+        });
       })
       .catch(() => {
-        // 판정을 못 읽었으면 닫힌 것으로 둔다(초기값 그대로).
+        // 조회가 실패해도 문의 경로만 제공하며 삭제 API로 상태를 알아보지 않는다.
       });
 
     return () => {
       cancelled = true;
       controller.abort();
     };
-  }, [isDemo]);
+  }, [deletionOwnerId]);
 
   const [showResetWeddingModal, setShowResetWeddingModal] = useState(false);
   const [resetWeddingConfirmText, setResetWeddingConfirmText] = useState("");
@@ -480,12 +490,15 @@ export default function SettingsPage() {
   ];
 
   const handleDeleteAccount = async () => {
-    // 자동 접수가 닫혀 있으면 사유도 확인 문구도 묻지 않는다 — 지워지지 않을 일에
-    // 파기 확인 절차를 시키는 것은 사용자를 헛수고시키는 것이다. 그때 이 요청은
-    // 서버가 안내(503 + supportEmail)를 돌려주게 하는 용도이고, 아무것도 지우지 않는다.
+    const isCurrentOwner = () => {
+      const currentAuth = useAuthStore.getState();
+      return Boolean(deletionOwnerId && !currentAuth.isDemo
+        && currentAuth.user?.id === deletionOwnerId);
+    };
+    // 안내 버튼이 실제 삭제 접수로 바뀌지 않도록, 모름·닫힘은 요청 자체를 막는다.
+    if (deletionIntakeOpen !== true || deleting || !isCurrentOwner()) return;
     if (
-      deletionIntakeOpen === true
-      && (deleteConfirmText !== "탈퇴합니다" || !deleteReason)
+      deleteConfirmText !== "탈퇴합니다" || !deleteReason
     ) {
       return;
     }
@@ -503,6 +516,7 @@ export default function SettingsPage() {
         message?: string;
         pending?: boolean;
       };
+      if (!isCurrentOwner()) return;
 
       if (data.pending) {
         window.alert(
@@ -528,9 +542,9 @@ export default function SettingsPage() {
         window.location.href = "/login";
       }
     } catch {
-      setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
+      if (isCurrentOwner()) setDeleteError("오류가 발생했습니다. 다시 시도해주세요.");
     } finally {
-      setDeleting(false);
+      if (isCurrentOwner()) setDeleting(false);
     }
   };
 
@@ -1353,7 +1367,9 @@ export default function SettingsPage() {
                   role="status"
                   className="mb-5 rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] px-4 py-3 text-sm leading-relaxed text-[var(--hb-text-strong)]"
                 >
-                  {ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE}
+                  {deletionIntakeOpen === null
+                    ? "자동 탈퇴 접수 상태를 확인하지 못했어요. 고객센터로 요청하실 수 있어요."
+                    : ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE}
                 </p>
               )}
 
@@ -1433,21 +1449,23 @@ export default function SettingsPage() {
                 <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
               )}
 
-              <button
+              {deletionIntakeOpen === true ? <button
                 onClick={handleDeleteAccount}
                 disabled={
                   deleting
-                  || (deletionIntakeOpen === true
-                    && (deleteConfirmText !== "탈퇴합니다" || !deleteReason))
+                  || deleteConfirmText !== "탈퇴합니다" || !deleteReason
                 }
                 className="w-full py-3 rounded-[6px] text-base font-medium transition-all mb-3 bg-red-500 text-white hover:bg-red-600 disabled:opacity-30 disabled:cursor-not-allowed"
               >
-                {deleting
-                  ? "요청 중..."
-                  : deletionIntakeOpen === true
-                    ? "계정 삭제 요청"
-                    : "요청 방법 확인하기"}
-              </button>
+                {deleting ? "요청 중..." : "계정 삭제 요청"}
+              </button> : (
+                <a
+                  href={`mailto:${CONTACT.email}`}
+                  className="block w-full py-3 rounded-[6px] text-center text-base font-medium transition-all mb-3 bg-[var(--hb-primary)] text-white"
+                >
+                  이메일로 탈퇴 요청하기
+                </a>
+              )}
 
               <button
                 onClick={() => {

@@ -42,9 +42,8 @@ export function parseAccountDeletionIntakeCapability(value: unknown): boolean {
 /**
  * 자동 접수가 닫혔을 때 화면이 **먼저** 하는 말.
  *
- * 여기서 대체 경로를 단정하지 않는다. 고객센터 주소를 이 문장에 박아 두면, 그 사서함이
- * 살아 있지 않을 때 화면이 또 한 번 거짓말을 하게 된다. 주소는 서버 응답이 주는 것을
- * 그대로 보여준다(`api/auth/delete` 의 `supportEmail`).
+ * 고객센터 주소를 이 문장에 중복하지 않는다. 설정은 공통 CONTACT의 메일 링크를
+ * 직접 제공하며, 안내를 받기 위해 삭제 API를 호출하지 않는다.
  */
 export const ACCOUNT_DELETION_INTAKE_CLOSED_NOTICE =
   "지금은 설정에서 바로 탈퇴 접수가 되지 않아요. 아래에서 요청 방법을 안내해 드릴게요." as const;
