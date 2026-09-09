@@ -19,6 +19,18 @@ const STATE_DIMENSIONS = [
   /합의|동의/,
 ];
 
+// 실제 catalog의 기존 내부 조회·계산만 인정한다. 도구 선택이나 실행 권한은 늘리지 않는다.
+const EVIDENCE_SUMMARY_READ_TOOLS: ReadonlySet<string> = new Set([
+  "get_wedding_info",
+  "get_budget_summary",
+  "get_schedule_summary",
+  "get_amora_actions",
+  "get_schedule_events",
+  "get_market_price",
+  "simulate_guest_guarantee",
+  "analyze_quote",
+]);
+
 function requestsEvidenceSummary(userText: string): boolean {
   // 인용문은 선택 근거에서만 제외한다. 실제 모델에 전달되는 사용자 원문은 그대로 둔다.
   const requestText = normalizeAmoraSafetyText(userText)
@@ -54,6 +66,6 @@ export function shouldEscalateAmoraEvidenceSummary(
     && !context.hasPersonalTools
     && !context.hasAttachments
     && !context.offersPlaceSearch
-    && context.toolNames.every(name => name === "get_wedding_info")
+    && context.toolNames.every(name => EVIDENCE_SUMMARY_READ_TOOLS.has(name))
     && requestsEvidenceSummary(userText);
 }
