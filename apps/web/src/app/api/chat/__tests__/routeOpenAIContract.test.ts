@@ -9368,12 +9368,21 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   }
 
-  it("diagnoses the b384 pivot turn input, real model role, and terminal preservation without generating a reply", async () => {
+  it.each([
+    {
+      candidate: "b384",
+      firstAssistant: "서울·경기에서 하객 약 180명, **2027년 가을** 예식을 생각 중이고 정확한 날짜와 총예산은 아직 미정이군요. 신혼집을 최우선으로 두고, 웨딩 사진 촬영은 중요하게 보며 **예단과 폐백은 생략하기로 한 것**으로 이해했어요.\n\n신혼집을 제외한 결혼 준비 범위를 먼저 정해볼까요, 아니면 신혼집까지 포함한 전체 예산을 생각하고 계신가요?",
+      secondAssistant: "40명 가족식으로 바꾸신 이유를 먼저 여쭤봐도 될까요? 이유를 알아야 기존에 유지할 기준과 다시 확인할 항목을 정확히 나눌 수 있어요.",
+    },
+    {
+      candidate: "5584",
+      firstAssistant: "서울·경기에서 하객 약 180명, **2027년 가을** 예식으로 생각 중이군요. 정확한 날짜와 총예산이 아직 미정이라, 지금은 결혼식장 후보를 고르기보다 **신혼집을 제외하고 결혼 준비에 쓸 수 있는 상한**부터 정하는 게 다음 단계예요.",
+      secondAssistant: "가족식으로 방향을 바꾸신 이유를 한 가지만 여쭤봐도 될까요? 이유를 알면 예단·폐백 생략과 사진을 중요하게 보는 기준은 유지하면서, 장소와 식사 구성을 다시 맞춰볼 수 있어요.",
+    },
+  ])("diagnoses the $candidate pivot turn input, real model role, and terminal preservation without generating a reply", async ({ firstAssistant, secondAssistant }) => {
     // 공개 합성 사례의 실제 T1/T2 원문이다. 모의 T3는 생성 품질이 아니라 출력 보존만 검사한다.
     const firstUser = "서울이나 경기에서 180명 정도 일반 웨딩을 생각 중이야. 내년 가을이고 정확한 날짜와 총예산은 미정이야. 신혼집이 최우선이고 사진은 중요해. 예단과 폐백은 두 사람이 생략하기로 했어.";
-    const firstAssistant = "서울·경기에서 하객 약 180명, **2027년 가을** 예식을 생각 중이고 정확한 날짜와 총예산은 아직 미정이군요. 신혼집을 최우선으로 두고, 웨딩 사진 촬영은 중요하게 보며 **예단과 폐백은 생략하기로 한 것**으로 이해했어요.\n\n신혼집을 제외한 결혼 준비 범위를 먼저 정해볼까요, 아니면 신혼집까지 포함한 전체 예산을 생각하고 계신가요?";
     const secondUser = "생각이 바뀌었어. 180명 일반웨딩 말고 그냥 40명만 부르는 가족식으로 할래.";
-    const secondAssistant = "40명 가족식으로 바꾸신 이유를 먼저 여쭤봐도 될까요? 이유를 알아야 기존에 유지할 기준과 다시 확인할 항목을 정확히 나눌 수 있어요.";
     const currentUser = "비용도 부담되고 준비 과정도 너무 복잡하게 느껴져서 그래. 큰 결혼식이 우리 취향도 아닌 것 같아. 날짜 후보는 9월보다 10월이 더 좋아. 이건 그냥 선호가 바뀐 거야.";
     const validResponse = "비용 부담과 복잡한 준비를 줄이고 취향에 맞추려는 변화로 이해했어요. 신혼집 최우선, 사진 중요, 예단·폐백 생략은 유지하고 2027년 10월은 정확한 날짜가 정해지지 않은 후보로 둘게요. 40명 가족식에 맞춰 식사·장소·사진 구성과 견적은 다시 확인해보세요.";
     mocks.canonicalRows[0] = {

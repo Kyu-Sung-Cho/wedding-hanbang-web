@@ -94,6 +94,11 @@
   focuses its 16px input; closing or deferring restores a meaningful control without
   overriding a newer focus choice. These presentation changes do not imply storage,
   partner approval or a completed budget/schedule/checklist update.
+  Shared to-do cards also expose their existing optional description and planned-time
+  fields inside the edit form. Planned time remains user text, such as a date or
+  "next week"; it is not parsed into a confirmed date or a completed-work timestamp.
+  Emptying a field clears it, while untouched fields stay unchanged. Failed saves
+  retain the draft. The form identifies the record as visible to the other person.
 
 - **Landing HTML exception (2026-09-06):** The user supplied `Main.dc.html` and
   `LandingMobile.dc.html` as the approved replacement design. Only `/landing`
