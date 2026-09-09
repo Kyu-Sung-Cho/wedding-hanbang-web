@@ -37,11 +37,15 @@ function requestsEvidenceSummary(userText: string): boolean {
     .replace(/```[\s\S]*?```|`[^`]*`/gu, " ")
     .replace(/“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'/gu, " ")
     .replace(/^\s*(?:>|예문\s*:|예시\s*:).*$/gmu, " ");
-  const asksToSummarizeStates = requestText.split(/[.!?。\n]+/u).some(sentence =>
-    /(?:요약|정리|구분)해\s*(?:줘(?:요)?|주세요|주실래(?:요)?|줄래(?:요)?)(?!\s*(?:라는|라고|란))(?=$|\s)/u.test(sentence)
-    && !/순서|절차/u.test(sentence)
-    && STATE_DIMENSIONS.filter(pattern => pattern.test(sentence)).length >= 2,
-  );
+  const asksToSummarizeStates = requestText.split(/[.!?。\n]+/u).some(sentence => {
+    const asksSummary = /(?:요약|정리|구분)해\s*(?:줘(?:요)?|주세요|주실래(?:요)?|줄래(?:요)?)(?!\s*(?:라는|라고|란))(?=$|\s)/u.test(sentence);
+    // 상태를 "정리하되 섞지 말아줘"라는 후속 요청도 같은 읽기 과업이다.
+    const asksSeparation = /(?:섞|혼동하)지\s*(?:말아\s*(?:줘(?:요)?|주세요)|마(?:세요)?)(?!\s*(?:라는|라고|란))(?=$|\s)/u.test(sentence)
+      && /요약|정리|구분|표|상태/u.test(sentence);
+    return (asksSummary || asksSeparation)
+      && !/순서|절차/u.test(sentence)
+      && STATE_DIMENSIONS.filter(pattern => pattern.test(sentence)).length >= 2;
+  });
   if (!asksToSummarizeStates) {
     return false;
   }
