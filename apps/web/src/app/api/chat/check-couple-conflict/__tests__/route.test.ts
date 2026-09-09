@@ -299,6 +299,7 @@ function requestWithRawBody(body: string) {
 describe("POST /api/chat/check-couple-conflict memory consent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("AMORA_TEST_USER_IDS", "");
     vi.stubEnv("AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED", "true");
     mocks.tableCallCounts.clear();
     mocks.from.mockImplementation(nextTableResult);
@@ -434,6 +435,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
 
   it("cannot enable hidden automatic mediation in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("AMORA_TEST_USER_IDS", USER_ID);
     vi.stubEnv("AMORA_AUTOMATIC_CONFLICT_MEDIATION_ENABLED", "true");
 
     const response = await POST(request());
@@ -446,6 +448,42 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
+  });
+
+  it("ignores a forged team quota exemption and allowlisted user ID in the request body", async () => {
+    vi.stubEnv("AMORA_TEST_USER_IDS", "00000000-0000-4000-8000-000000000002");
+    mocks.persistentLimit.mockResolvedValue(new Response("limited", { status: 429 }));
+
+    const response = await POST(requestWithRawBody(JSON.stringify({
+      coupleId: COUPLE_ID,
+      userId: "00000000-0000-4000-8000-000000000002",
+      isQuotaExempt: true,
+    })));
+
+    expect(response.status).toBe(429);
+    expect(mocks.persistentLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.providerGeneration).not.toHaveBeenCalled();
+  });
+
+  it("preserves partner privacy consent after bypassing an allowlisted team's rate limit", async () => {
+    vi.stubEnv("AMORA_TEST_USER_IDS", USER_ID);
+    mocks.persistentLimit.mockResolvedValue(new Response("limited", { status: 429 }));
+    mocks.rawMessages[0] = {
+      ...mocks.rawMessages[0],
+      metadata: { target: "partner" },
+    };
+
+    const response = await POST(request());
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      triggered: false,
+      reason: "privacy_consent_required",
+    });
+    expect(mocks.persistentLimit).not.toHaveBeenCalled();
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.providerGeneration).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -712,7 +750,11 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
     expect(mocks.auditedResponse).not.toHaveBeenCalled();
   });
 
-  it("settles separate durable receipts for borderline Luna and Terra", async () => {
+  it.each([false, true])("settles separate durable receipts for borderline Luna and Terra with team quota exemption %s", async (isQuotaExempt) => {
+    if (isQuotaExempt) {
+      vi.stubEnv("AMORA_TEST_USER_IDS", USER_ID);
+      mocks.persistentLimit.mockResolvedValue(new Response("limited", { status: 429 }));
+    }
     const now = Date.now();
     mocks.rawMessages.splice(
       0,
@@ -750,6 +792,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
       llmVerified: true,
     });
     expect(mocks.reserveTurn).not.toHaveBeenCalled();
+    expect(mocks.persistentLimit).toHaveBeenCalledTimes(isQuotaExempt ? 0 : 1);
     expect(mocks.providerLedger).toHaveBeenCalledTimes(2);
     expect(mocks.providerLedger.mock.calls[0]?.[0]).toEqual(expect.objectContaining({
       coupleId: COUPLE_ID,
@@ -761,6 +804,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
       costGuard: {
         coupleId: COUPLE_ID,
         isAdmin: false,
+        isQuotaExempt,
         quotaScope: "background",
         maxCostMicrousd: 88_400,
       },
@@ -775,6 +819,7 @@ describe("POST /api/chat/check-couple-conflict memory consent", () => {
       costGuard: {
         coupleId: COUPLE_ID,
         isAdmin: false,
+        isQuotaExempt,
         quotaScope: "background",
         maxCostMicrousd: 221_000,
       },

@@ -993,6 +993,7 @@ function providerNetworkAfterPreGeneration(
 describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.stubEnv("AMORA_TEST_USER_IDS", "");
     vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "false");
     // A privacy fence can reject before chatWithToolsStream consumes a queued
     // one-shot implementation. Do not let that test-only queue leak forward.
@@ -1845,7 +1846,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     ]));
   });
 
-  it("disables tools after two rounds, orders all ledger calls, and keeps the turn event cost-neutral", async () => {
+  it.each([false, true])("disables tools after two rounds and preserves ledger accounting with team quota exemption %s", async (isQuotaExempt) => {
+    if (isQuotaExempt) {
+      vi.stubEnv("AMORA_TEST_USER_IDS", "00000000-0000-4000-8000-000000000001");
+      mocks.rateLimit.mockResolvedValue(new Response("limited", { status: 429 }));
+    }
     mocks.executeTool.mockImplementation(async (
       toolName: string,
       toolInput: Record<string, unknown>,
@@ -1914,6 +1919,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
 
     expect(mocks.providerLedger).toHaveBeenCalledTimes(3);
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(isQuotaExempt ? 0 : 1);
+    for (const [context] of mocks.providerLedger.mock.calls) {
+      expect(context.costGuard).toMatchObject({
+        coupleId: COUPLE_ID,
+        isAdmin: false,
+        isQuotaExempt,
+        quotaScope: "standard",
+      });
+    }
     expect(mocks.providerLedger.mock.calls.map(([context]) => ({
       callIndex: context.callIndex,
       phase: context.phase,
@@ -1941,6 +1955,41 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         correction_count: 0,
       },
     }));
+  });
+
+  it("ignores a forged team quota exemption and allowlisted user ID in the request body", async () => {
+    vi.stubEnv("AMORA_TEST_USER_IDS", "00000000-0000-4000-8000-000000000002");
+    mocks.rateLimit.mockResolvedValue(new Response("limited", { status: 429 }));
+
+    const response = await POST(request({
+      userId: "00000000-0000-4000-8000-000000000002",
+      isQuotaExempt: true,
+    }));
+
+    expect(response.status).toBe(429);
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it("keeps signed demo rate limits even when the request forges an allowlisted team user", async () => {
+    vi.stubEnv("AMORA_TEST_USER_IDS", "00000000-0000-4000-8000-000000000001");
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    mocks.rateLimit.mockResolvedValue(new Response("limited", { status: 429 }));
+
+    const response = await POST(request({
+      coupleId: "demo-couple",
+      isDemo: true,
+      userMessageId: undefined,
+      userId: "00000000-0000-4000-8000-000000000001",
+      isQuotaExempt: true,
+    }));
+
+    expect(response.status).toBe(429);
+    expect(mocks.rateLimit).toHaveBeenCalledTimes(1);
+    expect(mocks.providerLedger).not.toHaveBeenCalled();
+    expect(mocks.provider).not.toHaveBeenCalled();
   });
 
   it("renders NAVER results over SSE but never stores or forwards provider content", async () => {
@@ -8908,6 +8957,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       {
         coupleId: "00000000-0000-4000-8000-000000000001",
         isAdmin: false,
+        isQuotaExempt: false,
         quotaScope: "release_eval",
         maxCostMicrousd: 88_400,
       },

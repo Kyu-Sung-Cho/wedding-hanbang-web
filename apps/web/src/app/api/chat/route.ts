@@ -191,6 +191,7 @@ import { NextResponse } from "next/server";
 import { buildAmoraInitialGreetingRequestKey } from "@/lib/ai/amoraInitialGreetingKey";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isAmoraTestUser } from "@/lib/ai/amoraTestAccess";
 import {
   getCookieValue,
   hasSignedDemoSessionFromCookieHeader,
@@ -870,6 +871,7 @@ export async function POST(request: Request) {
 
   const actorId = user?.id ?? (isEvaluation ? EVAL_ACTOR_ID : DEMO_ACTOR_ID);
   const evalLimit = isEvaluation ? getEvalRequestLimit(request) : null;
+  const isQuotaExempt = !isDemo && isAmoraTestUser(user?.id);
 
   if (
     !isValidChatMessages(messages) ||
@@ -1593,7 +1595,7 @@ export async function POST(request: Request) {
       )
     );
 
-  const limited = await checkRateLimitPersistent(
+  const limited = isQuotaExempt ? null : await checkRateLimitPersistent(
     evalLimit
       ? evalLimit.key
       : isDemo
@@ -4257,6 +4259,7 @@ export async function POST(request: Request) {
               costGuard: {
                 coupleId: dataCoupleId,
                 isAdmin: userProfile?.is_admin === true,
+                isQuotaExempt,
                 quotaScope: isEvaluation
                   ? "release_eval"
                   : isDemo
@@ -4772,6 +4775,7 @@ export async function POST(request: Request) {
             costGuard: {
               coupleId: dataCoupleId,
               isAdmin: userProfile?.is_admin === true,
+              isQuotaExempt,
               quotaScope: isEvaluation
                 ? "release_eval"
                 : isDemo

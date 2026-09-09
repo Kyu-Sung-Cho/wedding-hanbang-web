@@ -31,6 +31,7 @@ import {
 import { extractMediation } from "@/lib/ai/mediation";
 import { buildAmoraSystemPrompt } from "@/lib/ai/amoraPromptComposer";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
+import { isAmoraTestUser } from "@/lib/ai/amoraTestAccess";
 import {
   AmoraCostGuardError,
   checkAmoraCostGuard,
@@ -160,6 +161,7 @@ export async function POST(req: NextRequest) {
     if (!user) {
       return NextResponse.json({ triggered: false, reason: "unauthenticated" }, { status: 401 });
     }
+    const isQuotaExempt = isAmoraTestUser(user.id);
 
     const requestCoupleId = body.coupleId;
 
@@ -261,7 +263,7 @@ export async function POST(req: NextRequest) {
 
     // Rate-limit only the ordinary provider-capable path. Crisis messages have
     // already been delegated to the deterministic boundary above.
-    const limited = await checkRateLimitPersistent(
+    const limited = isQuotaExempt ? null : await checkRateLimitPersistent(
       rateLimitKey("conflict-check", req, user.id),
       {
         maxRequests: 30,
@@ -365,6 +367,7 @@ export async function POST(req: NextRequest) {
     const guard = await checkAmoraCostGuard(admin, {
       coupleId,
       isAdmin: profile?.is_admin === true,
+      isQuotaExempt,
     });
     if (!guard.allowed) {
       return respondAndCompleteConflictCheck({
@@ -397,6 +400,7 @@ export async function POST(req: NextRequest) {
     const conflictCostGuard = (maxCostMicrousd: number) => ({
       coupleId,
       isAdmin: profile?.is_admin === true,
+      isQuotaExempt,
       // Background conflict checks count against global spend, never the
       // couple's free consultation counter.
       quotaScope: "background" as const,
