@@ -893,6 +893,113 @@ describe("chat lifecycle isolation", () => {
       expect(useChatStore.getState().messages.find(m => m.id === "ai-budget-replay")?.metadata?.toolResults).toEqual([result]);
     });
 
+    const streamedBudgetResults = [
+      approvedResult,
+      { toolName: "update_category_budget", toolInput: { category: "venue", budget: 9_000_000 },
+        toolOutput: {}, success: true, displayMessage: "배정액을 변경했어요." },
+      { toolName: "apply_budget_plan", toolInput: { allocations: [{ category: "venue", budget: 9_000_000 }] },
+        toolOutput: { total_budget: 40_000_000, allocations: [{ category: "venue", budget: 9_000_000 }, { category: "reserve", budget: 1_000_000 }], remainder_to_reserve: 0 },
+        success: true, displayMessage: "예산 배분을 변경했어요." },
+      { toolName: "add_custom_category", toolInput: { label: "포토부스", budget: 800_000 },
+        toolOutput: { key: "custom_photo", label: "포토부스", created: false }, success: true, displayMessage: "배정액을 변경했어요." },
+    ];
+    const latestBudgetJourney = () => ({
+      ...useAuthStore.getState().journey!,
+      state_revision: 2,
+      total_budget: 60_000_000,
+      progress: {
+        venue: { category: "venue", status: "completed" as const, budget: 15_000_000, spent: 2_000_000,
+          payer: "couple" as const, notes: "최신 확인 메모", checklist: [{ id: "contract", label: "계약 확인", done: true }] },
+        custom_photo: { category: "custom_photo", label: "포토부스", status: "in_progress" as const,
+          budget: 1_200_000, spent: 100_000, payer: "bride_parents" as const, notes: "기존 메모" },
+        reserve: { category: "reserve", status: "not_started" as const, budget: 3_000_000 },
+      },
+    });
+    const controlledBudgetStream = () => {
+      const ready = createDeferredResult<ReadableStreamDefaultController<Uint8Array>>();
+      const body = new ReadableStream<Uint8Array>({ start(controller) { ready.resolve(controller); } });
+      const encoder = new TextEncoder();
+      return {
+        response: new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } }),
+        async emit(event: unknown) { (await ready.promise).enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`)); },
+        async finish(results: unknown[]) {
+          const controller = await ready.promise;
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "done",
+            fullContent: "예산 변경 결과를 받았어요.", metadata: { serverMessageId: "ai-budget-replay", toolResults: results },
+          })}\n\n`));
+          controller.close();
+        },
+      };
+    };
+
+    it.each(streamedBudgetResults.map(result => [result.toolName, result] as const))(
+      "preserves a newer canonical journey while the %s provider fetch is waiting",
+      async (_toolName, result) => {
+        const delayed = createDeferredResult<Response>();
+        mockFetch.mockReturnValueOnce(delayed.promise);
+        refreshJourney.mockResolvedValueOnce(false);
+        const sending = send();
+        await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+        const latest = latestBudgetJourney();
+        useAuthStore.setState({ journey: latest });
+        delayed.resolve(response([result], [result]));
+        await sending;
+        expect(useAuthStore.getState().journey).toEqual(latest);
+        expect(useAuthStore.getState().journey).toBe(latest);
+        expect(refreshJourney).toHaveBeenCalledExactlyOnceWith(TEST_USER_UUID);
+        expect(useChatStore.getState().error).toContain("최신 준비 정보를 불러오지 못했어요");
+        expect(useChatStore.getState().failedRequest).toBeNull();
+        expect(useChatStore.getState().messages.find(m => m.id === "ai-budget-replay")?.metadata?.toolResults).toEqual([result]);
+      },
+    );
+
+    it("keeps an external canonical update between streamed budget tools through the rest of that stream", async () => {
+      const stream = controlledBudgetStream();
+      mockFetch.mockResolvedValueOnce(stream.response);
+      refreshJourney.mockResolvedValueOnce(false);
+      const sending = send();
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      await stream.emit({ type: "tool_result", result: streamedBudgetResults[0] });
+      await vi.waitFor(() => expect(useChatStore.getState().streamingToolResults).toHaveLength(1));
+      expect(useAuthStore.getState().journey?.total_budget).toBe(40_000_000);
+      const latest = latestBudgetJourney();
+      useAuthStore.setState({ journey: latest });
+      for (const result of streamedBudgetResults.slice(1)) await stream.emit({ type: "tool_result", result });
+      await stream.finish(streamedBudgetResults);
+      await sending;
+      expect(useAuthStore.getState().journey).toEqual(latest);
+      expect(useAuthStore.getState().journey).toBe(latest);
+      expect(refreshJourney).toHaveBeenCalledExactlyOnceWith(TEST_USER_UUID);
+      expect(useChatStore.getState().error).toContain("최신 준비 정보를 불러오지 못했어요");
+      expect(useChatStore.getState().failedRequest).toBeNull();
+      expect(useChatStore.getState().messages.find(m => m.id === "ai-budget-replay")?.metadata?.toolResults).toEqual(streamedBudgetResults);
+    });
+
+    it("applies consecutive streamed budget tools without an external journey replacement", async () => {
+      const initial = latestBudgetJourney();
+      useAuthStore.setState({ journey: initial });
+      const stream = controlledBudgetStream();
+      mockFetch.mockResolvedValueOnce(stream.response);
+      refreshJourney.mockResolvedValueOnce(false);
+      const sending = send();
+      await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
+      for (let index = 0; index < streamedBudgetResults.length; index += 1) {
+        await stream.emit({ type: "tool_result", result: streamedBudgetResults[index] });
+        await vi.waitFor(() => expect(useChatStore.getState().streamingToolResults).toHaveLength(index + 1));
+      }
+      await stream.finish(streamedBudgetResults);
+      await sending;
+      expect(useAuthStore.getState().journey).toEqual({ ...initial, total_budget: 40_000_000, progress: {
+        ...initial.progress,
+        venue: { ...initial.progress.venue, budget: 9_000_000 },
+        custom_photo: { ...initial.progress.custom_photo, budget: 800_000 },
+        reserve: { ...initial.progress.reserve, budget: 1_000_000 },
+      } });
+      expect(refreshJourney).toHaveBeenCalledExactlyOnceWith(TEST_USER_UUID);
+      expect(useChatStore.getState().error).toContain("최신 준비 정보를 불러오지 못했어요");
+      expect(useChatStore.getState().failedRequest).toBeNull();
+    });
+
     it.each(["update_budget", "update_category_budget", "apply_budget_plan", "add_custom_category"])(
       "refreshes the latest journey for a done-only %s receipt after an interrupted response",
       async (toolName) => {
