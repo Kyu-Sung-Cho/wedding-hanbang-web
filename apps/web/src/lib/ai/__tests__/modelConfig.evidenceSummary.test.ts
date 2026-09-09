@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { chooseAmoraChatModelRole } from "../modelConfig";
+import { classifyAmoraQuestionScope, filterAmoraToolsByQuestionScope } from "../amoraQuestionScope";
+import { selectAmoraTools } from "../amoraToolPolicy";
+import { selectPersonalActionConversationTools } from "../amoraPersonalActionConversation";
+import { getAvailableChatTools, getPlaceSearchToolChoice, isPlaceSearchCandidate } from "../placeSearchRouting";
+import { determineStage, routeSpecialist } from "../stage-router";
+import { isMutatingTool } from "../mutationTools";
+import { BETA_SAFE_TOOLS } from "../tools";
 
 const readContext = {
   requestKind: "chat",
@@ -21,6 +28,30 @@ function roleFor(userText: string, context = readContext, correctionCount = 0) {
 }
 
 describe("read-only evidence summary model routing", () => {
+  it.each([
+    {
+      label: "250dcb7d direct item scope",
+      text: "결혼 준비 이야기를 정리하고 싶어. 어제 파트너에게 “사진은 꼭 남기고 싶어”라고 직접 말했어. 예산에 대해서는 아직 파트너에게 말 안 했어. 사진 촬영 방식과 예산 금액은 미정이고, 둘이 합의한 내용도 아직 없어. 지금은 내 개인 상담이야. 항목별로 내가 말한 선호, 전달 여부, 합의 여부를 구분해서 표로 정리해줘. 저장하거나 공유하지 마.",
+      expectedReads: ["analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events", "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee"],
+    },
+  ])("selects primary with the actual production tool catalog: $label", ({ text, expectedReads }) => {
+    const scope = classifyAmoraQuestionScope({ userText: text });
+    const specialistType = routeSpecialist(text, determineStage(null));
+    const candidates = getAvailableChatTools({ requestKind: "chat", isDurableUserMessageBound: true, tools: BETA_SAFE_TOOLS });
+    const reads = filterAmoraToolsByQuestionScope(selectAmoraTools({
+      availableTools: candidates, userText: text, specialistType, attachmentKind: "none", checklistLabels: [],
+    }).filter(tool => !isMutatingTool(tool.name)), scope);
+    const personal = selectPersonalActionConversationTools({
+      tools: candidates, userText: text, visibility: "bride_private", requestKind: "chat", durable: true, scope,
+    });
+    const offersPlaceSearch = getPlaceSearchToolChoice({ userText: text, round: 0, tools: candidates }) !== undefined || isPlaceSearchCandidate(text);
+    expect(scope.scope).toBe("W0_wedding_core");
+    expect(personal).toEqual([]);
+    expect(offersPlaceSearch).toBe(false);
+    expect(reads.map(tool => tool.name).sort()).toEqual(expectedReads);
+    expect(roleFor(text, { ...readContext, toolNames: reads.map(tool => tool.name), offersPlaceSearch, hasPersonalTools: personal.length > 0 })).toBe("primary");
+  });
+
   it.each([
     summary,
     "항목별 선호, 전달 여부, 합의 여부를 구분해서 표로 정리해줘. 저장하거나 공유하지 마.",
@@ -73,6 +104,7 @@ describe("read-only evidence summary model routing", () => {
     { toolNames: ["get_personal_actions"] },
     { toolNames: ["get_wedding_info", "search_nearby_places"] },
     { toolNames: ["get_wedding_info", "apply_budget_plan"] },
+    { toolNames: ["get_wedding_info", "future_read_tool"] },
   ])("does not change the existing action or external-context route: %j", override => {
     expect(roleFor(summary, { ...readContext, ...override })).toBe("fast");
   });
@@ -81,5 +113,12 @@ describe("read-only evidence summary model routing", () => {
     expect(chooseAmoraChatModelRole({ specialistType: "general", userText: summary, correctionCount: 0 })).toBe("fast");
     expect(roleFor(summary, { ...readContext, hasPriorityAction: true }, 2)).toBe("primary");
     expect(roleFor("상대가 협박하고 있어", { ...readContext, hasPriorityAction: true })).toBe("primary");
+  });
+
+  it("keeps ordinary or mixed-write requests fast even with all production summary reads", () => {
+    const context = { ...readContext, toolNames: ["get_wedding_info", "get_budget_summary", "get_schedule_summary",
+      "get_amora_actions", "get_schedule_events", "get_market_price", "simulate_guest_guarantee", "analyze_quote"] };
+    expect(roleFor("결혼 준비 순서를 정리해줘.", context)).toBe("fast");
+    expect(roleFor("확정과 미정을 정리해줘. 예산을 저장해줘.", context)).toBe("fast");
   });
 });

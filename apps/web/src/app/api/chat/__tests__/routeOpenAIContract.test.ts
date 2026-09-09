@@ -9451,7 +9451,24 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const actualPrompts = await vi.importActual<typeof import("@/lib/ai/prompts")>("@/lib/ai/prompts");
     providerAfterPreGeneration(providerResult({ fullText: mockReply }));
 
-    await vi.mocked(modelConfig.chooseAmoraChatModelRole).withImplementation(
+    // 운영의 조회 도구를 생략한 축약 catalog는 실제 역할 선택 실패를 숨긴다.
+    const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const stage = await import("@/lib/ai/stage-router");
+    const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+    const originalStage = {
+      determine: vi.mocked(stage.determineStage).getMockImplementation()!,
+      route: vi.mocked(stage.routeSpecialist).getMockImplementation()!,
+      keyword: vi.mocked(stage.matchedSpecialistByKeyword).getMockImplementation()!,
+      prompt: vi.mocked(stage.getSpecialistPromptAddon).getMockImplementation()!,
+    };
+    const originalTools = [...mocks.safeTools];
+    (mocks.safeTools as AiToolDefinition[]).splice(0, mocks.safeTools.length, ...actualTools.BETA_SAFE_TOOLS);
+    try {
+      vi.mocked(stage.determineStage).mockImplementation(actualStage.determineStage);
+      vi.mocked(stage.routeSpecialist).mockImplementation(actualStage.routeSpecialist);
+      vi.mocked(stage.matchedSpecialistByKeyword).mockImplementation(actualStage.matchedSpecialistByKeyword);
+      vi.mocked(stage.getSpecialistPromptAddon).mockImplementation(actualStage.getSpecialistPromptAddon);
+      await vi.mocked(modelConfig.chooseAmoraChatModelRole).withImplementation(
       actualModelConfig.chooseAmoraChatModelRole,
       async () => vi.mocked(prompts.getWeddingPlannerSystemPrompt).withImplementation(
         actualPrompts.getWeddingPlannerSystemPrompt,
@@ -9474,12 +9491,17 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           ]);
           expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
           expect(providerArgs?.modelRole).toBe("primary");
-          expect(providerArgs?.tools?.map((tool: { name: string }) => tool.name) ?? []).toEqual(["get_wedding_info"]);
+          const toolNames = providerArgs?.tools?.map((tool: { name: string }) => tool.name) ?? [];
+          expect(toolNames).toEqual(expect.arrayContaining(["get_wedding_info", "get_budget_summary", "get_schedule_summary", "get_amora_actions"]));
+          if (!withHistory) expect([...toolNames].sort()).toEqual([
+            "analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events",
+            "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee",
+          ]);
           expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({
             evidenceSummaryContext: {
               requestKind: "chat", durable: true, isDemo: false,
               hasPriorityAction: false, hasPersonalTools: false, hasAttachments: false,
-              offersPlaceSearch: false, toolNames: ["get_wedding_info"],
+              offersPlaceSearch: false, toolNames,
             },
           }));
           expect(mocks.chatHistoryEq).toHaveBeenCalledWith("visibility", "bride_private");
@@ -9524,7 +9546,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(mocks.journeyStateRevision).toBe(revisionBefore);
         },
       ),
-    );
+      );
+    } finally {
+      mocks.safeTools.splice(0, mocks.safeTools.length, ...originalTools);
+      vi.mocked(stage.determineStage).mockImplementation(originalStage.determine);
+      vi.mocked(stage.routeSpecialist).mockImplementation(originalStage.route);
+      vi.mocked(stage.matchedSpecialistByKeyword).mockImplementation(originalStage.keyword);
+      vi.mocked(stage.getSpecialistPromptAddon).mockImplementation(originalStage.prompt);
+    }
   });
 
   it.each(["legacy", "attachment", "proposal", "mixed-write", "awaiting-card"] as const)("keeps status summaries on the existing route at the %s boundary", async boundary => {
