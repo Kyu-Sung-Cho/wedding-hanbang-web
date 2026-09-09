@@ -475,6 +475,8 @@ describe("amoraActionTools", () => {
         __amora_actions: [{
           id: "act_1",
           title: "Check quote",
+          description: "식사 포함 범위와 추가 비용 확인",
+          dueDate: "양가 일정 정한 뒤",
           priority: "high",
           status: "open",
           source: "quote",
@@ -489,8 +491,21 @@ describe("amoraActionTools", () => {
     expect(result.toolOutput).toMatchObject({
       count: 1,
       open_count: 1,
-      actions: [expect.objectContaining({ id: "act_1", title: "Check quote" })],
+      actions: [expect.objectContaining({ id: "act_1", title: "Check quote", description: "식사 포함 범위와 추가 비용 확인", dueDate: "양가 일정 정한 뒤" })],
     });
+  });
+
+  it("exposes canonical planning fields to Amora rather than the stale legacy values", async () => {
+    mockAdminClient({ amora_actions: [{ awaitResult: { data: [{
+      id: "act_plan", title: "식사 견적 확인", description: "직접 적은 준비 설명", due_date: "2026-10-15",
+      priority: "medium", status: "open", source: "manual", created_at: "2026-09-09T00:00:00Z", updated_at: "2026-09-09T00:00:00Z",
+    }], error: null } }] });
+    const result = await executeGetAmoraActions({ status: "all" }, createContext({ __amora_actions: [{
+      id: "act_plan", title: "옛 제목", description: "옛 설명", dueDate: "옛 날짜", status: "open",
+    }] }));
+    expect(result).toMatchObject({ success: true, toolOutput: { actions: [{
+      id: "act_plan", title: "식사 견적 확인", description: "직접 적은 준비 설명", dueDate: "2026-10-15", source: "manual",
+    }] } });
   });
 
   it("updates legacy actions when storage is unavailable", async () => {

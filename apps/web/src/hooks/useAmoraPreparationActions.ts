@@ -8,8 +8,8 @@ import { DEMO_PREPARATION_ACTIONS } from "@/lib/amora/preparationBoard";
 import { cleanOptionalText } from "@/utils/requestValidation";
 
 const actionSchema = z.object({
-  id: z.string().min(1), title: z.string().min(1), description: z.string().optional(),
-  dueDate: z.string().optional(), categoryKey: z.string().optional(),
+  id: z.string().min(1), title: z.string().min(1), description: z.string().nullish().transform(value => value ?? undefined),
+  dueDate: z.string().nullish().transform(value => value ?? undefined), categoryKey: z.string().optional(),
   priority: z.enum(["high", "medium", "low"]), status: z.enum(["open", "done", "dismissed"]),
   source: z.enum(["chat", "quote", "schedule", "budget", "guardrail", "manual"]),
   href: z.string().optional(), createdAt: z.string(), updatedAt: z.string(), completedAt: z.string().optional(),
@@ -20,12 +20,17 @@ const snapshotSchema = z.object({
   next_cursor: z.string().min(1).max(2_048).nullable().optional(),
 }).refine((value) => value.count >= value.actions.length && value.open_count <= value.count);
 
-export type AmoraPreparationActionUpdate = { status?: AmoraActionStatus; category_key?: string; title?: string };
+export type AmoraPreparationActionUpdate = { status?: AmoraActionStatus; category_key?: string; title?: string; description?: string; due_date?: string };
 type Snapshot = { actions: AmoraActionItem[]; count: number; open_count: number; truncated: boolean; nextCursor: string | null };
 type LoadState = Snapshot & { scope: string; loading: boolean; loadingMore: boolean; error: string | null };
 const EMPTY: Snapshot = { actions: [], count: 0, open_count: 0, truncated: false, nextCursor: null };
 const NO_UPDATES: ReadonlySet<string> = new Set<string>();
 const READ_ERROR = "준비 상황을 불러오지 못했어요. 다시 시도해 주세요.";
+
+function matchesPlanFields(action: AmoraActionItem, fields: { description?: string; due_date?: string }) {
+  return (fields.description === undefined || (action.description ?? "") === (cleanOptionalText(fields.description, 500) ?? ""))
+    && (fields.due_date === undefined || (action.dueDate ?? "") === (cleanOptionalText(fields.due_date, 40) ?? ""));
+}
 
 function scopeFor(state: Pick<ReturnType<typeof useAuthStore.getState>, "user" | "profile" | "isDemo" | "isInitialized">) {
   if (!state.isInitialized || !state.profile || !state.user || state.profile.id !== state.user.id) return "";
@@ -116,6 +121,8 @@ export function useAmoraPreparationActions() {
           ...changes[id], ...(updates.status ? { status: updates.status } : {}),
           ...(updates.category_key !== undefined ? { categoryKey: updates.category_key } : {}),
           ...(updates.title !== undefined ? { title: updates.title.trim() } : {}),
+          ...(updates.description !== undefined ? { description: cleanOptionalText(updates.description, 500) ?? undefined } : {}),
+          ...(updates.due_date !== undefined ? { dueDate: cleanOptionalText(updates.due_date, 40) ?? undefined } : {}),
         } } };
       });
       return true;
@@ -136,7 +143,8 @@ export function useAmoraPreparationActions() {
       if (payload.action.id !== id) throw new Error("unexpected_action");
       if ((updates.status !== undefined && payload.action.status !== updates.status)
         || (updates.category_key !== undefined && (payload.action.categoryKey ?? "") !== updates.category_key)
-        || (updates.title !== undefined && payload.action.title !== cleanOptionalText(updates.title, 120))) throw new Error("unexpected_update");
+        || (updates.title !== undefined && payload.action.title !== cleanOptionalText(updates.title, 120))
+        || !matchesPlanFields(payload.action, updates)) throw new Error("unexpected_update");
       if (!current()) return false;
       setState((previous) => previous.scope === scope ? {
         ...previous, loading: false, loadingMore: false,
