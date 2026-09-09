@@ -11,6 +11,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => mocks.pathname }));
 import { useAuthStore } from "@/stores/authStore";
 import type { Couple, Profile, WeddingJourney } from "@/types/database.types";
 import BudgetContent from "./budget/BudgetContent";
+import BudgetTab from "./chat/panel/BudgetTab";
 import JourneyRealtimeSync from "./JourneyRealtimeSync";
 const scope = (owner = "user-a", couple = "couple-a") => ({
   user: { id: owner, email: `${owner}@test.invalid` },
@@ -32,6 +33,7 @@ describe("JourneyRealtimeSync", () => {
   let container: HTMLDivElement; let root: Root; let server: ReturnType<typeof scope>;
   const fetchMock = vi.fn();
   const render = async (withBudget = false) => { await act(async () => root.render(<><JourneyRealtimeSync />{withBudget && <BudgetContent />}</>)); };
+  const renderChatBudget = async () => { await act(async () => root.render(<><JourneyRealtimeSync /><BudgetTab /></>)); };
   const tick = async (ms = 10_000) => { await act(async () => vi.advanceTimersByTimeAsync(ms)); };
   const event = async (name: string, target: Window | Document = window) => { await act(async () => target.dispatchEvent(new Event(name))); };
   const handler = (table: string) => mocks.channel.on.mock.calls.find(call => call[1].table === table)?.[2] as () => void;
@@ -142,6 +144,83 @@ describe("JourneyRealtimeSync", () => {
     await act(async () => pending.resolve(response(oldServer)));
     expect(useAuthStore.getState().journey?.couple_id).toBe("couple-b");
     fetchMock.mockClear(); await act(async () => oldHandler()); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it.each(["/chat", "/wedding/chat"])("refreshes the mounted %s budget panel after thirty seconds with no realtime events", async pathname => {
+    mocks.pathname = pathname;
+    await renderChatBudget(); await status("SUBSCRIBED");
+    expect(container.textContent).toContain("총 예산2,500만원");
+    expect(container.textContent).toContain("배정 900만원");
+    fetchMock.mockClear();
+    server = { ...server, journey: { ...server.journey, total_budget: 35_000_000, state_revision: 1,
+      progress: { ...server.journey.progress, venue: { ...server.journey.progress.venue, budget: 9_500_000 } } } };
+    // No postgres_changes, resume or remount: even a healthy subscription can lose every event.
+    await tick(29_999);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("총 예산2,500만원");
+    expect(container.textContent).toContain("배정 900만원");
+    await tick(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("총 예산3,500만원");
+    expect(container.textContent).toContain("배정 950만원");
+    expect(container.textContent).toContain("기록 10,001원");
+    expect(fetchMock.mock.calls.every(call => call[0] === "/api/auth/me" && !call[1]?.method)).toBe(true);
+  });
+  it.each(["/chat", "/wedding/chat"])("pauses %s panel refresh while hidden or offline and reads on resume", async pathname => {
+    mocks.pathname = pathname;
+    await renderChatBudget(); await status("SUBSCRIBED"); fetchMock.mockClear();
+    server = { ...server, journey: { ...server.journey, total_budget: 36_000_000, state_revision: 1 } };
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    await event("visibilitychange", document); await tick(60_000);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("총 예산2,500만원");
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    await event("visibilitychange", document);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("총 예산3,600만원");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    await event("offline"); fetchMock.mockClear();
+    server = { ...server, journey: { ...server.journey, total_budget: 37_000_000, state_revision: 2 } };
+    await tick(60_000);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("총 예산3,600만원");
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true); await event("online");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(container.textContent).toContain("총 예산3,700만원");
+  });
+  it.each(["/chat", "/wedding/chat"])("does not poll a %s demo panel or revive its previous subscription", async pathname => {
+    mocks.pathname = pathname;
+    useAuthStore.setState({ isDemo: true });
+    await renderChatBudget(); await tick(60_000);
+    expect(mocks.createChannel).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
+    await act(async () => useAuthStore.setState({ isDemo: false }));
+    await status("SUBSCRIBED"); const oldHandler = handler("wedding_journeys");
+    await act(async () => useAuthStore.setState({ isDemo: true }));
+    fetchMock.mockClear();
+    await act(async () => oldHandler()); await event("online"); await tick(60_000);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mocks.removeChannel).toHaveBeenCalledWith(mocks.channel);
+  });
+  it.each(["/chat", "/wedding/chat"].flatMap(pathname =>
+    ["another-owner", "same-owner-another-couple"].map(mode => ({ pathname, mode })),
+  ))("aborts the old $pathname panel poll when its owner changes: $mode", async ({ pathname, mode }) => {
+    mocks.pathname = pathname;
+    await renderChatBudget(); await status("SUBSCRIBED");
+    const oldHandler = handler("wedding_journeys");
+    const oldServer = { ...server, journey: { ...server.journey, total_budget: 35_000_000, state_revision: 1 } };
+    const pending = deferred<ReturnType<typeof response>>();
+    fetchMock.mockImplementationOnce(() => pending.promise);
+    await tick(30_000);
+    const signal = fetchMock.mock.calls.at(-1)?.[1]?.signal as AbortSignal | undefined;
+    const next = scope(mode === "another-owner" ? "user-b" : "user-a", "couple-b");
+    server = { ...next, journey: { ...next.journey, total_budget: 42_000_000, state_revision: 2 } };
+    await act(async () => useAuthStore.setState(server));
+    expect(signal?.aborted).toBe(true);
+    await act(async () => pending.resolve(response(oldServer)));
+    expect(useAuthStore.getState().journey?.couple_id).toBe("couple-b");
+    expect(container.textContent).toContain("총 예산4,200만원");
+    expect(container.textContent).not.toContain("총 예산3,500만원");
+    fetchMock.mockClear(); await act(async () => oldHandler()); expect(fetchMock).not.toHaveBeenCalled();
+    await tick(30_000); expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it("retries failed reads without blanking the current budget or claiming a saved change", async () => {
     await render(true); const before = useAuthStore.getState().journey;

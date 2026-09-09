@@ -119,7 +119,7 @@ describe("실제 예약 경로에 배선돼 있다", () => {
     receiptId: "11111111-1111-4111-8111-111111111111",
     claimToken: "22222222-2222-4222-8222-222222222222",
     requestKey: "probe-request-key",
-    maxCostMicrousd: 88_400,
+    maxCostMicrousd: 17_680,
   };
 
   it("체험 요청은 실사용자보다 낮은 p_global_cap 으로 예약한다", async () => {

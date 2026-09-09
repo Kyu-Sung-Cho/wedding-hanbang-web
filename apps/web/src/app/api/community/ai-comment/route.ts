@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createOpenAIResponseWithAudit } from "@/lib/ai/auditedOpenAI";
+import { getAmoraProviderCallCostReservationMicrousd } from "@/lib/ai/amoraRequestPolicy";
 import { reserveAmoraTurn } from "@/lib/ai/costGuard";
 import { verifyAdmin } from "@/lib/utils/adminAuth";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
@@ -17,7 +18,6 @@ const MAX_COST_CATEGORIES = 12;
 const MAX_COST_LABEL_CHARS = 60;
 const MAX_MODEL_INPUT_CHARS = 3_000;
 const COMMUNITY_AI_COMMENT_MAX_INPUT_TOKENS = 64_000;
-const COMMUNITY_AI_COMMENT_MAX_COST_MICROUSD = 88_400;
 
 class CommunityAiCommentUnavailableError extends Error {
   constructor() {
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
             coupleId: AMORA_USER_ID,
             isAdmin: false,
             quotaScope: "background",
-            maxCostMicrousd: COMMUNITY_AI_COMMENT_MAX_COST_MICROUSD,
+            maxCostMicrousd: getAmoraProviderCallCostReservationMicrousd("fast"),
           });
         } catch {
           throw new CommunityAiCommentUnavailableError();

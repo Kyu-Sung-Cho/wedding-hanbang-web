@@ -1,6 +1,7 @@
 import { parsePersonalActionPage, parsePersonalActionReceipt, isPersonalActionDeleteReceipt } from '@hanbang/shared/amora-personal-actions';
 
 const PATH = '/api/amora/personal-actions';
+const REQUEST_TIMEOUT_MS = 30_000;
 const empty = ownerId => ({ ownerId, actions: [], count: 0, nextCursor: null, loading: false, busyIds: [], error: null, writeError: null });
 
 /** 계정 변경은 같은 사용자로 돌아와도 세대를 바꿔 이전 요청이 다시 나타나지 않게 한다. */
@@ -18,22 +19,35 @@ export function createPersonalActionsSession(request, initialOwnerId = null) {
     if (!current(token)) throw new Error('IDENTITY_CHANGED');
     const controller = new globalThis.AbortController();
     controllers.add(controller);
+    // 인증 준비나 본문 읽기가 중단 신호를 무시해도 화면의 대기는 끝냅니다. 서버 저장 취소는 보장하지 않습니다.
+    let onAbort;
+    const cancelled = new Promise((_resolve, reject) => {
+      onAbort = () => reject(new Error('REQUEST_ABORTED'));
+      controller.signal.addEventListener('abort', onAbort, { once: true });
+    });
+    const timeout = globalThis.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const response = await request(token.owner, method === 'GET' ? `${PATH}?status=all&limit=30${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}` : PATH, {
-        method, signal: controller.signal,
-        ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, expectedOwnerId: token.owner }) } : {}),
-      });
-      if (!current(token)) throw new Error('IDENTITY_CHANGED');
-      if (!response.ok) {
-        const failure = await response.json().catch(() => null);
-        if (response.status === 409 && failure?.code === 'PERSONAL_ACTION_LIMIT_REACHED') throw new Error('LIMIT_REACHED');
-        if (response.status === 409 && failure?.code === 'PERSONAL_ACTION_SOURCE_PROVENANCE_UNAVAILABLE') throw new Error('SOURCE_UNAVAILABLE');
-        throw new Error(response.status === 409 ? 'CHANGED' : response.status === 403 && method === 'POST' ? 'SOURCE_UNAVAILABLE' : 'REQUEST_FAILED');
-      }
-      const payload = await response.json();
-      if (!current(token)) throw new Error('IDENTITY_CHANGED');
-      return payload;
-    } finally { controllers.delete(controller); }
+      return await Promise.race([cancelled, (async () => {
+        const response = await request(token.owner, method === 'GET' ? `${PATH}?status=all&limit=30${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}` : PATH, {
+          method, signal: controller.signal,
+          ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...body, expectedOwnerId: token.owner }) } : {}),
+        });
+        if (!current(token)) throw new Error('IDENTITY_CHANGED');
+        if (!response.ok) {
+          const failure = await response.json().catch(() => null);
+          if (response.status === 409 && failure?.code === 'PERSONAL_ACTION_LIMIT_REACHED') throw new Error('LIMIT_REACHED');
+          if (response.status === 409 && failure?.code === 'PERSONAL_ACTION_SOURCE_PROVENANCE_UNAVAILABLE') throw new Error('SOURCE_UNAVAILABLE');
+          throw new Error(response.status === 409 ? 'CHANGED' : response.status === 403 && method === 'POST' ? 'SOURCE_UNAVAILABLE' : 'REQUEST_FAILED');
+        }
+        const payload = await response.json();
+        if (!current(token)) throw new Error('IDENTITY_CHANGED');
+        return payload;
+      })()]);
+    } finally {
+      globalThis.clearTimeout(timeout);
+      controller.signal.removeEventListener('abort', onAbort);
+      controllers.delete(controller);
+    }
   };
   const load = async cursor => {
     const token = identity();

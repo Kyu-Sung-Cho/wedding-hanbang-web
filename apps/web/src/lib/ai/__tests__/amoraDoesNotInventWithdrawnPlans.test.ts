@@ -106,6 +106,39 @@ const VARIANTS: Array<{ label: string; prompt: string }> = [
 ];
 
 describe("철회 목록을 지어내지 않는다", () => {
+  it("큰 변화 뒤 이유를 들으면 이미 답한 유지 조건 대신 다음 확인으로 이어간다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const rolesStart = prompt.indexOf("### 먼저 이번 턴의 역할 하나를 고르기");
+      const rolesEnd = prompt.indexOf("### 순서를 말할 때는", rolesStart);
+      const listeningStart = prompt.indexOf("### 듣는 방식");
+      const listeningEnd = prompt.indexOf("### 자연스러운 말투", listeningStart);
+      expect(rolesStart, label).toBeGreaterThan(-1);
+      expect(rolesEnd, label).toBeGreaterThan(rolesStart);
+      expect(listeningStart, label).toBeGreaterThan(-1);
+      expect(listeningEnd, label).toBeGreaterThan(listeningStart);
+      const roles = prompt.slice(rolesStart, rolesEnd);
+      const listening = prompt.slice(listeningStart, listeningEnd);
+      expect(roles, label).toContain("이유가 비어 있는 큰 실무 방향 전환");
+      expect(roles, label).toContain("새 취향 질문 전에 현재 바꾼 대상의 이유를 한 번");
+      expect(listening, label).toContain("바꾼 부분만 대화 기준에 반영");
+      expect(listening, label).toContain("이유를 이미 말했으면 다시 묻지");
+      expect(listening, label).toContain("알려진 조건의 유지 여부를 되묻거나 새 공동 합의로 만들지");
+      expect(listening, label).toContain("인원·장소에 따른 식사 구성·최소 인원·견적");
+      expect(listening, label).toContain("다음 행동 한 가지는 우선순위");
+      expect(listening, label).toContain("그것만 하면 되거나 다른 준비가 필요 없다는 뜻이 아닙니다");
+    }
+  });
+
+  it("쉬운말로 풀어도 사용자가 정한 항목의 원명칭과 범위를 보존한다", () => {
+    for (const { label, prompt } of VARIANTS) {
+      const line = prompt.split("\n").find(value => value.includes("원명칭과 범위를 유지")) ?? "";
+      expect(line, label).toContain("예단 생략을 모든 가족 선물 생략으로");
+      expect(line, label).toContain("폐백 생략을 감사 인사 생략으로");
+      expect(line, label).toContain("확대하지 마세요");
+      expect(line, label).toContain("명시적으로 더 넓게 정했다면 그 범위");
+    }
+  });
+
   it("요청받은 상태 요약에서 거부 조건과 결정 상태·전달 여부를 섞지 않는다", () => {
     for (const { label, prompt } of VARIANTS) {
       const line = prompt.split("\n").find(value => value.includes("상태 요약을 요청하면")) ?? "";

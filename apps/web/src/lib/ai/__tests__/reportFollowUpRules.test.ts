@@ -16,12 +16,17 @@ import {
 } from "@/lib/ai/amoraPromptComposer";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
+import type { AmoraQuestionScopeClassification } from "@/lib/ai/amoraQuestionScope";
+import {
+  getWeddingPlannerSystemPrompt,
+  type WeddingPlannerPromptContext,
+} from "@/lib/ai/prompts";
 
 const PRODUCTION_ENABLED_TOOL_NAMES = BETA_SAFE_TOOLS
   .filter((tool) => !isMutatingTool(tool.name))
   .map((tool) => tool.name);
 
-function promptContext() {
+function promptContext(): WeddingPlannerPromptContext {
   return {
     weddingDate: "2027-05-15",
     budget: 50_000_000,
@@ -30,12 +35,13 @@ function promptContext() {
     preparationStatus: null,
     brideName: "신부",
     groomName: "신랑",
+    senderName: "신부",
     bookings: [],
     scheduleEvents: [],
     chatSummaries: [],
     pastConflicts: [],
     pastDecisions: [],
-  } as never;
+  };
 }
 
 const compose = (enabledToolNames: string[]) =>
@@ -46,13 +52,123 @@ const compose = (enabledToolNames: string[]) =>
   });
 
 const delivered = compose(PRODUCTION_ENABLED_TOOL_NAMES);
-it("일반 대화 조율에서도 두 사람의 이유와 조건의 귀속을 유지하도록 전달한다", () => {
-  const line = delivered.split("\n").find(candidate => candidate.includes("말한 사람별로 유지")) ?? "";
-  expect(line).toContain("말·이유·조건");
-  expect(line).toContain("서로 바꾸거나 합의로 묶지");
-  expect(line).toContain("감정·의도는 단정하지");
-  expect(line).toContain("한 사람의 예산 제안만으로 공동 상한이나 예산 갈등을 만들지");
-  expect(line).toContain("확인된 공동 합의는 유지");
+describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한다", () => {
+  const heading = "[준비 의견의 근거 확인]";
+  const rulePrefix = "- 이번 턴의 실제 부탁과 직전 맥락을 먼저 보세요.";
+  const attributionLine = (prompt: string) =>
+    prompt.split("\n").find(line => line.startsWith(rulePrefix)) ?? "";
+  const coreScope: AmoraQuestionScopeClassification = {
+    scope: "W0_wedding_core", allowsLongTermMemory: true, confidence: "high", needsClarification: false,
+  };
+
+  function expectProtectedAttribution(prompt: string): void {
+    const line = attributionLine(prompt);
+    expect(line).not.toBe("");
+    expect(prompt.split(heading)).toHaveLength(2);
+    expect(prompt.split(line)).toHaveLength(2);
+    expect(prompt.indexOf(heading)).toBeGreaterThan(prompt.indexOf("[서버 확정 요청 계약]"));
+    expect(prompt.indexOf(heading)).toBeLessThan(prompt.indexOf("[준비 방향 변경]"));
+    expect(prompt.length - prompt.indexOf(line) - line.length).toBeLessThan(1000);
+    expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  }
+
+  it("도구 유무와 무관하게 귀속·피벗·추천·범위 계약 순서를 유지한다", () => {
+    for (const enabledToolNames of [PRODUCTION_ENABLED_TOOL_NAMES, []]) {
+      const prompt = buildAmoraSystemPrompt(promptContext(), {
+        enabledToolNames, requestKind: "chat", persistenceMode: "durable",
+        questionScope: coreScope, maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      expectProtectedAttribution(prompt);
+      expect(prompt.indexOf("[추천 근거 확인]"))
+        .toBeGreaterThan(prompt.indexOf("[준비 방향 변경]"));
+      expect(prompt.indexOf("[서버 확정 질문 범위 계약]"))
+        .toBeGreaterThan(prompt.indexOf("[추천 근거 확인]"));
+    }
+  });
+
+  // 모델의 의미 판단을 흉내내지 않는다. 실제 마지막 한 줄에 필요한
+  // 양성/음성 대조 기준이 함께 실리는지를 검사한다.
+  it.each([
+    ["단순 전달은 짧은 접수", "준비 의견만 전달하는 중이면 말·이유·조건을 말한 사람에게 귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요"],
+    ["인용문 안의 부탁", "인용 속 부탁은 현재 요청이 아닙니다"],
+    ["이미 요청된 비교의 후속", "이미 요청된 비교의 후속 설명은 이어가고"],
+    ["의견과 함께 온 실제 실행 요청", "함께 한 명시적 실행 요청은 승인 규칙대로 다루세요"],
+    ["한쪽만 추가한 조건", "같은 주제에서 한쪽만 말한 조건은 그 사람의 조건이며, 다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요"],
+    ["양쪽이 명시한 실제 충돌", "양쪽이 명시한 양립하지 않는 조건만 의견 차이로 다루세요"],
+    ["확인된 공동 합의", "한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지"],
+    ["불확실한 귀속과 감정", "감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요"],
+  ])("%s의 기준을 한 보호 규칙에서 구분한다", (_name, expected) => {
+    const line = attributionLine(delivered);
+    expect(line).toContain("이번 턴의 실제 부탁과 직전 맥락을 먼저");
+    expect(line).toContain("말·이유·조건을 말한 사람에게 귀속");
+    expect(line).toContain(expected);
+  });
+
+  it("옛 기본 중재 문구를 남겨 같은 귀속 계약을 중복하지 않는다", () => {
+    const oldPrefix = "- 두 사람의 말·이유·조건은 말한 사람별로 유지";
+    expect(getWeddingPlannerSystemPrompt(promptContext())).not.toContain(oldPrefix);
+    expect(delivered).not.toContain(oldPrefix);
+    expectProtectedAttribution(delivered);
+  });
+
+  it("일반 상담·구조화 중재의 기존 요청 및 근거 범위는 그대로 남는다", () => {
+    for (const requestKind of ["chat", "initial_greeting", "mediation"] as const) {
+      const prompt = buildAmoraSystemPrompt(promptContext(), {
+        enabledToolNames: [], requestKind, persistenceMode: "durable",
+        questionScope: { ...coreScope, scope: "W1_wedding_adjacent" },
+        maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      expect(attributionLine(prompt)).not.toBe("");
+      expect(prompt.split(heading)).toHaveLength(2);
+      expect(prompt).toContain(`request_kind: ${requestKind}`);
+      if (requestKind === "mediation") {
+        expect(prompt).toContain("requester_summary_only");
+        expect(prompt).toContain("상대방의 관점은 아직 확인되지 않았습니다");
+      }
+    }
+  });
+
+  const safetyScopes: AmoraQuestionScopeClassification[] = [
+    { scope: "W2_high_risk_adjacent", highRiskReason: "safety", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W5_safety_override", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+  ];
+  it.each(safetyScopes)("$scope 안전 신고에는 준비 의견 비교 계약을 싣지 않는다", questionScope => {
+    for (const requestKind of ["chat", "mediation"] as const) {
+      for (const maxChars of [AMORA_SYSTEM_PROMPT_MAX_CHARS, undefined]) {
+        const prompt = buildAmoraSystemPrompt(promptContext(), {
+          enabledToolNames: [], requestKind, persistenceMode: "durable", questionScope, maxChars,
+        });
+        expect(prompt).not.toContain(heading);
+        expect(prompt).not.toContain(rulePrefix);
+        expect(prompt).toContain(questionScope.scope);
+      }
+    }
+  });
+
+  const dense = "가".repeat(2000);
+  const denseProfile = {
+    personaSummary: dense, budgetPosture: dense, decisionStyle: dense,
+    tasteProfile: dense, communicationStyle: dense, conflictPattern: dense,
+    sensitiveTopics: [dense], recommendationRules: [dense], openQuestions: [dense], confidenceScore: 0.9,
+  };
+  const contexts: Array<{ name: string; context: WeddingPlannerPromptContext }> = [
+    { name: "포화된 프로필", context: { ...promptContext(), amoraProfiles: { shared: denseProfile, private: denseProfile } } },
+    { name: "긴 대화 요약", context: { ...promptContext(), chatSummaries: Array.from({ length: 30 }, (_, index) => `합성 요약 ${index}. 준비 조건을 확인함. `.repeat(30)) } },
+  ];
+  it.each(contexts)("$name이 절단되어도 귀속·안전·실행 경계를 한 번 보존한다", ({ context }) => {
+    for (const enabledToolNames of [PRODUCTION_ENABLED_TOOL_NAMES, []]) {
+      const prompt = buildAmoraSystemPrompt(context, {
+        enabledToolNames, requestKind: "chat", persistenceMode: "durable",
+        questionScope: coreScope, maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      expect(prompt).toContain("길이 제한으로 생략됨");
+      expectProtectedAttribution(prompt);
+      expect(prompt).toContain("## 할루시네이션 방지");
+      expect(prompt).toContain("## 판정 금지 · 업체 상대 발언 금지");
+      expect(prompt).toContain("persistence: durable");
+      expect(prompt).toContain("[이번 답변의 대화 우선순위]");
+    }
+  });
 });
 it("개인 상담 답변은 실제 개인 저장 버튼으로 안내하고 대화만으로 저장됐다고 하지 않는다", () => {
   const line = delivered.split("\n").find(candidate => candidate.includes("개인 할 일로 저장")) ?? "";
@@ -115,8 +231,8 @@ describe("큰 방향전환은 이유를 한 번 확인한다", () => {
     expect(line).not.toContain("반영하세요");
   });
 
-  it("결혼 조회 도구가 없으면 싣지 않는다", () => {
-    expect(pivotRuleLine(without("get_wedding_info", "get_budget_summary"))).toBe("");
+  it("도구 없는 최종 답변에도 같은 큰 변경 대화 기준이 남는다", () => {
+    expect(pivotRuleLine(compose([]))).toBe(pivotRuleLine(delivered));
   });
 
   /**
@@ -155,25 +271,99 @@ describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
     expect(pivotRuleLine(delivered)).not.toContain("무엇이 남고 무엇을 다시 정할지");
   });
 
-  it("결혼 조회 도구가 없으면 싣지 않는다", () => {
-    expect(without("get_wedding_info", "get_budget_summary"))
-      .not.toContain("유지할 것과 다시 정할 것을");
+  it("결혼 조회 도구 없이도 유지할 기준과 재검토할 범위를 이어간다", () => {
+    expect(pivotRuleLine(without("get_wedding_info", "get_budget_summary")))
+      .toBe(pivotRuleLine(delivered));
   });
 });
 
-describe("이 규칙에는 늘릴 자리가 없다", () => {
+describe("voice에서 재배치한 방향 변경 규칙의 길이 상한을 지킨다", () => {
   /**
    * 프롬프트 상한은 48,000자이고 이 턴의 여유는 1,400자대다(2026-08-31 실측
    * 46,583자 / 여유 1,417자). 이 줄을 고칠 때 길어지면 문맥이 많은 커플에서
    * 저장 문맥 꼬리가 그만큼 잘린다 — 그래서 길이를 함께 못 박는다.
-   * 이번 수정은 108자 -> 107자였다.
+   * 위 숫자는 당시 측정 기록이다. 2026-09-09 이유 대상·후속 순서를 보호하려
+   * pivot은 233자로 재배치했다. voice+관련 suffix 합계 5,680자 상한은
+   * amoraPivotReasonContinuity.test.ts에서 별도로 고정한다.
    */
-  it("규칙 한 줄이 110자를 넘지 않는다", () => {
-    expect(pivotRuleLine(delivered).length).toBeLessThanOrEqual(110);
+  it("규칙 한 줄이 재배치한 233자를 넘지 않는다", () => {
+    expect(pivotRuleLine(delivered).length).toBeLessThanOrEqual(233);
   });
 
   it("운영과 같은 도구 집합에서 프롬프트가 상한 안에 있다", () => {
     expect(delivered.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+});
+
+describe("방향 변경의 대화 기준은 도구 권한과 분리한다", () => {
+  const scopes: AmoraQuestionScopeClassification[] = [
+    { scope: "W0_wedding_core", allowsLongTermMemory: true, confidence: "high", needsClarification: false },
+    { scope: "W1_wedding_adjacent", allowsLongTermMemory: true, confidence: "high", needsClarification: false },
+    { scope: "W2_high_risk_adjacent", highRiskReason: "domain", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W2_high_risk_adjacent", highRiskReason: "safety", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W3_social_care", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W4_out_of_scope", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+    { scope: "W5_safety_override", allowsLongTermMemory: false, confidence: "high", needsClarification: false },
+  ];
+
+  it.each(scopes)("도구 없는 $scope $highRiskReason 답변은 서버가 허용한 대화 범위만 잇는다", questionScope => {
+    const prompt = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: [], requestKind: "chat", persistenceMode: "durable",
+      questionScope, maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+    const isWeddingConversation = questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent";
+    expect(pivotRuleLine(prompt)).toBe(isWeddingConversation ? pivotRuleLine(delivered) : "");
+    expect(prompt).not.toContain("## 현재 실행 가능한 도구 계약");
+    expect(prompt).toContain("[서버 확정 요청 계약]");
+    expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+  });
+
+  it.each(["initial_greeting", "mediation"] as const)("%s에는 일반 웨딩 계획의 이유 질문을 추가하지 않는다", requestKind => {
+    const prompt = buildAmoraSystemPrompt(promptContext(), {
+      enabledToolNames: [], requestKind, persistenceMode: "durable",
+      questionScope: scopes[1], maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+    });
+    expect(pivotRuleLine(prompt)).toBe("");
+    expect(prompt).toContain(`request_kind: ${requestKind}`);
+  });
+
+  const denseText = "가".repeat(2_000);
+  const denseProfile = {
+    personaSummary: denseText, budgetPosture: denseText, decisionStyle: denseText,
+    tasteProfile: denseText, communicationStyle: denseText, conflictPattern: denseText,
+    sensitiveTopics: [denseText], recommendationRules: [denseText], openQuestions: [denseText],
+    confidenceScore: 0.9,
+  };
+  const denseContexts: { label: string; context: WeddingPlannerPromptContext }[] = [
+    { label: "포화 프로필", context: {
+      ...promptContext(), amoraProfiles: { shared: denseProfile, private: denseProfile },
+    } },
+    { label: "긴 일정·요약", context: {
+      ...promptContext(),
+      scheduleEvents: Array.from({ length: 40 }, (_, index) => ({
+        id: `evt-${index}`, title: `일정 ${index}: 견적 문의`, date: "2027-03-01",
+      })),
+      chatSummaries: Array.from({ length: 30 }, (_, index) =>
+        `요약 ${index}. 예식장 후보와 촬영 견적을 비교한 합성 대화. `.repeat(30)),
+    } },
+  ];
+
+  it.each(denseContexts)("$label이 잘려도 도구 호출 전후 같은 피벗 기준 전체가 한 번 남는다", ({ context }) => {
+    for (const enabledToolNames of [PRODUCTION_ENABLED_TOOL_NAMES, []]) {
+      const prompt = buildAmoraSystemPrompt(context, {
+        enabledToolNames, requestKind: "chat", persistenceMode: "durable",
+        questionScope: scopes[0], maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
+      });
+      expect(prompt).toContain("길이 제한으로 생략됨");
+      expect(prompt.split("\n").filter(line => line === pivotRuleLine(delivered)))
+        .toEqual([pivotRuleLine(delivered)]);
+      expect(pivotRuleLine(prompt).length).toBeLessThanOrEqual(233);
+      expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+      expect(prompt).toContain("[서버 확정 요청 계약]");
+      expect(prompt).toContain("## 할루시네이션 방지");
+      expect(prompt).toContain("## 판정 금지 · 업체 상대 발언 금지");
+    }
   });
 });
 

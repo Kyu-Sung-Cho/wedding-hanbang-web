@@ -94,6 +94,18 @@
   focuses its 16px input; closing or deferring restores a meaningful control without
   overriding a newer focus choice. These presentation changes do not imply storage,
   partner approval or a completed budget/schedule/checklist update.
+  Shared to-do cards also expose their existing optional description and planned-time
+  fields inside the edit form. Planned time remains user text, such as a date or
+  "next week"; it is not parsed into a confirmed date or a completed-work timestamp.
+  Emptying a field clears it, while untouched fields stay unchanged. Failed saves
+  retain the draft. The form identifies the record as visible to the other person.
+  The shared to-do list also offers an inline creation form with title, optional
+  description and planned time. Visibility to the other person does not mean
+  joint agreement. While a save outcome is unknown, the form retains its draft
+  and retries the same request without allowing edits to that attempt. Cancelling
+  explains that the item may already have been saved and should be checked in the
+  list. Creation and card edits stay locked until the save and subsequent list
+  refresh finish; a confirmed save followed by a failed refresh offers a reload.
 
 - **Landing HTML exception (2026-09-06):** The user supplied `Main.dc.html` and
   `LandingMobile.dc.html` as the approved replacement design. Only `/landing`

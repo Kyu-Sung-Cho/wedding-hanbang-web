@@ -208,7 +208,7 @@ describe("POST /api/community/ai-comment safety gates", () => {
       coupleId: "00000000-0000-0000-0000-000000000000",
       isAdmin: false,
       quotaScope: "background",
-      maxCostMicrousd: 88_400,
+      maxCostMicrousd: 17_680,
     });
     expect(mocks.reserveAmoraTurn.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.providerGeneration.mock.invocationCallOrder[0]

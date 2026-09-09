@@ -59,6 +59,131 @@ describe("useAmoraPreparationActions", () => {
     vi.unstubAllGlobals();
   });
 
+  it("normalizes legacy null plan fields on reads and accepts an explicit clear receipt", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [{ ...action, description: null, dueDate: null }], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    expect(latest.error).toBeNull();
+    expect(latest.actions[0]).toMatchObject({ description: undefined, dueDate: undefined });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: null, dueDate: null } }));
+    await act(async () => { expect(await latest.update(action.id, { description: "", due_date: "" })).toBe(true); });
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ description: "", due_date: "" });
+  });
+
+  it("validates plan field receipts using the server sanitizer and rejects a stale value", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: "전화로 견적 확인", dueDate: "다음 주 중" } }));
+    await act(async () => { expect(await latest.update(action.id, { description: " 전화로\n 견적 확인 ", due_date: " 다음 주 중 " })).toBe(true); });
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, description: "옛 설명", dueDate: "다음 주 중" } }));
+    await act(async () => { expect(await latest.update(action.id, { description: "새 설명" })).toBe(false); });
+    expect(latest.actions[0].description).toBe("전화로 견적 확인");
+  });
+
+  it("creates a shared manual task with owner pins only after a matching server receipt", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    const fields = { title: "업체 전화", category_key: "venue", description: " 식사\n 포함 범위 ", due_date: "다음 주" };
+    const saved = { ...action, id: "act_created", title: fields.title, categoryKey: "venue", description: "식사 포함 범위", dueDate: "다음 주", source: "manual" };
+    fetchMock.mockImplementationOnce((_input: unknown, init: RequestInit) => response({ action: saved, requestId: JSON.parse(String(init.body)).requestId, replayed: false }, 201));
+    fetchMock.mockResolvedValueOnce(response({ actions: [saved, action], count: 2, open_count: 2 }));
+    await act(async () => { expect(await latest.create(fields)).toBe(true); });
+    expect(fetchMock.mock.calls[1][0]).toBe("/api/amora/actions");
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toEqual({ ...fields, requestId: expect.stringMatching(/^[0-9a-f-]{36}$/), status: "open", priority: "medium", source: "manual", expectedOwnerId: "user-a", expectedCoupleId: "couple-a" });
+    expect(latest.actions.map(item => item.id)).toEqual(["act_created", action.id]);
+    expect(latest.count).toBe(2); expect(latest.open_count).toBe(2);
+  });
+
+  it("blocks duplicate creates and rejects a late create after an owner change", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
+    await act(async () => root.render(<Harness />));
+    let finish!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finish = resolve; }));
+    let pending!: Promise<boolean>;
+    await act(async () => { pending = latest.create({ title: "업체 전화" }); });
+    const requestId = JSON.parse(fetchMock.mock.calls[1][1].body).requestId;
+    await act(async () => { expect(await latest.create({ title: "다시 클릭" })).toBe(false); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    mocks.auth.profile = { id: "user-a", couple_id: "couple-b" };
+    fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
+    await act(async () => root.render(<Harness />));
+    await act(async () => { finish(response({ action: { ...action, id: "act_created", title: "업체 전화", source: "manual" }, requestId, replayed: false }, 201)); expect(await pending).toBe(false); });
+    expect(latest.actions).toEqual([]);
+  });
+
+  it("pins the first body and UUID after an unknown outcome and retries it without duplicating a refreshed row", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockRejectedValueOnce(new TypeError("lost response"));
+    await act(async () => { expect(await latest.create({ title: "업체 전화", description: "내 설명" })).toBe(false); });
+    const firstBody = fetchMock.mock.calls[1][1].body;
+    expect(JSON.parse(firstBody).requestId).toMatch(/^[0-9a-f-]{36}$/);
+    await act(async () => { expect(await latest.create({ title: "다른 일" })).toBe(false); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const saved = { ...action, id: "act_created", title: "업체 전화", description: "내 설명", source: "manual" };
+    fetchMock.mockResolvedValueOnce(response({ actions: [saved], count: 1, open_count: 1 }));
+    await act(async () => latest.refresh());
+    fetchMock.mockResolvedValueOnce(response({ action: saved, requestId: JSON.parse(firstBody).requestId, replayed: true }));
+    fetchMock.mockResolvedValueOnce(response({ actions: [saved], count: 1, open_count: 1 }));
+    await act(async () => { expect(await latest.create({ title: "업체 전화", description: "내 설명" })).toBe(true); });
+    expect(fetchMock.mock.calls[3][1].body).toBe(firstBody);
+    expect(latest.actions).toHaveLength(1); expect(latest.count).toBe(1);
+  });
+
+  it("only abandons a pinned unknown create on explicit cancellation and gives a new intent a new ID", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockRejectedValueOnce(new TypeError("lost response"));
+    await act(async () => { await latest.create({ title: "첫 의도" }); });
+    const first = JSON.parse(fetchMock.mock.calls[1][1].body);
+    await act(async () => { expect(latest.cancelCreate()).toBe(true); });
+    fetchMock.mockRejectedValueOnce(new TypeError("lost again"));
+    await act(async () => { await latest.create({ title: "새 의도" }); });
+    const second = JSON.parse(fetchMock.mock.calls[2][1].body);
+    expect(second.requestId).not.toBe(first.requestId);
+    expect(second.title).toBe("새 의도");
+  });
+
+  it("does not accept a receipt with a different request ID", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockResolvedValueOnce(response({ action: { ...action, title: "제목", source: "manual" }, requestId: "other", replayed: false }));
+    await act(async () => { expect(await latest.create({ title: "제목" })).toBe(false); });
+    expect(latest.actions).toEqual([]);
+  });
+
+  it("blocks existing-card writes through POST and its final refresh, so creation cannot lose its list update", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [action], count: 1, open_count: 1 }));
+    await act(async () => root.render(<Harness />));
+    let finishPost!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finishPost = resolve; }));
+    let createPromise!: Promise<boolean>;
+    await act(async () => { createPromise = latest.create({ title: "새 항목" }); });
+    await act(async () => { expect(await latest.update(action.id, { title: "동시 수정" })).toBe(false); });
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "POST"]);
+    const requestId = JSON.parse(fetchMock.mock.calls[1][1].body).requestId;
+    const saved = { ...action, id: "act_created", title: "새 항목", source: "manual" };
+    let finishGet!: (value: Response) => void;
+    fetchMock.mockImplementationOnce(() => new Promise<Response>(resolve => { finishGet = resolve; }));
+    await act(async () => finishPost(response({ action: saved, requestId, replayed: false }, 201)));
+    expect(latest.creating).toBe(true);
+    await act(async () => { expect(await latest.update(action.id, { status: "done" })).toBe(false); });
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "POST", "GET"]);
+    await act(async () => { finishGet(response({ actions: [saved, action], count: 2, open_count: 2 })); expect(await createPromise).toBe(true); });
+    expect(latest.actions.map(item => item.id)).toEqual([saved.id, action.id]);
+    expect(latest.count).toBe(2); expect(latest.creating).toBe(false);
+  });
+
+  it("keeps a confirmed create distinct from a failed follow-up list read", async () => {
+    fetchMock.mockResolvedValueOnce(response({ actions: [], count: 0, open_count: 0 }));
+    await act(async () => root.render(<Harness />));
+    fetchMock.mockImplementationOnce((_input: unknown, init: RequestInit) => response({ action: { ...action, title: "새 항목", source: "manual" }, requestId: JSON.parse(String(init.body)).requestId, replayed: false }, 201));
+    fetchMock.mockResolvedValueOnce(response({ error: "list unavailable" }, 503));
+    await act(async () => { expect(await latest.create({ title: "새 항목" })).toBe(true); });
+    expect(latest.error).toContain("불러오지 못했어요");
+    expect(latest.updateError).toBeNull(); expect(latest.createLocked).toBe(false);
+    expect(fetchMock.mock.calls.map(call => call[1]?.method ?? "GET")).toEqual(["GET", "POST", "GET"]);
+  });
+
   it("distinguishes a failed read from an empty board and recovers on retry", async () => {
     fetchMock.mockResolvedValueOnce(response({ error: "준비 상황을 불러오지 못했어요." }, 503));
     await act(async () => root.render(<Harness />));

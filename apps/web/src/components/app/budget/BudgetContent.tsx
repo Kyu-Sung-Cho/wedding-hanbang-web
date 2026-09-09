@@ -692,6 +692,21 @@ interface BudgetContentProps {
   paymentLedgerEnabled?: boolean;
 }
 
+function sameBudgetDeleteItem(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (!left || !right || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right) && left.length === right.length
+      && left.every((value, index) => sameBudgetDeleteItem(value, right[index]));
+  }
+  const previous = left as Record<string, unknown>;
+  const current = right as Record<string, unknown>;
+  const keys = Object.keys(previous);
+  return keys.length === Object.keys(current).length
+    && keys.every((key) => Object.prototype.hasOwnProperty.call(current, key)
+      && sameBudgetDeleteItem(previous[key], current[key]));
+}
+
 function budgetEditorOwnerKey() {
   const state = useAuthStore.getState();
   return JSON.stringify([
@@ -1080,7 +1095,25 @@ function ScopedBudgetContent({
           delete keep[field];
         }
         emptied[key] = keep;
-        await saveJourney({ progress: emptied as unknown as Record<string, ProgressItem> });
+        const cleared = await saveJourney({ progress: emptied as unknown as Record<string, ProgressItem> });
+        if (cleared.status !== "applied") return;
+        // 첫 저장을 기다리는 동안 다른 항목이 갱신될 수 있다. 최신 상태에서 이 키만
+        // 제거하되, 이 항목 자체가 바뀌었으면 새 체크리스트·금액까지 지우지 않는다.
+        const latest = useAuthStore.getState().journey;
+        const clearedItem = cleared.journey.progress[key];
+        if (!latest || latest.id !== cleared.journey.id
+          || latest.couple_id !== cleared.journey.couple_id || !clearedItem
+          || !sameBudgetDeleteItem(clearedItem, latest.progress[key])) {
+          const message = "삭제 중 항목이 바뀌었어요. 최신 내용을 확인한 뒤 다시 삭제해 주세요.";
+          setJourneyNotice("");
+          setJourneyError(message);
+          throw new Error(message);
+        }
+        const latestProgress = { ...latest.progress };
+        delete latestProgress[key];
+        await saveJourney({ progress: latestProgress });
+        setDeletingKey(null);
+        return;
       }
       await saveJourney({ progress: next as unknown as Record<string, ProgressItem> });
       setDeletingKey(null);

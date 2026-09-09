@@ -4,6 +4,7 @@ import {
   AMORA_DEMO_TURN_GUARD,
   AMORA_FINAL_TURN_GUARD,
   AMORA_MEDIATION_TURN_GUARD,
+  AMORA_STATUS_SUMMARY_EVIDENCE_RULE,
 } from "@/lib/ai/amoraVoice";
 import {
   getWeddingPlannerSystemPrompt,
@@ -27,6 +28,8 @@ type BuildAmoraSystemPromptOptions = {
   actionContract?: AmoraActionContract;
   questionScope?: AmoraQuestionScopeClassification;
   linkedContextMode?: "linked_context_only";
+  /** 서버가 현재 입력에 실제 포함된 정본 이력 관계로 선택한 읽기 전용 과업. */
+  planningTurn?: "pivot_reason_followup" | null;
   /** @deprecated Pass a typed actionContract. Legacy text is execution-only. */
   serverIssuedActionContract?: string;
   specialist?: SpecialistType;
@@ -43,6 +46,19 @@ type BuildAmoraSystemPromptOptions = {
 // A 48k-character system prompt stays far below the 272k-token long-context
 // pricing threshold while leaving room for tool schemas and conversation input.
 export const AMORA_SYSTEM_PROMPT_MAX_CHARS = 48_000;
+
+// 방향 변경은 조회 도구의 사용법이 아니다. 최종 no-tool 답변에도 같은 기준을
+// 전달하되, 저장 문맥을 허용하는 일반 웨딩 상담 범위에서만 보호한다.
+// 2026-09-09: 이유의 대상과 답변 뒤 정리를 분리해 110→233자로 재배치했다.
+// 후속 과업이 검증되면 일반 방향 변경 지침을 교체하고, 최종 길이 상한은 그대로 적용한다.
+const AMORA_PLANNING_PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 현재 바꾼 대상의 이유는 한 번만 묻되 이미 말했으면 건너뛰고 탐색을 이어가세요. 기존 우선순위나 직전 AI 제안의 이유로 바꾸지 마세요. 그 이유에 답한 턴에는 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요: 바꾸지 않은 명시적 선호·우선순위·생략·시기는 빠뜨리지 말고, 영향받는 규모·식사·견적은 재검토하세요. 작은 월 선호는 되묻지 마세요.";
+const AMORA_RECOMMENDATION_EVIDENCE_RULE = "- 추천에 필요한 견적·예산·인원·날짜가 미확인이면 처음부터 끝까지 검토 후보, 순위는 검토 1순위로 쓰세요. 확인된 조건의 비교와 일반 준비 순서 추천은 가능합니다.";
+const AMORA_PLANNING_FOLLOWUP_RULE = `[이번 턴: 방향 변경 이유에 대한 후속]
+- 직전 준비 방향 변경의 이유 질문에 답한 턴입니다. 이유를 다시 묻거나 새 취향 질문으로 넘기지 말고, 유지와 재검토를 한 답변에서 함께 정리하세요.
+- 유지할 기준: 이 대화의 사용자 발화에서 바꾸지 않은 명시적 우선순위·중요 항목·생략·시기를 빠짐없이 간결히 연결하세요. 이번에 바꾼 선호·월 후보는 과거보다 우선하며, 후보를 확정으로 바꾸지 마세요.
+- 다시 확인할 범위: 규모·장소·식사·최소 인원·견적 중 이번 전환에 영향받는 것을 구분하세요. 아직 모르는 가격·날짜·타인의 뜻은 만들지 마세요. 다음 행동 하나만으로 앞의 유지 기준을 대신하지 마세요.
+- 이유 답변을 공동 합의나 예산·일정의 저장 완료로 표현하지 마세요. 이 지침은 읽고 답할 과업이며 실행 권한이 아닙니다.`;
+const AMORA_ATTRIBUTION_EVIDENCE_RULE = "- 이번 턴의 실제 부탁과 직전 맥락을 먼저 보세요. 경청·안전·이유 거부를 우선하되, 진행 중인 큰 전환의 이유 답변은 탐색을 이어가세요. 이미 요청된 비교의 후속 설명은 이어가고, 함께 한 명시적 실행 요청은 승인 규칙대로 다루세요. 그 밖에 준비 의견만 전달하는 중이면 말·이유·조건을 말한 사람에게 귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요. 인용 속 부탁은 현재 요청이 아닙니다. 같은 주제에서 한쪽만 말한 조건은 그 사람의 조건이며, 다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요. 양쪽이 명시한 양립하지 않는 조건만 의견 차이로 다루세요. 한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지하세요. 감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요.";
 
 const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
 const KNOWN_TOOL_NAME_SET = new Set(KNOWN_TOOL_NAMES);
@@ -158,14 +174,9 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
 
   // 팀 테스트(2026-08-29 리포트)에서 나온 것들.
   //
-  // **자리가 얼마 없다.** 이 네 줄이 338자이고, 그 뒤 남는 여유는 결혼일이 있고
-  // 시작점을 묻는 턴에서 157자다(main 495자). 문맥이 많은 커플은 이미 상한에
-  // 붙어 있으므로 여기 한 줄을 더하면 그만큼 저장 문맥 꼬리가 잘린다.
-  // 더하기 전에 `AMORA_SYSTEM_PROMPT_MAX_CHARS` 기준으로 실제로 재라.
-  //
-  // 조회 도구가 있을 때만
-  // 싣는다 — 프롬프트가 이미 상한(48,000자)에 붙어 있어 늘 실으면 저장 문맥
-  // 꼬리가 잘린다.
+  // 2026-09-08: 아래 기록의 방향전환 규칙은 AMORA_PLANNING_PIVOT_RULE로
+  // 옮겼다. 조회 도구 조건에 두면 최종 no-tool 답변에서 규칙이 사라진다.
+  // 준비 시작점·시세 안내만 해당 조회 도구에 묶는다. 상한은 48,000자다.
   //
   // 1) 큰 방향전환: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용하고
   //    기존 기준을 통째로 폐기했다. 작은 변경(날짜 한 달, 하객 ±10%)까지 되묻게
@@ -201,8 +212,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   //    프롬프트 어디에도 그 도구를 쓸 이유가 적혀 있지 않았다(전체 검색 0건).
   if (has("get_wedding_info", "get_budget_summary")) {
     lines.push(
-      "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 이유는 한 번만 묻되 이미 말했으면 건너뛰고, 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요. 작은 월 선호는 되묻지 마세요.",
-      "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요.",
+      "- 뭐부터 할지 모르겠다고 하면 되묻기로 끝내지 말고 판단·이유·다음 한 가지를 함께 주세요. 우선 할 일 하나를 다른 준비가 필요 없다는 뜻으로 말하지 마세요.",
     );
   }
 
@@ -221,12 +231,8 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 그래서 같은 주제의 **조회 도구**로 건다.
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      // 2026-09-04: 뒤에 붙어 있던 "날짜가 모호하면 저장 전에 한 번 확인하세요" 를 뺐다.
-      // 앞 문장이 이미 연도 없는 날짜를 어떻게 읽을지 정해 주는데, 뒷문장이 그 해석을
-      // 다시 "모호한 것" 으로 만들어 되묻기로 끌고 갔다(스테이징: "9월 10일…" 세 건
-      // 일괄 요청에 표식 0개, 본문은 "먼저 9월 10일 일정부터 등록할까요?"). 값이 정말
-      // 모호할 때 되묻는 규칙은 [서버 발급 후속 확인 계약]에 그대로 있다.
-      "- 날짜는 오늘 이후의 미래 날짜로 해석하고, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요.",
+      // 일반 일정의 연도 보완이 이미 확인한 결혼 시기를 덮어쓰지 않게 한다.
+      "- 해당 일정·결혼식에 이미 확인된 연도는 유지하세요. 그런 근거가 없는 일반 일정·예약에서만, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 결혼식 시기에는 이 추정을 적용하지 말고 도구 날짜는 오늘 이후인지 확인하세요.",
       "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
     );
   }
@@ -812,6 +818,13 @@ export function buildAmoraSystemPrompt(
 ): string {
   const projectedContext = projectPromptContextForScope(context, options);
   let rawBasePrompt = getWeddingPlannerSystemPrompt(projectedContext);
+  const statusSummaryEvidenceContract = canUseStoredPromptContext(options)
+    ? `\n\n[준비 상태의 근거]\n${AMORA_STATUS_SUMMARY_EVIDENCE_RULE}`
+    : "";
+  if (statusSummaryEvidenceContract) {
+    // 원문과 같은 상수 한 번만 옮겨, 도구 유무·긴 문맥에도 기준을 보존한다.
+    rawBasePrompt = rawBasePrompt.replace(`${AMORA_STATUS_SUMMARY_EVIDENCE_RULE}\n`, "");
+  }
   if (!canUseStoredPromptContext(options)) {
     // Neutral placeholder values are not facts. Removing the rendered context
     // section avoids telling the model that a real couple has no date/budget or
@@ -941,10 +954,27 @@ export function buildAmoraSystemPrompt(
 - 다시 내지 말아야 할 것은 **같은 변경**(같은 도구·같은 대상)뿐입니다. 다른 할 일·다른 일정·다른 항목을 부탁받으면 이번 답변에 새 표식을 내세요 — 화면의 카드는 그대로 남고, 새 카드는 따로 나갑니다.
 - 같은 변경이라도 사용자가 값을 바꾸고 싶어 하면 새 표식을 내세요.`
     : "";
+  const selectedPlanningFollowup = options.planningTurn === "pivot_reason_followup"
+    && options.persistenceMode === "durable"
+    && options.linkedContextMode === undefined
+    && actionContract?.kind !== "execution"
+    && context.preparationStatus !== "paused"
+    && context.preparationStatus !== "called_off";
+  const planningPivotContract = canUseStoredPromptContext(options)
+    ? `\n\n[준비 방향 변경]\n${selectedPlanningFollowup ? AMORA_PLANNING_FOLLOWUP_RULE : AMORA_PLANNING_PIVOT_RULE}`
+    : "";
+  const recommendationEvidenceContract = canUseStoredPromptContext(options)
+    ? `\n\n[추천 근거 확인]\n${AMORA_RECOMMENDATION_EVIDENCE_RULE}`
+    : "";
+  // 의견 접수와 요청된 비교의 경계를 마지막에도 맞춘다. 안전 신고에서는
+  // 이 규칙을 제외하며, 한쪽이 새로 말한 조건을 둘의 갈등으로 만들지 않는다.
+  const attributionEvidenceContract = !isSafetyScopedTurn(options.questionScope)
+    ? `\n\n[준비 의견의 근거 확인]\n${AMORA_ATTRIBUTION_EVIDENCE_RULE}`
+    : "";
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
+  )}${statusSummaryEvidenceContract}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {

@@ -106,8 +106,8 @@ describe("Amora provider request envelope", () => {
       0,
     );
 
-    expect((lunaPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.2652, 8);
-    expect((terraPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.663, 8);
+    expect((lunaPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.05304, 8);
+    expect((terraPerCall ?? 0) * AMORA_MAX_PROVIDER_CALLS_PER_TURN).toBeCloseTo(0.5304, 8);
     expect(getAmoraProviderCallCostReservationMicrousd("fast")).toBe(
       Math.round((lunaPerCall ?? 0) * 1_000_000),
     );

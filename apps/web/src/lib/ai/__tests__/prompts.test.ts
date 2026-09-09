@@ -655,7 +655,11 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).toContain("[구조화 중재 최종 안전 계약]");
     expect(prompt).toContain("[이번 답변의 대화 우선순위]");
     expect(prompt.indexOf(AMORA_MEDIATION_TURN_GUARD.trim())).toBeGreaterThan(-1);
-    expect(prompt.trimEnd()).toMatch(/도구 권한을 만들 수는 없습니다\.$/);
+    expect(prompt).toContain(AMORA_FINAL_TURN_GUARD.trim());
+    expect(prompt.indexOf("[준비 의견의 근거 확인]")).toBeGreaterThan(
+      prompt.indexOf(AMORA_FINAL_TURN_GUARD.trim()),
+    );
+    expect(prompt.trimEnd()).toMatch(/귀속이 불확실하면 확인할 점으로 남기세요\.$/);
   });
 
   it("adds the structured mediation guard only to a W1 mediation request", () => {

@@ -11,6 +11,7 @@ import PendingAmoraActionCard, {
 import type { BudgetImpactPreview } from "@hanbang/shared";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { BUDGET_CATEGORY_KEYS, WEDDING_TOOLS } from "@/lib/ai/tools";
 import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
@@ -233,7 +234,7 @@ describe("PendingAmoraActionCard", () => {
 
   it.each(["canonical server proposal", "22-row layout stress"])("shows every allocation in the card and approval sheet: %s", async (scenario) => {
     const categories = scenario === "canonical server proposal"
-      ? BUDGET_CATEGORY_KEYS.map((key) => ({ key, label: new Map(Object.entries(PLANNING_CATEGORY_LABELS)).get(key)! }))
+      ? BUDGET_CATEGORY_KEYS.map((key) => ({ key, label: CATEGORY_LABELS[key] }))
       : [...CATEGORY_CHECKLISTS, { key: "reserve", label: PLANNING_CATEGORY_LABELS.reserve }];
     const input = { total_budget: categories.length * 1_000_000, allocations: categories.map(({ key }) => ({ category: key, budget: 1_000_000 })), intake_summary: "사용자가 확인한 합성 배분안" };
     let plan: PendingAmoraAction = {
@@ -275,6 +276,8 @@ describe("PendingAmoraActionCard", () => {
       expect(generatedPreview).not.toBeNull();
       preview = generatedPreview!;
       expect(preview.categories).toHaveLength(BUDGET_CATEGORY_KEYS.length);
+      expect(categories.find(({ key }) => key === "yedan")?.label).toBe("예단");
+      expect(categories.find(({ key }) => key === "pyebaek")?.label).toBe("폐백");
       for (const { label } of categories) expect(plan.confirmation).toContain(label);
     }
     const onApply = vi.fn();
@@ -287,6 +290,7 @@ describe("PendingAmoraActionCard", () => {
     await act(async () => details.querySelector("summary")!.click());
     expect(details.open).toBe(true);
     expect(details.querySelectorAll("li")).toHaveLength(categories.length);
+    for (const { label } of categories) expect(details.textContent).toContain(label);
     expect(details.textContent).toContain(PLANNING_CATEGORY_LABELS.reserve);
     await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]')!.click());
     const dialog = document.querySelector('[role="dialog"]')!;
@@ -296,6 +300,8 @@ describe("PendingAmoraActionCard", () => {
     expect(sheetDetails.open).toBe(true);
     expect(sheetDetails.querySelectorAll("li")).toHaveLength(categories.length);
     for (const { label } of categories) expect(sheetDetails.textContent).toContain(label);
+    expect([...sheetDetails.querySelectorAll("li")].map((row) => row.textContent))
+      .toEqual([...details.querySelectorAll("li")].map((row) => row.textContent));
     expect(sheetDetails.textContent?.match(/배정 예산 0원 → 100만원/g)).toHaveLength(categories.length);
     expect(dialog.textContent).toContain("결제 완료를 뜻하지 않아요");
     expect(fetch).not.toHaveBeenCalled();

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   decisions: { records: [] as PreparationDecision[], loading: false, loadingMore: false, error: null as string | null, nextCursor: null as { id: string; createdAt: string } | null, available: true, isDemo: false, refresh: vi.fn(), loadMore: vi.fn() },
   data: {
     actions: [] as AmoraActionItem[], loading: false, error: null as string | null,
-    count: 0, open_count: 0, truncated: false, isDemo: false,
+    count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false,
     updateError: null as string | null, updatingIds: new Set<string>(),
     refresh: vi.fn(), update: vi.fn(), loadMore: vi.fn(), nextCursor: null as string | null, loadingMore: false,
   },
@@ -30,7 +30,7 @@ describe("AmoraDecisionBoard", () => {
   beforeEach(() => {
     Object.assign(mocks.decisions, { records: [], loading: false, loadingMore: false, error: null, nextCursor: null, available: true, isDemo: false });
     mocks.decisions.refresh.mockReset(); mocks.decisions.loadMore.mockReset();
-    Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, updateError: null, updatingIds: new Set<string>() });
+    Object.assign(mocks.data, { actions: [], loading: false, error: null, count: 0, open_count: 0, truncated: false, isDemo: false, creating: false, createLocked: false, updateError: null, updatingIds: new Set<string>() });
     mocks.data.refresh.mockReset(); mocks.data.update.mockReset().mockResolvedValue(true);
     mocks.data.loadMore.mockReset(); mocks.data.nextCursor = null; mocks.data.loadingMore = false;
     container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container);
@@ -291,6 +291,17 @@ describe("AmoraDecisionBoard", () => {
     expect(container.textContent).not.toMatch(/두 분 모두 확인|상대가 확인하면 확정|신랑 확인 대기/);
   });
 
+  it("disables existing card mutations during create and does not call an uncertain empty snapshot unsaved", async () => {
+    Object.assign(mocks.data, { actions: [action], creating: true, createLocked: true });
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const card = container.querySelector('[data-preparation-action="act_test"]')!;
+    expect([...card.querySelectorAll<HTMLButtonElement>("button")].every(button => button.disabled)).toBe(true);
+    Object.assign(mocks.data, { actions: [], creating: false });
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(container.textContent).not.toContain("아직 저장된 할 일이 없어요");
+    expect(container.textContent).toContain("저장 여부는 목록을 새로고쳐 확인해 주세요");
+  });
+
   it("filters actual titles and categories and exposes a truthful mobile status selection", async () => {
     mocks.data.actions = [{ ...action, categoryKey: "makeup" }, { ...action, id: "act_other", title: "예식장 후보 비교", categoryKey: "venue", status: "done" }];
     mocks.data.count = 2;
@@ -346,6 +357,33 @@ describe("AmoraDecisionBoard", () => {
     expect(card.querySelector("time")?.getAttribute("datetime")).toBe(action.updatedAt);
   });
 
+  it("edits and clears plan fields, preserves failed drafts and never resends an untouched legacy date", async () => {
+    mocks.data.actions = [{ ...action, categoryKey: "venue", dueDate: "양가 일정 맞춘 뒤" }]; mocks.data.count = 1;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    await selectBoard("공유 할 일");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const description = container.querySelector<HTMLTextAreaElement>('article textarea')!;
+    const date = container.querySelector<HTMLInputElement>('article input[data-plan-date]')!;
+    expect(date.type).toBe("text"); expect(date.value).toBe("양가 일정 맞춘 뒤");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(description, "새 확인 내용");
+      description.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.data.update.mockResolvedValueOnce(false);
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "새 확인 내용" });
+    expect(description.value).toBe("새 확인 내용"); expect(date.value).toBe("양가 일정 맞춘 뒤");
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(description, "");
+      description.dispatchEvent(new Event("input", { bubbles: true }));
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(date, "");
+      date.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { description: "", due_date: "" });
+    expect(container.querySelector('article textarea')).toBeNull();
+  });
+
   it("edits title and category through the existing action and keeps the draft on failure", async () => {
     mocks.data.actions = [{ ...action, categoryKey: "venue" }]; mocks.data.count = 1;
     await act(async () => root.render(<AmoraDecisionBoard />));
@@ -371,6 +409,37 @@ describe("AmoraDecisionBoard", () => {
     expect(container.querySelector("article input")).toBe(input); expect(input.value).toBe("  실제 수정 제목  ");
     await act(async () => form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
     expect(container.querySelector("article input")).toBeNull();
+  });
+
+  it("does not overwrite a partner's refreshed plan fields while editing only the title", async () => {
+    mocks.data.actions = [{ ...action, categoryKey: "venue", dueDate: "다음 주 중" }];
+    await act(async () => root.render(<AmoraDecisionBoard />)); await selectBoard("공유 할 일");
+    expect(container.querySelector("article")!.textContent).toContain("예정일 다음 주 중");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const title = container.querySelector<HTMLInputElement>("article input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(title, "새 제목");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    mocks.data.actions = [{ ...action, categoryKey: "venue", description: "상대가 새로 적은 설명", dueDate: "다음 달 중" }];
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
+  });
+
+  it("allows title-only editing without shortening oversized legacy plan fields", async () => {
+    mocks.data.actions = [{ ...action, categoryKey: "venue", description: "가".repeat(501), dueDate: "나".repeat(41) }];
+    await act(async () => root.render(<AmoraDecisionBoard />)); await selectBoard("공유 할 일");
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${action.title} 수정"]`)!.click());
+    const title = container.querySelector<HTMLInputElement>("article input")!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(title, "새 제목");
+      title.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const save = container.querySelector<HTMLButtonElement>('article button[type="submit"]')!;
+    expect(save.disabled).toBe(false);
+    await act(async () => container.querySelector('article form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })));
+    expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
   });
 
   it("loads older records through the real cursor control and links saved answers separately", async () => {
