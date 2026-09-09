@@ -5,7 +5,7 @@ import {
 } from "@/lib/ai/amoraCrisisSafety";
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { hasCoerciveControlSignal } from "@hanbang/shared";
-import { personalActionConversationConsent } from "./amoraPersonalActionConversation";
+import { hasExplicitPersonalActionDraftRequest } from "./amoraPersonalActionConversation";
 
 export type AmoraQuestionScope =
   | "W0_wedding_core"
@@ -701,14 +701,9 @@ export function classifyAmoraQuestionScope({
   // 개인 할 일 초안은 제품 동작이다. 결혼 명사가 없어도 현재의 명시적 초안
   // 부탁은 같은 개인 기능으로 연결하되, 인용·거부·다른 분야나 새 기억은 제외한다.
   // 앞선 안전·돌봄·기존 범위 판정을 바꾸지 않도록 마지막 W4 직전에만 둔다.
-  const personalDraftRequestText = normalizedText
-    .replace(/"[^"]*"|'[^']*'|“[^”]*”|‘[^’]*’|`[^`]*`/gu, "")
-    .replace(/^\s*>.*$/gmu, "");
   if (
     hasTrustedPrivateDraftContext
-    && !/(?:`{3,}|~{3,})/u.test(normalizedText)
-    && personalActionConversationConsent(personalDraftRequestText).draft
-    && /(?:내|제|나의|저의|개인|나만(?:의|\s*볼|\s*보는)?|저만(?:의|\s*볼|\s*보는)?)\s*(?:개인\s*)?할\s*일(?:로\s*(?:담을|저장할))?\s*초안[^.!?\n]{0,20}(?:(?:만들어|준비해|작성해|보여)\s*(?:줘|주세요|줄래(?:요)?|주실래(?:요)?)|줘|주세요|부탁해(?:요)?|부탁드립니다)\s*(?:[.!?\n]|$)/u.test(personalDraftRequestText)
+    && hasExplicitPersonalActionDraftRequest(userText)
     && !NON_WEDDING_DOMAIN_HINT_PATTERN.test(normalizedText)
     && !LATE_NON_WEDDING_TOPIC_PATTERN.test(normalizedText)
   ) {

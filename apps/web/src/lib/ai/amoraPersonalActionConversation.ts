@@ -2,6 +2,7 @@ import { parsePersonalActionDraftMetadata } from "@hanbang/shared/amora-personal
 import type { AmoraQuestionScopeClassification } from "./amoraQuestionScope";
 import type { AiToolDefinition } from "./toolDefinition";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { normalizeAmoraSafetyText } from "./amoraCrisisSafety";
 
 export const PERSONAL_ACTION_READ_TOOL = "get_personal_actions";
 export const PERSONAL_ACTION_DRAFT_TOOL = "prepare_personal_action";
@@ -45,6 +46,47 @@ export function personalActionConversationConsent(text: string): PersonalActionC
     read: /보여|조회|목록|확인해|읽어|뭐가|남았|몇\s*개/u.test(text),
     draft: draftRequest,
   };
+}
+
+function isExplicitNormalizedPersonalDraftRequest(normalizedText: string): boolean {
+  const requestText = normalizedText
+    .replace(/"[^"]*"|'[^']*'|“[^”]*”|‘[^’]*’|`[^`]*`/gu, "")
+    .replace(/^\s*>.*$/gmu, "");
+  return !/(?:`{3,}|~{3,})/u.test(normalizedText)
+    && personalActionConversationConsent(requestText).draft
+    && /(?:내|제|나의|저의|개인|나만(?:의|\s*볼|\s*보는)?|저만(?:의|\s*볼|\s*보는)?)\s*(?:개인\s*)?할\s*일(?:로\s*(?:담을|저장할))?\s*초안[^.!?\n]{0,20}(?:(?:만들어|준비해|작성해|보여)\s*(?:줘|주세요|줄래(?:요)?|주실래(?:요)?)|줘|주세요|부탁해(?:요)?|부탁드립니다)\s*(?:[.!?\n]|$)/u.test(requestText);
+}
+
+/** 현재 본인 초안의 직접 부탁만 인정한다. 인용과 다른 과업을 결합하지 않는다. */
+export function hasExplicitPersonalActionDraftRequest(text: string): boolean {
+  return isExplicitNormalizedPersonalDraftRequest(normalizeAmoraSafetyText(text));
+}
+
+export function getPersonalActionDraftToolChoice(input: {
+  userText: string; round: number; tools: readonly AiToolDefinition[];
+}): { type: "function"; name: typeof PERSONAL_ACTION_DRAFT_TOOL } | undefined {
+  if (input.round !== 0
+    || !input.tools.some(tool => tool.name === PERSONAL_ACTION_DRAFT_TOOL)) return undefined;
+  const normalizedText = normalizeAmoraSafetyText(input.userText);
+  if (!isExplicitNormalizedPersonalDraftRequest(normalizedText)) return undefined;
+  // 제목이 없는 요청은 질문할 수 있어야 한다. 아래 값은 호출 자격만 확인하며
+  // 도구 인수나 저장 값으로 만들지 않는다. 실제 초안은 기존 schema로 검증한다.
+  const titleAssignment = normalizedText.match(
+    /(?:^|[.!?\n])\s*제목(?:은|을)\s*(?:"([^"\n]{1,120})"|'([^'\n]{1,120})'|“([^”\n]{1,120})”|‘([^’\n]{1,120})’)\s*(?:으)?로\s*해\s*(?:줘|주세요)\s*(?:[.!](?![?!])|$)/u,
+  );
+  if (!titleAssignment?.slice(1).some(title => title?.trim())
+    || titleAssignment.index === undefined) return undefined;
+  const titleStart = titleAssignment.index + titleAssignment[0].indexOf("제목");
+  for (const quote of normalizedText.matchAll(/"[^"]*"|'[^']*'|“[^”]*”|‘[^’]*’|`[^`]*`/gu)) {
+    if (quote.index < titleStart && titleStart < quote.index + quote[0].length) return undefined;
+  }
+  const lineStart = normalizedText.lastIndexOf("\n", titleStart) + 1;
+  if (normalizedText.slice(lineStart, titleStart).trimStart().startsWith(">")) return undefined;
+  // 바로 앞의 개인 초안 부탁에 붙은 제목만 쓴다. 다른 과업의 제목이면 auto다.
+  const beforeTitle = normalizedText.slice(0, titleStart).trimEnd().replace(/[.!?]$/u, "");
+  const requestStart = Math.max(...[".", "!", "?", "\n"].map(mark => beforeTitle.lastIndexOf(mark))) + 1;
+  if (!isExplicitNormalizedPersonalDraftRequest(beforeTitle.slice(requestStart))) return undefined;
+  return { type: "function", name: PERSONAL_ACTION_DRAFT_TOOL };
 }
 
 export function selectPersonalActionConversationTools(input: {
