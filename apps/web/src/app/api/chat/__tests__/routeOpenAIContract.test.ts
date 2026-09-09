@@ -9368,11 +9368,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   }
 
-  it("delivers status evidence protection for the exact e8 private summary turn without rewriting the mock reply", async () => {
-    // e8 공개 합성 실측의 T1 user/assistant와 T2 user다. 모의 출력은 모델 품질 검사가 아니다.
+  it.each(["e8 private follow-up", "87e direct item scope"] as const)("delivers status evidence protection for %s without rewriting the mock reply", async (scenario) => {
+    // e8 후속 요약과 87e 첫 상태 표의 공개 합성 입력이다. 모의 출력은 모델 품질 검사가 아니다.
     const firstUser = "작은 공간에서 정말 가까운 사람들만 만나고, 짧게 인사하고 사진도 남기는 정도가 좋아. 큰 홀 입장·축가·긴 인사는 원하지 않아. 하객 수·예산·부모님 기대는 미정이야. 그런데 ‘짧은 축하 자리’가 또 예식처럼 느껴질까 봐 걱정돼. 파트너에게 어떻게 처음 꺼내면 좋을까? 오늘 결론을 내자고 몰아붙이고 싶진 않아.";
     const firstAssistant = "처음부터 형식을 정하려 하기보다, **내가 원하는 장면과 걱정**을 전해보면 좋아요.\n\n> “나는 큰 예식보다는 가까운 사람들과 짧게 인사하고 사진을 남기는 시간이 더 편하고 좋아 보여. 다만 작은 축하 자리도 결국 예식처럼 느껴질까 봐 걱정돼. 오늘 결론 내리자는 건 아니고, 우리에게 어떤 시간이 좋을지 각자 생각을 나눠보고 싶어.”\n\n마지막에 이렇게 덧붙여도 좋아요.\n\n> “당신이 중요하게 생각하는 장면도 먼저 듣고 싶어.”\n\n지금은 하객 수나 예산을 정하기보다, **서로 원하는 분위기를 확인하는 첫 대화**로만 열면 충분해요.";
-    const currentUser = "지금까지 내 입장에서 확정한 것, 아직 가설인 것, 파트너에게 아직 말하지 않은 것을 섞지 말고 표로 요약해줘. 그리고 다음에 나에게 물어볼 자연스러운 질문을 정확히 네 개만 써줘.";
+    const withHistory = scenario === "e8 private follow-up";
+    const currentUser = withHistory
+      ? "지금까지 내 입장에서 확정한 것, 아직 가설인 것, 파트너에게 아직 말하지 않은 것을 섞지 말고 표로 요약해줘. 그리고 다음에 나에게 물어볼 자연스러운 질문을 정확히 네 개만 써줘."
+      : "결혼 준비 이야기를 정리하고 싶어. 어제 파트너에게 “사진은 꼭 남기고 싶어”라고 직접 말했어. 예산에 대해서는 아직 파트너에게 말 안 했어. 사진 촬영 방식과 예산 금액은 미정이고, 둘이 합의한 내용도 아직 없어. 지금은 내 개인 상담이야. 항목별로 내가 말한 선호, 전달 여부, 합의 여부를 구분해서 표로 정리해줘. 저장하거나 공유하지 마.";
     const mockReply = "| 구분 | 내용 |\n|---|---|\n| 파트너에게 전달 여부 | 미확인 |";
     mocks.canonicalRows[0] = {
       ...mocks.canonicalRows[0],
@@ -9380,7 +9383,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       visibility: "bride_private",
       created_at: "2026-09-09T03:07:17.088Z",
     };
-    pushTrustedHistoryPair({
+    if (withHistory) pushTrustedHistoryPair({
       index: 903,
       userText: firstUser,
       assistantText: firstAssistant,
@@ -9410,12 +9413,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(mocks.provider).toHaveBeenCalledTimes(1);
           const providerArgs = mocks.provider.mock.calls[0]?.[0];
           expect(providerArgs?.input).toEqual([
-            { role: "user", content: `[신부] ${firstUser}` },
-            { role: "assistant", content: firstAssistant },
+            ...(withHistory ? [
+              { role: "user", content: `[신부] ${firstUser}` },
+              { role: "assistant", content: firstAssistant },
+            ] : []),
             { role: "user", content: `[신부] ${currentUser}` },
           ]);
           expect(modelConfig.chooseAmoraChatModelRole).toHaveBeenCalledWith(expect.objectContaining({ userText: currentUser }));
-          expect(providerArgs?.modelRole).toBe("fast");
+          if (withHistory) expect(providerArgs?.modelRole).toBe("fast");
           expect(mocks.chatHistoryEq).toHaveBeenCalledWith("visibility", "bride_private");
           expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith("visibility", "shared");
           const systemPrompt: string = providerArgs?.systemPrompt;
@@ -9438,7 +9443,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
             "전달·미전달은 항목별 직접 진술만 쓰세요",
             "질문·분류 요청·AI가 제안한 문구로 확정하지 말되",
             "질문 안에 포함된 직접 진술은 유지하세요",
-            "근거 없으면 전달 여부 미확인입니다",
+            "요약해도 대상·범위는 유지하세요",
           ]) expect(statusBlock).toContain(requiredEvidenceRule);
           const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
           expect(events.some(event => event.type === "error")).toBe(false);

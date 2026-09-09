@@ -58,7 +58,7 @@ describe("준비 상태 요약의 근거가 최종 조립에서도 보존된다"
     const start = prompt.indexOf(heading);
     const block = prompt.slice(start, prompt.indexOf("[준비 의견의 근거 확인]", start));
     expect(block).toContain("직접 진술");
-    expect(block).toContain("전달 여부 미확인");
+    expect(block).toContain("요약해도 대상·범위는 유지하세요");
     expect(block).toContain("질문·분류 요청·AI가 제안한 문구");
     expect(block).toContain("질문 안에 포함된 직접 진술은 유지");
     expect(block).toContain("전달 여부나 공동 합의가 확인되지 않으면 미확인");
