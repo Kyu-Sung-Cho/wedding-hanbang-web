@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
 
-const PREPARATION_PATHS = new Set(["/budget", "/schedule", "/checklist", "/dashboard", "/chat", "/chat/missions", "/chat/board"]);
+const PREPARATION_PATHS = new Set(["/budget", "/schedule", "/checklist", "/dashboard", "/lounge", "/chat", "/chat/missions", "/chat/board"]);
 
 function ownerKey() {
   const state = useAuthStore.getState();

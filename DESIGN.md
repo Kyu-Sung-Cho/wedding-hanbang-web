@@ -64,10 +64,10 @@
 - **Amora HTML exception (2026-09-06):** The user also approved the supplied
   `AmoraMissions.dc.html`, `MissionsMobile.dc.html`, `AmoraDecisionBoard.dc.html`,
   `BoardMobile.dc.html` and `SaveSheetMobile.dc.html`, requesting the closest possible match.
-  `/chat`, its missions/board subpages and their save confirmation sheet use self-hosted
+  `/chat`, its board subpages, the lounge's missions and their save confirmation sheet use self-hosted
   Gowun Dodum display text and IBM Plex Sans KR body/controls within `.amora-workspace`.
   The modified fonts have renamed families, OFL notices and full modern Hangul coverage
-  for user content. Other product routes retain Paperlogy except the separately approved
+  for user content. Other product routes retain Paperlogy except the lounge and separately approved
   checklist and manners surfaces above. The scoped HTML palette,
   intermediate type sizes and 8–24px radii are approved for these surfaces.
   Desktop sidebar is 220px; mobile gutters are 18px and navigation respects safe areas.
@@ -80,8 +80,20 @@
   uses a state selector, scrolling category chips and an expandable search field.
   Saving a shared answer to the saved collection remains separate from approving
   a budget, schedule or checklist change; the supplied sheet styling covers both.
-  Desktop and mobile Amora navigation both enter missions; the conversation scope
-  controls and board link share a row. Ordinary messages use the reference's sage
+  The 2026-09-10 navigation revision moves today's missions into Wedding Lounge;
+  desktop and mobile Amora entries open the conversation. One common header holds
+  Together, Private counseling and Decision board: to the right of the title on wide
+  screens, on a full-width row below it on smaller screens. Controls are at least 44px.
+  The conversation owns the actual scope, per-scope drafts and send locks even when
+  its controls appear in the header. The embedded assistant retains its local controls.
+  A hidden mobile scope picker was considered but rejected: the current privacy scope
+  must remain visible and switching should not require an extra sheet.
+  The lounge and Amora share the 220px sidebar, typography and mobile navigation;
+  lounge recommendations are consolidated around missions rather than duplicated.
+  Saved answers are a third board view, distinct from decisions and shared to-dos.
+  They remain shared reference material with the existing memo and deletion boundaries.
+  The separate global Saved menu is removed, and old saved/missions URLs still resolve.
+  Ordinary messages use the reference's sage
   and ink bubbles. Shared/private scope and approval controls remain functional.
   The subsequent Amora review labels mixed task/checklist suggestions as today's
   preparation and keeps the actual shared-task count separate. Task links select

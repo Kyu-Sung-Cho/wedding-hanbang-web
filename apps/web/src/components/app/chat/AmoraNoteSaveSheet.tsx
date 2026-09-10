@@ -33,11 +33,11 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
 
   return (
     <AmoraSheetFrame
-      title="저장함에 담을까요?"
-      description="두 분이 함께 보는 저장함에 이 답변과 메모를 보관해요. 저장할 내용을 확인해 주세요."
+      title="이 답변을 저장할까요?"
+      description="결정 보드의 ‘저장한 답변’에 보관해요. 답변과 메모는 두 분이 함께 봐요."
       disabled={busy || !preview || memo.length > 500}
       busy={busy}
-      applyLabel={busy ? "저장하는 중…" : "저장함에 담기"}
+      applyLabel={busy ? "저장하는 중…" : "답변 저장"}
       error={error}
       onConfirm={() => onSave(memo.trim())}
       onClose={onClose}
@@ -53,7 +53,7 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
       <div className="mb-4">
         <p className="mb-[7px] text-[12px] text-[var(--amora-muted)]">보관 위치</p>
         <span className="inline-flex min-h-11 items-center gap-[7px] rounded-full bg-[var(--amora-ink)] px-4 text-[13.5px] font-semibold text-white">
-          <Bookmark className="size-3.5" aria-hidden="true" />저장함
+          <Bookmark className="size-3.5 shrink-0" aria-hidden="true" />결정 보드 · 저장한 답변
         </span>
         <p className="mt-2 flex items-start gap-[7px] text-[12px] leading-[1.55] text-[var(--amora-muted)]">
           <Info className="mt-0.5 size-[13px] shrink-0" aria-hidden="true" />
@@ -87,7 +87,7 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
       <div className="mb-[18px] flex items-start gap-2.5 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)]">
         <CircleCheck className="mt-1 size-4 shrink-0 text-[var(--amora-rose-deep)]" aria-hidden="true" />
         <div>
-          <p className="mb-1 font-semibold text-[var(--amora-ink)]">공개 범위 · 두 분이 함께 보는 저장함</p>
+          <p className="mb-1 font-semibold text-[var(--amora-ink)]">공개 범위 · 두 분이 함께 봐요</p>
           <p>이 답변과 내가 적은 메모도 함께 보여요. 나만 상담한 대화는 여기에 저장할 수 없어요.</p>
         </div>
       </div>

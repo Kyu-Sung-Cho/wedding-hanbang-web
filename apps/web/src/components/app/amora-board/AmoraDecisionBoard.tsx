@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowUpRight, Check, CircleHelp, Link2, Pencil, RefreshCw, Search } from "lucide-react";
+import { ArrowUpRight, Check, CircleHelp, Link2, Pencil, RefreshCw, Search } from "lucide-react";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import Button from "@/components/ui/Button";
 import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
@@ -12,6 +12,7 @@ import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
 import { DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type DecisionColumn } from "@/lib/amora/preparationBoard";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useDecisionBoard } from "./useDecisionBoard";
+import SavedNotesContent from "@/components/app/saved/SavedNotesContent";
 
 const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]";
 const button = `inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-3.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${focus}`;
@@ -22,7 +23,7 @@ const decisionSources: Readonly<Record<string, string>> = {
   chat: "대화에서 남긴 기록", budget: "예산에서 남긴 기록", schedule: "일정에서 남긴 기록", manual: "직접 남긴 기록",
 };
 
-type BoardView = "decisions" | "tasks";
+type BoardView = "decisions" | "tasks" | "saved";
 const boardViewEvent = "amora:board-view";
 function boardLocation() {
   return /^\/(?:wedding\/)?chat\/board\/?$/.test(window.location.pathname) ? window.location.pathname + window.location.search : "";
@@ -292,7 +293,10 @@ export default function AmoraDecisionBoard() {
   const location = useSyncExternalStore(subscribeBoardLocation, boardLocation, serverBoardLocation);
   const requestedView = new URLSearchParams(location.split("?")[1] ?? "").get("view");
   const [selectedBoard, setSelectedBoard] = useState<BoardView | null>(null);
-  const board = (location ? (requestedView === "decisions" || requestedView === "tasks" ? requestedView : null) : selectedBoard) ?? (isDemo ? "tasks" : "decisions");
+  const board = (location ? (requestedView === "decisions" || requestedView === "tasks" || requestedView === "saved" ? requestedView : null) : selectedBoard) ?? (isDemo ? "tasks" : "decisions");
+  const [hasVisitedSaved, setHasVisitedSaved] = useState(false);
+  // 처음 열 때만 조회를 시작하고, 다른 보기를 오가도 메모 초안과 페이지를 유지한다.
+  if (board === "saved" && !hasVisitedSaved) setHasVisitedSaved(true);
   const selectBoard = (view: BoardView) => {
     if (!boardLocation()) { setSelectedBoard(view); return; }
     const url = new URL(window.location.href);
@@ -303,6 +307,7 @@ export default function AmoraDecisionBoard() {
   };
   const decisionPanelId = useId();
   const taskPanelId = useId();
+  const savedPanelId = useId();
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [decisionQuery, setDecisionQuery] = useState("");
   const searchToggleRef = useRef<HTMLButtonElement>(null);
@@ -369,12 +374,13 @@ export default function AmoraDecisionBoard() {
   return (
     <div className="min-w-0 bg-[var(--amora-bg)] px-[18px] pt-[10px] pb-8 text-[var(--amora-soft)] lg:px-9 lg:pt-6 lg:pb-9">
       <p role="status" aria-live="polite" aria-atomic="true" data-board-announcement className="sr-only">{announcement.message}</p>
-      <div className="mb-2 flex items-center justify-between gap-2 lg:mb-4">
-      <div role="group" aria-label="보드 보기" className="flex w-fit min-w-0 max-w-full gap-1 rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] p-[3px]">
+      <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:mb-4">
+      <div role="group" aria-label="보드 보기" className="grid min-w-0 grid-cols-3 gap-1 rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] p-[3px] sm:w-fit">
         <button type="button" aria-pressed={board === "decisions"} aria-controls={decisionPanelId} onClick={() => selectBoard("decisions")} className={`${button} ${board === "decisions" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>결정 기록</button>
         <button type="button" aria-pressed={board === "tasks"} aria-controls={taskPanelId} onClick={() => selectBoard("tasks")} className={`${button} ${board === "tasks" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>공유 할 일</button>
+        <button type="button" aria-pressed={board === "saved"} aria-controls={savedPanelId} onClick={() => selectBoard("saved")} className={`${button} ${board === "saved" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>저장한 답변</button>
       </div>
-      <div className="flex shrink-0 items-center gap-1">
+      {board !== "saved" && <div className="flex shrink-0 items-center justify-end gap-1">
       <button type="button" onClick={() => void (board === "decisions" ? decisions.refresh() : refresh())} disabled={refreshDisabled} aria-label={board === "decisions" ? "결정 새로고침" : "공유 할 일 새로고침"} className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full text-[12px] text-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-40 ${focus}`}><RefreshCw aria-hidden="true" className="size-4" /><span className="hidden lg:inline">새로고침</span></button>
       <button ref={searchToggleRef} type="button" disabled={!searchAvailable} aria-label={searchExpanded ? "보드 검색 닫기" : activeQuery.trim() ? "보드 검색 열기 · 검색 적용 중" : "보드 검색 열기"} aria-expanded={searchExpanded} aria-controls={searchAvailable ? (board === "decisions" ? decisionSearchId : taskSearchId) : undefined} onClick={() => {
         if (mobileSearchOpen) {
@@ -382,9 +388,9 @@ export default function AmoraDecisionBoard() {
           searchToggleRef.current?.focus();
         } else setMobileSearchOpen(true);
       }} className={`inline-flex size-11 shrink-0 items-center justify-center rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] text-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-40 lg:hidden ${focus}`}><Search aria-hidden="true" className="size-5" /></button>
+      </div>}
       </div>
-      </div>
-      {activeQuery.trim() && <div className="mb-3 flex min-w-0 items-center justify-between gap-2 text-[12px] text-[var(--amora-muted)] lg:hidden"><p className="min-w-0 truncate">검색 적용 중: {activeQuery.trim()}</p><button type="button" onClick={() => {
+      {board !== "saved" && activeQuery.trim() && <div className="mb-3 flex min-w-0 items-center justify-between gap-2 text-[12px] text-[var(--amora-muted)] lg:hidden"><p className="min-w-0 truncate">검색 적용 중: {activeQuery.trim()}</p><button type="button" onClick={() => {
         if (board === "decisions") setDecisionQuery(""); else setQuery("");
         searchToggleRef.current?.focus();
       }} className={`${button} shrink-0 px-2 text-[var(--amora-accent)]`}>검색 해제</button></div>}
@@ -441,13 +447,9 @@ export default function AmoraDecisionBoard() {
       </div>}
       <details className="mt-3 text-[12px] text-[var(--amora-muted)] lg:hidden"><summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>공유 할 일 안내</summary><p className="pb-2 leading-relaxed">{truncated ? `전체 ${count}개 중 ${actions.length}개를 불러왔어요. 아래 숫자와 검색은 불러온 카드 기준이에요.` : `불러온 카드 ${actions.length}개 · 숫자와 검색은 불러온 카드 기준이에요. 카드의 분야를 누르면 해당 체크리스트로 이어져요.`}</p><p className="pb-3 leading-relaxed">완료는 할 일의 상태이며 두 사람의 합의 여부를 뜻하지 않아요.</p></details>
       </section>
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-x-4 border-t border-[var(--amora-line)] pt-2">
-        <nav aria-label="아모라 화면 이동" className="flex flex-wrap gap-x-4 xl:hidden">
-          <Link href={weddingPath("/chat/missions")} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-muted)] ${focus}`}><ArrowLeft aria-hidden="true" className="size-3.5" />오늘의 미션</Link>
-          <Link href={weddingPath("/chat")} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] ${focus}`}>대화로 이동<ArrowUpRight aria-hidden="true" className="size-3.5" /></Link>
-        </nav>
-        <Link href={weddingPath("/saved")} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>저장한 아모라 이야기 보기<ArrowUpRight aria-hidden="true" className="size-3.5" /></Link>
-      </div>
+      <section id={savedPanelId} hidden={board !== "saved"} aria-label="저장한 답변">
+        {hasVisitedSaved && <SavedNotesContent embedded />}
+      </section>
     </div>
   );
 }

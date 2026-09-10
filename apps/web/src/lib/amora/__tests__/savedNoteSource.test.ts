@@ -124,10 +124,12 @@ function noteRequest(method: string, body: Record<string, unknown>) {
 }
 
 describe("saved note HTTP receipts and retries", () => {
-  it("keeps a discoverable sidebar entry to the canonical saved-notes route", () => {
-    const sidebar = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../components/app/Sidebar.tsx"), "utf8");
-    expect(sidebar).toContain('legacyPath: "/saved"');
-    expect(sidebar).toContain('label: "저장함"');
+  it("keeps saved answers discoverable in the board and preserves the previous route", () => {
+    const board = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../components/app/amora-board/AmoraDecisionBoard.tsx"), "utf8");
+    const previousPage = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), "../../../app/(app)/saved/page.tsx"), "utf8");
+    expect(board).toContain('selectBoard("saved")');
+    expect(board).toContain("저장한 답변");
+    expect(previousPage).toContain('redirect("/wedding/chat/board?view=saved")');
   });
   beforeEach(() => {
     Object.assign(apiFixture, { profileError: null, sourceError: null, countError: null, existingError: null,

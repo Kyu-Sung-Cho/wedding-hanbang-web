@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import ChatContent from "./ChatContent";
+import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import type { ChatMessage } from "@/types/database.types";
 import { buildWeddingTasteAmoraText, createEmptyWeddingTasteDraft } from "@/lib/weddingCode/taste";
 import { prepareWeddingTasteChat, WEDDING_TASTE_CHAT_KEY, WEDDING_TASTE_HANDOFF_TTL_MS } from "@/lib/weddingCode/tasteHandoff";
@@ -511,9 +512,105 @@ describe("ChatContent composer draft lanes", () => {
     expect(composer()?.value).toBe("나만 아모라 초안");
   });
 
+  it("portals the real scope controls into the header while preserving every delivery-lane draft", async () => {
+    const target = document.createElement("header");
+    document.body.prepend(target);
+    await act(async () => root.render(<AmoraNavigationTargetContext.Provider value={target}><ChatContent /></AmoraNavigationTargetContext.Provider>));
+    const headerButton = (label: string) => Array.from(target.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes(label));
+    expect(headerButton("함께 대화")).toBeDefined();
+    expect(headerButton("나만 (상담)")).toBeDefined();
+    expect(container.querySelector('[aria-label="대화 공개 범위"]')).toBeNull();
+    const composer = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => typeComposer("공유 AI 초안"));
+    await act(async () => buttonWith("상대방에게").click());
+    await act(async () => typeComposer("상대에게 보낼 초안"));
+    await act(async () => headerButton("나만 (상담)")!.click());
+    expect(composer.value).toBe("");
+    await act(async () => typeComposer("개인 상담 초안"));
+    expect(headerButton("나만 (상담)")!.getAttribute("aria-pressed")).toBe("true");
+    expect(container.textContent).toContain("상대방에게는 보이지 않아요");
+    await act(async () => headerButton("함께 대화")!.click());
+    expect(composer.value).toBe("공유 AI 초안");
+    await act(async () => buttonWith("상대방에게").click());
+    expect(composer.value).toBe("상대에게 보낼 초안");
+    await act(async () => headerButton("나만 (상담)")!.click());
+    expect(composer.value).toBe("개인 상담 초안");
+    expect(container.querySelector('button[aria-label="대화 검색"]')).not.toBeNull();
+    expect(container.querySelector('button[aria-label="정보 패널 · 대화 정리와 준비 현황"]')).not.toBeNull();
+    expect(container.querySelector('a[aria-label="AI 정책"]')).not.toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it.each(["streaming", "sending"] as const)("locks header scope and board navigation during %s without losing the draft", async kind => {
+    const target = document.createElement("header");
+    document.body.prepend(target);
+    const render = () => root.render(<AmoraNavigationTargetContext.Provider value={target}><ChatContent /></AmoraNavigationTargetContext.Provider>);
+    await act(async () => render());
+    const privateButton = () => Array.from(target.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("나만 (상담)"));
+    expect(privateButton()).toBeDefined();
+    await act(async () => typeComposer("전송 상태에서 보존할 초안"));
+    mocks.isStreaming = kind === "streaming";
+    mocks.isSending = kind === "sending";
+    await act(async () => render());
+    expect(privateButton()!.disabled).toBe(true);
+    expect(target.querySelector('a[href*="/chat/board"]')).toBeNull();
+    await act(async () => privateButton()!.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")!.value).toBe("전송 상태에서 보존할 초안");
+    mocks.isStreaming = false; mocks.isSending = false;
+    await act(async () => render());
+    expect(privateButton()!.disabled).toBe(false);
+    expect(target.querySelector('a[href*="/chat/board"]')).not.toBeNull();
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("moves navigation from its inline fallback to a late header target without remounting the private composer", async () => {
+    const target = document.createElement("header");
+    document.body.prepend(target);
+    await act(async () => root.render(<AmoraNavigationTargetContext.Provider value={null}><ChatContent /></AmoraNavigationTargetContext.Provider>));
+    await act(async () => buttonWith("나만 (상담)").click());
+    await act(async () => typeComposer("헤더 준비 중인 개인 초안"));
+    const composer = container.querySelector<HTMLTextAreaElement>("textarea")!;
+    await act(async () => root.render(<AmoraNavigationTargetContext.Provider value={target}><ChatContent /></AmoraNavigationTargetContext.Provider>));
+    const privateButton = Array.from(target.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes("나만 (상담)"));
+    expect(privateButton).toBeDefined();
+    expect(privateButton!.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector("textarea")).toBe(composer);
+    expect(composer.value).toBe("헤더 준비 중인 개인 초안");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("keeps a consumed private URL from overriding a later header scope selection", async () => {
+    const target = document.createElement("header");
+    document.body.prepend(target);
+    mocks.queryScope = "private";
+    const render = () => root.render(<AmoraNavigationTargetContext.Provider value={target}><ChatContent /></AmoraNavigationTargetContext.Provider>);
+    await act(async () => render());
+    const button = (label: string) => Array.from(target.querySelectorAll<HTMLButtonElement>("button")).find(item => item.textContent?.includes(label));
+    expect(button("나만 (상담)")?.getAttribute("aria-pressed")).toBe("true");
+    await act(async () => button("함께 대화")!.click());
+    await act(async () => render());
+    expect(button("함께 대화")!.getAttribute("aria-pressed")).toBe("true");
+    expect(button("나만 (상담)")!.getAttribute("aria-pressed")).toBe("false");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it("does not portal embedded controls or introduce external navigation when a header target exists", async () => {
+    const target = document.createElement("header");
+    document.body.prepend(target);
+    await act(async () => root.render(<AmoraNavigationTargetContext.Provider value={target}><ChatContent embedded /></AmoraNavigationTargetContext.Provider>));
+    expect(target.children).toHaveLength(0);
+    expect(container.querySelector('[aria-label="대화 공개 범위"]')).not.toBeNull();
+    expect(container.querySelector('a[href*="/chat/board"]')).toBeNull();
+    expect(container.querySelector('a[href*="/chat/missions"]')).toBeNull();
+    await act(async () => buttonWith("나만 (상담)").click());
+    expect(buttonWith("나만 (상담)").getAttribute("aria-pressed")).toBe("true");
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("keeps embedded conversation controls and private drafts without introducing page navigation or an automatic send", async () => {
-    expect(container.querySelector('a[href="/wedding/chat/board"]')?.textContent).toBe("결정보드");
-    expect(container.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/wedding/chat/board"]')?.textContent).toBe("결정 보드");
+    expect(container.querySelector('a[href="/wedding/chat/missions"]')).toBeNull();
     await act(async () => root.render(<ChatContent embedded />));
     expect(container.querySelector('a[href="/wedding/chat/board"]')).toBeNull();
     expect(container.querySelector('a[href="/wedding/chat/missions"]')).toBeNull();

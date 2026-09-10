@@ -192,7 +192,7 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
-    expect(nav?.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(nav?.querySelector('a[href="/wedding/checklist"]')).not.toBeNull();
   });
 
@@ -217,10 +217,27 @@ describe("AppClientLayout global Amora panel", () => {
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
     expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/checklist");
-    expect(nav?.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
     expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
     expect(container.textContent).toContain("AI notice");
+  });
+
+  it.each(["/wedding/lounge", "/lounge"])("keeps %s outside the generic heading bridge and its assistant above the mobile bar", async pathname => {
+    mocks.pathname = pathname;
+    await renderLayout();
+    expect(container.querySelector(".amora-workspace main")).not.toBeNull();
+    expect(container.querySelector(".hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main")).toBeNull();
+    const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
+    expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/lounge");
+    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
+    const launcher = container.querySelector('button[aria-label="아모라 AI 상담"]');
+    expect(launcher?.className).toContain("90px+env(safe-area-inset-bottom)");
+    expect(container.textContent).toContain("AI notice");
+    mocks.pathname = "/wedding/budget";
+    await renderLayout();
+    expect(container.querySelector(".amora-workspace main")).toBeNull();
+    expect(container.querySelector(".hanbang-service-theme:not(.amora-workspace):not(.planning-workspace) main")).not.toBeNull();
   });
 
   it("suppresses analytics capture and the Amora launcher only in admin vendor preview mode", async () => {

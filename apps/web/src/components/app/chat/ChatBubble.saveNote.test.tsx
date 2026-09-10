@@ -71,7 +71,8 @@ describe("공유 답변을 저장함에 담기", () => {
     expect(fetch).not.toHaveBeenCalled();
     expect(dialog.textContent).toContain(message.content);
     expect(dialog.querySelector("img, script")).toBeNull();
-    expect(dialog.textContent).toContain("두 분이 함께 보는 저장함");
+    expect(dialog.textContent).toContain("결정 보드의 ‘저장한 답변’");
+    expect(dialog.textContent).toContain("공개 범위 · 두 분이 함께 봐요");
     expect(dialog.textContent).toContain("메모도 함께 보여요");
     expect(dialog.textContent).not.toContain("확정됨");
     expect(dialog.textContent).not.toContain("확인 요청이 가요");
@@ -106,7 +107,7 @@ describe("공유 답변을 저장함에 담기", () => {
       method: "POST", body: JSON.stringify({ messageId: message.id, memo: "함께 확인할 합성 메모" }),
     }));
     expect(document.querySelector('[role="dialog"]')).toBeNull();
-    expect(container.querySelector('a[href="/wedding/saved"]')?.textContent).toContain("저장함 · 보러가기");
+    expect(container.querySelector('a[href="/wedding/chat/board?view=saved"]')?.textContent).toContain("저장한 답변 · 보러가기");
   });
 
   it.each([{ saved: false }, {}, { saved: "true" }, { saved: true }, { saved: true, id: null, memoApplied: true }, null])("HTTP 200만으로 저장 성공을 말하지 않는다: %j", async (body) => {
@@ -114,7 +115,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await render();
     const dialog = await open();
     await act(async () => save(dialog).click());
-    expect(container.textContent).not.toContain("저장함 · 보러가기");
+    expect(container.textContent).not.toContain("저장한 답변 · 보러가기");
     const alert = dialog.querySelector('[role="alert"]');
     expect(alert).not.toBeNull();
     // 긴 답변을 스크롤한 위치와 무관하게 오류를 재시도 버튼 곁에서 확인한다.
@@ -137,7 +138,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await act(async () => rejectSave(new Error("synthetic network failure")));
     expect(dialog.querySelector('[role="alert"]')?.textContent).toContain("저장 여부를 확인하지 못했어요");
     await act(async () => save(dialog).click());
-    expect(container.textContent).toContain("저장함 · 보러가기");
+    expect(container.textContent).toContain("저장한 답변 · 보러가기");
   });
 
   it.each(["bride_private", "groom_private"] as const)("%s 답변에는 공유 저장 진입을 만들지 않는다", async (visibility) => {
@@ -160,7 +161,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await act(async () => save(dialog).click());
     expect(container.textContent).toContain("이번 메모는 반영되지 않았어요");
     expect(container.querySelector("details")?.textContent).toContain("보존할 합성 메모");
-    expect(container.querySelector('a[href="/wedding/saved"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/wedding/chat/board?view=saved"]')).not.toBeNull();
   });
 
   it("다른 메시지로 재사용된 컴포넌트에 이전 저장 상태를 옮기지 않는다", async () => {
@@ -169,7 +170,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await render(); const dialog = await open(); await act(async () => save(dialog).click());
     await render({ id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd" });
     expect(container.querySelector('button[title="나중에 다시 보기"]')).not.toBeNull();
-    expect(container.textContent).not.toContain("저장함 · 보러가기");
+    expect(container.textContent).not.toContain("저장한 답변 · 보러가기");
   });
 
   it("4,000자 경계의 이모지를 반으로 자른 원문을 보여주지 않는다", async () => {
@@ -190,7 +191,7 @@ describe("공유 답변을 저장함에 담기", () => {
     changeAccount(USER);
     vi.mocked(fetch).mockResolvedValueOnce(index()).mockResolvedValueOnce(new Response(JSON.stringify({ deleted: true, id: NOTE })));
     await render();
-    expect(container.textContent).toContain("저장함 · 보러가기");
+    expect(container.textContent).toContain("저장한 답변 · 보러가기");
     const cancel = container.querySelector<HTMLButtonElement>('[aria-label="내 저장 취소"]');
     expect(cancel).not.toBeNull();
     await act(async () => cancel!.click());
@@ -201,7 +202,7 @@ describe("공유 답변을 저장함에 담기", () => {
     changeAccount(USER); vi.mocked(fetch).mockResolvedValueOnce(index(false)); await render();
     expect(container.textContent).toContain("파트너가 저장");
     expect(container.querySelector('[aria-label="내 저장 취소"]')).toBeNull();
-    expect(container.querySelector('a[href="/wedding/saved"]')).not.toBeNull();
+    expect(container.querySelector('a[href="/wedding/chat/board?view=saved"]')).not.toBeNull();
   });
   it("같이 렌더한 공유 답변들의 저장 상태를 원문 없이 한 번에 읽는다", async () => {
     changeAccount(USER); vi.mocked(fetch).mockResolvedValueOnce(index());
@@ -216,14 +217,14 @@ describe("공유 답변을 저장함에 담기", () => {
     await render();
     expect(container.textContent).toContain("저장 상태 다시 확인");
     await act(async () => Array.from(container.querySelectorAll("button")).find(button => button.textContent === "저장 상태 다시 확인")!.click());
-    expect(container.textContent).toContain("저장함 · 보러가기");
+    expect(container.textContent).toContain("저장한 답변 · 보러가기");
   });
   it("계정이 바뀌었다 돌아와도 이전 조회 응답을 현재 저장 상태로 사용하지 않는다", async () => {
     let finish!: (response: Response) => void;
     changeAccount(USER); vi.mocked(fetch).mockReturnValueOnce(new Promise(resolve => { finish = resolve; })); await render();
     await act(async () => { changeAccount(null); changeAccount(USER); });
     await act(async () => finish(index()));
-    expect(container.textContent).not.toContain("저장함 · 보러가기");
+    expect(container.textContent).not.toContain("저장한 답변 · 보러가기");
   });
   const emptyIndex = () => new Response(JSON.stringify({ userId: USER, coupleId: message.couple_id, savedNotes: [] }));
   it("이전 조회가 늦게 끝나도 이후 성공한 저장을 지우지 않는다", async () => {
@@ -245,7 +246,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await render(); const dialog = await open(); await act(async () => save(dialog).click());
     await act(async () => { changeAccount(null); changeAccount(USER); });
     await act(async () => finish(new Response(JSON.stringify({ saved: true, id: NOTE, memoApplied: true, savedByMe: true }))));
-    expect(container.textContent).not.toContain("저장함 · 보러가기");
+    expect(container.textContent).not.toContain("저장한 답변 · 보러가기");
   });
   it("계정 전환 후 늦은 취소 응답이 새로 읽은 파트너 저장을 지우지 않는다", async () => {
     let finish!: (response: Response) => void;
@@ -269,7 +270,7 @@ describe("공유 답변을 저장함에 담기", () => {
     await act(async () => { cancel.click(); cancel.click(); });
     expect(cancel.disabled).toBe(true); expect(fetch).toHaveBeenCalledTimes(2);
     await act(async () => finish(new Response(JSON.stringify({ deleted: false, id: NOTE }))));
-    expect(container.textContent).toContain("저장함 · 보러가기");
+    expect(container.textContent).toContain("저장한 답변 · 보러가기");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("저장 취소를 확인하지 못했어요");
     expect(cancel.disabled).toBe(false);
   });
@@ -303,7 +304,7 @@ describe("공유 답변을 저장함에 담기", () => {
   it("구 API가 저장 주체를 주지 않으면 파트너라고 단정하거나 취소를 허용하지 않는다", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ saved: true, id: NOTE, memoApplied: true })));
     await render(); const dialog = await open(); await act(async () => save(dialog).click());
-    expect(container.textContent).toContain("저장함 · 보러가기");
+    expect(container.textContent).toContain("저장한 답변 · 보러가기");
     expect(container.textContent).not.toContain("파트너가 저장");
     expect(container.querySelector('[aria-label="내 저장 취소"]')).toBeNull();
   });

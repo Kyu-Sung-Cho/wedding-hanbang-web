@@ -9,6 +9,7 @@ import {
 import { AMORA_PREPARATION_SOURCE_PARAM, resolveAmoraPreparationSource, type AmoraPreparationDraft } from "@/lib/amora/preparationHandoff";
 
 import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction } from "react";
+import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Send, Sparkles, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink, User } from "lucide-react";
@@ -22,6 +23,8 @@ import VendorToolCard, { VENDOR_TOOL_NAMES } from "@/components/app/chat/VendorT
 import SuggestionButtons from "@/components/app/chat/SuggestionButtons";
 import StreamingBubble from "@/components/app/chat/StreamingBubble";
 import ChatInfoPanel from "@/components/app/chat/ChatInfoPanel";
+import AmoraWorkspaceNav from "@/components/app/amora/AmoraWorkspaceNav";
+import { useAmoraNavigationTarget } from "@/components/app/amora/AmoraNavigationContext";
 import Button from "@/components/ui/Button";
 import MediationConsentDialog from "@/components/app/chat/MediationConsentDialog";
 import {
@@ -459,6 +462,7 @@ function getCommunityAskCue(
 }
 
 export default function ChatContent({ embedded = false }: ChatContentProps = {}) {
+  const navigationTarget = useAmoraNavigationTarget();
   const { profile, couple, journey, partner, isDemo, isInitialized: authInitialized, isLoading: authLoading } = useAuthStore();
   const amoraPersonalization = useAmoraPersonalization(
     !isDemo && Boolean(profile?.id),
@@ -2441,6 +2445,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     return <FileText className="w-7 h-7 text-[var(--hb-text-body)]" />;
   };
 
+  const workspaceNavigation = !embedded ? <AmoraWorkspaceNav chatControls={{
+    activeScope: activeTab,
+    onScopeChange: handleScopeChange,
+    disabled: isStreaming || isSending,
+    privateDisabled: isDemo || !myPrivateVisibility,
+    sharedCount: sharedMessageCount,
+    privateCount: privateMessageCount,
+    privateHint: isDemo
+      ? "계정 이용 시 파트너 비공개 상담을 사용할 수 있어요"
+      : "아모라와 1:1 — 상대방에게 보이지 않습니다",
+  }} /> : null;
+
   return (
     <div
       className={`relative h-full bg-[#FAFAF8] transition-[padding] duration-300 ${infoPanelOpen ? "md:pr-[390px]" : ""}`}
@@ -2448,6 +2464,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* 범위 상태는 이 인스턴스가 유지하고 버튼만 공통 헤더에 표시한다. */}
+      {workspaceNavigation && navigationTarget && createPortal(workspaceNavigation, navigationTarget)}
       {/* 드래그 오버레이 */}
       {isDragging && (
         <div className="fixed inset-0 z-50 bg-[rgba(54,83,78,0.10)] border-2 border-dashed border-[var(--hb-hairline)] flex items-center justify-center pointer-events-none">
@@ -2646,13 +2664,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       )}
 
     <div className="h-full flex flex-col w-full">
-      {/* 상단 통합 툴바 — 탭(함께/나만) + 액션(검색·정보·새채팅) 한 줄
-          ChatContent root 는 full-width 라 메시지 컨테이너 스크롤바가
-          viewport 우측 가장자리에 위치. 툴바·입력박스만 reading column 으로
-          가운데 정렬. */}
+      {/* 풀페이지 범위 버튼은 공통 헤더, embedded 버튼은 현재 화면에 둔다. */}
       <div className="mx-auto flex w-full max-w-[70rem] flex-wrap items-center gap-x-3 gap-y-1 px-[18px] pt-[14px] pb-2 md:px-9">
-        {/* 탭 — 좌측 차지 (메인 동작) */}
-        <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:flex-1">
+        {embedded && <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:flex-1">
         <div
           className="amora-chat-scopes flex min-w-0 flex-[2] items-center gap-1.5"
           role="group"
@@ -2700,12 +2714,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             ) : null}
           </button>
         </div>
-        {!embedded && <Link href={weddingPath("/chat/board")} className="inline-flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full bg-[var(--amora-low,#F0EAD9)] px-2 py-[9px] text-[12px] font-medium text-[var(--amora-muted,#605E54)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent,#486455)]">결정보드</Link>}
-        </div>
+        </div>}
+        {!navigationTarget && workspaceNavigation}
 
         {/* 액션 — 우측 (검색/정보/새채팅) */}
-        <div className="flex w-full shrink-0 items-center justify-end gap-1 md:w-auto">
-          {!embedded && <Link href={weddingPath("/chat/missions")} className="mr-auto inline-flex min-h-11 items-center rounded-full px-1 text-[12px] text-[var(--amora-accent,#486455)] focus-visible:outline-2 focus-visible:outline-offset-2">오늘의 미션</Link>}
+        <div className="ml-auto flex w-full shrink-0 items-center justify-end gap-1 md:w-auto">
           <a
             href="/ai-policy"
             className="flex size-11 items-center justify-center rounded-full text-[12px] font-medium text-[var(--amora-muted,#605E54)] transition-colors hover:bg-[var(--amora-low,#F0EAD9)]"

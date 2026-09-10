@@ -300,7 +300,7 @@ export function AiFeedbackRow({
 }
 
 // 아모라가 한 말 저장 — 대화가 길어지면 앞에서 들은 중요한 말이 스크롤 뒤로
-// 묻힌다. 저장해 두면 /wedding/saved 한 곳에서 다시 볼 수 있다.
+// 묻힌다. 저장해 두면 결정 보드의 저장한 답변에서 다시 볼 수 있다.
 export function SaveNoteButton({ messageId, content, coupleId }: { messageId: string; content: string; coupleId: string }) {
   const scope = useSavedNoteStore(state => state.scope);
   return <MessageSaveNoteButton key={`${scope}:${messageId}`} scope={scope} coupleId={coupleId} messageId={messageId} content={content} />;
@@ -399,16 +399,16 @@ function MessageSaveNoteButton({ messageId, content, coupleId, scope }: { messag
       {savedNote.savedByMe === false && <p className="mb-1 text-sm text-[var(--hb-text-muted)]">파트너가 저장한 답변이에요.</p>}
       {saveError && <p role="alert" className="mb-2 text-sm text-[var(--hb-text-muted)]">{saveError}</p>}
       {unappliedMemo !== null && <div role="status" className="mb-2 text-sm leading-relaxed text-[var(--hb-text-muted)]">
-        <p>답변은 이미 저장되어 있어요. 이번 메모는 반영되지 않았어요. 저장함에서 기존 메모를 확인하고 수정해 주세요.</p>
+        <p>답변은 이미 저장되어 있어요. 이번 메모는 반영되지 않았어요. 결정 보드의 ‘저장한 답변’에서 기존 메모를 확인하고 수정해 주세요.</p>
         {unappliedMemo && <details className="mt-1"><summary className="min-h-11 cursor-pointer py-3">내가 쓴 메모 다시 보기</summary><p className="select-text break-words whitespace-pre-wrap">{unappliedMemo}</p></details>}
       </div>}
       <Link
         ref={savedLinkRef}
-        {...weddingLinkProps("/saved")}
+        {...weddingLinkProps("/chat/board?view=saved")}
         className="flex items-center gap-1.5 text-sm text-[#9A6B62] transition-colors hover:text-[#C4967E]"
       >
         <BookmarkCheck className="w-4 h-4" />
-        <span>저장함 · 보러가기</span>
+        <span>저장한 답변 · 보러가기</span>
       </Link>
       {savedNote.savedByMe && <Button variant="ghost" type="button" aria-label="내 저장 취소" disabled={status === "deleting"} onClick={() => void handleUnsave()} className="mt-1 min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent! hover:text-[#9A6B62]! disabled:opacity-40!">{status === "deleting" ? "취소 중…" : "내 저장 취소"}</Button>}
       {entry?.status === "error" && <Button variant="ghost" type="button" onClick={() => refreshSavedNote(messageId)} className="min-h-11 px-0! py-0! font-normal! text-sm! text-[var(--hb-text-muted)]! hover:bg-transparent!">저장 상태 다시 확인</Button>}

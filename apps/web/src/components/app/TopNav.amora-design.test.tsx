@@ -38,4 +38,21 @@ describe("Amora header search meaning", () => {
     await act(async () => control("커뮤니티 검색")!.click());
     expect(navigation.push).toHaveBeenCalledWith("/wedding?feed=all#community-feed");
   });
+
+  it("keeps one shared header slot on chat and board, leaving chat controls to the conversation", async () => {
+    let slot: HTMLDivElement | null = null;
+    const assignSlot = (element: HTMLDivElement | null) => { slot = element; };
+    navigation.pathname = "/wedding/chat";
+    await act(async () => root.render(<TopNav amoraWorkspace amoraNavigationRef={assignSlot} onMenuToggle={vi.fn()} />));
+    const headerSlot = container.querySelector("[data-amora-navigation-slot]");
+    expect(slot).toBe(headerSlot);
+    expect(headerSlot?.childElementCount).toBe(0);
+    expect(headerSlot?.closest("header")).not.toBeNull();
+
+    navigation.pathname = "/wedding/chat/board";
+    await act(async () => root.render(<TopNav amoraWorkspace amoraNavigationRef={assignSlot} onMenuToggle={vi.fn()} />));
+    expect(container.querySelector("[data-amora-navigation-slot]")).toBe(headerSlot);
+    expect(container.querySelectorAll('nav[aria-label="아모라 탐색"]')).toHaveLength(1);
+    expect(headerSlot?.querySelector("nav")).not.toBeNull();
+  });
 });

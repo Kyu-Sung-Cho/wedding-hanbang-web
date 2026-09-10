@@ -1,5 +1,5 @@
-import AmoraMissions from "@/components/app/amora-missions/AmoraMissions";
+import { redirect } from "next/navigation";
 
 export default function AmoraMissionsPage() {
-  return <AmoraMissions />;
+  redirect("/wedding/lounge#today-missions");
 }
