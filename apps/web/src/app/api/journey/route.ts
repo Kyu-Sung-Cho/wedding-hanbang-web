@@ -13,6 +13,7 @@ import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { sanitizeText } from "@/utils/sanitize";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { buildPlanChangeRpcDiagnostic } from "@/lib/couples/planChangeRpcDiagnostic";
 import { log } from "@/utils/log";
 
 export const dynamic = "force-dynamic";
@@ -668,10 +669,7 @@ function serviceErrorResponse(error: unknown) {
     );
   }
 
-  const code = isRecord(error) && typeof error.code === "string"
-    ? error.code
-    : "unknown";
-  log.error("Couple plan-change RPC failed:", { code });
+  log.error("Couple plan-change RPC failed:", buildPlanChangeRpcDiagnostic(error));
   return privateResponse(
     {
       error: "변경 요청의 저장 상태를 확인하지 못했어요. 잠시 후 다시 확인해 주세요.",
