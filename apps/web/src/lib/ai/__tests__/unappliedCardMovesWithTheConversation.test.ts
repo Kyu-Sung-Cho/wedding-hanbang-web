@@ -114,9 +114,20 @@ describe("라우트가 실제로 옮긴다", () => {
     // 하나가 무관한 답변 8개를 43분간 따라다녔기 때문이다. 이월 자체는 그대로
     // 살아 있어야 하므로 여기서 계속 고정하되, 관문이 붙은 형태를 받는다.
     // 관문의 내용은 `scripts/tests/pending-card-carry-has-limits.test.mjs` 가 본다.
+    // 변경을 차단한 답변에서는 옛 카드도 발행하지 않는다. 조건 추가는 허용하되
+    // 원본·범위·횟수 관문을 통과한 값이 실제 metadata에 연결되는지 확인한다.
+    const definition = /const emittedCarriedPendingCard\s*=\s*([^;]+);/.exec(source)?.[1];
+    expect(definition).toBeDefined();
+    const [condition, branches] = definition!.split("?");
+    const conditions = condition.split("&&").map((part) => part.trim());
+    expect(conditions).toEqual(expect.arrayContaining([
+      "blockedBudgetText === null", "awaitingPendingCard", "shouldCarryPendingCard",
+    ]));
+    expect(condition).not.toMatch(/\|\|/);
+    expect(branches).toMatch(/^\s*awaitingPendingCard\s*:\s*null\s*$/);
     const collapsed = source.replace(/\s+/g, " ");
     expect(collapsed).toContain(
-      ": awaitingPendingCard && shouldCarryPendingCard ? { pending_amora_action: awaitingPendingCard,",
+      ": emittedCarriedPendingCard ? { pending_amora_action: emittedCarriedPendingCard,",
     );
   });
 

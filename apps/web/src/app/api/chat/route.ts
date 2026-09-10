@@ -157,7 +157,7 @@ import {
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
-import { parseExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
+import { assessExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
 import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
 import {
   AMORA_MAX_TOOL_ROUNDS,
@@ -4022,6 +4022,22 @@ export async function POST(request: Request) {
           const explicitBudgetPlan = !budgetAssessment && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
             ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.progress, resolvedWeddingContext.budget) : null;
+          // 명시 목록에 담당·기한·비공개·취소 조건이 섞이면 모델 표식으로 우회하지 않는다.
+          // 적용할 수 있는 원문 목록과 다시 확인할 요청을 구분해 같은 승인 경계로 보낸다.
+          const taskAssessment = !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
+            && !isDemo && requestKind === "chat" && isDurableUserMessageBound
+            && visibility === "shared" && questionScope.scope === "W0_wedding_core" && !approvedPendingAction
+            ? assessExplicitTaskRequest(lastUserText, afterSuggest) : null;
+          const assessedTaskActions = taskAssessment?.kind === "ready" && pendingOfferEnabled
+            && pendingProposalTools.some(tool => tool.name === "add_amora_action")
+            ? taskAssessment.actions : null;
+          const blockedTaskText = taskAssessment && !assessedTaskActions
+            ? taskAssessment.kind === "ready"
+              ? "할 일의 확인 카드를 준비하지 못했어요. 아직 추가하지 않았어요. 제목·설명·예정일을 다시 확인해 주세요."
+              : taskAssessment.text
+            : null;
+          const effectiveSuggestions = blockedBudgetText !== null || blockedTaskText !== null
+            ? [] : suggestions;
           const pendingExtractionOptions = {
             allowedTools: pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
@@ -4037,23 +4053,18 @@ export async function POST(request: Request) {
             ...pendingExtractionOptions,
             // 초과 시 저장 금지처럼 조건이 붙은 단일 변경은 실제 장부로 판정한다.
             // 거절의 근거 수치도 모델 산문에서 가져오지 않으며 확인/실행 경계는 유지한다.
-            text: blockedBudgetText ?? (assessedBudgetAction
+            text: blockedBudgetText ?? blockedTaskText ?? (assessedBudgetAction
               ? `[pending_action]${JSON.stringify(assessedBudgetAction)}[/pending_action]`
               : explicitBudgetPlan
               ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
               : afterSuggest),
           });
-          const explicitSchedules = !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
+          const explicitSchedules = !budgetAssessment && !explicitBudgetPlan && !taskAssessment && !queuedProposal?.pendingAction
             && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "add_schedule_event")
             ? parseExplicitScheduleRequest(lastUserText, afterSuggest)
             : null;
-          const explicitTasks = !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
-            && pendingOfferEnabled && !approvedPendingAction
-            && pendingProposalTools.some(tool => tool.name === "add_amora_action")
-            ? parseExplicitTaskRequest(lastUserText, afterSuggest)
-            : null;
-          const explicitActions = explicitTasks ?? explicitSchedules;
+          const explicitActions = assessedTaskActions ?? explicitSchedules;
           if (explicitActions) {
             // 완결된 원문 목록으로 대체한다. 모델 목록에 덧붙이면 같은 항목이 중복 저장된다.
             modelPendingExtraction = extractAmoraPendingAction({
@@ -4062,7 +4073,8 @@ export async function POST(request: Request) {
             });
           }
           const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
-          const emittedCarriedPendingCard = blockedBudgetText === null && awaitingPendingCard && shouldCarryPendingCard
+          const emittedCarriedPendingCard = blockedBudgetText === null && blockedTaskText === null
+            && awaitingPendingCard && shouldCarryPendingCard
             ? awaitingPendingCard : null;
           const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
           const proposalQueue = nextActionQueue ?? (pendingExtraction.pendingAction
@@ -4223,7 +4235,7 @@ export async function POST(request: Request) {
             ...(visibleClientRequestKey !== clientRequestId
               ? { client_visible_request_id: visibleClientRequestKey }
               : {}),
-            ...(blockedBudgetText === null && suggestions.length > 0 ? { suggestions } : {}),
+            ...(effectiveSuggestions.length > 0 ? { suggestions: effectiveSuggestions } : {}),
             ...(mediation ? { mediation } : {}),
             ...(proposalQueue ? { pending_amora_action_queue: proposalQueue } : {}),
             ...(queueCompletion ? { completed_amora_action_queue: queueCompletion } : {}),
@@ -4306,7 +4318,7 @@ export async function POST(request: Request) {
           return {
             cleanText,
             persistenceSafeText,
-            suggestions,
+            suggestions: effectiveSuggestions,
             pendingExtraction,
             persistenceClaimGuard,
             metadata,
