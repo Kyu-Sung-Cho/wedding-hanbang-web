@@ -17,6 +17,36 @@
 
 ## Typography
 
+- **Lounge hub and schedule HTML alignment (2026-09-11):** The user approved
+  `WeddingLoungeHub.dc.html`, `WeddingLoungeHubMobile.dc.html`,
+  `WeddingLoungeMobile.dc.html`, `ScheduleAlt.dc.html` and `ScheduleMobile.dc.html`
+  with the same layout, color and typography scope as the checklist/budget work.
+  Lounge and schedule now share the 216px planner sidebar and compact white header.
+  Lounge keeps the scoped Amora fonts; schedule uses `.planning-workspace`.
+  The user explicitly selected one consistent five-item mobile navigation:
+  Lounge, Amora, Checklist, Schedule and Budget. Community remains reachable through
+  the full menu and contextual lounge links. Contextual Amora actions and the bottom
+  navigation replace the floating launcher on these screens. Small-screen headers
+  retain notification access and a menu control for the remaining destinations.
+  Hub-style summary cards and next actions use saved preparation, budget and schedule
+  data. Reference activity logs, partner attribution and decision totals are not
+  invented. Suggested preparation dates remain distinct from actual saved schedules.
+
+- **Checklist overview and budget HTML alignment (2026-09-11):** The user approved
+  `ChecklistOverview.dc.html`, `ChecklistOverviewMobile.dc.html`, `Budget.dc.html`
+  and `BudgetMobile.dc.html`, including their layout, colors and font families.
+  `/checklist` and `/budget` share the scoped `.planning-workspace` font assets and
+  HTML palette. Their desktop sidebar is 216px, mobile gutters are 18px, and the
+  compact white header includes a dark D-day pill. Both routes have mobile bottom
+  navigation with the current page selected; contextual Amora links replace a
+  competing floating launcher. Checklist overview groups the actual categories
+  into five preparation stages. Budget uses three summary cards, recorded-spend
+  distribution and responsive category rows. Counts, monetary precision, saved
+  exclusions, custom items and save/error behavior continue to use live data.
+  The reference's sample values and partner states are not seeded into accounts.
+  Existing accessible small-text colors remain the darker steps of this palette.
+  Other surfaces, including Amora and public manners, keep their existing geometry.
+
 - **Checklist and manners HTML exception (2026-09-06):** The user approved the
   supplied design-pattern document, two desktop/mobile PDFs and sixteen checklist
   and manners HTML examples. `/checklist`, its category sheets, and public `/manners`

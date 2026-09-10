@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  buildAmoraFirstHello,
   FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
   FIRST_RUN_TUTORIAL_SESSION_KEY,
   FIRST_RUN_TUTORIAL_VERSION,
@@ -12,6 +13,12 @@ import {
 import FirstRunLoungeTutorial from "./FirstRunLoungeTutorial";
 import { useAuthStore } from "@/stores/authStore";
 import type { Profile } from "@/types/database.types";
+import {
+  consumePendingAmoraFirstHello,
+  peekPendingAmoraFirstHello,
+  rememberPendingAmoraFirstHello,
+  resetAmoraFirstHelloMemory,
+} from "@/lib/amora/pendingFirstHello";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
   .IS_REACT_ACT_ENVIRONMENT = true;
@@ -72,18 +79,20 @@ describe("첫 실행 라운지 안내", () => {
   let root: Root;
   let originalState: Pick<
     ReturnType<typeof useAuthStore.getState>,
-    "profile" | "isDemo"
+    "profile" | "isDemo" | "journey" | "partner"
   >;
 
   beforeEach(() => {
     const state = useAuthStore.getState();
-    originalState = { profile: state.profile, isDemo: state.isDemo };
+    originalState = { profile: state.profile, isDemo: state.isDemo, journey: state.journey, partner: state.partner };
+    useAuthStore.setState({ journey: null, partner: null });
 
     supabase.selectResult = { data: {}, error: null };
     supabase.updates.length = 0;
     supabase.updateError = null;
     sessionStorage.clear();
     localStorage.clear();
+    resetAmoraFirstHelloMemory();
     // jsdom에는 scrollIntoView가 없다. 엔진이 앵커를 화면에 올릴 때 부른다.
     Element.prototype.scrollIntoView = vi.fn();
     vi.useFakeTimers();
@@ -97,6 +106,7 @@ describe("첫 실행 라운지 안내", () => {
     await act(async () => root.unmount());
     vi.useRealTimers();
     useAuthStore.setState(originalState);
+    resetAmoraFirstHelloMemory();
     document.body.replaceChildren();
   });
 
@@ -195,6 +205,11 @@ describe("첫 실행 라운지 안내", () => {
         typeof supabase.updates[0]?.values.first_run_tutorial_completed_at,
       ).toBe("string");
       expect(tutorialDialog()).toBeNull();
+      const hello = buildAmoraFirstHello({ weddingDate: null, preparationStage: null, partnerLinked: false, now: Date.now() });
+      expect(container.querySelector('[aria-label="아모라의 첫인사"]')?.textContent).toContain(hello.preview);
+      expect(peekPendingAmoraFirstHello({ ownerId: PROFILE.id })?.body).toBe(hello.body);
+      expect(container.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
+      expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
     } finally {
       window.removeEventListener(FIRST_RUN_TUTORIAL_COMPLETED_EVENT, listener);
     }
@@ -245,5 +260,100 @@ describe("첫 실행 라운지 안내", () => {
     expect(
       supabase.updates[0]?.values.first_run_tutorial_completed_at,
     ).toEqual(expect.any(String));
+  });
+
+  it("인라인 미리보기를 닫아도 전체 대화가 인사를 받고, 다시 마운트해도 미리보기는 열리지 않는다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    const hello = { preview: "우리 결혼 준비 이야기부터 나눠요.", body: "함께 준비할 이야기부터 차근차근 들어볼게요." };
+    rememberPendingAmoraFirstHello(hello, { ownerId: PROFILE.id });
+    await render();
+    const close = container.querySelector<HTMLButtonElement>('button[aria-label="아모라 첫인사 미리보기 닫기"]');
+    expect(close).not.toBeNull();
+    await act(async () => close?.click());
+    expect(container.querySelector('[aria-label="아모라의 첫인사"]')).toBeNull();
+    expect(peekPendingAmoraFirstHello({ ownerId: PROFILE.id })?.bubbleDismissed).toBe(true);
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    await render();
+    expect(container.querySelector('[aria-label="아모라의 첫인사"]')).toBeNull();
+    expect(consumePendingAmoraFirstHello({ ownerId: PROFILE.id })).toEqual(hello);
+    resetAmoraFirstHelloMemory();
+    expect(consumePendingAmoraFirstHello({ ownerId: PROFILE.id })).toBeNull();
+  });
+
+  it("같은 계정의 저장된 첫인사는 다시 보여주고, 다른 계정으로 바뀌면 넘겨주지 않는다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    rememberPendingAmoraFirstHello({ preview: "지은님의 준비 이야기", body: "지은님의 결혼 준비에 대한 첫인사" }, { ownerId: PROFILE.id });
+    await render();
+    expect(container.textContent).toContain("지은님의 준비 이야기");
+
+    const nextId = "10000000-0000-4000-8000-000000000002";
+    await act(async () => useAuthStore.setState({ profile: { ...PROFILE, id: nextId, name: "다른 회원" } }));
+    expect(container.querySelector('[aria-label="아모라의 첫인사"]')).toBeNull();
+    expect(container.textContent).not.toContain("지은님의 준비 이야기");
+    expect(consumePendingAmoraFirstHello({ ownerId: nextId })).toBeNull();
+  });
+
+  it("체험 모드에서는 저장된 인사를 표시하거나 완료 이벤트로 새 인사를 만들지 않는다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: true });
+    await render();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    expect(container.innerHTML).toBe("");
+    expect(peekPendingAmoraFirstHello({ ownerId: PROFILE.id })).toBeNull();
+
+    rememberPendingAmoraFirstHello({ preview: "계정의 첫인사", body: "계정의 저장된 첫인사 본문" }, { ownerId: PROFILE.id });
+    await render();
+    expect(container.innerHTML).toBe("");
+    expect(supabase.updates).toHaveLength(0);
+  });
+
+  it("완료 이벤트가 중복되어도 닫은 미리보기를 다시 열지 않는다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    await render();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    const close = container.querySelector<HTMLButtonElement>('button[aria-label="아모라 첫인사 미리보기 닫기"]');
+    expect(close).not.toBeNull();
+    await act(async () => close?.click());
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    expect(container.querySelector('[aria-label="아모라의 첫인사"]')).toBeNull();
+    expect(peekPendingAmoraFirstHello({ ownerId: PROFILE.id })?.bubbleDismissed).toBe(true);
+  });
+
+  it("안내 중 바뀐 예식일·준비 단계·연결 상태를 완료 시점에 읽는다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    await render();
+    const journey = {
+      id: "journey-1",
+      couple_id: PROFILE.couple_id ?? "couple-1",
+      wedding_date: "2027-01-25",
+      venue: null,
+      total_budget: 0,
+      progress: {},
+      created_at: "2026-08-01T00:00:00.000Z",
+      updated_at: "2026-08-01T00:00:00.000Z",
+    };
+    // 실제 progress JSON에는 카테고리 행과 별도로 온보딩 메타데이터가 들어 있다.
+    Reflect.set(journey.progress, "__stage", "venue_booked");
+    await act(async () => useAuthStore.setState({
+      journey,
+      partner: { id: "partner-1", name: "준비 파트너", role: "groom", couple_id: PROFILE.couple_id },
+    }));
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    const hello = buildAmoraFirstHello({ weddingDate: "2027-01-25", preparationStage: "venue_booked", partnerLinked: true, now: Date.now() });
+    expect(peekPendingAmoraFirstHello({ ownerId: PROFILE.id })?.body).toBe(hello.body);
+    expect(container.querySelector('[aria-label="아모라의 첫인사"]')?.textContent).toContain(hello.preview);
+  });
+
+  it("로그아웃하면 미리보기를 지우고 완료 이벤트를 받아도 인사를 만들지 않는다", async () => {
+    useAuthStore.setState({ profile: PROFILE, isDemo: false });
+    await render();
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    expect(container.querySelector('[aria-label="아모라의 첫인사"]')).not.toBeNull();
+    await act(async () => useAuthStore.setState({ profile: null }));
+    expect(container.innerHTML).toBe("");
+    await act(async () => window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT)));
+    expect(container.innerHTML).toBe("");
+    expect(consumePendingAmoraFirstHello({ ownerId: null })).toBeNull();
   });
 });

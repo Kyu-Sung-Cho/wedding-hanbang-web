@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import { useSearchParams, useRouter } from "next/navigation";
-import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, Sparkles, X } from "lucide-react";
+import { List, Calendar, Plus, Pencil, Ban, RotateCcw, CalendarDays, X } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
@@ -26,6 +26,8 @@ import { getImminentCategories } from "@/utils/imminentChecklist";
 import { planChangeMessage } from "@/lib/journey/planChangeError";
 import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
+import PreparationTimeline, { ScheduleStageSummary } from "./PreparationTimeline";
+import ScheduleProgress from "./ScheduleProgress";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
@@ -567,23 +569,15 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
   const progressPct = totalItems > 0 ? Math.round((totalDone / totalItems) * 100) : 0;
 
-  /**
-   * 「다가오는 일정」과 「날짜를 정할 항목」을 상수로 빼 둔다.
-   *
-   * 둘의 **순서를 바꿔야 하기 때문**이다. 등록한 일정이 하나도 없는 커플에게 빈 달력을
-   * 먼저 보여주면 화면이 죽는다 — 운영 54 커플을 실제로 세어 보니 절반 이상이 0 건이고
-   * 3 건 이상은 3 커플뿐이었다. 그런 커플에게는 「날짜를 정할 항목」이 먼저 와야 한다.
-   * 그것이 빈 달력에서 나가는 문이기 때문이다(각 행의 `날짜 잡기`).
-   *
-   * 반대로 일정이 있는 커플에게는 「다가오는 일정」이 먼저다. 어느 쪽이든 **두 블록이
-   * 동시에 위아래로 겹치지는 않는다.**
-   */
+  // 모바일은 다가오는 일정과 달력을 먼저, 기본 확인 항목을 그 아래에 둔다.
   const hasUpcoming = upcomingEvents.length > 0;
+  const needsScheduleCount = imminentCategories.filter((item) => !item.hasScheduledEvent).length;
+  const upcomingCount = activeEvents.filter((event) => event.date >= todayStr && getScheduleEventStatus(event) === "planned").length;
 
   const imminentPanel =
     imminentCategories.length > 0 ? (
-  <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-    <h3 className="mb-3 font-serif-kr text-[var(--hb-text-strong)]">
+  <div className="rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] py-[17px]">
+    <h3 className="mb-3 text-[14px] font-semibold text-[var(--amora-ink)]">
       기본 일정 확인
     </h3>
     <ImminentAlerts
@@ -595,14 +589,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
     ) : null;
 
   const upcomingPanel = (
-    <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
+    <div className="rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] py-[17px]">
       <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
+        <h3 className="text-[14px] font-semibold text-[var(--amora-ink)]">
           다가오는 일정
         </h3>
         <button
           onClick={handleAddEventQuick}
-          className="flex shrink-0 items-center gap-1 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:text-[#2d4642]"
+          className="tap-area flex shrink-0 items-center gap-1 rounded-full border border-[var(--amora-line)] px-2.5 py-1 text-[10.5px] font-medium text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)]"
         >
           <Plus className="w-4 h-4" />
           추가
@@ -612,29 +606,29 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       {upcomingEvents.length === 0 ? (
         <p className="text-[14px] font-medium text-[var(--hb-text-body)]">예정된 일정이 없어요</p>
       ) : (
-        <div className="space-y-3">
+        <div className="divide-y divide-[var(--amora-line)]">
           {upcomingEvents.map((evt) => (
             <div
               key={evt.id}
-              className="group flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] p-3 transition-colors hover:bg-white"
+              className="group grid grid-cols-[34px_minmax(0,1fr)_auto] items-start gap-x-2.5 gap-y-1 py-3"
             >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
+              <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]">
                 <CalendarDays className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="line-clamp-2 text-[14px] font-semibold leading-snug text-[var(--hb-text-strong)]">
+                <p className="break-words text-[13px] font-semibold leading-[1.5] text-[var(--amora-ink)]">
                   {evt.title}
                 </p>
                 <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
-                  <p className="text-[12px] font-medium text-[var(--hb-text-body)]">
-                    {formatEventDate(evt.date)}
+                  <p className="text-[10.5px] text-[var(--amora-muted)]">
+                    {formatEventDate(evt.date)}{evt.time ? ` ${evt.time}` : ""}
                   </p>
                   {evt.categoryKey && (
-                    <span className="max-w-full truncate rounded-full bg-[#f7f3ec] px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-strong)]">
+                    <span className="max-w-full truncate text-[10.5px] text-[var(--amora-muted)]">
                       {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                     </span>
                   )}
-                  <span className="max-w-full truncate rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-body)]">
+                  <span className="max-w-full truncate text-[10.5px] text-[var(--amora-muted)]">
                     {getScheduleEventAssigneeLabel(
                       evt.assignee,
                       assigneeContext,
@@ -642,16 +636,16 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                   </span>
                 </div>
                 {evt.completionCriteria && (
-                  <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--hb-text-body)]">
+                  <p className="mt-1.5 break-words text-[10.5px] leading-[1.6] text-[var(--amora-soft)]">
                     완료 기준 · {evt.completionCriteria}
                   </p>
                 )}
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1">
-                <span className="inline-flex items-center rounded-full bg-[#f7f3ec] px-2.5 py-1 text-[12px] font-semibold text-[var(--hb-text-strong)]">
+              <div className={`flex shrink-0 flex-col items-end gap-1 ${pendingCancelId === evt.id ? "col-span-2 col-start-2" : ""}`}>
+                <span className="text-[11px] text-[var(--amora-rose-deep)]">
                   {getDaysUntil(evt.date)}
                 </span>
-                <div className="flex items-center gap-1 transition-opacity">
+                <div className="flex flex-wrap items-center justify-end gap-2">
                   {pendingCancelId === evt.id ? (
                     <>
                       <span className="sr-only">일정 취소 요청</span>
@@ -662,14 +656,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                             .then(() => setPendingCancelId(null))
                             .catch(() => undefined);
                         }}
-                        className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[#2d4642]"
+                        className="min-h-11 rounded-xl bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--amora-soft)]"
                       >
                         취소 요청 보내기
                       </button>
                       <button
                         type="button"
                         onClick={() => setPendingCancelId(null)}
-                        className="min-h-11 rounded-[6px] bg-[var(--hb-surface-hover)] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] transition-colors hover:bg-[#EFEBEA]"
+                        className="min-h-11 rounded-xl bg-[var(--hb-surface-hover)] px-3 py-2 text-xs font-semibold text-[var(--hb-text-body)] transition-colors hover:bg-[var(--amora-low)]"
                       >
                         닫기
                       </button>
@@ -680,7 +674,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         type="button"
                         onClick={() => handleEditEvent(evt)}
                         aria-label={`${evt.title} 일정 수정`}
-                        className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)] hover:text-[var(--hb-accent-hover)]"
+                        className="tap-area flex h-9 w-9 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)]"
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
@@ -688,7 +682,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                         type="button"
                         onClick={() => setPendingCancelId(evt.id)}
                         aria-label={`${evt.title} 일정 취소 요청`}
-                        className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[#f7f3ec] hover:text-[var(--hb-text-strong)]"
+                        className="tap-area flex h-9 w-9 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)]"
                       >
                         <Ban className="h-4 w-4" />
                       </button>
@@ -708,14 +702,14 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
       <div
         className={
           embedded
-            ? "max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10"
-            : "space-y-4"
+            ? "mx-auto w-full max-w-[1440px] space-y-3.5 px-[18px] py-4 md:px-9 lg:space-y-6 lg:py-[30px]"
+            : "mx-auto w-full max-w-[1440px] space-y-3.5 px-[18px] py-4 md:px-9 lg:space-y-6 lg:py-[30px]"
         }
       >
         {journeyNotice && (
           <div
             role="status"
-            className="rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+            className="rounded-xl border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
           >
             {journeyNotice}
           </div>
@@ -723,105 +717,83 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
         {(eventMutationBlockReason || journeyError) && (
           <div
             role="alert"
-            className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+            className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
           >
             {eventMutationBlockReason ?? journeyError}
           </div>
         )}
 
-        {/* 3-column Stat Row */}
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-3 animate-fade-in">
-          {/* D-day */}
-          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-            <Sparkles className="absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
-              D-DAY
-            </p>
-            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[32px] lg:text-[34px]">
-              {dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}
-            </p>
-            <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
-              {dday === null
-                ? "날짜 미정"
-                : dday > 0
-                ? "일 남음"
-                : dday === 0
-                ? "결혼식 당일"
-                : "일 지남"}
-            </p>
+        <div className="hidden items-center gap-[30px] rounded-[18px] border border-[var(--amora-line)] bg-white px-7 py-[22px] lg:flex">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] tracking-[0.1em] text-[var(--amora-rose-deep)]">기본 일정 확인</p>
+            <h1 className="planning-display mt-1.5 text-[24px] leading-[1.4] text-[var(--amora-ink)]">{needsScheduleCount ? `날짜를 정할 항목 ${needsScheduleCount}건이 있어요` : "우리의 준비 일정을 모아봐요"}</h1>
+            <p className="mt-2 text-[11px] leading-[1.8] text-[var(--amora-muted)]">기본 확인 시점이 지났거나 60일 안에 다가오는 항목을 확인해요.<br />업체나 가족과 정한 실제 날짜가 우선입니다.</p>
           </div>
-
-          {/* Progress */}
-          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
-              PROGRESS
-            </p>
-            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[32px] lg:text-[34px]">
-              {progressPct}%
-            </p>
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
-              <div
-                className="h-full rounded-full bg-[var(--hb-primary)] transition-all"
-                style={{ width: `${progressPct}%` }}
-              />
-            </div>
-            <p className="mt-2 text-[13px] font-medium text-[var(--hb-text-body)]">
-              {totalDone}/{totalItems} 완료
-            </p>
-          </div>
-
-          {/* Upcoming count */}
-          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] md:p-5">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
-              UPCOMING
-            </p>
-            <p className="mt-3 font-serif-kr text-[30px] font-medium leading-none text-[var(--hb-text-strong)] sm:text-[32px] lg:text-[34px]">
-              {upcomingEvents.length}
-            </p>
-            <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">다가오는 일정</p>
+          <div className="flex shrink-0 items-start gap-7">
+            <div><p className="text-[9px] tracking-[0.08em] text-[var(--amora-muted)]">D-DAY</p><p className="planning-display mt-2 text-[27px] leading-none text-[var(--amora-rose-deep)]">{dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}</p><p className="mt-2 text-[10px] text-[var(--amora-muted)]">{dday === null ? "날짜 미정" : dday > 0 ? "일 남음" : dday === 0 ? "결혼식 당일" : "일 지남"}</p></div>
+            <div><p className="text-[9px] tracking-[0.08em] text-[var(--amora-muted)]">PROGRESS</p><p className="planning-display mt-2 text-[27px] leading-none text-[var(--amora-ink)]">{progressPct}%</p><p className="mt-2 text-[10px] text-[var(--amora-muted)]">{totalDone}/{totalItems} 완료</p></div>
+            <div><p className="text-[9px] tracking-[0.08em] text-[var(--amora-muted)]">UPCOMING</p><p className="planning-display mt-2 text-[27px] leading-none text-[var(--amora-ink)]">{upcomingCount}</p><p className="mt-2 text-[10px] text-[var(--amora-muted)]">다가오는 일정</p></div>
           </div>
         </div>
-        <p className="text-[12px] leading-5 text-[var(--hb-text-body)]">
-          기본 체크리스트와 확인 시점은 시작을 돕는 예시이며, 업체나 가족과 정한 실제
-          일정이 우선입니다.
-        </p>
+        <div className="grid grid-cols-2 gap-2.5 lg:hidden">
+          <div className="rounded-[14px] border border-[var(--amora-line)] bg-white px-[15px] py-3.5">
+            <p className="text-[9.5px] tracking-[0.1em] text-[var(--amora-muted)]">D-DAY</p>
+            <p className="planning-display mt-1.5 text-[23px] leading-none text-[var(--amora-rose-deep)]">{dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}</p>
+            <p className="mt-1.5 text-[10.5px] text-[var(--amora-muted)]">{dday === null ? "날짜 미정" : dday > 0 ? "일 남음" : dday === 0 ? "결혼식 당일" : "일 지남"}</p>
+          </div>
+          <div className="rounded-[14px] border border-[var(--amora-line)] bg-white px-[15px] py-3.5">
+            <p className="text-[9.5px] tracking-[0.1em] text-[var(--amora-muted)]">UPCOMING</p>
+            <p className="planning-display mt-1.5 text-[23px] leading-none text-[var(--amora-ink)]">{upcomingCount}</p>
+            <p className="mt-1.5 text-[10.5px] text-[var(--amora-muted)]">다가오는 일정</p>
+          </div>
+          <div className="col-span-2 rounded-[14px] border border-[var(--amora-line)] bg-white px-[15px] py-3.5">
+            <div className="flex items-end justify-between gap-3"><div><p className="text-[9.5px] tracking-[0.1em] text-[var(--amora-muted)]">PROGRESS</p><p className="planning-display mt-1.5 text-[23px] leading-none text-[var(--amora-ink)]">{progressPct}%</p></div><p className="text-[10.5px] text-[var(--amora-muted)]">{totalDone}/{totalItems} 완료</p></div>
+            <ScheduleProgress value={progressPct} label="전체 준비 진행률" className="mt-2.5" />
+          </div>
+        </div>
+        <p className="text-[11px] leading-[1.7] text-[var(--amora-muted)] lg:hidden">기본 체크리스트와 확인 시점은 시작을 돕는 예시이며, 업체나 가족과 정한 실제 일정이 우선입니다.</p>
 
-        {/* 본문 한 칸 — 위: 지금 볼 것 / 아래: 달력 */}
-        <div className="grid grid-cols-1 gap-4 animate-fade-in">
-          {hasUpcoming ? upcomingPanel : imminentPanel}
+        <div className={`grid grid-cols-1 gap-6 ${viewMode === "calendar" ? "lg:grid-cols-[minmax(0,1fr)_300px]" : ""}`}>
+          {viewMode === "calendar" && <div className="hidden min-w-0 lg:block"><PreparationTimeline events={activeEvents} items={imminentCategories} today={todayStr} weddingDate={weddingDateValue} assigneeContext={assigneeContext} onAddEvent={handleAddEventQuick} onEditEvent={handleEditEvent} onCategoryClick={handleCategoryClick} onScheduleClick={handleScheduleCategory} mutationBlocked={Boolean(eventMutationBlockReason)} /></div>}
+          <div className="min-w-0 space-y-3.5 lg:space-y-5">
+          {hasUpcoming && <div className="lg:hidden">{upcomingPanel}</div>}
 
           {/* Left: View toggle + Timeline/Calendar (2 cols) */}
-          <div className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)]">
+          <div className="overflow-hidden rounded-[16px] border border-[var(--amora-line)] bg-white">
             {/* View toggle header */}
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--hb-hairline)] px-4 py-3 md:px-5">
-              <div className="inline-flex rounded-[6px] bg-[#f7f3ec] p-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-[18px] pb-1 pt-[17px]">
+              <div className="inline-flex gap-1 rounded-full bg-[var(--amora-warm)] p-1">
                 <button
+                  type="button"
+                  aria-pressed={viewMode === "timeline"}
                   onClick={() => setViewMode("timeline")}
-                  className={`inline-flex items-center rounded-[6px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                  className={`tap-area inline-flex items-center rounded-full px-2.5 py-1.5 text-[10.5px] font-medium transition-colors ${
                     viewMode === "timeline"
-                      ? "bg-white text-[var(--hb-text-strong)] shadow-sm"
+                      ? "bg-white text-[var(--amora-ink)] shadow-sm"
                       : "text-[var(--hb-text-body)]"
                   }`}
                 >
-                  <List className="mr-1.5 h-4 w-4" />
-                  타임라인
+                  <List className="mr-1 h-3 w-3" />
+                  단계별 준비
                 </button>
                 <button
+                  type="button"
+                  aria-pressed={viewMode === "calendar"}
                   onClick={() => setViewMode("calendar")}
-                  className={`inline-flex items-center rounded-[6px] px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                  className={`tap-area inline-flex items-center rounded-full px-2.5 py-1.5 text-[10.5px] font-medium transition-colors ${
                     viewMode === "calendar"
-                      ? "bg-white text-[var(--hb-text-strong)] shadow-sm"
+                      ? "bg-white text-[var(--amora-ink)] shadow-sm"
                       : "text-[var(--hb-text-body)]"
                   }`}
                 >
-                  <Calendar className="mr-1.5 h-4 w-4" />
+                  <Calendar className="mr-1 h-3 w-3" />
                   캘린더
                 </button>
               </div>
               <button
                 onClick={handleAddEventQuick}
                 disabled={Boolean(eventMutationBlockReason)}
-                className="inline-flex items-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-[13px] font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
+                className="tap-area inline-flex items-center gap-1 rounded-full border border-[var(--amora-line)] px-2.5 py-1.5 text-[10.5px] font-medium text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Plus className="h-4 w-4" />
                 일정 추가
@@ -829,7 +801,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             </div>
 
             {/* Timeline or Calendar content */}
-            <div className="p-3 sm:p-4 md:p-5">
+            <div className="px-[18px] pb-[17px] pt-3">
               {viewMode === "timeline" ? (
                 <TimelineView
                   progress={progress}
@@ -852,13 +824,15 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
             </div>
           </div>
 
-          {hasUpcoming ? imminentPanel : null}
+          <div className="lg:hidden">{imminentPanel}</div>
+          {viewMode === "calendar" && <div className="hidden lg:block"><ScheduleStageSummary items={imminentCategories} /></div>}
+          </div>
         </div>
 
         {cancelledEvents.length > 0 && (
           <section
             aria-labelledby="cancelled-schedule-heading"
-            className="rounded-[6px] border border-[#e2d3c8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] md:p-5"
+            className="rounded-xl border border-[var(--amora-line)] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] md:p-5"
           >
             <div className="mb-3">
               <h3
@@ -875,7 +849,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
               {cancelledEvents.map((event) => (
                 <article
                   key={`cancelled-${event.id}`}
-                  className="flex flex-col gap-3 rounded-[6px] border border-[#e2d3c8] bg-white px-4 py-3 sm:flex-row sm:items-center"
+                  className="flex flex-col gap-3 rounded-xl border border-[var(--amora-line)] bg-white px-4 py-3 sm:flex-row sm:items-center"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
@@ -898,7 +872,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     onClick={() => void handleRestoreEvent(event.id).catch(() => undefined)}
                     disabled={restoringEventId !== null}
                     aria-busy={restoringEventId === event.id}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-[6px] border border-[var(--hb-primary)] px-4 py-2 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--hb-primary)] px-4 py-2 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw className="h-4 w-4" />
                     {restoringEventId === event.id ? "요청 보내는 중..." : "복원 요청"}
@@ -1002,15 +976,15 @@ export function ChecklistSchedulePrompt({
     <>
       <div
         onClick={onClose}
-        className="fixed inset-0 z-50 animate-fade-in bg-[#1A1A1F]/40 backdrop-blur-sm"
+        className="fixed inset-0 z-50 animate-fade-in bg-[var(--amora-ink)]/40 backdrop-blur-sm"
       />
-      <section className="fixed inset-x-4 top-[10%] z-50 mx-auto max-w-[540px] overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white shadow-[var(--shadow-overlay)] animate-fade-in">
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-6 py-5">
+      <section role="dialog" aria-modal="true" aria-labelledby="checklist-schedule-prompt-title" className="fixed inset-x-4 top-[5dvh] z-50 mx-auto flex max-h-[90dvh] max-w-[540px] flex-col overflow-hidden rounded-[18px] border border-[var(--amora-line)] bg-white shadow-[var(--shadow-overlay)] animate-fade-in">
+        <div className="flex shrink-0 items-start justify-between gap-4 border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-5 py-5 sm:px-6">
           <div>
             <p className="text-[12px] font-semibold text-[var(--hb-text-strong)]">
               체크리스트 일정 연결
             </p>
-            <h3 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">
+            <h3 id="checklist-schedule-prompt-title" className="planning-display mt-1 text-[20px] leading-[1.4] text-[var(--amora-ink)]">
               {pending.categoryLabel} 날짜도 정할까요?
             </h3>
             <p className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--hb-text-body)]">
@@ -1020,56 +994,59 @@ export function ChecklistSchedulePrompt({
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[#f7f3ec]"
+            aria-label="일정 연결 닫기"
+            className="tap-area flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)]"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="space-y-4 px-6 py-5">
+        <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
           <div>
-            <label className="mb-1.5 block text-[12px] font-semibold text-[#6d625a]">
+            <label htmlFor="checklist-schedule-date" className="mb-1.5 block text-[12px] font-semibold text-[var(--amora-soft)]">
               날짜
             </label>
             <input
+              id="checklist-schedule-date"
               type="date"
               value={date}
               onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[15px] font-medium text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
+              className="w-full rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[15px] font-medium text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-[12px] font-semibold text-[#6d625a]">
+            <label htmlFor="checklist-schedule-memo" className="mb-1.5 block text-[12px] font-semibold text-[var(--amora-soft)]">
               메모
             </label>
             <textarea
+              id="checklist-schedule-memo"
               value={memo}
               onChange={(event) => setMemo(event.target.value)}
               rows={4}
-              className="w-full resize-none rounded-[6px] border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
+              className="w-full resize-none rounded-xl border border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-4 py-3 text-[14px] font-medium leading-[1.65] text-[var(--hb-text-strong)] outline-none transition-all focus:border-[var(--hb-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--hb-primary)]/15"
             />
           </div>
           {pending.existingEvent && (
-            <p className="rounded-[6px] bg-[var(--hb-primary)]/10 px-4 py-3 text-[13px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
+            <p className="rounded-xl bg-[var(--hb-primary)]/10 px-4 py-3 text-[13px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
               이미 등록된 {pending.categoryLabel} 일정이 있어요. 저장하면 새로 만들지 않고 기존 일정 날짜를 바꿉니다.
             </p>
           )}
           {(scheduleMutationBlockReason || saveError) && (
             <p
               role="alert"
-              className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
+              className="rounded-xl border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-[13px] font-medium leading-[1.55] text-[#8C3E3E]"
             >
               {scheduleMutationBlockReason ?? saveError}
             </p>
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-2 border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-6 py-4 sm:flex-row sm:justify-between">
+        <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-[var(--hb-hairline)] bg-[var(--hb-surface-page)] px-6 py-4 sm:flex-row sm:justify-between">
           <button
             type="button"
             onClick={completeOnly}
             disabled={saving}
-            className="rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#6d625a] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
+            className="rounded-xl border border-[var(--hb-hairline)] bg-white px-4 py-2.5 text-[13px] font-semibold text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)] disabled:opacity-50"
           >
             날짜 없이 완료
           </button>
@@ -1077,7 +1054,7 @@ export function ChecklistSchedulePrompt({
             type="button"
             onClick={saveWithDate}
             disabled={saving || !date || Boolean(scheduleMutationBlockReason)}
-            className="rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-[var(--hb-primary)] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending.existingEvent ? "일정 수정하고 완료" : "일정 저장하고 완료"}
           </button>

@@ -18,6 +18,7 @@ import {
 } from "@/lib/firstRun/firstRunTutorialProfile";
 import { createClient } from "@/lib/supabase/client";
 import { useAuthStore } from "@/stores/authStore";
+import LoungeFirstHello from "./LoungeFirstHello";
 
 /**
  * 웨딩 라운지에 처음 도착한 사람에게 한 번만 뜨는 안내.
@@ -73,6 +74,18 @@ function readDoneOnThisDevice(): boolean {
 }
 
 export default function FirstRunLoungeTutorial() {
+  const { profile, isDemo } = useAuthStore();
+  if (isDemo || !profile?.id || !profile.onboarding_completed) return null;
+
+  return (
+    <>
+      <LoungeFirstHello key={`hello-${profile.id}`} ownerId={profile.id} />
+      <OwnedLoungeTutorial key={`tutorial-${profile.id}`} />
+    </>
+  );
+}
+
+function OwnedLoungeTutorial() {
   const { profile, isDemo } = useAuthStore();
   const userId = profile?.id ?? null;
   const onboardingCompleted = profile?.onboarding_completed === true;
@@ -133,7 +146,7 @@ export default function FirstRunLoungeTutorial() {
     // 완주든 건너뛰기든 "끝났다"는 같다. 건너뛴 사람에게 매번 다시 띄우는 건
     // 안내가 아니라 방해다.
     //
-    // 이벤트를 먼저 쏜다 — 아모라 말풍선이 네트워크를 기다리지 않게 하려고.
+    // 이벤트를 먼저 쏜다 — 인라인 첫인사가 네트워크를 기다리지 않게 한다.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent(FIRST_RUN_TUTORIAL_COMPLETED_EVENT));
     }

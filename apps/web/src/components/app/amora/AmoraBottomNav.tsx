@@ -1,19 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { ClipboardList, LayoutDashboard, Sparkles, Users, Wallet } from "lucide-react";
+import { CalendarDays, ClipboardList, LayoutDashboard, Sparkles, Wallet } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 const links = [
   { href: "/lounge", label: "라운지", icon: LayoutDashboard },
   { href: "/chat", label: "아모라", icon: Sparkles },
   { href: "/checklist", label: "체크리스트", icon: ClipboardList },
+  { href: "/schedule", label: "일정", icon: CalendarDays },
   { href: "/budget", label: "예산", icon: Wallet },
-  { href: "/community", label: "커뮤니티", icon: Users },
 ];
 
-export default function AmoraBottomNav({ active = "amora" }: { active?: "amora" | "checklist" | "lounge" }) {
-  const activeIndex = active === "checklist" ? 2 : active === "lounge" ? 0 : 1;
+export default function AmoraBottomNav({ active = "amora" }: { active?: "amora" | "checklist" | "lounge" | "schedule" | "budget" }) {
+  const activeIndex = active === "budget" ? 4 : active === "schedule" ? 3 : active === "checklist" ? 2 : active === "lounge" ? 0 : 1;
   return (
     <nav aria-label="모바일 주요 기능" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--amora-line)] bg-white px-2 pb-[env(safe-area-inset-bottom)] md:hidden">
       {links.map(({ href, label, icon: Icon }, index) => (

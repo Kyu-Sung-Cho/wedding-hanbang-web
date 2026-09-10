@@ -6,20 +6,16 @@ import {
   useMemo,
   useState,
   useSyncExternalStore,
-  type ReactNode,
 } from "react";
 import {
   ArrowRight,
   Bookmark,
   CalendarCheck,
-  ChevronRight,
-  ClipboardCheck,
   Clock3,
   HeartHandshake,
   Loader2,
   Sparkles,
   Users,
-  Wallet,
 } from "lucide-react";
 import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
 import FirstRunLoungeTutorial from "@/components/app/FirstRunLoungeTutorial";
@@ -37,16 +33,18 @@ import {
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
+import { buildAmoraMissionModel } from "@/lib/amora/missions";
 import { formatLoungeBudgetRatio, formatLoungeWon, getLoungeSetupGuidance } from "@/lib/amora/loungeSummary";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getProgressSummary } from "@/app/(app)/lounge/progressSummary";
 import { getEvents, getScheduleEventStatus, isValidScheduleTime } from "@/utils/scheduleEvents";
-import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
-import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
+import { daysUntilWedding } from "@/lib/utils/weddingDate";
+import { buildLoungePriorityItems, daysUntilLoungeEvent, getLoungeBudgetTotals } from "./hubModel";
+import { LoungePriorityFeed, LoungeReferencePanels, PreparationRecordPanel, PreparationStageRail } from "./LoungeHubSections";
 
 interface CohortDigest {
   period: "today" | "week";
@@ -122,17 +120,6 @@ function formatFullDate(value: string | null | undefined) {
   });
 }
 
-function getSpent(progress: Record<string, ProgressItem>) {
-  return Object.entries(progress).reduce((sum, [key, item]) => {
-    if (key.startsWith("__")) return sum;
-    // 명시적으로 기록한 지출만 합산한다. legacy cost는 용도 확인 전까지
-    // 예산 사용·지출·결제 완료 수치에서 제외한다.
-    const amount = isValidWeddingWonAmount(item.spent) ? item.spent : 0;
-    const next = sum + amount;
-    return Number.isSafeInteger(next) ? next : sum;
-  }, 0);
-}
-
 function getDdayLabel(dday: number | null) {
   if (dday === null) return "D-day 미정";
   if (dday > 0) return `D-${dday}`;
@@ -141,17 +128,13 @@ function getDdayLabel(dday: number | null) {
 }
 
 export function getUpcomingEvents(progress: Record<string, ProgressItem>): ScheduleEvent[] {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   return getEvents(progress as Record<string, unknown>)
     .filter((event) => {
-      const date = new Date(event.date);
+      const days = daysUntilLoungeEvent(event.date);
       return getScheduleEventStatus(event) === "planned"
-        && !Number.isNaN(date.getTime())
-        && date >= today;
+        && days !== null && days >= 0;
     })
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(0, 4);
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.time ?? "99:99").localeCompare(b.time ?? "99:99"));
 }
 
 function stripHtml(input: string) {
@@ -216,7 +199,10 @@ function buildDemoSavedPosts(): PostWithAuthor[] {
 }
 
 export default function LoungePage() {
-  const { user, partner, profile, journey, isDemo } = useAuthStore();
+  const { user, partner: storedPartner, profile, journey: storedJourney, isDemo } = useAuthStore();
+  const scopeReady = Boolean(user && profile?.id === user.id && profile.couple_id);
+  const journey = scopeReady && storedJourney?.couple_id === profile?.couple_id ? storedJourney : null;
+  const partner = scopeReady && storedPartner?.couple_id === profile?.couple_id && storedPartner?.id !== profile?.id ? storedPartner : null;
   const userId = user?.id ?? null;
   const [savedPosts, setSavedPosts] = useState<PostWithAuthor[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
@@ -238,7 +224,8 @@ export default function LoungePage() {
 
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
   const totalBudget = journey?.total_budget ?? 0;
-  const spentBudget = useMemo(() => getSpent(progress), [progress]);
+  const budgetTotals = useMemo(() => getLoungeBudgetTotals(progress), [progress]);
+  const spentBudget = budgetTotals.spent;
   const summary = useMemo(() => getProgressSummary(progress), [progress]);
   const plan = useMemo(
     () =>
@@ -251,10 +238,11 @@ export default function LoungePage() {
     [journey?.wedding_date, journey?.venue, progress, totalBudget]
   );
   const upcomingEvents = useMemo(() => getUpcomingEvents(progress), [progress]);
-  const imminentCategory = useMemo(
-    () => getWeeklyImminentCategories(progress, journey?.wedding_date)[0] ?? null,
-    [progress, journey?.wedding_date],
-  );
+  const missionModel = useMemo(() => buildAmoraMissionModel(journey ? progress : null, []), [journey, progress]);
+  const priorityItems = useMemo(() => journey ? buildLoungePriorityItems(progress, journey.wedding_date, upcomingEvents) : [], [progress, journey, upcomingEvents]);
+  const nextEvent = upcomingEvents[0] ?? null;
+  const weddingDday = daysUntilWedding(journey?.wedding_date);
+  const allocatedRatioLabel = formatLoungeBudgetRatio(budgetTotals.allocated, totalBudget);
   const budgetPercent = totalBudget > 0 ? spentBudget / totalBudget * 100 : 0;
   const budgetRatioLabel = formatLoungeBudgetRatio(spentBudget, totalBudget);
   const setupGuidance = getLoungeSetupGuidance(journey?.wedding_date, totalBudget);
@@ -401,7 +389,7 @@ export default function LoungePage() {
   };
 
   return (
-    <div className="mx-auto max-w-[1160px] space-y-5 px-[18px] py-5 text-[var(--amora-ink)] md:space-y-6 md:px-9 md:py-6">
+    <div className="mx-auto max-w-[1440px] space-y-5 px-[18px] pb-10 pt-4 text-[var(--amora-ink)] md:space-y-6 md:px-9 md:pb-[60px] md:pt-[30px]">
       {/* 첫 도착 안내는 라운지에서만 뜬다 — 앵커가 여기 있고, 여기가 착지 화면이다. */}
       <FirstRunLoungeTutorial />
       {/* 파트너 합류 안내가 떠 있을 때는 첫 도착 카드를 접는다 — 환영 카드 두 장이
@@ -423,7 +411,7 @@ export default function LoungePage() {
               </p>
               <h2
                 id="joined-plan-title"
-                className="mt-1 amora-display text-[var(--amora-ink)]"
+                className="mt-1 amora-display text-[17px] text-[var(--amora-ink)]"
               >
                 이제 이 계획을 함께 봐요
               </h2>
@@ -468,90 +456,63 @@ export default function LoungePage() {
           </div>
         </section>
       )}
-      <section aria-label="현재 준비 현황">
-        <div className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-surface)] p-5 md:p-6">
-          <div className="flex items-start justify-between gap-3 md:gap-4">
-            <div className="min-w-0 flex-1">
-              <p className="inline-flex items-center gap-1.5 rounded-full border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--amora-rose-deep)] md:gap-2 md:px-3.5 md:text-[12px]">
-                <Sparkles className="h-4 w-4" />
-                {companionCopy.loungeLabel}
-              </p>
-              <h2 className="amora-display mt-3 text-[22px] text-[var(--amora-ink)] md:text-[26px]">
-                {companionCopy.statusHeading}
-              </h2>
-            </div>
-            <Link {...weddingLinkProps("/settings")} aria-label={setupGuidance?.needsDate ? "날짜 입력" : "날짜 수정"} className="min-h-11 min-w-[88px] shrink-0 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-bg)] px-3 py-2.5 text-right transition-colors hover:border-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] md:min-w-[116px] md:rounded-2xl md:px-4 md:py-3">
-              <p className="text-[11px] font-semibold text-[var(--amora-rose-deep)]">결혼식 날짜</p>
-              <p className="mt-1 amora-display text-[24px] font-medium leading-none text-[var(--amora-ink)] md:text-[30px]">
-                {getDdayLabel(plan.dday)}
-              </p>
-              <p className="mt-1.5 text-[11px] font-medium text-[var(--amora-soft)]">{formatDate(journey?.wedding_date)}</p>
-              <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--amora-accent)]">{setupGuidance?.needsDate ? "날짜 입력" : "날짜 수정"}<ChevronRight size={12} aria-hidden="true" /></span>
-            </Link>
+      <section aria-label="현재 준비 현황" className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px] lg:rounded-[20px] lg:px-7 lg:py-[26px]">
+        <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="min-w-0">
+            <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-rose-pale)] px-2.5 py-1 text-[10px] text-[var(--amora-rose-deep)] lg:text-[11px]"><Sparkles size={12} aria-hidden="true" />{companionCopy.loungeLabel}</p>
+            <h2 className="amora-display mt-3 text-[21px] leading-[1.35] lg:text-[27px]">{partner ? "함께 준비하는 우리의 결혼" : "차근차근 준비하는 나의 결혼"}</h2>
+            <p className="mt-2 text-[11px] leading-[1.7] text-[var(--amora-soft)] lg:text-[12px]">{companionCopy.statusHeading} · {partnerLabel}</p>
           </div>
-          <p className="mt-3 max-w-[680px] text-[13px] font-medium leading-[1.7] text-[var(--amora-soft)] md:text-[14px]">{companionCopy.description}</p>
-          <p className="mt-2 max-w-[680px] text-[12px] font-medium leading-[1.6] text-[var(--amora-muted)]">{setupGuidance ? setupGuidance.text : `${plan.stageLabel} · ${plan.stageSummary}`}</p>
-          {setupGuidance?.needsBudget && <Link {...weddingLinkProps("/budget")} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">총 예산 입력<ArrowRight size={14} aria-hidden="true" /></Link>}
-
-          <div className="mt-5 grid grid-cols-3 gap-2 md:gap-3">
-            <MetricTile
-              label="체크 진행"
-              value={`${progressPercent}%`}
-              note={`${summary.done}/${summary.total}개 직접 체크`}
-              icon={<ClipboardCheck className="h-4 w-4" />}
-            />
-            <MetricTile
-              label="기록 지출 비율"
-              value={totalBudget > 0 ? budgetRatioLabel : "미입력"}
-              note={totalBudget > 0
-                ? `${formatLoungeWon(spentBudget)} 기록 / ${formatLoungeWon(totalBudget)} · 결제 확인과 별도`
-                : `${formatLoungeWon(spentBudget)} 기록 · 총 예산 입력 전`}
-              icon={<Wallet className="h-4 w-4" />}
-            />
-            <MetricTile
-              label="준비 방식"
-              value={partner ? "함께 준비" : "혼자 준비"}
-              note={partnerLabel}
-              icon={<Users className="h-4 w-4" />}
-              // 초대 안내는 아직 혼자인 사람에게만 짚는다. 이미 연결된 사람에게
-              // 앵커가 없으면 그 단계(optional)는 투어가 조용히 건너뛴다.
-              tutorialTarget={partner ? undefined : "lounge-invite"}
-            />
-          </div>
+          <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`)} data-tutorial-target="amora-fab" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-[var(--amora-ink)] px-4 text-[11px] font-medium text-white hover:bg-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] sm:shrink-0 lg:px-[18px] lg:text-[12px]"><Sparkles size={14} aria-hidden="true" />아모라에게 물어보기<ArrowRight size={13} aria-hidden="true" /></Link>
         </div>
-
+        <div className="mt-[18px] grid grid-cols-2 gap-2.5 lg:mt-6 lg:grid-cols-4 lg:gap-3.5">
+          <Link {...weddingLinkProps("/settings" )} className="min-w-0 rounded-[12px] bg-[var(--amora-ink)] p-3.5 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
+            <p className="text-[10px] text-white/60 lg:text-[11px]">우리의 결혼식</p><p className="amora-display mt-2 break-words text-[23px] leading-none lg:text-[30px]">{getDdayLabel(weddingDday)}</p><p className="mt-2 text-[10px] leading-5 text-white/70 lg:text-[11px]">{formatFullDate(journey?.wedding_date)}</p><p className="mt-1 text-[10px] text-white/50">{journey?.venue || "날짜·장소 설정"}</p>
+          </Link>
+          <Link {...weddingLinkProps("/checklist")} className="min-w-0 rounded-[12px] bg-[var(--amora-warm)] p-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
+            <p className="text-[10px] text-[var(--amora-muted)] lg:text-[11px]">체크리스트 진행</p><p className="amora-display mt-2 text-[23px] leading-none lg:text-[30px]">{progressPercent}<span className="ml-0.5 text-[13px] text-[var(--amora-muted)]">%</span></p><p className="mt-2 text-[10px] leading-5 text-[var(--amora-soft)] lg:text-[11px]">{summary.done}/{summary.total}개 직접 체크</p><progress aria-label="전체 체크리스트 진행" value={progressPercent} max={100} className="mt-2 block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-sage)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-sage)]" />
+          </Link>
+          <Link {...weddingLinkProps("/budget")} className="min-w-0 rounded-[12px] bg-[var(--amora-warm)] p-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
+            <p className="text-[10px] text-[var(--amora-muted)] lg:text-[11px]">총 예산 대비 배정</p><p className="amora-display mt-2 break-words text-[21px] leading-none lg:text-[28px]">{totalBudget > 0 ? allocatedRatioLabel : "예산 미정"}</p><p className="mt-2 break-words text-[10px] leading-5 text-[var(--amora-soft)] lg:text-[11px]">{formatLoungeWon(budgetTotals.allocated)} 배정</p><progress aria-label="총 예산 대비 배정액" value={totalBudget > 0 ? Math.min(100, budgetTotals.allocated / totalBudget * 100) : 0} max={100} className="mt-2 block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />
+          </Link>
+          <Link {...weddingLinkProps("/schedule")} className="min-w-0 rounded-[12px] bg-[var(--amora-warm)] p-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
+            <p className="text-[10px] text-[var(--amora-muted)] lg:text-[11px]">다음 일정</p><p className="amora-display mt-2 text-[23px] leading-none lg:text-[30px]">{nextEvent ? getDdayLabel(daysUntilLoungeEvent(nextEvent.date)) : "일정 미정"}</p><p className="mt-2 break-words text-[10px] leading-5 text-[var(--amora-soft)] lg:text-[11px]">{nextEvent?.title ?? "예정된 일정을 추가해요"}</p>{nextEvent && <p className="mt-1 text-[10px] text-[var(--amora-muted)]">{formatDate(nextEvent.date)} · {isValidScheduleTime(nextEvent.time) ? nextEvent.time : "시간 미정"}</p>}
+          </Link>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[var(--amora-line)] pt-3 text-[10.5px] leading-[1.7] text-[var(--amora-muted)] lg:text-[11px]">
+          <p>기록 지출 {formatLoungeWon(spentBudget)}{totalBudget > 0 ? ` · 총 예산의 ${budgetRatioLabel}` : " · 총 예산 입력 전"} · 결제 확인과 별도</p>
+          {!partner && <Link {...weddingLinkProps("/settings")} data-tutorial-target="lounge-invite" className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Users size={12} aria-hidden="true" />파트너 초대<ArrowRight size={11} aria-hidden="true" /></Link>}
+        </div>
+        <p className="hidden text-[11px] leading-[1.7] text-[var(--amora-muted)] lg:block">{companionCopy.description}</p>
+        <p className={`${setupGuidance ? "" : "hidden lg:block"} mt-1 text-[10.5px] leading-[1.7] text-[var(--amora-muted)] lg:text-[11px]`}>{setupGuidance ? setupGuidance.text : `${plan.stageLabel} · ${plan.stageSummary}`}</p>
+        {setupGuidance?.needsBudget && <Link {...weddingLinkProps("/budget")} className="inline-flex min-h-11 items-center gap-1 rounded-lg text-[11px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">총 예산 입력<ArrowRight size={12} aria-hidden="true" /></Link>}
       </section>
 
-      <section id="today-missions" data-tutorial-target="lounge-focus" aria-labelledby="today-missions-title" className="scroll-mt-28 border-t border-[var(--amora-line)] pt-6">
-        {imminentCategory && <p aria-label="기본 확인 시점 안내" className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-warm)] px-4 py-2 text-[12px] leading-5 text-[var(--amora-soft)]">
-          <span><span className="font-semibold">{imminentCategory.label}</span> · {imminentCategory.deadlineDaysLeft < 0
-            ? `기본 확인 시점에서 ${Math.abs(imminentCategory.deadlineDaysLeft)}일 지남`
-            : `기본 확인 시점까지 ${imminentCategory.deadlineDaysLeft}일`}</span>
-          <span>실제 일정·완료 여부를 확인해 주세요.</span>
-          <Link {...weddingLinkProps(`/checklist?category=${encodeURIComponent(imminentCategory.key)}`)} className="inline-flex min-h-11 items-center gap-1 rounded-lg font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">체크리스트 확인<ArrowRight size={14} aria-hidden="true" /></Link>
-        </p>}
-        <AmoraMissions embedded />
-      </section>
-
-      {!showJoinedHandoff && <details className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-surface)] px-4">
-        <summary className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg text-[13px] font-semibold text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">
-          <Sparkles size={16} aria-hidden="true" />아모라와 오늘 할 일 정하기
-        </summary>
-        <div className="pb-4"><DailyAmoraFocusBridge partnerLinked={Boolean(partner)} /></div>
-      </details>}
-
-      {/* 왜 아직 비어 있는지를 빈 위젯 바로 위에서 말한다. 설명 없는 빈 화면은
-          "고장 났나?"로 읽힌다. */}
-      {firstArrival && <LoungeFirstArrivalEmptyNote view={firstArrival} />}
-
-      <section data-tutorial-target="lounge-tools" aria-label="예산과 일정" className="grid gap-4 md:grid-cols-2">
-        <BudgetPanel totalBudget={totalBudget} spentBudget={spentBudget} budgetWidth={budgetWidth} />
-        <UpcomingEventsPanel events={upcomingEvents} />
-      </section>
-
-      <details className="border-t border-[var(--amora-line)] pt-2">
-        <summary className="flex min-h-12 cursor-pointer items-center rounded-lg text-[13px] font-semibold text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">참고한 자료와 같은 시기 준비 이야기</summary>
-        <div className="grid gap-4 pb-4 pt-2 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-x-6 lg:gap-y-5 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 lg:col-start-2 lg:row-start-1"><PreparationStageRail groups={missionModel.groups} /></div>
+        <div className="min-w-0 space-y-5 lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:space-y-6">
+          <section id="today-missions" data-tutorial-target="lounge-focus" aria-labelledby="lounge-priority-title" className="scroll-mt-24">
+            <div className="mb-5"><AmoraMissions hub /></div>
+            {journey ? <LoungePriorityFeed items={priorityItems} /> : <div role="status" className="rounded-[14px] border border-[var(--amora-line)] bg-white p-5"><h2 id="lounge-priority-title" className="text-[14px] font-semibold">준비 정보를 확인하고 있어요</h2><p className="mt-2 text-[12px] leading-5 text-[var(--amora-muted)]">현재 계정의 계획을 확인하면 이어갈 준비를 보여드려요.</p></div>}
+          </section>
+          <PreparationRecordPanel checked={summary.done} completed={summary.completed} upcoming={upcomingEvents.length} />
+          {!showJoinedHandoff && <details className="rounded-[16px] border border-[var(--amora-line)] bg-white px-4">
+            <summary className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg text-[12px] font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Sparkles size={15} aria-hidden="true" />아모라와 오늘 할 일 정하기</summary>
+            <div className="pb-4"><DailyAmoraFocusBridge partnerLinked={Boolean(partner)} /></div>
+          </details>}
+          {firstArrival && <LoungeFirstArrivalEmptyNote view={firstArrival} />}
+        </div>
+        <aside className="min-w-0 space-y-4 lg:col-start-2 lg:row-start-2">
+          <section data-tutorial-target="lounge-tools" aria-label="예산과 일정" className="space-y-4">
+            <UpcomingEventsPanel events={upcomingEvents} />
+            <BudgetPanel totalBudget={totalBudget} spentBudget={spentBudget} budgetWidth={budgetWidth} />
+          </section>
+          <LoungeReferencePanels categoryKey={priorityItems.find((item) => item.kind === "checklist")?.category.key ?? "greeting"} allocated={budgetTotals.photoAttireMakeup} />
+        </aside>
+      </div>
+      <details className="rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] lg:px-6">
+        <summary className="flex min-h-14 cursor-pointer items-center justify-between gap-2 rounded-lg text-[12px] font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><span>참고한 자료와 같은 시기 준비 이야기</span><Users size={16} className="shrink-0 text-[var(--amora-rose)]" aria-hidden="true" /></summary>
+        <div className="grid gap-4 pb-5 pt-1 lg:grid-cols-2">
           <SavedPostsPanel posts={savedPosts} loading={savedLoading} error={savedError} onRetry={() => setSavedRetry(value => value + 1)} />
           <CohortPulsePanel cohort={cohortState} onRetry={() => setCohortRetry(value => value + 1)} />
         </div>
@@ -559,36 +520,6 @@ export default function LoungePage() {
     </div>
   );
 }
-
-function MetricTile({
-  label,
-  value,
-  note,
-  icon,
-  tutorialTarget,
-}: {
-  label: string;
-  value: string;
-  note: string;
-  icon: ReactNode;
-  /** 첫 실행 투어가 이 타일을 짚어야 할 때만 준다. */
-  tutorialTarget?: string;
-}) {
-  return (
-    <div
-      data-tutorial-target={tutorialTarget}
-      className="min-w-0 rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-2.5 md:p-3.5"
-    >
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] font-semibold text-[var(--amora-rose-deep)]">{label}</p>
-        <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[var(--amora-ink)] md:flex">{icon}</span>
-      </div>
-      <p className="mt-2 break-words amora-display text-[19px] md:text-[24px] font-medium leading-none text-[var(--amora-ink)]">{value}</p>
-      <p className="mt-1.5 break-words text-[11px] font-medium text-[var(--amora-soft)]">{note}</p>
-    </div>
-  );
-}
-
 function HandoffMetric({
   label,
   value,
@@ -637,15 +568,15 @@ function BudgetPanel({
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">예산</p>
-          <h2 className="mt-1 amora-display text-[var(--amora-ink)]">기록 지출 현황</h2>
+          <h2 className="mt-1 amora-display text-[17px] text-[var(--amora-ink)]">기록 지출 현황</h2>
         </div>
-        <span className="rounded-full bg-[var(--amora-warm)] px-3 py-1 text-[12px] font-semibold text-[var(--amora-ink)]">{tone}</span>
+        <span className="shrink-0 rounded-full bg-[var(--amora-warm)] px-2 py-1 text-[10px] font-semibold text-[var(--amora-ink)]">{tone}</span>
       </div>
       <div className="mt-4">
-        <div className="flex items-end justify-between gap-4">
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
           <div>
             <p className="text-[11px] font-semibold text-[var(--amora-soft)]">{balanceLabel}</p>
-            <p className="mt-1 amora-display text-[28px] font-medium leading-none text-[var(--amora-ink)]">
+            <p className="mt-1 break-words amora-display text-[23px] font-medium leading-tight text-[var(--amora-ink)]">
               {formatLoungeWon(balanceValue)}
             </p>
           </div>
@@ -654,7 +585,7 @@ function BudgetPanel({
           </p>
         </div>
         <progress aria-label="총 예산 대비 기록 지출" value={budgetWidth} max={100} className="mt-3 block h-2 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-warm)] [&::-moz-progress-bar]:bg-[var(--amora-ink)] [&::-webkit-progress-bar]:bg-[var(--amora-warm)] [&::-webkit-progress-value]:bg-[var(--amora-ink)]" />
-        <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[var(--amora-soft)]">
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[11px] font-medium text-[var(--amora-soft)]">
           <span>{formatLoungeWon(spentBudget)} 기록 지출</span>
           <span>총 {formatLoungeWon(totalBudget)}</span>
         </div>
@@ -676,7 +607,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">일정</p>
-          <h2 className="mt-1 amora-display text-[var(--amora-ink)]">다가오는 일정</h2>
+          <h2 className="mt-1 amora-display text-[17px] text-[var(--amora-ink)]">다가오는 일정</h2>
         </div>
         <Link {...weddingLinkProps("/schedule")} className="inline-flex min-h-11 items-center gap-1 rounded-lg text-[12px] font-semibold text-[var(--amora-accent)]">일정 열기<CalendarCheck className="h-4 w-4" aria-hidden="true" /></Link>
       </div>
@@ -708,7 +639,7 @@ function SavedPostsPanel({ posts, loading, error, onRetry }: { posts: PostWithAu
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">커뮤니티 참고글</p>
-          <h2 className="mt-1 amora-display text-[var(--amora-ink)]">저장해둔 판단 재료</h2>
+          <h2 className="mt-1 amora-display text-[17px] text-[var(--amora-ink)]">저장해둔 판단 재료</h2>
         </div>
         <Bookmark className="h-5 w-5 text-[var(--amora-ink)]" />
       </div>
@@ -749,7 +680,7 @@ function CohortPulsePanel({ cohort, onRetry }: { cohort: CohortState; onRetry():
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">동기방</p>
-          <h2 className="mt-1 amora-display text-[var(--amora-ink)]">같은 시기 흐름</h2>
+          <h2 className="mt-1 amora-display text-[17px] text-[var(--amora-ink)]">같은 시기 흐름</h2>
         </div>
         <Users className="h-5 w-5 text-[var(--amora-ink)]" />
       </div>

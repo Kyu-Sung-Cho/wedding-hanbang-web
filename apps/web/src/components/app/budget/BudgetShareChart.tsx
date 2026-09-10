@@ -16,15 +16,10 @@
  * 표면마다 따로 세다가 **한 장의 카드 안에서 숫자가 둘로 갈렸다**. 여기서 progress 를
  * 다시 읽어 세면 같은 사고가 같은 화면에서 재현된다.
  *
- * ## 색을 새로 만들지 않는다
+ * ## 색은 승인된 HTML 팔레트를 따른다
  *
- * 이 저장소는 공유 UI 프리미티브가 없어 색이 517종으로 갈라진 적이 있다. 그래서
- * 팔레트를 **기존 토큰을 가리키는 배열 하나**로 둔다. 새 hex 를 넣지 마라 —
- * `--hb-*` 역할 토큰은 `packages/design-tokens/src/colors.ts` 에서 생성되는 블록이라
- * globals.css 에 손으로 적어도 다음 생성 때 지워진다.
- *
- * `--color-paper-mark`(#B8452F)는 일부러 뺐다. 이 제품에서 그 빨강은 "고쳐야 할 것"을
- * 뜻한다. 카테고리 한 칸에 칠하면 그 항목이 문제라는 뜻으로 읽힌다.
+ * 화면의 planning-workspace 토큰으로 도넛과 목록을 맞춘다. 이름·금액·비중은
+ * 색과 별개로 항상 표시해 여덟 조각을 텍스트로도 구분할 수 있게 한다.
  */
 
 import { formatPercentCell, withPercents } from "./shareMath";
@@ -41,13 +36,13 @@ type Slice = {
  * 경계가 사라진다. 색만으로 뜻을 지지 않게 목록에 **글자로 이름·금액·비중**이 같이 나간다.
  */
 const SLICE_COLORS = [
-  "var(--color-paper-ink)",
-  "var(--color-sage-500)",
-  "var(--color-rose-500)",
-  "var(--color-paper-pen)",
-  "var(--color-paper-stem)",
-  "var(--color-sage-pale)",
-  "var(--color-rose-light)",
+  "var(--amora-ink, #26251f)",
+  "var(--amora-rose-deep, #8f6662)",
+  "var(--amora-rose, #a77b74)",
+  "var(--amora-accent, #35638a)",
+  "#b89785",
+  "var(--amora-sage, #6d806e)",
+  "#c9c6ba",
 ] as const;
 
 /** 상위 몇 개까지 이름을 보여주고 나머지를 묶을지. */
@@ -59,7 +54,7 @@ const NAMED_SLICE_LIMIT = 7;
  * `--color-paper-stem`(#A2937F)과 목록의 점이 구별되지 않았다 — 둘 다 흐린 토프다.
  * `--color-taupe-500`(#635B51)은 한 단계 어두워 여덟 색 안에서 혼자 선다.
  */
-const REST_COLOR = "var(--color-taupe-500)";
+const REST_COLOR = "#635b51";
 
 const RADIUS = 48;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
@@ -123,22 +118,22 @@ export default function BudgetShareChart({
   const basisLabel = basis === "spent" ? "기록 지출" : "배정 예산";
 
   return (
-    <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
+    <section className="rounded-2xl border border-[var(--amora-line)] bg-white p-[18px] sm:rounded-[18px] sm:px-[26px] sm:py-6">
+      <p className="text-[10px] uppercase tracking-[0.05em] text-[var(--amora-muted)] sm:text-[10.5px]">
         CATEGORY SHARE
       </p>
-      <h3 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">항목별 비중</h3>
-      <p className="mt-1 text-[13px] font-medium text-[var(--hb-text-body)]">
+      <h3 className="mt-1 text-[14px] font-semibold text-[var(--amora-ink)] sm:text-[15px]">항목별 비중</h3>
+      <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--amora-muted)] sm:text-xs">
         {basisLabel} {formatWon(total)}을 항목별로 나눈 비중이에요.
       </p>
 
-      <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
-        <div className="relative mx-auto w-[168px] shrink-0 sm:mx-0">
+      <div className="mt-4 flex flex-col items-center gap-4 sm:mt-5 sm:flex-row sm:gap-10">
+        <div className="relative mx-auto w-[140px] shrink-0 sm:mx-0 sm:w-[170px]">
           {/* 도넛은 읽어주지 않는다.
               바로 아래 목록이 여덟 줄 전부를 이름·금액·비중으로 말하고, 카드 머리에
               제목과 총액 문장이 이미 있다. 그림에도 `aria-label` 을 달면 스크린리더가
               같은 요약을 한 번 더 읽어 목록에 닿기 전에 지치게 한다. */}
-          <svg viewBox="0 0 120 120" className="h-[168px] w-[168px]" aria-hidden="true">
+          <svg viewBox="0 0 120 120" className="h-[140px] w-[140px] sm:h-[170px] sm:w-[170px]" aria-hidden="true">
             {/* 도넛은 12시에서 시작해 시계방향으로 돈다. SVG 원은 3시에서 시작하므로
                 통째로 -90도 돌린다. */}
             <g transform="rotate(-90 60 60)">
@@ -147,7 +142,7 @@ export default function BudgetShareChart({
                 cy="60"
                 r={RADIUS}
                 fill="none"
-                stroke="var(--color-paper-rule)"
+                stroke="var(--amora-low, #f1e8da)"
                 strokeWidth="16"
               />
               {arcs.map((arc) => (
@@ -166,32 +161,28 @@ export default function BudgetShareChart({
             </g>
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-serif-kr whitespace-nowrap text-[14px] font-medium leading-none text-[var(--hb-text-strong)]">
+            <span className="planning-display whitespace-nowrap text-[13px] leading-none text-[var(--amora-ink)] sm:text-[16px]">
               {formatWon(total)}
             </span>
-            <span className="mt-1.5 text-[11px] font-medium text-[var(--hb-text-muted)]">
+            <span className="mt-1 text-[9.5px] text-[var(--amora-muted)] sm:text-[11px]">
               {basisLabel}
             </span>
           </div>
         </div>
 
-        <ul className="min-w-0 flex-1 space-y-2">
+        <ul className="w-full min-w-0 flex-1">
           {rows.map((row) => (
-            <li key={row.key} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 sm:grid-cols-[10px_minmax(0,1fr)_auto_54px]">
-              <span
-                aria-hidden="true"
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ backgroundColor: row.color }}
-              />
-              <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--hb-text-body)]">
+            <li key={row.key} className="grid grid-cols-[8px_minmax(0,1fr)_auto_42px] items-center gap-x-2 border-b border-[var(--amora-line)] py-2 last:border-b-0 sm:grid-cols-[9px_minmax(0,1fr)_auto_54px] sm:gap-x-2.5 sm:py-[9px]">
+              <svg aria-hidden="true" viewBox="0 0 10 10" className="h-2 w-2 shrink-0 sm:h-[9px] sm:w-[9px]"><circle cx="5" cy="5" r="5" fill={row.color} /></svg>
+              <span className="min-w-0 text-[12px] font-medium leading-snug text-[var(--amora-ink)] sm:text-[13px]">
                 {row.label}
               </span>
-              <span className="shrink-0 whitespace-nowrap text-[13px] font-medium text-[var(--hb-text-strong)] tabular-nums">
+              <span className="shrink-0 whitespace-nowrap text-[11px] font-semibold text-[var(--amora-soft)] tabular-nums sm:text-[13px]">
                 {formatWon(row.amount)}
               </span>
               {/* 폭을 고정해 비중 숫자가 세로로 줄을 맞춘다. `1% 미만`(가장 긴 값)이
                   13px 에서 50px 이라 54px 이 필요하다 — `w-11`(44px)이면 줄바꿈된다. */}
-              <span className="col-span-2 col-start-2 whitespace-nowrap text-right text-[13px] text-[var(--hb-text-muted)] tabular-nums sm:col-span-1 sm:col-start-auto sm:w-[54px]">
+              <span className="whitespace-nowrap text-right text-[10.5px] text-[var(--amora-muted)] tabular-nums sm:text-xs">
                 {formatPercentCell(row.percent, row.amount)}
               </span>
             </li>

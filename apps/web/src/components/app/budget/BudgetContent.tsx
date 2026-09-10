@@ -3,8 +3,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useSyncExternalStore } from "react";
 import {
   FileText,
-  TrendingDown,
   TrendingUp,
+  ChevronDown,
   AlertTriangle,
   Pencil,
   Check,
@@ -51,6 +51,7 @@ import { foldPayerSides } from "./shareMath";
 import BudgetSideSplit from "./BudgetSideSplit";
 import { isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
 import Button from "@/components/ui/Button";
+import BudgetProgress from "./BudgetProgress";
 
 const ICON_MAP: Record<string, React.ElementType> = {
   FileText,
@@ -121,44 +122,6 @@ function normalizeLegacyCostForReview(cost: unknown): number | null {
     : null;
 }
 
-// 포함·별도 항목 확인 배지 컴포넌트
-function HiddenCostBadge({ catKey }: { catKey: string }) {
-  const [show, setShow] = useState(false);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-  const data = HIDDEN_COSTS[catKey];
-  if (!data) return null;
-
-  return (
-    <div className="relative inline-flex">
-      <button
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-        onClick={() => setShow(!show)}
-        className="tap-area w-6 h-6 rounded-full flex items-center justify-center text-sm bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)] hover:bg-[rgba(54,83,78,0.10)] transition-colors flex-shrink-0"
-        title="포함·별도 항목 확인"
-      >
-        <AlertTriangle className="w-4 h-4" />
-      </button>
-      {show && (
-        <div
-          ref={tooltipRef}
-          className="absolute z-40 bottom-full left-1/2 -translate-x-1/2 mb-2 w-[220px] bg-white text-[var(--hb-text-body)] rounded-[6px] p-3 shadow-[var(--shadow-raised)] pointer-events-none"
-        >
-          <div className="text-[11px] font-medium text-[var(--hb-accent-hover)] mb-1.5 flex items-center gap-1">
-            <AlertTriangle className="w-3 h-3" />
-            포함·별도 항목 확인
-          </div>
-          <p className="text-[11px] text-[var(--hb-text-body)] leading-relaxed mb-1.5">{data.warning}</p>
-          <p className="text-[12px] font-medium text-[var(--hb-accent-hover)]">{data.guidance}</p>
-          <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-[1px]">
-            <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white" />
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // 분담(Payer) 선택 컴포넌트
 function PayerSelector({
   value,
@@ -200,14 +163,14 @@ function PayerSelector({
           setError("");
           setOpen(!open);
         }}
-        className="flex items-center gap-1 px-2.5 py-1.5 rounded-[6px] text-sm text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+        className="flex items-center gap-1 rounded-lg px-1.5 py-0.5 text-[11px] text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] transition-colors"
         title="분담 변경"
       >
         <Users className="h-4 w-4" aria-hidden="true" />
         <span>{currentLabel}</span>
       </button>
       {open && (
-        <div className={`absolute z-40 top-full mt-1 w-[150px] bg-white rounded-[6px] shadow-[var(--shadow-raised)] overflow-hidden ${alignStartOnMobile ? "left-0 lg:left-auto lg:right-0" : "right-0"}`}>
+        <div className={`absolute z-40 top-full mt-1 w-[150px] bg-white rounded-lg shadow-[var(--shadow-raised)] overflow-hidden ${alignStartOnMobile ? "left-0 lg:left-auto lg:right-0" : "right-0"}`}>
           {PAYER_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -232,7 +195,7 @@ function PayerSelector({
               }}
               className={`w-full flex items-center gap-2 px-4 py-2.5 text-sm transition-colors ${
                 value === opt.value
-                  ? "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)] font-medium"
+                  ? "bg-[#eaddd8] text-[var(--amora-rose-deep)] font-medium"
                   : "text-[var(--hb-text-strong)] hover:bg-[var(--hb-surface-hover)]"
               }`}
             >
@@ -325,13 +288,16 @@ function InlineMoneyEdit({
               if (e.key === "Enter") void save();
               if (e.key === "Escape" && !saving) cancel();
             }}
-            className="w-[80px] px-2 py-1 rounded-[6px] border border-[var(--hb-hairline)] text-[13px] text-right text-[var(--hb-text-strong)] focus:outline-none border-[var(--hb-accent)] focus:ring-2 ring-[rgba(54,83,78,0.30)] disabled:opacity-50"
+            aria-label={`${label} (만원)`}
+            min="0"
+            step="0.0001"
+            className="w-[80px] px-2 py-1 rounded-lg border border-[var(--hb-hairline)] text-[13px] text-right text-[var(--hb-text-strong)] focus:outline-none border-[var(--amora-rose-deep)] focus:ring-2 ring-[#a77b744d] disabled:opacity-50"
           />
-          <span className="text-[11px] text-[var(--hb-text-muted)]">만원</span>
+          <span className="text-[11px] text-[var(--amora-muted)]">만원</span>
           <button
             onClick={() => void save()}
             disabled={saving}
-            className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-success)] hover:bg-[#eef4ed] disabled:opacity-50"
+            className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--hb-success)] hover:bg-[#eef4ed] disabled:opacity-50"
             title="저장"
           >
             <Check className="w-3.5 h-3.5" />
@@ -339,7 +305,7 @@ function InlineMoneyEdit({
           <button
             onClick={cancel}
             disabled={saving}
-            className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
+            className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
             title="취소"
           >
             <X className="w-3.5 h-3.5" />
@@ -358,20 +324,20 @@ function InlineMoneyEdit({
     <div className="flex items-center gap-1">
       <button
         onClick={startEdit}
-        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[6px] transition-colors ${
+        className={`flex items-center gap-1.5 rounded-md px-2 py-0.5 transition-colors ${
           highlight === "spent"
-            ? "bg-[#f3e9df]"
+            ? "hover:bg-[var(--amora-warm)]"
             : "hover:bg-[var(--hb-surface-hover)]"
         }`}
         title={`${label} 수정`}
       >
-        <span className={`whitespace-nowrap text-base font-medium ${
+        <span className={`whitespace-nowrap text-[12.5px] font-semibold tabular-nums ${
           highlight === "spent" ? "text-[var(--hb-text-strong)]" : "text-[var(--hb-text-body)]"
         }`}>
           {value > 0 || !emptyLabel ? formatWon(value) : emptyLabel}
         </span>
-        <Pencil className={`w-4 h-4 ${
-          highlight === "spent" ? "text-[rgba(54,83,78,0.55)]" : "text-[var(--hb-text-muted)]"
+        <Pencil className={`h-3 w-3 shrink-0 ${
+          highlight === "spent" ? "text-[#a77b74]" : "text-[var(--amora-muted)]"
         }`} />
       </button>
       {onReset && value > 0 && (
@@ -379,7 +345,7 @@ function InlineMoneyEdit({
           onClick={() => {
             void Promise.resolve(onReset()).catch(() => undefined);
           }}
-          className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
+          className="tap-area shrink-0 w-6 h-6 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
           title={`${label} 초기화`}
         >
           <X className="w-4 h-4" />
@@ -389,22 +355,7 @@ function InlineMoneyEdit({
   );
 }
 
-// 사진 촬영·의상·메이크업 항목용 리스트 행
-function BudgetRow({
-  catKey,
-  label,
-  icon,
-  budget,
-  spent,
-  status,
-  payer,
-  totalBudget,
-  onBudgetChange,
-  onSpentChange,
-  onSpentReset,
-  onPayerChange,
-  onDelete,
-}: {
+interface BudgetCategoryProps {
   catKey: string;
   label: string;
   icon: string;
@@ -418,274 +369,75 @@ function BudgetRow({
   onSpentReset: (key: string) => Promise<void> | void;
   onPayerChange: (key: string, payer: PayerType) => Promise<void> | void;
   onDelete?: (key: string) => Promise<void> | void;
-}) {
-  const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
+}
+
+// 상태와 편집 버튼을 한 번만 렌더해 화면 폭이 바뀌어도 입력 상태를 보존한다.
+function BudgetCategoryEntry({
+  catKey, label, icon, budget, spent, status, payer, totalBudget,
+  onBudgetChange, onSpentChange, onSpentReset, onPayerChange, onDelete,
+  compact = false,
+}: BudgetCategoryProps & { compact?: boolean }) {
   const isOver = spent > budget && budget > 0;
-  // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
   const totalShare = totalBudget > 0 && budget > 0 ? formatLoungeBudgetRatio(budget, totalBudget) : null;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
-    <div
-      className="group flex items-center gap-3 px-6 py-5 bg-white last:rounded-b-[6px] hover:bg-[var(--hb-surface-hover)] transition-colors max-lg:flex-wrap max-lg:gap-2"
-    >
-      {/* 아이콘 + 이름 + 포함·별도 항목 확인 */}
-      <div className="flex w-[190px] flex-shrink-0 items-center gap-2 max-lg:w-full">
-        <div className={`w-11 h-11 rounded-[6px] flex items-center justify-center flex-shrink-0 ${
-          isOver
-            ? "bg-red-50"
-            : "bg-[var(--hb-surface-hover)]"
-        }`}>
-          <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[var(--hb-accent-hover)]"}`} />
-        </div>
-        <span className="min-w-0 font-serif-kr text-[16px] font-normal leading-snug text-[var(--hb-text-strong)] line-clamp-2">{label}</span>
-        <HiddenCostBadge catKey={catKey} />
-
-        {/* 모바일 전용: 상태 + 삭제를 라벨 옆에 배치 */}
-        <div className="lg:hidden ml-auto flex items-center gap-1.5 flex-shrink-0">
-          <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-            status === "완료" ? "bg-[#eef4ed] text-[var(--hb-success)]" :
-            status === "진행중" ? "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)]" :
-            "bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)]"
-          }`}>
-            {status}
-          </div>
+    <div data-budget-category={catKey} className={`group min-w-0 border-t border-[var(--amora-line)] bg-white py-3 ${compact ? "lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-x-6 lg:py-3.5" : "sm:rounded-[14px] sm:border sm:px-[18px] sm:py-4"}`}>
+      <div className="min-w-0">
+        <div className="mb-1.5 flex min-w-0 items-center gap-2.5">
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-8 sm:w-8 ${isOver ? "bg-red-50 text-[#d95f5f]" : "bg-[var(--amora-warm)] text-[var(--amora-rose-deep)]"}`}>
+            <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[13.5px]">{label}</span>
+          <span data-budget-status className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${status === "완료" ? "bg-[var(--amora-sage-pale)] text-[#33473a]" : status === "진행중" ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : "bg-[var(--amora-low)] text-[var(--amora-soft)]"}`}>{status}</span>
           {onDelete && (
-            <button
-              onClick={() => {
-                void Promise.resolve(onDelete(catKey)).catch(() => undefined);
-              }}
-              className="tap-area shrink-0 w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors"
-              title={`${label} 삭제`}
-            >
-              <X className="w-3.5 h-3.5" />
+            <button type="button" onClick={() => { void Promise.resolve(onDelete(catKey)).catch(() => undefined); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-red-50 hover:text-[#d95f5f]" title={`${label} 삭제`}>
+              <X className="h-3.5 w-3.5" />
             </button>
           )}
         </div>
-      </div>
-
-      {/* 진행 바 + 퍼센트. 2026-09-04 375px 실측: flex-1(basis 0%) 이 max-lg:w-full 을 이겨
-          금액 컬럼이 남긴 11px 에 끼어 '예산 입력 전' 이 한 글자씩 세로로 쌓였다.
-          모바일에서는 basis 를 100% 로 못 박아 제 줄을 갖게 한다. */}
-      <div className="lg:flex-1 min-w-0 max-lg:order-last max-lg:basis-full max-lg:flex-none">
-        {budget > 0 ? (
-          <div className="flex items-center gap-2">
-            <div className="flex-1 h-2 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-500 ${
-                  isOver ? "bg-red-400" : "bg-[var(--hb-primary)]"
-                }`}
-                style={{ width: `${Math.min(percent, 100)}%` }}
-              />
-            </div>
-            <span className={`text-xs font-medium min-w-[36px] whitespace-nowrap text-right flex-shrink-0 ${
-              isOver ? "text-red-400" : percent >= 100 ? "text-[var(--hb-success)]" : "text-[var(--hb-text-muted)]"
-            }`}>
-              {formatLoungeBudgetRatio(spent, budget)}
-            </span>
-          </div>
-        ) : (
-          <span className="text-xs font-medium text-[var(--hb-text-muted)]">예산 입력 전</span>
-        )}
-      </div>
-
-      {/* 분담 선택 */}
-      <div className="flex-shrink-0 max-lg:w-auto">
-        <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} alignStartOnMobile />
-      </div>
-
-      {/* 지출 (편집 가능) */}
-      <div className="flex flex-col items-end flex-shrink-0 max-lg:w-auto">
-        <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">기록 지출</span>
-        <InlineMoneyEdit
-          value={spent}
-          onSave={(v) => onSpentChange(catKey, v)}
-          onReset={() => onSpentReset(catKey)}
-          label={`${label} 기록 지출`}
-          highlight="spent"
-        />
-      </div>
-
-      {/* 구분선 */}
-      <span className="text-sm text-[var(--hb-text-muted)]/60 flex-shrink-0 self-end mb-1">/</span>
-
-      {/* 예산 (편집 가능) */}
-      <div className="flex flex-col items-end flex-shrink-0 max-lg:w-auto">
-        <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">예산</span>
-        <InlineMoneyEdit
-          value={budget}
-          onSave={(v) => onBudgetChange(catKey, v)}
-          label={`${label} 예산`}
-          highlight="budget"
-          emptyLabel="미입력"
-        />
-        {totalShare !== null && (
-          <span className="text-[10px] text-[var(--hb-text-muted)] mt-0.5">총예산의 {totalShare}</span>
-        )}
-      </div>
-
-      {/* 상태 + 삭제 (데스크탑 전용 — 모바일은 라벨 옆에 배치) */}
-      <div className="hidden lg:flex items-center gap-1.5 flex-shrink-0">
-        <div className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-          status === "완료" ? "bg-[#eef4ed] text-[var(--hb-success)]" :
-          status === "진행중" ? "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)]" :
-          "bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)]"
-        }`}>
-          {status}
+        <div className="flex flex-wrap items-center justify-between gap-x-2 text-[11px] text-[var(--amora-muted)]">
+          <span>{budget > 0 ? `예산 사용률 ${formatLoungeBudgetRatio(spent, budget)}` : "예산 입력 전"}{totalShare !== null ? ` · 총예산의 ${totalShare}` : ""}</span>
+          <PayerSelector value={payer} onChange={(value) => onPayerChange(catKey, value)} />
         </div>
-        {onDelete && (
-          <button
-            onClick={() => {
-              void Promise.resolve(onDelete(catKey)).catch(() => undefined);
-            }}
-            className="tap-area shrink-0 w-5 h-5 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
-            title={`${label} 삭제`}
-          >
-            <X className="w-3 h-3" />
-          </button>
-        )}
+        {budget > 0 && <div className="mt-1.5"><BudgetProgress value={(spent / budget) * 100} danger={isOver} /></div>}
+      </div>
+      <div className={`mt-2 grid min-w-0 gap-1 ${compact ? "lg:mt-0 lg:min-w-[190px]" : ""}`}>
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <span className="text-[11px] text-[var(--amora-muted)]">기록 지출</span>
+          <InlineMoneyEdit value={spent} onSave={(value) => onSpentChange(catKey, value)} onReset={() => onSpentReset(catKey)} label={`${label} 기록 지출`} highlight="spent" />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+          <span className="text-[11px] text-[var(--amora-muted)]">예산</span>
+          <InlineMoneyEdit value={budget} onSave={(value) => onBudgetChange(catKey, value)} label={`${label} 예산`} highlight="budget" emptyLabel="미입력" />
+        </div>
       </div>
     </div>
   );
 }
 
-// 카테고리 카드 컴포넌트 (그리드 스타일 - 기타 카테고리용)
-function BudgetCard({
-  catKey,
-  label,
-  icon,
-  budget,
-  spent,
-  status,
-  payer,
-  totalBudget,
-  onBudgetChange,
-  onSpentChange,
-  onSpentReset,
-  onPayerChange,
-  onDelete,
-}: {
-  catKey: string;
-  label: string;
-  icon: string;
-  budget: number;
-  spent: number;
-  status: string;
-  payer: PayerType;
-  totalBudget: number;
-  onBudgetChange: (key: string, val: number) => Promise<void> | void;
-  onSpentChange: (key: string, val: number) => Promise<void> | void;
-  onSpentReset: (key: string) => Promise<void> | void;
-  onPayerChange: (key: string, payer: PayerType) => Promise<void> | void;
-  onDelete?: (key: string) => Promise<void> | void;
-}) {
-  const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
-  const isOver = spent > budget && budget > 0;
-  // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
-  const totalShare = totalBudget > 0 && budget > 0 ? formatLoungeBudgetRatio(budget, totalBudget) : null;
-  const Icon = ICON_MAP[icon] ?? Building2;
+function BudgetRow(props: BudgetCategoryProps) {
+  return <BudgetCategoryEntry {...props} compact />;
+}
 
-  return (
-    <div className="group bg-white rounded-[6px] p-4 sm:p-6 shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-shadow">
-      {/* 상단: 아이콘 + 이름 + 상태 */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className={`w-11 h-11 rounded-[6px] flex items-center justify-center flex-shrink-0 ${
-            isOver ? "bg-red-50" : "bg-[var(--hb-surface-hover)]"
-          }`}>
-            <Icon className={`w-5 h-5 ${isOver ? "text-red-400" : "text-[var(--hb-accent-hover)]"}`} />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="min-w-0 font-serif-kr text-[17px] font-normal leading-snug text-[var(--hb-text-strong)] line-clamp-2">{label}</span>
-              <HiddenCostBadge catKey={catKey} />
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <div className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
-                status === "완료" ? "bg-[#eef4ed] text-[var(--hb-success)]" :
-                status === "진행중" ? "bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)]" :
-                "bg-[var(--hb-surface-hover)] text-[var(--hb-text-muted)]"
-              }`}>
-                {status}
-              </div>
-            </div>
-          </div>
-        </div>
-        {/* 분담 표시는 헤더에 둔다. 값 줄에 지출·예산과 나란히 두면 360px 에서
-            셋이 264px 를 나눠 갖느라 금액 상자가 38~42px 로 눌리고, 전역
-            `overflow-wrap: anywhere` 탓에 금액이 자릿수 중간에서 두 줄로
-            쪼개졌다(2026-08-26 운영 실측). */}
-        <div className="flex shrink-0 items-center gap-1">
-          <PayerSelector value={payer} onChange={(v) => onPayerChange(catKey, v)} />
-          {onDelete && (
-            <button
-              onClick={() => {
-                void Promise.resolve(onDelete(catKey)).catch(() => undefined);
-              }}
-              className="tap-area w-6 h-6 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:text-red-400 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
-              title={`${label} 삭제`}
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
-      </div>
+function BudgetCard(props: BudgetCategoryProps) {
+  return <BudgetCategoryEntry {...props} />;
+}
 
-      {/* 진행 바 */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-[var(--hb-text-muted)]">
-            {budget > 0 ? "예산 사용률" : "예산 입력 전"}
-            {totalShare !== null ? <span className="ml-1.5 text-[var(--hb-text-muted)]/70">· 총예산의 {totalShare}</span> : null}
-          </span>
-          {budget > 0 && (
-            <span className={`text-xs font-medium ${
-              isOver ? "text-red-400" : percent >= 100 ? "text-[var(--hb-success)]" : "text-[var(--hb-text-body)]"
-            }`}>
-              {formatLoungeBudgetRatio(spent, budget)}
-            </span>
-          )}
-        </div>
-        {budget > 0 && (
-          <div className="h-2 bg-[var(--hb-surface-hover)] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-500 ${
-                isOver ? "bg-red-400" : "bg-[var(--hb-primary)]"
-              }`}
-              style={{ width: `${Math.min(percent, 100)}%` }}
-            />
-          </div>
-        )}
-      </div>
-
-      {/* 지출/예산/분담 */}
-      <div className="flex items-end gap-3">
-        <div className="flex items-end gap-3 min-w-0">
-          <div className="flex flex-col items-start">
-            <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">기록 지출</span>
-            <InlineMoneyEdit
-              value={spent}
-              onSave={(v) => onSpentChange(catKey, v)}
-              onReset={() => onSpentReset(catKey)}
-              label={`${label} 기록 지출`}
-              highlight="spent"
-            />
-          </div>
-          <span className="text-sm text-[var(--hb-text-muted)]/60 pb-2">/</span>
-          <div className="flex flex-col items-start">
-            <span className="text-xs text-[var(--hb-text-muted)] mb-0.5">예산</span>
-            <InlineMoneyEdit
-              value={budget}
-              onSave={(v) => onBudgetChange(catKey, v)}
-              label={`${label} 예산`}
-              highlight="budget"
-              emptyLabel="미입력"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function BudgetVerificationRows({ categoryKeys }: { categoryKeys: string[] }) {
+  return <>            {categoryKeys.map((key) => {
+              const category = BUDGET_CATEGORIES.find((category) => category.key === key);
+              const data = HIDDEN_COSTS[key];
+              if (!category || !data) return null;
+              const Icon = ICON_MAP[category.icon] ?? Building2;
+              return (
+                <div key={key} className="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-[var(--amora-line)] py-3 sm:px-1 sm:py-[13px]">
+                  <span className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[var(--amora-warm)] text-[var(--amora-rose-deep)] sm:flex"><Icon className="h-[15px] w-[15px]" /></span>
+                  <div className="min-w-0 flex-1 basis-[230px]"><p className="text-[12.5px] font-semibold text-[var(--amora-ink)] sm:text-[13px]">{category.label}</p><p className="mt-1 text-[11px] leading-relaxed text-[var(--amora-muted)] sm:text-[11.5px]">{data.warning}</p></div>
+                  <span className="text-[11px] font-semibold text-[var(--amora-accent)] sm:text-[11.5px]">{data.guidance}</span>
+                </div>
+              );
+            })}</>;
 }
 
 interface BudgetContentProps {
@@ -975,10 +727,15 @@ function ScopedBudgetContent({
       : getCategoryBudget(category.key),
   }));
 
-  // 포함·별도 확인 항목이 있는 카테고리 중 지출이 시작된 것들 — 안내 카드 표시용
+  // 카드의 확인 배지를 하단 표로 모으되, 예산·준비 기록만 있는 항목도 빠뜨리지 않는다.
   const hiddenCostWarnings = Object.keys(HIDDEN_COSTS).filter(
-    (k) => !hiddenKeys.has(k) && getCategorySpent(k) > 0
+    (key) => !hiddenKeys.has(key) && shownFixedKeys.includes(key)
   );
+
+  const shownVerificationKeys = hiddenCostWarnings.length > 0
+    ? hiddenCostWarnings
+    : Object.keys(HIDDEN_COSTS).slice(0, 4);
+  const otherVerificationKeys = Object.keys(HIDDEN_COSTS).filter((key) => !shownVerificationKeys.includes(key));
 
   // 핸들러들
   const handleBudgetChange = useCallback(
@@ -1162,179 +919,77 @@ function ScopedBudgetContent({
   };
 
   return (
-    <div className={embedded ? "bg-[var(--hb-surface-hover)]" : ""}>
+    <div className="planning-workspace text-[var(--amora-soft)]">
       <div
         className={
           embedded
-            ? "max-w-4xl xl:max-w-5xl 2xl:max-w-6xl mx-auto px-4 sm:px-6 md:px-8 lg:px-12 py-6 sm:py-8 md:py-10"
-            : "space-y-4"
+            ? "mx-auto max-w-[1160px] space-y-3.5 bg-[var(--amora-bg)] px-[18px] py-4 sm:space-y-5 sm:px-9 sm:py-[30px]"
+            : "mx-auto w-full max-w-[1440px] space-y-3.5 px-[18px] py-4 sm:space-y-5 lg:px-9 lg:py-[30px]"
         }
       >
         {journeyNotice && (
           <div
             role="status"
-            className="rounded-[6px] border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
+            className="rounded-lg border border-[#B9D5C8] bg-[#F2F8F5] px-4 py-3 text-sm leading-6 text-[#315B49]"
           >
             {journeyNotice}
           </div>
         )}
-        {journeyError && (
+        {journeyError && !showAddModal && !deletingKey && (
           <div
             role="alert"
-            className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
+            className="rounded-lg border border-[#E5B8B8] bg-[#FFF6F6] px-4 py-3 text-sm leading-6 text-[#8C3E3E]"
           >
             {journeyError}
           </div>
         )}
 
-        {/* 상단 스탯 3개 - Editorial */}
-        {/*
-          3단은 `lg`(1024px)부터다. `md`(768px)에서 3단으로 가면 칸이 100px 로 좁아지는데
-          금액은 42px 이라 "8,000" 이 117px 을 먹는다. 상위 규칙이 `overflow-wrap: anywhere`
-          라 넘치는 대신 **숫자 중간에서 줄이 바뀌어** 화면에 "8,00 / 0" 으로 나왔다.
-          운영에서 실측한 값이다 — 768px 에서 칸 100px, 850px 부터 정상.
-
-          1024px 에서는 칸이 185px 이라 "123,456"(178px)까지 한 줄에 들어간다.
-          그 아래에서는 한 단으로 쌓여 칸이 407px 이 되므로 어떤 금액도 안 깨진다.
-        */}
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-          {/* Total Budget */}
-          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
-            <Sparkles className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/25" />
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
-                TOTAL BUDGET
-              </p>
+        {/* 긴 원 단위 금액과 편집 상태는 넓은 칸을 사용해 숫자를 끊지 않는다. */}
+        <div data-budget-summary className={`grid gap-2 sm:gap-4 ${editingTotal ? "grid-cols-2 sm:grid-cols-3" : [totalBudget, totalSpent, remaining ?? 0].some((amount) => (amount / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 }).length > 9) ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-3"}`}>
+          <div className={`min-w-0 rounded-xl border border-[var(--amora-line)] bg-white px-2.5 py-3 sm:rounded-2xl sm:px-[22px] sm:py-5 ${editingTotal ? "col-span-2 sm:col-span-1" : ""}`}>
+            <div className="flex items-center justify-between gap-1">
+              <p className="text-[9px] uppercase tracking-[0.04em] text-[var(--amora-muted)] sm:text-[10.5px]">TOTAL BUDGET</p>
               {!editingTotal && (
-                <button
-                  onClick={() => {
-                    setTotalText(
-                      hasTotalBudget
-                        ? String(totalBudget / 10000)
-                        : "",
-                    );
-                    setEditingTotal(true);
-                  }}
-                  className="relative z-10 text-[#9a9188] transition-colors hover:text-[var(--hb-text-strong)]"
-                  title="총 예산 수정"
-                >
-                  <Pencil className="w-4 h-4" />
+                <button type="button" onClick={() => { setTotalText(hasTotalBudget ? String(totalBudget / 10000) : ""); setEditingTotal(true); }} className="no-min-tap flex h-5 w-5 shrink-0 items-center justify-center rounded text-[var(--amora-muted)] hover:bg-[var(--amora-warm)] hover:text-[var(--amora-ink)]" title="총 예산 수정">
+                  <Pencil className="h-3 w-3" />
                 </button>
               )}
             </div>
             {editingTotal ? (
-              <div className="mb-3">
-              <div className="flex items-end gap-2 flex-wrap">
-                <input
-                  ref={totalInputRef}
-                  type="number"
-                  value={totalText}
-                  onChange={(e) => {
-                    setTotalText(e.target.value);
-                    setTotalBudgetError("");
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleTotalBudgetSave();
-                    if (e.key === "Escape") { setTotalBudgetError(""); setEditingTotal(false); }
-                  }}
-                  className="w-full max-w-full rounded-[6px] border border-[var(--hb-primary)]/35 px-3 py-2 font-serif-kr text-[34px] font-medium leading-none text-[var(--hb-text-strong)] focus:border-[var(--hb-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--hb-primary)]/10 sm:w-[170px]"
-                />
-                <button onClick={handleTotalBudgetSave} className="flex tap-area shrink-0 h-9 w-9 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white hover:bg-[#2d4642]">
-                  <Check className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => {
-                    setTotalBudgetError("");
-                    setEditingTotal(false);
-                  }}
-                  className="tap-area shrink-0 w-9 h-9 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)]"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              {totalBudgetError ? (
-                <p role="alert" className="mt-2 text-sm text-[#D95F5F]">
-                  {totalBudgetError}
-                </p>
-              ) : null}
+              <div className="mt-2">
+                <div className="flex flex-wrap items-center gap-1">
+                  <input ref={totalInputRef} type="number" min="0.0001" step="0.0001" aria-label="총 예산 (만원)" value={totalText} onChange={(event) => setTotalText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void handleTotalBudgetSave(); if (event.key === "Escape") setEditingTotal(false); }} className="w-full rounded-lg border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2 py-1 text-[16px] tabular-nums outline-none focus:border-[var(--amora-rose-deep)]" />
+                  <span className="mr-auto text-[11px] text-[var(--amora-muted)]">만원</span>
+                  <button type="button" onClick={() => void handleTotalBudgetSave()} className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--amora-ink)] text-white" title="총 예산 저장"><Check className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => setEditingTotal(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]" title="총 예산 취소"><X className="h-4 w-4" /></button>
+                </div>
+                {totalBudgetError && <p role="alert" className="mt-2 text-[11px] leading-relaxed text-[#d95f5f]">{totalBudgetError}</p>}
               </div>
             ) : (
-              <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[var(--hb-text-strong)]">
-                {hasTotalBudget ? (
-                  <>
-                    <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalBudget / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>
-                    <span className="text-[13px] font-medium text-[var(--hb-text-body)]">만원</span>
-                  </>
-                ) : (
-                  <span className="text-[30px] font-medium sm:text-[34px]">미입력</span>
-                )}
+              <p className="planning-display mt-1.5 flex flex-wrap items-baseline gap-x-1 leading-snug text-[var(--amora-ink)] sm:mt-2.5 sm:gap-x-1.5">
+                <span className="whitespace-nowrap text-[16px] tabular-nums sm:text-[30px]">{hasTotalBudget ? (totalBudget / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 }) : "미입력"}</span>
+                {hasTotalBudget && <small className="text-[9.5px] text-[var(--amora-muted)] sm:text-[13px]">만원</small>}
               </p>
             )}
-            <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
-              {hasTotalBudget ? "전체 예산" : "연필 버튼을 눌러 총 예산을 입력해주세요"}
-            </p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[var(--amora-muted)] sm:mt-1.5 sm:text-xs">{hasTotalBudget ? "전체 예산" : "총 예산을 입력해 주세요"}</p>
           </div>
-
-          {/* Spent */}
-          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
-            <TrendingUp className="pointer-events-none absolute right-4 top-4 h-5 w-5 text-[var(--hb-text-strong)]/35" />
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
-              RECORDED SPEND
-            </p>
-            <p className="mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none text-[var(--hb-text-strong)]">
-              <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{(totalSpent / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>
-              <span className="text-[13px] font-medium text-[var(--hb-text-body)]">만원</span>
-            </p>
-            <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
-              {spentPercent === null
-                ? "기록 지출 · 총 예산 입력 전 · 결제 완료 여부와 별도"
-                : `기록 지출 (${formatLoungeBudgetRatio(totalSpent, totalBudget)}) · 결제 완료 여부와 별도`}
-            </p>
-            <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
-              <div
-                className="h-full rounded-full bg-[var(--hb-primary)] transition-all duration-700"
-                style={{ width: `${Math.min(spentPercent ?? 0, 100)}%` }}
-              />
-            </div>
+          <div className="min-w-0 rounded-xl border border-[var(--amora-line)] bg-white px-2.5 py-3 sm:rounded-2xl sm:px-[22px] sm:py-5">
+            <p className="text-[9px] uppercase tracking-[0.04em] text-[var(--amora-muted)] sm:text-[10.5px]">RECORDED SPEND</p>
+            <p className="planning-display mt-1.5 flex flex-wrap items-baseline gap-x-1 leading-snug text-[var(--amora-ink)] sm:mt-2.5 sm:gap-x-1.5"><span className="whitespace-nowrap text-[16px] tabular-nums sm:text-[30px]">{(totalSpent / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span><small className="text-[9.5px] text-[var(--amora-muted)] sm:text-[13px]">만원</small></p>
+            <p className="mt-1 text-[10px] leading-relaxed text-[var(--amora-muted)] sm:mt-1.5 sm:text-xs">{spentPercent === null ? "기록 지출 · 총 예산 입력 전" : `기록 지출 (${formatLoungeBudgetRatio(totalSpent, totalBudget)})`}<span className="hidden sm:inline"> · 결제 완료 여부와 별도</span></p>
           </div>
-
-          {/* Remaining */}
-          <div className="relative overflow-hidden rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
-            <TrendingDown className={`pointer-events-none absolute right-4 top-4 h-5 w-5 ${isOverBudget ? "text-red-400/60" : "text-[var(--hb-text-strong)]/35"}`} />
-            <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${isOverBudget ? "text-red-400" : "text-[var(--hb-text-strong)]"}`}>
-              REMAINING
-            </p>
-            <p className={`mt-4 flex flex-wrap items-baseline gap-2 font-serif-kr leading-none ${isOverBudget ? "text-red-400" : "text-[var(--hb-text-strong)]"}`}>
-              {remaining === null ? (
-                <span className="text-[30px] font-medium sm:text-[34px]">계산 전</span>
-              ) : (
-                <>
-                  <span className="text-[36px] font-medium sm:text-[40px] lg:text-[42px]">{remaining < 0 ? "-" : ""}{(Math.abs(remaining) / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>
-                  <span className="text-[13px] font-medium text-[var(--hb-text-body)]">만원</span>
-                </>
-              )}
-            </p>
-            {remaining === null ? (
-              <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
-                총 예산을 입력하면 남은 금액을 계산해요
-              </p>
-            ) : remaining >= 0 ? (
-              <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
-                지출 기록을 뺀 금액 · 배정액·결제 여부와 별도
-              </p>
-            ) : (
-              <p className="mt-3 flex items-center gap-1 text-[13px] font-medium text-red-400">
-                <AlertTriangle className="w-4 h-4" />
-                예산 초과
-              </p>
-            )}
+          <div className="min-w-0 rounded-xl border border-[var(--amora-line)] bg-white px-2.5 py-3 sm:rounded-2xl sm:px-[22px] sm:py-5">
+            <p className="text-[9px] uppercase tracking-[0.04em] text-[var(--amora-muted)] sm:text-[10.5px]">REMAINING</p>
+            <p className={`planning-display mt-1.5 flex flex-wrap items-baseline gap-x-1 leading-snug sm:mt-2.5 sm:gap-x-1.5 ${isOverBudget ? "text-[#d95f5f]" : "text-[var(--amora-ink)]"}`}><span className="whitespace-nowrap text-[16px] tabular-nums sm:text-[30px]">{remaining === null ? "계산 전" : (remaining / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>{remaining !== null && <small className="text-[9.5px] text-[var(--amora-muted)] sm:text-[13px]">만원</small>}</p>
+            <p className={`mt-1 text-[10px] leading-relaxed sm:mt-1.5 sm:text-xs ${isOverBudget ? "text-[#d95f5f]" : "text-[var(--amora-muted)]"}`}>{remaining === null ? "총 예산을 입력하면 남은 금액을 계산해요" : isOverBudget ? "예산 초과" : "지출 기록을 뺀 금액"}<span className="hidden sm:inline">{remaining !== null && !isOverBudget ? " · 배정액·결제 여부와 별도" : ""}</span></p>
           </div>
         </div>
+        <p className="-mt-1 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:hidden">기록 지출은 결제 완료 여부와 별도로 관리해요.</p>
 
         {legacyReviewItems.length > 0 && (
           <section
             role="status"
-            className="rounded-[6px] border border-[#D8C7BB] bg-[#FFF9F2] px-4 py-4 text-sm text-[var(--hb-text-body)]"
+            className="rounded-lg border border-[#D8C7BB] bg-[#FFF9F2] px-4 py-4 text-sm text-[var(--hb-text-body)]"
           >
             <h3 className="text-[#2B2525]">용도 미확인 이전 금액</h3>
             <p className="mt-1 leading-6">
@@ -1360,16 +1015,15 @@ function ScopedBudgetContent({
 
         {paymentLedgerEnabled && <PaymentLedger />}
 
-        {/* 분담 현황 (Editorial Style) */}
         {totalSpent > 0 && (
-          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in md:p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <Users className="h-5 w-5 text-[var(--hb-text-strong)]" />
-              <div>
-                <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">PAYER SUMMARY</p>
-                <h3 className="font-serif-kr text-[var(--hb-text-strong)]">분담 현황</h3>
-              </div>
-            </div>
+          <details className="group rounded-[14px] border border-[var(--amora-line)] bg-white px-[18px] py-3.5 sm:px-[26px] sm:py-4">
+            <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 text-[13px] font-semibold text-[var(--amora-ink)] marker:content-none [&::-webkit-details-marker]:hidden">
+              <Users className="h-4 w-4 shrink-0" />
+              <span>분담 현황</span>
+              <span className="ml-auto text-[12px] font-normal text-[var(--amora-muted)]">기록 지출 {formatWon(totalSpent)}</span>
+              <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="mt-4 border-t border-[var(--amora-line)] pt-4">
             {/* 양측을 먼저 보여주고 네 칸으로 편다. 네 칸만 있으면 "우리 쪽이 얼마"를
                 눈으로 더해야 나오는데, 그게 이 화면에서 제일 자주 묻는 질문이다. */}
             <BudgetSideSplit
@@ -1377,14 +1031,14 @@ function ScopedBudgetContent({
               groomSide={payerSides.groomSide}
               shared={payerSides.shared}
             />
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {PAYER_OPTIONS.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
                 return (
                   <div
                     key={opt.value}
-                    className={`rounded-[6px] border border-[var(--hb-hairline)]/70 p-3.5 transition-colors ${
+                    className={`rounded-lg border border-[var(--hb-hairline)]/70 p-3.5 transition-colors ${
                       amount > 0 ? "bg-[var(--hb-surface-page)]" : "bg-[#f7f3ec]/55"
                     }`}
                   >
@@ -1393,95 +1047,53 @@ function ScopedBudgetContent({
                       <span className="text-[13px] font-medium text-[var(--hb-text-body)]">{opt.label}</span>
                     </div>
                     {/* 실제 카드 폭에 맞춰 열 수를 줄여 원 단위 금액을 한 줄로 보존한다. */}
-                    <p className={`font-serif-kr whitespace-nowrap text-[20px] font-medium leading-none ${
+                    <p className={`planning-display whitespace-nowrap text-[16px] font-medium leading-none ${
                       amount > 0 ? "text-[var(--hb-text-strong)]" : "text-[#9a9188]"
                     }`}>
                       {formatWon(amount)}
                     </p>
                     {amount > 0 && (
                       <div className="mt-3">
-                        <div className="h-1.5 overflow-hidden rounded-full bg-[#efe6d7]">
-                          <div
-                            className="h-full rounded-full bg-[var(--hb-primary)] transition-all duration-500"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-[var(--hb-text-muted)] mt-1.5">{formatLoungeBudgetRatio(amount, totalSpent)}</p>
+                        <BudgetProgress value={pct} />
+                        <p className="text-xs text-[var(--amora-muted)] mt-1.5">{formatLoungeBudgetRatio(amount, totalSpent)}</p>
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-          </div>
+            </div>
+          </details>
         )}
 
-        {/* 검수된 공시가 비교 안내 — /price는 베이스패스 밖 최상위 표면이라 절대 경로 */}
-        <Link
-          href="/price"
-          className="group flex items-center gap-4 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 px-4 py-4 shadow-[var(--shadow-raised)] transition-shadow hover:shadow-[var(--shadow-raised)] animate-fade-in md:px-5"
-        >
-          <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[#f7f3ec]">
-            <TrendingUp className="h-5 w-5 text-[var(--hb-text-strong)]" />
+        <Link href="/price" className="group flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-[14px] bg-[var(--amora-warm)] px-4 py-3.5 sm:px-5 sm:py-4">
+          <span className="hidden h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] border border-[var(--amora-line)] bg-white text-[var(--amora-accent)] sm:flex"><TrendingUp className="h-[18px] w-[18px]" /></span>
+          <div className="min-w-0 flex-1 basis-[220px]">
+            <p className="text-[12.5px] font-semibold text-[var(--amora-ink)] sm:text-[13.5px]">공시가와 내 예산 확인 <span className="hidden sm:inline">· DISCLOSED PRICES</span></p>
+            <p className="mt-0.5 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:text-[11.5px]">운영자가 검수·발행한 업체 가격 · 기준일과 구성 범위 확인</p>
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">DISCLOSED PRICES</p>
-            <p className="font-serif-kr text-[18px] font-medium text-[var(--hb-text-strong)]">공시가와 내 예산 확인</p>
-            <p className="mt-1 line-clamp-2 text-[13px] font-medium leading-snug text-[var(--hb-text-body)]">운영자가 검수·발행한 업체 가격 · 기준일과 구성 범위 확인</p>
-          </div>
-          <span className="hidden flex-shrink-0 items-center gap-1 whitespace-nowrap text-[13px] font-semibold text-[var(--hb-text-strong)] group-hover:underline sm:flex">
-            자세히 보기 <ArrowRight className="w-4 h-4" />
-          </span>
-          <ArrowRight className="h-5 w-5 flex-shrink-0 text-[var(--hb-text-strong)] sm:hidden" />
+          <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--amora-ink)] group-hover:underline sm:text-[12.5px]">자세히 보기 <ArrowRight className="h-3.5 w-3.5" /></span>
         </Link>
 
-        <div ref={categorySection} className="space-y-6">
+        <div ref={categorySection} className="space-y-3.5 sm:space-y-5">
         {/* 소계는 기본 세 항목만 포함하며, 별도로 만든 항목과 합치지 않는다. */}
         {shownPhotoAttireMakeupKeys.length > 0 && (
-        <div className="relative z-10 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 shadow-[var(--shadow-raised)] animate-fade-in">
-          <div className="px-5 sm:px-8 py-5 sm:py-6 flex items-start sm:items-center justify-between gap-4 border-b border-[#f6f3f2] flex-wrap">
-            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
-              <div className="flex shrink-0 -space-x-1">
-                <div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(54,83,78,0.10)] flex items-center justify-center ring-2 ring-white">
-                  <Camera className="w-5 h-5 text-[var(--hb-accent-hover)]" />
-                </div>
-                <div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(54,83,78,0.10)] flex items-center justify-center ring-2 ring-white">
-                  <Shirt className="w-5 h-5 text-[var(--hb-accent-hover)]" />
-                </div>
-                <div className="w-11 h-11 shrink-0 rounded-full bg-[rgba(54,83,78,0.10)] flex items-center justify-center ring-2 ring-white">
-                  <Palette className="w-5 h-5 text-[var(--hb-accent-hover)]" />
-                </div>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-[var(--hb-accent-hover)] mb-1 font-medium">기본 항목 소계</p>
-                <h3 className="h-section">사진·드레스·메이크업</h3>
-                <p className="text-sm text-[var(--hb-text-body)] mt-1">
-                  포함 항목: {shownPhotoAttireMakeupKeys.map((key) => BUDGET_CATEGORIES.find((cat) => cat.key === key)!.label).join(" · ")}
-                </p>
-                {customCategories.length > 0 && (
-                  <p className="text-xs text-[var(--hb-text-muted)] mt-1">별도로 만든 항목은 이 소계에 포함되지 않아요.</p>
-                )}
-              </div>
+        <section className="rounded-2xl border border-[var(--amora-line)] bg-white px-[18px] py-[18px] sm:rounded-[18px] sm:px-[26px] sm:py-6">
+          <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 sm:mb-4">
+            <div className="hidden shrink-0 -space-x-2 sm:flex">
+              {[Camera, Shirt, Palette].map((Icon, index) => <span key={index} className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg border-2 border-white bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]"><Icon className="h-[15px] w-[15px]" /></span>)}
             </div>
-            <div className="text-right">
-              {photoAttireMakeupBudget > 0 ? (
-                <>
-                  <p className="h-section break-words">
-                    {formatWonFull(photoAttireMakeupSpent)} <span className="text-[var(--hb-text-muted)] text-base sm:text-lg">/ {formatWonFull(photoAttireMakeupBudget)}</span>
-                  </p>
-                  <p className="text-sm text-[var(--hb-text-body)] mt-1">
-                    {formatLoungeBudgetRatio(photoAttireMakeupSpent, photoAttireMakeupBudget)} 기록
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="h-section break-words">{formatWonFull(photoAttireMakeupSpent)} 사용</p>
-                  <p className="text-sm text-[var(--hb-text-body)] mt-1">예산 입력 전</p>
-                </>
-              )}
+            <div className="min-w-0 flex-1 basis-[240px]">
+              <h3 className="text-[13px] font-semibold text-[var(--amora-ink)] sm:text-[14.5px]">묶음 예산 · 사진·드레스·메이크업</h3>
+              <p className="mt-0.5 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:text-[11.5px]">포함 항목: {shownPhotoAttireMakeupKeys.map((key) => BUDGET_CATEGORIES.find((cat) => cat.key === key)!.label).join(" · ")}</p>
+              {customCategories.length > 0 && <p className="mt-0.5 text-[10.5px] text-[var(--amora-muted)]">별도로 만든 항목은 이 소계에 포함되지 않아요.</p>}
+            </div>
+            <div className="text-[12px] font-semibold text-[var(--amora-soft)] sm:text-right sm:text-base">
+              <p>{formatWonFull(photoAttireMakeupSpent)} / {photoAttireMakeupBudget > 0 ? formatWonFull(photoAttireMakeupBudget) : "예산 입력 전"}</p>
+              {photoAttireMakeupBudget > 0 && <p className="mt-0.5 text-[11px] font-normal text-[var(--amora-muted)]">{formatLoungeBudgetRatio(photoAttireMakeupSpent, photoAttireMakeupBudget)} 기록</p>}
             </div>
           </div>
-          <div className="divide-y divide-[#f6f3f2]">
+          <div>
             {shownPhotoAttireMakeupKeys.map((key) => {
               const cat = BUDGET_CATEGORIES.find((category) => category.key === key)!;
               return (
@@ -1504,23 +1116,18 @@ function ScopedBudgetContent({
               );
             })}
           </div>
-        </div>
+        </section>
         )}
 
-        {/* 기타 카테고리 헤더 */}
-        <div className="flex items-center justify-between gap-3 mb-4 animate-fade-in flex-wrap">
-          <div className="min-w-0">
-            <h3 className="h-section">{shownPhotoAttireMakeupKeys.length > 0 ? "나머지 예산 항목" : "예산 항목"}</h3>
-            <p className="text-sm text-[var(--hb-text-body)] mt-1">입력한 금액이나 준비 기록이 있는 항목부터 보여드려요.</p>
+        <section className="rounded-2xl border border-[var(--amora-line)] bg-white px-[18px] py-[18px] sm:rounded-[18px] sm:px-[26px] sm:py-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2 sm:mb-4">
+            <div>
+              <h3 className="text-[14px] font-semibold text-[var(--amora-ink)] sm:text-[15px]">{shownPhotoAttireMakeupKeys.length > 0 ? "기타 카테고리" : "예산 항목"}</h3>
+              <p className="mt-1 text-[11px] leading-relaxed text-[var(--amora-muted)]">입력한 금액이나 준비 기록이 있는 항목부터 보여드려요.</p>
+            </div>
+            <span className="flex items-center gap-1 text-[11px] text-[var(--amora-muted)]"><Pencil className="h-3 w-3" />클릭하여 수정</span>
           </div>
-          <div className="flex items-center gap-1.5 text-sm text-[var(--hb-text-muted)]">
-            <Pencil className="w-4 h-4 text-[rgba(54,83,78,0.55)]" />
-            클릭하여 수정
-          </div>
-        </div>
-
-        {/* 기타 카테고리 - 2열 그리드 카드 */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8 animate-fade-in">
+          <div className="grid grid-cols-1 sm:grid-cols-2 sm:gap-3.5">
           {OTHER_KEYS.filter((key) => shownFixedKeys.includes(key)).map((key) => {
             const cat = BUDGET_CATEGORIES.find((category) => category.key === key)!;
             return (
@@ -1563,21 +1170,15 @@ function ScopedBudgetContent({
             />
           ))}
 
-          {/* 카테고리 추가 카드 */}
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="group flex items-center justify-center gap-3 bg-white/60 rounded-[6px] p-6 border-2 border-dashed border-[#B5ADA3]/40 border-[var(--hb-accent)] hover:bg-white transition-colors min-h-[180px]"
-          >
-            <div className="w-11 h-11 rounded-[6px] flex items-center justify-center border-2 border-dashed border-[#B5ADA3]/60 group-hover:border-[var(--hb-hairline)] transition-colors">
-              <Plus className="w-5 h-5 text-[var(--hb-text-muted)] group-hover:text-[var(--hb-accent-hover)]" />
-            </div>
-            <span className="text-base text-[var(--hb-text-muted)] group-hover:text-[var(--hb-accent-hover)] font-serif-kr">새 항목 추가</span>
+          <button type="button" onClick={() => setShowAddModal(true)} className="flex min-h-12 items-center justify-center gap-2 border-t border-dashed border-[var(--amora-line)] py-3.5 text-[12.5px] font-semibold text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)] hover:text-[var(--amora-ink)] sm:min-h-24 sm:rounded-[14px] sm:border">
+            <Plus className="h-3.5 w-3.5" />새 항목 추가
           </button>
-        </div>
+          </div>
+        </section>
 
         {unusedCategories.length > 0 && (
-          <details className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/70">
-            <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-accent)]">
+          <details className="rounded-[14px] border border-[var(--amora-line)] bg-white">
+            <summary className="cursor-pointer px-5 py-4 text-sm font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-rose-deep)]">
               아직 입력하지 않은 기본 항목 {unusedCategories.length}개 보기
             </summary>
             <div className="px-5 pb-5">
@@ -1593,7 +1194,7 @@ function ScopedBudgetContent({
                       categoryToFocus.current = cat.key;
                       setOpenedCategories((current) => new Set([...current, cat.key]));
                     }}
-                    className="w-full min-w-0 py-2"
+                    className="w-full min-w-0 rounded-lg border-[var(--amora-line)] py-2 text-[12px]"
                     aria-label={`${cat.label} 예산 입력하기`}
                   >
                     <span className="flex-1 text-left whitespace-normal">{cat.label}</span>
@@ -1606,104 +1207,46 @@ function ScopedBudgetContent({
         )}
         </div>
 
-        {/* 하단: Hidden Costs + AI Spotlight */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8 animate-fade-in">
-          {/* 포함·별도 확인 섹션 */}
-          <div className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-6 sm:p-8">
-            <div className="flex items-start gap-3 mb-5">
-              <div className="w-10 h-10 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-[var(--hb-accent-hover)]" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-[var(--hb-accent-hover)] mb-1 font-medium">견적·계약 전에 확인</p>
-                <h3 className="h-section">포함·별도 항목 체크</h3>
-                <p className="text-sm text-[var(--hb-text-body)] mt-1">
-                  {hiddenCostWarnings.length > 0
-                    ? `진행 중인 ${hiddenCostWarnings.length}개 카테고리에서 추가 비용이 생길 수 있는 항목이에요. 업체에 포함 여부와 별도 금액을 물어보고 서면으로 받아두세요.`
-                    : "아래 항목이 견적에 포함되는지, 별도라면 얼마인지 업체에 물어보고 서면으로 받아두세요."}
-                </p>
-              </div>
-            </div>
-            <div className="space-y-2.5 max-h-[240px] overflow-y-auto">
-              {(hiddenCostWarnings.length > 0
-                ? hiddenCostWarnings
-                : Object.keys(HIDDEN_COSTS).slice(0, 4)
-              ).map((key) => {
-                const cat = BUDGET_CATEGORIES.find((category) => category.key === key);
-                const data = HIDDEN_COSTS[key];
-                if (!cat || !data) return null;
-                const Icon = ICON_MAP[cat.icon] ?? Building2;
-                return (
-                  <div key={key} className="flex items-center gap-3 px-3 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)]">
-                    <div className="w-8 h-8 rounded-[6px] bg-white flex items-center justify-center flex-shrink-0">
-                      <Icon className="w-4 h-4 text-[var(--hb-accent-hover)]" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-[var(--hb-text-strong)]">{cat.label}</p>
-                      <p className="text-xs text-[var(--hb-text-body)] truncate">{data.warning}</p>
-                    </div>
-                    <span className="text-xs font-medium text-[var(--hb-accent-hover)] flex-shrink-0">{data.guidance}</span>
-                  </div>
-                );
-              })}
-            </div>
+        <section className="rounded-2xl border border-[var(--amora-line)] bg-white px-[18px] py-[18px] sm:rounded-[18px] sm:px-[26px] sm:py-6">
+          <h3 className="text-[14px] font-semibold text-[var(--amora-ink)] sm:text-[15px]">견적·계약 전에 확인 <span className="hidden sm:inline">· 포함·별도 항목 체크</span></h3>
+          <p className="mb-4 mt-1 text-[11.5px] leading-relaxed text-[var(--amora-muted)] sm:text-xs">아래 항목이 견적에 포함되는지, 별도라면 얼마인지 업체에 물어보고 서면으로 받아두세요.</p>
+          <div>
+            <BudgetVerificationRows categoryKeys={shownVerificationKeys} />
+            {otherVerificationKeys.length > 0 && (
+              <details className="border-t border-[var(--amora-line)]">
+                <summary className="cursor-pointer py-3 text-[11.5px] font-semibold text-[var(--amora-soft)]">다른 항목의 포함 범위 보기 ({otherVerificationKeys.length})</summary>
+                <BudgetVerificationRows categoryKeys={otherVerificationKeys} />
+              </details>
+            )}
           </div>
+        </section>
 
-          {/* AI Spotlight */}
-          <div className="relative rounded-[6px] overflow-hidden min-h-[240px] sm:min-h-[280px] bg-[var(--hb-primary)] p-6 sm:p-8 lg:p-10 flex flex-col justify-between">
-            <div className="relative">
-              <p className="text-xs tracking-widest uppercase text-[var(--hb-accent-hover)] mb-3 font-medium">
-                AI 예산 분석
-              </p>
-              <h3 className="font-serif-kr text-white mb-3 break-words">
-                어디를 먼저 확인할까요?
-              </h3>
-              <p className="text-base text-white/70 mb-6 max-w-md">
-                직접 입력한 예산·기록 지출과 확인이 필요한 포함 항목을 함께 정리해드려요.
-              </p>
-            </div>
-            <Link
-              {...weddingLinkProps("/chat")}
-              className="relative inline-flex items-center gap-2 text-base font-medium text-white border-b border-white/30 hover:border-white pb-1 transition-colors self-start"
-            >
-              아모라에게 물어보기
-              <ArrowRight className="w-4 h-4" />
-            </Link>
+        <section className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-[15px] bg-[var(--amora-ink)] px-[19px] py-[18px] text-white sm:rounded-2xl sm:px-7 sm:py-[26px]">
+          <div className="min-w-0 flex-1 basis-[280px]">
+            <p className="mb-1.5 text-[9.5px] uppercase tracking-[0.05em] text-[#b89785] sm:mb-2 sm:text-[10.5px]">AI 예산 분석</p>
+            <h3 className="planning-display mb-1.5 text-base text-white sm:mb-2 sm:text-[19px]">어디를 먼저 확인할까요?</h3>
+            <p className="max-w-[480px] text-[11.5px] leading-relaxed text-[#c9c6ba] sm:text-[12.5px]">직접 입력한 예산·기록 지출과 확인이 필요한 포함 항목을 함께 정리해드려요.</p>
           </div>
-        </div>
+          <Link {...weddingLinkProps("/chat")} className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-[9px] bg-white px-4 py-2.5 text-xs font-semibold text-[var(--amora-ink)] transition-colors hover:bg-[var(--amora-warm)] sm:px-5 sm:py-[11px] sm:text-[13px]">아모라에게 물어보기<ArrowRight className="h-3.5 w-3.5" /></Link>
+        </section>
 
-        {/* 배분 안내 */}
-        <div className="mt-4 px-2 mb-8 animate-fade-in">
-          <p className="text-[11px] text-[var(--hb-text-muted)] text-center">
-            <span className="block mb-1">
-              직접 입력하거나 계약 금액으로 확인된 예산만 합산합니다.
-            </span>
-             {totalBudget > 0 && totalAllocated < totalBudget && (
-               <span className="text-[var(--hb-accent-hover)]">
-                 항목별 예산 합계 {formatWonFull(totalAllocated)} · 아직 {formatWonFull(totalBudget - totalAllocated)}을 항목에 나누지 않았습니다.
-               </span>
-             )}
-             {totalBudget > 0 && totalAllocated > totalBudget && (
-               <span className="text-red-500">
-                 항목별 예산 합계가 총 예산보다 {formatWonFull(totalAllocated - totalBudget)} 많습니다.
-               </span>
-             )}
-             {totalBudget > 0 && totalAllocated === totalBudget && (
-               <span>항목별 예산 합계가 총 예산과 일치합니다.</span>
-             )}
-          </p>
-        </div>
+        <p className="px-0.5 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:text-[11px]">
+          직접 입력하거나 계약 금액으로 확인된 예산만 합산합니다.{" "}
+          {totalBudget > 0 && totalAllocated < totalBudget && <span>항목별 예산 합계 {formatWonFull(totalAllocated)} · 아직 {formatWonFull(totalBudget - totalAllocated)}을 항목에 나누지 않았습니다.</span>}
+          {totalBudget > 0 && totalAllocated > totalBudget && <span className="text-[#d95f5f]">항목별 예산 합계가 총 예산보다 {formatWonFull(totalAllocated - totalBudget)} 많습니다.</span>}
+          {totalBudget > 0 && totalAllocated === totalBudget && <span>항목별 예산 합계가 총 예산과 일치합니다.</span>}
+        </p>
 
         {/* 새 항목 추가 모달 */}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
-            <div className="relative bg-white rounded-[6px] w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
+            <div role="dialog" aria-modal="true" aria-label="새 항목 추가" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[420px] p-8 shadow-[var(--shadow-raised)]">
               <div className="flex items-center justify-between mb-5">
-                <h3 className="font-serif-kr text-[var(--hb-text-strong)]">새 항목 추가</h3>
+                <h3 className="text-[18px] font-semibold text-[var(--amora-ink)]">새 항목 추가</h3>
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="tap-area shrink-0 w-8 h-8 rounded-[6px] flex items-center justify-center text-[var(--hb-text-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+                  className="tap-area shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-[var(--amora-muted)] hover:bg-[var(--hb-surface-hover)] transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -1711,7 +1254,7 @@ function ScopedBudgetContent({
 
               <div className="space-y-4">
                 <div>
-                  <label className="text-[11px] text-[var(--hb-text-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--hb-accent-hover)]">*</span></label>
+                  <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">카테고리 이름 <span className="text-[var(--amora-rose-deep)]">*</span></label>
                   {/* 60자는 아모라(add_custom_category)가 거절하는 경계와 같다.
                       화면만 더 길게 받으면 아모라가 이름을 잘라 부르고, 그 잘린
                       이름으로 고치면 같은 항목이 하나 더 생긴다. */}
@@ -1727,45 +1270,46 @@ function ScopedBudgetContent({
                       }
                     }}
                     placeholder="예: 웨딩카, 답례떡"
-                    className="w-full px-4 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                    className="w-full px-4 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--amora-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[#a77b744d] transition-all"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[11px] text-[var(--hb-text-muted)] mb-1.5 block">예산 (만원)</label>
+                    <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">예산 (만원)</label>
                     <input
                       type="number"
                       value={newCatBudget}
                       onChange={(e) => setNewCatBudget(e.target.value)}
                       placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                      className="w-full px-4 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--amora-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[#a77b744d] transition-all"
                     />
                   </div>
                   <div>
-                    <label className="text-[11px] text-[var(--hb-text-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
+                    <label className="text-[11px] text-[var(--amora-muted)] mb-1.5 block">기록 지출 (만원 · 결제 확인과 별도)</label>
                     <input
                       type="number"
                       value={newCatSpent}
                       onChange={(e) => setNewCatSpent(e.target.value)}
                       placeholder="0"
-                      className="w-full px-4 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                      className="w-full px-4 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[14px] text-[var(--hb-text-strong)] placeholder:text-[var(--amora-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[#a77b744d] transition-all"
                     />
                   </div>
                 </div>
               </div>
 
+              {journeyError && <p role="alert" className="mt-4 text-[12px] leading-relaxed text-[#d95f5f]">{journeyError}</p>}
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
+                  className="flex-1 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                 >
                   취소
                 </button>
                 <button
                   onClick={() => void handleAddCategory().catch(() => undefined)}
                   disabled={!newCatLabel.trim()}
-                  className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-primary)] text-white text-[13px] font-medium disabled:opacity-40 bg-[var(--hb-text-body)] transition-colors"
+                  className="flex-1 py-2.5 rounded-lg bg-[var(--hb-primary)] text-white text-[13px] font-medium disabled:opacity-40 bg-[var(--hb-text-body)] transition-colors"
                 >
                   추가
                 </button>
@@ -1784,16 +1328,16 @@ function ScopedBudgetContent({
           return (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-[#1b1c1c]/40 backdrop-blur-sm" onClick={() => setDeletingKey(null)} />
-              <div className="relative bg-white rounded-[6px] w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
+              <div role="dialog" aria-modal="true" aria-label="예산 항목 관리" className="relative max-h-[90dvh] overflow-y-auto bg-white rounded-2xl w-[90%] max-w-[380px] p-6 shadow-[var(--shadow-raised)]">
                 <div className="flex items-center gap-3 mb-4">
                   <div className="w-11 h-11 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-5 h-5 text-red-400" />
                   </div>
                   <div>
-                    <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
+                    <h3 className="text-[18px] font-semibold text-[var(--amora-ink)]">
                       {isFixed ? "항목 관리" : "항목 삭제"}
                     </h3>
-                    <p className="text-[12px] text-[var(--hb-text-muted)] mt-0.5">
+                    <p className="text-[12px] text-[var(--amora-muted)] mt-0.5">
                       <span className="font-medium text-[var(--hb-text-body)]">{catLabel}</span>
                       {isFixed
                         ? " — 데이터만 초기화하거나 목록에서 삭제할 수 있습니다."
@@ -1802,6 +1346,7 @@ function ScopedBudgetContent({
                   </div>
                 </div>
 
+                {journeyError && <p role="alert" className="mt-4 text-[12px] leading-relaxed text-[#d95f5f]">{journeyError}</p>}
                 <div className={`flex gap-3 mt-5 ${isFixed ? "flex-col" : ""}`}>
                   {isFixed ? (
                     <>
@@ -1810,7 +1355,7 @@ function ScopedBudgetContent({
                           onClick={() => {
                             void handleResetCategory(deletingKey).catch(() => undefined);
                           }}
-                          className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-accent-hover)] font-medium bg-[#f3e9df] transition-colors"
+                          className="flex-1 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[13px] text-[var(--amora-rose-deep)] font-medium bg-[#f3e9df] transition-colors"
                         >
                           데이터 초기화
                         </button>
@@ -1818,14 +1363,14 @@ function ScopedBudgetContent({
                           onClick={() => {
                             void handleDeleteCategory(deletingKey).catch(() => undefined);
                           }}
-                          className="flex-1 py-2.5 rounded-[6px] bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                          className="flex-1 py-2.5 rounded-lg bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                         >
                           항목 삭제
                         </button>
                       </div>
                       <button
                         onClick={() => setDeletingKey(null)}
-                        className="py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
+                        className="py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                       >
                         취소
                       </button>
@@ -1834,7 +1379,7 @@ function ScopedBudgetContent({
                     <>
                       <button
                         onClick={() => setDeletingKey(null)}
-                        className="flex-1 py-2.5 rounded-[6px] bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
+                        className="flex-1 py-2.5 rounded-lg bg-[var(--hb-surface-hover)] text-[13px] text-[var(--hb-text-body)] hover:bg-[#EFEBEA] transition-colors"
                       >
                         취소
                       </button>
@@ -1842,7 +1387,7 @@ function ScopedBudgetContent({
                         onClick={() => {
                           void handleDeleteCategory(deletingKey).catch(() => undefined);
                         }}
-                        className="flex-1 py-2.5 rounded-[6px] bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
+                        className="flex-1 py-2.5 rounded-lg bg-red-400 text-white text-[13px] font-medium hover:bg-red-500 transition-colors"
                       >
                         삭제
                       </button>

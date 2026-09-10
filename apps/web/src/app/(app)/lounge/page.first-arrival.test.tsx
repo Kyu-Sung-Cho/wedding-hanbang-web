@@ -175,25 +175,28 @@ describe("웨딩 라운지 첫 도착", () => {
     expect(container.querySelector('[data-tutorial-target="lounge-invite"]')).not.toBeNull();
   });
 
-  it("첫 실행 안내가 짚을 앵커 3개가 그대로 남아 있다", async () => {
+  it("첫 실행 안내가 짚을 앵커와 실제 아모라 진입 링크가 남아 있다", async () => {
     await act(async () => {
       root.render(<LoungePage />);
     });
 
-    for (const target of ["lounge-focus", "lounge-tools", "lounge-invite"]) {
+    for (const target of ["lounge-focus", "lounge-tools", "lounge-invite", "amora-fab"]) {
       expect(
         container.querySelector(`[data-tutorial-target="${target}"]`),
       ).not.toBeNull();
     }
   });
 
-  it("오늘의 미션을 한 번만 배치하고 이전 중복 추천 대신 예산·일정 도구를 유지한다", async () => {
+  it("허브의 단계와 피드를 한 번씩 배치하고 공유 할 일·예산·일정 도구를 유지한다", async () => {
     await act(async () => { root.render(<LoungePage />); });
     const missions = container.querySelectorAll('#today-missions[data-tutorial-target="lounge-focus"]');
     expect(missions).toHaveLength(1);
-    expect(missions[0].getAttribute("aria-labelledby")).toBe("today-missions-title");
-    expect(missions[0].querySelector("#today-missions-title")?.textContent).toBe("오늘의 미션");
-    expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(5);
+    expect(missions[0].getAttribute("aria-labelledby")).toBe("lounge-priority-title");
+    expect(missions[0].querySelector("#lounge-priority-title")?.textContent).toBe("오늘 먼저 확인할 준비");
+    expect(container.querySelectorAll('section[aria-label="결혼 준비 단계"] a')).toHaveLength(5);
+    expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(0);
+    expect(container.querySelectorAll('#lounge-shared-missions')).toHaveLength(1);
+    expect(container.querySelector('[data-tutorial-target="amora-fab"]')?.getAttribute("href")).toMatch(/^\/wedding\/chat\?prefill=/);
     expect(container.querySelectorAll('#daily-amora-focus-title')).toHaveLength(1);
     expect(container.textContent).not.toMatch(/지금 먼저 볼 것|놓치기 쉬운 항목/);
     expect(container.querySelector('[data-tutorial-target="lounge-tools"] a[href="/wedding/budget"]')).not.toBeNull();

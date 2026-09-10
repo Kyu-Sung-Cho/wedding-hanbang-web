@@ -135,8 +135,8 @@ describe("BudgetShareChart", () => {
     // 375px 목록에서 구별되지 않았다. 색이 겹치면 목록과 도넛을 짝지을 수 없다.
     mounted = render(<BudgetShareChart slices={many} basis="spent" />);
     const dots = Array.from(
-      mounted.container.querySelectorAll<HTMLElement>("li span[aria-hidden='true']"),
-    ).map((dot) => dot.style.backgroundColor);
+      mounted.container.querySelectorAll<SVGCircleElement>("li svg[aria-hidden='true'] circle"),
+    ).map((dot) => dot.getAttribute("fill"));
 
     expect(dots).toHaveLength(8);
     expect(new Set(dots).size).toBe(8);

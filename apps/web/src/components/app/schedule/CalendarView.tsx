@@ -40,10 +40,10 @@ interface Props {
   assigneeContext?: ScheduleEventAssigneeContext;
 }
 
-const WEDDING_DAY_COLOR = "bg-gradient-to-br from-[#B07834] to-[#D0A15F]";
-const PERSONAL_EVENT_COLOR = "bg-[#5E748C]";
-const PERSONAL_EVENT_SOFT_COLOR = "bg-[#5E748C]/10";
-const PERSONAL_EVENT_TEXT_COLOR = "text-[#5E748C]";
+const WEDDING_DAY_COLOR = "bg-[var(--amora-rose)]";
+const PERSONAL_EVENT_COLOR = "bg-[var(--amora-accent)]";
+const PERSONAL_EVENT_SOFT_COLOR = "bg-[var(--amora-accent)]/10";
+const PERSONAL_EVENT_TEXT_COLOR = "text-[var(--amora-accent)]";
 
 export default function CalendarView({
   weddingDate,
@@ -81,31 +81,35 @@ export default function CalendarView({
   return (
     <div>
       {/* 월 네비게이션 */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-4 flex items-center justify-between gap-2">
         <button
+          type="button"
+          aria-label="이전 달"
           onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
+          className="tap-area flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg bg-[var(--amora-warm)] text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-low)]"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <h3 className="font-serif-kr text-[var(--hb-text-strong)]">
+        <h3 className="planning-display text-[16px] text-[var(--amora-ink)] lg:text-[14px]">
           {format(currentMonth, "yyyy년 M월", { locale: ko })}
         </h3>
         <button
+          type="button"
+          aria-label="다음 달"
           onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}
-          className="tap-area shrink-0 w-9 h-9 rounded-[6px] bg-[var(--hb-surface-hover)] flex items-center justify-center text-[var(--hb-text-body)] hover:bg-[var(--hb-primary)] hover:text-white transition-colors"
+          className="tap-area flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg bg-[var(--amora-warm)] text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-low)]"
         >
           <ChevronRight className="w-4 h-4" />
         </button>
       </div>
 
       {/* 요일 헤더 */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
+      <div className="mb-1 grid grid-cols-7">
         {WEEKDAYS.map((day) => (
           <div
             key={day}
-            className={`text-center text-sm uppercase tracking-widest font-medium py-1.5 ${
-              day === "일" ? "text-red-400" : day === "토" ? "text-blue-400" : "text-[var(--hb-text-muted)]"
+            className={`py-1.5 text-center text-[9.5px] font-medium ${
+              day === "일" ? "text-[var(--amora-rose-deep)]" : day === "토" ? "text-[var(--amora-accent)]" : "text-[var(--amora-muted)]"
             }`}
           >
             {day}
@@ -114,7 +118,7 @@ export default function CalendarView({
       </div>
 
       {/* 캘린더 그리드 */}
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7">
         {calendarDays.map((day) => {
           const inMonth = isSameMonth(day, currentMonth);
           const isToday = today ? isSameDay(day, today) : false;
@@ -126,37 +130,38 @@ export default function CalendarView({
           return (
             <button
               key={day.toISOString()}
+              type="button"
+              aria-label={`${format(day, "yyyy년 M월 d일 EEEE", { locale: ko })}${isWedding ? ", 결혼식" : ""}${dayEvents.length ? `, 등록 일정 ${dayEvents.length}건` : ""}`}
+              aria-pressed={Boolean(isSelected)}
+              aria-current={isToday ? "date" : undefined}
               onClick={() => setSelectedDate(isSelected ? null : day)}
-              className={`relative aspect-square rounded-[6px] flex flex-col items-center justify-center gap-0.5 text-[15px] transition-all ${
-                !inMonth
-                  ? "text-[var(--hb-text-muted)]/40"
-                  : isWedding
-                  ? `${WEDDING_DAY_COLOR} text-white font-medium shadow-md`
-                  : isSelected
-                  ? "bg-[var(--hb-primary)] text-white font-medium"
+              className={`no-min-tap relative flex h-11 flex-col items-center justify-center gap-0.5 border-t border-[var(--amora-line)] text-[12px] transition-colors lg:h-[32px] lg:text-[10.5px] ${
+                isSelected
+                  ? "rounded-lg bg-[var(--amora-ink)] text-white"
                   : isToday
-                  ? "ring-2 ring-[#795252] bg-white text-[var(--hb-accent-hover)] font-medium"
+                  ? "rounded-lg bg-[var(--amora-warm)] text-[var(--amora-rose-deep)] ring-1 ring-inset ring-[var(--amora-rose)]"
+                  : !inMonth
+                  ? "text-[var(--amora-muted)]/45"
                   : dayNum === 0
-                  ? "text-red-400 hover:bg-[#FAFAF8]"
+                  ? "text-[var(--amora-rose-deep)] hover:bg-[var(--amora-warm)]"
                   : dayNum === 6
-                  ? "text-blue-400 hover:bg-[#FAFAF8]"
-                  : "text-[var(--hb-text-strong)] hover:bg-[#FAFAF8]"
+                  ? "text-[var(--amora-accent)] hover:bg-[var(--amora-warm)]"
+                  : "text-[var(--amora-ink)] hover:bg-[var(--amora-warm)]"
               }`}
             >
-              <span className={isToday || isWedding || isSelected ? "font-serif-kr" : "font-serif-kr font-light"}>
-                {format(day, "d")}
-              </span>
+              <span>{format(day, "d")}</span>
               {/* 실제 등록 일정 점 */}
-              {inMonth && dayEvents.length > 0 && (
-                <div className="flex gap-0.5">
+              {inMonth && (isWedding || dayEvents.length > 0) && (
+                <div aria-hidden="true" className="absolute bottom-1 flex gap-0.5">
+                  {isWedding && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : WEDDING_DAY_COLOR}`} />}
                   {dayEvents.slice(0, 2).map((event, i) => (
                     <div
                       key={`e${i}`}
-                      className={`w-1.5 h-1.5 rounded-full ${
-                        isWedding || isSelected
+                      className={`h-1 w-1 rounded-full ${
+                        isSelected
                           ? "bg-white/70"
                           : getScheduleEventStatus(event) === "completed"
-                            ? "bg-[#6D806E]"
+                            ? "bg-[var(--amora-sage)]"
                             : PERSONAL_EVENT_COLOR
                       }`}
                     />
@@ -169,32 +174,32 @@ export default function CalendarView({
       </div>
 
       {/* 범례 */}
-      <div className="flex items-center gap-4 mt-5 px-2 flex-wrap">
+      <div className="mt-3 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
-          <div className={`w-3 h-3 rounded-full ${WEDDING_DAY_COLOR}`} />
-          <span className="text-sm text-[var(--hb-text-body)]">결혼식</span>
+          <div className={`h-1.5 w-1.5 rounded-full ${WEDDING_DAY_COLOR}`} />
+          <span className="text-[10px] text-[var(--amora-muted)]">결혼식</span>
         </div>
         <div className="flex items-center gap-1.5">
-          <div className={`w-3 h-3 rounded-full ${PERSONAL_EVENT_COLOR}`} />
-          <span className="text-sm text-[var(--hb-text-body)]">등록 일정</span>
+          <div className={`h-1.5 w-1.5 rounded-full ${PERSONAL_EVENT_COLOR}`} />
+          <span className="text-[10px] text-[var(--amora-muted)]">등록 일정</span>
         </div>
       </div>
 
       {/* 선택된 날짜 상세 */}
       {selectedDate && (
         <div
-          className="mt-5 overflow-hidden animate-fade-in"
+          className="mt-4 border-t border-[var(--amora-line)] pt-4 animate-fade-in"
         >
-          <div className="bg-[var(--hb-surface-hover)] rounded-[6px] p-5">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-serif-kr text-[17px] font-normal text-[var(--hb-text-strong)]">
+          <div className="rounded-xl bg-[var(--amora-warm)] p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[12px] font-semibold text-[var(--amora-ink)]">
                 {format(selectedDate, "M월 d일 (EEEE)", { locale: ko })}
               </p>
               <button
                 onClick={() =>
                   onAddEvent(format(selectedDate, "yyyy-MM-dd"))
                 }
-                className="flex items-center gap-1.5 text-sm text-[var(--hb-accent-hover)] hover:text-[var(--hb-accent-hover)] transition-colors"
+                className="tap-area flex items-center gap-1 rounded-full border border-[var(--amora-line)] bg-white px-2 py-1 text-[10.5px] text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-low)]"
               >
                 <Plus className="w-4 h-4" />
                 일정 추가
@@ -213,16 +218,16 @@ export default function CalendarView({
                   <button
                     key={evt.id}
                     onClick={() => onEditEvent(evt)}
-                    className="w-full rounded-[6px] bg-white p-3.5 text-left transition-shadow hover:shadow-[var(--shadow-raised)]"
+                    className="w-full rounded-lg border border-[var(--amora-line)] bg-white p-3 text-left transition-colors hover:border-[var(--amora-rose)]"
                   >
-                    <div className="flex items-start gap-3">
-                      <div className={`mt-2 w-2.5 h-2.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
+                    <div className="flex items-start gap-2">
+                      <div className={`mt-1.5 h-1.5 w-1.5 rounded-full flex-shrink-0 ${PERSONAL_EVENT_COLOR}`} />
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <p
-                            className={`font-serif-kr text-base font-normal ${
+                            className={`text-[12px] font-semibold ${
                               isCompleted
-                                ? "text-[var(--hb-success)] line-through"
+                                ? "text-[var(--amora-sage)] line-through"
                                 : "text-[var(--hb-text-strong)]"
                             }`}
                           >
@@ -230,48 +235,48 @@ export default function CalendarView({
                           </p>
                           <div className="flex flex-wrap items-center justify-end gap-1.5">
                             <span
-                              className={`shrink-0 rounded-full px-2 py-0.5 text-sm font-medium ${
+                              className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-medium ${
                                 isCompleted
-                                  ? "bg-[#C7D1C2]/45 text-[#4F6451]"
+                                  ? "bg-[var(--amora-sage-pale)] text-[var(--amora-soft)]"
                                   : `${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR}`
                               }`}
                             >
                               {isCompleted ? "완료" : "예정"}
                             </span>
                             {evt.categoryKey && (
-                              <span className={`shrink-0 text-sm px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
+                              <span className={`shrink-0 text-[9px] px-2 py-0.5 rounded-full ${PERSONAL_EVENT_SOFT_COLOR} ${PERSONAL_EVENT_TEXT_COLOR} font-medium`}>
                                 {CATEGORY_LABELS[evt.categoryKey] ?? evt.categoryKey}
                               </span>
                             )}
                           </div>
                         </div>
-                        <p className="mt-1.5 text-[12px] font-medium text-[var(--hb-text-body)]">
+                        <p className="mt-1.5 text-[10.5px] text-[var(--hb-text-body)]">
                           담당 · {getScheduleEventAssigneeLabel(
                             evt.assignee,
                             assigneeContext,
                           )}
                         </p>
                         {evt.time && (
-                          <p className="mt-1 text-[12px] font-medium text-[var(--hb-text-body)]">
+                          <p className="mt-1 text-[10.5px] text-[var(--hb-text-body)]">
                             시간 · {evt.time}
                           </p>
                         )}
                         {evt.completionCriteria && (
-                          <div className="mt-2 rounded-[6px] border border-[#d8e1d5] bg-[#f7faf6] px-3 py-2">
-                            <p className="mb-1 text-[11px] font-semibold text-[#4F6451]">
+                          <div className="mt-2 rounded-lg border border-[var(--amora-sage-pale)] bg-[var(--amora-sage-pale)]/40 px-3 py-2">
+                            <p className="mb-1 text-[11px] font-semibold text-[var(--amora-soft)]">
                               완료 기준
                             </p>
-                            <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[#526056]">
+                            <p className="whitespace-pre-wrap break-words text-[11px] leading-[1.65] text-[var(--amora-soft)]">
                               {evt.completionCriteria}
                             </p>
                           </div>
                         )}
                         {shouldShowMemo && (
-                          <div className="mt-2 rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[#fffdf8] px-3 py-2">
-                            <p className="mb-1 text-[11px] font-semibold text-[var(--hb-accent-hover)]">
+                          <div className="mt-2 rounded-lg border border-[var(--amora-line)] bg-[var(--amora-bg)] px-3 py-2">
+                            <p className="mb-1 text-[11px] font-semibold text-[var(--amora-rose-deep)]">
                               메모
                             </p>
-                            <p className="whitespace-pre-wrap break-words text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
+                            <p className="whitespace-pre-wrap break-words text-[11px] leading-[1.65] text-[var(--hb-text-body)]">
                               {memoText}
                             </p>
                           </div>
@@ -284,7 +289,7 @@ export default function CalendarView({
 
               {/* 빈 날짜 */}
               {selectedEvents.length === 0 && (
-                <p className="text-base text-[var(--hb-text-muted)] text-center py-4">
+                <p className="py-3 text-center text-[11px] text-[var(--amora-muted)]">
                   이 날짜에 등록된 일정이 없습니다
                 </p>
               )}
@@ -299,11 +304,11 @@ export default function CalendarView({
           예식일이 멀면 「날짜를 정할 항목」도 비어(창이 60일) 화면에 단서가 하나도
           없어진다. 문구는 이미 있던 것을 그대로 쓴다. */}
       {(!weddingDate || activeEvents.length === 0) && (
-        <div className="mt-6 text-center py-8">
-          <p className="text-[17px] text-[var(--hb-text-body)]">
+        <div className="mt-4 rounded-lg bg-[var(--amora-warm)] px-3 py-3 text-center">
+          <p className="text-[11px] leading-[1.7] text-[var(--amora-soft)]">
             날짜를 정한 일정만 캘린더에 표시됩니다
           </p>
-          <p className="text-base text-[var(--hb-text-muted)] mt-1">
+          <p className="mt-1 text-[10px] leading-[1.7] text-[var(--amora-muted)]">
             위의 일정 추가 버튼으로 실제 날짜를 등록해 주세요
           </p>
         </div>

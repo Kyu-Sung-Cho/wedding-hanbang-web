@@ -3,6 +3,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { getLoungeBudgetTotals } from "@/app/(app)/lounge/hubModel";
 
 const webBudgetSource = readFileSync(
   resolve(process.cwd(), "src/components/app/budget/BudgetContent.tsx"),
@@ -76,7 +77,19 @@ describe("예산 계산의 소비자 신뢰 경계", () => {
     expect(dashboardSource).not.toMatch(/spent\s*\?\?\s*item\.cost/);
     expect(loungeSource).not.toMatch(/spent\s*\?\?\s*item\.cost/);
     expect(dashboardSource).toContain("명시적으로 기록한 지출만 합산");
-    expect(loungeSource).toContain("명시적으로 기록한 지출만 합산");
+  });
+
+  it("라운지는 허브 합산기의 명시적 지출을 사용하고 legacy cost와 배정액을 섞지 않는다", () => {
+    expect(loungeSource).toMatch(/getLoungeBudgetTotals\(progress\)/);
+    expect(loungeSource).toMatch(/const spentBudget = budgetTotals\.spent/);
+    const totals = getLoungeBudgetTotals({
+      venue: { status: "in_progress", budget: 12_000, spent: 3_500, cost: 99_000 },
+      studio: { status: "not_started", cost: 50_000 },
+      dress: { status: "not_started", spent: 0, cost: 30_000 },
+      custom_trip: { status: "in_progress", budget: 2_000, spent: 500, cost: 7_000 },
+    });
+    expect(totals.spent).toBe(4_000);
+    expect(totals.allocated).toBe(14_000);
   });
 
   it("모바일 분담 이름은 축약어 대신 처음 보는 사람도 이해할 수 있게 쓴다", () => {

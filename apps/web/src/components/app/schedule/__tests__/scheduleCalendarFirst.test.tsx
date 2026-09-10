@@ -7,25 +7,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ScheduleContent from "../ScheduleContent";
 
 /**
- * 일정 화면이 **달력을 먼저** 보여주는지, 그리고 **빈 달력을 먼저 보여주지 않는지** 본다.
- *
- * ## 왜 달력이 기본인가
- *
- * 타임라인은 체크리스트 화면과 같은 것을 그린다 — 같은 상수, 같은 병합 함수, 같은 토글
- * 핸들러를 쓰고 D-day 구간으로 묶기만 한다(`TimelineView.tsx` 의 `CATEGORY_CHECKLISTS`
- * 임포트). 일정 화면이 체크리스트를 한 번 더 그릴 이유가 없다.
- *
- * ## 왜 순서가 검사 대상인가
- *
- * 달력은 **날짜를 정한 일정만** 그린다. 운영 54 커플을 실제로 세어 보니 등록한 일정이
- * 0 건인 커플이 절반이 넘었고, 3 건 이상은 3 커플뿐이었다. 그래서 기본값만 달력으로
- * 바꾸면 대부분에게 **점 하나 없는 격자**가 첫 화면이 된다.
- *
- * 그 커플에게 필요한 것은 격자가 아니라 **거기서 나가는 문**이다 — 「날짜를 정할 항목」의
- * 각 행에 붙은 `날짜 잡기`. 그래서 일정이 없으면 그 블록이 달력보다 위에 온다.
- *
- * 이 순서가 이 변경의 핵심이고, 기본값 한 줄만 남고 순서가 사라지면 화면이 죽는다.
- * 그래서 기본값과 순서를 함께 고정한다.
+ * 승인된 모바일 일정 화면은 다가오는 일정 → 달력/추가 → 기본 확인 항목 순서다.
+ * 일정이 없어도 날짜를 추가할 수 있는 달력과 버튼이 기본 확인 목록보다 먼저 온다.
+ * 기존 체크리스트 타임라인은 사용자가 선택할 때만 표시한다.
  */
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -166,13 +150,13 @@ describe("일정 화면은 달력을 먼저 보여준다", () => {
     ).not.toContain(TIMELINE_MARK);
   });
 
-  it("타임라인은 없어지지 않았다 — 토글로 갈 수 있다", async () => {
+  it("단계별 준비 버튼으로 기존 체크리스트 타임라인을 열 수 있다", async () => {
     // 지운 것이 아니라 기본값만 옮겼다. 되돌릴 길이 남아 있는지 확인한다.
     await mount({ wedding_date: weddingDateWithImminentCategories(), progress: {} });
     const toggle = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.trim() === "타임라인",
+      (b) => b.textContent?.trim() === "단계별 준비",
     );
-    expect(toggle, "타임라인 토글이 사라졌다").toBeInstanceOf(HTMLButtonElement);
+    expect(toggle, "단계별 준비 버튼이 사라졌다").toBeInstanceOf(HTMLButtonElement);
     await act(async () => {
       toggle?.click();
       await Promise.resolve();
@@ -180,7 +164,7 @@ describe("일정 화면은 달력을 먼저 보여준다", () => {
     expect(container.textContent).toContain(TIMELINE_MARK);
   });
 
-  it("등록한 일정이 없으면 「날짜를 정할 항목」이 달력보다 위에 온다", async () => {
+  it("등록한 일정이 없어도 달력과 추가 버튼을 기본 확인 목록보다 먼저 보여준다", async () => {
     const text = await mount({
       wedding_date: weddingDateWithImminentCategories(),
       progress: {},
@@ -191,9 +175,15 @@ describe("일정 화면은 달력을 먼저 보여준다", () => {
     const calendar = markNode(container, CALENDAR_MARK);
     expect(imminent, "「날짜를 정할 항목」이 아예 없다").not.toBeNull();
     expect(
-      comesBefore(imminent, calendar),
-      "일정이 0건인데 빈 달력이 먼저 온다 — 그 커플에게는 달력에서 나가는 문이 먼저여야 한다",
+      comesBefore(calendar, imminent),
+      "기본 확인 목록이 달력을 밀어냈다 — 날짜를 확인하고 추가하는 동작이 먼저 와야 한다",
     ).toBe(true);
+    const addButton = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent?.trim() === "일정 추가" && comesBefore(button, calendar),
+    );
+    expect(addButton).toBeInstanceOf(HTMLButtonElement);
+    await act(async () => addButton?.click());
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("일정 추가");
   });
 
   it("등록한 일정이 없으면 「다가오는 일정」 빈 블록을 띄우지 않는다", async () => {
