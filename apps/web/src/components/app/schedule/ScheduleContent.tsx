@@ -884,7 +884,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     <p className="mt-1 text-[12px] leading-5 text-[var(--hb-text-body)]">
                       기존 날짜 {event.date}{event.time ? ` ${event.time}` : ""}
                       {event.cancellation
-                        ? ` · 취소 시각 ${event.cancellation.cancelledAt.slice(0, 10)}`
+                        ? ` · 취소 시각 ${ymdInKst(new Date(event.cancellation.cancelledAt))}`
                         : ""}
                     </p>
                     {event.cancellation?.reason && (

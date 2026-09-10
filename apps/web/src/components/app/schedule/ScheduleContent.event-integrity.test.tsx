@@ -351,7 +351,10 @@ describe("ScheduleContent event mutation integrity", () => {
     );
   });
 
-  it("shows cancelled events separately and restores them as planned", async () => {
+  it.each([
+    ["2026-08-01T12:30:00.000Z", "2026-08-01"],
+    ["2026-08-01T15:00:00.000Z", "2026-08-02"],
+  ])("shows cancellation date in KST (%s) and restores the event as planned", async (cancelledAt, expectedDate) => {
     const serverSummary =
       "일정 복원: 스튜디오 미팅 · 날짜: 2027-05-01 → 2027-05-01 · 시간: 없음 → 없음 · 상태: 취소 → 예정 · 취소 기록: 있음 → 제거";
     authState.updateJourney.mockResolvedValueOnce({
@@ -366,10 +369,10 @@ describe("ScheduleContent event mutation integrity", () => {
           ...VALID_EVENT,
           status: "cancelled",
           cancellation: {
-            cancelledAt: "2026-08-01T12:30:00.000Z",
+            cancelledAt,
             cancelledByProfileId: authState.profile.id,
           },
-          updatedAt: "2026-08-01T12:30:00.000Z",
+          updatedAt: cancelledAt,
         }],
       },
     };
@@ -381,7 +384,7 @@ describe("ScheduleContent event mutation integrity", () => {
     await showTimeline(container);
     expect(container.textContent).toContain("취소됨");
     expect(container.textContent).toContain(VALID_EVENT.title);
-    expect(container.textContent).toContain("2026-08-01");
+    expect(container.textContent).toContain(`취소 시각 ${expectedDate}`);
 
     await act(async () => {
       findButton(container, "복원 요청").click();
