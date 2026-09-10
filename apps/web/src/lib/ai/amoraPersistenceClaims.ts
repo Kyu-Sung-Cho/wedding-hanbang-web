@@ -137,7 +137,35 @@ const EXPLICIT_CHANGE_REQUEST_PATTERN =
 
 export function isExplicitAmoraChangeRequest(userText: string): boolean {
   if (typeof userText !== "string") return false;
-  return EXPLICIT_CHANGE_REQUEST_PATTERN.test(userText.normalize("NFKC"));
+  const text = userText.normalize("NFKC");
+  const withoutProhibitions = text.replace(/(?:저장|수정|추가|등록|반영|변경|삭제|적용)(?:\s*(?:하거나|하고|및|또는|[/·,])?\s*(?:저장|수정|추가|등록|반영|변경|삭제|적용))*\s*(?:금지|하지\s*(?:말고|말아(?:줘)?|마(?:세요)?))/gu, "");
+  // 조회에 붙인 쓰기 금지는 요청이 아니다. 독립적인 긍정 변경 동사는 남겨 두어
+  // '일정 수정 금지, 예산 변경해줘' 같은 혼합 요청을 조회로 오인하지 않는다.
+  if (withoutProhibitions !== text
+    && /조회|알려\s*(?:줘|주세요)|보여\s*(?:줘|주세요)/u.test(withoutProhibitions)
+    && !/(?:추가|등록|저장|반영|변경|수정|삭제|취소|적용|설정|기록)(?:해\s*(?:줘|주세요|주|줄)|하자|해라)|(?:바꿔|고쳐|지워|옮겨|넣어|잡아|미뤄|당겨|올려|내려|줄여|늘려|맞춰|정해)\s*(?:줘|주세요|주|줄)|완료\s*처리\s*해/u.test(withoutProhibitions)) return false;
+  return EXPLICIT_CHANGE_REQUEST_PATTERN.test(withoutProhibitions);
+}
+
+export const SERVER_OWNED_MISSING_CARD_NOTICE =
+  "이번 답변에서는 확인 카드를 만들지 못했어요. 아직 반영하지 않았어요. 추가할 내용을 확인한 뒤 다시 요청해주세요.";
+
+function removeUnemittedCardClaims(text: string, hasEmittedPendingAction: boolean): { text: string; removedCount: number } {
+  if (hasEmittedPendingAction) return { text, removedCount: 0 };
+  // 인용·예시 자체는 UI가 있다는 주장이 아니다. 문장 경계는 그대로 보존한다.
+  const masked = text.replace(/```[\s\S]*?```|`[^`]*`|‘[^’]*’|“[^”]*”|"[^"\r\n]*"|'[^'\r\n]*'/g,
+    match => match.replace(/[^\r\n.!?。！？]/g, " "));
+  const claims = splitAmoraClaimSegments(masked);
+  const sources = splitAmoraClaimSegments(text);
+  let removedCount = 0;
+  const kept = sources.filter((_segment, index) => {
+    const claim = (claims[index]?.claim ?? "").replace(/[*_]/g, "");
+    if (/[?？]$/.test(claim)) return true;
+    const missingCard = /확인\s*카드(?:입니다|예요|에요)|확인\s*카드(?:를|가|이)?\s*(?:준비했|만들었|보여\s*드릴게|보여\s*드렸|확인해\s*주세요)|확인\s*카드(?:가|는)\s*있(?:어요|습니다)|적용\s*버튼(?:이\s*있(?:어요|습니다)|을\s*(?:눌러\s*주세요|누르세요))/u.test(claim);
+    if (missingCard) removedCount += 1;
+    return !missingCard;
+  });
+  return { text: removedCount ? kept.map(segment => segment.source).join("").trim() : text, removedCount };
 }
 
 export const SERVER_OWNED_EMPTY_ANSWER_NOTICE =
@@ -186,6 +214,7 @@ function composeTerminalCandidate({
   text,
   toolResults,
   hasPendingAction,
+  hasEmittedPendingAction = hasPendingAction,
   persistenceMode,
   demoUserText = "",
   userRequestedChange = true,
@@ -194,6 +223,8 @@ function composeTerminalCandidate({
   text: string;
   toolResults: readonly ToolExecutionResult[];
   hasPendingAction: boolean;
+  /** 실제 최종 metadata에 발행되는 새 카드 또는 이월 카드의 존재 여부. */
+  hasEmittedPendingAction?: boolean;
   persistenceMode: "durable" | "demo";
   demoUserText?: string;
   /**
@@ -239,7 +270,8 @@ function composeTerminalCandidate({
   // 훼손된다. 여기부터가 제공자 산문이므로, 사용자가 검증할 수 없는 약속과 사람에
   // 대한 판정을 먼저 걷어낸다. 저장 주장 검사와 같은 문장 단위를 쓴다.
   const trustScreened = screenAmoraTrustClaims(text);
-  const trustCorrected = trustScreened.removedCount > 0;
+  const cardScreened = removeUnemittedCardClaims(trustScreened.text, hasEmittedPendingAction);
+  const trustCorrected = trustScreened.removedCount > 0 || cardScreened.removedCount > 0;
   // 미래형 저장 약속은 **이번 턴에 아무것도 저장되지 않았을 때만** 지운다
   // (2026-09-03). 영수증이 있는 턴은 위에서 이미 반환됐고, 카드가 난 턴의 본문은
   // 서버가 만든 확인문이라 검사하면 서버 문구를 훼손한다.
@@ -253,7 +285,7 @@ function composeTerminalCandidate({
     && !userRequestedChange
     && toolResults.some((result) =>
       result.success === true && !isMutatingTool(result.toolName));
-  const sanitized = removeUnverifiedPersistenceClaims(trustScreened.text, {
+  const sanitized = removeUnverifiedPersistenceClaims(cardScreened.text, {
     includeFuturePromise: !hasPendingAction,
     keepStateDescriptions: verifiedByRead,
   });
@@ -284,6 +316,14 @@ function composeTerminalCandidate({
   // **되묻고** 끝난 턴에 "변경할 내용을 확인한 뒤 다시 요청해주세요" 가 붙어, 질문과 안내가
   // 서로 다른 다음 행동을 요구했다. 되묻기 자체가 다음 단계다 — 카드가 살아 있는 턴만 빼고
   // 안내를 붙이지 않는다.
+  if (cardScreened.removedCount > 0) {
+    return {
+      text: [sanitized.text, SERVER_OWNED_MISSING_CARD_NOTICE].filter(Boolean).join("\n\n"),
+      corrected: true,
+      removedClaimCount: sanitized.removedClaimCount + cardScreened.removedCount,
+      source: "server_correction",
+    };
+  }
   const endsWithQuestion = /[?？]\s*$/u.test(sanitized.text.trim());
   if (sanitized.removedClaimCount === 0) {
     // 실제 변경 요청의 표식 실패만 안내한다. 모델의 자발적 표식은 요청의 근거가 아니다.

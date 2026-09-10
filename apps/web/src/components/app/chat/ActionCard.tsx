@@ -343,6 +343,7 @@ function BudgetChangeMiniCard({ result }: { result: ToolExecutionResult }) {
 interface BudgetAllocation {
   category: string;
   budget: number;
+  label?: string;
 }
 
 function readBudgetAllocations(value: unknown): BudgetAllocation[] {
@@ -352,8 +353,25 @@ function readBudgetAllocations(value: unknown): BudgetAllocation[] {
     const allocation = candidate as Record<string, unknown>;
     const budget = readWonAmount(allocation.budget);
     if (typeof allocation.category !== "string" || budget === null) return [];
-    return [{ category: allocation.category, budget }];
+    const label = typeof allocation.label === "string"
+      && allocation.label === allocation.label.trim()
+      && allocation.label.length > 0
+      && allocation.label.length <= 60
+      && !/[\p{Cc}\p{Cf}\u2028\u2029]/u.test(allocation.label)
+      ? allocation.label
+      : undefined;
+    return [{ category: allocation.category, budget, label }];
   });
+}
+
+function budgetAllocationLabel(allocation: BudgetAllocation): string {
+  if (Object.hasOwn(CATEGORY_LABELS, allocation.category)) {
+    return CATEGORY_LABELS[allocation.category];
+  }
+  return allocation.label
+    ?? (allocation.category === "custom" || allocation.category.startsWith("custom_")
+      ? "사용자 항목"
+      : "예산 항목");
 }
 
 function BudgetPlanMiniCard({ result }: { result: ToolExecutionResult }) {
@@ -402,13 +420,13 @@ function BudgetPlanMiniCard({ result }: { result: ToolExecutionResult }) {
       )}
       {allocations.length > 0 && (
         <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
-          {allocations.map((allocation) => (
+          {allocations.map((allocation, index) => (
             <div
-              key={allocation.category}
+              key={`${allocation.category}:${index}`}
               className="flex items-center justify-between gap-3 text-sm"
             >
               <span className="truncate text-[var(--hb-text-body)]">
-                {CATEGORY_LABELS[allocation.category] ?? allocation.category}
+                {budgetAllocationLabel(allocation)}
               </span>
               <span className="shrink-0 font-medium tabular-nums text-[var(--hb-text-strong)]">
                 {formatWon(allocation.budget)}

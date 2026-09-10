@@ -157,6 +157,8 @@ import {
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
+import { parseExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
+import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
 import {
   AMORA_MAX_TOOL_ROUNDS,
   AMORA_MAX_TOOL_CALLS_PER_TURN,
@@ -4004,7 +4006,20 @@ export async function POST(request: Request) {
           );
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
-          const explicitBudgetPlan = pendingOfferEnabled && !approvedPendingAction
+          const budgetAssessment = !isDemo && requestKind === "chat" && isDurableUserMessageBound
+            && visibility === "shared" && questionScope.scope === "W0_wedding_core"
+            && !approvedPendingAction && !queuedProposal?.pendingAction
+            ? assessAmoraBudgetChange({ userText: lastUserText, context: executionContext, sourceRevision: canonicalJourneyStateRevision })
+            : null;
+          const assessedBudgetAction = pendingOfferEnabled && budgetAssessment?.kind === "ready"
+            && pendingProposalTools.some(tool => tool.name === budgetAssessment.action.tool)
+            ? budgetAssessment.action : null;
+          const blockedBudgetText = budgetAssessment && !assessedBudgetAction
+            ? budgetAssessment.kind === "ready"
+              ? "변경할 예산 항목과 금액을 확인할 수 있는 제안을 만들지 못했어요. 아직 반영하지 않았어요. 변경할 내용을 다시 확인해주세요."
+              : budgetAssessment.text
+            : null;
+          const explicitBudgetPlan = !budgetAssessment && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
             ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.progress, resolvedWeddingContext.budget) : null;
           const pendingExtractionOptions = {
@@ -4020,23 +4035,35 @@ export async function POST(request: Request) {
           };
           let modelPendingExtraction = extractAmoraPendingAction({
             ...pendingExtractionOptions,
-            text: explicitBudgetPlan
+            // 초과 시 저장 금지처럼 조건이 붙은 단일 변경은 실제 장부로 판정한다.
+            // 거절의 근거 수치도 모델 산문에서 가져오지 않으며 확인/실행 경계는 유지한다.
+            text: blockedBudgetText ?? (assessedBudgetAction
+              ? `[pending_action]${JSON.stringify(assessedBudgetAction)}[/pending_action]`
+              : explicitBudgetPlan
               ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
-              : afterSuggest,
+              : afterSuggest),
           });
-          const explicitSchedules = !explicitBudgetPlan && !queuedProposal?.pendingAction
+          const explicitSchedules = !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
             && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "add_schedule_event")
             ? parseExplicitScheduleRequest(lastUserText, afterSuggest)
             : null;
-          if (explicitSchedules) {
-            // 완결된 원문 목록으로 대체한다. 모델 목록에 덧붙이면 같은 일정이 중복 저장된다.
+          const explicitTasks = !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
+            && pendingOfferEnabled && !approvedPendingAction
+            && pendingProposalTools.some(tool => tool.name === "add_amora_action")
+            ? parseExplicitTaskRequest(lastUserText, afterSuggest)
+            : null;
+          const explicitActions = explicitTasks ?? explicitSchedules;
+          if (explicitActions) {
+            // 완결된 원문 목록으로 대체한다. 모델 목록에 덧붙이면 같은 항목이 중복 저장된다.
             modelPendingExtraction = extractAmoraPendingAction({
               ...pendingExtractionOptions,
-              text: explicitSchedules.map(action => `[pending_action]${JSON.stringify(action)}[/pending_action]`).join("\n"),
+              text: explicitActions.map(action => `[pending_action]${JSON.stringify(action)}[/pending_action]`).join("\n"),
             });
           }
           const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
+          const emittedCarriedPendingCard = blockedBudgetText === null && awaitingPendingCard && shouldCarryPendingCard
+            ? awaitingPendingCard : null;
           const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
           const proposalQueue = nextActionQueue ?? (pendingExtraction.pendingAction
             ? createAmoraActionQueue(pendingExtraction.pendingAction, pendingExtraction.remainingActions) : null);
@@ -4100,6 +4127,8 @@ export async function POST(request: Request) {
             text: cleanText,
             toolResults,
             hasPendingAction: pendingExtraction.pendingAction !== null,
+            hasEmittedPendingAction: pendingExtraction.pendingAction !== null
+              || emittedCarriedPendingCard !== null,
             persistenceMode: isDemo ? "demo" : "durable",
             demoUserText: lastUserText,
             // 이번 턴에 제안 도구가 하나도 안 열렸다면 사용자는 변경을 요청한 것이
@@ -4194,7 +4223,7 @@ export async function POST(request: Request) {
             ...(visibleClientRequestKey !== clientRequestId
               ? { client_visible_request_id: visibleClientRequestKey }
               : {}),
-            ...(suggestions.length > 0 ? { suggestions } : {}),
+            ...(blockedBudgetText === null && suggestions.length > 0 ? { suggestions } : {}),
             ...(mediation ? { mediation } : {}),
             ...(proposalQueue ? { pending_amora_action_queue: proposalQueue } : {}),
             ...(queueCompletion ? { completed_amora_action_queue: queueCompletion } : {}),
@@ -4238,9 +4267,9 @@ export async function POST(request: Request) {
               //
               // 멈춘다고 카드가 사라지지는 않는다. **원본 메시지에는 그대로
               // 남아 있고**, 따라다니기만 그친다.
-              : awaitingPendingCard && shouldCarryPendingCard
+              : emittedCarriedPendingCard
                 ? {
-                    pending_amora_action: awaitingPendingCard,
+                    pending_amora_action: emittedCarriedPendingCard,
                     ...(storedActionQueue ? { pending_amora_action_queue: storedActionQueue } : {}),
                     pending_amora_action_carry_count: nextPendingCardCarries,
                     ...(carriedPendingActionOriginMessageId !== null
