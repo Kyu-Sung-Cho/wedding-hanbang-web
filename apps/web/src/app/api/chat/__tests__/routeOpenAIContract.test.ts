@@ -10049,7 +10049,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   }
 
   it.each(["ordinary", "long category notes", "long category notes and shared profiles", "an unrelated successful read",
-    "natural schedule correct", "natural schedule stale", "natural schedule whitespace", "C01 missing reads", "C01 open-only read", "C01 current records open-only read"] as const)("sends current schedule time through the real capped POST and OpenAI instructions with %s", async scenario => {
+    "natural schedule correct", "natural schedule stale", "natural schedule whitespace", "C01 missing reads", "C01 open-only read", "C01 current records open-only read",
+    "reverted budget decision receipts with memory off"] as const)("sends current schedule time through the real capped POST and OpenAI instructions with %s", async scenario => {
     const naturalSchedule = scenario.startsWith("natural schedule");
     const currentRecords = scenario === "C01 current records open-only read";
     const openOnly = scenario === "C01 open-only read" || currentRecords;
@@ -10091,6 +10092,26 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.journeyRow = { progress, total_budget: 35_000_000, wedding_date: "2027-05-01", venue: null };
     mocks.journeyStateRevision = 16;
     const beforeJourney = structuredClone(mocks.journeyRow);
+    const budgetReceipts = scenario === "reverted budget decision receipts with memory off";
+    if (budgetReceipts) {
+      mocks.memoryEnablement.shared = false;
+      for (const [index, beforeBudget, afterBudget] of [[0, 1_501_000, 1_500_000], [1, 1_500_000, 1_501_000]] as const) {
+        const value = `초대장·꽃·하객선물 예산 ${afterBudget.toLocaleString("en-US")}원`;
+        mocks.decisionRows.push({
+          id: `51000000-0000-4000-8000-00000000000${index}`,
+          couple_id: COUPLE_ID, category: "budget", decision_type: "decided",
+          title: `${value}으로 변경`, chosen_value: { value, budgetDelta: {
+            schemaVersion: 1, totalBudget: null,
+            categories: [{ key: "custom_invitation", label: "초대장·꽃·하객선물", beforeBudget, afterBudget }],
+          } },
+          reasoning: "승인한 구성원의 예산 배정 변경", confidence: 1, stage_tag: null,
+          source: "budget", source_actor_role: "bride", visibility: "shared",
+          created_at: `2026-09-10T04:0${1 - index}:00.000Z`, memory_key: null, superseded_at: null,
+          metadata: { origin: "amora_shared_budget_action" },
+        });
+      }
+    }
+    const beforeDecisions = structuredClone(mocks.decisionRows);
     const prompts = await import("@/lib/ai/prompts");
     const actualPrompts = await vi.importActual<typeof import("@/lib/ai/prompts")>("@/lib/ai/prompts");
     const modelConfig = await import("@/lib/ai/modelConfig");
@@ -10225,6 +10246,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
               expect(instructions).toContain("question_scope: W0_wedding_core");
               expect(instructions).toContain(eventTitle);
               expect(instructions).toContain("시간 19:45");
+              if (budgetReceipts) {
+                expect(instructions).toContain("초대장·꽃·하객선물 예산 1,500,000원으로 변경");
+                expect(instructions).toMatch(/값\s+"?초대장·꽃·하객선물 예산 1,500,000원/u);
+                expect(instructions).not.toContain("1,501,000");
+              }
               if (scenario === "long category notes and shared profiles") {
                 expect(instructions).toContain("명시한 예산 관련 값");
                 expect(instructions).toContain("명시한 결정 과정");
@@ -10255,6 +10281,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
             }
             expect(mocks.journeyRow).toEqual(beforeJourney);
             expect(mocks.journeyStateRevision).toBe(16);
+            if (budgetReceipts) {
+              expect(mocks.memoryEnablement.shared).toBe(false);
+              expect(mocks.profileSourceSelect).not.toHaveBeenCalled();
+              expect(mocks.decisionRows).toEqual(beforeDecisions);
+              expect(mocks.decisionRows).toHaveLength(2);
+            }
             expect(mocks.atomicResponses.at(-1)?.metadata).not.toHaveProperty("pending_amora_action");
             expect(stored?.metadata).not.toHaveProperty("pending_amora_action_queue");
             expect(events.some(event => event.type === "suggestions")).toBe(false);

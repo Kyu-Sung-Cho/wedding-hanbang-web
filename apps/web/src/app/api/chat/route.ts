@@ -2649,6 +2649,7 @@ export async function POST(request: Request) {
     totalBudgetKrw: isRecord(journey) && typeof journey.total_budget === "number"
       ? journey.total_budget
       : null,
+    budgetProgress: isRecord(journey) && isRecord(journey.progress) ? journey.progress : undefined,
   };
   // 하객 수·예식 형태·시기는 여정에 대조할 값이 없어 위 판정이 영원히 닿지 않는다.
   // 그 세 category 만 (visibility, category, 값 모양) 안에서 최신 1건을 남긴다.
@@ -2656,7 +2657,7 @@ export async function POST(request: Request) {
   const liveDecisions = dropOutdatedTruthlessDecisions(
     decisionsData
       .filter((d) => !isSupersededDecision(
-        { category: d.category, title: d.title, chosenValue: d.chosen_value },
+        { category: d.category, title: d.title, chosenValue: d.chosen_value, source: d.source, metadata: d.metadata },
         currentJourneyFacts,
       ))
       .map((d) => ({ ...d, createdAt: d.created_at, chosenValue: d.chosen_value })),

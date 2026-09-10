@@ -1,7 +1,7 @@
 // 후속 릴리스 매니페스트의 "증거 고정" 상태 계약.
 //
 // 게이트를 여는 유일한 문이므로, 여기서 느슨하면 뒤의 55종 차단이 전부 무의미해진다.
-// 실제 저장소 파일을 복사해 픽스처를 만들고 매니페스트만 바꿔가며,
+// 보존된 과거 릴리스의 전체 원문을 고정한 픽스처에서 매니페스트만 바꿔가며,
 // 통과해야 할 것과 막혀야 할 것을 하나씩 확인한다.
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -9,6 +9,7 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
+import { createHistoricalReleaseRepository } from "./fixtures/legacy-release-repository.mjs";
 
 import {
   SUCCESSOR_RUNTIME_EVIDENCE_REQUIREMENTS,
@@ -20,6 +21,8 @@ import {
 } from "../lib/supabase-successor-release-contract.mjs";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..", "..");
+const historical = createHistoricalReleaseRepository(REPO_ROOT);
+test.after(historical.cleanup);
 const RELEASE_COMMIT = "180e97c554d69b6ce000f897e739bf789e66e1a6";
 const OTHER_COMMIT = "0123456789abcdef0123456789abcdef01234567";
 const roots = [];
@@ -28,13 +31,13 @@ test.after(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true });
 });
 
-/** 실제 저장소를 그대로 복사해, 매니페스트 외의 조건은 전부 유효한 상태로 둔다. */
+/** 검증된 과거 전체 입력을 사용한다. 현재 SQL에서 새 파일을 임의로 빼지 않는다. */
 function fixture(mutate) {
   const root = mkdtempSync(join(tmpdir(), "successor-contract-"));
   roots.push(root);
-  cpSync(join(REPO_ROOT, "supabase", "migrations"), join(root, "supabase", "migrations"), { recursive: true });
+  cpSync(join(historical.root, "supabase", "migrations"), join(root, "supabase", "migrations"), { recursive: true });
   cpSync(
-    join(REPO_ROOT, "supabase", "release-manifests"),
+    join(historical.root, "supabase", "release-manifests"),
     join(root, "supabase", "release-manifests"),
     { recursive: true },
   );
@@ -120,11 +123,15 @@ function expectBlocked(root, code) {
   assert.fail(`통과하면 안 되는데 통과했다 (기대 코드: ${code})`);
 }
 
-test("차단 상태 매니페스트는 지금까지처럼 그대로 통과하고 차단으로 판정된다", () => {
-  const result = validateSuccessorReleaseContract({ repoRoot: REPO_ROOT });
+test("보존된 과거 매니페스트는 원래의 차단 상태로 판정된다", () => {
+  const result = validateSuccessorReleaseContract({ repoRoot: historical.root });
   assert.equal(result.deploymentBlocked, true);
   assert.equal(result.releaseCommit, null);
   assert.equal(result.manifest.status, "deployment_blocked");
+});
+
+test("현재 checkout의 새 SQL은 과거 fullmanifest에서 MIGRATION_SET_DRIFT로 거절된다", () => {
+  expectBlocked(REPO_ROOT, "MIGRATION_SET_DRIFT");
 });
 
 test("차단 상태에 backupContract만 몰래 넣어 둘 수 없다", () => {
@@ -674,7 +681,7 @@ function readyStaticFixture({
   return { root, manifest, contract, createdTables };
 }
 
-test("controller_ready는 현재 remote baseline, exact migration set, postcheck와 feature-off rollback을 함께 고정한다", () => {
+test("과거 controller_ready는 당시 baseline, exact migration set, postcheck와 feature-off rollback을 함께 고정한다", () => {
   const state = readyStaticFixture();
   const result = validateSuccessorReleaseContract({ repoRoot: state.root });
   assert.equal(result.deploymentBlocked, false);

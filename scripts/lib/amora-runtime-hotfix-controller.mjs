@@ -7,13 +7,37 @@ import { transactionBody } from './current-baseline-hosted-synthetic.mjs';
 import { resolvePinnedWindowsProductionToolchain } from './production-windows-toolchain.mjs';
 import { validateVercelDeploymentRawEvidence } from './production-external-gate-provenance.mjs';
 import { NAMED_BUDGET_MIGRATION } from './amora-named-budget-migration-pin.mjs';
+import { BUDGET_DECISION_KIND, BUDGET_DECISION_SCHEMA_CHANGES, loadBudgetDecisionHotfixRelease } from './amora-budget-decision-release-contract.mjs';
 
 export const HOTFIX_CONTRACT_FILE = 'supabase/release-contracts/amora-runtime-hotfix-v1.json';
 export const NAMED_BUDGET_CONTRACT_FILE = 'supabase/release-contracts/amora-named-budget-hotfix-v1.json';
 const NAMED_BUDGET_KIND = 'amora-named-budget-single-sql-hotfix';
+const RUNTIME_KIND = 'amora-public-runtime-eight-sql-hotfix';
 const isNamedBudget = release => release.hotfix.kind === NAMED_BUDGET_KIND;
-const addedRelations = release => isNamedBudget(release) ? [] : [
-  { schema: 'public', name: 'amora_mediation_responses', kind: 'r' }, { schema: 'public', name: 'amora_personal_actions', kind: 'r' }];
+const HOTFIX_PROFILES = Object.freeze({
+  [RUNTIME_KIND]: Object.freeze({
+    addedRelations: [{ schema: 'public', name: 'amora_mediation_responses', kind: 'r' }, { schema: 'public', name: 'amora_personal_actions', kind: 'r' }],
+    rollbackKind: 'synthetic-eight-sql-transaction-rollback',
+    hostedChecks: ['actorBoundary', 'budgetPreservesOmittedAllocations', 'personalOwnerPrivacy', 'mediationChoices', 'rollback'],
+    preserveHotRank: false,
+  }),
+  [NAMED_BUDGET_KIND]: Object.freeze({
+    addedRelations: [], rollbackKind: 'synthetic-named-budget-sql-transaction-rollback',
+    hostedChecks: ['actorBoundary', 'namedAllocationsExactReceipt', 'budgetPreservesOmittedAllocations', 'retryAndConcurrentLabels', 'privateHelperAcl', 'rollback'],
+    preserveHotRank: true,
+  }),
+  [BUDGET_DECISION_KIND]: Object.freeze({
+    addedRelations: [], rollbackKind: 'synthetic-budget-decision-sql-transaction-rollback',
+    hostedChecks: ['actorBoundary', 'approvedBudgetDecisionAtomicity', 'budgetPreservesOmittedAllocations', 'retryDecisionIdempotency', 'noChangeNoDecision', 'scheduleReceiptCompatibility', 'privateHelperAcl', 'rollback'],
+    preserveHotRank: true,
+  }),
+});
+function hotfixProfile(release) {
+  ensure(Object.hasOwn(HOTFIX_PROFILES, release?.hotfix?.kind), 'HOTFIX_KIND_INVALID');
+  return HOTFIX_PROFILES[release.hotfix.kind];
+}
+const addedRelations = release => hotfixProfile(release).addedRelations;
+const isBudgetDecision = release => release.hotfix.kind === BUDGET_DECISION_KIND;
 export const NAMED_BUDGET_FUNCTIONS = Object.freeze([
   'function:public.amora_resolve_budget_plan_allocations(p_couple_id uuid, p_progress jsonb, p_allocations jsonb)',
   'function:public.apply_amora_atomic_tool_execution_pre_shared_revision(p_couple_id uuid, p_request_key text, p_operation_key text, p_request_attempt_count integer, p_input_digest text, p_tool_input jsonb, p_domain_mutation jsonb, p_result jsonb)',
@@ -87,6 +111,32 @@ export function parseNamedBudgetHotfixArgs(argv) {
   const options = parser(argv.map(arg => arg === '--amora-named-budget-hotfix' ? '--amora-runtime-hotfix' : arg));
   delete options['amora-runtime-hotfix']; options['amora-named-budget-hotfix'] = true;
   return options;
+}
+
+export function parseBudgetDecisionHotfixArgs(argv) {
+  ensure(argv.includes('--amora-budget-decision-hotfix')
+    && !argv.includes('--amora-runtime-hotfix') && !argv.includes('--amora-named-budget-hotfix'), 'MODE_REQUIRED');
+  const parser = argv.includes('--finalize') ? parseHotfixFinalizeArgs : parseHotfixArgs;
+  const options = parser(argv.map(arg => arg === '--amora-budget-decision-hotfix' ? '--amora-runtime-hotfix' : arg));
+  delete options['amora-runtime-hotfix']; options['amora-budget-decision-hotfix'] = true;
+  return options;
+}
+export function selectHotfixMode(argv) {
+  const modes = argv.filter(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix'].includes(arg));
+  ensure(modes.length === 1, 'MODE_REQUIRED');
+  return modes[0];
+}
+export function parseHotfixModeArgs(argv) {
+  const mode = selectHotfixMode(argv);
+  if (mode === '--amora-budget-decision-hotfix') return parseBudgetDecisionHotfixArgs(argv);
+  if (mode === '--amora-named-budget-hotfix') return parseNamedBudgetHotfixArgs(argv);
+  return argv.includes('--finalize') ? parseHotfixFinalizeArgs(argv) : parseHotfixArgs(argv);
+}
+export function loadHotfixReleaseForMode(repoRoot, mode) {
+  if (mode === '--amora-budget-decision-hotfix') return loadBudgetDecisionHotfixRelease(repoRoot);
+  if (mode === '--amora-named-budget-hotfix') return loadNamedBudgetHotfixRelease(repoRoot);
+  ensure(mode === '--amora-runtime-hotfix', 'MODE_REQUIRED');
+  return loadHotfixRelease(repoRoot);
 }
 
 export function loadNamedBudgetHotfixRelease(repoRoot) {
@@ -184,6 +234,7 @@ function reportBinding(report, evidence, release, kind, now) {
   fresh(report.verifiedAt, now, kind === 'backup' || kind === 'fence' || kind === 'dryRun' ? 30 * 60_000 : 24 * 3600_000);
 }
 export function validateHotfixEvidence({ evidence, reports, raw, release, expectedCommit, now = new Date() }) {
+  const profile = hotfixProfile(release);
   const time = now.getTime();
   ensure(evidence?.format === 'amora-runtime-hotfix-evidence-v1' && evidence.releaseCommit === expectedCommit
     && COMMIT.test(expectedCommit) && evidence.projectRef === release.hotfix.projectRef
@@ -243,22 +294,22 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
       && actual.releaseCommit === (report.sourceReleaseCommit ?? expectedCommit), 'HOSTED_RAW_BINDING_INVALID');
   }
   const restored = JSON.parse(raw.rollback);
-  ensure(restored.kind === (isNamedBudget(release) ? 'synthetic-named-budget-sql-transaction-rollback' : 'synthetic-eight-sql-transaction-rollback') && restored.sourceArchiveRestored === false
+  ensure(restored.kind === profile.rollbackKind && restored.sourceArchiveRestored === false
     && restored.originalDdlArtifactSha256 === evidence.rollbackOriginal.sha256
     && SHA.test(restored.beforeSchemaSha256) && restored.beforeSchemaSha256 === restored.afterRollbackSchemaSha256
     && SHA.test(restored.beforeDataSha256) && restored.beforeDataSha256 === restored.afterRollbackDataSha256
     && restored.transactionRollbackExecuted === true && restored.operatorFenceHeld === true, 'ROLLBACK_NOT_PROVEN');
   const hosted = JSON.parse(raw.hosted);
   equal(hosted.executedMigrations, release.migrations.map(m => ({ file: m.file, sha256: m.sha256, bodySha256: digest(transactionBody(m.sql.toString('utf8'))) })), 'HOSTED_MIGRATION_MISMATCH');
-  const checks = isNamedBudget(release)
-    ? ['actorBoundary', 'namedAllocationsExactReceipt', 'budgetPreservesOmittedAllocations', 'retryAndConcurrentLabels', 'privateHelperAcl', 'rollback']
-    : ['actorBoundary', 'budgetPreservesOmittedAllocations', 'personalOwnerPrivacy', 'mediationChoices', 'rollback'];
+  const checks = profile.hostedChecks;
   equal(hosted.checks?.map(c => c.name).sort(), [...checks].sort(), 'HOSTED_CHECKS_INCOMPLETE');
   ensure(hosted.checks.every(c => c.status === 'passed' && c.observed && c.rawEvidenceSha256 === digestJson(c.observed)), 'HOSTED_CHECK_FAILED');
   const concurrency = JSON.parse(raw.concurrency);
-  equal(concurrency.cases?.map(c => c.name).sort(), ['actorRosterChange', 'budgetConcurrentChange', 'wrongOwnerLease'].sort(), 'CONCURRENCY_INCOMPLETE');
+  const concurrencyCases = ['actorRosterChange', 'budgetConcurrentChange', 'wrongOwnerLease', ...(isBudgetDecision(release) ? ['sameApprovalRetry'] : [])];
+  equal(concurrency.cases?.map(c => c.name).sort(), concurrencyCases.sort(), 'CONCURRENCY_INCOMPLETE');
   ensure(concurrency.cases.every(c => Array.isArray(c.connections) && new Set(c.connections).size >= 2
-    && (c.name === 'wrongOwnerLease' ? c.contenderSqlstate === 'P0001'
+    && (c.name === 'sameApprovalRetry' ? c.successfulMutationCount === 1 && c.decisionCount === 1 && c.budgetRevisionDelta === 1
+      : c.name === 'wrongOwnerLease' ? c.contenderSqlstate === 'P0001'
       : c.name === 'actorRosterChange' ? c.contenderSqlstate === '42501'
         : c.contenderSqlstate === null && c.contenderSuccess === false && c.contenderErrorCode === 'domain_state_changed')
     && c.unintendedWrites === 0 && SHA.test(c.transcriptSha256)), 'CONCURRENCY_FAILED');
@@ -285,6 +336,7 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
   }
   equal(hosted.transitions, evidence.transitions, 'SCHEMA_TRANSITION_EVIDENCE_MISMATCH');
   if (isNamedBudget(release)) equal([...identities].sort(), [...NAMED_BUDGET_FUNCTIONS].sort(), 'SCHEMA_TRANSITIONS_MISSING');
+  if (isBudgetDecision(release)) equal([...identities].sort(), [...BUDGET_DECISION_SCHEMA_CHANGES].sort(), 'SCHEMA_TRANSITIONS_MISSING');
   return { evidence, reports, raw, evidenceSha256: digestJson(evidence), deadlineMs: Math.min(instant(evidence.expiresAt),
     ...['backup', 'fence', 'dryRun'].map(kind => instant(reports[kind].verifiedAt) + 30 * 60_000),
     ...['rollback', 'hosted', 'concurrency'].map(kind => instant(reports[kind].verifiedAt) + 24 * 3600_000)) };
@@ -311,11 +363,11 @@ export async function verifyHotfixSourceLineage({ repoRoot, state, release, runC
 function publicTables(observation) {
   return observation.relations.filter(r => r.schema === 'public' && ['r', 'p'].includes(r.kind) && r.name !== 'production_release_lease_20260717');
 }
-export function renderPublicDataQuery(observation, { preserveHotRank = false } = {}) {
+export function renderPublicDataQuery(observation, { preserveHotRank = false, budgetDecisionReceipt = false } = {}) {
   const tables = publicTables(observation); ensure(tables.length > 0 && tables.length <= 500, 'DATA_SCOPE_INVALID');
   const queries = tables.map(r => `SELECT ${literal(`${r.schema}.${r.name}`)} AS relation,count(*) AS rows,
     encode(sha256(convert_to(coalesce(string_agg(row_hash,'' ORDER BY row_hash),''),'UTF8')),'hex') AS "rowsSha256"
-    FROM (SELECT encode(sha256(convert_to((to_jsonb(t)${!preserveHotRank && r.name === 'community_posts' ? "-'hot_rank'" : ''})::text,'UTF8')),'hex') AS row_hash
+    FROM (SELECT encode(sha256(convert_to((to_jsonb(t)${!preserveHotRank && r.name === 'community_posts' ? "-'hot_rank'" : ''}${budgetDecisionReceipt && r.name === 'amora_shared_action_journey_mutation_receipts' ? "-'budget_delta'" : ''})::text,'UTF8')),'hex') AS row_hash
       FROM ${identifier(r.schema)}.${identifier(r.name)} t) hashes`);
   return `SELECT coalesce(jsonb_agg(to_jsonb(s) ORDER BY relation),'[]'::jsonb) AS data FROM (${queries.join('\nUNION ALL\n')}) s`;
 }
@@ -362,14 +414,17 @@ DO $hotfix_${phase}$ DECLARE observed jsonb; actual_data jsonb; cli jsonb; BEGIN
       OR observed->>'storageStructureSha256' IS DISTINCT FROM ${literal(evidence.before.storageStructureSha256)}
       OR observed->'vaultRows' IS DISTINCT FROM ${json(evidence.before.vaultRows)} OR observed->'cronJobs' IS DISTINCT FROM ${json(evidence.before.cronJobs)}
       THEN RAISE EXCEPTION 'HOTFIX_${phase.toUpperCase()}_SCHEMA_DRIFT'; END IF;
-    SELECT data INTO actual_data FROM (${renderPublicDataQuery(evidence.before, { preserveHotRank: isNamedBudget(release) })}) captured;
+    SELECT data INTO actual_data FROM (${renderPublicDataQuery(evidence.before, { preserveHotRank: hotfixProfile(release).preserveHotRank, budgetDecisionReceipt: isBudgetDecision(release) })}) captured;
     IF actual_data IS DISTINCT FROM ${json(evidence.beforeData)} THEN RAISE EXCEPTION 'HOTFIX_EXISTING_ROWS_CHANGED'; END IF;
+    ${phase === 'after' && isBudgetDecision(release) ? `IF EXISTS(SELECT 1 FROM public.amora_shared_action_journey_mutation_receipts WHERE budget_delta IS NOT NULL)
+      THEN RAISE EXCEPTION 'HOTFIX_BUDGET_RECEIPT_BACKFILL_FORBIDDEN'; END IF;` : ''}
     ${phase === 'before' ? `IF observed->'ledger' IS DISTINCT FROM ${json(evidence.before.ledger)} THEN RAISE EXCEPTION 'HOTFIX_LEDGER_DRIFT'; END IF;`
       : `IF (SELECT jsonb_agg(value ORDER BY value->>'version') FROM jsonb_array_elements(observed->'ledger') WHERE value->>'version'<${literal(release.migrations[0].version)}) IS DISTINCT FROM ${json(evidence.before.ledger)} THEN RAISE EXCEPTION 'HOTFIX_ORIGINAL_LEDGER_CHANGED'; END IF;`}
   END $hotfix_${phase}$;`;
 }
 
 export function renderHotfixAtomicSql({ release, evidence, binding, deadlineMs }) {
+  hotfixProfile(release);
   const predicate = leasePredicate(binding);
   ensure(binding.release === release.hotfix.release && binding.releaseCommit === evidence.releaseCommit
     && Number.isSafeInteger(deadlineMs), 'ATOMIC_BINDING_INVALID');
@@ -404,7 +459,7 @@ DO $hotfix_post$ BEGIN
     WHERE e.version IS NULL OR a.version IS NULL OR a.name IS DISTINCT FROM e.name OR a.statements IS DISTINCT FROM e.statements)
     OR (SELECT count(*) FROM supabase_migrations.schema_migrations)<>${evidence.before.ledger.length + bodies.length}
     THEN RAISE EXCEPTION 'HOTFIX_POST_LEDGER_MISMATCH'; END IF;
-  ${isNamedBudget(release) ? '' : `IF EXISTS(SELECT 1 FROM public.community_posts WHERE hot_rank IS DISTINCT FROM (2::numeric*coalesce(upvote_count,0)+3::numeric*coalesce(comment_count,0)+coalesce(extract(epoch FROM(created_at AT TIME ZONE 'UTC')),0)/7200))
+  ${release.hotfix.kind !== RUNTIME_KIND ? '' : `IF EXISTS(SELECT 1 FROM public.community_posts WHERE hot_rank IS DISTINCT FROM (2::numeric*coalesce(upvote_count,0)+3::numeric*coalesce(comment_count,0)+coalesce(extract(epoch FROM(created_at AT TIME ZONE 'UTC')),0)/7200))
     OR EXISTS(SELECT 1 FROM public.amora_personal_actions)
     OR EXISTS(SELECT 1 FROM public.amora_mediation_acceptances a FULL JOIN public.amora_mediation_responses r ON a.message_id=r.message_id AND a.user_id=r.user_id
       WHERE a.message_id IS NULL OR r.message_id IS NULL OR r.couple_id IS DISTINCT FROM a.couple_id OR r.proposal_version IS DISTINCT FROM a.proposal_version
@@ -490,9 +545,11 @@ async function readEvidenceFiles(repoRoot, root, release, expectedCommit, now) {
 }
 
 // 원본은 기존 HBAM2 구현으로 메모리 복호화하고 폐기한다. 키/원문/PowerShell 오류를 출력하지 않는다.
-export async function verifyHotfixRecovery({ repoRoot, evidenceRoot, state }) {
+export async function verifyHotfixRecovery({ repoRoot, evidenceRoot, state, mode = '--amora-runtime-hotfix' }) {
   const toolchain = await resolvePinnedWindowsProductionToolchain();
-  const release = loadCurrentBaselineContract(repoRoot);
+  const release = loadHotfixReleaseForMode(repoRoot, mode);
+  ensure(state.evidence.hotfixContractSha256 === release.hotfixSha256
+    && state.evidence.migrationSetSha256 === release.migrationSetSha256, 'RECOVERY_RELEASE_BINDING_INVALID');
   pinnedArtifact(repoRoot, release.contract.implementation.crypto);
   const program = `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue';
 try { $v=[Console]::In.ReadToEnd()|ConvertFrom-Json; . $v.crypto;
@@ -526,9 +583,9 @@ try { $v=[Console]::In.ReadToEnd()|ConvertFrom-Json; . $v.crypto;
 }
 
 export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primitives, now = () => new Date(), verifyRecovery = verifyHotfixRecovery }) {
-  const named = argv.includes('--amora-named-budget-hotfix');
-  const options = named ? parseNamedBudgetHotfixArgs(argv) : parseHotfixArgs(argv);
-  const loadRelease = named ? loadNamedBudgetHotfixRelease : loadHotfixRelease;
+  const mode = selectHotfixMode(argv);
+  const options = parseHotfixModeArgs(argv);
+  const loadRelease = root => loadHotfixReleaseForMode(root, mode);
   const release = loadRelease(repoRoot);
   ensure(typeof transport?.query === 'function' && typeof primitives?.assertReleaseGitFence === 'function', 'RUNTIME_DEPENDENCY_REQUIRED');
   const expectedCommit = options['expected-commit'];
@@ -538,7 +595,7 @@ export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primiti
   await privateParent(repoRoot, options['receipt-out']); await privateParent(repoRoot, options['bundle-out']);
   const state = await readEvidenceFiles(repoRoot, options['evidence-root'], release, expectedCommit, now());
   await verifyHotfixSourceLineage({ repoRoot, state, release, runCommand: primitives.runCommand });
-  await verifyRecovery({ repoRoot, evidenceRoot: options['evidence-root'], state });
+  await verifyRecovery({ repoRoot, evidenceRoot: options['evidence-root'], state, mode });
   const binding = { release: release.hotfix.release, releaseCommit: expectedCommit, ownerId: randomUUID(), outcomePathSha256: digest(resolve(options['receipt-out'])) };
   const sql = renderHotfixAtomicSql({ release, ...state, binding });
   const base = { format: 'amora-runtime-hotfix-outcome-v1', ...binding, projectRef: release.hotfix.projectRef,
@@ -678,8 +735,8 @@ SELECT 1::integer AS hotfix_finalized_count,${literal(binding.ownerId)}::text AS
 export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, outcomePath, canaryPath, receiptOut,
   expectedCommit, remoteRef, confirmProduction, transport, primitives, mode = '--amora-runtime-hotfix', now = () => new Date(), verifyRecovery = verifyHotfixRecovery }) {
   ensure(COMMIT.test(expectedCommit) && [evidenceRoot, outcomePath, canaryPath, receiptOut].every(isAbsolute), 'FINALIZER_PATH_OR_COMMIT_INVALID');
-  ensure(['--amora-runtime-hotfix', '--amora-named-budget-hotfix'].includes(mode), 'MODE_REQUIRED');
-  const loadRelease = mode === '--amora-named-budget-hotfix' ? loadNamedBudgetHotfixRelease : loadHotfixRelease;
+  ensure(['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix'].includes(mode), 'MODE_REQUIRED');
+  const loadRelease = root => loadHotfixReleaseForMode(root, mode);
   const release = loadRelease(repoRoot);
   for (const file of [outcomePath, canaryPath, receiptOut]) await privateParent(repoRoot, file);
   const sourceFence = () => primitives.assertReleaseGitFence({ repoRoot, expectedCommit, expectedOrigin: release.contract.expectedOrigin, remoteRef, runCommand: primitives.runCommand });
@@ -707,7 +764,7 @@ export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, ou
     && errors.from === http.startedAt && errors.to === http.finishedAt && Array.isArray(errors.errors) && errors.errors.length === 0,
   'CANARY_SERVER_ERRORS_UNVERIFIED');
   ensure(confirmProduction === `FINALIZE:${release.hotfix.projectRef}:${release.hotfix.release}:${expectedCommit}:${outcome.ownerId}:${checked.canarySha256}`, 'FINALIZER_CONFIRMATION_MISMATCH');
-  await verifyRecovery({ repoRoot, evidenceRoot, state });
+  await verifyRecovery({ repoRoot, evidenceRoot, state, mode });
   const binding = { release: outcome.release, releaseCommit: outcome.releaseCommit, ownerId: outcome.ownerId, outcomePathSha256: outcome.outcomePathSha256 };
   const sql = renderHotfixFinalizeSql({ release, ...state, binding, deadlineMs: Math.min(state.deadlineMs, checked.deadlineMs), canarySha256: checked.canarySha256 });
   const base = { format: 'amora-runtime-hotfix-finalizer-v1', ...binding, ...EXCLUSIONS, canarySha256: checked.canarySha256,

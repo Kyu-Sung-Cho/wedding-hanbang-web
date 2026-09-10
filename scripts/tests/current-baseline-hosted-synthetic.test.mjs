@@ -7,9 +7,12 @@ import { digest, digestJson, loadCurrentBaselineContract } from '../lib/current-
 import { transactionBody, validateTargetPlan, validatedConnectionConfig, runHostedSynthetic, inventoryFingerprint } from '../lib/current-baseline-hosted-synthetic.mjs';
 import { syntheticIds } from '../lib/current-baseline-hosted-synthetic-scenarios.mjs';
 import { localPredecessor, localCatalog, localObservation } from './fixtures/current-baseline-hosted-synthetic-local.mjs';
+import { createHistoricalReleaseRepository } from './fixtures/legacy-release-repository.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const release = loadCurrentBaselineContract(root);
+const historical = createHistoricalReleaseRepository(root);
+test.after(historical.cleanup);
+const release = loadCurrentBaselineContract(historical.root);
 const commit = 'a'.repeat(40); const now = new Date('2026-09-07T00:00:00Z');
 const systemIdentifier = '8000000000000000001';
 const ref = 'abcdefghijklmnopqrst';
@@ -65,7 +68,7 @@ test('removes only outer migration transactions while keeping quoted function bl
 });
 
 test('executes all eight pinned original migrations and real SQL owner/budget/mediation checks, then restores the predecessor', { timeout: 120000 }, async () => {
-  const db = await localPredecessor(root);
+  const db = await localPredecessor(historical.root, root);
   const adapter = { query: async (sql, values) => sql === 'LOCAL_ONLY_ACTUAL_CATALOG'
     ? { rows: [{ observation: await localObservation(db) }] }
     : values === undefined ? (await db.exec(sql)).at(-1) : db.query(sql, values) };
@@ -90,7 +93,7 @@ test('executes all eight pinned original migrations and real SQL owner/budget/me
 });
 
 test('a real later SQL failure rolls back earlier migration DDL and fixture writes', { timeout: 120000 }, async () => {
-  const db = await localPredecessor(root);
+  const db = await localPredecessor(historical.root, root);
   try {
     const before = await localCatalog(db);
     const observation = await localObservation(db);
