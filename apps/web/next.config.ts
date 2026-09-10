@@ -112,14 +112,11 @@ const nextConfig: NextConfig = {
         destination: "/wedding/manners",
         permanent: true,
       },
-      // 루트(`/`)는 여기서 보내지 않는다. 루트는 **앱의 문**이라 세션에 따라
-      // 랜딩과 라운지로 갈리는데, 엣지 리다이렉트는 세션을 볼 수 없다.
-      //
-      // 로그아웃이면 어차피 `/landing` 이니 여기서 보내도 같아 보이지만 아니다 —
-      // 엣지에서 가로채면 **로그인한 사람도** 랜딩을 지나 다시 앱으로 들어가야 한다.
-      // 2026-08-20에 실제로 그랬고 그게 그때 루트를 바꾼 이유였다.
-      // 판정은 `lib/supabase/middleware.ts`가 하고 `src/app/page.tsx`가 폴백이다.
-      // `__tests__/rootIsTheAppDoor.test.ts`가 이 리다이렉트의 부활을 막는다.
+      // 루트(`/`)는 로그인 여부와 관계없이 `/landing`으로 보낸다.
+      // `src/lib/supabase/middleware.ts`가 인증 조회 전에 쿼리를 보존해 307로
+      // 즉시 반환하고, `src/app/page.tsx`가 폴백을 맡으므로 여기에는 중복 규칙을 두지 않는다.
+      // 계약 검사는 `src/lib/supabase/middleware.test.ts`와
+      // `src/app/__tests__/rootIsTheAppDoor.test.ts`에서 확인한다.
       // 유통 테스트 착지 A — 비로그인 견적·추가금 진단 (UTM 쿼리는 자동 보존됨)
       {
         source: "/check",

@@ -10,7 +10,6 @@ test("dependency security floors and compatibility patches stay pinned", async (
     webPackage,
     workspace,
     minimatchPatch,
-    sharpPatch,
     decoderPatch,
     imageSizePatch,
   ] = await Promise.all([
@@ -18,14 +17,14 @@ test("dependency security floors and compatibility patches stay pinned", async (
     readFile(new URL("apps/web/package.json", root), "utf8").then(JSON.parse),
     readFile(new URL("pnpm-workspace.yaml", root), "utf8"),
     readFile(new URL("patches/minimatch@3.1.5.patch", root), "utf8"),
-    readFile(new URL("patches/sharp@0.35.0.patch", root), "utf8"),
     readFile(new URL("patches/decode-uri-component@0.5.0.patch", root), "utf8"),
     readFile(new URL("patches/image-size@1.2.1.patch", root), "utf8"),
   ]);
 
-  assert.equal(webPackage.dependencies.next, "16.2.11");
-  assert.equal(webPackage.dependencies.sharp, "0.35.0");
-  assert.equal(rootPackage.devDependencies.sharp, "0.35.0");
+  assert.equal(webPackage.dependencies.next, "16.3.4");
+  assert.equal(webPackage.devDependencies["eslint-config-next"], "16.3.4");
+  assert.equal(webPackage.dependencies.sharp, "0.35.4");
+  assert.equal(rootPackage.devDependencies.sharp, "0.35.4");
 
   for (const requiredOverride of [
     'postcss: "8.5.23"',
@@ -47,7 +46,7 @@ test("dependency security floors and compatibility patches stay pinned", async (
     '"@xmldom/xmldom": "0.8.15"',
     'postcss-selector-parser: "6.1.3"',
     'decode-uri-component: "0.5.0"',
-    'sharp: "0.35.0"',
+    'sharp: "0.35.4"',
   ]) {
     assert.match(
       workspace,
@@ -60,12 +59,12 @@ test("dependency security floors and compatibility patches stay pinned", async (
     workspace,
     /minimatch@3\.1\.5:\s+patches\/minimatch@3\.1\.5\.patch/,
   );
-  assert.match(workspace, /sharp@0\.35\.0:\s+patches\/sharp@0\.35\.0\.patch/);
+  // 0.35.4는 import/require용 types export를 제공하므로 옛 호환 패치가 필요 없다.
+  assert.doesNotMatch(workspace, /sharp@0\.35\.0/);
   assert.match(
     minimatchPatch,
     /var expand = braceExpansion\.expand \|\| braceExpansion/,
   );
-  assert.match(sharpPatch, /"types": "\.\/lib\/index\.d\.ts"/);
   assert.match(workspace, /decode-uri-component@0\.5\.0:\s+patches\/decode-uri-component@0\.5\.0\.patch/);
   assert.match(decoderPatch, /\+module\.exports = function decodeUriComponent/);
   assert.match(decoderPatch, /\+\s*"type": "commonjs"/);
@@ -82,6 +81,9 @@ test("September advisory fixes are resolved in the lockfile, not only requested 
     .filter(line => /^  \S.*:$/.test(line))
     .map(line => line.trim().slice(0, -1).replace(/^'|'$/g, ""));
   for (const [name, version] of [
+    ["next", "16.3.4"],
+    ["eslint-config-next", "16.3.4"],
+    ["sharp", "0.35.4"],
     ["fast-uri", "3.1.6"],
     ["browserslist", "4.28.7"],
     ["@humanfs/node", "0.16.8"],
