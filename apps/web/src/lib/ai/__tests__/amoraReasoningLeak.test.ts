@@ -20,6 +20,23 @@ const LEAKED = [
 ].join("\n");
 
 describe("모델의 사고 서두는 사용자에게 안 나간다", () => {
+  it.each([
+    "일정 조건을 먼저 확인해 주세요.\n\n[assistant/analysis ...]",
+    "[assistant/analysis ...]\n\n일정 조건을 먼저 확인해 주세요.",
+    "일정 조건을 먼저 확인해 주세요.\n\n[assistant/analysis 조건 확인]\n",
+  ])("한국어 답 앞뒤의 독립 내부 역할 표식을 제거한다", text => {
+    expect(stripAmoraReasoningPreamble(text)).toBe("일정 조건을 먼저 확인해 주세요.");
+  });
+
+  it("본문의 일반 영어와 인용한 단어는 그대로 둔다", () => {
+    const text = "사진 상품명은 Analysis Studio예요.\n\n[참고] 포함 항목을 확인해 주세요.";
+    expect(stripAmoraReasoningPreamble(text)).toBe(text);
+  });
+
+  it("내부 표식뿐인 응답을 사용자 답변으로 남기지 않는다", () => {
+    expect(stripAmoraReasoningPreamble("[assistant/analysis ...]")).toBe("");
+  });
+
   it("운영에서 실제로 새어 나간 응답을 걷어낸다", () => {
     const cleaned = stripAmoraReasoningPreamble(LEAKED);
     expect(cleaned).toBe(

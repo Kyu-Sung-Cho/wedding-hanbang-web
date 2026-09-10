@@ -6,6 +6,7 @@ import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { CATEGORY_LABELS as AMORA_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { CHECKLIST_MAP } from "@/constants/checklists";
 import { ymdInKst } from "@/lib/utils/kstDate";
+import { hasUnsupportedScheduleFields, UNSUPPORTED_SCHEDULE_FIELDS_NOTICE } from "@/lib/ai/amoraUnsupportedScheduleFields";
 
 const MAX_PENDING_ACTION_JSON_CHARS = 4_000;
 const MAX_CANONICAL_CONFIRMATION_CHARS = 2_000;
@@ -533,6 +534,8 @@ function validateMarker(
 
   const tool = tools.find((candidate) => candidate.name === value.tool);
   if (!tool) return null;
+  // 담당/완료 기준은 아직 일정 승인·저장 계약에 없다. 조건만 지운 부분 카드는 내지 않는다.
+  if (hasUnsupportedScheduleFields(tool.name, value.input)) return null;
   // 순서가 중요하다. 흔한 별칭을 먼저 되돌리고(`deadline` → `due_date`), 그러고도
   // 남은 선언 밖 키만 버린 뒤, 선택 필드를 보정하고, 마지막에 스키마로 검증한다.
   // 예전에는 선언 밖 키 검사가 맨 앞에 있어서 뜻이 분명한 별칭 하나에 표식이
@@ -1231,7 +1234,7 @@ export function extractAmoraPendingAction({
   remainingActions?: AmoraQueuedAction[];
   hadPendingActionTag: boolean;
   /** 표식은 있었지만 버린 이유가 "다시 보내면 되는" 종류가 아닐 때만 채운다. */
-  dropReason?: "unknown_schedule_event";
+  dropReason?: "unknown_schedule_event" | "unsupported_schedule_fields";
   /**
    * 검증에서 버려진 표식의 원문 머리(진단용). 2026-09-04 실측: "2027년 3월 10일 드레스
    * 투어 일정 추가해줘" 가 2/2 로 카드 없이 끝났는데(본문은 카드 흉내), 서버에 원문이
@@ -1286,6 +1289,13 @@ export function extractAmoraPendingAction({
       parsed = JSON.parse(payload);
     } catch {
       continue;
+    }
+    if (isRecord(parsed) && typeof parsed.tool === "string" && isRecord(parsed.input)
+      && allowedTools.some(tool => tool.name === parsed.tool)
+      && hasUnsupportedScheduleFields(parsed.tool, parsed.input)) {
+      // 일부 일정 조건이 사라지면 같은 답변의 다른 카드만 실행하도록 넘기지 않는다.
+      return { cleanText: UNSUPPORTED_SCHEDULE_FIELDS_NOTICE, pendingAction: null,
+        hadPendingActionTag, dropReason: "unsupported_schedule_fields" };
     }
     const candidate = validateMarker(parsed, allowedTools, now);
     if (candidate) {

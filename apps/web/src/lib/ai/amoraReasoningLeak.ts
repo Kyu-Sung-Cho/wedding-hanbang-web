@@ -43,12 +43,18 @@ function looksKorean(paragraph: string): boolean {
 
 export function stripAmoraReasoningPreamble(text: string): string {
   if (typeof text !== "string" || text.length === 0) return text;
-  const paragraphs = text.split(PARAGRAPH_SPLIT);
-  if (looksKorean(paragraphs[0] ?? "")) return text;
+  // 답변 뒤에 붙은 독립 역할 표식도 내부 출력이다. 일반 영어·참고 문구는 유지한다.
+  const withoutMarkers = text.replace(
+    /^[ \t]*\[assistant\/(?:analysis|commentary)(?:[ \t]+[^\]\r\n]*)?\][ \t]*(?:\r?\n|$)/gmi,
+    "",
+  );
+  const candidate = withoutMarkers === text ? text : withoutMarkers.trim();
+  const paragraphs = candidate.split(PARAGRAPH_SPLIT);
+  if (looksKorean(paragraphs[0] ?? "")) return candidate;
 
   const firstKorean = paragraphs.findIndex(looksKorean);
   // 한글 문단이 아예 없으면 그대로 둔다 — 빈 응답을 만들지 않는다.
-  if (firstKorean <= 0) return text;
+  if (firstKorean <= 0) return candidate;
 
   return paragraphs.slice(firstKorean).join("\n\n").trimStart();
 }

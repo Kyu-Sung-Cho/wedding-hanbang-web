@@ -23,6 +23,12 @@ const KEEP_TOTAL = new RegExp(
   "u",
 );
 const CAP_CONDITION = /^(?:총예산|총액)(?:을|이|가)?(?:넘으면|초과하면)(?:저장|반영|적용)하지말고(?:먼저)?(?:부족액|초과액|부족한금액)(?:을)?알려(?:줘|주세요)[.。!]?$/u;
+const CARD_CHANGE = new RegExp(
+  `^([\\p{L}\\p{M}\\d][\\p{L}\\p{M}\\d \\t·ㆍ&+()/—–-]*?)\\s*(?:맞춤\\s*)?예산(?:만|을)?\\s*(${NUMBER})\\s*(${UNIT})?\\s*(에서|→|->)\\s*(${NUMBER})\\s*(${UNIT})으로\\s*(수정|변경)(?:하고\\s*싶어|해\\s*(?:줘|주세요))[.。!]\\s*`,
+  "u",
+);
+// 다른 지시를 잘라내지 않도록 보존 조건과 미적용 확인 요청이 끝까지 완결되어야 한다.
+const CARD_CONDITION = /^총예산(?:,|과)다른항목,기록지출,분담(?:은|을)그대로두고변경확인카드를먼저보여(?:줘|주세요)[.。!]아직(?:저장|반영|적용)하지(?:마|마세요)[.。!]?$/u;
 
 function normalizeLabel(label: string): string {
   return label.replace(/\s+/gu, " ").trim().toLocaleLowerCase("ko-KR");
@@ -45,7 +51,7 @@ function amount(number: string, unit: string): number {
 }
 
 /**
- * 한 항목만 바꾸고 총액을 넘으면 저장하지 말라는 명시적 요청만 처리한다.
+ * 총액 초과 시 금지 요청과, 나머지 장부를 보존하는 단일 항목 확인 카드 요청만 처리한다.
  * 모델이 낸 합계 대신 승인 시 쓰는 순수 연산의 전후 장부를 사용한다.
  * 권한·승인·저장 경계는 호출자가 유지하며 이 함수는 원본 상태를 바꾸지 않는다.
  */
@@ -58,15 +64,17 @@ export function assessAmoraBudgetChange({ userText, context, sourceRevision }: {
   const conditionalBudgetChange = /예산/u.test(compact)
     && /(?:총예산|총액)(?:을|이|가)?(?:넘으면|초과하면|넘을경우|초과할경우)/u.test(compact)
     && /(?:저장|반영|적용)하지(?:말|마)/u.test(compact);
-  if (!conditionalBudgetChange) return null;
+  const cardChange = CARD_CHANGE.exec(userText.trim());
+  const confirmationOnly = Boolean(cardChange && CARD_CONDITION.test(userText.trim().slice(cardChange[0].length).replace(/\s+/gu, "")));
+  if (!conditionalBudgetChange && !confirmationOnly) return null;
   if (userText.length > 4000 || /["'“”‘’`<>\p{Cf}]/u.test(userText)
-    || /(?:예시|가정|대략|아마|나중|보류|취소|삭제|지워)/u.test(userText)) return unclear();
+    || /(?:예시|가정|대략|아마|나중|보류|취소|삭제|지워)/u.test(userText)) return conditionalBudgetChange ? unclear() : null;
 
-  const change = CHANGE.exec(userText.trim());
+  const change = confirmationOnly ? cardChange : CHANGE.exec(userText.trim());
   if (!change) return unclear();
   const remainder = userText.trim().slice(change[0].length).replace(/\s+/gu, "");
   const keep = KEEP_TOTAL.exec(remainder);
-  if (!keep || !CAP_CONDITION.test(remainder.slice(keep[0].length))) return unclear();
+  if (!confirmationOnly && (!keep || !CAP_CONDITION.test(remainder.slice(keep[0].length)))) return unclear();
   // 화살표의 마지막 단위는 양쪽 금액에만 공통 적용한다. 총액의 단위를 추정하지 않는다.
   if (!change[3] && change[4] === "에서") return unclear();
   const oldBudget = amount(change[2], change[3] ?? change[6]);
@@ -79,12 +87,17 @@ export function assessAmoraBudgetChange({ userText, context, sourceRevision }: {
     || !isValidWeddingWonAmount(context.weddingContext.budget) || context.weddingContext.budget === 0) {
     return needsConfirmation("budget_unavailable", "현재 확정된 총예산과 항목별 금액을 먼저 확인해야 정확히 계산할 수 있어요. 예산 탭을 확인한 뒤 다시 요청해주세요. 아직 저장하거나 적용할 변경안을 만들지 않았어요.");
   }
-  if (keep[1] && amount(keep[1], keep[2]) !== context.weddingContext.budget) {
+  if (keep?.[1] && amount(keep[1], keep[2]) !== context.weddingContext.budget) {
     return needsConfirmation("total_changed", "말씀하신 총예산이 현재 예산 탭의 금액과 달라요. 사용할 총예산을 먼저 확인해주세요. 아직 저장하거나 적용할 변경안을 만들지 않았어요.");
   }
 
   const label = change[1].replace(/\s+/gu, " ").trim();
   if (label.length > 60) return unclear();
+  const targetLabels = new Set([normalizeLabel(label)]);
+  // '맞춤'이 종류 설명인지 실제 이름의 일부인지 정본 항목 전체와 대조한다.
+  if (confirmationOnly && /^\s*맞춤\s*예산/u.test(change[0].slice(change[1].length))) {
+    targetLabels.add(normalizeLabel(`${label} 맞춤`));
+  }
   const progress = context.weddingContext.progress as Record<string, unknown>;
   if (!isRecord(progress) || (progress.__hidden !== undefined
     && (!Array.isArray(progress.__hidden) || !progress.__hidden.every(key => typeof key === "string")))) {
@@ -92,8 +105,8 @@ export function assessAmoraBudgetChange({ userText, context, sourceRevision }: {
   }
   const hidden = new Set(Array.isArray(progress.__hidden) ? progress.__hidden : []);
   const targetKeys = new Set(Object.entries(CATEGORY_LABELS)
-    .filter(([key, fixedLabel]) => normalizeLabel(fixedLabel) === normalizeLabel(label)
-      || normalizeLabel(PLANNING_CATEGORY_LABELS[key as keyof typeof PLANNING_CATEGORY_LABELS] ?? "") === normalizeLabel(label))
+    .filter(([key, fixedLabel]) => targetLabels.has(normalizeLabel(fixedLabel))
+      || targetLabels.has(normalizeLabel(PLANNING_CATEGORY_LABELS[key as keyof typeof PLANNING_CATEGORY_LABELS] ?? "")))
     .map(([key]) => key));
   for (const [key, row] of Object.entries(progress)) {
     if (key.startsWith("__")) continue;
@@ -107,7 +120,7 @@ export function assessAmoraBudgetChange({ userText, context, sourceRevision }: {
       || isRecord(row) && (row.budget !== undefined || row.spent !== undefined) && !known && !custom) {
       return needsConfirmation("invalid_budget_state", "현재 항목별 예산을 정확히 확인하기 어려워 계산과 변경안 생성을 멈췄어요. 예산 탭에서 항목을 확인해주세요.");
     }
-    if (custom && isRecord(row) && typeof row.label === "string" && normalizeLabel(row.label) === normalizeLabel(label)) targetKeys.add(key);
+    if (custom && isRecord(row) && typeof row.label === "string" && targetLabels.has(normalizeLabel(row.label))) targetKeys.add(key);
   }
   if (targetKeys.size !== 1) {
     return needsConfirmation("category_ambiguous", "예산 탭에서 바꿀 항목을 하나로 확인하지 못했어요. 현재 항목 이름을 정확히 알려주세요. 아직 저장하거나 적용할 변경안을 만들지 않았어요.");

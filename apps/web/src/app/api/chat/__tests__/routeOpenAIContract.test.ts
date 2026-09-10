@@ -565,7 +565,7 @@ vi.mock("@/lib/ai/tools", async (importOriginal) => {
   // route는 모듈 초기화 때 제안 도구 목록을 고정하므로 테스트 중 뒤늦게
   // 추가하지 않는다. 실제 배열 스키마/제목만 있는 할 일 계약을 그대로 쓴다.
   (mocks.safeTools as AiToolDefinition[]).push(...actual.BETA_SAFE_TOOLS.filter(tool =>
-    tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "add_custom_category" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action"));
+    tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "add_custom_category" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action" || tool.name === "update_schedule_event"));
   return { BETA_SAFE_TOOLS: mocks.safeTools, WEDDING_TOOLS: mocks.safeTools, BUDGET_CATEGORY_KEYS: actual.BUDGET_CATEGORY_KEYS };
 });
 
@@ -7336,6 +7336,115 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { previewSpy?.mockRestore(); }
   });
 
+  it.each(["no-marker", "wrong-budget-marker"] as const)("creates the exact requested budget-only confirmation through actual SDK output: %s", async mode => {
+    const text = "초대장·꽃·하객선물 맞춤 예산만 1,500,000원에서 1,501,000원으로 수정하고 싶어. 총예산, 다른 항목, 기록 지출, 분담은 그대로 두고 변경 확인 카드를 먼저 보여줘. 아직 적용하지 마.";
+    const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+    vi.mocked(routeSpecialist).mockImplementationOnce(actualStage.routeSpecialist);
+    vi.mocked(matchedSpecialistByKeyword).mockImplementationOnce(actualStage.matchedSpecialistByKeyword);
+    mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+      venue: { category: "venue", budget: 32_500_000, payer: "bride", memo: "식장 기록" },
+      custom_gifts: { category: "custom_gifts", label: "초대장·꽃·하객선물", budget: 1_500_000,
+        spent: 123_000, payer: "couple", memo: "기존 사용자 메모", payment_date: "2026-09-09" },
+    } };
+    const before = structuredClone(mocks.journeyRow);
+    mocks.journeyStateRevision = 7;
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    const actualOpenAI = await vi.importActual<typeof import("@/lib/ai/openai")>("@/lib/ai/openai");
+    const { default: OpenAI } = await import("openai");
+    const providerText = "총예산을 4,350만원으로 바꾸는 확인 카드예요."
+      + (mode === "wrong-budget-marker" ? '[pending_action]{"tool":"update_budget","input":{"total_budget":43500000}}[/pending_action]' : "");
+    let counted = 0;
+    let created = 0;
+    const client = new OpenAI({ apiKey: "sk-fixture-budget-card", maxRetries: 0, dangerouslyAllowBrowser: true,
+      fetch: async (url, init) => {
+        if (typeof init?.body !== "string") throw new Error("Expected SDK JSON request");
+        const input = JSON.parse(init.body);
+        const path = new URL(String(url)).pathname;
+        if (path.endsWith("/responses/input_tokens")) {
+          counted += 1;
+          return new Response(JSON.stringify({ object: "response.input_tokens", input_tokens: 100 }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        if (!path.endsWith("/responses")) throw new Error("Unexpected SDK endpoint");
+        created += 1;
+        const response = { id: "resp_budget_card", object: "response", created_at: 0, status: "completed",
+          error: null, incomplete_details: null, model: input.model,
+          output: [{ type: "message", id: "msg_budget_card", role: "assistant", status: "completed",
+            content: [{ type: "output_text", text: providerText, annotations: [] }] }],
+          output_text: providerText, usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 0 },
+            output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 105 } };
+        return new Response(
+          `data: ${JSON.stringify({ type: "response.output_text.delta", item_id: "msg_budget_card", output_index: 0, content_index: 0, sequence_number: 0, delta: providerText })}\n\n`
+          + `data: ${JSON.stringify({ type: "response.completed", sequence_number: 1, response })}\n\n`,
+          { status: 200, headers: { "Content-Type": "text/event-stream" } });
+      } });
+    vi.stubEnv("AMORA_OPENAI_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "sk-fixture-budget-card");
+    vi.stubEnv("OPENAI_AMORA_FAST_MODEL", "gpt-5.6-luna");
+    vi.stubEnv("OPENAI_AMORA_PRIMARY_MODEL", "gpt-5.6-terra");
+    vi.stubEnv("OPENAI_AMORA_FAST_REASONING_EFFORT", "none");
+    vi.stubEnv("OPENAI_AMORA_PRIMARY_REASONING_EFFORT", "none");
+    mocks.provider.mockImplementation(options => actualOpenAI.chatWithToolsStream({ ...options, client }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(created).toBe(1);
+    expect(counted).toBe(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(before);
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata.pending_amora_action).toMatchObject({
+      tool: "add_custom_category", input: { label: "초대장·꽃·하객선물", budget: 1_501_000 },
+    });
+    expect(saved.metadata.pending_amora_action_journey_revision).toBe(7);
+    expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ sourceRevision: 7,
+      current: { totalBudget: 35_000_000, allocatedBudget: 34_000_000, recordedSpend: 123_000 },
+      proposed: { totalBudget: 35_000_000, allocatedBudget: 34_001_000, recordedSpend: 123_000, unallocatedBudget: 999_000 } });
+    expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(body).not.toContain("4,350");
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(saved.content);
+    expect(events.find(event => event.type === "done")?.metadata.pending_amora_action).toEqual(saved.metadata.pending_amora_action);
+  });
+
+  it.each(["private", "attachment", "queue"] as const)("does not replace a protected %s flow with a budget-only card", async mode => {
+    const text = "초대장·꽃·하객선물 맞춤 예산만 1,500,000원에서 1,501,000원으로 수정하고 싶어. 총예산, 다른 항목, 기록 지출, 분담은 그대로 두고 변경 확인 카드를 먼저 보여줘. 아직 적용하지 마.";
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+    vi.mocked(routeSpecialist).mockImplementationOnce(actualStage.routeSpecialist);
+    vi.mocked(matchedSpecialistByKeyword).mockImplementationOnce(actualStage.matchedSpecialistByKeyword);
+    mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+      venue: { budget: 32_500_000 }, custom_gifts: { label: "초대장·꽃·하객선물", budget: 1_500_000, spent: 123_000 },
+    } };
+    const before = structuredClone(mocks.journeyRow);
+    const visibility = mode === "private" ? "bride_private" : "shared";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    if (mode === "queue") {
+      const definition = actual.WEDDING_TOOLS.find(tool => tool.name === "update_budget")!;
+      const extracted = extractAmoraPendingAction({
+        text: [30_000_000, 31_000_000].map(total_budget => `[pending_action]${JSON.stringify({ tool: definition.name, input: { total_budget } })}[/pending_action]`).join("\n"),
+        allowedTools: [definition], now: Date.now(), createActionId: () => "11111111-1111-4111-8111-111111111111",
+      });
+      const { createAmoraActionQueue } = await import("@/lib/ai/amoraActionQueue");
+      setCanonicalConfirmedBudgetAction(extracted.pendingAction!.actionId, text);
+      mocks.canonicalRows[1].metadata = { ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+        pending_amora_action: extracted.pendingAction,
+        pending_amora_action_queue: createAmoraActionQueue(extracted.pendingAction!, extracted.remainingActions) };
+    }
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    if (mode === "attachment") await bindCanonicalProviderAttachments([attachment]);
+    providerAfterPreGeneration(providerResult({ fullText: "요청한 내용을 살펴볼게요." }));
+    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }],
+      ...(mode === "attachment" ? { attachments: [attachment] } : {}) }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(before);
+    expect(JSON.stringify(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action ?? null)).not.toContain("1501000");
+    expect(body).not.toContain("1501000");
+  });
+
   it.each(["allowed", "closed"])("keeps an affordable conditional budget change behind the existing pending tool boundary: %s", async mode => {
     const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
     const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
@@ -7508,6 +7617,86 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { if (added) mocks.safeTools.pop(); }
   });
 
+  it.each(["omitted-fields", "explicit-fields", "no-marker-success", "old-card", "update", "operating-no-marker"])("does not silently drop unsupported schedule conditions in a shared current request: %s", async mode => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const toolName = mode === "update" ? "update_schedule_event" : "add_schedule_event";
+    const definition = actual.WEDDING_TOOLS.find(tool => tool.name === toolName)!;
+    const added = !mocks.safeTools.some(tool => tool.name === toolName);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    const text = mode === "operating-no-marker"
+      ? "2026년 9월 18일 오후 7시에 QA0910-D3 견적 확인 일정을 추가해줘. 담당자는 상대방으로 하고, 완료 기준은 식장 견적서를 받아 두 사람이 포함 항목을 확인하는 거야. 날짜와 제목만 저장하고 나머지 조건을 빠뜨리면 안 돼. 실제 저장 전에 모든 조건이 들어간 확인 카드를 보여줘."
+      : mode === "update"
+      ? "둘이 예산 확인 일정의 담당자를 두 사람으로 바꿔줘. 완료 기준은 조정할 항목 한 개 정하기로 설정해줘."
+      : "2026년 9월 14일 저녁 7시 30분에 둘이 예산 확인 일정을 추가해줘. 메모는 총예산과 미배정 금액을 함께 확인, 완료 기준은 조정할 항목 한 개 정하기, 담당은 두 사람이야. 업체 예약은 아니야.";
+    const input = mode === "update" ? { event_id: "event-existing", time: "19:45" }
+      : { date: "2026-09-14", time: "19:30", title: "둘이 예산 확인", memo: "총예산과 미배정 금액을 함께 확인" };
+    const suggestion = "UNSUPPORTED_SCHEDULE_RETRY_SENTINEL";
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.journeyRow.progress = { __events: [{ id: "event-existing", date: "2026-09-14", time: "19:30", title: "둘이 예산 확인", status: "planned" }] };
+      if (mode === "old-card") {
+        setCanonicalConfirmedBudgetAction("11111111-1111-4111-8111-111111111111", text);
+        mocks.canonicalRows[1].metadata = { ...(mocks.canonicalRows[1].metadata as Record<string, unknown>), pending_amora_action_carry_count: 0, pending_amora_action_journey_revision: 0 };
+      }
+      const before = structuredClone(mocks.journeyRow);
+      const suggestionParser = await vi.importActual<typeof import("@/lib/ai/chatSuggestions")>("@/lib/ai/chatSuggestions");
+      mocks.extractSuggestions.mockImplementationOnce(suggestionParser.extractSuggestions);
+      const providerText = mode === "operating-no-marker" ? "다음 일정 추가를 적용할까요? 날짜: 2026-09-18 시각: 19:00 제목: 견적 확인 담당자: 상대방 완료 기준: 견적서 확인 [assistant/analysis synthetic-internal-token]"
+        : mode === "no-marker-success" ? "담당자를 두 사람으로 정하고 완료 기준까지 일정에 저장했어요."
+        : `일정 확인 카드예요.\n[pending_action]${JSON.stringify({ tool: toolName, input: { ...input, ...(mode === "explicit-fields" ? { assignee: "couple", completion_criteria: "조정할 항목 한 개 정하기" } : {}) } })}[/pending_action]`;
+      providerAfterPreGeneration(providerResult({ fullText: providerText + `\n[suggestions]\n${suggestion}\n[/suggestions]` }));
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+      expect(mocks.provider).toHaveBeenCalledTimes(1);
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.content).toContain("아직 아모라에서 설정할 수 없어요");
+      expect(saved.content).toContain("일정 화면에서 직접 설정");
+      expect(saved.content).not.toContain("일정에 저장했어요");
+      expect(saved.metadata.pending_amora_action).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+      expect(saved.metadata.suggestions).toBeUndefined();
+      expect(body).not.toContain('"pending_amora_action"');
+      expect(body).not.toContain('"type":"suggestions"');
+      expect(body).not.toContain(suggestion);
+      expect(body).not.toContain("일정에 저장했어요");
+      expect(body).not.toContain("assistant/analysis");
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each(["private", "demo", "initial_greeting", "unbound"])("does not replace an out-of-scope conversation with the unsupported schedule notice: %s", async mode => {
+    const text = "2026년 9월 14일 견적 확인 일정을 추가해줘. 담당자는 두 사람으로 설정해줘.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: mode === "private" ? "bride_private" : "shared" };
+    if (mode === "demo") { mocks.authenticatedUser = null; mocks.signedDemo = true; }
+    providerAfterPreGeneration(providerResult({ fullText: "먼저 견적에서 확인할 항목을 살펴볼게요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }],
+      ...(mode === "private" ? { visibility: "bride_private" } : {}),
+      ...(mode === "demo" ? { isDemo: true, coupleId: "demo-couple", userMessageId: undefined } : {}),
+      ...(mode === "initial_greeting" ? { requestKind: "initial_greeting", userMessageId: undefined } : {}),
+      ...(mode === "unbound" ? { userMessageId: undefined } : {}),
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).not.toContain("아직 아모라에서 설정할 수 없어요");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    for (const saved of mocks.atomicResponses) expect(saved.metadata.unsupported_schedule_fields).toBeUndefined();
+  });
+
+  it("keeps quoted schedule memo data and a supported schedule card unchanged", async () => {
+    const text = "2026년 9월 14일 견적 확인 일정을 추가해줘. 메모는 '완료 기준은 담당자에게 물어보기'라고 적어줘.";
+    const input = { date: "2026-09-14", time: "19:30", title: "견적 확인", memo: "완료 기준은 담당자에게 물어보기" };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    providerAfterPreGeneration(providerResult({ fullText: `[pending_action]${JSON.stringify({ tool: "add_schedule_event", input })}[/pending_action]` }));
+    await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata.unsupported_schedule_fields).toBeUndefined();
+    expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_schedule_event", input });
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it.each(["private", "demo", "initial_greeting", "unbound"])("does not recover explicit schedules outside a durable shared chat: %s", async (mode) => {
     const text = "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담.";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility: mode === "private" ? "bride_private" : "shared" };
@@ -7531,8 +7720,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
   });
 
-  it("does not start a new explicit schedule queue while executing an already confirmed action", async () => {
-    const text = "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담.";
+  it.each(["plain", "unsupported-fields", "budget-card"])("does not start new explicit proposals while executing an already confirmed action: %s", async mode => {
+    const text = mode === "budget-card"
+      ? "초대장·꽃·하객선물 맞춤 예산만 1,500,000원에서 1,501,000원으로 수정하고 싶어. 총예산, 다른 항목, 기록 지출, 분담은 그대로 두고 변경 확인 카드를 먼저 보여줘. 아직 적용하지 마."
+      : "다음 일정 2건을 모두 추가해줘. 2026-10-10 예식장 견적 상담, 2026-10-11 드레스 투어 상담."
+      + (mode === "unsupported-fields" ? " 담당자는 두 사람으로 지정해줘." : "");
     const actionId = "11111111-1111-4111-8111-111111111111";
     setCanonicalConfirmedBudgetAction(actionId, text);
     providerAfterPreGeneration(providerResult({ fullText: "일정도 확인할까요?" }));
@@ -7543,6 +7735,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(mocks.executeTool).toHaveBeenCalledWith("update_budget", { total_budget: 30000000 }, expect.anything());
     expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action).toBeUndefined();
     expect(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(mocks.atomicResponses.at(-1)?.metadata.unsupported_schedule_fields).toBeUndefined();
   });
 
   it("leaves meaningful model time information intact without expanding an unsupported partial schedule proposal", async () => {
@@ -9856,9 +10049,13 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   }
 
   it.each(["ordinary", "long category notes", "long category notes and shared profiles", "an unrelated successful read",
-    "natural schedule correct", "natural schedule stale", "natural schedule whitespace", "C01 missing reads", "C01 open-only read"] as const)("sends current schedule time through the real capped POST and OpenAI instructions with %s", async scenario => {
+    "natural schedule correct", "natural schedule stale", "natural schedule whitespace", "C01 missing reads", "C01 open-only read", "C01 current records open-only read"] as const)("sends current schedule time through the real capped POST and OpenAI instructions with %s", async scenario => {
     const naturalSchedule = scenario.startsWith("natural schedule");
-    const currentUser = naturalSchedule
+    const currentRecords = scenario === "C01 current records open-only read";
+    const openOnly = scenario === "C01 open-only read" || currentRecords;
+    const currentUser = currentRecords
+      ? "저장하거나 수정하지 말고 현재 기록만 확인해줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인의 완료 여부와 QA0910 둘이 예산 확인 일정의 날짜와 시간을 알려줘. 과거 대화보다 지금 저장된 값을 기준으로 답해줘."
+      : naturalSchedule
       ? "QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘."
       : "어떤 것도 변경하거나 저장하지 말고 현재 실제 저장된 값만 알려줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인과 QA0910 초대 명단 초안 정리의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 짧게 정리해줘.";
     const eventTitle = "QA0910 둘이 예산 확인";
@@ -9940,7 +10137,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         const toolName = readNames[index];
         const output = toolName ? [{ type: "function_call", id: `fc_current_${index}`,
           call_id: `call_current_${index}`, name: toolName,
-          arguments: JSON.stringify(toolName === "get_amora_actions" ? { status: scenario === "C01 open-only read" ? "open" : "all" }
+          arguments: JSON.stringify(toolName === "get_amora_actions" ? { status: openOnly ? "open" : "all" }
             : toolName === "get_market_price" ? { category: "hall" } : {}), status: "completed" }]
           : [{ type: "message", id: "msg_current", role: "assistant", status: "completed",
             content: [{ type: "output_text", text: providerText, annotations: [] }] }];
@@ -10006,7 +10203,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
               expect(executedReads).toEqual(["get_budget_summary", "get_amora_actions",
                 ...(scenario === "an unrelated successful read" ? ["get_market_price"] : [])]);
               expect(mocks.executeTool.mock.calls[1]?.[1]).toEqual({ status: "all" });
-              if (scenario === "C01 open-only read") {
+              if (openOnly) {
                 const outputs = providerInputs.flatMap(input => Array.isArray(input) ? input : [])
                   .filter(item => item?.type === "function_call_output" && item.call_id === "call_current_1")
                   .map(item => JSON.parse(item.output));
@@ -10049,7 +10246,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
               expect(done?.fullContent).not.toMatch(/총예산|공유 할 일/u);
             } else {
               expect(done?.fullContent).toMatch(/QA0910 식장 견적 포함 항목 확인[^\n]*완료/u);
-              expect(done?.fullContent).toMatch(/QA0910 초대 명단 초안 정리[^\n]*(미완료|아직|진행 전)/u);
+              if (currentRecords) expect(done?.fullContent).not.toContain("QA0910 초대 명단 초안 정리");
+              else expect(done?.fullContent).toMatch(/QA0910 초대 명단 초안 정리[^\n]*(미완료|아직|진행 전)/u);
             }
             if (scenario === "ordinary" || scenario === "an unrelated successful read" || scenario.startsWith("C01 ")) {
               for (const amount of ["35,000,000원", "13,500,000원", "21,500,000원", "123,000원"]) expect(done?.fullContent).toContain(amount);

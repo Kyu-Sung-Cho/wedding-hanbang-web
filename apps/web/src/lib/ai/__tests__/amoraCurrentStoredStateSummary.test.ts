@@ -21,6 +21,39 @@ function render(overrides: Partial<Parameters<typeof formatCurrentStoredStateSum
 }
 describe("current stored state request", () => {
   it.each([
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인의 완료 여부와 QA0910 둘이 예산 확인 일정의 날짜와 시간을 알려줘. 과거 대화보다 지금 저장된 값을 기준으로 답해줘.",
+    "아무것도 수정하거나 저장하지 말고 현재 기록만 확인해줘. 예산, QA0910 식장 견적 포함 항목 확인의 완료 상태 및 QA0910 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
+    "저장하거나 변경하지 말고 현재 실제 저장된 값만 알려줘. 예산, QA0910 식장 견적 포함 항목 확인의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 정리해줘.",
+  ])("reads completed tasks with all statuses in a read-only combined inquiry: %s", text => {
+    const request = assessCurrentStoredStateRequest(text);
+    expect(request).not.toBeNull();
+    if (!request) throw new Error("Expected current stored state request");
+    expect(request.taskTitles).toEqual(["QA0910 식장 견적 포함 항목 확인"]);
+    expect(request.scheduleTitles).toEqual(["QA0910 둘이 예산 확인"]);
+    expect(getRequiredCurrentStoredStateReads(request)).toEqual([
+      { tool: "get_budget_summary", input: {} },
+      { tool: "get_amora_actions", input: { status: "all" } },
+    ]);
+    expect(formatCurrentStoredStateSummary({ request, sourceRevision: 16,
+      canonicalProgress: { __events: [event] }, toolResults: results }))
+      .toContain("QA0910 식장 견적 포함 항목 확인: 완료");
+  });
+
+  it.each([
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, QA0910 식장 견적 포함 항목 확인의 완료 여부와 담당자를 알려줘.",
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, 지난주와 현재 지출을 비교해줘. 과거 대화보다 지금 저장된 값을 기준으로 답해줘.",
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, 나만 상담의 완료 여부와 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, 식장 확인의 완료 여부와 둘이 예산 확인 일정의 날짜와 시간을 알려줘. 그리고 예산을 올려줘.",
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, 식장 확인의 완료 여부와 담당자 및 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, 식장 확인의 완료 여부와 예산을 올려주고 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
+    "저장하거나 수정하지 말고 현재 기록만 확인해줘. 예산, 담당자도 알려주고 식장 확인의 완료 여부와 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
+    "저장하지 말고 현재 예산을 줄여주시고 식장 확인의 완료 여부를 알려줘.",
+    "저장하지 말고 현재 담당자 및 둘이 예산 확인 일정의 날짜와 시간을 알려줘.",
+  ])("does not turn extra fields or mutations into a partial read: %s", text => {
+    expect(assessCurrentStoredStateRequest(text)).toBeNull();
+  });
+
+  it.each([
     ["두 사람 예산 점검 일정 지금 언제야? 저장된 날짜와 시간만 알려줘.", "두 사람 예산 점검"],
     ["식장 방문 일정의 현재 날짜와 시간을 알려줘. 변경하지 마.", "식장 방문"],
     ["부모님 일정 확인 일정이 언제로 저장돼 있어? 수정하지 말고 알려줘.", "부모님 일정 확인"],

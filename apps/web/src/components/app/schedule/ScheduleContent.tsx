@@ -43,6 +43,7 @@ const DEMO_SCHEDULE_ACTOR_PROFILE_ID = "00000000-0000-4000-8000-000000000001";
 
 const CATEGORY_LABELS: Record<string, string> = {
   ...PLANNING_CATEGORY_LABELS,
+  general: "일반",
   etiquette: "결혼 예절 참고",
 };
 
@@ -883,7 +884,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     <p className="mt-1 text-[12px] leading-5 text-[var(--hb-text-body)]">
                       기존 날짜 {event.date}{event.time ? ` ${event.time}` : ""}
                       {event.cancellation
-                        ? ` · 취소 시각 ${event.cancellation.cancelledAt.slice(0, 10)}`
+                        ? ` · 취소 시각 ${ymdInKst(new Date(event.cancellation.cancelledAt))}`
                         : ""}
                     </p>
                     {event.cancellation?.reason && (

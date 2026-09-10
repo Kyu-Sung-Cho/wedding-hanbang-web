@@ -28,6 +28,7 @@ const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
 const CATEGORY_LABELS: Record<string, string> = {
   ...PLANNING_CATEGORY_LABELS,
+  general: "일반",
   etiquette: "결혼 예절 참고",
 };
 
