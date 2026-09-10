@@ -30,26 +30,26 @@ export default function StreamingBubble({
       )}
 
       {/* 도착한 텍스트는 바로 보여 주고, 아직 텍스트가 없을 때만 진행 안내를 표시한다. */}
-      <div className="group/ai flex items-start gap-2 sm:gap-3 max-w-[94%] sm:max-w-[53.75rem]">
-        <div className="flex-shrink-0 w-9 h-9 sm:w-11 sm:h-11 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center shadow-sm">
+      <div className="group/ai flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
+        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--amora-accent,#486455)] sm:size-8">
           <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
         </div>
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
-          <span className="text-base font-medium text-[var(--hb-text-muted)]">아모라</span>
+          <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#605E54)]">아모라</span>
           <div
-            className="bg-white rounded-[6px] rounded-tl-md px-4 py-3 sm:px-5 sm:py-4 border border-black/[0.06] shadow-sm"
+            className="rounded-[14px] rounded-bl-[4px] border border-transparent bg-[var(--amora-sage-pale,#DBE3D6)] px-[14px] py-[11px]"
             aria-live="polite"
             aria-busy="true"
           >
             {content.trim() ? (
-              <p className="whitespace-pre-wrap break-words text-sm leading-7 text-[var(--hb-text-strong)] sm:text-[0.9375rem]">
+              <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.6] text-[#233426] sm:text-[14px]">
                 {content}
-                <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-[#C4967E] align-middle" aria-hidden="true" />
+                <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-[var(--amora-accent,#486455)] align-middle" aria-hidden="true" />
               </p>
             ) : (
               <div className="flex items-center gap-2 py-0.5" role="status">
-                <Loader2 className="w-5 h-5 text-[#C4967E] animate-spin" aria-hidden="true" />
+                <Loader2 className="w-5 h-5 text-[var(--amora-accent,#486455)] animate-spin" aria-hidden="true" />
                 <span className="text-xs sm:text-sm text-[var(--hb-text-muted)]">
                   답변을 정리하고 있어요…
                 </span>

@@ -201,6 +201,13 @@ function AmoraMissionsView({ embedded }: { embedded: boolean }) {
   const totalChecked = model.groups.reduce((sum, group) => sum + group.done, 0);
   const totalItems = model.groups.reduce((sum, group) => sum + group.total, 0);
   const cards = model.cards;
+  const preparationPath = <PreparationPath groups={model.groups} available={checklistAvailable} selectedGroupId={selectedGroup.id} expanded={checklistAvailable && stageExpanded} pathRef={pathRef} onSelect={groupId => {
+    if (!viewScope || !checklistAvailable) return;
+    setSelection({ scope: viewScope, groupId });
+    setStageExpanded(true);
+  }}>
+    {checklistAvailable && stageExpanded && <MissionStage group={selectedGroup} recommendation={model.recommendation} onOpen={openCategory} onRecommended={() => setSelection(null)} onClose={closeStage} />}
+  </PreparationPath>;
 
   return (
     <div className={embedded ? "text-[var(--amora-ink)]" : "mx-auto max-w-[1440px] px-[18px] pb-7 pt-4 text-[var(--amora-ink)] md:px-9 md:py-8"}>
@@ -211,13 +218,7 @@ function AmoraMissionsView({ embedded }: { embedded: boolean }) {
         </div>
         <Link {...weddingLinkProps("/chat/board?view=tasks")} className={`inline-flex min-h-11 items-center gap-1 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] ${FOCUS}`}>공유 할 일 관리<ChevronRight size={15} aria-hidden="true" /></Link>
       </div>}
-      <PreparationPath groups={model.groups} available={checklistAvailable} selectedGroupId={selectedGroup.id} expanded={checklistAvailable && stageExpanded} pathRef={pathRef} onSelect={groupId => {
-        if (!viewScope || !checklistAvailable) return;
-        setSelection({ scope: viewScope, groupId });
-        setStageExpanded(true);
-      }}>
-        {checklistAvailable && stageExpanded && <MissionStage group={selectedGroup} recommendation={model.recommendation} onOpen={openCategory} onRecommended={() => setSelection(null)} onClose={closeStage} />}
-      </PreparationPath>
+      {!embedded && preparationPath}
       <div className={embedded ? "min-w-0" : "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_280px] xl:grid-cols-[minmax(0,1fr)_320px]"}>
         <section aria-labelledby="missions-heading" aria-busy={busy}>
           {!embedded && <p className="mb-1.5 hidden text-[13px] font-semibold text-[var(--amora-rose-deep)] md:block">
@@ -293,6 +294,7 @@ function AmoraMissionsView({ embedded }: { embedded: boolean }) {
           </div>
         </aside>}
       </div>
+      {embedded && <div className="mt-4 md:mt-5">{preparationPath}</div>}
       {isDemo && <p role="note" className="mt-4 text-xs leading-5 text-[var(--amora-muted)]">예시 화면 · 준비 상태와 공유 할 일은 데모 데이터예요.</p>}
       {visibleCategory && <CategoryChecklistModal key={`${viewScope}:${visibleCategory}`} categoryKey={visibleCategory} isOpen onClose={() => setOpenedCategory(null)} presentation="planning" />}
     </div>

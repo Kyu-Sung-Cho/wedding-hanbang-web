@@ -10,6 +10,7 @@ import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { captureEvent } from "@/lib/analytics";
 import TurnstileWidget from "@/components/auth/TurnstileWidget";
 import SignupConsent from "@/components/auth/SignupConsent";
+import ExistingSessionReturn from "@/components/auth/ExistingSessionReturn";
 import { AUTH_ERROR_FALLBACK, authErrorMessage } from "@/lib/auth/authErrorMessages";
 import {
   hasAnyWebOAuthProvider,
@@ -344,6 +345,7 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen bg-[var(--hb-surface-page)] flex items-center justify-center px-5 py-10">
+      <ExistingSessionReturn mode={mode} />
       {/* 배경 장식 */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -right-[5%] w-[500px] h-[500px] rounded-full bg-[radial-gradient(circle,#eef4f1,transparent)] blur-[100px] opacity-45" />

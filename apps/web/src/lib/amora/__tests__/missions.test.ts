@@ -13,6 +13,53 @@ function action(overrides: Partial<AmoraActionItem> = {}): AmoraActionItem {
 }
 
 describe("아모라 미션의 표시 그룹과 실제 기록", () => {
+  it("날짜 없는 중요한 할 일을 날짜가 있는 낮은 중요도보다 먼저 선택한다", () => {
+    const model = buildAmoraMissionModel({}, [
+      action({ id: "low-dated", priority: "low", dueDate: "2026-09-10" }),
+      action({ id: "high-undated", priority: "high" }),
+    ]);
+    expect(model.cards[0].id).toBe("high-undated");
+    expect(model.cards[1].kind).toBe("checklist");
+  });
+
+  it("같은 중요도는 유효한 절대 날짜를 먼저 보고 달력 날짜 오름차순으로 고른다", () => {
+    expect(buildAmoraMissionModel(null, [
+      action({ id: "invalid", dueDate: "2026-02-30", createdAt: "2026-09-10T00:00:00Z" }),
+      action({ id: "later", dueDate: "2026-10-01" }),
+      action({ id: "earlier", dueDate: "2026-09-30" }),
+    ]).cards.map(card => card.id)).toEqual(["earlier", "later"]);
+  });
+
+  it("9월·10월 자유 문구는 달력으로 해석하지 않고 같은 미정 그룹에서 생성시각을 따른다", () => {
+    const actions = [
+      action({ id: "old", dueDate: "10월 중 상담 후", createdAt: "2026-09-01T00:00:00Z" }),
+      action({ id: "new", dueDate: "9월 중 두 사람이 가능한 날", createdAt: "2026-09-02T00:00:00Z" }),
+    ];
+    const before = structuredClone(actions);
+    const cards = buildAmoraMissionModel(null, actions).cards;
+    expect(cards.map(card => card.id)).toEqual(["new", "old"]);
+    expect(cards.map(card => card.dueDate)).toEqual([actions[1].dueDate, actions[0].dueDate]);
+    expect(actions).toEqual(before);
+  });
+
+  it("절대일 두 개와 자유 문구의 모든 입력 순열에서 선택 순서가 같다", () => {
+    const first = action({ id: "first", dueDate: "2026-09-12", createdAt: "2026-09-01T00:00:00Z" });
+    const second = action({ id: "second", dueDate: "2026-09-13", createdAt: "2026-09-03T00:00:00Z" });
+    const free = action({ id: "free", dueDate: "상담 후", createdAt: "2026-09-02T00:00:00Z" });
+    for (const input of [[first, second, free], [first, free, second], [second, first, free], [second, free, first], [free, first, second], [free, second, first]]) {
+      expect(buildAmoraMissionModel(null, input).cards.map(card => card.id)).toEqual(["first", "second"]);
+    }
+  });
+
+  it("같은 날짜·생성시각은 id로 안정화하며 기존 완료 카드의 순서는 바꾸지 않는다", () => {
+    const a = action({ id: "a", dueDate: "2026-09-12" });
+    const b = action({ id: "b", dueDate: "2026-09-12" });
+    expect(buildAmoraMissionModel(null, [b, a]).cards.map(card => card.id)).toEqual(["a", "b"]);
+    const doneEarly = action({ id: "done-early", status: "done", priority: "low", dueDate: "2026-09-01" });
+    const doneHigh = action({ id: "done-high", status: "done", priority: "high", dueDate: "2026-09-02" });
+    expect(buildAmoraMissionModel({}, [doneHigh, doneEarly, b, a]).completedCard?.id).toBe("done-early");
+  });
+
   it("공유 할 일의 예정일 원문만 보존하고 빈 값이나 체크리스트에는 날짜를 만들지 않는다", () => {
     const dueDate = "  다음 상담 후, 두 사람이 가능한 날  ";
     const model = buildAmoraMissionModel({}, [action({ dueDate })]);

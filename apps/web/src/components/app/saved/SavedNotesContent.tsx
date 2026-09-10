@@ -5,6 +5,7 @@ import { Bookmark, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
+import Button from "@/components/ui/Button";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -18,6 +19,9 @@ type SavedNote = {
 };
 
 type LoadStatus = "loading" | "ready" | "error";
+type MemoConflict = { id: string; status: "needs_read" | "unavailable" }
+  | { id: string; status: "ready"; memo: string | null };
+const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]";
 const notesSchema = z.object({ notes: z.array(z.object({
   id: z.string().uuid(), messageId: z.string().uuid().nullable(),
   content: z.string().min(1).max(4_000), memo: z.string().max(500).nullable(),
@@ -52,6 +56,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [memoDraft, setMemoDraft] = useState("");
+  const [memoConflict, setMemoConflict] = useState<MemoConflict | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -61,6 +66,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
   const sequence = useRef(0);
   const pending = useRef(false);
   const readPending = useRef(false);
+  const notePageCursors = useRef(new Map<string, string | null>());
   const stillCurrent = useCallback((generation: number) => generation === lifecycle.current
     && savedNotesScope(useAuthStore.getState()) === scope, [scope]);
 
@@ -78,6 +84,8 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       if (cursor && body.next_cursor === cursor) throw new Error("cursor_did_not_advance");
       if (body.next_cursor && body.notes.length === 0) throw new Error("empty_cursor_page");
       if (current()) {
+        if (!cursor) notePageCursors.current.clear();
+        for (const note of body.notes) notePageCursors.current.set(note.id, cursor);
         setNotes(previous => cursor ? [...new Map([...previous, ...body.notes].map(note => [note.id, note])).values()] : body.notes);
         setNextCursor(body.next_cursor ?? null); setStatus("ready");
       }
@@ -99,9 +107,37 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
     return typeof data?.error === "string" && data.error.trim() ? data.error : fallback;
   }
 
+  const confirmCurrentMemo = useCallback(async (id: string) => {
+    const generation = lifecycle.current;
+    if (pending.current || readPending.current || !stillCurrent(generation) || editingId !== id || memoConflict?.id !== id) return;
+    readPending.current = true;
+    setBusyId(id);
+    setActionError(null);
+    try {
+      // 같은 답변을 불러온 페이지를 한 번만 확인한다. 목록 이동을 삭제로 단정하지 않는다.
+      if (!notePageCursors.current.has(id)) throw new Error("page_not_known");
+      const cursor = notePageCursors.current.get(id);
+      const response = await fetch(`/api/amora/notes${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("read_failed");
+      const body = notesSchema.parse(await response.json());
+      const matches = body.notes.filter(note => note.id === id);
+      if (matches.length !== 1) throw new Error("current_note_not_verified");
+      if (!stillCurrent(generation)) return;
+      const latestMemo = matches[0].memo;
+      setNotes(current => current.map(note => note.id === id ? { ...note, memo: latestMemo } : note));
+      setMemoConflict({ id, status: "ready", memo: latestMemo });
+    } catch {
+      if (stillCurrent(generation)) setMemoConflict({ id, status: "unavailable" });
+    } finally {
+      if (stillCurrent(generation)) { readPending.current = false; setBusyId(null); }
+    }
+  }, [editingId, memoConflict, stillCurrent]);
+
   const saveMemo = useCallback(async (id: string) => {
     const generation = lifecycle.current;
     if (pending.current || readPending.current || !stillCurrent(generation) || memoDraft.length > 500) return;
+    const conflict = memoConflict?.id === id ? memoConflict : null;
+    if (conflict && conflict.status !== "ready") return;
     pending.current = true;
     const memo = memoDraft.trim() || null;
     setBusyId(id);
@@ -109,15 +145,17 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       const response = await fetch("/api/amora/notes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, memo: memoDraft, expectedMemo: notes.find(note => note.id === id)?.memo }),
+        body: JSON.stringify({ id, memo: memoDraft, expectedMemo: conflict?.status === "ready" ? conflict.memo : notes.find(note => note.id === id)?.memo }),
       });
       const receipt = await response.clone().json().catch(() => null) as { updated?: unknown; id?: unknown } | null;
       if (!stillCurrent(generation)) return;
       if (response.ok && receipt?.updated === true && receipt.id === id) {
         setNotes((current) => current.map((note) => (note.id === id ? { ...note, memo } : note)));
         setEditingId(null);
+        setMemoConflict(null);
         setActionError(null);
       } else {
+        if (response.status === 409) setMemoConflict({ id, status: "needs_read" });
         // 편집 상태는 유지하되 **왜 안 됐는지 말한다.** 예전에는 아무 신호가 없어
         // 눌러도 아무 일이 없는 것처럼 보였다. 서버는 401/403/404/500 을 문장으로 준다.
         setActionError(await readError(response, "메모를 저장하지 못했어요."));
@@ -128,7 +166,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       pending.current = false;
       if (stillCurrent(generation)) setBusyId(null);
     }
-  }, [memoDraft, notes, stillCurrent]);
+  }, [memoConflict, memoDraft, notes, stillCurrent]);
 
   const removeNote = useCallback(async (id: string) => {
     const generation = lifecycle.current;
@@ -146,7 +184,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
       if (response.ok && receipt?.deleted === true && receipt.id === id) {
         setNotes((current) => current.filter((note) => note.id !== id));
         window.dispatchEvent(new Event("amora-saved-notes-changed"));
-        if (editingId === id) { setEditingId(null); setMemoDraft(""); }
+        if (editingId === id) { setEditingId(null); setMemoDraft(""); setMemoConflict(null); }
         setActionError(null);
       } else {
         setActionError(await readError(response, "저장한 답변을 지우지 못했어요."));
@@ -264,22 +302,34 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                     onChange={(event) => setMemoDraft(event.target.value.slice(0, 500))}
                     rows={2}
                     placeholder="왜 저장했는지 적어두면 나중에 찾기 쉬워요"
-                    className="w-full rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] px-3 py-2 text-base text-[var(--hb-text-strong)] placeholder-[#B5ADA3] focus:border-[#C4967E]/40 focus:outline-none"
+                    className={`w-full rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] px-3 py-2 text-base text-[var(--hb-text-strong)] placeholder:text-[var(--amora-muted)] ${focus}`}
                   />
-                  <div className="mt-2 flex gap-2">
+                  <p className="mt-2 text-sm leading-6 text-[var(--hb-text-muted)]">다른 답변의 메모를 쓰려면 먼저 이 메모를 저장하거나 취소해 주세요.</p>
+                  {memoConflict?.id === note.id && <div role="status" aria-busy={busyId === note.id} className="mt-3 space-y-2 rounded-[6px] border border-[#E8E0D8] bg-[#FAF8F5] p-3 text-sm leading-6">
+                    {memoConflict.status === "ready" ? <>
+                      <p className="font-semibold">현재 저장된 메모</p>
+                      <p className="whitespace-pre-wrap break-words">{memoConflict.memo ?? "현재 저장된 메모가 없어요."}</p>
+                      <p>작성 중인 내용은 위에 그대로 있어요. 현재 메모를 바꿀지 확인한 뒤 저장해 주세요.</p>
+                    </> : <>
+                      <p>{memoConflict.status === "unavailable" ? "현재 메모를 확인하지 못했어요. 목록이 바뀌었거나 잠시 불러올 수 없어요. 작성한 내용은 그대로 두었어요." : "작성한 내용은 그대로 두었어요. 현재 저장된 메모를 먼저 확인해 주세요."}</p>
+                      {busyId === note.id && <p>현재 메모를 확인하고 있어요…</p>}
+                      <Button type="button" variant="secondary" disabled={busyId !== null || loadingMore} onClick={() => void confirmCurrentMemo(note.id)} className="border-[#E8E0D8]! bg-transparent! px-3! text-[var(--amora-accent)]! hover:bg-transparent! transition-none! disabled:opacity-40! focus-visible:outline-solid! focus-visible:outline-2! focus-visible:outline-offset-2! focus-visible:outline-[var(--amora-accent)]! focus-visible:ring-0! focus-visible:ring-offset-0!">현재 메모 확인</Button>
+                    </>}
+                  </div>}
+                  <div className="mt-2 flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => void saveMemo(note.id)}
-                      disabled={busyId !== null || loadingMore}
-                      className="min-h-11 rounded-[6px] bg-[#C4967E] px-4 text-base font-bold text-white hover:bg-[#B5876F] disabled:opacity-40"
+                      disabled={busyId !== null || loadingMore || (memoConflict?.id === note.id && memoConflict.status !== "ready")}
+                      className={`min-h-11 max-w-full rounded-[6px] bg-[var(--amora-ink)] px-4 py-2 text-base font-bold whitespace-normal text-white hover:bg-[var(--amora-soft)] disabled:opacity-40 ${focus}`}
                     >
-                      메모 저장
+                      {memoConflict?.id === note.id && memoConflict.status === "ready" ? "확인한 메모 대신 내 초안 저장" : "메모 저장"}
                     </button>
                     <button
                       type="button"
-                      onClick={() => setEditingId(null)}
+                      onClick={() => { setEditingId(null); setMemoConflict(null); setActionError(null); }}
                       disabled={busyId !== null}
-                      className="min-h-11 rounded-[6px] px-4 text-base font-semibold text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)]"
+                      className={`min-h-11 rounded-[6px] px-4 text-base font-semibold text-[var(--hb-text-muted)] hover:text-[var(--hb-text-strong)] ${focus}`}
                     >
                       취소
                     </button>
@@ -289,12 +339,14 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                 <button
                   type="button"
                   onClick={() => {
-                    if (pending.current) return;
+                    if (pending.current || editingId !== null) return;
                     setEditingId(note.id);
                     setMemoDraft(note.memo ?? "");
+                    setMemoConflict(null);
+                    setActionError(null);
                   }}
-                  disabled={busyId !== null || loadingMore}
-                  className="mt-4 inline-flex min-h-11 items-center gap-1.5 break-words text-sm font-semibold text-[#9A6B62] hover:text-[#C4967E] disabled:opacity-40"
+                  disabled={busyId !== null || loadingMore || editingId !== null}
+                  className={`mt-4 inline-flex min-h-11 items-center gap-1.5 break-words text-sm font-semibold text-[var(--amora-accent)] hover:text-[var(--amora-ink)] disabled:opacity-40 ${focus}`}
                 >
                   <Pencil aria-hidden="true" className="h-3.5 w-3.5" />
                   {note.memo ? note.memo : "메모 남기기"}

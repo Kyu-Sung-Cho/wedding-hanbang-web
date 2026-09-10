@@ -470,6 +470,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   const saveAmoraPersonalization = amoraPersonalization.save;
   const {
     messages,
+    sharedClearedAt,
+    privateClearedAt,
     isStreaming,
     isSending,
     streamingContent,
@@ -592,16 +594,24 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   // pre-send confirm — 상대방 입력 중이거나 AI 응답 중일 때 마찰 추가
   const [pendingSend, setPendingSend] = useState<PendingSend | null>(null);
   // 새 채팅 modal 단계 — closed | shared 옵션 선택 | shared 둘 다 추가확인 | private 확인
-  const [clearStep, setClearStep] = useState<
-    "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm"
-  >("closed");
+  type ClearStep = "closed" | "shared_choose" | "shared_confirm_both" | "private_confirm";
+  const [clearStep, setClearStepState] = useState<ClearStep>("closed");
+  const clearDialogVersionRef = useRef(0);
+  const clearRequestInFlightRef = useRef<Set<string>>(new Set());
+  const [pendingClearRequestOwners, setPendingClearRequestOwners] = useState<Set<string>>(() => new Set());
+  const [clearRequestError, setClearRequestError] = useState<string | null>(null);
+  const setClearStep = useCallback((nextStep: ClearStep) => {
+    clearDialogVersionRef.current += 1;
+    setClearRequestError(null);
+    setClearStepState(nextStep);
+  }, []);
   const [nowMs, setNowMs] = useState(0);
   const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
   const applyingPendingActionRef = useRef<string | null>(null);
-  const [showNewChatBanner, setShowNewChatBanner] = useState(false);
+  const [dismissedNewChatSegments, setDismissedNewChatSegments] = useState<Set<string>>(() => new Set());
   const [infoPanelOpen, setInfoPanelOpen] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const [pendingPersonalization, setPendingPersonalization] =
@@ -667,6 +677,18 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
   }, [coupleId, firstHello, isDemo]);
   const composerIdentity = `${profile?.id ?? "anonymous"}:${coupleId ?? "no-couple"}:${senderRole ?? "no-role"}`;
   const composerIdentityRef = useRef(composerIdentity);
+  const clearRequestPending = pendingClearRequestOwners.has(composerIdentity);
+  const newChatSegmentKey = JSON.stringify([
+    composerIdentity, isDemo, activeArtifactVisibility,
+    isPrivate ? privateClearedAt ?? null : sharedClearedAt ?? null,
+  ]);
+  const activeMessageCount = messages.filter(message => message.couple_id === coupleId
+    && message.visibility === activeArtifactVisibility).length;
+  const showNewChatBanner = initialLoadDone && activeMessageCount >= NEW_CHAT_THRESHOLD
+    && !dismissedNewChatSegments.has(newChatSegmentKey);
+  const dismissNewChatBanner = useCallback(() => {
+    setDismissedNewChatSegments(current => new Set(current).add(newChatSegmentKey));
+  }, [newChatSegmentKey]);
   const hasLinkedPartnerRef = useRef(hasLinkedPartner);
   const linkedPartnerIdRef = useRef(linkedPartnerId);
   const partnerComposerEpochRef = useRef(0);
@@ -738,6 +760,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     if (composerIdentityRef.current === composerIdentity) return;
     composerIdentityRef.current = composerIdentity;
     composerEpochRef.current += 1;
+    setDismissedNewChatSegments(new Set());
     sendInFlightRef.current = null;
     greetingRequested.current = false;
     stopSharedTyping();
@@ -764,6 +787,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     setMessageTarget("ai");
     setPendingSend(null);
   }, [authInitialized, authLoading, composerIdentity, coupleId, profile?.id, senderRole, stopSharedTyping]);
+
+  // 이전 범위·계정의 늦은 동의 요청 응답이 새 확인 화면을 닫지 않게 한다.
+  useEffect(() => {
+    setClearStep("closed");
+    return () => { clearDialogVersionRef.current += 1; };
+  }, [activeArtifactVisibility, composerIdentity, isDemo, setClearStep]);
 
   useEffect(() => () => stopSharedTyping(), [stopSharedTyping]);
 
@@ -1273,14 +1302,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     }, 3000);
     return () => clearInterval(interval);
   }, [coupleId, isDemo, pollNewMessages]);
-
-  // 메시지가 threshold 넘으면 새 채팅 안내
-  useEffect(() => {
-    if (messages.length >= NEW_CHAT_THRESHOLD && !showNewChatBanner) {
-      const timer = window.setTimeout(() => setShowNewChatBanner(true), 0);
-      return () => window.clearTimeout(timer);
-    }
-  }, [messages.length, showNewChatBanner]);
 
   // 라운지에서 만들어 둔 첫마디를 가져온다. 가져오면 보관에서는 지워진다 —
   // 인사는 한 번만 건넨다.
@@ -2379,7 +2400,35 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     } else {
       setClearStep("shared_choose");
     }
-  }, [activeTab]);
+  }, [activeTab, setClearStep]);
+
+  const submitSharedClearRequest = useCallback(async () => {
+    if (!coupleId || !profile?.id || isDemo || activeTab !== "shared"
+      || clearStep !== "shared_confirm_both" || clearRequestInFlightRef.current.has(composerIdentity)) return;
+    const version = clearDialogVersionRef.current;
+    const epoch = composerEpochRef.current;
+    // 모달을 닫고 다시 열어도 같은 계정·커플의 미응답 요청은 한 번만 보낸다.
+    clearRequestInFlightRef.current.add(composerIdentity);
+    setPendingClearRequestOwners(current => new Set(current).add(composerIdentity));
+    setClearRequestError(null);
+    const stillCurrent = () => clearDialogVersionRef.current === version
+      && composerEpochRef.current === epoch;
+    try {
+      const result = await requestSharedClear(coupleId);
+      if (!stillCurrent()) return;
+      if (result.ok) setClearStep("closed");
+      else setClearRequestError("동의 요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } catch {
+      if (stillCurrent()) setClearRequestError("동의 요청을 보내지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      clearRequestInFlightRef.current.delete(composerIdentity);
+      setPendingClearRequestOwners(current => {
+        const next = new Set(current);
+        next.delete(composerIdentity);
+        return next;
+      });
+    }
+  }, [activeTab, clearStep, composerIdentity, coupleId, isDemo, profile?.id, requestSharedClear, setClearStep]);
 
   // 실제 clear 수행 — mode는 명시적으로 전달
   const performClear = useCallback(
@@ -2389,12 +2438,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
       try {
         await clearMessages(coupleId, mode);
         setClearStep("closed");
-        setShowNewChatBanner(false);
       } catch {
         // chatStore.error renders the failure; keep the modal open so the user can retry.
       }
     },
-    [coupleId, clearMessages]
+    [coupleId, clearMessages, setClearStep]
   );
 
   // 인증 부팅 전 — 빈 데이터로 잘못된 gate 노출 방지
@@ -2835,7 +2883,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             대화가 길어졌어요. 화면을 정리하면 이전 대화는 해당 범위의 이후 상담에서 제외돼요. 원문과 저장한 예산·일정·결정은 남아요.
           </p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
-            <button onClick={() => setShowNewChatBanner(false)} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] shadow-sm">괜찮아요</button>
+            <button onClick={dismissNewChatBanner} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] shadow-sm">괜찮아요</button>
             <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">화면 정리</button>
           </div>
         </div>
@@ -2849,7 +2897,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         >
           <div
             ref={activeDialogRef}
-            className="bg-white rounded-[6px] shadow-2xl max-w-md w-full p-6"
+            className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain bg-white rounded-[6px] shadow-2xl max-w-md w-full p-6"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -2912,6 +2960,9 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     해당 범위의 원문은 보관하지만 정리 전 대화는 이후 상담에 쓰지 않아요. 저장한 예산·일정·결정은 남아요.
                   </span>
                 </p>
+                {clearRequestError && (
+                  <p role="alert" className="mb-4 text-sm leading-relaxed text-red-700">{clearRequestError}</p>
+                )}
                 <div className="flex justify-end gap-2">
                   <button
                     onClick={() => setClearStep("shared_choose")}
@@ -2922,17 +2973,12 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     돌아가기
                   </button>
                   <button
-                    onClick={async () => {
-                      if (!coupleId) return;
-                      const result = await requestSharedClear(coupleId);
-                      if (!result.ok) {
-                        // 실패 시 별도 처리 안 함 — 사용자가 다시 시도 가능
-                      }
-                      setClearStep("closed");
-                    }}
-                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-primary)] text-white bg-[var(--hb-text-body)]"
+                    onClick={submitSharedClearRequest}
+                    disabled={clearRequestPending}
+                    aria-busy={clearRequestPending}
+                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-primary)] text-white bg-[var(--hb-text-body)] disabled:cursor-wait disabled:opacity-60"
                   >
-                    동의 요청 보내기
+                    {clearRequestPending ? "동의 요청 보내는 중…" : "동의 요청 보내기"}
                   </button>
                 </div>
               </>

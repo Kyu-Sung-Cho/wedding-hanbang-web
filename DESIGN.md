@@ -93,6 +93,18 @@
   Saved answers are a third board view, distinct from decisions and shared to-dos.
   They remain shared reference material with the existing memo and deletion boundaries.
   The separate global Saved menu is removed, and old saved/missions URLs still resolve.
+  The 2026-09-10 detail review keeps the lounge date as a compact, clearly labelled
+  settings link beside its heading. Embedded missions put actionable cards before
+  the five-stage explanation in both visual and keyboard reading order. Budget
+  summaries preserve recorded won amounts, mark rounded ratios, and do not infer
+  budget safety from recorded spend alone. General events are called schedules,
+  with their actual saved time or an explicit unset state. Missing setup values
+  and resource-load failures each have a specific next action.
+  Saved memo editing protects an unfinished draft when another note is selected.
+  A concurrent change is read and displayed beside the retained draft before a
+  user explicitly chooses to replace the current memo. Small-screen chat dialogs
+  scroll within the viewport; dismissing a long-conversation notice stays effective
+  for its current account, scope and conversation segment.
   Ordinary messages use the reference's sage
   and ink bubbles. Shared/private scope and approval controls remain functional.
   The subsequent Amora review labels mixed task/checklist suggestions as today's

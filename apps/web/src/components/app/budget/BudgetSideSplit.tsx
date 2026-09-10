@@ -31,7 +31,8 @@
  * 글자로 나간다). 색만 보고 신부/신랑을 읽게 만들지 마라.
  */
 
-import { formatManwon, formatPercentCell, withPercents } from "./shareMath";
+import { formatPercentCell, withPercents } from "./shareMath";
+import { formatWon } from "@/lib/formatWon";
 
 type SideKey = "bride" | "shared" | "groom";
 
@@ -90,9 +91,9 @@ export default function BudgetSideSplit({
         )}
       </div>
 
-      <ul className="mt-3 grid grid-cols-3 gap-2">
+      <ul className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {rows.map((row) => (
-          <li key={row.key} className="min-w-0">
+          <li key={row.key} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1 sm:block">
             <div className="flex items-center gap-1.5">
               <span
                 aria-hidden="true"
@@ -103,18 +104,11 @@ export default function BudgetSideSplit({
                 {row.label}
               </span>
             </div>
-            {/* 금액은 자릿수 중간에서 끊으면 안 되므로 `whitespace-nowrap` 이고,
-                그러면 좁은 화면에서 옆 칸을 밀어 세 금액이 한 덩어리로 붙어 버린다.
-                320px 실측에서 실제로 `1,200만원2,217만원940만원` 으로 붙었다.
-
-                단계를 만드는 대신 폭에 따라 흐르게 둔다. 3열이므로 칸 폭은 대략
-                (100vw - 여백)/3 이고, `2,217만원` 같은 최악의 값이 그 안에 들어가는
-                기울기가 4.4vw 다. 상한 1.25rem 은 데스크톱에서 커지지 않게 막고,
-                하한 0.95rem 은 320px 아래에서도 읽히는 크기를 남긴다. */}
-            <p className="mt-1.5 font-serif-kr whitespace-nowrap text-[clamp(0.95rem,4.4vw,1.25rem)] font-medium leading-none text-[var(--hb-text-strong)]">
-              {formatManwon(row.amount)}
+            {/* 원 단위 금액을 자르지 않도록 작은 화면에서는 분담별 한 행을 쓴다. */}
+            <p className="font-serif-kr whitespace-nowrap text-[16px] font-medium leading-none text-[var(--hb-text-strong)] sm:mt-1.5 sm:text-[18px]">
+              {formatWon(row.amount)}
             </p>
-            <p className="mt-1 text-[12px] text-[var(--hb-text-muted)] tabular-nums">
+            <p className="col-span-2 text-right text-[12px] text-[var(--hb-text-muted)] tabular-nums sm:mt-1 sm:text-left">
               {formatPercentCell(row.percent, row.amount)}
             </p>
           </li>

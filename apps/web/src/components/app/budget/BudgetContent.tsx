@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
 import { formatWon } from "@/lib/formatWon";
+import { formatLoungeBudgetRatio } from "@/lib/amora/loungeSummary";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import type {
@@ -421,7 +422,7 @@ function BudgetRow({
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
   // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
-  const totalShare = totalBudget > 0 && budget > 0 ? Math.round((budget / totalBudget) * 100) : 0;
+  const totalShare = totalBudget > 0 && budget > 0 ? formatLoungeBudgetRatio(budget, totalBudget) : null;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
@@ -477,10 +478,10 @@ function BudgetRow({
                 style={{ width: `${Math.min(percent, 100)}%` }}
               />
             </div>
-            <span className={`text-xs font-medium w-[36px] text-right flex-shrink-0 ${
+            <span className={`text-xs font-medium min-w-[36px] whitespace-nowrap text-right flex-shrink-0 ${
               isOver ? "text-red-400" : percent >= 100 ? "text-[var(--hb-success)]" : "text-[var(--hb-text-muted)]"
             }`}>
-              {percent}%
+              {formatLoungeBudgetRatio(spent, budget)}
             </span>
           </div>
         ) : (
@@ -518,8 +519,8 @@ function BudgetRow({
           highlight="budget"
           emptyLabel="미입력"
         />
-        {totalShare > 0 && (
-          <span className="text-[10px] text-[var(--hb-text-muted)] mt-0.5">총예산의 {totalShare}%</span>
+        {totalShare !== null && (
+          <span className="text-[10px] text-[var(--hb-text-muted)] mt-0.5">총예산의 {totalShare}</span>
         )}
       </div>
 
@@ -581,7 +582,7 @@ function BudgetCard({
   const percent = budget > 0 ? Math.round((spent / budget) * 100) : 0;
   const isOver = spent > budget && budget > 0;
   // 총 예산 대비 이 카테고리의 비중 (이슈 #7)
-  const totalShare = totalBudget > 0 && budget > 0 ? Math.round((budget / totalBudget) * 100) : 0;
+  const totalShare = totalBudget > 0 && budget > 0 ? formatLoungeBudgetRatio(budget, totalBudget) : null;
   const Icon = ICON_MAP[icon] ?? Building2;
 
   return (
@@ -635,13 +636,13 @@ function BudgetCard({
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-xs text-[var(--hb-text-muted)]">
             {budget > 0 ? "예산 사용률" : "예산 입력 전"}
-            {totalShare > 0 ? <span className="ml-1.5 text-[var(--hb-text-muted)]/70">· 총예산의 {totalShare}%</span> : null}
+            {totalShare !== null ? <span className="ml-1.5 text-[var(--hb-text-muted)]/70">· 총예산의 {totalShare}</span> : null}
           </span>
           {budget > 0 && (
             <span className={`text-xs font-medium ${
               isOver ? "text-red-400" : percent >= 100 ? "text-[var(--hb-success)]" : "text-[var(--hb-text-body)]"
             }`}>
-              {percent}%
+              {formatLoungeBudgetRatio(spent, budget)}
             </span>
           )}
         </div>
@@ -1287,7 +1288,7 @@ function ScopedBudgetContent({
             <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
               {spentPercent === null
                 ? "기록 지출 · 총 예산 입력 전 · 결제 완료 여부와 별도"
-                : `기록 지출 (${spentPercent}%) · 결제 완료 여부와 별도`}
+                : `기록 지출 (${formatLoungeBudgetRatio(totalSpent, totalBudget)}) · 결제 완료 여부와 별도`}
             </p>
             <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
               <div
@@ -1319,7 +1320,7 @@ function ScopedBudgetContent({
               </p>
             ) : remaining >= 0 ? (
               <p className="mt-3 text-[13px] font-medium text-[var(--hb-text-body)]">
-                남은 예산 (여유 {Math.round((remaining / totalBudget) * 100)}%)
+                지출 기록을 뺀 금액 · 배정액·결제 여부와 별도
               </p>
             ) : (
               <p className="mt-3 flex items-center gap-1 text-[13px] font-medium text-red-400">
@@ -1376,7 +1377,7 @@ function ScopedBudgetContent({
               groomSide={payerSides.groomSide}
               shared={payerSides.shared}
             />
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,14rem),1fr))] gap-3">
               {PAYER_OPTIONS.map((opt) => {
                 const amount = payerSummary[opt.value] ?? 0;
                 const pct = totalSpent > 0 ? Math.round((amount / totalSpent) * 100) : 0;
@@ -1391,9 +1392,8 @@ function ScopedBudgetContent({
                       <Users className="h-4 w-4 text-[var(--hb-text-strong)]" aria-hidden="true" />
                       <span className="text-[13px] font-medium text-[var(--hb-text-body)]">{opt.label}</span>
                     </div>
-                    {/* `break-words` 는 좁은 칸에서 금액을 자릿수 중간에서 끊는다.
-                        360px 2열 그리드에서 칸 폭이 111px 뿐이라 25px 로는 안 들어간다. */}
-                    <p className={`font-serif-kr whitespace-nowrap text-[20px] font-medium leading-none sm:text-[25px] ${
+                    {/* 실제 카드 폭에 맞춰 열 수를 줄여 원 단위 금액을 한 줄로 보존한다. */}
+                    <p className={`font-serif-kr whitespace-nowrap text-[20px] font-medium leading-none ${
                       amount > 0 ? "text-[var(--hb-text-strong)]" : "text-[#9a9188]"
                     }`}>
                       {formatWon(amount)}
@@ -1406,7 +1406,7 @@ function ScopedBudgetContent({
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <p className="text-xs text-[var(--hb-text-muted)] mt-1.5">{pct}%</p>
+                        <p className="text-xs text-[var(--hb-text-muted)] mt-1.5">{formatLoungeBudgetRatio(amount, totalSpent)}</p>
                       </div>
                     )}
                   </div>
@@ -1470,7 +1470,7 @@ function ScopedBudgetContent({
                     {formatWonFull(photoAttireMakeupSpent)} <span className="text-[var(--hb-text-muted)] text-base sm:text-lg">/ {formatWonFull(photoAttireMakeupBudget)}</span>
                   </p>
                   <p className="text-sm text-[var(--hb-text-body)] mt-1">
-                    {Math.round((photoAttireMakeupSpent / photoAttireMakeupBudget) * 100)}% 사용
+                    {formatLoungeBudgetRatio(photoAttireMakeupSpent, photoAttireMakeupBudget)} 기록
                   </p>
                 </>
               ) : (

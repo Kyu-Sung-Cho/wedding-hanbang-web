@@ -19,6 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   signInWithOAuth: vi.fn(),
+  getUser: vi.fn(),
+  router: { replace: vi.fn() },
 }));
 
 vi.mock("framer-motion", () => ({ motion: { div: "div" } }));
@@ -26,6 +28,7 @@ vi.mock("@/components/ui/Logo", () => ({ default: () => <span>Hanbang</span> }))
 vi.mock("@/components/auth/TurnstileWidget", () => ({ default: () => null }));
 vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: mocks.createClient }));
+vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 
 import LoginPage from "./page";
 
@@ -42,8 +45,9 @@ describe("소셜 로그인 버튼 렌더", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.signInWithOAuth.mockResolvedValue({ error: null });
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     mocks.createClient.mockReturnValue({
-      auth: { signInWithOAuth: mocks.signInWithOAuth },
+      auth: { signInWithOAuth: mocks.signInWithOAuth, getUser: mocks.getUser },
     });
     window.history.replaceState({}, "", "/login");
     container = document.createElement("div");
@@ -61,6 +65,8 @@ describe("소셜 로그인 버튼 렌더", () => {
   // 셋 다 없다. 그러므로 여기서 보이는 것이 사용자가 보는 것이다.
   it("카카오 버튼이 화면에 없다", async () => {
     await act(async () => root.render(<LoginPage />));
+    expect(mocks.getUser).toHaveBeenCalled();
+    expect(mocks.router.replace).not.toHaveBeenCalled();
 
     const labels = buttonLabels(container);
     expect(labels, `실제 버튼: ${labels.join(" / ")}`).not.toContain("카카오");
