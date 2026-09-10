@@ -33,19 +33,28 @@ const CURRENT_SINGLE_SCHEDULE_FORMS = [
   /^(.{1,500}?) 일정이 언제로 저장돼 있어\?\s*수정하지 말고 (?:알려줘|알려주세요)[.!]?$/,
 ];
 
+// 제목 자리에 들어온 추가 요청을 이름으로 오인해 일부 답만 확정하지 않는다.
+function hasAdditionalRequestInTitle(title: string): boolean {
+  return /[.!?]|(?:알려|보여|정리해|검색해|추천해|저장해|바꿔|수정해|삭제해|추가해|올려|내려|늘려|줄여)\s*(?:줘|주세요|주고|주시고)|(?:정리|검색|추천|저장|변경|수정|삭제|추가)(?:하고|한 뒤)|(?:담당자|완료 기준|장소|메모|비용)\s*(?:및|와|과|도)(?:\s|$)|(?:이|라)면/.test(title);
+}
+
 /** 저장 금지 + 현재값 + 지원하는 조회 항목으로 완결된 요청만 선택한다. */
 export function assessCurrentStoredStateRequest(userText: string): CurrentStoredStateRequest | null {
-  if (userText.length > 2_000 || /[\r\n"'“”‘’`]|개인|나만|지난|예전|과거|비교|가정|만약/.test(userText)) return null;
+  if (userText.length > 2_000) return null;
+  // 현재 저장값을 우선하라는 끝 문장만 분리한다. 과거 조회·비교 요청은 계속 제외한다.
+  const text = userText.trim().replace(/\s*과거 대화보다 지금 저장된 값을 기준으로 답해줘[.!]?$/, "");
+  if (/[\r\n"'“”‘’`]|개인|나만|지난|예전|과거|비교|가정|만약/.test(text)) return null;
   const naturalSchedule = CURRENT_SINGLE_SCHEDULE_FORMS
-    .map(pattern => pattern.exec(userText.trim())).find(match => match !== null);
+    .map(pattern => pattern.exec(text)).find(match => match !== null);
   if (naturalSchedule) {
     const title = naturalSchedule[1].trim();
-    if (/[.!?]|(?:알려|보여|정리해|검색해|추천해|저장해|바꿔|수정해|삭제해|추가해)\s*(?:줘|주세요|주고|주시고)|(?:정리|검색|추천|저장|변경|수정|삭제|추가)(?:하고|한 뒤)|(?:이|라)면/.test(title)) return null;
+    if (hasAdditionalRequestInTitle(title)) return null;
     return { budgetFields: [], taskTitles: null, scheduleTitles: [title] };
   }
-  const prefix = /^(?:(?:어떤 것도|아무것도)\s*)?(?:변경하거나\s*)?저장하지\s*말고\s*현재\s*(?:실제\s*)?/;
-  if (!prefix.test(userText.trim())) return null;
-  let fields = userText.trim().replace(prefix, "");
+  const prefix = /^(?:(?:어떤 것도|아무것도)\s*)?(?:(?:(?:변경|수정)하거나\s*)?저장하지|저장하거나\s*(?:변경|수정)하지)\s*말고\s*현재\s*(?:실제\s*)?/;
+  if (!prefix.test(text)) return null;
+  let fields = text.replace(prefix, "");
+  fields = fields.replace(/^기록만\s*확인해줘[.!]\s*/, "");
   fields = fields.replace(/^저장된\s*(?:값|상태)(?:만|을|를)?\s*(?:알려줘|보여줘)[.!]\s*/, "");
   fields = fields.replace(/^저장된\s*/, "");
   const suffix = /(?:을|를|만)?\s*(?:짧게\s*)?(?:정리해줘|알려줘|보여줘)[.!?]?$/;
@@ -66,8 +75,17 @@ export function assessCurrentStoredStateRequest(userText: string): CurrentStored
       if (request.scheduleTitles !== null) return null;
       request.scheduleTitles = [];
     } else {
+      const taskAndSchedule = /^(.{1,500})의 완료 (?:여부|상태)(?:와\s+|\s+및\s+)(.{1,500}?)(?: 일정)?의 날짜와 시간$/.exec(field);
+      if (taskAndSchedule) {
+        if (request.taskTitles !== null || request.scheduleTitles !== null) return null;
+        if (hasAdditionalRequestInTitle(taskAndSchedule[1]) || hasAdditionalRequestInTitle(taskAndSchedule[2])) return null;
+        request.taskTitles = [taskAndSchedule[1]];
+        request.scheduleTitles = [taskAndSchedule[2]];
+        continue;
+      }
       const tasks = /^(.{1,500})의 완료 (?:여부|상태)$/.exec(field);
       const schedule = /^(.{1,500}?)(?: 일정)?의 날짜와 시간$/.exec(field);
+      if (tasks && hasAdditionalRequestInTitle(tasks[1]) || schedule && hasAdditionalRequestInTitle(schedule[1])) return null;
       if (tasks && request.taskTitles === null) request.taskTitles = [tasks[1]];
       else if (schedule && request.scheduleTitles === null) request.scheduleTitles = [schedule[1]];
       else return null;
