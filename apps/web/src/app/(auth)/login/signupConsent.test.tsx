@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   signInWithOAuth: vi.fn(),
+  getUser: vi.fn(),
+  router: { replace: vi.fn() },
 }));
 
 vi.mock("framer-motion", () => ({ motion: { div: "div" } }));
@@ -20,6 +22,7 @@ vi.mock("@/components/ui/Logo", () => ({ default: () => <span>Hanbang</span> }))
 vi.mock("@/components/auth/TurnstileWidget", () => ({ default: () => null }));
 vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: mocks.createClient }));
+vi.mock("next/navigation", () => ({ useRouter: () => mocks.router }));
 
 import LoginPage from "./page";
 
@@ -55,8 +58,9 @@ describe("가입 동의", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.signInWithOAuth.mockResolvedValue({ error: null });
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     mocks.createClient.mockReturnValue({
-      auth: { signInWithOAuth: mocks.signInWithOAuth },
+      auth: { signInWithOAuth: mocks.signInWithOAuth, getUser: mocks.getUser },
     });
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -74,6 +78,8 @@ describe("가입 동의", () => {
 
   it("가입 화면이 약관과 처리방침 전문으로 가는 길을 준다", async () => {
     await act(async () => root.render(<LoginPage />));
+    expect(mocks.getUser).toHaveBeenCalled();
+    expect(mocks.router.replace).not.toHaveBeenCalled();
 
     const hrefs = [...container.querySelectorAll("a")].map((a) => a.getAttribute("href"));
     expect(hrefs).toContain("/terms");

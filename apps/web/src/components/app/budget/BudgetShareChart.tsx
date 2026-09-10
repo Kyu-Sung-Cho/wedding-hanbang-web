@@ -27,7 +27,8 @@
  * 뜻한다. 카테고리 한 칸에 칠하면 그 항목이 문제라는 뜻으로 읽힌다.
  */
 
-import { formatManwon, formatPercentCell, withPercents } from "./shareMath";
+import { formatPercentCell, withPercents } from "./shareMath";
+import { formatWon } from "@/lib/formatWon";
 
 type Slice = {
   key: string;
@@ -128,7 +129,7 @@ export default function BudgetShareChart({
       </p>
       <h3 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">항목별 비중</h3>
       <p className="mt-1 text-[13px] font-medium text-[var(--hb-text-body)]">
-        {basisLabel} {formatManwon(total)}을 항목별로 나눈 비중이에요.
+        {basisLabel} {formatWon(total)}을 항목별로 나눈 비중이에요.
       </p>
 
       <div className="mt-4 flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-6">
@@ -165,8 +166,8 @@ export default function BudgetShareChart({
             </g>
           </svg>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <span className="font-serif-kr text-[20px] font-medium leading-none text-[var(--hb-text-strong)]">
-              {formatManwon(total)}
+            <span className="font-serif-kr whitespace-nowrap text-[14px] font-medium leading-none text-[var(--hb-text-strong)]">
+              {formatWon(total)}
             </span>
             <span className="mt-1.5 text-[11px] font-medium text-[var(--hb-text-muted)]">
               {basisLabel}
@@ -176,7 +177,7 @@ export default function BudgetShareChart({
 
         <ul className="min-w-0 flex-1 space-y-2">
           {rows.map((row) => (
-            <li key={row.key} className="flex items-center gap-2.5">
+            <li key={row.key} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-0.5 sm:grid-cols-[10px_minmax(0,1fr)_auto_54px]">
               <span
                 aria-hidden="true"
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -186,11 +187,11 @@ export default function BudgetShareChart({
                 {row.label}
               </span>
               <span className="shrink-0 whitespace-nowrap text-[13px] font-medium text-[var(--hb-text-strong)] tabular-nums">
-                {formatManwon(row.amount)}
+                {formatWon(row.amount)}
               </span>
               {/* 폭을 고정해 비중 숫자가 세로로 줄을 맞춘다. `1% 미만`(가장 긴 값)이
                   13px 에서 50px 이라 54px 이 필요하다 — `w-11`(44px)이면 줄바꿈된다. */}
-              <span className="w-[54px] shrink-0 whitespace-nowrap text-right text-[13px] text-[var(--hb-text-muted)] tabular-nums">
+              <span className="col-span-2 col-start-2 whitespace-nowrap text-right text-[13px] text-[var(--hb-text-muted)] tabular-nums sm:col-span-1 sm:col-start-auto sm:w-[54px]">
                 {formatPercentCell(row.percent, row.amount)}
               </span>
             </li>

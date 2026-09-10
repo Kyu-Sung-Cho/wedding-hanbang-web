@@ -5,6 +5,7 @@ import { Bookmark, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
+import Button from "@/components/ui/Button";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -312,7 +313,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                     </> : <>
                       <p>{memoConflict.status === "unavailable" ? "현재 메모를 확인하지 못했어요. 목록이 바뀌었거나 잠시 불러올 수 없어요. 작성한 내용은 그대로 두었어요." : "작성한 내용은 그대로 두었어요. 현재 저장된 메모를 먼저 확인해 주세요."}</p>
                       {busyId === note.id && <p>현재 메모를 확인하고 있어요…</p>}
-                      <button type="button" disabled={busyId !== null || loadingMore} onClick={() => void confirmCurrentMemo(note.id)} className={`min-h-11 rounded-[6px] border border-[#E8E0D8] px-3 font-semibold text-[var(--amora-accent)] disabled:opacity-40 ${focus}`}>현재 메모 확인</button>
+                      <Button type="button" variant="secondary" disabled={busyId !== null || loadingMore} onClick={() => void confirmCurrentMemo(note.id)} className="border-[#E8E0D8]! bg-transparent! px-3! text-[var(--amora-accent)]! hover:bg-transparent! transition-none! disabled:opacity-40! focus-visible:outline-solid! focus-visible:outline-2! focus-visible:outline-offset-2! focus-visible:outline-[var(--amora-accent)]! focus-visible:ring-0! focus-visible:ring-offset-0!">현재 메모 확인</Button>
                     </>}
                   </div>}
                   <div className="mt-2 flex flex-wrap gap-2">
