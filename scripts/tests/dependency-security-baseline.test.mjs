@@ -25,6 +25,7 @@ test("dependency security floors and compatibility patches stay pinned", async (
   assert.equal(webPackage.devDependencies["eslint-config-next"], "16.3.4");
   assert.equal(webPackage.dependencies.sharp, "0.35.4");
   assert.equal(rootPackage.devDependencies.sharp, "0.35.4");
+  assert.equal(webPackage.devDependencies.vitest, "4.1.11");
 
   for (const requiredOverride of [
     'postcss: "8.5.23"',
@@ -35,8 +36,8 @@ test("dependency security floors and compatibility patches stay pinned", async (
     '"dompurify@<=3.4.12": "3.4.13"',
     // 아래 셋은 오버라이드가 **수정판 바로 한 단계 아래에 박혀** 경보가 열려 있던 것들이다.
     // 값만 올리고 여기 안 적으면 다음에 조용히 되돌아가도 아무도 모른다.
-    '"js-yaml@>=3.0.0 <3.15.1": "3.15.1"',
-    '"js-yaml@>=4.0.0 <4.3.1": "4.3.1"',
+    '"js-yaml@>=3.0.0 <3.15.2": "3.15.2"',
+    '"js-yaml@>=4.0.0 <4.3.2": "4.3.2"',
     '"nanoid@<3.3.18": "3.3.18"',
     'brace-expansion: "5.0.9"',
     'fast-uri: "3.1.6"',
@@ -91,6 +92,8 @@ test("September advisory fixes are resolved in the lockfile, not only requested 
     ["@xmldom/xmldom", "0.8.15"],
     ["postcss-selector-parser", "6.1.3"],
     ["decode-uri-component", "0.5.0"],
+    ["vitest", "4.1.11"],
+    ["@vitest/mocker", "4.1.11"],
   ]) {
     assert.deepEqual(
       identities.filter(identity => identity.startsWith(`${name}@`)),
@@ -98,4 +101,9 @@ test("September advisory fixes are resolved in the lockfile, not only requested 
       `${name} must resolve only to the reviewed security patch`,
     );
   }
+  assert.deepEqual(
+    identities.filter(identity => identity.startsWith("js-yaml@")),
+    ["js-yaml@3.15.2", "js-yaml@4.3.2"],
+    "both js-yaml majors must count empty merge sources against the work limit",
+  );
 });
