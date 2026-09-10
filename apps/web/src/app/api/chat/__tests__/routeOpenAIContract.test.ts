@@ -5710,6 +5710,105 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   });
 
+
+  it.each(["W4", "W0-memory-on", "W0-memory-off", "live-first", "live-sixth", "shared", "attachment", "mixed-request"] as const)("acknowledges private preference without promising memory through actual SDK: %s", async mode => {
+    const isCore = mode.startsWith("W0") || mode === "live-first";
+    const acknowledges = mode === "W4" || isCore || mode === "live-sixth";
+    const visibility = mode === "shared" ? "shared" : "bride_private";
+    const text = mode === "live-first"
+      ? "나는 웨딩 장식으로 청록색 종이별을 쓰는 소박한 분위기를 좋아해. 이건 내가 정한 개인 취향으로 다음 나만 상담에서도 기억해줘. 파트너와 합의한 결정은 아니고, 공동 예산·일정·할 일은 바꾸지 마."
+      : mode === "live-sixth"
+      ? "개인 취향을 하나 더 분명히 말할게. 나는 반짝이는 금색 장식보다 무광 종이 장식을 더 좋아해. 앞으로 나만 상담에서 장식을 이야기할 때 이 선호를 기억해서 참고해줘."
+      : isCore
+      ? "내 개인 취향으로 웨딩 장식은 무광 종이를 선호해. 기억해줘."
+      : mode === "mixed-request"
+        ? "내 개인 취향으로 무광 종이 장식을 선호해. 가격도 알려주고 기억해줘."
+        : "내 개인 취향으로 무광 종이 장식을 선호해. 기억해줘.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    if (mode === "attachment") await bindCanonicalProviderAttachments([attachment]);
+    mocks.memoryEnablement.bride_private = mode !== "W0-memory-off";
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    const before = structuredClone(mocks.journeyRow);
+    const actualOpenAI = await vi.importActual<typeof import("@/lib/ai/openai")>("@/lib/ai/openai");
+    const { default: OpenAI } = await import("openai");
+    // 삭제된 운영 provider 원문은 미저장이다. 현재 사용자의 실제 입력에 합성 약속을 대조한다.
+    const providerText = mode === "live-first"
+      ? "청록색 종이별을 좋아하시는 것으로 기억해둘게요. 파트너와 합의한 결정이나 공동 예산·일정·할 일로 반영하지 않았어요."
+      : "무광 종이 장식을 선호하시는 것으로 기억해둘게요. 공동 예산·일정·할 일에는 반영하지 않아요.";
+    const instructions: string[] = [];
+    let counted = 0;
+    let created = 0;
+    const client = new OpenAI({ apiKey: "sk-fixture-memory-ack", maxRetries: 0, dangerouslyAllowBrowser: true,
+      fetch: async (url, init) => {
+        if (typeof init?.body !== "string") throw new Error("Expected SDK JSON request");
+        const input = JSON.parse(init.body);
+        const pathname = new URL(String(url)).pathname;
+        instructions.push(input.instructions);
+        if (pathname.endsWith("/responses/input_tokens")) {
+          counted += 1;
+          return new Response(JSON.stringify({ object: "response.input_tokens", input_tokens: 100 }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        if (!pathname.endsWith("/responses")) throw new Error("Unexpected SDK endpoint");
+        created += 1;
+        const response = { id: "resp_memory_ack", object: "response", created_at: 0, status: "completed",
+          error: null, incomplete_details: null, model: input.model,
+          output: [{ type: "message", id: "msg_memory_ack", role: "assistant", status: "completed",
+            content: [{ type: "output_text", text: providerText, annotations: [] }] }],
+          output_text: providerText, usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 0 },
+            output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 105 } };
+        return new Response(
+          `data: ${JSON.stringify({ type: "response.output_text.delta", item_id: "msg_memory_ack", output_index: 0, content_index: 0, sequence_number: 0, delta: providerText })}\n\n`
+          + `data: ${JSON.stringify({ type: "response.completed", sequence_number: 1, response })}\n\n`,
+          { status: 200, headers: { "Content-Type": "text/event-stream" } });
+      } });
+    vi.stubEnv("AMORA_OPENAI_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "sk-fixture-memory-ack");
+    vi.stubEnv("OPENAI_AMORA_FAST_MODEL", "gpt-5.6-luna");
+    vi.stubEnv("OPENAI_AMORA_PRIMARY_MODEL", "gpt-5.6-terra");
+    vi.stubEnv("OPENAI_AMORA_FAST_REASONING_EFFORT", "none");
+    vi.stubEnv("OPENAI_AMORA_PRIMARY_REASONING_EFFORT", "none");
+    mocks.provider.mockImplementation(options => actualOpenAI.chatWithToolsStream({ ...options, client }));
+    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }],
+      ...(mode === "attachment" ? { attachments: [attachment] } : {}) }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(created).toBe(1);
+    expect(counted).toBe(1);
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(before);
+    const saved = mocks.atomicResponses.at(-1)!;
+    if (acknowledges) {
+      expect(saved.content).toContain("말씀하신 취향으로 이해했어요");
+      expect(saved.content).toContain("장기 기억에 저장됐다고는 아직 확인할 수 없어요");
+      expect(saved.content).not.toContain("공동 예산");
+    } else {
+      expect(saved.content).not.toContain("말씀하신 취향으로 이해했어요");
+    }
+    expect(body).not.toContain("기억해둘게요");
+    expect(saved.metadata).toMatchObject({
+      question_scope: isCore ? "W0_wedding_core" : "W4_out_of_scope",
+      memory_eligible: isCore, memory_enqueue_requested: mode === "W0-memory-on" || mode === "live-first",
+    });
+    if (acknowledges) expect(saved.metadata).toMatchObject({
+      persistence_claim_removed_count: 1, persistence_terminal_source: "server_correction",
+    });
+    expect(saved.metadata.pending_amora_action).toBeUndefined();
+    expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(mocks.enqueueMemory).toHaveBeenCalledTimes(mode === "W0-memory-on" || mode === "live-first" ? 1 : 0);
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(saved.content);
+    for (const prompt of instructions) {
+      expect(prompt).not.toContain("향후 private 대화에서는 자연스럽게 이어가도 됩니다");
+      if (visibility !== "shared") {
+        expect(prompt).toContain("이번 요청에 제공된 본인의 개인 문맥");
+        expect(prompt).toContain("기억 저장을 약속하지 마세요");
+      }
+    }
+  });
+
   it("replaces and audits an affirmative persistence claim that has no server receipt", async () => {
     const providerText =
       "예산 우선순위를 먼저 정해보는 게 좋아요. 총예산을 3,000만 원으로 반영했어요.";
