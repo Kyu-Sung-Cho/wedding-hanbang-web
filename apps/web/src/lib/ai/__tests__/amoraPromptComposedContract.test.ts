@@ -117,7 +117,7 @@ function composeLikeProduction(userText: string, decisionCount: number): {
 const ETIQUETTE_TAG_INSTRUCTION = "태그를 1~2개 붙이세요";
 const ETIQUETTE_NUMBER_TABLE = "**번호표:**";
 const ACTION_CARD_CONTRACT = "- 행동 카드는 사용자가 직접 실행할 한 가지 행동에만";
-const ACTION_CARD_SURFACE = "라운지 '지금 먼저 볼 것'의 완료·숨김 버튼";
+const ACTION_CARD_SURFACE = "결정 보드 '공유 할 일'의 완료·숨김 버튼";
 const QUOTE_NO_REPEAT = "본문 텍스트에 다시 나열하지 마세요";
 
 describe("합성된 프롬프트가 스스로 모순되지 않는다", () => {

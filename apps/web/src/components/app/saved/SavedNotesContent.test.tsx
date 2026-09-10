@@ -44,7 +44,7 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
   it.each([{}, { notes: "broken" }, { notes: [{ ...note, content: null }] }])("깨진 목록을 빈 저장함으로 표시하지 않는다: %j", async body => {
     vi.mocked(fetch).mockResolvedValueOnce(response(body)); await render();
     expect(container.textContent).toContain("불러오지 못했어요");
-    expect(container.textContent).not.toContain("아직 저장한 이야기가 없어요");
+    expect(container.textContent).not.toContain("아직 저장한 답변이 없어요");
     vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [note] }));
     await act(async () => button("다시 시도").click());
     expect(container.textContent).toContain(note.content);
@@ -84,7 +84,7 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
     await act(async () => button("지우기").click());
     expect(container.textContent).not.toContain(note.content);
-    expect(container.textContent).toContain("아직 저장한 이야기가 없어요");
+    expect(container.textContent).toContain("아직 저장한 답변이 없어요");
   });
   it("파트너 저장은 삭제 버튼 없이 보여주고 공유 메모 편집은 유지한다", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [{ ...note, savedByMe: false }] }));
@@ -102,14 +102,14 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
       .mockResolvedValueOnce(response({ error: "temporarily unavailable" }, 503))
       .mockResolvedValueOnce(response({ notes: [note, older], next_cursor: null }));
     await render();
-    await act(async () => button("이전 이야기 더 보기").click());
+    await act(async () => button("이전 답변 더 보기").click());
     expect(container.textContent).toContain(note.content);
     expect(container.textContent).toContain("불러오지 못했어요");
     await act(async () => button("다시 시도").click());
     expect(fetch).toHaveBeenLastCalledWith("/api/amora/notes?cursor=next%2B%2F%3D", expect.anything());
     expect(container.querySelectorAll("li")).toHaveLength(2);
     expect(container.textContent).toContain(older.content);
-    expect(container.textContent).not.toContain("이전 이야기 더 보기");
+    expect(container.textContent).not.toContain("이전 답변 더 보기");
   });
 
   it("편집 중인 마지막 행을 삭제한 뒤에도 이전 이야기를 이어 읽을 수 있다", async () => {
@@ -119,9 +119,9 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
     await render(); await edit();
     await act(async () => button("지우기").click());
     expect(container.querySelector("textarea")).toBeNull();
-    expect(button("이전 이야기 더 보기").disabled).toBe(false);
+    expect(button("이전 답변 더 보기").disabled).toBe(false);
     expect(button("새로고침").disabled).toBe(false);
-    await act(async () => button("이전 이야기 더 보기").click());
+    await act(async () => button("이전 답변 더 보기").click());
     expect(container.textContent).toContain("남아 있는 합성 이야기");
   });
 

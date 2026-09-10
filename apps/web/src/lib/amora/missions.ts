@@ -44,6 +44,7 @@ export interface AmoraMissionCard {
   kind: "action" | "checklist";
   title: string;
   description: string;
+  dueDate?: string;
   categoryKey?: string;
   badge: string;
   counts: { done: number; total: number } | null;
@@ -80,6 +81,7 @@ function actionCard(action: AmoraActionItem): AmoraMissionCard {
     kind: "action",
     title: action.title,
     description: action.description || "함께 저장한 할 일이에요. 연결된 화면에서 내용을 확인하고 이어가세요.",
+    ...(typeof action.dueDate === "string" && action.dueDate.trim() ? { dueDate: action.dueDate } : {}),
     categoryKey: action.categoryKey,
     badge: action.status === "done" ? "완료한 공유 할 일" : action.priority === "high" ? "중요한 공유 할 일" : "공유 할 일",
     counts: null,

@@ -13,6 +13,16 @@ function action(overrides: Partial<AmoraActionItem> = {}): AmoraActionItem {
 }
 
 describe("아모라 미션의 표시 그룹과 실제 기록", () => {
+  it("공유 할 일의 예정일 원문만 보존하고 빈 값이나 체크리스트에는 날짜를 만들지 않는다", () => {
+    const dueDate = "  다음 상담 후, 두 사람이 가능한 날  ";
+    const model = buildAmoraMissionModel({}, [action({ dueDate })]);
+    expect(model.cards.find(card => card.kind === "action")).toHaveProperty("dueDate", dueDate);
+    expect(model.cards.find(card => card.kind === "checklist")).not.toHaveProperty("dueDate");
+    for (const empty of [undefined, "", "   "]) {
+      expect(buildAmoraMissionModel(null, [action({ dueDate: empty })]).cards[0].dueDate).toBeUndefined();
+    }
+  });
+
   it("현재 체크리스트 분야를 다섯 그룹에 빠짐과 중복 없이 배치한다", () => {
     const keys = MISSION_GROUPS.flatMap((group) => [...group.categoryKeys]);
     expect(MISSION_GROUPS).toHaveLength(5);

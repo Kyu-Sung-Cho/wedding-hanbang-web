@@ -66,9 +66,29 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     container.remove();
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = false;
   });
-  async function render() {
-    await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions />); });
+  async function render(embedded = false) {
+    await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions embedded={embedded} />); });
   }
+
+  it("라운지 내장 미션은 단계·체크 시트를 유지하고 보조 파트너 요약을 중복 표시하지 않는다", async () => {
+    await render(true);
+    expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(5);
+    expect(container.querySelector('aside[aria-label="함께하는 준비 요약"]')).toBeNull();
+    expect(container.querySelector('#today-missions-title')?.textContent).toBe("오늘의 미션");
+    expect(container.querySelector('a[href="/wedding/chat/board?view=tasks"]')).not.toBeNull();
+    const trigger = container.querySelector<HTMLButtonElement>('section[aria-labelledby="missions-heading"] button[aria-label$="체크리스트 열기"]')!;
+    expect(trigger).not.toBeNull();
+    trigger.focus();
+    await act(async () => trigger.click());
+    expect(document.querySelector('[data-planning-sheet][role="dialog"]')).not.toBeNull();
+    expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
+    await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+    expect(document.activeElement).toBe(trigger);
+    mocks.error = "unavailable";
+    await render(true);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("불러오지 못했어요");
+    expect(container.textContent).not.toContain("저장된 공유 할 일은 없어요");
+  });
 
   it("빈 공유 할 일과 조회 실패를 구분하고 실패는 다시 불러올 수 있다", async () => {
     await render();

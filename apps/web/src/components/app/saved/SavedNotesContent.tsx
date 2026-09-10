@@ -39,15 +39,15 @@ function formatSavedAt(value: string): string {
   }).format(date);
 }
 
-export default function SavedNotesContent() {
+export default function SavedNotesContent({ embedded = false }: { embedded?: boolean }) {
   const scope = useAuthStore(savedNotesScope);
   const initialized = useAuthStore(state => state.isInitialized);
   if (!scope) return <p role="status" className="px-5 py-12 text-[var(--hb-text-muted)]">{initialized ? "로그인과 커플 정보를 확인하고 있어요." : "불러오는 중이에요"}</p>;
   // 계정·커플이 바뀌면 목록뿐 아니라 작성 중인 메모와 늦게 온 응답도 분리한다.
-  return <ScopedSavedNotesContent key={scope} scope={scope} />;
+  return <ScopedSavedNotesContent key={scope} scope={scope} embedded={embedded} />;
 }
 
-function ScopedSavedNotesContent({ scope }: { scope: string }) {
+function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded: boolean }) {
   const [notes, setNotes] = useState<SavedNote[]>([]);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -149,7 +149,7 @@ function ScopedSavedNotesContent({ scope }: { scope: string }) {
         if (editingId === id) { setEditingId(null); setMemoDraft(""); }
         setActionError(null);
       } else {
-        setActionError(await readError(response, "저장한 이야기를 지우지 못했어요."));
+        setActionError(await readError(response, "저장한 답변을 지우지 못했어요."));
       }
     } catch {
       if (stillCurrent(generation)) setActionError("삭제 여부를 확인하지 못했어요. 다시 시도해 주세요.");
@@ -160,22 +160,25 @@ function ScopedSavedNotesContent({ scope }: { scope: string }) {
   }, [editingId, notes, stillCurrent]);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10">
-      <header className="border-b border-[#E8E0D8] pb-6">
+    <div className={embedded ? "w-full min-w-0 max-w-3xl py-3" : "mx-auto w-full max-w-3xl px-5 py-8 sm:px-8 sm:py-10"}>
+      <header className="border-b border-[var(--amora-line)] pb-4">
+        {embedded ? <h2 className="text-[16px] font-semibold text-[var(--amora-ink)]">저장한 답변</h2> : <>
         <p className="inline-flex items-center gap-1.5 text-sm font-bold text-[#9A6B62]">
           <Bookmark aria-hidden="true" className="h-4 w-4" />
-          저장한 이야기
+          저장한 답변
         </p>
         <h1 className="mt-2 text-[var(--hb-text-strong)]">
           다시 볼 것만 모아뒀어요
         </h1>
-        <p className="mt-2 text-base leading-7 text-[var(--hb-text-muted)]">
-          아모라와 나눈 이야기 중 저장한 것들이에요. 대화에서 저장 버튼을 누르면
-          여기 쌓입니다. 둘 중 누가 저장해도 같이 보여요.
+        </>}
+        <p className="mt-2 text-[13px] leading-6 text-[var(--amora-muted)]">
+          두 분이 함께 보는 참고 답변과 메모예요. 확정된 결정은 아니에요.
         </p>
-        <div className="mt-3 flex flex-wrap gap-4 text-sm text-[#9A6B62]">
+        <div className="mt-2 flex flex-wrap gap-4 text-sm text-[var(--amora-accent)]">
+          {!embedded && <>
           <Link {...weddingLinkProps("/chat")} className="inline-flex min-h-11 items-center underline underline-offset-4">아모라 대화</Link>
           <Link {...weddingLinkProps("/chat/board")} className="inline-flex min-h-11 items-center underline underline-offset-4">준비 보드</Link>
+          </>}
           <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load()} className="min-h-11 disabled:opacity-40">새로고침</button>
         </div>
       </header>
@@ -209,9 +212,9 @@ function ScopedSavedNotesContent({ scope }: { scope: string }) {
 
       {status === "ready" && notes.length === 0 && !nextCursor ? (
         <div className="py-14 text-center">
-          <p className="text-base font-semibold text-[var(--hb-text-strong)]">아직 저장한 이야기가 없어요.</p>
+          <p className="text-base font-semibold text-[var(--hb-text-strong)]">아직 저장한 답변이 없어요.</p>
           <p className="mt-2 text-base text-[var(--hb-text-muted)]">
-            아모라가 한 말 아래 &ldquo;저장&rdquo;을 누르면 여기로 모여요.
+            함께 대화의 아모라 답변 아래 저장 버튼을 누르면 여기에 모여요.
           </p>
           <Link
             {...weddingLinkProps("/chat")}
@@ -254,7 +257,7 @@ function ScopedSavedNotesContent({ scope }: { scope: string }) {
               {editingId === note.id ? (
                 <div className="mt-4">
                   <textarea
-                    aria-label="저장한 이야기 메모"
+                    aria-label="저장한 답변 메모"
                     disabled={busyId !== null || loadingMore}
                     maxLength={500}
                     value={memoDraft}
@@ -302,8 +305,8 @@ function ScopedSavedNotesContent({ scope }: { scope: string }) {
         </ul>
       ) : null}
       {nextCursor && <div className="mt-5 text-center text-sm text-[var(--hb-text-muted)]">
-        <p>{notes.length}개를 불러왔어요. 이전 이야기도 이어서 볼 수 있어요.</p>
-        <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load(nextCursor)} className="mt-2 min-h-11 rounded-[6px] border border-[#E8E0D8] px-4 font-semibold text-[#9A6B62] disabled:opacity-40">{loadingMore ? "불러오는 중…" : "이전 이야기 더 보기"}</button>
+        <p>{notes.length}개를 불러왔어요. 이전 답변도 이어서 볼 수 있어요.</p>
+        <button type="button" disabled={status === "loading" || loadingMore || busyId !== null || editingId !== null} onClick={() => void load(nextCursor)} className="mt-2 min-h-11 rounded-[6px] border border-[#E8E0D8] px-4 font-semibold text-[#9A6B62] disabled:opacity-40">{loadingMore ? "불러오는 중…" : "이전 답변 더 보기"}</button>
       </div>}
     </div>
   );

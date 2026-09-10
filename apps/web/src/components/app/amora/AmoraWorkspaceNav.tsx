@@ -2,28 +2,69 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Lock, MessagesSquare, PanelsTopLeft } from "lucide-react";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
-/** 화면 이동만 담당한다. 상담 범위 변경과 승인 여부는 채팅의 기존 경계가 판단한다. */
-export default function AmoraWorkspaceNav() {
-  const pathname = stripWeddingBasePath(usePathname());
-  const isDemo = useAuthStore((state) => state.isDemo);
-  const links = [
-    { href: "/chat/missions", label: "오늘의 미션" },
-    { href: "/chat", label: "함께 대화" },
-    { href: "/chat?scope=private", label: "나만 상담" },
-    { href: "/chat/board", label: "결정 보드" },
-  ];
+export interface AmoraChatNavigationControls {
+  activeScope: "shared" | "private";
+  onScopeChange: (scope: "shared" | "private") => void;
+  disabled: boolean;
+  privateDisabled: boolean;
+  sharedCount?: number;
+  privateCount?: number;
+  privateHint?: string;
+}
+
+const scopeItems = [
+  { key: "shared", href: "/chat?scope=shared", label: "함께 대화", icon: MessagesSquare },
+  { key: "private", href: "/chat?scope=private", label: "나만 (상담)", icon: Lock },
+] as const;
+
+function itemClass(active: boolean) {
+  return `inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 ${active ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-soft)] hover:bg-[var(--amora-low)] hover:text-[var(--amora-ink)]"}`;
+}
+
+function Navigation({ controls, boardActive = false, privateUnavailable = false }: {
+  controls?: AmoraChatNavigationControls;
+  boardActive?: boolean;
+  privateUnavailable?: boolean;
+}) {
   return (
-    <nav aria-label="아모라 화면" className="flex items-center gap-1 text-[13px]">
-      {links.map((link) => (
-        isDemo && link.href.includes("scope=private") ? <span key={link.href} aria-disabled="true" className="inline-flex min-h-11 items-center px-3 text-[var(--amora-muted)]" title="계정 이용 시 나만 상담을 사용할 수 있어요">나만 상담</span> : <Link key={link.href} {...weddingLinkProps(link.href)}
-          aria-current={pathname === link.href ? "page" : undefined}
-          className={`inline-flex min-h-11 items-center justify-center whitespace-nowrap rounded-t-[9px] border px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${pathname === link.href ? "border-[var(--amora-line)] bg-[var(--amora-bg)] text-[var(--amora-ink)]" : "border-transparent text-[var(--amora-muted)] hover:text-[var(--amora-ink)]"}`}>
-          {link.label}
+    <nav aria-label="아모라 화면" className="grid w-full grid-cols-3 gap-1 rounded-[11px] border border-[var(--amora-line)] bg-white p-1 xl:w-auto">
+      <div role="group" aria-label="대화 공개 범위" className="contents">
+        {scopeItems.map(({ key, href, label, icon: Icon }) => {
+          const active = controls?.activeScope === key;
+          const blocked = Boolean(controls?.disabled || (key === "private" && (controls?.privateDisabled || privateUnavailable)));
+          const content = <><Icon aria-hidden className="hidden size-4 shrink-0 sm:block" />{label}</>;
+          return controls ? (
+            <button key={key} type="button" aria-pressed={active} disabled={blocked}
+              title={key === "private" ? controls.privateHint : undefined}
+              onClick={() => controls.onScopeChange(key)} className={itemClass(active)}>{content}</button>
+          ) : blocked ? (
+            <span key={key} aria-disabled="true" title="계정 이용 시 나만 상담을 사용할 수 있어요"
+              className={`${itemClass(false)} cursor-not-allowed opacity-50`}>{content}</span>
+          ) : <Link key={key} {...weddingLinkProps(href)} className={itemClass(false)}>{content}</Link>;
+        })}
+      </div>
+      {controls?.disabled ? (
+        <span aria-disabled="true" className={`${itemClass(false)} cursor-not-allowed opacity-50`}>결정 보드</span>
+      ) : (
+        <Link {...weddingLinkProps("/chat/board")} aria-current={boardActive ? "page" : undefined} className={itemClass(boardActive)}>
+          <PanelsTopLeft aria-hidden className="hidden size-4 shrink-0 sm:block" />결정 보드
         </Link>
-      ))}
+      )}
     </nav>
   );
+}
+
+function PageNavigation() {
+  const pathname = stripWeddingBasePath(usePathname());
+  const isDemo = useAuthStore((state) => state.isDemo);
+  return <Navigation boardActive={pathname === "/chat/board"} privateUnavailable={isDemo} />;
+}
+
+/** 대화 안에서는 실제 범위와 전송 잠금을 사용하고, 다른 화면에서는 명시적인 진입 링크를 사용한다. */
+export default function AmoraWorkspaceNav({ chatControls }: { chatControls?: AmoraChatNavigationControls }) {
+  return chatControls ? <Navigation controls={chatControls} /> : <PageNavigation />;
 }

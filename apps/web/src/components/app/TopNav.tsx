@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type Ref } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { AnimatePresence } from "framer-motion";
@@ -48,10 +48,12 @@ interface TopNavProps {
   onMenuToggle: () => void;
   amoraWorkspace?: boolean;
   planningWorkspace?: boolean;
+  loungeWorkspace?: boolean;
+  amoraNavigationRef?: Ref<HTMLDivElement>;
 }
 
-export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningWorkspace = false }: TopNavProps) {
-  const htmlDesign = amoraWorkspace || planningWorkspace;
+export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningWorkspace = false, loungeWorkspace = false, amoraNavigationRef }: TopNavProps) {
+  const htmlDesign = amoraWorkspace || planningWorkspace || loungeWorkspace;
   const pathname = usePathname();
   const router = useRouter();
   const appPathname = stripWeddingBasePath(pathname);
@@ -80,7 +82,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
 
   return (
     <>
-      <header className={htmlDesign ? "sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] md:h-[102px] md:bg-white md:px-9" : "sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5"}>
+      <header className={amoraWorkspace ? "sticky top-0 z-30 grid shrink-0 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] py-2 md:bg-white md:px-9 xl:min-h-[102px] xl:grid-cols-[1fr_auto_auto]" : htmlDesign ? "sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] md:h-[102px] md:bg-white md:px-9" : "sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5"}>
         <div className={htmlDesign ? "flex min-w-0 items-center gap-1" : "flex items-center gap-4"}>
           <button
             type="button"
@@ -101,7 +103,6 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
         </div>
 
         <div className="flex items-center gap-2">
-          {amoraWorkspace && appPathname !== "/chat" && <div className="hidden xl:block"><AmoraWorkspaceNav /></div>}
           <nav
             aria-label="주요 기능 바로가기"
             className={htmlDesign ? "hidden" : "mr-4 hidden items-center gap-6 text-[15px] font-semibold text-[var(--hb-text-strong)] lg:flex"}
@@ -186,6 +187,11 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             </AnimatePresence>
           </div>
         </div>
+        {amoraWorkspace && (
+          <div ref={amoraNavigationRef} data-amora-navigation-slot className="col-span-2 min-h-[54px] min-w-0 xl:col-span-1">
+            {appPathname !== "/chat" && <AmoraWorkspaceNav />}
+          </div>
+        )}
       </header>
 
       <CategoryChecklistModal

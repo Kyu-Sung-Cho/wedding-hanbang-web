@@ -21,6 +21,7 @@ import ChatSidePanel from "@/components/app/chat/ChatSidePanel";
 import Sidebar from "@/components/app/Sidebar";
 import TopNav from "@/components/app/TopNav";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
+import { AmoraNavigationTargetContext } from "@/components/app/amora/AmoraNavigationContext";
 import { useAuthSessionSync } from "@/hooks/useAuthSessionSync";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import { isAnalyticsSuppressedLocation } from "@/lib/analyticsPrivacy";
@@ -216,13 +217,15 @@ export default function AppClientLayout({
   initialDemo?: boolean;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [amoraNavigationTarget, setAmoraNavigationTarget] = useState<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
   const isAmoraPage = isChatPage || appPathname.startsWith("/chat/");
   const isPlanningPage = appPathname === "/checklist";
-  const hasHtmlDesign = isAmoraPage || isPlanningPage;
+  const isLoungePage = appPathname === "/lounge";
+  const hasHtmlDesign = isAmoraPage || isPlanningPage || isLoungePage;
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
 
   const analyticsSuppressed = isAnalyticsSuppressedLocation(pathname, searchParams);
@@ -251,24 +254,25 @@ export default function AppClientLayout({
   }
 
   return (
+    <AmoraNavigationTargetContext.Provider value={amoraNavigationTarget}>
     <div
-      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage ? "amora-workspace " : isPlanningPage ? "planning-workspace " : ""}${
+      className={`${analyticsSuppressed ? "ph-no-capture " : ""}${isAmoraPage || isLoungePage ? "amora-workspace " : isPlanningPage ? "planning-workspace " : ""}${
         isChatPage
           // iOS 사파리는 100vh가 주소창 높이를 포함해 입력창이 화면 밖으로 밀린다 → dvh
           ? "hanbang-service-theme h-[100dvh] overflow-hidden bg-[var(--hb-surface-page)]"
           : "hanbang-service-theme min-h-screen bg-[var(--hb-surface-page)]"
       }`}
     >
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} />
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage || isLoungePage} planningWorkspace={isPlanningPage} />
       <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : "md:ml-[16rem]"}>
-        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} />
+        <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungePage} amoraNavigationRef={setAmoraNavigationTarget} />
         {banner}
         {isChatPage ? (
           <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
         ) : hasHtmlDesign ? (
           <>
             <main>{children}</main>
-            {isPlanningPage && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
+            {(isPlanningPage || isLoungePage) && <div className="px-[18px] pb-10 lg:px-9"><AiNoticeFooter variant="light" /></div>}
           </>
         ) : (
           <>
@@ -286,11 +290,13 @@ export default function AppClientLayout({
 
       {isAmoraPage && !isChatPage && <AmoraBottomNav />}
       {isPlanningPage && <AmoraBottomNav active="checklist" />}
+      {isLoungePage && <AmoraBottomNav active="lounge" />}
 
       {/* 체크리스트는 분야·항목별 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
       {!isAmoraPage && !isPlanningPage && !vendorAdminPreview && (
-        <GlobalChatAssistant aboveBottomNav={isPlanningPage} />
+        <GlobalChatAssistant aboveBottomNav={isLoungePage} />
       )}
     </div>
+    </AmoraNavigationTargetContext.Provider>
   );
 }

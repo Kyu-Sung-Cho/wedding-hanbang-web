@@ -1,7 +1,5 @@
-"use client";
-
-import SavedNotesContent from "@/components/app/saved/SavedNotesContent";
+import { redirect } from "next/navigation";
 
 export default function SavedNotesPage() {
-  return <SavedNotesContent />;
+  redirect("/wedding/chat/board?view=saved");
 }

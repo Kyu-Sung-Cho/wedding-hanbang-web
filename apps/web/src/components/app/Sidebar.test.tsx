@@ -19,17 +19,26 @@ describe("Amora sidebar entry", () => {
   });
   afterEach(async () => { await act(async () => root.unmount()); container.remove(); });
 
-  it.each(["/wedding/chat", "/wedding/chat/missions", "/wedding/chat/board", "/chat"])("enters missions and keeps Amora selected at %s without changing the current conversation", async pathname => {
+  it.each(["/wedding/chat", "/wedding/chat/missions", "/wedding/chat/board", "/chat"])("enters conversation and keeps Amora selected at %s without changing the current conversation", async pathname => {
     mocks.pathname = pathname;
     await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
     const link = container.querySelector<HTMLAnchorElement>('[data-tutorial-target="service-nav-amora"]')!;
-    expect(link.getAttribute("href")).toBe("/wedding/chat/missions");
+    expect(link.getAttribute("href")).toBe("/wedding/chat");
     expect(link.getAttribute("aria-current")).toBe("page");
     expect(mocks.pathname).toBe(pathname);
     link.addEventListener("click", event => event.preventDefault());
     await act(async () => link.click());
     expect(close).toHaveBeenCalledOnce();
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it("starts with the mission lounge and keeps saved answers inside Amora", async () => {
+    mocks.pathname = "/wedding/lounge";
+    await act(async () => root.render(<Sidebar isOpen onClose={close} amoraWorkspace />));
+    const menu = container.querySelector('nav[aria-label="서비스 메뉴"]')!;
+    expect(menu.querySelector("a")?.getAttribute("href")).toBe("/wedding/lounge");
+    expect(menu.querySelector('[aria-current="page"]')?.textContent).toBe("웨딩 라운지");
+    expect(menu.querySelector('a[href="/wedding/saved"]')).toBeNull();
   });
 
   it.each(["/wedding/budget", "/wedding/chat-archive"])("does not mark unrelated %s as Amora", async pathname => {

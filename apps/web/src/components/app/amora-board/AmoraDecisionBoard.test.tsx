@@ -442,12 +442,14 @@ describe("AmoraDecisionBoard", () => {
     expect(mocks.data.update).toHaveBeenLastCalledWith(action.id, { title: "새 제목" });
   });
 
-  it("loads older records through the real cursor control and links saved answers separately", async () => {
+  it("loads older records through the real cursor control and exposes the saved-answer view", async () => {
     Object.assign(mocks.data, { actions: [action], count: 81, truncated: true, nextCursor: "next" });
     await act(async () => root.render(<AmoraDecisionBoard />));
     const more = Array.from(container.querySelectorAll("button")).find(value => value.textContent === "이전 기록 더 보기")!;
     await act(async () => more.click()); expect(mocks.data.loadMore).toHaveBeenCalledOnce();
-    expect(container.querySelector('a[href="/wedding/saved"]')).not.toBeNull();
+    const saved = Array.from(container.querySelectorAll<HTMLButtonElement>('[aria-label="보드 보기"] button')).find(control => control.textContent === "저장한 답변");
+    expect(saved).toBeDefined();
+    expect(document.getElementById(saved!.getAttribute("aria-controls")!)).not.toBeNull();
     mocks.data.loadingMore = true;
     await act(async () => root.render(<AmoraDecisionBoard />)); expect(more.disabled).toBe(true);
   });

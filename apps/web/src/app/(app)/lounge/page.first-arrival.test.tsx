@@ -186,4 +186,17 @@ describe("웨딩 라운지 첫 도착", () => {
       ).not.toBeNull();
     }
   });
+
+  it("오늘의 미션을 한 번만 배치하고 이전 중복 추천 대신 예산·일정 도구를 유지한다", async () => {
+    await act(async () => { root.render(<LoungePage />); });
+    const missions = container.querySelectorAll('#today-missions[data-tutorial-target="lounge-focus"]');
+    expect(missions).toHaveLength(1);
+    expect(missions[0].getAttribute("aria-labelledby")).toBe("today-missions-title");
+    expect(missions[0].querySelector("#today-missions-title")?.textContent).toBe("오늘의 미션");
+    expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(5);
+    expect(container.querySelectorAll('#daily-amora-focus-title')).toHaveLength(1);
+    expect(container.textContent).not.toMatch(/지금 먼저 볼 것|놓치기 쉬운 항목/);
+    expect(container.querySelector('[data-tutorial-target="lounge-tools"] a[href="/wedding/budget"]')).not.toBeNull();
+    expect(container.querySelector('[data-tutorial-target="lounge-tools"] a[href="/wedding/schedule"]')).not.toBeNull();
+  });
 });

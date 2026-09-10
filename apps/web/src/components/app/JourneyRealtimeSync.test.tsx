@@ -145,7 +145,7 @@ describe("JourneyRealtimeSync", () => {
     expect(useAuthStore.getState().journey?.couple_id).toBe("couple-b");
     fetchMock.mockClear(); await act(async () => oldHandler()); expect(fetchMock).not.toHaveBeenCalled();
   });
-  it.each(["/chat", "/wedding/chat"])("refreshes the mounted %s budget panel after thirty seconds with no realtime events", async pathname => {
+  it.each(["/chat", "/wedding/chat", "/lounge", "/wedding/lounge"])("refreshes the mounted %s budget panel after thirty seconds with no realtime events", async pathname => {
     mocks.pathname = pathname;
     await renderChatBudget(); await status("SUBSCRIBED");
     expect(container.textContent).toContain("총 예산2,500만원");
@@ -165,7 +165,7 @@ describe("JourneyRealtimeSync", () => {
     expect(container.textContent).toContain("기록 10,001원");
     expect(fetchMock.mock.calls.every(call => call[0] === "/api/auth/me" && !call[1]?.method)).toBe(true);
   });
-  it.each(["/chat", "/wedding/chat"])("pauses %s panel refresh while hidden or offline and reads on resume", async pathname => {
+  it.each(["/chat", "/wedding/chat", "/lounge", "/wedding/lounge"])("pauses %s panel refresh while hidden or offline and reads on resume", async pathname => {
     mocks.pathname = pathname;
     await renderChatBudget(); await status("SUBSCRIBED"); fetchMock.mockClear();
     server = { ...server, journey: { ...server.journey, total_budget: 36_000_000, state_revision: 1 } };

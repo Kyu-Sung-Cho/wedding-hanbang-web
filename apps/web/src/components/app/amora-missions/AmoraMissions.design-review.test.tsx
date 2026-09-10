@@ -68,6 +68,23 @@ describe("미션 화면의 제목과 공유 할 일 이동", () => {
     await act(async () => root.render(<AmoraMissions />));
   }
 
+  it("내장 미션에서도 예정일을 한 번 표시하고 날짜 해석이나 체크리스트 날짜를 만들지 않는다", async () => {
+    for (const dueDate of ["2026-09-15", "다음 상담 후, 두 사람이 가능한 날"]) {
+      mocks.actions = [{ ...sharedAction(1), dueDate }];
+      mocks.open_count = 1;
+      await act(async () => root.render(<AmoraMissions embedded />));
+      const cards = container.querySelectorAll('section[aria-labelledby="missions-heading"] article');
+      const dateLines = [...cards[0].querySelectorAll("p")].filter(line => line.textContent?.startsWith("예정일 "));
+      expect(dateLines).toHaveLength(1);
+      expect(dateLines[0].textContent).toBe(`예정일 ${dueDate}`);
+      expect(cards[1].textContent).not.toContain("예정일");
+      expect(cards[0].textContent).not.toMatch(/지연|일 남음|D-|마감/);
+    }
+    mocks.actions = [sharedAction(1)];
+    await act(async () => root.render(<AmoraMissions embedded />));
+    expect(container.querySelector('section[aria-labelledby="missions-heading"]')?.textContent).not.toContain("예정일");
+  });
+
   it("공유 할 일과 체크리스트 제안이 섞인 카드의 제목에 전체 공유 할 일 수를 붙이지 않는다", async () => {
     await render();
     const section = container.querySelector('section[aria-labelledby="missions-heading"]')!;

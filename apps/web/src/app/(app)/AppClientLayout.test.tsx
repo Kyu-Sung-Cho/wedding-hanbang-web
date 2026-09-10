@@ -192,7 +192,7 @@ describe("AppClientLayout global Amora panel", () => {
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
-    expect(nav?.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(nav?.querySelector('a[href="/wedding/checklist"]')).not.toBeNull();
   });
 
@@ -217,9 +217,20 @@ describe("AppClientLayout global Amora panel", () => {
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
     expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/checklist");
-    expect(nav?.querySelector('a[href="/wedding/chat/missions"]')).not.toBeNull();
+    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();
     expect(container.querySelector('[data-testid="global-amora-panel"]')).toBeNull();
+    expect(container.textContent).toContain("AI notice");
+  });
+
+  it("keeps lounge navigation selected and the existing assistant above its mobile bar", async () => {
+    await renderLayout();
+    expect(container.querySelector(".amora-workspace main")).not.toBeNull();
+    const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
+    expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe("/wedding/lounge");
+    expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
+    const launcher = container.querySelector('button[aria-label="아모라 AI 상담"]');
+    expect(launcher?.className).toContain("90px+env(safe-area-inset-bottom)");
     expect(container.textContent).toContain("AI notice");
   });
 
