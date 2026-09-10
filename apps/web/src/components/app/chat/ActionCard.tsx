@@ -4,6 +4,7 @@ import { useState } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { sumRecordedSpend } from "@/lib/budgetTotals";
+import { formatLoungeBudgetRatio } from "@/lib/amora/loungeSummary";
 import { useAuthStore } from "@/stores/authStore";
 import type { ProgressItem } from "@/types/database.types";
 import {
@@ -216,27 +217,31 @@ function BudgetMiniCard() {
 
   return (
     <div className="mt-3 pt-3 border-t border-black/[0.06]">
-      <div className="flex items-center justify-between mb-2.5">
-        <span className="text-sm text-[var(--hb-text-muted)]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
-        <span className={`text-sm font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{totalPct}%</span>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2.5">
+        <span className="min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums text-[var(--hb-text-muted)]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
+        <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{formatLoungeBudgetRatio(totalSpent, totalBudget)}</span>
       </div>
       <p className="mt-2 text-[11px] leading-4 text-[var(--hb-text-muted)]">
         기록 지출은 결제 완료 여부와 별도예요.
       </p>
       <div className="space-y-1.5">
         {items.map((cat) => (
-          <div key={cat.key} className="flex items-center gap-2 text-sm">
-            <span className="text-[var(--hb-text-muted)] w-[64px] flex-shrink-0 truncate">{cat.label}</span>
-            <div className="flex-1 h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
+          <div key={cat.key} className="space-y-1 text-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <span className="min-w-0 max-w-full break-words text-[var(--hb-text-muted)]">{cat.label}</span>
+              <div className="flex min-w-0 max-w-full flex-wrap items-baseline justify-end gap-x-2 gap-y-0.5">
+                <span className="min-w-0 max-w-full break-keep [overflow-wrap:anywhere] tabular-nums text-[var(--hb-text-strong)]">{formatWon(cat.spent)}</span>
+                <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] tabular-nums font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[var(--hb-text-muted)]"}`}>
+                  {cat.budget !== null && cat.budget > 0 ? formatLoungeBudgetRatio(cat.spent, cat.budget) : cat.budget === 0 ? "0원" : "미입력"}
+                </span>
+              </div>
+            </div>
+            <div className="h-1.5 bg-black/[0.04] rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${cat.pct !== null && cat.pct >= 100 ? "bg-red-400" : "bg-[#C4967E]"}`}
                 style={{ width: `${cat.pct === null ? 0 : Math.min(cat.pct, 100)}%` }}
               />
             </div>
-            <span className="w-[64px] flex-shrink-0 text-right text-[var(--hb-text-strong)]">{formatWon(cat.spent)}</span>
-            <span className={`w-[44px] text-right flex-shrink-0 font-medium ${cat.pct !== null && cat.pct >= 100 ? "text-red-400" : "text-[var(--hb-text-muted)]"}`}>
-              {cat.pct !== null ? `${cat.pct}%` : cat.budget === 0 ? "0원" : "미입력"}
-            </span>
           </div>
         ))}
       </div>
