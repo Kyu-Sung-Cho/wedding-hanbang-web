@@ -7,6 +7,7 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 const CUSTOM = "custom_19324031db47e6ee6f64cb6a";
 const LABEL = "초대장·꽃·하객선물";
 const REQUEST = `${LABEL} 예산을 150만원에서 1,000만원으로 올려서 반영해줘. 총예산은 3,500만원 그대로 두고 나머지 항목은 하나도 줄이지 마. 총액을 넘으면 저장하지 말고 먼저 부족한 금액을 알려줘.`;
+const CARD_REQUEST = `${LABEL} 맞춤 예산만 1,500,000원에서 1,501,000원으로 수정하고 싶어. 총예산, 다른 항목, 기록 지출, 분담은 그대로 두고 변경 확인 카드를 먼저 보여줘. 아직 적용하지 마.`;
 
 function context(otherBudget = 32_500_000): ToolExecutionContext {
   return {
@@ -26,6 +27,93 @@ function assess(ctx = context(), userText = REQUEST, sourceRevision: number | nu
 }
 
 describe("conditional Amora single-category budget assessment", () => {
+  it("prepares the explicitly requested budget-only card from current amounts without applying it", () => {
+    const ctx = context();
+    const before = structuredClone(ctx);
+    const result = assess(ctx, CARD_REQUEST);
+    expect(result).toMatchObject({ kind: "ready",
+      action: { tool: "add_custom_category", input: { label: LABEL, budget: 1_501_000 } },
+      preview: { sourceRevision: 8, current: { allocatedBudget: 34_000_000, recordedSpend: 123_000 },
+        proposed: { totalBudget: 35_000_000, allocatedBudget: 34_001_000, recordedSpend: 123_000, unallocatedBudget: 999_000 } } });
+    expect(ctx).toEqual(before);
+  });
+
+  it("keeps spend, payer, memo, payment date and other records through the actual pure card operation", () => {
+    const ctx = context();
+    const row = ctx.weddingContext.progress[CUSTOM] as unknown as Record<string, unknown>;
+    Object.assign(row, { spent: 456_789, payment_date: "2026-09-09", notes: { reference: "기존 정보" } });
+    const before = structuredClone(ctx);
+    const result = assess(ctx, CARD_REQUEST);
+    if (result?.kind !== "ready") throw new Error("Expected precise card");
+    const operation = buildAmoraAtomicToolOperation(result.action.tool, result.action.input, ctx);
+    expect(operation.result.success).toBe(true);
+    expect(ctx).toEqual(before);
+    const applied = structuredClone(ctx);
+    applyAmoraAtomicToolResultToContext(operation.result, applied);
+    expect(applied.weddingContext).toEqual({ ...before.weddingContext, progress: {
+      ...before.weddingContext.progress, [CUSTOM]: { ...before.weddingContext.progress[CUSTOM], budget: 1_501_000 },
+    } });
+  });
+
+  it.each([
+    CARD_REQUEST.replace("맞춤 예산만", "예산을").replace("수정하고 싶어", "변경해줘"),
+    CARD_REQUEST.replace("1,500,000원에서 1,501,000원", "150만원에서 1501000원"),
+  ])("retains explicit one-item money precision for the same complete card contract: %s", text => {
+    expect(assess(context(), text)).toMatchObject({ kind: "ready",
+      action: { input: { label: LABEL, budget: 1_501_000 } } });
+  });
+
+  it.each([
+    "현재 이 항목 예산을 알려줘. 아무것도 적용하지 마.",
+    CARD_REQUEST.replace("변경 확인 카드를 먼저 보여줘", "변경 확인 카드도 만들지 마"),
+    CARD_REQUEST.replace("수정하고 싶어", "수정하지 마"),
+    `가정해보자. ${CARD_REQUEST}`,
+    `"${CARD_REQUEST}"라는 예문을 평가해줘.`,
+    CARD_REQUEST + " 그리고 식장 예산도 100만원 줄여줘.",
+    CARD_REQUEST + " 지금 바로 적용해줘.",
+    "내 개인 상담에만 답해줘. " + CARD_REQUEST,
+    CARD_REQUEST.replace("분담은 그대로 두고", "분담도 반반으로 바꾸고"),
+    CARD_REQUEST.replace("다른 항목,", ""),
+    CARD_REQUEST.replace("총예산,", "총예산은 4000만원으로,"),
+  ])("does not intercept a lookup, prohibition, hypothetical, private or mixed request as a budget-only card: %s", text => {
+    const ctx = context();
+    const before = structuredClone(ctx);
+    expect(assess(ctx, text)).toBeNull();
+    expect(ctx).toEqual(before);
+  });
+
+  it.each([
+    ["stale amount", CARD_REQUEST.replace("1,500,000원에서", "1,499,000원에서"), "amount_changed"],
+    ["unstated previous unit", CARD_REQUEST.replace("1,500,000원에서", "1500000에서"), "request_unclear"],
+    ["same amount", CARD_REQUEST.replace("1,501,000원", "1,500,000원"), "no_change"],
+    ["overflow", CARD_REQUEST.replace("1,501,000원", "9007199254740992원"), "request_unclear"],
+  ])("does not create an unverifiable card for %s", (_name, text, reason) => {
+    expect(assess(context(), text)).toMatchObject({ kind: "needs_confirmation", reason });
+  });
+
+  it("requires a current revision and a unique exact label for the explicit card too", () => {
+    expect(assess(context(), CARD_REQUEST, null)).toMatchObject({ kind: "needs_confirmation", reason: "budget_unavailable" });
+    const ctx = context();
+    ctx.weddingContext.progress.custom_duplicate = { ...ctx.weddingContext.progress[CUSTOM] };
+    expect(assess(ctx, CARD_REQUEST)).toMatchObject({ kind: "needs_confirmation", reason: "category_ambiguous" });
+  });
+
+  it("does not silently remove 맞춤 when it is part of another existing category name", () => {
+    const ctx = context();
+    const progress = ctx.weddingContext.progress as Record<string, unknown>;
+    progress.custom_named = { ...(progress[CUSTOM] as Record<string, unknown>), label: `${LABEL} 맞춤` };
+    expect(assess(ctx, CARD_REQUEST)).toMatchObject({ kind: "needs_confirmation", reason: "category_ambiguous" });
+    delete ctx.weddingContext.progress[CUSTOM];
+    expect(assess(ctx, CARD_REQUEST)).toMatchObject({ kind: "ready", action: {
+      tool: "add_custom_category", input: { label: `${LABEL} 맞춤`, budget: 1_501_000 },
+    } });
+  });
+
+  it("does not increase the unchanged total when the proposed card exceeds the available allocation", () => {
+    expect(assess(context(), CARD_REQUEST.replace("1,501,000원", "3,000,000원")))
+      .toMatchObject({ kind: "blocked", reason: "over_total", preview: { proposed: { totalBudget: 35_000_000, unallocatedBudget: -500_000 } } });
+  });
+
   it("uses allocated 3400, not total 3500, for the live over-budget refusal without mutating the ledger", () => {
     const ctx = context();
     const before = structuredClone(ctx);

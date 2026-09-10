@@ -158,6 +158,7 @@ import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
 import { assessExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
+import { getUnsupportedScheduleFieldsReply } from "@/lib/ai/amoraUnsupportedScheduleFields";
 import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
 import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary, getRequiredCurrentStoredStateReads } from "@/lib/ai/amoraCurrentStoredStateSummary";
 import { getSharedPersonalActionNavigationReply } from "@/lib/ai/amoraPersonalActionNavigation";
@@ -4036,12 +4037,20 @@ export async function POST(request: Request) {
               }) : null;
           // 서버 정본 조회와 실제 화면 이동 안내는 모델의 옛 시각·없는 버튼 문장을 남기지 않는다.
           // 이 본문도 기존 개인정보 epoch·원자적 저장·최종 SSE 경계를 그대로 통과한다.
-          const canonicalTerminalText = currentStoredStateText ?? personalNavigationText;
+          const unsupportedScheduleFieldsText = !isDemo && requestKind === "chat" && isDurableUserMessageBound
+            && visibility === "shared" && questionScope.scope === "W0_wedding_core"
+            && !approvedPendingAction && !queuedProposal?.pendingAction && !storedActionQueue
+            && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
+            && toolResults.every(result => !isMutatingTool(result.toolName))
+            ? getUnsupportedScheduleFieldsReply(lastUserText, afterSuggest) : null;
+          const canonicalTerminalText = currentStoredStateText ?? personalNavigationText ?? unsupportedScheduleFieldsText;
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
           const budgetAssessment = canonicalTerminalText === null && !isDemo && requestKind === "chat" && isDurableUserMessageBound
             && visibility === "shared" && questionScope.scope === "W0_wedding_core"
-            && !approvedPendingAction && !queuedProposal?.pendingAction
+            && !approvedPendingAction && !queuedProposal?.pendingAction && !storedActionQueue
+            && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
+            && toolResults.every(result => !isMutatingTool(result.toolName))
             ? assessAmoraBudgetChange({ userText: lastUserText, context: executionContext, sourceRevision: canonicalJourneyStateRevision })
             : null;
           const assessedBudgetAction = pendingOfferEnabled && budgetAssessment?.kind === "ready"
@@ -4221,6 +4230,7 @@ export async function POST(request: Request) {
             toolResults: getPersistableToolResults(toolResults),
             ...(currentStoredStateText !== null ? { current_stored_state_summary: true } : {}),
             ...(personalNavigationText !== null ? { personal_action_navigation: true } : {}),
+            ...(unsupportedScheduleFieldsText !== null ? { unsupported_schedule_fields: true } : {}),
             ...personalActionConversationMetadata(toolResults, personalConversationToolNames),
             toolsUsed,
             senderName: safeSenderName,
