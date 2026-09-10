@@ -1,25 +1,14 @@
 name: CI
 
-# 2026-08-19 — 자동 실행을 껐다. 지우지 않고 트리거만 내린 이유는 아래 두 가지다.
-#
-# 1. **지금 이 저장소에서 Actions가 실제로 돌지 않는다.** 최근 CI 런 60개가 전부
-#    러너를 배정받지 못하고(runner_name 비어 있음) 스텝 0으로 2~4초 만에 실패한다.
-#    같은 날 Dependabot Updates는 러너를 받아 5스텝을 정상 수행하고 성공한다 —
-#    Dependabot은 프라이빗 저장소에서도 무료라 과금 대상이 아니다. 즉 설정·워크플로·
-#    코드 문제가 아니라 **Actions 사용 분 소진**이다. 그 상태로 두면 모든 PR이
-#    빨간 체크를 달고, 그 빨강이 코드 문제로 오진된다.
-# 2. **여기서만 돌던 검사를 로컬로 옮겼다.** `scripts/verify-local.mjs`에
-#    `ingest typecheck` · `repository tests`(= test:repo, ingest·supabase 릴리스
-#    테스트 포함) · `supabase release fence`를 추가했다. 이제 `pnpm qa:local` 하나가
-#    이 워크플로와 같은 범위를 덮는다. push는 `.githooks/pre-push`가 계속 막는다.
-#
-# 되살리려면: 결제를 복구한 뒤 아래 `workflow_dispatch`를 지우고 원래 트리거를 넣는다.
-#   on:
-#     push:
-#       branches: [main]
-#     pull_request: {}
+# 코드 검사는 PR과 main push에서 자동 실행한다. 수동 재검증도 유지한다.
+# Code Quality는 코드 검사 결과이며 운영 릴리스 인가를 대신하지 않는다.
+# 항상 실패하는 Production Readiness와 Quality Gate는 기존 계약대로 남긴다.
 on:
   workflow_dispatch: {}
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,8 +21,7 @@ jobs:
   web_quality:
     name: Web Quality
     runs-on: ubuntu-latest
-    # The 5,070 tests across 529 files used almost the full former 30-minute
-    # job budget on ubuntu-latest, leaving no time for the production build.
+    # Typecheck, lint and production build run once alongside the test shards.
     timeout-minutes: 45
 
     env:
@@ -79,11 +67,59 @@ jobs:
       - name: Web lint
         run: pnpm --filter @hanbang/web exec eslint .
 
-      - name: Web tests
-        run: pnpm --filter @hanbang/web exec vitest run
-
       - name: Web production build
         run: pnpm --filter @hanbang/web build
+
+  web_tests:
+    name: Web Tests (shard ${{ matrix.shard }}/2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [1, 2]
+
+    env:
+      # Placeholder values keep CI focused on static verification and build integrity.
+      NEXT_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
+      SUPABASE_SERVICE_ROLE_KEY: sb_secret_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      SUPABASE_EXPECTED_URL: https://abcdefghijklmnopqrst.supabase.co
+      SUPABASE_EXPECTED_PROJECT_REF: abcdefghijklmnopqrst
+      SUPABASE_PRODUCTION_PROJECT_REF: slrtobkksjmxgzatjyqb
+      # OpenAI adapter tests inject a fake client. Keep the production cutover off in CI.
+      AMORA_OPENAI_ENABLED: "false"
+      RESEND_API_KEY: placeholder
+      NEXT_PUBLIC_SITE_URL: https://hanbang.ai
+      ADMIN_PASSWORD: placeholder
+      DECART_API_KEY: placeholder
+      NAVER_API_HUB_CLIENT_ID: placeholder
+      NAVER_API_HUB_CLIENT_SECRET: placeholder
+      NAVER_CLIENT_ID: placeholder
+      NAVER_CLIENT_SECRET: placeholder
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.13.0
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Web tests
+        # Independent runners retain the release-proven PGlite worker bound.
+        run: pnpm --filter @hanbang/web exec vitest run --shard=${{ matrix.shard }}/2 --maxWorkers=2
 
   mobile_quality:
     name: Mobile Quality
@@ -131,6 +167,9 @@ jobs:
       - name: Shared package typecheck
         run: pnpm --filter @hanbang/shared typecheck
 
+      - name: Shared package tests
+        run: pnpm --filter @hanbang/shared test
+
       - name: Design tokens typecheck
         run: pnpm --filter @hanbang/design-tokens typecheck
 
@@ -160,8 +199,8 @@ jobs:
       - name: Ingest typecheck
         run: pnpm ingest:typecheck
 
-      - name: Ingest tests
-        run: pnpm test:ingest
+      - name: Repository tests (includes ingest)
+        run: pnpm test:repo
 
   static_release_contracts:
     name: Static Release Contracts (Non-Deploy)
@@ -234,7 +273,7 @@ jobs:
   code_quality_signal:
     name: "Code Quality (breakage signal only — not a release authorization)"
     if: ${{ always() }}
-    needs: [web_quality, mobile_quality, vendor_disclosure_quality, static_release_contracts]
+    needs: [web_quality, web_tests, mobile_quality, vendor_disclosure_quality, static_release_contracts]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -242,17 +281,19 @@ jobs:
       - name: Report whether this commit broke a code check
         env:
           WEB_RESULT: ${{ needs.web_quality.result }}
+          WEB_TESTS_RESULT: ${{ needs.web_tests.result }}
           MOBILE_RESULT: ${{ needs.mobile_quality.result }}
           VENDOR_DISCLOSURE_RESULT: ${{ needs.vendor_disclosure_quality.result }}
           STATIC_RELEASE_RESULT: ${{ needs.static_release_contracts.result }}
         run: |
           echo "Web Quality: $WEB_RESULT"
+          echo "Web Tests: $WEB_TESTS_RESULT"
           echo "Mobile Quality: $MOBILE_RESULT"
           echo "Vendor Disclosure Quality: $VENDOR_DISCLOSURE_RESULT"
           echo "Static Release Contracts (Non-Deploy): $STATIC_RELEASE_RESULT"
           echo ""
           echo "This job is a breakage signal only. Production release stays BLOCKED regardless of its colour."
-          if [ "$WEB_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ]; then
+          if [ "$WEB_RESULT" != "success" ] || [ "$WEB_TESTS_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ]; then
             echo "A code check broke on this commit."
             exit 1
           fi
@@ -260,7 +301,7 @@ jobs:
   ci:
     name: Quality Gate
     if: ${{ always() }}
-    needs: [web_quality, mobile_quality, vendor_disclosure_quality, static_release_contracts, production_readiness]
+    needs: [web_quality, web_tests, mobile_quality, vendor_disclosure_quality, static_release_contracts, production_readiness]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -268,17 +309,19 @@ jobs:
       - name: Verify all quality gates passed
         env:
           WEB_RESULT: ${{ needs.web_quality.result }}
+          WEB_TESTS_RESULT: ${{ needs.web_tests.result }}
           MOBILE_RESULT: ${{ needs.mobile_quality.result }}
           VENDOR_DISCLOSURE_RESULT: ${{ needs.vendor_disclosure_quality.result }}
           STATIC_RELEASE_RESULT: ${{ needs.static_release_contracts.result }}
           PRODUCTION_READINESS_RESULT: ${{ needs.production_readiness.result }}
         run: |
           echo "Web Quality: $WEB_RESULT"
+          echo "Web Tests: $WEB_TESTS_RESULT"
           echo "Mobile Quality: $MOBILE_RESULT"
           echo "Vendor Disclosure Quality: $VENDOR_DISCLOSURE_RESULT"
           echo "Static Release Contracts (Non-Deploy): $STATIC_RELEASE_RESULT"
           echo "Production Readiness: $PRODUCTION_READINESS_RESULT"
-          if [ "$WEB_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ] || [ "$PRODUCTION_READINESS_RESULT" != "success" ]; then
+          if [ "$WEB_RESULT" != "success" ] || [ "$WEB_TESTS_RESULT" != "success" ] || [ "$MOBILE_RESULT" != "success" ] || [ "$VENDOR_DISCLOSURE_RESULT" != "success" ] || [ "$STATIC_RELEASE_RESULT" != "success" ] || [ "$PRODUCTION_READINESS_RESULT" != "success" ]; then
             echo "One or more required quality gates did not pass."
             exit 1
           fi
