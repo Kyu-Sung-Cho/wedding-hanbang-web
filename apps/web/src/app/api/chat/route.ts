@@ -159,6 +159,8 @@ import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
 import { assessExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
 import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
+import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary } from "@/lib/ai/amoraCurrentStoredStateSummary";
+import { getSharedPersonalActionNavigationReply } from "@/lib/ai/amoraPersonalActionNavigation";
 import {
   AMORA_MAX_TOOL_ROUNDS,
   AMORA_MAX_TOOL_CALLS_PER_TURN,
@@ -2639,7 +2641,7 @@ export async function POST(request: Request) {
     events: isRecord(journey) && isRecord(journey.progress)
       ? inspectScheduleEvents(journey.progress).events
         .filter((event) => event.status !== "cancelled")
-        .map((event) => ({ id: event.id, date: event.date, title: event.title }))
+        .map((event) => ({ id: event.id, date: event.date, title: event.title, time: event.time ?? null }))
       : [],
     // 총예산을 넘기지 않으면 예산 판정이 있어도 돌지 않는다. 옛 총예산 영수증이
     // 현재처럼 회상되던 문제가 여기서 끊긴다(2026-08-22).
@@ -4004,9 +4006,33 @@ export async function POST(request: Request) {
           const { cleanText: afterSuggest, suggestions } = extractSuggestions(
             stripAmoraReasoningPreamble(fullText),
           );
+          const hasPriorityAction = Boolean(approvedPendingAction)
+            || Boolean(awaitingPendingCard) || Boolean(queuedProposal?.pendingAction);
+          const canUseCurrentStoredState = !isDemo && requestKind === "chat" && isDurableUserMessageBound
+            && visibility === "shared" && questionScope.scope === "W0_wedding_core"
+            && !hasPriorityAction && attachmentKind === "none" && personalConversationTools.length === 0
+            && !offersPlaceSearch && toolResults.every(result => !isMutatingTool(result.toolName));
+          const currentStoredStateRequest = canUseCurrentStoredState
+            ? assessCurrentStoredStateRequest(lastUserText) : null;
+          const currentStoredStateText = currentStoredStateRequest
+            ? formatCurrentStoredStateSummary({
+                request: currentStoredStateRequest,
+                sourceRevision: canonicalJourneyStateRevision,
+                canonicalProgress: isRecord(journey) ? journey.progress : null,
+                toolResults,
+              }) : null;
+          const personalNavigationText = personalConversationTools.length === 0 && !offersPlaceSearch
+            ? getSharedPersonalActionNavigationReply({
+                userText: lastUserText, visibility, requestKind, questionScope: questionScope.scope,
+                durable: isDurableUserMessageBound, isDemo, hasPriorityAction,
+                hasAttachments: attachmentKind !== "none",
+              }) : null;
+          // 서버 정본 조회와 실제 화면 이동 안내는 모델의 옛 시각·없는 버튼 문장을 남기지 않는다.
+          // 이 본문도 기존 개인정보 epoch·원자적 저장·최종 SSE 경계를 그대로 통과한다.
+          const canonicalTerminalText = currentStoredStateText ?? personalNavigationText;
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
-          const budgetAssessment = !isDemo && requestKind === "chat" && isDurableUserMessageBound
+          const budgetAssessment = canonicalTerminalText === null && !isDemo && requestKind === "chat" && isDurableUserMessageBound
             && visibility === "shared" && questionScope.scope === "W0_wedding_core"
             && !approvedPendingAction && !queuedProposal?.pendingAction
             ? assessAmoraBudgetChange({ userText: lastUserText, context: executionContext, sourceRevision: canonicalJourneyStateRevision })
@@ -4019,12 +4045,12 @@ export async function POST(request: Request) {
               ? "변경할 예산 항목과 금액을 확인할 수 있는 제안을 만들지 못했어요. 아직 반영하지 않았어요. 변경할 내용을 다시 확인해주세요."
               : budgetAssessment.text
             : null;
-          const explicitBudgetPlan = !budgetAssessment && pendingOfferEnabled && !approvedPendingAction
+          const explicitBudgetPlan = canonicalTerminalText === null && !budgetAssessment && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
             ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.progress, resolvedWeddingContext.budget) : null;
           // 명시 목록에 담당·기한·비공개·취소 조건이 섞이면 모델 표식으로 우회하지 않는다.
           // 적용할 수 있는 원문 목록과 다시 확인할 요청을 구분해 같은 승인 경계로 보낸다.
-          const taskAssessment = !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
+          const taskAssessment = canonicalTerminalText === null && !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
             && !isDemo && requestKind === "chat" && isDurableUserMessageBound
             && visibility === "shared" && questionScope.scope === "W0_wedding_core" && !approvedPendingAction
             ? assessExplicitTaskRequest(lastUserText, afterSuggest) : null;
@@ -4036,10 +4062,10 @@ export async function POST(request: Request) {
               ? "할 일의 확인 카드를 준비하지 못했어요. 아직 추가하지 않았어요. 제목·설명·예정일을 다시 확인해 주세요."
               : taskAssessment.text
             : null;
-          const effectiveSuggestions = blockedBudgetText !== null || blockedTaskText !== null
+          const effectiveSuggestions = canonicalTerminalText !== null || blockedBudgetText !== null || blockedTaskText !== null
             ? [] : suggestions;
           const pendingExtractionOptions = {
-            allowedTools: pendingOfferEnabled ? pendingProposalTools : [],
+            allowedTools: canonicalTerminalText === null && pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
             // 일정을 가리키는 제안은 저장된 일정 id 만 카드가 된다(지어낸 id 차단).
@@ -4053,13 +4079,13 @@ export async function POST(request: Request) {
             ...pendingExtractionOptions,
             // 초과 시 저장 금지처럼 조건이 붙은 단일 변경은 실제 장부로 판정한다.
             // 거절의 근거 수치도 모델 산문에서 가져오지 않으며 확인/실행 경계는 유지한다.
-            text: blockedBudgetText ?? blockedTaskText ?? (assessedBudgetAction
+            text: canonicalTerminalText ?? blockedBudgetText ?? blockedTaskText ?? (assessedBudgetAction
               ? `[pending_action]${JSON.stringify(assessedBudgetAction)}[/pending_action]`
               : explicitBudgetPlan
               ? `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input: explicitBudgetPlan })}[/pending_action]`
               : afterSuggest),
           });
-          const explicitSchedules = !budgetAssessment && !explicitBudgetPlan && !taskAssessment && !queuedProposal?.pendingAction
+          const explicitSchedules = canonicalTerminalText === null && !budgetAssessment && !explicitBudgetPlan && !taskAssessment && !queuedProposal?.pendingAction
             && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "add_schedule_event")
             ? parseExplicitScheduleRequest(lastUserText, afterSuggest)
@@ -4073,7 +4099,7 @@ export async function POST(request: Request) {
             });
           }
           const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
-          const emittedCarriedPendingCard = blockedBudgetText === null && blockedTaskText === null
+          const emittedCarriedPendingCard = canonicalTerminalText === null && blockedBudgetText === null && blockedTaskText === null
             && awaitingPendingCard && shouldCarryPendingCard
             ? awaitingPendingCard : null;
           const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
@@ -4186,6 +4212,8 @@ export async function POST(request: Request) {
           );
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
+            ...(currentStoredStateText !== null ? { current_stored_state_summary: true } : {}),
+            ...(personalNavigationText !== null ? { personal_action_navigation: true } : {}),
             ...personalActionConversationMetadata(toolResults, personalConversationToolNames),
             toolsUsed,
             senderName: safeSenderName,

@@ -903,16 +903,19 @@ ${closing}`;
       .slice(0, 5);
 
     const lines: string[] = [];
+    const memoLines: string[] = [];
     if (upcoming.length > 0) {
       lines.push("  **다가오는 일정:**");
       for (const e of upcoming) {
         const cat = e.categoryKey ? ` (${CATEGORY_LABELS[e.categoryKey] ?? promptData(e.categoryKey, 80)})` : "";
-        const memo = e.memo ? ` - 메모 ${promptData(e.memo, 500)}` : "";
         // `event_id` 를 싣지 않으면 취소·변경 도구를 쓸 방법이 없다. 지난 일정에는
         // 붙이지 않는다 — 되돌릴 일이 없고 프롬프트만 늘어난다.
         const id = e.id ? `${promptData(e.id, 200)}=` : "";
         const time = isValidScheduleTime(e.time) ? e.time : "미정";
-        lines.push(`  - ${id}${promptData(e.date, 40)} | 시간 ${time} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
+        lines.push(`  - ${id}${promptData(e.date, 40)} | 시간 ${time} | 제목 ${promptData(e.title, 300)}${cat}`);
+        if (e.memo) {
+          memoLines.push(`  - ${e.id ? `${promptData(e.id, 200)} | ` : ""}${promptData(e.date, 40)} ${promptData(e.title, 300)}: 메모 ${promptData(e.memo, 500)}`);
+        }
       }
     }
     if (past.length > 0) {
@@ -924,6 +927,10 @@ ${closing}`;
     }
     if (lines.length > 0) {
       scheduleSection = `\n### 등록된 일정\n현재 저장값입니다. 현재 일정을 묻는 답변은 아래 날짜·시간을 기준으로 하며, 이전 대화의 시각으로 바꾸지 마세요. 시간 미정은 저장된 시각이 없거나 유효하지 않다는 뜻이며 추정하지 마세요. 목록에 없는 일정은 일정 조회로 확인하세요.\n${lines.join("\n")}`;
+      // 긴 메모가 현재 날짜·시각을 필수 문맥에서 밀어내지 않게 참고 부분을 분리한다.
+      if (memoLines.length > 0) {
+        scheduleSection += `\n### 일정 참고 메모\n${memoLines.join("\n")}`;
+      }
     }
   }
 
