@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { resolveAmoraWeddingContext } from "../amoraWeddingContext";
 import { executeTool } from "../toolExecutor";
 import type { ToolExecutionContext } from "../tools/toolTypes";
-import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary } from "../amoraCurrentStoredStateSummary";
+import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary, getRequiredCurrentStoredStateReads } from "../amoraCurrentStoredStateSummary";
 import type { ToolExecutionResult } from "@/types/database.types";
 
 const TEXT = "어떤 것도 변경하거나 저장하지 말고 현재 실제 저장된 값만 알려줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인과 QA0910 초대 명단 초안 정리의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 짧게 정리해줘.";
@@ -20,6 +20,57 @@ function render(overrides: Partial<Parameters<typeof formatCurrentStoredStateSum
   return formatCurrentStoredStateSummary({ request: request!, sourceRevision: 16, canonicalProgress: { __events: [event] }, toolResults: results, ...overrides });
 }
 describe("current stored state request", () => {
+  it.each([
+    ["두 사람 예산 점검 일정 지금 언제야? 저장된 날짜와 시간만 알려줘.", "두 사람 예산 점검"],
+    ["식장 방문 일정의 현재 날짜와 시간을 알려줘. 변경하지 마.", "식장 방문"],
+    ["부모님 일정 확인 일정이 언제로 저장돼 있어? 수정하지 말고 알려줘.", "부모님 일정 확인"],
+  ])("recognizes an equivalent complete current schedule question: %s", (text, title) => {
+    expect(assessCurrentStoredStateRequest(text)).toEqual({
+      budgetFields: [], taskTitles: null, scheduleTitles: [title],
+    });
+  });
+  it.each([
+    "총예산 알려주고 두 사람 예산 점검 일정 지금 언제야? 저장된 날짜와 시간만 알려줘.",
+    "식장 방문 일정의 현재 날짜와 시간을 알려줘. 변경하지 마. 계약금 환불도 알려줘.",
+    "부모님 일정 확인 일정이 언제로 저장돼 있어? 수정하고 알려줘.",
+    "만약 식장 방문 일정의 현재 날짜와 시간을 알려줘. 변경하지 마.",
+    "식장 방문 일정의 지난 날짜와 시간을 알려줘. 변경하지 마.",
+    "개인 상담 일정 지금 언제야? 저장된 날짜와 시간만 알려줘.",
+    "‘식장 방문 일정의 현재 날짜와 시간을 알려줘. 변경하지 마.’라는 문구는 어때?",
+    "총예산 정리하고 부모님 일정 확인 일정이 언제로 저장돼 있어? 수정하지 말고 알려줘.",
+  ])("does not widen equivalent forms to mixed or private requests: %s", text => {
+    expect(assessCurrentStoredStateRequest(text)).toBeNull();
+  });
+  it("plans each necessary current read once, including completed tasks", () => {
+    expect(getRequiredCurrentStoredStateReads(assessCurrentStoredStateRequest(TEXT)!)).toEqual([
+      { tool: "get_budget_summary", input: {} },
+      { tool: "get_amora_actions", input: { status: "all" } },
+    ]);
+  });
+  it("does not add reads for a single schedule already in the canonical snapshot", () => {
+    const request = assessCurrentStoredStateRequest("QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘.")!;
+    expect(getRequiredCurrentStoredStateReads(request)).toEqual([]);
+  });
+  it("does not add budget reads when only shared actions were requested", () => {
+    expect(getRequiredCurrentStoredStateReads(assessCurrentStoredStateRequest("아무것도 저장하지 말고 현재 실제 할 일만 알려줘")!)).toEqual([
+      { tool: "get_amora_actions", input: { status: "all" } },
+    ]);
+  });
+  it("recognizes an exact-title natural current schedule query with a trailing change prohibition", () => {
+    expect(assessCurrentStoredStateRequest("QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘.")).toEqual({
+      budgetFields: [], taskTitles: null, scheduleTitles: ["QA0910 둘이 예산 확인"],
+    });
+  });
+  it.each([
+    "QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 19:45로 변경해줘.",
+    "QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘. 예산도 바꿔줘.",
+    "예산도 알려줘 그리고 QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘.",
+    "총예산 알려주고 QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘.",
+    "총예산 정리하고 QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘.",
+    "만약 QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘.",
+  ])("does not swallow another request in the natural form", text => {
+    expect(assessCurrentStoredStateRequest(text)).toBeNull();
+  });
   it("recognizes the exact mixed live request", () => {
     expect(assessCurrentStoredStateRequest(TEXT)).toEqual({
       budgetFields: ["total_budget", "total_allocated", "unallocated", "total_spent"],

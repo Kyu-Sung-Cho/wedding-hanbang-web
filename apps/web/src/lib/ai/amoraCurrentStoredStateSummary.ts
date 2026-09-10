@@ -26,9 +26,23 @@ const BUDGET_FIELDS: Record<string, BudgetField> = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === "object" && !Array.isArray(value);
 
+const CURRENT_SINGLE_SCHEDULE_FORMS = [
+  /^(.{1,500}?) 일정(?:은|이) 지금 몇 월 며칠 몇 시로 저장되어 (?:있어|있나요)\?\s*변경하지 말고 날짜와 시간만 (?:알려줘|알려주세요)[.!]?$/,
+  /^(.{1,500}?) 일정 지금 언제야\?\s*저장된 날짜와 시간만 (?:알려줘|알려주세요)[.!]?$/,
+  /^(.{1,500}?) 일정의 현재 날짜와 시간을 (?:알려줘|알려주세요)\.\s*변경하지 마[.!]?$/,
+  /^(.{1,500}?) 일정이 언제로 저장돼 있어\?\s*수정하지 말고 (?:알려줘|알려주세요)[.!]?$/,
+];
+
 /** 저장 금지 + 현재값 + 지원하는 조회 항목으로 완결된 요청만 선택한다. */
 export function assessCurrentStoredStateRequest(userText: string): CurrentStoredStateRequest | null {
   if (userText.length > 2_000 || /[\r\n"'“”‘’`]|개인|나만|지난|예전|과거|비교|가정|만약/.test(userText)) return null;
+  const naturalSchedule = CURRENT_SINGLE_SCHEDULE_FORMS
+    .map(pattern => pattern.exec(userText.trim())).find(match => match !== null);
+  if (naturalSchedule) {
+    const title = naturalSchedule[1].trim();
+    if (/[.!?]|(?:알려|보여|정리해|검색해|추천해|저장해|바꿔|수정해|삭제해|추가해)\s*(?:줘|주세요|주고|주시고)|(?:정리|검색|추천|저장|변경|수정|삭제|추가)(?:하고|한 뒤)|(?:이|라)면/.test(title)) return null;
+    return { budgetFields: [], taskTitles: null, scheduleTitles: [title] };
+  }
   const prefix = /^(?:(?:어떤 것도|아무것도)\s*)?(?:변경하거나\s*)?저장하지\s*말고\s*현재\s*(?:실제\s*)?/;
   if (!prefix.test(userText.trim())) return null;
   let fields = userText.trim().replace(prefix, "");
@@ -61,6 +75,16 @@ export function assessCurrentStoredStateRequest(userText: string): CurrentStored
   }
   request.budgetFields = [...new Set(request.budgetFields)];
   return request.budgetFields.length || request.taskTitles !== null || request.scheduleTitles !== null ? request : null;
+}
+
+export function getRequiredCurrentStoredStateReads(request: CurrentStoredStateRequest): Array<{
+  tool: "get_budget_summary" | "get_amora_actions";
+  input: Record<string, unknown>;
+}> {
+  const reads: ReturnType<typeof getRequiredCurrentStoredStateReads> = [];
+  if (request.budgetFields.length > 0) reads.push({ tool: "get_budget_summary", input: {} });
+  if (request.taskTitles !== null) reads.push({ tool: "get_amora_actions", input: { status: "all" } });
+  return reads;
 }
 
 function latestRead(results: readonly ToolExecutionResult[], name: string): ToolExecutionResult | undefined {
