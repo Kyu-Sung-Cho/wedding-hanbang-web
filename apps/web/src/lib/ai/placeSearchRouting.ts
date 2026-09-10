@@ -12,6 +12,13 @@ const PLACE_KIND_RE =
  */
 const VENUE_KIND_RE =
   /(상견례\s*(?:식당|장소|자리)|식당|음식점|맛집|레스토랑|카페|한정식|중식당?|일식집?|양식집?|뷔페|다이닝|술집|와인바)/i;
+// "식당/자리에서 나눌 질문"의 장소는 상담 배경이다. 뒤의 "알려줘"와
+// 결합해 검색 대상으로 읽지 않는다. 별도로 요청한 식당·곳은 그대로 남긴다.
+const PLACE_CONTEXT_RE = new RegExp(
+  `(?:${VENUE_KIND_RE.source}|곳|자리|장소)(?:집)?(?:에서(?:는)?|에선)`,
+  "gi",
+);
+const GENERIC_PLACE_NOUN_RE = /^(?:자리|장소|곳)$/u;
 /**
  * 사람은 가게 종류를 대지 않는다.
  *
@@ -36,8 +43,9 @@ const MEAL_CONTEXT_RE =
  * 열렸다("상견례 **어디까지** 준비해야 해", "비용은 **어디서 나오는**", "예절
  * **어디서 배울**"). 그래서 `어디` 는 **어디서 하느냐**를 묻는 꼴일 때만 센다.
  */
+// 의존 명사 "데"만 장소로 읽고 연결 어미 "만나는데"의 끝을 장소로 만들지 않는다.
 const GENERIC_PLACE_RE =
-  /(곳|데(?=\s|$|를|가|는|도|에)|자리|장소|어디\s*(?:서|에서)?\s*(?:하|할|함))/i;
+  /(곳|(?:^|\s|만한|좋은|괜찮은|갈|먹을|모실|뵐)데(?=\s|$|를|가|는|도|에)|자리|장소|어디\s*(?:서|에서)?\s*(?:하|할|함))/i;
 
 /** 먹거나 마주 앉을 자리를 묻고 있는가. 가게 종류를 대지 않아도 알아본다. */
 function mentionsSomewhereToEat(normalized: string): boolean {
@@ -86,7 +94,7 @@ function mentionsSomewhere(normalized: string): boolean {
     const token = match[1];
     if (TIME_WORD_RE.test(token)) continue;
     // 종류를 가리키는 말이 조사를 달고 나온 것("한정식집에")은 장소 이름이 아니다.
-    if (PLACE_KIND_RE.test(token)) continue;
+    if (PLACE_KIND_RE.test(token) || GENERIC_PLACE_NOUN_RE.test(token)) continue;
     return true;
   }
   return false;
@@ -110,8 +118,9 @@ function mentionsSomewhere(normalized: string): boolean {
 export function isPlaceSearchCandidate(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  if (!mentionsSomewhereToEat(normalized)) return false;
-  return SEARCH_ACTION_RE.test(normalized) || SOFT_ASK_RE.test(normalized);
+  const requestedPlaces = normalized.replace(PLACE_CONTEXT_RE, " ");
+  if (!mentionsSomewhereToEat(requestedPlaces)) return false;
+  return SEARCH_ACTION_RE.test(requestedPlaces) || SOFT_ASK_RE.test(requestedPlaces);
 }
 
 export function isExplicitPlaceSearchIntent(userText: string): boolean {

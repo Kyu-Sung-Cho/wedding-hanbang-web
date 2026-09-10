@@ -177,26 +177,90 @@ describe("PendingAmoraActionCard", () => {
     expect(onDismiss).toHaveBeenCalledOnce();
   });
 
-  it("keeps expired or superseded actions visible but disables mutation", async () => {
+  it("keeps an applied card visible without offering a later rejection", async () => {
     const onApply = vi.fn();
+    const onDismiss = vi.fn();
     await act(async () => {
       root.render(
         <PendingAmoraActionCard
           action={action}
           messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
-          disabledReason="not_latest"
+          disabledReason="applied"
           isApplying={false}
           onApply={onApply}
-          onDismiss={vi.fn()}
+          onDismiss={onDismiss}
+        />,
+      );
+    });
+
+    expect(container.textContent).toContain("이 제안은 적용됐어요.");
+    const review = container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]');
+    const defer = container.querySelector<HTMLButtonElement>('button[aria-label="지금은 적용하지 않기"]');
+    expect(review?.disabled).toBe(true);
+    expect(defer?.disabled).toBe(true);
+    await act(async () => {
+      review?.click();
+      defer?.click();
+    });
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(onApply).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("closes an open review when the same action is reported as applied", async () => {
+    const onApply = vi.fn();
+    const onDismiss = vi.fn();
+    const renderCard = (applied: boolean) => (
+      <PendingAmoraActionCard
+        action={action}
+        messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        disabledReason={applied ? "applied" : null}
+        isApplying={false}
+        onApply={onApply}
+        onDismiss={onDismiss}
+      />
+    );
+    await act(async () => root.render(renderCard(false)));
+    const review = container.querySelector<HTMLButtonElement>('button[aria-label="변경 내용 확인하기"]');
+    await act(async () => review?.click());
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+    await act(async () => root.render(renderCard(true)));
+
+    expect(container.textContent).toContain("이 제안은 적용됐어요.");
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(container.querySelector<HTMLButtonElement>('button[aria-label="지금은 적용하지 않기"]')?.disabled).toBe(true);
+    expect(onApply).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each(["expired", "not_latest"] as const)("keeps an unapplied %s card dismissible without a server mutation", async (reason) => {
+    const onApply = vi.fn();
+    const onDismiss = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={reason}
+          isApplying={false}
+          onApply={onApply}
+          onDismiss={onDismiss}
         />,
       );
     });
 
     const apply = container.querySelector("button");
     expect(apply?.disabled).toBe(true);
-    expect(container.textContent).toContain("새 대화가 이어져");
     await act(async () => apply?.click());
     expect(onApply).not.toHaveBeenCalled();
+    const defer = container.querySelector<HTMLButtonElement>('button[aria-label="지금은 적용하지 않기"]');
+    expect(defer?.disabled).toBe(false);
+    await act(async () => defer?.click());
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("shows truthful before/after budget impact without calling recorded spend a payment", async () => {

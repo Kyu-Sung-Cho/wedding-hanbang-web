@@ -410,7 +410,7 @@ export default function PendingAmoraActionCard({
 }: PendingAmoraActionCardProps) {
   const [reviewedActionKey, setReviewedActionKey] = useState<string | null>(null);
   const actionKey = `${messageId}:${action.actionId}:${action.inputDigest}`;
-  const reviewOpen = reviewedActionKey === actionKey;
+  const reviewOpen = reviewedActionKey === actionKey && disabledReason !== "applied";
   const mutationInFlight = useRef(false);
   const approvalPolicy = getAmoraActionApprovalPolicy(action.tool, action.input);
   const requiresCoupleApproval = approvalPolicy === "couple";
@@ -845,7 +845,7 @@ export default function PendingAmoraActionCard({
         <button
           type="button"
           onClick={onDismiss}
-          disabled={isApplying || isSavingApproval}
+          disabled={disabledReason === "applied" || isApplying || isSavingApproval}
           aria-label="지금은 적용하지 않기"
           className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#D8C7BB] bg-white px-4 py-2.5 text-sm font-medium text-[var(--hb-text-body)] transition-colors hover:bg-[#F8F4F0] disabled:cursor-not-allowed disabled:opacity-50"
         >

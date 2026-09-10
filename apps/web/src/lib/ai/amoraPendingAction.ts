@@ -1,6 +1,6 @@
 import Ajv, { type ValidateFunction } from "ajv";
 import { getAmoraPendingActionTtlMs } from "@/lib/ai/amoraActionApprovalPolicy";
-import { SERVER_OWNED_UNVERIFIED_NOTICE } from "@/lib/ai/amoraPersistenceClaims";
+import { SERVER_OWNED_MISSING_CARD_NOTICE, SERVER_OWNED_UNVERIFIED_NOTICE } from "@/lib/ai/amoraPersistenceClaims";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { AiToolDefinition } from "@/lib/ai/toolDefinition";
 import { CATEGORY_LABELS as AMORA_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
@@ -1439,7 +1439,8 @@ export function isAmoraFailedProposalNotice(content: unknown): boolean {
     // 표시다. 표식을 냈다가 버려진 턴과 거짓 저장 주장을 지운 턴이 여기 해당한다.
     // 그 턴이 이력에 남으면 모델은 "약속만 하고 표식은 없는 아모라 턴"을 배운다 —
     // 위 실측이 말하는 3연속 0/10 이 정확히 그 모양이다.
-    || content.includes(SERVER_OWNED_UNVERIFIED_NOTICE);
+    || content.includes(SERVER_OWNED_UNVERIFIED_NOTICE)
+    || content.includes(SERVER_OWNED_MISSING_CARD_NOTICE);
 }
 
 export function buildAmoraHistoryContent(

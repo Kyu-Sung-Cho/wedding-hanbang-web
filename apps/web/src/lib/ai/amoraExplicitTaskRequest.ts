@@ -1,0 +1,105 @@
+import { AMORA_MAX_QUEUED_ACTIONS, type AmoraQueuedAction } from "./amoraPendingAction";
+import { isValidScheduleYmd } from "@/utils/scheduleEvents";
+
+const COUNTS: Record<string, number> = { 한: 1, 하나: 1, 두: 2, 둘: 2, 세: 3, 셋: 3, 네: 4, 넷: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
+const DATE = "(?:[0-9]{4}년[ \\t]*[0-9]{1,2}월[ \\t]*[0-9]{1,2}일|[0-9]{4}-[0-9]{2}-[0-9]{2})";
+const ROW = new RegExp(`^([0-9]{1,2})[).]\\s*제목은 ([^\\r\\n]+?),\\s*설명은 ([^\\r\\n]+?),\\s*예정일은 (${DATE})[.。]`);
+const ENDING = /^(?:(?:둘 다|모두|전부) 아직 하지 않은 일이야[.。]\s*)?(?:담당자는 정하지 말고 )?저장 전 확인 카드를 보여(?:줘|주세요)[.。]?$/;
+const STRUCTURED_REQUEST = /^(?:함께 보는|공유) 할 일(?:에)?\s+\S{1,20}\s*(?:개를|건을)\s*추가해(?:줘|주세요)/;
+const DEADLINE_REQUEST = new RegExp(
+  `(?:${DATE}|[0-9]{1,2}월[ \\t]*[0-9]{1,2}일)\\s*까지[^,;。.!?\\r\\n]{0,40}(?:끝내|완료해|마쳐|마무리해|처리해|해(?:줘|주세요))`,
+  "u",
+);
+
+export type ExplicitTaskRequestAssessment =
+  | { kind: "ready"; actions: AmoraQueuedAction[] }
+  | { kind: "needs_clarification"; text: string };
+
+export function assessExplicitTaskRequest(text: string, modelText = ""): ExplicitTaskRequestAssessment | null {
+  if (!STRUCTURED_REQUEST.test(text.trim())) return null;
+  const actions = parseSupportedTaskList(text, modelText);
+  return actions ? { kind: "ready", actions } : {
+    kind: "needs_clarification",
+    text: "할 일 목록의 항목·날짜와 담당·공유·추가 여부 조건을 함께 확정하지 못했어요. 조건을 생략한 확인 카드는 만들지 않았어요. 항목별 내용을 다시 확인해주세요.",
+  };
+}
+
+/** 기존 호출자는 ready 목록만 받는다. route는 assessment로 거절과 무관한 요청을 구분한다. */
+export function parseExplicitTaskRequest(text: string, modelText = ""): AmoraQueuedAction[] | null {
+  const assessment = assessExplicitTaskRequest(text, modelText);
+  return assessment?.kind === "ready" ? assessment.actions : null;
+}
+
+function hasUnsupportedTaskDirective(value: string): boolean {
+  // 완결된 인용은 할 일의 원문 데이터다. 인용 밖의 실제 지시만 검사한다.
+  // 닫히지 않은 따옴표는 제거하지 않으므로 뒤의 조건을 숨길 수 없다.
+  const unquoted = value.replace(/"[^"\r\n]*"|'[^'\r\n]*'|“[^”\r\n]*”|‘[^’\r\n]*’|「[^」\r\n]*」|『[^』\r\n]*』/gu, " ");
+  if (/(?:제목|설명|예정일|담당자?|우선순위|카테고리|마감(?:일)?|기한|시각|시간)(?:은|는|[:：])/u.test(unquoted)
+    || DEADLINE_REQUEST.test(unquoted)
+    || /담당자?(?:를|을)\s*.{0,60}(?:(?:지정|배정)해|정해(?:줘|주세요)|맡겨(?:줘|주세요))/u.test(unquoted)
+    || /개인\s*(?:상담|할\s*일)|나만\s*(?:보|의)|비공개로|상대(?:방)?(?:에게|한테|는)?.{0,30}(?:숨겨|숨기|안\s*보이|보여주지|보이게\s*하지)/u.test(unquoted)
+    || /(?:확인|승인|저장)\s*카드(?:도|는|를|은|을)?\s*(?:만들지|보여주지|내지|띄우지)\s*(?:마|말)/u.test(unquoted)
+    || /(?:이|해당|이번|방금)\s*(?:할\s*일|요청|내용|기록|카드).{0,30}(?:저장|추가|등록|수정|반영|적용)(?:은|는|도)?\s*(?:하지\s*(?:마|말|않)|하면\s*안|해서는?\s*안)/u.test(unquoted)
+    || /(?:이|해당|이번|방금)\s*(?:할\s*일|요청|내용|기록|카드)(?:은|는|을|를)?\s*(?:취소|제외|보류)해/u.test(unquoted)
+    || /(?:오전|오후)?\s*\d{1,2}\s*시(?=\s|$|반|까지|에|부터|\d{1,2}\s*분)|(?:[01]?\d|2[0-3]):[0-5]\d/u.test(unquoted)) return true;
+  // "누락하지 말고 식대 확인"·"불필요한 항목은 추가하지 말고 확인"은
+  // 작업 내용이다. 별도 절의 저장 금지나 현재 할 일 자체의 취소와 구분한다.
+  return unquoted.split(/[,;。.!?\r\n]/u).some(part => /^(?:(?:실제로|지금은|아직)\s*)?(?:저장|추가|등록|수정|반영|적용)(?:은|는|도)?\s*(?:하지\s*(?:마|말|않)|하면\s*안|해서는?\s*안|금지)/u.test(part.trim()));
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+/** 필드가 명시된 현재 공유 할 일 목록만 복구한다. 추정·조건 생략 없이 기존 승인 큐로 보낸다. */
+function parseSupportedTaskList(text: string, modelText: string): AmoraQueuedAction[] | null {
+  if (text.length > 10000 || /[\p{Cf}\p{Zl}\p{Zp}]|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/u.test(text)) return null;
+  const prefix = /^(?:함께 보는|공유) 할 일(?:에)?\s+([0-9]{1,2}|한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉|열)\s*(?:개를|건을) 추가해(?:줘|주세요)[.。]\s*/.exec(text.trim());
+  if (!prefix) return null;
+  const count = COUNTS[prefix[1]] ?? Number(prefix[1]);
+  if (!Number.isInteger(count) || count < 1 || count > AMORA_MAX_QUEUED_ACTIONS) return null;
+  let rest = text.trim().slice(prefix[0].length).trim();
+  const actions: AmoraQueuedAction[] = [];
+  const keys = new Set<string>();
+  for (let index = 1; index <= count; index += 1) {
+    const row = ROW.exec(rest);
+    if (!row || Number(row[1]) !== index) return null;
+    const title = row[2].trim();
+    const description = row[3].trim();
+    const korean = /^([0-9]{4})년[ \t]*([0-9]{1,2})월[ \t]*([0-9]{1,2})일$/.exec(row[4]);
+    const due_date = korean ? `${korean[1]}-${korean[2].padStart(2, "0")}-${korean[3].padStart(2, "0")}` : row[4];
+    // 추가 필드·명령처럼 보이는 문구를 제목/설명 안으로 삼켜 버리지 않는다.
+    if (!title || title.length > 120 || !description || description.length > 500
+      || /[\[\]{}<>]/u.test(`${title}\n${description}`)
+      || hasUnsupportedTaskDirective(title) || hasUnsupportedTaskDirective(description)
+      || !isValidScheduleYmd(due_date)) return null;
+    const input = { title, description, due_date };
+    const key = JSON.stringify(input);
+    if (keys.has(key)) return null;
+    keys.add(key);
+    actions.push({ tool: "add_amora_action", input });
+    rest = rest.slice(row[0].length).trim();
+  }
+  if ((rest && !ENDING.test(rest)) || (rest.startsWith("둘 다") && count !== 2)) return null;
+  // 모델이 더 많은 조건을 담았다면 여기서 조용히 버리지 않는다. 원문과 같은 일부
+  // 표식만 복구 가능하며 그 외에는 기존 표식 검증과 정직한 실패 안내에 맡긴다.
+  if (modelText.length > 40000) return null;
+  const seen = new Set<string>();
+  let invalid = false;
+  const remainder = modelText.replace(/\[pending_action\]([\s\S]*?)\[\/pending_action\]/g, (_match, payload: string) => {
+    try {
+      const value: unknown = JSON.parse(payload);
+      if (!record(value) || Object.keys(value).sort().join(",") !== "input,tool"
+        || value.tool !== "add_amora_action" || !record(value.input)
+        || Object.keys(value.input).sort().join(",") !== "description,due_date,title") invalid = true;
+      else {
+        const key = JSON.stringify({ title: value.input.title, description: value.input.description, due_date: value.input.due_date });
+        if (!keys.has(key) || seen.has(key)) invalid = true;
+        seen.add(key);
+      }
+    } catch { invalid = true; }
+    return "";
+  });
+  if (invalid || /pending[\s_-]*action|"(?:tool|input)"\s*:/i.test(remainder)) return null;
+  return actions;
+}

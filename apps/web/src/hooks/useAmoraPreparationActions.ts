@@ -27,6 +27,8 @@ type LoadState = Snapshot & { scope: string; loading: boolean; loadingMore: bool
 const EMPTY: Snapshot = { actions: [], count: 0, open_count: 0, truncated: false, nextCursor: null };
 const NO_UPDATES: ReadonlySet<string> = new Set<string>();
 const READ_ERROR = "준비 상황을 불러오지 못했어요. 다시 시도해 주세요.";
+const SYNC_INTERVAL_MS = 30_000;
+const SYNC_TIMEOUT_MS = 10_000;
 
 const CREATE_ID = "[new]";
 
@@ -54,45 +56,69 @@ export function useAmoraPreparationActions() {
       .map((action) => ({ ...action, ...(demoChanges.scope === scope ? demoChanges.changes[action.id] : {}) }));
   }, [isDemo, progress, demoChanges, scope]);
   const [state, setState] = useState<LoadState>({ ...EMPTY, scope: "", loading: false, loadingMore: false, error: null });
+  const [ownerEpoch, setOwnerEpoch] = useState(0);
   const sequence = useRef(0);
   const lifecycle = useRef(0);
   const controller = useRef<AbortController | null>(null);
+  const backgroundController = useRef<AbortController | null>(null);
   const pageInFlight = useRef(false);
+  const loadedPages = useRef(1);
   const pendingUpdates = useRef(new Set<string>());
   const createAttempt = useRef<{ scope: string; generation: number; fieldsKey: string; body: string; requestId: string } | null>(null);
   const [createLockedScope, setCreateLockedScope] = useState("");
   const [mutation, setMutation] = useState<{ scope: string; ids: ReadonlySet<string>; error: string | null }>({ scope: "", ids: NO_UPDATES, error: null });
 
-  const readPage = useCallback(async (cursor: string | null, completedCreateKey?: string) => {
+  const readPage = useCallback(async (cursor: string | null, completedCreateKey?: string, background = false) => {
     const ownCreateRefresh = completedCreateKey !== undefined && pendingUpdates.current.size === 1 && pendingUpdates.current.has(completedCreateKey);
-    if (!scope || isDemo || (pendingUpdates.current.size > 0 && !ownCreateRefresh) || (cursor && pageInFlight.current)) return;
+    if (!scope || isDemo || (pendingUpdates.current.size > 0 && !ownCreateRefresh) || ((cursor || background) && pageInFlight.current)) return;
     const requestId = ++sequence.current;
     pageInFlight.current = true;
     controller.current?.abort();
     const nextController = new AbortController();
     controller.current = nextController;
-    const current = () => requestId === sequence.current && scopeFor(useAuthStore.getState()) === scope;
-    setState((previous) => ({ ...(previous.scope === scope ? previous : EMPTY), scope, loading: !cursor, loadingMore: !!cursor, error: null }));
+    if (background) backgroundController.current = nextController;
+    const owns = () => requestId === sequence.current && scopeFor(useAuthStore.getState()) === scope;
+    const current = () => owns() && !nextController.signal.aborted;
+    let timedOut = false;
+    const timeout = background ? setTimeout(() => { timedOut = true; nextController.abort(); }, SYNC_TIMEOUT_MS) : undefined;
+    if (!background) setState((previous) => ({ ...(previous.scope === scope ? previous : EMPTY), scope, loading: !cursor, loadingMore: !!cursor, error: null }));
     try {
-      const response = await fetch(`/api/amora/actions?status=all&limit=80${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`, {
-        cache: "no-store", credentials: "same-origin", signal: nextController.signal,
-      });
-      if (!response.ok) throw new Error(READ_ERROR);
-      const payload = snapshotSchema.parse(await response.json());
-      if (cursor && payload.next_cursor === cursor) throw new Error("cursor_did_not_advance");
-      if (payload.next_cursor && payload.actions.length === 0) throw new Error("empty_cursor_page");
-      if (current()) setState(previous => {
-        const actions = cursor && previous.scope === scope
-          ? [...new Map([...previous.actions, ...payload.actions].map(action => [action.id, action])).values()]
-          : payload.actions;
-        return { actions, count: payload.count, open_count: payload.open_count,
-          nextCursor: payload.next_cursor ?? null, truncated: !!payload.next_cursor || payload.count > actions.length,
-          scope, loading: false, loadingMore: false, error: null };
-      });
+      // 자동 조회도 펼쳐 본 페이지 수까지만 읽고, 전부 성공한 뒤 한 번에 교체한다.
+      const pageLimit = background ? loadedPages.current : 1;
+      const seenCursors = new Set(cursor ? [cursor] : []);
+      let nextCursor = cursor;
+      let refreshedActions: AmoraActionItem[] = [];
+      for (let page = 0; page < pageLimit; page += 1) {
+        if (!current()) return;
+        const response = await fetch(`/api/amora/actions?status=all&limit=80${nextCursor ? `&cursor=${encodeURIComponent(nextCursor)}` : ""}`, {
+          cache: "no-store", credentials: "same-origin", signal: nextController.signal,
+        });
+        if (!response.ok) throw new Error(READ_ERROR);
+        const payload = snapshotSchema.parse(await response.json());
+        if (!current()) return;
+        if (payload.next_cursor && seenCursors.has(payload.next_cursor)) throw new Error("cursor_did_not_advance");
+        if (payload.next_cursor && payload.actions.length === 0) throw new Error("empty_cursor_page");
+        if (payload.next_cursor) seenCursors.add(payload.next_cursor);
+        refreshedActions = [...new Map([...refreshedActions, ...payload.actions].map(action => [action.id, action])).values()];
+        nextCursor = payload.next_cursor ?? null;
+        if (nextCursor && page + 1 < pageLimit) continue;
+        loadedPages.current = background ? page + 1 : cursor ? loadedPages.current + 1 : 1;
+        setState(previous => {
+          const actions = cursor && previous.scope === scope
+            ? [...new Map([...previous.actions, ...refreshedActions].map(action => [action.id, action])).values()]
+            : refreshedActions;
+          return { actions, count: payload.count, open_count: payload.open_count,
+            nextCursor, truncated: !!nextCursor || payload.count > actions.length,
+            scope, loading: false, loadingMore: false, error: null };
+        });
+        break;
+      }
     } catch {
-      if (current()) setState((previous) => ({ ...previous, loading: false, loadingMore: false, error: READ_ERROR }));
+      if (owns() && (timedOut || !nextController.signal.aborted)) setState((previous) => ({ ...previous, loading: false, loadingMore: false, error: READ_ERROR }));
     } finally {
-      if (current()) pageInFlight.current = false;
+      clearTimeout(timeout);
+      if (backgroundController.current === nextController) backgroundController.current = null;
+      if (owns()) pageInFlight.current = false;
     }
   }, [scope, isDemo]);
   const refresh = useCallback(() => readPage(null), [readPage]);
@@ -102,19 +128,74 @@ export function useAmoraPreparationActions() {
 
   useEffect(() => {
     const pending = pendingUpdates.current;
-    void refresh();
-    return () => {
+    let invalidated = false;
+    const invalidate = () => {
       sequence.current += 1;
       lifecycle.current += 1;
       controller.current?.abort();
       pageInFlight.current = false;
+      loadedPages.current = 1;
       pending.clear();
       createAttempt.current = null;
+      setState({ ...EMPTY, scope: "", loading: false, loadingMore: false, error: null });
       setCreateLockedScope("");
       setMutation({ scope: "", ids: NO_UPDATES, error: null });
       setDemoChanges({ scope: "", changes: {} });
     };
-  }, [refresh]);
+    // React가 중간 계정을 그리지 않는 A→B→A 전환도 즉시 이전 요청을 폐기한다.
+    const unsubscribe = useAuthStore.subscribe(() => {
+      if (!invalidated && scopeFor(useAuthStore.getState()) !== scope) {
+        invalidated = true;
+        invalidate();
+        setOwnerEpoch(epoch => epoch + 1);
+      }
+    });
+    void refresh();
+    return () => { unsubscribe(); invalidate(); };
+  }, [scope, refresh, ownerEpoch]);
+
+  useEffect(() => {
+    if (!scope || isDemo) return;
+    let disposed = false;
+    let syncing = false;
+    const generation = lifecycle.current;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const active = () => !disposed && generation === lifecycle.current && scopeFor(useAuthStore.getState()) === scope
+      && document.visibilityState === "visible" && navigator.onLine !== false;
+    const stopPoll = () => { clearTimeout(timer); timer = undefined; };
+    const schedulePoll = () => {
+      stopPoll();
+      if (active()) timer = setTimeout(() => { void synchronize(); }, SYNC_INTERVAL_MS);
+    };
+    const synchronize = async () => {
+      if (!active() || syncing) return;
+      syncing = true;
+      stopPoll();
+      try { await readPage(null, undefined, true); }
+      finally { syncing = false; schedulePoll(); }
+    };
+    const resume = () => {
+      if (active()) void synchronize();
+      else { stopPoll(); backgroundController.current?.abort(); }
+    };
+    // 다른 탭·파트너의 저장은 이 훅의 로컬 상태에 들어오지 않으므로 서버에서 재확인한다.
+    window.addEventListener("focus", resume);
+    window.addEventListener("online", resume);
+    window.addEventListener("offline", resume);
+    window.addEventListener("pageshow", resume);
+    document.addEventListener("visibilitychange", resume);
+    schedulePoll();
+    return () => {
+      disposed = true;
+      stopPoll();
+      backgroundController.current?.abort();
+      window.removeEventListener("focus", resume);
+      window.removeEventListener("online", resume);
+      window.removeEventListener("offline", resume);
+      window.removeEventListener("pageshow", resume);
+      document.removeEventListener("visibilitychange", resume);
+    };
+  }, [scope, isDemo, readPage, ownerEpoch]);
 
   const update = useCallback(async (id: string, updates: AmoraPreparationActionUpdate): Promise<boolean> => {
     const generation = lifecycle.current;

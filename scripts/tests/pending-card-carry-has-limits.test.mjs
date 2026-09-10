@@ -30,10 +30,21 @@ const ROUTE = readFileSync(
 );
 
 test("이월에 관문이 걸려 있다", () => {
+  const source = ROUTE.replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replace(/(^|\s)\/\/.*$/gm, "");
+  const definition = /const emittedCarriedPendingCard\s*=\s*([^;]+);/.exec(source)?.[1];
+  assert.ok(definition, "실제로 발행할 이월 카드 정의가 없다");
+  const [condition, branches] = definition.split("?");
+  const conditions = condition.split("&&").map((part) => part.trim());
+  for (const required of ["blockedBudgetText === null", "awaitingPendingCard", "shouldCarryPendingCard"]) {
+    assert.ok(conditions.includes(required), `이월 조건에서 ${required} 관문이 빠졌다`);
+  }
+  assert.doesNotMatch(condition, /\|\|/, "필수 관문을 OR 조건으로 우회한다");
+  assert.match(branches, /^\s*awaitingPendingCard\s*:\s*null\s*$/, "원본 카드 또는 null만 발행해야 한다");
   assert.match(
-    ROUTE,
-    /: awaitingPendingCard && shouldCarryPendingCard/,
-    "이월이 무조건 일어난다 — 관문이 사라졌다",
+    source,
+    /:\s*emittedCarriedPendingCard\s*\?\s*\{\s*pending_amora_action:\s*emittedCarriedPendingCard,/,
+    "metadata 발행이 실제 이월 관문을 통과한 값을 사용하지 않는다",
   );
 });
 

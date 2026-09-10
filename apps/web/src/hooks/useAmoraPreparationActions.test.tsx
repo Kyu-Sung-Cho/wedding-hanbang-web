@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/stores/authStore", () => ({
   useAuthStore: Object.assign(
     (selector: (state: typeof mocks.auth) => unknown) => selector(mocks.auth),
-    { getState: () => mocks.auth },
+    { getState: () => mocks.auth, subscribe: () => () => undefined },
   ),
 }));
 
