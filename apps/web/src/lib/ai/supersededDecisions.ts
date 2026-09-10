@@ -19,6 +19,8 @@
  * 보여주지 않을 뿐이다.
  */
 
+import { isValidScheduleTime } from "@/utils/scheduleEvents";
+
 export interface CurrentJourneyFacts {
   /** `wedding_journeys.venue` — 비어 있으면 아직 정한 예식장이 없다. */
   readonly venue: string | null;
@@ -27,6 +29,8 @@ export interface CurrentJourneyFacts {
     readonly id: string;
     readonly date: string;
     readonly title: string;
+    /** null은 저장된 시간이 없음을 확인한 경우, undefined는 시간 미조회다. */
+    readonly time?: string | null;
   }>;
   /**
    * `wedding_journeys.total_budget` (원). 0이나 null이면 아직 정한 총예산이 없다.
@@ -152,6 +156,11 @@ export function isSupersededDecision(
     if (!isRecord(after)) return false;
     if (nonEmpty(after.date) && !sameText(after.date, currentEvent.date)) return true;
     if (nonEmpty(after.title) && !sameText(after.title, currentEvent.title)) return true;
+    // 날짜·제목이 같아도 시간만 바뀐 영수증은 현재 결정으로 회상하지 않는다.
+    // 시간 미조회나 구판의 미기록 값을 해제/불일치로 추정하지 않는다.
+    if (isValidScheduleTime(after.time)
+      && (currentEvent.time === null || isValidScheduleTime(currentEvent.time))
+      && after.time !== currentEvent.time) return true;
   }
 
   return false;

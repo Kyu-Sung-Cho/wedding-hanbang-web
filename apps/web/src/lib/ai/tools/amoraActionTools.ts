@@ -199,6 +199,7 @@ export async function executeGetAmoraActions(
       actions,
       count: snapshot.count,
       open_count: snapshot.openCount,
+      source: snapshot.source,
       truncated: actions.length < snapshot.count,
     },
     success: true,

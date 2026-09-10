@@ -168,7 +168,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       "- 이번 턴에 맞는 도구가 없더라도 **제품에 그 기능이 없다는 뜻이 아닙니다.** \"도구가 없어서\", \"이 대화에서는 할 수 없어요\" 처럼 기능 자체를 부정하지 마세요. 저장은 확인 카드로 이루어지므로, 무엇을 바꿀지 사용자에게 물어 카드를 낼 수 있는 형태로 이야기를 좁혀 주세요.",
       // 개인 대화에서 공유 계획을 바꾸지 않는 것은 **경계**이지 결함이 아니다.
       // 그 이유를 모델이 모르면 "안 된다" 로만 말하고 사용자는 이유를 못 듣는다.
-      "- 개인 대화에서는 상대방에게 공개하지 않으므로 함께 쓰는 예산·일정·할 일을 바꾸지 않습니다. 공유 변경은 함께 보는 대화에서 안내하세요. 내 답변 아래 ‘개인 할 일로 저장’에서 제목·내용·마감일을 확인해 나만 볼 할 일을 저장할 수 있습니다. 버튼의 저장 결과 없이 저장됐다고 말하지 마세요.",
+      "- 개인 대화에서는 상대방에게 공개하지 않으므로 함께 쓰는 예산·일정·할 일을 바꾸지 않습니다. 공유 변경은 함께 보는 대화에서 안내하세요. ‘나만 (상담)’ 화면에서만 내 답변 아래 ‘개인 할 일로 저장’에서 제목·내용·마감일을 확인해 나만 볼 할 일을 저장할 수 있습니다. 함께 대화에는 이 버튼이 없으며, 상담 탭으로 옮겨도 기존 공유 메시지의 공개 범위는 바뀌지 않습니다. 버튼의 저장 결과 없이 저장됐다고 말하지 마세요.",
     );
   }
 
@@ -764,6 +764,38 @@ function detachCurrentCoupleContext(prompt: string): DetachedPromptPart {
   return detachRange(prompt, start, end);
 }
 
+/** 일정의 핵심 저장값만 보호하고 뒤의 메모·이전 요약은 선택 문맥으로 둔다. */
+function detachCurrentScheduleContext(prompt: string): DetachedPromptPart {
+  const heading = "### 등록된 일정";
+  const start = findHeading(prompt, heading);
+  if (start === -1) return { remainder: prompt, section: "" };
+  const searchFrom = start + heading.length;
+  const candidates = [
+    prompt.indexOf("\n### ", searchFrom),
+    prompt.indexOf("\n## ", searchFrom),
+  ].filter((index) => index !== -1);
+  const end = candidates.length > 0 ? Math.min(...candidates) : prompt.length;
+  return detachRange(prompt, start, end);
+}
+
+/** 기존 안전 계약을 먼저 예약하고, 남는 공간에는 완결된 일정 행만 싣는다. */
+function boundCurrentScheduleContext(section: string, maxChars: number): string {
+  if (!section) return "";
+  const complete = `\n\n${section}`;
+  if (complete.length <= maxChars) return complete;
+  reportPromptTruncation("current_schedule", complete.length, maxChars);
+  const notice = "\n[일정 일부는 길이 제한으로 생략됐습니다. 목록에 없는 일정은 일정 조회로 확인하세요.]";
+  if (maxChars < notice.length) return "";
+  const budget = maxChars - notice.length;
+  let kept = "";
+  for (const line of section.split("\n")) {
+    const next = `${kept}${kept ? "\n" : "\n\n"}${line}`;
+    if (next.length > budget) break;
+    kept = next;
+  }
+  return `${kept}${notice}`;
+}
+
 function detachCurrentUserLine(prompt: string): DetachedPromptPart {
   const lines = prompt.split("\n");
   const index = lines.findIndex((line) => line.startsWith("지금 대화 중인 사용자:"));
@@ -778,6 +810,7 @@ function detachCurrentUserLine(prompt: string): DetachedPromptPart {
 function detachMandatoryCurrentContext(prompt: string): {
   optionalPrompt: string;
   mandatoryContext: string;
+  scheduleContext: string;
 } {
   const helpPreference = detachTopLevelSection(
     prompt,
@@ -791,7 +824,8 @@ function detachMandatoryCurrentContext(prompt: string): {
     profile.remainder,
     "## 사용자가 설정한 준비 참고값",
   );
-  const couple = detachCurrentCoupleContext(preferences.remainder);
+  const schedule = detachCurrentScheduleContext(preferences.remainder);
+  const couple = detachCurrentCoupleContext(schedule.remainder);
   const user = detachCurrentUserLine(couple.remainder);
   const parts = [
     user.section,
@@ -802,6 +836,7 @@ function detachMandatoryCurrentContext(prompt: string): {
   ].filter(Boolean);
   return {
     optionalPrompt: user.remainder,
+    scheduleContext: schedule.section,
     mandatoryContext: parts.length > 0
       ? `\n\n[필수 현재 문맥]\n${parts.join("\n\n")}`
       : "",
@@ -1008,14 +1043,21 @@ export function buildAmoraSystemPrompt(
     safetyRemainder = detached.remainder;
     if (detached.section) detachedSafetySections.push(detached.section);
   }
-  const mandatorySuffix = `${detachedContext.mandatoryContext}${
+  const mandatoryTail = `${
     detachedSafetySections.map((section) => `\n\n${section}`).join("")
   }${detachedToolContract.section ? `\n\n${detachedToolContract.section}` : ""}${finalSuffix}`;
-  if (!Number.isInteger(maxChars) || maxChars < mandatorySuffix.length) {
+  const reservedLength = detachedContext.mandatoryContext.length + mandatoryTail.length;
+  if (!Number.isInteger(maxChars) || maxChars < reservedLength) {
     throw new Error(
       "maxChars must be an integer large enough for current context and final Amora contracts",
     );
   }
+
+  const scheduleContext = boundCurrentScheduleContext(
+    detachedContext.scheduleContext,
+    maxChars - reservedLength,
+  );
+  const mandatorySuffix = `${detachedContext.mandatoryContext}${scheduleContext}${mandatoryTail}`;
 
   const optionalBudget = maxChars - mandatorySuffix.length;
   const optionalBase = safetyRemainder;

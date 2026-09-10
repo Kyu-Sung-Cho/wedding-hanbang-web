@@ -491,6 +491,7 @@ describe("amoraActionTools", () => {
     expect(result.toolOutput).toMatchObject({
       count: 1,
       open_count: 1,
+      source: "table",
       actions: [expect.objectContaining({ id: "act_1", title: "Check quote", description: "식사 포함 범위와 추가 비용 확인", dueDate: "양가 일정 정한 뒤" })],
     });
   });
@@ -506,6 +507,22 @@ describe("amoraActionTools", () => {
     expect(result).toMatchObject({ success: true, toolOutput: { actions: [{
       id: "act_plan", title: "식사 견적 확인", description: "직접 적은 준비 설명", dueDate: "2026-10-15", source: "manual",
     }] } });
+  });
+
+  it("marks a legacy fallback separately from a successful canonical table read", async () => {
+    mockAdminClient({
+      amora_actions: [{ awaitResult: { data: null, error: { code: "42P01", message: "relation missing" } } }],
+    });
+    const result = await executeGetAmoraActions({ status: "all" }, createContext({
+      __amora_actions: [{
+        id: "legacy-one", title: "예전 기록", status: "open",
+        createdAt: "2026-09-09T00:00:00Z", updatedAt: "2026-09-09T00:00:00Z",
+      }],
+    }));
+    expect(result).toMatchObject({
+      success: true,
+      toolOutput: { source: "legacy", count: 1, truncated: false, actions: [{ id: "legacy-one" }] },
+    });
   });
 
   it("updates legacy actions when storage is unavailable", async () => {
