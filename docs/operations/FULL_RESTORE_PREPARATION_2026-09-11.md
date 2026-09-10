@@ -52,3 +52,21 @@ Docker/WSL 설치는 Windows 기능 변경과 재부팅을 요구할 수 있어,
 신규12개와 관련3개 파일의54개 시험이 통과했다(중복 집계하지 않는다). 관련 시험에는 실제 Windows HBAM2/DPAPI 왕복 및 중단본 거절이 포함된다. 최종 공개 baseline fixture 변경 후 신규12개를 다시 통과했고, `test:repo` 등록 검사3개 및 JS 구문/diff 검사를 확인했다. 네트워크/운영 수집/복원은 실행하지 않았다. 새 entrypoint는 기존 관계JSON/schema/Storage 원본 수집 연결이며, 전체 복원 실행용 custom archive를 같은 snapshot/backupSet에 추가하는 후속 작업은 아직 남아 있다.
 
 상세 로컬 영수증은 `operations-day3/full-restore-capture-final-tests.log`, `full-restore-capture-related-tests.log`, `full-restore-capture-source-freeze.json`에 보존한다.
+
+## 후속 단계: 같은 snapshot의 복원용 archive와 대상 증거 계약
+
+위 첫 단계 다음으로 `scripts/amora-budget-decision-archive-collect.mjs`를 추가했다. 첫 DB export transaction이 열린 동안 `pg_dump --format=custom --snapshot`으로 owner/ACL을 유지한 전체 archive를 얻고, DB 접속 없이 `pg_restore --list`와 전체 SQL decode를 통과시킨다. 기존 DB 관계/schema/globals/Storage 수집과 두 snapshot 비교가 모두 성공한 뒤 archive를 마지막 DPAPI 암호화 part로 붙인다. 첫 snapshot, 후보 commit, backupSet, 원본/도구 hash와 새 artifact count를 최종 영수증에 함께 묶는다. 기존 collector/runtime/worker/출시 controller 원문은 변경하지 않았다.
+
+기본 실행/도움말은 원격에 접속하지 않는 계획 출력이다. 실제 수집은 새로운 `ARCHIVE:` 확인 문구, clean candidate와 원본/도구/CA pins 및 기존 쓰기 차단 검사를 요구한다. 이 명령에도 복원/배포 기능은 없고 `releaseReady:false`를 유지한다. custom archive 상한은 약24MiB, envelope32MiB, 전체 decode256MiB이며 초과 시 중단한다. 이 상한이 운영 DB에 충분한지는 아직 실제 수집으로 확인하지 않았다. TOC 검사는 필수 schema 존재만 확인하며 모든 관계의 동일성은 실제 복원 뒤 별도 비교해야 한다. SQL 문법/데이터를 해독했다는 사실도 실제 서비스 복원 성공을 뜻하지 않는다.
+
+`scripts/lib/full-restore-target-admission.mjs`는 원본/대상/격리 영수증과 파일 목록의 순수 검증 계약이다. 후보/backupSet/시스템 식별자, 도구 pins, 15분 이내 영수증, 확장·역할·관리 schema 일치, 검토된 빈 대상 상태, 외부 접근·송신15개 경계 증거, 전체 관계/파일 목록 결합을 검사한다. 실제 producer의 `database-custom-archive` scope를 사용하고 globals는 `schema-original` 내부 원문으로 후속 consumer가 검증해야 한다. 핵심 관리 관계7개는 모든 목록에서 함께 지워도 통과하지 못한다. 이 함수는 외부 실행 사실이나 파일 bytes를 인증하지 않으므로 `observationsAuthenticated`, `artifactsRehashed`, `restoreExecuted`, `releaseAuthorized`는 모두false다. 이 반환값만으로 원본 접근이나 배포를 허가하면 안 된다.
+
+합성 native 시험 중 큰 정상 archive를 목록 조회할 때 Windows stdin EOF가 발생하는 문제와 프로세스 timeout 후 종료 이벤트를 무기한 기다릴 수 있는 문제를 발견해 수정했다. 조기 stdin 종료 예외는 정확한 `--list` 호출의 EPIPE/EOF만 받으며 exit0, 유효 TOC와 후속 전체 decode 성공을 모두 요구한다. timeout/오류는 즉시 실패하고 늦은 출력은 폐기한다.
+
+현재 로컬 PostgreSQL17.10 합성 시험5개는 실제 빈 DB 복원으로 snapshot 이전 값, 큰 bytea hash, 타입, 고정 sequence, ACL을 확인했다. sequence는 MVCC 대상이 아니므로 시험 중 변경하지 않았으며 운영에서는 쓰기 차단이 별도로 필요하다. 잘린 archive/만료 snapshot은 거절했다. 암호화 연결 시험에는 실제 Windows DPAPI worker 왕복과 마지막 archive part의 영수증 대조가 포함된다. native 도구가 없는 CI에서는 해당5개가 명시적으로 건너뛰며 그 결과를 복원 성공으로 집계하지 않는다.
+
+현재 완료 범위는 수집 도구·증거 계약·합성 native 복원 검증이다. 실제 전체 Supabase 환경 설치, 외부 접근/송신 차단의 실측, 운영 원본 수집·DB/Auth/Storage 전체 복원, 원문 증거의 후속 인가 controller 연결, 운영 배포는 아직 남아 있다. 고객 원본을 현재 hosted 대상에 복제하지 않았다.
+
+최종 관련7개 파일 통합 실행은187 PASS/실패0/건너뜀0이다. 신규130개(archive 연결11·대상 계약114·native5)가 이 수에 포함되며 중복 합산하지 않는다. 나머지는 기존 수집/릴리스 계약 및 `test:repo` 등록 검사다. 실제 Windows DPAPI 및 합성 native 복원도 이번 최종 실행에서 통과했다. 구문/diff 검사와 독립 검토를 마쳤다. 제품 화면이나 런타임 코드는 이번 단계에서 바꾸지 않았으므로 전체 웹 테스트/build를 다시 실행하지 않았으며, 이전 합본의 결과와 이번187개 결과를 구분한다. 최종 원문은 `operations-day3/full-restore-snapshot-final-tests.log`다.
+
+공식 동작 근거: [PostgreSQL17 pg_dump](https://www.postgresql.org/docs/17/app-pgdump.html), [PostgreSQL17 pg_restore](https://www.postgresql.org/docs/17/app-pgrestore.html). 상세 합성 실행 증거는 로컬 `operations-day3/POSTGRES_SNAPSHOT_NATIVE_VERIFICATION_20260911.md`와 `postgres-snapshot-native-receipt.json`에 보존한다.
