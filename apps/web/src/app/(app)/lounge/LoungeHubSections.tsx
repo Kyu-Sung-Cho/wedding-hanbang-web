@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { useState } from "react";
+import Button from "@/components/ui/Button";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2, Sparkles } from "lucide-react";
 import type { MissionGroup } from "@/lib/amora/missions";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
@@ -66,7 +67,7 @@ export function LoungePriorityFeed({ items }: { items: readonly LoungePriorityIt
         </article>;
       })}
     </div>
-    {items.length > 3 && <button type="button" onClick={() => setShowAll((value) => !value)} aria-expanded={showAll} className={`mt-2 flex min-h-11 w-full items-center justify-center gap-1 text-[11px] text-[var(--amora-soft)] lg:hidden ${focus}`}>{showAll ? "3개만 보기" : `${items.length}개 모두 보기`}<ChevronRight size={12} aria-hidden="true" /></button>}
+    {items.length > 3 && <Button variant="ghost" type="button" onClick={() => setShowAll((value) => !value)} aria-expanded={showAll} className="mt-2 !flex w-full !gap-1 !rounded-none !px-0 !text-[11px] !font-normal !text-[var(--amora-soft)] hover:!bg-transparent lg:!hidden">{showAll ? "3개만 보기" : `${items.length}개 모두 보기`}<ChevronRight size={12} aria-hidden="true" /></Button>}
     {items.some((item) => item.kind === "checklist" && item.imminent) && <p className="mt-2.5 px-1 text-[10px] leading-4 text-[var(--amora-muted)]">기본 확인 시점은 예식일을 기준으로 한 준비 참고값이에요. 직접 정한 일정이 우선해요.</p>}
   </>;
 }

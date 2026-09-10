@@ -98,7 +98,9 @@ import { describe, expect, it } from "vitest";
  * 시키는 일이다: **합친 트리를 실제로 세서** 그 값을 넣어라. 큰 쪽을 반사적으로
  * 고르지 마라 — 그게 이 주석이 한 번 거짓이 된 경위다.
  */
-const BASELINE = 708;
+// 2026-09-11: 승인된 HTML 화면의 신규 버튼 13곳을 공통 Button으로 옮겼다.
+// 기존 화면에서 제거한 버튼까지 반영한 합친 트리의 실측값으로 상한을 낮춘다.
+const BASELINE = 705;
 
 const SOURCE_ROOT = path.join(process.cwd(), "src");
 

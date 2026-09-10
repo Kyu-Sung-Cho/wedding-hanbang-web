@@ -27,6 +27,7 @@ import {
   Box,
 } from "lucide-react";
 import ScheduleProgress from "./ScheduleProgress";
+import Button from "@/components/ui/Button";
 import type { ImminentCategory } from "@/utils/imminentChecklist";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -100,21 +101,22 @@ export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick
                   {!item.hasScheduledEvent && (
                     <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
                       <span className="rounded-full bg-[var(--amora-rose-pale)] px-1.5 py-0.5 text-[9px] text-[var(--amora-rose-deep)]">일정 필요</span>
-                      <button
+                      <Button
+                        variant="secondary"
                         type="button"
                         aria-label={`${item.label} 날짜 잡기`}
                         onClick={() => onScheduleClick(item.key)}
-                        className="tap-area rounded-full border border-[var(--amora-line)] bg-white px-2.5 py-1 text-[10.5px] font-medium text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)]"
+                        className="tap-area !min-h-0 !rounded-full !border-[var(--amora-line)] !bg-white !px-2.5 !py-1 !text-[10.5px] !font-medium !text-[var(--amora-soft)] hover:!bg-[var(--amora-warm)]"
                       >
                         날짜 잡기
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
               );
             })}
           </div>
-          {items.length > 4 && <button type="button" aria-expanded={showAll} onClick={() => setShowAll(!showAll)} className="mb-3 w-full rounded-full border border-[var(--amora-line)] py-2 text-[11px] text-[var(--amora-soft)]">{showAll ? "간단히 보기" : `${items.length}개 항목 모두 보기`}</button>}
+          {items.length > 4 && <Button variant="secondary" type="button" aria-expanded={showAll} onClick={() => setShowAll(!showAll)} className="min-[769px]:!min-h-0 mb-3 w-full !rounded-full !border-[var(--amora-line)] !bg-transparent !px-0 !py-2 !text-[11px] !font-normal !text-[var(--amora-soft)] hover:!bg-transparent">{showAll ? "간단히 보기" : `${items.length}개 항목 모두 보기`}</Button>}
           <p className="border-t border-[var(--amora-line)] pt-3 text-[10px] leading-[1.7] text-[var(--amora-muted)]">
             표시 순서는 기본 일정 기준이며, 업체나 가족과 정한 실제 날짜가 우선입니다.
           </p>

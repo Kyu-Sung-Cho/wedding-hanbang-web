@@ -17,6 +17,7 @@ import {
 } from "@/lib/amora/pendingFirstHello";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
+import Button from "@/components/ui/Button";
 
 export default function LoungeFirstHello({ ownerId }: { ownerId: string }) {
   const [pending, setPending] = useState<PendingAmoraFirstHello | null>(null);
@@ -68,17 +69,18 @@ export default function LoungeFirstHello({ ownerId }: { ownerId: string }) {
             아모라와 대화하기 <ArrowRight aria-hidden="true" className="size-4" />
           </Link>
         </div>
-        <button
+        <Button
+          variant="icon"
           type="button"
-          aria-label="아모라 첫인사 미리보기 닫기"
-          className="flex size-11 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] hover:bg-[var(--amora-low)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+          label="아모라 첫인사 미리보기 닫기"
+          className="shrink-0 !rounded-lg !text-[var(--amora-muted)] hover:!bg-[var(--amora-low)]"
           onClick={() => {
             dismissAmoraFirstHelloBubble({ ownerId });
             setPending((current) => current ? { ...current, bubbleDismissed: true } : null);
           }}
         >
           <X aria-hidden="true" className="size-[18px]" />
-        </button>
+        </Button>
       </div>
     </section>
   );

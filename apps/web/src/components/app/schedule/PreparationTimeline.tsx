@@ -12,6 +12,7 @@ import {
   type ScheduleEventAssigneeContext,
 } from "@/utils/scheduleEvents";
 import { daysUntilWedding } from "@/lib/utils/weddingDate";
+import Button from "@/components/ui/Button";
 
 const CATEGORY_LABELS: Record<string, string> = { ...PLANNING_CATEGORY_LABELS, general: "일반", etiquette: "결혼 예절 참고" };
 
@@ -65,9 +66,9 @@ export default function PreparationTimeline({
     <section aria-labelledby="preparation-timeline-heading">
       <div className="mb-2 flex items-center justify-between gap-3">
         <h2 id="preparation-timeline-heading" className="text-[15px] font-semibold text-[var(--amora-ink)]">준비 타임라인</h2>
-        <button type="button" onClick={onAddEvent} disabled={mutationBlocked} className="flex items-center gap-1.5 rounded-full border border-[var(--amora-line)] bg-white px-3 py-1.5 text-[11px] font-medium text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)] disabled:opacity-50">
+        <Button variant="secondary" type="button" onClick={onAddEvent} disabled={mutationBlocked} className="min-[769px]:!min-h-0 !gap-1.5 !rounded-full !border-[var(--amora-line)] !bg-white !px-3 !py-1.5 !text-[11px] !font-medium !text-[var(--amora-soft)] hover:!bg-[var(--amora-warm)]">
           <Plus className="h-3 w-3" /> 일정 추가
-        </button>
+        </Button>
       </div>
       <p className="mb-5 text-[11px] leading-[1.8] text-[var(--amora-muted)]">등록한 일정과 날짜를 정할 항목을 함께 확인해요. 점선 카드는 아직 날짜가 필요해요.</p>
       {months.map((month) => (
@@ -100,7 +101,7 @@ export default function PreparationTimeline({
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-2">
                         <span className="text-[10px] text-[var(--amora-rose-deep)]">{completed ? "완료" : eventDistance(event.date)}</span>
-                        <button type="button" aria-label={`${event.title} 일정 수정`} onClick={() => onEditEvent(event)} disabled={mutationBlocked} className="flex items-center gap-1 rounded-full border border-[var(--amora-line)] px-2 py-1 text-[10px] text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)] disabled:opacity-50"><Pencil className="h-2.5 w-2.5" /> 수정</button>
+                        <Button variant="secondary" type="button" aria-label={`${event.title} 일정 수정`} onClick={() => onEditEvent(event)} disabled={mutationBlocked} className="min-[769px]:!min-h-0 !gap-1 !rounded-full !border-[var(--amora-line)] !bg-white !px-2 !py-1 !text-[10px] !font-normal !text-[var(--amora-soft)] hover:!bg-[var(--amora-warm)]"><Pencil className="h-2.5 w-2.5" /> 수정</Button>
                       </div>
                     </div>
                   </div>
@@ -119,17 +120,17 @@ export default function PreparationTimeline({
                 <span className="relative z-[1] mt-3 flex h-[29px] w-[29px] shrink-0 items-center justify-center rounded-full border border-dashed border-[var(--amora-rose)] bg-[var(--amora-bg)] text-[var(--amora-rose-deep)]"><CalendarDays className="h-3.5 w-3.5" /></span>
                 <div className="min-w-0 flex-1 rounded-[13px] border border-dashed border-[var(--amora-rose)]/60 bg-[var(--amora-warm)] px-4 py-3.5">
                   <div className="flex items-center justify-between gap-3">
-                    <button type="button" onClick={() => onCategoryClick(item.key)} className="min-w-0 text-left">
+                    <Button variant="ghost" type="button" onClick={() => onCategoryClick(item.key)} className="min-[769px]:!min-h-0 !block min-w-0 !whitespace-normal !rounded-none !p-0 text-left !font-normal hover:!bg-transparent">
                       <span className="flex flex-wrap items-center gap-2"><span className="text-[13px] font-semibold text-[var(--amora-ink)]">{item.label}</span><span className="rounded-full bg-[var(--amora-rose-pale)] px-2 py-0.5 text-[9px] text-[var(--amora-rose-deep)]">날짜 필요</span></span>
                       <span className="mt-1.5 block text-[10.5px] leading-[1.7] text-[var(--amora-muted)]">{item.doneCount}/{item.totalCount} 완료 · {item.deadlineDaysLeft <= 0 ? "기본 확인 시점이 지난 항목" : `기본 확인 시점까지 ${item.deadlineDaysLeft}일`}</span>
-                    </button>
-                    <button type="button" onClick={() => onScheduleClick(item.key)} disabled={mutationBlocked} className="shrink-0 rounded-full border border-[var(--amora-line)] bg-white px-3 py-1.5 text-[10.5px] font-medium text-[var(--amora-soft)] transition-colors hover:border-[var(--amora-rose)] disabled:opacity-50">날짜 잡기</button>
+                    </Button>
+                    <Button variant="secondary" type="button" onClick={() => onScheduleClick(item.key)} disabled={mutationBlocked} className="min-[769px]:!min-h-0 shrink-0 !rounded-full !border-[var(--amora-line)] !bg-white !px-3 !py-1.5 !text-[10.5px] !font-medium !text-[var(--amora-soft)] hover:!border-[var(--amora-rose)] hover:!bg-white">날짜 잡기</Button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-          {undated.length > 5 && <button type="button" onClick={() => setShowAllNeeds(!showAllNeeds)} aria-expanded={showAllNeeds} className="ml-[43px] mt-3 text-[11px] text-[var(--amora-rose-deep)] underline underline-offset-4">{showAllNeeds ? "간단히 보기" : `날짜가 필요한 ${undated.length}개 항목 모두 보기`}</button>}
+          {undated.length > 5 && <Button variant="ghost" type="button" onClick={() => setShowAllNeeds(!showAllNeeds)} aria-expanded={showAllNeeds} className="min-[769px]:!min-h-0 ml-[43px] mt-3 !whitespace-normal !rounded-none !px-0 !text-[11px] !font-normal !text-[var(--amora-rose-deep)] underline underline-offset-4 hover:!bg-transparent">{showAllNeeds ? "간단히 보기" : `날짜가 필요한 ${undated.length}개 항목 모두 보기`}</Button>}
         </div>
       )}
       {!weddingDate && !plannedEvents.length && !undated.length && <div className="rounded-[13px] border border-dashed border-[var(--amora-line)] bg-white px-5 py-8 text-center text-[12px] leading-[1.8] text-[var(--amora-muted)]">아직 등록한 일정이 없어요.<br />날짜가 정해진 일부터 일정에 추가해 보세요.</div>}

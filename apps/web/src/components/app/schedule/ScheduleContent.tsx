@@ -725,7 +725,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
 
         <div className="hidden items-center gap-[30px] rounded-[18px] border border-[var(--amora-line)] bg-white px-7 py-[22px] lg:flex">
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] tracking-[0.1em] text-[var(--amora-rose-deep)]">기본 일정 확인</p>
+            <p className="text-[10px] text-[var(--amora-rose-deep)]">기본 일정 확인</p>
             <h1 className="planning-display mt-1.5 text-[24px] leading-[1.4] text-[var(--amora-ink)]">{needsScheduleCount ? `날짜를 정할 항목 ${needsScheduleCount}건이 있어요` : "우리의 준비 일정을 모아봐요"}</h1>
             <p className="mt-2 text-[11px] leading-[1.8] text-[var(--amora-muted)]">기본 확인 시점이 지났거나 60일 안에 다가오는 항목을 확인해요.<br />업체나 가족과 정한 실제 날짜가 우선입니다.</p>
           </div>

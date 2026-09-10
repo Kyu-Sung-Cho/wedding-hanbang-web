@@ -6,6 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { BookOpen, Check, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag, Sparkles, Video } from "lucide-react";
 
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
+import Button from "@/components/ui/Button";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -298,9 +299,9 @@ export default function ChecklistContent() {
           ))}
         </div>
         <div className="hidden items-center gap-2 text-[12px] text-[var(--amora-muted)] md:ml-auto md:flex" role="group" aria-label="체크리스트 보기 방식">
-          <button type="button" aria-pressed={grouped} onClick={() => setGrouped(true)} className={`min-h-9 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${grouped ? "font-semibold text-[var(--amora-ink)]" : "hover:text-[var(--amora-ink)]"}`}>단계별로 묶어보기</button>
+          <Button variant="ghost" type="button" aria-pressed={grouped} onClick={() => setGrouped(true)} className={`min-[769px]:!min-h-9 !rounded-md !px-0 !text-[12px] hover:!bg-transparent ${grouped ? "!font-semibold !text-[var(--amora-ink)]" : "!font-normal !text-[var(--amora-muted)] hover:!text-[var(--amora-ink)]"}`}>단계별로 묶어보기</Button>
           <span aria-hidden="true">·</span>
-          <button type="button" aria-label="전체 분야 펼쳐보기" aria-pressed={!grouped} onClick={() => setGrouped(false)} className={`min-h-9 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] ${!grouped ? "font-semibold text-[var(--amora-ink)]" : "hover:text-[var(--amora-ink)]"}`}>전체 {CATEGORY_CHECKLISTS.length}개 펼쳐보기</button>
+          <Button variant="ghost" type="button" aria-label="전체 분야 펼쳐보기" aria-pressed={!grouped} onClick={() => setGrouped(false)} className={`min-[769px]:!min-h-9 !rounded-md !px-0 !text-[12px] hover:!bg-transparent ${!grouped ? "!font-semibold !text-[var(--amora-ink)]" : "!font-normal !text-[var(--amora-muted)] hover:!text-[var(--amora-ink)]"}`}>전체 {CATEGORY_CHECKLISTS.length}개 펼쳐보기</Button>
         </div>
       </section>
 
@@ -316,21 +317,22 @@ export default function ChecklistContent() {
             const Icon = stage.icon;
             const current = currentStage === index;
             return (
-              <button
+              <Button
+                variant="ghost"
                 key={stage.key}
                 type="button"
                 disabled={stage.categories.length === 0}
                 aria-current={current ? "step" : undefined}
                 aria-label={`${index + 1}단계 ${stage.label} 보기`}
                 onClick={() => goToStage(stage.key)}
-                className="relative flex w-[60px] shrink-0 flex-col items-center rounded-lg text-center outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-40 md:w-auto md:flex-1"
+                className="relative !flex w-[60px] shrink-0 flex-col !gap-0 !whitespace-normal !rounded-lg !p-0 !font-normal hover:!bg-transparent disabled:!opacity-40 md:w-auto md:flex-1"
               >
                 <span className={`mb-1.5 flex size-[34px] items-center justify-center rounded-full border-2 md:mb-[9px] md:size-11 ${current ? "border-[var(--amora-ink)] bg-[var(--amora-ink)] text-white ring-4 ring-[var(--amora-rose-pale)] md:ring-[5px]" : stage.complete ? "border-[var(--amora-sage)] bg-[var(--amora-sage-pale)] text-[#33473a]" : "border-[var(--amora-line)] bg-white text-[var(--amora-muted)]"}`}>
                   {stage.complete ? <Check aria-hidden="true" className="size-[15px] md:size-[19px]" strokeWidth={1.7} /> : <Icon aria-hidden="true" className="size-[15px] md:size-[19px]" strokeWidth={1.7} />}
                 </span>
                 <span className="text-[10px] font-semibold leading-[1.3] text-[var(--amora-ink)] md:text-[13px]">{stage.label}</span>
                 <span className="mt-0.5 text-[9px] text-[var(--amora-muted)] md:mt-[3px] md:text-[11px]">{stage.summary.done}/{stage.summary.total}<span className="hidden md:inline">개 완료</span></span>
-              </button>
+              </Button>
             );
           })}
         </div>
