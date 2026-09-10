@@ -16,6 +16,7 @@
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { resolveStatusByKey } from "@/utils/checklist";
+import { isValidScheduleTime } from "@/utils/scheduleEvents";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
 import {
   computePreparationPriorities,
@@ -237,6 +238,7 @@ export type WeddingPlannerPromptContext = {
   scheduleEvents: Array<{
     id?: string;
     date: string;
+    time?: string;
     title: string;
     memo?: string;
     categoryKey?: string;
@@ -887,7 +889,7 @@ ${closing}`;
     bookingsSection = `\n### 예약 내역\n${bookingLines}`;
   }
 
-  // 일정 이벤트 포맷 (다가오는 일정만, 최대 10개)
+  // 현재 저장된 시각을 함께 전달해야 지난 대화의 변경 전 시각을 재사용하지 않는다.
   let scheduleSection = "";
   if (context.scheduleEvents.length > 0) {
     const today = ymdInKst();
@@ -909,17 +911,19 @@ ${closing}`;
         // `event_id` 를 싣지 않으면 취소·변경 도구를 쓸 방법이 없다. 지난 일정에는
         // 붙이지 않는다 — 되돌릴 일이 없고 프롬프트만 늘어난다.
         const id = e.id ? `${promptData(e.id, 200)}=` : "";
-        lines.push(`  - ${id}${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
+        const time = isValidScheduleTime(e.time) ? e.time : "미정";
+        lines.push(`  - ${id}${promptData(e.date, 40)} | 시간 ${time} | 제목 ${promptData(e.title, 300)}${cat}${memo}`);
       }
     }
     if (past.length > 0) {
       lines.push("  **지난 일정:**");
       for (const e of past) {
-        lines.push(`  - ${promptData(e.date, 40)} | 제목 ${promptData(e.title, 300)}`);
+        const time = isValidScheduleTime(e.time) ? e.time : "미정";
+        lines.push(`  - ${promptData(e.date, 40)} | 시간 ${time} | 제목 ${promptData(e.title, 300)}`);
       }
     }
     if (lines.length > 0) {
-      scheduleSection = `\n### 등록된 일정\n${lines.join("\n")}`;
+      scheduleSection = `\n### 등록된 일정\n현재 저장값입니다. 현재 일정을 묻는 답변은 아래 날짜·시간을 기준으로 하며, 이전 대화의 시각으로 바꾸지 마세요. 시간 미정은 저장된 시각이 없거나 유효하지 않다는 뜻이며 추정하지 마세요. 목록에 없는 일정은 일정 조회로 확인하세요.\n${lines.join("\n")}`;
     }
   }
 

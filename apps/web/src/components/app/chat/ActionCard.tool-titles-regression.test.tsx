@@ -17,7 +17,7 @@ vi.mock("@/stores/authStore", () => ({
 
 const EXPECTED_TITLES: Record<string, string> = {
   apply_budget_plan: "예산안 적용",
-  add_custom_category: "예산 항목 추가",
+  add_custom_category: "예산 항목 반영",
   delete_category: "예산 항목 삭제",
   reset_category: "예산 항목 초기화",
   add_schedule_event: "일정 추가",

@@ -858,6 +858,8 @@ export default function PendingAmoraActionCard({
       <AmoraSaveSheet
         confirmation={action.confirmation}
         tool={action.tool}
+        inputDigest={action.inputDigest}
+        impactPreview={impactPreview}
         carriedLabel={isCarriedForward ? CARRIED_PENDING_ACTION_LABEL : undefined}
         disabled={disabled}
         busy={isApplying || isSavingApproval}

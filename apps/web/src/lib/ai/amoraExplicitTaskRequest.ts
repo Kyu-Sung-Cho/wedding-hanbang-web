@@ -3,9 +3,15 @@ import { isValidScheduleYmd } from "@/utils/scheduleEvents";
 
 const COUNTS: Record<string, number> = { 한: 1, 하나: 1, 두: 2, 둘: 2, 세: 3, 셋: 3, 네: 4, 넷: 4, 다섯: 5, 여섯: 6, 일곱: 7, 여덟: 8, 아홉: 9, 열: 10 };
 const DATE = "(?:[0-9]{4}년[ \\t]*[0-9]{1,2}월[ \\t]*[0-9]{1,2}일|[0-9]{4}-[0-9]{2}-[0-9]{2})";
+const COUNT = "([0-9]{1,2}|한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉|열)";
 const ROW = new RegExp(`^([0-9]{1,2})[).]\\s*제목은 ([^\\r\\n]+?),\\s*설명은 ([^\\r\\n]+?),\\s*예정일은 (${DATE})[.。]`);
+// 라벨 행은 끝까지 소비해야 마감 뒤의 추가 조건을 버리지 않는다.
+const LABELED_ROW = new RegExp(`^([0-9]{1,2})[).][ \\t]*제목[ \\t]*[:：][ \\t]*([^\\r\\n]+?)[ \\t]*/[ \\t]*(?:내용|설명)[ \\t]*[:：][ \\t]*([^\\r\\n]+?)[ \\t]*/[ \\t]*(?:마감|예정일)[ \\t]*[:：][ \\t]*(${DATE})[.。]?[ \\t]*(?:\\r?\\n|$)`);
 const ENDING = /^(?:(?:둘 다|모두|전부) 아직 하지 않은 일이야[.。]\s*)?(?:담당자는 정하지 말고 )?저장 전 확인 카드를 보여(?:줘|주세요)[.。]?$/;
-const STRUCTURED_REQUEST = /^(?:함께 보는|공유) 할 일(?:에)?\s+\S{1,20}\s*(?:개를|건을)\s*추가해(?:줘|주세요)/;
+const STRUCTURED_REQUEST = /^(?:(?:함께 보는|공유) 할 일(?:에)?\s+\S{1,20}\s*(?:개를|건을)\s*추가해(?:줘|주세요)|(?:아래\s+)?\S{1,20}\s*(?:개를|건을)\s+(?:함께 보는|공유) 할 일에\s*추가해(?:줘|주세요))/;
+const PREFIX = new RegExp(`^(?:(?:함께 보는|공유) 할 일(?:에)?\\s+${COUNT}\\s*(?:개를|건을) 추가해(?:줘|주세요)|(?:아래\\s+)?${COUNT}\\s*(?:개를|건을) (?:함께 보는|공유) 할 일에 추가해(?:줘|주세요))[.。]\\s*`);
+// 확인 후 저장하겠다는 완결 문장만 허용한다. 임의 서두를 통째로 걷어내지 않는다.
+const CONFIRMATION_PREFACE = /^아직 완료하지 않았고,\s*하나씩 내용을 확인하고 저장할게[.。]\s*/;
 const DEADLINE_REQUEST = new RegExp(
   `(?:${DATE}|[0-9]{1,2}월[ \\t]*[0-9]{1,2}일)\\s*까지[^,;。.!?\\r\\n]{0,40}(?:끝내|완료해|마쳐|마무리해|처리해|해(?:줘|주세요))`,
   "u",
@@ -34,7 +40,7 @@ function hasUnsupportedTaskDirective(value: string): boolean {
   // 완결된 인용은 할 일의 원문 데이터다. 인용 밖의 실제 지시만 검사한다.
   // 닫히지 않은 따옴표는 제거하지 않으므로 뒤의 조건을 숨길 수 없다.
   const unquoted = value.replace(/"[^"\r\n]*"|'[^'\r\n]*'|“[^”\r\n]*”|‘[^’\r\n]*’|「[^」\r\n]*」|『[^』\r\n]*』/gu, " ");
-  if (/(?:제목|설명|예정일|담당자?|우선순위|카테고리|마감(?:일)?|기한|시각|시간)(?:은|는|[:：])/u.test(unquoted)
+  if (/(?:제목|설명|내용|예정일|담당자?|우선순위|카테고리|마감(?:일)?|기한|시각|시간)(?:은|는|[:：])/u.test(unquoted)
     || DEADLINE_REQUEST.test(unquoted)
     || /담당자?(?:를|을)\s*.{0,60}(?:(?:지정|배정)해|정해(?:줘|주세요)|맡겨(?:줘|주세요))/u.test(unquoted)
     || /개인\s*(?:상담|할\s*일)|나만\s*(?:보|의)|비공개로|상대(?:방)?(?:에게|한테|는)?.{0,30}(?:숨겨|숨기|안\s*보이|보여주지|보이게\s*하지)/u.test(unquoted)
@@ -44,7 +50,7 @@ function hasUnsupportedTaskDirective(value: string): boolean {
     || /(?:오전|오후)?\s*\d{1,2}\s*시(?=\s|$|반|까지|에|부터|\d{1,2}\s*분)|(?:[01]?\d|2[0-3]):[0-5]\d/u.test(unquoted)) return true;
   // "누락하지 말고 식대 확인"·"불필요한 항목은 추가하지 말고 확인"은
   // 작업 내용이다. 별도 절의 저장 금지나 현재 할 일 자체의 취소와 구분한다.
-  return unquoted.split(/[,;。.!?\r\n]/u).some(part => /^(?:(?:실제로|지금은|아직)\s*)?(?:저장|추가|등록|수정|반영|적용)(?:은|는|도)?\s*(?:하지\s*(?:마|말|않)|하면\s*안|해서는?\s*안|금지)/u.test(part.trim()));
+  return unquoted.split(/[,;\/。.!?\r\n]/u).some(part => /^(?:(?:실제로|지금은|아직)\s*)?(?:저장|추가|등록|수정|반영|적용)(?:은|는|도)?\s*(?:하지\s*(?:마|말|않)|하면\s*안|해서는?\s*안|금지)/u.test(part.trim()));
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -54,15 +60,17 @@ function record(value: unknown): value is Record<string, unknown> {
 /** 필드가 명시된 현재 공유 할 일 목록만 복구한다. 추정·조건 생략 없이 기존 승인 큐로 보낸다. */
 function parseSupportedTaskList(text: string, modelText: string): AmoraQueuedAction[] | null {
   if (text.length > 10000 || /[\p{Cf}\p{Zl}\p{Zp}]|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/u.test(text)) return null;
-  const prefix = /^(?:함께 보는|공유) 할 일(?:에)?\s+([0-9]{1,2}|한|하나|두|둘|세|셋|네|넷|다섯|여섯|일곱|여덟|아홉|열)\s*(?:개를|건을) 추가해(?:줘|주세요)[.。]\s*/.exec(text.trim());
+  const prefix = PREFIX.exec(text.trim());
   if (!prefix) return null;
-  const count = COUNTS[prefix[1]] ?? Number(prefix[1]);
+  const countText = prefix[1] ?? prefix[2];
+  const count = COUNTS[countText] ?? Number(countText);
   if (!Number.isInteger(count) || count < 1 || count > AMORA_MAX_QUEUED_ACTIONS) return null;
   let rest = text.trim().slice(prefix[0].length).trim();
+  rest = rest.replace(CONFIRMATION_PREFACE, "").trim();
   const actions: AmoraQueuedAction[] = [];
   const keys = new Set<string>();
   for (let index = 1; index <= count; index += 1) {
-    const row = ROW.exec(rest);
+    const row = ROW.exec(rest) ?? LABELED_ROW.exec(rest);
     if (!row || Number(row[1]) !== index) return null;
     const title = row[2].trim();
     const description = row[3].trim();

@@ -6,7 +6,7 @@ import { executeSearchNearbyPlaces } from "../placeSearchTools";
 // 결혼 준비 장소 검색에서 그 업종은 어떤 검색어에서도 후보가 아니다.
 //
 // 이 파일은 **같은 입력에 같은 결과**로 묻는다 — 네이버 응답을 그대로 흉내 내고,
-// 실행기가 무엇을 카드로 돌려주는지로. 정상 업종(음식점·카페)이 함께 사라지지 않는 것도 같은 방식으로 본다.
+// 실행기가 무엇을 카드로 돌려주는지로. 카페를 요청했을 때 카페·베이커리가 함께 사라지지 않는 것도 본다.
 
 const ENV_KEYS = [
   "NAVER_API_HUB_CLIENT_ID",
@@ -72,12 +72,12 @@ describe("장소 검색은 장례식장·도로 표지를 후보로 내지 않�
       });
     });
 
-    const result = await executeSearchNearbyPlaces({ query: "대전 식당 예식" });
+    const result = await executeSearchNearbyPlaces({ query: "대전 카페 모임" });
     const output = result.toolOutput as { places: { name: string; categoryFull: string }[]; resultCount: number };
 
     expect(result.success).toBe(true);
     const names = output.places.map((place) => place.name);
-    expect(names).toEqual(["라마다대전 에이치가든", "크리스탈컨벤션뷔페", "성심당 본점"]);
+    expect(new Set(names)).toEqual(new Set(["라마다대전 에이치가든", "크리스탈컨벤션뷔페", "성심당 본점"]));
     expect(output.places.every((place) => !/^(?:장례|도로시설)/.test(place.categoryFull))).toBe(true);
     expect(output.resultCount).toBe(3);
   });

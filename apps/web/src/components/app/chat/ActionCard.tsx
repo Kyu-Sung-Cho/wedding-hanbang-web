@@ -59,7 +59,8 @@ function getTitle(result: ToolExecutionResult) {
     case "apply_budget_plan":
       return "예산안 적용";
     case "add_custom_category":
-      return "예산 항목 추가";
+      return result.toolOutput.created === true ? "예산 항목 추가"
+        : result.toolOutput.created === false ? "예산 항목 변경" : "예산 항목 반영";
     case "delete_category":
       return "예산 항목 삭제";
     case "reset_category":

@@ -2,13 +2,14 @@
 
 import type { ReactNode } from "react";
 import { Check, CircleCheck, Info } from "lucide-react";
+import { parseBudgetImpactPreview, type BudgetImpactPreview } from "@hanbang/shared";
 import AmoraSheetFrame from "./AmoraSheetFrame";
 
 const CHANGE_DETAILS: Record<string, { category: string; effect: string }> = {
   update_budget: { category: "예산", effect: "준비 예산의 총금액을 바꿔요." },
   apply_budget_plan: { category: "예산", effect: "제안한 예산 배분을 한 번에 반영해요." },
   update_category_budget: { category: "예산", effect: "해당 항목의 예산 정보를 바꿔요." },
-  add_custom_category: { category: "예산", effect: "새 예산 항목을 추가해요." },
+  add_custom_category: { category: "예산", effect: "확인한 맞춤 예산 항목에 금액을 반영해요." },
   update_wedding_date: { category: "예식 준비", effect: "준비 정보의 결혼식 날짜를 바꿔요." },
   update_venue: { category: "예식 준비", effect: "준비 정보의 예식장 정보를 바꿔요. 예약을 대신 진행하지 않아요." },
   add_schedule_event: { category: "일정", effect: "준비 일정에 새 일정을 추가해요." },
@@ -24,6 +25,8 @@ const CHANGE_DETAILS: Record<string, { category: string; effect: string }> = {
 type AmoraSaveSheetProps = {
   confirmation: string;
   tool: string;
+  inputDigest?: string;
+  impactPreview?: BudgetImpactPreview | null;
   carriedLabel?: string;
   disabled: boolean;
   busy: boolean;
@@ -41,6 +44,8 @@ type AmoraSaveSheetProps = {
 export default function AmoraSaveSheet({
   confirmation,
   tool,
+  inputDigest,
+  impactPreview,
   carriedLabel,
   disabled,
   busy,
@@ -57,6 +62,20 @@ export default function AmoraSaveSheet({
     category: "준비 정보",
     effect: "지원 여부를 확인할 수 없는 변경은 반영할 수 없어요.",
   };
+  // 호출부는 저장된 제안의 revision을 검사한다. 여기서는 같은 입력인지 다시 확인하고,
+  // 기존 0원 항목과 신규 항목을 구분할 수 없는 preview에는 추가·변경을 단정하지 않는다.
+  const boundPreview = impactPreview && inputDigest
+    ? parseBudgetImpactPreview(impactPreview, { tool, inputDigest, sourceRevision: impactPreview.sourceRevision })
+    : null;
+  const categoryImpact = boundPreview?.categories.length === 1 ? boundPreview.categories[0] : null;
+  const changesExistingCustom = tool === "add_custom_category"
+    && boundPreview !== null && categoryImpact !== null
+    && categoryImpact.key.startsWith("custom_")
+    && (categoryImpact.currentBudget > 0 || categoryImpact.currentRecordedSpend > 0)
+    && boundPreview.delta.totalBudget === 0
+    && categoryImpact.proposedBudget - categoryImpact.currentBudget === boundPreview.delta.allocatedBudget
+    && categoryImpact.proposedRecordedSpend - categoryImpact.currentRecordedSpend === boundPreview.delta.recordedSpend;
+  const effect = changesExistingCustom ? "기존 맞춤 예산 항목의 금액을 바꿔요." : details.effect;
 
   return (
     <AmoraSheetFrame
@@ -94,7 +113,7 @@ export default function AmoraSaveSheet({
           </span>
           <p className="mt-2 flex items-start gap-[7px] text-[11.5px] leading-[1.55] text-[var(--amora-muted)]">
             <Info className="mt-0.5 size-[13px] shrink-0" aria-hidden="true" />
-            <span>{details.effect}</span>
+            <span>{effect}</span>
           </p>
         </div>
 
