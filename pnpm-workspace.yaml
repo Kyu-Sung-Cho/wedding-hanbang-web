@@ -44,3 +44,4 @@ patchedDependencies:
   minimatch@3.1.5: patches/minimatch@3.1.5.patch
   decode-uri-component@0.5.0: patches/decode-uri-component@0.5.0.patch
   image-size@1.2.1: patches/image-size@1.2.1.patch
+  next@16.3.4: patches/next@16.3.4.patch
