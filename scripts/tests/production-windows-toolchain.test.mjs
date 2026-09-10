@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -12,16 +12,7 @@ import {
   verifyPinnedExecutableSnapshot,
 } from "../lib/production-windows-toolchain.mjs";
 
-/** 핀 경로에 파일이 둘 다 있으면 릴리스 호스트 후보다. 바이트 일치는 따로 본다. */
-async function isReleaseHostCandidate() {
-  const present = await Promise.all(
-    [
-      PINNED_WINDOWS_PRODUCTION_TOOLCHAIN.git.path,
-      PINNED_WINDOWS_PRODUCTION_TOOLCHAIN.powershell.path,
-    ].map((path) => stat(path).then((entry) => entry.isFile()).catch(() => false)),
-  );
-  return present.every(Boolean);
-}
+import { releaseHostHasPinnedBytes } from "./fixtures/pinned-windows-release-host.mjs";
 
 test("pinned executable verification hashes the exact opened byte snapshot", async () => {
   const root = await mkdtemp(join(tmpdir(), "hanbang-toolchain-"));
@@ -86,16 +77,16 @@ test("release host pins keep the canonical install paths and hash shape", () => 
  * 컴퓨터에서 운영 릴리스는 여전히 거부된다.
  */
 test(
-  "this Windows host either matches both release pins or is refused a release",
-  { skip: process.platform !== "win32" },
-  async () => {
-    if (await isReleaseHostCandidate()) {
+  "this host either matches both Windows release pins or is refused a release",
+  async t => {
+    if (await releaseHostHasPinnedBytes()) {
       const toolchain = await resolvePinnedWindowsProductionToolchain();
       assert.match(toolchain.git, /[\\/]git\.exe$/i);
       assert.match(toolchain.powershell, /[\\/]powershell\.exe$/i);
       return;
     }
-    // 릴리스 호스트가 아니다. 여기서 정답은 통과가 아니라 **거부**다.
+    // 실행 파일이 존재해도 핀의 바이트와 다르면 운영 릴리스를 거부해야 한다.
+    t.diagnostic("Host release pins do not match: this host is not authorized for the pinned release.");
     await assert.rejects(
       resolvePinnedWindowsProductionToolchain(),
       (error) => error instanceof ProductionToolchainError

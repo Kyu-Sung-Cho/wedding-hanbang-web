@@ -35,6 +35,7 @@ const SIGNAL_JOB = "code_quality_signal";
 /** 신호 잡이 성공을 요구해야 하는 코드 품질 잡. */
 const REQUIRED_QUALITY_JOBS = [
   "web_quality",
+  "web_tests",
   "mobile_quality",
   "vendor_disclosure_quality",
   "static_release_contracts",
@@ -133,6 +134,32 @@ function hasUnconditionalFailure(jobBody) {
 }
 
 const jobs = parseJobs(workflow);
+
+test("웹 두 shard는 전체 파일을 나누고 각 실패를 두 집계에 전달한다", () => {
+  const shards = jobs.get("web_tests");
+  assert.ok(shards, "웹 테스트 shard 잡이 없다");
+  assert.match(shards, /^\s*runs-on:\s*ubuntu-latest\s*$/m);
+  assert.match(shards, /^\s*fail-fast:\s*false\s*$/m);
+  assert.match(shards, /^\s*max-parallel:\s*2\s*$/m);
+  assert.match(shards, /^\s*shard:\s*\[1,\s*2\]\s*$/m);
+  assert.doesNotMatch(shards, /continue-on-error\s*:/);
+  const testCommand = /^\s*run:\s*([^\n]*vitest run[^\n]*)$/m.exec(shards)?.[1];
+  assert.equal(testCommand,
+    "pnpm --filter @hanbang/web exec vitest run --shard=${{ matrix.shard }}/2 --maxWorkers=2",
+    "shard 인덱스·분모·안정 worker 수를 유지하고 파일 필터나 빈 검사 허용을 넣지 않는다");
+  assert.doesNotMatch(jobCommands(jobs.get("web_quality")), /vitest\s+run/);
+  assert.equal((jobCommands(jobs.get("web_quality")).match(/pnpm --filter @hanbang\/web build/g) ?? []).length, 1);
+  assert.doesNotMatch(jobCommands(shards), /\b(?:build|eslint|tsc)\b/);
+  for (const name of [SIGNAL_JOB, "ci"]) {
+    const body = jobs.get(name);
+    assert.ok(neededJobs(body).includes("web_tests"), `${name}가 두 shard 결과를 기다리지 않는다`);
+    const bound = /(\w+):\s*\$\{\{\s*needs\.web_tests\.result/.exec(body);
+    assert.ok(bound, `${name}가 두 shard 결과를 받지 않는다`);
+    const condition = /^\s*if\s+\[[^\n]*$/m.exec(jobCommands(body))?.[0] ?? "";
+    assert.ok(condition.includes(`"$${bound[1]}" != "success"`),
+      `${name}는 한 shard라도 실패·취소·누락되면 성공하면 안 된다`);
+  }
+});
 
 test("워크플로 파싱이 실제로 동작한다 (빈 검사로 통과하지 않게)", () => {
   // 파싱이 깨지면 아래 검사들이 전부 공회전한다. 그 상태를 먼저 막는다.

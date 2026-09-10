@@ -33,8 +33,13 @@ import assert from "node:assert/strict";
 import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { require as tsxRequire } from "tsx/cjs/api";
 
-import { expectedProductionAuthorizationSha256 } from "../../apps/web/vendorDisclosureProductionBuildFence.ts";
+// CI의 Node 22에서도 제품 함수를 그대로 실행하도록 명시적으로 TS 로더를 쓴다.
+const { expectedProductionAuthorizationSha256 } = tsxRequire(
+  "../../apps/web/vendorDisclosureProductionBuildFence.ts",
+  import.meta.url,
+);
 
 const repoRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 

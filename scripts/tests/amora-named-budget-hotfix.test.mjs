@@ -11,6 +11,7 @@ import { loadHotfixRelease, loadNamedBudgetHotfixRelease, parseNamedBudgetHotfix
   validateHotfixEvidence, renderPublicDataQuery, renderHotfixAtomicSql, renderHotfixAdjudicationSql, classifyHotfixObservation,
   renderHotfixFinalizeSql, NAMED_BUDGET_FUNCTIONS, runAmoraRuntimeHotfix, validateHotfixReadOnlyQuery } from '../lib/amora-runtime-hotfix-controller.mjs';
 const root = resolve(import.meta.dirname, '../..');
+const cliFixtureRoot = join(tmpdir(), 'amora-hotfix-cli-fixture');
 const release = loadNamedBudgetHotfixRelease(root);
 const previousRelease = loadHotfixRelease(root);
 const now = new Date('2026-09-07T09:30:00Z');
@@ -77,12 +78,12 @@ test('new mode selects one original SQL above actual 214 history and cannot rout
   assert.deepEqual(release.baseline.ledger.slice(0, 206), previousRelease.baseline.ledger);
   assert.deepEqual(release.hotfix.scope, previousRelease.hotfix.scope);
   const args = ['--amora-named-budget-hotfix', '--check-only', `--expected-commit=${commit}`, '--remote-ref=origin/codex/test',
-    '--evidence-root=C:/private', '--receipt-out=C:/private/one.json', '--bundle-out=C:/private/one.sql'];
+    `--evidence-root=${cliFixtureRoot}`, `--receipt-out=${join(cliFixtureRoot, 'one.json')}`, `--bundle-out=${join(cliFixtureRoot, 'one.sql')}`];
   assert.equal(parseNamedBudgetHotfixArgs(args)['amora-named-budget-hotfix'], true); assert.throws(() => parseHotfixArgs(args));
   for (const extra of ['--amora-runtime-hotfix', '--apply', '--skip-evidence', '--amora-named-budget-hotfix'])
     assert.throws(() => parseNamedBudgetHotfixArgs([...args, extra]));
   const finalize = args.filter(a => a !== '--check-only' && !a.startsWith('--bundle-out'));
-  assert.equal(parseNamedBudgetHotfixArgs([...finalize, '--finalize', '--outcome=C:/private/apply.json', '--canary=C:/private/canary.json', '--confirm-production=placeholder']).finalize, true);
+  assert.equal(parseNamedBudgetHotfixArgs([...finalize, '--finalize', `--outcome=${join(cliFixtureRoot, 'apply.json')}`, `--canary=${join(cliFixtureRoot, 'canary.json')}`, '--confirm-production=placeholder']).finalize, true);
 });
 
 test('new predecessor is exactly original history plus eight original statements, without role, app, storage or relation drift', () => {
@@ -247,4 +248,3 @@ test('named mode wrong claim and lost apply response write durable adjudication,
     } finally { await rm(folder, { recursive: true, force: true }); }
   }
 });
-

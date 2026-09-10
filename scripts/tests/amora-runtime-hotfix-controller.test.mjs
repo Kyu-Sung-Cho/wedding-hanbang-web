@@ -15,8 +15,10 @@ import { loadHotfixRelease, parseHotfixArgs, parseHotfixFinalizeArgs, validateHo
   validateHotfixOperatingBaseline, validateHotfixCanary, renderHotfixFinalizeSql, validateHotfixReadOnlyQuery } from '../lib/amora-runtime-hotfix-controller.mjs';
 import { runAmoraRuntimeHotfix, verifyHotfixSourceLineage } from '../lib/amora-runtime-hotfix-controller.mjs';
 import { resolvePinnedWindowsProductionToolchain } from '../lib/production-windows-toolchain.mjs';
+import { releaseHostHasPinnedBytes } from './fixtures/pinned-windows-release-host.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const cliFixtureRoot = join(tmpdir(), 'amora-hotfix-cli-fixture');
 const release = loadHotfixRelease(root);
 const now = new Date('2026-09-07T05:00:00Z');
 const commit = 'a'.repeat(40), hash = 'b'.repeat(64);
@@ -82,7 +84,7 @@ test('independent mode preserves exact eight/history/scope and requires explicit
   assert.deepEqual(Object.fromEntries(Object.keys(limits).map(k => [k, release.hotfix.scope[k]])), limits);
   assert.equal(release.hotfix.requiredLedgerCount, 206);
   const args = ['--amora-runtime-hotfix', '--check-only', `--expected-commit=${commit}`, '--remote-ref=origin/codex/test',
-    '--evidence-root=C:/private', '--receipt-out=C:/private/out.json', '--bundle-out=C:/private/out.sql'];
+    `--evidence-root=${cliFixtureRoot}`, `--receipt-out=${join(cliFixtureRoot, 'out.json')}`, `--bundle-out=${join(cliFixtureRoot, 'out.sql')}`];
   assert.equal(parseHotfixArgs(args)['check-only'], true);
   for (const extra of [['--apply'], ['--current-baseline'], ['--skip-evidence'], [`--expected-commit=${commit}`]]) assert.throws(() => parseHotfixArgs([...args, ...extra]));
   assert.throws(() => parseHotfixArgs(args.filter(a => !a.startsWith('--expected-commit'))));
@@ -343,8 +345,8 @@ function canaryFixture() {
 
 test('finalization has a distinct strict CLI and requires exact production deployment, owner, live read canaries and held write fence', () => {
   const argv = ['--amora-runtime-hotfix', '--finalize', `--expected-commit=${commit}`, '--remote-ref=origin/codex/test',
-    '--evidence-root=C:/private', '--outcome=C:/private/apply.json', '--canary=C:/private/canary.json',
-    '--receipt-out=C:/private/final.json', '--confirm-production=explicit'];
+    `--evidence-root=${cliFixtureRoot}`, `--outcome=${join(cliFixtureRoot, 'apply.json')}`, `--canary=${join(cliFixtureRoot, 'canary.json')}`,
+    `--receipt-out=${join(cliFixtureRoot, 'final.json')}`, '--confirm-production=explicit'];
   assert.equal(parseHotfixFinalizeArgs(argv).finalize, true);
   for (const extra of ['--apply', '--check-only', '--skip-auth', '--finalize']) assert.throws(() => parseHotfixFinalizeArgs([...argv, extra]));
   const f = canaryFixture(); assert.equal(validateHotfixCanary(f.make()).deadlineMs, Date.parse('2026-09-07T05:10:00Z'));
@@ -443,7 +445,12 @@ test('wrong claim and lost apply response write durable adjudication, throw, and
   }
 });
 
-test('the actual embedded recovery verifier parses under the pinned Windows PowerShell runtime', { skip: process.platform !== 'win32' }, async () => {
+test('the embedded recovery verifier requires matching Windows release pins before parsing', async t => {
+  if (!await releaseHostHasPinnedBytes()) {
+    await assert.rejects(resolvePinnedWindowsProductionToolchain(), { code: 'PRODUCTION_TOOLCHAIN_INVALID' });
+    t.diagnostic('Host release pins do not match: refusal verified; the recovery program was not parsed or executed.');
+    return;
+  }
   const source = readFileSync(join(root, 'scripts/lib/amora-runtime-hotfix-controller.mjs'), 'utf8');
   const script = source.match(/const program = `([\s\S]+?)`;\r?\n  const backup/);
   assert.ok(script);
@@ -455,7 +462,7 @@ test('the actual embedded recovery verifier parses under the pinned Windows Powe
   assert.equal(result.status, 0); assert.equal(result.stdout, '0');
 });
 
-test('reused hosted evidence preserves the original commit and verifies every exact Git blob against the final eight SQL sources', async () => {
+test('reused hosted evidence verifies exact Git blobs on a pinned host and otherwise refuses before execution', async t => {
   const f = evidenceFixture(), sourceCommit = 'c'.repeat(40);
   for (const kind of ['rollback', 'hosted', 'concurrency']) {
     changeRaw(f, kind, raw => { raw.releaseCommit = sourceCommit; });
@@ -468,6 +475,12 @@ test('reused hosted evidence preserves the original commit and verifies every ex
     const migration = release.migrations.find(m => args[3] === `${sourceCommit}:supabase/migrations/${m.file}`);
     return { status: 0, stdout: migration.sql.toString('utf8'), signal: null, timedOut: false, outputTruncated: false };
   };
+  if (!await releaseHostHasPinnedBytes()) {
+    await assert.rejects(verifyHotfixSourceLineage({ repoRoot: root, state: f, release, runCommand }), { code: 'PRODUCTION_TOOLCHAIN_INVALID' });
+    assert.equal(commands.length, 0);
+    t.diagnostic('Host release pins do not match: refusal verified; successful Git lineage execution was not exercised on this host.');
+    return;
+  }
   await verifyHotfixSourceLineage({ repoRoot: root, state: f, release, runCommand });
   assert.equal(commands.length, 8); assert.ok(commands.every(args => args[0] === '--no-replace-objects'));
   assert.equal(JSON.parse(f.raw.hosted).releaseCommit, sourceCommit);
@@ -475,6 +488,11 @@ test('reused hosted evidence preserves the original commit and verifies every ex
     { status: 0, stdout: 'DIFFERENT SQL' }, { status: 1, stdout: release.migrations[0].sql.toString('utf8') },
     { status: 0, stdout: release.migrations[0].sql.toString('utf8'), outputTruncated: true },
   ]) await assert.rejects(verifyHotfixSourceLineage({ repoRoot: root, state: f, release, runCommand: async () => changed }), { code: 'SOURCE_LINEAGE_MIGRATION_CHANGED' });
-  const omitted = evidenceFixture(); changeRaw(omitted, 'hosted', raw => { raw.releaseCommit = sourceCommit; });
+
+});
+
+test('reused hosted evidence rejects an omitted source commit binding on every platform', () => {
+  const omitted = evidenceFixture();
+  changeRaw(omitted, 'hosted', raw => { raw.releaseCommit = 'c'.repeat(40); });
   assert.throws(() => validate(omitted), { code: 'HOSTED_RAW_BINDING_INVALID' });
 });
