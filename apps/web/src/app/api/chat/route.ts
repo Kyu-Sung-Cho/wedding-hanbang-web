@@ -159,7 +159,7 @@ import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
 import { assessExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
 import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
-import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary } from "@/lib/ai/amoraCurrentStoredStateSummary";
+import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary, getRequiredCurrentStoredStateReads } from "@/lib/ai/amoraCurrentStoredStateSummary";
 import { getSharedPersonalActionNavigationReply } from "@/lib/ai/amoraPersonalActionNavigation";
 import {
   AMORA_MAX_TOOL_ROUNDS,
@@ -3787,6 +3787,12 @@ export async function POST(request: Request) {
     },
   };
 
+  const currentStoredStateReadRequest = !isDemo && requestKind === "chat" && isDurableUserMessageBound
+    && visibility === "shared" && questionScope.scope === "W0_wedding_core"
+    && !approvedPendingAction && !awaitingPendingCard && !storedActionQueue
+    && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
+    ? assessCurrentStoredStateRequest(lastUserText) : null;
+
   const providerTimeRemainingMs = requestDeadlineAt - Date.now();
   if (providerTimeRemainingMs <= 1_000) {
     await releaseClaimBeforeStream("CHAT_REQUEST_DEADLINE_EXCEEDED");
@@ -3891,6 +3897,7 @@ export async function POST(request: Request) {
       try {
         let currentMessages = [...formattedMessages];
         const toolResults: ToolExecutionResult[] = [];
+        const requiredReadResults = new Map<string, ToolExecutionResult>();
         const toolsUsed: string[] = [];
         let lockToolsAfterPlaceSearch = false;
         let toolCallCount = 0;
@@ -4013,7 +4020,7 @@ export async function POST(request: Request) {
             && !hasPriorityAction && attachmentKind === "none" && personalConversationTools.length === 0
             && !offersPlaceSearch && toolResults.every(result => !isMutatingTool(result.toolName));
           const currentStoredStateRequest = canUseCurrentStoredState
-            ? assessCurrentStoredStateRequest(lastUserText) : null;
+            ? currentStoredStateReadRequest : null;
           const currentStoredStateText = currentStoredStateRequest
             ? formatCurrentStoredStateSummary({
                 request: currentStoredStateRequest,
@@ -4352,6 +4359,28 @@ export async function POST(request: Request) {
             metadata,
           };
         };
+
+        // 현재 저장값 요청에 필요한 읽기는 모델의 호출 여부·상태 필터에 맡기지 않는다.
+        // 실제 기존 조회를 각 한 번 실행하며 민감 결과는 최종 원자적 커밋 전까지 버퍼에 둔다.
+        for (const requiredRead of currentStoredStateReadRequest
+          ? getRequiredCurrentStoredStateReads(currentStoredStateReadRequest) : []) {
+          if (!questionScopeToolNameCeiling.has(requiredRead.tool) || !availableToolNameSet.has(requiredRead.tool)) continue;
+          if (toolCallCount >= AMORA_MAX_TOOL_CALLS_PER_TURN) break;
+          if (preMutationAbortController.signal.aborted) throw new DOMException("Chat request aborted before required read", "AbortError");
+          await assertPrivacyContextStillCurrent();
+          toolCallCount += 1;
+          sendSensitiveToolEvent({
+            type: "tool_start", toolName: requiredRead.tool,
+            toolInput: getClientSafeToolInput(requiredRead.tool, requiredRead.input),
+          });
+          const readResult = await executeTool(requiredRead.tool, requiredRead.input, executionContext);
+          await assertPrivacyContextStillCurrent();
+          if (preMutationAbortController.signal.aborted) throw new DOMException("Chat request aborted after required read", "AbortError");
+          requiredReadResults.set(requiredRead.tool, readResult);
+          toolsUsed.push(requiredRead.tool);
+          toolResults.push(readResult);
+          sendSensitiveToolEvent({ type: "tool_result", result: getClientSafeToolResult(readResult) });
+        }
 
         for (let round = 0; round < AMORA_MAX_TOOL_ROUNDS; round++) {
           // 실시간 스트리밍: 모든 라운드에서 텍스트 토큰을 즉시 클라이언트로 전송
@@ -4836,6 +4865,19 @@ export async function POST(request: Request) {
               continue;
             }
 
+            const completedRequiredRead = requiredReadResults.get(toolUse.name);
+            if (completedRequiredRead) {
+              // provider가 open만 요청해도 실제 all 조회의 출처를 바꾸거나 다시 실행하지 않는다.
+              // 성공·실패 모두 같은 실제 조회 결과이며 가짜 function_call이나 새 실행 영수증을 만들지 않는다.
+              await assertPrivacyContextStillCurrent();
+              toolResultInputs.push(buildToolResultInput(toolUse.callId, boundAmoraToolResultJson({
+                ...getModelSafeToolOutput(completedRequiredRead),
+                actual_read_input: completedRequiredRead.toolInput,
+                success: completedRequiredRead.success,
+              }, Math.min(AMORA_MAX_TOOL_RESULT_CHARS,
+                Math.floor(AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN / AMORA_MAX_TOOL_CALLS_PER_TURN)))));
+              continue;
+            }
             toolsUsed.push(toolUse.name);
 
             // analyze_quote 방어: [quote_analysis] 태그 없이 included_items가 있으면 강제로 비움

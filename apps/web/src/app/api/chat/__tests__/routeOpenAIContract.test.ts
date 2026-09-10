@@ -9855,8 +9855,12 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     });
   }
 
-  it.each(["ordinary", "long category notes", "long category notes and shared profiles", "an unrelated successful read"] as const)("sends current schedule time through the real capped POST and OpenAI instructions with %s", async scenario => {
-    const currentUser = "어떤 것도 변경하거나 저장하지 말고 현재 실제 저장된 값만 알려줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인과 QA0910 초대 명단 초안 정리의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 짧게 정리해줘.";
+  it.each(["ordinary", "long category notes", "long category notes and shared profiles", "an unrelated successful read",
+    "natural schedule correct", "natural schedule stale", "natural schedule whitespace", "C01 missing reads", "C01 open-only read"] as const)("sends current schedule time through the real capped POST and OpenAI instructions with %s", async scenario => {
+    const naturalSchedule = scenario.startsWith("natural schedule");
+    const currentUser = naturalSchedule
+      ? "QA0910 둘이 예산 확인 일정은 지금 몇 월 며칠 몇 시로 저장되어 있어? 변경하지 말고 날짜와 시간만 알려줘."
+      : "어떤 것도 변경하거나 저장하지 말고 현재 실제 저장된 값만 알려줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인과 QA0910 초대 명단 초안 정리의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 짧게 정리해줘.";
     const eventTitle = "QA0910 둘이 예산 확인";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: currentUser, created_at: "2026-09-10T05:30:00.000Z" };
     pushTrustedHistoryPair({ index: 941, createdAt: "2026-09-10T03:00:00.000Z",
@@ -9910,8 +9914,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const createInstructions: string[] = [];
     const providerInputs: unknown[] = [];
     const providerFailures: string[] = [];
-    const readNames = ["get_budget_summary",
+    let readsBeforeFirstProvider: Array<{ name: string; input: unknown }> = [];
+    const readNames = naturalSchedule || scenario === "C01 missing reads" ? [] : ["get_budget_summary",
       scenario === "an unrelated successful read" ? "get_market_price" : "get_amora_actions"];
+    const providerText = scenario === "natural schedule correct" ? "2026년 9월 14일 19:45로 저장되어 있어요."
+      : scenario === "natural schedule whitespace" ? "   " : "현재 일정은 2026년 9월 14일 19:30이에요.";
     // jsdom 안의 실제 SDK 직렬화만 사용한다. 가짜 키와 주입 fetch 밖으로 요청하지 않는다.
     const client = new OpenAI({ apiKey: "sk-fixture-current-schedule", maxRetries: 0, dangerouslyAllowBrowser: true,
       fetch: async (url, init) => {
@@ -9920,6 +9927,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         if (typeof body.instructions !== "string") throw new Error("Missing provider instructions");
         const pathname = new URL(String(url)).pathname;
         if (pathname.endsWith("/responses/input_tokens")) {
+          if (countInstructions.length === 0) readsBeforeFirstProvider = mocks.executeTool.mock.calls.map(([name, input]) => ({ name, input: structuredClone(input) }));
           countInstructions.push(body.instructions);
           return new Response(JSON.stringify({ object: "response.input_tokens", input_tokens: 100 }),
             { status: 200, headers: { "Content-Type": "application/json" } });
@@ -9932,16 +9940,16 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         const toolName = readNames[index];
         const output = toolName ? [{ type: "function_call", id: `fc_current_${index}`,
           call_id: `call_current_${index}`, name: toolName,
-          arguments: JSON.stringify(toolName === "get_amora_actions" ? { status: "all" }
+          arguments: JSON.stringify(toolName === "get_amora_actions" ? { status: scenario === "C01 open-only read" ? "open" : "all" }
             : toolName === "get_market_price" ? { category: "hall" } : {}), status: "completed" }]
           : [{ type: "message", id: "msg_current", role: "assistant", status: "completed",
-            content: [{ type: "output_text", text: "현재 일정은 2026년 9월 14일 19:30이에요.", annotations: [] }] }];
+            content: [{ type: "output_text", text: providerText, annotations: [] }] }];
         const response = { id: `resp_current_${index}`, object: "response", created_at: 0,
           status: "completed", error: null, incomplete_details: null, model: body.model,
-          output, output_text: toolName ? "" : "현재 일정은 2026년 9월 14일 19:30이에요.",
+          output, output_text: toolName ? "" : providerText,
           usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 0 },
             output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 105 } };
-        const deltas = toolName ? "" : ["현재 일정은 2026년 9월 14일 ", "19:30", "이에요."].map((delta, sequence_number) =>
+        const deltas = toolName ? "" : [...providerText].map((delta, sequence_number) =>
           `data: ${JSON.stringify({ type: "response.output_text.delta", item_id: "msg_current", output_index: 0, content_index: 0, sequence_number, delta })}\n\n`).join("");
         return new Response(`${deltas}data: ${JSON.stringify({ type: "response.completed", sequence_number: 3, response })}\n\n`,
           { status: 200, headers: { "Content-Type": "text/event-stream" } });
@@ -9962,12 +9970,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         toolName, toolInput, success: true, displayMessage: "참고 공시 가격",
         toolOutput: { category: "hall", median_price: 99_990_000, source: "fixture reference", as_of: "2026-09-01" },
       };
+      const allActions = [
+        { id: "action_venue_quote", title: "QA0910 식장 견적 포함 항목 확인", status: "done" },
+        { id: "action_invitation_list", title: "QA0910 초대 명단 초안 정리", status: "open" },
+      ];
+      const actions = toolInput.status === "all" ? allActions : allActions.filter(action => action.status === "open");
       return {
         toolName, toolInput, success: true, displayMessage: "조회 결과",
-        toolOutput: { actions: [
-          { id: "action_venue_quote", title: "QA0910 식장 견적 포함 항목 확인", status: "done" },
-          { id: "action_invitation_list", title: "QA0910 초대 명단 초안 정리", status: "open" },
-        ], count: 2, open_count: 1, truncated: false, source: "table" },
+        toolOutput: { actions, count: actions.length, open_count: 1, truncated: false, source: "table" },
       };
     });
     const routeToolCatalog: AiToolDefinition[] = mocks.safeTools;
@@ -9988,7 +9998,30 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
             expect(body).not.toContain('"type":"error"');
             expect(createInstructions).toHaveLength(readNames.length + 1);
             expect(countInstructions).toEqual(createInstructions);
-            expect(mocks.executeTool.mock.calls.map(call => call[0])).toEqual(readNames);
+            const executedReads = mocks.executeTool.mock.calls.map(call => call[0]);
+            if (!naturalSchedule) {
+              expect(readsBeforeFirstProvider).toEqual([
+                { name: "get_budget_summary", input: {} }, { name: "get_amora_actions", input: { status: "all" } },
+              ]);
+              expect(executedReads).toEqual(["get_budget_summary", "get_amora_actions",
+                ...(scenario === "an unrelated successful read" ? ["get_market_price"] : [])]);
+              expect(mocks.executeTool.mock.calls[1]?.[1]).toEqual({ status: "all" });
+              if (scenario === "C01 open-only read") {
+                const outputs = providerInputs.flatMap(input => Array.isArray(input) ? input : [])
+                  .filter(item => item?.type === "function_call_output" && item.call_id === "call_current_1")
+                  .map(item => JSON.parse(item.output));
+                expect(outputs).toEqual([expect.objectContaining({
+                  actual_read_input: { status: "all" }, success: true, source: "table",
+                  count: 2, actions: expect.arrayContaining([
+                    expect.objectContaining({ id: "action_venue_quote", status: "done" }),
+                    expect.objectContaining({ id: "action_invitation_list", status: "open" }),
+                  ]),
+                })]);
+              }
+            } else {
+              expect(readsBeforeFirstProvider).toEqual([]);
+              expect(executedReads).toEqual([]);
+            }
             expect(JSON.stringify(providerInputs[0])).toContain("19:30");
             for (const instructions of createInstructions) {
               expect(instructions.length).toBeLessThanOrEqual(48_000);
@@ -10010,13 +10043,15 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
             expect(done?.fullContent).not.toContain("19:30");
             expect(stored?.content).toBe(done?.fullContent);
             expect(body).not.toContain("19:30");
-            if (scenario === "an unrelated successful read") {
-              expect(done?.fullContent).toContain("공유 할 일 완료 여부: 확인 불가");
+            if (naturalSchedule) {
+              expect(done?.fullContent).toContain("2026-09-14");
+              expect(stored?.metadata.current_stored_state_summary).toBe(true);
+              expect(done?.fullContent).not.toMatch(/총예산|공유 할 일/u);
             } else {
               expect(done?.fullContent).toMatch(/QA0910 식장 견적 포함 항목 확인[^\n]*완료/u);
               expect(done?.fullContent).toMatch(/QA0910 초대 명단 초안 정리[^\n]*(미완료|아직|진행 전)/u);
             }
-            if (scenario === "ordinary" || scenario === "an unrelated successful read") {
+            if (scenario === "ordinary" || scenario === "an unrelated successful read" || scenario.startsWith("C01 ")) {
               for (const amount of ["35,000,000원", "13,500,000원", "21,500,000원", "123,000원"]) expect(done?.fullContent).toContain(amount);
               expect(done?.fullContent).not.toContain("99,990,000");
             }
@@ -10035,7 +10070,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
   });
 
-  it.each(["not called", "failed"] as const)("does not invent successful current budget or action reads when they were %s", async scenario => {
+  it.each(["not requested by the model", "requested by the model"] as const)("does not invent successful mandatory reads or retry failed reads when they were %s", async scenario => {
     const text = "어떤 것도 변경하거나 저장하지 말고 현재 실제 저장된 값만 알려줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인과 QA0910 초대 명단 초안 정리의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 짧게 정리해줘.";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
     mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null,
@@ -10047,16 +10082,16 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const originalTools = [...mocks.safeTools];
     const catalog: AiToolDefinition[] = mocks.safeTools;
     catalog.splice(0, catalog.length, ...actualTools.BETA_SAFE_TOOLS);
-    if (scenario === "failed") {
+    if (scenario === "requested by the model") {
       const calls = ["get_budget_summary", "get_amora_actions"].map((name, index) => ({
         callId: `failed_read_${index}`, name, input: name === "get_amora_actions" ? { status: "all" } : {},
       }));
       providerAfterPreGeneration(providerResult({ toolCalls: calls,
         outputItems: calls.map(call => ({ type: "function_call", call_id: call.callId, name: call.name, arguments: JSON.stringify(call.input) })) }));
-      mocks.executeTool.mockImplementation(async (toolName: string, toolInput: Record<string, unknown>) => ({
-        toolName, toolInput, success: false, displayMessage: "현재 조회 실패", toolOutput: { error: "read_failed" },
-      }));
     }
+    mocks.executeTool.mockImplementation(async (toolName: string, toolInput: Record<string, unknown>) => ({
+      toolName, toolInput, success: false, displayMessage: "현재 조회 실패", toolOutput: { error: "read_failed" },
+    }));
     providerAfterPreGeneration(providerResult({ fullText: "총예산 9,999만 원이고 두 할 일은 모두 완료했어요. 일정은 19:30이에요." }));
     try {
       const response = await POST(request({ messages: [{ role: "user", content: text }] }));
@@ -10069,19 +10104,23 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(stored.content).not.toMatch(/19:30|9,999|모두 완료/u);
       expect(stored.content).toMatch(/총예산[^\n]*(?:미확인|확인(?:할 수 없|되지 않| 불가))/u);
       expect(stored.content).toMatch(/공유 할 일 완료 여부[^\n]*(?:미확인|확인(?:할 수 없|되지 않| 불가))/u);
-      expect(mocks.executeTool).toHaveBeenCalledTimes(scenario === "failed" ? 2 : 0);
+      expect(mocks.executeTool.mock.calls.map(call => call[0])).toEqual(["get_budget_summary", "get_amora_actions"]);
+      expect(mocks.executeTool.mock.calls[1]?.[1]).toEqual({ status: "all" });
       expect(mocks.journeyRow).toEqual(before);
       expect(stored.metadata).not.toHaveProperty("pending_amora_action");
       expect(stored.metadata).not.toHaveProperty("pending_amora_action_queue");
     } finally { catalog.splice(0, catalog.length, ...originalTools); }
   });
 
-  it.each(["private", "mutation", "safety"] as const)("does not replace the existing %s flow with the current-state formatter", async scenario => {
+  it.each(["private", "mutation", "safety", "attachment", "awaiting-card"] as const)("does not replace the existing %s flow with the current-state formatter", async scenario => {
     const base = "어떤 것도 변경하거나 저장하지 말고 현재 실제 저장된 값만 알려줘. 총예산, 항목별 배정 합계, 미배정액, 기록 지출, QA0910 식장 견적 포함 항목 확인과 QA0910 초대 명단 초안 정리의 완료 여부, QA0910 둘이 예산 확인 일정의 날짜와 시간을 짧게 정리해줘.";
     const text = scenario === "mutation" ? `${base} 그리고 총예산을 4천만원으로 바꾸는 확인 카드를 보여줘.`
       : scenario === "safety" ? `${base} 지금 죽고 싶어요.` : base;
     const visibility = scenario === "private" ? "bride_private" : "shared";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    if (scenario === "awaiting-card") setCanonicalConfirmedBudgetAction("11111111-1111-4111-8111-111111111111", text);
+    const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
+    if (scenario === "attachment") await bindCanonicalProviderAttachments([attachment]);
     mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null,
       progress: { __events: [{ id: "evt_excluded_scope", date: "2026-09-14", time: "19:45", title: "QA0910 둘이 예산 확인" }] } };
     const before = structuredClone(mocks.journeyRow);
@@ -10093,7 +10132,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     providerAfterPreGeneration(providerResult({ fullText: scenario === "mutation"
       ? '확인 후 적용할 수 있어요.\n[pending_action]{"tool":"update_budget","input":{"total_budget":40000000}}[/pending_action]'
       : reply }));
-    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }] }));
+    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }],
+      ...(scenario === "attachment" ? { attachments: [attachment] } : {}) }));
     expect(response.status).toBe(200);
     const body = await response.text();
     expect(mocks.journeyRow).toEqual(before);
@@ -10106,13 +10146,98 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       return;
     }
     const stored = mocks.atomicResponses.at(-1)!;
-    if (scenario === "private") {
+    expect(stored.metadata).not.toHaveProperty("current_stored_state_summary");
+    if (scenario === "private" || scenario === "attachment") {
       expect(stored.content).toBe(reply);
       expect(stored.metadata).not.toHaveProperty("pending_amora_action");
-    } else {
+    } else if (scenario === "mutation") {
       expect(stored.metadata.pending_amora_action).toMatchObject({ tool: "update_budget", input: { total_budget: 40_000_000 } });
       expect(stored.content).not.toContain("19:45");
+    } else {
+      expect(stored.metadata.pending_amora_action).toMatchObject({ tool: "update_budget", input: { total_budget: 30_000_000 } });
+      expect(stored.content).not.toContain("19:45");
     }
+  });
+
+  it.each(["before reads", "after first read", "after both reads", "during provider", "abort during first read"] as const)(
+    "withholds mandatory-read results when privacy or connection changes %s", async boundary => {
+      const text = "저장하지 말고 현재 예산, 할 일, 일정만 알려줘.";
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      const initial = privacySnapshot();
+      const changed = privacySnapshot({ privacyEpoch: initial.privacyEpoch + 1 });
+      const abort = new AbortController();
+      if (boundary === "before reads") mocks.privacySnapshotSequence.push(initial, changed);
+      const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+      const originalTools = [...mocks.safeTools];
+      const catalog: AiToolDefinition[] = mocks.safeTools;
+      catalog.splice(0, catalog.length, ...actualTools.BETA_SAFE_TOOLS);
+      mocks.executeTool.mockImplementation(async (toolName: string, toolInput: Record<string, unknown>) => {
+        const count = mocks.executeTool.mock.calls.length;
+        if ((boundary === "after first read" && count === 1) || (boundary === "after both reads" && count === 2)) {
+          mocks.getPrivacySnapshot.mockResolvedValue(changed);
+        }
+        if (boundary === "abort during first read") abort.abort();
+        return { toolName, toolInput, success: true, displayMessage: "fixture-private-read-result",
+          toolOutput: { fixture_private_result: "must never leave the request" } };
+      });
+      mocks.provider.mockImplementationOnce(async () => {
+        mocks.getPrivacySnapshot.mockResolvedValue(changed);
+        return providerResult({ fullText: "fixture-provider-private-answer" });
+      });
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      try {
+        const response = await POST(new Request(request({ messages: [{ role: "user", content: text }] }), { signal: abort.signal }));
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).not.toMatch(/fixture-private-read-result|must never leave|fixture-provider-private-answer|"type":"(?:tool_start|tool_result|text_delta|done)"/u);
+        if (!boundary.startsWith("abort")) expect(body).toContain("AMORA_PRIVACY_CONTEXT_CHANGED");
+        const expectedReads = boundary === "before reads" ? 0 : boundary === "after both reads" || boundary === "during provider" ? 2 : 1;
+        expect(mocks.executeTool).toHaveBeenCalledTimes(expectedReads);
+        expect(mocks.provider).toHaveBeenCalledTimes(boundary === "during provider" ? 1 : 0);
+        expect(mocks.atomicResponses).toEqual([]);
+        expect(mocks.atomicFinalizations).toEqual([]);
+        expect(mocks.persist).not.toHaveBeenCalled();
+        expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+      } finally {
+        catalog.splice(0, catalog.length, ...originalTools);
+        errorSpy.mockRestore();
+      }
+    },
+  );
+
+  it("counts mandatory reads toward the unchanged eight-call cap and caches failures without retries", async () => {
+    const text = "저장하지 말고 현재 예산, 할 일만 알려줘.";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const originalTools = [...mocks.safeTools];
+    const catalog: AiToolDefinition[] = mocks.safeTools;
+    catalog.splice(0, catalog.length, ...actualTools.BETA_SAFE_TOOLS);
+    const calls = Array.from({ length: 8 }, (_, index) => ({
+      callId: `required_read_cap_${index}`, name: index % 2 ? "get_amora_actions" : "get_budget_summary",
+      input: index % 2 ? { status: "open" } : {},
+    }));
+    providerAfterPreGeneration(providerResult({ toolCalls: calls,
+      outputItems: calls.map(call => ({ type: "function_call", call_id: call.callId, name: call.name, arguments: JSON.stringify(call.input) })) }));
+    providerAfterPreGeneration(providerResult({ fullText: "확인된 범위만 알려드릴게요." }));
+    mocks.executeTool.mockImplementation(async (toolName: string, toolInput: Record<string, unknown>) => ({
+      toolName, toolInput, success: false, displayMessage: "현재 조회 실패", toolOutput: { error: "read_failed" },
+    }));
+    try {
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(mocks.executeTool.mock.calls.map(([name, input]) => ({ name, input }))).toEqual([
+        { name: "get_budget_summary", input: {} }, { name: "get_amora_actions", input: { status: "all" } },
+      ]);
+      expect(mocks.provider).toHaveBeenCalledTimes(2);
+      const outputs = mocks.buildToolResult.mock.calls.map(([, output]) => JSON.parse(String(output)));
+      expect(outputs).toHaveLength(8);
+      expect(outputs.slice(0, 6)).toEqual(calls.slice(0, 6).map((_, index) => expect.objectContaining({
+        success: false, error: "read_failed", actual_read_input: index % 2 ? { status: "all" } : {},
+      })));
+      expect(outputs.slice(6)).toEqual([expect.objectContaining({ error_code: "TOOL_CALL_LIMIT_REACHED" }),
+        expect.objectContaining({ error_code: "TOOL_CALL_LIMIT_REACHED" })]);
+    } finally { catalog.splice(0, catalog.length, ...originalTools); }
   });
 
   it("uses the real private-tab navigation in shared chat without changing old message visibility or creating a card", async () => {
