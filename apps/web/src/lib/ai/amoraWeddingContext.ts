@@ -1,4 +1,4 @@
-import { sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
+import { isValidScheduleTime, sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 const MAX_PROGRESS_KEYS = 100;
@@ -22,6 +22,7 @@ export interface NormalizedScheduleEvent {
    */
   id?: string;
   date: string;
+  time?: string;
   title: string;
   memo?: string;
   categoryKey?: string;
@@ -210,6 +211,7 @@ function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedS
       ...(id ? { id } : {}),
       date,
       title,
+      ...(isValidScheduleTime(rawEvent.time) ? { time: rawEvent.time } : {}),
       ...(memo ? { memo } : {}),
       ...(categoryKey ? { categoryKey } : {}),
     });

@@ -7021,27 +7021,41 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { if (added) mocks.safeTools.pop(); }
   });
 
-  it.each([{ count: 2, markers: 0 }, { count: 3, markers: 0 }, { count: 4, markers: 1 }])("recovers explicit shared tasks ($count total, $markers model markers) and confirms each once", async ({ count, markers }) => {
+  it.each([
+    { count: 2, markers: 0, syntax: "original" },
+    { count: 3, markers: 0, syntax: "original" },
+    { count: 4, markers: 1, syntax: "original" },
+    { count: 2, markers: 0, syntax: "slash" },
+    { count: 2, markers: 1, syntax: "slash" },
+  ])("recovers explicit shared tasks ($syntax, $count total, $markers model markers) and confirms each once", async ({ count, markers, syntax }) => {
     const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
     const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "add_amora_action")!;
     const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
     if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
     const observedText = "함께 보는 할 일에 두 개를 추가해줘. 1) 제목은 QA0910 식장 견적 포함 항목 확인, 설명은 식대·대관료·주류 포함 여부를 서면으로 확인, 예정일은 2026년 9월 12일. 2) 제목은 QA0910 초대 명단 초안 정리, 설명은 두 사람이 초대할 명단에서 중복을 확인, 예정일은 2026년 9월 13일. 둘 다 아직 하지 않은 일이야. 담당자는 정하지 말고 저장 전 확인 카드를 보여줘.";
-    const inputs = [
+    const slashText = "아래 두 개를 공유 할 일에 추가해줘. 아직 완료하지 않았고, 하나씩 내용을 확인하고 저장할게.\n1. 제목: QA0910-R2 식장 추가금 확인 / 내용: 계약 전에 식대 외 추가금을 서면으로 확인 / 마감: 2026-09-15\n2. 제목: QA0910-R2 초대 명단 겹침 확인 / 내용: 두 사람 명단에서 겹치는 초대 대상을 확인 / 마감: 2026-09-16";
+    const inputs = syntax === "slash" ? [
+      { title: "QA0910-R2 식장 추가금 확인", description: "계약 전에 식대 외 추가금을 서면으로 확인", due_date: "2026-09-15" },
+      { title: "QA0910-R2 초대 명단 겹침 확인", description: "두 사람 명단에서 겹치는 초대 대상을 확인", due_date: "2026-09-16" },
+    ] : [
       { title: "QA0910 식장 견적 포함 항목 확인", description: "식대·대관료·주류 포함 여부를 서면으로 확인", due_date: "2026-09-12" },
       { title: "QA0910 초대 명단 초안 정리", description: "두 사람이 초대할 명단에서 중복을 확인", due_date: "2026-09-13" },
     ];
     if (count >= 3) inputs.push({ title: "사진 촬영 목록 정리", description: "원하는 장면을 각자 작성하고 비교", due_date: "2027-03-14" });
     if (count >= 4) inputs.push({ title: "답례 인사 준비", description: "감사 인사에 넣을 내용을 함께 정리", due_date: "2027-04-20" });
-    const text = count === 2 ? observedText : `공유 할 일 ${count}건을 추가해줘. ${inputs.map((input, index) => `${index + 1}) 제목은 ${input.title}, 설명은 ${input.description}, 예정일은 ${input.due_date}.`).join("\n")} 모두 아직 하지 않은 일이야. 담당자는 정하지 말고 저장 전 확인 카드를 보여줘.`;
+    const text = syntax === "slash" ? slashText : count === 2 ? observedText : `공유 할 일 ${count}건을 추가해줘. ${inputs.map((input, index) => `${index + 1}) 제목은 ${input.title}, 설명은 ${input.description}, 예정일은 ${input.due_date}.`).join("\n")} 모두 아직 하지 않은 일이야. 담당자는 정하지 말고 저장 전 확인 카드를 보여줘.`;
     try {
       mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
       // 이력 없는 첫 요청도 현재 원문만으로 복구한다. 모델의 일부 표식은 중복시키지 않는다.
       mocks.canonicalRows.splice(1);
       mocks.provider.mockResolvedValueOnce(providerResult({ fullText: markers
         ? `[pending_action]${JSON.stringify({ tool: definition.name, input: inputs[0] })}[/pending_action]`
-        : "저장 전 확인 카드입니다." }));
-      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+        : syntax === "slash" ? "식장 추가금 확인부터 살펴볼게요." : "저장 전 확인 카드입니다." }));
+      const initial = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(initial.status).toBe(200);
+      const initialBody = await initial.text();
+      expect(initialBody).toContain('"pending_amora_action"');
+      expect(initialBody).toContain('"pending_amora_action_queue"');
       expect(mocks.executeTool).not.toHaveBeenCalled();
       let proposal = mocks.atomicResponses.at(-1)!;
       expect(proposal.metadata).toMatchObject({ pending_amora_action: { tool: definition.name, input: inputs[0] },
@@ -7074,6 +7088,55 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(proposal.metadata.completed_amora_action_queue).toMatchObject({ totalCount: count, completedCount: count });
         }
       }
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each(["owner", "private", "invalid-date", "conflicting-date", "no-card", "row-count", "row-order", "time", "slash-no-tag"])("clarifies unsupported structured slash task conditions despite otherwise valid model cards: %s", async mode => {
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "add_amora_action")!;
+    const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    const original = "아래 두 개를 공유 할 일에 추가해줘. 아직 완료하지 않았고, 하나씩 내용을 확인하고 저장할게.\n1. 제목: QA0910-R2 식장 추가금 확인 / 내용: 계약 전에 식대 외 추가금을 서면으로 확인 / 마감: 2026-09-15\n2. 제목: QA0910-R2 초대 명단 겹침 확인 / 내용: 두 사람 명단에서 겹치는 초대 대상을 확인 / 마감: 2026-09-16";
+    const text = mode === "owner" ? original + " / 담당: 신부"
+      : mode === "private" ? original + "\n상대에게는 숨기고 나만 보게 해줘."
+      : mode === "invalid-date" ? original.replace("2026-09-16", "2026-09-31")
+      : mode === "conflicting-date" ? original.replace("내용: 계약", "내용: 마감일은 2026-09-14, 계약")
+      : mode === "no-card" ? original + "\n확인 카드도 만들지 마."
+      : mode === "row-count" ? original.split("\n2.")[0]
+      : mode === "row-order" ? original.replace("\n2.", "\n3.")
+      : mode === "slash-no-tag" ? original.replace(" / 마감: 2026-09-15", " / 추가하지 마 / 마감: 2026-09-15")
+      : original.replace("마감: 2026-09-15", "마감: 2026-09-15 / 시간: 오후 7시");
+    const inputs = [
+      { title: "QA0910-R2 식장 추가금 확인", description: "계약 전에 식대 외 추가금을 서면으로 확인", due_date: "2026-09-15" },
+      { title: "QA0910-R2 초대 명단 겹침 확인", description: "두 사람 명단에서 겹치는 초대 대상을 확인", due_date: "2026-09-16" },
+    ];
+    const suggestion = "UNSUPPORTED_SLASH_TASK_APPLY_SUGGESTION";
+    try {
+      setCanonicalConfirmedBudgetAction("11111111-1111-4111-8111-111111111111", text);
+      mocks.canonicalRows[1].metadata = { ...(mocks.canonicalRows[1].metadata as Record<string, unknown>), pending_amora_action_carry_count: 0, pending_amora_action_journey_revision: 0 };
+      const before = structuredClone(mocks.journeyRow);
+      const suggestionParser = await vi.importActual<typeof import("@/lib/ai/chatSuggestions")>("@/lib/ai/chatSuggestions");
+      mocks.extractSuggestions.mockImplementationOnce(suggestionParser.extractSuggestions);
+      // 모델 표식 불일치가 금지절 누락을 가리지 않도록 표식 없는 대조도 둔다.
+      const providerText = mode === "slash-no-tag" ? "내용을 살펴봤어요."
+        : "저장 전 확인 카드입니다." + inputs.map(input => `[pending_action]${JSON.stringify({ tool: definition.name, input })}[/pending_action]`).join("\n");
+      providerAfterPreGeneration(providerResult({ fullText: providerText + `\n[suggestions]\n${suggestion}\n[/suggestions]` }));
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+      expect(saved.metadata.suggestions).toBeUndefined();
+      expect(saved.content).toContain("확인");
+      expect(body).not.toContain('"pending_amora_action"');
+      expect(body).not.toContain('"pending_amora_action_queue"');
+      expect(body).not.toContain('"type":"suggestions"');
+      expect(body).not.toContain(suggestion);
+      expect(body).not.toContain("저장 전 확인 카드입니다");
     } finally { if (added) mocks.safeTools.pop(); }
   });
 

@@ -13,7 +13,7 @@ const WEDDING_VENDOR_QUERY_PATTERN =
 // 2026-09-03 스테이징 실측: "대전이나 청주 식당 예식" 에 `청주성모병원장례식장`(장례>장례식장)이,
 // "대전이나 청주 연회장" 에 아파트 관리사무소 방면 표지(도로시설>방면정보)가 카드로 나왔다.
 // 결혼 준비 장소 검색에서 이 업종은 어떤 검색어에서도 후보가 아니다. 업종 문자열은 네이버 것이지만
-// 모델에게는 가지 않고(카드 전용) 여기서는 첫 분류만 본다 — 음식점·카페·숙박 같은 정상 업종은 건드리지 않는다.
+// 모델에게는 가지 않고(카드 전용) 공통 제외는 첫 분류만 본다. 식사 목적의 업종 제한은 아래에서 별도로 적용한다.
 const EXCLUDED_PLACE_CATEGORY_PATTERN = /^\s*(?:장례|도로시설)/;
 
 type NaverSearchKind = "local" | "image";
@@ -506,6 +506,18 @@ function buildPlacesFromItems(
   });
 }
 
+/** 식당을 찾을 때 알려진 디저트 업종으로 개수를 채우지 않는다. 미확인 분류는 추정하지 않는다. */
+function retainMealRelevantPlaces(places: PlaceSearchResult[], query: string): PlaceSearchResult[] {
+  // 제외 표현의 끝을 확인해 "카페 제외하지 말고"의 긍정 요청은 보존한다.
+  const positivePurpose = query.replace(/(?:카페|디저트|베이커리|빵집|제과점)(?:\s*(?:[·,/]|와|과|및)\s*(?:카페|디저트|베이커리|빵집|제과점))*\s*(?:은|는|을|를)?\s*(?:말고|제외(?:하고|한|해서)?)(?=$|[\s,.;!?·/])/gu, " ");
+  const explicitDessertKind = /카페|디저트|베이커리|빵집|제과점/u.test(positivePurpose);
+  const mealIntent = /식당|음식점|레스토랑|한정식|한식|일식|중식|양식|뷔페|코스요리|상견례|피로연|(?:^|\s)식사(?:\s|$|모임|자리)/u.test(query);
+  if (!mealIntent || explicitDessertKind) return places;
+  return places.filter(place => !place.categoryFull.split(">").some(part =>
+    /^(?:카페(?:\s*[,·]\s*디저트)?|디저트|베이커리)$/u.test(part.trim()),
+  ));
+}
+
 export async function executeSearchNearbyPlaces(
   input: Record<string, unknown>
 ): Promise<ToolExecutionResult> {
@@ -602,10 +614,10 @@ async function searchNearbyPlaces(
       );
       const effectiveQuery = regionQueries.map((entry) => entry.query).join(", ");
       const groups = regionData.map((data, index) => rankPlacesByQueryKind(
-        buildPlacesFromItems(recordItems(data).slice(0, 5), {
+        retainMealRelevantPlaces(buildPlacesFromItems(recordItems(data).slice(0, 5), {
           idPrefix: `naver-r${index}-`,
           regionLabel: regionQueries[index].region,
-        }),
+        }), query),
         regionQueries[index].query,
       ));
       const merged = mergeRegionPlaces(groups, 5);
@@ -732,10 +744,11 @@ async function searchNearbyPlaces(
       };
     }
 
-    const basePlaces: PlaceSearchResult[] = buildPlacesFromItems(items, {
+    const initialPlaces = buildPlacesFromItems(items, {
       idPrefix: "naver-",
       regionLabel: null,
     });
+    const basePlaces = retainMealRelevantPlaces(initialPlaces, query);
 
     // 필터를 지나고 남은 것이 3곳 미만이면 종류를 일반화해 **한 번만** 더 찾는다.
     // 줄인 재시도(`shortened`)를 이미 썼으면 하지 않는다 — 지역 검색 호출은 어느
@@ -743,7 +756,8 @@ async function searchNearbyPlaces(
     // 두 지역: 지역당 1회씩 2회). 기준점 조회 1회와 사진 조회는 여기 셈과 별개로
     // 예전과 같다. 웨딩업체 차단은 이 지점에 닿지 않는다(위에서 이미 돌아갔다).
     let supplementQuery: string | null = null;
-    if (shortened === null && basePlaces.length < PLACE_SUPPLEMENT_MIN_RESULTS) {
+    // 새 업종 필터로 수가 줄어도 검색 호출은 늘리지 않는다. 기존 보충 발동 조건을 유지한다.
+    if (shortened === null && initialPlaces.length < PLACE_SUPPLEMENT_MIN_RESULTS) {
       const generalized = generalizePlaceQuery(searchQuery);
       if (generalized) {
         const supplementData = await fetchNaverSearch(
@@ -757,10 +771,10 @@ async function searchNearbyPlaces(
           supplementQuery = generalized;
           appendUniquePlaces(
             basePlaces,
-            buildPlacesFromItems(recordItems(supplementData).slice(0, 5), {
+            retainMealRelevantPlaces(buildPlacesFromItems(recordItems(supplementData).slice(0, 5), {
               idPrefix: "naver-g-",
               regionLabel: null,
-            }),
+            }), query),
             5,
           );
         }

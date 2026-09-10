@@ -22,7 +22,7 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   update_venue: "결혼식장 변경",
   update_category_budget: "카테고리 예산·기록 지출 변경",
   apply_budget_plan: "예산 배분안 적용",
-  add_custom_category: "맞춤 예산 항목 추가",
+  add_custom_category: "맞춤 예산 항목 반영",
   delete_category: "예산 항목 삭제",
   reset_category: "예산 항목 초기화",
   add_schedule_event: "일정 추가",
@@ -36,6 +36,10 @@ const TOOL_LABELS: Readonly<Record<string, string>> = {
   log_wedding_event: "웨딩 일정 기억",
   create_booking: "아모라 방문·상담 요청 기록",
   cancel_booking: "아모라 예약 요청 기록 취소 표시",
+};
+const LEGACY_TOOL_LABELS: Readonly<Record<string, string>> = {
+  ...TOOL_LABELS,
+  add_custom_category: "맞춤 예산 항목 추가",
 };
 const FIELD_LABELS: Readonly<Record<string, string>> = {
   total_budget: "총 예산",
@@ -716,8 +720,9 @@ function formatCanonicalConfirmation(
   tool: AiToolDefinition,
   input: Record<string, unknown>,
   categoryLabels: Readonly<Record<string, string>> = CATEGORY_LABELS,
+  toolLabels: Readonly<Record<string, string>> = TOOL_LABELS,
 ): string | null {
-  const toolLabel = TOOL_LABELS[tool.name];
+  const toolLabel = toolLabels[tool.name];
   if (!toolLabel) return null;
   const declaredFields = isRecord(tool.input_schema.properties)
     ? Object.keys(tool.input_schema.properties)
@@ -1527,10 +1532,10 @@ export function resolveAmoraPendingAction({
   if (!marker || typeof value.confirmation !== "string") return null;
   if (value.confirmation !== marker.confirmation) {
     const tool = allowedTools.find((candidate) => candidate.name === marker.tool);
-    // 예단·폐백의 이름을 고치기 전에 발급된 문장도 같은 검증된 입력으로 전부 재구성한다.
+    // 예단·폐백 이름과 맞춤 항목 문구를 고치기 전의 문장도 검증된 입력으로 전부 재구성한다.
     // 일부 문자열 교체·부분 일치는 허용하지 않고, 사용자가 본 이전 문장을 그대로 유지한다.
     const legacyConfirmation = tool
-      ? formatCanonicalConfirmation(tool, marker.input, LEGACY_CATEGORY_LABELS)
+      ? formatCanonicalConfirmation(tool, marker.input, LEGACY_CATEGORY_LABELS, LEGACY_TOOL_LABELS)
       : null;
     if (value.confirmation !== legacyConfirmation) return null;
   }
