@@ -87,6 +87,42 @@ const AFFIRMATIVE_MEMORY_CLAIM_RE =
 const ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE =
   /\b(?:i|we)(?:['’]ll| will)\s+remember\b/iu;
 
+const PRIVATE_PREFERENCE_ACKNOWLEDGEMENT =
+  "말씀하신 취향으로 이해했어요. 장기 기억에 저장됐다고는 아직 확인할 수 없어요.";
+
+function withoutSharedWriteProhibitions(text: string): string {
+  return splitAmoraClaimSegments(text).map(({ source }) => {
+    const statement = source.trim();
+    const prohibition = /^(?:파트너와\s*합의한\s*결정은\s*아니고,?\s*)?(?:공동|공유|함께\s*쓰는)\s*(?:예산|일정|할\s*일)(?:\s*[·,/와과]\s*(?:예산|일정|할\s*일))*\s*(?:에(?:는|도)?|은|는)?\s*(?:바꾸지|변경하지|수정하지|반영하지|저장하지|추가하지)\s*(마(?:세요)?|말아(?:줘|주세요)|말고)(?:[.!。]\s*|\s*)/u.exec(statement);
+    if (!prohibition) return statement;
+    const rest = statement.slice(prohibition[0].length).trim();
+    // 독립 금지문 또는 '공동 예산에 반영하지 말고 기억해줘'의 금지절만 뺀다.
+    // 뒤의 긍정 명령이나 개인 기억 철회는 남겨 아래 요청 판정이 거절하게 한다.
+    return !rest || prohibition[1] === "말고" ? rest : statement;
+  }).filter(Boolean).join(" ").trim();
+}
+
+// 현재 본인의 취향을 기억해 달라는 완결된 부탁만 받는다. 다른 과업·인용·타인
+// 취향을 고정 답변으로 덮지 않으며, 이 판정은 기억 저장 권한을 만들지 않는다.
+function isPrivatePreferenceMemoryRequest(value: string | undefined): boolean {
+  if (!value || value.length > 500) return false;
+  const normalized = value.normalize("NFKC").trim();
+  if (/["'“”‘’`?？]/u.test(normalized)) return false;
+  const text = withoutSharedWriteProhibitions(normalized);
+  if (/만약|가정|예시|(?:라는|라고)\s*(?:말|문구|표현)|상대방?|파트너|친구|부모|엄마|아빠|신부|신랑/u.test(text)) return false;
+  if (!/(?:^|\s)(?:(?:내|제|나의|저의)\s*(?:개인\s*)?취향|(?:나는|저는|난|전)\s+[^.!?\n]*(?:선호|좋아))/u.test(text)) return false;
+  const request = /기억(?:해\s*(?:줘|주세요)|해서\s*참고해\s*(?:줘|주세요))[.!。]?$/u.exec(text);
+  if (!request) return false;
+  const before = text.slice(0, request.index);
+  if (/기억|잊|저장|기록|수정|변경|반영|추가|등록|삭제|취소|공유|알려|보여|설명|정리|비교|추천|검색|찾아|보내/u.test(before)) return false;
+  return /취향|선호|좋아/u.test(before);
+}
+
+function hasOnlyPrivateScopeDisclaimer(text: string): boolean {
+  return !text.trim() || splitAmoraClaimSegments(text).every(({ claim }) =>
+    /^(?:파트너와\s*합의한\s*결정이나\s*)?(?:공동|공유|함께\s*쓰는)\s*(?:예산|일정|할\s*일)(?:\s*[·,/와과]\s*(?:예산|일정|할\s*일))*\s*(?:에(?:는|도)?|은|는|로)?\s*(?:반영|저장|추가|변경|수정)하지\s*않(?:아요|았어요|습니다|았습니다)[.!。]?$/u.test(claim));
+}
+
 const NON_SUCCESS_CONTEXT_RE =
   /(?:라고|이라는|라는)\s*(?:말|표현|문구)|(?:예시|가정|만약|말하면\s*안|하지\s*마)/u;
 
@@ -219,6 +255,7 @@ function composeTerminalCandidate({
   demoUserText = "",
   userRequestedChange = true,
   droppedPendingActionTag = false,
+  privatePreferenceMemoryRequestText,
 }: {
   text: string;
   toolResults: readonly ToolExecutionResult[];
@@ -250,6 +287,8 @@ function composeTerminalCandidate({
    * userRequestedChange로 따로 판단하며 표식 검증 자체는 유지한다.
    */
   droppedPendingActionTag?: boolean;
+  /** 서버가 검증한 일반 개인 상담 경계에서만 전달하는 현재 사용자 원문. 저장 권한 아님. */
+  privatePreferenceMemoryRequestText?: string;
 }): AmoraPersistenceTerminalResult {
   const mutationReceipts = toolResults.filter((result) =>
     isMutatingTool(result.toolName));
@@ -289,6 +328,18 @@ function composeTerminalCandidate({
     includeFuturePromise: !hasPendingAction,
     keepStateDescriptions: verifiedByRead,
   });
+
+  // 기억 약속과 취향 확인이 한 문장일 때 함께 지워지고 무관한 공동 기록 안내만
+  // 남았던 경우를 보완한다. 삭제 문장의 취향 값은 재사용하지 않는다.
+  if (persistenceMode === "durable" && !hasPendingAction && !hasEmittedPendingAction
+    && !userRequestedChange && !droppedPendingActionTag && !trustCorrected
+    && sanitized.removedMemoryClaimCount > 0
+    && sanitized.removedClaimCount === sanitized.removedMemoryClaimCount
+    && isPrivatePreferenceMemoryRequest(privatePreferenceMemoryRequestText)
+    && hasOnlyPrivateScopeDisclaimer(sanitized.text)) {
+    return { text: PRIVATE_PREFERENCE_ACKNOWLEDGEMENT, corrected: true,
+      removedClaimCount: sanitized.removedClaimCount, source: "server_correction" };
+  }
 
   if (persistenceMode === "demo") {
     const demoGuard = guardDemoPersistenceDisclosure(
@@ -396,20 +447,28 @@ function removeUnverifiedPersistenceClaims(
   text: string;
   removedClaimCount: number;
   removedFuturePromiseCount: number;
+  removedMemoryClaimCount: number;
 } {
   const normalizedText = text.trim();
   if (!normalizedText) {
-    return { text: "", removedClaimCount: 0, removedFuturePromiseCount: 0 };
+    return { text: "", removedClaimCount: 0, removedFuturePromiseCount: 0, removedMemoryClaimCount: 0 };
   }
 
   const segments = splitAmoraClaimSegments(normalizedText);
   const kept: string[] = [];
   let removedClaimCount = 0;
   let removedFuturePromiseCount = 0;
+  let removedMemoryClaimCount = 0;
 
   for (const { claim: segment, source } of segments) {
     if (containsUnverifiedSuccessClaim(segment, options.keepStateDescriptions === true)) {
       removedClaimCount += 1;
+      if ((AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment) || ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment))
+        && !hasAssertivePersistenceClaim(segment) && !AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment)
+        && !FUTURE_PERSISTENCE_PROMISE_RE.test(segment)
+        && segment.match(ENGLISH_AFFIRMATIVE_PERSISTENCE_WORD_RE) === null) {
+        removedMemoryClaimCount += 1;
+      }
     } else if (
       options.includeFuturePromise === true
       && containsFuturePersistencePromise(segment)
@@ -427,6 +486,7 @@ function removeUnverifiedPersistenceClaims(
       : repairSplitEmphasis(dropDanglingConnective(kept.join("").trim())),
     removedClaimCount,
     removedFuturePromiseCount,
+    removedMemoryClaimCount,
   };
 }
 
