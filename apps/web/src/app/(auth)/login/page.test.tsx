@@ -16,6 +16,8 @@ const START_HERE_LOGIN = `/login?mode=signup&redirect=${encodeURIComponent(START
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   signInWithOAuth: vi.fn(),
+  getUser: vi.fn(),
+  replace: vi.fn(),
 }));
 
 vi.mock("framer-motion", () => ({ motion: { div: "div" } }));
@@ -23,6 +25,7 @@ vi.mock("@/components/ui/Logo", () => ({ default: () => <span>Hanbang</span> }))
 vi.mock("@/components/auth/TurnstileWidget", () => ({ default: () => null }));
 vi.mock("@/lib/analytics", () => ({ captureEvent: vi.fn() }));
 vi.mock("@/lib/supabase/client", () => ({ createClient: mocks.createClient }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ replace: mocks.replace }) }));
 
 import LoginPage from "./page";
 
@@ -33,8 +36,9 @@ describe("login return journey", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.signInWithOAuth.mockResolvedValue({ error: null });
+    mocks.getUser.mockResolvedValue({ data: { user: null }, error: null });
     mocks.createClient.mockReturnValue({
-      auth: { signInWithOAuth: mocks.signInWithOAuth },
+      auth: { signInWithOAuth: mocks.signInWithOAuth, getUser: mocks.getUser },
     });
     window.localStorage.clear();
     window.sessionStorage.clear();
@@ -48,6 +52,14 @@ describe("login return journey", () => {
     await act(async () => root.unmount());
     container.remove();
     vi.unstubAllGlobals();
+  });
+
+  it("returns an already authenticated member through the existing protected destination", async () => {
+    window.history.replaceState({}, "", "/login?mode=signup");
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "existing-member" } }, error: null });
+    await act(async () => root.render(<LoginPage />));
+    expect(mocks.replace).toHaveBeenCalledWith("/wedding/lounge");
+    expect(mocks.signInWithOAuth).not.toHaveBeenCalled();
   });
 
   it("sends the requested internal destination through the OAuth callback", async () => {

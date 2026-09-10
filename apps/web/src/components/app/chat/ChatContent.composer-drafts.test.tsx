@@ -36,6 +36,8 @@ const mocks = vi.hoisted(() => ({
   dismissFailedMessageRetry: vi.fn(),
   setChatState: vi.fn(),
   messages: [] as ChatMessage[],
+  sharedClearedAt: null as string | null,
+  privateClearedAt: null as string | null,
   suggestions: [] as string[],
   error: null as string | null,
   failedRequest: null as null | {
@@ -133,6 +135,8 @@ vi.mock("@/stores/chatStore", () => {
     get messages() {
       return mocks.messages;
     },
+    get sharedClearedAt() { return mocks.sharedClearedAt; },
+    get privateClearedAt() { return mocks.privateClearedAt; },
     get isStreaming() {
       return mocks.isStreaming;
     },
@@ -241,6 +245,9 @@ describe("ChatContent composer draft lanes", () => {
     mocks.personalHandoffPending = false; mocks.takePersonalHandoff.mockReset();
     vi.clearAllMocks();
     mocks.messages = [];
+    mocks.sharedClearedAt = null;
+    mocks.privateClearedAt = null;
+    mocks.requestSharedClear.mockReset().mockResolvedValue({ ok: true });
     mocks.suggestions = [];
     mocks.error = null;
     mocks.failedRequest = null;
@@ -275,6 +282,7 @@ describe("ChatContent composer draft lanes", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     HTMLElement.prototype.scrollIntoView = vi.fn();
+    HTMLElement.prototype.scrollTo = vi.fn();
 
     await act(async () => {
       root.render(<ChatContent />);
@@ -295,6 +303,140 @@ describe("ChatContent composer draft lanes", () => {
     mocks.queryScope = "private"; mocks.tasteNonces = params.getAll("wcTasteChat");
   };
   const buttonWith = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button => button.textContent?.includes(label))!;
+  const history = (visibility: ChatMessage["visibility"], count = 200): ChatMessage[] => Array.from({ length: count }, (_, index) => ({
+    id: `${visibility}-${index}`, couple_id: mocks.coupleId!, sender_id: mocks.profileId,
+    sender_role: "bride", content: `이전 상담 ${index}`, visibility,
+    created_at: "2026-09-10T00:00:00.000Z", metadata: {},
+  }));
+  const renderAndSettle = async () => {
+    await act(async () => root.render(<ChatContent />));
+    await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 10)); });
+  };
+  const openSharedClearRequest = async () => {
+    if (!mocks.messages.length) { mocks.messages = history("shared", 1); await renderAndSettle(); }
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="대화 화면 정리"]')!.click());
+    await act(async () => buttonWith("둘의 화면 함께 정리").click());
+  };
+
+  it("keeps a dismissed long-chat banner hidden in the same scope and segment after polling", async () => {
+    mocks.messages = history("shared"); await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeDefined();
+    await act(async () => buttonWith("괜찮아요").click());
+    mocks.messages = history("shared", 201); await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeUndefined();
+  });
+
+  it("counts the active scope and keeps shared and private banner dismissals separate", async () => {
+    mocks.messages = [...history("shared"), ...history("bride_private", 1)]; await renderAndSettle();
+    await act(async () => buttonWith("괜찮아요").click());
+    await act(async () => buttonWith("나만 (상담)").click()); await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeUndefined();
+    mocks.messages = [...history("shared"), ...history("bride_private")]; await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeDefined();
+    await act(async () => buttonWith("괜찮아요").click());
+    await act(async () => buttonWith("함께 대화").click()); await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeUndefined();
+  });
+
+  it("shows the banner for a new cleared conversation segment without restoring the old dismissal", async () => {
+    mocks.messages = history("shared"); await renderAndSettle();
+    await act(async () => buttonWith("괜찮아요").click());
+    mocks.sharedClearedAt = "2026-09-10T01:00:00.000Z";
+    mocks.messages = []; await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeUndefined();
+    mocks.messages = history("shared").map(message => ({ ...message, created_at: "2026-09-10T02:00:00.000Z" }));
+    await renderAndSettle(); expect(buttonWith("괜찮아요")).toBeDefined();
+  });
+
+  it("does not carry a banner dismissal across another account or a return login", async () => {
+    mocks.messages = history("shared"); await renderAndSettle();
+    await act(async () => buttonWith("괜찮아요").click());
+    mocks.profileId = "other-user"; mocks.coupleId = "other-couple";
+    mocks.messages = history("shared"); await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeDefined();
+    await act(async () => buttonWith("괜찮아요").click());
+    mocks.profileId = "user-1"; mocks.coupleId = "couple-1";
+    mocks.messages = history("shared"); await renderAndSettle();
+    expect(buttonWith("괜찮아요")).toBeDefined();
+  });
+
+  it.each(["result", "throw"])("keeps a failed shared clear request open with a safe retry message (%s)", async failure => {
+    if (failure === "result") mocks.requestSharedClear.mockResolvedValueOnce({ ok: false, error: "private-token@example.test" });
+    else mocks.requestSharedClear.mockRejectedValueOnce(new Error("private-token@example.test"));
+    await openSharedClearRequest();
+    await act(async () => buttonWith("동의 요청 보내기").click());
+    const dialog = container.querySelector('[role="dialog"]');
+    expect(dialog).not.toBeNull();
+    expect(dialog?.querySelector('[role="alert"]')?.textContent).toContain("동의 요청을 보내지 못했어요");
+    expect(container.textContent).not.toContain("private-token@example.test");
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+    await act(async () => buttonWith("동의 요청 보내기").click());
+    expect(mocks.requestSharedClear).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+  });
+
+  it("submits a shared clear request once while pending and closes only after success", async () => {
+    let finish!: (value: { ok: boolean }) => void;
+    mocks.requestSharedClear.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    await openSharedClearRequest();
+    const submit = buttonWith("동의 요청 보내기");
+    await act(async () => { submit.click(); submit.click(); });
+    expect(mocks.requestSharedClear).toHaveBeenCalledTimes(1);
+    expect(submit.disabled).toBe(true);
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    await act(async () => finish({ ok: true }));
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+  });
+
+  it.each(["back", "close"])("keeps a pending shared request locked across %s and reopening", async navigation => {
+    let finish!: (value: { ok: boolean }) => void;
+    mocks.requestSharedClear.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    await openSharedClearRequest();
+    await act(async () => buttonWith("동의 요청 보내기").click());
+    if (navigation === "back") {
+      await act(async () => buttonWith("돌아가기").click());
+      await act(async () => buttonWith("둘의 화면 함께 정리").click());
+    } else {
+      await act(async () => document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
+      await openSharedClearRequest();
+    }
+    const submit = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
+      .find(button => button.textContent?.includes("동의 요청 보내"))!;
+    expect(submit.disabled).toBe(true);
+    await act(async () => submit.click());
+    expect(mocks.requestSharedClear).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ ok: true }));
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("둘의 화면 정리 동의를 요청할게요");
+    expect(buttonWith("동의 요청 보내기").disabled).toBe(false);
+  });
+
+  it("cannot close another account's clear dialog when an earlier request settles", async () => {
+    let finish!: (value: { ok: boolean }) => void;
+    mocks.requestSharedClear.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    await openSharedClearRequest();
+    await act(async () => buttonWith("동의 요청 보내기").click());
+    mocks.profileId = "other-user"; mocks.coupleId = "other-couple";
+    mocks.messages = history("shared", 1); await renderAndSettle();
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await openSharedClearRequest();
+    await act(async () => finish({ ok: true }));
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("둘의 화면 정리 동의를 요청할게요");
+    expect(buttonWith("동의 요청 보내기").disabled).toBe(false);
+  });
+
+  it("cannot close a private clear dialog when a prior shared request settles", async () => {
+    let finish!: (value: { ok: boolean }) => void;
+    mocks.requestSharedClear.mockReturnValue(new Promise(resolve => { finish = resolve; }));
+    await openSharedClearRequest();
+    await act(async () => buttonWith("동의 요청 보내기").click());
+    await act(async () => buttonWith("나만 (상담)").click());
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="대화 화면 정리"]')!.click());
+    await act(async () => finish({ ok: true }));
+    expect(container.querySelector('[role="dialog"]')?.textContent).toContain("비공개 상담 화면 정리");
+    expect(mocks.clearMessages).not.toHaveBeenCalled();
+  });
   const typeComposer = (value: string) => {
     const textarea = container.querySelector("textarea");
     Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(textarea, value);

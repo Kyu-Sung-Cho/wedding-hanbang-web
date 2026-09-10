@@ -68,6 +68,15 @@ describe("미션 화면의 제목과 공유 할 일 이동", () => {
     await act(async () => root.render(<AmoraMissions />));
   }
 
+  it("라운지에서는 실행할 미션을 단계 설명보다 먼저 읽고 조작할 수 있다", async () => {
+    await act(async () => root.render(<AmoraMissions embedded />));
+    const missions = container.querySelector('section[aria-labelledby="missions-heading"]')!;
+    const path = container.querySelector('section[aria-labelledby="mission-path-title"]')!;
+    expect(missions.compareDocumentPosition(path) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelectorAll('#mission-path-title')).toHaveLength(1);
+    expect(path.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(5);
+  });
+
   it("내장 미션에서도 예정일을 한 번 표시하고 날짜 해석이나 체크리스트 날짜를 만들지 않는다", async () => {
     for (const dueDate of ["2026-09-15", "다음 상담 후, 두 사람이 가능한 날"]) {
       mocks.actions = [{ ...sharedAction(1), dueDate }];

@@ -12,6 +12,7 @@ import {
   ArrowRight,
   Bookmark,
   CalendarCheck,
+  ChevronRight,
   ClipboardCheck,
   Clock3,
   HeartHandshake,
@@ -36,11 +37,12 @@ import {
   subscribeJoinedDashboardMarker,
 } from "@/lib/amora/dashboardCompanion";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
+import { formatLoungeBudgetRatio, formatLoungeWon, getLoungeSetupGuidance } from "@/lib/amora/loungeSummary";
 import { requestProactiveCare } from "@/lib/care/requestProactiveCare";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import { getProgressSummary } from "@/app/(app)/lounge/progressSummary";
-import { getEvents, getScheduleEventStatus } from "@/utils/scheduleEvents";
+import { getEvents, getScheduleEventStatus, isValidScheduleTime } from "@/utils/scheduleEvents";
 import { getWeeklyImminentCategories } from "@/utils/imminentChecklist";
 import type { ProgressItem, ScheduleEvent } from "@/types/database.types";
 import type { CohortRoom, CohortThreadTopic, PostWithAuthor } from "@/types/community.types";
@@ -64,6 +66,7 @@ interface CohortState {
   lastMessage: string | null;
   loading: boolean;
   digest: CohortDigest | null;
+  error: "room" | "digest" | null;
 }
 
 const DEMO_COHORT_ROOM: CohortRoom = {
@@ -100,11 +103,6 @@ const DEMO_DIGEST: CohortDigest = {
   nextActions: ["내 견적서의 포함 항목을 한 줄씩 나눠서 확인해보세요."],
   empty: false,
 };
-
-function formatWon(amount: number) {
-  if (!amount) return "0만원";
-  return `${Math.round(amount / 10000).toLocaleString("ko-KR")}만원`;
-}
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "날짜 미정";
@@ -222,6 +220,9 @@ export default function LoungePage() {
   const userId = user?.id ?? null;
   const [savedPosts, setSavedPosts] = useState<PostWithAuthor[]>([]);
   const [savedLoading, setSavedLoading] = useState(true);
+  const [savedError, setSavedError] = useState(false);
+  const [savedRetry, setSavedRetry] = useState(0);
+  const [cohortRetry, setCohortRetry] = useState(0);
   const joinedHandoffVisible = useSyncExternalStore(
     subscribeJoinedDashboardMarker,
     getJoinedDashboardMarkerSnapshot,
@@ -232,6 +233,7 @@ export default function LoungePage() {
     lastMessage: null,
     loading: true,
     digest: null,
+    error: null,
   });
 
   const progress = useMemo(() => journey?.progress ?? {}, [journey?.progress]);
@@ -253,7 +255,9 @@ export default function LoungePage() {
     () => getWeeklyImminentCategories(progress, journey?.wedding_date)[0] ?? null,
     [progress, journey?.wedding_date],
   );
-  const budgetPercent = totalBudget > 0 ? Math.round((spentBudget / totalBudget) * 100) : 0;
+  const budgetPercent = totalBudget > 0 ? spentBudget / totalBudget * 100 : 0;
+  const budgetRatioLabel = formatLoungeBudgetRatio(spentBudget, totalBudget);
+  const setupGuidance = getLoungeSetupGuidance(journey?.wedding_date, totalBudget);
   const budgetWidth = Math.min(100, Math.max(0, budgetPercent));
   const progressPercent = summary.total > 0 ? Math.round((summary.done / summary.total) * 100) : 0;
   // 첫 도착 카드 — 온보딩만 끝나고 아직 아무것도 쌓이지 않은 라운지에서만 뜬다.
@@ -300,6 +304,7 @@ export default function LoungePage() {
 
   useEffect(() => {
     let cancelled = false;
+    setSavedError(false);
     if (isDemo) {
       setSavedPosts(buildDemoSavedPosts());
       setSavedLoading(false);
@@ -317,7 +322,7 @@ export default function LoungePage() {
         if (!cancelled) setSavedPosts((data.posts ?? []).slice(0, 3));
       })
       .catch(() => {
-        if (!cancelled) setSavedPosts([]);
+        if (!cancelled) { setSavedPosts([]); setSavedError(true); }
       })
       .finally(() => {
         if (!cancelled) setSavedLoading(false);
@@ -326,7 +331,7 @@ export default function LoungePage() {
     return () => {
       cancelled = true;
     };
-  }, [isDemo, userId]);
+  }, [isDemo, userId, savedRetry]);
 
   useEffect(() => {
     let cancelled = false;
@@ -336,15 +341,16 @@ export default function LoungePage() {
         lastMessage: "결혼식 날 받는 사진 파일 수는 계약서에 적어두자는 이야기가 나왔어요.",
         loading: false,
         digest: DEMO_DIGEST,
+        error: null,
       });
       return;
     }
     if (!userId) {
-      setCohortState({ room: null, lastMessage: null, loading: false, digest: null });
+      setCohortState({ room: null, lastMessage: null, loading: false, digest: null, error: null });
       return;
     }
 
-    setCohortState((prev) => ({ ...prev, loading: true }));
+    setCohortState((prev) => ({ ...prev, loading: true, error: null }));
     (async () => {
       try {
         const cohortRes = await fetch("/api/community/cohort", { cache: "no-store" });
@@ -353,12 +359,16 @@ export default function LoungePage() {
         if (cancelled) return;
 
         let digest: CohortDigest | null = null;
+        let error: CohortState["error"] = null;
         if (cohortData.room?.id) {
-          const digestRes = await fetch(
-            `/api/community/cohort/${encodeURIComponent(cohortData.room.id)}/digest?period=week`,
-            { cache: "no-store" }
-          );
-          if (digestRes.ok) digest = (await digestRes.json()) as CohortDigest;
+          try {
+            const digestRes = await fetch(
+              `/api/community/cohort/${encodeURIComponent(cohortData.room.id)}/digest?period=week`,
+              { cache: "no-store" }
+            );
+            if (!digestRes.ok) throw new Error("digest");
+            digest = (await digestRes.json()) as CohortDigest;
+          } catch { error = "digest"; }
         }
 
         if (!cancelled) {
@@ -367,17 +377,18 @@ export default function LoungePage() {
             lastMessage: cohortData.lastMessage ?? null,
             loading: false,
             digest,
+            error,
           });
         }
       } catch {
-        if (!cancelled) setCohortState({ room: null, lastMessage: null, loading: false, digest: null });
+        if (!cancelled) setCohortState({ room: null, lastMessage: null, loading: false, digest: null, error: "room" });
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [isDemo, userId]);
+  }, [isDemo, userId, cohortRetry]);
 
   const dismissJoinedHandoff = () => {
     const nextUrl = removeJoinedDashboardMarker(
@@ -430,7 +441,7 @@ export default function LoungePage() {
             <HandoffMetric label="장소" value={journey?.venue || "장소 미정"} />
             <HandoffMetric
               label="총 예산"
-              value={totalBudget > 0 ? formatWon(totalBudget) : "미입력"}
+              value={totalBudget > 0 ? formatLoungeWon(totalBudget) : "미입력"}
             />
             <HandoffMetric
               label="준비 진행"
@@ -459,30 +470,28 @@ export default function LoungePage() {
       )}
       <section aria-label="현재 준비 현황">
         <div className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-surface)] p-5 md:p-6">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--amora-rose-deep)]">
+          <div className="flex items-start justify-between gap-3 md:gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="inline-flex items-center gap-1.5 rounded-full border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2.5 py-1.5 text-[11px] font-semibold text-[var(--amora-rose-deep)] md:gap-2 md:px-3.5 md:text-[12px]">
                 <Sparkles className="h-4 w-4" />
                 {companionCopy.loungeLabel}
               </p>
-              <h2 className="amora-display mt-4 text-[22px] text-[var(--amora-ink)] md:text-[26px]">
+              <h2 className="amora-display mt-3 text-[22px] text-[var(--amora-ink)] md:text-[26px]">
                 {companionCopy.statusHeading}
               </h2>
-              <p className="mt-2 max-w-[560px] text-[14px] font-medium leading-[1.7] text-[var(--amora-soft)]">
-                {companionCopy.description}
-              </p>
-              <p className="mt-2 max-w-[560px] text-[12px] font-medium leading-[1.6] text-[var(--amora-muted)]">
-                {plan.stageLabel} · {plan.stageSummary}
-              </p>
             </div>
-            <div className="min-w-[116px] rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] px-4 py-3 text-right">
+            <Link {...weddingLinkProps("/settings")} aria-label={setupGuidance?.needsDate ? "날짜 입력" : "날짜 수정"} className="min-h-11 min-w-[88px] shrink-0 rounded-xl border border-[var(--amora-line)] bg-[var(--amora-bg)] px-3 py-2.5 text-right transition-colors hover:border-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] md:min-w-[116px] md:rounded-2xl md:px-4 md:py-3">
               <p className="text-[11px] font-semibold text-[var(--amora-rose-deep)]">결혼식 날짜</p>
-              <p className="mt-1 amora-display text-[30px] font-medium leading-none text-[var(--amora-ink)]">
+              <p className="mt-1 amora-display text-[24px] font-medium leading-none text-[var(--amora-ink)] md:text-[30px]">
                 {getDdayLabel(plan.dday)}
               </p>
               <p className="mt-1.5 text-[11px] font-medium text-[var(--amora-soft)]">{formatDate(journey?.wedding_date)}</p>
-            </div>
+              <span className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-[var(--amora-accent)]">{setupGuidance?.needsDate ? "날짜 입력" : "날짜 수정"}<ChevronRight size={12} aria-hidden="true" /></span>
+            </Link>
           </div>
+          <p className="mt-3 max-w-[680px] text-[13px] font-medium leading-[1.7] text-[var(--amora-soft)] md:text-[14px]">{companionCopy.description}</p>
+          <p className="mt-2 max-w-[680px] text-[12px] font-medium leading-[1.6] text-[var(--amora-muted)]">{setupGuidance ? setupGuidance.text : `${plan.stageLabel} · ${plan.stageSummary}`}</p>
+          {setupGuidance?.needsBudget && <Link {...weddingLinkProps("/budget")} className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">총 예산 입력<ArrowRight size={14} aria-hidden="true" /></Link>}
 
           <div className="mt-5 grid grid-cols-3 gap-2 md:gap-3">
             <MetricTile
@@ -493,10 +502,10 @@ export default function LoungePage() {
             />
             <MetricTile
               label="기록 지출 비율"
-              value={totalBudget > 0 ? `${budgetPercent}%` : "미입력"}
+              value={totalBudget > 0 ? budgetRatioLabel : "미입력"}
               note={totalBudget > 0
-                ? `${formatWon(spentBudget)} 기록 / ${formatWon(totalBudget)} · 결제 확인과 별도`
-                : `${formatWon(spentBudget)} 기록 · 총 예산 입력 전`}
+                ? `${formatLoungeWon(spentBudget)} 기록 / ${formatLoungeWon(totalBudget)} · 결제 확인과 별도`
+                : `${formatLoungeWon(spentBudget)} 기록 · 총 예산 입력 전`}
               icon={<Wallet className="h-4 w-4" />}
             />
             <MetricTile
@@ -536,15 +545,15 @@ export default function LoungePage() {
       {firstArrival && <LoungeFirstArrivalEmptyNote view={firstArrival} />}
 
       <section data-tutorial-target="lounge-tools" aria-label="예산과 일정" className="grid gap-4 md:grid-cols-2">
-        <BudgetPanel totalBudget={totalBudget} spentBudget={spentBudget} budgetPercent={budgetPercent} budgetWidth={budgetWidth} />
+        <BudgetPanel totalBudget={totalBudget} spentBudget={spentBudget} budgetWidth={budgetWidth} />
         <UpcomingEventsPanel events={upcomingEvents} />
       </section>
 
       <details className="border-t border-[var(--amora-line)] pt-2">
         <summary className="flex min-h-12 cursor-pointer items-center rounded-lg text-[13px] font-semibold text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">참고한 자료와 같은 시기 준비 이야기</summary>
         <div className="grid gap-4 pb-4 pt-2 lg:grid-cols-2">
-          <SavedPostsPanel posts={savedPosts} loading={savedLoading} />
-          <CohortPulsePanel cohort={cohortState} />
+          <SavedPostsPanel posts={savedPosts} loading={savedLoading} error={savedError} onRetry={() => setSavedRetry(value => value + 1)} />
+          <CohortPulsePanel cohort={cohortState} onRetry={() => setCohortRetry(value => value + 1)} />
         </div>
       </details>
     </div>
@@ -607,12 +616,10 @@ function HandoffMetric({
 function BudgetPanel({
   totalBudget,
   spentBudget,
-  budgetPercent,
   budgetWidth,
 }: {
   totalBudget: number;
   spentBudget: number;
-  budgetPercent: number;
   budgetWidth: number;
 }) {
   const balance = totalBudget - spentBudget;
@@ -621,17 +628,9 @@ function BudgetPanel({
     ? "기록 지출"
     : overrun
       ? "총 예산보다 더 기록된 금액"
-      : "남은 예산";
+      : "지출 기록을 뺀 금액";
   const balanceValue = totalBudget <= 0 ? spentBudget : Math.abs(balance);
-  const tone = totalBudget <= 0
-    ? "예산 미정"
-    : budgetPercent > 100
-      ? "기록 초과"
-      : budgetPercent === 100
-        ? "한도 도달"
-        : budgetPercent >= 85
-          ? "주의"
-          : "안정";
+  const tone = totalBudget <= 0 ? "예산 미정" : overrun ? "기록 초과" : "지출 기록 기준";
 
   return (
     <section className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-surface)] p-5">
@@ -647,20 +646,20 @@ function BudgetPanel({
           <div>
             <p className="text-[11px] font-semibold text-[var(--amora-soft)]">{balanceLabel}</p>
             <p className="mt-1 amora-display text-[28px] font-medium leading-none text-[var(--amora-ink)]">
-              {formatWon(balanceValue)}
+              {formatLoungeWon(balanceValue)}
             </p>
           </div>
           <p className="text-[13px] font-semibold text-[var(--amora-ink)]">
-            {totalBudget > 0 ? `${budgetPercent}% 기록` : "비율 계산 전"}
+            {totalBudget > 0 ? `${formatLoungeBudgetRatio(spentBudget, totalBudget)} 기록` : "비율 계산 전"}
           </p>
         </div>
         <progress aria-label="총 예산 대비 기록 지출" value={budgetWidth} max={100} className="mt-3 block h-2 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-warm)] [&::-moz-progress-bar]:bg-[var(--amora-ink)] [&::-webkit-progress-bar]:bg-[var(--amora-warm)] [&::-webkit-progress-value]:bg-[var(--amora-ink)]" />
         <div className="mt-2 flex items-center justify-between gap-3 text-[11px] font-medium text-[var(--amora-soft)]">
-          <span>{formatWon(spentBudget)} 기록 지출</span>
-          <span>총 {formatWon(totalBudget)}</span>
+          <span>{formatLoungeWon(spentBudget)} 기록 지출</span>
+          <span>총 {formatLoungeWon(totalBudget)}</span>
         </div>
         <p className="mt-2 text-[10px] font-medium leading-4 text-[var(--amora-soft)]">
-          기록 지출은 사용자가 입력한 금액이며 결제 완료 확인과는 별도예요.
+          배정액·결제 여부와 별도로, 입력한 지출을 기준으로 계산해요.
         </p>
       </div>
       <Link {...weddingLinkProps("/budget")} className="mt-4 inline-flex items-center text-[12px] font-semibold text-[var(--amora-ink)]">
@@ -677,7 +676,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">일정</p>
-          <h2 className="mt-1 amora-display text-[var(--amora-ink)]">다가오는 예약</h2>
+          <h2 className="mt-1 amora-display text-[var(--amora-ink)]">다가오는 일정</h2>
         </div>
         <Link {...weddingLinkProps("/schedule")} className="inline-flex min-h-11 items-center gap-1 rounded-lg text-[12px] font-semibold text-[var(--amora-accent)]">일정 열기<CalendarCheck className="h-4 w-4" aria-hidden="true" /></Link>
       </div>
@@ -688,7 +687,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
               <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[var(--amora-ink)]" />
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-semibold text-[var(--amora-ink)]">{event.title}</span>
-                <span className="mt-0.5 block text-[11px] font-medium text-[var(--amora-soft)]">{formatDate(event.date)}</span>
+                <span className="mt-0.5 block text-[11px] font-medium text-[var(--amora-soft)]">{formatDate(event.date)} · {isValidScheduleTime(event.time) ? event.time : "시간 미정"}</span>
               </span>
             </Link>
           ))
@@ -703,7 +702,7 @@ function UpcomingEventsPanel({ events }: { events: ScheduleEvent[] }) {
   );
 }
 
-function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading: boolean }) {
+function SavedPostsPanel({ posts, loading, error, onRetry }: { posts: PostWithAuthor[]; loading: boolean; error: boolean; onRetry(): void }) {
   return (
     <section className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-surface)] p-5">
       <div className="flex items-start justify-between gap-3">
@@ -719,7 +718,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
             <Loader2 className="h-4 w-4 animate-spin" />
             불러오는 중...
           </div>
-        ) : posts.length > 0 ? (
+        ) : error ? <ResourceReadError message="저장한 글을 불러오지 못했어요." onRetry={onRetry} /> : posts.length > 0 ? (
           posts.map((post) => (
             <Link key={post.id} {...weddingLinkProps(`/community/post/${post.id}`)} className="block rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-3.5 hover:bg-white">
               <p className="line-clamp-1 text-[14px] font-semibold text-[var(--amora-ink)]">{post.title}</p>
@@ -744,7 +743,7 @@ function SavedPostsPanel({ posts, loading }: { posts: PostWithAuthor[]; loading:
   );
 }
 
-function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
+function CohortPulsePanel({ cohort, onRetry }: { cohort: CohortState; onRetry(): void }) {
   return (
     <section className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-surface)] p-5">
       <div className="flex items-start justify-between gap-3">
@@ -760,8 +759,9 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
             <Loader2 className="h-4 w-4 animate-spin" />
             확인 중...
           </div>
-        ) : cohort.room ? (
+        ) : cohort.error === "room" ? <ResourceReadError message="동기방 정보를 불러오지 못했어요." onRetry={onRetry} /> : cohort.room ? (
           <div className="space-y-3">
+            {cohort.error === "digest" && <ResourceReadError message="동기방 요약을 불러오지 못했어요." onRetry={onRetry} />}
             <div className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="text-[14px] font-semibold text-[var(--amora-ink)]">{cohort.room.name}</p>
@@ -770,7 +770,7 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
                 </span>
               </div>
               <p className="mt-2 text-[13px] font-medium leading-[1.6] text-[var(--amora-soft)]">
-                {cohort.digest?.lead ?? cohort.lastMessage ?? "아직 이번 주 요약이 많지 않아요."}
+                {cohort.digest?.lead ?? cohort.lastMessage ?? (cohort.error === "digest" ? "요약을 다시 불러오면 이번 주 이야기를 확인할 수 있어요." : "아직 이번 주 요약이 많지 않아요.")}
               </p>
             </div>
 
@@ -804,4 +804,12 @@ function CohortPulsePanel({ cohort }: { cohort: CohortState }) {
       </Link>
     </section>
   );
+}
+
+function ResourceReadError({ message, onRetry }: { message: string; onRetry(): void }) {
+  return <div role="alert" className="rounded-2xl border border-[var(--amora-line)] bg-[var(--amora-bg)] p-4">
+    <p className="text-[13px] font-semibold text-[var(--amora-ink)]">{message}</p>
+    <p className="mt-1 text-[12px] leading-5 text-[var(--amora-soft)]">비어 있는 상태와는 달라요. 다시 확인해 주세요.</p>
+    <button type="button" onClick={onRetry} className="mt-1 inline-flex min-h-11 items-center rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">다시 불러오기</button>
+  </div>;
 }

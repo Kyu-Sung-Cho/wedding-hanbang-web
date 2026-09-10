@@ -4,6 +4,7 @@ import { sortAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
 import { stripWeddingBasePath } from "@/lib/weddingPaths";
 import type { ProgressItem } from "@/types/database.types";
 import { getChecklistCounts, isStatusDeclared, mergeChecklist, resolveStatus } from "@/utils/checklist";
+import { isValidScheduleYmd } from "@/utils/scheduleEvents";
 
 // 단계 상태는 체크리스트에서 파생한다. 별도 완료 기록이나 선행 잠금은 만들지 않는다.
 export const MISSION_GROUPS = [
@@ -90,6 +91,25 @@ function actionCard(action: AmoraActionItem): AmoraMissionCard {
   };
 }
 
+function sortMissionOpenActions(actions: readonly AmoraActionItem[]): AmoraActionItem[] {
+  const priorities = { high: 0, medium: 1, low: 2 };
+  return actions.filter(action => action.status === "open").sort((a, b) => {
+    const priority = priorities[a.priority] - priorities[b.priority];
+    if (priority) return priority;
+    const dateA = isValidScheduleYmd(a.dueDate) ? a.dueDate : null;
+    const dateB = isValidScheduleYmd(b.dueDate) ? b.dueDate : null;
+    // 자유 예정일은 해석하지 않는다. 날짜 유무를 먼저 묶어 모든 입력 순서에서 비교가 일관되게 한다.
+    const dateGroup = Number(dateA === null) - Number(dateB === null);
+    if (dateGroup) return dateGroup;
+    const dateOrder = dateA !== null && dateB !== null ? dateA.localeCompare(dateB) : 0;
+    if (dateOrder) return dateOrder;
+    const createdA = Date.parse(a.createdAt);
+    const createdB = Date.parse(b.createdAt);
+    const createdOrder = (Number.isFinite(createdB) ? createdB : 0) - (Number.isFinite(createdA) ? createdA : 0);
+    return createdOrder || a.id.localeCompare(b.id);
+  });
+}
+
 export function buildAmoraMissionModel(
   progress: Readonly<Record<string, ProgressItem>> | null,
   actions: readonly AmoraActionItem[],
@@ -135,7 +155,7 @@ export function buildAmoraMissionModel(
   });
 
   const sortedActions = sortAmoraActions([...actions]);
-  const openActions = sortedActions.filter((item) => item.status === "open");
+  const openActions = sortMissionOpenActions(actions);
   const coveredCategories = new Set(openActions.map((item) => item.categoryKey));
   const candidates = [...activeCategories]
     .filter((item) => !coveredCategories.has(item.key))
