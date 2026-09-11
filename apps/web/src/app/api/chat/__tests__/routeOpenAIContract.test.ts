@@ -1212,6 +1212,113 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } }));
   });
 
+  it.each(["runtime-off", "runtime-on", "null-segment"] as const)("reads the actual source segment for a first P10 denial with segment filtering off: %s", async mode => {
+    const text = "나는 웨딩 장식으로 청록색 종이별을 쓰는 소박한 분위기를 좋아해. 내 개인 취향으로 지금 이 대화에서만 참고해줘. 장기 기억에 저장하지 말고, 파트너와 합의한 결정도 아니야. 공동 예산·일정·할 일은 바꾸지 마.";
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "false");
+    vi.stubEnv("AMORA_AUXILIARY_MEMORY_ENABLED", mode === "runtime-on" ? "true" : "false");
+    mocks.memoryEnablement.bride_private = true;
+    const stored: Record<string, unknown> = { ...mocks.canonicalRows[0], couple_id: COUPLE_ID, content: text,
+      visibility: "bride_private", segment_id: mode === "null-segment" ? null : segmentId };
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length, stored);
+    const originalMetadata = structuredClone(stored.metadata);
+    const originalHistorySelect = mocks.chatHistorySelect.getMockImplementation();
+    // PostgREST가 SELECT하지 않은 컬럼을 반환하지 않는 실제 경계를 적용한다.
+    // 기존 fixture는 모든 행에 segment_id를 넣어 projection 누락을 감췄다.
+    mocks.chatHistorySelect.mockImplementation((selection: string) => mocks.canonicalRows.map(row =>
+      Object.fromEntries(selection.split(",").map(field => field.trim()).map(field => [field, row[field]]))));
+
+    const actualPolicy = await vi.importActual<typeof import("@/lib/ai/amoraMemoryConversationPolicy")>("@/lib/ai/amoraMemoryConversationPolicy");
+    const policyModule = await import("@/lib/ai/amoraMemoryConversationPolicy");
+    const policyMock = vi.mocked(policyModule.resolveAmoraMemoryConversationPolicy);
+    const originalPolicy = policyMock.getMockImplementation()!;
+    const adminModule = await import("@/lib/supabase/admin");
+    const originalCreateAdmin = vi.mocked(adminModule.createAdminClient).getMockImplementation()!;
+    const updates: Record<string, unknown>[] = [];
+    policyMock.mockImplementation(actualPolicy.resolveAmoraMemoryConversationPolicy);
+    vi.mocked(adminModule.createAdminClient).mockImplementation(() => {
+      const client = originalCreateAdmin();
+      const originalFrom = client.from;
+      return Object.assign(client, { from: (table: string) => {
+      if (table !== "chat_messages") return originalFrom(table);
+      let pending: Record<string, unknown> | null = null;
+      const filters: Array<[string, unknown]> = [];
+      const q = queryResult([]);
+      q.update = vi.fn((value: Record<string, unknown>) => { pending = value; return q; });
+      q.eq = vi.fn((column: string, value: unknown) => { filters.push([column, value]); return q; });
+      q.is = vi.fn((column: string, value: unknown) => { filters.push([column, value]); return q; });
+      q.abortSignal = vi.fn(() => q);
+      q.maybeSingle = vi.fn(async () => {
+        for (const [column, value] of filters) {
+          const actual = column === "metadata" && stored.metadata !== null ? JSON.stringify(stored.metadata) : stored[column];
+          if (actual !== value) return { data: null, error: null };
+        }
+        if (pending) {
+          updates.push(structuredClone(pending));
+          Object.assign(stored, pending);
+        }
+        return { data: stored, error: null };
+      });
+      return q;
+      } });
+    });
+    const actualOpenAI = await vi.importActual<typeof import("@/lib/ai/openai")>("@/lib/ai/openai");
+    const { default: OpenAI } = await import("openai");
+    const requests: string[] = [];
+    const answer = "이번 대화에서 장식 취향을 참고할게요. 공동 준비 기록은 바꾸지 않았어요.";
+    const client = new OpenAI({ apiKey: "sk-fixture-p10-projection", maxRetries: 0, dangerouslyAllowBrowser: true,
+      fetch: async (url, init) => {
+        if (typeof init?.body !== "string") throw new Error("Expected SDK JSON");
+        const input = JSON.parse(init.body), path = new URL(String(url)).pathname;
+        requests.push(path);
+        if (path.endsWith("/responses/input_tokens")) return new Response(JSON.stringify({ object: "response.input_tokens", input_tokens: 100 }),
+          { status: 200, headers: { "Content-Type": "application/json" } });
+        if (!path.endsWith("/responses")) throw new Error("Unexpected SDK endpoint");
+        const response = { id: "resp_p10_projection", object: "response", status: "completed", model: input.model,
+          output: [{ type: "message", id: "msg_p10_projection", role: "assistant", status: "completed",
+            content: [{ type: "output_text", text: answer, annotations: [] }] }],
+          usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 0 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 105 } };
+        return new Response("data: " + JSON.stringify({ type: "response.output_text.delta", item_id: "msg_p10_projection", output_index: 0, content_index: 0, sequence_number: 0, delta: answer }) + "\n\n"
+          + "data: " + JSON.stringify({ type: "response.completed", sequence_number: 1, response }) + "\n\n",
+          { status: 200, headers: { "Content-Type": "text/event-stream" } });
+      } });
+    vi.stubEnv("AMORA_OPENAI_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "sk-fixture-p10-projection");
+    vi.stubEnv("OPENAI_AMORA_FAST_MODEL", "gpt-5.6-luna");
+    vi.stubEnv("OPENAI_AMORA_FAST_REASONING_EFFORT", "none");
+    mocks.provider.mockImplementation(options => actualOpenAI.chatWithToolsStream({ ...options, client }));
+    try {
+      const response = await POST(request({ visibility: "bride_private", messages: [{ role: "user", content: text }] }));
+      const body = await response.text();
+      expect(mocks.chatHistoryEq).not.toHaveBeenCalledWith("segment_id", expect.anything());
+      expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      if (mode === "null-segment") {
+        expect(response.status).toBe(503);
+        expect(body).toContain("AMORA_MEMORY_POLICY_UNAVAILABLE");
+        expect(updates).toHaveLength(0);
+        expect(requests).toHaveLength(0);
+        expect(mocks.atomicResponses).toHaveLength(0);
+        expect(stored.metadata).toEqual(originalMetadata);
+      } else {
+        expect(response.status).toBe(200);
+        expect(body).not.toContain('"type":"error"');
+        expect(requests.filter(path => path.endsWith("/responses"))).toHaveLength(1);
+        expect(updates).toHaveLength(1);
+        expect(stored.metadata).toEqual({ ...originalMetadata as Record<string, unknown>, amora_memory_policy: {
+          version: 1, scope: "conversation", effect: "deny", actorId: mocks.authenticatedUser!.id,
+          segmentId, sourceUserMessageId: stored.id, sourceTextSha256: createHash("sha256").update(text).digest("hex"),
+        } });
+        expect(mocks.atomicResponses.at(-1)?.metadata).toMatchObject({ memory_eligible: false, memory_enqueue_requested: false });
+      }
+    } finally {
+      if (originalHistorySelect) mocks.chatHistorySelect.mockImplementation(originalHistorySelect);
+      else mocks.chatHistorySelect.mockReset();
+      policyMock.mockImplementation(originalPolicy);
+      vi.mocked(adminModule.createAdminClient).mockImplementation(originalCreateAdmin);
+    }
+  });
+
   it("rejects a cross-site cookie mutation before durable or paid work", async () => {
     const response = await POST(request({}, {
       "Sec-Fetch-Site": "cross-site",
@@ -2382,13 +2489,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       "segment_id",
       expect.anything(),
     );
-    // The focused canonical user-row read always carries segment_id so a W3
-    // follow-up can bind itself even before general segment cutover. Ordinary
-    // W0/W1 provider history remains on the legacy unsegmented read here.
+    // 원문 scope 확인용 메타데이터는 읽되, 위의 활성 구간 필터는 켜지 않는다.
     expect(String(mocks.chatHistorySelect.mock.calls[0]?.[0]))
       .toContain("segment_id");
     expect(String(mocks.chatHistorySelect.mock.calls.at(-1)?.[0]))
-      .not.toContain("segment_id");
+      .toContain("segment_id");
   });
 
   it.each([
