@@ -584,6 +584,23 @@ function verifyRemotePending() {
   console.log(`Remote pending set verified for ${linkedRef}: ${expectedMode} (${pending.length} migrations).`);
 }
 
+// 새 후속 릴리스는 기존 기본 fence의 목록/핀을 바꾸지 않고 명시 모드로만 검증한다.
+// 이 분기는 로컬 계약 검사이며 hosted 증거 수집이나 원격 명령을 실행하지 않는다.
+if (args.has("--amora-budget-decision-hotfix")) {
+  if (process.argv.slice(2).length !== 1) {
+    fail("BUDGET_DECISION_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
+  }
+  try {
+    const { loadBudgetDecisionHotfixRelease } = await import("./lib/amora-budget-decision-release-contract.mjs");
+    const release = loadBudgetDecisionHotfixRelease(repoRoot);
+    console.log(`Budget-decision static contract verified (${release.hotfix.release}; ${release.migrations.length} pinned migration; hosted evidence not verified; deployment not authorized).`);
+    process.exit(0);
+  } catch (error) {
+    const code = /^[A-Z_]+$/.test(error?.code ?? "") ? error.code : "BUDGET_DECISION_STATIC_UNCONFIRMED";
+    fail(code);
+  }
+}
+
 let successorContract = null;
 if (existsSync(successorManifestPath)) {
   try {

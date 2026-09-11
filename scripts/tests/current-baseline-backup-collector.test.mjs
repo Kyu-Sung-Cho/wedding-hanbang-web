@@ -9,16 +9,19 @@ import { createRequire } from 'node:module';
 import { collectCurrentBackup, durableRelations, relationCaptureSql, MAX_RELATION_BYTES } from '../lib/current-baseline-backup-collector.mjs';
 import { createPrivateSink, parseDatabaseConnection, downloadStorageOriginal, beginSnapshotSql, boundedProcess } from '../lib/current-baseline-backup-runtime.mjs';
 import { digest } from '../lib/current-baseline-release-contract.mjs';
+import { createHistoricalReleaseRepository } from './fixtures/legacy-release-repository.mjs';
 
 const REPO=resolve(import.meta.dirname,'../..');
+const historical = createHistoricalReleaseRepository(REPO);
+test.after(historical.cleanup);
 const COMMIT='b'.repeat(40);
 const MARKER='synthetic-private-original-한글-💍';
 const blocked=code=>error=>error.code===code;
 const privateRoots=[];
 test.after(()=>{for(const root of privateRoots){assert.equal(dirname(resolve(root)),resolve(tmpdir()));assert.match(basename(root),/^WeddingHanbang-Amora-Backup-SelfTest-[a-f0-9]{32}$/);if(!lstatSync(root).isSymbolicLink())rmSync(root,{recursive:true,force:true});}});
 function fixture(options={}) {
-  const contract=JSON.parse(readFileSync(join(REPO,'supabase/release-contracts/current-baseline-rollout-v1.json')));
-  const baseline=JSON.parse(readFileSync(join(REPO,contract.baselineObservation.file)));
+  const contract=JSON.parse(readFileSync(join(historical.root,'supabase/release-contracts/current-baseline-rollout-v1.json')));
+  const baseline=JSON.parse(readFileSync(join(historical.root,contract.baselineObservation.file)));
   const release={contract,baseline,contractSha256:'1'.repeat(64),baselineSha256:'2'.repeat(64),migrationSetSha256:'3'.repeat(64)};
   const inventory=structuredClone(baseline);inventory.storagePolicies=baseline.storagePolicies.filter(p=>p.command==='r');
   let turn=0;let count=0;let aborted=false;let failure;let completed;let binding;

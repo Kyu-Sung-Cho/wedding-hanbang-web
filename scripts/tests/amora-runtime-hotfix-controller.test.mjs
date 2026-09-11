@@ -16,10 +16,13 @@ import { loadHotfixRelease, parseHotfixArgs, parseHotfixFinalizeArgs, validateHo
 import { runAmoraRuntimeHotfix, verifyHotfixSourceLineage } from '../lib/amora-runtime-hotfix-controller.mjs';
 import { resolvePinnedWindowsProductionToolchain } from '../lib/production-windows-toolchain.mjs';
 import { releaseHostHasPinnedBytes } from './fixtures/pinned-windows-release-host.mjs';
+import { createHistoricalReleaseRepository } from './fixtures/legacy-release-repository.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const historical = createHistoricalReleaseRepository(root);
+test.after(historical.cleanup);
 const cliFixtureRoot = join(tmpdir(), 'amora-hotfix-cli-fixture');
-const release = loadHotfixRelease(root);
+const release = loadHotfixRelease(historical.root);
 const now = new Date('2026-09-07T05:00:00Z');
 const commit = 'a'.repeat(40), hash = 'b'.repeat(64);
 const owner = '60907000-1234-4123-8123-123456789abc';
@@ -128,7 +131,7 @@ test('before-schema/ledger/old public rows and fresh evidence cannot be replaced
 });
 
 async function localFixture({ searchPathProbe = false } = {}) {
-  const db = await localPredecessor(root);
+  const db = await localPredecessor(historical.root, root);
   try {
     await db.exec(`CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid,bucket_id text,name text); CREATE TABLE storage.buckets(id text);
       CREATE SCHEMA vault; CREATE TABLE vault.secrets(id uuid); CREATE SCHEMA cron; CREATE TABLE cron.job(jobid bigint,active boolean);
@@ -137,7 +140,7 @@ async function localFixture({ searchPathProbe = false } = {}) {
       CREATE ROLE cli_login_postgres LOGIN VALID UNTIL '2026-09-07T00:00:00Z';
       CREATE ROLE cli_login_supabase_read_only_user LOGIN VALID UNTIL '2026-09-07T00:00:00Z';
       INSERT INTO public.community_posts(id,title,content,upvote_count,comment_count) VALUES('60907000-0000-4000-8000-000000000050','ORIGINAL TITLE','ORIGINAL BODY',4,2);`);
-    await db.exec(readFileSync(join(root, 'supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql'), 'utf8'));
+    await db.exec(readFileSync(join(historical.root, 'supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql'), 'utf8'));
     if (searchPathProbe) await db.exec(`CREATE SCHEMA extensions;
       CREATE FUNCTION extensions.synthetic_marker() RETURNS text LANGUAGE sql IMMUTABLE AS $$ SELECT 'synthetic'::text $$;
       ALTER TABLE public.profiles ADD COLUMN path_probe text DEFAULT extensions.synthetic_marker();
@@ -281,7 +284,7 @@ test('actual PostgreSQL keeps the postgres connection read-only even if inner SQ
 });
 
 test('fresh managed-partition supplement permits exactly one addition, one removal and the publication while preserving app, role and grant fingerprints', () => {
-  const original = loadCurrentBaselineContract(root).baseline;
+  const original = loadCurrentBaselineContract(historical.root).baseline;
   const args = { original, current: release.baseline, delta: release.hotfix.baselineDelta, contract: release.contract };
   assert.doesNotThrow(() => validateHotfixOperatingBaseline(args));
   for (const change of [
@@ -426,7 +429,7 @@ test('wrong claim and lost apply response write durable adjudication, throw, and
       const argv = ['--amora-runtime-hotfix', '--apply', `--expected-commit=${commit}`, '--remote-ref=origin/codex/test',
         `--evidence-root=${folder}`, `--receipt-out=${receipt}`, `--bundle-out=${join(folder, 'bundle.sql')}`,
         `--confirm-production=APPLY:${release.hotfix.projectRef}:${release.hotfix.release}:${commit}`];
-      await assert.rejects(runAmoraRuntimeHotfix({ repoRoot: root, argv, now: () => now, verifyRecovery: async () => true,
+      await assert.rejects(runAmoraRuntimeHotfix({ repoRoot: historical.root, argv, now: () => now, verifyRecovery: async () => true,
         primitives: { assertReleaseGitFence: async () => {} }, transport: { query: async (sql, options) => {
           calls.push({ sql, options });
           if (options.readOnly) return [{ hotfix_preflight_count: 1 }];
