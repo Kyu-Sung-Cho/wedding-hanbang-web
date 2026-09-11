@@ -4,9 +4,46 @@ import { splitAmoraClaimSegments } from "../amoraClaimSegments";
 import {
   composeAmoraPersistenceTerminal,
   guardUnverifiedAmoraPersistenceClaims,
+  SERVER_OWNED_MISSING_CARD_NOTICE,
 } from "../amoraPersistenceClaims";
 
 describe("composeAmoraPersistenceTerminal", () => {
+  it.each([
+    "같은 배분 변경 카드가 이미 화면에 대기 중이에요.",
+    "동일한 변경 카드가 이미 대기 중입니다. 새 카드 없이 기존 카드에서 확인해 주세요.",
+    "새 카드 없이 기존 카드에서 확인하시면 돼요.",
+  ])("corrects an existing-card claim when no card is emitted: %s", text => {
+    const result = composeAmoraPersistenceTerminal({
+      text, hasPendingAction: false, hasEmittedPendingAction: false,
+      persistenceMode: "durable", toolResults: [],
+    });
+    expect(result.text).toBe(SERVER_OWNED_MISSING_CARD_NOTICE);
+    expect(result.source).toBe("server_correction");
+    expect(result.removedClaimCount).toBeGreaterThan(0);
+  });
+
+  it.each([
+    "변경 카드가 이미 대기 중인가요?",
+    "‘변경 카드가 이미 대기 중입니다.’라는 안내를 보셨나요?",
+    "변경 카드가 대기 중이라면 기존 카드에서 확인해 주세요.",
+    "이전 변경 카드는 대기 중이었어요.",
+  ])("preserves questions, quotations, conditions and past card descriptions: %s", text => {
+    const result = composeAmoraPersistenceTerminal({
+      text, hasPendingAction: false, hasEmittedPendingAction: false,
+      persistenceMode: "durable", toolResults: [],
+    });
+    expect(result.text).toBe(text);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  it("keeps an existing-card statement when the server actually emits its card", () => {
+    const text = "동일한 변경 카드가 이미 대기 중입니다. 기존 카드에서 확인해 주세요.";
+    expect(composeAmoraPersistenceTerminal({
+      text, hasPendingAction: false, hasEmittedPendingAction: true,
+      persistenceMode: "durable", toolResults: [],
+    }).text).toBe(text);
+  });
+
   it("preserves the existing claim screening boundaries across punctuation and layout structures", () => {
     const phrases = ["예산을 저장했어요.", "아직 저장하지 않았어요.", "Saved!", "not saved?", "31.4%", "3.5만원", "https://example.com/p?a=1", "**강조**", "| 항목 | 금액 |", "- 다음 할 일", "등록됐어요。", "미확인！？", "🧡", ""];
     for (const first of phrases) for (const second of phrases) for (const separator of ["", " ", "\n", "\n\n", "\r\n", "\t"]) {

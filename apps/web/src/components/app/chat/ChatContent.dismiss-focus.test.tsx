@@ -146,6 +146,42 @@ describe("제안을 나중에 정할 때 대화 초점", () => {
     expect(mocks.sendMessage).not.toHaveBeenCalled();
   });
 
+  it("명시 배분 카드를 잠시 숨겨도 새 답변에 다시 실린 같은 카드는 확인할 수 있다", async () => {
+    const input = {
+      total_budget: 35_000_000, allocation_mode: "explicit",
+      allocations: [{ category: "studio", budget: 2_999_000 }, { category: "dress", budget: 3_001_000 }],
+      intake_summary: "두 항목만 옮기고 나머지 유지",
+    };
+    const { inputDigest, operationKey } = getAmoraToolOperationIdentity("apply_budget_plan", input);
+    const original = mocks.messages[0];
+    const action = {
+      ...original.metadata!.pending_amora_action!, tool: "apply_budget_plan", input, inputDigest, operationKey,
+      confirmation: "두 항목 배분을 변경할까요?",
+    };
+    mocks.messages = [
+      { ...original, metadata: { pending_amora_action: action } },
+      { ...original, id: "first-carry", metadata: { pending_amora_action: action } },
+    ];
+    await render();
+    await act(async () => button("지금은 적용하지 않기").click());
+    expect(container.textContent).not.toContain("내용 확인하기");
+    await render();
+    expect(container.textContent).not.toContain("내용 확인하기");
+
+    mocks.messages = [...mocks.messages,
+      { ...original, id: "new-request", sender_role: "bride", sender_id: mocks.profileId, metadata: null, content: "아직 적용하지 말고 같은 변경 내용을 다시 보여줘." },
+      { ...original, id: "new-carry", metadata: { pending_amora_action: action } },
+    ];
+    await render();
+    const triggers = [...container.querySelectorAll<HTMLButtonElement>("button")].filter(item => item.textContent?.trim() === "내용 확인하기");
+    expect(triggers).toHaveLength(1);
+    expect(triggers[0].disabled).toBe(false);
+    await act(async () => triggers[0].click());
+    expect(document.querySelector('[data-amora-sheet][role="dialog"]')).not.toBeNull();
+    expect(mocks.messages.at(-1)?.metadata?.pending_amora_action).toEqual(action);
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+  });
+
   it("다른 조작으로 옮긴 초점을 입력창이 가져오지 않는다", async () => {
     await deferFromSheet();
     const target = button("상대방에게");

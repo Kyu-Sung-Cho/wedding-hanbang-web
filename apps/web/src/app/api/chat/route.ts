@@ -2127,10 +2127,10 @@ export async function POST(request: Request) {
    * 2026-09-03: 두 벌로 적어 두면 상대 메시지 제외·세그먼트·화면 정리 커서 중 하나가
    * 갈라져도 아무도 못 알아챈다. 한 곳에서 만들고 두 곳이 부른다.
    */
+  // 기억 수집 금지의 원문 scope 확인에도 필요하다. 컬럼을 읽는 것과
+  // 대화 창을 활성 구간으로 제한하는 아래 read flag는 별개다.
   const canonicalMessageWindowColumns: string =
-    conversationSegmentReadEnabled || shouldLoadBoundedContinuity
-      ? "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at"
-      : "id, sender_id, sender_type, role, content, metadata, visibility, created_at";
+    "id, sender_id, sender_type, role, content, metadata, visibility, segment_id, created_at";
   const buildCanonicalMessageWindowQuery = () => {
     let q = supabase
       .from("chat_messages")

@@ -198,8 +198,14 @@ function removeUnemittedCardClaims(text: string, hasEmittedPendingAction: boolea
     const claim = (claims[index]?.claim ?? "").replace(/[*_]/g, "");
     if (/[?？]$/.test(claim)) return true;
     const missingCard = /확인\s*카드(?:입니다|예요|에요)|확인\s*카드(?:를|가|이)?\s*(?:준비했|만들었|보여\s*드릴게|보여\s*드렸|확인해\s*주세요)|확인\s*카드(?:가|는)\s*있(?:어요|습니다)|적용\s*버튼(?:이\s*있(?:어요|습니다)|을\s*(?:눌러\s*주세요|누르세요))/u.test(claim);
-    if (missingCard) removedCount += 1;
-    return !missingCard;
+    // 이전 답변의 카드도 이번 응답에 실제 실리지 않으면 현재 보인다고 말할 수 없다.
+    // 인용·질문은 위에서 제외하고, 조건부 사용 설명과 과거 상태는 그대로 둔다.
+    const conditionalCard = /카드[^.!?\n]*(?:있(?:다면|으면)|대기\s*중(?:이라면|이면))/u.test(claim);
+    const waitingCard = /(?:확인\s*|변경\s*)?카드(?:가|는)\s*(?:이미\s*)?(?:화면에\s*)?(?:이미\s*)?대기\s*중(?:입니다|이에요|에요|이어요|이야|이\s*있(?:어요|습니다))/u.test(claim);
+    const existingCardInstruction = /기존\s*(?:확인\s*|변경\s*)?카드에서\s*확인(?:해\s*주세요|하시면\s*(?:돼요|됩니다))/u.test(claim);
+    const unsupportedCard = missingCard || (!conditionalCard && (waitingCard || existingCardInstruction));
+    if (unsupportedCard) removedCount += 1;
+    return !unsupportedCard;
   });
   return { text: removedCount ? kept.map(segment => segment.source).join("").trim() : text, removedCount };
 }
