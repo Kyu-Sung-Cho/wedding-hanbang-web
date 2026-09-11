@@ -5,7 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { buildAmoraAtomicToolOperation } from "@/lib/ai/amoraAtomicToolOperation";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
-import { createBudgetDecisionDatabase, COUPLE_ID, USER_ID, PARTNER_ID, OUTSIDER_ID } from "./fixtures/amoraBudgetDecisionDatabase";
+import { createBudgetDecisionDatabase, migration, COUPLE_ID, USER_ID, PARTNER_ID, OUTSIDER_ID } from "./fixtures/amoraBudgetDecisionDatabase";
 
 const databases: PGlite[] = [];
 afterEach(async () => { for (const db of databases.splice(0)) await db.close(); });
@@ -65,6 +65,45 @@ async function apply(db:PGlite, action:Awaited<ReturnType<typeof prepare>>) {
       JSON.stringify(action.input),JSON.stringify(action.operation.domainMutation),JSON.stringify(action.result)]);
 }
 describe("approved shared budget decision receipts", () => {
+
+  it("keeps explicit two-item approvals and restoration atomic with one exact budget receipt each",async()=>{
+    const db=await setup();
+    await db.exec("RESET ROLE");
+    await db.exec(migration("20260911080244_amora_budget_plan_explicit_allocations.sql"));
+    await db.exec("SET ROLE service_role");
+    const before={...original,
+      studio:{category:"studio",status:"completed",budget:3_000_000,spent:123_000,notes:"DO_NOT_COPY_STUDIO"},
+      dress:{category:"dress",status:"in_progress",budget:3_000_000},
+      honeymoon:{category:"honeymoon",status:"not_started",budget:12_500_000},
+      reserve:{category:"reserve",status:"not_started",budget:2_000_000},
+    };
+    await db.query("UPDATE wedding_journeys SET total_budget=35000000,progress=$1::jsonb WHERE couple_id=$2",[JSON.stringify(before),COUPLE_ID]);
+    const revision=(await db.query<{state_revision:number}>("SELECT state_revision FROM wedding_journeys WHERE couple_id=$1",[COUPLE_ID])).rows[0].state_revision;
+    const input={total_budget:35_000_000,allocation_mode:"explicit",allocations:[{category:"studio",budget:2_999_000},{category:"dress",budget:3_001_000}]};
+    const action=await prepare(db,"apply_budget_plan",input);
+    expect(action.result.success).toBe(true);
+    const first=await apply(db,action);
+    expect(first.rows[0].result.success).toBe(true);
+    expect((await apply(db,action)).rows).toEqual(first.rows);
+    const changed={...before,studio:{...before.studio,budget:2_999_000},dress:{...before.dress,budget:3_001_000}};
+    expect((await db.query("SELECT progress,state_revision::integer AS revision FROM wedding_journeys WHERE couple_id=$1",[COUPLE_ID])).rows)
+      .toEqual([{progress:changed,revision:Number(revision)+1}]);
+    const decisions=(await db.query<{delta:{totalBudget:unknown;categories:Array<{key:string;beforeBudget:number;afterBudget:number}>}}>("SELECT chosen_value->'budgetDelta' AS delta FROM decision_nodes")).rows;
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].delta.totalBudget).toBeNull();
+    expect(decisions[0].delta.categories).toHaveLength(2);
+    expect(decisions[0].delta.categories).toEqual(expect.arrayContaining([
+      expect.objectContaining({key:"studio",beforeBudget:3_000_000,afterBudget:2_999_000}),
+      expect.objectContaining({key:"dress",beforeBudget:3_000_000,afterBudget:3_001_000}),
+    ]));
+    expect(JSON.stringify(decisions)).not.toContain("DO_NOT_COPY");
+    expect((await db.query("SELECT action_id FROM amora_shared_action_journey_mutation_receipts")).rows).toHaveLength(1);
+    const restore=await prepare(db,"apply_budget_plan",{...input,allocations:[{category:"studio",budget:3_000_000},{category:"dress",budget:3_000_000}]});
+    expect((await apply(db,restore)).rows[0].result.success).toBe(true);
+    expect((await db.query("SELECT progress,state_revision::integer AS revision FROM wedding_journeys WHERE couple_id=$1",[COUPLE_ID])).rows)
+      .toEqual([{progress:before,revision:Number(revision)+2}]);
+    expect((await db.query("SELECT id FROM decision_nodes")).rows).toHaveLength(2);
+  });
   it("records the actual custom budget approval without copying unrelated content", async () => {
     const db=await setup();
     const action=await prepare(db,"add_custom_category",{label:"초대장·꽃·하객선물",budget:1_501_000});

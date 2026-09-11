@@ -31,7 +31,7 @@ type PromptOptions = Parameters<typeof buildAmoraSystemPrompt>[1];
 const ACTUAL_T3 = "앞에서 전달한 A와 B의 공개 의견을 기준으로 이제 둘의 의견을 중재해줘. 누가 양보하라고만 하지 말고, 각자 밑바탕 가치가 뭔지 짚고 예산·하객·장소를 묶은 절충안 3개와 추천 1순위를 제시해.";
 const RECOMMENDATION_HEADING = "[추천 근거 확인]";
 const RECOMMENDATION_RULE = "- 추천에 필요한 견적·예산·인원·날짜가 미확인이면 처음부터 끝까지 검토 후보, 순위는 검토 1순위로 쓰세요. 확인된 조건의 비교와 일반 준비 순서 추천은 가능합니다.";
-const PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 현재 바꾼 대상의 이유는 한 번만 묻되 이미 말했으면 건너뛰고 탐색을 이어가세요. 기존 우선순위나 직전 AI 제안의 이유로 바꾸지 마세요. 그 이유에 답한 턴에는 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요: 바꾸지 않은 명시적 선호·우선순위·생략·시기는 빠뜨리지 말고, 영향받는 규모·식사·견적은 재검토하세요. 작은 월 선호는 되묻지 마세요.";
+const PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상: 바꾼 대상의 이유만 한 번 묻되 이미 말했으면 탐색을 이어가세요. 기존 우선순위·AI 제안의 이유로 바꾸지 마세요. 이유 답변에는 미변경 선호·우선순위·생략·시기의 유지와 영향받는 규모·식사·견적의 재검토를 함께 짚으세요. 작은 월 선호는 되묻지 마세요.";
 const QUESTION_SCOPE_HEADING = "[서버 확정 질문 범위 계약]";
 
 const BASE_CONTEXT: PromptContext = {
@@ -189,11 +189,11 @@ describe("추천 근거 지침은 마지막 보호 구간에 전달된다", () =
     }
   });
 
-  it("재배치한 pivot 233자와 추천 보호 구간 106자의 정확한 길이를 유지한다", () => {
+  it("압축한 pivot 176자와 추천 보호 구간 106자의 정확한 길이를 유지한다", () => {
     const prompt = buildAmoraSystemPrompt(BASE_CONTEXT, selectedOptions(ACTUAL_T3));
-    const pivot = prompt.split("\n").find(line => line.includes("하객 규모") && line.includes("이유는 한 번만"));
+    const pivot = prompt.split("\n").find(line => line.includes("하객 규모") && line.includes("이유만 한 번"));
     expect(pivot).toBe(PIVOT_RULE);
-    expect(pivot?.length).toBe(233);
+    expect(pivot?.length).toBe(176);
     const addition = prompt.slice(
       prompt.indexOf(RECOMMENDATION_HEADING) - 2,
       prompt.indexOf(RECOMMENDATION_RULE) + RECOMMENDATION_RULE.length,

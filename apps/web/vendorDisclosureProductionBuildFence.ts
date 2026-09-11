@@ -7,6 +7,7 @@ import {
   validateSuccessorReleaseContract,
 } from "../../scripts/lib/supabase-successor-release-contract.mjs";
 import { BUDGET_DECISION_CONTRACT_FILE } from "../../scripts/lib/amora-budget-decision-release-contract.mjs";
+import { EXPLICIT_BUDGET_CONTRACT_FILE } from "../../scripts/lib/amora-explicit-budget-release-contract.mjs";
 
 export const VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID =
   "VENDOR_DISCLOSURE_STATIC_RELEASE_CONTRACT_INVALID";
@@ -69,9 +70,11 @@ export function assertVendorDisclosureProductionBuild({
     // 구 경로로 재시도하지 않으며, 계약이 없는 과거 checkout은 기존 검사를 유지한다.
     releaseContract = validateSuccessorReleaseContract({
       repoRoot,
-      followup: existsSync(join(repoRoot, BUDGET_DECISION_CONTRACT_FILE))
-        ? "amora-budget-decision-hotfix"
-        : null,
+      followup: existsSync(join(repoRoot, EXPLICIT_BUDGET_CONTRACT_FILE))
+        ? "amora-explicit-budget-hotfix"
+        : existsSync(join(repoRoot, BUDGET_DECISION_CONTRACT_FILE))
+          ? "amora-budget-decision-hotfix"
+          : null,
     });
   } catch (error) {
     if (error instanceof SuccessorReleaseContractError) {

@@ -1,12 +1,12 @@
 // @vitest-environment node
 
-import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { validateSuccessorReleaseContract } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
+import { createBudgetDecisionHistoricalRepository } from "../../../../../scripts/tests/fixtures/budget-decision-historical-repository.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -21,6 +21,7 @@ const budgetContract = "supabase/release-contracts/amora-budget-decision-hotfix-
 const budgetSql = "supabase/migrations/20260910160514_amora_shared_budget_decision_receipts.sql";
 const vendorManifest = "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
 let fixtureRoot: string;
+let cleanupFixture: (() => void) | undefined;
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -33,22 +34,15 @@ function production(root: string, authorization = expectedProductionAuthorizatio
 }
 
 beforeAll(async () => {
-  fixtureRoot = await mkdtemp(join(tmpdir(), "budget-production-build-"));
-  for (const folder of ["supabase/migrations", "supabase/release-contracts", "supabase/release-manifests", "supabase/release-checks"]) {
-    await cp(join(repoRoot, folder), join(fixtureRoot, folder), { recursive: true });
-  }
-  const base = z.object({ implementation: z.record(z.string(), z.object({ file: z.string() })) }).parse(
-    JSON.parse(await readFile(join(repoRoot, "supabase/release-contracts/current-baseline-rollout-v1.json"), "utf8")),
-  );
-  for (const pin of Object.values(base.implementation)) {
-    const target = join(fixtureRoot, pin.file);
-    await mkdir(dirname(target), { recursive: true });
-    await cp(join(repoRoot, pin.file), target);
-  }
+  // 과거 M3 허용 범위는 고정 M4 원문으로 검증한다. 새 SQL을 빼서 과거
+  // checkout처럼 꾸미거나 구 loader의 허용 범위를 넓히지 않는다.
+  const historical = createBudgetDecisionHistoricalRepository(repoRoot);
+  fixtureRoot = historical.root;
+  cleanupFixture = historical.cleanup;
 });
 
 afterAll(async () => {
-  if (fixtureRoot) await rm(fixtureRoot, { recursive: true });
+  cleanupFixture?.();
 });
 
 describe("production build explicitly registers the pinned budget followup", () => {
@@ -59,10 +53,16 @@ describe("production build explicitly registers the pinned budget followup", () 
   it("retains default drift rejection while the explicit static followup succeeds", () => {
     expect(() => validateSuccessorReleaseContract({ repoRoot }))
       .toThrowError(expect.objectContaining({ code: "MIGRATION_SET_DRIFT" }));
-    const result = validateSuccessorReleaseContract({ repoRoot, followup });
+    const result = validateSuccessorReleaseContract({ repoRoot: fixtureRoot, followup });
     expect(result.migrationCount).toBe(111);
     expect(result.deploymentBlocked).toBe(true);
     expect(result.controllerReady).toBe(false);
+  });
+
+  it("does not admit the new explicit-budget SQL through the previous followup", () => {
+    expect(() => validateSuccessorReleaseContract({ repoRoot, followup }))
+      .toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
+    expect(() => production(fixtureRoot)).not.toThrow();
   });
 
   it.each([

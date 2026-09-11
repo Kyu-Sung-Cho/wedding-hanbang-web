@@ -1,0 +1,2287 @@
+{
+  "format": "legacy-release-test-repository-v1",
+  "sourceCommit": "e9f74aa3823cd75ed4180623d6276845180bd8ab",
+  "sourceTree": "0627d4a080b66b9b804dc866692f298dbf1f382c",
+  "files": [
+    {
+      "blob": "ac8af0fcbf5e68d0aebb347d7dbb1c7f40fce744",
+      "file": "package.json",
+      "sha256": "7d3e46cce60655ae48c2d2fb9676ac5f2127c55f0ef2440276aa577797fd5dc9",
+      "bytes": 9837
+    },
+    {
+      "blob": "b5aae5c3de3e94f590b2145d82cf2699fd48664d",
+      "file": "pnpm-lock.yaml",
+      "sha256": "fc4408e710e9aa70a25eae426e7c778645b19963bb0e8fe405c9ebbdee2afc8c",
+      "bytes": 580787
+    },
+    {
+      "blob": "4fc331c15ae7a17778fb68add8c161f10394b57e",
+      "file": "scripts/amora-budget-decision-archive-collect.mjs",
+      "sha256": "ed3e7fdf6264f21855675e55cc2448e44307b0acf3e0d96a1ffe4fbc793ccb75",
+      "bytes": 6028
+    },
+    {
+      "blob": "984f80ce583ebc8213ef93dccef324a390cc5437",
+      "file": "scripts/amora-budget-decision-backup-collect.mjs",
+      "sha256": "da8811280f199a02ad48416664c5ae69b06916fc8b1fd17f3e4e3d026bc6dfcb",
+      "bytes": 582
+    },
+    {
+      "blob": "1e06cc6de4e16b10fc9ecb644ee2447eec20ce5f",
+      "file": "scripts/amora-conversation-eval.mjs",
+      "sha256": "b33835cc3295f5e723b78d610f6ea4c1c83e896a295809ab04b8800b2a385862",
+      "bytes": 47068
+    },
+    {
+      "blob": "a57596dca4888aa7fd166c73479f3ca3862ae864",
+      "file": "scripts/amora-cost-report-logic.mjs",
+      "sha256": "29a4ff2065cf42b06931afb6d861736f9d44ad027b8da72b7767e6bdd6cc8362",
+      "bytes": 918
+    },
+    {
+      "blob": "98857fae5095eabd90eb05cba6eb097ae8cbb316",
+      "file": "scripts/amora-cost-report.mjs",
+      "sha256": "da5d1f9dc21bcf65a826b76df3a0c8954bd9cefe4226c4efc1422d18c002adf3",
+      "bytes": 12653
+    },
+    {
+      "blob": "9b8106930c119a0a38f11665fa1de55ed1511075",
+      "file": "scripts/amora-db-backup-common.ps1",
+      "sha256": "b6f9eaa6a54edf92d868f61d25f00a2008ec42e34bbd5fb4dea75def61277079",
+      "bytes": 62178
+    },
+    {
+      "blob": "efa40b0e2bead5edd7646f21ae40f0342c30f9bc",
+      "file": "scripts/amora-db-backup.ps1",
+      "sha256": "be5d5fdf1f26ec5889695a5d9ffe52ad486bf713c3ab90c9c5d1f6e0c2d81fe3",
+      "bytes": 47910
+    },
+    {
+      "blob": "5f736c28c8cc0b27ac8120d1c8c2c72986110213",
+      "file": "scripts/amora-db-current-baseline-common.ps1",
+      "sha256": "18c78e3b2bfff141b3a6053664ff62c4219c0196a1479aafd86c2524317caef8",
+      "bytes": 18742
+    },
+    {
+      "blob": "dee5fad3a197a088d1d187bcf2f81e2e86a97fc6",
+      "file": "scripts/amora-db-current-baseline-verify.ps1",
+      "sha256": "a2e769822bb3afb6f0ce9323c230b70c6d253a5ff35da514e96506cc139f4ebf",
+      "bytes": 16195
+    },
+    {
+      "blob": "36caf0e7a04d2865da42e9b8cd7fa2c09d0c2c8d",
+      "file": "scripts/amora-db-current-baseline.ps1",
+      "sha256": "de1d3369550c0a993a701ca201522e1fd563cb076311e9dd7461c214223d4bb2",
+      "bytes": 15989
+    },
+    {
+      "blob": "6e1147bb0acaef17501d9272f5bf4b1b39637b3f",
+      "file": "scripts/amora-db-verify-backup.ps1",
+      "sha256": "a99127b5ffcb8fea80712ec748524cd8fd8a7d5c1ea151e8f35a9ab1bfa0bfbd",
+      "bytes": 47044
+    },
+    {
+      "blob": "f2f3df147636f68daf7672992617a0e0886f77e5",
+      "file": "scripts/amora-model-pricing.mjs",
+      "sha256": "74ff128b44d965c5a9baed4b31afbc66ca030c1128ee7cf5ab8585e6cd4dd977",
+      "bytes": 3520
+    },
+    {
+      "blob": "79ab179c60158c9ec7228468fa738880698ace27",
+      "file": "scripts/amora-production-smoke.mjs",
+      "sha256": "462c196f16aec99265674d3737bb6705a096961c1abc04322ea02a2ccebaeeed",
+      "bytes": 3550
+    },
+    {
+      "blob": "7065c0f8299f386ba0e8b29a9fe4a5fdfa6ed4b1",
+      "file": "scripts/audit-community-media-urls.mjs",
+      "sha256": "b3adb37856bc13ca89c8c321194620b508d3fa177668707090988be249bcd3f2",
+      "bytes": 9080
+    },
+    {
+      "blob": "6353b0adae600d81707b1c14aaa54d4329f706ae",
+      "file": "scripts/build-web-safely.mjs",
+      "sha256": "65fe6145747f6729028b6eaec6270d1e2dc4e5210aa39f08cca7bdbcb202d5d6",
+      "bytes": 1292
+    },
+    {
+      "blob": "d3d0bbea873585d551332687f3aa69ff78c2f7d1",
+      "file": "scripts/capture-post-push-platform-evidence.mjs",
+      "sha256": "04922a1c08273cbb8f215ade138d993b1c8d80c3971dc8651deb582b6a5e6934",
+      "bytes": 1463
+    },
+    {
+      "blob": "3cd6639d0983d435dae4b5ffe06b79d3250d6b10",
+      "file": "scripts/capture-production-write-fence-evidence.mjs",
+      "sha256": "7850e6366690e6e60945a73c1c9bcf635a1a66b36efa6ea8616381947b97f888",
+      "bytes": 1323
+    },
+    {
+      "blob": "affe3c1534d9269ef7cce624b8cd251ecc7ab442",
+      "file": "scripts/capture-storage-signed-upload-drain-evidence.mjs",
+      "sha256": "cd4a480eb7880ffff35e99278e6a4d32e7aee2ec186f177fe1f072fd65c9fa21",
+      "bytes": 1307
+    },
+    {
+      "blob": "2b5c64e96ee860540b65915192c328c9632e9ce0",
+      "file": "scripts/check-amora-build-env.mjs",
+      "sha256": "8f4d5c5e89fbd763d953e559b66ab1754524b28eec2eff2379181f0caa3de383",
+      "bytes": 446
+    },
+    {
+      "blob": "b80ab830fb91ab31bf2a37abd15a93a7c36c2924",
+      "file": "scripts/check-amora-production-env.mjs",
+      "sha256": "5a43bc3795fe536b9809e4a02da54934c4fce86f1a8da9e37ba42e01ce08b587",
+      "bytes": 8944
+    },
+    {
+      "blob": "e5502508c617971be8279e89c6b37d384d178d66",
+      "file": "scripts/check-wedding-code-production-artifact.mjs",
+      "sha256": "1acda255c2e3fcd9f9eee615acc57cfe90f5acdd1b4e7f8f4c0c37084fe50825",
+      "bytes": 1903
+    },
+    {
+      "blob": "34b04ab2be1f4d9e15e20144becc0076bcfe67c8",
+      "file": "scripts/check-wedding-code-research-route.mjs",
+      "sha256": "c296153745701ccdc62b89aaaa3d5100838faee2006ab46611f8684625fffe0f",
+      "bytes": 414
+    },
+    {
+      "blob": "44f49dea41c24c02e851edd7a2fdeeb2bba5782c",
+      "file": "scripts/collect-production-external-gate-evidence.mjs",
+      "sha256": "5f0613b70c700b25e26066037e3130e677cd285f6590a33216919e8a71f00e28",
+      "bytes": 17097
+    },
+    {
+      "blob": "c87eeff420b904a6cd02f8f2a89fa1ee09318e50",
+      "file": "scripts/current-baseline-backup-collect.mjs",
+      "sha256": "bb6a8236c074d0ec7661e7e1eac19e19ffcc389ea86242fdfb6dbd25f4e48803",
+      "bytes": 2993
+    },
+    {
+      "blob": "1850720729f1c749b6e531511c5c06909ac6575b",
+      "file": "scripts/current-baseline-backup-verify.ps1",
+      "sha256": "4da5c422cc7639c54a3158ee260666cb504e86abff07892afa4ace2672cf8952",
+      "bytes": 8388
+    },
+    {
+      "blob": "9497415c1227ea156ae6f39949bc0a527f460bf6",
+      "file": "scripts/current-baseline-backup-worker.ps1",
+      "sha256": "31586887b9de7635e6624d5b39f3d719669d3b59d077e122eac3419025708ab1",
+      "bytes": 7142
+    },
+    {
+      "blob": "6cc5a3f243a8925b6e48417ddbf13c9605802807",
+      "file": "scripts/current-baseline-finalizer.mjs",
+      "sha256": "a712c90b663c5b68ae5a59014f6feac20d529bde9fac506f2d0f9a5e55efcc5e",
+      "bytes": 603
+    },
+    {
+      "blob": "715ac609e1c49ddde376723f58fc4f46f6005b00",
+      "file": "scripts/current-baseline-hosted-synthetic.mjs",
+      "sha256": "59c395849175c284be904b70e07fe1914b8eda91aa43f4701bd0ec0e090f6d79",
+      "bytes": 5238
+    },
+    {
+      "blob": "0283e59b2b3792fffe2cb46fc32f5ca46ede0499",
+      "file": "scripts/dev-web-local.mjs",
+      "sha256": "f1ec871a58116a0fd791b562919e8f39a2e27cbcac3cae4e4a73fc128670b22b",
+      "bytes": 2358
+    },
+    {
+      "blob": "055b344d2942548703de49fd324e840049437562",
+      "file": "scripts/finalize-production-write-fence.mjs",
+      "sha256": "073aa6461dad53e5bf08f063320e6b6fa9f15be46c562d013c27520934025cb5",
+      "bytes": 744
+    },
+    {
+      "blob": "61b433c6ebd422c51ae81d6cd66ce98b90237449",
+      "file": "scripts/install-git-hooks.mjs",
+      "sha256": "19871eeaf5fd7e6830818ffc3c1d78185ef72446d15bef2704ed730807f4d361",
+      "bytes": 2179
+    },
+    {
+      "blob": "b07de9a98b2ef1b401c716bd58e0a77e9058c92c",
+      "file": "scripts/landing-a11y-qa.mjs",
+      "sha256": "03015984e0911f3e5526c6dd7d7bea20b38e16f80dd9feb3b3b18a7094f72af4",
+      "bytes": 9005
+    },
+    {
+      "blob": "979ee2981c10ba7db46969333a47517d6a4101e8",
+      "file": "scripts/lib/amora-budget-decision-archive-collector.mjs",
+      "sha256": "3aff840ed9869c29b901cab207d1e465a766240b9143a9f127a9f8bc16faebd5",
+      "bytes": 6838
+    },
+    {
+      "blob": "e7895c1f8de2ae6a920aa04922a7fc5f3b351fda",
+      "file": "scripts/lib/amora-budget-decision-backup-collector.mjs",
+      "sha256": "567430f1bdf4233239836ca95f8100f05af8b0776c5b91a68141d2b385de6cf1",
+      "bytes": 11392
+    },
+    {
+      "blob": "abf1a2fb14fdb773bc59053df9cf9a67084ba9d9",
+      "file": "scripts/lib/amora-budget-decision-effective-release-contract.mjs",
+      "sha256": "1126833bd172bfd7def14590618b2bcc4476b7ddd5ed0fabd1a8e161129bed8d",
+      "bytes": 14346
+    },
+    {
+      "blob": "0f0ba47835097fbb8f1e46c64b74166a0619a58d",
+      "file": "scripts/lib/amora-budget-decision-release-contract.mjs",
+      "sha256": "1615927ab5112506485a65035f3add5068fb6f82af611fc340b214d1ec5723ef",
+      "bytes": 16695
+    },
+    {
+      "blob": "c3a49ae9daa834d538a14984578264801523b304",
+      "file": "scripts/lib/amora-named-budget-migration-pin.mjs",
+      "sha256": "2ce03ef75cdf485d8bf3f7a1f556c44564285f3630332c0838f9730bd5dc0ca3",
+      "bytes": 314
+    },
+    {
+      "blob": "c90562c809c57490a50ae7172159b57a1d4620ea",
+      "file": "scripts/lib/amora-release-extended-contracts.mjs",
+      "sha256": "70bf92b0fe75e1e02df20c4bc41828eeb4af18795d3fc9707f8a3e00fa6f85f0",
+      "bytes": 20870
+    },
+    {
+      "blob": "8c641d5cb9415f72d8dc85d1cb23c9b94de1e09d",
+      "file": "scripts/lib/amora-runtime-hotfix-controller.mjs",
+      "sha256": "38b1c235c92fa53cec358bbe840ffd5d46f8d909bdc5de1babbad8936fbced8a",
+      "bytes": 67074
+    },
+    {
+      "blob": "d8fb71491eb073e3bd2d7ba293d07162188c04c1",
+      "file": "scripts/lib/current-baseline-backup-collector.mjs",
+      "sha256": "cc8ccff6c99adf99cd6b84e9ad7e2a8b94c7f06fef0b846686182a284d144b33",
+      "bytes": 12130
+    },
+    {
+      "blob": "8966e90e91521e0ed26fe141df82b88655f511ba",
+      "file": "scripts/lib/current-baseline-backup-runtime.mjs",
+      "sha256": "274b4060cc49617a95ca79ceebe0394f72643dd7451cac6e081863a0ad9591c6",
+      "bytes": 14828
+    },
+    {
+      "blob": "e46ce4a1aad6bb2218e794ce8709ebdbf5a8e71f",
+      "file": "scripts/lib/current-baseline-finalizer.mjs",
+      "sha256": "35f2647af3604943e2fcd599feca1eed67b305a3d715077e5b738f078b7b90db",
+      "bytes": 28176
+    },
+    {
+      "blob": "74af57149570c2719b3f4baafec8e6f911f0aedf",
+      "file": "scripts/lib/current-baseline-hosted-synthetic-scenarios.mjs",
+      "sha256": "fda1cc3f2fd5889cf694afdef645e6911b619fdc99fc65b8d3fe6b45a11691bf",
+      "bytes": 16263
+    },
+    {
+      "blob": "bc2d4376779fedd4d8a7d749562da5924cd53388",
+      "file": "scripts/lib/current-baseline-hosted-synthetic.mjs",
+      "sha256": "de3bf181c4df6a424ee3ce33e903d37641f1ccb84dc25563cf875e63b0e83946",
+      "bytes": 13574
+    },
+    {
+      "blob": "c06c9ce912d03681d499c0476d1ff595b46bf16c",
+      "file": "scripts/lib/current-baseline-release-contract.mjs",
+      "sha256": "03f36e6965866ca03b8ea6c9b1adad6a29cd1463914ea1aa8306d1cbbe100554",
+      "bytes": 23052
+    },
+    {
+      "blob": "282a85010a31ecc116f8d04265b5d9794929578c",
+      "file": "scripts/lib/current-baseline-release-controller.mjs",
+      "sha256": "25561d104abb806cbdba70be496a04256ec5575bcd4b75ca05c54951ae927a66",
+      "bytes": 16012
+    },
+    {
+      "blob": "d6f960f1aadcdcd9b0b79aee02b771dc28cd314f",
+      "file": "scripts/lib/full-restore-target-admission.mjs",
+      "sha256": "e4ece4490b6e3f818b4cc40c5a98b8565bdafcb96eee19713b23de6cf0d23b8b",
+      "bytes": 15079
+    },
+    {
+      "blob": "412174bf0452a1df3059e44ffebeb8199596065d",
+      "file": "scripts/lib/local-qa-environment.mjs",
+      "sha256": "22738b72b82d3f541a9255d259a5e91a39d172373f3ef246168dfeb701391650",
+      "bytes": 986
+    },
+    {
+      "blob": "ac8e890f10d8f801876e8e7d57285229780939eb",
+      "file": "scripts/lib/post-push-platform-evidence.mjs",
+      "sha256": "7a6ef5e5fd5f2aaa9dfd7e075ccc7214a8d71a31d8edf771d848c8cf6665e887",
+      "bytes": 10288
+    },
+    {
+      "blob": "6a4d75c8dd826e62f22c63fe11b1210574c83f5a",
+      "file": "scripts/lib/postgres-snapshot-archive.mjs",
+      "sha256": "5f8db47b905a05e528c9616a9903b2670c364183fb3e09a773f7c6ee68427428",
+      "bytes": 9517
+    },
+    {
+      "blob": "fe898f2e6f5543cbc04d97be9bde90072d843eb1",
+      "file": "scripts/lib/production-database-identity.mjs",
+      "sha256": "fffa41e82cbb46320634b392416972aef689d390be12f3ed5d76ffe6cea521ba",
+      "bytes": 473
+    },
+    {
+      "blob": "2c46a043b2d1bf5d7d00e2445d5168eaa1fd2cbc",
+      "file": "scripts/lib/production-external-gate-provenance.mjs",
+      "sha256": "76fa88066f7b31e9c65c078f05c6941faf48feacb735c233faec8ebf9e3e38ec",
+      "bytes": 97480
+    },
+    {
+      "blob": "743edb467ef3edffe548bfcef019f42c85c5ec52",
+      "file": "scripts/lib/production-windows-toolchain.mjs",
+      "sha256": "58da630f5a69c3dd3e181bc9bd51a01622ba1e0d7c311e53a675803e336fe520",
+      "bytes": 3624
+    },
+    {
+      "blob": "380c26a379105601ae356600977b9063b9fc5985",
+      "file": "scripts/lib/production-write-fence-evidence.mjs",
+      "sha256": "670d6d8d46d71b15ceb70e9702052eaebd8571bdebcf64503979b59282c0c1b5",
+      "bytes": 14875
+    },
+    {
+      "blob": "10d364972da4c03faf15b958763dca9e8078452a",
+      "file": "scripts/lib/production-write-fence-finalizer.mjs",
+      "sha256": "01be697ca8bdae16d90eadc954d1757d59d280df8ecef9d33496d8c5a9d1710e",
+      "bytes": 72304
+    },
+    {
+      "blob": "67ea3ae4f2970a0aaec2a04877a37cb1eaec2430",
+      "file": "scripts/lib/qa-merged-summary.mjs",
+      "sha256": "fbeddbe74242ffb4b1a5c38671f909f0c53a344dc827aa6973e4ff44917fc44d",
+      "bytes": 2814
+    },
+    {
+      "blob": "e60aeb84337d35843c38b5a7a822117ea717ea96",
+      "file": "scripts/lib/sql-read-only-envelope.mjs",
+      "sha256": "ee7a558cb35bb3d29adeb18900dcd5a23437c47ca0d88d258ff8d851e16296bb",
+      "bytes": 4424
+    },
+    {
+      "blob": "6868fd5e238d2f4237b470a762854bc4493faef2",
+      "file": "scripts/lib/storage-signed-upload-drain-evidence.mjs",
+      "sha256": "fbfe81c7b41179592f8c417697cf42a3804fde77329cfb4b3a40fdb3a6756b77",
+      "bytes": 29889
+    },
+    {
+      "blob": "b827a907f44336417902d9f4c76433aaa4d8bd4e",
+      "file": "scripts/lib/supabase-production-release-controller.mjs",
+      "sha256": "6858d7bcdb57d66e82ba8c0a7e368ae9563c4c5050f5df62b4532661e57d7000",
+      "bytes": 126140
+    },
+    {
+      "blob": "21bacda55f476fae3a62c702e8cfa0a241ba51ce",
+      "file": "scripts/lib/supabase-service-destination.mjs",
+      "sha256": "ac095ac344e6be913b89b04f8dd0e0027fba67e0639dd249ffceb67711ff13c4",
+      "bytes": 6165
+    },
+    {
+      "blob": "853889be34fbc569e54ce92f0dd546543629c02b",
+      "file": "scripts/lib/supabase-successor-release-contract.mjs",
+      "sha256": "a7cad1d686eaa77dda1f546a0fde5fa940e32913da65648f483cb9aed5e28bb0",
+      "bytes": 46973
+    },
+    {
+      "blob": "ab2b2798793b7de9eeb6a5ccb77e7c9dad410622",
+      "file": "scripts/lib/synthetic-supabase-environment.mjs",
+      "sha256": "823359eccbf5ea8a6c7d95624925d1977817705bafcd94ba5ce7352a140f91c2",
+      "bytes": 640
+    },
+    {
+      "blob": "990d73265f42f2c6047754d9d73ba28f13bef1dc",
+      "file": "scripts/live-smoke-test.mjs",
+      "sha256": "cee455654357a07a36974eb5613b81bc6f21f293cee2cff76b3c1da330a5b09d",
+      "bytes": 25974
+    },
+    {
+      "blob": "c3ba05a96c9a89784a240b357318f6664b4d9adb",
+      "file": "scripts/mobile-eas-release-gate.mjs",
+      "sha256": "6b23534c74544135b5c665a122583cc1c4fef838990bfa1d37cd18ace7ed0eac",
+      "bytes": 5057
+    },
+    {
+      "blob": "b5737be144a9bfc416a732e84ba1fb2fb9f3ae61",
+      "file": "scripts/mobile-release-readiness.mjs",
+      "sha256": "3b097f3b5fd9d4616fa42d6db89e36f3e99d30a6e293e7dbf1ed3235bb9a4a61",
+      "bytes": 20921
+    },
+    {
+      "blob": "c87efe721657a962afdab25998cf9a12ab5f6631",
+      "file": "scripts/prove-guard.mjs",
+      "sha256": "7939f8c2f3ee6300b1abef69340c1273ce694d26db8fb5136c6bfc543d29d34a",
+      "bytes": 10555
+    },
+    {
+      "blob": "3cb39e77e9528b2071365cd78c14672ebb9232f9",
+      "file": "scripts/qa-merged.mjs",
+      "sha256": "04017da738b5d6904d39d3fe57fbd8d8d24eb8cbbbc4315c224aec3d4a9fbbd8",
+      "bytes": 9073
+    },
+    {
+      "blob": "a452625e1ce2f59309235670e6770bf9376f037e",
+      "file": "scripts/resolve-chrome-executable.mjs",
+      "sha256": "7a2a01378911ce2cd5b055662eb626f2f4806787fd09301e31515b9a83c709ce",
+      "bytes": 1311
+    },
+    {
+      "blob": "5fe84f24aff10ea1e553622b363441e61855ca64",
+      "file": "scripts/retire-guestbook-storage-buckets.mjs",
+      "sha256": "66e170d5e33576be56354fd82eb620714857abfe11ba85fd79ea2e44a95df1ec",
+      "bytes": 6336
+    },
+    {
+      "blob": "2092dfb163f7fd851bfae6e4810984ea0fa76517",
+      "file": "scripts/scope-delta.mjs",
+      "sha256": "3155573210c667a6d82157f447852a99092a529b66eba85b09b346993b7b2d07",
+      "bytes": 12047
+    },
+    {
+      "blob": "a801cf9d8d3631091072744bfdfdcd78be89481a",
+      "file": "scripts/supabase-anon-probe.mjs",
+      "sha256": "7fde98ddca9096d6162a363272b81bb7640fdb648fa9c24103527b204be5fa55",
+      "bytes": 2369
+    },
+    {
+      "blob": "138dff74adac7770b7a676aa2eded1ed4b5896d2",
+      "file": "scripts/supabase-apply-pending.ps1",
+      "sha256": "8478a902fe3bc58a46dd42a5614c48f847162801022d1431bfbbb8fd57791961",
+      "bytes": 2175
+    },
+    {
+      "blob": "d671dd6e58bc4fcaa4d752186f5499dbd9733a29",
+      "file": "scripts/supabase-baseline-history.ps1",
+      "sha256": "6ad29f7a3e84cde50d314f26fc4811a9ed2927ac33759bbc1246d48f46277483",
+      "bytes": 3659
+    },
+    {
+      "blob": "e7215205e9b3ec93eb8f6e7946dd37c9b846f250",
+      "file": "scripts/supabase-normalize-legacy-history.ps1",
+      "sha256": "c7c83113866955ef476caebd4dacbc299b4038067b47dddc0280eeab971b8ce8",
+      "bytes": 3012
+    },
+    {
+      "blob": "e916aca42fd2624d7720685e29a9a324ec6fe432",
+      "file": "scripts/supabase-production-release.mjs",
+      "sha256": "64d666dc9a66a207eaf6ff159e76684f64ecb7bb49f73f1ac1fdefcfb620fc9f",
+      "bytes": 1039
+    },
+    {
+      "blob": "f58cdde1962bd0eec10cc7fdc954d319377ededf",
+      "file": "scripts/supabase-release-fence.mjs",
+      "sha256": "f1a3b9000183b67c57dcc215c8025967c155a8c39ce5ead4541425333d52e3d8",
+      "bytes": 27820
+    },
+    {
+      "blob": "91191ee6c967168b322d48ec9da652c17e4e84f1",
+      "file": "scripts/supabase-safe-check.ps1",
+      "sha256": "95a2e2aeb95d402faa90673acacf8cb325252906a7dbed8721c933ff955ef602",
+      "bytes": 1726
+    },
+    {
+      "blob": "5c00a5be704ee7690dd86953e3408277c09cbdcf",
+      "file": "scripts/supabase-safe-setup.ps1",
+      "sha256": "05ce00eded6973b6f1751a22e5266c1c4a39838c89c4afb856e7d2a54e4cb124",
+      "bytes": 3147
+    },
+    {
+      "blob": "48603651d1b6529b35c26c1b77506d679bfa47af",
+      "file": "scripts/supabase-ship-safe.ps1",
+      "sha256": "6c788a52aab075c6ce7e5b1635bc9bf479ebe8798e343598125d66bef2afbbd9",
+      "bytes": 3767
+    },
+    {
+      "blob": "948c45a2fabf224a45d456961c87a7b68dbef369",
+      "file": "scripts/vendor-public-rls-probe.mjs",
+      "sha256": "871750bbb05f68e07ff96ed4c65e3644eec0270b92c0061aee6c723035424c68",
+      "bytes": 72810
+    },
+    {
+      "blob": "aadb54b5dba0b56ffd41292058912f4e0b548982",
+      "file": "scripts/verify-change.mjs",
+      "sha256": "43d3a7866f91b28cc22bfdc4f68adcff98d26cd9c75e8816f0aa87b4cb7d5e81",
+      "bytes": 14938
+    },
+    {
+      "blob": "6a84634bce0cab5abfc588882e63d698e290e9dc",
+      "file": "scripts/verify-local.mjs",
+      "sha256": "ec880273f862436b0e38957eabee8a76925b552cf51d9a9d97ed374387376244",
+      "bytes": 4544
+    },
+    {
+      "blob": "5df7407130a11c0251b273dae96b1ebf33a35aaa",
+      "file": "scripts/web-dev-safely.mjs",
+      "sha256": "69f5b9bcdba345fdec1b40382ce88c1dcc5f78ca9dae28bc012b253f931823bf",
+      "bytes": 1058
+    },
+    {
+      "blob": "d9c05ee33ed84538208baf082134ae6be11aed97",
+      "file": "scripts/wedding-code-candidate6-dev.mjs",
+      "sha256": "ee3b5743d2d5892e59306ca90fa57621f901c7c081991489f0902cedec2b762b",
+      "bytes": 3093
+    },
+    {
+      "blob": "66acbf75737067104c271e0043020e683dcc9342",
+      "file": "scripts/wedding-code-candidate6-security-qa.mjs",
+      "sha256": "3632cf836b39cfb4465fc3341ad68bccd1eba040967fdc9605c428921214876c",
+      "bytes": 5879
+    },
+    {
+      "blob": "e2792fb2bff02a610335488c7778c4a78a6e0e68",
+      "file": "scripts/wedding-code-candidate6-visual-qa.mjs",
+      "sha256": "627c58908512d63bf34bfe0adbfe9f2bdb1d97ca53f74f85fa3cae7df630568a",
+      "bytes": 14403
+    },
+    {
+      "blob": "3e501aa3af3290aa9be7426dbb5f5494f2efe861",
+      "file": "scripts/wedding-code-research-env.mjs",
+      "sha256": "8418e216464ce10a701eefcb714297277468d08f6fb0866b03860b43ce8ee371",
+      "bytes": 1207
+    },
+    {
+      "blob": "8760a60768082641af0d458f33b056019125c33e",
+      "file": "scripts/wedding-code-research-lock.mjs",
+      "sha256": "6e9c152deb85e4e238e8771a03df319adf21a4efb5b0b2798d223838fa1a5229",
+      "bytes": 2798
+    },
+    {
+      "blob": "e07c7d4bb61e5ea33c9f85497f614693c56091b0",
+      "file": "scripts/wedding-code-research-route-artifact.mjs",
+      "sha256": "f4e7be32823e9b8e564cdc21a3390d04d1470b1afcea9914e42f0e6963330333",
+      "bytes": 1160
+    },
+    {
+      "blob": "2fac4202fbe52b0db8cd2731b15900ea1e875f7c",
+      "file": "scripts/wedding-code-research-safety.mjs",
+      "sha256": "44dfbd3100c71bef54c3b9bb9d634f9b0c1fc148fe8e21ff7b1dacbe6b3b6262",
+      "bytes": 2581
+    },
+    {
+      "blob": "ad9264f0b14b294627f8e77383875c994af54865",
+      "file": "supabase/.gitignore",
+      "sha256": "507699eb91144818edf61d3a079212cacf31d8db520eae428e3b48fcf0d6919c",
+      "bytes": 72
+    },
+    {
+      "blob": "e21348330ff248360fc299063584818a88192470",
+      "file": "supabase/DIAGNOSE_EXISTING_TABLES.sql",
+      "sha256": "73e7ea3ce01e4a6274676c2737335add91eab7673082bfbb4508d4697e5d0e5d",
+      "bytes": 1406
+    },
+    {
+      "blob": "acd84f684698c1fe1bc01a5ea3f3f52d8cf74e3d",
+      "file": "supabase/config.toml",
+      "sha256": "3cc97ad80f375e938b86639ac2cfe719a047cb7320efb4db811e789495581372",
+      "bytes": 15490
+    },
+    {
+      "blob": "aec81a869158204be9667009ad5b7620af27fe5a",
+      "file": "supabase/contract-migrations/20260714165000_contract_amora_privacy_boundaries.sql",
+      "sha256": "b1887740e8bbd181f46732b1fc6f8873099d2a7507cef2607f9293861e5c4da6",
+      "bytes": 12917
+    },
+    {
+      "blob": "8133af6aecb2410a6e441a0eff0dcb6bf3082281",
+      "file": "supabase/contract-migrations/20260714165500_audit_historical_release_effects.sql",
+      "sha256": "9d626616070e96b16be4cdb34f3560d1caf05f944ea1c1ada73fb6587a0f6863",
+      "bytes": 6665
+    },
+    {
+      "blob": "0548c8927c404cc4adf7a00d6b41744f068d2de7",
+      "file": "supabase/contract-migrations/20260714166000_contract_profile_couple_boundaries.sql",
+      "sha256": "05a7c0bbd0cdc2b6795de7f06c4936266c32581bd2c58d7314be897cfdbce5c7",
+      "bytes": 10011
+    },
+    {
+      "blob": "d1e729d0f6b86c1bfb0535a3fe67bf04cc4c6b4b",
+      "file": "supabase/migrations/20260201000000_preregistrations.sql",
+      "sha256": "2ed6b4e1e03fc7e3cd97cecdd7e08eb4143692637411e8640f6c4b318bfa2faf",
+      "bytes": 489
+    },
+    {
+      "blob": "77dc94eb92866b065a69741787e94cfc13d9fa37",
+      "file": "supabase/migrations/20260205000000_vendor_portal_system.sql",
+      "sha256": "4db79c5d996e567af8845ed0769cdbe44357dfa658b200c211efd3f60e7dc6ad",
+      "bytes": 19489
+    },
+    {
+      "blob": "f5ed033ccd0c55c561fa1f42bb08f90369cc31cf",
+      "file": "supabase/migrations/20260210000000_onboarding_couple_chat.sql",
+      "sha256": "bc999e24591870b1a5c465c844e85286dbcd230d0cdb9b648db47a8b44c206c1",
+      "bytes": 6078
+    },
+    {
+      "blob": "7c8bf8dc880317a054decdd9f34fd27c82350836",
+      "file": "supabase/migrations/20260215000000_fix_rls_recursion.sql",
+      "sha256": "e931bd70bfef2965701f5e694c70141885d712ab0d532143456694e89205bc9f",
+      "bytes": 4964
+    },
+    {
+      "blob": "d7badd4c6ea7ca05fca24baa13396a6f1bab0c39",
+      "file": "supabase/migrations/20260218000000_fix_signup_trigger.sql",
+      "sha256": "5a40278ffd2e5a36cdc35cde00873cce06387a9fadc0cd3a6bb9553184d0560d",
+      "bytes": 3502
+    },
+    {
+      "blob": "0819ebd0bbc74077d25ba34c359b1913a6e7d239",
+      "file": "supabase/migrations/20260220000000_vendor_system.sql",
+      "sha256": "d10a463cbc271953a490d0603a2e00d914081fde8abd96702d324c96a4e0d245",
+      "bytes": 9939
+    },
+    {
+      "blob": "88774c5ed08ad0318d7490db80331ee72606f827",
+      "file": "supabase/migrations/20260224000000_customer_tracking.sql",
+      "sha256": "1c3dbe03d5c04dc6dd0a0b05a8aaf97e86471ffdaee823087921bea0bfff3d0a",
+      "bytes": 5747
+    },
+    {
+      "blob": "926e7e30985f40557fec64ca6225885cf9e3fc5d",
+      "file": "supabase/migrations/20260225000000_admin_role.sql",
+      "sha256": "b9e6ef87b5159e5091a0c179afdcd7952ef905fd14345ba25665fff1d7df57ee",
+      "bytes": 395
+    },
+    {
+      "blob": "586008f7a41b6fca7cd7b5c785828f5f01354864",
+      "file": "supabase/migrations/20260301000000_contract_payment_system.sql",
+      "sha256": "82440e56b02c9ed806ed3720203da52341c51c42b3179a5e3ab21e971d905943",
+      "bytes": 6216
+    },
+    {
+      "blob": "7b43089bab5223d37a6b520c0cc918a476994993",
+      "file": "supabase/migrations/20260301000001_fix_rls_and_seed.sql",
+      "sha256": "03406782a78a9a4f59a8929ccd5fc62a759e6e9e7e0708571fb01631a7f45d8d",
+      "bytes": 5108
+    },
+    {
+      "blob": "4cbdca7818b696a5bceac9499f8eeacd15377c21",
+      "file": "supabase/migrations/20260301000002_schema_improvements.sql",
+      "sha256": "df2aca52fd73e405bdde617b12e19fa0a5091b51ba4bf7fdd5ee3d460b6f6c77",
+      "bytes": 3793
+    },
+    {
+      "blob": "ce57c265d5e38832f933904305ab9fce63006897",
+      "file": "supabase/migrations/20260301100000_portone_to_toss.sql",
+      "sha256": "c2ba73404b74f97a8c648cf077d05b73f8dd99588fe947a7ff14361e2982155a",
+      "bytes": 478
+    },
+    {
+      "blob": "293d4c0b8ff559ca426809ec012e2b707b85bf43",
+      "file": "supabase/migrations/20260302000000_phase3_invitation_ai_script.sql",
+      "sha256": "de4d6161b35278a9aaeddf1a551f12c036f2b4b8b405966dd73aaae97afe7da8",
+      "bytes": 19385
+    },
+    {
+      "blob": "76880286af6421fc19edc87fcbd35f6660e77cdd",
+      "file": "supabase/migrations/20260325000000_community.sql",
+      "sha256": "a36981439d2caaf29294607897e3e3ec7d81c05d10dc14795979153735d3ace4",
+      "bytes": 12570
+    },
+    {
+      "blob": "7064ec9348b4d398a30b4b72a6ef12dbd178f051",
+      "file": "supabase/migrations/20260325000001_gamification.sql",
+      "sha256": "548e8d6168a8481891be85cbf9cf2436c4f585c852a14274d7d7a79fc0f201a6",
+      "bytes": 6193
+    },
+    {
+      "blob": "609990f7f87bc08f56330784643714cb3c652015",
+      "file": "supabase/migrations/20260408000000_community_v2.sql",
+      "sha256": "ba1c2afdbfd977028d297e5562c6fb406b8c746c06440575fc2cf36e7a6ed353",
+      "bytes": 21793
+    },
+    {
+      "blob": "1b7537a31ba5a09a5225a007edcfc9665ffe320f",
+      "file": "supabase/migrations/20260423000000_missing_tables.sql",
+      "sha256": "bc66ead6b6f8168a8acc66ed43c1e0d20911b63bbf2b5d4313525c68db460c38",
+      "bytes": 10708
+    },
+    {
+      "blob": "2a36fc777a1450e1e5891a106f1237af2fe3fcbd",
+      "file": "supabase/migrations/20260424000000_moat_wiring.sql",
+      "sha256": "d1fa7dde82bde3837af7ab7995712abdd1035fc236732df1f0354cd87deab556",
+      "bytes": 17977
+    },
+    {
+      "blob": "8242cc3f5865e62e4db7a433adc6feff49b3c8c6",
+      "file": "supabase/migrations/20260424000001_contract_clauses_seed.sql",
+      "sha256": "07ec4796cbf29b26fcda50b3f134b01338e03c275d74b883362d09f8df5f8296",
+      "bytes": 17539
+    },
+    {
+      "blob": "59e6843eee21ba1c45778cea5e3458e17b032167",
+      "file": "supabase/migrations/20260424000002_preregistrations_beta_fields.sql",
+      "sha256": "f79a8f85d6555527069ea81427e82fd10645bc817ed4936f93d7bd0172e00481",
+      "bytes": 2980
+    },
+    {
+      "blob": "a915f3508218649843120c4311824cc7694cb34e",
+      "file": "supabase/migrations/20260427000000_chat_request_id_idempotency.sql",
+      "sha256": "f96613a7d3442fbb226e90eb4732bab7b379a6e84c32e9fd1bb03c0dd50fbc01",
+      "bytes": 708
+    },
+    {
+      "blob": "4b5bbc955fa334531761eb886300e2eaaae4b98e",
+      "file": "supabase/migrations/20260427000001_chat_private_visibility.sql",
+      "sha256": "44035613a0e7e199c60d26adf109a0ef5294905848fc7f752171e39d005b0ae1",
+      "bytes": 4003
+    },
+    {
+      "blob": "1334903ddaf9428ff3ece1078260e2d2fe8b668f",
+      "file": "supabase/migrations/20260427000002_chat_view_reset.sql",
+      "sha256": "a6f160bfe1c366f449e919239457b287c644235b10029f1d91fc01351728f482",
+      "bytes": 1289
+    },
+    {
+      "blob": "47b888ce754e9d6e84d6ac89afc0834e159649cb",
+      "file": "supabase/migrations/20260429000000_search_vector_backfill.sql",
+      "sha256": "b861600e57fe38ab63475bacecff327339b02bd69c5bedc78f2dce8bc458bcc6",
+      "bytes": 1324
+    },
+    {
+      "blob": "338264d54cb2f2959b283e3a7cbb10e5b79dd1ee",
+      "file": "supabase/migrations/20260429000001_storage_buckets.sql",
+      "sha256": "cf286b9675c388d82ac07cf0031abe0b5a3c3c56fd1b75bd51617d4a335fb51a",
+      "bytes": 5541
+    },
+    {
+      "blob": "e956eae7f567514084024bb8573c16df71ae3e78",
+      "file": "supabase/migrations/20260504000000_chat_summaries_visibility.sql",
+      "sha256": "0ce7474cec796034a265e61178387bbb4350f26dd08c0b825645f0b7f8eccae5",
+      "bytes": 995
+    },
+    {
+      "blob": "2bf7d94024c40aec752f6c92c86e2628df163983",
+      "file": "supabase/migrations/20260507000000_community_polls.sql",
+      "sha256": "e194074427ee50f4e0f785c5f7a3c6ee1552553688c9dabf57385b024290d562",
+      "bytes": 10128
+    },
+    {
+      "blob": "f2d2eb27bfcbb54ca74bb468997b0641f4bdcf54",
+      "file": "supabase/migrations/20260507100000_guestbook_uploads_bucket.sql",
+      "sha256": "39f21e75eed5d147512f08859e723d5846d0eb57bb14d870fd80777d681732cc",
+      "bytes": 1751
+    },
+    {
+      "blob": "8f35f23a8a016d7a9ffe9633cc53d6666c9f2c31",
+      "file": "supabase/migrations/20260507200000_guestbook_reactions.sql",
+      "sha256": "940b2b12845d7b0e85920c834d94ef66fab2cc32f4e63e0331d105158e420fcc",
+      "bytes": 1762
+    },
+    {
+      "blob": "d96708f62a80ffeeee0b28e603dd074fe86ddeb5",
+      "file": "supabase/migrations/20260507300000_guestbook_photos.sql",
+      "sha256": "7fbb9a2f8ba325cfb8b9c44e8c92743fe5e9526a2cf9dbd80034dd87f807e3d6",
+      "bytes": 2294
+    },
+    {
+      "blob": "12bbadbe03d81b50d4098b2b44944887f48c8ac7",
+      "file": "supabase/migrations/20260507400000_realtime_community_posts.sql",
+      "sha256": "e01ebba38f7289c6a9d748e784c98bc95f1177af3e4c1ca5b81017afd28e2470",
+      "bytes": 1042
+    },
+    {
+      "blob": "7ff4a5163dd6343862746d2d7b1c0bdb0dd2382f",
+      "file": "supabase/migrations/20260511000000_payment_integrity.sql",
+      "sha256": "859051d18b4e94fbb131183a9829bbf01fe68504671491b108520f6c40f6d7ce",
+      "bytes": 575
+    },
+    {
+      "blob": "cf01b7c89801593e174c0e5ec4898f81a12af581",
+      "file": "supabase/migrations/20260511010000_lock_customer_payment_contract_writes.sql",
+      "sha256": "ef6659048a55efa88006bd1fc3b790ed67caef99cd6963dbe9168cf21400b809",
+      "bytes": 672
+    },
+    {
+      "blob": "686c53f145c8ad8e7c4913fe8e4611c05362688b",
+      "file": "supabase/migrations/20260511020000_vendor_lead_pipeline.sql",
+      "sha256": "8d9fdc7564844a62ea953e3a64c0d570683f56c176bbf46ce682d3e0a256105c",
+      "bytes": 2458
+    },
+    {
+      "blob": "3e678df33beeadcfdf8c45579bb0c71ad56ba882",
+      "file": "supabase/migrations/20260511030000_amora_quote_checks.sql",
+      "sha256": "a39e4ccd7f9fec3d8c1424b1efc8ed24f7c667fe31d4aebce19965d84f2269df",
+      "bytes": 2908
+    },
+    {
+      "blob": "b0a24d383573e65694fe4863a2dc0e1514ec0b9d",
+      "file": "supabase/migrations/20260513999000_extend_vendors_category_enum.sql",
+      "sha256": "00ab93e94cba7a0a20381cde14236e856866af36e83034eba0c2ae0d1cf95afb",
+      "bytes": 1026
+    },
+    {
+      "blob": "89c61ea87aa9f30830fbff1c363b449efe711f90",
+      "file": "supabase/migrations/20260514000000_demo_vendor_seed.sql",
+      "sha256": "fe2a54de32d1d62aef64c8f42df9eebe2d4f5b65afafa25a0d19ed6c3605ae3f",
+      "bytes": 2867
+    },
+    {
+      "blob": "0a804b60f960ef798a5ede927ba18aa737e66d68",
+      "file": "supabase/migrations/20260514010000_demo_vendor_full_set.sql",
+      "sha256": "1e2514c113e4cd2676fae95d76afda79be5b127b792213ed73a5d4be3f82508d",
+      "bytes": 14017
+    },
+    {
+      "blob": "f3cd6ed59c36719459eb38c44d846b7b677191e0",
+      "file": "supabase/migrations/20260514020000_demo_vendor_categories.sql",
+      "sha256": "94ed81655744b2faa04cb499eeb9a02f96086398703c7443e324fd5148ca1e54",
+      "bytes": 23194
+    },
+    {
+      "blob": "4ddf0940cf8831c24d0e8b59e9c517a814a61f98",
+      "file": "supabase/migrations/20260514100000_community_post_slides.sql",
+      "sha256": "bedea735930bebab28e272635f83cc9a1d85b51b3a3299940ee1518854ffe11e",
+      "bytes": 752
+    },
+    {
+      "blob": "2b1f8ffe9e1667a1ebea5ab583dceb5226240af4",
+      "file": "supabase/migrations/20260517000000_atomic_booking_rpc.sql",
+      "sha256": "6c7993040f8ca7298d4fe42f234a835d263a7a91b37d56de7db8f610856cc301",
+      "bytes": 5588
+    },
+    {
+      "blob": "5ff44efbe14f284da4c5fd4f4f6d4aea6c8378dd",
+      "file": "supabase/migrations/20260531000000_community_post_like_integrity.sql",
+      "sha256": "28bd4643789037fe27486ff31368a017585c5a2013692b5942a8223f3bf6da4a",
+      "bytes": 2261
+    },
+    {
+      "blob": "03d9c5086176a3bb1a1d4b961fee106820e4e382",
+      "file": "supabase/migrations/20260605000000_harden_booking_rpc.sql",
+      "sha256": "32b7c5caa2d6a730120e91fa6e5ce8da7f687eaa6eb139fba9d5a8f90be4a3da",
+      "bytes": 5075
+    },
+    {
+      "blob": "c36398f46dc0541b467ed0046ded234d3bffb5fc",
+      "file": "supabase/migrations/20260605000001_harden_chat_insert_visibility.sql",
+      "sha256": "cf08cf72deaaa736dc3ff1a2b72f75a149e331a504a59314e29a7385c025ef5c",
+      "bytes": 1130
+    },
+    {
+      "blob": "f11a82a4b13ba0e58731d88a3c3d55462de158a5",
+      "file": "supabase/migrations/20260607000000_community_agents.sql",
+      "sha256": "89fa6f4bc154762fd450423bee224a340ca25e637e177b4bed756259d2379793",
+      "bytes": 7750
+    },
+    {
+      "blob": "c0d170fc5c9df80596c3b005cb80fd468facaa2b",
+      "file": "supabase/migrations/20260607010000_community_agent_automation.sql",
+      "sha256": "1ba652b7dadd693241b4f2e2986e84c9ea08b6f8f1cf21fc737d780f6a0840ea",
+      "bytes": 5834
+    },
+    {
+      "blob": "1e2bb06707989c9afbc44ee62ae76c25a4ed18c3",
+      "file": "supabase/migrations/20260607020000_harden_service_only_rls.sql",
+      "sha256": "c750b588b06f72e2e3b6fd51767409d5d5f978c41a5c8153224353caa687b667",
+      "bytes": 2416
+    },
+    {
+      "blob": "6d940e428407cefaf0a0ba1adf1926084f64c87c",
+      "file": "supabase/migrations/20260607030000_fix_agent_daily_seed_range.sql",
+      "sha256": "96c91621b116eb127e3a6108ac43351b5860e6056746d97a9422012743f6d1b1",
+      "bytes": 305
+    },
+    {
+      "blob": "1ae9ba3f8d0281cff2b672901d4ebd2bcedb34e4",
+      "file": "supabase/migrations/20260609000000_amora_couple_profiles.sql",
+      "sha256": "921eda36d4e81fa03e932023ea0dd13c2da983fc50f0be224eac4ad01ae02b69",
+      "bytes": 3726
+    },
+    {
+      "blob": "31190bbc566fd57ca8337f8d40d9357d0f7b4ce7",
+      "file": "supabase/migrations/20260610090000_quote_check_channel_fields.sql",
+      "sha256": "effb6d2142a32c6592c877bdae88156403778150225d155833f080854e271fff",
+      "bytes": 2226
+    },
+    {
+      "blob": "37ea896d937580c630f188d373b8215d3e5c4cf9",
+      "file": "supabase/migrations/20260610110000_cohort_anonymity_rls.sql",
+      "sha256": "7d6e539cbaed0e128a84f1ad6b5daab3da78ad99222992dc91f52cec0479dee1",
+      "bytes": 1791
+    },
+    {
+      "blob": "40fb95f040cd830cf5427bfda58dd7f61bf2af29",
+      "file": "supabase/migrations/20260611100000_chat_image_rls_couple_scope.sql",
+      "sha256": "d0815be3d7b948d7e1f5e247c93e90d11fa60129a93c439ce655a679aada4b4e",
+      "bytes": 2790
+    },
+    {
+      "blob": "b3908711c2c4c06da5415e567b91f2693feab9f5",
+      "file": "supabase/migrations/20260611150000_week1_db_hotfix.sql",
+      "sha256": "f5ae015571bc782fecbd9d898bc7c052104c0e9f23de189331083d22d5eceb95",
+      "bytes": 2745
+    },
+    {
+      "blob": "282d2234aee8caa3a0c842af94ca44f2d9c6198e",
+      "file": "supabase/migrations/20260611160000_journey_progress_atomic_merge.sql",
+      "sha256": "c9ecd25ce1be3b16f2b1361926e9b7f7984442a6e2ffe0e74b4de5a009ff4138",
+      "bytes": 2411
+    },
+    {
+      "blob": "f7c17eb5b9097e482e1877dce8bcb8c85a589aaa",
+      "file": "supabase/migrations/20260612120000_lock_is_admin_self_escalation.sql",
+      "sha256": "b640e538f2d2cb3003ba303cb8b9f8737375f21943302e4992101291d82d7f5e",
+      "bytes": 2322
+    },
+    {
+      "blob": "3cbb2a5d1246d5a0bc88599d2c924ff110cea790",
+      "file": "supabase/migrations/20260612130000_launch_security_hardening_round2.sql",
+      "sha256": "b5fbcc437ad4c10ca0f900393441932638795adfb72952794b9d6cbd573e7eba",
+      "bytes": 7704
+    },
+    {
+      "blob": "6d6c960aa7b0b1a8503e27509fe8a3c922b91b04",
+      "file": "supabase/migrations/20260613120000_ai_log_retention_policy.sql",
+      "sha256": "e12ea59d89d8e0c5ee08e55e520132009e56659af648c0d37c637bbf6561ffeb",
+      "bytes": 1352
+    },
+    {
+      "blob": "ff232f8d9b9319f12e83116e49b44af25d03bdcb",
+      "file": "supabase/migrations/20260613130000_harden_community_rpc_permissions.sql",
+      "sha256": "da88b266c876227c11b153511a15506c170e4c803a95a65b17e009a41e82c7ea",
+      "bytes": 15732
+    },
+    {
+      "blob": "02628b8a6bdb2c830b663a6b732dfc22e9c7a7ca",
+      "file": "supabase/migrations/20260614100000_create_cohort_member_reports.sql",
+      "sha256": "d821ebcb589f4ac0d9b69edcac376f112615983a658d9964f8e31c72b9699d3c",
+      "bytes": 1854
+    },
+    {
+      "blob": "d5a92a4405d2cac5b793bc4d10f7b6dd8dd19223",
+      "file": "supabase/migrations/20260614110000_lock_sensitive_anon_access.sql",
+      "sha256": "2dd909df02381708993a595de9cb5b6782afc4d3068481caf3ec6cdf03ed1be7",
+      "bytes": 14733
+    },
+    {
+      "blob": "849cc01b710ca85a0e3ca9510fb54f581ccfa895",
+      "file": "supabase/migrations/20260614120000_harden_cohort_member_reports_target.sql",
+      "sha256": "3a68eaa167b17d8055705cd29e5d208787a8211d37843af053325f93f0e7538e",
+      "bytes": 730
+    },
+    {
+      "blob": "0a0405c8e32cc623b4bd5980d93dfd0874fed4e5",
+      "file": "supabase/migrations/20260615090000_harden_cohort_membership_writes.sql",
+      "sha256": "9ab771c350a05ce39977d539fc306e377ea2c48287e86389f1f200dbea664776",
+      "bytes": 2392
+    },
+    {
+      "blob": "8eacf79e5afb68324f8b93768cb0b04745cb8ea2",
+      "file": "supabase/migrations/20260615091000_make_chat_images_private.sql",
+      "sha256": "9208b5b34bca8b5911b04dbd329508e08ea556834efea1ff94654918191a2ba2",
+      "bytes": 1973
+    },
+    {
+      "blob": "71f0257c4b6d830205daf6fd531594054fdd1a97",
+      "file": "supabase/migrations/20260615092000_harden_join_couple_atomic.sql",
+      "sha256": "69755fc93cddb2d3641159277796db2cea73c7d6641a8353888189b39b70e9ac",
+      "bytes": 2494
+    },
+    {
+      "blob": "e15e6f6139799a0c0305b402078acbd0ea57f383",
+      "file": "supabase/migrations/20260615093000_harden_community_media_storage.sql",
+      "sha256": "e462cd3c1aba3fe83dbedc24eada1341180ee330164abb91b55b6a6c9bdd3e83",
+      "bytes": 3367
+    },
+    {
+      "blob": "79102a07521867a2710e712f5a85394fc8f16f52",
+      "file": "supabase/migrations/20260615100000_create_amora_actions.sql",
+      "sha256": "8235d39ca729e517eff1014e5af0cff53c882e2fb87f82dcb5457f5f7cf15796",
+      "bytes": 6020
+    },
+    {
+      "blob": "8deaacaceb547c61f86acf2d1952016b453991c9",
+      "file": "supabase/migrations/20260615101000_fix_amora_action_status_timestamps.sql",
+      "sha256": "c63aa563c6469a8571ee5bf290b9f8329692684c180c235bde0261cc85604d01",
+      "bytes": 941
+    },
+    {
+      "blob": "5beb4f177df835625c7dbd589761c9b887626876",
+      "file": "supabase/migrations/20260615102000_decouple_vendor_curation_from_ranking.sql",
+      "sha256": "6ad1c21d2a3e1c1419b0ab3bcb2232b6d489d9a5e91c905d1241a572c193f1a2",
+      "bytes": 349
+    },
+    {
+      "blob": "837bd7b436e06aa08841283c193d05ba0bcc789b",
+      "file": "supabase/migrations/20260615103000_create_rate_limit_rpc.sql",
+      "sha256": "444de37bb25f8c411e77a0ca0fe1e598c771057bd0349c140283c6b08a571fd8",
+      "bytes": 2543
+    },
+    {
+      "blob": "9b692f23cbda2593b6ba7c9925435e866ca87d7c",
+      "file": "supabase/migrations/20260615104000_unique_community_nicknames.sql",
+      "sha256": "4a469f57977dd6268474467ba1ff0857213b07aee239ad81bf9d2f1a7fae1425",
+      "bytes": 322
+    },
+    {
+      "blob": "776d4baca4e3ade8854ca60d54bcd0830438ce72",
+      "file": "supabase/migrations/20260630233211_enable_booking_progress_realtime.sql",
+      "sha256": "367fefd278f8b5192d151062df437b6614835968ca49a36435ca8990fd3cdf44",
+      "bytes": 1222
+    },
+    {
+      "blob": "7204a7829d921b8b5c534560ba667701cd81296a",
+      "file": "supabase/migrations/20260704120000_create_amora_turn_reserve_rpc.sql",
+      "sha256": "038b01509be4c37cdac1f66636d506d44c7f80f6534ffb6acc728f5d159c87d5",
+      "bytes": 4138
+    },
+    {
+      "blob": "51eaaadabe4a824a95f4270d6d6ebb566bce2823",
+      "file": "supabase/migrations/20260704130000_add_rate_limit_gc.sql",
+      "sha256": "c5b62f2beb97356752957cb52f5aa7646e4b1b421028e7f355cb9215fc6f45d1",
+      "bytes": 2216
+    },
+    {
+      "blob": "01383c5fab8c1bf06645210110c6a838eb0822e6",
+      "file": "supabase/migrations/20260704131000_drop_dead_invitation_tables.sql",
+      "sha256": "8568274d8adb0b69f46f7f7c3195caef7b8718bea9dd5b27c8645c20022abb3a",
+      "bytes": 1354
+    },
+    {
+      "blob": "9e563943dd7b25fa9d73448b547a353692c6ff06",
+      "file": "supabase/migrations/20260705090000_hide_seed_vendors.sql",
+      "sha256": "4da494004e7828c0f530d017f77e3d5bda5ba67674d1ea22e7f7528d0590e5f9",
+      "bytes": 1124
+    },
+    {
+      "blob": "03d11e59239ebfafbb41356b525085ae476e8724",
+      "file": "supabase/migrations/20260705120000_add_care_notifications_flag.sql",
+      "sha256": "46b2beb045cf393b525cd292576f9f934e6214fb027a78947e2f2f88f78ac739",
+      "bytes": 838
+    },
+    {
+      "blob": "42abacbc58fc94d9e828413758e9a83d32caa4e8",
+      "file": "supabase/migrations/20260705140000_add_phone_care_channel.sql",
+      "sha256": "0d9e530e7464baa857dc4873128b0f4bd20667941540982af97669f548bc1ac5",
+      "bytes": 1128
+    },
+    {
+      "blob": "0c0e086914e473204114129e0f61758f2426910a",
+      "file": "supabase/migrations/20260705160000_wedding_code_responses.sql",
+      "sha256": "e71837365e187fbf363daff7a2fa7aa96cf034ad3c02290fbe00d6927cf64fa1",
+      "bytes": 2710
+    },
+    {
+      "blob": "71490428c081e4e3cb3d3b94d923710f6435b02a",
+      "file": "supabase/migrations/20260706100000_wc_couple_token.sql",
+      "sha256": "9b1f73e238af4549211b327da6a4f7051cf820b29c03a0a46be1514d7664a726",
+      "bytes": 749
+    },
+    {
+      "blob": "75c5270214521c58cba52f3b5b84c3c8a350074f",
+      "file": "supabase/migrations/20260714104000_disable_wedding_code_collection.sql",
+      "sha256": "538ecac33df31f1ef16b15dae51fc218abcd83c79147e58d3a6de9a6ff7a83fb",
+      "bytes": 13451
+    },
+    {
+      "blob": "684698c512abbca80e9c72774c9384e6c16abd0d",
+      "file": "supabase/migrations/20260714160000_harden_amora_privacy_boundaries.sql",
+      "sha256": "249d19e16d4e2e8d2b3957b12e0aa3da7942a3eac706233a73ffb09be04c58e6",
+      "bytes": 28282
+    },
+    {
+      "blob": "ddc5732f144ded9210b711204bdc620aa8c8d99c",
+      "file": "supabase/migrations/20260714163000_atomic_chat_clear_request.sql",
+      "sha256": "39776ff7240297c6e18f4fba28d09c22772df210a473b3444751fd52698b4529",
+      "bytes": 10607
+    },
+    {
+      "blob": "7a10abe0a6df2686219c1d70a96d6b255b370397",
+      "file": "supabase/migrations/20260714164000_harden_amora_tool_idempotency.sql",
+      "sha256": "a0a707024c40427a9e93e9d116de260ef7e1e6c9ffe4e5458a795e2c7b4b369e",
+      "bytes": 22285
+    },
+    {
+      "blob": "a7a3b9d77a496b38a65b66b611d76966f1b6b5bd",
+      "file": "supabase/migrations/20260714164500_expand_atomic_couple_reset.sql",
+      "sha256": "9805ea68c06cfe95d8cbb1e2e50e9cf4c52bc65233f652cc6c69838e18be179f",
+      "bytes": 3274
+    },
+    {
+      "blob": "2a1f10cc84f7918ebd8e5d0fbce0a9a441842ead",
+      "file": "supabase/migrations/20260714164600_expand_push_token_persistence.sql",
+      "sha256": "7b8c9dd304e19bfa7e51173ab29fb6fa485f41f39601683af39cfa920d50cebb",
+      "bytes": 1108
+    },
+    {
+      "blob": "e27eee3f4c67565d7d5906e0b3fba6cb13335198",
+      "file": "supabase/migrations/20260714164700_expand_account_deletion_integrity.sql",
+      "sha256": "2a38961bc2a79563ac4c618c0c73108fb9a07e31d4324d07d8564eb5ccb15691",
+      "bytes": 6917
+    },
+    {
+      "blob": "f9d1218b5901eda091fd46d66af28252f25e0df0",
+      "file": "supabase/migrations/20260714164800_expand_signup_profile_integrity.sql",
+      "sha256": "41cdc88ab8550022e14ae1cc5bca12826d1f1360b69324b28767518b3479feef",
+      "bytes": 2724
+    },
+    {
+      "blob": "dbc67aa4a6448c0ebefdffa5816e559b468243a1",
+      "file": "supabase/migrations/20260715210000_harden_vendor_public_read_policies.sql",
+      "sha256": "097748bb0e09eb520a1ddc1305a574dfcd83e45056053a7012c8323bcceee8a7",
+      "bytes": 4206
+    },
+    {
+      "blob": "cf3f96560c4fc8fe32ca0d62be09e2f6ede79d8b",
+      "file": "supabase/migrations/20260716090000_amora_memory_engine_v2.sql",
+      "sha256": "62b9472032148741e925bece83b2248d6fbb2fe5e114a1a28bd9bd3d1255fb4e",
+      "bytes": 56703
+    },
+    {
+      "blob": "536dd15a21dda0528b1d9b4a528cbff7e5e56621",
+      "file": "supabase/migrations/20260716091000_care_explicit_consent.sql",
+      "sha256": "d35eee2e138614bbf67bd7adb3d9520a2ca0128e89f4de39f3a83d779590877c",
+      "bytes": 2986
+    },
+    {
+      "blob": "33c69f2f37019f8eee312d568a4d769e80d60fed",
+      "file": "supabase/migrations/20260716092000_amora_mediation_confirmation.sql",
+      "sha256": "f27b09af78e0ad5836c4a58c0581306ca4f2fa02e3bfd61ab42bd41f3a06f309",
+      "bytes": 25508
+    },
+    {
+      "blob": "e4e3cc8818339c699e3df60161ff1d65c2e30061",
+      "file": "supabase/migrations/20260716093000_amora_care_queue.sql",
+      "sha256": "0bfd206554c4f8db818f021b1da52e91f8f586ce4c7b9bee96650269882219c5",
+      "bytes": 59144
+    },
+    {
+      "blob": "702cbc97bd9eb108858c39281e9516fdc8844936",
+      "file": "supabase/migrations/20260716094000_couple_roster_epoch.sql",
+      "sha256": "830aa401137250dbf6607602941999453d3330b9b28d4fe4367755d352d8490f",
+      "bytes": 13841
+    },
+    {
+      "blob": "6025a2220c9c4374eb26e40a592e21f9f5e1ae4f",
+      "file": "supabase/migrations/20260716095000_amora_care_delivery_policy.sql",
+      "sha256": "3cbfca6d54ec01ad47cbe38bcbf447aad1bf992dffca7231024aafafb53c1ae6",
+      "bytes": 24859
+    },
+    {
+      "blob": "29680c2b74f134f63684cde22ec3d142bba0e872",
+      "file": "supabase/migrations/20260716096000_amora_tool_retry_fence.sql",
+      "sha256": "e58e98bfc8599b5e1f5bcfea854a32485a51fa3cd1f29127a8a303e5c80552ee",
+      "bytes": 25072
+    },
+    {
+      "blob": "fe986b3d105aa824059e7723e6cba1e99e29d5a3",
+      "file": "supabase/migrations/20260716097000_amora_atomic_cost_budget.sql",
+      "sha256": "2576a305b6d5cbb8247d03cabbf1e5a92d862a20a0a6973c6e0ef4b38ccddd33",
+      "bytes": 29976
+    },
+    {
+      "blob": "dab868733c0d831038503cf53b3c33eeb9a413c6",
+      "file": "supabase/migrations/20260716098000_amora_memory_budget_deferral.sql",
+      "sha256": "1b6e2d1fd7a222b3fda7f78a190e5dc2730e75c47eeea82497e56db5372a6d72",
+      "bytes": 2635
+    },
+    {
+      "blob": "8af0f446e6773b63744969078170a485f1411de2",
+      "file": "supabase/migrations/20260716099000_wedding_journey_singleton.sql",
+      "sha256": "8daa79b42130f5f34ebff148cc4b1b8327602a56fcbc3ccf0c3d75ba5c6a9c8e",
+      "bytes": 3882
+    },
+    {
+      "blob": "d039c4edc19f6a2b6a83d1f95668a92fb0b7d7cd",
+      "file": "supabase/migrations/20260716100000_journey_progress_atomic_item_patch.sql",
+      "sha256": "9442d3a993e97e6f1d92e6c051429b69ccfa1f9e798ca6d93b1077cf598c6637",
+      "bytes": 2048
+    },
+    {
+      "blob": "72baf50411d50b31a657fcd32a6ba08160bd44fe",
+      "file": "supabase/migrations/20260716102000_booking_projection_outbox.sql",
+      "sha256": "b92f9574e5ffd2d95951a2c89922b739981ba62109c6e09fec075d84506033a2",
+      "bytes": 28670
+    },
+    {
+      "blob": "0715c6a2dc26f6248fc63c9825be70b31ab2d31e",
+      "file": "supabase/migrations/20260716103000_amora_conflict_check_claim.sql",
+      "sha256": "4579da7ee8b428142a8eabfe184e8b6a9865ba244b71aa103235f88627f6ffbf",
+      "bytes": 11245
+    },
+    {
+      "blob": "d0cc4a1bba6b3f1cec3ed6dfade9b449e4c786e0",
+      "file": "supabase/migrations/20260716104000_profile_patch_atomic.sql",
+      "sha256": "1c598723ba6b315868993283a358cf5fc6122ffd5471e3d28770deeb1495f3f1",
+      "bytes": 9051
+    },
+    {
+      "blob": "94dc27299c602e63ea9a420d6c0de3fd5684d09a",
+      "file": "supabase/migrations/20260716105000_amora_conflict_receipt_checkpoint.sql",
+      "sha256": "7cb40bb61b6ccc03b0e2eb21b38160635653b52bb05af7ae13eef62247d80f45",
+      "bytes": 6606
+    },
+    {
+      "blob": "5f9416456b0b3fb8ad1018a96a0dbca244907f6e",
+      "file": "supabase/migrations/20260716106000_amora_atomic_chat_response.sql",
+      "sha256": "14bc3427edc0e314de86601ac304add4fe1d3d14c2c4ee3ead389a392b097e70",
+      "bytes": 16643
+    },
+    {
+      "blob": "e7d53cf393a538dbedcd4a20bcbb6b2414ff6d92",
+      "file": "supabase/migrations/20260716107000_wedding_settings_atomic.sql",
+      "sha256": "f2ce6b1d443d036ffdfebafb25d0af7262973902d97a79567fb4057b16026975",
+      "bytes": 10533
+    },
+    {
+      "blob": "87c9aefb72d8d7b7f7d45c599110a5bfda980ff1",
+      "file": "supabase/migrations/20260716108000_community_upload_service_fence.sql",
+      "sha256": "a10e9f374107090ab8dc63b7a23bde7f4e5eb7b790d4e9c329c8022aa15fcd80",
+      "bytes": 6024
+    },
+    {
+      "blob": "1979da2200f46c9da9f006afb05ed5262756626c",
+      "file": "supabase/migrations/20260716109000_booking_outcome_atomic.sql",
+      "sha256": "cdfdad975ee0e2d11fd43c4efa6cbc5c30537469a40a7acb45865868012c4b05",
+      "bytes": 9994
+    },
+    {
+      "blob": "5c4ef90c88beeb4c106a3e6fee5a7e2c7b4521ce",
+      "file": "supabase/migrations/20260716110000_amora_crash_recovery_atomicity.sql",
+      "sha256": "f07d1aa37d500d249024469ce0d9d24589677c48f92b05926dec8cc3e426fa56",
+      "bytes": 39145
+    },
+    {
+      "blob": "8341b81057f8e9ba27ac26ca46659e9bef961bf7",
+      "file": "supabase/migrations/20260716111000_community_upload_attachment_lifecycle.sql",
+      "sha256": "f05bc68d535581397bca0438729fb5eb53b6e1f03e9de57a92e9b0b0269ad7da",
+      "bytes": 18321
+    },
+    {
+      "blob": "aa11c0fdaf81056cb41ef8aebf2dc196d6b743fb",
+      "file": "supabase/migrations/20260716112000_amora_atomic_mutation_coverage.sql",
+      "sha256": "6f43b0b53a981bff0203e333ee2f242835bd99487579d4cd1ff74323e5a02186",
+      "bytes": 64512
+    },
+    {
+      "blob": "0e8a391bc76562797a0328ecf35df02643f3e790",
+      "file": "supabase/migrations/20260716113000_account_deletion_storage_saga.sql",
+      "sha256": "f85887a262961c331acd0fc222aec01785c14bfdfdb8e1c36e4d3aceb9305151",
+      "bytes": 30728
+    },
+    {
+      "blob": "871e9af1e5490042434f1b04ea9ee8f36d1726a7",
+      "file": "supabase/migrations/20260716114000_current_couple_membership_privacy_fence.sql",
+      "sha256": "cabf4988ac7969f3084280c1cc69fce62bc22f05c371f64d98c68207b870dc2b",
+      "bytes": 55372
+    },
+    {
+      "blob": "3c47aa5d6191e0ded39ed106125fd2ee2195432c",
+      "file": "supabase/migrations/20260716115000_rate_limit_pseudonym_retention.sql",
+      "sha256": "afc5214290cb40717a4cdeaad29b38b2598f130541ef668c5edecbc520f645e7",
+      "bytes": 3804
+    },
+    {
+      "blob": "ace023b68acc4e5f56d215786bcb8f69beb924ab",
+      "file": "supabase/migrations/20260716116000_ai_log_retention_contract.sql",
+      "sha256": "0865b9fafc48d2a26e0735b6d29df73d03f12787db54cde399c9a4eb49e168d5",
+      "bytes": 12162
+    },
+    {
+      "blob": "c81a4d73470a759dc3b494d9dc1958e6e0db1f80",
+      "file": "supabase/migrations/20260716117000_account_deletion_auth_fk_contract.sql",
+      "sha256": "627a9397dc69d790318f9d5d6e4c6fe69085bfcbf4a890439dced6617b3d7396",
+      "bytes": 10868
+    },
+    {
+      "blob": "8b393b3352c566e2e9b1fa88454640e8234d1c93",
+      "file": "supabase/migrations/20260718120000_vendor_public_column_privilege_hotfix.sql",
+      "sha256": "0fefb5c6cf3a44c14923a71d78431cf92d082b0bb7b4c8e86eb9d22bf3c069e1",
+      "bytes": 14132
+    },
+    {
+      "blob": "5b551208227be7471a44f00c3c1fd7146b617c67",
+      "file": "supabase/migrations/20260718130000_vendor_disclosure_foundation.sql",
+      "sha256": "ffb97c12322c2e1429b7cc301460ad4258cc69170ec907145a8f0513792d5a61",
+      "bytes": 118730
+    },
+    {
+      "blob": "6d1312e54baa92f18bcc470590306cd87028b54d",
+      "file": "supabase/migrations/20260718140000_disclosure_source_previews.sql",
+      "sha256": "d6cf3de605e2be12846b5462fd6e36c3743aa5093373bc1e75e025cef03623f9",
+      "bytes": 4631
+    },
+    {
+      "blob": "53f098ebda48a989817d282b1e7afc46f1a7b640",
+      "file": "supabase/migrations/20260718150000_price_snapshot_promotion.sql",
+      "sha256": "681490288b02ae48af4f529e0987dda2c0b3da3d679fb302344bef5ec221306c",
+      "bytes": 14714
+    },
+    {
+      "blob": "1b5115b0f993433f62bc684885213028778b124c",
+      "file": "supabase/migrations/20260718160000_vendor_alias_proposals.sql",
+      "sha256": "050246e31040a2b32a5c4732b6e6ad8cd8674a6bb7f0e89a8c732e32c27fadc6",
+      "bytes": 11808
+    },
+    {
+      "blob": "5f8525bd1335b9afee05fbc6b7afa83c5a01bec6",
+      "file": "supabase/migrations/20260718170000_admin_review_optimistic_concurrency.sql",
+      "sha256": "95fa130bd6692c998fccd35977fbc5996a5941cc1d9972abc905e94d114ace83",
+      "bytes": 26056
+    },
+    {
+      "blob": "0799d1cbbb637ae122a7429855a43663d79e5e98",
+      "file": "supabase/migrations/20260718180000_disclosure_storage_privacy_fence.sql",
+      "sha256": "94dc7a16e3ca122c09d92d81c912ad17c991bbb7ab5cefac3093618fabfa24f5",
+      "bytes": 3003
+    },
+    {
+      "blob": "e18dbadb3264bc3356c8652ce3df703414b8a3b9",
+      "file": "supabase/migrations/20260718190000_price_consumer_contract.sql",
+      "sha256": "279f89e05ab439cc0dc17f818d0db3f857f33d4c3d286681347fda026611fa2f",
+      "bytes": 38390
+    },
+    {
+      "blob": "c71a2677c0a7cae97b4b017c22f2d88935ec5f38",
+      "file": "supabase/migrations/20260718200000_price_publication_immutability.sql",
+      "sha256": "5a27574f7ba0da525c53cf0762e7272696fe2624bf7dc3a781eecf0fd17100fd",
+      "bytes": 38382
+    },
+    {
+      "blob": "6e11e1bb8e2abb52178aa935955368a8a4a2ea97",
+      "file": "supabase/migrations/20260718201000_admin_json_evidence.sql",
+      "sha256": "1cc0f89985171887dd36cb6f36255ebc4f63b156342cbbc4440347ad2874d79d",
+      "bytes": 2208
+    },
+    {
+      "blob": "d091cc989815d27f2037aefcf435c405e3207f67",
+      "file": "supabase/migrations/20260718202000_price_upload_confirmation_queue.sql",
+      "sha256": "955234bd14faa1cb359abbaab022ad54e1d22f3dc02c3fc9e6cf7e04e05b44b7",
+      "bytes": 63101
+    },
+    {
+      "blob": "ee9b6e4860d506a847e6115f1bbfc18305c85663",
+      "file": "supabase/migrations/20260718203000_price_consumer_cross_contract_hardening.sql",
+      "sha256": "2f70cc7df464319aa8c8ac33b12ae8a4fc919e684c8d9e791d4cd8863b646b1c",
+      "bytes": 76947
+    },
+    {
+      "blob": "3b0d0c9ea9f7aaa9f460aab3c503a9ea434e088a",
+      "file": "supabase/migrations/20260718204000_price_combo_idempotency.sql",
+      "sha256": "c604e59f47541b53d99a89e1f019db7d94cce3646ce93c7d6031f06e51667011",
+      "bytes": 3257
+    },
+    {
+      "blob": "53ac982c49299c23588f1d5e21d04671f4350866",
+      "file": "supabase/migrations/20260718205000_legacy_demo_vendor_retirement.sql",
+      "sha256": "dfe4e515ea7fb46faad98c63e2b1aa7d4de1db54311b633e7d96173cdcf68159",
+      "bytes": 2299
+    },
+    {
+      "blob": "92adfb03e0ba0a9046e532e1beeb6ba75e3bd034",
+      "file": "supabase/migrations/20260718206000_unverified_contract_clause_safety_fence.sql",
+      "sha256": "11262c3e89b14e5786f1dbbd1293e4cd6e8b2761149d13f5bfa2434a674190ce",
+      "bytes": 940
+    },
+    {
+      "blob": "4ee1b3ab1cc29f311a63005b103baf99ab6154d9",
+      "file": "supabase/migrations/20260718207000_public_disclosure_evidence_privacy.sql",
+      "sha256": "b6a1b3dcab9bbc47f0b9dcbef31f4a03097d837b149d8008656b822d105b4512",
+      "bytes": 30952
+    },
+    {
+      "blob": "1b8a3844e3ff5f5b36b3760ea5418017ca74a236",
+      "file": "supabase/migrations/20260718208000_atomic_weighted_rate_limit.sql",
+      "sha256": "b5d95edfc33c1ec476fdcd1660643193e77278662f483a104548ae4dbab4113f",
+      "bytes": 3124
+    },
+    {
+      "blob": "7e4bb68fe1412e0d1db60b115347567cb0140d6a",
+      "file": "supabase/migrations/20260718209000_price_combo_direct_write_fence.sql",
+      "sha256": "41f990258d2167bf6403657abc3fa863c18898b85439ce7e71f85bf08cd25335",
+      "bytes": 13060
+    },
+    {
+      "blob": "ecced73fc629791a980e59eff9f2e50f42703028",
+      "file": "supabase/migrations/20260718210000_wedding_budget_product_contract.sql",
+      "sha256": "8b031fd6faf0654456bd7ce54758cc2f9949a88c58902352943603626bfb6fac",
+      "bytes": 1215
+    },
+    {
+      "blob": "6e91dafdfcd72653e5ae88571530ec63c7e65c75",
+      "file": "supabase/migrations/20260720120000_disclosure_semantic_staging.sql",
+      "sha256": "fd4259d6f4137441abfb0e15eab9b8f43f57ff43f135b59ce33d5f03cc292fdf",
+      "bytes": 24420
+    },
+    {
+      "blob": "b1ff7d7034276504717f57e588513f1eaf4a0811",
+      "file": "supabase/migrations/20260721120000_vendor_disclosure_atomic_batch_staging.sql",
+      "sha256": "b8585b4ec2cde1bef5913bfa518fcaa48a745a4016218d0cc9cfbda427b86bc6",
+      "bytes": 312733
+    },
+    {
+      "blob": "d51f6a37817747c075601fdc58352fe94c9078c5",
+      "file": "supabase/migrations/20260722193000_vendor_disclosure_storage_outcome_idempotency.sql",
+      "sha256": "a72b926a1f760bb3cda04545a6da29ff3079e0038a447ebc0d532371fad4c987",
+      "bytes": 9361
+    },
+    {
+      "blob": "77e176a9818a40451bd1980ea63763bde9af39a8",
+      "file": "supabase/migrations/20260722194000_vendor_disclosure_stage_ledger_hash_disambiguation.sql",
+      "sha256": "b10933ca814774a6536b91806e8c630d2cbe04b406cd1d81816a90889e00518c",
+      "bytes": 51991
+    },
+    {
+      "blob": "af56edf952bf616791eba1f3c87c9541927b2e1e",
+      "file": "supabase/migrations/20260722195000_vendor_disclosure_ledger_cost_scale.sql",
+      "sha256": "63a4e2e6019e0aa35fc23d4de5a078021448fd375c93e7e70a63012c4cd7fba3",
+      "bytes": 52416
+    },
+    {
+      "blob": "94e4f455c14916e4d2b0a35e98e1741b2d0af9db",
+      "file": "supabase/migrations/20260722196000_official_price_option_source_occurrence.sql",
+      "sha256": "1f1fcc6e85195cc17c1a929c6dbaa02c7bb61840464c282bc877ce7b4c1fc7fd",
+      "bytes": 19408
+    },
+    {
+      "blob": "be3e81aaf8bc7c6a5f503278c465503740192618",
+      "file": "supabase/migrations/20260722197000_vendor_disclosure_exact_semantic_duplicate_canonicalization.sql",
+      "sha256": "2df865eedd9684438fcf77f1e388fd8804ccf72c609573e468e23b6bff8e08f2",
+      "bytes": 7493
+    },
+    {
+      "blob": "7945bf03182cf7c0d25170584e9ea69a98e414ea",
+      "file": "supabase/migrations/20260722198000_vendor_disclosure_preview_transport_identity.sql",
+      "sha256": "f0c83ccdbde175d71b6fa05deefde80ec48d119e7f12876926b9147f6cde28ee",
+      "bytes": 16784
+    },
+    {
+      "blob": "7d642aff801b9ad4a327840e2ca71dcc48033c9e",
+      "file": "supabase/migrations/20260722199000_vendor_disclosure_local_price_overflow_quarantine.sql",
+      "sha256": "1dfd8685590bede3a014dcfaa1493cc7c93884dd93472e387901437e909fd816",
+      "bytes": 12649
+    },
+    {
+      "blob": "d73bb689ef2cb8b8137f5f79cf4804a483b06578",
+      "file": "supabase/migrations/20260722200000_vendor_disclosure_dedupe_link_replay.sql",
+      "sha256": "7259b4cfde45aa5355763cc716e860d031558f235d5bca88ca39e2d76e4e6100",
+      "bytes": 10765
+    },
+    {
+      "blob": "23be5f9fa5d2ce201907323e72a72d52807e2fe6",
+      "file": "supabase/migrations/20260726090000_public_vendor_policies.sql",
+      "sha256": "b2c789fc6a56fafdcbd1531dbcddc3ed22e6545bd7d4f6d7e7b01ab3b4b20e52",
+      "bytes": 4882
+    },
+    {
+      "blob": "660cd31ba7387db8afff1b8dea262cad5b966f91",
+      "file": "supabase/migrations/20260726120000_amora_saved_notes.sql",
+      "sha256": "25d14623dd9bc4c24b1941bf037084d97eb54ba05d30901cc522e5f90a425de7",
+      "bytes": 5641
+    },
+    {
+      "blob": "e1cbe8fb03e020d860b8d2dce5f22e6790b58172",
+      "file": "supabase/migrations/20260727090000_fix_saved_note_message_ref_and_lock_messages.sql",
+      "sha256": "d8c442cc5cb99c69209952ff2bf7d62ecc394a714b21d248d9c691deabbdef60",
+      "bytes": 4429
+    },
+    {
+      "blob": "4752df55bcaacd6b1c81ff9e86547b317b77561b",
+      "file": "supabase/migrations/20260730100000_retire_undisclosed_community_agents.sql",
+      "sha256": "51e3cd08f2b2e69d45c02861b97dc99a155e69bbe858426ab09c044d43c95868",
+      "bytes": 5510
+    },
+    {
+      "blob": "2e19eb1e368402fe8e46efdff1c6062a543945a2",
+      "file": "supabase/migrations/20260730101000_quote_check_explicit_consent.sql",
+      "sha256": "f9ab7b5f04a16a4a13c11c709ef29b41851afe16897bedd1aaf9e97bf0a3b5f5",
+      "bytes": 2672
+    },
+    {
+      "blob": "f25d351da24fb966939dc26893f918ba3105b643",
+      "file": "supabase/migrations/20260730102000_amora_shared_action_approval_and_notifications.sql",
+      "sha256": "f4e242bb3c3bfaeda284830a548c8d798f4c0f26aaa029014688d800d677d857",
+      "bytes": 84617
+    },
+    {
+      "blob": "f7d6afac2921fb1056e6799be2494b4aa7c63c97",
+      "file": "supabase/migrations/20260731123000_couple_plan_change_write_boundary.sql",
+      "sha256": "78558fed4cc693ca9ac204be7a401ff4ee4451b42534bc70b8b55d4129a6e7db",
+      "bytes": 79572
+    },
+    {
+      "blob": "743443954159c7fb6f0fb76c71066faeb85243f6",
+      "file": "supabase/migrations/20260731170000_amora_personalization_preferences.sql",
+      "sha256": "3abe9a147276e30f6a3811d6dd98dd80bee54c10a49781ea900b1b7096ee3bb7",
+      "bytes": 11238
+    },
+    {
+      "blob": "5bfadd4ae44f7c25160a0760acb9518811d12c57",
+      "file": "supabase/migrations/20260731173000_private_chat_hard_delete_boundary.sql",
+      "sha256": "bf2333a9d5b29d7d1d04a6dff52747a20b8920e1e9b4df1bae655e34872d09c7",
+      "bytes": 16968
+    },
+    {
+      "blob": "8ddc97eb44fecbce4514e2ccc36fd78f21a38135",
+      "file": "supabase/migrations/20260731174000_amora_privacy_context_snapshot.sql",
+      "sha256": "7969c9885c428091601fbda6aa085ece3ba6c3a41a1371ab370013369564f86c",
+      "bytes": 4885
+    },
+    {
+      "blob": "0d64c973bad3f918f43c2ce86727e3529843cbb4",
+      "file": "supabase/migrations/20260731180000_community_release_trust_boundary.sql",
+      "sha256": "31f5e100c7a0bbdda39e1e2aaee7e8ddc3f62be504ebb9eb3e2f70f7482276c5",
+      "bytes": 44995
+    },
+    {
+      "blob": "be110c2cba64d300c1a85fb2cccf3a8c023cc9e5",
+      "file": "supabase/migrations/20260731181000_community_reply_notifications.sql",
+      "sha256": "186d53d6647f5230bee2a7df806172503a1ff32c32e4806cf512df7960c3eb3c",
+      "bytes": 11498
+    },
+    {
+      "blob": "cbeccf07f069974528b00c807ee79fc4c614910d",
+      "file": "supabase/migrations/20260731182000_cohort_moderation_audit_boundary.sql",
+      "sha256": "b1b6520332d53a791dbb132a67de2ea86e8ac2e636256ac8c752462264639e18",
+      "bytes": 13310
+    },
+    {
+      "blob": "00bd0ce94b89ffba88c1ed5479bc86bc5165f0fd",
+      "file": "supabase/migrations/20260731183000_community_operational_health.sql",
+      "sha256": "aac22518fbe9d9b974d3f0f276f872621f2ed9e7222497da61a3155f785385e9",
+      "bytes": 7104
+    },
+    {
+      "blob": "db94148c4ec6b2c6a71411d210de522297674ed7",
+      "file": "supabase/migrations/20260731184000_amora_tone_style.sql",
+      "sha256": "97970d2259b7b8167998a061dba0b40ff93e0d979e407c9d2a7df8228dda7634",
+      "bytes": 7428
+    },
+    {
+      "blob": "b03de539805da7599eba2d963d0257ed692d6e6b",
+      "file": "supabase/migrations/20260731185000_community_api_only_write_boundary.sql",
+      "sha256": "17a3e0f43fc0ec3a5143f86e8844a83a5ad1e366c51083e7a8a10ec6c8e54956",
+      "bytes": 1047
+    },
+    {
+      "blob": "463300dabf687b656f3830b4cc12caad6315085a",
+      "file": "supabase/migrations/20260731190000_wedding_court_safe_mvp.sql",
+      "sha256": "f1a56e18861310d6b824d3e1882a6d0972351508622dd545b04ef01f2b870a12",
+      "bytes": 17468
+    },
+    {
+      "blob": "a67123962c03cbe327f5a188f869169c3d2ec594",
+      "file": "supabase/migrations/20260731191000_wedding_payment_ledger.sql",
+      "sha256": "99f2c63dbaaf604ddc58d96462453e96c7c866a431e2371db50455ab1a6db52c",
+      "bytes": 20911
+    },
+    {
+      "blob": "c958fdd10e1d01af60b127fb9a8056714d62d2fa",
+      "file": "supabase/migrations/20260731192000_chat_feedback_account_delete_cascade.sql",
+      "sha256": "006650056787fbaa49fc4fa35fe53e6d4c94cd841e3e4edaa3c732fc9c02e75f",
+      "bytes": 4190
+    },
+    {
+      "blob": "b2d49bdf984e246f4587f8aeceab48cf70b9ad03",
+      "file": "supabase/migrations/20260801090000_amora_chat_delivery_safety.sql",
+      "sha256": "d65db3bb8f89c8806683244aea5aabe9239d289de8a0dbb71df2d71cb3905a36",
+      "bytes": 12660
+    },
+    {
+      "blob": "f68cdfd858a2380e07f74dfd5e1f4982a094e096",
+      "file": "supabase/migrations/20260801100000_amora_conversation_segments.sql",
+      "sha256": "03f2b4ac8100af621912831f286f92a4ca5984b5a219500a09b85bfe3d722075",
+      "bytes": 14890
+    },
+    {
+      "blob": "37f3414213ec8b34606e839c016b0af4b0c4627e",
+      "file": "supabase/migrations/20260802090000_amora_moment_care_source_revision.sql",
+      "sha256": "92aab48ceee3cdef5eb577b8afde40adb34f439834c5db66ed5c7ff118ee719d",
+      "bytes": 2494
+    },
+    {
+      "blob": "f8d2d4481d9982e354c7b60231bdfa1b7c454f6c",
+      "file": "supabase/migrations/20260802100000_amora_shared_schedule_decision_receipts.sql",
+      "sha256": "df1d499c14474ac54a6021f983498d29ef554fafe5f56a2c0bbc81e4804a7d1e",
+      "bytes": 29752
+    },
+    {
+      "blob": "7a6181bcbf00e0fe9d2199d9ce99d4ec462c7d50",
+      "file": "supabase/migrations/20260802110000_amora_shared_schedule_approval_policy.sql",
+      "sha256": "a6a79c7c4bed55be85c02595ac4764492ce8d57665b3a1e5744d18bd0561dca6",
+      "bytes": 1985
+    },
+    {
+      "blob": "9039cdb265a7193518d2a20af900544f63b644ad",
+      "file": "supabase/migrations/20260802120000_amora_conversation_segment_dual_write.sql",
+      "sha256": "12cd3386ca80087fc8ff9dfa73e92f1cc9da2e80d05b49eb5cbb47ad1255b6bc",
+      "bytes": 21676
+    },
+    {
+      "blob": "510a33af635e8a4d470d5fdc568902d9fd2634f5",
+      "file": "supabase/migrations/20260802130000_amora_in_app_today_one.sql",
+      "sha256": "56cf25d5b8441c1d282e0ca8721e60c8ca3c05ca0a41d641720e33038b50be2a",
+      "bytes": 31831
+    },
+    {
+      "blob": "6730cb1496ef894db7e039bafc93733c7cff16bb",
+      "file": "supabase/migrations/20260802140000_amora_manual_schedule_fairness.sql",
+      "sha256": "2e003f2772551d3d22b7d8b24344f815062152cd105a42c8f0606f2d9b226198",
+      "bytes": 113085
+    },
+    {
+      "blob": "9c80968b58259a509c471761b75129b58855ea9d",
+      "file": "supabase/migrations/20260802150000_amora_today_one_budget_guardrails.sql",
+      "sha256": "30b50a0ab2994758fbc5e025f213ee7b7757b620f43f43b3636f0d2da2b5ab91",
+      "bytes": 6177
+    },
+    {
+      "blob": "bd38a3d3ccf7c7be84d30bb1aa25bd3cdf633195",
+      "file": "supabase/migrations/20260802160000_booking_quote_spend_soft_cancel.sql",
+      "sha256": "e2c3b5b95d5993ba217feb5ec743357dbdd0ddd8580bddfeae8fc98b200a5afb",
+      "bytes": 101935
+    },
+    {
+      "blob": "a11eea0bcb8888052e6eab549f43d48420d4e541",
+      "file": "supabase/migrations/20260802170000_amora_shared_action_roster_binding.sql",
+      "sha256": "b1e212984f4ecb99095042b38ca877b0b593d0c490986e03edb24280d0804a80",
+      "bytes": 23486
+    },
+    {
+      "blob": "9907ffe8ec4c0d5a70c18a51c470f5f73528e796",
+      "file": "supabase/migrations/20260802180000_community_cohort_assignment_atomic.sql",
+      "sha256": "ba6bd8223d857ea0baa4b8647c95953b892071bfacbbb501c0e131784ef01689",
+      "bytes": 4835
+    },
+    {
+      "blob": "dcd50f26992f0f19d3365a832a25aeaa036802dd",
+      "file": "supabase/migrations/20260802190000_community_idempotent_writes.sql",
+      "sha256": "741d967d43a369d770f83b121eb501ffe623e0a9b861c7228e8be684ca5dc9b3",
+      "bytes": 6982
+    },
+    {
+      "blob": "d030aac533c2f8690838a2ac4aca69ba12fc3952",
+      "file": "supabase/migrations/20260802200000_journey_budget_progress_integrity.sql",
+      "sha256": "62e5655627fbc9dc4f7e41347404311a3c9091f7741f2007fb38862fd7fef665",
+      "bytes": 16331
+    },
+    {
+      "blob": "c447ed90ee8553e6dd3289f7ff3230ad62279f16",
+      "file": "supabase/migrations/20260802210000_amora_conversation_segment_roster_repair.sql",
+      "sha256": "433248852f800553c94dec00ed9616b3854acd5cbc5e8cebd3bec465a82e4cf2",
+      "bytes": 12074
+    },
+    {
+      "blob": "b349c85e46b107d24067bcd5307c964f817c53eb",
+      "file": "supabase/migrations/20260802220000_amora_memory_enqueue_repair.sql",
+      "sha256": "4dff9c7545446dc6b459089c2a52b28c2c57f2834fb658af1ec541012b0e7db7",
+      "bytes": 18683
+    },
+    {
+      "blob": "1d2543f20964b07f7dfb303b9fae52ba812381f9",
+      "file": "supabase/migrations/20260802230000_amora_atomic_privacy_epoch.sql",
+      "sha256": "79e824442deb0f20582d1659e05a05c23ec564c249a3bdab0b3f1e8a9a1fb490",
+      "bytes": 34363
+    },
+    {
+      "blob": "a8e756a4431666d9779cb5eb210324b2120eb801",
+      "file": "supabase/migrations/20260802240000_amora_memory_job_recovery.sql",
+      "sha256": "f673b63550bbce8561ccd23fc7e5ec161627b5dc0ddbed8fed49a049adc7f0d4",
+      "bytes": 28632
+    },
+    {
+      "blob": "b1d9c86c1c127bbd9a46b5a1f2cc72fc61292449",
+      "file": "supabase/migrations/20260804103000_community_report_resolution_atomic.sql",
+      "sha256": "23b938edae10e03784cc13b80c61b10461f61b931bbd6d3921ed1889b0e31c1c",
+      "bytes": 75923
+    },
+    {
+      "blob": "17de16b0142819ed28870e74a0749de913cbbf4c",
+      "file": "supabase/migrations/20260804120000_community_profile_guestbook_p0_hardening.sql",
+      "sha256": "b837cc2ef7d3ce2c10892de61b0882666e919a2d452d7c1e4039400477703658",
+      "bytes": 8795
+    },
+    {
+      "blob": "6bb1f64337b529af864548953e335dc88273ae88",
+      "file": "supabase/migrations/20260804130000_community_runtime_control.sql",
+      "sha256": "0a7ccd82712051d5b1c1cab13090b071be107ecb8eee25d9f1d090b491337eb8",
+      "bytes": 12937
+    },
+    {
+      "blob": "d866b7b29c600480162a4ae6947f60f9652f99d8",
+      "file": "supabase/migrations/20260804140000_community_responder_supply_foundation.sql",
+      "sha256": "82ae239c80cd19ab246280d5fd2005eb5815631e833c4816b855f1a5abc136d1",
+      "bytes": 95958
+    },
+    {
+      "blob": "bfa9008b3f04c30f8dc06d8460d933da50af6536",
+      "file": "supabase/migrations/20260804150000_community_comment_service_write_boundary.sql",
+      "sha256": "e06b8ee5c9e74c2f5c9ad2881cd0939fcab66f4fd02cbaaefdfa6effd50aa5a1",
+      "bytes": 23088
+    },
+    {
+      "blob": "9495715367c437150236707034aa55e979d07b19",
+      "file": "supabase/migrations/20260804160000_community_poll_set_intent.sql",
+      "sha256": "9cc8af04fa086ef34d8650bd50f1c6612338de094594b5b0f3628bef32771a07",
+      "bytes": 35600
+    },
+    {
+      "blob": "059ed5df4165132ebc0a8845d74291b4026f3a70",
+      "file": "supabase/migrations/20260804170000_notification_session_ownership.sql",
+      "sha256": "9dd0955b7144cee0d8174e29731027088accff9ea70e0406de335cb26310b302",
+      "bytes": 22206
+    },
+    {
+      "blob": "bf940494cef31a9684f112b9ebed5753a3eb069a",
+      "file": "supabase/migrations/20260804180000_community_viewer_controls.sql",
+      "sha256": "bbf8c4208ce48280d35b55087696072d1435678eee728f48a0e70c16ebb89b97",
+      "bytes": 52620
+    },
+    {
+      "blob": "8069107c1682285a0435518ef0cae8e879c0d6e3",
+      "file": "supabase/migrations/20260804185000_notification_delivery_outbox.sql",
+      "sha256": "d58f91f3ccc4fc9965e60d8de876187a95ad797aaf5773374b8a175d37abe1a2",
+      "bytes": 50915
+    },
+    {
+      "blob": "80319fe176814b0282d9147e760ed689f42ac13a",
+      "file": "supabase/migrations/20260804190000_community_decision_thread_vertical.sql",
+      "sha256": "7f7e9288a6333b7358af6b02f189c9f1d6df885e34962764f3b6a2b387351a55",
+      "bytes": 113854
+    },
+    {
+      "blob": "479d67960065049082d70765c61049ce51d4f6fe",
+      "file": "supabase/migrations/20260804193000_community_decision_feed_read.sql",
+      "sha256": "5965c8118b0e5030339d9ad10dbb36d34e5b87f98f4bb833d5a23c6dd37e5400",
+      "bytes": 27695
+    },
+    {
+      "blob": "e6b09f42be43c4d0eaa4c56a938e8d8a73d2aed4",
+      "file": "supabase/migrations/20260804194000_community_decision_outcome_review.sql",
+      "sha256": "60867720f77ed6d763fa5015bd414b2778a3e5be416f0927a3d115fab07def83",
+      "bytes": 30099
+    },
+    {
+      "blob": "f265e879c0e70d88ff73aae9508c7dd790efb57b",
+      "file": "supabase/migrations/20260804195000_community_decision_public_outcome_read.sql",
+      "sha256": "8367f384e95da3ba758759cd3f5ee5443c633dcdfcf33c1180e931a0e2f2c007",
+      "bytes": 6983
+    },
+    {
+      "blob": "082ddcadc15af19d466dfab05877620e4e341824",
+      "file": "supabase/migrations/20260804200000_community_post_service_write_boundary.sql",
+      "sha256": "3671f4d1878889b05eaad419354b35f311d2ac27757ed557a5b0580e31d57afc",
+      "bytes": 23969
+    },
+    {
+      "blob": "a5a19665f1b5ad72dfd9fa4fde600ee9860dd54d",
+      "file": "supabase/migrations/20260805120000_amora_log_wedding_event_couple_approval.sql",
+      "sha256": "74f7e8109eafb3a1983f652436407b4d801b06ab21a3903d8e2ebdf5f3553f51",
+      "bytes": 6061
+    },
+    {
+      "blob": "c3fb00ff170e2371b5a4a19bb54da442e8d784c2",
+      "file": "supabase/migrations/20260806090000_amora_preparation_status.sql",
+      "sha256": "1947a237019126e7e262e75b03b9129b70e559e6733e948616923f3c6496339f",
+      "bytes": 3949
+    },
+    {
+      "blob": "9c035ffed52fe1af0ac21b03594f3662cb40ac66",
+      "file": "supabase/migrations/20260807090000_amora_mediation_send_gate.sql",
+      "sha256": "27b4292cff613b727727bacc16e2600e8bb7df588cc367d87ecac77725506a82",
+      "bytes": 9158
+    },
+    {
+      "blob": "f85cb9ae71536941ca2206ac8f307accb9b9dca3",
+      "file": "supabase/migrations/20260812030000_couple_invite_replay_hardening.sql",
+      "sha256": "f80357e7d9ab2edfd0492c3505071d6361680a17d4bfcc6f3d20c3a1d9c0a11a",
+      "bytes": 28663
+    },
+    {
+      "blob": "12a085a235d8d634fdba62709a701acbfa2d7d35",
+      "file": "supabase/migrations/20260816180000_amora_neutral_preparation_space.sql",
+      "sha256": "ce00fb20715ce45d1b7edccb8ea28c1af35e2dee9c3692552696f892639c2867",
+      "bytes": 13747
+    },
+    {
+      "blob": "81921f2d732394a8fdcd48f925407f348451ca1c",
+      "file": "supabase/migrations/20260818110000_restore_couple_invite_nullable_contract.sql",
+      "sha256": "b4291e779566b74ee986e634bace40b986d5b03598b53691fb99538d50a94324",
+      "bytes": 2586
+    },
+    {
+      "blob": "9f62d43fb2461e76ae1a94dd2968f4a6872cabad",
+      "file": "supabase/migrations/20260819090000_first_run_tutorial_state.sql",
+      "sha256": "f4675c7f9d2bd6b898f76893487d1ec852a9056e51b83eb7d35573b3a5c267b2",
+      "bytes": 4666
+    },
+    {
+      "blob": "59fa0352d7d01a11747a6f0f8469baa2cc8bf23d",
+      "file": "supabase/migrations/20260820120000_neutral_join_reports_legacy_space.sql",
+      "sha256": "8f9b23e179194eb63d3934996e10a0f383a4c031aec9ff950033e59f1d4f6f80",
+      "bytes": 6340
+    },
+    {
+      "blob": "3b83ede01ced5656bddb7ee1a18ca4bc6182687e",
+      "file": "supabase/migrations/20260820130000_legacy_join_blocks_neutral_space.sql",
+      "sha256": "6e0668148b9773f27b00b30b59b36d221ed876056b23f636bb9608ab8db6e3c0",
+      "bytes": 3576
+    },
+    {
+      "blob": "be7e134aa48242a1850161cf969c26c04e06061c",
+      "file": "supabase/migrations/20260820140000_neutral_schedule_assignee_label.sql",
+      "sha256": "457d14d4f641a1f6896143410dd2812848b07b3737a8b78eb5c36b5f8ca97d23",
+      "bytes": 3168
+    },
+    {
+      "blob": "31836f507b0cce6e75f038df974bfe0a32ea69cf",
+      "file": "supabase/migrations/20260820150000_invite_expiry_is_not_a_typo.sql",
+      "sha256": "e803d23f36a2d0918ed30fc8f75b6f1e54873291000f66ac9731cca190eaa4b5",
+      "bytes": 22640
+    },
+    {
+      "blob": "2a61316e6e39b92b79c9e1982bbe4dcc679da2a7",
+      "file": "supabase/migrations/20260821120000_events_append_only_allows_fk_detach.sql",
+      "sha256": "8ec5581ebfa914cafc8ff7f8abc79d8c8e83f955727343e2a3fa40a2fbfa1b44",
+      "bytes": 3121
+    },
+    {
+      "blob": "4a14711c7bb1b3ee0ede7466bdbf0af019fd0c58",
+      "file": "supabase/migrations/20260823120000_couple_approval_becomes_notification.sql",
+      "sha256": "b8e461c9d5a5e3a383bb0c244c0da9a648fe9b13ccdb678f0cc48f5574f32a51",
+      "bytes": 61258
+    },
+    {
+      "blob": "4285219b48e7a964b95cb8ee79cae5c38a2756a4",
+      "file": "supabase/migrations/20260824120000_amora_schedule_cancel_can_actually_apply.sql",
+      "sha256": "97a22b7008a62c536fa42df13489a9e832103cd0bbeb9fca726112b7522b0cf1",
+      "bytes": 15852
+    },
+    {
+      "blob": "3d97e52961410d1ed1af4b0fb35bff49c359fb33",
+      "file": "supabase/migrations/20260824130000_mediation_tells_the_partner.sql",
+      "sha256": "cb48ee05096e630716994091bff745de0342f2f82fc7cb2f57a3176f58f21c2b",
+      "bytes": 10208
+    },
+    {
+      "blob": "8c3c224bd6d30ef7b28326201c87caa243cb6c2c",
+      "file": "supabase/migrations/20260824140000_amora_can_change_custom_budget_categories.sql",
+      "sha256": "3fa576cd358acf453d9b60223a928bccf591ae4579e62ef54b00eef42ba5dfac",
+      "bytes": 64272
+    },
+    {
+      "blob": "054759e0ba68378d89330cf857d2aaf888ab7542",
+      "file": "supabase/migrations/20260824150000_amora_custom_category_label_match.sql",
+      "sha256": "99130586a5683f25b9016c0dcfc9b025d21994507ac2e30da30f6d5fd20aba7f",
+      "bytes": 65359
+    },
+    {
+      "blob": "50588abbdfdd4032b674caf0ebd41e2a83920fdc",
+      "file": "supabase/migrations/20260824160000_first_budget_entry_is_not_a_mixed_change.sql",
+      "sha256": "c59837668362a3ebb23fdf7e06d7c4764336c25c1e62c911e106f5600ad4cde3",
+      "bytes": 26717
+    },
+    {
+      "blob": "00352a57567f614f6e34fe812d9f4a17889765d2",
+      "file": "supabase/migrations/20260826000000_harden_cohort_timeline_and_contract_writes.sql",
+      "sha256": "20b1f7a83fe8dc9221f83784189c17c67736c643c9f65fe614ed1108d99f1e4f",
+      "bytes": 3252
+    },
+    {
+      "blob": "f48b5ba5278a2e17405228169018cfb1a03a4e8d",
+      "file": "supabase/migrations/20260826120000_anon_sees_only_public_authors.sql",
+      "sha256": "3020d6af41ea453af33a75b5716a221122b3b8130d442738458c19ada427bcb9",
+      "bytes": 5765
+    },
+    {
+      "blob": "6703f2dcf0022b412ef5433a75e7fe61e620ee2a",
+      "file": "supabase/migrations/20260827090000_move_card_can_name_what_it_moves.sql",
+      "sha256": "574a238ecd0b26ba0c736ca78b9dc2961e6fa3cc1fc871dbadafc1809e507acd",
+      "bytes": 17890
+    },
+    {
+      "blob": "eb597b3568c9086c0cb997e4f169e8d82f425cf3",
+      "file": "supabase/migrations/20260902120000_leaving_does_not_erase_the_partner_memory.sql",
+      "sha256": "a769396d614c4fc1bb31e97c289fac7afea0dfa259f18bd64293a75cc9f0223e",
+      "bytes": 6864
+    },
+    {
+      "blob": "b1fb0daf0f815e7afe717e56aaecb7823ad6068d",
+      "file": "supabase/migrations/20260905153207_community_hot_rank_before_pagination.sql",
+      "sha256": "893651a7da04038b9807004518960b248e1f5b5a27886bbd091700dea5b53cde",
+      "bytes": 917
+    },
+    {
+      "blob": "3522ef044b8755d35c8b719da8fb086b713e5cb3",
+      "file": "supabase/migrations/20260905223222_amora_atomic_chat_view_reset.sql",
+      "sha256": "8c29609fd1fac0cad71d9eaaab41a254be2ad00f718b0221d2703b6799130bed",
+      "bytes": 7255
+    },
+    {
+      "blob": "43e4ceb08b982cc93dad3f005e05b71567a5fb68",
+      "file": "supabase/migrations/20260906074227_amora_manual_actions_actor_boundary.sql",
+      "sha256": "57da05968e382fd5116f2e7ae53df05503ad49bf836112a975bfbca331154865",
+      "bytes": 9899
+    },
+    {
+      "blob": "fc16599c11c2ac170a4ffb1d95891e4f4c78e183",
+      "file": "supabase/migrations/20260906090807_amora_saved_notes_canonical_source_boundary.sql",
+      "sha256": "c8de2b0882796194287d0dc66ac2852bab5193c85da466eb1138bc5ad7a948d9",
+      "bytes": 6048
+    },
+    {
+      "blob": "4a79d65addac4185fea528358451b4801f04ddc9",
+      "file": "supabase/migrations/20260906130734_amora_budget_plan_preserves_existing_allocations.sql",
+      "sha256": "13f5cdb4c5b5cc30d69cb3b0d55c9f4adb387c61f17cff7e95cdd502b6661d3c",
+      "bytes": 68915
+    },
+    {
+      "blob": "a1e120537bbe8b01db02410393986ec27fc6a4de",
+      "file": "supabase/migrations/20260906145336_amora_saved_notes_owner_delete.sql",
+      "sha256": "e1ae769d3752616f0018a57b3d853e95a53a63ea6199b73d60f73dba51816914",
+      "bytes": 450
+    },
+    {
+      "blob": "d9511b20baf188ea8e08f9ac0d540c792bcdc4d2",
+      "file": "supabase/migrations/20260906151956_amora_personal_actions_owner_boundary.sql",
+      "sha256": "e75ff09a75760b52cce4b673af01e67a4b74eb47128c853449c934a95d6791b5",
+      "bytes": 8871
+    },
+    {
+      "blob": "432dfb1db3e879e5a2ac8ede7163557f3aabf339",
+      "file": "supabase/migrations/20260906223557_amora_mediation_response_choices.sql",
+      "sha256": "396ee13035e91c71c21c5bdf3613405c4bcb476a349928f3169d48ae2f85914a",
+      "bytes": 16265
+    },
+    {
+      "blob": "24e1618e91ed550ffb0b7b4add849ed6d8ab601b",
+      "file": "supabase/migrations/20260907085111_amora_budget_plan_named_allocations.sql",
+      "sha256": "5be83d180d905c6c0883c81ef0e0379b7b70a70c56ddea86d30b04548a950ae9",
+      "bytes": 73167
+    },
+    {
+      "blob": "463ef57fe08a41b44596fd740efedc01f3ddace1",
+      "file": "supabase/migrations/20260910160514_amora_shared_budget_decision_receipts.sql",
+      "sha256": "2b32149527dcd5e1edda3fa47cf38dad48606222d60493ca4962df1ce229596a",
+      "bytes": 23608
+    },
+    {
+      "blob": "50120a4048aa4e7289c4b8452a20c90c7bc178d4",
+      "file": "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_apply.sql",
+      "sha256": "86b9c20f419d29f9511aa5063e50c88559e3f1c9fcff2063c651ae495f791a6b",
+      "bytes": 1600
+    },
+    {
+      "blob": "17c8d18d4c43f44936e70fc293ca7848bdccfd2c",
+      "file": "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_inventory.sql",
+      "sha256": "11819a0cc38c70546c729d55b6dd7c8df2073b4a8951fbc435fc7b04b296d82d",
+      "bytes": 1043
+    },
+    {
+      "blob": "cee543a5621cdaa3abd870a623f96304fe96a728",
+      "file": "supabase/platform-operations/security/20260717103000_ai_log_retention_acl_verify.sql",
+      "sha256": "57774a6e1a75f6d1a2465307b95e78bc7bdb1c703ee92d503f88ea30fbf0e05b",
+      "bytes": 938
+    },
+    {
+      "blob": "187fa6e6ce5de21a10e9bfb61592d9759b43efc4",
+      "file": "supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql",
+      "sha256": "a5166152091dd8a71f33ce6271a92fc2276993036ae0a8649d7840ba6de6e284",
+      "bytes": 30533
+    },
+    {
+      "blob": "3869fc8bcf70782b0e88fba7def555d4db831640",
+      "file": "supabase/platform-operations/security/20260717120000_production_write_fence_inventory.sql",
+      "sha256": "e2c87d2c1bbc879e50da4ce272ddb8fdb44486dc225d5bbbe55cbd1a10cc4bc2",
+      "bytes": 1371
+    },
+    {
+      "blob": "6d7b07d29c9f14f315f108012d4b1838846b3673",
+      "file": "supabase/platform-operations/security/20260717120000_production_write_fence_rollback.sql",
+      "sha256": "bef0340b5296bfa64eae077121653090552e891a4f151aa248f72673c4f50b5d",
+      "bytes": 11129
+    },
+    {
+      "blob": "521523e51f5c2afffab17f9b595d929ab2f96750",
+      "file": "supabase/platform-operations/security/20260717120000_production_write_fence_verify.sql",
+      "sha256": "2a6b8af9a097ddd0dfc4f482ec1da95a09cf90ee511ab0f2cb818e8f096b5567",
+      "bytes": 9631
+    },
+    {
+      "blob": "01d039d6ac3772f69d29138e1585fcb4bdf73fbe",
+      "file": "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql",
+      "sha256": "cb328473e789b8d669fe1dcd0052077d3f812fbc099b27333ac95f3bef75893e",
+      "bytes": 31320
+    },
+    {
+      "blob": "31011cdcb8ce86d49fa58a124f5a594fcf5c6a68",
+      "file": "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_apply.sql",
+      "sha256": "d1b2546d6a7ee0e2aae6628a97debc21c5c0f1c96cef03d8bf745d3834fd966f",
+      "bytes": 2846
+    },
+    {
+      "blob": "bea0db5495de078b3909bb7772cad26258f816d1",
+      "file": "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_inventory.sql",
+      "sha256": "fdfab1a5e647ae353213463bce16e0d0bf0f567330ebe490fe000d033ca79386",
+      "bytes": 1174
+    },
+    {
+      "blob": "93bb5525f129b3f1b963bd45d476163ba9e0b013",
+      "file": "supabase/platform-operations/security/20260717141000_ai_log_retention_exact_acl_verify.sql",
+      "sha256": "6c2e8c5b9e5db58c4560ca53b9c49df079f570ad537c4a338688ae4afcbbf0c4",
+      "bytes": 1185
+    },
+    {
+      "blob": "7d59d4a285c9273c57e11093376d58fc24a727bd",
+      "file": "supabase/platform-operations/storage/20260714162000_chat_attachment_expand.sql",
+      "sha256": "9ae9170fb7d76e4436baef924db5f3b45a0ad9312b8e2105ec7c2c9d00ffa4fc",
+      "bytes": 2073
+    },
+    {
+      "blob": "df37b8648328e97e9649f432b1310b74e6103907",
+      "file": "supabase/platform-operations/storage/20260714167000_chat_attachment_contract.sql",
+      "sha256": "085910dde7a9ef1ae5da483227f45ca37fdb31a1d8fc083fc43adc07b121f564",
+      "bytes": 2663
+    },
+    {
+      "blob": "7886b46cc6a4462505967a5b94baaad2d5eca488",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_apply.sql",
+      "sha256": "4ccf5eb76bc5ceff7eea5413948e0ae4ecbb324336fe2e83b177c1773b69cd56",
+      "bytes": 12571
+    },
+    {
+      "blob": "b960a0f229a4d5c38b05441947080a77ec32542f",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_emergency_rollback.sql",
+      "sha256": "7cfb2b91f251bcc7e2a1d40fcc532239f876ba24820fd5361dc1d3bd8915f8ff",
+      "bytes": 15794
+    },
+    {
+      "blob": "4ab1b33ec9f7f53b1c74745c418d3c81add3f536",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_emergency_rollback_verify.sql",
+      "sha256": "46ec874d041300ff54cee780e5086e74ef711dfc4d8f1ffab2d5097545fca733",
+      "bytes": 7197
+    },
+    {
+      "blob": "629342656fc22cfa24e5e28d7b4f308639caf057",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_inventory.sql",
+      "sha256": "36b7aac11d85c5d19bc45295093cbff2e7b11671fa40d69c6bd130d6bd401c25",
+      "bytes": 8339
+    },
+    {
+      "blob": "be816881399e70842313f94017d9baa7d447c6dc",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_rollback.sql",
+      "sha256": "a703272f5629b2998424bdf0d82dfaa38210a699a619f4011d3af91a78cab8ef",
+      "bytes": 4062
+    },
+    {
+      "blob": "a5244ef79fcd1b7b8e0b9c6a786350b2365fb002",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_rollback_verify.sql",
+      "sha256": "b131757d45b6e8f5ab2b52af8af512646e6d4d51bfd6c22f6c84c307554507fd",
+      "bytes": 3478
+    },
+    {
+      "blob": "54081fb542acdd5f5383f79e8142af99be1e566a",
+      "file": "supabase/platform-operations/storage/20260716108000_community_upload_service_fence_verify.sql",
+      "sha256": "0483aacc59c3e722fbc90dcfcd614e9df356ea23d24b7c401d8b5e232d68b32d",
+      "bytes": 9802
+    },
+    {
+      "blob": "ab8201f2fcc1598982d80af0dcbf9b8f0705dd6c",
+      "file": "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_apply.sql",
+      "sha256": "cd16b5b5fb4492b7ac22ec5672a53795b899dc305b0d573a0c280f86d5ea6fb5",
+      "bytes": 8262
+    },
+    {
+      "blob": "282622bac32139909619e508f8b96ac054f7e11e",
+      "file": "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_rollback.sql",
+      "sha256": "0ece5ef3d0fa1fb9301e6cb8ade7abba0f326ee154ca1321639a931d3f3e0745",
+      "bytes": 9053
+    },
+    {
+      "blob": "052c9d1bdbbd0c26ce401b849a2f16509c3e3c3a",
+      "file": "supabase/platform-operations/storage/20260716108000_storage_global_write_freeze_verify.sql",
+      "sha256": "e93197910f36798648155314f21495b33b51441fc12bc219ec9f30b189ed2687",
+      "bytes": 4972
+    },
+    {
+      "blob": "412fd9770380d76e509b17b78c3498054a9a26bf",
+      "file": "supabase/platform-operations/storage/20260804120000_retired_guestbook_storage_inventory.sql",
+      "sha256": "5d9b9a68d116f997d9ddfd41e98faca67f52e7e3022442edc0e14b80d386032e",
+      "bytes": 2234
+    },
+    {
+      "blob": "a70552f36b0bb6a02bab212a6ba2df62871c5889",
+      "file": "supabase/platform-operations/storage/20260804120000_retired_guestbook_storage_verify.sql",
+      "sha256": "3d3ea1b87ed02def5c2d2b9acb71f0f2c05f782765cd9b72af903534fff73379",
+      "bytes": 3204
+    },
+    {
+      "blob": "c5fe76ec409f25b743f3e11b5ebe9e25a275d865",
+      "file": "supabase/platform-operations/storage/20260823090000_chat_image_couple_scoped_read_apply.sql",
+      "sha256": "12f813d21b0db26cf4083e9a79bec0f4d48f207d55244db3997da4b0211a8074",
+      "bytes": 6537
+    },
+    {
+      "blob": "4671e465cd13a8d067156e13d3101522bdf5d43d",
+      "file": "supabase/platform-operations/storage/20260823090000_chat_image_couple_scoped_read_inventory.sql",
+      "sha256": "ee283f86bea67a08f6b482d02e702f7232df2a04953b1854925cab0551cfe061",
+      "bytes": 2398
+    },
+    {
+      "blob": "8f5c7a46f5f82e1474e04a2c3ca703157d3e64f0",
+      "file": "supabase/platform-operations/storage/README.md",
+      "sha256": "c4fd8f78c055b0479f9fc2f6e1bd753bd5a0f922f94b90a2682a2535b72abf57",
+      "bytes": 11041
+    },
+    {
+      "blob": "521c36c578eb36dad818bc62e8aba53c6702dab4",
+      "file": "supabase/release-candidates/amora-safety-20260804/wave-a-memory-source-scope/20260803090000_amora_memory_source_scope_boundary.sql",
+      "sha256": "2f8669c30b14aa3b0cad2cc78c310b1a5aa7a391d8e8c06c4a6c7b5af187ba0a",
+      "bytes": 11309
+    },
+    {
+      "blob": "c2b82563a3724d05264d7001882cb591942fab74",
+      "file": "supabase/release-candidates/amora-safety-20260804/wave-b-fleet-gated-shared-ingest-rls/20260803100000_amora_shared_ai_ingest_boundary.sql",
+      "sha256": "3c1c673395a1b9a5c728efada0b81f8ac2e394c16156d7852678a17e838153d0",
+      "bytes": 3174
+    },
+    {
+      "blob": "be753c7877b3cb86322979400e85bb19d124a5d4",
+      "file": "supabase/release-candidates/amora-safety-20260804/wave-c-chat-attachment-lifecycle/20260804100000_amora_chat_attachment_upload_sessions.sql",
+      "sha256": "9e3556fd4a247829a777dd43c95dc5277170d7a661ada43c0fefb727d34bed73",
+      "bytes": 55688
+    },
+    {
+      "blob": "e273ac02529c8b2582784b6df4a390cb2c656421",
+      "file": "supabase/release-candidates/amora-safety-20260804/wave-c-chat-attachment-lifecycle/platform-storage/20260804101000_chat_attachment_signed_upload_storage_contract.sql",
+      "sha256": "13751efd00640c79b4291c72a1f05ce5297325c68e1d75a0d141c15e8e482317",
+      "bytes": 4836
+    },
+    {
+      "blob": "c5be17f542a5a9b7670fc233ed7aa2845c7ae3be",
+      "file": "supabase/release-checks/README.md",
+      "sha256": "1726249191382619121de9be42b49df07bad4adb09205aa3353149ba956b080b",
+      "bytes": 3367
+    },
+    {
+      "blob": "0c34f3d9297a7e050ac273f146525c98dd2dc7fd",
+      "file": "supabase/release-checks/amora-engine-v2-20260716-post.sql",
+      "sha256": "5a089c7b83588b27fd5d668947d31c026a766c60b418bb8ff7be0e250849ec3a",
+      "bytes": 70513
+    },
+    {
+      "blob": "179ea70934653afe4efdda51cc4f5dd72eb5b490",
+      "file": "supabase/release-checks/amora-engine-v2-20260716-pre.sql",
+      "sha256": "f8f20edc1a04e978bf6274d4d3197eeb768d27a606d02f5e6d73a561ca1a9cf4",
+      "bytes": 18107
+    },
+    {
+      "blob": "dc8424101455fabc99a3b25d9e6372811e8f08f3",
+      "file": "supabase/release-checks/amora-engine-v2-production-write-fence-pre.sql",
+      "sha256": "412511d61f110df8a6b87a5eafcf40ce95c77851438c1e06e31b119f5d0c4a6c",
+      "bytes": 6760
+    },
+    {
+      "blob": "b2ccd8a1d4ef8a95eda486615399661553849234",
+      "file": "supabase/release-checks/amora-engine-v2-storage-final-post-push.sql",
+      "sha256": "8fc1b1fbd13fb8f00f80fba657f90ae15436fb383952cce05691f8e21dd17c7e",
+      "bytes": 10233
+    },
+    {
+      "blob": "1a0b473a01f9e73297a3c619ce65128e167871cc",
+      "file": "supabase/release-checks/amora-engine-v2-storage-freeze-pre.sql",
+      "sha256": "f9c1477fe3a457d92c093c183b161ca27c738e3443fa9132121c522e72fdd093",
+      "bytes": 5648
+    },
+    {
+      "blob": "a2f5e5b3f12a4d8043ba3adc417459d10c4016e1",
+      "file": "supabase/release-checks/current-baseline-inventory-v1.sql",
+      "sha256": "25426ca5d3397de465e137ea3c4119ca2373277b18b8f5e610407deba1ad96f8",
+      "bytes": 7865
+    },
+    {
+      "blob": "aa7e008a89588a943039471d6c46c968d255212f",
+      "file": "supabase/release-contracts/amora-budget-decision-effective-baseline-20260911.json",
+      "sha256": "527b8429377a9f13f16f8dfcf64f66d8fd73a3ea4c9588cc2cd498364932db4a",
+      "bytes": 299666
+    },
+    {
+      "blob": "bbd145d150d706feaf6548facf07f179eb91dba7",
+      "file": "supabase/release-contracts/amora-budget-decision-hotfix-v1.json",
+      "sha256": "a5cb2dfb93e34fb7650dd2fdb434c4c60a2c74146c68c4dfd0261942ec1e07e1",
+      "bytes": 43215
+    },
+    {
+      "blob": "dbbcd84187a93f5fb82bb5d744bc101893a38886",
+      "file": "supabase/release-contracts/amora-budget-decision-production-baseline-20260911.json",
+      "sha256": "2a60b91a06db7d01c4d5efb06c9033b5fbb2eb0e917ed0f8fa84c777a72d12c5",
+      "bytes": 658903
+    },
+    {
+      "blob": "f7184abf36741165f415d08573ebed0c41fc4193",
+      "file": "supabase/release-contracts/amora-budget-decision-realtime-proof-20260911.json",
+      "sha256": "31391f83a5adeaf4dc5b95964972dce05aab634951d4f23443919ec45526e913",
+      "bytes": 298730
+    },
+    {
+      "blob": "caaaa197e81410c0a4bca3da52b804f3a7365c5a",
+      "file": "supabase/release-contracts/amora-budget-decision-realtime-supplement-20260911.json",
+      "sha256": "a61b1080a9296f7b34aa706b6fb6f3142d6bb3e53cee8aa5fc716c8292ea0c2d",
+      "bytes": 2101
+    },
+    {
+      "blob": "8a802c7f7911d383f322a51441c59e12ba4280c3",
+      "file": "supabase/release-contracts/amora-hotfix-production-baseline-20260907.json",
+      "sha256": "5d122015d2b85679f82e3fc747dce9ef7ab5219298224bb6ae4f7d643c550595",
+      "bytes": 293292
+    },
+    {
+      "blob": "3d24a98057d644698ae6d2763ad70dbad33da46c",
+      "file": "supabase/release-contracts/amora-named-budget-hotfix-v1.json",
+      "sha256": "0bb3e6d872a0e2248f2dc9fa08c1c22c9734faa90562cbbd62f16d0af6906da9",
+      "bytes": 9123
+    },
+    {
+      "blob": "ba46baa2158b958b069ccceff53a2e2bd3e9101f",
+      "file": "supabase/release-contracts/amora-named-budget-production-baseline-20260907.json",
+      "sha256": "a277b1a7bf4c825f0ed06a3e48e785844609cee6de3773b0044720ebe60db0c0",
+      "bytes": 299226
+    },
+    {
+      "blob": "eac2ea12a0df926413f3f9aa8bb91819ae0b651a",
+      "file": "supabase/release-contracts/amora-runtime-hotfix-v1.json",
+      "sha256": "01ab4685c5830caa67c7e3b2a4f50767ff9bd09576608e2e3db9140169fdfe14",
+      "bytes": 4006
+    },
+    {
+      "blob": "cba36248ac3c902dc1f5da2204eaa52306f03fb0",
+      "file": "supabase/release-contracts/current-baseline-rollout-v1.json",
+      "sha256": "8897d509fbee0e2ddfc06fe4dc3b3320ecb3307c1d5468aedbca59aff467b740",
+      "bytes": 6741
+    },
+    {
+      "blob": "f4ac00e2d8b9145300b49368b41a3b2d55a95379",
+      "file": "supabase/release-contracts/current-production-baseline-20260907.json",
+      "sha256": "b965f9d5e13de0f3d0ba84a96373dac95e3a2a5b8cdb581497ec3c653d1b9d28",
+      "bytes": 292664
+    },
+    {
+      "blob": "8fb74515a8911324b8fb786f9e4eb20495ac045e",
+      "file": "supabase/release-contracts/current-production-baseline-cli-expiry-20260907.json",
+      "sha256": "163d29851928a84abcffaeb77df742eeb8f98f20a6d6bddec4f76e9cc317b4d8",
+      "bytes": 295007
+    },
+    {
+      "blob": "d674af23398660dfe9dc24b847fe822e922aef49",
+      "file": "supabase/release-contracts/vendor-disclosure-hosted-staging-v2-20260718.json",
+      "sha256": "73eaee88adaee1690cb067a8395b387aede79de6a56080aa660b6a16d8fdca6c",
+      "bytes": 782
+    },
+    {
+      "blob": "b73bcea9d99b90f4ed7a988a6dd3c74a8af360de",
+      "file": "supabase/release-manifests/amora-engine-v2-20260716.json",
+      "sha256": "a17c37ce829a302d5e00945af3269fc227a30bd6ac7791ff8ea2d4103bf54a33",
+      "bytes": 21072
+    },
+    {
+      "blob": "05b11ec0421df0a381fd71c4878ec8b127fc8ba3",
+      "file": "supabase/release-manifests/amora-openai-20260714.json",
+      "sha256": "e65a8b0b58efd7cb266f9b760e0a86a78b05753ac90d9579e20b67fc73a31170",
+      "bytes": 3619
+    },
+    {
+      "blob": "83d56380a364e9fb5bf231afe79c75f186c6e88a",
+      "file": "supabase/release-manifests/vendor-disclosure-v2-20260718.json",
+      "sha256": "9fdf97e91ca6e53ac19394443d452061f635d1f05cfceff50483fa3d3cc5f3e7",
+      "bytes": 18973
+    }
+  ]
+}

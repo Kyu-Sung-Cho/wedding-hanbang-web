@@ -394,6 +394,38 @@ async function writeManifest(fixture: Fixture) {
 }
 
 describe("vendor disclosure production build fence", () => {
+  it("validates the registered explicit-budget SQL before requiring the existing owner signature", () => {
+    const repoRoot = resolve(process.cwd(), "../..");
+    expectBlockedWithCode(
+      () => assertProduction(repoRoot),
+      VENDOR_DISCLOSURE_EXTERNAL_AUTHORIZATION_NOT_IMPLEMENTED,
+    );
+    expect(() => assertVendorDisclosureProductionBuild({
+      repoRoot,
+      environment: {
+        VERCEL_ENV: "production",
+        VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(repoRoot),
+      },
+    })).not.toThrow();
+  });
+
+  it("does not fall back to an older release when a registered explicit-budget contract is invalid", async () => {
+    const fixture = await createBlockedFixture();
+    const directory = join(fixture.repoRoot, "supabase/release-contracts");
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "amora-explicit-budget-hotfix-v1.json"), "{}\n");
+    expectBlockedWithCode(
+      () => assertVendorDisclosureProductionBuild({
+        repoRoot: fixture.repoRoot,
+        environment: {
+          VERCEL_ENV: "production",
+          VENDOR_DISCLOSURE_PRODUCTION_AUTHORIZATION: expectedProductionAuthorizationSha256(fixture.repoRoot),
+        },
+      }),
+      VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID,
+    );
+  });
+
   it("allows preview and local builds without touching the release checkout", () => {
     expect(() => assertVendorDisclosureProductionBuild({
       repoRoot: "does-not-need-to-exist",

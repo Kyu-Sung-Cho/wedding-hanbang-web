@@ -389,7 +389,8 @@ async function executeMutatingToolWithLedger({
   }
 
   const requiresAtomicCommit = context.providerCallIndex !== undefined
-    || pendingActionId !== undefined;
+    || pendingActionId !== undefined
+    || (toolName === "apply_budget_plan" && toolInput.allocation_mode === "explicit");
   if (requiresAtomicCommit) {
     const operation = buildAmoraAtomicToolOperation(
       toolName,
@@ -1323,7 +1324,7 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
         ? " (D-Day)"
         : ` (D+${Math.abs(dDay)})`;
 
-  const allKeys = Object.keys(CATEGORY_LABELS);
+  const allKeys = CATEGORY_CHECKLISTS.map(category => category.key);
   // 화면과 같은 기준으로 센다. 저장값을 그대로 세면 항목이 늘었을 때 아모라만
   // "완료"라고 말하고 화면은 "진행 중"이라 그린다.
   const completedCount = allKeys.filter(
@@ -1359,6 +1360,8 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
       d_day: dDay,
       venue,
       total_budget: budget,
+      progress_basis: "planning_category_templates",
+      shared_actions_queried: false,
       progress_percent: categoryPercent,
       completed_count: completedCount,
       total_categories: allKeys.length,

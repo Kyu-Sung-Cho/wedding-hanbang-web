@@ -43,6 +43,7 @@ import {
 } from "@/lib/ai/placeSearchResultPolicy";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import { getPersonalActionDraftToolChoice, personalActionConversationConsent, personalActionConversationMetadata, selectPersonalActionConversationTools } from "@/lib/ai/amoraPersonalActionConversation";
+import { hasAmoraMemoryTurnOptOut } from "@/lib/ai/amoraMemoryTurnOptOut";
 import { readPersonalActionConversationCount } from "@/lib/amora/personalActionConversationRead";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { stripAmoraReasoningPreamble } from "@/lib/ai/amoraReasoningLeak";
@@ -159,6 +160,7 @@ import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
 import { assessExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
 import { getUnsupportedScheduleFieldsReply } from "@/lib/ai/amoraUnsupportedScheduleFields";
+import { hasAmoraMemoryConversationOptOut, resolveAmoraMemoryConversationPolicy } from "@/lib/ai/amoraMemoryConversationPolicy";
 import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
 import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary, getRequiredCurrentStoredStateReads } from "@/lib/ai/amoraCurrentStoredStateSummary";
 import { getSharedPersonalActionNavigationReply } from "@/lib/ai/amoraPersonalActionNavigation";
@@ -3010,6 +3012,12 @@ export async function POST(request: Request) {
   const previousCanonicalRow = canonicalRows.length >= 2
     ? canonicalRows[canonicalRows.length - 2]
     : null;
+  const previousScheduleFieldsUserRow = canonicalRows.slice(0, -1)
+    .findLast((row) => row.role === "user" && row.sender_type !== "ai");
+  const previousScheduleFieldsUserText = previousScheduleFieldsUserRow?.sender_id === actorId
+    && previousScheduleFieldsUserRow.visibility === visibility
+    && previousScheduleFieldsUserRow.segment_id === canonicalRows.at(-1)?.segment_id
+      ? previousScheduleFieldsUserRow.content : "";
   const approvedPendingAction =
     !isDemo
     && requestKind === "chat"
@@ -3333,8 +3341,38 @@ export async function POST(request: Request) {
           return appendAmoraBoundedToolResultHistory(continuity, trustedRows[1]?.metadata?.toolResults);
         })()
       : null;
+  const memoryTurnOptOut = hasAmoraMemoryTurnOptOut(lastUserText);
+  let memoryConversationDenied = false;
+  if (!isDemo && requestKind === "chat" && (memoryEnabledForTurn || hasAmoraMemoryConversationOptOut(lastUserText))) {
+    const source = [...canonicalRows].reverse().find(row => row.role === "user" && row.sender_type !== "ai");
+    try {
+      if (!source || source.sender_id !== actorId || source.visibility !== visibility) throw new Error("AMORA_MEMORY_POLICY_UNAVAILABLE");
+      if (!isUuid(source.segment_id)) {
+        // 구형 null 구간은 새로운 기억의 근거로 쓰지 않는다. 일반 상담을 전역 차단하지 않는다.
+        memoryConversationDenied = true;
+        if (hasAmoraMemoryConversationOptOut(lastUserText)) throw new Error("AMORA_MEMORY_POLICY_UNAVAILABLE");
+      } else {
+        memoryConversationDenied = await resolveAmoraMemoryConversationPolicy({
+          admin: createAdminClient(),
+          scope: { coupleId: dataCoupleId, actorId, actorRole: source.sender_type as "bride" | "groom", visibility, segmentId: source.segment_id },
+          sources: canonicalRows,
+          signal: request.signal,
+        });
+      }
+    } catch {
+      log.error("[chat] memory conversation policy unavailable", {
+        code: "AMORA_MEMORY_POLICY_UNAVAILABLE",
+      });
+      await releaseClaimBeforeStream("AMORA_MEMORY_POLICY_UNAVAILABLE");
+      return NextResponse.json({ error: "이번 대화의 기억 범위를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.",
+        code: "AMORA_MEMORY_POLICY_UNAVAILABLE", retryable: true, retryPolicy: "same_request" },
+      { status: 503, headers: { "Cache-Control": "no-store", "Retry-After": "1" } });
+    }
+  }
   const memoryEnqueueRequested =
     questionScope.allowsLongTermMemory
+    && !memoryTurnOptOut
+    && !memoryConversationDenied
     && !(visibility !== "shared" && Object.values(personalActionConversationConsent(lastUserText)).some(Boolean))
     && memoryEnabledForTurn
     && isAuxiliaryMemoryRuntimeEnabled();
@@ -4044,7 +4082,7 @@ export async function POST(request: Request) {
             && !approvedPendingAction && !queuedProposal?.pendingAction && !storedActionQueue
             && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
             && toolResults.every(result => !isMutatingTool(result.toolName))
-            ? getUnsupportedScheduleFieldsReply(lastUserText, afterSuggest) : null;
+            ? getUnsupportedScheduleFieldsReply(lastUserText, afterSuggest, previousScheduleFieldsUserText) : null;
           const canonicalTerminalText = currentStoredStateText ?? personalNavigationText ?? unsupportedScheduleFieldsText;
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
@@ -4263,7 +4301,7 @@ export async function POST(request: Request) {
                 }
               : {}),
             question_scope: questionScope.scope,
-            memory_eligible: questionScope.allowsLongTermMemory && personalConversationTools.length === 0,
+            memory_eligible: questionScope.allowsLongTermMemory && personalConversationTools.length === 0 && !memoryTurnOptOut && !memoryConversationDenied,
             memory_enqueue_requested: memoryEnqueueRequested,
             ...(boundedContinuity
               ? {

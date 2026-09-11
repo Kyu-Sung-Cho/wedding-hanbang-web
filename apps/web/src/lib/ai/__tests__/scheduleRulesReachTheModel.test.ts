@@ -118,11 +118,11 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     // 프롬프트 다른 곳에도 있어서, 이 규칙을 통째로 지워도 그 문자열들이 대신
     // 답한다(변형 검사에서 실제로 뚫렸다). 이 규칙에만 있는 문구로 묻는다.
     expect(prompt, "규칙이 지워지는 구간에 있거나 삭제됐다")
-      .toContain("옮기자고 제안하고");
+      .toContain("**다시 잡았다**면 `update_schedule_event`, 아니면 `add_schedule_event`를 제안");
     expect(prompt, "옮길 대상을 고를 근거(일정 id의 위치)를 안 알려준다")
       .toContain("일정 id는 `### 등록된 일정`의 각 줄 앞에 있습니다");
     // 어느 도구를 쓸지 가르는 낱말도 있어야 한다 — 없으면 모델이 늘 add 만 한다.
-    expect(prompt).toContain("바꿨어·옮겼어·변경했어");
+    expect(prompt).toContain("다시 잡았다");
   });
 
   it("말로만 알리고 끝내지 말라는 금지가 살아 있다", () => {
@@ -136,11 +136,11 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     // 그 둘이 다르다는 것을 명시해야 표식이 나온다.
     const prompt = deliveredPrompt();
     expect(prompt, "애매함과 값 모호를 구분해 주지 않는다")
-      .toContain("값이 모호한 것이 아닙니다");
+      .toContain("같은 일인지 애매해도 날짜·시간·제목이 정해졌으면 표식을 내세요");
     // 예전에는 "본문에 '다른 일정이면 말씀해 주세요' 를 덧붙여라" 였는데, 표식이
     // 있으면 본문이 사라지므로 그 단서는 사용자에게 절대 안 보였다. 이제 카드가
     // expected_* 로 스스로 무엇을 바꾸는지 말한다.
-    expect(prompt).toContain("무엇을 바꾸려는지 카드가 스스로 말하게");
+    expect(prompt).toContain("대상의 현재 값은 expected_title·expected_date로 카드에 표시");
   });
 
   it("설명을 title·memo 에 담으라고 시키지 않는다 — 그 둘은 일정을 덮어쓴다", () => {
@@ -154,7 +154,7 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     expect(prompt, "설명을 title·memo 에 담으라고 시킨다")
       .not.toMatch(/필요한 정보는 표식의 `title`·`memo`/u);
     expect(prompt, "그 둘이 일정을 덮어쓴다는 경고가 없다")
-      .toContain("저장된 일정 자체를 덮어씁니다");
+      .toContain("`title`·`memo`는 저장값을 덮어쓰므로 설명을 넣지");
   });
 
   it("본문에 한 문장 덧붙이라고 시키지 않는다 — 표식이 있으면 본문이 사라진다", () => {
@@ -162,8 +162,8 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     // "본문은 남지 않는다". 그래서 아모라가 확신 없음을 알려도 사용자에겐 안 보였다.
     const prompt = deliveredPrompt();
     expect(prompt).not.toContain("한 문장을 덧붙이세요");
-    // 대신 카드가 스스로 말하게 한다.
-    expect(prompt).toContain("카드가 스스로 말하게");
+    // 대신 대상의 현재 값은 expected_title·expected_date로 카드에 표시 한다.
+    expect(prompt).toContain("대상의 현재 값은 expected_title·expected_date로 카드에 표시");
   });
 
   it("본문에 덧붙인 설명이 사라진다는 것을 알려준다", () => {
@@ -172,7 +172,7 @@ describe("일정 겹침 규칙이 모델에게 간다", () => {
     // `cleanText: marker.confirmation` 으로 본문을 갈아치운다. 운영 실측으로도
     // 카드가 붙은 AI 메시지 37/37 이 서버 정형 문구뿐이었다.
     const prompt = deliveredPrompt();
-    expect(prompt).toContain("본문에 덧붙인 설명은 남지 않습니다");
+    expect(prompt).toContain("본문 설명은 남지 않습니다");
   });
 
   it("등록된 일정 블록이 event_id 와 함께 실린다 — 옮길 대상을 못 고르면 규칙이 무의미하다", () => {

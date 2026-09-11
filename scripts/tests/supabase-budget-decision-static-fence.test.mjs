@@ -1,10 +1,11 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createBudgetDecisionHistoricalRepository } from './fixtures/budget-decision-historical-repository.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const mode = '--amora-budget-decision-hotfix';
@@ -14,6 +15,13 @@ const run = (repo, args) => spawnSync(process.execPath, [join(repo, 'scripts/sup
 const output = result => `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
 const current = JSON.parse(readFileSync(join(root, 'supabase/release-contracts/amora-budget-decision-hotfix-v1.json'), 'utf8'));
 const base = JSON.parse(readFileSync(join(root, 'supabase/release-contracts/current-baseline-rollout-v1.json'), 'utf8'));
+const historical = createBudgetDecisionHistoricalRepository(root);
+after(() => historical.cleanup());
+// 실행 코드는 이번 checkout, 입력 계약과 SQL은 고정 M4 원문을 사용한다.
+for (const file of readdirSync(join(root, 'scripts/lib'))) {
+  if (file.endsWith('.mjs')) copyFileSync(join(root, 'scripts/lib', file), join(historical.root, 'scripts/lib', file));
+}
+copyFileSync(join(root, 'scripts/supabase-release-fence.mjs'), join(historical.root, 'scripts/supabase-release-fence.mjs'));
 
 test('the original no-argument fence still rejects the new SQL outside its historical release', () => {
   const result = run(root, []);
@@ -21,21 +29,17 @@ test('the original no-argument fence still rejects the new SQL outside its histo
   assert.match(output(result), /MIGRATION_SET_DRIFT/);
 });
 
-test('explicit budget-decision mode validates this exact checkout without claiming hosted readiness', () => {
-  const result = run(root, [mode]);
+test('budget-decision mode validates its fixed M4 inputs without claiming hosted readiness', () => {
+  const result = run(historical.root, [mode]);
   assert.equal(result.status, 0, output(result));
   assert.match(output(result), /Budget-decision static contract verified/);
   assert.match(output(result), /hosted evidence not verified; deployment not authorized/);
 });
 
-test('the actual CI local-fence command selects a working non-deploy contract', () => {
-  const workflow = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
-  const commands = [...workflow.matchAll(/^\s+run: pnpm supabase:release:fence([^\r\n]*)$/gm)];
-  assert.equal(commands.length, 1);
-  const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
-  const result = run(root, args);
-  assert.equal(result.status, 0, output(result));
-  assert.deepEqual(args, [mode]);
+test('budget-decision mode still rejects the unreviewed next SQL in the current checkout', () => {
+  const result = run(root, [mode]);
+  assert.equal(result.status, 1, output(result));
+  assert.match(output(result), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {
@@ -56,10 +60,10 @@ test('the explicit CLI rejects new, historical and contract byte drift instead o
   const copy = file => {
     const target = join(fixture, file);
     mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(join(root, file), target);
+    copyFileSync(join(historical.root, file), target);
   };
   for (const folder of ['supabase/migrations', 'supabase/release-contracts', 'supabase/release-manifests', 'scripts/lib']) {
-    for (const file of readdirSync(join(root, folder))) if (/\.(?:sql|json|mjs)$/.test(file)) copy(`${folder}/${file}`);
+    for (const file of readdirSync(join(historical.root, folder))) if (/\.(?:sql|json|mjs)$/.test(file)) copy(`${folder}/${file}`);
   }
   for (const pin of Object.values(base.implementation)) copy(pin.file);
   copy('scripts/supabase-release-fence.mjs');

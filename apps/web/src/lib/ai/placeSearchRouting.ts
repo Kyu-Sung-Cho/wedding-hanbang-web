@@ -63,6 +63,14 @@ const LOCATION_RE =
   /(내\s*근처|우리\s*동네|서울|부산|대구|인천|광주|대전|울산|세종|제주|강남|홍대|건대|신촌|잠실|판교|분당|수원|일산|여의도|성수|청담|압구정|연남|[가-힣0-9]{1,12}(?:시|군|구|동|읍|면|역|로|길)(?=\s|에서|근처|주변|쪽|에|$))/i;
 const SEARCH_ACTION_RE =
   /(찾아\s*줘|찾아\s*주세요|찾아\s*봐|찾아\s*달라|검색해\s*줘|검색해\s*주세요|검색해\s*봐|추천해\s*줘|추천해\s*주세요|추천해\s*봐|추천\s*해줘|추천해\s*달라|추천\s*좀|골라\s*줘|알아봐\s*줘|어디가\s*(?:좋아|괜찮아)|어디\s*(?:있어|있나요))/i;
+const POLITE_SEARCH_ACTION_RE =
+  /(?:찾아|검색해)\s*(?:줄\s*수\s*있(?:어요?|나요|을까요?)|주실\s*수\s*있(?:나요|을까요?)|줄래요?|주시겠어요)(?=$|[\s?!.。])(?!\s*(?:라고|라는|라며))/iu;
+
+function removeQuotedSearchQuestions(text: string): string {
+  // 상호명 인용은 보존하되, 검색 부탁 자체를 인용한 문장을 현재 요청으로 읽지 않는다.
+  return text.replace(/“[^”]*”|‘[^’]*’|"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/gu,
+    quote => POLITE_SEARCH_ACTION_RE.test(quote.slice(1, -1)) ? " " : quote);
+}
 const NEGATED_SEARCH_RE =
   /(찾지\s*마|검색하지\s*마|추천하지\s*마|알아보지\s*마|찾을\s*필요\s*(?:없어|없습니다))/i;
 
@@ -118,9 +126,10 @@ function mentionsSomewhere(normalized: string): boolean {
 export function isPlaceSearchCandidate(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  const requestedPlaces = normalized.replace(PLACE_CONTEXT_RE, " ");
+  const requestedPlaces = removeQuotedSearchQuestions(normalized).replace(PLACE_CONTEXT_RE, " ");
   if (!mentionsSomewhereToEat(requestedPlaces)) return false;
-  return SEARCH_ACTION_RE.test(requestedPlaces) || SOFT_ASK_RE.test(requestedPlaces);
+  return SEARCH_ACTION_RE.test(requestedPlaces) || SOFT_ASK_RE.test(requestedPlaces)
+    || POLITE_SEARCH_ACTION_RE.test(requestedPlaces);
 }
 
 export function isExplicitPlaceSearchIntent(userText: string): boolean {

@@ -157,6 +157,13 @@ export function isAmoraClarificationAnswerShaped(text: string): boolean {
     && classification.needsClarification;
 }
 
+/** 주거를 제외하는 금액 답변은 주거 과업이 아니다. 원문은 그대로 두고 모양만 확인한다. */
+function isHousingExcludedBudgetAnswer(text: string): boolean {
+  if (!hasClarificationAnswerShape(text)) return false;
+  return /^(?:신혼집|집\s*보증금)(?:은|는|을|를)?\s*(?:빼고|제외하고)\s*(?:나머지(?:는|를)?\s*)?(?:(?:다|모두)\s*)?포함(?:해서|하고)\s*\d[\d,]*(?:\.\d+)?\s*(?:천\s*만\s*원|만\s*원|원)(?:으로|로)\s*(?:해\s*줘|해\s*주세요|잡아\s*줘|잡아\s*주세요)[.!。]*$/u
+    .test(text.normalize("NFKC").trim());
+}
+
 /**
  * 되묻기의 답인데 **그 답 자체가 이미 결혼 이야기**인 경우.
  *
@@ -386,6 +393,7 @@ export function resolveAmoraWeddingClarificationContinuity<
   // 매 홉에서 위 가드를 전부 다시 확인하고, 하나라도 어긋나면 거기서 멈춘다.
   let answerer: T = current;
   let hop = 1;
+  let requiresBudgetAnchor = false;
   // 2026-09-05 페르소나 실측(p7 T8·T9, p4 "그거 목요일로", p6): 카드를 **확인한 직후**의
   // 짧은 수정("500으로 해줘", "아 몰라 그냥 600으로 해")이 전부 범위 밖으로 떨어져 카드 없이
   // 끝났다. 직전 쌍이 [확인 메시지 "좋아요. 제안한 변경을 적용해 주세요." ↔ 실행 영수증]
@@ -407,6 +415,14 @@ export function resolveAmoraWeddingClarificationContinuity<
       continue;
     }
     if (!isValidClarificationPair(assistant, priorUser, answerer)) return null;
+    // 서버의 과거 W0 표식만으로 중간 사용자 원문의 새 위험·다른 과업을 넘지 않는다.
+    const priorScope = classifyAmoraQuestionScope({ userText: priorUser.content as string });
+    const housingExcludedBudgetAnswer = priorScope.scope === "W1_wedding_adjacent"
+      && isHousingExcludedBudgetAnswer(priorUser.content as string);
+    if (priorScope.scope !== "W0_wedding_core"
+      && !(priorScope.scope === "W4_out_of_scope" && priorScope.confidence === "low")
+      && !housingExcludedBudgetAnswer) return null;
+    requiresBudgetAnchor ||= housingExcludedBudgetAnswer;
     // 닻 판정: 요청 문장 자체가 W0 이거나, 그 턴에서 아모라가 **카드를 냈다**(라우트가
     // 문맥까지 보고 W0 행동 턴으로 처리한 흔적). 2026-09-05: "사진은 700 잡아줘" 는 낱말만
     // 보면 범위 밖이지만 그 턴에 카드가 났고 확인까지 됐다 — 그 뒤의 "500으로 해줘" 가
@@ -415,10 +431,12 @@ export function resolveAmoraWeddingClarificationContinuity<
     const anchorIssuedCard = anchorMetadata !== null
       && anchorMetadata.pending_amora_action !== undefined;
     if (
-      anchorIssuedCard
-      || classifyAmoraQuestionScope({ userText: priorUser.content as string }).scope
-        === "W0_wedding_core"
+      (anchorIssuedCard && !housingExcludedBudgetAnswer)
+      || priorScope.scope === "W0_wedding_core"
     ) {
+      // W1 전체나 카드 자체를 닻으로 승격하지 않는다. 원래 W0 예산 요청이 있어야 한다.
+      if (requiresBudgetAnchor && (priorScope.scope !== "W0_wedding_core"
+        || !/예산/u.test(priorUser.content as string))) return null;
       break;
     }
     if (hop >= MAX_CLARIFICATION_HOPS) return null;
@@ -432,7 +450,8 @@ export function resolveAmoraWeddingClarificationContinuity<
     // 자리이므로, 오늘 이어지던 것이 이 줄 때문에 끊기는 일은 없다. 새 어휘를
     // 만들지 않고 이미 배포된 `OTHER_DOMAIN_TOPIC_PATTERN` 을 그대로 쓴다 —
     // 새 목록을 만들면 그 목록이 또 썩는다.
-    if (hasAmoraOtherDomainTopicSignal(currentUserText)) return null;
+    if (hasAmoraOtherDomainTopicSignal(currentUserText)
+      || hasAmoraOtherDomainTopicSignal(priorUser.content as string)) return null;
     // 한 쌍 더 위로. 이 답변(`priorUser`)도 되묻기의 답이었는지 확인한다.
     const index = rawOldestFirstRows.indexOf(priorUser);
     if (index < 2) return null;

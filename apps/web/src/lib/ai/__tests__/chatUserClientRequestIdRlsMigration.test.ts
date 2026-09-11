@@ -156,6 +156,44 @@ async function insertUserMessage(
 }
 
 describe("Amora authenticated chat request-id RLS migration", () => {
+  it("allows a service-only deny metadata CAS under the actual current UPDATE triggers without changing scope or mediation rows", async () => {
+    const db = await createDatabase();
+    try {
+      const segmentSql = readFileSync(resolve(process.cwd(), "../../supabase/migrations/20260802120000_amora_conversation_segment_dual_write.sql"), "utf8");
+      const mediationSql = readFileSync(resolve(process.cwd(), "../../supabase/migrations/20260906223557_amora_mediation_response_choices.sql"), "utf8");
+      const scopeFunction = segmentSql.match(/CREATE OR REPLACE FUNCTION public\.prevent_amora_conversation_scope_rewrite\(\)[\s\S]*?\$function\$;/)?.[0];
+      const scopeTrigger = segmentSql.match(/CREATE TRIGGER trg_zz_guard_amora_message_segment_scope[\s\S]*?\(\);/)?.[0];
+      const mediationFunction = mediationSql.match(/CREATE FUNCTION public\.clean_amora_mediation_responses\(\)[\s\S]*?\$function\$;/)?.[0];
+      const mediationTrigger = mediationSql.match(/CREATE TRIGGER trg_clean_amora_mediation_responses AFTER UPDATE OF couple_id[\s\S]*?\(\);/)?.[0];
+      if (!scopeFunction || !scopeTrigger || !mediationFunction || !mediationTrigger) throw new Error("Current trigger source missing");
+      await db.exec(`ALTER TABLE public.chat_messages ADD COLUMN segment_id uuid;
+        CREATE TABLE public.amora_mediation_responses(message_id uuid, couple_id uuid, proposal_version integer, roster_fingerprint text);`);
+      await setAuthenticated(db, BRIDE_ID);
+      await expect(insertUserMessage(db, { metadata: { amora_memory_policy: { effect: "deny" } } })).rejects.toThrow(/row-level security/i);
+      await insertUserMessage(db, { metadata: { client_request_id: REQUEST_ID } });
+      await expect(db.exec("UPDATE public.chat_messages SET metadata='{}'::jsonb")).rejects.toThrow(/permission denied/i);
+      await resetPersona(db);
+      // INSERT segment 할당은 기존 별도 회귀가 검증한다. 이 fixture의 기존 row는 테스트 전에 정본 scope를 고정한다.
+      await db.query("UPDATE public.chat_messages SET segment_id=$1 WHERE metadata->>'client_request_id'=$2", [REQUEST_ID, REQUEST_ID]);
+      await db.exec(`${scopeFunction} ${scopeTrigger} ${mediationFunction} ${mediationTrigger}`);
+      await db.query("INSERT INTO public.amora_mediation_responses VALUES($1,$2,1,'unrelated')", [OUTSIDER_ID, OTHER_COUPLE_ID]);
+      await db.exec("SET ROLE service_role");
+      const oldMetadata = { client_request_id: REQUEST_ID };
+      const policy = { version: 1, scope: "conversation", effect: "deny", actorId: BRIDE_ID,
+        segmentId: REQUEST_ID, sourceUserMessageId: REQUEST_ID, sourceTextSha256: "a".repeat(64) };
+      const first = await db.query(`UPDATE public.chat_messages SET metadata=$1::jsonb
+        WHERE couple_id=$2 AND sender_id=$3 AND visibility='shared' AND segment_id=$4 AND metadata=$5::jsonb RETURNING metadata`,
+      [JSON.stringify({ ...oldMetadata, amora_memory_policy: policy }), COUPLE_ID, BRIDE_ID, REQUEST_ID, JSON.stringify(oldMetadata)]);
+      expect(first.rows).toHaveLength(1);
+      expect(first.rows[0]).toEqual({ metadata: { ...oldMetadata, amora_memory_policy: policy } });
+      const stale = await db.query("UPDATE public.chat_messages SET metadata='{}'::jsonb WHERE metadata=$1::jsonb RETURNING id", [JSON.stringify(oldMetadata)]);
+      expect(stale.rows).toHaveLength(0);
+      await expect(db.query("UPDATE public.chat_messages SET segment_id=$1 WHERE metadata ? 'amora_memory_policy'", [OUTSIDER_ID])).rejects.toThrow("AMORA_SEGMENT_MESSAGE_SCOPE_IMMUTABLE");
+      await resetPersona(db);
+      expect((await db.query("SELECT message_id FROM public.amora_mediation_responses")).rows).toEqual([{ message_id: OUTSIDER_ID }]);
+    } finally { await resetPersona(db).catch(() => undefined); await db.close(); }
+  });
+
   it("is bounded, additive, and keeps the previous strict policy contract", () => {
     expect(migrationSql.trimStart()).toMatch(/^BEGIN;/);
     expect(migrationSql.trimEnd()).toMatch(/COMMIT;$/);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
 import {
   resolveAmoraWeddingClarificationContinuity,
   type AmoraClarificationContinuityRow,
@@ -108,10 +109,39 @@ describe("되묻기가 두 번이어도 이어진다", () => {
     expect(result, "두 번 되물으면 끊긴다").not.toBeNull();
     // 닻은 **W0였던 발화**여야 한다. 중간 답변("신혼집은 빼고…")은 W1이라 닻이 될 수 없다.
     expect(result?.priorUserText).toBe("총 예산을 5000만원으로 바꿔줘");
+    expect(classifyAmoraQuestionScope({
+      userText: "네 그렇게 적용해줘",
+      hasWeddingClarificationContinuity: result !== null,
+    }).allowsLongTermMemory).toBe(false);
+  });
+
+  it("집 보증금을 제외하는 금액 답변도 원래 예산 요청에만 이어진다", () => {
+    const rows = foundersRows(2, all => {
+      all[2].content = "집 보증금은 제외하고 나머지는 모두 포함해서 5000만원으로 해주세요.";
+    });
+    expect(resolve(rows)?.priorUserText).toBe("총 예산을 5000만원으로 바꿔줘");
+  });
+
+  it("같은 제외 답변이라도 예산 닻이 없으면 일정 권한을 빌리지 않는다", () => {
+    const rows = foundersRows(2, all => {
+      all[0].content = "청첩장 확인 일정을 추가해줘";
+    });
+    expect(resolve(rows)).toBeNull();
   });
 });
 
 describe("거슬러 올라가도 가드는 홉마다 다시 본다", () => {
+  it.each([
+    "신혼집 계약을 5000만원으로 해줘",
+    "신혼집은 빼고 나머지 다 포함해서 5000만원으로 해줘. 회사 회식 예산도 정해줘.",
+    "신혼집은 빼고 나머지 다 포함해서 5000만원으로 해줘. 남편이 지금 나를 때리고 있어.",
+    "신혼집은 빼고 나머지 다 포함해서 5000만원으로 해줘. 파트너와 대화하는 법도 알려줘.",
+    "아내랑 이야기하면 서운해",
+  ])("새 과업·위험·관계 상담인 중간 원문은 W0 표식이 있어도 거절: %s", text => {
+    const rows = foundersRows(2, all => { all[2].content = text; });
+    expect(resolve(rows)).toBeNull();
+  });
+
   it("중간에 확인 카드가 있었으면 멈춘다", () => {
     // 카드가 떠 있던 턴의 확인은 버튼(action_id)뿐이어야 한다.
     const rows = foundersRows(2, (all) => {

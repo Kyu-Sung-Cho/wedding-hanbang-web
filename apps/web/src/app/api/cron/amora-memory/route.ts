@@ -15,6 +15,7 @@ import {
   isAuxiliaryMemoryRuntimeEnabled,
 } from "@/lib/ai/amoraMemoryQueue";
 import { repairMissingAmoraMemoryJobs } from "@/lib/ai/amoraMemoryRepair";
+import { AmoraMemoryConversationPolicyError, resolveAmoraMemoryConversationExclusions } from "@/lib/ai/amoraMemoryConversationPolicy";
 import {
   AmoraMemoryBudgetDeferredError,
   assertAmoraMemoryProviderBudget,
@@ -47,6 +48,7 @@ type ChatRow = {
   metadata: Record<string, unknown> | null;
   visibility: AmoraMemoryVisibility;
   created_at: string;
+  segment_id: string | null;
 };
 
 function errorCode(error: unknown): string {
@@ -134,7 +136,7 @@ async function processJob(
 
   let messagesQuery = admin
     .from("chat_messages")
-    .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at")
+    .select("id, sender_id, sender_type, role, content, metadata, visibility, created_at, segment_id")
     .eq("couple_id", job.couple_id)
     .lte("created_at", target.created_at)
     .or("metadata->>target.is.null,metadata->>target.neq.partner")
@@ -173,6 +175,14 @@ async function processJob(
     return row.created_at < target.created_at
       || (row.created_at === target.created_at && row.id <= target.id);
   });
+  // 첫 금지 메시지는 provider 성공과 무관하게, cursor 소비 전에 서버 정책으로 남긴다.
+  const policyInput = { admin, coupleId: job.couple_id, visibility: job.visibility,
+    couple: { brideId: couple.bride_id, groomId: couple.groom_id }, rows: messages };
+  const excludedSources = await resolveAmoraMemoryConversationExclusions(policyInput);
+  const assertConversationPolicyCurrent = async () => {
+    const latest = await resolveAmoraMemoryConversationExclusions({ ...policyInput, registerDenials: false });
+    if ([...latest].some(id => !excludedSources.has(id))) throw new AmoraMemoryConversationPolicyError();
+  };
   // Only a fresh job waits for ten messages. A continuation must consume its
   // final short remainder or the original target could never be completed.
   if (shouldDeferAmoraMemoryBatch(messages.length, job.continuation_count)) {
@@ -183,7 +193,7 @@ async function processJob(
   const batch = prepareTrustedAmoraMemoryBatch(messages, {
     brideId: couple.bride_id,
     groomId: couple.groom_id,
-  });
+  }, excludedSources);
   if (batch.messages.length === 0) {
     if (batch.blockedByUnresolvedSource) {
       // A concurrent Amora reply can arrive after this fetch. Do not advance
@@ -232,8 +242,8 @@ async function processJob(
       existingMemoryKeys,
       // 예산 초과로 미룰 작업이면 대화 원문이 토큰 계산 요청으로도 나가면 안 된다.
       // 그래서 같은 검사를 모든 provider 요청 앞에서 한 번 더 건다.
-      beforeProviderEgress: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
-      beforeGeneration: () => assertAmoraMemoryProviderBudget(admin, job.couple_id),
+      beforeProviderEgress: async () => { await assertConversationPolicyCurrent(); await assertAmoraMemoryProviderBudget(admin, job.couple_id); },
+      beforeGeneration: async () => { await assertConversationPolicyCurrent(); await assertAmoraMemoryProviderBudget(admin, job.couple_id); },
     });
   } catch (error) {
     if (!(error instanceof AmoraMemoryBudgetDeferredError)) throw error;
@@ -247,6 +257,8 @@ async function processJob(
 
   const lastMessageId = batch.messages[batch.messages.length - 1]?.id;
   if (!lastMessageId) throw new Error("MEMORY_CURSOR_MISSING");
+  // DB RPC 자체의 deny-commit 동시성은 별도 경계다. 여기서 관측한 변경은 결과/요약 모두 폐기한다.
+  await assertConversationPolicyCurrent();
   const { data: committed, error: commitError } = await admin.rpc("commit_amora_memory_job", {
     p_job_id: job.id,
     p_attempt_count: job.attempt_count,

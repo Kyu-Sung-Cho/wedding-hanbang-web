@@ -32,7 +32,7 @@ describe("검증된 방향 변경 후속에만 이번 답변 계약을 선택한
     expect(prompt).toContain("후보를 확정으로 바꾸지");
     expect(prompt).toContain("규모·장소·식사·최소 인원·견적");
     expect(prompt).toContain("공동 합의나 예산·일정의 저장 완료");
-    expect(prompt).not.toContain("그 이유에 답한 턴에는 유지할 것과 다시 정할 것을");
+    expect(prompt).not.toContain("이유 답변에는 미변경 선호·우선순위·생략·시기의 유지");
     expect(prompt).toContain("[서버 확정 요청 계약]");
     expect(prompt.length).toBeLessThanOrEqual(48000);
     if (saturated) expect(prompt).toContain("길이 제한으로 생략됨");
@@ -40,7 +40,7 @@ describe("검증된 방향 변경 후속에만 이번 답변 계약을 선택한
   it("단서가 없으면 기존 일반 규칙을 그대로 유지한다", () => {
     const prompt = buildAmoraSystemPrompt(context, { ...options, planningTurn: null });
     expect(prompt).not.toContain(marker);
-    expect(prompt).toContain("그 이유에 답한 턴에는 유지할 것과 다시 정할 것을");
+    expect(prompt).toContain("이유 답변에는 미변경 선호·우선순위·생략·시기의 유지");
   });
   it.each(["paused", "called_off"] as const)("준비 중단 %s에는 새 후속 계약을 넣지 않는다", preparationStatus => {
     expect(buildAmoraSystemPrompt({ ...context, preparationStatus }, options)).not.toContain(marker);

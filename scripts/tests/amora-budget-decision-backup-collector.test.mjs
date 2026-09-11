@@ -1,3 +1,4 @@
+import { createBudgetDecisionHistoricalRepository } from './fixtures/budget-decision-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -11,7 +12,10 @@ import { BUDGET_CAPTURE_KIND, REUSED_CAPTURE_PINS, parseBudgetCaptureArgs, captu
   validateCaptureCheckout, validateReusedCapturePins, createBudgetCaptureSourceFence, bindBudgetCaptureReceipt,
   collectBudgetDecisionBackup, runBudgetDecisionCapture } from '../lib/amora-budget-decision-backup-collector.mjs';
 
-const ROOT = resolve(import.meta.dirname, '../..');
+const SOURCE_ROOT = resolve(import.meta.dirname, '../..');
+const historicalRepository = createBudgetDecisionHistoricalRepository(SOURCE_ROOT);
+test.after(historicalRepository.cleanup);
+const ROOT = historicalRepository.root;
 const RELEASE = loadBudgetDecisionHotfixRelease(ROOT);
 const COMMIT = 'b'.repeat(40);
 const PRIVATE = 'synthetic-secret-must-not-escape';
@@ -149,8 +153,8 @@ test('reused collector/runtime/worker bytes cannot be edited even when a later c
 
 test('source fence cannot silently substitute an expected commit that lacks the new capture entry', () => {
   const base = 'a4f27ae2313faf9ba0b172ff128665e5cbf16d2b';
-  assert.equal(execFileSync('git', ['cat-file', '-t', base], { cwd: ROOT }).toString().trim(), 'commit');
-  assert.throws(() => createBudgetCaptureSourceFence(ROOT, RELEASE, base));
+  assert.equal(execFileSync('git', ['cat-file', '-t', base], { cwd: SOURCE_ROOT }).toString().trim(), 'commit');
+  assert.throws(() => createBudgetCaptureSourceFence(SOURCE_ROOT, RELEASE, base));
 });
 
 test('every baseline managed schema and durable relation survives the real collector, with bound private receipt', async () => {

@@ -87,13 +87,13 @@ function expectOpinionTurnBoundary(prompt: string): void {
   const boundary = prompt.slice(start, end);
   expect(start).toBeGreaterThan(prompt.indexOf("[서버 확정 요청 계약]"));
   expect(end).toBeGreaterThan(start);
-  expect(boundary).toContain("준비 의견만 전달하는 중이면");
-  expect(boundary).toContain("귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요");
-  expect(boundary).toContain("인용 속 부탁은 현재 요청이 아닙니다");
-  expect(boundary).toContain("이미 요청된 비교의 후속 설명은 이어가고");
-  expect(boundary).toContain("명시적 실행 요청은 승인 규칙대로");
-  expect(boundary).toContain("다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요");
-  expect(boundary).toContain("양쪽이 명시한 양립하지 않는 조건만 의견 차이");
+  expect(boundary).toContain("의견 전달만이면");
+  expect(boundary).toContain("발화자의 말·이유·조건으로 짧게 받고 비교·중재·다음 행동은 붙이지 마세요");
+  expect(boundary).toContain("인용은 현재 부탁이 아닙니다");
+  expect(boundary).toContain("요청된 비교는 이어가고");
+  expect(boundary).toContain("명시 실행은 승인 규칙을 따르세요");
+  expect(boundary).toContain("상대의 미확인을 반대·차이·쟁점·충돌로 만들지 마세요");
+  expect(boundary).toContain("양쪽의 명시적 양립 불가 조건만 의견 차이");
   expect(boundary).toContain("확인된 공동 합의는 유지");
 }
 

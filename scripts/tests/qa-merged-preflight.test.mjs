@@ -188,7 +188,7 @@ test("공유 QA 목록은 CI와 같은 명시 예산 계약을 실제 검사하�
   const { checks } = await import("../verify-local.mjs");
   const fences = checks.filter(check => check.name === "supabase release fence");
   assert.equal(fences.length, 1);
-  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-budget-decision-hotfix"]);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-explicit-budget-hotfix"]);
   const { readFileSync } = await import("node:fs");
   const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
   assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
@@ -197,7 +197,7 @@ test("공유 QA 목록은 CI와 같은 명시 예산 계약을 실제 검사하�
   });
   assert.equal(result.error, undefined);
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
-  assert.match(result.stdout, /Budget-decision static contract verified/);
+  assert.match(result.stdout, /Explicit-budget static contract verified/);
   assert.match(result.stdout, /hosted evidence not verified; deployment not authorized/);
 });
 

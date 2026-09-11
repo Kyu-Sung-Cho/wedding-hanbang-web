@@ -1,3 +1,4 @@
+import { createBudgetDecisionHistoricalRepository } from './fixtures/budget-decision-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync, mkdtempSync, writeFileSync, realpathSync, rmSync, existsSync, lstatSync } from 'node:fs';
@@ -16,7 +17,9 @@ import { ARCHIVE_FORMAT, archiveProcessEnvironment, inspectArchiveToc, snapshotD
   capturePostgresSnapshotArchive, runNativeArchiveProcess } from '../lib/postgres-snapshot-archive.mjs';
 
 const ROOT = new URL('../..', import.meta.url);
-const release = loadBudgetDecisionHotfixRelease(fileURLToPath(ROOT));
+const historicalRepository = createBudgetDecisionHistoricalRepository(fileURLToPath(ROOT));
+test.after(historicalRepository.cleanup);
+const release = loadBudgetDecisionHotfixRelease(historicalRepository.root);
 const COMMIT = 'a'.repeat(40); const FIRST = '00000001-00000002-1';
 const tempParent = realpathSync(tmpdir()); const temp = mkdtempSync(join(tempParent, 'snapshot-archive-contract-'));
 test.after(() => {
@@ -229,10 +232,10 @@ test('stdin EPIPE/Windows EOF is accepted only for list inspection with exit zer
   await assert.rejects(run(['--list'], true, 1));
   assert.throws(() => run(['--file=-'], true), { code: 'SNAPSHOT_ARCHIVE_EARLY_CLOSE_FORBIDDEN' });
 });
-test('archive CLI default/help and forbidden options never expose an inherited credential marker', () => {
-  const script = new URL('../amora-budget-decision-archive-collect.mjs', import.meta.url);
+test('historical archive CLI default/help and forbidden options never expose an inherited credential marker', () => {
+  const script = join(historicalRepository.root, 'scripts/amora-budget-decision-archive-collect.mjs');
   for (const args of [[], ['--help'], ['--skip-fence', marker], ['--restore', marker], ['--help', '--apply']]) {
-    const result = spawnSync(process.execPath, [fileURLToPath(script), ...args],
+    const result = spawnSync(process.execPath, [script, ...args],
       { encoding: 'utf8', env: { ...process.env, HBAM2_DATABASE_URL: marker, SUPABASE_SERVICE_ROLE_KEY: marker } });
     assert.ok(!result.stdout.includes(marker)); assert.ok(!result.stderr.includes(marker));
     if (args.length < 2) {

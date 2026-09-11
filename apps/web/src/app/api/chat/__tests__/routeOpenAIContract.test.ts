@@ -171,7 +171,7 @@ const mocks = vi.hoisted(() => {
     persist: vi.fn(),
     findPersisted: vi.fn(),
     reconcile: vi.fn(),
-    chooseModelRole: vi.fn(() => "fast"),
+    chooseModelRole: vi.fn<typeof import("@/lib/ai/modelConfig").chooseAmoraChatModelRole>(() => "fast"),
     buildToolResult: vi.fn((callId: string, output: string) => ({
       type: "function_call_output",
       call_id: callId,
@@ -299,6 +299,7 @@ const mocks = vi.hoisted(() => {
     storageDownload: vi.fn(),
     storageDownloadStream: vi.fn(),
     enqueueMemory: vi.fn(),
+    conversationPolicy: vi.fn(async () => false),
     verifyMemoryRepair: vi.fn(),
     PersistenceError,
     ClaimError,
@@ -385,7 +386,10 @@ vi.mock("@/lib/supabase/server", () => ({
         );
       }
       if (table === "chat_messages") {
-        const canonicalRows = mocks.canonicalRows.map((row) => {
+        const canonicalRows = mocks.canonicalRows.map((rawRow) => {
+          // 현행 INSERT trigger가 부여하는 segment. 명시 null은 legacy/실패 대조용으로 보존한다.
+          const row = rawRow.segment_id === undefined
+            ? { ...rawRow, segment_id: "60000000-0000-4000-8000-000000000001" } : rawRow;
           const existingMetadata = typeof row.metadata === "object"
             && row.metadata !== null
             && !Array.isArray(row.metadata)
@@ -544,6 +548,11 @@ vi.mock("@/lib/ai/modelConfig", async (importOriginal) => {
   return { ...actual, chooseAmoraChatModelRole: mocks.chooseModelRole };
 });
 
+vi.mock("@/lib/ai/amoraMemoryConversationPolicy", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/ai/amoraMemoryConversationPolicy")>();
+  return { ...actual, resolveAmoraMemoryConversationPolicy: mocks.conversationPolicy };
+});
+
 vi.mock("@/lib/ai/prompts", () => ({
   getWeddingPlannerSystemPrompt: vi.fn((context: {
     amoraProfiles?: unknown;
@@ -565,7 +574,7 @@ vi.mock("@/lib/ai/tools", async (importOriginal) => {
   // route는 모듈 초기화 때 제안 도구 목록을 고정하므로 테스트 중 뒤늦게
   // 추가하지 않는다. 실제 배열 스키마/제목만 있는 할 일 계약을 그대로 쓴다.
   (mocks.safeTools as AiToolDefinition[]).push(...actual.BETA_SAFE_TOOLS.filter(tool =>
-    tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "add_custom_category" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action" || tool.name === "update_schedule_event"));
+    tool.name === "apply_budget_plan" || tool.name === "add_amora_action" || tool.name === "add_custom_category" || tool.name === "get_personal_actions" || tool.name === "prepare_personal_action" || tool.name === "update_schedule_event" || tool.name === "get_budget_summary" || tool.name === "get_schedule_events"));
   return { BETA_SAFE_TOOLS: mocks.safeTools, WEDDING_TOOLS: mocks.safeTools, BUDGET_CATEGORY_KEYS: actual.BUDGET_CATEGORY_KEYS };
 });
 
@@ -1126,6 +1135,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     mocks.findPersisted.mockResolvedValue(null);
     mocks.reconcile.mockResolvedValue(true);
     mocks.chooseModelRole.mockReturnValue("fast");
+    mocks.conversationPolicy.mockReset();
+    mocks.conversationPolicy.mockResolvedValue(false);
     mocks.failClaim.mockResolvedValue(undefined);
     mocks.rateLimit.mockResolvedValue(null);
     mocks.adminRpc.mockResolvedValue({
@@ -1171,6 +1182,34 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       visibility: "shared",
       created_at: "2026-07-15T00:00:00.000Z",
     });
+  });
+
+  it.each(["on-denied", "off-denial", "off-ordinary", "partial-consent", "lookup-failure", "off-write-failure", "null-segment"] as const)("keeps conversation policy admission separate from global consent: %s", async mode => {
+    const direct = mode === "off-denial" || mode === "off-write-failure";
+    const text = "나는 무광 종이 장식을 좋아해. 결혼식 장식 취향이야." + (direct ? " 이번 대화에서만 참고하고 장기 기억에 저장하지 마." : "");
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, ...(mode === "null-segment" ? { segment_id: null } : {}) };
+    mocks.memoryEnablement.shared = !mode.startsWith("off-") && mode !== "partial-consent";
+    mocks.conversationPolicy.mockResolvedValue(mode === "on-denied" || mode === "off-denial");
+    if (mode === "lookup-failure" || mode === "off-write-failure") mocks.conversationPolicy.mockRejectedValueOnce(new Error("synthetic private error"));
+    providerAfterPreGeneration(providerResult({ fullText: "현재 대화에서 장식 취향을 살펴볼게요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    const body = await response.text();
+    if (mode === "lookup-failure" || mode === "off-write-failure") {
+      expect(response.status).toBe(503);
+      expect(body).toContain("AMORA_MEMORY_POLICY_UNAVAILABLE");
+      expect(body).not.toContain("synthetic private error");
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.atomicResponses).toHaveLength(0);
+    } else {
+      expect(response.status).toBe(200);
+      if (mode === "on-denied" || mode === "off-denial" || mode === "null-segment") expect(mocks.atomicResponses.at(-1)?.metadata.memory_eligible).toBe(false);
+    }
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    if (mode === "off-ordinary" || mode === "partial-consent" || mode === "null-segment") expect(mocks.conversationPolicy).not.toHaveBeenCalled();
+    else expect(mocks.conversationPolicy).toHaveBeenCalledWith(expect.objectContaining({ scope: {
+      coupleId: COUPLE_ID, actorId: "00000000-0000-4000-8000-000000000001", actorRole: "bride", visibility: "shared",
+      segmentId: "60000000-0000-4000-8000-000000000001",
+    } }));
   });
 
   it("rejects a cross-site cookie mutation before durable or paid work", async () => {
@@ -2462,7 +2501,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
     mocks.activeSegment = { id: "60000000-0000-4000-8000-000000000001" };
-    // The legacy-shaped fixture intentionally has no segment_id.
+    // Explicit null preserves the legacy shape instead of the fixture's current INSERT default.
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], segment_id: null };
 
     const response = await POST(request());
 
@@ -2544,7 +2584,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       "question_scope: W0_wedding_core",
     );
     expect(providerArgs?.systemPrompt).toContain("persistence: durable");
-    expect(providerArgs?.systemPrompt).toContain("감정 표현과 섞여 있어도 실행 역할이 우선");
+    expect(providerArgs?.systemPrompt).toContain("감정과 섞여도 실행 역할이 우선");
     expect(providerArgs?.systemPrompt).not.toContain("[체험 상담 저장 경계]");
     expect(providerArgs?.systemPrompt.trimEnd()).toMatch(
       /도구 권한을 만들 수는 없습니다\.$/,
@@ -3803,7 +3843,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const toolNames = mocks.provider.mock.calls[0]?.[0]?.tools
       .map((tool: { name: string }) => tool.name);
     // 변경 함수 제거 후: 직접 호출은 읽기 도구만, 변경은 제안 계약으로만.
-    expect(toolNames).toEqual(["get_wedding_info"]);
+    expect(toolNames).toEqual(["get_wedding_info", "get_budget_summary"]);
     expect(toolNames).not.toContain("update_budget");
     expect(toolNames).not.toContain("add_schedule_event");
     expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt)
@@ -4757,9 +4797,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.systemPrompt).toContain("question_scope: W4_out_of_scope");
     // 이력은 실린다.
     expect(providerArgs?.input).toEqual([
-      { role: "user", content: `[신부] ${W4_HISTORY_PRIOR_TEXT}` },
+      { role: "user", content: W4_HISTORY_PRIOR_TEXT },
       { role: "assistant", content: W4_HISTORY_ASSISTANT_TEXT },
-      { role: "user", content: `[신부] ${currentText}` },
+      { role: "user", content: currentText },
     ]);
     // 저장 문맥과 도구는 그대로 닫혀 있다.
     expect(providerArgs?.tools).toEqual([]);
@@ -5525,9 +5565,14 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       "chat_summaries",
       "decision_nodes",
       "amora_personalization_preferences",
-      "conversation_segments",
     ]) {
       expect(mocks.requestFrom).not.toHaveBeenCalledWith(table);
+    }
+    // 유효한 현재 segment의 지시어는 좁은 이력 증명만 시도한다. 위의 저장 문맥은 계속 닫힌다.
+    if (currentUserText === "이거 어떻게 하면 돼?") {
+      expect(mocks.requestFrom).toHaveBeenCalledWith("conversation_segments");
+    } else {
+      expect(mocks.requestFrom).not.toHaveBeenCalledWith("conversation_segments");
     }
     expect(mocks.provider).toHaveBeenCalledTimes(1);
   });
@@ -5593,7 +5638,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     const providerArgs = mocks.provider.mock.calls[0]?.[0];
     expect(providerArgs?.tools.map((tool: { name: string }) => tool.name))
-      .toEqual(["get_wedding_info"]);
+      .toEqual(["get_wedding_info", "get_budget_summary"]);
     expect(providerArgs?.systemPrompt).toContain(
       "question_scope: W1_wedding_adjacent",
     );
@@ -6997,20 +7042,21 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       await proposalResponse.text();
       expect(mocks.executeTool).not.toHaveBeenCalled();
       const proposal = mocks.atomicResponses[0];
-      expect(proposal?.metadata).toMatchObject({ pending_amora_action: { tool, input } });
+      const approvedInput = tool === "apply_budget_plan" ? { ...input, allocation_mode: "explicit" } : input;
+      expect(proposal?.metadata).toMatchObject({ pending_amora_action: { tool, input: approvedInput } });
       const pending = proposal!.metadata.pending_amora_action as { actionId: string };
       expect(pending.actionId).toMatch(/^[0-9a-f-]{36}$/);
       mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
         { ...mocks.canonicalRows[0], content: "확인했어. 반영해줘", created_at: "2026-07-15T00:01:00.000Z" },
         { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: proposal!.content, metadata: proposal!.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
       );
-      mocks.executeTool.mockResolvedValueOnce({ toolName: tool, toolInput: input,
+      mocks.executeTool.mockResolvedValueOnce({ toolName: tool, toolInput: approvedInput,
         toolOutput: { success: true, display_text: "합성 서버 영수증: 반영했어요." }, success: true });
       mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "합성 제공자 응답", usage: { input_tokens: 10, output_tokens: 3 } }));
       const confirmed = await POST(request({ messages: [{ role: "user", content: "확인했어. 반영해줘" }], confirmedActionId: pending.actionId }));
       expect(confirmed.status).toBe(200);
       const body = await confirmed.text();
-      expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith(tool, input, expect.objectContaining({ pendingActionId: pending.actionId }));
+      expect(mocks.executeTool).toHaveBeenCalledExactlyOnceWith(tool, approvedInput, expect.objectContaining({ pendingActionId: pending.actionId }));
       expect(mocks.adminRpc).toHaveBeenCalledWith("authorize_amora_shared_action_execution", expect.objectContaining({ p_action_id: pending.actionId, p_couple_id: COUPLE_ID }));
       expect(body).toContain("합성 서버 영수증");
       expect(body).not.toContain("합성 제공자 응답");
@@ -7435,6 +7481,151 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { previewSpy?.mockRestore(); }
   });
 
+
+  it.each(["B02", "B02 wrong mode", "P02", "P02 long context", "P02 exact", "P02 no history", "P02 broken reply"] as const)("keeps explicit allocations and review-only drafts separate through actual SDK: %s", async scenario => {
+    const draft = scenario.startsWith("P02");
+    const originalScope = draft && scenario !== "P02" && scenario !== "P02 long context";
+    const refusedProof = scenario === "P02 no history" || scenario === "P02 broken reply";
+    const text = draft
+      ? (originalScope ? "여행" : "신혼여행") + "은 이번 검토 예산에서 빼기로 할게. 이 조건으로 검토용 두 안만 보여줘. 식사 쪽을 더 쓰면 뭘 줄이는지도 알려줘."
+      : "사진보다 옷에 조금 더 쓰기로 했어. 현재 웨딩 사진 촬영 3,000,000원에서 1,000원을 빼서 2,999,000원으로, 드레스·예식 정장 3,000,000원에 그 1,000원을 더해 3,001,000원으로 배분해줘. 총예산·다른 항목·기록 지출·분담은 유지하고, 두 변경을 한 번에 확인할 수 있는 카드를 먼저 보여줘. 아직 적용하지 마.";
+    mocks.canonicalRows[0] = {...mocks.canonicalRows[0],content:text,created_at:"2026-09-11T00:03:00.000Z"};
+    if (draft && scenario !== "P02 no history") {
+      // owned P02 사용자 발화와 응답 발췌다. 원문 T3와 신혼여행을 명시한
+      // 대조군을 함께 검증한다. 최종 SDK 응답은 합성이며 모델 품질 실측이 아니다.
+      pushTrustedHistoryPair({index:952,createdAt:"2026-09-11T00:02:00.000Z",
+        userText:"부모님이 보태 주실 수도 있지만 아직 약속한 건 아니야. 그 돈은 없는 셈 치고, 식사는 중요하지만 촬영은 최소로 하고 싶어.",
+        assistantText:"부모님 지원은 아직 확정되지 않았으니 **0원으로 두고**, 본인들이 마련할 수 있는 최대 2천만 원 안에서만 계획하는 게 맞아요. 식사는 중요하게 보고, 웨딩 사진 촬영은 최소 범위로 잡고 싶은 방향도 확인했어요.\n\n다만 아직 하객 수와 식사 단가가 없어서 결혼식장 비용을 계산할 수는 없어요. **예상 하객 수만 먼저 알려주시면**, 식사 중심으로 예산을 나눠볼게요. 예산표는 바꾸지 않겠습니다."});
+      pushTrustedHistoryPair({index:951,createdAt:"2026-09-11T00:01:00.000Z",
+        userText:"나는 프리랜서라 들어오는 돈이 달마다 달라. 결혼 준비에 최대 2천만 원을 잡으면 어떻게 나눠 생각하면 좋을까? 집 보증금은 별도고 여행을 넣을지는 아직 모르겠어. 예산표는 바꾸지 마.",
+        assistantText:"수입이 달마다 다르면 **2천만 원을 전부 미리 배정하기보다**, 먼저 꼭 필요한 결혼식 비용과 아직 정하지 않은 비용을 분리해서 보는 게 좋아요."});
+      if(scenario === "P02 broken reply") mocks.canonicalRows[1].metadata = {question_scope:"W0_wedding_core",in_reply_to_user_message_id:"wrong"};
+    }
+    const actualTools=await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const progress:Record<string,unknown>=draft ? {} : {
+      studio:{category:"studio",status:"completed",budget:3_000_000,spent:123_000},
+      dress:{category:"dress",status:"in_progress",budget:3_000_000},
+      venue:{category:"venue",status:"not_started",budget:12_000_000},
+      honeymoon:{category:"honeymoon",status:"not_started",budget:10_000_000},
+      custom_other:{category:"custom_other",label:"그 밖의 준비",status:"not_started",budget:4_000_000},
+      reserve:{category:"reserve",status:"not_started",budget:2_000_000},
+      __shares:{bride:40,groom:60},
+    };
+    if(scenario==="P02 long context") for(const key of actualTools.BUDGET_CATEGORY_KEYS)
+      progress[key]={status:"not_started",notes:"기록한 준비 조건과 포함 범위를 확인합니다. ".repeat(60)};
+    mocks.journeyRow={total_budget:draft?0:35_000_000,progress,wedding_date:null,venue:null};
+    mocks.journeyStateRevision=20;
+    const before=structuredClone(mocks.journeyRow);
+    const markerInput={total_budget:35_000_000,allocations:[{category:"studio",budget:2_999_000},{category:"dress",budget:3_001_000}],
+      intake_summary:"사진에서 옷으로 1,000원 이동. 다른 항목과 미배정액 유지.",
+      ...(scenario==="B02 wrong mode"?{allocation_mode:"legacy"}:{})};
+    const providerText=refusedProof ? "어떤 준비 예산을 검토하는지 알려주세요."
+      : draft
+      ? "아래는 실제 견적이 아닌 조정 가능한 계획금액이에요. 집 보증금과 여행, 미확정 부모님 지원은 이번 계산에서 제외하고 예산표는 바꾸지 않았어요.\n1안: 식사 중심 1,300만원 + 나머지 준비 500만원 + 미배정 200만원 = 2,000만원.\n2안: 식사 중심 1,100만원 + 나머지 준비 700만원 + 미배정 200만원 = 2,000만원.\n1안은 식사에 200만원 더 두는 대신 촬영·장식 등 나머지 준비를 200만원 줄여 검토하는 안이에요. 실제 포함 범위와 견적에 따라 조정해야 해요."
+      : "두 항목의 변경을 확인해 주세요.\n[pending_action]"+JSON.stringify({tool:"apply_budget_plan",input:markerInput})+"[/pending_action]";
+    const actualOpenAI=await vi.importActual<typeof import("@/lib/ai/openai")>("@/lib/ai/openai");
+    const prompts=await import("@/lib/ai/prompts");
+    const actualPrompts=await vi.importActual<typeof import("@/lib/ai/prompts")>("@/lib/ai/prompts");
+    const stage=await import("@/lib/ai/stage-router");
+    const actualStage=await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+    const actualModelConfig=await vi.importActual<typeof import("@/lib/ai/modelConfig")>("@/lib/ai/modelConfig");
+    const originalModelChoice=mocks.chooseModelRole.getMockImplementation()!;
+    const originals={tools:[...mocks.safeTools],
+      determine:vi.mocked(stage.determineStage).getMockImplementation()!,
+      route:vi.mocked(stage.routeSpecialist).getMockImplementation()!,
+      keyword:vi.mocked(stage.matchedSpecialistByKeyword).getMockImplementation()!,
+      addon:vi.mocked(stage.getSpecialistPromptAddon).getMockImplementation()!};
+    const {default:OpenAI}=await import("openai");
+    const counts:string[]=[],instructions:string[]=[],inputs:unknown[]=[];
+    const client=new OpenAI({apiKey:"sk-fixture-budget-review",maxRetries:0,dangerouslyAllowBrowser:true,
+      fetch:async(url,init)=>{
+        if(typeof init?.body!=="string") throw new Error("Expected SDK JSON");
+        const body=JSON.parse(init.body),path=new URL(String(url)).pathname;
+        if(path.endsWith("/responses/input_tokens")){
+          counts.push(body.instructions);
+          return new Response(JSON.stringify({object:"response.input_tokens",input_tokens:100}),{status:200,headers:{"Content-Type":"application/json"}});
+        }
+        if(!path.endsWith("/responses")) throw new Error("Unexpected SDK endpoint");
+        instructions.push(body.instructions);inputs.push(body.input);
+        const response={id:"resp_budget_review",object:"response",created_at:0,status:"completed",error:null,incomplete_details:null,model:body.model,
+          output:[{type:"message",id:"msg_budget_review",role:"assistant",status:"completed",content:[{type:"output_text",text:providerText,annotations:[]}]}],
+          output_text:providerText,usage:{input_tokens:100,input_tokens_details:{cached_tokens:0},output_tokens:5,output_tokens_details:{reasoning_tokens:0},total_tokens:105}};
+        return new Response("data: "+JSON.stringify({type:"response.output_text.delta",item_id:"msg_budget_review",output_index:0,content_index:0,sequence_number:0,delta:providerText})+"\n\n"
+          +"data: "+JSON.stringify({type:"response.completed",sequence_number:1,response})+"\n\n",{status:200,headers:{"Content-Type":"text/event-stream"}});
+      }});
+    vi.stubEnv("AMORA_OPENAI_ENABLED","true");vi.stubEnv("OPENAI_API_KEY","sk-fixture-budget-review");
+    vi.stubEnv("OPENAI_AMORA_FAST_MODEL","gpt-5.6-luna");vi.stubEnv("OPENAI_AMORA_PRIMARY_MODEL","gpt-5.6-terra");
+    vi.stubEnv("OPENAI_AMORA_FAST_REASONING_EFFORT","none");vi.stubEnv("OPENAI_AMORA_PRIMARY_REASONING_EFFORT","none");
+    mocks.provider.mockImplementation(options=>actualOpenAI.chatWithToolsStream({...options,client}));
+    (mocks.safeTools as AiToolDefinition[]).splice(0,mocks.safeTools.length,...actualTools.BETA_SAFE_TOOLS);
+    try {
+      mocks.chooseModelRole.mockImplementation(actualModelConfig.chooseAmoraChatModelRole);
+      vi.mocked(stage.determineStage).mockImplementation(actualStage.determineStage);
+      vi.mocked(stage.routeSpecialist).mockImplementation(actualStage.routeSpecialist);
+      vi.mocked(stage.matchedSpecialistByKeyword).mockImplementation(actualStage.matchedSpecialistByKeyword);
+      vi.mocked(stage.getSpecialistPromptAddon).mockImplementation(actualStage.getSpecialistPromptAddon);
+      await vi.mocked(prompts.getWeddingPlannerSystemPrompt).withImplementation(actualPrompts.getWeddingPlannerSystemPrompt,async()=>{
+        const response=await POST(request({messages:[{role:"user",content:text}]}));
+        expect(response.status).toBe(200);
+        const body=await response.text();
+        expect(body).not.toContain('"type":"error"');
+        expect(instructions).toHaveLength(1);expect(counts).toEqual(instructions);
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(mocks.journeyRow).toEqual(before);
+        const saved=mocks.atomicResponses.at(-1)!;
+        const events=body.split("\n\n").filter(line=>line.startsWith("data: ")).map(line=>JSON.parse(line.slice(6)));
+        const done=events.find(event=>event.type==="done");
+        expect(done?.fullContent).toBe(saved.content);
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(instructions[0].length).toBeLessThanOrEqual(48_000);
+        if(draft){
+          if(refusedProof){
+            expect(instructions[0]).toContain("question_scope: W4_out_of_scope");
+            expect(instructions[0]).not.toContain("[검토용 예산 초안]");
+          }else{
+            expect(JSON.stringify(inputs)).toContain("최대 2천만 원");
+            expect(JSON.stringify(inputs)).toContain("부모님이 보태");
+            expect(instructions[0]).toContain("question_scope: W0_wedding_core");
+            expect(instructions[0]).toContain("계획금액/비율은 조정 가능");
+            expect(instructions[0]).toContain("항목별 배정(예비비 포함)+미배정=사용자 상한");
+            expect(instructions[0]).not.toContain("배정+예비비+미배정");
+            expect(instructions[0]).toContain("견적 없이도 검토 초안");
+            expect(instructions[0]).toContain("미확정 부모님 지원");
+            expect(instructions[0]).toContain("수량·단가 없이 식사 비용·평균가를 만들지 말고");
+            expect(instructions[0]).toContain("저장·확인 카드 금지");
+          }
+          if(originalScope){
+            expect(saved.metadata.memory_eligible).toBe(false);
+            expect(saved.metadata.memory_enqueue_requested).toBe(false);
+            expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+            expect(JSON.stringify(inputs)).toContain(text);
+          }
+          expect(saved.content).toBe(providerText);
+          expect(saved.metadata.pending_amora_action).toBeUndefined();
+          expect(saved.metadata).not.toHaveProperty("current_stored_state_summary");
+        }else{
+          expect(instructions[0]).toContain("미지정 항목·예비비의 기존 배정은 유지");
+          const expected={...markerInput,allocation_mode:"explicit"};
+          const identity=getAmoraToolOperationIdentity("apply_budget_plan",expected);
+          expect(saved.metadata.pending_amora_action).toMatchObject({tool:"apply_budget_plan",input:expected,inputDigest:identity.inputDigest,operationKey:identity.operationKey});
+          expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({sourceRevision:20,inputDigest:identity.inputDigest,
+            current:{totalBudget:35_000_000,allocatedBudget:34_000_000,unallocatedBudget:1_000_000,recordedSpend:123_000},
+            proposed:{totalBudget:35_000_000,allocatedBudget:34_000_000,unallocatedBudget:1_000_000,recordedSpend:123_000}});
+          const preview=saved.metadata.pending_amora_action_impact_preview as {categories:Array<{key:string}>};
+          expect(preview.categories.map(item=>item.key).sort()).toEqual(["dress","studio"]);
+          expect(done?.metadata.pending_amora_action).toEqual(saved.metadata.pending_amora_action);
+        }
+      });
+    }finally{
+      mocks.chooseModelRole.mockImplementation(originalModelChoice);
+      mocks.safeTools.splice(0,mocks.safeTools.length,...originals.tools);
+      vi.mocked(stage.determineStage).mockImplementation(originals.determine);
+      vi.mocked(stage.routeSpecialist).mockImplementation(originals.route);
+      vi.mocked(stage.matchedSpecialistByKeyword).mockImplementation(originals.keyword);
+      vi.mocked(stage.getSpecialistPromptAddon).mockImplementation(originals.addon);
+    }
+  });
+
   it.each(["no-marker", "wrong-budget-marker"] as const)("creates the exact requested budget-only confirmation through actual SDK output: %s", async mode => {
     const text = "초대장·꽃·하객선물 맞춤 예산만 1,500,000원에서 1,501,000원으로 수정하고 싶어. 총예산, 다른 항목, 기록 지출, 분담은 그대로 두고 변경 확인 카드를 먼저 보여줘. 아직 적용하지 마.";
     const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
@@ -7752,7 +7943,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(mocks.provider).toHaveBeenCalledTimes(1);
       const saved = mocks.atomicResponses.at(-1)!;
       expect(saved.content).toContain("아직 아모라에서 설정할 수 없어요");
-      expect(saved.content).toContain("일정 화면에서 직접 설정");
+      expect(saved.content).toContain("일정 화면에서 ‘일정 추가’");
+      expect(saved.content).toContain("기존 일정을 선택해 수정");
       expect(saved.content).not.toContain("일정에 저장했어요");
       expect(saved.metadata.pending_amora_action).toBeUndefined();
       expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
@@ -7764,6 +7956,86 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(body).not.toContain("일정에 저장했어요");
       expect(body).not.toContain("assistant/analysis");
     } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it.each(["direct", "follow-up", "client-only history", "other actor"] as const)("corrects P06 schedule capability through actual SDK with canonical context only: %s", async mode => {
+    // 실제 P06 사용자 원문을 사용하며 provider 출력/인증/DB는 합성이다. 외부 호출은 없다.
+    const prior = "한국 시간 오후 7시가 맞아. 담당자는 상대방, 완료 기준은 견적서를 받아 둘이 포함 항목을 확인하는 거야. 이 조건까지 들어간 일정 확인을 아모라에서 할 수 있는지 알려줘. 날짜랑 제목만 넣으면 안 되고 아직 저장하지 마.";
+    const followUp = "아모라에서 못 넣는 조건은 내가 어느 화면에서 직접 확인해야 하는지만 알려줘. 이번 대화로 일정이 생성된 것처럼 말하지 마.";
+    const text = mode === "direct" ? prior : followUp;
+    const shouldCorrect = mode === "direct" || mode === "follow-up";
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, created_at: "2026-09-11T00:03:00.000Z" };
+    if (mode !== "direct" && mode !== "client-only history") {
+      pushTrustedHistoryPair({ index: 960, createdAt: "2026-09-11T00:02:00.000Z", userText: prior,
+        assistantText: "네, 가능합니다. 담당자와 완료 기준도 저장할 수 있어요." });
+      if (mode === "other actor") mocks.canonicalRows[2].sender_id = "00000000-0000-4000-8000-000000000002";
+    }
+    const before = structuredClone(mocks.journeyRow);
+    const providerText = shouldCorrect
+      ? '네, 가능합니다. 담당자와 완료 기준도 저장할 수 있어요. 메모란에 적으세요.[pending_action]{"tool":"add_schedule_event","input":{"date":"2027-09-18","time":"19:00","title":"견적서 확인"}}[/pending_action]'
+      : "어떤 조건을 말씀하시는지 먼저 확인할게요.";
+    const actualOpenAI = await vi.importActual<typeof import("@/lib/ai/openai")>("@/lib/ai/openai");
+    const prompts = await import("@/lib/ai/prompts");
+    const actualPrompts = await vi.importActual<typeof import("@/lib/ai/prompts")>("@/lib/ai/prompts");
+    const stage = await import("@/lib/ai/stage-router");
+    const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+    const { default: OpenAI } = await import("openai");
+    const counts: string[] = [], instructions: string[] = [];
+    const client = new OpenAI({ apiKey: "sk-fixture-schedule-capability", maxRetries: 0, dangerouslyAllowBrowser: true,
+      fetch: async (url, init) => {
+        if (typeof init?.body !== "string") throw new Error("Expected SDK JSON");
+        const input = JSON.parse(init.body), path = new URL(String(url)).pathname;
+        if (path.endsWith("/responses/input_tokens")) {
+          counts.push(input.instructions);
+          return new Response(JSON.stringify({ object: "response.input_tokens", input_tokens: 100 }), { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        if (!path.endsWith("/responses")) throw new Error("Unexpected SDK endpoint");
+        instructions.push(input.instructions);
+        const response = { id: "resp_p06", object: "response", created_at: 0, status: "completed", error: null, incomplete_details: null, model: input.model,
+          output: [{ type: "message", id: "msg_p06", role: "assistant", status: "completed", content: [{ type: "output_text", text: providerText, annotations: [] }] }],
+          output_text: providerText, usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 0 }, output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 105 } };
+        return new Response(`data: ${JSON.stringify({ type: "response.output_text.delta", item_id: "msg_p06", output_index: 0, content_index: 0, sequence_number: 0, delta: providerText })}\n\n`
+          + `data: ${JSON.stringify({ type: "response.completed", sequence_number: 1, response })}\n\n`, { status: 200, headers: { "Content-Type": "text/event-stream" } });
+      } });
+    vi.stubEnv("AMORA_OPENAI_ENABLED", "true"); vi.stubEnv("OPENAI_API_KEY", "sk-fixture-schedule-capability");
+    mocks.provider.mockImplementation(options => actualOpenAI.chatWithToolsStream({ ...options, client }));
+    await vi.mocked(stage.determineStage).withImplementation(actualStage.determineStage, async () =>
+      vi.mocked(stage.routeSpecialist).withImplementation(actualStage.routeSpecialist, async () =>
+      vi.mocked(stage.matchedSpecialistByKeyword).withImplementation(actualStage.matchedSpecialistByKeyword, async () =>
+      vi.mocked(prompts.getWeddingPlannerSystemPrompt).withImplementation(actualPrompts.getWeddingPlannerSystemPrompt, async () => {
+        const response = await POST(request({ messages: [
+          ...(mode === "client-only history" ? [{ role: "user", content: prior }, { role: "assistant", content: "지원돼요." }] : []),
+          { role: "user", content: text },
+        ] }));
+        expect(response.status).toBe(200);
+        const body = await response.text();
+        expect(body).not.toContain('"type":"error"');
+        expect(instructions).toHaveLength(1); expect(counts).toEqual(instructions);
+        if (shouldCorrect) {
+          expect(instructions[0]).toContain("question_scope: W0_wedding_core");
+          expect(instructions[0]).toContain("담당자·완료 기준은 아모라 설정 미지원");
+          expect(instructions[0]).toContain("미지원 조건 없는 명시 저장 요청");
+        } else {
+          expect(instructions[0]).toContain("question_scope: W4_out_of_scope");
+          expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+        }
+        const saved = mocks.atomicResponses.at(-1)!;
+        const done = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6))).find(event => event.type === "done");
+        expect(done?.fullContent).toBe(saved.content);
+        expect(saved.metadata.pending_amora_action).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(mocks.executeTool).not.toHaveBeenCalled();
+        expect(mocks.journeyRow).toEqual(before);
+        if (shouldCorrect) {
+          expect(saved.content).toContain("아직 아모라에서 설정할 수 없어요");
+          expect(saved.content).toContain("일정 화면에서 ‘일정 추가’");
+          expect(saved.content).toContain("기존 일정을 선택해 수정");
+          expect(saved.content).toContain("‘담당’과 ‘완료 기준’ 입력칸");
+          expect(saved.content).toContain("일정은 생성하거나 변경하지 않았어요");
+          expect(body).not.toContain("네, 가능합니다");
+          expect(body).not.toContain("메모란에 적으세요");
+        } else expect(saved.content).toBe(providerText);
+      }))));
   });
 
   it.each(["private", "demo", "initial_greeting", "unbound"])("does not replace an out-of-scope conversation with the unsupported schedule notice: %s", async mode => {
@@ -8668,6 +8940,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     vi.stubEnv("AMORA_CONVERSATION_SEGMENT_READ_ENABLED", "true");
     mocks.activeSegment = { id: "60000000-0000-4000-8000-000000000001" };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], segment_id: "60000000-0000-4000-8000-000000000002" };
 
     const response = await POST(request());
     const body = await response.json();
@@ -9981,6 +10254,25 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
 
     expect(response.status).toBe(400);
     expect(mocks.provider).not.toHaveBeenCalled();
+  });
+
+  it.each(["shared", "bride_private"] as const)("honors a per-turn memory refusal with consent ON in %s without dropping the chat receipt", async (visibility) => {
+    const text = "예식장은 서울 동쪽 지역을 우선 검토하고 싶어. 이 내용은 장기 기억에 넣지 말고 이번 답변에서만 참고해줘.";
+    mocks.memoryEnablement[visibility] = true;
+    mocks.auxiliaryMemoryRuntimeEnabled = true;
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
+    providerAfterPreGeneration(providerResult({ fullText: "서울 동쪽 예식장을 살펴볼 때 이동 거리를 함께 비교해 볼 수 있어요." }));
+
+    const response = await POST(request({ visibility, messages: [{ role: "user", content: text }] }));
+    const body = await response.text();
+    expect(response.status).toBe(200);
+    expect(body).toContain('"type":"done"');
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W0_wedding_core", memory_eligible: false, memory_enqueue_requested: false,
+    });
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
   it("persists the exact server memory scope and withholds done when the first enqueue is unconfirmed", async () => {

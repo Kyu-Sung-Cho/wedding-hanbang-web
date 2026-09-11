@@ -20,6 +20,7 @@ const readContext = {
 };
 const separationFollowup = "다음 두 문장은 실제로 일어난 일을 보고하는 게 아니야. “만약 파트너에게 초대장을 모바일로 하자고 말했다면 어떨까?”는 가정이고, “다음 주에 파트너에게 꽃 장식은 줄이고 싶다고 말해볼까”는 아직 검토 중인 말 초안이야. 사진·예산·식후 감사 인사와 이 두 새 항목을 같은 표에 정리하되, 실제 전달 상태와 가정·미래 초안을 섞지 말아줘. 초대장·꽃 장식의 실제 전달 여부는 여기서 밝히지 않았어. 저장하거나 공유하지 마.";
 const summary = "결혼 준비에서 확정한 것, 가설인 것, 파트너에게 아직 말하지 않은 것을 구분해서 표로 요약해줘.";
+const observedReviewSummary = "사진을 남기고 싶다는 게 전문 촬영을 꼭 하겠다는 뜻은 아니야. 그 점까지 고쳐서, 지금 정한 것과 검토 중인 것만 나눠줘. 저장은 하지 마.";
 
 function roleFor(userText: string, context = readContext, correctionCount = 0) {
   return chooseAmoraChatModelRole({
@@ -37,6 +38,7 @@ describe("read-only evidence summary model routing", () => {
       expectedReads: ["analyze_quote", "get_amora_actions", "get_budget_summary", "get_market_price", "get_schedule_events", "get_schedule_summary", "get_wedding_info", "simulate_guest_guarantee"],
     },
     { label: "958 future draft separation", text: separationFollowup, expectedScope: "W4_out_of_scope", expectedReads: ["get_market_price"] },
+    { label: "P07 current decision and review", text: observedReviewSummary, expectedScope: "W4_out_of_scope", expectedReads: [] },
   ])("selects primary with the actual production tool catalog: $label", ({ text, expectedReads, expectedScope }) => {
     const scope = classifyAmoraQuestionScope({ userText: text });
     const specialistType = routeSpecialist(text, determineStage(null));
@@ -57,6 +59,9 @@ describe("read-only evidence summary model routing", () => {
 
   it.each([
     summary,
+    observedReviewSummary,
+    "지금 정한 내용과 검토 중인 부분을 나눠 주세요.",
+    "정한 것과 아직 검토 중인 것을 구분해줘. 저장하거나 공유하지 마.",
     separationFollowup,
     "실제 전달과 가정의 상태를 표에 정리하되 섞지 말아 주세요.",
     "확정과 미정의 상태를 혼동하지 말아줘.",
@@ -73,6 +78,12 @@ describe("read-only evidence summary model routing", () => {
   });
 
   it.each([
+    "정한 것과 검토 중인 것을 나눠주지 마.",
+    "‘정한 것과 검토 중인 것을 나눠줘.’라는 문장을 번역해줘.",
+    "정한 것과 검토 중인 것을 나눠줘라는 말이 무슨 뜻이야?",
+    "정한 것과 검토 중인 것을 나눠줘. 저장해줘.",
+    "정한 것과 검토 중인 것을 나눠줘. 저장은 하지 마. 대신 일정에 추가해줘.",
+    "정한 것과 검토 중인 것은 나중에 보고 오늘 준비 순서만 나눠줘.",
     "결혼 준비 순서를 표로 정리해줘.",
     "확정과 미정 이야기는 끝이야. 두 물감을 섞지 말아줘.",
     "확정과 미정 상태를 섞지 말아줘라는 문장을 설명해줘.",
@@ -119,6 +130,7 @@ describe("read-only evidence summary model routing", () => {
   ])("does not change the existing action or external-context route: %j", override => {
     expect(roleFor(summary, { ...readContext, ...override })).toBe("fast");
     expect(roleFor(separationFollowup, { ...readContext, ...override })).toBe("fast");
+    expect(roleFor(observedReviewSummary, { ...readContext, ...override })).toBe("fast");
   });
 
   it("requires a server context and preserves crisis/correction priority", () => {
