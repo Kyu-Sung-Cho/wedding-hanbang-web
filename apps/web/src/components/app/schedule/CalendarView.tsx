@@ -137,7 +137,7 @@ export default function CalendarView({
               onClick={() => setSelectedDate(isSelected ? null : day)}
               className={`no-min-tap relative flex h-11 flex-col items-center justify-center gap-0.5 border-t border-[var(--amora-line)] text-[12px] transition-colors lg:h-[32px] lg:text-[10.5px] ${
                 isSelected
-                  ? "rounded-lg bg-[var(--amora-ink)] text-white"
+                  ? "rounded-lg bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-1 ring-inset ring-[var(--amora-selected-line)]"
                   : isToday
                   ? "rounded-lg bg-[var(--amora-warm)] text-[var(--amora-rose-deep)] ring-1 ring-inset ring-[var(--amora-rose)]"
                   : !inMonth
@@ -153,13 +153,13 @@ export default function CalendarView({
               {/* 실제 등록 일정 점 */}
               {inMonth && (isWedding || dayEvents.length > 0) && (
                 <div aria-hidden="true" className="absolute bottom-1 flex gap-0.5">
-                  {isWedding && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : WEDDING_DAY_COLOR}`} />}
+                  {isWedding && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-[var(--amora-selected-text)]" : WEDDING_DAY_COLOR}`} />}
                   {dayEvents.slice(0, 2).map((event, i) => (
                     <div
                       key={`e${i}`}
                       className={`h-1 w-1 rounded-full ${
                         isSelected
-                          ? "bg-white/70"
+                          ? "bg-[var(--amora-selected-text)]"
                           : getScheduleEventStatus(event) === "completed"
                             ? "bg-[var(--amora-sage)]"
                             : PERSONAL_EVENT_COLOR

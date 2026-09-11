@@ -656,7 +656,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                             .then(() => setPendingCancelId(null))
                             .catch(() => undefined);
                         }}
-                        className="min-h-11 rounded-xl bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--amora-soft)]"
+                        className="min-h-11 rounded-xl bg-[var(--amora-action,var(--hb-action))] px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]"
                       >
                         취소 요청 보내기
                       </button>
@@ -872,7 +872,7 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
                     onClick={() => void handleRestoreEvent(event.id).catch(() => undefined)}
                     disabled={restoringEventId !== null}
                     aria-busy={restoringEventId === event.id}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--hb-primary)] px-4 py-2 text-[13px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-[var(--amora-action,var(--hb-action))] px-4 py-2 text-[13px] font-semibold text-[var(--amora-action,var(--hb-action))] transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <RotateCcw className="h-4 w-4" />
                     {restoringEventId === event.id ? "요청 보내는 중..." : "복원 요청"}
@@ -1054,7 +1054,7 @@ export function ChecklistSchedulePrompt({
             type="button"
             onClick={saveWithDate}
             disabled={saving || !date || Boolean(scheduleMutationBlockReason)}
-            className="rounded-xl bg-[var(--hb-primary)] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-xl bg-[var(--amora-action,var(--hb-action))] px-5 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending.existingEvent ? "일정 수정하고 완료" : "일정 저장하고 완료"}
           </button>

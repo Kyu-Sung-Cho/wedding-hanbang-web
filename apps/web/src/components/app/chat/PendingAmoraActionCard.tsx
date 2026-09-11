@@ -807,7 +807,7 @@ export default function PendingAmoraActionCard({
           aria-label="변경 내용 확인하기"
           aria-haspopup="dialog"
           aria-expanded={reviewOpen}
-          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--amora-ink)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-[var(--amora-action)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] disabled:cursor-not-allowed disabled:opacity-45"
         >
           {approvalMutation === "confirm" || loadingApproval ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />

@@ -284,7 +284,7 @@ export default function EventFormModal({
           <button
             type="button"
             onClick={onClose}
-            className="mt-5 min-h-11 w-full rounded-[10px] bg-[var(--amora-ink)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2"
+            className="mt-5 min-h-11 w-full rounded-[10px] bg-[var(--amora-action)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2"
           >
             확인
           </button>
@@ -557,7 +557,7 @@ export default function EventFormModal({
                   onClick={handleCancel}
                   type="button"
                   disabled={cancelling || saving}
-                  className="min-h-11 rounded-[10px] bg-[var(--amora-ink)] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:opacity-50"
+                  className="min-h-11 rounded-[10px] bg-[var(--amora-action)] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   {cancelling ? "요청 중..." : "취소 요청 보내기"}
                 </button>
@@ -597,7 +597,7 @@ export default function EventFormModal({
               onClick={handleSubmit}
               type="button"
               disabled={saving || cancelling || !title.trim() || !date}
-              className="min-h-11 rounded-[10px] bg-[var(--amora-ink)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              className="min-h-11 rounded-[10px] bg-[var(--amora-action)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving
                 ? "저장 중..."

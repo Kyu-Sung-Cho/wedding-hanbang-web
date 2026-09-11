@@ -144,6 +144,11 @@ export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   },
   { name: "primary-hover", value: colors.paper.inkPressed },
   { name: "on-primary", value: colors.paper.card },
+  { name: "action", value: colors.rose[600] },
+  { name: "action-hover", value: colors.rose[700] },
+  { name: "selected-bg", value: colors.rose.pale },
+  { name: "selected-text", value: colors.rose[700] },
+  { name: "selected-line", value: colors.rose[600] },
 
   // 초점 링은 파란 펜이다. 잉크와 같은 색으로 두면 어두운 버튼 위에서 링이 사라진다.
   { name: "focus-ring", value: colors.paper.pen, section: "역할 — 초점" },
@@ -245,6 +250,11 @@ export const WEB_HTML_WORKSPACE_COLOR_VARS: readonly WebCssColorVar[] = [
   { name: "rose", value: colors.rose[500] },
   { name: "rose-deep", value: colors.rose[700] },
   { name: "rose-pale", value: colors.rose.pale },
+  { name: "action", value: colors.rose[600] },
+  { name: "action-hover", value: colors.rose[700] },
+  { name: "selected-bg", value: colors.rose.pale },
+  { name: "selected-text", value: colors.rose[700] },
+  { name: "selected-line", value: colors.rose[600] },
   { name: "sage", value: colors.sage[500] },
   { name: "sage-pale", value: colors.htmlWorkspace.sagePale },
   { name: "danger", value: colors.danger },

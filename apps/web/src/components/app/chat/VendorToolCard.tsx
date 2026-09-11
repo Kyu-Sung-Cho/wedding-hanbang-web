@@ -256,7 +256,7 @@ function VendorRecommendCards({
                   <button
                     onClick={() => onSend?.(`${v.name} 상세 정보 보여줘 [vendor:${v.id}]`)}
                     disabled={disabled}
-                    className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-medium text-white transition-colors bg-[var(--hb-text-body)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="flex flex-1 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--hb-action-hover)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <Package className="h-4 w-4" />
                     상품·스태프 보기
@@ -619,8 +619,8 @@ function VendorDetailCard({
               onClick={() => handleConfirm(selectedProduct!, selectedStaff)}
               disabled={disabled || !selectedProduct || confirmed}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-[6px]
-                bg-[var(--hb-primary)] text-white text-base font-medium
-                bg-[var(--hb-text-body)] active:scale-[0.98]
+                bg-[var(--hb-action)] text-white text-base font-medium
+                hover:bg-[var(--hb-action-hover)] active:scale-[0.98]
                 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <Calendar className="w-5 h-5" />

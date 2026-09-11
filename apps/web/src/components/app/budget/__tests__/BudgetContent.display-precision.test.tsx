@@ -59,6 +59,56 @@ describe("예산 화면의 금액과 표시 비율 정확성", () => {
   });
 
   it.each([
+    { total: 35_000_000, allocated: 34_000_001, allocatedText: "34,000,001원", label: "미배정액", amount: "999,999원" },
+    { total: 35_000_000, allocated: 35_000_000, allocatedText: "3,500만원", label: "미배정액", amount: "0원" },
+    { total: 35_000_000, allocated: 35_001_000, allocatedText: "35,001,000원", label: "초과배정", amount: "1,000원" },
+    { total: 35_000_000, allocated: 0, allocatedText: "0원", label: "미배정액", amount: "3,500만원" },
+    { total: 0, allocated: 34_000_001, allocatedText: "34,000,001원", label: "미배정액", amount: "총 예산 입력 전" },
+  ])("상단에서 배정액 $allocated 원과 총예산 $total 원의 차이를 기록 지출과 구분한다", async ({ total, allocated, allocatedText, label, amount }) => {
+    const saved = journey(total);
+    saved.progress = {
+      venue: { status: "in_progress", budget: allocated, spent: 123_000 },
+    };
+    useAuthStore.setState({ journey: saved });
+    await render();
+    const allocation = container.querySelector('dl[aria-label="항목별 예산 배정"]');
+    expect(allocation).not.toBeNull();
+    expect(container.querySelector("[data-budget-summary]")?.nextElementSibling).toBe(allocation);
+    expect(allocation?.querySelector("dt")?.textContent).toBe("항목별 배정 합계");
+    expect(allocation?.querySelector("dd")?.textContent).toBe(allocatedText);
+    expect(allocation?.textContent).toContain(`${label}${amount}`);
+    expect(allocation?.textContent?.includes("총 예산과 일치")).toBe(total > 0 && allocated === total);
+    expect(summary("RECORDED SPEND").textContent).toContain("12.3만원");
+    expect(useAuthStore.getState().journey).toEqual(saved);
+  });
+
+  it("상단 배정 합계는 숨긴 항목을 제외하고 사용자 항목의 원 단위 금액을 포함한다", async () => {
+    const saved = journey();
+    saved.progress = {
+      venue: { status: "in_progress", budget: 20_000_000, spent: 123_000 },
+      honeymoon: { status: "not_started", budget: 5_000_000, spent: 0 },
+      custom_invitation: { category: "custom_invitation", label: "초대장·꽃", status: "not_started", budget: 1_501_001, spent: 0 },
+    };
+    Object.assign(saved.progress, { __hidden: ["honeymoon"] });
+    useAuthStore.setState({ journey: saved });
+    await render();
+    const allocation = container.querySelector('dl[aria-label="항목별 예산 배정"]');
+    expect(allocation?.textContent).toContain("항목별 배정 합계21,501,001원");
+    expect(allocation?.textContent).toContain("미배정액13,498,999원");
+    expect(useAuthStore.getState().journey).toEqual(saved);
+  });
+
+  it("저장된 준비 정보가 없어도 미배정액을 0원이나 초과로 확정하지 않는다", async () => {
+    useAuthStore.setState({ journey: null });
+    await render();
+    const allocation = container.querySelector('dl[aria-label="항목별 예산 배정"]');
+    expect(allocation?.textContent).toContain("항목별 배정 합계0원");
+    expect(allocation?.textContent).toContain("미배정액총 예산 입력 전");
+    expect(allocation?.textContent).not.toMatch(/초과배정|총 예산과 일치/);
+    expect(useAuthStore.getState().journey).toBeNull();
+  });
+
+  it.each([
     { spent: 1, expected: "0.1% 미만" },
     { spent: 0, expected: "0%" },
   ])("지출 $spent 원은 $expected 로 구분한다", async ({ spent, expected }) => {

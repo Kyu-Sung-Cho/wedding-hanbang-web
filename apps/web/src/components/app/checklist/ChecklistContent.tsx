@@ -292,16 +292,16 @@ export default function ChecklistContent() {
               type="button"
               aria-pressed={filter === item.value}
               onClick={() => setFilter(item.value)}
-              className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-[7px] px-2 py-[7px] text-[11.5px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:flex-none md:rounded-lg md:px-[15px] md:text-[12.5px] ${filter === item.value ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}
+              className={`min-h-9 min-w-0 flex-1 whitespace-nowrap rounded-[7px] px-2 py-[7px] text-[11.5px] font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] md:flex-none md:rounded-lg md:px-[15px] md:text-[12.5px] ${filter === item.value ? "bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-1 ring-inset ring-[var(--amora-selected-line)]" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}
             >
               {item.label}
             </button>
           ))}
         </div>
         <div className="hidden items-center gap-2 text-[12px] text-[var(--amora-muted)] md:ml-auto md:flex" role="group" aria-label="체크리스트 보기 방식">
-          <Button variant="ghost" type="button" aria-pressed={grouped} onClick={() => setGrouped(true)} className={`min-[769px]:!min-h-9 !rounded-md !px-0 !text-[12px] hover:!bg-transparent ${grouped ? "!font-semibold !text-[var(--amora-ink)]" : "!font-normal !text-[var(--amora-muted)] hover:!text-[var(--amora-ink)]"}`}>단계별로 묶어보기</Button>
+          <Button variant="ghost" type="button" aria-pressed={grouped} onClick={() => setGrouped(true)} className={`min-[769px]:!min-h-9 !rounded-md !px-0 !text-[12px] hover:!bg-transparent ${grouped ? "!font-semibold !text-[var(--amora-selected-text)]" : "!font-normal !text-[var(--amora-muted)] hover:!text-[var(--amora-ink)]"}`}>단계별로 묶어보기</Button>
           <span aria-hidden="true">·</span>
-          <Button variant="ghost" type="button" aria-label="전체 분야 펼쳐보기" aria-pressed={!grouped} onClick={() => setGrouped(false)} className={`min-[769px]:!min-h-9 !rounded-md !px-0 !text-[12px] hover:!bg-transparent ${!grouped ? "!font-semibold !text-[var(--amora-ink)]" : "!font-normal !text-[var(--amora-muted)] hover:!text-[var(--amora-ink)]"}`}>전체 {CATEGORY_CHECKLISTS.length}개 펼쳐보기</Button>
+          <Button variant="ghost" type="button" aria-label="전체 분야 펼쳐보기" aria-pressed={!grouped} onClick={() => setGrouped(false)} className={`min-[769px]:!min-h-9 !rounded-md !px-0 !text-[12px] hover:!bg-transparent ${!grouped ? "!font-semibold !text-[var(--amora-selected-text)]" : "!font-normal !text-[var(--amora-muted)] hover:!text-[var(--amora-ink)]"}`}>전체 {CATEGORY_CHECKLISTS.length}개 펼쳐보기</Button>
         </div>
       </section>
 
@@ -327,7 +327,7 @@ export default function ChecklistContent() {
                 onClick={() => goToStage(stage.key)}
                 className="relative !flex w-[60px] shrink-0 flex-col !gap-0 !whitespace-normal !rounded-lg !p-0 !font-normal hover:!bg-transparent disabled:!opacity-40 md:w-auto md:flex-1"
               >
-                <span className={`mb-1.5 flex size-[34px] items-center justify-center rounded-full border-2 md:mb-[9px] md:size-11 ${current ? "border-[var(--amora-ink)] bg-[var(--amora-ink)] text-white ring-4 ring-[var(--amora-rose-pale)] md:ring-[5px]" : stage.complete ? "border-[var(--amora-sage)] bg-[var(--amora-sage-pale)] text-[#33473a]" : "border-[var(--amora-line)] bg-white text-[var(--amora-muted)]"}`}>
+                <span className={`mb-1.5 flex size-[34px] items-center justify-center rounded-full border-2 md:mb-[9px] md:size-11 ${current ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-4 ring-[var(--amora-rose-pale)] md:ring-[5px]" : stage.complete ? "border-[var(--amora-sage)] bg-[var(--amora-sage-pale)] text-[#33473a]" : "border-[var(--amora-line)] bg-white text-[var(--amora-muted)]"}`}>
                   {stage.complete ? <Check aria-hidden="true" className="size-[15px] md:size-[19px]" strokeWidth={1.7} /> : <Icon aria-hidden="true" className="size-[15px] md:size-[19px]" strokeWidth={1.7} />}
                 </span>
                 <span className="text-[10px] font-semibold leading-[1.3] text-[var(--amora-ink)] md:text-[13px]">{stage.label}</span>

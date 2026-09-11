@@ -103,7 +103,7 @@ export function AmoraPersonalizationConfirmation({
               type="button"
               disabled={saving}
               onClick={onConfirm}
-              className="min-h-10 rounded-[6px] bg-[var(--hb-primary)] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D806E] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50"
+              className="min-h-10 rounded-[6px] bg-[var(--hb-action)] px-3.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6D806E] focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-50"
             >
               {saving ? "저장 중..." : "이대로 저장"}
             </button>

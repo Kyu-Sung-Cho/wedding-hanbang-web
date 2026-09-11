@@ -517,7 +517,7 @@ export default function TimelineView({
                               type="button"
                               onClick={() => void confirmCancelEvent(evt.id)}
                               disabled={Boolean(cancellingEventId)}
-                              className="min-h-11 rounded-xl bg-[var(--hb-primary)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--amora-soft)] disabled:opacity-50"
+                              className="min-h-11 rounded-xl bg-[var(--hb-action)] px-3 py-2 text-xs font-semibold text-white hover:bg-[var(--hb-action-hover)] disabled:opacity-50"
                             >
                               {cancellingEventId === evt.id ? "요청 중..." : "취소 요청 보내기"}
                             </button>

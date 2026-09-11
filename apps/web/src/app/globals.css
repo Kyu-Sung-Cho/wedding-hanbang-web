@@ -127,6 +127,11 @@
   --hb-primary: #26251F;
   --hb-primary-hover: #12110D;
   --hb-on-primary: #FFFFFF;
+  --hb-action: #8F6662;
+  --hb-action-hover: #7D5753;
+  --hb-selected-bg: #EADDD8;
+  --hb-selected-text: #7D5753;
+  --hb-selected-line: #8F6662;
 
   /* 역할 — 초점 */
   --hb-focus-ring: #35638A;
@@ -1199,9 +1204,9 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
 .manners-roles input[value="elders"]:checked ~ .manners-role-tabs label[for$="elders"],
 .manners-roles input[value="guest"]:checked ~ .manners-role-tabs label[for$="guest"],
 .manners-roles input[value="all"]:checked ~ .manners-role-tabs label[for$="all"] {
-  background: var(--color-paper-ink);
-  color: #fff;
-  border-color: var(--color-paper-ink);
+  background: var(--hb-selected-bg);
+  color: var(--hb-selected-text);
+  border-color: var(--hb-selected-line);
   font-weight: 600;
 }
 
@@ -1295,6 +1300,11 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   --amora-rose: #A77B74;
   --amora-rose-deep: #7D5753;
   --amora-rose-pale: #EADDD8;
+  --amora-action: #8F6662;
+  --amora-action-hover: #7D5753;
+  --amora-selected-bg: #EADDD8;
+  --amora-selected-text: #7D5753;
+  --amora-selected-line: #8F6662;
   --amora-sage: #6D806E;
   --amora-sage-pale: #DBE3D6;
   --amora-danger: #D95F5F;
@@ -1327,6 +1337,7 @@ p, span, div, li, h1, h2, h3, h4, h5, h6 {
   box-shadow: none;
 }
 .amora-workspace .amora-chat-scopes button[aria-pressed="true"] {
-  background: var(--amora-ink);
-  color: white;
+  background: var(--amora-selected-bg);
+  color: var(--amora-selected-text);
+  box-shadow: inset 0 0 0 1px var(--amora-selected-line);
 }

@@ -62,7 +62,7 @@ export default function CreatePreparationAction({ create, cancelCreate, locked, 
       <AmoraActionPlanFields description={description} dueDate={dueDate} onDescriptionChange={setDescription} onDueDateChange={setDueDate} disabled={busy || locked} />
       <p className="pt-2 text-[12px] leading-relaxed text-[var(--amora-muted)]">함께 준비하는 사람에게도 보이는 할 일이에요. 저장은 두 사람의 합의나 실제 수행 완료를 뜻하지 않아요.</p>
       {locked && !busy && <p role="status" className="text-[12px] leading-relaxed text-[var(--amora-muted)]">이미 저장됐을 수 있어 같은 내용으로 다시 확인해요. 이 요청은 현재 화면에서만 유지돼요. 화면을 다시 열었다면 목록부터 확인해 주세요.</p>}
-      <div className="flex flex-wrap gap-2 pt-1"><Button variant="primary" type="submit" disabled={busy || !available || !title.trim()} className={`${button} bg-[var(--amora-ink)]! text-white! hover:bg-[var(--amora-ink)]!`}>{busy ? "추가하는 중…" : locked ? "같은 요청 다시 확인" : "할 일 저장"}</Button><Button variant="secondary" type="button" disabled={busy} onClick={event => {
+      <div className="flex flex-wrap gap-2 pt-1"><Button variant="primary" type="submit" disabled={busy || !available || !title.trim()} className={`${button} bg-[var(--amora-action)]! text-white! hover:bg-[var(--amora-action-hover)]!`}>{busy ? "추가하는 중…" : locked ? "같은 요청 다시 확인" : "할 일 저장"}</Button><Button variant="secondary" type="button" disabled={busy} onClick={event => {
         if (locked) { setConfirmCancel(true); return; }
         if (cancelCreate()) { setTitle(""); setCategory(""); setDescription(""); setDueDate(""); close(event.currentTarget); }
       }} className={`${button} border-[var(--amora-line)]! bg-[var(--amora-surface)]! text-[var(--amora-soft)]! hover:bg-[var(--amora-surface)]!`}>작성 취소</Button></div>

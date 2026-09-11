@@ -42,10 +42,10 @@ import {
 
 const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
-  + " hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2"
-  + " focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+  + " hover:bg-[var(--hb-action-hover)] focus-visible:outline-none focus-visible:ring-2"
+  + " focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2"
   + " disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] border"
@@ -352,7 +352,7 @@ export default function WeddingCodeV06Client({
                 <span
                   aria-hidden="true"
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                    selected ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#C7D1C2]"
+                    selected ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "border-[#C7D1C2]"
                   }`}
                 >
                   {selected ? <Check className="h-4 w-4" /> : null}

@@ -46,8 +46,8 @@ const BASE = [
 
 const VARIANT: Record<Variant, string> = {
   primary: [
-    "bg-[var(--hb-primary)] text-[var(--hb-on-primary)]",
-    "hover:bg-[var(--hb-primary-hover)]",
+    "bg-[var(--hb-action)] text-[var(--hb-on-primary)]",
+    "hover:bg-[var(--hb-action-hover)]",
   ].join(" "),
   secondary: [
     "border border-[var(--hb-hairline)] bg-[var(--hb-surface-raised)] text-[var(--hb-text-strong)]",

@@ -267,7 +267,7 @@ function ChecklistItemRow({
               onClick={() => onChange(item.id, option.value)}
               className={`flex min-h-10 items-center justify-center gap-1 border-r border-black/[0.08] px-1 text-xs last:border-r-0 ${
                 active
-                  ? "bg-[var(--hb-primary)] font-medium text-white"
+                  ? "bg-[var(--hb-selected-bg)] font-medium text-[var(--hb-selected-text)] ring-1 ring-inset ring-[var(--hb-selected-line)]"
                   : "bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-page)]"
               }`}
             >

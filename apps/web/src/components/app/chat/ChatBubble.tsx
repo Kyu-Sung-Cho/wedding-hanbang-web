@@ -1005,7 +1005,7 @@ function ClearRequestCard({
                   type="button"
                   disabled={pending !== null}
                   onClick={() => handle("accept")}
-                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[6px] bg-[var(--hb-primary)] text-white text-xs font-medium bg-[var(--hb-text-body)] disabled:opacity-50"
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-[6px] bg-[var(--amora-action,var(--hb-action))] text-white text-xs font-medium transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] disabled:opacity-50"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   {pending === "accept" ? "처리 중..." : "동의"}

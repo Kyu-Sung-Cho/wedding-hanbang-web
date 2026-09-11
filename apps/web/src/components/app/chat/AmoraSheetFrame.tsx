@@ -83,7 +83,7 @@ export default function AmoraSheetFrame({
             onClick={onConfirm}
             disabled={disabled}
             aria-label={applyAriaLabel ?? applyLabel}
-            className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl bg-[var(--amora-ink)] px-4 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-45"
+            className="flex min-h-[52px] items-center justify-center gap-2 rounded-xl bg-[var(--amora-action)] px-4 py-3 text-[15px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-45"
           >
             {busy && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
             {applyLabel}

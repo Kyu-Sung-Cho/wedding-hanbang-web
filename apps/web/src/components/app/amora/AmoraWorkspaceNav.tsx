@@ -22,7 +22,7 @@ const scopeItems = [
 ] as const;
 
 function itemClass(active: boolean) {
-  return `inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 ${active ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-soft)] hover:bg-[var(--amora-low)] hover:text-[var(--amora-ink)]"}`;
+  return `inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 ${active ? "bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-1 ring-inset ring-[var(--amora-selected-line)]" : "text-[var(--amora-soft)] hover:bg-[var(--amora-low)] hover:text-[var(--amora-ink)]"}`;
 }
 
 function Navigation({ controls, boardActive = false, privateUnavailable = false }: {
