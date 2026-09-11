@@ -98,7 +98,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
     return records.filter(row => {
       const field = preparationDecisionCategory(row.category);
       if (category === "unsorted" ? !!field : category !== "all" && field?.key !== category) return false;
-      return !needle || [row.title, row.detail, field?.label].some(value => value?.toLocaleLowerCase("ko").includes(needle));
+      return !needle || [row.title, row.displayTitle, row.detail, field?.label].some(value => value?.toLocaleLowerCase("ko").includes(needle));
     });
   }, [records, category, query]);
   const categories = PREPARATION_DECISION_CATEGORIES.filter(item => records.some(row => row.category === item.key));
@@ -114,8 +114,8 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
     <div className="mb-5 hidden items-start gap-[14px] rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-[18px] py-4 lg:flex">
       <CircleHelp aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--amora-rose-deep)]" />
       <div className="min-w-0 flex-1">
-        <p className="text-[13.5px] leading-[1.65] font-medium text-[var(--amora-ink)]">함께 준비하며 남긴 결정, 지금의 상태별로 모았어요.</p>
-        <p className="mt-1 text-[12px] leading-relaxed text-[var(--amora-muted)]">저장된 상태를 보여주며, 두 사람이 모두 확인했다는 뜻은 아니에요.</p>
+        <p className="text-[13.5px] leading-[1.65] font-medium text-[var(--amora-ink)]">함께 준비하며 남긴 기록을, 저장 당시의 구분으로 모았어요.</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-[var(--amora-muted)]">일정 취소·복원 이력도 포함되며, 두 사람이 모두 확인했다는 뜻은 아니에요.</p>
       </div>
       <details className="max-w-[230px] text-[12px] text-[var(--amora-muted)]"><summary className={`flex min-h-11 cursor-pointer items-center rounded-full border border-[var(--color-paper-outline)] bg-[var(--amora-surface)] px-3 ${focus}`}>기록 기준 자세히</summary><p className="pt-2 leading-relaxed">개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일의 완료 여부는 공유 할 일에서 따로 관리해요.</p></details>
     </div>
@@ -149,14 +149,15 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
                   <p className="mb-[14px] hidden pl-[17px] text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:block">{column.rule}</p>
                   <div className="space-y-[10px] lg:space-y-3">{rows.length ? rows.map(row => {
                     const category = preparationDecisionCategory(row.category);
-                    const longTitle = row.title.length > 180;
+                    const title = row.displayTitle ?? row.title;
+                    const longTitle = title.length > 180;
                     const longDetail = (row.detail?.length ?? 0) > 400;
-                    return <article key={row.id} aria-label={row.title} className={`min-w-0 rounded-[14px] border bg-[var(--amora-surface)] p-4 lg:px-[17px] ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${row.status === "exploring" ? "border-dashed" : ""}`}>
+                    return <article key={row.id} aria-label={title} className={`min-w-0 rounded-[14px] border bg-[var(--amora-surface)] p-4 lg:px-[17px] ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${row.status === "exploring" ? "border-dashed" : ""}`}>
                       <div className="mb-2 flex items-start justify-between gap-2 text-[12px] text-[var(--amora-muted)]"><span className="rounded-full bg-[var(--amora-low)] px-[9px] py-[3px] font-semibold text-[var(--amora-soft)]">{category?.label ?? "준비 결정 · 분야 미정"}</span><time dateTime={row.createdAt} title="기록일" className="shrink-0 pt-[3px]">{preparationDate(row.createdAt)}</time></div>
-                      <h4 className="mb-[9px] break-words text-[14.5px] font-semibold leading-[1.5] text-[var(--amora-ink)]">{decisionPreview(row.title, 180)}</h4>
+                      <h4 className="mb-[9px] break-words text-[14.5px] font-semibold leading-[1.5] text-[var(--amora-ink)]">{decisionPreview(title, 180)}</h4>
                       {row.detail && <p className="mb-[10px] whitespace-pre-wrap break-words rounded-[9px] bg-[var(--amora-warm)] px-[11px] py-[9px] text-[12.5px] leading-[1.55] text-[var(--amora-muted)]">{decisionPreview(row.detail, 400)}</p>}
-                      {(longTitle || longDetail) && <details className="mb-3 text-[12px]">
-                        <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>전체 결정 내용 보기</summary>
+                      {(longTitle || longDetail || row.displayTitle) && <details className="mb-3 text-[12px]">
+                        <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>{row.displayTitle ? "저장 원문 보기" : "전체 결정 내용 보기"}</summary>
                         <div className="space-y-2 border-t border-[var(--amora-line)] py-3">
                           <p className="whitespace-pre-wrap break-words font-semibold text-[var(--amora-ink)]">{row.title}</p>
                           {row.detail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.detail}</p>}
@@ -175,7 +176,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
           </>}
           {nextCursor && !error && <Button type="button" onClick={() => void loadMore()} disabled={loading || loadingMore} className={`${sharedOutlineButton} mt-4`}>{loadingMore ? "이전 결정을 불러오는 중…" : "이전 결정 더 보기"}</Button>}
         </>}
-    <details className="mt-3 text-[12px] text-[var(--amora-muted)] lg:hidden"><summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>결정 기록 안내</summary><p className="pb-2 leading-relaxed">불러온 결정 {records.length}개 · 숫자와 검색은 불러온 기록 기준이에요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p><p className="pb-3 leading-relaxed">확정은 저장된 상태이며 두 사람이 모두 확인했다는 뜻은 아니에요. 개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일 완료는 공유 할 일에서 따로 관리해요.</p></details>
+    <details className="mt-3 text-[12px] text-[var(--amora-muted)] lg:hidden"><summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>결정 기록 안내</summary><p className="pb-2 leading-relaxed">불러온 결정 {records.length}개 · 숫자와 검색은 불러온 기록 기준이에요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p><p className="pb-3 leading-relaxed">확정에는 일정 취소·복원 이력도 포함돼요. 현재 일정 상태는 일정에서 확인해 주세요. 두 사람이 모두 확인했다는 뜻은 아니에요. 개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일 완료는 공유 할 일에서 따로 관리해요.</p></details>
   </section>;
 }
 

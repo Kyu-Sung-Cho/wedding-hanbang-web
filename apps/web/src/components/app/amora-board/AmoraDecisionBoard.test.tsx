@@ -2,7 +2,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AmoraActionItem } from "@/lib/amora/actions";
-import type { PreparationDecision } from "@/lib/amora/preparationBoard";
+import { parsePreparationDecisions, type PreparationDecision } from "@/lib/amora/preparationBoard";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 
 const mocks = vi.hoisted(() => ({
@@ -57,6 +57,41 @@ describe("AmoraDecisionBoard", () => {
     expect(tasks.hidden).toBe(true);
     expect(mocks.data.update).not.toHaveBeenCalled();
     expect(mocks.data.refresh).not.toHaveBeenCalled();
+    expect(mocks.decisions.refresh).not.toHaveBeenCalled();
+  });
+
+  it("shows historical schedule actions and a readable generated budget title without changing categories or its stored original", async () => {
+    const coupleId = "11111111-1111-4111-8111-111111111111";
+    const eventId = "22222222-2222-4222-8222-222222222222";
+    const originalTitle = "venue 예산: 13000000원 → 12500000원";
+    const common = { couple_id: coupleId, visibility: "shared", reasoning: null, created_at: "2026-09-11T00:00:00Z", superseded_at: null, memory_key: null };
+    mocks.decisions.records = parsePreparationDecisions([
+      { ...common, id: "33333333-3333-4333-8333-333333333333", category: "general", title: "일정 취소: 확인할 일정", source: "schedule", decision_type: "scheduled",
+        metadata: { origin: "couple_plan_change_request", mutationKind: "cancel", eventId },
+        chosen_value: { schemaVersion: 1, mutationKind: "cancel", eventId, before: { id: eventId, status: "planned" }, after: { id: eventId, status: "cancelled" } } },
+      { ...common, id: "33333333-3333-4333-8333-333333333332", category: "plan", title: originalTitle, source: "manual", decision_type: "decided",
+        metadata: { origin: "couple_plan_change_request" },
+        chosen_value: { schemaVersion: 1, changes: { progress_patch: { venue: { category: "venue", budget: 12500000 } } } } },
+    ], coupleId).records;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const board = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    const cards = Array.from(board.querySelectorAll("article"));
+    expect(cards).toHaveLength(2);
+    expect(cards[0].textContent).toContain("일정 취소 기록");
+    expect(cards[0].textContent).toContain("일반 준비");
+    expect(cards[0].textContent).not.toContain("일정 확정");
+    expect(cards[1].querySelector("h4")?.textContent).toBe("결혼식장 예산: 13000000원 → 12500000원");
+    expect(cards[1].textContent).toContain("준비 계획");
+    const original = cards[1].querySelector("details")!;
+    expect(original.querySelector("summary")?.textContent).toBe("저장 원문 보기");
+    await act(async () => original.querySelector("summary")!.click());
+    expect(original.open).toBe(true);
+    expect(original.querySelector("p")?.textContent).toBe(originalTitle);
+    expect(mocks.decisions.records[1].title).toBe(originalTitle);
+    expect(board.textContent).not.toContain("지금의 상태별로");
+    expect(board.textContent).toContain("현재 일정 상태는 일정에서 확인");
+    expect(board.textContent).toContain("불러온 결정 2개");
+    expect(mocks.data.update).not.toHaveBeenCalled();
     expect(mocks.decisions.refresh).not.toHaveBeenCalled();
   });
 
