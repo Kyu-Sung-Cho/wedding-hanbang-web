@@ -67,11 +67,11 @@ describe("라운지 미션 위 기본 확인 시점 안내", () => {
     expect(note?.textContent).toContain("기본 확인 시점까지 10일");
     expect(note?.textContent).toContain("실제 일정·완료 여부를 확인해 주세요");
     expect(note?.textContent).not.toMatch(/계약 마감|미완료 확정/);
-    const link = note?.querySelector<HTMLAnchorElement>("a");
+    const link = note?.closest("article")?.querySelector<HTMLAnchorElement>("a");
     expect(link?.getAttribute("href")).toBe("/wedding/checklist?category=venue");
     expect(container.querySelectorAll('[aria-label="기본 확인 시점 안내"]')).toHaveLength(1);
-    const missionHeading = container.querySelector("#today-missions-title");
-    expect(note && missionHeading && (note.compareDocumentPosition(missionHeading) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    const missionHeading = container.querySelector("#lounge-priority-title");
+    expect(note && missionHeading && (missionHeading.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     const click = new MouseEvent("click", { bubbles: true, cancelable: true });
     link?.addEventListener("click", event => event.preventDefault(), { once: true });
     await act(async () => { link?.dispatchEvent(click); });

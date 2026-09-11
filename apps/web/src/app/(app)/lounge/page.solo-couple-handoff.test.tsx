@@ -85,7 +85,11 @@ describe("Live lounge solo, couple, and joined handoff", () => {
     root = createRoot(container);
     useAuthStore.setState({
       user: { id: "10000000-0000-4000-8000-000000000001", email: "me@example.com" },
-      profile: null,
+      profile: {
+        id: COUPLE.bride_id!, name: "준비자", role: "bride", couple_id: COUPLE.id,
+        avatar_url: null, onboarding_completed: false, onboarding_step: 0, is_admin: false,
+        created_at: COUPLE.created_at, updated_at: COUPLE.updated_at,
+      },
       journey: JOURNEY,
       isDemo: true,
       partner: null,

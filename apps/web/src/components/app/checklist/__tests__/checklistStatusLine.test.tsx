@@ -69,10 +69,13 @@ describe("분야 한 줄이 상황마다 하는 말", () => {
 
   /** 그 분야 카드가 실제로 그린 한 줄. */
   function lineForCategory(): string {
-    const text = container.textContent ?? "";
-    const at = text.indexOf(category.label);
-    expect(at, `${category.label} 카드를 못 찾았다`).toBeGreaterThanOrEqual(0);
-    return text.slice(at, at + 160);
+    const card = container.querySelector(`button[aria-label="${category.label} 체크리스트 열기"]`);
+    expect(card, `${category.label} 카드를 못 찾았다`).not.toBeNull();
+    const statusLineId = card?.getAttribute("aria-describedby");
+    const statusLine = statusLineId ? document.getElementById(statusLineId) : null;
+    expect(statusLine, "카드의 상태 설명이 연결되어 있어야 한다").not.toBeNull();
+    // 시안에서 개수와 상태가 좌우 열로 나뉘어도, 그 카드의 문구만 판정한다.
+    return Array.from(statusLine?.children ?? []).map((child) => child.textContent).join(" · ");
   }
 
   const items = (doneCount: number) =>

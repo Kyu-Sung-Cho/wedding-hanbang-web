@@ -5,11 +5,13 @@ import { resolve } from "node:path";
 import { act, type AnchorHTMLAttributes } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ProgressItem } from "@/types/database.types";
 
 const mocks = vi.hoisted(() => ({
   pathname: "/checklist",
   replace: vi.fn(),
   searchParams: new URLSearchParams(),
+  progress: {} as Record<string, ProgressItem>,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -26,7 +28,7 @@ vi.mock("next/link", () => ({
 }));
 
 vi.mock("@/stores/authStore", () => ({
-  useAuthStore: () => ({ journey: { progress: {} } }),
+  useAuthStore: () => ({ journey: { progress: mocks.progress } }),
 }));
 
 vi.mock("@/components/app/schedule/CategoryChecklistModal", () => ({
@@ -51,6 +53,7 @@ describe("ChecklistContent category deep links", () => {
     mocks.pathname = "/checklist";
     mocks.replace.mockReset();
     mocks.searchParams = new URLSearchParams();
+    mocks.progress = {};
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -78,6 +81,69 @@ describe("ChecklistContent category deep links", () => {
     expect(container.textContent).toContain("질문 초안을 확인한 뒤 직접 보내요");
     expect(mocks.replace).not.toHaveBeenCalled();
     expect(container.querySelector('[data-testid="modal-close"]')).toBeNull();
+  });
+
+  it("groups every category once in preparation order and keeps every category in the flat view", async () => {
+    await render();
+    const stages = container.querySelectorAll('[data-checklist-stage]');
+    expect(stages).toHaveLength(5);
+    expect(stages[0].querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(2);
+    expect(stages[1].querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(5);
+    expect(stages[2].querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(2);
+    expect(stages[3].querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(8);
+    expect(stages[4].querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(4);
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(CATEGORY_CHECKLISTS.length);
+
+    const flatView = container.querySelector<HTMLButtonElement>('button[aria-label="전체 분야 펼쳐보기"]');
+    expect(flatView).not.toBeNull();
+    await act(async () => flatView?.click());
+    expect(flatView?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelectorAll('[data-checklist-stage]')).toHaveLength(0);
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(CATEGORY_CHECKLISTS.length);
+    expect(mocks.replace).not.toHaveBeenCalled();
+  });
+
+  it("searches across stages without changing the overall progress denominator", async () => {
+    await render();
+    const progressLabel = container.querySelector('[aria-label="전체 체크리스트 진행률"]')?.getAttribute("aria-valuenow");
+    const search = container.querySelector<HTMLInputElement>('input[type="search"]')!;
+    const valueSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    await act(async () => {
+      valueSetter?.call(search, "상견례");
+      search.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelectorAll('[data-checklist-stage]')).toHaveLength(1);
+    expect(container.querySelector('[aria-label="전체 체크리스트 진행률"]')?.getAttribute("aria-valuenow")).toBe(progressLabel);
+    const disabledStage = container.querySelector<HTMLButtonElement>('button[aria-label^="2단계 예산·업체 확정"]');
+    expect(disabledStage?.disabled).toBe(true);
+  });
+
+  it("keeps declared completion separate from counted items and excludes skipped categories in every summary", async () => {
+    const meeting = CATEGORY_CHECKLISTS.find((category) => category.key === "meeting")!;
+    const venue = CATEGORY_CHECKLISTS.find((category) => category.key === "venue")!;
+    const greeting = CATEGORY_CHECKLISTS.find((category) => category.key === "greeting")!;
+    mocks.progress = {
+      greeting: { category: "greeting", status: "completed" },
+      meeting: { category: "meeting", status: "not_applicable" },
+      venue: { category: "venue", status: "in_progress", checklist: [{ ...venue.items[0], done: true }] },
+    };
+    await render();
+    const total = CATEGORY_CHECKLISTS.reduce((sum, category) => sum + category.items.length, 0) - meeting.items.length;
+    const overall = container.querySelector<HTMLProgressElement>('[aria-label="전체 체크리스트 진행률"]');
+    expect(overall?.value).toBe(Math.round(100 / total));
+    expect(container.textContent).toContain(`1개 완료 · ${total - 1}개 남음`);
+    const firstStage = container.querySelector('[data-checklist-stage="family"]');
+    expect(firstStage?.textContent).toContain(`0/${greeting.items.length}개`);
+    expect(container.querySelector('button[aria-current="step"]')?.getAttribute("aria-label")).toBe("2단계 예산·업체 확정 보기");
+    const declaration = container.querySelector('button[aria-label="배우자 부모님께 첫인사 체크리스트 열기"]');
+    expect(declaration?.textContent).toContain("완료로 표시함");
+    expect(declaration?.textContent).toContain("항목은 확인 전");
+    expect(declaration?.querySelector("progress")).toBeNull();
+
+    const completed = container.querySelector<HTMLButtonElement>('[aria-label="상태 필터"] button:nth-child(3)');
+    await act(async () => completed?.click());
+    expect(container.querySelectorAll('button[aria-label$="체크리스트 열기"]')).toHaveLength(1);
+    expect(overall?.value).toBe(Math.round(100 / total));
   });
 
   it("adds a shareable category query when a category opens", async () => {

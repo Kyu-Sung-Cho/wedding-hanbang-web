@@ -48,6 +48,14 @@ describe("라운지의 저장값 요약과 조회 실패 구분", () => {
     await act(async () => { useAuthStore.setState({ journey }); root.render(<LoungePage />); });
   }
 
+  it("계정·커플 전환 중 이전 계획의 이름과 체크 내용을 새 허브에 노출하지 않는다", async () => {
+    await render(makeJourney({ couple_id: "previous-couple", venue: "이전 커플의 장소", progress: { venue: { status: "in_progress", checklist: [{ id: "private", label: "이전 커플의 확인 내용", done: false }], budget: 990_001 } } }));
+    expect(container.textContent).not.toContain("이전 커플의 장소");
+    expect(container.textContent).not.toContain("이전 커플의 확인 내용");
+    expect(container.textContent).not.toContain("99만1원");
+    expect(container.querySelector('#today-missions')?.textContent).toContain("현재 계정의 계획을 확인하면");
+  });
+
   it("만원 아래 지출과 작은 비율을 보존하고 지출만으로 예산이 안정적이라고 판정하지 않는다", async () => {
     const journey = makeJourney(); await render(journey);
     const summary = container.querySelector('section[aria-label="현재 준비 현황"]')!;

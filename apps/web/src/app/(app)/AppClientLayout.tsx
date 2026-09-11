@@ -223,7 +223,10 @@ export default function AppClientLayout({
   const appPathname = stripWeddingBasePath(pathname);
   const isChatPage = appPathname === "/chat";
   const isAmoraPage = isChatPage || appPathname.startsWith("/chat/");
-  const isPlanningPage = appPathname === "/checklist";
+  const isChecklistPage = appPathname === "/checklist";
+  const isBudgetPage = appPathname === "/budget";
+  const isSchedulePage = appPathname === "/schedule";
+  const isPlanningPage = isChecklistPage || isBudgetPage || isSchedulePage;
   const isLoungePage = appPathname === "/lounge";
   const hasHtmlDesign = isAmoraPage || isPlanningPage || isLoungePage;
   const { initialize, isInitialized, isLoading, isDemo } = useAuthStore();
@@ -264,7 +267,7 @@ export default function AppClientLayout({
       }`}
     >
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} amoraWorkspace={isAmoraPage || isLoungePage} planningWorkspace={isPlanningPage} />
-      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : "md:ml-[16rem]"}>
+      <div className={isChatPage ? "flex h-[100dvh] flex-col md:ml-[220px]" : isPlanningPage || isLoungePage ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[216px] md:pb-0" : hasHtmlDesign ? "pb-[calc(74px+env(safe-area-inset-bottom))] md:ml-[220px] md:pb-0" : "md:ml-[16rem]"}>
         <TopNav onMenuToggle={() => setSidebarOpen(true)} amoraWorkspace={isAmoraPage} planningWorkspace={isPlanningPage} loungeWorkspace={isLoungePage} amoraNavigationRef={setAmoraNavigationTarget} />
         {banner}
         {isChatPage ? (
@@ -289,12 +292,12 @@ export default function AppClientLayout({
       </div>
 
       {isAmoraPage && !isChatPage && <AmoraBottomNav />}
-      {isPlanningPage && <AmoraBottomNav active="checklist" />}
+      {isPlanningPage && <AmoraBottomNav active={isSchedulePage ? "schedule" : isBudgetPage ? "budget" : "checklist"} />}
       {isLoungePage && <AmoraBottomNav active="lounge" />}
 
-      {/* 체크리스트는 분야·항목별 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
-      {!isAmoraPage && !isPlanningPage && !vendorAdminPreview && (
-        <GlobalChatAssistant aboveBottomNav={isLoungePage} />
+      {/* 준비 화면은 본문 질문과 하단 탐색을 사용해 고정 버튼이 목록을 덮지 않게 한다. */}
+      {!hasHtmlDesign && !vendorAdminPreview && (
+        <GlobalChatAssistant />
       )}
     </div>
     </AmoraNavigationTargetContext.Provider>

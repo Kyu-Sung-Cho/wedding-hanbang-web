@@ -70,6 +70,39 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions embedded={embedded} />); });
   }
 
+  it("허브는 실제 공유 할 일 수와 우선순위를 보여주고 단계·체크리스트 추천을 중복하지 않는다", async () => {
+    mocks.actions = [
+      { id: "normal", title: "확인한 견적 정리", status: "open", priority: "medium", source: "manual", href: "/budget", createdAt: "2026-09-01", updatedAt: "2026-09-01" },
+      { id: "important", title: "두 사람이 정한 중요한 할 일", status: "open", priority: "high", source: "manual", href: "/schedule", createdAt: "2026-09-01", updatedAt: "2026-09-01" },
+    ];
+    mocks.open_count = 7;
+    await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions hub />); });
+    expect(container.querySelector('#shared-missions-title')?.textContent).toContain("공유 할 일7개");
+    expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(0);
+    expect(container.textContent).not.toContain("체크리스트에서 이어갈");
+    expect(container.querySelector('.divide-y a')?.textContent).toContain("두 사람이 정한 중요한 할 일");
+    expect(container.querySelector('.divide-y a')?.getAttribute("href")).toBe("/wedding/schedule");
+    expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
+
+    mocks.error = "unavailable";
+    await act(async () => { root.render(<AmoraMissions hub />); });
+    expect(container.textContent).not.toContain("두 사람이 정한 중요한 할 일");
+    expect(container.querySelector('#shared-missions-title')?.textContent).not.toContain("7개");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("불러오지 못했어요");
+    await act(async () => container.querySelector<HTMLButtonElement>('button')?.click());
+    expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("허브도 계정 전환 중 이전 소유자의 공유 할 일을 가린다", async () => {
+    mocks.actions = [{ id: "old", title: "이전 계정 비공개 할 일", status: "open", priority: "high", source: "manual", createdAt: "2026-09-01", updatedAt: "2026-09-01" }];
+    mocks.open_count = 1;
+    mocks.auth.user.id = "user-b";
+    await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions hub />); });
+    expect(container.textContent).not.toContain("이전 계정 비공개 할 일");
+    expect(container.querySelector('#shared-missions-title')?.textContent).not.toContain("1개");
+    expect(container.textContent).toContain("준비 정보를 아직 확인할 수 없어요");
+  });
+
   it("라운지 내장 미션은 단계·체크 시트를 유지하고 보조 파트너 요약을 중복 표시하지 않는다", async () => {
     await render(true);
     expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(5);

@@ -18,7 +18,7 @@ describe("마감 표현이 화면마다 갈리지 않는다", () => {
   const SURFACES = [
     "src/components/app/WeeklyCard.tsx",
     "src/components/app/chat/panel/UpcomingTab.tsx",
-    "src/app/(app)/lounge/page.tsx",
+    "src/app/(app)/lounge/LoungeHubSections.tsx",
   ];
 
   it("d-day 문구에 '기본 확인 시점'을 함께 적는다", () => {

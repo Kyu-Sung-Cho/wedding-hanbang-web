@@ -26,6 +26,7 @@ import {
   Mic,
   Box,
 } from "lucide-react";
+import ScheduleProgress from "./ScheduleProgress";
 import Button from "@/components/ui/Button";
 import type { ImminentCategory } from "@/utils/imminentChecklist";
 
@@ -34,41 +35,6 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Users, Building2, Camera, Shirt, Palette, Video, Gem, Package,
   Flower2, Plane, Home, Key, Mail, Gift,
   Sparkles, Flower, Heart, Mic, Box,
-};
-
-// 기본 일정과의 거리만 구분한다. 실제 업체·가족 일정의 긴급도를 판정하지 않는다.
-const URGENCY_STYLES: Record<string, {
-  stripBg: string;
-  iconBox: string;
-  iconColor: string;
-  bar: string;
-  badgeBg: string;
-  badgeText: string;
-}> = {
-  overdue: {
-    stripBg: "bg-[var(--hb-primary)]",
-    iconBox: "bg-[rgba(54,83,78,0.10)]",
-    iconColor: "text-[var(--hb-accent-hover)]",
-    bar: "bg-[var(--hb-primary)]",
-    badgeBg: "bg-[var(--hb-primary)]",
-    badgeText: "text-white",
-  },
-  urgent: {
-    stripBg: "bg-[var(--hb-primary)]",
-    iconBox: "bg-[#946a6a]/10",
-    iconColor: "text-[var(--hb-accent-hover)]",
-    bar: "bg-[var(--hb-primary)]",
-    badgeBg: "bg-[var(--hb-primary)]",
-    badgeText: "text-white",
-  },
-  soon: {
-    stripBg: "bg-[var(--hb-accent)]",
-    iconBox: "bg-[rgba(54,83,78,0.12)]",
-    iconColor: "text-[var(--hb-accent-hover)]",
-    bar: "bg-[var(--hb-accent)]",
-    badgeBg: "bg-[var(--hb-accent)]",
-    badgeText: "text-white",
-  },
 };
 
 interface Props {
@@ -84,125 +50,74 @@ interface Props {
 
 export default function ImminentAlerts({ items, onCategoryClick, onScheduleClick }: Props) {
   const [expanded, setExpanded] = useState(true);
+  const [showAll, setShowAll] = useState(false);
 
   if (items.length === 0) return null;
 
   const needsScheduleCount = items.filter((i) => !i.hasScheduledEvent).length;
 
   return (
-    <div
-      className="overflow-hidden rounded-[6px] border border-[var(--hb-hairline)]/70 bg-[var(--hb-surface-page)] animate-fade-in"
-    >
-      {/* 헤더 */}
+    <div>
       <button
+        type="button"
+        aria-expanded={expanded}
         onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-start justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-white"
+        className="flex w-full items-center justify-between gap-2 pb-3 text-left"
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2.5">
-            <Clock className="h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
-            <h3 className="hb-h-sm min-w-0 truncate text-[var(--hb-text-strong)]">
-              날짜를 정할 항목
-            </h3>
-            <span className="shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">{items.length}건</span>
-          </div>
-          {/*
-            이 배지가 `지남·급함이 하나라도 있을 때` 안에 중첩돼 있었다. 그래서 마감을
-            아직 넘기지 않은 커플 — 즉 **일정대로 잘 가고 있어서 미리 알려줘야 할 사람** — 은
-            "몇 건이 날짜가 없다"를 한 번도 못 봤다. 뒤처진 뒤에야 알려주는 셈이었다.
-          */}
+        <span className="min-w-0 text-[11px] text-[var(--amora-muted)]">날짜를 정할 항목 · {items.length}건</span>
+        <span className="flex shrink-0 items-center gap-2">
           {needsScheduleCount > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5 pl-6">
-              <span className="rounded-full bg-[var(--hb-primary)] px-2 py-0.5 text-[11px] font-semibold text-white">
-                {needsScheduleCount} 일정 필요
-              </span>
-            </div>
+            <span className="rounded-full bg-[var(--amora-ink)] px-2 py-1 text-[10px] font-medium text-white">
+              {needsScheduleCount} 일정 필요
+            </span>
           )}
-        </div>
-        {expanded ? (
-          <ChevronUp className="mt-0.5 w-5 h-5 shrink-0 text-[var(--hb-text-muted)]" />
-        ) : (
-          <ChevronDown className="mt-0.5 w-5 h-5 shrink-0 text-[var(--hb-text-muted)]" />
-        )}
+          {expanded ? <ChevronUp className="h-3.5 w-3.5 text-[var(--amora-muted)]" /> : <ChevronDown className="h-3.5 w-3.5 text-[var(--amora-muted)]" />}
+        </span>
       </button>
-
-      {/* 항목 목록 */}
       {expanded && (
-        <div
-          className="overflow-hidden"
-        >
-          <div className="divide-y divide-[#F6F3F2]">
-            {items.map((item) => {
-              const styles = URGENCY_STYLES[item.urgency];
+        <div>
+          <div className="divide-y divide-[var(--amora-line)]">
+            {(showAll ? items : items.slice(0, 4)).map((item) => {
               const IconComp = ICON_MAP[item.icon] ?? Clock;
-              const pct = item.totalCount > 0
-                ? Math.round((item.doneCount / item.totalCount) * 100)
-                : 0;
-
+              const pct = item.totalCount > 0 ? Math.round((item.doneCount / item.totalCount) * 100) : 0;
               return (
-                <div
-                  key={item.key}
-                  className="w-full flex items-stretch hover:bg-[#FAFAF8] transition-colors group"
-                >
-                  {/* 좌측 컬러 스트립 */}
-                  <div className={`w-1 flex-shrink-0 ${styles.stripBg}`} />
-
+                <div key={item.key} className="flex items-center gap-2 py-3">
                   <button
                     type="button"
                     onClick={() => onCategoryClick(item.key)}
-                    className="grid flex-1 grid-cols-[2.25rem_minmax(0,1fr)] items-center gap-3 px-3 py-3 text-left"
+                    className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
                   >
-                    {/* 아이콘 */}
-                    <div className={`flex h-9 w-9 items-center justify-center rounded-[6px] ${styles.iconBox}`}>
-                      <IconComp className={`h-4 w-4 ${styles.iconColor}`} />
-                    </div>
-
-                    {/* 카테고리 정보 */}
-                    <div className="min-w-0">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="min-w-0 truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">
-                          {item.label}
-                        </span>
-                        <span className="shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">
-                          {item.doneCount}/{item.totalCount}
-                        </span>
-                      </div>
-                      {/* 진행률 바 */}
-                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-[#efe6d7]">
-                        <div
-                          className={`h-full rounded-full transition-all ${styles.bar}`}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/*
-                      이 배지는 `hasScheduledEvent` 를 보지 않고 **늘** 그려졌다. 그래서 이미
-                      날짜를 잡아 둔 분야에도 "일정 필요"라고 말했다. 머리의 개수는
-                      날짜 없는 것만 세므로 배지와 개수가 서로 다른 말을 하고 있었다.
-                    */}
-                    {!item.hasScheduledEvent && (
-                      <span className={`col-start-2 w-fit rounded-full px-2.5 py-1 text-[12px] font-semibold ${styles.badgeBg} ${styles.badgeText}`}>
-                        일정 필요
+                    <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-lg bg-[var(--amora-warm)] text-[var(--amora-soft)]">
+                      <IconComp className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="text-[12.5px] font-semibold text-[var(--amora-ink)]">{item.label}</span>
+                        <span className="text-[10.5px] text-[var(--amora-muted)]">{item.doneCount}/{item.totalCount}</span>
                       </span>
-                    )}
+                      <ScheduleProgress value={pct} label={`${item.label} 준비 진행률`} className="mt-1.5" />
+                    </span>
                   </button>
-
                   {!item.hasScheduledEvent && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => onScheduleClick(item.key)}
-                      className="mr-3 shrink-0 self-center"
-                    >
-                      날짜 잡기
-                    </Button>
+                    <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center sm:gap-2">
+                      <span className="rounded-full bg-[var(--amora-rose-pale)] px-1.5 py-0.5 text-[9px] text-[var(--amora-rose-deep)]">일정 필요</span>
+                      <Button
+                        variant="secondary"
+                        type="button"
+                        aria-label={`${item.label} 날짜 잡기`}
+                        onClick={() => onScheduleClick(item.key)}
+                        className="tap-area !min-h-0 !rounded-full !border-[var(--amora-line)] !bg-white !px-2.5 !py-1 !text-[10.5px] !font-medium !text-[var(--amora-soft)] hover:!bg-[var(--amora-warm)]"
+                      >
+                        날짜 잡기
+                      </Button>
+                    </div>
                   )}
                 </div>
               );
             })}
           </div>
-          <p className="border-t border-[var(--hb-hairline)]/70 px-4 py-3 text-[11px] leading-5 text-[var(--hb-text-body)]">
+          {items.length > 4 && <Button variant="secondary" type="button" aria-expanded={showAll} onClick={() => setShowAll(!showAll)} className="min-[769px]:!min-h-0 mb-3 w-full !rounded-full !border-[var(--amora-line)] !bg-transparent !px-0 !py-2 !text-[11px] !font-normal !text-[var(--amora-soft)] hover:!bg-transparent">{showAll ? "간단히 보기" : `${items.length}개 항목 모두 보기`}</Button>}
+          <p className="border-t border-[var(--amora-line)] pt-3 text-[10px] leading-[1.7] text-[var(--amora-muted)]">
             표시 순서는 기본 일정 기준이며, 업체나 가족과 정한 실제 날짜가 우선입니다.
           </p>
         </div>

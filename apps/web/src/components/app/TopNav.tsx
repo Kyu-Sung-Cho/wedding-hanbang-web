@@ -53,7 +53,8 @@ interface TopNavProps {
 }
 
 export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningWorkspace = false, loungeWorkspace = false, amoraNavigationRef }: TopNavProps) {
-  const htmlDesign = amoraWorkspace || planningWorkspace || loungeWorkspace;
+  const compactWorkspace = planningWorkspace || loungeWorkspace;
+  const htmlDesign = amoraWorkspace || compactWorkspace;
   const pathname = usePathname();
   const router = useRouter();
   const appPathname = stripWeddingBasePath(pathname);
@@ -82,7 +83,7 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
 
   return (
     <>
-      <header className={amoraWorkspace ? "sticky top-0 z-30 grid shrink-0 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] py-2 md:bg-white md:px-9 xl:min-h-[102px] xl:grid-cols-[1fr_auto_auto]" : htmlDesign ? "sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] md:h-[102px] md:bg-white md:px-9" : "sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5"}>
+      <header className={amoraWorkspace ? "sticky top-0 z-30 grid shrink-0 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] py-2 md:bg-white md:px-9 xl:min-h-[102px] xl:grid-cols-[1fr_auto_auto]" : compactWorkspace ? "sticky top-0 z-30 flex min-h-[64px] shrink-0 items-center justify-between gap-2 border-b border-[var(--amora-line)] bg-white px-[18px] py-2 md:min-h-[88px] md:px-9 md:py-5" : htmlDesign ? "sticky top-0 z-30 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] md:h-[102px] md:bg-white md:px-9" : "sticky top-0 z-30 flex h-[72px] items-center justify-between border-b border-[var(--hb-hairline)]/70 bg-[#fffdf7]/92 px-8 backdrop-blur-[14px] max-md:px-5"}>
         <div className={htmlDesign ? "flex min-w-0 items-center gap-1" : "flex items-center gap-4"}>
           <button
             type="button"
@@ -125,24 +126,24 @@ export default function TopNav({ onMenuToggle, amoraWorkspace = false, planningW
             })}
           </nav>
 
-          <div className={htmlDesign ? "hidden items-center gap-2 rounded-full bg-[var(--amora-low)] px-[13px] py-[7px] xl:flex" : "hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex"}>
-            <span className="h-2 w-2 rounded-full bg-[var(--hb-accent)]" />
-            <span className="text-[13px] font-semibold text-[var(--hb-text-strong)]">
-              {dday === null ? "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
+          <div className={compactWorkspace ? "flex shrink-0 items-center whitespace-nowrap rounded-full bg-[var(--amora-ink)] px-[11px] py-[7px] text-white md:px-[14px]" : htmlDesign ? "hidden items-center gap-2 rounded-full bg-[var(--amora-low)] px-[13px] py-[7px] xl:flex" : "hidden items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-white px-4 py-2 sm:flex"}>
+            {!compactWorkspace && <span className="h-2 w-2 rounded-full bg-[var(--hb-accent)]" />}
+            <span className={compactWorkspace ? "text-[11px] font-semibold md:text-[12.5px]" : "text-[13px] font-semibold text-[var(--hb-text-strong)]"}>
+              {dday === null ? compactWorkspace ? "날짜 미정" : "결혼식 날짜 미정" : dday > 0 ? `D-${dday}` : dday === 0 ? "D-day" : `D+${Math.abs(dday)}`}
             </span>
           </div>
 
           {!amoraWorkspace && <button
             type="button"
             onClick={() => router.push(weddingPath("/community?feed=all#community-feed"))}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]"
+            className={`${compactWorkspace ? "hidden md:flex" : "flex"} h-11 w-11 items-center justify-center rounded-full text-[var(--hb-text-body)] transition-colors hover:bg-white hover:text-[var(--hb-accent-hover)]`}
             aria-label="커뮤니티 검색"
             title="커뮤니티 검색"
           >
             <Search className="h-5 w-5" />
           </button>}
 
-          <div className="relative">
+          <div className={planningWorkspace && appPathname !== "/schedule" ? "relative hidden md:block" : "relative"}>
             <button
               type="button"
               onClick={() => setShowNotifications((value) => !value)}

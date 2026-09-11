@@ -150,14 +150,14 @@ function MissionCardAction({ card, highlighted, completed, onOpen }: { card: Amo
   );
 }
 
-export default function AmoraMissions({ embedded = false }: { embedded?: boolean }) {
+export default function AmoraMissions({ embedded = false, hub = false }: { embedded?: boolean; hub?: boolean }) {
   const { user, profile, isDemo } = useAuthStore();
   // 연결이 돌아와도 이전 창·초점·선택을 복원하지 않도록 소유권 변경마다 새 뷰를 만든다.
   const ownerKey = JSON.stringify([user?.id, profile?.id, profile?.couple_id, isDemo]);
-  return <AmoraMissionsView key={ownerKey} embedded={embedded} />;
+  return <AmoraMissionsView key={ownerKey} embedded={embedded} hub={hub} />;
 }
 
-function AmoraMissionsView({ embedded }: { embedded: boolean }) {
+function AmoraMissionsView({ embedded, hub }: { embedded: boolean; hub: boolean }) {
   const { user, profile, partner, journey, isInitialized, isLoading: authLoading, isDemo } = useAuthStore();
   const { actions, loading, error, refresh, open_count: openCount, truncated } = useAmoraPreparationActions();
   const scopeReady = Boolean(user && profile?.id === user.id && profile.couple_id);
@@ -208,6 +208,22 @@ function AmoraMissionsView({ embedded }: { embedded: boolean }) {
   }}>
     {checklistAvailable && stageExpanded && <MissionStage group={selectedGroup} recommendation={model.recommendation} onOpen={openCategory} onRecommended={() => setSelection(null)} onClose={closeStage} />}
   </PreparationPath>;
+
+  if (hub) {
+    const sharedCards = cards.filter((card) => card.kind === "action");
+    return <section id="lounge-shared-missions" aria-labelledby="shared-missions-title" aria-busy={busy} className="scroll-mt-24 rounded-[16px] border border-[var(--amora-line)] bg-white px-[18px] py-3 text-[var(--amora-ink)] lg:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <h2 id="shared-missions-title" className="inline-flex items-center gap-2 text-[13px] font-semibold"><HeartHandshake size={16} className="text-[var(--amora-rose)]" aria-hidden="true" />공유 할 일{actionsAvailable && <span className="rounded-full bg-[var(--amora-warm)] px-2 py-0.5 text-[10px] font-medium text-[var(--amora-rose-deep)]">{openCount}개</span>}</h2>
+        <Link {...weddingLinkProps("/chat/board?view=tasks")} className={`inline-flex min-h-11 items-center gap-1 text-[11px] text-[var(--amora-soft)] ${FOCUS}`}>전체 보기<ChevronRight size={12} aria-hidden="true" /></Link>
+      </div>
+      {busy ? <p role="status" className="py-3 text-[12px] text-[var(--amora-muted)]">우리의 준비 기록을 불러오고 있어요.</p> : error ? <div role="alert" className="py-2">
+        <p className="text-[12px] font-medium">공유 할 일을 불러오지 못했어요.</p><p className="mt-1 text-[11px] leading-5 text-[var(--amora-muted)]">기록이 없는 상태와는 달라요. 잠시 뒤 다시 확인해 주세요.</p>
+        <Button variant="ghost" type="button" onClick={() => void refresh()} className="!gap-1.5 !rounded-none !px-0 !text-[12px] !font-normal !text-[var(--amora-accent)] hover:!bg-transparent"><RefreshCw size={13} aria-hidden="true" />다시 불러오기</Button>
+      </div> : !scopeReady ? <p role="status" className="py-3 text-[12px] text-[var(--amora-muted)]">준비 정보를 아직 확인할 수 없어요.</p> : sharedCards.length > 0 ? <div className="divide-y divide-[var(--amora-line)]">{sharedCards.map((card) => <Link key={card.id} {...weddingLinkProps(card.href)} className={`flex min-h-14 items-center gap-3 py-3 ${FOCUS}`}><span className="min-w-0 flex-1"><span className="block text-[10px] text-[var(--amora-rose-deep)]">{card.badge}</span><span className="mt-1 block break-words text-[12px] font-medium leading-5">{card.title}</span>{card.dueDate && <span className="mt-0.5 block break-words text-[10px] text-[var(--amora-muted)]">등록한 예정일 · {card.dueDate}</span>}</span><ChevronRight size={14} className="shrink-0 text-[var(--amora-muted)]" aria-hidden="true" /></Link>)}</div> : <p className="pb-2 text-[11px] leading-5 text-[var(--amora-muted)]">지금 이어갈 공유 할 일이 없어요. 아모라와 정리한 할 일을 함께 남길 수 있어요.</p>}
+      {truncated && actionsAvailable && <p className="pb-2 text-[10px] leading-4 text-[var(--amora-muted)]">불러온 공유 할 일 중 우선순위가 높은 항목을 보여드려요. 전체 열린 수와 보이는 수는 다를 수 있어요.</p>}
+      {isDemo && <p role="note" className="pb-1 text-[10px] text-[var(--amora-muted)]">예시 화면 · 공유 할 일은 데모 데이터예요.</p>}
+    </section>;
+  }
 
   return (
     <div className={embedded ? "text-[var(--amora-ink)]" : "mx-auto max-w-[1440px] px-[18px] pb-7 pt-4 text-[var(--amora-ink)] md:px-9 md:py-8"}>

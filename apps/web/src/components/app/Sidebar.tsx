@@ -51,6 +51,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
   const htmlDesign = amoraWorkspace || planningWorkspace;
   const pathname = usePathname();
   const currentPath = stripWeddingBasePath(pathname);
+  const plannerOverview = htmlDesign && ["/checklist", "/budget", "/schedule", "/lounge"].includes(currentPath);
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
   const userInitial = userName.charAt(0);
@@ -67,7 +68,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
       {isOpen && <div className="fixed inset-0 z-40 bg-[rgba(54,83,78,0.40)] backdrop-blur-sm md:hidden" onClick={onClose} />}
 
       <aside
-        className={`fixed left-0 top-0 z-50 flex h-[100dvh] flex-col border-r transition-transform duration-300 ${htmlDesign ? "w-[220px] border-[var(--amora-line)] bg-white pt-[22px]" : "w-[16rem] border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[var(--shadow-raised)]"} ${
+        className={`fixed left-0 top-0 z-50 flex h-[100dvh] flex-col border-r transition-transform duration-300 ${plannerOverview ? "w-[216px] border-[var(--amora-line)] bg-white pt-[22px]" : htmlDesign ? "w-[220px] border-[var(--amora-line)] bg-white pt-[22px]" : "w-[16rem] border-[var(--hb-hairline)] bg-[var(--hb-ivory)] shadow-[var(--shadow-raised)]"} ${
           isOpen ? "visible translate-x-0" : "invisible -translate-x-full md:visible md:translate-x-0"
         }`}
       >
@@ -86,7 +87,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
         </div>
 
         <nav aria-label="서비스 메뉴" className={htmlDesign ? "flex-1 overflow-y-auto px-[14px]" : "flex-1 overflow-y-auto px-3 py-3"}>
-          <div className="flex flex-col gap-1">
+          <div className={plannerOverview ? "flex flex-col gap-0.5" : "flex flex-col gap-1"}>
             {menuItems.map((item) => {
               const activePath = item.activePath ?? item.legacyPath;
               const isActive = currentPath === activePath
@@ -112,22 +113,22 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
           </div>
         </nav>
 
-        <div className="px-3 pb-4">
-          <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4">
+        <div className={plannerOverview ? "mx-[14px] mt-[10px] border-t border-[var(--amora-line)] pb-4 pt-[14px]" : "px-3 pb-4"}>
+          <div className={plannerOverview ? "px-[10px] pb-[10px] pt-[6px]" : "rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4"}>
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[14px] font-semibold text-white">
+              <div className={plannerOverview ? "flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--amora-rose-pale)] text-[12px] font-bold text-[var(--amora-rose-deep)]" : "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[14px] font-semibold text-white"}>
                 {userInitial}
               </div>
               <div className="min-w-0">
-                <p className="truncate text-[14px] font-semibold text-[var(--hb-text-strong)]">{userName}</p>
-                <p className="mt-0.5 truncate text-[12px] font-medium text-[var(--hb-text-body)]">{weddingDateStr}</p>
+                <p className={`${plannerOverview ? "text-[13px]" : "text-[14px]"} truncate font-semibold text-[var(--hb-text-strong)]`}>{userName}</p>
+                <p className={`${plannerOverview ? "text-[11px]" : "text-[12px]"} mt-0.5 truncate font-medium text-[var(--hb-text-body)]`}>{weddingDateStr}</p>
               </div>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void signOut()}
-            className="mt-2 flex w-full items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-3 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"
+            className={plannerOverview ? "flex min-h-11 w-full items-center gap-2 rounded-md px-[10px] py-2 text-[12.5px] text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]" : "mt-2 flex w-full items-center gap-2 rounded-[6px] border border-[var(--hb-hairline)] bg-white px-4 py-3 text-[13px] font-semibold text-[var(--hb-text-body)] hover:text-[var(--hb-accent-hover)]"}
           >
             <LogOut className="h-4 w-4" />
             로그아웃

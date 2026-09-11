@@ -267,24 +267,24 @@ export default function EventFormModal({
         <div
           onClick={onClose}
           aria-hidden="true"
-          className="fixed inset-0 z-50 bg-[#1A1A1F]/40 backdrop-blur-sm"
+          className="planning-workspace fixed inset-0 z-50 bg-[var(--amora-ink)]/40 backdrop-blur-sm"
         />
         <section
           role="dialog"
           aria-modal="true"
           aria-labelledby="cancelled-event-edit-title"
-          className="fixed inset-x-4 top-[18%] z-50 mx-auto max-w-[440px] rounded-[6px] bg-white p-6 shadow-[var(--shadow-overlay)]"
+          className="planning-workspace fixed inset-x-4 top-[5%] z-50 mx-auto max-h-[90dvh] max-w-[440px] overflow-y-auto rounded-2xl border border-[var(--amora-line)] bg-white p-[18px] shadow-[var(--shadow-overlay)] sm:top-[18%] sm:max-h-[72dvh] sm:rounded-[18px] sm:p-6"
         >
-          <h3 id="cancelled-event-edit-title" className="text-[var(--hb-text-strong)]">
+          <h3 id="cancelled-event-edit-title" className="planning-display text-lg leading-relaxed text-[var(--amora-ink)]">
             취소된 일정은 바로 수정할 수 없어요
           </h3>
-          <p className="mt-3 text-sm leading-6 text-[var(--hb-text-body)]">
+          <p className="mt-3 text-sm leading-6 text-[var(--amora-muted)]">
             일정 화면의 취소됨 구역에서 먼저 복원 요청한 뒤 수정해 주세요.
           </p>
           <button
             type="button"
             onClick={onClose}
-            className="mt-5 min-h-11 w-full rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-semibold text-white"
+            className="mt-5 min-h-11 w-full rounded-[10px] bg-[var(--amora-ink)] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2"
           >
             확인
           </button>
@@ -298,25 +298,25 @@ export default function EventFormModal({
       <div
         onClick={saving || cancelling ? undefined : onClose}
         aria-hidden="true"
-        className="fixed inset-0 bg-[#1A1A1F]/40 backdrop-blur-sm z-50 animate-fade-in"
+        className="planning-workspace fixed inset-0 z-50 animate-fade-in bg-[var(--amora-ink)]/40 backdrop-blur-sm"
       />
 
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="schedule-event-form-title"
-        className="fixed inset-x-4 top-[4%] mx-auto flex max-h-[92dvh] max-w-[480px] flex-col overflow-hidden rounded-[6px] bg-white shadow-[var(--shadow-overlay)] z-50 animate-fade-in"
+        className="planning-workspace fixed inset-x-4 top-[5%] z-50 mx-auto flex max-h-[90dvh] max-w-[480px] animate-fade-in flex-col overflow-hidden rounded-2xl border border-[var(--amora-line)] bg-white shadow-[var(--shadow-overlay)] sm:rounded-[18px]"
       >
         {/* 헤더 */}
-        <div className="px-6 pt-6 pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-[6px] bg-[rgba(54,83,78,0.10)] flex items-center justify-center">
-                <CalendarDays className="w-5 h-5 text-[var(--hb-accent-hover)]" />
+        <div className="shrink-0 border-b border-[var(--amora-line)] px-[18px] py-4 sm:px-6 sm:py-5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[var(--amora-warm)]">
+                <CalendarDays className="h-[19px] w-[19px] text-[var(--amora-rose-deep)]" />
               </div>
               <h3
                 id="schedule-event-form-title"
-                className="font-serif-kr text-[var(--hb-text-strong)]"
+                className="planning-display text-[20px] leading-snug text-[var(--amora-ink)] sm:text-[22px]"
               >
                 {mode === "edit" ? "일정 수정" : "일정 추가"}
               </h3>
@@ -326,7 +326,7 @@ export default function EventFormModal({
               type="button"
               aria-label="일정 창 닫기"
               disabled={saving || cancelling}
-              className="flex h-11 w-11 items-center justify-center rounded-[6px] text-[#8f857b] transition-colors hover:bg-[var(--hb-surface-hover)]"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[10px] text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:opacity-50"
             >
               <X className="w-4 h-4" />
             </button>
@@ -334,14 +334,14 @@ export default function EventFormModal({
         </div>
 
         {/* 폼 */}
-        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-4">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-[18px] py-5 sm:px-6">
           {/* 제목 */}
           <div>
             <label
               htmlFor="schedule-title"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
-              제목 <span className="text-[var(--hb-accent-hover)]">*</span>
+              제목 <span className="text-[var(--amora-rose-deep)]">*</span>
             </label>
             <input
               id="schedule-title"
@@ -351,7 +351,7 @@ export default function EventFormModal({
               onChange={(e) => setTitle(e.target.value)}
               maxLength={SCHEDULE_EVENT_STRING_LIMITS.title}
               placeholder="예: 드레스 입어보기, 친구들에게 초대장 전달"
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             />
           </div>
 
@@ -359,9 +359,9 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-date"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
-              날짜 <span className="text-[var(--hb-accent-hover)]">*</span>
+              날짜 <span className="text-[var(--amora-rose-deep)]">*</span>
             </label>
             <input
               id="schedule-date"
@@ -369,7 +369,7 @@ export default function EventFormModal({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             />
           </div>
 
@@ -377,7 +377,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-time"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
               시간
             </label>
@@ -388,9 +388,9 @@ export default function EventFormModal({
               value={time}
               onChange={(e) => setTime(e.target.value)}
               step={60}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             />
-            <p className="mt-1.5 text-xs leading-5 text-[#7a746e]">
+            <p className="mt-1.5 text-xs leading-5 text-[var(--amora-muted)]">
               선택 사항이며 입력한 현지 시각 그대로 표시해요.
             </p>
           </div>
@@ -399,7 +399,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-memo"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
               메모
             </label>
@@ -411,7 +411,7 @@ export default function EventFormModal({
               maxLength={SCHEDULE_EVENT_STRING_LIMITS.memo}
               placeholder="예: 강남 드레스샵 오후 2시, 참석자 지은/수현"
               rows={2}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all resize-none"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20 resize-none"
             />
           </div>
 
@@ -419,7 +419,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-category"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
               관련 카테고리
             </label>
@@ -428,7 +428,7 @@ export default function EventFormModal({
               name="schedule-category"
               value={categoryKey}
               onChange={(e) => setCategoryKey(e.target.value)}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             >
               {CATEGORY_OPTIONS.map((opt) => (
                 <option key={opt.key} value={opt.key}>
@@ -441,7 +441,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-assignee"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
               담당
             </label>
@@ -453,7 +453,7 @@ export default function EventFormModal({
                 setAssigneeSelection(e.target.value);
                 setError("");
               }}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             >
               <option value="unassigned">담당 미정</option>
               {memberOptions.map((option) => (
@@ -468,7 +468,7 @@ export default function EventFormModal({
                 )}
               <option value="external">외부 담당</option>
             </select>
-            <p className="mt-1.5 text-xs leading-5 text-[#7a746e]">
+            <p className="mt-1.5 text-xs leading-5 text-[var(--amora-muted)]">
               {assigneeSelection === "couple"
                 || assigneeSelection === `member:${assigneeContext.partner?.id}`
                 ? "담당 표시는 함께 보는 일정에 저장되며, 파트너의 수락을 대신하지 않아요."
@@ -480,7 +480,7 @@ export default function EventFormModal({
             <div>
               <label
                 htmlFor="schedule-external-assignee"
-                className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+                className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
               >
                 외부 담당 역할
               </label>
@@ -492,7 +492,7 @@ export default function EventFormModal({
                 onChange={(e) => setExternalAssigneeLabel(e.target.value)}
                 maxLength={SCHEDULE_EVENT_STRING_LIMITS.externalAssigneeLabel}
                 placeholder="예: 가족, 웨딩 플래너"
-                className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+                className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
               />
             </div>
           )}
@@ -500,7 +500,7 @@ export default function EventFormModal({
           <div>
             <label
               htmlFor="schedule-completion-criteria"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
               완료 기준
             </label>
@@ -512,14 +512,14 @@ export default function EventFormModal({
               maxLength={SCHEDULE_EVENT_STRING_LIMITS.completionCriteria}
               placeholder="예: 계약서를 확인하고 예약금 입금까지"
               rows={2}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] placeholder:text-[var(--hb-text-muted)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all resize-none"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20 resize-none"
             />
           </div>
 
           <div>
             <label
               htmlFor="schedule-status"
-              className="block text-sm text-[var(--hb-text-muted)] mb-1.5"
+              className="mb-1.5 block text-[13px] font-semibold text-[var(--amora-soft)]"
             >
               진행 상태
             </label>
@@ -528,7 +528,7 @@ export default function EventFormModal({
               name="schedule-status"
               value={status}
               onChange={(e) => setStatus(e.target.value as ScheduleEventStatus)}
-              className="w-full px-4 py-3 rounded-[6px] bg-[var(--hb-surface-hover)] text-base text-[var(--hb-text-strong)] focus:outline-none focus:bg-white focus:ring-2 ring-[rgba(54,83,78,0.30)] transition-all"
+              className="min-h-11 min-w-0 w-full rounded-[10px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-3.5 py-2.5 text-base text-[var(--amora-ink)] transition-colors focus:border-[var(--amora-accent)] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[var(--amora-accent)]/20"
             >
               <option value="planned">예정</option>
               <option value="completed">완료</option>
@@ -538,7 +538,7 @@ export default function EventFormModal({
           {error && (
             <p
               role="alert"
-              className="rounded-[6px] border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2 text-sm leading-5 text-[#8C3E3E]"
+              className="rounded-[10px] border border-[#E5B8B8] bg-[#FFF6F6] px-3 py-2.5 text-sm leading-5 text-[#8C3E3E]"
             >
               {error}
             </p>
@@ -546,18 +546,18 @@ export default function EventFormModal({
         </div>
 
         {/* 하단 버튼 */}
-        <div className="px-6 py-4 bg-[#FAFAF8] flex items-center justify-between">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-[var(--amora-line)] bg-[var(--amora-bg)] px-[18px] py-3 sm:px-6 sm:py-4">
           {mode === "edit" && onCancel ? (
             confirmingCancel ? (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-[var(--hb-text-strong)]">
+              <div className="flex w-full flex-wrap items-center gap-2">
+                <span className="text-[13px] font-semibold text-[var(--amora-ink)]">
                   일정 취소 요청
                 </span>
                 <button
                   onClick={handleCancel}
                   type="button"
                   disabled={cancelling || saving}
-                  className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#2d4642] disabled:opacity-50"
+                  className="min-h-11 rounded-[10px] bg-[var(--amora-ink)] px-3 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:opacity-50"
                 >
                   {cancelling ? "요청 중..." : "취소 요청 보내기"}
                 </button>
@@ -565,7 +565,7 @@ export default function EventFormModal({
                   onClick={() => setConfirmingCancel(false)}
                   type="button"
                   disabled={cancelling || saving}
-                  className="min-h-11 rounded-[6px] px-3 py-2 text-sm text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] disabled:opacity-50"
+                  className="min-h-11 rounded-[10px] px-3 py-2 text-[13px] text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:opacity-50"
                 >
                   닫기
                 </button>
@@ -575,7 +575,7 @@ export default function EventFormModal({
                 onClick={() => setConfirmingCancel(true)}
                 type="button"
                 disabled={cancelling || saving}
-                className="flex min-h-11 items-center gap-1.5 rounded-[6px] px-3 text-sm font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[#f7f3ec] disabled:opacity-50"
+                className="flex min-h-11 items-center gap-1.5 rounded-[10px] px-2 text-[13px] font-semibold text-[var(--amora-rose-deep)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:opacity-50"
               >
                 <Ban className="h-4 w-4" />
                 일정 취소 요청
@@ -584,12 +584,12 @@ export default function EventFormModal({
           ) : (
             <div />
           )}
-          <div className="flex items-center gap-2">
+          <div className="ml-auto flex shrink-0 items-center gap-2">
             <button
               onClick={onClose}
               type="button"
               disabled={saving || cancelling}
-              className="min-h-11 px-4 py-2.5 rounded-[6px] text-base text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] transition-colors"
+              className="min-h-11 rounded-[10px] px-4 py-2.5 text-sm text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] disabled:opacity-50"
             >
               취소
             </button>
@@ -597,7 +597,7 @@ export default function EventFormModal({
               onClick={handleSubmit}
               type="button"
               disabled={saving || cancelling || !title.trim() || !date}
-              className="min-h-11 px-5 py-2.5 rounded-[6px] text-base font-medium text-white bg-[var(--hb-primary)] bg-[var(--hb-text-body)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-[var(--shadow-raised)]"
+              className="min-h-11 rounded-[10px] bg-[var(--amora-ink)] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[var(--amora-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving
                 ? "저장 중..."

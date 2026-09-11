@@ -181,7 +181,7 @@ function findButton(container: HTMLElement, text: string): HTMLButtonElement {
  */
 async function showTimeline(container: HTMLElement) {
   await act(async () => {
-    findButton(container, "타임라인").click();
+    findButton(container, "단계별 준비").click();
     await Promise.resolve();
   });
 }
