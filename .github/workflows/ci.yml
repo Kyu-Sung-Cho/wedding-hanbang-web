@@ -24,7 +24,10 @@ jobs:
     # Typecheck, lint and production build run once alongside the test shards.
     timeout-minutes: 45
 
+    # 독립 tsc와 Next 내부 타입 검사가 모두 약 2 GiB 기본 힙에서 OOM으로 종료됐다.
+    # private ubuntu runner의 8 GB RAM에서 OS·Turbopack 공간을 남기고 이 잡만 4 GiB로 제한한다.
     env:
+      NODE_OPTIONS: --max-old-space-size=4096
       # Placeholder values keep CI focused on static verification and build integrity.
       NEXT_PUBLIC_SUPABASE_URL: https://abcdefghijklmnopqrst.supabase.co
       NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder_anon_key
@@ -61,6 +64,10 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Report web verification resources
+        run: |
+          node -e 'const os = require("node:os"); const v8 = require("node:v8"); console.log(JSON.stringify({node: process.version, cpuCount: os.availableParallelism(), totalMemoryMiB: Math.round(os.totalmem() / 1024 / 1024), heapLimitMiB: Math.round(v8.getHeapStatistics().heap_size_limit / 1024 / 1024)}));'
+
       - name: Web typecheck
         run: pnpm --filter @hanbang/web exec tsc --noEmit
 
@@ -68,13 +75,7 @@ jobs:
         run: pnpm --filter @hanbang/web exec eslint .
 
       - name: Web production build
-        # Next의 타입 검사 자식이 약 2 GiB 기본 힙에서 OOM으로 종료된 실제 실패를 보완한다.
-        # private ubuntu runner의 8 GB RAM에서 OS·Turbopack 공간을 남기고 이 단계만 4 GiB로 제한한다.
-        env:
-          NODE_OPTIONS: --max-old-space-size=4096
-        run: |
-          node -e 'const os = require("node:os"); const v8 = require("node:v8"); console.log(JSON.stringify({node: process.version, cpuCount: os.availableParallelism(), totalMemoryMiB: Math.round(os.totalmem() / 1024 / 1024), heapLimitMiB: Math.round(v8.getHeapStatistics().heap_size_limit / 1024 / 1024)}));'
-          pnpm --filter @hanbang/web build
+        run: pnpm --filter @hanbang/web build
 
   web_tests:
     name: Web Tests (shard ${{ matrix.shard }}/2)
