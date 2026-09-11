@@ -20,7 +20,7 @@ export const WEDDING_CODE_CHECK_PHRASE = {
   evidenceDecision: "적힌 내용이 사실인지",
   aestheticMood: "우리가 원하는 느낌인지",
   experienceMeaning: "우리에게 어떤 의미인지",
-  coPreparation: "둘이 같이 보고 정하는 방법",
+  coPreparation: "함께 확인하는 과정과 연락 경험",
   roleOwnership: "한 사람이 맡아 정리하는 방법",
   coupleAutonomy: "우리 둘의 기준",
   familyIntegration: "가족과 하객의 사정",
@@ -67,7 +67,7 @@ export const WEDDING_CODE_SELF_READING = {
   },
   preparationMode: {
     left: {
-      title: "함께 보는 쪽 답을 더 골랐어요",
+      title: "함께 확인하는 과정과 연락 경험에 관한 답이 더 많았어요",
       tellPartner:
         "이번 일은 함께 볼까, 분야를 나눠 맡을까? 지금 각자 가능한 시간부터 맞춰보자.",
       watchOut:
@@ -81,7 +81,7 @@ export const WEDDING_CODE_SELF_READING = {
         "후보 정리를 맡기는 것과 최종 결정을 맡기는 것은 달라요. 어디까지 맡기고 무엇을 함께 확인할지 정해 보세요.",
     },
     mixed: {
-      title: "함께 보기와 맡기기 답을 같은 수로 골랐어요",
+      title: "준비와 연락을 나누는 두 쪽 답을 같은 수로 골랐어요",
       tellPartner:
         "이번에 함께 볼 일과 맡길 일은 무엇일까? 남은 일을 놓고 각각 표시해보자.",
       watchOut:

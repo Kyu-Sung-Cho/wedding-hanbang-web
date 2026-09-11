@@ -615,6 +615,12 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         note: "계약 당사자와 계좌 명의, 계약 유형별 신고·세금·등기 절차와 기한을 확인한 뒤 지급하세요.",
       },
       {
+        id: "housing_13",
+        label: "주택 임대차 계약 신고 대상 확인하고 신고하기 (해당하는 경우)",
+        done: false,
+        note: "입주일이 아니라 계약 체결일을 기준으로 대상 여부와 신고 기한을 공식 안내에서 확인하세요.",
+      },
+      {
         id: "housing_06",
         label: "집 수리·벽지·바닥 공사가 필요한지 결정",
         done: false,

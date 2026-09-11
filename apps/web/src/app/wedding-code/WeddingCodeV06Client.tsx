@@ -516,7 +516,7 @@ ${shareUrl}`
           <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
             <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
-              내가 반복해서 고른 것
+              내가 이번에 고른 것
             </h1>
             <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
               답한 {profile.answered}장면을 주제별로 정리했어요. 많이 고른 답이 가장 중요한 취향이라는 뜻은 아니에요.
@@ -1025,7 +1025,7 @@ function SelfProfilePair({
     <section className={`${surface} mt-4 overflow-hidden`} data-result="self-pair">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
         <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
-          각자 반복해서 고른 것
+          각자 이번에 고른 것
         </h2>
         <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
           두 사람이 각각 어떤 답을 몇 번 골랐는지만 세었어요.

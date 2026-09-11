@@ -27,7 +27,7 @@
  * `해당 시`는 라벨의 조건을 대신 표시하며, 두 표시는 완료 상태를 바꾸지 않는다.
  *
  * 이 파일은 `scripts/tests/checklist-groups-cover-every-item.test.mjs` 가 지킨다.
- * 172개 항목이 **정확히 한 번씩** 들어가야 하고, 없는 id 를 적으면 실패한다.
+ * 모든 항목이 **정확히 한 번씩** 들어가야 하고, 없는 id 를 적으면 실패한다.
  */
 
 /** 항목 옆에 붙는 표시. 둘뿐이고, 대부분의 항목에는 없다. */
@@ -100,7 +100,7 @@ export const CHECKLIST_GROUPS: Record<string, readonly ChecklistGroup[]> = {
   ],
   housing: [
     { title: "01 · 알아보기", itemIds: ["housing_01", "housing_02", "housing_12", "housing_03", "housing_04"] },
-    { title: "02 · 계약", itemIds: ["housing_08", "housing_09", "housing_10", "housing_05"] },
+    { title: "02 · 계약", itemIds: ["housing_08", "housing_09", "housing_10", "housing_05", "housing_13"] },
     { title: "03 · 입주 준비", itemIds: ["housing_06", "housing_07", "housing_11"] },
   ],
   invitation: [
@@ -172,6 +172,7 @@ export const CHECKLIST_ITEM_TAGS: Record<string, ChecklistItemTag> = {
   housing_10: "중요 확인",
   housing_05: "중요 확인",
   housing_11: "중요 확인",
+  housing_13: "해당 시",
   registration_05: "중요 확인",
   registration_08: "중요 확인",
   registration_09: "해당 시",

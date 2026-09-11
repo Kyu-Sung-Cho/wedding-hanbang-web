@@ -62,7 +62,7 @@ export const WEDDING_CODE_LETTERS: Readonly<
     right: { letter: "M", meaning: "분위기와 의미를 먼저 본 답을 더 많이 골랐어요" },
   },
   preparationMode: {
-    left: { letter: "T", meaning: "둘이 같이 보는 답을 더 많이 골랐어요" },
+    left: { letter: "T", meaning: "함께 확인하는 과정과 연락 경험에 관한 답을 더 많이 골랐어요" },
     right: { letter: "O", meaning: "한 사람이 맡아 정리하는 답을 더 많이 골랐어요" },
   },
   coordinationScope: {
