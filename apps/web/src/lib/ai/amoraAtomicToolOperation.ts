@@ -523,8 +523,10 @@ function buildBudgetPlanOperation(
 ): AmoraAtomicToolOperation {
   const totalBudget = toolInput.total_budget;
   const allocations = toolInput.allocations;
+  const explicitAllocations = toolInput.allocation_mode === "explicit";
   if (
     !isValidWonAmount(totalBudget)
+    || (toolInput.allocation_mode !== undefined && !explicitAllocations)
     || !Array.isArray(allocations)
     || allocations.length < 1
     || allocations.length > 20
@@ -621,9 +623,20 @@ function buildBudgetPlanOperation(
   }
   const allocated = Object.values(proposedNonReserveBudgets).reduce((sum, budget) => sum + budget, 0);
   const requestedReserve = normalizedAllocations.find((item) => item.category === "reserve");
+  const currentReserve = progress.reserve;
+  if (explicitAllocations && !hiddenKeys.has("reserve")
+    && (currentReserve !== undefined && (!isRecord(currentReserve)
+      || (currentReserve.budget !== undefined && !isValidWonAmount(currentReserve.budget))))) {
+    return noOpFailure("apply_budget_plan", toolInput, "progress_state_invalid",
+      "기존 예비비 금액을 먼저 확인해 주세요. 예산안은 변경하지 않았어요.");
+  }
+  const expectedReserveBudget = !hiddenKeys.has("reserve") && isRecord(currentReserve)
+    && isValidWonAmount(currentReserve.budget) ? currentReserve.budget : 0;
   const reserveBudget = totalBudget - allocated;
   if (!Number.isSafeInteger(allocated) || allocated > totalBudget
-    || (requestedReserve && requestedReserve.budget > reserveBudget)) {
+    || (explicitAllocations
+      ? (requestedReserve?.budget ?? expectedReserveBudget) > reserveBudget
+      : requestedReserve !== undefined && requestedReserve.budget > reserveBudget)) {
     return noOpFailure(
       "apply_budget_plan",
       toolInput,
@@ -631,11 +644,13 @@ function buildBudgetPlanOperation(
       "기존에 남겨 둘 항목과 이번 배분의 합계가 총예산을 넘어서 적용하지 않았어요. 항목 금액이나 총예산을 다시 확인해 주세요.",
     );
   }
-  const remainder = reserveBudget - (requestedReserve?.budget ?? 0);
+  // 새 카드는 명시한 금액만 바꾼다. 남은 총액은 배정하지 않고, 옛 카드만
+  // 기존 잔액→예비비 계약으로 재현하여 이미 서명된 승인 내용을 바꾸지 않는다.
+  const remainder = explicitAllocations ? 0 : reserveBudget - (requestedReserve?.budget ?? 0);
   const finalAllocations = normalizedAllocations.map((item) => ({ ...item }));
-  if (requestedReserve) {
+  if (!explicitAllocations && requestedReserve) {
     finalAllocations.find((item) => item.category === "reserve")!.budget = reserveBudget;
-  } else if (reserveBudget > 0 || !hiddenKeys.has("reserve")) {
+  } else if (!explicitAllocations && (reserveBudget > 0 || !hiddenKeys.has("reserve"))) {
     // 잔액이 0이 되어도 이전 예비비가 그대로 남지 않도록 명시한다.
     finalAllocations.push({ category: "reserve", budget: reserveBudget });
   }
@@ -716,6 +731,7 @@ function buildBudgetPlanOperation(
       expectedBudget: context.weddingContext.budget,
       valueBudget: totalBudget,
       expectedNonReserveBudgets,
+      ...(explicitAllocations ? { expectedReserveBudget } : {}),
       entries,
     },
     result: {

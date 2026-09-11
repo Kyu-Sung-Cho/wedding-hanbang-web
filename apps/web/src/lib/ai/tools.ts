@@ -173,7 +173,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "apply_budget_plan",
     description:
-      "확인 카드로 사용자가 확정한 예산 배분을 한 번에 적용하고 총액도 갱신합니다. 묶음 이름은 custom+label로 그대로 보존하며 임의로 금액을 나누지 않습니다. 미지정 기존 항목은 유지하고, 변경 후 전체 배정이 총액을 넘으면 거부합니다. 비예비비 배정을 뺀 잔액은 reserve가 됩니다.",
+      "확인 카드로 사용자가 확정한 예산 배분을 한 번에 적용하고 총액도 갱신합니다. 묶음 이름은 custom+label로 그대로 보존하며 임의로 금액을 나누지 않습니다. 명시한 금액만 바꾸고 미지정 기존 항목과 예비비는 유지합니다. 변경 후 전체 배정이 총액을 넘으면 거부합니다. 최초 배분도 남은 금액은 미배정이며, 예비비로 배정하려면 사용자가 확인한 reserve 금액을 명시하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -187,7 +187,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           minItems: 1,
           maxItems: 20,
           description:
-            "사용자가 직접 입력하거나 확인한 목표 금액·견적·상한만 사용하세요. 고정 분야에 정확히 대응하지 않는 묶음(예: 초대장·꽃·하객선물)은 category=custom, label=사용자의 이름으로 저장하며 나누거나 중복 배정하지 마세요. 같은 이름의 기존 custom은 재사용합니다. 미지정 기존 배정은 유지하고 잔액은 reserve가 됩니다.",
+            "사용자가 직접 입력하거나 확인한 목표 금액·견적·상한만 사용하세요. 고정 분야에 정확히 대응하지 않는 묶음(예: 초대장·꽃·하객선물)은 category=custom, label=사용자의 이름으로 저장하며 나누거나 중복 배정하지 마세요. 같은 이름의 기존 custom은 재사용합니다. 미지정 기존 배정·예비비를 유지하고, 남은 총액을 자동으로 배정하지 않습니다.",
           items: {
             type: "object",
             properties: {
@@ -225,6 +225,11 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
           type: "string",
           description:
             "사용자 우선순위·가치관·제약 1~3줄 요약. 총액·배분만 저장되며 요약 원문은 저장되지 않습니다.",
+        },
+        allocation_mode: {
+          type: "string",
+          enum: ["explicit"],
+          description: "명시한 배정 금액만 적용합니다. 새 확인 카드에는 서버가 이 계약을 고정합니다.",
         },
       },
       required: ["total_budget", "allocations", "intake_summary"],
@@ -296,7 +301,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_schedule_summary",
     description:
-      "현재 웨딩 준비 진행 상황을 조회합니다. 사용자가 '지금 뭐가 완료됐어?', '진행 현황 알려줘' 같은 질문을 할 때 사용합니다.",
+      "기본 웨딩 준비 카테고리의 진행 상황을 조회합니다. 전체·시작 전 개수는 기본 준비 분야 수이며 등록된 일정이나 공유 할 일 수가 아닙니다. 공유 할 일 상태는 get_amora_actions, 실제 일정은 get_schedule_events로 조회하세요.",
     input_schema: {
       type: "object" as const,
       properties: {},
@@ -306,7 +311,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_wedding_info",
     description:
-      "결혼 날짜, D-day, 전체 진행률 등 기본 웨딩 정보를 조회합니다.",
+      "결혼 날짜, D-day, 기본 준비 카테고리와 체크리스트 진행률을 조회합니다. 기본 카테고리 수는 실제 공유 할 일 개수가 아닙니다. 저장한 공유 할 일의 완료·미완료 상태는 get_amora_actions로 별도 조회하세요.",
     input_schema: {
       type: "object" as const,
       properties: {},
@@ -316,7 +321,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "add_schedule_event",
     description:
-      "캘린더에 새 일정을 추가합니다. 같은 카테고리 일정이 있어도 기존 일정을 덮어쓰지 않습니다. 기존 일정을 바꾸려면 먼저 get_schedule_events로 event_id를 확인한 뒤 update_schedule_event를 사용하세요.",
+      "캘린더에 새 일정을 추가합니다. 같은 카테고리 일정이 있어도 기존 일정을 덮어쓰지 않습니다. 기존 일정을 바꾸려면 먼저 get_schedule_events로 event_id를 확인한 뒤 update_schedule_event를 사용하세요. 담당자와 완료 기준 설정은 지원하지 않습니다. 해당 조건을 생략하거나 메모로 대신 저장하지 말고 일정 화면의 담당·완료 기준 입력칸을 안내하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -358,7 +363,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "update_schedule_event",
     description:
-      "기존 캘린더 일정을 수정합니다. '드레스 입어보는 날짜를 3월 20일로 변경해줘' 같은 요청에 사용합니다. 먼저 get_schedule_events로 event_id를 확인하세요.",
+      "기존 캘린더 일정을 수정합니다. '드레스 입어보는 날짜를 3월 20일로 변경해줘' 같은 요청에 사용합니다. 먼저 get_schedule_events로 event_id를 확인하세요. 담당자와 완료 기준 설정은 지원하지 않습니다. 해당 조건을 생략하거나 메모로 대신 저장하지 말고 일정 화면의 담당·완료 기준 입력칸을 안내하세요.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -656,7 +661,7 @@ export const WEDDING_TOOLS: AiToolDefinition[] = [
   {
     name: "get_amora_actions",
     description:
-      "아모라가 저장한 다음 행동 목록을 조회합니다. 사용자가 '내가 해야 할 일 뭐야?', '아모라가 기억한 것 보여줘', '남은 액션 보여줘'라고 할 때 사용합니다.",
+      "결정 보드에 저장된 공유 할 일(아모라 행동 카드)을 조회합니다. 기본 준비 카테고리·체크리스트와 다른 목록입니다. 완료한 일과 남은 일을 함께 묻거나 전체 현황을 확인하면 status=all로 조회하세요. 조회하지 않은 상태는 과거 대화나 카테고리 수로 추정하지 마세요.",
     input_schema: {
       type: "object" as const,
       properties: {

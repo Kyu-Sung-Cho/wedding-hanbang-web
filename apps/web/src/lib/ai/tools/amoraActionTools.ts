@@ -191,21 +191,30 @@ export async function executeGetAmoraActions(
     };
   }
   const { actions } = snapshot;
+  const completeStatusSnapshot = status === "all" && snapshot.source === "table"
+    && actions.length === snapshot.count;
 
   return {
     toolName: "get_amora_actions",
     toolInput: input,
     toolOutput: {
+      list_kind: "shared_actions",
+      requested_status: status,
       actions,
       count: snapshot.count,
       open_count: snapshot.openCount,
       source: snapshot.source,
       truncated: actions.length < snapshot.count,
+      status_counts: completeStatusSnapshot ? {
+        open: actions.filter(action => action.status === "open").length,
+        done: actions.filter(action => action.status === "done").length,
+        dismissed: actions.filter(action => action.status === "dismissed").length,
+      } : null,
     },
     success: true,
     displayMessage: actions.length > 0
-      ? `아모라가 기억한 행동 ${snapshot.count}개: ${actions.slice(0, 5).map((item) => item.title).join(", ")}`
-      : "현재 열려 있는 아모라 행동 카드가 없습니다.",
+      ? `이번에 조회한 공유 할 일 ${snapshot.count}개${actions.length < snapshot.count ? " 중 일부" : ""}: ${actions.slice(0, 5).map((item) => item.title).join(", ")}`
+      : "이번 조회에서 확인된 공유 할 일이 없습니다.",
   };
 }
 

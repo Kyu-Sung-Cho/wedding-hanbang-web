@@ -407,6 +407,10 @@ export function resolveAmoraWeddingClarificationContinuity<
       continue;
     }
     if (!isValidClarificationPair(assistant, priorUser, answerer)) return null;
+    // 서버의 과거 W0 표식만으로 중간 사용자 원문의 새 위험·다른 과업을 넘지 않는다.
+    const priorScope = classifyAmoraQuestionScope({ userText: priorUser.content as string });
+    if (priorScope.scope !== "W0_wedding_core"
+      && !(priorScope.scope === "W4_out_of_scope" && priorScope.confidence === "low")) return null;
     // 닻 판정: 요청 문장 자체가 W0 이거나, 그 턴에서 아모라가 **카드를 냈다**(라우트가
     // 문맥까지 보고 W0 행동 턴으로 처리한 흔적). 2026-09-05: "사진은 700 잡아줘" 는 낱말만
     // 보면 범위 밖이지만 그 턴에 카드가 났고 확인까지 됐다 — 그 뒤의 "500으로 해줘" 가
@@ -416,8 +420,7 @@ export function resolveAmoraWeddingClarificationContinuity<
       && anchorMetadata.pending_amora_action !== undefined;
     if (
       anchorIssuedCard
-      || classifyAmoraQuestionScope({ userText: priorUser.content as string }).scope
-        === "W0_wedding_core"
+      || priorScope.scope === "W0_wedding_core"
     ) {
       break;
     }
@@ -432,7 +435,8 @@ export function resolveAmoraWeddingClarificationContinuity<
     // 자리이므로, 오늘 이어지던 것이 이 줄 때문에 끊기는 일은 없다. 새 어휘를
     // 만들지 않고 이미 배포된 `OTHER_DOMAIN_TOPIC_PATTERN` 을 그대로 쓴다 —
     // 새 목록을 만들면 그 목록이 또 썩는다.
-    if (hasAmoraOtherDomainTopicSignal(currentUserText)) return null;
+    if (hasAmoraOtherDomainTopicSignal(currentUserText)
+      || hasAmoraOtherDomainTopicSignal(priorUser.content as string)) return null;
     // 한 쌍 더 위로. 이 답변(`priorUser`)도 되묻기의 답이었는지 확인한다.
     const index = rawOldestFirstRows.indexOf(priorUser);
     if (index < 2) return null;

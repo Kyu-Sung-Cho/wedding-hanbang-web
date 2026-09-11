@@ -29,7 +29,7 @@ const REQUEST_ID = "30000000-0000-4000-8000-000000000001";
 const REQUEST_KEY = `chat:${USER_ID}:${REQUEST_ID}`;
 const EXPECTED_WEDDING_DATE = "2099-05-01";
 
-async function createDatabase(withCurrentBudgetPlan = false) {
+async function createDatabase(withCurrentBudgetPlan = false, withExplicitAllocations = true) {
   const db = await PGlite.create();
   await db.exec(`
     CREATE ROLE anon NOLOGIN;
@@ -161,6 +161,7 @@ async function createDatabase(withCurrentBudgetPlan = false) {
     if (next.trim()) await db.exec(next);
     const namedBudgetPlan = migration("20260907085111_amora_budget_plan_named_allocations.sql");
     await db.exec(namedBudgetPlan);
+    if (withExplicitAllocations) await db.exec(migration("20260911080244_amora_budget_plan_explicit_allocations.sql"));
     await db.exec("ALTER TABLE public.amora_tool_executions ADD COLUMN pending_action_journey_revision bigint");
     const wrapper = migration("20260730102000_amora_shared_action_approval_and_notifications.sql")
       .match(/CREATE FUNCTION public\.apply_amora_atomic_tool_execution\([\s\S]*?\$function\$;/u)?.[0];
@@ -209,6 +210,118 @@ async function apply(
 }
 
 describe("Amora atomic mutation coverage migration", () => {
+  it.each(["custom", "fixed"])("applies only the two requested %s amounts without consuming unallocated money (B02)", async (kind) => {
+    const db = await createDatabase(true);
+    try {
+      const progress = {
+      custom_photo: { category: "custom_photo", label: "웨딩 사진 촬영", status: "completed", budget: 3_000_000, spent: 123_000, payer: "groom", notes: "합성 보존 메모" },
+      custom_outfit: { category: "custom_outfit", label: "드레스·예식 정장", status: "in_progress", budget: 3_000_000 },
+      venue: { category: "venue", status: "not_started", budget: 12_000_000 },
+      honeymoon: { category: "honeymoon", status: "not_started", budget: 10_000_000 },
+      custom_other: { category: "custom_other", label: "그 밖의 준비", status: "not_started", budget: 4_000_000 },
+      reserve: { category: "reserve", status: "not_started", budget: 2_000_000 },
+      __shares: { bride: 40, groom: 60 },
+      __events: [{ id: "synthetic-keep", date: "2027-09-18", title: "보존 일정" }],
+    };
+      const isFixed = kind === "fixed";
+      const mappedProgress: Record<string, unknown> = isFixed ? {
+        ...progress, studio: { ...progress.custom_photo, category: "studio" },
+        dress: { ...progress.custom_outfit, category: "dress" },
+      } : { ...progress };
+      if (isFixed) { delete mappedProgress.custom_photo; delete mappedProgress.custom_outfit; }
+      await db.query("UPDATE wedding_journeys SET total_budget=35000000,progress=$1::jsonb", [JSON.stringify(mappedProgress)]);
+      const input = { total_budget: 35_000_000, allocation_mode: "explicit", allocations: [
+      { category: isFixed ? "studio" : "custom", ...(isFixed ? {} : {label: "웨딩 사진 촬영"}), budget: 2_999_000 },
+      { category: isFixed ? "dress" : "custom", ...(isFixed ? {} : {label: "드레스·예식 정장"}), budget: 3_001_000 },
+    ] };
+      const { operation, identity } = await buildCurrentPlan(db, input);
+      const result = await apply(db, identity.operationKey, identity.inputDigest, input, operation.domainMutation, durableBudgetResult(operation.result));
+      expect(result.rows[0].result.success).toBe(true);
+      const row = (await db.query<{total_budget: number; progress: typeof progress}>("SELECT total_budget,progress FROM wedding_journeys")).rows[0];
+      expect(Number(row.total_budget)).toBe(35_000_000);
+      expect(row.progress).toEqual({
+        ...mappedProgress,
+        [isFixed ? "studio" : "custom_photo"]: { ...progress.custom_photo, category: isFixed ? "studio" : "custom_photo", budget: 2_999_000 },
+        [isFixed ? "dress" : "custom_outfit"]: { ...progress.custom_outfit, category: isFixed ? "dress" : "custom_outfit", budget: 3_001_000 },
+      });
+    } finally { await db.close(); }
+  });
+
+
+  it.each([
+    {name:"first partial plan",progress:{},allocations:[{category:"studio",budget:3_000_000}]},
+    {name:"explicit reserve",progress:{reserve:{category:"reserve",status:"completed",budget:2_000_000,spent:123_000}},allocations:[{category:"reserve",budget:1_000_000}]},
+    {name:"explicit zero reserve",progress:{reserve:{category:"reserve",status:"completed",budget:2_000_000}},allocations:[{category:"reserve",budget:0}]},
+    {name:"hidden reserve",progress:{reserve:{category:"reserve",status:"completed",budget:34_000_000,spent:123_000},__hidden:["reserve"]},allocations:[{category:"studio",budget:3_000_000}]},
+  ])("persists exact explicit allocations and no generated reserve: $name", async ({progress,allocations}) => {
+    const db=await createDatabase(true);
+    try {
+      await db.query("UPDATE wedding_journeys SET total_budget=35000000,progress=$1::jsonb",[JSON.stringify(progress)]);
+      const input={total_budget:35_000_000,allocation_mode:"explicit",allocations};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      expect(operation.result.success).toBe(true);
+      const receipt=durableBudgetResult(operation.result);
+      const first=await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt);
+      expect(first.rows[0].result).toMatchObject({success:true,toolOutput:{allocations,remainder_to_reserve:0,applied_count:allocations.length}});
+      const expected: Record<string,unknown>={...progress};
+      for(const allocation of allocations) expected[allocation.category]={category:allocation.category,status:"not_started",...(expected[allocation.category] as object ?? {}),budget:allocation.budget};
+      const after=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      expect(after[0]).toMatchObject({progress:expected});
+      expect((await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,receipt)).rows).toEqual(first.rows);
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(after);
+    } finally {await db.close();}
+  });
+
+  it.each([
+    "UPDATE wedding_journeys SET progress=jsonb_set(progress,'{reserve,budget}','3000000')",
+    "UPDATE wedding_journeys SET progress=progress||'{\"__hidden\":[\"reserve\"]}'::jsonb",
+  ])("rejects a changed omitted reserve basis without touching the newer state (%s)",async(concurrentWrite)=>{
+    const db=await createDatabase(true);
+    try {
+      await db.exec("UPDATE wedding_journeys SET progress=progress||'{\"reserve\":{\"category\":\"reserve\",\"budget\":2000000,\"status\":\"completed\"}}'::jsonb");
+      const input={total_budget:50_000_000,allocation_mode:"explicit",allocations:[{category:"venue",budget:20_000_000}]};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      await db.exec(concurrentWrite);
+      const before=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      expect((await apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,durableBudgetResult(operation.result))).rows[0].result)
+        .toMatchObject({success:false,toolOutput:{error:"domain_state_changed"}});
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally {await db.close();}
+  });
+
+  it.each(["missingReserveBasis","falseReserveBasis","missingNonReserveBasis","extraReserve","legacyWithExplicitPayload"])("rejects forged explicit plan %s atomically",async(attack)=>{
+    const db=await createDatabase(true);
+    try {
+      const input:Record<string,unknown>={total_budget:50_000_000,allocation_mode:"explicit",allocations:[{category:"venue",budget:20_000_000}]};
+      if(attack==="legacyWithExplicitPayload") delete input.allocation_mode;
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      if(attack==="missingReserveBasis") delete operation.domainMutation.expectedReserveBudget;
+      if(attack==="falseReserveBasis") operation.domainMutation.expectedReserveBudget=false;
+      if(attack==="missingNonReserveBasis") delete operation.domainMutation.expectedNonReserveBudgets;
+      if(attack==="legacyWithExplicitPayload") operation.domainMutation.expectedReserveBudget=0;
+      if(attack==="extraReserve") {
+        (operation.domainMutation.entries as unknown[]).push({key:"reserve",expectedPresent:false,value:{category:"reserve",status:"not_started",budget:30_000_000}});
+        (operation.result.toolOutput.allocations as unknown[]).push({category:"reserve",budget:30_000_000});
+        operation.result.toolOutput.applied_count=2;
+      }
+      const before=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      await expect(apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,durableBudgetResult(operation.result))).rejects.toThrow(/AMORA_ATOMIC_BUDGET/);
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+      expect((await db.query("SELECT status FROM amora_tool_executions")).rows).toEqual([{status:"processing"}]);
+    } finally {await db.close();}
+  });
+
+  it("old SQL rejects explicit input instead of applying the legacy reserve fill",async()=>{
+    const db=await createDatabase(true,false);
+    try {
+      const input={total_budget:50_000_000,allocation_mode:"explicit",allocations:[{category:"venue",budget:20_000_000}]};
+      const {operation,identity}=await buildCurrentPlan(db,input);
+      const before=(await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows;
+      await expect(apply(db,identity.operationKey,identity.inputDigest,input,operation.domainMutation,durableBudgetResult(operation.result))).rejects.toThrow("AMORA_ATOMIC_BUDGET_PLAN_INVALID");
+      expect((await db.query("SELECT total_budget,progress FROM wedding_journeys")).rows).toEqual(before);
+    } finally {await db.close();}
+  });
+
   function durableBudgetResult(result: ReturnType<typeof buildAmoraAtomicToolOperation>["result"]) {
     return { toolName: result.toolName, toolOutput: result.toolOutput, success: result.success, displayMessage: result.displayMessage };
   }

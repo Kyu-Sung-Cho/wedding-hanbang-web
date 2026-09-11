@@ -357,6 +357,18 @@ function hasExplicitNonWeddingState(text: string, trustedExplicitPrivateDraft: b
   return EXPLICIT_NON_WEDDING_STATE_PATTERN.test(stateText);
 }
 const GENERIC_TRAVEL_BUDGET_PATTERN = /여행.{0,12}예산|예산.{0,12}여행/iu;
+// 검토 예산에서 여행을 빼겠다는 완결된 직접 진술은 여행 계획 대행이 아니다.
+// 이 복사본은 generic 여행 검사에만 쓴다. 원문 안전·다른 과업 판정과 모델 입력은
+// 그대로이며, 제외만으로 W0가 되지 않는다. 결혼 후속은 기존 정본 연속성이 증명한다.
+function withoutDirectTravelBudgetExclusion(text: string): string {
+  if (!/검토(?:용)?/u.test(text) || !/(?:안|배분).{0,16}(?:보여|비교)/u.test(text)) return text;
+  const rest = text.replace(
+    /^여행(?:은|을)\s*(?:이번\s*)?(?:검토\s*)?예산에서\s*(?:빼기로\s*할게(?:요)?|제외할게(?:요)?|제외해\s*줘|빼\s*줘)[.。]\s*/u,
+    "",
+  );
+  // 같은 턴에 다른 여행 요청이 있으면 그 의미까지 제거하지 않는다.
+  return rest !== text && !/여행/u.test(rest) ? rest : text;
+}
 const HONEYMOON_PATTERN = /신혼\s*여행|허니문/iu;
 const CANONICAL_TOTAL_BUDGET_ACTION_PATTERN =
   /총\s*예산(?:을|은|이|도)?(?=.{0,24}(?:\d[\d,]*(?:\.\d+)?\s*(?:원|만\s*원|천\s*만\s*원|억(?:\s*원)?)|변경|바꾸|조정|설정|수정))/iu;
@@ -534,7 +546,7 @@ export function classifyAmoraQuestionScope({
     hasExplicitNonWeddingState(normalizedText,
       hasTrustedPrivateDraftContext && hasExplicitPersonalActionDraftRequest(userText))
     || (
-      GENERIC_TRAVEL_BUDGET_PATTERN.test(normalizedText)
+      GENERIC_TRAVEL_BUDGET_PATTERN.test(withoutDirectTravelBudgetExclusion(normalizedText))
       && !HONEYMOON_PATTERN.test(normalizedText)
     )
   ) {

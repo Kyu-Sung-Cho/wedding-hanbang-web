@@ -1,4 +1,4 @@
-import { loadBudgetDecisionHotfixRelease } from './amora-budget-decision-release-contract.mjs';
+import { loadBudgetDecisionHotfixRelease, loadBudgetDecisionHistoricalRelease } from './amora-budget-decision-release-contract.mjs';
 import { digest, pinnedArtifact, requireRelease, same, validateObservation } from './current-baseline-release-contract.mjs';
 
 export const BUDGET_REALTIME_SUPPLEMENT_FILE = 'supabase/release-contracts/amora-budget-decision-realtime-supplement-20260911.json';
@@ -112,6 +112,15 @@ export function validateBudgetRealtimeSupplement({ parent, baseline, supplement,
 
 export function loadEffectiveBudgetDecisionHotfixRelease(repoRoot) {
   const parent = loadBudgetDecisionHotfixRelease(repoRoot);
+  return withEffectiveBaseline(repoRoot, parent);
+}
+
+// 고정 선행 계약을 새 계약에서 읽는 전용 경로이며, 기존 공개 모드의 SQL 발견 검사를 대체하지 않는다.
+export function loadEffectiveBudgetDecisionHistoricalRelease(repoRoot) {
+  return withEffectiveBaseline(repoRoot, loadBudgetDecisionHistoricalRelease(repoRoot));
+}
+
+function withEffectiveBaseline(repoRoot, parent) {
   const supplementBytes = pinnedArtifact(repoRoot, { file: BUDGET_REALTIME_SUPPLEMENT_FILE, sha256: SUPPLEMENT_SHA });
   const supplement = JSON.parse(supplementBytes);
   const baselineBytes = pinnedArtifact(repoRoot, supplement.effectiveBaseline);

@@ -51,6 +51,38 @@ function action(tool: string, input: Record<string, unknown>) {
 }
 
 describe("Amora budget impact preview", () => {
+  it.each(["custom", "fixed"])("keeps unallocated money and reserve when swapping only two %s budgets (B02)", (kind) => {
+    const progress = {
+      custom_photo: { category: "custom_photo", label: "웨딩 사진 촬영", status: "completed", budget: 3_000_000, spent: 123_000, payer: "groom", notes: "합성 보존 메모" },
+      custom_outfit: { category: "custom_outfit", label: "드레스·예식 정장", status: "in_progress", budget: 3_000_000 },
+      venue: { category: "venue", status: "not_started", budget: 12_000_000 },
+      honeymoon: { category: "honeymoon", status: "not_started", budget: 10_000_000 },
+      custom_other: { category: "custom_other", label: "그 밖의 준비", status: "not_started", budget: 4_000_000 },
+      reserve: { category: "reserve", status: "not_started", budget: 2_000_000 },
+      __shares: { bride: 40, groom: 60 },
+      __events: [{ id: "synthetic-keep", date: "2027-09-18", title: "보존 일정" }],
+    };
+    const isFixed = kind === "fixed";
+    const mappedProgress: Record<string, unknown> = isFixed ? {
+      ...progress, studio: { ...progress.custom_photo, category: "studio" },
+      dress: { ...progress.custom_outfit, category: "dress" },
+    } : { ...progress };
+    if (isFixed) { delete mappedProgress.custom_photo; delete mappedProgress.custom_outfit; }
+    const ctx = context({ budget: 35_000_000, progress: mappedProgress as ToolExecutionContext["weddingContext"]["progress"] });
+    const before = structuredClone(ctx);
+    const preview = buildAmoraBudgetImpactPreview({
+      action: action("apply_budget_plan", { total_budget: 35_000_000, allocation_mode: "explicit", allocations: [
+      { category: isFixed ? "studio" : "custom", ...(isFixed ? {} : {label: "웨딩 사진 촬영"}), budget: 2_999_000 },
+      { category: isFixed ? "dress" : "custom", ...(isFixed ? {} : {label: "드레스·예식 정장"}), budget: 3_001_000 },
+    ] }),
+      sourceRevision: 20, context: ctx,
+    });
+    expect(preview?.current).toEqual({ totalBudget: 35_000_000, allocatedBudget: 34_000_000, recordedSpend: 123_000, unallocatedBudget: 1_000_000 });
+    expect(preview?.proposed).toEqual(preview?.current);
+    expect(preview?.categories.map(item => item.key).sort()).toEqual(isFixed ? ["dress", "studio"] : ["custom_outfit", "custom_photo"]);
+    expect(ctx).toEqual(before);
+  });
+
   it("previews named groups with the exact persisted labels while preserving recorded spend", () => {
     const prior = {category:"custom_photo",label:"사진",budget:1_000_000,spent:300_000,status:"completed",payer:"bride"};
     const ctx = context({budget:35_000_000,progress:{custom_photo:prior,venue:{category:"venue",status:"completed",budget:9_000_000,spent:1_000_000}} as unknown as ToolExecutionContext["weddingContext"]["progress"]});

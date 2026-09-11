@@ -1,3 +1,4 @@
+import { createBudgetDecisionHistoricalRepository } from './fixtures/budget-decision-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync, mkdtempSync, mkdirSync, cpSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
@@ -10,7 +11,10 @@ import { loadBudgetDecisionHotfixRelease } from '../lib/amora-budget-decision-re
 import { loadEffectiveBudgetDecisionHotfixRelease, validateBudgetRealtimeSupplement, budgetRealtimeBindings,
   assertBudgetRealtimeBindings, renderBudgetRealtimeTopologyGuard, renderBudgetRealtimeObservationSql, validateBudgetRealtimeObservation } from '../lib/amora-budget-decision-effective-release-contract.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+const sourceRoot = resolve(import.meta.dirname, '../..');
+const historicalRepository = createBudgetDecisionHistoricalRepository(sourceRoot);
+test.after(historicalRepository.cleanup);
+const root = historicalRepository.root;
 
 test('current supplement admits the observed September 7 to 14 rotation while preserving the historical contract', () => {
   const historical = loadBudgetDecisionHotfixRelease(root);
@@ -131,7 +135,7 @@ test('fresh topology requires its exact query, source, both bindings, raw hash a
 });
 
 test('actual local observation query and fixed guard reject independent table and index parent drift', { timeout: 120000 }, async () => {
-  const { PGlite } = createRequire(join(root, 'apps/web/package.json'))('@electric-sql/pglite');
+  const { PGlite } = createRequire(join(sourceRoot, 'apps/web/package.json'))('@electric-sql/pglite');
   const db = await PGlite.create(); const release = loadEffectiveBudgetDecisionHotfixRelease(root);
   try {
     await createSyntheticBudgetRealtimeTopology(db);

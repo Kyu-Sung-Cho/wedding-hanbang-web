@@ -263,18 +263,18 @@ describe("안내가 모델이 실제로 받는 프롬프트에 있다", () => {
   });
 
   it("커스텀 항목은 add_custom_category 로 고치라고 알려준다", () => {
-    expect(delivered).toContain("`update_category_budget`으로 바꿀 수 없습니다");
-    expect(delivered).toContain("`add_custom_category`를 호출하세요");
+    expect(delivered).toContain("`update_category_budget` 불가");
+    expect(delivered).toContain("`add_custom_category`에 목록 이름 그대로");
   });
 
   it("없앨 수 없다는 사실과 갈 곳을 같이 알려준다", () => {
-    expect(delivered).toContain("없애 달라는 요청은 지금 도구로 할 수 없습니다");
-    expect(delivered).toContain("어디서 할 수 있는지 같은 답에서 알려주세요");
-    expect(delivered).toContain("예산 화면에서 그 항목의 삭제 버튼으로 직접 지울 수 있습니다");
+    expect(delivered).toContain("예산 항목 삭제는 도구로 못 합니다");
+    expect(delivered).toContain("같은 답에서 예산 화면 해당 항목의 삭제 버튼을 안내");
+    expect(delivered).toContain("예산 화면 해당 항목의 삭제 버튼");
   });
 
   it("0원으로 바꾸는 것이 삭제가 아니라고 못 박는다", () => {
-    expect(delivered).toContain("0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다");
+    expect(delivered).toContain("0원은 삭제가 아니며 항목이 남습니다");
   });
 
   it("커스텀 항목 목록도 전달본에 살아 있다", () => {
@@ -288,7 +288,7 @@ describe("안내가 모델이 실제로 받는 프롬프트에 있다", () => {
       requestKind: "chat",
       persistenceMode: "durable",
     });
-    expect(withDelete).not.toContain("없애 달라는 요청은 지금 도구로 할 수 없습니다");
+    expect(withDelete).not.toContain("예산 항목 삭제는 도구로 못 합니다");
   });
 });
 

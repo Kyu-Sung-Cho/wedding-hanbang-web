@@ -35,6 +35,20 @@ function context(): ToolExecutionContext {
 }
 
 describe("Amora atomic mutating-tool execution", () => {
+  it("never sends explicit allocations through the legacy auto-reserve RPC", async () => {
+    const ctx = context();
+    delete ctx.providerCallIndex;
+    const reserve = { category: "reserve", budget: 2_000_000, status: "completed", spent: 123_000 };
+    ctx.weddingContext.progress = {reserve} as ToolExecutionContext["weddingContext"]["progress"];
+    const input = {total_budget:50_000_000,allocation_mode:"explicit",allocations:[{category:"studio",budget:3_000_000}]};
+    const result = await executeTool("apply_budget_plan", input, ctx);
+    expect(result).toMatchObject({success:true,toolOutput:{allocations:input.allocations,remainder_to_reserve:0,applied_count:1}});
+    expect(ctx.weddingContext.progress.reserve).toEqual(reserve);
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(["claim_amora_tool_execution","apply_amora_atomic_tool_execution"]);
+    expect(mocks.rpc).toHaveBeenCalledWith("apply_amora_atomic_tool_execution",expect.objectContaining({
+      p_tool_input:input,p_domain_mutation:expect.objectContaining({expectedReserveBudget:2_000_000}),
+    }));
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.from.mockReturnValue({ update: mocks.update });

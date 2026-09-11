@@ -2618,7 +2618,7 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
-  if ((argv ?? []).some(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix'].includes(arg))) {
+  if ((argv ?? []).some(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix', '--amora-explicit-budget-hotfix'].includes(arg))) {
     assertSafeExecutionEnvironment(process.env);
     const {
       selectHotfixMode,

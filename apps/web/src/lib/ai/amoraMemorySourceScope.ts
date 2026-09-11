@@ -1,4 +1,5 @@
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { hasAmoraMemoryTurnOptOut } from "@/lib/ai/amoraMemoryTurnOptOut";
 import {
   AMORA_MEMORY_MAX_BATCH,
   extractTrustedMomentMemoryKeys,
@@ -26,6 +27,7 @@ export type AmoraMemorySourceScopeRow = {
   metadata: Record<string, unknown> | null;
   visibility: AmoraMemorySourceScopeVisibility;
   created_at: string;
+  segment_id?: string | null;
 };
 
 export type PreparedTrustedAmoraMemoryBatch = PreparedAmoraMemoryBatch & {
@@ -96,6 +98,7 @@ function selectCanonicalAmoraReplySourceIds(
  */
 export function selectTrustedAmoraMemoryUserIds(
   rows: readonly AmoraMemorySourceScopeRow[],
+  excludedSourceIds: ReadonlySet<string> = new Set(),
 ): ReadonlySet<string> {
   const rowById = new Map(rows.map((row) => [row.id, row] as const));
   const trusted = new Set<string>();
@@ -103,7 +106,7 @@ export function selectTrustedAmoraMemoryUserIds(
   for (const assistant of rows) {
     if (!hasTrustedAmoraMemoryEligibilityMetadata(assistant.metadata)) continue;
     const source = canonicalAmoraReplySource(assistant, rowById);
-    if (!source) continue;
+    if (!source || excludedSourceIds.has(source.id) || hasAmoraMemoryTurnOptOut(source.content)) continue;
     const currentScope = classifyAmoraQuestionScope({
       userText: source.content,
     }).scope;
@@ -163,13 +166,16 @@ export function buildTrustedAmoraMemoryCompilerMessages(
 export function prepareTrustedAmoraMemoryBatch(
   rows: readonly AmoraMemorySourceScopeRow[],
   couple: { brideId: string | null; groomId: string | null },
+  excludedSourceIds: ReadonlySet<string> = new Set(),
 ): PreparedTrustedAmoraMemoryBatch {
-  const trustedUserIds = selectTrustedAmoraMemoryUserIds(rows);
+  const trustedUserIds = selectTrustedAmoraMemoryUserIds(rows, excludedSourceIds);
   const resolvedUserIds = selectCanonicalAmoraReplySourceIds(rows);
   const unresolvedSourceIndex = rows.findIndex((row) => {
     if (
       row.role !== "user"
+      || excludedSourceIds.has(row.id)
       || row.sender_id === null
+      || hasAmoraMemoryTurnOptOut(row.content)
       || resolvedUserIds.has(row.id)
       || !(
         (row.sender_type === "bride" && row.sender_id === couple.brideId)

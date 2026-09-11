@@ -62,6 +62,9 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
     toolName: "get_schedule_summary",
     toolInput: {},
     toolOutput: {
+      progress_basis: "planning_category_templates",
+      shared_actions_queried: false,
+      schedule_events_queried: false,
       total: allKeys.length,
       completed: completed.map((key) => CATEGORY_LABELS[key]),
       in_progress: inProgress.map((key) => CATEGORY_LABELS[key]),
@@ -69,7 +72,7 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
       progress_percent: Math.round((completed.length / allKeys.length) * 100),
     },
     success: true,
-    displayMessage: `전체 ${allKeys.length}개 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개 (${Math.round((completed.length / allKeys.length) * 100)}%)`,
+    displayMessage: `기본 준비 카테고리 ${allKeys.length}개 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개 (${Math.round((completed.length / allKeys.length) * 100)}%). 공유 할 일·등록 일정은 별도 조회가 필요합니다.`,
   };
 }
 

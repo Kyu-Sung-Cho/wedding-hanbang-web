@@ -130,6 +130,7 @@ const LEGACY_CATEGORY_LABELS: Readonly<Record<string, string>> = {
 };
 const WON_FIELDS = new Set(["total_budget", "budget", "spent"]);
 const INTERNAL_CONFIRMATION_FIELDS = new Set([
+  "allocation_mode",
   "event_id",
   "item_id",
   "action_id",
@@ -1297,7 +1298,12 @@ export function extractAmoraPendingAction({
       return { cleanText: UNSUPPORTED_SCHEDULE_FIELDS_NOTICE, pendingAction: null,
         hadPendingActionTag, dropReason: "unsupported_schedule_fields" };
     }
-    const candidate = validateMarker(parsed, allowedTools, now);
+    // 신규 제안만 새 배분 계약으로 고정한다. 저장된 구판 pending을 읽는
+    // validateMarker 자체는 바꾸지 않아 기존 inputDigest/승인 내용을 보존한다.
+    const proposal = isRecord(parsed) && parsed.tool === "apply_budget_plan" && isRecord(parsed.input)
+      ? { ...parsed, input: { ...parsed.input, allocation_mode: "explicit" } }
+      : parsed;
+    const candidate = validateMarker(proposal, allowedTools, now);
     if (candidate) {
       const key = getAmoraToolOperationIdentity(candidate.tool, candidate.input).operationKey;
       if (!operationKeys.has(key)) {

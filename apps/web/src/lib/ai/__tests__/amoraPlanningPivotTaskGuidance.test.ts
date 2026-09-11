@@ -26,7 +26,7 @@ const ACTUAL_TURNS = [
   "생각이 바뀌었어. 180명 일반웨딩 말고 그냥 40명만 부르는 가족식으로 할래.",
   "비용도 부담되고 준비 과정도 너무 복잡하게 느껴져서 그래. 큰 결혼식이 우리 취향도 아닌 것 같아. 날짜 후보는 9월보다 10월이 더 좋아. 이건 그냥 선호가 바뀐 거야.",
 ];
-const PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 현재 바꾼 대상의 이유는 한 번만 묻되 이미 말했으면 건너뛰고 탐색을 이어가세요. 기존 우선순위나 직전 AI 제안의 이유로 바꾸지 마세요. 그 이유에 답한 턴에는 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요: 바꾸지 않은 명시적 선호·우선순위·생략·시기는 빠뜨리지 말고, 영향받는 규모·식사·견적은 재검토하세요. 작은 월 선호는 되묻지 마세요.";
+const PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상: 바꾼 대상의 이유만 한 번 묻되 이미 말했으면 탐색을 이어가세요. 기존 우선순위·AI 제안의 이유로 바꾸지 마세요. 이유 답변에는 미변경 선호·우선순위·생략·시기의 유지와 영향받는 규모·식사·견적의 재검토를 함께 짚으세요. 작은 월 선호는 되묻지 마세요.";
 
 function selectedOptions(userText: string): Options {
   const questionScope = classifyAmoraQuestionScope({ userText });
@@ -72,7 +72,7 @@ function expectPivotGuidance(prompt: string): void {
   expect(continuity).toContain("다음 행동 한 가지는 우선순위");
   expect(continuity).toContain("그것만 하면 되거나 다른 준비가 필요 없다는 뜻이 아닙니다");
   expect(prompt.split(PIVOT_RULE)).toHaveLength(2);
-  expect(PIVOT_RULE.length).toBe(233);
+  expect(PIVOT_RULE.length).toBe(176);
   expect(prompt).not.toContain("이전 답과 달라졌다면 변화 이유를 캐묻기보다 현재 선택을 우선");
   expect(prompt).toContain("월·규모만 바뀌었다고 확인한 연도를 미정으로 되돌리지 마세요");
   expect(prompt).toContain("저장 요청이 없는 턴에 저장 약속·실패 안내를 만들지 마세요");
@@ -121,7 +121,7 @@ describe("큰 실무 전환과 작은 선호의 질문 목적을 원래 규칙�
       expect(prompt).not.toContain("사용할 수 있는 도구:");
       expect(prompt).not.toContain("최신 사용자가 본인 커플의 결혼 날짜·예산·일정·예약을 정하거나 바꾸는 확정형 발화를 실행 요청으로 다루세요");
     } else {
-      expect(prompt).toContain("데이터 변경은 실행할 값과 범위를 보여주고 사용자가 명시적으로 적용을 확인한 뒤");
+      expect(prompt).toContain("값·범위 제시 후 사용자가 명시적으로 적용을 확인한 뒤");
     }
   });
 

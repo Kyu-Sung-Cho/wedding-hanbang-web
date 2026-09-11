@@ -1,3 +1,4 @@
+import { createBudgetDecisionHistoricalRepository } from './fixtures/budget-decision-historical-repository.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -8,7 +9,10 @@ import { digest, loadCurrentBaselineContract } from '../lib/current-baseline-rel
 import { BUDGET_DECISION_CONTRACT_FILE, BUDGET_DECISION_KIND, BUDGET_DECISION_SCHEMA_CHANGES,
   loadBudgetDecisionHotfixRelease, validateBudgetDecisionPredecessor } from '../lib/amora-budget-decision-release-contract.mjs';
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const sourceRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const historicalRepository = createBudgetDecisionHistoricalRepository(sourceRoot);
+test.after(historicalRepository.cleanup);
+const root = historicalRepository.root;
 const readJson = file => JSON.parse(readFileSync(join(root, file), 'utf8'));
 const current = readJson(BUDGET_DECISION_CONTRACT_FILE);
 const named = readJson(current.predecessor.file);

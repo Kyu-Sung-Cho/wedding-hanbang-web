@@ -12,8 +12,8 @@ export interface AmoraEvidenceSummaryContext {
 }
 
 const STATE_DIMENSIONS = [
-  /확정|결정한/,
-  /가설|가정/,
+  /확정|결정한|정한\s*(?:것|내용|부분)/,
+  /가설|가정|검토\s*중/,
   /미정|미확인/,
   /전달|말(?:하)?지\s*않|말\s*안\s*했/,
   /합의|동의/,
@@ -38,7 +38,7 @@ function requestsEvidenceSummary(userText: string): boolean {
     .replace(/“[^”]*”|‘[^’]*’|"[^"]*"|'[^']*'/gu, " ")
     .replace(/^\s*(?:>|예문\s*:|예시\s*:).*$/gmu, " ");
   const asksToSummarizeStates = requestText.split(/[.!?。\n]+/u).some(sentence => {
-    const asksSummary = /(?:요약|정리|구분)해\s*(?:줘(?:요)?|주세요|주실래(?:요)?|줄래(?:요)?)(?!\s*(?:라는|라고|란))(?=$|\s)/u.test(sentence);
+    const asksSummary = /(?:(?:요약|정리|구분)해|나눠)\s*(?:줘(?:요)?|주세요|주실래(?:요)?|줄래(?:요)?)(?!\s*(?:라는|라고|란))(?=$|\s)/u.test(sentence);
     // 상태를 "정리하되 섞지 말아줘"라는 후속 요청도 같은 읽기 과업이다.
     const asksSeparation = /(?:섞|혼동하)지\s*(?:말아\s*(?:줘(?:요)?|주세요)|마(?:세요)?)(?!\s*(?:라는|라고|란))(?=$|\s)/u.test(sentence)
       && /요약|정리|구분|표|상태/u.test(sentence);
@@ -51,7 +51,7 @@ function requestsEvidenceSummary(userText: string): boolean {
   }
   // 변경을 섞은 상담은 기존 경로로 둔다. 명시적인 저장·공유 금지는 변경 요청이 아니다.
   const withoutWriteProhibitions = requestText.replace(
-    /(?:저장|공유|반영|등록|수정|삭제|승인|추가)(?:\s*(?:하거나|및|또는|·|,)\s*(?:저장|공유|반영|등록|수정|삭제|승인|추가))*\s*하지\s*(?:마(?:세요)?|말아\s*줘|말아\s*주세요)/gu,
+    /(?:저장|공유|반영|등록|수정|삭제|승인|추가)(?:\s*(?:하거나|및|또는|·|,)\s*(?:저장|공유|반영|등록|수정|삭제|승인|추가))*(?:은|는)?\s*하지\s*(?:마(?:세요)?|말아\s*줘|말아\s*주세요)/gu,
     " ",
   );
   return !/저장|공유|반영|등록|수정|삭제|승인|추가/u.test(withoutWriteProhibitions);

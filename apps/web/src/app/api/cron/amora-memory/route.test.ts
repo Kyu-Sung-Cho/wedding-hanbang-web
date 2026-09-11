@@ -28,6 +28,8 @@ vi.mock("@/lib/ai/auditedOpenAI", () => ({
 }));
 
 import { GET } from "./route";
+import { resolveAmoraMemoryConversationPolicy } from "@/lib/ai/amoraMemoryConversationPolicy";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 function request(secret = "cron-secret") {
   return new NextRequest("http://localhost/api/cron/amora-memory", {
@@ -46,6 +48,7 @@ type MemoryTestRow = {
   metadata: Record<string, unknown> | null;
   visibility: MemoryVisibility;
   created_at: string;
+  segment_id?: string | null;
 };
 
 type MemoryTestJob = {
@@ -63,6 +66,7 @@ type QueryState = {
   selected: string | null;
   equals: Map<string, unknown>;
   update: Record<string, unknown> | null;
+  policyOnly: boolean;
 };
 
 function createProcessJobHarness(input: {
@@ -74,8 +78,11 @@ function createProcessJobHarness(input: {
   const jobs: MemoryTestJob[] = [];
   const commits: Array<Record<string, unknown>> = [];
   const finishes: Array<Record<string, unknown>> = [];
+  const policyState = { failRead: false };
 
   const resolveQuery = (state: QueryState) => {
+    // 합성 DB도 현행 INSERT trigger의 서버 segment를 기본 부여한다. 명시 null은 보존한다.
+    for (const row of input.rows) if (row.segment_id === undefined) row.segment_id = "60000000-0000-4000-8000-000000000001";
     if (state.table === "amora_memory_settings") {
       return { data: { enabled: true, memory_reset_at: null }, error: null };
     }
@@ -89,6 +96,15 @@ function createProcessJobHarness(input: {
       return { data: null, error: null };
     }
     if (state.table === "chat_messages") {
+      if (state.policyOnly || state.update || state.selected?.includes("segment_id,metadata")) {
+        if (state.policyOnly && policyState.failRead) return { data: null, error: { code: "SYNTHETIC_POLICY_FAILURE" } };
+        const found = input.rows.find(row => [...state.equals].every(([key, value]) => key === "couple_id" ? value === input.coupleId
+          : key === "metadata" ? (value === null ? row.metadata === null : JSON.stringify(row.metadata) === value)
+          : (row as unknown as Record<string, unknown>)[key] === value)
+          && (!state.policyOnly || Boolean(row.metadata && "amora_memory_policy" in row.metadata)));
+        if (found && state.update) Object.assign(found, structuredClone(state.update));
+        return { data: found ? structuredClone(found) : null, error: null };
+      }
       const exactId = state.equals.get("id");
       if (typeof exactId === "string") {
         const row = input.rows.find((candidate) => candidate.id === exactId);
@@ -114,12 +130,14 @@ function createProcessJobHarness(input: {
       selected: null,
       equals: new Map(),
       update: null,
+      policyOnly: false,
     };
     const builder = {
       select(columns: string) {
         state.selected = columns;
         return builder;
       },
+      abortSignal() { return builder; },
       update(value: Record<string, unknown>) {
         state.update = value;
         return builder;
@@ -128,6 +146,8 @@ function createProcessJobHarness(input: {
         state.equals.set(column, value);
         return builder;
       },
+      is(column: string, value: null) { state.equals.set(column, value); return builder; },
+      not(column: string) { if (column === "metadata->amora_memory_policy") state.policyOnly = true; return builder; },
       lte() { return builder; },
       gt() { return builder; },
       or() { return builder; },
@@ -166,6 +186,7 @@ function createProcessJobHarness(input: {
     commits,
     finishes,
     admin,
+    policyState,
   };
 }
 
@@ -314,6 +335,41 @@ describe("/api/cron/amora-memory source-pair recovery", () => {
       skipped: 0,
       failed: 0,
     });
+  });
+
+  it.each(["first-denial", "during-provider", "lookup-failure"] as const)("checks durable segment denial before cursor/commit: %s", async mode => {
+    const segmentId = "60000000-0000-4000-8000-000000000001";
+    const deniedText = "결혼식 장식은 무광 종이를 좋아해. 이번 대화에서만 참고하고 장기 기억에 저장하지 마.";
+    const rows: MemoryTestRow[] = [
+      { id: unresolvedUserId, role: "user", sender_type: "bride", sender_id: brideId, visibility: "shared", segment_id: segmentId,
+        content: mode === "first-denial" ? deniedText : "결혼식 장식은 무광 종이를 좋아해.", metadata: null, created_at: "2026-09-11T00:00:01.000Z" },
+      { id: resolvingAssistantId, role: "assistant", sender_type: "ai", sender_id: null, visibility: "shared", segment_id: segmentId,
+        content: "현재 대화에서 참고할게요.", metadata: { memory_eligible: true, question_scope: "W0_wedding_core", in_reply_to_user_message_id: unresolvedUserId }, created_at: "2026-09-11T00:00:02.000Z" },
+    ];
+    const harness = createProcessJobHarness({ coupleId, brideId, groomId, rows });
+    harness.policyState.failRead = mode === "lookup-failure";
+    mocks.createAdmin.mockReturnValue(harness.admin);
+    harness.jobs.push({ id: "40000000-0000-4000-8000-000000000001", couple_id: coupleId, user_id: brideId,
+      visibility: "shared", to_message_id: resolvingAssistantId, attempt_count: 1, continuation_count: 1 });
+    mocks.structuredResponse.mockImplementation(async () => {
+      const next = { ...rows[0], id: "30000000-0000-4000-8000-000000000099", content: deniedText, created_at: "2026-09-11T00:00:03.000Z" };
+      rows.push(next);
+      await resolveAmoraMemoryConversationPolicy({ admin: harness.admin as unknown as SupabaseClient,
+        scope: { coupleId, actorId: brideId, actorRole: "bride", visibility: "shared", segmentId }, sources: [next] });
+      return { data: { summary: "합성 오래된 추출", memories: [] } };
+    });
+    const response = await GET(request());
+    expect(response.status).toBe(200);
+    if (mode === "first-denial") {
+      expect(mocks.structuredResponse).not.toHaveBeenCalled();
+      expect(harness.commits).toHaveLength(1);
+      expect(harness.commits[0]).toMatchObject({ p_memories: [], p_message_count: 2, p_to_message_id: resolvingAssistantId });
+      expect(rows[0].metadata).toHaveProperty("amora_memory_policy.effect", "deny");
+    } else {
+      expect(mocks.structuredResponse).toHaveBeenCalledTimes(mode === "lookup-failure" ? 0 : 1);
+      expect(harness.commits).toHaveLength(0);
+      expect(harness.finishes.at(-1)).toMatchObject({ p_success: false });
+    }
   });
 
   it.each([

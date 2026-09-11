@@ -19,6 +19,7 @@ import {
   sep,
 } from "node:path";
 import { loadEffectiveBudgetDecisionHotfixRelease } from "./amora-budget-decision-effective-release-contract.mjs";
+import { loadExplicitBudgetHotfixRelease } from "./amora-explicit-budget-release-contract.mjs";
 
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
@@ -1082,8 +1083,8 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && followup !== "amora-budget-decision-hotfix") {
-    invalid("FOLLOWUP_RELEASE_INVALID", "only the registered budget-decision followup is supported");
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix"].includes(followup)) {
+    invalid("FOLLOWUP_RELEASE_INVALID", "only registered budget followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
     invalid("FOLLOWUP_RELEASE_INVALID", "the budget-decision followup requires the original successor manifest");
@@ -1173,6 +1174,30 @@ export function validateSuccessorReleaseContract({
       invalid("FOLLOWUP_RELEASE_INVALID", "the budget-decision migration must follow the original successor exactly once");
     }
     expectedDirectoryFiles.push(budgetRelease.migrations[0].file);
+  }
+  if (followup === "amora-explicit-budget-hotfix") {
+    let explicitRelease;
+    try {
+      explicitRelease = loadExplicitBudgetHotfixRelease(root);
+    } catch {
+      invalid("FOLLOWUP_RELEASE_INVALID", "the pinned explicit-budget static contract could not be verified");
+    }
+    const followups = explicitRelease.followupMigrations;
+    if (explicitRelease.hotfix.projectRef !== manifest.projectRef
+        || explicitRelease.migrations.length !== 1
+        || !Array.isArray(followups) || followups.length !== 2
+        || followups[1].file !== explicitRelease.migrations[0].file) {
+      invalid("FOLLOWUP_RELEASE_INVALID", "the explicit-budget followup must preserve the registered predecessor and add exactly one migration");
+    }
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      if (migration.version <= previousFollowupVersion
+          || expectedDirectoryFiles.includes(migration.file)) {
+        invalid("FOLLOWUP_RELEASE_INVALID", "budget followups must follow the original successor in exact order");
+      }
+      previousFollowupVersion = migration.version;
+      expectedDirectoryFiles.push(migration.file);
+    }
   }
   const actualFiles = readdirSync(join(root, "supabase", "migrations"))
     .filter((name) => MIGRATION_FILE.test(name))

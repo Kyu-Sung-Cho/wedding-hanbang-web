@@ -71,10 +71,10 @@ describe("날짜 저장값과 대화의 연도 근거를 구분한다", () => {
   });
 
   it("일정 조회 지침도 이미 확인한 연도와 결혼 시기를 최근 미래 추정으로 덮지 않는다", () => {
-    const rule = compose(null).split("\n").find(line => line.includes("연도가 없으면 가장 가까운 미래 날짜를 사용하세요"));
-    expect(rule).toContain("해당 일정·결혼식에 이미 확인된 연도는 유지하세요");
-    expect(rule).toContain("근거가 없는 일반 일정·예약에서만");
-    expect(rule).toContain("결혼식 시기에는 이 추정을 적용하지 말고");
+    const rule = compose(null).split("\n").find(line => line.includes("연도 없는 일반 일정·예약만 가장 가까운 미래 날짜"));
+    expect(rule).toContain("확인된 일정·결혼식 연도는 유지");
+    expect(rule).toContain("연도 없는 일반 일정·예약만");
+    expect(rule).toContain("결혼식 시기 추정 금지");
   });
 
   it("대략 시기나 월 선호로 정확한 날짜를 만들어 저장 제안하지 않는다", () => {

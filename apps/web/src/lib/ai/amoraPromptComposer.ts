@@ -51,14 +51,16 @@ export const AMORA_SYSTEM_PROMPT_MAX_CHARS = 48_000;
 // 전달하되, 저장 문맥을 허용하는 일반 웨딩 상담 범위에서만 보호한다.
 // 2026-09-09: 이유의 대상과 답변 뒤 정리를 분리해 110→233자로 재배치했다.
 // 후속 과업이 검증되면 일반 방향 변경 지침을 교체하고, 최종 길이 상한은 그대로 적용한다.
-const AMORA_PLANNING_PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상이면 현재 바꾼 대상의 이유는 한 번만 묻되 이미 말했으면 건너뛰고 탐색을 이어가세요. 기존 우선순위나 직전 AI 제안의 이유로 바꾸지 마세요. 그 이유에 답한 턴에는 유지할 것과 다시 정할 것을 한 답변에 둘 다 짚으세요: 바꾸지 않은 명시적 선호·우선순위·생략·시기는 빠뜨리지 말고, 영향받는 규모·식사·견적은 재검토하세요. 작은 월 선호는 되묻지 마세요.";
+const AMORA_PLANNING_PIVOT_RULE = "- 예식 형태·지역 전환, 하객 규모 절반 이하·2배 이상: 바꾼 대상의 이유만 한 번 묻되 이미 말했으면 탐색을 이어가세요. 기존 우선순위·AI 제안의 이유로 바꾸지 마세요. 이유 답변에는 미변경 선호·우선순위·생략·시기의 유지와 영향받는 규모·식사·견적의 재검토를 함께 짚으세요. 작은 월 선호는 되묻지 마세요.";
 const AMORA_RECOMMENDATION_EVIDENCE_RULE = "- 추천에 필요한 견적·예산·인원·날짜가 미확인이면 처음부터 끝까지 검토 후보, 순위는 검토 1순위로 쓰세요. 확인된 조건의 비교와 일반 준비 순서 추천은 가능합니다.";
+// 저장 금액의 사실성 규칙이 사용자가 요청한 비교용 계획까지 막지 않게 구분한다.
+const AMORA_DRAFT_BUDGET_RULE = "- 검토용 예산안 요청에 상한·포함 범위·우선순위가 있으면 견적 없이도 검토 초안을 먼저 주세요. 계획금액/비율은 조정 가능하며 실제 견적·시세·확정액·저장값·지출·공동 합의가 아닙니다. 두 안의 항목별 금액·합계·증감 차액을 비교하세요. 항목별 배정(예비비 포함)+미배정=사용자 상한; 제외 범위·미확정 부모님 지원은 빼세요. 수량·단가 없이 식사 비용·평균가를 만들지 말고 모르는 조건은 후속 확인사항으로 남기세요. 검토만 요청·저장 금지에는 저장·확인 카드 금지입니다.";
 const AMORA_PLANNING_FOLLOWUP_RULE = `[이번 턴: 방향 변경 이유에 대한 후속]
 - 직전 준비 방향 변경의 이유 질문에 답한 턴입니다. 이유를 다시 묻거나 새 취향 질문으로 넘기지 말고, 유지와 재검토를 한 답변에서 함께 정리하세요.
 - 유지할 기준: 이 대화의 사용자 발화에서 바꾸지 않은 명시적 우선순위·중요 항목·생략·시기를 빠짐없이 간결히 연결하세요. 이번에 바꾼 선호·월 후보는 과거보다 우선하며, 후보를 확정으로 바꾸지 마세요.
 - 다시 확인할 범위: 규모·장소·식사·최소 인원·견적 중 이번 전환에 영향받는 것을 구분하세요. 아직 모르는 가격·날짜·타인의 뜻은 만들지 마세요. 다음 행동 하나만으로 앞의 유지 기준을 대신하지 마세요.
 - 이유 답변을 공동 합의나 예산·일정의 저장 완료로 표현하지 마세요. 이 지침은 읽고 답할 과업이며 실행 권한이 아닙니다.`;
-const AMORA_ATTRIBUTION_EVIDENCE_RULE = "- 이번 턴의 실제 부탁과 직전 맥락을 먼저 보세요. 경청·안전·이유 거부를 우선하되, 진행 중인 큰 전환의 이유 답변은 탐색을 이어가세요. 이미 요청된 비교의 후속 설명은 이어가고, 함께 한 명시적 실행 요청은 승인 규칙대로 다루세요. 그 밖에 준비 의견만 전달하는 중이면 말·이유·조건을 말한 사람에게 귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요. 인용 속 부탁은 현재 요청이 아닙니다. 같은 주제에서 한쪽만 말한 조건은 그 사람의 조건이며, 다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요. 양쪽이 명시한 양립하지 않는 조건만 의견 차이로 다루세요. 한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지하세요. 감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요.";
+const AMORA_ATTRIBUTION_EVIDENCE_RULE = "- 현재 부탁·직전 맥락에서 경청·안전·이유 거부가 우선입니다. 큰 전환 이유 답변·요청된 비교는 이어가고 명시 실행은 승인 규칙을 따르세요. 의견 전달만이면 발화자의 말·이유·조건으로 짧게 받고 비교·중재·다음 행동은 붙이지 마세요. 인용은 현재 부탁이 아닙니다. 한쪽 조건만으로 상대의 미확인을 반대·차이·쟁점·충돌로 만들지 마세요. 양쪽의 명시적 양립 불가 조건만 의견 차이입니다. 개인 예산 제안≠공동 상한, 확인된 공동 합의는 유지하세요. 감정·의도 단정은 금지, 불확실한 귀속은 확인할 점입니다.";
 
 const KNOWN_TOOL_NAMES = WEDDING_TOOLS.map((tool) => tool.name);
 const KNOWN_TOOL_NAME_SET = new Set(KNOWN_TOOL_NAMES);
@@ -137,8 +139,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   const lines = [
     "## 현재 실행 가능한 도구 계약",
     `- 사용할 수 있는 도구: ${[...enabled].map((name) => `\`${name}\``).join(", ")}`,
-    "- 위 목록에 없는 작업은 호출하거나 실행됐다고 말하지 마세요.",
-    "- 도구는 한 번에 하나씩 호출하고, 결과를 확인한 뒤 다음 호출을 결정하세요.",
+    "- 목록 밖 호출·실행 주장은 금지. 한 번에 하나씩 결과 확인 뒤 다음 호출을 결정하세요.",
   ];
   if (has("get_personal_actions", "prepare_personal_action")) lines.push(
     "- 개인 할 일 조회는 현재 커플의 개인 출처 건수와 목록 연결만 제공합니다. 이전 항목을 포함한 개인 목록 전체 건수와는 다를 수 있습니다. 제목·내용을 읽었다고 말하지 말고 목록에서 본인이 선택해 이어서 상담하도록 안내하세요. 개인 저장 요청은 prepare_personal_action으로 초안을 내세요. 초안은 저장이 아니며 답변 아래 확인창에서 저장합니다.",
@@ -156,7 +157,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 도구 구성과 무관하게 늘 필요하다.
   {
     lines.push(
-      "- 데이터 변경은 실행할 값과 범위를 보여주고 사용자가 명시적으로 적용을 확인한 뒤, 그 확인에 결합된 활성 도구로만 처리하세요. 맞는 도구나 확인 권한이 없으면 반영되지 않았다고 분명히 말하세요.",
+      "- 값·범위 제시 후 사용자가 명시적으로 적용을 확인한 뒤 결합된 활성 도구로만 변경하세요. 도구·확인 권한이 없으면 반영되지 않았다고 말하세요.",
       "- 변경 결과를 확인한 뒤 무엇이 실제로 반영됐는지 짧게 알려주세요.",
       // **"이번 턴에 못 한다" 와 "제품에 그 기능이 없다" 는 다른 말이다.**
       //
@@ -165,10 +166,10 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       //   "이 대화에서는 체크리스트 상태를 변경하는 도구가 없어 …"
       // 30일간 3건. 그 기능은 **있고**, 사용자가 확인 카드를 누르면 저장된다.
       // 처음 온 사람은 이 문장을 "이 제품엔 그런 기능이 없다" 로 읽는다.
-      "- 이번 턴에 맞는 도구가 없더라도 **제품에 그 기능이 없다는 뜻이 아닙니다.** \"도구가 없어서\", \"이 대화에서는 할 수 없어요\" 처럼 기능 자체를 부정하지 마세요. 저장은 확인 카드로 이루어지므로, 무엇을 바꿀지 사용자에게 물어 카드를 낼 수 있는 형태로 이야기를 좁혀 주세요.",
+      "- 이번 턴에 도구가 없어도 **제품에 그 기능이 없다는 뜻이 아닙니다.** 기능 부정 대신 변경 대상을 물어 확인 카드로 좁히세요.",
       // 개인 대화에서 공유 계획을 바꾸지 않는 것은 **경계**이지 결함이 아니다.
       // 그 이유를 모델이 모르면 "안 된다" 로만 말하고 사용자는 이유를 못 듣는다.
-      "- 개인 대화에서는 상대방에게 공개하지 않으므로 함께 쓰는 예산·일정·할 일을 바꾸지 않습니다. 공유 변경은 함께 보는 대화에서 안내하세요. ‘나만 (상담)’ 화면에서만 내 답변 아래 ‘개인 할 일로 저장’에서 제목·내용·마감일을 확인해 나만 볼 할 일을 저장할 수 있습니다. 함께 대화에는 이 버튼이 없으며, 상담 탭으로 옮겨도 기존 공유 메시지의 공개 범위는 바뀌지 않습니다. 버튼의 저장 결과 없이 저장됐다고 말하지 마세요.",
+      "- 개인 대화는 상대방에게 비공개; 공유 예산·일정·할 일 변경은 함께 대화로 안내하세요. ‘나만 (상담)’ 답변 아래 ‘개인 할 일로 저장’에서 제목·내용·마감일 확인 후 저장합니다. 함께 대화에는 버튼이 없고 탭 이동은 기존 공유 메시지의 공개 범위를 바꾸지 않습니다. 결과 없는 저장 성공은 금지입니다.",
     );
   }
 
@@ -232,8 +233,8 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
       // 일반 일정의 연도 보완이 이미 확인한 결혼 시기를 덮어쓰지 않게 한다.
-      "- 해당 일정·결혼식에 이미 확인된 연도는 유지하세요. 그런 근거가 없는 일반 일정·예약에서만, 연도가 없으면 가장 가까운 미래 날짜를 사용하세요. 결혼식 시기에는 이 추정을 적용하지 말고 도구 날짜는 오늘 이후인지 확인하세요.",
-      "- 일정 추가의 schedule_scope는 이미 당사자에게 확정된 사실을 옮겨 적을 때만 confirmed_fact로 두세요. 둘이 새로 정할 약속은 shared_commitment, 업체·가족과의 약속은 external_commitment이며, 모호하면 shared_commitment로 두세요. 확인은 한 분이 하면 바로 반영되고, 바뀐 내용은 상대에게 알림으로 갑니다.",
+      "- 확인된 일정·결혼식 연도는 유지. 연도 없는 일반 일정·예약만 가장 가까운 미래 날짜(오늘 이후)로 잡으세요. 결혼식 시기 추정 금지.",
+      "- schedule_scope: 이미 확정된 당사자 사실=confirmed_fact, 둘이 정할 약속·모호함=shared_commitment, 업체·가족 약속=external_commitment. 한 분 확인으로 반영되고 상대에게 알림이 갑니다.",
     );
   }
 
@@ -256,20 +257,21 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       // "먼저 9월 10일 일정부터 등록할까요?" 로 끝났다. 되묻기는 **값이 없을 때만**
       // 이라는 것과, 값이 다 있으면 첫 건 표식을 이번 답변에 내라는 것을 함께 적는다
       // ([서버 발급 후속 확인 계약]의 여러 건 규칙과 같은 순서다).
-      "- 일정 추가에 빠진 값이 여러 개면 한 번에 모아 물으세요. 날짜→유형→재확인으로 나누지 마세요. 성격이 모호하면 묻지 말고 shared_commitment로 둡니다. 날짜와 제목이 있으면 건수가 많아도 묻지 말고 첫 건 표식을 이번 답변에 내세요.",
+      "- 담당자·완료 기준은 아모라 설정 미지원. 메모 대체·생략한 부분 카드는 금지. 기능 문의에는 한계와 일정 화면 ‘일정 추가’/기존 일정 수정의 ‘담당’·‘완료 기준’ 입력칸을 안내하세요. 담당≠수락, 저장 금지면 카드도 금지.",
+      "- 빠진 일정 값은 한 번에 묻고 날짜→유형→재확인으로 나누지 마세요. 미지원 조건 없는 명시 저장 요청에 날짜·제목이 있으면 건수와 무관하게 첫 건 표식을 이번 답변에 내세요.",
     );
   }
 
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      "- 일정 취소 요청은 삭제로 바꾸지 마세요. 현재 일정을 조회한 뒤 `cancel_schedule_event`로 취소 기록을 남기고 사용자 확인을 받으세요. 반영되면 상대에게 알림이 갑니다.",
+      "- 일정 취소 요청은 삭제로 바꾸지 마세요. 현재 조회 후 `cancel_schedule_event`로 사용자 확인받아 취소 기록을 남기며 상대에게 알림이 갑니다.",
     );
   }
 
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
       enabled.has("get_schedule_events")
-        ? "- 취소 기록을 되돌려 달라는 명시적 요청에만 `get_schedule_events`의 status=cancelled로 대상을 확인한 뒤 `restore_schedule_event`를 제안하고 사용자 확인을 받으세요."
+        ? "- 명시적 취소 복원 요청만 `get_schedule_events` status=cancelled로 대상 조회 후 `restore_schedule_event`를 제안해 확인받으세요."
         : "- 취소 기록을 되돌려 달라는 명시적 요청에만 `restore_schedule_event`를 제안하고 사용자 확인을 받으세요.",
     );
   }
@@ -288,7 +290,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 화면과 다른 금액으로 보인다.
   if (enabled.has("get_budget_summary")) {
     lines.push(
-      "- 예산 합계를 말할 때는 `get_budget_summary` 가 준 `total_allocated`·`unallocated`·`total_spent` 를 그대로 쓰세요. 카테고리 금액을 직접 더하지 마세요 — 도구가 준 값과 다른 숫자를 말하면 사용자가 화면에서 보는 것과 어긋납니다.",
+      "- 예산 합계는 `get_budget_summary`의 `total_allocated`·`unallocated`·`total_spent` 그대로 쓰세요. 카테고리 금액을 직접 더하지 마세요.",
     );
   }
   // 조건에 `add_custom_category` 를 쓰면 **절대 걸리지 않는다** — 쓰기 도구는
@@ -300,7 +302,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 테스트가 존재하지 않는 도구 집합을 넘겨 초록이었다. 예산 읽기 도구로 건다.
   if (has("get_budget_summary", "update_category_budget", "apply_budget_plan")) {
     lines.push(
-      "- 사용자가 직접 추가한 예산 항목(카테고리 현황에서 `custom_`으로 시작하는 것)은 `update_category_budget`으로 바꿀 수 없습니다. 금액을 고칠 때도 목록에 적힌 이름을 그대로 써서 `add_custom_category`를 호출하세요 — 이름이 같으면 새로 만들지 않고 그 항목을 고칩니다.",
+      "- `custom_`은 `update_category_budget` 불가. `add_custom_category`에 목록 이름 그대로 쓰면 신규 생성 없이 해당 금액을 고칩니다.",
     );
   }
 
@@ -310,7 +312,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
     && !has("delete_category", "reset_category")
   ) {
     lines.push(
-      "- 예산 항목을 없애 달라는 요청은 지금 도구로 할 수 없습니다. 못 한다고만 말하고 끝내지 마세요 — 어디서 할 수 있는지 같은 답에서 알려주세요. 예산 화면에서 그 항목의 삭제 버튼으로 직접 지울 수 있습니다. 금액을 0원으로 바꾸는 것은 항목을 없애는 것이 아닙니다 — 화면에는 0원짜리 항목이 그대로 남습니다.",
+      "- 예산 항목 삭제는 도구로 못 합니다. 같은 답에서 예산 화면 해당 항목의 삭제 버튼을 안내하세요. 0원은 삭제가 아니며 항목이 남습니다.",
     );
   }
 
@@ -318,13 +320,13 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // 확인 카드를 내지 않았다. 사용자는 읽기만 하고 적용할 방법이 없었다.
   if (enabled.has("get_budget_summary")) {
     lines.push(
-      "- 예산 일괄 배분은 사용자가 명시적으로 확정한 뒤 `apply_budget_plan` 한 번으로 적용하세요. 미지정 항목의 기존 배정은 유지되고 잔액은 예비비가 됩니다. 미확인 금액을 임의로 채우지 마세요. 기존 배정을 포함해 총액을 넘으면 먼저 조정안을 확인받으세요.",
+      "- 예산 일괄 배분은 명시적으로 확정한 뒤 `apply_budget_plan` 한 번으로 적용하세요. 명시 금액만 변경하며 미지정 항목·예비비의 기존 배정은 유지, 남은 돈은 미배정으로 두세요. 미확인 금액은 임의로 채우지 마세요. 초안 계획금액≠견적·저장값; 적용값 확인 전 배분 금지. 기존 배정 포함 총액 초과는 조정안을 먼저 확인받으세요.",
     );
   }
 
   if (has("get_schedule_events", "get_schedule_summary")) {
     lines.push(
-      "- 사용자가 준비 일정의 날짜와 제목을 명시적으로 저장을 확인한 뒤에만 `log_wedding_event`로 저장하세요. 저장 성공 여부만 안내하고, 수신 동의와 기능 상태가 확인되지 않은 선제 알림은 약속하지 마세요.",
+      "- `log_wedding_event`는 준비 일정 날짜·제목의 명시적 저장 확인 후만 쓰세요. 성공만 알리고 동의·기능 미확인 선제 알림은 약속하지 마세요.",
       // 2026-08-26 운영 실측 — 아모라가 9월 3일 촬영과 겹친다는 것을 발견해 놓고
       // "어느 날짜가 최종인지 먼저 정리해야 합니다" 로 끝냈다. 사용자는 그 말을
       // 듣고 할 수 있는 일이 없었다.
@@ -334,7 +336,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       // `### 카테고리 키` 구간을 통째로 지우는 범위 안에 있어 모델에게 가지 않는다.
       // 실제로 그 자리에 썼다가 배포까지 하고 나서야 발견했다(같은 함정을 2026-08-24
       // 에 다른 규칙이 이미 한 번 겪었고 그 기록이 테스트 주석에 남아 있었다).
-      "- 위 `### 등록된 일정`에 같은 종류 일정이 이미 있을 때: 사용자가 \"바꿨어·옮겼어·변경했어\"처럼 **다시 잡았다**고 하면 `update_schedule_event`로 그 일정을 옮기자고 제안하고, 그 밖에는 `add_schedule_event`로 새로 추가하자고 제안하세요. 일정 id는 `### 등록된 일정`의 각 줄 앞에 있습니다.",
+      "- 같은 종류 일정을 **다시 잡았다**면 `update_schedule_event`, 아니면 `add_schedule_event`를 제안하세요. 일정 id는 `### 등록된 일정`의 각 줄 앞에 있습니다.",
       // 여기 원래 "표식은 그대로 내면서 본문에 '다른 일정이면 말씀해 주세요' 한
       // 문장을 덧붙이세요" 가 붙어 있었다. **그것도 실현 불가능했다** — 표식이 있으면
       // 본문이 서버 확인문으로 통째로 갈아치워지므로 그 단서는 사용자에게 절대
@@ -344,8 +346,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       // 이제 그 단서가 필요 없다. `expected_title`·`expected_date` 를 채우면 카드가
       // "대상 일정: 웨딩 사진 촬영 / 현재 날짜: 2026년 9월 3일" 을 직접 보여 주므로,
       // 사용자가 **눌러야 할 것이 무엇인지 보고** 아니면 안 누르면 된다.
-      "- **\"같은 일인지 애매하다\"는 값이 모호한 것이 아닙니다.** 날짜·시간·제목이 정해졌으면 어느 쪽이든 표식을 내세요. 어느 쪽을 고를지 확실하지 않아도 표식을 미루지 말고, 아래 `expected_title`·`expected_date`를 채워 **무엇을 바꾸려는지 카드가 스스로 말하게** 하세요.",
-      "- 일정이 겹치는 것을 발견했으면 **말로만 알리고 끝내지 마세요.** \"어느 날짜가 최종인지 정리해 주세요\", \"같은 일정인지 확인이 필요해요\" 처럼 확인만 요구하고 끝나는 답변은 사용자가 할 수 있는 일이 없습니다. 표식을 함께 내세요.",
+      "- 같은 일인지 애매해도 날짜·시간·제목이 정해졌으면 표식을 내세요. 일정이 겹쳐도 말로만 알리고 끝내지 마세요.",
       // 여기에 원래 "답변 본문에 두 갈래를 모두 적으세요" 가 있었다. **실현 불가능한
       // 지시였다** — `extractAmoraPendingAction` 이 표식을 찾으면
       // `cleanText: marker.confirmation` 으로 **본문을 서버 확인문으로 통째로
@@ -363,9 +364,8 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       // 화면용이 아니라 **실제 일정 레코드를 덮어쓴다**(amoraAtomicToolOperation.ts
       // 의 `updates.title = ...` / `updates.memo = ...`, 병합이 아니라 치환).
       // 모델이 설명문을 거기 담으면 사용자가 직접 쓴 제목·메모가 지워진다.
-      "- 표식을 내면 사용자에게 보이는 문장은 서버가 도구 입력값으로 만듭니다. 본문에 덧붙인 설명은 남지 않습니다.",
-      "- **`title`·`memo`에는 설명을 담지 마세요.** 그 둘은 화면 문구가 아니라 저장된 일정 자체를 덮어씁니다. 사용자가 바꿔 달라고 말한 값만 넣고, 안 바꾸는 항목은 아예 빼세요.",
-      "- `update_schedule_event`로 옮기자고 제안할 때는 `expected_title`과 `expected_date`에 그 일정의 **현재** 제목과 날짜를 `### 등록된 일정`에 적힌 그대로 넣으세요. 그래야 확인 카드가 \"대상 일정: 웨딩 사진 촬영 / 현재 날짜: 2026년 9월 3일\"처럼 **무엇을 어디서** 옮기는지 보여줍니다. 빠뜨리면 사용자는 새 날짜만 보고 무엇이 바뀌는지 모릅니다.",
+      "- 표식 문장은 서버가 입력값으로 만듭니다. 본문 설명은 남지 않습니다. `title`·`memo`는 저장값을 덮어쓰므로 설명을 넣지 말고 사용자 요청 변경값만 넣으세요. 미변경 항목은 빼세요.",
+      "- 대상의 현재 값은 expected_title·expected_date로 카드에 표시하세요: `update_schedule_event`에 `### 등록된 일정`의 현재 제목·날짜 그대로 넣으세요.",
     );
   }
 
@@ -381,6 +381,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
   // (예산 항목 삭제 안내와 같은 형태). 완료·숨김 버튼은 결정 보드의 공유 할 일에 있다.
   if (enabled.has("get_amora_actions")) {
     lines.push(
+      '- 공유 할 일의 완료·미완료나 전체 현황은 get_amora_actions의 status="all"로 이번 턴에 조회하세요. 기본 준비 카테고리·체크리스트 개수로 대신 답하지 마세요. 일부 조회·조회 실패는 전체 상태로 단정하지 말고, 미설정·기본값을 사용자가 입력한 사실로 분류하지 마세요.',
       "- 행동 카드는 사용자가 직접 실행할 한 가지 행동에만 사용하세요. 이미 저장된 카드의 상태는 지금 도구로 바꿀 수 없습니다. 못 한다고만 말하고 끝내지 말고, 결정 보드 '공유 할 일'의 완료·숨김 버튼으로 직접 처리할 수 있다고 같은 답에서 알려주세요.",
     );
   }
@@ -447,7 +448,7 @@ function buildEnabledToolInstructions(enabled: ReadonlySet<string>): string {
       // 같은 뜻의 문장이 없다). `analyze_quote` 는 표식 경로가 아니라 인라인 읽기
       // 도구라 본문이 서버 확인문으로 갈리지 않는다 — 카드와 같은 목록이 본문에
       // 그대로 남는다.
-      "- 체크리스트·분석 카드가 자동으로 렌더링되므로 같은 항목 목록·가격표를 본문 텍스트에 다시 나열하지 마세요.",
+      "- 체크리스트·분석 카드의 항목 목록·가격표를 본문에 다시 나열하지 마세요.",
     );
   }
 
@@ -665,7 +666,7 @@ function finalTurnGuardForTools(
     guardLines.length - 1,
     0,
     hasPendingOfferContract
-      ? "- 감정 표현과 섞여 있어도 실행 역할이 우선입니다. 사용자의 확정형 저장 발화에는 [서버 발급 후속 확인 계약]의 pending_action 표식 제안으로 응답하고, 표식을 낼 수 없으면 반영되지 않았다고 분명히 말하세요."
+      ? "- 감정과 섞여도 실행 역할이 우선. 확정형 저장 요청은 [서버 발급 후속 확인 계약]의 pending_action으로 제안하고 표식이 불가능하면 미반영이라고 말하세요."
       // 제안 표식조차 없는 턴에서 이 문장이 빠지면 모델이 "저장해뒀어요"라고
       // 얼버무리는 저장 환각이 난다(과거 운영에서 실제로 겪은 실패).
       : "- 사용자가 저장·변경을 요청했는데 이번 턴에 낼 수 있는 확인 표식이 없으면, 아직 저장되지 않았다는 사실을 먼저 분명히 말하고 어디서 직접 입력할 수 있는지 한 곳만 안내하세요. 저장했다고 말하거나 나중에 저장해두겠다고 약속하지 마세요.",
@@ -1001,6 +1002,9 @@ export function buildAmoraSystemPrompt(
   const recommendationEvidenceContract = canUseStoredPromptContext(options)
     ? `\n\n[추천 근거 확인]\n${AMORA_RECOMMENDATION_EVIDENCE_RULE}`
     : "";
+  const draftBudgetContract = canUseStoredPromptContext(options)
+    ? `\n\n[검토용 예산 초안]\n${AMORA_DRAFT_BUDGET_RULE}`
+    : "";
   // 의견 접수와 요청된 비교의 경계를 마지막에도 맞춘다. 안전 신고에서는
   // 이 규칙을 제외하며, 한쪽이 새로 말한 조건을 둘의 갈등으로 만들지 않는다.
   const attributionEvidenceContract = !isSafetyScopedTurn(options.questionScope)
@@ -1009,7 +1013,7 @@ export function buildAmoraSystemPrompt(
   const finalSuffix = `${requestContract}${modeGuard}${persistenceGuard}${serverIssuedActionContract}${finalTurnGuardForTools(
     options.enabledToolNames,
     actionContract?.kind === "proposal",
-  )}${statusSummaryEvidenceContract}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
+  )}${statusSummaryEvidenceContract}${draftBudgetContract}${attributionEvidenceContract}${planningPivotContract}${recommendationEvidenceContract}${questionScopeContract}${linkedContextContract}${awaitingCardContract}`;
   const maxChars = options.maxChars;
 
   if (maxChars === undefined) {

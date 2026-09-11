@@ -1,5 +1,6 @@
 import { createOpenAIStructuredResponseWithAudit } from "@/lib/ai/auditedOpenAI";
 import { AMORA_MAX_INPUT_TOKENS_PER_PROVIDER_CALL } from "@/lib/ai/amoraRequestPolicy";
+import { hasAmoraMemoryTurnOptOut } from "@/lib/ai/amoraMemoryTurnOptOut";
 import { MOMENTS } from "@/constants/moments";
 
 export type AmoraMemoryVisibility = "shared" | "bride_private" | "groom_private";
@@ -407,7 +408,7 @@ export function prepareAmoraMemoryBatch(
       pendingMomentStartIndex = pendingMomentMemoryKeys.length > 0 ? index : null;
     }
     if (message.role === "user") {
-      if (message.sourceActorRole !== null) {
+      if (message.sourceActorRole !== null && !hasAmoraMemoryTurnOptOut(message.content)) {
         const line = formatUserMessage({
           ...message,
           trustedMomentMemoryKeys: pendingMomentMemoryKeys,
@@ -523,6 +524,7 @@ export function validateAmoraMemoryCompilation(
     if (source === undefined) {
       throw new Error("memory source is not a user message in this batch");
     }
+    if (hasAmoraMemoryTurnOptOut(source.content)) continue;
     if (!evidence || evidence.length > MAX_EVIDENCE_CHARS) {
       throw new Error("invalid memory evidence");
     }
@@ -616,7 +618,8 @@ export async function compileAmoraMemory(input: {
     batch.messages
       .filter((message): message is MemoryCompilerMessage & {
         sourceActorRole: AmoraMemoryActorRole;
-      } => message.role === "user" && message.sourceActorRole !== null)
+      } => message.role === "user" && message.sourceActorRole !== null
+        && !hasAmoraMemoryTurnOptOut(message.content))
       .map((message) => [
         message.id,
         {

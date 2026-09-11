@@ -7,9 +7,55 @@ import { getUnsupportedScheduleFieldsReply, UNSUPPORTED_SCHEDULE_FIELDS_NOTICE }
 const tools = BETA_SAFE_TOOLS.filter(tool => isMutatingTool(tool.name));
 const actionId = "11111111-1111-4111-8111-111111111111";
 const now = Date.UTC(2026, 8, 10);
+const capabilityQuestion = "한국 시간 오후 7시가 맞아. 담당자는 상대방, 완료 기준은 견적서를 받아 둘이 포함 항목을 확인하는 거야. 이 조건까지 들어간 일정 확인을 아모라에서 할 수 있는지 알려줘. 날짜랑 제목만 넣으면 안 되고 아직 저장하지 마.";
+const capabilityFollowup = "아모라에서 못 넣는 조건은 내가 어느 화면에서 직접 확인해야 하는지만 알려줘. 이번 대화로 일정이 생성된 것처럼 말하지 마.";
 const extract = (tool: string, input: Record<string, unknown>) => extractAmoraPendingAction({
   text: `[pending_action]${JSON.stringify({ tool, input })}[/pending_action]`,
   allowedTools: tools, now, createActionId: () => actionId,
+});
+
+describe("일정 미지원 조건의 기능 문의는 실제 화면 경로로 답한다", () => {
+  it.each([
+    capabilityQuestion,
+    "아모라에서 일정 담당자와 완료 기준도 저장할 수 있어? 아직 저장하지 마.",
+    "가상 일정의 조건을 확인하려고 해. 아모라로 담당자와 완료 기준을 설정할 수 있는지 알려줘.",
+  ])("저장 없이 기능을 물어도 미지원 사실을 전달한다: %s", text => {
+    const reply = getUnsupportedScheduleFieldsReply(text);
+    expect(reply).toContain("아직 아모라에서 설정할 수 없어요");
+    expect(reply).toContain("일정 추가");
+    expect(reply).toContain("수정");
+    expect(reply).toContain("담당");
+    expect(reply).toContain("완료 기준");
+    expect(reply).not.toContain("메모란");
+  });
+
+  it("명시한 후속 화면 문의만 직전 사용자의 조건을 참조한다", () => {
+    expect(getUnsupportedScheduleFieldsReply(capabilityFollowup, "", capabilityQuestion)).toContain("일정 추가");
+    expect(getUnsupportedScheduleFieldsReply(capabilityFollowup)).toBeNull();
+    expect(getUnsupportedScheduleFieldsReply(capabilityFollowup, "담당자와 완료 기준을 저장할 수 있어요", "예산을 확인해줘")).toBeNull();
+  });
+
+  it.each([
+    "'아모라에서 일정 담당자와 완료 기준을 설정할 수 있어?'라는 문구를 검토해줘.",
+    "아모라가 일정 담당자를 설정할 수 있다면 편하겠지? 그런 가정에 대한 의견만 줘.",
+    "지난번 아모라가 일정 담당자와 완료 기준을 저장할 수 있는지 물었어.",
+    "아모라에서 일정 담당자를 설정할 수 있다는 문구를 읽었어.",
+    "일정 담당자는 누구야? 변경하지 말고 알려줘.",
+    "아모라야 일정의 완료 기준은 어떻게 정하면 좋을까? 저장하지 말고 상담해줘.",
+    "아모라가 일정 담당자 이름을 기억할 수 있어?",
+    "일정의 날짜를 바꿔줘. 담당자는 누구인지 알려줘.",
+    "일정에 '담당자는 두 사람'이라는 메모만 추가해줘.",
+    "아모라의 할 일 담당자는 지정할 수 있어?",
+    "이제 예산 얘기하자. 어느 화면에서 봐?",
+    "그 조건 말고 오늘은 드레스만 이야기하자.",
+  ])("인용·가정·조회·조언·다른 요청을 이전 조건으로 바꾸지 않는다: %s", text => {
+    expect(getUnsupportedScheduleFieldsReply(text, "", capabilityQuestion)).toBeNull();
+  });
+
+  it("이전 인용이나 다른 주제만으로 미지원 조건을 만들지 않는다", () => {
+    expect(getUnsupportedScheduleFieldsReply(capabilityFollowup, "", `'${capabilityQuestion}'라는 예문을 검토해줘.`)).toBeNull();
+    expect(getUnsupportedScheduleFieldsReply(capabilityFollowup, "", "할 일 담당자를 정할 수 있어?")).toBeNull();
+  });
 });
 
 describe("일정 카드의 미지원 담당·완료 기준을 부분 저장으로 바꾸지 않는다", () => {

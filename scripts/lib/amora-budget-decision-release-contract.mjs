@@ -162,6 +162,17 @@ export function validateBudgetDecisionPredecessor({ baseline, prior, contract, a
 }
 
 export function loadBudgetDecisionHotfixRelease(repoRoot) {
+  const release = loadBudgetDecisionHistoricalRelease(repoRoot);
+  const reviewed = [...release.hotfix.reviewedLocalHistory.migrations, ...release.hotfix.migrations]
+    .sort((a, b) => a.file.localeCompare(b.file));
+  const files = readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort();
+  same(files, reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
+  return release;
+}
+
+// 후속 계약의 고정 선행 원문 검증용이다. 적용 모드 선택기는 위 전체 디렉터리 검증을 사용한다.
+// 임의 허용목록이나 guard 해제 옵션을 받지 않는다. 과거 SQL·관측·구현 pin은 모두 검증한다.
+export function loadBudgetDecisionHistoricalRelease(repoRoot) {
   const bytes = pinnedArtifact(repoRoot, { file: BUDGET_DECISION_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const hotfix = JSON.parse(bytes);
   const { base, named, prior, applied } = historicalRelease(repoRoot);
@@ -177,9 +188,6 @@ export function loadBudgetDecisionHotfixRelease(repoRoot) {
   same(hotfix.allowedSchemaChanges, BUDGET_DECISION_SCHEMA_CHANGES, 'HOTFIX_SCOPE_INVALID');
   requireRelease(digestJson(hotfix.reviewedLocalHistory) === HISTORY_SHA, 'HISTORICAL_MIGRATION_MANIFEST_CHANGED');
   const reviewed = [...hotfix.reviewedLocalHistory.migrations, FEATURE].sort((a, b) => a.file.localeCompare(b.file));
-  // 바닥 날짜 이전도 포함한 디렉터리 전체를 비교한다. 새 파일, 잘못된 이름, 과거 byte 변경 모두 거절한다.
-  const files = readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort();
-  same(files, reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` });
   const baselineBytes = pinnedArtifact(repoRoot, hotfix.operatingBaseline);
   const baseline = JSON.parse(baselineBytes);

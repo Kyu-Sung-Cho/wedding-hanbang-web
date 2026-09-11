@@ -212,7 +212,9 @@ describe("계약문이 알려준 이름만으로 만든 표식은 서버를 통�
     expect(result.hadPendingActionTag).toBe(true);
     expect(result.pendingAction, "카드가 발급되지 않았다").not.toBeNull();
     expect(result.pendingAction?.tool).toBe(testCase.tool);
-    expect(result.pendingAction?.input).toEqual(testCase.input);
+    expect(result.pendingAction?.input).toEqual(testCase.tool === "apply_budget_plan"
+      ? { ...testCase.input, allocation_mode: "explicit" }
+      : testCase.input);
   });
 });
 

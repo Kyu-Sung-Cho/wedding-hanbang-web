@@ -118,9 +118,17 @@ const ETIQUETTE_TAG_INSTRUCTION = "태그를 1~2개 붙이세요";
 const ETIQUETTE_NUMBER_TABLE = "**번호표:**";
 const ACTION_CARD_CONTRACT = "- 행동 카드는 사용자가 직접 실행할 한 가지 행동에만";
 const ACTION_CARD_SURFACE = "결정 보드 '공유 할 일'의 완료·숨김 버튼";
-const QUOTE_NO_REPEAT = "본문 텍스트에 다시 나열하지 마세요";
+const QUOTE_NO_REPEAT = "본문에 다시 나열하지 마세요";
 
 describe("합성된 프롬프트가 스스로 모순되지 않는다", () => {
+  it("우선순위가 낮은 항목을 제외로 확장하지 않는 규칙을 긴 문맥에서도 전달한다", () => {
+    for (const decisionCount of [0, 40]) {
+      const { prompt } = composeLikeProduction("가족 인원 묻기는 이번 주 계획에서 뺄게. 방금 한 가지를 다음에 내가 이어서 알아볼 수 있게만 정리해줘. 공유 할 일에 자동으로 넣지 마.", decisionCount);
+      expect(prompt).toContain("급하지 않음·낮은 우선순위는 생략·이번 주 제외가 아닙니다");
+      expect(prompt).toContain("말한 항목·기간만 제외하세요");
+      expect(prompt).toContain("예단 생략을 모든 가족 선물 생략으로");
+    }
+  });
   it("예절 태그 지시와 번호표는 함께 남거나 함께 빠진다", () => {
     // 절단은 꼬리부터 통째로 잘라내므로, 번호표가 지시보다 뒤에 있으면
     // **번호↔편 매핑 없이 태그를 붙이라고 시키는 상태**가 생긴다. 잘못된 번호는
@@ -131,19 +139,23 @@ describe("합성된 프롬프트가 스스로 모순되지 않는다", () => {
     let sawNeither = false;
     let sawTruncated = false;
 
-    for (let decisions = 0; decisions <= 40; decisions += 2) {
-      const { prompt } = composeLikeProduction("결혼식 예산 배분 좀 도와줘", decisions);
-      const hasInstruction = prompt.includes(ETIQUETTE_TAG_INSTRUCTION);
-      const hasTable = prompt.includes(ETIQUETTE_NUMBER_TABLE);
+    // 예산 운용 지침이 늘어 예절 영역이 먼저 잘리는 경우도 포함하고,
+    // 예절을 직접 묻는 실제 도구 구성에서 지시·번호표가 함께 남는 경우도 확인한다.
+    for (const userText of ["결혼식 예산 배분 좀 도와줘", "상견례 예절을 알려줘"]) {
+      for (let decisions = 0; decisions <= 40; decisions += 2) {
+        const { prompt } = composeLikeProduction(userText, decisions);
+        const hasInstruction = prompt.includes(ETIQUETTE_TAG_INSTRUCTION);
+        const hasTable = prompt.includes(ETIQUETTE_NUMBER_TABLE);
 
-      expect(
-        hasInstruction && !hasTable,
-        `결정 ${decisions}개: 번호표 없이 태그를 붙이라는 지시만 남았다`,
-      ).toBe(false);
+        expect(
+          hasInstruction && !hasTable,
+          `${userText}, 결정 ${decisions}개: 번호표 없이 태그를 붙이라는 지시만 남았다`,
+        ).toBe(false);
 
-      if (hasInstruction && hasTable) sawBoth = true;
-      if (!hasInstruction && !hasTable) sawNeither = true;
-      if (prompt.includes("길이 제한으로 생략됨")) sawTruncated = true;
+        if (hasInstruction && hasTable) sawBoth = true;
+        if (!hasInstruction && !hasTable) sawNeither = true;
+        if (prompt.includes("길이 제한으로 생략됨")) sawTruncated = true;
+      }
     }
 
     // 위 단언이 "절단이 한 번도 안 일어나서" 통과한 것이 아님을 함께 고정한다.

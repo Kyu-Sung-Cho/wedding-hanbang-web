@@ -72,7 +72,7 @@ describe("예산 규칙이 모델에게 닿는다", () => {
     expect(delivered).toContain("명시적으로 확정한 뒤");
     expect(delivered).not.toContain("합계는 총예산과 정확히 일치");
     expect(delivered).toContain("기존 배정");
-    expect(delivered).toContain("잔액");
+    expect(delivered).toContain("남은 돈은 미배정으로");
     expect(delivered).toContain("예비비");
     expect(delivered).toContain("임의로 채우지");
   });

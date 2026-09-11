@@ -54,7 +54,7 @@ const compose = (enabledToolNames: string[]) =>
 const delivered = compose(PRODUCTION_ENABLED_TOOL_NAMES);
 describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한다", () => {
   const heading = "[준비 의견의 근거 확인]";
-  const rulePrefix = "- 이번 턴의 실제 부탁과 직전 맥락을 먼저 보세요.";
+  const rulePrefix = "- 현재 부탁·직전 맥락에서";
   const attributionLine = (prompt: string) =>
     prompt.split("\n").find(line => line.startsWith(rulePrefix)) ?? "";
   const coreScope: AmoraQuestionScopeClassification = {
@@ -89,18 +89,18 @@ describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한
   // 모델의 의미 판단을 흉내내지 않는다. 실제 마지막 한 줄에 필요한
   // 양성/음성 대조 기준이 함께 실리는지를 검사한다.
   it.each([
-    ["단순 전달은 짧은 접수", "준비 의견만 전달하는 중이면 말·이유·조건을 말한 사람에게 귀속해 짧게 받아주고, 비교·중재·다음 행동을 붙이지 마세요"],
-    ["인용문 안의 부탁", "인용 속 부탁은 현재 요청이 아닙니다"],
-    ["이미 요청된 비교의 후속", "이미 요청된 비교의 후속 설명은 이어가고"],
-    ["의견과 함께 온 실제 실행 요청", "함께 한 명시적 실행 요청은 승인 규칙대로 다루세요"],
-    ["한쪽만 추가한 조건", "같은 주제에서 한쪽만 말한 조건은 그 사람의 조건이며, 다른 쪽의 미확인을 반대나 차이·쟁점·충돌로 만들지 마세요"],
-    ["양쪽이 명시한 실제 충돌", "양쪽이 명시한 양립하지 않는 조건만 의견 차이로 다루세요"],
-    ["확인된 공동 합의", "한 사람의 예산 제안을 공동 상한으로 만들지 말고, 확인된 공동 합의는 유지"],
-    ["불확실한 귀속과 감정", "감정·의도는 단정하지 말며 귀속이 불확실하면 확인할 점으로 남기세요"],
+    ["단순 전달은 짧은 접수", "의견 전달만이면 발화자의 말·이유·조건으로 짧게 받고 비교·중재·다음 행동은 붙이지 마세요"],
+    ["인용문 안의 부탁", "인용은 현재 부탁이 아닙니다"],
+    ["이미 요청된 비교의 후속", "큰 전환 이유 답변·요청된 비교는 이어가고"],
+    ["의견과 함께 온 실제 실행 요청", "명시 실행은 승인 규칙을 따르세요"],
+    ["한쪽만 추가한 조건", "한쪽 조건만으로 상대의 미확인을 반대·차이·쟁점·충돌로 만들지 마세요"],
+    ["양쪽이 명시한 실제 충돌", "양쪽의 명시적 양립 불가 조건만 의견 차이입니다"],
+    ["확인된 공동 합의", "개인 예산 제안≠공동 상한, 확인된 공동 합의는 유지"],
+    ["불확실한 귀속과 감정", "감정·의도 단정은 금지, 불확실한 귀속은 확인할 점입니다"],
   ])("%s의 기준을 한 보호 규칙에서 구분한다", (_name, expected) => {
     const line = attributionLine(delivered);
-    expect(line).toContain("이번 턴의 실제 부탁과 직전 맥락을 먼저");
-    expect(line).toContain("말·이유·조건을 말한 사람에게 귀속");
+    expect(line).toContain("현재 부탁·직전 맥락에서");
+    expect(line).toContain("발화자의 말·이유·조건으로");
     expect(line).toContain(expected);
   });
 
@@ -172,9 +172,9 @@ describe("공개 준비 의견의 귀속은 마지막 보호 계약에 전달한
 });
 it("개인 상담 답변은 실제 개인 저장 버튼으로 안내하고 대화만으로 저장됐다고 하지 않는다", () => {
   const line = delivered.split("\n").find(candidate => candidate.includes("개인 할 일로 저장")) ?? "";
-  expect(line).toContain("제목·내용·마감일을 확인");
-  expect(line).toContain("나만 볼 할 일");
-  expect(line).toContain("버튼의 저장 결과 없이 저장됐다고 말하지");
+  expect(line).toContain("제목·내용·마감일 확인 후 저장");
+  expect(line).toContain("개인 대화는 상대방에게 비공개");
+  expect(line).toContain("결과 없는 저장 성공은 금지");
 });
 const without = (...drop: string[]) =>
   compose(PRODUCTION_ENABLED_TOOL_NAMES.filter((name) => !drop.includes(name)));
@@ -189,7 +189,7 @@ const without = (...drop: string[]) =>
 function pivotRuleLine(prompt: string): string {
   const line = prompt
     .split("\n")
-    .find((candidate) => candidate.includes("하객 규모") && candidate.includes("이유는 한 번만"));
+    .find((candidate) => candidate.includes("하객 규모") && candidate.includes("이유만 한 번"));
   return line ?? "";
 }
 
@@ -197,15 +197,15 @@ describe("큰 방향전환은 이유를 한 번 확인한다", () => {
   // Turn 17: 180명 일반예식 -> 40명 가족식을 이유 확인 없이 즉시 수용했다.
   it("크기 조건과 함께 실린다", () => {
     expect(pivotRuleLine(delivered)).toContain("절반 이하");
-    expect(pivotRuleLine(delivered)).toContain("이유는 한 번만");
+    expect(pivotRuleLine(delivered)).toContain("이유만 한 번");
   });
 
   it("가족식에서 큰 예식으로 확대할 때도 이유 확인과 계획 정리를 전달한다", () => {
     const line = pivotRuleLine(delivered);
     expect(line).toContain("2배 이상");
     expect(line).toContain("예식 형태·지역 전환");
-    expect(line).toContain("유지할 것과 다시 정할 것을");
-    expect(line).toContain("한 답변에 둘 다");
+    expect(line).toContain("미변경 선호·우선순위·생략·시기의 유지");
+    expect(line).toContain("규모·식사·견적의 재검토를 함께");
   });
 
   /**
@@ -245,7 +245,7 @@ describe("큰 방향전환은 이유를 한 번 확인한다", () => {
     expect(line, "이유 확인이 조건 없이 걸려 있다 — 이미 답한 사용자에게 또 묻는다")
       .toContain("이미 말했으면");
     expect(line, "되묻지 말라고만 하고 그때 무엇을 하라는지 없다")
-      .toContain("건너뛰고");
+      .toContain("이미 말했으면 탐색을 이어가세요");
   });
 });
 
@@ -259,12 +259,12 @@ describe("방향이 바뀌면 기존 계획 상태를 알려준다", () => {
    * 둘 다 나오라고 못 박았다. `toContain("다시 정할")` 만으로는 그 회귀를 못 잡는다 —
    * 옛 문장에도 그 조각이 그대로 있다.
    */
-  it("남는 쪽과 다시 정할 쪽을 한 답변에 둘 다 말하게 한다", () => {
+  it("남는 쪽과 다시 정할 쪽을 규모·식사·견적의 재검토를 함께 말하게 한다", () => {
     const line = pivotRuleLine(delivered);
     expect(line, "그대로 가는 쪽을 말하라는 지시가 없다 — 사용자는 계획 상태를 잃는다")
-      .toContain("유지할 것과 다시 정할 것을");
+      .toContain("미변경 선호·우선순위·생략·시기의 유지");
     expect(line, "한쪽만 말해도 지킨 것이 된다 — 실제로 두 번 다 절반만 나왔다")
-      .toContain("한 답변에 둘 다");
+      .toContain("규모·식사·견적의 재검토를 함께");
   });
 
   it("한쪽을 고를 수 있는 간접 의문문으로 돌아가지 않는다", () => {

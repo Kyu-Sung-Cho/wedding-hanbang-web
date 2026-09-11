@@ -10,6 +10,7 @@ import { NAMED_BUDGET_MIGRATION } from './amora-named-budget-migration-pin.mjs';
 import { loadEffectiveBudgetDecisionHotfixRelease, budgetRealtimeBindings, assertBudgetRealtimeBindings,
   renderBudgetRealtimeTopologyGuard, validateBudgetRealtimeObservation } from './amora-budget-decision-effective-release-contract.mjs';
 import { BUDGET_DECISION_KIND, BUDGET_DECISION_SCHEMA_CHANGES } from './amora-budget-decision-release-contract.mjs';
+import { loadExplicitBudgetHotfixRelease, EXPLICIT_BUDGET_KIND, EXPLICIT_BUDGET_SCHEMA_CHANGES } from './amora-explicit-budget-release-contract.mjs';
 
 export const HOTFIX_CONTRACT_FILE = 'supabase/release-contracts/amora-runtime-hotfix-v1.json';
 export const NAMED_BUDGET_CONTRACT_FILE = 'supabase/release-contracts/amora-named-budget-hotfix-v1.json';
@@ -33,6 +34,11 @@ const HOTFIX_PROFILES = Object.freeze({
     hostedChecks: ['actorBoundary', 'approvedBudgetDecisionAtomicity', 'budgetPreservesOmittedAllocations', 'retryDecisionIdempotency', 'noChangeNoDecision', 'scheduleReceiptCompatibility', 'privateHelperAcl', 'rollback'],
     preserveHotRank: true,
   }),
+  [EXPLICIT_BUDGET_KIND]: Object.freeze({
+    addedRelations: [], rollbackKind: 'synthetic-explicit-budget-sql-transaction-rollback',
+    hostedChecks: ['actorBoundary', 'explicitAllocationsExactReceipt', 'budgetPreservesOmittedAllocations', 'retryDecisionIdempotency', 'noChangeNoDecision', 'scheduleReceiptCompatibility', 'privateHelperAcl', 'rollback'],
+    preserveHotRank: true,
+  }),
 });
 function hotfixProfile(release) {
   ensure(Object.hasOwn(HOTFIX_PROFILES, release?.hotfix?.kind), 'HOTFIX_KIND_INVALID');
@@ -40,6 +46,7 @@ function hotfixProfile(release) {
 }
 const addedRelations = release => hotfixProfile(release).addedRelations;
 const isBudgetDecision = release => release.hotfix.kind === BUDGET_DECISION_KIND;
+const isExplicitBudget = release => release.hotfix.kind === EXPLICIT_BUDGET_KIND;
 export const NAMED_BUDGET_FUNCTIONS = Object.freeze([
   'function:public.amora_resolve_budget_plan_allocations(p_couple_id uuid, p_progress jsonb, p_allocations jsonb)',
   'function:public.apply_amora_atomic_tool_execution_pre_shared_revision(p_couple_id uuid, p_request_key text, p_operation_key text, p_request_attempt_count integer, p_input_digest text, p_tool_input jsonb, p_domain_mutation jsonb, p_result jsonb)',
@@ -124,17 +131,26 @@ export function parseBudgetDecisionHotfixArgs(argv) {
   return options;
 }
 export function selectHotfixMode(argv) {
-  const modes = argv.filter(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix'].includes(arg));
+  const modes = argv.filter(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix', '--amora-explicit-budget-hotfix'].includes(arg));
   ensure(modes.length === 1, 'MODE_REQUIRED');
   return modes[0];
 }
+export function parseExplicitBudgetHotfixArgs(argv) {
+  ensure(selectHotfixMode(argv) === '--amora-explicit-budget-hotfix', 'MODE_REQUIRED');
+  const parser = argv.includes('--finalize') ? parseHotfixFinalizeArgs : parseHotfixArgs;
+  const options = parser(argv.map(arg => arg === '--amora-explicit-budget-hotfix' ? '--amora-runtime-hotfix' : arg));
+  delete options['amora-runtime-hotfix']; options['amora-explicit-budget-hotfix'] = true;
+  return options;
+}
 export function parseHotfixModeArgs(argv) {
   const mode = selectHotfixMode(argv);
+  if (mode === '--amora-explicit-budget-hotfix') return parseExplicitBudgetHotfixArgs(argv);
   if (mode === '--amora-budget-decision-hotfix') return parseBudgetDecisionHotfixArgs(argv);
   if (mode === '--amora-named-budget-hotfix') return parseNamedBudgetHotfixArgs(argv);
   return argv.includes('--finalize') ? parseHotfixFinalizeArgs(argv) : parseHotfixArgs(argv);
 }
 export function loadHotfixReleaseForMode(repoRoot, mode) {
+  if (mode === '--amora-explicit-budget-hotfix') return loadExplicitBudgetHotfixRelease(repoRoot);
   if (mode === '--amora-budget-decision-hotfix') return loadEffectiveBudgetDecisionHotfixRelease(repoRoot);
   if (mode === '--amora-named-budget-hotfix') return loadNamedBudgetHotfixRelease(repoRoot);
   ensure(mode === '--amora-runtime-hotfix', 'MODE_REQUIRED');
@@ -309,7 +325,7 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
   equal(hosted.checks?.map(c => c.name).sort(), [...checks].sort(), 'HOSTED_CHECKS_INCOMPLETE');
   ensure(hosted.checks.every(c => c.status === 'passed' && c.observed && c.rawEvidenceSha256 === digestJson(c.observed)), 'HOSTED_CHECK_FAILED');
   const concurrency = JSON.parse(raw.concurrency);
-  const concurrencyCases = ['actorRosterChange', 'budgetConcurrentChange', 'wrongOwnerLease', ...(isBudgetDecision(release) ? ['sameApprovalRetry'] : [])];
+  const concurrencyCases = ['actorRosterChange', 'budgetConcurrentChange', 'wrongOwnerLease', ...((isBudgetDecision(release) || isExplicitBudget(release)) ? ['sameApprovalRetry'] : [])];
   equal(concurrency.cases?.map(c => c.name).sort(), concurrencyCases.sort(), 'CONCURRENCY_INCOMPLETE');
   ensure(concurrency.cases.every(c => Array.isArray(c.connections) && new Set(c.connections).size >= 2
     && (c.name === 'sameApprovalRetry' ? c.successfulMutationCount === 1 && c.decisionCount === 1 && c.budgetRevisionDelta === 1
@@ -341,6 +357,7 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
   equal(hosted.transitions, evidence.transitions, 'SCHEMA_TRANSITION_EVIDENCE_MISMATCH');
   if (isNamedBudget(release)) equal([...identities].sort(), [...NAMED_BUDGET_FUNCTIONS].sort(), 'SCHEMA_TRANSITIONS_MISSING');
   if (isBudgetDecision(release)) equal([...identities].sort(), [...BUDGET_DECISION_SCHEMA_CHANGES].sort(), 'SCHEMA_TRANSITIONS_MISSING');
+  if (isExplicitBudget(release)) equal([...identities].sort(), [...EXPLICIT_BUDGET_SCHEMA_CHANGES].sort(), 'SCHEMA_TRANSITIONS_MISSING');
   return { evidence, reports, raw, evidenceSha256: digestJson(evidence), deadlineMs: Math.min(topologyDeadline, instant(evidence.expiresAt),
     ...['backup', 'fence', 'dryRun'].map(kind => instant(reports[kind].verifiedAt) + 30 * 60_000),
     ...['rollback', 'hosted', 'concurrency'].map(kind => instant(reports[kind].verifiedAt) + 24 * 3600_000)) };
@@ -752,7 +769,7 @@ SELECT 1::integer AS hotfix_finalized_count,${literal(binding.ownerId)}::text AS
 export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, outcomePath, canaryPath, receiptOut,
   expectedCommit, remoteRef, confirmProduction, transport, primitives, mode = '--amora-runtime-hotfix', now = () => new Date(), verifyRecovery = verifyHotfixRecovery }) {
   ensure(COMMIT.test(expectedCommit) && [evidenceRoot, outcomePath, canaryPath, receiptOut].every(isAbsolute), 'FINALIZER_PATH_OR_COMMIT_INVALID');
-  ensure(['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix'].includes(mode), 'MODE_REQUIRED');
+  ensure(['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix', '--amora-explicit-budget-hotfix'].includes(mode), 'MODE_REQUIRED');
   const loadRelease = root => loadHotfixReleaseForMode(root, mode);
   const release = loadRelease(repoRoot);
   for (const file of [outcomePath, canaryPath, receiptOut]) await privateParent(repoRoot, file);
