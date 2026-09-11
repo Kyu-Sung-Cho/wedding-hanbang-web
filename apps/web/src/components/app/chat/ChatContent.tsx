@@ -606,7 +606,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     setClearStepState(nextStep);
   }, []);
   const [nowMs, setNowMs] = useState(0);
-  const [dismissedPendingActionIds, setDismissedPendingActionIds] = useState<Set<string>>(
+  const [dismissedPendingMessageIds, setDismissedPendingMessageIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [applyingPendingActionId, setApplyingPendingActionId] = useState<string | null>(null);
@@ -2122,11 +2122,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const epoch = composerEpochRef.current;
     const lane = activeComposerLaneRef.current;
-    setDismissedPendingActionIds((current) => {
-      if (current.has(actionId)) return current;
+    setDismissedPendingMessageIds((current) => {
       const next = new Set(current);
-      next.add(actionId);
-      return next;
+      // 지금 보이는 같은 제안만 미룬다. 새 답변으로 다시 받은 카드는
+      // 원래 actionId·서명을 유지해도 확인할 수 있어야 한다.
+      for (const message of messages) {
+        if (getPendingAmoraAction(message)?.actionId === actionId) next.add(message.id);
+      }
+      return next.size === current.size ? current : next;
     });
     if (!previousFocus || previousFocus === document.body) return;
 
@@ -2143,7 +2146,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         || activeComposerLaneRef.current !== lane) return;
       textareaRef.current?.focus();
     });
-  }, []);
+  }, [messages]);
 
   const openCommunityDraft = useCallback((aiMessage: ChatMessage, userMessage: ChatMessage) => {
     const privacyMode: CommunityDraftPrivacyMode =
@@ -3144,7 +3147,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               msg.metadata.toolResults.length > 0;
             const pendingActionCandidate = getPendingAmoraAction(msg);
             const pendingAction = pendingActionCandidate
-              && !dismissedPendingActionIds.has(pendingActionCandidate.actionId)
+              && !dismissedPendingMessageIds.has(msg.id)
               ? pendingActionCandidate
               : null;
             const previousHumanMessage = msg.sender_role === "ai"

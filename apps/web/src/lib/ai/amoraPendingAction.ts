@@ -1742,12 +1742,16 @@ export function describeUnconfirmedAmoraPendingAction({
   now,
 }: Omit<ResolvePendingActionInput, "confirmedActionId">): StoredAmoraPendingAction | null {
   if (!isRecord(value) || typeof value.actionId !== "string") return null;
-  return resolveAmoraPendingAction({
+  const pending = resolveAmoraPendingAction({
     value,
     confirmedActionId: value.actionId,
     allowedTools,
     now,
   });
+  // 구형 배분은 잔액을 예비비로 채우므로 새 명시 배분 요청의 대기 카드로
+  // 재사용하지 않는다. 원래 카드의 서명·승인 해석은 resolve에 그대로 둔다.
+  if (pending?.tool === "apply_budget_plan" && pending.input.allocation_mode !== "explicit") return null;
+  return pending;
 }
 
 /** `_id`로 끝나는 입력 필드를 가진 도구인가. */

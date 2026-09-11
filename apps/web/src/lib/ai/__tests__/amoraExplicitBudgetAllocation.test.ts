@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildAmoraAtomicToolOperation } from "@/lib/ai/amoraAtomicToolOperation";
-import { extractAmoraPendingAction, resolveAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
+import { describeUnconfirmedAmoraPendingAction, extractAmoraPendingAction, resolveAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
@@ -48,6 +48,17 @@ describe("explicit budget allocation approval contract", () => {
     expect(plan(explicit!.input).result.toolOutput).toMatchObject({remainder_to_reserve:0,applied_count:2});
     expect(resolveAmoraPendingAction({value:{...explicit,input},confirmedActionId:ACTION_ID,allowedTools:tools,now:NOW+1})).toBeNull();
     expect(resolveAmoraPendingAction({value:legacy,confirmedActionId:ACTION_ID,allowedTools:tools,now:legacy.expiresAt})).toBeNull();
+  });
+
+  it("does not offer a legacy allocation again as the current unconfirmed card", () => {
+    const explicit = extract(input)!;
+    const { inputDigest, operationKey } = getAmoraToolOperationIdentity("apply_budget_plan", input);
+    const legacy = { ...explicit, input, inputDigest, operationKey };
+    const original = structuredClone(legacy);
+    expect(describeUnconfirmedAmoraPendingAction({ value: legacy, allowedTools: tools, now: NOW + 1 })).toBeNull();
+    expect(describeUnconfirmedAmoraPendingAction({ value: explicit, allowedTools: tools, now: NOW + 1 })).toEqual(explicit);
+    expect(resolveAmoraPendingAction({ value: legacy, confirmedActionId: ACTION_ID, allowedTools: tools, now: NOW + 1 })).toEqual(original);
+    expect(legacy).toEqual(original);
   });
 
   it("leaves the unallocated remainder untouched even on a first complete proposal", () => {

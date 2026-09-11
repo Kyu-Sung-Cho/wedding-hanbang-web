@@ -7482,8 +7482,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   });
 
 
-  it.each(["B02", "B02 wrong mode", "P02", "P02 long context", "P02 exact", "P02 no history", "P02 broken reply"] as const)("keeps explicit allocations and review-only drafts separate through actual SDK: %s", async scenario => {
+  it.each(["B02", "B02 wrong mode", "B02 legacy no marker", "B02 legacy new marker", "B02 legacy carried no marker", "B02 no pending stale claim", "P02", "P02 long context", "P02 exact", "P02 no history", "P02 broken reply"] as const)("keeps explicit allocations and review-only drafts separate through actual SDK: %s", async scenario => {
     const draft = scenario.startsWith("P02");
+    const legacy = scenario.startsWith("B02 legacy");
+    const noMarker = scenario === "B02 legacy no marker" || scenario === "B02 legacy carried no marker" || scenario === "B02 no pending stale claim";
     const originalScope = draft && scenario !== "P02" && scenario !== "P02 long context";
     const refusedProof = scenario === "P02 no history" || scenario === "P02 broken reply";
     const text = draft
@@ -7519,7 +7521,24 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const markerInput={total_budget:35_000_000,allocations:[{category:"studio",budget:2_999_000},{category:"dress",budget:3_001_000}],
       intake_summary:"사진에서 옷으로 1,000원 이동. 다른 항목과 미배정액 유지.",
       ...(scenario==="B02 wrong mode"?{allocation_mode:"legacy"}:{})};
+    const oldActionId = "11111111-1111-4111-8111-111111111111";
+    if (legacy) {
+      setCanonicalConfirmedBudgetAction(oldActionId, text);
+      const issued = extractAmoraPendingAction({
+        text: "[pending_action]" + JSON.stringify({ tool: "apply_budget_plan", input: markerInput }) + "[/pending_action]",
+        allowedTools: actualTools.WEDDING_TOOLS, now: Date.now(), createActionId: () => oldActionId,
+      }).pendingAction!;
+      const { inputDigest, operationKey } = getAmoraToolOperationIdentity("apply_budget_plan", markerInput);
+      // 운영에서 남아 있던 구형 계약을 합성한다. 카드와 원래 digest는 바꾸지 않는다.
+      mocks.canonicalRows[1].metadata = {
+        pending_amora_action: { ...issued, input: markerInput, inputDigest, operationKey },
+        pending_amora_action_journey_revision: 20,
+        pending_amora_action_carry_count: scenario === "B02 legacy carried no marker" ? 1 : 0,
+      };
+    }
+    const originalHistory = structuredClone(mocks.canonicalRows);
     const providerText=refusedProof ? "어떤 준비 예산을 검토하는지 알려주세요."
+      : noMarker ? "동일한 변경 카드가 이미 대기 중입니다. 새 카드 없이 기존 카드에서 확인해 주세요."
       : draft
       ? "아래는 실제 견적이 아닌 조정 가능한 계획금액이에요. 집 보증금과 여행, 미확정 부모님 지원은 이번 계산에서 제외하고 예산표는 바꾸지 않았어요.\n1안: 식사 중심 1,300만원 + 나머지 준비 500만원 + 미배정 200만원 = 2,000만원.\n2안: 식사 중심 1,100만원 + 나머지 준비 700만원 + 미배정 200만원 = 2,000만원.\n1안은 식사에 200만원 더 두는 대신 촬영·장식 등 나머지 준비를 200만원 줄여 검토하는 안이에요. 실제 포함 범위와 견적에 따라 조정해야 해요."
       : "두 항목의 변경을 확인해 주세요.\n[pending_action]"+JSON.stringify({tool:"apply_budget_plan",input:markerInput})+"[/pending_action]";
@@ -7578,6 +7597,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         expect(done?.fullContent).toBe(saved.content);
         expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
         expect(instructions[0].length).toBeLessThanOrEqual(48_000);
+        if (legacy) {
+          expect(instructions[0]).not.toContain("[화면에 대기 중인 변경 카드]");
+          expect(mocks.canonicalRows).toEqual(originalHistory);
+        }
         if(draft){
           if(refusedProof){
             expect(instructions[0]).toContain("question_scope: W4_out_of_scope");
@@ -7603,6 +7626,13 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           expect(saved.content).toBe(providerText);
           expect(saved.metadata.pending_amora_action).toBeUndefined();
           expect(saved.metadata).not.toHaveProperty("current_stored_state_summary");
+        }else if(noMarker){
+          expect(saved.metadata.pending_amora_action).toBeUndefined();
+          expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+          expect(saved.metadata.pending_amora_action_impact_preview).toBeUndefined();
+          expect(saved.content).toContain("이번 답변에서는 확인 카드를 만들지 못했어요.");
+          expect(saved.content).not.toMatch(/이미 대기 중|기존 카드에서/);
+          expect(done?.metadata.pending_amora_action).toBeUndefined();
         }else{
           expect(instructions[0]).toContain("미지정 항목·예비비의 기존 배정은 유지");
           const expected={...markerInput,allocation_mode:"explicit"};
@@ -7614,6 +7644,10 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           const preview=saved.metadata.pending_amora_action_impact_preview as {categories:Array<{key:string}>};
           expect(preview.categories.map(item=>item.key).sort()).toEqual(["dress","studio"]);
           expect(done?.metadata.pending_amora_action).toEqual(saved.metadata.pending_amora_action);
+          if (legacy) {
+            expect(saved.metadata.pending_amora_action).not.toMatchObject({ actionId: oldActionId });
+            expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+          }
         }
       });
     }finally{
