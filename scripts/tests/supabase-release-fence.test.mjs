@@ -62,6 +62,16 @@ async function createFixture() {
     successorContractSource,
     join(root, "scripts/lib/supabase-successor-release-contract.mjs"),
   );
+  for (const dependency of [
+    "amora-budget-decision-release-contract.mjs",
+    "current-baseline-release-contract.mjs",
+    "amora-named-budget-migration-pin.mjs",
+  ]) {
+    await cp(
+      join(repoRoot, "scripts/lib", dependency),
+      join(root, "scripts/lib", dependency),
+    );
+  }
 
   const historicalAudit = "select 'verified';\n";
   const previousMigration = "select 'previous';\n";
