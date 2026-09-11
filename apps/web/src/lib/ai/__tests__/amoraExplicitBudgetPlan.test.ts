@@ -6,6 +6,7 @@ import { applyAmoraAtomicToolResultToContext, buildAmoraAtomicToolOperation } fr
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
 const ORIGINAL = "항목별 금액을 다시 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
+const NATURAL_TOTAL = "총 결혼 예산은 3500만 원이야. 항목별 금액을 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
 const EXPLICIT_UPDATE = "기존 예산의 초대장·꽃·하객선물은 새 항목을 만들지 말고 같은 이름의 금액을 150만 원에서 160만 원으로 바꿔줘. 총액은 3500만원으로 유지하고 예비비만 200만원에서 190만원으로 줄일게. 최종 배분은 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 160, 예비비 190만 원이야. 이대로 실제 예산에 반영해줘.";
 
 function budgetContext(progress: ToolExecutionContext["weddingContext"]["progress"]): ToolExecutionContext {
@@ -149,8 +150,13 @@ describe("explicit current-turn budget plan", () => {
     expect(parseExplicitBudgetPlanRequest(text, context.weddingContext.progress, context.weddingContext.budget)).toBeNull();
   });
 
-  it("turns the exact reported eight amounts into a schema-valid atomic proposal without splitting names", () => {
-    const input = parseExplicitBudgetPlanRequest(ORIGINAL);
+  it.each([
+    ORIGINAL,
+    NATURAL_TOTAL,
+    NATURAL_TOTAL.replace("3500만 원이야.", "35,000,000원입니다."),
+    NATURAL_TOTAL.replace("3500만 원이야.", "3500만 원이에요."),
+  ])("turns the exact reported eight amounts into a schema-valid atomic proposal without splitting names: %s", text => {
+    const input = parseExplicitBudgetPlanRequest(text);
     expect(input).not.toBeNull();
     expect(input?.total_budget).toBe(35_000_000);
     expect(input?.allocations).toEqual([
@@ -228,6 +234,23 @@ describe("explicit current-turn budget plan", () => {
     expect(operation.result).toMatchObject({ success: false, toolOutput: { error: "custom_category_collision" } });
     expect(operation.domainMutation).toEqual({ kind: "none" });
     expect(context.weddingContext).toEqual(before);
+  });
+
+  it.each([
+    NATURAL_TOTAL.replace("3500만 원이야.", "3400만 원이야."),
+    NATURAL_TOTAL.replace("3500만 원이야.", "미정이야."),
+    NATURAL_TOTAL.replace("3500만 원이야.", "약 3500만 원이야."),
+    NATURAL_TOTAL.replace("3500만 원이야.", "3500~4000만 원이야."),
+    NATURAL_TOTAL.replace("3500만 원이야.", "3500만 원이면."),
+    NATURAL_TOTAL.replace("항목별 금액을 줄게.", "집 보증금도 이 총액에 포함해줘. 항목별 금액을 줄게."),
+    NATURAL_TOTAL.replace("이대로 실제 예산에 반영해줘.", "부모님 지원금 500만원도 더해서 이대로 실제 예산에 반영해줘."),
+    NATURAL_TOTAL.replace("반영해줘", "반영하지 마"),
+    `가정이야. ${NATURAL_TOTAL}`,
+    `"${NATURAL_TOTAL}"`,
+    `${NATURAL_TOTAL} 취소할게.`,
+    "총 결혼 예산은 3500만 원이야. 실제 예산에 반영해줘.",
+  ])("does not consume additional conditions or uncertain totals from a natural declaration: %s", text => {
+    expect(parseExplicitBudgetPlanRequest(text)).toBeNull();
   });
 
   it.each([

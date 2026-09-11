@@ -8,7 +8,7 @@ export type ExplicitBudgetPlanInput = {
 };
 
 const NUMBER = "(?:[1-9]\\d{0,2}(?:,\\d{3})+|0|[1-9]\\d*)";
-const TOTAL = new RegExp(`^총(?:예산|액)?\\s*(${NUMBER})\\s*(만\\s*원|원)\\s*[.。:\\n]\\s*`, "u");
+const TOTAL = new RegExp(`^(?:총(?:예산|액)?|총\\s+결혼\\s+예산은)\\s*(${NUMBER})\\s*(만\\s*원|원)(?:이야|입니다|이에요|예요)?\\s*[.。:\\n]\\s*`, "u");
 const SAVE = /\s*(?:이대로\s*)?(?:실제\s*)?예산(?:표)?에\s*(?:반영|적용|저장)해\s*(?:줘|주세요)[.!。]?$/u;
 const FIXED_LABELS: Readonly<Record<string, string>> = PLANNING_CATEGORY_LABELS;
 const FIXED_BY_LABEL = new Map(Object.entries(PLANNING_CATEGORY_LABELS)
