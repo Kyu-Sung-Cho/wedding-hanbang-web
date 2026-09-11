@@ -23,6 +23,7 @@ import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
 import { formatWon } from "@/lib/formatWon";
 import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
+import { readStoredBudgetSummary } from "./budgetSummaryDisplay";
 
 interface ActionCardProps {
   result: ToolExecutionResult;
@@ -182,9 +183,10 @@ function readExplicitProgressSpent(item: ProgressItem | undefined): number {
 }
 
 // 예산 현황 미니 카드
-function BudgetMiniCard() {
+function BudgetMiniCard({ result }: { result: ToolExecutionResult }) {
   const { journey } = useAuthStore();
-  const totalBudget = readWonAmount(journey?.total_budget) ?? 0;
+  const stored = readStoredBudgetSummary(result.toolOutput);
+  const totalBudget = stored?.totalBudget ?? readWonAmount(journey?.total_budget) ?? 0;
   const rawProgress = journey?.progress;
   const progress = (
     rawProgress
@@ -192,15 +194,16 @@ function BudgetMiniCard() {
     && !Array.isArray(rawProgress)
   ) ? rawProgress as Record<string, ProgressItem> : {};
 
-  if (!totalBudget) return null;
+  if (!totalBudget && !stored) return null;
 
   const hidden = new Set(Array.isArray(progress.__hidden) ? progress.__hidden : []);
   const topCategories = ["venue", "studio", "dress", "makeup", "ring", "honeymoon"];
   const items = topCategories.flatMap((key) => {
-    if (hidden.has(key)) return [];
+    const recorded = stored?.categories.find((category) => category.key === key);
+    if (stored ? !recorded : hidden.has(key)) return [];
     const item = progress[key];
-    const budget = readWonAmount(item?.budget);
-    const spent = readExplicitProgressSpent(item);
+    const budget = recorded ? recorded.budget : readWonAmount(item?.budget);
+    const spent = recorded ? recorded.spent : readExplicitProgressSpent(item);
     if (budget === null && spent === 0) return [];
     const pct = budget !== null && budget > 0
       ? Math.round((spent / budget) * 100)
@@ -208,18 +211,28 @@ function BudgetMiniCard() {
     return [{ key, label: CATEGORY_LABELS[key], budget, spent, pct }];
   });
 
-  // 예산 화면과 **같은 것을 센다** — 지운 항목은 빼고 직접 추가한 항목은 넣는다.
-  // 예전에는 고정 카테고리만 세서, 이 위젯 바로 위의 아모라 문구와 다른 숫자가
-  // 한 카드 안에 나란히 찍혔다(2026-08-24 적대적 검토).
-  const totalSpent = sumRecordedSpend(progress, Object.keys(CATEGORY_LABELS));
+  // 당시 조회 합계를 우선한다. 현재 상태 fallback에서만 예산 화면과 같은 방식으로
+  // 숨긴 항목을 제외하고 사용자 항목을 포함해 명시 지출을 합산한다.
+  const totalSpent = stored?.totalSpent ?? sumRecordedSpend(progress, Object.keys(CATEGORY_LABELS));
   if (!Number.isSafeInteger(totalSpent)) return null;
   const totalPct = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0;
 
   return (
-    <div className="mt-3 pt-3 border-t border-black/[0.06]">
+    <div
+      aria-label={stored ? "답변 당시 조회한 예산" : "현재 예산 상태"}
+      className="mt-3 pt-3 border-t border-black/[0.06]"
+    >
+      <p className="mb-2 text-xs font-medium text-[var(--hb-text-muted)]">
+        {stored ? "이 답변에서 조회한 예산" : "현재 예산 상태"}
+      </p>
+      {!stored && (
+        <p className="mb-2 text-xs leading-4 text-[var(--hb-text-muted)]">
+          이 답변 당시의 수치와 다를 수 있어요.
+        </p>
+      )}
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 mb-2.5">
-        <span className="min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums text-[var(--hb-text-muted)]">기록 지출 총 {formatWon(totalSpent)} / {formatWon(totalBudget)}</span>
-        <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{formatLoungeBudgetRatio(totalSpent, totalBudget)}</span>
+        <span className="min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums text-[var(--hb-text-muted)]">기록 지출 총 {formatWon(totalSpent)} / {totalBudget > 0 ? formatWon(totalBudget) : "총예산 미설정"}</span>
+        {totalBudget > 0 && <span className={`min-w-0 max-w-full break-keep [overflow-wrap:anywhere] text-sm tabular-nums font-medium ${totalPct >= 100 ? "text-red-400" : "text-[#C4967E]"}`}>{formatLoungeBudgetRatio(totalSpent, totalBudget)}</span>}
       </div>
       <p className="mt-2 text-[11px] leading-4 text-[var(--hb-text-muted)]">
         기록 지출은 결제 완료 여부와 별도예요.
@@ -721,7 +734,7 @@ export default function ActionCard({ result }: ActionCardProps) {
           {msg}
         </p>
 
-        {isBudgetSummary && <BudgetMiniCard />}
+        {isBudgetSummary && <BudgetMiniCard result={result} />}
         {isBudgetChange && <BudgetChangeMiniCard result={result} />}
         {isBudgetPlan && <BudgetPlanMiniCard result={result} />}
         {isScheduleSummary && <ScheduleMiniCard />}

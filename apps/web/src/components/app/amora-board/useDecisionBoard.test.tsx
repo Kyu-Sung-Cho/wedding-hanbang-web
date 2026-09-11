@@ -169,6 +169,7 @@ describe("actual shared decision reader", () => {
     expect(request.searchParams.get("metadata->>extracted_by")).toBe("is.null");
     expect(request.searchParams.get("memory_key")).toBe("is.null");
     expect(request.searchParams.get("order")).toBe("created_at.desc,id.desc");
+    expect(request.searchParams.get("select")?.split(",").map(field => field.trim())).toContain("chosen_value");
   });
 
   it("invalidates an old session response even when the owner is unchanged, then refreshes on focus", async () => {

@@ -3,16 +3,17 @@ import type { AmoraActionItem, AmoraActionSource, AmoraActionStatus } from "./ac
 import { weddingPath } from "@/lib/weddingPaths";
 import { compareChatTimestamps } from "@hanbang/shared";
 import { z } from "zod";
+import { preparationLegacyBudgetTitle, preparationScheduleRecordLabel } from "./preparationDecisionDisplay";
 
 export const DECISION_COLUMNS = [
-  { status: "confirmed", label: "확정", rule: "결정·예약·일정 확정 또는 완료로 저장된 기록이에요.", dot: "bg-[var(--amora-sage)]" },
+  { status: "confirmed", label: "확정", rule: "결정·예약·완료와 일정 변경 이력이에요. 현재 일정 상태는 일정에서 확인해 주세요.", dot: "bg-[var(--amora-sage)]" },
   { status: "considering", label: "논의 중", rule: "고려 중으로 저장된 기록이에요. 합의나 반영 완료를 뜻하지 않아요.", dot: "bg-[var(--amora-rose)]" },
   { status: "exploring", label: "미정", rule: "탐색 중으로 저장된 기록이에요. 아직 결정하지 않았어요.", dot: "bg-[var(--amora-danger)]" },
 ] as const;
 export type DecisionColumn = typeof DECISION_COLUMNS[number]["status"];
 export type PreparationDecision = {
   id: string; category: string; title: string; detail: string | null; createdAt: string;
-  status: DecisionColumn; stateLabel: string; source: string;
+  status: DecisionColumn; stateLabel: string; source: string; displayTitle?: string;
 };
 export type DecisionCursor = { id: string; createdAt: string };
 export const DECISION_PAGE_SIZE = 30;
@@ -23,8 +24,9 @@ const decisionSchema = z.object({
   decision_type: z.enum(["exploring", "considering", "decided", "scheduled", "booked", "completed"]),
   source: z.string().nullable(), created_at: dateSchema, superseded_at: z.null(), memory_key: z.null(),
   metadata: z.record(z.string(), z.unknown()).nullable(),
+  chosen_value: z.unknown().optional(),
 });
-const DECISION_STATE_LABELS = { exploring: "탐색 중", considering: "고려 중", decided: "결정 기록", scheduled: "일정 확정", booked: "예약 기록", completed: "완료 기록" };
+const DECISION_STATE_LABELS = { exploring: "탐색 중", considering: "고려 중", decided: "결정 기록", booked: "예약 기록", completed: "완료 기록" };
 
 /** 공유 제품 결정만 보여준다. 추출 기억은 명시적 결정으로 승격하지 않는다. */
 export function parsePreparationDecisions(value: unknown, coupleId: string, cursor: DecisionCursor | null = null) {
@@ -42,12 +44,16 @@ export function parsePreparationDecisions(value: unknown, coupleId: string, curs
   }
   const visible = rows.slice(0, DECISION_PAGE_SIZE);
   return {
-    records: visible.map((row): PreparationDecision => ({
-      id: row.id, category: row.category ?? "", title: row.title, detail: row.reasoning || null,
-      createdAt: row.created_at, source: row.source ?? "",
-      status: row.decision_type === "exploring" ? "exploring" : row.decision_type === "considering" ? "considering" : "confirmed",
-      stateLabel: DECISION_STATE_LABELS[row.decision_type],
-    })),
+    records: visible.map((row): PreparationDecision => {
+      const displayTitle = preparationLegacyBudgetTitle(row);
+      return {
+        id: row.id, category: row.category ?? "", title: row.title, detail: row.reasoning || null,
+        createdAt: row.created_at, source: row.source ?? "",
+        status: row.decision_type === "exploring" ? "exploring" : row.decision_type === "considering" ? "considering" : "confirmed",
+        stateLabel: row.decision_type === "scheduled" ? preparationScheduleRecordLabel(row) : DECISION_STATE_LABELS[row.decision_type],
+        ...(displayTitle ? { displayTitle } : {}),
+      };
+    }),
     nextCursor: rows.length > DECISION_PAGE_SIZE ? { id: visible.at(-1)!.id, createdAt: visible.at(-1)!.created_at } : null,
   };
 }

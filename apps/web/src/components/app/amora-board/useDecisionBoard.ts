@@ -34,7 +34,7 @@ export async function readDecisionPage(client: SupabaseClient, scope: DecisionSc
   };
   await verify();
   let query = client.from("decision_nodes")
-    .select("id, couple_id, visibility, category, title, reasoning, decision_type, source, created_at, superseded_at, memory_key, metadata")
+    .select("id, couple_id, visibility, category, title, reasoning, decision_type, source, created_at, superseded_at, memory_key, metadata, chosen_value")
     .eq("couple_id", scope.coupleId).eq("visibility", "shared")
     .is("superseded_at", null).is("memory_key", null).is("metadata->>extracted_by", null)
     .order("created_at", { ascending: false }).order("id", { ascending: false }).limit(DECISION_PAGE_SIZE + 1);
