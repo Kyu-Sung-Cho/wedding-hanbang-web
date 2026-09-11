@@ -8,6 +8,7 @@ vi.mock("@/lib/ai/auditedOpenAI", () => ({ createOpenAIStructuredResponseWithAud
 const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const scope = { coupleId: id(1), actorId: id(2), actorRole: "bride" as const, visibility: "bride_private" as const, segmentId: id(3) };
 const T1 = "나는 웨딩 장식으로 청록색 종이별을 쓰는 소박한 분위기를 좋아해. 내 개인 취향으로 지금 이 대화에서만 참고해줘. 장기 기억에 저장하지 말고, 파트너와 합의한 결정도 아니야. 공동 예산·일정·할 일은 바꾸지 마.";
+const MEMORY_ON_T1 = "이번 대화에서만 내 취향을 참고해줘. 이 대화 내용은 장기기억에 저장하지 마.";
 function source(content = T1, n = 4) { return { id: id(n), couple_id: scope.coupleId, sender_id: scope.actorId, sender_type: "bride" as const,
   role: "user" as const, visibility: scope.visibility, segment_id: scope.segmentId, content,
   metadata: { client_request_id: id(n + 100) } as Record<string, unknown> | null, created_at: `2026-09-11T00:00:${String(n).padStart(2, "0")}.000Z` }; }
@@ -46,7 +47,9 @@ function database(rows = [source()]) {
 }
 
 describe("durable conversation-only memory denial", () => {
-  it.each([T1, "이번 대화에서만 참고하고 장기 기억에 저장하지 마.", "이 대화는 기억하지 마."])("recognizes conversation scope: %s", text => {
+  it.each([T1, MEMORY_ON_T1, "이번 대화에서만 내 취향을 참고해줘. 장기 기억에 저장하지 마.",
+    "이 대화 내용은 장기기억에 저장하지 마.", "이번 상담의 내용은 기억하지 마.",
+    "이번 대화에서만 참고하고 장기 기억에 저장하지 마.", "이 대화는 기억하지 마."])("recognizes conversation scope: %s", text => {
     expect(hasAmoraMemoryConversationOptOut(text)).toBe(true);
   });
   it.each(["이번 메시지만 기억하지 마.", "이번 답변에서만 참고해줘. 장기 기억에 저장하지 마.",
@@ -56,7 +59,13 @@ describe("durable conversation-only memory denial", () => {
     expect(hasAmoraMemoryConversationOptOut(text)).toBe(false);
   });
   it.each(["이 대화는 다음 상담에도 기억해줘. 이번 메시지만 기억하지 마.",
-    "이번 대화에서만 참고한다는 표현이 무슨 뜻이야? 이번 답변은 기억하지 마."])("does not borrow a positive or descriptive scope from another clause: %s", text => {
+    "이번 대화에서만 참고한다는 표현이 무슨 뜻이야? 이번 답변은 기억하지 마.",
+    "이번 대화에서만 내 취향을 참고해줘. 이번 메시지만 기억하지 마.",
+    "이번 대화 내용은 다음 상담에도 기억해줘. 이번 메시지만 기억하지 마.",
+    "친구가 이 대화 내용은 장기기억에 저장하지 마 라고 말했어.",
+    "친구가 이번 대화에서만 내 취향을 참고해줘 라고 말했어. 장기기억에 저장하지 마.",
+    "예시: ‘이번 대화에서만 내 취향을 참고해줘. 이 대화 내용은 장기기억에 저장하지 마.’ 뜻을 설명해줘.",
+    "이 대화 내용은 기억하지 마 라고 부탁하면 어떤 뜻이야?"])("does not borrow a positive or descriptive scope from another clause: %s", text => {
     expect(hasAmoraMemoryConversationOptOut(text)).toBe(false);
   });
   it.each([null, { client_request_id: id(99), imagePaths: ["synthetic/file"] }])("persists before a provider can fail, preserving metadata %j", async metadata => {
@@ -72,9 +81,9 @@ describe("durable conversation-only memory denial", () => {
     expect(db.calls.filter(call => call.write)).toHaveLength(1);
     expect(db.calls.filter(call => call.not).every(call => call.limit === 1 && call.eq.get("segment_id") === scope.segmentId && call.eq.get("sender_id") === scope.actorId)).toBe(true);
   });
-  it("excludes the W0 followup after the deny source is outside the cursor and keeps a new segment separate", async () => {
+  it.each([T1, MEMORY_ON_T1])("excludes the W0 followup after the deny source is outside the cursor and keeps a new segment separate: %s", async firstText => {
     mocks.provider.mockReset(); mocks.provider.mockResolvedValue({ data: { summary: null, memories: [] } });
-    const first = source(); const db = database([first]);
+    const first = source(firstText); const db = database([first]);
     await resolveAmoraMemoryConversationPolicy({ admin: db.admin, scope, sources: [structuredClone(first)] });
     const later = source("나는 무광 종이 장식을 더 좋아해. 결혼식 장식 취향이야.", 6);
     const reply = { ...later, id: id(7), role: "assistant" as const, sender_id: null, sender_type: "ai" as const, content: "참고할게요.",

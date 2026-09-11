@@ -22,10 +22,14 @@ export class AmoraMemoryConversationPolicyError extends Error {
 export function hasAmoraMemoryConversationOptOut(text: string): boolean {
   const plain = text.normalize("NFKC").replace(/```[\s\S]*?```|`[^`\n]*`|"[^"\n]*"|'[^'\n]*'|“[^”]*”|‘[^’]*’|「[^」]*」|『[^』]*』/gu, " ")
     .replace(/^\s*>[^\n]*/gmu, " ");
-  if (!hasAmoraMemoryTurnOptOut(plain)) return false;
-  return /(?:이번|지금\s*이|이)\s*(?:대화|상담)(?:에서|에)?만\s*(?:(?:참고|사용|이용)(?:해\s*(?:줘|주세요)|하고|하되)|써\s*(?:줘|주세요))(?=$|[\s.!?。,;…])/u.test(plain)
-    || plain.split(/[.!?。\n]/u).some(clause => /(?:이번|이)\s*(?:대화|상담)(?:는|은|를|을)/u.test(clause)
-      && hasAmoraMemoryTurnOptOut(clause));
+  const clauses = plain.split(/[.!?。\n]/u);
+  const denials = clauses.filter(clause => hasAmoraMemoryTurnOptOut(clause)
+    && !/(?:이번|이)\s*(?:메시지|답변|발화)(?:만|는|은|를|을)/u.test(clause));
+  if (denials.length === 0) return false;
+  return clauses.some(clause => {
+    const scope = /(?:이번|지금\s*이|이)\s*(?:대화|상담)(?:에서|에)?만\s*(?:(?:(?:내|제|이|그|해당)\s*)?(?:취향|선호|내용|이야기|정보)(?:만|을|를)?\s*)?(?:(?:참고|사용|이용)(?:해\s*(?:줘|주세요)|하고|하되)|써\s*(?:줘|주세요))(?=$|[\s。,;…])/u.exec(clause);
+    return scope !== null && !/(?:라고|라며|라는)/u.test(clause.slice(scope.index + scope[0].length));
+  }) || denials.some(clause => /(?:이번|이)\s*(?:대화|상담)(?:의)?\s*(?:(?:내용|이야기|정보)\s*)?(?:는|은|를|을)/u.test(clause));
 }
 
 function validateScope(scope: Scope): void {

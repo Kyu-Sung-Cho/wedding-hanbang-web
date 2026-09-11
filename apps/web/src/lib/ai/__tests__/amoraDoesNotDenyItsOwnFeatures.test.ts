@@ -65,10 +65,10 @@ describe("기능을 부정하지 않는다", () => {
   });
 
   it("규칙이 무엇을 하지 말라고 하는지 명시한다", () => {
-    // 금지 문구를 그대로 적어 두지 않으면 모델이 같은 말을 다른 표현으로 한다.
+    // 도구 선택 결과를 기능 부재로 옮기지 않고 가능한 확인 경로를 안내한다.
     const prompt = compose(["get_budget_summary"]);
-    expect(prompt).toContain("도구가 없어서");
-    expect(prompt).toContain("이 대화에서는 할 수 없어요");
+    expect(prompt).toContain("이번 턴에 도구가 없어도 **제품에 그 기능이 없다는 뜻이 아닙니다.");
+    expect(prompt).toContain("기능 부정 대신 변경 대상을 물어 확인 카드로 좁히세요");
   });
 
   it("저장 경로가 확인 카드라는 것을 함께 말한다", () => {
@@ -79,12 +79,12 @@ describe("기능을 부정하지 않는다", () => {
 
   it("개인 대화가 공유 계획을 안 바꾸는 이유를 말한다", () => {
     const privacyRule = compose(["get_budget_summary"]).split("\n")
-      .find((line) => line.startsWith("- 개인 대화에서는")) ?? "";
-    expect(privacyRule).toContain("상대방에게 공개하지 않으므로");
-    expect(privacyRule).toContain("함께 쓰는 예산·일정·할 일을 바꾸지 않습니다");
-    expect(privacyRule).toContain("공유 변경은 함께 보는 대화에서 안내하세요");
+      .find((line) => line.startsWith("- 개인 대화는")) ?? "";
+    expect(privacyRule).toContain("상대방에게 비공개");
+    expect(privacyRule).toContain("공유 예산·일정·할 일 변경은 함께 대화로 안내하세요");
+    expect(privacyRule).toContain("탭 이동은 기존 공유 메시지의 공개 범위를 바꾸지 않습니다");
     expect(privacyRule).toContain("개인 할 일로 저장");
-    expect(privacyRule).toContain("버튼의 저장 결과 없이 저장됐다고 말하지 마세요");
+    expect(privacyRule).toContain("결과 없는 저장 성공은 금지");
   });
 
   it("도구가 하나도 없는 턴에는 이 계약이 실리지 않는다", () => {

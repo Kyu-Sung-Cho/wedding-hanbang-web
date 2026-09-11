@@ -353,7 +353,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
     // 2026-09-03 원본을 보던 단언("별도 확인을 받은 뒤")을 뺐다 — 그 문장은 매 턴
     // 통째로 삭제되는 구간에 있어 모델에게 간 적이 없다. 같은 계약을 지는 것은
     // 바로 아래 합성 프롬프트 단언이다.
-    expect(scopedPrompt).toContain("명시적으로 저장을 확인한 뒤");
+    expect(scopedPrompt).toContain("날짜·제목의 명시적 저장 확인 후만");
     expect(scopedPrompt).not.toContain("3일 전 챙김");
   });
 
@@ -505,9 +505,9 @@ describe("getWeddingPlannerSystemPrompt", () => {
     );
 
     expect(proposalPrompt).toContain("[SERVER_PROPOSAL_CONTRACT]");
-    expect(proposalPrompt).toContain("pending_action 표식 제안");
+    expect(proposalPrompt).toContain("pending_action으로 제안하고 표식이 불가능하면 미반영");
     expect(executionPrompt).toContain("[SERVER_EXECUTION_CONTRACT]");
-    expect(executionPrompt).not.toContain("pending_action 표식 제안");
+    expect(executionPrompt).not.toContain("pending_action으로 제안하고 표식이 불가능하면 미반영");
   });
 
   it("ignores enabled names that do not exist in the tool schema", () => {
@@ -659,7 +659,7 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt.indexOf("[준비 의견의 근거 확인]")).toBeGreaterThan(
       prompt.indexOf(AMORA_FINAL_TURN_GUARD.trim()),
     );
-    expect(prompt.trimEnd()).toMatch(/귀속이 불확실하면 확인할 점으로 남기세요\.$/);
+    expect(prompt.trimEnd()).toMatch(/감정·의도 단정은 금지, 불확실한 귀속은 확인할 점입니다\.$/);
   });
 
   it("adds the structured mediation guard only to a W1 mediation request", () => {

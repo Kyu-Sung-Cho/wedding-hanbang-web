@@ -442,9 +442,9 @@ describe("Amora pending actions", () => {
     expect(prompt).toContain("일정 등록 요청에는 `add_schedule_event` 표식을 이번 답변에 내세요");
     // 연도를 확인받으려고 표식을 미루는 모양이 실측됐다.
     expect(prompt).toContain("연도가 없으면 가장 가까운 미래로 넣습니다");
-    expect(prompt).toContain("나머지도 이번 답변에 각각 표식으로 내세요");
+    expect(prompt).toContain("나머지도 이번 답변에 각각 내세요");
     expect(prompt).toContain("최대 10건");
-    expect(prompt).toContain("한 건씩 확인받고 성공 뒤 다음 카드를 냅니다");
+    expect(prompt).toContain("순차 확인·성공 뒤 다음 카드를 냅니다");
     expect(prompt).toContain("실패·미확인은 완료가 아닙니다");
     expect(prompt).not.toContain("여러 건이면 첫 건만 냅니다");
   });
