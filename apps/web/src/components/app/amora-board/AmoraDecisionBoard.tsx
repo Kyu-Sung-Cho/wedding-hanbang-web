@@ -10,6 +10,7 @@ import CreatePreparationAction from "./CreatePreparationAction";
 import AmoraActionPlanFields from "./AmoraActionPlanFields";
 import type { AmoraActionItem, AmoraActionStatus } from "@/lib/amora/actions";
 import { DECISION_COLUMNS, filterPreparationActions, preparationActionHref, preparationCategory, preparationDate, PREPARATION_COLUMNS, PREPARATION_SOURCES, type DecisionColumn } from "@/lib/amora/preparationBoard";
+import { PREPARATION_DECISION_CATEGORIES, preparationDecisionCategory } from "@/lib/amora/preparationDecisionCategory";
 import { weddingPath } from "@/lib/weddingPaths";
 import { useDecisionBoard } from "./useDecisionBoard";
 import SavedNotesContent from "@/components/app/saved/SavedNotesContent";
@@ -95,13 +96,13 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ko");
     return records.filter(row => {
-      const field = preparationCategory(row.category);
+      const field = preparationDecisionCategory(row.category);
       if (category === "unsorted" ? !!field : category !== "all" && field?.key !== category) return false;
       return !needle || [row.title, row.detail, field?.label].some(value => value?.toLocaleLowerCase("ko").includes(needle));
     });
   }, [records, category, query]);
-  const categories = CATEGORY_CHECKLISTS.filter(item => records.some(row => row.category === item.key));
-  const unsortedCount = records.filter(row => !preparationCategory(row.category)).length;
+  const categories = PREPARATION_DECISION_CATEGORIES.filter(item => records.some(row => row.category === item.key));
+  const unsortedCount = records.filter(row => !preparationDecisionCategory(row.category)).length;
   const activeColumn = DECISION_COLUMNS.find(column => column.status === status)!;
   const categoryButton = (value: string, label: string, amount: number) => (
     <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} className={`${button} shrink-0 border ${category === value ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)]"} ${value === "unsorted" ? "border-dashed" : ""}`}>
@@ -147,7 +148,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
                   <h3 className="sr-only items-center gap-2 text-[14.5px] font-semibold text-[var(--amora-ink)] lg:not-sr-only lg:mb-1 lg:flex"><span aria-hidden="true" className={`size-[9px] rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] font-normal text-[var(--amora-muted)]">{rows.length}</span></h3>
                   <p className="mb-[14px] hidden pl-[17px] text-[12px] leading-[1.5] text-[var(--amora-muted)] lg:block">{column.rule}</p>
                   <div className="space-y-[10px] lg:space-y-3">{rows.length ? rows.map(row => {
-                    const category = preparationCategory(row.category);
+                    const category = preparationDecisionCategory(row.category);
                     const longTitle = row.title.length > 180;
                     const longDetail = (row.detail?.length ?? 0) > 400;
                     return <article key={row.id} aria-label={row.title} className={`min-w-0 rounded-[14px] border bg-[var(--amora-surface)] p-4 lg:px-[17px] ${category ? "border-[var(--amora-line)]" : "border-[var(--amora-rose)]"} ${row.status === "exploring" ? "border-dashed" : ""}`}>
@@ -164,7 +165,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
                       <p className="mb-3 flex items-center gap-1.5 text-[12px] text-[var(--amora-muted)]"><Link2 aria-hidden="true" className="size-3 shrink-0" />{Object.hasOwn(decisionSources, row.source) ? decisionSources[row.source] : "공동 결정 기록"}</p>
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <span className={`rounded-full px-[9px] py-1 text-[12px] font-semibold text-[var(--amora-soft)] ${row.status === "confirmed" ? "bg-[var(--amora-sage-pale)]" : "bg-[var(--amora-low)]"}`}>{row.stateLabel}</span>
-                        {category && <Link href={weddingPath(`/checklist?category=${encodeURIComponent(category.key)}`)} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>분야 체크리스트 보기<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
+                        {category?.destination && <Link href={category.destination.href} className={`inline-flex min-h-11 items-center gap-1 text-[12px] text-[var(--amora-accent)] underline underline-offset-4 ${focus}`}>{category.destination.label}<ArrowUpRight aria-hidden="true" className="size-3" /></Link>}
                       </div>
                     </article>;
                   }) : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{query || category !== "all" ? "이 조건에 맞는 결정이 없어요." : "이 상태로 저장된 결정이 없어요."}</p>}</div>
