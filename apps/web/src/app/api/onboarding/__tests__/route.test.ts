@@ -115,7 +115,7 @@ function setupClients(
             // 이 파일은 그 뒤의 계약(레이트리밋 순서·입력 검증)을 보므로
             // 관문은 통과시켜 놓는다. 관문 자체는
             // onboardingConsentGate.test.ts 가 고정한다.
-            user_metadata: {
+            created_at: "2026-08-30T00:00:00.000Z", user_metadata: {
               name: "테스트 사용자",
               terms_agreed: true,
               privacy_agreed: true,
@@ -169,6 +169,7 @@ const createSuccess = {
 
 describe("/api/onboarding POST", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abcdefghijklmnopqrst.supabase.co";
     process.env.SUPABASE_SERVICE_ROLE_KEY = `sb_secret_${"a".repeat(40)}`;

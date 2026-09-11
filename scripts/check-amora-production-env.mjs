@@ -53,6 +53,15 @@ function isPlausibleSecret(value) {
   );
 }
 
+function isConfiguredConsentCutover(value) {
+  if (typeof value !== "string"
+    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp)
+    && new Date(timestamp).toISOString() === value
+    && timestamp <= Date.now();
+}
+
 const checks = {
   openaiEnabledFlagPresent: Boolean(env.AMORA_OPENAI_ENABLED),
   openaiEnabled: env.AMORA_OPENAI_ENABLED === "true",
@@ -152,6 +161,10 @@ const checks = {
   adminBootstrapSecretConfigured: isPlausibleSecret(env.ADMIN_PASSWORD),
   cronSecretConfigured: isPlausibleSecret(env.CRON_SECRET),
   rateLimitSecretConfigured: isPlausibleSecret(env.RATE_LIMIT_KEY_SECRET),
+  // 실제 쓰기 차단 이후 확정한 전환 시각만 사용한다. 미래 시각은 신규 계정의
+  // 편집 가능한 구 metadata를 기존 동의로 인정할 수 있으므로 거절한다.
+  signupConsentCutoverConfigured:
+    isConfiguredConsentCutover(env.SIGNUP_CONSENT_LEGACY_BEFORE),
   priceCatalogExpectedCountConfigured:
     isPublishedVendorCount(env.PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT),
   priceCatalogExpectedSlugDigestConfigured:

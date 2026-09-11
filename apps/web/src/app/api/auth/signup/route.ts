@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { log } from "@/utils/log";
 import { Resend } from "resend";
-import { buildSignupConsentRecord, parseSignupConsent } from "@hanbang/shared";
+import { buildSignupConsentRecord, buildSignupConsentServerEvidence, parseSignupConsent, SIGNUP_CONSENT_POLICY_VERSION } from "@hanbang/shared";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   checkRateLimitPersistent,
@@ -166,6 +166,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "모든 필드를 입력해주세요." }, { status: 400 });
     }
     if (!consent) {
+      if (body.termsAgreed === true && body.privacyAgreed === true && body.ageOver14Confirmed === true
+        && body.consentPolicyVersion !== SIGNUP_CONSENT_POLICY_VERSION) {
+        return NextResponse.json({ error: "동의 문서를 다시 확인해 주세요. 웹은 새로고침하고 앱은 최신 버전에서 다시 진행해 주세요.", code: "SIGNUP_CONSENT_VERSION_REQUIRED" }, { status: 409 });
+      }
       return NextResponse.json(
         {
           error: "이용약관과 개인정보 처리방침에 동의해야 가입할 수 있어요.",
@@ -221,48 +225,51 @@ export async function POST(request: Request) {
           siteUrl,
         )
       : null;
-    const { data, error } = await supabase.auth.admin.generateLink({
-      type: "signup",
-      email,
-      password,
-      options: {
-        // 무엇에, 어느 판에, 언제 동의했는지 남긴다. 동의를 받았다는 주장만
-        // 있고 기록이 없으면 받지 않은 것과 같다. 기록의 모양은 공유 계약이
-        // 만든다 — /api/auth/consent(소셜 경로)와 갈라지면 안 된다.
-        data: {
-          name,
-          ...buildSignupConsentRecord(consent, new Date().toISOString()),
-        },
-      },
-    });
-
-    if (error) {
-      if (
-        error.message.includes("already been registered") ||
-        error.message.includes("already registered")
-      ) {
-        // 응답은 신규 가입과 똑같이 유지한다 — 여기서 "이미 가입된 이메일"이라고 답하면
-        // 어떤 주소가 우리 서비스에 있는지 밖에서 확인할 수 있게 된다.
-        //
-        // 그런데 예전에는 응답만 같고 메일을 **아무것도 보내지 않았다**. 예전에 가입한
-        // 걸 잊고 다시 가입한 사람은 "가입 확인 이메일을 보냈어요"를 보고 받은편지함을
-        // 계속 새로고침했고, 로그인하면 "이메일 인증이 완료되지 않았습니다" 한 줄만
-        // 나왔다. 재발송 수단도 없어 가입도 로그인도 못 하는 상태에 갇혔다.
-        //
-        // 그래서 응답은 그대로 두고 계정 주인에게 실제로 길을 보낸다. 이 경로가
-        // 곧 재발송 경로이기도 하다 — 같은 주소로 다시 가입을 시도하면 메일이 온다.
-        await sendExistingAccountNotice({ email, name, siteUrl, supabase });
-        return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
+    const consentRecord = buildSignupConsentRecord(consent, new Date().toISOString());
+    // 계정과 서버 수신 증거를 함께 생성한다. createUser는 미인증 기존 계정도
+    // 중복으로 거절하므로 공개 재가입 요청이 기존 동의를 바꾸지 못한다.
+    let createdUserId: string;
+    try {
+      const { data: created, error: createError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: false,
+        user_metadata: { name, ...consentRecord },
+        app_metadata: { signup_consent: buildSignupConsentServerEvidence(consent, consentRecord.consent_agreed_at) },
+      });
+      if (createError) {
+        if (createError.code === "email_exists" || createError.message.includes("already been registered") || createError.message.includes("already registered")) {
+          // 신규/기존 응답은 같게 유지하고 소유자에게 로그인·복구 경로만 보낸다.
+          await sendExistingAccountNotice({ email, name, siteUrl, supabase });
+          return NextResponse.json({ success: true, message: "인증 이메일을 발송했습니다." });
+        }
+        throw new Error("SIGNUP_ACCOUNT_CREATE_FAILED");
       }
-      console.error("generateLink error:", error);
-      return NextResponse.json(
-        { error: "회원가입 처리 중 오류가 발생했습니다." },
-        { status: 400 }
-      );
+      if (!created.user?.id || normalizeEmail(created.user.email) !== email) throw new Error("SIGNUP_ACCOUNT_CREATE_FAILED");
+      createdUserId = created.user.id;
+    } catch {
+      log.error("api/auth/signup", new Error("SIGNUP_ACCOUNT_CREATE_FAILED"));
+      return NextResponse.json({ error: "가입 동의를 저장하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
+    }
+
+    // 생성 이후 링크·메일 실패는 계정을 지우거나 증거를 덮지 않는다.
+    // 재시도는 위의 기존 계정 복구 안내를 이용한다.
+    let data: Awaited<ReturnType<typeof supabase.auth.admin.generateLink>>["data"];
+    try {
+      const generated = await supabase.auth.admin.generateLink({ type: "signup", email, password });
+      if (generated.error) throw new Error("SIGNUP_LINK_CREATE_FAILED");
+      data = generated.data;
+    } catch {
+      log.error("api/auth/signup", new Error("SIGNUP_LINK_CREATE_FAILED"));
+      return NextResponse.json({ error: "인증 링크를 준비하지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 503 });
     }
 
     if (!data?.properties?.hashed_token) {
       return NextResponse.json({ error: "인증 링크 생성에 실패했습니다." }, { status: 500 });
+    }
+
+    if (data.user?.id !== createdUserId || normalizeEmail(data.user.email) !== email) {
+      return NextResponse.json({ error: "가입 동의 기록을 확인하지 못했어요. 다시 시도해 주세요." }, { status: 503 });
     }
 
     // 링크는 우리 라우트를 가리킨다. Supabase 의 action_link 는 결과를 해시로

@@ -3,7 +3,7 @@ import { log } from "@/utils/log";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
-import { hasRecordedSignupConsent } from "@hanbang/shared";
+import { getWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -63,10 +63,18 @@ export async function GET(request: Request) {
     // 다른 콜백(/auth/mobile-callback)을 쓰므로 그 관문에 닿지 않는다.
     // 여기서 사실만 내보내 두면, 모바일이 자기 화면을 붙일 때 서버를 다시
     // 고칠 필요가 없다. 지금 아무도 읽지 않아도 거짓이 아니다.
+    const signupConsentAccess = getWebSignupConsentAccess(user);
+    if (signupConsentAccess === "configuration_error") {
+      return NextResponse.json({ error: "동의 기록 확인 설정을 준비 중이에요. 잠시 후 다시 시도해 주세요.", code: "SIGNUP_CONSENT_CONFIGURATION_REQUIRED" }, { status: 503, headers: PRIVATE_NO_STORE_HEADERS });
+    }
     const capabilities = {
       ...baseCapabilities,
-      requiresSignupConsent: !hasRecordedSignupConsent(user.user_metadata),
+      signupConsentAccess,
+      requiresSignupConsent: signupConsentAccess === "required",
     };
+    if (new URL(request.url).searchParams.get("consent_only") === "1") {
+      return NextResponse.json({ user: { id: user.id }, capabilities }, { headers: PRIVATE_NO_STORE_HEADERS });
+    }
 
     const admin = createAdminClient();
     const _debug: Record<string, unknown> = {};

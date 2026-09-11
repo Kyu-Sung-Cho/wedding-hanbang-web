@@ -57,7 +57,7 @@ function userWith(metadata: Record<string, unknown>) {
       user: {
         id: "11111111-1111-4111-8111-111111111111",
         email: "user@example.com",
-        user_metadata: metadata,
+        created_at: "2026-08-30T00:00:00.000Z", user_metadata: metadata,
       },
     },
   };
@@ -65,6 +65,7 @@ function userWith(metadata: Record<string, unknown>) {
 
 describe("온보딩은 동의 없이 아무것도 만들지 않는다", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.createAdminClient.mockImplementation(() => {

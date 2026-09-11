@@ -59,6 +59,7 @@ function locationOf(response: Response): URL {
 
 describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     mocks.exchangeCodeForSession.mockResolvedValue({ error: null });
     mocks.from.mockImplementation(() => profileQuery({ onboarding_completed: true }));
@@ -68,7 +69,7 @@ describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다
 
   it("동의 기록이 없으면 온보딩도 대시보드도 아닌 동의 화면으로 보낸다", async () => {
     mocks.getUser.mockResolvedValue({
-      data: { user: { id: "u1", user_metadata: { name: "소셜 사용자" } } },
+      data: { user: { id: "u1", created_at: "2026-08-30T00:00:00.000Z", user_metadata: { name: "소셜 사용자" } } },
     });
 
     const response = await callback(callbackRequest("?code=abc"));
@@ -81,7 +82,7 @@ describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다
   it("온보딩을 마친 계정이라도 동의 기록이 없으면 막는다", async () => {
     // 옛 계정(동의 기록이 생기기 전에 만들어진 것)이 여기 해당한다.
     mocks.getUser.mockResolvedValue({
-      data: { user: { id: "u2", user_metadata: {} } },
+      data: { user: { id: "u2", created_at: "2026-08-30T00:00:00.000Z", user_metadata: {} } },
     });
     mocks.from.mockImplementation(() => profileQuery({ onboarding_completed: true }));
 
@@ -94,7 +95,7 @@ describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다
       data: {
         user: {
           id: "u3",
-          user_metadata: { terms_agreed: true, privacy_agreed: true },
+          created_at: "2026-08-30T00:00:00.000Z", user_metadata: { terms_agreed: true, privacy_agreed: true },
         },
       },
     });
@@ -113,7 +114,7 @@ describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다
       { terms_agreed: "true", privacy_agreed: "true" },
       { marketing_agreed: true },
     ]) {
-      mocks.getUser.mockResolvedValue({ data: { user: { id: "u4", user_metadata: metadata } } });
+      mocks.getUser.mockResolvedValue({ data: { user: { id: "u4", created_at: "2026-08-30T00:00:00.000Z", user_metadata: metadata } } });
       const location = locationOf(await callback(callbackRequest("?code=abc")));
       expect(location.pathname, JSON.stringify(metadata)).toBe(SIGNUP_CONSENT_PATH);
     }
@@ -121,14 +122,14 @@ describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다
 
   it("데모 로그인으로 들어온 소셜 계정도 같은 관문을 지난다", async () => {
     // /demo/login 도 진짜 signInWithOAuth 를 호출한다 — 진짜 계정이 만들어진다.
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "u5", user_metadata: {} } } });
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "u5", created_at: "2026-08-30T00:00:00.000Z", user_metadata: {} } } });
 
     const location = locationOf(await callback(callbackRequest("?code=abc&from=demo")));
     expect(location.pathname).toBe(SIGNUP_CONSENT_PATH);
   });
 
   it("동의 화면으로 보낼 때 원래 가려던 곳을 들고 간다", async () => {
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "u6", user_metadata: {} } } });
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "u6", created_at: "2026-08-30T00:00:00.000Z", user_metadata: {} } } });
     mocks.from.mockImplementation(() => profileQuery(null));
 
     const location = locationOf(
@@ -142,7 +143,7 @@ describe("소셜 로그인 계정도 동의 없이는 제품에 못 들어간다
   it("동의 관문이 프로필 조회보다 먼저 온다", async () => {
     // 프로필 조회가 먼저면, 조회가 실패하는 계정은 관문에 닿기도 전에
     // 다른 곳으로 새어 나간다.
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "u7", user_metadata: {} } } });
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "u7", created_at: "2026-08-30T00:00:00.000Z", user_metadata: {} } } });
     mocks.from.mockImplementation(() => {
       throw new Error("프로필 조회가 먼저 실행됐다");
     });

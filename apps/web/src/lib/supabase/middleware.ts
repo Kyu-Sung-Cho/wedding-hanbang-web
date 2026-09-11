@@ -1,6 +1,7 @@
+import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
+import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
 
 // 인증이 필요한 보호 경로만 정의
 const CUSTOMER_PATHS = [
@@ -121,7 +122,7 @@ export async function updateSession(request: NextRequest) {
   if (
     protectedType === "customer"
     && pathname !== SIGNUP_CONSENT_PATH
-    && !hasRecordedSignupConsent(user.user_metadata)
+    && !hasWebSignupConsentAccess(user)
   ) {
     const url = request.nextUrl.clone();
     url.pathname = SIGNUP_CONSENT_PATH;

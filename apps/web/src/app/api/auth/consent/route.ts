@@ -3,6 +3,8 @@ import { log } from "@/utils/log";
 
 import {
   buildSignupConsentRecord,
+  buildSignupConsentServerEvidence,
+  SIGNUP_CONSENT_POLICY_VERSION,
   parseSignupConsent,
 } from "@hanbang/shared";
 
@@ -71,6 +73,10 @@ export async function POST(request: Request) {
 
     const consent = parseSignupConsent(body);
     if (!consent) {
+      if (body.termsAgreed === true && body.privacyAgreed === true && body.ageOver14Confirmed === true
+        && body.consentPolicyVersion !== SIGNUP_CONSENT_POLICY_VERSION) {
+        return NextResponse.json({ error: "동의 문서를 다시 확인해 주세요. 웹은 새로고침하고 앱은 최신 버전에서 다시 진행해 주세요.", code: "SIGNUP_CONSENT_VERSION_REQUIRED" }, { status: 409, headers: NO_STORE_HEADERS });
+      }
       return NextResponse.json(
         {
           error: "이용약관과 개인정보 처리방침에 동의해야 계속할 수 있어요.",
@@ -80,17 +86,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // 기존 메타데이터를 덮어쓰지 않는다. 이름·마케팅 동의 같은 것이 이미
-    // 들어 있고, updateUserById 는 user_metadata 를 통째로 교체한다.
+    // Auth는 제공된 최상위 키만 병합한다. 조회 때의 이름·provider·권한을
+    // 재전송하면 그 사이 변경을 덮으므로 동의 키만 보낸다.
     const admin = createAdminClient();
     const record = buildSignupConsentRecord(consent, new Date().toISOString());
     const { error } = await admin.auth.admin.updateUserById(user.id, {
-      user_metadata: { ...(user.user_metadata ?? {}), ...record },
+      user_metadata: record,
+      app_metadata: {
+        signup_consent: buildSignupConsentServerEvidence(consent, record.consent_agreed_at),
+      },
     });
 
     if (error) {
       // 내부 오류 원문을 사용자에게 돌려주지 않는다.
-      console.error("[auth/consent] 동의 기록 실패", { code: error.status ?? "unknown" });
+      log.error("api/auth/consent", new Error("SIGNUP_CONSENT_WRITE_FAILED"));
       return NextResponse.json(
         { error: "동의를 저장하지 못했어요. 잠시 후 다시 시도해 주세요." },
         { status: 503, headers: NO_STORE_HEADERS },
@@ -98,11 +107,8 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({ success: true }, { headers: NO_STORE_HEADERS });
-  } catch (err) {
-    log.error("api/auth/consent", err);
-    console.error("[auth/consent] 예외", {
-      message: err instanceof Error ? err.message : "unknown",
-    });
+  } catch {
+    log.error("api/auth/consent", new Error("SIGNUP_CONSENT_REQUEST_FAILED"));
     return NextResponse.json(
       { error: "동의 처리 중 오류가 발생했습니다." },
       { status: 500, headers: NO_STORE_HEADERS },

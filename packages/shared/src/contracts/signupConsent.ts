@@ -18,10 +18,10 @@
  * 그대로 두어 그 상태가 됐던 적이 있다.
  *
  * 현재 값의 근거:
- *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 22일
- *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 8월 22일
+ *   apps/web/src/app/terms/page.tsx   최종 수정일 2026년 8월 31일
+ *   apps/web/src/app/privacy/page.tsx 최종 수정일 2026년 9월 11일
  */
-export const SIGNUP_CONSENT_POLICY_VERSION = "2026-08-31";
+export const SIGNUP_CONSENT_POLICY_VERSION = "2026-09-11";
 
 /**
  * 가입 화면에서 **동의를 받기 시작한** 시각.
@@ -152,23 +152,50 @@ export function buildSignupConsentRecord(
   };
 }
 
-/**
- * 이 계정에 필수 동의 기록이 남아 있는가.
- *
- * 이메일 가입은 /api/auth/signup 이 기록하지만, **소셜 로그인은 Supabase 가
- * 계정을 직접 만들기 때문에 아무 기록도 남지 않는다.** 로그인 탭에서 카카오·
- * Google·Apple 로 처음 들어온 사람이 정확히 그 경우다 — 동의 화면을 본 적도
- * 없고 기록도 없다. 그 계정을 제품에 들여보내기 전에 여기서 판정한다.
- *
- * 판 번호는 보지 않는다. 문서를 고칠 때마다 전원을 다시 막으면 그건 제품
- * 결정이지 이 함수가 혼자 정할 일이 아니다. 기록의 **존재**만 본다.
- */
+/** Auth의 서버 소유 app_metadata에 유효한 동의 증거가 있는가. user_metadata는 전달하지 않는다. */
 export function hasRecordedSignupConsent(metadata: unknown): boolean {
-  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata)) {
-    return false;
-  }
-  const record = metadata as Record<string, unknown>;
-  return record.terms_agreed === true && record.privacy_agreed === true;
+  if (!isConsentObject(metadata) || !isConsentObject(metadata.signup_consent)) return false;
+  const evidence = metadata.signup_consent;
+  if (evidence.schemaVersion !== 1 || evidence.source !== "hanbang_auth_server"
+    || !isConsentObject(evidence.record)) return false;
+  const record = evidence.record;
+  return record.terms_agreed === true && record.privacy_agreed === true
+    && record.age_over_14_confirmed === true && typeof record.marketing_agreed === "boolean"
+    && typeof record.consent_policy_version === "string"
+    && /^\d{4}-\d{2}-\d{2}$/u.test(record.consent_policy_version)
+    && isConsentTimestamp(record.consent_agreed_at);
+}
+
+function isConsentObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function isConsentTimestamp(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString() === value;
+}
+
+export type SignupConsentAccess = "server_verified" | "legacy_unverified" | "required" | "configuration_error";
+export type SignupConsentUser = Readonly<{ user_metadata?: unknown; app_metadata?: unknown; created_at?: string }>;
+
+/** Auth getUser의 서버 소유 필드만 새 증거로 인정한다. 구회원 호환은 별도 상태다. */
+export function getSignupConsentAccess(user: SignupConsentUser, legacyBefore?: string, nowMs = Date.now()): SignupConsentAccess {
+  if (hasRecordedSignupConsent(user.app_metadata)) return "server_verified";
+  // 서버 증거가 손상된 경우 구기록으로 대체하지 않는다.
+  if (isConsentObject(user.app_metadata) && Object.hasOwn(user.app_metadata, "signup_consent")) return "required";
+  const legacy = user.user_metadata;
+  if (!isConsentObject(legacy) || legacy.terms_agreed !== true || legacy.privacy_agreed !== true) return "required";
+  if (!isConsentTimestamp(legacyBefore) || !Number.isFinite(nowMs) || Date.parse(legacyBefore) > nowMs) return "configuration_error";
+  if (typeof user.created_at !== "string"
+    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})$/u.test(user.created_at)
+    || !Number.isFinite(Date.parse(user.created_at))
+    || Date.parse(user.created_at) >= Date.parse(legacyBefore)) return "required";
+  return "legacy_unverified";
+}
+
+export function buildSignupConsentServerEvidence(submission: SignupConsentSubmission, agreedAtIso: string) {
+  if (!isConsentTimestamp(agreedAtIso)) throw new Error("SIGNUP_CONSENT_TIMESTAMP_INVALID");
+  return { schemaVersion: 1, source: "hanbang_auth_server", record: buildSignupConsentRecord(submission, agreedAtIso) } as const;
 }
 
 /** 동의 기록이 없는 계정을 보내는 곳. 웹 전용 경로다. */
@@ -179,16 +206,17 @@ export const SIGNUP_CONSENT_PATH = "/consent";
  * 필수 동의가 없으면 null 이고, 호출부는 계정을 만들지 않는다.
  */
 export function parseSignupConsent(body: unknown): SignupConsentSubmission | null {
-  if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
-  const record = body as Record<string, unknown>;
+  if (!isConsentObject(body)) return null;
+  const record = body;
   if (record.termsAgreed !== true || record.privacyAgreed !== true) return null;
   if (record.ageOver14Confirmed !== true) return null;
+  if (record.consentPolicyVersion !== SIGNUP_CONSENT_POLICY_VERSION) return null;
   return {
     termsAgreed: true,
     privacyAgreed: true,
     ageOver14Confirmed: true,
     marketingAgreed: record.marketingAgreed === true,
-    // 클라이언트가 보낸 판 번호는 신뢰하지 않는다. 서버가 아는 현재 판을 남긴다.
-    consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
+    // 정확히 현재 폼의 판본만 수락한다. 구판·누락을 최신판으로 바꾸지 않는다.
+    consentPolicyVersion: record.consentPolicyVersion,
   };
 }

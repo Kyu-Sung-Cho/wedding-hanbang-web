@@ -1,4 +1,4 @@
-import { hasRecordedSignupConsent } from "@hanbang/shared";
+import { type SignupConsentAccess } from "@hanbang/shared";
 
 /**
  * 동의 관문이 **루트에만** 있어서 딥링크가 지나쳐 가던 것을 막는다.
@@ -64,6 +64,7 @@ export type ConsentInterceptionInput = Readonly<{
   pathname: string | null;
   /** 세션. 아직 못 읽었으면 `null` — 그때는 가로채지 않는다. */
   session: { user: { user_metadata?: unknown } } | null;
+  consentAccess?: SignupConsentAccess;
 }>;
 
 export function shouldInterceptForConsent(input: ConsentInterceptionInput): boolean {
@@ -71,7 +72,7 @@ export function shouldInterceptForConsent(input: ConsentInterceptionInput): bool
   if (!input.session) return false;
 
   // 이미 동의한 사람은 그대로 간다.
-  if (hasRecordedSignupConsent(input.session.user.user_metadata)) return false;
+  if ((input.consentAccess === "server_verified" || input.consentAccess === "legacy_unverified")) return false;
 
   // 경로를 모르면 판단하지 않는다. 잘못 가로채면 동의 화면에 갇힌다.
   if (typeof input.pathname !== "string" || input.pathname.length === 0) return false;

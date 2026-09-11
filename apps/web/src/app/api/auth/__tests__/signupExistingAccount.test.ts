@@ -75,10 +75,9 @@ describe("계정이 있는지 밖에서 알 수 없어야 한다", () => {
 // 하고, 동의 사실이 실제로 기록돼야 한다.
 describe("필수 동의 없이는 계정을 만들지 않는다", () => {
   it("동의 검사가 계정 생성보다 먼저 온다", () => {
-    // 파일 위쪽 sendExistingAccountNotice 도 generateLink 를 쓴다(type: "recovery").
-    // 계정을 만드는 쪽은 type: "signup" 하나뿐이므로 그것을 지목한다.
+    // 메일 링크 생성과 달리 계정 생성은 createUser의 원자 기록에 한정한다.
     const consentAt = source.indexOf("parseSignupConsent(body)");
-    const createAt = source.indexOf('type: "signup"');
+    const createAt = source.indexOf('supabase.auth.admin.createUser(');
     expect(consentAt).toBeGreaterThan(-1);
     expect(createAt).toBeGreaterThan(-1);
     expect(consentAt).toBeLessThan(createAt);
@@ -86,7 +85,7 @@ describe("필수 동의 없이는 계정을 만들지 않는다", () => {
 
   it("동의가 없으면 400 으로 되돌린다", () => {
     expect(source).toMatch(
-      /if \(!consent\)[\s\S]{0,400}SIGNUP_CONSENT_REQUIRED[\s\S]{0,200}status: 400/u,
+      /code: "SIGNUP_CONSENT_REQUIRED",[\s\S]{0,100}status: 400/u,
     );
   });
 

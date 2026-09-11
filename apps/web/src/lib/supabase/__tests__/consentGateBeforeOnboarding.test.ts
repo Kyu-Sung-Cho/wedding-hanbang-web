@@ -51,10 +51,11 @@ const code = source
 
 describe("동의 관문 순서", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "synthetic-anon-key");
     mocks.getUser.mockReset().mockResolvedValue({
-      data: { user: { id: "synthetic-consent-pending-user", user_metadata: {} } },
+      data: { user: { id: "synthetic-consent-pending-user", created_at: "2026-08-30T00:00:00.000Z", user_metadata: {} } },
     });
     mocks.createServerClient.mockReset().mockReturnValue({
       auth: { getUser: mocks.getUser },
@@ -64,7 +65,7 @@ describe("동의 관문 순서", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("동의 검사가 온보딩 검사보다 먼저 있다", () => {
-    const consentAt = code.indexOf("hasRecordedSignupConsent");
+    const consentAt = code.indexOf("hasWebSignupConsentAccess");
     const onboardingAt = code.indexOf("onboarding_complete");
     expect(consentAt, "미들웨어가 동의를 보지 않는다").toBeGreaterThan(-1);
     expect(onboardingAt, "온보딩 검사를 찾지 못했다").toBeGreaterThan(-1);
@@ -102,7 +103,7 @@ describe("동의 관문 순서", () => {
 
   it("판정을 손으로 짓지 않고 공유 계약을 쓴다", () => {
     // 여기서 `terms_agreed` 를 직접 읽으면 다른 관문과 갈라진다.
-    expect(code).toContain("hasRecordedSignupConsent(user.user_metadata)");
+    expect(code).toContain("hasWebSignupConsentAccess(user)");
     expect(code.includes("terms_agreed")).toBe(false);
   });
 
