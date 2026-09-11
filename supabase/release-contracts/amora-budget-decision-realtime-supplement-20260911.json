@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "kind": "amora-budget-decision-exact-realtime-supplement",
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "parentContract": {
+    "file": "supabase/release-contracts/amora-budget-decision-hotfix-v1.json",
+    "sha256": "a5cb2dfb93e34fb7650dd2fdb434c4c60a2c74146c68c4dfd0261942ec1e07e1"
+  },
+  "parentBaselineSha256": "2a60b91a06db7d01c4d5efb06c9033b5fbb2eb0e917ed0f8fa84c777a72d12c5",
+  "effectiveBaseline": {
+    "file": "supabase/release-contracts/amora-budget-decision-effective-baseline-20260911.json",
+    "sha256": "527b8429377a9f13f16f8dfcf64f66d8fd73a3ea4c9588cc2cd498364932db4a"
+  },
+  "proof": {
+    "file": "supabase/release-contracts/amora-budget-decision-realtime-proof-20260911.json",
+    "sha256": "31391f83a5adeaf4dc5b95964972dce05aab634951d4f23443919ec45526e913"
+  },
+  "structureRawSha256": "22ff4410bfe0520e8befc5a0aaed7123ca1d5a9803e1b064cbf66184cf36b990",
+  "structureQuerySha256": "b36d7701530a58b54712ac5ecc92680b77448ac5d0fdf8426e7006356a36715c",
+  "baselineResponseSha256": "ba0336e51637280b6dc4ca291029e32d3973e3b018e46382cab08b51254012ac",
+  "baselineQuerySha256": "0fb43fa111e1d890acdcbb7fb3d113b99726cc068a3b37e115109ce05c440f75",
+  "inventorySha256": "25426ca5d3397de465e137ea3c4119ca2373277b18b8f5e610407deba1ad96f8",
+  "objects": [
+    {
+      "identity": "publication:supabase_realtime_messages_publication",
+      "beforeSha256": "7ab27a578e9516e30d5fd77997f4330c7026f09f54c51bc92df6f43a412d1935",
+      "afterSha256": "679ca6f043dc1217afd16ada6a675a51e20453f0e197f6f161b02374f71fd453"
+    },
+    {
+      "identity": "relation:realtime.messages_2026_09_07",
+      "beforeSha256": "b8694647a6ca6e9e464b82583ae45432ef74fbc904498695095d074f24e0ad88",
+      "afterSha256": null
+    },
+    {
+      "identity": "relation:realtime.messages_2026_09_14",
+      "beforeSha256": null,
+      "afterSha256": "868b4fb2875dbf60305f64a5eead932520dfd878d936596af495773b090b8be9"
+    }
+  ],
+  "historicalParentObservation": "not-in-v1-inventory; current parent/sibling/child topology is an additional mandatory constraint"
+}

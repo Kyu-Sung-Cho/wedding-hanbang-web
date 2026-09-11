@@ -7,7 +7,9 @@ import { transactionBody } from './current-baseline-hosted-synthetic.mjs';
 import { resolvePinnedWindowsProductionToolchain } from './production-windows-toolchain.mjs';
 import { validateVercelDeploymentRawEvidence } from './production-external-gate-provenance.mjs';
 import { NAMED_BUDGET_MIGRATION } from './amora-named-budget-migration-pin.mjs';
-import { BUDGET_DECISION_KIND, BUDGET_DECISION_SCHEMA_CHANGES, loadBudgetDecisionHotfixRelease } from './amora-budget-decision-release-contract.mjs';
+import { loadEffectiveBudgetDecisionHotfixRelease, budgetRealtimeBindings, assertBudgetRealtimeBindings,
+  renderBudgetRealtimeTopologyGuard, validateBudgetRealtimeObservation } from './amora-budget-decision-effective-release-contract.mjs';
+import { BUDGET_DECISION_KIND, BUDGET_DECISION_SCHEMA_CHANGES } from './amora-budget-decision-release-contract.mjs';
 
 export const HOTFIX_CONTRACT_FILE = 'supabase/release-contracts/amora-runtime-hotfix-v1.json';
 export const NAMED_BUDGET_CONTRACT_FILE = 'supabase/release-contracts/amora-named-budget-hotfix-v1.json';
@@ -133,7 +135,7 @@ export function parseHotfixModeArgs(argv) {
   return argv.includes('--finalize') ? parseHotfixFinalizeArgs(argv) : parseHotfixArgs(argv);
 }
 export function loadHotfixReleaseForMode(repoRoot, mode) {
-  if (mode === '--amora-budget-decision-hotfix') return loadBudgetDecisionHotfixRelease(repoRoot);
+  if (mode === '--amora-budget-decision-hotfix') return loadEffectiveBudgetDecisionHotfixRelease(repoRoot);
   if (mode === '--amora-named-budget-hotfix') return loadNamedBudgetHotfixRelease(repoRoot);
   ensure(mode === '--amora-runtime-hotfix', 'MODE_REQUIRED');
   return loadHotfixRelease(repoRoot);
@@ -235,6 +237,8 @@ function reportBinding(report, evidence, release, kind, now) {
 }
 export function validateHotfixEvidence({ evidence, reports, raw, release, expectedCommit, now = new Date() }) {
   const profile = hotfixProfile(release);
+  assertBudgetRealtimeBindings(evidence, release);
+  const topologyDeadline = validateBudgetRealtimeObservation({ release, evidence, raw: raw.realtimeTopology, now });
   const time = now.getTime();
   ensure(evidence?.format === 'amora-runtime-hotfix-evidence-v1' && evidence.releaseCommit === expectedCommit
     && COMMIT.test(expectedCommit) && evidence.projectRef === release.hotfix.projectRef
@@ -337,7 +341,7 @@ export function validateHotfixEvidence({ evidence, reports, raw, release, expect
   equal(hosted.transitions, evidence.transitions, 'SCHEMA_TRANSITION_EVIDENCE_MISMATCH');
   if (isNamedBudget(release)) equal([...identities].sort(), [...NAMED_BUDGET_FUNCTIONS].sort(), 'SCHEMA_TRANSITIONS_MISSING');
   if (isBudgetDecision(release)) equal([...identities].sort(), [...BUDGET_DECISION_SCHEMA_CHANGES].sort(), 'SCHEMA_TRANSITIONS_MISSING');
-  return { evidence, reports, raw, evidenceSha256: digestJson(evidence), deadlineMs: Math.min(instant(evidence.expiresAt),
+  return { evidence, reports, raw, evidenceSha256: digestJson(evidence), deadlineMs: Math.min(topologyDeadline, instant(evidence.expiresAt),
     ...['backup', 'fence', 'dryRun'].map(kind => instant(reports[kind].verifiedAt) + 30 * 60_000),
     ...['rollback', 'hosted', 'concurrency'].map(kind => instant(reports[kind].verifiedAt) + 24 * 3600_000)) };
 }
@@ -425,6 +429,7 @@ DO $hotfix_${phase}$ DECLARE observed jsonb; actual_data jsonb; cli jsonb; BEGIN
 
 export function renderHotfixAtomicSql({ release, evidence, binding, deadlineMs }) {
   hotfixProfile(release);
+  assertBudgetRealtimeBindings(evidence, release);
   const predicate = leasePredicate(binding);
   ensure(binding.release === release.hotfix.release && binding.releaseCommit === evidence.releaseCommit
     && Number.isSafeInteger(deadlineMs), 'ATOMIC_BINDING_INVALID');
@@ -445,14 +450,17 @@ DO $hotfix_owner$ BEGIN ${identityCheck(release)}
 END $hotfix_owner$;
 LOCK TABLE ${publicTables(evidence.before).map(t => `${identifier(t.schema)}.${identifier(t.name)}`).join(',')} IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE supabase_migrations.schema_migrations IN SHARE ROW EXCLUSIVE MODE;
+${release.baselineSupplement ? 'LOCK TABLE ONLY realtime.messages, ONLY realtime.messages_2026_09_08, ONLY realtime.messages_2026_09_14 IN SHARE UPDATE EXCLUSIVE MODE;' : ''}
 ${release.fenceBody}
 ${guardBlock({ release, evidence, deadlineMs, phase: 'before' })}
+${renderBudgetRealtimeTopologyGuard(release)}
 ${bodies.map(m => `-- reviewed source ${m.file} sha256 ${m.sha256}; executed body sha256 ${m.bodySha256}
 ${m.body}
 INSERT INTO supabase_migrations.schema_migrations(version,name,statements)
 VALUES(${literal(m.version)},${literal(m.file.slice(15, -4))},ARRAY[${literal(m.original)}]::text[]);`).join('\n')}
 ${release.fenceBody}
 ${guardBlock({ release, evidence, deadlineMs, phase: 'after' })}
+${renderBudgetRealtimeTopologyGuard(release)}
 DO $hotfix_post$ BEGIN
   IF EXISTS(SELECT 1 FROM (${expectedLedger}) e FULL JOIN
     (SELECT version,name,statements FROM supabase_migrations.schema_migrations WHERE version IN (${bodies.map(m => literal(m.version)).join(',')})) a USING(version)
@@ -540,14 +548,17 @@ async function readEvidenceFiles(repoRoot, root, release, expectedCommit, now) {
     raw[kind] = pinnedArtifact(root, reports[kind].rawEvidence).toString('utf8');
     ensure(reports[kind].rawEvidence.sha256 === reports[kind].rawEvidenceSha256, 'RAW_EVIDENCE_MISMATCH');
   }
+  assertBudgetRealtimeBindings(evidence, release);
+  if (release.baselineSupplement) raw.realtimeTopology = pinnedArtifact(root, evidence.realtimeTopology?.rawEvidence).toString('utf8');
   raw.rollbackOriginal = pinnedArtifact(root, evidence.rollbackOriginal).toString('utf8');
   return validateHotfixEvidence({ evidence, reports, raw, release, expectedCommit, now });
 }
 
 // 원본은 기존 HBAM2 구현으로 메모리 복호화하고 폐기한다. 키/원문/PowerShell 오류를 출력하지 않는다.
 export async function verifyHotfixRecovery({ repoRoot, evidenceRoot, state, mode = '--amora-runtime-hotfix' }) {
-  const toolchain = await resolvePinnedWindowsProductionToolchain();
   const release = loadHotfixReleaseForMode(repoRoot, mode);
+  assertBudgetRealtimeBindings(state.evidence, release);
+  const toolchain = await resolvePinnedWindowsProductionToolchain();
   ensure(state.evidence.hotfixContractSha256 === release.hotfixSha256
     && state.evidence.migrationSetSha256 === release.migrationSetSha256, 'RECOVERY_RELEASE_BINDING_INVALID');
   pinnedArtifact(repoRoot, release.contract.implementation.crypto);
@@ -598,14 +609,17 @@ export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primiti
   await verifyRecovery({ repoRoot, evidenceRoot: options['evidence-root'], state, mode });
   const binding = { release: release.hotfix.release, releaseCommit: expectedCommit, ownerId: randomUUID(), outcomePathSha256: digest(resolve(options['receipt-out'])) };
   const sql = renderHotfixAtomicSql({ release, ...state, binding });
-  const base = { format: 'amora-runtime-hotfix-outcome-v1', ...binding, projectRef: release.hotfix.projectRef,
+  const base = { format: 'amora-runtime-hotfix-outcome-v1', ...binding, ...budgetRealtimeBindings(release), projectRef: release.hotfix.projectRef,
     systemIdentifier: release.hotfix.systemIdentifier, hotfixContractSha256: release.hotfixSha256,
     migrationSetSha256: release.migrationSetSha256, evidenceSha256: state.evidenceSha256, bundleSha256: digest(sql),
     scope: release.hotfix.scope, ...EXCLUSIONS, fenceMustRemainHeld: true, rerunProhibited: true };
   await exclusive(options['bundle-out'], sql);
   await exclusive(options['receipt-out'], JSON.stringify({ ...base, status: 'prepared', remoteWritesPerformed: false }));
   const stable = async () => {
-    await sourceFence(); ensure(loadRelease(repoRoot).hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
+    await sourceFence();
+    const current = loadRelease(repoRoot);
+    ensure(current.hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
+    assertBudgetRealtimeBindings(budgetRealtimeBindings(release), current);
     ensure((await readEvidenceFiles(repoRoot, options['evidence-root'], release, expectedCommit, now())).evidenceSha256 === state.evidenceSha256, 'HOTFIX_EVIDENCE_CHANGED');
     ensure(digest(await readFile(options['bundle-out'])) === base.bundleSha256, 'ATOMIC_BUNDLE_CHANGED');
   };
@@ -615,7 +629,7 @@ export async function runAmoraRuntimeHotfix({ repoRoot, argv, transport, primiti
     await replaceReceipt(options['receipt-out'], receipt); return receipt;
   };
   // check-only는 실제 SQL을 실행하는 dry-run이 아니다. 읽기 precondition과 원문 번들만 검증한다.
-  const preflight = `BEGIN READ ONLY; SET LOCAL search_path=pg_catalog,public; ${release.fenceBody}\n${guardBlock({ release, ...state, phase: 'before' })}\nSELECT 1::integer AS hotfix_preflight_count; COMMIT;`;
+  const preflight = `BEGIN READ ONLY; SET LOCAL search_path=pg_catalog,public; ${release.fenceBody}\n${guardBlock({ release, ...state, phase: 'before' })}\n${renderBudgetRealtimeTopologyGuard(release)}\nSELECT 1::integer AS hotfix_preflight_count; COMMIT;`;
   const pre = await transport.query(preflight, { readOnly: true });
   ensure(pre.some(row => row.hotfix_preflight_count === 1), 'PREFLIGHT_UNCONFIRMED');
   await stable();
@@ -692,6 +706,7 @@ export function validateHotfixCanary({ canary, deploymentRaw, httpRaw, outcome, 
 }
 
 export function renderHotfixFinalizeSql({ release, evidence, binding, deadlineMs, canarySha256 }) {
+  assertBudgetRealtimeBindings(evidence, release);
   ensure(SHA.test(canarySha256) && Number.isSafeInteger(deadlineMs) && deadlineMs > 0, 'CANARY_BINDING_INVALID');
   const predicate = leasePredicate(binding);
   const expectedLedger = release.migrations.map(m => `SELECT ${literal(m.version)}::text AS version,${literal(m.file.slice(15, -4))}::text AS name,ARRAY[${literal(m.sql.toString('utf8'))}]::text[] AS statements`).join(' UNION ALL ');
@@ -705,8 +720,10 @@ DO $owner$ BEGIN ${identityCheck(release)}
 END $owner$;
 LOCK TABLE ${[...publicTables(evidence.before), ...addedRelations(release)].map(t => `${identifier(t.schema)}.${identifier(t.name)}`).join(',')} IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE supabase_migrations.schema_migrations IN SHARE ROW EXCLUSIVE MODE;
+${release.baselineSupplement ? 'LOCK TABLE ONLY realtime.messages, ONLY realtime.messages_2026_09_08, ONLY realtime.messages_2026_09_14 IN SHARE UPDATE EXCLUSIVE MODE;' : ''}
 ${release.fenceBody}
 ${guardBlock({ release, evidence, deadlineMs, phase: 'after' })}
+${renderBudgetRealtimeTopologyGuard(release)}
 DO $ledger$ BEGIN
   IF (SELECT count(*) FROM (${expectedLedger}) e JOIN supabase_migrations.schema_migrations a USING(version) WHERE e.name=a.name AND e.statements=a.statements)<>${release.migrations.length}
     OR (SELECT count(*) FROM supabase_migrations.schema_migrations)<>${evidence.before.ledger.length + release.migrations.length}
@@ -745,6 +762,7 @@ export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, ou
   await verifyHotfixSourceLineage({ repoRoot, state, release, runCommand: primitives.runCommand });
   const outcomeText = readAnchored(dirname(outcomePath), outcomePath.slice(dirname(outcomePath).length + 1)).toString('utf8');
   const outcome = JSON.parse(outcomeText);
+  assertBudgetRealtimeBindings(outcome, release);
   ensure(outcome.format === 'amora-runtime-hotfix-outcome-v1' && outcome.status === 'database-expand-verified-lease-held'
     && outcome.releaseCommit === expectedCommit && outcome.hotfixContractSha256 === release.hotfixSha256
     && outcome.migrationSetSha256 === release.migrationSetSha256 && outcome.evidenceSha256 === state.evidenceSha256
@@ -767,12 +785,15 @@ export async function runAmoraRuntimeHotfixFinalize({ repoRoot, evidenceRoot, ou
   await verifyRecovery({ repoRoot, evidenceRoot, state, mode });
   const binding = { release: outcome.release, releaseCommit: outcome.releaseCommit, ownerId: outcome.ownerId, outcomePathSha256: outcome.outcomePathSha256 };
   const sql = renderHotfixFinalizeSql({ release, ...state, binding, deadlineMs: Math.min(state.deadlineMs, checked.deadlineMs), canarySha256: checked.canarySha256 });
-  const base = { format: 'amora-runtime-hotfix-finalizer-v1', ...binding, ...EXCLUSIONS, canarySha256: checked.canarySha256,
+  const base = { format: 'amora-runtime-hotfix-finalizer-v1', ...binding, ...budgetRealtimeBindings(release), ...EXCLUSIONS, canarySha256: checked.canarySha256,
     providerSourceSha256: checked.providerSourceSha256, providerAdapterSha256: checked.providerAdapterSha256,
     sourceOutcomeSha256: digest(outcomeText), finalizerSqlSha256: digest(sql), scope: release.hotfix.scope, rerunProhibited: true };
   await exclusive(receiptOut, JSON.stringify({ ...base, status: 'prepared', remoteWritesPerformed: false }));
   const stable = async () => {
-    await sourceFence(); ensure(loadRelease(repoRoot).hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
+    await sourceFence();
+    const current = loadRelease(repoRoot);
+    ensure(current.hotfixSha256 === release.hotfixSha256, 'HOTFIX_CONTRACT_CHANGED');
+    assertBudgetRealtimeBindings(budgetRealtimeBindings(release), current);
     ensure((await readEvidenceFiles(repoRoot, evidenceRoot, release, expectedCommit, now())).evidenceSha256 === state.evidenceSha256, 'HOTFIX_EVIDENCE_CHANGED');
     ensure(digest(await readFile(outcomePath)) === base.sourceOutcomeSha256, 'FINALIZER_OUTCOME_CHANGED');
     equal(JSON.parse(await readFile(canaryPath, 'utf8')), canary, 'FINALIZER_CANARY_CHANGED');
