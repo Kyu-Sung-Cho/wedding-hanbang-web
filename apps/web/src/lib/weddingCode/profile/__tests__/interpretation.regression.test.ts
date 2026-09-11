@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { CURRENT_WEDDING_CODE_SCENE_CONFIG as config } from "@/lib/weddingCode/scene/config";
-import { buildWeddingCodeSelfProfile } from "@/lib/weddingCode/scene/selfProfile";
+import { buildWeddingCodeSelfProfile, describeSelfAxisReading, describeSelfAxisAbsence } from "@/lib/weddingCode/scene/selfProfile";
+import { buildWeddingCodeLetters } from "../letters";
 import { buildWeddingCodeV06GapMap, type WeddingCodeV06Answers } from "@/lib/weddingCode/v06/gap";
 import { buildWeddingCodeAmoraProposals, buildWeddingCodeCoupleCombination } from "../amoraBridge";
 
@@ -9,6 +10,71 @@ const pair = (first: WeddingCodeV06Answers, second: WeddingCodeV06Answers) =>
   buildWeddingCodeCoupleCombination(profile(first), profile(second), buildWeddingCodeV06GapMap(first, second, config));
 
 describe("실제 선택과 해석의 경계", () => {
+  it("B5의 응답 지연만으로 함께 검토한 행동을 인증하지 않고 기존 T 집계와 인용을 보존한다", () => {
+    const result = profile({ B5: "A" });
+    const reading = result.axes.find(axis => axis.axis === "preparationMode")!;
+    const letters = buildWeddingCodeLetters(result);
+    expect(letters.code).toBe("·T··");
+    expect(letters.complete).toBe(false);
+    expect(reading).toMatchObject({ answered: 1, leftCount: 1, rightCount: 0 });
+    expect(reading.evidence).toEqual([{ scene: config.questions.find(question => question.key === "B5")!.scene, label: "둘 다 못 받아서 답이 며칠씩 밀렸다" }]);
+    expect(letters.slots[1].meaning).toBe("함께 확인하는 과정과 연락 경험에 관한 답을 더 많이 골랐어요");
+    expect(reading.title).toContain("함께 확인하는 과정과 연락 경험");
+    expect(describeSelfAxisReading(reading)).toContain("연락 경험 쪽이 1곳");
+    expect(reading.watchOut).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect([letters.slots[1].meaning, reading.title].join(" ")).not.toMatch(/둘이 같이 보는 답|함께 보는 쪽 답을 더/);
+  });
+
+  it("B5 지연과 맡긴 답이 동점이어도 실제 함께 검토한 것으로 요약하지 않는다", () => {
+    const result = profile({ B5: "A", B1: "C" });
+    const reading = result.axes[1];
+    expect(reading.title).not.toContain("함께 보기와 맡기기");
+    expect(reading.title).toContain("같은 수");
+    expect(result.repeated.find(item => item.construct === "coPreparation")?.phrase).toBe("함께 확인하는 과정과 연락 경험");
+    expect(reading.watchOut).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect(reading.missingPhrases).toEqual([]);
+    const comparison = pair({ B5: "A", B1: "C" }, { B5: "B", B1: "A" });
+    expect(comparison[0].firstTitle).toBe(reading.title);
+    expect(JSON.stringify(comparison)).not.toContain("함께 보기와 맡기기");
+  });
+
+  it("연락 지연을 고르지 않은 T 답에는 지연 경험 경고를 붙이지 않는다", () => {
+    for (const answers of [{ B1: "A" }, { B5: "C" }] satisfies WeddingCodeV06Answers[]) {
+      const result = profile(answers);
+      expect(buildWeddingCodeLetters(result).code).toBe("·T··");
+      expect(result.axes[1].watchOut).not.toContain("연락을 받지 못한 경험");
+      expect(buildWeddingCodeAmoraProposals(result)[0]).not.toHaveProperty("value");
+    }
+  });
+
+  it("표시 인용 두 개 뒤에 있는 지연 답도 실제로 골랐다면 한정 안내를 남긴다", () => {
+    const result = profile({ B1: "A", B2: "B", B3: "C", B4: "A", B5: "A" });
+    expect(result.axes[1].evidence.map(quote => quote.label)).not.toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
+    expect(result.axes[1].watchOut).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect(buildWeddingCodeLetters(result).code).toBe("·T··");
+    expect(result.axes[1]).toMatchObject({ leftCount: 5, rightCount: 0 });
+  });
+
+  it("반대쪽만 고른 응답의 부재 설명도 공동 검토를 원하는지 단정하지 않는다", () => {
+    const result = profile({ B5: "B" });
+    expect(result.axes[1].missingPhrases).toEqual(["함께 확인하는 과정과 연락 경험"]);
+    expect(describeSelfAxisAbsence(result.axes[1])).toContain("쪽 문장은 한 번도 고르지 않았어요");
+    expect(describeSelfAxisAbsence(result.axes[1])).not.toContain("먼저 보는");
+    expect(buildWeddingCodeAmoraProposals(result)[0]).not.toHaveProperty("value");
+  });
+
+  it.each([
+    [{ B5: "B" }, "·O··", 0, 1],
+    [{ B5: "C" }, "·T··", 1, 0],
+    [{ B5: "D" }, "·O··", 0, 1],
+    [{ B1: "A", B2: "A", B3: "C", B4: "B", B5: "A" }, "·t··", 3, 2],
+    [{ B1: "C", B5: "A" }, "····", 1, 1],
+  ] as const)("다른 연락 방식·혼합·동점의 코드와 양쪽 집계를 유지한다: %j", (answers, code, leftCount, rightCount) => {
+    const result = profile(answers);
+    expect(buildWeddingCodeLetters(result).code).toBe(code);
+    expect(result.axes[1]).toMatchObject({ leftCount, rightCount, answered: leftCount + rightCount });
+  });
+
   it("동률인 두 집계라도 두 장면의 답이 모두 반대면 다르다고 표시한다", () => {
     const result = pair({ C1: "A", C2: "B" }, { C1: "C", C2: "A" });
     expect(result).toHaveLength(1);

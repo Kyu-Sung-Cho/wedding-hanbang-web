@@ -4,8 +4,8 @@ import { createRequire } from 'node:module';
 import { digestJson } from '../../lib/current-baseline-release-contract.mjs';
 
 // 로컬 SQL 회귀 전용 최소 predecessor. hosted schema의 대체물/운영 증거가 아니다.
-export async function localPredecessor(repoRoot) {
-  const requireWeb = createRequire(join(repoRoot, 'apps/web/package.json'));
+export async function localPredecessor(repoRoot, dependencyRoot = repoRoot) {
+  const requireWeb = createRequire(join(dependencyRoot, 'apps/web/package.json'));
   const { PGlite } = requireWeb('@electric-sql/pglite');
   const db = await PGlite.create();
   const migration = name => readFileSync(join(repoRoot, 'supabase/migrations', name), 'utf8');

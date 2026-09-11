@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, lstatSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import test from "node:test";
 import { assertSameBaseline, assertFencedBaseline, digest, digestJson, EVIDENCE_KINDS, loadCurrentBaselineContract,
@@ -10,8 +10,12 @@ import { createMigrationBundle, parseCurrentArgs, runCurrentBaselineRelease,
   verifyMigrationBundle } from "../lib/current-baseline-release-controller.mjs";
 import { runProductionRelease } from "../lib/supabase-production-release-controller.mjs";
 import { spawnSync } from "node:child_process";
+import { loadHotfixRelease, loadNamedBudgetHotfixRelease } from '../lib/amora-runtime-hotfix-controller.mjs';
+import { createHistoricalReleaseRepository } from './fixtures/legacy-release-repository.mjs';
 
 const REPO = resolve(import.meta.dirname, "../..");
+const historical = createHistoricalReleaseRepository(REPO);
+test.after(historical.cleanup);
 const NOW = new Date("2026-09-08T10:00:00Z");
 const COMMIT = "a".repeat(40);
 const clone = value => structuredClone(value);
@@ -20,8 +24,8 @@ test.after(() => { for (const root of roots) rmSync(root, { recursive: true, for
 const json = (file, value) => writeFileSync(file, JSON.stringify(value, null, 2) + "\n");
 const blocked = code => error => error?.code === code;
 function releaseData() {
-  const contract = JSON.parse(readFileSync(join(REPO, "supabase/release-contracts/current-baseline-rollout-v1.json")));
-  return { contract, baseline: JSON.parse(readFileSync(join(REPO, contract.baselineObservation.file))) };
+  const contract = JSON.parse(readFileSync(join(historical.root, "supabase/release-contracts/current-baseline-rollout-v1.json")));
+  return { contract, baseline: JSON.parse(readFileSync(join(historical.root, contract.baselineObservation.file))) };
 }
 function writeSyntheticBaseline(repo, contract, baseline, original) {
   json(join(repo, contract.baselineSupplement.originalObservation.file), original);
@@ -35,17 +39,17 @@ function fixture() {
   const outer = mkdtempSync(join(tmpdir(), "current-baseline-test-")); roots.push(outer);
   const repo = join(outer, "repo"); const evidence = join(outer, "evidence"); const bundles = join(outer, "bundles");
   for (const path of [repo, evidence, bundles, join(repo, "supabase/release-contracts"), join(repo, "supabase/release-checks"), join(repo, "scripts"), join(evidence, "encrypted")]) mkdirSync(path, { recursive: true });
-  cpSync(join(REPO, "supabase/migrations"), join(repo, "supabase/migrations"), { recursive: true });
-  const contract = JSON.parse(readFileSync(join(REPO, "supabase/release-contracts/current-baseline-rollout-v1.json")));
-  const baseline = JSON.parse(readFileSync(join(REPO, contract.baselineObservation.file)));
-  const original = JSON.parse(readFileSync(join(REPO, contract.baselineSupplement.originalObservation.file)));
+  cpSync(join(historical.root, "supabase/migrations"), join(repo, "supabase/migrations"), { recursive: true });
+  const contract = JSON.parse(readFileSync(join(historical.root, "supabase/release-contracts/current-baseline-rollout-v1.json")));
+  const baseline = JSON.parse(readFileSync(join(historical.root, contract.baselineObservation.file)));
+  const original = JSON.parse(readFileSync(join(historical.root, contract.baselineSupplement.originalObservation.file)));
   // 소형 합성 DB를 사용한다. 실제 운영 baseline 파일은 별도 검사로 전량 검증한다.
   baseline.relations = baseline.relations.filter(x => ["public.profiles", "auth.users", "storage.objects", "storage.buckets", "supabase_migrations.schema_migrations", "vault.secrets", "cron.job"].includes(`${x.schema}.${x.name}`));
   const keepObject = x => ["role", "membership"].includes(x.kind) || (x.kind === "relation" && baseline.relations.some(r => `${r.schema}.${r.name}` === x.identity));
   baseline.objects = baseline.objects.filter(keepObject);
   original.objects = original.objects.filter(keepObject); original.relations = clone(baseline.relations);
   writeSyntheticBaseline(repo, contract, baseline, original);
-  for (const pin of Object.values(contract.implementation)) { mkdirSync(dirname(join(repo, pin.file)), { recursive: true }); cpSync(join(REPO, pin.file), join(repo, pin.file)); }
+  for (const pin of Object.values(contract.implementation)) { mkdirSync(dirname(join(repo, pin.file)), { recursive: true }); cpSync(join(historical.root, pin.file), join(repo, pin.file)); }
   const binaryDirectory = join(repo, "cli"); mkdirSync(binaryDirectory);
   writeFileSync(join(binaryDirectory, "supabase-go.exe"), "synthetic companion");
   contract.cli.companionSha256 = digest("synthetic companion");
@@ -156,7 +160,7 @@ test("CLI 역할 권한·모든 멤버십·알 수 없는 역할·제품 schema 
 });
 test("원본 baseline 보충은 정확한 세 변화만 허용하고 추가 권한·제품·이력 변경을 거절한다", () => {
   const {contract, baseline} = releaseData();
-  const original = JSON.parse(readFileSync(join(REPO, contract.baselineSupplement.originalObservation.file)));
+  const original = JSON.parse(readFileSync(join(historical.root, contract.baselineSupplement.originalObservation.file)));
   assert.doesNotThrow(() => validateBaselineSupplement(original, baseline, contract.baselineSupplement, contract));
   for (const mutate of [x => { x.ledger[0].name += "_changed"; }, x => { x.objects[0].sha256 = "f".repeat(64); },
     x => { x.objects.find(y => y.kind === "membership" && y.identity === "postgres:cli_login_postgres").sha256 = "f".repeat(64); },
@@ -171,7 +175,7 @@ test("실제 inventory SQL은 두 역할의 TTL만 분리하고 유사 역할·�
   const { PGlite } = await import(pathToFileURL(join(REPO, "apps/web/node_modules/@electric-sql/pglite/dist/index.js")).href);
   const db = new PGlite();
   try {
-    const sql = readFileSync(join(REPO, "supabase/release-checks/current-baseline-inventory-v1.sql"), "utf8");
+    const sql = readFileSync(join(historical.root, "supabase/release-checks/current-baseline-inventory-v1.sql"), "utf8");
     const roleStart = sql.indexOf("SELECT 'role',"); const roleEnd = sql.indexOf("\n  UNION ALL", roleStart);
     const membershipStart = sql.indexOf("SELECT 'membership',"); const membershipEnd = sql.indexOf("\n  UNION ALL", membershipStart);
     const rolesSql = `SELECT * FROM (${sql.slice(roleStart, roleEnd)}) AS inventory(kind,identity,definition)`;
@@ -203,12 +207,33 @@ test("실제 inventory SQL은 두 역할의 TTL만 분리하고 유사 역할·�
   } finally { await db.close(); }
 });
 
-test("실관측206개 이력과 신규8개만 채택하고 옛12개는 적용대상에서 제외한다", () => {
-  const release = loadCurrentBaselineContract(REPO);
+test("고정된 과거 저장소에서 실관측206개 이력과 신규8개만 채택하고 옛12개는 적용대상에서 제외한다", () => {
+  const release = loadCurrentBaselineContract(historical.root);
   assert.equal(release.baseline.ledger.length, 206); assert.equal(release.migrations.length, 8);
   assert.equal(release.contract.excludedHistoricalFiles.length, 12);
   assert.ok(release.baseline.relations.some(x => x.schema === "auth"));
   assert.ok(release.baseline.relations.some(x => x.schema === "amora_archive"));
+});
+
+for (const [name, loader] of [['current baseline', loadCurrentBaselineContract], ['runtime hotfix', loadHotfixRelease], ['named budget hotfix', loadNamedBudgetHotfixRelease]]) {
+  test(`실제 체크아웃의 신규 migration은 구판 ${name} loader가 계속 거절한다`, () => {
+    assert.throws(() => loader(REPO), blocked('NEW_MIGRATION_NOT_REVIEWED'));
+  });
+}
+
+test('고정 역사 원문이 없는 저장소는 현재 파일을 대신 복사하지 않고 실패한다', t => {
+  const parent = realpathSync(tmpdir());
+  const empty = mkdtempSync(join(parent, 'amora-legacy-missing-test-'));
+  t.after(() => {
+    assert.equal(dirname(resolve(empty)), parent);
+    assert.ok(basename(empty).startsWith('amora-legacy-missing-test-'));
+    assert.ok(!lstatSync(empty).isSymbolicLink());
+    rmSync(empty, { recursive: true, force: true });
+  });
+  const initialized = spawnSync('git', ['init', '--quiet', empty], { windowsHide: true, encoding: 'utf8' });
+  assert.equal(initialized.status, 0);
+  cpSync(join(historical.root, 'supabase'), join(empty, 'supabase'), { recursive: true });
+  assert.throws(() => createHistoricalReleaseRepository(empty), /historical Git blob unavailable/);
 });
 
 test("같은 head에서 중간 이력 변경도 차단한다", () => {
@@ -394,7 +419,7 @@ test("실제 Windows DPAPI/HBAM2 복호화 뒤 동일개수의 다른 schema/led
   writeFileSync(script, `
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-. ${quote(join(REPO, "scripts/amora-db-backup-common.ps1"))}
+. ${quote(join(historical.root, "scripts/amora-db-backup-common.ps1"))}
 $anchor = Resolve-HBAM2BackupRoot -SelfTest $false
 Initialize-HBAM2BackupRoot -Root $anchor.Root -Anchor $anchor.Anchor
 $testDirectory = Join-Path $anchor.Root ('current-release-self-test-' + [Guid]::NewGuid().ToString('D'))
@@ -447,7 +472,7 @@ try {
     $indexHash=Save-Json (Join-Path $testDirectory 'current-release-evidence.json') $index
     $oldPreference=$ErrorActionPreference
     $ErrorActionPreference='Continue'
-    $null = & 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe' -NoProfile -NonInteractive -File ${quote(join(REPO, "scripts/current-baseline-backup-verify.ps1"))} -EvidenceRoot $testDirectory -BackupReport $indexHash -ExpectedProjectRef $ref -ExpectedCommit $commit 2>$null
+    $null = & 'C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe' -NoProfile -NonInteractive -File ${quote(join(historical.root, "scripts/current-baseline-backup-verify.ps1"))} -EvidenceRoot $testDirectory -BackupReport $indexHash -ExpectedProjectRef $ref -ExpectedCommit $commit 2>$null
     $code=$LASTEXITCODE
     $ErrorActionPreference=$oldPreference
     return $code

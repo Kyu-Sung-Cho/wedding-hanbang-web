@@ -30,7 +30,12 @@ function adminHarness(rows: unknown[] = []) {
   const order = vi.fn(() => ({ limit }));
   const readyFilter = vi.fn(() => ({ order }));
   const inFilter = vi.fn(() => ({ or: readyFilter }));
-  const select = vi.fn(() => ({ in: inFilter }));
+  const select = vi.fn(() => ({
+    in: inFilter,
+    eq: vi.fn(() => ({ order: vi.fn(() => ({
+      limit: vi.fn(async () => ({ data: [], count: 0, error: null })),
+    })) })),
+  }));
   const from = vi.fn(() => ({ select }));
   const admin = { from };
   mocks.createAdminClient.mockReturnValue(admin);

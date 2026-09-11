@@ -5,7 +5,7 @@
  * 온보딩은 이미 제품 사용이고 개인정보를 받는다.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { resolvePostAuthLanding } from "../postAuthLanding";
 
 const CONSENTED = { terms_agreed: true, privacy_agreed: true };
@@ -20,11 +20,12 @@ function reader(onboardingCompleted: boolean | null, error: { message: string } 
 }
 
 describe("인증 후 착지", () => {
+  beforeEach(() => vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z"));
   it("동의 기록이 없으면 온보딩보다 먼저 동의로 보낸다", async () => {
     const read = reader(true);
     const landing = await resolvePostAuthLanding({
       readOnboardingProfile: read,
-      userMetadata: {},
+      user: { created_at: "2026-08-30T00:00:00.000Z", user_metadata: {} },
       pendingPath: PENDING,
       completedPath: DONE,
     });
@@ -46,7 +47,7 @@ describe("인증 후 착지", () => {
     ]) {
       const landing = await resolvePostAuthLanding({
         readOnboardingProfile: reader(true),
-        userMetadata: metadata,
+        user: { created_at: "2026-08-30T00:00:00.000Z", user_metadata: metadata },
         pendingPath: PENDING,
         completedPath: DONE,
       });
@@ -57,7 +58,7 @@ describe("인증 후 착지", () => {
   it("동의했고 온보딩 전이면 온보딩으로 보낸다", async () => {
     const landing = await resolvePostAuthLanding({
       readOnboardingProfile: reader(false),
-      userMetadata: CONSENTED,
+      user: { created_at: "2026-08-30T00:00:00.000Z", user_metadata: CONSENTED },
       pendingPath: PENDING,
       completedPath: DONE,
     });
@@ -68,7 +69,7 @@ describe("인증 후 착지", () => {
   it("다 마쳤으면 목적지로 보내고 그때만 완료 쿠키를 세운다", async () => {
     const landing = await resolvePostAuthLanding({
       readOnboardingProfile: reader(true),
-      userMetadata: CONSENTED,
+      user: { created_at: "2026-08-30T00:00:00.000Z", user_metadata: CONSENTED },
       pendingPath: PENDING,
       completedPath: DONE,
     });
@@ -80,7 +81,7 @@ describe("인증 후 착지", () => {
     // 마쳤다고 잘못 보면 프로필 없는 사람을 제품 안으로 들여보낸다.
     const landing = await resolvePostAuthLanding({
       readOnboardingProfile: reader(null, { message: "boom" }),
-      userMetadata: CONSENTED,
+      user: { created_at: "2026-08-30T00:00:00.000Z", user_metadata: CONSENTED },
       pendingPath: PENDING,
       completedPath: DONE,
     });

@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
                   aria-current={isActive ? "page" : undefined}
                   className={`flex items-center transition-colors ${htmlDesign ? "min-h-11 gap-[11px] rounded-[9px] px-3 py-[10px] text-[14.5px]" : "gap-3 rounded-[6px] px-4 py-3 text-[14px] font-semibold"} ${
                     isActive
-                      ? htmlDesign ? "bg-[var(--amora-ink)] font-semibold text-white" : "bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)]"
+                      ? "bg-[var(--hb-selected-bg)] font-semibold text-[var(--hb-selected-text)] ring-1 ring-inset ring-[var(--hb-selected-line)]"
                       : "text-[var(--hb-text-body)] hover:bg-white hover:text-[var(--hb-accent-hover)]"
                   }`}
                 >

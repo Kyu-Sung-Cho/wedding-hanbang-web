@@ -42,6 +42,7 @@ function validEnv(overrides = {}) {
     ADMIN_PASSWORD: "admin-bootstrap-secret-longer-than-thirty-two-chars",
     CRON_SECRET: "cron-secret-longer-than-thirty-two-characters",
     RATE_LIMIT_KEY_SECRET: "rate-limit-secret-longer-than-thirty-two-chars",
+    SIGNUP_CONSENT_LEGACY_BEFORE: "2026-01-01T00:00:00.000Z",
     PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_COUNT: "2",
     PRICE_CATALOG_EXPECTED_PUBLISHED_VENDOR_SLUGS_SHA256: "a".repeat(64),
     ...overrides,
@@ -78,6 +79,28 @@ test("the production environment gate blocks a missing rate-limit HMAC secret", 
   const report = JSON.parse(result.stdout);
   assert.equal(report.pass, false);
   assert.deepEqual(report.failed, ["rateLimitSecretConfigured"]);
+});
+
+test("the consent rollout gate requires a real UTC cutoff, never a future or normalized date", () => {
+  for (const unsafe of [
+    "", "2026-01-01", "2026-01-01T00:00:00Z",
+    "2026-01-01T09:00:00.000+09:00", "2026-02-30T00:00:00.000Z",
+    "2026-13-01T00:00:00.000Z", "not-a-date",
+    new Date(Date.now() + 86_400_000).toISOString(),
+  ]) {
+    const result = runChecker(validEnv({ SIGNUP_CONSENT_LEGACY_BEFORE: unsafe }));
+    assert.equal(result.status, 1, unsafe);
+    assert.deepEqual(JSON.parse(result.stdout).failed, ["signupConsentCutoverConfigured"], unsafe);
+  }
+});
+
+test("the production builder blocks an omitted consent cutoff before producing an artifact", () => {
+  const result = runBuildGate(validEnv({
+    VERCEL_ENV: "production",
+    SIGNUP_CONSENT_LEGACY_BEFORE: "",
+  }));
+  assert.equal(result.status, 1);
+  assert.deepEqual(JSON.parse(result.stdout).failed, ["signupConsentCutoverConfigured"]);
 });
 
 test("the production environment gate requires an exact positive published-vendor count", () => {

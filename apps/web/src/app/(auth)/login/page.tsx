@@ -566,15 +566,17 @@ export default function LoginPage() {
                         {showPasswordConfirm ? <EyeOff aria-hidden="true" className="size-[18px]" /> : <Eye aria-hidden="true" className="size-[18px]" />}
                       </button>
                     </div>
-                    {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (
-                      <p className="text-[11px] text-[#9A6B62] mt-1 px-2">비밀번호가 일치하지 않습니다</p>
-                    )}
-                    {touched.passwordConfirm && passwordConfirm && password === passwordConfirm && passwordConfirm.length > 0 && (
-                      <p className="text-[11px] text-[var(--hb-text-strong)] mt-1 px-2 flex items-center gap-1">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                        비밀번호 일치
-                      </p>
-                    )}
+                    <div className="min-h-6 flow-root">
+                      {touched.passwordConfirm && passwordConfirm && password !== passwordConfirm && (
+                        <p className="text-[11px] text-[#9A6B62] mt-1 px-2">비밀번호가 일치하지 않습니다</p>
+                      )}
+                      {touched.passwordConfirm && passwordConfirm && password === passwordConfirm && passwordConfirm.length > 0 && (
+                        <p className="text-[11px] text-[var(--hb-text-strong)] mt-1 px-2 flex items-center gap-1">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          비밀번호 일치
+                        </p>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -612,7 +614,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loading !== null || (mode === "signup" && (!isPasswordValid(passwordChecks) || password !== passwordConfirm || !name.trim() || !consentComplete || (TURNSTILE_ENABLED && !turnstileToken))) || (mode === "forgot" && (!email || (TURNSTILE_ENABLED && !turnstileToken)))}
-                  className="w-full py-3.5 rounded-[6px] text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
+                  className="w-full py-3.5 rounded-[6px] text-[14px] font-medium transition-all hover:-translate-y-0.5 bg-gradient-to-br from-[var(--hb-action)] to-[var(--hb-action-hover)] text-white shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] disabled:opacity-40 disabled:hover:translate-y-0 disabled:cursor-not-allowed"
                 >
                   {loading === "email"
                     ? "처리 중..."

@@ -128,7 +128,7 @@ function setup(authRpcSequence: unknown[]) {
           user: {
             id: USER_ID,
             email: "user@example.com",
-            user_metadata: { name: "테스트", terms_agreed: true, privacy_agreed: true },
+            created_at: "2026-08-30T00:00:00.000Z", user_metadata: { name: "테스트", terms_agreed: true, privacy_agreed: true },
           },
         },
       }),
@@ -164,6 +164,7 @@ function setup(authRpcSequence: unknown[]) {
 
 describe("옛 방식 공간에도 새 방식 화면에서 합류한다", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     vi.stubEnv("AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED", "true");
   });

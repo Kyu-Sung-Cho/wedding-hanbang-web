@@ -7,13 +7,16 @@ import { join, dirname, resolve } from 'node:path';
 import { digest, digestJson, loadCurrentBaselineContract } from '../lib/current-baseline-release-contract.mjs';
 import { transactionBody } from '../lib/current-baseline-hosted-synthetic.mjs';
 import { localPredecessor } from './fixtures/current-baseline-hosted-synthetic-local.mjs';
+import { createHistoricalReleaseRepository } from './fixtures/legacy-release-repository.mjs';
 import { loadHotfixRelease, loadNamedBudgetHotfixRelease, parseNamedBudgetHotfixArgs, parseHotfixArgs, validateNamedBudgetPredecessor,
   validateHotfixEvidence, renderPublicDataQuery, renderHotfixAtomicSql, renderHotfixAdjudicationSql, classifyHotfixObservation,
   renderHotfixFinalizeSql, NAMED_BUDGET_FUNCTIONS, runAmoraRuntimeHotfix, validateHotfixReadOnlyQuery } from '../lib/amora-runtime-hotfix-controller.mjs';
 const root = resolve(import.meta.dirname, '../..');
+const historical = createHistoricalReleaseRepository(root);
+test.after(historical.cleanup);
 const cliFixtureRoot = join(tmpdir(), 'amora-hotfix-cli-fixture');
-const release = loadNamedBudgetHotfixRelease(root);
-const previousRelease = loadHotfixRelease(root);
+const release = loadNamedBudgetHotfixRelease(historical.root);
+const previousRelease = loadHotfixRelease(historical.root);
 const now = new Date('2026-09-07T09:30:00Z');
 const commit = 'a'.repeat(40), hash = 'b'.repeat(64);
 const owner = '60907000-1234-4123-8123-123456789abc';
@@ -99,9 +102,9 @@ test('new predecessor is exactly original history plus eight original statements
 test('followup recognition rejects changed bytes and unrelated future SQL while old selection remains eight', () => {
   const copy = mkdtempSync(join(tmpdir(), 'named-hotfix-pin-'));
   try {
-    cpSync(join(root, 'supabase'), join(copy, 'supabase'), { recursive: true });
+    cpSync(join(historical.root, 'supabase'), join(copy, 'supabase'), { recursive: true });
     for (const pin of Object.values(previousRelease.contract.implementation)) {
-      mkdirSync(dirname(join(copy, pin.file)), { recursive: true }); cpSync(join(root, pin.file), join(copy, pin.file));
+      mkdirSync(dirname(join(copy, pin.file)), { recursive: true }); cpSync(join(historical.root, pin.file), join(copy, pin.file));
     }
     assert.equal(loadCurrentBaselineContract(copy).migrations.length, 8);
     const file = join(copy, 'supabase/migrations', release.migrations[0].file);
@@ -140,7 +143,7 @@ test('success means one migration and ledger215, never eight, zero, wrong owner 
 
 // 실제 PGlite의 소형 predecessor+8SQL이다. 운영 214개 원본 복구를 주장하지 않는다.
 async function localFixture() {
-  const db = await localPredecessor(root);
+  const db = await localPredecessor(historical.root, root);
   try {
     await db.exec(`CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid,bucket_id text,name text); CREATE TABLE storage.buckets(id text);
       CREATE SCHEMA vault; CREATE TABLE vault.secrets(id uuid); CREATE SCHEMA cron; CREATE TABLE cron.job(jobid bigint,active boolean);
@@ -157,7 +160,7 @@ async function localFixture() {
       INSERT INTO public.amora_personal_actions(owner_user_id,source_message_id,source_requester_message_id,request_id,title)
         VALUES('60907000-0000-4000-8000-000000000001','60907000-0000-4000-8000-000000000002','60907000-0000-4000-8000-000000000002','60907000-0000-4000-8000-000000000003','EXISTING PERSONAL ACTION');
       INSERT INTO public.community_posts(id,title,content,upvote_count,comment_count) VALUES('60907000-0000-4000-8000-000000000050','ORIGINAL TITLE','ORIGINAL BODY',4,2);`);
-    await db.exec(readFileSync(join(root, 'supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql'), 'utf8'));
+    await db.exec(readFileSync(join(historical.root, 'supabase/platform-operations/security/20260717120000_production_write_fence_apply.sql'), 'utf8'));
     await db.exec('SET search_path=pg_catalog,public');
     const observe = async () => (await db.query(`${release.inventorySelect};`)).rows[0].observation;
     const before = await observe();
@@ -230,7 +233,7 @@ test('named mode wrong claim and lost apply response write durable adjudication,
       const argv = ['--amora-named-budget-hotfix', '--apply', `--expected-commit=${commit}`, '--remote-ref=origin/codex/test',
         `--evidence-root=${folder}`, `--receipt-out=${receipt}`, `--bundle-out=${join(folder, 'bundle.sql')}`,
         `--confirm-production=APPLY:${release.hotfix.projectRef}:${release.hotfix.release}:${commit}`];
-      await assert.rejects(runAmoraRuntimeHotfix({ repoRoot: root, argv, now: () => now, verifyRecovery: async () => true,
+      await assert.rejects(runAmoraRuntimeHotfix({ repoRoot: historical.root, argv, now: () => now, verifyRecovery: async () => true,
         primitives: { assertReleaseGitFence: async () => {} }, transport: { query: async (sql, options) => {
           calls.push({ sql, options });
           if (options.readOnly) return [{ hotfix_preflight_count: 1 }];

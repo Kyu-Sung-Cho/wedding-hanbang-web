@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   checkRateLimitPersistent: vi.fn(),
   createAdminClient: vi.fn(),
   generateLink: vi.fn(),
+  createUser: vi.fn(),
+  updateUserById: vi.fn(),
   send: vi.fn(),
 }));
 
@@ -38,7 +40,7 @@ vi.mock("resend", () => ({
   },
 }));
 
-import { SIGNUP_CONSENT_POLICY_VERSION } from "@hanbang/shared";
+import { SIGNUP_CONSENT_POLICY_VERSION, buildSignupConsentServerEvidence } from "@hanbang/shared";
 
 import { POST as signup } from "./signup/route";
 
@@ -50,6 +52,7 @@ const VALID_BODY = {
   termsAgreed: true,
   privacyAgreed: true,
   ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
   marketingAgreed: false,
 };
 
@@ -67,12 +70,15 @@ describe("가입 동의 서버 관문 (실행)", () => {
     mocks.verifyTurnstile.mockResolvedValue({ ok: true, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.generateLink.mockResolvedValue({
-      data: { properties: { hashed_token: "tok_test" } },
+      data: { user: { id: "synthetic-new-user", email: "sample@example.test", app_metadata: { provider: "email" } }, properties: { hashed_token: "tok_test" } },
       error: null,
     });
     mocks.createAdminClient.mockReturnValue({
-      auth: { admin: { generateLink: mocks.generateLink } },
+      auth: { admin: { createUser: mocks.createUser, generateLink: mocks.generateLink, updateUserById: mocks.updateUserById } },
     });
+    mocks.updateUserById.mockResolvedValue({ error: null });
+    mocks.createUser.mockResolvedValue({ data: { user: { id: "synthetic-new-user", email: "sample@example.test" } }, error: null });
+    vi.stubEnv("RESEND_API_KEY", "synthetic-test-key");
     mocks.send.mockResolvedValue({ data: { id: "mail-id" }, error: null });
   });
 
@@ -107,6 +113,7 @@ describe("가입 동의 서버 관문 (실행)", () => {
       expect(payload.code).toBe("SIGNUP_CONSENT_REQUIRED");
       // 계정 생성도 메일 발송도 일어나면 안 된다.
       expect(mocks.generateLink).not.toHaveBeenCalled();
+      expect(mocks.createUser).not.toHaveBeenCalled();
       expect(mocks.send).not.toHaveBeenCalled();
     });
   }
@@ -117,8 +124,8 @@ describe("가입 동의 서버 관문 (실행)", () => {
     expect(response.status).toBe(200);
     expect(mocks.generateLink).toHaveBeenCalledTimes(1);
 
-    const options = mocks.generateLink.mock.calls[0]?.[0]?.options;
-    expect(options?.data).toMatchObject({
+    const created = mocks.createUser.mock.calls[0]?.[0];
+    expect(created?.user_metadata).toMatchObject({
       name: "샘플 사용자",
       terms_agreed: true,
       privacy_agreed: true,
@@ -126,22 +133,102 @@ describe("가입 동의 서버 관문 (실행)", () => {
       consent_policy_version: SIGNUP_CONSENT_POLICY_VERSION,
     });
     // 언제 동의했는지가 없으면 기록으로 쓸 수 없다.
-    expect(typeof options?.data?.consent_agreed_at).toBe("string");
-    expect(Number.isNaN(Date.parse(options.data.consent_agreed_at))).toBe(false);
+    expect(typeof created?.user_metadata?.consent_agreed_at).toBe("string");
+    expect(Number.isNaN(Date.parse(created.user_metadata.consent_agreed_at))).toBe(false);
   });
 
   it("마케팅 동의는 선택이고, 보낸 값 그대로 저장된다", async () => {
     await signup(signupRequest({ ...VALID_BODY, marketingAgreed: true }));
 
-    expect(mocks.generateLink.mock.calls[0]?.[0]?.options?.data)
+    expect(mocks.createUser.mock.calls[0]?.[0]?.user_metadata)
       .toMatchObject({ marketing_agreed: true });
   });
 
-  it("클라이언트가 보낸 약관 판 번호는 저장에 쓰지 않는다", async () => {
-    await signup(signupRequest({ ...VALID_BODY, consentPolicyVersion: "1900-01-01" }));
+  it("새 계정과 서버 증거를 원자 생성하고 미인증 상태에서 같은 주체의 링크만 발송한다", async () => {
+    await signup(signupRequest(VALID_BODY));
+    expect(mocks.createUser).toHaveBeenCalledWith({
+      email: VALID_BODY.email, password: VALID_BODY.password, email_confirm: false,
+      user_metadata: expect.objectContaining({ name: VALID_BODY.name }),
+      app_metadata: { signup_consent: {
+        schemaVersion: 1, source: "hanbang_auth_server", record: expect.objectContaining({
+          terms_agreed: true, privacy_agreed: true, age_over_14_confirmed: true,
+          consent_policy_version: SIGNUP_CONSENT_POLICY_VERSION,
+        }),
+      } },
+    });
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+    expect(mocks.createUser.mock.invocationCallOrder[0]).toBeLessThan(mocks.generateLink.mock.invocationCallOrder[0]);
+    expect(mocks.generateLink.mock.invocationCallOrder[0]).toBeLessThan(mocks.send.mock.invocationCallOrder[0]);
+  });
 
-    expect(mocks.generateLink.mock.calls[0]?.[0]?.options?.data?.consent_policy_version)
-      .toBe(SIGNUP_CONSENT_POLICY_VERSION);
+  it("증거 저장 실패면 인증 메일이나 성공 응답을 보내지 않는다", async () => {
+    mocks.createUser.mockResolvedValue({ data: { user: null }, error: { message: "sensitive-diagnostic" } });
+    const response = await signup(signupRequest(VALID_BODY));
+    expect(response.status).toBe(503);
+    expect(await response.text()).not.toContain("sensitive-diagnostic");
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+  });
+
+  it("기존 미인증 계정의 서버 증거는 제3자의 재가입 요청으로 바꾸지 않는다", async () => {
+    const evidence = buildSignupConsentServerEvidence({ termsAgreed: true, privacyAgreed: true, ageOver14Confirmed: true, marketingAgreed: false, consentPolicyVersion: "2026-08-31" }, "2026-08-31T01:00:00.000Z");
+    const before = JSON.stringify(evidence);
+    for (const app_metadata of [{ signup_consent: evidence }, { signup_consent: null }, { signup_consent: { source: "malformed" } }, {}]) {
+      const beforeMetadata = JSON.stringify(app_metadata);
+      mocks.createUser.mockResolvedValue({ data: { user: null }, error: { code: "email_exists", message: "A user with this email address has already been registered" } });
+      mocks.generateLink.mockResolvedValue({ data: { user: { id: "existing-unconfirmed", email: "sample@example.test", app_metadata }, properties: { hashed_token: "tok" } }, error: null });
+      const response = await signup(signupRequest({ ...VALID_BODY, marketingAgreed: true }));
+      expect(response.status).toBe(200);
+      expect(mocks.updateUserById).not.toHaveBeenCalled();
+      expect(JSON.stringify(app_metadata)).toBe(beforeMetadata);
+    }
+    expect(JSON.stringify(evidence)).toBe(before);
+    expect(mocks.send).toHaveBeenCalledTimes(4);
+    expect(mocks.generateLink.mock.calls.every(([input]) => input.type === "recovery")).toBe(true);
+  });
+
+  it("가입 반환 주체가 없거나 요청 이메일과 다르면 다른 주체에 증거를 붙이지 않는다", async () => {
+    for (const user of [null, { id: "other", email: VALID_BODY.email }, { id: "synthetic-new-user", email: "other@example.test" }]) {
+      mocks.generateLink.mockResolvedValue({ data: { properties: { hashed_token: "tok" }, user }, error: null });
+      const response = await signup(signupRequest(VALID_BODY));
+      expect(response.status).toBe(503);
+    }
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it("생성 후 링크 실패의 재시도는 기존 계정 안내로 복구하며 동의를 다시 쓰지 않는다", async () => {
+    mocks.generateLink.mockResolvedValueOnce({ data: null, error: { message: "synthetic link failed" } });
+    expect((await signup(signupRequest(VALID_BODY))).status).toBe(503);
+    expect(mocks.send).not.toHaveBeenCalled();
+    mocks.createUser.mockResolvedValueOnce({ data: { user: null }, error: { code: "email_exists", message: "already registered" } });
+    expect((await signup(signupRequest({ ...VALID_BODY, marketingAgreed: true }))).status).toBe(200);
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+    expect(mocks.generateLink.mock.calls.map(([input]) => input.type)).toEqual(["signup", "recovery"]);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("계정 생성 예외와 잘못된 생성 주체는 링크·메일 없이 고정 오류로 끝난다", async () => {
+    mocks.createUser.mockRejectedValueOnce(new Error("sensitive-create-diagnostic"));
+    const failed = await signup(signupRequest(VALID_BODY));
+    expect(failed.status).toBe(503);
+    expect(await failed.text()).not.toContain("sensitive-create-diagnostic");
+    mocks.createUser.mockResolvedValueOnce({ data: { user: { id: "other", email: "other@example.test" } }, error: null });
+    expect((await signup(signupRequest(VALID_BODY))).status).toBe(503);
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it("구판이나 판본 없는 요청은 새 계정·서버 증거·메일을 만들지 않는다", async () => {
+    for (const consentPolicyVersion of ["1900-01-01", "2026-08-22", undefined]) {
+      const response = await signup(signupRequest({ ...VALID_BODY, consentPolicyVersion }));
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("SIGNUP_CONSENT_VERSION_REQUIRED");
+    }
+    expect(mocks.generateLink).not.toHaveBeenCalled();
+    expect(mocks.createUser).not.toHaveBeenCalled();
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
+    expect(mocks.send).not.toHaveBeenCalled();
   });
 
   it("동의 거절 응답이 그 주소의 가입 여부를 드러내지 않는다", async () => {

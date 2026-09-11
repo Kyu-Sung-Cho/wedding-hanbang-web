@@ -11,7 +11,7 @@ export const PINNED_WINDOWS_PRODUCTION_TOOLCHAIN = Object.freeze({
   }),
   powershell: Object.freeze({
     path: "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-    sha256: "7600FFE12DA441FE89D035B13801E8E91D064BC544A27B19A5CF49F6AB8B18F5",
+    sha256: "8BB6FA8C283B4D92120B1EF249A9B311B0F804D4CABBE9981159976C8BE76A5E",
   }),
   windowsRoot: "C:\\Windows",
 });

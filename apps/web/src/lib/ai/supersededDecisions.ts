@@ -20,6 +20,7 @@
  */
 
 import { isValidScheduleTime } from "@/utils/scheduleEvents";
+import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 
 export interface CurrentJourneyFacts {
   /** `wedding_journeys.venue` — 비어 있으면 아직 정한 예식장이 없다. */
@@ -39,12 +40,16 @@ export interface CurrentJourneyFacts {
    * 결정이 전부 지워진다.
    */
   readonly totalBudgetKrw?: number | null;
+  /** 전체 progress를 읽은 경우만 전달한다. undefined/null은 미조회이며 삭제가 아니다. */
+  readonly budgetProgress?: Readonly<Record<string, unknown>> | null;
 }
 
 export interface DecisionForSupersessionCheck {
   readonly category: string;
   readonly title: string;
   readonly chosenValue: Record<string, unknown> | null;
+  readonly source?: string;
+  readonly metadata?: Record<string, unknown> | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -59,6 +64,51 @@ function sameText(left: unknown, right: unknown): boolean {
 
 function nonEmpty(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isBudgetAmount(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+/** 승인 당시 금액 영수증은 보관하고, 현재 장부와 다른 금액만 모델 문맥에서 제외한다. */
+export function isSupersededApprovedBudgetReceipt(
+  decision: Pick<DecisionForSupersessionCheck, "source" | "metadata" | "chosenValue">,
+  current: Pick<CurrentJourneyFacts, "totalBudgetKrw" | "budgetProgress">,
+): boolean | null {
+  if (decision.source !== "budget" || decision.metadata?.origin !== "amora_shared_budget_action") {
+    return null;
+  }
+  const delta = decision.chosenValue?.budgetDelta;
+  // 새 영수증의 정형 필드를 못 읽을 때 제목에서 금액을 추측하지 않는다.
+  if (!isRecord(delta) || delta.schemaVersion !== 1 || !Array.isArray(delta.categories)) return false;
+  const total = delta.totalBudget;
+  if (total !== null && (!isRecord(total) || !isBudgetAmount(total.before) || !isBudgetAmount(total.after))) {
+    return false;
+  }
+  const entries: Array<{ key: string; after: number }> = [];
+  const keys = new Set<string>();
+  for (const change of delta.categories) {
+    if (!isRecord(change) || !nonEmpty(change.key) || change.key.startsWith("__")
+      || keys.has(change.key) || !isBudgetAmount(change.afterBudget)
+      || (change.beforeBudget !== null && !isBudgetAmount(change.beforeBudget))) return false;
+    keys.add(change.key);
+    entries.push({ key: change.key, after: change.afterBudget });
+  }
+  if (isRecord(total) && isBudgetAmount(current.totalBudgetKrw) && total.after !== current.totalBudgetKrw) {
+    return true;
+  }
+  const progress = current.budgetProgress;
+  if (!isRecord(progress)) return false;
+  for (const { key, after } of entries) {
+    if (!Object.hasOwn(progress, key)) return true;
+    if (Object.hasOwn(CATEGORY_LABELS, key) && Array.isArray(progress.__hidden)
+      && progress.__hidden.includes(key)) return true;
+    const category = progress[key];
+    if (!isRecord(category)) continue;
+    if (!Object.hasOwn(category, "budget") || category.budget === null) return true;
+    if (isBudgetAmount(category.budget) && category.budget !== after) return true;
+  }
+  return false;
 }
 
 /**
@@ -107,6 +157,8 @@ function isSupersededBudgetDecision(
   current: CurrentJourneyFacts,
 ): boolean {
   if (decision.category !== "budget") return false;
+  const receiptSuperseded = isSupersededApprovedBudgetReceipt(decision, current);
+  if (receiptSuperseded !== null) return receiptSuperseded;
   const currentTotal = current.totalBudgetKrw;
   if (typeof currentTotal !== "number" || !Number.isFinite(currentTotal) || currentTotal <= 0) {
     return false;

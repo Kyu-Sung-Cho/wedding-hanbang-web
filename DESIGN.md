@@ -17,6 +17,16 @@
 
 ## Typography
 
+- **Warm interactions (2026-09-11):** The user requested warmer selected/clicked
+  controls after reviewing the HTML-aligned screens. Selected navigation, filters,
+  tabs and calendar dates use Dusty Mauve pale (`rose.pale`) with `rose[700]` text
+  and `rose[600]` boundaries. Primary actions use `rose[600]`, darkening to
+  `rose[700]` on hover. Ink remains the reading color; sage continues to indicate
+  completion. This supersedes the earlier black interaction fills, while retaining
+  the approved layout, fonts, mobile navigation and static ink accents. Shared
+  action/selection roles are generated from `webCssVars.ts`; selection must remain
+  distinct from keyboard focus and legible without relying on color alone.
+
 - **Lounge hub and schedule HTML alignment (2026-09-11):** The user approved
   `WeddingLoungeHub.dc.html`, `WeddingLoungeHubMobile.dc.html`,
   `WeddingLoungeMobile.dc.html`, `ScheduleAlt.dc.html` and `ScheduleMobile.dc.html`

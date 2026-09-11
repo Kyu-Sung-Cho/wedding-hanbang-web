@@ -42,10 +42,10 @@ import {
 
 const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
 const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6"
+  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6"
   + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
-  + " hover:bg-[var(--hb-primary)] focus-visible:outline-none focus-visible:ring-2"
-  + " focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
+  + " hover:bg-[var(--hb-action-hover)] focus-visible:outline-none focus-visible:ring-2"
+  + " focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2"
   + " disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButton =
   "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] border"
@@ -352,7 +352,7 @@ export default function WeddingCodeV06Client({
                 <span
                   aria-hidden="true"
                   className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border ${
-                    selected ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[#C7D1C2]"
+                    selected ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "border-[#C7D1C2]"
                   }`}
                 >
                   {selected ? <Check className="h-4 w-4" /> : null}
@@ -516,7 +516,7 @@ ${shareUrl}`
           <div className="bg-[var(--hb-primary)] px-5 py-7 text-white sm:px-8">
             <p className="text-[12px] font-semibold text-[#C7D1C2]">웨딩코드</p>
             <h1 className="mt-3 text-[24px] font-semibold leading-[1.35] sm:text-[28px]">
-              내가 반복해서 고른 것
+              내가 이번에 고른 것
             </h1>
             <p className="mt-3 text-[15px] font-medium leading-[1.65] text-[#F7F1E8]">
               답한 {profile.answered}장면을 주제별로 정리했어요. 많이 고른 답이 가장 중요한 취향이라는 뜻은 아니에요.
@@ -1025,7 +1025,7 @@ function SelfProfilePair({
     <section className={`${surface} mt-4 overflow-hidden`} data-result="self-pair">
       <div className="border-b border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-5 py-5 sm:px-8">
         <h2 className="text-[17px] font-semibold leading-[1.45] text-[var(--hb-text-strong)]">
-          각자 반복해서 고른 것
+          각자 이번에 고른 것
         </h2>
         <p className="mt-1.5 text-[13px] font-medium leading-[1.6] text-[var(--color-rose-700)]">
           두 사람이 각각 어떤 답을 몇 번 골랐는지만 세었어요.

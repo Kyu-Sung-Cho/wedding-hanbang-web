@@ -154,7 +154,7 @@ export default function MediationConsentDialog({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="min-h-11 flex-[1.4] rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-medium text-white hover:bg-[#8D6262] disabled:cursor-not-allowed disabled:opacity-45"
+              className="min-h-11 flex-[1.4] rounded-[6px] bg-[var(--hb-action)] px-4 text-sm font-medium text-white hover:bg-[var(--hb-action-hover)] disabled:cursor-not-allowed disabled:opacity-45"
             >
               이 요약으로 초안 요청
             </button>

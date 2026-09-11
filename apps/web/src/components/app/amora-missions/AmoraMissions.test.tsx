@@ -81,7 +81,7 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     expect(container.querySelectorAll('button[aria-label$="단계 보기"]')).toHaveLength(0);
     expect(container.textContent).not.toContain("체크리스트에서 이어갈");
     expect(container.querySelector('.divide-y a')?.textContent).toContain("두 사람이 정한 중요한 할 일");
-    expect(container.querySelector('.divide-y a')?.getAttribute("href")).toBe("/wedding/schedule");
+    expect(container.querySelector('.divide-y a')?.getAttribute("href")).toBe("/wedding/chat/board?view=tasks");
     expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
 
     mocks.error = "unavailable";
@@ -91,6 +91,34 @@ describe("미션 화면의 기록 경계와 탐색", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("불러오지 못했어요");
     await act(async () => container.querySelector<HTMLButtonElement>('button')?.click());
     expect(mocks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it("허브의 예정일 있는 공유 할 일은 보드로 연결하고 일반 미션의 저장된 실행 링크는 유지한다", async () => {
+    const action: AmoraActionItem = {
+      id: "task-with-due-date", title: "초대 명단 초안 정리", status: "open", priority: "high",
+      source: "manual", href: "/schedule", dueDate: "2026-09-13",
+      createdAt: "2026-09-01", updatedAt: "2026-09-01",
+    };
+    mocks.actions = [action];
+    mocks.open_count = 1;
+    await act(async () => { mocks.publishAuth(); root.render(<AmoraMissions hub />); });
+
+    const row = [...container.querySelectorAll("a")].find(link => link.textContent?.includes(action.title));
+    expect(row?.textContent).toContain("등록한 예정일 · 2026-09-13");
+    expect(row?.getAttribute("href")).toBe("/wedding/chat/board?view=tasks");
+    const allTasks = [...container.querySelectorAll("a")].find(link => link.textContent?.includes("전체 보기"));
+    expect(allTasks?.getAttribute("href")).toBe("/wedding/chat/board?view=tasks");
+
+    await render();
+    const mission = [...container.querySelectorAll("article")].find(card => card.querySelector("h3")?.textContent === action.title);
+    expect(mission).toBeDefined();
+    const executionLinks = [...mission!.querySelectorAll("a")];
+    expect(executionLinks.length).toBeGreaterThan(0);
+    expect(executionLinks.every(link => link.getAttribute("href") === "/wedding/schedule")).toBe(true);
+    expect(action.href).toBe("/schedule");
+    expect(action.dueDate).toBe("2026-09-13");
+    expect(mocks.auth.updateJourney).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("허브도 계정 전환 중 이전 소유자의 공유 할 일을 가린다", async () => {

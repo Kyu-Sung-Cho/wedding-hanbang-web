@@ -93,7 +93,7 @@ function setup(couplesRow: { bride_id: string | null; groom_id: string | null } 
           user: {
             id: USER_ID,
             email: "user@example.com",
-            user_metadata: { name: "테스트", terms_agreed: true, privacy_agreed: true },
+            created_at: "2026-08-30T00:00:00.000Z", user_metadata: { name: "테스트", terms_agreed: true, privacy_agreed: true },
           },
         },
       }),
@@ -119,6 +119,7 @@ function setup(couplesRow: { bride_id: string | null; groom_id: string | null } 
 
 describe("역할을 반대로 고른 합류", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     vi.stubEnv("AMORA_NEUTRAL_PREPARATION_SPACE_ENABLED", "false");
   });

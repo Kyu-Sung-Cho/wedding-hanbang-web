@@ -32,7 +32,7 @@ export default function MannersGuideDirectory({ groups }: { groups: MannersDirec
         {query && <Button variant="icon" label="검색어 지우기" onClick={clearQuery} className="absolute right-0 top-0 rounded-[12px]! text-[var(--amora-muted)]!"><X aria-hidden className="h-4 w-4" /></Button>}
       </div>
       <nav aria-label="가이드 주제" className="mt-3 flex gap-2 overflow-x-auto pb-2">
-        {[null, ...groups.map(group => group.label)].map(label => <Button key={label ?? "all"} variant={topic === label ? "primary" : "secondary"} aria-pressed={topic === label} onClick={() => setTopic(label)} className={`shrink-0 rounded-full! border px-3.5! text-[12px]! ${topic === label ? "border-[var(--amora-ink)]! bg-[var(--amora-ink)]! text-white!" : "border-[var(--color-paper-outline)]! bg-white! text-[var(--amora-soft)]!"}`}>{label ?? "전체"}</Button>)}
+        {[null, ...groups.map(group => group.label)].map(label => <Button key={label ?? "all"} variant={topic === label ? "primary" : "secondary"} aria-pressed={topic === label} onClick={() => setTopic(label)} className={`shrink-0 rounded-full! border px-3.5! text-[12px]! ${topic === label ? "border-[var(--amora-selected-line)]! bg-[var(--amora-selected-bg)]! text-[var(--amora-selected-text)]! hover:bg-[var(--amora-selected-bg)]!" : "border-[var(--color-paper-outline)]! bg-white! text-[var(--amora-soft)]!"}`}>{label ?? "전체"}</Button>)}
       </nav>
       <div className="mb-3 flex min-h-11 items-center justify-between gap-2">
         <p role="status" aria-live="polite" className="text-[12px] text-[var(--amora-muted)]">{query || topic ? `찾은 가이드 ${count}편` : `전체 ${count}편`}</p>

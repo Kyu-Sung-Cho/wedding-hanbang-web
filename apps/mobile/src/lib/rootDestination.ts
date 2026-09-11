@@ -1,4 +1,4 @@
-import { hasRecordedSignupConsent } from "@hanbang/shared";
+import { type SignupConsentAccess } from "@hanbang/shared";
 
 /**
  * 앱을 열었을 때 어디로 보낼지.
@@ -12,6 +12,7 @@ export type RootDestination = "login" | "consent" | "onboarding" | "dashboard";
 export type RootGateInput = Readonly<{
   /** 세션이 없으면 로그인. user_metadata 는 getSession() 에 실려 온다. */
   session: { user: { user_metadata?: unknown } } | null;
+  consentAccess?: SignupConsentAccess;
   /**
    * 프로필. **동의 관문을 통과한 뒤에만 조회한다** — 아래 needsProfile 이
    * false 를 돌려주면 호출부는 조회 자체를 하지 않는다.
@@ -30,9 +31,10 @@ export type RootGateInput = Readonly<{
 // 세션의 나머지 필드(user.id 등)를 잃는다.
 export function rootGateNeedsProfile<T extends { user: { user_metadata?: unknown } }>(
   session: T | null,
+  consentAccess?: SignupConsentAccess,
 ): session is T {
   if (!session) return false;
-  return hasRecordedSignupConsent(session.user.user_metadata);
+  return (consentAccess === "server_verified" || consentAccess === "legacy_unverified");
 }
 
 export function resolveRootDestination(input: RootGateInput): RootDestination {
@@ -42,7 +44,7 @@ export function resolveRootDestination(input: RootGateInput): RootDestination {
   // 동의 화면을 본 적도 기록도 없는 계정이 여기 도착한다. 그리고
   // /api/onboarding 은 모든 클라이언트에 동의를 요구하므로, 이 관문이 없으면
   // 온보딩 제출에서 막힌 채 나갈 길이 없다.
-  if (!hasRecordedSignupConsent(input.session.user.user_metadata)) return "consent";
+  if (!(input.consentAccess === "server_verified" || input.consentAccess === "legacy_unverified")) return "consent";
 
   if (!input.profile || input.profile.onboarding_completed !== true) return "onboarding";
   return "dashboard";

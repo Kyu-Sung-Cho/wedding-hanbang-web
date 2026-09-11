@@ -2475,7 +2475,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </p>
           <a
             href={weddingPath("/onboarding")}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-[6px] text-base font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-[6px] text-base font-medium text-white bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-colors"
           >
             <Sparkles className="w-4 h-4" />
             온보딩 시작하기
@@ -2727,7 +2727,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             aria-pressed={activeTab === "shared"}
             className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-[9px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "shared"
-                ? "bg-[var(--amora-ink,#26251F)] text-white"
+                ? "bg-[var(--amora-selected-bg,var(--hb-selected-bg))] text-[var(--amora-selected-text,var(--hb-selected-text))] ring-1 ring-inset ring-[var(--amora-selected-line,var(--hb-selected-line))]"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
           >
@@ -2744,7 +2744,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             aria-pressed={activeTab === "private"}
             className={`flex min-h-11 min-w-0 flex-1 items-center justify-center gap-1 rounded-full px-2 py-[9px] text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               activeTab === "private"
-                ? "bg-[var(--amora-ink,#26251F)] text-white"
+                ? "bg-[var(--amora-selected-bg,var(--hb-selected-bg))] text-[var(--amora-selected-text,var(--hb-selected-text))] ring-1 ring-inset ring-[var(--amora-selected-line,var(--hb-selected-line))]"
                 : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)]"
             }`}
             title={
@@ -2884,7 +2884,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </p>
           <div className="flex gap-2 flex-shrink-0 ml-3">
             <button onClick={dismissNewChatBanner} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-white text-[var(--hb-text-body)] hover:bg-[var(--hb-surface-hover)] shadow-sm">괜찮아요</button>
-            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-gradient-to-br from-[#795252] to-[#946a6a] text-white hover:shadow-md">화면 정리</button>
+            <button onClick={openNewChatModal} className="px-3.5 py-1.5 text-sm rounded-[6px] bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)] text-white hover:shadow-md">화면 정리</button>
           </div>
         </div>
       )}
@@ -2976,7 +2976,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     onClick={submitSharedClearRequest}
                     disabled={clearRequestPending}
                     aria-busy={clearRequestPending}
-                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--hb-primary)] text-white bg-[var(--hb-text-body)] disabled:cursor-wait disabled:opacity-60"
+                    className="min-h-11 px-4 text-sm rounded-[6px] bg-[var(--amora-action,var(--hb-action))] text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] disabled:cursor-wait disabled:opacity-60"
                   >
                     {clearRequestPending ? "동의 요청 보내는 중…" : "동의 요청 보내기"}
                   </button>
@@ -3561,7 +3561,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   setPendingSend(null);
                   void handleSend(t, target);
                 }}
-                className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] hover:shadow-md transition-colors"
+                className="min-h-11 flex-1 px-4 rounded-[6px] text-sm font-medium text-white bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)] hover:shadow-md transition-colors"
               >
                 그래도 보내기
               </button>
@@ -3599,7 +3599,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 </p>
                 <button
                   onClick={openMediationConsent}
-                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-[6px] text-sm font-medium text-white bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-colors"
+                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-[6px] text-sm font-medium text-white bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)] transition-colors"
                 >
                   <Sparkles className="w-4 h-4" />
                   아모라에게 도움 요청하기
@@ -3677,7 +3677,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                   type="button"
                   onClick={() => removeAttachment(i)}
                   aria-label={`${att.fileName} 첨부 제거`}
-                  className="absolute -right-4 -top-4 flex h-11 w-11 items-center justify-center rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] text-white opacity-80 shadow-sm transition-opacity hover:opacity-100 focus-visible:opacity-100"
+                  className="absolute -right-4 -top-4 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)] text-white opacity-80 shadow-sm transition-opacity hover:opacity-100 focus-visible:opacity-100"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -3700,7 +3700,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               aria-pressed={messageTarget === "ai"}
               className={`flex min-h-11 items-center justify-center gap-1.5 rounded-[6px] px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.8125rem] ${
                 messageTarget === "ai"
-                  ? "bg-gradient-to-br from-[#795252] to-[#946a6a] text-white shadow-[var(--shadow-raised)]"
+                  ? "bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)] ring-1 ring-inset ring-[var(--hb-selected-line)] shadow-[var(--shadow-raised)]"
                   : "bg-white text-[var(--hb-text-body)] shadow-[var(--shadow-raised)] hover:text-[var(--hb-accent-hover)]"
               }`}
             >
@@ -3838,7 +3838,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 ? "bg-gradient-to-br from-[#D99C9C] to-[#E8B4B4] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
                 : isPrivate
                   ? "bg-gradient-to-br from-[#5a6147] to-[#6e7755] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
-                  : "bg-gradient-to-br from-[#795252] to-[#946a6a] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
+                  : "bg-[var(--hb-action)] hover:bg-[var(--hb-action-hover)] shadow-[var(--shadow-raised)] hover:shadow-[var(--shadow-raised)]"
             }`}
           >
             {messageTarget === "partner"

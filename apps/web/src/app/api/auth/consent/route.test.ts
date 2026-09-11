@@ -2,6 +2,7 @@
 // 그 경우다 — Supabase 가 계정을 직접 만들었으므로 가입 라우트를 지나지 않았다.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 const mocks = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -45,6 +46,7 @@ const AGREED = {
   privacyAgreed: true,
   // 만 14세 확인이 빠지면 서버가 계정을 만들지 않는다(개인정보보호법 제22조의2).
   ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
   marketingAgreed: false,
 };
 
@@ -101,8 +103,7 @@ describe("POST /api/auth/consent", () => {
   });
 
   it("기존 메타데이터를 지우지 않는다", async () => {
-    // updateUserById 는 user_metadata 를 **통째로 교체한다.** 병합하지 않으면
-    // 이름 같은 기존 값이 조용히 사라진다.
+    // Auth는 제공된 키만 병합하므로 이름·사진을 재전송하지 않는다.
     mocks.getUser.mockResolvedValue({
       data: {
         user: {
@@ -115,8 +116,8 @@ describe("POST /api/auth/consent", () => {
     await consent(consentRequest(AGREED));
 
     const patch = mocks.updateUserById.mock.calls[0][1];
-    expect(patch.user_metadata.name).toBe("김한방");
-    expect(patch.user_metadata.avatar_url).toBe("https://example.test/a.png");
+    expect(patch.user_metadata).not.toHaveProperty("name");
+    expect(patch.user_metadata).not.toHaveProperty("avatar_url");
   });
 
   it("본문으로 남의 계정을 지목할 수 없다", async () => {
@@ -125,11 +126,40 @@ describe("POST /api/auth/consent", () => {
     expect(mocks.updateUserById.mock.calls[0][0]).toBe("user-1");
   });
 
-  it("클라이언트가 보낸 약관 판 번호를 쓰지 않는다", async () => {
-    await consent(consentRequest({ ...AGREED, consentPolicyVersion: "1900-01-01" }));
+  it("실제 세션 주체의 app_metadata를 보존하고 본문의 가짜 서버 증거를 무시한다", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "owner", user_metadata: { name: "기존 이름" }, app_metadata: { provider: "google", owned_role: "unchanged" } } } });
+    await consent(consentRequest({ ...AGREED, app_metadata: { owned_role: "admin", signup_consent: { source: "client" } } }));
+    const [owner, patch] = mocks.updateUserById.mock.calls[0];
+    expect(owner).toBe("owner");
+    expect(patch.app_metadata).toEqual({ signup_consent: {
+      schemaVersion: 1, source: "hanbang_auth_server", record: expect.objectContaining({
+        consent_policy_version: SIGNUP_CONSENT_POLICY_VERSION, age_over_14_confirmed: true,
+      }),
+    } });
+    expect(patch.app_metadata.signup_consent.record.consent_agreed_at).toBe(patch.user_metadata.consent_agreed_at);
+  });
 
-    expect(mocks.updateUserById.mock.calls[0][1].user_metadata.consent_policy_version)
-      .toBe(SIGNUP_CONSENT_POLICY_VERSION);
+  it("동의 조회 뒤 변경된 이름·provider·서버 권한을 과거 값으로 덮어쓰지 않는다", async () => {
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "owner", user_metadata: { name: "old" }, app_metadata: { provider: "old", role: "old" } } } });
+    let stored = { user_metadata: { name: "new" }, app_metadata: { provider: "new", role: "new" } };
+    mocks.updateUserById.mockImplementation(async (_id, input: unknown) => {
+      const patch = z.object({ user_metadata: z.record(z.string(), z.unknown()), app_metadata: z.record(z.string(), z.unknown()) }).parse(input);
+      stored = { user_metadata: { ...stored.user_metadata, ...patch.user_metadata }, app_metadata: { ...stored.app_metadata, ...patch.app_metadata } };
+      return { error: null };
+    });
+    await consent(consentRequest(AGREED));
+    expect(stored.user_metadata.name).toBe("new");
+    expect(stored.app_metadata.provider).toBe("new");
+    expect(stored.app_metadata.role).toBe("new");
+  });
+
+  it("구판·누락 판본을 최신 동의로 기록하지 않는다", async () => {
+    for (const consentPolicyVersion of ["1900-01-01", "2026-08-22", undefined]) {
+      const response = await consent(consentRequest({ ...AGREED, consentPolicyVersion }));
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("SIGNUP_CONSENT_VERSION_REQUIRED");
+    }
+    expect(mocks.updateUserById).not.toHaveBeenCalled();
   });
 
   it("다른 출처에서 온 요청은 거절한다", async () => {

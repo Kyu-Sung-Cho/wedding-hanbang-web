@@ -45,6 +45,7 @@ async function renderShell(): Promise<string | null> {
 
 describe("앱 셸 동의 관문", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     mocks.redirect.mockImplementation((path: string) => {
       throw new Error(`REDIRECT:${path}`);
@@ -70,7 +71,7 @@ describe("앱 셸 동의 관문", () => {
   it("동의를 마친 사람은 그대로 들어간다", async () => {
     mocks.getUser.mockResolvedValue({
       data: {
-        user: { id: "u3", user_metadata: { terms_agreed: true, privacy_agreed: true } },
+        user: { id: "u3", created_at: "2026-08-30T00:00:00.000Z", user_metadata: { terms_agreed: true, privacy_agreed: true } },
       },
     });
 
@@ -84,7 +85,7 @@ describe("앱 셸 동의 관문", () => {
   });
 
   it("동의 판정에 추가 조회를 하지 않는다", async () => {
-    // user_metadata 는 getUser() 에 이미 실려 온다. 여기서 DB를 한 번 더
+    // app_metadata와 생성 시각은 getUser()에 이미 실려 온다. 여기서 DB를 한 번 더
     // 때리면 모든 인증 요청에 왕복이 하나 붙는다.
     mocks.getUser.mockResolvedValue({ data: { user: { id: "u4", user_metadata: {} } } });
 

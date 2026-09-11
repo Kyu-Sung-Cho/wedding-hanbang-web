@@ -159,7 +159,7 @@ export async function GET(request: Request) {
         .select("onboarding_completed")
         .eq("id", user.id)
         .maybeSingle(),
-      userMetadata: user.user_metadata,
+      user,
       pendingPath: getPostLoginRedirectPath(search, origin, false),
       completedPath: getPostLoginRedirectPath(search, origin, true),
     });

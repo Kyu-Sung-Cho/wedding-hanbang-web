@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, existsSync, rmSync
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
 import test from "node:test";
+import { createHistoricalReleaseRepository } from './fixtures/legacy-release-repository.mjs';
 import { pathToFileURL } from "node:url";
 import { digest, digestJson } from "../lib/current-baseline-release-contract.mjs";
 import { parseCurrentFinalizerArgs, validateCurrentFinalizationOutcome, validateCurrentFinalizationObservation,
@@ -12,6 +13,8 @@ import { PRODUCTION_CANARY_REQUIRED_CHECKS, buildVercelDeploymentReceipt, runPro
   buildProductionCanaryReceiptWithProvenance, buildProductionFenceReadOnlyProbeSql, externalGateSha256 } from "../lib/production-external-gate-provenance.mjs";
 
 const REPO = resolve(import.meta.dirname, "../..");
+const historical = createHistoricalReleaseRepository(REPO);
+test.after(historical.cleanup);
 const RELEASE = "amora-current-baseline-20260907";
 const SOURCE_REF = "slrtobkksjmxgzatjyqb";
 const COMMIT = "a".repeat(40);
@@ -32,10 +35,10 @@ test.after(() => { for (const root of roots) rmSync(root, { recursive: true, for
 function releaseDataFixture() {
   // 계약 loader의 파일 pin 검증은 기존 current-baseline-release suite가 담당한다.
   // 여기서는 finalizer 의미 변이가 자기 파일 pin 실패로 가려지지 않도록 계약 데이터만 가져온다.
-  const bytes = readFileSync(join(REPO, "supabase/release-contracts/current-baseline-rollout-v1.json"));
+  const bytes = readFileSync(join(historical.root, "supabase/release-contracts/current-baseline-rollout-v1.json"));
   const contract = JSON.parse(bytes);
-  const baseline = JSON.parse(readFileSync(join(REPO, contract.baselineObservation.file)));
-  const migrations = contract.migrations.map(pin => ({ ...pin, version: pin.file.slice(0, 14), sql: readFileSync(join(REPO, "supabase/migrations", pin.file), "utf8") }));
+  const baseline = JSON.parse(readFileSync(join(historical.root, contract.baselineObservation.file)));
+  const migrations = contract.migrations.map(pin => ({ ...pin, version: pin.file.slice(0, 14), sql: readFileSync(join(historical.root, "supabase/migrations", pin.file), "utf8") }));
   return { contract, baseline, migrations, contractSha256: digest(bytes), baselineSha256: digestJson(baseline), migrationSetSha256: digestJson(contract.migrations) };
 }
 function allCanaryChecks() {
@@ -257,9 +260,9 @@ async function fixture() {
     canarySha256: digestJson(canary), evidenceIndexSha256: evidence.indexSha256, contractSha256: release.contractSha256,
     baselineSha256: release.baselineSha256, migrationSetSha256: release.migrationSetSha256 };
   const state = { release, evidence, outcome, canary, expectedLedger, binding, bindingSha256: digestJson(binding), deadlineMs: Date.parse(canary.expiresAt),
-    inventory: readFileSync(join(REPO, release.contract.implementation.inventory.file), "utf8"),
-    fenceCheck: readFileSync(join(REPO, release.contract.implementation.writeFenceCheck.file), "utf8"),
-    legacyTemplate: readFileSync(join(REPO, "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql")) };
+    inventory: readFileSync(join(historical.root, release.contract.implementation.inventory.file), "utf8"),
+    fenceCheck: readFileSync(join(historical.root, release.contract.implementation.writeFenceCheck.file), "utf8"),
+    legacyTemplate: readFileSync(join(historical.root, "supabase/platform-operations/security/20260717121000_production_write_fence_finalize.sql")) };
   const gate = { release, evidence, outcome, outcomeSha256: digestJson(outcome), deployment, deploymentSha256: digestJson(deployment),
     deploymentRaw, canary, canaryRaw: built.evidence.rawText, serverErrorsRaw: built.evidence.vercelServerErrorRawText, now: NOW.getTime() };
   const receiptOut = join(evidenceRoot, "finalize.json");

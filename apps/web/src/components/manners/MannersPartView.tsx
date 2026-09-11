@@ -707,7 +707,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             >
               {checklistLabel} 체크리스트 열기
             </Link>}
-            {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-ink)] px-4 py-2.5 text-[13px] font-semibold text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+            {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-action,var(--hb-action))] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
               아모라에 질문하기
             </Link>}
           </div>

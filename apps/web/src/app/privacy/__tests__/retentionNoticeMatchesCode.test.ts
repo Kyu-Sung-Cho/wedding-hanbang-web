@@ -92,6 +92,23 @@ describe("관리자 접속기록 — 말한 기간 = 실제로 지우는 기간"
 });
 
 describe("처방침의 파기 주기 = 실제로 도는 주기", () => {
+  it("원문 제거를 식별 불가로 확대하지 않고 남는 연결 식별자를 안내한다", () => {
+    const item = read(PRIVACY).match(/<li>아모라 비용·오류 기록[\s\S]*?<\/li>/)?.[0] ?? "";
+    expect(item).not.toContain("식별 불가");
+    expect(item).toContain("회원·커플·대화 연결 식별자");
+    expect(item).toContain("익명 정보로 바뀌는 것은 아닙니다");
+    const writer = read("src/lib/compliance/ai-log.ts");
+    for (const field of ["user_id", "couple_id", "session_id", "message_id"]) {
+      expect(writer).toContain(`${field}:`);
+    }
+    const redactor = read("../../supabase/migrations/20260716116000_ai_log_retention_contract.sql");
+    const updates = redactor.match(/UPDATE public\.ai_interactions_log[\s\S]*?WHERE created_at/)?.[0] ?? "";
+    expect(updates).not.toBe("");
+    for (const field of ["user_id", "couple_id", "session_id", "message_id", "created_at"]) {
+      expect(updates).not.toMatch(new RegExp(`\\b${field}\\s*=`));
+    }
+  });
+
   it("크론에서 보관 기간을 읽어낼 수 있다", () => {
     // 이 검사가 먼저 깨지면 아래 대조는 아무것도 못 지킨다.
     expect(retentionDaysFromCron()).toBeGreaterThan(0);

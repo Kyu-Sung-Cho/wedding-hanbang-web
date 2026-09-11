@@ -200,14 +200,30 @@ describe("웨딩코드 진입 화면", () => {
    * 이유도 자신을 파악했다는 감각도 생기지 않는다. 개인 결과는 축 네 개 전부에 대해
    * 셈·인용·다음 행동을 돌려줘야 한다.
    */
-  it("커플 결과에 각자 반복한 것이 나란히 남는다", async () => {
+  it("부분 응답 커플 결과에도 연락 지연·맡긴 답을 원문과 같은 수로 남긴다", async () => {
+    const first = { B5: "A", B1: "C" } as const;
+    const second = { B5: "B", B1: "A" } as const;
+    const html = await render({
+      v: WEDDING_CODE_V08_VERSION,
+      a: encodeWeddingCodeV06(first, WEDDING_CODE_V08_QUESTIONS),
+      b: encodeWeddingCodeV06(second, WEDDING_CODE_V08_QUESTIONS),
+    });
+    expect(html).toContain("각자 이번에 고른 것");
+    expect(html).toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
+    expect(html).toContain("정리한 사람이 3곳으로 줄여달라고 했다");
+    expect(html).toContain("두 쪽 답을 같은 수로 골랐어요");
+    expect(html).not.toContain("함께 보기와 맡기기 답을 같은 수");
+    expect(html).not.toContain("반복해서 고른");
+  });
+
+  it("커플 결과에 각자 이번에 고른 것이 나란히 남는다", async () => {
     const html = await render({
       v: WEDDING_CODE_V08_VERSION,
       a: encodeWeddingCodeV06(V08_ONE_SIDED, WEDDING_CODE_V08_QUESTIONS),
       b: encodeWeddingCodeV06(V08_RIGHT, WEDDING_CODE_V08_QUESTIONS),
     });
     expect(html).toContain('data-result="self-pair"');
-    expect(html).toContain("각자 반복해서 고른 것");
+    expect(html).toContain("각자 이번에 고른 것");
     for (const axis of WEDDING_CODE_V06_AXES) {
       expect(html, axis.key).toContain(`data-pair-axis="${axis.key}"`);
     }

@@ -1,7 +1,8 @@
+import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SIGNUP_CONSENT_PATH, hasRecordedSignupConsent } from "@hanbang/shared";
+import { SIGNUP_CONSENT_PATH } from "@hanbang/shared";
 import { Mail, ShieldCheck } from "lucide-react";
 import CommunityNav from "@/components/community/CommunityNav";
 import CommunityAuthInitializer from "@/components/community/CommunityAuthInitializer";
@@ -52,7 +53,7 @@ export default async function CommunityLayout({
   // 이라 그대로 통과한다. `AuthenticatedAppShell` 과 같은 모양이다.
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (user && !hasRecordedSignupConsent(user.user_metadata)) {
+  if (user && !hasWebSignupConsentAccess(user)) {
     redirect(SIGNUP_CONSENT_PATH);
   }
 

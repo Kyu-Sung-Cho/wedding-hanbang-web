@@ -321,7 +321,7 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                       type="button"
                       onClick={() => void saveMemo(note.id)}
                       disabled={busyId !== null || loadingMore || (memoConflict?.id === note.id && memoConflict.status !== "ready")}
-                      className={`min-h-11 max-w-full rounded-[6px] bg-[var(--amora-ink)] px-4 py-2 text-base font-bold whitespace-normal text-white hover:bg-[var(--amora-soft)] disabled:opacity-40 ${focus}`}
+                      className={`min-h-11 max-w-full rounded-[6px] bg-[var(--amora-action)] px-4 py-2 text-base font-bold whitespace-normal text-white hover:bg-[var(--amora-action-hover)] disabled:opacity-40 ${focus}`}
                     >
                       {memoConflict?.id === note.id && memoConflict.status === "ready" ? "확인한 메모 대신 내 초안 저장" : "메모 저장"}
                     </button>

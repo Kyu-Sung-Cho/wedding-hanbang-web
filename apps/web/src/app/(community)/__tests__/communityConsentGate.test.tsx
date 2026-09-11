@@ -25,7 +25,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
-  user: null as { user_metadata?: unknown } | null,
+  user: null as { user_metadata?: unknown; created_at?: string } | null,
   error: null as { message: string } | null,
   redirected: [] as string[],
 }));
@@ -56,6 +56,7 @@ async function renderLayout() {
 }
 
 beforeEach(() => {
+  vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
   vi.resetModules();
   state.user = null;
   state.error = null;
@@ -88,7 +89,7 @@ describe("커뮤니티 동의 관문", () => {
   });
 
   it("동의한 계정은 그대로 들어온다", async () => {
-    state.user = { user_metadata: { terms_agreed: true, privacy_agreed: true } };
+    state.user = { created_at: "2026-08-30T00:00:00.000Z", user_metadata: { terms_agreed: true, privacy_agreed: true } };
     await expect(renderLayout()).resolves.toBeTruthy();
     expect(state.redirected).toEqual([]);
   });

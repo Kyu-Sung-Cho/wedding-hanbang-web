@@ -1,3 +1,4 @@
+import { SIGNUP_CONSENT_POLICY_VERSION } from "@hanbang/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -5,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   checkRateLimitPersistent: vi.fn(),
   createAdminClient: vi.fn(),
   generateLink: vi.fn(),
+  createUser: vi.fn(),
+  updateUserById: vi.fn(),
   send: vi.fn(),
 }));
 
@@ -80,12 +83,14 @@ describe("mobile Turnstile boundary", () => {
     mocks.verifyTurnstile.mockResolvedValue({ ok: false, skipped: false });
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
     mocks.generateLink.mockResolvedValue({
-      data: { properties: { hashed_token: "tok_test" } },
+      data: { user: { id: "synthetic-new-user", email: "sample@example.test", app_metadata: { provider: "email" } }, properties: { hashed_token: "tok_test" } },
       error: null,
     });
     mocks.createAdminClient.mockReturnValue({
-      auth: { admin: { generateLink: mocks.generateLink } },
+      auth: { admin: { createUser: mocks.createUser, generateLink: mocks.generateLink, updateUserById: mocks.updateUserById } },
     });
+    mocks.updateUserById.mockResolvedValue({ error: null });
+    mocks.createUser.mockResolvedValue({ data: { user: { id: "synthetic-new-user", email: "sample@example.test" } }, error: null });
     mocks.send.mockResolvedValue({ data: { id: "mail-id" }, error: null });
   });
 
@@ -99,6 +104,7 @@ describe("mobile Turnstile boundary", () => {
       termsAgreed: true,
       privacyAgreed: true,
       ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
     }));
 
     expect(response.status).toBe(400);
@@ -162,6 +168,7 @@ describe("mobile Turnstile boundary", () => {
       termsAgreed: true,
       privacyAgreed: true,
       ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
       turnstileToken: "proof",
     }));
 
@@ -182,6 +189,7 @@ describe("mobile Turnstile boundary", () => {
       termsAgreed: true,
       privacyAgreed: true,
       ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
       turnstileToken: "proof",
       redirect: "/wedding/chat",
     }));
@@ -203,6 +211,7 @@ describe("mobile Turnstile boundary", () => {
       termsAgreed: true,
       privacyAgreed: true,
       ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
       turnstileToken: "proof",
       redirect: "https://attacker.example/steal",
     }));
@@ -231,13 +240,14 @@ describe("mobile Turnstile boundary", () => {
       termsAgreed: true,
       privacyAgreed: true,
       ageOver14Confirmed: true,
+  consentPolicyVersion: SIGNUP_CONSENT_POLICY_VERSION,
       turnstileToken: "proof",
     }));
     const body = await response.json();
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(503);
     expect(JSON.stringify(body)).not.toContain(providerMessage);
-    expect(body).toEqual({ error: "회원가입 처리 중 오류가 발생했습니다." });
+    expect(body).toEqual({ error: "인증 링크를 준비하지 못했어요. 잠시 후 다시 시도해 주세요." });
     expect(mocks.send).not.toHaveBeenCalled();
   });
 

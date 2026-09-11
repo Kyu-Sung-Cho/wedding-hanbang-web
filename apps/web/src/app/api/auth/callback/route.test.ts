@@ -33,7 +33,7 @@ function authenticatedClient(onboardingCompleted = true) {
             // 계정을 막는 관문). 이 파일이 지키려는 것은 리다이렉트 안전성과
             // 온보딩 순서이므로, 그 관문은 통과시켜 놓고 본다.
             // 관문 자체는 socialConsentGate.test.ts 가 고정한다.
-            user_metadata: { terms_agreed: true, privacy_agreed: true },
+            created_at: "2026-08-30T00:00:00.000Z", user_metadata: { terms_agreed: true, privacy_agreed: true },
           },
         },
       }),
@@ -53,6 +53,7 @@ function authenticatedClient(onboardingCompleted = true) {
 
 describe("OAuth callback post-login destination", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     mocks.createServerClient.mockReturnValue(authenticatedClient());
   });

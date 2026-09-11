@@ -11,8 +11,8 @@ function body(slug: string) {
 describe("예절 안내의 선택·안전·출처 경계", () => {
   it("모든 기존 편과 절·블록을 유지한다", () => {
     expect(MANNERS_PARTS).toHaveLength(25);
-    expect(MANNERS_PARTS.flatMap((part) => part.sections)).toHaveLength(171);
-    expect(MANNERS_PARTS.flatMap((part) => part.sections.flatMap((section) => section.blocks))).toHaveLength(594);
+    expect(MANNERS_PARTS.flatMap((part) => part.sections)).toHaveLength(172);
+    expect(MANNERS_PARTS.flatMap((part) => part.sections.flatMap((section) => section.blocks))).toHaveLength(597);
   });
 
   it("출처 없는 표가 선물·축의금·혼수의 권장 가격표로 돌아가지 않는다", () => {

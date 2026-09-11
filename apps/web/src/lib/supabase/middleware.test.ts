@@ -1,5 +1,13 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildSignupConsentServerEvidence, buildSignupConsentSubmission, setAllSignupConsent } from "@hanbang/shared";
+
+const verifiedConsentMetadata = {
+  signup_consent: buildSignupConsentServerEvidence(
+    buildSignupConsentSubmission(setAllSignupConsent(true)),
+    "2026-09-11T00:00:00.000Z",
+  ),
+};
 
 const mocks = vi.hoisted(() => ({
   createServerClient: vi.fn(),
@@ -16,13 +24,14 @@ describe("vendor admin-preview onboarding boundary", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
-    // 동의 기록이 있는 계정이 기본값이다. 없으면 미들웨어가 동의 화면으로
-    // 돌려세우는 것이 맞는 동작이라(2026-08-28), 그것은 아래 별도 테스트에서 본다.
+    // 서버가 기록한 동의 증거가 있는 계정이 기본값이다.
+    // 사용자가 수정할 수 있는 user_metadata만으로 관문을 통과시키지 않는다.
     mocks.getUser.mockReset().mockResolvedValue({
       data: {
         user: {
           id: "signed-in-user",
           user_metadata: { terms_agreed: true, privacy_agreed: true },
+          app_metadata: verifiedConsentMetadata,
         },
       },
     });
@@ -239,6 +248,7 @@ describe("루트는 로그인 상태와 관계없이 랜딩으로 보낸다 — 
           return { data: { user: {
             id: "signed-in",
             user_metadata: { terms_agreed: true, privacy_agreed: true },
+            app_metadata: verifiedConsentMetadata,
           } } };
         },
       },

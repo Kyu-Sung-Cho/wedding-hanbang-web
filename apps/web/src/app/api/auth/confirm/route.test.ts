@@ -31,7 +31,7 @@ function client({
     auth: {
       verifyOtp: vi.fn().mockResolvedValue({ error: verifyError }),
       getUser: vi.fn().mockResolvedValue({
-        data: { user: user ? { id: USER_ID, user_metadata: metadata } : null },
+        data: { user: user ? { id: USER_ID, created_at: "2026-08-30T00:00:00.000Z", user_metadata: metadata } : null },
       }),
     },
     from: vi.fn(() => ({
@@ -67,6 +67,7 @@ function signedLink(
 
 describe("메일 인증 라우트", () => {
   beforeEach(() => {
+    vi.stubEnv("SIGNUP_CONSENT_LEGACY_BEFORE", "2026-09-01T00:00:00.000Z");
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://project.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";

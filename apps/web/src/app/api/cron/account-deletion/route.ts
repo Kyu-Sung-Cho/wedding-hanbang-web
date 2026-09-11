@@ -3,6 +3,7 @@ import { log } from "@/utils/log";
 
 import { processAccountDeletionJob } from "@/lib/accountDeletion/communityStorageSaga";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { readManualReviewBacklog, reportManualReviewBacklog, reportDeletionOperationsFailure } from "@/lib/accountDeletion/operations";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,14 +60,39 @@ export async function GET(request: Request) {
   let admin: ReturnType<typeof createAdminClient>;
   try {
     admin = createAdminClient();
-  } catch (err) {
-    log.error("api/cron/account-deletion", err);
+  } catch {
+    try {
+      log.error("account-deletion/client", new Error("ACCOUNT_DELETION_OPERATION_FAILED"));
+    } catch {
+      // 알림 장애가 실패한 작업을 재실행하거나 응답을 막지 않는다.
+    }
     return NextResponse.json(
       { error: "account deletion worker unavailable" },
       { status: 503, headers: NO_STORE_HEADERS },
     );
   }
 
+  const response = await runWorkerBatch(admin);
+  try {
+    // 작업 대상과 별도 조회한다. 이미 수동 확인으로 멈춘 요청도 매 실행 재알림한다.
+    reportManualReviewBacklog(await readManualReviewBacklog(admin));
+  } catch {
+    try {
+      log.error("account-deletion/monitor", new Error("ACCOUNT_DELETION_MONITOR_UNAVAILABLE"));
+    } catch {
+      // 이미 처리한 batch는 알림 실패 때문에 다시 실행하지 않는다.
+    }
+    if (response.ok) {
+      return NextResponse.json(
+        { ...await response.json(), error: "account deletion monitoring unavailable" },
+        { status: 503, headers: NO_STORE_HEADERS },
+      );
+    }
+  }
+  return response;
+}
+
+async function runWorkerBatch(admin: ReturnType<typeof createAdminClient>) {
   let inventory: { data: unknown; error: unknown };
   try {
     inventory = await admin
@@ -78,8 +104,12 @@ export async function GET(request: Request) {
       .or(`status.neq.inventory_ready,ready_after.lte.${new Date().toISOString()}`)
       .order("updated_at", { ascending: true })
       .limit(JOB_LIMIT);
-  } catch (err) {
-    log.error("api/cron/account-deletion", err);
+  } catch {
+    try {
+      log.error("account-deletion/inventory", new Error("ACCOUNT_DELETION_OPERATION_FAILED"));
+    } catch {
+      // 원문 없는 실패 응답은 알림 장애와 분리한다.
+    }
     return NextResponse.json(
       { error: "durable deletion inventory unavailable" },
       { status: 503, headers: NO_STORE_HEADERS },
@@ -87,6 +117,7 @@ export async function GET(request: Request) {
   }
   const { data, error } = inventory;
   if (error || !Array.isArray(data) || data.some((row) => !isWorkerJob(row))) {
+    reportDeletionOperationsFailure("inventory");
     return NextResponse.json(
       { error: "durable deletion inventory unavailable" },
       { status: 503, headers: NO_STORE_HEADERS },
@@ -109,6 +140,8 @@ export async function GET(request: Request) {
       counts.retry += 1;
     }
   }
+
+  if (counts.retry > 0) reportDeletionOperationsFailure("worker");
 
   return NextResponse.json(
     counts.retry > 0 ? { error: "account deletion retry required", ...counts } : counts,

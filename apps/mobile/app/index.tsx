@@ -1,5 +1,7 @@
+import { readMobileSignupConsentAccess } from "@/lib/signupConsentAccess";
 // 루트: 세션 → 온보딩 여부 → 웨딩 라운지 or 로그인
 import { useEffect, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
 import { colors } from "@hanbang/design-tokens";
@@ -22,45 +24,49 @@ export default function Index() {
 
   useEffect(() => {
     let active = true;
-    setStatus("loading");
+    let epoch = 0;
+    let controller: AbortController | null = null;
+    let sawAuthEvent = false;
 
-    (async () => {
+    async function load(eventSession?: Session | null) {
+      const requestEpoch = ++epoch;
+      controller?.abort();
+      const requestController = new AbortController();
+      controller = requestController;
+      const current = () => active && requestEpoch === epoch && !requestController.signal.aborted;
+      setStatus("loading");
       try {
         const siteOrigin = resolveMobileSiteOrigin(
           process.env.EXPO_PUBLIC_SITE_URL,
           { isDevelopment: __DEV__ },
         );
-        // 세션을 쓰기 전에 목적지를 먼저 확인한다. 다만 "물어볼 수 없었다"와
-        // "물어봤는데 답이 달랐다"를 구분한다 — 앞은 지하철에서도 흔한 일이고,
-        // 뒤는 세션이 엉뚱한 프로젝트로 갈 수 있다는 증거다.
+        // 목적지 설정 불일치와 일시적인 연결 실패는 기존처럼 구분한다.
         const runtime = await verifyMobileWebRuntime({
           siteOrigin,
           supabaseUrl: process.env.EXPO_PUBLIC_SUPABASE_URL,
         });
-        if (!active) return;
+        if (!current()) return;
         if (!runtime.ok && runtime.reason === "mismatch") {
           setStatus("mismatch");
           return;
         }
 
-        // 인증과 프로필 실패는 그대로 재시도 가능한 오류로 남긴다. 조용히 넘어가면
-        // 사람이 무엇이 잘못됐는지 모른 채 빈 화면을 본다.
         const {
           data: { session },
           error: sessionError,
-        } = await supabase.auth.getSession();
+        } = eventSession === undefined
+          ? await supabase.auth.getSession()
+          : { data: { session: eventSession }, error: null };
+        if (!current()) return;
         if (sessionError) throw sessionError;
-        if (!active) return;
 
-        // 목적지 판정은 rootDestination.ts 의 순수 함수가 한다. 순서가 계약인
-        // 자리(동의 관문이 프로필 조회보다 앞)를 화면 안에 두면 테스트로
-        // 고정할 방법이 없다 — 모바일에는 화면 렌더 테스트가 없다.
-        //
-        // 세션이 없거나 동의 기록이 없으면 프로필을 **읽지 않는다.** 어차피
-        // 로그인/동의 화면으로 가고, 그 조회가 실패하면 관문에 닿기도 전에
-        // 오류 화면으로 새어 나간다.
-        if (!rootGateNeedsProfile(session)) {
-          setDest(resolveRootDestination({ session, profile: null }));
+        // 동의가 확인된 현재 주체만 프로필을 읽고 목적지를 확정한다.
+        const consentAccess = session
+          ? await readMobileSignupConsentAccess(session.user.id, requestController.signal)
+          : undefined;
+        if (!current()) return;
+        if (!rootGateNeedsProfile(session, consentAccess)) {
+          setDest(resolveRootDestination({ session, consentAccess, profile: null }));
           setStatus("ready");
           return;
         }
@@ -70,24 +76,27 @@ export default function Index() {
           .select("name, couple_id, onboarding_completed")
           .eq("id", session.user.id)
           .maybeSingle();
+        if (!current()) return;
         if (profileError) throw profileError;
-        if (!active) return;
-
-        setDest(resolveRootDestination({ session, profile }));
-      } catch {
-        if (active) {
-          setStatus("error");
-        }
-        return;
-      }
-
-      if (active) {
+        setDest(resolveRootDestination({ session, consentAccess, profile }));
         setStatus("ready");
+      } catch {
+        if (current()) setStatus("error");
       }
-    })();
+    }
 
+    // 계정 교체·로그아웃은 이전 조회를 즉시 무효화한다. 늦은 초기 getSession도 덮지 못한다.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!active) return;
+      sawAuthEvent = true;
+      void load(session);
+    });
+    if (!sawAuthEvent) void load();
     return () => {
       active = false;
+      epoch += 1;
+      controller?.abort();
+      subscription.unsubscribe();
     };
   }, [loadAttempt]);
 

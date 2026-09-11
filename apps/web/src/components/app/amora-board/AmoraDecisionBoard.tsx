@@ -104,7 +104,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   const unsortedCount = records.filter(row => !preparationCategory(row.category)).length;
   const activeColumn = DECISION_COLUMNS.find(column => column.status === status)!;
   const categoryButton = (value: string, label: string, amount: number) => (
-    <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} className={`${button} shrink-0 border ${category === value ? "border-[var(--amora-ink)] bg-[var(--amora-ink)] text-white" : "border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)]"} ${value === "unsorted" ? "border-dashed" : ""}`}>
+    <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} className={`${button} shrink-0 border ${category === value ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)]"} ${value === "unsorted" ? "border-dashed" : ""}`}>
       {label}<span className="text-[12px] tabular-nums">{amount}</span>
     </button>
   );
@@ -249,7 +249,7 @@ function PreparationCard({ action, busy, update, changeStatus }: {
         <AmoraActionPlanFields description={descriptionDraft} dueDate={dueDateDraft} onDescriptionChange={setDescriptionDraft} onDueDateChange={setDueDateDraft} disabled={disabled} />
         <p className="text-[12px] leading-relaxed text-[var(--amora-muted)]">함께 준비하는 사람에게도 보이는 기록이에요.</p>
         <div className="flex flex-wrap gap-2">
-          <Button type="submit" variant="primary" disabled={disabled || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft} className={`${button} ${sharedButtonShape} bg-[var(--amora-ink)]! text-white!`}>수정 저장</Button>
+          <Button type="submit" variant="primary" disabled={disabled || !titleDraft.trim() || titleDraft.length > 120 || !validPlanDraft} className={`${button} ${sharedButtonShape} bg-[var(--amora-action)]! text-white! hover:bg-[var(--amora-action-hover)]!`}>수정 저장</Button>
           <Button type="button" disabled={disabled} onClick={event => { finishEditFocus.current = focusIntent(event.currentTarget); setEditing(false); }} className={sharedOutlineButton}>취소</Button>
         </div>
       </form>}
@@ -271,7 +271,7 @@ function PreparationCard({ action, busy, update, changeStatus }: {
       <div className="flex flex-wrap items-center gap-2">
         {action.status === "open" ? (
           <>
-            <button type="button" disabled={disabled} onClick={event => changeStatus(action, "done", event.currentTarget)} className={`${button} bg-[var(--amora-ink)] text-white hover:bg-[var(--amora-soft)]`}><Check aria-hidden="true" className="h-3.5 w-3.5" />완료로 표시</button>
+            <button type="button" disabled={disabled} onClick={event => changeStatus(action, "done", event.currentTarget)} className={`${button} bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]`}><Check aria-hidden="true" className="h-3.5 w-3.5" />완료로 표시</button>
             <button type="button" disabled={disabled} onClick={event => changeStatus(action, "dismissed", event.currentTarget)} className={outlineButton}>보류·숨김</button>
           </>
         ) : (
@@ -366,7 +366,7 @@ export default function AmoraDecisionBoard() {
   const activeColumn = PREPARATION_COLUMNS.find((column) => column.status === activeStatus)!;
   const statusCount = (status: AmoraActionStatus) => filtered.filter((action) => action.status === status).length;
   const categoryButton = (value: string, label: string, amount: number) => (
-    <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} className={`${button} shrink-0 border ${category === value ? "border-[var(--amora-ink)] bg-[var(--amora-ink)] text-white" : "border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)]"} ${value === "unsorted" ? "border-dashed" : ""}`}>
+    <button key={value} type="button" aria-pressed={category === value} onClick={() => setCategory(value)} className={`${button} shrink-0 border ${category === value ? "border-[var(--amora-selected-line)] bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)]" : "border-[var(--color-paper-outline)] bg-[var(--amora-surface)] text-[var(--amora-soft)]"} ${value === "unsorted" ? "border-dashed" : ""}`}>
       {label}<span className="text-[12px] tabular-nums">{amount}</span>
     </button>
   );
@@ -376,9 +376,9 @@ export default function AmoraDecisionBoard() {
       <p role="status" aria-live="polite" aria-atomic="true" data-board-announcement className="sr-only">{announcement.message}</p>
       <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between lg:mb-4">
       <div role="group" aria-label="보드 보기" className="grid min-w-0 grid-cols-3 gap-1 rounded-full border border-[var(--amora-line)] bg-[var(--amora-surface)] p-[3px] sm:w-fit">
-        <button type="button" aria-pressed={board === "decisions"} aria-controls={decisionPanelId} onClick={() => selectBoard("decisions")} className={`${button} ${board === "decisions" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>결정 기록</button>
-        <button type="button" aria-pressed={board === "tasks"} aria-controls={taskPanelId} onClick={() => selectBoard("tasks")} className={`${button} ${board === "tasks" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>공유 할 일</button>
-        <button type="button" aria-pressed={board === "saved"} aria-controls={savedPanelId} onClick={() => selectBoard("saved")} className={`${button} ${board === "saved" ? "bg-[var(--amora-ink)] text-white" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>저장한 답변</button>
+        <button type="button" aria-pressed={board === "decisions"} aria-controls={decisionPanelId} onClick={() => selectBoard("decisions")} className={`${button} ${board === "decisions" ? "bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-1 ring-inset ring-[var(--amora-selected-line)]" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>결정 기록</button>
+        <button type="button" aria-pressed={board === "tasks"} aria-controls={taskPanelId} onClick={() => selectBoard("tasks")} className={`${button} ${board === "tasks" ? "bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-1 ring-inset ring-[var(--amora-selected-line)]" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>공유 할 일</button>
+        <button type="button" aria-pressed={board === "saved"} aria-controls={savedPanelId} onClick={() => selectBoard("saved")} className={`${button} ${board === "saved" ? "bg-[var(--amora-selected-bg)] text-[var(--amora-selected-text)] ring-1 ring-inset ring-[var(--amora-selected-line)]" : "text-[var(--amora-muted)] hover:bg-[var(--amora-warm)]"}`}>저장한 답변</button>
       </div>
       {board !== "saved" && <div className="flex shrink-0 items-center justify-end gap-1">
       <button type="button" onClick={() => void (board === "decisions" ? decisions.refresh() : refresh())} disabled={refreshDisabled} aria-label={board === "decisions" ? "결정 새로고침" : "공유 할 일 새로고침"} className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-full text-[12px] text-[var(--amora-accent)] disabled:cursor-not-allowed disabled:opacity-40 ${focus}`}><RefreshCw aria-hidden="true" className="size-4" /><span className="hidden lg:inline">새로고침</span></button>
@@ -430,7 +430,7 @@ export default function AmoraDecisionBoard() {
       {error && <div role="alert" className="mb-4 rounded-[9px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p>{actions.length > 0 && <p className="mt-1 text-[12px]">마지막으로 불러온 기록이에요. 최신 상태를 다시 확인해 주세요.</p>}<button type="button" onClick={() => void refresh()} disabled={loading} className={`${outlineButton} mt-2`}>다시 불러오기</button></div>}
       {updateError && <p role="alert" className="mb-4 rounded-[9px] bg-[var(--amora-rose-pale)] p-3 text-[13px] text-[var(--amora-rose-deep)]">{updateError}</p>}
       {loading && <p role="status" className="py-5 text-center text-[13px] text-[var(--amora-muted)]">준비 기록을 불러오는 중…</p>}
-      {!loading && !error && actions.length === 0 ? createLocked ? <p className="py-5 text-center text-[13px] text-[var(--amora-muted)]">저장 여부는 목록을 새로고쳐 확인해 주세요.</p> : <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${button} mt-4 bg-[var(--amora-ink)] text-white`}>아모라와 이야기하기</Link></div> : actions.length > 0 && (
+      {!loading && !error && actions.length === 0 ? createLocked ? <p className="py-5 text-center text-[13px] text-[var(--amora-muted)]">저장 여부는 목록을 새로고쳐 확인해 주세요.</p> : <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${button} mt-4 bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]`}>아모라와 이야기하기</Link></div> : actions.length > 0 && (
         <div className="grid min-w-0 gap-5 lg:grid-cols-3">
           {PREPARATION_COLUMNS.map((column) => {
             const columnActions = filtered.filter((action) => action.status === column.status);

@@ -53,9 +53,9 @@ function CheckBox({
       />
       <span
         aria-hidden="true"
-        className={`${box} rounded-[6px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--hb-primary)] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
+        className={`${box} rounded-[6px] border flex items-center justify-center transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--hb-focus-ring)] peer-focus-visible:ring-offset-2 peer-disabled:opacity-50 ${
           checked
-            ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white"
+            ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]"
             : "border-black/[0.14] bg-white text-transparent"
         }`}
       >

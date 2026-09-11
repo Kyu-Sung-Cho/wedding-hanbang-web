@@ -394,7 +394,7 @@ export default function PaymentLedgerForm({
           type="button"
           onClick={() => void submit()}
           disabled={saving}
-          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--hb-primary)] disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-5 py-3 text-sm font-semibold text-white hover:bg-[var(--hb-action-hover)] disabled:opacity-50"
         >
           <Check className="h-4 w-4" />
           {saving ? "저장 중…" : "공유 기록 저장"}

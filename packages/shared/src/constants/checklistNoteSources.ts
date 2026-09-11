@@ -46,6 +46,7 @@ export const CHECKLIST_NOTE_SOURCES: Readonly<Record<string, ChecklistNoteSource
   snap_05: { part: "photo-manners", heading: "사진의 전달과 공개", sectionIndex: 8 },
   housing_04: { part: "home-conversation", heading: "분담 이야기 — 오래된 공식과 요즘", sectionIndex: 2 },
   housing_05: { part: "home-conversation", heading: "언제, 어떤 순서로 꺼내나", sectionIndex: 1 },
+  housing_13: { part: "home-conversation", heading: "계약 직후 — 주택 임대차 계약 신고 대상 확인", sectionIndex: 5 },
   invitation_03: { part: "invitation-sending", heading: "1. 청첩장에 무엇을 담을지 먼저 정하기", sectionIndex: 1 },
   invitation_05: { part: "invitation-sending", heading: "3. 언제부터 보낼까", sectionIndex: 3 },
   invitation_04: { part: "invitation-sending", heading: "3. 언제부터 보낼까", sectionIndex: 3 },

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   AMORA_SYSTEM_PROMPT_MAX_CHARS,
@@ -270,6 +270,29 @@ describe("행동 카드 계약문", () => {
 
       const twelve = composeLikeProduction(userText, 12);
       expect(twelve.prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS);
+    }
+  });
+
+  it.each([
+    "2026-01-01T03:00:00Z",
+    "2026-01-11T03:00:00Z",
+    "2026-11-01T03:00:00Z",
+    "2026-11-11T03:00:00Z",
+  ])("월·일 자릿수가 달라도 카드·안전·수정 반영 지침과 길이 여유를 유지한다 — %s", (today) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(today));
+    try {
+      for (const userText of [TODO_UTTERANCE, BUDGET_UTTERANCE, THREE_EVENT_UTTERANCE]) {
+        const { prompt, contract } = composeLikeProduction(userText, 0);
+        expect(prompt.length).toBeLessThanOrEqual(AMORA_SYSTEM_PROMPT_MAX_CHARS - 250);
+        expect(prompt).not.toContain("길이 제한으로 생략됨");
+        expect(prompt).toContain(contract);
+        expect(prompt).toContain("## 판정 금지 · 업체 상대 발언 금지");
+        expect(prompt).toContain("## 할루시네이션 방지");
+        expect(prompt).toContain("- 사용자가 수정해주면 약속 문구보다 수정된 답변 자체로 변화를 보여주세요.");
+      }
+    } finally {
+      vi.useRealTimers();
     }
   });
 

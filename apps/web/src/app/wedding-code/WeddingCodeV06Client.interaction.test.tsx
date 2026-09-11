@@ -29,6 +29,33 @@ describe("WeddingCodeV06Client interaction", () => {
     vi.restoreAllMocks();
   });
 
+  it("한 장면의 응답 지연 결과는 반복·함께 검토로 과장하지 않고 원문과 부분 코드를 보여준다", async () => {
+    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
+    const clickText = async (text: string) => {
+      const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
+      expect(button).toBeDefined();
+      await act(async () => button!.click());
+    };
+    await clickText("시작하기");
+    for (const question of config.questions) {
+      if (question.key === "B5") {
+        await act(async () => container.querySelector<HTMLButtonElement>('[data-option="A"]')!.click());
+        await clickText("다음 문항");
+      } else {
+        await clickText("이 장면은 우리와 안 맞아요");
+      }
+    }
+    const result = container.querySelector('[data-result="solo"]')!;
+    expect(result.querySelector("h1")?.textContent).toBe("내가 이번에 고른 것");
+    expect(result.textContent).toContain("답한 1장면만 셌고");
+    expect(result.textContent).toContain("둘 다 못 받아서 답이 며칠씩 밀렸다");
+    expect(result.textContent).toContain("연락을 받지 못한 경험과 함께 검토한 경험은 달라요");
+    expect(container.textContent).not.toContain("둘이 같이 보는 답을 더 많이 골랐어요");
+    expect(result.textContent).not.toContain("반복해서 고른");
+    expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(/#v=[^&]+&a=-{9}A-{10}$/);
+  });
+
   it("moves from the intro through an answered question", async () => {
     const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
 
@@ -130,7 +157,7 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(text).toContain("한 번도 고르지 않았어요");
     // 받침에 맞는 조사가 붙어야 한다 — 문구가 바뀔 때 제일 먼저 틀리는 자리다.
     expect(text).toContain("“우리가 원하는 느낌인지”와 “우리에게 어떤 의미인지”를");
-    expect(text).toContain("“한 사람이 맡아 정리하는 방법”을");
+    expect(text).toContain("“한 사람이 맡아 정리하는 방법” 쪽 문장은 한 번도 고르지 않았어요");
     expect(text).toContain("“가족과 하객의 사정”을");
     // 판정은 여전히 하지 않는다. 「유형을 붙이지 않는다」는 고지는 남아야 하므로
     // 낱말이 아니라 판정으로 읽히는 형태를 막는다.

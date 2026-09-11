@@ -1343,7 +1343,7 @@ export default function ChatSidePanel({
                 </p>
                 <div className="flex shrink-0 gap-1.5">
                   <button type="button" onClick={() => setShowClearConfirm(false)} className="min-h-11 px-3 text-[0.6875rem] rounded-[6px] bg-white border border-black/[0.06] text-[var(--hb-text-body)] hover:bg-gray-50">취소</button>
-                  <button type="button" onClick={handleClearChat} className="min-h-11 rounded-[6px] bg-[var(--hb-primary)] px-3 text-[0.6875rem] text-white bg-[var(--hb-text-body)]">내 화면에서만 숨기기</button>
+                  <button type="button" onClick={handleClearChat} className="min-h-11 rounded-[6px] bg-[var(--amora-action,var(--hb-action))] px-3 text-[0.6875rem] text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]">내 화면에서만 숨기기</button>
                 </div>
               </div>
             )}
@@ -1742,7 +1742,7 @@ export default function ChatSidePanel({
                   className={`flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] text-white transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
                     messageTarget === "partner"
                       ? "bg-pink-500 hover:bg-pink-600"
-                      : "bg-[var(--hb-primary)] bg-[var(--hb-text-body)]"
+                      : "bg-[var(--amora-action,var(--hb-action))] hover:bg-[var(--amora-action-hover,var(--hb-action-hover))]"
                   }`}
                 >
                   <Send className="w-4 h-4" />

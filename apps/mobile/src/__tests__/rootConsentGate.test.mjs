@@ -98,19 +98,19 @@ test("한쪽만 동의한 기록은 동의로 치지 않는다", () => {
 
 test("동의한 계정은 온보딩 여부로 갈린다", () => {
   assert.equal(
-    gate.resolveRootDestination({ session: sessionWith(CONSENTED), profile: null }),
+    gate.resolveRootDestination({ session: sessionWith(CONSENTED), consentAccess: "server_verified", profile: null }),
     "onboarding",
   );
   assert.equal(
     gate.resolveRootDestination({
-      session: sessionWith(CONSENTED),
+      session: sessionWith(CONSENTED), consentAccess: "server_verified",
       profile: { onboarding_completed: false },
     }),
     "onboarding",
   );
   assert.equal(
     gate.resolveRootDestination({
-      session: sessionWith(CONSENTED),
+      session: sessionWith(CONSENTED), consentAccess: "server_verified",
       profile: { onboarding_completed: true },
     }),
     "dashboard",
@@ -123,7 +123,7 @@ test("동의 전에는 프로필을 읽지 않는다", () => {
   assert.equal(gate.rootGateNeedsProfile(null), false);
   assert.equal(gate.rootGateNeedsProfile(sessionWith({})), false);
   assert.equal(gate.rootGateNeedsProfile(sessionWith({ terms_agreed: true })), false);
-  assert.equal(gate.rootGateNeedsProfile(sessionWith(CONSENTED)), true);
+  assert.equal(gate.rootGateNeedsProfile(sessionWith(CONSENTED), "server_verified"), true);
 });
 
 // ── 동의 화면 자체의 계약 ─────────────────────────────────────────────

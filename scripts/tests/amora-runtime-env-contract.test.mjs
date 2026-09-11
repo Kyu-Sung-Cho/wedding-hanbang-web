@@ -28,6 +28,7 @@ const runtimeVariables = [
   "OPENAI_AMORA_FAST_MODEL",
   "CRON_SECRET",
   "RATE_LIMIT_KEY_SECRET",
+  "SIGNUP_CONSENT_LEGACY_BEFORE",
   "DEMO_SESSION_SECRET",
   "SUPABASE_EXPECTED_URL",
   "SUPABASE_EXPECTED_PROJECT_REF",
@@ -68,4 +69,5 @@ test("the example environment keeps external Amora side effects fail-closed", as
   assert.match(example, /^AMORA_COUPLE_QUOTA_ENABLED=false$/m);
   assert.match(example, /^AMORA_GLOBAL_DAILY_COST_CAP_USD=20$/m);
   assert.match(example, /^RATE_LIMIT_KEY_SECRET=$/m);
+  assert.match(example, /^SIGNUP_CONSENT_LEGACY_BEFORE=$/m);
 });

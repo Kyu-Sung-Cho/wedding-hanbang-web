@@ -3,10 +3,11 @@ import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import { CATEGORY_CHECKLISTS, CHECKLIST_NOTE_SOURCES } from "@hanbang/shared/constants";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import { noteSourceItemIds, noteSourceLink } from "@/lib/etiquette/noteSources";
+import priorLinks from "./fixtures/note-source-links-before-housing-report.json";
 
 /**
  * 항목 안내의 근거가 실제로 존재하고, 실제로 도달 가능한가.
@@ -25,6 +26,23 @@ const items = CATEGORY_CHECKLISTS.flatMap((category) =>
 const noted = items.filter(({ item }) => item.note);
 
 describe("항목 안내의 근거", () => {
+  it("신혼집 신고 근거를 추가해도 기존 59개 링크의 목적지와 제목을 보존한다", () => {
+    // 웹 중복 표를 제거하기 전 실제 반환값을 고정한 회귀 기준이다.
+    expect(Object.keys(priorLinks)).toHaveLength(59);
+    for (const [id, expected] of Object.entries(priorLinks)) {
+      expect(noteSourceLink(id), id).toEqual(expected);
+    }
+  });
+
+  it("공유 근거 목록의 모든 항목을 웹에서도 제공한다", () => {
+    expect(noteSourceItemIds().sort()).toEqual(Object.keys(CHECKLIST_NOTE_SOURCES).sort());
+    expect(noteSourceLink("housing_13")).toEqual({
+      href: "/manners/home-conversation#section-5",
+      partTitle: "신혼집 논의 예절",
+      heading: "계약 직후 — 주택 임대차 계약 신고 대상 확인",
+    });
+  });
+
   it("근거가 적힌 항목이 있다", () => {
     expect(noteSourceItemIds().length).toBeGreaterThan(0);
   });

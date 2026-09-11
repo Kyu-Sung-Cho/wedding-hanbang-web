@@ -75,11 +75,18 @@ test("동의 기록 없는 계정이 딥링크로 온 자리를 가로챈다", (
 test("동의한 계정은 어디로도 그대로 간다", () => {
   for (const pathname of ["/community/post/abc", "/budget", "/"]) {
     assert.equal(
-      gate.shouldInterceptForConsent({ pathname, session: sessionWith(CONSENTED) }),
+      gate.shouldInterceptForConsent({ pathname, session: sessionWith(CONSENTED), consentAccess: "server_verified" }),
       false,
       pathname,
     );
   }
+});
+
+test("서버의 legacy 호환은 구분해 허용하지만 사용자 flags만으로 통과하지 않는다", () => {
+  const session = sessionWith({ terms_agreed: true, privacy_agreed: true, age_over_14_confirmed: true });
+  assert.equal(gate.shouldInterceptForConsent({ pathname: "/budget", session, consentAccess: "legacy_unverified" }), false);
+  assert.equal(gate.shouldInterceptForConsent({ pathname: "/budget", session }), true);
+  assert.equal(gate.shouldInterceptForConsent({ pathname: "/budget", session, consentAccess: "configuration_error" }), true);
 });
 
 test("한쪽만 동의한 기록은 동의로 치지 않는다", () => {
@@ -194,9 +201,12 @@ test("루트 레이아웃이 Stack 전체를 감싼다", () => {
   assert.ok(stackEndsAt < closesAt, "Stack 이 ConsentGate 안에 있지 않다");
 });
 
-test("화면을 막지 않고 옆으로 보낸다", () => {
-  // 막으면 세션 조회가 느리거나 실패하는 사람에게 빈 화면이 남는다.
-  assert.match(componentSource, /return <>\{children\}<\/>;/u);
+test("내비게이터는 유지하고 서버 판정 대기 중 입력과 접근성 탐색을 막는다", () => {
+  // 실제 재진입/지연 응답 렌더는 웹의 mobileConsentGate.test.tsx가 실행한다.
+  assert.match(componentSource, /pointerEvents=\{pending \? "none" : "auto"\}/u);
+  assert.match(componentSource, /accessibilityElementsHidden=\{pending\}/u);
+  assert.match(componentSource, /\{children\}<\/View>/u);
+  assert.match(componentSource, /다시 확인하기/u);
   assert.match(componentSource, /router\.replace\(MOBILE_CONSENT_ROUTE\)/u);
 });
 

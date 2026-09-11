@@ -2649,6 +2649,7 @@ export async function POST(request: Request) {
     totalBudgetKrw: isRecord(journey) && typeof journey.total_budget === "number"
       ? journey.total_budget
       : null,
+    budgetProgress: isRecord(journey) && isRecord(journey.progress) ? journey.progress : undefined,
   };
   // 하객 수·예식 형태·시기는 여정에 대조할 값이 없어 위 판정이 영원히 닿지 않는다.
   // 그 세 category 만 (visibility, category, 값 모양) 안에서 최신 1건을 남긴다.
@@ -2656,7 +2657,7 @@ export async function POST(request: Request) {
   const liveDecisions = dropOutdatedTruthlessDecisions(
     decisionsData
       .filter((d) => !isSupersededDecision(
-        { category: d.category, title: d.title, chosenValue: d.chosen_value },
+        { category: d.category, title: d.title, chosenValue: d.chosen_value, source: d.source, metadata: d.metadata },
         currentJourneyFacts,
       ))
       .map((d) => ({ ...d, createdAt: d.created_at, chosenValue: d.chosen_value })),
@@ -3457,7 +3458,8 @@ export async function POST(request: Request) {
       : "[PRIVATE_MODE] 이 메시지는 사용자의 개인 비공개 대화입니다.\n") +
       `- 상대방을 비난하거나 편드는 발언 금지. 객관적·공감적으로.\n` +
       `- 이 대화 내용은 절대 상대방의 채팅(shared/상대방의 private)에서 언급·인용하지 마세요. 시스템이 격리하지만 아모라도 의식적으로 분리.\n` +
-      `- 그러나 이 대화에서 드러난 인사이트는 본인의 향후 private 대화에서는 자연스럽게 이어가도 됩니다.\n` +
+      `- 이번 요청에 제공된 본인의 개인 문맥 안에서만 이어서 답하세요. 현재 취향을 이해했다는 응답과 장기 기억 저장은 다릅니다. 저장 결과 없이 미래의 기억 저장을 약속하지 마세요.\n` +
+      `- 취향을 들었다면 현재 발화에 대한 확인을 별도 문장으로 답하세요. 공동 변경을 부탁하지 않았다면 공동 예산·일정·할 일을 바꾸지 않는다는 안내로 답변을 대신하지 마세요.\n` +
       `- 답변은 평소처럼 따뜻하고 실용적으로. 비공개라고 톤을 어둡게 하지 마세요.\n\n`
     : "";
 
@@ -4180,6 +4182,13 @@ export async function POST(request: Request) {
           const persistenceClaimGuard = composeAmoraPersistenceTerminal({
             text: cleanText,
             toolResults,
+            privatePreferenceMemoryRequestText: !isDemo && requestKind === "chat" && isDurableUserMessageBound
+              && visibility !== "shared" && !hasPriorityAction && !storedActionQueue
+              && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
+              && toolResults.length === 0
+              && (questionScope.scope === "W0_wedding_core" || questionScope.scope === "W1_wedding_adjacent"
+                || (questionScope.scope === "W4_out_of_scope" && questionScope.confidence === "low" && questionScope.needsClarification))
+                ? lastUserText : undefined,
             hasPendingAction: pendingExtraction.pendingAction !== null,
             hasEmittedPendingAction: pendingExtraction.pendingAction !== null
               || emittedCarriedPendingCard !== null,

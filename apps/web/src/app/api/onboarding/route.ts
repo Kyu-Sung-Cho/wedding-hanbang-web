@@ -1,3 +1,4 @@
+import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import {
@@ -32,7 +33,7 @@ import { isTrustedMutationRequest } from "@/utils/trustedMutation";
 import { isRecord, readBoundedUtf8Text } from "@/utils/requestValidation";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 import { PROGRESS_CHECKLIST_ITEMS } from "@/types/onboarding.types";
-import { hasRecordedSignupConsent } from "@hanbang/shared";
+
 
 const ONBOARDING_JOIN_RATE = { maxRequests: 10, windowMs: 10 * 60 * 1000 };
 const MAX_ONBOARDING_BODY_BYTES = 128 * 1024;
@@ -831,7 +832,7 @@ export async function POST(request: Request) {
     // 있다. 콜백에서 /consent 로 돌려세워도 주소를 직접 치면 이 화면에 닿고,
     // 여기서 커플과 예식일이 **실제로 만들어진다.** 화면이 아니라 쓰는 자리를
     // 막는다 — 모바일 등 다른 클라이언트도 같은 관문을 지난다.
-    if (!hasRecordedSignupConsent(user.user_metadata)) {
+    if (!hasWebSignupConsentAccess(user)) {
       return privateResponse(
         {
           error: "이용약관과 개인정보 처리방침에 동의해야 시작할 수 있어요.",

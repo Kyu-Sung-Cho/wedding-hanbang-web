@@ -163,7 +163,7 @@ export default function PaymentLedger() {
               setEditing(null);
               setShowCreate(true);
             }}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--hb-primary)]"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[var(--hb-action-hover)]"
           >
             <Plus className="h-4 w-4" />
             기록 추가
