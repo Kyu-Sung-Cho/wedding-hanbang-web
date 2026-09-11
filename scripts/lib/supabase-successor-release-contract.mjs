@@ -18,6 +18,7 @@ import {
   resolve,
   sep,
 } from "node:path";
+import { loadBudgetDecisionHotfixRelease } from "./amora-budget-decision-release-contract.mjs";
 
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
@@ -1075,10 +1076,18 @@ function validateSuccessorControllerContract({
   };
 }
 
+/** @param {{ repoRoot: string, manifestRelativePath?: string, followup?: string | null }} options */
 export function validateSuccessorReleaseContract({
   repoRoot,
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
+  followup = null,
 }) {
+  if (followup !== null && followup !== "amora-budget-decision-hotfix") {
+    invalid("FOLLOWUP_RELEASE_INVALID", "only the registered budget-decision followup is supported");
+  }
+  if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
+    invalid("FOLLOWUP_RELEASE_INVALID", "the budget-decision followup requires the original successor manifest");
+  }
   const root = resolve(repoRoot);
   const manifestPath = resolve(root, manifestRelativePath);
   const releaseManifestDir = join(root, "supabase", "release-manifests");
@@ -1147,15 +1156,33 @@ export function validateSuccessorReleaseContract({
     previousVersion = version;
     expectedFiles.push(entry.file);
   }
+  // 구 manifest의 내용·선행 핀·순서는 그대로 검사한다. 후속 SQL은 호출자가
+  // 이름 목록을 넘기는 대신 전용 loader의 전체 디렉터리·원문 검증을 통과해야 한다.
+  const expectedDirectoryFiles = [...expectedFiles];
+  if (followup === "amora-budget-decision-hotfix") {
+    let budgetRelease;
+    try {
+      budgetRelease = loadBudgetDecisionHotfixRelease(root);
+    } catch {
+      invalid("FOLLOWUP_RELEASE_INVALID", "the pinned budget-decision static contract could not be verified");
+    }
+    if (budgetRelease.hotfix.projectRef !== manifest.projectRef
+        || budgetRelease.migrations.length !== 1
+        || budgetRelease.migrations[0].version <= previousVersion
+        || expectedFiles.includes(budgetRelease.migrations[0].file)) {
+      invalid("FOLLOWUP_RELEASE_INVALID", "the budget-decision migration must follow the original successor exactly once");
+    }
+    expectedDirectoryFiles.push(budgetRelease.migrations[0].file);
+  }
   const actualFiles = readdirSync(join(root, "supabase", "migrations"))
     .filter((name) => MIGRATION_FILE.test(name))
     .filter((name) => name.slice(0, 14) >= manifest.migrationFloor)
     .sort();
-  if (actualFiles.length !== expectedFiles.length
-      || actualFiles.some((name, index) => name !== expectedFiles[index])) {
+  if (actualFiles.length !== expectedDirectoryFiles.length
+      || actualFiles.some((name, index) => name !== expectedDirectoryFiles[index])) {
     invalid(
       "MIGRATION_SET_DRIFT",
-      `successor migration set or order drifted; expected=${expectedFiles.join(",") || "none"}; received=${actualFiles.join(",") || "none"}`,
+      `successor migration set or order drifted; expected=${expectedDirectoryFiles.join(",") || "none"}; received=${actualFiles.join(",") || "none"}`,
     );
   }
   const releaseVersions = expectedFiles.map((file) => file.slice(0, 14));
