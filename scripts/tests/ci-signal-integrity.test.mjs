@@ -135,6 +135,27 @@ function hasUnconditionalFailure(jobBody) {
 
 const jobs = parseJobs(workflow);
 
+test("웹 빌드는 제한된 힙을 명시하고 타입 검사와 실패 전파를 유지한다", () => {
+  const quality = jobs.get("web_quality");
+  const build = /^ {6}- name: Web production build\n([\s\S]*?)(?=\n {6}- name:|(?![\s\S]))/m.exec(quality)?.[1];
+  assert.ok(build, "웹 빌드 단계를 찾지 못했다");
+  assert.match(build, /^ {8}env:\s*\n {10}NODE_OPTIONS: ["']?--max-old-space-size=4096["']?\s*$/m,
+    "Next 타입 검사 자식도 명시한 4 GiB 힙을 상속해야 한다");
+  assert.equal((workflow.match(/NODE_OPTIONS:/g) ?? []).length, 1,
+    "힙 증설은 웹 빌드 단계에만 적용한다");
+  assert.match(build, /getHeapStatistics\(\)\.heap_size_limit/,
+    "실제 Node 힙 상한을 기록한다");
+  assert.match(build, /totalmem\(\)/, "실제 runner 메모리를 기록한다");
+  assert.match(build, /availableParallelism\(\)/, "실제 runner CPU 한도를 기록한다");
+  assert.match(jobCommands(quality), /pnpm --filter @hanbang\/web exec tsc --noEmit/);
+  assert.match(jobCommands(quality), /pnpm --filter @hanbang\/web exec eslint \./);
+  assert.match(jobCommands(quality), /pnpm --filter @hanbang\/web build/);
+  assert.doesNotMatch(quality, /continue-on-error\s*:|\|\|\s*true/);
+  const config = readFileSync(resolve(HERE, "..", "..", "apps/web/next.config.ts"), "utf8");
+  assert.doesNotMatch(config, /ignoreBuildErrors\s*:\s*true/,
+    "독립 tsc가 있어도 Next 빌드의 타입 검사를 생략하지 않는다");
+});
+
 test("웹 두 shard는 전체 파일을 나누고 각 실패를 두 집계에 전달한다", () => {
   const shards = jobs.get("web_tests");
   assert.ok(shards, "웹 테스트 shard 잡이 없다");

@@ -68,7 +68,13 @@ jobs:
         run: pnpm --filter @hanbang/web exec eslint .
 
       - name: Web production build
-        run: pnpm --filter @hanbang/web build
+        # Next의 타입 검사 자식이 약 2 GiB 기본 힙에서 OOM으로 종료된 실제 실패를 보완한다.
+        # private ubuntu runner의 8 GB RAM에서 OS·Turbopack 공간을 남기고 이 단계만 4 GiB로 제한한다.
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: |
+          node -e 'const os = require("node:os"); const v8 = require("node:v8"); console.log(JSON.stringify({node: process.version, cpuCount: os.availableParallelism(), totalMemoryMiB: Math.round(os.totalmem() / 1024 / 1024), heapLimitMiB: Math.round(v8.getHeapStatistics().heap_size_limit / 1024 / 1024)}));'
+          pnpm --filter @hanbang/web build
 
   web_tests:
     name: Web Tests (shard ${{ matrix.shard }}/2)
