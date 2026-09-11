@@ -121,6 +121,64 @@ describe("AmoraDecisionBoard", () => {
     expect(mocks.data.loadMore).not.toHaveBeenCalled();
   });
 
+  it("uses stored decision domains for counts, labels, search and destinations without inferring from source", async () => {
+    mocks.decisions.records = [
+      { id: "budget", title: "초대장·꽃·하객선물 1,501,000원", category: "budget", source: "budget" },
+      { id: "schedule", title: "둘이 확인하는 시간", category: "schedule", source: "schedule" },
+      { id: "plan", title: "준비 기준 정리", category: "plan", source: "manual" },
+      { id: "general", title: "자유롭게 남긴 기록", category: "general", source: "chat" },
+      { id: "venue", title: "예식장 비교", category: "venue", source: "budget" },
+      { id: "unknown", title: "출처만 알려진 기록", category: "unknown", source: "budget" },
+      { id: "empty", title: "분야가 없는 기록", category: "", source: "schedule" },
+    ].map(row => ({ ...row, detail: null, status: "confirmed", stateLabel: "결정 기록", createdAt: "2026-09-11T00:00:00Z" }));
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    const filters = () => Array.from(decisions.querySelectorAll<HTMLButtonElement>('[aria-label="결정 분야 필터"] button'));
+    const filter = (label: string) => filters().find(button => button.textContent?.startsWith(label))!;
+    expect(filters().map(button => button.textContent)).toEqual(expect.arrayContaining(["예산1", "일정1", "준비 계획1", "일반 준비1", "분야 미정2"]));
+    for (const [label, title, href, linkLabel] of [
+      ["예산", "초대장·꽃·하객선물 1,501,000원", "/wedding/budget", "예산 보기"],
+      ["일정", "둘이 확인하는 시간", "/wedding/schedule", "일정 보기"],
+      ["준비 계획", "준비 기준 정리", null, null],
+      ["일반 준비", "자유롭게 남긴 기록", null, null],
+    ] as const) {
+      await act(async () => filter(label).click());
+      const cards = decisions.querySelectorAll("article");
+      expect(cards).toHaveLength(1);
+      expect(cards[0].getAttribute("aria-label")).toBe(title);
+      expect(cards[0].textContent).toContain(label);
+      expect(cards[0].querySelector("a")?.getAttribute("href") ?? null).toBe(href);
+      expect(cards[0].querySelector("a")?.textContent ?? null).toBe(linkLabel);
+    }
+    await act(async () => filter("분야 미정").click());
+    expect(Array.from(decisions.querySelectorAll("article"), card => card.getAttribute("aria-label"))).toEqual(["출처만 알려진 기록", "분야가 없는 기록"]);
+    expect(decisions.querySelector("article a")).toBeNull();
+    await act(async () => filter("전체").click());
+    const venue = decisions.querySelector('article[aria-label="예식장 비교"]')!;
+    expect(venue.querySelector("a")?.getAttribute("href")).toBe("/wedding/checklist?category=venue");
+    const input = decisions.querySelector<HTMLInputElement>('input[type="search"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, "예산");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(Array.from(decisions.querySelectorAll("article"), card => card.getAttribute("aria-label"))).toEqual(["초대장·꽃·하객선물 1,501,000원"]);
+    expect(mocks.data.update).not.toHaveBeenCalled();
+    expect(mocks.decisions.refresh).not.toHaveBeenCalled();
+  });
+
+  it("retains all existing checklist category labels and deep links on decision cards", async () => {
+    mocks.decisions.records = CATEGORY_CHECKLISTS.map(item => ({ id: item.key, title: `기록 ${item.key}`, category: item.key, detail: null, status: "confirmed", stateLabel: "결정 기록", source: "manual", createdAt: "2026-09-11T00:00:00Z" }));
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const decisions = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    expect(CATEGORY_CHECKLISTS).toHaveLength(21);
+    for (const item of CATEGORY_CHECKLISTS) {
+      const card = decisions.querySelector(`article[aria-label="기록 ${item.key}"]`)!;
+      expect(card.textContent).toContain(item.label);
+      expect(card.querySelector("a")?.getAttribute("href")).toBe(`/wedding/checklist?category=${item.key}`);
+      expect(card.querySelector("a")?.textContent).toBe("분야 체크리스트 보기");
+    }
+  });
+
   it("opens mobile search in the active panel, preserves both queries when folded, and exposes an applied filter with a clear action", async () => {
     mocks.decisions.records = [{ id: "venue", title: "장소 비교", category: "venue", detail: null, status: "confirmed", stateLabel: "결정 기록", source: "chat", createdAt: "2026-09-07T00:00:00Z" }];
     mocks.data.actions = [action];
