@@ -7,6 +7,8 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { digest, digestJson } from '../lib/current-baseline-release-contract.mjs';
 import { transactionBody } from '../lib/current-baseline-hosted-synthetic.mjs';
 import { localPredecessor } from './fixtures/current-baseline-hosted-synthetic-local.mjs';
+import { loadEffectiveBudgetDecisionHotfixRelease, budgetRealtimeBindings, renderBudgetRealtimeObservationSql } from '../lib/amora-budget-decision-effective-release-contract.mjs';
+import { createSyntheticBudgetRealtimeTopology, moveSyntheticRealtimeChild } from './fixtures/budget-realtime-topology.mjs';
 import * as controller from '../lib/amora-runtime-hotfix-controller.mjs';
 
 // 모든 증거·계정·DDL 실행은 합성 테스트 자료다. 운영 백업/hosted/rehearsal 증거로 사용할 수 없다.
@@ -14,7 +16,7 @@ const root = resolve(import.meta.dirname, '../..');
 const mode = '--amora-budget-decision-hotfix';
 const commit = 'a'.repeat(40), hash = 'b'.repeat(64);
 const owner = '60910000-1234-4123-8123-123456789abc';
-const now = new Date('2026-09-11T01:00:00Z');
+const now = new Date('2026-09-11T06:00:00Z');
 const fixtureRoot = join(tmpdir(), 'amora-budget-decision-synthetic-cli');
 const hostedChecks = ['actorBoundary', 'approvedBudgetDecisionAtomicity', 'budgetPreservesOmittedAllocations',
   'retryDecisionIdempotency', 'noChangeNoDecision', 'scheduleReceiptCompatibility', 'privateHelperAcl', 'rollback'];
@@ -30,7 +32,7 @@ async function removeFixtureDirectory(folder) {
 }
 const load = async () => {
   const contract = await import('../lib/amora-budget-decision-release-contract.mjs');
-  return { contract, release: contract.loadBudgetDecisionHotfixRelease(root) };
+  return { contract, release: loadEffectiveBudgetDecisionHotfixRelease(root) };
 };
 function argvFor(release, folder, apply = false) {
   return [mode, apply ? '--apply' : '--check-only', `--expected-commit=${commit}`, '--remote-ref=origin/codex/test',
@@ -40,9 +42,9 @@ function argvFor(release, folder, apply = false) {
 function evidenceFixture(release) {
   const before = structuredClone(release.baseline);
   const tables = before.relations.filter(t => t.schema === 'public' && ['r', 'p'].includes(t.kind));
-  const evidence = { format: 'amora-runtime-hotfix-evidence-v1', releaseCommit: commit, projectRef: release.hotfix.projectRef,
+  const evidence = { ...budgetRealtimeBindings(release), format: 'amora-runtime-hotfix-evidence-v1', releaseCommit: commit, projectRef: release.hotfix.projectRef,
     systemIdentifier: release.hotfix.systemIdentifier, hotfixContractSha256: release.hotfixSha256, migrationSetSha256: release.migrationSetSha256,
-    expiresAt: '2026-09-11T01:20:00Z', scope: release.hotfix.scope, before,
+    expiresAt: '2026-09-11T06:20:00Z', scope: release.hotfix.scope, before,
     beforeData: tables.map(t => ({ relation: `${t.schema}.${t.name}`, rows: 0, rowsSha256: digest('') })),
     transitions: expectedSchema.map(key => { const colon = key.indexOf(':'); const kind = key.slice(0, colon), identity = key.slice(colon + 1);
       return { kind, identity, beforeSha256: before.objects.find(o => o.kind === kind && o.identity === identity)?.sha256 ?? null, afterSha256: hash }; }) };
@@ -64,6 +66,12 @@ function evidenceFixture(release) {
     encryption: { backup_set_id: owner, plaintext_sha256: hash, encrypted_sha256: hash, key_sha256: hash, plaintext_bytes: 50,
       artifact: 'logical-data.json.hbam2', key: 'logical-data.json.key.dpapi' }, archiveBytes: 5, archiveSha256: hash.toUpperCase(),
     inspection: { archiveDecodePassed: true, tocSha256: hash.toUpperCase(), tocEntries: 1 } });
+  const proof = JSON.parse(readFileSync(join(root, release.baselineSupplement.proof.file), 'utf8'));
+  raw.realtimeTopology = JSON.stringify([{ observation: { format: 'amora-budget-realtime-observation-v1', readOnly: true,
+    systemIdentifier: release.hotfix.systemIdentifier, releaseCommit: commit, ...budgetRealtimeBindings(release),
+    observedAt: now.toISOString(), oldPartitionAbsent: true, topology: JSON.parse(proof.structure.rawText)[0].observation.topology } }]);
+  evidence.realtimeTopology = { querySha256: digest(renderBudgetRealtimeObservationSql(release, commit)),
+    rawEvidence: { file: 'realtime-topology.raw.json', sha256: digest(raw.realtimeTopology) } };
   reports.backup.snapshotDirectory = 'snapshot';
   wrap('rollback', { ...target, kind: 'synthetic-budget-decision-sql-transaction-rollback', sourceArchiveRestored: false,
     originalDdlArtifactSha256: evidence.rollbackOriginal.sha256, beforeSchemaSha256: hash, afterRollbackSchemaSha256: hash,
@@ -100,6 +108,7 @@ async function persistEvidence(folder, f) {
     f.evidence.reports[kind] = { file: `${kind}.json`, sha256: digest(report) };
     await writeFile(join(folder, `${kind}.json`), report); await writeFile(join(folder, `${kind}.raw.json`), f.raw[kind]);
   }
+  await writeFile(join(folder, 'realtime-topology.raw.json'), f.raw.realtimeTopology);
   await writeFile(join(folder, 'original-ddl.json'), f.raw.rollbackOriginal);
   await writeFile(join(folder, 'amora-hotfix-evidence.json'), JSON.stringify(f.evidence));
 }
@@ -247,6 +256,7 @@ test('failed recovery verification stops before any management query or lease cl
 async function localFixture(release) {
   const db = await localPredecessor(root);
   try {
+    await createSyntheticBudgetRealtimeTopology(db);
     const cliExpiresAt = new Date(Date.now() + 120_000).toISOString();
     await db.exec(`CREATE SCHEMA storage; CREATE TABLE storage.objects(id uuid,bucket_id text,name text); CREATE TABLE storage.buckets(id text);
       CREATE SCHEMA vault; CREATE TABLE vault.secrets(id uuid); CREATE SCHEMA cron; CREATE TABLE cron.job(jobid bigint,active boolean);
@@ -274,7 +284,7 @@ async function localFixture(release) {
       .map(row => ({ kind: row.kind, identity: row.identity, beforeSha256: before.objects.find(o => o.kind === row.kind && o.identity === row.identity)?.sha256 ?? null, afterSha256: row.sha256 }));
     assert.deepEqual(transitions.map(t => `${t.kind}:${t.identity}`).sort(), [...expectedSchema].sort());
     const local = { ...release, hotfix: { ...release.hotfix, systemIdentifier: before.systemIdentifier, requiredLedgerCount: before.ledger.length } };
-    const evidence = { releaseCommit: commit, before, beforeData, transitions };
+    const evidence = { ...budgetRealtimeBindings(release), releaseCommit: commit, before, beforeData, transitions };
     const binding = { release: release.hotfix.release, releaseCommit: commit, ownerId: owner, outcomePathSha256: hash };
     await db.query(`INSERT INTO public.production_release_lease_20260717(singleton,release_id,release_commit,owner_id,outcome_path_sha256,phase)
       VALUES(true,$1,$2,$3,$4,'claimed')`, [binding.release, commit, owner, hash]);
@@ -338,5 +348,74 @@ test('actual post-schema failure rolls the new column, functions, triggers and l
     assert.deepEqual((await f.db.query(`${controller.renderPublicDataQuery(f.evidence.before, dataOptions)};`)).rows[0].data, f.evidence.beforeData);
     assert.equal((await f.db.query('SELECT phase FROM public.production_release_lease_20260717')).rows[0].phase, 'claimed');
     assert.equal((await f.db.query("SELECT count(*)::integer AS n FROM pg_event_trigger WHERE evtname LIKE 'evt_production_write_fence%'")).rows[0].n, 2);
+  } finally { await f.db.close(); }
+});
+
+
+test('current evidence rejects omitted or mixed supplemental bindings before transport', async () => {
+  const { release } = await load();
+  for (const field of ['baselineSupplementSha256', 'effectiveBaselineSha256']) {
+    const missing = evidenceFixture(release); delete missing.evidence[field];
+    assert.throws(() => controller.validateHotfixEvidence(missing), { code: 'REALTIME_SUPPLEMENT_BINDING_INVALID' });
+    const mixed = evidenceFixture(release); mixed.evidence[field] = hash;
+    assert.throws(() => controller.validateHotfixEvidence(mixed), { code: 'REALTIME_SUPPLEMENT_BINDING_INVALID' });
+  }
+});
+
+
+test('actual apply and finalizer reject a different partition parent even when the old inventory hash stays equal', { timeout: 120000 }, async () => {
+  const { release } = await load(); const f = await localFixture(release);
+  try {
+    await f.db.exec('BEGIN');
+    await f.db.exec(moveSyntheticRealtimeChild);
+    const changed = await f.observe();
+    assert.deepEqual(changed.objects, f.evidence.before.objects, 'old fingerprint does not include the parent graph');
+    await assert.rejects(f.db.exec(controller.renderHotfixAtomicSql(f)), /HOTFIX_REALTIME_TOPOLOGY_CHANGED/);
+    await f.db.exec('ROLLBACK');
+    assert.equal((await f.db.query('SELECT count(*)::integer AS n FROM supabase_migrations.schema_migrations')).rows[0].n, 1);
+    await f.db.exec(controller.renderHotfixAtomicSql(f));
+    await f.db.exec('BEGIN'); await f.db.exec(moveSyntheticRealtimeChild);
+    await assert.rejects(f.db.exec(controller.renderHotfixFinalizeSql({ ...f, canarySha256: hash })), /HOTFIX_REALTIME_TOPOLOGY_CHANGED/);
+    await f.db.exec('ROLLBACK');
+    assert.equal((await f.db.query('SELECT phase FROM public.production_release_lease_20260717')).rows[0].phase, 'deployment-canary');
+    await f.db.exec(controller.renderHotfixFinalizeSql({ ...f, canarySha256: hash }));
+  } finally { await f.db.close(); }
+});
+
+
+test('recovery and finalizer reject old or mixed baseline bindings before decryption, canary or remote execution', async () => {
+  const { release } = await load();
+  for (const field of ['baselineSupplementSha256', 'effectiveBaselineSha256']) {
+    const f = evidenceFixture(release); delete f.evidence[field];
+    await assert.rejects(controller.verifyHotfixRecovery({ repoRoot: root, evidenceRoot: fixtureRoot, state: f, mode }),
+      { code: 'REALTIME_SUPPLEMENT_BINDING_INVALID' });
+    const folder = await mkdtemp(join(tmpdir(), 'budget-decision-controller-test-'));
+    try {
+      const valid = evidenceFixture(release); await persistEvidence(folder, valid);
+      const outcome = { ...budgetRealtimeBindings(release) }; outcome[field] = hash;
+      await writeFile(join(folder, 'apply.json'), JSON.stringify(outcome));
+      let queries = 0, recoveries = 0;
+      await assert.rejects(controller.runAmoraRuntimeHotfixFinalize({ repoRoot: root, evidenceRoot: folder,
+        outcomePath: join(folder, 'apply.json'), canaryPath: join(folder, 'canary.json'), receiptOut: join(folder, 'final.json'),
+        expectedCommit: commit, remoteRef: 'origin/codex/test', confirmProduction: 'UNREACHED', mode, now: () => now,
+        primitives: { assertReleaseGitFence: async () => {} }, verifyRecovery: async () => { recoveries++; },
+        transport: { query: async () => { queries++; return []; } } }), { code: 'REALTIME_SUPPLEMENT_BINDING_INVALID' });
+      assert.equal(queries, 0); assert.equal(recoveries, 0);
+    } finally { await removeFixtureDirectory(folder); }
+  }
+});
+
+test('actual after guard rolls back a graph-only drift injected after the feature SQL', { timeout: 120000 }, async () => {
+  const { release } = await load(); const f = await localFixture(release);
+  try {
+    const sql = controller.renderHotfixAtomicSql(f);
+    // SQL 파일을 바꾸지 않는다. 로컬 fault injection으로 before 통과 후 graph만 달라진 시점을 재현한다.
+    const injected = sql.replace('DO $hotfix_after$', () => moveSyntheticRealtimeChild + '\nDO $hotfix_after$');
+    assert.notEqual(injected, sql);
+    await assert.rejects(f.db.exec(injected), /HOTFIX_REALTIME_TOPOLOGY_CHANGED/);
+    await f.db.exec('ROLLBACK');
+    const after = await f.observe();
+    assert.deepEqual(after.objects, f.evidence.before.objects); assert.deepEqual(after.ledger, f.evidence.before.ledger);
+    assert.equal((await f.db.query('SELECT phase FROM public.production_release_lease_20260717')).rows[0].phase, 'claimed');
   } finally { await f.db.close(); }
 });

@@ -591,8 +591,8 @@ if (args.has("--amora-budget-decision-hotfix")) {
     fail("BUDGET_DECISION_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
   }
   try {
-    const { loadBudgetDecisionHotfixRelease } = await import("./lib/amora-budget-decision-release-contract.mjs");
-    const release = loadBudgetDecisionHotfixRelease(repoRoot);
+    const { loadEffectiveBudgetDecisionHotfixRelease } = await import("./lib/amora-budget-decision-effective-release-contract.mjs");
+    const release = loadEffectiveBudgetDecisionHotfixRelease(repoRoot);
     console.log(`Budget-decision static contract verified (${release.hotfix.release}; ${release.migrations.length} pinned migration; hosted evidence not verified; deployment not authorized).`);
     process.exit(0);
   } catch (error) {

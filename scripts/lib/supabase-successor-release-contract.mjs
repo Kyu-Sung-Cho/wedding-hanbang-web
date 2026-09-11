@@ -18,7 +18,7 @@ import {
   resolve,
   sep,
 } from "node:path";
-import { loadBudgetDecisionHotfixRelease } from "./amora-budget-decision-release-contract.mjs";
+import { loadEffectiveBudgetDecisionHotfixRelease } from "./amora-budget-decision-effective-release-contract.mjs";
 
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
@@ -1162,7 +1162,7 @@ export function validateSuccessorReleaseContract({
   if (followup === "amora-budget-decision-hotfix") {
     let budgetRelease;
     try {
-      budgetRelease = loadBudgetDecisionHotfixRelease(root);
+      budgetRelease = loadEffectiveBudgetDecisionHotfixRelease(root);
     } catch {
       invalid("FOLLOWUP_RELEASE_INVALID", "the pinned budget-decision static contract could not be verified");
     }

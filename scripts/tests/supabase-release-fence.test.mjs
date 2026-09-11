@@ -64,6 +64,7 @@ async function createFixture() {
   );
   for (const dependency of [
     "amora-budget-decision-release-contract.mjs",
+    "amora-budget-decision-effective-release-contract.mjs",
     "current-baseline-release-contract.mjs",
     "amora-named-budget-migration-pin.mjs",
   ]) {
