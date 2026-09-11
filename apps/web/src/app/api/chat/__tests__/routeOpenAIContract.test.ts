@@ -7170,6 +7170,88 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     }
   });
 
+  it("creates the exact B04 budget card from a natural total declaration despite prose-only actual SDK output", async () => {
+    const text = "총 결혼 예산은 3500만 원이야. 항목별 금액을 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
+    const providerText = "계산상 항목 합계는 **3,500만 원**으로 맞아요. 다만 현재 도구로 예산을 직접 반영할 수 있는 확인 절차가 필요해요.";
+    const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actualTools.WEDDING_TOOLS.find(tool => tool.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(tool => tool.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    mocks.journeyRow = { total_budget: 0, wedding_date: null, venue: null, progress: {} };
+    mocks.journeyStateRevision = 0;
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    const before = structuredClone(mocks.journeyRow);
+    const actualOpenAI = await vi.importActual<typeof import("@/lib/ai/openai")>("@/lib/ai/openai");
+    const { default: OpenAI } = await import("openai");
+    let counted = 0;
+    let created = 0;
+    const client = new OpenAI({ apiKey: "sk-fixture-b04-prefix", maxRetries: 0, dangerouslyAllowBrowser: true,
+      fetch: async (url, init) => {
+        if (typeof init?.body !== "string") throw new Error("Expected SDK JSON request");
+        const input = JSON.parse(init.body);
+        const path = new URL(String(url)).pathname;
+        if (path.endsWith("/responses/input_tokens")) {
+          counted += 1;
+          return new Response(JSON.stringify({ object: "response.input_tokens", input_tokens: 100 }),
+            { status: 200, headers: { "Content-Type": "application/json" } });
+        }
+        if (!path.endsWith("/responses")) throw new Error("Unexpected SDK endpoint");
+        created += 1;
+        const response = { id: "resp_b04_prefix", object: "response", created_at: 0, status: "completed",
+          error: null, incomplete_details: null, model: input.model,
+          output: [{ type: "message", id: "msg_b04_prefix", role: "assistant", status: "completed",
+            content: [{ type: "output_text", text: providerText, annotations: [] }] }],
+          output_text: providerText, usage: { input_tokens: 100, input_tokens_details: { cached_tokens: 0 },
+            output_tokens: 5, output_tokens_details: { reasoning_tokens: 0 }, total_tokens: 105 } };
+        return new Response(
+          `data: ${JSON.stringify({ type: "response.output_text.delta", item_id: "msg_b04_prefix", output_index: 0, content_index: 0, sequence_number: 0, delta: providerText })}\n\n`
+          + `data: ${JSON.stringify({ type: "response.completed", sequence_number: 1, response })}\n\n`,
+          { status: 200, headers: { "Content-Type": "text/event-stream" } });
+      } });
+    vi.stubEnv("AMORA_OPENAI_ENABLED", "true");
+    vi.stubEnv("OPENAI_API_KEY", "sk-fixture-b04-prefix");
+    vi.stubEnv("OPENAI_AMORA_FAST_MODEL", "gpt-5.6-luna");
+    vi.stubEnv("OPENAI_AMORA_PRIMARY_MODEL", "gpt-5.6-terra");
+    vi.stubEnv("OPENAI_AMORA_FAST_REASONING_EFFORT", "none");
+    vi.stubEnv("OPENAI_AMORA_PRIMARY_REASONING_EFFORT", "none");
+    mocks.provider.mockImplementation(options => actualOpenAI.chatWithToolsStream({ ...options, client }));
+    try {
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(created).toBe(1);
+      expect(counted).toBe(1);
+      expect(mocks.provider).toHaveBeenCalledTimes(1);
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+      expect(mocks.atomicResponses).toHaveLength(1);
+      const saved = mocks.atomicResponses[0];
+      expect(saved.metadata.pending_amora_action).toMatchObject({ version: 2, tool: "apply_budget_plan", input: {
+        total_budget: 35_000_000, allocation_mode: "explicit", allocations: [
+          { category: "custom", label: "결혼식장·식사", budget: 9_000_000 },
+          { category: "honeymoon", budget: 10_000_000 },
+          { category: "custom", label: "사진", budget: 5_000_000 },
+          { category: "custom", label: "드레스·정장", budget: 3_000_000 },
+          { category: "makeup", budget: 2_000_000 },
+          { category: "custom", label: "반지·선물", budget: 2_500_000 },
+          { category: "custom", label: "초대장·꽃·하객선물", budget: 1_500_000 },
+          { category: "reserve", budget: 2_000_000 },
+        ],
+      } });
+      expect(saved.metadata.pending_amora_action_journey_revision).toBe(0);
+      expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ sourceRevision: 0,
+        current: { totalBudget: 0, allocatedBudget: 0, recordedSpend: 0, unallocatedBudget: 0 },
+        proposed: { totalBudget: 35_000_000, allocatedBudget: 35_000_000, recordedSpend: 0, unallocatedBudget: 0 } });
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+      expect(saved.content).toContain("초대장·꽃·하객선물");
+      expect(saved.content).not.toContain("확인 절차가 필요해요");
+      const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+      const done = events.find(event => event.type === "done");
+      expect(done?.fullContent).toBe(saved.content);
+      expect(done?.metadata.pending_amora_action).toEqual(saved.metadata.pending_amora_action);
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
   it.each(["반영할까요?", '[pending_action]{"tool":"update_budget","input":{"total_budget":35000000}}[/pending_action]'])("turns the complete original named budget list into an exact approval even when the provider says %s", async (fullText) => {
     const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
     const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "apply_budget_plan")!;
