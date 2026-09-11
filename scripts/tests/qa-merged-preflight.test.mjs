@@ -184,6 +184,23 @@ test("qa:merged가 qa:local의 검사 목록을 그대로 쓴다", async () => {
   }
 });
 
+test("공유 QA 목록은 CI와 같은 명시 예산 계약을 실제 검사하고 배포 인가로 표시하지 않는다", async () => {
+  const { checks } = await import("../verify-local.mjs");
+  const fences = checks.filter(check => check.name === "supabase release fence");
+  assert.equal(fences.length, 1);
+  assert.deepEqual(fences[0].args, ["pnpm", "supabase:release:fence", "--amora-budget-decision-hotfix"]);
+  const { readFileSync } = await import("node:fs");
+  const pkg = JSON.parse(readFileSync(path.join(repoRoot, "package.json"), "utf8"));
+  assert.equal(pkg.scripts["supabase:release:fence"], "node ./scripts/supabase-release-fence.mjs");
+  const result = spawnSync(process.execPath, ["scripts/supabase-release-fence.mjs", ...fences[0].args.slice(2)], {
+    cwd: repoRoot, encoding: "utf8", windowsHide: true, timeout: 30_000,
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.match(result.stdout, /Budget-decision static contract verified/);
+  assert.match(result.stdout, /hosted evidence not verified; deployment not authorized/);
+});
+
 /** 저장소 수준 검사를 빼먹으면 배포 펜스·인계 계약·훅 배선이 검사되지 않는다. */
 test("저장소 수준 검사를 포함하고, 테스트를 두 번 돌리지 않는다", () => {
   const pkg = JSON.parse(
