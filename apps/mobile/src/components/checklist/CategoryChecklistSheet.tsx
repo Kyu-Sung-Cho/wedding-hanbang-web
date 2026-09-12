@@ -24,14 +24,8 @@
  */
 
 import { useMemo } from "react";
-import {
-  Modal,
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  StyleSheet,
-} from "react-native";
+import { Modal, View, ScrollView, Pressable, StyleSheet } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { Check, Ban, Sparkle, BookOpen } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import {

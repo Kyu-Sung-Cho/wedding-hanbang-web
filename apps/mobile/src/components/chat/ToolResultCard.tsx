@@ -1,4 +1,5 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { router } from "expo-router";
 import { CheckCircle2, XCircle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";

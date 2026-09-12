@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { BellRing, Clock3, RotateCcw, ShieldCheck } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 

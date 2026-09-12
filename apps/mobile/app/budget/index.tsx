@@ -1,11 +1,8 @@
 // 예산 관리 — 웹과 동일한 wedding_journeys.progress 기반
 // budget/spent만 합산한다. legacy cost는 용도 확인 전까지 검토값으로만 표시한다.
 import { useEffect, useState, useCallback, useRef } from "react";
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
-  RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
-  Animated, AppState,
-} from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Modal, Alert, KeyboardAvoidingView, Platform, Animated, AppState } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";

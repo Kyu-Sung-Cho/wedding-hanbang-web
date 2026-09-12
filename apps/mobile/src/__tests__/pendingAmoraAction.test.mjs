@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
+import { parseAmoraCitations, describeAmoraCitations } from "../lib/amoraCitations.mjs";
 
 const helperPath = fileURLToPath(new URL("../lib/pendingAmoraAction.ts", import.meta.url));
 const sharedSchedulePath = fileURLToPath(new URL(
@@ -89,6 +91,9 @@ const {
 
 const chatPath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const chatSource = readFileSync(chatPath, "utf8");
+const toolResultCardModule = compileCommonJs(readFileSync(new URL(
+  "../components/chat/toolResultCardModel.ts", import.meta.url,
+), "utf8"));
 
 const action = {
   version: 2,
@@ -107,7 +112,7 @@ const action = {
   expiresAt: Date.parse("2026-07-18T00:00:00.000Z"),
 };
 
-function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = false } = {}) {
+function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = false, itemOverrides = {} } = {}) {
   const applicationModule = compileCommonJs(readFileSync(new URL(
     "../../../web/src/components/app/chat/amoraPendingActionApplication.ts", import.meta.url,
   ), "utf8"), (specifier) => {
@@ -126,19 +131,19 @@ function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = fa
     ts.forEachChild(node, visit);
   };
   visit(tree);
-  const item = { id: "proposal", sender_id: null, content: "제안", ...message() };
+  const item = { id: "proposal", sender_id: null, content: "제안", ...message(), ...itemOverrides };
   const messages = [item, ...receipts];
   const bindings = {
     ...components, ...sharedModule, ...helperModule.exports, ...applicationModule,
     React: { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: "Fragment" },
     messages, userRole: "bride", userId: "user-1", dismissedPendingActionIds: new Set(),
+    userName: "나", partnerName: "파트너",
     nowMs, streaming, latestSharedMessageId: messages.at(-1).id,
     actionConfirmationOutcomes: applicationModule.buildAmoraActionConfirmationOutcomes(messages),
     pendingActionApproval: null, pendingActionNotice: null, applyingPendingActionId: null,
-    parseAmoraCitations: (text) => ({ text, parts: [] }), describeAmoraCitations: () => null,
-    normalizeMediationBlock: () => null, dedupeToolResultCards: (results) => results,
-    getToolResultCardModel: () => null,
-    colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" } }, st: {},
+    parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
+    normalizeMediationBlock: () => null, ...toolResultCardModule,
+    colors: { noir: { 800: "black", soft: "gray" }, gold: { DEFAULT: "gold" }, ivory: { warm: "ivory" } }, st: {},
   };
   const compiledRender = ts.transpileModule(declaration.getText(tree), {
     compilerOptions: { module: ts.ModuleKind.None, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
@@ -149,12 +154,15 @@ function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = fa
   const flatten = (node) => {
     if (node && typeof node === "object") {
       nodes.push(node);
-      for (const child of node.children ?? []) flatten(child);
+      for (const child of node.children ?? []) {
+        if (Array.isArray(child)) child.forEach(flatten);
+        else flatten(child);
+      }
     }
   };
   flatten(rendered);
   const text = JSON.stringify(rendered);
-  return { text, buttons: nodes.filter((node) => node.type === "Pressable") };
+  return { text, nodes, buttons: nodes.filter((node) => node.type === "Pressable") };
 }
 
 const confirmationReceipt = {
@@ -198,6 +206,75 @@ test("mobile recognizes persisted success after history reload and receipt reord
   const rendered = renderProposal([successReceipt, confirmationReceipt]);
   assert.match(rendered.text, /이 제안은 적용됐어요/);
   assert.equal(rendered.buttons[0].props.disabled, true);
+});
+
+const leakedHistory = '\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n[{"toolName":"update_budget","toolOutput":{"total_budget":50000000}}]';
+
+test("stored AI bodies hide internal artifacts in shared and private bubbles and save previews", () => {
+  const prose = "총예산은 5,000만 원이에요. [etiquette:9]";
+  for (const visibility of ["shared", "bride_private", "groom_private"]) {
+    const metadata = {};
+    const rendered = renderProposal([], {
+      itemOverrides: { content: prose + leakedHistory, visibility, metadata },
+    });
+    assert.doesNotMatch(rendered.text, /저장된 도구|toolName|toolOutput|total_budget/);
+    const body = rendered.nodes.find(node => node.type === "AmoraMessageBody");
+    assert.equal(body.props.content, "총예산은 5,000만 원이에요.");
+    assert.match(rendered.text, /결혼 예절 안내를 근거로 했어요/);
+    const preview = rendered.nodes.find(node => node.type === "PersonalActionSave");
+    if (visibility === "shared") assert.equal(preview, undefined);
+    else assert.equal(preview.props.content, prose);
+    assert.deepEqual(metadata, {});
+  }
+});
+
+test("human questions and partner messages retain their exact marker and JSON text", () => {
+  const content = `이 표시는 무슨 뜻이야?${leakedHistory} [etiquette:9]`;
+  for (const sender_type of ["bride", "groom"]) {
+    const rendered = renderProposal([], {
+      itemOverrides: { content, sender_type, metadata: { target: "partner" } },
+    });
+    const humanBody = rendered.nodes.find(node => node.type === "Text" && node.children.includes(content));
+    assert.ok(humanBody, `${sender_type} 원문이 보존되어야 한다`);
+    assert.equal(rendered.nodes.some(node => node.type === "AmoraMessageBody"), false);
+  }
+});
+
+test("internal-only native streaming waits while completed internal-only answers remain readable", () => {
+  const streaming = renderProposal([], {
+    streaming: true,
+    itemOverrides: { id: "temp_answer", content: leakedHistory, metadata: {} },
+  });
+  assert.equal(streaming.nodes.some(node => node.type === "ThinkingDots"), true);
+  assert.doesNotMatch(streaming.text, /저장된 도구|toolName|total_budget/);
+  const completed = renderProposal([], {
+    itemOverrides: { content: leakedHistory, metadata: {} },
+  });
+  const body = completed.nodes.find(node => node.type === "AmoraMessageBody");
+  assert.ok(body.props.content.trim());
+  assert.doesNotMatch(completed.text, /저장된 도구|toolName|total_budget/);
+});
+
+test("sanitized AI display preserves pending approval, budget receipt and safety accessibility", () => {
+  const metadata = {
+    pending_amora_action: action,
+    toolResults: [{ toolName: "update_budget", success: true, displayMessage: "총예산 5,000만 원을 반영했어요." }],
+  };
+  const snapshot = globalThis.structuredClone(metadata);
+  const rendered = renderProposal([], {
+    itemOverrides: { content: "내용을 확인해 주세요." + leakedHistory, metadata },
+  });
+  assert.match(rendered.text, /적용하기 전에 확인해 주세요|확인한 내용을 이대로 적용/);
+  assert.match(rendered.text, /드레스 피팅 일정을 추가할까요/);
+  const receipt = rendered.nodes.find(node => node.type === "ToolResultCard");
+  assert.equal(receipt.props.model.message, "총예산 5,000만 원을 반영했어요.");
+  assert.deepEqual(metadata, snapshot);
+  const safety = renderProposal([], {
+    itemOverrides: { content: "위험한 상황이면 112에 연락해 주세요." + leakedHistory, metadata: { pinned_safety_card: true } },
+  });
+  const alert = safety.nodes.find(node => node.props?.accessibilityRole === "alert");
+  assert.equal(alert.props.accessibilityLabel, "긴급 안전 안내. 위험한 상황이면 112에 연락해 주세요.");
+  assert.doesNotMatch(safety.text, /저장된 도구|toolName|total_budget/);
 });
 
 test("모바일도 웹과 같은 승인 정책을 쓴다 — 전부 한 사람 확인", () => {

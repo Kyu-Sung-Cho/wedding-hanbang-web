@@ -1,4 +1,5 @@
 import { composeAmoraPersistenceTerminal } from "./amoraPersistenceClaims";
+import { hasAmoraInternalArtifactPrefix } from "@hanbang/shared/amora-visible-text";
 import { hasAmoraRequestMarkerPrefix } from "./amoraRequestMarkers";
 import { hasAmoraRankedRecommendation } from "./amoraRecommendationConsistency";
 
@@ -29,6 +30,7 @@ export function createAmoraProviderPreviewGate(
     pending += delta;
 
     if (STRUCTURED_OUTPUT_MARKER_RE.test(pending) || hasAmoraRequestMarkerPrefix(pending)
+      || hasAmoraInternalArtifactPrefix(pending)
       || hasAmoraRankedRecommendation(pending)) {
       structuredOutputSeen = true;
       return;

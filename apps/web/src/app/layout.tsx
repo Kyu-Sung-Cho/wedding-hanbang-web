@@ -49,6 +49,13 @@ export default function RootLayout({
   return (
     <html lang="ko" data-scroll-behavior="smooth">
       <head>
+        <link
+          rel="preload"
+          href="/fonts/pretendard/PretendardVariable.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         {/* 번들보다 먼저 실행돼야 한다. 저장소가 막힌 브라우저에서 Realtime 소켓
             생성자가 던지면 첫 화면이 통째로 에러가 되는데, 그 생성은 hydration
             직후에 일어난다. 정상 브라우저에서는 탐침만 하고 아무것도 바꾸지 않는다.

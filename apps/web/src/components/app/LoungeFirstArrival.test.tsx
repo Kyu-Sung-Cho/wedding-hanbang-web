@@ -139,12 +139,13 @@ describe("사용자가 말하지 않은 것은 줄이 없다", () => {
   it("단계·분위기를 말하지 않았으면 그 줄 자체가 없다", () => {
     const view = buildLoungeFirstArrival(makeInput({ weddingDate: null }));
 
-    expect(view?.echo).toEqual([{ label: "결혼식", value: "날짜는 아직" }]);
+    expect(view?.echo).toEqual([]);
     expect(view?.echo.some((line) => line.label === "지금")).toBe(false);
     expect(view?.echo.some((line) => line.label === "원하는 분위기")).toBe(false);
 
     const html = renderToStaticMarkup(<LoungeFirstArrival view={view!} />);
-    expect(html).not.toContain("원하는 분위기");
+    expect(html).toBe("");
+    expect(renderToStaticMarkup(<LoungeFirstArrivalEmptyNote view={view!} />)).toBe("");
   });
 
   it("모르는 분위기 값은 지어내지 않고 줄을 빼버린다", () => {

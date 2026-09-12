@@ -17,7 +17,8 @@ describe("공개 준비 항목의 짧은 아모라 연결", () => {
         expect(href!.length).toBeLessThan(190);
         expect(parseAmoraPreparationSource(value)).toEqual(source);
         const draft = await resolveAmoraPreparationSource(value);
-        expect(draft?.text).toContain(category.label);
+        expect(draft?.sourceLabel).toContain(category.label);
+        expect(draft?.text).toContain(item?.label ?? category.label);
         expect(draft?.sourceHref).toBe(`/checklist?category=${category.key}`);
         if (item) {
           expect(draft?.text).toContain(item.label);

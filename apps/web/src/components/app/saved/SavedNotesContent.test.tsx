@@ -50,6 +50,25 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
     expect(container.textContent).toContain(note.content);
   });
 
+  it("AI 저장 답변의 내부 프레임만 숨기고 직접 쓴 메모는 그대로 표시한다", async () => {
+    const content = '신혼여행 예산은 800만 원이에요.\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"total_allocated":34000000}\n총예산은 유지해요.';
+    const memo = '{"total_budget":35000000} 이 원문으로 문의하기';
+    vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [{ ...note, sourceIsAi: true, content, memo }] }));
+    await render();
+    expect(container.textContent).toContain("신혼여행 예산은 800만 원이에요.");
+    expect(container.textContent).toContain("총예산은 유지해요.");
+    expect(container.textContent).not.toContain("저장된 도구 결과");
+    expect(container.textContent).not.toContain("total_allocated");
+    expect(button(memo)).toBeDefined();
+  });
+
+  it.each([false, undefined])("AI 출처가 확인되지 않은 저장 원문은 바꾸지 않는다: %s", async sourceIsAi => {
+    const content = '{"total_budget":35000000,"total_allocated":34000000} 이렇게 적었어요.';
+    vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [{ ...note, sourceIsAi, content }] }));
+    await render();
+    expect(container.textContent).toContain(content);
+  });
+
   it.each([{ updated: false }, { updated: true, id: "wrong" }, {}])("200의 잘못된 수정 영수증에서 메모를 보존한다: %j", async receipt => {
     vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [note] })).mockResolvedValueOnce(response(receipt));
     await render(); const field = await edit();

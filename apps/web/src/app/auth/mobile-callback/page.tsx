@@ -71,7 +71,7 @@ export default function MobileCallbackPage() {
       justifyContent: "center",
       minHeight: "100vh",
       background: palette.bg,
-      fontFamily: "'Paperlogy', sans-serif",
+      fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif",
       padding: "20px",
     }}>
       <div style={{

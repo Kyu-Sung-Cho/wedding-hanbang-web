@@ -7,6 +7,7 @@ import { buildAmoraBoundedContinuity, type AmoraBoundedContinuityResult } from "
 import { buildAmoraHistoryContent, isAmoraFailedProposalNotice } from "../amoraPendingAction";
 import { classifyAmoraQuestionScope } from "../amoraQuestionScope";
 import { selectAmoraTrustedHistoryRows } from "../amoraTrustedHistory";
+import { stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
 
 // 실제 route의 변환 함수를 실행한다. helper만 통과하고 provider 배선은 빠지는 회귀를 막는다.
 const routeSource = readFileSync(resolve(process.cwd(), "src/app/api/chat/route.ts"), "utf8");
@@ -36,9 +37,10 @@ type Row = {
 const convert = new Function(
   "appendAmoraToolResultHistory", "buildAmoraHistoryContent", "isAmoraFailedProposalNotice",
   "speakerLabelFor", "usesNeutralMemberPresentation", "actorId", "PARTNER_TARGET_SUFFIX",
+  "stripAmoraInternalArtifacts",
   `${javascript}\nreturn convert;`,
 )(appendAmoraToolResultHistory, buildAmoraHistoryContent, isAmoraFailedProposalNotice,
-  () => "본인", false, "user-a", "") as (row: Row) => { role: string; content: string } | null;
+  () => "본인", false, "user-a", "", stripAmoraInternalArtifacts) as (row: Row) => { role: string; content: string } | null;
 
 const search = (query = "부산 해운대 상견례", count = 5) => ({
   toolName: "search_nearby_places", success: true,
@@ -74,9 +76,9 @@ function cardData(content: string): Record<string, unknown>[] {
 
 function bound(input: Row[]): AmoraBoundedContinuityResult | null {
   const current = input[0].content;
-  const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory"];
+  const names = ["isDemo", "requestKind", "isDurableUserMessageBound", "weddingClarificationContinuityWithFallback", "questionScope", "bodyUserMessageId", "shouldLoadBoundedContinuity", "buildAmoraBoundedContinuity", "selectAmoraTrustedHistoryRows", "boundedContinuityRows", "visibility", "lastUserText", "actorId", "boundedContinuitySegmentId", "appendAmoraBoundedToolResultHistory", "stripAmoraInternalArtifacts"];
   const source = ts.transpileModule(`const value = ${initializers.get("boundedContinuity")![0]};`, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS } }).outputText;
-  return new Function(...names, `${source}\nreturn value;`)(false, "chat", true, null, classifyAmoraQuestionScope({ userText: current }), "current", true, buildAmoraBoundedContinuity, selectAmoraTrustedHistoryRows, input, "shared", current, "user-a", "segment-a", appendAmoraBoundedToolResultHistory);
+  return new Function(...names, `${source}\nreturn value;`)(false, "chat", true, null, classifyAmoraQuestionScope({ userText: current }), "current", true, buildAmoraBoundedContinuity, selectAmoraTrustedHistoryRows, input, "shared", current, "user-a", "segment-a", appendAmoraBoundedToolResultHistory, stripAmoraInternalArtifacts);
 }
 
 function boundedRows(): Row[] {
@@ -84,6 +86,16 @@ function boundedRows(): Row[] {
 }
 
 describe("실제 bounded 경로의 검증된 3행과 길이 제한", () => {
+  it("does not repeat an old leaked body but retains the authorized market card facts", () => {
+    const input = boundedRows();
+    input[1].content = '기존 안내예요.\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}';
+    const original = structuredClone(input);
+    const result = bound(input)!;
+    expect(result.messages[1].content).toContain("기존 안내예요.");
+    expect(result.messages[1].content).not.toContain("total_budget");
+    expect(cardData(result.messages[1].content)[0]).toMatchObject({ tool: "get_market_price", period: "2025년 11월" });
+    expect(input).toEqual(original);
+  });
   it("짧은 지시어 후속에도 실제 시세 기준과 단위가 남으며 권한은 none이다", () => {
     const result = bound(boundedRows());
     expect(result).not.toBeNull();
@@ -127,6 +139,18 @@ describe("실제 bounded 경로의 검증된 3행과 길이 제한", () => {
 });
 
 describe("실제 canonical provider history의 검색·시세 카드", () => {
+  it("cleans stored prose before restoring its valid pending action and card evidence", () => {
+    const input = rows([search()]);
+    input[1].content = '기존 안내예요.\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}';
+    input[1].metadata!.pending_amora_action = { version: 2, tool: "update_budget", input: { total_budget: 50000000 } };
+    const original = structuredClone(input);
+    const content = providerHistory(input)[1].content;
+    expect(content).toContain("기존 안내예요.");
+    expect(content).not.toContain('"total_budget":35000000');
+    expect(content).toContain('[pending_action]{"tool":"update_budget","input":{"total_budget":50000000}}[/pending_action]');
+    expect(cardData(content)[0]).toMatchObject({ tool: "search_nearby_places", resultCount: 5 });
+    expect(input).toEqual(original);
+  });
   it("일반 결혼 후속 질문에도 요청한 3이 아닌 실제 검색 5건과 출처/광고 구분을 전달한다", () => {
     const input = rows([search()]);
     expect(["W0_wedding_core", "W1_wedding_adjacent"]).toContain(classifyAmoraQuestionScope({ userText: input[2].content }).scope);

@@ -1,15 +1,6 @@
 import type { ReactNode } from "react";
-import {
-  ActivityIndicator,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  type PressableProps,
-  type StyleProp,
-  type TextStyle,
-  type ViewStyle,
-} from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, View, type PressableProps, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { ArrowLeft, ChevronRight } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 

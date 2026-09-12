@@ -1,5 +1,7 @@
 "use client";
 
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
+
 import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
 import { buildWeddingTasteAmoraText } from "@/lib/weddingCode/taste";
 import {
@@ -536,6 +538,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
         [lane]: {
           ...currentDraft,
           input: resolvedInput,
+          // 질문을 지우면 함께 이어 온 공개 참고 맥락도 해제한다.
+          preparation: resolvedInput.trim() ? currentDraft.preparation : null,
           retryClientRequestId:
             resolvedInput === currentDraft.input ? currentDraft.retryClientRequestId : null,
         },
@@ -1009,6 +1013,14 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
     source?: string;
     error?: string;
   } | null>(null);
+  const placedPreparation = composerDrafts.shared_ai.preparation;
+  const preparationQuestionPlaced = Boolean(preparationNotice?.draft
+    && preparationNotice.draft === placedPreparation?.draft
+    && preparationNotice.source === placedPreparation?.source);
+  useEffect(() => {
+    // 입력창에 들어간 질문은 안내로 다시 보여주거나 전송 후 되살리지 않는다.
+    if (preparationQuestionPlaced) setPreparationNotice(null);
+  }, [preparationQuestionPlaced]);
   useEffect(() => {
     const values: string[] = JSON.parse(preparationKey);
     if (!values.length) { preparationVisitRef.current = null; return; }
@@ -3094,7 +3106,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           // 검색 필터 (검색어 trim 후 case-insensitive 부분 매치)
           const q = searchQuery.trim().toLowerCase();
           const filteredMessages = q
-            ? tabMessages.filter((m) => m.content.toLowerCase().includes(q))
+            ? tabMessages.filter((m) => (m.sender_role === "ai" ? getAmoraVisibleText(m.content) : m.content).toLowerCase().includes(q))
             : tabMessages;
 
           if (q && filteredMessages.length === 0) {
@@ -3419,11 +3431,10 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             : <p>이어 온 취향의 계정이나 유효 시간을 확인하지 못했어요. 웨딩 취향 화면에서 현재 계정을 확인한 뒤 다시 이어 주세요.</p>}
         </div>
       )}
-      {preparationNotice?.identity === composerIdentity && preparationNotice.epoch === composerEpochRef.current && (
+      {!preparationQuestionPlaced && preparationNotice?.identity === composerIdentity && preparationNotice.epoch === composerEpochRef.current && (
         <div role="status" className="mx-3 my-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm leading-relaxed">
           {preparationNotice.draft ? <>
-            <p>{preparationNotice.draft.sourceLabel}에서 이어 왔어요. 함께 대화에 보내면 상대방도 볼 수 있어요. 전송과 변경 저장은 직접 확인해 주세요.</p>
-            <details><summary className="flex min-h-11 cursor-pointer items-center">이어 온 질문 보기</summary><p>{preparationNotice.draft.text}</p></details>
+            <p>작성 중인 내용은 유지했어요. 함께 대화 입력창을 비운 뒤 이어 온 질문을 불러올 수 있어요.</p>
             <button type="button" className="min-h-11 underline disabled:opacity-50"
               disabled={isStreaming || isSending || Boolean(composerDrafts.shared_ai.input.trim()) || composerDrafts.shared_ai.attachments.length > 0 || composerDrafts.shared_ai.pendingAttachmentReads > 0}
               onClick={() => {
@@ -3431,11 +3442,16 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 if (!draft || !preparationNotice.source || preparationNotice.identity !== composerIdentity || preparationNotice.epoch !== composerEpochRef.current || isStreaming || isSending) return;
                 const current = composerDraftsRef.current.shared_ai;
                 if (current.input.trim() || current.attachments.length || current.pendingAttachmentReads) return;
-                setComposerDrafts(previous => ({ ...previous, shared_ai: { ...previous.shared_ai, input: draft.text, preparation: { source: preparationNotice.source!, draft }, retryClientRequestId: null } }));
+                const source = preparationNotice.source;
+                setComposerDrafts(previous => {
+                  const lane = previous.shared_ai;
+                  if (lane.input.trim() || lane.attachments.length || lane.pendingAttachmentReads) return previous;
+                  return { ...previous, shared_ai: { ...lane, input: draft.text, preparation: { source, draft }, retryClientRequestId: null } };
+                });
                 handleScopeChange("shared");
                 handleMessageTargetChange("ai");
                 requestAnimationFrame(() => textareaRef.current?.focus());
-              }}>비운 함께 대화에 질문 넣기</button>
+              }}>함께 대화에 질문 불러오기</button>
             <Link href={weddingPath(preparationNotice.draft.sourceHref)} className="ml-3 inline-flex min-h-11 items-center underline">원래 안내 보기</Link>
           </> : <p>{preparationNotice.error}</p>}
         </div>
@@ -3727,12 +3743,6 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           </div>
         )}
 
-        {composerDrafts[activeComposerLane].preparation && <div className="mb-2 rounded-lg border border-[var(--hb-hairline)] p-3 text-sm">
-          <p>함께 볼 참고 안내: {composerDrafts[activeComposerLane].preparation.draft.sourceLabel}</p>
-          <p className="text-xs">보낼 때 공개 안내를 참고자료로 함께 전달해요. 내 예산이나 완료 상태로 저장하지 않아요.</p>
-          <button type="button" aria-label="첨부한 준비 안내 제거" className="min-h-11 underline" disabled={isStreaming || isSending}
-            onClick={() => setComposerDrafts(previous => ({ ...previous, [activeComposerLane]: { ...previous[activeComposerLane], preparation: null, retryClientRequestId: null } }))}>안내 빼기</button>
-        </div>}
         <div className={`bg-white rounded-[6px] shadow-[var(--shadow-raised)] flex items-center gap-1 sm:gap-2 p-1.5 sm:p-2.5 transition-colors ${
           messageTarget === "partner"
             ? "ring-1 ring-[#D99C9C]/30"

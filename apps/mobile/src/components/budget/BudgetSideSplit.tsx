@@ -10,8 +10,8 @@
  *
  * 색은 뜻을 지지 않는다. 어느 기둥이 어느 색인지는 임의고, 뜻은 글자가 진다.
  */
-
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { colors } from "@hanbang/design-tokens";
 import {
   formatManwon,

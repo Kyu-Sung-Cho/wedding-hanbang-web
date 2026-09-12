@@ -184,6 +184,7 @@ function cardHarness(props = {}) {
     removeChannel(channel) { listeners.delete(channel.callback); },
   };
   const modules = {
+    "@/components/ui/AppText": { Text: "Text" },
     react: hooks,
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "react-native": { Pressable: "Pressable", Text: "Text", View: "View", StyleSheet: { create: value => value } },

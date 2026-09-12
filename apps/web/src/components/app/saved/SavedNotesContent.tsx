@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Bookmark, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { z } from "zod";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 
 import Button from "@/components/ui/Button";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -13,6 +14,7 @@ type SavedNote = {
   id: string;
   messageId: string | null;
   content: string;
+  sourceIsAi?: boolean;
   memo: string | null;
   savedByMe: boolean;
   createdAt: string;
@@ -25,6 +27,7 @@ const focus = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
 const notesSchema = z.object({ notes: z.array(z.object({
   id: z.string().uuid(), messageId: z.string().uuid().nullable(),
   content: z.string().min(1).max(4_000), memo: z.string().max(500).nullable(),
+  sourceIsAi: z.boolean().optional(),
   savedByMe: z.boolean(), createdAt: z.string(),
 })).max(300), next_cursor: z.string().min(1).max(2_048).nullable().optional() });
 
@@ -287,9 +290,9 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
                 </button>}
               </div>
 
-              {/* 원문 그대로 — 우리가 줄이거나 바꾸지 않는다. */}
+              {/* 확인된 AI 출처의 내부 데이터만 가리고 사용자 원문은 유지한다. */}
               <p className="mt-3 break-words whitespace-pre-line text-base leading-7 text-[var(--hb-text-strong)]">
-                {note.content}
+                {note.sourceIsAi === true ? getAmoraVisibleText(note.content) : note.content}
               </p>
 
               {editingId === note.id ? (

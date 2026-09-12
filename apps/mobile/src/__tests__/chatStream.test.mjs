@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath, URL } from "node:url";
 import ts from "typescript";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 
 const sourcePath = fileURLToPath(new URL("../../app/(tabs)/chat.tsx", import.meta.url));
 const sourceText = readFileSync(sourcePath, "utf8");
@@ -53,6 +54,7 @@ const renderedToolsDeclaration = (
 assert.notEqual(renderedToolsDeclaration, "", "missing MOBILE_RENDERED_TOOLS");
 
 const loadParser = new Function(
+  "getAmoraVisibleText",
   `const API_BASE = "https://hanbang.ai";\nconst CHAT_REQUEST_TIMEOUT_MS = 180000;\n${renderedToolsDeclaration}\n${compiled.outputText}\nreturn { asChatMessageMetadata, ChatTransportError, createChatStreamParser, applyChatStreamUpdate, mergeRealtimeMessage, reconcileChatStreamUpdate, streamChatWithXhr };`,
 );
 const {
@@ -63,7 +65,7 @@ const {
   mergeRealtimeMessage,
   reconcileChatStreamUpdate,
   streamChatWithXhr,
-} = loadParser();
+} = loadParser(getAmoraVisibleText);
 
 test("stored malformed tool results cannot crash the native chat renderer or become a success receipt", () => {
   for (const toolResults of [{ toolName: "update_budget", success: true }, "broken", 1, null]) {
@@ -173,6 +175,42 @@ test("text_clear resets partial output and suggestion markup never reaches chat 
 
   assert.deepEqual(updates, ["초안", "", "최종", "최종"]);
   assert.equal(parser.finish(), "최종");
+});
+
+test("streamed internal history never appears across marker and JSON chunk boundaries", () => {
+  const updates = [];
+  const parser = createChatStreamParser((text) => updates.push(text));
+  const answer = "예산은 5,000만 원이에요.";
+  const artifact = '\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n[{"toolName":"update_budget","toolOutput":{"total_budget":50000000}}]';
+  parser.push(`data: ${JSON.stringify({ type: "text_delta", content: answer })}\n\n`);
+  for (const character of artifact) {
+    parser.push(`data: ${JSON.stringify({ type: "text_delta", content: character })}\n\n`);
+  }
+  parser.push(`data: ${JSON.stringify({ type: "done", fullContent: answer + artifact })}\n\n`);
+  assert.equal(parser.finish(), answer);
+  assert.ok(updates.every(text => !/저장된|toolName|toolOutput|total_budget/.test(text)));
+  assert.ok(updates.every(text => text.includes("5,000만 원")));
+});
+
+test("diagnostic-only final answer uses a readable fallback while successful metadata remains intact", () => {
+  const updates = [];
+  const parser = createChatStreamParser((text) => updates.push(text));
+  const artifact = '[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n[{"toolName":"update_budget","toolOutput":{"total_budget":50000000}}]';
+  const metadata = { toolResults: [{ toolName: "update_budget", toolInput: { total_budget: 50000000 }, toolOutput: { applied: true }, success: true, displayMessage: "총예산 5,000만 원을 반영했어요." }] };
+  parser.push(`data: ${JSON.stringify({ type: "text_delta", content: artifact })}\n\n`);
+  parser.push(`data: ${JSON.stringify({ type: "done", fullContent: artifact, metadata })}\n\n`);
+  assert.ok(updates.every(text => text === ""));
+  const final = parser.finish();
+  assert.ok(final.trim());
+  assert.doesNotMatch(final, /저장된|toolName|total_budget|반영했/);
+  assert.deepEqual(parser.getMetadata().toolResults, metadata.toolResults);
+});
+
+test("completed budget table and user-readable JSON amounts survive the output boundary", () => {
+  const body = '| 항목 | 예산 |\n| --- | --- |\n| 예식장 | 30,000,000원 |\n| 신혼여행 | 5,000,000원 |\n\n```json\n{"예산":50000000,"메모":"직접 정한 기준"}\n```';
+  const parser = createChatStreamParser(() => {});
+  parser.push(`data: ${JSON.stringify({ type: "done", fullContent: body })}\n\n`);
+  assert.equal(parser.finish(), body);
 });
 
 test("quota events report only non-negative integer remaining turns", () => {

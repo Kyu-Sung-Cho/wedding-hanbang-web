@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { Ban, Flag, X } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 

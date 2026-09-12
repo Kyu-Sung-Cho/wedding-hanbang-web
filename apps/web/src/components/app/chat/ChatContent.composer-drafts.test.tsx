@@ -1101,7 +1101,10 @@ describe("ChatContent composer draft lanes", () => {
     await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
     expect(mocks.resolvePreparation).toHaveBeenCalledExactlyOnceWith("c.venue.venue_04");
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("결혼식장 · 견적 확인 준비를 도와주세요.");
-    expect(container.textContent).toContain("상대방도 볼 수 있어요");
+    expect(container.textContent).not.toContain("에서 이어 왔어요");
+    expect(container.textContent).not.toContain("이어 온 질문 보기");
+    expect(container.textContent).not.toContain("함께 볼 참고 안내");
+    expect(container.querySelector('button[aria-label="첨부한 준비 안내 제거"]')).toBeNull();
     expect(mocks.replace).toHaveBeenCalledWith(window.location.pathname, { scroll: false });
     await act(async () => root.render(<ChatContent />));
     expect(mocks.resolvePreparation).toHaveBeenCalledTimes(1);
@@ -1111,7 +1114,7 @@ describe("ChatContent composer draft lanes", () => {
   it("sends a reference ID separately from the short question and clears it after successful send", async () => {
     mocks.preparationSources = ["g.cost-saving.section-3"];
     await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
-    expect(container.textContent).toContain("함께 볼 참고 안내");
+    expect(container.textContent).not.toContain("함께 볼 참고 안내");
     await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')?.click());
     expect(mocks.sendMessage).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
       content: "결혼식장 · 견적 확인 준비를 도와주세요.", preparationSource: "g.cost-saving.section-3",
@@ -1120,18 +1123,81 @@ describe("ChatContent composer draft lanes", () => {
     expect(container.querySelector('button[aria-label="첨부한 준비 안내 제거"]')).toBeNull();
   });
 
-  it("restores an unknown-send reference with its retry key, while removing the reference starts a new request", async () => {
+  it("restores an unknown-send reference and retry key, while clearing the question starts a new request without the reference", async () => {
     const key = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: key });
     mocks.sendMessage.mockResolvedValueOnce({ userMessage: "persistence_unknown", clientRequestId: key });
     mocks.preparationSources = ["c.venue"];
     await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
     const send = () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]');
     await act(async () => send()?.click());
-    expect(container.querySelector('button[aria-label="첨부한 준비 안내 제거"]')).not.toBeNull();
-    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="첨부한 준비 안내 제거"]')?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("결혼식장 · 견적 확인 준비를 도와주세요.");
     await act(async () => send()?.click());
-    expect(mocks.sendMessage.mock.calls[1][0]).not.toHaveProperty("preparationSource");
-    expect(mocks.sendMessage.mock.calls[1][0]).not.toHaveProperty("clientRequestId");
+    expect(mocks.sendMessage.mock.calls[1][0]).toEqual(expect.objectContaining({ preparationSource: "c.venue", clientRequestId: key }));
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "새 질문");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => send()?.click());
+    expect(mocks.sendMessage.mock.calls[2][0]).not.toHaveProperty("preparationSource");
+    expect(mocks.sendMessage.mock.calls[2][0]).not.toHaveProperty("clientRequestId");
+  });
+
+  it.each(["", "   "])("clearing an imported question to %j also removes its reference before a new question", async cleared => {
+    mocks.preparationSources = ["g.cost-saving.section-3"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    const input = (text: string) => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, text);
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    await act(async () => input(cleared));
+    expect(container.textContent).not.toContain("이어 온 질문 보기");
+    await act(async () => input("여행지 고르는 기준이 궁금해요."));
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')?.click());
+    expect(mocks.sendMessage.mock.calls[0][0]).toEqual(expect.objectContaining({ content: "여행지 고르는 기준이 궁금해요." }));
+    expect(mocks.sendMessage.mock.calls[0][0]).not.toHaveProperty("preparationSource");
+  });
+
+  it("keeps the public reference for an edited nonempty question without sending it automatically", async () => {
+    mocks.preparationSources = ["c.venue"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "견적에서 추가 비용부터 확인하고 싶어요.");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(mocks.sendMessage).not.toHaveBeenCalled();
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')?.click());
+    expect(mocks.sendMessage.mock.calls[0][0]).toEqual(expect.objectContaining({ content: "견적에서 추가 비용부터 확인하고 싶어요.", preparationSource: "c.venue" }));
+    expect(container.textContent).not.toContain("이어 온 질문 보기");
+  });
+
+  it.each(["private", "partner"])("keeps the imported question in shared AI without sending its source to %s", async lane => {
+    mocks.preparationSources = ["c.venue"];
+    await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
+    const button = (label: string) => Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(node => node.textContent?.includes(label));
+    await act(async () => button(lane === "private" ? "나만 (상담)" : "상대방에게")?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("");
+    await act(async () => {
+      const textarea = container.querySelector<HTMLTextAreaElement>("textarea");
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set?.call(textarea, "이번 주말에 시간 괜찮을까요?");
+      textarea?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    const sendLabel = lane === "private" ? "나만의 아모라 상담 메시지 보내기" : "상대방에게 메시지 보내기";
+    await act(async () => container.querySelector<HTMLButtonElement>(`button[aria-label="${sendLabel}"]`)?.click());
+    expect(mocks.sendMessage).toHaveBeenCalledTimes(1);
+    expect(mocks.sendMessage.mock.calls[0][0]).not.toHaveProperty("preparationSource");
+    await act(async () => button(lane === "private" ? "함께 대화" : "아모라에게")?.click());
+    expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("결혼식장 · 견적 확인 준비를 도와주세요.");
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="함께 보는 아모라 메시지 보내기"]')?.click());
+    expect(mocks.sendMessage.mock.calls[1][0]).toEqual(expect.objectContaining({ preparationSource: "c.venue", visibility: "shared", target: "ai" }));
   });
 
   it("rejects duplicate source IDs without falling through to an arbitrary legacy prefill", async () => {
@@ -1223,8 +1289,10 @@ describe("ChatContent composer draft lanes", () => {
     mocks.preparationSources = ["c.venue.venue_04"];
     await act(async () => { root.render(<ChatContent />); await Promise.resolve(); });
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("개인적으로 쓰던 질문");
-    await act(async () => button("비운 함께 대화에 질문 넣기")?.click());
+    await act(async () => button("함께 대화에 질문 불러오기")?.click());
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("결혼식장 · 견적 확인 준비를 도와주세요.");
+    expect(button("함께 대화에 질문 불러오기")).toBeUndefined();
+    expect(container.textContent).not.toContain("함께 볼 참고 안내");
     await act(async () => button("나만 (상담)")?.click());
     expect(container.querySelector<HTMLTextAreaElement>("textarea")?.value).toBe("개인적으로 쓰던 질문");
     expect(mocks.sendMessage).not.toHaveBeenCalled();

@@ -1,20 +1,8 @@
 // 설정 화면 — 프로필/결혼정보 직접 편집 + 알림, 계정관리, 앱 정보
 import { useEffect, useState, useRef } from "react";
 import { CONTACT } from "@hanbang/shared/constants";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  Linking,
-  Animated,
-  Modal,
-  Platform,
-} from "react-native";
+import { View, Pressable, ScrollView, StyleSheet, Alert, ActivityIndicator, Linking, Animated, Modal, Platform } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";

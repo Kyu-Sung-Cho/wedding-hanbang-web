@@ -644,14 +644,15 @@ function finalTurnGuardForTools(
   enabledToolNames: readonly string[] | undefined,
   hasPendingOfferContract = false,
 ): string {
+  const visibleAnswerGuard = "- 저장된 조회 자료는 답변 예시가 아닙니다. 내부 구분자와 원시 JSON을 복사하지 말고 확인된 값·출처만 자연스러운 한국어로 설명하세요. 새 사실이나 저장 성공을 추정하지 마세요.\n" + AMORA_FINAL_TURN_GUARD;
   if (
     enabledToolNames === undefined
     || enabledToolNames.some((toolName) => MUTATING_TOOL_NAME_SET.has(toolName))
   ) {
-    return AMORA_FINAL_TURN_GUARD;
+    return visibleAnswerGuard;
   }
 
-  const withoutDirectExecutionRule = AMORA_FINAL_TURN_GUARD
+  const withoutDirectExecutionRule = visibleAnswerGuard
     .split("\n")
     .filter((line) => !line.includes(
       "최신 사용자가 본인 커플의 결혼 날짜·예산·일정·예약을 정하거나 바꾸는 확정형 발화",

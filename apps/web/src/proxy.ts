@@ -57,7 +57,7 @@ function isAllowedWeddingCodePreviewAsset(request: NextRequest): boolean {
   if (
     pathname.startsWith("/_next/static/")
     || pathname === "/_next/webpack-hmr"
-    || pathname.startsWith("/fonts/paperlogy/")
+    || pathname === "/fonts/pretendard/PretendardVariable.woff2"
     || pathname === "/favicon.ico"
     || pathname === "/images/favicon.png"
   ) {

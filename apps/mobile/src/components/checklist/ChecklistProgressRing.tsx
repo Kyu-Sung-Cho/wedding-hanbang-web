@@ -8,8 +8,8 @@
  * 가운데 숫자는 **글자로 나간다.** 고리는 `accessibilityRole="progressbar"` 로
  * 읽히고, 색만으로 진행률을 말하지 않는다.
  */
-
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import Svg, { Circle, G } from "react-native-svg";
 import { colors } from "@hanbang/design-tokens";
 

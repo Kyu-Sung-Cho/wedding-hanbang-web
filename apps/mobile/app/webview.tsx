@@ -1,9 +1,7 @@
 // 범용 WebView 화면 — hanbang.ai 페이지를 앱 내에서 표시
 import { useState, useRef, useCallback, useMemo } from "react";
-import {
-  View, Text, StyleSheet, Pressable, ActivityIndicator,
-  Share, Linking, Alert,
-} from "react-native";
+import { View, StyleSheet, Pressable, ActivityIndicator, Share, Linking, Alert } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import * as Crypto from "expo-crypto";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";

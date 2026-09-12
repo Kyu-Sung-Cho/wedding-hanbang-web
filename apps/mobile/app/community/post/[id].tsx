@@ -1,10 +1,8 @@
 // 게시글 상세 + 댓글 + 투표/북마크
 import { useEffect, useState, useCallback, useRef } from "react";
 import { toKoreanErrorMessage } from "@/lib/errorCopy";
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, TextInput,
-  ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Animated,
-} from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Animated } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import * as Crypto from "expo-crypto";

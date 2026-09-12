@@ -1,10 +1,7 @@
 // 비밀번호 찾기 — 이메일로 재설정 링크 발송
 import { useState, useEffect, useRef } from "react";
-import {
-  View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated,
-} from "react-native";
+import { View, Pressable, StyleSheet, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Animated } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";

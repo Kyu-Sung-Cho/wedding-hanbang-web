@@ -1,20 +1,7 @@
 // 동기방 실시간 채팅 — 개선 버전 (멤버 목록, 정보판, 타임라인 탭)
 import { useState, useRef, useEffect, useCallback } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ActivityIndicator,
-  RefreshControl,
-  LayoutAnimation,
-  AppState,
-} from "react-native";
+import { View, Pressable, FlatList, ScrollView, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, RefreshControl, LayoutAnimation, AppState } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, router, useFocusEffect } from "expo-router";
 import * as Crypto from "expo-crypto";

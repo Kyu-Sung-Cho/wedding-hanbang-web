@@ -53,6 +53,7 @@ test("actual native component renders labelled money rows and styled text withou
   const require = (name) => {
     if (name === "react/jsx-runtime") return { jsx, jsxs: jsx };
     if (name === "react-native") return { View: "View", Text: "Text", StyleSheet: { create: (value) => value } };
+    if (name === "@/components/ui/AppText") return { Text: "Text" };
     if (name === "@hanbang/design-tokens") return { colors: { border: "test-border" } };
     if (name === "../../lib/amoraMessageBody.mjs") return bodyParser;
     throw new Error(`Unexpected module: ${name}`);

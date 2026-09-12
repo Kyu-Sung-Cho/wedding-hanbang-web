@@ -9,15 +9,15 @@ export const contentType = "image/png";
 export const runtime = "nodejs";
 
 // satori(next/og)는 woff2를 지원하지 않는다 — ttf만 사용.
-const paperlogyBold = readFile(join(
+const pretendardBold = readFile(join(
   process.cwd(),
-  "public/fonts/paperlogy/Paperlogy-7Bold.ttf",
+  "public/fonts/pretendard/Pretendard-Bold.ttf",
 ));
 
 export default async function OpenGraphImage() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "62px 72px", color: "#243832", background: "linear-gradient(135deg, #fffdf8 0%, #f5ece4 58%, #e7d7c8 100%)", fontFamily: "Paperlogy" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "62px 72px", color: "#243832", background: "linear-gradient(135deg, #fffdf8 0%, #f5ece4 58%, #e7d7c8 100%)", fontFamily: "Pretendard Variable" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 30 }}>
           <div style={{ width: 52, height: 52, borderRadius: 18, display: "flex", alignItems: "center", justifyContent: "center", background: "#36534E", color: "white", fontSize: 24 }}>한</div>
           웨딩한방
@@ -39,7 +39,7 @@ export default async function OpenGraphImage() {
     ),
     {
       ...size,
-      fonts: [{ name: "Paperlogy", data: await paperlogyBold, style: "normal", weight: 700 }],
+      fonts: [{ name: "Pretendard Variable", data: await pretendardBold, style: "normal", weight: 700 }],
     },
   );
 }

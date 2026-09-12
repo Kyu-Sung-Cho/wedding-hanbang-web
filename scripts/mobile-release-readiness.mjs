@@ -568,7 +568,7 @@ for (const sourceFile of mobileSourceFiles) {
 expect(
   nonZeroLetterSpacing.length === 0,
   nonZeroLetterSpacing.length === 0
-    ? "Mobile source keeps Paperlogy letter spacing at 0"
+    ? "Mobile source keeps standard UI font letter spacing at 0"
     : `Mobile source has non-zero letterSpacing: ${nonZeroLetterSpacing.join("; ")}`
 );
 

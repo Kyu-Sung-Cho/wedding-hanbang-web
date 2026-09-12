@@ -116,6 +116,7 @@ test("actual native result buttons open only the app-owned destination and never
   const dependencies = {
     "react/jsx-runtime": { jsx, jsxs: jsx },
     "react-native": { View: "View", Text: "Text", Pressable: "Pressable", StyleSheet: { create: value => value } },
+    "@/components/ui/AppText": { Text: "Text" },
     "expo-router": { router: { push: pathname => navigation.push(pathname) } },
     "lucide-react-native": { CheckCircle2: "CheckCircle2", XCircle: "XCircle" },
     "@hanbang/design-tokens": { colors: { noir: { 800: "black", soft: "gray" }, rose: { 600: "rose" } } },

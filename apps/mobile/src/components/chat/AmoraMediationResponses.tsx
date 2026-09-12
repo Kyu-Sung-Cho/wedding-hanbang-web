@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from "@/components/ui/AppText";
 import { router } from 'expo-router';
 import { colors } from '@hanbang/design-tokens';
 import { mediationChoiceLabels, type MediationChoice, type MediationResponseRevision, type MediationResponseSession, type MediationSessionState } from '@hanbang/shared/mediation-responses';

@@ -326,17 +326,13 @@ describe("라운지 첫 도착", () => {
     });
     expect(nextYear.echo[0]?.value).toContain("2027년 1월 3일");
 
-    // 아직 안 정한 것도 사실이라 빈칸으로 두지 않는다.
-    expect(buildLoungeFirstRunView({ now: NOW }).echo[0]).toEqual({
-      label: "결혼식",
-      value: "날짜는 아직",
-    });
+    expect(buildLoungeFirstRunView({ now: NOW }).echo).toEqual([]);
   });
 
   it("말하지 않은 것은 줄 자체가 없다", () => {
     const view = buildLoungeFirstRunView({ now: NOW });
-    // 결혼식 줄만 남는다(그건 "아직"으로라도 말한다).
-    expect(view.echo).toHaveLength(1);
+    expect(view.echo).toHaveLength(0);
+    expect(view.emptyNote).toBe("");
     expect(view.invite).toBeNull();
 
     const full = buildLoungeFirstRunView({
@@ -352,5 +348,17 @@ describe("라운지 첫 도착", () => {
       "원하는 분위기",
     ]);
     expect(full.invite).not.toBeNull();
+  });
+
+  it("미정 날짜나 빈 취향으로는 안내를 만들지 않고 초대는 유지한다", () => {
+    const view = buildLoungeFirstRunView({
+      weddingDate: "미정",
+      weddingStyleLabel: "  ",
+      partnerLinked: false,
+      now: NOW,
+    });
+    expect(view.echo).toEqual([]);
+    expect(view.emptyNote).toBe("");
+    expect(view.invite?.cta).toBe("초대 코드 보기");
   });
 });

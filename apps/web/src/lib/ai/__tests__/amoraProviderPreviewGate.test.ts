@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 import { createAmoraProviderPreviewGate } from "../amoraProviderPreviewGate";
 
 describe("createAmoraProviderPreviewGate", () => {
+  it("holds an internal marker and JSON even when each arrives one character at a time", () => {
+    const emit = vi.fn();
+    const gate = createAmoraProviderPreviewGate(emit);
+    gate.push("총예산은 3,500만 원이에요. ");
+    const safePreview = emit.mock.calls.map(([value]) => value).join("");
+    for (const character of '[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}\n내부 자료예요.') {
+      gate.push(character);
+    }
+    expect(emit.mock.calls.map(([value]) => value).join("")).toBe(safePreview);
+    expect(safePreview).toBe("총예산은 3,500만 원이에요.");
+    expect(gate.matchesTerminal("총예산은 3,500만 원이에요.")).toBe(false);
+  });
   it("streams complete safe sentences and recognizes an exact terminal", () => {
     const emit = vi.fn();
     const gate = createAmoraProviderPreviewGate(emit);

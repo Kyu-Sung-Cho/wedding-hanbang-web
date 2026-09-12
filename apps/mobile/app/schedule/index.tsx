@@ -1,10 +1,7 @@
 // 체크리스트/일정 화면 — 카테고리 체크 + 일정 CRUD
 import { useEffect, useState, useCallback, useRef } from "react";
-import {
-  View, Text, ScrollView, StyleSheet, Pressable, ActivityIndicator,
-  RefreshControl, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
-  Animated, LayoutAnimation, AppState,
-} from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, ActivityIndicator, RefreshControl, Modal, Alert, KeyboardAvoidingView, Platform, Animated, LayoutAnimation, AppState } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, usePathname } from "expo-router";
 import {

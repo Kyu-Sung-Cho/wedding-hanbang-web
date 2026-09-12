@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { router } from "expo-router";
 import { colors, spacing, radius } from "@hanbang/design-tokens";
 import type { PersonalAction, PersonalActionReview } from "@hanbang/shared/amora-personal-actions";

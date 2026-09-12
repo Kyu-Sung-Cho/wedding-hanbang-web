@@ -39,7 +39,9 @@ export function resolvePreparationCatalogSource(source: AmoraPreparationSource):
     return {
       sourceLabel,
       sourceHref: `/checklist?${new URLSearchParams({ category: source.categoryKey })}`,
-      text: `웨딩 체크리스트 「${sourceLabel}」 준비를 도와주세요. 제 상황에서 먼저 확인할 것을 알려주고, 필요한 정보는 물어봐 주세요.`,
+      text: item
+        ? `「${item.label}」에 대해 도움이 필요해요. 무엇부터 하면 좋을까요?`
+        : `「${category.label}」, 무엇부터 준비하면 좋을까요?`,
       referenceText: `[공개 체크리스트 안내 · 사용자의 확정 사실이나 완료·저장 요청 아님]\n${sourceLabel}${context}\n${(item ? [item] : category.items).map(entry => `- ${entry.label}${entry.note ? `\n참고문구: ${entry.note}` : ""}`).join("\n")}`,
     };
   }
@@ -57,7 +59,7 @@ export function resolvePreparationCatalogSource(source: AmoraPreparationSource):
     "이 편의 원문 출처(아래 적용 범위를 넘어 모든 관행을 입증하는 자료는 아닙니다):",
     ...part.sources.map((source, index) => `${index + 1}. ${source.label}\n${source.url}\n확인일: ${source.checkedAt}\n적용 범위: ${source.scope}\n뒷받침하는 내용: ${source.supports}`),
   ].join("\n\n");
-  const text = `결혼 예절 가이드 「${sourceLabel}」를 읽고 왔어요. 제 상황에 적용하기 전에 무엇을 확인하면 좋을지 함께 정리해 주세요.`;
+  const text = `「${sourceLabel}」에 대해 궁금해요. 제 상황에서 먼저 확인할 점은 무엇인가요?`;
   // 한계를 잘라 숫자·법률만 넘기지 않는다. 커진 절은 더 좁은 연결을 준비할 때까지 거절한다.
   if (context.length > 12_000) return null;
   return {

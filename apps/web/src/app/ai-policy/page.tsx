@@ -20,7 +20,7 @@ export default function AIPolicyPage() {
           >
             ← 홈으로
           </Link>
-          <h1 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-3xl max-md:text-2xl text-[var(--hb-text-strong)] mb-3 leading-tight">
+          <h1 className="font-sans text-3xl max-md:text-2xl text-[var(--hb-text-strong)] mb-3 leading-tight">
             웨딩한방 AI 정책
           </h1>
           <p className="text-sm text-[var(--hb-text-body)]">
@@ -30,7 +30,7 @@ export default function AIPolicyPage() {
 
         {/* Section 1 — 원칙 */}
         <section className="mb-10">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
+          <h2 className="font-sans text-xl text-[var(--hb-text-strong)] mb-4">
             우리의 AI 원칙
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] mb-6 leading-relaxed">
@@ -82,7 +82,7 @@ export default function AIPolicyPage() {
 
         {/* Section 2 — 관리·감독 담당 */}
         <section className="mb-10 p-6 max-md:p-5 bg-white rounded-[6px] border border-[#e5dcdc]">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
+          <h2 className="font-sans text-xl text-[var(--hb-text-strong)] mb-4">
             AI 운영 문의
           </h2>
           <ul className="text-sm text-[var(--hb-text-body)] space-y-2 leading-relaxed">
@@ -100,7 +100,7 @@ export default function AIPolicyPage() {
 
         {/* Section 3 — AI의 한계 */}
         <section className="mb-10">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
+          <h2 className="font-sans text-xl text-[var(--hb-text-strong)] mb-4">
             AI의 한계
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] mb-4 leading-relaxed">
@@ -117,7 +117,7 @@ export default function AIPolicyPage() {
 
         {/* Section 4 — 문제 신고 */}
         <section className="mb-6">
-          <h2 className="font-[family-name:var(--font-serif-kr,_'Paperlogy',_sans-serif)] text-xl text-[var(--hb-text-strong)] mb-4">
+          <h2 className="font-sans text-xl text-[var(--hb-text-strong)] mb-4">
             문제 신고
           </h2>
           <p className="text-sm text-[var(--hb-text-body)] leading-relaxed">

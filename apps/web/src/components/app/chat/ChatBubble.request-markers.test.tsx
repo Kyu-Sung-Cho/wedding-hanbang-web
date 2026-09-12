@@ -60,4 +60,17 @@ describe("과거 아모라 답변의 예약 요청 표식 렌더", () => {
     expect(container.textContent).toContain(message.content);
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  it.each(["shared", "bride_private"] as const)("%s의 과거 AI 답변에서 도구 JSON을 숨기고 정상 예산 문장을 유지한다", async visibility => {
+    await render({ visibility, content: '현재 총예산은 3,500만 원이에요.\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"unallocated":35000000}' });
+    expect(container.textContent).toContain("현재 총예산은 3,500만 원이에요.");
+    expect(container.textContent).not.toMatch(/저장된 도구|total_budget|unallocated|35000000/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])("사용자·파트너가 보낸 JSON은 현재 사용자 여부=%s와 관계없이 그대로 표시한다", async isCurrentUser => {
+    const content = '{"total_budget":35000000} 이 문자가 보여요.';
+    await render({ sender_role: "bride", sender_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", content }, isCurrentUser);
+    expect(container.textContent).toContain(content);
+  });
 });

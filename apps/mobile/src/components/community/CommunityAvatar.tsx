@@ -10,6 +10,7 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 import { colors } from "@hanbang/design-tokens";
+import { useAppFontsLoaded } from "@/components/ui/AppText";
 
 export type CommunityAvatarRole = "bride" | "groom" | "neutral";
 
@@ -214,13 +215,14 @@ function GroomAvatar({ character }: { character: AvatarCharacter }) {
 }
 
 function NeutralAvatar({ character }: { character: AvatarCharacter }) {
+  const fontsLoaded = useAppFontsLoaded();
   return (
     <G>
       <Circle cx="32" cy="27" r="13" fill={character.skin} />
       <Path d="M20 27c2-9 8-14 16-14 6 0 10 4 10 11-8 0-15-2-21-6-1 4-3 7-5 9z" fill={character.hair} />
       <Path d="M19 55c3-8 7.4-12 13-12s10 4 13 12H19z" fill={character.outfit} />
       <Circle cx="32" cy="49" r="7.5" fill="#FFFFFF" opacity="0.18" />
-      <SvgText x="32" y="53" textAnchor="middle" fontSize="11" fontWeight="700" fill="#FFFFFF" opacity="0.82">
+      <SvgText x="32" y="53" textAnchor="middle" fontSize="11" fontFamily={fontsLoaded ? "Pretendard_700Bold" : undefined} fontWeight={fontsLoaded ? "normal" : "700"} fill="#FFFFFF" opacity="0.82">
         {character.initial}
       </SvgText>
       <Eyes character={character} />

@@ -3,7 +3,8 @@ import { readMobileSignupConsentAccess } from "@/lib/signupConsentAccess";
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { Redirect } from "expo-router";
-import { View, ActivityIndicator, StyleSheet, Text } from "react-native";
+import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
 import {

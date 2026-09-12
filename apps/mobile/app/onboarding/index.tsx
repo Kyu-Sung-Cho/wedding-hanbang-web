@@ -3,10 +3,8 @@
 // 꺼져 있으면 6단계(역할 → 커플 → 결혼 상세 → 웨딩 스타일 → 준비 현황 → 완료).
 // 판정은 서버가 /api/auth/me 의 capabilities 로 내려준다 — 앱이 정하지 않는다.
 import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  View, Text, Pressable, TextInput, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Animated, Easing, Platform,
-} from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Animated, Easing, Platform } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";

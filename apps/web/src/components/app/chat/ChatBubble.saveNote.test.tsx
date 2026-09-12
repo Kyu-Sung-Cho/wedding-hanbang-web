@@ -91,6 +91,14 @@ describe("공유 답변을 저장함에 담기", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("저장 미리보기에도 과거 AI 도구 프레임을 다시 노출하지 않는다", async () => {
+    await render({ content: '총예산은 3,500만 원이에요.\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"unallocated":35000000}' });
+    const dialog = await open();
+    expect(dialog.textContent).toContain("총예산은 3,500만 원이에요.");
+    expect(dialog.textContent).not.toMatch(/저장된 도구|total_budget|unallocated|35000000/);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("원문은 보내지 않고 메시지 ID와 선택한 공유 메모만 보내며 saved true 뒤에 링크를 보여준다", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ saved: true, id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", memoApplied: true }), { status: 200 }));
     await render();

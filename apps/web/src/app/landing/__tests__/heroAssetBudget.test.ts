@@ -104,7 +104,7 @@ describe("hero image performance budget", () => {
     expect(card).toContain("size = { width: 1200, height: 630 }");
     expect(card).toContain('contentType = "image/png"');
     // satori는 woff2를 읽지 못한다. ttf가 아니면 렌더가 통째로 실패한다.
-    expect(card).toContain("Paperlogy-7Bold.ttf");
+    expect(card).toContain("Pretendard-Bold.ttf");
 
     // 카드 문구는 반드시 페이지와 같은 출처에서 온다 — 하드코딩하면 다시 갈라진다.
     expect(card).toContain("landingContent");
