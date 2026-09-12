@@ -17,9 +17,10 @@ import {
   MessageCircle,
   Search,
   ShieldCheck,
-  Sparkles,
   Users,
 } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { communityPostLinkProps } from "@/lib/community/routes";
 import { weddingLinkProps, weddingPath } from "@/lib/weddingPaths";
 import type { PostWithAuthor } from "@/types/community.types";
@@ -327,9 +328,9 @@ function DecisionSearchVariant({ cases, total }: { cases: DecisionCase[]; total:
             </div>
             <Link
               {...weddingLinkProps("/chat?source=community_prototype")}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-surface-hover)] px-6 font-sans text-[13px] font-bold text-[var(--hb-text-strong)]"
+              className={`${AMORA_ACTION_CLASS} min-h-12`}
             >
-              <Sparkles className="h-4 w-4 text-[#8F6662]" /> 내 상황 정리하기
+              <AmoraMark className="size-5 shrink-0" /> 내 상황 정리하기
             </Link>
           </div>
         </section>
