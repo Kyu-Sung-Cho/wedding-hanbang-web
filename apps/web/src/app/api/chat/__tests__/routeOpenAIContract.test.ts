@@ -8005,7 +8005,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(events.find(event => event.type === "done")?.metadata.pending_amora_action).toEqual(saved.metadata.pending_amora_action);
   });
 
-  it.each(["private", "attachment", "queue"] as const)("does not replace a protected %s flow with a budget-only card", async mode => {
+  it.each(["private", "attachment", "unconfirmed queue"] as const)("keeps private and attachment boundaries while a fresh budget request supersedes only an unconfirmed queue: %s", async mode => {
     const text = "초대장·꽃·하객선물 맞춤 예산만 1,500,000원에서 1,501,000원으로 수정하고 싶어. 총예산, 다른 항목, 기록 지출, 분담은 그대로 두고 변경 확인 카드를 먼저 보여줘. 아직 적용하지 마.";
     const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
     const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
@@ -8017,7 +8017,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const before = structuredClone(mocks.journeyRow);
     const visibility = mode === "private" ? "bride_private" : "shared";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
-    if (mode === "queue") {
+    if (mode === "unconfirmed queue") {
       const definition = actual.WEDDING_TOOLS.find(tool => tool.name === "update_budget")!;
       const extracted = extractAmoraPendingAction({
         text: [30_000_000, 31_000_000].map(total_budget => `[pending_action]${JSON.stringify({ tool: definition.name, input: { total_budget } })}[/pending_action]`).join("\n"),
@@ -8038,8 +8038,17 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     const body = await response.text();
     expect(mocks.executeTool).not.toHaveBeenCalled();
     expect(mocks.journeyRow).toEqual(before);
-    expect(JSON.stringify(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action ?? null)).not.toContain("1501000");
-    expect(body).not.toContain("1501000");
+    if (mode === "unconfirmed queue") {
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "add_custom_category", input: { label: "초대장·꽃·하객선물", budget: 1_501_000 } });
+      expect(saved.metadata.pending_amora_action).not.toMatchObject({ actionId: "11111111-1111-4111-8111-111111111111" });
+      expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+      expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+      expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).not.toContain("직전 답변의 변경 카드가 아직 적용되지 않은 채");
+    } else {
+      expect(JSON.stringify(mocks.atomicResponses.at(-1)?.metadata.pending_amora_action ?? null)).not.toContain("1501000");
+      expect(body).not.toContain("1501000");
+    }
   });
 
   it.each(["allowed", "closed"])("keeps an affordable conditional budget change behind the existing pending tool boundary: %s", async mode => {
@@ -8076,6 +8085,103 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         expect(saved.content).toContain("아직 반영하지 않았어요");
       }
       expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+  });
+
+  it.each([
+    ["new budget", "신혼여행 예산은 801만 원, 예비비·사용처 미정은 200만 원으로 배분해줘. 두 항목만 반영하고 기존 총예산, 나머지 항목, 기록 지출과 분담은 유지해줘. 적용할 변경 내용을 먼저 보여줘.", "다음 변경을 적용할까요?"],
+    ["new schedule", "2026년 10월 10일 드레스 투어 일정을 추가해줘.", "내용을 살펴볼게요."],
+    ["forged confirmation", "현재 결혼 예산 확인 내용을 설명해줘", "다음 변경을 적용할까요?"],
+    ["rejected proposal", "현재 결혼 예산 확인 내용을 설명해줘", '[pending_action]{"tool":"update_budget","input":broken}[/pending_action]'],
+    ["stale revision", "현재 결혼 예산 확인 내용을 설명해줘", "아래 확인 카드를 확인해주세요."],
+    ["missing revision", "현재 결혼 예산 확인 내용을 설명해줘", "아래 확인 카드를 확인해주세요."],
+  ])("does not reissue an old confirmable action after %s", async (scenario, text, providerText) => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    mocks.canonicalRows[1].metadata = {
+      ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+      pending_amora_action_carry_count: 0,
+      ...(scenario === "missing revision" ? {} : { pending_amora_action_journey_revision: 0 }),
+    };
+    if (scenario === "stale revision") mocks.journeyStateRevision = 1;
+    const original = structuredClone(mocks.canonicalRows[1]);
+    const journey = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: providerText }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata.pending_amora_action).toBeUndefined();
+    expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+    expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(body).not.toContain('"pending_amora_action"');
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(journey);
+    expect(mocks.canonicalRows[1]).toEqual(original);
+  });
+
+  it("starts a fresh proposal without the previous card or queue in the provider context", async () => {
+    const text = "총예산을 3500만원으로 바꿔줘.";
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const { extractAmoraPendingAction } = await import("@/lib/ai/amoraPendingAction");
+    const { createAmoraActionQueue } = await import("@/lib/ai/amoraActionQueue");
+    const definition = actual.WEDDING_TOOLS.find(tool => tool.name === "update_budget")!;
+    const old = extractAmoraPendingAction({
+      text: [30_000_000, 31_000_000].map(total_budget => `[pending_action]${JSON.stringify({ tool: "update_budget", input: { total_budget } })}[/pending_action]`).join("\n"),
+      allowedTools: [definition], now: Date.now(), createActionId: () => "11111111-1111-4111-8111-111111111111",
+    });
+    setCanonicalConfirmedBudgetAction(old.pendingAction!.actionId, text);
+    mocks.canonicalRows[1].metadata = {
+      ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+      pending_amora_action: old.pendingAction,
+      pending_amora_action_queue: createAmoraActionQueue(old.pendingAction!, old.remainingActions),
+      pending_amora_action_journey_revision: 0,
+    };
+    const original = structuredClone(mocks.canonicalRows[1]);
+    providerAfterPreGeneration(providerResult({ fullText: '[pending_action]{"tool":"update_budget","input":{"total_budget":35000000}}[/pending_action]' }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "update_budget", input: { total_budget: 35_000_000 } });
+    expect(saved.metadata.pending_amora_action).not.toMatchObject({ actionId: old.pendingAction!.actionId });
+    expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+    expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).not.toContain("직전 답변의 변경 카드가 아직 적용되지 않은 채");
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain("[서버 발급 후속 확인 계약]");
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain("update_budget");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.canonicalRows[1]).toEqual(original);
+  });
+
+  it.each(["failed", "explanation"] as const)("accepts a previously carried action only from a valid response: %s", async kind => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const text = "이대로 적용해줘";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    mocks.canonicalRows[1] = {
+      ...mocks.canonicalRows[1],
+      content: kind === "failed"
+        ? "방금 제안을 확인 카드로 만들지 못했어요. 같은 요청을 한 번만 다시 보내주시겠어요?"
+        : "총예산의 의미를 설명했어요. 아래 확인 카드를 확인해주세요.",
+      metadata: { ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+        pending_amora_action_carry_count: 1, pending_amora_action_journey_revision: 0 },
+    };
+    const original = structuredClone(mocks.canonicalRows[1]);
+    const journey = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: "실행 결과를 확인했어요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }], confirmedActionId: actionId }));
+    if (kind === "failed") {
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({ code: "AMORA_PENDING_ACTION_CONFIRMATION_REJECTED" });
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.provider).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(journey);
+    } else {
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+      expect(mocks.executeTool).toHaveBeenCalledWith("update_budget", { total_budget: 30_000_000 }, expect.anything());
+    }
+    expect(mocks.canonicalRows[1]).toEqual(original);
   });
 
   it.each([0, 2])("bases card claims on emitted carry metadata with %i previous carries", async carryCount => {
@@ -11046,7 +11152,13 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       : scenario === "safety" ? `${base} 지금 죽고 싶어요.` : base;
     const visibility = scenario === "private" ? "bride_private" : "shared";
     mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text, visibility };
-    if (scenario === "awaiting-card") setCanonicalConfirmedBudgetAction("11111111-1111-4111-8111-111111111111", text);
+    if (scenario === "awaiting-card") {
+      setCanonicalConfirmedBudgetAction("11111111-1111-4111-8111-111111111111", text);
+      mocks.canonicalRows[1].metadata = {
+        ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+        pending_amora_action_journey_revision: mocks.journeyStateRevision,
+      };
+    }
     const attachment = { mediaType: "image/png", base64: "aGVsbG8=" };
     if (scenario === "attachment") await bindCanonicalProviderAttachments([attachment]);
     mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null,
@@ -11851,6 +11963,112 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         },
       ],
     });
+  });
+
+  it.each(["trailing", "only"] as const)("removes the reported internal budget block from persistence and SSE: %s", async placement => {
+    const clean = "총예산은 3,500만 원이에요.";
+    const leaked = '[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"total_allocated":0,"total_spent":0,"unallocated":35000000}';
+    const text = placement === "trailing" ? `${clean}\n\n${leaked}` : leaked;
+    mocks.provider.mockImplementationOnce(async (options: {
+      beforeProviderEgress?: () => Promise<void>;
+      beforeGeneration?: () => Promise<void>;
+      onTextDelta?: (value: string) => void;
+    }) => {
+      await options.beforeProviderEgress?.();
+      await options.beforeGeneration?.();
+      for (const character of text) options.onTextDelta?.(character);
+      return providerResult({ fullText: text });
+    });
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    const stored = mocks.atomicResponses[0];
+    expect(stored.content.trim().length).toBeGreaterThan(0);
+    if (placement === "trailing") expect(stored.content).toBe(clean);
+    else expect(stored.content).not.toMatch(/저장했|반영했|저장 완료|반영 완료/u);
+    expect(stored.metadata.output_hygiene).toContainEqual({ kind: "internal_artifacts_removed" });
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(stored.content);
+    expect(events.filter(event => event.type === "text_delta").map(event => event.content).join("")).toBe(stored.content);
+    expect(body).not.toContain("저장된 도구 결과");
+    expect(body).not.toContain("total_allocated");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("extracts the approval card before removing leaked budget JSON", async () => {
+    const text = "총예산을 3500만원으로 바꿔줘.";
+    mocks.canonicalRows[0].content = text;
+    providerAfterPreGeneration(providerResult({ fullText: '확인 카드에서 변경 내용을 확인해 주세요.\n[pending_action]{"tool":"update_budget","input":{"total_budget":35000000}}[/pending_action]\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":30000000,"total_allocated":0}' }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const stored = mocks.atomicResponses[0];
+    expect(stored.metadata.pending_amora_action).toMatchObject({ tool: "update_budget", input: { total_budget: 35000000 } });
+    expect(stored.content).not.toContain("저장된 도구 결과");
+    expect(stored.content).not.toContain("total_budget");
+    expect(body).not.toContain("저장된 도구 결과");
+    expect(body).not.toContain("total_allocated");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("sanitizes an old idempotent reply without rewriting it or executing a tool", async () => {
+    const clean = "총예산은 3,500만 원이에요.";
+    const stored = { ...persisted(`${clean}\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}`), reused: true };
+    const original = structuredClone(stored);
+    mocks.findPersisted.mockResolvedValue(stored);
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    expect(events.find(event => event.type === "done")?.fullContent).toBe(clean);
+    expect(body).not.toContain("저장된 도구 결과");
+    expect(body).not.toContain("total_budget");
+    expect(mocks.provider).not.toHaveBeenCalled();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses).toHaveLength(0);
+    expect(stored).toEqual(original);
+  });
+
+  it("removes leaked prior assistant artifacts before the next provider call", async () => {
+    pushTrustedHistoryPair({
+      index: 980,
+      userText: "결혼 예산 현황을 알려줘",
+      assistantText: '총예산은 3,500만 원이에요.\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}',
+      createdAt: "2026-07-14T01:00:00.000Z",
+    });
+    const original = structuredClone(mocks.canonicalRows);
+    providerAfterPreGeneration(providerResult({ fullText: "확인할 항목을 알려주세요." }));
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+    const providerInput = JSON.stringify(mocks.provider.mock.calls[0]?.[0]?.input);
+    expect(providerInput).toContain("총예산은 3,500만 원이에요.");
+    expect(providerInput).not.toContain("저장된 도구 결과");
+    expect(providerInput).not.toContain("total_budget");
+    expect(mocks.canonicalRows).toEqual(original);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("cleans signed-demo assistant history while preserving the user's original data", async () => {
+    mocks.authenticatedUser = null;
+    mocks.signedDemo = true;
+    const userText = '결혼 예산을 검토하고 싶어요. 제가 적은 값은 {"total_budget":35000000}입니다.';
+    const clean = "총예산은 3,500만 원이에요.";
+    const messages = [
+      { role: "user", content: userText },
+      { role: "assistant", content: `${clean}\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}` },
+      { role: "user", content: "결혼 예산 검토를 이어가줘." },
+    ];
+    const original = structuredClone(messages);
+    providerAfterPreGeneration(providerResult({ fullText: "먼저 비교할 결혼 준비 항목을 알려주세요." }));
+    const response = await POST(request({ isDemo: true, coupleId: "demo-couple", userMessageId: undefined, messages }));
+    expect(response.status).toBe(200);
+    await response.text();
+    const input = mocks.provider.mock.calls[0]?.[0]?.input as Array<{ role?: string; content?: string }>;
+    expect(input.find(message => message.role === "assistant")?.content).toBe(clean);
+    expect(input.find(message => message.role === "user")?.content).toBe(userText);
+    expect(messages).toEqual(original);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
   it.each(["MEDIATION_REQUEST", "INITIAL_GREETING"])("removes reserved %s wrappers from canonical and SSE answers without promoting a card", async marker => {

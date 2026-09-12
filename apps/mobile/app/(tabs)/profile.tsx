@@ -2,18 +2,8 @@ import { daysUntilWedding } from "@hanbang/shared";
 import { CONTACT } from "@hanbang/shared/constants";
 // 프로필/설정 화면
 import { useState, useCallback } from "react";
-import {
-  View,
-  Text,
-  Pressable,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Linking,
-  RefreshControl,
-  Platform,
-  ActivityIndicator,
-} from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, Alert, Linking, RefreshControl, Platform, ActivityIndicator } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import * as Application from "expo-application";

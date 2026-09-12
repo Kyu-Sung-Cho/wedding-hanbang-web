@@ -13,6 +13,7 @@ import PersonalActionSaveButton from "./PersonalActionSaveButton";
 import { normalizeMediationBlock } from "@/components/app/chat/mediationBlock";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { stripAmoraRequestMarkers } from "@/lib/ai/amoraRequestMarkers";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import { isUuid } from "@/utils/requestValidation";
 import { MANNERS_PARTS } from "@/lib/manners/data";
 import {
@@ -735,7 +736,8 @@ export default function ChatBubble({
 
   // AI 메시지
   if (sender_role === "ai") {
-    const { cleanText, partNumbers } = parseEtiquetteTags(stripAmoraRequestMarkers(content));
+    const visibleContent = getAmoraVisibleText(content);
+    const { cleanText, partNumbers } = parseEtiquetteTags(stripAmoraRequestMarkers(visibleContent));
     const mediationBlock = normalizeMediationBlock(message.metadata?.mediation);
     const aiIsPrivate =
       message.visibility === "bride_private" || message.visibility === "groom_private";
@@ -808,10 +810,10 @@ export default function ChatBubble({
               과잉). */}
           {/* 저장·피드백 — 저장은 모든 아모라 메시지에, 피드백은 최근 3개에만.
               나중에 다시 볼 말은 최근 것만이 아니다. */}
-          {aiIsPrivate && <PersonalActionSaveButton messageId={message.id} coupleId={message.couple_id} content={message.content} personalActionDraft={message.metadata?.personal_action_draft} personalActionsView={message.metadata?.personal_actions_view} />}
+          {aiIsPrivate && <PersonalActionSaveButton messageId={message.id} coupleId={message.couple_id} content={visibleContent} personalActionDraft={message.metadata?.personal_action_draft} personalActionsView={message.metadata?.personal_actions_view} />}
           {!aiIsPrivate && (
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <SaveNoteButton messageId={message.id} content={message.content} coupleId={message.couple_id} />
+              <SaveNoteButton messageId={message.id} content={visibleContent} coupleId={message.couple_id} />
               {isRecentAi && (
                 <AiFeedbackRow
                   messageId={message.id}

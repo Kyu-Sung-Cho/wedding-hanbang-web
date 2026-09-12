@@ -1,16 +1,7 @@
 // 커뮤니티 홈 — 프리미엄 웨딩 SNS
 import { useEffect, useState, useCallback, useRef } from "react";
-import {
-  View,
-  Text,
-  FlatList,
-  ScrollView,
-  StyleSheet,
-  Pressable,
-  RefreshControl,
-  Animated,
-  Image,
-} from "react-native";
+import { View, FlatList, ScrollView, StyleSheet, Pressable, RefreshControl, Animated, Image } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import {

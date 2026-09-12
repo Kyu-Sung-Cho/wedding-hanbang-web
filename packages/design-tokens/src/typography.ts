@@ -1,12 +1,17 @@
-// 웨딩한방 타이포그래피 토큰
+// 제목·본문·숫자는 같은 글꼴을 쓰고 굵기와 크기로 구분한다.
+const standardFontStack = [
+  '"Pretendard Variable"', '"Pretendard"', "-apple-system", "BlinkMacSystemFont",
+  "system-ui", '"Segoe UI"', "Roboto", '"Apple SD Gothic Neo"', '"Noto Sans KR"',
+  '"Malgun Gothic"', '"Apple Color Emoji"', '"Segoe UI Emoji"', "sans-serif",
+] as const;
 
 export const fontFamily = {
   // 한글 제목
-  serifKr: ['"Paperlogy"', "sans-serif"],
+  serifKr: standardFontStack,
   // 한글 본문
-  sansKr: ['"Paperlogy"', "sans-serif"],
+  sansKr: standardFontStack,
   // 영문/숫자 (브랜드 디스플레이)
-  display: ['"Paperlogy"', "sans-serif"],
+  display: standardFontStack,
 } as const;
 
 export const fontSize = {

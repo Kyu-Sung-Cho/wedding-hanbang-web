@@ -14,7 +14,8 @@
 // 눌렸다. 그걸 눌러 라운지를 떠나면 종료 핸들러가 영영 호출되지 않아 안내도 첫마디도
 // 사라졌다. Modal은 react-native 코어이고 별도 네이티브 창을 쓰므로 탭바까지 덮는다.
 import { useEffect, useRef, useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import {
   FIRST_RUN_TUTORIAL_STEPS,
   type FirstRunTutorialStep,

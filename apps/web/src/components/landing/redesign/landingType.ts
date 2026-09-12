@@ -1,7 +1,7 @@
 /**
  * 랜딩 디스플레이 타입 시스템.
  *
- * DESIGN.md는 Paperlogy 한 종류로 "웨이트·크기·색·간격만으로 위계를 만든다"고 정한다.
+ * DESIGN.md는 Pretendard 한 종류로 "웨이트·크기·색·간격만으로 위계를 만든다"고 정한다.
  * 그런데 8개 섹션이 각자 다른 clamp 곡선과 각자 다른 leading·tracking을 쓰고 있었다.
  *
  *   히어로 H1  clamp(2.4rem, 10.5vw, 4.25rem)  leading .96   tracking -.058em
@@ -37,7 +37,7 @@ export const displayMuted =
 /**
  * 웨이트 사다리.
  *
- * DESIGN.md는 "Paperlogy weight, size, color, and spacing으로 위계를 만든다"고 정하고
+ * DESIGN.md는 "Pretendard weight, size, color, and spacing으로 위계를 만든다"고 정하고
  * globals.css는 100~900을 자가호스팅한다. 그런데 랜딩 10개 컴포넌트의 실제 사용은
  * `font-semibold` 72회 + `font-medium` 8회뿐이었다(bold·light 0회).
  *

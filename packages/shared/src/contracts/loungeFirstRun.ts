@@ -11,7 +11,9 @@
  * 분위기를 원하는지. 첫 화면이 그걸 되비추지 않으면, 사람은 자기가 한 입력이 어디로
  * 갔는지 모른 채 빈 위젯을 본다.
  *
- * 그래서 첫 도착 화면은 세 가지만 한다:
+ * 날짜·단계·분위기를 모두 건너뛰었다면 되읽을 정보가 없다. 라운지의 미정 표시와
+ * 아모라 진입을 그대로 쓰고, 같은 내용을 반복하는 첫 도착 카드와 빈 이유는 생략한다.
+ * 실제로 말한 내용이 있으면 첫 도착 화면은 세 가지만 한다:
  *   1. 방금 말한 것을 그대로 되읽어 준다 (판정하지 않고)
  *   2. 다음에 할 수 있는 일 **하나**를 크게 세운다
  *   3. 왜 아직 비어 있고 무엇이 채우는지 정직하게 말한다
@@ -74,7 +76,7 @@ export interface LoungeFirstRunView {
   nextStep: LoungeFirstRunNextStep;
   /** 파트너가 아직 없을 때만 값이 있다. */
   invite: { title: string; body: string; cta: string } | null;
-  /** 화면이 아직 비어 있는 이유. 빈 위젯을 설명 없이 두지 않는다. */
+  /** 실제 입력을 되읽는 경우의 안내. 입력이 전부 미정이면 빈 문자열이다. */
   emptyNote: string;
 }
 
@@ -222,16 +224,14 @@ export function buildLoungeFirstRunView(
             ? `${spoken} · 오늘`
             : spoken,
     });
-  } else {
-    // 아직 안 정한 것도 사실이다. 빈칸으로 두면 입력을 빠뜨린 것처럼 보인다.
-    echo.push({ label: "결혼식", value: "날짜는 아직" });
   }
 
   const stageLabel = findPreparationStageOption(input.preparationStage)?.label;
   if (stageLabel) echo.push({ label: "지금", value: stageLabel });
 
-  if (input.weddingStyleLabel) {
-    echo.push({ label: "원하는 분위기", value: input.weddingStyleLabel });
+  const weddingStyleLabel = input.weddingStyleLabel?.trim();
+  if (weddingStyleLabel) {
+    echo.push({ label: "원하는 분위기", value: weddingStyleLabel });
   }
 
   const nextStep = input.preparationStage
@@ -250,7 +250,8 @@ export function buildLoungeFirstRunView(
     echo,
     nextStep,
     invite,
-    emptyNote:
-      "예산·체크리스트·일정은 두 분이 확인한 것만 쌓여요. 그래서 지금은 비어 있어요.",
+    emptyNote: echo.length > 0
+      ? "예산·체크리스트·일정은 두 분이 확인한 것만 쌓여요. 그래서 지금은 비어 있어요."
+      : "",
   };
 }

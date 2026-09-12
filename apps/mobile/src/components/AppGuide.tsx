@@ -1,16 +1,8 @@
 // 앱 가이드 — 첫 실행 시 표시되는 풀스크린 스와이프 온보딩
 // 실제 앱 화면을 축소한 MOCK UI 프리뷰 포함
 import { useCallback, useRef, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  FlatList,
-  Platform,
-  useWindowDimensions,
-  type ViewToken,
-} from "react-native";
+import { View, StyleSheet, Pressable, FlatList, Platform, useWindowDimensions, type ViewToken } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {

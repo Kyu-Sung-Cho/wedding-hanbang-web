@@ -33,6 +33,7 @@ function compileCommonJs(source, resolveDependency = () => {
     compilerOptions: {
       module: ts.ModuleKind.CommonJS,
       target: ts.ScriptTarget.ES2022,
+      jsx: ts.JsxEmit.ReactJSX,
     },
   });
   const module = { exports: {} };
@@ -272,6 +273,8 @@ test("nothing the couple did not say gets a line", () => {
     now,
   });
   const silentLabels = silent.echo.map((line) => line.label);
+  assert.deepEqual(silent.echo, []);
+  assert.equal(silent.emptyNote, "");
   assert.ok(!silentLabels.includes("지금"));
   assert.ok(!silentLabels.includes("원하는 분위기"));
   assert.equal(silent.invite, null);
@@ -289,6 +292,84 @@ test("nothing the couple did not say gets a line", () => {
   );
   assert.ok(spoken.echo.some((line) => line.value === "편안한 분위기"));
   assert.ok(spoken.invite);
+});
+
+function arrivalRenderer() {
+  const navigation = [];
+  const jsx = (type, props) => ({ type, props });
+  const token = new Proxy({}, { get: () => ({}) });
+  const modules = {
+    react: { Fragment: "Fragment" },
+    "react/jsx-runtime": { jsx, jsxs: jsx },
+    "react-native": { Pressable: "Pressable", View: "View", StyleSheet: { create: value => value } },
+    "@/components/ui/AppText": { Text: "Text" },
+    "expo-router": { router: { push: path => navigation.push(path) } },
+    "lucide-react-native": { ArrowRight: "ArrowRight", Check: "Check", UsersRound: "UsersRound" },
+    "@hanbang/design-tokens": { colors: token, radius: token, spacing: token },
+    "@/components/ui/AppUI": { AppText: "AppText", appShadow: {} },
+    "@/components/lounge/FirstRunAnchors": { FirstRunAnchor: "FirstRunAnchor" },
+  };
+  const component = compileCommonJs(arrivalSource, name => {
+    assert.ok(modules[name], `unmocked dependency ${name}`);
+    return modules[name];
+  });
+  const nodes = [];
+  const text = [];
+  function walk(node) {
+    if (Array.isArray(node)) return node.forEach(walk);
+    if (typeof node === "string") { text.push(node); return; }
+    if (!node || typeof node !== "object") return;
+    nodes.push(node);
+    walk(node.props.children);
+  }
+  return { component, nodes, text, navigation, render(view) {
+    nodes.length = 0; text.length = 0;
+    const tree = component.default({ view });
+    walk(tree);
+    return tree;
+  } };
+}
+
+test("an undecided native arrival hides both generic cards and empty spacing while preserving only the unlinked invite", () => {
+  for (const partnerLinked of [true, false]) {
+    const ui = arrivalRenderer();
+    const view = buildLoungeFirstRunView({ weddingDate: null, partnerLinked, now: Date.UTC(2026, 7, 20) });
+    const tree = ui.render(view);
+    assert.ok(!ui.text.join("").includes("확인했어요"));
+    assert.ok(!ui.text.join("").includes("다음 걸음 하나"));
+    assert.equal(ui.component.LoungeEmptyNote({ note: view.emptyNote }), null);
+    assert.deepEqual(ui.navigation, []);
+    const buttons = ui.nodes.filter(node => node.type === "Pressable");
+    assert.equal(buttons.length, partnerLinked ? 0 : 1);
+    if (!partnerLinked) {
+      const anchor = tree.props.children.find(node => node?.type === "FirstRunAnchor");
+      assert.equal(anchor?.props.id, "lounge-invite");
+      buttons[0].props.onPress();
+      assert.deepEqual(ui.navigation, ["/settings"]);
+    }
+  }
+});
+
+test("a native arrival keeps actual stage, date or style summaries and explicit next-step navigation", () => {
+  for (const input of [
+    ...preparationStageModule.PREPARATION_STAGE_OPTIONS.map(stage => ({ preparationStage: stage.value })),
+    { weddingDate: "2027-05-15" },
+    { weddingStyleLabel: "편안한 분위기" },
+  ]) {
+    const ui = arrivalRenderer();
+    const view = buildLoungeFirstRunView({ ...input, partnerLinked: true, now: Date.UTC(2026, 7, 20) });
+    ui.render(view);
+    assert.ok(ui.text.join("").includes("확인했어요"));
+    assert.ok(ui.text.join("").includes("다음 걸음 하나"));
+    assert.ok(!ui.text.join("").includes("날짜는 아직"));
+    assert.notEqual(ui.component.LoungeEmptyNote({ note: view.emptyNote }), null);
+    assert.deepEqual(ui.navigation, []);
+    const button = ui.nodes.find(node => node.type === "Pressable");
+    assert.ok(button);
+    button.props.onPress();
+    assert.equal(ui.navigation.length, 1);
+    assert.ok(resolveRoute(ui.navigation[0]));
+  }
 });
 
 test("a style the couple never picked yields no value to label", () => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
+
 import { useEffect, useId, useRef, useState } from "react";
 import { Bookmark, CircleCheck, Info } from "lucide-react";
 import AmoraSheetFrame from "./AmoraSheetFrame";
@@ -19,7 +21,7 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
   const memoPanelId = useId();
   const memoRef = useRef<HTMLTextAreaElement>(null);
   const memoToggleRef = useRef<HTMLButtonElement>(null);
-  const source = content.trim();
+  const source = getAmoraVisibleText(content).trim();
   const preview = source.slice(0, 4_000).replace(/[\uD800-\uDBFF]$/, "");
 
   useEffect(() => {

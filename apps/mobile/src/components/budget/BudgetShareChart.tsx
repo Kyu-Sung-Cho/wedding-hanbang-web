@@ -16,8 +16,8 @@
  * 조각은 화면(`app/budget/index.tsx`)이 **자기 합계를 만든 그대로** 넘긴다. 여기서
  * `progress` 를 다시 읽어 세면 도넛 총액과 위 카드 총액이 갈린다.
  */
-
-import { View, Text, StyleSheet } from "react-native";
+import { View, StyleSheet } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import Svg, { Circle, G } from "react-native-svg";
 import { colors } from "@hanbang/design-tokens";
 import {

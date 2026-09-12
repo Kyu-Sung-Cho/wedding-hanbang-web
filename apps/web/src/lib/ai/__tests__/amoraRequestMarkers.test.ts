@@ -53,7 +53,10 @@ describe("아모라 답변의 예약 요청 표식", () => {
 
   it("정상 미리보기와 최종 답변의 일반 대괄호·비율을 그대로 보존한다", () => {
     const text = "[예약 전] [A] 기준이에요. 비율 합계는 100%예요.";
-    for (const pieces of [[text], [...text]]) {
+    const splits = [[text], [...text], ...Array.from({ length: text.length - 1 }, (_, index) => [
+      text.slice(0, index + 1), text.slice(index + 1),
+    ])];
+    for (const pieces of splits) {
       const emitted: string[] = [];
       const gate = createAmoraProviderPreviewGate(delta => emitted.push(delta));
       pieces.forEach(piece => gate.push(piece));

@@ -126,6 +126,24 @@ describe("웨딩 라운지 첫 도착", () => {
     expect(card?.textContent).not.toMatch(/\d+만원/);
   });
 
+  it.each([false, true])("모두 미정이면 중복 카드 없이 허브와 시작 경로를 유지한다 (파트너 연결: %s)", async (linked) => {
+    useAuthStore.setState({
+      journey: { ...EMPTY_JOURNEY, wedding_date: null, progress: {} },
+      partner: linked ? { ...PROFILE, id: "10000000-0000-4000-8000-000000000003", name: "민수" } : null,
+    });
+    await act(async () => { root.render(<LoungePage />); });
+
+    expect(container.querySelector('[data-testid="lounge-first-arrival"]')).toBeNull();
+    expect(container.querySelector('[data-testid="lounge-first-arrival-empty-note"]')).toBeNull();
+    expect(container.textContent).not.toMatch(/말씀해주신 내용이에요|다음 걸음 하나|무엇부터 할지 같이 정해요/);
+    const hub = container.querySelector('section[aria-label="현재 준비 현황"]');
+    expect(hub).not.toBeNull();
+    expect(hub?.textContent).toContain("날짜 미정");
+    expect(hub?.querySelector('[data-tutorial-target="amora-fab"]')?.getAttribute("href")).toMatch(/^\/wedding\/chat\?prefill=/);
+    expect(hub?.querySelector('[data-tutorial-target="lounge-invite"]')?.getAttribute("href") ?? null).toBe(linked ? null : "/wedding/settings");
+    expect(container.querySelector('[data-tutorial-target="lounge-tools"] a[href="/wedding/budget"]')).not.toBeNull();
+  });
+
   it("커플이 무언가 남기는 순간 저절로 사라진다", async () => {
     useAuthStore.setState({
       journey: {

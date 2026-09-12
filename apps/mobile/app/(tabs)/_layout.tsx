@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  InteractionManager,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, InteractionManager, StyleSheet, View } from "react-native";
+import { Text, useAppFontsLoaded } from "@/components/ui/AppText";
 import { Redirect, Tabs, usePathname } from "expo-router";
 import { Home, MessageCircle, Users, User } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
@@ -46,6 +41,7 @@ function normalizeWarmPost(value: unknown): CachedCommunityPost | null {
 }
 
 export default function TabsLayout() {
+  const fontsLoaded = useAppFontsLoaded();
   const pathname = usePathname();
   const isPublicCommunity = pathname === "/community";
   const [authStatus, setAuthStatus] = useState<AuthStatus>("checking");
@@ -190,7 +186,7 @@ export default function TabsLayout() {
         },
         tabBarLabelStyle: {
           fontSize: 11,
-          fontFamily: "NotoSansKR_500Medium",
+          fontFamily: fontsLoaded ? "Pretendard_500Medium" : undefined,
         },
         tabBarItemStyle: {
           borderRadius: 18,

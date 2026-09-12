@@ -43,6 +43,7 @@ function loadIndex() {
     react: React, "react/jsx-runtime": jsxRuntime,
     "expo-router": { Redirect: ({ href }: { href: string }) => <span data-destination={href}>{href}</span> },
     "react-native": { View, Text: View, ActivityIndicator: () => <span>checking</span>, StyleSheet: { create: (value: unknown) => value } },
+    "@/components/ui/AppText": { Text: View },
     "@hanbang/design-tokens": { colors: { rose: { 500: "pink" }, noir: { 800: "black" } } },
     "@/components/ui/AppUI": { PrimaryButton: Button },
     "@/lib/rootDestination": policyExports,

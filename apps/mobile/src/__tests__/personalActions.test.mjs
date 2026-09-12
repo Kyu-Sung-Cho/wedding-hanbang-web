@@ -152,6 +152,7 @@ function saveViewHarness(initialProps = {}) {
   const jsx = (type, props) => ({ type, props });
   const token = new Proxy({}, { get: () => token });
   const modules = {
+    '@/components/ui/AppText': { Text: 'Text', TextInput: 'TextInput' },
     react: { useState(initial) { const key = index++; slots[key] ??= { value: initial }; return [slots[key].value, value => { slots[key].value = value; }]; }, useRef(initial) { const key = index++; slots[key] ??= { current: initial }; return slots[key]; } },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { KeyboardAvoidingView: 'KeyboardAvoidingView', Modal: 'Modal', Platform: { OS: 'ios' }, Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', TextInput: 'TextInput', View: 'View', StyleSheet: { create: value => value } },
@@ -218,6 +219,7 @@ function nativeViewHarness(path, exportName, props, extraModules = {}) {
   const slots = []; let index = 0; let tree;
   const jsx = (type, props) => ({ type, props }); const token = new Proxy({}, { get: () => token });
   const modules = {
+    '@/components/ui/AppText': { Text: 'Text', TextInput: 'TextInput' },
     react: { useState(initial) { const key = index++; slots[key] ??= { value: initial }; return [slots[key].value, value => { slots[key].value = value; }]; }, useRef(initial) { const key = index++; slots[key] ??= { current: initial }; return slots[key]; }, useEffect(callback) { const key = index++; if (!slots[key]) { slots[key] = {}; callback(); } } },
     'react/jsx-runtime': { jsx, jsxs: jsx },
     'react-native': { Modal: 'Modal', Pressable: 'Pressable', ScrollView: 'ScrollView', Text: 'Text', View: 'View', StyleSheet: { create: value => value } },

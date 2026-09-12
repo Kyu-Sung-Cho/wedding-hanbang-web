@@ -9,6 +9,23 @@
 
 ## Aesthetic Direction
 
+- **Undecided lounge arrival (2026-09-12):** When no wedding date, preparation
+  stage or wedding style has been entered, omit the first-arrival recap and
+  generic next-step panels without replacement copy. The existing lounge summary,
+  Amora action, setup links and partner invitation provide the starting points.
+  Do not create a recap row from the absence of a date. Actual input summaries and
+  stage-specific guidance remain; native retains its invitation anchor separately.
+
+- **Preparation-to-Amora handoff (2026-09-12):** The user approved retaining only
+  the editable prefilled question when entering Amora from a checklist or manners
+  guide. Successful handoffs show no separate arrival or reference-information
+  panels. Public source context remains attached to that unsent shared-AI draft;
+  clearing the question also clears its source context. A short recovery notice
+  appears only when the question cannot be inserted or its source cannot be read.
+  Existing drafts, attachments, audience boundaries, explicit sending and change
+  approval remain. The source catalog supplies a short question using the actual
+  category, item or guide title without duplicating guide instructions.
+
 - **Direction:** Quiet editorial utility.
 - **Mood:** Refined, warm, and practical. The app should feel like a calm planner that knows wedding details, not a generic productivity app with wedding colors.
 - **Decoration level:** Intentional. Use typography, spacing, shadow, and a few premium accents. Avoid decorative noise.
@@ -16,6 +33,17 @@
 - **Web posture:** More editorial and explanatory. Web can carry longer copy, richer sections, and admin workflows.
 
 ## Typography
+
+- **Current standard font (2026-09-12):** The user explicitly requested a standard,
+  readable font throughout the web and native app. Pretendard v1.3.9 replaces
+  Paperlogy, Gowun Dodum, IBM Plex Sans KR and Gaegu on every product and marketing
+  surface, including landing, Amora, checklist, manners, budget, schedule and shared
+  images. This supersedes the font-specific portions of all earlier HTML and
+  handwriting exceptions recorded below; their layout and color decisions remain.
+  Web uses the unmodified, self-hosted variable WOFF2 with an explicit 100–900
+  weight range, swap display and Korean/system/emoji fallbacks. Native uses the
+  bundled static faces for reliable weight selection. Keep source licenses with
+  the assets. Do not load remote font stylesheets or invent a “most used” ranking.
 
 - **Public flow consistency (2026-09-12):** Public manners reuses the five-item
   Lounge / Amora / Checklist / Schedule / Budget mobile navigation, with no false
@@ -202,13 +230,13 @@
   A direct visit to `/` opens `/landing` regardless of sign-in state; explicit login
   return destinations and navigation into protected product pages remain separate.
 
-- **Brand font:** Paperlogy. Use across web and mobile for display, body, UI, and numeric moments.
-- **Hierarchy:** Use Paperlogy weight, size, color, and spacing for emphasis instead of mixing serif/sans/display families.
-- **Numbers/display:** Paperlogy with tabular number styling where available. D-day and money totals may use larger size and heavier weight, not a separate font family.
-- **Data/tables:** Paperlogy with tabular number styling where available.
+- **Brand font:** Pretendard. Use across web and mobile for display, body, UI, and numeric moments.
+- **Hierarchy:** Use weight, size, color, and spacing for emphasis instead of mixing serif/sans/display families.
+- **Numbers/display:** Pretendard with tabular number styling where available. D-day and money totals may use larger size and heavier weight, not a separate font family.
+- **Data/tables:** Pretendard with tabular number styling where available.
 - **Scale:** xs 12, sm 14, base 16, lg 18, xl 20, 2xl 24, 3xl 30, 4xl 36, 5xl 48.
 - **Rule:** Text inside compact mobile UI must be scan-first. Keep the font family consistent and vary only weight/size for hierarchy.
-- **Landing handwriting exception (2026-08-27):** The marketing landing (`/landing`, `/`) may use
+- **Retired landing handwriting exception (2026-08-27; superseded 2026-09-12):** The marketing landing (`/landing`, `/`) previously used
   **Gaegu** for short handwritten accents only — section eyebrows, the wordmark, and the large
   count figures. Body text, headings, buttons, and all fine print stay Paperlogy.
   This is a deliberate exception to the "one family" rule above, scoped to the landing:

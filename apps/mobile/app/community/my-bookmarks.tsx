@@ -1,9 +1,7 @@
 // 내 북마크 목록
 import { useEffect, useState, useCallback } from "react";
-import {
-  View, Text, ScrollView, StyleSheet, Pressable,
-  RefreshControl,
-} from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, RefreshControl } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Bookmark, ThumbsUp, MessageCircle } from "lucide-react-native";

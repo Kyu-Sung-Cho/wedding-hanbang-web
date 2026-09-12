@@ -1,12 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
-import {
-  Image,
-  Linking,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Image, Linking, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { BookOpen, ImageOff, MapPin, Phone, Search } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { getPlaceSearchPresentation } from "@hanbang/shared/place-search-presentation";

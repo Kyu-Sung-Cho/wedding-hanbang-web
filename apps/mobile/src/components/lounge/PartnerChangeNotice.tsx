@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { router, useFocusEffect } from "expo-router";
 import { Bell, ChevronRight } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";

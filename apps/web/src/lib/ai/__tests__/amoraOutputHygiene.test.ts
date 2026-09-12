@@ -47,6 +47,15 @@ const CLEAN_ANSWERS: readonly string[] = [
 ];
 
 describe("applyAmoraOutputHygiene", () => {
+  it("removes the observed internal budget block without changing a normal amount", () => {
+    const clean = "총예산은 3,500만 원이에요.";
+    const leaked = '[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"total_allocated":0,"total_spent":0,"unallocated":35000000}';
+    const result = applyAmoraOutputHygiene(`${clean}\n\n${leaked}`);
+    expect(result.text).toBe(clean);
+    expect(result.actions).toContainEqual({ kind: "internal_artifacts_removed" });
+    expect(applyAmoraOutputHygiene(leaked).text).toBe("");
+    expect(applyAmoraOutputHygiene(clean)).toEqual({ text: clean, actions: [] });
+  });
   it("removes only the observed stray cvs suffix while protecting names, units, code and user text", () => {
     const text = "> 변경·취소 조건을 서면으로 안내 부탁드립니다. cvs";
     expect(applyAmoraOutputHygiene(text).text).toBe("> 변경·취소 조건을 서면으로 안내 부탁드립니다.");

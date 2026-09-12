@@ -1,10 +1,7 @@
 // 회원가입 — 이름 + 이메일 + 비밀번호 + 약관동의
 import { useState, useCallback, useRef } from "react";
-import {
-  View, Text, TextInput, Pressable, StyleSheet, ScrollView,
-  Alert, ActivityIndicator, Linking, KeyboardAvoidingView, Platform,
-  LayoutAnimation, UIManager, DimensionValue,
-} from "react-native";
+import { View, Pressable, StyleSheet, ScrollView, Alert, ActivityIndicator, Linking, KeyboardAvoidingView, Platform, LayoutAnimation, UIManager, DimensionValue } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";

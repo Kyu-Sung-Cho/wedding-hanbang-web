@@ -1,15 +1,7 @@
 // 아모라 내부 예약 요청 기록 목록
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import {
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  TextInput,
-  View,
-} from "react-native";
+import { Modal, Pressable, RefreshControl, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {

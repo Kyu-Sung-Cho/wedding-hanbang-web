@@ -24,9 +24,9 @@ export const contentType = "image/png";
 export const runtime = "nodejs";
 
 // satori(next/og)는 woff2를 지원하지 않는다 — ttf만 사용.
-const paperlogyBold = readFile(join(
+const pretendardBold = readFile(join(
   process.cwd(),
-  "public/fonts/paperlogy/Paperlogy-7Bold.ttf",
+  "public/fonts/pretendard/Pretendard-Bold.ttf",
 ));
 
 /**
@@ -71,7 +71,7 @@ export default async function OpenGraphImage() {
           padding: "62px 72px",
           color: PAPER.ink,
           background: PAPER.sheet,
-          fontFamily: "Paperlogy",
+          fontFamily: "Pretendard Variable",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 18, fontSize: 30 }}>
@@ -114,7 +114,7 @@ export default async function OpenGraphImage() {
     ),
     {
       ...size,
-      fonts: [{ name: "Paperlogy", data: await paperlogyBold, style: "normal", weight: 700 }],
+      fonts: [{ name: "Pretendard Variable", data: await pretendardBold, style: "normal", weight: 700 }],
     },
   );
 }

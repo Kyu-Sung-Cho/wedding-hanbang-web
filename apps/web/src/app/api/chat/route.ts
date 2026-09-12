@@ -4,6 +4,7 @@ import { createClientFromRequest } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buildFirstHelloContextTurn } from "@/lib/ai/firstHelloContext";
 import { compareChatTimestamps, normalizePreparationStatus } from "@hanbang/shared";
+import { getAmoraVisibleText, stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
 import {
   PARTNER_TARGET_SUFFIX,
   speakerLabelFor,
@@ -139,6 +140,7 @@ import { appendAmoraToolResultHistory, appendAmoraBoundedToolResultHistory } fro
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
+import { hasNewAmoraChangeIntent } from "@/lib/ai/amoraPendingActionContinuity";
 import {
   buildAmoraApprovedActionPrompt,
   buildAmoraPendingActionPrompt,
@@ -668,7 +670,7 @@ function replayPersistedMessage(message: PersistedAiMessage): Response {
   if (suggestions.length > 0) events.push({ type: "suggestions", suggestions });
   events.push({
     type: "done",
-    fullContent: message.content ?? "",
+    fullContent: getAmoraVisibleText(message.content ?? ""),
     metadata: getDoneMetadata(message),
   });
   const payload = events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
@@ -2864,7 +2866,8 @@ export async function POST(request: Request) {
       return {
         role: "assistant" as const,
         content: appendAmoraToolResultHistory(
-          buildAmoraHistoryContent(row.content, row.metadata?.pending_amora_action),
+          // 기존에 노출된 내부 본문은 먼저 제거하고, 승인 표식은 검증용 메타데이터에서 복원한다.
+          buildAmoraHistoryContent(stripAmoraInternalArtifacts(row.content), row.metadata?.pending_amora_action),
           row.metadata?.toolResults,
         ),
         id: row.id,
@@ -2892,7 +2895,10 @@ export async function POST(request: Request) {
   // canonical DB history만 prompt source로 허용한다.
   let typedMessages: Array<{ role: "user" | "assistant"; content: string; id?: string }> =
     isDemo
-      ? (messages as Array<{ role: "user" | "assistant"; content: string; id?: string }>)
+      ? (messages as Array<{ role: "user" | "assistant"; content: string; id?: string }>).map((message) =>
+          message.role === "assistant"
+            ? { ...message, content: stripAmoraInternalArtifacts(message.content) }
+            : message)
       : canonicalMessages;
   let lastUserText: string;
 
@@ -3018,8 +3024,14 @@ export async function POST(request: Request) {
     && previousScheduleFieldsUserRow.visibility === visibility
     && previousScheduleFieldsUserRow.segment_id === canonicalRows.at(-1)?.segment_id
       ? previousScheduleFieldsUserRow.content : "";
+  // 수정 전에 실패 안내와 함께 저장된 이월 카드도 새 승인으로 실행하지 않는다.
+  const previousFailedCarriedProposal = isAmoraFailedProposalNotice(previousCanonicalRow?.content)
+    && isRecord(previousCanonicalRow?.metadata)
+    && typeof previousCanonicalRow.metadata.pending_amora_action_carry_count === "number"
+    && previousCanonicalRow.metadata.pending_amora_action_carry_count > 0;
   const approvedPendingAction =
     !isDemo
+    && !previousFailedCarriedProposal
     && requestKind === "chat"
     && isDurableUserMessageBound
     && visibility === "shared"
@@ -3037,6 +3049,10 @@ export async function POST(request: Request) {
   // 실행 권한이 아니다 — 적용은 여전히 서버 발급 action_id 를 받아야 한다.
   const awaitingPendingCard =
     bodyConfirmedActionId === undefined
+    && !previousFailedCarriedProposal
+    // 새 변경 요청에는 과거 카드·대기열·확인 안내를 새 요청의 문맥으로 전달하지 않는다.
+    // 원본 기록과 action_id 승인 경계는 유지하고, 설명 질문·짧은 동의만 이어간다.
+    && !hasNewAmoraChangeIntent(lastUserText)
     && !isDemo
     && requestKind === "chat"
     && visibility === "shared"
@@ -3053,7 +3069,9 @@ export async function POST(request: Request) {
     await releaseClaimBeforeStream("AMORA_PENDING_ACTION_CONFIRMATION_REJECTED");
     return NextResponse.json(
       {
-        error: "확인할 변경이 만료되었거나 현재 대화에 속하지 않습니다. 변경 내용을 다시 확인해주세요.",
+        error: previousFailedCarriedProposal
+          ? "이전 답변에서 확인 카드를 만들지 못한 변경이라 적용하지 않았어요. 변경할 내용을 다시 알려주세요."
+          : "확인할 변경이 만료되었거나 현재 대화에 속하지 않습니다. 변경 내용을 다시 확인해주세요.",
         code: "AMORA_PENDING_ACTION_CONFIRMATION_REJECTED",
       },
       { status: 409, headers: { "Cache-Control": "no-store" } },
@@ -3331,7 +3349,8 @@ export async function POST(request: Request) {
             visibility,
           }).reverse();
           const continuity = buildAmoraBoundedContinuity({
-            newestFirstRows: trustedRows,
+            newestFirstRows: trustedRows.map((row) => row.sender_type === "ai" && row.role === "assistant"
+              ? { ...row, content: stripAmoraInternalArtifacts(row.content) } : row),
             currentMessageId: bodyUserMessageId,
             currentUserText: lastUserText,
             requesterUserId: actorId,
@@ -4156,6 +4175,11 @@ export async function POST(request: Request) {
           }
           const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
           const emittedCarriedPendingCard = canonicalTerminalText === null && blockedBudgetText === null && blockedTaskText === null
+            // 새 카드 발급에 실패한 답변 아래에 이전 금액의 적용 버튼이 다시 나타나면 안 된다.
+            && !pendingExtraction.hadPendingActionTag
+            && !isAmoraFailedProposalNotice(pendingExtraction.cleanText)
+            && carriedPendingActionRevision !== null
+            && carriedPendingActionRevision === canonicalJourneyStateRevision
             && awaitingPendingCard && shouldCarryPendingCard
             ? awaitingPendingCard : null;
           const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
@@ -4730,7 +4754,7 @@ export async function POST(request: Request) {
 
             send({
               type: "done",
-              fullContent: insertResult.content ?? persistenceSafeText,
+              fullContent: getAmoraVisibleText(insertResult.content ?? persistenceSafeText),
               metadata: getDoneMetadata(insertResult),
             });
 
@@ -5211,7 +5235,7 @@ export async function POST(request: Request) {
 
         send({
           type: "done",
-          fullContent: insertResult2.content ?? finalPersistenceSafeText,
+          fullContent: getAmoraVisibleText(insertResult2.content ?? finalPersistenceSafeText),
           metadata: getDoneMetadata(insertResult2),
         });
 

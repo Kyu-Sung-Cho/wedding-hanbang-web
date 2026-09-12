@@ -2,7 +2,6 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -360,35 +359,34 @@ describe("landing design system", () => {
     expect(heroShell?.classList.contains("w-full")).toBe(true);
   });
 
-  it("loads the documented font weights locally through landing classes", () => {
-    expect(designMd).toContain("Landing HTML exception (2026-09-06)");
+  it("loads one local variable font across landing and product font roles", () => {
+    expect(designMd).toContain("Pretendard");
     const faces = [...globals.matchAll(/@font-face\s*\{([^}]+)\}/gu)]
-      .map((match) => match[1])
-      .filter((face) => /font-family:\s*"Hanbang Landing (?:Display|Body|Hand)"/u.test(face));
-    const weights = (family: string) => faces.filter((face) => face.includes('"' + family + '"'))
-      .map((face) => Number(/font-weight:\s*(\d+)/u.exec(face)?.[1])).sort();
-    expect(weights("Hanbang Landing Display")).toEqual([400]);
-    expect(weights("Hanbang Landing Body")).toEqual([400, 500, 600, 700]);
-    expect(weights("Hanbang Landing Hand")).toEqual([700]);
-    for (const face of faces) {
-      const path = /url\("([^"]+)"\)/u.exec(face)?.[1];
-      expect(path).toMatch(/^\/fonts\//u);
-      const fontUrl = new URL(path!, "https://hanbang.ai");
-      const fontPath = resolve(APP_ROOT, "public" + fontUrl.pathname);
-      expect(existsSync(fontPath)).toBe(true);
-      // 1년 immutable 캐시에서도 재방문자가 변경된 글꼴을 받도록 내용으로 주소를 구분한다.
-      expect(fontUrl.searchParams.get("v")).toBe(
-        createHash("sha256").update(readFileSync(fontPath)).digest("hex").slice(0, 12),
-      );
-      expect(face).toContain("font-display: swap");
+      .map((match) => match[1]);
+    expect(faces).toHaveLength(1);
+    expect(faces[0]).toContain('font-family: "Pretendard Variable"');
+    expect(faces[0]).toContain("font-weight: 100 900");
+    expect(faces[0]).toContain("font-display: swap");
+    const path = /url\("([^"]+)"\)/u.exec(faces[0])?.[1];
+    expect(path).toBe("/fonts/pretendard/PretendardVariable.woff2");
+    const fontPath = resolve(APP_ROOT, "public" + path);
+    expect(existsSync(fontPath)).toBe(true);
+    expect(readFileSync(fontPath).subarray(0, 4).toString()).toBe("wOF2");
+    const layout = source("src/app/layout.tsx");
+    expect(layout).toContain(`href="${path}"`);
+    expect(layout).toContain('rel="preload"');
+    expect(layout).toContain('crossOrigin="anonymous"');
+    for (const role of ["sans", "serif", "sans-kr", "serif-kr", "display", "jakarta"]) {
+      expect(globals).toContain(`--font-${role}: var(--font-pretendard);`);
     }
-    expect(globals).toMatch(/\.landing-root\s*\{[^}]*font-family:\s*"Hanbang Landing Body"/u);
-    expect(globals).toMatch(/\.landing-display\s*\{[^}]*font-family:\s*"Hanbang Landing Display"/u);
-    expect(globals).toMatch(/\.landing-root \.landing-hand\s*\{[^}]*font-family:\s*"Hanbang Landing Hand"/u);
+    expect(globals).toMatch(/\.landing-root\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
+    expect(globals).toMatch(/\.landing-display\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
+    expect(globals).toMatch(/\.landing-root \.landing-hand\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
+    expect(globals).toMatch(/\.amora-workspace,\s*\.planning-workspace\s*\{[^}]*font-family:\s*var\(--font-pretendard\)/u);
     expect(landingDocument().querySelector(".landing-root")).toBeTruthy();
   });
 
-  it("keeps display headings at the loaded weight and handwriting on short tape copy", () => {
+  it("keeps the existing heading and short tape copy weights", () => {
     const doc = landingDocument();
     expect(globals).toMatch(/\.landing-display\s*\{[^}]*font-weight:\s*400/u);
     expect(globals).toMatch(/\.landing-hand\s*\{[^}]*font-weight:\s*700/u);
@@ -396,11 +394,11 @@ describe("landing design system", () => {
       expect(heading.classList.contains("landing-display"), heading.textContent ?? "").toBe(true);
       expect(heading.className).not.toMatch(/\bfont-(?:medium|semibold|bold|black)\b/u);
     }
-    const handwritten = [...doc.querySelectorAll(".landing-hand")];
-    expect(handwritten).toHaveLength(1);
-    expect(handwritten[0].classList.contains("landing-tape")).toBe(true);
-    expect(handwritten[0].textContent?.trim()).toBe(landingContent.hero.tape);
-    expect(handwritten[0].textContent?.length).toBeLessThan(60);
+    const accentCopy = [...doc.querySelectorAll(".landing-hand")];
+    expect(accentCopy).toHaveLength(1);
+    expect(accentCopy[0].classList.contains("landing-tape")).toBe(true);
+    expect(accentCopy[0].textContent?.trim()).toBe(landingContent.hero.tape);
+    expect(accentCopy[0].textContent?.length).toBeLessThan(60);
   });
 
   it("renders section labels and keeps small-copy colours readable", () => {
@@ -564,8 +562,7 @@ describe("landing design system", () => {
     // 유틸리티를 그대로 인라인 복제하고 있었다. 새 구조에서 그 자리는 globals.css의
     // `.landing-tape`다 — 크기·웨이트가 CSS 한 곳에 있다.
     //
-    // 2026-08-28: 값이 12px → 16px 로 바뀌었다(globals.css 에 이유가 적혀 있다 —
-    // Gaegu 는 같은 px 에서 Paperlogy 보다 작아 보인다). 이 단언이 지키는 것은
+    // 글꼴을 통일한 뒤에도 기존 16px 크기를 유지한다. 이 단언이 지키는 것은
     // 특정 숫자가 아니라 **크기를 한 곳에서만 정한다**는 것이므로 값을 옮겨 적되,
     // `\d+px` 같은 느슨한 패턴으로 바꾸지 않는다 — 그러면 소리 없이 흔들린다.
     expect(globals, ".landing-tape가 크기를 고정하지 않는다").toMatch(

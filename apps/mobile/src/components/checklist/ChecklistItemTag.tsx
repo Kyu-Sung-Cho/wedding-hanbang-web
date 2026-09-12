@@ -11,8 +11,8 @@
  *
  * 표시는 **글자로 나간다.** 색만으로 뜻을 지지 않으므로 따로 읽어 줄 필요가 없다.
  */
-
-import { Text, StyleSheet } from "react-native";
+import { StyleSheet } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { colors } from "@hanbang/design-tokens";
 import type { ChecklistItemTag as TagKind } from "@hanbang/shared/constants";
 

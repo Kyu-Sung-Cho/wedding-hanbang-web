@@ -1,6 +1,7 @@
 // 앱 전역 에러 경계 — JS 크래시 시 폴백 UI 표시
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, StyleSheet, TouchableOpacity } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { Sentry } from "@/lib/sentry";

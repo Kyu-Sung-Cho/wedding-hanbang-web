@@ -37,7 +37,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
         <Sparkles size={16} className="text-[var(--hb-text-strong)]" />
         <span
           className="text-sm font-medium text-[var(--hb-text-strong)]"
-          style={{ fontFamily: "'Paperlogy', sans-serif" }}
+          style={{ fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif" }}
         >
           아모라 AI 코멘트
         </span>

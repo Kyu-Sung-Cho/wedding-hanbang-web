@@ -1,13 +1,6 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
-import {
-  Animated,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Animated, Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { router } from "expo-router";
 import {
   ArrowRight,

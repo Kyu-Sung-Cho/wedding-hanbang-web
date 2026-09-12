@@ -21,7 +21,8 @@
 // 옮길 때 웹이 죽은 링크를 열게 된다. 그래서 매핑은 각 앱이 자기 라우트로 들고 있고,
 // 이 파일의 switch가 모바일 쪽 정본이다.
 import { Fragment } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { router } from "expo-router";
 import { ArrowRight, Check, UsersRound } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
@@ -97,7 +98,7 @@ export default function LoungeFirstArrival({ view }: LoungeFirstArrivalProps) {
         </View>
       ) : null}
 
-      <Pressable
+      {view.echo.length > 0 ? <Pressable
         style={({ pressed }) => [styles.nextCard, pressed && styles.cardPressed]}
         onPress={() => openDestination(view.nextStep.destination)}
         accessibilityRole="button"
@@ -112,7 +113,7 @@ export default function LoungeFirstArrival({ view }: LoungeFirstArrivalProps) {
           <Text style={styles.nextActionText}>{view.nextStep.cta}</Text>
           <ArrowRight size={16} color={colors.surface} />
         </View>
-      </Pressable>
+      </Pressable> : null}
 
       {view.invite ? (
         // 첫 실행 안내의 "파트너를 부르면 같이 봐요"가 가리킬 곳. 이 카드가 없는 사람
@@ -152,6 +153,7 @@ export default function LoungeFirstArrival({ view }: LoungeFirstArrivalProps) {
  * 채우는 것은 더 나쁘다 — 그래서 채우는 대신 이유를 적는다.
  */
 export function LoungeEmptyNote({ note }: { note: string }) {
+  if (!note) return null;
   return (
     <View style={styles.emptyNote}>
       <Text style={styles.emptyNoteText}>{note}</Text>

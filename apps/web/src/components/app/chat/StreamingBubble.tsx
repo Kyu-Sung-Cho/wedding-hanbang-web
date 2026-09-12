@@ -2,6 +2,7 @@
 
 import { Sparkles, Loader2 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import ActionCard from "./ActionCard";
 import VendorToolCard, { VENDOR_TOOL_NAMES } from "./VendorToolCard";
 
@@ -18,6 +19,7 @@ export default function StreamingBubble({
   toolResults,
   onSend,
 }: StreamingBubbleProps) {
+  const visibleContent = getAmoraVisibleText(content, { streaming: true });
   return (
     <div>
       {/* 도구 실행 결과 카드 — 작업 진행 중임을 시각적으로 알림 */}
@@ -42,9 +44,9 @@ export default function StreamingBubble({
             aria-live="polite"
             aria-busy="true"
           >
-            {content.trim() ? (
+            {visibleContent.trim() ? (
               <p className="whitespace-pre-wrap break-words text-[13px] leading-[1.6] text-[#233426] sm:text-[14px]">
-                {content}
+                {visibleContent}
                 <span className="ml-1 inline-block h-4 w-0.5 animate-pulse bg-[var(--amora-accent,#486455)] align-middle" aria-hidden="true" />
               </p>
             ) : (

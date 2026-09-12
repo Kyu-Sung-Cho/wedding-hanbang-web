@@ -117,7 +117,7 @@ export default function VendorDetailPage() {
           <div className="flex-1 min-w-0">
             <h1
               className="font-serif text-[var(--hb-text-strong)] mb-2"
-              style={{ fontFamily: "'Paperlogy', sans-serif" }}
+              style={{ fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif" }}
             >
               {decodedName}
             </h1>

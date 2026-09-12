@@ -49,6 +49,18 @@ describe("StreamingBubble", () => {
     expect(container.querySelector('[role="status"]')).not.toBeNull();
   });
 
+  it("토큰마다 나뉜 내부 표식과 JSON을 완료 전에 노출하지 않는다", async () => {
+    const content = '총예산은 3,500만 원이에요.\n\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}';
+    for (let end = content.indexOf("["); end <= content.length; end += 1) {
+      await act(async () => root.render(<StreamingBubble content={content.slice(0, end)} toolResults={[]} />));
+      expect(container.textContent).toContain("총예산은 3,500만 원이에요.");
+      expect(container.textContent).not.toMatch(/[\[{}]|저장된 도구|total_budget|35000000/);
+    }
+    await act(async () => root.render(<StreamingBubble content='{"total_budget":35000000}' toolResults={[]} />));
+    expect(container.querySelector('[role="status"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("total_budget");
+  });
+
   it("keeps the same conversation geometry and base typography when partial text becomes a completed answer", async () => {
     const visualContract = () => {
       const group = container.querySelector<HTMLElement>('[class~="group/ai"]')!;

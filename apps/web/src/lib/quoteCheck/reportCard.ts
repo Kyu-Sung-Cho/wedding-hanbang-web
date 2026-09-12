@@ -79,7 +79,7 @@ export function selectReportItems(items: QuoteReportItem[]): {
 }
 
 function fontStack(weightCss: string, sizePx: number): string {
-  return `${weightCss} ${sizePx}px Paperlogy, "Noto Sans KR", sans-serif`;
+  return `${weightCss} ${sizePx}px "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif`;
 }
 
 export async function renderQuoteReportCard(input: QuoteReportInput): Promise<HTMLCanvasElement> {

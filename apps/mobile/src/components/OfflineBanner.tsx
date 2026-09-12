@@ -1,6 +1,7 @@
 // 오프라인 상태 감지 배너 — 인터넷 연결 끊기면 상단에 표시
 import { useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Animated, AppState, Platform } from "react-native";
+import { View, StyleSheet, Animated, AppState, Platform } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { WifiOff } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 

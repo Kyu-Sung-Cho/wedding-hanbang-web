@@ -12,13 +12,8 @@
 // 말풍선도 버튼이다: 웹은 같은 말풍선을 눌러 대화가 열린다. 앱에서만 읽기 전용이면
 // 아모라가 먼저 건넨 말을 눌러본 사람은 아무 일도 일어나지 않는 화면을 만난다.
 import { useRef } from "react";
-import {
-  Animated,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { Sparkles, X } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 import { AMORA_FAB_SIZE, getAmoraFabBottomOffset } from "@/lib/firstRunTutorial";

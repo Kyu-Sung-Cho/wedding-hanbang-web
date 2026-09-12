@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ActivityIndicator,
-  StyleSheet,
-  Switch,
-  Text,
-  View,
-} from "react-native";
+import { ActivityIndicator, StyleSheet, Switch, View } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { BellRing, ShieldCheck } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
 

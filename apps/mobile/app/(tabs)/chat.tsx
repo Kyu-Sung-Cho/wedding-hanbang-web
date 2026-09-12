@@ -1,9 +1,8 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
 // 색은 성별이 아니라 나/상대/AI 축으로 가른다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
-import {
-  View, Text, TextInput, Pressable, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
+import { View, Pressable, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,6 +26,7 @@ import {
   isAmoraCrisisRecoveryCardId,
 } from "@hanbang/shared/amora-crisis-recovery";
 import { planAmoraCrisisDelivery } from "@hanbang/shared/amora-crisis-delivery";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
 import {
   readPreparationSource, loadPreparationForContext, preparationContextMatches,
@@ -1094,7 +1094,8 @@ function cleanAiText(value: string, final: boolean): string {
     /\[suggestions\][\s\S]*?(?:\[\/suggestions\]|$)/gi,
     "",
   );
-  return final ? withoutSuggestions.trim() : withoutSuggestions.trimStart();
+  const visibleText = getAmoraVisibleText(withoutSuggestions, { streaming: !final });
+  return final ? visibleText.trim() : visibleText.trimStart();
 }
 
 function createChatStreamParser(
@@ -4033,11 +4034,15 @@ export default function ChatScreen() {
             .filter((model): model is NonNullable<typeof model> => model !== null),
         )
       : [];
-    const isThinking = isAi && item.id.startsWith("temp_") && !item.content && !hasPlaceResults && streaming;
+    // 저장된 대화와 실시간 답변 모두 AI 본문만 정리한다. 도구 결과 카드는 metadata를 그대로 쓴다.
+    const visibleContent = isAi
+      ? getAmoraVisibleText(item.content, { streaming: streaming && item.id.startsWith("temp_") })
+      : item.content;
+    const isThinking = isAi && item.id.startsWith("temp_") && !visibleContent.trim() && !hasPlaceResults && streaming;
     // 근거 표식은 아모라만 붙인다. 사용자가 대괄호를 직접 쓴 것을 지우면 안 되므로
     // 사람이 쓴 메시지는 손대지 않는다.
     const citation = isAi
-      ? parseAmoraCitations(item.content)
+      ? parseAmoraCitations(visibleContent)
       : { text: item.content, parts: [] as number[] };
     const citationText = citation.text;
     const citationNotice = isAi ? describeAmoraCitations(citation.parts) : null;
@@ -4153,13 +4158,13 @@ export default function ChatScreen() {
                 accessible
                 accessibilityRole="alert"
                 accessibilityLiveRegion="assertive"
-                accessibilityLabel={`긴급 안전 안내. ${item.content}`}
+                accessibilityLabel={`긴급 안전 안내. ${visibleContent}`}
               >
                 <View style={st.safetyCardHeading} accessibilityElementsHidden>
                   <ShieldCheck size={18} color={colors.danger} />
                   <Text style={st.safetyCardTitle}>긴급 안전 안내</Text>
                 </View>
-                <Text style={st.safetyCardText}>{item.content}</Text>
+                <Text style={st.safetyCardText}>{visibleContent}</Text>
               </View>
             ) : (
               <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
@@ -4191,7 +4196,7 @@ export default function ChatScreen() {
             <ToolResultCard key={`${model.toolName}-${index}`} model={model} />
           ))}
           {isAi && !isThinking && !isPinnedSafetyCard && userId && (item.visibility === "bride_private" || item.visibility === "groom_private") && (
-            <PersonalActionSave key={`${userId}:${item.couple_id}:${item.id}`} ownerId={userId} coupleId={item.couple_id} messageId={item.id} content={item.content} personalActionDraft={item.metadata?.personal_action_draft} personalActionsView={item.metadata?.personal_actions_view} />
+            <PersonalActionSave key={`${userId}:${item.couple_id}:${item.id}`} ownerId={userId} coupleId={item.couple_id} messageId={item.id} content={visibleContent} personalActionDraft={item.metadata?.personal_action_draft} personalActionsView={item.metadata?.personal_actions_view} />
           )}
           {mediationBlock && (
             <AmoraMediationCard

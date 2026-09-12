@@ -23,9 +23,13 @@ export default function GlobalError({
 
   return (
     <html lang="ko">
+      <head>
+        {/* 루트 레이아웃 없이도 같은 로컬 글꼴과 시스템 대체 글꼴을 쓴다. */}
+        <style>{`@font-face { font-family: "Pretendard Variable"; src: url("/fonts/pretendard/PretendardVariable.woff2") format("woff2"); font-weight: 100 900; font-style: normal; font-display: swap; }`}</style>
+      </head>
       <body
         style={{
-          fontFamily: "'Paperlogy', sans-serif",
+          fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif",
           background: "#FBF8F2",
           color: "#243832",
           display: "flex",
@@ -57,6 +61,7 @@ export default function GlobalError({
                 borderRadius: 999,
                 fontSize: 14,
                 fontWeight: 700,
+                fontFamily: "inherit",
                 cursor: "pointer",
               }}
             >

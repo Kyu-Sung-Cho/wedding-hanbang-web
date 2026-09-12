@@ -1,10 +1,7 @@
 // 로그인 — 이메일/비밀번호 + 카카오/Apple 소셜 로그인
 import { useState, useEffect, useRef } from "react";
-import {
-  View, Text, TextInput, Pressable, StyleSheet, Image, Alert,
-  ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView,
-  Animated, Linking,
-} from "react-native";
+import { View, Pressable, StyleSheet, Image, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, Animated, Linking } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import DismissKeyboard from "@/components/DismissKeyboard";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";

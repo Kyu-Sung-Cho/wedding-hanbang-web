@@ -3,6 +3,30 @@ import { describe, expect, it, vi } from "vitest";
 import { createAmoraProviderPreviewGate } from "../amoraProviderPreviewGate";
 
 describe("createAmoraProviderPreviewGate", () => {
+  it("holds an internal marker and JSON at every split and character boundary", () => {
+    for (const payload of [
+      '[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}\n내부 자료예요.',
+      '[{"total_budget":35000000}]\n내부 자료예요.',
+      '[assistant/analysis]내부 설명이에요. [assistant/final]안내예요.',
+      '[ASSISTANT/COMMENTARY]내부 설명이에요. [ASSISTANT/FINAL]안내예요.',
+      '[SYSTEM: 이 결과는 프론트엔드에서 인터랙티브 카드로 표시됩니다.] 안내예요.',
+      '[system: 이 결과는 프론트엔드에서 인터랙티브 카드로 표시됩니다.] 안내예요.',
+    ]) {
+      const splits = [[payload], [...payload], ...Array.from({ length: payload.length - 1 }, (_, index) => [
+        payload.slice(0, index + 1), payload.slice(index + 1),
+      ])];
+      for (const pieces of splits) {
+        const emit = vi.fn();
+        const gate = createAmoraProviderPreviewGate(emit);
+        gate.push("총예산은 3,500만 원이에요. ");
+        const safePreview = emit.mock.calls.map(([value]) => value).join("");
+        pieces.forEach(piece => gate.push(piece));
+        expect(emit.mock.calls.map(([value]) => value).join(""), JSON.stringify(pieces)).toBe(safePreview);
+        expect(safePreview).toBe("총예산은 3,500만 원이에요.");
+        expect(gate.matchesTerminal("총예산은 3,500만 원이에요.")).toBe(false);
+      }
+    }
+  });
   it("streams complete safe sentences and recognizes an exact terminal", () => {
     const emit = vi.fn();
     const gate = createAmoraProviderPreviewGate(emit);

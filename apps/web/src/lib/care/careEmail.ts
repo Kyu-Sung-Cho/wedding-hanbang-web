@@ -37,7 +37,7 @@ export function buildCareEmailHtml(params: {
   const body = escapeHtml(params.cell.message).replace(/\n/g, "<br>");
 
   return `
-    <div style="font-family: 'Paperlogy', Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
+    <div style="font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #FDFCFA;">
       <div style="text-align: center; margin-bottom: 28px;">
         <img src="${SITE}/images/logo-512-transparent.png" alt="웨딩한방" width="56" height="56" style="width: 56px; height: 56px; object-fit: contain;" />
       </div>

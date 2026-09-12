@@ -196,8 +196,8 @@ corepack pnpm mobile:release-check
 ## 디자인 시스템
 
 - 모든 시각 변경은 `DESIGN.md`가 기준이다.
-- 웹·모바일은 Paperlogy를 사용한다. 모바일의 예전 Noto/Cormorant 이름은 실제
-  Paperlogy 파일에 매핑된 호환 alias일 수 있으므로 로더를 확인한다.
+- 웹·모바일은 Pretendard를 사용한다. 모바일의 예전 Noto/Cormorant 이름은 실제
+  Pretendard 파일에 매핑된 호환 alias일 수 있으므로 로더를 확인한다.
 - Eucalyptus Ink, Dusty Mauve, Pearl Ivory, Sage 토큰을 사용하고 임의의 핑크·골드
   팔레트를 새로 만들지 않는다.
 - 모바일 첫 화면은 5초 안에 “오늘 무엇을 해야 하는지” 보여야 한다.

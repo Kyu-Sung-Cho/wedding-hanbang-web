@@ -65,12 +65,12 @@ module.exports = {
         textTertiary: colors.textTertiary,
       },
       fontFamily: {
-        serif: ["NotoSerifKR_500Medium", "serif"],
-        "serif-light": ["NotoSerifKR_300Light", "serif"],
-        sans: ["NotoSansKR_400Regular", "sans-serif"],
-        "sans-medium": ["NotoSansKR_500Medium", "sans-serif"],
-        "sans-semibold": ["NotoSansKR_600SemiBold", "sans-serif"],
-        display: ["CormorantGaramond_400Regular", "serif"],
+        serif: ["Pretendard_500Medium"],
+        "serif-light": ["Pretendard_300Light"],
+        sans: ["Pretendard_400Regular"],
+        "sans-medium": ["Pretendard_500Medium"],
+        "sans-semibold": ["Pretendard_600SemiBold"],
+        display: ["Pretendard_400Regular"],
       },
       borderRadius: {
         "2xl": "20px",

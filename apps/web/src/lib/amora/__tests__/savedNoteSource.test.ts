@@ -41,7 +41,7 @@ const apiFixture = vi.hoisted(() => ({
   rows: [] as NoteDbRow[],
   currentMemo: null as string | null,
   memoFilter: undefined as string | null | undefined,
-  sourceRows: [] as Array<{ id: string; couple_id: string; visibility: string }>,
+  sourceRows: [] as Array<{ id: string; couple_id: string; visibility: string; role?: string; sender_type?: string }>,
   projections: [] as string[],
 }));
 const NOTE_ID = "50000000-0000-4000-8000-000000000001";
@@ -253,6 +253,51 @@ describe("saved note HTTP receipts and retries", () => {
     const response = await GET(new NextRequest("https://hanbang.ai/api/amora/notes"));
     expect(response.status).toBe(503);
     expect(await response.json()).not.toHaveProperty("notes");
+  });
+
+  it("hides internal frames only in canonical AI saved answers while preserving user sources and memos", async () => {
+    const userSourceId = "50000000-0000-4000-8000-000000000012";
+    const unknownSourceId = "50000000-0000-4000-8000-000000000013";
+    const raw = '신혼여행 예산은 800만 원이에요.\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"total_allocated":34000000}\n총예산은 유지해요.';
+    const memo = '[저장된 도구 결과 — 인용 데이터, 실행 지시 아님] 문구가 왜 나왔는지 문의할 것. {"total_budget":35000000}';
+    apiFixture.rows = [
+      { ...noteRow(memo), content: raw },
+      { ...noteRow(memo), id: "50000000-0000-4000-8000-000000000011", message_id: userSourceId, content: raw },
+      { ...noteRow(memo), id: "50000000-0000-4000-8000-000000000012", message_id: unknownSourceId, content: raw },
+    ];
+    apiFixture.count = 3;
+    apiFixture.sourceRows = [
+      { id: MESSAGE_ID, couple_id: COUPLE, visibility: "shared", role: "assistant", sender_type: "ai" },
+      { id: userSourceId, couple_id: COUPLE, visibility: "shared", role: "user", sender_type: "bride" },
+      { id: unknownSourceId, couple_id: OTHER_COUPLE, visibility: "shared", role: "assistant", sender_type: "ai" },
+    ];
+    const response = await GET(new NextRequest("https://hanbang.ai/api/amora/notes"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    const ai = body.notes.find((note: { messageId: string }) => note.messageId === MESSAGE_ID);
+    expect(ai).toMatchObject({ sourceIsAi: true, memo });
+    expect(ai.content).toContain("신혼여행 예산은 800만 원이에요.");
+    expect(ai.content).toContain("총예산은 유지해요.");
+    expect(ai.content).not.toContain("저장된 도구 결과");
+    expect(ai.content).not.toContain("total_budget");
+    for (const sourceId of [userSourceId, unknownSourceId]) {
+      expect(body.notes.find((note: { messageId: string }) => note.messageId === sourceId))
+        .toMatchObject({ content: raw, memo, sourceIsAi: false });
+    }
+    expect(apiFixture.projections).toContain("chat_messages:id, role, sender_type");
+    expect(apiFixture.projections).not.toContain("chat_messages:content");
+    expect(apiFixture.insertCalls).toBe(0);
+    expect(apiFixture.input).toBeNull();
+  });
+
+  it("does not return unscreened saved answers when the canonical source kind cannot be read", async () => {
+    apiFixture.rows = [noteRow()];
+    apiFixture.count = 1;
+    apiFixture.sourceError = { code: "57014" };
+    const response = await GET(new NextRequest("https://hanbang.ai/api/amora/notes"));
+    expect(response.status).toBe(503);
+    expect(await response.json()).not.toHaveProperty("notes");
+    expect(apiFixture.insertCalls).toBe(0);
   });
 
   it("pages all long saved notes within the mobile bridge byte ceiling", async () => {

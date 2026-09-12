@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { StyleSheet, View, type StyleProp, type TextStyle } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import { colors } from "@hanbang/design-tokens";
 import { parseAmoraInline, parseAmoraMessageBody } from "../../lib/amoraMessageBody.mjs";
 

@@ -1,9 +1,7 @@
 // 15초 후기 작성
 import { useState } from "react";
-import {
-  View, Text, TextInput, ScrollView, StyleSheet, Pressable,
-  Alert, ActivityIndicator,
-} from "react-native";
+import { View, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator } from "react-native";
+import { Text, TextInput } from "@/components/ui/AppText";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Star } from "lucide-react-native";

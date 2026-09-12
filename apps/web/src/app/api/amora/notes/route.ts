@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { log } from "@/utils/log";
 import { evaluateSavedNoteSource } from "@/lib/amora/savedNoteSource";
+import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { mobileBridgeJson } from "@/lib/mobile/boundedJsonResponse";
@@ -204,10 +205,25 @@ export async function GET(req: NextRequest) {
     }
 
     const rows = (data ?? []) as SavedNoteRow[];
+    const pageSourceIds = [...new Set(rows.slice(0, NOTES_PAGE_SIZE)
+      .map(row => row.message_id).filter((id): id is string => typeof id === "string"))];
+    const aiSourceIds = new Set<string>();
+    if (pageSourceIds.length > 0) {
+      // 사용자 원문이나 출처가 사라진 옛 노트를 AI 답변으로 추정하지 않는다.
+      // 본문·메모는 추가로 읽지 않고 현재 페이지의 공유 출처 종류만 확인한다.
+      const { data: sources, error: sourceError } = await supabase.from("chat_messages")
+        .select("id, role, sender_type").eq("couple_id", coupleId).eq("visibility", "shared")
+        .in("id", pageSourceIds).limit(NOTES_PAGE_SIZE);
+      if (sourceError) return noteUnavailable();
+      for (const source of sources ?? []) {
+        if (source.role === "assistant" && source.sender_type === "ai") aiSourceIds.add(source.id);
+      }
+    }
     const notes = rows.slice(0, NOTES_PAGE_SIZE).map((row) => ({
       id: row.id,
       messageId: row.message_id,
-      content: row.content,
+      content: row.message_id && aiSourceIds.has(row.message_id) ? getAmoraVisibleText(row.content) : row.content,
+      sourceIsAi: row.message_id !== null && aiSourceIds.has(row.message_id),
       memo: row.memo,
       savedByMe: row.saved_by === user.id,
       createdAt: row.created_at,

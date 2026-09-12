@@ -203,6 +203,9 @@ export function buildLoungeFirstArrival(
  * 사용자가 말한 것을 말한 그대로 돌려주는 데까지가 이 카드의 몫이다.
  */
 export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView }) {
+  // 입력이 없으면 허브의 미정 표시와 아모라·파트너 초대 링크만 보여준다.
+  if (view.echo.length === 0) return null;
+
   const nextStepLink = destinationLinkProps(view.nextStep.destination);
   const inviteLink = weddingLinkProps(INVITE_PATH);
 
@@ -285,6 +288,8 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
  * 카드와 떨어져 있어야 하므로 컴포넌트를 나눴다 — 같은 판정 결과를 나눠 쓴다.
  */
 export function LoungeFirstArrivalEmptyNote({ view }: { view: LoungeFirstRunView }) {
+  if (!view.emptyNote) return null;
+
   return (
     <p
       data-testid="lounge-first-arrival-empty-note"

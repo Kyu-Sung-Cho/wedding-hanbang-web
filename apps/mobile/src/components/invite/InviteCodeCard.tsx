@@ -31,16 +31,8 @@
  */
 
 import { useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  Share,
-  StyleSheet,
-  Text,
-  View,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { Alert, Pressable, Share, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { Text } from "@/components/ui/AppText";
 import QRCode from "react-native-qrcode-svg";
 import { Check, Copy, Share2 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";

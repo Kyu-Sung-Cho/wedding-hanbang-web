@@ -43,6 +43,7 @@
  */
 
 import { scrubAmoraSpam } from "@/lib/ai/amoraSpamTail";
+import { stripAmoraInternalArtifacts } from "@hanbang/shared/amora-visible-text";
 import { stripAmoraRequestMarkers } from "./amoraRequestMarkers";
 import { alignAmoraRecommendationLabels } from "./amoraRecommendationConsistency";
 
@@ -132,6 +133,7 @@ const KNOWN_SHORT_LATIN = new Set([
 const SHORT_LATIN_TOKEN_RE = /(?<![0-9A-Za-z@/:._%+-])[a-z]{1,5}(?![0-9A-Za-z@/:._%+-])/g;
 
 export type AmoraOutputHygieneAction =
+  | { kind: "internal_artifacts_removed" }
   | { kind: "reserved_request_markers_removed" }
   | { kind: "recommendation_label_aligned"; count: number }
   | { kind: "spam_tail_trimmed" }
@@ -264,8 +266,11 @@ export function applyAmoraOutputHygiene(
     return { text, actions };
   }
 
-  const withoutRequestMarkers = stripAmoraRequestMarkers(text);
-  if (withoutRequestMarkers !== text) actions.push({ kind: "reserved_request_markers_removed" });
+  // 승인·중재 블록은 route에서 먼저 추출한다. 여기서는 사용자에게 남길 본문만 정리한다.
+  const withoutInternalArtifacts = stripAmoraInternalArtifacts(text);
+  if (withoutInternalArtifacts !== text) actions.push({ kind: "internal_artifacts_removed" });
+  const withoutRequestMarkers = stripAmoraRequestMarkers(withoutInternalArtifacts);
+  if (withoutRequestMarkers !== withoutInternalArtifacts) actions.push({ kind: "reserved_request_markers_removed" });
   const recommendation = alignAmoraRecommendationLabels(withoutRequestMarkers);
   if (recommendation.count > 0) actions.push({ kind: "recommendation_label_aligned", count: recommendation.count });
   const spam = scrubAmoraSpam(recommendation.text);
