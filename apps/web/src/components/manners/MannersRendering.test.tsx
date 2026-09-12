@@ -40,6 +40,25 @@ function clickButton(container: HTMLElement, name: string) {
 afterEach(() => { act(() => mountedRoot?.unmount()); mountedRoot = undefined; document.body.replaceChildren(); vi.restoreAllMocks(); vi.unstubAllGlobals(); window.history.replaceState(null, "", "/"); });
 
 describe("예절에서 필요한 글과 절을 찾는다", () => {
+  it("정확한 제목을 본문 일치보다 먼저 보여주고 검색을 지우면 준비 순서로 돌아온다", () => {
+    const container = mount(<MannersIndexPage />);
+    searchGuide(container, "축의금");
+    expect(container.querySelectorAll("[data-guide-slug]").length).toBeGreaterThan(1);
+    expect(container.querySelector("[data-guide-slug]")?.getAttribute("data-guide-slug")).toBe("gift-money");
+    clickButton(container, "검색어 지우기");
+    expect([...container.querySelectorAll("[data-guide-slug]")].map(node => node.getAttribute("data-guide-slug"))).toEqual(MANNERS_CATEGORIES.flatMap(group => group.slugs));
+  });
+
+  it("공개 가이드도 동일한 다섯 기능을 같은 순서로 연결하고 다른 기능을 선택했다고 표시하지 않는다", () => {
+    const doc = parse(renderToStaticMarkup(<MannersLayout><MannersIndexPage /></MannersLayout>));
+    const nav = doc.querySelector('nav[aria-label="모바일 주요 기능"]');
+    expect(nav).not.toBeNull();
+    expect([...nav!.querySelectorAll("a")].map(link => link.getAttribute("href"))).toEqual([
+      "/wedding/lounge", "/wedding/chat", "/wedding/checklist", "/wedding/schedule", "/wedding/budget",
+    ]);
+    expect(nav!.querySelector("[aria-current]")).toBeNull();
+  });
+
   it("제목에 없는 본문 키워드도 검색하고, 빈 결과에서 전체 목록으로 돌아온다", () => {
     const container = mount(<MannersIndexPage />);
     searchGuide(container, "봉투");

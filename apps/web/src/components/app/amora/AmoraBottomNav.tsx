@@ -12,8 +12,8 @@ const links = [
   { href: "/budget", label: "예산", icon: Wallet },
 ];
 
-export default function AmoraBottomNav({ active = "amora" }: { active?: "amora" | "checklist" | "lounge" | "schedule" | "budget" }) {
-  const activeIndex = active === "budget" ? 4 : active === "schedule" ? 3 : active === "checklist" ? 2 : active === "lounge" ? 0 : 1;
+export default function AmoraBottomNav({ active = "amora" }: { active?: "amora" | "checklist" | "lounge" | "schedule" | "budget" | null }) {
+  const activeIndex = active === null ? -1 : active === "budget" ? 4 : active === "schedule" ? 3 : active === "checklist" ? 2 : active === "lounge" ? 0 : 1;
   return (
     <nav aria-label="모바일 주요 기능" className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-[var(--amora-line)] bg-white px-2 pb-[env(safe-area-inset-bottom)] md:hidden">
       {links.map(({ href, label, icon: Icon }, index) => (

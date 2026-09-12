@@ -37,7 +37,7 @@ export function PriceAmoraBridge() {
           </p>
           <StartDemoButton
             label="아모라에게 물어보기"
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-action-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           />
         </>
       ) : (
@@ -50,7 +50,7 @@ export function PriceAmoraBridge() {
           <Link
             href="/login?mode=signup"
             prefetch={false}
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           >
             아모라와 시작하기
           </Link>

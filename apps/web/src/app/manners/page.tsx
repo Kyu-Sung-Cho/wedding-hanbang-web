@@ -46,7 +46,7 @@ export default function MannersIndexPage() {
       const part = bySlug.get(slug);
       if (!part) return [];
       const amoraHref = buildAmoraPreparationHref({ kind: "manners", partSlug: part.slug });
-      return [{ slug, searchText: guideSearchText(part), card: <>
+      return [{ slug, title: part.title, searchText: guideSearchText(part), card: <>
         <Link href={`/wedding/manners/${part.slug}`} prefetch={false} className="min-h-11 min-w-0 flex-1 rounded-[14px] px-4 py-3.5 transition-colors hover:text-[var(--amora-rose-deep)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]">
           <h3 className="text-[15.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[17px]">{part.title}</h3>
           <p className="mt-1 text-[13px] leading-[1.6] text-[var(--amora-soft)]">{part.subtitle}</p>
@@ -72,7 +72,7 @@ export default function MannersIndexPage() {
         </p>
         <Link
           {...weddingLinkProps("/checklist")}
-          className="mt-4 inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-ink)] px-4 py-2.5 text-[13px] font-semibold text-white"
+          className="mt-4 inline-flex min-h-11 items-center rounded-[11px] bg-[var(--hb-action)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[var(--hb-action-hover)]"
         >
           웨딩 체크리스트 열기
         </Link>

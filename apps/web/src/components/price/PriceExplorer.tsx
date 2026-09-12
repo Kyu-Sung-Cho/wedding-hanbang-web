@@ -729,7 +729,7 @@ export function PriceExplorer({
                 // 안 볼 탭까지 수 MB를 미리 받게 만든다 — 클릭 시에만 가져온다.
                 prefetch={false}
                 aria-current={value === category ? "page" : undefined}
-                className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-primary)] bg-[var(--hb-primary)] text-white" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-[6px] border px-4 text-sm font-bold transition-colors ${value === category ? "border-[var(--hb-selected-line)] bg-[var(--hb-selected-bg)] text-[var(--hb-selected-text)]" : "border-[var(--hb-primary)]/12 bg-white text-[var(--hb-text-strong)] hover:bg-[#F5ECE4]"}`}
               >
                 {PRICE_CATEGORY_LABELS[value]}
                 <span className={value === category ? "text-white/65" : "text-[var(--hb-text-strong)]/45"}>{catalog.counts[value]}</span>
@@ -920,7 +920,7 @@ export function PriceExplorer({
                     <button
                       type="button"
                       onClick={restoreLatestCombo}
-                      className="inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                      className="inline-flex min-h-11 items-center rounded-[6px] bg-[var(--hb-action)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                     >
                       바꾸기
                     </button>
@@ -936,7 +936,7 @@ export function PriceExplorer({
                   <button
                     type="button"
                     onClick={restoreLatestCombo}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-action)] px-4 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#8F6662]"
                   >
                     최근 저장 조합 불러오기
                   </button>

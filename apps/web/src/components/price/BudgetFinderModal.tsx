@@ -119,7 +119,7 @@ export function BudgetFinderModal({
               {agencies.map((agency) => <option key={agency.id} value={agency.id}>{agency.name}</option>)}
             </select>
           </label>
-          <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)]">
+          <button type="submit" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-action-hover)]">
             <Search aria-hidden="true" className="size-4" />
             조합 찾기
           </button>

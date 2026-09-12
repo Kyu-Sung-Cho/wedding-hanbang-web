@@ -114,12 +114,13 @@ const LEGACY_JOIN_SUCCESS = {
     couple_id: COUPLE_ID,
     invite_code: CODE,
     role: "bride",
+    actor_user_id: USER_ID,
   },
   error: null,
 };
 
-/** `join_couple` 이 호출 순서대로 돌려줄 응답. 마지막 값은 이후 호출에 계속 쓰인다. */
-function setup(authRpcSequence: unknown[]) {
+/** 서버 전용 legacy 연결이 호출 순서대로 돌려줄 응답. */
+function setup(serverRpcSequence: QueryResult[]) {
   let callIndex = 0;
   const authClient = {
     auth: {
@@ -133,7 +134,7 @@ function setup(authRpcSequence: unknown[]) {
         },
       }),
     },
-    rpc: vi.fn(async () => authRpcSequence[Math.min(callIndex++, authRpcSequence.length - 1)]),
+    rpc: vi.fn(),
   };
   vi.mocked(createClientFromRequest).mockResolvedValue(authClient as never);
 
@@ -156,7 +157,10 @@ function setup(authRpcSequence: unknown[]) {
   const admin = {
     from: vi.fn((table: string) =>
       new FakeQuery(tableResults[table] ?? { data: null, error: null })),
-    rpc: vi.fn().mockResolvedValue(LEGACY_REJECTION),
+    rpc: vi.fn<(name: string, parameters?: Record<string, unknown>) => Promise<QueryResult>>(async name =>
+      name === "join_couple_server"
+        ? serverRpcSequence[Math.min(callIndex++, serverRpcSequence.length - 1)]
+        : LEGACY_REJECTION),
   };
   vi.mocked(createClient).mockReturnValue(admin as never);
   return { authClient, admin };
@@ -182,12 +186,14 @@ describe("옛 방식 공간에도 새 방식 화면에서 합류한다", () => {
   };
 
   it("신부 자리가 비었으면 첫 시도로 붙는다", async () => {
-    const { authClient } = setup([LEGACY_JOIN_SUCCESS]);
+    const { authClient, admin } = setup([LEGACY_JOIN_SUCCESS]);
 
     const response = await POST(request(joinBody()));
 
-    expect(authClient.rpc).toHaveBeenCalledTimes(1);
-    expect(authClient.rpc).toHaveBeenCalledWith("join_couple", {
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", {
+      p_actor_user_id: USER_ID,
       p_invite_code: CODE,
       p_role: "bride",
     });
@@ -195,15 +201,17 @@ describe("옛 방식 공간에도 새 방식 화면에서 합류한다", () => {
   });
 
   it("신부가 차 있으면 신랑으로 한 번 더 시도한다", async () => {
-    const { authClient } = setup([
+    const { authClient, admin } = setup([
       WRONG_ROLE,
       { ...LEGACY_JOIN_SUCCESS, data: { ...LEGACY_JOIN_SUCCESS.data, role: "groom" } },
     ]);
 
     const response = await POST(request(joinBody()));
 
-    expect(authClient.rpc).toHaveBeenCalledTimes(2);
-    expect(authClient.rpc).toHaveBeenNthCalledWith(2, "join_couple", {
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(3);
+    expect(admin.rpc).toHaveBeenNthCalledWith(3, "join_couple_server", {
+      p_actor_user_id: USER_ID,
       p_invite_code: CODE,
       p_role: "groom",
     });
@@ -212,21 +220,23 @@ describe("옛 방식 공간에도 새 방식 화면에서 합류한다", () => {
 
   it("두 자리 다 안 되면 두 번만 시도하고 오류를 준다", async () => {
     // 한도가 10분에 10번이다. 무한히 시도하면 사용자의 남은 시도를 태운다.
-    const { authClient } = setup([WRONG_ROLE]);
+    const { authClient, admin } = setup([WRONG_ROLE]);
 
     const response = await POST(request(joinBody()));
 
-    expect(authClient.rpc).toHaveBeenCalledTimes(2);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(3);
     expect(response.status).toBeGreaterThanOrEqual(400);
   });
 
   it("RPC 가 아예 실패하면 두 번째를 시도하지 않는다", async () => {
     // 전송 자체가 실패한 것은 역할 문제가 아니다. 다시 걸어도 같은 결과다.
-    const { authClient } = setup([{ data: null, error: { code: "57014" } }]);
+    const { authClient, admin } = setup([{ data: null, error: { code: "57014" } }]);
 
     await POST(request(joinBody()));
 
-    expect(authClient.rpc).toHaveBeenCalledTimes(1);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
   });
 
   it("새 방식 공간이면 되부르지 않는다", async () => {
@@ -240,6 +250,20 @@ describe("옛 방식 공간에도 새 방식 화면에서 합류한다", () => {
     await POST(request(joinBody()));
 
     expect(authClient.rpc).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { name: "서버 actor 불일치", result: { ...LEGACY_JOIN_SUCCESS, data: { ...LEGACY_JOIN_SUCCESS.data, actor_user_id: COUPLE_ID } }, status: 500 },
+    { name: "초대 만료", result: { data: { success: false, joined: false, idempotent: false, error_code: "INVITE_CODE_EXPIRED" }, error: null }, status: 410 },
+  ])("$name 결과는 다른 역할로 다시 쓰기를 시도하지 않는다", async ({ result, status }) => {
+    const { authClient, admin } = setup([result]);
+    const response = await POST(request(joinBody()));
+    expect(response.status).toBe(status);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
+    expect(admin.rpc).toHaveBeenLastCalledWith("join_couple_server", {
+      p_actor_user_id: USER_ID, p_invite_code: CODE, p_role: "bride",
+    });
   });
 
   it("다른 이유로 거절되면 되부르지 않는다", async () => {

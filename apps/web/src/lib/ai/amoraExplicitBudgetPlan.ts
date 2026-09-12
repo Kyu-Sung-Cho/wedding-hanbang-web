@@ -96,10 +96,10 @@ export function parseExplicitBudgetPlanRequest(
 ): ExplicitBudgetPlanInput | null {
   if (typeof text !== "string" || text.length > 4000 || /["'“”‘’`<>\p{Cf}]/u.test(text)) return null;
   if (/^기존\s+예산의/u.test(text.trim())) return parseExistingBudgetUpdate(text.trim(), progress, currentTotalBudget);
-  return parseCompleteBudgetListing(text, progress);
+  return parseCompleteBudgetListing(text, progress, currentTotalBudget);
 }
 
-function parseCompleteBudgetListing(text: string, progress: Record<string, unknown>): ExplicitBudgetPlanInput | null {
+function parseCompleteBudgetListing(text: string, progress: Record<string, unknown>, currentTotalBudget?: number): ExplicitBudgetPlanInput | null {
   if (typeof text !== "string" || text.length > 4000
     || /["'“”‘’`<>\p{Cf}]/u.test(text)
     || /(?:예시|가정|대략|아마|나중|보류|하지\s*마|하지\s*말|말고|취소|삭제|지워)/u.test(text)) return null;
@@ -157,8 +157,13 @@ function parseCompleteBudgetListing(text: string, progress: Record<string, unkno
   const fixedKeys = allocations.filter(row => row.category !== "custom").map(row => row.category);
   if (new Set(fixedKeys).size !== fixedKeys.length) return null;
   if (allocations.some(row => !isValidWeddingWonAmount(row.budget))) return null;
-  const totalBudget = allocations.reduce((sum, row) => sum + row.budget, 0);
-  if (!isValidWeddingWonAmount(totalBudget) || totalBudget === 0
-    || (declaredTotal !== null && declaredTotal !== totalBudget)) return null;
+  const allocatedTotal = allocations.reduce((sum, row) => sum + row.budget, 0);
+  if (!isValidWeddingWonAmount(allocatedTotal)
+    || (declaredTotal !== null && declaredTotal !== allocatedTotal)) return null;
+  // 일부 항목의 합계를 새 총예산으로 만들지 않는다. 생략한 기존 항목·예비비와
+  // 배정 합계는 승인 미리보기와 같은 원자 저장기가 현재 값으로 다시 검증한다.
+  const totalBudget = declaredTotal ?? (isValidWeddingWonAmount(currentTotalBudget) && currentTotalBudget > 0
+    ? currentTotalBudget : allocatedTotal);
+  if (totalBudget === 0) return null;
   return { total_budget: totalBudget, allocations, intake_summary: "현재 메시지에서 명시한 항목별 예산 배분" };
 }

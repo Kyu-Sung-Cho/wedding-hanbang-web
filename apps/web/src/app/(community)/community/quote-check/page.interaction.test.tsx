@@ -2,9 +2,9 @@
 
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getQuoteCheckItems } from "@/lib/amora/quoteCheck";
+import { analyzeAmoraQuoteCheck, getQuoteCheckItems } from "@/lib/amora/quoteCheck";
 import AmoraQuoteCheckPage from "./page";
 
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean })
@@ -23,6 +23,7 @@ describe("AmoraQuoteCheckPage interaction", () => {
   afterEach(async () => {
     await act(async () => root.unmount());
     document.body.replaceChildren();
+    vi.unstubAllGlobals();
   });
 
   it("counts only explicit included or unused decisions", async () => {
@@ -51,5 +52,22 @@ describe("AmoraQuoteCheckPage interaction", () => {
     await act(async () => unknownButton.click());
     expect(unknownButton.getAttribute("aria-pressed")).toBe("true");
     expect(container.textContent).toContain(`정리 0/${itemCount}`);
+  });
+
+  it("discloses the subset of questions and items carried into a conversation", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ analysis: analyzeAmoraQuoteCheck({
+      category: "studio", region: "other", quotePriceManwon: 0, includedItemIds: [],
+    }) })));
+    await act(async () => root.render(<AmoraQuoteCheckPage />));
+    const calculate = [...container.querySelectorAll("button")].find(button => button.textContent?.includes("체크리스트 결과 보기"));
+    expect(calculate).toBeDefined();
+    await act(async () => calculate!.click());
+    const total = getQuoteCheckItems("studio", "other").length;
+    expect(container.textContent).not.toContain("개이 아직");
+    expect(container.textContent).toContain(`확인 필요 ${total}개 중 우선 질문`);
+    expect(container.textContent).toContain(`대화와 글쓰기에는 확인 필요 ${total}개 중 우선 8개를 전달해요`);
+    const chat = [...container.querySelectorAll("a")].find(link => link.textContent?.includes("아모라에게 이어서 묻기"));
+    const prompt = new URL(chat!.href, "https://hanbang.ai").searchParams.get("prefill");
+    expect(prompt).toContain(`확인 필요 ${total}개 중 우선 8개`);
   });
 });

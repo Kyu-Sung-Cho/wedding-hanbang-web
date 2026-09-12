@@ -54,7 +54,7 @@ export function AuthGateModal({ open, redirectPath, onClose }: AuthGateModalProp
         </p>
         <Link
           href={`/login?redirect=${encodeURIComponent(safeRedirect)}`}
-          className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+          className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-[6px] bg-[var(--hb-action)] px-5 text-sm font-bold text-white hover:bg-[var(--hb-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
         >
           로그인하고 계속하기
         </Link>

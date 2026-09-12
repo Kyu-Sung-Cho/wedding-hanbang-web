@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { assessAmoraSafetyText } from "@/lib/ai/amoraCrisisClassifier";
 import { classifyAmoraQuestionScope } from "@/lib/ai/amoraQuestionScope";
-import { selectAmoraTrustedHistoryRows } from "@/lib/ai/amoraTrustedHistory";
+import { selectAmoraTrustedHistoryRows, type AmoraTrustedHistoryRow } from "@/lib/ai/amoraTrustedHistory";
 
 const CURRENT_ID = "30000000-0000-4000-8000-000000000003";
 
@@ -189,11 +189,15 @@ describe("selectAmoraTrustedHistoryRows", () => {
     _label: string,
     mutation: RejectedHistoryMutation,
   ) => {
-    expect(selectAmoraTrustedHistoryRows({
-      oldestFirstRows: mutatedHistoryRows(mutation),
-      currentUserMessageId: CURRENT_ID,
-      visibility: "shared",
-    }).map((row) => row.id)).toEqual([CURRENT_ID]);
+    const rows = mutatedHistoryRows(mutation);
+    const unanswered = userRow("30000000-0000-4000-8000-000000000099", "우리 결혼식 식순도 정리하고 싶어");
+    for (const oldestFirstRows of [rows, [rows[0], unanswered, rows[1], rows[2]]]) {
+      expect(selectAmoraTrustedHistoryRows({
+        oldestFirstRows,
+        currentUserMessageId: CURRENT_ID,
+        visibility: "shared",
+      }).map((row) => row.id)).toEqual([CURRENT_ID]);
+    }
   });
 
   /**
@@ -250,6 +254,55 @@ describe("selectAmoraTrustedHistoryRows", () => {
       currentUserMessageId: CURRENT_ID,
       visibility: "shared",
     }).map((row) => row.id)).toEqual([CURRENT_ID]);
+  });
+});
+
+describe("trusted history with overlapping completed requests", () => {
+  const firstId = "30000000-0000-4000-8000-000000000111";
+  const secondId = "30000000-0000-4000-8000-000000000112";
+  const firstAnswerId = "20000000-0000-4000-8000-000000000111";
+  const secondAnswerId = "20000000-0000-4000-8000-000000000112";
+  const first = () => userRow(firstId, "우리 결혼 예산은 3500만 원을 지키고 싶어");
+  const second = () => userRow(secondId, "우리 결혼식 하객은 150명을 모시고 싶어", {
+    sender_id: "00000000-0000-4000-8000-000000000002", sender_type: "groom",
+  });
+  const current = () => userRow(CURRENT_ID, "우리 결혼 준비 조건을 요약해줘");
+  const select = (rows: AmoraTrustedHistoryRow[]) => selectAmoraTrustedHistoryRows({
+    oldestFirstRows: rows, currentUserMessageId: CURRENT_ID, visibility: "shared",
+  }).map(row => row.id);
+
+  it.each([false, true])("keeps both verified exchanges in actual database order when reverse completion is %s", reverse => {
+    const replies = [assistantRow(firstAnswerId, firstId), assistantRow(secondAnswerId, secondId)];
+    if (reverse) replies.reverse();
+    const rows = [first(), second(), ...replies, current()];
+    expect(select(rows)).toEqual(rows.map(row => row.id));
+  });
+
+  it("does not borrow a future answer to complete an earlier question", () => {
+    expect(select([first(), second(), assistantRow(secondAnswerId, secondId), current(), assistantRow(firstAnswerId, firstId)]))
+      .toEqual([secondId, secondAnswerId, CURRENT_ID]);
+  });
+
+  it("does not move an answer before its source or restore a source omitted by a reset/window boundary", () => {
+    expect(select([assistantRow(firstAnswerId, firstId), first(), current()])).toEqual([CURRENT_ID]);
+    expect(select([assistantRow(firstAnswerId, firstId), current()])).toEqual([CURRENT_ID]);
+  });
+
+  it("drops ambiguous multiple answers to one source instead of choosing a convenient one", () => {
+    expect(select([first(), assistantRow(firstAnswerId, firstId), assistantRow(secondAnswerId, firstId), current()]))
+      .toEqual([CURRENT_ID]);
+  });
+
+  it("keeps an unrelated valid pair while refusing an interleaved private pair", () => {
+    const privateUser = { ...second(), visibility: "groom_private" };
+    const privateAnswer = assistantRow(secondAnswerId, secondId, { visibility: "groom_private" });
+    expect(select([first(), privateUser, assistantRow(firstAnswerId, firstId), privateAnswer, current()]))
+      .toEqual([firstId, firstAnswerId, CURRENT_ID]);
+  });
+
+  it("does not let duplicate answer ids become valid through interleaving", () => {
+    expect(select([first(), second(), assistantRow(firstAnswerId, firstId), assistantRow(firstAnswerId, secondId), current()]))
+      .toEqual([CURRENT_ID]);
   });
 });
 

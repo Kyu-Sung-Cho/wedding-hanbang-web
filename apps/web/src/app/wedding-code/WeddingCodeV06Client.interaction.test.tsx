@@ -56,6 +56,33 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(/#v=[^&]+&a=-{9}A-{10}$/);
   });
 
+  it("계약할 뻔한 한 장면을 답하면 배지·본문에 실제 경험을 보존하고 공유 답도 그대로 남긴다", async () => {
+    const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
+    await act(async () => root.render(<WeddingCodeV06Client shareOrigin="https://hanbang.ai" version={config.version} partnerAnswers={null} partnerCode={null} bothCodes={null} />));
+    const clickText = async (text: string) => {
+      const button = [...container.querySelectorAll("button")].find(candidate => candidate.textContent?.includes(text));
+      expect(button).toBeDefined();
+      await act(async () => button!.click());
+    };
+    await clickText("시작하기");
+    for (const question of config.questions) {
+      if (question.key === "D4") {
+        await act(async () => container.querySelector<HTMLButtonElement>('[data-option="D"]')!.click());
+        await clickText("다음 문항");
+      } else {
+        await clickText("이 장면은 우리와 안 맞아요");
+      }
+    }
+    const result = container.querySelector('[data-result="solo"]')!;
+    expect(result.textContent).toContain("답한 1장면만 셌고");
+    expect(result.textContent).toContain("깎아준다는 말에 그 자리에서 계약할 뻔했다");
+    expect(result.textContent).toContain("계약할 뻔한 경험과 할 일을 정리한 경험은 달라요");
+    expect(container.textContent).toContain("할 일과 결정에 관한 답을 더 많이 골랐어요");
+    expect(container.textContent).not.toContain("먼저 할 일을 정하는 답");
+    expect(container.querySelector('[data-wedding-code="···A"]')).not.toBeNull();
+    expect(container.querySelector('[data-share-url]')?.getAttribute("data-share-url")).toMatch(/#v=v0\.8-code&a=-{18}D-$/);
+  });
+
   it("moves from the intro through an answered question", async () => {
     const config = CURRENT_WEDDING_CODE_SCENE_CONFIG;
 
@@ -156,9 +183,9 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(text).toContain("한 가지 챙긴다면");
     expect(text).toContain("한 번도 고르지 않았어요");
     // 받침에 맞는 조사가 붙어야 한다 — 문구가 바뀔 때 제일 먼저 틀리는 자리다.
-    expect(text).toContain("“우리가 원하는 느낌인지”와 “우리에게 어떤 의미인지”를");
+    expect(text).toContain("“사진·영상과 분위기에 관한 생각”과 “기대하거나 마음에 남은 점” 쪽 문장은 한 번도 고르지 않았어요");
     expect(text).toContain("“한 사람이 맡아 정리하는 방법” 쪽 문장은 한 번도 고르지 않았어요");
-    expect(text).toContain("“가족과 하객의 사정”을");
+    expect(text).toContain("“가족과 하객의 사정” 쪽 문장은 한 번도 고르지 않았어요");
     // 판정은 여전히 하지 않는다. 「유형을 붙이지 않는다」는 고지는 남아야 하므로
     // 낱말이 아니라 판정으로 읽히는 형태를 막는다.
     for (const banned of ["유형이", "유형은", "궁합", "점수가", "점수는", "등급"]) {

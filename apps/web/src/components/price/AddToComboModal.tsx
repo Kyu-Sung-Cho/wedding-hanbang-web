@@ -205,7 +205,7 @@ export function AddToComboModal({ vendor, onClose, onAdd }: AddToComboModalProps
             </span>
             <strong className="text-xl tabular-nums text-[var(--hb-text-strong)]">{krwRangeLabel(totalMinimumKrw, totalMaximumKrw)}</strong>
           </div>
-          <button type="button" onClick={add} disabled={customInputError || !offer || (offer.minimumKrw === null && validCustomKrw === null)} className="mt-3 min-h-12 w-full rounded-[6px] bg-[var(--hb-primary)] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">
+          <button type="button" onClick={add} disabled={customInputError || !offer || (offer.minimumKrw === null && validCustomKrw === null)} className="mt-3 min-h-12 w-full rounded-[6px] bg-[var(--hb-action)] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-45">
             이 가격으로 담기
           </button>
         </div>

@@ -6,7 +6,7 @@ import Button from "@/components/ui/Button";
 
 export type MannersDirectoryGroup = {
   label: string;
-  entries: { slug: string; searchText: string; card: ReactNode }[];
+  entries: { slug: string; title: string; searchText: string; card: ReactNode }[];
 };
 
 export default function MannersGuideDirectory({ groups }: { groups: MannersDirectoryGroup[] }) {
@@ -14,11 +14,18 @@ export default function MannersGuideDirectory({ groups }: { groups: MannersDirec
   const [topic, setTopic] = useState<string | null>(null);
   const searchInput = useRef<HTMLInputElement>(null);
   const filtered = useMemo(() => {
-    const words = query.normalize("NFKC").trim().toLocaleLowerCase("ko-KR").split(/\s+/).filter(Boolean);
-    return groups.filter(group => !topic || group.label === topic).map(group => ({
-      ...group,
-      entries: group.entries.filter(entry => words.every(word => entry.searchText.includes(word))),
-    })).filter(group => group.entries.length > 0);
+    const normalized = query.normalize("NFKC").trim().toLocaleLowerCase("ko-KR");
+    const words = normalized.split(/\s+/).filter(Boolean);
+    const visibleGroups = groups.filter(group => !topic || group.label === topic);
+    if (words.length === 0) return visibleGroups;
+    const rank = (title: string) => {
+      const normalizedTitle = title.normalize("NFKC").toLocaleLowerCase("ko-KR");
+      return normalizedTitle === normalized ? 0 : words.every(word => normalizedTitle.includes(word)) ? 1 : 2;
+    };
+    const entries = visibleGroups.flatMap(group => group.entries)
+      .filter(entry => words.every(word => entry.searchText.includes(word)))
+      .sort((left, right) => rank(left.title) - rank(right.title));
+    return entries.length ? [{ label: "검색 결과", entries }] : [];
   }, [groups, query, topic]);
   const count = filtered.reduce((sum, group) => sum + group.entries.length, 0);
   const clearQuery = () => { setQuery(""); searchInput.current?.focus(); };
@@ -28,7 +35,7 @@ export default function MannersGuideDirectory({ groups }: { groups: MannersDirec
     <div className="mt-5 sm:mt-6">
       <div className="relative max-w-[620px]">
         <Search aria-hidden className="pointer-events-none absolute left-3.5 top-3.5 h-4 w-4 text-[var(--amora-muted)]" />
-        <input ref={searchInput} type="search" aria-label="가이드 검색" placeholder="제목이나 궁금한 내용 검색" value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-[12px] border border-[var(--color-paper-outline)] bg-white py-2.5 pl-10 pr-12 text-[14px] text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]" />
+        <input ref={searchInput} type="search" aria-label="가이드 검색" placeholder="제목이나 궁금한 내용 검색" value={query} onChange={event => setQuery(event.target.value)} className="min-h-11 w-full rounded-[12px] border border-[var(--color-paper-outline)] bg-white py-2.5 pl-10 pr-12 text-[14px] text-[var(--amora-ink)] placeholder:text-[var(--amora-muted)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] [&::-webkit-search-cancel-button]:appearance-none" />
         {query && <Button variant="icon" label="검색어 지우기" onClick={clearQuery} className="absolute right-0 top-0 rounded-[12px]! text-[var(--amora-muted)]!"><X aria-hidden className="h-4 w-4" /></Button>}
       </div>
       <nav aria-label="가이드 주제" className="mt-3 flex gap-2 overflow-x-auto pb-2">

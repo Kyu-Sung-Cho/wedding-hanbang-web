@@ -89,6 +89,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value, options }) =>
             finalResponse.cookies.set(name, value, options)
           );
+          finalResponse.headers.set("Cache-Control", "private, no-store");
         },
       },
     }
@@ -98,13 +99,22 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  const redirectWithSession = (url: URL) => {
+    const response = NextResponse.redirect(url);
+    // 동의·온보딩으로 이동해도 갱신·삭제한 세션 쿠키를 브라우저에 전달한다.
+    finalResponse.cookies.getAll().forEach(cookie => response.cookies.set(cookie));
+    const cacheControl = finalResponse.headers.get("Cache-Control");
+    if (cacheControl) response.headers.set("Cache-Control", cacheControl);
+    return response;
+  };
+
   // 미인증 → 로그인 페이지로 리다이렉트
   if (!user) {
     const url = protectedType === "customer"
       ? buildCustomerGateRedirect(request, "/login")
       : request.nextUrl.clone();
     if (protectedType === "admin") url.pathname = "/admin/login";
-    return NextResponse.redirect(url);
+    return redirectWithSession(url);
   }
 
   // 동의 관문이 온보딩보다 **먼저** 와야 한다.
@@ -127,7 +137,7 @@ export async function updateSession(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = SIGNUP_CONSENT_PATH;
     url.search = `?${new URLSearchParams({ redirect: `${pathname}${request.nextUrl.search}` })}`;
-    return NextResponse.redirect(url);
+    return redirectWithSession(url);
   }
 
   // 온보딩 미완료 체크 (고객 앱 경로만)
@@ -142,7 +152,7 @@ export async function updateSession(request: NextRequest) {
       request.cookies.get("onboarding_complete")?.value === "true";
     if (!onboardingComplete) {
       const url = buildCustomerGateRedirect(request, "/wedding/onboarding");
-      return NextResponse.redirect(url);
+      return redirectWithSession(url);
     }
   }
 

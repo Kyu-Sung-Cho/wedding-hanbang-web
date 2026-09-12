@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -136,7 +136,7 @@ export default function AmoraQuoteCheckPage() {
   return (
     <div className="min-h-screen bg-[var(--hb-surface-page)]">
       <div className="mx-auto grid w-full max-w-[1240px] gap-5 px-4 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:py-7">
-        <main className="min-w-0">
+        <div className="min-w-0">
           <Link
             href={weddingPath()}
             className="mb-4 inline-flex items-center gap-2 text-sm text-[var(--hb-text-muted)] transition-colors hover:text-[var(--hb-text-strong)]"
@@ -227,7 +227,7 @@ export default function AmoraQuoteCheckPage() {
               type="button"
                onClick={() => submit()}
                disabled={loading}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-3 text-sm font-semibold text-white shadow-[var(--shadow-raised)] transition-colors hover:bg-[var(--hb-action-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
               체크리스트 결과 보기
@@ -235,7 +235,7 @@ export default function AmoraQuoteCheckPage() {
           </section>
 
           {result && <ResultPanel result={result} />}
-        </main>
+        </div>
 
         <aside className="lg:sticky lg:top-20 lg:h-fit">
           <section className="rounded-[6px] border border-[var(--hb-hairline)] bg-white p-5">
@@ -349,7 +349,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
     ];
     if (topMissing.length > 0) {
       lines.push("");
-      lines.push("확인 필요로 남긴 항목:");
+      lines.push(`확인 필요 ${missingTotal}개 중 우선 ${topMissing.length}개:`);
       topMissing.forEach((item) => {
         lines.push(
           `- ${item.name} (${item.severity === "critical" ? "먼저 확인" : item.severity === "high" ? "함께 확인" : "해당하면 확인"})`
@@ -359,7 +359,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
     lines.push("");
     lines.push("내 계획에 필요한 항목부터 구분하고, 업체에 어떻게 물어보면 좋을지 알려줘.");
     return lines.join("\n");
-  }, [result, topMissing]);
+  }, [result, topMissing, missingTotal]);
 
   // 사용자가 직접 확인한 뒤 커뮤니티 글로 올리는 게시글 prefill
   const postTitle = useMemo(
@@ -376,7 +376,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       "",
     ];
     if (topMissing.length > 0) {
-      lines.push("견적서에서 확인이 필요한 항목");
+      lines.push(`견적서에서 확인 필요 ${missingTotal}개 중 우선 ${topMissing.length}개`);
       topMissing.forEach((item) => {
         const tag = item.severity === "critical" ? "[먼저 확인]" : item.severity === "high" ? "[함께 확인]" : "[해당하면 확인]";
         lines.push(`- ${tag} ${item.name}`);
@@ -385,7 +385,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
     }
     lines.push("보통 계약 전에 어떤 내용을 더 확인하는지 알려주세요.");
     return lines.join("\n");
-  }, [result, topMissing]);
+  }, [result, topMissing, missingTotal]);
 
   const chatHref = weddingPath(`/chat?prefill=${encodeURIComponent(chatPrompt)}`);
   const postWriteHref = weddingPath(`/community/post/write?category=is_normal&prefill=quote_check&title=${encodeURIComponent(postTitle)}&body=${encodeURIComponent(postContent)}`);
@@ -394,7 +394,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
     const text = [
       result.negotiationScript,
       "",
-      "계약 전 확인 질문",
+      `확인 필요 ${missingTotal}개 중 우선 질문 ${result.contractQuestions.length}개`,
       ...result.contractQuestions.map((question, index) => `${index + 1}. ${question}`),
     ].join("\n");
     try {
@@ -457,7 +457,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
       {result.contractQuestions.length > 0 && (
       <div className="mt-5 rounded-[6px] bg-white p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h3 className="hb-h-sm text-[var(--hb-text-strong)]">계약 전 그대로 보낼 질문</h3>
+          <h3 className="hb-h-sm text-[var(--hb-text-strong)]">계약 전 먼저 보낼 질문</h3>
           <button
             type="button"
             onClick={copyQuestions}
@@ -467,6 +467,7 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
             {copied ? "복사됨" : "질문 복사"}
           </button>
         </div>
+        <p className="mt-2 text-xs leading-5 text-[var(--hb-text-muted)]">확인 필요 {missingTotal}개 중 우선 질문 {result.contractQuestions.length}개예요. 나머지 항목도 위 목록에서 확인할 수 있어요.</p>
         <p className="mt-2 rounded-[6px] bg-[var(--hb-surface-page)] px-3 py-3 text-sm leading-6 text-[var(--hb-text-body)]">
           {result.negotiationScript}
         </p>
@@ -490,10 +491,11 @@ function ResultPanel({ result }: { result: AmoraQuoteCheckResult }) {
         <ReportCardButton result={result} />
       </div>
 
+      {topMissing.length < missingTotal && <p className="mt-4 text-xs leading-5 text-[var(--hb-text-muted)]">대화와 글쓰기에는 확인 필요 {missingTotal}개 중 우선 {topMissing.length}개를 전달해요. 나머지는 위 목록에서 확인한 뒤 필요하면 추가해 주세요.</p>}
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <Link
           href={chatHref}
-          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)]"
+          className="inline-flex items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[var(--hb-action-hover)]"
         >
           <MessageCircle className="h-4 w-4" />
           아모라에게 이어서 묻기

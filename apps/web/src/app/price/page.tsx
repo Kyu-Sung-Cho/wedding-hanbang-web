@@ -120,7 +120,7 @@ export default async function PriceIndexPage() {
         <Link
           href="/wedding/community/quote-check"
           prefetch={false}
-          className="mt-6 flex items-center justify-between gap-4 rounded-[6px] bg-[var(--hb-primary)] px-5 py-5 text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+          className="mt-6 flex items-center justify-between gap-4 rounded-[6px] bg-[var(--hb-action)] px-5 py-5 text-white transition-colors hover:bg-[var(--hb-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
         >
           <span className="min-w-0">
             <span className="flex items-center gap-2 text-sm font-bold">
