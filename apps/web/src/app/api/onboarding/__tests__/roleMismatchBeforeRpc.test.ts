@@ -80,7 +80,7 @@ function legacyJoinBody(role: "bride" | "groom") {
 const JOIN_SUCCESS = {
   data: {
     success: true, joined: true, idempotent: false,
-    couple_id: COUPLE_ID, invite_code: CODE, role: "groom",
+    couple_id: COUPLE_ID, invite_code: CODE, role: "groom", actor_user_id: USER_ID,
   },
   error: null,
 };
@@ -125,7 +125,7 @@ describe("역할을 반대로 고른 합류", () => {
   });
 
   it("신부 자리가 남으로 차 있고 신랑 자리가 비었는데 '신부'를 고르면 RPC 전에 반대 역할을 안내한다", async () => {
-    const { authClient } = setup({ bride_id: OWNER_ID, groom_id: null });
+    const { authClient, admin } = setup({ bride_id: OWNER_ID, groom_id: null });
 
     const response = await POST(request(legacyJoinBody("bride")));
     const body = await response.json() as { error?: string; code?: string };
@@ -135,31 +135,35 @@ describe("역할을 반대로 고른 합류", () => {
     expect(body.error).toContain("반대 역할");
     expect(body.error).not.toContain("올바르지 않습니다");
     expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).not.toHaveBeenCalled();
   });
 
   it("반대 역할(신랑)을 고르면 그대로 RPC 로 간다", async () => {
-    const { authClient } = setup({ bride_id: OWNER_ID, groom_id: null });
+    const { authClient, admin } = setup({ bride_id: OWNER_ID, groom_id: null });
 
     const response = await POST(request(legacyJoinBody("groom")));
 
-    expect(authClient.rpc).toHaveBeenCalledWith("join_couple", { p_invite_code: CODE, p_role: "groom" });
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", { p_actor_user_id: USER_ID, p_invite_code: CODE, p_role: "groom" });
     // 뒤따르는 여정 저장은 이 목이 다 흉내내지 않는다 — 여기서 잰 것은 "가로막지 않았다" 뿐.
     expect(response.status).not.toBe(409);
   });
 
   it("본인이 이미 그 자리면(재합류) 가로막지 않는다", async () => {
-    const { authClient } = setup({ bride_id: USER_ID, groom_id: null });
+    const { authClient, admin } = setup({ bride_id: USER_ID, groom_id: null });
 
     await POST(request(legacyJoinBody("bride")));
 
-    expect(authClient.rpc).toHaveBeenCalledTimes(1);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
   });
 
   it("코드로 커플을 못 찾으면 판정은 DB 에 맡긴다", async () => {
-    const { authClient } = setup(null);
+    const { authClient, admin } = setup(null);
 
     await POST(request(legacyJoinBody("bride")));
 
-    expect(authClient.rpc).toHaveBeenCalledTimes(1);
+    expect(authClient.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
   });
 });

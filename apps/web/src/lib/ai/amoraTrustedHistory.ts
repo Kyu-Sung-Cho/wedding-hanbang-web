@@ -140,7 +140,7 @@ function isSafeWeddingHistoryUser(row: AmoraTrustedHistoryRow): boolean {
  * 지금 버리는 것은 "모호한 것 전부"가 아니라 **위험한 것과 증명되지 않은 것**이다:
  * - 안전 신호가 있는 사용자 발화(`assessAmoraSafetyText` 스크린, 활성 고백 포함)
  * - W2·W3·W5 로 판정되는 사용자 발화와 아모라 행
- * - 서버가 쓴 것이 증명되지 않거나 직전 사용자 행에 묶이지 않은 아모라 행
+ * - 서버가 쓴 것이 증명되지 않거나 원본 사용자 행에 묶이지 않은 아모라 행
  * - 상대(`target: "partner"`) 대상 행, 다른 공개 범위 행, id 가 중복된 행
  * - 짝이 없는 행(사용자·아모라는 언제나 쌍으로만 통과한다)
  *
@@ -162,10 +162,23 @@ export function selectAmoraTrustedHistoryRows<T extends AmoraTrustedHistoryRow>(
   );
   if (currentIndex < 0 || idCounts.get(currentUserMessageId) !== 1) return [];
 
-  const trustedRows: T[] = [];
+  // 서로 다른 요청의 답변은 교차해 저장될 수 있다. 위치가 아니라 서버가 남긴
+  // 원본 질문 연결로 짝을 찾되, 현재 질문 이후의 답변이나 복수 후보는 사용하지 않는다.
+  const replyIndexes = new Map<string, number | null>();
+  for (let index = 0; index < currentIndex; index += 1) {
+    const metadata = oldestFirstRows[index].metadata;
+    if (!isRecord(metadata) || typeof metadata.in_reply_to_user_message_id !== "string") continue;
+    const sourceId = metadata.in_reply_to_user_message_id;
+    replyIndexes.set(sourceId, replyIndexes.has(sourceId) ? null : index);
+  }
+
+  const trustedIndexes = new Set<number>();
   for (let index = 0; index < currentIndex; index += 1) {
     const userRow = oldestFirstRows[index];
-    const assistantRow = oldestFirstRows[index + 1];
+    if (typeof userRow.id !== "string") continue;
+    const assistantIndex = replyIndexes.get(userRow.id);
+    if (typeof assistantIndex !== "number" || assistantIndex <= index) continue;
+    const assistantRow = oldestFirstRows[assistantIndex];
     if (
       !userRow
       || !assistantRow
@@ -180,8 +193,8 @@ export function selectAmoraTrustedHistoryRows<T extends AmoraTrustedHistoryRow>(
     ) {
       continue;
     }
-    trustedRows.push(userRow, assistantRow);
-    index += 1;
+    trustedIndexes.add(index);
+    trustedIndexes.add(assistantIndex);
   }
 
   const currentRow = oldestFirstRows[currentIndex];
@@ -190,7 +203,8 @@ export function selectAmoraTrustedHistoryRows<T extends AmoraTrustedHistoryRow>(
     && isUserRow(currentRow)
     && hasAllowedVisibility(currentRow.visibility, visibility)
   ) {
-    trustedRows.push(currentRow);
+    trustedIndexes.add(currentIndex);
   }
-  return trustedRows;
+  // 검증된 쌍만 남기되 실제 발화·응답 순서를 재작성하지 않는다.
+  return oldestFirstRows.filter((_, index) => trustedIndexes.has(index));
 }

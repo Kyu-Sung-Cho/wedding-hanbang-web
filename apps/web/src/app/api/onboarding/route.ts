@@ -13,6 +13,7 @@ import {
 import { determineStage } from "@/lib/ai/stage-router";
 import {
   isMembershipRpcMissing,
+  joinCoupleThroughServerRpc,
   joinNeutralPreparationSpaceThroughServerRpc,
   parseMembershipRpcResponse,
   parseNeutralMembershipRpcResponse,
@@ -993,9 +994,10 @@ export async function POST(request: Request) {
           })
       : coupleAction === "create"
         ? await supabase.rpc("create_couple_for_current_user", { p_role: role! })
-        : await supabase.rpc("join_couple", {
-            p_invite_code: normalizedInviteCode,
-            p_role: role!,
+        : await joinCoupleThroughServerRpc(admin, {
+            actorUserId: user.id,
+            inviteCode: normalizedInviteCode!,
+            role: role!,
           });
     // 새 방식 화면으로 **옛 방식 공간**에 들어온 경우 옛 경로로 되부른다.
     //
@@ -1029,15 +1031,17 @@ export async function POST(request: Request) {
       const neutralAttempt = parseNeutralMembershipRpcResponse(rpcResponse.data, coupleAction);
       if (!neutralAttempt.ok && neutralAttempt.errorCode === "LEGACY_PREPARATION_SPACE") {
         for (const candidate of ["bride", "groom"] as const) {
-          // 사용자 세션으로 부른다 — `join_couple` 은 `auth.uid()` 를 본다.
-          const retry = await supabase.rpc("join_couple", {
-            p_invite_code: normalizedInviteCode,
-            p_role: candidate,
+          // 앞서 동의와 인증을 확인한 본인만 서버 전용 경로로 연결한다.
+          const retry = await joinCoupleThroughServerRpc(admin, {
+            actorUserId: user.id,
+            inviteCode: normalizedInviteCode!,
+            role: candidate,
           });
           rpcResponse = retry;
           legacyFallbackRole = candidate;
           if (retry.error) break;
-          if (parseMembershipRpcResponse(retry.data, candidate, coupleAction).ok) break;
+          const outcome = parseMembershipRpcResponse(retry.data, candidate, coupleAction, user.id);
+          if (outcome.ok || outcome.errorCode !== "INVALID_INVITE_CODE") break;
         }
       }
     }
@@ -1064,10 +1068,10 @@ export async function POST(request: Request) {
     }
 
     const membership = legacyFallbackRole
-      ? parseMembershipRpcResponse(rpcResponse.data, legacyFallbackRole, coupleAction)
+      ? parseMembershipRpcResponse(rpcResponse.data, legacyFallbackRole, coupleAction, user.id)
       : neutralPreparationSpace
         ? parseNeutralMembershipRpcResponse(rpcResponse.data, coupleAction)
-        : parseMembershipRpcResponse(rpcResponse.data, role!, coupleAction);
+        : parseMembershipRpcResponse(rpcResponse.data, role!, coupleAction, coupleAction === "join" ? user.id : undefined);
     if (!membership.ok) {
       console.warn(`[onboarding ${coupleAction}] membership rejected`, membership.errorCode);
       return privateResponse({ error: membership.message }, membership.status);

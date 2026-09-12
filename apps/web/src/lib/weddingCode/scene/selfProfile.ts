@@ -8,6 +8,7 @@ import {
 } from "@/constants/weddingCodeV06";
 import {
   WEDDING_CODE_CHECK_PHRASE,
+  WEDDING_CODE_RESPONSE_QUALIFIERS,
   WEDDING_CODE_SELF_READING,
   type WeddingCodeReadableConstructKey,
   type WeddingCodeSelfLean,
@@ -196,25 +197,26 @@ export function buildWeddingCodeSelfProfile(
       : [];
 
     const copy = WEDDING_CODE_SELF_READING[axis.key][lean];
-    // 모든 원문을 본 뒤 안내를 정한다. 표시용 인용 두 개에서 빠져도 고른 경험은 놓치지 않는다.
-    const hasDelayedContactAnswer = axis.key === "preparationMode"
-      && [...leftQuotes, ...rightQuotes].some(quote => quote.label === "둘 다 못 받아서 답이 며칠씩 밀렸다");
+    // 표시 인용에서 빠진 답도 확인한다. 겪은 일·바란 도움·상대에게 한 행동을 서로 바꾸지 않는다.
+    const qualifiers = [...leftQuotes, ...rightQuotes].flatMap(quote => {
+      const qualifier = WEDDING_CODE_RESPONSE_QUALIFIERS[quote.label];
+      return qualifier ? [qualifier] : [];
+    });
     axisReadings.push({
       axis: axis.key,
       axisLabel: axis.labelKo,
       lean,
       title: copy.title,
-      leftLabel: axis.left.labelKo,
-      rightLabel: axis.right.labelKo,
+      leftLabel: axis.key === "supportOrder" ? "마음·대화" : axis.left.labelKo,
+      rightLabel: axis.key === "supportOrder" ? "할 일·결정"
+        : axis.key === "decisionCriteria" ? "사진·분위기와 기대·인상" : axis.right.labelKo,
       leftCount,
       rightCount,
       answered,
       evidence,
       missingPhrases,
       tellPartner: copy.tellPartner,
-      watchOut: hasDelayedContactAnswer
-        ? `연락을 받지 못한 경험과 함께 검토한 경험은 달라요. ${copy.watchOut}`
-        : copy.watchOut,
+      watchOut: [...new Set(qualifiers), copy.watchOut].join(" "),
     });
   }
 
@@ -253,6 +255,9 @@ export function describeSelfAxisReading(reading: WeddingCodeSelfAxisReading): st
   if (reading.axis === "preparationMode") {
     return `답한 ${answered}장면 중 함께 확인하는 과정과 연락 경험 쪽이 ${leftCount}곳, 한 사람이 맡아 정리하는 방식 쪽이 ${rightCount}곳이었어요. 실제 고른 문장을 함께 확인해 주세요.`;
   }
+  if (reading.axis === "supportOrder") {
+    return `답한 ${answered}장면 중 마음·대화에 관한 답이 ${leftCount}곳, 할 일·결정에 관한 답이 ${rightCount}곳이었어요. 실제 고른 문장을 함께 확인해 주세요.`;
+  }
   if (reading.lean === "mixed") {
     return `답한 ${answered}장면 중 ${leftLabel} 쪽이 ${leftCount}곳, ${rightLabel} 쪽이 ${rightCount}곳이었어요.`;
   }
@@ -285,8 +290,5 @@ export function describeSelfAxisAbsence(
     .map((phrase) => withJosa(phrase, "과", "와"))
     .concat(quoted[quoted.length - 1])
     .join(" ");
-  if (reading.axis === "preparationMode") {
-    return `${joined} 쪽 문장은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.`;
-  }
-  return `${withJosa(joined, "을", "를")} 먼저 보는 답은 한 번도 고르지 않았어요.`;
+  return `${joined} 쪽 문장은 한 번도 고르지 않았어요. 실제 준비에서도 그랬다는 뜻은 아니에요.`;
 }

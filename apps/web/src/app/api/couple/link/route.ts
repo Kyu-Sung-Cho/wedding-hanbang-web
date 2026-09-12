@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import { log } from "@/utils/log";
+import { hasWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 import {
   parseMembershipRpcResponse,
+  joinCoupleThroughServerRpc,
   type CoupleRole,
 } from "@/lib/couples/membershipRpc";
 import { createClientFromRequest } from "@/lib/supabase/server";
@@ -23,6 +26,13 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+    }
+
+    if (!hasWebSignupConsentAccess(user)) {
+      return NextResponse.json(
+        { error: "필수 가입 동의를 확인한 뒤 다시 연결해 주세요.", code: "SIGNUP_CONSENT_REQUIRED" },
+        { status: 400 },
+      );
     }
 
     const limited = checkRateLimit(
@@ -64,9 +74,10 @@ export async function POST(request: Request) {
     }
     const role: CoupleRole = profile.role;
 
-    const { data: joinResult, error: joinError } = await supabase.rpc("join_couple", {
-      p_invite_code: normalizedInviteCode,
-      p_role: role,
+    const { data: joinResult, error: joinError } = await joinCoupleThroughServerRpc(createAdminClient(), {
+      actorUserId: user.id,
+      inviteCode: normalizedInviteCode,
+      role,
     });
 
     if (joinError) {
@@ -77,7 +88,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const membership = parseMembershipRpcResponse(joinResult, role, "join");
+    const membership = parseMembershipRpcResponse(joinResult, role, "join", user.id);
     if (!membership.ok) {
       console.warn("[couple link] membership rejected", membership.errorCode);
       return NextResponse.json({ error: membership.message }, { status: membership.status });

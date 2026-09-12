@@ -2,11 +2,12 @@ import Link from "next/link";
 
 import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, MessageCircle, Settings, Users, Wallet } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
 
 // 공개 읽기 화면은 인증 상태를 요청하거나 사용자·일정·알림을 가정하지 않는다.
 const SERVICE_LINKS = [
-  { href: "/chat", label: "아모라", icon: MessageCircle },
   { href: "/lounge", label: "웨딩 라운지", icon: LayoutDashboard },
+  { href: "/chat", label: "아모라", icon: MessageCircle },
   { href: "/checklist", label: "웨딩 체크리스트", icon: ClipboardCheck },
   { href: "/schedule", label: "일정", icon: CalendarCheck },
   { href: "/budget", label: "예산", icon: Wallet },
@@ -40,7 +41,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
           <ul className="space-y-1">
             {SERVICE_LINKS.map(({ href, label, icon: Icon }) => (
               <li key={href}>
-                <Link {...weddingLinkProps(href)} prefetch={false} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-11 items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-[14.5px] ${href === "/manners" ? "bg-[var(--amora-ink)] font-semibold text-white" : "hover:bg-[var(--amora-warm)]"}`}>
+                <Link {...weddingLinkProps(href)} prefetch={false} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-11 items-center gap-[11px] rounded-[9px] px-3 py-2.5 text-[14.5px] ${href === "/manners" ? "bg-[var(--amora-selected-bg)] font-semibold text-[var(--amora-selected-text)]" : "hover:bg-[var(--amora-warm)]"}`}>
                   <Icon aria-hidden className="size-4 shrink-0" />{label}
                 </Link>
               </li>
@@ -55,7 +56,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
       <div className="flex min-h-screen min-w-0 flex-col md:ml-[220px]">
       <main id="manners-main" className="min-w-0 flex-1">{children}</main>
 
-      <footer className="border-t border-[var(--amora-line)] pb-24 md:pb-0">
+      <footer className="border-t border-[var(--amora-line)] pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="mx-auto w-full max-w-[1220px] px-[18px] py-6 md:px-9 xl:px-16">
           <p className="text-[13px] font-medium text-[var(--amora-muted)]">
             결혼 준비, 아모라와 처음부터 끝까지.
@@ -73,13 +74,7 @@ export default function MannersLayout({ children }: { children: React.ReactNode 
         </div>
       </footer>
       </div>
-      <nav aria-label="모바일 서비스 메뉴" className="fixed inset-x-0 bottom-0 z-30 flex border-t border-[var(--amora-line)] bg-[var(--amora-bg)] px-2 pb-[env(safe-area-inset-bottom)] md:hidden">
-        {SERVICE_LINKS.filter(link => ["/chat", "/lounge", "/checklist", "/manners"].includes(link.href)).map(({ href, label, icon: Icon }) => (
-          <Link key={href} {...weddingLinkProps(href)} prefetch={false} aria-current={href === "/manners" ? "location" : undefined} className={`flex min-h-[66px] min-w-0 flex-1 flex-col items-center justify-center gap-1 text-[10.5px] ${href === "/manners" ? "font-semibold text-[var(--amora-rose-deep)]" : "text-[var(--amora-muted)]"}`}>
-            <Icon aria-hidden className="size-[19px]" />{label}
-          </Link>
-        ))}
-      </nav>
+      <AmoraBottomNav active={null} />
     </div>
   );
 }

@@ -134,7 +134,15 @@ function setupClients(
       fromCalls.push(table);
       return new FakeQuery(handlers[table]?.shift() ?? {});
     }),
-    rpc: vi.fn().mockResolvedValue(adminRpc),
+    rpc: vi.fn<(name: string, parameters?: Record<string, unknown>) => Promise<QueryResult>>(async name => {
+      if (name === "join_couple_server") {
+        const data = membershipData && typeof membershipData === "object" && !Array.isArray(membershipData)
+          ? { actor_user_id: "11111111-1111-4111-8111-111111111111", ...membershipData }
+          : membershipData;
+        return { data, error: null };
+      }
+      return adminRpc;
+    }),
   };
   vi.mocked(createClient).mockReturnValue(admin as never);
 
@@ -765,7 +773,8 @@ describe("/api/onboarding POST", () => {
         message: expect.stringContaining("다시 입력해주세요"),
       },
     });
-    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledTimes(2);
+    expect(admin.rpc.mock.calls.filter(([name]) => name === "submit_couple_plan_change")).toHaveLength(1);
     expect(admin.rpc).toHaveBeenCalledWith("submit_couple_plan_change", {
       p_couple_id: coupleId,
       p_actor_user_id: "11111111-1111-4111-8111-111111111111",
@@ -1345,7 +1354,8 @@ describe("/api/onboarding POST", () => {
         requestedDate: "2027-03-01",
       },
     });
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", expect.objectContaining({ p_actor_user_id: "11111111-1111-4111-8111-111111111111" }));
     expect(profileCompletion).not.toHaveBeenCalled();
   });
 
@@ -1410,7 +1420,8 @@ describe("/api/onboarding POST", () => {
       success: true,
       planChange: { status: "unchanged" },
     });
-    expect(admin.rpc).not.toHaveBeenCalled();
+    expect(admin.rpc).toHaveBeenCalledTimes(1);
+    expect(admin.rpc).toHaveBeenCalledWith("join_couple_server", expect.objectContaining({ p_actor_user_id: "11111111-1111-4111-8111-111111111111" }));
     expect(profileCompletion).toHaveBeenCalledWith({
       onboarding_completed: true,
       onboarding_step: 5,
@@ -1672,9 +1683,11 @@ describe("/api/onboarding POST", () => {
 
     expect(firstResponse.status).toBe(200);
     expect(secondResponse.status).toBe(200);
-    expect(admin.rpc).toHaveBeenCalledTimes(2);
-    const firstChanges = admin.rpc.mock.calls[0]?.[1]?.p_changes;
-    const secondChanges = admin.rpc.mock.calls[1]?.[1]?.p_changes;
+    const planCalls = admin.rpc.mock.calls.filter(([name]) => name === "submit_couple_plan_change");
+    expect(admin.rpc).toHaveBeenCalledTimes(4);
+    expect(planCalls).toHaveLength(2);
+    const firstChanges = planCalls[0]?.[1]?.p_changes;
+    const secondChanges = planCalls[1]?.[1]?.p_changes;
     expect(secondChanges).toEqual(firstChanges);
     expect(firstChanges).toMatchObject({
       progress_patch: {

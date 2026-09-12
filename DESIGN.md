@@ -17,6 +17,14 @@
 
 ## Typography
 
+- **Public flow consistency (2026-09-12):** Public manners reuses the five-item
+  Lounge / Amora / Checklist / Schedule / Budget mobile navigation, with no false
+  active item while reading a guide. Public links do not prefetch protected pages.
+  The existing guide geometry and anonymous reading remain. Selected guide navigation
+  follows the warm selection roles; primary landing, guide and price actions use the
+  existing action tokens. Search ranks exact guide titles before title/body matches,
+  retaining preparation order when no query is entered.
+
 - **Warm interactions (2026-09-11):** The user requested warmer selected/clicked
   controls after reviewing the HTML-aligned screens. Selected navigation, filters,
   tabs and calendar dates use Dusty Mauve pale (`rose.pale`) with `rose[700]` text

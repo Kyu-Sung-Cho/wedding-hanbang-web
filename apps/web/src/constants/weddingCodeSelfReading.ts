@@ -14,19 +14,29 @@ import type { WeddingCodeConstructKey } from "@/lib/wedding-code/types";
  * 응답 수와 원문 인용은 `lib/weddingCode/scene/selfProfile.ts`에서 만든다.
  */
 
-/** 한 선택지가 「무엇을 먼저 보는 답」인지 한 마디로. 축 이름이 아니라 확인 대상이다. */
+/** 선택지에서 다룬 주제. 실제 행동이나 지금 원하는 순서로 바꾸지 않는다. */
 export const WEDDING_CODE_CHECK_PHRASE = {
   costRisk: "돈이 얼마나 더 드는지",
   evidenceDecision: "적힌 내용이 사실인지",
-  aestheticMood: "우리가 원하는 느낌인지",
-  experienceMeaning: "우리에게 어떤 의미인지",
+  aestheticMood: "사진·영상과 분위기에 관한 생각",
+  experienceMeaning: "기대하거나 마음에 남은 점",
   coPreparation: "함께 확인하는 과정과 연락 경험",
   roleOwnership: "한 사람이 맡아 정리하는 방법",
   coupleAutonomy: "우리 둘의 기준",
   familyIntegration: "가족과 하객의 사정",
-  emotionalSupport: "먼저 마음을 듣는 쪽",
-  executionSupport: "먼저 할 일을 정하는 쪽",
+  emotionalSupport: "마음과 대화에 관한 경험",
+  executionSupport: "할 일과 결정에 관한 경험",
 } as const satisfies Partial<Record<WeddingCodeConstructKey, string>>;
+
+/** 원문과 정확히 맞는 답을 고른 경우에만 덧붙인다. 이전 버전의 같은 문항 번호에 추측으로 적용하지 않는다. */
+export const WEDDING_CODE_RESPONSE_QUALIFIERS: Readonly<Partial<Record<string, string>>> = {
+  "다들 한다는데 우리만 없으면 좀 그렇겠다 싶었다": "다른 사람도 한다는 생각과 내가 원하는 분위기는 달라요.",
+  "질문에 성의껏 답해주는 걸 보고 마음이 놓였다": "성의 있는 응대에 마음이 놓인 경험을 결혼식의 의미로 해석하지 않아요.",
+  "둘 다 못 받아서 답이 며칠씩 밀렸다": "연락을 받지 못한 경험과 함께 검토한 경험은 달라요.",
+  "더 말해도 안 통할 것 같아 그만뒀다": "말을 멈춘 경험만으로 듣는 도움을 원했다고 단정하지 않아요.",
+  "뭘 물어야 할지 몰라 옆에 있어 주기만 했다": "곁에 있어 준 경험과 마음을 물어본 행동은 달라요.",
+  "깎아준다는 말에 그 자리에서 계약할 뻔했다": "계약할 뻔한 경험과 할 일을 정리한 경험은 달라요.",
+};
 
 export type WeddingCodeReadableConstructKey = keyof typeof WEDDING_CODE_CHECK_PHRASE;
 
@@ -51,7 +61,7 @@ export const WEDDING_CODE_SELF_READING = {
         "이 장면에서 고른 답이 지금도 원하는 순서인지 확인해 보세요. 실제 계약에서는 총액·포함 항목·취소 조건과 원하는 분위기를 각각 확인하세요.",
     },
     right: {
-      title: "분위기와 의미 쪽 답을 더 골랐어요",
+      title: "사진·분위기와 기대·인상 쪽 답을 더 골랐어요",
       tellPartner:
         "이번에는 원하는 분위기부터 볼까, 총액과 조건부터 볼까? 각자 먼저 확인할 것을 하나씩 말해보자.",
       watchOut:
@@ -113,21 +123,21 @@ export const WEDDING_CODE_SELF_READING = {
   },
   supportOrder: {
     left: {
-      title: "마음을 듣는 쪽 답을 더 골랐어요",
+      title: "마음과 대화에 관한 답을 더 골랐어요",
       tellPartner:
         "지금은 이야기를 들어주는 것과 할 일을 정리하는 것 중 어떤 도움이 필요할까? 서로 필요한 방식을 따로 말해보자.",
       watchOut:
         "상대에게 했던 행동과 내가 받고 싶은 도움은 다를 수 있어요. 지금 각자가 받을 도움을 직접 확인해 보세요.",
     },
     right: {
-      title: "할 일을 정하는 쪽 답을 더 골랐어요",
+      title: "할 일과 결정에 관한 답을 더 골랐어요",
       tellPartner:
         "지금은 할 일을 정리하는 것과 이야기를 들어주는 것 중 어떤 도움이 필요할까? 서로 필요한 방식을 따로 말해보자.",
       watchOut:
         "상대에게 했던 행동을 내가 원하는 도움으로 옮기지 말고, 지금 받을 도움을 직접 확인해 보세요.",
     },
     mixed: {
-      title: "듣기와 할 일 정리 답을 같은 수로 골랐어요",
+      title: "마음·대화와 할 일·결정에 관한 답을 같은 수로 골랐어요",
       tellPartner:
         "지금은 이야기를 들어주는 게 필요할까, 할 일을 함께 정리하는 게 필요할까? 각자 원하는 도움을 말해보자.",
       watchOut:

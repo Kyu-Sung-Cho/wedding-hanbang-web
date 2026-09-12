@@ -59,7 +59,7 @@ export const WEDDING_CODE_LETTERS: Readonly<
 > = {
   decisionCriteria: {
     left: { letter: "V", meaning: "금액과 조건을 먼저 확인한 답을 더 많이 골랐어요" },
-    right: { letter: "M", meaning: "분위기와 의미를 먼저 본 답을 더 많이 골랐어요" },
+    right: { letter: "M", meaning: "사진·분위기와 기대·인상에 관한 답을 더 많이 골랐어요" },
   },
   preparationMode: {
     left: { letter: "T", meaning: "함께 확인하는 과정과 연락 경험에 관한 답을 더 많이 골랐어요" },
@@ -70,8 +70,8 @@ export const WEDDING_CODE_LETTERS: Readonly<
     right: { letter: "F", meaning: "가족과 하객 사정을 먼저 본 답을 더 많이 골랐어요" },
   },
   supportOrder: {
-    left: { letter: "H", meaning: "먼저 마음을 듣는 답을 더 많이 골랐어요" },
-    right: { letter: "A", meaning: "먼저 할 일을 정하는 답을 더 많이 골랐어요" },
+    left: { letter: "H", meaning: "마음과 대화에 관한 답을 더 많이 골랐어요" },
+    right: { letter: "A", meaning: "할 일과 결정에 관한 답을 더 많이 골랐어요" },
   },
 };
 

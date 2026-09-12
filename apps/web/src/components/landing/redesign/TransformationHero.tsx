@@ -58,7 +58,7 @@ export default function TransformationHero() {
           <TrackedLandingLink
             source="landing_hero_primary"
             href={hero.primary.href}
-            className="inline-flex min-h-[54px] items-center justify-center whitespace-nowrap rounded-[11px] bg-[var(--color-paper-ink)] px-5 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:rounded-[9px] lg:px-6"
+            className="inline-flex min-h-[54px] items-center justify-center whitespace-nowrap rounded-[11px] bg-[var(--hb-action)] px-5 text-[16px] font-semibold text-[var(--color-paper-card)] transition-colors duration-200 hover:bg-[var(--hb-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-paper-pen)] focus-visible:ring-offset-2 motion-reduce:transition-none lg:rounded-[9px] lg:px-6"
           >
             {hero.primary.label}
           </TrackedLandingLink>

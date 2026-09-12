@@ -51,7 +51,7 @@ export function PriceEmptyState({
           <button
             type="button"
             onClick={onResetFilters}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-5 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
           >
             필터 초기화
           </button>

@@ -9,7 +9,12 @@ const ORIGINAL = "항목별 금액을 다시 줄게. 결혼식장·식사 900, �
 const NATURAL_TOTAL = "총 결혼 예산은 3500만 원이야. 항목별 금액을 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
 const EXPLICIT_UPDATE = "기존 예산의 초대장·꽃·하객선물은 새 항목을 만들지 말고 같은 이름의 금액을 150만 원에서 160만 원으로 바꿔줘. 총액은 3500만원으로 유지하고 예비비만 200만원에서 190만원으로 줄일게. 최종 배분은 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 160, 예비비 190만 원이야. 이대로 실제 예산에 반영해줘.";
 
-function budgetContext(progress: ToolExecutionContext["weddingContext"]["progress"]): ToolExecutionContext {
+type BudgetProgressItem = ToolExecutionContext["weddingContext"]["progress"][string] & { budget?: number };
+type BudgetTestContext = ToolExecutionContext & {
+  weddingContext: { progress: Record<string, BudgetProgressItem> };
+};
+
+function budgetContext(progress: Record<string, BudgetProgressItem>): BudgetTestContext {
   return { coupleId: "10000000-0000-4000-8000-000000000001", requestKey: "chat:20000000-0000-4000-8000-000000000001:30000000-0000-4000-8000-000000000001", requestAttemptCount: 1, providerCallIndex: 1, weddingContext: { weddingDate: null, venue: null, budget: 0, progress } };
 }
 
@@ -24,6 +29,87 @@ function existingPlanContext(): ToolExecutionContext {
 }
 
 describe("explicit current-turn budget plan", () => {
+  it.each([0, 9_000_000])("keeps the known total when assigning only two categories with venue budget %s", venueBudget => {
+    const venue = { category: "venue", status: "completed", budget: venueBudget, spent: 500_000, payer: "bride", checklist: [{ id: "venue_1", done: true }] };
+    const context = budgetContext({ venue, reserve: { category: "reserve", status: "not_started", budget: 0 } });
+    context.weddingContext.budget = 35_000_000;
+    const before = structuredClone(context.weddingContext);
+    const input = parseExplicitBudgetPlanRequest("신혼여행 800만 원, 예비비 200만 원. 예산에 반영해줘.", before.progress, before.budget);
+    expect(input?.total_budget).toBe(35_000_000);
+    expect(input?.allocations).toEqual([{ category: "honeymoon", budget: 8_000_000 }, { category: "reserve", budget: 2_000_000 }]);
+    if (!input) throw new Error("An explicit partial allocation must produce a proposal");
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context);
+    expect(operation.result.success).toBe(true);
+    expect(operation.domainMutation).toMatchObject({ kind: "journey_budget_plan_cas", expectedBudget: 35_000_000, valueBudget: 35_000_000 });
+    expect(context.weddingContext).toEqual(before);
+    applyAmoraAtomicToolResultToContext(operation.result, context);
+    expect(context.weddingContext.budget).toBe(35_000_000);
+    expect(context.weddingContext.progress.venue).toEqual(venue);
+    expect(context.weddingContext.progress.honeymoon.budget).toBe(8_000_000);
+    expect(context.weddingContext.progress.reserve.budget).toBe(2_000_000);
+    expect(buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context).result.toolOutput.error).toBe("no_change");
+  });
+
+  it("keeps unmentioned reserve and custom items instead of filling the remaining total", () => {
+    const progress = {
+      reserve: { category: "reserve", status: "not_started", budget: 3_000_000 },
+      custom_transport: { category: "custom_transport", label: "이동 비용", status: "completed", budget: 2_000_000, spent: 100_000 },
+    };
+    const context = budgetContext(progress);
+    context.weddingContext.budget = 35_000_000;
+    const input = parseExplicitBudgetPlanRequest("신혼여행 800만 원, 헤어·메이크업 200만 원. 예산에 반영해줘.", progress, context.weddingContext.budget);
+    expect(input?.total_budget).toBe(35_000_000);
+    if (!input) throw new Error("Explicit partial allocation must parse");
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context);
+    expect(operation.result.success).toBe(true);
+    applyAmoraAtomicToolResultToContext(operation.result, context);
+    expect(context.weddingContext.progress.reserve).toEqual(progress.reserve);
+    expect(context.weddingContext.progress.custom_transport).toEqual(progress.custom_transport);
+    expect(operation.result.toolOutput.remainder_to_reserve).toBe(0);
+  });
+
+  it("does not increase the known total to accommodate an over-budget partial allocation", () => {
+    const context = budgetContext({ venue: { category: "venue", status: "not_started", budget: 30_000_000 } });
+    context.weddingContext.budget = 35_000_000;
+    const before = structuredClone(context.weddingContext);
+    const input = parseExplicitBudgetPlanRequest("신혼여행 800만 원, 예비비 200만 원. 예산에 반영해줘.", before.progress, before.budget);
+    expect(input?.total_budget).toBe(35_000_000);
+    if (!input) throw new Error("A valid request must reach the existing sum guard");
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context);
+    expect(operation.result).toMatchObject({ success: false, toolOutput: { error: "budget_allocations_exceed_total" } });
+    expect(operation.domainMutation).toEqual({ kind: "none" });
+    expect(context.weddingContext).toEqual(before);
+  });
+
+  it("allows an explicitly declared replacement total without treating it as partial allocation", () => {
+    const context = budgetContext({});
+    context.weddingContext.budget = 35_000_000;
+    const input = parseExplicitBudgetPlanRequest("총예산 1000만 원. 신혼여행 800만 원, 예비비 200만 원. 예산에 반영해줘.", {}, context.weddingContext.budget);
+    expect(input?.total_budget).toBe(10_000_000);
+    if (!input) throw new Error("Explicit total replacement must parse");
+    expect(buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context).domainMutation)
+      .toMatchObject({ kind: "journey_budget_plan_cas", expectedBudget: 35_000_000, valueBudget: 10_000_000 });
+  });
+
+  it("keeps the total when explicitly clearing two allocations", () => {
+    const context = budgetContext({ honeymoon: { category: "honeymoon", status: "not_started", budget: 8_000_000 }, reserve: { category: "reserve", status: "not_started", budget: 2_000_000 } });
+    context.weddingContext.budget = 35_000_000;
+    const input = parseExplicitBudgetPlanRequest("신혼여행 0원, 예비비 0원. 예산에 반영해줘.", context.weddingContext.progress, context.weddingContext.budget);
+    expect(input?.total_budget).toBe(35_000_000);
+    if (!input) throw new Error("Explicit zero allocations must preserve a known positive total");
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context);
+    expect(operation.result.success).toBe(true);
+    applyAmoraAtomicToolResultToContext(operation.result, context);
+    expect(context.weddingContext.budget).toBe(35_000_000);
+    expect(context.weddingContext.progress.honeymoon.budget).toBe(0);
+    expect(context.weddingContext.progress.reserve.budget).toBe(0);
+  });
+
+  it.each([undefined, 0])("infers a first total only when no positive total is known: %s", currentTotal => {
+    expect(parseExplicitBudgetPlanRequest("신혼여행 800만 원, 예비비 200만 원. 예산에 반영해줘.", {}, currentTotal)?.total_budget).toBe(10_000_000);
+    expect(parseExplicitBudgetPlanRequest("신혼여행 0원, 예비비 0원. 예산에 반영해줘.", {}, currentTotal)).toBeNull();
+  });
+
   it("preserves the complete explicit update request and reuses its existing item before approval", () => {
     const context = existingPlanContext();
     const existing = Object.entries(context.weddingContext.progress)

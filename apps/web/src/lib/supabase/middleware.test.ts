@@ -20,6 +20,57 @@ vi.mock("@supabase/ssr", () => ({
 
 import { updateSession } from "./middleware";
 
+describe("세션 갱신과 redirect가 함께 일어나는 요청", () => {
+  beforeEach(() => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon-key");
+    mocks.createServerClient.mockReset();
+  });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each([
+    { name: "동의 화면", path: "/wedding/chat?amoraSource=c.venue", user: "pending", onboarded: false, destination: "/consent" },
+    { name: "온보딩", path: "/wedding/chat?amoraSource=c.venue", user: "verified", onboarded: false, destination: "/wedding/onboarding" },
+    { name: "고객 로그인", path: "/wedding/chat?amoraSource=c.venue", user: "none", onboarded: false, destination: "/login" },
+    { name: "관리자 로그인", path: "/admin/dashboard", user: "none", onboarded: false, destination: "/admin/login" },
+    { name: "정상 통과", path: "/wedding/lounge", user: "verified", onboarded: true, destination: null },
+  ])("$name 응답에도 갱신·삭제한 모든 쿠키와 속성을 보존한다", async ({ path, user, onboarded, destination }) => {
+    const cookies = [
+      { name: "sb-synthetic-auth-token.0", value: "new-part-0", options: { path: "/", secure: true, httpOnly: true, sameSite: "lax" as const } },
+      { name: "sb-synthetic-auth-token.1", value: "new-part-1", options: { path: "/", secure: true, httpOnly: true, sameSite: "lax" as const } },
+      { name: "sb-synthetic-auth-token.2", value: "", options: { path: "/", secure: true, httpOnly: true, sameSite: "lax" as const, maxAge: 0 } },
+    ];
+    mocks.createServerClient.mockImplementationOnce((_url, _key, options) => ({
+      auth: { getUser: async () => {
+        options.cookies.setAll(cookies);
+        return { data: { user: user === "none" ? null : {
+          id: "synthetic-user",
+          app_metadata: user === "verified" ? verifiedConsentMetadata : {},
+          user_metadata: {},
+        } } };
+      } },
+    }));
+    const request = new NextRequest(`https://hanbang.ai${path}`);
+    if (onboarded) request.cookies.set("onboarding_complete", "true");
+
+    const response = await updateSession(request);
+
+    expect(response.status).toBe(destination ? 307 : 200);
+    if (destination) {
+      const location = new URL(response.headers.get("location")!);
+      expect(location.pathname).toBe(destination);
+      if (!path.startsWith("/admin")) expect(location.searchParams.get("redirect")).toBe(path);
+    } else expect(response.headers.get("location")).toBeNull();
+    expect(response.cookies.getAll()).toHaveLength(cookies.length);
+    for (const { name, value, options } of cookies) {
+      expect(request.cookies.get(name)?.value).toBe(value);
+      expect(response.cookies.get(name)).toMatchObject({ name, value, ...options });
+    }
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+});
+
 describe("vendor admin-preview onboarding boundary", () => {
   beforeEach(() => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://abcdefghijklmnopqrst.supabase.co");

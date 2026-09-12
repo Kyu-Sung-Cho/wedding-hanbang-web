@@ -2473,6 +2473,62 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerInput).toContain(currentText);
   });
 
+  it.each([
+    { privateVisibility: "bride_private", reverse: false },
+    { privateVisibility: "groom_private", reverse: false },
+    { privateVisibility: "bride_private", reverse: true },
+    { privateVisibility: "groom_private", reverse: true },
+  ])("preserves interleaved shared history at the provider boundary and excludes $privateVisibility (reverse=$reverse)", async ({ privateVisibility, reverse }) => {
+    const currentText = "우리 결혼 준비 조건을 요약해줘";
+    const firstId = "30000000-0000-4000-8000-000000000121";
+    const secondId = "30000000-0000-4000-8000-000000000122";
+    const privateId = "30000000-0000-4000-8000-000000000123";
+    const firstText = "SHARED_A_CONDITION 우리 결혼 예산은 3500만 원을 지키고 싶어";
+    const secondText = "SHARED_B_CONDITION 우리 결혼식 하객은 150명을 모시고 싶어";
+    const firstReply = "SHARED_A_REPLY 총예산 조건을 확인했어요.";
+    const secondReply = "SHARED_B_REPLY 하객 수 조건을 확인했어요.";
+    const user = (id: string, content: string, senderType: string, visibility: string) => ({
+      id, content, sender_id: senderType === "bride" ? "00000000-0000-4000-8000-000000000001" : "00000000-0000-4000-8000-000000000002",
+      sender_type: senderType, role: "user", metadata: null, visibility,
+    });
+    const reply = (id: string, sourceId: string, content: string, visibility: string) => ({
+      id, content, sender_id: null, sender_type: "ai", role: "assistant", visibility,
+      metadata: { in_reply_to_user_message_id: sourceId, question_scope: "W0_wedding_core", memory_eligible: false },
+    });
+    const replies = [
+      reply("20000000-0000-4000-8000-000000000121", firstId, firstReply, "shared"),
+      reply("20000000-0000-4000-8000-000000000122", secondId, secondReply, "shared"),
+    ];
+    if (reverse) replies.reverse();
+    // 두 질문이 먼저 저장되고 답변이 교차 완료된 실제 DB 순서를 재현한다.
+    // SQL 조회 모형이 private 행도 반환하게 해서 route의 마지막 scope 경계도 검증한다.
+    const rows = [
+      user(firstId, firstText, "bride", "shared"),
+      user(secondId, secondText, "groom", "shared"),
+      user(privateId, "EXCLUDED_PRIVATE_SOURCE 결혼 예산을 혼자 정리해줘", privateVisibility === "bride_private" ? "bride" : "groom", privateVisibility),
+      replies[0],
+      reply("20000000-0000-4000-8000-000000000123", privateId, "EXCLUDED_PRIVATE_REPLY", privateVisibility),
+      replies[1],
+      user("30000000-0000-4000-8000-000000000001", currentText, "bride", "shared"),
+    ].map((row, index) => ({ ...row, created_at: `2026-07-15T00:0${index}:00.000Z` }));
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length, ...rows.reverse());
+    mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "두 분이 말씀하신 결혼 준비 조건을 정리했어요.", usage: { input_tokens: 10, output_tokens: 3 } }));
+    const response = await POST(request({ messages: [{ role: "user", content: currentText }] }));
+    expect(response.status).toBe(200);
+    await response.text();
+    expect(mocks.provider).toHaveBeenCalledTimes(1);
+    const args = mocks.provider.mock.calls[0]?.[0];
+    const input = args?.input as Array<{ role: string; content: string }>;
+    expect(input.map(message => message.role)).toEqual(["user", "user", "assistant", "assistant", "user"]);
+    expect(input[0].content).toContain(firstText);
+    expect(input[1].content).toContain(secondText);
+    expect(input[2].content).toContain(reverse ? secondReply : firstReply);
+    expect(input[3].content).toContain(reverse ? firstReply : secondReply);
+    expect(input[4].content).toContain(currentText);
+    expect(JSON.stringify(args)).not.toContain("EXCLUDED_PRIVATE_");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
   it("keeps the legacy provider-context read path while segment cutover is disabled", async () => {
     mocks.activeSegment = null;
     mocks.provider.mockResolvedValueOnce(providerResult({
@@ -7168,6 +7224,36 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally {
       if (added) mocks.safeTools.pop();
     }
+  });
+
+  it.each([0, 9_000_000])("preserves the stored total in a partial-allocation confirmation card with venue budget %s", async venueBudget => {
+    const text = "신혼여행 800만 원, 예비비 200만 원. 예산에 반영해줘.";
+    const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actualTools.WEDDING_TOOLS.find(tool => tool.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(tool => tool.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+      venue: { category: "venue", status: "completed", budget: venueBudget, spent: 500_000 },
+      reserve: { category: "reserve", status: "not_started", budget: 0 },
+    } };
+    mocks.journeyStateRevision = 4;
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    const before = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: "두 항목 배분안을 확인해 주세요." }));
+    try {
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      await response.text();
+      expect(mocks.atomicResponses).toHaveLength(1);
+      expect(mocks.atomicResponses[0].metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: {
+        total_budget: 35_000_000, allocation_mode: "explicit", allocations: [
+          { category: "honeymoon", budget: 8_000_000 }, { category: "reserve", budget: 2_000_000 },
+        ],
+      } });
+      expect(mocks.atomicResponses[0].metadata.pending_amora_action_impact_preview).toBeDefined();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+    } finally { if (added) mocks.safeTools.pop(); }
   });
 
   it("creates the exact B04 budget card from a natural total declaration despite prose-only actual SDK output", async () => {

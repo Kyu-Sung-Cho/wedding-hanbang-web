@@ -561,7 +561,7 @@ export function PriceVendorCard({
           <button
             type="button"
             onClick={() => onOpenCombo(vendor)}
-            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-semibold text-white hover:bg-[var(--hb-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-[6px] bg-[var(--hb-action)] px-4 text-sm font-semibold text-white hover:bg-[var(--hb-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#B89785]"
           >
             + 조합에 담기
           </button>

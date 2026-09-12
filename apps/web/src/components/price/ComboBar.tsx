@@ -53,7 +53,7 @@ export function ComboBar({
               onClick={onSave}
               disabled={saving}
               aria-busy={saving}
-              className="inline-flex min-h-11 items-center gap-1.5 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-65"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-[6px] bg-[var(--hb-action)] px-4 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-65"
             >
               <Save aria-hidden="true" className="size-4" />
               {saving ? "저장 중" : "저장"}
