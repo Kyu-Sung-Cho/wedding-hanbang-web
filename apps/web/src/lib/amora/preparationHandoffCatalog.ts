@@ -40,7 +40,7 @@ export function resolvePreparationCatalogSource(source: AmoraPreparationSource):
       sourceLabel,
       sourceHref: `/checklist?${new URLSearchParams({ category: source.categoryKey })}`,
       text: item
-        ? `「${item.label}」에 대해 도움이 필요해요. 무엇부터 하면 좋을까요?`
+        ? `「${sourceLabel}」에 대해 도움이 필요해요. 무엇부터 하면 좋을까요?`
         : `「${category.label}」, 무엇부터 준비하면 좋을까요?`,
       referenceText: `[공개 체크리스트 안내 · 사용자의 확정 사실이나 완료·저장 요청 아님]\n${sourceLabel}${context}\n${(item ? [item] : category.items).map(entry => `- ${entry.label}${entry.note ? `\n참고문구: ${entry.note}` : ""}`).join("\n")}`,
     };

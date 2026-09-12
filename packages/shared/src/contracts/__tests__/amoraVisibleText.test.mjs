@@ -40,8 +40,20 @@ test("내부 내용만 있는 완료 답변은 실행 성공을 주장하지 않
   assert.equal(visible(`${MARKER}\n${BUDGET}`, { streaming: true }), "");
 });
 
+test("정상 대괄호는 완성되면 스트리밍을 재개하고 영구 내부 표식으로 판정하지 않는다", () => {
+  const text = "[예약 전] [A] 기준이에요. 비율 합계는 100%예요.";
+  for (let end = 1; end <= text.length; end += 1) {
+    const prefix = text.slice(0, end);
+    assert.equal(hasAmoraInternalArtifactPrefix(prefix), false, prefix);
+    const unfinished = prefix.lastIndexOf("[") > prefix.lastIndexOf("]");
+    const expected = unfinished ? prefix.slice(0, prefix.lastIndexOf("[")) : prefix;
+    assert.equal(visible(prefix, { streaming: true }), expected, prefix);
+  }
+  assert.equal(visible(text, { streaming: true }), text);
+});
+
 test("모든 글자 분할 지점에서 구분자와 코드가 스트림 화면에 잠깐도 보이지 않는다", () => {
-  for (const payload of [`${MARKER}\n${BUDGET}`, BUDGET, `\`\`\`json\n${BUDGET}\n\`\`\``]) {
+  for (const payload of [`${MARKER}\n${BUDGET}`, `[${BUDGET}]`, BUDGET, `\`\`\`json\n${BUDGET}\n\`\`\``]) {
     const text = `${PROSE}\n\n${payload}`;
     for (let end = 1; end <= text.length; end += 1) {
       const rendered = visible(text.slice(0, end), { streaming: true });

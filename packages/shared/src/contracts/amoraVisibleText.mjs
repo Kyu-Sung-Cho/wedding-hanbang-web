@@ -15,7 +15,8 @@ const ROLE_INTERNAL = /\[assistant\/(?:analysis|commentary)[^\]]*\][\s\S]*?(?=\[
 const FINAL_ROLE = /\[assistant\/final\]/giu;
 const SYSTEM_REMINDER = /\[SYSTEM:\s*이 결과는 프론트엔드에서[^\]]*(?:\]|$)/giu;
 const TRUNCATION_MARKER = /\[도구 결과가 길어 중간 일부 생략\]/gu;
-const STREAM_OPENING = /[\[{`<>~]/u;
+const STREAM_OPENING = /[{`<>~]/u;
+const INTERNAL_BRACKET_BODY = /^\s*(?:[\[{"']|저장된\s*도구\s*결과|assistant\/(?:analysis|commentary|final)|SYSTEM:\s*이 결과는 프론트엔드에서|도구 결과가 길어 중간 일부 생략)/iu;
 const INTERNAL_LINE_PREFIX = new RegExp(INTERNAL_LINE.source, "mu");
 
 export const AMORA_HIDDEN_INTERNAL_TEXT_NOTICE = "답변을 표시하지 못했어요. 다시 요청해 주세요.";
@@ -160,14 +161,27 @@ function incompleteInternalLine(text) {
   return tail && INTERNAL_KEYS.some((key) => key.startsWith(tail)) ? start : -1;
 }
 
+function internalBracketStart(text, includeUnfinished = false) {
+  for (const match of text.matchAll(/\[/gu)) {
+    const start = match.index;
+    const close = text.indexOf("]", start + 1);
+    const body = text.slice(start + 1, close < 0 ? undefined : close);
+    if (INTERNAL_BRACKET_BODY.test(body) || (includeUnfinished && close < 0)) return start;
+  }
+  return -1;
+}
+
 /** 구조화 구문은 토큰 경계와 관계없이 완료 후 검사한다. 일반 문장은 계속 흘려보낸다. */
 export function hasAmoraInternalArtifactPrefix(text) {
-  return STREAM_OPENING.test(text) || INTERNAL_LINE_PREFIX.test(text) || incompleteInternalLine(text) >= 0;
+  // 미리보기는 완성 문장 단위다. '['만으로 영구 보류하면 뒤에 온 정상 안내도 사라진다.
+  return STREAM_OPENING.test(text) || internalBracketStart(text) >= 0
+    || INTERNAL_LINE_PREFIX.test(text) || incompleteInternalLine(text) >= 0;
 }
 
 export function getAmoraVisibleText(text, { streaming = false } = {}) {
   if (typeof text !== "string" || !text) return text;
-  const starts = streaming ? [text.search(STREAM_OPENING), text.search(INTERNAL_LINE_PREFIX), incompleteInternalLine(text)].filter((index) => index >= 0) : [];
+  // 화면은 미완성 대괄호만 임시 보류하고, 정상 안내로 완성되면 다시 표시한다.
+  const starts = streaming ? [text.search(STREAM_OPENING), internalBracketStart(text, true), text.search(INTERNAL_LINE_PREFIX), incompleteInternalLine(text)].filter((index) => index >= 0) : [];
   const opening = starts.length > 0 ? Math.min(...starts) : -1;
   const candidate = opening >= 0 ? text.slice(0, opening) : text;
   const visible = stripAmoraInternalArtifacts(candidate);
