@@ -1,4 +1,5 @@
 import { daysUntilWedding } from "@hanbang/shared";
+import { getProfileInitial } from "@hanbang/shared/profile-avatar";
 import { CONTACT } from "@hanbang/shared/constants";
 // 프로필/설정 화면
 import { useState, useCallback } from "react";
@@ -225,7 +226,7 @@ export default function ProfileScreen() {
       : profile?.role === "groom"
         ? "신랑"
         : null;
-  const initial = profile?.name?.charAt(0) ?? "?";
+  const initial = getProfileInitial(profile?.name);
 
   const appVersion =
     Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "1.0.0";

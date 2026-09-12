@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
 import FirstRunLoungeTutorial from "@/components/app/FirstRunLoungeTutorial";
 import LoungeFirstArrival, {
@@ -457,7 +458,7 @@ export default function LoungePage() {
           </div>
         </section>
       )}
-      <section aria-label="현재 준비 현황" className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px] lg:rounded-[20px] lg:px-7 lg:py-[26px]">
+      <section aria-label="현재 준비 현황" className={`${FEATURE_SUMMARY_CLASS} p-[18px] lg:px-7 lg:py-6`}>
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-rose-pale)] px-2.5 py-1 text-[10px] text-[var(--amora-rose-deep)] lg:text-[11px]"><AmoraMark size={12} aria-hidden="true" />{companionCopy.loungeLabel}</p>
@@ -466,21 +467,21 @@ export default function LoungePage() {
           </div>
           <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`)} data-tutorial-target="amora-fab" className={`${AMORA_ACTION_CLASS} sm:shrink-0`}><AmoraMark size={20} aria-hidden="true" />아모라에게 물어보기<ArrowRight size={13} aria-hidden="true" /></Link>
         </div>
-        <div className="mt-[18px] grid grid-cols-2 gap-2.5 lg:mt-6 lg:grid-cols-4 lg:gap-3.5">
-          <Link {...weddingLinkProps("/settings" )} className="min-w-0 rounded-[12px] bg-[var(--amora-ink)] p-3.5 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
-            <p className="text-[10px] text-white/60 lg:text-[11px]">우리의 결혼식</p><p className="amora-display mt-2 break-words text-[23px] leading-none lg:text-[30px]">{getDdayLabel(weddingDday)}</p><p className="mt-2 text-[10px] leading-5 text-white/70 lg:text-[11px]">{formatFullDate(journey?.wedding_date)}</p><p className="mt-1 text-[10px] text-white/50">{journey?.venue || "날짜·장소 설정"}</p>
+        <div className="mt-[18px] grid grid-cols-2 gap-y-5 border-t border-[#DEC9BA] pt-4 lg:mt-5 lg:grid-cols-4 lg:pt-5">
+          <Link {...weddingLinkProps("/settings" )} className="min-w-0 border-r border-[#DEC9BA] py-1 pr-3 transition-colors hover:bg-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:pr-5">
+            <p className={SUMMARY_LABEL_CLASS}>우리의 결혼식</p><p className={`${SUMMARY_VALUE_CLASS} mt-2 break-words`}>{getDdayLabel(weddingDday)}</p><p className="mt-2 text-[12px] leading-5 text-[#624A3C]">{formatFullDate(journey?.wedding_date)}</p><p className="mt-1 break-words text-[12px] leading-5 text-[#624A3C]">{journey?.venue || "날짜·장소 설정"}</p>
           </Link>
-          <Link {...weddingLinkProps("/checklist")} className="min-w-0 rounded-[12px] bg-[var(--amora-warm)] p-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
-            <p className="text-[10px] text-[var(--amora-muted)] lg:text-[11px]">체크리스트 진행</p><p className="amora-display mt-2 text-[23px] leading-none lg:text-[30px]">{progressPercent}<span className="ml-0.5 text-[13px] text-[var(--amora-muted)]">%</span></p><p className="mt-2 text-[10px] leading-5 text-[var(--amora-soft)] lg:text-[11px]">{summary.done}/{summary.total}개 직접 체크</p><progress aria-label="전체 체크리스트 진행" value={progressPercent} max={100} className="mt-2 block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-sage)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-sage)]" />
+          <Link {...weddingLinkProps("/checklist")} className="min-w-0 py-1 pl-3 transition-colors hover:bg-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:border-r lg:border-[#DEC9BA] lg:px-5">
+            <p className={SUMMARY_LABEL_CLASS}>체크리스트 진행</p><p className={`${SUMMARY_VALUE_CLASS} mt-2`}>{progressPercent}<span className="ml-0.5 text-sm">%</span></p><p className="mt-2 text-[12px] leading-5 text-[#624A3C]">{summary.done}/{summary.total}개 직접 체크</p><progress aria-label="전체 체크리스트 진행" value={progressPercent} max={100} className="mt-2 block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-sage)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-sage)]" />
           </Link>
-          <Link {...weddingLinkProps("/budget")} className="min-w-0 rounded-[12px] bg-[var(--amora-warm)] p-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
-            <p className="text-[10px] text-[var(--amora-muted)] lg:text-[11px]">총 예산 대비 배정</p><p className="amora-display mt-2 break-words text-[21px] leading-none lg:text-[28px]">{totalBudget > 0 ? allocatedRatioLabel : "예산 미정"}</p><p className="mt-2 break-words text-[10px] leading-5 text-[var(--amora-soft)] lg:text-[11px]">{formatLoungeWon(budgetTotals.allocated)} 배정</p><progress aria-label="총 예산 대비 배정액" value={totalBudget > 0 ? Math.min(100, budgetTotals.allocated / totalBudget * 100) : 0} max={100} className="mt-2 block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />
+          <Link {...weddingLinkProps("/budget")} className="min-w-0 border-r border-[#DEC9BA] py-1 pr-3 transition-colors hover:bg-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:px-5">
+            <p className={SUMMARY_LABEL_CLASS}>총 예산 대비 배정</p><p className={`${SUMMARY_VALUE_CLASS} mt-2 break-words`}>{totalBudget > 0 ? allocatedRatioLabel : "예산 미정"}</p><p className="mt-2 break-words text-[12px] leading-5 text-[#624A3C]">{formatLoungeWon(budgetTotals.allocated)} 배정</p><progress aria-label="총 예산 대비 배정액" value={totalBudget > 0 ? Math.min(100, budgetTotals.allocated / totalBudget * 100) : 0} max={100} className="mt-2 block h-1 w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />
           </Link>
-          <Link {...weddingLinkProps("/schedule")} className="min-w-0 rounded-[12px] bg-[var(--amora-warm)] p-3.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
-            <p className="text-[10px] text-[var(--amora-muted)] lg:text-[11px]">다음 일정</p><p className="amora-display mt-2 text-[23px] leading-none lg:text-[30px]">{nextEvent ? getDdayLabel(daysUntilLoungeEvent(nextEvent.date)) : "일정 미정"}</p><p className="mt-2 break-words text-[10px] leading-5 text-[var(--amora-soft)] lg:text-[11px]">{nextEvent?.title ?? "예정된 일정을 추가해요"}</p>{nextEvent && <p className="mt-1 text-[10px] text-[var(--amora-muted)]">{formatDate(nextEvent.date)} · {isValidScheduleTime(nextEvent.time) ? nextEvent.time : "시간 미정"}</p>}
+          <Link {...weddingLinkProps("/schedule")} className="min-w-0 py-1 pl-3 transition-colors hover:bg-white/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:pl-5">
+            <p className={SUMMARY_LABEL_CLASS}>다음 일정</p><p className={`${SUMMARY_VALUE_CLASS} mt-2 break-words`}>{nextEvent ? getDdayLabel(daysUntilLoungeEvent(nextEvent.date)) : "일정 미정"}</p><p className="mt-2 break-words text-[12px] leading-5 text-[#624A3C]">{nextEvent?.title ?? "예정된 일정을 추가해요"}</p>{nextEvent && <p className="mt-1 text-[12px] leading-5 text-[#624A3C]">{formatDate(nextEvent.date)} · {isValidScheduleTime(nextEvent.time) ? nextEvent.time : "시간 미정"}</p>}
           </Link>
         </div>
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[var(--amora-line)] pt-3 text-[10.5px] leading-[1.7] text-[var(--amora-muted)] lg:text-[11px]">
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-[#DEC9BA] pt-3 text-[12px] leading-[1.7] text-[#624A3C]">
           <p>기록 지출 {formatLoungeWon(spentBudget)}{totalBudget > 0 ? ` · 총 예산의 ${budgetRatioLabel}` : " · 총 예산 입력 전"} · 결제 확인과 별도</p>
           {!partner && <Link {...weddingLinkProps("/settings")} data-tutorial-target="lounge-invite" className="inline-flex min-h-11 items-center gap-1 font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Users size={12} aria-hidden="true" />파트너 초대<ArrowRight size={11} aria-hidden="true" /></Link>}
         </div>

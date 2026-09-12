@@ -164,10 +164,10 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
              일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */
           <Link
             {...weddingLinkProps("/chat")}
-            className="group rounded-xl border border-[var(--hb-amora-line)] bg-[var(--hb-amora-surface)] p-3.5 transition-colors hover:bg-[var(--hb-amora-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2"
+            className="group rounded-xl border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-3.5 transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
-              <AmoraMark className="h-3.5 w-3.5 text-[var(--hb-amora-ink)]" />
+              <AmoraMark className="h-3.5 w-3.5 text-[var(--hb-amora-ink,#7D5753)]" />
               가족 이야기
             </p>
             <p className="text-[13px] font-semibold text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)]">

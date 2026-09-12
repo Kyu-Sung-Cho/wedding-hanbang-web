@@ -7,6 +7,7 @@ import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import Button from "@/components/ui/Button";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { FEATURE_SUMMARY_CLASS } from "@/components/ui/featureSummaryStyles";
 import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
 import CreatePreparationAction from "./CreatePreparationAction";
 import AmoraActionPlanFields from "./AmoraActionPlanFields";
@@ -113,7 +114,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   );
   return <section aria-label="준비 결정 기록">
     <h2 className="sr-only">결정 기록</h2>
-    <div className="mb-5 hidden items-start gap-[14px] rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-[18px] py-4 lg:flex">
+    <div className={`${FEATURE_SUMMARY_CLASS} mb-5 hidden items-start gap-[14px] px-[18px] py-4 lg:flex`}>
       <CircleHelp aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-[var(--amora-rose-deep)]" />
       <div className="min-w-0 flex-1">
         <p className="text-[13.5px] leading-[1.65] font-medium text-[var(--amora-ink)]">함께 준비하며 남긴 기록을, 저장 당시의 구분으로 모았어요.</p>
@@ -406,7 +407,7 @@ export default function AmoraDecisionBoard() {
         setActiveStatus("open"); setCategory("all"); setQuery("");
         setAnnouncement(previous => ({ message: "공유 할 일을 추가했어요.", sequence: previous.sequence + 1 }));
       }} />
-      <div className="mb-5 hidden items-start gap-[14px] rounded-[14px] border border-[var(--amora-line)] bg-[var(--amora-warm)] px-[18px] py-4 lg:flex">
+      <div className={`${FEATURE_SUMMARY_CLASS} mb-5 hidden items-start gap-[14px] px-[18px] py-4 lg:flex`}>
         <CircleHelp aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[var(--amora-rose-deep)]" />
         <div className="min-w-0 flex-1">
           <p className="text-[13.5px] leading-relaxed font-medium text-[var(--amora-ink)]">카드의 상태는 직접 바꿉니다 — 완료한 일과 남은 일을 한눈에.</p>

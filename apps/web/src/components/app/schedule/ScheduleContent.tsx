@@ -28,6 +28,7 @@ import TimelineView from "@/components/app/schedule/TimelineView";
 import CalendarView from "@/components/app/schedule/CalendarView";
 import PreparationTimeline, { ScheduleStageSummary } from "./PreparationTimeline";
 import ScheduleProgress from "./ScheduleProgress";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import ImminentAlerts from "@/components/app/schedule/ImminentAlerts";
 import EventFormModal from "@/components/app/schedule/EventFormModal";
@@ -723,32 +724,32 @@ export default function ScheduleContent({ embedded = false }: ScheduleContentPro
           </div>
         )}
 
-        <div className="hidden items-center gap-[30px] rounded-[18px] border border-[var(--amora-line)] bg-white px-7 py-[22px] lg:flex">
+        <div className={`${FEATURE_SUMMARY_CLASS} hidden items-center gap-[30px] px-7 py-[22px] lg:flex`}>
           <div className="min-w-0 flex-1">
-            <p className="text-[10px] text-[var(--amora-rose-deep)]">기본 일정 확인</p>
+            <p className={SUMMARY_LABEL_CLASS}>기본 일정 확인</p>
             <h1 className="planning-display mt-1.5 text-[24px] leading-[1.4] text-[var(--amora-ink)]">{needsScheduleCount ? `날짜를 정할 항목 ${needsScheduleCount}건이 있어요` : "우리의 준비 일정을 모아봐요"}</h1>
-            <p className="mt-2 text-[11px] leading-[1.8] text-[var(--amora-muted)]">기본 확인 시점이 지났거나 60일 안에 다가오는 항목을 확인해요.<br />업체나 가족과 정한 실제 날짜가 우선입니다.</p>
+            <p className="mt-2 text-[12px] leading-[1.8] text-[var(--amora-muted)]">기본 확인 시점이 지났거나 60일 안에 다가오는 항목을 확인해요.<br />업체나 가족과 정한 실제 날짜가 우선입니다.</p>
           </div>
-          <div className="flex shrink-0 items-start gap-7">
-            <div><p className="text-[9px] tracking-[0.08em] text-[var(--amora-muted)]">D-DAY</p><p className="planning-display mt-2 text-[27px] leading-none text-[var(--amora-rose-deep)]">{dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}</p><p className="mt-2 text-[10px] text-[var(--amora-muted)]">{dday === null ? "날짜 미정" : dday > 0 ? "일 남음" : dday === 0 ? "결혼식 당일" : "일 지남"}</p></div>
-            <div><p className="text-[9px] tracking-[0.08em] text-[var(--amora-muted)]">PROGRESS</p><p className="planning-display mt-2 text-[27px] leading-none text-[var(--amora-ink)]">{progressPct}%</p><p className="mt-2 text-[10px] text-[var(--amora-muted)]">{totalDone}/{totalItems} 완료</p></div>
-            <div><p className="text-[9px] tracking-[0.08em] text-[var(--amora-muted)]">UPCOMING</p><p className="planning-display mt-2 text-[27px] leading-none text-[var(--amora-ink)]">{upcomingCount}</p><p className="mt-2 text-[10px] text-[var(--amora-muted)]">다가오는 일정</p></div>
+          <div className="flex shrink-0 items-start divide-x divide-[var(--hb-summary-line,#DEC9BA)]">
+            <div className="pr-5"><p className={SUMMARY_LABEL_CLASS}>D-day</p><p className={`${SUMMARY_VALUE_CLASS} mt-2`}>{dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}</p><p className="mt-2 text-[12px] text-[var(--amora-muted)]">{dday === null ? "날짜 미정" : dday > 0 ? "일 남음" : dday === 0 ? "결혼식 당일" : "일 지남"}</p></div>
+            <div className="px-5"><p className={SUMMARY_LABEL_CLASS}>체크리스트 진행률</p><p className={`${SUMMARY_VALUE_CLASS} mt-2`}>{progressPct}%</p><p className="mt-2 text-[12px] text-[var(--amora-muted)]">{totalDone}/{totalItems} 완료</p></div>
+            <div className="pl-5"><p className={SUMMARY_LABEL_CLASS}>다가오는 일정</p><p className={`${SUMMARY_VALUE_CLASS} mt-2`}>{upcomingCount}</p><p className="mt-2 text-[12px] text-[var(--amora-muted)]">등록한 일정 기준</p></div>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-2.5 lg:hidden">
-          <div className="rounded-[14px] border border-[var(--amora-line)] bg-white px-[15px] py-3.5">
-            <p className="text-[9.5px] tracking-[0.1em] text-[var(--amora-muted)]">D-DAY</p>
-            <p className="planning-display mt-1.5 text-[23px] leading-none text-[var(--amora-rose-deep)]">{dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}</p>
-            <p className="mt-1.5 text-[10.5px] text-[var(--amora-muted)]">{dday === null ? "날짜 미정" : dday > 0 ? "일 남음" : dday === 0 ? "결혼식 당일" : "일 지남"}</p>
+        <div className={`${FEATURE_SUMMARY_CLASS} grid grid-cols-2 lg:hidden`}>
+          <div className="border-r border-[var(--hb-summary-line,#DEC9BA)] px-[15px] py-3.5">
+            <p className={SUMMARY_LABEL_CLASS}>D-day</p>
+            <p className={`${SUMMARY_VALUE_CLASS} mt-1.5`}>{dday !== null ? (dday >= 0 ? dday : `+${Math.abs(dday)}`) : "—"}</p>
+            <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">{dday === null ? "날짜 미정" : dday > 0 ? "일 남음" : dday === 0 ? "결혼식 당일" : "일 지남"}</p>
           </div>
-          <div className="rounded-[14px] border border-[var(--amora-line)] bg-white px-[15px] py-3.5">
-            <p className="text-[9.5px] tracking-[0.1em] text-[var(--amora-muted)]">UPCOMING</p>
-            <p className="planning-display mt-1.5 text-[23px] leading-none text-[var(--amora-ink)]">{upcomingCount}</p>
-            <p className="mt-1.5 text-[10.5px] text-[var(--amora-muted)]">다가오는 일정</p>
+          <div className="px-[15px] py-3.5">
+            <p className={SUMMARY_LABEL_CLASS}>다가오는 일정</p>
+            <p className={`${SUMMARY_VALUE_CLASS} mt-1.5`}>{upcomingCount}</p>
+            <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">등록한 일정 기준</p>
           </div>
-          <div className="col-span-2 rounded-[14px] border border-[var(--amora-line)] bg-white px-[15px] py-3.5">
-            <div className="flex items-end justify-between gap-3"><div><p className="text-[9.5px] tracking-[0.1em] text-[var(--amora-muted)]">PROGRESS</p><p className="planning-display mt-1.5 text-[23px] leading-none text-[var(--amora-ink)]">{progressPct}%</p></div><p className="text-[10.5px] text-[var(--amora-muted)]">{totalDone}/{totalItems} 완료</p></div>
-            <ScheduleProgress value={progressPct} label="전체 준비 진행률" className="mt-2.5" />
+          <div className="col-span-2 border-t border-[var(--hb-summary-line,#DEC9BA)] px-[15px] py-3.5">
+            <div className="flex items-end justify-between gap-3"><div><p className={SUMMARY_LABEL_CLASS}>체크리스트 진행률</p><p className={`${SUMMARY_VALUE_CLASS} mt-1.5`}>{progressPct}%</p></div><p className="text-[12px] text-[var(--amora-muted)]">{totalDone}/{totalItems} 완료</p></div>
+            <ScheduleProgress value={progressPct} label="체크리스트 진행률" className="mt-2.5" />
           </div>
         </div>
         <p className="text-[11px] leading-[1.7] text-[var(--amora-muted)] lg:hidden">기본 체크리스트와 확인 시점은 시작을 돕는 예시이며, 업체나 가족과 정한 실제 일정이 우선입니다.</p>

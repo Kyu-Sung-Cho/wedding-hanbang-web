@@ -1,5 +1,7 @@
 import { colors } from "./colors";
 import { amoraIdentity } from "./amora";
+import { chatPalette } from "./chat";
+import { summaryPalette } from "./summary";
 
 /**
  * 웹 `globals.css`의 색 커스텀 프로퍼티를 **토큰에서 만들어낸다.**
@@ -138,6 +140,12 @@ export const WEB_THEME_COLOR_VARS: readonly WebCssColorVar[] = [
  * 같은 유틸리티 클래스가 `.hanbang-service-theme` 안팎에서 다른 색을 낸다.
  */
 export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
+  { name: "summary-surface", value: summaryPalette.surface, section: "역할 — 기능 상단 요약" },
+  { name: "summary-line", value: summaryPalette.line },
+  { name: "summary-accent", value: summaryPalette.accent },
+  { name: "summary-ink", value: summaryPalette.ink },
+  { name: "summary-label", value: summaryPalette.label },
+  { name: "summary-track", value: summaryPalette.track },
   {
     name: "primary",
     value: colors.paper.ink,
@@ -155,6 +163,19 @@ export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "amora-line", value: amoraIdentity.line },
   { name: "amora-surface", value: amoraIdentity.surface },
   { name: "amora-hover", value: amoraIdentity.hover },
+
+  { name: "chat-sky-surface", value: chatPalette.sky.surface, section: "역할 — 대화 말풍선" },
+  { name: "chat-sky-ink", value: chatPalette.sky.ink },
+  { name: "chat-sky-line", value: chatPalette.sky.line },
+  { name: "chat-rose-surface", value: chatPalette.rose.surface },
+  { name: "chat-rose-ink", value: chatPalette.rose.ink },
+  { name: "chat-rose-line", value: chatPalette.rose.line },
+  { name: "chat-amora-surface", value: chatPalette.amora.surface },
+  { name: "chat-amora-ink", value: chatPalette.amora.ink },
+  { name: "chat-amora-line", value: chatPalette.amora.line },
+  { name: "chat-neutral-surface", value: chatPalette.neutral.surface },
+  { name: "chat-neutral-ink", value: chatPalette.neutral.ink },
+  { name: "chat-neutral-line", value: chatPalette.neutral.line },
 
   // 초점 링은 파란 펜이다. 잉크와 같은 색으로 두면 어두운 버튼 위에서 링이 사라진다.
   { name: "focus-ring", value: colors.paper.pen, section: "역할 — 초점" },

@@ -138,6 +138,7 @@ function renderProposal(receipts, { nowMs = action.expiresAt - 1, streaming = fa
     React: { createElement: (type, props, ...children) => ({ type, props, children }), Fragment: "Fragment" },
     messages, userRole: "bride", userId: "user-1", dismissedPendingActionIds: new Set(),
     userName: "나", partnerName: "파트너",
+    ...compileCommonJs(readFileSync(new URL("../../../../packages/design-tokens/src/chat.ts", import.meta.url), "utf8")),
     nowMs, streaming, latestSharedMessageId: messages.at(-1).id,
     actionConfirmationOutcomes: applicationModule.buildAmoraActionConfirmationOutcomes(messages),
     pendingActionApproval: null, pendingActionNotice: null, applyingPendingActionId: null,

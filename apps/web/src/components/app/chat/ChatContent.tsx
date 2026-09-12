@@ -2,6 +2,7 @@
 
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
@@ -18,7 +19,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, type SetStateAction 
 import { createPortal } from "react-dom";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Send, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink, User } from "lucide-react";
+import { Send, X, PanelRightOpen, Paperclip, FileText, FileSpreadsheet, Heart, RefreshCw, Lock, Loader2, Search, MessageCircle, AlertTriangle, ShieldCheck, CheckCircle2, ExternalLink } from "lucide-react";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import type { CommunityCategory } from "@/types/community.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -3361,9 +3362,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           const label = typingIsPartner ? (partner?.name ?? "파트너") : "파트너";
           return (
             <div className="animate-fade-in flex items-center gap-2 px-3">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center text-white shadow-sm">
-                <User className="w-4 h-4" />
-              </div>
+              <ProfileAvatar name={label} size={36} />
               <div className="bg-white border border-black/[0.06] rounded-[6px] rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
                 <span className="text-[13px] text-[var(--hb-text-muted)]">{label} 입력 중</span>
                 <span className="flex items-center gap-0.5">

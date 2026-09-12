@@ -9,6 +9,26 @@
 
 ## Aesthetic Direction
 
+- **Feature summary hierarchy (2026-09-12):** Budget, checklist, schedule,
+  lounge, guide introductions and the existing board overview use a grouped
+  champagne surface with a restrained top rule, shared from `summaryPalette`
+  and `featureSummaryStyles.ts`. Detail cards remain white. This was chosen
+  over a separate saturated fill for each metric or a shadow-only change so
+  the first summary is easier to find without making the screen busier.
+  Labels use Korean and at least 12px text; major values use Pretendard 600
+  and tabular numbers. Narrow screens wrap units and long amounts without
+  rounding stored won amounts. Recorded spend, allocation and payment status
+  remain distinct; schedule progress means checklist progress. Missing values
+  and edit actions retain their meaning. Guides gain no invented progress.
+  This supersedes the earlier white summaries and black lounge date tile.
+
+- **Chat color release boundary (2026-09-13):** Amora uses a light sage
+  bubble, visible sage border and dark sage text for both streamed and saved
+  replies. The approved next step is groom sky / bride pink based on an
+  explicitly selected role. Existing signup-order slots cannot determine
+  that role. Human bubble colors remain unchanged in this UI release until
+  the separate role-storage release passes its database gates.
+
 - **Amora identity and question controls (2026-09-12):** The user requested a
   distinctive, memorable mark and consistent visible borders across features.
   Amora uses an original ribbon-knot outline, shared from
@@ -358,6 +378,21 @@
 - Keep the dashboard task-first. This gives up a pure brand hero, but users get immediate relief.
 
 ## Decisions Log
+
+### Profile initials (2026-09-13)
+
+- User avatar initials use the first grapheme consistently across settings,
+  sidebar, chat, public community and native surfaces. Latin letters are
+  uppercase; an empty name uses `?`. The shared function handles composed
+  Korean and emoji without cutting their code units.
+- Web avatars use `ProfileAvatar` with the existing rose-pale background
+  `#EADDD8` and rose-700 ink `#7D5753`; their calculated contrast is 4.71:1.
+  Existing public community emoji and image choices remain separate from
+  the private wedding profile. Failed images fall back to the same initial.
+- Private photo/emoji editing and confirmed-role editing are preserved in
+  the separate avatar work branch. Their controls and API/DB changes are
+  excluded from this UI release until storage permissions and restore
+  verification are complete.
 
 | Date | Decision | Rationale |
 |------|----------|-----------|

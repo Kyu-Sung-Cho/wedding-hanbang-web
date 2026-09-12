@@ -284,7 +284,7 @@ function SlideAmora() {
         </div>
         <div className="px-4 pb-3">
           <div className="bg-[var(--hb-surface-page)] border border-[#f6efe5] rounded-[6px] p-3 mb-2 flex items-start gap-2">
-            <AmoraMark className="w-4 h-4 text-[var(--hb-amora-ink)] shrink-0 mt-0.5" />
+            <AmoraMark className="w-4 h-4 text-[var(--hb-amora-ink,#7D5753)] shrink-0 mt-0.5" />
             <div className="text-left">
               <div className="text-sm text-[var(--hb-text-strong)] font-semibold mb-0.5">아모라 상담</div>
               <div className="text-sm text-[var(--hb-text-body)] leading-relaxed">

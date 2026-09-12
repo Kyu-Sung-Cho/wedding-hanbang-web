@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import Logo from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
@@ -54,7 +55,6 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
   const plannerOverview = htmlDesign && ["/checklist", "/budget", "/schedule", "/lounge"].includes(currentPath);
   const { profile, journey, signOut } = useAuthStore();
   const userName = profile?.name ?? "예비부부";
-  const userInitial = userName.charAt(0);
   const weddingDateStr = journey?.wedding_date
     ? new Date(journey.wedding_date).toLocaleDateString("ko-KR", {
         year: "numeric",
@@ -116,9 +116,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
         <div className={plannerOverview ? "mx-[14px] mt-[10px] border-t border-[var(--amora-line)] pb-4 pt-[14px]" : "px-3 pb-4"}>
           <div className={plannerOverview ? "px-[10px] pb-[10px] pt-[6px]" : "rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4"}>
             <div className="flex items-center gap-3">
-              <div className={plannerOverview ? "flex size-8 shrink-0 items-center justify-center rounded-full bg-[var(--amora-rose-pale)] text-[12px] font-bold text-[var(--amora-rose-deep)]" : "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-[14px] font-semibold text-white"}>
-                {userInitial}
-              </div>
+              <ProfileAvatar name={userName} size={plannerOverview ? 32 : 40} />
               <div className="min-w-0">
                 <p className={`${plannerOverview ? "text-[13px]" : "text-[14px]"} truncate font-semibold text-[var(--hb-text-strong)]`}>{userName}</p>
                 <p className={`${plannerOverview ? "text-[11px]" : "text-[12px]"} mt-0.5 truncate font-medium text-[var(--hb-text-body)]`}>{weddingDateStr}</p>

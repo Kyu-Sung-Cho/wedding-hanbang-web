@@ -1,12 +1,14 @@
 "use client";
 
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
+import { CHAT_BUBBLE_TONES } from "./chatBubbleStyles";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { ChatMessage } from "@/types/database.types";
-import { BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck, User } from "lucide-react";
+import { BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { isSavedNoteScopeCurrent, observeSavedNote, refreshSavedNote, setSavedNoteIdentity, useSavedNoteStore } from "@/stores/savedNoteStore";
 import MediationCard from "@/components/app/chat/MediationCard";
@@ -150,10 +152,10 @@ function ChatImageAttachments({
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 px-3 py-2 rounded-[6px] bg-white/10 border border-white/20 hover:bg-white/20 transition-colors"
+            className="flex min-h-11 items-center gap-2 rounded-[6px] border border-[#DDD7CC] bg-white px-3 py-2 text-[#45413B] transition-colors hover:bg-[#F2EFE9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring,#35638A)]"
           >
-            <FileText className="w-5 h-5 text-white/80" />
-            <span className="text-sm text-white/80">PDF 문서</span>
+            <FileText className="w-5 h-5" />
+            <span className="text-sm">PDF 문서</span>
           </a>
         ) : (
           // eslint-disable-next-line @next/next/no-img-element -- Dynamic signed attachment URLs are not good candidates for next/image optimization.
@@ -161,7 +163,7 @@ function ChatImageAttachments({
             key={i}
             src={url}
             alt={`첨부 이미지 ${i + 1}`}
-            className="max-w-[200px] max-h-[200px] rounded-[6px] object-cover border border-white/20 shadow-sm"
+            className="max-w-[200px] max-h-[200px] rounded-[6px] object-cover border border-[#DDD7CC] shadow-sm"
           />
         )
       )}
@@ -533,10 +535,10 @@ export default function ChatBubble({
               </span>
             )}
           </span>
-          <div className={`rounded-[14px] rounded-bl-[4px] border bg-[var(--amora-sage-pale,#DBE3D6)] px-[14px] py-[11px] ${
-            aiIsPrivate ? "border-[#5a6147]/25 ring-1 ring-[#5a6147]/10" : "border-transparent"
+          <div className={`rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px] ${CHAT_BUBBLE_TONES.amora} ${
+            aiIsPrivate ? "ring-1 ring-[#5a6147]/15" : ""
           }`}>
-            <div className="break-words text-[13px] leading-[1.6] text-[#233426] sm:text-[14px]">
+            <div className="break-words text-[13px] leading-[1.6] sm:text-[14px]">
               {renderAiMarkdown(cleanText)}
             </div>
             {/* 2026-08-19 — 태그가 가리키는 챕터로 직접 보낸다. 같은 날 레거시 25편을
@@ -608,14 +610,10 @@ export default function ChatBubble({
   // 이름은 호출부에서 sender_id를 대조해 넘겨준 경우에만 쓴다.
   const senderLabel = senderName ?? (message.sender_id ? "상대방" : "이전 참여자");
 
-  // 색은 성별이 아니라 "나 vs 상대" 축으로 가른다. 이전 신부 색(#C4967E)은 흰 글자
-  // 대비 2.62:1로 WCAG AA 미달이었다 — 중립화가 접근성 수정을 겸한다.
+  // 직접 선택한 신랑·신부 역할 저장이 배포되기 전에는 기존 사람 구분을 유지한다.
   const myBubbleBg = "bg-[var(--amora-ink,#26251F)]";
   const partnerBubbleBg = "bg-[var(--amora-warm,#F4EDE0)]";
   const partnerBubbleBorder = "border-[#E8DDD3]";
-
-  // 상대 아바타는 아모라의 세이지 색과 구분한다.
-  const avatarBg = "bg-[var(--amora-rose-deep,#7D5753)]";
   const badgeBg = "bg-[#795252]/12 text-[var(--hb-accent-hover)]";
 
   // 사용자 메시지에서 선택 태그 숨김
@@ -668,21 +666,7 @@ export default function ChatBubble({
   return (
     <div className="flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
       {/* 아바타 — 모바일 작게 */}
-      <div
-        className={`flex size-7 shrink-0 items-center justify-center rounded-full ${avatarBg} sm:size-8`}
-      >
-        {isPartnerMsg ? (
-          <Heart className="w-5 h-5 text-white" />
-        ) : (
-          senderName ? (
-            <span className="text-white text-base font-bold">
-              {senderName.slice(0, 2)}
-            </span>
-          ) : (
-            <User className="w-5 h-5 text-white" />
-          )
-        )}
-      </div>
+      <ProfileAvatar name={senderLabel} size={28} className="sm:size-8" />
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">

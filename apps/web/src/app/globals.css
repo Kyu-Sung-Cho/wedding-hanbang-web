@@ -59,6 +59,14 @@
   /* @generated:design-tokens root end */
 
   /* @generated:design-tokens roles start — colors.ts에서 생성됩니다. 직접 고치지 마세요. */
+  /* 역할 — 기능 상단 요약 */
+  --hb-summary-surface: #F3E7DB;
+  --hb-summary-line: #DEC9BA;
+  --hb-summary-accent: #B8947E;
+  --hb-summary-ink: #382F2B;
+  --hb-summary-label: #624A3C;
+  --hb-summary-track: #D5BDA9;
+
   /* 역할 — 누를 수 있는 것 (제품 표면 언어는 종이·잉크) */
   --hb-primary: #26251F;
   --hb-primary-hover: #12110D;
@@ -74,6 +82,20 @@
   --hb-amora-line: #8F6662;
   --hb-amora-surface: #FBF8F2;
   --hb-amora-hover: #EADDD8;
+
+  /* 역할 — 대화 말풍선 */
+  --hb-chat-sky-surface: #E5F2FA;
+  --hb-chat-sky-ink: #23445B;
+  --hb-chat-sky-line: #BCD9EC;
+  --hb-chat-rose-surface: #FBE9ED;
+  --hb-chat-rose-ink: #623442;
+  --hb-chat-rose-line: #ECC7D0;
+  --hb-chat-amora-surface: #EEF2EA;
+  --hb-chat-amora-ink: #34483E;
+  --hb-chat-amora-line: #CDD8C7;
+  --hb-chat-neutral-surface: #F2EFE9;
+  --hb-chat-neutral-ink: #45413B;
+  --hb-chat-neutral-line: #DDD7CC;
 
   /* 역할 — 초점 */
   --hb-focus-ring: #35638A;

@@ -67,8 +67,7 @@ describe("StreamingBubble", () => {
       const content = group.children[1];
       const bubble = content.children[1];
       const tokens = (element: Element) => [...element.classList].filter(token =>
-        token !== "whitespace-pre-wrap" && token !== "border-transparent"
-        && !token.startsWith("border-[#5a6147]") && !token.startsWith("ring-"),
+        token !== "whitespace-pre-wrap" && !token.startsWith("ring-"),
       ).sort();
       return { group: tokens(group), avatar: tokens(group.children[0]),
         label: tokens(content.children[0]), bubble: tokens(bubble), body: tokens(bubble.children[0]) };

@@ -10,6 +10,7 @@ import Svg, {
   Text as SvgText,
 } from "react-native-svg";
 import { colors } from "@hanbang/design-tokens";
+import { getProfileInitial } from "@hanbang/shared/profile-avatar";
 import { useAppFontsLoaded } from "@/components/ui/AppText";
 
 export type CommunityAvatarRole = "bride" | "groom" | "neutral";
@@ -113,7 +114,7 @@ function getAvatarCharacter(
     role: avatarRole,
     ...palette,
     skin: SKIN_TONES[Math.floor(hash / 7) % SKIN_TONES.length]!,
-    initial: safeNickname.charAt(0).toUpperCase(),
+    initial: getProfileInitial(nickname),
     hairVariant: Math.floor(hash / 11) % 3,
     accessoryVariant: Math.floor(hash / 17) % 3,
     expressionVariant: Math.floor(hash / 23) % 3,

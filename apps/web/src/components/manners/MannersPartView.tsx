@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowUp } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS, AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { FEATURE_SUMMARY_CLASS } from "@/components/ui/featureSummaryStyles";
 import type { MannersBlock, MannersPart, MannersSource } from "@/lib/manners/types";
 import { categoryKeysForMannersPart } from "@/lib/manners/categoryMap";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
@@ -477,14 +478,14 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             )}
           </div>
           {/*
-            이 글이 **무엇을 다루는지** 한 줄. 시안의 `.excerpt-note` 와 같은 자리·같은
-            모양(배지 줄 아래 12px 흐린 글씨)이다.
+            이 글이 **무엇을 다루는지** 한 줄. 시안의 `.excerpt-note` 자리에
+            공통 요약 표면을 적용하고 원문 설명은 유지한다.
 
             2026-09-04 에 부제를 `description` 에서 `subtitle` 로 바꾸면서 이 문장이
             화면에서 통째로 사라졌었다. 검색으로 들어온 사람에게는 이 한 줄이 「이 글을
             읽어야 하나」를 가르는 유일한 문장이라 되살린다.
           */}
-          <p className="text-[12px] leading-[1.6] text-[var(--amora-muted)]">
+          <p className={`${FEATURE_SUMMARY_CLASS} px-4 py-3 text-[13px] leading-[1.6] text-[var(--amora-soft)]`}>
             {part.description}
           </p>
         </header>

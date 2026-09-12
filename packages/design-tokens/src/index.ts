@@ -1,5 +1,7 @@
 export { colors } from "./colors";
 export { amoraIdentity } from "./amora";
+export { chatPalette } from "./chat";
+export { summaryPalette } from "./summary";
 export type { BrandColor } from "./colors";
 export { fontFamily, fontSize, fontWeight, lineHeight, letterSpacing } from "./typography";
 export { spacing } from "./spacing";
