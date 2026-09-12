@@ -8,7 +8,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
 import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, User, Users } from "lucide-react-native";
-import { amoraIdentity, colors } from "@hanbang/design-tokens";
+import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import type {
@@ -4136,8 +4136,8 @@ export default function ChatScreen() {
         ? "이 공동 변경을 확인하고 바로 반영"
         : "이 공동 변경을 확인"
       : "확인한 내용을 이대로 적용";
-    const bubbleBg = isAi ? colors.surface : isMe ? colors.noir[800] : colors.ivory.warm;
-    const textColor = isMe ? "#FFF" : colors.noir[800];
+    const bubbleBg = isAi ? chatPalette.amora.surface : isMe ? colors.noir[800] : colors.ivory.warm;
+    const textColor = isAi ? chatPalette.amora.ink : isMe ? "#FFF" : colors.noir[800];
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
@@ -4171,7 +4171,7 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{visibleContent}</Text>
               </View>
             ) : (
-              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: colors.border }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: chatPalette.amora.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
                 {isThinking ? <ThinkingDots /> : (
                   <>
                     {isAi ? (
@@ -4507,16 +4507,6 @@ export default function ChatScreen() {
           </View>
         )}
 
-        {preparationDraft && activeLane === "shared_ai"
-          && preparationDraft.context.ownerId === userId && preparationDraft.context.coupleId === coupleId
-          && chatSessionGenerationRef.current.isCurrent(preparationDraft.context.generation) && (
-          <View style={st.failureBar} accessibilityLiveRegion="polite">
-            <Text style={st.failureText}>{preparationDraft.sourceLabel}{"\n"}공개 안내를 참고해요. 질문을 확인한 뒤 직접 보내세요.</Text>
-            <Pressable style={st.retryBtn} onPress={() => setPreparationDraft(null)} accessibilityRole="button" accessibilityLabel="안내 연결 해제">
-              <Text style={st.retryText}>해제</Text>
-            </Pressable>
-          </View>
-        )}
         {preparationNotice && (
           <View style={st.failureBar} accessibilityLiveRegion="polite">
             <Text style={st.failureText}>{preparationNotice}</Text>

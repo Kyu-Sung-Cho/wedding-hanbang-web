@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
 
 import { readingMinutesOf } from "@/lib/manners/readingTime";
 import { MANNERS_CATEGORIES, MANNERS_PARTS } from "@/lib/manners/data";
@@ -63,14 +64,16 @@ export default function MannersIndexPage() {
     <MannersMobileHeader index />
     <div className="mx-auto w-full max-w-[1220px] px-[18px] pb-14 pt-[22px] md:px-9 xl:px-16 xl:pt-[30px]">
       <header>
-        <p className="text-[12px] font-semibold text-[var(--amora-rose-deep)]">준비 순서대로 읽는 {MANNERS_PARTS.length}편의 안내</p>
-        <h1 className="planning-display mt-2 text-[26px] leading-[1.35] text-[var(--amora-ink)] sm:text-[32px]">
-          결혼 예절 가이드
-        </h1>
-        <p className="mt-3 max-w-[760px] text-[13px] leading-[1.7] text-[var(--amora-soft)] sm:text-[14px]">
-          첫인사와 상견례부터 축의금·본식 당일, 결혼 뒤 첫 명절과 호칭까지 준비 순서대로
-          정리했어요. 여기서는 읽고 이해하고, 실제 준비는 웨딩 체크리스트에서 따로 관리합니다.
-        </p>
+        <div className={`${FEATURE_SUMMARY_CLASS} px-4 py-4 sm:px-5`}>
+          <p className={SUMMARY_LABEL_CLASS}>준비 순서대로 읽는 {MANNERS_PARTS.length}편의 안내</p>
+          <h1 className="planning-display mt-2 text-[26px] leading-[1.35] text-[var(--amora-ink)] sm:text-[32px]">
+            결혼 예절 가이드
+          </h1>
+          <p className="mt-3 max-w-[760px] text-[13px] leading-[1.7] text-[var(--amora-soft)] sm:text-[14px]">
+            첫인사와 상견례부터 축의금·본식 당일, 결혼 뒤 첫 명절과 호칭까지 준비 순서대로
+            정리했어요. 여기서는 읽고 이해하고, 실제 준비는 웨딩 체크리스트에서 따로 관리합니다.
+          </p>
+        </div>
         <Link
           {...weddingLinkProps("/checklist")}
           className="mt-4 inline-flex min-h-11 items-center rounded-[11px] bg-[var(--hb-action)] px-4 py-2.5 text-[13px] font-semibold text-white hover:bg-[var(--hb-action-hover)]"
@@ -84,7 +87,7 @@ export default function MannersIndexPage() {
           사유가 정확히 "수치에 출처 0건"이었으므로, 문구를 실제 상태에 맞춘다.
           각 편 상단과 표마다 출처 유무가 다시 표시되므로 여기서는 갈린다는 사실만 말한다.
         */}
-        <p className="mt-[18px] rounded-[12px] border border-[var(--amora-line)] bg-[var(--amora-warm)] p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)] sm:rounded-[14px] sm:px-[18px] sm:py-4 sm:text-[13px]">
+        <p className="mt-[18px] rounded-[12px] border border-[var(--amora-line)] bg-white p-3.5 text-[12.5px] leading-[1.65] text-[var(--amora-soft)] sm:rounded-[14px] sm:px-[18px] sm:py-4 sm:text-[13px]">
           여기 적힌 건 정답이 아니라 흔한 관행이에요. 지역·집안·모임마다 다릅니다. 공개된
           자료가 있는 편에는 출처별 확인일과 뒷받침하는 범위를 적었어요. 자료가 없는 편은
           각 글 위에 표시했어요. 모든 관행을 검증했다는 뜻은 아니에요.

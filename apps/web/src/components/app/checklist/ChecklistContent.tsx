@@ -9,6 +9,7 @@ import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistM
 import Button from "@/components/ui/Button";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -246,17 +247,20 @@ export default function ChecklistContent() {
 
   return (
     <div className="mx-auto w-full max-w-[1440px] px-[18px] pb-8 pt-4 md:pt-[30px] lg:px-9">
-      <header className="-mx-[18px] -mt-4 mb-4 border-b border-[var(--amora-line)] bg-white px-[18px] pb-[14px] md:mx-0 md:mt-0 md:mb-[18px] md:flex md:items-end md:justify-between md:gap-6 md:border-0 md:bg-transparent md:p-0">
+      <header className={`${FEATURE_SUMMARY_CLASS} mb-4 px-4 py-3.5 md:mb-[18px] md:flex md:items-center md:justify-between md:gap-6 md:px-6 md:py-5`}>
         <div className="hidden md:block">
           <h2 className="planning-display text-[26px] leading-[1.4] text-[var(--amora-ink)]">웨딩 체크리스트</h2>
           <p className="mt-1.5 max-w-[640px] text-[13px] leading-[1.7] text-[var(--amora-muted)]">
             첫인사부터 혼인신고까지 {TEMPLATE_ITEM_COUNT}개 항목. 지금 필요한 것부터 하나씩 확인하세요.
           </p>
         </div>
-        <div className="flex items-center gap-[10px] md:block md:min-w-[220px] md:shrink-0 md:text-right">
-          <strong className="planning-display shrink-0 text-[16px] leading-none text-[var(--amora-ink)] md:text-[28px]">{summary.percent}%</strong>
+        <div className="min-w-0 md:min-w-[220px] md:shrink-0 md:text-right">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 md:justify-end">
+            <span className={SUMMARY_LABEL_CLASS}>전체 진행</span>
+            <strong className={SUMMARY_VALUE_CLASS}>{summary.percent}<span className="ml-0.5 text-sm">%</span></strong>
+          </div>
           <progress
-            className={`h-[5px] min-w-0 flex-1 md:mb-1.5 md:mt-2 md:h-1.5 ${PROGRESS_CLASS}`}
+            className={`mt-2.5 h-1.5 ${PROGRESS_CLASS}`}
             value={summary.percent}
             max={100}
             role="progressbar"
@@ -265,13 +269,11 @@ export default function ChecklistContent() {
             aria-valuemax={100}
             aria-valuenow={summary.percent}
           />
-          <span className="shrink-0 text-[10px] text-[var(--amora-muted)] md:hidden">{summary.done}/{summary.total}</span>
-          <p className="hidden text-[11.5px] leading-[1.6] text-[var(--amora-muted)] md:block">
+          <p className="mt-2 text-[12px] leading-[1.6] text-[#624A3C]">
             {summary.done}개 완료 · {remaining}개 남음
-            {summary.skippedCategories > 0 ? ` · ${summary.skippedCategories}개 분야 제외` : ""}
           </p>
+          {summary.skippedCategories > 0 && <p className="mt-1 text-[12px] leading-[1.6] text-[#624A3C]">{summary.skippedCategories}개 분야는 진행률에서 제외했어요</p>}
         </div>
-        {summary.skippedCategories > 0 && <p className="mt-1.5 text-right text-[10px] text-[var(--amora-muted)] md:hidden">{summary.skippedCategories}개 분야는 진행률에서 제외했어요</p>}
       </header>
 
       <section aria-label="체크리스트 찾기" className="mb-4 flex flex-wrap items-center gap-[10px] md:mb-[22px] md:gap-4">

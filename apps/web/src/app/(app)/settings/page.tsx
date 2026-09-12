@@ -28,6 +28,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -584,7 +585,6 @@ export default function SettingsPage() {
   const userRole = usesNeutralMembers
     ? ""
     : profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
-  const initials = userName.slice(0, 2).toUpperCase();
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
   const dateStr = weddingDate
@@ -628,13 +628,11 @@ export default function SettingsPage() {
       <motion.div
         {...fadeIn}
         transition={{ duration: 0.5 }}
-        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-8 mb-6"
+        className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-5 sm:p-8 mb-6"
       >
-        <div className="flex items-center gap-5 mb-6">
-          <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#795252] to-[#946a6a] flex items-center justify-center shadow-[var(--shadow-raised)]">
-            <span className="font-display text-3xl text-white font-light">{initials}</span>
-          </div>
-          <div className="flex-1">
+        <div className="flex flex-wrap items-center gap-4 mb-3">
+          <ProfileAvatar name={userName} size={80} />
+          <div className="min-w-0 flex-1 basis-40">
             {editingName ? (
               <div>
                 <div className="flex items-center gap-2">
@@ -660,7 +658,7 @@ export default function SettingsPage() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <h2 className="font-serif-kr text-[var(--hb-text-strong)]">{userName}</h2>
+                <h2 className="min-w-0 break-words font-serif-kr text-[var(--hb-text-strong)]">{userName}</h2>
                 {userRole && (
                   <span className="text-sm px-2.5 py-1 rounded-full bg-[rgba(54,83,78,0.10)] text-[var(--hb-accent-hover)] font-medium">
                     {userRole}
@@ -674,7 +672,7 @@ export default function SettingsPage() {
                 </button>
               </div>
             )}
-            <p className="text-base text-[var(--hb-text-body)] font-light mt-1">{userEmail}</p>
+            <p className="break-all text-base text-[var(--hb-text-body)] font-light mt-1">{userEmail}</p>
           </div>
         </div>
 
@@ -958,9 +956,7 @@ export default function SettingsPage() {
 
           {phase === "linked" ? (
             <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#2E7D5A] to-[#4CAF80] flex items-center justify-center">
-                <span className="text-base text-white font-medium">{partnerName?.slice(0, 2) ?? "두 분"}</span>
-              </div>
+              <ProfileAvatar name={partnerName} size={48} />
               <div className="flex-1">
                 <p className="text-base text-[var(--hb-text-strong)] font-medium">{partnerName ?? "파트너"}</p>
                 <p className="text-sm text-[#2E7D5A]">{partnerRole ? `${partnerRole} · ` : ""}연동 완료</p>

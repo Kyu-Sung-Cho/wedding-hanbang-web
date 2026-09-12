@@ -16,6 +16,7 @@ import {
   FileText,
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
+import { getProfileInitial } from "@hanbang/shared/profile-avatar";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import {
@@ -161,7 +162,7 @@ function MemberListSection({ members }: { members: CohortMember[] }) {
               <View key={member.user_id} style={styles.memberItem}>
                 <View style={[styles.memberAvatar, { backgroundColor: bgColor }]}>
                   <Text style={styles.memberAvatarText}>
-                    {nickname.charAt(0)}
+                    {getProfileInitial(nickname)}
                   </Text>
                 </View>
                 <Text style={styles.memberName} numberOfLines={1}>
@@ -575,8 +576,8 @@ export default function CohortChatScreen() {
   }
 
   function getInitial(nickname: string | null): string {
-    if (!nickname) return "AI";
-    return nickname.charAt(0);
+    if (nickname === null) return "AI";
+    return getProfileInitial(nickname);
   }
 
   function renderChatEmpty() {

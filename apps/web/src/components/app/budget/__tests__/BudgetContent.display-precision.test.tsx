@@ -50,11 +50,11 @@ describe("예산 화면의 금액과 표시 비율 정확성", () => {
   it("123,000원의 실제 지출 비율을 0%로 숨기지 않고 차액을 여유로 단정하지 않는다", async () => {
     const before = useAuthStore.getState().journey;
     await render();
-    expect(summary("RECORDED SPEND").textContent).toContain("12.3만원");
-    expect(summary("RECORDED SPEND").textContent).toContain("기록 지출 (약 0.4%)");
-    expect(summary("REMAINING").textContent).toContain("3,487.7만원");
-    expect(summary("REMAINING").textContent).toContain("지출 기록을 뺀 금액");
-    expect(summary("REMAINING").textContent).not.toMatch(/여유|100%/);
+    expect(summary("기록 지출").textContent).toContain("12.3만원");
+    expect(summary("기록 지출").textContent).toContain("기록 지출 (약 0.4%)");
+    expect(summary("남은 금액").textContent).toContain("3,487.7만원");
+    expect(summary("남은 금액").textContent).toContain("지출 기록을 뺀 금액");
+    expect(summary("남은 금액").textContent).not.toMatch(/여유|100%/);
     expect(useAuthStore.getState().journey).toEqual(before);
   });
 
@@ -78,7 +78,7 @@ describe("예산 화면의 금액과 표시 비율 정확성", () => {
     expect(allocation?.querySelector("dd")?.textContent).toBe(allocatedText);
     expect(allocation?.textContent).toContain(`${label}${amount}`);
     expect(allocation?.textContent?.includes("총 예산과 일치")).toBe(total > 0 && allocated === total);
-    expect(summary("RECORDED SPEND").textContent).toContain("12.3만원");
+    expect(summary("기록 지출").textContent).toContain("12.3만원");
     expect(useAuthStore.getState().journey).toEqual(saved);
   });
 
@@ -114,24 +114,24 @@ describe("예산 화면의 금액과 표시 비율 정확성", () => {
   ])("지출 $spent 원은 $expected 로 구분한다", async ({ spent, expected }) => {
     useAuthStore.setState({ journey: journey(35_000_000, spent) });
     await render();
-    expect(summary("RECORDED SPEND").textContent).toContain(`기록 지출 (${expected})`);
+    expect(summary("기록 지출").textContent).toContain(`기록 지출 (${expected})`);
   });
 
   it("총 예산 미입력은 비율·여유·초과로 해석하지 않는다", async () => {
     useAuthStore.setState({ journey: journey(0) });
     await render();
-    expect(summary("RECORDED SPEND").textContent).toContain("총 예산 입력 전");
-    expect(summary("REMAINING").textContent).toContain("계산 전");
-    expect(summary("REMAINING").textContent).not.toMatch(/여유|%|예산 초과/);
+    expect(summary("기록 지출").textContent).toContain("총 예산 입력 전");
+    expect(summary("남은 금액").textContent).toContain("계산 전");
+    expect(summary("남은 금액").textContent).not.toMatch(/여유|%|예산 초과/);
   });
 
   it("초과 지출은 비율과 음수 차액을 그대로 보존한다", async () => {
     const saved = journey(100_000, 123_000);
     useAuthStore.setState({ journey: saved });
     await render();
-    expect(summary("RECORDED SPEND").textContent).toContain("기록 지출 (123%)");
-    expect(summary("REMAINING").textContent).toContain("-2.3만원");
-    expect(summary("REMAINING").textContent).toContain("예산 초과");
+    expect(summary("기록 지출").textContent).toContain("기록 지출 (123%)");
+    expect(summary("남은 금액").textContent).toContain("-2.3만원");
+    expect(summary("남은 금액").textContent).toContain("예산 초과");
     expect(useAuthStore.getState().journey).toEqual(saved);
   });
 

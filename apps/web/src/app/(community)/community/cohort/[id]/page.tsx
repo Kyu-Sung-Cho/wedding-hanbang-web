@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/community/Toast";
+import Avatar from "@/components/community/Avatar";
 import { COHORT_THREAD_TOPICS, COHORT_CONTRACT_CATEGORIES } from "@/constants/communityCategories";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { resolveCohortThreadTopic } from "@/lib/community/cohortTopicClassifier";
@@ -515,7 +516,7 @@ function ChatTab({
   // 멘션 관련
   const [mentionOpen, setMentionOpen] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
-  const [members, setMembers] = useState<{ user_id: string; nickname: string }[]>([]);
+  const [members, setMembers] = useState<{ user_id: string; nickname: string; avatar_url?: string | null }[]>([]);
   const [cursorPos, setCursorPos] = useState(0);
 
   function insertPostTag(post: { id: string; title: string }) {
@@ -584,9 +585,9 @@ function ChatTab({
       if (ids.length === 0) return;
       const { data: profiles } = await supabase
         .from("community_public_profiles")
-        .select("user_id, nickname")
+        .select("user_id, nickname, avatar_url")
         .in("user_id", ids);
-      setMembers((profiles ?? []) as { user_id: string; nickname: string }[]);
+      setMembers((profiles ?? []) as { user_id: string; nickname: string; avatar_url?: string | null }[]);
     })();
   }, [enabled, roomId, supabase]);
 
@@ -937,9 +938,7 @@ function ChatTab({
                     onClick={() => selectMention(m)}
                     className="w-full text-left px-3 py-2 hover:bg-[var(--hb-surface-hover)] flex items-center gap-2 text-sm"
                   >
-                    <div className="w-6 h-6 rounded-full bg-[var(--hb-primary)] flex items-center justify-center text-white text-[10px]">
-                      {m.nickname[0]}
-                    </div>
+                    <Avatar nickname={m.nickname} avatarUrl={m.avatar_url} size={24} />
                     <span className="text-[var(--hb-text-strong)]">{m.nickname}</span>
                   </button>
                 ))}
@@ -1132,7 +1131,6 @@ function MessageBubble({
   onReport?: (userId: string, nickname: string) => void;
 }) {
   const nickname = message.author?.nickname ?? "익명";
-  const initial = nickname[0] ?? "?";
   const displayTopic = resolveCohortThreadTopic(message.thread_topic, message.content);
   const isDimmed = selectedTopic !== "all" && displayTopic !== selectedTopic;
   return (
@@ -1150,18 +1148,7 @@ function MessageBubble({
       }`}
       >
       {!isMine && (
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-xs font-medium text-white">
-          {message.author?.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={message.author?.avatar_url ?? ""}
-              alt=""
-              className="h-full w-full rounded-full object-cover"
-            />
-          ) : (
-            initial
-          )}
-        </div>
+        <Avatar nickname={nickname} avatarUrl={message.author?.avatar_url} size={36} />
       )}
       <div className={`min-w-0 ${isMine ? "max-w-[86%] text-right sm:max-w-[76%]" : "flex-1"}`}>
         <div className={`flex items-center gap-1.5 flex-wrap ${isMine ? "justify-end" : "justify-start"}`}>
@@ -1688,25 +1675,13 @@ function TimelineTab({
         <div className="space-y-3">
           {events.map((ev) => {
             const nickname = ev.user?.nickname ?? "익명";
-            const initial = nickname[0] ?? "?";
             const label = EVENT_LABEL[ev.event_type] ?? ev.event_type;
             return (
               <div
                 key={ev.id}
                 className="flex items-start gap-3 rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4 sm:p-5"
               >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-xs font-medium text-white">
-                  {ev.user?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={ev.user.avatar_url}
-                      alt=""
-                      className="h-full w-full rounded-full object-cover"
-                    />
-                  ) : (
-                    initial
-                  )}
-                </div>
+                <Avatar nickname={nickname} avatarUrl={ev.user?.avatar_url} size={36} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-[var(--hb-text-strong)] leading-relaxed">
                     {nickname}님이{" "}
@@ -2225,13 +2200,6 @@ function CohortPopularPosts({ roomId }: { roomId: string }) {
 // ────────────────────────────────────────
 // 오른쪽 사이드바: 멤버 프리뷰
 // ────────────────────────────────────────
-const MEMBER_GRADIENTS = [
-  "from-[var(--hb-primary)] to-[var(--hb-primary-hover)]",
-  "from-[#4E6A62] to-[var(--hb-primary)]",
-  "from-[#6D806E] to-[var(--hb-primary)]",
-  "from-[#9A8F72] to-[var(--hb-primary)]",
-];
-
 function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCount: number }) {
   const [members, setMembers] = useState<{ user_id: string; nickname: string; avatar_url?: string | null }[]>([]);
 
@@ -2268,21 +2236,13 @@ function CohortMemberPreview({ roomId, memberCount }: { roomId: string; memberCo
       </div>
       <div className="flex flex-wrap gap-2">
         {members.slice(0, 8).map((m) => {
-          const grad = MEMBER_GRADIENTS[m.nickname.charCodeAt(0) % MEMBER_GRADIENTS.length];
           return (
             <div
               key={m.user_id}
               className="flex flex-col items-center gap-1 w-12"
               title={m.nickname}
             >
-              <div className={`w-9 h-9 rounded-full bg-gradient-to-br ${grad} flex items-center justify-center text-white text-xs font-medium shadow-sm`}>
-                {m.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={m.avatar_url} alt="" className="h-full w-full rounded-full object-cover" />
-                ) : (
-                  m.nickname[0]
-                )}
-              </div>
+              <Avatar nickname={m.nickname} avatarUrl={m.avatar_url} size={36} />
               <span className="text-[10px] text-[var(--hb-text-body)] truncate w-full text-center">
                 {m.nickname}
               </span>

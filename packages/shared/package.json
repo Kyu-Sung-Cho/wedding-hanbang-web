@@ -22,7 +22,8 @@
     "./amora-personal-actions": "./src/contracts/amoraPersonalActions.mjs",
     "./mediation-responses": "./src/contracts/amoraMediationResponses.mjs",
     "./place-search-presentation": "./src/contracts/placeSearchPresentation.mjs",
-    "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs"
+    "./amora-visible-text": "./src/contracts/amoraVisibleText.mjs",
+    "./profile-avatar": "./src/contracts/profileAvatar.mjs"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

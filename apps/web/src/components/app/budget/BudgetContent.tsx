@@ -53,6 +53,7 @@ import { isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
 import Button from "@/components/ui/Button";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS, SUMMARY_VALUE_CLASS } from "@/components/ui/featureSummaryStyles";
 import BudgetProgress from "./BudgetProgress";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -659,6 +660,9 @@ function ScopedBudgetContent({
     ? Math.round((totalSpent / totalBudget) * 100)
     : null;
   const isOverBudget = remaining !== null && remaining < 0;
+  const hasLongSummaryAmount = [totalBudget, totalSpent, remaining ?? 0].some(
+    (amount) => (amount / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 }).length >= 9,
+  );
 
   const photoAttireMakeupBudget = PHOTO_ATTIRE_MAKEUP_KEYS
     .filter((key) => !hiddenKeys.has(key))
@@ -947,59 +951,61 @@ function ScopedBudgetContent({
         )}
 
         {/* 긴 원 단위 금액과 편집 상태는 넓은 칸을 사용해 숫자를 끊지 않는다. */}
-        <div data-budget-summary className={`grid gap-2 sm:gap-4 ${editingTotal ? "grid-cols-2 sm:grid-cols-3" : [totalBudget, totalSpent, remaining ?? 0].some((amount) => (amount / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 }).length > 9) ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-3"}`}>
-          <div className={`min-w-0 rounded-xl border border-[var(--amora-line)] bg-white px-2.5 py-3 sm:rounded-2xl sm:px-[22px] sm:py-5 ${editingTotal ? "col-span-2 sm:col-span-1" : ""}`}>
-            {editingTotal ? (
-              <p className="flex min-h-11 items-center text-[9px] uppercase tracking-[0.04em] text-[var(--amora-muted)] sm:text-[10.5px]">TOTAL BUDGET</p>
-            ) : (
-              <button type="button" onClick={() => { setTotalText(hasTotalBudget ? String(totalBudget / 10000) : ""); setEditingTotal(true); }} className="flex min-h-11 min-w-11 w-full items-center justify-between gap-1 rounded text-left text-[var(--amora-muted)] hover:bg-[var(--amora-warm)] hover:text-[var(--amora-ink)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]" aria-label="총 예산 수정" title="총 예산 수정">
-                <span className="min-w-0 text-[9px] uppercase tracking-[0.04em] sm:text-[10.5px]">TOTAL BUDGET</span>
-                <Pencil className="h-3 w-3 shrink-0" aria-hidden="true" />
-              </button>
-            )}
-            {editingTotal ? (
-              <div className="mt-2">
-                <div className="flex flex-wrap items-center gap-1">
-                  <input ref={totalInputRef} type="number" min="0.0001" step="0.0001" aria-label="총 예산 (만원)" value={totalText} onChange={(event) => setTotalText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void handleTotalBudgetSave(); if (event.key === "Escape") setEditingTotal(false); }} className="w-full rounded-lg border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2 py-1 text-[16px] tabular-nums outline-none focus:border-[var(--amora-rose-deep)]" />
-                  <span className="mr-auto text-[11px] text-[var(--amora-muted)]">만원</span>
-                  <button type="button" onClick={() => void handleTotalBudgetSave()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]" title="총 예산 저장"><Check className="h-4 w-4" /></button>
-                  <button type="button" onClick={() => setEditingTotal(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]" title="총 예산 취소"><X className="h-4 w-4" /></button>
+        <section aria-label="예산 요약" className={`${FEATURE_SUMMARY_CLASS} p-4 sm:p-6`}>
+          <div data-budget-summary className={`grid gap-y-4 sm:gap-y-0 ${hasLongSummaryAmount ? "grid-cols-1 md:grid-cols-3" : "grid-cols-2 md:grid-cols-3"}`}>
+            <div data-budget-stat="total" className={`min-w-0 border-b border-[var(--hb-summary-line,#DEC9BA)] pb-4 md:border-b-0 md:pb-0 md:pr-5 ${hasLongSummaryAmount ? "" : "col-span-2 md:col-span-1"}`}>
+              {editingTotal ? (
+                <p className={`flex min-h-11 items-center ${SUMMARY_LABEL_CLASS}`}>총 예산</p>
+              ) : (
+                <button type="button" onClick={() => { setTotalText(hasTotalBudget ? String(totalBudget / 10000) : ""); setEditingTotal(true); }} className={`flex min-h-11 min-w-11 w-full items-center justify-between gap-2 rounded text-left hover:bg-white/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] ${SUMMARY_LABEL_CLASS}`} aria-label="총 예산 수정" title="총 예산 수정">
+                  <span>총 예산</span>
+                  <Pencil className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                </button>
+              )}
+              {editingTotal ? (
+                <div className="mt-2">
+                  <div className="flex flex-wrap items-center gap-1">
+                    <input ref={totalInputRef} type="number" min="0.0001" step="0.0001" aria-label="총 예산 (만원)" value={totalText} onChange={(event) => setTotalText(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void handleTotalBudgetSave(); if (event.key === "Escape") setEditingTotal(false); }} className="w-full rounded-lg border border-[var(--amora-line)] bg-[var(--amora-warm)] px-2 py-1 text-[16px] tabular-nums outline-none focus:border-[var(--amora-rose-deep)]" />
+                    <span className="mr-auto text-xs text-[var(--hb-summary-label,#624A3C)]">만원</span>
+                    <button type="button" onClick={() => void handleTotalBudgetSave()} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]" title="총 예산 저장"><Check className="h-4 w-4" /></button>
+                    <button type="button" onClick={() => setEditingTotal(false)} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] hover:bg-[var(--amora-warm)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)]" title="총 예산 취소"><X className="h-4 w-4" /></button>
+                  </div>
+                  {totalBudgetError && <p role="alert" className="mt-2 text-xs leading-relaxed text-[#913C3C]">{totalBudgetError}</p>}
                 </div>
-                {totalBudgetError && <p role="alert" className="mt-2 text-[11px] leading-relaxed text-[#d95f5f]">{totalBudgetError}</p>}
-              </div>
-            ) : (
-              <p className="planning-display mt-1.5 flex flex-wrap items-baseline gap-x-1 leading-snug text-[var(--amora-ink)] sm:mt-2.5 sm:gap-x-1.5">
-                <span className="whitespace-nowrap text-[16px] tabular-nums sm:text-[30px]">{hasTotalBudget ? (totalBudget / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 }) : "미입력"}</span>
-                {hasTotalBudget && <small className="text-[9.5px] text-[var(--amora-muted)] sm:text-[13px]">만원</small>}
-              </p>
-            )}
-            <p className="mt-1 text-[10px] leading-relaxed text-[var(--amora-muted)] sm:mt-1.5 sm:text-xs">{hasTotalBudget ? "전체 예산" : "총 예산을 입력해 주세요"}</p>
+              ) : (
+                <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5">
+                  <span className={`whitespace-nowrap ${SUMMARY_VALUE_CLASS}`}>{hasTotalBudget ? (totalBudget / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 }) : "미입력"}</span>
+                  {hasTotalBudget && <small className={SUMMARY_LABEL_CLASS}>만원</small>}
+                </p>
+              )}
+              <p className="mt-2 text-xs leading-relaxed text-[var(--hb-summary-label,#624A3C)]">{hasTotalBudget ? "전체 예산" : "총 예산을 입력해 주세요"}</p>
+            </div>
+            <div data-budget-stat="spent" className="min-w-0 md:border-l md:border-[var(--hb-summary-line,#DEC9BA)] md:px-5">
+              <p className={`sm:flex sm:min-h-11 sm:items-center ${SUMMARY_LABEL_CLASS}`}>기록 지출</p>
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5"><span className={`whitespace-nowrap ${SUMMARY_VALUE_CLASS}`}>{(totalSpent / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span><small className={SUMMARY_LABEL_CLASS}>만원</small></p>
+              <p className="mt-2 text-xs leading-relaxed text-[var(--hb-summary-label,#624A3C)]">{spentPercent === null ? "기록 지출 · 총 예산 입력 전" : <>기록 지출 (<strong className="text-sm font-semibold tabular-nums">{formatLoungeBudgetRatio(totalSpent, totalBudget)}</strong>)</>}</p>
+            </div>
+            <div data-budget-stat="remaining" className={`min-w-0 border-[var(--hb-summary-line,#DEC9BA)] md:border-l md:pl-5 ${hasLongSummaryAmount ? "border-t pt-4 md:border-t-0 md:pt-0" : "border-l pl-4"}`}>
+              <p className={`sm:flex sm:min-h-11 sm:items-center ${SUMMARY_LABEL_CLASS}`}>남은 금액</p>
+              <p className="mt-1 flex flex-wrap items-baseline gap-x-1.5"><span className={`whitespace-nowrap text-[24px] font-semibold leading-tight tracking-tight tabular-nums sm:text-[30px] ${isOverBudget ? "text-[#913C3C]" : "text-[var(--hb-summary-ink,#382F2B)]"}`}>{remaining === null ? "계산 전" : (remaining / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>{remaining !== null && <small className={SUMMARY_LABEL_CLASS}>만원</small>}</p>
+              <p className={`mt-2 text-xs leading-relaxed ${isOverBudget ? "font-semibold text-[#913C3C]" : "text-[var(--hb-summary-label,#624A3C)]"}`}>{remaining === null ? "총 예산을 입력하면 남은 금액을 계산해요" : isOverBudget ? "예산 초과" : "지출 기록을 뺀 금액"}</p>
+            </div>
           </div>
-          <div className="min-w-0 rounded-xl border border-[var(--amora-line)] bg-white px-2.5 py-3 sm:rounded-2xl sm:px-[22px] sm:py-5">
-            <p className="flex min-h-11 items-center text-[9px] uppercase tracking-[0.04em] text-[var(--amora-muted)] sm:text-[10.5px]">RECORDED SPEND</p>
-            <p className="planning-display mt-1.5 flex flex-wrap items-baseline gap-x-1 leading-snug text-[var(--amora-ink)] sm:mt-2.5 sm:gap-x-1.5"><span className="whitespace-nowrap text-[16px] tabular-nums sm:text-[30px]">{(totalSpent / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span><small className="text-[9.5px] text-[var(--amora-muted)] sm:text-[13px]">만원</small></p>
-            <p className="mt-1 text-[10px] leading-relaxed text-[var(--amora-muted)] sm:mt-1.5 sm:text-xs">{spentPercent === null ? "기록 지출 · 총 예산 입력 전" : `기록 지출 (${formatLoungeBudgetRatio(totalSpent, totalBudget)})`}<span className="hidden sm:inline"> · 결제 완료 여부와 별도</span></p>
-          </div>
-          <div className="min-w-0 rounded-xl border border-[var(--amora-line)] bg-white px-2.5 py-3 sm:rounded-2xl sm:px-[22px] sm:py-5">
-            <p className="flex min-h-11 items-center text-[9px] uppercase tracking-[0.04em] text-[var(--amora-muted)] sm:text-[10.5px]">REMAINING</p>
-            <p className={`planning-display mt-1.5 flex flex-wrap items-baseline gap-x-1 leading-snug sm:mt-2.5 sm:gap-x-1.5 ${isOverBudget ? "text-[#d95f5f]" : "text-[var(--amora-ink)]"}`}><span className="whitespace-nowrap text-[16px] tabular-nums sm:text-[30px]">{remaining === null ? "계산 전" : (remaining / 10000).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}</span>{remaining !== null && <small className="text-[9.5px] text-[var(--amora-muted)] sm:text-[13px]">만원</small>}</p>
-            <p className={`mt-1 text-[10px] leading-relaxed sm:mt-1.5 sm:text-xs ${isOverBudget ? "text-[#d95f5f]" : "text-[var(--amora-muted)]"}`}>{remaining === null ? "총 예산을 입력하면 남은 금액을 계산해요" : isOverBudget ? "예산 초과" : "지출 기록을 뺀 금액"}<span className="hidden sm:inline">{remaining !== null && !isOverBudget ? " · 배정액·결제 여부와 별도" : ""}</span></p>
-          </div>
-        </div>
-        <dl aria-label="항목별 예산 배정" className="flex flex-wrap gap-x-6 gap-y-1.5 px-0.5 text-xs leading-relaxed sm:text-[13px]">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <dt className="text-[var(--amora-muted)]">항목별 배정 합계</dt>
-            <dd className="font-medium tabular-nums text-[var(--amora-ink)] [overflow-wrap:anywhere]">{formatWonFull(totalAllocated)}</dd>
-          </div>
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
-            <dt className="text-[var(--amora-muted)]">{hasTotalBudget && totalAllocated > totalBudget ? "초과배정" : "미배정액"}</dt>
-            <dd className={`font-medium tabular-nums [overflow-wrap:anywhere] ${hasTotalBudget && totalAllocated > totalBudget ? "text-[var(--danger-700)]" : "text-[var(--amora-ink)]"}`}>
-              {hasTotalBudget ? formatWonFull(Math.abs(totalBudget - totalAllocated)) : "총 예산 입력 전"}
-              {hasTotalBudget && totalAllocated === totalBudget && <span className="ml-2 font-normal text-[var(--amora-muted)]">총 예산과 일치</span>}
-            </dd>
-          </div>
-        </dl>
-        <p className="-mt-1 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:hidden">기록 지출은 결제 완료 여부와 별도로 관리해요.</p>
+          <dl aria-label="항목별 예산 배정" className="mt-4 flex flex-wrap gap-x-6 gap-y-1.5 border-t border-[var(--hb-summary-line,#DEC9BA)] pt-3 text-xs leading-relaxed sm:mt-5 sm:text-[13px]">
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <dt className="text-[var(--amora-muted)]">항목별 배정 합계</dt>
+              <dd className="font-medium tabular-nums text-[var(--amora-ink)] [overflow-wrap:anywhere]">{formatWonFull(totalAllocated)}</dd>
+            </div>
+            <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+              <dt className="text-[var(--amora-muted)]">{hasTotalBudget && totalAllocated > totalBudget ? "초과배정" : "미배정액"}</dt>
+              <dd className={`font-medium tabular-nums [overflow-wrap:anywhere] ${hasTotalBudget && totalAllocated > totalBudget ? "text-[var(--danger-700)]" : "text-[var(--amora-ink)]"}`}>
+                {hasTotalBudget ? formatWonFull(Math.abs(totalBudget - totalAllocated)) : "총 예산 입력 전"}
+                {hasTotalBudget && totalAllocated === totalBudget && <span className="ml-2 font-normal text-[var(--amora-muted)]">총 예산과 일치</span>}
+              </dd>
+            </div>
+          </dl>
+          <p className="mt-2 text-xs leading-relaxed text-[var(--hb-summary-label,#624A3C)]">기록 지출은 결제 완료 여부와 별도로 관리해요. 남은 금액과 미배정액은 서로 다른 값이에요.</p>
+        </section>
 
         {legacyReviewItems.length > 0 && (
           <section

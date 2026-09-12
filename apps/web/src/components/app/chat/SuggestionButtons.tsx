@@ -87,7 +87,7 @@ export default function SuggestionButtons({
     <div className="relative">
       {/* 라벨 — 시각적 구분 강화 */}
       <div className="flex items-center gap-1.5 px-1 mb-2">
-        <AmoraMark className="w-3.5 h-3.5 text-[var(--hb-amora-ink)]" />
+        <AmoraMark className="w-3.5 h-3.5 text-[var(--hb-amora-ink,#7D5753)]" />
         <span className="text-xs text-[var(--hb-text-muted)] font-medium">
           추천 대화
         </span>
