@@ -7,6 +7,7 @@ import { z } from "zod";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 
 import Button from "@/components/ui/Button";
+import { renderAiMarkdown } from "@/components/app/chat/renderAiMarkdown";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -291,9 +292,9 @@ function ScopedSavedNotesContent({ scope, embedded }: { scope: string; embedded:
               </div>
 
               {/* 확인된 AI 출처의 내부 데이터만 가리고 사용자 원문은 유지한다. */}
-              <p className="mt-3 break-words whitespace-pre-line text-base leading-7 text-[var(--hb-text-strong)]">
-                {note.sourceIsAi === true ? getAmoraVisibleText(note.content) : note.content}
-              </p>
+              <div className="mt-3 min-w-0 break-words whitespace-pre-line text-base leading-7 text-[var(--hb-text-strong)]">
+                {note.sourceIsAi === true ? renderAiMarkdown(getAmoraVisibleText(note.content)) : note.content}
+              </div>
 
               {editingId === note.id ? (
                 <div className="mt-4">

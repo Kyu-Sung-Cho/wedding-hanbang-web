@@ -5,6 +5,7 @@ import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import { useEffect, useId, useRef, useState } from "react";
 import { Bookmark, CircleCheck, Info } from "lucide-react";
 import AmoraSheetFrame from "./AmoraSheetFrame";
+import { renderAiMarkdown } from "./renderAiMarkdown";
 
 type AmoraNoteSaveSheetProps = {
   content: string;
@@ -21,8 +22,10 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
   const memoPanelId = useId();
   const memoRef = useRef<HTMLTextAreaElement>(null);
   const memoToggleRef = useRef<HTMLButtonElement>(null);
-  const source = getAmoraVisibleText(content).trim();
-  const preview = source.slice(0, 4_000).replace(/[\uD800-\uDBFF]$/, "");
+  const source = content.trim();
+  // 저장되는 원문과 같은 범위를 먼저 자른 뒤 내부 출력을 가린다.
+  const excerpt = source.slice(0, 4_000).replace(/[\uD800-\uDBFF]$/, "");
+  const preview = getAmoraVisibleText(excerpt);
 
   useEffect(() => {
     if (memoExpanded) memoRef.current?.focus();
@@ -48,7 +51,7 @@ export default function AmoraNoteSaveSheet({ content, busy, error, onSave, onClo
       <div className="mb-4">
         <p className="mb-[7px] text-[12px] text-[var(--amora-muted)]">저장할 답변</p>
         <div className="max-h-[28dvh] overflow-y-auto overscroll-contain rounded-[11px] border border-[var(--amora-line)] bg-[var(--amora-bg)] px-3.5 py-[13px] text-[14.5px] leading-[1.6] whitespace-pre-wrap break-words" tabIndex={0} aria-label="저장할 답변 원문">
-          {preview}
+          {renderAiMarkdown(preview)}
         </div>
         {source.length > 4_000 && <p className="mt-1.5 text-[12px] text-[var(--amora-muted)]">긴 답변은 앞 4,000자까지 저장돼요.</p>}
       </div>
