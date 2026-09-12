@@ -18,4 +18,3 @@ Native uses public/static/alternative/Pretendard-*.ttf for explicit weights.
 These assets replace the actively loaded Paperlogy and scoped decorative font
 families. Historical font assets remain for compatibility with cached older pages;
 they are not the default typography.
-
