@@ -1,4 +1,5 @@
-import { CalendarDays, ClipboardList, Sparkles, Wallet } from "lucide-react";
+import { CalendarDays, ClipboardList, Wallet } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 import { landingContent } from "./landingContent";
 import { band, bodyText, eyebrowText, noteText, sectionTitle, shell, TitleLines } from "./notebook";
@@ -67,7 +68,7 @@ export default function ConfirmSection() {
         <div className="mt-[22px] max-w-[700px] rounded-[16px] border border-[var(--color-paper-edge)] bg-[var(--color-paper-card)] p-5 lg:mt-7 lg:rounded-[18px] lg:px-[30px] lg:py-7">
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[12.5px] font-semibold text-[var(--color-rose-700)] lg:text-[13px]">
             <span className="flex items-center gap-[7px] lg:gap-2">
-              <Sparkles aria-hidden className="size-[14px]" strokeWidth={1.7} />
+              <AmoraAvatar sizeClassName="size-6" />
               <span>{confirm.sample.cardTitle}</span>
             </span>
             {/* 아직 아무 일도 일어나지 않았다는 표시. 시안에는 없지만 이 카드가

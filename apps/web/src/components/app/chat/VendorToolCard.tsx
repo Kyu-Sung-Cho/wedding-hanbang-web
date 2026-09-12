@@ -1,5 +1,7 @@
 "use client";
 
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -135,9 +137,7 @@ function VendorRecommendCards({
       <div className="flex justify-start ml-14 my-2">
         <div className="rounded-[6px] border border-[#F5F0E8] bg-gradient-to-br from-[#FAF7F2] to-white px-5 py-4 shadow-sm max-w-[440px]">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#C4967E]/15">
-              <Sparkles className="w-5 h-5 text-[#C4967E]" />
-            </div>
+            <AmoraAvatar sizeClassName="size-10" />
             <div className="min-w-0 flex-1">
               <p className="text-base font-semibold text-[var(--hb-text-strong)]">현재 업체 추천은 제공하지 않아요</p>
               <p className="mt-1 text-sm leading-relaxed text-[var(--hb-text-body)]">

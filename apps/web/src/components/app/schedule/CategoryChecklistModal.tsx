@@ -20,6 +20,8 @@ import { buildAmoraPreparationHref } from "@/lib/amora/preparationHandoff";
 import { guideLinkForCategory } from "@/lib/etiquette/guideLink";
 import ChecklistItemSource, { checklistSourceLabel } from "@/components/app/checklist/ChecklistItemSource";
 import ChecklistItemText from "@/components/app/checklist/ChecklistItemText";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS, AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 
 // ⚠️ 분야 아이콘 표를 2026-09-04에 지웠다. 시안 여덟 장의 모달 제목은 **글자뿐**이고,
@@ -529,8 +531,8 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                         />
                       </button>
                       {itemAmoraHref && (
-                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className="mt-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-muted)] transition-colors hover:bg-[var(--amora-warm)] hover:text-[var(--amora-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                          <Sparkle className="h-[18px] w-[18px]" aria-hidden="true" strokeWidth={1.7} />
+                        <Link {...weddingLinkProps(itemAmoraHref)} aria-label={`${item.label} 아모라에 질문하기`} title={`${item.label} 아모라에 질문하기`} className={`${AMORA_ICON_ACTION_CLASS} mt-1`}>
+                          <AmoraMark className="size-5" />
                         </Link>
                       )}
                       </div>
@@ -632,8 +634,8 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
               </span>
             </Link>}
             {amoraHref && (
-              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-[10px] px-3 py-2 text-center text-[12.5px] font-medium text-[var(--amora-accent)] transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-                <Sparkle aria-hidden="true" className="size-[15px]" strokeWidth={1.7} />아모라 질문
+              <Link {...weddingLinkProps(amoraHref)} aria-label={`${template.label} 아모라에 질문하기`} className={`${AMORA_ACTION_CLASS} shrink-0 text-center`}>
+                <AmoraMark className="size-5 shrink-0" />아모라 질문
               </Link>
             )}
             </div>

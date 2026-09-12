@@ -7,8 +7,10 @@ import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Sparkles, Heart, X, Lock, RotateCcw, User, Users } from "lucide-react-native";
-import { colors } from "@hanbang/design-tokens";
+import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, User, Users } from "lucide-react-native";
+import { amoraIdentity, colors } from "@hanbang/design-tokens";
+import AmoraMark from "@/components/ui/AmoraMark";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
@@ -95,7 +97,7 @@ import {
   dedupeToolResultCards,
   getToolResultCardModel,
 } from "@/components/chat/toolResultCardModel";
-import { EmptyState, IconBadge, StatusPill } from "@/components/ui/AppUI";
+import { EmptyState, StatusPill } from "@/components/ui/AppUI";
 import AmoraMediationCard from "@/components/chat/AmoraMediationCard";
 
 // 사이트 주소는 헬퍼로 짓는다. 운영에서 EXPO_PUBLIC_SITE_URL 이 없거나 안전하지
@@ -4140,9 +4142,11 @@ export default function ChatScreen() {
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
-          <View style={[st.avatar, isAi ? st.avatarAi : st.avatarPerson]}>
-            {isAi ? <Sparkles size={12} color={colors.gold.DEFAULT} /> : <User size={12} color={colors.noir[800]} />}
-          </View>
+          isAi ? <AmoraAvatar size={28} /> : (
+            <View style={[st.avatar, st.avatarPerson]}>
+              <User size={12} color={colors.noir[800]} />
+            </View>
+          )
         )}
         <View style={[
           st.messageBody,
@@ -4356,7 +4360,7 @@ export default function ChatScreen() {
   return (
     <SafeAreaView style={st.container} edges={["top"]}>
       <View style={st.header}>
-        <View style={st.headerLeft}><View style={st.headerLogo}><Sparkles size={16} color={colors.gold.DEFAULT} /></View><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>결혼 준비 동반자</Text></View></View>
+        <View style={st.headerLeft}><AmoraAvatar size={36} /><View><Text style={st.headerTitle}>아모라</Text><Text style={st.headerSub}>결혼 준비 동반자</Text></View></View>
         {scopedMessages.length > 0 && <StatusPill label={`${scopedMessages.length}`} tone="neutral" />}
       </View>
 
@@ -4394,7 +4398,7 @@ export default function ChatScreen() {
             style={[st.scopeBtn, activeScope === "shared" && st.scopeBtnActive]}
             onPress={() => handleScopeChange("shared")}
           >
-            <Sparkles size={14} color={activeScope === "shared" ? colors.rose[500] : colors.textTertiary} />
+            <AmoraMark size={14} color={activeScope === "shared" ? amoraIdentity.ink : colors.textTertiary} />
             <Text style={[st.scopeText, activeScope === "shared" && st.scopeTextActive]}>함께 대화</Text>
           </Pressable>
           <Pressable
@@ -4433,7 +4437,7 @@ export default function ChatScreen() {
 
       {activeScope === "shared" && (
         <View style={st.targetRow}>
-          <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, !isP && st.targetActive]} onPress={() => handleTargetChange("ai")}><Sparkles size={14} color={!isP ? colors.gold.DEFAULT : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
+          <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, !isP && st.targetActive]} onPress={() => handleTargetChange("ai")}><AmoraMark size={14} color={!isP ? amoraIdentity.ink : colors.textTertiary} /><Text style={[st.targetText, !isP && st.targetTextActive]}>아모라</Text></Pressable>
           {hasLinkedPartner && (
             <Pressable disabled={streaming} accessibilityState={{ disabled: streaming }} style={[st.targetBtn, isP && st.targetPartner]} onPress={() => handleTargetChange("partner")}><Heart size={14} color={isP ? colors.rose[500] : colors.textTertiary} /><Text style={[st.targetText, isP && st.targetTextPartner]}>{partnerName ?? "파트너"}</Text></Pressable>
           )}
@@ -4462,9 +4466,7 @@ export default function ChatScreen() {
           <View style={st.empty}>
             <EmptyState
               icon={
-                <IconBadge tone="noir" size={64}>
-                  <Sparkles size={28} color={colors.gold.DEFAULT} />
-                </IconBadge>
+                <AmoraAvatar size={64} />
               }
               title={activeScope === "private" ? "나만의 상담을 시작해볼까요?" : "안녕하세요, 아모라예요"}
               description={activeScope === "private"
@@ -4614,7 +4616,6 @@ const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.border, backgroundColor: colors.surface },
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-  headerLogo: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.noir[800], alignItems: "center", justifyContent: "center" },
   headerTitle: { fontSize: 17, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   headerSub: { fontSize: 11, color: colors.textTertiary },
   aiNotice: {
@@ -4666,7 +4667,6 @@ const st = StyleSheet.create({
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
   avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  avatarAi: { backgroundColor: colors.noir[800] },
   avatarPerson: { backgroundColor: colors.ivory.warm },
   senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },

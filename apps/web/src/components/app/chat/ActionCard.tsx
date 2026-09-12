@@ -1,5 +1,7 @@
 "use client";
 
+import AmoraMark from "@/components/ui/AmoraMark";
+
 import { useState } from "react";
 import { stripPlanningChecklistNotes } from "@hanbang/shared/utils";
 import type { ToolExecutionResult } from "@/types/database.types";
@@ -17,7 +19,6 @@ import {
   Info,
   XCircle,
   Check,
-  Sparkles,
 } from "lucide-react";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import { getActionPriorityLabel, getActionStatusLabel, type AmoraActionItem } from "@/lib/amora/actions";
@@ -46,7 +47,7 @@ function getIcon(toolName: string) {
     case "add_amora_action":
     case "get_amora_actions":
     case "update_amora_action":
-      return <Sparkles className="w-4 h-4" />;
+      return <AmoraMark className="w-4 h-4" />;
     case "get_wedding_info":
       return <Info className="w-4 h-4" />;
     default:

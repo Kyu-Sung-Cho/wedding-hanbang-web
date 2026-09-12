@@ -7,13 +7,13 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarCheck,
-  Sparkles,
   Users,
   Wallet,
-  MessageCircle,
   Check,
   RefreshCw,
 } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 const STORAGE_KEY = "hanbang_service_guide_seen_v2";
 const SESSION_DISMISSED_KEY = "hanbang_service_guide_dismissed_session_v2";
@@ -44,7 +44,7 @@ function SlideWelcome() {
       {/* 3가지 핵심 가치 */}
       <div className="flex items-stretch gap-3 w-full max-w-[380px] mb-7">
         {[
-          { icon: <MessageCircle className="w-6 h-6" />, label: "아모라", sub: "지금 상황 말하기" },
+          { icon: <AmoraMark className="w-6 h-6" />, label: "아모라", sub: "지금 상황 말하기" },
           { icon: <CalendarCheck className="w-6 h-6" />, label: "할 일·일정", sub: "해야 할 일과 날짜 정리" },
           { icon: <Wallet className="w-6 h-6" />, label: "예산", sub: "예상 금액과 실제로 쓴 금액" },
         ].map((item, i) => (
@@ -179,9 +179,7 @@ function SlideChat() {
 
         {/* AI 메시지 (왼쪽) */}
         <div className="flex justify-start gap-2">
-          <div className="w-8 h-8 rounded-full bg-[var(--hb-primary)] flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Sparkles className="w-4 h-4 text-white" />
-          </div>
+          <AmoraAvatar className="mt-0.5" />
           <div className="flex flex-col gap-2 max-w-[80%]">
             <div className="rounded-[6px] rounded-tl-md bg-[var(--hb-surface-hover)] border border-[#f6f3f2] px-4 py-2.5">
               <p className="text-base text-[var(--hb-text-strong)] leading-relaxed">
@@ -328,7 +326,7 @@ function SlideBudget() {
 function SlideFeaturePages() {
   const features = [
     {
-      icon: MessageCircle,
+      icon: AmoraMark,
       title: "아모라 상담",
       desc: "견적·계약·순서가 막힐 때 먼저 질문",
     },

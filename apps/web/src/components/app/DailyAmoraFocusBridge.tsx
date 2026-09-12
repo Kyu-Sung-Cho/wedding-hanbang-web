@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Sparkles } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 import { captureEvent } from "@/lib/analytics";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -37,9 +40,7 @@ export default function DailyAmoraFocusBridge({
       className="rounded-[6px] border border-[#D9E2D5] bg-[#F6F9F4] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="flex items-start gap-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-        </span>
+        <AmoraAvatar sizeClassName="size-9" />
         <div className="min-w-0 flex-1">
           <p className="text-[12px] font-semibold text-[var(--color-rose-700)]">
             오늘 하나, 아모라와 정리
@@ -69,8 +70,9 @@ export default function DailyAmoraFocusBridge({
             mode: partnerLinked ? "couple" : "solo",
           })
         }
-        className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8F6662] focus-visible:ring-offset-2 sm:w-auto"
+        className={`${AMORA_ACTION_CLASS} mt-4 w-full sm:w-auto`}
       >
+        <AmoraMark size={20} />
         {partnerLinked ? "오늘 할 일 같이 나누기" : "오늘 한 가지 시작하기"}
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
       </Link>

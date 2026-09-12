@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
-import { AlertTriangle, ArrowRight, BookOpen, CalendarHeart, ListChecks, Sparkles } from "lucide-react";
+import { AlertTriangle, ArrowRight, BookOpen, CalendarHeart, ListChecks } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { buildDueMomentCells } from "@/lib/amora/momentLoop";
 import { buildAmoraLifecyclePlan } from "@/lib/amora/lifecycle";
 import { getAmoraActions, type AmoraActionItem } from "@/lib/amora/actions";
@@ -78,14 +81,15 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
 
       {/* 아모라 한 줄 브리핑 — 저장된 정보의 범위를 숨기지 않는다. */}
       <div className="mt-3 flex items-start gap-2.5 rounded-[6px] bg-[#f6f9f6] px-4 py-3">
-        <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[var(--hb-text-strong)]" />
+        <AmoraAvatar sizeClassName="size-6" className="mt-0.5" />
         <p className="text-[14px] font-medium leading-[1.55] text-[var(--hb-text-strong)]">
           {data.brief}
           {data.briefHref && (
             <Link
               {...weddingLinkProps(data.briefHref)}
-              className="ml-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--hb-text-strong)] underline-offset-2 hover:underline"
+              className={/^\/(?:wedding\/)?chat(?:[?#]|$)/u.test(data.briefHref) ? `${AMORA_ACTION_CLASS} ml-2` : "ml-2 inline-flex items-center gap-1 text-[13px] font-semibold text-[var(--hb-text-strong)] underline-offset-2 hover:underline"}
             >
+              {/^\/(?:wedding\/)?chat(?:[?#]|$)/u.test(data.briefHref) && <AmoraMark size={20} />}
               보러 가기
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -160,10 +164,10 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
              일반 안내보다 상황을 듣고 정리하는 쪽이 맞다(2026-07-25 페이지 제거). */
           <Link
             {...weddingLinkProps("/chat")}
-            className="group rounded-[6px] border border-[#f0e9da] p-3.5 transition-colors hover:border-[#dfc9c1]"
+            className="group rounded-xl border border-[var(--hb-amora-line)] bg-[var(--hb-amora-surface)] p-3.5 transition-colors hover:bg-[var(--hb-amora-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2"
           >
             <p className="mb-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--hb-text-body)]">
-              <BookOpen className="h-3.5 w-3.5" />
+              <AmoraMark className="h-3.5 w-3.5 text-[var(--hb-amora-ink)]" />
               가족 이야기
             </p>
             <p className="text-[13px] font-semibold text-[var(--hb-text-strong)] group-hover:text-[var(--hb-text-strong)]">
@@ -201,8 +205,9 @@ export default function WeeklyCard({ weddingDate, totalBudget, progress, actions
               <li key={action.id}>
                 <Link
                   {...weddingLinkProps(action.href ? action.href.replace(/^\/wedding/, "") : "/chat")}
-                  className="flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--hb-text-strong)] hover:text-[var(--hb-text-strong)]"
+                  className={!action.href || /^\/(?:wedding\/)?chat(?:[?#]|$)/u.test(action.href) ? `${AMORA_ACTION_CLASS} w-full` : "flex items-center justify-between gap-2 text-[13px] font-medium text-[var(--hb-text-strong)] hover:text-[var(--hb-text-strong)]"}
                 >
+                  {(!action.href || /^\/(?:wedding\/)?chat(?:[?#]|$)/u.test(action.href)) && <AmoraMark size={20} />}
                   <span className="truncate">{action.title}</span>
                   {action.dueDate && (
                     <span className="shrink-0 text-[11px] font-semibold text-[var(--hb-text-muted)]">{action.dueDate}</span>

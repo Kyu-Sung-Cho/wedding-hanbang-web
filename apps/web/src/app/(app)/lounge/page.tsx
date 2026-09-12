@@ -14,9 +14,10 @@ import {
   Clock3,
   HeartHandshake,
   Loader2,
-  Sparkles,
   Users,
 } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import DailyAmoraFocusBridge from "@/components/app/DailyAmoraFocusBridge";
 import FirstRunLoungeTutorial from "@/components/app/FirstRunLoungeTutorial";
 import LoungeFirstArrival, {
@@ -459,11 +460,11 @@ export default function LoungePage() {
       <section aria-label="현재 준비 현황" className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px] lg:rounded-[20px] lg:px-7 lg:py-[26px]">
         <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
           <div className="min-w-0">
-            <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-rose-pale)] px-2.5 py-1 text-[10px] text-[var(--amora-rose-deep)] lg:text-[11px]"><Sparkles size={12} aria-hidden="true" />{companionCopy.loungeLabel}</p>
+            <p className="inline-flex items-center gap-1.5 rounded-full bg-[var(--amora-rose-pale)] px-2.5 py-1 text-[10px] text-[var(--amora-rose-deep)] lg:text-[11px]"><AmoraMark size={12} aria-hidden="true" />{companionCopy.loungeLabel}</p>
             <h2 className="amora-display mt-3 text-[21px] leading-[1.35] lg:text-[27px]">{partner ? "함께 준비하는 우리의 결혼" : "차근차근 준비하는 나의 결혼"}</h2>
             <p className="mt-2 text-[11px] leading-[1.7] text-[var(--amora-soft)] lg:text-[12px]">{companionCopy.statusHeading} · {partnerLabel}</p>
           </div>
-          <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`)} data-tutorial-target="amora-fab" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[10px] bg-[var(--amora-ink)] px-4 text-[11px] font-medium text-white hover:bg-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] sm:shrink-0 lg:px-[18px] lg:text-[12px]"><Sparkles size={14} aria-hidden="true" />아모라에게 물어보기<ArrowRight size={13} aria-hidden="true" /></Link>
+          <Link {...weddingLinkProps(`/chat?${new URLSearchParams({ prefill: companionCopy.amoraPrompt })}`)} data-tutorial-target="amora-fab" className={`${AMORA_ACTION_CLASS} sm:shrink-0`}><AmoraMark size={20} aria-hidden="true" />아모라에게 물어보기<ArrowRight size={13} aria-hidden="true" /></Link>
         </div>
         <div className="mt-[18px] grid grid-cols-2 gap-2.5 lg:mt-6 lg:grid-cols-4 lg:gap-3.5">
           <Link {...weddingLinkProps("/settings" )} className="min-w-0 rounded-[12px] bg-[var(--amora-ink)] p-3.5 text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)] lg:rounded-[14px] lg:px-[19px] lg:py-[17px]">
@@ -497,7 +498,7 @@ export default function LoungePage() {
           </section>
           <PreparationRecordPanel checked={summary.done} completed={summary.completed} upcoming={upcomingEvents.length} />
           {!showJoinedHandoff && <details className="rounded-[16px] border border-[var(--amora-line)] bg-white px-4">
-            <summary className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg text-[12px] font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Sparkles size={15} aria-hidden="true" />아모라와 오늘 할 일 정하기</summary>
+            <summary className="flex min-h-12 cursor-pointer items-center gap-2 rounded-lg text-[12px] font-medium text-[var(--amora-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><AmoraMark size={15} aria-hidden="true" />아모라와 오늘 할 일 정하기</summary>
             <div className="pb-4"><DailyAmoraFocusBridge partnerLinked={Boolean(partner)} /></div>
           </details>}
           {firstArrival && <LoungeFirstArrivalEmptyNote view={firstArrival} />}

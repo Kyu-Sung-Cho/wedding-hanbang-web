@@ -9,10 +9,10 @@ import {
   Heart,
   Pencil,
   Reply,
-  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import { timeAgo } from "@/utils/timeAgo";
 import type {
   CommentWithAuthor,
@@ -309,9 +309,7 @@ export default function CommentItem({
         <div className="flex gap-2">
           {/* 아바타: 아모라는 특별 스타일 */}
           {isAmoraAI ? (
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[var(--hb-primary)] to-[var(--hb-primary-hover)] flex items-center justify-center shrink-0 ring-2 ring-[var(--hb-primary)]/20">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
+            <AmoraAvatar />
           ) : (
             <Avatar
               nickname={nickname}

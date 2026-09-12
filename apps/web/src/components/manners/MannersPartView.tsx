@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { ArrowUp, Sparkles } from "lucide-react";
+import { ArrowUp } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS, AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import type { MannersBlock, MannersPart, MannersSource } from "@/lib/manners/types";
 import { categoryKeysForMannersPart } from "@/lib/manners/categoryMap";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
@@ -576,7 +578,7 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
                   <h2 className="min-w-0 flex-1 text-[15.5px] font-semibold leading-[1.4] text-[var(--amora-ink)] sm:text-[18px]">
                     {sectionLabel(section.heading)}
                   </h2>
-                  {sectionAmoraHref && <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className="-mr-2 inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--amora-accent)] hover:bg-[var(--amora-warm)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--amora-accent)]"><Sparkles aria-hidden className="h-[18px] w-[18px]" /></Link>}
+                  {sectionAmoraHref && <Link {...weddingLinkProps(sectionAmoraHref)} aria-label={`${sectionLabel(section.heading)} 아모라에 질문하기`} title={`${sectionLabel(section.heading)} 아모라에 질문하기`} className={`${AMORA_ICON_ACTION_CLASS} -mr-2`}><AmoraMark className="size-5" /></Link>}
                 </div>
 
                 {lead ? (
@@ -707,8 +709,8 @@ export default function MannersPartView({ part }: { part: MannersPart }) {
             >
               {checklistLabel} 체크리스트 열기
             </Link>}
-            {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className="inline-flex min-h-11 items-center rounded-[11px] bg-[var(--amora-action,var(--hb-action))] px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-[var(--amora-action-hover,var(--hb-action-hover))] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
-              아모라에 질문하기
+            {amoraHref && <Link {...weddingLinkProps(amoraHref)} aria-label={`${part.title} 아모라에 질문하기`} className={AMORA_ACTION_CLASS}>
+              <AmoraMark className="size-5 shrink-0" />아모라에 질문하기
             </Link>}
           </div>
           <p className="mt-2 text-[12px] leading-[1.6] text-[var(--amora-muted)]">질문 초안을 확인한 뒤 직접 보내요. 준비 상태는 바뀌지 않아요.</p>

@@ -1,4 +1,5 @@
-import { LockKeyhole, Sparkles, Users } from "lucide-react";
+import { LockKeyhole, Users } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 import { landingContent } from "./landingContent";
 import { band, bodyText, eyebrowText, noteText, shell } from "./notebook";
@@ -52,7 +53,7 @@ export default function AmoraNoteSection() {
           </p>
 
           <p className="mb-[7px] mt-[13px] flex items-center gap-[6px] text-[11.5px] font-semibold text-[var(--color-rose-700)] lg:mb-2 lg:mt-4 lg:gap-[7px] lg:text-[12px]">
-            <Sparkles aria-hidden className="size-[14px]" strokeWidth={1.7} />
+            <AmoraAvatar sizeClassName="size-6" />
             <span>{amoraNote.chat.amoraLabel}</span>
           </p>
           <p className="rounded-[13px] rounded-bl-[4px] bg-[var(--color-sage-pale)] px-[14px] py-3 text-[13.5px] leading-[1.7] text-[var(--color-paper-ink)] lg:rounded-[15px] lg:rounded-bl-[5px] lg:px-[17px] lg:py-[14px] lg:text-[14.5px]">

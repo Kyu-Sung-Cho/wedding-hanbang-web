@@ -14,8 +14,9 @@
 import { useRef } from "react";
 import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/ui/AppText";
-import { Sparkles, X } from "lucide-react-native";
-import { colors, radius, spacing } from "@hanbang/design-tokens";
+import { X } from "lucide-react-native";
+import { amoraIdentity, colors, radius, spacing } from "@hanbang/design-tokens";
+import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_FAB_SIZE, getAmoraFabBottomOffset } from "@/lib/firstRunTutorial";
 import { FirstRunAnchor } from "@/components/lounge/FirstRunAnchors";
 
@@ -106,7 +107,7 @@ export default function AmoraFab({
               : "결혼 준비 이야기를 아모라와 이어가요"
           }
         >
-          <Sparkles size={24} color={colors.gold.light} />
+          <AmoraMark size={24} />
         </Pressable>
         {unread ? <View style={styles.unreadDot} accessibilityElementsHidden /> : null}
       </Animated.View>
@@ -186,7 +187,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.full,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: colors.noir[800],
+    backgroundColor: amoraIdentity.surface,
+    borderColor: amoraIdentity.line,
+    borderWidth: 1,
   },
   unreadDot: {
     position: "absolute",

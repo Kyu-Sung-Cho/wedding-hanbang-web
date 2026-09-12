@@ -69,6 +69,12 @@
   --hb-selected-text: #7D5753;
   --hb-selected-line: #8F6662;
 
+  /* 역할 — 아모라 표식과 질문 */
+  --hb-amora-ink: #7D5753;
+  --hb-amora-line: #8F6662;
+  --hb-amora-surface: #FBF8F2;
+  --hb-amora-hover: #EADDD8;
+
   /* 역할 — 초점 */
   --hb-focus-ring: #35638A;
 

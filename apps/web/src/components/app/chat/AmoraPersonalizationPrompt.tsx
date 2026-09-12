@@ -1,7 +1,9 @@
 "use client";
 
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+
 import Link from "next/link";
-import { Check, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Check, SlidersHorizontal } from "lucide-react";
 
 import {
   AMORA_QUICK_START_OPTIONS,
@@ -23,9 +25,7 @@ export function AmoraQuickStart({
       className="mx-auto w-full max-w-[53.75rem] rounded-[6px] border border-[#E2D3C8] bg-[var(--hb-surface-page)] p-4 shadow-[var(--shadow-raised)] sm:p-5"
     >
       <div className="mb-4 flex items-start gap-3">
-        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] text-white">
-          <Sparkles className="h-5 w-5" />
-        </span>
+        <AmoraAvatar sizeClassName="size-10" />
         <div>
           <h2
             id="amora-quick-start-title"

@@ -9,6 +9,8 @@ import { weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import Button from "@/components/ui/Button";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 const FOCUS = "focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--amora-accent)]";
 const BUTTON_FOCUS = `${FOCUS} focus-visible:!outline-solid focus-visible:!ring-0 focus-visible:!ring-offset-0`;
@@ -135,6 +137,7 @@ function MissionCard({ card, highlighted = false, completed = false, onOpen }: {
 
 function MissionCardAction({ card, highlighted, completed, onOpen }: { card: AmoraMissionCard; highlighted: boolean; completed: boolean; onOpen(categoryKey: string): void }) {
   const counts = card.counts;
+  const opensAmora = !completed && /^\/(?:wedding\/)?chat(?:[?#]|$)/u.test(card.href);
   return (
     <>
       {counts && <progress aria-label={`${card.title} 체크 진행률`} value={counts.done} max={counts.total || 1} className="mb-3.5 block h-[5px] w-full overflow-hidden rounded-full border-0 bg-[var(--amora-low)] text-[var(--amora-rose)] [&::-moz-progress-bar]:bg-[var(--amora-rose)] [&::-webkit-progress-bar]:bg-[var(--amora-low)] [&::-webkit-progress-value]:bg-[var(--amora-rose)]" />}
@@ -142,8 +145,8 @@ function MissionCardAction({ card, highlighted, completed, onOpen }: { card: Amo
         {(completed || counts) && <span className="hidden text-xs text-[var(--amora-muted)] md:inline">
           {completed ? "공유 할 일에서 완료로 표시했어요" : counts ? `${counts.done} / ${counts.total}개 체크 완료` : null}
         </span>}
-        {!completed && card.kind === "checklist" && card.categoryKey ? <Button variant={highlighted ? "primary" : "secondary"} size="lg" type="button" onClick={() => onOpen(card.categoryKey!)} aria-label={`${card.title} 체크리스트 열기`} className={`w-full !gap-[7px] !whitespace-normal !rounded-[11px] !px-[18px] py-[9px] !text-[14.5px] md:min-h-11 md:w-auto md:!rounded-lg md:!text-[13.5px] ${highlighted ? "!border-[var(--amora-action)] !bg-[var(--amora-action)] !text-white hover:!bg-[var(--amora-action-hover)]" : "!border-[var(--amora-muted)] !bg-[var(--amora-surface)] !text-[var(--amora-ink)] hover:!bg-[var(--amora-warm)]"} ${BUTTON_FOCUS}`}>{card.cta}<ArrowRight size={15} aria-hidden="true" /></Button> : <Link {...weddingLinkProps(completed ? "/chat/board?view=tasks" : card.href)} className={`inline-flex min-h-12 w-full items-center justify-center gap-[7px] rounded-[11px] px-[18px] py-[9px] text-[14.5px] font-semibold md:min-h-11 md:w-auto md:rounded-lg md:text-[13.5px] ${completed || !highlighted ? "border border-[var(--amora-muted)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:bg-[var(--amora-warm)]" : "bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]"} ${FOCUS}`}>
-          {completed ? "준비 기록 보기" : card.cta}<ArrowRight size={15} aria-hidden="true" />
+        {!completed && card.kind === "checklist" && card.categoryKey ? <Button variant={highlighted ? "primary" : "secondary"} size="lg" type="button" onClick={() => onOpen(card.categoryKey!)} aria-label={`${card.title} 체크리스트 열기`} className={`w-full !gap-[7px] !whitespace-normal !rounded-[11px] !px-[18px] py-[9px] !text-[14.5px] md:min-h-11 md:w-auto md:!rounded-lg md:!text-[13.5px] ${highlighted ? "!border-[var(--amora-action)] !bg-[var(--amora-action)] !text-white hover:!bg-[var(--amora-action-hover)]" : "!border-[var(--amora-muted)] !bg-[var(--amora-surface)] !text-[var(--amora-ink)] hover:!bg-[var(--amora-warm)]"} ${BUTTON_FOCUS}`}>{card.cta}<ArrowRight size={15} aria-hidden="true" /></Button> : <Link {...weddingLinkProps(completed ? "/chat/board?view=tasks" : card.href)} className={opensAmora ? `${AMORA_ACTION_CLASS} w-full md:w-auto` : `inline-flex min-h-12 w-full items-center justify-center gap-[7px] rounded-[11px] px-[18px] py-[9px] text-[14.5px] font-semibold md:min-h-11 md:w-auto md:rounded-lg md:text-[13.5px] ${completed || !highlighted ? "border border-[var(--amora-muted)] bg-[var(--amora-surface)] text-[var(--amora-ink)] hover:bg-[var(--amora-warm)]" : "bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]"} ${FOCUS}`}>
+          {opensAmora && <AmoraMark size={20} />}{completed ? "준비 기록 보기" : card.cta}<ArrowRight size={15} aria-hidden="true" />
         </Link>}
       </div>
     </>
@@ -306,7 +309,7 @@ function AmoraMissionsView({ embedded, hub }: { embedded: boolean; hub: boolean 
           </div>
           <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1">
             <Link {...weddingLinkProps("/chat/board")} className={`inline-flex min-h-11 items-center gap-1 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] lg:hidden ${FOCUS}`}>준비 기록 보기<ChevronRight size={14} aria-hidden="true" /></Link>
-            <Link {...weddingLinkProps("/chat")} className={`inline-flex min-h-11 items-center gap-2 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] ${FOCUS}`}><MessageCircle size={16} aria-hidden="true" />아모라와 이야기하기</Link>
+            <Link {...weddingLinkProps("/chat")} className={AMORA_ACTION_CLASS}><AmoraMark size={20} aria-hidden="true" />아모라와 이야기하기</Link>
           </div>
         </aside>}
       </div>

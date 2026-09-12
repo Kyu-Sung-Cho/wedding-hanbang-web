@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Check, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag, Sparkles, Video } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Heart, Mail, Plane, Search, ShoppingBag, Video } from "lucide-react";
 
 import CategoryChecklistModal from "@/components/app/schedule/CategoryChecklistModal";
 import Button from "@/components/ui/Button";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ICON_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
 import { weddingLinkProps } from "@/lib/weddingPaths";
@@ -195,7 +197,7 @@ export default function ChecklistContent() {
               aria-label={`${template.label} 체크리스트 열기`}
               aria-describedby={`checklist-status-${template.key}`}
             >
-              <span className="flex items-start justify-between gap-2 md:min-h-[26px] md:pr-[68px]">
+              <span className="flex items-start justify-between gap-2 md:min-h-11 md:pr-[84px]">
                 <strong className="text-[13px] font-semibold leading-[1.4] text-[var(--amora-ink)] md:text-[14px]">{template.label}</strong>
                 <ChevronRight aria-hidden="true" className="mt-0.5 size-3.5 shrink-0 text-[var(--amora-muted)] md:hidden" />
               </span>
@@ -230,9 +232,9 @@ export default function ChecklistContent() {
                   {...weddingLinkProps(amoraHref)}
                   aria-label={`${template.label} 아모라에 질문하기`}
                   title={`${template.label} 아모라에 질문하기`}
-                  className="inline-flex size-8 items-center justify-center rounded-[7px] bg-[var(--amora-low)] text-[var(--amora-soft)] transition-colors hover:bg-[var(--amora-rose-pale)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]"
+                  className={AMORA_ICON_ACTION_CLASS}
                 >
-                  <Sparkles aria-hidden="true" className="size-[14px]" strokeWidth={1.7} />
+                  <AmoraMark className="size-5" />
                 </Link>
               )}
             </div>
@@ -378,7 +380,7 @@ export default function ChecklistContent() {
 
       <div className="mt-6 hidden flex-wrap items-center justify-between gap-x-4 gap-y-2 text-[11.5px] leading-[1.6] text-[var(--amora-muted)] md:flex">
         <p>질문 초안을 확인한 뒤 직접 보내요.</p>
-        <p className="flex items-center gap-3"><span className="inline-flex items-center gap-1"><BookOpen aria-hidden="true" className="size-3.5" />예절 가이드</span><span className="inline-flex items-center gap-1"><Sparkles aria-hidden="true" className="size-3.5" />아모라 질문</span></p>
+        <p className="flex items-center gap-3"><span className="inline-flex items-center gap-1"><BookOpen aria-hidden="true" className="size-3.5" />예절 가이드</span><span className="inline-flex items-center gap-1"><AmoraMark className="size-3.5" />아모라 질문</span></p>
       </div>
 
       <CategoryChecklistModal presentation="planning" categoryKey={selectedCategory ?? ""} isOpen={Boolean(selectedCategory)} onClose={() => selectCategory(null)} />

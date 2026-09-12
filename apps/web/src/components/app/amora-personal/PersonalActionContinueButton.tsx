@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PersonalAction, PersonalActionReview } from "@hanbang/shared/amora-personal-actions";
-import Button from "@/components/ui/Button";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import AmoraSheetFrame from "@/components/app/chat/AmoraSheetFrame";
 import { useAuthStore } from "@/stores/authStore";
 import { personalActionContinuation } from "@/lib/amora/personalActionContinuation";
@@ -40,7 +41,7 @@ export default function PersonalActionContinueButton({ action }: { action: Perso
     } finally { if (epoch === generation.current) { inFlight.current = false; setBusy(false); } }
   };
   return <>
-    <Button variant="ghost" type="button" disabled={busy} onClick={() => void run(false)} className="min-h-11 rounded-lg! px-2! font-normal! underline">{busy && !review ? "확인하는 중…" : "이 할 일 이어서 상담"}</Button>
+    <button type="button" disabled={busy} onClick={() => void run(false)} className={AMORA_ACTION_CLASS}><AmoraMark className="size-5 shrink-0" />{busy && !review ? "확인하는 중…" : "이 할 일 이어서 상담"}</button>
     {error && !review && <p role="alert" className="text-xs leading-5 text-[var(--amora-muted)]">{error}</p>}
     {review && <AmoraSheetFrame title="이 할 일로 나만 상담을 이어갈까요?" description="아래 내용만 나만 상담 입력창에 넣어요. 직접 보내기 전에는 대화로 전송하지 않아요."
       busy={busy} disabled={busy} applyLabel="나만 상담 입력창에 넣기" error={error} onClose={() => setReview(null)} onDefer={() => setReview(null)} onConfirm={() => void run(true)}>

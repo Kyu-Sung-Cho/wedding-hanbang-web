@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2, Sparkles } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2 } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import type { MissionGroup } from "@/lib/amora/missions";
 import { formatLoungeWon } from "@/lib/amora/loungeSummary";
 import { mannersPartForCategory } from "@/lib/manners/categoryMap";
@@ -98,8 +100,8 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">처음이라 낯선 순서와 확인할 내용을 가이드에서 살펴보세요.</p>
       <Link {...weddingLinkProps(guide ? `/manners/${guide.slug}` : "/manners")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>가이드 읽기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
-    <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] bg-[var(--amora-ink)] p-[18px] text-white hover:bg-[var(--amora-soft)] ${focus}`}>
-      <span className="flex items-center gap-2 text-[10px] text-white/60"><Sparkles size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75] text-white/70">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className="mt-4 inline-flex min-h-11 items-center gap-1.5 text-[11px]">아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>
+    <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] border border-[var(--hb-amora-line)] bg-[var(--hb-amora-surface)] p-[18px] text-[var(--hb-amora-ink)] transition-colors hover:bg-[var(--hb-amora-hover)] ${focus}`}>
+      <span className="flex items-center gap-2 text-[10px]"><AmoraMark size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75]">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>
     </Link>
   </>;
 }

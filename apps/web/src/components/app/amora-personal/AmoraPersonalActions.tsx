@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { personalActionOwner, useAmoraPersonalActions } from "@/hooks/useAmoraPersonalActions";
 import { useAuthStore } from "@/stores/authStore";
 import type { PersonalAction } from "@hanbang/shared/amora-personal-actions";
@@ -19,7 +21,7 @@ export default function AmoraPersonalActions() {
   return <div className="p-[18px] md:px-9 md:py-8">
     <h2 className="amora-display text-[26px]">나만 보는 할 일</h2>
     <p className="mt-2 text-sm text-[var(--amora-muted)]">나만 상담한 답변에서 직접 확인해 저장한 할 일이에요. 파트너에게 공유하거나 알림을 보내지 않아요.</p>
-    <Link href="/chat" className="my-3 inline-flex min-h-11 items-center underline">아모라 대화로 돌아가기</Link>
+    <Link href="/chat" className={`${AMORA_ACTION_CLASS} my-3`}><AmoraMark className="size-5 shrink-0" />아모라 대화로 돌아가기</Link>
     {data.isDemo && <p role="status" className="mb-3 text-sm">체험에서는 개인 할 일을 저장하지 않아요.</p>}
     {(data.error || data.writeError) && <div role="alert" className="mb-3 rounded-lg border border-[var(--amora-line)] p-3 text-sm">
       <p>{data.error || data.writeError}</p><Button variant="ghost" type="button" className="min-h-11 px-0! font-normal! underline" onClick={() => void data.load()}>목록 다시 확인</Button>

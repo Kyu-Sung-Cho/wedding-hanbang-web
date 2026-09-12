@@ -9,12 +9,12 @@ import {
   ClipboardCheck,
   LayoutDashboard,
   LogOut,
-  MessageCircle,
   Settings,
   Users,
   Wallet,
   X,
 } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
 import Logo from "@/components/ui/Logo";
 import { stripWeddingBasePath, weddingLinkProps } from "@/lib/weddingPaths";
 import { useAuthStore } from "@/stores/authStore";
@@ -29,7 +29,7 @@ type SidebarMenuItem = {
 
 const menuItems: SidebarMenuItem[] = [
   { legacyPath: "/lounge", icon: LayoutDashboard, label: "웨딩 라운지", tutorialTarget: "service-nav-lounge" },
-  { legacyPath: "/chat", icon: MessageCircle, label: "아모라", tutorialTarget: "service-nav-amora" },
+  { legacyPath: "/chat", icon: AmoraMark, label: "아모라", tutorialTarget: "service-nav-amora" },
   { legacyPath: "/checklist", icon: ClipboardCheck, label: "웨딩 체크리스트", tutorialTarget: "service-nav-schedule" },
   { legacyPath: "/schedule", icon: CalendarCheck, label: "일정" },
   { legacyPath: "/budget", icon: Wallet, label: "예산", tutorialTarget: "service-nav-budget" },

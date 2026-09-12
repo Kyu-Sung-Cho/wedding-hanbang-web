@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, InteractionManager, StyleSheet, View } from "react-native";
 import { Text, useAppFontsLoaded } from "@/components/ui/AppText";
 import { Redirect, Tabs, usePathname } from "expo-router";
-import { Home, MessageCircle, Users, User } from "lucide-react-native";
+import { Home, Users, User } from "lucide-react-native";
+import AmoraMark from "@/components/ui/AmoraMark";
 import { colors } from "@hanbang/design-tokens";
 import { apiJson } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
@@ -210,7 +211,7 @@ export default function TabsLayout() {
         options={{
           title: "아모라",
           href: protectedTabHref,
-          tabBarIcon: ({ color, size }) => <MessageCircle size={size} color={color} />,
+          tabBarIcon: ({ color, size }) => <AmoraMark size={size} color={color} />,
           tabBarAccessibilityLabel: "아모라",
         }}
       />

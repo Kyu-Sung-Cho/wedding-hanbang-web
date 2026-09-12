@@ -1,7 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
-import { ArrowRight } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
 import { useRouter } from "next/navigation";
 
 import { captureEvent } from "@/lib/analytics";
@@ -115,8 +115,8 @@ export function StartDemoButton({
         aria-describedby={error ? errorId : undefined}
         className={className}
       >
+        <AmoraMark className="size-5 shrink-0" />
         {pending ? "아모라 여는 중…" : label}
-        <ArrowRight aria-hidden="true" className="size-4" />
       </button>
       {error ? (
         <span

@@ -8,9 +8,9 @@ import {
   Clock3,
   RotateCcw,
   ShieldCheck,
-  Sparkles,
   WalletCards,
 } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
 import {
   validateTodayOneCareResponse,
   type TodayOneCareAction,
@@ -335,7 +335,7 @@ export default function TodayOneCard() {
       <div className="bg-[var(--hb-primary)] px-5 py-5 text-white md:px-6">
         <div className="flex items-center justify-between gap-4">
           <p className="inline-flex items-center gap-2 text-xs font-semibold text-[#F7F1E8]">
-            <Sparkles className="h-4 w-4" aria-hidden="true" />
+            <AmoraMark className="h-4 w-4" aria-hidden="true" />
             아모라 오늘의 한 가지 · 인앱
           </p>
           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-[#C7D1C2]">

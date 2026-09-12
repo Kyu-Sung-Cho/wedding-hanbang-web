@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Check, Sparkles, Users } from "lucide-react";
+import { ArrowRight, Check, Users } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import {
   buildLoungeFirstRunView,
   isOnlyStageSuggestion,
@@ -213,7 +215,7 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
     <section data-testid="lounge-first-arrival" className="grid gap-4">
       <div className="rounded-[6px] border border-[var(--hb-hairline)] bg-white/92 p-5 shadow-[var(--shadow-raised)] md:p-6">
         <p className="inline-flex items-center gap-2 rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-surface-hover)] px-3.5 py-1.5 text-[12px] font-semibold text-[var(--hb-accent-hover)]">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
+          <AmoraMark className="h-4 w-4" aria-hidden="true" />
           확인했어요
         </p>
         <h2 className="mt-4 font-serif-kr text-[var(--hb-text-strong)]">
@@ -245,8 +247,9 @@ export default function LoungeFirstArrival({ view }: { view: LoungeFirstRunView 
         </p>
         <Link
           {...nextStepLink}
-          className="mt-5 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"
+          className={view.nextStep.destination === "amora" ? `${AMORA_ACTION_CLASS} mt-5` : "mt-5 inline-flex min-h-11 items-center justify-center rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ecd7a4] focus-visible:ring-offset-2 focus-visible:ring-offset-[#36534E]"}
         >
+          {view.nextStep.destination === "amora" && <AmoraMark size={20} />}
           {view.nextStep.cta}
           <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
         </Link>

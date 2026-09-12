@@ -51,6 +51,8 @@ import { foldPayerSides } from "./shareMath";
 import BudgetSideSplit from "./BudgetSideSplit";
 import { isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
 import Button from "@/components/ui/Button";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import BudgetProgress from "./BudgetProgress";
 
 const ICON_MAP: Record<string, React.ElementType> = {
@@ -1240,7 +1242,7 @@ function ScopedBudgetContent({
             <h3 className="planning-display mb-1.5 text-base text-white sm:mb-2 sm:text-[19px]">어디를 먼저 확인할까요?</h3>
             <p className="max-w-[480px] text-[11.5px] leading-relaxed text-[#c9c6ba] sm:text-[12.5px]">직접 입력한 예산·기록 지출과 확인이 필요한 포함 항목을 함께 정리해드려요.</p>
           </div>
-          <Link {...weddingLinkProps("/chat")} className="inline-flex min-h-10 items-center gap-2 whitespace-nowrap rounded-[9px] bg-white px-4 py-2.5 text-xs font-semibold text-[var(--amora-ink)] transition-colors hover:bg-[var(--amora-warm)] sm:px-5 sm:py-[11px] sm:text-[13px]">아모라에게 물어보기<ArrowRight className="h-3.5 w-3.5" /></Link>
+          <Link {...weddingLinkProps("/chat")} className={`${AMORA_ACTION_CLASS} whitespace-nowrap`}><AmoraMark className="size-5 shrink-0" />아모라에게 물어보기</Link>
         </section>
 
         <p className="px-0.5 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:text-[11px]">

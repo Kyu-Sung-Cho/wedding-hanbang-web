@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, CalendarDays, Check, LockKeyhole } from "lucide-react";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
@@ -414,7 +415,7 @@ export default function StartHereClient() {
                       label="이 날짜로 아모라에게 물어보기"
                       prefill={amoraPrefill}
                       analyticsSource="start_here_priorities"
-                      className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                      className={`${AMORA_ACTION_CLASS} min-h-12`}
                     />
                     <Link
                       href={buildStartHereSignupHref()}
@@ -475,7 +476,7 @@ export default function StartHereClient() {
                     label="이 세 가지를 아모라와 정하기"
                     prefill={amoraPrefill}
                     analyticsSource="start_here_early"
-                    className="inline-flex min-h-12 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-5 text-[14px] font-semibold text-white transition-colors hover:bg-[var(--hb-primary)] disabled:opacity-60"
+                    className={`${AMORA_ACTION_CLASS} min-h-12`}
                   />
                   <Link
                     href={buildStartHereSignupHref()}

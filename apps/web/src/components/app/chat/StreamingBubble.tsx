@@ -1,6 +1,8 @@
 "use client";
 
-import { Sparkles, Loader2 } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+
+import { Loader2 } from "lucide-react";
 import type { ToolExecutionResult } from "@/types/database.types";
 import { getAmoraVisibleText } from "@hanbang/shared/amora-visible-text";
 import ActionCard from "./ActionCard";
@@ -33,9 +35,7 @@ export default function StreamingBubble({
 
       {/* 도착한 텍스트는 바로 보여 주고, 아직 텍스트가 없을 때만 진행 안내를 표시한다. */}
       <div className="group/ai flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--amora-accent,#486455)] sm:size-8">
-          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-        </div>
+        <AmoraAvatar sizeClassName="size-7 sm:size-8" />
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
           <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#605E54)]">아모라</span>

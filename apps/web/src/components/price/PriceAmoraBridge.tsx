@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { MessageCircleHeart } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 
 import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { isPublicDemoTrialEnabled } from "@/lib/demoTrial";
@@ -22,9 +24,7 @@ export function PriceAmoraBridge() {
       aria-label="아모라 안내"
       className="mt-10 rounded-[6px] border border-[var(--hb-primary)]/15 bg-[var(--hb-primary)]/[0.06] px-5 py-8 text-center sm:px-8"
     >
-      <span className="mx-auto flex size-12 items-center justify-center rounded-full bg-white text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)]">
-        <MessageCircleHeart aria-hidden="true" className="size-6" />
-      </span>
+      <AmoraAvatar sizeClassName="size-12" className="mx-auto" />
       <h2 className="mt-4 text-lg font-bold tracking-normal text-[var(--hb-text-strong)]">
         가격은 확인했는데, 뭐부터 해야 할지 막막하다면
       </h2>
@@ -37,7 +37,7 @@ export function PriceAmoraBridge() {
           </p>
           <StartDemoButton
             label="아모라에게 물어보기"
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-action-hover)] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className={`${AMORA_ACTION_CLASS} mt-5`}
           />
         </>
       ) : (
@@ -50,9 +50,9 @@ export function PriceAmoraBridge() {
           <Link
             href="/login?mode=signup"
             prefetch={false}
-            className="mt-5 inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6 py-2.5 text-sm font-semibold text-white shadow-[var(--shadow-raised)] hover:bg-[var(--hb-action-hover)] focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#B89785]"
+            className={`${AMORA_ACTION_CLASS} mt-5`}
           >
-            아모라와 시작하기
+            <AmoraMark className="size-5 shrink-0" />아모라와 시작하기
           </Link>
         </>
       )}
