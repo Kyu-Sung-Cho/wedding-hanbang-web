@@ -8,7 +8,6 @@ import {
   Clock3,
   RotateCcw,
   ShieldCheck,
-  Sparkles,
   WalletCards,
 } from "lucide-react-native";
 import { colors, radius, spacing } from "@hanbang/design-tokens";
@@ -27,6 +26,7 @@ import {
   parseTodayOneEnvelope,
 } from "@/lib/todayOneCare.mjs";
 import { PrimaryButton, appShadow } from "@/components/ui/AppUI";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 type ReadyResult = TodayOneCareResponse & { card: TodayOneCareCardData };
 type ViewState =
@@ -351,7 +351,7 @@ export default function TodayOneCareCard({
       <View style={styles.cardHeader}>
         <View style={styles.headerMeta}>
           <View style={styles.headerLabel}>
-            <Sparkles size={15} color={colors.ivory[100]} />
+            <AmoraAvatar size={15} />
             <Text style={styles.eyebrow}>아모라 오늘의 한 가지 · 인앱</Text>
           </View>
           <View style={styles.headerLabel}>

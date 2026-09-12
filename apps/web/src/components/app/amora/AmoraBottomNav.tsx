@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { CalendarDays, ClipboardList, LayoutDashboard, Sparkles, Wallet } from "lucide-react";
+import { CalendarDays, ClipboardList, LayoutDashboard, Wallet } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 
 const links = [
   { href: "/lounge", label: "라운지", icon: LayoutDashboard },
-  { href: "/chat", label: "아모라", icon: Sparkles },
+  { href: "/chat", label: "아모라", icon: AmoraMark },
   { href: "/checklist", label: "체크리스트", icon: ClipboardList },
   { href: "/schedule", label: "일정", icon: CalendarDays },
   { href: "/budget", label: "예산", icon: Wallet },

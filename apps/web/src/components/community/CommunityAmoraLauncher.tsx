@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { ArrowRight, LogIn, Sparkles, X } from "lucide-react";
+import { ArrowRight, LogIn, X } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import { AMORA_FAB_CLASS } from "@/components/ui/amoraActionStyles";
 import { useAccessibleModal } from "@/hooks/useAccessibleModal";
 import { useAuthStore } from "@/stores/authStore";
 import { isPreviewStubMode } from "@/lib/previewStub";
@@ -124,7 +127,7 @@ export default function CommunityAmoraLauncher() {
           ref={launcherRef}
           type="button"
           onClick={handleOpenAmora}
-          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--hb-hairline)] bg-[var(--hb-ivory)] text-[var(--hb-text-strong)] shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 hover:bg-[var(--hb-surface-hover)] disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14"
+          className={`${AMORA_FAB_CLASS} fixed bottom-[calc(1rem+env(safe-area-inset-bottom))] right-[calc(1rem+env(safe-area-inset-right))] z-40 h-12 w-12 disabled:cursor-wait disabled:opacity-70 md:bottom-6 md:right-6 md:h-14 md:w-14`}
           title="아모라 AI 상담"
           aria-label="아모라 AI 상담"
           aria-describedby={authError ? "community-amora-auth-error" : undefined}
@@ -134,7 +137,7 @@ export default function CommunityAmoraLauncher() {
           // 비추는 편이 맞다.
           disabled={checkingAuth}
         >
-          <Sparkles className={`h-5 w-5 md:h-6 md:w-6 ${checkingAuth ? "animate-pulse" : ""}`} />
+          <AmoraMark className={`h-5 w-5 md:h-6 md:w-6 ${checkingAuth ? "animate-pulse" : ""}`} />
         </button>
       )}
 
@@ -151,9 +154,7 @@ export default function CommunityAmoraLauncher() {
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-center gap-3">
-                <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#eef4ef] text-[var(--hb-text-strong)]">
-                  <Sparkles className="h-5 w-5" />
-                </span>
+                <AmoraAvatar sizeClassName="size-11" />
                 <div>
                   <p className="text-[12px] font-semibold text-[var(--hb-primary)]">아모라 상담</p>
                   <h2 id="community-amora-login-title" className="font-serif-kr text-[24px] font-medium leading-tight text-[var(--hb-text-strong)]">

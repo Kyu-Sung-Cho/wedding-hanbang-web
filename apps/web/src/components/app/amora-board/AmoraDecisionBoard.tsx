@@ -5,6 +5,8 @@ import Link from "next/link";
 import { ArrowUpRight, Check, CircleHelp, Link2, Pencil, RefreshCw, Search } from "lucide-react";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import Button from "@/components/ui/Button";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import { useAmoraPreparationActions, type AmoraPreparationActionUpdate } from "@/hooks/useAmoraPreparationActions";
 import CreatePreparationAction from "./CreatePreparationAction";
 import AmoraActionPlanFields from "./AmoraActionPlanFields";
@@ -432,7 +434,7 @@ export default function AmoraDecisionBoard() {
       {error && <div role="alert" className="mb-4 rounded-[9px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p>{actions.length > 0 && <p className="mt-1 text-[12px]">마지막으로 불러온 기록이에요. 최신 상태를 다시 확인해 주세요.</p>}<button type="button" onClick={() => void refresh()} disabled={loading} className={`${outlineButton} mt-2`}>다시 불러오기</button></div>}
       {updateError && <p role="alert" className="mb-4 rounded-[9px] bg-[var(--amora-rose-pale)] p-3 text-[13px] text-[var(--amora-rose-deep)]">{updateError}</p>}
       {loading && <p role="status" className="py-5 text-center text-[13px] text-[var(--amora-muted)]">준비 기록을 불러오는 중…</p>}
-      {!loading && !error && actions.length === 0 ? createLocked ? <p className="py-5 text-center text-[13px] text-[var(--amora-muted)]">저장 여부는 목록을 새로고쳐 확인해 주세요.</p> : <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${button} mt-4 bg-[var(--amora-action)] text-white hover:bg-[var(--amora-action-hover)]`}>아모라와 이야기하기</Link></div> : actions.length > 0 && (
+      {!loading && !error && actions.length === 0 ? createLocked ? <p className="py-5 text-center text-[13px] text-[var(--amora-muted)]">저장 여부는 목록을 새로고쳐 확인해 주세요.</p> : <div className="rounded-[14px] border border-dashed border-[var(--amora-line)] bg-[var(--amora-surface)] px-5 py-10 text-center"><h2 className="amora-display text-[19px] text-[var(--amora-ink)]">아직 저장된 할 일이 없어요</h2><p className="mt-2 text-[13px] text-[var(--amora-muted)]">아모라와 준비할 일을 정리하고, 제안 카드에서 직접 추가해 보세요.</p><Link href={weddingPath("/chat")} className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 이야기하기</Link></div> : actions.length > 0 && (
         <div className="grid min-w-0 gap-5 lg:grid-cols-3">
           {PREPARATION_COLUMNS.map((column) => {
             const columnActions = filtered.filter((action) => action.status === column.status);

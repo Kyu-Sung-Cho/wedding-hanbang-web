@@ -1,10 +1,12 @@
 "use client";
 
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import type { ChatMessage } from "@/types/database.types";
-import { Sparkles, BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck, User } from "lucide-react";
+import { BookOpen, ChevronRight, FileText, Heart, ThumbsUp, ThumbsDown, Send, Check, Lock, RefreshCw, X as XIcon, CheckCircle2, Bookmark, BookmarkCheck, User } from "lucide-react";
 import { useChatStore } from "@/stores/chatStore";
 import { isSavedNoteScopeCurrent, observeSavedNote, refreshSavedNote, setSavedNoteIdentity, useSavedNoteStore } from "@/stores/savedNoteStore";
 import MediationCard from "@/components/app/chat/MediationCard";
@@ -519,9 +521,7 @@ export default function ChatBubble({
     return (
       <div className="group/ai flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
         {/* AI 아바타 — 모바일에선 작게 */}
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-[var(--amora-accent,#486455)] sm:size-8">
-          <Sparkles className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-        </div>
+        <AmoraAvatar sizeClassName="size-7 sm:size-8" />
 
         <div className="flex flex-col gap-1.5 min-w-0 flex-1">
           <span className="flex items-center gap-1.5 text-[12px] font-medium text-[var(--amora-muted,#605E54)]">

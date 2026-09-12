@@ -173,7 +173,7 @@ describe("위기 카드가 아모라의 메시지로 보인다", () => {
     //    `card`에 낱말만 있는지 보면 이 주석 자체가 단언을 통과시킨다 —
     //    실제로 이름표를 지우는 변이(M7)를 놓쳤다.
     expect(cardMarkup).toMatch(/<span[^>]*>\s*아모라\s*<\/span>/u);
-    expect(cardMarkup).toContain("Sparkles");
+    expect(cardMarkup).toContain("AmoraAvatar");
   });
 
   it("경고 삼각형이 아니라 방패를 쓴다", () => {

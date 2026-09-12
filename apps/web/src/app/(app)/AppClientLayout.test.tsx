@@ -33,11 +33,6 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => mocks.searchParams,
 }));
 
-vi.mock("lucide-react", async (importOriginal) => ({
-  ...await importOriginal<typeof import("lucide-react")>(),
-  Sparkles: () => <span>sparkles</span>,
-}));
-
 vi.mock("@/components/common/AiNoticeFooter", () => ({
   default: () => <footer>AI notice</footer>,
 }));
@@ -224,7 +219,8 @@ describe("AppClientLayout global Amora panel", () => {
     const nav = container.querySelector('nav[aria-label="모바일 주요 기능"]');
     expect(nav?.querySelectorAll("a")).toHaveLength(5);
     expect(nav?.querySelectorAll('[aria-current="location"]')).toHaveLength(1);
-    expect([...nav!.querySelectorAll("a")].map(link => link.textContent)).toEqual(["라운지", "sparkles아모라", "체크리스트", "일정", "예산"]);
+    expect([...nav!.querySelectorAll("a")].map(link => link.textContent)).toEqual(["라운지", "아모라", "체크리스트", "일정", "예산"]);
+    expect(nav?.querySelector('a[href="/wedding/chat"] [data-amora-mark="ribbon"]')).not.toBeNull();
     expect(nav?.querySelector('[aria-current="location"]')?.getAttribute("href")).toBe(activeHref);
     expect(nav?.querySelector('a[href="/wedding/chat"]')).not.toBeNull();
     expect(container.querySelector('button[aria-label="아모라 AI 상담"]')).toBeNull();

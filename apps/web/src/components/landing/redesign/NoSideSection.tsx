@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 import TrackedLandingLink from "./TrackedLandingLink";
 
@@ -39,7 +39,7 @@ export default function NoSideSection() {
             return (
               <div key={turn.who} className="mt-[13px] first:mt-0 lg:mt-4">
                 <p className={`mb-[6px] flex items-center gap-[6px] text-[11px] lg:mb-[7px] lg:gap-[7px] lg:text-[11.5px] ${isAmora ? "font-semibold text-[var(--color-rose-700)]" : "text-[var(--color-paper-ink-faint)]"}`}>
-                  {isAmora ? <Sparkles aria-hidden className="size-[14px]" strokeWidth={1.7} /> : null}
+                  {isAmora ? <AmoraAvatar sizeClassName="size-6" /> : null}
                   {turn.who}
                 </p>
                 <p className={`rounded-[13px] px-[14px] py-3 text-[13.5px] leading-[1.7] text-[var(--color-paper-ink)] lg:rounded-[15px] lg:px-[17px] lg:py-[14px] lg:text-[14.5px] ${

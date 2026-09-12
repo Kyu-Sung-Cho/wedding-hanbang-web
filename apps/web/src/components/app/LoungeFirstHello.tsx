@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Sparkles, X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import {
   buildAmoraFirstHello,
   FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
@@ -58,14 +61,13 @@ export default function LoungeFirstHello({ ownerId }: { ownerId: string }) {
   return (
     <section aria-label="아모라의 첫인사" className="rounded-2xl border border-[var(--amora-line)] bg-white p-4 md:p-5">
       <div className="flex items-start gap-3">
-        <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[var(--amora-low)] text-[var(--amora-ink)]">
-          <Sparkles className="size-[18px]" />
-        </span>
+        <AmoraAvatar sizeClassName="size-9" />
         <div className="min-w-0 flex-1">
           <p className="text-[11px] font-semibold text-[var(--amora-muted)]">아모라 · AI</p>
           <p aria-live="polite" className="mt-1 text-[14px] leading-[1.7] text-[var(--amora-ink)]">{pending.preview}</p>
           {/* 첫인사는 링크에서 소비하지 않는다. 전체 대화 화면이 기존 경로로 가져간다. */}
-          <Link {...weddingLinkProps("/chat")} className="mt-2 inline-flex min-h-11 items-center gap-2 rounded-lg text-[13px] font-semibold text-[var(--amora-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--amora-accent)]">
+          <Link {...weddingLinkProps("/chat")} className={`${AMORA_ACTION_CLASS} mt-2`}>
+            <AmoraMark size={20} />
             아모라와 대화하기 <ArrowRight aria-hidden="true" className="size-4" />
           </Link>
         </div>

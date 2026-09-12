@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import type { AiComment } from "@/types/community.types";
 
 interface AiCommentBoxProps {
@@ -34,7 +34,7 @@ export default function AiCommentBox({ aiComment }: AiCommentBoxProps) {
       style={{ borderLeftColor: "#36534E" }}
     >
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles size={16} className="text-[var(--hb-text-strong)]" />
+        <AmoraAvatar sizeClassName="size-6" />
         <span
           className="text-sm font-medium text-[var(--hb-text-strong)]"
           style={{ fontFamily: "'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif" }}

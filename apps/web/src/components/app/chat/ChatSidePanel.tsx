@@ -1,7 +1,11 @@
 "use client";
 
+import AmoraMark from "@/components/ui/AmoraMark";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
+
 import { useState, useEffect, useRef, useCallback, useMemo, type SetStateAction } from "react";
-import { Send, Sparkles, X, Maximize2, EyeOff, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
+import { Send, X, Maximize2, EyeOff, Paperclip, FileText, FileSpreadsheet, Heart, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { ChatMessage, ChatMessageTarget } from "@/types/database.types";
 import { useChatStore } from "@/stores/chatStore";
@@ -1219,9 +1223,7 @@ export default function ChatSidePanel({
         {/* 헤더 */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-black/[0.06]">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-rose-500 to-gold flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-white" />
-            </div>
+            <AmoraAvatar />
             <div>
               <h3 className="text-sm font-medium text-[var(--hb-text-strong)]">아모라 AI</h3>
               <p className="text-[0.6875rem] text-[var(--hb-text-muted)]">AI 동반자</p>
@@ -1264,7 +1266,7 @@ export default function ChatSidePanel({
         {showEmpty ? (
           <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
-              <Sparkles className="w-10 h-10 text-rose-500/30 mx-auto mb-3" />
+              <AmoraAvatar sizeClassName="size-10" className="mx-auto mb-3" />
               <p className="text-[0.8125rem] text-[var(--hb-text-body)] mb-1">
                 {isDemo ? "로그인 후 이용할 수 있어요" : "온보딩을 완료해주세요"}
               </p>
@@ -1578,9 +1580,7 @@ export default function ChatSidePanel({
                     <X className="w-3 h-3" />
                   </button>
                   <div className="flex items-start gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#C4967E] to-[#C9A96E] flex items-center justify-center flex-shrink-0 mt-0.5">
-                      <Sparkles className="w-3.5 h-3.5 text-white" />
-                    </div>
+                    <AmoraAvatar sizeClassName="size-7" className="mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-[var(--hb-text-strong)] leading-relaxed">
                         혹시 의견 조율이 필요하시면, 아모라가 도와드릴 수 있어요
@@ -1588,9 +1588,9 @@ export default function ChatSidePanel({
                       <button
                         type="button"
                         onClick={openMediationConsent}
-                        className="mt-1.5 inline-flex min-h-11 items-center gap-1.5 rounded-[6px] bg-gradient-to-r from-[#C4967E] to-[#C9A96E] px-3 text-[0.6875rem] font-medium text-white transition-colors hover:shadow-md"
+                        className={`${AMORA_ACTION_CLASS} mt-1.5`}
                       >
-                        <Sparkles className="w-3 h-3" />
+                        <AmoraMark className="size-5 shrink-0" />
                         아모라에게 상담 요청하기
                       </button>
                     </div>
@@ -1671,7 +1671,7 @@ export default function ChatSidePanel({
                         : "text-[var(--hb-text-muted)] hover:text-[var(--hb-text-body)] border border-transparent"
                     }`}
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <AmoraMark className="w-3 h-3" />
                     아모라에게
                   </button>
                   <button

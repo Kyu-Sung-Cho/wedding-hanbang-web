@@ -27,6 +27,7 @@ import {
   BrainCircuit,
   ShieldCheck,
 } from "lucide-react";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -1160,9 +1161,7 @@ export default function SettingsPage() {
           {...weddingLinkProps("/settings/amora-style")}
           className="flex min-h-24 items-center gap-4 px-6 py-5 transition-colors hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--hb-primary)]"
         >
-          <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-[6px] bg-[var(--hb-primary)] shadow-[var(--shadow-raised)]">
-            <Sparkles className="h-5 w-5 text-white" />
-          </span>
+          <AmoraAvatar sizeClassName="size-11" />
           <span className="min-w-0 flex-1">
             <span className="block text-[17px] font-medium text-[var(--hb-text-strong)]">
               아모라 도움 방식

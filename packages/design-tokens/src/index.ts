@@ -1,4 +1,5 @@
 export { colors } from "./colors";
+export { amoraIdentity } from "./amora";
 export type { BrandColor } from "./colors";
 export { fontFamily, fontSize, fontWeight, lineHeight, letterSpacing } from "./typography";
 export { spacing } from "./spacing";

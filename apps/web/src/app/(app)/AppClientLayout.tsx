@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Sparkles } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
+import { AMORA_FAB_CLASS } from "@/components/ui/amoraActionStyles";
 import {
   buildAmoraFirstHello,
   FIRST_RUN_TUTORIAL_COMPLETED_EVENT,
@@ -183,11 +184,11 @@ function GlobalChatAssistant({ aboveBottomNav = false }: { aboveBottomNav?: bool
             ref={launcherRef}
             onClick={openPanel}
             data-tutorial-target="amora-fab"
-            className={`fixed ${aboveBottomNav ? "bottom-[calc(90px+env(safe-area-inset-bottom))]" : "bottom-[calc(1rem+env(safe-area-inset-bottom))]"} right-[calc(1rem+env(safe-area-inset-right))] z-30 flex h-12 w-12 items-center justify-center rounded-full bg-[var(--hb-primary)] text-white shadow-[var(--shadow-raised)] transition-transform hover:-translate-y-0.5 md:bottom-6 md:right-6 md:h-14 md:w-14`}
+            className={`${AMORA_FAB_CLASS} fixed ${aboveBottomNav ? "bottom-[calc(90px+env(safe-area-inset-bottom))]" : "bottom-[calc(1rem+env(safe-area-inset-bottom))]"} right-[calc(1rem+env(safe-area-inset-right))] z-30 h-12 w-12 md:bottom-6 md:right-6 md:h-14 md:w-14`}
             title="아모라 AI 상담"
             aria-label="아모라 AI 상담"
           >
-            <Sparkles className="h-5 w-5 md:h-6 md:w-6" />
+            <AmoraMark className="h-5 w-5 md:h-6 md:w-6" />
             {/* 읽지 않음 표시는 점만으로는 화면 낭독기에 들리지 않는다. */}
             {showBubble && <span className="sr-only">읽지 않은 인사 1개</span>}
             {showBubble && (

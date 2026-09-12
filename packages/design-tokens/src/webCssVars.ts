@@ -1,4 +1,5 @@
 import { colors } from "./colors";
+import { amoraIdentity } from "./amora";
 
 /**
  * 웹 `globals.css`의 색 커스텀 프로퍼티를 **토큰에서 만들어낸다.**
@@ -149,6 +150,11 @@ export const WEB_SEMANTIC_ROLE_VARS: readonly WebCssColorVar[] = [
   { name: "selected-bg", value: colors.rose.pale },
   { name: "selected-text", value: colors.rose[700] },
   { name: "selected-line", value: colors.rose[600] },
+
+  { name: "amora-ink", value: amoraIdentity.ink, section: "역할 — 아모라 표식과 질문" },
+  { name: "amora-line", value: amoraIdentity.line },
+  { name: "amora-surface", value: amoraIdentity.surface },
+  { name: "amora-hover", value: amoraIdentity.hover },
 
   // 초점 링은 파란 펜이다. 잉크와 같은 색으로 두면 어두운 버튼 위에서 링이 사라진다.
   { name: "focus-ring", value: colors.paper.pen, section: "역할 — 초점" },

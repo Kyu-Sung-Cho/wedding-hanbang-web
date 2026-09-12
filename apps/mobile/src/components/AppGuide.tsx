@@ -7,9 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   Heart,
-  MessageCircle,
   Users,
-  Sparkles,
   Wallet,
   CalendarDays,
   ChevronUp,
@@ -20,6 +18,8 @@ import {
   Crown,
 } from "lucide-react-native";
 import { colors, spacing, radius, fontSize } from "@hanbang/design-tokens";
+import AmoraMark from "@/components/ui/AmoraMark";
+import AmoraAvatar from "@/components/ui/AmoraAvatar";
 
 const MAX_GUIDE_WIDTH = 430;
 /**
@@ -89,21 +89,23 @@ function HomeSlide({ mockWidth }: MockSlideProps) {
         {/* 퀵 액션 */}
         <View style={styles.homeQuickRow}>
           {[
-            { icon: MessageCircle, label: "아모라", color: colors.rose[500] },
+            { icon: AmoraMark, label: "아모라", color: colors.rose[500] },
             { icon: Wallet, label: "예산", color: colors.gold.DEFAULT },
             { icon: CalendarDays, label: "일정", color: colors.noir.soft },
           ].map((item) => {
             const Icon = item.icon;
             return (
               <View key={item.label} style={styles.homeQuickItem}>
-                <View
-                  style={[
-                    styles.homeQuickCircle,
-                    { backgroundColor: item.color },
-                  ]}
-                >
-                  <Icon size={18} color="#FFFFFF" />
-                </View>
+                {item.label === "아모라" ? <AmoraAvatar size={44} style={styles.homeQuickCircle} /> : (
+                  <View
+                    style={[
+                      styles.homeQuickCircle,
+                      { backgroundColor: item.color },
+                    ]}
+                  >
+                    <Icon size={18} color="#FFFFFF" />
+                  </View>
+                )}
                 <Text style={styles.homeQuickLabel}>{item.label}</Text>
               </View>
             );
@@ -127,9 +129,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
       <View style={[styles.mockContainer, { width: mockWidth }]}>
         {/* 채팅 헤더 */}
         <View style={styles.chatHeader}>
-          <View style={styles.chatAvatarSmall}>
-            <Sparkles size={12} color="#FFFFFF" />
-          </View>
+          <AmoraAvatar size={28} />
           <Text style={styles.chatHeaderName}>아모라</Text>
           <View style={styles.chatOnlineDot} />
         </View>
@@ -147,9 +147,7 @@ function ChatSlide({ mockWidth }: MockSlideProps) {
 
           {/* AI 메시지 */}
           <View style={styles.chatRowAi}>
-            <View style={styles.chatAiAvatar}>
-              <Sparkles size={10} color="#FFFFFF" />
-            </View>
+            <AmoraAvatar size={24} />
             <View style={styles.chatBubbleAi}>
               <Text style={styles.chatBubbleAiText}>
                 다음 주 토요일 일정에 추가할까요? 확인한 뒤에만 반영해요.
@@ -332,11 +330,9 @@ function StartSlide({ onStart, onNeverShow }: {
 }) {
   return (
     <View style={styles.slideInner}>
-      {/* 스파클 아이콘 */}
+      {/* 아모라 표식 */}
       <View style={styles.startSparkleOuter}>
-        <View style={styles.startSparkleInner}>
-          <Sparkles size={36} color={colors.gold.DEFAULT} />
-        </View>
+        <AmoraAvatar size={80} />
       </View>
 
       <Text style={styles.startTitle}>아모라에게 지금 상황을 말해보세요</Text>
@@ -724,14 +720,6 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     gap: spacing[2],
   },
-  chatAvatarSmall: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: colors.noir[800],
-    alignItems: "center",
-    justifyContent: "center",
-  },
   chatHeaderName: {
     fontSize: fontSize.sm,
     fontFamily: "NotoSansKR_600SemiBold",
@@ -774,14 +762,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-end",
     gap: spacing[2],
-  },
-  chatAiAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.rose[500],
-    alignItems: "center",
-    justifyContent: "center",
   },
   chatBubbleAi: {
     backgroundColor: colors.surface,
@@ -1097,14 +1077,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing[6],
-  },
-  startSparkleInner: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.ivory[200],
-    alignItems: "center",
-    justifyContent: "center",
   },
   startTitle: {
     fontSize: fontSize["3xl"],

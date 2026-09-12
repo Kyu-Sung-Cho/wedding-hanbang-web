@@ -9,6 +9,22 @@
 
 ## Aesthetic Direction
 
+- **Amora identity and question controls (2026-09-12):** The user requested a
+  distinctive, memorable mark and consistent visible borders across features.
+  Amora uses an original ribbon-knot outline, shared from
+  `packages/design-tokens/src/amora.ts` by web and native. This replaces generic
+  sparkles for Amora identity; preparation categories and other semantic icons
+  retain their own symbols. Keep partner hearts and private locks distinct.
+  Avatars use one ivory surface and rose outline/ink at every size. Standalone
+  question controls use the same visible rose border at rest and on hover, with
+  an ivory background, pale-rose hover, 12px radius, and a visible keyboard focus
+  ring. Icon-only web questions are 44px square; text actions are at least 44px
+  high. Navigation retains its selected-state treatment and uses the common mark
+  without an extra frame; floating launchers remain circular. Do not turn inline
+  prose links into large buttons or alter sending, audience, approval, or routing
+  behavior for a visual change. These identity rules supersede earlier sparkle
+  and hover-only question-control treatments.
+
 - **Undecided lounge arrival (2026-09-12):** When no wedding date, preparation
   stage or wedding style has been entered, omit the first-arrival recap and
   generic next-step panels without replacement copy. The existing lounge summary,

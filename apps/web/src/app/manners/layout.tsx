@@ -1,13 +1,14 @@
 import Link from "next/link";
 
-import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, MessageCircle, Settings, Users, Wallet } from "lucide-react";
+import { BookOpen, CalendarCheck, ClipboardCheck, LayoutDashboard, Settings, Users, Wallet } from "lucide-react";
+import AmoraMark from "@/components/ui/AmoraMark";
 import { weddingLinkProps } from "@/lib/weddingPaths";
 import AmoraBottomNav from "@/components/app/amora/AmoraBottomNav";
 
 // 공개 읽기 화면은 인증 상태를 요청하거나 사용자·일정·알림을 가정하지 않는다.
 const SERVICE_LINKS = [
   { href: "/lounge", label: "웨딩 라운지", icon: LayoutDashboard },
-  { href: "/chat", label: "아모라", icon: MessageCircle },
+  { href: "/chat", label: "아모라", icon: AmoraMark },
   { href: "/checklist", label: "웨딩 체크리스트", icon: ClipboardCheck },
   { href: "/schedule", label: "일정", icon: CalendarCheck },
   { href: "/budget", label: "예산", icon: Wallet },

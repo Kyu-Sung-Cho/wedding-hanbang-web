@@ -1,7 +1,8 @@
 "use client";
 
+import AmoraMark from "@/components/ui/AmoraMark";
+
 import { useRef, useState, useEffect, useCallback } from "react";
-import { Sparkles } from "lucide-react";
 
 interface SuggestionButtonsProps {
   suggestions: string[];
@@ -86,7 +87,7 @@ export default function SuggestionButtons({
     <div className="relative">
       {/* 라벨 — 시각적 구분 강화 */}
       <div className="flex items-center gap-1.5 px-1 mb-2">
-        <Sparkles className="w-3.5 h-3.5 text-[var(--hb-accent-hover)]" />
+        <AmoraMark className="w-3.5 h-3.5 text-[var(--hb-amora-ink)]" />
         <span className="text-xs text-[var(--hb-text-muted)] font-medium">
           추천 대화
         </span>
