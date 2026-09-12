@@ -63,10 +63,27 @@ describe("저장함의 실제 영수증과 편집 범위", () => {
   });
 
   it.each([false, undefined])("AI 출처가 확인되지 않은 저장 원문은 바꾸지 않는다: %s", async sourceIsAi => {
-    const content = '{"total_budget":35000000,"total_allocated":34000000} 이렇게 적었어요.';
+    const content = '**직접 쓴 원문**\n> 3,500만 원\n{"total_budget":35000000,"total_allocated":34000000} 이렇게 적었어요.';
     vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [{ ...note, sourceIsAi, content }] }));
     await render();
     expect(container.textContent).toContain(content);
+    expect(container.querySelector("li strong, li table")).toBeNull();
+  });
+
+  it("AI 저장 답변만 안전하게 서식화하고 사용자가 쓴 메모는 그대로 둔다", async () => {
+    const content = '총예산: **3,500만 원**\n\n| 항목 | 금액 |\n| --- | --- |\n| 신혼여행 | **800만 원** |\n\n> 견적을 함께 확인해 주세요.\n<script>alert(1)</script>\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}';
+    const memo = '**내 메모** > {"total_budget":35000000}';
+    vi.mocked(fetch).mockResolvedValueOnce(response({ notes: [{ ...note, sourceIsAi: true, content, memo }] }));
+    await render();
+    const item = container.querySelector("li")!;
+    expect(Array.from(item.querySelectorAll("strong"), element => element.textContent)).toEqual(["3,500만 원", "800만 원"]);
+    expect(Array.from(item.querySelectorAll("td"), element => element.textContent)).toEqual(["신혼여행", "800만 원"]);
+    expect(item.querySelector("p table, p div, script, img, iframe")).toBeNull();
+    expect(item.textContent).toContain("견적을 함께 확인해 주세요.");
+    expect(item.textContent).toContain("<script>alert(1)</script>");
+    expect(item.textContent).not.toContain("저장된 도구 결과");
+    expect(button(memo)).toBeDefined();
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it.each([{ updated: false }, { updated: true, id: "wrong" }, {}])("200의 잘못된 수정 영수증에서 메모를 보존한다: %j", async receipt => {

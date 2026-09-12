@@ -99,6 +99,46 @@ describe("공유 답변을 저장함에 담기", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  it("저장 미리보기는 금액 강조·표·인용을 대화와 같이 표시하고 HTML과 내부 도구는 실행하지 않는다", async () => {
+    await render({ content: '총예산: **3,500만 원**\n\n| 항목 | 금액 |\n| --- | --- |\n| 신혼여행 | **800만 원** |\n\n- 견적 다시 확인\n> 두 분이 함께 확인해 주세요.\n<img src=x onerror="alert(1)">\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000}' });
+    const dialog = await open();
+    const preview = dialog.querySelector('[aria-label="저장할 답변 원문"]')!;
+    expect(Array.from(preview.querySelectorAll("strong"), element => element.textContent)).toEqual(["3,500만 원", "800만 원"]);
+    expect(Array.from(preview.querySelectorAll("td"), element => element.textContent)).toEqual(["신혼여행", "800만 원"]);
+    expect(preview.textContent).toContain("견적 다시 확인");
+    expect(preview.textContent).toContain("두 분이 함께 확인해 주세요.");
+    expect(preview.textContent).toContain('<img src=x onerror="alert(1)">');
+    expect(preview.textContent).not.toMatch(/\*\*|\| ---|> 두 분|저장된 도구|total_budget/);
+    expect(preview.querySelector("img, script, iframe, a")).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("원문 4,000자 미리보기 경계에서 이모지를 반쪽으로 표시하지 않는다", async () => {
+    const visible = "가".repeat(3_999) + "💐끝";
+    await render({ content: visible });
+    const dialog = await open();
+    const preview = dialog.querySelector('[aria-label="저장할 답변 원문"]')!;
+    expect(preview.textContent).toBe("가".repeat(3_999));
+    expect(dialog.textContent).toContain("긴 답변은 앞 4,000자까지 저장돼요.");
+    expect(preview.textContent).not.toContain("\uD83D");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("원문의 저장 경계 밖 문장은 미리보기에 넣지 않고 잘린 내부 출력도 숨긴다", async () => {
+    const opening = "총예산은 3,500만 원이에요.";
+    const beyondLimit = "이 뒤의 안내는 원문 4,000자 밖에 있어요.";
+    const content = opening + '\n[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]\n{"total_budget":35000000,"categories":[{"label":"' + "긴 내부 데이터".repeat(600) + '"}]}\n' + beyondLimit;
+    await render({ content });
+    expect(container.textContent).toContain(beyondLimit);
+    const dialog = await open();
+    const preview = dialog.querySelector('[aria-label="저장할 답변 원문"]')!;
+    expect(preview.textContent).toBe(opening);
+    expect(preview.textContent).not.toMatch(/저장된 도구|total_budget|categories|긴 내부 데이터/);
+    expect(preview.textContent).not.toContain(beyondLimit);
+    expect(dialog.textContent).toContain("긴 답변은 앞 4,000자까지 저장돼요.");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("원문은 보내지 않고 메시지 ID와 선택한 공유 메모만 보내며 saved true 뒤에 링크를 보여준다", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({ saved: true, id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", memoApplied: true }), { status: 200 }));
     await render();
