@@ -54,6 +54,8 @@ export function loadChatFeedbackNullabilityReleasePlan(repoRoot) {
     && !/\b(?:INSERT INTO|UPDATE public|DELETE FROM|TRUNCATE|CREATE POLICY|GRANT|REVOKE)\b/i.test(text),
   'CHAT_FEEDBACK_SQL_SCOPE_CHANGED');
   return { contract, contractSha256: digest(bytes), migrationSha256: digest(sql), migrationCount: reviewed.length,
+    followupMigrations: [...parent.migrations, ...predecessor.migrations, ...contract.migrations]
+      .map(({ file }) => ({ file, version: file.slice(0, 14) })),
     staticVerified: true, productionApplyImplemented: true, runtimeEvidenceVerified: false,
     releaseAuthorized: false, remoteWritesPerformed: false };
 }

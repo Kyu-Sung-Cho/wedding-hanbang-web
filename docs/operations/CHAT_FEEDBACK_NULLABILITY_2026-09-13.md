@@ -104,4 +104,28 @@ HTTP 오류·중간 응답 손실·사후 불일치는 성공으로 표시하지
 기존 lockfile과 로컬 store의 `--offline --frozen-lockfile --ignore-scripts` 설치로 해결했다.
 다운로드 0건이며 다른 worktree의 node_modules나 lockfile은 변경하지 않았다.
 
+### PR 397의 운영 빌드 경계 보완
+
+GitHub CI에서 `VERCEL_ENV=production`일 때 새 229번째 SQL을 구 explicit-budget 계약에
+넘겨 거절하는 실제 빌드 결함을 발견했다. 같은 조건의 웹 검사 2파일에서 기존 4건 실패를
+재현했다(`feedback-production-build-guard-red.log`). 앞선 합성 로컬 build는
+`VERCEL_ENV`를 제거하므로 이 운영 전용 설정 경계를 실행하지 않았다.
+
+운영 빌드 선택기와 공통 successor 검증기에 `chat-feedback-nullability`를 명시 등록했다.
+기존 loader가 원문을 검증한 예산 후속 2건과 이번 SQL 1건만 정확한 순서로 허용한다.
+기존 228개 핀, 기본·구 mode의 미등록 SQL 거절, 소유자의 정확한 manifest 해시 승인,
+`controllerReady=false`와 `releaseAuthorized=false`는 유지한다. 새 계약이 변조되거나
+사라져도 구 경로로 검증을 우회하지 않는다. SQL·runtime adapter·정적 계약 원문은 변경하지 않았다.
+
+- 기존 실패와 변조·계약 삭제·추가 SQL 회귀: 웹 2파일 37검사 PASS.
+  `feedback-production-build-guard-green.log`.
+- 직접 영향을 받는 기존/신규 정적 계약: 5파일 96검사 PASS.
+  `feedback-production-followup-contracts.log`.
+- 웹 typecheck와 변경된 웹 파일 ESLint PASS.
+  `feedback-production-followup-typecheck.log`, `feedback-production-followup-eslint.log`.
+- 실제 `apps/web/next.config.ts`를 Next의 `PHASE_PRODUCTION_BUILD` loader로 읽었다.
+  `VERCEL_ENV=production`에서 정확한 소유자 해시는 통과하고 누락·다른 해시는 각각 기존
+  승인 오류로 거절됐다. `feedback-actual-next-production-config.json`.
+  이는 실제 설정 경계의 검사이며 전체 build 재실행·Vercel 배포·운영 SQL 적용 증거는 아니다.
+
 실제 운영 저장 성공 여부와 새 SQL 적용 영수증은 아직 없으므로 W04 운영 종결로 표시하지 않는다.

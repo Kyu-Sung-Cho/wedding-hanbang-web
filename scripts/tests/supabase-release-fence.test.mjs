@@ -63,6 +63,7 @@ async function createFixture() {
     join(root, "scripts/lib/supabase-successor-release-contract.mjs"),
   );
   for (const dependency of [
+    "chat-feedback-nullability-release-contract.mjs",
     "amora-explicit-budget-release-contract.mjs",
     "amora-budget-decision-release-contract.mjs",
     "amora-budget-decision-effective-release-contract.mjs",
