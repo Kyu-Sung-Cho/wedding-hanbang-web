@@ -25,13 +25,12 @@ beforeAll(() => {
 afterAll(() => fixture?.cleanup());
 
 describe("production accepts only the explicit 232 expand successor", () => {
-  it("validates the actual checkout and fixture without treating static success as runtime or full-restore proof", () => {
-    for (const root of [repoRoot, fixture.root]) {
-      const plan = loadCustomerDataReleasePlan(root);
-      expect(plan.migrationCount).toBe(232); expect(plan.runtimeEvidenceVerified).toBe(false); expect(plan.releaseAuthorized).toBe(false);
-      expect(() => production(root)).not.toThrow();
-      expect(() => validateSuccessorReleaseContract({ repoRoot: root, followup: "profile-avatar" })).toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
-    }
+  it.each(["checkout", "fixture"] as const)("validates %s without treating static success as runtime or full-restore proof", source => {
+    const root = source === "checkout" ? repoRoot : fixture.root;
+    const plan = loadCustomerDataReleasePlan(root);
+    expect(plan.migrationCount).toBe(232); expect(plan.runtimeEvidenceVerified).toBe(false); expect(plan.releaseAuthorized).toBe(false);
+    expect(() => production(root)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({ repoRoot: root, followup: "profile-avatar" })).toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
   });
   it.each(pins)("cannot fall back when a registered artifact is missing or changed: %s", file => {
     const path = join(fixture.root, file), bytes = readFileSync(path);
