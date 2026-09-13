@@ -35,6 +35,8 @@ interface ChatBubbleProps {
   senderName?: string | null;
   /** 현재 소유자/파트너의 sender_id를 확인한 표시 역할. 권한 슬롯과 무관하다. */
   senderConfirmedRole?: "bride" | "groom" | null;
+  /** 현재 상대의 작성자 ID를 대조한 호출부만 전달한다. */
+  senderAvatarUrl?: string | null;
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
   onNegativeFeedback?: (message: ChatMessage) => void;
@@ -500,6 +502,7 @@ export default function ChatBubble({
   isCurrentUser,
   senderName = null,
   senderConfirmedRole = null,
+  senderAvatarUrl = null,
   isRecentAi = false,
   onNegativeFeedback,
 }: ChatBubbleProps) {
@@ -666,7 +669,7 @@ export default function ChatBubble({
   return (
     <div className="flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
       {/* 아바타 — 모바일 작게 */}
-      <ProfileAvatar name={senderLabel} size={28} className="sm:size-8" />
+      <ProfileAvatar name={senderLabel} avatarUrl={message.sender_id ? senderAvatarUrl : null} size={28} className="sm:size-8" />
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">

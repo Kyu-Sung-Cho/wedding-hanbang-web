@@ -323,11 +323,26 @@ describe("/api/profile PATCH", () => {
     const response = await PATCH(createProfilePatchRequest("새 이름"));
     expect(response.status).toBe(200);
     const body = await response.json();
-    expect(body.profile).toMatchObject({id:"user-1",name:"새 이름",role:"bride",avatar_url:"unchanged"});
+    expect(body.profile).toMatchObject({id:"user-1",name:"새 이름",role:"bride"});
+    expect(body.profile).not.toHaveProperty("avatar_url");
     if (available) expect(body.profile).toMatchObject({confirmed_role:"groom",confirmed_role_revision:"r1"});
     else expect(body.profile).not.toHaveProperty("confirmed_role");
   });
 
+  it.each([false, true])("uses the private avatar snapshot when editing the name; lookup failed=%s", async failed => {
+    const owner="11111111-1111-4111-8111-111111111111", revision="22222222-2222-4222-8222-222222222222";
+    mockAuthClient({id:owner});
+    const admin=mockAdminClient({});
+    admin.rpc.mockImplementation(async (name:string)=> name==="read_profile_avatar_snapshot"
+      ? {data:failed?null:[{user_id:owner,kind:"photo",emoji:null,object_path:`${owner}/${revision}.webp`,revision,updated_at:"2026-09-13T00:00:00Z"}],error:failed?{code:"offline"}:null}
+      : {data:{profile:{id:owner,name:"New Name",avatar_url:"https://untrusted.invalid/stale.jpg"},community_profile_synced:false},error:null});
+    const response=await PATCH(createProfilePatchRequest("New Name"));
+    expect(response.status).toBe(200); const body=await response.json();
+    expect(body.profile.name).toBe("New Name");
+    if(failed) expect(body.profile).not.toHaveProperty("avatar_url");
+    else expect(body.profile.avatar_url).toBe(`/api/profile/avatar/image?userId=${owner}&version=${revision}`);
+    expect(JSON.stringify(body)).not.toContain("untrusted.invalid");
+  });
   it("commits a mixed profile patch through one atomic database call", async () => {
     const profile = {
       id: "user-1",

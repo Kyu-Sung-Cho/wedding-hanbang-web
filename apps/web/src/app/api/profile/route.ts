@@ -13,6 +13,7 @@ import {
 } from "@/lib/features/amoraCareFlags";
 import { checkRateLimit, rateLimitKey } from "@/utils/rateLimit";
 import { isTrustedMutationRequest } from "@/utils/trustedMutation";
+import { readOptionalProfileAvatars } from "@/lib/profileAvatar";
 import {
   cleanOptionalKoreanMobile,
   cleanOptionalText,
@@ -310,8 +311,14 @@ export async function PATCH(request: Request) {
     }
 
     const confirmedRole = (await readOptionalProfileWeddingRoles(getAdminClient, user.id)).get(user.id);
+    const avatars = await readOptionalProfileAvatars(admin, [user.id]);
+    const avatar = avatars.get(user.id);
+    // 이름 변경 RPC의 옛 avatar_url 값은 정본이 아니다. 선택 기능 조회 실패 시 필드 자체를 생략한다.
+    const updatedProfile = { ...patchResult.profile };
+    delete updatedProfile.avatar_url;
     return profileReadResponse({
-      profile: { ...patchResult.profile, ...(confirmedRole ? { confirmed_role: confirmedRole.confirmed_role, confirmed_role_revision: confirmedRole.revision } : {}) },
+      profile: { ...updatedProfile, ...(avatar ? { avatar_url: avatar.avatar_url } : {}),
+        ...(confirmedRole ? { confirmed_role: confirmedRole.confirmed_role, confirmed_role_revision: confirmedRole.revision } : {}) },
       communityProfileSynced: patchResult.community_profile_synced,
       communityNickname:
         typeof patchResult.community_nickname === "string"

@@ -124,6 +124,53 @@ describe("useAuthStore", () => {
       expect(state.isDemo).toBe(false);
     });
 
+    it.each(["/api/profile/avatar/image?userId=u1&version=new", null])("keeps an avatar saved during auth initialization: %s", async (avatarUrl) => {
+      const profile = { id: "u1", name: "이전 이름", couple_id: "c1", role: "bride", avatar_url: "🌷", care_notifications_enabled: true };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: profile as never, isInitialized: true });
+      let finish!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+
+      const pending = useAuthStore.getState().initialize({ force: true });
+      useAuthStore.setState({ profile: { ...profile, avatar_url: avatarUrl } as never });
+      finish({ ok: true, json: async () => ({ user: { id: "u1", email: "test@example.com" },
+        profile: { ...profile, name: "서버 이름", care_notifications_enabled: false }, couple: null, partner: null, journey: null }) });
+      await pending;
+
+      expect(useAuthStore.getState().profile).toMatchObject({ avatar_url: avatarUrl, name: "서버 이름", care_notifications_enabled: false });
+    });
+
+    it("accepts the remote avatar when only another local profile field changed during initialization", async () => {
+      const profile = { id: "u1", name: "이전 이름", couple_id: "c1", role: "bride", avatar_url: "🌷" };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: profile as never, isInitialized: true });
+      let finish!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const pending = useAuthStore.getState().initialize({ force: true });
+      useAuthStore.setState({ profile: { ...profile, name: "변경한 이름" } as never });
+      finish({ ok: true, json: async () => ({ user: { id: "u1", email: "test@example.com" },
+        profile: { ...profile, name: "변경한 이름", avatar_url: "🌸" }, couple: null, partner: null, journey: null }) });
+      await pending;
+      expect(useAuthStore.getState().profile?.avatar_url).toBe("🌸");
+    });
+
+    it.each(["different user", "new binding with the same user"])("does not carry a saved avatar into %s during initialization", async (scenario) => {
+      const profile = { id: "u1", name: "이전 계정", couple_id: "c1", role: "bride", avatar_url: "🌷" };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: profile as never, isInitialized: true });
+      let finish!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const pending = useAuthStore.getState().initialize({ force: true });
+      const nextId = scenario === "different user" ? "u2" : "u1";
+      useAuthStore.setState({ user: { id: "u2", email: "other@example.com" }, profile: { ...profile, id: "u2", avatar_url: "💐" } as never });
+      if (scenario === "new binding with the same user") {
+        useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: { ...profile, avatar_url: "🌸" } as never });
+      }
+      const serverProfile = { ...profile, id: nextId, avatar_url: "🤍", care_notifications_enabled: false };
+      finish({ ok: true, json: async () => ({ user: { id: nextId, email: "verified@example.com" },
+        profile: serverProfile, couple: null, partner: null, journey: null }) });
+      await pending;
+      expect(useAuthStore.getState().profile).toEqual(serverProfile);
+      expect(useAuthStore.getState().user?.id).toBe(nextId);
+    });
+
     it("does not let a late initialize response replace a newer journey refresh", async () => {
       useAuthStore.setState({
         user: { id: "u1", email: "test@example.com" },
@@ -220,6 +267,33 @@ describe("useAuthStore", () => {
       const state = useAuthStore.getState();
       expect(state.isDemo).toBe(false);
       expect(state.user?.id).toBe("real-user");
+    });
+  });
+
+  describe.each(["initialize", "refreshJourney"] as const)("%s avatar projection", (operation) => {
+    it.each([
+      { label: "unavailable lookup", fields: {}, partnerId: "p1", expectedOwn: "🌷", expectedPartner: "💐" },
+      { label: "explicit initial reset", fields: { avatar_url: null }, partnerId: "p1", expectedOwn: null, expectedPartner: null },
+      { label: "new partner", fields: {}, partnerId: "p2", expectedOwn: "🌷", expectedPartner: undefined },
+    ])("handles $label without sharing a former partner's avatar", async ({ fields, partnerId, expectedOwn, expectedPartner }) => {
+      const profile = { id: "u1", name: "이전 이름", couple_id: "c1", role: "bride", avatar_url: "🌷" };
+      useAuthStore.setState({ user: { id: "u1", email: "test@example.com" }, profile: profile as never,
+        partner: { id: "p1", name: "상대", couple_id: "c1", role: "groom", avatar_url: "💐" },
+        couple: { id: "c1" } as never, journey: { id: "j1", couple_id: "c1" } as never, isInitialized: true });
+      let finish!: (value: unknown) => void;
+      mockFetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+      const pending = operation === "initialize"
+        ? useAuthStore.getState().initialize({ force: true })
+        : useAuthStore.getState().refreshJourney("u1");
+      useAuthStore.setState({ profile: { ...profile, name: "변경한 이름" } as never });
+      finish({ ok: true, json: async () => ({ user: { id: "u1", email: "test@example.com" },
+        profile: { id: "u1", name: "변경한 이름", couple_id: "c1", role: "bride", ...fields },
+        partner: { id: partnerId, name: "상대", couple_id: "c1", role: "groom", ...fields },
+        couple: { id: "c1" }, journey: { id: "j1", couple_id: "c1" } }) });
+      await pending;
+      expect(useAuthStore.getState().profile?.avatar_url).toBe(expectedOwn);
+      expect(useAuthStore.getState().partner?.id).toBe(partnerId);
+      expect(useAuthStore.getState().partner?.avatar_url).toBe(expectedPartner);
     });
   });
 
@@ -807,6 +881,35 @@ describe("useAuthStore", () => {
   // ─── updateProfile() ───
 
   describe("updateProfile()", () => {
+    it("keeps the latest avatar when optional avatar lookup is unavailable", async () => {
+      useAuthStore.setState({ user: { id: "u1", email: "a@example.invalid" }, profile: { id: "u1", name: "old", avatar_url: "🌷" } as never });
+      mockFetch.mockResolvedValue({ ok: true, json: async () => ({ profile: { id: "u1", name: "new" } }) });
+      await useAuthStore.getState().updateProfile({ name: "new" });
+      expect(useAuthStore.getState().profile).toMatchObject({ name: "new", avatar_url: "🌷" });
+    });
+
+    it("does not revert a photo selected while the name PATCH was pending", async () => {
+      let finish!: (value: unknown) => void;
+      useAuthStore.setState({ profile: { id: "u1", name: "old", avatar_url: "🌷" } as never });
+      mockFetch.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      const pending = useAuthStore.getState().updateProfile({ name: "new" });
+      useAuthStore.setState({ profile: { id: "u1", name: "old", avatar_url: "🌸" } as never });
+      finish({ ok: true, json: async () => ({ profile: { id: "u1", name: "new", avatar_url: "🌷" } }) });
+      await pending;
+      expect(useAuthStore.getState().profile).toMatchObject({ name: "new", avatar_url: "🌸" });
+    });
+
+    it("rejects a stale profile PATCH after switching accounts", async () => {
+      let finish!: (value: unknown) => void;
+      useAuthStore.setState({ user: { id: "u1", email: "a@example.invalid" }, profile: { id: "u1", name: "old", avatar_url: "🌷" } as never });
+      mockFetch.mockReturnValue(new Promise((resolve) => { finish = resolve; }));
+      const pending = useAuthStore.getState().updateProfile({ name: "new", sync_community_nickname: true });
+      useAuthStore.setState({ user: { id: "u2", email: "b@example.invalid" }, profile: { id: "u2", name: "other", avatar_url: null } as never });
+      finish({ ok: true, json: async () => ({ profile: { id: "u1", name: "new" } }) });
+      await expect(pending).rejects.toThrow("계정 상태가 바뀌었어요");
+      expect(useAuthStore.getState().profile).toMatchObject({ id: "u2", name: "other", avatar_url: null });
+    });
+
     it("updates name locally in demo mode", async () => {
       useAuthStore.setState({
         isDemo: true,

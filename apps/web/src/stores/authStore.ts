@@ -170,7 +170,7 @@ export type JourneyUpdateResult =
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
-  partner: Pick<Profile, "id" | "name" | "role" | "couple_id" | "confirmed_role" | "confirmed_role_revision"> | null;
+  partner: (Pick<Profile, "id" | "name" | "role" | "couple_id" | "confirmed_role" | "confirmed_role_revision"> & { avatar_url?: string | null }) | null;
   couple: Couple | null;
   journey: WeddingJourney | null;
   isLoading: boolean;
@@ -214,6 +214,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const initializeJourneySequence = ++journeyWriteSequence;
     const initializeRoleProfile = get().profile;
     const initializeRolePartner = get().partner;
+    const initializeProfileSequence = profileWriteSequence;
+    const initializeBindingSequence = authBindingSequence;
+    const initializeAvatarUrl = get().profile?.avatar_url;
 
     // 서버 레이아웃이 HttpOnly 서명까지 검증한 데모 세션은 다시 원격 Auth에
     // 물어보지 않는다. 네트워크가 느리거나 끊겨도 체험 화면은 즉시 열려야 한다.
@@ -259,6 +262,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const current = get();
           const sameUser = current.user?.id === data.user.id;
           const preserveNewerJourney = sameUser && initializeJourneySequence !== journeyWriteSequence;
+          const sameBinding = sameUser && !current.isDemo && initializeBindingSequence === authBindingSequence;
+          const responseProfile = data.profile as Profile | null | undefined;
+          const responsePartner = data.partner as AuthState["partner"] | undefined;
+          // 조회 중 저장한 사진만 보존한다. 생략은 조회 실패이고 명시 null은 기본값 복귀다.
+          const preserveAvatar = sameBinding && responseProfile && current.profile
+            && responseProfile.id === current.profile.id && responseProfile.id === data.user.id
+            && (!Object.prototype.hasOwnProperty.call(responseProfile, "avatar_url")
+              || (initializeProfileSequence !== profileWriteSequence
+                && current.profile.avatar_url !== initializeAvatarUrl
+                && responseProfile.couple_id === current.profile.couple_id
+                && responseProfile.role === current.profile.role));
+          const nextProfile = responseProfile ? { ...responseProfile,
+            ...(preserveAvatar && current.profile ? { avatar_url: current.profile.avatar_url } : {}),
+          } : null;
+          const nextPartner = sameBinding && responsePartner && current.partner && responsePartner.id === current.partner.id
+            && responsePartner.couple_id === current.partner.couple_id
+            ? { ...responsePartner,
+              ...(!Object.prototype.hasOwnProperty.call(responsePartner, "avatar_url") ? { avatar_url: current.partner.avatar_url } : {}),
+            } : responsePartner ?? null;
           const nextJourney =
             (
               initializeJourneySequence === journeyWriteSequence
@@ -275,9 +297,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             user: data.user,
             // 최신 준비 정보와 소유 프로필은 하나의 스냅샷이다. 늦은 초기화가
             // 예산만 보존하고 예전 커플 프로필을 되살리지 않게 함께 보존한다.
-            profile: preserveNewerJourney ? current.profile : retainConfirmedRole(data.profile ?? null, current.profile, roleChanged(current.profile, initializeRoleProfile)),
+            profile: preserveNewerJourney ? current.profile : retainConfirmedRole(nextProfile, current.profile, roleChanged(current.profile, initializeRoleProfile)),
             couple: preserveNewerJourney ? current.couple : data.couple ?? null,
-            partner: preserveNewerJourney ? current.partner : retainConfirmedRole(data.partner ?? null, current.partner, roleChanged(current.partner, initializeRolePartner), true),
+            partner: preserveNewerJourney ? current.partner : retainConfirmedRole(nextPartner, current.partner, roleChanged(current.partner, initializeRolePartner), true),
             journey: nextJourney,
             isDemo: false,
             isLoading: false,
@@ -365,6 +387,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const refreshBindingSequence = authBindingSequence;
     const refreshRoleProfile = get().profile;
     const refreshRolePartner = get().partner;
+    const refreshAvatarUrl = get().profile?.avatar_url;
     const { isDemo, user } = get();
     if (isDemo) return true;
     const identityToPreserve = expectedUserId ?? user?.id ?? null;
@@ -460,11 +483,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const confirmedRoleProfile = retainConfirmedRole(verifiedProfile, current.profile, roleChanged(current.profile, refreshRoleProfile));
       // 설정 화면의 직접 저장도 관찰한다. 대기 중 저장한 프로필 값은 보존하되,
       // 검증된 새 커플 연결은 준비 정보와 같은 응답에서 함께 반영한다.
-      const refreshedProfile = verifiedProfile && current.profile && refreshProfileSequence !== profileWriteSequence
+      const refreshedProfileBase = verifiedProfile && current.profile && refreshProfileSequence !== profileWriteSequence
         ? { ...verifiedProfile, ...current.profile, couple_id: verifiedProfile.couple_id, role: verifiedProfile.role,
           confirmed_role: confirmedRoleProfile?.confirmed_role, confirmed_role_revision: confirmedRoleProfile?.confirmed_role_revision }
         : confirmedRoleProfile;
-      const refreshedPartner = (refreshed.partner ?? null) as AuthState["partner"];
+      const refreshedProfile = verifiedProfile && current.profile && verifiedProfile.id === current.profile.id
+        ? { ...refreshedProfileBase, avatar_url:
+          !Object.prototype.hasOwnProperty.call(verifiedProfile, "avatar_url")
+            || (refreshProfileSequence !== profileWriteSequence && current.profile.avatar_url !== refreshAvatarUrl)
+            ? current.profile.avatar_url : verifiedProfile.avatar_url }
+        : refreshedProfileBase;
+      const verifiedPartner = responsePartner as AuthState["partner"] | undefined;
+      const refreshedPartner = verifiedPartner && current.partner && verifiedPartner.id === current.partner.id
+        && verifiedPartner.couple_id === current.partner.couple_id
+        ? { ...verifiedPartner,
+          ...(!Object.prototype.hasOwnProperty.call(verifiedPartner, "avatar_url") ? { avatar_url: current.partner.avatar_url } : {}),
+        } : verifiedPartner ?? null;
       set({
         journey: refreshed.journey ?? null,
         ...(responseProfile !== undefined ? { profile: refreshedProfile as Profile | null } : {}),
@@ -646,7 +680,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: async (updates) => {
     const { isDemo, profile } = get();
-    const updateBindingSequence = authBindingSequence;
+    const expectedBindingSequence = authBindingSequence;
 
     if (isDemo) {
       const nextProfile = profile ? { ...profile, ...updates } : null;
@@ -670,14 +704,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (!res.ok) {
         throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
-      if (data.profile) {
-        const current = get();
-        if (updateBindingSequence !== authBindingSequence || current.profile?.id !== profile?.id || data.profile.id !== profile?.id || current.isDemo) return;
-        set({ profile: retainConfirmedRole(data.profile, current.profile, roleChanged(current.profile, profile)) });
+      const current = get();
+      if (expectedBindingSequence !== authBindingSequence || current.profile?.id !== profile?.id || current.isDemo) {
+        throw new Error("계정 상태가 바뀌었어요. 현재 프로필을 다시 확인해 주세요.");
+      }
+      if (data.profile && data.profile.id === profile?.id && current.profile) {
+        // 선택 기능 조회 실패나 이름 저장 중 새로 고른 사진으로 기존 아바타를 되돌리지 않는다.
+        const preserveAvatar = !Object.prototype.hasOwnProperty.call(data.profile, "avatar_url")
+          || current.profile.avatar_url !== profile.avatar_url;
+        const nextProfile = { ...data.profile, ...(preserveAvatar ? { avatar_url: current.profile.avatar_url ?? null } : {}) };
+        set({ profile: retainConfirmedRole(nextProfile, current.profile, roleChanged(current.profile, profile)) });
         if (updates.sync_community_nickname) {
           useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
         }
-      }
+      } else throw new Error("프로필 저장 결과를 확인하지 못했어요.");
     } catch (err) {
       console.error("Profile 업데이트 에러:", err);
       throw err;

@@ -3281,6 +3281,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                         ? partner.name
                         : null
                     }
+                    senderAvatarUrl={msg.sender_id && msg.sender_id === partner?.id ? partner.avatar_url : null}
                     isRecentAi={recentAiIds.has(msg.id)}
                     onNegativeFeedback={markCommunityFallbackAvailable}
                   />
@@ -3364,7 +3365,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
           const label = typingIsPartner ? (partner?.name ?? "파트너") : "파트너";
           return (
             <div className="animate-fade-in flex items-center gap-2 px-3">
-              <ProfileAvatar name={label} size={36} />
+              <ProfileAvatar name={label} avatarUrl={typingIsPartner ? partner?.avatar_url : null} size={36} />
               <div className="bg-white border border-black/[0.06] rounded-[6px] rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
                 <span className="text-[13px] text-[var(--hb-text-muted)]">{label} 입력 중</span>
                 <span className="flex items-center gap-0.5">

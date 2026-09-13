@@ -123,6 +123,15 @@ function harness(options: {
 }
 
 describe("account deletion Storage worker", () => {
+  it("cleans private avatar paths and waits for active upload registration before Auth deletion", async () => {
+    const path = `${USER_ID}/77777777-7777-4777-8777-777777777777.webp`;
+    const test = harness({ manifest: [manifest({ bucket: "profile-avatars", path, source: "profile_avatar" })] });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    expect(test.remove).toHaveBeenCalledWith([path]);
+    const waiting = harness({ manifest: [manifest({ bucket: "profile-avatars", path, source: "profile_avatar", not_before: new Date(NOW + 60_000).toISOString() })] });
+    expect(await processAccountDeletionJob(waiting.admin as never, JOB_ID, NOW)).toEqual({ status: "pending" });
+    expect(waiting.remove).not.toHaveBeenCalled(); expect(waiting.deleteUser).not.toHaveBeenCalled();
+  });
   it("absence-checks every exact path before crossing the Auth deletion boundary", async () => {
     const test = harness();
 
@@ -136,6 +145,7 @@ describe("account deletion Storage worker", () => {
       "storage.remove",
       "storage.exists",
       "checkpoint_account_deletion_media",
+      "storage.list",
       "storage.list",
       "storage.list",
       "storage.list",
@@ -263,6 +273,7 @@ describe("account deletion Storage worker", () => {
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({ data: [], error: null })
+      .mockResolvedValueOnce({ data: [], error: null })
       .mockResolvedValueOnce({
         data: [{ name: "77777777-7777-4777-8777-777777777777", id: null }],
         error: null,
@@ -336,7 +347,7 @@ describe("account deletion Storage worker", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
     const select = vi.fn(() => ({ eq }));
     const deleteUser = vi.fn();
     const admin = {

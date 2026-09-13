@@ -31,6 +31,7 @@ import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
 import DeletionSupportProofControl from "@/components/app/settings/DeletionSupportProofControl";
 import ProfileWeddingRoleEditor from "@/components/app/settings/ProfileWeddingRoleEditor";
+import ProfileAvatarEditor from "@/components/app/settings/ProfileAvatarEditor";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -626,7 +627,7 @@ export default function SettingsPage() {
         className="bg-white rounded-[6px] shadow-[var(--shadow-raised)] p-5 sm:p-8 mb-6"
       >
         <div className="flex flex-wrap items-center gap-4 mb-3">
-          <ProfileAvatar name={userName} size={80} />
+          <ProfileAvatar name={userName} avatarUrl={profile?.avatar_url} size={80} />
           <div className="min-w-0 flex-1 basis-40">
             {editingName ? (
               <div>
@@ -671,6 +672,8 @@ export default function SettingsPage() {
             <ProfileWeddingRoleEditor />
           </div>
         </div>
+
+        <ProfileAvatarEditor />
 
         <div className="grid grid-cols-3 gap-4 max-md:grid-cols-1 max-lg:grid-cols-2">
           {/* 결혼 예정일 */}
@@ -952,7 +955,7 @@ export default function SettingsPage() {
 
           {phase === "linked" ? (
             <div className="flex items-center gap-3 p-4 rounded-[6px] bg-white shadow-sm">
-              <ProfileAvatar name={partnerName} size={48} />
+              <ProfileAvatar name={partnerName} avatarUrl={partner?.avatar_url} size={48} />
               <div className="flex-1">
                 <p className="text-base text-[var(--hb-text-strong)] font-medium">{partnerName ?? "파트너"}</p>
                 <p className="text-sm text-[#2E7D5A]">{partnerRole ? `${partnerRole} · ` : ""}연동 완료</p>

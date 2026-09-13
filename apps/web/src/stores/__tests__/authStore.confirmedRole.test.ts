@@ -32,7 +32,8 @@ describe("name edit preserves role ownership",()=>{
     if(scenario==="late save") useAuthStore.setState({profile:{...profile,confirmed_role:"bride",confirmed_role_revision:R2}});
     if(scenario==="account switch") useAuthStore.setState({user:{id:"other",email:"other@example.invalid"},profile:{...profile,id:"other"}});
     finish(new Response(JSON.stringify({profile:{id:A,name:"새 이름",role:"bride",couple_id:C,...(scenario==="late save"?{confirmed_role:"groom",confirmed_role_revision:R1}:{})}})));
-    await pending;
+    if(scenario==="account switch") await expect(pending).rejects.toThrow("계정 상태가 바뀌었어요.");
+    else await pending;
     expect(useAuthStore.getState().profile?.id).toBe(scenario==="account switch"?"other":A);
     expect(useAuthStore.getState().profile?.confirmed_role).toBe(scenario==="late save"?"bride":"groom");
     expect(useAuthStore.getState().profile?.confirmed_role_revision).toBe(scenario==="late save"?R2:R1);

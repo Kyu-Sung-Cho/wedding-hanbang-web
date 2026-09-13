@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { getWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
 import { readOptionalProfileWeddingRoles } from "@/lib/profileWeddingRole";
+import { readOptionalProfileAvatars } from "@/lib/profileAvatar";
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -237,9 +238,18 @@ export async function GET(request: Request) {
     const roles = await readOptionalProfileWeddingRoles(createAdminClient, user.id);
     const ownRole = roles.get(user.id);
     const partnerRole = partner ? roles.get(partner.id) : undefined;
-    const profileResponse = { ...profile, ...(ownRole ? { confirmed_role: ownRole.confirmed_role, confirmed_role_revision: ownRole.revision } : {}) };
-    const partnerResponse = partner ? { ...partner, ...(partnerRole && partnerRole.couple_id === profile.couple_id && partnerRole.couple_id === partner.couple_id
+    const avatars = await readOptionalProfileAvatars(admin, [user.id, ...(partner?.id ? [partner.id] : [])]);
+    const profileResponse: Record<string, unknown> = { ...profile, ...(ownRole ? { confirmed_role: ownRole.confirmed_role, confirmed_role_revision: ownRole.revision } : {}) };
+    delete profileResponse.avatar_url;
+    const ownAvatar = avatars.get(user.id);
+    if (ownAvatar) { profileResponse.avatar_url = ownAvatar.avatar_url; }
+    const partnerResponse: Record<string, unknown> | null = partner ? { ...partner, ...(partnerRole && partnerRole.couple_id === profile.couple_id && partnerRole.couple_id === partner.couple_id
       ? { confirmed_role: partnerRole.confirmed_role, confirmed_role_revision: partnerRole.revision } : {}) } : null;
+    if (partnerResponse && partner) {
+      delete partnerResponse.avatar_url;
+      const partnerAvatar = avatars.get(partner.id);
+      if (partnerAvatar) { partnerResponse.avatar_url = partnerAvatar.avatar_url; }
+    }
 
     return NextResponse.json(
       {

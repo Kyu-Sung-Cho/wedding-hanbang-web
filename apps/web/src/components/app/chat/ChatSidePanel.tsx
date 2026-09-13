@@ -1504,6 +1504,7 @@ export default function ChatSidePanel({
                         message={msg}
                         senderConfirmedRole={msg.sender_id && msg.sender_id === profile?.id
                           ? profile.confirmed_role : msg.sender_id && msg.sender_id === partner?.id ? partner.confirmed_role : null}
+                        senderAvatarUrl={msg.sender_id && msg.sender_id === partner?.id ? partner.avatar_url : null}
                         isCurrentUser={isCurrentUser}
                         senderName={
                           msg.sender_id && msg.sender_id === partner?.id
