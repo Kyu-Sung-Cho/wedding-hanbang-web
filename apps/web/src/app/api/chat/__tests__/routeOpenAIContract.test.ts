@@ -7414,6 +7414,53 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } finally { if (added) mocks.safeTools.pop(); }
   });
 
+  it("builds a partial budget approval from the exact user amounts when the model emits a malformed marker", async () => {
+    const actualStage = await vi.importActual<typeof import("@/lib/ai/stage-router")>("@/lib/ai/stage-router");
+    vi.mocked(routeSpecialist).mockImplementationOnce(actualStage.routeSpecialist);
+    vi.mocked(matchedSpecialistByKeyword).mockImplementationOnce(actualStage.matchedSpecialistByKeyword);
+    const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(candidate => candidate.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    const text = "신혼여행 예산은 8,001,000원, 예비비·사용처 미정은 1,999,000원으로 배분해줘. 두 항목만 바꾸고 기존 총예산, 나머지 항목, 기록 지출과 분담은 유지해줘. 아직 적용하지 말고 변경 확인 카드를 먼저 보여줘.";
+    mocks.journeyRow.total_budget = 35_000_000;
+    mocks.journeyStateRevision = 7;
+    mocks.journeyRow.progress = {
+      venue: { budget: 24_000_000, spent: 123_000, payer: "both", status: "in_progress" },
+      honeymoon: { budget: 8_000_000, spent: 0, payer: "groom", status: "not_started" },
+      reserve: { budget: 2_000_000, spent: 0, payer: "bride", status: "not_started" },
+    };
+    const before = structuredClone(mocks.journeyRow);
+    try {
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "[ pending_action 필요 ]" }));
+      const response = await POST(request({ messages: [{ role: "user", content: text }], weddingContext: { budget: 1, progress: {} } }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      const saved = mocks.atomicResponses.at(-1)!;
+      expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: {
+        total_budget: 35_000_000, allocation_mode: "explicit", allocations: [
+          { category: "honeymoon", budget: 8_001_000 },
+          { category: "reserve", budget: 1_999_000 },
+        ],
+      } });
+      expect(saved.metadata.pending_amora_action_journey_revision).toBe(7);
+      expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ sourceRevision: 7,
+        current: { totalBudget: 35_000_000, allocatedBudget: 34_000_000, recordedSpend: 123_000, unallocatedBudget: 1_000_000 },
+        proposed: { totalBudget: 35_000_000, allocatedBudget: 34_000_000, recordedSpend: 123_000, unallocatedBudget: 1_000_000 },
+      });
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+      expect(saved.metadata.pending_action_dropped).toBeUndefined();
+      expect(saved.content).not.toContain("확인 카드로 만들지 못했어요");
+      expect(saved.content).not.toContain("pending_action");
+      const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+      const done = events.find(event => event.type === "done");
+      expect(done?.fullContent).toBe(saved.content);
+      expect(done?.metadata.pending_amora_action).toEqual(saved.metadata.pending_amora_action);
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
   it.each([true, false])("uses canonical current journey custom labels, ignoring contradictory client context (existing=%s)", async (existing) => {
     const actual = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
     const definition = actual.WEDDING_TOOLS.find(candidate => candidate.name === "apply_budget_plan")!;
