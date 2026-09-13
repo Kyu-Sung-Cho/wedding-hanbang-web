@@ -14,6 +14,15 @@ export const CHAT_FEEDBACK_SCHEMA_CHANGE = 'column:public.chat_feedback.message_
 // 기존 228개 원문과 그 전신의 모든 구현/관측 핀을 보존한다. 새 SQL 한 건만 CI에 등록한다.
 // 과거 운영 관측을 새 SQL의 실행·복구 증거로 사용하지 않는다. 이 함수는 로컬 검증만 수행한다.
 export function loadChatFeedbackNullabilityReleasePlan(repoRoot) {
+  return loadPlan(repoRoot, true);
+}
+
+// 후속 계약의 고정 전신 검증만 수행한다. 기존 공개 229 모드의 목록 검사를 완화하지 않는다.
+export function loadChatFeedbackHistoricalReleasePlan(repoRoot) {
+  return loadPlan(repoRoot, false);
+}
+
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes = pinnedArtifact(repoRoot, { file: CHAT_FEEDBACK_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const contract = JSON.parse(bytes);
   requireRelease(contract.version === 1 && contract.kind === 'chat-feedback-nullability-static-successor'
@@ -41,7 +50,7 @@ export function loadChatFeedbackNullabilityReleasePlan(repoRoot) {
   const history = [...predecessor.reviewedLocalHistory.migrations, ...predecessor.migrations];
   requireRelease(history.length === 228, 'CHAT_FEEDBACK_HISTORY_CHANGED');
   const reviewed = [...history, ...contract.migrations].sort((a, b) => a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(),
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(),
     reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` });
   const sql = pinnedArtifact(repoRoot, { ...contract.migrations[0], file: `supabase/migrations/${MIGRATION_FILE}` });
@@ -53,7 +62,7 @@ export function loadChatFeedbackNullabilityReleasePlan(repoRoot) {
     && text.match(/ALTER TABLE public\.chat_feedback ALTER COLUMN message_id DROP NOT NULL;/g)?.length === 1
     && !/\b(?:INSERT INTO|UPDATE public|DELETE FROM|TRUNCATE|CREATE POLICY|GRANT|REVOKE)\b/i.test(text),
   'CHAT_FEEDBACK_SQL_SCOPE_CHANGED');
-  return { contract, contractSha256: digest(bytes), migrationSha256: digest(sql), migrationCount: reviewed.length,
+  return { contract, contractSha256: digest(bytes), migrationSha256: digest(sql), migrationCount: reviewed.length, reviewedMigrations: reviewed,
     followupMigrations: [...parent.migrations, ...predecessor.migrations, ...contract.migrations]
       .map(({ file }) => ({ file, version: file.slice(0, 14) })),
     staticVerified: true, productionApplyImplemented: true, runtimeEvidenceVerified: false,

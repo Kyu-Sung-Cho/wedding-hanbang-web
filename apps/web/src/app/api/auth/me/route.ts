@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
 import { hasSignedDemoSessionFromCookieHeader } from "@/lib/demoSession";
 import { getWebSignupConsentAccess } from "@/lib/auth/signupConsentAccess";
+import { readOptionalProfileWeddingRoles } from "@/lib/profileWeddingRole";
 
 const PRIVATE_NO_STORE_HEADERS = {
   "Cache-Control": "private, no-store, max-age=0",
@@ -233,12 +234,19 @@ export async function GET(request: Request) {
       }
     }
 
+    const roles = await readOptionalProfileWeddingRoles(createAdminClient, user.id);
+    const ownRole = roles.get(user.id);
+    const partnerRole = partner ? roles.get(partner.id) : undefined;
+    const profileResponse = { ...profile, ...(ownRole ? { confirmed_role: ownRole.confirmed_role, confirmed_role_revision: ownRole.revision } : {}) };
+    const partnerResponse = partner ? { ...partner, ...(partnerRole && partnerRole.couple_id === profile.couple_id && partnerRole.couple_id === partner.couple_id
+      ? { confirmed_role: partnerRole.confirmed_role, confirmed_role_revision: partnerRole.revision } : {}) } : null;
+
     return NextResponse.json(
       {
         user: { id: user.id, email: user.email },
-        profile,
+        profile: profileResponse,
         couple,
-        partner,
+        partner: partnerResponse,
         journey,
         capabilities,
         ...(includeDebug && Object.keys(_debug).length > 0 ? { _debug } : {}),

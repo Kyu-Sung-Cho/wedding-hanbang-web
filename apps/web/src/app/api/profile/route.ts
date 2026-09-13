@@ -1,5 +1,6 @@
 import { createAdminClient as createPinnedAdminClient } from "@/lib/supabase/admin";
 import { log } from "@/utils/log";
+import { readOptionalProfileWeddingRoles } from "@/lib/profileWeddingRole";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 import {
@@ -308,8 +309,9 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "프로필 저장에 실패했습니다." }, { status: 500 });
     }
 
+    const confirmedRole = (await readOptionalProfileWeddingRoles(getAdminClient, user.id)).get(user.id);
     return profileReadResponse({
-      profile: patchResult.profile,
+      profile: { ...patchResult.profile, ...(confirmedRole ? { confirmed_role: confirmedRole.confirmed_role, confirmed_role_revision: confirmedRole.revision } : {}) },
       communityProfileSynced: patchResult.community_profile_synced,
       communityNickname:
         typeof patchResult.community_nickname === "string"

@@ -9,6 +9,9 @@ export interface Profile {
   name: string;
   email?: string;
   role: UserRole | null;
+  /** 본인이 선택한 표시 역할. 가입 슬롯이나 접근 권한에는 사용하지 않는다. */
+  confirmed_role?: UserRole | null;
+  confirmed_role_revision?: string | null;
   couple_id: string | null;
   avatar_url: string | null;
   onboarding_completed: boolean;

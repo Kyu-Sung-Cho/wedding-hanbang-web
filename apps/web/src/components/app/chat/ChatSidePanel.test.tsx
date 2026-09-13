@@ -55,6 +55,8 @@ const mocks = vi.hoisted(() => ({
     created_at: string;
   }>,
   profileId: "user-1" as string | null,
+  confirmedRole: null as "bride" | "groom" | null,
+  partner: null as null | { id: string; name: string; couple_id: string; confirmed_role: "bride" | "groom" | null },
   coupleId: "couple-1" as string | null,
   hasLinkedPartner: true,
   isDemo: false,
@@ -89,6 +91,7 @@ vi.mock("@/stores/authStore", () => ({
         ? {
             id: currentUserId,
             role: mocks.profileRole,
+            confirmed_role: mocks.confirmedRole,
             name: "테스트",
             couple_id: mocks.coupleId,
           }
@@ -105,6 +108,7 @@ vi.mock("@/stores/authStore", () => ({
           }
         : null,
       journey: null,
+      partner: mocks.partner,
       isDemo: mocks.isDemo,
     };
   },
@@ -157,7 +161,7 @@ vi.mock("@/stores/chatStore", () => {
 });
 
 vi.mock("./ChatBubble", () => ({
-  default: ({ message }: { message: { content: string } }) => <div>{message.content}</div>,
+  default: ({ message, senderConfirmedRole }: { message: { id: string; content: string }; senderConfirmedRole?: string | null }) => <div data-role-message={message.id} data-confirmed-role={senderConfirmedRole ?? ""}>{message.content}</div>,
 }));
 vi.mock("./ActionCard", () => ({ default: () => <div /> }));
 vi.mock("./VendorToolCard", () => ({
@@ -203,6 +207,8 @@ describe("ChatSidePanel attachment sending", () => {
       userMessageId: "demo-sidepanel-message",
     });
     mocks.profileId = "user-1";
+    mocks.partner = null;
+    mocks.confirmedRole = null;
     mocks.coupleId = "couple-1";
     mocks.hasLinkedPartner = true;
     mocks.isDemo = false;
@@ -247,6 +253,15 @@ describe("ChatSidePanel attachment sending", () => {
       root.render(<ChatSidePanel isOpen onClose={vi.fn()} />);
       await new Promise((resolve) => window.setTimeout(resolve, 20));
     });
+  });
+
+  it.each(["user-1", "partner-groom", "former-partner", null])("현재 본인·상대의 확정 역할만 전달한다: %s", async senderId => {
+    mocks.confirmedRole = "groom";
+    mocks.partner = { id: "partner-groom", name: "상대", couple_id: "couple-1", confirmed_role: "bride" };
+    mocks.messages = [{ id: "role-binding", couple_id: "couple-1", sender_id: senderId, sender_role: "groom", visibility: "shared", content: "안녕하세요", metadata: {}, created_at: "2026-09-13T00:00:00Z" }];
+    await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
+    expect(container.querySelector('[data-role-message="role-binding"]')?.getAttribute("data-confirmed-role"))
+      .toBe(senderId === "user-1" ? "groom" : senderId === "partner-groom" ? "bride" : "");
   });
 
   afterEach(async () => {

@@ -10,7 +10,11 @@ import { loadExplicitBudgetHotfixRelease } from '../lib/amora-explicit-budget-re
 import { digest } from '../lib/current-baseline-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+import { createChatFeedbackHistoricalRepository } from './fixtures/chat-feedback-historical-repository.mjs';
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createChatFeedbackHistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root = historical.root;
 const mode = '--chat-feedback-nullability';
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args], {
   cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000,
@@ -19,6 +23,7 @@ const output = result => `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
 const code = expected => error => error?.code === expected;
 
 test('only the named successor accepts exactly 228 original SQL files plus the one nullable widening', () => {
+  assert.throws(() => loadChatFeedbackNullabilityReleasePlan(actualRoot), code('NEW_MIGRATION_NOT_REVIEWED'));
   const plan = loadChatFeedbackNullabilityReleasePlan(root);
   assert.equal(plan.migrationCount, 229);
   assert.deepEqual(plan.contract.allowedSchemaChanges, [CHAT_FEEDBACK_SCHEMA_CHANGE]);
@@ -42,8 +47,8 @@ test('new raw contract and SQL bytes are identical to their Git canonical LF byt
     const bytes = readFileSync(join(root, file));
     assert.equal(bytes.includes(13), false, file);
     assert.equal(digest(bytes), sha256);
-    const raw = spawnSync('git', ['hash-object', '--no-filters', file], { cwd: root, encoding: 'utf8', windowsHide: true });
-    const canonical = spawnSync('git', ['hash-object', `--path=${file}`, file], { cwd: root, encoding: 'utf8', windowsHide: true });
+    const raw = spawnSync('git', ['hash-object', '--no-filters', join(root,file)], { cwd: actualRoot, encoding: 'utf8', windowsHide: true });
+    const canonical = spawnSync('git', ['hash-object', `--path=${file}`, join(root,file)], { cwd: actualRoot, encoding: 'utf8', windowsHide: true });
     assert.equal(raw.status, 0, output(raw));
     assert.equal(canonical.status, 0, output(canonical));
     assert.equal(raw.stdout.trim(), canonical.stdout.trim(), file);

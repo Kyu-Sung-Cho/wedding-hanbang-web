@@ -3273,6 +3273,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                 ) : (
                   <ChatBubble
                     message={msg}
+                    senderConfirmedRole={msg.sender_id && msg.sender_id === profile?.id
+                      ? profile.confirmed_role : msg.sender_id && msg.sender_id === partner?.id ? partner.confirmed_role : null}
                     isCurrentUser={isCurrentUser}
                     senderName={
                       msg.sender_id && msg.sender_id === partner?.id

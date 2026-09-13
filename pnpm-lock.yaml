@@ -32,7 +32,7 @@ patchedDependencies:
   decode-uri-component@0.5.0: 3ba3b498a32611d0575a24d50f842a4bedfa4dc291c5eab844c5cff1ca195299
   image-size@1.2.1: f9e567365b361973203afd3770649abca32f8ff012258928f0e7ba42315c458f
   minimatch@3.1.5: eccb9ecd4c288fb40991dd0c1a03b94699748424d4a15ace8b25facb539e27dc
-  next@16.3.4: e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1
+  next@16.3.4: ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73
 
 importers:
 
@@ -40,7 +40,7 @@ importers:
     devDependencies:
       '@sentry/nextjs':
         specifier: ^10.66.0
-        version: 10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0)
+        version: 10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0)
       '@supabase/supabase-js':
         specifier: ^2.95.3
         version: 2.103.0
@@ -296,7 +296,7 @@ importers:
         version: 1.12.0
       next:
         specifier: 16.3.4
-        version: 16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+        version: 16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       openai:
         specifier: 6.46.0
         version: 6.46.0(ws@8.21.0)(zod@4.3.6)
@@ -330,7 +330,7 @@ importers:
         version: 0.5.4
       '@sentry/nextjs':
         specifier: ^10.66.0
-        version: 10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0(esbuild@0.28.1))
+        version: 10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0(esbuild@0.28.1))
       '@tailwindcss/postcss':
         specifier: ^4
         version: 4.2.2
@@ -10066,7 +10066,7 @@ snapshots:
     dependencies:
       '@sentry/core': 10.66.0
 
-  '@sentry/nextjs@10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0(esbuild@0.28.1))':
+  '@sentry/nextjs@10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0(esbuild@0.28.1))':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@rollup/plugin-commonjs': 28.0.1(rollup@4.62.2)
@@ -10080,7 +10080,7 @@ snapshots:
       '@sentry/server-utils': 10.66.0
       '@sentry/vercel-edge': 10.66.0
       '@sentry/webpack-plugin': 5.4.0(rollup@4.62.2)(webpack@5.106.0(esbuild@0.28.1))
-      next: 16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      next: 16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       rollup: 4.62.2
       stacktrace-parser: 0.1.11
     transitivePeerDependencies:
@@ -10092,7 +10092,7 @@ snapshots:
       - supports-color
       - webpack
 
-  '@sentry/nextjs@10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0)':
+  '@sentry/nextjs@10.66.0(@opentelemetry/core@2.9.0(@opentelemetry/api@1.9.1))(@opentelemetry/sdk-trace-base@2.9.0(@opentelemetry/api@1.9.1))(next@16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)(webpack@5.106.0)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@rollup/plugin-commonjs': 28.0.1(rollup@4.62.2)
@@ -10106,7 +10106,7 @@ snapshots:
       '@sentry/server-utils': 10.66.0
       '@sentry/vercel-edge': 10.66.0
       '@sentry/webpack-plugin': 5.4.0(rollup@4.62.2)(webpack@5.106.0)
-      next: 16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      next: 16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       rollup: 4.62.2
       stacktrace-parser: 0.1.11
     transitivePeerDependencies:
@@ -13925,7 +13925,7 @@ snapshots:
 
   nested-error-stacks@2.0.1: {}
 
-  next@16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  next@16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.39)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       '@next/env': 16.3.4
       '@swc/helpers': 0.5.23
@@ -13952,7 +13952,7 @@ snapshots:
       - '@types/node'
       - babel-plugin-macros
 
-  next@16.3.4(patch_hash=e98e65d682087d4c7639e9b0bd86180997bbe85b9ffd259f4ad9d647738986e1)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
+  next@16.3.4(patch_hash=ce96285013dd0e6ed4f25e19cb0ded483b7d3e36e296f56895b0be95f139cb73)(@opentelemetry/api@1.9.1)(@types/node@20.19.43)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
       '@next/env': 16.3.4
       '@swc/helpers': 0.5.23

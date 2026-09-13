@@ -22,6 +22,8 @@ const DEMO_PROFILE: Profile = {
   role: "bride",
   couple_id: "demo-couple",
   avatar_url: null,
+  confirmed_role: null,
+  confirmed_role_revision: null,
   onboarding_completed: true,
   onboarding_step: 5,
   is_admin: false,
@@ -133,6 +135,16 @@ let journeyWriteSequence = 0;
 let profileWriteSequence = 0;
 let authBindingSequence = 0;
 let authInitializeSequence = 0;
+type RoleProjection = Pick<Profile, "id" | "couple_id" | "confirmed_role" | "confirmed_role_revision">;
+function roleChanged(current: RoleProjection | null, baseline: RoleProjection | null) {
+  return current?.confirmed_role !== baseline?.confirmed_role || current?.confirmed_role_revision !== baseline?.confirmed_role_revision;
+}
+function retainConfirmedRole<T extends RoleProjection>(incoming: T | null | undefined, current: T | null, newer = false, partner = false): T | null | undefined {
+  if (!incoming || !current || incoming.id !== current.id || (partner && incoming.couple_id !== current.couple_id)) return incoming;
+  if (!Object.prototype.hasOwnProperty.call(incoming, "confirmed_role") || newer) return { ...incoming,
+    confirmed_role: current.confirmed_role, confirmed_role_revision: current.confirmed_role_revision };
+  return incoming;
+}
 const PLAN_CHANGE_REQUEST_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -158,7 +170,7 @@ export type JourneyUpdateResult =
 interface AuthState {
   user: { id: string; email: string } | null;
   profile: Profile | null;
-  partner: Pick<Profile, "id" | "name" | "role" | "couple_id"> | null;
+  partner: Pick<Profile, "id" | "name" | "role" | "couple_id" | "confirmed_role" | "confirmed_role_revision"> | null;
   couple: Couple | null;
   journey: WeddingJourney | null;
   isLoading: boolean;
@@ -200,6 +212,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (get().isInitialized && !options?.force) return;
     const initializeSequence = ++authInitializeSequence;
     const initializeJourneySequence = ++journeyWriteSequence;
+    const initializeRoleProfile = get().profile;
+    const initializeRolePartner = get().partner;
 
     // 서버 레이아웃이 HttpOnly 서명까지 검증한 데모 세션은 다시 원격 Auth에
     // 물어보지 않는다. 네트워크가 느리거나 끊겨도 체험 화면은 즉시 열려야 한다.
@@ -261,9 +275,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             user: data.user,
             // 최신 준비 정보와 소유 프로필은 하나의 스냅샷이다. 늦은 초기화가
             // 예산만 보존하고 예전 커플 프로필을 되살리지 않게 함께 보존한다.
-            profile: preserveNewerJourney ? current.profile : data.profile ?? null,
+            profile: preserveNewerJourney ? current.profile : retainConfirmedRole(data.profile ?? null, current.profile, roleChanged(current.profile, initializeRoleProfile)),
             couple: preserveNewerJourney ? current.couple : data.couple ?? null,
-            partner: preserveNewerJourney ? current.partner : data.partner ?? null,
+            partner: preserveNewerJourney ? current.partner : retainConfirmedRole(data.partner ?? null, current.partner, roleChanged(current.partner, initializeRolePartner), true),
             journey: nextJourney,
             isDemo: false,
             isLoading: false,
@@ -349,6 +363,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const refreshSequence = ++journeyWriteSequence;
     const refreshProfileSequence = profileWriteSequence;
     const refreshBindingSequence = authBindingSequence;
+    const refreshRoleProfile = get().profile;
+    const refreshRolePartner = get().partner;
     const { isDemo, user } = get();
     if (isDemo) return true;
     const identityToPreserve = expectedUserId ?? user?.id ?? null;
@@ -441,16 +457,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         && Number.isSafeInteger(current.journey.state_revision)
         && refreshed.journey.state_revision < current.journey.state_revision) return false;
       const verifiedProfile = responseProfile as Profile | null | undefined;
+      const confirmedRoleProfile = retainConfirmedRole(verifiedProfile, current.profile, roleChanged(current.profile, refreshRoleProfile));
       // 설정 화면의 직접 저장도 관찰한다. 대기 중 저장한 프로필 값은 보존하되,
       // 검증된 새 커플 연결은 준비 정보와 같은 응답에서 함께 반영한다.
       const refreshedProfile = verifiedProfile && current.profile && refreshProfileSequence !== profileWriteSequence
-        ? { ...verifiedProfile, ...current.profile, couple_id: verifiedProfile.couple_id, role: verifiedProfile.role }
-        : verifiedProfile;
+        ? { ...verifiedProfile, ...current.profile, couple_id: verifiedProfile.couple_id, role: verifiedProfile.role,
+          confirmed_role: confirmedRoleProfile?.confirmed_role, confirmed_role_revision: confirmedRoleProfile?.confirmed_role_revision }
+        : confirmedRoleProfile;
+      const refreshedPartner = (refreshed.partner ?? null) as AuthState["partner"];
       set({
         journey: refreshed.journey ?? null,
         ...(responseProfile !== undefined ? { profile: refreshedProfile as Profile | null } : {}),
         ...("partner" in refreshed
-          ? { partner: (refreshed.partner ?? null) as AuthState["partner"] }
+          ? { partner: retainConfirmedRole(refreshedPartner, current.partner, roleChanged(current.partner, refreshRolePartner), true) }
           : {}),
         ...("couple" in refreshed
           ? { couple: (refreshed.couple ?? null) as AuthState["couple"] }
@@ -627,6 +646,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   updateProfile: async (updates) => {
     const { isDemo, profile } = get();
+    const updateBindingSequence = authBindingSequence;
 
     if (isDemo) {
       const nextProfile = profile ? { ...profile, ...updates } : null;
@@ -651,7 +671,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         throw new Error(data.error ?? "프로필 업데이트에 실패했습니다.");
       }
       if (data.profile) {
-        set({ profile: data.profile });
+        const current = get();
+        if (updateBindingSequence !== authBindingSequence || current.profile?.id !== profile?.id || data.profile.id !== profile?.id || current.isDemo) return;
+        set({ profile: retainConfirmedRole(data.profile, current.profile, roleChanged(current.profile, profile)) });
         if (updates.sync_community_nickname) {
           useCommunityStore.getState().applyOwnNickname(data.profile.id, data.profile.name);
         }

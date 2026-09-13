@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createClientFromRequest } from "@/lib/supabase/server";
 import { createClient } from "@supabase/supabase-js";
 import { GET, PATCH } from "../route";
+const roleRead = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/profileWeddingRole", () => ({ readOptionalProfileWeddingRoles: roleRead }));
 
 vi.mock("@/lib/supabase/server", () => ({
   createClientFromRequest: vi.fn(),
@@ -163,6 +165,7 @@ function createProfilePatchRequest(
 describe("/api/profile GET", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    roleRead.mockResolvedValue(new Map());
     vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
     mockAuthClient();
   });
@@ -309,8 +312,20 @@ describe("/api/profile GET", () => {
 describe("/api/profile PATCH", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    roleRead.mockResolvedValue(new Map());
     vi.stubEnv("AMORA_CARE_OUTBOUND_ENABLED", "true");
     mockAuthClient();
+  });
+
+  it.each([true, false])("preserves optional explicit role while editing a name (lookup available: %s)", async available => {
+    mockAdminClient({}, {data:{profile:{id:"user-1",name:"새 이름",role:"bride",avatar_url:"unchanged"},community_profile_synced:false},error:null});
+    roleRead.mockResolvedValue(new Map(available ? [["user-1",{user_id:"user-1",confirmed_role:"groom",revision:"r1",couple_id:null}]] : []));
+    const response = await PATCH(createProfilePatchRequest("새 이름"));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.profile).toMatchObject({id:"user-1",name:"새 이름",role:"bride",avatar_url:"unchanged"});
+    if (available) expect(body.profile).toMatchObject({confirmed_role:"groom",confirmed_role_revision:"r1"});
+    else expect(body.profile).not.toHaveProperty("confirmed_role");
   });
 
   it("commits a mixed profile patch through one atomic database call", async () => {

@@ -29,6 +29,8 @@ import {
 } from "lucide-react";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
+import DeletionSupportProofControl from "@/components/app/settings/DeletionSupportProofControl";
+import ProfileWeddingRoleEditor from "@/components/app/settings/ProfileWeddingRoleEditor";
 import { useAuthStore } from "@/stores/authStore";
 import { useCommunityStore } from "@/stores/communityStore";
 import { useNotificationPrefs } from "@/hooks/useNotifications";
@@ -579,12 +581,7 @@ export default function SettingsPage() {
 
   const userName = profile?.name ?? "사용자";
   const userEmail = user?.email ?? profile?.email ?? "";
-  // 중립 준비 공간에서는 role이 항상 채워지지만 사용자가 고른 값이 아니다.
-  // 빈 문자열 폴백은 role이 null일 때만 발동하므로 여기서는 죽은 코드다.
-  const usesNeutralMembers = couple?.member_model_version === 2;
-  const userRole = usesNeutralMembers
-    ? ""
-    : profile?.role === "bride" ? "신부" : profile?.role === "groom" ? "신랑" : "";
+  const userRole = profile?.confirmed_role === "bride" ? "신부" : profile?.confirmed_role === "groom" ? "신랑" : "";
 
   const weddingDate = journey?.wedding_date ? new Date(journey.wedding_date) : null;
   const dateStr = weddingDate
@@ -598,9 +595,7 @@ export default function SettingsPage() {
   const venueStr = venue && venue.trim().length > 0 ? venue : "미정";
 
   const partnerName = partner?.name;
-  const partnerRole = usesNeutralMembers
-    ? ""
-    : partner?.role === "bride" ? "신부" : partner?.role === "groom" ? "신랑" : "";
+  const partnerRole = partner?.confirmed_role === "bride" ? "신부" : partner?.confirmed_role === "groom" ? "신랑" : "";
 
   return (
     <div className="max-w-[700px] mx-auto bg-[#FAFAF8]">
@@ -673,6 +668,7 @@ export default function SettingsPage() {
               </div>
             )}
             <p className="break-all text-base text-[var(--hb-text-body)] font-light mt-1">{userEmail}</p>
+            <ProfileWeddingRoleEditor />
           </div>
         </div>
 
@@ -1442,6 +1438,10 @@ export default function SettingsPage() {
 
               {deleteError && (
                 <p className="text-sm text-red-500 text-center mb-4">{deleteError}</p>
+              )}
+
+              {deletionIntakeOpen !== true && user && !isDemo && (
+                <DeletionSupportProofControl key={user.id} ownerId={user.id} />
               )}
 
               {deletionIntakeOpen === true ? <button

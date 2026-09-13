@@ -47,6 +47,8 @@ const mocks = vi.hoisted(() => ({
   streamingContent: "",
   quotaRemaining: null as number | null,
   profileRole: "bride" as "bride" | "groom" | null,
+  confirmedRole: null as "bride" | "groom" | null,
+  partner: null as null | { id: string; name: string; couple_id: string; confirmed_role: "bride" | "groom" | null },
   profileId: "user-1",
   coupleId: "couple-1",
   partnerLinked: true,
@@ -77,6 +79,7 @@ vi.mock("@/stores/authStore", () => ({
     profile: {
       id: mocks.profileId,
       role: mocks.profileRole,
+      confirmed_role: mocks.confirmedRole,
       name: "테스트",
       couple_id: mocks.coupleId,
     },
@@ -85,6 +88,7 @@ vi.mock("@/stores/authStore", () => ({
       bride_id: mocks.profileId,
       groom_id: mocks.partnerLinked ? "user-2" : null,
     },
+    partner: mocks.partner,
     journey: null,
     isDemo: mocks.isDemo,
     isInitialized: true,
@@ -158,7 +162,7 @@ vi.mock("@/stores/chatStore", () => {
   return { useChatStore };
 });
 
-vi.mock("./ChatBubble", () => ({ default: () => <div /> }));
+vi.mock("./ChatBubble", () => ({ default: ({message,senderConfirmedRole}:{message:{id:string};senderConfirmedRole?:string|null}) => <div data-role-message={message.id} data-confirmed-role={senderConfirmedRole ?? ""} /> }));
 vi.mock("./ActionCard", () => ({ default: () => <div /> }));
 vi.mock("./VendorToolCard", () => ({
   default: ({ onSend }: { onSend?: (text: string) => void }) => (
@@ -223,6 +227,8 @@ describe("전체 페이지 대화에서도 아모라의 첫마디를 만난다",
     mocks.quotaRemaining = null;
     mocks.profileRole = "bride";
     mocks.profileId = "user-1";
+    mocks.partner = null;
+    mocks.confirmedRole = null;
     mocks.coupleId = "couple-1";
     mocks.partnerLinked = true;
     mocks.partnerTyping = null;
@@ -236,6 +242,15 @@ describe("전체 페이지 대화에서도 아모라의 첫마디를 만난다",
     document.body.appendChild(container);
     root = createRoot(container);
     HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
+  it.each(["user-1", "user-2", "former-partner", null])("현재 본인·상대의 확정 역할만 전달한다: %s", async senderId => {
+    mocks.confirmedRole = "groom";
+    mocks.partner = { id: "user-2", name: "상대", couple_id: "couple-1", confirmed_role: "bride" };
+    mocks.messages = [{ id: "role-binding", couple_id: "couple-1", sender_id: senderId, sender_role: "groom", visibility: "shared", content: "안녕하세요", metadata: {}, created_at: "2026-09-13T00:00:00Z" }];
+    await render();
+    expect(container.querySelector('[data-role-message="role-binding"]')?.getAttribute("data-confirmed-role"))
+      .toBe(senderId === "user-1" ? "groom" : senderId === "user-2" ? "bride" : "");
   });
 
   afterEach(async () => {
