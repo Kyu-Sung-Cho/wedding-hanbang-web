@@ -1,8 +1,11 @@
-import test from 'node:test';import assert from 'node:assert/strict';
+import test, {after as afterTests} from 'node:test';import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';import {join,resolve} from 'node:path';import {tmpdir} from 'node:os';import {createHash} from 'node:crypto';
 import {parseProfileAvatarReleaseArgs,runProfileAvatarRelease,appendProfileAvatarReceipt} from '../lib/profile-avatar-release.mjs';
 import {buildProfileAvatarObservationSql,expectedProfileAvatarCatalog,validateProfileAvatarObservation} from '../lib/profile-avatar-catalog.mjs';
-const root=resolve(import.meta.dirname,'../..'),read=file=>readFileSync(join(root,file),'utf8');
+import {createProfileAvatarHistoricalRepository} from './fixtures/profile-avatar-historical-repository.mjs';
+const historical=createProfileAvatarHistoricalRepository(resolve(import.meta.dirname,'../..')),root=historical.root;
+afterTests(historical.cleanup);
+const read=file=>readFileSync(join(root,file),'utf8');
 const context={sql:read('supabase/migrations/20260913082314_private_profile_avatars_delivery.sql'),previousSql:read('supabase/migrations/20260716113000_account_deletion_storage_saga.sql'),
  fixture:JSON.parse(read('supabase/release-contracts/profile-avatar-pg17-catalog-v1.json')),predecessorSql:read('supabase/migrations/20260913075045_profile_wedding_roles.sql')};
 const instant=new Date('2026-09-13T09:00:00Z'),commit='a'.repeat(40),project='slrtobkksjmxgzatjyqb';

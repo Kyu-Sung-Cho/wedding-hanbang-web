@@ -605,6 +605,7 @@ async function markManualReview(
 }
 
 const MANUAL_REVIEW_CODES = new Set([
+  "customer_data_scope_review_required",
   "inventory_input_invalid",
   "unsafe_inventory_name",
   "storage_inventory_malformed",
@@ -853,6 +854,19 @@ export async function processAccountDeletionJob(
     if (job.status !== "deleting" && job.status !== "auth_deleting") {
       await releaseClaim(admin, job.id, claimToken, "job_state_invalid");
       return { status: "retry" };
+    }
+
+    // 소유자 연결이 사라지기 전에 개인 자료를 원자 처리한다. 준비 실패 시 파일도 지우지 않는다.
+    const { data: customerDataPrepared, error: customerDataError } = await admin.rpc(
+      "prepare_account_deletion_customer_data",
+      { p_job_id: job.id, p_claim_token: claimToken },
+    );
+    if (customerDataError?.code === "P0001"
+        && customerDataError.message === "ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED") {
+      throw new AccountDeletionStorageError("customer_data_scope_review_required");
+    }
+    if (customerDataError || customerDataPrepared !== true) {
+      throw new AccountDeletionStorageError("customer_data_preparation_unavailable");
     }
 
     const rows = await listManifestRows(admin, job.id);

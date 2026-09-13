@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { archiveProcessEnvironment, assertArchiveTool, runNativeArchiveProcess } from './postgres-snapshot-archive.mjs';
 import { relationCaptureSql } from './current-baseline-backup-collector.mjs';
-import { RecoveryStageError, requireRecovery, recoveryDigest } from './recovery-artifact-set.mjs';
+import { RecoveryStageError, requireRecovery, recoveryDigest, assertRecoveryArchiveBytes } from './recovery-artifact-set.mjs';
 
 const require = createRequire(import.meta.url);
 const identitySql = `SELECT current_database() AS database, current_user AS actor,
@@ -25,6 +25,7 @@ const identity = row => `${row.schema}.${row.name}`;
 export async function restoreSyntheticDatabaseStage({ bundle, connection, targetSystemIdentifier,
   pgRestore, pgRestoreSha256, checkpoint, runProcess = runNativeArchiveProcess }) {
   requireRecovery(bundle.binding.source.projectRef === 'syntheticlocalonly00', 'RECOVERY_CUSTOMER_ADMISSION_NOT_IMPLEMENTED');
+  assertRecoveryArchiveBytes(bundle);
   requireRecovery(connection && connection.host === '127.0.0.1' && Number.isSafeInteger(connection.port)
     && connection.port > 1024 && connection.port <= 65535
     && /^hanbang_restore_[a-f0-9]{32}$/.test(connection.database) && connection.user === 'postgres'
@@ -60,6 +61,7 @@ export async function restoreSyntheticDatabaseStage({ bundle, connection, target
     await checkIdentity();
     requireRecovery((await client.query(relationsSql)).rows.length === 0, 'RECOVERY_TARGET_CHANGED_BEFORE_RESTORE');
     assertArchiveTool(pgRestore, pgRestoreSha256);
+    assertRecoveryArchiveBytes(bundle);
     phase = 'database-restore'; restoreAttempted = true;
     const env = archiveProcessEnvironment({ PGHOST: connection.host, PGPORT: String(connection.port),
       PGDATABASE: connection.database, PGUSER: connection.user, PGPASSWORD: connection.password, PGSSLMODE: 'disable' });

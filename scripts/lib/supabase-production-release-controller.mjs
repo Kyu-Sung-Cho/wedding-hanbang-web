@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--account-deletion-customer-data")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runCustomerDataRelease } = await import("./account-deletion-customer-data-release.mjs");
+    return runCustomerDataRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--profile-avatar")) {
     assertSafeExecutionEnvironment(process.env);
     const { runProfileAvatarRelease } = await import("./profile-avatar-release.mjs");

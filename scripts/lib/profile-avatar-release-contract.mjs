@@ -10,7 +10,10 @@ export const PROFILE_AVATAR_SCOPE=Object.freeze({newTables:['public.profile_avat
   widenConstraints:['public.account_deletion_media_manifest.account_deletion_media_bucket','public.account_deletion_media_manifest.account_deletion_media_source'],
   newPrivateBucket:'profile-avatars',newRestrictivePolicy:'storage.objects.profile_avatar_service_only',
   existingData:'unchanged',authUsers:'unchanged',coupleSlots:'unchanged',roleSettings:'unchanged',backfill:'none'});
-export function loadProfileAvatarReleasePlan(repoRoot) {
+export function loadProfileAvatarReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약은 선행 231 원문만 검증한다. 기존 공개 모드는 전체 디렉터리 검사를 유지한다.
+export function loadProfileAvatarHistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes=pinnedArtifact(repoRoot,{file:PROFILE_AVATAR_CONTRACT_FILE,sha256:CONTRACT_SHA}),contract=JSON.parse(bytes);
   requireRelease(contract.version===1&&contract.kind==='profile-avatar-static-successor'&&contract.release==='profile-avatar-20260913'
     &&contract.status==='requires-scoped-runtime-evidence'&&contract.productionApplyImplemented===true&&contract.runtimeEvidenceVerified===false,'PROFILE_AVATAR_CONTRACT_INVALID');
@@ -28,7 +31,7 @@ export function loadProfileAvatarReleasePlan(repoRoot) {
     requireRelease(contract[key]?.file===file,'PROFILE_AVATAR_IMPLEMENTATION_CHANGED');pinnedArtifact(repoRoot,contract[key]);
   }
   const reviewed=[...predecessor.reviewedMigrations,...contract.migrations].sort((a,b)=>a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).sort(),reviewed.map(pin=>pin.file),'NEW_MIGRATION_NOT_REVIEWED');
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot,'supabase/migrations')).filter(file=>/\.sql$/i.test(file)).sort(),reviewed.map(pin=>pin.file),'NEW_MIGRATION_NOT_REVIEWED');
   for(const pin of reviewed)pinnedArtifact(repoRoot,{...pin,file:`supabase/migrations/${pin.file}`});
   const sql=pinnedArtifact(repoRoot,{...contract.migrations[0],file:`supabase/migrations/${contract.migrations[0].file}`});
   requireRelease(!sql.includes(13),'PROFILE_AVATAR_SQL_NOT_CANONICAL');

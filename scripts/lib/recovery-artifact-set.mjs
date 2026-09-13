@@ -11,6 +11,13 @@ const SHA = /^[a-f0-9]{64}$/;
 const IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const plain = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+function freezeMetadata(value) {
+  if (value && typeof value === 'object' && !Buffer.isBuffer(value)) {
+    Object.values(value).forEach(freezeMetadata); Object.freeze(value);
+  }
+  return value;
+}
+const freezeCopy = value => freezeMetadata(structuredClone(value));
 function json(bytes, maximum, code) {
   requireRecovery(Buffer.isBuffer(bytes) && bytes.length > 0 && bytes.length <= maximum, code);
   try { const value = JSON.parse(bytes.toString('utf8')); requireRecovery(plain(value), code); return value; }
@@ -24,6 +31,15 @@ function decode(value, size, expectedHash, maximum) {
     bytes.fill(0); throw new RecoveryStageError('RECOVERY_BYTES_MISMATCH');
   }
   return bytes;
+}
+
+/** 복호화 후 checkpoint를 기다리는 동안에도 Buffer는 바뀔 수 있다. 실행 직전에 원문을 다시 확인한다. */
+export function assertRecoveryArchiveBytes(bundle) {
+  const bytes = bundle?.archive, envelope = bundle?.archiveEnvelope;
+  requireRecovery(Buffer.isBuffer(bytes) && Number.isSafeInteger(envelope?.archiveBytes)
+    && bytes.length > 0 && bytes.length <= MAX_CUSTOM_ARCHIVE_BYTES && bytes.length === envelope.archiveBytes
+    && SHA.test(envelope.archiveSha256) && bytes.subarray(0, 5).toString('ascii') === 'PGDMP'
+    && recoveryDigest(bytes) === envelope.archiveSha256, 'RECOVERY_ARCHIVE_CHANGED');
 }
 
 /** Consumes plaintext buffers only after an outer, reviewed encrypted transport has admitted them.
@@ -102,8 +118,9 @@ export function verifyRecoveryArtifactSet({ manifestBytes, expectedManifestSha25
     const expected = ['database-custom-archive', 'schema-original', 'storage-index',
       ...relations.map(row => 'relation:' + row.identity), ...objects.map(row => 'storage:' + row.identity)].sort();
     requireRecovery(same(scopes, expected), 'RECOVERY_SCOPE_INCOMPLETE');
-    return { binding, archive, archiveEnvelope, schema, relations, objects, artifactCount: artifacts.length,
+    return Object.freeze({ binding: freezeCopy(binding), archive, archiveEnvelope: Object.freeze(archiveEnvelope),
+      schema: freezeMetadata(schema), relations: freezeMetadata(relations), objects: freezeMetadata(objects), artifactCount: artifacts.length,
       releaseAuthorized: false, fullRestoreVerified: false,
-      dispose() { archive.fill(0); for (const object of objects) object.bytes.fill(0); } };
+      dispose() { archive.fill(0); for (const object of objects) object.bytes.fill(0); } });
   } catch (error) { archive?.fill(0); for (const object of objects) object.bytes.fill(0); throw error; }
 }
