@@ -105,7 +105,7 @@ export const checks = [
   {
     kind: "check",
     name: "supabase release fence",
-    args: ["pnpm", "supabase:release:fence", "--chat-feedback-nullability"],
+    args: ["pnpm", "supabase:release:fence", "--profile-avatar"],
   },
 ];
 

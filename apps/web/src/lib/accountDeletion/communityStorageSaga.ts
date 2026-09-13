@@ -8,8 +8,10 @@ export const COMMUNITY_DELETION_BUCKETS = [
 
 export const ACCOUNT_DELETION_BUCKETS = [
   ...COMMUNITY_DELETION_BUCKETS,
+  "profile-avatars",
   "chat-image",
 ] as const;
+const DELETABLE_BUCKETS = [...COMMUNITY_DELETION_BUCKETS, "profile-avatars"] as const;
 
 export type CommunityDeletionBucket = typeof COMMUNITY_DELETION_BUCKETS[number];
 export type AccountDeletionBucket = typeof ACCOUNT_DELETION_BUCKETS[number];
@@ -17,6 +19,7 @@ export type CommunityDeletionSource =
   | "session_staging"
   | "session_final"
   | "legacy_prefix"
+  | "profile_avatar"
   | "quarantine";
 
 export interface CommunityDeletionSession {
@@ -209,7 +212,7 @@ function isCommunityDeletionSession(value: unknown): value is CommunityDeletionS
 
 async function listExactUserPrefix(
   admin: SupabaseClient,
-  bucket: CommunityDeletionBucket,
+  bucket: typeof DELETABLE_BUCKETS[number],
   userId: string,
 ): Promise<string[]> {
   const names: string[] = [];
@@ -375,17 +378,45 @@ async function inventoryChatImageQuarantine(
   return entries;
 }
 
+export function buildProfileAvatarDeletionManifest(userId: string, assets: unknown[], listedNames: string[], now: number): CommunityDeletionManifestEntry[] {
+  if (!UUID_RE.test(userId) || !Number.isFinite(now)) throw new AccountDeletionStorageError("avatar_inventory_invalid");
+  const entries = new Map<string, CommunityDeletionManifestEntry>();
+  for (const value of assets) {
+    if (!value || typeof value !== "object") throw new AccountDeletionStorageError("avatar_inventory_invalid");
+    const asset = value as Record<string, unknown>;
+    if (asset.user_id !== userId || typeof asset.revision !== "string" || !UUID_RE.test(asset.revision)
+      || asset.object_path !== `${userId}/${asset.revision}.webp` || typeof asset.upload_until !== "string"
+      || !Number.isFinite(Date.parse(asset.upload_until))) throw new AccountDeletionStorageError("avatar_inventory_invalid");
+    entries.set(String(asset.object_path), { bucket: "profile-avatars", path: String(asset.object_path), source: "profile_avatar", not_before: asset.upload_until });
+  }
+  for (const name of listedNames) {
+    assertSafeListedName(name);
+    const path = `${userId}/${name}`;
+    if (!entries.has(path)) entries.set(path, { bucket: "profile-avatars", path, source: "quarantine", not_before: new Date(now).toISOString() });
+  }
+  return [...entries.values()];
+}
+async function inventoryProfileAvatarMedia(admin: SupabaseClient, userId: string, now: number) {
+  const [result, names] = await Promise.all([
+    admin.from("profile_avatar_assets").select("user_id,revision,object_path,upload_until").eq("user_id", userId).limit(INVENTORY_MAX_OBJECTS + 1),
+    listExactUserPrefix(admin, "profile-avatars", userId),
+  ]);
+  if (result.error || !Array.isArray(result.data) || result.data.length > INVENTORY_MAX_OBJECTS) throw new AccountDeletionStorageError("avatar_inventory_unavailable");
+  return buildProfileAvatarDeletionManifest(userId, result.data, names, now);
+}
+
 export async function inventoryCommunityDeletionMedia(
   admin: SupabaseClient,
   userId: string,
   now = Date.now(),
 ): Promise<CommunityDeletionManifestEntry[]> {
-  const [sessions, staging, images, videos, chatImages] = await Promise.all([
+  const [sessions, staging, images, videos, chatImages, avatarManifest] = await Promise.all([
     listDurableSessions(admin, userId),
     listExactUserPrefix(admin, "community-media-staging", userId),
     listExactUserPrefix(admin, "community-images", userId),
     listExactUserPrefix(admin, "community-videos", userId),
     inventoryChatImageQuarantine(admin, userId, now),
+    inventoryProfileAvatarMedia(admin, userId, now),
   ]);
   const communityManifest = buildCommunityDeletionManifest({
     userId,
@@ -397,7 +428,7 @@ export async function inventoryCommunityDeletionMedia(
     },
     now,
   });
-  const manifest = [...communityManifest, ...chatImages].sort((left, right) =>
+  const manifest = [...communityManifest, ...chatImages, ...avatarManifest].sort((left, right) =>
     left.bucket.localeCompare(right.bucket) || left.path.localeCompare(right.path)
   );
   if (manifest.length > INVENTORY_MAX_OBJECTS) {
@@ -441,7 +472,7 @@ function isManifestRow(value: unknown): value is AccountDeletionManifestRow {
     && typeof row.bucket === "string"
     && (ACCOUNT_DELETION_BUCKETS as readonly string[]).includes(row.bucket)
     && typeof row.path === "string"
-    && ["session_staging", "session_final", "legacy_prefix", "quarantine"]
+    && ["session_staging", "session_final", "legacy_prefix", "quarantine", "profile_avatar"]
       .includes(String(row.source))
     && typeof row.not_before === "string"
     && Number.isFinite(Date.parse(row.not_before))
@@ -471,6 +502,7 @@ function assertExactManifestPath(row: AccountDeletionManifestRow, job: AccountDe
   assertSafeListedName(name);
   const sessionShape = SESSION_FILE_RE.test(name);
   const sourceShapeIsValid = row.source === "quarantine"
+    || (row.source === "profile_avatar" && row.bucket === "profile-avatars" && /^[0-9a-f-]{36}\.webp$/.test(name) && UUID_RE.test(name.slice(0, -5)))
     || (
       row.source === "legacy_prefix"
       && (
@@ -649,7 +681,7 @@ async function deleteManifestRows(
   const totalPending = rows.filter((row) => row.cleaned_at === null).length;
   let processed = 0;
   const removeAndCheckpoint = async (
-    bucket: CommunityDeletionBucket,
+    bucket: typeof DELETABLE_BUCKETS[number],
     batch: AccountDeletionManifestRow[],
   ) => {
     const paths = batch.map((row) => row.path);
@@ -681,7 +713,7 @@ async function deleteManifestRows(
       processed += 1;
     }
   };
-  for (const bucket of COMMUNITY_DELETION_BUCKETS) {
+  for (const bucket of DELETABLE_BUCKETS) {
     const pending = rows.filter((row) =>
       row.bucket === bucket && row.cleaned_at === null
     ).slice(0, Math.max(0, MAX_DELETIONS_PER_RUN - processed));
@@ -701,7 +733,7 @@ async function deleteManifestRows(
     row,
   ]));
   const reappeared = new Map<string, AccountDeletionManifestRow>();
-  for (const bucket of COMMUNITY_DELETION_BUCKETS) {
+  for (const bucket of DELETABLE_BUCKETS) {
     const remainingNames = await listExactUserPrefix(admin, bucket, job.user_id!);
     for (const name of remainingNames) {
       assertSafeListedName(name);
@@ -722,7 +754,7 @@ async function deleteManifestRows(
   if (reappeared.size > 0) {
     const available = Math.max(0, MAX_DELETIONS_PER_RUN - processed);
     const selected = [...reappeared.values()].slice(0, available);
-    for (const bucket of COMMUNITY_DELETION_BUCKETS) {
+    for (const bucket of DELETABLE_BUCKETS) {
       const inBucket = selected.filter((row) => row.bucket === bucket);
       for (let offset = 0; offset < inBucket.length; offset += DELETE_BATCH_SIZE) {
         await removeAndCheckpoint(

@@ -7,7 +7,11 @@ import { tmpdir } from 'node:os';
 import { appendChatFeedbackReceipt, buildChatFeedbackMutationSql, buildChatFeedbackObservationSql, parseChatFeedbackReleaseArgs,
   runChatFeedbackNullabilityRelease, validateChatFeedbackObservation } from '../lib/chat-feedback-nullability-release.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+import { createChatFeedbackHistoricalRepository } from './fixtures/chat-feedback-historical-repository.mjs';
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createChatFeedbackHistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root = historical.root;
 const version = '20260913043211';
 const sql = readFileSync(join(root, `supabase/migrations/${version}_chat_feedback_automatic_signal_nullable.sql`), 'utf8');
 const instant = new Date('2026-09-13T05:00:00Z');

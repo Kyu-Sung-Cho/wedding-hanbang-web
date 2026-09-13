@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "kind": "profile-avatar-static-successor",
+  "release": "profile-avatar-20260913",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/profile-wedding-roles-v1.json",
+    "sha256": "5a10fb62c847c64776d3e64214b4038c042427b325649735bc9963077a4b3b71"
+  },
+  "reviewedPredecessorMigrationCount": 230,
+  "migrations": [
+    {
+      "file": "20260913082314_private_profile_avatars_delivery.sql",
+      "sha256": "e04f2e5a1127693490d33731ef5efbbb038db19ec373c43cd4788a2b3fdf4075"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.profile_avatars",
+      "public.profile_avatar_assets"
+    ],
+    "newFunctions": [
+      "public.register_profile_avatar_asset(uuid,uuid)",
+      "public.save_profile_avatar(uuid,text,text,uuid,uuid)",
+      "public.read_profile_avatar_snapshot(uuid)"
+    ],
+    "replaceFunction": "public.replace_account_deletion_media_manifest(uuid,uuid,jsonb)",
+    "widenConstraints": [
+      "public.account_deletion_media_manifest.account_deletion_media_bucket",
+      "public.account_deletion_media_manifest.account_deletion_media_source"
+    ],
+    "newPrivateBucket": "profile-avatars",
+    "newRestrictivePolicy": "storage.objects.profile_avatar_service_only",
+    "existingData": "unchanged",
+    "authUsers": "unchanged",
+    "coupleSlots": "unchanged",
+    "roleSettings": "unchanged",
+    "backfill": "none"
+  },
+  "runtime": {
+    "file": "scripts/lib/profile-avatar-release.mjs",
+    "sha256": "086c406a450d5dfac99396e193599f32ea609dda304558fa2ea6b15441366536"
+  },
+  "catalog": {
+    "file": "scripts/lib/profile-avatar-catalog.mjs",
+    "sha256": "2dc7e79253868597da0c03cbc1e663f53cb951bd98d4d5b8da4d17d8e87bb2de"
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/profile-avatar-pg17-catalog-v1.json",
+    "sha256": "097e02759aa03896635f74f950bbca8e5d42e939bbb0896f5a6376184cf5e442"
+  },
+  "platformPolicy": {
+    "file": "supabase/platform-operations/storage/profile-avatar-delivery-service-only.sql",
+    "sha256": "597b11cf5b232feeb93c64a3a0e63470b91e9256a97f4c95a82d15e3c37bdb10"
+  },
+  "previousManifest": {
+    "file": "supabase/migrations/20260716113000_account_deletion_storage_saga.sql",
+    "sha256": "f85887a262961c331acd0fc222aec01785c14bfdfdb8e1c36e4d3aceb9305151"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260913075045_profile_wedding_roles.sql",
+    "sha256": "32dc05c1241d9f7bd0e80286b75469400c62c10cdae92f94e7c0c2c478b52412"
+  },
+  "historicalPolicy": {
+    "file": "supabase/platform-operations/storage/profile-avatar-service-only.sql",
+    "sha256": "60be3c24e5ecba842f05aabf965e3b506c689d9d556e95f726b2ef1f8dc8f0fc"
+  }
+}

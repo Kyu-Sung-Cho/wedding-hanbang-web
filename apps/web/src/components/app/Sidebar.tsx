@@ -116,7 +116,7 @@ export default function Sidebar({ isOpen, onClose, amoraWorkspace = false, plann
         <div className={plannerOverview ? "mx-[14px] mt-[10px] border-t border-[var(--amora-line)] pb-4 pt-[14px]" : "px-3 pb-4"}>
           <div className={plannerOverview ? "px-[10px] pb-[10px] pt-[6px]" : "rounded-[6px] border border-[var(--hb-hairline)] bg-white p-4"}>
             <div className="flex items-center gap-3">
-              <ProfileAvatar name={userName} size={plannerOverview ? 32 : 40} />
+              <ProfileAvatar name={userName} avatarUrl={profile?.avatar_url} size={plannerOverview ? 32 : 40} />
               <div className="min-w-0">
                 <p className={`${plannerOverview ? "text-[13px]" : "text-[14px]"} truncate font-semibold text-[var(--hb-text-strong)]`}>{userName}</p>
                 <p className={`${plannerOverview ? "text-[11px]" : "text-[12px]"} mt-0.5 truncate font-medium text-[var(--hb-text-body)]`}>{weddingDateStr}</p>

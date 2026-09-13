@@ -9,6 +9,10 @@ import { validateSuccessorReleaseContract } from "../../../../../scripts/lib/sup
 import { createBudgetDecisionHistoricalRepository } from "../../../../../scripts/tests/fixtures/budget-decision-historical-repository.mjs";
 import { createExplicitBudgetHistoricalRepository } from "../../../../../scripts/tests/fixtures/explicit-budget-historical-repository.mjs";
 import { CHAT_FEEDBACK_CONTRACT_FILE, loadChatFeedbackNullabilityReleasePlan } from "../../../../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
+import { PROFILE_WEDDING_ROLES_CONTRACT_FILE, loadProfileWeddingRolesReleasePlan } from "../../../../../scripts/lib/profile-wedding-roles-release-contract.mjs";
+import { createChatFeedbackHistoricalRepository } from "../../../../../scripts/tests/fixtures/chat-feedback-historical-repository.mjs";
+import { createProfileRoleHistoricalRepository } from "../../../../../scripts/tests/fixtures/profile-role-historical-repository.mjs";
+import { PROFILE_AVATAR_CONTRACT_FILE, loadProfileAvatarReleasePlan } from "../../../../../scripts/lib/profile-avatar-release-contract.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -28,6 +32,16 @@ let feedbackFixtureRoot: string;
 let cleanupFeedbackFixture: (() => void) | undefined;
 const feedbackPins = [CHAT_FEEDBACK_CONTRACT_FILE, "scripts/lib/chat-feedback-nullability-release.mjs",
   "supabase/migrations/20260913043211_chat_feedback_automatic_signal_nullable.sql"];
+let roleFixtureRoot: string;
+let cleanupRoleFixture: (() => void) | undefined;
+const rolePins = [PROFILE_WEDDING_ROLES_CONTRACT_FILE, "scripts/lib/profile-wedding-roles-release.mjs",
+  "scripts/lib/profile-wedding-roles-catalog.mjs", "supabase/migrations/20260913075045_profile_wedding_roles.sql"];
+let avatarFixtureRoot: string;
+let cleanupAvatarFixture: (() => void) | undefined;
+const avatarPins = [PROFILE_AVATAR_CONTRACT_FILE, "scripts/lib/profile-avatar-release.mjs", "scripts/lib/profile-avatar-catalog.mjs",
+  "supabase/release-contracts/profile-avatar-pg17-catalog-v1.json", "supabase/platform-operations/storage/profile-avatar-delivery-service-only.sql",
+  "supabase/platform-operations/storage/profile-avatar-service-only.sql",
+  "supabase/migrations/20260913082314_private_profile_avatars_delivery.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -51,11 +65,65 @@ beforeAll(async () => {
   for (const file of feedbackPins) {
     await copyFile(join(repoRoot, file), join(feedbackFixtureRoot, file));
   }
+  const roleHistory = createChatFeedbackHistoricalRepository(repoRoot);
+  roleFixtureRoot = roleHistory.root;
+  cleanupRoleFixture = roleHistory.cleanup;
+  for (const file of rolePins) await copyFile(join(repoRoot, file), join(roleFixtureRoot, file));
+  const avatarHistory = createProfileRoleHistoricalRepository(repoRoot);
+  avatarFixtureRoot = avatarHistory.root;
+  cleanupAvatarFixture = avatarHistory.cleanup;
+  const { mkdir } = await import("node:fs/promises");
+  await mkdir(join(avatarFixtureRoot, "supabase/platform-operations/storage"), {recursive: true});
+  for (const file of avatarPins) await copyFile(join(repoRoot, file), join(avatarFixtureRoot, file));
 });
 
 afterAll(async () => {
   cleanupFixture?.();
   cleanupFeedbackFixture?.();
+  cleanupRoleFixture?.();
+  cleanupAvatarFixture?.();
+});
+
+describe("production build registers the exact private-avatar successor and preserves prior authorization", () => {
+  it("validates 231 SQL files and both policy/DDL pins without claiming hosted application", () => {
+    const plan = loadProfileAvatarReleasePlan(avatarFixtureRoot);
+    expect(plan.migrationCount).toBe(231);
+    expect(plan.runtimeEvidenceVerified).toBe(false);
+    expect(plan.releaseAuthorized).toBe(false);
+    expect(() => production(avatarFixtureRoot)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({repoRoot: avatarFixtureRoot, followup: "profile-wedding-roles"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+  });
+  it.each(avatarPins)("refuses missing or changed avatar artifact without fallback: %s", async file => {
+    const target = join(avatarFixtureRoot, file), bytes = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+      expect(() => production(avatarFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      await rm(target);
+      expect(() => production(avatarFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {await writeFile(target, bytes);}
+  });
+});
+
+describe("production build registers exact profile-role successor without changing historical authorization", () => {
+  it("accepts all 230 exact SQL files only through the new successor", () => {
+    const plan = loadProfileWeddingRolesReleasePlan(roleFixtureRoot);
+    expect(plan.migrationCount).toBe(230);
+    expect(plan.runtimeEvidenceVerified).toBe(false);
+    expect(plan.releaseAuthorized).toBe(false);
+    expect(() => production(roleFixtureRoot)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({repoRoot: roleFixtureRoot, followup: "chat-feedback-nullability"}))
+      .toThrowError(expect.objectContaining({code: "FOLLOWUP_RELEASE_INVALID"}));
+  });
+  it.each(rolePins)("refuses modified or missing role pin without falling back: %s", async file => {
+    const target = join(roleFixtureRoot, file), bytes = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([bytes, Buffer.from("\n")]));
+      expect(() => production(roleFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      await rm(target);
+      expect(() => production(roleFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally {await writeFile(target, bytes);}
+  });
 });
 
 describe("production build registers only the exact feedback-nullability successor", () => {

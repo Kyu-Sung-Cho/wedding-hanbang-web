@@ -2,7 +2,7 @@
 
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
-import { CHAT_BUBBLE_TONES } from "./chatBubbleStyles";
+import { CHAT_BUBBLE_TONES, confirmedRoleBubbleTone } from "./chatBubbleStyles";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -33,6 +33,10 @@ interface ChatBubbleProps {
   isCurrentUser: boolean;
   /** 상대방 메시지에 띄울 이름. 성별 슬롯이 아니라 사람을 가리킨다. */
   senderName?: string | null;
+  /** 현재 소유자/파트너의 sender_id를 확인한 표시 역할. 권한 슬롯과 무관하다. */
+  senderConfirmedRole?: "bride" | "groom" | null;
+  /** 현재 상대의 작성자 ID를 대조한 호출부만 전달한다. */
+  senderAvatarUrl?: string | null;
   /** 최근 3개 AI 메시지에만 true — 피드백 버튼 표시용 */
   isRecentAi?: boolean;
   onNegativeFeedback?: (message: ChatMessage) => void;
@@ -497,6 +501,8 @@ export default function ChatBubble({
   message,
   isCurrentUser,
   senderName = null,
+  senderConfirmedRole = null,
+  senderAvatarUrl = null,
   isRecentAi = false,
   onNegativeFeedback,
 }: ChatBubbleProps) {
@@ -610,10 +616,7 @@ export default function ChatBubble({
   // 이름은 호출부에서 sender_id를 대조해 넘겨준 경우에만 쓴다.
   const senderLabel = senderName ?? (message.sender_id ? "상대방" : "이전 참여자");
 
-  // 직접 선택한 신랑·신부 역할 저장이 배포되기 전에는 기존 사람 구분을 유지한다.
-  const myBubbleBg = "bg-[var(--amora-ink,#26251F)]";
-  const partnerBubbleBg = "bg-[var(--amora-warm,#F4EDE0)]";
-  const partnerBubbleBorder = "border-[#E8DDD3]";
+  const humanTone = CHAT_BUBBLE_TONES[confirmedRoleBubbleTone(message.sender_id ? senderConfirmedRole : null)];
   const badgeBg = "bg-[#795252]/12 text-[var(--hb-accent-hover)]";
 
   // 사용자 메시지에서 선택 태그 숨김
@@ -648,9 +651,9 @@ export default function ChatBubble({
           {/* 첨부 파일 (이미지 + PDF) */}
           <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
           <div
-            className={`${isPartnerMsg ? "bg-[var(--amora-rose-deep,#7D5753)]" : myBubbleBg} rounded-[14px] rounded-br-[4px] px-[14px] py-[11px]`}
+            className={`${humanTone} rounded-[14px] rounded-br-[4px] border px-[14px] py-[11px]`}
           >
-            <p className="whitespace-pre-wrap text-[13px] leading-[1.6] text-white sm:text-[14px]">
+            <p className="whitespace-pre-wrap text-[13px] leading-[1.6] sm:text-[14px]">
               {displayContent}
             </p>
           </div>
@@ -666,7 +669,7 @@ export default function ChatBubble({
   return (
     <div className="flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
       {/* 아바타 — 모바일 작게 */}
-      <ProfileAvatar name={senderLabel} size={28} className="sm:size-8" />
+      <ProfileAvatar name={senderLabel} avatarUrl={message.sender_id ? senderAvatarUrl : null} size={28} className="sm:size-8" />
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">
@@ -678,9 +681,9 @@ export default function ChatBubble({
         </div>
         <ChatImageAttachments messageId={message.id} metadata={message.metadata} />
         <div
-          className={`${isPartnerMsg ? "bg-[var(--amora-rose-pale,#EDD9D0)] border-transparent" : `${partnerBubbleBg} ${partnerBubbleBorder}`} rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px]`}
+          className={`${humanTone} rounded-[14px] rounded-bl-[4px] border px-[14px] py-[11px]`}
         >
-          <p className="whitespace-pre-wrap text-[13px] leading-[1.6] text-[var(--hb-text-strong)] sm:text-[14px]">
+          <p className="whitespace-pre-wrap text-[13px] leading-[1.6] sm:text-[14px]">
             {displayContent}
           </p>
         </div>

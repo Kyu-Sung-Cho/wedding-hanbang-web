@@ -129,6 +129,7 @@ describe("community account-deletion Storage manifest", () => {
       "community-media-staging": [UPLOAD_ID + ".png"],
       "community-images": [UPLOAD_ID + ".png", "1700000000000_66666666-6666-4666-8666-666666666666.jpg"],
       "community-videos": [],
+      "profile-avatars": [],
     } as const;
     const list = vi.fn(async function (
       this: { bucket: keyof typeof namesByBucket },
@@ -150,7 +151,7 @@ describe("community account-deletion Storage manifest", () => {
       statusText: "OK",
     }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
     const select = vi.fn(() => ({ eq }));
     const admin = {
       storage: { from: storageFrom },
@@ -159,8 +160,8 @@ describe("community account-deletion Storage manifest", () => {
 
     const manifest = await inventoryCommunityDeletionMedia(admin as never, USER_ID, NOW);
 
-    expect(storageFrom).toHaveBeenCalledTimes(4);
-    expect(list).toHaveBeenCalledTimes(3);
+    expect(storageFrom).toHaveBeenCalledTimes(5);
+    expect(list).toHaveBeenCalledTimes(4);
     for (const call of list.mock.calls) expect(call[0]).toBe(USER_ID);
     expect(select).toHaveBeenCalledWith(
       "id,user_id,staging_path,final_bucket,final_path,expires_at",
@@ -201,7 +202,7 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
     const select = vi.fn(() => ({ eq }));
     const admin = {
       storage: { from: storageFrom },
@@ -238,7 +239,7 @@ describe("community account-deletion Storage manifest", () => {
       }));
       const range = vi.fn(async () => ({ data: [], error: null }));
       const order = vi.fn(() => ({ range }));
-      const eq = vi.fn(() => ({ order }));
+      const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
       const select = vi.fn(() => ({ eq }));
       return inventoryCommunityDeletionMedia({
         storage: { from: storageFrom },
@@ -279,7 +280,7 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
@@ -309,7 +310,7 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({
@@ -338,7 +339,7 @@ describe("community account-deletion Storage manifest", () => {
     }));
     const range = vi.fn(async () => ({ data: [], error: null }));
     const order = vi.fn(() => ({ range }));
-    const eq = vi.fn(() => ({ order }));
+    const eq = vi.fn(() => ({ order, limit: async () => ({ data: [], error: null }) }));
     const select = vi.fn(() => ({ eq }));
 
     await expect(inventoryCommunityDeletionMedia({

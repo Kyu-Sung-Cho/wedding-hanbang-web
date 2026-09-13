@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "kind": "profile-wedding-roles-static-successor",
+  "release": "profile-wedding-roles-20260913",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/chat-feedback-nullability-v1.json",
+    "sha256": "21b1c661a3accddadceb27e8076e11940962a14180ac69d4f6174111e6b0e7ab"
+  },
+  "reviewedPredecessorMigrationCount": 229,
+  "migrations": [
+    {
+      "file": "20260913075045_profile_wedding_roles.sql",
+      "sha256": "32dc05c1241d9f7bd0e80286b75469400c62c10cdae92f94e7c0c2c478b52412"
+    }
+  ],
+  "scope": {
+    "newTable": "public.profile_wedding_roles",
+    "newFunctions": [
+      "public.save_profile_wedding_role(uuid,text,uuid)",
+      "public.read_profile_wedding_roles(uuid)"
+    ],
+    "existingData": "unchanged",
+    "authUsers": "unchanged",
+    "coupleSlots": "unchanged",
+    "storage": "unchanged",
+    "roleInference": "none"
+  },
+  "runtime": {
+    "file": "scripts/lib/profile-wedding-roles-release.mjs",
+    "sha256": "f9df82405336c35dade48f1b4d535cc9bc292700da9e6290df83a402866bf075"
+  },
+  "catalog": {
+    "file": "scripts/lib/profile-wedding-roles-catalog.mjs",
+    "sha256": "2a9dc0796c6e1589e76b4ed789314bbd4d4151597beeff6e7de937f7ab4c7144"
+  }
+}
