@@ -11,9 +11,13 @@ import { localPredecessor } from './fixtures/current-baseline-hosted-synthetic-l
 import { budgetRealtimeBindings, renderBudgetRealtimeObservationSql } from '../lib/amora-budget-decision-effective-release-contract.mjs';
 import { createSyntheticBudgetRealtimeTopology, moveSyntheticRealtimeChild } from './fixtures/budget-realtime-topology.mjs';
 import * as controller from '../lib/amora-runtime-hotfix-controller.mjs';
+import { createExplicitBudgetHistoricalRepository } from './fixtures/explicit-budget-historical-repository.mjs';
 
 // 모든 증거·계정·DDL 실행은 합성 테스트 자료다. 운영 백업/hosted/rehearsal 증거로 사용할 수 없다.
-const root = resolve(import.meta.dirname, '../..');
+const sourceRoot = resolve(import.meta.dirname, '../..');
+const historical = createExplicitBudgetHistoricalRepository(sourceRoot);
+test.after(historical.cleanup);
+const root = historical.root;
 const mode = '--amora-explicit-budget-hotfix';
 const commit = 'a'.repeat(40), hash = 'b'.repeat(64);
 const owner = '60910000-1234-4123-8123-123456789abc';
@@ -292,7 +296,7 @@ test('failed recovery verification stops before any management query or lease cl
 
 // 소형 PGlite predecessor에서 원문 SQL·행 hash·lease를 실제 실행한다. 운영216개 복구 검증이 아니다.
 async function localFixture(release) {
-  const db = await localPredecessor(root);
+  const db = await localPredecessor(root, sourceRoot);
   try {
     await createSyntheticBudgetRealtimeTopology(db);
     const cliExpiresAt = new Date(Date.now() + 120_000).toISOString();

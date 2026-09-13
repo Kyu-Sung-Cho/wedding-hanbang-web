@@ -5,8 +5,11 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpa
 import { dirname, join, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { createExplicitBudgetHistoricalRepository } from './fixtures/explicit-budget-historical-repository.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+const historical = createExplicitBudgetHistoricalRepository(root);
+test.after(historical.cleanup);
 const mode = '--amora-explicit-budget-hotfix';
 const run = (repo, args) => spawnSync(process.execPath, [join(repo, 'scripts/supabase-release-fence.mjs'), ...args], {
   cwd: repo, encoding: 'utf8', windowsHide: true, timeout: 30000,
@@ -21,11 +24,14 @@ test('the original no-argument fence still rejects the new SQL outside its histo
   assert.match(output(result), /MIGRATION_SET_DRIFT/);
 });
 
-test('explicit-budget mode validates this exact checkout without claiming hosted readiness', () => {
-  const result = run(root, [mode]);
+test('explicit-budget mode validates only its exact historical checkout without claiming hosted readiness', () => {
+  const result = run(historical.root, [mode]);
   assert.equal(result.status, 0, output(result));
   assert.match(output(result), /Explicit-budget static contract verified/);
   assert.match(output(result), /hosted evidence not verified; deployment not authorized/);
+  const currentResult = run(root, [mode]);
+  assert.equal(currentResult.status, 1, output(currentResult));
+  assert.match(output(currentResult), /NEW_MIGRATION_NOT_REVIEWED/);
 });
 
 test('the actual CI local-fence command selects a working non-deploy contract', () => {
@@ -35,7 +41,7 @@ test('the actual CI local-fence command selects a working non-deploy contract', 
   const args = commands[0][1].trim().split(/\s+/).filter(Boolean);
   const result = run(root, args);
   assert.equal(result.status, 0, output(result));
-  assert.deepEqual(args, [mode]);
+  assert.deepEqual(args, ['--chat-feedback-nullability']);
 });
 
 test('explicit static mode rejects remote, duplicate and unknown arguments before any legacy flow', async t => {
@@ -56,10 +62,10 @@ test('the explicit CLI rejects new, historical and contract byte drift instead o
   const copy = file => {
     const target = join(fixture, file);
     mkdirSync(dirname(target), { recursive: true });
-    copyFileSync(join(root, file), target);
+    copyFileSync(join(historical.root, file), target);
   };
   for (const folder of ['supabase/migrations', 'supabase/release-contracts', 'supabase/release-manifests', 'scripts/lib']) {
-    for (const file of readdirSync(join(root, folder))) if (/\.(?:sql|json|mjs)$/.test(file)) copy(`${folder}/${file}`);
+    for (const file of readdirSync(join(historical.root, folder))) if (/\.(?:sql|json|mjs)$/.test(file)) copy(`${folder}/${file}`);
   }
   for (const pin of Object.values(base.implementation)) copy(pin.file);
   copy('scripts/supabase-release-fence.mjs');

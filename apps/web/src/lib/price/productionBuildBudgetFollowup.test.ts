@@ -1,12 +1,14 @@
 // @vitest-environment node
 
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import { validateSuccessorReleaseContract } from "../../../../../scripts/lib/supabase-successor-release-contract.mjs";
 import { createBudgetDecisionHistoricalRepository } from "../../../../../scripts/tests/fixtures/budget-decision-historical-repository.mjs";
+import { createExplicitBudgetHistoricalRepository } from "../../../../../scripts/tests/fixtures/explicit-budget-historical-repository.mjs";
+import { CHAT_FEEDBACK_CONTRACT_FILE, loadChatFeedbackNullabilityReleasePlan } from "../../../../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
 import {
   assertVendorDisclosureProductionBuild,
   expectedProductionAuthorizationSha256,
@@ -22,6 +24,10 @@ const budgetSql = "supabase/migrations/20260910160514_amora_shared_budget_decisi
 const vendorManifest = "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
 let fixtureRoot: string;
 let cleanupFixture: (() => void) | undefined;
+let feedbackFixtureRoot: string;
+let cleanupFeedbackFixture: (() => void) | undefined;
+const feedbackPins = [CHAT_FEEDBACK_CONTRACT_FILE, "scripts/lib/chat-feedback-nullability-release.mjs",
+  "supabase/migrations/20260913043211_chat_feedback_automatic_signal_nullable.sql"];
 
 function production(root: string, authorization = expectedProductionAuthorizationSha256(root)) {
   return assertVendorDisclosureProductionBuild({
@@ -39,10 +45,62 @@ beforeAll(async () => {
   const historical = createBudgetDecisionHistoricalRepository(repoRoot);
   fixtureRoot = historical.root;
   cleanupFixture = historical.cleanup;
+  const feedbackHistory = createExplicitBudgetHistoricalRepository(repoRoot);
+  feedbackFixtureRoot = feedbackHistory.root;
+  cleanupFeedbackFixture = feedbackHistory.cleanup;
+  for (const file of feedbackPins) {
+    await copyFile(join(repoRoot, file), join(feedbackFixtureRoot, file));
+  }
 });
 
 afterAll(async () => {
   cleanupFixture?.();
+  cleanupFeedbackFixture?.();
+});
+
+describe("production build registers only the exact feedback-nullability successor", () => {
+  it("accepts exactly 229 reviewed SQL files without asserting a DB deployment or relaxing owner authorization", () => {
+    const plan = loadChatFeedbackNullabilityReleasePlan(feedbackFixtureRoot);
+    expect(plan.migrationCount).toBe(229);
+    expect(plan.followupMigrations.map((migration) => migration.version))
+      .toEqual(["20260910160514", "20260911080244", "20260913043211"]);
+    expect(plan.runtimeEvidenceVerified).toBe(false);
+    expect(plan.releaseAuthorized).toBe(false);
+    const successor = validateSuccessorReleaseContract({ repoRoot: feedbackFixtureRoot, followup: "chat-feedback-nullability" });
+    expect(successor.deploymentBlocked).toBe(true);
+    expect(successor.controllerReady).toBe(false);
+    expect(() => production(feedbackFixtureRoot)).not.toThrow();
+    expect(() => validateSuccessorReleaseContract({ repoRoot: feedbackFixtureRoot, followup: "amora-explicit-budget-hotfix" }))
+      .toThrowError(expect.objectContaining({ code: "FOLLOWUP_RELEASE_INVALID" }));
+    expect(() => validateSuccessorReleaseContract({ repoRoot: feedbackFixtureRoot }))
+      .toThrowError(expect.objectContaining({ code: "MIGRATION_SET_DRIFT" }));
+  });
+
+  it.each(feedbackPins)("rejects modified registered feedback bytes instead of falling back: %s", async (file) => {
+    const target = join(feedbackFixtureRoot, file), original = await readFile(target);
+    try {
+      await writeFile(target, Buffer.concat([original, Buffer.from("\n")]));
+      expect(() => production(feedbackFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally { await writeFile(target, original); }
+  });
+
+  it("cannot bypass the new SQL by removing its registered contract", async () => {
+    const target = join(feedbackFixtureRoot, CHAT_FEEDBACK_CONTRACT_FILE), original = await readFile(target);
+    try {
+      await rm(target);
+      expect(() => production(feedbackFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+    } finally { await writeFile(target, original); }
+  });
+
+  it.each(["20260914000000_unreviewed.sql", "20260101000000_unreviewed.sql", "unexpected.sql"])(
+    "rejects unreviewed SQL in the new successor: %s", async (file) => {
+      const target = join(feedbackFixtureRoot, "supabase/migrations", file);
+      try {
+        await writeFile(target, "SELECT 1;\n", { flag: "wx" });
+        expect(() => production(feedbackFixtureRoot)).toThrow(VENDOR_DISCLOSURE_STATIC_CONTRACT_INVALID);
+      } finally { await rm(target); }
+    },
+  );
 });
 
 describe("production build explicitly registers the pinned budget followup", () => {

@@ -22,9 +22,11 @@ type QueryResult = { data?: unknown; error?: unknown; count?: number | null };
 
 class FakeQuery {
   constructor(
-    private readonly result: QueryResult,
+    private readonly result: QueryResult | (() => QueryResult),
     private readonly onInsert?: (payload: unknown) => void,
-    private readonly onEq?: (column: string, value: unknown) => void
+    private readonly onEq?: (column: string, value: unknown) => void,
+    private readonly onNot?: (column: string, operator: string, value: unknown) => void,
+    private readonly onGte?: (column: string, value: string) => void
   ) {}
 
   select() { return this; }
@@ -32,17 +34,24 @@ class FakeQuery {
     this.onEq?.(column, value);
     return this;
   }
-  gte() { return this; }
+  not(column: string, operator: string, value: unknown) {
+    this.onNot?.(column, operator, value);
+    return this;
+  }
+  gte(column: string, value: string) {
+    this.onGte?.(column, value);
+    return this;
+  }
   insert(payload: unknown) {
     this.onInsert?.(payload);
     return this;
   }
-  single() { return Promise.resolve(this.result); }
+  single() { return Promise.resolve(typeof this.result === "function" ? this.result() : this.result); }
   then<TResult1 = QueryResult, TResult2 = never>(
     onfulfilled?: ((value: QueryResult) => TResult1 | PromiseLike<TResult1>) | null,
     onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null
   ): Promise<TResult1 | TResult2> {
-    return Promise.resolve(this.result).then(onfulfilled, onrejected);
+    return this.single().then(onfulfilled, onrejected);
   }
 }
 
@@ -117,6 +126,47 @@ describe("POST /api/chat/feedback", () => {
     createClientFromRequestSpy.mockReset();
     createAdminClientSpy.mockReset();
   });
+
+  it.each([[19, 200], [20, 429]])(
+    "counts %i manual feedback rows separately from automatic null-message signals",
+    async (manualCount, expectedStatus) => {
+      mockRequestClient({ data: { sender_type: "ai", visibility: "shared", content: "공유 답변" }, error: null });
+      const inserts: unknown[] = [];
+      const now = Date.now();
+      const recent = new Date(now - 60_000).toISOString();
+      const old = new Date(now - 2 * 60 * 60_000).toISOString();
+      const rows = [
+        ...Array.from({ length: manualCount }, () => ({ user_id: "user-a", message_id: MESSAGE_A as string | null, created_at: recent })),
+        ...Array.from({ length: 25 }, () => ({ user_id: "user-a", message_id: null, created_at: recent })),
+        ...Array.from({ length: 25 }, () => ({ user_id: "other-user", message_id: MESSAGE_A, created_at: recent })),
+        ...Array.from({ length: 25 }, () => ({ user_id: "user-a", message_id: MESSAGE_A, created_at: old })),
+      ];
+      let caller: unknown;
+      let since = "";
+      let excludeAutomatic = false;
+      let queries = 0;
+      const rateQuery = new FakeQuery(
+        () => ({ count: rows.filter(row => row.user_id === caller && row.created_at >= since && (!excludeAutomatic || row.message_id !== null)).length }),
+        undefined,
+        (column, value) => { if (column === "user_id") caller = value; },
+        (column, operator, value) => { if (column === "message_id" && operator === "is" && value === null) excludeAutomatic = true; },
+        (column, value) => { if (column === "created_at") since = value; }
+      );
+      createAdminClientSpy.mockReturnValue({
+        from(table: string) {
+          expect(table).toBe("chat_feedback");
+          queries++;
+          return queries === 1 ? rateQuery : new FakeQuery({ data: { id: "new-manual" }, error: null }, payload => inserts.push(payload));
+        },
+      });
+
+      const response = await POST(feedbackRequest(MESSAGE_A, "이 설명을 확인해 주세요"));
+
+      expect(response.status).toBe(expectedStatus);
+      expect(excludeAutomatic).toBe(true);
+      expect(inserts).toHaveLength(expectedStatus === 200 ? 1 : 0);
+    }
+  );
 
   it("rejects a non-UUID message ID before creating an admin client", async () => {
     mockRequestClient({ data: null, error: null });

@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "kind": "chat-feedback-nullability-static-successor",
+  "release": "chat-feedback-private-signal-20260913",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/amora-explicit-budget-hotfix-v1.json",
+    "sha256": "748f75b36797ae0d317d016f2c89ca7fe9e557f51db2e845a3c02535d6aa6474"
+  },
+  "reviewedPredecessorMigrationCount": 228,
+  "migrations": [
+    {
+      "file": "20260913043211_chat_feedback_automatic_signal_nullable.sql",
+      "sha256": "084e2b1477517e9608833a4eb3a62a39c550a20a2f7e42a294b0728df26dae8e"
+    }
+  ],
+  "allowedSchemaChanges": [
+    "column:public.chat_feedback.message_id:attnotnull:true-to-false"
+  ],
+  "scope": {
+    "dataRows": "unchanged",
+    "auth": "unchanged",
+    "storage": "unchanged",
+    "manualMessageValidation": "unchanged",
+    "automaticMessageId": null
+  },
+  "runtime": {
+    "file": "scripts/lib/chat-feedback-nullability-release.mjs",
+    "sha256": "e32493eeb08c54b28895c533beb464b7845b1ce36ef9d7f4ff0c8209a67144d3"
+  }
+}

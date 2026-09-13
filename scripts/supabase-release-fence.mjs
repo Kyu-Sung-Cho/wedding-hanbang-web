@@ -586,6 +586,21 @@ function verifyRemotePending() {
 
 // 새 후속 릴리스는 기존 기본 fence의 목록/핀을 바꾸지 않고 명시 모드로만 검증한다.
 // 이 분기는 로컬 계약 검사이며 hosted 증거 수집이나 원격 명령을 실행하지 않는다.
+if (args.has("--chat-feedback-nullability")) {
+  if (process.argv.slice(2).length !== 1) {
+    fail("CHAT_FEEDBACK_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");
+  }
+  try {
+    const { loadChatFeedbackNullabilityReleasePlan } = await import("./lib/chat-feedback-nullability-release-contract.mjs");
+    const plan = loadChatFeedbackNullabilityReleasePlan(repoRoot);
+    console.log(`Chat-feedback nullability static contract verified (${plan.contract.release}; ${plan.migrationCount} exact SQL files; runtime evidence not verified; deployment not authorized; no remote writes).`);
+    process.exit(0);
+  } catch (error) {
+    const code = /^[A-Z_]+$/.test(error?.code ?? "") ? error.code : "CHAT_FEEDBACK_STATIC_UNCONFIRMED";
+    fail(code);
+  }
+}
+
 if (args.has("--amora-explicit-budget-hotfix")) {
   if (process.argv.slice(2).length !== 1) {
     fail("EXPLICIT_BUDGET_STATIC_ARGUMENTS_INVALID: only the explicit non-deploy mode is allowed");

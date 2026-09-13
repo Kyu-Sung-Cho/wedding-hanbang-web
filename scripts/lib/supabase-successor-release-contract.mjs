@@ -20,6 +20,7 @@ import {
 } from "node:path";
 import { loadEffectiveBudgetDecisionHotfixRelease } from "./amora-budget-decision-effective-release-contract.mjs";
 import { loadExplicitBudgetHotfixRelease } from "./amora-explicit-budget-release-contract.mjs";
+import { loadChatFeedbackNullabilityReleasePlan } from "./chat-feedback-nullability-release-contract.mjs";
 
 export const SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH =
   "supabase/release-manifests/vendor-disclosure-v2-20260718.json";
@@ -1083,8 +1084,8 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix"].includes(followup)) {
-    invalid("FOLLOWUP_RELEASE_INVALID", "only registered budget followups are supported");
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability"].includes(followup)) {
+    invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
     invalid("FOLLOWUP_RELEASE_INVALID", "the budget-decision followup requires the original successor manifest");
@@ -1194,6 +1195,30 @@ export function validateSuccessorReleaseContract({
       if (migration.version <= previousFollowupVersion
           || expectedDirectoryFiles.includes(migration.file)) {
         invalid("FOLLOWUP_RELEASE_INVALID", "budget followups must follow the original successor in exact order");
+      }
+      previousFollowupVersion = migration.version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+  }
+  if (followup === "chat-feedback-nullability") {
+    let feedbackRelease;
+    try {
+      feedbackRelease = loadChatFeedbackNullabilityReleasePlan(root);
+    } catch {
+      invalid("FOLLOWUP_RELEASE_INVALID", "the pinned feedback-nullability static contract could not be verified");
+    }
+    const followups = feedbackRelease.followupMigrations;
+    if (feedbackRelease.contract.projectRef !== manifest.projectRef
+        || feedbackRelease.migrationCount !== 229
+        || feedbackRelease.contract.migrations.length !== 1
+        || followups.length !== 3
+        || followups[2].file !== feedbackRelease.contract.migrations[0].file) {
+      invalid("FOLLOWUP_RELEASE_INVALID", "the feedback followup must preserve both reviewed budget migrations and add exactly one migration");
+    }
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file)) {
+        invalid("FOLLOWUP_RELEASE_INVALID", "feedback followups must follow the original successor in exact order");
       }
       previousFollowupVersion = migration.version;
       expectedDirectoryFiles.push(migration.file);
