@@ -76,6 +76,8 @@ async function checkRateLimit(userId: string): Promise<boolean> {
     .from("chat_feedback")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
+    // 대화에 연결되지 않은 자동 신호는 사용자가 직접 남기는 피드백 한도를 소모하지 않는다.
+    .not("message_id", "is", null)
     .gte("created_at", oneHourAgo);
 
   return (count ?? 0) < 20;

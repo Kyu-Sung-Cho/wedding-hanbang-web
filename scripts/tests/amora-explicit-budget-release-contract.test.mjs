@@ -10,15 +10,21 @@ import { loadEffectiveBudgetDecisionHotfixRelease, loadEffectiveBudgetDecisionHi
 import { EXPLICIT_BUDGET_KIND, EXPLICIT_BUDGET_CONTRACT_FILE, EXPLICIT_BUDGET_SCHEMA_CHANGES,
   loadExplicitBudgetHotfixRelease, validateExplicitBudgetPredecessor } from '../lib/amora-explicit-budget-release-contract.mjs';
 import { createBudgetDecisionHistoricalRepository } from './fixtures/budget-decision-historical-repository.mjs';
+import { createExplicitBudgetHistoricalRepository } from './fixtures/explicit-budget-historical-repository.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createExplicitBudgetHistoricalRepository(actualRoot);
+test.after(historical.cleanup);
+const root = historical.root;
 const code = expected => error => error?.code === expected;
 const json = file => JSON.parse(readFileSync(join(root, file), 'utf8'));
 const release = loadExplicitBudgetHotfixRelease(root);
 const parent = loadEffectiveBudgetDecisionHistoricalRelease(root);
 const originalProof = json(release.hotfix.baselineProof.file);
 
-test('only the new named contract admits exact current 228 SQL / actual 216 ledger; old modes still reject', () => {
+test('the explicit contract admits exact historical 228 SQL / 216 ledger; current successor SQL and older modes still reject', () => {
+  assert.equal(historical.sourceCommit, 'd805f45b59a33d665a965274774d6a02244d948b');
+  assert.throws(() => loadExplicitBudgetHotfixRelease(actualRoot), code('NEW_MIGRATION_NOT_REVIEWED'));
   for (const load of [loadCurrentBaselineContract, loadBudgetDecisionHotfixRelease, loadEffectiveBudgetDecisionHotfixRelease])
     assert.throws(() => load(root), code('NEW_MIGRATION_NOT_REVIEWED'));
   assert.equal(release.hotfix.kind, EXPLICIT_BUDGET_KIND);
@@ -60,7 +66,7 @@ test('new evidence preserves every predecessor safety boundary and binds the obs
 });
 
 test('fixed M4 historical success uses exact Git bytes; current source extra SQL is never deleted or ignored', () => {
-  const fixture = createBudgetDecisionHistoricalRepository(root);
+  const fixture = createBudgetDecisionHistoricalRepository(actualRoot);
   try {
     assert.equal(fixture.sourceCommit, 'e9f74aa3823cd75ed4180623d6276845180bd8ab');
     assert.equal(loadBudgetDecisionHotfixRelease(fixture.root).baseline.ledger.length, 215);
@@ -68,7 +74,8 @@ test('fixed M4 historical success uses exact Git bytes; current source extra SQL
     const expected = [...parent.hotfix.reviewedLocalHistory.migrations, ...parent.hotfix.migrations];
     assert.deepEqual(readdirSync(join(fixture.root, 'supabase/migrations')).sort(), expected.map(row => row.file).sort());
     for (const pin of expected) assert.equal(digest(readFileSync(join(fixture.root, 'supabase/migrations', pin.file))), pin.sha256);
-    assert.ok(readdirSync(join(root, 'supabase/migrations')).includes(release.migrations[0].file));
+    assert.ok(readdirSync(join(actualRoot, 'supabase/migrations')).includes(release.migrations[0].file));
+    assert.ok(readdirSync(join(actualRoot, 'supabase/migrations')).includes('20260913043211_chat_feedback_automatic_signal_nullable.sql'));
   } finally { fixture.cleanup(); }
 });
 

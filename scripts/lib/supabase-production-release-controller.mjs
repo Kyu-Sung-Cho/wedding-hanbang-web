@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--chat-feedback-nullability")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runChatFeedbackNullabilityRelease } = await import("./chat-feedback-nullability-release.mjs");
+    return runChatFeedbackNullabilityRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).some(arg => ['--amora-runtime-hotfix', '--amora-named-budget-hotfix', '--amora-budget-decision-hotfix', '--amora-explicit-budget-hotfix'].includes(arg))) {
     assertSafeExecutionEnvironment(process.env);
     const {
