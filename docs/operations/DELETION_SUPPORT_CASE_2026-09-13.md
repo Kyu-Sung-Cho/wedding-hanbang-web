@@ -10,7 +10,9 @@
 
 ## 운영 명령과 사건 기록
 
-`node scripts/account-deletion-support.mjs --help`로 정확한 인수를 볼 수 있다. 작업은 깨끗한 검토 commit에서만 실행한다. 인증값은 기존 목적지 검증에 필요한 환경변수로 전달하며 인수·Git·일반 로그에 저장하지 않는다.
+검증된 Node.js 24.19.0으로 `scripts/account-deletion-support.mjs --help`를 실행해 정확한 인수를 볼 수 있다. 이 Windows 환경의 기본 Node.js 24.15.0은 실제 TypeScript 모듈 import 단계에서 실패했다. 이미 설치된 `C:/Users/kcho1/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node.exe` 24.19.0으로 실제 DPAPI 저장과 CLI prepare의 로컬 통합 검증을 통과했다. 운영 명령에도 같은 검증된 실행 파일을 사용한다. 시스템 Node나 PATH를 변경한 것은 아니다.
+
+작업은 깨끗한 검토 commit에서만 실행한다. 인증값은 기존 목적지 검증에 필요한 환경변수로 전달하며 인수·Git·일반 로그에 저장하지 않는다.
 
 1. **prepare:** 실제 받은 문의를 읽고 탈퇴 요청임을 확인한 담당자가 새 case UUID, 코드, 문의 원문, 담당자 식별자, 명시 확인값을 전달한다. 요청 내용은 private stdin JSON이다. 단순 `verified:true`나 이메일 주소로 삭제 대상을 지정할 수 없다. 원문의 SHA와 서명된 본인 ID·코드 참조·담당자·검토 시각을 같은 사건에 보존한다. 코드 발급만 했거나 문의 원문이 없으면 거절한다.
 2. **enqueue:** 검토 사건의 hash를 명시 확인하고 `requestAccountDeletion(..., {processImmediately:false})`를 한 번 호출한다. 파괴 동작을 실행하지 않는다. 호출 전에 `enqueue-unverified`를 저장하고 반환 후 같은 본인의 활성 job 하나를 조회·검증해 job ID를 먼저 저장한다. 응답이 유실되면 **inspect**가 같은 본인의 job을 조회한다. 없는 job을 추측하거나 다른 계정을 사용하지 않는다.
@@ -24,6 +26,8 @@
 worker의 문자열 응답만으로 완료라 하지 않는다. 같은 job의 `completed` 및 Storage/Auth/완료 시각, 익명화된 job 소유자, Auth·profile 부재를 읽어 확인한다. 그래도 최종 사건 상태는 **scope_review_required**이며 `generalCustomerDataRemovalVerified`는 false다.
 
 이는 기존 worker의 처리 범위 밖인 개인·공유 대화, AI 로그·파생 기억, 남은 파트너의 자료, 백업/복원 시 삭제 재반영까지 확인했다는 뜻이 아니다. 그 자료의 실제 처리/보존 범위를 담당자가 확인하기 전에는 고객에게 전체 자료 삭제 완료를 안내하지 않는다. 로그인 불가 고객의 대체 본인 확인, 자료별 최종 처리, 고객의 완료 회신은 이 코드가 자동 수행하지 않는다. 보존 기간이나 응답 시간을 임의로 새로 약속하지 않았다.
+
+자료가 있는 일반 고객은 **Auth 삭제 전에** 자료별 처리와 보존 범위를 확정하고, 후속 처리에 필요한 본인 소유 행과 커플 식별 관계를 보존해야 한다. 일부 외래 키는 Auth 삭제 때 소유자 참조를 null로 바꾸므로 삭제 후 user ID만으로 대상을 다시 찾을 수 있다고 가정하면 안 된다. 현재 CLI는 이 선행 작업을 제공하지 않는다. 일반 고객의 process 실행은 이 범위가 마련되기 전까지 진행하지 않으며, 승인된 새 단독 합성 계정의 사진·탈퇴 시험과 구분한다.
 
 ## 실제 검증과 남은 운영 검사
 
