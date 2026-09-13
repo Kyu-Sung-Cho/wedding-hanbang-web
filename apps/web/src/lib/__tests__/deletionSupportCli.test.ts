@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { runInNewContext } from "node:vm";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { validateSupportRuntimeState } from "@/lib/accountDeletion/supportCase";
 
 const SHA = "a".repeat(40);
@@ -16,7 +16,10 @@ const source = readFileSync(resolve(process.cwd(), "../../scripts/account-deleti
 // Execute the real CLI branch with only its imported dependencies and remote transport replaced.
 const program = source.replace(/^import .+;\r?\n/gm, "").replaceAll("import.meta.url", '"file:///synthetic/scripts/account-deletion-support.mjs"');
 
-async function run(env: Record<string, string | undefined>, status = 200) {
+async function run(env: Record<string, string | undefined>, status = 200, timing: {
+  observedOffsetMs?: number;
+  wait?: (callback: () => void, delay: number) => void;
+} = {}) {
   const network: Array<{ url: string; authorization: string | undefined }> = [];
   const output: string[] = [];
   const requestDeletion = vi.fn(async () => ({ status: "pending" }));
@@ -30,7 +33,8 @@ async function run(env: Record<string, string | undefined>, status = 200) {
   const admin = { marker: "synthetic-admin-client" };
   const createClient = vi.fn(() => admin);
   const operation = runInNewContext(`(async () => { ${program} })()`, {
-    process: state, Buffer, URL, Request, AbortSignal, createHash, fileURLToPath: () => "/synthetic/",
+    process: state, Buffer, URL, Request, AbortSignal, Date, setTimeout: timing.wait ?? setTimeout,
+    createHash, fileURLToPath: () => "/synthetic/",
     execFileSync: (_command: string, args: string[]) => args.includes("HEAD") ? SHA
       : args.includes("origin") ? "https://github.com/Kyu-Sung-Cho/wedding-hanbang-web.git" : "",
     verifySupabaseServiceDestinationFromEnv: () => ({ projectRef: PROJECT, url: `https://${PROJECT}.supabase.co` }),
@@ -45,7 +49,7 @@ async function run(env: Record<string, string | undefined>, status = 200) {
       network.push({ url: resource, authorization: init?.headers?.Authorization });
       if (resource === "https://hanbang.ai/api/health") return new Response(JSON.stringify({ ok: true, database: "up", commit: SHA.slice(0, 12) }));
       if (resource !== "https://hanbang.ai/api/ops/account-deletion-state") throw Error("Unexpected network destination");
-      return new Response(JSON.stringify({ commit: SHA, observedAt: new Date().toISOString(), flags: {
+      return new Response(JSON.stringify({ commit: SHA, observedAt: new Date(Date.now() + (timing.observedOffsetMs ?? 0)).toISOString(), flags: {
         ACCOUNT_DELETION_INTAKE_ENABLED: false, ACCOUNT_DELETION_CRON_ENABLED: false,
       } }), { status, headers: { "cache-control": "private, no-store" } });
     },
@@ -90,6 +94,48 @@ describe("support CLI separate runtime-state credential", () => {
     expect(result.network.filter(x => x.authorization !== undefined)).toEqual([
       { url: "https://hanbang.ai/api/ops/account-deletion-state", authorization: `Bearer ${STATE}` },
     ]);
+    expect(result.requestDeletion).not.toHaveBeenCalled();
+  });
+});
+
+describe("support CLI bounded runtime observation wait", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("waits once for a 169ms-ahead observation before strict validation and enqueue", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = Date.now();
+    const wait = vi.fn((callback: () => void, delay: number) => {
+      vi.setSystemTime(now + delay);
+      callback();
+    });
+    const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs: 169, wait });
+    expect(wait).toHaveBeenCalledExactlyOnceWith(expect.any(Function), 169);
+    expect(result.state.exitCode).toBeUndefined();
+    expect(result.requestDeletion).toHaveBeenCalledExactlyOnceWith(result.admin, value.subject, "privacy", now + 169, { processImmediately: false });
+    expect(result.network.filter(x => x.url.endsWith("/api/ops/account-deletion-state"))).toHaveLength(1);
+  });
+
+  it.each([1_001, -30_001])("rejects an observation outside the permitted wait/freshness boundaries without waiting: %sms", async observedOffsetMs => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const wait = vi.fn();
+    const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs, wait });
+    expect(wait).not.toHaveBeenCalled();
+    expect(result.state.exitCode).toBe(2);
+    expect(result.output).toContain("SUPPORT_CASE_RUNTIME_STATE_INVALID");
+    expect(result.requestDeletion).not.toHaveBeenCalled();
+  });
+
+  it("does not wait again or enqueue if the clock moves backward during the single wait", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const now = Date.now();
+    const wait = vi.fn((callback: () => void) => {
+      vi.setSystemTime(now - 1);
+      callback();
+    });
+    const result = await run({ ACCOUNT_DELETION_STATE_SECRET: STATE }, 200, { observedOffsetMs: 169, wait });
+    expect(wait).toHaveBeenCalledExactlyOnceWith(expect.any(Function), 169);
+    expect(result.state.exitCode).toBe(2);
+    expect(result.output).toContain("SUPPORT_CASE_RUNTIME_STATE_INVALID");
     expect(result.requestDeletion).not.toHaveBeenCalled();
   });
 });
