@@ -16,12 +16,18 @@ const PRIVATE_NO_STORE = {
 
 /** 운영 설정 관측만 수행한다. 삭제 접수·작업 실행·DB 조회와 연결하지 않는다. */
 export async function GET(request: Request) {
-  const expected = process.env.CRON_SECRET;
   const authorization = request.headers.get("authorization");
   const suppliedBytes = Buffer.from(authorization ?? "");
-  const expectedBytes = Buffer.from(`Bearer ${expected ?? ""}`);
-  if (!expected || !authorization || suppliedBytes.length !== expectedBytes.length
-    || !timingSafeEqual(suppliedBytes, expectedBytes)) {
+  let authenticated = false;
+  if (authorization && /^Bearer [A-Za-z0-9._~+/-]+=*$/.test(authorization)) {
+    for (const expected of [process.env.ACCOUNT_DELETION_STATE_SECRET, process.env.CRON_SECRET]) {
+      if (!expected || !/^[A-Za-z0-9._~+/-]+=*$/.test(expected)) continue;
+      const expectedBytes = Buffer.from(`Bearer ${expected}`);
+      const matches = suppliedBytes.length === expectedBytes.length && timingSafeEqual(suppliedBytes, expectedBytes);
+      authenticated = matches || authenticated;
+    }
+  }
+  if (!authenticated) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: PRIVATE_NO_STORE });
   }
 
