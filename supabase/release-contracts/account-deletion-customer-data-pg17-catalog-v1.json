@@ -1,0 +1,541 @@
+{
+  "triggers": [
+    [
+      "auth",
+      "users",
+      "trg_account_deletion_auth_boundary",
+      "O",
+      "CREATE TRIGGER trg_account_deletion_auth_boundary BEFORE DELETE ON auth.users FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_auth_boundary()"
+    ],
+    [
+      "public",
+      "amora_chat_request_claims",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_chat_request_claims FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "amora_couple_profiles",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_couple_profiles FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "amora_memory_consents",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_memory_consents FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "amora_memory_enqueue_repair_candidates",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_memory_enqueue_repair_candidates FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "amora_memory_jobs",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_memory_jobs FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "amora_saved_notes",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_saved_notes FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "amora_tool_executions",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON amora_tool_executions FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "chat_messages",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "chat_summaries",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON chat_summaries FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "couples",
+      "trg_00_account_deletion_membership",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_membership BEFORE INSERT OR DELETE OR UPDATE ON couples FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_membership_transition()"
+    ],
+    [
+      "public",
+      "decision_nodes",
+      "trg_00_account_deletion_customer_write",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_customer_write BEFORE INSERT OR UPDATE ON decision_nodes FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_customer_write()"
+    ],
+    [
+      "public",
+      "profiles",
+      "trg_00_account_deletion_membership",
+      "O",
+      "CREATE TRIGGER trg_00_account_deletion_membership BEFORE INSERT OR DELETE OR UPDATE ON profiles FOR EACH ROW EXECUTE FUNCTION guard_account_deletion_membership_transition()"
+    ]
+  ],
+  "functions": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "integer, uuid",
+      "body": "\nBEGIN\n  IF p_lease_seconds < 60 OR p_lease_seconds > 1800 THEN\n    RAISE EXCEPTION 'AMORA_MEMORY_JOB_CLAIM_INVALID' USING ERRCODE = '22023';\n  END IF;\n\n  PERFORM pg_catalog.pg_advisory_xact_lock(\n    pg_catalog.hashtextextended('hanbang:amora-memory-claim', 0)\n  );\n\n  UPDATE public.amora_memory_jobs\n  SET status = 'failed',\n      claimed_at = NULL,\n      completed_at = now(),\n      last_error_code = 'LEASE_EXHAUSTED',\n      updated_at = now()\n  WHERE status = 'processing'\n    AND (p_job_id IS NULL OR id = p_job_id)\n    AND claimed_at < now() - make_interval(secs => p_lease_seconds)\n    AND attempt_count >= 5;\n\n  RETURN QUERY\n  WITH candidate AS (\n    SELECT job.id\n    FROM public.amora_memory_jobs AS job\n    WHERE job.available_at <= now()\n      AND (p_job_id IS NULL OR job.id = p_job_id)\n      AND (\n        job.status = 'pending'\n        OR (\n          job.status = 'processing'\n          AND job.claimed_at < now() - make_interval(secs => p_lease_seconds)\n        )\n      )\n      AND job.attempt_count < 5\n      AND NOT EXISTS (SELECT 1 FROM public.account_deletion_jobs AS deletion\n        WHERE deletion.user_id=job.user_id AND deletion.status<>'completed')\n      AND NOT EXISTS (SELECT 1 FROM public.account_deletion_private_scopes AS retired\n        WHERE retired.couple_id=job.couple_id AND retired.visibility=job.visibility)\n      AND NOT EXISTS (\n        SELECT 1\n        FROM public.amora_memory_jobs AS active\n        WHERE active.couple_id = job.couple_id\n          AND active.visibility = job.visibility\n          AND active.status = 'processing'\n          AND active.claimed_at >= now() - make_interval(secs => p_lease_seconds)\n          AND active.id <> job.id\n          AND NOT EXISTS (SELECT 1 FROM public.account_deletion_jobs AS deletion\n            WHERE deletion.user_id=active.user_id AND deletion.status<>'completed')\n          AND NOT EXISTS (SELECT 1 FROM public.account_deletion_private_scopes AS retired\n            WHERE retired.couple_id=active.couple_id AND retired.visibility=active.visibility)\n      )\n    ORDER BY job.created_at\n    FOR UPDATE SKIP LOCKED\n    LIMIT 1\n  )\n  UPDATE public.amora_memory_jobs AS job\n  SET status = 'processing',\n      claimed_at = now(),\n      attempt_count = job.attempt_count + 1,\n      last_error_code = NULL,\n      updated_at = now()\n  FROM candidate\n  WHERE job.id = candidate.id\n  RETURNING job.*;\nEND\n",
+      "name": "claim_amora_memory_job",
+      "owner": "postgres",
+      "config": [
+        "search_path=pg_catalog, public",
+        "lock_timeout=5s",
+        "statement_timeout=30s"
+      ],
+      "result": "SETOF amora_memory_jobs",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, uuid",
+      "body": "\nDECLARE v_prepared boolean := false;\nBEGIN\n  UPDATE public.account_deletion_jobs AS job\n  SET status='auth_deleting',storage_verified_at=COALESCE(job.storage_verified_at,clock_timestamp()),updated_at=clock_timestamp()\n  WHERE job.id=p_job_id AND job.claim_token=p_claim_token AND job.status IN ('deleting','auth_deleting')\n    AND job.data_prepared_at IS NOT NULL AND job.data_prepared_version=1\n    AND job.quarantine_count=0\n    AND NOT EXISTS (SELECT 1 FROM public.vendors WHERE owner_id=job.user_id)\n    AND NOT EXISTS (SELECT 1 FROM public.account_deletion_media_manifest\n      WHERE job_id=job.id AND (source='quarantine' OR cleaned_at IS NULL))\n  RETURNING true INTO v_prepared;\n  RETURN COALESCE(v_prepared,false);\nEND;\n",
+      "name": "prepare_account_deletion_auth_delete",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, uuid",
+      "body": "\nDECLARE\n  v_job public.account_deletion_jobs%ROWTYPE; v_profile public.profiles%ROWTYPE;\n  v_couple public.couples%ROWTYPE; v_visibility text;\n  v_now timestamptz; v_partner uuid;\nBEGIN\n  SELECT * INTO v_job FROM public.account_deletion_jobs\n    WHERE id = p_job_id AND claim_token = p_claim_token\n      AND status IN ('deleting','auth_deleting') AND user_id IS NOT NULL FOR UPDATE;\n  IF NOT FOUND THEN RETURN false; END IF;\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:account-data:' || v_job.user_id::text,0));\n  IF v_job.quarantine_count <> 0 OR v_job.ready_after IS NULL OR v_job.ready_after > clock_timestamp()\n     OR EXISTS (SELECT 1 FROM public.account_deletion_media_manifest\n       WHERE job_id = p_job_id AND (source = 'quarantine' OR not_before > clock_timestamp()))\n     OR EXISTS (SELECT 1 FROM public.vendors WHERE owner_id = v_job.user_id) THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED' USING ERRCODE = 'P0001';\n  END IF;\n  IF v_job.data_prepared_at IS NOT NULL AND v_job.data_prepared_version = 1 THEN RETURN true; END IF;\n  IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_job.user_id) THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED' USING ERRCODE = 'P0001';\n  END IF;\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(\n    'hanbang:couple-membership:' || v_job.user_id::text,0));\n  SELECT * INTO v_profile FROM public.profiles WHERE id = v_job.user_id FOR UPDATE;\n  IF NOT FOUND THEN RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED'; END IF;\n  IF v_profile.couple_id IS NOT NULL THEN\n    SELECT * INTO v_couple FROM public.couples WHERE id = v_profile.couple_id FOR SHARE;\n    IF NOT FOUND OR NOT COALESCE((\n      (v_profile.role = 'bride' AND v_couple.bride_id = v_job.user_id AND v_couple.groom_id IS DISTINCT FROM v_job.user_id)\n      OR (v_profile.role = 'groom' AND v_couple.groom_id = v_job.user_id AND v_couple.bride_id IS DISTINCT FROM v_job.user_id)\n    ),false) THEN RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED'; END IF;\n    v_visibility := CASE WHEN v_profile.role = 'bride' THEN 'bride_private' ELSE 'groom_private' END;\n    v_partner := CASE WHEN v_profile.role = 'bride' THEN v_couple.groom_id ELSE v_couple.bride_id END;\n    IF v_partner IS NOT NULL AND NOT EXISTS (SELECT 1 FROM public.profiles\n      WHERE id = v_partner AND couple_id = v_couple.id\n        AND role = CASE WHEN v_profile.role = 'bride' THEN 'groom' ELSE 'bride' END) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED';\n    END IF;\n  END IF;\n  -- claim이 없는 비표준 도구 키는 owner를 추측할 수 없다. 정상 서비스의\n  -- 기존 key 형식을 바꾸지 않고, 해당 계정 삭제만 수동 검토로 남긴다.\n  IF v_couple.id IS NOT NULL AND EXISTS (SELECT 1 FROM public.amora_tool_executions AS execution\n    WHERE execution.couple_id=v_couple.id AND NOT EXISTS (\n      SELECT 1 FROM public.amora_chat_request_claims AS claim\n      WHERE claim.couple_id=execution.couple_id AND claim.request_key=execution.request_key)\n    AND execution.request_key !~ '^(chat|greeting):[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(:|$)') THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED';\n  END IF;\n  -- 현재 슬롯 밖의 개인 데이터나 두 개의 로스터는 추측으로 분류하지 않는다.\n  IF EXISTS (SELECT 1 FROM public.couples WHERE (bride_id = v_job.user_id OR groom_id = v_job.user_id)\n        AND id IS DISTINCT FROM v_profile.couple_id)\n     OR EXISTS (SELECT 1 FROM public.chat_messages WHERE sender_id = v_job.user_id\n        AND visibility <> 'shared' AND (couple_id IS DISTINCT FROM v_profile.couple_id OR visibility IS DISTINCT FROM v_visibility))\n     OR EXISTS (SELECT 1 FROM public.amora_chat_request_claims WHERE user_id = v_job.user_id\n        AND visibility <> 'shared' AND (couple_id IS DISTINCT FROM v_profile.couple_id OR visibility IS DISTINCT FROM v_visibility))\n     OR EXISTS (SELECT 1 FROM public.chat_summaries WHERE user_id = v_job.user_id\n        AND (couple_id IS DISTINCT FROM v_profile.couple_id\n          OR (visibility <> 'shared' AND visibility IS DISTINCT FROM v_visibility)))\n     OR EXISTS (SELECT 1 FROM public.chat_messages WHERE couple_id=v_couple.id AND visibility=v_visibility\n        AND sender_id IS NOT NULL AND sender_id<>v_job.user_id)\n     OR EXISTS (SELECT 1 FROM public.chat_summaries WHERE couple_id=v_couple.id AND visibility=v_visibility\n        AND user_id IS NOT NULL AND user_id<>v_job.user_id)\n     OR EXISTS (SELECT 1 FROM public.amora_memory_jobs WHERE couple_id=v_couple.id AND visibility=v_visibility\n        AND user_id IS NOT NULL AND user_id<>v_job.user_id) THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED';\n  END IF;\n  -- 모든 subject claim의 journal은 개인정보일 수 있다. 공유 결과(예산 등)는\n  -- 유지하면서 재시도용 요청/도구 payload만 source 관계가 살아 있을 때 정리한다.\n  PERFORM request_key FROM public.amora_chat_request_claims\n    WHERE user_id = v_job.user_id OR (couple_id = v_couple.id AND visibility = v_visibility)\n    ORDER BY couple_id,request_key FOR UPDATE;\n  INSERT INTO public.account_deletion_retired_requests(couple_id,request_digest,job_id)\n    SELECT couple_id,pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(request_key,'UTF8')),'hex'),p_job_id\n      FROM public.amora_chat_request_claims WHERE user_id=v_job.user_id;\n  IF v_couple.id IS NOT NULL THEN\n    PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(\n      'hanbang:amora-memory-consent:' || v_couple.id::text || ':' || v_visibility,0));\n    IF EXISTS (SELECT 1 FROM public.amora_chat_request_claims WHERE couple_id = v_couple.id\n        AND visibility = v_visibility AND user_id <> v_job.user_id) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED';\n    END IF;\n    v_now := clock_timestamp();\n    INSERT INTO public.account_deletion_private_scopes(couple_id,visibility,job_id,retired_at)\n      VALUES(v_couple.id,v_visibility,p_job_id,v_now);\n    INSERT INTO public.amora_private_chat_delete_boundaries(couple_id,visibility,deleted_at,revision)\n      VALUES(v_couple.id,v_visibility,v_now,1)\n      ON CONFLICT(couple_id,visibility) DO UPDATE SET deleted_at=excluded.deleted_at,\n        revision=public.amora_private_chat_delete_boundaries.revision+1,updated_at=excluded.deleted_at;\n    DELETE FROM public.amora_saved_notes AS note USING public.chat_messages AS message\n      WHERE note.message_id=message.id AND message.couple_id=v_couple.id AND message.visibility=v_visibility;\n    DELETE FROM public.amora_memory_jobs WHERE couple_id=v_couple.id AND visibility=v_visibility;\n    DELETE FROM public.chat_summaries WHERE couple_id=v_couple.id AND visibility=v_visibility;\n    DELETE FROM public.decision_nodes WHERE couple_id=v_couple.id AND visibility=v_visibility;\n    DELETE FROM public.amora_couple_profiles WHERE couple_id=v_couple.id AND visibility=v_visibility;\n    DELETE FROM public.amora_memory_consents WHERE couple_id=v_couple.id AND visibility=v_visibility;\n    INSERT INTO public.amora_memory_settings(couple_id,visibility,enabled,enabled_by,enabled_at,memory_reset_at,legacy_purged_at)\n      VALUES(v_couple.id,v_visibility,false,NULL,NULL,v_now,v_now)\n      ON CONFLICT(couple_id,visibility) DO UPDATE SET enabled=false,enabled_by=NULL,enabled_at=NULL,\n        memory_reset_at=v_now,legacy_purged_at=v_now,updated_at=v_now;\n    -- Auth user_id CASCADE가 shared summary 본문까지 지우지 않도록 식별자만 분리.\n    IF v_partner IS NOT NULL THEN\n      UPDATE public.chat_summaries SET user_id=NULL\n        WHERE couple_id=v_couple.id AND visibility='shared' AND user_id=v_job.user_id;\n    END IF;\n  END IF;\n  DELETE FROM public.amora_tool_executions AS execution\n    WHERE execution.request_key LIKE 'chat:' || v_job.user_id::text || ':%'\n      OR execution.request_key = 'greeting:' || v_job.user_id::text\n      OR execution.request_key LIKE 'greeting:' || v_job.user_id::text || ':%'\n      OR EXISTS (SELECT 1 FROM public.amora_chat_request_claims AS claim\n        WHERE claim.couple_id=execution.couple_id AND claim.request_key=execution.request_key\n          AND claim.user_id=v_job.user_id);\n  DELETE FROM public.amora_memory_enqueue_repair_candidates WHERE user_id=v_job.user_id;\n  DELETE FROM public.amora_memory_enqueue_repair_dead_letters WHERE user_id=v_job.user_id;\n  DELETE FROM public.amora_chat_request_claims WHERE user_id=v_job.user_id;\n  IF v_couple.id IS NOT NULL THEN\n    DELETE FROM public.chat_messages WHERE couple_id=v_couple.id AND visibility=v_visibility;\n    IF EXISTS (SELECT 1 FROM public.chat_messages WHERE couple_id=v_couple.id AND visibility=v_visibility)\n      OR EXISTS (SELECT 1 FROM public.decision_nodes WHERE couple_id=v_couple.id AND visibility=v_visibility)\n      OR EXISTS (SELECT 1 FROM public.chat_summaries WHERE couple_id=v_couple.id AND visibility=v_visibility)\n      OR EXISTS (SELECT 1 FROM public.amora_couple_profiles WHERE couple_id=v_couple.id AND visibility=v_visibility)\n      OR EXISTS (SELECT 1 FROM public.amora_memory_jobs WHERE couple_id=v_couple.id AND visibility=v_visibility) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_POSTCONDITION_FAILED';\n    END IF;\n  END IF;\n  IF EXISTS (SELECT 1 FROM public.amora_chat_request_claims WHERE user_id=v_job.user_id)\n    OR EXISTS (SELECT 1 FROM public.amora_tool_executions WHERE request_key LIKE 'chat:' || v_job.user_id::text || ':%')\n    OR EXISTS (SELECT 1 FROM public.amora_memory_enqueue_repair_candidates WHERE user_id=v_job.user_id)\n    OR EXISTS (SELECT 1 FROM public.amora_memory_enqueue_repair_dead_letters WHERE user_id=v_job.user_id) THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_POSTCONDITION_FAILED';\n  END IF;\n  UPDATE public.account_deletion_jobs SET data_prepared_at=clock_timestamp(),data_prepared_version=1,updated_at=clock_timestamp()\n    WHERE id=p_job_id AND claim_token=p_claim_token;\n  RETURN true;\nEND;\n",
+      "name": "prepare_account_deletion_customer_data",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\"",
+        "lock_timeout=5s",
+        "statement_timeout=30s"
+      ],
+      "result": "boolean",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nBEGIN\n  PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('hanbang:account-data:' || OLD.id::text,0));\n  IF EXISTS (SELECT 1 FROM public.account_deletion_jobs WHERE user_id=OLD.id AND status<>'completed'\n    AND (status<>'auth_deleting' OR data_prepared_at IS NULL OR data_prepared_version IS DISTINCT FROM 1 OR storage_verified_at IS NULL)) THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_DATA_NOT_PREPARED' USING ERRCODE='55000';\n  END IF;\n  RETURN OLD;\nEND;\n",
+      "name": "guard_account_deletion_auth_boundary",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nDECLARE v_actor uuid; v_actors uuid[]; v_job public.account_deletion_jobs%ROWTYPE;\n  v_related_couples uuid[]; v_auth_cascade boolean := true;\nBEGIN\n  IF TG_TABLE_NAME = 'profiles' THEN\n    IF TG_OP = 'UPDATE' AND NEW.couple_id IS NOT DISTINCT FROM OLD.couple_id\n       AND NEW.role IS NOT DISTINCT FROM OLD.role THEN RETURN NEW; END IF;\n    v_actors := ARRAY[CASE WHEN TG_OP = 'INSERT' THEN NEW.id ELSE OLD.id END];\n    v_related_couples := CASE WHEN TG_OP='INSERT' THEN ARRAY[NEW.couple_id]\n      WHEN TG_OP='DELETE' THEN ARRAY[OLD.couple_id] ELSE ARRAY[OLD.couple_id,NEW.couple_id] END;\n  ELSE\n    IF TG_OP = 'UPDATE' AND NEW.bride_id IS NOT DISTINCT FROM OLD.bride_id\n       AND NEW.groom_id IS NOT DISTINCT FROM OLD.groom_id THEN RETURN NEW; END IF;\n    v_actors := CASE WHEN TG_OP = 'INSERT' THEN ARRAY[NEW.bride_id,NEW.groom_id]\n      WHEN TG_OP = 'DELETE' THEN ARRAY[OLD.bride_id,OLD.groom_id]\n      ELSE ARRAY[\n        CASE WHEN OLD.bride_id IS DISTINCT FROM NEW.bride_id THEN OLD.bride_id END,\n        CASE WHEN OLD.bride_id IS DISTINCT FROM NEW.bride_id THEN NEW.bride_id END,\n        CASE WHEN OLD.groom_id IS DISTINCT FROM NEW.groom_id THEN OLD.groom_id END,\n        CASE WHEN OLD.groom_id IS DISTINCT FROM NEW.groom_id THEN NEW.groom_id END] END;\n    v_related_couples := ARRAY[CASE WHEN TG_OP='DELETE' THEN OLD.id ELSE NEW.id END];\n    -- NULL 슬롯을 제3자가 채우는 것도 이미 퇴장한 private 레인을 되살릴 수 없다.\n    IF TG_OP <> 'DELETE' AND EXISTS (\n      SELECT 1 FROM public.account_deletion_private_scopes AS scope\n      WHERE scope.couple_id = NEW.id AND (\n        (scope.visibility = 'bride_private' AND NEW.bride_id IS NOT NULL)\n        OR (scope.visibility = 'groom_private' AND NEW.groom_id IS NOT NULL)\n      ) AND (TG_OP = 'INSERT' OR\n        (scope.visibility = 'bride_private' AND NEW.bride_id IS DISTINCT FROM OLD.bride_id)\n        OR (scope.visibility = 'groom_private' AND NEW.groom_id IS DISTINCT FROM OLD.groom_id))\n    ) THEN RAISE EXCEPTION 'ACCOUNT_DELETE_MEMBERSHIP_FROZEN' USING ERRCODE = '55000'; END IF;\n  END IF;\n  FOREACH v_actor IN ARRAY v_actors LOOP\n    CONTINUE WHEN v_actor IS NULL;\n    IF EXISTS (SELECT 1 FROM auth.users WHERE id=v_actor) OR NOT EXISTS (\n      SELECT 1 FROM public.account_deletion_jobs WHERE user_id=v_actor AND status='auth_deleting'\n        AND data_prepared_at IS NOT NULL AND data_prepared_version=1 AND storage_verified_at IS NOT NULL\n    ) THEN v_auth_cascade := false; END IF;\n  END LOOP;\n  IF NOT v_auth_cascade AND EXISTS (SELECT 1 FROM public.account_deletion_jobs AS job\n    JOIN public.profiles AS profile ON profile.id=job.user_id\n    WHERE job.status<>'completed' AND profile.couple_id=ANY(v_related_couples)) THEN\n    RAISE EXCEPTION 'ACCOUNT_DELETE_MEMBERSHIP_FROZEN' USING ERRCODE='55000';\n  END IF;\n  FOREACH v_actor IN ARRAY v_actors LOOP\n    CONTINUE WHEN v_actor IS NULL;\n    IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(pg_catalog.hashtextextended('hanbang:account-data:' || v_actor::text,0)) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_MEMBERSHIP_BUSY' USING ERRCODE = '55P03';\n    END IF;\n    SELECT * INTO v_job FROM public.account_deletion_jobs\n      WHERE user_id = v_actor AND status <> 'completed';\n    IF FOUND AND NOT (\n      v_job.status = 'auth_deleting' AND v_job.data_prepared_at IS NOT NULL\n      AND v_job.data_prepared_version = 1 AND v_job.storage_verified_at IS NOT NULL\n      AND NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_actor)\n    ) THEN RAISE EXCEPTION 'ACCOUNT_DELETE_MEMBERSHIP_FROZEN' USING ERRCODE = '55000'; END IF;\n  END LOOP;\n  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;\nEND;\n",
+      "name": "guard_account_deletion_membership_transition",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "",
+      "body": "\nDECLARE\n  v_actor uuid; v_couple uuid; v_visibility text; v_row jsonb := pg_catalog.to_jsonb(NEW);\n  v_key text; v_current_owner uuid;\nBEGIN\n  v_couple := (v_row->>'couple_id')::uuid;\n  v_visibility := v_row->>'visibility';\n  -- Queue claim/retry/terminal bookkeeping has no new customer payload. Let it\n  -- finish so one deleting account cannot abort the global recovery batch.\n  IF TG_OP='UPDATE' AND TG_TABLE_NAME IN ('amora_memory_jobs','amora_memory_enqueue_repair_candidates')\n     AND (v_row->'couple_id') IS NOT DISTINCT FROM (pg_catalog.to_jsonb(OLD)->'couple_id')\n     AND (v_row->'visibility') IS NOT DISTINCT FROM (pg_catalog.to_jsonb(OLD)->'visibility')\n     AND (v_row->'user_id') IS NOT DISTINCT FROM (pg_catalog.to_jsonb(OLD)->'user_id')\n     AND (v_row->'to_message_id') IS NOT DISTINCT FROM (pg_catalog.to_jsonb(OLD)->'to_message_id')\n     AND (v_row->'request_key') IS NOT DISTINCT FROM (pg_catalog.to_jsonb(OLD)->'request_key') THEN RETURN NEW; END IF;\n  IF TG_TABLE_NAME = 'amora_tool_executions' THEN\n    v_key := NEW.request_key;\n    IF EXISTS (SELECT 1 FROM public.account_deletion_retired_requests\n      WHERE couple_id=v_couple AND request_digest=pg_catalog.encode(pg_catalog.sha256(pg_catalog.convert_to(v_key,'UTF8')),'hex')) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_REQUEST_RETIRED' USING ERRCODE='55000';\n    END IF;\n    SELECT user_id,visibility INTO v_actor,v_visibility FROM public.amora_chat_request_claims\n      WHERE couple_id=v_couple AND request_key=v_key;\n    IF NOT FOUND AND v_key ~ '^(chat|greeting):[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(:|$)' THEN\n      v_actor := pg_catalog.split_part(v_key, ':', 2)::uuid;\n    END IF;\n    IF v_actor IS NULL AND EXISTS (SELECT 1 FROM public.account_deletion_jobs AS job\n      JOIN public.profiles AS profile ON profile.id=job.user_id\n      WHERE profile.couple_id=v_couple AND job.status<>'completed') THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_WRITE_SCOPE_UNKNOWN' USING ERRCODE='55000';\n    END IF;\n  ELSIF TG_TABLE_NAME = 'amora_saved_notes' THEN\n    v_actor := NEW.saved_by;\n    IF NEW.message_id IS NOT NULL THEN\n      SELECT message.visibility INTO v_visibility FROM public.chat_messages AS message\n      WHERE message.id = NEW.message_id AND message.couple_id = v_couple;\n    END IF;\n  ELSIF TG_TABLE_NAME IN ('chat_summaries','amora_chat_request_claims','amora_memory_jobs',\n      'amora_memory_enqueue_repair_candidates','amora_memory_enqueue_repair_dead_letters',\n      'amora_memory_consents') THEN\n    v_actor := (v_row->>'user_id')::uuid;\n  ELSIF TG_TABLE_NAME = 'chat_messages' THEN\n    v_actor := NEW.sender_id;\n  END IF;\n  IF v_visibility IN ('bride_private','groom_private') THEN\n    SELECT CASE WHEN v_visibility = 'bride_private' THEN bride_id ELSE groom_id END\n      INTO v_current_owner FROM public.couples WHERE id = v_couple;\n    -- sender_id=NULL 인 AI 답변도 레인의 현재 소유자로 검사한다.\n    IF v_actor IS NULL THEN v_actor := v_current_owner; END IF;\n    IF v_current_owner IS NULL OR v_actor IS DISTINCT FROM v_current_owner THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_PRIVATE_SCOPE_RETIRED' USING ERRCODE = '55000';\n    END IF;\n  END IF;\n  IF v_actor IS NOT NULL THEN\n    IF NOT pg_catalog.pg_try_advisory_xact_lock_shared(pg_catalog.hashtextextended('hanbang:account-data:' || v_actor::text,0)) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_WRITE_BUSY' USING ERRCODE = '55P03';\n    END IF;\n    IF NOT EXISTS (SELECT 1 FROM auth.users WHERE id = v_actor)\n       OR EXISTS (SELECT 1 FROM public.account_deletion_jobs WHERE user_id = v_actor AND status <> 'completed') THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_CUSTOMER_WRITE_FROZEN' USING ERRCODE = '55000';\n    END IF;\n  END IF;\n  IF v_visibility IN ('bride_private','groom_private') THEN\n    IF EXISTS (SELECT 1 FROM public.account_deletion_private_scopes\n        WHERE couple_id = v_couple AND visibility = v_visibility) THEN\n      RAISE EXCEPTION 'ACCOUNT_DELETE_PRIVATE_SCOPE_RETIRED' USING ERRCODE = '55000';\n    END IF;\n  END IF;\n  RETURN NEW;\nEND;\n",
+      "name": "guard_account_deletion_customer_write",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "trigger",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    }
+  ],
+  "relations": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "SELECT",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.account_deletion_private_scopes",
+      "owner": "postgres",
+      "columns": [
+        [
+          "couple_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "job_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "retired_at",
+          "timestamp with time zone",
+          true,
+          "",
+          "",
+          "clock_timestamp()"
+        ],
+        [
+          "visibility",
+          "text",
+          true,
+          "",
+          "",
+          null
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE UNIQUE INDEX account_deletion_private_scopes_pkey ON public.account_deletion_private_scopes USING btree (couple_id, visibility)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": true,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "account_deletion_private_scopes_couple_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+        ],
+        [
+          "account_deletion_private_scopes_job_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (job_id) REFERENCES account_deletion_jobs(id) ON DELETE RESTRICT"
+        ],
+        [
+          "account_deletion_private_scopes_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (couple_id, visibility)"
+        ],
+        [
+          "account_deletion_private_scopes_visibility_check",
+          "c",
+          true,
+          "CHECK (visibility = ANY (ARRAY['bride_private'::text, 'groom_private'::text]))"
+        ]
+      ]
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "SELECT",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.account_deletion_retired_requests",
+      "owner": "postgres",
+      "columns": [
+        [
+          "couple_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "job_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "request_digest",
+          "text",
+          true,
+          "",
+          "",
+          null
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE UNIQUE INDEX account_deletion_retired_requests_pkey ON public.account_deletion_retired_requests USING btree (couple_id, request_digest)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": true,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "account_deletion_retired_requests_couple_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (couple_id) REFERENCES couples(id) ON DELETE CASCADE"
+        ],
+        [
+          "account_deletion_retired_requests_job_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (job_id) REFERENCES account_deletion_jobs(id) ON DELETE RESTRICT"
+        ],
+        [
+          "account_deletion_retired_requests_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (couple_id, request_digest)"
+        ],
+        [
+          "account_deletion_retired_requests_request_digest_check",
+          "c",
+          true,
+          "CHECK (request_digest ~ '^[0-9a-f]{64}$'::text)"
+        ]
+      ]
+    }
+  ],
+  "jobColumns": [
+    [
+      "data_prepared_at",
+      "timestamp with time zone",
+      false,
+      "",
+      "",
+      null
+    ],
+    [
+      "data_prepared_version",
+      "integer",
+      false,
+      "",
+      "",
+      null
+    ]
+  ],
+  "jobConstraint": [
+    [
+      "account_deletion_data_receipt_pair",
+      "c",
+      true,
+      "CHECK (data_prepared_at IS NULL AND data_prepared_version IS NULL OR data_prepared_at IS NOT NULL AND NOT data_prepared_version IS DISTINCT FROM 1)"
+    ]
+  ]
+}

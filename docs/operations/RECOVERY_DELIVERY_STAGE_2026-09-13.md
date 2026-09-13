@@ -1,6 +1,20 @@
 # W13 복구 실행기 — 현재 구현과 원본 반입의 남은 경계
 
-기준 소스는 `17fd807a`이며 전용 `codex/recovery-delivery-20260913`에서 작업했다. 고객 원본 수집·원격 복원·서비스 정지·새 유료 리소스·OS 설정 변경은 없다. 기존 전체 복구 controller와 역사적인 capture 계약의 핀은 변경하지 않았다.
+최초 구현 기준 소스는 `17fd807a`이며 전용 `codex/recovery-delivery-20260913`에서 작업했다. **최신 재검토는 `d7f7599aba289066b246c19220ba55627331ab0c` 이후 `codex/launch-remaining-integrity-20260913`에서 수행했다. W13 전체 원본 복구는 여전히 미완료다.** 고객 원본 수집·원격 복원·서비스 정지·새 유료 리소스·OS 설정 변경은 없다. 기존 전체 복구 controller와 역사적인 capture 계약의 핀은 변경하지 않았다.
+
+## 최신 재검토에서 닫은 코드 결함
+
+검증된 archive Buffer는 수정 가능한 메모리였다. 반환 후 또는 pre-restore checkpoint를 기다리는 동안 내용이 바뀌어도 기존 실행기는 초기 검증 결과만 믿고 `pg_restore`에 전달할 수 있었다. `assertRecoveryArchiveBytes`로 대상 연결 전과 checkpoint 이후 native 실행 직전에 길이·PGDMP 헤더·SHA를 다시 확인한다. archive 메타데이터와 반환 묶음의 바깥 객체를 모두 동결하고 source/candidate binding은 독립 복사 후 동결해 속성 교체·외부 객체 수정이 검증된 결합을 바꾸지 못하게 했다. Buffer를 지우는 dispose는 그대로 동작하며 Base64 원문을 불필요하게 복사하지 않는다.
+
+관련 artifact 검사 **9개 PASS**: 기존 6개에 반환 후 바이트 변조·binding 변경, dispose 이후 재사용 차단, checkpoint 대기 중 변조를 추가했다. 마지막 검사는 실제 stage 함수를 호출하고 DB client만 모의하여 checkpoint 도달 후 archive를 바꿨을 때 native 호출 0·restoreAttempted=false를 확인한다. 새 DB 주입 옵션을 제품 코드에 추가하지 않았다. 변경한 세 파일 ESLint와 `git diff --check`를 확인했다. 루트에는 ESLint 실행 파일이 없어 웹 패키지에 설치된 실행 파일과 실제 설정을 지정했으며, 모노레포 루트에서 React/pages 탐색 경고 2개가 발생했지만 lint 오류는 없었다. 새 PG cluster, VM 부팅 또는 기존 전체 합성 seed 시험은 재실행하지 않았다. 이것은 전체 복구 성공 증거가 아니다.
+
+## 지금 가능한 일과 실제 환경 결정이 필요한 일
+
+현재 읽기 재확인에서도 WSL/VirtualMachinePlatform/Hyper-V는 모두 `InstallState=2`, Docker/Podman 명령은 없었다. 공개 Management API 원문과 공식 문서를 다시 확인했으나, 기존 hosted `tvyblzioajnfsbkciubk`의 DB를 복원 가능하게 둔 채 Auth/Storage/API의 전체 외부 접근과 host 송신을 차단·관측하는 공개 계약은 찾지 못했다. DB IP 제한과 PrivateLink는 HTTPS Auth·Storage·API·Realtime을 포함하지 않는다. [Network Restrictions](https://supabase.com/docs/guides/platform/network-restrictions), [PrivateLink](https://supabase.com/docs/guides/platform/privatelink).
+
+대상의 08:28/08:31 UTC 실제 postgres 권한·빈 상태 조회와 서비스 설정 GET은 기존 증거를 재사용했다. 이번에 대상의 현재 상태나 설정 변경 권한을 새로 관측한 것으로 표현하지 않는다. 기존 결과상 managed Auth/Storage owner로 SET할 수 없고, 별도 superuser 서비스 연결은 일반 CONNECT ACL만으로 중지할 수 없다. 공급자의 전체 서비스 차단 기능을 확인하지 않고 부분 설정을 여러 번 적용하는 것은 이 경계를 닫지 못한다. [상세 hosted 제어 계약](C:/Users/kcho1/.codex/visualizations/launch-closeout-20260913/W13_HOSTED_CONTROL_DECISION_2026-09-13.md).
+
+따라서 현재 제약(새 유료 호스트·OS 설치·불안전한 원본 반입 없음) 아래에서는 **완료 가능한 것은 로컬 실행기의 구체적인 결함 수정까지**다. 다음 구현에 필요한 결정은 기존에 사용 가능한 복원 전용 호스트의 지정 또는 동등한 서비스·네트워크 제어 권한 확보다. Linux만 유일한 해법이라고 단정하지 않으며, 이미 준비된 Windows QEMU의 원본 없는 부팅 성공도 원본 보호 증거로 승격하지 않는다. 호스트가 지정되면 현재 231 SQL·실제 원장·수동 ACL을 설명하는 수집 successor, 암호화 전달, 관리 schema/globals 처리, Auth/Storage 원본 복원 및 실제 읽기 비교, 삭제 ledger 재적용을 순서대로 이어야 한다. 이 문서나 새 boolean으로 원본 admission을 열지 않는다.
 
 ## 이번에 실제 구현·실행한 부분
 

@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "kind": "account-deletion-customer-data-static-successor",
+  "release": "account-deletion-customer-data-20260913",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/profile-avatar-v1.json",
+    "sha256": "a8602464739c85dabce2f2a01ec667f6525709db11caa1a2d5f4cf2c790e7a1e"
+  },
+  "reviewedPredecessorMigrationCount": 231,
+  "migrations": [
+    {
+      "file": "20260913103407_account_deletion_customer_data_boundary.sql",
+      "sha256": "f18bac2cb2361390364b85fb8e74e4f503b656dc0b65bc8970b5ae5a3e42f1c8"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.account_deletion_private_scopes",
+      "public.account_deletion_retired_requests"
+    ],
+    "addedColumns": [
+      "public.account_deletion_jobs.data_prepared_at",
+      "public.account_deletion_jobs.data_prepared_version"
+    ],
+    "addedConstraint": "public.account_deletion_jobs.account_deletion_data_receipt_pair",
+    "newFunctions": [
+      "public.guard_account_deletion_customer_write()",
+      "public.guard_account_deletion_membership_transition()",
+      "public.prepare_account_deletion_customer_data(uuid,uuid)",
+      "public.guard_account_deletion_auth_boundary()"
+    ],
+    "replaceFunctions": [
+      "public.prepare_account_deletion_auth_delete(uuid,uuid)",
+      "public.claim_amora_memory_job(integer,uuid)"
+    ],
+    "newTriggerCount": 13,
+    "existingCustomerData": "unchanged",
+    "existingJobs": "must-be-empty",
+    "storageObjects": "unchanged",
+    "customerPurge": "not-invoked",
+    "authDeletion": "not-invoked",
+    "featureFlags": "unchanged",
+    "fullOriginalRestore": "not-proven"
+  },
+  "runtime": {
+    "file": "scripts/lib/account-deletion-customer-data-release.mjs",
+    "sha256": "79a6ec1ddce74b935c886148859aff50af83ca951a9e88dbfe16b9b07d164038"
+  },
+  "catalog": {
+    "file": "scripts/lib/account-deletion-customer-data-catalog.mjs",
+    "sha256": "44cd5dddb4afc50c889b5da88ac55eda8bb2067bbedd9d6acb50bfbc15b75214"
+  },
+  "catalogFixture": {
+    "file": "supabase/release-contracts/account-deletion-customer-data-pg17-catalog-v1.json",
+    "sha256": "c502d4fa8d010e97689bc7f7a2d369cf68412e9ddff9c606559fee6c8588f5d0"
+  },
+  "previousFunction": {
+    "file": "supabase/migrations/20260716113000_account_deletion_storage_saga.sql",
+    "sha256": "f85887a262961c331acd0fc222aec01785c14bfdfdb8e1c36e4d3aceb9305151"
+  },
+  "previousClaimFunction": {
+    "file": "supabase/migrations/20260716094000_couple_roster_epoch.sql",
+    "sha256": "830aa401137250dbf6607602941999453d3330b9b28d4fe4367755d352d8490f"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260913082314_private_profile_avatars_delivery.sql",
+    "sha256": "e04f2e5a1127693490d33731ef5efbbb038db19ec373c43cd4788a2b3fdf4075"
+  }
+}

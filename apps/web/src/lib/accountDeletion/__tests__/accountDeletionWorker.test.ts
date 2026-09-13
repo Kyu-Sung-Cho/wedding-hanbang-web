@@ -45,6 +45,9 @@ function harness(options: {
   objectStillExists?: boolean;
   authMissing?: boolean;
   claimThrows?: boolean;
+  customerDataPrepared?: boolean;
+  customerDataError?: { code: string; message: string };
+  customerDataThrows?: boolean;
 } = {}) {
   const sequence: string[] = [];
   const rows = options.manifest ?? [manifest()];
@@ -56,6 +59,10 @@ function harness(options: {
         data: [job({ claim_token: String(args?.p_claim_token) })],
         error: null,
       };
+    }
+    if (name === "prepare_account_deletion_customer_data") {
+      if (options.customerDataThrows) throw new Error("private transport detail");
+      return { data: options.customerDataPrepared ?? true, error: options.customerDataError ?? null };
     }
     if (name === "checkpoint_account_deletion_media"
         || name === "prepare_account_deletion_auth_delete"
@@ -123,6 +130,36 @@ function harness(options: {
 }
 
 describe("account deletion Storage worker", () => {
+  it("requires an exact claimed job's durable personal-data preparation before deleting any file", async () => {
+    const test = harness();
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "completed" });
+    const claim = test.rpc.mock.calls.find(([name]) => name === "claim_account_deletion_job")?.[1];
+    expect(test.rpc).toHaveBeenCalledWith("prepare_account_deletion_customer_data", {
+      p_job_id: JOB_ID, p_claim_token: claim?.p_claim_token,
+    });
+    expect(test.sequence.indexOf("prepare_account_deletion_customer_data")).toBeLessThan(test.sequence.indexOf("storage.remove"));
+  });
+  it.each([
+    { customerDataPrepared: false },
+    { customerDataError: { code: "PGRST202", message: "function missing" } },
+    { customerDataThrows: true },
+  ])("keeps files and Auth intact if personal-data preparation is unavailable: %j", async options => {
+    const test = harness(options);
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "retry" });
+    expect(test.remove).not.toHaveBeenCalled();
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).not.toHaveBeenCalledWith("prepare_account_deletion_auth_delete", expect.anything());
+    expect(JSON.stringify(test.rpc.mock.calls)).not.toContain("private transport detail");
+  });
+  it("sends unsupported personal-data scope to manual review before file or Auth deletion", async () => {
+    const test = harness({ customerDataError: { code: "P0001", message: "ACCOUNT_DELETE_CUSTOMER_SCOPE_REVIEW_REQUIRED" } });
+    expect(await processAccountDeletionJob(test.admin as never, JOB_ID, NOW)).toEqual({ status: "manual_review" });
+    expect(test.remove).not.toHaveBeenCalled();
+    expect(test.deleteUser).not.toHaveBeenCalled();
+    expect(test.rpc).toHaveBeenCalledWith("mark_account_deletion_manual_review", expect.objectContaining({
+      p_job_id: JOB_ID, p_error_code: "customer_data_scope_review_required",
+    }));
+  });
   it("cleans private avatar paths and waits for active upload registration before Auth deletion", async () => {
     const path = `${USER_ID}/77777777-7777-4777-8777-777777777777.webp`;
     const test = harness({ manifest: [manifest({ bucket: "profile-avatars", path, source: "profile_avatar" })] });
@@ -142,6 +179,7 @@ describe("account deletion Storage worker", () => {
     expect(test.exists).toHaveBeenCalledWith(LEGACY_PATH);
     expect(test.sequence).toEqual([
       "claim_account_deletion_job",
+      "prepare_account_deletion_customer_data",
       "storage.remove",
       "storage.exists",
       "checkpoint_account_deletion_media",

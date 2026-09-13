@@ -63,6 +63,7 @@ async function createFixture() {
     join(root, "scripts/lib/supabase-successor-release-contract.mjs"),
   );
   for (const dependency of [
+    "account-deletion-customer-data-release-contract.mjs",
     "profile-avatar-release-contract.mjs",
     "profile-wedding-roles-release-contract.mjs",
     "chat-feedback-nullability-release-contract.mjs",

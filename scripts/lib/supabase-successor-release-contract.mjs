@@ -21,6 +21,7 @@ import {
 import { loadEffectiveBudgetDecisionHotfixRelease } from "./amora-budget-decision-effective-release-contract.mjs";
 import { loadExplicitBudgetHotfixRelease } from "./amora-explicit-budget-release-contract.mjs";
 import { loadProfileAvatarReleasePlan } from "./profile-avatar-release-contract.mjs";
+import { loadCustomerDataReleasePlan } from "./account-deletion-customer-data-release-contract.mjs";
 import { loadProfileWeddingRolesReleasePlan } from "./profile-wedding-roles-release-contract.mjs";
 import { loadChatFeedbackNullabilityReleasePlan } from "./chat-feedback-nullability-release-contract.mjs";
 
@@ -1086,7 +1087,7 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar"].includes(followup)) {
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data"].includes(followup)) {
     invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
@@ -1222,6 +1223,22 @@ export function validateSuccessorReleaseContract({
       if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file)) {
         invalid("FOLLOWUP_RELEASE_INVALID", "feedback followups must follow the original successor in exact order");
       }
+      previousFollowupVersion = migration.version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+  }
+  if (followup === "account-deletion-customer-data") {
+    let customerData;
+    try { customerData = loadCustomerDataReleasePlan(root); }
+    catch { invalid("FOLLOWUP_RELEASE_INVALID", "the exact customer-data successor could not be verified"); }
+    const followups = customerData.followupMigrations;
+    if (customerData.contract.projectRef !== manifest.projectRef || customerData.migrationCount !== 232
+        || followups.length !== 6 || followups[5].file !== customerData.contract.migrations[0].file)
+      invalid("FOLLOWUP_RELEASE_INVALID", "customer-data successor must preserve all five predecessors and add one migration");
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file))
+        invalid("FOLLOWUP_RELEASE_INVALID", "customer-data successor migration order changed");
       previousFollowupVersion = migration.version;
       expectedDirectoryFiles.push(migration.file);
     }
