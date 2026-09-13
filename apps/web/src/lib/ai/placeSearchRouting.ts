@@ -18,6 +18,10 @@ const PLACE_CONTEXT_RE = new RegExp(
   `(?:${VENUE_KIND_RE.source}|곳|자리|장소)(?:집)?(?:에서(?:는)?|에선)`,
   "gi",
 );
+// "상견례는 어떤 자리인지"의 자리는 행사 개념이다. 이 구절의 장소 단서만
+// 지워, 같은 문장에 별도로 부탁한 "공덕에 모실 식당 찾아줘"는 그대로 남긴다.
+const PLACE_MEANING_CONTEXT_RE =
+  /(?:어떤|무슨)\s*(?:자리|장소|곳)(?:인지|인가|인\s*(?:거|것|건)|야)|(?:자리|장소|곳)(?:의|은|는|이|가|란)?\s*(?:(?:어떤|무슨)\s*)?(?:의미|뜻|개념|역할|차이)(?=(?:[은는이가을를]|만|도|인(?:지|가)|에\s*대해)|\s*(?:[?!.,]|$|알려|설명|궁금|뭐|무엇))/gu;
 const GENERIC_PLACE_NOUN_RE = /^(?:자리|장소|곳)$/u;
 /**
  * 사람은 가게 종류를 대지 않는다.
@@ -126,7 +130,9 @@ function mentionsSomewhere(normalized: string): boolean {
 export function isPlaceSearchCandidate(userText: string): boolean {
   const normalized = userText.normalize("NFKC").replace(/\s+/g, " ").trim();
   if (!normalized || NEGATED_SEARCH_RE.test(normalized)) return false;
-  const requestedPlaces = removeQuotedSearchQuestions(normalized).replace(PLACE_CONTEXT_RE, " ");
+  const requestedPlaces = removeQuotedSearchQuestions(normalized)
+    .replace(PLACE_CONTEXT_RE, " ")
+    .replace(PLACE_MEANING_CONTEXT_RE, " ");
   if (!mentionsSomewhereToEat(requestedPlaces)) return false;
   return SEARCH_ACTION_RE.test(requestedPlaces) || SOFT_ASK_RE.test(requestedPlaces)
     || POLITE_SEARCH_ACTION_RE.test(requestedPlaces);
