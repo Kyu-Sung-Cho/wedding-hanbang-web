@@ -16,7 +16,7 @@ try {
   if (!args.length || args.includes('--help')) {
     process.stdout.write('Private support-case operator: prepare | enqueue | inspect | process\n'
       + 'Use --mode=<mode> --case-id=<UUID> --expected-commit=<40hex>. prepare reads the actual reviewed request and identity proof as bounded JSON on private stdin.\n'
-      + 'enqueue/process also require --confirm=<mode>:<case-id>:<latest-record-sha256> and CRON_SECRET in memory for the read-only runtime-state endpoint.\n'
+      + 'enqueue/process also require --confirm=<mode>:<case-id>:<latest-record-sha256> and ACCOUNT_DELETION_STATE_SECRET (or legacy CRON_SECRET) in memory for the read-only runtime-state endpoint.\n'
       + 'Secrets are environment/private stdin only. Cases are DPAPI protected on this Windows account. No mail, global intake/cron enablement or automatic retries.\n');
   } else {
     const options = {};
@@ -58,9 +58,11 @@ try {
     } else {
       const value = store.latest;
       validateDeletionSupportCase(value, PROJECT);
+      const stateSecret = typeof process.env.ACCOUNT_DELETION_STATE_SECRET === 'string' && process.env.ACCOUNT_DELETION_STATE_SECRET.trim().length > 0
+        ? process.env.ACCOUNT_DELETION_STATE_SECRET : process.env.CRON_SECRET;
       if (mutation) {
         need(options.confirm === `${options.mode}:${value.caseId}:${sha(JSON.stringify(value))}`, 'SUPPORT_CASE_EXACT_RECORD_CONFIRMATION_REQUIRED');
-        need(typeof process.env.CRON_SECRET === 'string' && process.env.CRON_SECRET.length > 0, 'SUPPORT_CASE_RUNTIME_CREDENTIAL_REQUIRED');
+        need(typeof stateSecret === 'string' && stateSecret.trim().length > 0, 'SUPPORT_CASE_RUNTIME_CREDENTIAL_REQUIRED');
       }
       const rawFetch = globalThis.fetch;
       const fetchBound = async (resource, init = {}) => {
@@ -79,7 +81,7 @@ try {
         await checkLive();
         // 기존 cron GET/HEAD는 worker를 실행할 수 있다. 고유 CPU-only 경로만 사용한다.
         const observed = await fetchBound('https://hanbang.ai/api/ops/account-deletion-state', {
-          headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
+          headers: { Authorization: `Bearer ${stateSecret}` },
         });
         need(observed.status === 200 && observed.headers.get('cache-control')?.includes('no-store'), 'SUPPORT_CASE_RUNTIME_STATE_UNAVAILABLE');
         const raw = await observed.text();

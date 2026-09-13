@@ -3,17 +3,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const forbidden = vi.hoisted(() => ({ admin: vi.fn(), worker: vi.fn(), intake: vi.fn(), serverClient: vi.fn() }));
+const userSession = vi.hoisted(() => ({ getUser: vi.fn(), createClient: vi.fn() }));
 vi.mock("@supabase/ssr", () => ({ createServerClient: forbidden.serverClient }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: forbidden.admin }));
+vi.mock("@/lib/supabase/server", () => ({ createClientFromRequest: userSession.createClient }));
 vi.mock("@/lib/accountDeletion/communityStorageSaga", () => ({
   processAccountDeletionJob: forbidden.worker,
   requestAccountDeletion: forbidden.intake,
 }));
 
 import { GET } from "./route";
+import { GET as deletionCron } from "@/app/api/cron/account-deletion/route";
+import { DELETE as deletionIntake } from "@/app/api/auth/delete/route";
 import { proxy } from "@/proxy";
 
 const SECRET = "synthetic-cron-proof-secret";
+const STATE_SECRET = "synthetic-readonly-state-secret";
 const SHA = "a".repeat(40);
 const NOW = "2026-09-13T08:40:00.000Z";
 const fetchMock = vi.fn(() => { throw new Error("Unexpected network access"); });
@@ -27,6 +32,9 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(NOW);
   vi.stubEnv("CRON_SECRET", SECRET);
+  vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", undefined);
+  userSession.getUser.mockResolvedValue({ data: { user: null }, error: null });
+  userSession.createClient.mockResolvedValue({ auth: { getUser: userSession.getUser } });
   vi.stubEnv("VERCEL_GIT_COMMIT_SHA", SHA);
   vi.stubEnv("ACCOUNT_DELETION_INTAKE_ENABLED", "false");
   vi.stubEnv("ACCOUNT_DELETION_CRON_ENABLED", "false");
@@ -55,6 +63,63 @@ function expectPrivate(response: Response) {
 }
 
 describe("authenticated account-deletion runtime observation", () => {
+  it.each([undefined, SECRET])("allows the separate state credential without changing the legacy cron credential: %s", async cron => {
+    vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", STATE_SECRET);
+    vi.stubEnv("CRON_SECRET", cron);
+    const result = await GET(request(`Bearer ${STATE_SECRET}`));
+    expect(result.status).toBe(200);
+    expect(await result.json()).toEqual({ commit: SHA, observedAt: NOW, flags: {
+      ACCOUNT_DELETION_INTAKE_ENABLED: false, ACCOUNT_DELETION_CRON_ENABLED: false,
+    } });
+    expectPrivate(result);
+    expect(userSession.createClient).not.toHaveBeenCalled();
+    expect(process.env.CRON_SECRET).toBe(cron);
+    if (cron) expect((await GET(request())).status).toBe(200);
+  });
+
+  it.each([undefined, "", " ", "bad secret", "bad,secret", "bad\nsecret"])("rejects an absent or malformed state secret without legacy credentials: %s", async value => {
+    vi.stubEnv("CRON_SECRET", undefined);
+    vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", value);
+    const result = await GET(request(`Bearer ${STATE_SECRET}`));
+    expect(result.status).toBe(401);
+    expectPrivate(result);
+  });
+
+  it.each([`bearer ${STATE_SECRET}`, `Bearer  ${STATE_SECRET}`, `Bearer ${STATE_SECRET}, Bearer other`, "Bearer wrong-state-secret"])(
+    "rejects malformed or wrong state authorization: %s", async authorization => {
+      vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", STATE_SECRET);
+      const result = await GET(request(authorization));
+      expect(result.status).toBe(401);
+      expectPrivate(result);
+    },
+  );
+
+  it("does not accept the state secret from URL or cookies, or reuse it after rotation", async () => {
+    vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", STATE_SECRET);
+    const cookieOnly = await GET(new Request(`https://hanbang.ai/api/ops/account-deletion-state?token=${STATE_SECRET}`, {
+      headers: { cookie: `ACCOUNT_DELETION_STATE_SECRET=${STATE_SECRET}` },
+    }));
+    expect(cookieOnly.status).toBe(401);
+    expectPrivate(cookieOnly);
+    expect((await GET(request(`Bearer ${STATE_SECRET}`))).status).toBe(200);
+    vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", "rotated-state-secret");
+    expect((await GET(request(`Bearer ${STATE_SECRET}`))).status).toBe(401);
+    expect((await GET(request())).status).toBe(200);
+  });
+
+  it("cannot use the state credential to authorize cron execution or user deletion", async () => {
+    vi.stubEnv("ACCOUNT_DELETION_STATE_SECRET", STATE_SECRET);
+    vi.stubEnv("ACCOUNT_DELETION_CRON_ENABLED", "true");
+    vi.stubEnv("ACCOUNT_DELETION_INTAKE_ENABLED", "true");
+    expect((await deletionCron(new Request("https://hanbang.ai/api/cron/account-deletion", {
+      headers: { Authorization: `Bearer ${STATE_SECRET}` },
+    }))).status).toBe(401);
+    expect((await deletionIntake(new Request("https://hanbang.ai/api/auth/delete", {
+      method: "DELETE", headers: { Authorization: `Bearer ${STATE_SECRET}`, Origin: "https://hanbang.ai" },
+    }))).status).toBe(401);
+    expect(userSession.getUser).toHaveBeenCalledTimes(1);
+  });
+
   it("passes the real proxy and session middleware without Auth/DB work even during a production write fence", async () => {
     vi.stubEnv("NEXT_PUBLIC_PREVIEW_STUB_MODE", "false");
     vi.stubEnv("WEDDING_CODE_RESEARCH_PREVIEW", "false");
