@@ -56,7 +56,7 @@ const mocks = vi.hoisted(() => ({
   }>,
   profileId: "user-1" as string | null,
   confirmedRole: null as "bride" | "groom" | null,
-  partner: null as null | { id: string; name: string; couple_id: string; confirmed_role: "bride" | "groom" | null },
+  partner: null as null | { id: string; name: string; couple_id: string; confirmed_role: "bride" | "groom" | null; avatar_url?: string | null },
   coupleId: "couple-1" as string | null,
   hasLinkedPartner: true,
   isDemo: false,
@@ -161,7 +161,7 @@ vi.mock("@/stores/chatStore", () => {
 });
 
 vi.mock("./ChatBubble", () => ({
-  default: ({ message, senderConfirmedRole }: { message: { id: string; content: string }; senderConfirmedRole?: string | null }) => <div data-role-message={message.id} data-confirmed-role={senderConfirmedRole ?? ""}>{message.content}</div>,
+  default: ({ message, senderConfirmedRole, senderAvatarUrl }: { message: { id: string; content: string }; senderConfirmedRole?: string | null; senderAvatarUrl?: string | null }) => <div data-role-message={message.id} data-confirmed-role={senderConfirmedRole ?? ""} data-avatar={senderAvatarUrl ?? ""}>{message.content}</div>,
 }));
 vi.mock("./ActionCard", () => ({ default: () => <div /> }));
 vi.mock("./VendorToolCard", () => ({
@@ -257,11 +257,13 @@ describe("ChatSidePanel attachment sending", () => {
 
   it.each(["user-1", "partner-groom", "former-partner", null])("현재 본인·상대의 확정 역할만 전달한다: %s", async senderId => {
     mocks.confirmedRole = "groom";
-    mocks.partner = { id: "partner-groom", name: "상대", couple_id: "couple-1", confirmed_role: "bride" };
+    mocks.partner = { id: "partner-groom", name: "상대", couple_id: "couple-1", confirmed_role: "bride", avatar_url: "🌷" };
     mocks.messages = [{ id: "role-binding", couple_id: "couple-1", sender_id: senderId, sender_role: "groom", visibility: "shared", content: "안녕하세요", metadata: {}, created_at: "2026-09-13T00:00:00Z" }];
     await act(async () => root.render(<ChatSidePanel isOpen onClose={vi.fn()} />));
     expect(container.querySelector('[data-role-message="role-binding"]')?.getAttribute("data-confirmed-role"))
       .toBe(senderId === "user-1" ? "groom" : senderId === "partner-groom" ? "bride" : "");
+    expect(container.querySelector('[data-role-message="role-binding"]')?.getAttribute("data-avatar"))
+      .toBe(senderId === "partner-groom" ? "🌷" : "");
   });
 
   afterEach(async () => {

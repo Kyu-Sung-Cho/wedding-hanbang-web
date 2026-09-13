@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from "vitest";
 import { issueDeletionSupportProof } from "../accountDeletion/supportProof";
-import { advanceDeletionSupportCase, prepareDeletionSupportCase, validateDeletionSupportCase, validateSupportExecutionObservation,
+import { advanceDeletionSupportCase, prepareDeletionSupportCase, validateDeletionSupportCase, validateSupportExecutionObservation, validateSupportRuntimeState,
   type DeletionSupportCase, type SupportCaseDependencies, type SupportJob } from "../accountDeletion/supportCase";
 
 const projectRef = "abcdefghijklmnopqrst";
@@ -33,6 +33,19 @@ function harness(overrides: Partial<SupportCaseDependencies> = {}) {
   return { deps, saved, changeJob: (change: Partial<SupportJob>) => { job = { ...job, ...change }; } };
 }
 describe("지원 사건은 실제 요청·본인·exact job을 묶는다", () => {
+  it("새 read-only runtime 응답은 정확 commit·30초·두 false 값만 허용한다", () => {
+    const commit = "c".repeat(40);
+    const state = { commit, observedAt: new Date(now).toISOString(), flags: {
+      ACCOUNT_DELETION_INTAKE_ENABLED: false, ACCOUNT_DELETION_CRON_ENABLED: false } };
+    expect(() => validateSupportRuntimeState(state, commit, now)).not.toThrow();
+    for (const changed of [{ ...state, commit: null }, { ...state, commit: "d".repeat(40) },
+      { ...state, extra: true }, { ...state, flags: {} }, { ...state, flags: { ...state.flags, ACCOUNT_DELETION_CRON_ENABLED: true } },
+      { ...state, flags: { ...state.flags, ACCOUNT_DELETION_INTAKE_ENABLED: "false" } }]) {
+      expect(() => validateSupportRuntimeState(changed, commit, now)).toThrow();
+    }
+    expect(() => validateSupportRuntimeState(state, commit, now + 30_000)).toThrow();
+    expect(() => validateSupportRuntimeState(state, commit, now - 1)).toThrow();
+  });
   it("실행 직전에도 flags 관측 만료·다른 배포·자동 실행 활성화를 거절한다", () => {
     const commit = "a".repeat(40);
     const flags = { format: "w12-production-flags-observation-v1", source: "vercel-production-environment-read",

@@ -3,18 +3,18 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { PROFILE_AVATAR_EMOJIS, isProfileAvatarEmoji } from "@hanbang/shared/profile-avatar";
 import ProfileAvatar from "@/components/ui/ProfileAvatar";
+import Button from "@/components/ui/Button";
 import { useAuthStore } from "@/stores/authStore";
 
 type AvatarKind = "initial" | "emoji" | "photo";
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const optionFrameClass = "min-h-11 rounded-lg border px-3 py-2 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7D5753] disabled:opacity-50";
-const optionClass = `${optionFrameClass} text-sm`;
-const selectedClass = "border-[#8F6662] bg-[#EADDD8] text-[#7D5753]";
-const idleClass = "border-[#E5D8CA] bg-white text-[#635B51] hover:bg-[#F7F1E8]";
+const optionClass = "!min-h-11 !rounded-lg !px-3 !py-2";
+const selectedClass = "aria-pressed:border-[var(--hb-selected-line)] aria-pressed:bg-[var(--hb-selected-bg)] aria-pressed:text-[var(--hb-selected-text)] aria-pressed:hover:bg-[var(--hb-selected-bg)]";
 
 function saveErrorMessage(code: unknown): string {
   if (code === "AUTH_REQUIRED") return "로그인 상태를 다시 확인해 주세요.";
+  if (code === "AVATAR_OWNER_CHANGED") return "계정 상태가 바뀌었어요. 현재 계정으로 프로필을 다시 열어 주세요.";
   if (code === "INVALID_IMAGE" || code === "INVALID_AVATAR") return "사진을 읽을 수 없어요. 다른 JPG, PNG, WebP 사진을 선택해 주세요.";
   if (code === "AVATAR_TOO_LARGE") return "4MB 이하의 사진을 선택해 주세요.";
   if (code === "AVATAR_SAVE_CONFLICT") return "다른 곳에서 프로필이 바뀌었어요. 취소한 뒤 다시 열어 확인해 주세요.";
@@ -116,7 +116,8 @@ function AvatarChoices({ ownerId, coupleId, name, savedAvatar, isDemo, onClose }
           body = new FormData();
           body.append("photo", photo);
           body.append("expected_revision", expectedRevision ?? "null");
-        } else body = JSON.stringify(kind === "emoji" ? { kind, emoji, expected_revision: expectedRevision } : { kind: "initial", expected_revision: expectedRevision });
+          body.append("expected_user_id", ownerId);
+        } else body = JSON.stringify(kind === "emoji" ? { kind, emoji, expected_revision: expectedRevision, expected_user_id: ownerId } : { kind: "initial", expected_revision: expectedRevision, expected_user_id: ownerId });
         const response = await fetch("/api/profile/avatar", {
           method: "PUT", body, signal: controller.signal,
           headers: typeof body === "string" ? { "Content-Type": "application/json" } : undefined,
@@ -155,19 +156,19 @@ function AvatarChoices({ ownerId, coupleId, name, savedAvatar, isDemo, onClose }
         <div className="my-5 flex justify-center"><ProfileAvatar name={name} avatarUrl={previewAvatar} previewUrl={kind === "photo" && photo ? preview : null} size={80} /></div>
         <div className="grid grid-cols-3 gap-2" role="group" aria-label="프로필 표시 방식">
           {([{ kind: "initial", label: "기본 글자" }, { kind: "emoji", label: "이모지" }, { kind: "photo", label: "사진" }] as const).map((option) => (
-            <button key={option.kind} type="button" aria-pressed={kind === option.kind} disabled={saving}
-              className={`${optionClass} ${kind === option.kind ? selectedClass : idleClass}`}
-              onClick={() => { setKind(option.kind); setError(""); }}>{option.label}</button>
+            <Button key={option.kind} variant="secondary" size="sm" type="button" aria-pressed={kind === option.kind} disabled={saving}
+              className={`${optionClass} ${selectedClass}`}
+              onClick={() => { setKind(option.kind); setError(""); }}>{option.label}</Button>
           ))}
         </div>
         {kind === "initial" && <p className="mt-4 text-sm text-[#635B51]">이름의 첫 글자로 표시해요.</p>}
         {kind === "emoji" && <div className="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-5" role="group" aria-label="프로필 이모지 선택">
-          {PROFILE_AVATAR_EMOJIS.map((option) => <button key={option.emoji} type="button" aria-label={option.label} aria-pressed={emoji === option.emoji}
-            disabled={saving} className={`${optionFrameClass} text-[24px] ${emoji === option.emoji ? selectedClass : idleClass}`}
-            onClick={() => { setEmoji(option.emoji); setError(""); }}>{option.emoji}</button>)}
+          {PROFILE_AVATAR_EMOJIS.map((option) => <Button key={option.emoji} variant="secondary" size="sm" type="button" aria-label={option.label} aria-pressed={emoji === option.emoji}
+            disabled={saving} className={`${optionClass} !text-[24px] ${selectedClass}`}
+            onClick={() => { setEmoji(option.emoji); setError(""); }}>{option.emoji}</Button>)}
         </div>}
         {kind === "photo" && <div className="mt-4">
-          <button type="button" disabled={saving} className={`${optionClass} ${idleClass}`} onClick={() => fileInput.current?.click()}>{photo ? "사진 바꾸기" : "사진 고르기"}</button>
+          <Button variant="secondary" size="sm" type="button" disabled={saving} className={optionClass} onClick={() => fileInput.current?.click()}>{photo ? "사진 바꾸기" : "사진 고르기"}</Button>
           <input ref={fileInput} id={fileId} aria-label="프로필 사진 선택" tabIndex={-1} type="file" accept="image/jpeg,image/png,image/webp" disabled={saving} className="sr-only"
             onChange={(event) => {
               const file = event.target.files?.[0];
@@ -184,9 +185,9 @@ function AvatarChoices({ ownerId, coupleId, name, savedAvatar, isDemo, onClose }
       </>}
       {error && <p role="alert" className="mt-3 text-sm leading-6 text-[#9F3535]">{error}</p>}
       <div className="mt-5 flex flex-wrap justify-end gap-2">
-        {!ready && !loading && <button type="button" className={`${optionClass} ${idleClass}`} onClick={() => { setError(""); setLoading(true); setRetry((value) => value + 1); }}>다시 불러오기</button>}
-        <button type="button" disabled={saving} className={`${optionClass} ${idleClass}`} onClick={() => onClose(false)}>취소</button>
-        {ready && <button type="button" disabled={saving || (kind === "photo" && (!photo || isDemo))} className={`${optionClass} border-[#7D5753] bg-[#7D5753] text-white hover:bg-[#8F6662]`} onClick={() => { void save(); }}>{saving ? "저장 중…" : "저장"}</button>}
+        {!ready && !loading && <Button variant="secondary" size="sm" type="button" className={optionClass} onClick={() => { setError(""); setLoading(true); setRetry((value) => value + 1); }}>다시 불러오기</Button>}
+        <Button variant="secondary" size="sm" type="button" disabled={saving} className={optionClass} onClick={() => onClose(false)}>취소</Button>
+        {ready && <Button variant="primary" size="sm" type="button" disabled={saving || (kind === "photo" && (!photo || isDemo))} className={optionClass} onClick={() => { void save(); }}>{saving ? "저장 중…" : "저장"}</Button>}
       </div>
     </div>
   );
@@ -204,8 +205,8 @@ export default function ProfileAvatarEditor() {
   if (!profile || (!isDemo && user?.id !== ownerId)) return null;
   return (
     <div className="mb-6">
-      <button ref={button} type="button" aria-expanded={open} aria-controls={panelId} className={`${optionClass} ${idleClass}`}
-        onClick={() => { if (!open) { setEditingOwner(binding); setNoticeOwner(null); } }}>프로필 꾸미기</button>
+      <Button ref={button} variant="secondary" size="sm" type="button" aria-expanded={open} aria-controls={panelId} className={optionClass}
+        onClick={() => { if (!open) { setEditingOwner(binding); setNoticeOwner(null); } }}>프로필 꾸미기</Button>
       {noticeOwner === binding && <p role="status" className="mt-2 text-sm text-[#637465]">{isDemo ? "체험 프로필을 바꿨어요." : "프로필을 저장했어요."}</p>}
       <div id={panelId}>{open && <AvatarChoices key={binding} ownerId={profile.id} coupleId={profile.couple_id ?? null} name={profile.name} savedAvatar={profile.avatar_url} isDemo={isDemo}
         onClose={(saved) => { setEditingOwner(null); if (saved) setNoticeOwner(binding); button.current?.focus(); }} />}</div>

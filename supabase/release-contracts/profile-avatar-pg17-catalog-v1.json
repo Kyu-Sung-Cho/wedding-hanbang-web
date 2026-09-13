@@ -1,0 +1,538 @@
+{
+  "bucket": {
+    "id": "profile-avatars",
+    "name": "profile-avatars",
+    "public": false,
+    "file_size_limit": 1048576,
+    "allowed_mime_types": [
+      "image/webp"
+    ]
+  },
+  "policy": [
+    {
+      "name": "profile_avatar_service_only",
+      "command": "*",
+      "permissive": false,
+      "roles": [
+        "anon",
+        "authenticated"
+      ],
+      "using": "(bucket_id <> 'profile-avatars'::text)",
+      "check": "(bucket_id <> 'profile-avatars'::text)"
+    }
+  ],
+  "functions": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid",
+      "name": "read_profile_avatar_snapshot",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "SETOF profile_avatars",
+      "strict": false,
+      "language": "sql",
+      "parallel": "u",
+      "volatility": "s",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, text, text, uuid, uuid",
+      "name": "save_profile_avatar",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, uuid",
+      "name": "register_profile_avatar_asset",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "jsonb",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    }
+  ],
+  "relations": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "UPDATE",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.profile_avatar_assets",
+      "owner": "postgres",
+      "columns": [
+        [
+          "committed_at",
+          "timestamp with time zone",
+          false,
+          "",
+          "",
+          null
+        ],
+        [
+          "object_path",
+          "text",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "revision",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "upload_until",
+          "timestamp with time zone",
+          true,
+          "",
+          "",
+          "(clock_timestamp() + '00:10:00'::interval)"
+        ],
+        [
+          "user_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE INDEX profile_avatar_assets_user ON public.profile_avatar_assets USING btree (user_id)",
+          true,
+          true
+        ],
+        [
+          "CREATE UNIQUE INDEX profile_avatar_assets_object_path_key ON public.profile_avatar_assets USING btree (object_path)",
+          true,
+          true
+        ],
+        [
+          "CREATE UNIQUE INDEX profile_avatar_assets_pkey ON public.profile_avatar_assets USING btree (revision)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": false,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "profile_avatar_assets_check",
+          "c",
+          true,
+          "CHECK (object_path = (((user_id::text || '/'::text) || revision::text) || '.webp'::text))"
+        ],
+        [
+          "profile_avatar_assets_object_path_key",
+          "u",
+          true,
+          "UNIQUE (object_path)"
+        ],
+        [
+          "profile_avatar_assets_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (revision)"
+        ],
+        [
+          "profile_avatar_assets_user_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+        ]
+      ]
+    },
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "postgres",
+          "postgres",
+          "UPDATE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "DELETE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "INSERT",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "MAINTAIN",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "REFERENCES",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "SELECT",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "TRIGGER",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "TRUNCATE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "UPDATE",
+          false
+        ]
+      ],
+      "rls": true,
+      "kind": "r",
+      "name": "public.profile_avatars",
+      "owner": "postgres",
+      "columns": [
+        [
+          "emoji",
+          "text",
+          false,
+          "",
+          "",
+          null
+        ],
+        [
+          "kind",
+          "text",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "object_path",
+          "text",
+          false,
+          "",
+          "",
+          null
+        ],
+        [
+          "revision",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ],
+        [
+          "updated_at",
+          "timestamp with time zone",
+          true,
+          "",
+          "",
+          "clock_timestamp()"
+        ],
+        [
+          "user_id",
+          "uuid",
+          true,
+          "",
+          "",
+          null
+        ]
+      ],
+      "indexes": [
+        [
+          "CREATE UNIQUE INDEX profile_avatars_pkey ON public.profile_avatars USING btree (user_id)",
+          true,
+          true
+        ]
+      ],
+      "forceRls": false,
+      "policies": [],
+      "triggers": [],
+      "constraints": [
+        [
+          "profile_avatar_shape",
+          "c",
+          true,
+          "CHECK (kind = 'initial'::text AND emoji IS NULL AND object_path IS NULL OR kind = 'emoji'::text AND emoji IS NOT NULL AND char_length(emoji) >= 1 AND char_length(emoji) <= 16 AND object_path IS NULL OR kind = 'photo'::text AND emoji IS NULL AND object_path IS NOT NULL AND object_path = (((user_id::text || '/'::text) || revision::text) || '.webp'::text))"
+        ],
+        [
+          "profile_avatars_kind_check",
+          "c",
+          true,
+          "CHECK (kind = ANY (ARRAY['initial'::text, 'emoji'::text, 'photo'::text]))"
+        ],
+        [
+          "profile_avatars_pkey",
+          "p",
+          true,
+          "PRIMARY KEY (user_id)"
+        ],
+        [
+          "profile_avatars_user_id_fkey",
+          "f",
+          true,
+          "FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE"
+        ]
+      ]
+    }
+  ],
+  "manifestFunction": [
+    {
+      "acl": [
+        [
+          "postgres",
+          "postgres",
+          "EXECUTE",
+          false
+        ],
+        [
+          "service_role",
+          "postgres",
+          "EXECUTE",
+          false
+        ]
+      ],
+      "args": "uuid, uuid, jsonb",
+      "name": "replace_account_deletion_media_manifest",
+      "owner": "postgres",
+      "config": [
+        "search_path=\"\""
+      ],
+      "result": "SETOF account_deletion_jobs",
+      "strict": false,
+      "language": "plpgsql",
+      "parallel": "u",
+      "volatility": "v",
+      "securityDefiner": true
+    }
+  ],
+  "manifestConstraints": [
+    [
+      "account_deletion_media_bucket",
+      "c",
+      true,
+      "CHECK (bucket = ANY (ARRAY['community-media-staging'::text, 'community-images'::text, 'community-videos'::text, 'chat-image'::text, 'profile-avatars'::text]))"
+    ],
+    [
+      "account_deletion_media_source",
+      "c",
+      true,
+      "CHECK (source = ANY (ARRAY['session_staging'::text, 'session_final'::text, 'legacy_prefix'::text, 'quarantine'::text, 'profile_avatar'::text]))"
+    ]
+  ]
+}

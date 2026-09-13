@@ -22,4 +22,10 @@ describe("confirmed author chat colors",()=>{
     const html=renderToStaticMarkup(<ChatBubble message={{...message,sender_role:"ai",sender_id:null}} isCurrentUser={false} senderConfirmedRole="groom"/>);
     expect(html).toContain("hb-chat-amora-surface");expect(html).not.toContain("hb-chat-sky-surface");
   });
+  it("shows the current partner avatar with their selected role color, and drops unknown-author avatars",()=>{
+    const known=renderToStaticMarkup(<ChatBubble message={message} isCurrentUser={false} senderConfirmedRole="groom" senderAvatarUrl="🌷"/>);
+    expect(known).toContain("hb-chat-sky-surface");expect(known).toContain('data-profile-avatar="emoji"');expect(known).toContain("🌷");
+    const unknown=renderToStaticMarkup(<ChatBubble message={{...message,sender_id:null}} isCurrentUser={false} senderConfirmedRole="groom" senderAvatarUrl="🌷"/>);
+    expect(unknown).toContain("hb-chat-neutral-surface");expect(unknown).not.toContain('data-profile-avatar="emoji"');
+  });
 });

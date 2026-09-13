@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     return response(profileAvatarPresentation(await readProfileAvatar(createAdminClient(), user.id)));
   } catch (error) { return failure(error); }
 }
-async function readSelection(request: Request): Promise<{ selection: ProfileAvatarSelection; expectedRevision: string | null }> {
+async function readSelection(request: Request): Promise<{ selection: ProfileAvatarSelection; expectedRevision: string | null; expectedUserId: string }> {
   const contentType = request.headers.get("content-type") ?? "";
   const mime = contentType.split(";", 1)[0].trim().toLowerCase();
   const limit = mime === "multipart/form-data" ? PROFILE_AVATAR_MAX_BYTES + 64 * 1024 : 1024;
@@ -41,18 +41,19 @@ async function readSelection(request: Request): Promise<{ selection: ProfileAvat
     let form: FormData;
     try { form = await new Response(bytes, { headers: { "Content-Type": contentType } }).formData(); }
     catch { throw new ProfileAvatarError("INVALID_AVATAR", 400); }
-    if ([...form.keys()].some(key => key !== "photo" && key !== "expected_revision") || form.getAll("photo").length !== 1 || form.getAll("expected_revision").length !== 1) throw new ProfileAvatarError("INVALID_AVATAR", 400);
+    if ([...form.keys()].some(key => key !== "photo" && key !== "expected_revision" && key !== "expected_user_id") || form.getAll("photo").length !== 1 || form.getAll("expected_revision").length !== 1 || form.getAll("expected_user_id").length !== 1) throw new ProfileAvatarError("INVALID_AVATAR", 400);
     const file = form.get("photo");
     if (!file || typeof file === "string") throw new ProfileAvatarError("INVALID_IMAGE", 400);
     const expected = form.get("expected_revision");
-    if (expected !== "null" && !isUuid(expected)) throw new ProfileAvatarError("INVALID_AVATAR", 400);
-    return { selection: { kind: "photo", bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type }, expectedRevision: expected === "null" ? null : String(expected) };
+    const expectedUserId = form.get("expected_user_id");
+    if ((expected !== "null" && !isUuid(expected)) || !isUuid(expectedUserId)) throw new ProfileAvatarError("INVALID_AVATAR", 400);
+    return { selection: { kind: "photo", bytes: new Uint8Array(await file.arrayBuffer()), mimeType: file.type }, expectedRevision: expected === "null" ? null : String(expected), expectedUserId };
   }
   if (mime !== "application/json") throw new ProfileAvatarError("INVALID_AVATAR", 400);
   let body: unknown; try { body = JSON.parse(bytes.toString("utf8")); } catch { throw new ProfileAvatarError("INVALID_AVATAR", 400); }
-  if (!isRecord(body) || (body.expected_revision !== null && !isUuid(body.expected_revision))) throw new ProfileAvatarError("INVALID_AVATAR", 400);
-  if (body.kind === "initial" && Object.keys(body).sort().join(",") === "expected_revision,kind") return { selection: { kind: "initial" }, expectedRevision: body.expected_revision as string | null };
-  if (body.kind === "emoji" && Object.keys(body).sort().join(",") === "emoji,expected_revision,kind" && isProfileAvatarEmoji(body.emoji)) return { selection: { kind: "emoji", emoji: String(body.emoji) }, expectedRevision: body.expected_revision as string | null };
+  if (!isRecord(body) || (body.expected_revision !== null && !isUuid(body.expected_revision)) || !isUuid(body.expected_user_id)) throw new ProfileAvatarError("INVALID_AVATAR", 400);
+  if (body.kind === "initial" && Object.keys(body).sort().join(",") === "expected_revision,expected_user_id,kind") return { selection: { kind: "initial" }, expectedRevision: body.expected_revision as string | null, expectedUserId: body.expected_user_id };
+  if (body.kind === "emoji" && Object.keys(body).sort().join(",") === "emoji,expected_revision,expected_user_id,kind" && isProfileAvatarEmoji(body.emoji)) return { selection: { kind: "emoji", emoji: String(body.emoji) }, expectedRevision: body.expected_revision as string | null, expectedUserId: body.expected_user_id };
   throw new ProfileAvatarError("INVALID_AVATAR", 400);
 }
 export async function PUT(request: Request) {
@@ -63,7 +64,9 @@ export async function PUT(request: Request) {
     if (authError || !user || user.is_anonymous) return response({ error: "로그인이 필요해요.", code: "AUTH_REQUIRED" }, 401);
     const limited = await checkRateLimitPersistent(rateLimitKey("profile:avatar", request, user.id), { maxRequests: 20, windowMs: 60 * 60 * 1000 }, { failClosed: true });
     if (limited) { for (const [key, value] of Object.entries(PROFILE_AVATAR_HEADERS)) limited.headers.set(key, value); return limited; }
-    const { selection, expectedRevision } = await readSelection(request);
+    const { selection, expectedRevision, expectedUserId } = await readSelection(request);
+    // 화면의 소유자 확인값은 권한이 아니다. 쿠키가 다른 계정으로 바뀌면 저장 전에 멈춘다.
+    if (expectedUserId !== user.id) throw new ProfileAvatarError("AVATAR_OWNER_CHANGED", 409);
     return response(await saveProfileAvatar(createAdminClient(), user.id, selection, expectedRevision));
   } catch (error) { return failure(error); }
 }

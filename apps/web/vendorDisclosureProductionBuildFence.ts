@@ -8,6 +8,7 @@ import {
 } from "../../scripts/lib/supabase-successor-release-contract.mjs";
 import { BUDGET_DECISION_CONTRACT_FILE } from "../../scripts/lib/amora-budget-decision-release-contract.mjs";
 import { EXPLICIT_BUDGET_CONTRACT_FILE } from "../../scripts/lib/amora-explicit-budget-release-contract.mjs";
+import { PROFILE_AVATAR_CONTRACT_FILE } from "../../scripts/lib/profile-avatar-release-contract.mjs";
 import { PROFILE_WEDDING_ROLES_CONTRACT_FILE } from "../../scripts/lib/profile-wedding-roles-release-contract.mjs";
 import { CHAT_FEEDBACK_CONTRACT_FILE } from "../../scripts/lib/chat-feedback-nullability-release-contract.mjs";
 
@@ -72,7 +73,9 @@ export function assertVendorDisclosureProductionBuild({
     // 구 경로로 재시도하지 않으며, 계약이 없는 과거 checkout은 기존 검사를 유지한다.
     releaseContract = validateSuccessorReleaseContract({
       repoRoot,
-      followup: existsSync(join(repoRoot, PROFILE_WEDDING_ROLES_CONTRACT_FILE))
+      followup: existsSync(join(repoRoot, PROFILE_AVATAR_CONTRACT_FILE))
+        ? "profile-avatar"
+        : existsSync(join(repoRoot, PROFILE_WEDDING_ROLES_CONTRACT_FILE))
         ? "profile-wedding-roles"
         : existsSync(join(repoRoot, CHAT_FEEDBACK_CONTRACT_FILE))
         ? "chat-feedback-nullability"

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { useAuthStore } from "@/stores/authStore";
-import { CHAT_BUBBLE_TONES } from "@/components/app/chat/chatBubbleStyles";
+import Button from "@/components/ui/Button";
 
 type Role = "bride" | "groom" | null;
 const options = [
@@ -11,6 +11,11 @@ const options = [
   { value: "bride", label: "신부", tone: "rose" },
   { value: null, label: "미선택", tone: "neutral" },
 ] as const;
+const selectedRoleClass = {
+  sky: "aria-pressed:border-[var(--hb-chat-sky-line)] aria-pressed:bg-[var(--hb-chat-sky-surface)] aria-pressed:text-[var(--hb-chat-sky-ink)] aria-pressed:hover:bg-[var(--hb-chat-sky-surface)]",
+  rose: "aria-pressed:border-[var(--hb-chat-rose-line)] aria-pressed:bg-[var(--hb-chat-rose-surface)] aria-pressed:text-[var(--hb-chat-rose-ink)] aria-pressed:hover:bg-[var(--hb-chat-rose-surface)]",
+  neutral: "aria-pressed:border-[var(--hb-chat-neutral-line)] aria-pressed:bg-[var(--hb-chat-neutral-surface)] aria-pressed:text-[var(--hb-chat-neutral-ink)] aria-pressed:hover:bg-[var(--hb-chat-neutral-surface)]",
+} as const;
 
 function isRevision(value: unknown): value is string | null {
   return value === null || (typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value));
@@ -102,21 +107,21 @@ function RoleChoices({ ownerId, coupleId, isDemo, initialRole }: { ownerId: stri
   }
 
   return <section className="mt-5 border-t border-[var(--hb-hairline)] pt-5" aria-label="나의 역할">
-    <h3 className="text-sm font-semibold text-[var(--hb-text-strong)]">나의 역할</h3>
+    <h3 className="hb-h-sm text-[var(--hb-text-strong)]">나의 역할</h3>
     <p className="mt-1 text-xs leading-5 text-[var(--hb-text-muted)]">신랑은 하늘색, 신부는 핑크색 말풍선으로 보여요. 나와 연결된 상대에게 같은 색으로 표시돼요.</p>
     {!ready && !error && <p role="status" className="mt-3 text-sm text-[var(--hb-text-muted)]">역할을 불러오는 중이에요.</p>}
     {ready && <>
       <div className="mt-3 grid grid-cols-3 gap-2" role="group" aria-label="나의 역할 선택">
-        {options.map(option => <button key={option.label} type="button" aria-pressed={selection === option.value} disabled={saving}
-          className={`inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border px-2 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2 disabled:opacity-60 ${selection === option.value ? CHAT_BUBBLE_TONES[option.tone] : "border-[var(--hb-hairline)] bg-white text-[var(--hb-text-body)]"}`}
-          onClick={() => { setSelection(option.value); setSaved(false); setError(""); }}>{selection === option.value && <Check size={15} aria-hidden="true" />}{option.label}</button>)}
+        {options.map(option => <Button key={option.label} variant="secondary" size="sm" type="button" aria-pressed={selection === option.value} disabled={saving}
+          className={`!min-h-11 !gap-1 !rounded-lg !px-2 ${selectedRoleClass[option.tone]}`}
+          onClick={() => { setSelection(option.value); setSaved(false); setError(""); }}>{selection === option.value && <Check size={15} aria-hidden="true" />}{option.label}</Button>)}
       </div>
       {selection !== baseline && <div className="mt-3 flex justify-end gap-2">
-        <button type="button" disabled={saving} className="min-h-11 rounded-lg px-4 text-sm text-[var(--hb-text-muted)]" onClick={() => { setSelection(baseline); setError(""); }}>취소</button>
-        <button type="button" disabled={saving} className="min-h-11 rounded-lg bg-[var(--hb-accent)] px-4 text-sm font-semibold text-white disabled:opacity-60" onClick={() => void save()}>{saving ? "저장 중…" : "역할 저장"}</button>
+        <Button variant="ghost" size="sm" type="button" disabled={saving} className="!min-h-11 !rounded-lg" onClick={() => { setSelection(baseline); setError(""); }}>취소</Button>
+        <Button variant="primary" size="sm" type="button" disabled={saving} className="!min-h-11 !rounded-lg" onClick={() => void save()}>{saving ? "저장 중…" : "역할 저장"}</Button>
       </div>}
     </>}
-    {error && <div className="mt-3"><p role="alert" className="text-sm leading-6 text-[var(--hb-text-body)]">{error}</p><button type="button" disabled={saving} className="min-h-11 text-sm font-medium underline underline-offset-4" onClick={() => { setReady(false); setError(""); setRetry(value => value + 1); }}>역할 다시 불러오기</button></div>}
+    {error && <div className="mt-3"><p role="alert" className="text-sm leading-6 text-[var(--hb-text-body)]">{error}</p><Button variant="ghost" size="sm" type="button" disabled={saving} className="!min-h-11 !px-0 underline underline-offset-4" onClick={() => { setReady(false); setError(""); setRetry(value => value + 1); }}>역할 다시 불러오기</Button></div>}
     {saved && <p role="status" className="mt-3 text-sm text-[var(--hb-success)]">{isDemo ? "체험 화면에 적용했어요." : "역할을 저장했어요."}</p>}
   </section>;
 }

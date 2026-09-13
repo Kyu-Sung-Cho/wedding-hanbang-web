@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--profile-avatar")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runProfileAvatarRelease } = await import("./profile-avatar-release.mjs");
+    return runProfileAvatarRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--profile-wedding-roles")) {
     assertSafeExecutionEnvironment(process.env);
     const { runProfileWeddingRolesRelease } = await import("./profile-wedding-roles-release.mjs");

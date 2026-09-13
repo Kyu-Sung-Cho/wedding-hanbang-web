@@ -1,4 +1,5 @@
-import test from 'node:test';
+import test, {after} from 'node:test';
+import {createProfileRoleHistoricalRepository} from './fixtures/profile-role-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -8,7 +9,9 @@ import { loadChatFeedbackNullabilityReleasePlan } from '../lib/chat-feedback-nul
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 import { createChatFeedbackHistoricalRepository } from './fixtures/chat-feedback-historical-repository.mjs';
-const root = resolve(import.meta.dirname, '../..');
+const sourceRoot=resolve(import.meta.dirname,'../..');
+const historical=createProfileRoleHistoricalRepository(sourceRoot);
+const root=historical.root;after(historical.cleanup);
 const mode = '--profile-wedding-roles';
 const code = value => error => error?.code === value;
 const run = args => spawnSync(process.execPath, [join(root,'scripts/supabase-release-fence.mjs'),...args],
@@ -39,7 +42,7 @@ test('static and runtime dispatch reject mixed/operational or incomplete argumen
 });
 
 test('historical or new SQL, contracts and implementations cannot drift; extra SQL is not grandfathered', async t => {
-  const fixture=createChatFeedbackHistoricalRepository(root);t.after(fixture.cleanup);
+  const fixture=createChatFeedbackHistoricalRepository(sourceRoot);t.after(fixture.cleanup);
   const plan=loadProfileWeddingRolesReleasePlan(root);
   const pins=[PROFILE_WEDDING_ROLES_CONTRACT_FILE,plan.contract.runtime.file,plan.contract.catalog.file,
     `supabase/migrations/${plan.contract.migrations[0].file}`];

@@ -11,7 +11,7 @@ vi.mock("@/utils/rateLimit", () => ({ checkRateLimitPersistent: m.rateLimit, rat
 vi.mock("@/lib/profileAvatar", async importOriginal => ({ ...await importOriginal<typeof import("@/lib/profileAvatar")>(), readProfileAvatar: m.read, readAuthorizedProfileAvatar: m.read, saveProfileAvatar: m.save }));
 import { GET, PUT } from "./route";
 import { GET as imageGET } from "./image/route";
-function request(body: unknown, headers: Record<string, string> = {}) { return new Request("https://hanbang.ai/api/profile/avatar", { method: "PUT", headers: { origin: "https://hanbang.ai", "content-type": "application/json", ...headers }, body: JSON.stringify({ expected_revision: null, ...(body as Record<string, unknown>) }) }); }
+function request(body: unknown, headers: Record<string, string> = {}) { return new Request("https://hanbang.ai/api/profile/avatar", { method: "PUT", headers: { origin: "https://hanbang.ai", "content-type": "application/json", ...headers }, body: JSON.stringify({ expected_revision: null, expected_user_id: USER, ...(body as Record<string, unknown>) }) }); }
 beforeEach(() => {
   vi.clearAllMocks(); m.getUser.mockResolvedValue({ data: { user: { id: USER } } }); m.directory.mockResolvedValue({ data: null, error: null });
   m.read.mockResolvedValue(null); m.rateLimit.mockResolvedValue(null); m.save.mockResolvedValue({ avatar_url: "🌸", revision: REVISION });
@@ -38,8 +38,29 @@ describe("profile avatar own mutation and authenticated image access", () => {
   });
   it("requires the editor revision and rejects duplicate multipart fields", async () => {
     for(const expected_revision of [undefined,"bad",42,{},[]]) expect((await PUT(request({kind:"initial",expected_revision}))).status).toBe(400);
-    const form=new FormData(); form.append("photo",new Blob(["x"],{type:"image/png"}),"x.png"); form.append("expected_revision","null");form.append("expected_revision",REVISION);
+    const form=new FormData(); form.append("photo",new Blob(["x"],{type:"image/png"}),"x.png"); form.append("expected_revision","null");form.append("expected_revision",REVISION);form.append("expected_user_id",USER);
     expect((await PUT(new Request("https://hanbang.ai/api/profile/avatar",{method:"PUT",headers:{origin:"https://hanbang.ai"},body:form}))).status).toBe(400);
+    expect(m.save).not.toHaveBeenCalled();
+  });
+  it("requires one valid screen owner field in each input format", async () => {
+    for (const expected_user_id of [undefined, "bad", null, 42]) expect((await PUT(request({ kind: "initial", expected_user_id }))).status).toBe(400);
+    const form = new FormData(); form.set("photo", new Blob(["photo"], { type: "image/png" }), "a.png"); form.set("expected_revision", "null");
+    const make = () => new Request("https://hanbang.ai/api/profile/avatar", { method: "PUT", headers: { origin: "https://hanbang.ai" }, body: form });
+    expect((await PUT(make())).status).toBe(400);
+    form.append("expected_user_id", USER); form.append("expected_user_id", OTHER);
+    expect((await PUT(make())).status).toBe(400);
+    expect(m.save).not.toHaveBeenCalled();
+  });
+  it.each(["json", "photo"])("rejects an A-screen initial draft when the authenticated cookie changed to B: %s", async format => {
+    m.getUser.mockResolvedValue({ data: { user: { id: OTHER } }, error: null });
+    const form = new FormData();
+    form.set("photo", new Blob(["photo"], { type: "image/png" }), "a.png");
+    form.set("expected_revision", "null"); form.set("expected_user_id", USER);
+    const req = format === "json" ? request({ kind: "emoji", emoji: "🌸" })
+      : new Request("https://hanbang.ai/api/profile/avatar", { method: "PUT", headers: { origin: "https://hanbang.ai" }, body: form });
+    const result = await PUT(req);
+    expect(result.status).toBe(409);
+    expect((await result.json()).code).toBe("AVATAR_OWNER_CHANGED");
     expect(m.save).not.toHaveBeenCalled();
   });
   it("does not emit downloaded bytes when membership or selected photo changed meanwhile", async () => {
@@ -73,7 +94,7 @@ describe("profile avatar own mutation and authenticated image access", () => {
     expect(m.save).toHaveBeenCalledTimes(1);
   });
   it("accepts a single photo field and rejects additional identity fields", async () => {
-    const form = new FormData(); form.set("expected_revision", "null"); form.set("photo", new Blob(["photo"], { type: "image/png" }), "a.png");
+    const form = new FormData(); form.set("expected_revision", "null"); form.set("expected_user_id", USER); form.set("photo", new Blob(["photo"], { type: "image/png" }), "a.png");
     const make = () => new Request("https://hanbang.ai/api/profile/avatar", { method: "PUT", headers: { origin: "https://hanbang.ai" }, body: form });
     expect((await PUT(make())).status).toBe(200);
     expect(m.save).toHaveBeenCalledWith(expect.anything(), USER, expect.objectContaining({ kind: "photo", mimeType: "image/png" }), null);

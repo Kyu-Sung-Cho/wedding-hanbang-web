@@ -12,7 +12,10 @@ export const PROFILE_WEDDING_ROLES_SCOPE = Object.freeze({
   roleInference: 'none',
 });
 
-export function loadProfileWeddingRolesReleasePlan(repoRoot) {
+export function loadProfileWeddingRolesReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약에서 선행 원문만 재검증한다. 기존 230 공개 모드는 디렉터리 전체를 계속 검사한다.
+export function loadProfileWeddingRolesHistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes = pinnedArtifact(repoRoot, { file: PROFILE_WEDDING_ROLES_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const contract = JSON.parse(bytes);
   requireRelease(contract.version === 1 && contract.kind === 'profile-wedding-roles-static-successor'
@@ -34,12 +37,12 @@ export function loadProfileWeddingRolesReleasePlan(repoRoot) {
     pinnedArtifact(repoRoot, contract[key]);
   }
   const reviewed = [...predecessor.reviewedMigrations, ...contract.migrations].sort((a, b) => a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(),
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(),
     reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` });
   const sql = pinnedArtifact(repoRoot, { ...contract.migrations[0], file: `supabase/migrations/${contract.migrations[0].file}` });
   requireRelease(!sql.includes(13), 'PROFILE_ROLE_SQL_NOT_CANONICAL');
-  return { contract, contractSha256: digest(bytes), migrationSha256: digest(sql), migrationCount: reviewed.length,
+  return { contract, contractSha256: digest(bytes), migrationSha256: digest(sql), migrationCount: reviewed.length, reviewedMigrations: reviewed,
     followupMigrations: [...predecessor.followupMigrations, { file: contract.migrations[0].file, version: '20260913075045' }],
     staticVerified: true, productionApplyImplemented: true, runtimeEvidenceVerified: false,
     releaseAuthorized: false, remoteWritesPerformed: false };

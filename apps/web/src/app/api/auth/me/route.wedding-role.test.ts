@@ -18,6 +18,25 @@ vi.mock("@/lib/supabase/server",()=>({createClientFromRequest:async()=>({auth:{g
 import { GET } from "./route";
 beforeEach(()=>{vi.clearAllMocks();m.partnerId=B;});
 describe("auth/me projects only current explicit display roles",()=>{
+  it.each(["both available","role unavailable","avatar unavailable"])("combines independent private role and avatar projections: %s",async scenario=>{
+    m.rpc.mockImplementation(async (name:string)=> name==="read_profile_wedding_roles"
+      ? scenario==="role unavailable"?{data:null,error:{code:"offline"}}:{data:[
+        {user_id:A,confirmed_role:"groom",revision:REV,couple_id:COUPLE},
+        {user_id:B,confirmed_role:"bride",revision:REV,couple_id:COUPLE}],error:null}
+      : scenario==="avatar unavailable"?{data:null,error:{code:"offline"}}:{data:[
+        {user_id:A,kind:"emoji",emoji:"🌷",object_path:null,revision:REV,updated_at:"2026-09-13T00:00:00Z"},
+        {user_id:B,kind:"photo",emoji:null,object_path:`${B}/${REV}.webp`,revision:REV,updated_at:"2026-09-13T00:00:00Z"}],error:null});
+    const response=await GET(new Request("https://hanbang.ai/api/auth/me"));
+    expect(response.status).toBe(200);const body=await response.json();
+    if(scenario==="role unavailable"){
+      expect(body.profile).not.toHaveProperty("confirmed_role");expect(body.partner).not.toHaveProperty("confirmed_role");
+    }else {expect(body.profile.confirmed_role).toBe("groom");expect(body.partner.confirmed_role).toBe("bride");}
+    if(scenario==="avatar unavailable"){
+      expect(body.profile).not.toHaveProperty("avatar_url");expect(body.partner).not.toHaveProperty("avatar_url");
+    }else {expect(body.profile.avatar_url).toBe("🌷");expect(body.partner.avatar_url).toBe(`/api/profile/avatar/image?userId=${B}&version=${REV}`);}
+    expect(body.profile.role).toBe("bride");expect(body.partner.role).toBe("groom");
+    expect(m.rpc).toHaveBeenCalledWith("read_profile_avatar_snapshot",{p_user_id:A});
+  });
   it("reads the verified owner, keeps authorization slots, and only projects the matched current partner",async()=>{
     m.rpc.mockResolvedValue({data:[{user_id:A,confirmed_role:"groom",revision:REV,couple_id:COUPLE},{user_id:B,confirmed_role:"bride",revision:REV,couple_id:COUPLE}],error:null});
     const response=await GET(new Request(`https://hanbang.ai/api/auth/me?userId=${C}`));

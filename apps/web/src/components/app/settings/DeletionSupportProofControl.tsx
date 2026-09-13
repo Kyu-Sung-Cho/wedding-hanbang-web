@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAuthStore } from "@/stores/authStore";
 import { CONTACT } from "@/lib/constants/contact";
+import Button from "@/components/ui/Button";
 
 interface SupportProof {
   proof: string;
@@ -116,18 +117,18 @@ function DeletionSupportProofSession({ ownerId }: { ownerId: string }) {
     <div className="mb-4 rounded-xl border border-[var(--hb-border)] bg-[var(--hb-surface-hover)] p-3 text-sm">
       <p className="text-[var(--hb-text-body)]">문의할 계정을 확인하는 코드를 만들 수 있어요. 코드 발급만으로 계정이 삭제되거나 요청이 접수되지는 않아요.</p>
       {!proof ? (
-        <button type="button" onClick={issue} disabled={busy}
-          className="mt-2 min-h-11 w-full rounded-lg border border-[var(--hb-border)] px-3 font-medium text-[var(--hb-text-strong)] disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]">
+        <Button variant="secondary" type="button" onClick={issue} disabled={busy}
+          className="mt-2 w-full !rounded-lg !px-3">
           {busy ? "확인 코드 만드는 중…" : "탈퇴 문의용 확인 코드 만들기"}
-        </button>
+        </Button>
       ) : (
         <>
           <p className="mt-2 text-[var(--hb-text-body)]">{CONTACT.email}에 탈퇴 요청과 함께 보내 주세요. 코드는 다른 곳에 공개하지 마세요.</p>
           <p className="mt-1 text-xs text-[var(--hb-text-muted)]">유효 기한: {new Date(proof.expiresAt).toLocaleString("ko-KR")}</p>
-          <button type="button" onClick={copy}
-            className="mt-2 min-h-11 w-full rounded-lg border border-[var(--hb-border)] px-3 font-medium text-[var(--hb-text-strong)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--hb-primary)]">
+          <Button variant="secondary" type="button" onClick={copy}
+            className="mt-2 w-full !rounded-lg !px-3">
             {copied ? "복사했어요" : "확인 코드 복사"}
-          </button>
+          </Button>
           <p role="status" className="sr-only">{copied ? "확인 코드를 복사했어요." : "확인 코드가 만들어졌어요."}</p>
           {showCode && <label className="mt-2 block text-xs text-[var(--hb-text-body)]">복사가 어려우면 아래 코드를 직접 선택해 복사해 주세요.
             <textarea readOnly value={proof.proof} aria-label="탈퇴 문의 본인 확인 코드" className="mt-2 min-h-24 w-full rounded-lg border border-[var(--hb-border)] bg-white p-2 text-xs" />

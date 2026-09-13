@@ -67,17 +67,17 @@ describe("프로필 선택 저장 경계", () => {
 
   it("확인된 저장만 반영하고 동시에 수정한 이름은 보존한다", async () => {
     await open(); await click("이모지"); await click("벚꽃");
-    await act(async () => useAuthStore.setState({ profile: { ...profile, name: "새로운 이름" } }));
+    await act(async () => useAuthStore.setState({ profile: { ...profile, name: "새로운 이름", confirmed_role: "groom", confirmed_role_revision: REVISION } }));
     await click("저장");
-    expect(JSON.parse(writes()[0][1]?.body as string)).toEqual({ kind: "emoji", emoji: "🌸", expected_revision: null });
-    expect(useAuthStore.getState().profile).toMatchObject({ name: "새로운 이름", avatar_url: "🌸" });
+    expect(JSON.parse(writes()[0][1]?.body as string)).toEqual({ kind: "emoji", emoji: "🌸", expected_revision: null, expected_user_id: OWNER });
+    expect(useAuthStore.getState().profile).toMatchObject({ name: "새로운 이름", avatar_url: "🌸", confirmed_role: "groom", confirmed_role_revision: REVISION });
     expect(container.querySelector('[role="status"]')?.textContent).toBe("프로필을 저장했어요.");
   });
 
   it("편집 시작 revision을 전송하고 충돌을 저장 성공으로 표시하지 않는다", async () => {
     fetchMock.mockImplementation(async (_input,init)=>init?.method==="PUT"?response({code:"AVATAR_SAVE_CONFLICT"},409):response({avatar_url:"🌷",revision:REVISION}));
     await open(); await click("이모지"); await click("벚꽃"); await click("저장");
-    expect(JSON.parse(writes()[0][1]?.body as string)).toEqual({kind:"emoji",emoji:"🌸",expected_revision:REVISION});
+    expect(JSON.parse(writes()[0][1]?.body as string)).toEqual({kind:"emoji",emoji:"🌸",expected_revision:REVISION,expected_user_id:OWNER});
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("다른 곳에서 프로필이 바뀌었어요");
     expect(container.textContent).not.toContain("프로필을 저장했어요"); expect(useAuthStore.getState().profile?.avatar_url).toBeNull();
   });
@@ -128,7 +128,7 @@ describe("프로필 선택 저장 경계", () => {
     await chooseFile(file); expect(container.querySelector("img")?.getAttribute("src")).toBe("blob:avatar-test");
     await click("저장");
     const body = writes()[0][1]?.body as FormData;
-    expect([...body.keys()]).toEqual(["photo", "expected_revision"]); expect(body.get("expected_revision")).toBe("null"); expect(body.get("photo")).toBe(file);
+    expect([...body.keys()]).toEqual(["photo", "expected_revision", "expected_user_id"]); expect(body.get("expected_revision")).toBe("null"); expect(body.get("expected_user_id")).toBe(OWNER); expect(body.get("photo")).toBe(file);
     expect(useAuthStore.getState().profile?.avatar_url).toBe(PHOTO);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:avatar-test");
   });
@@ -144,7 +144,7 @@ describe("프로필 선택 저장 경계", () => {
   it("기존 사진에서 기본 글자로 되돌리는 요청은 명시적 초기화다", async () => {
     fetchMock.mockImplementation(async (_input, init) => init?.method === "PUT" ? response({ avatar_url: null, revision: REVISION }) : response({ avatar_url: PHOTO, revision: REVISION }));
     await open(); await click("기본 글자"); await click("저장");
-    expect(JSON.parse(writes()[0][1]?.body as string)).toEqual({ kind: "initial", expected_revision: REVISION });
+    expect(JSON.parse(writes()[0][1]?.body as string)).toEqual({ kind: "initial", expected_revision: REVISION, expected_user_id: OWNER });
     expect(useAuthStore.getState().profile?.avatar_url).toBeNull();
   });
 

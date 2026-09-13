@@ -1,4 +1,5 @@
-import test from 'node:test';
+import test, {after as afterTests} from 'node:test';
+import {createProfileRoleHistoricalRepository} from './fixtures/profile-role-historical-repository.mjs';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -7,7 +8,9 @@ import { tmpdir } from 'node:os';
 import { appendProfileWeddingRolesReceipt, parseProfileWeddingRolesReleaseArgs, runProfileWeddingRolesRelease } from '../lib/profile-wedding-roles-release.mjs';
 import { buildProfileRoleMutationSql, buildProfileRoleObservationSql, expectedProfileRoleCatalog,
   validateProfileRoleObservation, PROFILE_ROLE_REQUIRED_COLUMNS } from '../lib/profile-wedding-roles-catalog.mjs';
-const root = resolve(import.meta.dirname, '../..');
+const sourceRoot=resolve(import.meta.dirname,'../..');
+const historical=createProfileRoleHistoricalRepository(sourceRoot);
+const root=historical.root;afterTests(historical.cleanup);
 const version = '20260913075045';
 const sql = readFileSync(join(root, `supabase/migrations/${version}_profile_wedding_roles.sql`), 'utf8');
 const predecessorSql = readFileSync(join(root, 'supabase/migrations/20260913043211_chat_feedback_automatic_signal_nullable.sql'),'utf8');

@@ -332,6 +332,7 @@ describe("/api/profile PATCH", () => {
   it.each([false, true])("uses the private avatar snapshot when editing the name; lookup failed=%s", async failed => {
     const owner="11111111-1111-4111-8111-111111111111", revision="22222222-2222-4222-8222-222222222222";
     mockAuthClient({id:owner});
+    roleRead.mockResolvedValue(new Map([[owner,{user_id:owner,confirmed_role:"groom",revision:"role-revision",couple_id:null}]]));
     const admin=mockAdminClient({});
     admin.rpc.mockImplementation(async (name:string)=> name==="read_profile_avatar_snapshot"
       ? {data:failed?null:[{user_id:owner,kind:"photo",emoji:null,object_path:`${owner}/${revision}.webp`,revision,updated_at:"2026-09-13T00:00:00Z"}],error:failed?{code:"offline"}:null}
@@ -339,6 +340,7 @@ describe("/api/profile PATCH", () => {
     const response=await PATCH(createProfilePatchRequest("New Name"));
     expect(response.status).toBe(200); const body=await response.json();
     expect(body.profile.name).toBe("New Name");
+    expect(body.profile).toMatchObject({confirmed_role:"groom",confirmed_role_revision:"role-revision"});
     if(failed) expect(body.profile).not.toHaveProperty("avatar_url");
     else expect(body.profile.avatar_url).toBe(`/api/profile/avatar/image?userId=${owner}&version=${revision}`);
     expect(JSON.stringify(body)).not.toContain("untrusted.invalid");

@@ -45,6 +45,20 @@ export interface SupportCaseDependencies {
 export class DeletionSupportCaseError extends Error {
   constructor(readonly code: string) { super(code); this.name = "DeletionSupportCaseError"; }
 }
+/** 고유한 읽기 전용 운영 API의 실제 응답만 확인한다. 기존 cron 실행 URL은 조회하지 않는다. */
+export function validateSupportRuntimeState(value: unknown, expectedCommit: string, now = Date.now()) {
+  requireCase(value && typeof value === "object" && !Array.isArray(value), "SUPPORT_CASE_RUNTIME_STATE_INVALID");
+  const state = value as Record<string, unknown>;
+  requireCase(Object.keys(state).sort().join(",") === "commit,flags,observedAt"
+    && /^[a-f0-9]{40}$/.test(expectedCommit) && state.commit === expectedCommit
+    && typeof state.observedAt === "string" && Date.parse(state.observedAt) <= now
+    && Date.parse(state.observedAt) > now - 30_000 && state.flags && typeof state.flags === "object" && !Array.isArray(state.flags),
+  "SUPPORT_CASE_RUNTIME_STATE_INVALID");
+  const flags = state.flags as Record<string, unknown>;
+  requireCase(Object.keys(flags).sort().join(",") === "ACCOUNT_DELETION_CRON_ENABLED,ACCOUNT_DELETION_INTAKE_ENABLED"
+    && flags.ACCOUNT_DELETION_INTAKE_ENABLED === false && flags.ACCOUNT_DELETION_CRON_ENABLED === false,
+  "SUPPORT_CASE_AUTOMATIC_PROCESSING_NOT_DISABLED");
+}
 export function validateSupportExecutionObservation(value: unknown, expectedCommit: string, now = Date.now()) {
   requireCase(value && typeof value === "object" && !Array.isArray(value), "SUPPORT_CASE_RUNTIME_OBSERVATION_REQUIRED");
   const observed = value as Record<string, unknown>;
