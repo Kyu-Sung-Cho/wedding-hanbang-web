@@ -1,11 +1,13 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { verifySupabaseServiceDestination } from "../../../scripts/lib/supabase-service-destination.mjs";
+import { joinSyntheticCoupleViaApi, validateSyntheticAppUrl } from "./lib/synthetic-couple-api.mjs";
 
 const previewUrl = process.env.AMORA_PREVIEW_SUPABASE_URL;
 const anonKey = process.env.AMORA_PREVIEW_SUPABASE_ANON_KEY;
 const serviceRoleKey = process.env.AMORA_PREVIEW_SUPABASE_SERVICE_ROLE_KEY;
 const expectedRef = process.env.AMORA_PREVIEW_PROJECT_REF;
+const appUrl = validateSyntheticAppUrl(process.env.AMORA_PREVIEW_APP_URL, expectedRef);
 const productionRef = "slrtobkksjmxgzatjyqb";
 
 function invariant(value, message) {
@@ -805,11 +807,7 @@ try {
   const groom = await createSyntheticUser("groom");
   const outsider = await createSyntheticUser("outsider");
   const couple = await createCouple(bride, "bride");
-  const joined = expectSuccess(
-    "join groom",
-    await groom.client.rpc("join_couple", { p_invite_code: couple.invite_code, p_role: "groom" }),
-  );
-  invariant(joined?.success === true && joined?.couple_id === couple.couple_id, "groom join failed");
+  await joinSyntheticCoupleViaApi({ user: groom, inviteCode: couple.invite_code, role: "groom", expectedCoupleId: couple.couple_id, appUrl, expectedRef });
 
   const userMessage = await insertMessage({
     coupleId: couple.couple_id,
