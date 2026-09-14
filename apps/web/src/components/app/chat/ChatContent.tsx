@@ -3032,7 +3032,8 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     </div>
                     <div className="text-[12px] leading-relaxed text-[var(--hb-text-body)]">
                       이 대화와 아모라가 만든 요약·기억을 삭제하고 비공개 기억
-                      사용을 꺼요. 별도 저장 메모·법적/보안 로그·백업은 각 보관
+                      사용을 꺼요. 이 비공개 대화에서 저장한 개인 할 일도 함께 삭제됩니다.
+                      별도 저장 메모·법적/보안 로그·백업은 각 보관
                       정책에 따라 처리돼요.
                     </div>
                   </button>

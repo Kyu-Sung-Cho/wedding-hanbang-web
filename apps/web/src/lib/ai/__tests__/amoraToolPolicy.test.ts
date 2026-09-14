@@ -5,6 +5,8 @@ import {
   selectAmoraPendingProposalTools,
   selectAmoraTools,
 } from "@/lib/ai/amoraToolPolicy";
+import { classifyAmoraQuestionScope, filterAmoraToolsByQuestionScope } from "@/lib/ai/amoraQuestionScope";
+import { isMutatingTool } from "@/lib/ai/mutationTools";
 
 function names(userText: string, specialistType: Parameters<typeof selectAmoraTools>[0]["specialistType"] = "general") {
   return selectAmoraTools({
@@ -412,5 +414,145 @@ describe("할 일에 넣어 달라는 말", () => {
     "예식장 예산에 500만원 더 넣어줘",
   ])("할 일이 아닌 '넣어'는 열지 않는다: %s", (userText) => {
     expect(names(userText)).not.toContain("add_amora_action");
+  });
+});
+
+/**
+ * **웃음 표기나 회상이 붙으면 요청이 통째로 사라졌다.** (2026-09-14 운영 실측)
+ *
+ * 두 문장 다 확인 카드가 없었고 아모라는 "반영되지 않았다"·"예산 화면에서 직접
+ * 입력해 달라"고 답했다:
+ *
+ *   "드레스 300만원으로 잡아줘 ㅎㅎ"            → `JOKING` 의 `ㅋㅋ|ㅎㅎ` 에 걸림
+ *   "원래 5천이었는데 총예산 6천으로 올려줘"     → `PAST_RECALL` 에 부탁 예외가 없음
+ *
+ * 둘 다 `isNotOurDecision` 이 참이 되어 `selectAmoraPendingProposalTools` 가 빈
+ * 배열을 돌려주고, 카드 계약문이 프롬프트에 아예 안 실린다. ㅋㅋ·ㅎㅎ 는 한국어
+ * 채팅에서 어조를 누그러뜨리는 말이지 무르는 말이 아니고, 회상 뒤에 **바꾸는**
+ * 부탁이 붙으면 그건 요청이다.
+ *
+ *   웃음: 웃음 표기를 걷어낸 뒤 부탁 어미가 있으면 요청이다. 전언 갈래의
+ *         `REQUEST_TO_AMORA` 는 `줘~`·`줘요`·`줄래` 를 못 봐서(2026-09-14 2차 감사:
+ *         "잡아줘~ ㅎㅎ"·"잡아줘요 ㅎㅎ"·"잡아줄래? ㅎㅎ" 가 0개, 웃음만 떼면 4개)
+ *         웃음·회상 예외는 그 어미까지 부탁으로 보는 `REQUEST_TO_AMORA_RELAXED` 를
+ *         쓴다. 전언 갈래는 그대로다(`ownDecisionIsNotHearsay` 가 그 계약을 고정).
+ *   회상: 부탁 어미만으로는 모자란다. 1차 수정은 어떤 부탁이든 회상을 풀어
+ *         "작년에 예식장 알아봤었는데 그때 견적 다시 보여줘" 에 제안 도구 12개가
+ *         열렸다 — 옛 값을 떠올리며 **읽어** 달라는 말이다. 문장 끝이 변경 동사 +
+ *         부탁 어미(`CHANGE_REQUEST_TO_AMORA`)일 때만 회상을 푼다.
+ *
+ * 반대 방향 목록이 없으면 이 검사는 "`ㅋㅋ|ㅎㅎ` 와 `PAST_RECALL` 을 통째로 지워도
+ * 초록"이다. `amoraChangeRequestCorpus` 의 NO_OFFER 에 있는 웃음·회상 문장을
+ * 그대로 가져와 그 계약을 여기서도 고정한다. 웃음 반례는 전부 **웃음 표기만
+ * 걷어내면 열리는** 문장이다 — 전언처럼 다른 가드가 먼저 막는 문장("친구는
+ * 드레스에 300만원 썼대 ㅋㅋ")은 웃음 가드를 지워도 초록이라 넣지 않는다.
+ */
+describe("웃음 표기·회상이 붙은 요청", () => {
+  const PENDING_ACTION_TOOLS = BETA_SAFE_TOOLS.filter((tool) => isMutatingTool(tool.name));
+
+  /** 운영과 같은 경로 — 범위 필터까지 통과해야 카드가 된다(코퍼스 테스트와 같은 계산). */
+  function offersCard(userText: string): boolean {
+    const scope = classifyAmoraQuestionScope({ userText });
+    return filterAmoraToolsByQuestionScope(
+      selectAmoraPendingProposalTools({
+        availableTools: PENDING_ACTION_TOOLS,
+        userText,
+        specialistType: "general",
+        attachmentKind: "none",
+      }),
+      scope,
+    ).length > 0;
+  }
+
+  function proposals(userText: string): string[] {
+    return selectAmoraPendingProposalTools({
+      availableTools: PENDING_ACTION_TOOLS,
+      userText,
+      specialistType: "general",
+      specialistMatchedByKeyword: false,
+    }).map((tool) => tool.name);
+  }
+
+  it.each([
+    "드레스 300만원으로 잡아줘 ㅎㅎ",
+    "원래 5천이었는데 총예산 6천으로 올려줘",
+  ])("운영 문장: 범위 필터까지 통과해 카드를 낼 수 있다: %s", (userText) => {
+    expect(offersCard(userText)).toBe(true);
+  });
+
+  it.each([
+    "드레스 300만원으로 잡아줘 ㅎㅎ",
+    "총예산 5천만원으로 바꿔줘 ㅋㅋ",
+    "ㅎㅎ 스튜디오 예산 150만원으로 올려줘",
+    "메이크업 80만원으로 맞춰줘ㅋㅋ",
+    "신혼여행 예산 400만원으로 줄여 주세요 ㅎㅎ",
+    "예식장 상담 일정 3월 15일로 추가해줘 ㅋㅋ",
+    "상견례 일정 다음주 토요일로 옮겨줘! ㅋㅋㅋ",
+    // `줘` 뒤에 `~`·`요`·`ㄹ래` 가 붙은 부탁 — 2026-09-14 2차 감사에서 넷 다 0개였다.
+    "드레스 300만원으로 잡아줘~ ㅎㅎ",
+    "드레스 300만원으로 잡아줘요 ㅎㅎ",
+    "드레스 300만원으로 잡아줄래? ㅎㅎ",
+  ])("웃음 표기가 붙어도 부탁이면 요청이다: %s", (userText) => {
+    expect(proposals(userText)).not.toEqual([]);
+  });
+
+  it.each([
+    "원래 5천이었는데 총예산 6천으로 올려줘",
+    "작년에 4천만원으로 잡았었는데 총예산 5천만원으로 바꿔줘",
+    "예전에 드레스 200이었는데 이제 드레스 300만원으로 잡아줘",
+    "처음엔 4월이었는데 결혼식 날짜 10월 17일로 변경해줘",
+    "그때는 상견례를 3월에 하기로 했었는데 상견례 일정 4월 12일로 옮겨줘",
+    "원래 예단은 안 하려고 했었는데 예단 예산 300만원으로 잡아 주세요",
+    "원래 5천이었는데 총예산 6천으로 올려줘 ㅎㅎ",
+    "원래 5천이었는데 총예산 6천으로 올려줘~",
+    // 변경 동사가 `해줘`·`부탁해` 꼴인 요청도 회상을 푼다 — 좁히면서 잃으면 안 된다.
+    "원래 5천이었는데 총예산 6천으로 해줘",
+    "원래 5천이었는데 총예산 6천으로 변경 부탁해",
+  ])("회상 뒤에 부탁이 붙으면 요청이다: %s", (userText) => {
+    expect(proposals(userText)).not.toEqual([]);
+  });
+
+  it.each([
+    "ㅋㅋㅋ 이럴 바엔 총예산 1억으로 올려서 하와이에서 하자",
+    "신혼여행 예산 5억이면 딱인데 ㅋㅋ 로또부터 사야지",
+    "예식장 대관 가격이 0.3억이라니 ㅋㅋ 차라리 공원에서 하는게 낫겟다",
+    "드레스 예산 1억으로 하자 ㅋㅋ",
+    "총예산 3억으로 올리면 되겠네 ㅎㅎ",
+    "우리 결혼식 날짜 크리스마스로 하자 ㅋㅋ",
+    // 웃음만 떼면 열리는 선언("우리 총예산은 5천만원이야" 는 OFFER) — 웃음 가드가 정한다.
+    "총예산 5천만원이야 ㅋㅋ",
+    "총예산 5천만원으로 바꿔달라는 건 농담이야",
+    "장난이야 총예산 1억으로 올려줘",
+  ])("부탁이 없는 웃음과 농담·장난은 그대로 막힌다: %s", (userText) => {
+    expect(proposals(userText)).toEqual([]);
+  });
+
+  it.each([
+    "작년에 예식장 알아봤었어",
+    "원래는 드레스 예산 300만원이었어",
+    "작년에 잡았던 예산이 4천만원이었는데 지금은 상황이 많이 달라졌어",
+    "재작년에 우리 부모님이 예단 비용으로 500만원 하셨었지",
+    "예전에 예식장 예약을 4월 10일로 잡았다가 다 엎었었어",
+    "우리 처음 만난 날이 2019년 5월 20일인데 그날로 결혼식 날짜 잡고 싶었지 뭐",
+    "그때는 총예산 5천만원이었는데 지금 보니 너무 적었어",
+    "원래 5천이었는데 총예산 6천으로 올렸었어",
+  ])("부탁이 없는 회상은 그대로 막힌다: %s", (userText) => {
+    expect(proposals(userText)).toEqual([]);
+  });
+
+  /**
+   * 2026-09-14 2차 감사. 1차 수정의 회상 예외는 `REQUEST_TO_AMORA` 만 봐서 어떤
+   * 부탁이든 회상을 풀었다 — 첫 문장에 제안 도구 12개, 둘째에 4개(수정 전 0개).
+   * 옛 값을 떠올리며 **읽어** 달라는 말은 회상이다. 다섯 문장 다 회상 가드가 아니면
+   * 열린다(부탁 어미가 있어 웃음·전언 가드는 안 걸린다).
+   */
+  it.each([
+    "작년에 예식장 알아봤었는데 그때 견적 다시 보여줘",
+    "예전에 남편이 총예산 4천으로 하자고 했었는데 그거 다시 보여줘",
+    "원래 총예산 5천이었는데 지금 얼마로 잡혀 있는지 보여줘",
+    "예전에 잡았던 상견례 일정 그대로인지 확인해줘",
+    "작년에 예식장 알아봤었는데 그때 견적 다시 보여줘 ㅎㅎ",
+  ])("회상 뒤에 붙은 부탁이 읽기면 회상이다: %s", (userText) => {
+    expect(proposals(userText)).toEqual([]);
   });
 });

@@ -1,4 +1,5 @@
 import OpenAI, {
+  APIConnectionError,
   APIConnectionTimeoutError,
   APIUserAbortError,
 } from "openai";
@@ -6,10 +7,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildMultimodalContent,
   chatWithToolsStream as rawChatWithToolsStream,
+  estimateInputTokensLocally,
   getSafeOpenAIErrorMetadata,
+  hasInputAttachments,
   OpenAIInputTokenLimitError,
   OpenAIProviderError,
   normalizeOpenAIProviderError,
+  type ImageAttachment,
 } from "../openai";
 
 type ChatWithToolsOptions = Parameters<typeof rawChatWithToolsStream>[0];
@@ -581,38 +585,247 @@ describe("OpenAI Responses adapter", () => {
     })).rejects.toBeInstanceOf(OpenAIInputTokenLimitError);
     expect(create).not.toHaveBeenCalled();
     expect(beforeGeneration).not.toHaveBeenCalled();
+    // 측정은 성공했고 그 판정이 막은 것이다 — 다시 재지 않는다.
+    expect(count).toHaveBeenCalledTimes(1);
   });
 
-  // 측정 실패 때도 앱의 입력 상한과 비용 예약을 우회하지 않는다.
+  // 측정 *호출* 자체가 죽은 경우(전송·5xx·429·타임아웃)는 한 번 다시 재고, 그래도
+  // 안 되면 로컬 추정으로 앱 상한을 지킨 채 생성으로 간다. 2026-07-25 운영에서
+  // /responses/input_tokens 만 죽고 /responses 는 멀쩡했는데 "안녕" 한 마디까지
+  // 전부 "입력 분량을 확인하는 중 문제가 생겼어요"로 죽었다. 그때 넣은 폴백
+  // (c19a9c61)은 상한 없이 진행해 9-07(b2d2fa1c)에 빠졌다 — 지금은 상한을
+  // 로컬 추정으로 유지한다(아래 "keeps the input cap on a local estimate").
   it.each([
-    ["5xx", Object.assign(new Error("count service unavailable"), {
+    ["503", Object.assign(new Error("count service unavailable"), {
       status: 503,
       requestID: "req_count_503",
       code: "server_error",
     }), "server_error"],
-    ["timeout", new APIConnectionTimeoutError(), null],
-  ])("blocks paid generation when the input pre-count %s fails", async (
+    ["502", Object.assign(new Error("bad gateway"), {
+      status: 502,
+      requestID: "req_count_502",
+      code: "bad_gateway",
+    }), "bad_gateway"],
+    ["429", Object.assign(new Error("rate limited"), {
+      status: 429,
+      requestID: "req_count_429",
+      code: "rate_limit_exceeded",
+    }), "rate_limit_exceeded"],
+    ["timeout", new APIConnectionTimeoutError(), "timeout"],
+    ["network", new APIConnectionError({ message: "count socket closed" }), "transport"],
+    ["socket abort without a caller signal", Object.assign(new Error("aborted"), {
+      name: "AbortError",
+    }), "aborted"],
+  ])("retries the count once and then answers when the pre-count %s persists", async (
     _label,
     countError,
     expectedReason,
   ) => {
     const { client, create, count } = fakeClient([
-      { type: "response.completed", response: completedResponse([]) },
+      { type: "response.completed", response: completedResponse([], "안녕하세요") },
     ]);
     const beforeGeneration = vi.fn();
     count.mockReturnValue({
       withResponse: vi.fn().mockRejectedValue(countError),
     });
 
-    await expect(chatWithToolsStream({
+    const result = await chatWithToolsStream({
       systemPrompt: "system",
-      input: "토큰 수 확인",
+      input: "안녕",
       tools: [],
       maxInputTokens: 64_000,
       beforeGeneration,
       client,
-    })).rejects.toMatchObject({ requestStage: "input_count", providerCode: expectedReason });
+    });
 
+    expect(result.fullText).toBe("안녕하세요");
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    // 가드레일이 꺼진 채 나간 턴이라는 사실은 호출부가 원장에 남길 수 있어야 한다.
+    expect(result.inputCountUnavailableReason).toBe(expectedReason);
+  });
+
+  it("recovers when the retried count succeeds and keeps the exact verdict", async () => {
+    const { client, create, count } = fakeClient([
+      { type: "response.completed", response: completedResponse([], "안녕하세요") },
+    ]);
+    count
+      .mockReturnValueOnce({
+        withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+          status: 503,
+          requestID: "req_count_503",
+          code: "server_error",
+        })),
+      })
+      .mockReturnValueOnce(apiResult({
+        object: "response.input_tokens",
+        input_tokens: 12,
+      }, "req_count_retry"));
+
+    const result = await chatWithToolsStream({
+      systemPrompt: "system",
+      input: "안녕",
+      tools: [],
+      beforeGeneration: vi.fn(),
+      client,
+    });
+
+    expect(result.fullText).toBe("안녕하세요");
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result.inputCountUnavailableReason).toBeNull();
+    expect(result.inputCountRequestId).toBe("req_count_retry");
+  });
+
+  it("still stops the turn when the retried count says the input is too large", async () => {
+    const { client, create, count } = fakeClient([]);
+    const beforeGeneration = vi.fn();
+    count
+      .mockReturnValueOnce({
+        withResponse: vi.fn().mockRejectedValue(new APIConnectionTimeoutError()),
+      })
+      .mockReturnValueOnce(apiResult({
+        object: "response.input_tokens",
+        input_tokens: 64_001,
+      }, "req_count_retry"));
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "긴 문서",
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    })).rejects.toBeInstanceOf(OpenAIInputTokenLimitError);
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).not.toHaveBeenCalled();
+    expect(beforeGeneration).not.toHaveBeenCalled();
+  });
+
+  it("keeps the input cap on a local estimate when the count is down", async () => {
+    // b2d2fa1c 가 폴백을 뺀 이유: 측정 없이 진행하면 앱 상한(64k)이 아니라
+    // 제공자의 더 큰 context 한도까지 유료 생성이 나간다. 상한은 계속 지킨다.
+    const { client, create, count } = fakeClient([]);
+    const beforeGeneration = vi.fn();
+    count.mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+        status: 503,
+        requestID: "req_count_503",
+        code: "server_error",
+      })),
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "가".repeat(300_000),
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    })).rejects.toMatchObject({ providerCode: "input_token_limit", requestStage: "input_count" });
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).not.toHaveBeenCalled();
+    expect(beforeGeneration).not.toHaveBeenCalled();
+  });
+
+  // 첨부(사진·PDF)는 로컬로 잴 수 없다. PDF 는 추출 텍스트 + 쪽당 이미지 1장(최대
+  // 100쪽)으로 청구돼, 건당 고정 몫으로는 10MB PDF 다섯 장(21,074)도 64,000 상한
+  // 아래로 보인다(2026-09-14 실측). 첨부 턴은 폴백 없이 이전처럼 측정 단계에서
+  // 끝낸다 — 예약도 생성도 없이.
+  it.each<[string, ImageAttachment[]]>([
+    ["an image", [{ base64: "A".repeat(2_000), mediaType: "image/jpeg" }]],
+    ["a PDF", [{ base64: "B".repeat(2_000), mediaType: "application/pdf", fileName: "quote.pdf" }]],
+    ["an image and a PDF", [
+      { base64: "A".repeat(2_000), mediaType: "image/jpeg" },
+      { base64: "B".repeat(2_000), mediaType: "application/pdf", fileName: "quote.pdf" },
+    ]],
+  ])("still fails at input_count without generating when the count is down on a turn with %s", async (
+    _label,
+    attachments,
+  ) => {
+    const { client, create, count } = fakeClient([
+      { type: "response.completed", response: completedResponse([], "안녕하세요") },
+    ]);
+    const beforeGeneration = vi.fn();
+    count.mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+        status: 503,
+        requestID: "req_count_503",
+        code: "server_error",
+      })),
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: [
+        { role: "user", content: "안녕" },
+        { role: "user", content: buildMultimodalContent("이 견적서 봐줘", attachments) },
+      ],
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "server_error" });
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).not.toHaveBeenCalled();
+    expect(beforeGeneration).not.toHaveBeenCalled();
+  });
+
+  it("keeps answering a text-only message list that merely talks about attachments", async () => {
+    // 첨부 판정은 항목의 type·키로만 한다 — 본문에 든 낱말은 첨부가 아니다.
+    const { client, create, count } = fakeClient([
+      { type: "response.completed", response: completedResponse([], "안녕하세요") },
+    ]);
+    const beforeGeneration = vi.fn();
+    count.mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+        status: 503,
+        requestID: "req_count_503",
+        code: "server_error",
+      })),
+    });
+
+    const result = await chatWithToolsStream({
+      systemPrompt: "system",
+      input: [{
+        role: "user",
+        content: [{
+          type: "input_text",
+          text: "어제 보낸 사진이랑 견적서 PDF 다시 봐줄래? image_url file_data input_image input_file",
+        }],
+      }],
+      tools: [],
+      maxInputTokens: 64_000,
+      beforeGeneration,
+      client,
+    });
+
+    expect(result.fullText).toBe("안녕하세요");
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    expect(result.inputCountUnavailableReason).toBe("server_error");
+  });
+
+  it("stops without retry or generation when the caller aborted during the count", async () => {
+    const abortController = new AbortController();
+    const { client, create, count } = fakeClient([]);
+    const beforeGeneration = vi.fn();
+    count.mockImplementation(() => {
+      abortController.abort();
+      return { withResponse: vi.fn().mockRejectedValue(new APIUserAbortError()) };
+    });
+
+    await expect(chatWithToolsStream({
+      systemPrompt: "system",
+      input: "안녕",
+      tools: [],
+      beforeGeneration,
+      signal: abortController.signal,
+      client,
+    })).rejects.toMatchObject({ category: "aborted", requestStage: "input_count" });
+    expect(count).toHaveBeenCalledTimes(1);
     expect(create).not.toHaveBeenCalled();
     expect(beforeGeneration).not.toHaveBeenCalled();
   });
@@ -629,8 +842,89 @@ describe("OpenAI Responses adapter", () => {
       })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "invalid_input_token_count" });
       expect(create).not.toHaveBeenCalled();
       expect(beforeGeneration).not.toHaveBeenCalled();
+      // 잘못된 측정 응답은 판정이지 전송 장애가 아니다 — 다시 재지 않는다.
+      expect(count).toHaveBeenCalledTimes(1);
     },
   );
+
+  describe("estimateInputTokensLocally", () => {
+    it("over-counts Korean and ASCII text rather than under-counting it", () => {
+      // 한글 1자 = 1토큰, ASCII 3자 = 1토큰으로 잰다(실측은 각각 ~0.5·~0.25).
+      expect(estimateInputTokensLocally({ instructions: "", input: "가".repeat(3_000) }))
+        .toBeGreaterThanOrEqual(3_000);
+      expect(estimateInputTokensLocally({ instructions: "", input: "a".repeat(3_000) }))
+        .toBeGreaterThanOrEqual(1_000);
+    });
+
+    it("does not block the worst production prompt during an outage", () => {
+      // 운영 최악 커플의 시스템 프롬프트는 48,019자(실측 ~23,000토큰). 전부 한글이라
+      // 가정해도 짧은 대화를 붙인 추정이 64,000 상한 아래여야 장애 중에도 답을 한다.
+      expect(estimateInputTokensLocally({
+        instructions: "가".repeat(48_019),
+        input: [{ role: "user", content: "웨딩홀 예약금은 보통 얼마예요? ".repeat(100) }],
+      })).toBeLessThan(64_000);
+    });
+
+    it("errs upward on attachment bytes instead of granting a flat allowance", () => {
+      // 첨부 턴은 호출부가 추정 전에 걸러 측정 단계에서 끝낸다. 그래도 첨부가 여기까지
+      // 오면 base64 를 바이트 그대로 세어 상한을 넘겨야지, 건당 고정 몫으로 상한
+      // 아래로 보이면 안 된다(10MB PDF 다섯 장이 21,074 로 통과하던 구멍).
+      const content = buildMultimodalContent("이 견적서 봐줘", [
+        { base64: "A".repeat(2_000_000), mediaType: "image/jpeg" },
+        { base64: "B".repeat(2_000_000), mediaType: "application/pdf", fileName: "quote.pdf" },
+      ]);
+      const estimate = estimateInputTokensLocally({
+        instructions: "system",
+        input: [{ role: "user", content }],
+      });
+      expect(estimate).toBeGreaterThan(64_000);
+    });
+  });
+
+  describe("hasInputAttachments", () => {
+    it.each([
+      ["a plain string", "어제 보낸 사진이랑 견적서 PDF 다시 봐줄래?"],
+      ["a text-only message list", [{ role: "user", content: "웨딩홀 예약금은 보통 얼마예요?" }]],
+      ["input_text parts that merely spell the attachment words", [{
+        role: "user",
+        content: [{ type: "input_text", text: "image_url file_data input_image input_file" }],
+      }]],
+      ["a replayed tool round-trip", [
+        { type: "function_call", call_id: "call_1", name: "get_budget", arguments: "{}" },
+        { type: "function_call_output", call_id: "call_1", output: '{"file_data":"not an attachment, a string"}' },
+      ]],
+    ] as const)("is false for %s", (_label, input) => {
+      expect(hasInputAttachments(input as Parameters<typeof hasInputAttachments>[0])).toBe(false);
+    });
+
+    it.each<[string, ImageAttachment[]]>([
+      ["an image", [{ base64: "A".repeat(20), mediaType: "image/jpeg" }]],
+      ["a PDF", [{ base64: "B".repeat(20), mediaType: "application/pdf", fileName: "quote.pdf" }]],
+    ])("is true for a turn carrying %s", (_label, attachments) => {
+      expect(hasInputAttachments([
+        { role: "user", content: buildMultimodalContent("이 견적서 봐줘", attachments) },
+      ])).toBe(true);
+    });
+
+    it("finds an attachment replayed deeper in the history, not only in the last turn", () => {
+      expect(hasInputAttachments([
+        { role: "user", content: buildMultimodalContent("이 견적서 봐줘", [
+          { base64: "B".repeat(20), mediaType: "application/pdf", fileName: "quote.pdf" },
+        ]) },
+        { role: "assistant", content: "네, 봤어요." },
+        { role: "user", content: "그럼 예약금은요?" },
+      ])).toBe(true);
+    });
+
+    it("recognises provider-hosted file references by item type, not only inline data", () => {
+      expect(hasInputAttachments([
+        { role: "user", content: [{ type: "input_file", file_id: "file_abc" }] },
+      ])).toBe(true);
+      expect(hasInputAttachments([
+        { role: "user", content: [{ type: "input_image", file_id: "file_img", detail: "low" }] },
+      ])).toBe(true);
+    });
+  });
 
   it("awaits beforeGeneration exactly once after exact counting and immediately before create", async () => {
     const order: string[] = [];

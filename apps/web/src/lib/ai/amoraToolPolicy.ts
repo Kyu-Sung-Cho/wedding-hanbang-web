@@ -217,6 +217,32 @@ const HEARSAY_ENDING =
 /** 아모라에게 실제로 시키는 말. 이게 있으면 전언이어도 요청으로 본다. */
 const REQUEST_TO_AMORA =
   /(?:줘|주세요|주실래|부탁(?:해|드려|합니다)|해\s*줄래)\s*[.!?]*\s*$|(?:줘|주세요)[,.!?]/;
+/**
+ * 웃음·회상 예외가 보는 부탁 어미 — `REQUEST_TO_AMORA` 의 상위집합.
+ *
+ * 2026-09-14 2차 감사: "잡아줘~ ㅎㅎ"·"잡아줘요 ㅎㅎ"·"잡아줄래? ㅎㅎ"·"올려줘~" 가
+ * 전부 제안 도구 0개였다(웃음만 떼면 4개). `줘` 뒤의 `~`·`요`·`ㄹ래` 를 위 정규식이
+ * 못 본다. 전언 갈래는 그대로 `REQUEST_TO_AMORA` 를 쓴다 — 그 계약은
+ * `ownDecisionIsNotHearsay` 와 `amoraChangeRequestCorpus` 의 NO_OFFER 가 고정하고
+ * 있어 여기서 같이 넓히지 않는다.
+ */
+const REQUEST_TO_AMORA_RELAXED =
+  /(?:줘|주세요|주실래|줄래|부탁(?:해|드려|합니다|드립니다))(?:요)?\s*[~.!?]*\s*$|(?:줘|주세요|줄래)(?:요)?[~,.!?]/;
+/**
+ * 회상을 푸는 부탁 — 문장 끝의 **변경 동사 + 부탁 어미**.
+ *
+ * 부탁 어미만 보면 "작년에 예식장 알아봤었는데 그때 견적 다시 보여줘" 도 회상이
+ * 풀려 제안 도구 12개가 열린다(2026-09-14 2차 감사, 1차 수정 전엔 0개). 옛 값을
+ * 떠올리며 **읽어** 달라는 말(보여줘·알려줘·확인해줘)은 회상이다. 바꿔 달라는
+ * 동사가 부탁 어미 바로 앞에 올 때만 요청으로 본다 — "6천으로 올려줘"·"10월 17일로
+ * 변경해줘"·"300만원으로 잡아 주세요"·"6천으로 해줘"·"변경 부탁해".
+ * `isExplicitAmoraChangeRequest` 처럼 문장 아무 데서나 변경 동사를 찾으면 회상절의
+ * "취소했었는데" 가 요청으로 읽히므로 어미에 붙여서만 본다. `정해` 는 `결정해`·
+ * `인정해` 안에서 걸리지 않게 앞에 한글이 없을 때만, `로 해줘` 는 `대로 해줘`
+ * ("원래 계획대로 해줘" 는 값이 없다)를 빼고 본다.
+ */
+const CHANGE_REQUEST_TO_AMORA =
+  /(?:올려|내려|바꿔|잡아|넣어|옮겨|미뤄|당겨|줄여|늘려|맞춰|고쳐|지워|빼|살려|짜|나눠|(?<![가-힣])정해|(?<!대)(?:으로|로)\s*(?:다시\s*)?해|(?:등록|추가|수정|반영|변경|취소|삭제|설정|저장|적용|복원|확정|결정|기록|배분|처리|체크)\s*해)\s*(?:줘|주세요|주실래|줄래)(?:요)?(?:\s*[~.!?]*\s*$|[~,.!?])|(?:등록|추가|수정|반영|변경|취소|삭제|설정|저장|적용|복원|확정|결정|기록|배분|처리|체크)\s*(?:좀\s*)?부탁(?:해|드려|합니다|드립니다)(?:요)?\s*[~.!?]*\s*$/;
 
 /** 앞서 한 **말**을 무르는 것. 일정 자체를 취소하는 것과는 다르다. */
 //
@@ -243,7 +269,10 @@ const HYPOTHETICAL_QUESTION =
 const DEFERRED_INTENT =
   /(?:정해지면|나오면|끝나면|확정되면|알려주시면)\s*(?:그때|나중에|이따)|보류|(?:여쭤보고|물어보고|상의하고|생각해보고)\s*.{0,40}(?:결정|정할|할게)/;
 
-/** 지난 값을 되돌아보는 말. */
+/**
+ * 지난 값을 되돌아보는 말. 뒤에 아모라에게 **바꿔** 달라는 부탁(`CHANGE_REQUEST_TO_AMORA`)
+ * 이 붙어 있으면 그건 요청이다. 읽어 달라는 부탁은 회상을 풀지 않는다.
+ */
 const PAST_RECALL =
   /(?:작년|재작년|예전|원래|처음|그때는)\s*.{0,40}(?:였|었|았)/;
 
@@ -272,7 +301,18 @@ const SPOUSE_RECALL_CHECK = /(?:잖아|기억나|기억\s*하지)\s*[?？]?\s*$/
 const AVOIDANCE = /(?:피하고\s*싶|피했으면|피하자)/;
 
 /** 농담. 값이 진심이 아니다. */
-const JOKING = /ㅋㅋ|ㅎㅎ|농담|장난이(?:야|고)/;
+const JOKING = /농담|장난이(?:야|고)/;
+/**
+ * 웃음 표기. 2026-09-14 운영 실측: "드레스 300만원으로 잡아줘 ㅎㅎ" 가 `JOKING`
+ * (당시 `ㅋㅋ|ㅎㅎ` 포함)에 걸려 제안 도구가 0개였고, 아모라는 "반영되지 않았다"고
+ * 답했다. ㅋㅋ·ㅎㅎ 는 한국어 채팅에서 어조를 누그러뜨리는 말이지 무르는 말이
+ * 아니다 — 아모라에게 시키는 말(`REQUEST_TO_AMORA_RELAXED`)이 없을 때만 농담으로 본다.
+ * 부탁 어미 뒤에 붙은 웃음은 걷어내고 본다("잡아줘 ㅎㅎ"·"잡아줘~ ㅎㅎ" 도 부탁이다).
+ * `amoraChangeRequestCorpus` 의 "총예산 1억으로 올려서 하와이에서 하자" 류는
+ * 부탁이 없어 그대로 막힌다.
+ */
+const LAUGH = /ㅋㅋ|ㅎㅎ/;
+const LAUGH_MARKS = /[ㅋㅎ]+/g;
 
 /**
  * **누구의 말인가** — 이 값은 사용자가 지금 낸 것이 아니다.
@@ -281,17 +321,27 @@ const JOKING = /ㅋㅋ|ㅎㅎ|농담|장난이(?:야|고)/;
  * 하는 말이다. 이건 어떤 경우에도 카드가 되면 안 된다.
  */
 function isNotOurDecision(userText: string): boolean {
+  // 웃음 표기를 걷어낸 뒤에 부탁 어미를 본다 — "잡아줘 ㅎㅎ" 도 부탁이다.
+  const withoutLaugh = userText.replace(LAUGH_MARKS, "");
+  const requestedOfAmora = REQUEST_TO_AMORA.test(withoutLaugh);
+  const requestedOfAmoraRelaxed = REQUEST_TO_AMORA_RELAXED.test(withoutLaugh);
+  const changeRequestedOfAmora = CHANGE_REQUEST_TO_AMORA.test(withoutLaugh);
   if (RETRACTION.test(userText)) return true;
-  if (PAST_RECALL.test(userText)) return true;
+  // 회상은 **바꿔** 달라는 부탁이 붙어 있을 때만 푼다 — "원래 5천이었는데 총예산
+  // 6천으로 올려줘" 는 회상이 아니라 요청이다(2026-09-14 운영 실측: 카드 없이 예산
+  // 화면에서 직접 입력하라고 답했다). 부탁이 없는 "작년에 예식장 알아봤었어" 도,
+  // 읽어 달라는 "작년에 예식장 알아봤었는데 그때 견적 다시 보여줘" 도 그대로 막힌다.
+  if (PAST_RECALL.test(userText) && !changeRequestedOfAmora) return true;
   if (MESSAGE_TO_OTHERS.test(userText)) return true;
   if (JOKING.test(userText)) return true;
+  if (LAUGH.test(userText) && !requestedOfAmoraRelaxed) return true;
   if (SPOUSE_RECALL_CHECK.test(userText)) return true;
   if (AVOIDANCE.test(userText)) return true;
   // 전언은 부탁이 붙어 있지 않을 때만 막는다 — "부모님 지원금 3000만원
   // 들어왔어 반영해줘" 는 전언이 아니라 요청이다.
   return HEARSAY_SOURCE.test(userText)
     && HEARSAY_ENDING.test(userText)
-    && !REQUEST_TO_AMORA.test(userText);
+    && !requestedOfAmora;
 }
 
 /**

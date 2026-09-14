@@ -423,26 +423,36 @@ describe("provider all-egress gate (P0-5)", () => {
       expect(create).not.toHaveBeenCalled();
     });
 
-    it("blocks an uncounted paid request even after the privacy egress gate passes", async () => {
+    // 2026-09-14 계약 변경: 측정 *호출*이 죽은 텍스트 전용 턴은 한 번 다시 재고,
+    // 그래도 안 되면 로컬 추정으로 상한을 지킨 채 생성으로 간다(openai.test.ts).
+    // 이 파일이 지키는 것은 순서다 — egress gate 는 여전히 첫 provider 요청보다
+    // 앞서고, 재시도가 gate 를 다시 열지 않으며, 유료 예약은 생성 직전 한 번뿐이다.
+    it("keeps the egress gate first when a text-only turn falls back after the count outage", async () => {
       const countError = Object.assign(new Error("count service unavailable"), {
         status: 503,
         requestID: "req_egress_count_503",
         code: "server_error",
       });
-      const { client, create } = recordingClient({ countError });
+      const { client, count, create } = recordingClient({ countError });
       const beforeProviderEgress = vi.fn();
       const beforeGeneration = vi.fn();
 
-      await expect(chatWithToolsStream({
+      const result = await chatWithToolsStream({
         tools: [],
         beforeProviderEgress,
         beforeGeneration,
         client,
-      })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "server_error" });
+      });
 
       expect(beforeProviderEgress).toHaveBeenCalledTimes(1);
-      expect(beforeGeneration).not.toHaveBeenCalled();
-      expect(create).not.toHaveBeenCalled();
+      expect(count).toHaveBeenCalledTimes(2);
+      expect(beforeGeneration).toHaveBeenCalledTimes(1);
+      expect(create).toHaveBeenCalledTimes(1);
+      expect(beforeProviderEgress.mock.invocationCallOrder[0])
+        .toBeLessThan(count.mock.invocationCallOrder[0]);
+      expect(beforeGeneration.mock.invocationCallOrder[0])
+        .toBeGreaterThan(count.mock.invocationCallOrder[1]);
+      expect(result.inputCountUnavailableReason).toBe("server_error");
     });
 
     it("still blocks generation when the quota gate fails after the egress gate passes", async () => {

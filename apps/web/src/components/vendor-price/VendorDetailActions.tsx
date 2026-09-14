@@ -18,6 +18,15 @@ type MembershipResult = {
   selected: boolean;
 };
 
+/**
+ * 가격변동 알림 토글은 그리지 않는다 — 알림을 보내는 쪽이 없다.
+ * `/api/price/alerts` 는 `price_alerts` 행을 넣고 뺄 뿐이고, 그 행을 읽어 가격을
+ * 평가하거나 알림을 보내는 코드는 저장소 어디에도 없다(2026-09-14 실측). 공개
+ * 업체 상세에서 없는 알림을 약속하지 않도록 토글과 그 상태 조회를 끈다.
+ * API 와 행은 그대로 둔다 — 알림을 실제로 보내는 쪽이 생기면 이 값을 켠다.
+ */
+const PRICE_ALERT_TOGGLE_ENABLED = false;
+
 async function loadMembership(
   url: string,
   vendorId: string,
@@ -67,7 +76,9 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
 
     const [favoriteResult, alertResult] = await Promise.all([
       loadMembership("/api/favorites", vendorId, controller.signal),
-      loadMembership("/api/price/alerts", vendorId, controller.signal),
+      PRICE_ALERT_TOGGLE_ENABLED
+        ? loadMembership("/api/price/alerts", vendorId, controller.signal)
+        : Promise.resolve<MembershipResult>({ status: "ready", selected: false }),
     ]);
     if (
       controller.signal.aborted
@@ -200,17 +211,19 @@ export default function VendorDetailActions({ vendorId, redirectPath }: Props) {
           <Heart className={`size-4 ${favorite ? "fill-[#B89785] text-[#B89785]" : ""}`} aria-hidden="true" />
           {favorite ? "찜했어요" : "찜하기"}
         </button>
-        <button
-          type="button"
-          onClick={toggleAlert}
-          disabled={alertStatus === "loading" || alertStatus === "error" || busy !== null}
-          aria-busy={alertStatus === "loading" || busy === "alert"}
-          aria-pressed={subscribed}
-          className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-bold text-white disabled:opacity-50"
-        >
-          <Bell className={`size-4 ${subscribed ? "fill-white" : ""}`} aria-hidden="true" />
-          {subscribed ? "가격 알림 받는 중" : "가격변동 알림 받기"}
-        </button>
+        {PRICE_ALERT_TOGGLE_ENABLED ? (
+          <button
+            type="button"
+            onClick={toggleAlert}
+            disabled={alertStatus === "loading" || alertStatus === "error" || busy !== null}
+            aria-busy={alertStatus === "loading" || busy === "alert"}
+            aria-pressed={subscribed}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-primary)] px-4 text-sm font-bold text-white disabled:opacity-50"
+          >
+            <Bell className={`size-4 ${subscribed ? "fill-white" : ""}`} aria-hidden="true" />
+            {subscribed ? "가격 알림 받는 중" : "가격변동 알림 받기"}
+          </button>
+        ) : null}
       </div>
 
       {favoriteStatus === "error" || alertStatus === "error" ? (

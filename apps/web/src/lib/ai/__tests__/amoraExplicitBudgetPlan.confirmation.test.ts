@@ -7,6 +7,8 @@ import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
 const REQUEST = "신혼여행 예산은 8,001,000원, 예비비·사용처 미정은 1,999,000원으로 배분해줘. 두 항목만 바꾸고 기존 총예산, 나머지 항목, 기록 지출과 분담은 유지해줘. 아직 적용하지 말고 변경 확인 카드를 먼저 보여줘.";
 const PREVIOUS_LIVE_REQUEST = "신혼여행 예산은 801만 원, 예비비·사용처 미정은 200만 원으로 배분해줘. 두 항목만 반영하고 기존 총예산, 나머지 항목, 기록 지출과 분담은 유지해줘. 적용할 변경 내용을 먼저 보여줘.";
+// 아모라 표기(예단·폐백)는 화면 설명(두 가족에게 드릴 선물·결혼식 뒤 전통 인사)과 같은 기본 행을 가리킨다.
+const SHORT_NAME_REQUEST = "예단 예산은 300만 원, 폐백은 100만 원으로 배분해줘. 두 항목만 바꾸고 기존 총예산, 나머지 항목, 기록 지출과 분담은 유지해줘. 아직 적용하지 말고 변경 확인 카드를 먼저 보여줘.";
 
 function fixture() {
   const progress = {
@@ -21,7 +23,67 @@ function fixture() {
   return { progress, context };
 }
 
+function shortNameFixture() {
+  const { progress, context } = fixture();
+  const yedan = { category: "yedan", status: "in_progress", budget: 2_000_000, spent: 50_000, payer: "bride" };
+  const pyebaek = { category: "pyebaek", status: "not_started", budget: 500_000, spent: 0, payer: "couple" };
+  // 기존 3행(34,000,000)에 예단 3,000,000·폐백 1,000,000이 들어가도 총예산 35,000,000 안에 있도록 식장을 줄인다.
+  const withRows = { ...progress, venue: { ...progress.venue, budget: 20_000_000 }, yedan, pyebaek };
+  context.weddingContext.progress = withRows;
+  return { progress: withRows, context, yedan, pyebaek };
+}
+
 describe("explicit allocation confirmation-only request", () => {
+  it("resolves the Amora short names 예단·폐백 to the fixed rows in a confirmation-only request", () => {
+    const { progress, context, yedan, pyebaek } = shortNameFixture();
+    const before = structuredClone(context);
+    const input = parseExplicitBudgetPlanRequest(SHORT_NAME_REQUEST, progress, context.weddingContext.budget);
+    expect(input).toMatchObject({ total_budget: 35_000_000, allocations: [
+      { category: "yedan", budget: 3_000_000 }, { category: "pyebaek", budget: 1_000_000 },
+    ] });
+    if (!input) throw new Error("The short-name confirmation request must produce a proposal");
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context);
+    expect(operation.result).toMatchObject({ success: true });
+    expect(context).toEqual(before);
+    applyAmoraAtomicToolResultToContext(operation.result, context);
+    expect(context.weddingContext.progress.yedan).toEqual({ ...yedan, budget: 3_000_000 });
+    expect(context.weddingContext.progress.pyebaek).toEqual({ ...pyebaek, budget: 1_000_000 });
+    expect(context.weddingContext.progress.honeymoon).toEqual(before.weddingContext.progress.honeymoon);
+    expect(Object.keys(context.weddingContext.progress).filter(key => key.startsWith("custom_"))).toEqual([]);
+    expect(buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context).result.toolOutput.error).toBe("no_change");
+  });
+
+  it.each([
+    SHORT_NAME_REQUEST.replace("예단 예산은", "두 가족에게 드릴 선물 예산은").replace("폐백은", "결혼식 뒤 전통 인사는"),
+    SHORT_NAME_REQUEST.replace("폐백은", "결혼식 뒤 전통 인사는"),
+    SHORT_NAME_REQUEST.replace("예단 예산은", "두 가족에게 드릴 선물은"),
+  ])("accepts the screen names as aliases of the same fixed rows: %s", text => {
+    const { progress, context } = shortNameFixture();
+    expect(parseExplicitBudgetPlanRequest(text, progress, context.weddingContext.budget))
+      .toMatchObject({ total_budget: 35_000_000, allocations: [
+        { category: "yedan", budget: 3_000_000 }, { category: "pyebaek", budget: 1_000_000 },
+      ] });
+  });
+
+  it.each([
+    SHORT_NAME_REQUEST.replace("예단 예산은", "예단 준비 예산은"),
+    SHORT_NAME_REQUEST.replace("예단 예산은", "예단비는"),
+    SHORT_NAME_REQUEST.replace("폐백은", "폐백 음식은"),
+  ])("does not match a fixed short name by substring: %s", text => {
+    const { progress, context } = shortNameFixture();
+    expect(parseExplicitBudgetPlanRequest(text, progress, context.weddingContext.budget)).toBeNull();
+  });
+
+  it("still refuses a short name whose fixed row is missing, hidden, or shadowed by a same-named custom row", () => {
+    const { progress, context, yedan } = shortNameFixture();
+    const total = context.weddingContext.budget;
+    expect(parseExplicitBudgetPlanRequest(SHORT_NAME_REQUEST, Object.fromEntries(Object.entries(progress).filter(([key]) => key !== "yedan")), total)).toBeNull();
+    expect(parseExplicitBudgetPlanRequest(SHORT_NAME_REQUEST, { ...progress, __hidden: ["pyebaek"] }, total)).toBeNull();
+    expect(parseExplicitBudgetPlanRequest(SHORT_NAME_REQUEST, {
+      ...progress, custom_duplicate: { ...yedan, category: "custom_duplicate", label: "예단" },
+    }, total)).toBeNull();
+  });
+
   it("parses the exact live two-category request as a proposal and preserves the untouched ledger", () => {
     const { progress, context } = fixture();
     const before = structuredClone(context);

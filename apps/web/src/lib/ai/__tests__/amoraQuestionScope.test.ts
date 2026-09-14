@@ -8,6 +8,8 @@ import {
 } from "@/lib/ai/amoraQuestionScope";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
 import { selectAmoraPendingProposalTools } from "@/lib/ai/amoraToolPolicy";
+import { isMutatingTool } from "@/lib/ai/mutationTools";
+import { isPlaceSearchCandidate } from "@/lib/ai/placeSearchRouting";
 
 describe("Amora question-scope ceiling", () => {
   describe("독립된 상견례 검색과 본인 개인 초안 문장", () => {
@@ -23,6 +25,16 @@ describe("Amora question-scope ceiling", () => {
       `강남 상견례 식당 찾아줘。 ${draft}`,
       "강남 상견례 식당 찾아줘.",
       draft,
+      // 2026-09-14 까지 아래 넷은 W4 였다 — `식당`+`예약`, `식당`+`할 일` 이
+      // `EXPLICIT_NON_WEDDING_STATE_PATTERN` 에 걸려 "식당 운영 과업" 으로 읽혔기
+      // 때문이다. 문장에 `상견례` 가 있고 회사·업무 같은 결혼 밖 행위자 낱말이
+      // 없으면 장소 낱말만으로는 W4 를 확정하지 않는다(소스의
+      // `EXPLICIT_NON_WEDDING_ACTOR_PATTERN` 주석). 인용·`>` 여부는 이 판정과
+      // 무관하다 — 결혼 낱말은 다른 모든 분기에서도 인용 안팎을 가리지 않는다.
+      `상견례 식당 예약 찾아줘. ${draft}`,
+      `"상견례 식당 찾아줘." ${draft}`,
+      `친구가 "메모. 상견례 식당 찾아줘." ${draft}`,
+      `> 상견례 식당 찾아줘. ${draft}`,
     ])("서로 다른 요청을 식당 운영 할 일로 합치지 않는다: %s", userText => {
       const classification = classify(userText);
       expect(classification.scope).toBe("W0_wedding_core");
@@ -33,10 +45,6 @@ describe("Amora question-scope ceiling", () => {
       "회사 얘기야. 예산을 3천만원으로 변경해줘.",
       "식당 운영이야. 내 개인 할 일 초안을 만들어줘.",
       "회사 프로젝트 할 일 초안을 만들어줘.",
-      `상견례 식당 예약 찾아줘. ${draft}`,
-      `"상견례 식당 찾아줘." ${draft}`,
-      `친구가 "메모. 상견례 식당 찾아줘." ${draft}`,
-      `> 상견례 식당 찾아줘. ${draft}`,
       `회사 상견례 식당 찾아줘. ${draft}`,
       '친구가 "내 개인 할 일 초안을 만들어줘."라고 했어.',
       "내 개인 할 일 초안을 만들지 마.",
@@ -44,13 +52,24 @@ describe("Amora question-scope ceiling", () => {
       expect(classify(userText)).toMatchObject({ scope: "W4_out_of_scope", allowsLongTermMemory: false });
     });
 
-    it("본인 private 정본 증명이 없으면 혼합 요청 예외를 열지 않는다", () => {
+    it("본인 private 정본 증명이 없으면 개인 초안 예외를 열지 않는다", () => {
+      // 2026-09-14 까지는 혼합 문장(`강남 상견례 식당 찾아줘. ${draft}`)이 증명 없이 W4 인
+      // 것으로 이 관문을 쟀다. 그 W4 는 `식당`+`할 일` 이 결혼 밖 상태로 읽힌 결과라,
+      // 이제는 증명과 무관하게 `상견례` 가 W0 를 정한다. 증명이 여는 것은 개인 초안 분기다.
       expect(classifyAmoraQuestionScope({ userText: `강남 상견례 식당 찾아줘. ${draft}` }).scope)
-        .toBe("W4_out_of_scope");
+        .toBe("W0_wedding_core");
+      expect(classifyAmoraQuestionScope({ userText: draft })).toMatchObject({
+        scope: "W4_out_of_scope",
+        needsClarification: true,
+      });
+      expect(classify(draft).scope).toBe("W0_wedding_core");
     });
 
     it("원문 개인 요청 predicate를 두 번 정규화해서 바꾸지 않는다", () => {
-      expect(classify("강남 상견례 식당 찾아줘. \u1102\u200D\u1161의 할 일 초안을 만들어줘.").scope)
+      // `ᄂ‍ᅡ의` 는 한 번 정규화하면 자모만 남고(ZWJ 가 벗겨진다) 두 번 하면 `나의` 가
+      // 된다. 분류기가 정규화한 사본을 predicate 에 넘기면 아래 둘째 줄이 W0 로 열린다.
+      expect(classify("나의 할 일 초안을 만들어줘.").scope).toBe("W0_wedding_core");
+      expect(classify("\u1102\u200D\u1161의 할 일 초안을 만들어줘.").scope)
         .toBe("W4_out_of_scope");
     });
 
@@ -229,12 +248,15 @@ describe("Amora question-scope ceiling", () => {
 
     expect(classification.scope).toBe("W1_wedding_adjacent");
     expect(classification.allowsLongTermMemory).toBe(true);
-    expect(toolNames).toEqual([
+    // 커플 문맥 읽기 넷 + (2026-09-14 부터) 커플 문맥 없는 조회 둘. 변경 도구는 없다.
+    expect(toolNames.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name))).toEqual([
       "get_budget_summary",
       "get_schedule_summary",
       "get_wedding_info",
       "get_amora_actions",
     ]);
+    expect(toolNames).toEqual(expect.arrayContaining([...AMORA_CONTEXT_FREE_READ_TOOL_NAMES]));
+    expect(toolNames.some((name) => isMutatingTool(name))).toBe(false);
   });
 
   it("preserves the existing intent ceiling for explicit wedding-core changes", () => {
@@ -714,5 +736,305 @@ describe("Amora question-scope ceiling", () => {
       confidence: "high",
       needsClarification: false,
     });
+  });
+});
+
+/**
+ * 2026-09-14 출시 전 실측. `EXPLICIT_NON_WEDDING_STATE_PATTERN` 의
+ * `식당|레스토랑|맛집|미용실` + `예약|일정…` 갈래가 결혼 낱말을 보기 전에
+ * W4(높은 확신)를 확정했다 — 일정 도구 0개, 커플 문맥 삭제, "제가 도울 범위가
+ * 아니에요". 낱말 하나만 바꾼 대조군(`장소`, `헤어`)은 W0 였으니 원인은 그 낱말이다.
+ */
+describe("식당·미용실 낱말만으로는 결혼 발화를 밖으로 내보내지 않는다", () => {
+  const toolNamesFor = (userText: string) => filterAmoraToolsByQuestionScope(
+    BETA_SAFE_TOOLS,
+    classifyAmoraQuestionScope({ userText }),
+  ).map((tool) => tool.name);
+
+  it.each([
+    // 운영에서 그대로 재현된 세 문장
+    "상견례 식당 예약했어. 10월 5일 일정에 넣어줘",
+    "상견례 식당 예약은 언제쯤 해야 해?",
+    "결혼식 당일 미용실 예약 몇 시로 잡지?",
+    // 같은 갈래를 겨냥해 더 만든 결혼 준비 문장
+    "본식 날 미용실 예약 시간을 오전 7시로 바꿔줘",
+    "양가 상견례 레스토랑 예약 일정 확인해줘",
+    "웨딩 촬영 전날 미용실 예약 잡아둘까?",
+    "신혼여행 가기 전에 맛집 예약 미리 해야 해?",
+    "예식 끝나고 하객들이랑 갈 식당 예약 일정에 넣어줘",
+    // 2026-09-14 3차 검토 대조군. 아래 모임 낱말(뒤풀이·피로연·양가 식사)은 결혼의 모임이라
+    // 행위자 목록(`회식|동창회|송별회|동호회`)에 넣지 않는다 — 넣으면 이 줄들이 W4 로 떨어진다.
+    "예식장 근처 미용실 예약 잡아줘",
+    "결혼식 다음날 양가 가족 식사 식당 예약 잡아줘",
+    "결혼식 뒤풀이 식당 예약 잡아줘",
+    "결혼식 피로연 식당 예약 잡아줘",
+    // `회식` 부분일치: `교회식`(교회 예식)·`연회식장`(연회장) 안의 `회식` 은 회식이 아니다.
+    "교회식으로 할 건데 예식 일정 잡아줘",
+    "결혼식 피로연 연회식장 예약 일정 잡아줘",
+  ])("결혼 준비 발화는 W0 이고 일정 도구가 열린다: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      confidence: "high",
+      needsClarification: false,
+    });
+    expect(toolNamesFor(userText)).toContain("get_schedule_summary");
+  });
+
+  it.each([
+    ["상견례 장소 예약했어. 10월 5일 일정에 넣어줘", "상견례 식당 예약했어. 10월 5일 일정에 넣어줘"],
+    ["결혼식 당일 헤어 예약 몇 시로 잡지?", "결혼식 당일 미용실 예약 몇 시로 잡지?"],
+  ])("대조군과 같은 판정을 받는다: %s ≡ %s", (control, venue) => {
+    const expected = classifyAmoraQuestionScope({ userText: control });
+    expect(expected.scope).toBe("W0_wedding_core");
+    expect(classifyAmoraQuestionScope({ userText: venue })).toEqual(expected);
+  });
+
+  it.each([
+    // 이 갈래를 겨냥해 만든 결혼 밖 문장. 전부 예전 그대로 W4(높은 확신)·도구 0개.
+    "회사 회식 식당 예약 잡아줘",
+    "부서 회식 레스토랑 예약 일정 잡아줘",
+    "미용실 예약 내일 오후로 바꿔줘",
+    "동네 맛집 예약 일정 정리해줘",
+    "돌잔치 식당 예약 일정 넣어줘",
+    "프로젝트 발표 리허설 일정 잡아줘",
+    // `식장` 부분일치(장례식장)가 결혼 낱말로 읽히지만 장례는 결혼 밖 화제다.
+    "장례식장 식당 예약 일정 넣어줘",
+    // 결혼 낱말이 있어도 회사 일정은 회사 일정이다.
+    "결혼식 전에 회사 일정 조정해야 해",
+    // 2026-09-14 3차 검토: 행위자 목록에 모임 낱말이 없어서, 결혼을 **시점으로만** 끌어온
+    // 결혼 밖 식사가 W0·제안 도구 열림이었다(HEAD 에서는 W4 였다). 위의 "회사 회식" 은
+    // `회사` 가 막은 것이지 `회식` 이 막은 것이 아니었다.
+    "결혼식 전에 팀 회식 식당 예약 일정 잡아줘",
+    "결혼식 전에 회식 식당 예약 잡아줘",
+    "결혼식 다음 주에 친구들 송별회 식당 예약 잡아줘",
+    "결혼식 전에 동창회 식당 예약 일정 넣어줘",
+    "결혼식 끝나고 동호회 회식 식당 예약 잡아줘",
+    "결혼 준비 때문에 못 갔던 팀 회식 식당 예약 잡아줘",
+  ])("결혼 밖 문장은 그대로 W4(높은 확신)·도구 0개: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W4_out_of_scope",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    });
+    expect(toolNamesFor(userText)).toEqual([]);
+  });
+
+  it.each([
+    "회사", "업무", "직장", "부서", "프로젝트", "병원", "공연", "콘서트", "발표",
+  ])("행위자 낱말은 결혼 낱말이 같이 있어도 그대로 W4 를 확정한다: %s", (actor) => {
+    // `EXPLICIT_NON_WEDDING_ACTOR_PATTERN` 이 `EXPLICIT_NON_WEDDING_STATE_PATTERN` 의
+    // 행위자 목록과 어긋나면 여기서 하나가 W0 로 새어 빨개진다.
+    expect(classifyAmoraQuestionScope({ userText: `결혼식 전에 ${actor} 일정 잡아줘` })).toMatchObject({
+      scope: "W4_out_of_scope",
+      confidence: "high",
+    });
+  });
+
+  // 2026-09-14 3차·4차 검토: 모임 낱말은 **행위자 목록에만** 있다. 장소 구제(식당·미용실)를
+  // 막는 데만 쓰이므로 장소 낱말과 함께 있을 때 W4 를 확정한다 — 상태 패턴에 넣으면
+  // 아래 "모임을 지나가며 말한 결혼 준비 문장" 까지 W4 로 떨어진다(4차 검토 실측).
+  it.each(["회식", "동창회", "송별회", "동호회"])(
+    "모임 낱말은 장소 낱말과 함께 있으면 W4 를 확정한다: %s",
+    (actor) => {
+      const userText = `결혼식 전에 ${actor} 식당 예약 일정 잡아줘`;
+      expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+        scope: "W4_out_of_scope",
+        confidence: "high",
+      });
+      expect(toolNamesFor(userText)).toEqual([]);
+    },
+  );
+
+  it.each([
+    "회식 때문에 드레스 피팅 일정 옮겨야 해",
+    "친구 동창회 겹쳐서 상견례 일정 옮겨줘",
+    "동창회 친구들 청첩장 돌릴 일정 잡아줘",
+    "송별회 겸 결혼 축하 파티 일정 잡아줘",
+    "동호회 예약 취소하고 그 시간에 드레스 피팅 잡아줘",
+    "결혼식 뒤풀이 회식 장소 예약 잡아줘",
+    "송별회 때 받은 축의금 예산에 넣어줘",
+  ])("모임을 지나가며 말한 결혼 준비 문장은 그대로 W0 다: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({ scope: "W0_wedding_core" });
+    expect(toolNamesFor(userText).length).toBeGreaterThan(0);
+  });
+
+  it("행위자도 결혼 낱말도 없는 일정 문장은 예전처럼 낮은 확신 W4 다", () => {
+    const classification = classifyAmoraQuestionScope({ userText: "다음주 팀 일정 정리해줘" });
+    expect(classification).toMatchObject({ scope: "W4_out_of_scope", confidence: "low" });
+    expect(
+      toolNamesFor("다음주 팀 일정 정리해줘").filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)),
+    ).toEqual([]);
+  });
+});
+
+/**
+ * 2026-09-14 2차 검토. 위 구제(`isWeddingVenueMention`)는 결혼 낱말의 **부분일치**와
+ * **남의 결혼**까지 믿었다 — `반지하`(주거) 안의 `반지`, `부모님 결혼기념일` 안의 `결혼` 이
+ * 식당 예약을 W0 로 올려 일정 변경 제안 도구 7개가 열렸다. 그리고 결혼 낱말이 진짜라도
+ * "파이썬 스크립트로 자동화해줘" · "코드로 짜줘" 는 결혼 준비가 아니라 프로그래밍
+ * 대행인데, 구제보다 먼저 도는 `OUT_OF_SCOPE_TASK_PATTERN` 이 그 표기를 몰랐다.
+ *
+ * "친구 결혼식 다녀와서 미용실 예약 잡아줘" 는 **일부러 남겼다.** `결혼식` 은 진짜 결혼
+ * 낱말이라 누구의 결혼인지는 앞의 관계 명사(친구·동생·사촌·동료…)로만 가릴 수 있는데,
+ * 그 목록은 끝이 없고 "친구 결혼식 때 봤던 미용실로 예약 잡아줘" 같은 본인 준비 문장을
+ * 함께 잃는다. 열려도 변경은 확인 카드를 눌러야 일어난다.
+ */
+describe("장소 구제가 부분일치·남의 결혼·프로그래밍 대행까지 열지 않는다", () => {
+  const toolNamesFor = (userText: string) => filterAmoraToolsByQuestionScope(
+    BETA_SAFE_TOOLS,
+    classifyAmoraQuestionScope({ userText }),
+  ).map((tool) => tool.name);
+
+  it.each([
+    // 부분일치: `반지하`(주거) 안의 `반지`
+    "반지하 식당 예약 일정 잡아줘",
+    // 남의 결혼: 이미 결혼한 사람의 기념일
+    "부모님 결혼기념일 식당 예약 잡아줘",
+  ])("결혼 낱말처럼 보이는 것으로는 구제하지 않는다 — W4(높은 확신)·도구 0개: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W4_out_of_scope",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    });
+    expect(toolNamesFor(userText)).toEqual([]);
+  });
+
+  it.each([
+    "신부 미용실 예약 일정 파이썬 스크립트로 자동화해줘",
+    "예식장 리허설 끝나고 미용실 예약 스케줄 잡아줘 코드로 짜줘",
+  ])("프로그래밍 대행은 결혼 낱말이 있어도 W4(높은 확신)·도구 0개: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W4_out_of_scope",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    });
+    expect(toolNamesFor(userText)).toEqual([]);
+  });
+
+  it.each([
+    // `반지`+조사 `하고`, `반지` 뒤 띄어쓰기 — 진짜 반지
+    "반지하고 목걸이 세트로 맞출까?",
+    "반지 하나 더 맞추고 식당 예약 일정 잡아줘",
+    // 결혼 준비 문장 속의 프로그래밍 낱말 — QR 코드, 사회 스크립트, 개발자 직업
+    "모바일 청첩장 QR 코드로 만들어줘",
+    "결혼식 사회 스크립트로 만들어줘",
+    "신랑이 파이썬 개발자라 결혼식에 회사 동료가 많이 와",
+    "파이썬 개발자 친구한테 청첩장 만들어달라고 할까?",
+  ])("평범한 결혼 문장은 그대로 W0: %s", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W0_wedding_core",
+      confidence: "high",
+    });
+  });
+
+  it.each([
+    "사회자 스크립트 좀 써줘",
+    "파이썬으로 피보나치 짜줘",
+    "자바스크립트로 정렬 함수 만들어줘",
+  ])("맨 `스크립트`·`파이썬`·`자바스크립트` 는 여전히 목록 밖이다(낮은 확신 W4): %s", (userText) => {
+    // `amoraIdentityAndOffDomain.test.ts` 가 고정한 결정 — 낱말 하나로는 "사회자 스크립트" 와
+    // "신랑이 파이썬 개발자라" 를 잃는다. 여기서 더한 것은 결혼 문장에 나올 수 없는
+    // 결합형(`파이썬 스크립트`, `스크립트로 자동화`, `코드로 짜`)뿐이다.
+    expect(classifyAmoraQuestionScope({ userText })).toMatchObject({
+      scope: "W4_out_of_scope",
+      confidence: "low",
+      needsClarification: true,
+    });
+  });
+});
+
+/**
+ * 2026-09-14 출시 전 실측. 관계 진술(W1)은 커플 문맥 읽기 넷만 남기고 장소 검색을
+ * 지웠다. "시댁 어른들 모시고 갈 식당 강남 쪽으로 추천해줘" 가 장소 검색 후보로
+ * 잡히고도 도구가 없어 아모라가 "식당은 직접 검색할 수 없어요" 라고 답했다 —
+ * 있는 기능을 없다고 말한 것이다(W4 낮은 확신에서 2026-09-04 에 고친 것과 같은 병).
+ *
+ * W1 이 도구를 좁히는 이유는 **읽기 전용**이다. 장소 검색·시세 조회는 커플 데이터를
+ * 읽지도 바꾸지도 않는다(`AMORA_CONTEXT_FREE_READ_TOOL_NAMES`).
+ */
+describe("관계 진술(W1)에도 커플 문맥 없는 조회 도구는 남는다", () => {
+  const toolNamesFor = (classification: ReturnType<typeof classifyAmoraQuestionScope>) =>
+    filterAmoraToolsByQuestionScope(BETA_SAFE_TOOLS, classification).map((tool) => tool.name);
+
+  it.each([
+    "시댁 어른들 모시고 갈 식당 강남 쪽으로 추천해줘",
+    "처가 부모님 처음 뵙는 자리라 판교 근처 조용한 한정식집 찾아줘",
+    "시어머니 생신에 모실 한정식집 분당 쪽으로 찾아줘",
+    "장모님 모시고 갈 식당 잠실 근처로 추천해줘",
+    "시댁 식구들이랑 갈 식당 부산역 근처로 찾아줘",
+    "배우자 부모님이랑 갈 만한 조용한 식당 종로 쪽으로 추천해줘",
+  ])("장소 검색 후보인 W1 문장에 search_nearby_places 가 남는다: %s", (userText) => {
+    // 후보가 아니면 이 테스트는 아무것도 증명하지 않는다 — 먼저 그것부터 확인한다.
+    expect(isPlaceSearchCandidate(userText), "장소 검색 후보").toBe(true);
+    const classification = classifyAmoraQuestionScope({ userText });
+    expect(classification).toMatchObject({
+      scope: "W1_wedding_adjacent",
+      allowsLongTermMemory: false,
+      confidence: "high",
+    });
+    const toolNames = toolNamesFor(classification);
+    expect(toolNames).toContain("search_nearby_places");
+    expect(toolNames).toContain("get_market_price");
+    expect(toolNames).toContain("get_wedding_info");
+  });
+
+  it("W1 이 남기는 것은 커플 문맥 읽기 넷과 커플 문맥 없는 조회 둘뿐이다", () => {
+    const classification = classifyAmoraQuestionScope({ userText: "시어머니가 나를 싫어해" });
+    expect(classification.scope).toBe("W1_wedding_adjacent");
+    const toolNames = toolNamesFor(classification);
+    expect(toolNames.filter((name) => !AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(name)).sort()).toEqual([
+      "get_amora_actions",
+      "get_budget_summary",
+      "get_schedule_summary",
+      "get_wedding_info",
+    ]);
+    expect(toolNames.some((name) => isMutatingTool(name))).toBe(false);
+    expect(toolNames).not.toContain("analyze_quote");
+    expect(toolNames).not.toContain("simulate_guest_guarantee");
+  });
+
+  it("도구가 열린 W1 턴에는 지시문도 '써도 된다' 고 말하고, 외부 실행 금지와 부딪히지 않는다", () => {
+    // 2026-09-14 2차 검토: 도구는 남겼는데(위) 지시문은 그대로였다. W1 줄은 "저장·수정·
+    // 예약·외부 실행은 하지 말고" 만 말하고, '할 수 없다고 말하지 마세요' 줄은 W4 갈래에만
+    // 붙어 있어 모델을 여전히 거절 쪽으로 몰았다. 네이버 질의는 곧 외부 실행이라, 도구가
+    // 열린 턴에서 두 줄을 그냥 나란히 두면 한 지시문이 서로 반대를 말한다.
+    const classification = classifyAmoraQuestionScope({
+      userText: "시댁 어른들 모시고 갈 식당 강남 쪽으로 추천해줘",
+    });
+    expect(classification.scope).toBe("W1_wedding_adjacent");
+
+    const withTool = buildAmoraQuestionScopeInstruction(classification, {
+      contextFreeToolNames: ["search_nearby_places"],
+    });
+    expect(withTool).toContain("search_nearby_places");
+    expect(withTool).toContain("할 수 없다");
+    expect(withTool).toContain("읽기 전용으로만 참고하세요");
+    expect(withTool).not.toContain("외부 실행");
+
+    // 도구가 안 열린 W1 턴은 예전 문장 그대로다 — 프롬프트 길이도 그대로.
+    const withoutTool = buildAmoraQuestionScopeInstruction(classification);
+    expect(withoutTool).toContain("저장·수정·예약·외부 실행은 하지 말고");
+    expect(withoutTool).not.toContain("search_nearby_places");
+    // 커플 문맥 도구 이름은 넘겨도 걸러진다 — 계약 밖 도구를 "써도 된다" 고 말하지 않는다.
+    expect(buildAmoraQuestionScopeInstruction(classification, {
+      contextFreeToolNames: ["get_wedding_info"],
+    })).toEqual(withoutTool);
+  });
+
+  it.each([
+    ["W2 안전", "남편이 어제 저를 밀쳤어요"],
+    ["W2 고위험", "시댁에서 전세 대출 받으라는데 어떤 상품이 좋아?"],
+    ["W3 돌봄", "그냥 오늘 너무 힘들어"],
+    ["W4 높은 확신", "회사 회식 식당 예약 잡아줘"],
+    ["W4 높은 확신(투자)", "시댁에서 주식 투자하라는데 삼성전자 살까?"],
+    ["W5 안전", "지금 죽고 싶어요"],
+  ])("W1 이 아닌 닫힌 레인은 그대로 도구 0개: %s", (_lane, userText) => {
+    const classification = classifyAmoraQuestionScope({ userText });
+    expect(classification.scope).not.toBe("W1_wedding_adjacent");
+    expect(classification.scope).not.toBe("W0_wedding_core");
+    expect(toolNamesFor(classification)).toEqual([]);
   });
 });

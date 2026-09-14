@@ -13,7 +13,9 @@ import {
 import {
   assertOpenAIProviderEnabled,
   assertNoPromptCacheBreakpoints,
+  estimateInputTokensLocally,
   getOpenAIClient,
+  hasInputAttachments,
   normalizeOpenAIProviderError,
   normalizeResponseUsage,
   OpenAIInputTokenLimitError,
@@ -207,7 +209,7 @@ async function createOpenAIResponseWithAuditInternal<T>(
   let requestId: string | null | undefined;
   let inputCountRequestId: string | null | undefined;
   // 사전 토큰 계산이 불가능했던 이유 — 원장에 남겨 장애를 눈에 보이게 한다.
-  const inputCountUnavailableReason: string | null = null;
+  let inputCountUnavailableReason: string | null = null;
   let response: OpenAIResponse | undefined;
   let providerAttempted = false;
   let providerEgressGateFailed = false;
@@ -276,48 +278,80 @@ async function createOpenAIResponseWithAuditInternal<T>(
     }
     options.signal?.throwIfAborted();
 
-    try {
-      const countPromise = client.responses.inputTokens.count(
-        {
-          model: request.model,
-          instructions: request.instructions,
-          input: request.input,
-          reasoning: request.reasoning,
-          text: request.text,
-        },
-        options.signal ? { signal: options.signal } : undefined,
-      );
-      const counted = await countPromise.withResponse();
-      inputCountRequestId = counted.request_id;
-      if (
-        !Number.isSafeInteger(counted.data.input_tokens)
-        || counted.data.input_tokens < 0
-      ) {
-        throw new OpenAIProviderError("[openai] invalid input token count", {
-          category: "response_invalid",
+    // 측정 *호출*이 전송·제공자 장애(네트워크·5xx·429·타임아웃)로 죽으면 한 번만
+    // 다시 잰다. 측정이 성공하고 그 판정이 막은 것(한도 초과·잘못된 응답)과
+    // 호출부의 취소는 다시 재지 않는다.
+    let inputCountFailure: OpenAIProviderError | null = null;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        const countPromise = client.responses.inputTokens.count(
+          {
+            model: request.model,
+            instructions: request.instructions,
+            input: request.input,
+            reasoning: request.reasoning,
+            text: request.text,
+          },
+          options.signal ? { signal: options.signal } : undefined,
+        );
+        const counted = await countPromise.withResponse();
+        inputCountRequestId = counted.request_id;
+        if (
+          !Number.isSafeInteger(counted.data.input_tokens)
+          || counted.data.input_tokens < 0
+        ) {
+          throw new OpenAIProviderError("[openai] invalid input token count", {
+            category: "response_invalid",
+            model: modelConfig.model,
+            requestId: counted.request_id,
+            providerCode: "invalid_input_token_count",
+            requestStage: "input_count",
+            usageStatus: "complete",
+          });
+        }
+        if (counted.data.input_tokens > options.maxInputTokens) {
+          throw new OpenAIInputTokenLimitError(
+            counted.data.input_tokens,
+            options.maxInputTokens,
+            { requestId: counted.request_id },
+          );
+        }
+        inputCountFailure = null;
+        break;
+      } catch (error) {
+        const normalized = markInputCountFailure(error, {
           model: modelConfig.model,
-          requestId: counted.request_id,
-          providerCode: "invalid_input_token_count",
-          requestStage: "input_count",
-          usageStatus: "complete",
+          requestId: inputCountRequestId,
+        });
+        if (error instanceof OpenAIProviderError || options.signal?.aborted) throw normalized;
+        inputCountFailure = normalized;
+      }
+    }
+    if (inputCountFailure) {
+      // 두 번 다 실패 — 측정 장애다. 2026-07-25 운영에서 count 만 죽고 create 는
+      // 멀쩡했는데 여기서 던져 "안녕" 한 마디까지 전부 AMORA_INPUT_COUNT_UNAVAILABLE
+      // 로 죽었다. 그러나 비용 예약은 앱의 입력 상한을 전제로 하므로(b2d2fa1c 가
+      // 옛 폴백을 뺀 이유) 상한 없이 진행하지 않고, 보수적 로컬 추정으로 상한을
+      // 지킨 뒤에만 생성으로 간다. 건너뛴 사유는 원장 metadata 에 남는다.
+      //
+      // 첨부(사진·PDF) 턴은 폴백하지 않는다 — 로컬 추정이 첨부를 잴 수 없어
+      // (PDF 는 추출 텍스트 + 쪽당 이미지 1장, 최대 100쪽) 상한을 보장하지 못한다.
+      // 이전처럼 측정 단계에서 끝낸다.
+      if (hasInputAttachments(options.input)) throw inputCountFailure;
+      const estimatedInputTokens = estimateInputTokensLocally({
+        instructions: options.instructions,
+        input: options.input,
+      });
+      if (estimatedInputTokens > options.maxInputTokens) {
+        throw new OpenAIInputTokenLimitError(estimatedInputTokens, options.maxInputTokens, {
+          requestId: inputCountFailure.requestId,
         });
       }
-      if (counted.data.input_tokens > options.maxInputTokens) {
-        throw new OpenAIInputTokenLimitError(
-          counted.data.input_tokens,
-          options.maxInputTokens,
-          { requestId: counted.request_id },
-        );
-      }
-    } catch (error) {
-      const normalized = markInputCountFailure(error, {
-        model: modelConfig.model,
-        requestId: inputCountRequestId,
-      });
-      // 비용 예약은 앱의 입력 상한을 전제로 한다. 제공자의 더 큰 context
-      // 한도는 이 상한을 보장하지 않으므로, 측정 장애에도 생성 전에 종료한다.
-      // 재시도 가능한 input_count 오류로 전달하고 유료 예약/생성은 하지 않는다.
-      throw normalized;
+      inputCountUnavailableReason =
+        inputCountFailure.providerCode ?? inputCountFailure.category;
+      console.warn(
+        `[amora] input pre-count unavailable after retry (${inputCountUnavailableReason}) — proceeding on a local estimate of ${estimatedInputTokens} tokens`,
+      );
     }
 
     options.signal?.throwIfAborted();

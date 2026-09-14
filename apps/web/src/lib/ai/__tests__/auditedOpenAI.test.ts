@@ -4,7 +4,7 @@ import {
   createOpenAIResponseWithAudit as rawCreateOpenAIResponseWithAudit,
   createOpenAIStructuredResponseWithAudit as rawCreateOpenAIStructuredResponseWithAudit,
 } from "../auditedOpenAI";
-import { OpenAIRefusalError } from "../openai";
+import { buildMultimodalContent, OpenAIRefusalError, type ImageAttachment } from "../openai";
 import { logAIInteraction } from "@/lib/compliance/ai-log";
 
 vi.mock("@/lib/compliance/ai-log", async () => {
@@ -164,7 +164,7 @@ describe("audited OpenAI Responses", () => {
   });
 
   it("blocks an oversized counted input before the hook or paid generation", async () => {
-    const { client, create } = fakeClient(response(), 64_001);
+    const { client, count, create } = fakeClient(response(), 64_001);
     const beforeGeneration = vi.fn();
 
     await expect(createOpenAIResponseWithAudit({
@@ -183,6 +183,8 @@ describe("audited OpenAI Responses", () => {
 
     expect(beforeGeneration).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
+    // 측정은 성공했고 그 판정이 막은 것이다 — 다시 재지 않는다.
+    expect(count).toHaveBeenCalledTimes(1);
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
       success: false,
       tokensInput: null,
@@ -197,7 +199,11 @@ describe("audited OpenAI Responses", () => {
     }));
   });
 
-  it("records a pre-count outage without starting paid generation", async () => {
+  // 측정 *호출* 자체가 죽으면 한 번 다시 재고, 그래도 안 되면 로컬 추정으로 앱
+  // 상한을 지킨 채 생성으로 간다. 2026-07-25 운영에서 count 만 죽고 create 는
+  // 멀쩡했는데 "안녕" 한 마디까지 "입력 분량을 확인하는 중 문제가 생겼어요"로
+  // 죽었다. 그때 넣은 폴백(673ff6c5)은 상한 없이 진행해 9-07(b2d2fa1c)에 빠졌다.
+  it("retries the count once and then answers when the pre-count stays unavailable", async () => {
     const count = vi.fn().mockReturnValue({
       withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count network"), {
         request_id: "req_count_failed",
@@ -207,17 +213,90 @@ describe("audited OpenAI Responses", () => {
     const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
     const beforeGeneration = vi.fn();
 
-    await expect(createOpenAIResponseWithAudit({
+    const result = await createOpenAIResponseWithAudit({
       modelRole: "fast",
       instructions: "system",
-      input: "input",
+      input: "안녕",
       maxInputTokens: 64_000,
       maxOutputTokens: 100,
       beforeGeneration,
       client,
       audit: { interactionType: "chat_turn" },
-    })).rejects.toMatchObject({ requestStage: "input_count" });
+    });
 
+    expect(result.text).toBe("안녕하세요");
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(beforeGeneration).toHaveBeenCalledTimes(1);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      metadata: expect.objectContaining({
+        provider_attempted: true,
+        // 가드레일이 꺼진 채 나간 턴이라는 사실은 원장에 남아야 한다.
+        input_count_unavailable: "transport",
+      }),
+    }));
+  });
+
+  it("recovers when the retried count succeeds and audits a normal turn", async () => {
+    const { client, count, create } = fakeClient(response());
+    count.mockReturnValueOnce({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+        status: 503,
+        request_id: "req_count_503",
+        code: "server_error",
+      })),
+    });
+
+    const result = await createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "안녕",
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration: vi.fn(),
+      client,
+      audit: { interactionType: "chat_turn" },
+    });
+
+    expect(result.text).toBe("안녕하세요");
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: true,
+      metadata: expect.objectContaining({
+        input_count_unavailable: null,
+        input_count_request_id: "req_input_count",
+      }),
+    }));
+  });
+
+  it("keeps the input cap on a local estimate when the count is down", async () => {
+    // b2d2fa1c 가 폴백을 뺀 이유: 측정 없이 진행하면 앱 상한(64k)이 아니라
+    // 제공자의 더 큰 context 한도까지 유료 생성이 나간다. 상한은 계속 지킨다.
+    const count = vi.fn().mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+        status: 503,
+        request_id: "req_count_503",
+        code: "server_error",
+      })),
+    });
+    const create = vi.fn().mockReturnValue(apiResult(response()));
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: "가".repeat(300_000),
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toMatchObject({ providerCode: "input_token_limit", requestStage: "input_count" });
+
+    expect(count).toHaveBeenCalledTimes(2);
     expect(beforeGeneration).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -230,9 +309,59 @@ describe("audited OpenAI Responses", () => {
     }));
   });
 
+  // 첨부(사진·PDF)는 로컬로 잴 수 없다 — PDF 는 추출 텍스트 + 쪽당 이미지 1장(최대
+  // 100쪽)으로 청구된다. 첨부 턴은 폴백 없이 이전처럼 측정 단계에서 끝내고, 원장에는
+  // 유료 시도가 없었다는 사실만 남는다.
+  it.each<[string, ImageAttachment[]]>([
+    ["an image", [{ base64: "A".repeat(2_000), mediaType: "image/jpeg" }]],
+    ["a PDF", [{ base64: "B".repeat(2_000), mediaType: "application/pdf", fileName: "quote.pdf" }]],
+  ])("still fails at input_count without generating when the count is down on a turn with %s", async (
+    _label,
+    attachments,
+  ) => {
+    const count = vi.fn().mockReturnValue({
+      withResponse: vi.fn().mockRejectedValue(Object.assign(new Error("count service unavailable"), {
+        status: 503,
+        request_id: "req_count_503",
+        code: "server_error",
+      })),
+    });
+    const create = vi.fn().mockReturnValue(apiResult(response()));
+    const client = { responses: { create, inputTokens: { count } } } as unknown as OpenAI;
+    const beforeGeneration = vi.fn();
+
+    await expect(createOpenAIResponseWithAudit({
+      modelRole: "fast",
+      instructions: "system",
+      input: [{ role: "user", content: buildMultimodalContent("이 견적서 봐줘", attachments) }],
+      maxInputTokens: 64_000,
+      maxOutputTokens: 100,
+      beforeGeneration,
+      client,
+      audit: { interactionType: "chat_turn" },
+    })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "server_error" });
+
+    expect(count).toHaveBeenCalledTimes(2);
+    expect(beforeGeneration).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+    expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
+      success: false,
+      errorMessage: "openai_provider_5xx",
+      tokensInput: null,
+      metadata: expect.objectContaining({
+        provider_attempted: false,
+        unknown_paid_attempt: false,
+        provider_request_stage: "input_count",
+        input_count_request_id: "req_count_503",
+        // 추정으로 건너뛴 턴이 아니다 — 측정 장애로 끝난 턴이다.
+        input_count_unavailable: null,
+      }),
+    }));
+  });
+
   it.each([-1, NaN, Infinity, 2.5, Number.MAX_SAFE_INTEGER + 1])(
     "rejects invalid input count %s and audits no paid attempt", async (inputTokens) => {
-      const { client, create } = fakeClient(response(), inputTokens);
+      const { client, count, create } = fakeClient(response(), inputTokens);
       const beforeGeneration = vi.fn();
       await expect(createOpenAIResponseWithAudit({
         modelRole: "fast", instructions: "system", input: "input",
@@ -241,6 +370,8 @@ describe("audited OpenAI Responses", () => {
       })).rejects.toMatchObject({ requestStage: "input_count", providerCode: "invalid_input_token_count" });
       expect(beforeGeneration).not.toHaveBeenCalled();
       expect(create).not.toHaveBeenCalled();
+      // 잘못된 측정 응답은 판정이지 전송 장애가 아니다 — 다시 재지 않는다.
+      expect(count).toHaveBeenCalledTimes(1);
       expect(logSpy).toHaveBeenCalledWith(expect.objectContaining({
         success: false,
         metadata: expect.objectContaining({ provider_attempted: false, unknown_paid_attempt: false }),

@@ -1,4 +1,5 @@
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
+import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 export type ExplicitBudgetPlanInput = {
@@ -10,8 +11,9 @@ export type ExplicitBudgetPlanInput = {
 const NUMBER = "(?:[1-9]\\d{0,2}(?:,\\d{3})+|0|[1-9]\\d*)";
 const TOTAL = new RegExp(`^(?:총(?:예산|액)?|총\\s+결혼\\s+예산은)\\s*(${NUMBER})\\s*(만\\s*원|원)(?:이야|입니다|이에요|예요)?\\s*[.。:\\n]\\s*`, "u");
 const SAVE = /\s*(?:이대로\s*)?(?:실제\s*)?예산(?:표)?에\s*(?:반영|적용|저장)해\s*(?:줘|주세요)[.!。]?$/u;
-const FIXED_LABELS: Readonly<Record<string, string>> = PLANNING_CATEGORY_LABELS;
-const FIXED_BY_LABEL = new Map(Object.entries(PLANNING_CATEGORY_LABELS)
+// 아모라 표기(예단·폐백)와 화면 설명(두 가족에게 드릴 선물·결혼식 뒤 전통 인사)은 같은 기본 행이다.
+// 한쪽만 알면 다른 쪽 이름이 맞춤 항목으로 새로 생겨 기본 행 옆에 중복 행이 남는다.
+const FIXED_BY_LABEL = new Map([...Object.entries(CATEGORY_LABELS), ...Object.entries(PLANNING_CATEGORY_LABELS)]
   .filter(([key]) => key !== "greeting" && key !== "registration")
   .map(([key, label]) => [label as string, key]));
 const UPDATE_PREFIX = new RegExp(
@@ -160,7 +162,9 @@ function parseExistingBudgetUpdate(
   // 변경 설명을 모두 읽은 뒤에만 최종 목록을 기존 전체 소비 파서로 넘긴다.
   const plan = parseCompleteBudgetListing(request.slice(prefix[0].length), progress);
   if (!plan || plan.total_budget !== totalBudget) return null;
-  const named = plan.allocations.find(row => normalizedLabel(row.label ?? FIXED_LABELS[row.category] ?? "") === normalizedLabel(label));
+  const named = plan.allocations.find(row => row.category === "custom"
+    ? normalizedLabel(row.label ?? "") === normalizedLabel(label)
+    : FIXED_BY_LABEL.get(label) === row.category);
   if (!named || named.category === "reserve") return null;
   const targetKey = named.category === "custom" ? existingCustomKey(progress, label) : named.category;
   const target = targetKey ? currentBudgetRow(progress, targetKey) : null;
