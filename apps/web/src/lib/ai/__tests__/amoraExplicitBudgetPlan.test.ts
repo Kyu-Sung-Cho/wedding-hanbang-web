@@ -283,11 +283,17 @@ describe("explicit current-turn budget plan", () => {
     expect(buildAmoraAtomicToolOperation("apply_budget_plan", input!, context).result.toolOutput.error).toBe("no_change");
   });
 
+  // 분야 키를 열다섯 개 이상 적은 파일은 `constants/__tests__/categoryKeyMirrors.test.ts` 가
+  // "빠짐없이 담으려는 목록" 으로 보고 스물한 분야를 전부 요구한다. 그래서 화면 라벨 표를
+  // 일부만 적지 않고 전부 적는다 — 새 분야가 생기면 여기도 빨개져 같이 따라온다.
   it.each([
     ["드레스·예식 정장", "dress"], ["헤어·메이크업", "makeup"],
     ["결혼반지·기념 선물", "ring"], ["가전·가구·생활용품", "houseware"],
     ["종이·모바일 초대장", "invitation"], ["결혼식 날 사진·영상", "snap"],
     ["손에 드는 꽃·꽃 장식", "bouquet"], ["결혼식 진행·축하 노래", "mc"],
+    ["부모님 첫 만남", "meeting"], ["웨딩 사진 촬영", "studio"], ["한복", "hanbok"],
+    ["신혼집", "housing"], ["결혼식 신발", "shoes"],
+    ["결혼식에 온 분께 드릴 선물", "gift"], ["가족에게 전하는 전통 혼례 선물", "ham"],
   ])("uses the exact shared fixed label %s without guessing how to split it", (label, category) => {
     const input = parseExplicitBudgetPlanRequest(`${label} 200, 예비비 20만 원이야. 이대로 예산에 반영해줘.`);
     expect(input?.allocations).toEqual([{ category, budget: 2_000_000 }, { category: "reserve", budget: 200_000 }]);
