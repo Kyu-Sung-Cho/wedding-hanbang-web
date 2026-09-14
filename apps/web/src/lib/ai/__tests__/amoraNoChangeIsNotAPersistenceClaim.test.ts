@@ -126,6 +126,25 @@ describe("변경을 요청한 문장만 요청으로 센다 (2026-09-04 팀원 2
     }
   });
 
+  // 3차 검토(2026-09-14): 부분일치라 "설정돼 있는 거 맞아?" 의 `설정` 이 요청으로 읽혔다.
+  // 상태를 **묻는** 발화는 요청이 아니다 — 뒤에 변경 요청이 이어지면 그것만 요청이다.
+  it("상태를 묻는 문장은 요청이 아니다", () => {
+    for (const text of [
+      "예산 설정돼 있는 거 맞아?",
+      "상견례 일정 등록돼 있어?",
+      "드레스 예산 반영됐어?",
+      "총예산 설정돼 있나요?",
+    ]) {
+      expect(isExplicitAmoraChangeRequest(text), text).toBe(false);
+    }
+    for (const text of [
+      "예산 설정돼 있어? 아니면 5천으로 바꿔줘",
+      "드레스 예산 반영됐어? 안 됐으면 반영해줘",
+    ]) {
+      expect(isExplicitAmoraChangeRequest(text), text).toBe(true);
+    }
+  });
+
   it("요청이 아닌 턴에는 안내가 안 붙고, 요청한 턴에는 붙는다", () => {
     const neutral = "다음은 예상 하객 수를 대략 잡는 단계예요. 양쪽 합쳐 몇 명 정도로 생각하세요?";
     const notRequested = composeAmoraPersistenceTerminal({
@@ -153,12 +172,51 @@ describe("읽기 턴과 되묻기 턴은 저장 안내를 받지 않는다 (2026
     expect(result.text).not.toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
   });
 
-  it("읽기 영수증이 없으면 같은 문장은 여전히 검증되지 않은 주장으로 지운다", () => {
+  // 2026-09-14: 프롬프트가 예산 요약·등록된 일정을 문맥에 인라인하므로 읽기 턴은 도구를
+  // 안 돌린다. 영수증이 없다는 이유로 이 문장을 지우면 답이 통째로 사라진다
+  // (amoraPersistenceClaims.test.ts 의 2026-09-14 블록이 상세를 든다).
+  it("읽기 영수증이 없어도 변경 요청이 아닌 턴의 상태 서술은 남긴다", () => {
+    const text = "드레스 예산은 450만 원으로 설정되어 있어요.";
     const result = composeAmoraPersistenceTerminal({
-      text: "드레스 예산은 450만 원으로 설정되어 있어요.", toolResults: [], hasPendingAction: false,
-      persistenceMode: "durable", userRequestedChange: false,
+      text, toolResults: [], hasPendingAction: false,
+      persistenceMode: "durable", userRequestedChange: false, userTurnIsChangeRequest: false,
     });
-    expect(result.text).not.toContain("450만 원으로 설정되어 있어요");
+    expect(result.text).toBe(text);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  // 3차 검토(2026-09-14): 2차 수정이 "…반영되어 있어요" 를 무조건 지우고, 이월 카드가 실린
+  // 턴의 상태 서술도 영수증과 무관하게 지웠다. 성공한 읽기 영수증은 HEAD 처럼 검증으로 친다.
+  it("읽기 영수증이 있으면 '…반영되어 있어요' 도 상태 서술이다", () => {
+    const text = "드레스 예산은 450만 원으로 반영되어 있어요.";
+    const result = composeAmoraPersistenceTerminal({
+      text, toolResults: [readReceipt as never], hasPendingAction: false,
+      persistenceMode: "durable", userRequestedChange: false, userTurnIsChangeRequest: false,
+    });
+    expect(result.text).toBe(text);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  it("이월 카드가 실린 턴이라도 성공한 읽기 영수증이 있으면 상태 서술을 남긴다", () => {
+    const text = "드레스 예산은 450만 원으로 설정되어 있어요.";
+    const result = composeAmoraPersistenceTerminal({
+      text, toolResults: [readReceipt as never], hasPendingAction: false, hasEmittedPendingAction: true,
+      persistenceMode: "durable", userRequestedChange: false, userTurnIsChangeRequest: false,
+    });
+    expect(result.text).toBe(text);
+    expect(result.removedClaimCount).toBe(0);
+  });
+
+  it("상태 질문 턴의 참 답은 거짓 사과로 바뀌지 않는다", () => {
+    const ask = "드레스 예산 반영됐어?";
+    const text = "드레스 예산은 450만 원으로 설정되어 있어요.";
+    const result = composeAmoraPersistenceTerminal({
+      text, toolResults: [readReceipt as never], hasPendingAction: false, persistenceMode: "durable",
+      userRequestedChange: isExplicitAmoraChangeRequest(ask),
+      userTurnIsChangeRequest: isExplicitAmoraChangeRequest(ask),
+    });
+    expect(result.text).toBe(text);
+    expect(result.text).not.toContain(SERVER_OWNED_UNVERIFIED_NOTICE);
   });
 
   it("변경 요청 턴에서는 읽기 영수증이 있어도 실행 주장('변경했어요')은 지운다", () => {
@@ -180,9 +238,10 @@ describe("읽기 턴과 되묻기 턴은 저장 안내를 받지 않는다 (2026
 
   it("변경을 요청하지 않은 턴의 빈 본문은 '반영되지 않았어요'가 아니라 중립 문장으로 남긴다", () => {
     const result = composeAmoraPersistenceTerminal({
-      text: "예산이 저장되어 있어요.", toolResults: [], hasPendingAction: false,
+      text: "예산을 저장했어요.", toolResults: [], hasPendingAction: false,
       persistenceMode: "durable", userRequestedChange: false,
     });
+    expect(result.removedClaimCount).toBe(1);
     expect(result.text).toBe(SERVER_OWNED_EMPTY_ANSWER_NOTICE);
   });
 });

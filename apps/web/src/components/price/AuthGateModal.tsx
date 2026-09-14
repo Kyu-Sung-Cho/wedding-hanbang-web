@@ -50,7 +50,7 @@ export function AuthGateModal({ open, redirectPath, onClose }: AuthGateModalProp
           저장하려면 로그인이 필요해요
         </h2>
         <p id="price-auth-gate-description" className="mt-3 text-sm leading-6 text-[var(--hb-text-strong)]/75">
-          찜과 조합을 저장하고, 가격이 바뀌면 알림을 받아보세요.
+          찜과 조합을 계정에 저장해 어느 기기에서든 다시 볼 수 있어요.
         </p>
         <Link
           href={`/login?redirect=${encodeURIComponent(safeRedirect)}`}

@@ -62,8 +62,14 @@ export interface ClassifyAmoraQuestionScopeInput {
 
 const NON_WEDDING_INVESTMENT_PATTERN =
   /주식|주가|삼성전자|코인|암호화폐|가상자산|ETF|펀드|채권|매수|매도|수익률|투자/iu;
+// 2026-09-14: "신부 미용실 예약 일정 파이썬 스크립트로 자동화해줘" · "…예약 스케줄 잡아줘
+// 코드로 짜줘" 가 결혼 낱말(신부·예식장)에 묻혀 W0 + 제안 도구 7개였다. 맨 `파이썬`·
+// `스크립트` 는 **여전히 넣지 않는다** — "신랑이 파이썬 개발자라", "사회자 스크립트 좀
+// 써줘" 가 같이 걸린다(`amoraIdentityAndOffDomain.test.ts` 가 그 결정을 고정한다). 더한
+// 것은 결혼 문장에 나올 수 없는 결합형뿐이고, `코드로 만들` 은 뺐다 — "청첩장 QR 코드로
+// 만들어줘" 가 걸린다.
 const OUT_OF_SCOPE_TASK_PATTERN =
-  /코딩|프로그래밍|TypeScript|JavaScript|Python|코드를?\s*(?:대신\s*)?(?:짜|작성|구현)|버그를?\s*(?:고쳐|수정)|정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
+  /코딩|프로그래밍|TypeScript|JavaScript|Python|파이썬\s*스크립트|(?:스크립트|매크로)(?:으로|로)?\s*자동화|코드(?:를|로)?\s*(?:대신\s*)?(?:짜|작성|구현|자동화)|버그를?\s*(?:고쳐|수정)|정치\s*분석|시험\s*(?:답|정답)|숙제|과제\s*(?:대신|작성)/iu;
 // 고위험은 두 가지가 섞여 있었다. 법률·의료·금융은 **아모라가 판단할 자격이 없는**
 // 영역이고, 폭력·통제·자해는 **이 대화를 합의안으로 끌고 가면 안 되는** 신호다.
 // 한 통에 담으면 계약금 환불로 다투는 커플이 안전 사안과 같은 취급을 받는다 —
@@ -337,10 +343,52 @@ const NON_WEDDING_DOMAIN_HINT_PATTERN =
   /회사|업무|직장|출근|퇴사|이직|취업|면접|프로젝트|시험|자격증|숙제|과제|이사|입주|전세|월세|창업|개업|다이어트|운동|여행|유학|군대|병원|수술|인테리어|리모델링|공사|자동차|차량/iu;
 // 2026-09-04: `리허설`·`피팅` 을 정본 일정 낱말에 넣으면서 "회사 워크숍 리허설 시간
 // 바꿔줘" 가 정본 분기(W0)로 올라갔다 — 이 방어가 그 둘을 몰랐기 때문이다. 같이 넣는다.
+// 2026-09-14 3차 검토: 결혼 밖 **모임** 낱말(`회식`·`동창회`·`송별회`·`동호회`)은 **이 상태
+// 패턴에 넣지 않는다.** 여기 넣으면 "회식 때문에 드레스 피팅 일정 옮겨야 해", "송별회 때
+// 받은 축의금 예산에 넣어줘" 처럼 모임을 지나가며 말한 결혼 준비 문장까지 W4(높은
+// 확신)·도구 0개로 떨어진다(4차 검토 실측). 모임 낱말은 아래 `EXPLICIT_NON_WEDDING_ACTOR_PATTERN`
+// 에만 두어 장소 구제(식당·미용실)만 막는다.
 const EXPLICIT_NON_WEDDING_STATE_PATTERN =
   /(?:회사|업무|직장|부서|프로젝트|식당|레스토랑|맛집|병원|미용실|공연|콘서트|발표).{0,12}(?:예산|배분\s*(?:표|안)|일정|스케줄|예약|리허설|피팅|체크\s*리스트|할\s*일|준비\s*목록|리마인드)/iu;
+// 2026-09-14 실측: 위 목록의 `식당`·`레스토랑`·`맛집`·`미용실` 은 결혼 준비의 장소이기도
+// 하다 — 상견례 식당, 본식 당일 미용실. "상견례 식당 예약했어. 10월 5일 일정에 넣어줘",
+// "결혼식 당일 미용실 예약 몇 시로 잡지?" 가 이 갈래에서 결혼 낱말을 보기도 전에
+// W4(높은 확신)로 떨어져 일정 도구 0개·커플 문맥 삭제였다. 낱말 하나만 바꾼 대조군
+// ("상견례 장소 예약했어…", "결혼식 당일 헤어 예약…")은 W0 였으니 원인은 그 낱말이다.
+//
+// 그래서 장소 낱말만으로는 **결혼 낱말이 같은 발화에 있고 결혼 밖 행위자·화제 낱말이
+// 없을 때** W4 를 확정하지 않는다. 행위자 낱말이 있으면("회사 회식 식당 예약",
+// "결혼식 전에 회사 일정 조정") 그대로 W4 이고, 결혼 낱말 없는 "식당 예약해줘" 도
+// 그대로다.
+//
+// 2026-09-14 3차 검토: 처음 목록엔 모임 낱말이 없어서 "회사 회식 식당 예약" 을 막은 것은
+// `회식` 이 아니라 `회사` 였다. 결혼을 **시점으로만** 끌어온 결혼 밖 식사("결혼식 전에
+// 팀 회식 식당 예약 일정 잡아줘", "결혼식 다음 주에 친구들 송별회 식당 예약 잡아줘")가
+// 이 구제로 W0·제안 도구 열림이 됐다(HEAD 는 W4). 결혼의 모임(뒤풀이·피로연·양가 식사)은
+// 일부러 넣지 않는다 — 그건 결혼 준비다. `회식` 은 `교회식`(교회 예식)·`연회식장`(연회장)
+// 안에도 있으므로 그 앞글자를 뺀다 — 부분일치로 결혼 문장을 내보내지 않는다.
+// 아래 목록은 위 상태 패턴의 첫 묶음에서 **장소 넷을 빼고 모임 넷을 더한 것**과 같아야
+// 한다 — 어긋나면 `__tests__/amoraQuestionScope.test.ts` 의 행위자 동기화 검사가 빨개진다.
+const EXPLICIT_NON_WEDDING_ACTOR_PATTERN =
+  /회사|업무|직장|부서|프로젝트|병원|공연|콘서트|발표|(?<![교연])회식|동창회|송별회|동호회/iu;
+// 결혼 낱말처럼 보이지만 결혼 준비가 아닌 것. 2026-09-14 2차 검토: `반지하`(주거) 안의
+// `반지`, `부모님 결혼기념일`(이미 결혼한 사람의 기념일) 안의 `결혼` 이 식당 예약을 W0 로
+// 올려 일정 제안 도구 7개가 열렸다. **이 구제에서만** 지운 뒤 결혼 낱말을 묻는다 — 구제
+// 밖의 판정은 그대로다. `반지하고`(반지 + 조사 하고)·`반지하나`(반지 하나)는 반지다.
+const VENUE_RESCUE_FALSE_WEDDING_TOKEN_PATTERN = /반지하(?!고|나)|결혼\s*기념일/gu;
+
+function isWeddingVenueMention(text: string): boolean {
+  const weddingText = text.replace(VENUE_RESCUE_FALSE_WEDDING_TOKEN_PATTERN, " ");
+  return (
+    WEDDING_CORE_SIGNAL_PATTERN.test(weddingText) || LATE_WEDDING_PREP_SIGNAL_PATTERN.test(weddingText)
+  )
+    && !EXPLICIT_NON_WEDDING_ACTOR_PATTERN.test(text)
+    && !LATE_NON_WEDDING_TOPIC_PATTERN.test(text);
+}
 
 function hasExplicitNonWeddingState(text: string, trustedExplicitPrivateDraft: boolean): boolean {
+  // 행위자 낱말이 없으면 위 패턴은 장소 낱말로만 걸린다. 결혼 발화의 장소 낱말은 근거가 아니다.
+  if (isWeddingVenueMention(text)) return false;
   if (!trustedExplicitPrivateDraft
     || NON_WEDDING_DOMAIN_HINT_PATTERN.test(text) || LATE_NON_WEDDING_TOPIC_PATTERN.test(text)
     || /`{3,}|~{3,}/u.test(text)) return EXPLICIT_NON_WEDDING_STATE_PATTERN.test(text);
@@ -757,7 +805,13 @@ export function filterAmoraToolsByQuestionScope<T extends AiToolDefinition>(
   classification: AmoraQuestionScopeClassification,
 ): T[] {
   if (classification.scope === "W1_wedding_adjacent") {
-    return tools.filter((tool) => WEDDING_CONTEXT_READ_TOOL_NAMES.has(tool.name));
+    // 읽기 전용 레인. 2026-09-14 실측: 커플 문맥 없는 조회 도구까지 지워서 "시댁 어른들
+    // 모시고 갈 식당 강남 쪽으로 추천해줘"(장소 검색 후보)에 아모라가 "식당은 직접
+    // 검색할 수 없어요" 라고 답했다 — 있는 기능을 없다고 말한 것이다. 그 둘은 커플
+    // 데이터를 읽지도 바꾸지도 않으므로 이 레인이 도구를 좁히는 이유가 닿지 않는다.
+    return tools.filter((tool) =>
+      WEDDING_CONTEXT_READ_TOOL_NAMES.has(tool.name)
+      || AMORA_CONTEXT_FREE_READ_TOOL_NAMES.has(tool.name));
   }
   if (
     classification.scope === "W4_out_of_scope"
@@ -782,7 +836,7 @@ export function buildAmoraQuestionScopeInstruction(
   classification: AmoraQuestionScopeClassification,
   options: {
     linkedContextOnly?: boolean;
-    /** 이 턴에 실제로 열린 도구 중 커플 문맥 없는 조회 도구. W4 문구에만 쓰인다. */
+    /** 이 턴에 실제로 열린 도구 중 커플 문맥 없는 조회 도구. W1·W4 문구에 쓰인다. */
     contextFreeToolNames?: readonly string[];
   } = {},
 ): string {
@@ -818,7 +872,12 @@ export function buildAmoraQuestionScopeInstruction(
     ],
     W1_wedding_adjacent: [
       "- 신혼 생활·커플 재정·가족 조율 중 결혼 준비에 미치는 영향만 다루세요.",
-      "- 현재 결혼 문맥은 읽기 전용으로만 참고하세요. 저장·수정·예약·외부 실행은 하지 말고, 상태 변경 의도가 불분명하면 부담이 작은 확인 질문 하나만 하세요.",
+      // 2026-09-14: 이 레인에도 커플 문맥 없는 조회 도구(장소 검색·시세)가 열린다
+      // (`filterAmoraToolsByQuestionScope`). 도구가 실제로 열린 턴에만 "써도 된다" 줄을
+      // 붙이고, 그 턴에서는 `외부 실행` 금지를 뺀다 — 네이버 질의가 곧 외부 실행이라 두
+      // 줄을 나란히 두면 한 지시문이 서로 반대를 말한다. 안 열린 턴은 예전 문장 그대로다.
+      `- 현재 결혼 문맥은 읽기 전용으로만 참고하세요. 저장·수정·예약${contextFreeToolLine ? "" : "·외부 실행"}은 하지 말고, 상태 변경 의도가 불분명하면 부담이 작은 확인 질문 하나만 하세요.`,
+      ...(contextFreeToolLine ? [contextFreeToolLine] : []),
     ],
     // W2 는 두 갈래다. 판정은 이미 갈라 놓았는데(`highRiskReason`) 모델에게 가는
     // 문장은 둘이 **똑같았다.**

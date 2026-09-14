@@ -479,6 +479,79 @@ export function assertNoPromptCacheBreakpoints(input: string | ResponseInput): v
   }
 }
 
+const LOCAL_INPUT_ESTIMATE_FRAMING_TOKENS = 512;
+const INPUT_ATTACHMENT_ITEM_TYPES = new Set(["input_image", "input_file"]);
+const INPUT_ATTACHMENT_KEYS = new Set(["image_url", "file_data"]);
+
+/**
+ * 입력에 사진·PDF 첨부(input_image / input_file 항목)가 하나라도 있는가.
+ * 항목의 `type` 과 첨부 키만 보고 판정하며 본문 문자열은 읽지 않는다 —
+ * "image_url" 이라는 낱말이 든 문장은 첨부가 아니다.
+ */
+export function hasInputAttachments(input: string | ResponseInput): boolean {
+  const stack: unknown[] = [input];
+  const seen = new Set<object>();
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== "object") continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    if (Array.isArray(current)) {
+      for (const value of current) stack.push(value);
+      continue;
+    }
+    const record = current as Record<string, unknown>;
+    if (typeof record.type === "string" && INPUT_ATTACHMENT_ITEM_TYPES.has(record.type)) {
+      return true;
+    }
+    for (const [key, value] of Object.entries(record)) {
+      if (INPUT_ATTACHMENT_KEYS.has(key)) return true;
+      stack.push(value);
+    }
+  }
+  return false;
+}
+
+/**
+ * 사전 토큰 계산(inputTokens.count)이 장애일 때 앱 입력 상한을 지키기 위한
+ * 보수적 로컬 추정 — **텍스트 전용 턴에만** 쓴다. UTF-8 바이트/3 — 한글 1자 =
+ * 1토큰, ASCII 3자 = 1토큰으로 실측(각 ~0.5·~0.25)보다 크게 잰다
+ * (scripts/ingest/extract.ts 의 계획 추정과 같은 기준).
+ *
+ * 첨부는 로컬로 잴 수 없다. PDF 는 추출 텍스트 + 쪽당 이미지 1장(최대 100쪽)으로
+ * 청구돼 건당 고정 몫은 과소 추정이다(10MB PDF 다섯 장이 21,074 로 통과했다).
+ * 첨부 턴은 호출부가 hasInputAttachments 로 걸러 측정 단계에서 끝내고, 그래도
+ * 첨부가 여기까지 오면 base64 를 바이트 그대로 세어 위로 틀린다.
+ */
+export function estimateInputTokensLocally(request: {
+  instructions: string;
+  input: string | ResponseInput;
+  tools?: FunctionTool[];
+}): number {
+  let bytes = 0;
+  const stack: unknown[] = [request.instructions, request.input, request.tools ?? []];
+  const seen = new Set<object>();
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (typeof current === "string") {
+      bytes += Buffer.byteLength(current, "utf8");
+      continue;
+    }
+    if (!current || typeof current !== "object") continue;
+    if (seen.has(current)) continue;
+    seen.add(current);
+    if (Array.isArray(current)) {
+      for (const value of current) stack.push(value);
+      continue;
+    }
+    for (const [key, value] of Object.entries(current)) {
+      bytes += key.length;
+      stack.push(value);
+    }
+  }
+  return Math.ceil(bytes / 3) + LOCAL_INPUT_ESTIMATE_FRAMING_TOKENS;
+}
+
 function getRefusalText(response: OpenAIResponse): string {
   return response.output
     .filter((item) => item.type === "message")
@@ -592,8 +665,8 @@ export async function chatWithToolsStream(options: {
     });
   }
   let inputCountRequestId: string | null | undefined;
-  // 기존 감사 결과 형식 호환용. 측정 없이 성공하는 요청은 더 이상 없다.
-  const inputCountUnavailableReason: string | null = null;
+  // 사전 토큰 계산을 건너뛴 턴의 사유 — 호출부가 원장에 남길 수 있게 반환한다.
+  let inputCountUnavailableReason: string | null = null;
 
   if (!Number.isSafeInteger(maxInputTokens) || maxInputTokens <= 0) {
     throw new Error("[ai-config] maxInputTokens must be a positive integer");
@@ -613,48 +686,81 @@ export async function chatWithToolsStream(options: {
   await beforeProviderEgress();
   signal?.throwIfAborted();
 
-  try {
-    const countPromise = client.responses.inputTokens.count(
-      {
+  // 측정 *호출*이 전송·제공자 장애(네트워크·5xx·429·타임아웃)로 죽으면 한 번만
+  // 다시 잰다. 측정이 성공하고 그 판정이 막은 것(한도 초과·잘못된 응답)과
+  // 호출부의 취소는 다시 재지 않는다.
+  let inputCountFailure: OpenAIProviderError | null = null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const countPromise = client.responses.inputTokens.count(
+        {
+          model: modelConfig.model,
+          instructions: systemPrompt,
+          input,
+          tools: openAITools,
+          parallel_tool_calls: false,
+          reasoning: { effort: modelConfig.reasoningEffort },
+          text: { verbosity: modelConfig.verbosity },
+        },
+        signal ? { signal } : undefined
+      );
+      const counted = await countPromise.withResponse();
+      inputCountRequestId = counted.request_id;
+      if (
+        !Number.isSafeInteger(counted.data.input_tokens) ||
+        counted.data.input_tokens < 0
+      ) {
+        throw new OpenAIProviderError("[openai] invalid input token count", {
+          category: "response_invalid",
+          requestId: counted.request_id,
+          providerCode: "invalid_input_token_count",
+          requestStage: "input_count",
+          usageStatus: "complete",
+        });
+      }
+      if (counted.data.input_tokens > maxInputTokens) {
+        throw new OpenAIInputTokenLimitError(
+          counted.data.input_tokens,
+          maxInputTokens,
+          { requestId: counted.request_id }
+        );
+      }
+      inputCountFailure = null;
+      break;
+    } catch (error) {
+      const staged = markOpenAIRequestStage(error, "input_count", {
         model: modelConfig.model,
-        instructions: systemPrompt,
-        input,
-        tools: openAITools,
-        parallel_tool_calls: false,
-        reasoning: { effort: modelConfig.reasoningEffort },
-        text: { verbosity: modelConfig.verbosity },
-      },
-      signal ? { signal } : undefined
-    );
-    const counted = await countPromise.withResponse();
-    inputCountRequestId = counted.request_id;
-    if (
-      !Number.isSafeInteger(counted.data.input_tokens) ||
-      counted.data.input_tokens < 0
-    ) {
-      throw new OpenAIProviderError("[openai] invalid input token count", {
-        category: "response_invalid",
-        requestId: counted.request_id,
-        providerCode: "invalid_input_token_count",
-        requestStage: "input_count",
-        usageStatus: "complete",
+      });
+      if (error instanceof OpenAIProviderError || signal?.aborted) throw staged;
+      inputCountFailure = staged;
+    }
+  }
+  if (inputCountFailure) {
+    // 두 번 다 실패 — 측정 장애다. 2026-07-25 운영에서 /responses/input_tokens 만
+    // 죽고 /responses 는 멀쩡했는데 여기서 던져 "안녕" 한 마디까지 전부
+    // "입력 분량을 확인하는 중 문제가 생겼어요"로 죽었다. 그러나 비용 예약은
+    // 앱의 입력 상한을 전제로 하므로(b2d2fa1c 가 옛 폴백을 뺀 이유) 상한 없이
+    // 진행하지 않고, 보수적 로컬 추정으로 상한을 지킨 뒤에만 생성으로 간다.
+    //
+    // 첨부(사진·PDF) 턴은 폴백하지 않는다 — 로컬 추정이 첨부를 잴 수 없어
+    // (PDF 는 추출 텍스트 + 쪽당 이미지 1장, 최대 100쪽) 상한을 보장하지 못한다.
+    // 이전처럼 측정 단계에서 끝낸다.
+    if (hasInputAttachments(input)) throw inputCountFailure;
+    const estimatedInputTokens = estimateInputTokensLocally({
+      instructions: systemPrompt,
+      input,
+      tools: openAITools,
+    });
+    if (estimatedInputTokens > maxInputTokens) {
+      throw new OpenAIInputTokenLimitError(estimatedInputTokens, maxInputTokens, {
+        requestId: inputCountFailure.requestId,
       });
     }
-    if (counted.data.input_tokens > maxInputTokens) {
-      throw new OpenAIInputTokenLimitError(
-        counted.data.input_tokens,
-        maxInputTokens,
-        { requestId: counted.request_id }
-      );
-    }
-  } catch (error) {
-    const staged = markOpenAIRequestStage(error, "input_count", {
-      model: modelConfig.model,
-    });
-    // 비용 예약은 앱의 입력 상한을 전제로 한다. 제공자의 더 큰 context
-    // 한도는 이 상한을 보장하지 않으므로, 측정 장애에도 생성 전에 종료한다.
-    // 재시도 가능한 input_count 오류로 전달하고 유료 예약/생성은 하지 않는다.
-    throw staged;
+    inputCountUnavailableReason =
+      inputCountFailure.providerCode ?? inputCountFailure.category;
+    console.warn(
+      `[amora] input pre-count unavailable after retry (${inputCountUnavailableReason}) — proceeding on a local estimate of ${estimatedInputTokens} tokens`,
+    );
   }
 
   const requestBody: ResponseCreateParamsStreaming = {

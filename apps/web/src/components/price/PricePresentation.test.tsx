@@ -243,7 +243,11 @@ describe("consumer price presentation", () => {
     );
 
     expect(html).toContain("저장하려면 로그인이 필요해요");
-    expect(html).toContain("찜과 조합을 저장하고, 가격이 바뀌면 알림을 받아보세요.");
+    // 찜은 /api/favorites, 조합은 /api/price/combos 에 계정 단위로 저장된다 — 그것만
+    // 약속한다. "가격이 바뀌면 알림" 은 price_alerts 행을 읽어 보내는 코드가 저장소에
+    // 없어(api/price/alerts 는 행 CRUD 뿐) 2026-09-14 까지 거짓 약속이었다.
+    expect(html).toContain("찜과 조합을 계정에 저장해 어느 기기에서든 다시 볼 수 있어요.");
+    expect(html).not.toContain("가격이 바뀌면 알림");
     expect(html).toContain("로그인하고 계속하기");
     expect(html).toContain("/login?redirect=%2Fprice%2Fstudio");
   });

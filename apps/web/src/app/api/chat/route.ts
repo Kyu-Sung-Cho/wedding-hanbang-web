@@ -4261,6 +4261,10 @@ export async function POST(request: Request) {
             // 변경의 실패를 사과받는 셈이 된다.
             // 도구가 열린 것과 사용자가 변경을 요청한 것은 다르다(amoraPersistenceClaims 주석).
             userRequestedChange: pendingOfferEnabled && isExplicitAmoraChangeRequest(lastUserText),
+            // 도구 관문을 거치지 않은 발화 판정. "총예산 5천만원으로 바꿔 ㅋㅋ" 처럼 제안
+            // 도구가 안 열린 변경 요청 턴의 상태 서술("…설정되어 있어요")을 영수증 없이
+            // 믿지 않게 한다(2026-09-14 2차 검토). 안내 문구는 위 값이 그대로 정한다.
+            userTurnIsChangeRequest: isExplicitAmoraChangeRequest(lastUserText),
             // 모델이 표식을 냈는데 검증에서 버려졌으면 카드가 안 나온다.
             // 본문이 중립적으로 쓰여 있으면 지울 거짓 주장도 없어 **아무 말도
             // 안 나가고** 사용자는 아무것도 저장되지 않는다.

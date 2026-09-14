@@ -297,7 +297,7 @@ export default function PrivacyPage() {
               <li>회원은 관계 법령이 정한 범위에서 자신의 개인정보 열람·정정·삭제·처리정지를 요청할 수 있습니다.</li>
               {/* 접수 경로는 **플래그와 같은 곳**에서 읽는다. 여기에 문장을 박아 두면
                   플래그가 움직일 때 법적 고지가 조용히 거짓이 된다(2026-09-02). */}
-              <li>이용 내역은 설정 페이지에서 확인할 수 있습니다. {accountDeletionIntakeSentence(CONTACT.email)} 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 진행 전에 미리 안내해 드립니다.</li>
+              <li>설정 페이지에서는 프로필, 웨딩 스타일, 커플 연결, 알림 설정, 아모라 도움 방식, 아모라가 기억하는 것을 직접 확인하고 수정할 수 있습니다. 이용 내역·접속 기록의 열람은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 요청하실 수 있으며, 운영자는 본인 확인 후 보유하고 있는 범위에서 안내합니다. {accountDeletionIntakeSentence(CONTACT.email)} 탈퇴는 되돌릴 수 없으며, 무엇이 지워지고 무엇이 남는지는 진행 전에 미리 안내해 드립니다.</li>
               <li>연결된 파트너와 함께 만든 준비 기록과 대화는 두 사람의 정보가 섞여 있어 남은 파트너의 화면에 유지되고, 탈퇴한 회원의 식별 정보만 제거됩니다. 등록한 업체가 있으면 해당 업체를 먼저 정리해야 탈퇴가 완료됩니다.</li>
               <li>그 밖의 요청은 고객센터(<a href={`mailto:${CONTACT.email}`} className="text-[var(--hb-accent-hover)] underline">{CONTACT.email}</a>)로 접수할 수 있으며, 운영자는 본인 확인 후 처리 결과를 알립니다.</li>
             </ol>

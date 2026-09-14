@@ -78,11 +78,13 @@ describe("날짜 저장값과 대화의 연도 근거를 구분한다", () => {
   });
 
   it("대략 시기나 월 선호로 정확한 날짜를 만들어 저장 제안하지 않는다", () => {
-    const block = dateRuleBlock(getWeddingPlannerSystemPrompt(BASE));
+    // 원본이 아니라 조회 도구만 켠 합성 결과에 묻는다 — 저장 제안·날짜 인자 두 줄은
+    // 2026-09-14까지 도구 이름을 달고 있어 조립기가 매 턴 버렸고 원본 grep 만 초록이었다.
+    const block = dateRuleBlock(compose(null));
     expect(block).toContain("대략의 시기·월 선호는 후보로 남기세요");
     expect(block).toContain("정확한 YYYY-MM-DD를 꾸며 저장 제안하지 마세요");
     expect(block).toContain("정확한 결혼 예정일을 처음 말하면 그 날짜를 되짚고 저장 제안을 만드세요");
-    expect(block).toContain("사용자가 저장·변경을 별도로 확인하기 전에는 `update_wedding_date`를 실행하거나 저장됐다고 말하지 마세요");
+    expect(block).toContain("사용자가 저장·변경을 별도로 확인하기 전에는 예식일 변경을 실행하거나 저장됐다고 말하지 마세요");
     expect(block).toContain("날짜 인자는 반드시 **오늘(2026-09-09) 이후의 미래 날짜**");
   });
 

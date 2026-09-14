@@ -53,10 +53,7 @@ describe("VendorDetailActions", () => {
 
   it("keeps actions disabled until their initial saved state is settled", async () => {
     const favorites = deferred<Response>();
-    const alerts = deferred<Response>();
-    const fetchMock = vi.fn()
-      .mockReturnValueOnce(favorites.promise)
-      .mockReturnValueOnce(alerts.promise);
+    const fetchMock = vi.fn().mockReturnValueOnce(favorites.promise);
     vi.stubGlobal("fetch", fetchMock);
 
     await act(async () => {
@@ -64,28 +61,25 @@ describe("VendorDetailActions", () => {
       await Promise.resolve();
     });
 
+    // 찜 하나뿐이다 — 가격변동 알림 토글은 알림을 보내는 쪽이 생길 때까지 그리지 않는다.
     const actionButtons = Array.from(container.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"));
-    expect(actionButtons).toHaveLength(2);
+    expect(actionButtons).toHaveLength(1);
     expect(actionButtons.every((button) => button.disabled)).toBe(true);
 
     await act(async () => {
       favorites.resolve(jsonResponse({ vendorIds: ["vendor-1"] }));
-      alerts.resolve(jsonResponse({ vendorIds: [] }));
       await flushAsyncWork();
     });
 
     expect(actionButtons.every((button) => button.disabled)).toBe(false);
     expect(actionButtons[0].getAttribute("aria-pressed")).toBe("true");
-    expect(actionButtons[1].getAttribute("aria-pressed")).toBe("false");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a previous vendor's late initial response", async () => {
     const oldFavoriteBody = deferred<{ vendorIds: string[] }>();
     const fetchMock = vi.fn()
       .mockResolvedValueOnce({ ok: true, json: () => oldFavoriteBody.promise })
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ vendorIds: [] }) })
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -111,10 +105,9 @@ describe("VendorDetailActions", () => {
     expect(favoriteButton?.getAttribute("aria-pressed")).toBe("false");
   });
 
-  it("allows only one in-flight mutation and disables both actions while it settles", async () => {
+  it("allows only one in-flight mutation and disables the action while it settles", async () => {
     const mutation = deferred<Response>();
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockReturnValue(mutation.promise);
     vi.stubGlobal("fetch", fetchMock);
@@ -128,7 +121,6 @@ describe("VendorDetailActions", () => {
     await act(async () => {
       actionButtons[0].click();
       actionButtons[0].click();
-      actionButtons[1].click();
       await Promise.resolve();
     });
 
@@ -150,11 +142,8 @@ describe("VendorDetailActions", () => {
   it("uses deterministic add and remove methods instead of a retry-sensitive toggle", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ isFavorite: true }))
-      .mockResolvedValueOnce(jsonResponse({ isFavorite: false }))
-      .mockResolvedValueOnce(jsonResponse({ subscribed: true }))
-      .mockResolvedValueOnce(jsonResponse({ subscribed: false }));
+      .mockResolvedValueOnce(jsonResponse({ isFavorite: false }));
     vi.stubGlobal("fetch", fetchMock);
 
     await act(async () => {
@@ -171,29 +160,16 @@ describe("VendorDetailActions", () => {
       favoriteButton?.click();
       await flushAsyncWork();
     });
-    const alertButton = container.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')[1];
-    await act(async () => {
-      alertButton?.click();
-      await flushAsyncWork();
-    });
-    await act(async () => {
-      alertButton?.click();
-      await flushAsyncWork();
-    });
 
-    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: "POST" });
-    expect(fetchMock.mock.calls[3]?.[1]).toMatchObject({ method: "DELETE" });
-    expect(fetchMock.mock.calls[4]?.[1]).toMatchObject({ method: "POST" });
-    expect(fetchMock.mock.calls[5]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ method: "POST" });
+    expect(fetchMock.mock.calls[2]?.[1]).toMatchObject({ method: "DELETE" });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(favoriteButton?.getAttribute("aria-pressed")).toBe("false");
-    expect(alertButton?.getAttribute("aria-pressed")).toBe("false");
   });
 
   it("shows a recoverable message when the initial saved state cannot be loaded", async () => {
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ error: "unavailable" }, 503))
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -205,8 +181,8 @@ describe("VendorDetailActions", () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("찜 상태");
     expect(container.querySelector('[role="alert"]')?.textContent).toContain("기존 저장은 변경하지 않았어요");
     const actionButtons = Array.from(container.querySelectorAll<HTMLButtonElement>("button[aria-pressed]"));
+    expect(actionButtons).toHaveLength(1);
     expect(actionButtons[0].disabled).toBe(true);
-    expect(actionButtons[1].disabled).toBe(false);
 
     const retryButton = Array.from(container.querySelectorAll<HTMLButtonElement>("button"))
       .find((button) => button.textContent?.includes("다시 불러오기"));
@@ -217,12 +193,11 @@ describe("VendorDetailActions", () => {
 
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(actionButtons.every((button) => button.disabled)).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("shows which action failed when a mutation API rejects the save", async () => {
     const fetchMock = vi.fn()
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ error: "write failed" }, 500));
     vi.stubGlobal("fetch", fetchMock);
@@ -246,9 +221,7 @@ describe("VendorDetailActions", () => {
     const oldMutation = deferred<Response>();
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockReturnValueOnce(oldMutation.promise)
-      .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }))
       .mockResolvedValueOnce(jsonResponse({ vendorIds: [] }));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -274,5 +247,24 @@ describe("VendorDetailActions", () => {
     });
 
     expect(favoriteButton?.getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("does not offer a price-change alert toggle and never reads price alerts", async () => {
+    // 2026-09-14: /api/price/alerts 는 price_alerts 행을 넣고 뺄 뿐, 그 행을 읽어
+    // 알림을 보내는 코드가 저장소에 없다. 토글을 그리면 공개 업체 상세가 없는
+    // 알림을 약속한다. 알림을 보내는 쪽이 생기기 전까지 토글도, 그 상태 조회도 없다.
+    const fetchMock = vi.fn().mockImplementation(async () => jsonResponse({ vendorIds: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await act(async () => {
+      root.render(<VendorDetailActions vendorId="vendor-1" redirectPath="/price/studio/sample" />);
+      await flushAsyncWork();
+    });
+
+    const labels = Array.from(container.querySelectorAll("button")).map((button) => button.textContent ?? "");
+    expect(labels).toContain("찜하기");
+    expect(labels.filter((label) => label.includes("알림"))).toEqual([]);
+    expect(container.textContent).not.toContain("가격 알림");
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).not.toContain("/api/price/alerts");
   });
 });

@@ -564,12 +564,25 @@ describe("getWeddingPlannerSystemPrompt", () => {
     expect(prompt).not.toContain("병렬");
   });
 
-  it("uses the real schedule mutation tool name in the legacy prompt contract", () => {
+  it("does not advertise a nonexistent schedule operation; the real name comes from the tool contract", () => {
     const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
 
-    expect(prompt).toContain("add_schedule_event");
     expect(prompt).not.toContain("create_schedule");
     expect(prompt).not.toContain("병렬");
+
+    // 2026-09-14: 원본 규칙 줄은 이제 도구 이름을 달지 않는다 — 이름이 있으면 조립기가
+    // 켜지지 않은 도구 이름이 든 줄을 버려 운영 턴마다 규칙이 사라졌다. 실제 이름은
+    // 그 도구가 켜진 턴의 도구 계약이 댄다.
+    const composed = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: ["add_schedule_event"],
+      },
+    );
+    expect(composed).toContain("add_schedule_event");
+    expect(composed).not.toContain("create_schedule");
   });
 
   it("omits mutation instructions when the request has no tools", () => {
@@ -1422,13 +1435,38 @@ describe("시스템 프롬프트 컴플라이언스 잠금", () => {
   });
 });
 
+// 운영이 켜는 조회 도구 다섯. route.ts 는 `!isMutatingTool` 로 걸러 변경 도구를 절대 켜지 않는다.
+const PRODUCTION_READ_TOOL_NAMES = [
+  "get_budget_summary",
+  "get_schedule_summary",
+  "get_wedding_info",
+  "get_amora_actions",
+  "get_market_price",
+];
+
 describe("예산 프로토콜은 한 건 금액 요청에 발동하지 않는다 (2026-09-06 페르소나 실측)", () => {
   it("총예산 0원 + 항목 예산 첫 설정을 발동 조건에서 뺐고, 한 건 요청은 표식으로 내라고 적는다", () => {
-    const prompt = getWeddingPlannerSystemPrompt({ ...baseContext, bookings: [] });
+    // 원본이 아니라 합성 결과에 묻는다 — 이 줄은 2026-09-14까지 도구 이름을 달고 있어
+    // 조립기가 매 턴 버렸고, 원본 grep 만 초록이었다(파일 머리 주석의 함정 그대로).
+    const prompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      {
+        requestKind: "chat",
+        persistenceMode: "durable",
+        enabledToolNames: PRODUCTION_READ_TOOL_NAMES,
+      },
+    );
     expect(prompt).not.toContain("총 예산 0원이고 사용자가 카테고리 예산을 처음 설정");
     expect(prompt).toContain("발동하지 않는 경우");
-    expect(prompt).toContain("'update_category_budget' 표식");
-    expect(prompt).toContain("'update_budget' 표식을 먼저");
+    // '도구'라는 낱말이 남아 있어야 한다 — 조립기는 도구 0개 턴에서 '도구'가 든 줄을
+    // 걷어내므로, 그 낱말이 이 줄을 위로·범위 밖 턴에서 빼 주는 유일한 스위치다.
+    expect(prompt).toContain("총예산이 0원이어도 총액·포함 범위를 묻지 말고 카테고리 예산 도구 표식을 내고");
+    expect(prompt).toContain("총예산 도구 표식을 먼저 낸 뒤");
+    const noToolPrompt = buildAmoraSystemPrompt(
+      { ...baseContext, bookings: [] },
+      { requestKind: "chat", persistenceMode: "durable", enabledToolNames: [] },
+    );
+    expect(noToolPrompt).not.toContain("발동하지 않는 경우");
   });
 
   it("혼인신고·첫인사 항목의 대화 불변은 체크리스트 완료 상태에 한정한다", () => {

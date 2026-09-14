@@ -3,9 +3,17 @@ import { describe, expect, it } from "vitest";
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import { WEDDING_TOOLS } from "@/lib/ai/tools";
 import { applyAmoraAtomicToolResultToContext, buildAmoraAtomicToolOperation } from "@/lib/ai/amoraAtomicToolOperation";
+import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
-const ORIGINAL = "항목별 금액을 다시 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
+// 2026-09-14 운영 문장. 예단·폐백이 "맞춤 항목"으로 카드에 실려 기본 행 옆에 중복 행이 생겼다.
+const PRODUCTION_SHORT_NAMES = "결혼식장 1500만원, 예단 300만원, 폐백 100만원, 신혼여행 500만원 예산에 반영해줘";
+// 아모라 표기(예단·폐백)와 화면 설명(두 가족에게 드릴 선물·결혼식 뒤 전통 인사)은 같은 기본 행이다.
+const FIXED_BUDGET_KEYS = Object.keys(CATEGORY_LABELS).filter(key => !["greeting", "registration", "reserve"].includes(key));
+const FIXED_ALIASES = FIXED_BUDGET_KEYS.flatMap(key => [...new Set([CATEGORY_LABELS[key], PLANNING_CATEGORY_LABELS[key as keyof typeof PLANNING_CATEGORY_LABELS]])]
+  .map(label => [label, key] as const));
+const ORIGINAL ="항목별 금액을 다시 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
 const NATURAL_TOTAL = "총 결혼 예산은 3500만 원이야. 항목별 금액을 줄게. 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 150, 예비비 200만 원이야. 이대로 실제 예산에 반영해줘.";
 const EXPLICIT_UPDATE = "기존 예산의 초대장·꽃·하객선물은 새 항목을 만들지 말고 같은 이름의 금액을 150만 원에서 160만 원으로 바꿔줘. 총액은 3500만원으로 유지하고 예비비만 200만원에서 190만원으로 줄일게. 최종 배분은 결혼식장·식사 900, 신혼여행 1000, 사진 500, 드레스·정장 300, 헤어·메이크업 200, 반지·선물 250, 초대장·꽃·하객선물 160, 예비비 190만 원이야. 이대로 실제 예산에 반영해줘.";
 
@@ -143,7 +151,10 @@ describe("explicit current-turn budget plan", () => {
     { label: "헤어·메이크업", category: "makeup", particle: "은", before: 200000, after: 300000, reserveBefore: 400000, reserveAfter: 300000, direction: "줄일게", verb: "수정해줘" },
     { label: "신혼여행", category: "honeymoon", particle: "은", before: 200000, after: 100000, reserveBefore: 300000, reserveAfter: 400000, direction: "바꿀게", verb: "바꿔주세요" },
     { label: "예복 대여료", category: "custom_existing", particle: "는", before: 200000, after: 500000, reserveBefore: 300000, reserveAfter: 0, direction: "줄일게", verb: "바꿔줘" },
-  ])("supports explicit balanced existing-item updates for $label without relying on the eight-row fixture", ({ label, category, particle, before, after, reserveBefore, reserveAfter, direction, verb }) => {
+    { label: "예단", category: "yedan", particle: "은", before: 200000, after: 300000, reserveBefore: 400000, reserveAfter: 300000, direction: "줄일게", verb: "바꿔줘" },
+    { label: "두 가족에게 드릴 선물", category: "yedan", particle: "은", before: 200000, after: 300000, reserveBefore: 400000, reserveAfter: 300000, direction: "줄일게", verb: "바꿔줘" },
+    { label: "폐백", category: "pyebaek", particle: "은", before: 200000, after: 100000, reserveBefore: 300000, reserveAfter: 400000, direction: "늘릴게", verb: "변경해줘" },
+  ])("supports explicit balanced existing-item updates for $label without relying on the eight-row fixture",({ label, category, particle, before, after, reserveBefore, reserveAfter, direction, verb }) => {
     const total = before + reserveBefore;
     const progress = {
       [category]: { category, ...(category.startsWith("custom_") ? { label } : {}), budget: before, spent: 25000, payer: "bride", status: "completed" },
@@ -272,17 +283,72 @@ describe("explicit current-turn budget plan", () => {
     expect(buildAmoraAtomicToolOperation("apply_budget_plan", input!, context).result.toolOutput.error).toBe("no_change");
   });
 
+  // 분야 키를 열다섯 개 이상 적은 파일은 `constants/__tests__/categoryKeyMirrors.test.ts` 가
+  // "빠짐없이 담으려는 목록" 으로 보고 스물한 분야를 전부 요구한다. 그래서 화면 라벨 표를
+  // 일부만 적지 않고 전부 적는다 — 새 분야가 생기면 여기도 빨개져 같이 따라온다.
   it.each([
     ["드레스·예식 정장", "dress"], ["헤어·메이크업", "makeup"],
     ["결혼반지·기념 선물", "ring"], ["가전·가구·생활용품", "houseware"],
     ["종이·모바일 초대장", "invitation"], ["결혼식 날 사진·영상", "snap"],
     ["손에 드는 꽃·꽃 장식", "bouquet"], ["결혼식 진행·축하 노래", "mc"],
+    ["부모님 첫 만남", "meeting"], ["웨딩 사진 촬영", "studio"], ["한복", "hanbok"],
+    ["신혼집", "housing"], ["결혼식 신발", "shoes"],
+    ["결혼식에 온 분께 드릴 선물", "gift"], ["가족에게 전하는 전통 혼례 선물", "ham"],
   ])("uses the exact shared fixed label %s without guessing how to split it", (label, category) => {
     const input = parseExplicitBudgetPlanRequest(`${label} 200, 예비비 20만 원이야. 이대로 예산에 반영해줘.`);
     expect(input?.allocations).toEqual([{ category, budget: 2_000_000 }, { category: "reserve", budget: 200_000 }]);
   });
 
-  it.each([["헤어·메이크업", "makeup"], ["신혼여행", "honeymoon"]])(
+  it("covers both the Amora name and the screen name of every fixed budget row", () => {
+    expect(FIXED_ALIASES).toHaveLength(FIXED_BUDGET_KEYS.length + 2);
+    expect(FIXED_ALIASES).toEqual(expect.arrayContaining([
+      ["예단", "yedan"], ["두 가족에게 드릴 선물", "yedan"], ["폐백", "pyebaek"], ["결혼식 뒤 전통 인사", "pyebaek"],
+    ]));
+  });
+
+  it.each(FIXED_ALIASES)("resolves the name %s to the fixed row %s instead of a custom row", (label, category) => {
+    const input = parseExplicitBudgetPlanRequest(`${label} 200, 예비비 20만 원이야. 이대로 예산에 반영해줘.`);
+    expect(input?.allocations).toEqual([{ category, budget: 2_000_000 }, { category: "reserve", budget: 200_000 }]);
+  });
+
+  it("links the production short names 예단·폐백 to their fixed rows instead of issuing duplicate custom rows", () => {
+    const yedan = { category: "yedan", status: "in_progress", budget: 0, spent: 50_000, payer: "bride" };
+    const pyebaek = { category: "pyebaek", status: "not_started", budget: 0 };
+    const reserve = { category: "reserve", status: "not_started", budget: 2_000_000 };
+    const context = budgetContext({ yedan, pyebaek, reserve });
+    context.weddingContext.budget = 35_000_000;
+    const input = parseExplicitBudgetPlanRequest(PRODUCTION_SHORT_NAMES, context.weddingContext.progress, context.weddingContext.budget);
+    expect(input?.total_budget).toBe(35_000_000);
+    expect(input?.allocations).toEqual([
+      { category: "venue", budget: 15_000_000 },
+      { category: "yedan", budget: 3_000_000 },
+      { category: "pyebaek", budget: 1_000_000 },
+      { category: "honeymoon", budget: 5_000_000 },
+    ]);
+    if (!input) throw new Error("The production short-name listing must produce a proposal");
+    const operation = buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context);
+    expect(operation.result.success).toBe(true);
+    applyAmoraAtomicToolResultToContext(operation.result, context);
+    expect(context.weddingContext.progress.yedan).toEqual({ ...yedan, budget: 3_000_000 });
+    expect(context.weddingContext.progress.pyebaek).toEqual({ ...pyebaek, budget: 1_000_000 });
+    expect(context.weddingContext.progress.reserve).toEqual(reserve);
+    expect(Object.keys(context.weddingContext.progress).filter(key => key.startsWith("custom_"))).toEqual([]);
+    expect(buildAmoraAtomicToolOperation("apply_budget_plan", { ...input, allocation_mode: "explicit" }, context).result.toolOutput.error).toBe("no_change");
+  });
+
+  it.each([
+    ["한복 대여 80만원", "한복 대여", 800_000],
+    ["예단 준비 300만원", "예단 준비", 3_000_000],
+    ["예단비 300만원", "예단비", 3_000_000],
+    ["시댁 예단 300만원", "시댁 예단", 3_000_000],
+    ["폐백 음식 100만원", "폐백 음식", 1_000_000],
+    ["가족에게 드릴 선물 300만원", "가족에게 드릴 선물", 3_000_000],
+  ])("keeps a genuinely custom label as a custom row instead of matching a fixed name by substring: %s", (entry, label, budget) => {
+    const input = parseExplicitBudgetPlanRequest(`${entry}, 예비비 20만 원. 예산에 반영해줘.`);
+    expect(input?.allocations).toEqual([{ category: "custom", label, budget }, { category: "reserve", budget: 200_000 }]);
+  });
+
+  it.each([["헤어·메이크업", "makeup"], ["신혼여행", "honeymoon"], ["예단", "yedan"], ["폐백", "pyebaek"]])(
     "preserves an existing same-label custom key instead of moving %s into a fixed row",
     (label, fixedKey) => {
       const custom = { category: "custom_existing", label: ` ${label} `, budget: 1_000_000, spent: 700_000, payer: "groom", status: "completed", checklist: [{ id: "owned_1", done: true }], notes: "보존" };

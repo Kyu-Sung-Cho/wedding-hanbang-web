@@ -104,8 +104,12 @@ describe("예단·폐백 결정의 원명칭과 범위를 보존한다", () => {
       expect(rule, name).toContain("사용자가 말한 항목명과 결정 범위는 이 표로 바꾸지 마세요");
       expect(prompt, name).not.toContain("**사용자에게 보이는 모든 텍스트**");
     }
-    // 도구 없는 대화에서는 실행 안내를 제거하므로 원본 프로토콜의 예외를 확인한다.
-    expect(variants[0].prompt).toContain("도구 호출 파라미터는 영어 키 유지");
+    // 실행 안내 줄은 도구 이름 없이 적혀 있어 조회 도구만 켠 운영 합성에도 실린다(2026-09-14).
+    // 도구가 하나도 없는 대화에서는 '도구'가 든 줄을 걷어내므로 그 변형에는 묻지 않는다.
+    for (const { name, prompt } of [variants[1], variants[3]]) {
+      expect(prompt, name).toContain("도구 호출 파라미터는 영어 키 유지");
+      expect(prompt, name).toContain("표식의 'category' 파라미터는 반드시 영어 키");
+    }
   });
 
   it("직접 추가한 선물·감사 인사의 이름과 별도 금액 및 체크리스트 ID를 그대로 전달한다", () => {

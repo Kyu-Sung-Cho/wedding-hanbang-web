@@ -9,6 +9,22 @@ const AFFIRMATIVE_PERSISTENCE_CLAIM_RE =
   /(?:(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용|처리|입력)(?:해\s*(?:두었|뒀|놓았|놨|드렸)|하였|했|됐|되었|\s*완료(?:했|됐))|(?:넣어|적어|써|바꿔|올려)\s*(?:두었|뒀|놓았|놨|드렸)|(?:넣었|적었|썼|바꿨|올렸)|완료(?:하였|했|됐|되었))(?:어요|습니다|어|다)?/u;
 
 /**
+ * `잡았`·`맞췄` 는 **변경 턴에서, 값 조사 뒤에서만** 저장 주장으로 본다(3차·4차 검토
+ * 2026-09-14). "드레스 예산을 300만 원으로 잡았어요"·"10월 5일로 잡아 뒀어요"·"300만 원에
+ * 맞춰 놓았어요" 는 사용자가 변경을 요청한 턴에서 나오면 저장 주장인데 어휘에 없어
+ * 카드도 안내도 없이 그대로 나갔다.
+ *
+ * 다만 잡다·맞추다 는 뜻이 많다. "자리를 잡았어요"·"감을 잡았어요" 는 저장이 아니고(값
+ * 조사 뒤에서만 본다), 무엇보다 **변경을 요청하지 않은 턴**에서는 "식대는 1인 7만 원으로
+ * 잡았어요"(추정), "세 벌 모두 두 분 예산에 맞췄어요"(추천 근거), "후보는 강남 쪽 세 곳으로
+ * 잡았어요"(정리)처럼 설명 문장이다 — 4차 검토에서 이런 문장이 안내 없이 조용히 지워져
+ * 한 문장짜리 답은 빈 안내가 됐다. 그래서 이 묶음은 `includeChangeTurnValueClaims`
+ * (변경 요청 턴·카드가 살아 있는 턴)일 때만 검사한다.
+ */
+const CHANGE_TURN_VALUE_CLAIM_RE =
+  /(?:(?:으로|로)\s*(?:잡았|잡아\s*(?:두었|뒀|놓았|놨|드렸))|(?:으로|로|에)\s*(?:맞췄|맞춰\s*(?:두었|뒀|놓았|놨|드렸)))(?:어요|습니다|어|다)?/u;
+
+/**
  * 위 완료형 매치 **바로 뒤**에 오는, 주장을 취소하는 어미.
  *
  * 2026-09-03 실측 오탐. "예식 월만 6월에서 5월로 바꿀게, 영향만 짧게" 처럼 **영향만
@@ -26,12 +42,20 @@ const AFFIRMATIVE_PERSISTENCE_CLAIM_RE =
  * 봐준다는 식으로 만들면 "예산은 5,000만원으로 반영했고 더 남은 건 없어요" 같은
  * 진짜 주장이 그대로 빠져나간다. 그리고 한 문장에 매치가 여럿이면 **하나라도
  * 단정형이면 주장으로 친다**(아래 `hasAssertivePersistenceClaim`).
+ *
+ * 3차 검토(2026-09-14): 회상(`던` — "저장했던 게 언제였죠?"·"잡았던 걸로 기억해요")과
+ * 물음(`나요`·바로 뒤의 물음표 — "잡았나요?"·"저장했어요?")도 이번 턴의 저장 주장이
+ * 아니다. 회상은 매치 지점에 붙는 어미라 여기서 본다.
  */
 const NON_ASSERTIVE_CLAIM_CONTINUATION_RE =
-  /^(?:을\s*때|다면|더라면|으?면|을\s*경우|다고\s*가정|다\s*치면|는지|은지)/u;
+  /^(?:을\s*때|다면|더라면|으?면|을\s*경우|다고\s*가정|다\s*치면|는지|은지|던|나요|\s*[?？])/u;
 
 const AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE = new RegExp(
   AFFIRMATIVE_PERSISTENCE_CLAIM_RE.source,
+  "gu",
+);
+const CHANGE_TURN_VALUE_CLAIM_SCAN_RE = new RegExp(
+  CHANGE_TURN_VALUE_CLAIM_RE.source,
   "gu",
 );
 
@@ -40,17 +64,51 @@ const AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE = new RegExp(
  *
  * 완료형 어휘가 보였다는 것만으로는 부족하다. 가정절("변경했을 때")과 단정
  * ("변경했어요")은 같은 어휘로 시작하고 뒤에서 갈린다.
+ *
+ * `includeChangeTurnValueClaims` 가 참이면(변경 요청 턴·카드가 살아 있는 턴) 값을 정한
+ * `잡았/맞췄` 묶음도 함께 본다. 읽기·계획·추천 턴에서는 그 묶음이 설명 문장이라 보지 않는다.
  */
-function hasAssertivePersistenceClaim(segment: string): boolean {
-  for (const match of segment.matchAll(AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE)) {
-    const rest = segment.slice((match.index ?? 0) + match[0].length);
-    if (!NON_ASSERTIVE_CLAIM_CONTINUATION_RE.test(rest)) return true;
+function hasAssertivePersistenceClaim(segment: string, includeChangeTurnValueClaims = false): boolean {
+  const scanners = includeChangeTurnValueClaims
+    ? [AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE, CHANGE_TURN_VALUE_CLAIM_SCAN_RE]
+    : [AFFIRMATIVE_PERSISTENCE_CLAIM_SCAN_RE];
+  for (const scanner of scanners) {
+    for (const match of segment.matchAll(scanner)) {
+      const rest = segment.slice((match.index ?? 0) + match[0].length);
+      if (!NON_ASSERTIVE_CLAIM_CONTINUATION_RE.test(rest)) return true;
+    }
   }
   return false;
 }
 
+/**
+ * 값의 **현재 상태** 서술 — "10월 5일 오후 12시로 등록되어 있어요"·"드레스 예산은 450만
+ * 원으로 설정되어 있어요". 변경 요청도 카드도 없는 읽기 턴에서만 문맥이 검증한 서술로
+ * 남긴다(`keepStateDescriptions`). 저장·기록·등록·설정·확정만 — 값이 어디에 어떻게
+ * 있는지를 말하는 동사다.
+ */
 const AFFIRMATIVE_PERSISTENCE_STATE_RE =
-  /(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용)(?:\s*완료(?:예요|입니다)|(?:되어|돼)\s*있(?:어요|습니다|다))/u;
+  /(?:저장|기록|등록|설정|확정)(?:되어|돼)\s*있(?:어요|습니다|다)/u;
+
+/**
+ * 명사형 **완료 주장** — "총예산 5천만 원 설정 완료예요"·"등록 완료입니다"·"저장 완료예요".
+ * 2차 검토(2026-09-14): 상태 서술 봐주기가 이 모양까지 살려 보냈다. 이것은 값의 상태가
+ * 아니라 **방금 한 일**의 보고라, 읽기 영수증이 있어도 mutation 영수증 없이는 지운다.
+ */
+const AFFIRMATIVE_PERSISTENCE_COMPLETION_RE =
+  /(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용)\s*완료(?:예요|입니다)/u;
+
+/**
+ * 상태 어미를 빌린 **적용 서술** — "이제 예산표에 반영되어 있어요"·"5천만 원으로 변경되어
+ * 있어요"·"드레스 450만 원으로 적용되어 있어요". 반영·변경·수정·추가·삭제·취소·업데이트·
+ * 적용은 `AFFIRMATIVE_PERSISTENCE_STATE_RE` 의 저장·등록·설정과 달리 방금 한 일로도 읽히므로
+ * 문맥만으로는 봐주지 않는다. 3차 검토(2026-09-14): 2차 수정이 이것을 **무조건** 지워,
+ * get_budget_summary 가 성공한 읽기 턴의 "드레스 예산은 450만 원으로 반영되어 있어요." 까지
+ * 중립 안내로 바뀌었다(HEAD 는 `verifiedByRead` 로 살렸다). 성공한 읽기 영수증이 있는 읽기
+ * 턴(`keepAppliedStateDescriptions`)에서만 상태 서술로 본다.
+ */
+const AFFIRMATIVE_PERSISTENCE_APPLIED_STATE_RE =
+  /(?:반영|변경|수정|추가|삭제|취소|업데이트|적용)(?:되어|돼)\s*있(?:어요|습니다|다)/u;
 
 const ENGLISH_AFFIRMATIVE_PERSISTENCE_WORD_RE =
   /\b(?:saved|recorded|registered|updated|changed|modified|added|deleted|removed|cancelled|canceled|confirmed|applied)(?:\s+successfully)?\b/giu;
@@ -171,6 +229,21 @@ export type AmoraPersistenceTerminalResult =
 const EXPLICIT_CHANGE_REQUEST_PATTERN =
   /추가|등록|넣어|넣자|넣을|잡아|잡자|바꿔|바꾸|변경|수정|고쳐|취소|삭제|지워|옮겨|미뤄|당겨|적용|저장|반영|설정|정해\s*줘|정해\s*주|맞춰\s*줘|만들어\s*줘|올려|내려|줄여|늘려|완료\s*(?:처리|했|해)|체크\s*(?:해|처리)|기록\s*(?:해|남겨)/u;
 
+/**
+ * 상태를 **묻는** 절 — "예산 설정돼 있는 거 맞아?"·"상견례 일정 등록돼 있어?"·"드레스 예산
+ * 반영됐어?"·"등록되어 있는지 알려줘". 3차 검토(2026-09-14): 위 패턴이 부분일치라 이 질문의
+ * `설정`·`등록`·`반영` 이 변경 요청으로 읽혔고, 영수증이 있는 참 답 "총예산은 5천만 원으로
+ * 설정되어 있어요." 가 "…아직 반영되지 않았어요" 사과로 바뀌었다.
+ *
+ * 절 단위로 걷어내고 나머지에서 요청 동사를 찾는다 — "설정돼 있어? 아니면 5천으로 바꿔줘"
+ * 의 뒷절은 그대로 요청이다. 문장 끝(물음표·마침표·웃음·줄 끝)에 닿는 물음 어미만 본다.
+ * "등록돼 있는 일정 취소해줘" 처럼 관형절로 이어지면 걷어내지 않는다(어차피 `취소` 가 남는다).
+ * `는지` 는 내포 의문이라 끝 조건 없이 걷어낸다. 웃음 표기는 NFKC 뒤 조합형 자모
+ * (U+110F·U+1112)로 바뀌므로 둘 다 끝으로 친다.
+ */
+const STATE_QUESTION_CLAUSE_RE =
+  /(?:저장|기록|등록|반영|변경|수정|설정|추가|삭제|취소|확정|업데이트|적용)\s*(?:(?:(?:돼|되어)\s*있|됐|되었)는지|(?:(?:돼|되어)\s*있(?:어|나|니|나요|어요|습니까|(?:는|던)\s*(?:거|건|게)(?:야|예요|에요|죠|지|니|나요)?)|(?:됐|되었)(?:어|나|니|나요|어요|습니까|(?:던|는)\s*(?:거|건|게)(?:야|예요|에요|죠|지|니|나요)?)|된\s*(?:거|건|게)(?:야|예요|에요|죠|지|니|나요)?)(?:\s*(?:맞(?:아|나|죠|지|나요|습니까)|아니야|아닌가|그치|그렇지|그죠))?\s*(?:[?？.!。~ㅋㅎᄏᄒ]|$))/gmu;
+
 export function isExplicitAmoraChangeRequest(userText: string): boolean {
   if (typeof userText !== "string") return false;
   const text = userText.normalize("NFKC");
@@ -180,7 +253,9 @@ export function isExplicitAmoraChangeRequest(userText: string): boolean {
   if (withoutProhibitions !== text
     && /조회|알려\s*(?:줘|주세요)|보여\s*(?:줘|주세요)/u.test(withoutProhibitions)
     && !/(?:추가|등록|저장|반영|변경|수정|삭제|취소|적용|설정|기록)(?:해\s*(?:줘|주세요|주|줄)|하자|해라)|(?:바꿔|고쳐|지워|옮겨|넣어|잡아|미뤄|당겨|올려|내려|줄여|늘려|맞춰|정해)\s*(?:줘|주세요|주|줄)|완료\s*처리\s*해/u.test(withoutProhibitions)) return false;
-  return EXPLICIT_CHANGE_REQUEST_PATTERN.test(withoutProhibitions);
+  // 상태 질문 절은 요청이 아니다 — 걷어낸 나머지에서만 요청 동사를 찾는다.
+  const withoutStateQuestions = withoutProhibitions.replace(STATE_QUESTION_CLAUSE_RE, " ");
+  return EXPLICIT_CHANGE_REQUEST_PATTERN.test(withoutStateQuestions);
 }
 
 export const SERVER_OWNED_MISSING_CARD_NOTICE =
@@ -260,6 +335,7 @@ function composeTerminalCandidate({
   persistenceMode,
   demoUserText = "",
   userRequestedChange = true,
+  userTurnIsChangeRequest = false,
   droppedPendingActionTag = false,
   privatePreferenceMemoryRequestText,
 }: {
@@ -281,6 +357,17 @@ function composeTerminalCandidate({
    * 기본값은 기존 동작(붙인다)이다.
    */
   userRequestedChange?: boolean;
+  /**
+   * 사용자 발화 자체가 변경 요청인가 — 제안 도구 관문을 거치지 않은 판정.
+   *
+   * 라우트의 `userRequestedChange` 는 `pendingOfferEnabled && isExplicitAmoraChangeRequest(...)`
+   * 라 제안 도구가 하나도 안 열린 턴은 요청 아님으로 들어온다. 2차 검토(2026-09-14):
+   * "총예산 5천만원으로 바꿔 ㅋㅋ" 가 그 모양이었고, 상태 서술 봐주기가 "총예산은 5천만
+   * 원으로 설정되어 있어요." 를 그대로 내보냈다. 이 값은 **상태 서술을 남길지**에만 쓰고,
+   * 안내 문구 여부는 여전히 `userRequestedChange` 가 정한다. 기본값은 요청 아님이다 —
+   * `userRequestedChange` 가 기본값(참)이면 상태 서술은 어차피 지워진다.
+   */
+  userTurnIsChangeRequest?: boolean;
   /**
    * 모델이 변경 표식을 냈는데 서버 검증에서 버려졌는가.
    *
@@ -324,15 +411,34 @@ function composeTerminalCandidate({
   // 있는지 알려 주세요" 에 get_budget_summary 가 성공했는데, 모델 답 "…450만 원으로
   // 설정되어 있어요" 가 상태 서술 정규식에 걸려 지워지고 본문이 비어 "변경이 반영되지
   // 않았어요" 만 나갔다 — DB 에는 450만 원이 있었으니 안내 자체가 거짓이었다.
-  // 같은 턴에 **성공한 읽기 도구 영수증**이 있고 사용자가 변경을 요청한 것도 아니면
-  // 상태 서술은 그 영수증이 검증한 것이다. 실행 주장("변경했어요")은 여전히 지운다.
-  const verifiedByRead = !hasPendingAction
-    && !userRequestedChange
-    && toolResults.some((result) =>
-      result.success === true && !isMutatingTool(result.toolName));
+  // 2026-09-14 출시 실사: 그 봐주기를 **성공한 읽기 영수증**에 걸어 두었더니 같은 문장이
+  // 도구 없이 나갈 때는 여전히 지워졌다. 프롬프트가 `### 등록된 일정`·예산 요약을 문맥에
+  // 인라인하므로 "상견례 일정 언제야?" 같은 읽기 턴은 도구를 하나도 안 돌리고, 영수증이
+  // 없어 "10월 5일 오후 12시로 등록되어 있어요." 가 지워져 "지금은 답을 만들지 못했어요"
+  // 만 나갔다 — 다시 물어도 같다. 변경 요청이 아닌 턴(요청 없음·카드 없음)의 상태 서술은
+  // 영수증과 무관하게 문맥이 검증한 서술로 본다. 실행 주장("변경했어요")과 미래 약속은
+  // 여전히 지운다 — 변경을 요청한 턴이나 카드가 살아 있는 턴의 상태 서술도 그대로 지운다.
+  // 2차 검토: "요청 없음" 은 도구 관문을 거친 `userRequestedChange` 만으로는 모자란다 —
+  // 도구가 안 열린 변경 요청("총예산 5천만원으로 바꿔 ㅋㅋ")이 거짓으로 들어온다. 발화
+  // 판정(`userTurnIsChangeRequest`)과 이월 카드(`hasEmittedPendingAction`)도 함께 본다.
+  // 3차 검토: 이월 카드는 **성공한 읽기 영수증**이 있으면 막지 않는다. 카드는 최대 2턴
+  // 이월되므로 "상견례 일정 언제야?" 를 다시 물어도 get_schedule_events 가 성공한 참 답
+  // "10월 5일 오후 12시로 등록되어 있어요." 가 중립 안내로 바뀌던 출시 증상이 그대로였다.
+  // 영수증 없는 이월 카드 턴은 여전히 지운다. 그리고 같은 영수증은 "…반영되어 있어요"
+  // 같은 적용 서술(`AFFIRMATIVE_PERSISTENCE_APPLIED_STATE_RE`)도 HEAD 처럼 검증한다.
+  const verifiedByRead = toolResults.some((result) =>
+    result.success === true && !isMutatingTool(result.toolName));
+  const keepStateDescriptions = !hasPendingAction
+    && (!hasEmittedPendingAction || verifiedByRead)
+    && !userRequestedChange && !userTurnIsChangeRequest;
+  // 4차 검토: 값 조사 뒤 `잡았/맞췄` 는 변경 요청 턴(도구가 안 열린 요청 포함)과 카드가
+  // 살아 있는 턴에서만 저장 주장이다. 읽기·계획·추천 턴의 "1인 7만 원으로 잡았어요" 는 설명이다.
   const sanitized = removeUnverifiedPersistenceClaims(cardScreened.text, {
     includeFuturePromise: !hasPendingAction,
-    keepStateDescriptions: verifiedByRead,
+    keepStateDescriptions,
+    keepAppliedStateDescriptions: keepStateDescriptions && verifiedByRead,
+    includeChangeTurnValueClaims:
+      userRequestedChange || userTurnIsChangeRequest || hasPendingAction || hasEmittedPendingAction,
   });
 
   // 기억 약속과 취향 확인이 한 문장일 때 함께 지워지고 무관한 공동 기록 안내만
@@ -422,11 +528,26 @@ function composeTerminalCandidate({
   };
 }
 
+type StateDescriptionOptions = {
+  /** 저장·등록·설정·확정 + "되어 있어요" 를 문맥이 검증한 상태 서술로 남긴다. */
+  keepStateDescriptions?: boolean;
+  /** 반영·변경·적용 + "되어 있어요" 도 남긴다 — 성공한 읽기 영수증이 있을 때만 참이다. */
+  keepAppliedStateDescriptions?: boolean;
+  /** 값 조사 뒤 `잡았/맞췄` 도 저장 주장으로 본다 — 변경 요청 턴·카드가 살아 있는 턴에서만 참이다. */
+  includeChangeTurnValueClaims?: boolean;
+};
+
 function containsUnverifiedSuccessClaim(
   segment: string,
-  keepStateDescriptions = false,
+  {
+    keepStateDescriptions = false,
+    keepAppliedStateDescriptions = false,
+    includeChangeTurnValueClaims = false,
+  }: StateDescriptionOptions = {},
 ): boolean {
-  const containsKoreanAffirmativeClaim = hasAssertivePersistenceClaim(segment)
+  const containsKoreanAffirmativeClaim = hasAssertivePersistenceClaim(segment, includeChangeTurnValueClaims)
+    || AFFIRMATIVE_PERSISTENCE_COMPLETION_RE.test(segment)
+    || (!keepAppliedStateDescriptions && AFFIRMATIVE_PERSISTENCE_APPLIED_STATE_RE.test(segment))
     || (!keepStateDescriptions && AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment))
     || AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment)
     || ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment);
@@ -448,7 +569,7 @@ function containsUnverifiedSuccessClaim(
 
 function removeUnverifiedPersistenceClaims(
   text: string,
-  options: { includeFuturePromise?: boolean; keepStateDescriptions?: boolean } = {},
+  options: { includeFuturePromise?: boolean } & StateDescriptionOptions = {},
 ): {
   text: string;
   removedClaimCount: number;
@@ -467,10 +588,13 @@ function removeUnverifiedPersistenceClaims(
   let removedMemoryClaimCount = 0;
 
   for (const { claim: segment, source } of segments) {
-    if (containsUnverifiedSuccessClaim(segment, options.keepStateDescriptions === true)) {
+    if (containsUnverifiedSuccessClaim(segment, options)) {
       removedClaimCount += 1;
       if ((AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment) || ENGLISH_AFFIRMATIVE_MEMORY_CLAIM_RE.test(segment))
-        && !hasAssertivePersistenceClaim(segment) && !AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment)
+        && !hasAssertivePersistenceClaim(segment, options.includeChangeTurnValueClaims === true)
+        && !AFFIRMATIVE_PERSISTENCE_STATE_RE.test(segment)
+        && !AFFIRMATIVE_PERSISTENCE_COMPLETION_RE.test(segment)
+        && !AFFIRMATIVE_PERSISTENCE_APPLIED_STATE_RE.test(segment)
         && !FUTURE_PERSISTENCE_PROMISE_RE.test(segment)
         && segment.match(ENGLISH_AFFIRMATIVE_PERSISTENCE_WORD_RE) === null) {
         removedMemoryClaimCount += 1;
