@@ -1,5 +1,6 @@
 "use client";
 
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 import { listCountedBudgetEntries, sumRecordedSpend } from "@/lib/budgetTotals";
 import { formatWon } from "@/lib/formatWon";
 import {
@@ -27,12 +28,9 @@ const STATUS_COLORS: Record<string, string> = {
   not_applicable: "bg-[#8b857c]",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: "완료",
-  in_progress: "진행중",
-  not_started: "시작전",
-  not_applicable: "해당 없음",
-};
+// 상태 이름은 예산 화면·대시보드·온보딩과 같은 정본을 쓴다(아직·준비 중·완료·안 해요).
+// 이 패널만 "진행중·시작전·해당 없음" 으로 적어, 같은 항목이 화면마다 다른 말로 보였다.
+const STATUS_LABELS = PREPARATION_PROGRESS_STATUS_LABELS;
 
 const BUDGET_CATEGORIES = [
   ...CATEGORY_CHECKLISTS,
@@ -134,13 +132,13 @@ export default function BudgetTab() {
             );
           })}
           {incomplete.length === 0 && (
-            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">모든 항목이 완료되었습니다</p>
+            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">남은 항목이 없어요</p>
           )}
         </div>
       </CollapsibleSection>
 
       {/* 완료 */}
-      <CollapsibleSection title="완료·해당 없음" count={completed.length}>
+      <CollapsibleSection title={`${STATUS_LABELS.completed}·${STATUS_LABELS.not_applicable}`} count={completed.length}>
         <div className="flex flex-col gap-1.5">
           {completed.map((cat) => {
             const IconComp = ICON_MAP[cat.icon] ?? Wallet;
@@ -160,7 +158,7 @@ export default function BudgetTab() {
             );
           })}
           {completed.length === 0 && (
-            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">아직 완료된 항목이 없습니다</p>
+            <p className="text-sm text-[var(--hb-text-muted)] py-2 text-center">아직 완료했거나 안 하기로 한 항목이 없어요</p>
           )}
         </div>
       </CollapsibleSection>

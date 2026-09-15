@@ -21,6 +21,7 @@ import {
   Pencil,
   Ban,
 } from "lucide-react";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared";
 import ScheduleProgress from "./ScheduleProgress";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { mergeChecklist, getChecklistCounts } from "@/utils/checklist";
@@ -56,12 +57,27 @@ const STATUS_COLORS: Record<string, string> = {
   not_applicable: "bg-[var(--amora-muted)]",
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: "완료",
-  in_progress: "진행중",
-  not_started: "시작전",
-  not_applicable: "해당 없음",
-};
+/**
+ * 분야 머리의 상태 칩 글자.
+ *
+ * 상태 이름은 예산 화면·대시보드·온보딩과 같은 정본(아직·준비 중·완료·안 해요)을 쓴다.
+ * 이 화면만 "진행중·시작전·해당 없음" 으로 적어 같은 분야가 화면마다 다른 말로 보였다.
+ *
+ * 세부 항목을 하나도 체크하지 않았는데 상태만 있으면(온보딩에서 고른 값) 그 사실을 붙인다.
+ * 조사는 받침에 맞춘다 — 예전 문구는 "완료으로 입력" 이었다. "안 해요" 는 사용자가 고른
+ * 말 그대로 둔다("안 해요로 입력" 은 문장이 아니다).
+ */
+export function formatTimelineStatusChip(
+  status: ProgressItem["status"],
+  hasItemProgress: boolean,
+): string {
+  const label = PREPARATION_PROGRESS_STATUS_LABELS[status]
+    ?? PREPARATION_PROGRESS_STATUS_LABELS.not_started;
+  if (hasItemProgress || status === "not_started" || status === "not_applicable") {
+    return label;
+  }
+  return status === "completed" ? `${label}로 입력` : `${label}으로 입력`;
+}
 
 // 페이즈 정의
 interface Phase {
@@ -323,9 +339,7 @@ export default function TimelineView({
                                     STATUS_COLORS[data.status]
                                   }`}
                                 >
-                                  {data.hasItemProgress || data.status === "not_started"
-                                    ? STATUS_LABELS[data.status]
-                                    : `${STATUS_LABELS[data.status]}으로 입력`}
+                                  {formatTimelineStatusChip(data.status, data.hasItemProgress)}
                                 </span>
                                 {scheduledEvent && (
                                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-[var(--hb-primary)]/10 px-2 py-0.5 text-[11px] font-semibold text-[var(--hb-text-strong)]">
@@ -344,7 +358,13 @@ export default function TimelineView({
                                   </span>
                                 )}
                               </div>
-                              {data.hasItemProgress || data.status === "not_started" ? (
+                              {data.excluded ? (
+                                // 안 하기로 한 분야에 "0/0" 막대나 "세부 항목 확인 전" 을 두면
+                                // 아직 할 일이 남은 것처럼 읽힌다.
+                                <span className="text-[12px] font-medium text-[var(--hb-text-body)]">
+                                  이 준비는 하지 않기로 했어요
+                                </span>
+                              ) : data.hasItemProgress || data.status === "not_started" ? (
                                 <div className="flex items-center gap-2">
                                   <ScheduleProgress value={percent} label={`${cat.label} 준비 진행률`} className="min-w-0 flex-1" />
                                   <span className="flex-shrink-0 text-[12px] font-medium text-[var(--hb-text-body)]">

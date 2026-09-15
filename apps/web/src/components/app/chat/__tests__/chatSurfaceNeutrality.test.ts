@@ -4,9 +4,16 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // 채팅 표면은 사용자가 고른 적 없는 성별을 화면에 찍지 않는다.
-// bride/groom은 저장 슬롯이지 사람의 정체성이 아니므로, 라벨은 이름을 쓰고
-// 색은 "나 vs 상대" 축으로 가른다. 이 가드가 없으면 다음 사람이 색만
-// 되돌려 놓아도 아무도 모른다 — 실제로 이 파일들에는 안전망이 0건이었다.
+// bride/groom 가입 슬롯(`role`·`sender_type`)은 저장 자리이지 사람의 정체성이 아니므로,
+// 라벨은 이름을 쓰고 색은 그 슬롯으로 가르지 않는다.
+//
+// 2026-09-12 요청으로 말풍선 색은 **본인이 설정에서 확인한 역할**(`confirmed_role`)만 따른다
+// (웹 `chatBubbleStyles.ts`·앱 `src/lib/chatParticipantPresentation.mjs` 의
+// `confirmedRoleBubbleTone`: groom → sky, bride → rose, 그 밖 → neutral).
+// 역할을 고르지 않은 사람·발신자를 모르는 과거 메시지는 중립색이다. 예전 규칙("나 vs 상대")은
+// 없어졌다 — 가입 슬롯으로 색을 가르던 옛 색·분기 변수가 돌아오지 않게 막는 것이 이 가드다.
+// 이 가드가 없으면 다음 사람이 색만 되돌려 놓아도 아무도 모른다 — 실제로 이 파일들에는
+// 안전망이 0건이었다.
 const CHAT_ROOT = join(process.cwd(), "src/components/app/chat");
 const MOBILE_CHAT = join(process.cwd(), "../mobile/app/(tabs)/chat.tsx");
 

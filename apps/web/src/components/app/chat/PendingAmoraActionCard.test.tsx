@@ -3,15 +3,17 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PendingAmoraActionCard, {
+  CONTINUED_PENDING_ACTION_COPY,
   getPendingAmoraAction,
   getPendingAmoraBudgetImpactPreview,
   getPendingActionDisabledReason,
+  isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "./PendingAmoraActionCard";
 import type { BudgetImpactPreview } from "@hanbang/shared";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { SCREEN_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { BUDGET_CATEGORY_KEYS, WEDDING_TOOLS } from "@/lib/ai/tools";
 import { extractAmoraPendingAction } from "@/lib/ai/amoraPendingAction";
 import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
@@ -263,6 +265,85 @@ describe("PendingAmoraActionCard", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  /**
+   * 2026-09-15: "응 적용해줘" 라고 치면 같은 카드가 최신 답변으로 옮겨지는데, 원래 자리의
+   * 카드는 "새 대화가 이어져 이 제안은 적용할 수 없어요" 라고 했다. 아모라는 아래 카드를
+   * 누르라고 하고, 위 카드는 안 된다고 했다.
+   */
+  it("points a card that moved to the newest reply at that card and offers no buttons of its own", async () => {
+    const onApply = vi.fn();
+    const onDismiss = vi.fn();
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason="not_latest"
+          isApplying={false}
+          continuesInLatestReply
+          onApply={onApply}
+          onDismiss={onDismiss}
+        />,
+      );
+    });
+
+    const section = container.querySelector<HTMLElement>("section")!;
+    expect(section.dataset.pendingActionContinued).toBe("true");
+    expect(section.textContent).toContain(CONTINUED_PENDING_ACTION_COPY);
+    expect(section.textContent).toContain(action.confirmation);
+    expect(section.textContent).not.toContain("적용할 수 없어요");
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    // 상태 문장이 접근성 설명에도 이어져 있다.
+    const status = section.querySelector('[role="status"]')!;
+    expect(section.getAttribute("aria-describedby")).toContain(status.id);
+    expect(onApply).not.toHaveBeenCalled();
+    expect(onDismiss).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["applied", "이 제안은 적용됐어요."],
+    ["expired", "안전을 위해 확인 시간이 지났어요."],
+  ] as const)("keeps the %s copy even when the same action also sits on the newest reply", async (reason, copy) => {
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason={reason}
+          isApplying={false}
+          continuesInLatestReply
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+    });
+    const section = container.querySelector<HTMLElement>("section")!;
+    expect(section.dataset.pendingActionContinued).toBeUndefined();
+    expect(section.textContent).toContain(copy);
+    expect(section.textContent).not.toContain(CONTINUED_PENDING_ACTION_COPY);
+    expect(container.querySelector('button[aria-label="지금은 적용하지 않기"]')).not.toBeNull();
+  });
+
+  it("does not claim the card moved when the newest reply carries nothing", async () => {
+    await act(async () => {
+      root.render(
+        <PendingAmoraActionCard
+          action={action}
+          messageId="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+          disabledReason="not_latest"
+          isApplying={false}
+          onApply={vi.fn()}
+          onDismiss={vi.fn()}
+        />,
+      );
+    });
+    const section = container.querySelector<HTMLElement>("section")!;
+    expect(section.dataset.pendingActionContinued).toBeUndefined();
+    expect(section.textContent).toContain("새 대화가 이어져 이 제안은 적용할 수 없어요.");
+    expect(section.textContent).not.toContain(CONTINUED_PENDING_ACTION_COPY);
+  });
+
   it("shows truthful before/after budget impact without calling recorded spend a payment", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify({
       approvalMode: "couple",
@@ -298,7 +379,9 @@ describe("PendingAmoraActionCard", () => {
 
   it.each(["canonical server proposal", "22-row layout stress"])("shows every allocation in the card and approval sheet: %s", async (scenario) => {
     const categories = scenario === "canonical server proposal"
-      ? BUDGET_CATEGORY_KEYS.map((key) => ({ key, label: CATEGORY_LABELS[key] }))
+      // 카드·확인 창·변경 영향은 예산 화면과 같은 이름을 쓴다(2026-09-15). AI 문맥 전용
+      // 원명칭(예단·폐백)이 카드에 찍히면 예산 화면의 어느 줄인지 알 수 없다.
+      ? BUDGET_CATEGORY_KEYS.map((key) => ({ key, label: SCREEN_CATEGORY_LABELS[key] }))
       : [...CATEGORY_CHECKLISTS, { key: "reserve", label: PLANNING_CATEGORY_LABELS.reserve }];
     const input = { total_budget: categories.length * 1_000_000, allocations: categories.map(({ key }) => ({ category: key, budget: 1_000_000 })), intake_summary: "사용자가 확인한 합성 배분안" };
     let plan: PendingAmoraAction = {
@@ -340,8 +423,9 @@ describe("PendingAmoraActionCard", () => {
       expect(generatedPreview).not.toBeNull();
       preview = generatedPreview!;
       expect(preview.categories).toHaveLength(BUDGET_CATEGORY_KEYS.length);
-      expect(categories.find(({ key }) => key === "yedan")?.label).toBe("예단");
-      expect(categories.find(({ key }) => key === "pyebaek")?.label).toBe("폐백");
+      expect(categories.find(({ key }) => key === "yedan")?.label).toBe("두 가족에게 드릴 선물");
+      expect(categories.find(({ key }) => key === "pyebaek")?.label).toBe("결혼식 뒤 전통 인사");
+      expect(plan.confirmation).not.toMatch(/예단|폐백/);
       for (const { label } of categories) expect(plan.confirmation).toContain(label);
     }
     const onApply = vi.fn();
@@ -514,6 +598,35 @@ describe("pending action message boundary", () => {
         },
       },
     }), action)).toBeNull();
+  });
+
+  it("counts a card as moved only when the newest shared reply carries the same action", () => {
+    const carried = message({
+      id: "ai-message-2",
+      metadata: { pending_amora_action: action },
+    });
+    expect(isPendingAmoraActionContinuedInMessage(carried, action)).toBe(true);
+    expect(isPendingAmoraActionContinuedInMessage(null, action)).toBe(false);
+    expect(isPendingAmoraActionContinuedInMessage(undefined, action)).toBe(false);
+    // 새 답변에 카드가 없다.
+    expect(isPendingAmoraActionContinuedInMessage(message({ metadata: {} }), action)).toBe(false);
+    // 다른 제안이다.
+    expect(isPendingAmoraActionContinuedInMessage(message({
+      metadata: { pending_amora_action: singleAction },
+    }), action)).toBe(false);
+    // 같은 id 인데 입력이 다르면 옮겨진 것이 아니다(서버는 입력을 바꿔 옮기지 않는다).
+    const otherIdentity = getAmoraToolOperationIdentity("update_budget", { totalBudget: 40_000_000 });
+    expect(isPendingAmoraActionContinuedInMessage(message({
+      metadata: { pending_amora_action: {
+        ...action,
+        input: { totalBudget: 40_000_000 },
+        inputDigest: otherIdentity.inputDigest,
+        operationKey: otherIdentity.operationKey,
+      } },
+    }), action)).toBe(false);
+    // 사용자 메시지·개인 레인 메시지는 카드를 들 수 없다.
+    expect(isPendingAmoraActionContinuedInMessage(message({ sender_role: "bride" }), action)).toBe(false);
+    expect(isPendingAmoraActionContinuedInMessage(message({ visibility: "bride_private" }), action)).toBe(false);
   });
 
   it("uses the server expiry instant without a locale conversion", () => {
