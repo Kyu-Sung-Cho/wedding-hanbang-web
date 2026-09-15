@@ -89,6 +89,22 @@ function promptData(value: unknown, maxLength = DEFAULT_PROMPT_DATA_LIMIT): stri
   return JSON.stringify(normalized);
 }
 
+/**
+ * 카테고리 현황 줄의 상태 표기.
+ *
+ * "안 해요"(not_applicable)를 따로 적는다. 예전에는 완료·진행중이 아니면 모두 "⬜예정"
+ * 이라, 사용자가 끈 한복·예단이 모델에게는 "앞으로 할 일" 로 보였다. 끈 분야도 예산은
+ * 따로 잡을 수 있으므로(예산과 준비 진행은 다른
+ * 축이다) "빠진 분야" 가 아니라 "진행률에서 빠진 분야" 라고 괄호로 좁혀 둔다.
+ * `update_task_status` 의 선택지(`tools.ts`)에는 넣지 않는다 — 끄는 것은 사용자가 고른다.
+ */
+function promptCategoryStatus(status: unknown): string {
+  if (status === "completed") return "✅완료";
+  if (status === "in_progress") return "🔄진행중";
+  if (status === "not_applicable") return "안 해요(진행률 제외)";
+  return "⬜예정";
+}
+
 // 사용자 행동 패턴 분석 → 개인화된 인사이트 생성
 function generateBehaviorInsights(context: {
   weddingDate: string | null;
@@ -482,7 +498,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
     .map(([key, label]) => {
       const p = (context.progress[key] ?? {}) as Record<string, unknown>;
       const resolved = resolveStatusByKey(key, p as Parameters<typeof resolveStatusByKey>[1]);
-      const status = resolved === "completed" ? "✅완료" : resolved === "in_progress" ? "🔄진행중" : "⬜예정";
+      const status = promptCategoryStatus(resolved);
       const budget = isValidWeddingWonAmount(p.budget)
         ? `${(p.budget / 10000).toLocaleString()}만원`
         : "미설정";
@@ -601,9 +617,7 @@ export function getWeddingPlannerSystemPrompt(context: WeddingPlannerPromptConte
   const CUSTOM_CATEGORY_PROMPT_CHARS = 2_000;
   const allCustomCategories = listCustomBudgetCategories(context.progress);
   const renderCustomCategory = ({ key, label, value }: (typeof allCustomCategories)[number]) => {
-    const status = value.status === "completed"
-      ? "✅완료"
-      : value.status === "in_progress" ? "🔄진행중" : "⬜예정";
+    const status = promptCategoryStatus(value.status);
     const budget = isValidWeddingWonAmount(value.budget)
       ? `${(value.budget / 10000).toLocaleString()}만원`
       : "미설정";
@@ -839,7 +853,11 @@ ${closing}`;
 - 첫 답변부터 카테고리 나열·긴 기능 소개 금지. 질문 2개 이상 금지.
 - 견적이 아직 없다고 하면 → 단계에 맞는 다음 한 걸음 1개만 (예: "10분이면 예산 틀부터 같이 잡아볼 수 있어요").`
       : "";
-  const totalCount = CATEGORY_CHECKLISTS.length;
+  // 사용자가 "안 해요"로 끈 분야는 분모에서 뺀다. 화면의 진행률(`summarizePlanningChecklist`)도
+  // 그렇게 세고, 카테고리 줄에도 "안 해요(진행률 제외)" 라고 적었으니 숫자도 같아야 한다.
+  const totalCount = CATEGORY_CHECKLISTS
+    .filter(({ key }) => resolveStatusByKey(key, context.progress[key] as Parameters<typeof resolveStatusByKey>[1]) !== "not_applicable")
+    .length;
 
   const formatWon = (amount: number) => `${(amount / 10000).toLocaleString()}만원`;
   const isPositiveAmount = (amount: number | null | undefined): amount is number =>

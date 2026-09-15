@@ -45,7 +45,9 @@ describe("resolveAmoraWeddingContext", () => {
       budget: 0,
       venue: null,
       progress: {},
+      storedProgress: {},
       scheduleEvents: [],
+      storedScheduleEventIds: [],
       preferences: null,
     });
   });
@@ -105,6 +107,105 @@ describe("resolveAmoraWeddingContext", () => {
 
     expect(Object.keys(result.progress)).toHaveLength(100);
     expect((result.progress.category_0 as { memo: string }).memo).toHaveLength(1_000);
+  });
+
+  // 2026-09-15 점검: 잘린 progress 가 쓰기 도구의 CAS 기대값으로 가서, 메모 1,001자나
+  // 일정 101개인 커플은 일정 추가·변경·취소가 전부 "다른 일정 변경이 먼저 반영되어" 로 끝났다.
+  it("keeps an untruncated, independent copy of the stored progress for write tools", () => {
+    const events = Array.from({ length: 101 }, (_, index) => ({
+      id: `evt_${index}`,
+      date: "2027-05-03",
+      title: `일정 ${index}`,
+      status: "planned",
+      memo: index === 0 ? "메".repeat(1_001) : "메모",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    }));
+    const storedRow = {
+      progress: {
+        ...Object.fromEntries(Array.from({ length: 130 }, (_, index) => [
+          `custom_${index}`,
+          { status: "not_started", memo: "x".repeat(2_000), deep: { a: { b: { c: "깊음" } } } },
+        ])),
+        __events: events,
+      },
+    };
+    const snapshot = structuredClone(storedRow);
+
+    const result = resolveAmoraWeddingContext({
+      canonicalJourney: storedRow,
+      clientContext: null,
+      allowClientContext: false,
+    });
+
+    // 프롬프트용은 그대로 잘린다.
+    expect((result.progress.__events as unknown[] | undefined)?.length ?? 0).toBeLessThanOrEqual(100);
+    // 쓰기 기준값은 DB 가 비교할 저장 행과 한 글자도 다르지 않다.
+    expect(result.storedProgress).toStrictEqual(snapshot.progress);
+    expect((result.storedProgress.__events as Array<{ memo: string }>)[0].memo).toHaveLength(1_001);
+    expect(result.storedProgress.__events).toHaveLength(101);
+    expect(Object.keys(result.storedProgress)).toHaveLength(131);
+
+    // 도구 실행이 문맥을 고쳐도 라우트가 따로 읽는 정본은 바뀌지 않는다.
+    (result.storedProgress.__events as unknown[]).push({ id: "evt_leak" });
+    expect(storedRow).toStrictEqual(snapshot);
+  });
+
+  it("lists every stored schedule id, including cancelled ones and those past the first hundred", () => {
+    const planned = (index: number, date: string) => ({
+      id: `evt_${index}`,
+      date,
+      title: `일정 ${index}`,
+      status: "planned",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    });
+    const events: Array<Record<string, unknown>> = Array.from(
+      { length: 120 },
+      (_, index) => planned(index, "2026-01-01"),
+    );
+    events[115] = planned(115, "2027-05-03");
+    events[119] = {
+      ...planned(119, "2027-06-01"),
+      status: "cancelled",
+      cancellation: {
+        cancelledAt: "2026-08-02T03:00:00.000Z",
+        cancelledByProfileId: "018f4dc8-3f4b-7d29-a271-0e27a7ea4cb8",
+      },
+      updatedAt: "2026-08-02T03:00:00.000Z",
+    };
+
+    const result = resolveAmoraWeddingContext({
+      canonicalJourney: { progress: { __events: events } },
+      clientContext: null,
+      allowClientContext: false,
+    });
+
+    expect(result.storedScheduleEventIds).toHaveLength(120);
+    expect(result.storedScheduleEventIds).toContain("evt_115");
+    // 복원 카드는 취소한 일정을 가리킨다.
+    expect(result.storedScheduleEventIds).toContain("evt_119");
+    // 저장 순서상 116번째인 다가오는 일정도 아모라가 볼 수 있다.
+    expect(result.scheduleEvents.map((event) => event.id)).toContain("evt_115");
+    // 취소한 일정은 여전히 현재 일정처럼 보이지 않는다.
+    expect(result.scheduleEvents.map((event) => event.id)).not.toContain("evt_119");
+  });
+
+  it("uses only the bounded client copy as the write base for the signed demo", () => {
+    const result = resolveAmoraWeddingContext({
+      canonicalJourney: null,
+      allowClientContext: true,
+      clientContext: {
+        progress: {
+          studio: { status: "completed", memo: "x".repeat(2_000) },
+          constructor: { polluted: true },
+        },
+      },
+    });
+
+    expect(result.storedProgress).toBe(result.progress);
+    expect((result.storedProgress.studio as { memo: string }).memo).toHaveLength(1_000);
+    expect(Object.prototype.hasOwnProperty.call(result.storedProgress, "constructor")).toBe(false);
   });
 
   it("does not send a legacy booking id from schedule memos into the model context", () => {

@@ -1,4 +1,8 @@
-import { isValidScheduleTime, sanitizeUserFacingScheduleMemo } from "@/utils/scheduleEvents";
+import {
+  isValidScheduleTime,
+  MAX_SCHEDULE_EVENTS,
+  sanitizeUserFacingScheduleMemo,
+} from "@/utils/scheduleEvents";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
 const MAX_PROGRESS_KEYS = 100;
@@ -108,8 +112,26 @@ export interface NormalizedAmoraWeddingContext {
   weddingDate: string | null;
   budget: number;
   venue: string | null;
+  /** 프롬프트용. 문자열 1,000자·배열 100개·키 100개·깊이 4로 잘라 둔 사본이다. */
   progress: Record<string, unknown>;
+  /**
+   * 쓰기 도구의 기준값. 인증 사용자는 서버가 읽은 `progress` 를 **자르지 않은** 사본이다.
+   *
+   * 원자적 쓰기는 이 값을 CAS 기대값(`expected`)으로 보내고, DB 는 자르지 않은 저장
+   * 행과 그대로 비교한다. 예전에는 위의 잘린 `progress` 를 보냈다. 그래서 일정 메모가
+   * 1,000자를 넘거나 일정이 100개를 넘으면 값이 절대 같을 수 없어, 아무도 바꾸지
+   * 않았는데도 일정 추가·변경·취소가 전부 "다른 일정 변경이 먼저 반영되어 이번 요청은
+   * 적용하지 않았어요" 로 끝났다(2026-09-15 점검). 체험 세션은 DB 가 없으므로 정규화한
+   * 클라이언트 값을 그대로 쓴다.
+   */
+  storedProgress: Record<string, unknown>;
   scheduleEvents: NormalizedScheduleEvent[];
+  /**
+   * 저장된 일정 id 전부(취소한 일정 포함). 확인 카드가 가리키는 일정이 실제로 있는지
+   * 대조하는 데 쓴다. 프롬프트용 `scheduleEvents` 는 취소 일정을 빼므로 그걸로 대조하면
+   * 취소 일정 복원 카드가 늘 "없는 일정" 으로 버려진다.
+   */
+  storedScheduleEventIds: string[];
   preferences: NormalizedWeddingPreferences | null;
 }
 
@@ -186,11 +208,27 @@ function normalizeProgress(value: unknown): Record<string, unknown> {
   return isRecord(sanitized) ? sanitized : {};
 }
 
+/**
+ * 자르지 않은 저장값의 독립 사본. 도구 실행이 문맥을 고쳐도 라우트가 따로 읽는
+ * 정본 `journey.progress` 는 그대로 남게 한다.
+ */
+function cloneStoredProgress(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) return {};
+  const cloned: unknown = structuredClone(value);
+  return isRecord(cloned) ? cloned : {};
+}
+
+/**
+ * 일정 목록은 자르기 **전** 저장값에서 읽는다. 프롬프트용 `progress` 는 배열을 앞 100개로
+ * 자르므로, 저장 순서상 101번째 뒤에 있는 다가오는 일정은 아모라에게 보이지도 않고
+ * 확인 카드도 만들 수 없었다. 날짜순으로 추리는 것은 프롬프트가 한다(다가오는 10개·
+ * 지난 5개). 여기서는 일정 저장 한도(`MAX_SCHEDULE_EVENTS`)만큼만 본다.
+ */
 function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedScheduleEvent[] {
   const rawEvents = progress.__events;
   if (!Array.isArray(rawEvents)) return [];
   const events: NormalizedScheduleEvent[] = [];
-  for (const rawEvent of rawEvents.slice(0, MAX_PROGRESS_ARRAY_ITEMS)) {
+  for (const rawEvent of rawEvents.slice(0, MAX_SCHEDULE_EVENTS)) {
     if (!isRecord(rawEvent)) continue;
     if (
       rawEvent.status === "cancelled"
@@ -217,6 +255,19 @@ function normalizeScheduleEvents(progress: Record<string, unknown>): NormalizedS
     });
   }
   return events;
+}
+
+function collectScheduleEventIds(progress: Record<string, unknown>): string[] {
+  const rawEvents = progress.__events;
+  if (!Array.isArray(rawEvents)) return [];
+  const ids = new Set<string>();
+  for (const rawEvent of rawEvents.slice(0, MAX_SCHEDULE_EVENTS)) {
+    // 실행기는 저장된 id 와 정확히 같은지 본다. 여기서 trim 하면 둘이 어긋난다.
+    if (isRecord(rawEvent) && typeof rawEvent.id === "string" && rawEvent.id.length > 0) {
+      ids.add(rawEvent.id);
+    }
+  }
+  return [...ids];
 }
 
 function normalizePreferences(progress: Record<string, unknown>): NormalizedWeddingPreferences | null {
@@ -257,6 +308,8 @@ export function resolveAmoraWeddingContext({
     ? (allowClientContext ? clientContext : canonicalJourney) as UnknownRecord
     : {};
   const progress = normalizeProgress(source.progress);
+  // 체험 세션의 클라이언트 값은 믿을 수 없는 입력이라 정규화한 사본만 쓴다.
+  const storedProgress = allowClientContext ? progress : cloneStoredProgress(source.progress);
   return {
     weddingDate: normalizeWeddingDate(
       allowClientContext ? source.weddingDate : source.wedding_date,
@@ -266,7 +319,9 @@ export function resolveAmoraWeddingContext({
     ),
     venue: boundedString(source.venue, MAX_VENUE_CHARS),
     progress,
-    scheduleEvents: normalizeScheduleEvents(progress),
+    storedProgress,
+    scheduleEvents: normalizeScheduleEvents(storedProgress),
+    storedScheduleEventIds: collectScheduleEventIds(storedProgress),
     preferences: normalizePreferences(progress),
   };
 }

@@ -50,6 +50,7 @@ import { mergePlanningChecklist } from "@hanbang/shared/utils";
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import {
   CATEGORY_LABELS,
+  SCREEN_CATEGORY_LABELS,
   STATUS_LABELS,
 } from "@/lib/ai/tools/planningConstants";
 import {
@@ -734,7 +735,8 @@ async function executeUpdateTaskStatus(
       displayMessage: "준비 항목과 진행 상태를 확인하지 못해 변경하지 않았습니다.",
     };
   }
-  const label = CATEGORY_LABELS[category];
+  // 영수증 이름은 예산·일정 화면과 같게 쓴다(CATEGORY_LABELS 의 예단·폐백은 모델 문맥 전용).
+  const label = SCREEN_CATEGORY_LABELS[category];
   const statusLabel = STATUS_LABELS[status];
 
   await patchJourneyProgressItem(ctx, category, { category, status });
@@ -770,7 +772,7 @@ async function executeUpdateCategoryBudget(
       displayMessage: "예산 항목과 금액을 확인하지 못해 변경하지 않았습니다.",
     };
   }
-  const label = CATEGORY_LABELS[category] || category;
+  const label = SCREEN_CATEGORY_LABELS[category] || category;
 
   const existing = ctx.weddingContext.progress[category] ?? { category, status: "not_started" };
   const updates: Record<string, unknown> = { ...existing, category };
@@ -919,7 +921,7 @@ async function executeApplyBudgetPlan(
 
   const lines = finalAllocations
     .filter((a) => a.budget > 0)
-    .map((a) => `  • ${CATEGORY_LABELS[a.category] ?? a.category}: ${formatWon(a.budget)}`)
+    .map((a) => `  • ${SCREEN_CATEGORY_LABELS[a.category] ?? a.category}: ${formatWon(a.budget)}`)
     .join("\n");
 
   return {
@@ -1037,8 +1039,8 @@ async function executeDeleteCategory(
   const isKnown = key in CATEGORY_LABELS;
   const progress = ctx.weddingContext.progress as Record<string, unknown>;
   const label = isKnown
-    ? CATEGORY_LABELS[key]
-    : (progress[key] as Record<string, unknown>)?.label as string ?? key;
+    ? SCREEN_CATEGORY_LABELS[key]
+    :(progress[key] as Record<string, unknown>)?.label as string ?? key;
 
   if (isKnown) {
     // 고정 카테고리: __hidden 리스트에 추가 + progress에서 데이터 제거
@@ -1092,8 +1094,8 @@ async function executeResetCategory(
   const progress = ctx.weddingContext.progress as Record<string, unknown>;
   const isKnown = key in CATEGORY_LABELS;
   const label = isKnown
-    ? CATEGORY_LABELS[key]
-    : (progress[key] as Record<string, unknown>)?.label as string ?? key;
+    ? SCREEN_CATEGORY_LABELS[key]
+    :(progress[key] as Record<string, unknown>)?.label as string ?? key;
 
   await patchJourneyProgress(ctx, {}, [key]);
 

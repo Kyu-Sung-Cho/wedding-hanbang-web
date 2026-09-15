@@ -142,6 +142,10 @@ import { isPlaceSearchConfigured } from "@/lib/ai/tools/placeSearchTools";
 import { getAmoraActionApprovalPolicy } from "@/lib/ai/amoraActionApprovalPolicy";
 import { hasNewAmoraChangeIntent } from "@/lib/ai/amoraPendingActionContinuity";
 import {
+  AMORA_TYPED_CARD_ACCEPTANCE_REPLY,
+  isAmoraTypedCardAcceptance,
+} from "@/lib/ai/amoraTypedCardAcceptance";
+import {
   buildAmoraApprovedActionPrompt,
   buildAmoraPendingActionPrompt,
   buildAmoraHistoryContent,
@@ -150,6 +154,7 @@ import {
   resolveAmoraPendingAction,
   describeUnconfirmedAmoraPendingAction,
   describeAmoraQueuedAction,
+  getAmoraPendingActionBubbleText,
 } from "@/lib/ai/amoraPendingAction";
 import {
   advanceAmoraActionQueue,
@@ -157,7 +162,10 @@ import {
   resolveAmoraActionQueue,
   type AmoraActionQueue,
 } from "@/lib/ai/amoraActionQueue";
-import { buildAmoraBudgetImpactPreview } from "@/lib/ai/amoraBudgetImpactPreview";
+import {
+  buildAmoraBudgetImpactPreview,
+  findAmoraBudgetProposalRefusal,
+} from "@/lib/ai/amoraBudgetImpactPreview";
 import { parseExplicitBudgetPlanRequest } from "@/lib/ai/amoraExplicitBudgetPlan";
 import { parseExplicitScheduleRequest } from "@/lib/ai/amoraExplicitScheduleRequest";
 import { assessExplicitTaskRequest } from "@/lib/ai/amoraExplicitTaskRequest";
@@ -166,6 +174,12 @@ import { hasAmoraMemoryConversationOptOut, resolveAmoraMemoryConversationPolicy 
 import { assessAmoraBudgetChange } from "@/lib/ai/amoraBudgetChangeAssessment";
 import { assessCurrentStoredStateRequest, formatCurrentStoredStateSummary, getRequiredCurrentStoredStateReads } from "@/lib/ai/amoraCurrentStoredStateSummary";
 import { getSharedPersonalActionNavigationReply } from "@/lib/ai/amoraPersonalActionNavigation";
+import {
+  AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE,
+  appendAmoraPrivateLaneSharedChangeGuidance,
+  assessAmoraPrivateLaneSharedChangeTurn,
+  stripAmoraPrivateLaneSharedChangeOffers,
+} from "@/lib/ai/amoraPrivateLaneSharedChange";
 import {
   AMORA_MAX_TOOL_ROUNDS,
   AMORA_MAX_TOOL_CALLS_PER_TURN,
@@ -3052,7 +3066,8 @@ export async function POST(request: Request) {
     && !previousFailedCarriedProposal
     // 새 변경 요청에는 과거 카드·대기열·확인 안내를 새 요청의 문맥으로 전달하지 않는다.
     // 원본 기록과 action_id 승인 경계는 유지하고, 설명 질문·짧은 동의만 이어간다.
-    && !hasNewAmoraChangeIntent(lastUserText)
+    // 허용 목록 문법의 맨 승낙("ㅇㅇ 적용해줘")은 새 변경이 아니라 바로 이 카드에 대한 답이다.
+    && (!hasNewAmoraChangeIntent(lastUserText) || isAmoraTypedCardAcceptance(lastUserText))
     && !isDemo
     && requestKind === "chat"
     && visibility === "shared"
@@ -3312,11 +3327,36 @@ export async function POST(request: Request) {
    *    이 대화의 것이 아니다.
    *
    * 어느 쪽으로 멈추든 카드가 사라지지는 않는다. 원본 메시지에는 그대로 남는다.
+   *
+   * **예외 하나 — 그 카드에 말로 승낙한 턴(2026-09-15 운영 재현).** "응 적용해줘" 는
+   * 발화만 보면 범위 밖(W4-low)이라 위 관문을 못 넘었다. 그러면 옛 카드는 "새 대화가
+   * 이어져 이 제안은 적용할 수 없어요" 로 잠기고, 아모라는 누를 수 없는 버튼을 누르라고
+   * 했다. 승낙은 다른 이야기가 아니라 바로 그 카드 이야기이므로 범위·횟수와 무관하게
+   * 같은 카드를 옮긴다. 허용 목록 문법만 통과하고(금액·분야·부정이 섞이면 거짓),
+   * 안전·위로 범위로 판정된 턴은 여기서도 옮기지 않는다. 적용 권한은 생기지 않는다.
    */
-  const shouldCarryPendingCard =
-    (questionScope.scope === "W0_wedding_core"
+  const pendingCardTypedAcceptance = awaitingPendingCard !== null
+    && isAmoraTypedCardAcceptance(lastUserText)
+    && (questionScope.scope === "W0_wedding_core"
+      || questionScope.scope === "W1_wedding_adjacent"
+      || questionScope.scope === "W4_out_of_scope");
+  const shouldCarryPendingCard = pendingCardTypedAcceptance
+    || ((questionScope.scope === "W0_wedding_core"
       || questionScope.scope === "W1_wedding_adjacent")
-    && nextPendingCardCarries <= MAX_PENDING_CARD_CARRIES;
+    && nextPendingCardCarries <= MAX_PENDING_CARD_CARRIES);
+  /**
+   * 이 턴에 **실제로 카드를 옮길 수 있는가** — 모델 호출 전에 알 수 있는 조건 전부.
+   *
+   * 모델에게 "화면의 버튼을 누르라" 는 계약문을 넣는 조건과 metadata 에 카드를 옮기는
+   * 조건이 달랐다. 계약문은 대기 카드만 있으면 들어갔는데 이월은 범위·횟수·리비전을
+   * 봤다. 그래서 카드가 안 옮겨지는 턴에도 아모라가 버튼을 누르라고 했다. 둘 다 이
+   * 값 하나를 쓴다. 답변 뒤에만 알 수 있는 조건(새 표식, 서버가 본문을 바꾸는 경우)은
+   * 그 본문이 모델 문장을 대신하므로 계약문과 어긋나지 않는다.
+   */
+  const pendingCardCarryEligible = awaitingPendingCard !== null
+    && shouldCarryPendingCard
+    && carriedPendingActionRevision !== null
+    && carriedPendingActionRevision === canonicalJourneyStateRevision;
   // 한 문장이 두 연속성에 모두 걸릴 수 있다("네", "그렇게 해줘"). 그때는 되묻기
   // 연속성이 이긴다 — 범위가 W0이면 provider 입력은 이미 신뢰 이력 전체를 쓰므로
   // 여기서 만든 3턴 묶음은 쓰이지도 않고, 남겨두면 `linked_context_only`(도구 금지)
@@ -3625,6 +3665,29 @@ export async function POST(request: Request) {
         )
       : [];
   const pendingOfferEnabled = pendingProposalTools.length > 0;
+  // 개인 레인에서 공유 준비 기록을 바꿔 달라고 한 턴(2026-09-15 운영 재현: "총예산 5천만 원으로
+  // 바꿔줘" → 카드 없이 "변경할까요?"). 공유 레인이라면 같은 발화로 고른 쓰기 도구·확인 카드
+  // 도구가 있었는지를 **같은 입력**으로 다시 본다. 판정일 뿐이고 개인 레인의 도구·제안 계약은
+  // 그대로 비어 있다 — 쓰기 권한이 생기지 않는다.
+  const privateLaneSharedChangeTurn = assessAmoraPrivateLaneSharedChangeTurn({
+    visibility,
+    requestKind,
+    isDemo,
+    durable: isDurableUserMessageBound,
+    questionScope,
+    userText: lastUserText,
+    hasPersonalActionTools: personalConversationTools.length > 0,
+    hasOtherWork: attachmentKind !== "none" || offersPlaceSearch,
+    selectedTools,
+    proposalSelection: {
+      availableTools: PENDING_ACTION_TOOLS,
+      userText: toolIntentText,
+      specialistType,
+      specialistMatchedByKeyword,
+      attachmentKind,
+      checklistLabels: coupleChecklistLabels,
+    },
+  });
   const actionContract: AmoraActionContract | undefined = approvedPendingAction
     ? {
         kind: "execution",
@@ -3744,8 +3807,12 @@ export async function POST(request: Request) {
       actionContract,
       questionScope,
       linkedContextMode: boundedContinuity?.mode,
-      awaitingCardConfirmation: awaitingPendingCard?.confirmation,
+      // 카드가 실제로 이번 답변 아래에 옮겨질 때만 싣는다. 안 옮겨지는 턴에 실으면
+      // 아모라가 잠긴 버튼을 누르라고 한다.
+      awaitingCardConfirmation: pendingCardCarryEligible ? awaitingPendingCard?.confirmation : undefined,
       planningTurn,
+      // 개인 레인에는 공유 변경 카드가 없다. 카드·적용 확인을 지시하는 문장을 싣지 않는다.
+      conversationLane: visibility === "shared" ? "shared" : "private",
       maxChars: AMORA_SYSTEM_PROMPT_MAX_CHARS,
     });
   const systemPrompt = buildSystemPromptForTools(availableTools);
@@ -3842,8 +3909,10 @@ export async function POST(request: Request) {
       budget: resolvedWeddingContext.budget,
       venue: resolvedWeddingContext.venue,
       // The canonical type predates reserved __events/__preferences keys.
-      // Runtime values have already passed the bounded structural normalizer.
-      progress: resolvedWeddingContext.progress as ToolExecutionContext["weddingContext"]["progress"],
+      // 쓰기 도구는 이 값을 CAS 기대값으로 보내고 DB 는 자르지 않은 저장 행과 비교한다.
+      // 프롬프트용으로 자른 `progress` 를 넣으면 긴 메모·100개 넘는 일정에서 모든 일정
+      // 변경이 "다른 일정 변경이 먼저 반영되어" 로 거절된다. 체험 세션은 정규화 사본이다.
+      progress: resolvedWeddingContext.storedProgress as ToolExecutionContext["weddingContext"]["progress"],
     },
   };
 
@@ -4026,6 +4095,8 @@ export async function POST(request: Request) {
                   text: `[pending_action]${JSON.stringify(candidate)}[/pending_action]`,
                   allowedTools: PENDING_ACTION_TOOLS,
                   now: Date.now(), createActionId: randomUUID,
+                  // 방금 저장된 총예산. 예산안 확인문의 "지금 → 바꿀 값" 표시에만 쓴다.
+                  currentTotalBudget: fresh.data.total_budget ?? executionContext.weddingContext.budget,
                 });
                 if (queuedProposal.pendingAction) {
                   nextActionRevision = revision;
@@ -4102,7 +4173,23 @@ export async function POST(request: Request) {
             && attachmentKind === "none" && personalConversationTools.length === 0 && !offersPlaceSearch
             && toolResults.every(result => !isMutatingTool(result.toolName))
             ? getUnsupportedScheduleFieldsReply(lastUserText, afterSuggest, previousScheduleFieldsUserText) : null;
-          const canonicalTerminalText = currentStoredStateText ?? personalNavigationText ?? unsupportedScheduleFieldsText;
+          // 카드에 말로 승낙한 턴은 모델 문장 대신 서버 고정 안내로 답하고 같은 카드를 옮긴다.
+          // 모델은 누를 수 없는 버튼을 가리키거나 "반영할게요" 라고 약속할 수 있다. 카드를
+          // 실제로 옮길 수 있는 턴(`pendingCardCarryEligible`)에서만 쓴다 — 안내가 가리키는
+          // 카드가 이 답변 아래에 반드시 있어야 한다.
+          const typedCardAcceptanceText = pendingCardTypedAcceptance && pendingCardCarryEligible
+            && toolResults.every(result => !isMutatingTool(result.toolName))
+            ? AMORA_TYPED_CARD_ACCEPTANCE_REPLY : null;
+          // 개인 레인의 공유 변경 부탁만 있는 턴은 모델의 "변경할까요?" 대신 서버 안내로 답한다.
+          // 질문이 섞인 턴(mixed)은 아래에서 모델 답을 두고 적용 확인 질문만 걷은 뒤 안내를 붙인다.
+          const privateLaneChangeOnlyText = privateLaneSharedChangeTurn?.kind === "change_only"
+            && toolResults.every(result => !isMutatingTool(result.toolName))
+            ? AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE : null;
+          // 카드 없이 나가는 서버 본문(정본 조회·화면 이동·미지원 일정 필드·개인 레인 변경 안내).
+          const serverTextWithoutCard = typedCardAcceptanceText === null
+            ? currentStoredStateText ?? personalNavigationText ?? unsupportedScheduleFieldsText ?? privateLaneChangeOnlyText
+            : null;
+          const canonicalTerminalText = typedCardAcceptanceText ?? serverTextWithoutCard;
           // 현재 사용자가 완결된 금액 목록을 직접 확정했으면 모델의 누락·임의 분할보다
           // 원문을 우선한다. 여전히 같은 범위/도구 스키마/카드 확인 경계를 통과한다.
           const budgetAssessment = canonicalTerminalText === null && !isDemo && requestKind === "chat" && isDurableUserMessageBound
@@ -4122,7 +4209,7 @@ export async function POST(request: Request) {
             : null;
           const explicitBudgetPlan = canonicalTerminalText === null && !budgetAssessment && pendingOfferEnabled && !approvedPendingAction
             && pendingProposalTools.some(tool => tool.name === "apply_budget_plan")
-            ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.progress, resolvedWeddingContext.budget) : null;
+            ? parseExplicitBudgetPlanRequest(lastUserText, resolvedWeddingContext.storedProgress, resolvedWeddingContext.budget) : null;
           // 명시 목록에 담당·기한·비공개·취소 조건이 섞이면 모델 표식으로 우회하지 않는다.
           // 적용할 수 있는 원문 목록과 다시 확인할 요청을 구분해 같은 승인 경계로 보낸다.
           const taskAssessment = canonicalTerminalText === null && !budgetAssessment && !explicitBudgetPlan && !queuedProposal?.pendingAction
@@ -4137,18 +4224,16 @@ export async function POST(request: Request) {
               ? "할 일의 확인 카드를 준비하지 못했어요. 아직 추가하지 않았어요. 제목·설명·예정일을 다시 확인해 주세요."
               : taskAssessment.text
             : null;
-          const effectiveSuggestions = canonicalTerminalText !== null || blockedBudgetText !== null || blockedTaskText !== null
-            ? [] : suggestions;
           const pendingExtractionOptions = {
             allowedTools: canonicalTerminalText === null && pendingOfferEnabled ? pendingProposalTools : [],
             now: Date.now(),
             createActionId: randomUUID,
+            // 변경 영향 미리보기와 같은 정본 문맥의 총예산. 예산안 확인문의 표시 전용이다.
+            currentTotalBudget: executionContext.weddingContext.budget,
             // 일정을 가리키는 제안은 저장된 일정 id 만 카드가 된다(지어낸 id 차단).
-            knownScheduleEventIds: new Set(
-              (scheduleEvents as ReadonlyArray<{ id?: unknown }>)
-                .map((event) => event.id)
-                .filter((id): id is string => typeof id === "string" && id.length > 0),
-            ),
+            // 프롬프트용 목록이 아니라 저장된 일정 전체(취소 포함)로 대조한다. 앞 100개
+            // 뒤의 일정과 취소 일정 복원 카드가 "없는 일정" 으로 버려지지 않게 한다.
+            knownScheduleEventIds: new Set(resolvedWeddingContext.storedScheduleEventIds),
           };
           let modelPendingExtraction = extractAmoraPendingAction({
             ...pendingExtractionOptions,
@@ -4173,13 +4258,41 @@ export async function POST(request: Request) {
               text: explicitActions.map(action => `[pending_action]${JSON.stringify(action)}[/pending_action]`).join("\n"),
             });
           }
+          // 누르면 반드시 거절될 예산 카드는 내지 않는다(2026-09-15 운영 재현: "안 해요"로 끈
+          // 분야가 든 예산안이 카드로 나갔고, 누른 뒤에야 "확인이 필요한 상태가 있어 적용하지
+          // 않았어요" 가 나왔다). 승인 때 쓰는 같은 순수 연산을 같은 정본 문맥으로 미리 돌려,
+          // 거절이면 그 거절 문장(어느 항목이 왜)을 지금 보여준다. 같은 값이라 바뀔 게 없는
+          // 경우와 연산이 판단하지 못한 경우는 기존대로 카드를 낸다(미리보기만 빠질 수 있다).
+          // 저장된 대기열의 다음 항목은 사용자가 이미 목록으로 확인한 흐름이라 여기서 거르지 않는다.
+          const budgetProposalRefusal = !queuedProposal?.pendingAction && modelPendingExtraction.pendingAction
+            ? findAmoraBudgetProposalRefusal({
+                action: modelPendingExtraction.pendingAction,
+                context: executionContext,
+              })
+            : null;
+          if (budgetProposalRefusal) {
+            modelPendingExtraction = {
+              cleanText: budgetProposalRefusal.text,
+              pendingAction: null,
+              hadPendingActionTag: modelPendingExtraction.hadPendingActionTag,
+              dropReason: "budget_operation_refused",
+            };
+          }
+          const effectiveSuggestions = canonicalTerminalText !== null || blockedBudgetText !== null || blockedTaskText !== null
+            || budgetProposalRefusal !== null
+            ? []
+            // 개인 레인에서 공유 변경을 다시 부탁하는 추천 문장은 같은 안내만 되돌려받는다.
+            : privateLaneSharedChangeTurn
+              ? suggestions.filter(suggestion => !hasNewAmoraChangeIntent(suggestion) && !isExplicitAmoraChangeRequest(suggestion))
+              : suggestions;
           const pendingExtraction = queuedProposal?.pendingAction ? queuedProposal : modelPendingExtraction;
-          const emittedCarriedPendingCard = canonicalTerminalText === null && blockedBudgetText === null && blockedTaskText === null
+          // 모델 호출 전 조건(범위·횟수·리비전·말로 한 승낙)은 `pendingCardCarryEligible` 하나로
+          // 본다 — 계약문을 싣는 조건과 같은 값이다. 여기서 더하는 것은 답변 뒤에만 아는 조건이다.
+          const emittedCarriedPendingCard = serverTextWithoutCard === null && blockedBudgetText === null && blockedTaskText === null
             // 새 카드 발급에 실패한 답변 아래에 이전 금액의 적용 버튼이 다시 나타나면 안 된다.
             && !pendingExtraction.hadPendingActionTag
             && !isAmoraFailedProposalNotice(pendingExtraction.cleanText)
-            && carriedPendingActionRevision !== null
-            && carriedPendingActionRevision === canonicalJourneyStateRevision
+            && pendingCardCarryEligible
             && awaitingPendingCard && shouldCarryPendingCard
             ? awaitingPendingCard : null;
           const proposalRevision = queuedProposal?.pendingAction ? nextActionRevision : canonicalJourneyStateRevision;
@@ -4238,9 +4351,14 @@ export async function POST(request: Request) {
           const outputHygiene = requiresW4AttachmentReuploadGuidance
             ? { text: "", actions: [] as AmoraOutputHygieneAction[] }
             : applyAmoraOutputHygiene(providerCleanText, { userText: lastUserText });
+          // 개인 레인에서 공유 변경 부탁과 다른 질문이 섞인 턴. 질문의 답은 두고, 누를 카드가
+          // 있는 것처럼 적용 여부를 묻는 문장과 기능 부정·중복 이동 안내만 걷는다.
+          const privateLaneOfferScreen = privateLaneSharedChangeTurn?.kind === "mixed"
+            && canonicalTerminalText === null && !requiresW4AttachmentReuploadGuidance
+            ? stripAmoraPrivateLaneSharedChangeOffers(outputHygiene.text) : null;
           const cleanText = requiresW4AttachmentReuploadGuidance
             ? "지금 요청만으로는 이 파일이 결혼 준비와 어떤 관련이 있는지 확인할 수 없어요. 결혼 준비 관련 파일이라면 관련성을 한 줄로 알려주시고, 파일을 다시 첨부해 주세요."
-            : outputHygiene.text;
+            : privateLaneOfferScreen?.text ?? outputHygiene.text;
           const persistenceClaimGuard = composeAmoraPersistenceTerminal({
             text: cleanText,
             toolResults,
@@ -4296,23 +4414,39 @@ export async function POST(request: Request) {
             });
           }
           const queueText = queuedProposal?.pendingAction && nextActionQueue
-            ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${queuedProposal.pendingAction.confirmation}`
+            ? `${nextActionQueue.totalCount}건 중 ${nextActionQueue.completedCount}건 반영했어요. 다음 항목을 확인해 주세요.\n\n${getAmoraPendingActionBubbleText(queuedProposal.pendingAction)}`
             : queueResumeNotice;
+          // mixed 턴은 거짓 저장 주장 검사를 모델 답에만 돌린 뒤 서버 안내를 붙인다(서버 문구는
+          // 검사하지 않는다). 모델 답이 모두 걷혔으면 안내만 낸다.
+          const privateLaneGuardedText = privateLaneOfferScreen !== null
+            ? appendAmoraPrivateLaneSharedChangeGuidance(persistenceClaimGuard.text)
+            : persistenceClaimGuard.text;
           const persistenceSafeText = ensureNonEmptyTerminalText(
-            [persistenceClaimGuard.text, queueText].filter(Boolean).join("\n\n"),
+            [privateLaneGuardedText, queueText].filter(Boolean).join("\n\n"),
           );
           const metadata: Record<string, unknown> = {
             toolResults: getPersistableToolResults(toolResults),
             ...(currentStoredStateText !== null ? { current_stored_state_summary: true } : {}),
             ...(personalNavigationText !== null ? { personal_action_navigation: true } : {}),
             ...(unsupportedScheduleFieldsText !== null ? { unsupported_schedule_fields: true } : {}),
+            // 관측용: 원문 없이 판정 종류·서버 도구 이름·걷은 문장 수만 남긴다.
+            ...(privateLaneSharedChangeTurn !== null
+              && (privateLaneChangeOnlyText !== null || privateLaneOfferScreen !== null)
+              ? {
+                  private_lane_shared_change: privateLaneSharedChangeTurn.kind,
+                  private_lane_shared_change_tools: privateLaneSharedChangeTurn.toolNames,
+                  ...(privateLaneOfferScreen && privateLaneOfferScreen.removedCount > 0
+                    ? { private_lane_offer_removed_count: privateLaneOfferScreen.removedCount }
+                    : {}),
+                }
+              : {}),
             ...personalActionConversationMetadata(toolResults, personalConversationToolNames),
             toolsUsed,
             senderName: safeSenderName,
             ...(outputHygiene.actions.length > 0
               ? { output_hygiene: outputHygiene.actions }
               : {}),
-            ...(persistenceSafeText !== persistenceClaimGuard.text
+            ...(persistenceSafeText !== privateLaneGuardedText
               ? { terminal_text_empty_fallback: true }
               : {}),
             // 2026-09-03 관측용. 모델이 표식을 냈는데 검증에서 버려진 턴을 원장에서

@@ -3584,6 +3584,67 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(confirmedResultInput).not.toContain("cancelledByProfileId");
   });
 
+  // 2026-09-15 점검: 라우트가 프롬프트용으로 자른 progress(문자열 1,000자·배열 100개)를
+  // 도구 문맥에 넣어, 원자적 쓰기의 CAS 기대값이 저장 행과 절대 같을 수 없었다. 그 결과
+  // 긴 메모나 101개 넘는 일정이 있는 커플은 일정 변경이 전부 "다른 일정 변경이 먼저
+  // 반영되어" 로 끝났고, 101번째 뒤 일정을 가리키는 카드는 "없는 일정" 으로 버려졌다.
+  it("issues a card for the 111th stored event and executes it against the untruncated stored progress", async () => {
+    const storedEvents = Array.from({ length: 120 }, (_, index) => ({
+      id: `evt_stored_${index}`,
+      date: index === 110 ? "2027-05-03" : "2026-01-01",
+      time: "14:00",
+      title: index === 110 ? "드레스 최종 피팅" : `지난 일정 ${index}`,
+      memo: index === 110 ? "메".repeat(1_001) : "메모",
+      status: "planned",
+      createdAt: "2026-07-01T00:00:00.000Z",
+      updatedAt: "2026-07-01T00:00:00.000Z",
+    }));
+    mocks.journeyRow = {
+      progress: { __events: storedEvents },
+      total_budget: 0,
+      wedding_date: null,
+      venue: null,
+    };
+    const expectedStored = structuredClone(storedEvents);
+    const text = "2027년 5월 3일 드레스 최종 피팅 일정 취소해줘";
+    const input = { event_id: "evt_stored_110", expected_title: "드레스 최종 피팅", expected_date: "2027-05-03" };
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: `[pending_action]${JSON.stringify({ tool: "cancel_schedule_event", input })}[/pending_action]`,
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const proposalResponse = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(proposalResponse.status).toBe(200);
+    await proposalResponse.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    const proposal = mocks.atomicResponses[0];
+    expect(proposal?.metadata).toMatchObject({ pending_amora_action: { tool: "cancel_schedule_event", input } });
+    const pending = proposal!.metadata.pending_amora_action as { actionId: string };
+
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      { ...mocks.canonicalRows[0], content: "응 취소해줘", created_at: "2026-07-15T00:01:00.000Z" },
+      { id: "20000000-0000-4000-8000-000000000001", sender_id: null, sender_type: "ai", role: "assistant", content: proposal!.content, metadata: proposal!.metadata, visibility: "shared", created_at: "2026-07-15T00:00:30.000Z" },
+    );
+    mocks.executeTool.mockResolvedValueOnce({ toolName: "cancel_schedule_event", toolInput: input,
+      toolOutput: { success: true }, success: true, displayMessage: "합성 서버 영수증: 취소 상태로 남겼어요." });
+    mocks.provider.mockResolvedValueOnce(providerResult({ fullText: "합성 제공자 응답", usage: { input_tokens: 10, output_tokens: 3 } }));
+    const confirmed = await POST(request({ messages: [{ role: "user", content: "응 취소해줘" }], confirmedActionId: pending.actionId }));
+    expect(confirmed.status).toBe(200);
+    await confirmed.text();
+
+    expect(mocks.executeTool).toHaveBeenCalledTimes(1);
+    const [toolName, toolInput, context] = mocks.executeTool.mock.calls[0] as [
+      string,
+      unknown,
+      { weddingContext: { progress: Record<string, unknown> } },
+    ];
+    expect(toolName).toBe("cancel_schedule_event");
+    expect(toolInput).toEqual(input);
+    // 실행 문맥의 progress 가 곧 CAS 기대값의 출처다. DB 행과 한 글자도 달라서는 안 된다.
+    expect(context.weddingContext.progress.__events).toStrictEqual(expectedStored);
+  });
+
   it("passes the durable normal-chat user message into the request claim", async () => {
     mocks.provider.mockResolvedValueOnce(providerResult({
       fullText: "확인했어요.",
@@ -4387,7 +4448,9 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
   ])("keeps private model output out of dropped-card diagnostics: %s", async (shape, marker) => {
     const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {
-      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], visibility: "bride_private" };
+      // 기본 행("총 예산을 4천만원으로 변경해줘")은 개인 레인에서 서버 안내로 답하는 공유 변경
+      // 부탁이라 모델 표식을 읽지 않는다. 표식 진단 경로를 보려면 변경 부탁이 아닌 발화를 쓴다.
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: "우리 결혼 예산 현황 설명해줘", visibility: "bride_private" };
       providerAfterPreGeneration(providerResult({ fullText: `확인할 내용이 있어요. ${marker}` }));
 
       const response = await POST(request({ visibility: "bride_private" }));
@@ -7250,9 +7313,117 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           { category: "honeymoon", budget: 8_000_000 }, { category: "reserve", budget: 2_000_000 },
         ],
       } });
+      // 확인문은 화면 이름으로 항목마다 한 줄, 총예산은 저장값과 비교해 적는다.
+      expect((mocks.atomicResponses[0].metadata.pending_amora_action as { confirmation: string }).confirmation).toBe([
+        "다음 예산안을 적용할까요?",
+        "- 총예산: 3,500만 원 (지금과 같아요)",
+        "- 신혼여행: 800만 원",
+        "- 예비비·사용처 미정: 200만 원",
+        "- 말하지 않은 항목의 배정은 그대로 둬요",
+      ].join("\n"));
+      // 같은 목록이 카드에 그려지므로 말풍선에는 짧은 안내만 싣는다.
+      expect(mocks.atomicResponses[0].content).toBe("예산안 확인 카드를 준비했어요. 아래 카드에서 항목별 금액을 확인해 주세요.");
       expect(mocks.atomicResponses[0].metadata.pending_amora_action_impact_preview).toBeDefined();
       expect(mocks.executeTool).not.toHaveBeenCalled();
       expect(mocks.journeyRow).toEqual(before);
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  // 2026-09-15 운영 재현: "안 해요"로 끈 한복·예단의 예산안이 카드로 나갔고, 누른 뒤에야
+  // "확인이 필요한 상태가 있어 적용하지 않았어요" 가 나왔다. 끈 분야는 이제 적용 가능한
+  // 카드가 되고, 연산이 정말 거절할 상태면 카드 없이 그 이유를 바로 말한다.
+  it.each([
+    { status: "not_applicable", card: true },
+    { status: "archived", card: false },
+  ])("issues the hanbok/yedan budget card only when the confirmed operation would apply (status $status)", async ({ status, card }) => {
+    const text = "한복 150만 원, 예단 200만 원. 예산에 반영해줘.";
+    const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actualTools.WEDDING_TOOLS.find(tool => tool.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(tool => tool.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+      hanbok: { status },
+      yedan: { status: "not_applicable" },
+    } };
+    mocks.journeyStateRevision = 5;
+    mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+    const before = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: "두 항목 배분안을 확인해 주세요.\n[suggestions]적용해줘[/suggestions]" }));
+    try {
+      const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+      expect(response.status).toBe(200);
+      const body = await response.text();
+      expect(mocks.atomicResponses).toHaveLength(1);
+      const saved = mocks.atomicResponses[0];
+      const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+      const done = events.find(event => event.type === "done");
+      expect(done?.fullContent).toBe(saved.content);
+      if (card) {
+        expect(saved.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: {
+          total_budget: 35_000_000, allocation_mode: "explicit", allocations: [
+            { category: "hanbok", budget: 1_500_000 }, { category: "yedan", budget: 2_000_000 },
+          ],
+        } });
+        expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ sourceRevision: 5,
+          proposed: { totalBudget: 35_000_000, allocatedBudget: 3_500_000 } });
+        expect(saved.metadata.pending_action_drop_reason).toBeUndefined();
+      } else {
+        expect(saved.metadata.pending_amora_action).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
+        expect(saved.metadata.pending_amora_action_impact_preview).toBeUndefined();
+        expect(saved.metadata.pending_action_drop_reason).toBe("budget_operation_refused");
+        expect(saved.metadata.suggestions).toBeUndefined();
+        expect(saved.content).toBe(
+          "한복의 준비 상태 값을 알아볼 수 없어 예산안을 적용하지 않았어요. 체크리스트에서 그 분야의 상태를 다시 골라 주세요.",
+        );
+        expect(done?.metadata.pending_amora_action).toBeUndefined();
+      }
+      expect(mocks.executeTool).not.toHaveBeenCalled();
+      expect(mocks.journeyRow).toEqual(before);
+    } finally { if (added) mocks.safeTools.pop(); }
+  });
+
+  it("does not issue a model-marked budget card that the confirmed operation would refuse, but keeps an unavailable-preview card", async () => {
+    const actualTools = await vi.importActual<typeof import("@/lib/ai/tools")>("@/lib/ai/tools");
+    const definition = actualTools.WEDDING_TOOLS.find(tool => tool.name === "apply_budget_plan")!;
+    const added = !mocks.safeTools.some(tool => tool.name === definition.name);
+    if (added) (mocks.safeTools as AiToolDefinition[]).push(definition);
+    // 원문 금액 목록이 아니라 모델 표식으로만 카드가 만들어지는 요청이다.
+    const text = "한복 예산 조금 올려서 반영해줘";
+    const input = { total_budget: 35_000_000, intake_summary: "한복 예산 조정", allocations: [{ category: "hanbok", budget: 1_500_000 }] };
+    const marker = `[pending_action]${JSON.stringify({ tool: "apply_budget_plan", input })}[/pending_action]`;
+    try {
+      // 1) 예산 화면에서 뺀 분야: 누르면 반드시 거절되므로 카드 대신 이유를 말한다.
+      mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+        hanbok: { category: "hanbok", status: "not_started", budget: 1_000_000 },
+        __hidden: ["hanbok"],
+      } };
+      mocks.journeyStateRevision = 6;
+      mocks.canonicalRows[0] = { ...mocks.canonicalRows[0], content: text };
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `한복 예산을 바꿀게요.\n${marker}` }));
+      await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      const refused = mocks.atomicResponses.at(-1)!;
+      expect(refused.metadata.pending_amora_action).toBeUndefined();
+      expect(refused.metadata.pending_action_drop_reason).toBe("budget_operation_refused");
+      expect(refused.content).toBe(
+        "한복은 예산 화면에서 빼두신 항목이라 배분하지 않았어요. 예산 화면에서 다시 추가한 뒤 말씀해 주세요.",
+      );
+
+      // 2) 연산은 적용 가능한데 미리보기만 못 만든 경우: 기존대로 카드는 내고 영향 표만 뺀다.
+      mocks.journeyRow = { total_budget: 35_000_000, wedding_date: null, venue: null, progress: {
+        hanbok: { category: "hanbok", status: "not_applicable", budget: 1_000_000 },
+      } };
+      mocks.atomicResponses.length = 0;
+      const previewSpy = vi.spyOn(await import("@/lib/ai/amoraBudgetImpactPreview"), "buildAmoraBudgetImpactPreview").mockReturnValueOnce(null);
+      mocks.provider.mockResolvedValueOnce(providerResult({ fullText: `한복 예산을 바꿀게요.\n${marker}` }));
+      try {
+        await (await POST(request({ messages: [{ role: "user", content: text }] }))).text();
+      } finally { previewSpy.mockRestore(); }
+      const issued = mocks.atomicResponses.at(-1)!;
+      expect(issued.metadata.pending_amora_action).toMatchObject({ tool: "apply_budget_plan", input: { ...input, allocation_mode: "explicit" } });
+      expect(issued.metadata.pending_amora_action_impact_preview).toBeUndefined();
+      expect(issued.metadata.pending_action_drop_reason).toBeUndefined();
+      expect(mocks.executeTool).not.toHaveBeenCalled();
     } finally { if (added) mocks.safeTools.pop(); }
   });
 
@@ -7329,7 +7500,11 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         current: { totalBudget: 0, allocatedBudget: 0, recordedSpend: 0, unallocatedBudget: 0 },
         proposed: { totalBudget: 35_000_000, allocatedBudget: 35_000_000, recordedSpend: 0, unallocatedBudget: 0 } });
       expect(saved.metadata.pending_amora_action_queue).toBeUndefined();
-      expect(saved.content).toContain("초대장·꽃·하객선물");
+      // 목록은 카드(확인문)에만 있고 말풍선은 짧은 안내다. 같은 목록을 두 번 그리지 않는다.
+      const issuedConfirmation = (saved.metadata.pending_amora_action as { confirmation: string }).confirmation;
+      expect(issuedConfirmation).toContain("- 초대장·꽃·하객선물: 150만 원");
+      expect(issuedConfirmation.split("\n")[1]).toBe("- 총예산: 3,500만 원");
+      expect(saved.content).toBe("예산안 확인 카드를 준비했어요. 아래 카드에서 항목별 금액을 확인해 주세요.");
       expect(saved.content).not.toContain("확인 절차가 필요해요");
       const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
       const done = events.find(event => event.type === "done");
@@ -7361,7 +7536,8 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
         { category: "reserve", budget: 2000000 },
       ] } });
       expect(saved.metadata.pending_amora_action_impact_preview).toMatchObject({ proposed: { totalBudget: 35000000 } });
-      expect(saved.content).toContain("초대장·꽃·하객선물");
+      expect((saved.metadata.pending_amora_action as { confirmation: string }).confirmation).toContain("- 초대장·꽃·하객선물: 150만 원");
+      expect(saved.content).toBe("예산안 확인 카드를 준비했어요. 아래 카드에서 항목별 금액을 확인해 주세요.");
       expect(saved.content).not.toContain("반영했어요");
     } finally { if (added) mocks.safeTools.pop(); }
   });
@@ -8296,6 +8472,85 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       expect(body).not.toContain('"pending_amora_action"');
       expect(body).not.toContain("아래 확인 카드를 확인해주세요");
     }
+  });
+
+  // 2026-09-15 운영 재현: 카드가 뜬 뒤 "응 적용해줘" 라고 치면 옛 카드는 "새 대화가 이어져
+  // 이 제안은 적용할 수 없어요" 로 잠기고, 아모라는 누를 수 없는 버튼을 누르라고 했다.
+  // 맨 승낙은 같은 카드를 옮기고 서버 고정 안내로 답한다. 적용은 여전히 버튼으로만 일어난다.
+  it.each([
+    ["응 적용해줘", 0],
+    ["네 그렇게 적용해줘", 0],
+    ["ㅇㅇ 적용해줘", 0],
+    ["좋아 그걸로 하자", 1],
+    // 횟수 상한(2)에 이미 닿은 카드라도 그 카드에 대한 승낙이면 옮긴다.
+    ["응 적용해줘", 2],
+  ] as const)("carries the same card and answers with the real button names after a typed acceptance: %s (previous carries %i)", async (text, carryCount) => {
+    const { AMORA_TYPED_CARD_ACCEPTANCE_REPLY } = await import("@/lib/ai/amoraTypedCardAcceptance");
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    mocks.canonicalRows[1].metadata = {
+      ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+      pending_amora_action_carry_count: carryCount,
+      pending_amora_action_journey_revision: 0,
+    };
+    const original = (mocks.canonicalRows[1].metadata as Record<string, unknown>).pending_amora_action;
+    const journey = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: "화면에 표시된 '이대로 적용' 버튼을 눌러야 실제로 반영돼요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(journey);
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain("[화면에 대기 중인 변경 카드]");
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect(saved.metadata.pending_amora_action).toEqual(original);
+    expect(saved.metadata.pending_amora_action_carry_count).toBe(carryCount + 1);
+    expect(saved.metadata.pending_amora_action_journey_revision).toBe(0);
+    expect(saved.content).toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
+    expect(saved.metadata.suggestions).toBeUndefined();
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    const done = events.find(event => event.type === "done");
+    expect(done?.fullContent).toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
+    expect(done?.metadata.pending_amora_action).toEqual(original);
+    expect(body).not.toContain("화면에 표시된");
+  });
+
+  it.each([
+    ["modification", "응 근데 한복은 100으로"],
+    ["negation", "아니 잠깐만"],
+    ["refusal", "적용하지 마"],
+    ["expired", "응 적용해줘"],
+    ["stale revision", "응 적용해줘"],
+  ] as const)("does not treat %s as a typed acceptance of the old card", async (scenario, text) => {
+    const { AMORA_TYPED_CARD_ACCEPTANCE_REPLY } = await import("@/lib/ai/amoraTypedCardAcceptance");
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    const metadata = mocks.canonicalRows[1].metadata as Record<string, unknown>;
+    const card = metadata.pending_amora_action as Record<string, unknown>;
+    mocks.canonicalRows[1].metadata = {
+      ...metadata,
+      ...(scenario === "expired" ? {
+        pending_amora_action: { ...card, issuedAt: Date.now() - 25 * 60 * 60 * 1_000, expiresAt: Date.now() - 60 * 60 * 1_000 },
+      } : {}),
+      // 수정·부정 문장이 범위상 옮겨질 수 있더라도 상한에 닿아 있게 해, 승낙 예외만 본다.
+      pending_amora_action_carry_count: 2,
+      pending_amora_action_journey_revision: 0,
+    };
+    if (scenario === "stale revision") mocks.journeyStateRevision = 1;
+    const journey = structuredClone(mocks.journeyRow);
+    providerAfterPreGeneration(providerResult({ fullText: "알겠어요. 원하시는 내용을 알려주세요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(journey);
+    // 카드를 옮기지 않는 턴에는 버튼을 누르라는 계약문도 싣지 않는다.
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).not.toContain("[화면에 대기 중인 변경 카드]");
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).not.toBe(actionId);
+    expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+    expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
+    expect(body).not.toContain("‘내용 확인하기’를 누른 뒤");
   });
 
   it("does not start a fresh task queue in a turn that approves a different exact action", async () => {
@@ -10392,6 +10647,121 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       .map((tool: { name: string }) => tool.name);
     expect(toolNames).not.toContain("update_budget");
     expect(toolNames).toContain("get_wedding_info");
+  });
+
+  // 2026-09-15 운영 재현(나만 상담): "총예산 5천만 원으로 바꿔줘" → 카드 없이 "변경할까요?",
+  // "응 그렇게 바꿔줘" → "기능이 없어… 예산 화면에서 직접 수정해 주세요", "그럼 남은 예산은?" →
+  // 반영 안 된 5,000만 원으로 계산. 개인 레인은 공유 변경 카드를 낼 수 없으므로 서버가 답한다.
+  it("answers a private-lane shared budget change request with server guidance instead of a fake confirmation", async () => {
+    const { AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE } = await import("@/lib/ai/amoraPrivateLaneSharedChange");
+    mocks.journeyRow = { ...mocks.journeyRow, total_budget: 32_500_000 };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "우리 결혼 총 예산을 5천만원으로 변경해줘",
+      visibility: "bride_private",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "총예산을 5,000만 원으로 변경할까요?\n[pending_action]{\"tool\":\"update_budget\",\"input\":{\"total_budget\":50000000}}[/pending_action]",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ visibility: "bride_private" }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("[나만 (상담) 변경 경계]");
+    expect(providerArgs?.systemPrompt).toContain("반영되지 않은 값은 현재 값이 아닙니다");
+    expect(providerArgs?.systemPrompt).not.toContain("변경 대상을 물어 확인 카드로 좁히세요");
+    expect(providerArgs?.systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
+    expect(providerArgs?.tools.map((tool: { name: string }) => tool.name)).not.toContain("update_budget");
+    expect(body).not.toContain("변경할까요");
+    expect(body).not.toContain("[pending_action]");
+    expect(mocks.atomicResponses).toHaveLength(1);
+    expect(mocks.atomicResponses[0]?.content).toBe(AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE);
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action_queue");
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      private_lane_shared_change: "change_only",
+      private_lane_shared_change_tools: expect.arrayContaining(["update_budget"]),
+    });
+    expect(JSON.stringify(mocks.atomicResponses[0]?.metadata)).not.toContain("5천만원");
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("keeps the answer to a mixed private-lane question but strips the fake confirmation and appends guidance", async () => {
+    const { AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE } = await import("@/lib/ai/amoraPrivateLaneSharedChange");
+    mocks.journeyRow = { ...mocks.journeyRow, total_budget: 32_500_000 };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "우리 결혼 총 예산을 5천만원으로 변경해줘. 그럼 식대는 얼마까지 쓸 수 있어?",
+      visibility: "bride_private",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 저장된 총예산 3,250만 원 기준으로는 식대를 1인 6만 원 안팎으로 보는 게 무난해요. 총예산을 5,000만 원으로 변경할까요?",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ visibility: "bride_private" }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.atomicResponses[0]?.content).toBe(
+      `지금 저장된 총예산 3,250만 원 기준으로는 식대를 1인 6만 원 안팎으로 보는 게 무난해요.\n\n${AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE}`,
+    );
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("pending_amora_action");
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      private_lane_shared_change: "mixed",
+      private_lane_offer_removed_count: 1,
+    });
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("leaves a private-lane read question to the model with the unapplied-value rule", async () => {
+    mocks.journeyRow = { ...mocks.journeyRow, total_budget: 32_500_000 };
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "그럼 남은 예산은?",
+      visibility: "bride_private",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 저장된 총예산은 3,250만 원이에요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({ visibility: "bride_private" }));
+    expect(response.status).toBe(200);
+    await response.text();
+
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain("반영되지 않은 값은 현재 값이 아닙니다");
+    expect(mocks.atomicResponses[0]?.content).toBe("지금 저장된 총예산은 3,250만 원이에요.");
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("private_lane_shared_change");
+  });
+
+  it("does not add private-lane guidance or contract to the same change request in the shared lane", async () => {
+    const { AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE } = await import("@/lib/ai/amoraPrivateLaneSharedChange");
+    mocks.canonicalRows[0] = {
+      ...mocks.canonicalRows[0],
+      content: "우리 결혼 총 예산을 5천만원으로 변경해줘",
+      visibility: "shared",
+    };
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "[pending_action]{\"tool\":\"update_budget\",\"input\":{\"total_budget\":50000000}}[/pending_action]",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    await response.text();
+
+    const systemPrompt = mocks.provider.mock.calls[0]?.[0]?.systemPrompt;
+    expect(systemPrompt).toContain("[서버 발급 후속 확인 계약]");
+    expect(systemPrompt).not.toContain("[나만 (상담) 변경 경계]");
+    expect(mocks.atomicResponses[0]?.content).not.toContain(AMORA_PRIVATE_LANE_SHARED_CHANGE_GUIDANCE);
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      pending_amora_action: expect.objectContaining({ tool: "update_budget", input: { total_budget: 50_000_000 } }),
+    });
+    expect(mocks.atomicResponses[0]?.metadata).not.toHaveProperty("private_lane_shared_change");
   });
 
   it("uses only the shared projection in a shared chat turn", async () => {

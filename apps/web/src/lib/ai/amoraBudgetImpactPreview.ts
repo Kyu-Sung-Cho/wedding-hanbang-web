@@ -12,7 +12,7 @@ import {
   buildAmoraAtomicToolOperation,
 } from "@/lib/ai/amoraAtomicToolOperation";
 import { getAmoraToolOperationIdentity } from "@/lib/ai/amoraToolIdentity";
-import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { SCREEN_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 import { isValidWeddingWonAmount } from "@/lib/weddingBudget";
 
@@ -46,9 +46,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+// 카드의 "변경 영향" 은 사용자가 예산 화면과 나란히 읽는 곳이라 화면 이름을 쓴다.
+// 모델 문맥용 원명칭(예단·폐백)을 쓰면 같은 행인지 알아볼 수 없다(2026-09-15).
 function safeCategoryLabel(key: string, value: Record<string, unknown>): string {
-  const known = CATEGORY_LABELS[key];
-  if (known) return known;
+  if (Object.hasOwn(SCREEN_CATEGORY_LABELS, key)) return SCREEN_CATEGORY_LABELS[key];
   const custom = value.label;
   if (
     typeof custom === "string"
@@ -79,7 +80,7 @@ function snapshotBudget(
     progress,
   )) {
     if (key.startsWith("__") || !isRecord(candidate)) continue;
-    if (Object.hasOwn(CATEGORY_LABELS, key) && hiddenKeys.has(key)) continue;
+    if (Object.hasOwn(SCREEN_CATEGORY_LABELS, key) && hiddenKeys.has(key)) continue;
     if (
       (candidate.budget !== undefined && !isValidWeddingWonAmount(candidate.budget))
       || (candidate.spent !== undefined && !isValidWeddingWonAmount(candidate.spent))
@@ -203,6 +204,60 @@ function buildWarnings(
     warnings.push("category_recorded_spend_over_budget");
   }
   return warnings;
+}
+
+export interface AmoraBudgetProposalRefusal {
+  /** 순수 연산이 돌려준 고정 오류 코드. 원장·로그에 원문 대신 남길 수 있다. */
+  error: string;
+  /** 사용자에게 그대로 보여줄 서버 소유 문장. 어떤 항목이 왜 막혔는지 말한다. */
+  text: string;
+}
+
+// 거절이 아니라 "이미 그 값" 인 경우. 카드 발급 여부는 이 함수가 정하지 않는다.
+const NOT_A_REFUSAL = new Set(["no_change"]);
+
+/**
+ * 확인 카드를 내기 전에, 누르면 적용될 순수 연산을 같은 정본 문맥으로 미리 돌려 본다.
+ *
+ * 2026-09-15 운영 재현: 연산이 거절할 것이 확실한 예산안에도 카드가 나갔고, 사용자가
+ * 카드를 누른 **뒤에야** "현재 예산 데이터에 확인이 필요한 상태가 있어 예산안을 적용하지
+ * 않았어요" 를 받았다. 누를 수 있게 내놓고 누르면 거절하는 것은 약속을 어기는 것이다.
+ * 그래서 연산이 실제로 거절하면(같은 값이라 바뀔 게 없는 경우는 제외) 그 거절 문장을
+ * 카드 대신 지금 보여준다.
+ *
+ * 이 함수는 원본 문맥을 바꾸지 않는다. 연산이 예외를 던지면 판단을 하지 않고 null 을
+ * 돌려준다 — 그 경우의 처리(카드 발급·미리보기 생략)는 기존 경로가 그대로 정한다.
+ */
+export function findAmoraBudgetProposalRefusal({
+  action,
+  context,
+}: {
+  action: { tool: string; input: Record<string, unknown> };
+  context: ToolExecutionContext;
+}): AmoraBudgetProposalRefusal | null {
+  if (!BUDGET_TOOL_SET.has(action.tool)) return null;
+  let operation: ReturnType<typeof buildAmoraAtomicToolOperation>;
+  try {
+    operation = buildAmoraAtomicToolOperation(
+      action.tool,
+      structuredClone(action.input),
+      cloneExecutionContext(context),
+      getAmoraToolOperationIdentity(action.tool, action.input).operationKey,
+    );
+  } catch {
+    return null;
+  }
+  if (operation.result.success) return null;
+  const output = operation.result.toolOutput;
+  const error = isRecord(output) && typeof output.error === "string" ? output.error : null;
+  if (error === null || NOT_A_REFUSAL.has(error)) return null;
+  const message = (operation.result.displayMessage ?? "").trim();
+  if (!message) return null;
+  return {
+    error,
+    // "다시 확인해 주세요" 로만 끝나는 거절도 있다. 저장 여부를 추측하게 두지 않는다.
+    text: /않았어요/u.test(message) ? message : `${message} 아직 반영하지 않았어요.`,
+  };
 }
 
 /**
