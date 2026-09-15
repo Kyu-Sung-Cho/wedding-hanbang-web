@@ -2078,12 +2078,34 @@ export default function ChatScreen() {
     ownerId: userId, coupleId, generation: chatSessionGenerationRef.current.current(), lane: activeLane,
     ready: initialLoaded && !chatLoadError, busy: streaming || sendingRef.current, input: inputByLane.shared_ai,
   };
+  const preparationLaneSwitchRef = useRef<string | null>(null);
   useEffect(() => {
-    if (preparationParam === undefined) { consumedPreparationRef.current = null; return; }
+    if (preparationParam === undefined) { consumedPreparationRef.current = null; preparationLaneSwitchRef.current = null; return; }
     if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
     const paramKey = JSON.stringify(preparationParam);
     if (consumedPreparationRef.current === paramKey) {
       router.setParams({ amoraSource: undefined });
+      return;
+    }
+    const sharedDraftNotice = "함께 대화에서 아모라에게 쓰던 질문이 있어서 안내 질문을 넣지 않았어요. 그 질문을 보내거나 비운 뒤 원래 안내에서 다시 눌러 주세요.";
+    // 안내에서 누른 질문은 함께 대화의 아모라 입력창에만 들어간다. 사람이 마지막에 나만 (상담)이나
+    // 상대와의 대화에 있었으면 예전에는 아무것도 채우지 않고 엉뚱한 알림만 띄웠다. 보내는 중이 아니면
+    // 함께 대화로 옮겨 간다 — 레인이 바뀌면 이 효과가 다시 돌아 거기서 채운다. 다른 레인에 쓰던 글은
+    // 옮기지 않고 그 자리에 둔다. 함께 대화에 쓰던 질문이 있으면 덮지 않고 그 이유를 그대로 말한다.
+    if (readPreparationSource(preparationParam) && entryParam === undefined
+      && preparationContextRef.current.lane !== "shared_ai"
+      && !preparationContextRef.current.busy && !sendingRef.current
+      && preparationLaneSwitchRef.current !== paramKey) {
+      preparationLaneSwitchRef.current = paramKey;
+      if (inputByLaneRef.current.shared_ai.trim()) {
+        consumedPreparationRef.current = paramKey;
+        setPreparationNotice(sharedDraftNotice);
+        router.setParams({ amoraSource: undefined });
+      } else {
+        setPreparationNotice(null);
+      }
+      setActiveScope("shared");
+      setTarget("ai");
       return;
     }
     consumedPreparationRef.current = paramKey;
@@ -2112,7 +2134,12 @@ export default function ChatScreen() {
         if (!active || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(before.generation)
           || sessionUserIdRef.current !== before.ownerId) return;
         if (!resolved || !preparationContextMatches(before, current()) || inputByLaneRef.current.shared_ai.trim()) {
-          setPreparationNotice("안내 질문을 넣지 않았어요. 함께 대화의 작성 중인 질문을 보내거나 비운 뒤 원래 안내에서 다시 눌러 주세요.");
+          const latest = current();
+          setPreparationNotice(inputByLaneRef.current.shared_ai.trim()
+            ? sharedDraftNotice
+            : before.busy || latest.busy
+              ? "메시지를 보내거나 답을 받는 중이라 안내 질문을 넣지 않았어요. 끝난 뒤 원래 안내에서 다시 눌러 주세요."
+              : "안내 질문을 넣지 않았어요. 원래 안내에서 다시 눌러 주세요.");
           return;
         }
         setPreparationDraft({ ...resolved, context: before });
@@ -4126,6 +4153,17 @@ export default function ChatScreen() {
           getAmoraPendingActionApplicationState(pendingAction, actionConfirmationOutcomes),
         )
       : null;
+    // 카드에 말로 승낙하면 서버가 **같은 제안(같은 actionId·inputDigest)** 을 최신 답변 아래에
+    // 다시 붙인다(2026-09-15). 그때 옛 카드가 "새 대화가 이어져 이 제안은 적용할 수 없어요"라고
+    // 하면 사람은 제안이 사라진 줄 안다. 같은 카드가 아래에 살아 있으면 그쪽을 가리키고, 옛 카드의
+    // 버튼과 확인 상태 줄은 감춘다 — 누를 곳은 최신 카드 한 곳이다. 옛 카드에 "지금은 적용하지 않기"를
+    // 남겨 두면 그것을 눌렀을 때 같은 actionId 인 아래 카드까지 함께 치워진다. 판정과 문구는 웹 카드
+    // (`isPendingAmoraActionContinuedInMessage`·`CONTINUED_PENDING_ACTION_COPY`)와 같다.
+    const pendingActionMovedToLatest = pendingAction !== null
+      && pendingActionDisabledReason === "not_latest"
+      && latestPendingAction !== null
+      && latestPendingAction.actionId === pendingAction.actionId
+      && latestPendingAction.inputDigest === pendingAction.inputDigest;
     // 지난 날짜를 저장하려는 카드인가 (2026-09-03). 막지 않고 한 줄만 덧붙인다 —
     // 웹 카드와 같은 판정을 쓴다(`isPendingActionPastDated`).
     const pendingActionIsPastDated = pendingAction
@@ -4339,12 +4377,14 @@ export default function ChatScreen() {
                     ? "이 제안은 적용됐어요."
                     : pendingActionDisabledReason === "expired"
                     ? "안전을 위해 확인 시간이 지났어요. 아모라에게 다시 제안해 달라고 해주세요."
+                    : pendingActionMovedToLatest
+                      ? "같은 제안이 아래 최신 답변으로 옮겨졌어요. 그 카드에서 확인할 수 있어요."
                     : pendingActionDisabledReason === "not_latest"
                       ? "새 대화가 이어져 이 제안은 적용할 수 없어요. 최신 내용으로 다시 확인해 주세요."
                       : "현재 답변이 끝나면 다시 확인할 수 있어요."}
                   </Text>
               )}
-              {approvalCopy && (
+              {approvalCopy && !pendingActionMovedToLatest && (
                 <View
                   style={[
                     st.pendingActionApprovalStatus,
@@ -4364,11 +4404,12 @@ export default function ChatScreen() {
                   </Text>
                 </View>
               )}
-              {pendingActionNotice?.actionId === pendingAction.actionId && (
+              {pendingActionNotice?.actionId === pendingAction.actionId && !pendingActionMovedToLatest && (
                 <Text style={st.pendingActionStatus} accessibilityLiveRegion="polite">
                   {pendingActionNotice.message}
                 </Text>
               )}
+              {!pendingActionMovedToLatest && (
               <View style={st.pendingActionControls}>
                 <Pressable
                   style={({ pressed }) => [
@@ -4421,6 +4462,7 @@ export default function ChatScreen() {
                   <Text style={st.pendingActionDismissText}>지금은 적용하지 않기</Text>
                 </Pressable>
               </View>
+              )}
             </View>
           )}
         </View>

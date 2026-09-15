@@ -18,6 +18,10 @@ import {
   type PreparationStageValue,
   daysUntilWedding,
 } from "@hanbang/shared";
+import {
+  getChecklistCategoryDueDday,
+  mergePlanningChecklist,
+} from "@hanbang/shared/utils";
 import { supabase } from "@/lib/supabase";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import {
@@ -211,7 +215,30 @@ function calcUrgentTasks(
     }
     if (allDone) continue;
 
-    const remainingDays = dday - category.ddayDeadline;
+    // 기본 확인 시점은 분야 값(`ddayDeadline`) 하나가 아니라 **아직 안 끝낸 항목 중 가장 이른
+    // 시점**으로 센다. 분야 값으로만 세면 늦게 하는 항목(결혼식 직전 최종으로 입어 보기 등)만
+    // 남은 커플도 라운지에서 "기본 확인 시점에서 N일 지남"을 봤고, 같은 커플이 체크리스트
+    // 화면(`buildWeeklyChecklistActions`)에서는 그 경고를 보지 않았다. 병합은 체크리스트 화면과
+    // 같다 — 저장된 배열이 있으면 그것을, 없으면 옛 플랫 불리언을 항목으로 읽어 템플릿과 합친다.
+    const savedChecklist = Array.isArray(categoryProgress?.checklist)
+      ? categoryProgress.checklist.map((item) => ({
+          id: item.id,
+          label: category.items.find((templateItem) => templateItem.id === item.id)?.label ?? "이전 준비 항목",
+          done: item.done === true,
+        }))
+      : Object.entries(categoryProgress ?? {})
+          .filter((entry): entry is [string, boolean] => typeof entry[1] === "boolean")
+          .map(([id, done]) => ({
+            id,
+            label: category.items.find((templateItem) => templateItem.id === id)?.label ?? "이전 준비 항목",
+            done,
+          }));
+    const mergedChecklist = mergePlanningChecklist(category.items, savedChecklist);
+    const due = getChecklistCategoryDueDday(category, mergedChecklist);
+    // 남은 일이 전부 계약·약속으로 정한 날에 하는 일이면 앱이 그 날을 모른다. 체크리스트 화면·웹 임박 알림도 뺀다.
+    if (due === null) continue;
+
+    const remainingDays = dday - due;
     const urgency: UrgentTask["urgency"] =
       remainingDays < 0
         ? "overdue"
@@ -224,7 +251,7 @@ function calcUrgentTasks(
     tasks.push({
       categoryKey: category.key,
       categoryLabel: category.label,
-      ddayDeadline: category.ddayDeadline,
+      ddayDeadline: due,
       remainingDays,
       urgency,
     });

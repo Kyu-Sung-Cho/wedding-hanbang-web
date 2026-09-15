@@ -149,6 +149,7 @@ function renderProposal(receipts, {
     hasLinkedPartner: linkedPartnerId !== null, linkedPartnerIdRef: { current: linkedPartnerId },
     ...compileCommonJs(readFileSync(new URL("../../../../packages/design-tokens/src/chat.ts", import.meta.url), "utf8")),
     nowMs, streaming, latestSharedMessageId: messages.at(-1).id,
+    latestPendingAction: getPendingAmoraAction(messages.at(-1)),
     actionConfirmationOutcomes: applicationModule.buildAmoraActionConfirmationOutcomes(messages),
     pendingActionApproval: null, pendingActionNotice: null, applyingPendingActionId: null,
     parseAmoraCitations, describeAmoraCitations, getAmoraVisibleText,
@@ -210,6 +211,44 @@ test("mobile waits for a pending result without presenting it as success or expi
   const rendered = renderProposal([confirmationReceipt], { streaming: true, nowMs: action.expiresAt + 1 });
   assert.match(rendered.text, /현재 답변이 끝나면 다시 확인할 수 있어요/);
   assert.doesNotMatch(rendered.text, /이 제안은 적용됐어요|확인 시간이 지났어요|새 대화가 이어져/);
+});
+
+// 2026-09-15: 카드에 "응 적용해줘" 라고 치면 서버가 같은 제안을 최신 답변 아래에 다시 붙인다.
+// 옛 카드가 "새 대화가 이어져 이 제안은 적용할 수 없어요" 라고 하면 같은 제안이 한쪽에서는 되고
+// 다른 쪽에서는 안 된다고 말하게 된다.
+const typedAcceptance = { id: "typed", sender_type: "bride", visibility: "shared", content: "응 적용해줘", metadata: {} };
+const carriedReply = (pending = action) => ({
+  id: "carried", sender_id: null, sender_type: "ai", visibility: "shared", content: "아래 카드에서 확인해 주세요.",
+  metadata: { pending_amora_action: pending, pending_amora_action_carry_count: 1 },
+});
+
+test("mobile points an old card at the same proposal carried to the newest reply and removes its buttons", () => {
+  const rendered = renderProposal([typedAcceptance, carriedReply()]);
+  assert.match(rendered.text, /같은 제안이 아래 최신 답변으로 옮겨졌어요\. 그 카드에서 확인할 수 있어요\./);
+  assert.doesNotMatch(rendered.text, /새 대화가 이어져/);
+  // 누를 곳은 최신 카드 한 곳이다. 여기서 "지금은 적용하지 않기" 를 누르면 같은 actionId 인 아래 카드도 치워진다.
+  assert.equal(rendered.buttons.length, 0);
+});
+
+test("mobile keeps the old card locked when the newest reply carries a different proposal", () => {
+  for (const other of [
+    { ...action, inputDigest: "c".repeat(64) },
+    { ...action, actionId: "44444444-4444-4444-8444-444444444444" },
+  ]) {
+    const rendered = renderProposal([typedAcceptance, carriedReply(other)]);
+    assert.match(rendered.text, /새 대화가 이어져/);
+    assert.doesNotMatch(rendered.text, /옮겨졌어요/);
+    assert.equal(rendered.buttons[0].props.disabled, true);
+  }
+});
+
+test("mobile says applied or expired before pointing at a carried card", () => {
+  const applied = renderProposal([confirmationReceipt, successReceipt, carriedReply()]);
+  assert.match(applied.text, /이 제안은 적용됐어요/);
+  assert.doesNotMatch(applied.text, /옮겨졌어요/);
+  const expired = renderProposal([typedAcceptance, carriedReply()], { nowMs: action.expiresAt + 1 });
+  assert.match(expired.text, /확인 시간이 지났어요/);
+  assert.doesNotMatch(expired.text, /옮겨졌어요/);
 });
 
 test("mobile recognizes persisted success after history reload and receipt reordering", () => {
