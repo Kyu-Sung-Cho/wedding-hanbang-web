@@ -626,7 +626,7 @@ export const CATEGORY_CHECKLISTS: CategoryChecklistTemplate[] = [
         id: "housing_12",
         label: "신혼집 자금을 누가 얼마나 낼지 합의",
         done: false,
-        note: "양가 돈이 갚을 돈인지 정하고, 증여라면 각자 자기 부모·조부모께 받는지와 혼인신고일 기준으로 혼인·출산 증여재산 공제를 국세청에 확인하세요.",
+        note: "가족이 보탤 돈이 갚을 돈인지 정하고, 증여면 각자 자기 부모·조부모께 받는지와 혼인신고일 기준 혼인·출산 증여재산 공제를 국세청에 확인하세요.",
       },
       { id: "housing_03", label: "부동산 방문 및 매물 탐색", done: false, note: "낮과 저녁의 소음·채광·교통을 살펴보고 누수·곰팡이·설비 상태도 기록하세요.",},
       {

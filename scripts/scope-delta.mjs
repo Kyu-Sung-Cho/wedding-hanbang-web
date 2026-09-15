@@ -34,10 +34,12 @@
  * 넓어진 쪽을 조용히 넘기지 않고 사람에게 보여 주는 편을 골랐다.
  */
 import { execFileSync } from "node:child_process";
-import { copyFileSync, readFileSync, writeFileSync, unlinkSync, existsSync } from "node:fs";
+import {
+  copyFileSync, readFileSync, writeFileSync, unlinkSync, existsSync, realpathSync,
+} from "node:fs";
 import { createHash } from "node:crypto";
-import { join, dirname } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { join, dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const TARGET = "apps/web/src/lib/ai/amoraQuestionScope.ts";
@@ -388,11 +390,26 @@ function main() {
   process.exit(regressed ? 1 : 0);
 }
 
-/** 테스트가 비교 함수만 가져갈 때는 측정을 돌리지 않는다. */
+/**
+ * 테스트가 비교 함수만 가져갈 때는 측정을 돌리지 않는다.
+ *
+ * **실제 경로끼리 비교한다(2026-09-15 재검사).** Node 는 ESM 진입점의 `import.meta.url` 을
+ * realpath 로 풀지만 `process.argv[1]` 은 주어진 경로를 절대 경로로만 만든다. 둘을 그대로
+ * 비교하면 심볼릭 링크·정션을 거친 경로(macOS /tmp → /private/tmp, 링크로 연결한 워크트리)
+ * 로 실행했을 때 `main()` 을 건너뛰고 측정도 `--out` 증거도 없이 exit 0 으로 끝난다.
+ * 그 조용한 통과가 '회귀 없음'처럼 읽힌다.
+ */
 function isMainModule() {
   if (!process.argv[1]) return false;
-  const self = import.meta.url;
-  const invoked = pathToFileURL(process.argv[1]).href;
+  const canonical = (p) => {
+    try {
+      return realpathSync(p);
+    } catch {
+      return resolve(p);
+    }
+  };
+  const self = canonical(fileURLToPath(import.meta.url));
+  const invoked = canonical(process.argv[1]);
   return process.platform === "win32"
     ? self.toLowerCase() === invoked.toLowerCase()
     : self === invoked;

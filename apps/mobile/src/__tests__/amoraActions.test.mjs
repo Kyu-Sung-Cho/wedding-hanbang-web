@@ -378,7 +378,9 @@ test("이전 서버가 다음 커서를 주지 않으면 전체 기록을 다 �
 test("준비 기록 보조 화면은 기존 4개 탭을 바꾸지 않고 실행 화면으로 연결한다", () => {
   const route = readFileSync(new URL("../../app/amora-preparation.tsx", import.meta.url), "utf8");
   assert.match(route, /<AmoraActionsCard presentation="board"/u);
-  for (const path of ["/budget", "/schedule", "/checklist", "/(tabs)/chat"]) assert.ok(route.includes(`router.push("${path}")`), path);
+  for (const path of ["/budget", "/schedule", "/checklist"]) assert.ok(route.includes(`router.push("${path}")`), path);
+  // 루트 Stack 화면에서 채팅 탭으로는 push 가 아니라 dismissTo — push 는 (tabs)를 한 벌 더 쌓는다(rootStackChatNavigation.test.mjs).
+  assert.ok(route.includes('router.dismissTo("/(tabs)/chat")'));
   assert.match(route, /router\.canGoBack\(\) \? router\.back\(\) : router\.replace\("\/\(tabs\)\/lounge"\)/u);
   const tabs = readFileSync(new URL("../../app/(tabs)/_layout.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(tabs, /amora-preparation/u);

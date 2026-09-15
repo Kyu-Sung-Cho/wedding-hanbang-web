@@ -1033,7 +1033,7 @@ export default function ScheduleScreen() {
    * `push` 가 아니라 `dismissTo` 다. 이 화면은 루트 Stack 화면이라 `push` 는 루트 스택에
    * `(tabs)`를 한 벌 더 쌓고, 채팅 화면이 둘 마운트돼 같은 실시간 채널을 나눠 쓴다.
    * `dismissTo` 는 아래에 있는 기존 `(tabs)`로 돌아가 채팅 탭을 열고, 없으면 이 자리를
-   * `(tabs)`로 바꾼다. 대신 뒤로 가기 기록에서 체크리스트가 빠진다(웹뷰 링크의 `replace`와 같다).
+   * `(tabs)`로 바꾼다. 대신 뒤로 가기 기록에서 체크리스트가 빠진다(웹뷰 링크도 같은 `dismissTo`를 쓴다).
    */
   function askAmoraFromChecklist(categoryKey: string, itemId?: string) {
     const route = checklistPreparationRoute(categoryKey, itemId);

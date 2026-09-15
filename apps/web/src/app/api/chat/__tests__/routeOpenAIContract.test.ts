@@ -9160,7 +9160,90 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     } else {
       expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
       expect(saved.content).not.toContain("‘내용 확인하기’를 누른 뒤");
+      // 승낙으로 보지 않아도 이월 한도(2) 안이면 같은 카드는 따라온다 — 앞 버튼이 잠기지 않는다.
+      expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).toBe(actionId);
+      expect(saved.metadata.pending_amora_action_carry_count).toBe(carryCount + 1);
     }
+  });
+
+  // 재검토(R1-server [3]): 이월된 카드 아래에서 아모라가 계약문대로 "…이대로 적용을 눌러야
+  // 반영돼요." 라고 물음표 없이 답한 뒤 사용자가 "ㅇㅋ"·"응" 이라고만 한 턴. 직전 행이 승낙
+  // 안내 행이 아니라 카드 승낙으로는 보지 않는다. 그렇다고 이월까지 끊으면 앞 메시지의 버튼이
+  // "새 대화가 이어져 이 제안은 적용할 수 없어요" 로 잠긴다. 맨 동의는 횟수 상한 안에서만 같은
+  // 카드를 옮기고, 답은 모델이 평소대로 한다.
+  const CARRIED_CARD_GUIDANCE_WITHOUT_QUESTION = "총예산 3,000만 원으로 바꾸면 식대 몫도 그 안에서 다시 나눠요. 화면의 카드에서 이대로 적용을 눌러야 반영돼요.";
+  it.each([
+    { name: "'ㅇㅋ' within the carry limit", text: "ㅇㅋ", carryCount: 1, carried: true },
+    { name: "'응' within the carry limit", text: "응", carryCount: 1, carried: true },
+    { name: "'ㅇㅋ' past the carry limit", text: "ㅇㅋ", carryCount: 2, carried: false },
+    { name: "'응' past the carry limit", text: "응", carryCount: 2, carried: false },
+  ] as const)("a bare agreement under an already carried card carries it only within the limit: $name", async ({ text, carryCount, carried }) => {
+    const { AMORA_TYPED_CARD_ACCEPTANCE_REPLY } = await import("@/lib/ai/amoraTypedCardAcceptance");
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    mocks.canonicalRows[1] = {
+      ...mocks.canonicalRows[1],
+      content: CARRIED_CARD_GUIDANCE_WITHOUT_QUESTION,
+      metadata: {
+        ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+        pending_amora_action_carry_count: carryCount,
+        pending_amora_action_journey_revision: 0,
+      },
+    };
+    const original = (mocks.canonicalRows[1].metadata as Record<string, unknown>).pending_amora_action;
+    const journey = structuredClone(mocks.journeyRow);
+    const modelText = "좋아요. 다른 궁금한 점이 있으면 편하게 물어봐 주세요.";
+    providerAfterPreGeneration(providerResult({ fullText: modelText }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.journeyRow).toEqual(journey);
+    const saved = mocks.atomicResponses.at(-1)!;
+    // 카드 승낙이 아니므로 서버 고정 안내로 덮지 않는다 — 모델이 평소대로 답한다.
+    expect(saved.content).toBe(modelText);
+    expect(saved.content).not.toBe(AMORA_TYPED_CARD_ACCEPTANCE_REPLY);
+    const events = body.split("\n\n").filter(line => line.startsWith("data: ")).map(line => JSON.parse(line.slice(6)));
+    const done = events.find(event => event.type === "done");
+    if (carried) {
+      expect(saved.metadata.pending_amora_action).toEqual(original);
+      expect(saved.metadata.pending_amora_action_carry_count).toBe(carryCount + 1);
+      expect(saved.metadata.pending_amora_action_journey_revision).toBe(0);
+      expect(done?.metadata.pending_amora_action).toEqual(original);
+      // 카드가 이 답변 아래로 옮겨지는 턴이므로 버튼 계약문도 싣는다.
+      expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).toContain("[화면에 대기 중인 변경 카드]");
+    } else {
+      expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).not.toBe(actionId);
+      expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+      expect(done?.metadata?.pending_amora_action).toBeUndefined();
+      expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt).not.toContain("[화면에 대기 중인 변경 카드]");
+    }
+  });
+
+  // 맨 동의 예외는 승낙어만 있는 말에만 걸린다. 같은 범위 밖(W4) 턴이라도 다른 이야기면
+  // 이월 횟수가 남아 있어도 카드를 옮기지 않는다.
+  it("does not carry an already carried card under an unrelated out-of-scope turn", async () => {
+    const actionId = "11111111-1111-4111-8111-111111111111";
+    const text = "오늘 저녁 메뉴 추천해줘";
+    setCanonicalConfirmedBudgetAction(actionId, text);
+    mocks.canonicalRows[1] = {
+      ...mocks.canonicalRows[1],
+      content: CARRIED_CARD_GUIDANCE_WITHOUT_QUESTION,
+      metadata: {
+        ...(mocks.canonicalRows[1].metadata as Record<string, unknown>),
+        pending_amora_action_carry_count: 1,
+        pending_amora_action_journey_revision: 0,
+      },
+    };
+    providerAfterPreGeneration(providerResult({ fullText: "결혼 준비 이야기를 도와드릴게요." }));
+    const response = await POST(request({ messages: [{ role: "user", content: text }] }));
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body).toContain('"question_scope":"W4_out_of_scope"');
+    const saved = mocks.atomicResponses.at(-1)!;
+    expect((saved.metadata.pending_amora_action as { actionId?: string } | undefined)?.actionId).not.toBe(actionId);
+    expect(saved.metadata.pending_amora_action_carry_count).toBeUndefined();
+    expect(mocks.provider.mock.calls[0]?.[0]?.systemPrompt ?? "").not.toContain("[화면에 대기 중인 변경 카드]");
   });
 
   it("does not start a fresh task queue in a turn that approves a different exact action", async () => {

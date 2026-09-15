@@ -3407,9 +3407,15 @@ export async function POST(request: Request) {
     && (questionScope.scope === "W0_wedding_core"
       || questionScope.scope === "W1_wedding_adjacent"
       || questionScope.scope === "W4_out_of_scope");
+  // 카드 승낙으로 보지 않은 맨 동의("응"·"ㅇㅋ")도 **횟수 상한 안에서는** 같은 카드를 옮긴다
+  // (재검토 R1-server [3]). 이월된 카드 아래에서 아모라가 "…이대로 적용을 눌러야 반영돼요." 라고
+  // 답한 뒤의 "ㅇㅋ" 는 발화만 보면 범위 밖(W4)이라, 옮기지 않으면 앞 메시지의 버튼이 잠긴다.
+  // 승낙이 아니므로 서버 고정 안내로 덮지 않고 모델이 평소대로 답한다. 안전·위로 범위는 여기서도
+  // 옮기지 않고, 승낙어만 있는 말이 아니면(다른 W4 이야기) 그대로 멈춘다.
   const shouldCarryPendingCard = pendingCardTypedAcceptance
     || ((questionScope.scope === "W0_wedding_core"
-      || questionScope.scope === "W1_wedding_adjacent")
+      || questionScope.scope === "W1_wedding_adjacent"
+      || (typedCardAcceptanceStrength === "bare" && questionScope.scope === "W4_out_of_scope"))
     && nextPendingCardCarries <= MAX_PENDING_CARD_CARRIES);
   /**
    * 이 턴에 **실제로 카드를 옮길 수 있는가** — 모델 호출 전에 알 수 있는 조건 전부.

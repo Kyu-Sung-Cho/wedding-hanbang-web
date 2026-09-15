@@ -637,13 +637,20 @@ describe("되묻기 고리에서 빠져나올 수 있다", () => {
 describe("카드를 확인한 직후의 짧은 수정도 실을 잇는다 (2026-09-05 페르소나 실측)", () => {
   const CONFIRM_ID = "44444444-4444-4444-8444-444444444444";
   const RECEIPT_ID = "55555555-5555-4555-8555-555555555555";
+  const ACTION_ID = "66666666-6666-4666-8666-666666666666";
+  const CONFIRMATION_TEXT = "좋아요. 제안한 변경을 적용해 주세요.";
 
-  function rowsAfterConfirmedCard(currentText: string): Row[] {
+  function rowsAfterConfirmedCard(currentText: string, visibility = "shared"): Row[] {
     const base = buildRows({
       priorUserText: "사진 700만원 잡아줘",
       assistantText: "다음 변경을 적용할까요?\n- 카테고리: 웨딩 사진 촬영\n- 예산: 700만 원",
-      assistantPendingAction: { tool: "update_category_budget", input: { category: "studio", budget: 7000000 } },
+      assistantPendingAction: {
+        actionId: ACTION_ID,
+        tool: "update_category_budget",
+        input: { category: "studio", budget: 7000000 },
+      },
       currentText,
+      visibility,
     });
     const [priorUser, cardTurn] = base;
     const current = base[2];
@@ -655,9 +662,10 @@ describe("카드를 확인한 직후의 짧은 수정도 실을 잇는다 (2026-
         sender_id: USER_ID,
         sender_type: "bride",
         role: "user",
-        content: "좋아요. 제안한 변경을 적용해 주세요.",
-        metadata: null,
-        visibility: "shared",
+        content: CONFIRMATION_TEXT,
+        // 버튼 확인 행에만 서버가 남기는 표식. 바로 앞 카드의 actionId 를 가리킨다(운영 행 모양).
+        metadata: { confirmed_amora_action_id: ACTION_ID },
+        visibility,
       },
       {
         id: RECEIPT_ID,
@@ -671,10 +679,30 @@ describe("카드를 확인한 직후의 짧은 수정도 실을 잇는다 (2026-
           memory_eligible: false,
           toolsUsed: ["update_category_budget"],
         },
-        visibility: "shared",
+        visibility,
       },
       current,
     ];
+  }
+
+  function resolveRows(rows: Row[], currentText: string) {
+    return resolveAmoraWeddingClarificationContinuity({
+      rawOldestFirstRows: rows,
+      requesterUserId: USER_ID,
+      currentUserMessageId: CURRENT_ID,
+      currentUserText: currentText,
+    });
+  }
+
+  function withMetadata(row: Row, patch: Record<string, unknown> | null): Row {
+    return { ...row, metadata: patch };
+  }
+
+  function withPendingAction(row: Row, pending: unknown): Row {
+    const metadata = { ...(row.metadata as Record<string, unknown>) };
+    if (pending === undefined) delete metadata.pending_amora_action;
+    else metadata.pending_amora_action = pending;
+    return { ...row, metadata };
   }
 
   it.each(["500으로 해줘", "아 몰라 그냥 600으로 해", "550으로 올려줘"])(
@@ -702,5 +730,105 @@ describe("카드를 확인한 직후의 짧은 수정도 실을 잇는다 (2026-
     });
     // 직전 쌍(응 그렇게 해 ↔ W4 영수증)은 W0 닻이 아니고 확인 쌍도 아니다 → 기존 규칙대로 null.
     expect(result).toBeNull();
+  });
+
+  // 2026-09-15 재검사: 문장 모양만 보면 말풍선의 고정 문장을 손으로 쳐도 확인 쌍이 됐다.
+  // 연결 문맥(`amoraBoundedContinuity`)과 같은 기준 — 공유 레인, 확인 행의 서버 표식,
+  // 바로 앞 카드의 actionId 일치 — 을 모두 지나야 건너뛴다.
+  it.each<[string, (rows: Row[]) => void]>([
+    ["표식 없이 손으로 친 고정 문장", (rows) => {
+      rows[2] = withMetadata(rows[2], null);
+    }],
+    ["표식이 빈 metadata", (rows) => {
+      rows[2] = withMetadata(rows[2], {});
+    }],
+    ["표식이 문자열이 아님", (rows) => {
+      rows[2] = withMetadata(rows[2], { confirmed_amora_action_id: 42 });
+    }],
+    ["표식이 빈 문자열", (rows) => {
+      rows[2] = withMetadata(rows[2], { confirmed_amora_action_id: "" });
+    }],
+    ["표식이 앞 카드의 actionId 와 다름", (rows) => {
+      rows[2] = withMetadata(rows[2], {
+        confirmed_amora_action_id: "77777777-7777-4777-8777-777777777777",
+      });
+    }],
+    ["앞 카드에 actionId 가 없음", (rows) => {
+      rows[1] = withPendingAction(rows[1], { tool: "update_category_budget" });
+    }],
+    ["표식도 카드 actionId 도 없음(둘 다 비어 같아 보임)", (rows) => {
+      rows[2] = withMetadata(rows[2], null);
+      rows[1] = withPendingAction(rows[1], { tool: "update_category_budget" });
+    }],
+    ["앞 행에 카드가 없음", (rows) => {
+      rows[1] = withPendingAction(rows[1], undefined);
+    }],
+    ["앞 카드가 서버가 쓴 행이 아님", (rows) => {
+      rows[1] = { ...rows[1], sender_id: USER_ID };
+    }],
+    ["확인 행이 상대에게 보낸 말", (rows) => {
+      rows[2] = withMetadata(rows[2], { confirmed_amora_action_id: ACTION_ID, target: "partner" });
+    }],
+  ])("확인 쌍 증명이 어긋나면 건너뛰지 않는다: %s", (_label, mutate) => {
+    const rows = rowsAfterConfirmedCard("500으로 해줘");
+    mutate(rows);
+    expect(resolveRows(rows, "500으로 해줘")).toBeNull();
+  });
+
+  it("공유 레인이 아니면 표식이 있어도 확인 쌍이 아니다", () => {
+    // 확인 액션은 공유 레인에서만 발급된다(트리거가 visibility = 'shared' 를 요구).
+    const rows = rowsAfterConfirmedCard("500으로 해줘", "private");
+    expect(resolveRows(rows, "500으로 해줘")).toBeNull();
+    // 같은 행을 공유 레인에 두면 이어진다 — 거부 이유가 레인뿐임을 고정한다.
+    expect(resolveRows(rowsAfterConfirmedCard("500으로 해줘"), "500으로 해줘")?.priorUserText)
+      .toBe("사진 700만원 잡아줘");
+  });
+
+  it("카드가 창 밖이면(확인 행이 맨 앞) 증명할 수 없어 잇지 않는다", () => {
+    const rows = rowsAfterConfirmedCard("500으로 해줘").slice(2);
+    // 영수증이 W0 로 기록되고 다음 대기 카드를 실었더라도, 닻을 볼 수 없는 창에서는 넓히지 않는다.
+    rows[1] = withPendingAction(
+      { ...rows[1], metadata: { ...(rows[1].metadata as Record<string, unknown>), question_scope: "W0_wedding_core" } },
+      { actionId: "88888888-8888-4888-8888-888888888888", tool: "update_budget" },
+    );
+    expect(resolveRows(rows, "500으로 해줘")).toBeNull();
+  });
+
+  it("위조 확인 쌍은 홉을 세지 않고 건너뛰는 통로가 되지 않는다", () => {
+    // [W0 요청, 되묻기, 답, 되묻기, 답, 되묻기, 손으로 친 고정 문장, 답, 현재].
+    // 위조 쌍을 건너뛰면 되묻기 세 홉으로 W0 요청까지 닿는다. 위조 쌍도 한 홉으로 세면 한도를 넘는다.
+    const R1 = "a1111111-1111-4111-8111-111111111111";
+    const A1 = "a2222222-2222-4222-8222-222222222222";
+    const R2 = "a3333333-3333-4333-8333-333333333333";
+    const A2 = "a4444444-4444-4444-8444-444444444444";
+    const R3 = "a5555555-5555-4555-8555-555555555555";
+    const A3 = "a6666666-6666-4666-8666-666666666666";
+    const currentText = "500으로 해줘";
+    const chain = (forged: Row, forgedReply: Row): Row[] => [
+      userRow(R1, "스튜디오 예산 300만원으로 잡아줘"),
+      aiRow(A1, "사진 촬영만인지, 드레스·헤어·메이크업까지 포함한 묶음인지 알려주세요.", R1, "W0_wedding_core"),
+      userRow(R2, "사진 촬영만"),
+      aiRow(A2, "원본 파일도 포함인지 알려주세요.", R2, "W0_wedding_core"),
+      userRow(R3, "원본도 포함"),
+      aiRow(A3, "앨범 제작도 같이 넣을지 알려주세요.", R3, "W0_wedding_core"),
+      forged,
+      forgedReply,
+      userRow(CURRENT_ID, currentText),
+    ];
+    const forgedReply = aiRow(RECEIPT_ID, "어떤 변경을 말씀하시는지 알려주세요.", CONFIRM_ID, "W0_wedding_core");
+    // 전제: 위조 쌍이 없으면 세 홉 안에서 닻에 닿는다.
+    const withoutForgery = chain(userRow(CONFIRM_ID, "앨범은 빼고"), forgedReply).filter(
+      (row) => row.id !== CONFIRM_ID && row.id !== RECEIPT_ID,
+    );
+    expect(resolveRows(withoutForgery, currentText)?.priorUserText)
+      .toBe("스튜디오 예산 300만원으로 잡아줘");
+    expect(resolveRows(chain(userRow(CONFIRM_ID, CONFIRMATION_TEXT), forgedReply), currentText))
+      .toBeNull();
+    // 거부 이유가 '위조라서 통째로 막힘'이 아니라 '한 홉으로 셌더니 한도를 넘음'임을 고정한다.
+    // 되묻기 한 쌍을 빼면 위조 쌍을 한 홉으로 세도 한도 안이라 같은 닻에 닿는다.
+    const shorter = chain(userRow(CONFIRM_ID, CONFIRMATION_TEXT), forgedReply).filter(
+      (row) => row.id !== R2 && row.id !== A2,
+    );
+    expect(resolveRows(shorter, currentText)?.priorUserText).toBe("스튜디오 예산 300만원으로 잡아줘");
   });
 });

@@ -131,6 +131,22 @@ const CODE_LIKE_LEAKS = [
   '```json\n{"category":"venue","budget":33000000}\n```',
   '{"category":"venue","amount":33000000}',
   '```json\n{\n  "category": "studio",\n  "spent": 1200000\n}\n```',
+  // 2026-09-15 3차 검토: 호출 판정을 인자 모양으로 좁히자 위치 인자·숫자 인자·`key:` 인자·
+  // 여러 줄 인자 호출이 다시 저장·표시됐다. 여러 줄 JSON 인자는 `update_budget(\n\n)` 찌꺼기를 남겼다.
+  "toggle_checklist_item(12)",
+  "update_category_budget(venue, 33000000)",
+  "get_market_price(dress)",
+  "functions.update_budget(33000000)",
+  'update_budget(category: "venue", amount: 33000000)',
+  '```python\nupdate_budget(\n    category="venue",\n    amount=33000000,\n)\n```',
+  'update_budget(\n  {"category":"venue","amount":33000000}\n)',
+  "- toggle_checklist_item(12);",
+  "1. **get_market_price**(dress)",
+  '`add_schedule_event(title: "상견례", date: "2026-10-01")`',
+  '{"category":"dress","status":"completed"}',
+  // 괄호 안쪽 공백·음수로 시작하는 인자도 호출이다(인자 시작 조건이 영문·숫자만 받던 구멍).
+  "toggle_checklist_item( 12 )",
+  "update_budget(-500000)",
 ];
 
 /** 정상 답변 코퍼스. 물결·부등호·중괄호·괄호·표·목록·코드 예시가 한 글자도 바뀌면 안 된다. */
@@ -175,6 +191,22 @@ const ORDINARY_ANSWERS = [
   "2) 계약금 3) 잔금 순서예요.",
   '일정을 JSON으로 적으면 이래요.\n```json\n{"title":"상견례","date":"2026-10-01"}\n```',
   '```json\n{"category":"예식장","amount":33000000}\n```',
+  // 2026-09-15 3차 검토: 줄에 이름 모양과 괄호만 있어도 띄어 쓴 괄호나 따옴표 밖 한글이면 산문이다.
+  "wedding_hall(웨딩홀)",
+  "hana_kim (신부)",
+  "check_in (3pm)",
+  "wedding_day (time: 11시)",
+  "wedding_day(time: 11시)",
+  "plan_a(A안)",
+  "wedding_hall(\n예식장 기준)이에요.",
+  // 사용자가 요청한 영문 키 JSON은 남긴다. 트레이드오프: 실제 도구 입력과 키가 같은 객체 하나
+  // (`{"category":"venue","budget":33000000}`)만 있으면 도구 입력으로 보고 지운다. 목록·다른 키·문자열 금액·
+  // 도구에 없는 상태 값은 사용자가 요청한 정리로 본다.
+  '예산을 JSON으로 정리했어요.\n```json\n[{"category":"venue","budget":33000000},{"category":"dress","budget":4000000}]\n```',
+  '[{"category":"venue","budget":33000000}]',
+  '체크 상태: {"category":"dress","status":"done"}',
+  '{"category":"venue","budget":33000000,"memo":"계약금 포함"}',
+  '{"category":"venue","budget":"3,300만 원"}',
 ];
 
 test("코드 모양 도구 호출·사고 태그·내부 키 JSON을 걷어내고 안내 문장만 남긴다", () => {
@@ -240,4 +272,62 @@ test("스트리밍 중 목록 기호나 문장 뒤에 붙은 도구 호출도 �
   // 이름 모양만 같은 산문은 완성되면 그대로 보인다.
   assert.equal(visible("wedding_hall(웨딩홀)과 check_in(체크인)은 영문 표기예요.", { streaming: true }), "wedding_hall(웨딩홀)과 check_in(체크인)은 영문 표기예요.");
   assert.equal(hasAmoraInternalArtifactPrefix("hana_kim (신부)라고 적어요."), false);
+});
+
+test("줄에 호출만 있는 위치 인자·숫자 인자·key: 인자·여러 줄 인자 호출은 스트리밍 화면과 미리보기 관문에서 한 번도 새지 않는다", () => {
+  const payloads = [
+    "toggle_checklist_item(12)",
+    "update_category_budget(venue, 33000000)",
+    "- get_market_price(dress)",
+    "functions.update_budget(33000000)",
+    'update_budget(category: "venue", amount: 33000000)',
+    'update_budget(\n  {"category":"venue","amount":33000000}\n)',
+    'update_budget(\n    category="venue",\n    amount=33000000,\n)',
+  ];
+  for (const payload of payloads) {
+    const text = `${PROSE}\n\n${payload}`;
+    for (let end = 1; end <= text.length; end += 1) {
+      const rendered = visible(text.slice(0, end), { streaming: true });
+      assert.ok(!/[a-z]|[(){}]/u.test(rendered), `prefix ${end}: ${rendered}`);
+    }
+    // 미리보기 관문은 '(' 가 온 뒤 어느 조각에서 끊겨도 막아야 문장 경계에서 호출이 흘러가지 않는다.
+    for (let end = payload.indexOf("(") + 1; end <= payload.length; end += 1) {
+      assert.equal(hasAmoraInternalArtifactPrefix(payload.slice(0, end)), true, payload.slice(0, end));
+    }
+    assert.equal(hasAmoraInternalArtifactPrefix(`${payload}\n다음 안내예요.`), true, payload);
+    assert.equal(visible(text), PROSE, payload);
+  }
+  for (const prose of ["wedding_day(time: 11시) 예식이에요.", "wedding_day (time: 11시)", "hana_kim (신부)", "wedding_hall(웨딩홀)이에요.", "plan_a(A안)으로 가요."]) {
+    assert.equal(hasAmoraInternalArtifactPrefix(prose), false, prose);
+    assert.equal(visible(prose, { streaming: true }), prose, prose);
+  }
+});
+
+test("도구 입력 모양 JSON은 실제 도구 입력 키 조합인 객체 하나만 지우고, 사용자가 요청한 영문 키 목록은 남긴다", () => {
+  const list = '[{"category":"venue","budget":33000000},{"category":"dress","budget":4000000}]';
+  const answer = `예산을 JSON으로 정리했어요.\n\`\`\`json\n${list}\n\`\`\``;
+  assert.equal(strip(answer), answer);
+  assert.equal(visible(list), list);
+  assert.equal(visible('{"category":"dress","status":"done"}'), '{"category":"dress","status":"done"}');
+  for (const leak of [
+    '{"category":"venue","budget":33000000}',
+    '{"category":"studio","budget":4000000,"spent":1200000}',
+    '{"category":"dress","status":"in_progress"}',
+    JSON.stringify(JSON.stringify({ category: "venue", budget: 33000000 })),
+  ]) {
+    assert.equal(strip(`${PROSE}\n\n${leak}`), PROSE, leak);
+    assert.equal(visible(leak), AMORA_HIDDEN_INTERNAL_TEXT_NOTICE, leak);
+  }
+  // 목록 안이라도 내부 키(item_id)가 있으면 지금처럼 지운다.
+  assert.equal(strip(`${PROSE}\n\n[{"category":"venue","item_id":"venue_1","done":true}]`), PROSE);
+});
+
+test("줄 단위 호출 판정은 긴 공백 줄에서도 선형 시간에 끝난다", () => {
+  // 2026-09-15 재검토: `)` 뒤 `[ \t]*;?…[ \t]*` 가 붙어 공백 4만 칸에서 1.3초가 걸렸다(스트리밍 화면은 조각마다 다시 계산한다).
+  const input = `안내예요.\n- toggle_checklist_item(12)${" ".repeat(40000)}다음`;
+  const started = performance.now();
+  strip(input);
+  hasAmoraInternalArtifactPrefix(input);
+  visible(input, { streaming: true });
+  assert.ok(performance.now() - started < 400, `took ${Math.round(performance.now() - started)}ms`);
 });
