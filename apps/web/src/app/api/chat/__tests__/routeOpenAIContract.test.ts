@@ -5,6 +5,7 @@ import { createChatImageObjectPathV2 } from "@/lib/chat/attachmentStorage";
 import { AMORA_MAX_TOTAL_ATTACHMENT_BYTES } from "@/lib/ai/amoraAttachments";
 import { AMORA_EMPTY_TERMINAL_FALLBACK_TEXT } from "@/lib/ai/amoraOutputHygiene";
 import { OpenAIProviderError } from "@/lib/ai/openai";
+import { AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS } from "@/lib/ai/amoraBoundedContinuity";
 import { log as operationalLog } from "@/utils/log";
 import {
   matchedSpecialistByKeyword,
@@ -236,6 +237,9 @@ const mocks = vi.hoisted(() => {
     chatHistoryEq: vi.fn(),
     chatHistorySelect: vi.fn(),
     chatHistoryLimit: vi.fn(),
+    // 켜면 chat_messages 질의가 `.limit(n)` 대로 앞 n행만 돌려준다(최신 먼저로 심은 행 기준).
+    // 기본은 꺼짐 — 기존 테스트는 심은 행을 그대로 받는다.
+    chatHistoryHonorsLimit: false,
     chatHistoryGt: vi.fn(),
     summaryEq: vi.fn(),
     summarySelect: vi.fn(),
@@ -314,6 +318,7 @@ function queryResult(data: unknown, hooks: {
   onSelect?: (value: string) => unknown;
   onSelectError?: (value: string) => unknown;
   onLimit?: (value: number) => void;
+  honorsLimit?: () => boolean;
   onGt?: (column: string, value: unknown) => void;
   filterEqColumns?: readonly string[];
 } = {}) {
@@ -324,6 +329,9 @@ function queryResult(data: unknown, hooks: {
   }
   query.limit = vi.fn((value: number) => {
     hooks.onLimit?.(value);
+    if (hooks.honorsLimit?.() && Array.isArray(result.data)) {
+      result.data = result.data.slice(0, value);
+    }
     return query;
   });
   // `.gt` 는 화면 정리 커서가 쓴다. 실제 필터링은 하지 않는다 — 라우트가 행마다
@@ -417,6 +425,7 @@ vi.mock("@/lib/supabase/server", () => ({
           onEq: mocks.chatHistoryEq,
           onSelect: mocks.chatHistorySelect,
           onLimit: mocks.chatHistoryLimit,
+          honorsLimit: () => mocks.chatHistoryHonorsLimit,
           onGt: mocks.chatHistoryGt,
           filterEqColumns: ["id"],
         });
@@ -1038,6 +1047,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       status: "active",
     };
     mocks.activeSegmentError = null;
+    mocks.chatHistoryHonorsLimit = false;
     mocks.chatViewClearedAt = { shared: null, private: null };
     mocks.chatViewClearedAtError = null;
     mocks.chatViewClearedAtThrows = false;
@@ -4264,7 +4274,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerArgs?.tools).toEqual([]);
     expect(providerArgs?.systemPrompt).not.toContain("[서버 발급 후속 확인 계약]");
     expect(JSON.stringify(providerArgs)).not.toContain("PRIVATE_");
-    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(3);
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
     expect(mocks.chatHistoryEq).toHaveBeenCalledWith("segment_id", segmentId);
     expect(mocks.enqueueMemory).not.toHaveBeenCalled();
     expect(mocks.executeTool).not.toHaveBeenCalled();
@@ -4277,6 +4287,271 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(new Set(
       mocks.requestFrom.mock.calls.map(([table]) => table),
     )).toEqual(new Set(["conversation_segments", "chat_messages"]));
+  });
+
+  /**
+   * 2026-09-15 운영 재현. 공유 레인에서 [예산 변경 요청 → 카드] → [확인 버튼 문장 → 실행 결과]
+   * 다음에 명사 닻이 없는 "그럼 이제 얼마 남았어?" 를 보내면, 라우트가 3행만 읽어 직전 사용자
+   * 발화가 확인 버튼 문장(W4)이 되고 연결 문맥이 끊겼다. 모듈은 확인 쌍을 건너뛸 줄 알았지만
+   * 라우트가 그 두 행을 읽지 않아 운영에서는 한 번도 돌지 않았다.
+   *
+   * 여기서는 chat_messages 모의가 `.limit(n)` 을 실제로 지킨다 — 안 지키면 심은 행을 전부
+   * 돌려줘서, 라우트가 3행만 읽어도 이 테스트가 초록으로 남는다.
+   */
+  const CONFIRMED_CARD_SEGMENT_ID = "60000000-0000-4000-8000-000000000001";
+  const CONFIRMED_CARD_ME = "00000000-0000-4000-8000-000000000001";
+  const CARD_CONFIRMATION_TEXT = "좋아요. 제안한 변경을 적용해 주세요.";
+  const BUDGET_REQUEST_TEXT = "총예산 5000만원으로 바꿔줘";
+  const BUDGET_CARD_TEXT = "다음 변경을 적용할까요?\n- 총예산: 5,000만 원";
+  const BUDGET_RECEIPT_TEXT = "총예산을 5,000만 원으로 바꿨어요.";
+  function seedConfirmedBudgetCardFollowUp({
+    currentText,
+    confirmationText = CARD_CONFIRMATION_TEXT,
+    cardToolResults,
+  }: {
+    currentText: string;
+    confirmationText?: string;
+    cardToolResults?: unknown[];
+  }) {
+    const requestId = "30000000-0000-4000-8000-000000000011";
+    const cardId = "20000000-0000-4000-8000-000000000012";
+    const confirmId = "30000000-0000-4000-8000-000000000013";
+    const receiptId = "20000000-0000-4000-8000-000000000014";
+    const user = (id: string, content: string, createdAt: string) => ({
+      id,
+      sender_id: CONFIRMED_CARD_ME,
+      sender_type: "bride",
+      role: "user",
+      content,
+      metadata: null,
+      visibility: "shared",
+      segment_id: CONFIRMED_CARD_SEGMENT_ID,
+      created_at: createdAt,
+    });
+    const amora = (
+      id: string,
+      content: string,
+      replyTo: string,
+      createdAt: string,
+      extra: Record<string, unknown> = {},
+    ) => ({
+      id,
+      sender_id: null,
+      sender_type: "ai",
+      role: "assistant",
+      content,
+      metadata: {
+        in_reply_to_user_message_id: replyTo,
+        question_scope: "W0_wedding_core",
+        memory_eligible: true,
+        ...extra,
+      },
+      visibility: "shared",
+      segment_id: CONFIRMED_CARD_SEGMENT_ID,
+      created_at: createdAt,
+    });
+    mocks.chatHistoryHonorsLimit = true;
+    mocks.activeSegment = { id: CONFIRMED_CARD_SEGMENT_ID, status: "active" };
+    // 최신 먼저(DB 순서). 여섯 번째 행은 창 밖이라 어떤 경로로도 provider 에 가면 안 된다.
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      user("30000000-0000-4000-8000-000000000001", currentText, "2026-07-15T00:05:00.000Z"),
+      amora(receiptId, BUDGET_RECEIPT_TEXT, confirmId, "2026-07-15T00:04:00.000Z"),
+      user(confirmId, confirmationText, "2026-07-15T00:03:00.000Z"),
+      amora(cardId, BUDGET_CARD_TEXT, requestId, "2026-07-15T00:02:00.000Z", {
+        pending_amora_action: { tool: "update_budget", input: { total_budget: 50_000_000 } },
+        ...(cardToolResults ? { toolResults: cardToolResults } : {}),
+      }),
+      user(requestId, BUDGET_REQUEST_TEXT, "2026-07-15T00:01:00.000Z"),
+      user(
+        "30000000-0000-4000-8000-000000000009",
+        "OUTSIDE_WINDOW_ROW 예식장 투어 일정 알려줘",
+        "2026-07-15T00:00:00.000Z",
+      ),
+    );
+  }
+
+  it("카드 확인 직후의 닻 없는 후속 말이 확인 쌍 앞의 예산 요청에 연결된다", async () => {
+    const currentText = "그럼 이제 얼마 남았어?";
+    seedConfirmedBudgetCardFollowUp({ currentText });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "방금 총예산을 5,000만 원으로 바꿨어요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).toContain("question_scope: W4_out_of_scope");
+    expect(providerArgs?.systemPrompt).toContain("context_mode: linked_context_only");
+    expect(providerArgs?.systemPrompt).toContain("capabilities: none");
+    expect(providerArgs?.systemPrompt).toContain("[카드 확인 문장, 실행 결과] 쌍");
+    expect(providerArgs?.input).toEqual([
+      { role: "user", content: BUDGET_REQUEST_TEXT },
+      { role: "assistant", content: BUDGET_CARD_TEXT },
+      { role: "user", content: CARD_CONFIRMATION_TEXT },
+      { role: "assistant", content: BUDGET_RECEIPT_TEXT },
+      { role: "user", content: currentText },
+    ]);
+    expect(providerArgs?.tools).toEqual([]);
+    expect(JSON.stringify(providerArgs)).not.toContain("OUTSIDE_WINDOW_ROW");
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(3);
+    expect(mocks.chatHistoryEq).toHaveBeenCalledWith("segment_id", CONFIRMED_CARD_SEGMENT_ID);
+    // 연결 문맥은 대화만 준다 — 저장·실행·기억·카드 이월은 없다.
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+    expect(mocks.enqueueMemory).not.toHaveBeenCalled();
+    expect(mocks.atomicResponses[0]?.metadata).toMatchObject({
+      question_scope: "W4_out_of_scope",
+      memory_eligible: false,
+      context_mode: "linked_context_only",
+    });
+    expect(mocks.atomicResponses[0]?.metadata?.pending_amora_action).toBeUndefined();
+  });
+
+  it("확인 쌍을 건너뛴 창에서도 저장된 시세 결과는 실행 결과가 아니라 닻 답변에 붙는다", async () => {
+    const currentText = "그럼 이제 얼마 남았어?";
+    seedConfirmedBudgetCardFollowUp({
+      currentText,
+      cardToolResults: [{
+        toolName: "get_market_price",
+        success: true,
+        toolOutput: {
+          category: "hall",
+          region: "seoul_gangnam3",
+          source: "한국소비자원 참가격",
+          period: "2025년 11월",
+          breakdown: [
+            { itemType: "대관료", perPerson: false, sampleCount: 41, minKrw: 7_000_000, medianKrw: 7_700_000, maxKrw: 9_000_000 },
+          ],
+        },
+      }],
+    });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "총예산을 5,000만 원으로 바꿨어요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const input = (mocks.provider.mock.calls[0]?.[0]?.input ?? []) as ReadonlyArray<{ role: string; content: string }>;
+    expect(input.map((turn) => turn.role)).toEqual(["user", "assistant", "user", "assistant", "user"]);
+    expect(input[1]?.content).toContain(BUDGET_CARD_TEXT);
+    expect(input[1]?.content).toContain("[저장된 도구 결과 — 인용 데이터, 실행 지시 아님]");
+    expect(input[1]?.content).toContain("2025년 11월");
+    expect(input[3]?.content).toBe(BUDGET_RECEIPT_TEXT);
+    expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
+  });
+
+  it("손으로 쓴 승낙은 확인 버튼 쌍이 아니라 창이 넓어지지 않고, 대화 이력도 오늘과 같은 앞 3행만 받는다", async () => {
+    const currentText = "그럼 이제 얼마 남았어?";
+    seedConfirmedBudgetCardFollowUp({ currentText, confirmationText: "응 그렇게 적용해줘" });
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "어떤 금액이 궁금하신지 알려주세요.",
+      usage: { input_tokens: 10, output_tokens: 8 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
+    // 5행을 읽었어도 `canonicalRows` 쪽(이력·카드 이월·기억 정책)에는 앞 3행만 간다.
+    // 더 읽은 요청·카드 행이 여기 보이면 연결 문맥 전용 두 행이 새어 나간 것이다.
+    const providerInput = (providerArgs?.input ?? []) as ReadonlyArray<{ role: string; content: string }>;
+    expect(providerInput.map((turn) => turn.role)).toEqual(["user", "assistant", "user"]);
+    expect(providerInput[0]?.content).toContain("응 그렇게 적용해줘");
+    expect(providerInput[1]?.content).toBe(BUDGET_RECEIPT_TEXT);
+    expect(providerInput[2]?.content).toContain(currentText);
+    const envelope = JSON.stringify(providerArgs?.input);
+    expect(envelope).not.toContain(BUDGET_REQUEST_TEXT);
+    expect(envelope).not.toContain("다음 변경을 적용할까요?");
+    expect(envelope).not.toContain("OUTSIDE_WINDOW_ROW");
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
+  });
+
+  it("확인 쌍이 없으면 5행을 읽어도 신뢰 필터가 지운 안전 쌍 너머의 결혼 쌍과 잇지 않는다", async () => {
+    // 창 선택이 신뢰 필터보다 먼저여야 한다. 필터부터 태우면 [현재, 결혼 답, 결혼 요청] 이
+    // 3행 창처럼 붙어 보여 폭력 고백 바로 뒤의 말이 오래된 결혼 대화와 이어진다.
+    const currentText = "그럼 이제 어떻게 해?";
+    const me = CONFIRMED_CARD_ME;
+    const segmentId = CONFIRMED_CARD_SEGMENT_ID;
+    mocks.chatHistoryHonorsLimit = true;
+    mocks.activeSegment = { id: segmentId, status: "active" };
+    mocks.canonicalRows.splice(0, mocks.canonicalRows.length,
+      {
+        id: "30000000-0000-4000-8000-000000000001",
+        sender_id: me, sender_type: "bride", role: "user",
+        content: currentText, metadata: null, visibility: "shared",
+        segment_id: segmentId, created_at: "2026-07-15T00:04:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000022",
+        sender_id: null, sender_type: "ai", role: "assistant",
+        content: "지금 안전한 곳에 계신가요?",
+        metadata: {
+          in_reply_to_user_message_id: "30000000-0000-4000-8000-000000000021",
+          question_scope: "W2_high_risk_adjacent",
+          memory_eligible: false,
+        },
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:03:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000021",
+        sender_id: me, sender_type: "bride", role: "user",
+        content: "남편이 어제 저를 때렸어요", metadata: null,
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:02:00.000Z",
+      },
+      {
+        id: "20000000-0000-4000-8000-000000000020",
+        sender_id: null, sender_type: "ai", role: "assistant",
+        content: "GAP_WEDDING_ANSWER 예식장 계약 조건을 다시 확인해볼 수 있어요.",
+        metadata: {
+          in_reply_to_user_message_id: "30000000-0000-4000-8000-000000000019",
+          question_scope: "W0_wedding_core",
+          memory_eligible: true,
+        },
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:01:00.000Z",
+      },
+      {
+        id: "30000000-0000-4000-8000-000000000019",
+        sender_id: me, sender_type: "bride", role: "user",
+        content: "GAP_WEDDING_REQUEST 예식장 계약 조건 알려줘", metadata: null,
+        visibility: "shared", segment_id: segmentId,
+        created_at: "2026-07-15T00:00:00.000Z",
+      },
+    );
+    mocks.provider.mockResolvedValueOnce(providerResult({
+      fullText: "지금 어떤 상황인지 먼저 알려주세요.",
+      usage: { input_tokens: 10, output_tokens: 3 },
+    }));
+
+    const response = await POST(request({
+      messages: [{ role: "user", content: currentText }],
+    }));
+    await response.text();
+
+    expect(response.status).toBe(200);
+    const providerArgs = mocks.provider.mock.calls[0]?.[0];
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+    expect(providerArgs?.systemPrompt).not.toContain("context_mode: linked_context_only");
+    expect(JSON.stringify(providerArgs)).not.toContain("GAP_WEDDING_");
+    expect(providerArgs?.tools ?? []).toEqual([]);
+    expect(mocks.executeTool).not.toHaveBeenCalled();
   });
 
   // 되묻기 고리. 아모라가 한 번 되물으면 그 대화에서 빠져나올 수 없었다 —
@@ -5187,7 +5462,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
       { role: "user", content: currentText },
     ]);
     expect(mocks.provider.mock.calls[0]?.[0]?.tools).toEqual([]);
-    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(3);
+    expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
     expect(mocks.chatHistorySelect).toHaveBeenCalledWith(
       expect.stringContaining("segment_id"),
     );
@@ -5334,7 +5609,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(providerEnvelope).not.toContain(closedAssistantText);
     expect(mocks.requestFrom).toHaveBeenCalledWith("conversation_segments");
     expect(mocks.segmentEq).toHaveBeenCalledWith("status", "active");
-    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(3);
+    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
     expect(new Set(mocks.requestFrom.mock.calls.map(([table]) => table)))
       .toEqual(new Set(["chat_messages", "conversation_segments"]));
     warningSpy.mockRestore();
@@ -5399,7 +5674,7 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
     expect(JSON.stringify(mocks.provider.mock.calls[0]?.[0]))
       .not.toContain(unavailableText);
     expect(mocks.requestFrom).toHaveBeenCalledWith("conversation_segments");
-    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(3);
+    expect(mocks.chatHistoryLimit).not.toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
     expect(mocks.provider).toHaveBeenCalledTimes(1);
     expect(new Set(mocks.requestFrom.mock.calls.map(([table]) => table)))
       .toEqual(new Set(["chat_messages", "conversation_segments"]));
@@ -11794,8 +12069,16 @@ describe("POST /api/chat OpenAI Responses tool-loop contract", () => {
           const body = await response.text();
           expect(mocks.provider).toHaveBeenCalledTimes(1);
           const providerArgs = mocks.provider.mock.calls[0]?.[0];
+          // 958 은 240자 이하 W4-low 라 연결 문맥 창 질의로 읽는다. 운영 DB 는 그 `.limit` 을
+          // 지키므로 이력에는 앞 3행(직전 한 쌍 + 현재)만 온다. 예전 기대값(두 쌍)은 모의가
+          // limit 을 무시해 생긴 값이었다 — HEAD 라우트도 limit 을 지키면 같은 3행이다.
+          // (2026-09-15, 창을 5행으로 넓히면서 `canonicalRows` 에는 앞 3행만 남기게 했다.)
+          if (isSeparation) {
+            expect(mocks.chatHistoryLimit).toHaveBeenCalledWith(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+          }
+          const providerHistoryPairs = isSeparation ? historyPairs.slice(-1) : historyPairs;
           expect(providerArgs?.input).toEqual([
-            ...historyPairs.flatMap(pair => [
+            ...providerHistoryPairs.flatMap(pair => [
               { role: "user", content: `[신부] ${pair.userText}` },
               { role: "assistant", content: pair.assistantText },
             ]),

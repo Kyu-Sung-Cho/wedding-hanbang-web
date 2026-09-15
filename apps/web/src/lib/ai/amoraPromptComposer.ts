@@ -995,7 +995,7 @@ export function buildAmoraSystemPrompt(
       contextFreeEnabledToolNames.length > 0
         ? `${contextFreeEnabledToolNames.join(", ")} (커플 저장 정보 없이 검색어·항목만 보내는 조회 도구)`
         : "none"
-    }\n- 입력의 첫 사용자-아모라 쌍은 서버가 검증한 바로 직전 웨딩 대화 1회입니다.\n- 현재 question_scope는 권한 경계로 그대로 유지됩니다. 다른 과거 대화·저장 정보로 넓히거나 ${
+    }\n- 입력의 첫 사용자-아모라 쌍은 서버가 검증한 바로 직전 웨딩 대화 1회입니다.\n- 그 뒤에 [카드 확인 문장, 실행 결과] 쌍이 오면 버튼으로 확인한 기록이지 새 요청이 아닙니다. 적용 여부는 그 결과 문장을 따르세요.\n- 현재 question_scope는 권한 경계로 그대로 유지됩니다. 다른 과거 대화·저장 정보로 넓히거나 ${
       contextFreeEnabledToolNames.length > 0 ? "위 조회 도구 밖의 " : ""
     }도구·저장·실행·변경 제안을 만들지 마세요. 동의 표현도 대화 문맥일 뿐 실행 확인이 아닙니다.`
     : "";

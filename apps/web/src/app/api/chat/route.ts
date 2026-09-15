@@ -128,8 +128,10 @@ import {
   type AmoraQuestionScopeClassification,
 } from "@/lib/ai/amoraQuestionScope";
 import {
+  AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS,
   buildAmoraBoundedContinuity,
   canAttemptAmoraBoundedContinuity,
+  selectAmoraBoundedContinuityWindow,
 } from "@/lib/ai/amoraBoundedContinuity";
 import {
   isAmoraClarificationAnswerShaped,
@@ -2195,6 +2197,13 @@ export async function POST(request: Request) {
     && typeof bodyUserMessageId === "string"
     && trustedCanonicalScopeUserRow !== null
     && effectivePreliminaryScope?.scope === "W4_out_of_scope";
+  /**
+   * 연결 문맥 창을 아래 5번(canonical 대화) 질의가 대신 읽는 턴인가. 그 턴의 5번 결과는
+   * `AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS` 행이라, `canonicalContextRows` 에는 앞 3행만
+   * 남긴다 — 이전 행 기준 카드 이월·기억 정책·W4 이력이 오늘과 같은 입력을 받게.
+   */
+  const boundedContinuityReadsCanonicalWindow =
+    shouldLoadBoundedContinuity && !isClarificationAnswerShaped;
 
   const [
     journeyResult,
@@ -2281,10 +2290,15 @@ export async function POST(request: Request) {
       // **넓은 결과를 잘라서 주면 안 된다** — 넓은 질의는 `.or(metadata->>target…)`
       // 로 partner 행을 DB 에서 빼므로, 그 마지막 3행을 주면 원래 끊겨야 할
       // 대화가 인접해 보인다(바로 아래 주석이 못 박은 계약).
-      if (shouldLoadBoundedContinuity && !isClarificationAnswerShaped) {
-        // Read exactly the current row and its two direct predecessors. Do not
-        // hide partner-target rows here: their presence must break continuity,
+      if (boundedContinuityReadsCanonicalWindow) {
+        // Read the current row and its direct predecessors. Do not hide
+        // partner-target rows here: their presence must break continuity,
         // never make non-adjacent messages look adjacent after filtering.
+        //
+        // 2026-09-15: 5행까지 읽는다. 카드 확인 쌍(버튼 문장 + 실행 결과)이 사이에 끼면
+        // 그 앞의 요청↔카드 쌍까지 봐야 닻을 찾는다. 더 읽은 두 행은 연결 문맥 창 선택
+        // (`selectAmoraBoundedContinuityWindow`)에만 쓰고, `canonicalRows` 쪽에는
+        // 오늘과 같은 앞 3행만 넘긴다(아래 `canonicalContextRows`).
         const boundedQuery = supabase
           .from("chat_messages")
           .select(canonicalMessageWindowColumns)
@@ -2293,7 +2307,7 @@ export async function POST(request: Request) {
           .eq("segment_id", boundedContinuitySegmentId)
           .order("created_at", { ascending: false })
           .order("id", { ascending: false })
-          .limit(3);
+          .limit(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
         // 화면 정리 이전 행이 앞자리를 채우면 3행이 안 되고, 그러면
         // `buildAmoraBoundedContinuity` 가 null 을 내 연결 문맥이 꺼진다 —
         // 지운 대화와 이어붙는 것보다 그편이 맞다.
@@ -2334,14 +2348,14 @@ export async function POST(request: Request) {
           )
           .eq("owner_user_id", actorId)
           .maybeSingle(),
-    // 8. 연결 문맥(bounded continuity) 전용 3행.
+    // 8. 연결 문맥(bounded continuity) 전용 행(최대 5행).
     //
     // 위 5번이 되묻기 답인 턴에서 넓은 창을 쓰게 되면서, 연결 문맥이 요구하는
-    // "현재 행과 직전 두 행" 을 여기서 따로 받는다. `buildAmoraBoundedContinuity`
-    // 는 행이 정확히 3개가 아니면 **예외 없이 조용히 `null`** 을 돌려주므로,
-    // 넓은 결과를 잘라 넘기면 그 레인이 소리 없이 꺼진다. 같은 이유로 여기서도
-    // partner 행을 숨기지 않는다 — 그 존재는 연속성을 끊어야지, 걸러낸 뒤에
-    // 인접해 보이게 만들면 안 된다.
+    // "현재 행과 직전 행들" 을 여기서 따로 받는다. `buildAmoraBoundedContinuity`
+    // 는 창 모양(3행, 또는 카드 확인 쌍이 낀 5행)이 아니면 **예외 없이 조용히
+    // `null`** 을 돌려주므로, 넓은 결과를 잘라 넘기면 그 레인이 소리 없이 꺼진다.
+    // 같은 이유로 여기서도 partner 행을 숨기지 않는다 — 그 존재는 연속성을
+    // 끊어야지, 걸러낸 뒤에 인접해 보이게 만들면 안 된다.
     shouldLoadBoundedContinuity && isClarificationAnswerShaped
       ? (() => {
           const boundedQuery = supabase
@@ -2352,7 +2366,7 @@ export async function POST(request: Request) {
             .eq("segment_id", boundedContinuitySegmentId)
             .order("created_at", { ascending: false })
             .order("id", { ascending: false })
-            .limit(3);
+            .limit(AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
           // 5번의 3행 갈래와 같은 이유로 화면 정리 커서를 건다.
           return boundedContinuityClearedFloor
             ? boundedQuery.gt("created_at", boundedContinuityClearedFloor)
@@ -2779,20 +2793,44 @@ export async function POST(request: Request) {
   // 2026-09-03: 화면 정리 이전 행은 사용자 화면에 없다. DB 에는 두 레인 중 더 이른
   // 커서까지만 걸 수 있으므로(private 턴은 shared + 본인 private 를 함께 읽는다)
   // 레인별 정확한 판정을 여기서 한 번 더 한다. 커서가 없으면 전부 통과 = 오늘과 동일.
-  const canonicalContextRows = ((messagesResult.data ?? []) as unknown as CanonicalChatRow[])
+  const rawCanonicalMessageRows = (messagesResult.data ?? []) as unknown as CanonicalChatRow[];
+  // 연결 문맥 창을 5번이 읽은 턴이면 앞 3행만 쓴다 — 오늘의 `.limit(3)` 결과와 같은 행이다.
+  // 더 읽은 두 행은 아래 `boundedContinuityRows` 의 창 선택에만 쓴다.
+  const canonicalContextRows = (boundedContinuityReadsCanonicalWindow
+    ? rawCanonicalMessageRows.slice(0, 3)
+    : rawCanonicalMessageRows)
     .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt));
   /**
    * 연결 문맥이 볼 행. **넓은 창을 잘라 쓰지 않는다.**
    *
-   * 되묻기 답인 턴에서는 위 5번이 넓은 창을 읽으므로, 연결 문맥이 요구하는
-   * "정확히 3행" 을 8번에서 따로 받아 여기서 고른다. `buildAmoraBoundedContinuity`
-   * 는 3행이 아니면 예외 없이 조용히 `null` 이라, 잘라 넘기면 그 레인이 소리 없이
-   * 꺼진다. 그리고 넓은 질의는 partner 행을 DB 에서 빼므로, 그 꼬리 3행은
+   * 되묻기 답인 턴에서는 위 5번이 넓은 창을 읽으므로, 연결 문맥이 요구하는 창을
+   * 8번에서 따로 받아 여기서 고른다. `buildAmoraBoundedContinuity` 는 창 모양이
+   * 아니면 예외 없이 조용히 `null` 이라, 잘라 넘기면 그 레인이 소리 없이 꺼진다.
+   * 그리고 넓은 질의는 partner 행을 DB 에서 빼므로, 그 꼬리 행들은
    * "끊겨야 할 대화가 인접해 보이는" 바로 그 결과를 만든다.
+   *
+   * **창 선택은 신뢰 필터보다 먼저다(2026-09-15).** 최대 5행을 읽어 여기서
+   * `selectAmoraBoundedContinuityWindow` 로 고른다 — 카드 확인 쌍이 원본 행 1·2번에
+   * 있을 때만 5행, 아니면 오늘과 같은 3행이다. 이 결과에만 `boundedContinuity` 가
+   * `selectAmoraTrustedHistoryRows` 를 태운다. 필터부터 태우면 지워진 W2·W5 쌍이
+   * 만든 틈 너머의 오래된 결혼 쌍이 3행 창처럼 인접해 보인다.
    */
-  const boundedContinuityRows = boundedContinuityRowsResult?.data
+  //
+  // 창 선택은 **연결 문맥 전용 질의(5번의 연결 갈래·8번)가 읽은 행에만** 한다. 그 밖의
+  // 폴백(`canonicalContextRows`)은 partner 행을 DB 에서 뺀 넓은 창일 수 있어, 거기서 앞
+  // 3·5행을 잘라 주면 끊겨야 할 대화가 인접해 보인다 — 그래서 오늘처럼 자르지 않고 넘긴다.
+  const boundedContinuityQueryRows = boundedContinuityRowsResult?.data
     ? (boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])
-        .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt))
+    : boundedContinuityReadsCanonicalWindow
+      ? rawCanonicalMessageRows
+      : null;
+  const boundedContinuityRows = boundedContinuityQueryRows
+    ? selectAmoraBoundedContinuityWindow({
+        newestFirstRows: boundedContinuityQueryRows
+          .filter((row) => isAfterChatViewClear(row.created_at, row.visibility, chatViewClearedAt)),
+        requesterUserId: actorId,
+        visibility,
+      })
     : canonicalContextRows;
   /**
    * W4 턴 이력 전용 행(9번). 오래된 것부터 정렬해 두고, `canonicalRows` 와 같은
@@ -3217,7 +3255,9 @@ export async function POST(request: Request) {
     weddingClarificationContinuity
     ?? (boundedContinuityRowsResult?.data && typeof bodyUserMessageId === "string"
       ? resolveAmoraWeddingClarificationContinuity({
-          rawOldestFirstRows: [...(boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])]
+          // 8번은 연결 문맥 창 때문에 5행까지 읽는다. 이 폴백은 오늘과 같은 앞 3행만 쓴다.
+          rawOldestFirstRows: (boundedContinuityRowsResult.data as unknown as CanonicalChatRow[])
+            .slice(0, 3)
             .reverse(),
           requesterUserId: actorId,
           currentUserMessageId: bodyUserMessageId,
@@ -3397,7 +3437,10 @@ export async function POST(request: Request) {
             visibility,
             segmentId: boundedContinuitySegmentId as string,
           });
-          return appendAmoraBoundedToolResultHistory(continuity, trustedRows[1]?.metadata?.toolResults);
+          // messages[1] 은 닻 쌍의 아모라 행이다. 3행 창이면 trustedRows[1], 카드 확인 쌍이
+          // 낀 5행 창이면 trustedRows[3] — 둘 다 끝에서 두 번째다. [1] 로 고정하면 5행 창에서
+          // 실행 결과 행의 도구 결과가 카드 답변에 붙는다. 창이 어긋나면 continuity 가 null 이다.
+          return appendAmoraBoundedToolResultHistory(continuity, trustedRows.at(-2)?.metadata?.toolResults);
         })()
       : null;
   const memoryTurnOptOut = hasAmoraMemoryTurnOptOut(lastUserText);
