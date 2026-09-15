@@ -35,6 +35,11 @@ import {
   StatusPill,
   Surface,
 } from "@/components/ui/AppUI";
+import {
+  FeatureSummarySurface,
+  SummaryPill,
+  summaryColors,
+} from "@/components/ui/FeatureSummary";
 
 type BookingStatus = "pending" | "confirmed" | "completed" | "cancelled";
 type PillTone = "neutral" | "rose" | "success" | "warning" | "danger";
@@ -647,7 +652,9 @@ export default function BookingsScreen() {
         }
       >
         {bookings.length > 0 ? (
-          <Surface tone="noir" style={s.summaryCard}>
+          // 요약은 웹과 같은 샴페인 요약 면이다. 아래 요청 기록 카드와 구분되고, 반투명 흰 글자
+          // (어두운 카드 위 62~78%)보다 읽기 쉽다.
+          <FeatureSummarySurface style={s.summaryCard}>
             {summary.nextBooking && nextAction ? (
               <>
                 <View style={s.summaryTop}>
@@ -659,21 +666,21 @@ export default function BookingsScreen() {
                       {summary.nextBooking.vendor?.name ?? "업체 미정"}
                     </AppText>
                   </View>
-                  <StatusPill label={nextAction.label} tone={nextAction.tone} />
+                  <SummaryPill label={nextAction.label} tone={nextAction.tone} />
                 </View>
                 <AppText variant="body" style={s.summaryBody}>
                   {nextAction.description}
                 </AppText>
                 <View style={s.summaryMetaRow}>
                   <View style={s.summaryMeta}>
-                    <CalendarDays size={15} color="#FFFFFF" />
+                    <CalendarDays size={15} color={summaryColors.label} />
                     <AppText variant="caption" style={s.summaryMetaText}>
                       {formatDateLong(summary.nextBooking.booking_date)}
                       {summary.nextBooking.booking_time ? ` ${summary.nextBooking.booking_time}` : ""}
                     </AppText>
                   </View>
                   <View style={s.summaryMeta}>
-                    <WalletCards size={15} color="#FFFFFF" />
+                    <WalletCards size={15} color={summaryColors.label} />
                     <AppText variant="caption" style={s.summaryMetaText}>
                       {bookingAmountLabel(summary.nextBooking)}
                     </AppText>
@@ -715,7 +722,7 @@ export default function BookingsScreen() {
                 <AppText variant="caption" style={s.statLabel}>취소 표시</AppText>
               </View>
             </View>
-          </Surface>
+          </FeatureSummarySurface>
         ) : null}
 
         {filtered.length === 0 ? (
@@ -1188,13 +1195,13 @@ const s = StyleSheet.create({
     gap: 3,
   },
   summaryEyebrow: {
-    color: "rgba(255,255,255,0.62)",
+    color: summaryColors.label,
   },
   summaryTitle: {
-    color: "#FFFFFF",
+    color: summaryColors.ink,
   },
   summaryBody: {
-    color: "rgba(255,255,255,0.82)",
+    color: summaryColors.ink,
   },
   summaryMetaRow: {
     gap: 8,
@@ -1205,7 +1212,7 @@ const s = StyleSheet.create({
     gap: 8,
   },
   summaryMetaText: {
-    color: "rgba(255,255,255,0.78)",
+    color: summaryColors.label,
   },
   reviewTitle: {
     marginTop: 4,
@@ -1216,7 +1223,10 @@ const s = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.12)",
+    borderWidth: 1,
+    borderColor: summaryColors.line,
+    // 요약 면 안의 한 칸. 흰 바탕이라 글자 대비는 면보다 높다.
+    backgroundColor: colors.surface,
     overflow: "hidden",
   },
   statItem: {
@@ -1225,15 +1235,15 @@ const s = StyleSheet.create({
     gap: 2,
   },
   statNumber: {
-    color: "#FFFFFF",
+    color: summaryColors.ink,
   },
   statLabel: {
-    color: "rgba(255,255,255,0.66)",
+    color: summaryColors.label,
   },
   statDivider: {
     width: 1,
     height: 24,
-    backgroundColor: "rgba(255,255,255,0.16)",
+    backgroundColor: summaryColors.line,
   },
   list: {
     gap: 12,

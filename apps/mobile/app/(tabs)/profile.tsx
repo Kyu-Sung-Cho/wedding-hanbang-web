@@ -1,5 +1,4 @@
 import { daysUntilWedding } from "@hanbang/shared";
-import { getProfileInitial } from "@hanbang/shared/profile-avatar";
 import { CONTACT } from "@hanbang/shared/constants";
 // 프로필/설정 화면
 import { useState, useCallback } from "react";
@@ -28,14 +27,21 @@ import {
 } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
 import { supabase } from "@/lib/supabase";
-import { apiJson } from "@/lib/api";
+import { apiFetchForExpectedUser, apiJson } from "@/lib/api";
 import { signOut } from "@/lib/auth";
 import Constants from "expo-constants";
 import { ActionRow, IconBadge } from "@/components/ui/AppUI";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
+import ProfileAvatarEditorSheet from "@/components/profile/ProfileAvatarEditorSheet";
+import { parseProfileAvatarResponse } from "@/lib/profileAvatarPresentation.mjs";
 
 interface ProfileData {
   /** 중립 준비 공간이면 role은 저장 슬롯이지 사용자가 고른 값이 아니다. */
   usesNeutralMembers?: boolean;
+  /** 개인 프로필 표시의 소유자. 사진 경로가 이 사람 것인지 확인할 때 쓴다. */
+  userId: string;
+  /** 고른 이모지 또는 인증된 사진 경로. 못 읽었거나 고르지 않았으면 null(이름 첫 글자). */
+  avatarUrl: string | null;
   name: string | null;
   email: string | null;
   role: string | null;
@@ -85,12 +91,22 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [editingAvatar, setEditingAvatar] = useState(false);
+  const [avatarNotice, setAvatarNotice] = useState<string | null>(null);
 
   const loadProfile = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return;
+
+    // 고른 이모지·사진은 서버 전용 표(profile_avatars)에 있어 웹 API로 읽는다.
+    // 표시용이므로 실패하면 이름 첫 글자로 두고 화면은 계속 연다.
+    const avatarRequest = apiFetchForExpectedUser(user.id, "/api/profile/avatar", { method: "GET" })
+      .then(async (response) => response.ok
+        ? parseProfileAvatarResponse(await response.json().catch(() => null), user.id)?.avatar_url ?? null
+        : null)
+      .catch(() => null);
 
     const { data } = await supabase
       .from("profiles")
@@ -158,7 +174,14 @@ export default function ProfileScreen() {
       totalUpvotes: communityProfile?.total_upvotes_received ?? 0,
     });
 
+    const avatarUrl = await avatarRequest;
+    // 기다리는 사이 계정이 바뀌었으면 이전 계정의 프로필을 그리지 않는다.
+    const { data: current } = await supabase.auth.getSession();
+    if (current.session?.user.id !== user.id) return;
+
     setProfile({
+      userId: user.id,
+      avatarUrl,
       name: data?.name ?? null,
       email: user.email ?? null,
       role: data?.role ?? null,
@@ -226,7 +249,6 @@ export default function ProfileScreen() {
       : profile?.role === "groom"
         ? "신랑"
         : null;
-  const initial = getProfileInitial(profile?.name);
 
   const appVersion =
     Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? "1.0.0";
@@ -246,9 +268,13 @@ export default function ProfileScreen() {
 
           {/* 아바타 + 이름 + 역할 */}
           <View style={styles.avatarRow}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>{initial}</Text>
-            </View>
+            <ProfileAvatar
+              name={profile?.name}
+              avatarUrl={profile?.avatarUrl}
+              ownerId={profile?.userId}
+              size={80}
+              style={styles.avatar}
+            />
             <View style={styles.profileInfo}>
               <View style={styles.nameRow}>
                 <Text style={styles.name}>
@@ -271,8 +297,38 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               )}
+              {profile && (
+                <Pressable
+                  onPress={() => { setAvatarNotice(null); setEditingAvatar(true); }}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.avatarEditButton, pressed && { opacity: 0.85 }]}
+                  accessibilityRole="button"
+                  accessibilityHint="이름 첫 글자, 이모지, 사진 중에서 고를 수 있어요"
+                >
+                  <Text style={styles.avatarEditText}>프로필 꾸미기</Text>
+                </Pressable>
+              )}
+              {avatarNotice && (
+                <Text style={styles.avatarNotice} accessibilityLiveRegion="polite">{avatarNotice}</Text>
+              )}
             </View>
           </View>
+          {profile && (
+            <ProfileAvatarEditorSheet
+              key={profile.userId}
+              visible={editingAvatar}
+              ownerId={profile.userId}
+              name={profile.name}
+              onClose={(saved) => {
+                setEditingAvatar(false);
+                if (!saved) return;
+                setProfile((current) => current && current.userId === profile.userId
+                  ? { ...current, avatarUrl: saved.avatarUrl }
+                  : current);
+                setAvatarNotice("프로필을 저장했어요.");
+              }}
+            />
+          )}
 
           {/* D-day 디스플레이 */}
           {profile?.dday != null && (
@@ -535,19 +591,29 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.rose[500],
-    alignItems: "center",
-    justifyContent: "center",
     borderWidth: 3,
     borderColor: "rgba(255, 255, 255, 0.2)",
   },
-  avatarText: {
-    fontSize: 32,
-    fontFamily: "NotoSerifKR_500Medium",
+  avatarEditButton: {
+    alignSelf: "flex-start",
+    minHeight: 36,
+    justifyContent: "center",
+    marginTop: 10,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.35)",
+  },
+  avatarEditText: {
+    fontSize: 13,
+    fontFamily: "NotoSansKR_500Medium",
     color: "#FFFFFF",
+  },
+  avatarNotice: {
+    marginTop: 6,
+    fontSize: 12,
+    fontFamily: "NotoSansKR_400Regular",
+    color: "rgba(255, 255, 255, 0.8)",
   },
   profileInfo: {
     flex: 1,

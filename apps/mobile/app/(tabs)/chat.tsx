@@ -1,5 +1,6 @@
 // AI 채팅 (아모라) + 파트너 메시지 — 웹과 동일 chat_messages 연동
-// 색은 성별이 아니라 나/상대/AI 축으로 가른다. 라벨은 이름을 쓴다.
+// 사람 말풍선 색은 각자 **직접 확인한 표시 역할**로 칠한다(웹과 같음, 2026-09-12 요청).
+// 가입 순서로 채워진 role 슬롯은 쓰지 않고, 확인 전이면 중립색이다. 라벨은 이름을 쓴다.
 import { useState, useRef, useEffect, useCallback, useMemo, type SetStateAction } from "react";
 import { View, Pressable, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Animated, ActivityIndicator, Linking, AppState } from "react-native";
 import { Text, TextInput } from "@/components/ui/AppText";
@@ -7,10 +8,19 @@ import { buildMobileSiteUrl, resolveMobileSiteOrigin } from "@/lib/siteUrl.mjs";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Crypto from "expo-crypto";
-import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, User, Users } from "lucide-react-native";
+import { Check, Send, ShieldCheck, Heart, X, Lock, RotateCcw, Users } from "lucide-react-native";
 import { amoraIdentity, chatPalette, colors } from "@hanbang/design-tokens";
 import AmoraMark from "@/components/ui/AmoraMark";
 import AmoraAvatar from "@/components/ui/AmoraAvatar";
+import ProfileAvatar from "@/components/ui/ProfileAvatar";
+import { apiFetchForExpectedUser } from "@/lib/api";
+import {
+  EMPTY_CHAT_PARTICIPANT_PRESENTATION,
+  chatSenderAvatarName,
+  readChatParticipantPresentation,
+  resolveChatSenderPresentation,
+  type ChatParticipantPresentation,
+} from "@/lib/chatParticipantPresentation.mjs";
 import type {
   BudgetImpactPreview,
   BudgetImpactWarning,
@@ -111,6 +121,8 @@ const AI_POLICY_URL = buildMobileSiteUrl("/ai-policy", amoraSiteOrigin);
 const API_BASE = process.env.EXPO_PUBLIC_SITE_URL || "https://hanbang.ai";
 const CHAT_REQUEST_TIMEOUT_MS = 180_000;
 const CHAT_INGEST_TIMEOUT_MS = 30_000;
+// 말풍선 색·상대 사진은 표시용이다. 화면에 돌아올 때마다 다시 읽되 이 간격 안에서는 한 번만 읽는다.
+const PARTICIPANT_PRESENTATION_REFRESH_MS = 30_000;
 const PARTNER_CONNECTION_CHANGED_NOTICE =
   "상대방 연결 상태가 바뀌어 메시지를 보내지 않았어요. 잘못 전달되지 않도록 작성 중인 초안은 삭제했어요.";
 const NEW_CHAT_MESSAGE_REQUIRED_NOTICE =
@@ -1943,6 +1955,9 @@ export default function ChatScreen() {
   const [userRole, setUserRole] = useState<ViewerRole>(null);
   const [userName, setUserName] = useState("사용자");
   const [partnerName, setPartnerName] = useState<string | null>(null);
+  const [participantPresentation, setParticipantPresentation] = useState<ChatParticipantPresentation>(
+    EMPTY_CHAT_PARTICIPANT_PRESENTATION,
+  );
   const [hasLinkedPartner, setHasLinkedPartner] = useState(false);
   const [initialLoaded, setInitialLoaded] = useState(false);
   const [chatLoadError, setChatLoadError] = useState<string | null>(null);
@@ -2168,6 +2183,50 @@ export default function ChatScreen() {
       active = false;
     };
   }, [chatLoadError, coupleId, initialLoaded, userId]);
+
+  // 말풍선 색(확인한 표시 역할)과 상대 프로필 사진·이모지는 웹과 같은 /api/auth/me 에서 읽는다.
+  // profile_wedding_roles·profile_avatars 는 앱이 직접 읽을 수 없는 서버 전용 표다.
+  // 표시용이므로 실패해도 대화는 막지 않고 중립색·이름 첫 글자로 둔다.
+  const participantPresentationLoadRef = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    if (!initialLoaded || !userId || !coupleId || chatLoadError) return;
+    const generation = chatSessionGenerationRef.current.current();
+    const partnerId = hasLinkedPartner ? linkedPartnerIdRef.current : null;
+    let active = true;
+    let inFlight = false;
+    let lastLoadedAt = 0;
+    setParticipantPresentation((current) => (
+      current.selfId === userId && current.partnerId === partnerId
+        ? current
+        : EMPTY_CHAT_PARTICIPANT_PRESENTATION
+    ));
+    const load = async () => {
+      const startedAt = Date.now();
+      if (inFlight || startedAt - lastLoadedAt < PARTICIPANT_PRESENTATION_REFRESH_MS) return;
+      inFlight = true;
+      lastLoadedAt = startedAt;
+      try {
+        const response = await apiFetchForExpectedUser(userId, "/api/auth/me");
+        const payload: unknown = await response.json().catch(() => null);
+        if (!active || !mountedRef.current || !chatSessionGenerationRef.current.isCurrent(generation) || !response.ok) return;
+        setParticipantPresentation(readChatParticipantPresentation(payload, { selfId: userId, partnerId, coupleId }));
+      } catch {
+        // 계정 전환·연결 오류. 지금 보이는 중립 표시를 유지한다.
+      } finally {
+        inFlight = false;
+      }
+    };
+    participantPresentationLoadRef.current = () => { void load(); };
+    void load();
+    return () => {
+      active = false;
+      participantPresentationLoadRef.current = null;
+    };
+  }, [chatLoadError, coupleId, hasLinkedPartner, initialLoaded, userId]);
+  // 웹 설정에서 역할이나 프로필 사진을 바꾸고 앱으로 돌아와도 반영되게 한다.
+  useFocusEffect(useCallback(() => {
+    participantPresentationLoadRef.current?.();
+  }, []));
   const activeW5PersistenceState = useMemo<{
     rawDisclosurePersisted: boolean | null;
     persistence: RawDisclosurePersistence;
@@ -2258,6 +2317,7 @@ export default function ChatScreen() {
     setUserRole(null);
     setUserName("사용자");
     setPartnerName(null);
+    setParticipantPresentation(EMPTY_CHAT_PARTICIPANT_PRESENTATION);
     setHasLinkedPartner(false);
     setInitialLoaded(false);
     setChatLoadError(null);
@@ -4136,16 +4196,29 @@ export default function ChatScreen() {
         ? "이 공동 변경을 확인하고 바로 반영"
         : "이 공동 변경을 확인"
       : "확인한 내용을 이대로 적용";
-    const bubbleBg = isAi ? chatPalette.amora.surface : isMe ? colors.noir[800] : colors.ivory.warm;
-    const textColor = isAi ? chatPalette.amora.ink : isMe ? "#FFF" : colors.noir[800];
+    // 웹 ChatBubble 과 같은 규칙: 신랑으로 확인 → 하늘색, 신부로 확인 → 분홍, 아모라 → 아모라 색,
+    // 확인 전·누구인지 모름 → 중립 베이지. 색과 글자색은 design-tokens chatPalette 한 벌이다.
+    const senderPresentation = resolveChatSenderPresentation({
+      isAi,
+      senderId: item.sender_id,
+      presentation: participantPresentation,
+    });
+    const bubbleTone = chatPalette[senderPresentation.tone];
+    const bubbleBg = bubbleTone.surface;
+    const textColor = bubbleTone.ink;
+    const linkedPartnerId = hasLinkedPartner ? linkedPartnerIdRef.current : null;
 
     return (
       <View style={[st.msgRow, isMe && st.msgRowRight]}>
         {!isMe && (
           isAi ? <AmoraAvatar size={28} /> : (
-            <View style={[st.avatar, st.avatarPerson]}>
-              <User size={12} color={colors.noir[800]} />
-            </View>
+            <ProfileAvatar
+              size={28}
+              decorative
+              name={chatSenderAvatarName({ senderId: item.sender_id, selfId: userId, selfName: userName, partnerId: linkedPartnerId, partnerName })}
+              avatarUrl={senderPresentation.avatarUrl}
+              ownerId={senderPresentation.avatarOwnerId}
+            />
           )
         )}
         <View style={[
@@ -4171,7 +4244,7 @@ export default function ChatScreen() {
                 <Text style={st.safetyCardText}>{visibleContent}</Text>
               </View>
             ) : (
-              <View style={[st.bubble, { backgroundColor: bubbleBg }, !isMe && !isAi && { borderWidth: 1, borderColor: colors.border }, isAi && { borderWidth: 1, borderColor: chatPalette.amora.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
+              <View style={[st.bubble, { backgroundColor: bubbleBg, borderWidth: 1, borderColor: bubbleTone.line }, isMe && st.bubbleRight, !isMe && st.bubbleLeft]}>
                 {isThinking ? <ThinkingDots /> : (
                   <>
                     {isAi ? (
@@ -4656,8 +4729,6 @@ const st = StyleSheet.create({
   safetyMessageBody: { flex: 1, maxWidth: "92%" },
   mediationMessageBody: { maxWidth: "92%", flex: 1 },
   placeMessageBody: { flex: 1, maxWidth: 460 },
-  avatar: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-  avatarPerson: { backgroundColor: colors.ivory.warm },
   senderLabel: { fontSize: 11, color: colors.textTertiary, marginBottom: 4, marginLeft: 4 },
   bubble: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 18 },
   bubbleRight: { borderBottomRightRadius: 4 },

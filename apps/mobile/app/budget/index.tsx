@@ -7,7 +7,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router, useFocusEffect } from "expo-router";
 import { TrendingDown, TrendingUp, Wallet, Edit3, Check, X, AlertTriangle } from "lucide-react-native";
 import { colors } from "@hanbang/design-tokens";
-import { PLANNING_CATEGORY_LABELS, type PlanningCategoryKey } from "@hanbang/shared/constants";
+import {
+  PLANNING_CATEGORY_LABELS,
+  PREPARATION_PROGRESS_STATUS_LABELS,
+  type PlanningCategoryKey,
+} from "@hanbang/shared/constants";
 import { supabase } from "@/lib/supabase";
 import { apiFetchForExpectedUser } from "@/lib/api";
 import {
@@ -24,7 +28,17 @@ import {
   type BudgetMutationToken,
 } from "@/lib/budgetRevision.mjs";
 import { listBudgetCategories } from "@/lib/budgetCategoryRegistry.mjs";
+import {
+  isSkippedBudgetCategoryWithoutMoney,
+  readBudgetCategoryStatus,
+  type BudgetCategoryStatus,
+} from "@/lib/budgetCategoryStatus.mjs";
 import { AppHeader, LoadingState, StatusPill, Surface } from "@/components/ui/AppUI";
+import {
+  FeatureSummarySurface,
+  SummaryPill,
+  summaryColors,
+} from "@/components/ui/FeatureSummary";
 import ErrorRetry from "@/components/ErrorRetry";
 import BudgetShareChart from "@/components/budget/BudgetShareChart";
 import BudgetSideSplit from "@/components/budget/BudgetSideSplit";
@@ -498,9 +512,10 @@ export default function BudgetScreen() {
     }
     return 0;
   }
-  function getCatStatus(key: string): string {
-    const s = progress[key]?.status ?? "not_started";
-    return s === "completed" ? "완료" : s === "in_progress" ? "진행중" : "예정";
+  // 상태는 키로 읽는다. 이름은 온보딩·체크리스트와 같은 공유 사전(아직·준비 중·완료·안 해요)에서
+  // 붙인다 — 예전에는 "안 해요"로 고른 항목도 여기서만 "예정"으로 보였다.
+  function getCatStatus(key: string): BudgetCategoryStatus {
+    return readBudgetCategoryStatus(progress[key]);
   }
   function getCatPayer(key: string): PayerType {
     return progress[key]?.payer ?? "couple";
@@ -510,6 +525,14 @@ export default function BudgetScreen() {
     fixedCategories: BUDGET_CATEGORIES,
     progress: rawProgress,
   });
+  /**
+   * 화면에 행으로 그리는 항목. "안 해요"로 고른 기본 항목에 금액이 하나도 없으면 뺀다(웹과 같다).
+   * 합계·분담·비중은 위 `budgetCategories` 로 계속 센다 — 빠진 행은 금액이 0이라 합계가 같다.
+   */
+  const fixedBudgetKeys = new Set<string>(BUDGET_CATEGORY_KEYS);
+  const budgetRows = budgetCategories.filter((category) =>
+    !(fixedBudgetKeys.has(category.key) && isSkippedBudgetCategoryWithoutMoney(progress[category.key])),
+  );
 
   // 분담별 지출 합계
   const payerSummary = budgetCategories.reduce(
@@ -579,7 +602,7 @@ export default function BudgetScreen() {
     .sort((a, b) => b.overrun - a.overrun);
 
   const hiddenCostWatch = budgetCategories
-    .filter((cat) => HIDDEN_COSTS[cat.key] && getCatStatus(cat.key) !== "완료")
+    .filter((cat) => HIDDEN_COSTS[cat.key] && getCatStatus(cat.key) !== "completed")
     .map((cat) => {
       const budget = getCatBudget(cat.key);
       const spent = getCatSpent(cat.key);
@@ -598,7 +621,8 @@ export default function BudgetScreen() {
           tone: "warning" as const,
         }]
       : []),
-    ...(remaining < 0
+    // 총 예산을 정하기 전에는 초과를 말하지 않는다 — 0원 대비 초과는 사실이 아니다(웹은 "계산 전").
+    ...(totalBudget > 0 && remaining < 0
       ? [{
           id: "total-overrun",
           title: `총 예산 ${formatWon(Math.abs(remaining))} 초과`,
@@ -964,41 +988,59 @@ export default function BudgetScreen() {
           </Surface>
         )}
 
-        {/* 총 예산 */}
-        <View style={s.totalCard}>
+        {/* 예산 요약 — 웹 예산 요약과 같은 샴페인 요약 면. 총 예산·진행 막대·배정/기록 지출/잔여를
+            한 면에 모아 아래 내용 카드와 구분한다. 어두운 카드에서는 초과 빨강 `#EF4444`(2.23:1)와
+            회색 라벨(3.69:1)이 읽기 기준에 못 미쳤다. 글자색은 전부 `summaryColors` 에서 온다. */}
+        <FeatureSummarySurface style={s.totalCard}>
           <View style={s.totalTop}>
             <Text style={s.totalLabel}>예산 운영 상태</Text>
-            <StatusPill label={budgetStatus.label} tone={budgetStatus.tone} />
+            <SummaryPill label={budgetStatus.label} tone={budgetStatus.tone} />
           </View>
           {editingTotal ? (
             <View style={s.editRow}>
-              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="decimal-pad" autoFocus editable={!savingTotal} maxLength={11} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={colors.taupe[400]} />
+              <TextInput style={s.totalEditInput} value={totalInput} onChangeText={setTotalInput} keyboardType="decimal-pad" autoFocus editable={!savingTotal} maxLength={11} accessibilityLabel="총 예산 만원 단위 입력" placeholder="0" placeholderTextColor={summaryColors.label} />
               <Text style={s.totalUnit}>만원</Text>
               <Pressable onPress={saveTotalBudget} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 변경 요청" accessibilityState={{ disabled: savingTotal, busy: savingTotal }}>
                 {savingTotal
-                  ? <ActivityIndicator size="small" color={colors.rose[500]} />
-                  : <Check size={22} color={colors.rose[500]} />}
+                  ? <ActivityIndicator size="small" color={summaryColors.ink} />
+                  : <Check size={22} color={summaryColors.ink} />}
               </Pressable>
-              <Pressable onPress={closeTotalEditor} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 편집 취소"><X size={22} color={colors.taupe[400]} /></Pressable>
+              <Pressable onPress={closeTotalEditor} disabled={savingTotal} accessibilityRole="button" accessibilityLabel="총 예산 편집 취소"><X size={22} color={summaryColors.label} /></Pressable>
             </View>
           ) : (
-            <Pressable style={s.totalRow} onPress={openTotalEdit}>
+            <Pressable style={s.totalRow} onPress={openTotalEdit} accessibilityRole="button" accessibilityLabel="총 예산 수정">
               <Text style={s.totalValue}>{totalBudget > 0 ? formatWon(totalBudget) : "설정해주세요"}</Text>
-              <Edit3 size={16} color={colors.taupe[400]} />
+              <Edit3 size={16} color={summaryColors.label} />
             </Pressable>
           )}
           {totalBudget > 0 && (
             <View style={s.progSection}>
               <View style={s.progBar}>
-                <Animated.View style={[s.progFill, { width: progressAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }), backgroundColor: remaining >= 0 ? colors.rose[500] : "#EF4444" }]} />
+                <Animated.View style={[s.progFill, { width: progressAnim.interpolate({ inputRange: [0, 100], outputRange: ["0%", "100%"] }), backgroundColor: remaining >= 0 ? colors.rose[500] : summaryColors.danger }]} />
               </View>
               <View style={s.progLabels}>
                 <Text style={s.progLabel}>기록 지출 {formatWon(totalSpent)}</Text>
-                <Text style={[s.progLabel, remaining < 0 && { color: "#EF4444" }]}>잔여 {formatWon(Math.abs(remaining))}{remaining < 0 ? " 초과" : ""}</Text>
+                <Text style={[s.progLabel, remaining < 0 && s.summaryDanger]}>잔여 {formatWon(Math.abs(remaining))}{remaining < 0 ? " 초과" : ""}</Text>
               </View>
             </View>
           )}
-        </View>
+
+          {/* 두 번째 줄 — 배정·기록 지출·잔여. 예전에는 요약 밖의 흰 카드 세 장이었고
+              기록 지출은 장미 `#A77B74`, 초과는 `#EF4444` 로 흰 바탕 기준도 못 넘었다. */}
+          <View style={s.sumRow}>
+            <View style={s.sumCard}><Wallet size={16} color={summaryColors.label} /><Text style={s.sumLabel}>배정</Text><Text style={s.sumVal}>{formatWon(allocatedBudget)}</Text></View>
+            <View style={[s.sumCard, s.sumCardDivided]}><TrendingDown size={16} color={summaryColors.label} /><Text style={s.sumLabel}>기록 지출</Text><Text style={s.sumVal}>{formatWon(totalSpent)}</Text></View>
+            <View style={[s.sumCard, s.sumCardDivided]}>
+              <TrendingUp size={16} color={totalBudget > 0 && remaining < 0 ? summaryColors.danger : summaryColors.label} />
+              {/* 색만으로 초과를 말하지 않는다 — 이름도 "초과"로 바뀐다. */}
+              <Text style={[s.sumLabel, totalBudget > 0 && remaining < 0 && s.summaryDanger]}>{totalBudget > 0 && remaining < 0 ? "초과" : "잔여"}</Text>
+              <Text style={[s.sumVal, totalBudget > 0 && remaining < 0 && s.summaryDanger]}>{totalBudget > 0 ? formatWon(Math.abs(remaining)) : "계산 전"}</Text>
+            </View>
+          </View>
+          <Text style={s.budgetEvidenceNote}>
+            직접 입력하거나 계약 금액으로 확인된 예산만 합산해요. 기록 지출은 결제 완료 여부와 별도예요.
+          </Text>
+        </FeatureSummarySurface>
 
         <Surface style={s.riskPanel}>
           <View style={s.riskHeader}>
@@ -1069,16 +1111,6 @@ export default function BudgetScreen() {
           </Surface>
         )}
 
-        {/* 요약 */}
-        <View style={s.sumRow}>
-          <View style={s.sumCard}><Wallet size={16} color={colors.textTertiary} /><Text style={s.sumLabel}>배정</Text><Text style={s.sumVal}>{formatWon(allocatedBudget)}</Text></View>
-          <View style={s.sumCard}><TrendingDown size={16} color={colors.rose[500]} /><Text style={s.sumLabel}>기록 지출</Text><Text style={[s.sumVal, { color: colors.rose[500] }]}>{formatWon(totalSpent)}</Text></View>
-          <View style={s.sumCard}><TrendingUp size={16} color={remaining >= 0 ? colors.textSecondary : "#EF4444"} /><Text style={s.sumLabel}>잔여</Text><Text style={[s.sumVal, remaining < 0 && { color: "#EF4444" }]}>{formatWon(Math.abs(remaining))}</Text></View>
-        </View>
-        <Text style={s.budgetEvidenceNote}>
-          직접 입력하거나 계약 금액으로 확인된 예산만 합산해요. 기록 지출은 결제 완료 여부와 별도예요.
-        </Text>
-
         {/* 항목별 비중. 위 카드가 "얼마" 를 답하고 이 도넛이 "어디에" 를 답한다.
             조각이 하나도 없으면 컴포넌트가 스스로 null 을 낸다. */}
         <BudgetShareChart slices={shareSlices} basis={shareBasis} />
@@ -1110,8 +1142,8 @@ export default function BudgetScreen() {
           </View>
         )}
 
-        {/* 카테고리 목록 */}
-        {budgetCategories.map((cat) => {
+        {/* 카테고리 목록 — "안 해요"로 고르고 금액이 없는 기본 항목은 행으로 두지 않는다. */}
+        {budgetRows.map((cat) => {
           const b = getCatBudget(cat.key), sp = getCatSpent(cat.key), st = getCatStatus(cat.key);
           const pct = b > 0 ? Math.min(100, Math.round((sp / b) * 100)) : 0;
           const hasHidden = !!HIDDEN_COSTS[cat.key];
@@ -1137,13 +1169,13 @@ export default function BudgetScreen() {
                       <Text style={s.payerBadgeText}>{payerInfo.label}</Text>
                     </View>
                   )}
-                  <View style={[s.badge, st === "완료" && s.badgeDone, st === "진행중" && s.badgeProg]}>
-                    <Text style={[s.badgeText, st === "완료" && s.badgeTextDone, st === "진행중" && s.badgeTextProg]}>{st}</Text>
+                  <View style={[s.badge, st === "completed" && s.badgeDone, st === "in_progress" && s.badgeProg, st === "not_applicable" && s.badgeSkipped]}>
+                    <Text style={[s.badgeText, st === "completed" && s.badgeTextDone, st === "in_progress" && s.badgeTextProg]}>{PREPARATION_PROGRESS_STATUS_LABELS[st]}</Text>
                   </View>
                 </View>
               </View>
               {b > 0 ? (
-                <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b ? "#EF4444" : colors.rose[500] }]} /></View>
+                <View style={s.catBar}><View style={[s.catFill, { width: `${pct}%`, backgroundColor: sp > b ? colors.danger : colors.rose[500] }]} /></View>
               ) : (
                 <Text style={s.categoryBudgetPending}>예산 입력 전</Text>
               )}
@@ -1212,19 +1244,20 @@ const s = StyleSheet.create({
   pendingApprovalReference: { marginTop: 8, fontSize: 11, color: colors.textTertiary },
   pendingApprovalRefresh: { alignSelf: "flex-start", marginTop: 12, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, backgroundColor: colors.noir[800] },
   pendingApprovalRefreshText: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: "#FFF" },
-  totalCard: { backgroundColor: colors.noir[800], borderRadius: 24, padding: 24, marginBottom: 16, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.12, shadowRadius: 16, elevation: 4 },
+  totalCard: { padding: 20, marginBottom: 16 },
   totalTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 8 },
-  totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_400Regular", color: colors.taupe[400] },
-  totalRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  totalValue: { fontSize: 32, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF" },
+  totalLabel: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: summaryColors.label },
+  totalRow: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 44 },
+  totalValue: { fontSize: 32, fontFamily: "CormorantGaramond_600SemiBold", color: summaryColors.ink },
   editRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  totalEditInput: { flex: 1, fontSize: 24, fontFamily: "CormorantGaramond_600SemiBold", color: "#FFFFFF", borderBottomWidth: 1, borderBottomColor: colors.rose[500], paddingVertical: 4 },
-  totalUnit: { fontSize: 14, color: colors.taupe[400] },
+  totalEditInput: { flex: 1, fontSize: 24, fontFamily: "CormorantGaramond_600SemiBold", color: summaryColors.ink, borderBottomWidth: 1, borderBottomColor: summaryColors.accent, paddingVertical: 4 },
+  totalUnit: { fontSize: 14, color: summaryColors.label },
   progSection: { marginTop: 16 },
-  progBar: { height: 6, backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 3, overflow: "hidden" },
+  progBar: { height: 6, backgroundColor: summaryColors.track, borderRadius: 3, overflow: "hidden" },
   progFill: { height: "100%", borderRadius: 3 },
   progLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 8 },
-  progLabel: { fontSize: 12, color: colors.taupe[400] },
+  progLabel: { fontSize: 12, color: summaryColors.label },
+  summaryDanger: { color: summaryColors.danger },
   legacyReviewCard: { marginBottom: 16, padding: 16, borderWidth: 1, borderColor: "#D8C7BB", backgroundColor: "#FFF9F2" },
   legacyReviewTitle: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
   legacyReviewCopy: { marginTop: 6, fontSize: 12, lineHeight: 18, color: colors.textSecondary },
@@ -1247,20 +1280,26 @@ const s = StyleSheet.create({
   safeBudgetText: { fontSize: 12, fontFamily: "NotoSansKR_400Regular", color: colors.textSecondary, textAlign: "center", lineHeight: 18 },
   marketLink: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginTop: 8, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border },
   marketLinkText: { fontSize: 13, fontFamily: "NotoSansKR_600SemiBold", color: colors.rose[500] },
-  sumRow: { flexDirection: "row", gap: 10, marginBottom: 20 },
-  sumCard: { flex: 1, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 14, alignItems: "center", gap: 6 },
-  sumLabel: { fontSize: 11, color: colors.textTertiary },
-  sumVal: { fontSize: 15, fontFamily: "CormorantGaramond_600SemiBold", color: colors.noir[800] },
-  budgetEvidenceNote: { marginTop: -10, marginBottom: 20, fontSize: 12, lineHeight: 18, color: colors.textTertiary, textAlign: "center" },
+  // 요약 면 안의 두 번째 줄. 칸을 따로 칠하지 않고 선으로만 나눈다 — 면 안에 또 카드를 두면
+  // 요약과 내용 카드의 구분이 다시 흐려진다.
+  sumRow: { flexDirection: "row", marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: summaryColors.line },
+  sumCard: { flex: 1, alignItems: "center", gap: 6, paddingHorizontal: 4 },
+  sumCardDivided: { borderLeftWidth: 1, borderLeftColor: summaryColors.line },
+  sumLabel: { fontSize: 12, fontFamily: "NotoSansKR_600SemiBold", color: summaryColors.label },
+  sumVal: { fontSize: 15, fontFamily: "CormorantGaramond_600SemiBold", color: summaryColors.ink },
+  budgetEvidenceNote: { marginTop: 12, fontSize: 12, lineHeight: 18, color: summaryColors.label, textAlign: "center" },
   catCard: { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1, borderRadius: 16, padding: 16, marginBottom: 10 },
   catHead: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
   catLabel: { fontSize: 15, fontFamily: "NotoSansKR_600SemiBold", color: colors.noir[800] },
-  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, backgroundColor: colors.ivory[200] },
-  badgeDone: { backgroundColor: "rgba(196,150,126,0.15)" },
-  badgeProg: { backgroundColor: "rgba(201,169,110,0.15)" },
-  badgeText: { fontSize: 11, color: colors.textTertiary },
-  badgeTextDone: { color: colors.rose[500] },
-  badgeTextProg: { color: colors.gold.DEFAULT },
+  // 상태 칩. 색은 웹 예산 칩(완료 세이지 · 준비 중 장미 · 아직 베이지 · 안 해요 점선)을 따르고,
+  // 글자는 흰 카드 위 칩 바탕에서 4.5:1 이상인 진한 단계를 쓴다.
+  badge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8, borderWidth: 1, borderColor: "transparent", backgroundColor: colors.ivory[200] },
+  badgeDone: { backgroundColor: colors.htmlWorkspace.sagePale },
+  badgeProg: { backgroundColor: colors.rose.pale },
+  badgeSkipped: { backgroundColor: colors.surface, borderColor: colors.border, borderStyle: "dashed" },
+  badgeText: { fontSize: 11, fontFamily: "NotoSansKR_600SemiBold", color: colors.textSecondary },
+  badgeTextDone: { color: "#33473A" },
+  badgeTextProg: { color: colors.rose[700] },
   catBar: { height: 4, backgroundColor: colors.ivory[200], borderRadius: 2, overflow: "hidden", marginBottom: 8 },
   catFill: { height: "100%", borderRadius: 2 },
   categoryBudgetPending: { marginBottom: 8, fontSize: 12, color: colors.textTertiary },

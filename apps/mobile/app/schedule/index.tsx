@@ -49,6 +49,17 @@ import {
 import { CATEGORY_CHECKLISTS, type ChecklistItem } from "@/constants/checklists";
 import { CHECKLIST_MAP } from "@hanbang/shared/constants";
 import CategoryChecklistSheet from "@/components/checklist/CategoryChecklistSheet";
+import { checklistPreparationRoute } from "@/lib/amoraPreparationSource";
+import {
+  buildWeeklyChecklistActions,
+  type ActionUrgency,
+  type WeeklyAction,
+} from "@/lib/checklistWeeklyActions";
+import {
+  FeatureSummarySurface,
+  SummaryPill,
+  summaryColors,
+} from "@/components/ui/FeatureSummary";
 
 /**
  * 예절 편은 웹에만 있고 모바일은 웹뷰로 연다. 주소 만드는 방식을
@@ -112,18 +123,6 @@ class ScheduleMutationError extends Error {
     super(code);
     this.name = "ScheduleMutationError";
   }
-}
-
-type ActionUrgency = "overdue" | "urgent" | "soon" | "active";
-
-interface WeeklyAction {
-  categoryKey: string;
-  categoryLabel: string;
-  nextItemLabel: string;
-  urgency: ActionUrgency;
-  deadlineLabel: string;
-  daysUntilDeadline: number | null;
-  percent: number;
 }
 
 const CATEGORY_OPTIONS = [
@@ -1011,63 +1010,34 @@ export default function ScheduleScreen() {
     return { total, done, skipped, percent: skipped || total === 0 ? 0 : Math.round((done / total) * 100) };
   }
 
+  /**
+   * 기본 확인 시점은 분야 값(`ddayDeadline`)이 아니라 **아직 안 끝낸 항목 중 가장 이른 시점**으로
+   * 센다. 웹 임박 알림과 같은 공유 헬퍼를 쓰는 `buildWeeklyChecklistActions` 에 맡긴다.
+   */
   function getWeeklyActions(dday: number | null): WeeklyAction[] {
-    if (dday !== null && dday < 0) return [];
+    return buildWeeklyChecklistActions(
+      CATEGORY_CHECKLISTS,
+      (key) => {
+        const stats = getCategoryStats(key);
+        const category = categories.find((c) => c.key === key);
+        return { items: category?.items ?? [], skipped: stats.skipped, percent: stats.percent };
+      },
+      dday,
+    );
+  }
 
-    const actionCandidates = CATEGORY_CHECKLISTS.flatMap((template) => {
-      const stats = getCategoryStats(template.key);
-      if (stats.skipped || stats.percent >= 100) return [];
-
-      if (dday !== null && dday > template.ddayStart) return [];
-
-      const category = categories.find((c) => c.key === template.key);
-      const nextItem = category?.items.find((item) => !item.done);
-      const daysUntilDeadline = dday === null ? null : dday - template.ddayDeadline;
-
-      let urgency: ActionUrgency = "active";
-      if (daysUntilDeadline !== null) {
-        if (daysUntilDeadline < 0) urgency = "overdue";
-        else if (daysUntilDeadline <= 7) urgency = "urgent";
-        else if (daysUntilDeadline <= 30) urgency = "soon";
-      }
-
-      const deadlineLabel =
-        daysUntilDeadline === null
-          ? "결혼식 날짜를 넣으면 기본 확인 순서를 정리해요"
-          : daysUntilDeadline < 0
-            ? `기본 확인 시점에서 ${Math.abs(daysUntilDeadline)}일 지났어요`
-            : daysUntilDeadline === 0
-              ? "오늘이 기본 확인 시점이에요"
-              : `기본 확인 시점까지 ${daysUntilDeadline}일`;
-
-      return [{
-        categoryKey: template.key,
-        categoryLabel: template.label,
-        nextItemLabel: nextItem?.label ?? `${template.label} 체크리스트 점검`,
-        urgency,
-        deadlineLabel,
-        daysUntilDeadline,
-        percent: stats.percent,
-      }];
-    });
-
-    const urgencyRank: Record<ActionUrgency, number> = {
-      overdue: 0,
-      urgent: 1,
-      soon: 2,
-      active: 3,
-    };
-
-    return actionCandidates
-      .sort((a, b) => {
-        const urgencyDiff = urgencyRank[a.urgency] - urgencyRank[b.urgency];
-        if (urgencyDiff !== 0) return urgencyDiff;
-        if (a.daysUntilDeadline !== null && b.daysUntilDeadline !== null) {
-          return a.daysUntilDeadline - b.daysUntilDeadline;
-        }
-        return a.percent - b.percent;
-      })
-      .slice(0, 3);
+  /**
+   * 시트의 아모라 버튼. 웹뷰 예절 편의 질문 링크와 같은 `amoraSource` 경로로 네이티브 채팅을
+   * 연다. 시트(`Modal`)는 먼저 닫는다 — 열린 채로 탭을 옮기면 채팅 위에 시트가 남는다.
+   */
+  function askAmoraFromChecklist(categoryKey: string, itemId?: string) {
+    const route = checklistPreparationRoute(categoryKey, itemId);
+    if (!route) {
+      Alert.alert("질문을 준비하지 못했어요", "체크리스트를 다시 연 뒤 눌러 주세요.");
+      return;
+    }
+    setExpandedKey(null);
+    router.push(route as Parameters<typeof router.push>[0]);
   }
 
   /* ── 이벤트 모달 ── */
@@ -1656,7 +1626,9 @@ export default function ScheduleScreen() {
           </Surface>
         ) : null}
 
-        <Surface tone="noir" style={styles.opsCard}>
+        {/* 기능 첫 화면의 요약은 웹과 같은 샴페인 요약 면을 쓴다. 아래 내용 카드와 구분돼야
+            하고, 어두운 카드에서는 회색 글자(3.69:1)가 읽기 기준에 못 미쳤다. */}
+        <FeatureSummarySurface style={styles.opsCard}>
           <View style={styles.opsTop}>
             <View>
               <AppText variant="caption" style={styles.opsLabel}>
@@ -1665,13 +1637,13 @@ export default function ScheduleScreen() {
               <Text style={styles.opsDday}>{formatDday(dday)}</Text>
             </View>
             {/* "지연" 이라고 부르지 않는다.
-                `ddayDeadline` 은 화면 정렬용 기본 확인 시점이고 실제 마감이 아니다
-                (`weddingPlanning.ts` 의 상수 주석). 게다가 이 수에는 예식이 끝나야
-                할 수 있는 일이 들어간다 — "빌린 드레스 돌려주기", "완성된 앨범 받기"
-                같은 항목이 예식 전 내내 빨간불로 잡혔다. 웹은 같은 값을 "기본 확인
-                시점에서 N일 지남" 이라고 말하고, 이 파일도 다른 자리에서는
-                "기본 확인 시점 지남" 이라고 옳게 쓴다. */}
-            <StatusPill
+                기본 확인 시점은 화면 정렬용이고 실제 마감이 아니다
+                (`weddingPlanning.ts` 의 상수 주석). 예전에는 분야의 `ddayDeadline` 하나로
+                세서 "빌린 드레스 돌려주기", "결혼식 전 최종으로 입어 보기" 같은 늦은 항목이
+                예식 전 내내 빨간불로 잡혔다. 이제는 항목마다의 시점(`due`)으로 세고
+                (`buildWeeklyChecklistActions`), 계약으로 날을 정하는 반납·수령은 세지 않는다.
+                웹 임박 알림과 같은 공유 헬퍼다. */}
+            <SummaryPill
               label={
                 overdueCount > 0
                   ? `기본 확인 시점 지남 ${overdueCount}개`
@@ -1700,7 +1672,7 @@ export default function ScheduleScreen() {
           >
             <Animated.View style={[styles.summaryBarFill, { width: progressWidth }]} />
           </View>
-        </Surface>
+        </FeatureSummarySurface>
 
         {(approvalLoading || approvalError || approvalRequests.length > 0) && (
           <Surface style={styles.approvalSection}>
@@ -2046,6 +2018,7 @@ export default function ScheduleScreen() {
               `/webview?url=${encodeURIComponent(`${SITE_URL}/wedding${path}`)}`,
             )
           }
+          onAskAmora={(itemId) => askAmoraFromChecklist(sheetCategory.key, itemId)}
         />
       ) : null}
 
@@ -2207,17 +2180,18 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   opsLabel: {
-    color: colors.gold.light,
+    color: summaryColors.label,
+    fontFamily: "NotoSansKR_600SemiBold",
     marginBottom: 2,
   },
   opsDday: {
     fontSize: 42,
     lineHeight: 48,
     fontFamily: "NotoSansKR_700Bold",
-    color: "#FFFFFF",
+    color: summaryColors.ink,
   },
   opsCopy: {
-    color: colors.gold.light,
+    color: summaryColors.label,
     lineHeight: 22,
     marginBottom: 16,
   },
@@ -2373,11 +2347,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 16,
   },
-  summaryLabel: { fontSize: 14, color: colors.gold.light },
-  summaryPercent: { fontSize: 32, fontFamily: "NotoSansKR_700Bold", color: "#FFFFFF" },
+  summaryLabel: { fontSize: 14, fontFamily: "NotoSansKR_600SemiBold", color: summaryColors.label },
+  summaryPercent: { fontSize: 32, fontFamily: "NotoSansKR_700Bold", color: summaryColors.ink },
   summaryBar: {
     height: 6,
-    backgroundColor: "rgba(255,255,255,0.15)",
+    backgroundColor: summaryColors.track,
     borderRadius: 3,
     overflow: "hidden",
     marginBottom: 12,

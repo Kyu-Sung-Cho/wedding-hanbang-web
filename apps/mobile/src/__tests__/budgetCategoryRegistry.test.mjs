@@ -90,5 +90,8 @@ test("the mobile budget screen uses the unified registry for totals, payer split
   assert.match(source, /const totalSpent = budgetCategories\.reduce/);
   assert.match(source, /const allocatedBudget = budgetCategories\.reduce/);
   assert.match(source, /const payerSummary = budgetCategories\.reduce/);
-  assert.match(source, /\{budgetCategories\.map\(\(cat\) =>/);
+  // 행은 같은 목록에서 금액 없는 "안 해요" 기본 항목만 뺀 것이다(2026-09-15, 웹과 같은 규칙).
+  // 합계·분담은 위처럼 전체 목록으로 세므로, 행에서 빠져도 합계는 달라지지 않는다.
+  assert.match(source, /const budgetRows = budgetCategories\.filter\(/);
+  assert.match(source, /\{budgetRows\.map\(\(cat\) =>/);
 });
