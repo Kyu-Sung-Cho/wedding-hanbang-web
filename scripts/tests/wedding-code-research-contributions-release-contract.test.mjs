@@ -25,6 +25,8 @@ test('234 exact successor keeps all 233 pins and claims no runtime evidence, dep
   for (const key of ['runtimeEvidenceVerified', 'releaseAuthorized', 'remoteWritesPerformed']) assert.equal(plan[key], false);
   assert.deepEqual(plan.contract.scope, JSON.parse(JSON.stringify(WEDDING_CODE_RESEARCH_SCOPE)));
   assert.equal(plan.contract.scope.personalData, 'none'); assert.equal(plan.contract.scope.retiredCollectionObjects, 'untouched');
+  assert.equal(plan.contract.scope.timestampPrecision, 'utc-day'); assert.equal(plan.contract.scope.duplicateReceipt, 'unique-violation-23505');
+  assert.equal(plan.contract.scope.purgeRemovesTombstonedContributions, true);
   assert.throws(() => loadNotApplicableStatusReleasePlan(root), code('NEW_MIGRATION_NOT_REVIEWED'));
   const successor = validateSuccessorReleaseContract({ repoRoot: root, followup: 'wedding-code-research-contributions' });
   assert.equal(successor.deploymentBlocked, true); assert.equal(successor.controllerReady, false);
@@ -60,6 +62,21 @@ test('the reviewed SQL keeps the privacy and privilege shape; planted violations
     'loosens the answer code regex': ["answer_code ~ '^[A-D-]{20}$'", "answer_code ~ '^[A-Da-d-]{1,40}$'"],
     'accepts an all-skip answer code': [" AND answer_code ~ '[A-D]'", ''],
     'lengthens retention': ["expires_at <= created_at + interval '60 days'", "expires_at <= created_at + interval '365 days'"],
+    'drops the created_at day truncation check': [
+      "created_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC')\n    CONSTRAINT wcr_contributions_created_at_day CHECK (created_at = date_trunc('day', created_at, 'UTC')),",
+      "created_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC'),"],
+    'drops the deleted_at day truncation check': [
+      "\n    CONSTRAINT wcr_tombstones_deleted_at_day CHECK (deleted_at = date_trunc('day', deleted_at, 'UTC')),", ','],
+    'stores the exact request time': ["created_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC')\n", 'created_at timestamptz NOT NULL DEFAULT now()\n'],
+    // 아래 둘은 다른 규칙이 잡지 못한다. 날짜 절삭 조항과 잘리지 않은 now() 개수 규칙만이 본다.
+    'truncates the day in another time zone': ["CHECK (created_at = date_trunc('day', created_at, 'UTC'))", "CHECK (created_at = date_trunc('day', created_at, 'Asia/Seoul'))"],
+    'adds a column that keeps the exact request time': ['  answer_code text NOT NULL\n', '  received_at timestamptz NOT NULL DEFAULT now(),\n  answer_code text NOT NULL\n'],
+    'expires tombstones from the exact deletion time': ["DEFAULT (date_trunc('day', now(), 'UTC') + interval '30 days')", "DEFAULT (now() + interval '30 days')"],
+    'purge skips rows whose receipt is tombstoned': ['WHERE tombstone.deletion_receipt_hash = contribution.deletion_receipt_hash', 'WHERE false'],
+    'swallows a duplicate hash': ['VALUES (p_scene_version, p_answer_code, p_consent_version, p_deletion_receipt_hash);\nEND;',
+      'VALUES (p_scene_version, p_answer_code, p_consent_version, p_deletion_receipt_hash)\n  ON CONFLICT (deletion_receipt_hash) DO NOTHING;\nEND;'],
+    'converts a duplicate hash into another error': ['VALUES (p_scene_version, p_answer_code, p_consent_version, p_deletion_receipt_hash);\nEND;',
+      "VALUES (p_scene_version, p_answer_code, p_consent_version, p_deletion_receipt_hash);\nEXCEPTION WHEN unique_violation THEN\n  RAISE EXCEPTION USING ERRCODE = '22023';\nEND;"],
     'drops the tombstone insert': ['ON CONFLICT (deletion_receipt_hash) DO NOTHING;', 'ON CONFLICT (deletion_receipt_hash) DO UPDATE SET deleted_at = now();'],
     'adds a user id join key': ['  answer_code text NOT NULL\n', '  user_id uuid,\n  answer_code text NOT NULL\n'],
     'references the retired collection table': ['DO $verify_wedding_code_research$', 'SELECT 1 FROM public.wedding_code_responses;\nDO $verify_wedding_code_research$'],

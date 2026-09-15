@@ -99,8 +99,10 @@ test('wrong target, missing predecessor, catalog drift, widened grants and ledge
     withFunction(after(), { acl: [...after().catalog.functions[0].acl, ['authenticated', 'postgres', 'EXECUTE', false]] }),
     withFunction(after(), { body: after().catalog.functions[0].body.replace('RAISE EXCEPTION', 'RAISE NOTICE') }),
   ];
-  for (const observed of invalid) {
+  // 판정 함수만 먼저 전부 확인한다. 실행기 경로(원문 핀 검사 포함)에 가려 판정 누락이 초록불로 남지 않게 한다.
+  for (const observed of invalid)
     assert.throws(() => validateWeddingCodeResearchObservation(observed, { ...context, now: instant }), JSON.stringify(observed).slice(0, 120));
+  for (const observed of invalid) {
     const f = fixture({ observations: [observed] }); await assert.rejects(f.run());
     assert.equal(f.calls.length, 1); assert.equal(f.events.at(-1).status, 'blocked-before-mutation');
   }

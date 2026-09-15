@@ -15,7 +15,7 @@
   "migrations": [
     {
       "file": "20260915130000_wedding_code_research_contributions.sql",
-      "sha256": "694c61599276f7deca51cd6e373e3117ad71c4575380d8e2de80f3163519ebe4"
+      "sha256": "76f58f948a1a7c99352b32c556dba2de3886e7ef6b357af574ae0522a174253e"
     }
   ],
   "scope": {
@@ -32,6 +32,9 @@
     "functionExecute": "service_role-only",
     "contributionRetentionDays": 60,
     "tombstoneRetentionDays": 30,
+    "timestampPrecision": "utc-day",
+    "duplicateReceipt": "unique-violation-23505",
+    "purgeRemovesTombstonedContributions": true,
     "personalData": "none",
     "joinKeys": "none",
     "retiredCollectionObjects": "untouched",
@@ -41,7 +44,7 @@
   },
   "runtime": {
     "file": "scripts/lib/wedding-code-research-contributions-release.mjs",
-    "sha256": "412ce828d35d8339230b389ed340e55aaff23cc807395be86a3ca085b9e085e7"
+    "sha256": "f8f765d2d79b6b6fa4ec1cbc049a5d4f08f9aa5f8ab3b6c4ecb5b09691306f92"
   },
   "predecessorMigration": {
     "file": "supabase/migrations/20260915101500_amora_atomic_not_applicable_status.sql",

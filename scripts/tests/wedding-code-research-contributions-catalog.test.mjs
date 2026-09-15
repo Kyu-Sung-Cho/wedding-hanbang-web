@@ -88,6 +88,32 @@ test('actual PG17 catalog, rollback and commit match the reviewed objects and pr
       await assert.rejects(insertion, /WEDDING_CODE_RESEARCH_CONTRIBUTION_REJECTED/);
       assert.deepEqual((await db.query('SELECT count(*)::int AS n FROM public.wedding_code_research_contributions WHERE deletion_receipt_hash=$1', [hash(3)])).rows, [{ n: 0 }]);
 
+      // PG17에서도 3인자 date_trunc CHECK가 실제로 걸리고, 저장 시각은 UTC 날짜 자정이다(세션 시간대와 무관).
+      await db.query("SET TIME ZONE 'Asia/Seoul'");
+      await db.query('BEGIN; SET LOCAL ROLE service_role');
+      await db.query(CALL.insert, ['v0.8-code', 'CCCCCCCCCCCCCCCCCCCC', 'wc-research-consent-v1', hash(4)]);
+      await db.query('COMMIT');
+      assert.deepEqual((await db.query(`SELECT created_at = date_trunc('day', now(), 'UTC') AS today,
+        to_char(created_at AT TIME ZONE 'UTC', 'HH24:MI:SS.US') AS clock, extract(epoch FROM expires_at - created_at)::int AS lifetime
+        FROM public.wedding_code_research_contributions WHERE deletion_receipt_hash=$1`, [hash(4)])).rows,
+      [{ today: true, clock: '00:00:00.000000', lifetime: 60 * 86_400 }]);
+      await assert.rejects(db.query(`INSERT INTO public.wedding_code_research_contributions
+        (created_at, expires_at, scene_version, answer_code, consent_version, deletion_receipt_hash)
+        VALUES (date_trunc('day', now(), 'UTC') + interval '1 hour', date_trunc('day', now(), 'UTC') + interval '30 days',
+        'v0.8-code', 'AAAAAAAAAAAAAAAAAAAA', 'wc-research-consent-v1', $1)`, [hash(5)]), /wcr_contributions_created_at_day/);
+      await assert.rejects(db.query(CALL.insert, ['v0.8-code', 'DDDDDDDDDDDDDDDDDDDD', 'wc-research-consent-v1', hash(4)]),
+        error => error.code === '23505');
+      await db.query("RESET TIME ZONE");
+
+      // tombstone과 같은 hash의 행이 함수 밖 경로로 남아 있으면 purge가 지우고 개수에 넣는다.
+      await db.query(`INSERT INTO public.wedding_code_research_contributions (scene_version, answer_code, consent_version, deletion_receipt_hash)
+        VALUES ('v0.8-code', 'CCCCCCCCCCCCCCCCCCCC', 'wc-research-consent-v1', $1)`, [hash(2)]);
+      await db.query('SET ROLE service_role');
+      assert.deepEqual((await db.query('SELECT public.purge_expired_wedding_code_research_contributions() AS n')).rows, [{ n: 1 }]);
+      await db.query('RESET ROLE');
+      assert.deepEqual((await db.query('SELECT count(*)::int AS n FROM public.wedding_code_research_contributions WHERE deletion_receipt_hash=$1', [hash(2)])).rows, [{ n: 0 }]);
+      assert.deepEqual((await db.query('SELECT count(*)::int AS n FROM public.wedding_code_research_contributions')).rows, [{ n: 2 }]);
+
       await db.query('GRANT SELECT ON public.wedding_code_research_contributions TO authenticated');
       assert.throws(() => validateWeddingCodeResearchCatalog(null, sql, true));
       const drifted = await one(weddingCodeResearchTargetCatalogSql());

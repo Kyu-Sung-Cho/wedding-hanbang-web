@@ -4,7 +4,7 @@ import { digest, pinnedArtifact, requireRelease, same } from './current-baseline
 import { loadNotApplicableStatusHistoricalReleasePlan } from './amora-not-applicable-status-release-contract.mjs';
 
 export const WEDDING_CODE_RESEARCH_CONTRACT_FILE = 'supabase/release-contracts/wedding-code-research-contributions-v1.json';
-const CONTRACT_SHA = '110efd46711c16af6401a78875f8c005bdbb6f015acbb45ae3733b43776d0cc4';
+const CONTRACT_SHA = '7230b2d9b698c1b9cff230dcf4fe88213273f3802fdf88698937cde16b8110ac';
 const MIGRATION_FILE = '20260915130000_wedding_code_research_contributions.sql';
 const PREDECESSOR_CONTRACT_FILE = 'supabase/release-contracts/amora-not-applicable-status-v1.json';
 export const WEDDING_CODE_RESEARCH_SCOPE = Object.freeze({
@@ -12,7 +12,8 @@ export const WEDDING_CODE_RESEARCH_SCOPE = Object.freeze({
   newFunctions: ['public.insert_wedding_code_research_contribution(text,text,text,bytea)',
     'public.delete_wedding_code_research_contribution(bytea)', 'public.purge_expired_wedding_code_research_contributions()'],
   tableAccess: 'owner-only-rls-enabled-no-policies', functionExecute: 'service_role-only',
-  contributionRetentionDays: 60, tombstoneRetentionDays: 30,
+  contributionRetentionDays: 60, tombstoneRetentionDays: 30, timestampPrecision: 'utc-day',
+  duplicateReceipt: 'unique-violation-23505', purgeRemovesTombstonedContributions: true,
   personalData: 'none', joinKeys: 'none', retiredCollectionObjects: 'untouched',
   existingTables: 'unchanged', existingFunctions: 'unchanged', dataRows: 'unchanged',
 });
@@ -40,9 +41,14 @@ export const WEDDING_CODE_RESEARCH_REQUIRED_CLAUSES = Object.freeze([
   'CONSTRAINT wcr_contributions_receipt_hash_key UNIQUE',
   'CONSTRAINT wcr_contributions_receipt_hash_length CHECK (octet_length(deletion_receipt_hash) = 32),',
   "CHECK (expires_at > created_at AND expires_at <= created_at + interval '60 days')",
-  "expires_at timestamptz NOT NULL DEFAULT (now() + interval '60 days'),",
+  "created_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC')\n",
+  "CONSTRAINT wcr_contributions_created_at_day CHECK (created_at = date_trunc('day', created_at, 'UTC')),",
+  "expires_at timestamptz NOT NULL DEFAULT (date_trunc('day', now(), 'UTC') + interval '60 days'),",
   'CONSTRAINT wcr_tombstones_receipt_hash_length CHECK (octet_length(deletion_receipt_hash) = 32),',
-  "expires_at timestamptz NOT NULL DEFAULT (now() + interval '30 days')",
+  "deleted_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC')\n",
+  "CONSTRAINT wcr_tombstones_deleted_at_day CHECK (deleted_at = date_trunc('day', deleted_at, 'UTC')),",
+  "expires_at timestamptz NOT NULL DEFAULT (date_trunc('day', now(), 'UTC') + interval '30 days')\n",
+  "WHERE tombstone.deletion_receipt_hash = contribution.deletion_receipt_hash",
   'ALTER TABLE public.wedding_code_research_contributions ENABLE ROW LEVEL SECURITY;',
   'ALTER TABLE public.wedding_code_research_deletion_tombstones ENABLE ROW LEVEL SECURITY;',
   'REVOKE ALL ON TABLE public.wedding_code_research_contributions FROM PUBLIC, anon, authenticated, service_role;',
@@ -70,6 +76,10 @@ export function assertWeddingCodeResearchSqlScope(text) {
     && count(text, /^LANGUAGE plpgsql\nSECURITY DEFINER\nSET search_path = ''\nAS \$function\$$/gm) === 3
     && count(text, /\bSECURITY\s+DEFINER\b/gi) === 3 && count(text, /\$function\$;/g) === 3
     && WEDDING_CODE_RESEARCH_REQUIRED_CLAUSES.every(clause => text.includes(clause))
+    // 시각 컬럼은 UTC 날짜만 받는다. now()를 날짜로 자르지 않고 그대로 쓰는 곳은 함수 본문의 만료 비교뿐이다.
+    && count(text, /\bnow\(\)/g) === count(text, /date_trunc\('day', now\(\), 'UTC'\)/g) + count(text, /expires_at <= pg_catalog\.now\(\)/g)
+    // 중복 hash는 UNIQUE 위반(23505)으로 올라가야 한다. 삭제의 tombstone 외에는 충돌을 삼키거나 예외를 바꾸지 않는다.
+    && count(text, /\bON\s+CONFLICT\b/gi) === 1 && !/\bEXCEPTION\s+WHEN\b/i.test(text) && !/'23505'|unique_violation/i.test(text)
     && !FORBIDDEN.some(pattern => pattern.test(text));
   requireRelease(ok, 'WEDDING_CODE_RESEARCH_SQL_SCOPE_CHANGED');
   return text;

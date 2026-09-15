@@ -138,6 +138,8 @@ const sorted = rows => [...rows].sort((a, b) => JSON.stringify(a).localeCompare(
 const ownerOnly = privileges => sorted(privileges.map(privilege => ['postgres', 'postgres', privilege, false]));
 const TABLE_PRIVILEGES = ['DELETE', 'INSERT', 'MAINTAIN', 'REFERENCES', 'SELECT', 'TRIGGER', 'TRUNCATE', 'UPDATE'];
 const TIMESTAMP = 'timestamp with time zone';
+// 시각은 UTC 날짜로만 남긴다. 기본값과 CHECK의 PostgreSQL 17 역파싱 문자열이다.
+const UTC_DAY = "date_trunc('day'::text, now(), 'UTC'::text)";
 // PostgreSQL prosrc는 `AS $function$`와 닫는 `$function$` 사이 원문이다.
 export function weddingCodeResearchFunctionBodies(sql) {
   const bodies = new Map([...sql.matchAll(/^CREATE FUNCTION public\.(\w+)\([\s\S]*?\nAS \$function\$([\s\S]*?)\$function\$;$/gm)]
@@ -157,8 +159,8 @@ export function expectedWeddingCodeResearchCatalog(sql) {
     relations: [
       { name: 'public.wedding_code_research_contributions', kind: 'r', owner: 'postgres', rls: true, forceRls: false,
         acl: ownerOnly(TABLE_PRIVILEGES),
-        columns: sorted([['id', 'uuid', true, '', '', 'gen_random_uuid()'], ['created_at', TIMESTAMP, true, '', '', 'now()'],
-          ['expires_at', TIMESTAMP, true, '', '', "(now() + '60 days'::interval)"], ['scene_version', 'text', true, '', '', null],
+        columns: sorted([['id', 'uuid', true, '', '', 'gen_random_uuid()'], ['created_at', TIMESTAMP, true, '', '', UTC_DAY],
+          ['expires_at', TIMESTAMP, true, '', '', `(${UTC_DAY} + '60 days'::interval)`], ['scene_version', 'text', true, '', '', null],
           ['answer_code', 'text', true, '', '', null], ['consent_version', 'text', true, '', '', null],
           ['deletion_receipt_hash', 'bytea', true, '', '', null]]),
         constraints: sorted([
@@ -168,6 +170,7 @@ export function expectedWeddingCodeResearchCatalog(sql) {
           ['wcr_contributions_answer_code', 'c', true, "CHECK (answer_code ~ '^[A-D-]{20}$'::text AND answer_code ~ '[A-D]'::text)"],
           ['wcr_contributions_consent_version', 'c', true, "CHECK (consent_version ~ '^wc-research-consent-v[1-9][0-9]*$'::text)"],
           ['wcr_contributions_receipt_hash_length', 'c', true, 'CHECK (octet_length(deletion_receipt_hash) = 32)'],
+          ['wcr_contributions_created_at_day', 'c', true, "CHECK (created_at = date_trunc('day'::text, created_at, 'UTC'::text))"],
           ['wcr_contributions_retention', 'c', true, "CHECK (expires_at > created_at AND expires_at <= (created_at + '60 days'::interval))"],
         ]),
         indexes: sorted([
@@ -178,11 +181,12 @@ export function expectedWeddingCodeResearchCatalog(sql) {
         policies: [], triggers: [] },
       { name: 'public.wedding_code_research_deletion_tombstones', kind: 'r', owner: 'postgres', rls: true, forceRls: false,
         acl: ownerOnly(TABLE_PRIVILEGES),
-        columns: sorted([['deletion_receipt_hash', 'bytea', true, '', '', null], ['deleted_at', TIMESTAMP, true, '', '', 'now()'],
-          ['expires_at', TIMESTAMP, true, '', '', "(now() + '30 days'::interval)"]]),
+        columns: sorted([['deletion_receipt_hash', 'bytea', true, '', '', null], ['deleted_at', TIMESTAMP, true, '', '', UTC_DAY],
+          ['expires_at', TIMESTAMP, true, '', '', `(${UTC_DAY} + '30 days'::interval)`]]),
         constraints: sorted([
           ['wcr_tombstones_pkey', 'p', true, 'PRIMARY KEY (deletion_receipt_hash)'],
           ['wcr_tombstones_receipt_hash_length', 'c', true, 'CHECK (octet_length(deletion_receipt_hash) = 32)'],
+          ['wcr_tombstones_deleted_at_day', 'c', true, "CHECK (deleted_at = date_trunc('day'::text, deleted_at, 'UTC'::text))"],
         ]),
         indexes: sorted([
           ['CREATE UNIQUE INDEX wcr_tombstones_pkey ON public.wedding_code_research_deletion_tombstones USING btree (deletion_receipt_hash)', true, true],

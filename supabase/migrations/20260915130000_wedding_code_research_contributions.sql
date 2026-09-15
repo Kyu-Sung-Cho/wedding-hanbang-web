@@ -1,6 +1,7 @@
 -- WeddingCode 연구 기여 저장소(opt-in, 익명). 동의 버전·장면 버전·20자리 답 코드와
 -- 참여자가 보관하는 삭제 receipt의 HMAC hash만 받는다. 사용자 ID·IP·user agent·자유서술,
 -- 계정·아모라·커플과 잇는 결합 키는 두지 않는다. 응답은 최대 60일, tombstone은 30일 보관한다.
+-- 시각은 UTC 날짜(자정)로만 남긴다. 분석·요청 로그와 시각으로 이어 붙일 수 없게 한다.
 -- 런타임 접근은 소유자 권한으로 도는 아래 함수 세 개뿐이며 service_role만 실행할 수 있다.
 -- 운영 반영은 wedding-code-research-contributions 릴리스 lane으로만 한다.
 BEGIN;
@@ -9,8 +10,9 @@ SET LOCAL statement_timeout = '30s';
 
 CREATE TABLE public.wedding_code_research_contributions (
   id uuid CONSTRAINT wcr_contributions_pkey PRIMARY KEY DEFAULT gen_random_uuid(),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL DEFAULT (now() + interval '60 days'),
+  created_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC')
+    CONSTRAINT wcr_contributions_created_at_day CHECK (created_at = date_trunc('day', created_at, 'UTC')),
+  expires_at timestamptz NOT NULL DEFAULT (date_trunc('day', now(), 'UTC') + interval '60 days'),
   scene_version text NOT NULL
     CONSTRAINT wcr_contributions_scene_version CHECK (scene_version = 'v0.8-code'),
   answer_code text NOT NULL
@@ -26,13 +28,14 @@ CREATE TABLE public.wedding_code_research_contributions (
 CREATE INDEX wcr_contributions_expires_at_idx
   ON public.wedding_code_research_contributions (expires_at);
 
--- 삭제한 receipt hash와 삭제 시각만 남긴다. 답·동의·장면 버전은 넣지 않는다.
+-- 삭제한 receipt hash와 삭제 날짜만 남긴다. 답·동의·장면 버전은 넣지 않는다.
 CREATE TABLE public.wedding_code_research_deletion_tombstones (
   deletion_receipt_hash bytea
     CONSTRAINT wcr_tombstones_pkey PRIMARY KEY
     CONSTRAINT wcr_tombstones_receipt_hash_length CHECK (octet_length(deletion_receipt_hash) = 32),
-  deleted_at timestamptz NOT NULL DEFAULT now(),
-  expires_at timestamptz NOT NULL DEFAULT (now() + interval '30 days')
+  deleted_at timestamptz NOT NULL DEFAULT date_trunc('day', now(), 'UTC')
+    CONSTRAINT wcr_tombstones_deleted_at_day CHECK (deleted_at = date_trunc('day', deleted_at, 'UTC')),
+  expires_at timestamptz NOT NULL DEFAULT (date_trunc('day', now(), 'UTC') + interval '30 days')
 );
 CREATE INDEX wcr_tombstones_expires_at_idx
   ON public.wedding_code_research_deletion_tombstones (expires_at);
@@ -69,6 +72,7 @@ BEGIN
     RAISE EXCEPTION USING ERRCODE = '22023', MESSAGE = 'WEDDING_CODE_RESEARCH_CONTRIBUTION_REJECTED';
   END IF;
   -- 형식 검증은 테이블 CHECK가 맡는다. 어긋나면 INSERT가 예외를 낸다.
+  -- 같은 hash가 이미 있으면 UNIQUE 위반(23505)을 그대로 올린다. 호출자는 이를 같은 요청의 재시도로 본다.
   INSERT INTO public.wedding_code_research_contributions
     (scene_version, answer_code, consent_version, deletion_receipt_hash)
   VALUES (p_scene_version, p_answer_code, p_consent_version, p_deletion_receipt_hash);
@@ -102,7 +106,9 @@ REVOKE ALL ON FUNCTION public.delete_wedding_code_research_contribution(bytea)
   FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_wedding_code_research_contribution(bytea) TO service_role;
 
--- 만료 행을 두 테이블에서 지우고, 지운 응답 행 수를 돌려준다.
+-- 만료됐거나 receipt가 이미 삭제된(tombstone이 있는) 응답 행을 지우고, 그 뒤 만료 tombstone을 지운다.
+-- 함수 밖 경로로 tombstone과 같은 hash의 응답 행이 남아 있으면 여기서 지운다. 전체 DB 복원은 tombstone도
+-- 함께 되돌리므로 그 경우 재삭제를 보장하지 않는다. 지운 응답 행 수를 돌려준다.
 CREATE FUNCTION public.purge_expired_wedding_code_research_contributions()
 RETURNS integer
 LANGUAGE plpgsql
@@ -112,8 +118,12 @@ AS $function$
 DECLARE
   v_deleted integer;
 BEGIN
-  DELETE FROM public.wedding_code_research_contributions
-    WHERE expires_at <= pg_catalog.now();
+  DELETE FROM public.wedding_code_research_contributions AS contribution
+    WHERE contribution.expires_at <= pg_catalog.now()
+       OR EXISTS (
+         SELECT 1 FROM public.wedding_code_research_deletion_tombstones AS tombstone
+         WHERE tombstone.deletion_receipt_hash = contribution.deletion_receipt_hash
+       );
   GET DIAGNOSTICS v_deleted = ROW_COUNT;
   DELETE FROM public.wedding_code_research_deletion_tombstones
     WHERE expires_at <= pg_catalog.now();
