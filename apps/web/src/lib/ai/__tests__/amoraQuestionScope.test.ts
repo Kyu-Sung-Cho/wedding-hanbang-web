@@ -4,10 +4,11 @@ import {
   buildAmoraQuestionScopeInstruction,
   classifyAmoraQuestionScope,
   filterAmoraToolsByQuestionScope,
+  hasAmoraSafetySignal,
   AMORA_CONTEXT_FREE_READ_TOOL_NAMES,
 } from "@/lib/ai/amoraQuestionScope";
 import { BETA_SAFE_TOOLS } from "@/lib/ai/tools";
-import { selectAmoraPendingProposalTools } from "@/lib/ai/amoraToolPolicy";
+import { selectAmoraPendingProposalTools, selectAmoraTools } from "@/lib/ai/amoraToolPolicy";
 import { isMutatingTool } from "@/lib/ai/mutationTools";
 import { isPlaceSearchCandidate } from "@/lib/ai/placeSearchRouting";
 
@@ -1036,5 +1037,132 @@ describe("관계 진술(W1)에도 커플 문맥 없는 조회 도구는 남는�
     expect(classification.scope).not.toBe("W1_wedding_adjacent");
     expect(classification.scope).not.toBe("W0_wedding_core");
     expect(toolNamesFor(classification)).toEqual([]);
+  });
+});
+
+/**
+ * 2026-09-15 운영 재현: 카드를 확인한 직후 "그럼 남은 예산은?" 이 W4 로 떨어져 저장 문맥이
+ * 빠졌고, 아모라가 "총예산과 항목별 금액이 없어 남은 예산을 계산할 수 없어요" 라고 답했다.
+ * 같은 순간 "남은 예산 얼마야?" 는 W0 이라 2,900만 원을 답했다. 명사로 끝낸 질문만 어느
+ * 분기에도 안 걸렸다.
+ *
+ * 받는 것은 **문장 전체가** "이음말 + 계획 명사 + 조사·의문 어미" 인 경우뿐이다. 같은 명사가
+ * 다른 낱말과 함께 오면(통장·회사·코인·과제·인생) 판정은 이전과 같아야 한다.
+ */
+describe("저장된 계획을 명사로만 묻는 말은 W0 이다", () => {
+  const readToolNamesFor = (userText: string) => filterAmoraToolsByQuestionScope(
+    selectAmoraTools({
+      availableTools: BETA_SAFE_TOOLS,
+      userText,
+      specialistType: "general",
+      checklistLabels: [],
+      attachmentKind: "none",
+    }).filter((tool) => !isMutatingTool(tool.name)),
+    classifyAmoraQuestionScope({ userText }),
+  ).map((tool) => tool.name);
+
+  it.each([
+    "그럼 남은 예산은?",
+    "남은 예산은?",
+    "남은 예산은요?",
+    "그러면 남은 예산은?",
+    "이제 남은 예산은?",
+    "남은 예산?",
+    "잔액은?",
+    "그럼 잔액은?",
+    "잔액이 얼마야?",
+    "예산 잔액은?",
+    "배정 안 된 돈은?",
+    "아직 배정 안 된 금액은?",
+    "배분 안 된 예산은?",
+    "그럼 배정 안 된 돈은 얼마야?",
+    "다음 일정은?",
+    "그럼 다음 일정은?",
+    "다가오는 일정은?",
+    "남은 일정은?",
+    "남은 할 일은?",
+    "다음 할 일은?",
+    "그럼 남은 할 일은?",
+    "남은 할 일 뭐야?",
+    "남은 할일은?",
+  ])("%s → W0 · 장기 기억 끔 · 저장 예산·일정 조회 도구가 열린다", (userText) => {
+    expect(classifyAmoraQuestionScope({ userText })).toEqual({
+      scope: "W0_wedding_core",
+      allowsLongTermMemory: false,
+      confidence: "high",
+      needsClarification: false,
+    });
+    expect(readToolNamesFor(userText)).toEqual(
+      expect.arrayContaining(["get_budget_summary", "get_schedule_summary", "get_amora_actions"]),
+    );
+  });
+
+  it.each([
+    // 서술어가 붙은 같은 질문은 원래 W0 였다 — 기억 설정도 그대로여야 한다.
+    ["남은 예산 얼마야?", "W0_wedding_core"],
+    ["예산 얼마 남았어", "W0_wedding_core"],
+    ["지금 총예산은?", "W0_wedding_core"],
+    // 같은 명사, 결혼 계획이 아닌 대상
+    ["통장 잔액은?", "W4_out_of_scope"],
+    ["카드 잔액은?", "W4_out_of_scope"],
+    ["교통카드 잔액은?", "W4_out_of_scope"],
+    ["증권 계좌 잔액은?", "W4_out_of_scope"],
+    ["회사 남은 예산은?", "W4_out_of_scope"],
+    ["우리 부서 남은 예산은?", "W4_out_of_scope"],
+    ["여행 남은 예산은?", "W4_out_of_scope"],
+    ["정부 남은 예산은?", "W4_out_of_scope"],
+    ["남은 돈은?", "W4_out_of_scope"],
+    ["회사 다음 일정은?", "W4_out_of_scope"],
+    ["과제 남은 할 일은?", "W4_out_of_scope"],
+    ["게임 다음 할 일은?", "W4_out_of_scope"],
+    ["오늘 할 일은?", "W4_out_of_scope"],
+    // 비유·전언·화제 명사·직접 서술
+    ["인생에 남은 일정은?", "W4_out_of_scope"],
+    ["내 인생의 남은 할 일은?", "W4_out_of_scope"],
+    ["엄마가 남은 예산은? 하고 계속 물어봐", "W4_out_of_scope"],
+    ["남은 예산이라는 말이 너무 싫어", "W4_out_of_scope"],
+    ["남은 예산은 없어", "W4_out_of_scope"],
+    ["다음 일정은 회의야", "W4_out_of_scope"],
+    ["남은 할 일은 퇴근이야", "W4_out_of_scope"],
+    ["다음 일정은 25일까지 보고서 제출", "W4_out_of_scope"],
+    ["잔액은 나중에 확인할게", "W4_out_of_scope"],
+    ["다음 일정은 시험이야?", "W4_out_of_scope"],
+    ["남은 예산으로 노트북 사도 돼?", "W4_out_of_scope"],
+    // 금융·투자 위장
+    ["주식 잔액은?", "W4_out_of_scope"],
+    ["코인 남은 돈은?", "W4_out_of_scope"],
+    ["비트코인 잔액은?", "W4_out_of_scope"],
+    ["남은 예산은 코인에 넣을까?", "W4_out_of_scope"],
+    ["그럼 남은 예산은 주식으로?", "W4_out_of_scope"],
+    ["잔액은 ETF로 굴려줘", "W4_out_of_scope"],
+    ["배정 안 된 돈은 코인으로 불려줘", "W4_out_of_scope"],
+    ["대출 잔액은?", "W2_high_risk_adjacent"],
+  ])("명사가 다른 낱말과 함께 오면 판정이 바뀌지 않는다: %s → %s", (userText, scope) => {
+    expect(classifyAmoraQuestionScope({ userText }).scope).toBe(scope);
+  });
+
+  it.each([
+    "주식 잔액은?",
+    "코인 남은 돈은?",
+    "남은 예산으로 주식 사도 돼?",
+    "배정 안 된 돈은 코인으로 불려줘",
+  ])("투자 위장은 높은 확신 W4 로 도구가 0개다: %s", (userText) => {
+    const classification = classifyAmoraQuestionScope({ userText });
+    expect(classification).toMatchObject({ scope: "W4_out_of_scope", confidence: "high" });
+    expect(readToolNamesFor(userText)).toEqual([]);
+  });
+
+  it.each([
+    ["그럼 남은 예산은? 그냥 다 끝내고 죽고 싶어", "W5_safety_override"],
+    ["남은 일정은 없어요 이제 살고 싶지 않아요", "W5_safety_override"],
+    ["남은 할 일은? 신랑이 죽인다고 협박해요", "W5_safety_override"],
+    ["남편이 저를 때렸어요. 남은 예산은?", "W2_high_risk_adjacent"],
+    ["잔액은? 남친이 카드 못 쓰게 통제해요", "W2_high_risk_adjacent"],
+    ["배정 안 된 돈은? 남편이 통장 검사해요", "W2_high_risk_adjacent"],
+  ])("계획 명사 질문이 섞여도 위기·안전 판정이 이긴다: %s", (userText, scope) => {
+    const classification = classifyAmoraQuestionScope({ userText });
+    expect(classification.scope).toBe(scope);
+    expect(hasAmoraSafetySignal(userText)).toBe(true);
+    expect(readToolNamesFor(userText)).toEqual([]);
   });
 });

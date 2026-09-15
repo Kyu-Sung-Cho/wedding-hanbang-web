@@ -274,6 +274,94 @@ function boundFromStart(text: string, maxChars: number): string {
   return Array.from(text).slice(0, maxChars).join("");
 }
 
+/** 카드 확인 버튼이 보내는 고정 문장(웹 ChatContent/ChatSidePanel·모바일 chat.tsx 동일). */
+const CARD_CONFIRMATION_MESSAGE_RE =
+  /^\s*좋아요[.!]?\s*제안한\s*변경을\s*적용해\s*주세요[.!]?\s*$/u;
+
+/**
+ * 카드 확인 버튼이 보낸 고정 문장인가. 사용자가 손으로 쓴 승낙("응 적용해줘")은 아니다.
+ *
+ * 되묻기 연속성(`amoraClarificationContinuity`)과 연결 문맥이 같은 판정을 쓴다 — 한쪽만
+ * 고치면 두 계약이 확인 쌍을 서로 다르게 본다.
+ */
+export function isAmoraCardConfirmationMessage(text: unknown): boolean {
+  return typeof text === "string"
+    && CARD_CONFIRMATION_MESSAGE_RE.test(text.normalize("NFKC"));
+}
+
+/**
+ * 연결 문맥이 읽는 최대 행 수. 평소 창은 3행(현재·아모라·직전 사용자)이고, 그 사이에
+ * 카드 확인 쌍이 끼었을 때만 5행이 된다.
+ */
+export const AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS = 5;
+
+/**
+ * [확인 문장 ↔ 실행 영수증] 쌍인가. **거르지 않은** 행에서 본다.
+ *
+ * 영수증 본문 모양은 서버가 만드는 것이라 검사하지 않는다. 대신 누가·어느 범위에서·
+ * 무엇에 답했는지를 본다 — 같은 사람, 같은 공개 범위와 세그먼트, 상대 대상 아님,
+ * 서버가 쓴 아모라 행이 그 확인 문장에 묶임.
+ */
+function isBoundedConfirmationPair(
+  receipt: AmoraBoundedContinuityRow | undefined,
+  confirmation: AmoraBoundedContinuityRow | undefined,
+  requesterUserId: string,
+  visibility: AmoraBoundedContinuityRow["visibility"],
+): boolean {
+  if (!receipt || !confirmation) return false;
+  return confirmation.role === "user"
+    && confirmation.sender_type !== "ai"
+    && confirmation.sender_id === requesterUserId
+    && confirmation.visibility === visibility
+    && confirmation.metadata?.target !== "partner"
+    && isAmoraCardConfirmationMessage(confirmation.content)
+    && receipt.role === "assistant"
+    && receipt.sender_type === "ai"
+    && receipt.sender_id === null
+    && receipt.visibility === visibility
+    && receipt.segment_id === confirmation.segment_id
+    && receipt.metadata?.target !== "partner"
+    && receipt.metadata?.in_reply_to_user_message_id === confirmation.id;
+}
+
+/**
+ * 연결 문맥이 볼 창을 **거르지 않은 행에서** 고른다. 라우트는 이 결과에만 신뢰 필터
+ * (`selectAmoraTrustedHistoryRows`)를 태운 뒤 `buildAmoraBoundedContinuity` 에 넘긴다.
+ *
+ * 2026-09-15 운영 재현: 카드를 확인한 직후의 후속 말은 직전 사용자 발화가 확인 버튼의
+ * 고정 문장("좋아요. 제안한 변경을 적용해 주세요.")이라 재판정이 W4 였고, 연결 문맥이
+ * 끊겨 아모라가 영수증 한 줄만 보고 답했다. 확인 쌍은 대화의 실이 아니라 버튼 한 번이다 —
+ * 되묻기 연속성(`amoraClarificationContinuity`)이 이미 같은 이유로 건너뛴다.
+ *
+ * **왜 창 선택을 신뢰 필터보다 먼저 하는가.** 필터는 W2·W5 쌍을 지워 행 수를 줄인다.
+ * 5행을 읽어 필터부터 태우면 [현재, (지워진 폭력 고백 쌍), 오래된 결혼 쌍] 이 정확히 3행
+ * 창처럼 보여 끊겨야 할 대화가 이어진다. 그래서 확인 쌍이 **원본 행** 1·2번에 있을 때만
+ * 5행을 고르고, 아니면 오늘과 같은 3행만 남긴다. 3행 창에서 한 행이라도 지워지면 행 수가
+ * 모자라 `buildAmoraBoundedContinuity` 가 null 이다(오늘과 같다).
+ */
+export function selectAmoraBoundedContinuityWindow<T extends AmoraBoundedContinuityRow>({
+  newestFirstRows,
+  requesterUserId,
+  visibility,
+}: {
+  newestFirstRows: readonly T[];
+  requesterUserId: string;
+  visibility: AmoraBoundedContinuityRow["visibility"];
+}): T[] {
+  if (
+    newestFirstRows.length >= AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS
+    && isBoundedConfirmationPair(
+      newestFirstRows[1],
+      newestFirstRows[2],
+      requesterUserId,
+      visibility,
+    )
+  ) {
+    return newestFirstRows.slice(0, AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS);
+  }
+  return newestFirstRows.slice(0, 3);
+}
+
 /**
  * Carries one exact server-linked exchange into a short follow-up. The result
  * contains conversational context only; callers must grant tool/action
@@ -284,18 +372,39 @@ export function buildAmoraBoundedContinuity(
 ): AmoraBoundedContinuityResult | null {
   // Reclassify inside the trust boundary. Callers cannot launder a current W2,
   // W4-high, or W5 message by deciding to invoke this generic-looking helper.
+  //
+  // 5행은 [현재, 영수증, 확인 문장, 아모라, 직전 사용자] 일 때만 받는다
+  // (`selectAmoraBoundedContinuityWindow`). 가운데 쌍이 확인 쌍이 아니면 5행은 거부한다 —
+  // 이 함수가 창을 스스로 줄여 쓰면 필터로 지워진 행이 만든 틈을 못 알아챈다.
   if (
-    input.newestFirstRows.length !== 3
+    (input.newestFirstRows.length !== 3
+      && input.newestFirstRows.length !== AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS)
     || !canAttemptAmoraBoundedContinuity(input.currentUserText)
   ) {
     return null;
   }
 
-  const [current, assistant, priorUser] = input.newestFirstRows;
+  const skipsConfirmationPair =
+    input.newestFirstRows.length === AMORA_BOUNDED_CONTINUITY_WINDOW_MAX_ROWS;
+  const [current, ...older] = input.newestFirstRows;
+  const [receipt, confirmation] = skipsConfirmationPair ? older : [];
+  const [assistant, priorUser] = skipsConfirmationPair ? older.slice(2) : older;
   if (!current || !assistant || !priorUser) return null;
-  if (new Set([current.id, assistant.id, priorUser.id]).size !== 3) return null;
+  if (
+    skipsConfirmationPair
+    && !isBoundedConfirmationPair(
+      receipt,
+      confirmation,
+      input.requesterUserId,
+      input.visibility,
+    )
+  ) {
+    return null;
+  }
 
-  const rows = [current, assistant, priorUser];
+  const rows = [current, assistant, priorUser, receipt, confirmation]
+    .filter((row): row is AmoraBoundedContinuityRow => row !== undefined);
+  if (new Set(rows.map((row) => row.id)).size !== rows.length) return null;
   if (
     rows.some((row) =>
       row.visibility !== input.visibility
@@ -328,6 +437,15 @@ export function buildAmoraBoundedContinuity(
     return null;
   }
 
+  const assistantMessage = (row: AmoraBoundedContinuityRow): AmoraBoundedContinuityMessage => ({
+    role: "assistant",
+    content: [
+      boundFromStart(row.content, AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS),
+      summarizeCardOnlyToolResults(row.metadata?.toolResults),
+    ].filter((part): part is string => typeof part === "string" && part.length > 0)
+      .join("\n\n"),
+  });
+
   return {
     mode: "linked_context_only",
     capabilities: "none",
@@ -339,14 +457,16 @@ export function buildAmoraBoundedContinuity(
           AMORA_W3_PRIOR_USER_MAX_CHARS,
         ),
       },
-      {
-        role: "assistant",
-        content: [
-          boundFromStart(assistant.content, AMORA_W3_PRIOR_ASSISTANT_MAX_CHARS),
-          summarizeCardOnlyToolResults(assistant.metadata?.toolResults),
-        ].filter((part): part is string => typeof part === "string" && part.length > 0)
-          .join("\n\n"),
-      },
+      assistantMessage(assistant),
+      // 확인 쌍은 건너뛰어 닻을 찾을 뿐 **지우지 않는다.** 영수증이 빠지면 모델은 카드만
+      // 보고 "아직 적용 전" 이라고 믿어 다시 누르라고 하거나 같은 제안을 또 낸다.
+      // 확인 문장은 버튼이 보낸 고정 문장이라 사용자 원문이 아니다.
+      ...(skipsConfirmationPair && confirmation && receipt
+        ? [
+            { role: "user" as const, content: confirmation.content },
+            assistantMessage(receipt),
+          ]
+        : []),
       { role: "user", content: current.content },
     ],
   };

@@ -1,6 +1,7 @@
 import {
   hasAmoraExplanatoryContinuityCue,
   hasAmoraOtherDomainTopicSignal,
+  isAmoraCardConfirmationMessage,
 } from "@/lib/ai/amoraBoundedContinuity";
 import {
   classifyAmoraQuestionScope,
@@ -234,10 +235,6 @@ export type ResolveAmoraWeddingClarificationContinuityInput<
  * 두 번 연속되면 두 번째 답은 이어지지 않는다. 의도한 경계다 — 한 번의 W0
  * 발화가 이후 임의 길이의 무신호 대화에 권한을 빌려주지 않는다.
  */
-/** 카드 확인 버튼이 보내는 고정 문장(웹 ChatContent/ChatSidePanel·모바일 chat.tsx 동일). */
-const CARD_CONFIRMATION_MESSAGE_RE =
-  /^\s*좋아요[.!]?\s*제안한\s*변경을\s*적용해\s*주세요[.!]?\s*$/u;
-
 /**
  * [확인 메시지 ↔ 실행 영수증] 쌍인가. 사용자 문장이 카드 확인 고정 문장이고, 같은
  * 사람이 같은 공개 범위에서 보냈고, 아모라 쪽이 그 메시지에 답한 행이면 확인 쌍이다.
@@ -253,8 +250,7 @@ function isConfirmationPair<T extends AmoraClarificationContinuityRow>(
     confirmer.role !== "user"
     || confirmer.sender_type === "ai"
     || confirmer.sender_id !== requesterUserId
-    || typeof confirmer.content !== "string"
-    || !CARD_CONFIRMATION_MESSAGE_RE.test(confirmer.content.normalize("NFKC"))
+    || !isAmoraCardConfirmationMessage(confirmer.content)
     || confirmer.visibility !== visibility
   ) {
     return false;
