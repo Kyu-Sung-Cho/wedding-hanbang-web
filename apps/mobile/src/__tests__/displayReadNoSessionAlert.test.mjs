@@ -58,7 +58,7 @@ function apiHarness({ responses, refreshed = { id: "owner-a", token: "token-a2" 
       fetches.push({ url, authorization: init.headers.Authorization, method: init.method });
       const next = queue.shift();
       assert.ok(next, "예상보다 요청이 많다");
-      return new Response(JSON.stringify(next.body ?? {}), { status: next.status });
+      return new globalThis.Response(JSON.stringify(next.body ?? {}), { status: next.status });
     },
   );
   return { api: module.exports, alerts, signOuts, navigation, fetches, refreshes };

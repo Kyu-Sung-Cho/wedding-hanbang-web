@@ -85,7 +85,7 @@ function harness({ avatarResponses }) {
   return { state, bindings, loadProfile, displayed, avatarCalls, switchAccount: (id) => { sessionUser = id; } };
 }
 
-const json = (status, body) => new Response(JSON.stringify(body), { status });
+const json = (status, body) => new globalThis.Response(JSON.stringify(body), { status });
 
 test("the profile renders even when the avatar request never answers", async () => {
   const h = harness({ avatarResponses: [new Promise(() => {})] });
@@ -94,7 +94,7 @@ test("the profile renders even when the avatar request never answers", async () 
   assert.equal(h.state.profile?.name, "민지", "이름·역할·꾸미기 버튼이 아바타 응답을 기다리지 않는다");
   assert.equal(h.state.profile?.userId, OWNER);
   // 당겨서 새로고침은 loadProfile 이 끝나야 멈춘다.
-  const settled = await Promise.race([loading.then(() => "done"), new Promise((resolve) => setTimeout(() => resolve("hung"), 200))]);
+  const settled = await Promise.race([loading.then(() => "done"), new Promise((resolve) => globalThis.setTimeout(() => resolve("hung"), 200))]);
   assert.equal(settled, "done");
   assert.equal(h.displayed(), null, "처음 여는 화면은 받은 값이 없으니 이름 첫 글자다");
 });

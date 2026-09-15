@@ -18,7 +18,7 @@ const OWNER = "11111111-1111-4111-8111-111111111111";
 const OLD_REVISION = "33333333-3333-4333-8333-333333333333";
 const NEW_REVISION = "44444444-4444-4444-8444-444444444444";
 const photoPath = (revision) => `/api/profile/avatar/image?userId=${OWNER}&version=${revision}`;
-const json = (status, body) => new Response(JSON.stringify(body), { status });
+const json = (status, body) => new globalThis.Response(JSON.stringify(body), { status });
 const abortError = () => Object.assign(new Error("Aborted"), { name: "AbortError" });
 const GENERIC = "프로필 저장 결과를 확인하지 못했어요. 잠시 뒤 다시 시도해 주세요.";
 
