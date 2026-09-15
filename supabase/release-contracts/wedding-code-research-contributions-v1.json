@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "kind": "wedding-code-research-contributions-static-successor",
+  "release": "wedding-code-research-contributions-20260915",
+  "status": "requires-scoped-runtime-evidence",
+  "productionApplyImplemented": true,
+  "runtimeEvidenceVerified": false,
+  "projectRef": "slrtobkksjmxgzatjyqb",
+  "systemIdentifier": "7581440907192989109",
+  "predecessor": {
+    "file": "supabase/release-contracts/amora-not-applicable-status-v1.json",
+    "sha256": "8d77b3bbe24586d0f3b171f828093cd55b0e5ecbd6173bba00ca0baa17fc13ed"
+  },
+  "reviewedPredecessorMigrationCount": 233,
+  "migrations": [
+    {
+      "file": "20260915130000_wedding_code_research_contributions.sql",
+      "sha256": "694c61599276f7deca51cd6e373e3117ad71c4575380d8e2de80f3163519ebe4"
+    }
+  ],
+  "scope": {
+    "newTables": [
+      "public.wedding_code_research_contributions",
+      "public.wedding_code_research_deletion_tombstones"
+    ],
+    "newFunctions": [
+      "public.insert_wedding_code_research_contribution(text,text,text,bytea)",
+      "public.delete_wedding_code_research_contribution(bytea)",
+      "public.purge_expired_wedding_code_research_contributions()"
+    ],
+    "tableAccess": "owner-only-rls-enabled-no-policies",
+    "functionExecute": "service_role-only",
+    "contributionRetentionDays": 60,
+    "tombstoneRetentionDays": 30,
+    "personalData": "none",
+    "joinKeys": "none",
+    "retiredCollectionObjects": "untouched",
+    "existingTables": "unchanged",
+    "existingFunctions": "unchanged",
+    "dataRows": "unchanged"
+  },
+  "runtime": {
+    "file": "scripts/lib/wedding-code-research-contributions-release.mjs",
+    "sha256": "412ce828d35d8339230b389ed340e55aaff23cc807395be86a3ca085b9e085e7"
+  },
+  "predecessorMigration": {
+    "file": "supabase/migrations/20260915101500_amora_atomic_not_applicable_status.sql",
+    "sha256": "1e7fe89a73e1093caee6f5908dbde0ba6ed2d0be03c140a4a9173a58908a7f37"
+  }
+}

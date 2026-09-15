@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -7,10 +7,18 @@ import { expectedNotApplicableTransaction, loadNotApplicableStatusReleasePlan, N
   NOT_APPLICABLE_STATUS_CONTRACT_FILE } from '../lib/amora-not-applicable-status-release-contract.mjs';
 import { loadCustomerDataReleasePlan } from '../lib/account-deletion-customer-data-release-contract.mjs';
 import { createCustomerDataHistoricalRepository } from './fixtures/account-deletion-customer-data-historical-repository.mjs';
+import { createNotApplicableStatusHistoricalRepository } from './fixtures/amora-not-applicable-status-historical-repository.mjs';
 import { validateSuccessorReleaseContract } from '../lib/supabase-successor-release-contract.mjs';
 import { runProductionRelease } from '../lib/supabase-production-release-controller.mjs';
 
-const root = resolve(import.meta.dirname, '../..');
+// 233 공개 모드는 역사 checkout에서만 통과한다. 실제 checkout에는 이후 검토된 SQL이 더 있다.
+const actualRoot = resolve(import.meta.dirname, '../..');
+const historical = createNotApplicableStatusHistoricalRepository(actualRoot), root = historical.root;
+after(historical.cleanup);
+
+test('the historical 233 public mode rejects the actual checkout with a newer reviewed migration', () => {
+  assert.throws(() => loadNotApplicableStatusReleasePlan(actualRoot), { code: 'NEW_MIGRATION_NOT_REVIEWED' });
+});
 const run = args => spawnSync(process.execPath, [join(root, 'scripts/supabase-release-fence.mjs'), ...args],
   { cwd: root, encoding: 'utf8', windowsHide: true, timeout: 30_000 });
 const code = value => error => error?.code === value;
@@ -52,7 +60,7 @@ test('the reviewed SQL is the previous transaction with only the three status al
 });
 
 test('every new artifact, predecessor, previous body and unregistered migration is fail-closed', t => {
-  const fixture = createCustomerDataHistoricalRepository(root); t.after(fixture.cleanup);
+  const fixture = createCustomerDataHistoricalRepository(actualRoot); t.after(fixture.cleanup);
   const plan = loadNotApplicableStatusReleasePlan(root);
   const paths = [NOT_APPLICABLE_STATUS_CONTRACT_FILE, plan.contract.runtime.file, `supabase/migrations/${plan.contract.migrations[0].file}`];
   assert.throws(() => loadNotApplicableStatusReleasePlan(fixture.root));
