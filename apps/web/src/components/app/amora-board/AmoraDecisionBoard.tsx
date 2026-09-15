@@ -135,10 +135,16 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
   </article>;
 }
 
+// 이전 기록을 더 불러오다 실패한 것은 이미 불러온 기록을 가리지 않는다. 목록을 접는 것은
+// 첫 페이지가 실패해 보여 줄 기록 자체가 없을 때뿐이다.
+const decisionListError = (data: Pick<ReturnType<typeof useDecisionBoard>, "error" | "errorKind">) => data.errorKind === "more" ? null : data.error;
+
 function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpen, active }: {
   data: ReturnType<typeof useDecisionBoard>; searchId: string; query: string; onQueryChange(value: string): void; mobileSearchOpen: boolean; active: boolean;
 }) {
-  const { records, loading, loadingMore, error, nextCursor, available, isDemo, refresh, loadMore } = data;
+  const { records, loading, loadingMore, error, errorKind, nextCursor, available, isDemo, refresh, loadMore } = data;
+  const listError = decisionListError(data);
+  const moreError = errorKind === "more" ? error : null;
   const [status, setStatus] = useState<DecisionColumn>("confirmed");
   const [category, setCategory] = useState("all");
   const { decisions, routineDays, routineCount } = useMemo(() => arrangePreparationDecisions(records), [records]);
@@ -178,9 +184,9 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
     {isDemo ? <p role="note" className="py-3 text-[13px]">체험 모드에서는 실제 결정 기록을 조회하지 않아요. 공유 할 일에서 체험용 샘플을 볼 수 있어요.</p>
       : !available ? <p className="py-3 text-[13px]">로그인과 현재 커플 연결을 확인하면 공동 결정 기록을 볼 수 있어요.</p>
         : <>
-          {error && <div role="alert" className="mb-4 rounded-[12px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{error}</p><Button type="button" onClick={() => void refresh()} disabled={loading} className={`${sharedOutlineButton} mt-2`}>결정 다시 불러오기</Button></div>}
+          {listError && <div role="alert" className="mb-4 rounded-[12px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] p-4 text-[13px]"><p>{listError}</p><Button type="button" onClick={() => void refresh()} disabled={loading} className={`${sharedOutlineButton} mt-2`}>결정 다시 불러오기</Button></div>}
           {loading && <p role="status" className="py-4 text-[13px]">결정 기록을 불러오는 중…</p>}
-          {!loading && !error && <>
+          {!loading && !listError && <>
             <div className="mb-3 flex rounded-[11px] bg-[var(--amora-low)] p-[3px] lg:hidden" role="group" aria-label="결정 상태">
               {DECISION_COLUMNS.map(column => <button key={column.status} type="button" aria-pressed={status === column.status} onClick={() => setStatus(column.status)} className={`flex min-h-[46px] min-w-0 flex-1 flex-col items-center justify-center gap-[2px] rounded-[9px] py-1 text-[12.5px] ${focus} ${status === column.status ? "bg-[var(--amora-surface)] font-semibold text-[var(--amora-ink)] shadow-sm" : "text-[var(--amora-muted)]"}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${column.dot}`} />{column.label}<span className="text-[12px] tabular-nums">{filtered.filter(row => row.status === column.status).length}</span></button>)}
             </div>
@@ -222,7 +228,10 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
               })}
             </div>
           </>}
-          {nextCursor && !error && <Button type="button" onClick={() => void loadMore()} disabled={loading || loadingMore} className={`${sharedOutlineButton} mt-4`}>{loadingMore ? "이전 결정을 불러오는 중…" : "이전 결정 더 보기"}</Button>}
+          {nextCursor && !listError && <div className="mt-4">
+            {moreError && <p role="alert" className="mb-2 rounded-[12px] border border-[var(--amora-rose)] bg-[var(--amora-warm)] px-4 py-3 text-[13px]">{moreError}</p>}
+            <Button type="button" onClick={() => void loadMore()} disabled={loading || loadingMore} className={sharedOutlineButton}>{loadingMore ? "이전 결정을 불러오는 중…" : "이전 결정 더 보기"}</Button>
+          </div>}
         </>}
     <details className="mt-3 text-[12px] text-[var(--amora-muted)] lg:hidden"><summary className={`flex min-h-11 cursor-pointer items-center ${focus}`}>결정 기록 안내</summary><p className="pb-2 leading-relaxed">불러온 결정 {decisions.length}개 · 숫자와 검색은 불러온 기록 기준이에요. 같은 값을 다시 바꾼 앞 기록은 이전 값으로 접어요.{nextCursor ? " 이전 기록을 더 불러올 수 있어요." : ""}</p><p className="pb-3 leading-relaxed">확정에는 일정 취소·복원 이력도 포함돼요. 현재 일정 상태는 일정에서 확인해 주세요. 두 사람이 모두 확인했다는 뜻은 아니에요. 개인 상담과 자동 추출 기억은 포함하지 않아요. 할 일 완료는 공유 할 일에서 따로 관리해요.</p></details>
   </section>;
@@ -405,7 +414,7 @@ export default function AmoraDecisionBoard() {
   const decisionSearchId = `${decisionPanelId}-search`;
   const taskSearchId = `${taskPanelId}-search`;
   const activeQuery = board === "decisions" ? decisionQuery : query;
-  const searchAvailable = board === "tasks" || (!decisions.isDemo && decisions.available && !decisions.loading && !decisions.error);
+  const searchAvailable = board === "tasks" || (!decisions.isDemo && decisions.available && !decisions.loading && !decisionListError(decisions));
   const searchExpanded = searchAvailable && mobileSearchOpen;
   const refreshDisabled = board === "decisions"
     ? decisions.isDemo || !decisions.available || decisions.loading || decisions.loadingMore
