@@ -7,7 +7,11 @@
 // 로더가 한 곳에 있어야 초기화 전에 capture가 새는 일이 없다.
 import {
   analyticsCaptureTouchesSuppressedPath,
+  isWeddingCodeFunnelAnalyticsEffective,
+  isWeddingCodeFunnelEvent,
+  sanitizeWeddingCodeFunnelCapture,
   stripAnalyticsUrlFragments,
+  type WeddingCodeFunnelEvent,
 } from "@/lib/analyticsPrivacy";
 
 type PostHogModule = typeof import("posthog-js").default;
@@ -44,10 +48,14 @@ export function loadPostHog(): Promise<PostHogModule | null> {
             // 프래그먼트를 잘라낸다. `capture_pageleave`가 켜져 있어 posthog-js가
             // `$current_url`에 `location.href`를 스스로 넣는데, 커플 초대 코드가
             // 바로 그 `#` 뒤에 실려 다닌다.
+            // 웨딩코드 흐름 이벤트만 예외다 — 억제 판정보다 먼저, 주소를 경로만 남기고
+            // 허용 속성만 추려 보낸다(`sanitizeWeddingCodeFunnelCapture`).
             before_send: (capture) => (
-              analyticsCaptureTouchesSuppressedPath(capture, window.location.pathname)
-                ? null
-                : stripAnalyticsUrlFragments(capture)
+              isWeddingCodeFunnelEvent(capture?.event)
+                ? sanitizeWeddingCodeFunnelCapture(capture)
+                : analyticsCaptureTouchesSuppressedPath(capture, window.location.pathname)
+                  ? null
+                  : stripAnalyticsUrlFragments(capture)
             ),
           });
           resolve(posthog);
@@ -56,6 +64,19 @@ export function loadPostHog(): Promise<PostHogModule | null> {
     });
   });
   return clientPromise;
+}
+
+/**
+ * 웨딩코드 흐름 이벤트. 답·코드·링크는 받지 않도록 속성 모양을 좁혀 둔다 — 넘기더라도
+ * `before_send`가 한 번 더 버린다.
+ */
+export function captureWeddingCodeEvent(
+  event: WeddingCodeFunnelEvent,
+  properties: Readonly<Record<string, string | number | boolean>> = {},
+) {
+  // 고지한 적용일 전에는 posthog를 내려받지도 않는다.
+  if (!isWeddingCodeFunnelAnalyticsEffective()) return;
+  captureEvent(event, { ...properties });
 }
 
 export function captureEvent(event: string, properties?: Record<string, unknown>) {

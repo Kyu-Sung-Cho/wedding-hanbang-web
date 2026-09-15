@@ -53,7 +53,8 @@ export default function TrackedLandingLink({
           // 도착지가 아모라이던 때 지은 것인데, 지금 1차 CTA 는 `/wedding-code` 로 간다.
           //
           // 도착지가 `wedding_code_started`·`wedding_code_completed` 를 스스로 내므로
-          // 여기서는 **어느 자리에서 눌렀는지**만 붙이면 퍼널이 이어진다.
+          // 여기서는 **어느 자리에서 눌렀는지**만 붙이면 퍼널이 이어진다. 도착지 이벤트는
+          // `WEDDING_CODE_FUNNEL_ANALYTICS_EFFECTIVE_AT` 이후에만 나간다(그 전에는 이 한 칸뿐이다).
           captureEvent("landing_cta_click", { source });
       }}
     >

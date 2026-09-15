@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import Button from "@/components/ui/Button";
-import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2 } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronRight, ClipboardCheck, FileCheck2, Split } from "lucide-react";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
 import type { MissionGroup } from "@/lib/amora/missions";
@@ -99,6 +99,17 @@ export function LoungeReferencePanels({ categoryKey, allocated }: { categoryKey:
       <h2 className="mt-2 text-[14px] font-semibold">{guide?.title ?? "결혼 준비, 하나씩 알아보기"}</h2>
       <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">처음이라 낯선 순서와 확인할 내용을 가이드에서 살펴보세요.</p>
       <Link {...weddingLinkProps(guide ? `/manners/${guide.slug}` : "/manners")} className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>가이드 읽기<ArrowRight size={12} aria-hidden="true" /></Link>
+    </section>
+    {/*
+      웨딩코드는 로그인 후 내비게이션에 넣지 않는다(2026-08-27 결정, mvpDirection.test.ts).
+      라운지 본문의 참고 카드로만 둔다. `/wedding-code` 는 `/wedding` 아래 경로가 아니라
+      weddingLinkProps 를 쓰지 않는다.
+    */}
+    <section className="rounded-[16px] border border-[var(--amora-line)] bg-white p-[18px]" data-lounge-wedding-code="">
+      <p className="inline-flex items-center gap-1.5 text-[10px] text-[var(--amora-muted)]"><Split size={13} aria-hidden="true" />둘이 함께 해보기</p>
+      <h2 className="mt-2 text-[14px] font-semibold">어디서 생각이 갈리는지 먼저 보기</h2>
+      <p className="mt-2 text-[11.5px] leading-[1.75] text-[var(--amora-soft)]">결혼 준비 장면에 각자 답하고, 고른 문장을 나란히 봐요. 점수나 궁합은 매기지 않아요.</p>
+      <Link href="/wedding-code" className={`mt-1 inline-flex min-h-11 items-center gap-1.5 text-[11px] font-semibold ${focus}`}>웨딩코드 해보기<ArrowRight size={12} aria-hidden="true" /></Link>
     </section>
     <Link {...weddingLinkProps("/chat")} className={`block rounded-[16px] border border-[var(--hb-amora-line,#8F6662)] bg-[var(--hb-amora-surface,#FBF8F2)] p-[18px] text-[var(--hb-amora-ink,#7D5753)] transition-colors hover:bg-[var(--hb-amora-hover,#EADDD8)] ${focus}`}>
       <span className="flex items-center gap-2 text-[10px]"><AmoraMark size={13} aria-hidden="true" />AMORA</span><span className="amora-display mt-2 block text-[17px]">혼자 고민하지 않아도 괜찮아요</span><span className="mt-2 block text-[11px] leading-[1.75]">정리가 안 되는 준비, 아모라와 하나씩 이야기해 봐요.</span><span className={`${AMORA_ACTION_CLASS} mt-4`}><AmoraMark size={20} />아모라와 대화하기<ArrowRight size={12} aria-hidden="true" /></span>

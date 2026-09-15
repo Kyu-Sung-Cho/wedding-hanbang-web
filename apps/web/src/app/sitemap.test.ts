@@ -83,6 +83,15 @@ describe("vendor sitemap", () => {
     expect(mocks.vendorRanges).not.toHaveBeenCalled();
   });
 
+  it("lists the answer-free WeddingCode entry and never an answer-carrying link", async () => {
+    vi.stubEnv("CI", "true");
+
+    const urls = (await sitemap()).map(({ url }) => url);
+
+    expect(urls).toContain("https://hanbang.ai/wedding-code");
+    expect(urls.some((url) => /wedding-code.*[?#]/.test(url))).toBe(false);
+  });
+
   it("publishes every unique vendor beyond one page with its latest real publication time", async () => {
     mocks.vendorRows = [
       ...Array.from({ length: 501 }, (_, index) => ({
