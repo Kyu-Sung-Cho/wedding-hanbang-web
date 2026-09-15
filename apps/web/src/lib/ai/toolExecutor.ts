@@ -46,7 +46,7 @@ import {
   AMORA_MAX_TOOL_FEEDBACK_CHARS_PER_TURN,
 } from "@/lib/ai/amoraRequestPolicy";
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
-import { mergePlanningChecklist } from "@hanbang/shared/utils";
+import { summarizePlanningChecklist } from "@hanbang/shared/utils";
 import { listCustomBudgetCategories } from "@/lib/ai/budgetCustomCategories";
 import {
   CATEGORY_LABELS,
@@ -1332,6 +1332,13 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
   const completedCount = allKeys.filter(
     (k) => resolveStatusByKey(k, progress[k]) === "completed"
   ).length;
+  // "안 해요"로 끈 분야는 진행률 분모에서 뺀다(2026-09-15). 체크리스트·일정 화면
+  // (`summarizePlanningChecklist`)과 `get_schedule_summary` 가 이미 그렇게 센다 — 여기만
+  // 전체 분야로 나누면 함·폐백을 끈 커플에게 아모라가 화면보다 낮은 진행률을 말한다.
+  const notApplicableCount = allKeys.filter(
+    (k) => resolveStatusByKey(k, progress[k]) === "not_applicable"
+  ).length;
+  const applicableCategoryCount = allKeys.length - notApplicableCount;
 
   // 체크리스트 **세부 항목** 수를 함께 센다.
   //
@@ -1341,19 +1348,20 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
   // (2026-08-24 운영 실측 — 프롬프트에는 `할일: 1/9완료` 가 정확히 실려 있었다).
   //
   // 라벨과 마찬가지로 **템플릿이 정본**이고 저장값에서는 done 만 가져온다.
-  let checklistDone = 0;
-  let checklistTotal = 0;
-  for (const category of CATEGORY_CHECKLISTS) {
-    const saved = (progress[category.key] as { checklist?: unknown } | undefined)?.checklist;
-    const merged = mergePlanningChecklist(
-      category.items,
-      Array.isArray(saved) ? (saved as typeof category.items) : undefined,
-    );
-    checklistTotal += merged.length;
-    checklistDone += merged.filter((item: { done?: boolean }) => item.done === true).length;
-  }
+  // 화면과 같은 함수로 센다 — "안 해요"로 끈 분야의 항목은 분자·분모 모두에서 빠진다.
+  const checklist = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    progress as unknown as Parameters<typeof summarizePlanningChecklist>[1],
+  );
+  const checklistDone = checklist.done;
+  const checklistTotal = checklist.total;
 
-  const categoryPercent = Math.round((completedCount / allKeys.length) * 100);
+  const categoryPercent = applicableCategoryCount > 0
+    ? Math.round((completedCount / applicableCategoryCount) * 100)
+    : 0;
+  const skippedLabel = notApplicableCount > 0
+    ? `, 안 해요 ${notApplicableCount}개 분야 제외`
+    : "";
   return {
     toolName: "get_wedding_info",
     toolInput: {},
@@ -1364,17 +1372,21 @@ function executeGetWeddingInfo(ctx: ExecutionContext): ToolExecutionResult {
       total_budget: budget,
       progress_basis: "planning_category_templates",
       shared_actions_queried: false,
+      // 완료한 카테고리 비율. 분모는 `applicable_categories`다 — "안 해요"로 끈 분야는 뺀다.
       progress_percent: categoryPercent,
       completed_count: completedCount,
       total_categories: allKeys.length,
-      // 위 셋은 **카테고리** 단위다. 아래 둘이 체크리스트 세부 항목이다.
+      applicable_categories: applicableCategoryCount,
+      not_applicable_categories: notApplicableCount,
+      // 위는 **카테고리** 단위다. 아래가 체크리스트 세부 항목이다(끈 분야 제외, 화면과 같은 숫자).
       completed_categories: completedCount,
       checklist_items_done: checklistDone,
       checklist_items_total: checklistTotal,
+      checklist_percent: checklist.percent,
     },
     success: true,
     displayMessage: weddingDate
-      ? `결혼 예정일: ${weddingDate}${dDayLabel} / 예산: ${budgetLabel} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${allKeys.length}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
-      : `결혼 예정일 미설정 / 예산: ${budgetLabel} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`,
+      ? `결혼 예정일: ${weddingDate}${dDayLabel} / 예산: ${budgetLabel} / 카테고리 진행률: ${categoryPercent}% (${completedCount}/${applicableCategoryCount}${skippedLabel}) / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료`
+      : `결혼 예정일 미설정 / 예산: ${budgetLabel} / 체크리스트 항목 ${checklistDone}/${checklistTotal} 완료${notApplicableCount > 0 ? ` (안 해요 ${notApplicableCount}개 분야 제외)` : ""}`,
   };
 }

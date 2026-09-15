@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import { summarizePlanningChecklist } from "@hanbang/shared/utils";
 import { executeTool } from "@/lib/ai/toolExecutor";
 import type { ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
@@ -88,5 +90,51 @@ describe("체크리스트 진행과 카테고리 진행을 구별한다", () => 
     const a = empty.toolOutput as { checklist_items_total: number };
     const b = partial.toolOutput as { checklist_items_total: number };
     expect(b.checklist_items_total).toBe(a.checklist_items_total);
+  });
+
+  /**
+   * 2026-09-15: "안 해요"로 끈 분야가 진행률 분모와 항목 수에 들어가, 함·폐백·예단을 끈
+   * 커플에게 아모라가 화면(`summarizePlanningChecklist`)보다 낮은 숫자를 말했다.
+   * `get_schedule_summary` 는 이미 뺀다 — 같은 대화에서 두 도구가 다른 숫자를 말하면 안 된다.
+   */
+  it("안 해요로 끈 분야는 분야 진행률 분모와 항목 수에서 빼고, 화면과 같은 숫자를 준다", async () => {
+    const skipped = ["ham", "pyebaek", "yedan"];
+    const progress: Record<string, unknown> = {
+      ...ONE_DONE,
+      studio: { category: "studio", status: "completed" },
+    };
+    for (const key of skipped) progress[key] = { category: key, status: "not_applicable" };
+
+    const result = await executeTool("get_wedding_info", {}, makeCtx(progress));
+    const out = result.toolOutput as Record<string, number>;
+    const screen = summarizePlanningChecklist(
+      CATEGORY_CHECKLISTS,
+      progress as Parameters<typeof summarizePlanningChecklist>[1],
+    );
+    const applicable = CATEGORY_CHECKLISTS.length - skipped.length;
+
+    // 기존 키는 그대로 있고, 전체 분야 수는 여전히 전체다(일정 요약 도구의 total 과 같은 값).
+    expect(out.total_categories).toBe(CATEGORY_CHECKLISTS.length);
+    expect(out.applicable_categories).toBe(applicable);
+    expect(out.not_applicable_categories).toBe(skipped.length);
+    expect(out.completed_count).toBe(1);
+    expect(out.progress_percent).toBe(Math.round((1 / applicable) * 100));
+    expect(out.progress_percent).not.toBe(Math.round((1 / CATEGORY_CHECKLISTS.length) * 100));
+
+    expect(out.checklist_items_done).toBe(screen.done);
+    expect(out.checklist_items_total).toBe(screen.total);
+    expect(out.checklist_percent).toBe(screen.percent);
+    // 끈 분야의 항목까지 세던 옛 합계와 달라야 이 검사가 의미가 있다.
+    const allItems = CATEGORY_CHECKLISTS.reduce((sum, category) => sum + category.items.length, 0);
+    expect(out.checklist_items_total).toBeLessThan(allItems);
+
+    const summary = await executeTool("get_schedule_summary", {}, makeCtx(progress));
+    const summaryOut = summary.toolOutput as Record<string, number>;
+    expect(out.progress_percent).toBe(summaryOut.progress_percent);
+    expect(out.checklist_items_done).toBe(summaryOut.checklist_items_done);
+    expect(out.checklist_items_total).toBe(summaryOut.checklist_items_total);
+
+    expect(result.displayMessage).toContain(`(1/${applicable}, 안 해요 ${skipped.length}개 분야 제외)`);
+    expect(result.displayMessage).toContain(`체크리스트 항목 ${screen.done}/${screen.total} 완료`);
   });
 });

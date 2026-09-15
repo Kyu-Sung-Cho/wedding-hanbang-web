@@ -39,10 +39,8 @@ const SURFACES: Record<string, { role: Role; why: string }> = {
   "src/lib/ai/amoraAtomicToolOperation.ts": { role: "writes", why: "아모라 원자 실행 저장 경로" },
   "src/lib/ai/tools/scheduleTools.ts": { role: "writes", why: "아모라 도구 저장 경로" },
 
-  "src/lib/ai/toolExecutor.ts": {
-    role: "counts",
-    why: "get_wedding_info 가 체크리스트 **세부 항목** 완료 수를 센다 — 그리지 않는다. 예전에는 분야 단위 숫자(completed_count)만 줘서, 항목을 방금 완료 처리한 직후에 아모라가 \"완료된 세부 항목은 아직 없어요\" 라고 답했다(2026-08-24 운영 실측)",
-  },
+  // `src/lib/ai/toolExecutor.ts` 는 2026-09-15부터 항목을 직접 쥐지 않는다. `get_wedding_info` 의
+  // 세부 항목 수는 화면과 같은 `summarizePlanningChecklist`(공용 패키지)로 센다.
 
   "src/lib/ai/amoraToolPolicy.ts": {
     role: "counts",

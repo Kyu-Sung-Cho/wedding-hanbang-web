@@ -50,6 +50,7 @@ import PendingAmoraActionCard, {
   getPendingAmoraAction,
   getPendingAmoraActionCarryCount,
   getPendingAmoraBudgetImpactPreview,
+  isPendingAmoraActionContinuedInMessage,
   isPendingAmoraActionExpired,
 } from "@/components/app/chat/PendingAmoraActionCard";
 import {
@@ -3192,12 +3193,13 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
               .slice(-3)
               .map((m) => m.id)
           );
-          const latestSharedMessageId = [...messages]
+          const latestSharedMessage = [...messages]
             .reverse()
             .find((message) => (
               message.visibility === "shared"
               && message.metadata?.target !== "partner"
-            ))?.id ?? null;
+            )) ?? null;
+          const latestSharedMessageId = latestSharedMessage?.id ?? null;
           // 이미 적용된 카드를 가려낸다. 서버가 사용자 확인 행에
           // `confirmed_amora_action_id` 를 남기므로 새로고침해도 유지된다 —
           // 클라이언트 상태로 들고 있으면 새로고침 한 번에 "적용할 수 없어요" 로
@@ -3286,6 +3288,11 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
             const pendingActionCarryCount = pendingAction
               ? getPendingAmoraActionCarryCount(msg)
               : 0;
+            // 같은 제안이 최신 공유 답변으로 옮겨졌는가(2026-09-15). 옮겨졌으면 이 카드는
+            // "적용할 수 없어요" 대신 아래 카드를 가리키고 버튼을 거둔다 — 사이드 패널과 같은 판정.
+            const pendingActionContinuesInLatest = pendingAction
+              ? isPendingAmoraActionContinuedInMessage(latestSharedMessage, pendingAction)
+              : false;
 
             return (
               <div
@@ -3356,6 +3363,7 @@ export default function ChatContent({ embedded = false }: ChatContentProps = {})
                     isApplying={applyingPendingActionId === pendingAction.actionId}
                     partnerLinked={Boolean(partner)}
                     carryCount={pendingActionCarryCount}
+                    continuesInLatestReply={pendingActionContinuesInLatest}
                     onApply={(actionId) => void applyPendingAmoraAction(actionId)}
                     onDismiss={() => dismissPendingAmoraAction(pendingAction.actionId)}
                   />

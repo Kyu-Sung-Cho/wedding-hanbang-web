@@ -9,6 +9,7 @@ import {
   checklistItemTag,
   groupChecklistItems,
   labelWithoutConditionSuffix,
+  PREPARATION_PROGRESS_STATUS_LABELS,
   type ChecklistItemTag,
 } from "@hanbang/shared/constants";
 import { mergeChecklist, calculateStatus, getChecklistCounts, isStatusDeclared, resolveStatus } from "@/utils/checklist";
@@ -32,12 +33,9 @@ import type { ChecklistItem, ProgressItem } from "@/types/database.types";
 // **같은 베이지 칩**을 쓴다 — 상태는 글자로만 말한다. 색을 되살리면 머리에
 // 장미(고리)·초록(완료)·검정(진행 중)이 한꺼번에 서서 고리가 안 읽힌다.
 
-const STATUS_LABELS: Record<string, string> = {
-  completed: "완료",
-  in_progress: "진행 중",
-  not_started: "시작 전",
-  not_applicable: "해당 없음",
-};
+// 상태 이름은 공용 사전(`PREPARATION_PROGRESS_STATUS_LABELS`)에서만 읽는다(2026-09-15).
+// 여기만 따로 「진행 중·시작 전·해당 없음」을 쓰면, 온보딩·라운지·챗 카드에서 「안 해요」로
+// 고른 분야가 이 창에서는 다른 이름으로 보인다.
 
 /**
  * 항목 옆에 붙는 작은 표시. 세 가지뿐이고 **서로 달라 보여야 한다.**
@@ -400,7 +398,7 @@ function ScopedCategoryChecklistModal({ categoryKey, isOpen, onClose, presentati
                 </h2>
                 <div className={`mt-1 flex flex-wrap items-center gap-2 text-[var(--hb-text-muted)] ${isPlanning ? "text-[11.5px] md:text-[12.5px]" : "text-[12.5px]"}`}>
                   <span className="rounded-full bg-[var(--color-surface-low)] px-[9px] py-[3px] text-[11px] font-semibold text-[var(--hb-text-body)]">
-                    {STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
+                    {PREPARATION_PROGRESS_STATUS_LABELS[isNotApplicable ? "not_applicable" : status]}
                   </span>
                   <span>
                     {isNotApplicable ? "진행률에서 제외됨" : declared ? "분야 상태로 표시함 · 항목은 확인 전" : `${done}/${total} 완료 · ${percent}%`}
