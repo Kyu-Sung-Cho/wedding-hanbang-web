@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { Check, Copy } from "lucide-react";
 
+import Button from "@/components/ui/Button";
 import { captureWeddingCodeEvent } from "@/lib/analytics";
 import { CONTACT } from "@/lib/constants/contact";
 import {
@@ -14,18 +15,6 @@ import {
 } from "@/lib/weddingCode/contribution/contract";
 
 const surface = "rounded-[6px] border border-[var(--hb-hairline)] bg-white";
-const primaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] bg-[var(--hb-action)] px-6"
-  + " text-[15px] font-semibold text-white transition-colors duration-150 ease-out"
-  + " hover:bg-[var(--hb-action-hover)] focus-visible:outline-none focus-visible:ring-2"
-  + " focus-visible:ring-[var(--hb-focus-ring)] focus-visible:ring-offset-2"
-  + " disabled:cursor-not-allowed disabled:opacity-40";
-const secondaryButton =
-  "inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[6px] border"
-  + " border-[#C7D1C2] bg-white px-5 text-[14px] font-semibold text-[var(--hb-text-strong)]"
-  + " transition-colors duration-150 ease-out hover:bg-[var(--hb-surface-hover)] focus-visible:outline-none"
-  + " focus-visible:ring-2 focus-visible:ring-[var(--hb-primary)] focus-visible:ring-offset-2"
-  + " disabled:cursor-not-allowed disabled:opacity-40";
 
 type SubmitState =
   | { kind: "idle" }
@@ -132,19 +121,20 @@ export default function ResearchContributionCard({ answerCode }: { answerCode: s
           className="mt-3 min-h-12 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 font-mono text-[13px]"
         />
         <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            className={`${primaryButton} flex-1`}
+          <Button
+            variant="primary"
+            size="lg"
+            className="flex-1"
             onClick={() => {
               void navigator.clipboard?.writeText?.(state.receipt).then(() => setCopied(true), () => setCopied(false));
             }}
           >
             {copied ? <Check aria-hidden="true" className="h-4 w-4" /> : <Copy aria-hidden="true" className="h-4 w-4" />}
             {copied ? "복사했어요" : "삭제 코드 복사하기"}
-          </button>
-          <button type="button" className={`${secondaryButton} flex-1`} onClick={() => void deleteNow(state.receipt)}>
+          </Button>
+          <Button variant="secondary" size="lg" className="flex-1" onClick={() => void deleteNow(state.receipt)}>
             지금 바로 지우기
-          </button>
+          </Button>
         </div>
       </section>
     );
@@ -181,15 +171,17 @@ export default function ResearchContributionCard({ answerCode }: { answerCode: s
 
         {state.kind === "error" ? <p role="alert" className="mt-3 text-sm text-[var(--hb-text-body)]">{state.message}</p> : null}
 
-        <button
-          type="button"
-          disabled={!adult || !consented || sending}
-          aria-busy={sending || undefined}
+        <Button
+          variant="secondary"
+          size="lg"
+          fullWidth
+          className="mt-4"
+          disabled={!adult || !consented}
+          loading={sending}
           onClick={() => void contribute()}
-          className={`${secondaryButton} mt-4 w-full`}
         >
           {sending ? "보내는 중..." : "내 답 보태기"}
-        </button>
+        </Button>
       </div>
     </section>
   );
@@ -228,14 +220,17 @@ export function ResearchContributionDeleteForm() {
         onChange={(event) => { setReceipt(event.target.value); setState("idle"); }}
         className="mt-2 min-h-12 w-full rounded-[6px] border border-[var(--hb-hairline)] bg-white px-3 font-mono text-[13px]"
       />
-      <button
-        type="button"
-        disabled={receipt.trim() === "" || state === "sending"}
+      <Button
+        variant="secondary"
+        size="lg"
+        fullWidth
+        className="mt-3"
+        disabled={receipt.trim() === ""}
+        loading={state === "sending"}
         onClick={() => void submit()}
-        className={`${secondaryButton} mt-3 w-full`}
       >
         {state === "sending" ? "지우는 중..." : "이 코드로 지우기"}
-      </button>
+      </Button>
       <p role="status" className="mt-2 text-sm text-[var(--hb-text-body)]">
         {state === "deleted"
           ? "처리했어요. 이 코드로 보낸 답이 있었다면 지워졌어요."
