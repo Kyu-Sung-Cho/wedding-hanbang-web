@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { after as afterTests } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -6,8 +6,12 @@ import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { parseCustomerDataReleaseArgs, runCustomerDataRelease, appendCustomerDataReceipt } from '../lib/account-deletion-customer-data-release.mjs';
 import { buildCustomerDataObservationSql, expectedCustomerDataCatalog, validateCustomerDataObservation, CUSTOMER_DATA_WRITER_TABLES } from '../lib/account-deletion-customer-data-catalog.mjs';
+import { createCustomerDataHistoricalRepository } from './fixtures/account-deletion-customer-data-historical-repository.mjs';
 
-const root = resolve(import.meta.dirname, '../..'), read = file => readFileSync(join(root, file), 'utf8');
+// 232 실행기는 자기 역사 checkout에서만 계획을 연다. 실제 checkout의 이후 SQL로 검사를 넓히지 않는다.
+const historical = createCustomerDataHistoricalRepository(resolve(import.meta.dirname, '../..')), root = historical.root;
+afterTests(historical.cleanup);
+const read = file => readFileSync(join(root, file), 'utf8');
 const context = { sql: read('supabase/migrations/20260913103407_account_deletion_customer_data_boundary.sql'),
   previousSql: read('supabase/migrations/20260716113000_account_deletion_storage_saga.sql'),
   previousClaimSql: read('supabase/migrations/20260716094000_couple_roster_epoch.sql'),

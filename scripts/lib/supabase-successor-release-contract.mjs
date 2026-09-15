@@ -22,6 +22,7 @@ import { loadEffectiveBudgetDecisionHotfixRelease } from "./amora-budget-decisio
 import { loadExplicitBudgetHotfixRelease } from "./amora-explicit-budget-release-contract.mjs";
 import { loadProfileAvatarReleasePlan } from "./profile-avatar-release-contract.mjs";
 import { loadCustomerDataReleasePlan } from "./account-deletion-customer-data-release-contract.mjs";
+import { loadNotApplicableStatusReleasePlan } from "./amora-not-applicable-status-release-contract.mjs";
 import { loadProfileWeddingRolesReleasePlan } from "./profile-wedding-roles-release-contract.mjs";
 import { loadChatFeedbackNullabilityReleasePlan } from "./chat-feedback-nullability-release-contract.mjs";
 
@@ -1087,7 +1088,7 @@ export function validateSuccessorReleaseContract({
   manifestRelativePath = SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH,
   followup = null,
 }) {
-  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data"].includes(followup)) {
+  if (followup !== null && !["amora-budget-decision-hotfix", "amora-explicit-budget-hotfix", "chat-feedback-nullability", "profile-wedding-roles", "profile-avatar", "account-deletion-customer-data", "amora-not-applicable-status"].includes(followup)) {
     invalid("FOLLOWUP_RELEASE_INVALID", "only explicitly registered followups are supported");
   }
   if (followup !== null && manifestRelativePath !== SUCCESSOR_RELEASE_MANIFEST_RELATIVE_PATH) {
@@ -1223,6 +1224,22 @@ export function validateSuccessorReleaseContract({
       if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file)) {
         invalid("FOLLOWUP_RELEASE_INVALID", "feedback followups must follow the original successor in exact order");
       }
+      previousFollowupVersion = migration.version;
+      expectedDirectoryFiles.push(migration.file);
+    }
+  }
+  if (followup === "amora-not-applicable-status") {
+    let notApplicable;
+    try { notApplicable = loadNotApplicableStatusReleasePlan(root); }
+    catch { invalid("FOLLOWUP_RELEASE_INVALID", "the exact not-applicable status successor could not be verified"); }
+    const followups = notApplicable.followupMigrations;
+    if (notApplicable.contract.projectRef !== manifest.projectRef || notApplicable.migrationCount !== 233
+        || followups.length !== 7 || followups[6].file !== notApplicable.contract.migrations[0].file)
+      invalid("FOLLOWUP_RELEASE_INVALID", "not-applicable status successor must preserve all six predecessors and add one migration");
+    let previousFollowupVersion = previousVersion;
+    for (const migration of followups) {
+      if (migration.version <= previousFollowupVersion || expectedDirectoryFiles.includes(migration.file))
+        invalid("FOLLOWUP_RELEASE_INVALID", "not-applicable status successor migration order changed");
       previousFollowupVersion = migration.version;
       expectedDirectoryFiles.push(migration.file);
     }

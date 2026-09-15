@@ -17,7 +17,11 @@ export const CUSTOMER_DATA_SCOPE = Object.freeze({
   featureFlags: 'unchanged', fullOriginalRestore: 'not-proven',
 });
 
-export function loadCustomerDataReleasePlan(repoRoot) {
+export function loadCustomerDataReleasePlan(repoRoot) { return loadPlan(repoRoot, true); }
+// 후속 계약은 선행 232 원문만 검증한다. 기존 공개 모드는 전체 디렉터리 검사를 유지한다.
+export function loadCustomerDataHistoricalReleasePlan(repoRoot) { return loadPlan(repoRoot, false); }
+
+function loadPlan(repoRoot, checkCurrentDirectory) {
   const bytes = pinnedArtifact(repoRoot, { file: CUSTOMER_DATA_CONTRACT_FILE, sha256: CONTRACT_SHA });
   const contract = JSON.parse(bytes);
   requireRelease(contract.version === 1 && contract.kind === 'account-deletion-customer-data-static-successor'
@@ -44,8 +48,8 @@ export function loadCustomerDataReleasePlan(repoRoot) {
     pinnedArtifact(repoRoot, contract[key]);
   }
   const reviewed = [...predecessor.reviewedMigrations, ...contract.migrations].sort((a, b) => a.file.localeCompare(b.file));
-  same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(), reviewed.map(pin => pin.file),
-    'NEW_MIGRATION_NOT_REVIEWED');
+  if (checkCurrentDirectory) same(readdirSync(join(repoRoot, 'supabase/migrations')).filter(file => /\.sql$/i.test(file)).sort(),
+    reviewed.map(pin => pin.file), 'NEW_MIGRATION_NOT_REVIEWED');
   for (const pin of reviewed) pinnedArtifact(repoRoot, { ...pin, file: `supabase/migrations/${pin.file}` });
   const sql = pinnedArtifact(repoRoot, { ...contract.migrations[0], file: `supabase/migrations/${contract.migrations[0].file}` });
   requireRelease(!sql.includes(13) && sql.length > 0, 'CUSTOMER_DATA_SQL_NOT_CANONICAL');

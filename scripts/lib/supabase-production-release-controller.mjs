@@ -2618,6 +2618,11 @@ export async function runProductionRelease({
   now = () => new Date(),
 } = {}) {
   const repoRoot = resolve(requestedRepoRoot ?? process.cwd());
+  if ((argv ?? []).includes("--amora-not-applicable-status")) {
+    assertSafeExecutionEnvironment(process.env);
+    const { runNotApplicableStatusRelease } = await import("./amora-not-applicable-status-release.mjs");
+    return runNotApplicableStatusRelease({ repoRoot, argv, now });
+  }
   if ((argv ?? []).includes("--account-deletion-customer-data")) {
     assertSafeExecutionEnvironment(process.env);
     const { runCustomerDataRelease } = await import("./account-deletion-customer-data-release.mjs");
