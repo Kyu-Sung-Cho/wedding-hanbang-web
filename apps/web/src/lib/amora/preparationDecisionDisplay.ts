@@ -152,8 +152,9 @@ function amoraBudgetFacts(row: DecisionDisplayInput): PreparationDecisionFacts |
     return { displayTitle: `총예산 ${formatWon(total.before as number)} → ${formatWon(total.after as number)}`,
       displayDetail: null, valueSlots: ["budget:total"], relatedCategories: [], routineChanges: null };
   }
+  // "예산"을 끼워 이름과 금액을 가른다. 예비비 이름("예비비·사용처 미정")에 이미 "미정"이 있어 붙이면 "미정 미정"으로 읽힌다.
   const change = (item: { key: string; label: string; beforeBudget: number | null; afterBudget: number }) =>
-    `${categoryLabel(item.key, item.label.trim())} ${item.beforeBudget === null ? "미정" : formatWon(item.beforeBudget)} → ${formatWon(item.afterBudget)}`;
+    `${categoryLabel(item.key, item.label.trim())} 예산 ${item.beforeBudget === null ? "미정" : formatWon(item.beforeBudget)} → ${formatWon(item.afterBudget)}`;
   if (value.budgetScope === "category") {
     const [item] = items;
     if (items.length !== 1 || total || value.categoryKey !== item.key || value.amount !== item.afterBudget) return null;
@@ -184,7 +185,7 @@ function amoraBudgetFacts(row: DecisionDisplayInput): PreparationDecisionFacts |
  * 예산·지출·분담·총예산·예식일·예식장·일정이 바뀌면 DB가 "진행 상황: N개 수정" 대신
  * 값을 적은 요약을 만든다. 그래서 이 제목과 progress_patch만 있는 변경일 때만 접는다.
  */
-function routineProgressChanges(row: DecisionDisplayInput): number | null {
+function routineProgressEntries(row: DecisionDisplayInput): Array<[string, Record<string, unknown>]> | null {
   const value = object(row.chosen_value);
   const match = /^진행 상황: ([1-9][0-9]*)개 수정$/u.exec(row.title);
   // DB는 저장한 화면에 따라 준비 계획(manual·decided) 또는 일정(schedule·scheduled)으로 분류한다.
@@ -202,7 +203,25 @@ function routineProgressChanges(row: DecisionDisplayInput): number | null {
     const entry = object(item);
     return key.startsWith("__") || !entry || (!Array.isArray(entry.checklist) && typeof entry.status !== "string");
   })) return null;
-  return entries.length;
+  return entries.map(([key, item]) => [key, object(item)!]);
+}
+
+/**
+ * "안 해요"로 표시한 저장은 체크와 달리 준비 범위를 정한 선택이라 접지 않고 결정으로 보여준다.
+ * DB 제목은 "진행 상황: N개 수정"뿐이라 무엇을 뺐는지 저장된 patch에서 이름을 읽어 적는다.
+ */
+function notApplicableTitle(entries: Array<[string, Record<string, unknown>]>): string | null {
+  const skipped = entries.filter(([, entry]) => entry.status === "not_applicable");
+  if (!skipped.length) return null;
+  const names: string[] = [];
+  for (const [key, entry] of skipped) {
+    const label = Object.hasOwn(PLANNING_CATEGORY_LABELS, key) ? categoryLabel(key, key)
+      : key.startsWith("custom_") && typeof entry.label === "string" && entry.label.trim() ? entry.label.trim() : null;
+    if (!label) return null;
+    names.push(label);
+  }
+  const rest = entries.length - skipped.length;
+  return `${names.join("·")}: '안 해요'로 표시${rest ? ` · 진행 상황 ${rest}개 수정` : ""}`;
 }
 
 const SCHEDULE_FIELD_LABELS = new Set(["제목", "날짜", "시간", "메모", "분류", "출처 키", "모먼트", "상태", "완료 기준", "담당", "취소 사유"]);
@@ -222,8 +241,15 @@ function withoutUnchangedScheduleSegments(title: string) {
 export function preparationDecisionFacts(row: DecisionDisplayInput): PreparationDecisionFacts {
   const amora = amoraBudgetFacts(row);
   if (amora) return amora;
-  const routine = routineProgressChanges(row);
-  if (routine !== null) return { displayTitle: null, displayDetail: null, valueSlots: [], relatedCategories: [], routineChanges: routine };
+  const routine = routineProgressEntries(row);
+  if (routine !== null) {
+    const skipped = notApplicableTitle(routine);
+    if (skipped) return { displayTitle: skipped, displayDetail: null, valueSlots: [], relatedCategories: [], routineChanges: null };
+    // 이름을 읽지 못한 "안 해요" 저장은 접지 않고 원문 그대로 둔다.
+    if (!routine.some(([, entry]) => entry.status === "not_applicable")) {
+      return { displayTitle: null, displayDetail: null, valueSlots: [], relatedCategories: [], routineChanges: routine.length };
+    }
+  }
   const manual = manualBudgetFacts(row);
   const title = manual?.title
     ?? (row.metadata?.origin === "couple_plan_change_request" ? withoutUnchangedScheduleSegments(row.title) : row.title);

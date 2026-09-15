@@ -116,6 +116,8 @@ function DecisionCard({ row }: { row: ArrangedPreparationDecision }) {
     {(longTitle || longDetail || rewritten) && <details className="mb-3 text-[12px]">
       <summary className={`flex min-h-11 cursor-pointer items-center rounded-lg text-[var(--amora-accent)] ${focus}`}>{rewritten ? "저장 원문 보기" : "전체 결정 내용 보기"}</summary>
       <div className="space-y-2 border-t border-[var(--amora-line)] py-3">
+        {/* 다시 적은 설명이 미리보기에서 잘렸으면 전체를 먼저 보여준다. 원문에는 이전 금액이 없다. */}
+        {row.displayDetail && longDetail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.displayDetail}</p>}
         <p className="whitespace-pre-wrap break-words font-semibold text-[var(--amora-ink)]">{row.title}</p>
         {row.detail && <p className="whitespace-pre-wrap break-words leading-relaxed text-[var(--amora-soft)]">{row.detail}</p>}
       </div>
@@ -140,6 +142,12 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
   const [status, setStatus] = useState<DecisionColumn>("confirmed");
   const [category, setCategory] = useState("all");
   const { decisions, routineDays, routineCount } = useMemo(() => arrangePreparationDecisions(records), [records]);
+  // 체크 저장은 한 번에 한 행이라 한 페이지(30건)를 다 채울 수 있다. 그러면 접고 나서 결정이 0개인데
+  // 실제 결정은 다음 페이지에 있다. 결정이 하나라도 보이거나 더 불러올 기록이 없을 때까지 이어서 불러온다.
+  useEffect(() => {
+    if (!active || loading || loadingMore || error || !nextCursor || decisions.length > 0 || routineCount === 0) return;
+    void loadMore();
+  }, [active, loading, loadingMore, error, nextCursor, decisions.length, routineCount, loadMore]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase("ko");
     return decisions.filter(row => {
@@ -209,7 +217,7 @@ function DecisionRecords({ data, searchId, query, onQueryChange, mobileSearchOpe
                       <p className="pb-2 leading-relaxed">같은 값을 나중 기록에서 다시 바꿨어요. 지금 값은 예산 화면에서 확인해 주세요.</p>
                       <div className="space-y-[10px] pb-3">{previousRows.map(row => <DecisionCard key={row.id} row={row} />)}</div>
                     </details>}
-                  </> : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{query || category !== "all" ? "이 조건에 맞는 결정이 없어요." : "이 상태로 저장된 결정이 없어요."}</p>}</div>
+                  </> : <p className="rounded-[14px] border border-dashed border-[var(--amora-line)] p-5 text-[12px] leading-6 text-[var(--amora-muted)]">{nextCursor ? `불러온 기록에는 ${query || category !== "all" ? "이 조건에 맞는" : "이 상태로 저장된"} 결정이 없어요. 아래에서 이전 결정을 더 불러올 수 있어요.` : query || category !== "all" ? "이 조건에 맞는 결정이 없어요." : "이 상태로 저장된 결정이 없어요."}</p>}</div>
                 </section>;
               })}
             </div>

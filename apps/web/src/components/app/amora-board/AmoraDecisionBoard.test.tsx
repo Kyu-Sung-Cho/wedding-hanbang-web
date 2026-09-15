@@ -177,12 +177,55 @@ describe("AmoraDecisionBoard", () => {
     expect(board.textContent).not.toContain("진행 상황: 1개 수정");
     expect(board.querySelector("details[data-routine-progress] summary")?.textContent).toBe("진행 상황 저장 2건은 날짜별로 접어 두었어요");
     const preview = cards[0].querySelector("h4 + p")!;
-    expect(preview.textContent).toBe("승인한 구성원의 예산 배정 변경. 총예산 3,250만원 → 3,500만원 · 한복 미정 → 150만원 · 두 가족에게 드릴 선물 미정 → 200만원");
+    expect(preview.textContent).toBe("승인한 구성원의 예산 배정 변경. 총예산 3,250만원 → 3,500만원 · 한복 예산 미정 → 150만원 · 두 가족에게 드릴 선물 예산 미정 → 200만원");
     expect(preview.textContent).not.toContain("예단");
     const original = cards[0].querySelector("details")!;
     expect(original.querySelector("summary")?.textContent).toBe("저장 원문 보기");
     expect(original.textContent).toContain(`승인한 구성원의 예산 배정 변경. ${value}`);
     expect(board.textContent).toContain("불러온 결정 1개");
+  });
+
+  // 미리보기는 잘린다. 다시 적은 설명의 전후 금액은 원문에 없으므로 펼친 곳에서 끝까지 보여야 한다.
+  it("shows the full rewritten allocation detail inside 저장 원문 보기 when the preview is cut", async () => {
+    const coupleId = "11111111-1111-4111-8111-111111111111";
+    const items = Array.from({ length: 20 }, (_, i) => ({ key: `custom_${i + 1}`, label: `직접 만든 항목 ${i + 1}번`, beforeBudget: null, afterBudget: 1500000 }));
+    const value = `총예산 35,000,000원 기준 예산 배분 반영: ${items.map(item => `${item.label} 1,500,000원`).join(", ")}`;
+    mocks.decisions.records = parsePreparationDecisions([{ id: "33333333-3333-4333-8333-333333333336", couple_id: coupleId, visibility: "shared", category: "budget",
+      title: "총예산 35,000,000원 기준 예산 배분 반영", reasoning: `승인한 구성원의 예산 배정 변경. ${value}`, decision_type: "decided", source: "budget",
+      created_at: "2026-09-15T13:40:51Z", superseded_at: null, memory_key: null, metadata: { origin: "amora_shared_budget_action" },
+      chosen_value: { schemaVersion: 1, budgetScope: "allocation", value, budgetDelta: { schemaVersion: 1, totalBudget: null, categories: items } } }], coupleId).records;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const card = container.querySelector('[aria-label="준비 결정 기록"] article')!;
+    const full = `승인한 구성원의 예산 배정 변경. ${items.map(item => `${item.label} 예산 미정 → 150만원`).join(" · ")}`;
+    expect(card.querySelector("h4 + p")?.textContent).not.toBe(full);
+    const texts = [...card.querySelectorAll("details p")].map(p => p.textContent);
+    expect(texts).toContain(full);
+    expect(texts).toContain(`승인한 구성원의 예산 배정 변경. ${value}`);
+  });
+
+  // 체크 저장이 한 페이지를 다 채우면 접고 난 결정이 0개다. 빈 목록이라고 말하지 말고 이어서 불러온다.
+  it("keeps loading when a whole page is routine progress saves and never claims there are no decisions while more records exist", async () => {
+    const coupleId = "11111111-1111-4111-8111-111111111111";
+    mocks.decisions.records = parsePreparationDecisions([{ id: "33333333-3333-4333-8333-333333333338", couple_id: coupleId, visibility: "shared",
+      category: "schedule", title: "진행 상황: 1개 수정", reasoning: null, decision_type: "scheduled", source: "schedule", created_at: "2026-09-02T05:53:44Z",
+      superseded_at: null, memory_key: null, metadata: { origin: "couple_plan_change_request" },
+      chosen_value: { schemaVersion: 1, changes: { progress_patch: { greeting: { category: "greeting", status: "in_progress", checklist: [] } }, progress_remove_keys: [] } } }], coupleId).records;
+    mocks.decisions.nextCursor = { id: "33333333-3333-4333-8333-333333333338", createdAt: "2026-09-02T05:53:44Z" };
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(mocks.decisions.loadMore).toHaveBeenCalledTimes(1);
+    const board = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    expect([...board.querySelectorAll("p")].some((p) => p.textContent === "이 상태로 저장된 결정이 없어요.")).toBe(false);
+    expect(board.textContent).toContain("불러온 기록에는 이 상태로 저장된 결정이 없어요. 아래에서 이전 결정을 더 불러올 수 있어요.");
+  });
+
+  it("does not auto-load more decision pages when the loaded page already shows a decision", async () => {
+    const coupleId = "11111111-1111-4111-8111-111111111111";
+    mocks.decisions.records = parsePreparationDecisions([{ id: "33333333-3333-4333-8333-333333333337", couple_id: coupleId, visibility: "shared",
+      category: "budget", title: "드레스·예식 정장 예산 4,000,000원 반영", reasoning: "승인한 구성원의 예산 배정 변경", decision_type: "decided", source: "budget",
+      created_at: "2026-09-15T06:17:39Z", superseded_at: null, memory_key: null, metadata: { origin: "amora_shared_budget_action" }, chosen_value: null }], coupleId).records;
+    mocks.decisions.nextCursor = { id: "33333333-3333-4333-8333-333333333337", createdAt: "2026-09-15T06:17:39Z" };
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    expect(mocks.decisions.loadMore).not.toHaveBeenCalled();
   });
 
   it("shows a compact summary strip at phone widths on both boards", async () => {
