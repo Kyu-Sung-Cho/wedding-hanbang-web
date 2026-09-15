@@ -80,8 +80,10 @@ describe("AmoraDecisionBoard", () => {
     expect(cards[0].textContent).toContain("일정 취소 기록");
     expect(cards[0].textContent).toContain("일반 준비");
     expect(cards[0].textContent).not.toContain("일정 확정");
-    expect(cards[1].querySelector("h4")?.textContent).toBe("결혼식장 예산: 13000000원 → 12500000원");
+    expect(cards[1].querySelector("h4")?.textContent).toBe("결혼식장 예산: 1,300만원 → 1,250만원");
     expect(cards[1].textContent).toContain("준비 계획");
+    expect(cards[1].textContent).toContain("결혼식장");
+    expect(cards[1].querySelector("a")?.getAttribute("href")).toBe("/wedding/budget");
     const original = cards[1].querySelector("details")!;
     expect(original.querySelector("summary")?.textContent).toBe("저장 원문 보기");
     await act(async () => original.querySelector("summary")!.click());
@@ -93,6 +95,59 @@ describe("AmoraDecisionBoard", () => {
     expect(board.textContent).toContain("불러온 결정 2개");
     expect(mocks.data.update).not.toHaveBeenCalled();
     expect(mocks.decisions.refresh).not.toHaveBeenCalled();
+  });
+
+  it("folds superseded budget values, lists budget decisions under their field, and collapses routine progress saves", async () => {
+    const coupleId = "11111111-1111-4111-8111-111111111111";
+    const dress = (id: string, createdAt: string, before: number | null, after: number) => {
+      const title = `드레스·예식 정장 예산 ${after.toLocaleString("en-US")}원 반영`;
+      return { id, couple_id: coupleId, visibility: "shared", category: "budget", title, reasoning: "승인한 구성원의 예산 배정 변경", decision_type: "decided",
+        source: "budget", created_at: createdAt, superseded_at: null, memory_key: null, metadata: { origin: "amora_shared_budget_action" },
+        chosen_value: { schemaVersion: 1, budgetScope: "category", value: title, categoryKey: "dress", amount: after,
+          budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [{ key: "dress", label: "드레스·예식 정장", beforeBudget: before, afterBudget: after }] } } };
+    };
+    const routine = { id: "33333333-3333-4333-8333-333333333330", couple_id: coupleId, visibility: "shared", category: "plan", title: "진행 상황: 2개 수정", reasoning: null,
+      decision_type: "decided", source: "manual", created_at: "2026-09-12T00:00:00Z", superseded_at: null, memory_key: null, metadata: { origin: "couple_plan_change_request" },
+      chosen_value: { schemaVersion: 1, changes: { progress_patch: { dress: { category: "dress", status: "in_progress" }, venue: { category: "venue", status: "completed" } }, progress_remove_keys: [] } } };
+    mocks.decisions.records = parsePreparationDecisions([
+      dress("33333333-3333-4333-8333-333333333339", "2026-09-14T03:00:00Z", 4500000, 4000000),
+      dress("33333333-3333-4333-8333-333333333338", "2026-09-14T02:00:00Z", 4000000, 4500000),
+      dress("33333333-3333-4333-8333-333333333337", "2026-09-14T01:00:00Z", null, 4000000),
+      routine,
+    ], coupleId).records;
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const board = container.querySelector('[aria-label="준비 결정 기록"]')!;
+    const confirmed = board.querySelector('[aria-label="확정 결정"]')!;
+    const current = Array.from(confirmed.querySelectorAll("article")).filter(card => !card.closest("details[data-previous-values]"));
+    expect(current.map(card => card.querySelector("h4")?.textContent)).toEqual(["드레스·예식 정장 예산 450만원 → 400만원"]);
+    expect(current[0].textContent).toContain("최근 값");
+    const previous = confirmed.querySelector<HTMLDetailsElement>("details[data-previous-values]")!;
+    expect(previous.open).toBe(false);
+    expect(previous.querySelector("summary")?.textContent).toBe("이전 값 2개 보기");
+    expect(Array.from(previous.querySelectorAll("article"), card => [card.querySelector("h4")?.textContent, card.textContent?.includes("이전 값")])).toEqual([
+      ["드레스·예식 정장 예산 400만원 → 450만원", true], ["드레스·예식 정장 예산 미정 → 400만원", true],
+    ]);
+    const filters = () => Array.from(board.querySelectorAll<HTMLButtonElement>('[aria-label="결정 분야 필터"] button'));
+    expect(filters().map(control => control.textContent)).toEqual(["전체3", "드레스·예식 정장3", "예산3"]);
+    await act(async () => filters().find(control => control.textContent?.startsWith("드레스"))!.click());
+    expect(confirmed.querySelectorAll("article")).toHaveLength(3);
+    expect(board.textContent).not.toContain("진행 상황: 2개 수정");
+    const routineBox = board.querySelector<HTMLDetailsElement>("details[data-routine-progress]")!;
+    expect(routineBox.querySelector("summary")?.textContent).toBe("진행 상황 저장 1건은 날짜별로 접어 두었어요");
+    expect(routineBox.textContent).toContain("9. 12. · 저장 1건 · 분야 2개 수정");
+    expect(board.textContent).toContain("불러온 결정 3개");
+    expect(mocks.data.update).not.toHaveBeenCalled();
+  });
+
+  it("shows a compact summary strip at phone widths on both boards", async () => {
+    await act(async () => root.render(<AmoraDecisionBoard />));
+    const strips = Array.from(container.querySelectorAll<HTMLElement>("[data-board-summary]"));
+    expect(strips).toHaveLength(2);
+    for (const strip of strips) {
+      expect(strip.className.split(/\s+/)).toContain("flex");
+      expect(strip.className.split(/\s+/)).not.toContain("hidden");
+    }
+    expect(strips[0].textContent).toContain("두 사람이 모두 확인했다는 뜻은 아니에요");
   });
 
   it("refreshes only the selected board and keeps its read and pending-write guards", async () => {

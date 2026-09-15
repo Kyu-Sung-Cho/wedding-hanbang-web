@@ -119,10 +119,7 @@ export default function BudgetShareChart({
 
   return (
     <section className="rounded-2xl border border-[var(--amora-line)] bg-white p-[18px] sm:rounded-[18px] sm:px-[26px] sm:py-6">
-      <p className="text-[10px] uppercase tracking-[0.05em] text-[var(--amora-muted)] sm:text-[10.5px]">
-        CATEGORY SHARE
-      </p>
-      <h3 className="mt-1 text-[14px] font-semibold text-[var(--amora-ink)] sm:text-[15px]">항목별 비중</h3>
+      <h3 className="text-[14px] font-semibold text-[var(--amora-ink)] sm:text-[15px]">항목별 비중</h3>
       <p className="mt-1 text-[11.5px] leading-relaxed text-[var(--amora-muted)] sm:text-xs">
         {basisLabel} {formatWon(total)}을 항목별로 나눈 비중이에요.
       </p>

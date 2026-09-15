@@ -37,7 +37,12 @@ import { useAuthStore } from "@/stores/authStore";
 import { formatWon } from "@/lib/formatWon";
 import { formatLoungeBudgetRatio } from "@/lib/amora/loungeSummary";
 import { PLANNING_CATEGORY_LABELS } from "@/constants/planningCategories";
-import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
+import {
+  CATEGORY_CHECKLISTS,
+  PREPARATION_PROGRESS_STATUS_LABELS,
+  isPreparationProgressStatus,
+  type PreparationProgressStatus,
+} from "@hanbang/shared/constants";
 import type {
   ProgressItem,
   PayerType,
@@ -49,7 +54,7 @@ import PaymentLedger from "./PaymentLedger";
 import BudgetShareChart from "./BudgetShareChart";
 import { foldPayerSides } from "./shareMath";
 import BudgetSideSplit from "./BudgetSideSplit";
-import { isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
+import { isSkippedBudgetCategoryWithoutMoney, isUnusedBudgetCategory } from "./isUnusedBudgetCategory";
 import Button from "@/components/ui/Button";
 import AmoraMark from "@/components/ui/AmoraMark";
 import { AMORA_ACTION_CLASS } from "@/components/ui/amoraActionStyles";
@@ -364,7 +369,7 @@ interface BudgetCategoryProps {
   icon: string;
   budget: number;
   spent: number;
-  status: string;
+  status: PreparationProgressStatus;
   payer: PayerType;
   totalBudget: number;
   onBudgetChange: (key: string, val: number) => Promise<void> | void;
@@ -392,7 +397,7 @@ function BudgetCategoryEntry({
             <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" aria-hidden="true" />
           </span>
           <span className="min-w-0 flex-1 text-[12.5px] font-semibold leading-snug text-[var(--amora-ink)] sm:text-[13.5px]">{label}</span>
-          <span data-budget-status className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${status === "완료" ? "bg-[var(--amora-sage-pale)] text-[#33473a]" : status === "진행중" ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : "bg-[var(--amora-low)] text-[var(--amora-soft)]"}`}>{status}</span>
+          <span data-budget-status={status} className={`shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold ${status === "completed" ? "bg-[var(--amora-sage-pale)] text-[#33473a]" : status === "in_progress" ? "bg-[var(--amora-rose-pale)] text-[var(--amora-rose-deep)]" : status === "not_applicable" ? "border border-dashed border-[var(--amora-line)] bg-white text-[var(--amora-muted)]" : "bg-[var(--amora-low)] text-[var(--amora-soft)]"}`}>{PREPARATION_PROGRESS_STATUS_LABELS[status]}</span>
           {onDelete && (
             <button type="button" onClick={() => { void Promise.resolve(onDelete(catKey)).catch(() => undefined); }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--amora-muted)] transition-colors hover:bg-red-50 hover:text-[#d95f5f]" title={`${label} 삭제`}>
               <X className="h-3.5 w-3.5" />
@@ -519,7 +524,10 @@ function ScopedBudgetContent({
   const categoryToFocus = useRef<string | null>(null);
   const shownFixedKeys = BUDGET_CATEGORIES.filter(({ key }) =>
     !hiddenKeys.has(key)
-    && (openedCategories.has(key) || !isUnusedBudgetCategory(key, progress[key])),
+    && (openedCategories.has(key) || (
+      !isUnusedBudgetCategory(key, progress[key])
+      && !isSkippedBudgetCategoryWithoutMoney(progress[key])
+    )),
   ).map(({ key }) => key);
   const unusedCategories = BUDGET_CATEGORIES.filter(({ key }) =>
     !hiddenKeys.has(key) && !shownFixedKeys.includes(key),
@@ -629,11 +637,11 @@ function ScopedBudgetContent({
     [progress]
   );
 
-  const getStatusLabel = useCallback(
-    (key: string) => {
-      const item = progress[key];
-      const status = item?.status ?? "not_started";
-      return status === "completed" ? "완료" : status === "in_progress" ? "진행중" : "예정";
+  // 상태 이름은 온보딩·체크리스트와 같은 공유 사전(아직/준비 중/완료/안 해요)을 쓴다.
+  const getStatus = useCallback(
+    (key: string): PreparationProgressStatus => {
+      const status = progress[key]?.status;
+      return isPreparationProgressStatus(status) ? status : "not_started";
     },
     [progress]
   );
@@ -1090,7 +1098,7 @@ function ScopedBudgetContent({
         <Link href="/price" className="group flex flex-wrap items-center gap-x-3.5 gap-y-2 rounded-[14px] bg-[var(--amora-warm)] px-4 py-3.5 sm:px-5 sm:py-4">
           <span className="hidden h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[10px] border border-[var(--amora-line)] bg-white text-[var(--amora-accent)] sm:flex"><TrendingUp className="h-[18px] w-[18px]" /></span>
           <div className="min-w-0 flex-1 basis-[220px]">
-            <p className="text-[12.5px] font-semibold text-[var(--amora-ink)] sm:text-[13.5px]">공시가와 내 예산 확인 <span className="hidden sm:inline">· DISCLOSED PRICES</span></p>
+            <p className="text-[12.5px] font-semibold text-[var(--amora-ink)] sm:text-[13.5px]">공시가와 내 예산 확인</p>
             <p className="mt-0.5 text-[10.5px] leading-relaxed text-[var(--amora-muted)] sm:text-[11.5px]">운영자가 검수·발행한 업체 가격 · 기준일과 구성 범위 확인</p>
           </div>
           <span className="inline-flex items-center gap-1 text-[11.5px] font-semibold text-[var(--amora-ink)] group-hover:underline sm:text-[12.5px]">자세히 보기 <ArrowRight className="h-3.5 w-3.5" /></span>
@@ -1125,7 +1133,7 @@ function ScopedBudgetContent({
                   icon={cat.icon}
                   budget={getCategoryBudget(key)}
                   spent={getCategorySpent(key)}
-                  status={getStatusLabel(key)}
+                  status={getStatus(key)}
                   payer={getCategoryPayer(key)}
                   totalBudget={totalBudget}
                   onBudgetChange={handleBudgetChange}
@@ -1159,7 +1167,7 @@ function ScopedBudgetContent({
                 icon={cat.icon}
                 budget={getCategoryBudget(key)}
                 spent={getCategorySpent(key)}
-                status={getStatusLabel(key)}
+                status={getStatus(key)}
                 payer={getCategoryPayer(key)}
                 totalBudget={totalBudget}
                 onBudgetChange={handleBudgetChange}
@@ -1180,7 +1188,7 @@ function ScopedBudgetContent({
               icon={cat.icon}
               budget={getCategoryBudget(cat.key)}
               spent={getCategorySpent(cat.key)}
-              status={getStatusLabel(cat.key)}
+              status={getStatus(cat.key)}
               payer={getCategoryPayer(cat.key)}
               totalBudget={totalBudget}
               onBudgetChange={handleBudgetChange}
@@ -1219,6 +1227,7 @@ function ScopedBudgetContent({
                     aria-label={`${cat.label} 예산 입력하기`}
                   >
                     <span className="flex-1 text-left whitespace-normal">{cat.label}</span>
+                    {getStatus(cat.key) === "not_applicable" && <span className="shrink-0 text-[11px] text-[var(--amora-muted)]">{PREPARATION_PROGRESS_STATUS_LABELS.not_applicable}</span>}
                     <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />
                   </Button>
                 ))}

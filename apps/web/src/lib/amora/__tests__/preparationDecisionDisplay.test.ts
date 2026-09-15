@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePreparationDecisions } from "../preparationBoard";
+import { arrangePreparationDecisions, parsePreparationDecisions } from "../preparationBoard";
 
 const coupleId = "11111111-1111-4111-8111-111111111111";
 const eventId = "22222222-2222-4222-8222-222222222222";
@@ -52,11 +52,12 @@ describe("preparation decision historical display", () => {
     ]) expect(parse(value).stateLabel).toBe("일정 기록");
   });
 
+  // 금액은 DB 원문("12500000원")을 그대로 검증하고, 화면에는 예산 화면과 같은 formatWon 표기로 보여준다.
   it.each([
-    ["venue 예산: 13000000원 → 12500000원", "결혼식장 예산: 13000000원 → 12500000원"],
+    ["venue 예산: 13000000원 → 12500000원", "결혼식장 예산: 1,300만원 → 1,250만원"],
     ["venue 부담: 미정 → 두 가족", "결혼식장 부담: 미정 → 두 가족"],
-    ["venue 지출: 미정 → 123000원", "결혼식장 지출: 미정 → 123000원"],
-    ["venue 예산: 13000000원 → 12500000원 · venue 부담: 미정 → 두 가족", "결혼식장 예산: 13000000원 → 12500000원 · 결혼식장 부담: 미정 → 두 가족"],
+    ["venue 지출: 미정 → 123000원", "결혼식장 지출: 미정 → 123,000원"],
+    ["venue 예산: 13000000원 → 12500000원 · venue 부담: 미정 → 두 가족", "결혼식장 예산: 1,300만원 → 1,250만원 · 결혼식장 부담: 미정 → 두 가족"],
   ])("formats proven generated legacy title %s while retaining the original", (title, displayTitle) => {
     const row = budget(title); const original = structuredClone(row);
     expect(parse(row)).toMatchObject({ title, displayTitle, category: "plan", status: "confirmed", source: "manual" });
@@ -81,6 +82,149 @@ describe("preparation decision historical display", () => {
     ]) {
       expect(parse(value).title).toBe(value.title);
       expect(parse(value)).not.toHaveProperty("displayTitle");
+      expect(parse(value)).not.toHaveProperty("valueSlots");
     }
+  });
+
+  it("adds thousands separators to the spent amount a user reported without parsing comma text", () => {
+    const row = { ...budget("studio 지출: 0원 → 500000원"), chosen_value: { schemaVersion: 1, changes: { progress_patch: {
+      studio: { category: "studio", status: "in_progress", spent: 500000 } }, progress_remove_keys: [] } } };
+    expect(parse(row)).toMatchObject({ title: "studio 지출: 0원 → 500000원", displayTitle: "웨딩 사진 촬영 지출: 0원 → 50만원",
+      valueSlots: ["spent:studio"], relatedCategories: ["budget", "studio"] });
+    const odd = { ...row, title: "studio 지출: 0원 → 512345원", chosen_value: { schemaVersion: 1, changes: { progress_patch: {
+      studio: { category: "studio", status: "in_progress", spent: 512345 } } } } };
+    expect(parse(odd).displayTitle).toBe("웨딩 사진 촬영 지출: 0원 → 512,345원");
+    // 이미 쉼표가 들어간 원문은 DB가 만든 모양이 아니므로 바꾸지 않는다.
+    expect(parse({ ...row, title: "studio 지출: 0원 → 500,000원" })).not.toHaveProperty("displayTitle");
+  });
+
+  it("formats named custom items and total budget changes only when the stored after-value matches", () => {
+    const custom = { ...budget("결혼식장·식사 예산: 9000000원 → 9500000원"), chosen_value: { schemaVersion: 1, changes: { progress_patch: {
+      custom_venue: { status: "not_started", label: "결혼식장·식사", budget: 9500000 } } } } };
+    expect(parse(custom)).toMatchObject({ displayTitle: "결혼식장·식사 예산: 900만원 → 950만원", valueSlots: ["budget:custom_venue"], relatedCategories: ["budget"] });
+    const total = { ...budget("총예산: 30000000원 → 35000000원"), chosen_value: { schemaVersion: 1, changes: { total_budget: 35000000 } } };
+    expect(parse(total)).toMatchObject({ displayTitle: "총예산: 3,000만원 → 3,500만원", valueSlots: ["budget:total"] });
+    expect(parse({ ...total, title: "총예산: 30000000원 → 36000000원" })).not.toHaveProperty("displayTitle");
+  });
+
+  it("shows before and after amounts for Amora budget receipts and keys them by scope and category", () => {
+    const row = amoraCategory("33333333-3333-4333-8333-333333333333", "2026-09-12T00:00:00Z", 4500000, 4000000);
+    expect(parse(row)).toMatchObject({ title: "드레스·예식 정장 예산 4,000,000원 반영", displayTitle: "드레스·예식 정장 예산 450만원 → 400만원",
+      category: "budget", valueSlots: ["budget:dress"], relatedCategories: ["dress"] });
+    expect(parse(amoraCategory(row.id, row.created_at, null, 4000000)).displayTitle).toBe("드레스·예식 정장 예산 미정 → 400만원");
+    const total = { ...row, title: "총예산 35,000,000원 반영", chosen_value: { schemaVersion: 1, budgetScope: "total", amount: 35000000,
+      budgetDelta: { schemaVersion: 1, totalBudget: { before: 30000000, after: 35000000 }, categories: [] } } };
+    expect(parse(total)).toMatchObject({ displayTitle: "총예산 3,000만원 → 3,500만원", valueSlots: ["budget:total"] });
+    const allocation = { ...row, title: "총예산 35,000,000원 기준 예산 배분 반영", chosen_value: { schemaVersion: 1, budgetScope: "allocation",
+      budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [
+        { key: "dress", label: "드레스", beforeBudget: null, afterBudget: 3000000 },
+        { key: "reserve", label: "예비비", beforeBudget: 1000000, afterBudget: 2000000 }] } } };
+    expect(parse(allocation)).toMatchObject({ displayTitle: "총예산 3,500만원 기준 예산 배분 반영",
+      valueSlots: ["budget:total", "budget:dress", "budget:reserve"], relatedCategories: ["dress"] });
+    for (const broken of [
+      { ...row, metadata: { origin: "other" } },
+      { ...row, chosen_value: { ...row.chosen_value, amount: 4500000 } },
+      { ...row, chosen_value: { ...row.chosen_value, categoryKey: "venue" } },
+      { ...row, chosen_value: { ...row.chosen_value, budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [{ key: "dress", label: "드레스", beforeBudget: -1, afterBudget: 4000000 }] } } },
+      { ...total, chosen_value: { ...total.chosen_value, amount: 1 } },
+      { ...allocation, title: "총예산 35000000원 기준 예산 배분 반영" },
+    ]) {
+      expect(parse(broken)).not.toHaveProperty("displayTitle");
+      expect(parse(broken)).not.toHaveProperty("valueSlots");
+    }
+  });
+
+  it("drops unchanged schedule fragments at display time and keeps the stored original", () => {
+    const title = "일정 복원: 스튜디오 미팅 · 날짜: 2027-05-01 → 2027-05-01 · 시간: 없음 → 없음 · 상태: 취소 → 예정 · 취소 기록: 있음 → 제거";
+    const row = { ...schedule("restore"), title };
+    expect(parse(row)).toMatchObject({ title, displayTitle: "일정 복원: 스튜디오 미팅 · 날짜: 2027-05-01 · 상태: 취소 → 예정 · 취소 기록: 있음 → 제거" });
+    // 사용자가 적은 일정 제목과 다른 출처의 기록은 건드리지 않는다.
+    expect(parse({ ...row, title: "일정 수정: 메모: 없음 → 없음" })).not.toHaveProperty("displayTitle");
+    expect(parse({ ...row, metadata: { ...row.metadata, origin: "amora_shared_action" } })).not.toHaveProperty("displayTitle");
+  });
+
+  it("marks only checklist or status saves as routine progress and leaves real changes as decisions", () => {
+    const routine = { ...budget("진행 상황: 2개 수정"), chosen_value: { schemaVersion: 1, changes: { progress_patch: {
+      dress: { category: "dress", status: "in_progress", budget: 4000000, checklist: [{ id: "a", label: "피팅", done: true }] },
+      venue: { category: "venue", status: "not_applicable" },
+    }, progress_remove_keys: [] } } };
+    expect(parse(routine)).toMatchObject({ routineChanges: 2 });
+    for (const value of [
+      { ...routine, title: "진행 상황: 3개 수정" },
+      { ...routine, title: "진행 상황: 2개 수정 · 1개 삭제" },
+      { ...routine, title: "진행 상황: 전체 변경" },
+      { ...routine, chosen_value: { schemaVersion: 1, changes: { ...routine.chosen_value.changes, progress_remove_keys: ["venue"] } } },
+      { ...routine, chosen_value: { schemaVersion: 1, changes: { ...routine.chosen_value.changes, venue: "새 장소" } } },
+      { ...routine, title: "진행 상황: 1개 수정", chosen_value: { schemaVersion: 1, changes: { progress_patch: { __events: [] } } } },
+      { ...routine, title: "진행 상황: 1개 수정", chosen_value: { schemaVersion: 1, changes: { progress_patch: { dress: { budget: 1 } } } } },
+      { ...routine, source: "schedule" },
+      { ...routine, metadata: {} },
+    ]) expect(parse(value)).not.toHaveProperty("routineChanges");
+  });
+});
+
+function amoraCategory(id: string, created_at: string, before: number | null, after: number, key = "dress") {
+  const title = `드레스·예식 정장 예산 ${after.toLocaleString("en-US")}원 반영`;
+  return { ...base, id, created_at, category: "budget", source: "budget", decision_type: "decided", title, reasoning: "승인한 구성원의 예산 배정 변경",
+    metadata: { origin: "amora_shared_budget_action" },
+    chosen_value: { schemaVersion: 1, budgetScope: "category", snapshotRevision: 3, value: title, categoryKey: key, amount: after,
+      budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [{ key, label: "드레스·예식 정장", beforeBudget: before, afterBudget: after }] } },
+  };
+}
+
+describe("arranging loaded decision records", () => {
+  const ids = ["33333333-3333-4333-8333-333333333339", "33333333-3333-4333-8333-333333333338", "33333333-3333-4333-8333-333333333337", "33333333-3333-4333-8333-333333333336", "33333333-3333-4333-8333-333333333335"];
+
+  it("keeps only the newest dress budget as the latest value after 400 → 450 → 400", () => {
+    const { records } = parsePreparationDecisions([
+      amoraCategory(ids[0], "2026-09-12T03:00:00Z", 4500000, 4000000),
+      amoraCategory(ids[1], "2026-09-12T02:00:00Z", 4000000, 4500000),
+      amoraCategory(ids[2], "2026-09-12T01:00:00Z", null, 4000000),
+    ], coupleId);
+    const { decisions } = arrangePreparationDecisions(records);
+    expect(decisions.map(row => [row.displayTitle, row.valueState])).toEqual([
+      ["드레스·예식 정장 예산 450만원 → 400만원", "latest"],
+      ["드레스·예식 정장 예산 400만원 → 450만원", "previous"],
+      ["드레스·예식 정장 예산 미정 → 400만원", "previous"],
+    ]);
+    // 표시 순서와 원문은 그대로다.
+    expect(decisions.map(row => row.id)).toEqual(ids.slice(0, 3));
+    expect(decisions.map(row => row.title)).toEqual(records.map(row => row.title));
+  });
+
+  it("groups manual and Amora changes of the same value, keeps other categories and partial allocations current", () => {
+    const manualVenue = { ...budget("venue 예산: 13000000원 → 12500000원"), id: ids[0], created_at: "2026-09-12T05:00:00Z" };
+    const records = parsePreparationDecisions([
+      manualVenue,
+      amoraCategory(ids[1], "2026-09-12T04:00:00Z", 4500000, 4000000),
+      { ...amoraCategory(ids[2], "2026-09-12T03:00:00Z", null, 1), title: "총예산 35,000,000원 기준 예산 배분 반영", chosen_value: { schemaVersion: 1, budgetScope: "allocation",
+        budgetDelta: { schemaVersion: 1, totalBudget: null, categories: [
+          { key: "dress", label: "드레스", beforeBudget: null, afterBudget: 4500000 },
+          { key: "venue", label: "결혼식장", beforeBudget: null, afterBudget: 13000000 },
+          { key: "makeup", label: "헤어·메이크업", beforeBudget: null, afterBudget: 2000000 }] } } },
+      { ...amoraCategory(ids[3], "2026-09-12T02:00:00Z", null, 13000000, "venue"), title: "결혼식장 예산 13,000,000원 반영" },
+    ], coupleId).records;
+    const { decisions } = arrangePreparationDecisions(records);
+    expect(decisions.map(row => row.valueState)).toEqual(["latest", undefined, undefined, "previous"]);
+  });
+
+  it("collapses routine progress saves per Seoul day and removes them from decision counts", () => {
+    const routine = (id: string, created_at: string, count: number) => ({ ...budget(`진행 상황: ${count}개 수정`), id, created_at,
+      chosen_value: { schemaVersion: 1, changes: { progress_patch: Object.fromEntries(["dress", "venue", "makeup"].slice(0, count)
+        .map(key => [key, { category: key, status: "in_progress" }])), progress_remove_keys: [] } } });
+    const records = parsePreparationDecisions([
+      routine(ids[0], "2026-09-13T15:30:00Z", 1),
+      routine(ids[1], "2026-09-13T01:00:00Z", 2),
+      amoraCategory(ids[2], "2026-09-12T20:00:00Z", null, 4000000),
+      routine(ids[3], "2026-09-12T14:59:00Z", 3),
+    ], coupleId).records;
+    const { decisions, routineDays, routineCount } = arrangePreparationDecisions(records);
+    expect(decisions.map(row => row.id)).toEqual([ids[2]]);
+    expect(routineCount).toBe(3);
+    expect(routineDays).toEqual([
+      { key: "2026-09-14", label: "9. 14.", records: 1, changes: 1 },
+      { key: "2026-09-13", label: "9. 13.", records: 1, changes: 2 },
+      { key: "2026-09-12", label: "9. 12.", records: 1, changes: 3 },
+    ]);
   });
 });

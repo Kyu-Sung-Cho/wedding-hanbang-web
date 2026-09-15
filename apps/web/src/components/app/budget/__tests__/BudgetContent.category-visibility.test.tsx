@@ -3,7 +3,8 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import BudgetContent from "../BudgetContent";
-import { isUnusedBudgetCategory } from "../isUnusedBudgetCategory";
+import { isSkippedBudgetCategoryWithoutMoney, isUnusedBudgetCategory } from "../isUnusedBudgetCategory";
+import { PREPARATION_PROGRESS_STATUS_LABELS } from "@hanbang/shared/constants";
 import { useAuthStore } from "@/stores/authStore";
 import type { WeddingJourney } from "@/types/database.types";
 
@@ -39,6 +40,17 @@ describe("unused default budget categories", () => {
       expect(isUnusedBudgetCategory("venue", item)).toBe(false);
     },
   );
+});
+
+describe("skipped ('안 해요') budget categories", () => {
+  it.each([{ status: "not_applicable" }, { status: "not_applicable", budget: 0, spent: 0 }, { category: "hanbok", status: "not_applicable", payer: "couple" }])(
+    "leaves out a skipped category without money: %j", (item) => {
+      expect(isSkippedBudgetCategoryWithoutMoney(item)).toBe(true);
+    });
+  it.each([undefined, null, { status: "not_started" }, { status: "not_applicable", budget: 1 }, { status: "not_applicable", spent: 30_000 },
+    { status: "not_applicable", cost: 500 }])("keeps anything else: %j", (item) => {
+    expect(isSkippedBudgetCategoryWithoutMoney(item)).toBe(false);
+  });
 });
 
 describe("BudgetContent category disclosure", () => {
@@ -133,5 +145,42 @@ describe("BudgetContent category disclosure", () => {
     }
     expect(byTitle("신혼여행 예산 수정")).toBeNull();
     expect(container.querySelector('button[aria-label="신혼여행 예산 입력하기"]')).toBeNull();
+  });
+
+  it("labels every row with the shared status words and does not list skipped categories without money", async () => {
+    useAuthStore.setState({ journey: { ...initial, progress: { ...initial.progress,
+      venue: { category: "venue", status: "completed", budget: 9_000_000 },
+      dress: { category: "dress", status: "in_progress", spent: 300_000 },
+      hanbok: { category: "hanbok", status: "not_applicable" },
+      ham: { category: "ham", status: "not_applicable", payer: "couple" },
+      pyebaek: { category: "pyebaek", status: "not_applicable", budget: 500_000 },
+      studio: { category: "studio", status: "not_started", budget: 0 },
+    } } });
+    await act(async () => root.render(<BudgetContent />));
+    const chip = (key: string) => container.querySelector(`[data-budget-category="${key}"] [data-budget-status]`);
+    expect(chip("venue")?.textContent).toBe(PREPARATION_PROGRESS_STATUS_LABELS.completed);
+    expect(chip("dress")?.textContent).toBe(PREPARATION_PROGRESS_STATUS_LABELS.in_progress);
+    expect(chip("studio")?.textContent).toBe(PREPARATION_PROGRESS_STATUS_LABELS.not_started);
+    expect(chip("pyebaek")?.textContent).toBe("안 해요");
+    expect(chip("pyebaek")?.getAttribute("data-budget-status")).toBe("not_applicable");
+    expect(chip("pyebaek")?.className).not.toBe(chip("studio")?.className);
+    expect(chip("hanbok")).toBeNull();
+    expect(chip("ham")).toBeNull();
+    expect(Array.from(container.querySelectorAll("[data-budget-status]"), (node) => node.textContent)).not.toContain("예정");
+    // 접힌 항목은 기본 항목 목록에서 다시 열 수 있고, 연 뒤에도 '안 해요'로 보인다.
+    const reopen = inputCategory("한복");
+    expect(reopen.textContent).toContain("안 해요");
+    await act(async () => reopen.click());
+    expect(chip("hanbok")?.textContent).toBe("안 해요");
+    expect(useAuthStore.getState().journey?.progress.hanbok).toEqual({ category: "hanbok", status: "not_applicable" });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("has no English eyebrow labels on the budget page", async () => {
+    useAuthStore.setState({ journey: { ...initial, progress: { ...initial.progress, dress: { category: "dress", status: "in_progress", spent: 300_000 } } } });
+    await act(async () => root.render(<BudgetContent />));
+    expect(container.textContent).toContain("항목별 비중");
+    expect(container.textContent).toContain("공시가와 내 예산 확인");
+    expect(container.textContent).not.toMatch(/CATEGORY SHARE|DISCLOSED PRICES/);
   });
 });

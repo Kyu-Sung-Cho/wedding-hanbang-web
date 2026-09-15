@@ -8,6 +8,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { weddingLinkProps } from "@/lib/weddingPaths";
+import { FEATURE_SUMMARY_CLASS, SUMMARY_LABEL_CLASS } from "@/components/ui/featureSummaryStyles";
 import {
   classifyBookingDate,
   formatBookingDate,
@@ -85,14 +86,24 @@ export default function BookingsPage() {
 
   return (
     <div className="mx-auto max-w-[860px]">
-      <div className="mb-5 rounded-[6px] border border-[var(--hb-hairline)] bg-white/90 p-4 shadow-[var(--shadow-raised)] animate-fade-in sm:p-5">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--hb-text-strong)]">
-          WEDDING HANBANG
-        </p>
-        <h1 className="mt-1 font-serif-kr text-[var(--hb-text-strong)]">예약 요청 기록</h1>
-        <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-text-body)]">
+      {/* 예산·체크리스트·일정·라운지와 같은 기능 요약 강조(샴페인 면)를 쓴다. */}
+      <div data-bookings-summary className={`${FEATURE_SUMMARY_CLASS} mb-5 p-4 animate-fade-in sm:p-5`}>
+        <h1 className="font-serif-kr text-[var(--hb-summary-ink,#382F2B)]">예약 요청 기록</h1>
+        <p className="mt-2 text-[13px] font-medium leading-[1.65] text-[var(--hb-summary-label,#624A3C)]">
           아모라 안에 남긴 방문·상담 후보 기록이에요. 업체 전달·확정·취소와 환불은 업체에 별도로 확인해 주세요.
         </p>
+        {bookings.length > 0 && (
+          <dl className="mt-3 flex flex-wrap gap-x-6 gap-y-1 border-t border-[var(--hb-summary-line,#DEC9BA)] pt-3">
+            <div className="flex items-baseline gap-2">
+              <dt className={SUMMARY_LABEL_CLASS}>다가오는 요청</dt>
+              <dd className="text-[15px] font-semibold tabular-nums text-[var(--hb-summary-ink,#382F2B)]">{upcoming.length}건</dd>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <dt className={SUMMARY_LABEL_CLASS}>지난·취소</dt>
+              <dd className="text-[15px] font-semibold tabular-nums text-[var(--hb-summary-ink,#382F2B)]">{past.length}건</dd>
+            </div>
+          </dl>
+        )}
       </div>
 
       {bookings.length === 0 ? (

@@ -43,7 +43,8 @@ describe("HTML 예산 레이아웃의 반응형 데이터 보존", () => {
     expect(container.querySelector("[data-budget-summary]")?.children).toHaveLength(3);
     const category = container.querySelector('[data-budget-category="makeup"]')!;
     expect(category.querySelectorAll("[data-budget-status]")).toHaveLength(1);
-    expect(category.querySelector("[data-budget-status]")?.textContent).toBe("진행중");
+    // 상태 이름은 공유 사전(아직/준비 중/완료/안 해요)을 따른다. 예전 "진행중"은 다른 화면과 달랐다.
+    expect(category.querySelector("[data-budget-status]")?.textContent).toBe("준비 중");
     for (const title of ["헤어·메이크업 예산 수정", "헤어·메이크업 기록 지출 수정", "분담 변경", "헤어·메이크업 삭제"]) {
       expect(category.querySelectorAll(`button[title="${title}"]`)).toHaveLength(1);
     }
@@ -62,7 +63,7 @@ describe("HTML 예산 레이아웃의 반응형 데이터 보존", () => {
       });
       expect(container.querySelector("input")).toBe(input);
       expect(input.value).toBe("80");
-      expect(container.querySelector('[data-budget-category="makeup"] [data-budget-status]')?.textContent).toBe("진행중");
+      expect(container.querySelector('[data-budget-category="makeup"] [data-budget-status]')?.textContent).toBe("준비 중");
     }
   });
 
