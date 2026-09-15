@@ -1,5 +1,9 @@
 import type { ToolExecutionResult, ScheduleEvent } from "@/types/database.types";
-import { stripPlanningChecklistNotes, todayYmdInKst } from "@hanbang/shared/utils";
+import {
+  stripPlanningChecklistNotes,
+  summarizePlanningChecklist,
+  todayYmdInKst,
+} from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS, CHECKLIST_MAP } from "@/constants/checklists";
 import { MOMENTS, type MomentType } from "@/constants/moments";
 import { mergeChecklist, calculateStatus, resolveStatusByKey } from "@/utils/checklist";
@@ -19,7 +23,7 @@ import {
   upsertMomentEvent,
 } from "@/utils/scheduleEvents";
 import { addDaysUtc, kstMidnightFromYmd, ymdInKst } from "@/lib/utils/kstDate";
-import { CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
+import { CATEGORY_LABELS, SCREEN_CATEGORY_LABELS } from "@/lib/ai/tools/planningConstants";
 import { patchJourneyProgress, saveProgress } from "@/lib/ai/tools/progressTools";
 import { type ToolExecutionContext } from "@/lib/ai/tools/toolTypes";
 
@@ -57,6 +61,20 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
   const completed = allKeys.filter((key) => statusOf(key) === "completed");
   const inProgress = allKeys.filter((key) => statusOf(key) === "in_progress");
   const notStarted = allKeys.filter((key) => statusOf(key) === "not_started");
+  // "안 해요"로 끈 분야. 예전엔 어느 목록에도 없으면서 진행률 분모에는 들어가서, 함·폐백을
+  // 끈 커플에게 아모라가 화면(`summarizePlanningChecklist`, 끈 분야를 분모에서 뺀다)보다
+  // 낮은 진행률을 말했다. 네 목록을 합치면 `total`이 되게 따로 싣고 분모에서 뺀다.
+  const notApplicable = allKeys.filter((key) => statusOf(key) === "not_applicable");
+  const applicableTotal = allKeys.length - notApplicable.length;
+  const progressPercent = applicableTotal > 0
+    ? Math.round((completed.length / applicableTotal) * 100)
+    : 0;
+  // 체크리스트·일정 화면이 크게 그리는 진행률은 **항목** 기준이다. 같은 함수로 세서
+  // 아모라가 화면에 보이는 숫자를 그대로 말할 수 있게 한다.
+  const checklist = summarizePlanningChecklist(
+    CATEGORY_CHECKLISTS,
+    progress as unknown as Parameters<typeof summarizePlanningChecklist>[1],
+  );
 
   return {
     toolName: "get_schedule_summary",
@@ -66,13 +84,20 @@ export function executeGetScheduleSummary(ctx: ToolExecutionContext): ToolExecut
       shared_actions_queried: false,
       schedule_events_queried: false,
       total: allKeys.length,
+      applicable_total: applicableTotal,
       completed: completed.map((key) => CATEGORY_LABELS[key]),
       in_progress: inProgress.map((key) => CATEGORY_LABELS[key]),
       not_started: notStarted.map((key) => CATEGORY_LABELS[key]),
-      progress_percent: Math.round((completed.length / allKeys.length) * 100),
+      not_applicable: notApplicable.map((key) => CATEGORY_LABELS[key]),
+      // 완료한 카테고리 비율. 분모는 `applicable_total`이다 — "안 해요"로 끈 분야는 뺀다.
+      progress_percent: progressPercent,
+      // 화면의 진행률과 같은 숫자(체크리스트 항목 기준, 끈 분야 제외).
+      checklist_items_done: checklist.done,
+      checklist_items_total: checklist.total,
+      checklist_percent: checklist.percent,
     },
     success: true,
-    displayMessage: `기본 준비 카테고리 ${allKeys.length}개 중 완료 ${completed.length}개, 진행중 ${inProgress.length}개, 시작전 ${notStarted.length}개 (${Math.round((completed.length / allKeys.length) * 100)}%). 공유 할 일·등록 일정은 별도 조회가 필요합니다.`,
+    displayMessage: `기본 준비 카테고리 ${allKeys.length}개 중 완료 ${completed.length}개, 진행 중 ${inProgress.length}개, 시작 전 ${notStarted.length}개${notApplicable.length > 0 ? `, 안 해요 ${notApplicable.length}개` : ""}예요. 체크리스트 항목은 ${checklist.total}개 중 ${checklist.done}개 완료(${checklist.percent}%)${notApplicable.length > 0 ? "이고, 안 해요 분야는 빼고 셌어요" : "예요"}. 공유 할 일과 등록한 일정은 따로 확인해야 해요.`,
   };
 }
 
@@ -392,7 +417,9 @@ export async function executeToggleChecklistItem(
   const category = input.category as string;
   const itemId = input.item_id as string;
   const done = input.done as boolean;
-  const label = CATEGORY_LABELS[category] || category;
+  // 영수증은 사용자에게 보인다. 모델 문맥용 원명칭("예단")이 아니라 체크리스트·예산 화면과
+  // 같은 이름을 쓴다 — 원자 실행 경로(`amoraAtomicToolOperation`)의 영수증과 같은 문장이다.
+  const label = SCREEN_CATEGORY_LABELS[category] ?? category;
 
   const template = CHECKLIST_MAP[category];
   if (!template) {
@@ -433,7 +460,7 @@ export async function executeToggleChecklistItem(
     toolName: "toggle_checklist_item", toolInput: input,
     toolOutput: { category, item_id: itemId, done, new_status: newStatus, item_label: item.label },
     success: true,
-    displayMessage: `${label} - "${item.label}" ${done ? "완료" : "미완료"}로 변경되었습니다.`,
+    displayMessage: `${label}의 "${item.label}" 항목을 ${done ? "완료" : "미완료"}로 변경했어요.`,
   };
 }
 

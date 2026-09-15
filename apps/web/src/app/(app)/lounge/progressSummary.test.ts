@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CATEGORY_CHECKLISTS } from "@hanbang/shared/constants";
-import { summarizePlanningChecklist } from "@hanbang/shared/utils";
+import { CHECKLIST_AGREED_DATE, summarizePlanningChecklist } from "@hanbang/shared/utils";
 import type { ProgressItem } from "@/types/database.types";
 import { getActiveCategories, getProgressSummary, getStatus } from "@/app/(app)/lounge/progressSummary";
 
@@ -61,5 +61,71 @@ describe("라운지 진행률", () => {
     const active = getActiveCategories(progressWith(SKIPPED), 100);
     const leaked = active.filter((item) => SKIPPED.includes(item.category.key));
     expect(leaked.map((i) => i.category.key), "끈 분야가 할 일에 남음").toEqual([]);
+  });
+});
+
+/**
+ * 「놓치기 쉬운 항목」의 순서가 일정 화면의 임박 알림과 같은 기준인가.
+ *
+ * 임박 알림(`getImminentCategories`)과 아모라 가드레일은 **아직 안 끝낸 항목 중 가장 이른
+ * 기본 확인 시점**으로 센다. 여기만 분야 `ddayDeadline`으로 세면, 이른 일을 다 끝내고 촬영 뒤
+ * 사진 고르기(90일 전)만 남은 사진 촬영 분야가 D-120에 "30일 지난 분야"로 목록 맨 앞에 온다.
+ */
+describe("라운지 할 일 순서는 남은 항목의 기본 확인 시점으로 센다", () => {
+  const DDAY = 120;
+
+  function progressWith(entries: Record<string, (item: { id: string; due?: unknown }, index: number) => boolean>) {
+    const progress: Record<string, ProgressItem> = {};
+    for (const category of CATEGORY_CHECKLISTS) {
+      const isDone = entries[category.key];
+      progress[category.key] = isDone
+        ? ({
+            category: category.key,
+            status: "in_progress",
+            checklist: category.items.map((item, index) => ({ id: item.id, label: item.label, done: isDone(item, index) })),
+          } as ProgressItem)
+        : ({ category: category.key, status: "completed" } as ProgressItem);
+    }
+    return progress;
+  }
+
+  it("이른 일을 끝낸 분야가 방금 시작한 분야보다 앞서지 않는다", () => {
+    const studio = CATEGORY_CHECKLISTS.find((category) => category.key === "studio")!;
+    const dress = CATEGORY_CHECKLISTS.find((category) => category.key === "dress")!;
+    // 전제: 사진 촬영은 분야 시점(150일 전)보다 늦은 항목(90일 전)이 있고, 드레스는 120일 전이다.
+    expect(studio.ddayDeadline).toBe(150);
+    expect(dress.ddayDeadline).toBe(120);
+
+    const active = getActiveCategories(
+      progressWith({
+        studio: (item) => item.due === undefined,
+        dress: (_item, index) => index === 0,
+      }),
+      DDAY,
+    );
+
+    expect(active.map((item) => item.category.key)).toEqual(["dress", "studio"]);
+    expect(active.find((item) => item.category.key === "studio")?.daysUntilDeadline).toBe(30);
+    expect(active.find((item) => item.category.key === "dress")?.daysUntilDeadline).toBe(0);
+  });
+
+  it("남은 일이 약속한 날에 하는 일뿐이면 날짜를 모르므로 맨 뒤로 간다", () => {
+    const active = getActiveCategories(
+      progressWith({
+        studio: (item) => item.due !== CHECKLIST_AGREED_DATE,
+        dress: (_item, index) => index === 0,
+      }),
+      DDAY,
+    );
+
+    expect(active.map((item) => item.category.key)).toEqual(["dress", "studio"]);
+    expect(active.find((item) => item.category.key === "studio")?.daysUntilDeadline).toBeNull();
+  });
+
+  it("아무것도 체크하지 않은 커플은 예전과 같은 일수다", () => {
+    // 불변식: 항목 기록이 없으면 "지금 기준" 시점은 분야 `ddayDeadline`과 같다.
+    for (const item of getActiveCategories({}, 200)) {
+      expect(item.daysUntilDeadline, item.category.key).toBe(200 - item.category.ddayDeadline);
+    }
   });
 });

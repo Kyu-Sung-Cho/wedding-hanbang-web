@@ -1,3 +1,4 @@
+import { getChecklistCategoryDueDday } from "@hanbang/shared/utils";
 import { CATEGORY_CHECKLISTS } from "@/constants/checklists";
 import type { ProgressItem } from "@/types/database.types";
 import { getChecklistCounts, mergeChecklist, resolveStatus } from "@/utils/checklist";
@@ -80,7 +81,16 @@ export function getActiveCategories(
     const counts = getChecklistProgress(progress, category.key);
     const status = getStatus(progress, category.key);
     const percent = counts.total > 0 ? Math.round((counts.done / counts.total) * 100) : 0;
-    const daysUntilDeadline = dday === null ? null : dday - category.ddayDeadline;
+    // 분야 `ddayDeadline`이 아니라 **아직 안 끝낸 항목 중 가장 이른 기본 확인 시점**으로 센다.
+    // 일정 화면의 임박 알림(`getImminentCategories`)과 아모라 가드레일이 같은 함수를 쓴다 —
+    // 여기만 분야 기준으로 세면 이른 항목을 다 끝낸 분야가 이 목록 맨 앞에 "지난 분야"로 온다.
+    // 아무것도 체크하지 않은 분야는 이 값이 `ddayDeadline`과 같다. 남은 항목이 전부 계약·약속으로
+    // 정한 날에 하는 일이면 날짜를 모르므로 `null`이고, 정렬에서 맨 뒤로 간다.
+    const dueDday = getChecklistCategoryDueDday(
+      category,
+      mergeChecklist(category.items, progress[category.key]?.checklist, status),
+    );
+    const daysUntilDeadline = dday === null || dueDday === null ? null : dday - dueDday;
     return { category, counts, status, percent, daysUntilDeadline };
   })
     // 끝낸 분야와 "해당 없음"으로 끈 분야는 할 일 목록에서 뺀다. 끈 분야를 남겨 두면
