@@ -1468,24 +1468,31 @@ function PlaceCards({ result }: { result: ToolExecutionResult }) {
               </a>
             </div>
 
-            <div
-              role="note"
-              className="flex flex-col gap-1 border-t border-black/[0.04] bg-[#FAFAF8] px-4 py-2.5 text-[11px] leading-relaxed text-[var(--hb-text-muted)] sm:flex-row sm:items-center sm:justify-between sm:gap-3"
-            >
-              {p.imageUrl && (
-                <span className="shrink-0 font-medium text-[#7A6F66]">사진 출처: 네이버 이미지 검색</span>
-              )}
-              {/* 광고·제휴인지 묻는 질문에 화면이 답한다(2026-09-03). 우리는 네이버
-                  일반 지역검색만 부르므로 이건 우리가 단언할 수 있는 사실이다.
-                  조회 시각은 실행기가 넣은 `searchedAt` — 없으면 그 문장만 뺀다. */}
-              <span>
-                네이버 지역검색 일반 결과예요(광고·제휴 아님). {presentation.orderLabel}{" "}
-                {searchedAtLabel ? `조회 시각은 ${searchedAtLabel} (한국 시간)입니다. ` : ""}
-                리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
-              </span>
-            </div>
+            {/* 사진 출처는 그 사진이 있는 카드에만 붙인다. */}
+            {p.imageUrl && (
+              <div
+                role="note"
+                className="border-t border-black/[0.04] bg-[#FAFAF8] px-4 py-2 text-[11px] font-medium leading-relaxed text-[#7A6F66]"
+              >
+                사진 출처: 네이버 이미지 검색
+              </div>
+            )}
           </div>
         ))}
+
+        {/* 광고·제휴인지 묻는 질문에 화면이 답한다(2026-09-03). 우리는 네이버
+            일반 지역검색만 부르므로 이건 우리가 단언할 수 있는 사실이다.
+            조회 시각은 실행기가 넣은 `searchedAt` — 없으면 그 문장만 뺀다.
+            같은 문단이 카드마다 반복돼 결과 다섯 곳이면 다섯 번 읽혔다(2026-09-15).
+            검색 결과 묶음 아래에 한 번만 둔다. */}
+        <p
+          role="note"
+          className="px-1 text-[11px] leading-relaxed text-[var(--hb-text-muted)]"
+        >
+          네이버 지역검색 일반 결과예요(광고·제휴 아님). {presentation.orderLabel}{" "}
+          {searchedAtLabel ? `조회 시각은 ${searchedAtLabel} (한국 시간)입니다. ` : ""}
+          리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요. 네이버™는 NAVER®의 등록상표입니다.
+        </p>
       </div>
     </div>
   );

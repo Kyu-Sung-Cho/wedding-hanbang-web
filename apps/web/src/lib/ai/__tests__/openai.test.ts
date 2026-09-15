@@ -8,6 +8,7 @@ import {
   buildMultimodalContent,
   chatWithToolsStream as rawChatWithToolsStream,
   estimateInputTokensLocally,
+  estimateTextTokensLocally,
   getSafeOpenAIErrorMetadata,
   hasInputAttachments,
   OpenAIInputTokenLimitError,
@@ -849,11 +850,38 @@ describe("OpenAI Responses adapter", () => {
 
   describe("estimateInputTokensLocally", () => {
     it("over-counts Korean and ASCII text rather than under-counting it", () => {
-      // 한글 1자 = 1토큰, ASCII 3자 = 1토큰으로 잰다(실측은 각각 ~0.5·~0.25).
-      expect(estimateInputTokensLocally({ instructions: "", input: "가".repeat(3_000) }))
-        .toBeGreaterThanOrEqual(3_000);
-      expect(estimateInputTokensLocally({ instructions: "", input: "a".repeat(3_000) }))
-        .toBeGreaterThanOrEqual(1_000);
+      // 한글 1자는 실제 0.46~0.69토큰으로 추정된다. 가장 높은 값보다 크게 잰다.
+      expect(estimateTextTokensLocally("가".repeat(3_000))).toBeGreaterThanOrEqual(0.7 * 3_000);
+      // 흔한 영단어는 4~6자가 1토큰이다. 뜻 없는 긴 영문 묶음도 4자당 1토큰 이상이다.
+      expect(estimateTextTokensLocally("a".repeat(3_000))).toBeGreaterThanOrEqual(750);
+    });
+
+    it("stays above the published o200k count without doubling it", () => {
+      // OpenAI 가 o200k 토크나이저를 공개하며 든 한국어 예문: 27토큰.
+      const sample = "안녕하세요, 제 이름은 GPT-4o입니다. 저는 새로운 유형의 언어 모델입니다, 만나서 반갑습니다!";
+      const estimate = estimateTextTokensLocally(sample);
+      expect(estimate).toBeGreaterThanOrEqual(27);
+      expect(estimate).toBeLessThanOrEqual(Math.ceil(27 * 1.5));
+    });
+
+    it("does not reject a long valid Korean turn as twice its size", () => {
+      // 예전 바이트/3 기준은 한글 1자를 1토큰으로 셌다. 같은 18,000자 대화에서
+      // 새 추정은 그보다 확실히 작고, 한글 1자당 0.7토큰보다는 크다.
+      const turn = "웨딩홀 예약금은 보통 얼마예요? 식대는 1인 7만 원 정도로 보고 있어요. ".repeat(450);
+      const hangul = [...turn].filter((char) => /[가-힣]/u.test(char)).length;
+      const legacyEstimate = Math.ceil(Buffer.byteLength(turn, "utf8") / 3);
+      const estimate = estimateTextTokensLocally(turn);
+      expect(estimate).toBeGreaterThanOrEqual(Math.ceil(hangul * 0.7));
+      expect(estimate).toBeLessThanOrEqual(Math.ceil(legacyEstimate * 0.85));
+    });
+
+    it("counts one-character chunks, emoji and JSON framing at least once each", () => {
+      expect(estimateTextTokensLocally("a a a a a a a a")).toBeGreaterThanOrEqual(8);
+      expect(estimateTextTokensLocally("가 가 가 가 가")).toBeGreaterThanOrEqual(5);
+      expect(estimateTextTokensLocally("🎉🎉🎉")).toBeGreaterThanOrEqual(6);
+      // {"type":"object","properties":{"amount":{"type":"number"}}} 는 o200k 에서 13토큰 안팎이다.
+      expect(estimateTextTokensLocally(JSON.stringify({ type: "object", properties: { amount: { type: "number" } } })))
+        .toBeGreaterThanOrEqual(13);
     });
 
     it("does not block the worst production prompt during an outage", () => {

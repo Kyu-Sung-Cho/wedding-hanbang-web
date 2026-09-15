@@ -5,12 +5,26 @@ const INTERNAL_KEYS = [
   "tool_calls", "tool_call_id", "function_call", "client_request_id", "couple_id",
   "sender_id", "state_revision", "pending_action", "sampleCount", "minKrw", "medianKrw", "maxKrw",
   "preview_head", "preview_tail", "allocated_is_set", "custom_categories_omitted",
+  // 도구 입력 스키마에만 쓰는 영문 키. 한국어 답변이나 사용자가 요청한 문구에는 나오지 않는다.
+  "arguments", "tool_use_id", "call_id", "function_name", "category_key", "item_id", "event_id",
+  "action_id", "vendor_id", "booking_id", "product_id", "staff_id", "schedule_scope",
+  "allocation_mode", "expected_title", "expected_date", "checklist_confirmed", "not_needed_items",
 ];
 const INTERNAL_KEY_SET = new Set(INTERNAL_KEYS);
 const HISTORY_TOOL_NAMES = new Set(["search_nearby_places", "get_market_price"]);
+/** 도구 이름 모양. 모든 아모라 도구는 밑줄 하나 이상인 영문 소문자 이름이다. */
+const TOOL_NAME = /^(?:functions\.)?[a-z]+(?:_[a-z0-9]+)+$/u;
 const INTERNAL_LINE = new RegExp(`^[ \\t]*(?:>[ \\t]*)*["']?(?:${INTERNAL_KEYS.join("|")})["']?\\s*:.*$`, "gmu");
 const HISTORY_MARKER = /\[\s*저장된\s*도구\s*결과[^\]\r\n]*(?:\]|(?=\r?\n)|$)/gu;
-const XML_INTERNAL = /<(tool_result|tool_output|function_call|analysis|reasoning)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|$)/giu;
+const INTERNAL_TAG_NAMES = "tool_results?|tool_outputs?|tool_calls?|tool_use|function_calls?|function_results?|invoke|parameter|analysis|reasoning|thinking|think";
+const XML_INTERNAL = new RegExp(`<((?:[a-z]+:)?(?:${INTERNAL_TAG_NAMES}))(?=[\\s>/])[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|$)`, "giu");
+/** 짝을 잃은 여닫는 태그만 남은 경우. */
+const ORPHAN_INTERNAL_TAG = new RegExp(`<\\/?(?:[a-z]+:)?(?:${INTERNAL_TAG_NAMES})(?=[\\s>/])[^>]*>`, "giu");
+/** 줄 전체가 도구 호출 문법인 경우: `update_budget({...});`, `functions.get_budget_summary()`. */
+const CALL_LINE = /(?:^|\n)[ \t]*(?:>[ \t]*)*`?(?:functions\.)?[a-z]+(?:_[a-z0-9]+)+[ \t]*\(/gu;
+const CALL_LINE_PREFIX = /(?:^|\n)[ \t]*(?:>[ \t]*)*`?(?:functions\.)?[a-z]+(?:_[a-z0-9]+)+[ \t]*\(/u;
+/** 스트리밍 중 아직 괄호가 오지 않은 도구 이름 조각(`update_bu`). */
+const PARTIAL_CALL_NAME = /^(?:>[ \t]*)*`?[a-z][a-z0-9_]*(?:\.[a-z0-9_]*)?$/u;
 const ROLE_INTERNAL = /\[assistant\/(?:analysis|commentary)[^\]]*\][\s\S]*?(?=\[assistant\/final\]|$)/giu;
 const FINAL_ROLE = /\[assistant\/final\]/giu;
 const SYSTEM_REMINDER = /\[SYSTEM:\s*이 결과는 프론트엔드에서[^\]]*(?:\]|$)/giu;
@@ -39,9 +53,13 @@ function containsInternalData(text, depth = 0) {
     while (pending.length > 0) {
       const entry = pending.pop();
       if (!entry || typeof entry !== "object") continue;
+      // 입력이 객체든 한 번 더 인코딩한 문자열이든 도구 envelope이다.
       if (typeof entry.tool === "string" && (HISTORY_TOOL_NAMES.has(entry.tool)
-        || (/^[a-z]+(?:_[a-z0-9]+)+$/u.test(entry.tool)
-          && entry.input && typeof entry.input === "object"))) return true;
+        || (TOOL_NAME.test(entry.tool)
+          && entry.input && (typeof entry.input === "object" || typeof entry.input === "string")))) return true;
+      // OpenAI·Anthropic 호출 모양: {"name":"update_budget","arguments":{...}} / {"name":..,"input":..}
+      if (typeof entry.name === "string" && TOOL_NAME.test(entry.name)
+        && ["arguments", "parameters", "input"].some((key) => Object.prototype.hasOwnProperty.call(entry, key))) return true;
       pending.push(...Object.values(entry));
     }
   } catch { /* 잘린 내부 데이터도 속성 이름으로 식별한다. */ }
@@ -90,6 +108,31 @@ function structuredEnd(text, start) {
   return text.length;
 }
 
+/** 여는 소괄호의 짝을 찾는다. 따옴표 안 괄호는 세지 않는다. 짝이 없으면 끝까지다. */
+function callEnd(text, open) {
+  const stack = [];
+  let quote = null;
+  let escaped = false;
+  for (let index = open; index < text.length; index += 1) {
+    const char = text[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === "\\") escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'") { quote = char; continue; }
+    if (char === "(") stack.push(")");
+    else if (char === "{") stack.push("}");
+    else if (char === "[") stack.push("]");
+    else if (char === ")" || char === "}" || char === "]") {
+      if (stack.pop() !== char) return text.length;
+      if (stack.length === 0) return index + 1;
+    }
+  }
+  return text.length;
+}
+
 function fenceEnd(text, start) {
   const opening = /^(?<fence>`{3,}|~{3,})[^\r\n]*(?:\r?\n|$)/u.exec(text.slice(start));
   if (!opening) return null;
@@ -103,8 +146,16 @@ function fenceEnd(text, start) {
 export function stripAmoraInternalArtifacts(text) {
   if (typeof text !== "string" || !text) return text;
   let cleaned = text.replace(XML_INTERNAL, "").replace(ROLE_INTERNAL, "").replace(FINAL_ROLE, "")
-    .replace(SYSTEM_REMINDER, "").replace(TRUNCATION_MARKER, "");
+    .replace(SYSTEM_REMINDER, "").replace(TRUNCATION_MARKER, "").replace(ORPHAN_INTERNAL_TAG, "");
   const ranges = [];
+
+  // 줄 전체가 도구 호출일 때만 지운다. 문장 속 괄호(`SDM(스튜디오)`, `1)`)는 이름 모양이 달라 남는다.
+  for (const match of cleaned.matchAll(CALL_LINE)) {
+    const start = match.index + (match[0].startsWith("\n") ? 1 : 0);
+    const end = callEnd(cleaned, match.index + match[0].length - 1);
+    const rest = /^[ \t]*;?[ \t]*`?[ \t]*(?=\r?\n|$)/u.exec(cleaned.slice(end));
+    if (end >= cleaned.length || rest) ranges.push([start, end + (rest?.[0].length ?? 0)]);
+  }
 
   // 내부 프레임이 코드 블록 안에 있어도 빈 코드 상자를 남기지 않는다.
   const fences = /(?:^|\n)[ \t]{0,3}(`{3,}|~{3,})/gu;
@@ -161,6 +212,13 @@ function incompleteInternalLine(text) {
   return tail && INTERNAL_KEYS.some((key) => key.startsWith(tail)) ? start : -1;
 }
 
+/** 스트리밍 화면 전용: 영문 소문자만 쓰인 미완성 마지막 줄은 도구 이름일 수 있어 줄이 끝날 때까지 보류한다. */
+function incompleteCallLine(text) {
+  const start = text.lastIndexOf("\n") + 1;
+  const tail = text.slice(start).trim();
+  return tail && PARTIAL_CALL_NAME.test(tail) ? start : -1;
+}
+
 function internalBracketStart(text, includeUnfinished = false) {
   for (const match of text.matchAll(/\[/gu)) {
     const start = match.index;
@@ -175,13 +233,14 @@ function internalBracketStart(text, includeUnfinished = false) {
 export function hasAmoraInternalArtifactPrefix(text) {
   // 미리보기는 완성 문장 단위다. '['만으로 영구 보류하면 뒤에 온 정상 안내도 사라진다.
   return STREAM_OPENING.test(text) || internalBracketStart(text) >= 0
-    || INTERNAL_LINE_PREFIX.test(text) || incompleteInternalLine(text) >= 0;
+    || INTERNAL_LINE_PREFIX.test(text) || incompleteInternalLine(text) >= 0
+    || CALL_LINE_PREFIX.test(text);
 }
 
 export function getAmoraVisibleText(text, { streaming = false } = {}) {
   if (typeof text !== "string" || !text) return text;
   // 화면은 미완성 대괄호만 임시 보류하고, 정상 안내로 완성되면 다시 표시한다.
-  const starts = streaming ? [text.search(STREAM_OPENING), internalBracketStart(text, true), text.search(INTERNAL_LINE_PREFIX), incompleteInternalLine(text)].filter((index) => index >= 0) : [];
+  const starts = streaming ? [text.search(STREAM_OPENING), internalBracketStart(text, true), text.search(INTERNAL_LINE_PREFIX), incompleteInternalLine(text), text.search(CALL_LINE_PREFIX), incompleteCallLine(text)].filter((index) => index >= 0) : [];
   const opening = starts.length > 0 ? Math.min(...starts) : -1;
   const candidate = opening >= 0 ? text.slice(0, opening) : text;
   const visible = stripAmoraInternalArtifacts(candidate);

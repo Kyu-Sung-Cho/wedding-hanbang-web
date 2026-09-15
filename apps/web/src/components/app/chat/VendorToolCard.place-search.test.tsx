@@ -279,6 +279,34 @@ describe("VendorToolCard place search results", () => {
     expect(container.textContent).not.toContain("조회 시각은");
   });
 
+  it("출처·광고 아님·조회 시각 문단은 결과 다섯 곳에도 한 번만, 사진 출처는 사진 있는 카드에만 보인다", async () => {
+    await act(async () => {
+      root.render(
+        <VendorToolCard
+          result={placeResult({
+            toolOutput: {
+              query: "대전 한정식",
+              searchedAt: "2026-09-03T11:20:00.000Z",
+              places: Array.from({ length: 5 }, (_, index) => placeWith({
+                id: `naver-${index}`,
+                name: `한상 ${index + 1}`,
+                imageUrl: index < 2 ? `https://search.pstatic.net/common/?src=${index}` : null,
+              })),
+            },
+          })}
+        />,
+      );
+    });
+
+    const text = container.textContent ?? "";
+    const count = (needle: string) => text.split(needle).length - 1;
+    expect(count("네이버 지역검색 일반 결과예요(광고·제휴 아님).")).toBe(1);
+    expect(count("조회 시각은 2026.09.03 20:20 (한국 시간)입니다.")).toBe(1);
+    expect(count("리뷰 수·별점과 가격은 카드를 눌러 네이버에서 확인해 주세요.")).toBe(1);
+    expect(count("네이버™는 NAVER®의 등록상표입니다.")).toBe(1);
+    expect(count("사진 출처: 네이버 이미지 검색")).toBe(2);
+  });
+
   it("두 지역을 함께 찾았으면 카드마다 어느 지역인지 보여준다", async () => {
     await act(async () => {
       root.render(

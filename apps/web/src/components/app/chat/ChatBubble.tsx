@@ -669,7 +669,7 @@ export default function ChatBubble({
   return (
     <div className="flex max-w-[90%] items-start gap-2 sm:max-w-[80%]">
       {/* 아바타 — 모바일 작게 */}
-      <ProfileAvatar name={senderLabel} avatarUrl={message.sender_id ? senderAvatarUrl : null} size={28} className="sm:size-8" />
+      <ProfileAvatar name={message.sender_id ? senderName : null} label={senderLabel} avatarUrl={message.sender_id ? senderAvatarUrl : null} size={28} className="sm:size-8" />
 
       <div className="flex flex-col gap-1.5">
         <div className="flex items-center gap-2">

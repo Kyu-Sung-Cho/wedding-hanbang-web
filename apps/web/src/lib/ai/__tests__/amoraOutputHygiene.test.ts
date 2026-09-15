@@ -5,6 +5,7 @@ import {
   ensureNonEmptyTerminalText,
 } from "@/lib/ai/amoraOutputHygiene";
 import { composeAmoraPersistenceTerminal } from "@/lib/ai/amoraPersistenceClaims";
+import { WEDDING_TOOLS } from "@/lib/ai/tools";
 
 /**
  * 정상 답변 코퍼스. **오탐 0이 이 파일의 첫 계약이다.**
@@ -147,6 +148,32 @@ describe("applyAmoraOutputHygiene", () => {
       kind: "latin_fragment_detected",
       count: 1,
     });
+  });
+
+  it("removes a call-shaped line for every tool the model can actually name", () => {
+    // 공유 정리기는 도구 목록을 import 할 수 없어 이름 모양으로 판단한다.
+    // 새 도구 이름이 그 모양을 벗어나면 여기서 깨진다.
+    const clean = "예식장 예산을 확인했어요.";
+    for (const { name } of WEDDING_TOOLS) {
+      for (const leaked of [`${name}({"category":"venue","amount":33000000});`, `functions.${name}()`]) {
+        const result = applyAmoraOutputHygiene(`${clean}\n\n${leaked}`);
+        expect(result.text, leaked).toBe(clean);
+        expect(result.actions).toContainEqual({ kind: "internal_artifacts_removed" });
+      }
+    }
+  });
+
+  it("keeps ordinary answers with ~, >, <, braces, parentheses, tables and lists", () => {
+    for (const answer of [
+      "예식장은 보통 12~18개월 전에 잡아요.",
+      "우선순위는 예식장 > 스드메 > 신혼여행 순이에요.",
+      "식대가 5만 원 < 7만 원이면 보증 인원을 줄여 보세요.",
+      "3,000,000원은 계약금으로 먼저 나가요.",
+      "{신랑} 님과 {신부} 님 이름을 넣어 주세요.",
+      "| 항목 | 금액 |\n| --- | ---: |\n| 스드메 | 300~400만 원 |",
+      "- 예식장: 3,000만 원\n- 예비비(10%): 330만 원",
+      "SDM(스튜디오·드레스·메이크업)은 묶어서 계약해요.",
+    ]) expect(applyAmoraOutputHygiene(answer).text).toBe(answer);
   });
 
   it("does not count known short units as fragments", () => {

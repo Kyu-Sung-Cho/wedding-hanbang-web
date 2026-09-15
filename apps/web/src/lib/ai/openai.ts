@@ -512,29 +512,96 @@ export function hasInputAttachments(input: string | ResponseInput): boolean {
   return false;
 }
 
+/** 토크나이저의 사전 분할과 같은 단위: 글자 묶음 · 숫자 묶음 · 기호 묶음 · 공백 묶음. */
+const LOCAL_TOKEN_CHUNK_RE = /\p{L}[\p{L}\p{M}]*|\p{N}+|[^\s\p{L}\p{N}]+|\s+/gu;
+const LOCAL_TOKEN_WEIGHT = {
+  /** 한글 음절 1자. 실측 추정 0.46~0.69 보다 크게 잡는다. */
+  hangulSyllable: 0.8,
+  /** 라틴 글자 1자. 흔한 영단어는 4~6자가 1토큰이다. */
+  latinLetter: 0.25,
+  /** ASCII 기호 1자. JSON 의 `":"`·`","` 같은 묶음은 1토큰이다. */
+  asciiSymbol: 1 / 3,
+  /** 자모·한자·가나·기타 문자·비ASCII 기호(BMP) 1자. */
+  otherBmp: 1,
+  /** 이모지 등 BMP 밖 1자. */
+  astral: 2,
+  /** 숫자는 최대 3자리씩 1토큰이다. */
+  digitsPerToken: 3,
+} as const;
+
+/**
+ * 문자열 하나의 토큰 수를 문자 체계별로 어림한다. 사전 분할 묶음마다 최소 1토큰을
+ * 매겨 `a a a a`·`가 가 가` 같은 한 글자 묶음 반복도 아래로 틀리지 않는다. 앞에 붙은
+ * 공백 한 칸은 다음 묶음과 같은 토큰이 되므로 따로 세지 않고, 줄바꿈이나 두 칸 이상의
+ * 공백 묶음은 1토큰으로 센다.
+ */
+export function estimateTextTokensLocally(text: string): number {
+  let tokens = 0;
+  for (const [chunk] of text.matchAll(LOCAL_TOKEN_CHUNK_RE)) {
+    if (/\s/u.test(chunk[0])) {
+      if (chunk.length > 1 || /[\r\n]/u.test(chunk)) tokens += 1;
+      continue;
+    }
+    if (/\p{N}/u.test(chunk[0])) {
+      tokens += Math.ceil(chunk.length / LOCAL_TOKEN_WEIGHT.digitsPerToken);
+      continue;
+    }
+    const letters = /\p{L}/u.test(chunk[0]);
+    let chunkTokens = 0;
+    for (const char of chunk) {
+      const codePoint = char.codePointAt(0) ?? 0;
+      if (codePoint >= 0xac00 && codePoint <= 0xd7a3) chunkTokens += LOCAL_TOKEN_WEIGHT.hangulSyllable;
+      else if (letters && codePoint <= 0x024f) chunkTokens += LOCAL_TOKEN_WEIGHT.latinLetter;
+      else if (!letters && codePoint < 0x80) chunkTokens += LOCAL_TOKEN_WEIGHT.asciiSymbol;
+      else chunkTokens += codePoint > 0xffff ? LOCAL_TOKEN_WEIGHT.astral : LOCAL_TOKEN_WEIGHT.otherBmp;
+    }
+    tokens += Math.max(1, chunkTokens);
+  }
+  return Math.ceil(tokens);
+}
+
 /**
  * 사전 토큰 계산(inputTokens.count)이 장애일 때 앱 입력 상한을 지키기 위한
- * 보수적 로컬 추정 — **텍스트 전용 턴에만** 쓴다. UTF-8 바이트/3 — 한글 1자 =
- * 1토큰, ASCII 3자 = 1토큰으로 실측(각 ~0.5·~0.25)보다 크게 잰다
- * (scripts/ingest/extract.ts 의 계획 추정과 같은 기준).
+ * 보수적 로컬 추정 — **텍스트 전용 턴에만** 쓴다.
+ *
+ * 예전 기준(UTF-8 바이트/3)은 한글 1자를 1토큰으로 셌다. 한국어 본문에서 실제의
+ * 1.5~2배라 장애 중에는 상한 안의 긴 정상 대화까지 AMORA_INPUT_TOO_LARGE 로
+ * 막았다. 지금은 문자 체계별 가중치(`LOCAL_TOKEN_WEIGHT`)로 잰다.
+ *
+ * ## 보정 근거와 가정 (저장소에 토크나이저 패키지가 없어 실측 표본으로 맞췄다)
+ *
+ * - OpenAI 가 o200k 토크나이저 공개 때 든 한국어 예문
+ *   "안녕하세요, 제 이름은 GPT-4o입니다. 저는 새로운 유형의 언어 모델입니다, 만나서
+ *   반갑습니다!" 는 27토큰이다. 이 추정은 36(1.33배)이다.
+ * - 운영 최악 커플의 시스템 프롬프트 48,019자는 호출당 입력 ~23,000토큰으로
+ *   실측됐다. 실제 프롬프트 합성(한글 57%·공백 23%·ASCII 18%)을 같은 길이로
+ *   늘려 재면 프롬프트만으로 ~28,700(1.25배)이다. 23,000 에 도구·대화가 포함된
+ *   값이면 여유는 더 크다. 이 두 표본에서 한글 1자는 실제 0.46~0.69토큰이다.
+ * - 드물게 쓰이는 한글 음절·한자는 1자가 2토큰 이상일 수 있다. 일부러 그런 글자만
+ *   늘어놓은 입력은 여전히 아래로 틀릴 수 있다(예전 기준도 같았다). 일반 대화
+ *   전체 평균에서는 위로 틀리게 잡았다.
  *
  * 첨부는 로컬로 잴 수 없다. PDF 는 추출 텍스트 + 쪽당 이미지 1장(최대 100쪽)으로
  * 청구돼 건당 고정 몫은 과소 추정이다(10MB PDF 다섯 장이 21,074 로 통과했다).
  * 첨부 턴은 호출부가 hasInputAttachments 로 걸러 측정 단계에서 끝내고, 그래도
- * 첨부가 여기까지 오면 base64 를 바이트 그대로 세어 위로 틀린다.
+ * 첨부가 여기까지 오면 base64 를 글자 그대로 세어 위로 틀린다.
  */
 export function estimateInputTokensLocally(request: {
   instructions: string;
   input: string | ResponseInput;
   tools?: FunctionTool[];
 }): number {
-  let bytes = 0;
+  let tokens = 0;
   const stack: unknown[] = [request.instructions, request.input, request.tools ?? []];
   const seen = new Set<object>();
   while (stack.length > 0) {
     const current = stack.pop();
     if (typeof current === "string") {
-      bytes += Buffer.byteLength(current, "utf8");
+      tokens += estimateTextTokensLocally(current);
+      continue;
+    }
+    if (typeof current === "number" || typeof current === "boolean") {
+      tokens += estimateTextTokensLocally(String(current));
       continue;
     }
     if (!current || typeof current !== "object") continue;
@@ -545,11 +612,12 @@ export function estimateInputTokensLocally(request: {
       continue;
     }
     for (const [key, value] of Object.entries(current)) {
-      bytes += key.length;
+      // 키와 JSON 구분 기호(`"key":`)를 함께 센다.
+      tokens += estimateTextTokensLocally(key) + 1;
       stack.push(value);
     }
   }
-  return Math.ceil(bytes / 3) + LOCAL_INPUT_ESTIMATE_FRAMING_TOKENS;
+  return tokens + LOCAL_INPUT_ESTIMATE_FRAMING_TOKENS;
 }
 
 function getRefusalText(response: OpenAIResponse): string {
