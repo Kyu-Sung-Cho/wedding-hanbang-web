@@ -227,7 +227,7 @@ describe("WeddingCodeV06Client interaction", () => {
     expect(container.querySelector("[data-apply-amora]")).toBeNull();
     expect(proposalText).toContain("로그인하고 선택한 방식 확인하기");
     expect(container.querySelector<HTMLButtonElement>("[data-continue-amora]")?.disabled).toBe(true);
-    expect(proposalText).toContain("웨딩코드 답과 고른 문장은");
+    expect(proposalText).toContain("웨딩코드 답과 고른 문장을 보내지 않아요");
     // 저장 결과를 확인하기 전에 반영됐다고 말하지 않는다.
     expect(proposalText).not.toContain("아모라에 반영했어요");
   });

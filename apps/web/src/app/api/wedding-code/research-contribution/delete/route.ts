@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { parseWeddingCodeResearchDeletion } from "@/lib/weddingCode/contribution/contract";
 import {
   hashWeddingCodeResearchReceipt,
-  isWeddingCodeResearchContributionOpen,
+  isWeddingCodeResearchStorageActive,
 } from "@/lib/weddingCode/contribution/server";
 import { checkRateLimitPersistent, rateLimitKey } from "@/utils/rateLimit";
 import { readBoundedUtf8Text } from "@/utils/requestValidation";
@@ -27,9 +27,12 @@ function reply(body: Record<string, unknown>, status: number) {
  * 코드 모양만 맞으면 **있든 없든 같은 응답**을 준다 — 응답 차이로 어떤 코드가 살아
  * 있는지 알아낼 수 없게. DB 쪽 함수도 행이 없어도 삭제 기록(해시·시각)을 남긴다.
  * 요청 본문은 어떤 로그에도 싣지 않는다.
+ *
+ * 새 답을 받지 않는 동안에도 연다 — 수집을 멈춘 뒤에도 이미 받은 답은 지울 수 있어야 한다.
+ * 닫히는 것은 비밀값이 없을 때(저장소를 지킬 수 없을 때)뿐이다.
  */
 export async function POST(request: Request) {
-  if (!isWeddingCodeResearchContributionOpen()) {
+  if (!isWeddingCodeResearchStorageActive()) {
     return reply({ error: "wedding_code_research_closed" }, 503);
   }
   if (!isTrustedMutationRequest(request)) {

@@ -94,7 +94,7 @@ function Confirmation({ profile, sessionReady }: { profile: WeddingCodeSelfProfi
           {applied ? "아모라에 반영했어요" : user ? "내가 고른 방식만 반영하기" : "로그인하고 선택한 방식 확인하기"}
         </Button>
         <p className="mt-3 text-[13px] leading-relaxed text-[var(--hb-text-body)]" role={applied ? "status" : undefined}>
-          {applied ? "저장한 방식은 다음 아모라 답변에 참고돼요. 대화 중 원하는 방식을 다시 말하거나 설정에서 바꿀 수 있어요." : "웨딩코드 답과 고른 문장은 저장하지 않아요. 직접 선택한 도움 설정만 확인 후 내 계정에 저장해요."}
+          {applied ? "저장한 방식은 다음 아모라 답변에 참고돼요. 대화 중 원하는 방식을 다시 말하거나 설정에서 바꿀 수 있어요." : "이 설정에는 웨딩코드 답과 고른 문장을 보내지 않아요. 직접 선택한 도움 설정만 확인 후 내 계정에 저장해요."}
         </p>
         {personalization.error || handoffError ? <p role="alert" className="mt-2 text-[13px] leading-relaxed text-[var(--color-rose-700)]">{personalization.error ?? handoffError}</p> : null}
         {user && personalization.status === "error" ? <Button variant="secondary" className="mt-3" onClick={() => { void personalization.load(); }}>기존 설정 다시 불러오기</Button> : null}

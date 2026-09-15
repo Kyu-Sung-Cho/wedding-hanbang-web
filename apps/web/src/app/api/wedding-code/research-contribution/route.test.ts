@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -21,8 +23,10 @@ vi.mock("@/utils/log", () => ({
 
 import {
   WEDDING_CODE_RESEARCH_CONSENT_VERSION,
+  WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT,
   WEDDING_CODE_RESEARCH_RECEIPT_PATTERN,
   WEDDING_CODE_RESEARCH_SCENE_VERSION,
+  createWeddingCodeResearchReceipt,
 } from "@/lib/weddingCode/contribution/contract";
 import { POST as deleteContribution } from "./delete/route";
 import { POST as contribute } from "./route";
@@ -30,6 +34,8 @@ import { POST as contribute } from "./route";
 const ORIGIN = "https://hanbang.ai";
 const SECRET = "test-secret-that-is-at-least-thirty-two-chars";
 const ANSWER_CODE = "ABCD-ABCDABCDABCDABC";
+const RECEIPT = `wc_del_${"K".repeat(43)}`;
+const AFTER_EFFECTIVE = Date.parse(WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT) + 60_000;
 
 function post(path: string, body: unknown, headers: Record<string, string> = {}) {
   return new Request(`${ORIGIN}${path}`, {
@@ -50,11 +56,16 @@ const VALID = {
   consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
   adultConfirmed: true,
   consented: true,
+  receipt: RECEIPT,
 };
+
+const expectedHash = (receipt: string) => `\\x${createHmac("sha256", SECRET).update(receipt).digest("hex")}`;
 
 describe("POST /api/wedding-code/research-contribution", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_EFFECTIVE);
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "true");
     vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", SECRET);
     mocks.checkRateLimitPersistent.mockResolvedValue(null);
@@ -62,6 +73,7 @@ describe("POST /api/wedding-code/research-contribution", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllEnvs();
   });
 
@@ -76,6 +88,13 @@ describe("POST /api/wedding-code/research-contribution", () => {
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.checkRateLimitPersistent).not.toHaveBeenCalled();
+  });
+
+  it("처리방침에 고지한 적용일 전에는 플래그가 켜져 있어도 받지 않는다", async () => {
+    vi.setSystemTime(Date.parse(WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT) - 1);
+    const response = await contribute(post("/api/wedding-code/research-contribution", VALID));
+    expect(response.status).toBe(503);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("다른 출처의 요청은 받지 않는다", async () => {
@@ -98,6 +117,8 @@ describe("POST /api/wedding-code/research-contribution", () => {
     ["소문자 답이면", { ...VALID, answerCode: ANSWER_CODE.toLowerCase() }],
     ["다른 키가 섞였으면", { ...VALID, email: "someone@example.com" }],
     ["상대 코드를 함께 보내면", { ...VALID, partnerCode: ANSWER_CODE }],
+    ["삭제 코드가 없으면", { ...VALID, receipt: undefined }],
+    ["삭제 코드 모양이 틀리면", { ...VALID, receipt: "wc_del_short" }],
   ])("%s 저장하지 않는다", async (_label, body) => {
     const response = await contribute(post("/api/wedding-code/research-contribution", body));
     expect(response.status).toBe(400);
@@ -118,51 +139,51 @@ describe("POST /api/wedding-code/research-contribution", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("동의한 답만 해시와 함께 저장하고 삭제 코드 원문은 응답에서 한 번만 돌려준다", async () => {
+  it("동의한 답과 삭제 코드의 서버 비밀 HMAC 만 저장하고, 원문 코드는 DB·응답에 싣지 않는다", async () => {
     const response = await contribute(post("/api/wedding-code/research-contribution", VALID));
     expect(response.status).toBe(201);
     expect(response.headers.get("cache-control")).toBe("no-store");
-    const { receipt } = await response.json();
-    expect(receipt).toMatch(WEDDING_CODE_RESEARCH_RECEIPT_PATTERN);
+    expect(await response.json()).toEqual({ ok: true });
 
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
-    const [fn, params] = mocks.rpc.mock.calls[0];
-    expect(fn).toBe("insert_wedding_code_research_contribution");
-    expect(Object.keys(params).sort()).toEqual([
-      "p_answer_code", "p_consent_version", "p_deletion_receipt_hash", "p_scene_version",
-    ]);
-    expect(params).toMatchObject({
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("insert_wedding_code_research_contribution", {
       p_scene_version: WEDDING_CODE_RESEARCH_SCENE_VERSION,
       p_answer_code: ANSWER_CODE,
       p_consent_version: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
+      p_deletion_receipt_hash: expectedHash(RECEIPT),
     });
-    expect(params.p_deletion_receipt_hash).toMatch(/^\\x[0-9a-f]{64}$/);
-    // 원문 코드는 DB 로 가지 않는다.
-    expect(JSON.stringify(params)).not.toContain(receipt.slice("wc_del_".length));
+    expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain(RECEIPT.slice("wc_del_".length));
 
-    // 같은 코드로 지우면 같은 해시를 찾는다.
-    const deleted = await deleteContribution(post("/api/wedding-code/research-contribution/delete", { receipt }));
+    const deleted = await deleteContribution(post("/api/wedding-code/research-contribution/delete", { receipt: RECEIPT }));
     expect(deleted.status).toBe(200);
     expect(mocks.rpc).toHaveBeenLastCalledWith("delete_wedding_code_research_contribution", {
-      p_deletion_receipt_hash: params.p_deletion_receipt_hash,
+      p_deletion_receipt_hash: expectedHash(RECEIPT),
     });
   });
 
-  it("매번 다른 삭제 코드를 만든다", async () => {
-    const first = await (await contribute(post("/api/wedding-code/research-contribution", VALID))).json();
-    const second = await (await contribute(post("/api/wedding-code/research-contribution", VALID))).json();
-    expect(first.receipt).not.toBe(second.receipt);
-    expect(mocks.rpc.mock.calls[0][1].p_deletion_receipt_hash)
-      .not.toBe(mocks.rpc.mock.calls[1][1].p_deletion_receipt_hash);
+  it("응답이 끊겨 같은 삭제 코드로 다시 보내면(고유 제약 23505) 한 번 저장된 것으로 성공 처리한다", async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { code: "23505", message: "duplicate key" } });
+    const response = await contribute(post("/api/wedding-code/research-contribution", VALID));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual({ ok: true });
+    expect(mocks.logError).not.toHaveBeenCalled();
   });
 
-  it("DB 가 거절하면 삭제 코드를 내주지 않고, 로그에는 오류 코드만 남긴다", async () => {
-    mocks.rpc.mockResolvedValueOnce({ error: { code: "22023", message: `answer ${ANSWER_CODE}` } });
+  it("DB 가 거절하면(지운 코드 재사용 등) 성공이라 하지 않고, 로그에는 오류 코드만 남긴다", async () => {
+    mocks.rpc.mockResolvedValueOnce({ error: { code: "22023", message: `answer ${ANSWER_CODE} ${RECEIPT}` } });
     const response = await contribute(post("/api/wedding-code/research-contribution", VALID));
     expect(response.status).toBe(503);
-    expect(await response.json()).not.toHaveProperty("receipt");
     expect(mocks.logError).toHaveBeenCalledWith(expect.any(String), { code: "22023" });
-    expect(JSON.stringify(mocks.logError.mock.calls)).not.toContain(ANSWER_CODE);
+    const logged = JSON.stringify(mocks.logError.mock.calls);
+    expect(logged).not.toContain(ANSWER_CODE);
+    expect(logged).not.toContain(RECEIPT);
+  });
+
+  it("브라우저 삭제 코드 생성기는 계약 모양(32바이트)을 만들고 매번 다르다", () => {
+    const first = createWeddingCodeResearchReceipt();
+    const second = createWeddingCodeResearchReceipt();
+    expect(first).toMatch(WEDDING_CODE_RESEARCH_RECEIPT_PATTERN);
+    expect(second).toMatch(WEDDING_CODE_RESEARCH_RECEIPT_PATTERN);
+    expect(first).not.toBe(second);
   });
 });
 
@@ -194,9 +215,18 @@ describe("POST /api/wedding-code/research-contribution/delete", () => {
     expect(await a.json()).toEqual(await b.json());
   });
 
-  it("닫혀 있으면 지우기도 받지 않는다", async () => {
+  it("새 답 받기를 멈춰도(플래그 끔) 이미 받은 답은 지울 수 있다", async () => {
     vi.stubEnv("WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED", "false");
-    const response = await deleteContribution(post("/api/wedding-code/research-contribution/delete", { receipt: `wc_del_${"A".repeat(43)}` }));
+    const response = await deleteContribution(post("/api/wedding-code/research-contribution/delete", { receipt: RECEIPT }));
+    expect(response.status).toBe(200);
+    expect(mocks.rpc).toHaveBeenCalledWith("delete_wedding_code_research_contribution", {
+      p_deletion_receipt_hash: expectedHash(RECEIPT),
+    });
+  });
+
+  it("비밀값이 없으면(저장소를 지킬 수 없으면) 지우기도 받지 않는다", async () => {
+    vi.stubEnv("WEDDING_CODE_RESEARCH_RECEIPT_SECRET", "");
+    const response = await deleteContribution(post("/api/wedding-code/research-contribution/delete", { receipt: RECEIPT }));
     expect(response.status).toBe(503);
     expect(mocks.rpc).not.toHaveBeenCalled();
   });

@@ -184,10 +184,18 @@
   기본값이 꺼진 동의·만 19세 확인, 받는 것(문항 판·답 기호·동의 판·시각)과 받지 않는 것(이름·
   연락처·계정·IP·링크·상대 답) 고지, 60일 TTL(보태기 RPC와 `ai-log-retention` 크론), 원문을
   저장하지 않는 HMAC 삭제 코드, 존재 여부를 드러내지 않는 삭제 응답, 삭제 tombstone 30일.
-  - 받는 쪽이 닫혀 있으면 UI도 열지 않는다(`AGENTS.md` WeddingCode 프로토콜). 카드·삭제 폼·
-    처리방침 문단·크론 단계가 모두 `isWeddingCodeResearchContributionOpen()` 하나로 켜진다 —
-    `WEDDING_CODE_RESEARCH_CONTRIBUTION_ENABLED=true`와 32자 이상
-    `WEDDING_CODE_RESEARCH_RECEIPT_SECRET`가 둘 다 있어야 한다.
+  - **받기와 지키기는 스위치가 다르다(2026-09-16 적대 검토 반영).** 지키기
+    (`isWeddingCodeResearchStorageActive()` = 32자 이상 `WEDDING_CODE_RESEARCH_RECEIPT_SECRET`)가
+    전용 보관기간 크론(`/api/cron/wedding-code-research-retention`)·삭제 API·삭제 폼·처리방침
+    고지를 켠다. 받기(`isWeddingCodeResearchContributionOpen()`)는 지키기 + 플래그 +
+    `WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT`(처리방침 제10조 사전 고지, 2026-09-23) 이후에만
+    카드·보태기 API를 켠다. 수집을 멈출 때는 플래그만 끄고, 비밀값은 마지막 보태기 후 60일까지
+    지우거나 바꾸지 않는다.
+  - 삭제 코드는 브라우저가 먼저 만든다(끊겨도 같은 코드로 재전송·삭제, 고유 제약으로 한 번만
+    저장). 저장 시각은 날짜 단위로만 남기고, 보냈다는 분석 이벤트는 보내지 않는다 — 이름 없는
+    답이 시각 대조로 한 기기에 이어지지 않게. tombstone은 같은 코드의 재저장을 막고 지운 코드의
+    남은 행을 크론이 지운다. DB 전체를 백업 시점으로 되돌리면 tombstone도 함께 되돌아가므로
+    그 경우의 재삭제는 약속하지 않는다.
   - 운영 순서: DB 레인 inspect → rehearse → apply(사람 승인) → 비밀값 → 플래그 → 재배포.
   - 이것은 문항 타당도 검증이 아니다. 아래 §4 인간 게이트(Candidate 6.3)는 그대로 미통과이며,
     보탠 답으로 유형·점수·궁합을 만들지 않는다.

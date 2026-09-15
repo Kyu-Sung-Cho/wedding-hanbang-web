@@ -20,7 +20,17 @@ export const WEDDING_CODE_RESEARCH_SCENE_COUNT = WEDDING_CODE_V08_QUESTIONS.leng
 /** 동의 문구를 고치면 판을 올린다. 이전 동의와 섞지 않는다. */
 export const WEDDING_CODE_RESEARCH_CONSENT_VERSION = "wc-research-consent-v1";
 export const WEDDING_CODE_RESEARCH_RETENTION_DAYS = 60;
+/** 지운 삭제 코드의 해시를 남겨 같은 코드로 다시 저장되지 않게 하는 기간. */
+export const WEDDING_CODE_RESEARCH_TOMBSTONE_DAYS = 30;
 export const WEDDING_CODE_RESEARCH_MIN_AGE = 19;
+/**
+ * 새 답을 받기 시작하는 시각.
+ *
+ * 처리방침 제10조는 변경의 적용일과 이유를 **미리** 알린다고 약속한다. 새 처리 항목을
+ * 추가하는 개정이라, 문단이 처음 나간 2026-09-16 뒤 7일부터 받는다.
+ * **처리방침 제1조·제3조·부칙에 적힌 날짜와 같아야 한다.**
+ */
+export const WEDDING_CODE_RESEARCH_CONTRIBUTION_EFFECTIVE_AT = "2026-09-23T00:00:00+09:00";
 
 const ANSWER_CODE = new RegExp(`^[A-D-]{${WEDDING_CODE_RESEARCH_SCENE_COUNT}}$`);
 /** `wc_del_` + base64url 32바이트(43글자). 접두사는 보안 강도가 아니라 알아보기용이다. */
@@ -30,9 +40,26 @@ export type WeddingCodeResearchContribution = Readonly<{
   sceneVersion: typeof WEDDING_CODE_RESEARCH_SCENE_VERSION;
   answerCode: string;
   consentVersion: typeof WEDDING_CODE_RESEARCH_CONSENT_VERSION;
+  receipt: string;
 }>;
 
-const CONTRIBUTION_KEYS = ["sceneVersion", "answerCode", "consentVersion", "adultConfirmed", "consented"] as const;
+const CONTRIBUTION_KEYS = ["sceneVersion", "answerCode", "consentVersion", "adultConfirmed", "consented", "receipt"] as const;
+
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/**
+ * 삭제 코드를 만든다(브라우저). `crypto.getRandomValues` 32바이트 → `wc_del_` + 43글자.
+ * 카드가 뜰 때 한 번 만들어 메모리에만 두고, 보태기 요청에 함께 보낸다.
+ */
+export function createWeddingCodeResearchReceipt(): string {
+  const bytes = new Uint8Array(32);
+  globalThis.crypto.getRandomValues(bytes);
+  return `wc_del_${toBase64Url(bytes)}`;
+}
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -57,10 +84,12 @@ export function parseWeddingCodeResearchContribution(
   if (body.consentVersion !== WEDDING_CODE_RESEARCH_CONSENT_VERSION) return null;
   if (body.adultConfirmed !== true || body.consented !== true) return null;
   if (!isWeddingCodeResearchAnswerCode(body.answerCode)) return null;
+  if (typeof body.receipt !== "string" || !WEDDING_CODE_RESEARCH_RECEIPT_PATTERN.test(body.receipt)) return null;
   return {
     sceneVersion: WEDDING_CODE_RESEARCH_SCENE_VERSION,
     answerCode: body.answerCode,
     consentVersion: WEDDING_CODE_RESEARCH_CONSENT_VERSION,
+    receipt: body.receipt,
   };
 }
 

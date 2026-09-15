@@ -17,10 +17,9 @@ const eventSchema = z.object({
   commit: z.string().nullable(),
   enabled: z.boolean(),
   status: z.enum(["started", "disabled", "completed", "failed", "partial"]),
-  failedStep: z.enum(["client", "ai_interactions", "admin_access", "wedding_code_research"]).nullable(),
+  failedStep: z.enum(["client", "ai_interactions", "admin_access"]).nullable(),
   redacted: z.number().int().nonnegative().nullable(),
   purgedAdminAccess: z.number().int().nonnegative().nullable(),
-  purgedWeddingCodeResearch: z.number().int().nonnegative().nullable(),
 }).strict();
 
 function request(secret = "cron-secret") {
